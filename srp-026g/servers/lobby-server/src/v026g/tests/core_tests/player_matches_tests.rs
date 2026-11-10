@@ -172,16 +172,23 @@ fn the_own_ask_lists_the_askers_matches() {
     world.accounts.get(1).unwrap().locked().rating = 5000;
     let alice = world.connect("Alice");
 
-    // Whoever Bob was shown last, its own ask is about Bob: the rows
-    // Alice gets about him.
+    // Whoever Bob was shown last, its own ask is about Bob. Its own list has its match against
+    // bots and its private room's too, the newest first, each marked in a last field; a public
+    // match's row has no such field.
     let own = matches_at(&mut world, bob, OWN_MATCHES_START, 10);
     assert_eq!(own.len(), 11);
     assert_eq!(own[0], "P1;10;Bob");
-    assert!(own[1].starts_with("P2;0000010b;"));
+    assert!(own[1].starts_with("P2;0000010d;") && own[1].ends_with(";2"), "{}", own[1]);
+    assert!(own[2].starts_with("P2;0000010c;") && own[2].ends_with(";1"), "{}", own[2]);
+    assert!(own[3].starts_with("P2;0000010b;"));
+    assert_eq!(own[3].split(';').count(), 10);
+    // Alice is shown Bob's public matches only: the same rows, without those two.
     world.ask(alice, request::ranking(0, 100));
     world.take(alice);
     world.ask(alice, request::player_details(GEAR_BY_PLACE, 1));
-    assert_eq!(matches(&mut world, alice, 10), own);
+    let shown = matches(&mut world, alice, 10);
+    assert_eq!(shown[1..9], own[3..11]);
+    assert!(shown.iter().all(|row| !row.starts_with("P2;0000010c;") && !row.starts_with("P2;0000010d;")));
     // Alice played none.
     assert_eq!(
         matches_at(&mut world, alice, OWN_MATCHES_START, 10),

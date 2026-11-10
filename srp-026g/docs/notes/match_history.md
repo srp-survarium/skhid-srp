@@ -9,6 +9,13 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
 - The stats are part of our own site (skhid.link), not the old survarium.pro stack.
 - Every finished match is kept in `srp.db`, private rooms and matches against bots too; only public
   matches are ever served, counted in totals, or shown in a list.
+  - One list is the player's own (the owner's of 2026-11-10: "do how you think is appropriate and
+    should be genre best practice"; the rule above was the site's, and the game's lists had taken
+    it over, so a player could not find its own private match again once its results were closed):
+    the game's Watch, Replays, Mine (`3B 00 <OWN_MATCHES_START>`, `MatchHistory::own_matches`)
+    lists the asker's matches of every kind, a private room's marked "Private room" and one
+    against bots "With bots" (`P2`'s last field, there only for those). Another player's list,
+    Friends, Everyone, the site and every total stay public only.
 - The server's bots (account 0) and test bots (`SRP_BOT_ACCOUNTS`) are never kept.
 - Never served: login names, addresses, bans or their reasons, the hidden matchmaking rating
   (`g26_balance`). "Rating" is the visible one players see in the lobby.

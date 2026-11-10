@@ -98,6 +98,22 @@ pub struct PlayerMatchRow {
     pub deaths: u16,
     pub minutes_since_end: u32,
     pub replay: ReplayState,
+    pub shown: Shown,
+}
+
+/// What a line of the asker's own list is of. A public match's row has no
+/// field for it (the row every movie reads); a private room's or one
+/// against bots has it last, and a movie that does not know the field
+/// leaves the row out, as before it was ever listed.
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Shown {
+    #[default]
+    Public = 0,
+    /// A room with a PIN: listed for its own players only.
+    Private = 1,
+    /// Against the server's bots.
+    VsBots = 2,
 }
 
 /// `91` with `nickname`'s matches: at most [`PLAYER_MATCHES_ROWS`].
@@ -112,7 +128,7 @@ pub fn player_matches(
         cut(nickname, limits::NAME - head.len())
     )];
     names.extend(matches.iter().map(|row| {
-        format!(
+        let row_text = format!(
             "P2;{:08x};{};{};{};{};{};{};{};{}",
             row.match_id,
             row.place,
@@ -123,7 +139,11 @@ pub fn player_matches(
             row.deaths,
             row.minutes_since_end,
             row.replay as u8
-        )
+        );
+        match row.shown {
+            Shown::Public => row_text,
+            shown => format!("{row_text};{}", shown as u8),
+        }
     }));
     let rows: Vec<Ranked> = names
         .into_iter()
@@ -157,8 +177,9 @@ mod tests {
             deaths: u16::MAX,
             minutes_since_end: u32::MAX,
             replay: ReplayState::OldVersion,
+            shown: Shown::VsBots,
         };
-        let longest = "P2;ffffffff;255;255;255;2;65535;65535;4294967295;4";
+        let longest = "P2;ffffffff;255;255;255;2;65535;65535;4294967295;4;2";
         assert!(longest.len() <= limits::NAME);
         // A name past the row's room is cut, never the row refused.
         let message = player_matches(&"Ж".repeat(40), &[row; 12]).unwrap();

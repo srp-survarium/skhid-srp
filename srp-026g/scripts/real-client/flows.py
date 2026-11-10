@@ -1044,6 +1044,20 @@ def called_back(run: Run) -> None:
     end_match(run, a, b)
 
 
+def mine(run: Run) -> None:
+    """Replays, Mine: the player's own matches, a private room's and one against bots among them when it has such
+    (their cards say so; the shot shows them)."""
+    a = sign_in(run, "ReplayTester")
+    a.wait_screen(play_ready, "a lobby that has settled", 20, steady=3)
+    open_replays(a)
+    a.wait_screen(card_listed, "a card on the Replays tab")
+    time.sleep(1)
+    a.shot("mine-own-matches")
+    say("the Replays tab lists the player's own matches")
+    a.click(*CLOSE_WATCH)
+    a.wait_screen(lobby_clear, "the lobby", 5)
+
+
 def ranking_listed(picture) -> bool:
     """The Ranking window with rows: light text where its second row's name is."""
     name = picture[484:500, 596:690].astype(int).sum(axis=2)
@@ -1075,7 +1089,7 @@ def ranking_matches(run: Run) -> None:
     a.wait_screen(lambda picture: not window_open(picture), "the Watch window closed", 5)
 
 
-FLOWS = {"called_back": called_back, "ranking_matches": ranking_matches, "loose_search": loose_search, "queue_spectate": queue_spectate, "paused": paused,
+FLOWS = {"called_back": called_back, "mine": mine, "ranking_matches": ranking_matches, "loose_search": loose_search, "queue_spectate": queue_spectate, "paused": paused,
          "friend_in_countdown": friend_in_countdown,
          "windows_close_watch": windows_close_watch, "card_press": card_press, "card_code": card_code, "code_submit": code_submit,
          "unknown_codes": unknown_codes, "moments": moments, "kit": kit_after_replay, "kit_view": kit_view, "live": live, "follow": follow, "save": save, "first_click": first_click}

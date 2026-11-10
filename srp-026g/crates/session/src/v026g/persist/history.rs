@@ -611,6 +611,16 @@ pub struct MatchPlayer {
     pub kits: Vec<KitLine>,
 }
 
+/// What a line of a player's own list is of ([`MatchHistory::own_matches`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OwnKind {
+    Public,
+    /// A room with a PIN.
+    Private,
+    /// Against the server's bots.
+    VsBots,
+}
+
 /// A public match of a player's: the match, its line and its kits.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PlayerMatch {
@@ -981,6 +991,8 @@ const SUMMARY: &str = "m.id, m.ended_at, m.duration_ms, m.map_id, m.game_mode, m
      (SELECT COUNT(*) FROM g26_match_players n WHERE n.match_id = m.id), m.eligibility,
      m.replay_id";
 const SUMMARY_COLUMNS: usize = 12;
+/// The columns of [`LINE`].
+const LINE_COLUMNS: usize = 17;
 /// The columns of a [`PlayerLine`] of `p` (seventeen).
 const LINE: &str = "p.team, p.place, p.presence, p.rating, p.score, p.kills, p.deaths, p.assists,
      p.headshots, p.grenade_kills, p.melee_kills, p.batteries, p.captures, p.artefacts, p.shots,
@@ -1293,6 +1305,41 @@ impl MatchHistory {
             });
         }
         Ok(matches)
+    }
+
+    /// The account's own matches of every kind, newest first, at most
+    /// `limit`, each with its kind: a PIN room's and those against the
+    /// server's bots too, which only the player itself is ever shown (its
+    /// own list in the game; they stay out of every other list, the site
+    /// and the totals). No kits are read. A match that is not public counts
+    /// nowhere: its summary's eligibility reads [`Eligibility::Short`].
+    pub fn own_matches(&self, account_id: u32, limit: usize) -> Result<Vec<(PlayerMatch, OwnKind)>, PersistError> {
+        let connection = self.reader();
+        let summary = SUMMARY.replace("m.eligibility", "COALESCE(m.eligibility, 'short')");
+        let mut statement = connection.prepare_cached(&format!(
+            "SELECT {summary}, {LINE}, m.kind
+             FROM g26_match_players p JOIN g26_matches m ON m.id = p.match_id
+             WHERE p.account_id = ?1
+             ORDER BY p.match_id DESC LIMIT ?2"
+        ))?;
+        let rows = statement
+            .query_map(params![account_id, bounded(limit)], |row| {
+                let kind: String = row.get(SUMMARY_COLUMNS + LINE_COLUMNS)?;
+                let kind = match kind.as_str() {
+                    "public" => OwnKind::Public,
+                    "private" => OwnKind::Private,
+                    "vs_bots" => OwnKind::VsBots,
+                    _ => return Err(bad("match kind", &kind)),
+                };
+                let played = PlayerMatch {
+                    summary: summary_at(row, 0)?,
+                    line: line_at(row, SUMMARY_COLUMNS)?,
+                    kits: Vec::new(),
+                };
+                Ok((played, kind))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
     }
 
     /// The account's most used weapons and armour of its public matches,
@@ -1907,6 +1954,14 @@ mod tests {
         assert_eq!(summary.eligibility, Eligibility::Short);
         assert_eq!(players.len(), 2);
         assert_eq!(history.player_matches(10, None, 10).unwrap().len(), 1);
+        // The player's own list has its private room's match and the one against bots too,
+        // newest first, each with its kind; no other list and no total has them.
+        repository.record_match(&record(MatchKind::Private, 200)).unwrap();
+        repository.record_match(&record(MatchKind::VsBots, 300)).unwrap();
+        let own: Vec<OwnKind> = history.own_matches(10, 10).unwrap().into_iter().map(|(_, kind)| kind).collect();
+        assert_eq!(own, [OwnKind::VsBots, OwnKind::Private, OwnKind::Public]);
+        assert_eq!(history.own_matches(10, 2).unwrap().len(), 2);
+        assert_eq!(history.player_matches(10, None, 10).unwrap().len(), 1, "public only");
         assert_eq!(history.account_by_name("Alice").unwrap(), Some(10));
         assert_eq!(
             history.player(10).unwrap().unwrap().totals,

@@ -27,6 +27,13 @@ package survarium.watch
       // recorded by games of revisions the asker's does not play
       public static const REPLAY_OLD:int = 4;
 
+      // what a line of the asker's own list is of: a public match, a private room's, one against bots
+      public static const SHOWN_PUBLIC:int = 0;
+
+      public static const SHOWN_PRIVATE:int = 1;
+
+      public static const SHOWN_BOTS:int = 2;
+
       public static const PHASE_PLAYING:int = 2;
 
       public static const PHASE_OVER:int = 3;
@@ -146,11 +153,17 @@ package survarium.watch
       public static function played(text:String) : Object
       {
          var f:Array = text.split(";");
-         if(f.length != 10 || f[0] != "P2" || !hex(f[1]) || !counts(f,[2,3,4,5,6,7,8,9]))
+         // the asker's own match of a private room or against bots has one field more: which
+         if(f.length != 10 && f.length != 11 || f[0] != "P2" || !hex(f[1]) || !counts(f,[2,3,4,5,6,7,8,9]))
          {
             return null;
          }
          if(count(f[2]) > PLACE_ANY || count(f[5]) > 2 || count(f[9]) > REPLAY_OLD)
+         {
+            return null;
+         }
+         var shown:int = f.length == 11 ? count(f[10]) : SHOWN_PUBLIC;
+         if(shown != SHOWN_PUBLIC && shown != SHOWN_PRIVATE && shown != SHOWN_BOTS)
          {
             return null;
          }
@@ -165,6 +178,7 @@ package survarium.watch
             "deaths":count(f[7]),
             "minutes":count(f[8]),
             "replay":count(f[9]),
+            "shown":shown,
             "friends":[]
          };
       }

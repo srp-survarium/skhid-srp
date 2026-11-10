@@ -2871,6 +2871,7 @@ st_srp_watch_none_live_friends	Most egyik barátod sem játszik.
 st_srp_watch_none_mine	Mostantól itt látod a meccseidet.
 st_srp_watch_none_recent	Még nincs rögzített meccs.
 st_srp_watch_players	%1$s játékos
+st_srp_watch_private	Privát szoba
 st_srp_watch_reason_full	Nincs több hely nézőknek
 st_srp_watch_reason_gone	A visszajátszás nincs meg
 st_srp_watch_reason_old	Egy játékfrissítés előtt rögzítve

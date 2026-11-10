@@ -590,6 +590,17 @@ package
             expect(language + ": Ada's Watch asked " + asked(),asked()[0] == OTHER && asked()[1] == 0xC0020000);
          }
          expect(language + ": a players' answer nobody asked for taken",!W.found([]));
+         // the asker's own match of a private room or against bots: a field more, which a card says
+         var Rows:* = domain.getDefinition("survarium.watch.WatchRows");
+         var privateRow:Object = Rows.played("P2;00000031;1;61;5;1;9;2;180;1;1");
+         var botsRow:Object = Rows.played("P2;00000032;1;61;5;1;9;2;180;1;2");
+         var publicRow:Object = Rows.played("P2;00000033;1;61;5;1;9;2;180;1");
+         expect(language + ": an own row's kind is not read",privateRow != null && privateRow.shown == 1 && botsRow != null && botsRow.shown == 2
+            && publicRow != null && publicRow.shown == 0);
+         expect(language + ": a row of a kind nobody knows, or with fields past it, is taken",Rows.played("P2;00000034;1;61;5;1;9;2;180;1;3") == null
+            && Rows.played("P2;00000034;1;61;5;1;9;2;180;1;1;0") == null);
+         expect(language + ": no word for a private room's match",String(words.getName("st_srp_watch_private")).length > 2
+            && words.getName("st_srp_watch_private") != "st_srp_watch_private");
          // a name typed loosely: the first found (srp's best match), none the name itself
          typeIn("adm");
          W.found([{"id":6,"name":"Adam_K"},{"id":5,"name":"Ada"}]);

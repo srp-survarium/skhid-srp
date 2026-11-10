@@ -35,7 +35,7 @@ Watch button wherever a match is mentioned.
   room's member; `LobbyMenu.showPlayerInfoMenu`): Watch, Replays, that player's name searched.
 - **The window.** Tabs **Live** (its count, a red dot) and **Replays**. Chips under them: Live
   Everyone (the default) or Friends (the matches with a friend in them); Replays Mine (the default:
-  the asker's own `P1` rows), Friends (`M1` with `f` 1) or Everyone (`M1`). A search box: a match's code
+  the asker's own `P1` rows, its private rooms' matches and those against bots among them, marked: no other list has those), Friends (`M1` with `f` 1) or Everyone (`M1`). A search box: a match's code
   (8 hex digits, `#` optional) watches it; anything else is a player's name: the game's own player
   search (`find_players`, answered in `LobbyMenu.fill_players_search`, taken by `WatchWindow.found`)
   finds the account: srp answers the players whose name the text matches loosely, the best first

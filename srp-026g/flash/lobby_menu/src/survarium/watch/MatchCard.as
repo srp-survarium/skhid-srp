@@ -198,6 +198,15 @@ package survarium.watch
          {
             parts.push(LocalizationData.format("st_srp_watch_players",row.players));
          }
+         // the asker's own match that no other list shows: said, so that it is known for one
+         else if(row.kind == "played" && int(row.shown) == WatchRows.SHOWN_PRIVATE)
+         {
+            parts.push(LocalizationData.getName("st_srp_watch_private"));
+         }
+         else if(row.kind == "played" && int(row.shown) == WatchRows.SHOWN_BOTS)
+         {
+            parts.push(LocalizationData.getName("st_srp_rooms_bots"));
+         }
          return WatchWindow.joined(parts);
       }
 

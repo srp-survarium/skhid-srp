@@ -2871,6 +2871,7 @@ st_srp_watch_none_live_friends	Зараз ніхто з вашых сяброў 
 st_srp_watch_none_mine	Тут будуць вашы матчы, пачынаючы з гэтага моманту.
 st_srp_watch_none_recent	Запісаных матчаў яшчэ няма.
 st_srp_watch_players	гульцоў: %1$s
+st_srp_watch_private	Прыватны пакой
 st_srp_watch_reason_full	Няма месцаў для гледачоў
 st_srp_watch_reason_gone	Паўтор не захаваны
 st_srp_watch_reason_old	Запісаны да абнаўлення гульні

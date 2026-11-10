@@ -9,11 +9,11 @@
 use std::time::Instant;
 
 use session::LockExt;
-use session::v026g::persist::history::{MatchSummary, PlayerMatch, Presence, Winner};
+use session::v026g::persist::history::{MatchSummary, OwnKind, PlayerMatch, Presence, Winner};
 use session::v026g::replays;
 use survarium::v026g::lobby::friend_row;
 use survarium::v026g::lobby::player_matches::{
-    Outcome, PLAYER_MATCHES_ROWS, PlayerMatchRow, ReplayState, Whose, player_matches,
+    Outcome, PLAYER_MATCHES_ROWS, PlayerMatchRow, ReplayState, Shown, Whose, player_matches,
 };
 use survarium::v026g::lobby::recent_matches::{
     RECENT_MATCHES_ROWS, RecentFilter, RecentMatchRow, recent_matches,
@@ -38,10 +38,33 @@ impl Core<'_> {
             .map(|account| account.locked().name.clone())
             .unwrap_or_default();
         let limit = usize::from(count).min(PLAYER_MATCHES_ROWS);
+        // The asker's own list has its private rooms' matches and those
+        // against bots too (the owner's of 2026-11-10: a player finds its
+        // own matches there; only public ones were ever listed, a rule of
+        // the site's that the game's lists took over). Another player's
+        // list, the site and the totals stay public only.
         let found = match (subject, self.accounts.history()) {
-            (Some(account_id), Some(history)) if limit > 0 => {
-                history.player_matches(account_id, None, limit)
-            }
+            (Some(account_id), Some(history)) if limit > 0 => match whose {
+                Whose::Own => history.own_matches(account_id, limit).map(|matches| {
+                    matches
+                        .into_iter()
+                        .map(|(played, kind)| {
+                            let shown = match kind {
+                                OwnKind::Public => Shown::Public,
+                                OwnKind::Private => Shown::Private,
+                                OwnKind::VsBots => Shown::VsBots,
+                            };
+                            (played, shown)
+                        })
+                        .collect::<Vec<_>>()
+                }),
+                Whose::Shown => history.player_matches(account_id, None, limit).map(|matches| {
+                    matches
+                        .into_iter()
+                        .map(|played| (played, Shown::Public))
+                        .collect::<Vec<_>>()
+                }),
+            },
             _ => Ok(Vec::new()),
         };
         let matches = found.unwrap_or_else(|error| {
@@ -51,7 +74,10 @@ impl Core<'_> {
         let unix = session::v026g::quests::now();
         let rows: Vec<PlayerMatchRow> = matches
             .iter()
-            .map(|played| player_row(played, unix, self.replay_state(who, &played.summary, now)))
+            .map(|(played, shown)| PlayerMatchRow {
+                shown: *shown,
+                ..player_row(played, unix, self.replay_state(who, &played.summary, now))
+            })
             .collect();
         self.send_made(who.addr, player_matches(&nickname, &rows));
     }
@@ -185,6 +211,7 @@ fn player_row(played: &PlayerMatch, unix: u64, replay: ReplayState) -> PlayerMat
         deaths: line.deaths.min(u64::from(u16::MAX)) as u16,
         minutes_since_end: minutes_since(info.ended_at, unix),
         replay,
+        shown: Shown::Public,
     }
 }
 

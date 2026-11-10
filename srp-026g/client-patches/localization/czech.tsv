@@ -2871,6 +2871,7 @@ st_srp_watch_none_live_friends	Žádný z vašich přátel teď nehraje.
 st_srp_watch_none_mine	Od teď tu najdete své zápasy.
 st_srp_watch_none_recent	Zatím žádné nahrané zápasy.
 st_srp_watch_players	hráčů: %1$s
+st_srp_watch_private	Soukromá místnost
 st_srp_watch_reason_full	Žádná volná místa pro diváky
 st_srp_watch_reason_gone	Záznam nebyl uložen
 st_srp_watch_reason_old	Nahráno před aktualizací hry

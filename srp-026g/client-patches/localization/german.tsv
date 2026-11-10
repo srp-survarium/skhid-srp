@@ -2871,6 +2871,7 @@ st_srp_watch_none_live_friends	Gerade spielt keiner deiner Freunde.
 st_srp_watch_none_mine	Ab jetzt stehen hier deine Matches.
 st_srp_watch_none_recent	Noch keine aufgezeichneten Matches.
 st_srp_watch_players	%1$s Spieler
+st_srp_watch_private	Privater Raum
 st_srp_watch_reason_full	Keine Zuschauerplätze frei
 st_srp_watch_reason_gone	Wiederholung nicht gespeichert
 st_srp_watch_reason_old	Vor einem Spielupdate aufgezeichnet
