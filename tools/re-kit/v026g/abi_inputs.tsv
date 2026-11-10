@@ -5955,3 +5955,13 @@ va	name	location	role	basis
 0x003b3340	vostok::animation::time_channel::domain	EAX	the time channel {+0 knot count, +4 offset of its memory: count float4 domains, then count float knots}	observed
 0x003b3340	vostok::animation::time_channel::domain	XMM2	the time (float)	observed
 0x003b3340	vostok::animation::time_channel::domain	entry ESP+4	the current domain (u32*, read and written)	observed
+0x0035ae10	vostok::particle::particle_world::tick	ECX	the particle world	observed
+0x0035ae10	vostok::particle::particle_world::tick	entry ESP+4	the time delta (float)	observed
+0x0035ae10	vostok::particle::particle_world::tick	entry ESP+8	the view matrix (float4x4 const*)	observed
+0x0035d200	vostok::particle::particle_system_instance_impl::set_visible	EDI	the instance	observed
+0x0035d200	vostok::particle::particle_system_instance_impl::set_visible	DL	visible (bool)	observed
+0x003627f0	vostok::particle::particle_system_instance_cook::on_materials_loaded	ECX	the cook (its allocator at +20h)	observed
+0x003627f0	vostok::particle::particle_system_instance_cook::on_materials_loaded	entry ESP+4	the material queries' results (queries_result&: +20h the parent query, +38h the count, +12Ch the first result, 2E0h each)	observed
+0x003627f0	vostok::particle::particle_system_instance_cook::on_materials_loaded	entry ESP+8	the new particle_system_instance_impl	observed
+0x003627f0	vostok::particle::particle_system_instance_cook::on_materials_loaded	entry ESP+12	material_query_data* (0Ch each, +4 the emitter instance)	observed
+0x003627f0	vostok::particle::particle_system_instance_cook::on_materials_loaded	entry ESP+16	material_effects_instance_cook_data* (10h each)	observed

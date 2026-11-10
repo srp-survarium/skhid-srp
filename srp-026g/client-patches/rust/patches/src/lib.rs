@@ -93,6 +93,7 @@ pub mod message_check;
 pub mod packet_recovery;
 pub mod memory_report;
 pub mod memory_profile;
+pub mod particle_census;
 pub mod hud_cursor;
 pub mod ban_time;
 pub mod controller_position;

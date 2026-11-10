@@ -56,6 +56,7 @@ pub mod log;
 pub mod melee;
 pub mod memory;
 pub mod memory_profile;
+pub mod particle;
 mod options;
 pub mod parse;
 pub mod resources;

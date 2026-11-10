@@ -10,6 +10,7 @@ patch = 127
 [[hook]]
 site = "memory.arenas_ready"
 handler = "on_start"
+order = 1
 
 # dlmalloc's three entries
 [[hook]]

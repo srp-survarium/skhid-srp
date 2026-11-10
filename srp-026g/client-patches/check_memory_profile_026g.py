@@ -167,8 +167,10 @@ class Run:
         args = [self.read(sp + 4 + 4 * i) for i in range(count)]
         result = 0
         if name == "GetEnvironmentVariableA":
-            assert self.string(args[0]) == "SKHID_MEMORY_PROFILE", self.string(args[0])
-            if self.variable is not None and len(self.variable) < args[2]:
+            # patch 138 reads its own switch at the same site: never set here
+            assert self.string(args[0]) in ("SKHID_MEMORY_PROFILE", "SKHID_PARTICLE_CENSUS"), self.string(args[0])
+            if self.string(args[0]) == "SKHID_MEMORY_PROFILE" and self.variable is not None \
+                    and len(self.variable) < args[2]:
                 emu.mem_write(args[1], self.variable.encode() + b"\0")
                 result = len(self.variable)
         elif name == "VirtualAlloc" and self.rooms_left == 0:

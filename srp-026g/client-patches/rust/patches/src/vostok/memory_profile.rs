@@ -50,6 +50,26 @@ pub enum StartRefused {
     NoRoom,
 }
 
+/// Whether `ctx` is memory.arenas_ready's at the process's start: its frame
+/// allocate_region's, called by engine_world's constructor ([`start`] says
+/// why only the main thread runs the game's code there). What a hook
+/// installed on demand checks before its sites are written (patch 138's
+/// too, `vostok::particle::start`).
+pub(in crate::vostok) fn at_start(ctx: &Context<'_>) -> bool {
+    // SAFETY: the context's EBP as a frame of allocate_region's kind; its
+    // return word is read only after its own check (a stack word of this
+    // thread when the context is the start's: EBP points into the stack).
+    unsafe {
+        raw::site::memory_arenas_ready::frame(ctx).is_some_and(|frame| {
+            let ebp = frame.address() as usize;
+            let esp = ctx.reg(super::Reg::Esp) as usize;
+            // EBP a frame of this stack just above ESP (allocate_region's, its _alloca of the
+            // arenas' list included), before its word is read
+            ebp > esp && ebp - esp < 0x4000 && read(frame.return_address()) == raw::image::ALLOCATE_REGION_RETURN
+        })
+    }
+}
+
 /// Switches the profile on, at memory.arenas_ready alone: writes the gates
 /// into the allocator's code (`memory_profile.toml`'s hooks installed on
 /// demand: dlmalloc's mspace_malloc, mspace_realloc and mspace_free,
@@ -70,19 +90,7 @@ pub enum StartRefused {
 /// own threads never run the game's allocator. So no thread runs the sites'
 /// code while they are written.
 pub fn start<T>(ctx: &Context<'_>, tables: impl FnOnce(&Thread) -> Option<T>) -> Result<T, StartRefused> {
-    // SAFETY: the context's EBP as a frame of allocate_region's kind; its
-    // return word is read only after its own check (a stack word of this
-    // thread when the context is the start's: EBP points into the stack).
-    let at_start = unsafe {
-        raw::site::memory_arenas_ready::frame(ctx).is_some_and(|frame| {
-            let ebp = frame.address() as usize;
-            let esp = ctx.reg(super::Reg::Esp) as usize;
-            // EBP a frame of this stack just above ESP (allocate_region's, its _alloca of the
-            // arenas' list included), before its word is read
-            ebp > esp && ebp - esp < 0x4000 && read(frame.return_address()) == raw::image::ALLOCATE_REGION_RETURN
-        })
-    };
-    if !at_start || STARTED.swap(true, Ordering::AcqRel) {
+    if !at_start(ctx) || STARTED.swap(true, Ordering::AcqRel) {
         return Err(StartRefused::NotTheStart);
     }
     let thread = ctx.thread();

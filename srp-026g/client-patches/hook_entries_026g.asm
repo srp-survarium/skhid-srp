@@ -5378,7 +5378,7 @@ medical_skills_on_sway_replay:
 
 ; 0xe12bf allocate_region (0xE1120) after memory::initialize (0xE12D0) made each registered allocator's heap in its arena (lea esp,[ebp-58h] / pop edi / pop esi / pop ebx): every arena is where it stays while the game runs; patch 127 reads SKHID_MEMORY_PROFILE here, once: lohook -> memory_profile_on_start
 global memory_profile_on_start
-extern hook_memory_profile_on_start
+extern hook_memory_profile_on_start_chain
 memory_profile_on_start:
     lea esp, [esp - 4]
     pushfd
@@ -5396,7 +5396,7 @@ memory_profile_on_start:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_memory_profile_on_start
+    call hook_memory_profile_on_start_chain
     mov edx, memory_profile_on_start_replay
     cmp eax, 0
     je memory_profile_on_start_go
@@ -5867,6 +5867,84 @@ music_on_sound_tick_replay:
 
 ; 0x14730 the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query: callback -> music_on_query_done (wraps engine_store_first_resource 0x14730)
     RUST_CDECL music_on_query_done, hook_music_on_query_done, 2
+
+; 0x35ae10 particle_world::tick's start (push ebp / mov ebp,esp / and esp,-8; thiscall, ECX the world, ret 8), once a frame for each particle world on the thread that ticks it: patch 138's census reads the world's ticked instances here; installed on demand: lohook -> particle_census_on_tick
+global particle_census_on_tick
+extern hook_particle_census_on_tick
+particle_census_on_tick:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_particle_census_on_tick
+    mov edx, particle_census_on_tick_replay
+    cmp eax, 0
+    je particle_census_on_tick_go
+    mov edx, 0x35ae16
+    cmp eax, 1
+    je particle_census_on_tick_go
+    ud2
+particle_census_on_tick_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+particle_census_on_tick_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x35ae16
+
+; 0x3627f0 particle_system_instance_cook::on_materials_loaded's start (sub esp,14h / push ebx / mov ebx,[esp+1Ch]; ret 10h), once for each particle system instance the cook made (reuse_false: one a query): the material queries' results at [esp+4], the new instance at [esp+8]; patch 138 learns the effect's name here; installed on demand: lohook -> particle_census_on_created
+global particle_census_on_created
+extern hook_particle_census_on_created
+particle_census_on_created:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_particle_census_on_created
+    mov edx, particle_census_on_created_replay
+    cmp eax, 0
+    je particle_census_on_created_go
+    mov edx, 0x3627f8
+    cmp eax, 1
+    je particle_census_on_created_go
+    ud2
+particle_census_on_created_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+particle_census_on_created_replay:
+    db 0x83, 0xec, 0x14, 0x53, 0x8b, 0x5c, 0x24, 0x1c
+    jmp 0x3627f8
 
 ; 0x24757c mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player); culled 0x24781E, past the bones and past the culled player's held item's vtable+4Ch (0x247811: weapon::on_culled_player_draw 0x245250 moves the weapon to the player's root), where the game's own cull (jne 0x24758C, [ebx+12Ch] not 0) ends, the stack as at the site: lohook -> ragdoll_on_cull
 global ragdoll_on_cull

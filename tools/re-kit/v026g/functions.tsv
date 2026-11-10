@@ -2276,3 +2276,13 @@ va	status	ref_021d	name
 0x00074300	reviewed		vostok::math::quaternion::get_axis_and_angle
 0x003b3180	reviewed	0x00260e7f	vostok::animation::evaluate_frame
 0x003b3340	reviewed		vostok::animation::time_channel::domain
+0x0035ae10	verified		vostok::particle::particle_world::tick
+0x0035b9d0	verified		vostok::particle::particle_world::set_visible
+0x0035b3e0	verified		vostok::particle::particle_world::get_render_emitter_instances
+0x0035cec0	verified		vostok::particle::particle_system_instance_impl::particle_system_instance_impl
+0x0035d200	verified		vostok::particle::particle_system_instance_impl::set_visible
+0x0035d250	verified		vostok::particle::particle_system_instance_impl::calc_num_max_particles
+0x0035e900	verified		vostok::particle::particle_emitter_instance::remove_overflowing_particles
+0x003621c0	verified		vostok::particle::particle_system_instance_cook::translate_query
+0x00362280	verified		vostok::particle::particle_system_instance_cook::on_sub_resources_loaded
+0x003627f0	verified		vostok::particle::particle_system_instance_cook::on_materials_loaded

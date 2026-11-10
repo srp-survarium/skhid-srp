@@ -1,0 +1,28 @@
+# Patch 138: the particle census, dormant unless the game is started with
+# SKHID_PARTICLE_CENSUS=1 (client_patch.md "Particle census"). Only the
+# decisions: the sites and the handlers. Both particle sites are installed
+# on demand: the exe keeps the game's bytes there, and on_start writes the
+# jumps only when the census is on.
+name = "particle_census"
+patch = 138
+
+# allocate_region after every allocator's heap is made, after patch 127's
+# own read of its switch: the switch read once
+[[hook]]
+site = "memory.arenas_ready"
+handler = "on_start"
+order = 2
+
+# particle_world::tick's start: about once a second, the world's ticked
+# instances counted by effect name; every ten seconds, the report
+[[hook]]
+site = "particle.world_tick"
+handler = "on_tick"
+install = "on_demand"
+
+# the instance cook's last step: the new instance's template named by the
+# path its query asked for, and one more instance made of that name
+[[hook]]
+site = "particle.materials_loaded"
+handler = "on_created"
+install = "on_demand"
