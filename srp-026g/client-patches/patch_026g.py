@@ -581,6 +581,11 @@ Patches:
   lobby 31 in the handshake, and while the level loads waits for
   on_match_ready's end (0x27AEBF) to close it; on_project_loaded's abort
   (0x1F8AF3) lets an open match's load go on. Nothing a match computes;
+- a replay's minimap and Tab map show every enemy, spotted or not (patch
+  135, replay_map; docs/notes/replay-map.md): at update_minimap_players'
+  spotted test (0x239505) a replay goes on to the listing (0x23951B); a
+  replay is known from its chunk 1's options read (0x1F0971), a live match
+  from the 0xE4's (0x27B92D). Nothing a match computes;
 - the game tells the match server how much memory it has left (patch 126,
   memory_report; docs/notes/memory-report.md, client_patch.md section
   3.76): when a match connection's first world is in (world_load.loaded)

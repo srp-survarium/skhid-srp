@@ -1,0 +1,23 @@
+# Patch 135: a replay's minimap shows the enemies too (README "A replay's
+# map shows every player"). The sites are sites_026g.tsv's; the logic is
+# replay_map.rs. The two options reads are patches 65, 83, 86 and 88's
+# sites too: order 4 on both.
+name = "replay_map"
+patch = 135
+
+# A live match's options read: a match, enemies as the game shows them.
+[[hook]]
+site = "static_info.options_read"
+handler = "on_static_info"
+order = 4
+
+# A replay's chunk 1: a replay, every enemy shown.
+[[hook]]
+site = "replay.options_read"
+handler = "on_replay_options"
+order = 4
+
+# update_minimap_players' spotted test of an enemy.
+[[hook]]
+site = "minimap.enemy_spotted"
+handler = "on_enemy"

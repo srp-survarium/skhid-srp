@@ -5667,6 +5667,48 @@ ragdoll_on_killed_replay:
     db 0x8b, 0x86, 0x20, 0x01, 0x00, 0x00
     jmp 0x2da3e5
 
+; 0x239505 update_minimap_players (0x239420) at its test of an enemy (a place of another team than the local player, alive and in the world): cmp dword [eax+348h],esi (ESI 0), its time spotted; the ja after it (0x23950B) lists it while that is above 0, else 0x23950D drops it. shown is the listing (0x23951B, where the team test's je goes too): the icon object for the place in EAX: lohook -> replay_map_on_enemy
+global replay_map_on_enemy
+extern hook_replay_map_on_enemy
+replay_map_on_enemy:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_replay_map_on_enemy
+    mov edx, replay_map_on_enemy_replay
+    cmp eax, 0
+    je replay_map_on_enemy_go
+    mov edx, 0x23950b
+    cmp eax, 1
+    je replay_map_on_enemy_go
+    mov edx, 0x23951b
+    cmp eax, 2
+    je replay_map_on_enemy_go
+    ud2
+replay_map_on_enemy_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+replay_map_on_enemy_replay:
+    db 0x39, 0xb0, 0x48, 0x03, 0x00, 0x00
+    jmp 0x23950b
+
 ; 0x572675 DrawableImageContext::OnNextCapture (0x572660, the render thread) after its ExecuteNextCapture (vtable+4, call edx at 0x572673), at the walk of its queues (mov ecx,[esi+44h] / lea edi,[esi+40h]): ESI the context's capture notify (context+8), EBX the render notify; done is its epilogue (pop edi / pop esi / pop ebx / ret 4, the registers the entry pushed): lohook -> scaleform_capture_on_next_capture
 global scaleform_capture_on_next_capture
 extern hook_scaleform_capture_on_next_capture

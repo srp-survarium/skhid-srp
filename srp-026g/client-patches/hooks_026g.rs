@@ -1041,6 +1041,21 @@ pub extern "C" fn hook_hud_options_on_static_info(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- replay_map (patch 135) ----
+
+/// The entry `replay_map_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_replay_map_on_static_info(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `replay_map_on_static_info` calls this, from the game's jump at 0x27b92d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::replay_map::on_static_info(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- blackout (patch 65) ----
 
 /// The entry `blackout_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
@@ -1095,6 +1110,21 @@ pub extern "C" fn hook_music_on_replay(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::music::on_replay(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- replay_map (patch 135) ----
+
+/// The entry `replay_map_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_replay_map_on_replay_options(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `replay_map_on_replay_options` calls this, from the game's jump at 0x1f0971,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::replay_map::on_replay_options(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -3010,6 +3040,26 @@ pub extern "C" fn hook_ragdoll_on_killed(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- replay_map (patch 135) ----
+
+/// The named exits of replay_map::on_enemy (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ReplayMapOnEnemyExit { Shown }
+/// The entry `replay_map_on_enemy` (0x239505, update_minimap_players (0x239420) at its test of an enemy (a place of another team than the local player, alive and in the world): cmp dword [eax+348h],esi (ESI 0), its time spotted; the ja after it (0x23950B) lists it while that is above 0, else 0x23950D drops it. shown is the listing (0x23951B, where the team test's je goes too): the icon object for the place in EAX) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_replay_map_on_enemy(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `replay_map_on_enemy` calls this, from the game's jump at 0x239505,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::replay_map::on_enemy(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- scaleform_capture (patch 93) ----
 
 /// The named exits of scaleform_capture::on_next_capture (the order the shim's Flow code
@@ -3646,6 +3696,8 @@ pub extern "C" fn hook_blackout_on_static_info_chain(frame: &mut Frame) -> u32 {
     if flow != 0 { return flow; }
     let flow = hook_hud_options_on_static_info(frame);
     if flow != 0 { return flow; }
+    let flow = hook_replay_map_on_static_info(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -3658,6 +3710,8 @@ pub extern "C" fn hook_blackout_on_replay_options_chain(frame: &mut Frame) -> u3
     let flow = hook_hud_options_on_replay_options(frame);
     if flow != 0 { return flow; }
     let flow = hook_music_on_replay(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_replay_map_on_replay_options(frame);
     if flow != 0 { return flow; }
     0
 }
