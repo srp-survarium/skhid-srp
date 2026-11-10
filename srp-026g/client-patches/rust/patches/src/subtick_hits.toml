@@ -3,6 +3,8 @@
 # sites_026g.tsv's; the logic is subtick_hits.rs.
 name = "subtick_hits"
 patch = 103
+# patch 138 counts the game's bullet rays in this handler, while its census is on
+uses = ["particle_census"]
 
 # check_collision after the game's ray test: first of the site's chain, so
 # the ragdoll (0) and the lamps (1) read the hit it leaves

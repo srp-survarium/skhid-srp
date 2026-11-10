@@ -2573,6 +2573,24 @@ impl BulletManager {
     pub unsafe fn set_physics(self, value: Option<BulletPhysicsWorld>) {
         unsafe { self.0.byte_add(0x98).cast::<Option<BulletPhysicsWorld>>().write_volatile(value) }
     }
+
+    /// +0x8 (u32): its live bullets' vector's begin, a pointer a bullet (bullet_manager::tick 0x321D32..0x321D44: (end - begin) / 4 bullets)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn bullets(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xc (u32): the vector's end
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn bullets_end(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xc).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A survarium::game_material (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -10393,6 +10411,24 @@ impl QueriesResult {
     #[inline(always)]
     pub unsafe fn set_effect(self, value: Option<MedicalEffectResource>) {
         unsafe { self.0.byte_add(0x12c).cast::<Option<MedicalEffectResource>>().write_volatile(value) }
+    }
+
+    /// +0x20 (ptr<vostok::resources::query_result_for_cook>): get_parent_query (on_materials_loaded 0x3628DD: the instance's own query, which gets the new instance)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn parent(self) -> Option<QueryResultForCook> {
+        unsafe { self.0.byte_add(0x20).cast::<Option<QueryResultForCook>>().read_volatile() }
+    }
+
+    /// +0x20 (ptr<vostok::resources::query_result_for_cook>): get_parent_query (on_materials_loaded 0x3628DD: the instance's own query, which gets the new instance)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_parent(self, value: Option<QueryResultForCook>) {
+        unsafe { self.0.byte_add(0x20).cast::<Option<QueryResultForCook>>().write_volatile(value) }
     }
 }
 
@@ -19846,6 +19882,379 @@ impl TextureRegistryNode {
     }
 }
 
+/// A vostok::particle::particle_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ParticleWorld(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ParticleWorld {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x19c (ptr<vostok::particle::particle_system_instance>): m_ticked_instances_list's first instance (0: none); particle_world::tick 0x35AEF9 walks it by each one's next (the constructor 0x35A584 clears it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn instances(self) -> Option<ParticleSystemInstance> {
+        unsafe { self.0.byte_add(0x19c).cast::<Option<ParticleSystemInstance>>().read_volatile() }
+    }
+
+    /// +0x19c (ptr<vostok::particle::particle_system_instance>): m_ticked_instances_list's first instance (0: none); particle_world::tick 0x35AEF9 walks it by each one's next (the constructor 0x35A584 clears it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_instances(self, value: Option<ParticleSystemInstance>) {
+        unsafe { self.0.byte_add(0x19c).cast::<Option<ParticleSystemInstance>>().write_volatile(value) }
+    }
+
+    /// +0x1ac (u32): m_num_particles, the particles alive in the world (allocate_particle 0x35A6A0 refuses one past max_particles)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn particles(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1ac).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x1b0 (u32): m_max_particles, the world's cap: 50000 (the constructor 0x35A59C; tick 0x35AE88 scales every emitter's budget by it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn max_particles(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1b0).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::particle::particle_system_instance (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ParticleSystemInstance(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ParticleSystemInstance {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x108 (obj<vostok::particle::lod_entry>): m_lods, ten of 20h (the destructor's ten releases 0x35D038; set_visible 0x35D20B steps +114h by 20h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn lods(self) -> LodEntry {
+        LodEntry(unsafe { self.0.byte_add(0x108) })
+    }
+
+    /// +0x2d4 (ptr<vostok::particle::particle_system_instance>): m_next, the world's ticked list (tick 0x35AF5A)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn next(self) -> Option<ParticleSystemInstance> {
+        unsafe { self.0.byte_add(0x2d4).cast::<Option<ParticleSystemInstance>>().read_volatile() }
+    }
+
+    /// +0x2d4 (ptr<vostok::particle::particle_system_instance>): m_next, the world's ticked list (tick 0x35AF5A)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_next(self, value: Option<ParticleSystemInstance>) {
+        unsafe { self.0.byte_add(0x2d4).cast::<Option<ParticleSystemInstance>>().write_volatile(value) }
+    }
+
+    /// +0x2dc (u32): m_current_lod (calc_num_max_particles 0x35D25E: lods[it].emitters)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn current_lod(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x2dc).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x303 (u8): m_visible: 1 from the constructor (0x35CF28), written only by set_visible 0x35D23D (the game's update_particle_system_instance), read only by get_render_emitter_instances (0x35B40A, 0x35B604): a hidden instance is not drawn but still ticked
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn visible(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x303).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A vostok::particle::lod_entry (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LodEntry(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl LodEntry {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::particle::particle_system>): m_template, the shared particle_system the instance was made from (on_sub_resources_loaded 0x3623E1 stores the query's one resource in every lod)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn template(self) -> Option<ParticleSystem> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ParticleSystem>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::particle::particle_system>): m_template, the shared particle_system the instance was made from (on_sub_resources_loaded 0x3623E1 stores the query's one resource in every lod)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_template(self, value: Option<ParticleSystem>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ParticleSystem>>().write_volatile(value) }
+    }
+
+    /// +0xc (ptr<vostok::particle::particle_emitter_instance>): m_emitter_instance_list's first emitter instance (0: none; calc_num_max_particles 0x35D269)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn emitters(self) -> Option<ParticleEmitterInstance> {
+        unsafe { self.0.byte_add(0xc).cast::<Option<ParticleEmitterInstance>>().read_volatile() }
+    }
+
+    /// +0xc (ptr<vostok::particle::particle_emitter_instance>): m_emitter_instance_list's first emitter instance (0: none; calc_num_max_particles 0x35D269)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_emitters(self, value: Option<ParticleEmitterInstance>) {
+        unsafe { self.0.byte_add(0xc).cast::<Option<ParticleEmitterInstance>>().write_volatile(value) }
+    }
+
+    /// 0x20 bytes: a lod_entry: 20h bytes
+    pub const SIZE: usize = 0x20;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::particle::lod_entrys (0x20 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct LodEntryStorage([u8; 0x20]);
+
+#[allow(dead_code)]
+impl LodEntryStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x20])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> LodEntry {
+        LodEntry(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<LodEntry> {
+        (!rooms.is_empty()).then(|| LodEntry(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::particle::particle_emitter_instance (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ParticleEmitterInstance(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ParticleEmitterInstance {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x1ec (ptr<vostok::particle::particle_emitter_instance>): m_next, its lod's list (calc_num_max_particles 0x35D287)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn next(self) -> Option<ParticleEmitterInstance> {
+        unsafe { self.0.byte_add(0x1ec).cast::<Option<ParticleEmitterInstance>>().read_volatile() }
+    }
+
+    /// +0x1ec (ptr<vostok::particle::particle_emitter_instance>): m_next, its lod's list (calc_num_max_particles 0x35D287)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_next(self, value: Option<ParticleEmitterInstance>) {
+        unsafe { self.0.byte_add(0x1ec).cast::<Option<ParticleEmitterInstance>>().write_volatile(value) }
+    }
+
+    /// +0x1f0 (u32): m_num_live_particles (remove_overflowing_particles 0x35E906: with +20Ch to create against +210h the current cap)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn live_particles(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1f0).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::particle::materials_loaded_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MaterialsLoadedFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl MaterialsLoadedFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<vostok::resources::queries_result>): on_materials_loaded's first argument at its start: the material queries' results, one for each emitter instance made (0x3627F4 reads it at [esp+1Ch] after sub esp,14h / push ebx)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn results(self) -> Option<QueriesResult> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<QueriesResult>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::resources::queries_result>): on_materials_loaded's first argument at its start: the material queries' results, one for each emitter instance made (0x3627F4 reads it at [esp+1Ch] after sub esp,14h / push ebx)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_results(self, value: Option<QueriesResult>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<QueriesResult>>().write_volatile(value) }
+    }
+
+    /// +0x8 (ptr<vostok::particle::particle_system_instance>): its second: the particle_system_instance_impl just made (310h bytes, 0x3622DE), not yet handed to its query (0x362909)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn instance(self) -> Option<ParticleSystemInstance> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<ParticleSystemInstance>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<vostok::particle::particle_system_instance>): its second: the particle_system_instance_impl just made (310h bytes, 0x3622DE), not yet handed to its query (0x362909)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_instance(self, value: Option<ParticleSystemInstance>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<ParticleSystemInstance>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::resources::query_result_for_cook (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct QueryResultForCook(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl QueryResultForCook {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xf8 (ptr<u8>): the requested path, a C string (particle_system_instance_cook::translate_query 0x362210: used when resolved is 0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn requested(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0xf8).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0xf8 (ptr<u8>): the requested path, a C string (particle_system_instance_cook::translate_query 0x362210: used when resolved is 0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_requested(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0xf8).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0xfc (ptr<u8>): the path preferred over requested when not 0 (translate_query 0x362206)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn resolved(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0xfc).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0xfc (ptr<u8>): the path preferred over requested when not 0 (translate_query 0x362206)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_resolved(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0xfc).cast::<*mut u8>().write_volatile(value) }
+    }
+}
+
+/// A survarium::history_item (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HistoryItem(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl HistoryItem {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xc0bb0 (u32): the kept state's simulation time, ms (game_world_core::move 0x2D2FD7 goes back to it; 0x2D3568 compares it with the core's time before loading the state)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn time(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xc0bb0).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -20071,21 +20480,6 @@ impl CriticalSection {
     }
 }
 
-/// A vostok::resources::query_result_for_cook (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
-/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct QueryResultForCook(NonNull<c_void>);
-
-#[allow(dead_code)]
-impl QueryResultForCook {
-    /// Its address as a value (an id, a compare): never read through.
-    #[inline(always)]
-    pub fn address(self) -> u32 {
-        self.0.as_ptr() as usize as u32
-    }
-}
-
 /// A d3d11::hw_resource (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -20139,6 +20533,21 @@ pub struct Backend(NonNull<c_void>);
 
 #[allow(dead_code)]
 impl Backend {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+}
+
+/// A vostok::particle::particle_system (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ParticleSystem(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ParticleSystem {
     /// Its address as a value (an id, a compare): never read through.
     #[inline(always)]
     pub fn address(self) -> u32 {
@@ -23910,6 +24319,114 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn manager(machine: &impl Machine) -> Option<ResourceManager> {
             NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(ResourceManager)
+        }
+    }
+
+    /// particle.world_tick (0x35ae10): particle_world::tick's start (push ebp / mov ebp,esp / and esp,-8; thiscall, ECX the world, ret 8), once a frame for each particle world on the thread that ticks it: patch 138's census reads the world's ticked instances here; installed on demand
+    pub mod particle_world_tick {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a vostok::particle::particle_world (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn world(machine: &impl Machine) -> Option<ParticleWorld> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(ParticleWorld)
+        }
+    }
+
+    /// particle.materials_loaded (0x3627f0): particle_system_instance_cook::on_materials_loaded's start (sub esp,14h / push ebx / mov ebx,[esp+1Ch]; ret 10h), once for each particle system instance the cook made (reuse_false: one a query): the material queries' results at [esp+4], the new instance at [esp+8]; patch 138 learns the effect's name here; installed on demand
+    pub mod particle_materials_loaded {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::particle::materials_loaded_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<MaterialsLoadedFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(MaterialsLoadedFrame)
+        }
+    }
+
+    /// simulation.atomic_tick (0x2d1e20): game_world_core::atomic_tick's start (push ecx / mov eax,51EB851Fh; EDI the step's end time in ms, [esp+4] the core, [esp+8] the step's ms, ret 8; its one caller tick_events 0x2D22E2), once for each step or part of a step the simulation plays, a re-run after a rollback included: patch 138 counts the steps here; installed on demand
+    pub mod simulation_atomic_tick {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn now(machine: &impl Machine) -> u32 {
+            machine.register(Register::Edi)
+        }
+    }
+
+    /// simulation.reload (0x2d2fe9): game_world_core::move before its first load of a kept state (push 8 / push esi / push ebx / mov [ebp-0Ch],edx; the call of deserialize 0x2D2770 at 0x2D2FF0): EBX the core, its time (+18FC0h) still where the simulation stood, ESI the history item it goes back to; patch 138 counts the rollback here; installed on demand
+    pub mod simulation_reload {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::core_world (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn core(machine: &impl Machine) -> Option<CoreWorld> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(CoreWorld)
+        }
+
+        /// ESI: a survarium::history_item (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn item(machine: &impl Machine) -> Option<HistoryItem> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(HistoryItem)
+        }
+    }
+
+    /// simulation.reload_late (0x2d3568): game_world_core::move before its second load of a kept state (mov ecx,[esi+0C0BB0h]; then cmp ecx,[ebx+18FC0h] / je 0x2D357F over the call of deserialize at 0x2D357A): EBX the core, ESI the history item, loaded only when its time is not the core's; patch 138 counts it; installed on demand
+    pub mod simulation_reload_late {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::core_world (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn core(machine: &impl Machine) -> Option<CoreWorld> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(CoreWorld)
+        }
+
+        /// ESI: a survarium::history_item (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn item(machine: &impl Machine) -> Option<HistoryItem> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(HistoryItem)
+        }
+    }
+
+    /// simulation.bullets (0x321d40): bullet_manager::tick past its grid test (cmp byte [ebp+10h],0 / je 0x321F95 at 0x321D1C: the third argument is atomic_tick's now % 50 == 0 flag), with its bullets' vector read (mov [esp+2Ch],ecx / sar ebx,2; ESI the manager): once a grid tick; patch 138 counts the live bullets here; installed on demand
+    pub mod simulation_bullets {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::bullet_manager (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn manager(machine: &impl Machine) -> Option<BulletManager> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(BulletManager)
         }
     }
 }

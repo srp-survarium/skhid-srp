@@ -5378,7 +5378,7 @@ medical_skills_on_sway_replay:
 
 ; 0xe12bf allocate_region (0xE1120) after memory::initialize (0xE12D0) made each registered allocator's heap in its arena (lea esp,[ebp-58h] / pop edi / pop esi / pop ebx): every arena is where it stays while the game runs; patch 127 reads SKHID_MEMORY_PROFILE here, once: lohook -> memory_profile_on_start
 global memory_profile_on_start
-extern hook_memory_profile_on_start
+extern hook_memory_profile_on_start_chain
 memory_profile_on_start:
     lea esp, [esp - 4]
     pushfd
@@ -5396,7 +5396,7 @@ memory_profile_on_start:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_memory_profile_on_start
+    call hook_memory_profile_on_start_chain
     mov edx, memory_profile_on_start_replay
     cmp eax, 0
     je memory_profile_on_start_go
@@ -5867,6 +5867,240 @@ music_on_sound_tick_replay:
 
 ; 0x14730 the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query: callback -> music_on_query_done (wraps engine_store_first_resource 0x14730)
     RUST_CDECL music_on_query_done, hook_music_on_query_done, 2
+
+; 0x35ae10 particle_world::tick's start (push ebp / mov ebp,esp / and esp,-8; thiscall, ECX the world, ret 8), once a frame for each particle world on the thread that ticks it: patch 138's census reads the world's ticked instances here; installed on demand: lohook -> particle_census_on_tick
+global particle_census_on_tick
+extern hook_particle_census_on_tick
+particle_census_on_tick:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_particle_census_on_tick
+    mov edx, particle_census_on_tick_replay
+    cmp eax, 0
+    je particle_census_on_tick_go
+    mov edx, 0x35ae16
+    cmp eax, 1
+    je particle_census_on_tick_go
+    ud2
+particle_census_on_tick_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+particle_census_on_tick_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x35ae16
+
+; 0x3627f0 particle_system_instance_cook::on_materials_loaded's start (sub esp,14h / push ebx / mov ebx,[esp+1Ch]; ret 10h), once for each particle system instance the cook made (reuse_false: one a query): the material queries' results at [esp+4], the new instance at [esp+8]; patch 138 learns the effect's name here; installed on demand: lohook -> particle_census_on_created
+global particle_census_on_created
+extern hook_particle_census_on_created
+particle_census_on_created:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_particle_census_on_created
+    mov edx, particle_census_on_created_replay
+    cmp eax, 0
+    je particle_census_on_created_go
+    mov edx, 0x3627f8
+    cmp eax, 1
+    je particle_census_on_created_go
+    ud2
+particle_census_on_created_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+particle_census_on_created_replay:
+    db 0x83, 0xec, 0x14, 0x53, 0x8b, 0x5c, 0x24, 0x1c
+    jmp 0x3627f8
+
+; 0x2d1e20 game_world_core::atomic_tick's start (push ecx / mov eax,51EB851Fh; EDI the step's end time in ms, [esp+4] the core, [esp+8] the step's ms, ret 8; its one caller tick_events 0x2D22E2), once for each step or part of a step the simulation plays, a re-run after a rollback included: patch 138 counts the steps here; installed on demand: lohook -> particle_census_on_atomic_tick
+global particle_census_on_atomic_tick
+extern hook_particle_census_on_atomic_tick
+particle_census_on_atomic_tick:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_particle_census_on_atomic_tick
+    mov edx, particle_census_on_atomic_tick_replay
+    cmp eax, 0
+    je particle_census_on_atomic_tick_go
+    mov edx, 0x2d1e26
+    cmp eax, 1
+    je particle_census_on_atomic_tick_go
+    ud2
+particle_census_on_atomic_tick_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+particle_census_on_atomic_tick_replay:
+    db 0x51, 0xb8, 0x1f, 0x85, 0xeb, 0x51
+    jmp 0x2d1e26
+
+; 0x2d2fe9 game_world_core::move before its first load of a kept state (push 8 / push esi / push ebx / mov [ebp-0Ch],edx; the call of deserialize 0x2D2770 at 0x2D2FF0): EBX the core, its time (+18FC0h) still where the simulation stood, ESI the history item it goes back to; patch 138 counts the rollback here; installed on demand: lohook -> particle_census_on_reload
+global particle_census_on_reload
+extern hook_particle_census_on_reload
+particle_census_on_reload:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_particle_census_on_reload
+    mov edx, particle_census_on_reload_replay
+    cmp eax, 0
+    je particle_census_on_reload_go
+    mov edx, 0x2d2ff0
+    cmp eax, 1
+    je particle_census_on_reload_go
+    ud2
+particle_census_on_reload_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+particle_census_on_reload_replay:
+    db 0x6a, 0x08, 0x56, 0x53, 0x89, 0x55, 0xf4
+    jmp 0x2d2ff0
+
+; 0x2d3568 game_world_core::move before its second load of a kept state (mov ecx,[esi+0C0BB0h]; then cmp ecx,[ebx+18FC0h] / je 0x2D357F over the call of deserialize at 0x2D357A): EBX the core, ESI the history item, loaded only when its time is not the core's; patch 138 counts it; installed on demand: lohook -> particle_census_on_reload_late
+global particle_census_on_reload_late
+extern hook_particle_census_on_reload_late
+particle_census_on_reload_late:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_particle_census_on_reload_late
+    mov edx, particle_census_on_reload_late_replay
+    cmp eax, 0
+    je particle_census_on_reload_late_go
+    mov edx, 0x2d356e
+    cmp eax, 1
+    je particle_census_on_reload_late_go
+    ud2
+particle_census_on_reload_late_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+particle_census_on_reload_late_replay:
+    db 0x8b, 0x8e, 0xb0, 0x0b, 0x0c, 0x00
+    jmp 0x2d356e
+
+; 0x321d40 bullet_manager::tick past its grid test (cmp byte [ebp+10h],0 / je 0x321F95 at 0x321D1C: the third argument is atomic_tick's now % 50 == 0 flag), with its bullets' vector read (mov [esp+2Ch],ecx / sar ebx,2; ESI the manager): once a grid tick; patch 138 counts the live bullets here; installed on demand: lohook -> particle_census_on_bullets
+global particle_census_on_bullets
+extern hook_particle_census_on_bullets
+particle_census_on_bullets:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_particle_census_on_bullets
+    mov edx, particle_census_on_bullets_replay
+    cmp eax, 0
+    je particle_census_on_bullets_go
+    mov edx, 0x321d47
+    cmp eax, 1
+    je particle_census_on_bullets_go
+    ud2
+particle_census_on_bullets_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+particle_census_on_bullets_replay:
+    db 0x89, 0x4c, 0x24, 0x2c, 0xc1, 0xfb, 0x02
+    jmp 0x321d47
 
 ; 0x24757c mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player); culled 0x24781E, past the bones and past the culled player's held item's vtable+4Ch (0x247811: weapon::on_culled_player_draw 0x245250 moves the weapon to the player's root), where the game's own cull (jne 0x24758C, [ebx+12Ch] not 0) ends, the stack as at the site: lohook -> ragdoll_on_cull
 global ragdoll_on_cull

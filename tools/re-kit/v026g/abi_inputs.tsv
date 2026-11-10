@@ -5955,3 +5955,17 @@ va	name	location	role	basis
 0x003b3340	vostok::animation::time_channel::domain	EAX	the time channel {+0 knot count, +4 offset of its memory: count float4 domains, then count float knots}	observed
 0x003b3340	vostok::animation::time_channel::domain	XMM2	the time (float)	observed
 0x003b3340	vostok::animation::time_channel::domain	entry ESP+4	the current domain (u32*, read and written)	observed
+0x0035ae10	vostok::particle::particle_world::tick	ECX	the particle world	observed
+0x0035ae10	vostok::particle::particle_world::tick	entry ESP+4	the time delta (float)	observed
+0x0035ae10	vostok::particle::particle_world::tick	entry ESP+8	the view matrix (float4x4 const*)	observed
+0x0035d200	vostok::particle::particle_system_instance_impl::set_visible	EDI	the instance	observed
+0x0035d200	vostok::particle::particle_system_instance_impl::set_visible	DL	visible (bool)	observed
+0x003627f0	vostok::particle::particle_system_instance_cook::on_materials_loaded	ECX	the cook (its allocator at +20h)	observed
+0x003627f0	vostok::particle::particle_system_instance_cook::on_materials_loaded	entry ESP+4	the material queries' results (queries_result&: +20h the parent query, +38h the count, +12Ch the first result, 2E0h each)	observed
+0x003627f0	vostok::particle::particle_system_instance_cook::on_materials_loaded	entry ESP+8	the new particle_system_instance_impl	observed
+0x003627f0	vostok::particle::particle_system_instance_cook::on_materials_loaded	entry ESP+12	material_query_data* (0Ch each, +4 the emitter instance)	observed
+0x003627f0	vostok::particle::particle_system_instance_cook::on_materials_loaded	entry ESP+16	material_effects_instance_cook_data* (10h each)	observed
+0x002d1e20	survarium::game_world_core::atomic_tick	EDI	the step's end time, ms: its grid flag (EDI % 50 == 0, 0x2D1E21..0x2D1E36) goes to every tick list with the step's ms and EDI (0x2D1E50..0x2D1E5C); +18FC0h is set to it at the end (0x2D1E84)	observed
+0x00321d10	survarium::bullet_manager::tick	entry ESP+8	the step's end time, kept at manager+0B4h (0x321D35)	observed
+0x00321d10	survarium::bullet_manager::tick	entry ESP+12	atomic_tick's grid flag (byte): 0 leaves at once (0x321D1C); set, the bullets' vector (+8, +0Ch, four bytes a bullet) is walked	observed
+0x002d2e40	survarium::game_world_core::move	0x2D2FE9, 0x2D3568 (EBX the core, ESI a history item)	its two loads of a kept state (deserialize 0x2D2770 at 0x2D2FF0, always on that path; at 0x2D357A only when the item's time [item+0C0BB0h] is not the core's +18FC0h): before either call +18FC0h is still where the simulation stood	observed

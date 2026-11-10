@@ -103,6 +103,7 @@ struct Near<'t> {
 /// check_collision after the game's ray test (`bullet.ray_traced`, first
 /// of the site's chain: the ragdoll and the lamps read the hit it leaves).
 pub fn on_ray(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    crate::particle_census::bullet_ray();
     if let Some(mut ray) = RayTest::at(ctx) {
         test(&mut ray);
     }
