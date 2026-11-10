@@ -435,6 +435,17 @@ pub unsafe fn engine_get_async_key_state(function: NonNull<c_void>, key: u32) ->
     unsafe { function(key) }
 }
 
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_move_file_ex_a(const char *from, const char *to, unsigned int flags)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_move_file_ex_a(function: NonNull<c_void>, from: *const u8, to: *const u8, flags: u32) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*const u8, *const u8, u32) -> u32>(function.as_ptr()) };
+    unsafe { function(from, to, flags) }
+}
+
 #[allow(dead_code, non_upper_case_globals)]
 unsafe extern "C" {
     /// the IAT slot 0x870048 (an import, stdcall): void *engine_create_file_a(const char *name, unsigned int access, unsigned int share, void *security, unsigned int disposition, unsigned int flags, void *template_file)
