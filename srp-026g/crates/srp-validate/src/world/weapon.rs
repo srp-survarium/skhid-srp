@@ -960,12 +960,38 @@ pub enum SelectorState {
     /// `player_logic_crouch_walk_state`.
     CrouchWalk,
     /// `player_logic_dead_state` (0x338430): `m_is_ready_to_be_deactivated`
-    /// and `m_animation_index` (under the user's death animations, a count
-    /// of the game data: not bounded here).
+    /// and `m_animation_index`.
     Dead {
         is_ready_to_be_deactivated: bool,
-        animation_index: u8,
+        animation: DeathAnimation,
     },
+}
+
+/// The dead state's `m_animation_index`: one of the user's death animations.
+///
+/// The receiving game follows it with no bound: `selected_animations`
+/// 0x338540 passes the raw byte (state +0x30, stored as read by deserialize
+/// 0x338430) to `get_death_animations` 0x338280, which reads
+/// `[[set+0xA20] + index*4]` and `[[set+0x590] + index*4]` and takes a
+/// reference (`lock xadd [slot+0xDC]`) through each. Only `activate`
+/// 0x338330 picks it in range (`m_random` times `[set+0x594]`, the set's
+/// death-animation count, both tables sized by 0x2CF370 at load). The game
+/// picks 0 or 1: 906,245 dead selectors in the 241,149 uploads of 480 live
+/// recordings (2026-11-05..07) carry 0 or 1, none more.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DeathAnimation(u8);
+
+impl DeathAnimation {
+    /// The death animations a set has (indices 0 and 1).
+    pub const COUNT: u8 = 2;
+
+    pub fn new(index: u8) -> Option<Self> {
+        (index < Self::COUNT).then_some(Self(index))
+    }
+
+    pub fn index(self) -> u8 {
+        self.0
+    }
 }
 
 /// A body part of the hit animations selector
@@ -1052,10 +1078,16 @@ impl Portable {
             3 => SelectorState::StandJump(Jump::read(reader)?),
             4 => SelectorState::CrouchOnSite,
             5 => SelectorState::CrouchWalk,
-            _ => SelectorState::Dead {
-                is_ready_to_be_deactivated: flag(reader)?,
-                animation_index: u8(reader)?,
-            },
+            _ => {
+                let is_ready_to_be_deactivated = flag(reader)?;
+                let at = reader.at();
+                let index = u8(reader)?;
+                SelectorState::Dead {
+                    is_ready_to_be_deactivated,
+                    animation: DeathAnimation::new(index)
+                        .ok_or((at, Reason::TailDeathAnimation { index }))?,
+                }
+            }
         };
         let mut hit_body_parts = [HitBodyPart {
             last_hit_time_ms: 0,
@@ -1078,3 +1110,48 @@ impl Portable {
     }
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::vec::Vec;
+
+    /// A portable object in the dead state with `index`, its hit parts zero.
+    fn dead(index: u8) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.extend(7u32.to_le_bytes()); // m_random's seed
+        bytes.push(0x00); // m_right_leg_is_supporting
+        bytes.push(6); // the dead state
+        bytes.push(0xFF); // m_is_ready_to_be_deactivated
+        bytes.push(index); // m_animation_index
+        bytes.extend([0u8; 8 * 12]); // the hit body parts
+        bytes
+    }
+
+    #[test]
+    fn a_dead_selector_with_a_death_animation_the_game_picks_is_read() {
+        for index in 0..DeathAnimation::COUNT {
+            let bytes = dead(index);
+            let portable = Portable::read(&mut Reader::new(&bytes, 0)).expect("read");
+            assert_eq!(
+                portable.selector(),
+                SelectorState::Dead {
+                    is_ready_to_be_deactivated: true,
+                    animation: DeathAnimation(index),
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn a_dead_selector_past_the_death_animations_goes_to_nobody() {
+        // The receiving game indexes the user's two death-animation tables
+        // with this byte unbounded (0x338280): an out-of-bounds read and a
+        // reference taken through the loaded pointer.
+        for index in [DeathAnimation::COUNT, 4, 100, 255] {
+            let bytes = dead(index);
+            let fault = Portable::read(&mut Reader::new(&bytes, 0)).expect_err("refused");
+            assert_eq!(fault, (7, Reason::TailDeathAnimation { index }));
+        }
+    }
+}

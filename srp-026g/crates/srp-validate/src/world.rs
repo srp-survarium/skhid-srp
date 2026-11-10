@@ -29,7 +29,7 @@ pub use player_tail::{
 };
 mod weapon;
 pub use weapon::{
-    AmmoSwitch, AnimationWait, Breath, BreathState, Fire, HIT_BODY_PARTS, HitBodyPart, InHand, Jump,
+    AmmoSwitch, AnimationWait, Breath, BreathState, DeathAnimation, Fire, HIT_BODY_PARTS, HitBodyPart, InHand, Jump,
     JumpStep, JumpType, JumpWait, Portable, Recoil, ReloadStep, SelectorState, Shot,
     SprintAnimation, StateData, ThrowStep,
     Transition, WeaponState,

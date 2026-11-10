@@ -380,6 +380,10 @@ pub enum Reason {
     TailGrenadeSlot {
         slot: u8,
     },
+    /// A dead animation selector names a death animation past the set's.
+    TailDeathAnimation {
+        index: u8,
+    },
     /// A body part's affect is of no type the game has.
     TailAffect {
         kind: u8,
@@ -764,6 +768,10 @@ impl fmt::Display for Reason {
                 write!(f, "a state machine in state {state}, past its {states}")
             }
             Reason::TailGrenadeSlot { slot } => write!(f, "a throw of the grenade in slot {slot}"),
+            Reason::TailDeathAnimation { index } => {
+                let count = crate::world::DeathAnimation::COUNT;
+                write!(f, "a dead selector with death animation {index}, past the {count}")
+            }
             Reason::TailAffect { kind } => write!(f, "a body part affect of type {kind}"),
             Reason::TailBool { at } => write!(f, "a bool at {at} that is not 0x00 or 0xFF"),
             Reason::TailCarry => f.write_str("a carry snapshot of another version"),

@@ -2264,3 +2264,6 @@ va	status	ref_021d	name
 0x003a8f40	reviewed		anim_read_node_record
 0x003a8ef0	reviewed		anim_pick_channel_value
 0x003a8d60	reviewed		anim_init_node_matrices
+0x00338280	reviewed		survarium::player_logic_dead_state::get_death_animations
+0x00338330	reviewed		survarium::player_logic_dead_state::activate
+0x00338540	reviewed		survarium::player_logic_dead_state::selected_animations
