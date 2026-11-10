@@ -17,6 +17,9 @@ package survarium.controls
    // seconds being the respawn rule's time left rounded up (0x316C20), and "" at 0. On the stage
    // below the hud's root, in screen pixels, over the screen effects: the kits and the countdown
    // stay over it and take clicks, and hiding the interface (F11, Blackout) leaves it.
+   // The same place holds the black view (black: the exe's root.set_dead_black, a dead player
+   // whose corpse was shot in the head): the whole screen opaque black over the fading, until the
+   // exe takes it away or the hud's reset.
    public class DeathEyes extends Sprite
    {
       // Each dim: its middle and half width (shares of the countdown) and how dark it goes.
@@ -32,6 +35,9 @@ package survarium.controls
       protected static const WASH_COLOUR:uint = 0x161616;
 
       protected var _shade:Shape = new Shape();
+
+      // The black view: over the shade, shown (visible) exactly while the view is black.
+      protected var _black:Shape = new Shape();
 
       protected var _width:Number = 1280;
 
@@ -57,6 +63,8 @@ package survarium.controls
          mouseChildren = false;
          visible = false;
          addChild(this._shade);
+         this._black.visible = false;
+         addChild(this._black);
       }
 
       // How dark the dims make the view at a share of the countdown.
@@ -131,6 +139,22 @@ package survarium.controls
          return this._progress;
       }
 
+      public function get black() : Boolean
+      {
+         return this._black.visible;
+      }
+
+      // The whole view black, whatever the countdown; the same value again changes nothing.
+      public function set black(on:Boolean) : void
+      {
+         if(on != this._black.visible)
+         {
+            this._black.visible = on;
+            this.drawBlack();
+            this.update();
+         }
+      }
+
       // The screen's size in the stage's pixels.
       public function place(width:Number, height:Number) : void
       {
@@ -138,6 +162,7 @@ package survarium.controls
          {
             this._width = width;
             this._height = height;
+            this.drawBlack();
             this.update();
          }
       }
@@ -188,7 +213,7 @@ package survarium.controls
          {
             this._progress = 0;
             this._openness = 1;
-            visible = false;
+            visible = this._black.visible;
             return;
          }
          if(now >= this._changed + TICK_WAIT)
@@ -201,6 +226,19 @@ package survarium.controls
          this._openness = opennessAt(this._progress);
          this.draw();
          visible = true;
+      }
+
+      protected function drawBlack() : void
+      {
+         var g:Graphics = this._black.graphics;
+         g.clear();
+         if(!this._black.visible)
+         {
+            return;
+         }
+         g.beginFill(0,1);
+         g.drawRect(0,0,this._width,this._height);
+         g.endFill();
       }
 
       // The wash, then the vignette (clear in its middle but for the dims, dark from its rim out),

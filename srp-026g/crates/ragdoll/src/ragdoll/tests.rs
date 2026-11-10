@@ -132,12 +132,12 @@ fn headwear_starts_on_the_head_then_falls_separately_and_settles_above_ground() 
     let before = driver_bones(&now);
     let mut input = start(&now, &before, Cause::Unknown, None);
     assert!(Ragdoll::new(&input).unwrap().headwear_pose().is_none());
-    input.headwear = Some(HeadwearShape);
+    input.headwear = Some(HeadwearStart::KnockedOff);
     let mut body = Ragdoll::new(&input).unwrap();
-    assert!((body.headwear_pose().unwrap().position - now[HEAD.index()].position).length() < 1e-5);
+    assert!((body.headwear_pose().unwrap().0.position - now[HEAD.index()].position).length() < 1e-5);
     let mut ground = Ground::flat();
     run(&mut body, &mut ground, None, |r| {
-        let hat = r.headwear.unwrap();
+        let hat = r.hat.off().unwrap().loose;
         assert!(hat.body.pose.is_finite());
         for end in [
             hat.body.shape.ends(hat.body.pose).0,
@@ -153,9 +153,9 @@ fn headwear_starts_on_the_head_then_falls_separately_and_settles_above_ground() 
     let (parts, gun) = body.poses();
     body.rig().draw(&parts, gun, &mut drawn);
     assert!(
-        (body.headwear_pose().unwrap().position - drawn[HEAD.index()].position).length() > 0.15
+        (body.headwear_pose().unwrap().0.position - drawn[HEAD.index()].position).length() > 0.15
     );
-    assert!(body.headwear.unwrap().body.pose.position.y < 0.2);
+    assert!(body.hat.off().unwrap().loose.body.pose.position.y < 0.2);
 }
 
 #[test]
@@ -287,7 +287,7 @@ fn a_shot_body_falls_and_settles_on_flat_ground() {
         let mut lowest = f32::MAX;
         let mut landed = None;
         let t = run(&mut ragdoll, &mut ground, None, |r| {
-            for b in r.bodies.iter().chain(r.gun.iter()) {
+            for b in r.bodies.iter().chain(r.gun.iter().map(|g| &g.body)) {
                 let (a, c) = b.shape.ends(b.pose);
                 lowest = lowest.min(a.y.min(c.y) - b.shape.radius);
             }
@@ -688,10 +688,11 @@ fn queries_a_frame_are_bounded_and_few_on_the_ground() {
             break;
         }
     }
-    // at most both ends of every body, and fewer than one a body over the
-    // last half second (on the ground, most bodies keep their plane)
+    // at most two rays (under and beside) at both ends of every body, and
+    // fewer than one a body over the last half second (on the ground, most
+    // bodies keep their plane)
     assert!(
-        per_frame.iter().all(|&n| n <= 2 * (PARTS + 1)),
+        per_frame.iter().all(|&n| n <= 2 * 2 * (PARTS + 1)),
         "{per_frame:?}"
     );
     let tail = &per_frame[per_frame.len() - 30..];
@@ -751,7 +752,7 @@ fn trace() {
         }
         if frame % 3 == 0 {
             let mut fastest = (0.0, 0.0, 0);
-            for (i, b) in r.bodies.iter().chain(r.gun.iter()).enumerate() {
+            for (i, b) in r.bodies.iter().chain(r.gun.iter().map(|g| &g.body)).enumerate() {
                 let (v, w) = (b.velocity.length(), b.spin.length());
                 if v + w * 0.1 > fastest.0 + fastest.1 * 0.1 {
                     fastest = (v, w, i);
@@ -956,7 +957,7 @@ fn render_dump() {
         let mut frames = std::vec::Vec::new();
         for _ in 0..240 {
             let mut caps = std::vec::Vec::new();
-            for b in r.bodies.iter().chain(r.gun.iter()) {
+            for b in r.bodies.iter().chain(r.gun.iter().map(|g| &g.body)) {
                 let (a, c) = b.shape.ends(b.pose);
                 caps.push(std::format!(
                     "[{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.3}]",
@@ -1077,7 +1078,7 @@ fn render_dump5() {
         let mut frames = std::vec::Vec::new();
         for _ in 0..240 {
             let mut caps = std::vec::Vec::new();
-            for b in r.bodies.iter().chain(r.gun.iter()) {
+            for b in r.bodies.iter().chain(r.gun.iter().map(|g| &g.body)) {
                 let (a, c) = b.shape.ends(b.pose);
                 caps.push(std::format!(
                     "[{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.3}]",
@@ -1241,7 +1242,7 @@ fn under_rudnya_drawn_ground(
                 })
                 .fold(f32::MIN, f32::max)
         };
-        let gun = under(ragdoll.gun.as_ref().expect("the gun dropped"));
+        let gun = under(&ragdoll.gun.as_ref().expect("the gun dropped").body);
         let body = ragdoll.bodies.iter().map(under).fold(f32::MIN, f32::max);
         out.push((gun, body));
     }
@@ -1278,8 +1279,8 @@ fn lone_until_rest(gun: &mut LoneGun, ground: &mut Ground) -> (usize, f32) {
     let mut sunk = 0.0f32;
     for n in 1..=600 {
         let motion = gun.step(1.0 / 60.0, Vec3::Y, ground);
-        let (a, b) = gun.body.shape.ends(gun.body.pose);
-        sunk = sunk.max(gun.body.shape.radius - a.y.min(b.y));
+        let (a, b) = gun.alone.body.shape.ends(gun.alone.body.pose);
+        sunk = sunk.max(gun.alone.body.shape.radius - a.y.min(b.y));
         if motion == Motion::Settled {
             return (n, sunk);
         }
@@ -1294,17 +1295,17 @@ fn a_lone_gun_sliding_on_the_ground_stops() {
     let ragdoll = Ragdoll::new(&start(&now, &before, SHOT, Some(GUN))).unwrap();
     let mut gun = ragdoll.lone_gun().unwrap();
     // lying flat on the floor, sliding at 3 m/s along its length's side
-    let radius = gun.body.shape.radius;
-    gun.body.pose = Pose::new(Quat::IDENTITY, Vec3::new(0.0, radius + 0.002, 0.0));
-    gun.body.previous = gun.body.pose;
-    gun.body.velocity = Vec3::new(0.0, 0.0, 3.0);
-    gun.body.contacts = [Contact::Plane { point: Vec3::ZERO, normal: Vec3::Y }; 2];
+    let radius = gun.alone.body.shape.radius;
+    gun.alone.body.pose = Pose::new(Quat::IDENTITY, Vec3::new(0.0, radius + 0.002, 0.0));
+    gun.alone.body.previous = gun.alone.body.pose;
+    gun.alone.body.velocity = Vec3::new(0.0, 0.0, 3.0);
+    gun.alone.body.contacts[..2].fill(Contact::Plane { point: Vec3::ZERO, normal: Vec3::Y });
     let mut ground = Ground::flat();
     let (frames, sunk) = lone_until_rest(&mut gun, &mut ground);
-    let at = gun.body.pose.position;
+    let at = gun.alone.body.pose.position;
     assert!(at.z > 0.05, "it slid on: {at:?}");
     assert!(sunk < 0.02 && (at.y - radius).abs() < 0.03, "on the ground: {at:?}, sunk {sunk}");
-    assert!(gun.body.end_speed() < SLOW && frames < 300, "{frames} frames");
+    assert!(gun.alone.body.end_speed() < SLOW && frames < 300, "{frames} frames");
 }
 
 /// A gun-stock hit (the weapon's melee/data: mass 0.01, 1000 m/s) by a
@@ -1398,7 +1399,7 @@ fn render_knockback() {
             let mut frames = std::vec::Vec::new();
             thrown(gun_stock(direction, point, k), |r| {
                 let mut caps = std::vec::Vec::new();
-                for b in r.bodies.iter().chain(r.gun.iter()) {
+                for b in r.bodies.iter().chain(r.gun.iter().map(|g| &g.body)) {
                     let (a, c) = b.shape.ends(b.pose);
                     caps.push(std::format!(
                         "[{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.3}]",
@@ -1451,4 +1452,218 @@ fn capsules_found_apart_never_overlap() {
         far += usize::from(!overlap);
     }
     assert!(skipped > far / 4, "{skipped} of {far}");
+}
+
+/// The game's level query: a ray from the end's centre, its move plus the
+/// radius long (`GameLevel::sweep`), not a sphere's sweep: a wall beside the
+/// end is met only by a ray toward it. The floor at 0, a wall at z `wall`
+/// facing -z.
+struct RayLevel {
+    wall: f32,
+}
+
+impl Level for RayLevel {
+    fn sweep(&mut self, from: Vec3, to: Vec3, radius: f32) -> Sweep {
+        let Some(d) = (to - from).direction() else { return Sweep::Clear };
+        let reach = (to - from).length() + radius;
+        let planes = [(Vec3::ZERO, Vec3::Y), (Vec3::new(0.0, 0.0, self.wall), -Vec3::Z)];
+        planes
+            .into_iter()
+            .filter_map(|(p, n)| {
+                let facing = d.dot(n);
+                let t = (p - from).dot(n) / facing;
+                (facing < 0.0 && (0.0..=reach).contains(&t)).then_some((t, n))
+            })
+            .reduce(|a, b| if a.0 <= b.0 { a } else { b })
+            .map_or(Sweep::Clear, |(t, normal)| Sweep::Hit { point: from + d * t, normal })
+    }
+}
+
+#[test]
+fn a_body_thrown_into_a_wall_stays_out_of_it() {
+    // the owner, 2026-11-09: heads seen clipping into walls; each end asked
+    // only for the surface below it, and a ray down never meets a wall
+    let wall = 0.6;
+    for direction in [Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.6, 0.0, 0.8), Vec3::new(-0.8, 0.0, 0.6)] {
+        let now = standing(Quat::IDENTITY, Vec3::ZERO);
+        let before = driver_bones(&now);
+        let hits = [gun_stock(direction, Vec3::new(0.0, 1.3, -0.12), 15.0)];
+        let mut s = start(&now, &before, Cause::Unknown, None);
+        s.hits = &hits;
+        let mut r = Ragdoll::new(&s).unwrap();
+        let mut level = RayLevel { wall };
+        let mut deepest = 0.0f32;
+        for _ in 0..300 {
+            r.step(1.0 / 60.0, None, &mut level);
+            for b in &r.bodies {
+                let (a, e) = b.shape.ends(b.pose);
+                deepest = deepest.max(a.z.max(e.z) + b.shape.radius - wall);
+            }
+        }
+        assert!(deepest < 0.04, "{direction:?}: {deepest:.3} m into the wall");
+    }
+}
+
+/// How deep a loose body is in the deepest part, m (0: in none).
+fn depth_in_parts(r: &Ragdoll, loose: &Body) -> f32 {
+    r.bodies
+        .iter()
+        .filter_map(|b| separation(b, loose).map(|(_, _, d)| b.shape.radius + loose.shape.radius - d))
+        .fold(0.0, max)
+}
+
+/// A body lying at rest, as a death by a body shot leaves it.
+fn lying(gun: Option<GunShape>, headwear: Option<HeadwearStart>) -> (Ragdoll, Ground) {
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let mut input = start(&now, &before, SHOT, gun);
+    input.headwear = headwear;
+    let mut body = Ragdoll::new(&input).unwrap();
+    let mut ground = Ground::flat();
+    run(&mut body, &mut ground, None, |_| {});
+    (body, ground)
+}
+
+/// `loose` put at rest at `at`, pushed by every part, and the body moving again.
+fn let_go_at(body: &mut Ragdoll, loose: Body, at: Vec3) -> Loose {
+    let far = Body { pose: Pose::new(loose.pose.rotation, Vec3::new(0.0, 100.0, 0.0)), ..loose };
+    let mut loose = Loose::released(far, &body.bodies);
+    loose.body.pose.position = at;
+    loose.body.previous = loose.body.pose;
+    loose.body.velocity = Vec3::ZERO;
+    loose.body.spin = Vec3::ZERO;
+    loose.body.contacts = [Contact::Free; CONTACTS];
+    body.rest = Rest::Moving;
+    body.moving_for = 0.0;
+    loose
+}
+
+#[test]
+fn headwear_leaves_the_head_it_sat_on_without_a_kick() {
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let mut input = start(&now, &before, Cause::Head { direction: Vec3::Z }, Some(GUN));
+    input.headwear = Some(HeadwearStart::KnockedOff);
+    let mut body = Ragdoll::new(&input).unwrap();
+    let hat = body.hat.off().unwrap().loose;
+    assert!(!hat.meets(Part::Head), "it starts on the head");
+    assert!(!body.gun.unwrap().meets(Part::RightForearm), "the gun starts in the hand");
+    let speed = hat.body.velocity.length();
+    let mut fastest = 0.0f32;
+    let mut ground = Ground::flat();
+    // the fall: the helmet off the head and on the ground by 1.5 s
+    for _ in 0..90 {
+        body.step(1.0 / 60.0, None, &mut ground);
+        fastest = max(fastest, body.hat.off().unwrap().loose.body.velocity.length());
+    }
+    // the fall from head height at most, no push out of the head
+    assert!(fastest < speed + 6.0, "{fastest} m/s from {speed}");
+    assert!(body.hat.off().unwrap().loose.meets(Part::Head), "apart since");
+}
+
+#[test]
+fn headwear_dropped_on_a_lying_body_rests_on_it_and_settles() {
+    let (mut body, mut ground) = lying(None, Some(HeadwearStart::KnockedOff));
+    // the helmet let go 40 cm above the chest's top
+    let chest = body.bodies[Part::Torso.index()];
+    let top = chest.pose.position + Vec3::Y * chest.shape.radius;
+    let hat = body.hat.off().unwrap().loose.body;
+    let loose = let_go_at(&mut body, hat, top + Vec3::Y * (0.4 + hat.shape.radius));
+    body.hat.off_mut().unwrap().loose = loose;
+    let mut deepest = 0.0f32;
+    let took = run(&mut body, &mut ground, None, |r| {
+        deepest = max(deepest, depth_in_parts(r, &r.hat.off().unwrap().loose.body));
+    });
+    let hat = body.hat.off().unwrap().loose.body;
+    assert!(deepest < 0.02, "the helmet went {deepest} m into the body");
+    assert!(
+        hat.pose.position.y > top.y + hat.shape.radius - 0.03,
+        "it rests on the chest ({} m), not on the floor under it ({} m)",
+        hat.pose.position.y,
+        top.y
+    );
+    assert!(took < MAX_AGE, "settled by rest, not the age cap: {took} s");
+}
+
+#[test]
+fn a_gun_dropped_across_a_lying_body_stays_out_of_it() {
+    let (mut body, mut ground) = lying(Some(GUN), None);
+    // the gun let go level, 30 cm above the chest, across the body
+    let chest = body.bodies[Part::Torso.index()];
+    let gun = body.gun.unwrap().body;
+    let across = chest.pose.rotation.rotate(Vec3::X).cross(Vec3::Y).direction_or(Vec3::X);
+    let level = Body { pose: Pose::new(Quat::from_basis(across, Vec3::Y, across.cross(Vec3::Y)), gun.pose.position), ..gun };
+    let above = chest.pose.position + Vec3::Y * (chest.shape.radius + gun.shape.radius + 0.3);
+    body.gun = Some(let_go_at(&mut body, level, above));
+    let mut deepest = 0.0f32;
+    let mut lowest = f32::MAX;
+    let took = run(&mut body, &mut ground, None, |r| {
+        let gun = r.gun.unwrap().body;
+        deepest = max(deepest, depth_in_parts(r, &gun));
+        let (a, b) = gun.shape.ends(gun.pose);
+        lowest = min(lowest, min(a.y, b.y) - gun.shape.radius);
+    });
+    assert!(deepest < 0.02, "the gun went {deepest} m into the body");
+    assert!(lowest > -0.02, "and {lowest} m under the floor");
+    assert!(took < MAX_AGE, "settled by rest: {took} s");
+}
+
+#[test]
+fn a_gun_pinned_under_a_body_stays_on_the_floor() {
+    let (mut body, mut ground) = lying(Some(GUN), None);
+    // the gun lying on the floor right under the chest, which pushes it
+    // down: the floor holds it (the level's contacts are solved last)
+    let chest = body.bodies[Part::Torso.index()];
+    let gun = body.gun.unwrap().body;
+    let under = Vec3::new(chest.pose.position.x, gun.shape.radius, chest.pose.position.z);
+    let mut pinned = let_go_at(&mut body, gun, under);
+    pinned.body.contacts[..2].fill(Contact::Plane { point: Vec3::ZERO, normal: Vec3::Y });
+    body.gun = Some(pinned);
+    let mut lowest = f32::MAX;
+    let mut fastest = 0.0f32;
+    run(&mut body, &mut ground, None, |r| {
+        let gun = r.gun.unwrap().body;
+        assert!(gun.pose.is_finite());
+        let (a, b) = gun.shape.ends(gun.pose);
+        lowest = min(lowest, min(a.y, b.y) - gun.shape.radius);
+        fastest = max(fastest, gun.velocity.length());
+    });
+    assert!(lowest > -0.02, "{lowest} m under the floor");
+    assert!(fastest < 4.0, "thrown out at {fastest} m/s");
+}
+
+#[test]
+fn a_shot_into_the_head_knocks_off_the_headwear_worn_on_it() {
+    let along = Vec3::new(1.0, 0.0, 0.0);
+    let j = crate::shot::impulse(along, 0.02, 800.0);
+    // none that can leave the head: nothing; worn: only a head shot
+    let (mut fixed, _) = lying(None, None);
+    let head = fixed.bodies[Part::Head.index()].pose.position;
+    fixed.push(Part::Head, head, j).unwrap();
+    assert_eq!(fixed.headwear_pose(), None);
+    let (mut body, mut ground) = lying(None, Some(HeadwearStart::Worn));
+    assert_eq!(body.headwear_pose(), None, "worn: the game draws it on the head");
+    let chest = body.bodies[Part::Torso.index()].pose.position;
+    body.push(Part::Torso, chest, j).unwrap();
+    assert_eq!(body.headwear_pose(), None, "a body shot leaves it on");
+    let head = body.bodies[Part::Head.index()].pose.position;
+    let mut skeleton = [Pose::IDENTITY; BONE_COUNT];
+    let (parts, gun) = body.poses();
+    body.rig().draw(&parts, gun, &mut skeleton);
+    body.push(Part::Head, head, j).unwrap();
+    let (pose, off) = body.headwear_pose().unwrap();
+    assert_eq!(off, HeadwearOff::Shot);
+    assert!((pose.position - skeleton[HEAD.index()].position).length() < 1e-4, "from where it sat");
+    let hat = body.hat.off().unwrap().loose.body;
+    assert!(hat.velocity.dot(along) > 2.0 && hat.velocity.y > 0.5, "{:?}", hat.velocity);
+    // a second head shot leaves it where it flies
+    body.push(Part::Head, head, j).unwrap();
+    assert_eq!(body.hat.off().unwrap().loose.body, hat);
+    run(&mut body, &mut ground, None, |r| {
+        let hat = r.hat.off().unwrap().loose.body;
+        let (a, b) = hat.shape.ends(hat.pose);
+        assert!(min(a.y, b.y) >= hat.shape.radius - 0.02, "under the floor");
+    });
+    let lies = body.hat.off().unwrap().loose.body.pose.position;
+    assert!((lies - head).dot(along) > 0.1, "it went with the shot: {lies:?} from {head:?}");
 }

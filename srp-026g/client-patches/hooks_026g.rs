@@ -1272,6 +1272,36 @@ pub extern "C" fn hook_ban_time_on_status(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- battery_drop (patch 76) ----
+
+/// The entry `battery_drop_on_draw_primary` (0x24681d, victory_item::loose_model_callback 0x2467B0 (every game_world::tick, the game's thread) before its first model's update_model 0x22280 (push eax / mov eax,[esp+1Ch]): EDI the battery, a physical one (+2C8h), its two get_transform copies on the stack at [ESP+1Ch] and [ESP+5Ch], which update_model copies and nothing else reads) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_drop_on_draw_primary(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_drop_on_draw_primary` calls this, from the game's jump at 0x24681d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_drop::on_draw_primary(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- battery_drop (patch 76) ----
+
+/// The entry `battery_drop_on_draw_secondary` (0x24687b, loose_model_callback before its second model's update_model (push eax / push edi / lea eax,[ebp+108h]): ESI the battery, the two copies asked again, at the same [ESP+1Ch] and [ESP+5Ch]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_drop_on_draw_secondary(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_drop_on_draw_secondary` calls this, from the game's jump at 0x24687b,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_drop::on_draw_secondary(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- battery_progress (patch 92) ----
 
 /// The entry `battery_progress_on_match_start` (0x334999, victory_item_event_manager::start_match once both containers' positions are kept, before the batteries' nearest positions (mov eax,[esi+0A38h]): ESI the manager, +0A38h its rule just set) calls this with the saved machine.
@@ -1461,6 +1491,21 @@ pub extern "C" fn hook_hud_options_on_update_icons(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::hud_options::on_update_icons(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- head_shot (patch 76) ----
+
+/// The entry `head_shot_on_update_icons` (0x23aa10, game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_head_shot_on_update_icons(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `head_shot_on_update_icons` calls this, from the game's jump at 0x23aa10,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::head_shot::on_update_icons(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -1852,6 +1897,81 @@ pub extern "C" fn hook_medical_skills_on_hit(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::medical_skills::on_hit(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- music (patch 88) ----
+
+/// The entry `music_on_sound_tick` (0x59ab1, sound_world::tick after process_orders, before the active scenes tick (mov esi,[edi+48E4h]): the sound thread, EDI the world, EBX the ms since its last tick) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_music_on_sound_tick(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `music_on_sound_tick` calls this, from the game's jump at 0x59ab1,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::music::on_sound_tick(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- head_shot (patch 76) ----
+
+/// The entry `head_shot_on_sound_tick` (0x59ab1, sound_world::tick after process_orders, before the active scenes tick (mov esi,[edi+48E4h]): the sound thread, EDI the world, EBX the ms since its last tick) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_head_shot_on_sound_tick(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `head_shot_on_sound_tick` calls this, from the game's jump at 0x59ab1,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::head_shot::on_sound_tick(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- music (patch 88) ----
+
+/// The entry `music_on_unload` (0x1ed030, game::clear_resources' start (push ebx / push esi / mov esi,ecx / mov ecx,[esi+535Ch]): the game unloads its menus and world) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_music_on_unload(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `music_on_unload` calls this, from the game's jump at 0x1ed030,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::music::on_unload(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- lobby_scene (patch 81) ----
+
+/// The entry `lobby_scene_on_game_closing` (0x1ed030, game::clear_resources' start (push ebx / push esi / mov esi,ecx / mov ecx,[esi+535Ch]): the game unloads its menus and world) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lobby_scene_on_game_closing(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lobby_scene_on_game_closing` calls this, from the game's jump at 0x1ed030,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lobby_scene::on_game_closing(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- head_shot (patch 76) ----
+
+/// The entry `head_shot_on_unload` (0x1ed030, game::clear_resources' start (push ebx / push esi / mov esi,ecx / mov ecx,[esi+535Ch]): the game unloads its menus and world) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_head_shot_on_unload(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `head_shot_on_unload` calls this, from the game's jump at 0x1ed030,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::head_shot::on_unload(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -2724,36 +2844,6 @@ pub extern "C" fn hook_lobby_scene_on_activate(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- music (patch 88) ----
-
-/// The entry `music_on_unload` (0x1ed030, game::clear_resources' start (push ebx / push esi / mov esi,ecx / mov ecx,[esi+535Ch]): the game unloads its menus and world) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_music_on_unload(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `music_on_unload` calls this, from the game's jump at 0x1ed030,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::music::on_unload(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- lobby_scene (patch 81) ----
-
-/// The entry `lobby_scene_on_game_closing` (0x1ed030, game::clear_resources' start (push ebx / push esi / mov esi,ecx / mov ecx,[esi+535Ch]): the game unloads its menus and world) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_lobby_scene_on_game_closing(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lobby_scene_on_game_closing` calls this, from the game's jump at 0x1ed030,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::lobby_scene::on_game_closing(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
 // ---- map_names (patch 82) ----
 
 /// The entry `map_names_on_key` (0x25cd1c, game_world::on_keyboard_action with the input world's keyboard (its vtable+24h 0x79E40: [input_world+24h]), before it asks the keyboard for Tab (mov edx,[eax] / mov ecx,eax / mov eax,[edx]; push 0Fh at 0x25CD22): EAX the keyboard, EDI the game world's input handler (the hud at +4); every key the game world is given, a held one every tick) calls this with the saved machine.
@@ -3208,21 +3298,6 @@ pub extern "C" fn hook_music_on_announced(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::music::on_announced(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- music (patch 88) ----
-
-/// The entry `music_on_sound_tick` (0x59ab1, sound_world::tick after process_orders, before the active scenes tick (mov esi,[edi+48E4h]): the sound thread, EDI the world, EBX the ms since its last tick) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_music_on_sound_tick(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `music_on_sound_tick` calls this, from the game's jump at 0x59ab1,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::music::on_sound_tick(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -4159,6 +4234,8 @@ pub extern "C" fn hook_blackout_on_update_icons_chain(frame: &mut Frame) -> u32 
     if flow != 0 { return flow; }
     let flow = hook_hud_options_on_update_icons(frame);
     if flow != 0 { return flow; }
+    let flow = hook_head_shot_on_update_icons(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -4196,6 +4273,26 @@ pub extern "C" fn hook_hand_kill_on_hit_chain(frame: &mut Frame) -> u32 {
     let flow = hook_hand_kill_on_hit(frame);
     if flow != 0 { return flow; }
     let flow = hook_medical_skills_on_hit(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_music_on_sound_tick_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_music_on_sound_tick(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_head_shot_on_sound_tick(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_music_on_unload_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_music_on_unload(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_lobby_scene_on_game_closing(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_head_shot_on_unload(frame);
     if flow != 0 { return flow; }
     0
 }
@@ -4251,15 +4348,6 @@ pub extern "C" fn hook_subtick_hits_on_ray_chain(frame: &mut Frame) -> u32 {
     let flow = hook_ragdoll_on_ray(frame);
     if flow != 0 { return flow; }
     let flow = hook_lamps_on_ray(frame);
-    if flow != 0 { return flow; }
-    0
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_music_on_unload_chain(frame: &mut Frame) -> u32 {
-    let flow = hook_music_on_unload(frame);
-    if flow != 0 { return flow; }
-    let flow = hook_lobby_scene_on_game_closing(frame);
     if flow != 0 { return flow; }
     0
 }

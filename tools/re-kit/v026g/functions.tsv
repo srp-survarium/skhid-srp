@@ -2307,3 +2307,7 @@ va	status	ref_021d	name
 0x00532490	reviewed		Scaleform::HeapMH::RootMH::CreateHeap
 0x000f70f0	reviewed		vostok::resources::resource_base::resource_base
 0x0010a590	reviewed		vostok::resources::managed_resource::managed_resource
+0x003007e0	observed		survarium::victory_item_core::use_initialize
+0x00300830	observed		survarium::victory_item_core::use_tick
+0x002464f0	observed		survarium::victory_item::update_free_model
+0x002467b0	observed		survarium::victory_item::loose_model_callback

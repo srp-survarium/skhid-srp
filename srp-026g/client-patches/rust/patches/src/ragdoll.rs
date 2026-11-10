@@ -13,7 +13,8 @@
 //!   player's own ragdoll's eye;
 //! - `on_ray` (bullet::check_collision, the bullet's ray traced): the
 //!   segment tested against the ragdolls; a hit corpse's part is pushed at
-//!   the next step (once a bullet) and the game's body-hit particle and
+//!   the next step (once a bullet); a head hit knocks off the headwear worn
+//!   on it) and the game's body-hit particle and
 //!   sound play at the hit; a living player's hit is kept for its death's
 //!   push (once a bullet: its first segment through the body);
 //! - `on_held_item` (mt_draw, before the held item is read): a corpse of
@@ -36,10 +37,13 @@ use core::sync::atomic::{AtomicBool, Ordering};
 
 use ::ragdoll::corpse::{Corpse, CorpseHit, Corpses, Death, DeathKey, Drawn, Frame, MAX_PLACES, Seen, SlotId};
 use ::ragdoll::math::{Pose, Quat, Vec3, abs};
-use ::ragdoll::ragdoll::{Cause, GunShape, HeadwearShape, Knock, Level, Skeleton, StartReport, Sweep};
+use ::ragdoll::ragdoll::{Cause, GunShape, HeadwearOff, HeadwearStart, Knock, Level, Skeleton, StartReport, Sweep};
 use ::ragdoll::shot::{Hit, Recent, Shot, ShotKey, ShotLog, impulse, knocked_back};
 use ::ragdoll::skeleton::{BONE_COUNT, BONES, PARTS, Part};
 
+use weapon_pickup::BATTERIES;
+
+use crate::vostok::battery::Batteries;
 use crate::vostok::bullet::BulletRay;
 use crate::vostok::draw::{self, DrawnBones};
 use crate::vostok::trace::{self, TraceFile};
@@ -66,7 +70,10 @@ const LEVEL_MASK: u32 = 0x02 | 0x08 | 0x200;
 // ray_test takes them as u16
 const _: () = assert!(LEVEL_GROUP <= 0xFFFF && LEVEL_MASK <= 0xFFFF);
 /// The level's rays a frame, for all ragdolls (a ray is a few microseconds).
-const RAYS_A_FRAME: u32 = 160;
+/// (two an end of a moving body: under it and beside it.)
+const RAYS_A_FRAME: u32 = 320;
+/// The level's rays a frame for the dropped batteries (four a falling one).
+const BATTERY_RAYS: u32 = 64;
 const UP: Vec3 = Vec3::Y;
 /// The living hits kept between a frame's bullets and its step.
 const LIVING_HITS: usize = 32;
@@ -327,27 +334,47 @@ fn frame_time(clock: &mut Clock, thread: &Thread) -> f32 {
 }
 
 /// The level as the ragdolls read it: ray_test on the simulation's physics
-/// world, the level's group alone, a budget of rays a frame.
+/// world, the level's group alone, a budget of rays a frame. The loose
+/// batteries' own bodies are passed through (`unseen`): a battery is drawn
+/// where battery_drop has it, which the corpses push, not where its body is.
 struct GameLevel<'t> {
     world: Option<PhysicsWorld<'t>>,
     rays: u32,
+    unseen: [Option<BodyId>; BATTERIES as usize],
 }
+
+/// A ray goes on this far inside a body it passes through, m (Bullet's ray
+/// from inside a convex body does not meet it again).
+const PASS: f32 = 0.001;
 
 impl Level for GameLevel<'_> {
     fn sweep(&mut self, from: Vec3, to: Vec3, radius: f32) -> Sweep {
         let Some(world) = &self.world else { return Sweep::Deferred };
-        if self.rays == 0 {
-            return Sweep::Deferred;
-        }
-        self.rays -= 1;
         let along = to - from;
         let Some(direction) = along.direction() else { return Sweep::Clear };
-        let origin = [from.x, from.y, from.z];
-        let direction = [direction.x, direction.y, direction.z];
-        match world.ray_test(origin, direction, along.length() + radius, LEVEL_GROUP, LEVEL_MASK) {
-            None => Sweep::Clear,
-            Some(hit) => Sweep::Hit { point: vec3(hit.point), normal: vec3(hit.normal) },
+        let end = to + direction * radius;
+        let mut origin = from;
+        // at most each battery passed through once, then the level
+        for _ in 0..=self.unseen.len() {
+            if self.rays == 0 {
+                return Sweep::Deferred;
+            }
+            self.rays -= 1;
+            let left = (end - origin).dot(direction);
+            if left <= 0.0 {
+                return Sweep::Clear;
+            }
+            let at = [origin.x, origin.y, origin.z];
+            let Some(hit) = world.ray_test(at, [direction.x, direction.y, direction.z], left, LEVEL_GROUP, LEVEL_MASK)
+            else {
+                return Sweep::Clear;
+            };
+            if !self.unseen.contains(&Some(hit.object)) {
+                return Sweep::Hit { point: vec3(hit.point), normal: vec3(hit.normal) };
+            }
+            origin = vec3(hit.point) + direction * PASS;
         }
+        Sweep::Deferred
     }
 }
 
@@ -425,9 +452,15 @@ fn seen(
     let gun = (player.held() == Held::Item && crate::artefact_carry::gun_in_hands_at_death(player, thread))
         .then_some(GunShape::RIFLE);
     let mut death = Death::new(DeathKey(player.spawned()), Cause::Unknown, gun, stood_on);
-    if fatal == Some((death.key, headwear::FatalHit::Headshot)) {
-        death.headwear = headwear::of_player(player).map(|_| HeadwearShape);
-    }
+    // headwear the content lets leave the head: knocked off by the killing
+    // headshot, else worn until a shot into the corpse's head
+    death.headwear = headwear::of_player(player).map(|_| {
+        if fatal == Some((death.key, headwear::FatalHit::Headshot)) {
+            HeadwearStart::KnockedOff
+        } else {
+            HeadwearStart::Worn
+        }
+    });
     (death.hits, death.hit_count) = recent.of_death(now);
     death.load = load_of(player);
     death.velocity = if moving.known { moving.velocity } else { Vec3::ZERO };
@@ -467,13 +500,14 @@ pub fn on_step(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let world = GameWorld::at_after_move(ctx);
     let key = world.as_ref().and_then(crate::vostok::gun_cook::world_key);
+    let batteries = world.as_ref().and_then(crate::vostok::battery::at_after_move);
     let client = world.and_then(|world| world.network_client());
     let guns = STATE.with(thread, |state| {
         if state.world != key {
             state.world = key;
             state.corpses.reset();
         }
-        step(state, client.as_ref(), thread);
+        step(state, client.as_ref(), batteries.as_ref(), thread);
         // each place's dropped gun, for patch 85's drops drawn as their copies
         core::array::from_fn(|place| state.corpses.gun(place)
             .map(|(death, pose)| crate::weapon_pickup::DroppedGun { life: death.0, transform: matrix_of(pose) }))
@@ -482,17 +516,25 @@ pub fn on_step(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-fn step(state: &mut State, client: Option<&NetworkClient<'_>>, thread: &Thread) {
+fn step(state: &mut State, client: Option<&NetworkClient<'_>>, batteries: Option<&Batteries>, thread: &Thread) {
     let dt = frame_time(&mut state.clock, thread);
     state.time += dt;
     let living = core::mem::replace(&mut state.shots.living, [None; LIVING_HITS]);
+    let own_place = client.and_then(|client| client.local_place());
     // the pushes of the shots since the last step (the bullets' threads
     // are done: the simulation's move has returned)
     for push in state.shots.pushes.iter_mut() {
-        if let Some(p) = push.take()
-            && let Some(knock) = state.corpses.push(p.place, p.death, p.part, p.point, p.impulse)
-            && (knock.push > SPIKE_PUSH || knock.speed > SPIKE_SPEED)
+        let Some(p) = push.take() else { continue };
+        let Some(knock) = state.corpses.push(p.place, p.death, p.part, p.point, p.impulse) else { continue };
+        // the local player's own bullet in a corpse's head: its player is told
+        if knock.part == Part::Head
+            && knock.age >= ::ragdoll::tuning::HEAD_SHOT_DARK_AFTER
+            && own_place == Some(p.round.shooter)
+            && let Some(client) = client
         {
+            crate::head_shot::head_hit(thread, p.place, client.places());
+        }
+        if knock.push > SPIKE_PUSH || knock.speed > SPIKE_SPEED {
             spike_of_push(&mut state.trace, thread, state.time, p.place, &p.round, &knock);
         }
     }
@@ -554,8 +596,21 @@ fn step(state: &mut State, client: Option<&NetworkClient<'_>>, thread: &Thread) 
     }
     state.deaths[count..].fill(None);
     let frame = Frame { dt, up: UP, places: &seen_places[..count], local: local.map(|(p, _)| p) };
-    let mut level = GameLevel { world: physics, rays: RAYS_A_FRAME };
+    // with no physics world (no player yet) nothing falls: the batteries are drawn as the game has them
+    let batteries = batteries.filter(|_| physics.is_some());
+    let unseen = batteries.map_or([None; BATTERIES as usize], |b| b.loose.map(|l| l.and_then(|l| l.body)));
+    let mut level = GameLevel { world: physics, rays: RAYS_A_FRAME, unseen };
     state.corpses.step(&frame, &mut level);
+    // the batteries' own rays: a battery whose rays the corpses spent would fall through the floor
+    level.rays = BATTERY_RAYS;
+    crate::battery_drop::step(thread, dt, batteries, &state.corpses, &mut level);
+    let own = match local {
+        Some((place, player)) if !player.alive() => {
+            crate::head_shot::Own::Dead { place: place as u8, death: DeathKey(player.spawned()) }
+        }
+        _ => crate::head_shot::Own::Living,
+    };
+    crate::head_shot::after_step(thread, own, |place| state.corpses.body(place).is_none());
     for (place, r) in state.corpses.started() {
         trace_line(&mut state.trace, thread, |w| {
             w.text("death,");
@@ -900,13 +955,17 @@ pub fn on_bones(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// The rendered accessory pose of the same death, in the player's model space.
+/// The rendered accessory pose of the same death, in the player's model space:
+/// knocked off by the killing headshot while the death event still says so,
+/// or by a later shot into the corpse's head.
 fn headwear_pose(state: &State, player: &Player<'_>) -> Option<[f32; 16]> {
     let (key, slot, _) = draw_of(state, player)?;
-    if *state.deaths.get(usize::from(player.place()))? != Some((key, headwear::FatalHit::Headshot)) {
+    let (pose, off) = state.corpses.slot(slot).body()?.headwear_pose()?;
+    if off == HeadwearOff::Death
+        && *state.deaths.get(usize::from(player.place()))? != Some((key, headwear::FatalHit::Headshot))
+    {
         return None;
     }
-    let pose = state.corpses.slot(slot).body()?.headwear_pose()?;
     Some(matrix_of(pose_of(&player.transform())?.inverse().then(pose)))
 }
 

@@ -76,8 +76,9 @@ pub const fn fixed_length(id: u8) -> Option<usize> {
     })
 }
 
-/// Bit 30 is unused. Bit 29 is the shipped artefact-carry/weapon-pickup
-/// command marker; bit 31 is the native per-input flag. Both are valid.
+/// Bit 30 is unused. Bit 29 is the shipped command marker (artefact carry,
+/// a gun's or a battery's pickup, a corpse's head shot:
+/// `weapon_pickup::Command`); bit 31 is the native per-input flag. Both are valid.
 pub const UNUSED_ACTIONS: u32 = 1 << 30;
 
 /// A half float's exponent field, and that of 1024.0.

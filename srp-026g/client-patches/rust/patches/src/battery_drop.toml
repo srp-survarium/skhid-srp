@@ -1,0 +1,16 @@
+# Patch 76's dropped batteries (docs/notes/ragdoll.md): only the decisions,
+# which sites and the handlers. The sites are sites_026g.tsv's; the logic is
+# battery_drop.rs. Its step is patch 76's (ragdoll.rs, game_world.after_move),
+# its aim artefact_carry's on_hud, its input and apply point artefact_carry's
+# input_builder.end and carry.filter.
+name = "battery_drop"
+patch = 76
+
+# a loose battery's two models, each frame: drawn where it fell here
+[[hook]]
+site = "battery.draw_primary"
+handler = "on_draw_primary"
+
+[[hook]]
+site = "battery.draw_secondary"
+handler = "on_draw_secondary"

@@ -36,3 +36,10 @@ The owner's rule and what it changes. Data: `gameplay/victory_items/default.opti
   server data must be the one the players' patches make); and the `next` row of
   `crates/session/src/v026g/simulation_changes.tsv`, which this change shares
   with patch 38 and fall damage (one `next` row a release).
+
+## A dropped battery is taken by its id (2026-11-10)
+
+A loose battery is drawn by patch 76's solver (on corpses, never under a floor), so a
+player takes the one it sees: Use on the drawn battery goes out as a command naming it,
+and every world plays that command within a reach of the simulation's battery. The rule,
+its bound and its checks are `ragdoll.md` section 21.

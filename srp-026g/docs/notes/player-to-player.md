@@ -147,6 +147,17 @@ the client builds no other. Whether the gun is really lying there and free is de
 game alike from its own world (`weapon_pickup::decide`), so a forged pickup of a gun that is not
 there does nothing in any game.
 
+Two more commands ride the same marker (client patch 76, `weapon_pickup::Command`), each with
+its own patterns:
+
+- **A battery's pickup** names one of the ten batteries. Every game plays it alike from its own
+  world: the game's own use of that battery, if the game lets the player start it and the player
+  is within 4.5 m across of it (`ragdoll.md` section 21). A forged one from further away does
+  nothing in any game.
+- **A corpse's head shot** names the victim's place (**[S2]** as a pickup's). No game computes
+  anything from it; the victim's own client goes dark until its respawn (`ragdoll.md` section
+  20). A forged one can do that to a dead player and nothing else.
+
 ## 4. Kit choices (0xDE, relayed as 0xF3)
 
 On the death screen a player picks the kit for the next life.

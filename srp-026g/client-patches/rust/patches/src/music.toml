@@ -52,10 +52,11 @@ site = "game.clear_resources"
 handler = "on_unload"
 order = 1
 
-# the sound thread's tick: the bus kept active, its fade stepped
+# the sound thread's tick: the bus kept active, its fade stepped (before patch 76's silence, order 1)
 [[hook]]
 site = "sound_world.tick"
 handler = "on_sound_tick"
+order = 0
 
 # a query's callback: the bus's scene or a track's sound
 [[hook]]

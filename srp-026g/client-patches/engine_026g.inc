@@ -732,3 +732,10 @@ extern engine_err_put_error
 ; 0x46b6e0 ssleay_rand_bytes: room ESP+4, length ESP+8; pops 0; EAX; cdecl, called directly
 ; cdecl: push (and ECX for thiscall) as that convention says
 extern engine_rand_bytes
+; unsigned int engine_voice_set_volume(struct mastering_voice *voice, float volume, unsigned int operation_set)
+; COM IXAudio2Voice+0x30 (stdcall through the interface's vtable): voice ESP+4, volume ESP+8, operation_set ESP+12; pops 12; EAX
+extern engine_voice_set_volume
+; void engine_battery_use(struct usable_object *usable, struct usable_user *user, unsigned int time)
+; 0x3007e0 survarium::victory_item_core::use_initialize: usable ECX, user ESP+4, time ESP+8; pops 8; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_battery_use

@@ -2389,6 +2389,84 @@ ban_time_on_status_replay:
     db 0x8a, 0x44, 0x24, 0x13, 0x8b, 0xd3
     jmp 0x21f21d
 
+; 0x24681d victory_item::loose_model_callback 0x2467B0 (every game_world::tick, the game's thread) before its first model's update_model 0x22280 (push eax / mov eax,[esp+1Ch]): EDI the battery, a physical one (+2C8h), its two get_transform copies on the stack at [ESP+1Ch] and [ESP+5Ch], which update_model copies and nothing else reads: lohook -> battery_drop_on_draw_primary
+global battery_drop_on_draw_primary
+extern hook_battery_drop_on_draw_primary
+battery_drop_on_draw_primary:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_drop_on_draw_primary
+    mov edx, battery_drop_on_draw_primary_replay
+    cmp eax, 0
+    je battery_drop_on_draw_primary_go
+    mov edx, 0x246822
+    cmp eax, 1
+    je battery_drop_on_draw_primary_go
+    ud2
+battery_drop_on_draw_primary_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_drop_on_draw_primary_replay:
+    db 0x50, 0x8b, 0x44, 0x24, 0x1c
+    jmp 0x246822
+
+; 0x24687b loose_model_callback before its second model's update_model (push eax / push edi / lea eax,[ebp+108h]): ESI the battery, the two copies asked again, at the same [ESP+1Ch] and [ESP+5Ch]: lohook -> battery_drop_on_draw_secondary
+global battery_drop_on_draw_secondary
+extern hook_battery_drop_on_draw_secondary
+battery_drop_on_draw_secondary:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_drop_on_draw_secondary
+    mov edx, battery_drop_on_draw_secondary_replay
+    cmp eax, 0
+    je battery_drop_on_draw_secondary_go
+    mov edx, 0x246883
+    cmp eax, 1
+    je battery_drop_on_draw_secondary_go
+    ud2
+battery_drop_on_draw_secondary_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_drop_on_draw_secondary_replay:
+    db 0x50, 0x57, 0x8d, 0x85, 0x08, 0x01, 0x00, 0x00
+    jmp 0x246883
+
 ; 0x334999 victory_item_event_manager::start_match once both containers' positions are kept, before the batteries' nearest positions (mov eax,[esi+0A38h]): ESI the manager, +0A38h its rule just set: lohook -> battery_progress_on_match_start
 global battery_progress_on_match_start
 extern hook_battery_progress_on_match_start
@@ -3351,6 +3429,84 @@ hand_kill_on_hit_go:
 hand_kill_on_hit_replay:
     db 0x8d, 0x4c, 0x24, 0x10, 0x51
     jmp 0x2e50cc
+
+; 0x59ab1 sound_world::tick after process_orders, before the active scenes tick (mov esi,[edi+48E4h]): the sound thread, EDI the world, EBX the ms since its last tick: lohook -> music_on_sound_tick
+global music_on_sound_tick
+extern hook_music_on_sound_tick_chain
+music_on_sound_tick:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_music_on_sound_tick_chain
+    mov edx, music_on_sound_tick_replay
+    cmp eax, 0
+    je music_on_sound_tick_go
+    mov edx, 0x59ab7
+    cmp eax, 1
+    je music_on_sound_tick_go
+    ud2
+music_on_sound_tick_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+music_on_sound_tick_replay:
+    db 0x8b, 0xb7, 0xe4, 0x48, 0x00, 0x00
+    jmp 0x59ab7
+
+; 0x1ed030 game::clear_resources' start (push ebx / push esi / mov esi,ecx / mov ecx,[esi+535Ch]): the game unloads its menus and world: lohook -> music_on_unload
+global music_on_unload
+extern hook_music_on_unload_chain
+music_on_unload:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_music_on_unload_chain
+    mov edx, music_on_unload_replay
+    cmp eax, 0
+    je music_on_unload_go
+    mov edx, 0x1ed03a
+    cmp eax, 1
+    je music_on_unload_go
+    ud2
+music_on_unload_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+music_on_unload_replay:
+    db 0x53, 0x56, 0x8b, 0xf1, 0x8b, 0x8e, 0x5c, 0x53, 0x00, 0x00
+    jmp 0x1ed03a
 
 ; 0x234880 game_world_ui::initialize_match's start (sub esp,5D4h), once a match (from 0x1F855D; the late join's rebuild enters at 0x234E71): the site's ESP+4 the hud, whose kits (+2DFh) and cursor (+2DCh) are the last match's: lohook -> hud_cursor_on_match_start
 global hud_cursor_on_match_start
@@ -4756,45 +4912,6 @@ lobby_scene_on_activate_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
     jmp 0x21d2e6
 
-; 0x1ed030 game::clear_resources' start (push ebx / push esi / mov esi,ecx / mov ecx,[esi+535Ch]): the game unloads its menus and world: lohook -> music_on_unload
-global music_on_unload
-extern hook_music_on_unload_chain
-music_on_unload:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_music_on_unload_chain
-    mov edx, music_on_unload_replay
-    cmp eax, 0
-    je music_on_unload_go
-    mov edx, 0x1ed03a
-    cmp eax, 1
-    je music_on_unload_go
-    ud2
-music_on_unload_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-music_on_unload_replay:
-    db 0x53, 0x56, 0x8b, 0xf1, 0x8b, 0x8e, 0x5c, 0x53, 0x00, 0x00
-    jmp 0x1ed03a
-
 ; 0x25cd1c game_world::on_keyboard_action with the input world's keyboard (its vtable+24h 0x79E40: [input_world+24h]), before it asks the keyboard for Tab (mov edx,[eax] / mov ecx,eax / mov eax,[edx]; push 0Fh at 0x25CD22): EAX the keyboard, EDI the game world's input handler (the hud at +4); every key the game world is given, a held one every tick: lohook -> map_names_on_key
 global map_names_on_key
 extern hook_map_names_on_key
@@ -5825,45 +5942,6 @@ music_on_announced_go:
 music_on_announced_replay:
     db 0xc6, 0x87, 0x70, 0x03, 0x00, 0x00, 0x01
     jmp 0x23b371
-
-; 0x59ab1 sound_world::tick after process_orders, before the active scenes tick (mov esi,[edi+48E4h]): the sound thread, EDI the world, EBX the ms since its last tick: lohook -> music_on_sound_tick
-global music_on_sound_tick
-extern hook_music_on_sound_tick
-music_on_sound_tick:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_music_on_sound_tick
-    mov edx, music_on_sound_tick_replay
-    cmp eax, 0
-    je music_on_sound_tick_go
-    mov edx, 0x59ab7
-    cmp eax, 1
-    je music_on_sound_tick_go
-    ud2
-music_on_sound_tick_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-music_on_sound_tick_replay:
-    db 0x8b, 0xb7, 0xe4, 0x48, 0x00, 0x00
-    jmp 0x59ab7
 
 ; 0x14730 the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query: callback -> music_on_query_done (wraps engine_store_first_resource 0x14730)
     RUST_CDECL music_on_query_done, hook_music_on_query_done, 2

@@ -138,6 +138,8 @@ pub fn on_ground_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_filter(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(player) = native::player(ctx, native::PlayerSite::Filter) {
         crate::weapon_pickup::on_filter(&player, ctx.thread());
+        crate::battery_drop::on_filter(&player);
+        crate::head_shot::on_filter(&player, ctx.thread());
         if player.carry_key().is_some() {
             player.carry_filter(machine(&player, ctx).filtered());
         }
@@ -214,6 +216,10 @@ pub fn on_input_end(ctx: &mut Context<'_>) -> Flow<NoExit> {
         handler.set_actions(ActionMask::from_bits(encoded));
         // Patch 85: Use's press on a dropped gun is sent as its pickup.
         crate::weapon_pickup::on_input_end(&mut handler, ctx.thread());
+        // Patch 76: Use's press on a drawn battery is sent as its pickup.
+        crate::battery_drop::on_input_end(&mut handler, ctx.thread());
+        // Patch 76: a head shot of a corpse is told in an input free of commands.
+        crate::head_shot::on_input_end(&mut handler, ctx.thread());
     }
     Flow::Continue
 }
@@ -224,7 +230,9 @@ pub fn on_hud(ctx: &Context<'_>) {
     let local = native::local_player(ctx);
     let carry = local.as_ref().is_some_and(|p| target(p, ctx).is_some() || ground_target(p).is_some());
     let gun = crate::weapon_pickup::aim(ctx, local.as_ref().filter(|_| !carry));
-    let visible = carry || gun.is_some();
+    // then patch 76's drawn battery
+    let battery = crate::battery_drop::aim(ctx, local.as_ref().filter(|_| !carry && gun.is_none()));
+    let visible = carry || gun.is_some() || battery;
     let Some(ui) = crate::vostok::GameWorldUi::at_update_icons(ctx) else { return };
     if let Some(movie) = ui.hud_movie() {
         let previous = HINT.get(ctx.thread());
@@ -235,6 +243,8 @@ pub fn on_hud(ctx: &Context<'_>) {
         let mut text = [0u8; 0x200];
         let shown = match gun {
             _ if carry => movie.invoke_text(c"root.show_artefact_offer", c"st_artefact_take_teammate"),
+            // the game's own hint of a battery
+            _ if battery => movie.invoke_text(c"root.show_artefact_offer", c"st_pickup_item"),
             Some(crate::weapon_pickup::Prompt::Take(name)) => {
                 let name = if name.get().is_empty() { c"" } else { ui.translate(name.get(), &mut text) };
                 movie.invoke_strings(c"root.show_artefact_offer", &[c"st_weapon_pick_up", name])
