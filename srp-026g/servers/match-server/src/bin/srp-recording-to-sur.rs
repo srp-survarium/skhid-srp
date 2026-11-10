@@ -7,8 +7,8 @@
 //!
 //! The mode's config is the game data's (`SRP_GAME_DATA`): the
 //! `gameplay/game_modes/` file the recording's map id names in `maps_dict`,
-//! as the server's own conversion takes it. The result is `<out>/<name>.sur`, `<name>` the recording's
-//! own file name; a summary is printed.
+//! as the server's own conversion takes it. The result is `<out>/<name>.sur`,
+//! `<name>` the recording's own file name; a summary is printed.
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;

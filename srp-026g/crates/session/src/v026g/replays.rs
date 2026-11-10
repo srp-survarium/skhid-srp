@@ -1353,7 +1353,7 @@ mod tests {
             ReplaySettings {
                 replay_dir: replay,
                 record_dir: record,
-                    max_recording_bytes: 1,
+                max_recording_bytes: 1,
                 max_replay_bytes: 1,
             }
             .checked()

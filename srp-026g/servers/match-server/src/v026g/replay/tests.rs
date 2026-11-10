@@ -284,7 +284,7 @@ fn a_recording_that_does_not_unpack_fails_for_good() {
     let header = record::read_header(&recording).unwrap().unwrap();
     assert_eq!(
         sur_convert::config_name(std::slice::from_ref(&header)),
-        Some(config.clone())
+        Some(config)
     );
     // The bad block: the recording's own failure, for good.
     let error = make(&settings, MATCH).unwrap_err();
