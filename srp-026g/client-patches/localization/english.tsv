@@ -2710,6 +2710,7 @@ st_srp_rooms_all_rooms	All rooms
 st_srp_rooms_any	Any
 st_srp_rooms_back	Back
 st_srp_rooms_bots	With bots
+st_srp_rooms_called_back	Your room is ready
 st_srp_rooms_code_10	The owner removed you from that room.
 st_srp_rooms_code_11	Leave your clan team first.
 st_srp_rooms_code_12	Your equipment is above the max level.

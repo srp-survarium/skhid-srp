@@ -2710,6 +2710,7 @@ st_srp_rooms_all_rooms	Все комнаты
 st_srp_rooms_any	Любой
 st_srp_rooms_back	Назад
 st_srp_rooms_bots	С ботами
+st_srp_rooms_called_back	Ваша комната готова
 st_srp_rooms_code_10	Владелец убрал вас из комнаты.
 st_srp_rooms_code_11	Сначала выйдите из клановой команды.
 st_srp_rooms_code_12	Ваше снаряжение выше макс. уровня.

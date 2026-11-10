@@ -136,6 +136,7 @@ package
          checkPlayOffer();
          checkCreate();
          checkWindowOrder();
+         checkWatchReturn();
          checkSquads();
          checkSoldier();
          checkInSquad();
@@ -906,6 +907,58 @@ package
 
       // Exercise the lobby's actual recurring layer adjustment. Background
       // panels may be re-added, but only opening a window changes its priority.
+      // Back from a watch (WatchWindow.back, holdWatchReturn): a room still waiting gives the Watch
+      // window back; one with a use for us (its vote) shows itself, with its notice; in no room
+      // nothing is held.
+      private function checkWatchReturn():void
+      {
+         try
+         {
+            var me:* = Win.me;
+            var resumed:int = 0;
+            var resume:Function = function():void { resumed++; };
+            var named:Function = function(at:DisplayObject, name:String):DisplayObject
+            {
+               if(at.name == name)
+                  return at;
+               var box:DisplayObjectContainer = at as DisplayObjectContainer;
+               for(var i:int = 0; box != null && i < box.numChildren; i++)
+               {
+                  var found:DisplayObject = named(box.getChildAt(i),name);
+                  if(found != null)
+                     return found;
+               }
+               return null;
+            };
+            tellRoom(7,false,false,0,null,0,[]);
+            me.show(false);
+            if(!me.holdWatchReturn(resume))
+               failures.push("watch return: not held in a room");
+            tellRoom(7,false,false,0,null,0,[]);
+            if(resumed != 1 || me.shown)
+               failures.push("watch return: a waiting room did not give the Watch window back (" + resumed + ", shown " + me.shown + ")");
+            if(named(win,"srpRoomsCalledBack") != null && named(win,"srpRoomsCalledBack").visible)
+               failures.push("watch return: a notice for a waiting room");
+            me.holdWatchReturn(resume);
+            tellRoom(7,false,false,3,null,0,[]);
+            var note:DisplayObjectContainer = named(win,"srpRoomsCalledBack") as DisplayObjectContainer;
+            var words:TextField = note != null ? note.getChildAt(0) as TextField : null;
+            if(resumed != 1 || !me.shown)
+               failures.push("watch return: a voting room did not show itself (" + resumed + ", shown " + me.shown + ")");
+            if(note == null || !note.visible || words == null || words.text.length == 0 || words.textWidth + 28 > note.width
+               || note.parent.getChildIndex(note) != note.parent.numChildren - 1)
+               failures.push("watch return: no notice over the voting room: " + (words != null ? words.text : null));
+            tell(["S1;N;0;0;0"]);
+            if(me.holdWatchReturn(resume))
+               failures.push("watch return: held in no room");
+            trace("ROOMS watch return: a waiting room resumes, a voting room shows with '" + (words != null ? words.text : null) + "', no room holds nothing");
+         }
+         catch(err:Error)
+         {
+            failures.push("watch return: " + err.getStackTrace());
+         }
+      }
+
       private function checkWindowOrder():void
       {
          try

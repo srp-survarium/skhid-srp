@@ -77,6 +77,13 @@ package survarium.rooms
         internal var _shown:Boolean = false;
         internal var _view:String = "list";
         private var _timer:Timer;
+        // back from a watch, the state not yet in: {resume, at} (holdWatchReturn)
+        private var _watchReturn:Object = null;
+        private static const WATCH_RETURN_MS:int = 6000;
+        // the notice of a room that called us back from a watch, and until when it shows
+        private var _calledBack:Sprite;
+        private var _calledBackUntil:int = 0;
+        private static const CALLED_BACK_MS:int = 7000;
         private var _now:int = 0;
         internal var _askedAt:int = -100000;
         // The last STATE asked, and whether one was ever answered: a game
@@ -748,9 +755,90 @@ package survarium.rooms
             RoomsWire.send(start, count);
         }
 
+        // The game is back from a watch (WatchWindow.back) while we are in a room or a room's
+        // queue: the next state decides (takeAnswer) between the room and `resume` (the Watch
+        // window again); asked at once, and `resume` if no state comes within WATCH_RETURN_MS.
+        // false: in no room and no queue, nothing held.
+        public function holdWatchReturn(resume:Function):Boolean
+        {
+            if (_room == null && _queueKey == 0)
+                return false;
+            _watchReturn = {"resume": resume, "at": getTimer()};
+            if (_steps.length == 0)
+                ask(RoomsWire.STATE, 1);
+            return true;
+        }
+
+        private function endWatchReturn():void
+        {
+            if (_watchReturn != null)
+            {
+                var back:Object = _watchReturn;
+                _watchReturn = null;
+                back.resume();
+            }
+        }
+
+        // "Your room is ready": one line over the room's view for CALLED_BACK_MS, taking no
+        // press and moving nothing.
+        private function sayCalledBack():void
+        {
+            if (_calledBack == null)
+            {
+                _calledBack = new Sprite();
+                _calledBack.name = "srpRoomsCalledBack";
+                _calledBack.mouseEnabled = false;
+                _calledBack.mouseChildren = false;
+                var words:TextField = new TextField();
+                words.embedFonts = true;
+                words.selectable = false;
+                words.autoSize = "left";
+                words.defaultTextFormat = new TextFormat(look._font, 15, RoomsLook.LIGHT, true);
+                words.x = 14;
+                words.y = 6;
+                _calledBack.addChild(words);
+                look._content.addChild(_calledBack);
+            }
+            var field:TextField = _calledBack.getChildAt(0) as TextField;
+            field.text = say("st_srp_rooms_called_back");
+            var w:int = int(field.textWidth + 32);
+            var h:int = int(field.textHeight + 16);
+            _calledBack.graphics.clear();
+            _calledBack.graphics.lineStyle(1, RoomsLook.GOLD, 0.8);
+            _calledBack.graphics.beginFill(0x0C0E10, 0.94);
+            _calledBack.graphics.drawRoundRect(0, 0, w, h, 8, 8);
+            _calledBack.graphics.endFill();
+            _calledBack.x = int((look._w - w) / 2);
+            _calledBack.y = int(RoomsLook.HEAD_H + 8);
+            _calledBack.visible = true;
+            _calledBackUntil = getTimer() + CALLED_BACK_MS;
+            keepCalledBackOnTop();
+        }
+
+        // A view drawn anew is put over it: on top again while it shows.
+        private function keepCalledBackOnTop():void
+        {
+            if (_calledBack != null && _calledBack.visible)
+            {
+                if (_calledBack.parent != look._content)
+                    look._content.addChild(_calledBack);
+                else
+                    look._content.setChildIndex(_calledBack, look._content.numChildren - 1);
+            }
+        }
+
         private function onTimer(e:TimerEvent):void
         {
             _now = getTimer();
+            if (_watchReturn != null && _now - _watchReturn.at >= WATCH_RETURN_MS)
+                endWatchReturn();
+            if (_calledBack != null && _calledBack.visible)
+            {
+                if (_now >= _calledBackUntil)
+                    _calledBack.visible = false;
+                else
+                    keepCalledBackOnTop();
+            }
             // A chain or a pressed button with no answer for 6 s: given up,
             // the buttons back.
             if ((_steps.length > 0 && _now - _stepsAt > 6000) || (_busyAt != 0 && _now - _busyAt > 6000))
@@ -968,6 +1056,10 @@ package survarium.rooms
             else if (kind == "N")
             {
                 settle();
+                endWatchReturn();
+                // out of the room: its notice goes with it
+                if (_calledBack != null)
+                    _calledBack.visible = false;
                 var had:Boolean = _room != null;
                 _room = null;
                 _roomSig = "";
@@ -1063,6 +1155,23 @@ package survarium.rooms
                 // here, said once; our own word (a PIN not of 4 digits) stays
                 // while we stay.
                 RoomsLook.markSquads(_room.members, squads);
+                // Back from a watch: the room with a use for us (its vote, its match) shows
+                // itself, with a quiet notice; one still waiting gives the Watch window back.
+                if (_watchReturn != null)
+                {
+                    var back:Object = _watchReturn;
+                    _watchReturn = null;
+                    if (_room.phase != RoomPhase.WAITING)
+                    {
+                        _view = "room";
+                        _roomSig = "";
+                        if (!_shown)
+                            show(true);
+                        sayCalledBack();
+                    }
+                    else
+                        back.resume();
+                }
                 var roomCode:int = head.length > 16 ? int(head[16]) : RoomCode.NONE;
                 if (roomCode == RoomCode.NONE && _code < RoomCode.NONE && was != null && was.key == _room.key)
                     roomCode = _code;
@@ -1253,6 +1362,7 @@ package survarium.rooms
                 stage.focus = pin;
                 pin.setSelection(selectionStart, selectionEnd);
             }
+            keepCalledBackOnTop();
         }
 
         // The header's two tabs while we are in a room (the owner's of

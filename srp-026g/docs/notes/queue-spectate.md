@@ -87,3 +87,34 @@ dynamic game". Rooms: [rooms.md](rooms.md) (Queue, Late joins). Wire: `lobby.md`
   lines and the followed player's
   death show no kit picker; an 0xEA naming 0xFF ends its match quietly (no results screen),
   back to the lobby.
+
+## Watching something else from a room or its queue (the owner's of 2026-11-10)
+
+"I want to be able to be in queue for joining the match and spectate other match at the same
+time, and then once minimal players are found and room is created I should gracefully
+automatically leave [the] game I'm spectating / replay I'm watching and be redirected to a
+standard room menu." Asked when: "when the room reaches its minimum players and the map vote
+begins"; for a room waiting for players, a room's Queue and Play's queue alike; "straight back,
+but with nice non-disruptive ux/ui".
+
+- **Watching is free meanwhile.** A member of a room, or one in a room's queue, may watch a live
+  match (the Live window, a friend's Spectate) or a replay; a replay's viewer keeps its place in
+  a queue as a live spectator does (`room_fit_of`).
+- **The room calls back** (`rooms.rs` `room_recalls`, each tick): a room waiting for players once
+  those who can play now and those watching who could would make its minimum, so the vote begins
+  when they are back; a room in its vote; a room whose match takes a member now, or will in a
+  moment (`room_takes_now`: `late_hold` says yes, or another is on its way in). A private room
+  waiting is its owner's to start and calls nobody. One in a queue is called back as a member,
+  once the queue has put it in the room.
+- **How:** a live watch is stopped (`Matchmaking::stop_watching`), so the match server lets the
+  game go (one 0xEA naming 0xFF); a replay's session is called back (`Watches::recall`): over at
+  once while its game is still in the lobby, else marked, and the match server's playback lets the
+  game go as at the recording's end (`Playback::recalled`). The game comes back to the lobby by
+  itself; its room takes it as any member (the vote, a late join).
+- **Not begun then:** a watch asked while the asker's room would call back at once is answered
+  `busy` (`room_keeps`).
+- **In the game** (`WatchWindow.back`, `RoomsWindow.holdWatchReturn`): back from a watch in a
+  room or a queue, the next room state decides: a room in its vote or its match shows itself, with
+  one line over it for 7 s, "Your room is ready" (`st_srp_rooms_called_back`; no press taken,
+  nothing moved); a room still waiting, or no room, gives the Watch window back as it was.
+- **Not yet:** nothing is said in the match or replay being watched before the game leaves it.

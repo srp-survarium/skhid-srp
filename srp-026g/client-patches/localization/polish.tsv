@@ -2710,6 +2710,7 @@ st_srp_rooms_all_rooms	Wszystkie pokoje
 st_srp_rooms_any	Dowolny
 st_srp_rooms_back	Wstecz
 st_srp_rooms_bots	Z botami
+st_srp_rooms_called_back	Twój pokój jest gotowy
 st_srp_rooms_code_10	Właściciel usunął cię z pokoju.
 st_srp_rooms_code_11	Najpierw opuść drużynę klanu.
 st_srp_rooms_code_12	Twój ekwipunek przekracza maks. poziom.

@@ -356,7 +356,17 @@ package survarium.watch
          if(view != null)
          {
             win._resume = null;
-            win.restore(view);
+            // In a room, or a room's queue: the room says first whether it has a use for us now
+            // (srp calls a member back from a watch for its vote or its match); it shows itself
+            // then, and this window comes back only when it has none.
+            var resume:Function = function():void
+            {
+               win.restore(view);
+            };
+            if(RoomsWindow.me == null || !RoomsWindow.me.holdWatchReturn(resume))
+            {
+               resume();
+            }
          }
       }
 
