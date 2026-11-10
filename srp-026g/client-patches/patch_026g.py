@@ -4327,8 +4327,11 @@ def artefacts_backs(linked):
     backs = []
     for at in entries:
         start = at + 5 + struct.unpack_from("<i", code, at + 1)[0]
+        # In the game's image: an E9h among another instruction's bytes (a
+        # call's displacement into another block) is no jump back.
         target = next((va + i + 5 + struct.unpack_from("<i", code, i + 1)[0] for i in range(start, len(code) - 4)
-                       if code[i] == 0xE9 and va + i + 5 + struct.unpack_from("<i", code, i + 1)[0] < SECTION_VA),
+                       if code[i] == 0xE9
+                       and IMAGE_BASE <= va + i + 5 + struct.unpack_from("<i", code, i + 1)[0] < SECTION_VA),
                       None)
         backs.append(target)
     return backs
