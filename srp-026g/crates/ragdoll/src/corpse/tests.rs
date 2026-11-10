@@ -9,6 +9,96 @@ use crate::skeleton::BONE_COUNT;
 
 const UP: Vec3 = Vec3::Y;
 
+/// A draw over a whole game skeleton (`skeleton` the game's in, the drawn out).
+trait DrawGame {
+    fn draw_game(&mut self, skeleton: &mut Skeleton) -> Drawn;
+}
+
+impl DrawGame for Slot {
+    fn draw_game(&mut self, skeleton: &mut Skeleton) -> Drawn {
+        let game = *skeleton;
+        self.draw(|bone| game[bone.index()], skeleton)
+    }
+}
+
+#[test]
+fn a_draw_asks_the_game_only_for_the_bones_its_stage_reads() {
+    use core::cell::Cell;
+    let mut corpses = Corpses::new();
+    let mut ground = Ground::flat();
+    let places = [dead(7)];
+    let asked = Cell::new(0u32);
+    let (mut dying, mut moving, mut settled_draws) = (0, 0, 0);
+    for _ in 0..1200 {
+        frame(&mut corpses, &places, None, &mut ground);
+        let Corpse::Body { slot, .. } = corpses.place(0) else { panic!("missing body") };
+        let game = standing(Quat::IDENTITY, Vec3::new(5.0, 0.0, 0.0));
+        let slot = corpses.slot_mut(slot);
+        let (stage, moved) = (stage_of(slot), slot.moves());
+        asked.set(0);
+        // `out` starts as nothing a draw may read: a ragdoll's bones are its own
+        let mut out = [Pose::new(Quat::IDENTITY, Vec3::new(f32::NAN, 0.0, 0.0)); BONE_COUNT];
+        let mut copy = *slot;
+        let drawn = slot.draw(
+            |bone| {
+                asked.set(asked.get() + 1);
+                game[bone.index()]
+            },
+            &mut out,
+        );
+        let mut over = game;
+        assert_eq!(copy.draw_game(&mut over), drawn);
+        if drawn == Drawn::Ragdoll {
+            assert_eq!(out, over, "a ragdoll's bones depend on nothing of the game's");
+        }
+        match stage {
+            "dying" => {
+                dying += 1;
+                assert_eq!(asked.get(), BONE_COUNT as u32);
+                assert!(moved);
+            }
+            "ragdoll" => {
+                moving += 1;
+                assert_eq!(asked.get(), PARTS as u32);
+                assert!(moved);
+            }
+            "settled" => {
+                settled_draws += 1;
+                assert_eq!(asked.get(), 0);
+                // drawn once since it settled (the frame's draw), its bones are given
+                assert!(!moved && !slot.moves(), "a settled body drawn once needs no draw");
+                break;
+            }
+            other => panic!("{other}"),
+        }
+    }
+    assert!(dying > 0 && moving > 0 && settled_draws == 1, "{dying} {moving} {settled_draws}");
+}
+
+#[test]
+fn a_settled_body_needs_its_first_draw_and_a_shot_moves_it_again() {
+    let mut corpses = Corpses::new();
+    let mut ground = Ground::flat();
+    let places = [dead(7)];
+    for _ in 0..1200 {
+        corpses.step(&Frame { dt: 1.0 / 60.0, up: UP, places: &places, local: None }, &mut ground);
+        let Corpse::Body { slot, .. } = corpses.place(0) else { panic!("missing body") };
+        if stage_of(corpses.slot(slot)) == "settled" {
+            assert!(corpses.slot(slot).moves(), "settled, not drawn yet");
+            let mut skeleton = standing(Quat::IDENTITY, Vec3::ZERO);
+            assert_eq!(corpses.slot_mut(slot).draw_game(&mut skeleton), Drawn::Ragdoll);
+            assert!(!corpses.slot(slot).moves(), "its pose given");
+            let body = corpses.slot(slot).body().unwrap().poses().0[0];
+            assert!(corpses.push(0, DeathKey(7), Part::Torso, body.position, Vec3::new(0.0, 0.0, 30.0)).is_some());
+            assert!(corpses.slot(slot).moves(), "a shot wakes it");
+            return;
+        }
+        let mut skeleton = standing(Quat::IDENTITY, Vec3::ZERO);
+        corpses.slot_mut(slot).draw_game(&mut skeleton);
+    }
+    panic!("never settled");
+}
+
 #[test]
 fn headwear_belongs_to_one_death_and_rollback_discards_it() {
     let mut corpses = Corpses::new();
@@ -88,7 +178,7 @@ fn frame(
     for (place, o) in out.iter_mut().enumerate() {
         if let Corpse::Body { slot, .. } = corpses.place(place) {
             let mut skeleton = standing(Quat::IDENTITY, Vec3::new(place as f32 * 3.0, 0.0, 0.0));
-            *o = corpses.slot_mut(slot).draw(&mut skeleton);
+            *o = corpses.slot_mut(slot).draw_game(&mut skeleton);
         }
     }
     out
@@ -98,12 +188,16 @@ fn stage(corpses: &Corpses, place: usize) -> &'static str {
     match corpses.place(place) {
         Corpse::Alive => "alive",
         Corpse::Canned { .. } => "canned",
-        Corpse::Body { slot, .. } => match corpses.slot(slot) {
-            Slot::Free => "free",
-            Slot::Dying { .. } => "dying",
-            Slot::Ragdoll { .. } => "ragdoll",
-            Slot::Settled { .. } => "settled",
-        },
+        Corpse::Body { slot, .. } => stage_of(corpses.slot(slot)),
+    }
+}
+
+fn stage_of(slot: &Slot) -> &'static str {
+    match slot {
+        Slot::Free => "free",
+        Slot::Dying { .. } => "dying",
+        Slot::Ragdoll { .. } => "ragdoll",
+        Slot::Settled { .. } => "settled",
     }
 }
 
@@ -188,7 +282,7 @@ fn a_corpse_holding_no_item_is_still_drawn_and_settles() {
         // the same skeleton as a draw over the game's would give
         let mut over = standing(Quat::IDENTITY, Vec3::new(5.0, 0.0, 0.0));
         let mut copy = *corpses.slot(slot);
-        copy.draw(&mut over);
+        copy.draw_game(&mut over);
         assert_eq!(skeleton, over, "every bone is the ragdoll's");
         first.get_or_insert(skeleton);
         step(&mut corpses, &mut ground);
@@ -263,7 +357,7 @@ fn the_pool_gives_the_oldest_settled_slot_to_a_new_death() {
         );
         for _ in 0..3 {
             if let Corpse::Body { slot, .. } = corpses.place(place) {
-                corpses.slot_mut(slot).draw(&mut standing(
+                corpses.slot_mut(slot).draw_game(&mut standing(
                     Quat::IDENTITY,
                     Vec3::new(place as f32 * 3.0, 0.0, 0.0),
                 ));
@@ -390,7 +484,7 @@ fn cost_of_twenty_ragdolls() {
         for p in 0..20 {
             if let Corpse::Body { slot, .. } = corpses.place(p) {
                 let mut s = standing(turn(p), Vec3::new(p as f32 * 3.0, 0.0, 0.0));
-                corpses.slot_mut(slot).draw(&mut s);
+                corpses.slot_mut(slot).draw_game(&mut s);
             }
         }
     }
@@ -418,7 +512,7 @@ fn cost_of_twenty_ragdolls() {
         let start = Instant::now();
         for p in 0..20 {
             if let Corpse::Body { slot, .. } = corpses.place(p) {
-                corpses.slot_mut(slot).draw(&mut clip[p]);
+                corpses.slot_mut(slot).draw_game(&mut clip[p]);
             }
         }
         let draw = start.elapsed();
@@ -784,7 +878,7 @@ fn frame20(corpses: &mut Corpses, places: &[Seen], ground: &mut Ground) {
     for place in 0..places.len() {
         if let Corpse::Body { slot, .. } = corpses.place(place) {
             let mut skeleton = standing(Quat::IDENTITY, Vec3::new(place as f32 * 3.0, 0.0, 0.0));
-            corpses.slot_mut(slot).draw(&mut skeleton);
+            corpses.slot_mut(slot).draw_game(&mut skeleton);
         }
     }
 }
@@ -832,7 +926,7 @@ fn a_lying_body_comes_to_rest_and_stays_still_on_every_surface() {
                 panic!("no body")
             };
             let mut skeleton = standing(Quat::IDENTITY, Vec3::ZERO);
-            corpses.slot_mut(slot).draw(&mut skeleton);
+            corpses.slot_mut(slot).draw_game(&mut skeleton);
             skeleton
         };
         let mut last = step(&mut corpses, &mut scene, &mut n, &mut t);

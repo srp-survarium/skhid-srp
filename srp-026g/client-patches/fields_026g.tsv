@@ -489,6 +489,7 @@ survarium::image	inventory_request	0x9FD55C	u32	"inventory", the path of the pla
 survarium::image	inventory_variant_vtable	0x9FD808	u32	the inventory request's user data vtable (0x2028E0; destroy +4 a bare ret 4)
 vostok::query_callback	size	0x20	size	a boost::function<void (queries_result &)>: +0 its manager | 1, +8 the functor {member, adjustment, object, padding} (0x27D280); late join keeps 20h for one
 survarium::player	pending_item	0x12C	ptr<survarium::item>	the active object to switch to (m_next; tick_active_object 0x2D7655 switches when it differs from +128h; deserialize 0x2DB7BA)
+survarium::player	not_seen	0xF4E2	u8	mt_draw's cull flag: not 0 when the model was not seen the last frame (cmp byte [ebx+0F4E2h],0 at 0x24757C; with +12Ch not 0 the game culls, jne 0x24758C)
 survarium::player	animation	0x750	u32	its animation player (forget_active_object's EAX, the switch 0x2D76E5)
 survarium::core_world	objects	0x18B4C	ptr<survarium::inventory_slot>	the active objects by registry id (a buffer_vector's begin: bind_to_game_core 0x2E3102 appends; base_player::deserialize resolves held 0x2DB644)
 survarium::core_world	objects_end	0x18B50	ptr<survarium::inventory_slot>	the registry's end (a buffer_vector's: bind_to_game_core 0x2E3112 and the victory items' 0x313F90 append there; capacity +18B54h = begin+3FCh, 255 ids; the constructor 0x2CFFFA, the destructor's reset 0x2D0336)
@@ -762,9 +763,55 @@ vostok::resources::finish_query_frame	error	0x10	u32	its fourth: the error type
 vostok::checksum::crc32_value	value	0x0	u32	the CRC the CRC-32 step 0x42050 updates (its EAX points to it)
 vostok::checksum::crc32_bytes	first	0x0	u8	the first of the bytes the step goes over (its EDX)
 vostok::checksum::crc32_step_frame	count	0x4	u32	the step's [esp+4] at its start: how many bytes
+vostok::render::res_texture	hw_resource	0x1AC	ptr<d3d11::hw_resource>	its ID3D11Resource: the one map2D (0x3D0F95) maps and process_compression's Unmap (0x12EF6A) names
+vostok::render::res_texture	mappable	0x1BC	u8	set for a staging texture (create_texture2d usage 3): map2D maps only then (0x3D0F8C)
+vostok::render::device_slot	device	0x0	ptr<vostok::render::device>	the render device ([2260478h]; process_compression 0x12EEDA)
+vostok::render::device	context	0x180	ptr<d3d11::immediate_context>	the ID3D11DeviceContext: Flush +1BCh (0x12EEE9), Map +38h (map2D 0x3D0FBB), Unmap +3Ch (0x12EF79)
+vostok::render::system_renderer_slot	renderer	0x0	ptr<vostok::render::system_renderer>	the system renderer ([2260480h]): the compressor's (process_compression 0x12EFF6); its +64h the compression effect
+survarium::image	device_global	0x2260478	obj<vostok::render::device_slot>	the render device's global (process_compression 0x12EEDA, map2D 0x3D0FAD)
+survarium::image	system_renderer_global	0x2260480	obj<vostok::render::system_renderer_slot>	the system renderer's global (the compressor's first argument, 0x12EFF6)
+vostok::render::process_compression_frame	caller	0x8	ptr<vostok::render::on_textures_loaded_frame>	ESP+8 after the prologue: the saved EBP, on_textures_loaded's frame (its only caller, 0x12EA0D)
+vostok::render::process_compression_frame	dds	0x18	ptr<u8>	[esp+18h]: the DDS buffer (malloc 0x12EF4A of the size; the compressor writes it; the texture, CRC and save of the tail read it, freed 0x12F41B)
+vostok::render::process_compression_frame	source	0x1C	ptr<vostok::render::res_texture>	[esp+1Ch]: the bake's target of the type, one reference held (0x12ED02; released by the epilogue 0x12F57B)
+vostok::render::process_compression_frame	width	0x24	u32	[esp+24h]: the width (0x12ECA5; the staging, the compressor, the log)
+vostok::render::process_compression_frame	log_object	0x38	u32	[esp+38h]: 0 (0x12EC60); its low byte is BL at 0x12F52C when no log line is made, then nothing is destroyed
+vostok::render::process_compression_frame	height	0x3C	u32	[esp+3Ch]: the height (0x12ECA9)
+vostok::render::process_compression_frame	bake_ms	0x40	f32	[esp+40h]: the bake's ms (0x12EFB2), argument 10 added in the log (0x12F4E4)
+vostok::render::process_compression_frame	timer_base_low	0x50	u32	[esp+50h..5Ch]: the timer 0x106A00 reads (ESI): 0, 0, then its start (QueryPerformanceCounter), low and high (0x12EFC9..0x12EFD8)
+vostok::render::process_compression_frame	timer_base_high	0x54	u32	[esp+54h]: the timer's second word, 0
+vostok::render::process_compression_frame	timer_start_low	0x58	u32	[esp+58h]: the timer's start, QueryPerformanceCounter's low word
+vostok::render::process_compression_frame	timer_start_high	0x5C	u32	[esp+5Ch]: the timer's start, high word
+vostok::render::process_compression_frame	cook	0x600	ptr<vostok::render::camouflage_decal_texture_type_baker_cook>	argument 1: the cook (the baker static)
+vostok::render::process_compression_frame	size	0x60C	u32	argument 4: the DDS size
+vostok::render::process_compression_frame	parameters	0x614	ptr<vostok::render::bake_parameters_copy>	argument 6: on_textures_loaded's copy of the cook parameters
+vostok::render::process_compression_frame	pair	0x618	ptr<vostok::render::bake_pair>	argument 7: a pair the tail forwards to create_texture_from_memory
+vostok::render::process_compression_frame	value	0x61C	u32	argument 8: a value the tail forwards to create_texture_from_memory
+vostok::render::process_compression_frame	draw_ms	0x624	f32	argument 10: render_bake's ms
+vostok::render::on_textures_loaded_frame	parameters	0x18	ptr<vostok::render::bake_parameters>	[ebp+18h]: the bake's parameters (0x12E537; its +7A8h the name copied)
+vostok::render::bake_parameters_copy	name	0x13C	ptr<u8>	its name: a C string (the "%s/%s" of 0x12F052)
+vostok::render::bake_pair	first	0x0	u32	create_texture_from_memory's entry ESP+16 (0x12F09B)
+vostok::render::bake_pair	second	0x4	u32	create_texture_from_memory's entry ESP+20 (0x12F094)
+vostok::render::compress_mip_frame	cursor	0x30	ptr<vostok::render::dds_cursor>	ESP+30h at 0x11F754 (entry ESP+12): &the DDS cursor
+vostok::render::compress_mip_frame	high	0x38	u32	ESP+38h there (entry ESP+20): the level's blocks high (entry ESP+16, the blocks wide, has the BC3 flag in its low byte from 0x11F5D0: EBX keeps it)
+vostok::render::compress_mip_frame	format	0x40	u32	ESP+40h there (entry ESP+28): 46h BC1, 4Ch BC3
+vostok::render::dds_cursor	next	0x0	ptr<u8>	the next level's place in the DDS (compress_mip adds the level's bytes, 0x11F863)
+vostok::render::save_site_frame	bytes	0x0	ptr<vostok::resources::save_bytes>	ESP+0 at 0x12F2D8: the bytes make_save_descriptor saves (pushed at 0x12F2C9: &[esp+28h])
+vostok::render::save_site_frame	separator	0x5F8	u8	the '/' the site's instruction writes ([esp+5F8h])
+vostok::resources::save_bytes	data	0x0	ptr<u8>	the bytes (the DDS buffer, EBX, stored at 0x12F2E0)
+vostok::resources::save_bytes	size	0x4	u32	their count (0x12F2C5)
+vostok::resources::save_descriptor	data	0x0	ptr<u8>	the bytes the save writes (the writer reads data and size alone)
+vostok::resources::save_descriptor	size	0x4	u32	their count
+vostok::resources::save_descriptor	owns	0x8	u8	1: its destructor 0x10A050 frees the data (mt_free's 0x106FC0), as make_save_descriptor sets it; 0: the data is not its
+vostok::render::dds_cursor	size	0x4	size	a cursor: one pointer (compress's [ebp+0Ch], the output past the header)
+vostok::render::bake_parameters_copy	size	0x140	size	the part of on_textures_loaded's copy the tail reads (through +13Ch)
+vostok::render::bake_pair	size	0x8	size	two words
 vostok::input::keyboard	events	0x408	obj<vostok::input::key_event>	the events GetDeviceData buffers (execute 0x3B8D41/0x3B9080: DIDEVICEOBJECTDATA, at most 40h, their count to +404h at 0x3B914B), read by execute's loop (0x3B915E) and process (0x3B9B0E)
 vostok::input::key_event	key	0x0	u32	DIDEVICEOBJECTDATA.dwOfs: the key's DirectInput code, the index of the keys' states (execute 0x3B916A, 0x3B91EE; process 0x3B9B20)
 vostok::input::key_event	size	0x14	size	a DIDEVICEOBJECTDATA (GetDeviceData's push 14h 0x3B9081; execute's add ecx,14h 0x3B91F2)
+vostok::render::process_compression_frame	timer_scale	0x60	f32	[esp+60h]: the timer's scale (elapsed_ticks 0x1B7B0 multiplies by [esi+10h]): 1.0 from [0A70884h], written by the prologue (0x12EC73)
+vostok::render::process_compression_frame	prologue_scale	0x64	f32	[esp+64h]: the prologue's second 1.0 (0x12EC79)
+vostok::render::backend_slot	backend	0x0	ptr<vostok::render::backend>	the render backend ([2260490h]; the compressor's reset 0x11F4D7)
+survarium::image	backend_global	0x2260490	obj<vostok::render::backend_slot>	the render backend's global (mov edi,[2260490h] / call backend::reset, 0x11F4D7)
 survarium::image	d3d9_module	0xAF1194	u32	the delayed import d3d9.dll's module slot (its descriptor's hmod): __delayLoadHelper2 0xE48E0 binds the import to the module there, LoadLibrary only while it is 0 (0xE4995), then InterlockedExchange (0xE4B25); patch 83 puts DXVK's d3d9 there
 survarium::image	dxgi_module	0xAF30CC	u32	the delayed import dxgi.dll's module slot (as d3d9_module); patch 83 puts DXVK's dxgi there
 survarium::image	d3d11_module	0xAF30D0	u32	the delayed import d3d11.dll's module slot (as d3d9_module); patch 83 puts DXVK's d3d11 there
