@@ -46,9 +46,11 @@ pub fn keep_death_animation_in_set(ctx: &Context<'_>) {
 }
 
 /// The index to read the death lists with instead of `index`: `None` keeps
-/// it (in the lists, or a set with none, which the game reads as it is).
+/// it. Past the lists it is 0, the index the game's own pick gives a set of
+/// one, so a world never reads further than the game does (a list of none,
+/// which no config has, is read at 0 as the game would).
 fn kept_death_animation(index: u32, count: u32) -> Option<u32> {
-    (count > 0 && index >= count).then_some(0)
+    (index != 0 && index >= count).then_some(0)
 }
 
 fn contains(begin: usize, end: usize, index: u32) -> bool {
@@ -76,6 +78,9 @@ mod tests {
         for (index, count) in [(1, 1), (2, 2), (255, 2), (u32::MAX, 4)] {
             assert_eq!(kept_death_animation(index, count), Some(0));
         }
-        assert_eq!(kept_death_animation(3, 0), None);
+        // A list of none: no index is in it; the world reads no further than
+        // the game's own 0.
+        assert_eq!(kept_death_animation(3, 0), Some(0));
+        assert_eq!(kept_death_animation(0, 0), None);
     }
 }

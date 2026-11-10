@@ -24,6 +24,8 @@ DEATH, DEATH_RETURN = 0x338280, STUBS + 0x200
 # A slot past a list: a pointer to nothing, which the stock takes a reference
 # through (lock xadd [slot+0DCh]) and faults on.
 PAST = 0x7F000000
+# Each in-list slot names a resource of its own, its reference count at +0DCh.
+REFS = 100
 
 class GuardRun(Run):
     def __init__(self, data):
@@ -76,12 +78,18 @@ class GuardRun(Run):
 
     def death(self, index, align, count=2):
         """get_death_animations from a call with `index`, the set's two lists
-        `count` long, their slots empty and every slot past them PAST."""
+        `count` long, each slot a resource of its own and every slot past them
+        PAST: the result is the out pair and every resource's count, so which
+        slot was read shows."""
         self.emu.mem_write(WORLD, bytes(0x20000))
         self.emu.mem_write(STACK, bytes(0x10000))
         self.fsm_calls = []
         sets, death, hud, out = WORLD, WORLD + 0x1a000, WORLD + 0x1b000, WORLD + 0x1c000
-        for table in (death, hud):
+        resources = [WORLD + 0x1d000 + 0x100*(t*4 + n) for t in range(2) for n in range(count)]
+        for t, table in enumerate((death, hud)):
+            for n in range(count):
+                self.word(resources[t*count + n] + 0xDC, REFS)
+                self.word(table + n*4, resources[t*count + n])
             for n in range(count, 256):
                 self.word(table + n*4, PAST)
         self.word(sets + 0x590, death)
@@ -99,7 +107,8 @@ class GuardRun(Run):
             self.start(DEATH, regs, sp)
         except RuntimeError:
             return None
-        return self.stopped, tuple(self.emu.reg_read(r) for r in REGS), self.read(out), self.read(out+4)
+        counts = tuple(self.read(r + 0xDC) for r in resources)
+        return self.stopped, tuple(self.emu.reg_read(r) for r in REGS), self.read(out), self.read(out+4), counts
 
 
 def main():
@@ -132,6 +141,7 @@ def main():
             for index in range(count):
                 expected = stock.death(index, align, count)
                 assert expected is not None and expected[0] == DEATH_RETURN, (index, count, expected)
+                assert expected[-1] != (REFS,)*(2*count), expected  # a reference was taken
                 assert ours.death(index, align, count) == expected, (index, count, align)
                 checks += 1
             for index in (count, count + 1, 255):
