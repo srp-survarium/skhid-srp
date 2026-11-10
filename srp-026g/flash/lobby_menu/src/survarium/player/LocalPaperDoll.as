@@ -299,11 +299,6 @@ package survarium.player
          return "[LocalPaperDoll " + name + "]";
       }
       
-      public function setFillArray(items:Array) : void
-      {
-         this._ammoControl.fillItems(items);
-      }
-      
       public function setSlotsRestrictions(restrictions:Array) : void
       {
          var slotName:String;

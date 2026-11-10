@@ -2,7 +2,7 @@
 
 The rules the code and the tests follow. Code: `client-patches/kit_change_026g.asm`,
 README patch 31, `client_patch.md` section 3.29; the server: `TimelimitRule::before_play`,
-`PlayerResult::kit_changes`, `autobuy::used`, the bots' `pick_kit`.
+`PlayerResult::kit_changes`, `supplies::used`, the bots' `pick_kit`.
 
 - **When:** from the player's spawn on entering the match until the match starts (the time
   rule leaves waiting/countdown). A choice for a tick is played at the next tick; a choice for

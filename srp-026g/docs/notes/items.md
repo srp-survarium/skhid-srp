@@ -348,7 +348,7 @@ bonuses per round".
 - **Not the boosters** (category 10 too, config `type` `booster`, dict 339..344: the Tornado energy
   drink and the like): told apart by `fills_whole_pocket`, which every booster has and no other
   stack of the data. They give their bonus while carried (`data.md`), so they start at one, as
-  before. Nor ammo (one clip; it has Autobuy), items that are no stack, sales, relocations.
+  before. Nor ammo (one clip), items that are no stack, sales, relocations.
 - **The count:** 30 (`CONSUMABLE_START_COUNT`), or the dialog's own most when less: what the money
   buys, 100 at most. No money: the slider at 0 and Buy off, as before. The data has no per-item
   stack cap.

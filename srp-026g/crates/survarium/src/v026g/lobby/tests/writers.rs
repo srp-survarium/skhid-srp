@@ -219,45 +219,21 @@ fn the_inventory_writes_gear_and_stacks_differently() {
 }
 
 /// The tail the client reads at 0x26EF40: three lists of `u32 silver,
-/// u16 dict id` (the third, repairs, always empty).
+/// u16 dict id`, the money spent after a match. srp spends none.
 #[test]
-fn the_inventory_ends_with_the_money_spent_after_a_match() {
-    let spent = SpentMoney {
-        autobuy_ammo: vec![(120, AMMO), (7, 51)],
-        autobuy_consumables: vec![(0x0102_0304, PISTOL)],
-    };
-    let message = inventory_with_spent(&[ammo(2, 50)], &spent).unwrap();
-    assert_bytes(
-        &message,
-        "89 01000000
-         02000000 3200 32000000 00 00
-         02  78000000 3200  07000000 3300
-         01  04030201 1200
-         00",
+fn the_inventory_ends_with_three_empty_lists() {
+    let message = inventory(&[ammo(2, 50)]).unwrap();
+    assert_eq!(message.body()[message.body().len() - 3..], [0, 0, 0]);
+    // The model refuses a row: nothing is spent after a match.
+    let mut rows = message.body().to_vec();
+    let tail = rows.len() - 3;
+    rows.splice(tail.., [1, 120, 0, 0, 0, 50, 0, 0, 0]);
+    assert!(
+        Client::signed_in()
+            .receive(&ServerMessage::from_parts(ServerId::Inventory, rows))
+            .is_err()
     );
-    let mut client = Client::signed_in();
-    assert_eq!(
-        client.receive(&message),
-        Ok(Decoded::Inventory {
-            items: vec![ammo(2, 50)],
-            spent: spent.clone(),
-        })
-    );
-
-    // One row more than a buffer of the client holds.
-    for (list, most) in [(0, 24), (1, 18)] {
-        let mut spent = SpentMoney::default();
-        let rows = vec![(1, AMMO); most + 1];
-        match list {
-            0 => spent.autobuy_ammo = rows,
-            _ => spent.autobuy_consumables = rows,
-        }
-        assert!(matches!(
-            inventory_with_spent(&[], &spent),
-            Err(WireError::TooMany { count, most: limit, .. }) if count == most + 1 && limit == most
-        ));
-    }
-    // The model refuses what the old writer sent: the items and no lists.
+    // And the items with no lists.
     let short = ServerMessage::from_parts(ServerId::Inventory, vec![0, 0, 0, 0]);
     assert!(Client::signed_in().receive(&short).is_err());
 }
@@ -305,7 +281,6 @@ fn the_own_account() {
         body: body_with(vec![sample_kit()], vec![pistol(1), ammo(2, 50)]),
         revisions: vec![7],
         active_kit: 1,
-        autobuy: true,
         level: 3,
         exp_total: 1000,
         exp_level_start: 500,
@@ -315,7 +290,7 @@ fn the_own_account() {
         "87 {SAMPLE_BODY}
          07000000                    revision of kit 0
          01000000                    active kit id
-         01                          autobuy
+         00                          the kit window's boxes: none
          03                          level
          E8030000 F4010000 DC050000  experience: total, level start, next level"
     );
@@ -338,7 +313,6 @@ fn an_account_with_no_kit_modifiers_has_an_empty_mask() {
         },
         revisions: vec![1],
         active_kit: 5,
-        autobuy: false,
         level: 0,
         exp_total: 0,
         exp_level_start: 0,
@@ -442,7 +416,6 @@ fn the_account_bodys_limits() {
         body: ok,
         revisions: Vec::new(),
         active_kit: 1,
-        autobuy: false,
         level: 1,
         exp_total: 0,
         exp_level_start: 0,
@@ -879,8 +852,6 @@ fn shop_answers() {
 
 #[test]
 fn kit_and_account_answers() {
-    assert_bytes(&permitted_autobuy(true), "83 49 01 01");
-    assert_bytes(&permitted_autobuy(false), "83 49 01 00");
     assert_bytes(&permitted_active_kit(2), "83 49 02 02000000");
     // `string, bool ok`, and a reason only when refused.
     assert_bytes(
@@ -1554,22 +1525,11 @@ fn a_kit_may_fill_every_slot_and_modifier() {
 // ---- offer after a match
 
 #[test]
-fn the_autobuy_box_is_bit_0_of_one_number() {
-    use crate::v026g::lobby::client_model::Permitted;
-    // `83 49 01 <state>`: bit 0 autobuy; bit 1, the stock auto-repair, never
-    // set (srp has no repair).
-    assert_bytes(&permitted_autobuy(false), "83 49 01 00");
-    assert_bytes(&permitted_autobuy(true), "83 49 01 01");
-    let mut client = Client::signed_in();
-    assert_eq!(
-        client.receive(&permitted_autobuy(true)).unwrap(),
-        Decoded::Permitted(Permitted::Autobuy(true))
-    );
-    // The lobby ticks its boxes for 0..=3 only: `FF` would show both off.
-    assert!(client.receive_raw(0x83, &[0x49, 0x01, 0xFF]).is_err());
-
-    // The same number in the account (`87`), after the active kit's id.
-    let account = |autobuy| OwnAccount {
+fn the_kit_windows_boxes_are_never_ticked() {
+    // The byte after the active kit's id in the account (`87`), which the
+    // client hands to `root.set_autobuy`: bit 0 autobuy, bit 1 auto-repair.
+    // srp has neither, and no `83 49 01`.
+    let account = OwnAccount {
         body: AccountBody {
             team: 0,
             name: "A".into(),
@@ -1580,24 +1540,26 @@ fn the_autobuy_box_is_bit_0_of_one_number() {
         },
         revisions: Vec::new(),
         active_kit: 1,
-        autobuy,
         level: 0,
         exp_total: 0,
         exp_level_start: 0,
         exp_next_level: 500,
     };
-    for (autobuy, state) in [(false, 0), (true, 1)] {
-        let message = own_account(&account(autobuy)).unwrap();
-        let body = message.body();
-        // team, name, tag, protection, no kits, no items, the active kit.
-        assert_eq!(body[..13], [0, 1, b'A', 0, 10, 0, 0, 0, 0, 0, 1, 0, 0]);
-        assert_eq!(body[13], 0);
-        assert_eq!(body[14], state);
-        let Decoded::Account(read) = Client::signed_in().receive(&message).unwrap() else {
-            panic!("not the account");
-        };
-        assert_eq!(read.autobuy, autobuy);
-    }
+    let message = own_account(&account).unwrap();
+    let body = message.body();
+    // team, name, tag, protection, no kits, no items, the active kit.
+    assert_eq!(body[..13], [0, 1, b'A', 0, 10, 0, 0, 0, 0, 0, 1, 0, 0]);
+    assert_eq!(body[13..15], [0, 0]);
+    let mut client = Client::signed_in();
+    assert!(client.receive(&message).is_ok());
+    let mut ticked = body.to_vec();
+    ticked[14] = 1;
+    assert!(
+        Client::signed_in()
+            .receive(&ServerMessage::from_parts(ServerId::Account, ticked))
+            .is_err()
+    );
+    assert!(client.receive_raw(0x83, &[0x49, 0x01, 0x01]).is_err());
 }
 
 #[test]

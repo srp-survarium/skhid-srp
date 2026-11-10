@@ -2664,6 +2664,9 @@ st_srp_pvb_searching	Спершу скасуйте пошук
 st_srp_pvb_team_size	%1$s на %2$s
 st_srp_pvb_title	Гравець проти ботів
 st_srp_pvb_unknown_choice	Ця карта чи розмір команд зараз недоступні
+st_srp_regeneration_health	Регенерація здоров'я
+st_srp_regeneration_label	Регенерація
+st_srp_regeneration_stamina	Відновлення енергії
 st_srp_renderer_dx11	DirectX 11
 st_srp_renderer_dxvk	Vulkan/DXVK
 st_srp_renderer_option	Рендер

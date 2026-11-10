@@ -192,14 +192,6 @@ package survarium.controls
       
       private var scoreData:Object = {};
       
-      protected var _autobuy_money_ammo:int = 0;
-      
-      protected var _autobuy_money_consulables:int = 0;
-      
-      protected var _autobuy_money_ammo_arr:Array = [];
-      
-      protected var _autobuy_money_consulables_arr:Array = [];
-      
       public var treasureItem:MovieClip;
       
       public var progressIndicator:MovieClip;
@@ -269,11 +261,8 @@ package survarium.controls
          this.totalScore.section_2.scoreQuests.label.text = LocalizationData.getName("statistics_score_quests");
          this.totalScore.section_2.scoreEquipment.label.text = LocalizationData.getName("statistics_equipment_bonus");
          this.totalScore.section_2.scoreDaily.label.text = LocalizationData.getName("statistics_daily_bonus");
-         this.totalScore.section_3.scoreWasted.label.text = LocalizationData.getName("wasted");
          this.totalScore.section_3.scoreTotal.label.text = LocalizationData.getName("total");
-         this.hideRepairRow();
-         this.totalScore.section_3.wastedAmmo.label.text = LocalizationData.getName("autobuy_money_ammo");
-         this.totalScore.section_3.wastedItems.label.text = LocalizationData.getName("autobuy_money_consulabels");
+         this.hideSpentRows();
          this.totalScore.columns.textFieldMoney.text = LocalizationData.getName("money");
          this.totalScore.columns.textFieldExp.text = LocalizationData.getName("experience");
          this.totalScore.columns.textFieldRep.text = LocalizationData.getName("reputation");
@@ -690,7 +679,6 @@ package survarium.controls
          this.setPlayerData(null);
          this.progressIndicator.gotoAndStop(1);
          _data = null;
-         _autobuy_money_ammo = 0;
          bonusMatchId = 0;
          _rewardsMultiplied = false;
       }
@@ -774,10 +762,6 @@ package survarium.controls
          this.buyTreasureMaps.visible = false;
          this.treasureTextfield.text = LocalizationData.getName("treasure_map_advert");
          this.dropChanceValueLabel.text = "0";
-         this.totalScore.section_3.wastedAmmo.tooltipRendererName = "SrvProfileTipRendererStyled";
-         this.totalScore.section_3.wastedItems.tooltipRendererName = "SrvProfileTipRendererStyled";
-         this.totalScore.section_3.wastedAmmo.mouseChildren = false;
-         this.totalScore.section_3.wastedItems.mouseChildren = false;
       }
       
       public function setBonus(matchId:uint, bonus:Boolean) : void
@@ -896,16 +880,10 @@ package survarium.controls
          hintStr = this.addToHint(hintStr,this._data.statistics_money.match_money,"money_reward_match",false);
          hintStr = this.addToHint(hintStr,this._data.statistics_money.quest_money,"money_reward_quest",false);
          hintStr = this.addToHint(hintStr,this._data.statistics_money.premium_items_money,"statistics_equipment_bonus",false);
-         hintStr = this.addToHint(hintStr,this._autobuy_money_ammo,"autobuy_money_ammo",false);
-         hintStr = this.addToHint(hintStr,this._autobuy_money_consulables,"autobuy_money_consulabels",false);
-         var wasted:int = this._autobuy_money_ammo + this._autobuy_money_consulables;
          var totalmoney:int = this.updateTotalScore(this._data.statistics_money,"money");
-         this.totalScore.section_3.scoreTotal.money.text = (totalmoney + wasted).toString();
-         this._data.money = totalmoney + wasted;
-         this.set_score_value(this.score_container.score_3,totalmoney + wasted,SCORE_ICON_MONEY);
-         this.totalScore.section_3.scoreWasted.money.text = wasted.toString();
-         this.totalScore.section_3.wastedAmmo.value.text = this._autobuy_money_ammo;
-         this.totalScore.section_3.wastedItems.value.text = this._autobuy_money_consulables;
+         this.totalScore.section_3.scoreTotal.money.text = totalmoney.toString();
+         this._data.money = totalmoney;
+         this.set_score_value(this.score_container.score_3,totalmoney,SCORE_ICON_MONEY);
          this.updateScroreLayout();
       }
       
@@ -1128,12 +1106,21 @@ package survarium.controls
          }
       }
       
-      // No "Repair cost" row (srp has no repair, the owner 2026-11-08): the stock row of the money spent
-      // is hidden, and the rows under it in its section move up by its height.
-      private function hideRepairRow() : void
+      // No money is spent after a match (no repair since 2026-11-08, no autobuy since 2026-11-10: the
+      // owner): the stock rows of the money spent ("Spent", "Ammunition", "Special equipment", "Repair
+      // cost") are hidden, and the total is right under the bonuses.
+      private function hideSpentRows() : void
       {
          var section:MovieClip = this.totalScore.section_3;
-         var row:DisplayObject = section.wastedRepair;
+         for each(var row:DisplayObject in [section.wastedRepair,section.wastedItems,section.wastedAmmo,section.scoreWasted])
+         {
+            this.hideSpentRow(section,row);
+         }
+      }
+      
+      // A row of the section hidden, and what is under it moved up by its height.
+      private function hideSpentRow(section:MovieClip, row:DisplayObject) : void
+      {
          if(!row.visible)
          {
             return;
@@ -1161,65 +1148,6 @@ package survarium.controls
             {
                other.y -= step;
             }
-         }
-      }
-      
-      public function setSpendMoneyDetailed(autobuy_ammo:Array, autobuy_consulables:Array) : void
-      {
-         if(!autobuy_ammo)
-         {
-            autobuy_ammo = [];
-         }
-         if(!autobuy_consulables)
-         {
-            autobuy_consulables = [];
-         }
-         _autobuy_money_ammo_arr = autobuy_ammo;
-         _autobuy_money_consulables_arr = autobuy_consulables;
-         this.calculateSpendMoney();
-      }
-      
-      protected function calculateSpendMoney() : void
-      {
-         function fillWastedData(arr:Array, target:MovieClip):int
-         {
-            var i:uint;
-            var value:int = 0;
-            var str:String = "";
-            var l:uint = arr.length;
-            trace("fillWastedData",arr.length,target);
-            for(i = 0; i < l; i++)
-            {
-               var moneyData:Object = arr[i];
-               value += int(moneyData.value);
-               str += _itemdescriptor.getItemDescription(moneyData.dict_id).name + " " + moneyData.value + "\n";
-            }
-            target.tipData = {name:str};
-            return value;
-         }
-         var _itemdescriptor:ItemDescriptor;
-         _itemdescriptor = ItemDescriptor.getItemDescriptor("InventoryItems");
-         _autobuy_money_ammo = fillWastedData(this._autobuy_money_ammo_arr,this.totalScore.section_3.wastedAmmo);
-         _autobuy_money_consulables = fillWastedData(this._autobuy_money_consulables_arr,this.totalScore.section_3.wastedItems);
-
-         if(this._data && this._data.statistics_money)
-         {
-            this._data.statistics_money.autobuy_money_ammo_arr = this._autobuy_money_ammo_arr;
-            this._data.statistics_money.autobuy_money_consulables_arr = this._autobuy_money_consulables_arr;
-            this._data.statistics_money.autobuy_money_ammo = this._autobuy_money_ammo;
-            this._data.statistics_money.autobuy_money_consulables = this._autobuy_money_consulables;
-         }
-         this.updateMoney();
-      }
-      
-      public function setSpendMoney(autobuy:int) : void
-      {
-         _autobuy_money_ammo = autobuy;
-         if(this._data && this._data.statistics_money)
-         {
-            this._data.statistics_money.autobuy_money_ammo = autobuy;
-            this._data.statistics_money.autobuy_money_consulables = autobuy;
-            this.updateMoney();
          }
       }
       
@@ -1270,14 +1198,6 @@ package survarium.controls
                clip.textFieldValue2.text = "";
                clip.textFieldValueName2.visible = false;
             }
-         }
-         if(this._autobuy_money_ammo != 0)
-         {
-            value.statistics_money.autobuy_money_ammo = this._autobuy_money_ammo;
-         }
-         if(this._autobuy_money_consulables != 0)
-         {
-            value.statistics_money.autobuy_money_consulables = this._autobuy_money_consulables;
          }
          this.totalScore.visible = true;
          this.buyTreasureMaps.visible = true;

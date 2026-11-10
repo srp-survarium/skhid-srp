@@ -202,10 +202,6 @@ package
       // as an admin text; the exe never calls it.
       private static const ADMIN_MESSAGE_WARNING:int = 0;
 
-      // set_autobuy's value: bit 0 the autobuy box; bit 1, the stock auto-repair box, is never set (srp
-      // has no repair).
-      private static const AUTO_BUY:int = 1;
-
       // meaning unknown: the progress show_daily_reward_window takes a day's reward to need.
       private static const DAILY_REWARD_PROGRESS_REQUIRED:int = 3;
 
@@ -1621,10 +1617,6 @@ package
          var reportData:Object = e;
          this.show_victory_screen();
          this.victory_screen.setData(reportData);
-         if((reportData) && (reportData.statistics_money))
-         {
-            this.victory_screen.setSpendMoneyDetailed(reportData.statistics_money.autobuy_money_ammo_arr,reportData.statistics_money.autobuy_money_consulables_arr);
-         }
       }
       
       public function show_loading_wheels(value:Boolean = true) : void
@@ -1721,20 +1713,12 @@ package
          this.victory_screen.setBonus(mathId,bonus);
       }
       
-      // `repair`, the exe's third list, is always empty: srp has no repair (the owner, 2026-11-08).
+      // The exe's call with the three lists that end the inventory (0x26EF40): the money spent after a
+      // match on ammunition, special equipment and repair. Always empty: srp spends none (no repair
+      // since 2026-11-08, no autobuy since 2026-11-10: the owner), and the results screen has no rows
+      // for it (VictoryScreen.hideSpentRows).
       public function fill_victory_screen_spend_money_detailed(autobuy_ammo:Array, autobuy_consulables:Array, repair:Array) : void
       {
-         this.victory_screen.setSpendMoneyDetailed(autobuy_ammo,autobuy_consulables);
-         this.updateReport(this.victory_screen.getData());
-         this.set_log_list(this._reports);
-      }
-      
-      // `repair` is always 0: srp has no repair.
-      public function fill_victory_screen_spend_money(autobuy:int, repair:int) : void
-      {
-         this.victory_screen.setSpendMoney(autobuy);
-         this.updateReport(this.victory_screen.getData());
-         this.set_log_list(this._reports);
       }
       
       private function hideTop() : void
@@ -2490,10 +2474,10 @@ package
          this.charWindow.set_char_stats(array);
       }
       
+      // The exe's call (0x227760) with the account's byte for the kit window's Autobuy and
+      // auto-repair boxes: the lobby has neither (the owner, 2026-11-10), and the server sends 0.
       public function set_autobuy(value:uint) : void
       {
-         trace("set_auto_buy::",value);
-         this.player_profile.checkbox_autobuy.selected = (value & AUTO_BUY) != 0;
       }
       
       public function try_buy_item(profile:uint, uid:uint, dict_uid:uint, sourceSlot:uint, targetSlot:uint, count:int, price:uint, origin:BuyOrigin, seller:int = -1, onComplete:Function = null) : Boolean
@@ -2804,14 +2788,6 @@ package
       {
          PlayerInfo.pocketSize = Math.min(PlayerInfo.MAX_POCKET_UNITS,value);
          this.player_profile.updatePocketSize(value);
-      }
-      
-      public function fill_auto_buy_items(value:Array) : void
-      {
-         trace("fill_auto_buy_items::",value);
-         this.player_profile.fillAutoBuyItems(value);
-         // The account setting comes from set_autobuy. An empty refill
-         // list must not untick it after the player enables autobuy again.
       }
       
       public function set_account_name(value:String) : void

@@ -39,7 +39,6 @@ fn account(items: Vec<ItemDescr>) -> OwnAccount {
         },
         revisions: vec![3],
         active_kit: 1,
-        autobuy: true,
         level: 4,
         exp_total: 10,
         exp_level_start: 5,
@@ -99,7 +98,6 @@ fn the_account_needs_its_items_in_the_inventory_first() {
         client.receive(&inventory(&items).unwrap()),
         Ok(Decoded::Inventory {
             items: items.clone(),
-            spent: SpentMoney::default(),
         })
     );
     assert_eq!(client.receive(&own), Ok(Decoded::Account(account(items))));
@@ -556,10 +554,6 @@ fn every_core_push_reads_back() {
             games_online: 2,
             minutes_to_maintenance: 1440,
         },
-    );
-    round_trip(
-        permitted_autobuy(true),
-        Decoded::Permitted(Permitted::Autobuy(true)),
     );
     round_trip(
         permitted_active_kit(2),

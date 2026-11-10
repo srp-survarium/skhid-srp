@@ -561,7 +561,7 @@ cooked gun).
   picker's game unloaded 930000, `the_own_wear_comes_back`.) The
   server reads the native fields from `FIELDS_AT = 2 + Record::BYTES`; for
   a player holding a pick it reads the kit's stacks it does not find (set
-  aside) as the kit gives them, so autobuy charges nothing for them.
+  aside) as the kit gives them, so nothing of them is taken.
 - **The pickup**, at `carry.filter` (0x2D876F; artefact_carry's handler
   calls `weapon_pickup::on_filter` before patch 78 filters the actions):
   the command (`weapon_pickup::command` of +330h); the rule

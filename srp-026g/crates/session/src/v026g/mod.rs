@@ -29,7 +29,6 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard, TryLockError};
 use std::time::{Duration, Instant};
 
 pub mod account;
-pub mod autobuy;
 pub mod balance;
 pub mod bonus;
 pub mod bot_kits;
@@ -56,6 +55,7 @@ pub mod rewards;
 pub mod room_settings;
 pub mod rooms;
 pub mod rules;
+pub mod supplies;
 pub mod tutorial;
 pub mod wire;
 

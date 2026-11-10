@@ -26,7 +26,6 @@ package survarium.player
    import survarium.Util;
    import survarium.controls.Message;
    import survarium.controls.Transient;
-   import survarium.controls.UnfocusedCheckBox;
    import survarium.controls.PlayerProfileBase;
    import survarium.controls.PlayerInfo;
    import survarium.data.ItemData;
@@ -55,11 +54,13 @@ package survarium.player
       
       public var glassSprite:MovieClip;
       
+      // The Autobuy and auto-repair boxes: both gone (no wear since
+      // 2026-10-23, no automatic purchases since 2026-11-10: the owner).
+      // The original movie's graphics still place them at the start of
+      // the weight's row, so their fields stay and init hides them; the
+      // regeneration's box has their place (WeightIndicator).
       public var checkbox_autobuy:Button;
       
-      // The auto-repair box: wear is gone, so it did nothing (the owner's
-      // of 2026-10-23). The original movie's graphics place it beside
-      // Autobuy; init hides it and moves Autobuy into its place.
       public var checkbox_autorepair:Button;
       
       public var ammoContainer:MovieClip;
@@ -377,7 +378,7 @@ package survarium.player
          _weightM = max;
          _weightEffects = effects;
          if(_weightIndicator == null) _weightIndicator = new WeightIndicator(playerWeight);
-         _weightIndicator.update(cur,max,withKitItems(effects));
+         showWeight();
          this._playerPaperDoll.ammoControl.update(null,"player_profile");
       }
       
@@ -448,11 +449,6 @@ package survarium.player
          }
       }
       
-      public function fillAutoBuyItems(value:Array) : void
-      {
-         this._playerPaperDoll.ammoControl.fillItems(value);
-      }
-      
       public function fillEquippedItems() : void
       {
          var equippedItems:DataProvider = profileItems.dataProvider as DataProvider;
@@ -503,17 +499,26 @@ package survarium.player
             trace("invalidateOnEquipped");
             equippedItems.invalidate();
          }
-         // A bonus rerolled or repaired changes the speed without a weight callback.
-         if(_weightIndicator != null) _weightIndicator.update(_weightC,_weightM,withKitItems(_weightEffects));
+         // A bonus rerolled changes the speed and the regeneration without a weight callback.
+         if(_weightIndicator != null) showWeight();
+      }
+      
+      // The weight row with the kit as it is: the weight, the speed and the regeneration, each
+      // with what the kit's items add. The regeneration needs the kit's own modifiers (the skills).
+      private function showWeight() : void
+      {
+         var kit:KitItems = kitItems();
+         _weightIndicator.update(_weightC,_weightM,_weightEffects == null ? null : _weightEffects.withItems(kit),
+            _kitModifiers == null ? null : RegenerationExplanation.of(_kitModifiers,kit));
       }
       
       // What each of the kit's items adds (KitItems): the armour's and the pockets'
-      // movement (prop 105) and carry limit (prop 106) from their modifications
-      // (built-in, rolled, defects), one entry an item by its displayed name, and the
-      // first weapon's own movement parameter (the weapon in hand).
-      private function withKitItems(effects:WeightEffects) : WeightEffects
+      // movement (prop 105), carry limit (prop 106), energy costs (prop 116) and health and
+      // stamina regeneration (props 103, 104) from their modifications (built-in, rolled,
+      // defects), one entry an item by its displayed name, and the first weapon's own
+      // movement parameter (the weapon in hand).
+      private function kitItems() : KitItems
       {
-         if(effects == null) return effects;
          var items:DataProvider = profileItems.dataProvider as DataProvider;
          var kit:KitItems = new KitItems();
          for(var i:uint = 0; items != null && i < items.length; i++)
@@ -530,6 +535,8 @@ package survarium.player
                if(propOf(item,105) != 0) kit.speed.push({name:item.name,value:propOf(item,105),category:group,slot:item.slotId});
                if(propOf(item,106) != 0) kit.limit.push({name:item.name,value:propOf(item,106),category:group,slot:item.slotId});
                if(propOf(item,116) != 0) kit.stamina.push({name:item.name,value:propOf(item,116),category:group,slot:item.slotId});
+               if(propOf(item,103) != 0) kit.regeneration.push({name:item.name,value:propOf(item,103),category:group,slot:item.slotId});
+               if(propOf(item,104) != 0) kit.staminaRegeneration.push({name:item.name,value:propOf(item,104),category:group,slot:item.slotId});
             }
             else if(item.slotId == ProfileSlot.WEAPON_1 && propOf(item,105) != 0)
                kit.weapon = {name:item.name,value:propOf(item,105),category:item.category,killIcon:killIconOf(item)};
@@ -538,11 +545,13 @@ package survarium.player
          kit.speed.sortOn("slot",Array.NUMERIC);
          kit.limit.sortOn("slot",Array.NUMERIC);
          kit.stamina.sortOn("slot",Array.NUMERIC);
-         return effects.withItems(kit);
+         kit.regeneration.sortOn("slot",Array.NUMERIC);
+         kit.staminaRegeneration.sortOn("slot",Array.NUMERIC);
+         return kit;
       }
       
       // The sum of a property over the item's modifications (built-in, rolled, defects):
-      // 105 movement speed, 106 carry limit (kg).
+      // 105 movement speed, 106 carry limit (kg), 103 health and 104 stamina regeneration.
       // A weapon's kill feed icon (ui_desc/combat_log_icon, property 161: weapon-kill-icon-ui-1), or -1.
       private static function killIconOf(item:ItemData) : int
       {
@@ -671,7 +680,6 @@ package survarium.player
          this.ammoContainer.tx_total_label.text = LocalizationData.getName("equipment_cost");
          this.btnShowAmmo.label = LocalizationData.getName("show_ammo");
          this.showPresetTitle();
-         this.checkbox_autobuy.tipData = {name:LocalizationData.getName("auto_button_hint")};
       }
       
       override protected function init(e:Event) : void
@@ -682,19 +690,11 @@ package survarium.player
          LocalizationData.addCallback(this.onLocal,"equipment_weight");
          LocalizationData.addButton(this.ammoContainer.btn_cancel,"cancel");
          LocalizationData.addButton(this.ammoContainer.btn_apply,"refill_ammo_btn");
-         LocalizationData.addButton(this.checkbox_autobuy,"autobuy_button_label");
-         this.checkbox_autobuy.tooltipRendererName = "SrvProfileTipRendererStyled";
          // The total in gold and its plus: there is no gold (the owner, 2026-11-08).
          this.ammoContainer.labelCostP.visible = this.ammoContainer.plusSprite.visible = false;
-         // The auto-repair box is gone (see its declaration): Autobuy takes
-         // its place at the row's start, no gap left.
-         this.checkbox_autorepair.visible = false;
-         this.checkbox_autobuy.x = this.checkbox_autorepair.x;
-         // Its label as long as its text; the row has room up to the speed and weight.
-         (this.checkbox_autobuy as UnfocusedCheckBox).fitLabel();
-         this.checkbox_autobuy.addEventListener(ButtonEvent.CLICK,this.onAutoBuy);
+         // The two boxes are gone (see their declaration).
+         this.checkbox_autorepair.visible = this.checkbox_autobuy.visible = false;
          trace("PlayerProfileInit2",this._ammo_share,this.ammoContainer,this.ammoContainer.labelCostR,this.ammoContainer.labelCostP,this.btnShowAmmo);
-         this._ammo_share.autoBuyCheckBox = this.checkbox_autobuy;
          this.ammoContainer.addChildAt(this._ammo_share as DisplayObject,4);
          this._ammo_share.x = 10;
          this._ammo_share.y = 10;
@@ -707,15 +707,6 @@ package survarium.player
          this.ammoContainer.shift = -575;
          this.ammoContainer.addEventListener(Event.CLOSE,this.onAmmoButtonSwitch);
          this.makePresets();
-      }
-      
-      private function onAutoBuy(e:Event) : void
-      {
-         // 0x288CD0 reads the first byte of the GFx value's union, without
-         // converting a Number to an integer. Send the Boolean itself:
-         // true has byte 1; the double representation of 1 has byte 0.
-         // The auto-repair control is gone, so only the autobuy bit is sent.
-         ExternalInterface.call("autobuy_changed",this.checkbox_autobuy.selected);
       }
       
       private function onAmmoButtonSwitch(e:Event) : void
@@ -876,7 +867,7 @@ package survarium.player
       }
       
       // A tip over a greyed button (a disabled one takes no hover): the
-      // game's tooltip (as Autobuy's), nested a Sprite deeper (a control
+      // game's tooltip, nested a Sprite deeper (a control
       // straight in a content Sprite may lose its mouse events to it). The
       // caller removes it with the holder.
       public static function reasonTip(parent:DisplayObjectContainer, x:Number, y:Number, w:Number, h:Number) : Sprite

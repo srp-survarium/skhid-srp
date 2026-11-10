@@ -118,11 +118,6 @@ impl Lacking {
             for &(dict_id, _) in &reward.supplies_used {
                 self.item(u32::from(dict_id), &place);
             }
-            for (_, rows, _) in reward.spent.lists() {
-                for &(_, dict_id) in rows {
-                    self.item(u32::from(dict_id), &place);
-                }
-            }
             if let Some(dropped) = &player.full.dropped {
                 self.descr(dropped, &place);
             }
@@ -186,7 +181,7 @@ impl fmt::Display for Lacking {
 pub fn named_items() -> Vec<Named> {
     vec![
         ("rewards::DROP_CARD", super::rewards::DROP_CARD),
-        ("autobuy::BUCKSHOT", super::autobuy::BUCKSHOT),
+        ("supplies::BUCKSHOT", super::supplies::BUCKSHOT),
         ("quests::GRENADE", super::quests::GRENADE),
     ]
 }
@@ -235,13 +230,13 @@ mod tests {
         let mut dictionary = Dictionary::shared().clone();
         dictionary.items.retain(|item| {
             item.name != super::super::rewards::DROP_CARD
-                && item.name != super::super::autobuy::BUCKSHOT
+                && item.name != super::super::supplies::BUCKSHOT
         });
         assert_eq!(
             tables::lacking(&dictionary, &named_items()),
             [
                 "rewards::DROP_CARD drop_card",
-                "autobuy::BUCKSHOT ammo_12mm_buck",
+                "supplies::BUCKSHOT ammo_12mm_buck",
             ]
         );
     }
