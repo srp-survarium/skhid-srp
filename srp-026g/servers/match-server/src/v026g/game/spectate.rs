@@ -321,7 +321,6 @@ impl Game {
         if self.past.back().is_some_and(|last| last.time >= world.time) {
             return;
         }
-        self.kits_seen.record(world, &self.formed.profiles);
         self.past.push_back(world.clone());
         let keep_from = world.time.saturating_sub(INPUTS_KEPT_MS);
         while self.past.front().is_some_and(|old| old.time < keep_from) {
@@ -565,7 +564,7 @@ impl Game {
             let view = self.view_of(spectator.delay, clock);
             spectator.feed(&view, now);
             spectator.step(&view, start, echo, now);
-            spectator.tell_kits(&self.kits_seen, &self.formed.profiles, view.clock);
+            spectator.tell_kits(&self.formed.profiles);
         }
         self.spectators = spectators;
         let mut datagrams = Vec::new();
@@ -988,19 +987,18 @@ impl Spectator {
         }
     }
 
-    /// What its game may show of the kits played by `clock`: each place whose mask grew, told
-    /// again whole. Only once it watches.
-    pub(super) fn tell_kits(&mut self, seen: &super::kit_view::KitsSeen, profiles: &[MatchProfile], clock: u32) {
+    /// What its game may show of the kits: every place's playable ones, as a replay's viewer is
+    /// told; a place is told once, and again when its kits change (a late joiner's). Only once
+    /// it watches.
+    pub(super) fn tell_kits(&mut self, profiles: &[MatchProfile]) {
         if !matches!(self.stage, Watch::Live { .. }) {
             return;
         }
         self.kits_told.resize(profiles.len(), 0);
-        for place in 0..profiles.len() {
-            let Some(note) = seen.note_by(place, clock, profiles) else {
-                continue;
-            };
-            if note.mask != self.kits_told[place] {
-                self.kits_told[place] = note.mask;
+        for note in super::kit_view::all_kits(profiles) {
+            let told = &mut self.kits_told[usize::from(note.place)];
+            if note.mask != *told {
+                *told = note.mask;
                 self.note(&note.encode());
             }
         }

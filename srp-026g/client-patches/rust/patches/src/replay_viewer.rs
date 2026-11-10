@@ -22,8 +22,8 @@
 //! for when the server names it (a view note), and picks no kit: its 1 to 3 and a pick of the
 //! hud's chooser go nowhere. It shows the hud movie's own kit chooser, read-only, for the place in
 //! view: the game fills it from its own copy of the match's options, with only the kits the
-//! server's kits note allows (a replay: every playable kit; a live match: the ones the place has
-//! played by the spectator's delayed clock), the initialize_match feed of the local place's kits
+//! server's kits note allows (every playable kit, a replay's and a live match's alike), the
+//! initialize_match feed of the local place's kits
 //! being withheld from a spectator. Live it is the game's own place; in a replay it is left of the
 //! replay's player list, over the chat, and gives way to the Tab list. Nothing a match computes changes.
 #![forbid(unsafe_code)]
