@@ -9,6 +9,30 @@ release that made it what it is now.
 
 ---
 
+## 10 Nov, 15:43 — TODO: the owner's words (update required)
+
+<!-- Revision 55 (026g-rev55), released 2026-11-10 15:43 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1585 re-kit 0.26g: names of the hot functions in the rev54 FPS profiles
+- TODO: #1598 World frame: seal the animation times-table under-read (op-0 and duration pops)
+- TODO: #1336 Patch 121 (bake_async): the camouflage/decal bake does not wait for the GPU
+- TODO: #1595 Patch 70: baked textures kept across releases and starts, the CRC-32 folded
+- TODO: #1594 Hud: per-frame Scaleform work only on change
+- TODO: #1592 Cut per-frame work of patches 76, 78, 85 and 94
+- TODO: #1587 Make patch 109's artefact-skill hooks cheap
+- TODO: #1589 Patch 134: shader constants cost the render thread less, the same bytes on the GPU
+- TODO: #1593 Patch 137: texture streaming's per-frame bookkeeping in Rust
+- TODO: #1590 Patch 136: the animation's sin, cos, atan2 and knot search, faster and the same
+- TODO: #1591 Patch log: one kept handle, repeats counted, rotation; rollback lines once
+- TODO: #1582 Lobby top bar: lay it out over wide screens without stretching it
+- TODO: #1596 Patch 83: Vulkan drivers and layers of DXVK's GPU only, no AMD heap, the VRAM probe's driver let go
+- TODO: #1600 Login: the background picture covers wide screens
+- TODO: #1601 Lobby: a put fills the pocket, and a full pocket stays full
+- TODO: #1603 Lobby top bar: the level-100 star sits on the level badge's place, without its ring
+- TODO: #1604 Alt on armour: isolation with Resistance
+- TODO: #1605 Lobby: no Autobuy box (autobuy always on), the Regeneration box beside Speed and Weight
+- TODO: #1607 Profiler: the managed arena by resource class, Scaleform's heaps by name
+
 ## 9 Nov, 16:06 — TODO: the owner's words (update required)
 
 <!-- Revision 54 (026g-rev54), released 2026-11-09 16:06 UTC. To be worded for players; what it shipped: -->
