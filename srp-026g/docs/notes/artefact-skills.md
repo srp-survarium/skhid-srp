@@ -522,6 +522,15 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   containers' Springs, Lifebones and Onyx (the vtable's enable_active) in container order. A
   copy gives its passive in state 3 or 4 (Onyx 3 only: its protect's passive branch), its
   active in 4. Nothing is kept between two reads (but the movement's re-selection, below).
+- Its cost: the getters' sites run at every modifier read of every player, so their entries call
+  the handler for a Spring list only (`only = { index = "SPRING_LISTS" }`, rust_patches.md): any
+  other index costs a compare and a bit test, no machine save. For a Spring list the roster is read
+  where it lies, as core_active_player reads it (the places' vector +18458h, the bits +18FD8h, the
+  place's kit +0Ch and that kit's player), without its reference (the hook runs no game code), and
+  the walk stops when nothing more can change the result (no room, both rooms full; a carrier's
+  skills before its distance). Not cached across calls: a carrier moves, dies or changes an
+  artefact's state between two getter calls of one tick, and each call must see the world as the
+  game has it then.
 - Spring: the getters' sites `artefact.shared_modifier` (0x2D5AE6, apply_modifier after it reads
   the kit's own float) and `artefact.shared_modifiers` (0x2D5C18, apply_modifiers' loop) add, for
   an index of Spring's lists (4, 49, 3, 19, 42, 13), the shared copies' node values of that

@@ -9,6 +9,10 @@ va	name	location	role	basis
 0x000147e0	on_mounted_resources	entry ESP+12	pointer to the result mount_ptr	observed
 0x000148b0	on_mounted_user_data	entry ESP+4	mount_ptr holder	observed
 0x000148b0	on_mounted_user_data	entry ESP+8	pointer to the result mount_ptr	observed
+0x0001b7b0	vostok::timing::timer::elapsed_ticks	ESI	the timer, 14h bytes: +0 a 64-bit base added, +8 its start (a QueryPerformanceCounter), +10h an f32 scale (process_compression writes 1.0 at 0x12EC73: [esp+60h])	observed
+0x0001c410	vostok::memory::mt_free	entry ESP+4	the memory (0: nothing); freed by 0x106FC0 unless [1F1D61Bh] is set, untracked (0xFD500) when [[1F1D308h]+10h]	observed
+0x0001c6a0	vostok::memory::mt_allocate	ESI	the size	observed
+0x0001c6a0	vostok::memory::mt_allocate	entry ESP+4	the allocator object (0xA8001C, make_save_descriptor 0x109EF1): its +10h byte turns tracking (0xFD430) on	observed
 0x0001ef10	vostok::render::one_way_render_channel::one_way_render_channel	ESI	channel receiver	observed
 0x0001ef10	vostok::render::one_way_render_channel::one_way_render_channel	EAX	allocator pointer	observed
 0x0001f090	vostok::render::one_way_render_channel::~one_way_render_channel	ESI	channel receiver	observed
@@ -642,6 +646,13 @@ va	name	location	role	basis
 0x000f70e0	vostok::memory::writer::seek	entry ESP+4	new position	observed
 0x000f8480	vostok::resources::resources_manager::add_fs_task	EAX	fs task	observed
 0x000fef60	vostok::render::renderer_cook::destroy_resource	entry ESP+4	resource pointer	observed
+0x00106a00	vostok::timing::timer::elapsed_ms	ESI	the timer (elapsed_ticks's): process_compression's [esp+50h] (0x12EFA6, 0x12F00B)	observed
+0x00109ed0	vostok::resources::make_save_descriptor	ECX	the physical path span (begin, end): the descriptor +0Ch (process_compression 0x12F2D1: &[esp+3C8h], 0x1051E0s output)	observed
+0x00109ed0	vostok::resources::make_save_descriptor	EAX	the virtual path span: the descriptor +10h (process_compression 0x12F2CA)	observed
+0x00109ed0	vostok::resources::make_save_descriptor	entry ESP+4	the bytes {data, size}: copied into mt_allocate(size) (0x109EF8), the descriptor +0 data, +4 size, +8 byte 1: its data its own	observed
+0x00109f30	vostok::resources::allocate_save_descriptor	entry ESP+4	the physical path span (begin, end): copied to +0Ch	observed
+0x00109f30	vostok::resources::allocate_save_descriptor	entry ESP+8	the virtual path span: copied to +10h; the descriptor data 0, size 0, +8 byte 0 (save_descriptor 0x109FC0)	observed
+0x0010a050	vostok::resources::save_descriptor::~save_descriptor	ESI	the descriptor: its data freed (MT, 0x106FC0) when its +8 byte is set, +14h released (0x11450), then itself (MT); called by the query at 0xF1135	observed
 0x0010bcc0	vostok::resources::hdd_manager_sorting_predicate::operator()	EAX	the first query_result	observed
 0x0010bcc0	vostok::resources::hdd_manager_sorting_predicate::operator()	entry ESP+4	the second query_result	observed
 0x0010d4e0	vostok::tasks::thread_pool::wait_for_all_children	entry ESP+4	the thread pool ([0A86730h]; TLS index at +6Ch)	observed
@@ -889,6 +900,40 @@ va	name	location	role	basis
 0x0011e820	vostok::render::system_renderer::draw_render_models_selection	entry ESP+8	model pointer vector	observed
 0x0011f010	vostok::render::system_renderer::draw_particle_system_instance_selections	EAX	owner	observed
 0x0011f010	vostok::render::system_renderer::draw_particle_system_instance_selections	entry ESP+4	particle system resource vector	observed
+0x0011f280	vostok::render::gpu_dxt_compressor::block_mip_count	EAX	blocks wide (width / 4)	observed
+0x0011f280	vostok::render::gpu_dxt_compressor::block_mip_count	ECX	blocks high (height / 4)	observed
+0x0011f2f0	vostok::render::gpu_dxt_compressor::data_size	ECX	the block levels	observed
+0x0011f2f0	vostok::render::gpu_dxt_compressor::data_size	EDX	the width in texels	observed
+0x0011f2f0	vostok::render::gpu_dxt_compressor::data_size	entry ESP+4	the height in texels	observed
+0x0011f2f0	vostok::render::gpu_dxt_compressor::data_size	entry ESP+8	the format: 46h 8 bytes a block, else 16	observed
+0x0011f350	vostok::render::gpu_dxt_compressor::write_dds_header	EAX	the output: 128 bytes, "DDS " and the header	observed
+0x0011f350	vostok::render::gpu_dxt_compressor::write_dds_header	ECX	the format: 46h DXT1, else DXT5	observed
+0x0011f350	vostok::render::gpu_dxt_compressor::write_dds_header	entry ESP+4	the width (header +10h)	observed
+0x0011f350	vostok::render::gpu_dxt_compressor::write_dds_header	entry ESP+8	the height (header +0Ch)	observed
+0x0011f350	vostok::render::gpu_dxt_compressor::write_dds_header	entry ESP+12	the linear size (header +14h): compress passes data_size + 1 (0x11F42F)	observed
+0x0011f350	vostok::render::gpu_dxt_compressor::write_dds_header	entry ESP+16 low byte	normal flag: DXT5 with the A2D5 swizzle tag	observed
+0x0011f350	vostok::render::gpu_dxt_compressor::write_dds_header	entry ESP+20	the level count (header +1Ch)	observed
+0x0011f3f0	vostok::render::gpu_dxt_compressor::compress	entry ESP+4	the system renderer ([2260480h]); its +64h the compression effect	observed
+0x0011f3f0	vostok::render::gpu_dxt_compressor::compress	entry ESP+8	the DDS output: header by write_dds_header, the blocks of every level from +80h, then one byte (ESP+32)	observed
+0x0011f3f0	vostok::render::gpu_dxt_compressor::compress	entry ESP+12	RGBA8 pixels, pitch width x 4: the initial data of the level-0 texture created at 0x11F46D (create_texture2d, format 1Ch, usage 0)	observed
+0x0011f3f0	vostok::render::gpu_dxt_compressor::compress	entry ESP+16	width	observed
+0x0011f3f0	vostok::render::gpu_dxt_compressor::compress	entry ESP+20	height	observed
+0x0011f3f0	vostok::render::gpu_dxt_compressor::compress	entry ESP+24	format: 46h BC1 (diffuse, fresnel, smoothness), 4Ch BC3 (normal)	observed
+0x0011f3f0	vostok::render::gpu_dxt_compressor::compress	entry ESP+28	normal flag (process_compression: type 1), forwarded to compress_mip	observed
+0x0011f3f0	vostok::render::gpu_dxt_compressor::compress	entry ESP+32 low byte	diffuse flag (type 0), stored after the last level at 0x11F53E	observed
+0x0011f590	vostok::render::gpu_dxt_compressor::compress_mip	entry ESP+4	the system renderer	observed
+0x0011f590	vostok::render::gpu_dxt_compressor::compress_mip	entry ESP+8	the levels array of res_texture pointers (level 0 the upload, then make_mips targets), sampled as t_base_pixels	observed
+0x0011f590	vostok::render::gpu_dxt_compressor::compress_mip	entry ESP+12	&the DDS cursor, advanced by the level bytes (0x11F863)	observed
+0x0011f590	vostok::render::gpu_dxt_compressor::compress_mip	entry ESP+16	blocks wide of this level	observed
+0x0011f590	vostok::render::gpu_dxt_compressor::compress_mip	entry ESP+20	blocks high of this level	observed
+0x0011f590	vostok::render::gpu_dxt_compressor::compress_mip	entry ESP+24	the level	observed
+0x0011f590	vostok::render::gpu_dxt_compressor::compress_mip	entry ESP+28	format 46h or 4Ch: the block target R16G16B16A16_UINT (0Ch) or R32G32B32A32_UINT (3), the staging the same (usage 3)	observed
+0x0011f590	vostok::render::gpu_dxt_compressor::compress_mip	entry ESP+32	normal flag: the pass constant +5620h is 2 with it on BC3, 1 for BC3, 0 for BC1	observed
+0x0011f8b0	vostok::render::gpu_dxt_compressor::make_mips	ECX	width	observed
+0x0011f8b0	vostok::render::gpu_dxt_compressor::make_mips	EDX	height	observed
+0x0011f8b0	vostok::render::gpu_dxt_compressor::make_mips	entry ESP+4	the system renderer	observed
+0x0011f8b0	vostok::render::gpu_dxt_compressor::make_mips	entry ESP+8	the levels array: each level a new render target (format 1Ch) drawn from the one before (pass 4), a Flush each (0x11F9C4)	observed
+0x0011f8b0	vostok::render::gpu_dxt_compressor::make_mips	entry ESP+12	the level count	observed
 0x00120bf0	vostok::render::texture_gpu_converter_cook::allocate_resource	stack+4	pointer/count result storage	inferred
 0x00120bf0	vostok::render::texture_gpu_converter_cook::allocate_resource	stack+8	query object used on allocation failure	inferred
 0x00120bf0	vostok::render::texture_gpu_converter_cook::allocate_resource	stack+16	requested byte count	inferred
@@ -959,6 +1004,17 @@ va	name	location	role	basis
 0x00126af0	vostok::render::skeleton_model_instance_cook::on_all_subresources_ready	entry ESP+4	shared callback state	observed
 0x00127700	boost::function_invoker<bind(void(*)(A*,B*),a,b)>::invoke	entry ESP+4	function buffer {f, a, b}	observed
 0x00127700	boost::function_invoker<bind(void(*)(A*,B*),a,b)>::invoke	entry ESP+8	queries result	observed
+0x0012ec40	vostok::render::camouflage_decal_texture_type_baker_cook::process_compression	entry ESP+20	the render_surface_instance: slots +0, +4, +8, +0Ch by type	observed
+0x0012ec40	vostok::render::camouflage_decal_texture_type_baker_cook::process_compression	entry ESP+36	decal_texture_type: 0 diffuse, 1 normal, 2 fresnel, 3 smoothness	observed
+0x0012ec40	vostok::render::camouflage_decal_texture_type_baker_cook::process_compression	entry ESP+40	float ms of render_bake (CPU submit, timed in on_textures_loaded 0x12E98D..0x12E9D8), added to the logged bake time	observed
+0x0012ec40	vostok::render::camouflage_decal_texture_type_baker_cook::process_compression	EAX	&{width, height} (0x12EC89)	observed
+0x0012ec40	vostok::render::camouflage_decal_texture_type_baker_cook::process_compression	entry ESP+4	the cook (the baker static 0xA264E80): push_back 0x12F3F2 at its +230h, remove_unwanted_files 0x12F405	observed
+0x0012ec40	vostok::render::camouflage_decal_texture_type_baker_cook::process_compression	entry ESP+8	the query: set_unmanaged_resource 0x12F1D7, +10Ch and +0E0h the save (0x12F2A3, 0x12F2FA), finish 0x12F42A	observed
+0x0012ec40	vostok::render::camouflage_decal_texture_type_baker_cook::process_compression	entry ESP+12	the result_struct: the four targets the bake drew (on_textures_loaded &[esp+48h]); read only before 0x12EEA1	observed
+0x0012ec40	vostok::render::camouflage_decal_texture_type_baker_cook::process_compression	entry ESP+16	the DDS size: its malloc (0x12EF43), the CRC count (0x12F332), the record size	observed
+0x0012ec40	vostok::render::camouflage_decal_texture_type_baker_cook::process_compression	entry ESP+24	the cook parameters copy (on_textures_loaded &[esp+80h]): +13Ch its name text (0x12F052)	observed
+0x0012ec40	vostok::render::camouflage_decal_texture_type_baker_cook::process_compression	entry ESP+28	a pair forwarded as create_texture_from_memory entry ESP+16 and ESP+20 (0x12F086)	observed
+0x0012ec40	vostok::render::camouflage_decal_texture_type_baker_cook::process_compression	entry ESP+32	a value forwarded as create_texture_from_memory entry ESP+24 (0x12F09A)	observed
 0x00135900	vostok::render::material_effects_instance_cook::on_material_ready	ECX	cook owner	observed
 0x00135900	vostok::render::material_effects_instance_cook::on_material_ready	entry ESP+4	queries_result pointer	observed
 0x00135900	vostok::render::material_effects_instance_cook::on_material_ready	entry ESP+8	cook-data pointer	observed
@@ -3919,6 +3975,7 @@ va	name	location	role	basis
 0x003d0f80	vostok::render::res_texture::map2D	ESI	res_texture receiver	inferred
 0x003d0f80	vostok::render::res_texture::map2D	stack+4	row pitch output pointer	inferred
 0x003d0f80	vostok::render::res_texture::map2D	stack+8	map option byte selecting0x100000	inferred
+0x003d0f80	vostok::render::res_texture::map2D	stack+8 low byte	no-wait byte: D3D11_MAP_FLAG_DO_NOT_WAIT, the occlusion manager polls with 1 (0x1D7E60)	observed
 0x003d1000	vostok::render::res_texture::clone	EAX	destination res_texture receiver	inferred
 0x003d1000	vostok::render::res_texture::clone	EDI	source res_texture	inferred
 0x003d10f0	vostok::render::untyped_buffer::untyped_buffer	EDI	untyped-buffer receiver	observed
@@ -4636,6 +4693,7 @@ va	name	location	role	basis
 0x0023b200	survarium::game_world_ui::update_ui	entry ESP+4	the frame's ms (x 0.001 at 0x91A8F0: the movies' advance, vtable +5Ch)	observed
 0x0023b200	survarium::game_world_ui::update_ui	entry ESP+8	the time in ms: under 28h past [ui+33Ch] the rest of the hud waits (0x23B249..0x23B252); past that, the hud's part runs only when a checksum of the hud state [ui+24h..2D8h) differs from [ui+2E0h] (0x23B2CD..0x23B301)	observed
 0x0023b200	survarium::game_world_ui::update_ui	entry ESP+12 low byte	inside the 40 ms: nonzero advances the hud movie too, zero returns at once (0x23B254)	observed
+0x0023b200	survarium::game_world_ui::update_ui	[EAX+8h], [EAX+0Ch], [EAX+10h], [EAX+14h]	the match's movies, as game_world loads them (0x1F8F0E..0x1F8FA7): hud, cursor, player_icons, replay_player. player_icons is advanced at every call (0x23B214); the hud inside the 40 ms only with ESP+12 set, else once per 40 ms with the time since (0x23B4BC); replay_player once per 40 ms in every match (0x23B4D7); the cursor once per 40 ms while [ui+2DCh] (0x23B507). No other movie is advanced in a match: the lobby's (lobby_menu::update_ui 0x220A00) only from lobby_menu::tick (0x21D660), the active scene's	observed
 0x001e8da0	survarium::delete_folder	EAX	the folder's physical path, a buffer_string (begin +0, end +4); SHFileOperationA FO_DELETE, flags 414h	observed
 0x00131ed0	vostok::render::camouflage_decal_texture_type_baker_cook::find_baked_texture	EAX	the baker cook (its list at +230h)	observed
 0x00131ed0	vostok::render::camouflage_decal_texture_type_baker_cook::find_baked_texture	entry ESP+4	the path, a buffer_string	observed
@@ -5775,6 +5833,10 @@ va	name	location	role	basis
 0x001ed170	survarium::game::switch_to_game_world	EAX	the game	observed
 0x002203a0	survarium::lobby_menu::show_loading_screen	AL	the flag: 1 shown, 0 hidden	observed
 0x002203a0	survarium::lobby_menu::show_loading_screen	EDX	the lobby menu	observed
+0x00013ca0	vostok::engine::engine_world::tick	ECX	the engine world (+2C4h, +2C8h its render modules, +2B8h the render channels)	observed
+0x00109bd0	vostok::resources::query_result::finish_translated_query	EAX	the query (its +0E0h the save, +2C0h flags, +2D8h the guard)	observed
+0x00103140	vostok::resources::resources_manager::on_created_resource	EAX	the query (+104h its result, +100h its error type, +2D8h the guard)	observed
+0x000f0d00	vostok::resources::query_result_for_cook::finish_query_impl	entry ESP+8 = 2	postponed: +104h 2 unless +2C0h's 200000h (finished) is set, no error type; then as any result (0xF0E42): a translate query ends unanswered (on_created_resource takes it as created), nothing asks again; 4 is the one that asks again (0x103140)	observed
 0x003cfdb0	vostok::render::res_render_output::apply_fullscreen_state	ESI	render-output receiver	observed
 0x003cfdb0	vostok::render::res_render_output::apply_fullscreen_state	entry ESP+4 low byte	apply even without the focus (resize passes 1)	observed
 0x003cfe20	vostok::render::res_render_output::goto_fullscreen	ESI	render-output receiver	observed
@@ -5852,3 +5914,41 @@ va	name	location	role	basis
 0x00106fc0	pt3free	EAX	the memory (0: nothing); a mapped chunk goes back to the region 0x106AD0 (0x107018), others to mspace_free (0x107053)	observed
 0x0001c6a0	vostok::memory::mt_allocator::malloc_impl	ESI	the bytes	observed
 0x0001c6a0	vostok::memory::mt_allocator::malloc_impl	entry ESP+4	the allocator ("global multithreaded" 0xA8001C; cdecl)	observed
+0x001c8cd0	vostok::render::render_surface_texture_instance_proxy::bound_sphere	ECX	the proxy	observed
+0x001c8cd0	vostok::render::render_surface_texture_instance_proxy::bound_sphere	entry ESP+4	the out sphere (16 bytes)	observed
+0x001c8b80	vostok::render::render_surface_texture_instance_proxy::last_render_time	ECX	the proxy	observed
+0x001c8b90	vostok::render::render_surface_texture_instance_proxy::texel_factor	ECX	the proxy	observed
+0x001c8cb0	vostok::render::render_surface_texture_instance_proxy (vtable +14h)	ECX	the proxy	observed
+0x001c8d40	vostok::render::grass_patch_texture_instance_proxy::bound_sphere	entry ESP+4	the out sphere (16 bytes)	observed
+0x001c8e00	vostok::render::decal_texture_instance_proxy::bound_sphere	ECX	the proxy	observed
+0x001c8e00	vostok::render::decal_texture_instance_proxy::bound_sphere	entry ESP+4	the out sphere (16 bytes)	observed
+0x001c8d80	vostok::render::decal_texture_instance_proxy::texel_factor	ECX	the proxy	observed
+0x00153d90	vostok::render::streaming_texture_instance (constructor)	EDI	the record	observed
+0x00153d90	vostok::render::streaming_texture_instance (constructor)	ESI	the proxy	observed
+0x0011b5a0	vostok::render::shader_constant_buffer::set_memory	EAX	source of the constant bytes	observed
+0x0011b5a0	vostok::render::shader_constant_buffer::set_memory	ECX	byte count, clamped to the buffer size (+5Ch) less the offset, unsigned	observed
+0x0011b5a0	vostok::render::shader_constant_buffer::set_memory	ESI	byte offset into the shadow (+58h)	observed
+0x0011b5a0	vostok::render::shader_constant_buffer::set_memory	entry ESP+4	shader_constant_buffer receiver	observed
+0x0023d070	survarium::game_world_ui::update_game_stats	EAX	the ui; called by update_ui every 40 ms (0x23B4B3): root.set_game_stats (state 1..3, fps, latency) only when one of them differs from the last sent (0x23D10D..0x23D129)	observed
+0x00038ff0	vostok::math::sin	entry ESP+4	the angle (float; cdecl)	observed
+0x00039000	vostok::math::cos	entry ESP+4	the angle (float; cdecl)	observed
+0x00079c40	vostok::math::atan2	entry ESP+4	y, the sine side (float, loaded first: ST1 of fpatan; cdecl)	observed
+0x00079c40	vostok::math::atan2	entry ESP+8	x, the cosine side (float, ST0 of fpatan)	observed
+0x000ed2e0	vostok::math::quaternion::quaternion	ESI	the quaternion written	observed
+0x000ed2e0	vostok::math::quaternion::quaternion	entry ESP+4	the angle x (float; the three angles by value, the ret pops all three)	observed
+0x000ed2e0	vostok::math::quaternion::quaternion	entry ESP+8	the angle y (float)	observed
+0x000ed2e0	vostok::math::quaternion::quaternion	entry ESP+0Ch	the angle z (float)	observed
+0x00074290	vostok::math::quaternion::quaternion	ESI	the quaternion written	observed
+0x00074290	vostok::math::quaternion::quaternion	EDI	the axis (float3)	observed
+0x00074290	vostok::math::quaternion::quaternion	entry ESP+4	the angle (float)	observed
+0x00074300	vostok::math::quaternion::get_axis_and_angle	ESI	the quaternion (x, y, z, w)	observed
+0x00074300	vostok::math::quaternion::get_axis_and_angle	EDI	the axis written	observed
+0x00074300	vostok::math::quaternion::get_axis_and_angle	entry ESP+4	the angle written (float*)	observed
+0x003b3180	vostok::animation::evaluate_frame	EAX	the values written (float per channel)	observed
+0x003b3180	vostok::animation::evaluate_frame	ECX	the channels (time_channel<float4> {knot count, memory offset}, 8 bytes each)	observed
+0x003b3180	vostok::animation::evaluate_frame	entry ESP+4	the time (float)	observed
+0x003b3180	vostok::animation::evaluate_frame	entry ESP+8	the current domains (u32 per channel)	observed
+0x003b3180	vostok::animation::evaluate_frame	entry ESP+0Ch	the channel count	observed
+0x003b3340	vostok::animation::time_channel::domain	EAX	the time channel {+0 knot count, +4 offset of its memory: count float4 domains, then count float knots}	observed
+0x003b3340	vostok::animation::time_channel::domain	XMM2	the time (float)	observed
+0x003b3340	vostok::animation::time_channel::domain	entry ESP+4	the current domain (u32*, read and written)	observed

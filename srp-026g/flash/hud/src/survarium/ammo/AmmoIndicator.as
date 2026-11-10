@@ -50,6 +50,11 @@ package survarium.ammo
       protected var _selectedAmmo:int = -1;
       
       protected var renderers:Array = [];
+
+      // The rounds and the stock the texts show (setAmmoClip), null before the first: the exe tells
+      // the weapon's state at each change of any part of it (25 times a second while the crosshair
+      // moves), the texts change only with these.
+      protected var _shownClip:Object = null;
       
       public function AmmoIndicator()
       {
@@ -70,16 +75,15 @@ package survarium.ammo
          }
          _clip = amount;
          var str:String = "";
-         if(this._totalList[this._selectedAmmo])
+         var selected:Object = this._totalList[this._selectedAmmo];
+         var rounds:uint = selected ? amount : 0;
+         count = selected ? int(selected.count) : 0;
+         if(this._shownClip && this._shownClip.rounds == rounds && this._shownClip.count == count)
          {
-            this.ammoAmmount.text = amount.toString();
-            count = (this._totalList[this._selectedAmmo].count);
+            return;
          }
-         else
-         {
-            this.ammoAmmount.text = "0";
-            count = 0;
-         }
+         _shownClip = {rounds:rounds,count:count};
+         this.ammoAmmount.text = rounds.toString();
          if(count == 0)
          {
             str = "000";
@@ -98,20 +102,55 @@ package survarium.ammo
          this.clipAmmount.x = this.clipAmmount2.x + this.clipAmmount2.textWidth;
       }
       
+      // The weapon's ammunition ({name, count, icon} each), redrawn when it differs from the one shown.
+      // The same, only the renderers are placed again by their widths, which their tweens change
+      // after a change of the selected one, as each update of the weapon did.
       public function setAmmo(value:Array) : void
       {
+         var same:Boolean = sameAmmo(this._totalList,value);
          _totalList = value;
-         invalidateData();
+         if(same)
+         {
+            this.updatePos();
+         }
+         else
+         {
+            invalidateData();
+         }
+      }
+
+      protected static function sameAmmo(a:Array, b:Array) : Boolean
+      {
+         if(a == null || b == null || a.length != b.length)
+         {
+            return false;
+         }
+         for(var i:int = 0; i < a.length; i++)
+         {
+            if(a[i].name != b[i].name || a[i].count != b[i].count || a[i].icon != b[i].icon)
+            {
+               return false;
+            }
+         }
+         return true;
       }
       
       public function setSelectedAmmo(value:uint) : void
       {
+         if(int(value) == this._selectedAmmo)
+         {
+            return;
+         }
          _selectedAmmo = value;
          invalidateData();
       }
       
       public function setActiveAmmo(uid:uint) : void
       {
+         if(int(uid) == this._activeAmmo)
+         {
+            return;
+         }
          _activeAmmo = uid;
          invalidateData();
       }
@@ -187,7 +226,10 @@ package survarium.ammo
             else
             {
                this.renderers.push(resAmmo);
-               resAmmo.label = label;
+               if(resAmmo.label != label)
+               {
+                  resAmmo.label = label;
+               }
                trace("AI::non selected::",resAmmo.currentFrame,resAmmo.label);
                if(resAmmo.state != AmmoRenderer.STATE_THIN)
                {
