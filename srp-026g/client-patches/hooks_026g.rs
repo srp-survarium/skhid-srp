@@ -553,6 +553,12 @@ pub extern "C" fn hook_artefact_skills_on_spring_reload(frame: &mut Frame) -> u3
 
 // ---- artefact_skills (patch 109) ----
 
+/// The values of `index` (ESI) the entry `artefact_skills_on_shared_modifier` calls its handler for
+/// (`only`): crate::artefact_skills::SPRING_LISTS; for any other it replays the site's bytes.
+#[unsafe(no_mangle)]
+#[allow(non_upper_case_globals)]
+pub static artefact_skills_on_shared_modifier_only: Only = Only::of(&crate::artefact_skills::SPRING_LISTS);
+
 /// The entry `artefact_skills_on_shared_modifier` (0x2d5ae6, apply_modifier after it reads the kit's own float (movss xmm0,[eax+esi*4] at 0x2D5AE1): XMM0 that float, to which the list's nodes are added (0x2D5B33) before the index's rule (additive by 0x927E08, else max(0, 1 + k x S)); replayed: lea ecx,[esi+esi*4]; cmp byte [eax+ecx*4+120h],0 (the sorted flag the jne at 0x2D5AFF reads)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_skills_on_shared_modifier(frame: &mut Frame) -> u32 {
@@ -567,6 +573,12 @@ pub extern "C" fn hook_artefact_skills_on_shared_modifier(frame: &mut Frame) -> 
 }
 
 // ---- artefact_skills (patch 109) ----
+
+/// The values of `index` (EAX) the entry `artefact_skills_on_shared_modifiers` calls its handler for
+/// (`only`): crate::artefact_skills::SPRING_LISTS; for any other it replays the site's bytes.
+#[unsafe(no_mangle)]
+#[allow(non_upper_case_globals)]
+pub static artefact_skills_on_shared_modifiers_only: Only = Only::of(&crate::artefact_skills::SPRING_LISTS);
 
 /// The entry `artefact_skills_on_shared_modifiers` (0x2d5c18, apply_modifiers 0x2D5BC0 (a weighted sum of several indices) in its loop, after one index's own float (movss xmm0,[ebx+eax*4] at 0x2D5C13, stored at 0x2D5C2A): XMM0 that float, to which the list's nodes are added (0x2D5C69); replayed: lea eax,[eax+eax*4]; cmp byte [ebx+eax*4+120h],0) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -648,6 +660,12 @@ pub extern "C" fn hook_artefact_skills_on_fire(frame: &mut Frame) -> u32 {
 #[repr(u32)]
 #[allow(dead_code)]
 pub enum ArtefactSkillsOnOwnModifierExit { Summed }
+/// The values of `index` (ESI) the entry `artefact_skills_on_own_modifier` calls its handler for
+/// (`only`): crate::artefact_skills::SPRING_LISTS; for any other it replays the site's bytes.
+#[unsafe(no_mangle)]
+#[allow(non_upper_case_globals)]
+pub static artefact_skills_on_own_modifier_only: Only = Only::of(&crate::artefact_skills::SPRING_LISTS);
+
 /// The entry `artefact_skills_on_own_modifier` (0x2d5b0c, apply_modifier before it sums its list's nodes (both ways from the sorted flag's test join here; mov eax,[edi+4] / xorps xmm2,xmm2, then the loop 0x2D5B20 adds each node's +0Ch into XMM1 as value + sum): EDI the kit's list of the index ESI; summed is the loop's end (pop edi / test eax,eax / je 0x2D5B33 addss xmm0,xmm1) with EAX 0, XMM1 the sum and XMM2 the 0 the rule compares with) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_artefact_skills_on_own_modifier(frame: &mut Frame) -> u32 {

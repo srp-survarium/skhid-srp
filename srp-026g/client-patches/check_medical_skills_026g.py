@@ -22,6 +22,7 @@ def bits(value): return struct.unpack('<I',struct.pack('<f',value))[0]
 def close(a,b): assert abs(a-b)<0.0001,(a,b)
 
 LOG_OPEN_SLOT = 0x870048                  # CreateFileA's import slot (the patches' log)
+THREAD_ID_SLOT = 0x870118                 # GetCurrentThreadId's import slot (the log's one writer)
 
 class MedicalGame(Game):
     def __init__(self,data,padding=0):
@@ -38,6 +39,8 @@ class MedicalGame(Game):
         self.emu.hook_add(UC_HOOK_CODE,self.effect,begin=0x2de090,end=0x2de090)
         # The patches' log (srp_patches.log): CreateFileA fails (mov eax,-1; ret 1Ch), nothing written.
         self.emu.mem_write(STOP+0x2100,b'\xb8\xff\xff\xff\xff\xc2\x1c\x00');self.word(LOG_OPEN_SLOT,STOP+0x2100)
+        # The log's writer asks whose line it is: GetCurrentThreadId (mov eax,1; ret), one thread.
+        self.emu.mem_write(STOP+0x2110,b'\xb8\x01\x00\x00\x00\xc3');self.word(THREAD_ID_SLOT,STOP+0x2110)
         self.core=self.block(0x19000)
         self.places=self.block(20*0x30)
         self.word(self.core+0x18458,self.places)
