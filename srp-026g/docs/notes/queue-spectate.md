@@ -106,10 +106,10 @@ but with nice non-disruptive ux/ui".
   moment (`room_takes_now`: `late_hold` says yes, or another is on its way in). A private room
   waiting is its owner's to start and calls nobody. One in a queue is called back as a member,
   once the queue has put it in the room.
-- **How:** a live watch is stopped (`Matchmaking::stop_watching`), so the match server lets the
-  game go (one 0xEA naming 0xFF); a replay's session is called back (`Watches::recall`): over at
-  once while its game is still in the lobby, else marked, and the match server's playback lets the
-  game go as at the recording's end (`Playback::recalled`). The game comes back to the lobby by
+- **How:** a live watcher is marked (`Matchmaking::recall_watcher`) and a replay's session too
+  (`Watches::recall`: over at once while its game is still in the lobby); the match server tells
+  the game and lets it go a few seconds later (below; one 0xEA naming 0xFF, as at a recording's
+  end). The game comes back to the lobby by
   itself; its room takes it as any member (the vote, a late join).
 - **Not begun then:** a watch asked while the asker's room would call back at once is answered
   `busy` (`room_keeps`).
@@ -117,4 +117,13 @@ but with nice non-disruptive ux/ui".
   room or a queue, the next room state decides: a room in its vote or its match shows itself, with
   one line over it for 7 s, "Your room is ready" (`st_srp_rooms_called_back`; no press taken,
   nothing moved); a room still waiting, or no room, gives the Watch window back as it was.
-- **Not yet:** nothing is said in the match or replay being watched before the game leaves it.
+- **Said first, in what is watched** (the owner's of 2026-11-10: "match found nice ui/ux
+  indication with micro-countdown is still nice vs abruptly loading back into menu"): the match
+  server tells the game once (`replay_control::ServerNote::Recall`, `52 05 <seconds>`) and lets it
+  go `RECALL_SECONDS` (5) later: a replay's playback by its own clock (`Playback::recall_at`), a
+  live spectator when the lobby's mark is seen (`Matchmaking::recall_watcher`, the match server's
+  `Game::recall_spectator`, then `stop_watching`). The exe (patch 130, `on_server_note`) hands it
+  to the hud (`root.srp_called_back_words`, the running language's `st_srp_rooms_called_back_in`,
+  and `root.srp_called_back(seconds)`), which shows one line under the top of the screen, "Your
+  room is ready. Returning in 5 s", counted down each second (`CalledBackNotice`); it takes no
+  press. A session whose game is still in the lobby is over at once, with no line.

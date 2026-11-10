@@ -2150,9 +2150,11 @@ impl Core<'_> {
     ///   (`late_hold`), or will in a moment (another is on its way in).
     ///
     /// A private room waiting is its owner's to start, and calls nobody. The
-    /// live watch is stopped (`Matchmaking::stop_watching`: the match server
-    /// lets its game go) and a replay's session called back
-    /// (`Watches::recall`); the game comes back to the lobby by itself, and
+    /// live watcher is called back (`Matchmaking::recall_watcher`) and a
+    /// replay's session too (`Watches::recall`): the match server tells the
+    /// game, which says so over what it shows and counts
+    /// `replay_control::RECALL_SECONDS` down, then lets it go (a session
+    /// whose game is still in the lobby is over at once); the game comes back to the lobby by itself, and
     /// its room takes it as any member (the vote, a late join). Queue and
     /// spectate's own watch is not this pass's (`room_watchers`).
     fn room_recalls(&mut self, now: Instant) {
@@ -2213,7 +2215,7 @@ impl Core<'_> {
                         .is_some_and(|replays| replays.watches().recall(account_id)),
                     "the replay",
                 ),
-                Away::Live(session_id) => (matchmaking.stop_watching(session_id).is_some(), "the live match"),
+                Away::Live(session_id) => (matchmaking.recall_watcher(session_id), "the live match"),
             };
             if told {
                 log::info!(

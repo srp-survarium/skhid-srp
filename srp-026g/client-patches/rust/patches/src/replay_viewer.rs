@@ -550,6 +550,13 @@ pub fn on_server_note(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnServerNoteExi
                 spectator::view_player(&site.client, thread, place);
             }
         }
+        // Its player's room calls it back (srp lets the game go in these
+        // seconds): said over the view, counted down by the hud.
+        Some(ServerNote::Recall(seconds)) => {
+            if let Some(chooser) = KitChooser::of(&site.client) {
+                chooser.called_back(seconds);
+            }
+        }
         None => {}
     }
     Flow::Exit(ReplayViewerOnServerNoteExit::Done)

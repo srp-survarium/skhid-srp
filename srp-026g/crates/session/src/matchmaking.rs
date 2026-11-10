@@ -245,6 +245,8 @@ struct Inner {
     /// Who watches a running match from its room's queue, by session
     /// ([`Matchmaking::watch`], `docs/notes/queue-spectate.md`).
     watchers: HashMap<u32, Watcher>,
+    /// The watching sessions their rooms called back ([`Matchmaking::recall_watcher`]).
+    recalled: HashSet<u32>,
     /// `(match, account)`: watchers whose game left the match by itself
     /// ([`Matchmaking::watcher_left`]), the lobby not told yet
     /// ([`Matchmaking::take_watchers_left`]).
@@ -327,6 +329,7 @@ impl Matchmaking {
                 left: Vec::new(),
                 failed_joins: Vec::new(),
                 watchers: HashMap::new(),
+                recalled: HashSet::new(),
                 watchers_left: Vec::new(),
             }),
         }
@@ -712,7 +715,24 @@ impl Matchmaking {
     /// The lobby: the session watches no more (it got a place, left the
     /// queue, or the match is over). The match server closes its link.
     pub fn stop_watching(&self, session_id: u32) -> Option<Watcher> {
-        self.inner.locked().watchers.remove(&session_id)
+        let mut inner = self.inner.locked();
+        inner.recalled.remove(&session_id);
+        inner.watchers.remove(&session_id)
+    }
+
+    /// The lobby: the watching session's room calls it back (`rooms`'
+    /// `room_recalls`). It watches on meanwhile: the match server tells its
+    /// game, and stops the watch a few seconds later
+    /// ([`Self::is_recalled`], then [`Self::stop_watching`]). Whether this
+    /// call changed anything.
+    pub fn recall_watcher(&self, session_id: u32) -> bool {
+        let mut inner = self.inner.locked();
+        inner.watchers.contains_key(&session_id) && inner.recalled.insert(session_id)
+    }
+
+    /// Whether the watching session was called back ([`Self::recall_watcher`]).
+    pub fn is_recalled(&self, session_id: u32) -> bool {
+        self.inner.locked().recalled.contains(&session_id)
     }
 
     /// The match server: the watcher's game left the match by itself (its
@@ -726,6 +746,7 @@ impl Matchmaking {
             && watcher.ticket == ticket
         {
             inner.watchers.remove(&session_id);
+            inner.recalled.remove(&session_id);
             inner
                 .watchers_left
                 .push((watcher.match_id, watcher.account_id));

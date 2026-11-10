@@ -2711,6 +2711,7 @@ st_srp_rooms_any	Ei rajaa
 st_srp_rooms_back	Takaisin
 st_srp_rooms_bots	Boteilla
 st_srp_rooms_called_back	Huoneesi on valmis
+st_srp_rooms_called_back_in	Huoneesi on valmis. Paluu %1$s s kuluttua
 st_srp_rooms_code_10	Omistaja poisti sinut huoneesta.
 st_srp_rooms_code_11	Poistu ensin klaanijoukkueesta.
 st_srp_rooms_code_12	Varusteesi ylittävät enimmäistason.

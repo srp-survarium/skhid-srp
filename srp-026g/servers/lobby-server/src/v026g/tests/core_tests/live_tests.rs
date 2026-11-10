@@ -254,7 +254,11 @@ fn a_member_watching_live_is_called_back_when_its_room_reaches_its_minimum() {
     let dave = world.connect("Dave");
     rows(&mut world, dave, ROOM_JOIN_BASE + key, 1);
     world.advance(Duration::from_secs(1));
-    assert!(world.store.matchmaking().watched(session).is_none(), "its room has its minimum with it: called back");
+    assert!(world.store.matchmaking().is_recalled(session), "its room has its minimum with it: called back");
+    // The match server tells its game, and stops the watch a few seconds later.
+    assert!(world.store.matchmaking().watched(session).is_some());
+    world.store.matchmaking().stop_watching(session);
+    assert!(!world.store.matchmaking().is_recalled(session));
 }
 
 /// One in no room is nobody's to call back, whatever the rooms do.
@@ -271,4 +275,5 @@ fn a_watcher_in_no_room_is_not_called_back() {
     rows(&mut world, erin, ROOM_JOIN_BASE + key, 1);
     world.advance(Duration::from_secs(5));
     assert!(world.store.matchmaking().watched(session).is_some());
+    assert!(!world.store.matchmaking().is_recalled(session));
 }

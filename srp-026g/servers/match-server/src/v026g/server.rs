@@ -578,6 +578,11 @@ impl Server {
             // go; one whose game left by itself leaves its queue.
             let matchmaking = self.store.matchmaking();
             for session_id in game.spectator_sessions() {
+                // Its room calls it back: told, and its watch stopped when
+                // the seconds it was told are over (then let go, below).
+                if matchmaking.is_recalled(session_id) && game.recall_spectator(session_id, now) {
+                    matchmaking.stop_watching(session_id);
+                }
                 if matchmaking
                     .watched(session_id)
                     .map(|watcher| watcher.ticket)

@@ -215,6 +215,11 @@ const PLAYBACK: u8 = 1;
 const EVENTS: u8 = 2;
 const VIEW: u8 = 3;
 const KITS: u8 = 4;
+const RECALL: u8 = 5;
+
+/// How long a watching game is told ahead that its player's room calls it back
+/// ([`ServerNote::Recall`]): the server lets it go this long after the note.
+pub const RECALL_SECONDS: u8 = 5;
 
 impl Playback {
     /// Its bytes after the message's id.
@@ -389,6 +394,9 @@ pub enum ServerNote<'a> {
     Kits(KitsNote),
     /// The place to follow (a roster place; the game checks it is one).
     View(u8),
+    /// The watcher's room calls it back: the server lets the game go in this
+    /// many seconds (the game says so meanwhile, and counts them down).
+    Recall(u8),
 }
 
 impl<'a> ServerNote<'a> {
@@ -406,8 +414,14 @@ impl<'a> ServerNote<'a> {
             [TAG, EVENTS, body @ ..] => EventsNote::parse(body).map(ServerNote::Events),
             [TAG, KITS, place, mask] if *mask < 1 << KIT_NUMBERS => Some(ServerNote::Kits(KitsNote { place: *place, mask: *mask })),
             [TAG, VIEW, place] => Some(ServerNote::View(*place)),
+            [TAG, RECALL, seconds] => Some(ServerNote::Recall(*seconds)),
             _ => None,
         }
+    }
+
+    /// The recall note's bytes: let go in `seconds`.
+    pub fn recall(seconds: u8) -> [u8; 3] {
+        [TAG, RECALL, seconds]
     }
 
     /// The view note's bytes for `place`.
@@ -480,6 +494,13 @@ impl Request {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_recall_note_says_its_seconds() {
+        assert_eq!(ServerNote::parse(&ServerNote::recall(RECALL_SECONDS)), Some(ServerNote::Recall(RECALL_SECONDS)));
+        assert_eq!(ServerNote::parse(&[TAG, RECALL]), None);
+        assert_eq!(ServerNote::parse(&[TAG, RECALL, 5, 0]), None);
+    }
 
     #[test]
     fn the_byte_of_no_place_means_what_its_message_says() {

@@ -2711,6 +2711,7 @@ st_srp_rooms_any	Alle
 st_srp_rooms_back	Zurück
 st_srp_rooms_bots	Mit Bots
 st_srp_rooms_called_back	Dein Raum ist bereit
+st_srp_rooms_called_back_in	Dein Raum ist bereit. Rückkehr in %1$s s
 st_srp_rooms_code_10	Der Besitzer hat dich entfernt.
 st_srp_rooms_code_11	Verlasse zuerst dein Clanteam.
 st_srp_rooms_code_12	Deine Ausrüstung liegt über der max. Stufe.

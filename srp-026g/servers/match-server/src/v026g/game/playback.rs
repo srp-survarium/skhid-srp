@@ -368,8 +368,10 @@ struct Playback {
     request: WatchRequest,
     spectator: Spectator,
     clock: Clock,
-    /// The lobby called its player back (`Watches::recall`): its game is let go.
+    /// The lobby called its player back (`Watches::recall`): its game is
+    /// told (`ServerNote::Recall`) and let go at `recall_at`.
     recalled: bool,
+    recall_at: Option<Instant>,
     speed: Speed,
     /// The `seq` of the last request taken from its game.
     last_request: Option<u8>,
@@ -404,6 +406,7 @@ impl Playback {
             spectator,
             clock: Clock::Loading { at: start },
             recalled: false,
+            recall_at: None,
             speed: Speed::Normal,
             last_request: None,
             told: None,
@@ -655,11 +658,18 @@ impl Playback {
             self.clock,
             Clock::Paused { since, .. } if now.saturating_duration_since(since) >= PAUSED_MOST
         );
-        if (at >= self.recording.end || paused_out || self.recalled) && !self.spectator.is_leaving() {
+        // Called back: told once, and let go `RECALL_SECONDS` later.
+        if self.recalled && self.recall_at.is_none() {
+            log::info!("Replay {session_id:#x}: its player's room calls it back");
+            self.spectator.note(&replay_control::ServerNote::recall(replay_control::RECALL_SECONDS));
+            self.recall_at = Some(now + Duration::from_secs(replay_control::RECALL_SECONDS.into()));
+        }
+        let recall_due = self.recall_at.is_some_and(|due| now >= due);
+        if (at >= self.recording.end || paused_out || recall_due) && !self.spectator.is_leaving() {
             log::info!(
                 "Replay {session_id:#x}: {}",
-                if self.recalled {
-                    "its player's room calls it back"
+                if recall_due {
+                    "let go, back to its player's room"
                 } else if paused_out {
                     "paused too long, its session goes to someone else"
                 } else {

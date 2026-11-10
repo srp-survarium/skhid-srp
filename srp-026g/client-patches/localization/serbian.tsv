@@ -2711,6 +2711,7 @@ st_srp_rooms_any	Bilo koji
 st_srp_rooms_back	Nazad
 st_srp_rooms_bots	Sa botovima
 st_srp_rooms_called_back	Tvoja soba je spremna
+st_srp_rooms_called_back_in	Tvoja soba je spremna. Povratak za %1$s s
 st_srp_rooms_code_10	Vlasnik te je uklonio iz te sobe.
 st_srp_rooms_code_11	Prvo napusti tim klana.
 st_srp_rooms_code_12	Tvoja oprema prelazi najviši dozvoljeni nivo.

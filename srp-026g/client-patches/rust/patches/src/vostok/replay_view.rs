@@ -275,6 +275,9 @@ fn hide_player_panels(ui: raw::GameWorldUi) {
     }
 }
 
+/// The call back's words, a dictionary key: its text has `%1$s` where the seconds go.
+const CALLED_BACK: &CStr = c"st_srp_rooms_called_back_in";
+
 /// A spectator's read-only kit chooser: the hud movie's own (`HUD.as`, srp_spectator_*), filled
 /// with the kits the server's notes allow, which the game alone has the contents of.
 pub struct KitChooser<'t> {
@@ -329,6 +332,15 @@ impl<'t> KitChooser<'t> {
     /// The kit the followed player has now (root.srp_spectator_current_kit).
     pub fn set_current(&self, kit: u8) {
         self.movie.invoke_uints(c"root.srp_spectator_current_kit", &[u32::from(kit)]);
+    }
+
+    /// The watcher's room calls it back, the game let go in `seconds`: the hud says so, in the
+    /// running language, and counts them down (root.srp_called_back_words, root.srp_called_back).
+    pub fn called_back(&self, seconds: u8) {
+        let mut room = [0; 0x200];
+        let words = super::ui::GameWorldUi::of(self.ui).translate(CALLED_BACK, &mut room);
+        self.movie.invoke_text(c"root.srp_called_back_words", words);
+        self.movie.invoke_uints(c"root.srp_called_back", &[u32::from(seconds)]);
     }
 
     /// The chooser's place and whether it shows (root.srp_spectator_kits_show).

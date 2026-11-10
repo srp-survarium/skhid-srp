@@ -223,6 +223,8 @@ pub(crate) struct Spectator {
     view: Option<u8>,
     /// The mask of kits it has been told of each place (a live match's chooser).
     kits_told: Vec<u8>,
+    /// Its room called it back: when it is let go (`Game::recall_spectator`).
+    recall_at: Option<Instant>,
     /// How often [`Self::feed`] walked the match's lists.
     #[cfg(test)]
     list_walks: u32,
@@ -412,6 +414,28 @@ impl Game {
 
     /// The server lets go of the spectator of `session_id` (its watch
     /// ended): its farewell, then its link closes. Not reported as left.
+    /// The spectator's room calls it back: its game is told once
+    /// (`ServerNote::Recall`); whether the seconds it was told are over (a
+    /// spectator not here any more: at once).
+    pub(crate) fn recall_spectator(&mut self, session_id: u32, now: Instant) -> bool {
+        let Some(spectator) = self
+            .spectators
+            .iter_mut()
+            .find(|spectator| spectator.session_id == session_id)
+        else {
+            return true;
+        };
+        match spectator.recall_at {
+            Some(due) => now >= due,
+            None => {
+                log::info!("Match {:#x}: spectator {session_id:#x} is called back by its room", self.id);
+                spectator.note(&replay_control::ServerNote::recall(replay_control::RECALL_SECONDS));
+                spectator.recall_at = Some(now + Duration::from_secs(replay_control::RECALL_SECONDS.into()));
+                false
+            }
+        }
+    }
+
     pub(crate) fn let_spectator_go(&mut self, session_id: u32, now: Instant) {
         let clock = self.clock(now);
         for spectator in &mut self.spectators {
@@ -752,6 +776,7 @@ impl Spectator {
             restarts: VecDeque::new(),
             view,
             kits_told: Vec::new(),
+            recall_at: None,
             #[cfg(test)]
             list_walks: 0,
         }

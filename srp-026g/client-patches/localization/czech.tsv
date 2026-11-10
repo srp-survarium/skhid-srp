@@ -2711,6 +2711,7 @@ st_srp_rooms_any	Libovolná
 st_srp_rooms_back	Zpět
 st_srp_rooms_bots	S boty
 st_srp_rooms_called_back	Vaše místnost je připravena
+st_srp_rooms_called_back_in	Vaše místnost je připravena. Návrat za %1$s s
 st_srp_rooms_code_10	Vlastník tě odebral z místnosti.
 st_srp_rooms_code_11	Nejdřív opusť klanový tým.
 st_srp_rooms_code_12	Vybavení přesahuje maximální úroveň.

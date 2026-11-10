@@ -47,6 +47,7 @@ package
    import survarium.controls.PlayerRowMenu;
    import survarium.controls.ForcedView;
    import survarium.modes.ModeNotice;
+   import survarium.modes.CalledBackNotice;
    import survarium.modes.ModeIntroText;
    import flash.utils.getTimer;
    import survarium.controls.KeptLayer;
@@ -409,6 +410,8 @@ package
          this.pregameInfo.premiumMembers.parent.removeChild(this.pregameInfo.premiumMembers);
          this._modeNotice = new ModeNotice(this.pregameInfo.contextText);
          addChild(this._modeNotice);
+         this._calledBack = new CalledBackNotice(this.pregameInfo.contextText);
+         addChild(this._calledBack);
          damageDebug = new SrvDebugDamage();
          addChild(this.damageDebug);
          this.damageDebug.visible = false;
@@ -613,6 +616,22 @@ package
 
       private var _forcedView:ForcedView;
       private var _modeNotice:ModeNotice;
+
+      // srp's: a watcher's room calls it back (CalledBackNotice)
+      private var _calledBack:CalledBackNotice;
+
+      // srp's (exe patch 130, replay_control's Recall note): the words of the call back, the
+      // running language's, with CalledBackNotice.SECONDS where the seconds go.
+      public function srp_called_back_words(words:String) : void
+      {
+         this._calledBack.words = words;
+      }
+
+      // srp's: the watcher's room calls it back, the game let go in `seconds`; 0 takes the line away.
+      public function srp_called_back(seconds:uint) : void
+      {
+         this._calledBack.begin(int(seconds),this.stageWidth);
+      }
       private var _pregameText:String = "";
 
       private function onIntroductionFrame(event:Event) : void
@@ -645,7 +664,7 @@ package
 
       private function keptWhenForced() : Array
       {
-         return [this.pregameInfo,this.contextInfo,this._modeNotice];
+         return [this.pregameInfo,this.contextInfo,this._modeNotice,this._calledBack];
       }
 
       private function keptOnTab() : Array
