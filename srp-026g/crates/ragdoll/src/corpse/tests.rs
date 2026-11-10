@@ -11,7 +11,7 @@ use crate::skeleton::BONE_COUNT;
 const UP: Vec3 = Vec3::Y;
 
 /// A draw over a whole game skeleton (`skeleton` the game's in, the drawn out).
-trait DrawGame {
+pub(crate) trait DrawGame {
     fn draw_game(&mut self, skeleton: &mut Skeleton) -> Drawn;
 }
 

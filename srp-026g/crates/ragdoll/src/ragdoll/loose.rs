@@ -16,12 +16,13 @@ use crate::tuning;
 /// The corpse's parts a loose body has been apart from since it was let
 /// go, a bit each ([`Part::index`]): those push it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Apart(u16);
+pub struct Apart(u16);
 
 const _: () = assert!(PARTS <= u16::BITS as usize);
 
 impl Apart {
-    fn at_release(body: &Body, parts: &[Body; PARTS]) -> Apart {
+    /// Of `body` let go among `parts`: apart from those it does not overlap.
+    pub fn at_release(body: &Body, parts: &[Body; PARTS]) -> Apart {
         Apart(
             Part::ALL
                 .into_iter()
@@ -37,33 +38,9 @@ impl Apart {
     fn now(&mut self, part: Part) {
         self.0 |= 1 << part.index();
     }
-}
 
-/// A loose body of a ragdoll and the parts that push it.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct Loose {
-    pub(super) body: Body,
-    apart: Apart,
-}
-
-impl Loose {
-    /// `body` let go among `parts`.
-    pub(super) fn released(body: Body, parts: &[Body; PARTS]) -> Loose {
-        Loose {
-            body,
-            apart: Apart::at_release(&body, parts),
-        }
-    }
-
-    /// Whether `part` pushes it (it has been apart from it).
-    #[cfg(test)]
-    pub(super) fn meets(&self, part: Part) -> bool {
-        self.apart.from(part)
-    }
-
-    /// One substep's contacts with `parts`, before the level's.
-    pub(super) fn solve(&mut self, parts: &[Body; PARTS], up: Vec3) {
-        let item = &mut self.body;
+    /// One substep's contacts of `item` with `parts`, before the level's.
+    pub fn solve(&mut self, item: &mut Body, parts: &[Body; PARTS], up: Vec3) {
         let start = *item;
         for part in Part::ALL {
             let body = &parts[part.index()];
@@ -73,10 +50,10 @@ impl Loose {
                 separation(body, item)
             };
             let Some((on_part, on_item, distance)) = touch else {
-                self.apart.now(part);
+                self.now(part);
                 continue;
             };
-            if !self.apart.from(part) {
+            if !self.from(part) {
                 continue;
             }
             let n = (on_item - on_part).direction_or(up);
@@ -127,6 +104,34 @@ impl Loose {
     }
 }
 
+/// A loose body of a ragdoll and the parts that push it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct Loose {
+    pub(super) body: Body,
+    apart: Apart,
+}
+
+impl Loose {
+    /// `body` let go among `parts`.
+    pub(super) fn released(body: Body, parts: &[Body; PARTS]) -> Loose {
+        Loose {
+            body,
+            apart: Apart::at_release(&body, parts),
+        }
+    }
+
+    /// Whether `part` pushes it (it has been apart from it).
+    #[cfg(test)]
+    pub(super) fn meets(&self, part: Part) -> bool {
+        self.apart.from(part)
+    }
+
+    /// One substep's contacts with `parts`, before the level's.
+    pub(super) fn solve(&mut self, parts: &[Body; PARTS], up: Vec3) {
+        self.apart.solve(&mut self.body, parts, up);
+    }
+}
+
 /// A depth the parts may press a body into the level in a substep, m: the
 /// level's own contact takes it out at once.
 const PRESS: f32 = 0.001;
@@ -151,4 +156,17 @@ fn pressed_in(start: &Body, now: &Body) -> bool {
     };
     deeper(heights(start, start.pose), heights(now, now.pose))
         || deeper(heights(start, start.previous), heights(now, now.previous))
+}
+
+/// Whether `item` lies on one of `parts`: nearer than `margin` to its surface.
+pub fn lies_on(item: &Body, parts: &[Body; PARTS], margin: f32) -> bool {
+    parts.iter().any(|part| {
+        if apart(part, item) {
+            return false;
+        }
+        let (p0, p1) = part.shape.ends(part.pose);
+        let (i0, i1) = item.shape.ends(item.pose);
+        let (on_part, on_item) = closest_points(p0, p1, i0, i1);
+        (on_item - on_part).length() < part.shape.radius + item.shape.radius + margin
+    })
 }

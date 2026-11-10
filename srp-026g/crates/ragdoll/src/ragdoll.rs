@@ -19,6 +19,7 @@ use crate::skeleton::{
     adjacent,
 };
 use crate::tuning;
+pub use loose::{Apart, lies_on};
 use loose::Loose;
 
 mod loose;
@@ -975,6 +976,11 @@ impl Ragdoll {
         self.age
     }
 
+    /// The parts' bodies: what a thing lying loose in the level meets of it.
+    pub fn parts(&self) -> &[Body; PARTS] {
+        &self.bodies
+    }
+
     /// Its dropped gun's `Weapon` bone's world pose (where the game draws
     /// the held item), if a gun dropped.
     pub fn weapon(&self) -> Option<Pose> {
@@ -984,7 +990,7 @@ impl Ragdoll {
     /// Its dropped gun going on alone (its body went away: the player
     /// respawned), as it is now, if a gun dropped.
     pub fn lone_gun(&self) -> Option<LoneGun> {
-        Some(LoneGun { body: self.gun?.body, weapon: self.rig.gun_offset()?, pending: self.pending, age: 0.0, rest: GunRest::Moving })
+        Some(LoneGun { alone: Alone::new(self.gun?.body, self.pending), weapon: self.rig.gun_offset()? })
     }
 
     /// One frame of `dt` s (capped at 1/30): the level's queries, then six
@@ -1401,32 +1407,45 @@ fn substeps(pending: &mut f32, dt: f32) -> Option<(usize, f32)> {
     Some((substeps, substeps as f32 * SUBSTEP))
 }
 
-/// A dropped gun whose body went away (its player respawned before the
-/// ragdoll settled): the same gun body, stepped alone by the ragdoll's own
-/// rules (the level's queries, the contacts, friction, the near-rest
-/// slowing) until it rests. The corpse never touched it (the gun meets the
-/// level alone), so it falls and slides as it would have with the body.
+/// A body on its own in the level (a gun whose corpse went away, a dropped
+/// battery): stepped by the ragdoll's own rules (the level's queries, the
+/// contacts, friction, the near-rest slowing) until it rests.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct LoneGun {
-    body: Body,
-    /// The `Weapon` bone relative to the gun (the rig's, from the death).
-    weapon: Pose,
+pub struct Alone {
+    pub(crate) body: Body,
     pending: f32,
-    /// Its time alone (MAX_AGE caps it).
+    /// Its time moving (MAX_AGE caps it).
     age: f32,
-    rest: GunRest,
+    rest: AloneRest,
 }
 
-/// A lone gun's way to rest: as the ragdoll's [`Rest`], for one body.
+/// A body alone on its way to rest: as the ragdoll's [`Rest`], for one body.
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum GunRest {
+enum AloneRest {
     Moving,
     Slow { slow: f32, since: f32, anchor: Pose },
 }
 
-impl LoneGun {
-    /// One frame of `dt` s (`up` the level's): the level's query, then the substeps.
-    pub fn step(&mut self, dt: f32, up: Vec3, level: &mut impl Level) -> Motion {
+impl Alone {
+    /// `body` let go, `pending` s of frame time not stepped yet.
+    pub fn new(body: Body, pending: f32) -> Alone {
+        Alone { body, pending, age: 0.0, rest: AloneRest::Moving }
+    }
+
+    pub fn body(&self) -> &Body {
+        &self.body
+    }
+
+    /// Moving again from where it rests (what held it moved or went).
+    pub fn wake(&mut self) {
+        self.age = 0.0;
+        self.rest = AloneRest::Moving;
+    }
+
+    /// One frame of `dt` s (`up` the level's): the level's query, then the
+    /// substeps; `others` is each substep's contacts with what else pushes
+    /// it (corpses), before the level's.
+    pub fn step(&mut self, dt: f32, up: Vec3, level: &mut impl Level, mut others: impl FnMut(&mut Body)) -> Motion {
         let Some((substeps, dt)) = substeps(&mut self.pending, dt) else {
             return Motion::Moving;
         };
@@ -1437,6 +1456,7 @@ impl LoneGun {
         let h = SUBSTEP;
         for _ in 0..substeps {
             body.integrate(h, gravity, LINEAR_DAMPING, ANGULAR_DAMPING);
+            others(body);
             let contacts = solve_contact(body);
             body.update_velocity(h);
             friction(body, contacts, h);
@@ -1460,24 +1480,41 @@ impl LoneGun {
             (a - c).length() < STILL_REACH && (b - d).length() < STILL_REACH
         };
         self.rest = match self.rest {
-            _ if self.body.end_speed() >= SLOW => GunRest::Moving,
-            GunRest::Moving => GunRest::Slow { slow: self.age, since: self.age, anchor: now },
-            GunRest::Slow { slow, since, anchor } if still(anchor) || self.body.velocity.length() < CREEP => {
-                GunRest::Slow { slow, since, anchor }
+            _ if self.body.end_speed() >= SLOW => AloneRest::Moving,
+            AloneRest::Moving => AloneRest::Slow { slow: self.age, since: self.age, anchor: now },
+            AloneRest::Slow { slow, since, anchor } if still(anchor) || self.body.velocity.length() < CREEP => {
+                AloneRest::Slow { slow, since, anchor }
             }
-            GunRest::Slow { slow, .. } => GunRest::Slow { slow, since: self.age, anchor: now },
+            AloneRest::Slow { slow, .. } => AloneRest::Slow { slow, since: self.age, anchor: now },
         };
         match self.rest {
-            GunRest::Slow { since, .. } if self.age - since >= STILL_TIME => Motion::Settled,
-            GunRest::Slow { slow, .. } if self.age - slow >= SLOW_TIME => Motion::Settled,
+            AloneRest::Slow { since, .. } if self.age - since >= STILL_TIME => Motion::Settled,
+            AloneRest::Slow { slow, .. } if self.age - slow >= SLOW_TIME => Motion::Settled,
             _ if self.age >= MAX_AGE => Motion::Settled,
             _ => Motion::Moving,
         }
     }
+}
+
+/// A dropped gun whose body went away (its player respawned before the
+/// ragdoll settled): the same gun body, alone. The corpse is gone, so the
+/// gun meets the level only.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LoneGun {
+    pub(crate) alone: Alone,
+    /// The `Weapon` bone relative to the gun (the rig's, from the death).
+    weapon: Pose,
+}
+
+impl LoneGun {
+    /// One frame of `dt` s (`up` the level's).
+    pub fn step(&mut self, dt: f32, up: Vec3, level: &mut impl Level) -> Motion {
+        self.alone.step(dt, up, level, |_| {})
+    }
 
     /// The `Weapon` bone's world pose: where the game draws the held item.
     pub fn weapon(&self) -> Pose {
-        self.body.pose.then(self.weapon)
+        self.alone.body.pose.then(self.weapon)
     }
 }
 

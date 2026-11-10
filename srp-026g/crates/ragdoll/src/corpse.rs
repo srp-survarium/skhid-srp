@@ -491,6 +491,19 @@ impl Corpses {
         }
     }
 
+    /// A place's ragdoll as a thing lying loose in the level meets it: its
+    /// death, its body, whether it moves.
+    pub fn body(&self, place: usize) -> Option<(DeathKey, &Ragdoll, bool)> {
+        let Some(Corpse::Body { death, slot }) = self.places.get(place) else {
+            return None;
+        };
+        match &self.pool[slot.index()] {
+            Slot::Ragdoll { ragdoll, .. } => Some((*death, ragdoll, true)),
+            Slot::Settled { ragdoll, .. } => Some((*death, ragdoll, false)),
+            Slot::Free | Slot::Dying { .. } => None,
+        }
+    }
+
     pub fn place(&self, place: usize) -> Corpse {
         self.places.get(place).copied().unwrap_or(Corpse::Alive)
     }
@@ -762,4 +775,4 @@ fn settled(ragdoll: &Ragdoll, settles: &mut u32) -> Slot {
 const _: () = assert!(POOL <= u8::MAX as usize && PARTS == 11);
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

@@ -1,0 +1,8 @@
+name = "battery_ragdoll"
+patch = 76
+[[hook]]
+site = "battery.draw_primary"
+handler = "on_draw_primary"
+[[hook]]
+site = "battery.draw_secondary"
+handler = "on_draw_secondary"

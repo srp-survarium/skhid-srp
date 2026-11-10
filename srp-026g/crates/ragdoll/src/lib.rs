@@ -19,6 +19,7 @@
 pub mod body;
 pub mod camera;
 pub mod corpse;
+pub mod dropped;
 pub mod limits;
 pub mod math;
 pub mod ragdoll;
