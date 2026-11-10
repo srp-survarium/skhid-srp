@@ -350,7 +350,11 @@ package survarium.controls
          // grenade's damage is not 0). Weapons, armour and medicines have: their stats are of
          // one kind, and the two cards' rows face each other (a medkit's disinfection: 0 %).
          var ownOnly:Boolean = depth > 0 && !(medical && depth < PlayerInfo.MAX_POCKET_UNITS);
-         for each(var s:Object in fitted(cardRows(ownOnly),ammoDetails,weaponDetails,indicators - index))
+         // Held Alt over a medicine: under its own lines, what the medical skills do while it is
+         // active or as it heals (MatchEffects.medicineSkillLines). They keep their rows: with
+         // more to show than the card's rows, it is the stat rows before the weight that go.
+         var skillLines:Array = effects != null && medical ? effects.medicineSkillLines(this._primary) : [];
+         for each(var s:Object in fitted(cardRows(ownOnly),ammoDetails,weaponDetails,indicators - index - skillLines.length))
          {
             if(ammoDetails || weaponDetails && s.prop_id == 24) continue;
             var _valueObject:Object = s;
@@ -366,6 +370,14 @@ package survarium.controls
                if(propDescription.comparable)
                {
                   initPropValues(_valueObject,this._primary);
+                  // A stat only the compared item has (cardRows): the item has none of it, so it
+                  // is 0 held Alt too. The skills change what an item has (Potent Painkiller
+                  // gave a medkit beside a painkiller "Pain protection 0 -> 3%").
+                  if(_valueObject.absent)
+                  {
+                     _value = base_value = 0;
+                     modifier_value = 0;
+                  }
                   initIndicatorValues(this._indicator[index],propDescription,_value,_value);
                   // While Alt is held, a value its modifications, the kit or the skills change
                   // reads "base -> in a match", the current green when better, red when worse.
@@ -384,7 +396,7 @@ package survarium.controls
          // active or as it heals (MatchEffects.medicineSkillLines), "100 -> in a match" in %.
          if(effects != null && medical)
          {
-            for each(var line:Object in effects.medicineSkillLines(this._primary))
+            for each(var line:Object in skillLines)
             {
                if(index == indicators) break;
                modifier_value = 0;
@@ -498,13 +510,14 @@ package survarium.controls
          {
             if(seen[prop.prop_id]) continue;
             seen[prop.prop_id] = true;
-            rows.push(mine[prop.prop_id] != undefined ? mine[prop.prop_id] : {prop_id:prop.prop_id,prop_value:0});
+            rows.push(mine[prop.prop_id] != undefined ? mine[prop.prop_id] : {prop_id:prop.prop_id,prop_value:0,absent:true});
          }
          return weightLast(rows);
       }
 
       // Of `rows`, those the card draws (the comparable ones) and has `room` for: with more, the
-      // last one (the weight) is kept and the ones before it go.
+      // stats the item has none of go first (the last of them first), then the ones before the
+      // last row (the weight), which is kept. No room: none.
       private function fitted(rows:Array, ammoDetails:Boolean, weaponDetails:Boolean, room:int) : Array
       {
          var drawn:Array = [];
@@ -514,7 +527,17 @@ package survarium.controls
             var description:Object = _propsDescriptor.getPropertyDescription(prop.prop_id);
             if(description && description.comparable) drawn.push(prop);
          }
-         if(room > 0 && drawn.length > room) drawn.splice(room - 1,drawn.length - room);
+         if(room <= 0) return [];
+         var over:int = drawn.length - room;
+         for(var i:int = drawn.length - 1; i >= 0 && over > 0; i--)
+         {
+            if(drawn[i].absent)
+            {
+               drawn.splice(i,1);
+               over--;
+            }
+         }
+         if(over > 0) drawn.splice(drawn.length - 1 - over,over);
          return drawn;
       }
 

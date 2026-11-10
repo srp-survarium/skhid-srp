@@ -2,7 +2,8 @@ package survarium.constants
 {
    // A player modifier: its index in a kit's 68 floats, the exe's name table at 0x928448
    // (srp's skills::MODIFIER_NAMES; docs/notes/static_info.md 3.1). Only those a weapon's, a
-   // medicine's, a grenade's or a trap's card shows the effect of (docs/notes/alt-weapon-stats.md).
+   // medicine's, a grenade's, a trap's or an armour piece's card shows the effect of
+   // (docs/notes/alt-weapon-stats.md).
    public class PlayerModifier
    {
 
@@ -29,6 +30,10 @@ package survarium.constants
 
       // a medicine's use time (medkit::set_active 0x33D45A)
       public static const DRUG_USING_TIME:int = 33;
+
+      // artefact_power, unused by 0.26g: the artefact tree's skills, one packed integer
+      // (docs/notes/artefact-skills.md, Transport)
+      public static const ARTEFACT_RANKS:int = 40;
 
       // armored_trap, unused by 0.26g: srp's medical skill ranks, one packed integer
       // (docs/notes/medical-skills.md)
