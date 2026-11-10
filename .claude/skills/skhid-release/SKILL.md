@@ -521,6 +521,18 @@ The order, as it runs:
    that is on main. The cost: the tagged commit's `REVISION` is the one
    before, so the tag's message says the `--revision` it was built with.
 
+8. **The ZIP to Discord, live only, with `SKHID_DISCORD_CHANNEL` set**
+   (`release/discord-post`): the ZIP that went out as one message of that
+   channel, with its revision, its sha256 and what to do with it, in
+   Russian and English, for a player whose provider blocks the site. The
+   ZIP alone: the patches of resources.db are far larger than a message's
+   file may be, and a game still gets them, and their list, from the
+   servers. A ZIP over `SKHID_DISCORD_MAX_MB` (default 20) is a WARNING
+   before the go, and then, as any refusal of Discord's, said loudly at the
+   end (`RELEASED, BUT THE ZIP IS NOT IN THE DISCORD CHANNEL`) with the
+   command for it by hand; the run ends with 1. Nothing is rolled back for
+   it. Without the setting the step says it posts nothing.
+
 A **failed check** (srp refusing to start, `/patches` wrong, no backup of
 srp.db, the ZIP not handed out) prints srp's last log lines and the lines
 where it says why — `srp: the game's files: <data> lacks what srp's code
@@ -676,6 +688,7 @@ shows the command, unless release.sh, already given the go-ahead, runs it):
 | `release/build-server-db [--test] [--out <file>]` | `server-game-data.db` from the stock db and the list's patches (local cache checked by size and SHA-256; missing or invalid files downloaded; every primary URL and mirror checked whole once, then by its first bytes), `srp-game-data build --patch "<file>=<urls>"` | a local file, the patch cache |
 | `release/build-site --tree <checkout> [--with <patch>]` | the Maps tab, the calculator and the skills from the stock db and the list's patches (cached, each sha256 checked), FFDec 26.0.0, dbgrab; each `built-from.tsv` must name exactly those; release.sh runs it in its preflight, by hand it is a local preview (`--tree .`) | the checkout's `servers/web-server/{maps,damage,skills,wiki}/`, the cache |
 | `release/build-zip [--test] [--ref <commit>] [--revision <n>] [--patches <list>] [--work <dir>]` | the players' ZIP from a fresh worktree of origin/main (never this checkout, never `git stash`): `--server`, `--site`, `--revision` (default: the site's exe's + 1; above it), `--required-patches` (every patch of the offered-patch list, or `--patches`'; release.sh passes its list with the new patch: the exe stops at its start without one, patch 49), no resources.db regions; the exe without a server too, both sha256 in `<work>/exe.sha256`; entries against the site's ZIP | a worktree, the ZIP |
+| `release/discord-post [--dry-run] [<zip>]` | the players' ZIP (default: the one the site gives now) as a message of the Discord channel, with its revision and sha256; refuses one over `SKHID_DISCORD_MAX_MB`; `--dry-run` prints the message and asks Discord nothing | the Discord channel |
 | `release/deploy --zip --server-data --revision [--label] [--dry-run]` | the swap on its own, in a window planned by hand: the release folder, the checks, the rollback on failure | the live host |
 | `release/rollback [--test] [--keep-db] [<folder>]` | a release folder's rollback | the target |
 | `release/setup-patches-server [--test] [--check]` | once: the patches folder and Caddy's site block for it (validate and reload; either failing puts the backup back) | the jump host's Caddy |

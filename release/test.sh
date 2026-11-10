@@ -19,10 +19,12 @@
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(dirname "$here")
+# Never the owner's Discord channel: the tests name the stand-in themselves.
+unset SKHID_DISCORD_CHANNEL SKHID_DISCORD_TOKEN SKHID_DISCORD_API SKHID_DISCORD_MAX_MB
 command -v python3 >/dev/null || { echo "test.sh: python3 is needed" >&2; exit 1; }
 
 if command -v shellcheck >/dev/null; then
-    (cd "$here" && shellcheck -x -s bash lib.sh build-patch build-content upload-patch add-mirror build-server-db build-site build-zip deploy rollback setup-patches-server release.sh bot-data world-corpus test.sh &&
+    (cd "$here" && shellcheck -x -s bash lib.sh build-patch build-content upload-patch add-mirror build-server-db build-site build-zip deploy rollback setup-patches-server release.sh discord-post bot-data world-corpus test.sh &&
         shellcheck -s sh host-rollback.sh host-bot-data.sh)
     echo "ok   shellcheck"
 else
@@ -392,7 +394,7 @@ M=http://127.0.0.1:$(cat "$T/mirror.port")
 # of each line of $T/state/page-left (minutes, or - for none yet),
 # /api/client-files of the ZIP in place when asked.
 python3 - "$T/site" "$T/site.port" "$T/state" "$T/live/download/Survarium-0.26g-srp-files.zip" >/dev/null 2>&1 <<'EOF' &
-import functools, glob, hashlib, http.server, math, os, sys, time, urllib.parse
+import email, functools, glob, hashlib, http.server, json, math, os, sys, time, urllib.parse
 root, port_file, state, zip_path = sys.argv[1:5]
 live = os.path.dirname(os.path.dirname(zip_path))
 minute = float(os.environ.get("SKHID_TEST_SECONDS_PER_MINUTE", "60"))
@@ -462,7 +464,31 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             open(os.path.join(state, "admin-seen.log"), "a").write("GET\n")
             return self.answer(200, "<form>the admin page</form>")
         return super().do_GET()
+    # Discord's "create message" (release/discord-post): the bot of
+    # state/discord-token may post to the channel 123456789012345678, a file
+    # of state/discord-max bytes at most; state/discord.log says what came.
+    def discord(self):
+        body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        refuse = lambda status, words, code: self.answer(status, json.dumps({"message": words, "code": code}))
+        if self.headers.get("Authorization") != "Bot " + read("discord-token", "-"):
+            return refuse(401, "401: Unauthorized", 0)
+        if self.path != "/discord/channels/123456789012345678/messages":
+            return refuse(404, "Unknown Channel", 10003)
+        if read("discord-forbidden") is not None:
+            return refuse(403, "Missing Permissions", 50013)
+        form = email.message_from_bytes(b"Content-Type: " + self.headers["Content-Type"].encode() + b"\r\n\r\n" + body)
+        parts = {part.get_param("name", header="content-disposition"): part for part in form.get_payload()}
+        file = parts["files[0]"].get_payload(decode=True)
+        if len(file) > int(read("discord-max", "20971520")):
+            return refuse(413, "Request entity too large", 40005)
+        said = json.loads(parts["payload_json"].get_payload(decode=True))
+        open(os.path.join(state, "discord.log"), "a").write(json.dumps({
+            "content": said["content"], "mentions": said.get("allowed_mentions"),
+            "name": parts["files[0]"].get_filename(), "sha256": hashlib.sha256(file).hexdigest()}) + "\n")
+        return self.answer(200, json.dumps({"id": "900000000000000001", "attachments": [{"size": len(file)}]}))
     def do_POST(self):
+        if self.path.startswith("/discord/"):
+            return self.discord()
         open(os.path.join(state, "admin-seen.log"), "a").write(f"POST {self.path}\n")
         if self.path != "/" + read("admin-path", "-"):
             return self.answer(404, "Not found.")
@@ -2484,8 +2510,20 @@ done
 HOOK
 chmod +x "$T/origin.git/hooks/pre-receive"
 touch "$T/gh-merge-fails" "$T/tag-push-fails" "$T/item-tables-record-fails"
-run yes --minutes 1 --label late && fail "release.sh, staged late, the PR not merged: ended 0"
+# From here the releases have a Discord channel (the site's stand-in), and
+# this one a ZIP larger than a message's file may be.
+discord_token=b0t.$RANDOM$RANDOM-$RANDOM
+printf '%s\n' "$discord_token" >"$T/state/discord-token"
+: >"$T/state/discord.log"
+export SKHID_DISCORD_API=http://127.0.0.1:$site_port/discord SKHID_DISCORD_CHANNEL=123456789012345678 SKHID_DISCORD_TOKEN=$discord_token
+posts() { grep -c . "$T/state/discord.log" || true; }
+SKHID_DISCORD_MAX_MB=1 run yes --minutes 1 --label late && fail "release.sh, staged late, the PR not merged: ended 0"
 rm -f "$T/build-zip-sleep" "$T/gh-merge-fails" "$T/tag-push-fails" "$T/item-tables-record-fails"
+check "release: a ZIP larger than Discord takes: a warning before the go" in_order "$out" \
+    "^WARNING the ZIP will not be posted to the Discord channel (step 8): discord-post: .*Survarium-0.26g-srp-files.zip is [0-9]* bytes, over the 1 MB" '5. the swap'
+check "release: ... released all the same, and said loudly at the end, with the post by hand" bash -c \
+    "grep -q '^RELEASED, BUT THE ZIP IS NOT IN THE DISCORD CHANNEL: discord-post: .* over the 1 MB a message.s file may be (SKHID_DISCORD_MAX_MB): NOT POSTED\$' <<<\"\$1\" && grep -q '^  by hand: release/discord-post [^ ]*/zip/Survarium-0.26g-srp-files.zip ' <<<\"\$1\"" _ "$out"
+check "release: ... nothing posted" test "$(posts)" = 0
 check "release: the item tables failing in the record: said, with the step by hand; the record goes on without them" bash -c \
     "grep -q '^  - the item tables: .*Permission denied.*the record goes without them; by hand, on a branch of main: .*srp-item-tables .*server-game-data.db --dir srp-026g/docs/data, then a PR' <<<\"\$1\" && git -C $T/origin.git rev-parse -q --verify refs/heads/release/record-rev17 >/dev/null && ! git -C $T/origin.git show --name-only --format= refs/heads/release/record-rev17 | grep -q docs/data" _ "$out"
 check "release: gh cannot merge the record's PR: said loudly at the end" bash -c \
@@ -2519,6 +2557,7 @@ check "release --now --dry-run: prints the order: the staging, the go, the swap 
     'the stop ends without results (--now)' 'compose stop srp26'
 check "release --now --dry-run: no POST, no admin page" bash -c "! grep -q 'POST ' <<<\"\$1\" && test ! -s $T/state/admin-seen.log" _ "$out"
 check "release --now --dry-run: changes nothing" test "$(tree)" = "$before"
+check "release --now --dry-run: names the Discord post, posts nothing" bash -c "grep -q '^\[dry run\] 8. the ZIP to the Discord channel: release/discord-post ' <<<\"\$1\" && test $(posts) = 0" _ "$out"
 # A refused start with --now: rolled back by itself all the same.
 echo "ERROR srp: SRP_MIN_PATCH_REVISION is 13, below resources.db.patch_14. Set SRP_MIN_PATCH_REVISION=14 or more" >"$T/refuse-start"
 run yes --now --label nowf || true
@@ -2526,6 +2565,7 @@ rm -f "$T/refuse-start"
 check "release --now: srp refusing to start: rolled back" has "$out" "rolled back: srp26 .*/patches .* as before"
 check "release --now: ... the old ZIP back in place" cmp -s "$T/work/r17.zip" "$T/live/download/Survarium-0.26g-srp-files.zip"
 check "release --now: ... no record of 18" no_record 18
+check "release --now: ... nothing posted to Discord" test "$(posts)" = 0
 # A match running: swapped anyway, and it says how many it ended.
 echo 1000 >"$T/state/busy"
 : >"$T/selftest.args"
@@ -2547,6 +2587,11 @@ check "release --now: ... planned nothing, asked no admin page" test ! -s "$T/st
 check "release --now: ... SRP_MIN_PATCH_REVISION=18" grep -qx "SRP_MIN_PATCH_REVISION=18" "$T/live/.env"
 check "release --now: ... frees the lock" test ! -e "$T/lock"
 check "release --now: ... its record: REVISION 18 on main, the tag" bash -c "test \"\$1\" = 18 && git -C $T/origin.git rev-parse -q --verify refs/tags/026g-rev18 >/dev/null" _ "$(main_revision)"
+r18_sha=$(sha256sum <"$T/work/r18.zip" | cut -d' ' -f1)
+check "release: the ZIP posted to the Discord channel, after the record" in_order "$out" \
+    'the PR merged' '8. the ZIP to the Discord channel' "  done     posted to the Discord channel: Survarium-0.26g-srp-files.zip, [0-9]* bytes, sha256 $r18_sha, revision 18 (message 900000000000000001)"
+check "release: ... one message: the ZIP that went out under the site's name, its revision and sha256 in both languages' words, no one mentioned" bash -c \
+    "test $(posts) = 1 && jq -e --arg sha $r18_sha '.sha256 == \$sha and .name == \"Survarium-0.26g-srp-files.zip\" and .mentions == {parse: []} and (.content | contains(\"revision 18\") and contains(\$sha) and contains(\"Skhid.bat\") and contains(\"Распакуйте\") and contains(\"Unpack\"))' $T/state/discord.log >/dev/null"
 
 # A real --test release: its revision is the test exe's + 1, and it makes
 # no record (no tag, no branch, no PR, main as it was).
@@ -2559,6 +2604,32 @@ check "release --test: released revision 19 (the test exe's + 1)" bash -c "grep 
 check "release --test: no record" has "$out" "No record (--test): no commit, no tag."
 check "release --test: ... no tag, no branch" no_record 19
 check "release --test: ... main as it was, gh never asked" test "$(git -C "$T/origin.git" rev-parse main)|$(cat "$T/gh.log")" = "$main_before|"
+check "release --test: ... nothing posted to Discord" test "$(posts)" = 1
+
+# discord-post by hand. Without a file: the ZIP the site gives now.
+post() { out=$("$here/discord-post" "$@" 2>&1); local status=$?; printf '%s\n' "$out" >>"$T/outputs"; return "$status"; }
+post || fail "discord-post: $out"
+check "discord-post: without a file, the site's ZIP" bash -c \
+    "tail -n 1 $T/state/discord.log | jq -e --arg sha $(sha256sum <"$T/live/download/Survarium-0.26g-srp-files.zip" | cut -d' ' -f1) '.sha256 == \$sha and (.content | contains(\"revision 19\"))' >/dev/null"
+post --dry-run "$T/work/r18.zip" || fail "discord-post --dry-run: $out"
+check "discord-post --dry-run: prints the message, asks Discord nothing" bash -c "grep -q '^    \*\*Skhid: revision 18\*\*\$' <<<\"\$1\" && grep -q 'nothing was posted' <<<\"\$1\" && test $(posts) = 2" _ "$out"
+echo 1000 >"$T/state/discord-max"
+post "$T/work/r18.zip" && fail "discord-post, a server that takes smaller files: ended 0"
+rm "$T/state/discord-max"
+check "discord-post: Discord refusing the file's size: said, with the setting" has "$out" "Discord answered 413, Request entity too large (code 40005): the server takes smaller files than 20 MB (SKHID_DISCORD_MAX_MB); the ZIP is [0-9]* bytes: NOT POSTED"
+touch "$T/state/discord-forbidden"
+post "$T/work/r18.zip" && fail "discord-post, a bot that may not post: ended 0"
+rm "$T/state/discord-forbidden"
+check "discord-post: a bot that may not post there: said, with the permissions" has "$out" "Discord answered 403, Missing Permissions (code 50013): the bot needs View Channel, Send Messages and Attach Files in the channel: NOT POSTED"
+SKHID_DISCORD_TOKEN=another post "$T/work/r18.zip" && fail "discord-post, another token: ended 0"
+check "discord-post: a token Discord does not know: said" has "$out" "Discord answered 401, .*SKHID_DISCORD_TOKEN is not a bot.s token Discord knows: NOT POSTED"
+SKHID_DISCORD_CHANNEL='' post "$T/work/r18.zip" && fail "discord-post, no channel: ended 0"
+check "discord-post: no channel set: refused" has "$out" "SKHID_DISCORD_CHANNEL is not set in "
+post "$T/patches.tsv" && fail "discord-post, another file: ended 0"
+check "discord-post: a file that is not the players' ZIP: refused" has "$out" "not the players' ZIP"
+check "discord-post: ... none of them posted" test "$(posts)" = 2
+check "discord-post: the bot's token is in no output and no command line" bash -c "! grep -qF -- '$discord_token' $T/outputs $T/args $T/log $T/live/release-rev*/release.log"
+unset SKHID_DISCORD_API SKHID_DISCORD_CHANNEL SKHID_DISCORD_TOKEN
 
 # No secret in any output or command line.
 check "release: the admin token is in no output" bash -c "! grep -qF -- '$token' $T/outputs"

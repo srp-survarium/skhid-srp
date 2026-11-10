@@ -168,7 +168,13 @@
 #      release/record-rev<n>, its PR opened and merged as a merge commit
 #      (gh). What gh could not do (the merge, when the token may not) is said
 #      at the end, loudly, and the run ends with 1: players have the
-#      release, main does not say so yet.
+#      release, main does not say so yet;
+#   8. live only, with $SKHID_DISCORD_CHANNEL set: the ZIP that went out as
+#      a message of that Discord channel, with its sha256 and what to do
+#      with it (release/discord-post): for a player whose provider blocks
+#      the site. The ZIP alone, never a patch of resources.db. Not posted
+#      (larger than Discord takes, a refusal) is said at the end, loudly,
+#      with the command for it by hand, and the run ends with 1.
 # Stopped before the swap (a failure, a no, Ctrl-C) at any point after the
 # lock: the maintenance cancelled when it was planned, the staged files
 # removed (the folder stays, state stopped), the image tag put back; the
@@ -906,6 +912,23 @@ record_release() {
         fi
     fi
     git -C "$REPO" worktree remove --force "$wt" 2>/dev/null || true
+}
+
+# Step 8. DISCORD_PROBLEM: why the ZIP is not in the channel, when it is not.
+DISCORD_PROBLEM=''
+discord_post() {
+    local answer
+    if [[ -z ${SKHID_DISCORD_CHANNEL:-} ]]; then
+        say "8. Discord: SKHID_DISCORD_CHANNEL is not set in $RELEASE_ENV: the ZIP is not posted"
+        return 0
+    fi
+    progress "8. the ZIP to the Discord channel (release/discord-post)"
+    if answer=$("$here/discord-post" "$zip" 2>&1 </dev/null); then
+        say "  done     $answer"
+    else
+        DISCORD_PROBLEM=$(tail -n 1 <<<"$answer")
+        say "  NOT DONE  $DISCORD_PROBLEM"
+    fi
 }
 
 # A stop before the go: the row upload-patch added goes from the list (no
@@ -1670,6 +1693,10 @@ else
     fi
     planned_offer=$OFFERED
     check_release_files "$zip" "$data" "$rev" "$work"
+    # Step 8 would refuse this ZIP: known before the go.
+    if ((!test_server)) && [[ -n ${SKHID_DISCORD_CHANNEL:-} ]] && ! answer=$("$here/discord-post" --dry-run "$zip" 2>&1 </dev/null); then
+        say "WARNING the ZIP will not be posted to the Discord channel (step 8): $(tail -n 1 <<<"$answer")"
+    fi
     [[ $OFFERED == "$planned_offer" ]] ||
         die "$data does not offer what the preflight said (the list and the new patch): $(tr '\n' ' ' <<<"$OFFERED")"
     [[ $OFFERED_GAME == "$GAME_ROW" ]] ||
@@ -1892,6 +1919,7 @@ if ((DRY_RUN)); then
         say "[dry run] 7. once it went out, the record: git tag -a $(release_tag "$rev") ${main_commit:0:7} (the UTC time, the ZIP's and the server data's sha256) and git push origin refs/tags/$(release_tag "$rev");"
         say "[dry run]    the commit \"Release revision $rev\" on ${main_commit:0:7} (REVISION = $rev, the README revision table's row, a changelog entry to word, release/patches.tsv as offered, the item tables of the server data where an item changed$( ((!site_stale)) || printf ", the rebuilt Maps tab and calculator")$([[ -z $SIM_NEXT ]] || printf ", %s for \`next\` in %s" "$rev" "$SIMULATION_CHANGES")), pushed as $(record_branch "$rev"), gh pr create, gh pr merge --merge"
         say "[dry run]    it would ship (merged PRs): $(shipped_prs "$main_commit" | tr '\n' ';' | sed 's/;$//; s/;/; /g')"
+        say "[dry run] 8. $(if [[ -n ${SKHID_DISCORD_CHANNEL:-} ]]; then printf 'the ZIP to the Discord channel: release/discord-post %s' "$zip"; else printf 'no Discord post (SKHID_DISCORD_CHANNEL is not set)'; fi)"
     fi
     say
     say "dry run: nothing was planned, uploaded or changed"
@@ -1917,6 +1945,7 @@ else
     RECORDING=1
     if ! record_release; then record_problem "the record stopped part way (above)"; fi
     RECORDING=0
+    discord_post
 fi
 say
 say "Rollback: release/rollback${step_flags[*]:+ ${step_flags[*]}} $REL (on the $TARGET host: sh $TARGET_DIR/$REL/rollback.sh $TARGET_DIR/$REL)"
@@ -1925,9 +1954,14 @@ say "Kept here: $zip, $data."
 if ((test_server)) && [[ -n ${published:-} ]]; then say "$PATCH_LIST has the new row of ${resources##*/}: commit it (a test release makes no record)."; fi
 if ((DB_COPY_FAILED)); then say "WARNING: srp.db's copy is NOT on the jump host (above): copy it by hand."; fi
 say "Now: a game updates, downloads the patches, signs in; an old game is refused."
+if [[ -n $DISCORD_PROBLEM ]]; then
+    say
+    say "RELEASED, BUT THE ZIP IS NOT IN THE DISCORD CHANNEL: $DISCORD_PROBLEM"
+    say "  by hand: release/discord-post $(q "$zip") (without the file: the one $SKHID_SITE/download gives)"
+fi
 if ((${#RECORD_PROBLEMS[@]})); then
     say
     say "RELEASED, BUT THE RECORD IS NOT COMPLETE (players have revision $rev; main and the tags do not say so yet):"
     printf '  - %s\n' "${RECORD_PROBLEMS[@]}"
-    exit 1
 fi
+if ((${#RECORD_PROBLEMS[@]})) || [[ -n $DISCORD_PROBLEM ]]; then exit 1; fi
