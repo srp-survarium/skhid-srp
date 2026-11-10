@@ -17,6 +17,11 @@
 //!   all it asked, 16 Ki slots; full (7/8), a new site's blocks go to its
 //!   arena's `other` count.
 //!
+//! Two owners those blocks do not name are read when a snapshot is taken,
+//! from the game's own lists: the resources (managed) allocator's nodes,
+//! summed by their resources' class ([`Managed`]), and Scaleform's heaps by
+//! name (the Flash UI, whose every block is one site's otherwise).
+//!
 //! A [`Moment`] writes a snapshot to `srp_memory_profile.txt` in the game's
 //! user data folder (Documents\Survarium): a world in, a match closing, a
 //! fixed arena full before out_of_memory_with_crash ends the game, and
@@ -36,7 +41,7 @@ use crate::vostok::files::tick_count;
 use crate::vostok::memory_profile::ScrollLock;
 use crate::vostok::gun_cook::process_id;
 use crate::vostok::log::{line, Piece::*};
-use crate::vostok::memory::{placed, process, regions_map};
+use crate::vostok::memory::{placed, process, regions_map, scaleform_heaps, ManagedNode, ResourceClass, Walk};
 use crate::vostok::memory_profile::{self as runtime, Block, CallSite, HeapCall, StartRefused};
 use crate::vostok::trace::TraceFile;
 use crate::vostok::{Context, Flow, InstallRefused, NoExit, Thread, YieldingLock};
@@ -501,6 +506,94 @@ impl Holes {
     }
 }
 
+/// Nodes and their bytes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct Sum {
+    nodes: u32,
+    bytes: u64,
+}
+
+impl Sum {
+    fn add(&mut self, bytes: u32) {
+        self.nodes = self.nodes.saturating_add(1);
+        self.bytes = self.bytes.saturating_add(u64::from(bytes));
+    }
+}
+
+/// Resource classes a managed arena's sums tell apart (the game has some
+/// tens with managed resources); the rest go to `more`.
+const CLASSES: usize = 96;
+
+/// What a managed arena holds, by its resources' class.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Managed {
+    classes: [Option<(ResourceClass, Sum)>; CLASSES],
+    /// Classes past the table's room.
+    more: Sum,
+    /// Allocated nodes with no owner to read.
+    unowned: Sum,
+    free: Holes,
+}
+
+impl Managed {
+    const NONE: Managed = Managed { classes: [None; CLASSES], more: Sum { nodes: 0, bytes: 0 }, unowned: Sum { nodes: 0, bytes: 0 }, free: Holes::NONE };
+
+    fn add(&mut self, node: ManagedNode) {
+        match node {
+            ManagedNode::Free { bytes } => self.free.add(bytes),
+            ManagedNode::Held { bytes, class: None } => self.unowned.add(bytes),
+            ManagedNode::Held { bytes, class: Some(class) } => {
+                let slot = self.classes.iter_mut().find(|slot| slot.is_none_or(|(held, _)| held == class));
+                match slot {
+                    Some(slot) => slot.get_or_insert((class, Sum::default())).1.add(bytes),
+                    None => self.more.add(bytes),
+                }
+            }
+        }
+    }
+}
+
+/// A heap's `holes` line: its free blocks by size.
+fn holes_line<W: FnMut(&[u8])>(text: &mut Text<'_, W>, arena: usize, holes: &Holes) {
+    text.word("holes").dec(arena as u64);
+    for (bucket, (&count, &bytes)) in holes.count.iter().zip(&holes.bytes).enumerate() {
+        if count > 0 {
+            text.dec(bucket as u64).dec(u64::from(count)).dec(bytes);
+        }
+    }
+    text.end();
+}
+
+/// A managed arena's lines: each class's nodes and bytes, then its free
+/// nodes as `holes`; `torn` alone when its walk did not reach the end.
+fn managed_lines<W: FnMut(&[u8])>(text: &mut Text<'_, W>, arena: usize, walk: Walk, managed: &Managed) {
+    let head = |text: &mut Text<'_, W>, what: &str| {
+        text.word("managed").dec(arena as u64).word(what);
+    };
+    match walk {
+        Walk::Absent => {}
+        Walk::Torn => {
+            head(text, "torn");
+            text.end();
+        }
+        Walk::Whole => {
+            for (class, sum) in managed.classes.iter().flatten() {
+                head(text, "class");
+                text.dec(u64::from(class.0)).dec(u64::from(sum.nodes)).dec(sum.bytes);
+                text.end();
+            }
+            for (what, sum) in [("more", managed.more), ("unowned", managed.unowned)] {
+                if sum.nodes > 0 {
+                    head(text, what);
+                    text.dec(u64::from(sum.nodes)).dec(sum.bytes);
+                    text.end();
+                }
+            }
+            holes_line(text, arena, &managed.free);
+        }
+    }
+}
+
 /// The counts lines of `counts` after `head`'s words.
 fn counts_words<W: FnMut(&[u8])>(text: &mut Text<'_, W>, counts: &Counts) {
     text.dec(counts.live).dec(u64::from(counts.blocks)).dec(counts.peak).dec(u64::from(counts.asked)).dec(counts.asked_bytes);
@@ -776,14 +869,20 @@ fn write_snapshot<W: FnMut(&[u8])>(thread: &Thread, text: &mut Text<'_, W>, prof
         };
         text.end();
         if matches!(usage, Usage::Heap { .. }) {
-            text.word("holes").dec(index as u64);
-            for (bucket, (&count, &bytes)) in holes.count.iter().zip(&holes.bytes).enumerate() {
-                if count > 0 {
-                    text.dec(bucket as u64).dec(u64::from(count)).dec(bytes);
-                }
-            }
-            text.end();
+            holes_line(text, index, &holes);
         }
+        let mut managed = Managed::NONE;
+        let walk = arena.managed_nodes(|node| managed.add(node));
+        managed_lines(text, index, walk, &managed);
+    }
+    let walk = scaleform_heaps(thread, |heap| {
+        text.word("scaleform").dec(u64::from(heap.depth)).hex(heap.flags).dec(u64::from(heap.footprint)).dec(u64::from(heap.used));
+        text.word(core::str::from_utf8(heap.name).unwrap_or("?"));
+        text.end();
+    });
+    if walk == Walk::Torn {
+        text.word("scaleform").word("torn");
+        text.end();
     }
     for (index, counts) in profiler.arenas.iter().enumerate() {
         if counts.tracked.asked > 0 || counts.untracked > 0 || counts.unseen > 0 {
@@ -967,6 +1066,36 @@ mod tests {
         assert_eq!((holes.count[4], holes.bytes[4]), (2, 47));
         assert_eq!((holes.count[5], holes.count[20], holes.count[31]), (1, 1, 1));
         assert_eq!(holes.count.iter().sum::<u32>(), 5);
+    }
+
+    #[test]
+    fn a_managed_arena_is_summed_by_class_and_its_free_nodes_are_its_holes() {
+        let mut managed = Managed::NONE;
+        let held = |bytes, class| ManagedNode::Held { bytes, class: Some(ResourceClass(class)) };
+        for node in [held(0x1000, 107), ManagedNode::Free { bytes: 0x40 }, held(0x200, 3), held(0x34, 107), ManagedNode::Held { bytes: 0x80, class: None }] {
+            managed.add(node);
+        }
+        let lines = |walk, managed: &Managed| {
+            let mut written = Vec::new();
+            let mut buffer = [0u8; 64];
+            let mut text = Text::new(&mut buffer, |bytes: &[u8]| written.extend_from_slice(bytes));
+            managed_lines(&mut text, 14, walk, managed);
+            text.flush();
+            std::string::String::from_utf8(written).unwrap()
+        };
+        assert_eq!(
+            lines(Walk::Whole, &managed),
+            "managed\t14\tclass\t107\t2\t4148\nmanaged\t14\tclass\t3\t1\t512\nmanaged\t14\tunowned\t1\t128\nholes\t14\t6\t1\t64\n"
+        );
+        assert_eq!(lines(Walk::Torn, &managed), "managed\t14\ttorn\n", "a walk that stopped tells no sums");
+        assert_eq!(lines(Walk::Absent, &managed), "");
+        // more classes than the table has room for: the rest together
+        let mut many = Managed::NONE;
+        for class in 0..CLASSES as u32 + 5 {
+            many.add(held(0x100, class));
+        }
+        assert_eq!(many.classes.iter().flatten().count(), CLASSES);
+        assert_eq!(many.more, Sum { nodes: 5, bytes: 0x500 });
     }
 
     #[test]

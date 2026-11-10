@@ -2503,3 +2503,9 @@ va	name	source	ret_cleanup	result
 0x00074300	vostok::math::quaternion::get_axis_and_angle	manual	4	AL 1 with the axis at EDI and the angle (2 atan2(|xyz|, w), 0x79C40) at entry ESP+4; AL 0, axis (0, 0, 1) and angle 0 when |xyz| <= 1e-7
 0x003b3180	vostok::animation::evaluate_frame	manual	0	each of the channels cubic-evaluated at the time into EAX[i]: domain 0x3B3340, then ((c3 dt + c2) dt + c1) dt + c0
 0x003b3340	vostok::animation::time_channel::domain	manual	4	EAX the domain j (knots[j] <= t <= knots[j+1], t clamped to the knots, searched from *current mod count), also stored at the current; ECX the knot count, EDX j
+0x0001c3e0	survarium::scaleform_engine::sys_alloc_malloc	manual	0	EAX the memory of the "global multithreaded" arena (mt_allocator's malloc_impl 0x1C404), 0 for none; cdecl
+0x002ae470	survarium::scaleform_engine::xrSysAllocMalloc::Alloc	manual	8	EAX the memory aligned, the bytes it was moved by in the word before it; 0 for none (vtable 0xA0D538 +0Ch)
+0x000f70f0	vostok::resources::resource_base::resource_base	manual		ESI the resource; its class id written at +84h (0xF7126)
+0x0010a590	vostok::resources::managed_resource::managed_resource	manual	4	EAX the resource (ECX): its managed_node_owner at +D0h (vtable 0x9E9F40), its allocator 0x21E51E8 at +D8h
+0x00504c30	Scaleform::MemoryHeapMH::GetTotalFootprint	manual	0	EAX: its engine's +98h (not a debug heap's, flags 1000h) and every child's, under the heap's lock
+0x00504c90	Scaleform::MemoryHeapMH::GetTotalUsedSpace	manual	0	EAX: its engine's +9Ch and every child's, under the heap's lock

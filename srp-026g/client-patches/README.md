@@ -5210,7 +5210,9 @@ written to `srp_memory_profile.txt` in the user data folder when a world is in, 
 a full arena ends the game, and at Scroll Lock (polled by the gates); the tables are behind a lock whose
 waiters yield after a few spins (`vostok::YieldingLock`). `../scripts/memory-profile/analyze.py`
 prints each arena's use, holes and top call sites by live and peak bytes (named from the re-kit) and the
-address-space budget. Nothing a match computes. Details: `../docs/notes/memory-profile.md`. Checked with
+address-space budget. Two owners with no call site worth the name are read from the game's own lists at each
+snapshot, nothing called and no lock taken: the resources (managed) allocator's nodes summed by resource class,
+and Scaleform's heaps (the Flash UI) by name, with what each holds and uses. Nothing a match computes. Details: `../docs/notes/memory-profile.md`. Checked with
 `check_memory_profile_026g.py` (Unicorn) and the patch crate's tests.
 
 ## Texture streaming's bookkeeping in Rust (patch 137, unreleased)
