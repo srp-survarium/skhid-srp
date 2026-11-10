@@ -314,16 +314,11 @@ package survarium.controls
       
       public function set player_level(value:uint) : void
       {
-         if(value != TOP_RANK_LEVEL)
-         {
-            this.panel_player.top_rank_icon.visible = false;
-            this.panel_player.txLevel.text = value.toString();
-         }
-         else
-         {
-            this.panel_player.top_rank_icon.visible = true;
-            this.panel_player.txLevel.text = "";
-         }
+         // one badge at a time: the icon at the top rank, the ring with the number below it
+         var topRank:Boolean = value == TOP_RANK_LEVEL;
+         this.panel_player.top_rank_icon.visible = topRank;
+         this.panel_player.txLevel.visible = !topRank;
+         this.panel_player.txLevel.text = topRank ? "" : value.toString();
       }
       
       public function set progress_hint(value:String) : void
