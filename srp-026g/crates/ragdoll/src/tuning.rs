@@ -89,3 +89,12 @@ pub const SHOT_MAX_SPIN: f32 = 15.0;
 /// After a push the body is not slowed toward rest for this long, s (the
 /// slowing that ends a fall's creep would take a small push away at once).
 pub const SHOT_GRACE: f32 = 0.3;
+/// A shot into a corpse's head knocks off the headwear still on it (the
+/// owner, 2026-11-02): it leaves with the head's motion there, plus this
+/// speed along the shot and this up, m/s, tumbling over at this spin, rad/s.
+pub const HEADWEAR_SHOT_SPEED: f32 = 3.0;
+pub const HEADWEAR_SHOT_LIFT: f32 = 1.2;
+pub const HEADWEAR_SHOT_SPIN: f32 = 8.0;
+/// A corpse's part pushes its dropped gun or its headwear this fast at most,
+/// m/s (a falling arm knocks a gun aside, it does not bat it away).
+pub const LOOSE_PUSH_SPEED: f32 = 3.0;

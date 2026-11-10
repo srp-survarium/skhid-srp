@@ -30,7 +30,7 @@
 use crate::camera::{EyeFollow, HeadView};
 use crate::math::{Pose, Vec3};
 use crate::ragdoll::{
-    Cause, DriverBones, GunShape, HeadwearShape, Knock, Level, LoneGun, Motion, Ragdoll, Skeleton,
+    Cause, DriverBones, GunShape, HeadwearStart, Knock, Level, LoneGun, Motion, Ragdoll, Skeleton,
     Start, StartReport, Sweep, driver_bones,
 };
 use crate::shot::{Hit, RECENT, Shot, ShotHit};
@@ -75,7 +75,7 @@ pub struct Death {
     pub cause: Cause,
     /// The gun the player held, if it drops.
     pub gun: Option<GunShape>,
-    pub headwear: Option<HeadwearShape>,
+    pub headwear: Option<HeadwearStart>,
     /// The ground the player stood on (its transform's place, up).
     pub stood_on: Option<(Vec3, Vec3)>,
     /// The bullets that hit the player just before its death, the killing
