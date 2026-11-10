@@ -851,7 +851,8 @@ def renderer(original, patched, expect):
     kept = lambda glob: [("SetEnvironmentVariableA", SELECT, glob)] + layers(vendor_of[glob]) + log + log
     cleared = [("SetEnvironmentVariableA", SELECT, None)] + layers(None)
     reads = reads + layer_reads
-    nvidia = mark + reads + alone("nv*") + kept("nv*")
+    # AMD's look first (its driver goes with its instance, NVIDIA's stays): no AMD driver, no instance
+    nvidia = mark + reads + alone("amd*", no_instance) + alone("nv*") + kept("nv*")
     # DXVK's options before its DLLs: user.cfg without their lines prefers the dedicated GPU alone
     config = [("SetEnvironmentVariableA", "DXVK_CONFIG", "dxvk.hideIntegratedGraphics = True")] + log
     every = on + (b"srp_dxvk_frame_limit 144\r\nsrp_dxvk_low_latency on\r\nsrp_dxvk_tear_free on\r\n"
@@ -871,34 +872,36 @@ def renderer(original, patched, expect):
          dict(user_cfg=every, vulkan=good), opened + files + marker + nvidia + every_config + loads + log, True,
          b'dxvk: DXVK_CONFIG "dxvk.maxFrameRate = 144; dxvk.latencySleep = True; dxvk.tearFree = True; '
          b'dxvk.hud = fps,frametimes,gpuload,compiler,memory"'),
-        ("an RTX beside a Radeon iGPU: NVIDIA's look finds its discrete GPU, AMD's drivers are never looked at, "
-         "AMD's layer (its 85 MiB driver DLL) off and said",
-         dict(user_cfg=on, gpus=[radeon_igpu, rtx]), opened + files + marker + nvidia + config + loads + log, True,
-         b"other vendors' Vulkan layers off: DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1 (AMD's)"),
+        ("an RTX beside a Radeon iGPU: AMD's look finds the iGPU (its driver let go with the instance), NVIDIA's "
+         "the RTX, a discrete GPU; AMD's layer (its 85 MiB driver DLL) off and said",
+         dict(user_cfg=on, gpus=[radeon_igpu, rtx]),
+         opened + files + marker + mark + reads + alone("amd*") + alone("nv*") + kept("nv*") + config + loads + log,
+         True, b"other vendors' Vulkan layers off: DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1 (AMD's)"),
         ("the player's own DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1: kept as it is, nothing more set or said",
          dict(user_cfg=on, gpus=[radeon_igpu, rtx], env={"DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1": "0"}),
          opened + files + marker + mark + reads
+         + [("SetEnvironmentVariableA", SELECT, "amd*")] + layers(AMD, LAYER_SWITCHES[0][1:]) + scanned(FOLDERS[AMD])
          + [("SetEnvironmentVariableA", SELECT, "nv*")] + layers(NVIDIA, LAYER_SWITCHES[0][1:]) + scanned(FOLDERS[NVIDIA])
          + [("SetEnvironmentVariableA", SELECT, "nv*")] + layers(NVIDIA, LAYER_SWITCHES[0][1:]) + log
          + config + loads + log, True, b'"nv*" only'),
-        ("an RX alone (no NVIDIA driver: NVIDIA's look makes no instance and has no say), AMD's the RX, NVIDIA's "
+        ("an RX alone: AMD's look finds it, a discrete GPU, the end (NVIDIA's and Intel's never looked at), NVIDIA's "
          "layers off; DXVK_CONFIG adds no descriptor heap, said on its line",
          dict(user_cfg=on, gpus=[rx]),
-         opened + files + marker + mark + reads + alone("nv*", no_instance) + alone("amd*") + kept("amd*") + amd_config
-         + loads + log,
+         opened + files + marker + mark + reads + alone("amd*") + kept("amd*") + amd_config + loads + log,
          True, b'DXVK_CONFIG adds "dxvk.enableDescriptorHeap = False": DXVK\'s GPU is AMD\'s, AMD Radeon RX 7800 XT'),
-        ("an RX alone: the drivers' limit is AMD's, said with why (no NVIDIA driver is no reason for every driver)",
+        ("an RX alone: the drivers' limit is AMD's, said",
          dict(user_cfg=on, gpus=[rx]),
-         opened + files + marker + mark + reads + alone("nv*", no_instance) + alone("amd*") + kept("amd*") + amd_config
-         + loads + log, True, b'"amd*" only (VK_LOADER_DRIVERS_SELECT), DXVK\'s GPU AMD Radeon RX 7800 XT'),
-        ("a Radeon iGPU alone: no vendor's discrete GPU, the first integrated one, AMD's",
+         opened + files + marker + mark + reads + alone("amd*") + kept("amd*") + amd_config + loads + log, True,
+         b'"amd*" only (VK_LOADER_DRIVERS_SELECT), DXVK\'s GPU AMD Radeon RX 7800 XT'),
+        ("a Radeon iGPU alone (no NVIDIA or Intel driver: their looks make no instance and have no say): the "
+         "first integrated GPU, AMD's",
          dict(user_cfg=on, gpus=[radeon_igpu]),
-         opened + files + marker + mark + reads + alone("nv*", no_instance) + alone("amd*") + alone("igvk*", no_instance)
+         opened + files + marker + mark + reads + alone("amd*") + alone("nv*", no_instance) + alone("igvk*", no_instance)
          + kept("amd*") + amd_config + loads + log, True, b'"amd*" only'),
-        ("an elevated game (the loader ignores the variable: NVIDIA's look sees AMD's GPU too): the variable deleted, "
+        ("an elevated game (the loader ignores the variable: AMD's look sees NVIDIA's GPU too): the variable deleted, "
          "the layers as the player has them, every driver looked at, as before",
          dict(user_cfg=on, gpus=[radeon_igpu, rtx], ignores=True),
-         opened + files + marker + mark + reads + alone("nv*", scanned(FOLDERS[AMD], FOLDERS[NVIDIA])) + cleared
+         opened + files + marker + mark + reads + alone("amd*", scanned(FOLDERS[AMD], FOLDERS[NVIDIA])) + cleared
          + one_look + log + config + loads + log, True,
          b"Vulkan drivers: all (the loader ignores VK_LOADER_DRIVERS_SELECT here"),
         ("the player's own VK_LOADER_DRIVERS_SELECT: kept, every driver it takes looked at",
@@ -911,10 +914,10 @@ def renderer(original, patched, expect):
          b"another dxgi.dll is loaded already"),
         ("Vulkan picked, the best device 1.3: each vendor's look finds nothing DXVK takes, then every driver; no DLL "
          "loaded, the variable deleted, the marker taken away", dict(user_cfg=on, vulkan=old),
-         opened + files + marker + mark + reads + alone("nv*") + alone("amd*", no_instance)
+         opened + files + marker + mark + reads + alone("amd*", no_instance) + alone("nv*")
          + alone("igvk*", no_instance) + cleared + one_look + log + log + unmark, False, b"no Vulkan 1.4 device"),
         ("Vulkan picked, no vulkan-1.dll: the variable deleted, the same", dict(user_cfg=on),
-         opened + files + marker + mark + reads + [("SetEnvironmentVariableA", SELECT, "nv*")] + layers(NVIDIA)
+         opened + files + marker + mark + reads + [("SetEnvironmentVariableA", SELECT, "amd*")] + layers(AMD)
          + [("LoadLibraryA", "vulkan-1.dll")] + cleared + log + unmark, False, b"no Vulkan 1.4 device"),
         ("DirectX 11 picked: no look, nothing loaded, no DXVK_CONFIG", dict(user_cfg=off + every[len(on):], vulkan=good),
          opened + files + marker + unmark, False, b""),

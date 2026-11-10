@@ -299,7 +299,7 @@ thread reading it is shown (the start, the login screen and every Present are th
 **What the start does now** (patch 83, `hud_options.rs` `look_for_dxvk`):
 
 - **One vendor's drivers.** The Vulkan look asks the loader for one vendor's drivers at a time
-  (`VK_LOADER_DRIVERS_SELECT`, a glob of their manifests' names: `nv*`, `amd*`, `igvk*`), NVIDIA's, AMD's, Intel's,
+  (`VK_LOADER_DRIVERS_SELECT`, a glob of their manifests' names: `amd*`, `nv*`, `igvk*`), AMD's, NVIDIA's, Intel's,
   until one has a discrete GPU that DXVK takes (`renderer.rs` `dxvk_pick`: DXVK 3.1.1's choice, discrete first, then
   integrated, at least Vulkan 1.4, the player's `DXVK_FILTER_DEVICE_NAME` honoured); the variable stays set to that
   vendor's, so DXVK's instance loads those alone. A look that finds another vendor's device means the loader took no
@@ -312,6 +312,12 @@ thread reading it is shown (the start, the login screen and every Present are th
 - **No descriptor heap on AMD.** When DXVK's GPU is AMD's, `DXVK_CONFIG` gets `dxvk.enableDescriptorHeap = False`, as
   DXVK decides by itself after 3.1.1 (doitsujin/dxvk 076922bd2, its #5837: DXVK 3 crashed at start on an RX 7900 XTX
   with it). Logged on its own line (`DXVK_CONFIG adds ...`); DXVK's log says `Binding model: Legacy`.
+- **AMD's look first.** NVIDIA's driver (`nvoglv32.dll` and `nvgpucomp32.dll`, 111 MiB) stays mapped after its look's
+  instance is destroyed and the loader let go; AMD's goes (measured with a test program and in the game's DLL load
+  trace: NVIDIA's two load at the first look and stay to the end). With NVIDIA's look first, DXVK on a Radeon beside an
+  RTX kept NVIDIA's 111 MiB for nothing. AMD's look comes first now: an RTX beside a Radeon iGPU costs AMD's look only,
+  a Radeon dGPU stops the look before NVIDIA's driver is ever loaded, and an Optimus laptop (Intel iGPU, RTX) stops at
+  the RTX before Intel's. Two discrete GPUs of AMD and NVIDIA: AMD's.
 - **A vendor without a driver has no say** (review of #1596). A look whose glob matches no driver makes no instance
   (`VK_ERROR_INCOMPATIBLE_DRIVER`: the real loader leaves lavapipe's manifest out too), and only the looks that made
   one are compared: on a PC without NVIDIA's drivers (an RX alone, an Intel iGPU with a Radeon) AMD's look decides.

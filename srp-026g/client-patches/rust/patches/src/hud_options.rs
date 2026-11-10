@@ -507,8 +507,16 @@ impl DeviceFilter {
     }
 }
 
-/// The vendors whose drivers are looked at one by one, in this order.
-const VENDORS: [u32; 3] = [VENDOR_NVIDIA, VENDOR_AMD, VENDOR_INTEL];
+/// The vendors whose drivers are looked at one by one, in this order, the
+/// look stopping at the first discrete GPU. NVIDIA's after AMD's: NVIDIA's
+/// driver (`nvoglv32.dll` and `nvgpucomp32.dll`, 111 MiB) stays mapped after
+/// its look's instance is destroyed and the loader let go, AMD's goes
+/// (measured on an RTX 5090 beside a Radeon iGPU). So an
+/// RTX beside a Radeon iGPU costs AMD's look only, and a Radeon dGPU beside an
+/// RTX never loads NVIDIA's driver; an Intel iGPU's is looked at last, after
+/// an RTX of an Optimus laptop has stopped the look. Two discrete GPUs of AMD
+/// and NVIDIA: AMD's.
+const VENDORS: [u32; 3] = [VENDOR_AMD, VENDOR_NVIDIA, VENDOR_INTEL];
 /// `deviceType` of a CPU's device (lavapipe, SwiftShader).
 const PHYSICAL_DEVICE_TYPE_CPU: u32 = 4;
 
@@ -536,8 +544,8 @@ static DXVK_GPU: Lock<Option<Gpu>> = Lock::new(None);
 /// once it presents): on a PC of two vendors' GPUs both drivers took room in
 /// the game's 4 GiB of address space, which DXVK ran out of (SRP-3: 237 MiB
 /// on an AMD iGPU beside an RTX). So each vendor's drivers are looked at alone
-/// (`VK_LOADER_DRIVERS_SELECT`, a glob of their manifests' names), NVIDIA's,
-/// AMD's, Intel's, until one has a discrete GPU DXVK takes: the variable then
+/// (`VK_LOADER_DRIVERS_SELECT`, a glob of their manifests' names), AMD's,
+/// NVIDIA's, Intel's ([`VENDORS`]), until one has a discrete GPU DXVK takes: the variable then
 /// stays set to that vendor's, and DXVK's instance loads those alone. With no
 /// discrete GPU, the first vendor's integrated one. When the loader takes no
 /// such variable (an elevated process, where it ignores it) or no vendor's
@@ -1366,20 +1374,23 @@ mod tests {
         let gpu = |vendor, kind| Some(Gpu { vendor, device: 0, driver: 0, kind, version: Some(VULKAN_NEEDED),
                                             name: [0; crate::vostok::renderer::GPU_NAME] });
         let look = |vendor, pick| VendorLook { vendor, pick };
-        // an AMD iGPU beside an RTX: NVIDIA's look alone, a discrete GPU, the end
+        // AMD's look first: its drivers go with its instance, NVIDIA's stay (VENDORS)
+        assert_eq!(VENDORS, [VENDOR_AMD, VENDOR_NVIDIA, VENDOR_INTEL]);
+        // an AMD iGPU beside an RTX: AMD's look finds the iGPU, NVIDIA's the RTX, a discrete GPU, the end
+        let amd_igpu = look(VENDOR_AMD, gpu(VENDOR_AMD, 1));
         let rtx = look(VENDOR_NVIDIA, gpu(VENDOR_NVIDIA, 2));
+        assert_eq!(pick_across(&[amd_igpu, rtx]).map(|g| g.vendor), Some(VENDOR_NVIDIA));
+        // an Intel iGPU beside an RTX (no AMD driver: AMD's look made no instance and has no slot)
         assert_eq!(pick_across(&[rtx]).map(|g| g.vendor), Some(VENDOR_NVIDIA));
-        // an Intel iGPU beside an RX, no NVIDIA driver: NVIDIA's look made no instance and has no slot, AMD's
-        // found a discrete one
+        // an RX: AMD's look, a discrete GPU, the end (NVIDIA's driver never loaded)
         let rx = look(VENDOR_AMD, gpu(VENDOR_AMD, 2));
         assert_eq!(pick_across(&[rx]).map(|g| g.vendor), Some(VENDOR_AMD));
         // NVIDIA's drivers with no device DXVK takes (a Vulkan 1.3 GPU): a slot without a pick
         let none = look(VENDOR_NVIDIA, None);
-        assert_eq!(pick_across(&[none, rx]).map(|g| g.vendor), Some(VENDOR_AMD));
+        assert_eq!(pick_across(&[amd_igpu, none]).map(|g| g.vendor), Some(VENDOR_AMD));
         // integrated GPUs alone: the first vendor's
-        let amd_igpu = look(VENDOR_AMD, gpu(VENDOR_AMD, 1));
         let intel_igpu = look(VENDOR_INTEL, gpu(VENDOR_INTEL, 1));
-        assert_eq!(pick_across(&[none, amd_igpu, intel_igpu]).map(|g| g.vendor), Some(VENDOR_AMD));
+        assert_eq!(pick_across(&[amd_igpu, none, intel_igpu]).map(|g| g.vendor), Some(VENDOR_AMD));
         // a discrete GPU after an integrated one is still DXVK's
         assert_eq!(pick_across(&[amd_igpu, look(VENDOR_INTEL, gpu(VENDOR_INTEL, 2))]).map(|g| g.vendor), Some(VENDOR_INTEL));
         assert_eq!(pick_across(&[none]), None);
