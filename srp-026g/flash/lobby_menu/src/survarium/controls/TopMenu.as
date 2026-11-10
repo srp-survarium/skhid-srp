@@ -578,11 +578,14 @@ package survarium.controls
          var w:int = int(at + 7);
          var g:* = this._watchBadge.graphics;
          g.clear();
-         g.lineStyle(1,0x3A4248);
-         g.beginFill(0x0C0E10,0.92);
+         // Its edge is a larger plate under it, not a stroke: the game draws a stray hairline across a
+         // stroked plate with fully round ends (seen on the real client, 2026-11-10; Ruffle draws none).
+         g.beginFill(0x3A4248,1);
+         g.drawRoundRect(-1,-1,w + 2,20,20,20);
+         g.endFill();
+         g.beginFill(0x0C0E10,1);
          g.drawRoundRect(0,0,w,18,18,18);
          g.endFill();
-         g.lineStyle();
          g.beginFill(RoomsLook.RED,1);
          g.drawCircle(6 + dot,9,dot);
          g.endFill();
