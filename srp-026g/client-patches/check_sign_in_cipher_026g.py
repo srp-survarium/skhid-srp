@@ -5,9 +5,11 @@ cipher, where the game's protocol had TLS (docs/notes/sign-in-cipher.md).
     python check_sign_in_cipher_026g.py <original survarium.exe>
 
 Needs Unicorn and Python's `cryptography`: the server here is that library's
-X25519, HKDF-SHA-256 and ChaCha20-Poly1305 with the repository's key
-(../certs/sign_in_cipher.key), not srp's own code, so the patch's cipher
-(crates/sign-in-cipher) is checked against another implementation.
+X25519, HKDF-SHA-256 and ChaCha20-Poly1305, not srp's own code, so the
+patch's cipher (crates/sign-in-cipher) is checked against another
+implementation. The server's key is made here, and its public half put
+where the built exe holds the released game's (the secret half of that one
+is no file of the repository).
 
 The patched exe's SSL_connect (0x4D4C60), SSL_write (0x4D4D70), SSL_read
 (0x4D4CA0) and SSL_get_error (0x4D6E30) run whole, as asio's engine calls
@@ -49,7 +51,8 @@ BIO_READ, BIO_WRITE, RAND_BYTES, ERR_PUT_ERROR = 0x44C630, 0x44C740, 0x46B6E0, 0
 BEGIN, BEGIN_RESUMES = 0x380504, 0x38050A
 THREAD_SLOT = 0x870118                           # kernel32 GetCurrentThreadId
 NAME = b"skhid sign-in cipher 1"
-KEY_FILE = Path(__file__).resolve().parent / ".." / "certs" / "sign_in_cipher.key"
+# The released game's key (sign_in_cipher::SKHID): the check puts its own in its place.
+SKHID = bytes.fromhex("858df2b7ad42c2a5ae047e9e9cae5a7baad2dba212a242d2512aab5605cab44b")
 ERROR_NONE, ERROR_SSL, ERROR_WANT_READ = 0, 1, 2
 NOT_DONE = 0xFFFFFFFF
 
@@ -66,7 +69,7 @@ class Server:
     """srp's side, by the `cryptography` library."""
 
     def __init__(self):
-        self.key = X25519PrivateKey.from_private_bytes(bytes.fromhex(KEY_FILE.read_text().strip()))
+        self.key = X25519PrivateKey.generate()
         self.public = self.key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
 
     def accept(self, client_hello):
@@ -247,7 +250,9 @@ def main():
     original = open(sys.argv[1], "rb").read()
     code = open(base.default_bin("section"), "rb").read()
     built, _ = base.build(original, "section", code, None, open(base.late_join_bin(), "rb").read())
-    run, server = Run(bytes(built)), Server()
+    server = Server()
+    assert bytes(built).count(SKHID) == 1, "the exe holds the released game's public key once"
+    run = Run(bytes(built).replace(SKHID, server.public))
 
     first_hello = run.connect(server)
     password = b"\x03" + b"0123456789abcdef0123456789abcdef01234567" + b"\x0d" + b"test-password"

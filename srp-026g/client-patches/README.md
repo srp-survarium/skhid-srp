@@ -5338,4 +5338,5 @@ The game's one-time key comes from OpenSSL's generator (ssleay_rand_bytes 0x46B6
 handshake's secrets did. The server's side is `../servers/login-server/src/sealed.rs`; a game
 without the patch and a server with it (or the reverse) cannot sign in, which the release's minimum
 patch revision keeps from happening. Nothing a match computes. Checked with `cargo test` and clippy
-(patches, sign-in-cipher, login-server, srp) and `check_sign_in_cipher_026g.py`. Not run in a game.
+(patches, sign-in-cipher, login-server, srp) and `check_sign_in_cipher_026g.py`. Played 2026-11-10: two
+games under Wine signed in to a server on another machine and played a match; no Windows game yet.

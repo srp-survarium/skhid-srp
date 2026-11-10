@@ -3,34 +3,71 @@
 //! protocol had TLS. Read and written as the TLS stream was: a message the
 //! game writes at once is one record, and so is each answer.
 
+pub use sign_in_cipher::SKHID;
+use sign_in_cipher::{Channel, HEADER, HELLO, Header, MAX_BODY, MAX_MESSAGE, Random};
+pub use sign_in_cipher::{ServerKey, ServerPublicKey};
 use std::io::{self, Read, Write};
 use std::net::TcpStream;
-use std::path::Path;
 
-use sign_in_cipher::{Channel, HEADER, HELLO, Header, MAX_BODY, MAX_MESSAGE, Random, ServerKey};
+/// The setting that holds the server's lasting key: 64 hex characters.
+pub const KEY_SETTING: &str = "SRP_SIGN_IN_KEY";
 
-/// The server's lasting key, from its file: 64 hex characters. Refused
-/// unless it is the key the game is built with (`sign_in_cipher::SKHID`):
-/// with any other, every sign-in would fail at the password.
-pub fn load_key(path: &Path) -> io::Result<ServerKey> {
-    let invalid = |what: &str| io::Error::other(format!("{}: {what}", path.display()));
-    let text = std::fs::read_to_string(path).map_err(|error| invalid(&error.to_string()))?;
+/// A key's 32 bytes from 64 hex characters.
+fn hex32(text: &str) -> Option<[u8; 32]> {
     let text = text.trim();
     if text.len() != 64 || !text.is_ascii() {
-        return Err(invalid("not 64 hex characters"));
+        return None;
     }
     let mut bytes = [0; 32];
     for (byte, pair) in bytes.iter_mut().zip(text.as_bytes().chunks_exact(2)) {
-        let pair = std::str::from_utf8(pair).map_err(|_| invalid("not hex"))?;
-        *byte = u8::from_str_radix(pair, 16).map_err(|_| invalid("not hex"))?;
+        *byte = u8::from_str_radix(std::str::from_utf8(pair).ok()?, 16).ok()?;
     }
-    let key = ServerKey::from_bytes(bytes);
-    if key.public() != sign_in_cipher::SKHID {
-        return Err(invalid(
-            "not the key the game is built with (sign_in_cipher::SKHID)",
-        ));
+    Some(bytes)
+}
+
+/// The server's lasting key from its setting's text.
+pub fn parse_key(text: &str) -> Result<ServerKey, String> {
+    hex32(text)
+        .map(ServerKey::from_bytes)
+        .ok_or_else(|| format!("{KEY_SETTING} is not 64 hex characters"))
+}
+
+/// A server's public key from 64 hex characters (what a server that is not
+/// the released game's logs at its start).
+pub fn parse_public_key(text: &str) -> Option<ServerPublicKey> {
+    hex32(text).map(ServerPublicKey)
+}
+
+/// The server's lasting key, from the environment ([`KEY_SETTING`]). The
+/// key is no file of the repository: whoever holds it reads the passwords
+/// of the games built with its public half.
+pub fn key_from_env() -> Result<ServerKey, String> {
+    let text = std::env::var(KEY_SETTING).map_err(|_| {
+        format!(
+            "{KEY_SETTING} is not set: the login server's secret key of the sign-in cipher \
+             (docs/notes/sign-in-cipher.md)"
+        )
+    })?;
+    parse_key(&text)
+}
+
+/// A key for the tests and their bots: no game is built with it.
+pub fn test_key() -> ServerKey {
+    ServerKey::from_bytes(*b"skhid sign-in cipher's test key!")
+}
+
+/// Says which games the key serves: the released ones, or only games
+/// built with this key.
+pub fn log_key(key: &ServerKey) {
+    let public = key.public();
+    if public == sign_in_cipher::SKHID {
+        log::info!("Sign-in cipher: the released game's key");
+    } else {
+        let hex: String = public.0.iter().map(|byte| format!("{byte:02x}")).collect();
+        log::warn!(
+            "Sign-in cipher: not the released game's key; only a game built with the public key {hex} can sign in"
+        );
     }
-    Ok(key)
 }
 
 pub struct Sealed {
@@ -104,11 +141,10 @@ impl Write for Sealed {
 /// The game's side, for srp's own clients (the bots, the tests): the hellos
 /// on `stream`, `message` sent, and the server's whole reply, read until it
 /// closes the connection.
-pub fn ask(mut stream: TcpStream, message: &[u8]) -> io::Result<Vec<u8>> {
+pub fn ask(mut stream: TcpStream, server: ServerPublicKey, message: &[u8]) -> io::Result<Vec<u8>> {
     let mut random = [0; 32];
     openssl::rand::rand_bytes(&mut random).map_err(io::Error::other)?;
-    let hello =
-        sign_in_cipher::ClientHello::new(Random::from_generator(random), sign_in_cipher::SKHID);
+    let hello = sign_in_cipher::ClientHello::new(Random::from_generator(random), server);
     stream.write_all(&hello.message())?;
     let mut answer = [0; HELLO];
     stream.read_exact(&mut answer)?;

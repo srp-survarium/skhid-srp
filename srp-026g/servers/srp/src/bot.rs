@@ -49,6 +49,7 @@ use std::time::{Duration, Instant};
 
 use crate::drive::{self, Drive};
 use lobby_server::v026g::scripted::{CLIENT_IDLE, TestClient, request};
+use login_server::sealed::ServerPublicKey;
 use match_server::v026g::scripted::Client as MatchClient;
 use survarium::v026g::lobby::ClientState;
 use survarium::v026g::lobby::client_model::Decoded;
@@ -99,6 +100,8 @@ pub struct Config {
     pub name: String,
     /// Its password. Never printed.
     pub password: String,
+    /// The login server's public key of the sign-in cipher.
+    pub server_key: ServerPublicKey,
     /// Stop after one match.
     pub once: bool,
     /// The kit to press Play with; `None` for the one the account plays.
@@ -160,13 +163,19 @@ impl SignIn {
 /// the clear, the TLS handshake, the digest and the password. An error is
 /// the link's (nobody listening, a timeout); a refusal is a [`SignIn`]
 /// that is not [`SignIn::accepted`].
-pub fn sign_in(login: SocketAddr, user_name: &str, password: &str) -> io::Result<SignIn> {
-    sign_in_with_revision(login, user_name, password, 0)
+pub fn sign_in(
+    login: SocketAddr,
+    server_key: ServerPublicKey,
+    user_name: &str,
+    password: &str,
+) -> io::Result<SignIn> {
+    sign_in_with_revision(login, server_key, user_name, password, 0)
 }
 
 /// Sign in with an explicit client dialect for integration clients.
 pub fn sign_in_with_revision(
     login: SocketAddr,
+    server_key: ServerPublicKey,
     user_name: &str,
     password: &str,
     revision: u8,
@@ -198,7 +207,7 @@ pub fn sign_in_with_revision(
     message.extend(sha1_hex(password.as_bytes()));
     message.push(password_len);
     message.extend(password.as_bytes());
-    let reply = login_server::sealed::ask(stream, &message)?;
+    let reply = login_server::sealed::ask(stream, server_key, &message)?;
     Ok(SignIn {
         answer: answer[0],
         reply,
@@ -340,6 +349,7 @@ impl Bot {
         };
         let answer = match sign_in_with_revision(
             login,
+            self.config.server_key,
             &self.config.name,
             &self.config.password,
             self.config.revision,
@@ -637,12 +647,13 @@ impl Bot {
                     let ip = host.parse::<IpAddr>().ok().or(lobby_ip);
                     let drive = self.config.drive;
                     let link = ip.zip(socket().ok()).map(|(ip, socket)| {
-                        let mut client =
-                            if survarium::v026g::match_msgs::late_join::spoken_by(self.config.revision) {
-                                MatchClient::idle_growing(session)
-                            } else {
-                                MatchClient::idle(session)
-                            };
+                        let mut client = if survarium::v026g::match_msgs::late_join::spoken_by(
+                            self.config.revision,
+                        ) {
+                            MatchClient::idle_growing(session)
+                        } else {
+                            MatchClient::idle(session)
+                        };
                         client.connect();
                         MatchLink {
                             addr: SocketAddr::new(ip, *port),

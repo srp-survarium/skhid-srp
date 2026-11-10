@@ -13,15 +13,10 @@ use std::time::Instant;
 
 use ban_reason::{BanEnd, BanReason, BanTold};
 use session::{SESSION_IDLE_LIMIT, SessionStore, SignInError};
-use sign_in_cipher::ServerKey;
 use vostok::config::{self, ServerConfig};
 
-use super::sealed::{self, Sealed};
+use super::sealed::{self, Sealed, ServerKey};
 use super::{COLLECT_INTERVAL, GONE_CHECK_INTERVAL, parse_sign_in, read_message, sign_in_length};
-
-/// The login server's lasting key of the sign-in cipher, from the folder srp
-/// is started in.
-const KEY_PATH: &str = "./certs/sign_in_cipher.key";
 
 /// The version field of a 0.26g sign-in (`sign_in_on_connected` 0x3807D0
 /// copies it from 0x9DAE98 into 12 zeroed bytes).
@@ -246,10 +241,8 @@ fn resolve_ipv4(host: &str, port: u16) -> Option<Ipv4Addr> {
 pub fn run(store: Arc<SessionStore>) -> io::Result<()> {
     // Once, so a missing or bad key stops the server here rather than
     // failing every sign-in.
-    let key = Arc::new(
-        sealed::load_key(KEY_PATH.as_ref())
-            .map_err(|error| io::Error::other(format!("{error} (run srp from the repo root)")))?,
-    );
+    let key = Arc::new(sealed::key_from_env().map_err(io::Error::other)?);
+    sealed::log_key(&key);
     let config = config::get();
     let lobby = Lobby::new(&config.login_server, &config.lobby_server)?;
     let listener = TcpListener::bind(config.login_server.bind_addr())?;
@@ -258,8 +251,8 @@ pub fn run(store: Arc<SessionStore>) -> io::Result<()> {
 
 /// Where a login server started with [`serve`] sends its clients, and the
 /// key it reads their passwords with: what [`run`] takes from
-/// `vostok::config` and `./certs`.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// `vostok::config` and the environment.
+#[derive(Clone, Debug)]
 pub struct Endpoint {
     /// The login server's own public host: a client on this machine's
     /// network is told the address it reached srp at for the lobby too
@@ -270,8 +263,8 @@ pub struct Endpoint {
     pub lobby_host: String,
     pub lobby_port: u16,
     pub local_peers: bool,
-    /// The login server's key of the sign-in cipher (`sign_in_cipher.key`).
-    pub key: std::path::PathBuf,
+    /// The login server's key of the sign-in cipher.
+    pub key: ServerKey,
     /// The games refused for their patch revision (the default: none).
     pub revision_gate: RevisionGate,
 }
@@ -283,7 +276,8 @@ pub fn serve(
     store: Arc<SessionStore>,
     endpoint: &Endpoint,
 ) -> io::Result<()> {
-    let key = sealed::load_key(&endpoint.key)?;
+    let key = endpoint.key.clone();
+    sealed::log_key(&key);
     let port = listener.local_addr()?.port();
     // The two addresses live as long as the process, as the configured
     // ones do: every connection's thread reads them.
@@ -759,7 +753,7 @@ mod tests {
 
     /// [`start`], refusing the games `gate` refuses.
     fn start_gated(store: Arc<SessionStore>, lobby: Lobby, gate: RevisionGate) -> SocketAddr {
-        let key = sealed::load_key(KEY_FILE.as_ref()).unwrap();
+        let key = sealed::test_key();
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
         std::thread::spawn(move || {
@@ -769,12 +763,6 @@ mod tests {
         });
         addr
     }
-
-    /// The repository's key file.
-    const KEY_FILE: &str = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../certs/sign_in_cipher.key"
-    );
 
     /// Sign in the way the patched 0.26g client does; returns the plain
     /// answer and, past the hellos, the reply to the password message.
@@ -797,7 +785,7 @@ mod tests {
             assert!(rest.is_empty());
             return (answer[0], Vec::new());
         }
-        let reply = sealed::ask(stream, password_message).unwrap();
+        let reply = sealed::ask(stream, sealed::test_key().public(), password_message).unwrap();
         (answer[0], reply)
     }
 
@@ -979,7 +967,11 @@ mod tests {
         for (reason, told, code) in [
             ("", Administration, 0x1C),
             ("test", Administration, 0x1C),
-            ("farm: teamkilled the players who did not", FarmPressure, 0x1C),
+            (
+                "farm: teamkilled the players who did not",
+                FarmPressure,
+                0x1C,
+            ),
             ("harassed non-farmers in chat", FarmPressure, 0x1C),
             ("harassed players in chat", Insults, 0x13),
             ("<aimbot>", Cheating, 0x1E),
@@ -1211,7 +1203,10 @@ mod tests {
         assert!(store.has_ended(session));
         // Told only once the password is right, over TLS.
         let (answer, reply) = sign_in(addr, b"cheater", &remembered(DIGEST_1));
-        assert_eq!((answer, reply), (0x0B, vec![0x1E, BanReason::Cheating.id()]));
+        assert_eq!(
+            (answer, reply),
+            (0x0B, vec![0x1E, BanReason::Cheating.id()])
+        );
         let (_, reply) = sign_in(addr, b"cheater", &remembered(DIGEST_2));
         assert_eq!(reply, [0x0A]);
         // Each reason the client has, and none.
@@ -1228,11 +1223,25 @@ mod tests {
         store.ban_account(id, ban("farm pressure"));
         let (_, reply) = sign_in(addr, b"cheater", &typed(b"test-password-1"));
         let told = |reply: &[u8]| BanTold::decode(&reply[1..]).unwrap();
-        assert_eq!(told(&reply), BanTold { reason: BanReason::FarmPressure, end: BanEnd::Never });
-        store.ban_account(id, session::Ban { until: Some(unix_now() + 1800), reason: String::new() });
+        assert_eq!(
+            told(&reply),
+            BanTold {
+                reason: BanReason::FarmPressure,
+                end: BanEnd::Never
+            }
+        );
+        store.ban_account(
+            id,
+            session::Ban {
+                until: Some(unix_now() + 1800),
+                reason: String::new(),
+            },
+        );
         let (_, reply) = sign_in(addr, b"cheater", &typed(b"test-password-1"));
         assert_eq!(reply[0], 0x1C);
-        let BanEnd::In(left) = told(&reply).end else { panic!("{reply:?}") };
+        let BanEnd::In(left) = told(&reply).end else {
+            panic!("{reply:?}")
+        };
         assert!((1790..=1800).contains(&left), "{left}");
         assert_eq!(store.session_count(), 0);
 

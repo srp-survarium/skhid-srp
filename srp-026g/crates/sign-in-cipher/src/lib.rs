@@ -50,15 +50,23 @@ impl Random {
     }
 }
 
-/// The server's lasting secret key.
+/// The server's lasting secret key. Never printed.
+#[derive(Clone)]
 pub struct ServerKey([u8; 32]);
+
+impl core::fmt::Debug for ServerKey {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter.write_str("ServerKey(secret)")
+    }
+}
 
 /// The server's lasting public key: what the game is built with.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ServerPublicKey(pub [u8; 32]);
 
-/// The Skhid login server's public key: the public half of
-/// `srp-026g/certs/sign_in_cipher.key`, which srp refuses to start without.
+/// The Skhid login server's public key: what the released game is built
+/// with. Its secret half is no file of the repository: the live server is
+/// given it (`SRP_SIGN_IN_KEY`).
 pub const SKHID: ServerPublicKey = ServerPublicKey([
     0x85, 0x8d, 0xf2, 0xb7, 0xad, 0x42, 0xc2, 0xa5, 0xae, 0x04, 0x7e, 0x9e, 0x9c, 0xae, 0x5a, 0x7b,
     0xaa, 0xd2, 0xdb, 0xa2, 0x12, 0xa2, 0x42, 0xd2, 0x51, 0x2a, 0xab, 0x56, 0x05, 0xca, 0xb4, 0x4b,

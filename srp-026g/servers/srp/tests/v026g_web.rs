@@ -57,9 +57,8 @@ fn start(name: &str) -> (Stack, SocketAddr) {
         session::v026g::SqliteGameRepository::open_in(&dir).expect("the 0.26g tables"),
     ))
     .expect("the 0.26g accounts");
-    let certs = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../certs");
-    let stack = Stack::start(Arc::new(store), Arc::new(accounts), Options::local(&certs))
-        .expect("the servers");
+    let stack =
+        Stack::start(Arc::new(store), Arc::new(accounts), Options::local()).expect("the servers");
     let listener = TcpListener::bind("127.0.0.1:0").expect("a free port");
     let web = listener.local_addr().unwrap();
     let (store, game) = (stack.store.clone(), stack.web_game());
@@ -140,7 +139,7 @@ fn sign_in(login: SocketAddr, user_name: &str, password: &str) -> Vec<u8> {
     message.extend(sha1_hex(password.as_bytes()));
     message.push(password.len() as u8);
     message.extend(password.as_bytes());
-    login_server::sealed::ask(stream, &message).unwrap()
+    login_server::sealed::ask(stream, login_server::sealed::test_key().public(), &message).unwrap()
 }
 
 /// A game in the lobby.

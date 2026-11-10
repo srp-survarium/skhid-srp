@@ -38,11 +38,15 @@ nothing, the server's hello being new each time.
   a machine answering OpenSSL's calls.
 - `servers/login-server/src/sealed.rs`: the server's side over the TCP
   stream, and `ask`, the game's side for srp's own clients (bots, tests).
-- `certs/sign_in_cipher.key`: the server's secret key, 64 hex characters.
-  srp refuses to start unless it is `SKHID`'s. It is in the repository, as
-  the TLS key was: whoever has the repository can read a sign-in recorded
-  off the wire. A key kept only on the live host would need the game built
-  with its public half.
+- The server's secret key is no file of the repository (whoever holds it
+  can pass for the server): srp takes it from `SRP_SIGN_IN_KEY`, 64 hex
+  characters, and does not start without it. The live host's and the test
+  environment's `.env` hold it (the compose file passes it on); on the
+  owner's machine it is `~/.config/skhid/sign_in_cipher.key`, which
+  `scripts/local-clients/run.py` hands a local server. A server with
+  another key says so at its start, with the public half: only a game built
+  with that half signs in to it (`srp-bot`: `SRP_BOT_SERVER_KEY`). The
+  tests and their bots use a key of their own (`sealed::test_key`).
 - The game, patch 139 (`client-patches/rust/patches/src/sign_in_cipher.rs`,
   `vostok/openssl.rs`): the game's sign-in code is untouched. Its stream
   (boost.asio's SSL engine, one for the game's run) reaches OpenSSL through
@@ -68,6 +72,9 @@ older game is told "outdated version" at the plain step and updates.
   handshake's refusals, the machine, sign-ins end to end with srp's bots).
 - `client-patches/check_sign_in_cipher_026g.py` (Unicorn and Python's
   `cryptography`): the patched exe's four functions run a sign-in against
-  that library's X25519, HKDF and ChaCha20-Poly1305 with the repository's
-  key, and each failure fails with one queued error.
-- Not played: no game has signed in to a server with it yet.
+  that library's X25519, HKDF and ChaCha20-Poly1305 (a key made for the
+  run, put where the exe holds `SKHID`), and each failure fails with one
+  queued error.
+- Played 2026-11-10: two games (Wine) signed in to a server on another
+  machine over the internet, registered their accounts and played a match.
+  No Windows game and no player behind a blocking provider has tried it.
