@@ -45,7 +45,7 @@ use crate::vostok::draw::{self, DrawnBones};
 use crate::vostok::trace::{self, TraceFile};
 use crate::vostok::world::{BodyId, GameWorld, Held, ModifierIndex, NetworkClient, PhysicsWorld, Player, PlayerId, SkeletonId,
                            WorldKey};
-use crate::vostok::{Context, Flow, Lock, NoExit, RagdollOnHeldItemExit, RagdollOnPostBonesExit, Thread, camera, clock, headwear};
+use crate::vostok::{Context, Flow, Lock, NoExit, RagdollOnCullExit, RagdollOnHeldItemExit, RagdollOnPostBonesExit, Thread, camera, clock, headwear};
 
 /// ray_test's filter (an object is hit when its mask has a bit of the
 /// group and its group a bit of the mask): the foot IK's level (group 24h,
@@ -854,15 +854,40 @@ fn draw_of(state: &State, player: &Player<'_>) -> Option<(DeathKey, SlotId, Bone
 /// draw gave its pose). A settled one whose pose was given is culled as the
 /// game culls: the renderer's box follows the bones it has (ragdoll.md
 /// section 5), which are the ones a draw would give.
-pub fn on_cull(ctx: &mut Context<'_>) -> Flow<NoExit> {
+///
+/// The game's own cull is not left to run for it: that branch (0x247811)
+/// calls the held item's on_culled_player_draw (0x245250), which moves the
+/// weapon to the player's root, out of the ragdoll's hand. A corpse the
+/// game would cull leaves by `culled`, past that call: no bones, and its
+/// weapon stays where its last draw put it.
+pub fn on_cull(ctx: &mut Context<'_>) -> Flow<RagdollOnCullExit> {
     if let Flow::Skip = crate::artefact_carry::on_cull(ctx) { return Flow::Skip; }
-    let ours = match draw::culled_player(ctx) {
+    let cull = match draw::culled_player(ctx) {
         Some(player) => STATE.with(ctx.thread(), |state| {
-            draw_of(state, &player).is_some_and(|(_, slot, _)| state.corpses.slot(slot).moves())
+            draw_of(state, &player).map(|(_, slot, _)| match state.corpses.slot(slot).moves() {
+                true => Cull::Drawn,
+                false if draw::game_culls(&player) => Cull::Culled,
+                false => Cull::Game,
+            })
         }),
-        None => false,
+        None => None,
     };
-    if ours { draw::draw_anyway(ctx) } else { Flow::Continue }
+    match cull {
+        Some(Cull::Drawn) => draw::draw_anyway(ctx),
+        Some(Cull::Culled) => Flow::Exit(RagdollOnCullExit::Culled),
+        Some(Cull::Game) | None => Flow::Continue,
+    }
+}
+
+/// What mt_draw's cull does with a corpse of ours.
+enum Cull {
+    /// Its bones can change: drawn whatever the game saw of its model.
+    Drawn,
+    /// Settled, its pose given, and the game would cull it: culled, its
+    /// weapon not moved.
+    Culled,
+    /// Settled, its pose given, and the game draws it: the game's draw.
+    Game,
 }
 
 /// mt_draw's bones: the model-space matrices of the skeleton. The clip is

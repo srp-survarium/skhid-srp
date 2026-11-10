@@ -14,12 +14,21 @@ sets it. Every site runs from the game's own code:
 - the folder (game::game from its `lea eax,[esp+470h]` before its `call
   0x1E8DA0` (0x1E944E) to 0x1E945A, [esp+470h] the folder's buffer_string,
   the Rust lohook's site; the game's imports a made-up folder
-  through their IAT slots, the stock delete 0x1E8DA0 a stub that empties it):
-  a folder stamped with this build's revision keeps its whole DDS files and
-  they are in the baker's list (CRC 0, their size, an age each, the list's
-  bytes grown by theirs), a file cut short and the files past 512 deleted,
-  the stub not called; a folder of another revision or none is deleted (the
-  stub) and stamped. The original calls the stub every time;
+  through their IAT slots, the stock delete 0x1E8DA0 a stub that empties it;
+  the game data made-up patches, their file tables laid out as
+  `resources-db` writes them, VirtualAlloc a stub of fresh pages): a folder
+  stamped with this build's bake format and the patches' fingerprint (the
+  check computes its own, in Python, from the tables) keeps its whole DDS
+  files and they are in the baker's list (CRC 0, their size, an age each,
+  the list's bytes grown by theirs), a file cut short and the files past 512
+  deleted, the stub not called, the tables read in pages given back, a line
+  to srp_patches.log; a release whose patch has only item stats keeps it; a
+  patch with a texture, a decal item or one that cannot be read, another
+  format, a stamp of other bytes, no stamp or no folder: deleted (the stub)
+  and stamped anew; revision 54's stamp (before formats) is kept and
+  stamped again unless a patch past 54 has a texture, revision 53's is
+  deleted; with no resources.db where the game mounts it from, deleted and
+  not stamped. The original calls the stub every time;
 - a kept file's first load (check_loaded_baked_texture 0x131B40, the game's
   own, with the CRC 0x3C0F70 a stub as in check_baked_texture_026g.py): it is
   used and its record takes the CRC read; a second load of other bytes is
@@ -47,11 +56,13 @@ sets it. Every site runs from the game's own code:
   query of its path (a respawn) gets it at once with no look-up, and past
   256 MB the least used is let go;
 - the CRC-32 step (0x42050, run from its entry as its 43 callers call it; a
-  separate emulator with no hook on every instruction): the build's against
-  the original's, with the game's own table (0x1C210 run first), on random
-  buffers of 0 to 10 MB from starts 0 to 3 bytes past a dword and random
-  CRCs: the CRC and eax, ecx, edx, ebx, esi, edi, ebp and esp after it the
-  same; and how many instructions each runs on 256 KB;
+  separate emulator with no hook on every instruction, SSE on as Windows has
+  it): the build's against the original's, with the game's own table
+  (0x1C210 run first), on random buffers of 0 to 10 MB from starts 0 to 3
+  bytes past a dword and random CRCs, on a processor model without
+  PCLMULQDQ (Penryn: the sliced way) and one with it (Westmere: the fold):
+  the CRC and eax, ecx, edx, ebx, esi, edi, ebp and esp after it the same;
+  and how many instructions each runs on 256 KB;
 - a folder whose delete leaves a file (held open): not stamped;
 - an owner that ends otherwise (finish_query 0xF0D00 called as the game
   calls it, stdcall, with an error, or a success nothing shared): the
@@ -59,11 +70,12 @@ sets it. Every site runs from the game's own code:
   stub that records the cook and the query), its reference released; any
   other query: the function with the same arguments, the registers kept.
 """
+import fnmatch
 import struct
 import sys
 
 from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_PROT_ALL, UC_HOOK_CODE, UC_HOOK_INTR
-from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_EBX, \
+from unicorn.x86_const import UC_CPU_X86_PENRYN, UC_CPU_X86_WESTMERE, UC_X86_REG_CR0, UC_X86_REG_CR4, UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_EBX, \
     UC_X86_REG_ESP, UC_X86_REG_EBP, UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EIP
 
 import patch_026g as base
@@ -85,15 +97,80 @@ CRC_STEP, TABLE = 0x42050, 0x1C210                   # the CRC-32 step; the tabl
 BUFFER, CRC_STATE = 0x40000000, 0x31000000 + 0xF0000
 IAT = {"FindFirstFileA": 0x870238, "FindNextFileA": 0x87023C, "FindClose": 0x870228, "CreateFileA": 0x870048,
        "ReadFile": 0x870064, "WriteFile": 0x870108, "CloseHandle": 0x870040, "DeleteFileA": 0x87021C,
-       "CreateDirectoryA": 0x870220, "GetTickCount": 0x870090, "GetCurrentThreadId": 0x870118}
+       "CreateDirectoryA": 0x870220, "GetTickCount": 0x870090, "GetCurrentThreadId": 0x870118,
+       "VirtualAlloc": 0x87015C, "VirtualFree": 0x870160}
 POPS = {"FindFirstFileA": 8, "FindNextFileA": 8, "FindClose": 4, "CreateFileA": 28, "ReadFile": 20,
         "WriteFile": 20, "CloseHandle": 4, "DeleteFileA": 4, "CreateDirectoryA": 8, "GetTickCount": 0,
-        "GetCurrentThreadId": 0}
-OBJECTS, STACK, STUBS, STOP = 0x30000000, 0x31000000, 0x32000000, 0x32100000
+        "GetCurrentThreadId": 0, "VirtualAlloc": 16, "VirtualFree": 12}
+OBJECTS, STACK, STUBS, STOP, PAGES = 0x30000000, 0x31000000, 0x32000000, 0x32100000, 0x70000000
 FOLDER = "c:\\users\\player\\documents\\survarium\\streamed_textures"
 STAMP = "srp_baked_textures.txt"
 PREFIX = "user_data/streamed_textures/"
 INVALID = 0xFFFFFFFF
+# where the game mounts its data from (its working folder binaries\x86)
+DATA = "..\\..\\"
+
+
+# ---- the game data: resources.db's patches' file tables (srp-026g/crates/resources-db) ----
+def archive(entries):
+    """A patch of `entries` (pre-order: a folder's path, None, before its own; a file's path,
+    (size, crc)): the header and a file table as the game's archives lay it out (`resources-db`)."""
+    folder_base, file_base, root_base, flags_at, name_at, next_at = 16, 24, 936 + 16, 48, 51, 24
+    table = bytearray(root_base + 64)
+    struct.pack_into("<H", table, root_base + flags_at, 1)
+    nodes = {"": [root_base, 0]}
+    for path, file in entries:
+        parent, _, name = path.rpartition("/")
+        start = len(table)
+        base_at = start + (file_base if file else folder_base)
+        table += bytes(base_at + name_at + len(name) + 1 + 8 - len(table))
+        if file:
+            struct.pack_into("<I", table, start, file[0])
+            struct.pack_into("<I", table, start + 16, file[1])
+        struct.pack_into("<H", table, base_at + flags_at, 4 if file else 1)
+        table[base_at + name_at:base_at + name_at + len(name)] = name.encode()
+        parent_base, last = nodes[parent]
+        struct.pack_into("<Q", table, (parent_base - folder_base) if last == 0 else (last + next_at), base_at)
+        nodes[parent][1] = base_at
+        nodes[path] = [base_at, 0]
+    return b"little-endian\0\0\0" + struct.pack("<II", len(entries), len(table)) + bytes(table)
+
+
+def fnv(data, h=0xCBF29CE484222325):
+    for b in data:
+        h = ((h ^ b) * 0x100000001B3) & 0xFFFFFFFFFFFFFFFF
+    return h
+
+
+BAKE_FOLDERS = ("textures/", "models/", "material_instances/", "shaders/", "gameplay/items/upgrades/")
+
+
+def fingerprint(patches):
+    """The game data's fingerprint a bake reads (bake_cache/inputs.rs) of {n: entries, or None for a
+    patch that cannot be read}: the files under the bake's folders, their path, size and crc."""
+    h = fnv(b"")
+    for n in sorted(patches):
+        if patches[n] is None:
+            tag, value = 3, 0
+        else:
+            files = [(p, f) for p, f in patches[n] if f and p.startswith(BAKE_FOLDERS)]
+            if not files:
+                continue
+            value = fnv(b"".join(p.encode() + b"\0" + struct.pack("<II", *f) for p, f in files))
+            tag = 1
+        h = fnv(struct.pack("<IIII", n, tag, value & 0xFFFFFFFF, value >> 32), h)
+    return h
+
+
+def made(inputs, form=1):
+    return f"Skhid baked textures, format {form}, inputs {inputs:016x}\r\n".encode()
+
+
+TEXTURES = [("textures", None), ("textures/character", None), ("textures/character/a.dds", (1000, 0x1234))]
+STATS = [("gameplay", None), ("gameplay/items", None), ("gameplay/items/weapons", None),
+         ("gameplay/items/weapons/ak.options", (10, 0x55))]
+DECALS = [("gameplay", None), ("gameplay/items", None), ("gameplay/items/upgrades", None),
+          ("gameplay/items/upgrades/decals", None), ("gameplay/items/upgrades/decals/d.options", (12, 0x66))]
 
 
 def dds(width, height, linear, fourcc=b"DXT1", cut=0):
@@ -112,6 +189,8 @@ class Game:
             emu.mem_write(start, bytes(data[raw:raw + min(rsize, vsize or rsize)]))
         for at in (OBJECTS, STACK, STUBS, STOP):
             emu.mem_map(at, 0x100000, UC_PROT_ALL)
+        emu.mem_map(PAGES, 0x1000000, UC_PROT_ALL)
+        self.pages = PAGES
         # the baker's list as its static constructor makes it (0x12CD39..0x12CDA6)
         self.word(LIST, STORAGE)
         self.word(LIST + 4, STORAGE)
@@ -133,6 +212,7 @@ class Game:
         self.crc, self.heap, self.now = None, OBJECTS + 0x80000, 1000
         self.stop_at = set()
         self.locked = set()                          # files another game holds open: not deleted
+        self.unopenable = set()                      # files CreateFileA refuses (shared otherwise)
         emu.hook_add(UC_HOOK_CODE, self.code)
         emu.hook_add(UC_HOOK_INTR, lambda emu, n, _: (self.calls.append(("int3",)), emu.emu_stop()))
 
@@ -225,19 +305,29 @@ class Game:
             return 0x1D0C
         if name == "GetTickCount":
             return self.now
+        if name == "VirtualAlloc":                   # fresh zeroed pages (64 KiB aligned)
+            at, size = self.pages, (a[1] + 0xFFFF) & ~0xFFFF
+            self.pages += size
+            self.calls.append(("VirtualAlloc", a[1]))
+            return at
+        if name == "VirtualFree":
+            self.calls.append(("VirtualFree", a[0]))
+            return 1
         self.calls.append((name,) + tuple(a[:1]))
         if name == "CreateFileA":
             path, access, disposition = self.ascii(a[0]), a[1], a[4]
             folder = path.rsplit("\\", 1)[0]
             if disposition == 3:                     # OPEN_EXISTING
-                if path not in self.files:
+                if path not in self.files or path in self.unopenable:
                     return INVALID
             elif disposition == 2 and folder in self.dirs:
                 self.files[path] = b""
+            elif disposition == 4 and path == "srp_patches.log":     # OPEN_ALWAYS, appended to
+                self.files.setdefault(path, b"")
             else:
                 return INVALID
             handle, self.next_handle = self.next_handle, self.next_handle + 4
-            self.handles[handle] = [path, 0]
+            self.handles[handle] = [path, len(self.files[path]) if disposition == 4 else 0]
             return handle
         if name in ("ReadFile", "WriteFile"):
             path, at = self.handles[a[0]]
@@ -264,10 +354,12 @@ class Game:
         if name == "FindFirstFileA":
             pattern = self.ascii(a[0])
             folder, mask = pattern.rsplit("\\", 1)
-            assert mask == "*.dds", pattern
+            assert mask in ("*.dds", "resources.db", "resources.db.patch_*"), pattern
             names = sorted(p[len(folder) + 1:] for p in self.files
-                           if p.startswith(folder + "\\") and p.lower().endswith(".dds") and "\\" not in p[len(folder) + 1:])
-            names += sorted(d[len(folder) + 1:] + "\\" for d in self.dirs if d.startswith(folder + "\\") and d.lower().endswith(".dds"))
+                           if p.startswith(folder + "\\") and fnmatch.fnmatch(p[len(folder) + 1:].lower(), mask)
+                           and "\\" not in p[len(folder) + 1:])
+            names += sorted(d[len(folder) + 1:] + "\\" for d in self.dirs
+                            if d.startswith(folder + "\\") and fnmatch.fnmatch(d[len(folder) + 1:].lower(), mask))
             if not names:
                 return INVALID
             handle, self.next_handle = self.next_handle, self.next_handle + 4
@@ -291,6 +383,15 @@ class Game:
         record[44:44 + len(name)] = name.encode()
         self.emu.mem_write(at, bytes(record))
         return True
+
+    def data(self, patches, db=True):
+        """The game data where the game mounts it from: resources.db and the patches {n: entries}."""
+        if db:
+            self.files[DATA + "resources.db"] = b"little-endian\0"
+        for n, entries in patches.items():
+            self.files[DATA + f"resources.db.patch_{n}"] = archive(entries or [])
+            if entries is None:
+                self.unopenable.add(DATA + f"resources.db.patch_{n}")
 
     # running
     def run(self, start, sp, regs, until=None, count=2000000):
@@ -407,9 +508,14 @@ class Game:
 
 class Crc:
     """The exe's sections alone, with no hook on every instruction: the CRC-32
-    step on large buffers at full speed."""
-    def __init__(self, data, size):
+    step on large buffers at full speed, on a processor model (`cpu`, unicorn's: what CPUID tells)."""
+    def __init__(self, data, size, cpu=None):
         self.emu = emu = Uc(UC_ARCH_X86, UC_MODE_32)
+        if cpu is not None:
+            emu.ctl_set_cpu_model(cpu)
+        # SSE on, as Windows has it (CR4.OSFXSR, OSXMMEXCPT; CR0.MP, not EM)
+        emu.reg_write(UC_X86_REG_CR4, emu.reg_read(UC_X86_REG_CR4) | 0x600)
+        emu.reg_write(UC_X86_REG_CR0, (emu.reg_read(UC_X86_REG_CR0) | 0x2) & ~0x4)
         for _, rva, vsize, raw, rsize, _ in base.Headers(data).sections(data):
             begin = base.IMAGE_BASE + rva
             emu.mem_map(begin, (max(vsize, rsize) + 0xFFF) & ~0xFFF, UC_PROT_ALL)
@@ -502,13 +608,16 @@ def main():
         print(f"  {'ok' if ok else 'FAIL'}  {text}")
 
     revision = built[base.file_offset(REVISION_BYTE)]
-    stamp = f"Skhid baked textures, revision {revision}\r\n".encode()
-    other = f"Skhid baked textures, revision {revision - 1}\r\n".encode()
+    # the players' game data: patches with textures (12, 54), item stats only (53)
+    data = {12: TEXTURES, 53: STATS, 54: [("textures", None), ("textures/b.dds", (500, 0x99))] + DECALS}
+    inputs = fingerprint(data)
+    stamp = made(inputs)
     a, b = dds(2048, 1024, 1398097), dds(1024, 1024, 1398097, b"DXT5")
 
     print("the folder (game::game from 0x1E944E to 0x1E945A)")
-    for label, data in (("the original", original), ("the build", built)):
-        game = Game(bytes(data))
+    for label, exe in (("the original", original), ("the build", built)):
+        game = Game(bytes(exe))
+        game.data(data)
         game.dirs.add(FOLDER)
         game.files[FOLDER + "\\" + STAMP] = stamp
         game.files[FOLDER + "\\a_s1d.dds"] = a
@@ -524,11 +633,18 @@ def main():
                    "the original: a stamped folder is deleted (0x1E8DA0), the list empty")
             continue
         want = [(PREFIX + "a_s1d.dds", 0, len(a), 1, 0, b"/"), (PREFIX + "b_s1n.dds", 0, len(b), 2, 0, b"/")]
+        tables = [c for c in game.calls if c[0] in ("VirtualAlloc", "VirtualFree")]
         report(ok and not wiped and records == want and game.read(BYTES) == len(a) + len(b)
                and game.read(AGES) == 2 and FOLDER + "\\cut_s1d.dds" not in game.files
-               and FOLDER + "\\notes.txt" in game.files and game.files[FOLDER + "\\" + STAMP] == stamp,
-               f"this revision's folder kept: {[r[0] for r in records]} in the list (CRC 0, sizes, ages 1 and 2, "
-               f"{game.read(BYTES)} bytes), the file cut short deleted, the rest left, no delete")
+               and FOLDER + "\\notes.txt" in game.files and game.files[FOLDER + "\\" + STAMP] == stamp
+               and len(tables) == 6 and all(c[0] == ("VirtualAlloc", "VirtualFree")[i % 2] for i, c in enumerate(tables)),
+               f"a folder stamped with this format and the game data's fingerprint ({stamp.decode().strip()}, the "
+               f"three patches' tables read in pages given back after): kept, {[r[0] for r in records]} in the "
+               f"list (CRC 0, sizes, ages 1 and 2, {game.read(BYTES)} bytes), the file cut short deleted, the rest "
+               f"left, no delete")
+        log = game.files.get("srp_patches.log", b"")
+        report(log == b"srp: bake_cache: the baked textures kept: " + stamp,
+               f"srp_patches.log: {log.decode().strip()!r}")
 
         # a kept file's loads (check_loaded_baked_texture, the game's own)
         first = game.check_loaded(PREFIX + "a_s1d.dds", 0x64308FFD)
@@ -539,42 +655,89 @@ def main():
                and game.read(BYTES) == len(b) and ("assertion",) not in game.calls,
                "a load of other bytes after it: erased and made again, as the original does")
 
-        for what, files in (("another revision's folder", {STAMP: other, "a_s1d.dds": a}),
-                            ("a folder with no stamp (the stock game's, or none)", {"a_s1d.dds": a}),
-                            ("no folder", None)):
-            game = Game(bytes(built))
-            if files is not None:
-                game.dirs.add(FOLDER)
-                for name, content in files.items():
-                    game.files[FOLDER + "\\" + name] = content
-            ok = game.start()
-            wiped = [c for c in game.calls if c[0] == "wipe"]
-            report(ok and wiped == [("wipe", FOLDER)] and game.records() == [] and FOLDER in game.dirs
-                   and game.files == {FOLDER + "\\" + STAMP: stamp},
-                   f"{what}: deleted (0x1E8DA0), made again and stamped \"{stamp.decode().strip()}\"")
-
+    def start(stamped, patches, db=True):
+        """A folder with `stamped` (none: no stamp) and a_s1d.dds, the game data `patches`: whether it
+        was kept (a_s1d.dds in the list, no delete) and the stamp after."""
         game = Game(bytes(built))
+        game.data(patches, db)
         game.dirs.add(FOLDER)
-        game.files[FOLDER + "\\" + STAMP] = other
+        if stamped is not None:
+            game.files[FOLDER + "\\" + STAMP] = stamped
         game.files[FOLDER + "\\a_s1d.dds"] = a
-        game.files[FOLDER + "\\held_s1d.dds"] = b
-        game.locked.add(FOLDER + "\\held_s1d.dds")
         ok = game.start()
-        report(ok and FOLDER + "\\" + STAMP not in game.files and FOLDER + "\\held_s1d.dds" in game.files
-               and FOLDER + "\\a_s1d.dds" not in game.files and game.records() == [],
-               "another revision's folder whose delete leaves a file (held open): not stamped, deleted again at "
-               "the next start")
+        wiped = [c for c in game.calls if c[0] == "wipe"]
+        kept = not wiped and [r[0] for r in game.records()] == [PREFIX + "a_s1d.dds"]
+        gone = wiped == [("wipe", FOLDER)] and game.records() == [] and FOLDER in game.dirs \
+            and FOLDER + "\\a_s1d.dds" not in game.files
+        assert ok and kept != gone, (ok, kept, gone, game.calls[-8:])
+        return kept, game.files.get(FOLDER + "\\" + STAMP)
 
-        game = Game(bytes(built))
-        game.dirs.add(FOLDER)
-        game.files[FOLDER + "\\" + STAMP] = stamp
-        small = dds(64, 64, 2048)
-        for i in range(600):
-            game.files[FOLDER + f"\\t{i:03}_s1d.dds"] = small
-        ok = game.start()
-        kept = [p for p in game.files if p.endswith(".dds")]
-        report(ok and len(game.records()) == 512 and len(kept) == 512 and game.read(BYTES) == 512 * len(small),
-               "600 kept files: 512 in the list, the 88 after them deleted")
+    stats55 = dict(data | {55: STATS})
+    texture55 = dict(data | {55: TEXTURES})
+    cases = (
+        ("a release whose patch has no file a bake reads (55: item stats)", stamp, stats55, True, stamp),
+        ("a release whose patch has a decal item (55)", stamp, dict(data | {55: DECALS}), False,
+         made(fingerprint(dict(data | {55: DECALS})))),
+        ("a release whose patch has a texture (55)", stamp, texture55, False, made(fingerprint(texture55))),
+        ("a release whose patch cannot be read (55)", stamp, dict(data | {55: None}), False,
+         made(fingerprint(dict(data | {55: None})))),
+        ("another format's folder (format 2)", made(inputs, 2), data, False, stamp),
+        ("revision 54's folder (before format stamps), no patch past 54 with bake data", 
+         f"Skhid baked textures, revision {revision}\r\n".encode(), stats55, revision == 54, stamp),
+        ("revision 54's folder, a texture in patch 55", b"Skhid baked textures, revision 54\r\n", texture55,
+         False, made(fingerprint(texture55))),
+        ("revision 53's folder", b"Skhid baked textures, revision 53\r\n", data, False, stamp),
+        ("a folder with no stamp (the stock game's, or none)", None, data, False, stamp),
+        ("a stamp of other bytes", b"Skhid baked textures, format 1, inputs " + b"x" * 16 + b"\r\n", data, False,
+         stamp),
+    )
+    for what, stamped, patches, keeps, after in cases:
+        kept, now = start(stamped, patches)
+        report(kept == keeps and now == after,
+               f"{what}: {'kept' if kept else 'deleted (0x1E8DA0) and made again'}, stamped "
+               f"\"{(now or b'none').decode().strip()}\"")
+    kept, now = start(stamp, data, db=False)
+    report(not kept and now is None, "no resources.db where the game mounts it from (the game data not known): "
+                                     "deleted, not stamped (deleted again at the next start)")
+    report(fingerprint(stats55) == fingerprint(data) != fingerprint(texture55),
+           "the fingerprint here (Python, of the tables) is kept by a patch of item stats, changed by a texture")
+
+    game = Game(bytes(built))
+    game.dirs.add(FOLDER)
+    ok = game.start()
+    report(ok and [c for c in game.calls if c[0] == "wipe"] == [("wipe", FOLDER)]
+           and FOLDER + "\\" + STAMP not in game.files, "no game data and no stamp: deleted, not stamped")
+
+    game = Game(bytes(built))
+    game.data(data)
+    ok = game.start()
+    report(ok and FOLDER in game.dirs and game.files[FOLDER + "\\" + STAMP] == stamp,
+           "no folder: made and stamped")
+
+    game = Game(bytes(built))
+    game.data(data)
+    game.dirs.add(FOLDER)
+    game.files[FOLDER + "\\" + STAMP] = made(inputs ^ 1)
+    game.files[FOLDER + "\\a_s1d.dds"] = a
+    game.files[FOLDER + "\\held_s1d.dds"] = b
+    game.locked.add(FOLDER + "\\held_s1d.dds")
+    ok = game.start()
+    report(ok and FOLDER + "\\" + STAMP not in game.files and FOLDER + "\\held_s1d.dds" in game.files
+           and FOLDER + "\\a_s1d.dds" not in game.files and game.records() == [],
+           "a folder of other game data whose delete leaves a file (held open): not stamped, deleted again at "
+           "the next start")
+
+    game = Game(bytes(built))
+    game.data(data)
+    game.dirs.add(FOLDER)
+    game.files[FOLDER + "\\" + STAMP] = stamp
+    small = dds(64, 64, 2048)
+    for i in range(600):
+        game.files[FOLDER + f"\\t{i:03}_s1d.dds"] = small
+    ok = game.start()
+    kept = [p for p in game.files if p.endswith(".dds")]
+    report(ok and len(game.records()) == 512 and len(kept) == 512 and game.read(BYTES) == 512 * len(small),
+           "600 kept files: 512 in the list, the 88 after them deleted")
 
     print("the look-up and the texture made (translate_query 0x12D4C5..0x12D4D2, process_compression "
           "0x12F194, on_baked_texture_loaded 0x12DDB9, finish_query 0xF0D00)")
@@ -741,35 +904,39 @@ def main():
     import random
     rng = random.Random(70)
     size = 10 * 1024 * 1024 + 64
-    stock, patched = Crc(bytes(original), size), Crc(bytes(built), size)
+    # Penryn (Core 2) has no PCLMULQDQ: the sliced way; Westmere has it: the fold
+    models = (("Penryn, sliced", UC_CPU_X86_PENRYN), ("Westmere, folded", UC_CPU_X86_WESTMERE))
+    stock = Crc(bytes(original), size)
+    builds = [(name, Crc(bytes(built), size, cpu)) for name, cpu in models]
     data = bytes(rng.getrandbits(8) for _ in range(1 << 16)) * (size >> 16) + bytes(64)
     data = bytearray(data)
     for i in range(0, len(data), 4099):                # not a repeat of 64 KB
         data[i] = rng.getrandbits(8)
-    for game in (stock, patched):
+    for game in [stock] + [game for _, game in builds]:
         game.emu.mem_write(BUFFER, bytes(data))
         game.call(TABLE, {}, [])                       # the table at 0x225FD68, as the callers make it first
-    lengths = [0, 1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 31, 63, 64, 65, 255, 1000, 4093, 65541, (1 << 20) + 3,
-               1398225, 5592529, 10 * 1024 * 1024]
-    same = True
-    for i, length in enumerate(lengths):
-        start = BUFFER + (i % 4)
-        crc = rng.getrandbits(32)
-        a_out, b_out = (game.crc(start, length, crc) for game in (stock, patched))
-        if a_out != b_out:
-            same = False
-            print(f"    differs: {length} bytes from +{i % 4}: {a_out} against {b_out}")
-    report(same, f"{len(lengths)} buffers of 0 to 10 MB, starts 0 to 3 bytes past a dword, random CRCs: the "
-                 f"CRC, eax, ecx, edx, ebx, esi, edi, ebp and esp after it are the original's")
+    lengths = [0, 1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 31, 63, 64, 65, 127, 128, 129, 143, 144, 191, 192, 255, 256,
+               1000, 4093, 65541, (1 << 20) + 3, 1398225, 5592529, 10 * 1024 * 1024]
+    for name, patched in builds:
+        same = True
+        for i, length in enumerate(lengths):
+            start = BUFFER + (i % 4)
+            crc = rng.getrandbits(32)
+            a_out, b_out = (game.crc(start, length, crc) for game in (stock, patched))
+            if a_out != b_out:
+                same = False
+                print(f"    differs: {length} bytes from +{i % 4}: {a_out} against {b_out}")
+        report(same, f"{name}: {len(lengths)} buffers of 0 to 10 MB, starts 0 to 3 bytes past a dword, random "
+                     f"CRCs: the CRC, eax, ecx, edx, ebx, esi, edi, ebp and esp after it are the original's")
     counted = []
-    for data_of in (original, built):              # fresh: a hook added once code is translated misses it
-        game = Crc(bytes(data_of), 1 << 20)
+    for data_of, cpu in ((original, None), (built, UC_CPU_X86_PENRYN), (built, UC_CPU_X86_WESTMERE)):
+        game = Crc(bytes(data_of), 1 << 20, cpu)   # fresh: a hook added once code is translated misses it
         game.emu.mem_write(BUFFER, bytes(data[:1 << 20]))
         game.call(TABLE, {}, [])
         counted.append(game.count(BUFFER + 1, 262144))
-    report(counted[1] * 3 < counted[0], f"256 KB: {counted[0]} instructions in the original, {counted[1]} here "
-                                         f"({counted[0] / 262144:.2f} and {counted[1] / 262144:.2f} a byte, "
-                                         f"{counted[0] / counted[1]:.1f} times fewer)")
+    report(counted[1] * 3 < counted[0] and counted[2] * 10 < counted[0],
+           f"256 KB: {counted[0]} instructions in the original, {counted[1]} sliced, {counted[2]} folded "
+           f"({counted[0] / 262144:.2f}, {counted[1] / 262144:.2f} and {counted[2] / 262144:.2f} a byte)")
 
     if failed:
         sys.exit(f"{failed} case(s) failed")
