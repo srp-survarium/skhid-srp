@@ -45,6 +45,51 @@ animation_id_log_on_id_missing_replay:
     db 0x5f, 0x5e, 0xb8, 0xff, 0xff, 0x00, 0x00
     jmp 0x2d65f5
 
+; 0xed30f quaternion::quaternion(float3 angles) 0xED2E0: sin of half the x angle, stored as a float (fstp dword [esp+0Ch]): call -> animation_math_on_sin_x (wraps engine_sin 0x38ff0)
+global animation_math_on_sin_x
+animation_math_on_sin_x:
+    RUST_CALL hook_animation_math_on_sin_x, 1, 0
+
+; 0xed31f quaternion::quaternion(float3 angles) 0xED2E0: cos of half the x angle, stored as a float (fstp dword [esp+10h]): call -> animation_math_on_cos_x (wraps engine_cos 0x39000)
+global animation_math_on_cos_x
+animation_math_on_cos_x:
+    RUST_CALL hook_animation_math_on_cos_x, 1, 0
+
+; 0xed32f quaternion::quaternion(float3 angles) 0xED2E0: sin of half the y angle, stored as a float (fstp dword [esp+4]): call -> animation_math_on_sin_y (wraps engine_sin 0x38ff0)
+global animation_math_on_sin_y
+animation_math_on_sin_y:
+    RUST_CALL hook_animation_math_on_sin_y, 1, 0
+
+; 0xed33f quaternion::quaternion(float3 angles) 0xED2E0: cos of half the y angle, stored as a float (fstp dword [esp+8]): call -> animation_math_on_cos_y (wraps engine_cos 0x39000)
+global animation_math_on_cos_y
+animation_math_on_cos_y:
+    RUST_CALL hook_animation_math_on_cos_y, 1, 0
+
+; 0xed34f quaternion::quaternion(float3 angles) 0xED2E0: sin of half the z angle, stored as a float (fstp dword [esp+14h]): call -> animation_math_on_sin_z (wraps engine_sin 0x38ff0)
+global animation_math_on_sin_z
+animation_math_on_sin_z:
+    RUST_CALL hook_animation_math_on_sin_z, 1, 0
+
+; 0xed35f quaternion::quaternion(float3 angles) 0xED2E0: cos of half the z angle, stored as a float (fstp dword [esp+18h] after one movss): call -> animation_math_on_cos_z (wraps engine_cos 0x39000)
+global animation_math_on_cos_z
+animation_math_on_cos_z:
+    RUST_CALL hook_animation_math_on_cos_z, 1, 0
+
+; 0x742a5 quaternion::quaternion(axis, angle) 0x74290: sin of half the angle, stored as a float (fstp dword [esp+8]): call -> animation_math_on_axis_sin (wraps engine_sin 0x38ff0)
+global animation_math_on_axis_sin
+animation_math_on_axis_sin:
+    RUST_CALL hook_animation_math_on_axis_sin, 1, 0
+
+; 0x742b5 quaternion::quaternion(axis, angle) 0x74290: cos of half the angle, stored as the w float (fstp dword [esi+0Ch]): call -> animation_math_on_axis_cos (wraps engine_cos 0x39000)
+global animation_math_on_axis_cos
+animation_math_on_axis_cos:
+    RUST_CALL hook_animation_math_on_axis_cos, 1, 0
+
+; 0x743b2 quaternion::get_axis_and_angle 0x74300: atan2(|xyz|, w), doubled in ST0 (fadd st0,st0: exact) and stored as a float (fstp dword [ebx]): call -> animation_math_on_angle_atan2 (wraps engine_atan2 0x79c40)
+global animation_math_on_angle_atan2
+animation_math_on_angle_atan2:
+    RUST_CALL hook_animation_math_on_angle_atan2, 2, 0
+
 ; 0x243fa0 weapon::on_hide entry; ECX live weapon, stack was_visible; return carry models to native ownership before removal: lohook -> artefact_carry_on_weapon_hide
 global artefact_carry_on_weapon_hide
 extern hook_artefact_carry_on_weapon_hide
@@ -6355,6 +6400,90 @@ text_input_on_char_go:
 text_input_on_char_replay:
     db 0x8b, 0x47, 0xe8, 0x8b, 0x70, 0x10
     jmp 0x79d36f
+
+; 0x155980 scene::update_streaming_data's start (sub esp,18h / push ebx / mov ebx,[eax+12615Ch]), every frame from process_streaming (0x1540DE) while the scene has streamable textures: EAX the scene; returned is its `ret` (0x1559FE): lohook -> texture_streaming_on_update
+global texture_streaming_on_update
+extern hook_texture_streaming_on_update
+texture_streaming_on_update:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_texture_streaming_on_update
+    mov edx, texture_streaming_on_update_replay
+    cmp eax, 0
+    je texture_streaming_on_update_go
+    mov edx, 0x15598a
+    cmp eax, 1
+    je texture_streaming_on_update_go
+    mov edx, 0x1559fe
+    cmp eax, 2
+    je texture_streaming_on_update_go
+    ud2
+texture_streaming_on_update_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+texture_streaming_on_update_replay:
+    db 0x83, 0xec, 0x18, 0x53, 0x8b, 0x98, 0x5c, 0x61, 0x12, 0x00
+    jmp 0x15598a
+
+; 0x3be280 resource_manager::get_texture_video_memory_size's start (push ebx / push esi / mov esi,[eax+880A4h]), every frame from renderer::render's statistics (0x13D73E): EAX the resource manager; returned is its `ret` (0x3BE2C7), EAX the sum in bytes: lohook -> texture_streaming_on_texture_memory
+global texture_streaming_on_texture_memory
+extern hook_texture_streaming_on_texture_memory
+texture_streaming_on_texture_memory:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_texture_streaming_on_texture_memory
+    mov edx, texture_streaming_on_texture_memory_replay
+    cmp eax, 0
+    je texture_streaming_on_texture_memory_go
+    mov edx, 0x3be288
+    cmp eax, 1
+    je texture_streaming_on_texture_memory_go
+    mov edx, 0x3be2c7
+    cmp eax, 2
+    je texture_streaming_on_texture_memory_go
+    ud2
+texture_streaming_on_texture_memory_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+texture_streaming_on_texture_memory_replay:
+    db 0x53, 0x56, 0x8b, 0xb0, 0xa4, 0x80, 0x08, 0x00
+    jmp 0x3be288
 
 ; 0x21c07c network_client::connect_to_match (0x21BEB0) once it connects (past its return for the link's own session, 0x21BED5; the disconnect and connected callbacks given): mov dword [ebx+1F1C64h],0, the handshake's phase back to 0; EBX the network client (patch 120): lohook -> unplayed_match_on_connect
 global unplayed_match_on_connect

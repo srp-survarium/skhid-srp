@@ -5914,8 +5914,41 @@ va	name	location	role	basis
 0x00106fc0	pt3free	EAX	the memory (0: nothing); a mapped chunk goes back to the region 0x106AD0 (0x107018), others to mspace_free (0x107053)	observed
 0x0001c6a0	vostok::memory::mt_allocator::malloc_impl	ESI	the bytes	observed
 0x0001c6a0	vostok::memory::mt_allocator::malloc_impl	entry ESP+4	the allocator ("global multithreaded" 0xA8001C; cdecl)	observed
+0x001c8cd0	vostok::render::render_surface_texture_instance_proxy::bound_sphere	ECX	the proxy	observed
+0x001c8cd0	vostok::render::render_surface_texture_instance_proxy::bound_sphere	entry ESP+4	the out sphere (16 bytes)	observed
+0x001c8b80	vostok::render::render_surface_texture_instance_proxy::last_render_time	ECX	the proxy	observed
+0x001c8b90	vostok::render::render_surface_texture_instance_proxy::texel_factor	ECX	the proxy	observed
+0x001c8cb0	vostok::render::render_surface_texture_instance_proxy (vtable +14h)	ECX	the proxy	observed
+0x001c8d40	vostok::render::grass_patch_texture_instance_proxy::bound_sphere	entry ESP+4	the out sphere (16 bytes)	observed
+0x001c8e00	vostok::render::decal_texture_instance_proxy::bound_sphere	ECX	the proxy	observed
+0x001c8e00	vostok::render::decal_texture_instance_proxy::bound_sphere	entry ESP+4	the out sphere (16 bytes)	observed
+0x001c8d80	vostok::render::decal_texture_instance_proxy::texel_factor	ECX	the proxy	observed
+0x00153d90	vostok::render::streaming_texture_instance (constructor)	EDI	the record	observed
+0x00153d90	vostok::render::streaming_texture_instance (constructor)	ESI	the proxy	observed
 0x0011b5a0	vostok::render::shader_constant_buffer::set_memory	EAX	source of the constant bytes	observed
 0x0011b5a0	vostok::render::shader_constant_buffer::set_memory	ECX	byte count, clamped to the buffer size (+5Ch) less the offset, unsigned	observed
 0x0011b5a0	vostok::render::shader_constant_buffer::set_memory	ESI	byte offset into the shadow (+58h)	observed
 0x0011b5a0	vostok::render::shader_constant_buffer::set_memory	entry ESP+4	shader_constant_buffer receiver	observed
 0x0023d070	survarium::game_world_ui::update_game_stats	EAX	the ui; called by update_ui every 40 ms (0x23B4B3): root.set_game_stats (state 1..3, fps, latency) only when one of them differs from the last sent (0x23D10D..0x23D129)	observed
+0x00038ff0	vostok::math::sin	entry ESP+4	the angle (float; cdecl)	observed
+0x00039000	vostok::math::cos	entry ESP+4	the angle (float; cdecl)	observed
+0x00079c40	vostok::math::atan2	entry ESP+4	y, the sine side (float, loaded first: ST1 of fpatan; cdecl)	observed
+0x00079c40	vostok::math::atan2	entry ESP+8	x, the cosine side (float, ST0 of fpatan)	observed
+0x000ed2e0	vostok::math::quaternion::quaternion	ESI	the quaternion written	observed
+0x000ed2e0	vostok::math::quaternion::quaternion	entry ESP+4	the angle x (float; the three angles by value, the ret pops all three)	observed
+0x000ed2e0	vostok::math::quaternion::quaternion	entry ESP+8	the angle y (float)	observed
+0x000ed2e0	vostok::math::quaternion::quaternion	entry ESP+0Ch	the angle z (float)	observed
+0x00074290	vostok::math::quaternion::quaternion	ESI	the quaternion written	observed
+0x00074290	vostok::math::quaternion::quaternion	EDI	the axis (float3)	observed
+0x00074290	vostok::math::quaternion::quaternion	entry ESP+4	the angle (float)	observed
+0x00074300	vostok::math::quaternion::get_axis_and_angle	ESI	the quaternion (x, y, z, w)	observed
+0x00074300	vostok::math::quaternion::get_axis_and_angle	EDI	the axis written	observed
+0x00074300	vostok::math::quaternion::get_axis_and_angle	entry ESP+4	the angle written (float*)	observed
+0x003b3180	vostok::animation::evaluate_frame	EAX	the values written (float per channel)	observed
+0x003b3180	vostok::animation::evaluate_frame	ECX	the channels (time_channel<float4> {knot count, memory offset}, 8 bytes each)	observed
+0x003b3180	vostok::animation::evaluate_frame	entry ESP+4	the time (float)	observed
+0x003b3180	vostok::animation::evaluate_frame	entry ESP+8	the current domains (u32 per channel)	observed
+0x003b3180	vostok::animation::evaluate_frame	entry ESP+0Ch	the channel count	observed
+0x003b3340	vostok::animation::time_channel::domain	EAX	the time channel {+0 knot count, +4 offset of its memory: count float4 domains, then count float knots}	observed
+0x003b3340	vostok::animation::time_channel::domain	XMM2	the time (float)	observed
+0x003b3340	vostok::animation::time_channel::domain	entry ESP+4	the current domain (u32*, read and written)	observed

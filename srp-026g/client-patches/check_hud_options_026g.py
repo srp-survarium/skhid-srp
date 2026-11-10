@@ -278,7 +278,8 @@ class Run(language.Run):
         result = 1
         if name == "CreateFileA":
             path, disposition = self.text(arg(0)).decode(), arg(4)
-            self.calls_made.append((name, path, disposition))
+            if path != "srp_patches.log":       # opened once (vostok::log): its lines are its writes
+                self.calls_made.append((name, path, disposition))
             if path == "srp_patches.log":
                 result = 0x60
             elif path == USER_CFG:
@@ -297,6 +298,8 @@ class Run(language.Run):
             emu.mem_write(arg(1), chunk)
             self.word(arg(3), len(chunk))
         elif name == "WriteFile":
+            if arg(0) == 0x60:
+                self.calls_made.append((name, "srp_patches.log"))
             self.logged += bytes(emu.mem_read(arg(1), arg(2)))
             self.word(arg(3), arg(2))
         elif name == "DeleteFileA":
@@ -828,7 +831,7 @@ def renderer(original, patched, expect):
     mark = [("CreateFileA", "dxvk.pending", 2)]
     unmark = [("DeleteFileA", "dxvk.pending")]
     loads = [("GetModuleHandleA", "dxgi.dll")] + [("LoadLibraryA", DXVK_DIR + name) for name in DXVK]
-    log = [("CreateFileA", "srp_patches.log", 4)]
+    log = [("WriteFile", "srp_patches.log")]
     # the look: the player's DXVK_FILTER_DEVICE_NAME and loader variables read, then one vendor's drivers at a time
     reads = [("GetEnvironmentVariableA", "DXVK_FILTER_DEVICE_NAME"), ("GetEnvironmentVariableA", SELECT),
              ("GetEnvironmentVariableA", "VK_LOADER_DRIVERS_DISABLE"), ("GetEnvironmentVariableA", DRIVER_FILES),
@@ -1153,7 +1156,7 @@ def ddraw_probe(original, patched, expect):
         a_regs, a_back, a_out, a_calls = stock.ddraw_probed(**world)
         b_regs, b_back, b_out, b_calls = ours.ddraw_probed(**world)
         # the log's own file aside
-        b_calls = [call for call in b_calls if call[:2] != ("CreateFileA", "srp_patches.log")]
+        b_calls = [call for call in b_calls if call != ("WriteFile", "srp_patches.log")]
         released = b_want.count(("Release",)) == 1
         expect(a_back and b_back and a_regs == b_regs and a_out == b_out and a_calls == a_want,
                f"DirectDraw probe, {what}: registers, stack and the memory it answers ({a_out:#x}) as the "
