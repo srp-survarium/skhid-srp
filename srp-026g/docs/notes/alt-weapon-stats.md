@@ -192,11 +192,12 @@ its own rolls (an isolation roll and the skill: `30 -> 60`).
   bits beside it, refused values, the compared card, the colour, the cap, an own roll, a piece
   without the line, no floats. Not run in a game.
 - **The harness, 2026-11-10:** `throwableChecks` and `medicineChecks` follow the cards of
-  `one-pocket-a-type.md` (Pocket slots first, the weight last, a missing stat as 0). One assertion
-  fails, on the movie: held Alt, a painkiller beside a medkit has 8 rows of its own and two skill
-  lines (Numb Legs with Unflinching or Concentration), and a card has nine rows, so the second
-  skill line is not drawn (`ItemCompare.updateData` stops at the last row; `fitted` leaves no
-  room for the skill lines). Everything else passes.
+  `one-pocket-a-type.md` (Pocket slots first, the weight last, a missing stat as 0). It found two
+  faults of those cards held Alt, fixed with it: a painkiller beside a medkit with two skill lines
+  had ten rows for a card of nine and lost the second skill line (the skill lines keep their rows
+  now, and a stat the item has none of goes first: `ItemCompare.fitted`), and a stat only the
+  compared item has went through the skills as the item's own (a medkit beside a painkiller read
+  "Pain protection 0 -> 3%"). The whole harness passes.
 
 ## How
 

@@ -484,9 +484,19 @@ package {
   }
   // Each line of a medicine's card: "label=value", the pocket units and then medicineRows beside
   // the item the card is compared with (cardLines is the card's own order).
-  private function medicineLines(card:Object,d:Object):Array {
+  // `skillLines`: the skill lines under them, which keep their rows on a card of nine
+  // (ItemCompare.fitted): the stats the item has none of go first, the last of them first, then
+  // the ones before the weight.
+  private function medicineLines(card:Object,d:Object,skillLines:int=0):Array {
    var out:Array=[POCKET+"="+nativeText(card,POCKET)];
-   for each(var id:int in medicineRows(d,card.itemCompare.getSecondaryData()))out.push(MEDICINE_LABELS[id]+"="+nativeText(card,MEDICINE_LABELS[id]));
+   var rows:Array=medicineRows(d,card.itemCompare.getSecondaryData()),over:int=rows.length-(9-1-skillLines);
+   for(var at:int=rows.length-1;at>=0 && over>0;at--){
+    var has:Boolean=false;
+    for each(var p:Array in MEDICINES[d.name])if(p[0]==rows[at])has=true;
+    if(!has){rows.splice(at,1);over--;}
+   }
+   if(over>0)rows.splice(rows.length-1-over,over);
+   for each(var id:int in rows)out.push(MEDICINE_LABELS[id]+"="+nativeText(card,MEDICINE_LABELS[id]));
    return out;
   }
   // The card's first row for an item that goes in a pocket (ItemCompare.pocketDepth).
@@ -550,6 +560,14 @@ package {
     for each(var change:String in changes){var label:String=change.split("=")[0];for(var i:int=0;i<lines.length;i++)if(lines[i].split("=")[0]==label)lines[i]=change;}
     return lines.join();
    };
+   // Of an expected card's lines, those of the rows `shown` has (two skill lines under a
+   // painkiller's take the row of a stat it has none of: ItemCompare.fitted).
+   var kept:Function=function(expected:String,shown:Array):String{
+    var labels:Array=[],out:Array=[],line:String;
+    for each(line in shown)labels.push(line.split("=")[0]);
+    for each(line in expected.split(","))if(labels.indexOf(line.split("=")[0])>=0)out.push(line);
+    return out.join();
+   };
    var cases:Array=[[3,0,0],[0,2,0],[0,0,3],[3,2,3]];
    for each(var ranks:Array in cases){
     profile.setKitModifiers(medicalKit(ranks[0],ranks[1],ranks[2]));
@@ -582,7 +600,7 @@ package {
    profile.setKitModifiers(kitFloats({43:3,45:5<<4}));d=medicine("painkiller");shows(d,other);
    require(medicineLines(cards[0],d).join()==released.painkiller,"Unflinching 5 refused");
    profile.setKitModifiers(kitFloats({43:3,45:74}));d=medicine("painkiller");shows(d,other);
-   require(medicineLines(cards[0],d).join()==expect("painkiller",painkiller.painkiller.split(",")),"full combo ranks valid: "+medicineLines(cards[0],d).join());
+   require(medicineLines(cards[0],d,2).join()==kept(expect("painkiller",painkiller.painkiller.split(",")),medicineLines(cards[0],d,2)),"full combo ranks valid: "+medicineLines(cards[0],d,2).join());
    // Concentration's three bits at 7: rank 5 of 4 is refused, and so is Concentration beside
    // Unflinching (they exclude each other); its full set (2 + 8 + 4 x 128 = 522) is valid.
    for each(var refused:int in [5<<7,(1<<4)|(1<<7),(4<<4)|(4<<7)]) {
@@ -590,7 +608,7 @@ package {
     require(medicineLines(cards[0],d).join()==released.painkiller,"combo "+refused+" refused");
    }
    profile.setKitModifiers(kitFloats({43:3,45:522}));d=medicine("painkiller");shows(d,other);
-   require(medicineLines(cards[0],d).join()==expect("painkiller",painkiller.painkiller.split(",")),"Concentration set valid: "+medicineLines(cards[0],d).join());
+   require(medicineLines(cards[0],d,2).join()==kept(expect("painkiller",painkiller.painkiller.split(",")),medicineLines(cards[0],d,2)),"Concentration set valid: "+medicineLines(cards[0],d,2).join());
    // The skills that act while a painkiller is active or as a medicine heals (float 45: Numb Legs,
    // Take Cover, Unflinching, Concentration): lines below the card's own, in % of the game's own,
    // each as medical_skills.rs applies it; none without a rank, none once Alt is let go.
@@ -611,7 +629,8 @@ package {
     profile.setKitModifiers(kitFloats({43:3|2<<3,45:combo[0]}));
     for each(name in names){
      d=medicine(name);Scene.isAlt=true;shows(d,other);
-     var own:Array=medicineLines(cards[0],d),wanted:String=own.concat(name=="painkiller"?combo[1]:combo[2]).join();
+     var skills:Array=name=="painkiller"?combo[1]:combo[2];
+     var own:Array=medicineLines(cards[0],d,skills.length),wanted:String=own.concat(skills).join();
      require(cardLines(cards[0]).join()==wanted,"combo "+combo[0]+" "+name+": "+cardLines(cards[0]).join()+" (want "+wanted+")");
      Scene.isAlt=false;shows(d,other);
      require(cardLines(cards[0]).join()==released[name],"released with combo "+combo[0]+": "+name+" "+cardLines(cards[0]).join());
