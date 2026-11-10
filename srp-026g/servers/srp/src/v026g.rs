@@ -388,7 +388,7 @@ pub struct Options {
     /// clients are told.
     pub match_bind: String,
     pub match_public_host: String,
-    /// The folder with `survarium_login_server.key` and `.crt`.
+    /// The folder with `sign_in_cipher.key`.
     pub certs: PathBuf,
     /// **Testing only** (`SRP_BOT_ACCOUNTS`, `session::v026g::bots`): the
     /// names of the accounts that are test bots (`srp-bot`). Empty, the
@@ -528,22 +528,19 @@ impl Stack {
         let login_addr = listener.local_addr()?;
         // Here, not on every sign-in: srp started from another folder
         // would refuse them all.
-        for file in ["survarium_login_server.key", "survarium_login_server.crt"] {
-            let path = options.certs.join(file);
-            if !path.is_file() {
-                return Err(io::Error::other(format!(
-                    "the login server's {} is missing (run srp from the repository's root)",
-                    path.display()
-                )));
-            }
+        let key = options.certs.join("sign_in_cipher.key");
+        if !key.is_file() {
+            return Err(io::Error::other(format!(
+                "the login server's {} is missing (run srp from the repository's root)",
+                key.display()
+            )));
         }
         let endpoint = Endpoint {
             public_host: options.login_public_host.clone(),
             lobby_host: options.lobby.public_host.clone(),
             lobby_port: lobby_addr.port(),
             local_peers: options.lobby.local_peers,
-            key: options.certs.join("survarium_login_server.key"),
-            certificate: options.certs.join("survarium_login_server.crt"),
+            key,
             // Older games are kept out from their sign-in on; the lobby
             // refuses the sessions they had before (`patch_check`).
             revision_gate: RevisionGate {

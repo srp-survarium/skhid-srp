@@ -13,6 +13,7 @@ struct backend;
 struct bake_pair;
 struct bake_parameters_copy;
 struct baked_texture_resource;
+struct bio;
 struct bt_broadphase_proxy;
 struct bt_collision_object;
 struct bt_collision_shape;
@@ -755,5 +756,17 @@ float __attribute__((cdecl)) engine_cos(float angle);
 
 /* 0x79c40 vostok::math::atan2: y ESP+4, x ESP+8; pops 0; ST0; cdecl, called directly */
 float __attribute__((cdecl)) engine_atan2(float y, float x);
+
+/* 0x44c630 BIO_read: bio ESP+4, room ESP+8, length ESP+12; pops 0; EAX; cdecl, called directly */
+unsigned int __attribute__((cdecl)) engine_bio_read(struct bio *bio, unsigned char *room, unsigned int length);
+
+/* 0x44c740 BIO_write: bio ESP+4, bytes ESP+8, length ESP+12; pops 0; EAX; cdecl, called directly */
+unsigned int __attribute__((cdecl)) engine_bio_write(struct bio *bio, const unsigned char *bytes, unsigned int length);
+
+/* 0x44a270 ERR_put_error: library ESP+4, function ESP+8, reason ESP+12, file ESP+16, line ESP+20; pops 0; cdecl, called directly */
+void __attribute__((cdecl)) engine_err_put_error(unsigned int library, unsigned int function, unsigned int reason, const char *file, unsigned int line);
+
+/* 0x46b6e0 ssleay_rand_bytes: room ESP+4, length ESP+8; pops 0; EAX; cdecl, called directly */
+unsigned int __attribute__((cdecl)) engine_rand_bytes(unsigned char *room, unsigned int length);
 
 #endif

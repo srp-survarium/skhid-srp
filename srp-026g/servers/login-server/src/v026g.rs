@@ -6,7 +6,6 @@
 //! client neither pings the login server nor signs out: a session ends when
 //! its lobby connection does.
 
-use openssl::ssl::SslContext;
 use std::io::{self, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::sync::Arc;
@@ -14,12 +13,15 @@ use std::time::Instant;
 
 use ban_reason::{BanEnd, BanReason, BanTold};
 use session::{SESSION_IDLE_LIMIT, SessionStore, SignInError};
+use sign_in_cipher::ServerKey;
 use vostok::config::{self, ServerConfig};
 
-use super::{
-    CERT_PATH, COLLECT_INTERVAL, GONE_CHECK_INTERVAL, PKEY_PATH, accept_tls, parse_sign_in,
-    read_message, sign_in_length, tls_context, tls_context_from,
-};
+use super::sealed::{self, Sealed};
+use super::{COLLECT_INTERVAL, GONE_CHECK_INTERVAL, parse_sign_in, read_message, sign_in_length};
+
+/// The login server's lasting key of the sign-in cipher, from the folder srp
+/// is started in.
+const KEY_PATH: &str = "./certs/sign_in_cipher.key";
 
 /// The version field of a 0.26g sign-in (`sign_in_on_connected` 0x3807D0
 /// copies it from 0x9DAE98 into 12 zeroed bytes).
@@ -242,22 +244,21 @@ fn resolve_ipv4(host: &str, port: u16) -> Option<Ipv4Addr> {
 /// The 0.26g login server: sign-ins on the login server's TCP address, each
 /// answered with a session and the lobby's UDP address.
 pub fn run(store: Arc<SessionStore>) -> io::Result<()> {
-    // Once, so a missing or bad certificate stops the server here rather
-    // than failing every sign-in.
-    let tls = Arc::new(tls_context().map_err(|error| {
-        io::Error::other(format!(
-            "cannot load {CERT_PATH} and {PKEY_PATH} (run srp from the repo root): {error}"
-        ))
-    })?);
+    // Once, so a missing or bad key stops the server here rather than
+    // failing every sign-in.
+    let key = Arc::new(
+        sealed::load_key(KEY_PATH.as_ref())
+            .map_err(|error| io::Error::other(format!("{error} (run srp from the repo root)")))?,
+    );
     let config = config::get();
     let lobby = Lobby::new(&config.login_server, &config.lobby_server)?;
     let listener = TcpListener::bind(config.login_server.bind_addr())?;
-    accept(&listener, store, tls, lobby, RevisionGate::default())
+    accept(&listener, store, key, lobby, RevisionGate::default())
 }
 
 /// Where a login server started with [`serve`] sends its clients, and the
-/// certificate it shows them: what [`run`] takes from `vostok::config` and
-/// `./certs`.
+/// key it reads their passwords with: what [`run`] takes from
+/// `vostok::config` and `./certs`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Endpoint {
     /// The login server's own public host: a client on this machine's
@@ -269,9 +270,8 @@ pub struct Endpoint {
     pub lobby_host: String,
     pub lobby_port: u16,
     pub local_peers: bool,
-    /// The login server's private key and certificate (PEM).
+    /// The login server's key of the sign-in cipher (`sign_in_cipher.key`).
     pub key: std::path::PathBuf,
-    pub certificate: std::path::PathBuf,
     /// The games refused for their patch revision (the default: none).
     pub revision_gate: RevisionGate,
 }
@@ -283,17 +283,7 @@ pub fn serve(
     store: Arc<SessionStore>,
     endpoint: &Endpoint,
 ) -> io::Result<()> {
-    let tls = tls_context_from(
-        &endpoint.key.to_string_lossy(),
-        &endpoint.certificate.to_string_lossy(),
-    )
-    .map_err(|error| {
-        io::Error::other(format!(
-            "cannot load {} and {}: {error}",
-            endpoint.certificate.display(),
-            endpoint.key.display()
-        ))
-    })?;
+    let key = sealed::load_key(&endpoint.key)?;
     let port = listener.local_addr()?.port();
     // The two addresses live as long as the process, as the configured
     // ones do: every connection's thread reads them.
@@ -312,7 +302,7 @@ pub fn serve(
     accept(
         listener,
         store,
-        Arc::new(tls),
+        Arc::new(key),
         lobby,
         endpoint.revision_gate.clone(),
     )
@@ -322,7 +312,7 @@ pub fn serve(
 fn accept(
     listener: &TcpListener,
     store: Arc<SessionStore>,
-    tls: Arc<SslContext>,
+    key: Arc<ServerKey>,
     lobby: Lobby,
     gate: RevisionGate,
 ) -> io::Result<()> {
@@ -349,9 +339,9 @@ fn accept(
                 continue;
             }
         };
-        let (store, tls, gate) = (store.clone(), tls.clone(), gate.clone());
+        let (store, key, gate) = (store.clone(), key.clone(), gate.clone());
         std::thread::spawn(move || {
-            if std::panic::catch_unwind(|| handle_client(&store, &tls, lobby, &gate, stream))
+            if std::panic::catch_unwind(|| handle_client(&store, &key, lobby, &gate, stream))
                 .is_err()
             {
                 log::error!("Connection handler panicked; dropped the connection");
@@ -394,7 +384,7 @@ pub fn run_collector(store: Arc<SessionStore>) {
 
 fn handle_client(
     store: &SessionStore,
-    tls: &SslContext,
+    key: &ServerKey,
     lobby: Lobby,
     gate: &RevisionGate,
     mut stream: TcpStream,
@@ -407,7 +397,7 @@ fn handle_client(
     // The 0.26g client connects only to sign in: it signs out without a word
     // (`login_client_impl::sign_out` 0x385860 just closes).
     if request_type[0] == SIGN_IN {
-        handle_sign_in(store, tls, lobby, gate, stream);
+        handle_sign_in(store, key, lobby, gate, stream);
     } else {
         log::warn!(
             "Unknown login request type {}; dropped the connection",
@@ -416,7 +406,7 @@ fn handle_client(
     }
 }
 
-/// The password message, after the TLS handshake: its kind, the digest, and
+/// The password message, after the hellos: its kind, the digest, and
 /// behind kind 3 the password with its u8 length. A kind the client has not
 /// is one byte long: `parse_password` refuses it.
 fn password_length(buffer: &[u8]) -> Option<usize> {
@@ -544,7 +534,7 @@ fn unix_now() -> u64 {
 
 fn handle_sign_in(
     store: &SessionStore,
-    tls: &SslContext,
+    key: &ServerKey,
     lobby: Lobby,
     gate: &RevisionGate,
     mut stream: TcpStream,
@@ -628,13 +618,18 @@ fn handle_sign_in(
         return;
     }
 
-    let Some(mut ssl_stream) = accept_tls(tls, stream) else {
-        return;
+    // The sign-in cipher from here on (docs/notes/sign-in-cipher.md).
+    let mut sealed = match Sealed::accept(key, stream) {
+        Ok(sealed) => sealed,
+        Err(error) => {
+            log::warn!("Sign-in of {user_name} from {peer} dropped at the hellos: {error}");
+            return;
+        }
     };
     // Neither the password nor its digest is ever logged; only a hash of
     // the digest is kept.
     let mut buffer = [0; 1 + DIGEST_LEN + 1 + 255];
-    let len = match read_message(&mut ssl_stream, &mut buffer, password_length) {
+    let len = match read_message(&mut sealed, &mut buffer, password_length) {
         Ok(len) => len,
         Err(error) => {
             log::warn!("Sign-in of {user_name} dropped before the password: {error}");
@@ -645,7 +640,7 @@ fn handle_sign_in(
         Ok(digest) => digest,
         Err(error) => {
             log::warn!("Sign-in of {user_name} from {peer} refused: {error:?}");
-            let _ = ssl_stream.write_all(&[INVALID_USER_NAME_OR_PASSWORD]);
+            let _ = sealed.write_all(&[INVALID_USER_NAME_OR_PASSWORD]);
             return;
         }
     };
@@ -671,7 +666,7 @@ fn handle_sign_in(
                         log::warn!("Sign-in of banned account {user_name} from {peer} refused");
                     }
                 }
-                let _ = ssl_stream.write_all(&refusal(store, &user_name, error));
+                let _ = sealed.write_all(&refusal(store, &user_name, error));
                 return;
             }
         };
@@ -680,7 +675,7 @@ fn handle_sign_in(
     // sign-in that got its session is where the account last signed in.
     let Some(session_id) = store.create_signed_in_session(signed_in, sign_in.patch_revision) else {
         log::warn!("Sign-in of {user_name} refused: its password was reset meanwhile");
-        let _ = ssl_stream.write_all(&[INVALID_USER_NAME_OR_PASSWORD]);
+        let _ = sealed.write_all(&[INVALID_USER_NAME_OR_PASSWORD]);
         return;
     };
     store.signed_in_from(account_id, peer.ip());
@@ -692,14 +687,13 @@ fn handle_sign_in(
 
     // The client reads the reply with one read of at most 82 bytes.
     let reply = connection_info(session_id, lobby_ip, lobby_port);
-    if let Err(error) = ssl_stream.write_all(&reply) {
+    if let Err(error) = sealed.write_all(&reply) {
         log::warn!("Sign-in for session {session_id:#x} dropped before the reply: {error}");
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::tls_context_from;
     use super::*;
     use std::io::Read;
 
@@ -765,31 +759,31 @@ mod tests {
 
     /// [`start`], refusing the games `gate` refuses.
     fn start_gated(store: Arc<SessionStore>, lobby: Lobby, gate: RevisionGate) -> SocketAddr {
-        let certs = concat!(env!("CARGO_MANIFEST_DIR"), "/../../certs");
-        let tls = tls_context_from(
-            &format!("{certs}/survarium_login_server.key"),
-            &format!("{certs}/survarium_login_server.crt"),
-        )
-        .unwrap();
+        let key = sealed::load_key(KEY_FILE.as_ref()).unwrap();
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
         std::thread::spawn(move || {
             for stream in listener.incoming().flatten() {
-                handle_client(&store, &tls, lobby, &gate, stream);
+                handle_client(&store, &key, lobby, &gate, stream);
             }
         });
         addr
     }
 
-    /// Sign in the way the 0.26g client does; returns the plain answer and,
-    /// past the TLS handshake, the reply to the password message.
+    /// The repository's key file.
+    const KEY_FILE: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../certs/sign_in_cipher.key"
+    );
+
+    /// Sign in the way the patched 0.26g client does; returns the plain
+    /// answer and, past the hellos, the reply to the password message.
     fn sign_in_as(
         addr: SocketAddr,
         version: &[u8],
         user_name: &[u8],
         password_message: &[u8],
     ) -> (u8, Vec<u8>) {
-        use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
         let mut stream = TcpStream::connect(addr).unwrap();
         let mut message = vec![0x01];
         message.extend(sign_in_message(user_name, version, 0, u32::MAX));
@@ -803,19 +797,7 @@ mod tests {
             assert!(rest.is_empty());
             return (answer[0], Vec::new());
         }
-        let mut connector = SslConnector::builder(SslMethod::tls()).unwrap();
-        connector.set_security_level(0);
-        connector.set_verify(SslVerifyMode::NONE);
-        let mut tls = connector
-            .build()
-            .configure()
-            .unwrap()
-            .verify_hostname(false)
-            .connect("localhost", stream)
-            .unwrap();
-        tls.write_all(password_message).unwrap();
-        let mut reply = Vec::new();
-        let _ = tls.read_to_end(&mut reply);
+        let reply = sealed::ask(stream, password_message).unwrap();
         (answer[0], reply)
     }
 

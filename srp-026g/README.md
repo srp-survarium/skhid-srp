@@ -75,4 +75,4 @@ test bot stands in for the second (`docs/SRP-026G.md`, "A match alone").
 | `crates/survarium/src/v026g/`, `crates/session/src/v026g/` | Game data and wire formats; the account, the rules, the rewards |
 | `servers/*/src/v026g*` | The 0.26g login server, lobby, match server and web page; `servers/srp` joins them |
 | `crates/resources-db`, `resources/game-026g/` | The players' `resources.db` and the server's game data of a release (`srp-game-data`), read at start; the test copy of it |
-| `certs/` | The login server's certificate and key |
+| `certs/` | The login server's key of the sign-in cipher (`sign_in_cipher.key`, `docs/notes/sign-in-cipher.md`), and the certificate and key of the game's own TLS (0.21d's login server; the certificate still ships to players) |

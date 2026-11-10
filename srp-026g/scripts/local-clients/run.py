@@ -237,7 +237,7 @@ def preflight(config: Config, with_server: bool) -> None:
     if with_server:
         if config.server is None:
             raise ValueError("configure a server or use --clients-only")
-        required += [config.server["binary"], config.server["working_dir"] / "certs/survarium_login_server.crt"]
+        required += [config.server["binary"], config.server["working_dir"] / "certs/sign_in_cipher.key"]
     for path in required:
         if not path.is_file():
             raise ValueError(f"missing required file: {path}")

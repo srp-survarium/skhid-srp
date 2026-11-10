@@ -319,6 +319,14 @@ unsafe extern "cdecl" {
     pub fn engine_cos(angle: f32) -> f32;
     /// 0x79c40 vostok::math::atan2: y ESP+4, x ESP+8; pops 0; ST0; cdecl, called directly
     pub fn engine_atan2(y: f32, x: f32) -> f32;
+    /// 0x44c630 BIO_read: bio ESP+4, room ESP+8, length ESP+12; pops 0; EAX; cdecl, called directly
+    pub fn engine_bio_read(bio: Option<Bio>, room: *mut u8, length: u32) -> u32;
+    /// 0x44c740 BIO_write: bio ESP+4, bytes ESP+8, length ESP+12; pops 0; EAX; cdecl, called directly
+    pub fn engine_bio_write(bio: Option<Bio>, bytes: *const u8, length: u32) -> u32;
+    /// 0x44a270 ERR_put_error: library ESP+4, function ESP+8, reason ESP+12, file ESP+16, line ESP+20; pops 0; cdecl, called directly
+    pub fn engine_err_put_error(library: u32, function: u32, reason: u32, file: *const u8, line: u32);
+    /// 0x46b6e0 ssleay_rand_bytes: room ESP+4, length ESP+8; pops 0; EAX; cdecl, called directly
+    pub fn engine_rand_bytes(room: *mut u8, length: u32) -> u32;
 }
 
 #[allow(dead_code)]
@@ -19846,6 +19854,141 @@ impl TextureRegistryNode {
     }
 }
 
+/// A openssl::ssl_call_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SslCallFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SslCallFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (ptr<openssl::ssl>): SSL_connect's, SSL_read's and SSL_write's first argument by EBP, after their prologue (push ebp / mov ebp,esp): the SSL of the login client's stream (asio's engine, SSL_new at 0x37BCE2: one for the game's whole run)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn ssl(self) -> Option<Ssl> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<Ssl>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<openssl::ssl>): SSL_connect's, SSL_read's and SSL_write's first argument by EBP, after their prologue (push ebp / mov ebp,esp): the SSL of the login client's stream (asio's engine, SSL_new at 0x37BCE2: one for the game's whole run)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_ssl(self, value: Option<Ssl>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<Ssl>>().write_volatile(value) }
+    }
+
+    /// +0xc (ptr<u8>): SSL_read's room and SSL_write's bytes (EBP+0Ch)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn bytes(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0xc).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0xc (ptr<u8>): SSL_read's room and SSL_write's bytes (EBP+0Ch)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_bytes(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0xc).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0x10 (u32): their length (EBP+10h; asio's do_read 0x37FAB0 and do_write 0x37FAE0 cap it at 7FFFFFFFh)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn length(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x10).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A openssl::ssl (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Ssl(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl Ssl {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xc (ptr<openssl::bio>): the BIO the SSL reads the peer's bytes from (SSL_get_rbio): asio's engine sets its half of a BIO pair, into whose other half it puts what the socket read (engine::put_input)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn rbio(self) -> Option<Bio> {
+        unsafe { self.0.byte_add(0xc).cast::<Option<Bio>>().read_volatile() }
+    }
+
+    /// +0xc (ptr<openssl::bio>): the BIO the SSL reads the peer's bytes from (SSL_get_rbio): asio's engine sets its half of a BIO pair, into whose other half it puts what the socket read (engine::put_input)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_rbio(self, value: Option<Bio>) {
+        unsafe { self.0.byte_add(0xc).cast::<Option<Bio>>().write_volatile(value) }
+    }
+
+    /// +0x10 (ptr<openssl::bio>): the BIO the SSL writes to (the same half): asio's engine takes the bytes from the other half and sends them (engine::get_output)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn wbio(self) -> Option<Bio> {
+        unsafe { self.0.byte_add(0x10).cast::<Option<Bio>>().read_volatile() }
+    }
+
+    /// +0x10 (ptr<openssl::bio>): the BIO the SSL writes to (the same half): asio's engine takes the bytes from the other half and sends them (engine::get_output)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_wbio(self, value: Option<Bio>) {
+        unsafe { self.0.byte_add(0x10).cast::<Option<Bio>>().write_volatile(value) }
+    }
+}
+
+/// A openssl::bio (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Bio(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl Bio {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x14 (u32): the BIO's flags (BIO_FLAGS_READ 1, SHOULD_RETRY 8: BIO_read of an empty pair sets both)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn flags(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x14).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -23910,6 +24053,51 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn manager(machine: &impl Machine) -> Option<ResourceManager> {
             NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(ResourceManager)
+        }
+    }
+
+    /// openssl.connect (0x4d4c63): SSL_connect (0x4D4C60) after its prologue (mov eax,[ebp+8] / cmp dword [eax+20h],0): EBP+8 the SSL; done is its pop ebp / ret, EAX the result
+    pub mod openssl_connect {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a openssl::ssl_call_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<SslCallFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(SslCallFrame)
+        }
+    }
+
+    /// openssl.read (0x4d4ca3): SSL_read (0x4D4CA0) after its prologue (the same two instructions): EBP+8 the SSL, +0Ch the room, +10h its length; done is its pop ebp / ret, EAX the result
+    pub mod openssl_read {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a openssl::ssl_call_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<SslCallFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(SslCallFrame)
+        }
+    }
+
+    /// openssl.write (0x4d4d73): SSL_write (0x4D4D70) after its prologue (the same two instructions): EBP+8 the SSL, +0Ch the bytes, +10h their length; done is its pop ebp / ret, EAX the result
+    pub mod openssl_write {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a openssl::ssl_call_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<SslCallFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(SslCallFrame)
         }
     }
 }

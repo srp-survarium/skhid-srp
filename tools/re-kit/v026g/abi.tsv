@@ -1912,6 +1912,14 @@ va	name	source	ret_cleanup	result
 0x0044635d		auto	0	
 0x00446d42		auto	0	
 0x00447290		auto	16	
+0x0044a270	ERR_put_error	manual	0	none (OpenSSL 1.0.1h, statically linked, an unoptimised build: plain cdecl; ssl_lib.c's SSLerr calls it with lib 14h, the function's and the reason's codes, the file .\ssl\ssl_lib.c 0x8B3FAC and the line)
+0x0044c630	BIO_read	manual	0	EAX: the bytes read; -1 with the BIO's retry-read flag when a BIO pair's half has none (its BIOerr codes: function 6Fh, bio_lib.c 0x88EF94)
+0x0044c740	BIO_write	manual	0	EAX: the bytes written; -1 or 0 when the BIO takes none (its BIOerr codes: function 71h)
+0x0046b6e0	ssleay_rand_bytes	manual	0	EAX: 1 when the bytes are random, 0 when the generator is not seeded (the `bytes` slot of rand_ssleay_meth 0xA6105C: 0x46B700 with pseudo = 0, which polls the system (RAND_poll) on its first use)
+0x004d4c60	SSL_connect	manual	0	EAX: 1 connected, 0 or less not (SSL_get_error says why); called only by asio's engine::do_connect 0x38B6D3 and bio_ssl.c 0x4E90EE
+0x004d4ca0	SSL_read	manual	0	EAX: the bytes read, 0 or less none (SSL_get_error says why; SSLerr function DFh at its start); called only by asio's engine::do_read 0x37FAC9 and bio_ssl.c 0x4FF0A0
+0x004d4d70	SSL_write	manual	0	EAX: the bytes written, 0 or less none (SSLerr function D0h at its start); called only by asio's engine::do_write 0x37FAF9 and bio_ssl.c 0x4FF1F0
+0x004d6e30	SSL_get_error	manual	0	EAX: 0 none (the result above 0), 1 SSL, 2 want read, 3 want write, 5 syscall (its default); called by asio's engine::perform 0x37F971, which then takes ERR_get_error 0x37F978 as the error's code for 1 and 5
 0x00511600		manual	16	AL: the invoke's result; ECX's +0Ch (the GFx movie) vtable +0C4h (Invoke) given the four stack slots, in a profiler scope (0x2B8850)
 0x00771fa0	Scaleform::GFx::AS3::Instances::fl_display::Stage::focusGet	manual	4	the stage.focus getter (thunk 0x7750F0, member pointer 0xAFF180 set at 0x865D10, ThunkInfo "focus" 0x8F1E40): the focus group's weak pointer (MovieImpl+3B64h + 40h x byte [+3F54h], locked by 0x514370), its AvmInteractiveObj (vtable +4 of the interface at byte [obj+41h], minus 1Ch), [avm+8] raw or [avm+4] collectible (bit 0 cleared), traits [+14h] type +3Ch 12h or >= 17h: the result via 0x790E40, else emptied (0x772031); the object untested (0x77200B reads [0+14h]; patch 52 tests it)
 0x00824910		auto	0	

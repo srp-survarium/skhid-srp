@@ -716,3 +716,19 @@ extern engine_cos
 ; 0x79c40 vostok::math::atan2: y ESP+4, x ESP+8; pops 0; ST0; cdecl, called directly
 ; cdecl: push (and ECX for thiscall) as that convention says
 extern engine_atan2
+; unsigned int engine_bio_read(struct bio *bio, unsigned char *room, unsigned int length)
+; 0x44c630 BIO_read: bio ESP+4, room ESP+8, length ESP+12; pops 0; EAX; cdecl, called directly
+; cdecl: push (and ECX for thiscall) as that convention says
+extern engine_bio_read
+; unsigned int engine_bio_write(struct bio *bio, const unsigned char *bytes, unsigned int length)
+; 0x44c740 BIO_write: bio ESP+4, bytes ESP+8, length ESP+12; pops 0; EAX; cdecl, called directly
+; cdecl: push (and ECX for thiscall) as that convention says
+extern engine_bio_write
+; void engine_err_put_error(unsigned int library, unsigned int function, unsigned int reason, const char *file, unsigned int line)
+; 0x44a270 ERR_put_error: library ESP+4, function ESP+8, reason ESP+12, file ESP+16, line ESP+20; pops 0; cdecl, called directly
+; cdecl: push (and ECX for thiscall) as that convention says
+extern engine_err_put_error
+; unsigned int engine_rand_bytes(unsigned char *room, unsigned int length)
+; 0x46b6e0 ssleay_rand_bytes: room ESP+4, length ESP+8; pops 0; EAX; cdecl, called directly
+; cdecl: push (and ECX for thiscall) as that convention says
+extern engine_rand_bytes

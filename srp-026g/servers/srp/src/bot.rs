@@ -59,7 +59,7 @@ use survarium::v026g::match_msgs::ServerMessage;
 /// The version a 0.26g client signs in with.
 const VERSION: &[u8] = b"0.26g0";
 /// The login server's answers.
-const TLS_NEXT: u8 = 0x0B;
+const PASSWORD_NEXT: u8 = 0x0B;
 const SIGNED_IN: u8 = 0x08;
 const INVALID: u8 = 0x0A;
 
@@ -130,7 +130,7 @@ impl SignIn {
     /// The session and the lobby's address of a `08` reply; `None` when
     /// the sign-in was refused.
     pub fn accepted(&self) -> Option<(u32, SocketAddr)> {
-        if self.answer != TLS_NEXT || self.reply.len() != 11 || self.reply[0] != SIGNED_IN {
+        if self.answer != PASSWORD_NEXT || self.reply.len() != 11 || self.reply[0] != SIGNED_IN {
             return None;
         }
         let session = u32::from_le_bytes(self.reply[1..5].try_into().ok()?);
@@ -146,9 +146,11 @@ impl SignIn {
         match (self.answer, self.reply.first()) {
             (0x22, _) => "the server takes another version of the game".to_owned(),
             (INVALID, _) => "the server does not take this user name".to_owned(),
-            (TLS_NEXT, Some(&INVALID)) => "invalid user name or password".to_owned(),
-            (TLS_NEXT, Some(code)) => format!("the login server answered {code:#04x}"),
-            (TLS_NEXT, None) => "the login server closed the link after the password".to_owned(),
+            (PASSWORD_NEXT, Some(&INVALID)) => "invalid user name or password".to_owned(),
+            (PASSWORD_NEXT, Some(code)) => format!("the login server answered {code:#04x}"),
+            (PASSWORD_NEXT, None) => {
+                "the login server closed the link after the password".to_owned()
+            }
             (answer, _) => format!("the login server answered {answer:#04x}"),
         }
     }
@@ -169,7 +171,6 @@ pub fn sign_in_with_revision(
     password: &str,
     revision: u8,
 ) -> io::Result<SignIn> {
-    use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
     let too_long = |what: &str| io::Error::other(format!("the {what} is longer than 255 bytes"));
     let name_len = u8::try_from(user_name.len()).map_err(|_| too_long("user name"))?;
     let password_len = u8::try_from(password.len()).map_err(|_| too_long("password"))?;
@@ -187,31 +188,17 @@ pub fn sign_in_with_revision(
     stream.write_all(&message)?;
     let mut answer = [0];
     stream.read_exact(&mut answer)?;
-    if answer[0] != TLS_NEXT {
+    if answer[0] != PASSWORD_NEXT {
         return Ok(SignIn {
             answer: answer[0],
             reply: Vec::new(),
         });
     }
-    let mut connector = SslConnector::builder(SslMethod::tls()).map_err(io::Error::other)?;
-    // The game's own certificate and key are of 2013.
-    connector.set_security_level(0);
-    connector.set_verify(SslVerifyMode::NONE);
-    let mut tls = connector
-        .build()
-        .configure()
-        .map_err(io::Error::other)?
-        .verify_hostname(false)
-        .connect("localhost", stream)
-        .map_err(|error| io::Error::other(format!("the TLS handshake: {error}")))?;
     let mut message = vec![0x03];
     message.extend(sha1_hex(password.as_bytes()));
     message.push(password_len);
     message.extend(password.as_bytes());
-    tls.write_all(&message)?;
-    let mut reply = Vec::new();
-    // The server closes the link after its reply.
-    let _ = tls.read_to_end(&mut reply);
+    let reply = login_server::sealed::ask(stream, &message)?;
     Ok(SignIn {
         answer: answer[0],
         reply,
@@ -965,7 +952,7 @@ mod tests {
         reply.extend(u32::from(Ipv4Addr::new(127, 0, 0, 1)).to_le_bytes());
         reply.extend(1235_u16.to_le_bytes());
         let accepted = SignIn {
-            answer: TLS_NEXT,
+            answer: PASSWORD_NEXT,
             reply,
         };
         assert_eq!(
@@ -973,7 +960,7 @@ mod tests {
             Some((0x1234_5678, "127.0.0.1:1235".parse().unwrap()))
         );
         let refused = SignIn {
-            answer: TLS_NEXT,
+            answer: PASSWORD_NEXT,
             reply: vec![INVALID],
         };
         assert_eq!(refused.accepted(), None);

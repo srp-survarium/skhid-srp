@@ -4493,6 +4493,28 @@ va	name	location	role	basis
 0x00447290		entry ESP+12		auto
 0x00447290		entry ESP+8		auto
 0x00447290		entry ESP+4		auto
+0x0044a270	ERR_put_error	entry ESP+4	the library (14h SSL)	observed
+0x0044a270	ERR_put_error	entry ESP+8	the function's code	observed
+0x0044a270	ERR_put_error	entry ESP+12	the reason's code	observed
+0x0044a270	ERR_put_error	entry ESP+16	the file's name, a C string that stays	observed
+0x0044a270	ERR_put_error	entry ESP+20	the line	observed
+0x0044c630	BIO_read	entry ESP+4	the BIO	observed
+0x0044c630	BIO_read	entry ESP+8	the room for the bytes	observed
+0x0044c630	BIO_read	entry ESP+12	its length	observed
+0x0044c740	BIO_write	entry ESP+4	the BIO	observed
+0x0044c740	BIO_write	entry ESP+8	the bytes	observed
+0x0044c740	BIO_write	entry ESP+12	their length	observed
+0x0046b6e0	ssleay_rand_bytes	entry ESP+4	the room for the bytes	observed
+0x0046b6e0	ssleay_rand_bytes	entry ESP+8	its length	observed
+0x004d4c60	SSL_connect	entry ESP+4	the SSL (rbio +0Ch, wbio +10h, rwstate +18h, handshake_func +20h, shutdown +30h)	observed
+0x004d4ca0	SSL_read	entry ESP+4	the SSL	observed
+0x004d4ca0	SSL_read	entry ESP+8	the room for the bytes	observed
+0x004d4ca0	SSL_read	entry ESP+12	its length	observed
+0x004d4d70	SSL_write	entry ESP+4	the SSL	observed
+0x004d4d70	SSL_write	entry ESP+8	the bytes	observed
+0x004d4d70	SSL_write	entry ESP+12	their length	observed
+0x004d6e30	SSL_get_error	entry ESP+4	the SSL	observed
+0x004d6e30	SSL_get_error	entry ESP+8	the result of the call asked about	observed
 0x00511600		ECX	the movie holder (+0Ch the GFx movie)	observed
 0x00511600		entry ESP+4	the ActionScript method's name ("root.has_active_window")	observed
 0x00511600		entry ESP+8	the result Value, or 0	observed

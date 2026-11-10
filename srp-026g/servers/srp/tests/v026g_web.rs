@@ -122,7 +122,6 @@ fn sha1_hex(bytes: &[u8]) -> Vec<u8> {
 /// The 0.26g sign-in with a typed password: the reply past the TLS
 /// handshake (`08` + session + lobby address, or one status byte).
 fn sign_in(login: SocketAddr, user_name: &str, password: &str) -> Vec<u8> {
-    use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
     let mut stream = TcpStream::connect(login).expect("the login server");
     stream.set_read_timeout(Some(SOON)).unwrap();
     stream.set_write_timeout(Some(SOON)).unwrap();
@@ -137,24 +136,11 @@ fn sign_in(login: SocketAddr, user_name: &str, password: &str) -> Vec<u8> {
     let mut answer = [0];
     stream.read_exact(&mut answer).unwrap();
     assert_eq!(answer[0], 0x0B, "the user name was not taken");
-    let mut connector = SslConnector::builder(SslMethod::tls()).unwrap();
-    connector.set_security_level(0);
-    connector.set_verify(SslVerifyMode::NONE);
-    let mut tls = connector
-        .build()
-        .configure()
-        .unwrap()
-        .verify_hostname(false)
-        .connect("localhost", stream)
-        .expect("the TLS handshake");
     let mut message = vec![0x03];
     message.extend(sha1_hex(password.as_bytes()));
     message.push(password.len() as u8);
     message.extend(password.as_bytes());
-    tls.write_all(&message).unwrap();
-    let mut reply = Vec::new();
-    let _ = tls.read_to_end(&mut reply);
-    reply
+    login_server::sealed::ask(stream, &message).unwrap()
 }
 
 /// A game in the lobby.
