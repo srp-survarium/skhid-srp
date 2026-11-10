@@ -693,6 +693,44 @@ package {
    require(throwableLines(cards[0],d).join()==released.rgd5,"no floats: the grenade's own numbers");
    Scene.isAlt=false;
   }
+  // Held Alt over an armour piece: its isolation with Resistance (kit float 40, bits 0..2), +5 points a
+  // rank on the parts it covers (patch hook 0x32A083), no more than 100 (the clamp 0x32A07E); the
+  // armour line and a piece without an isolation line stay.
+  private function armour(isolation:String):Object {
+   var Data:Class=domain.getDefinition("survarium.data.ItemData") as Class;
+   var d:Object=new Data();d.name="vest";d.category=3;d.superCategory=domain.getDefinition("survarium.item.ItemFactory").getCategory(d.category);d.descriptor=100;d.modifiers=[];d.properties=[{prop_id:6,prop_value:"60"}];
+   if(isolation!=null)d.properties.push({prop_id:8,prop_value:isolation});
+   d.properties.push({prop_id:15,prop_value:"6"});
+   return d;
+  }
+  private function isolationChecks():void {
+   Scene.isShift=false;
+   var d:Object,other:Object=armour("10");
+   for each(var c:Array in [[0,"30"],[1,"30 -> 35"],[5,"30 -> 55"],[5|8|16|3<<9,"30 -> 55"],[6,"30"],[7<<9|3,"30"],[2.5,"30"],[16384+2,"30"]]){
+    profile.setKitModifiers(kitFloats({40:c[0]}));
+    Scene.isAlt=true;d=armour("30");shows(d,other);
+    require(nativeText(cards[0],"Isolation")==c[1] && nativeText(cards[0],"Armor")=="60" && nativeText(cards[0],"Weight")=="6kg","float 40 "+c[0]+": "+nativeText(cards[0],"Isolation"));
+    Scene.isAlt=false;shows(d,other);
+    require(nativeText(cards[0],"Isolation")=="30","released, float 40 "+c[0]);
+   }
+   profile.setKitModifiers(kitFloats({40:5}));Scene.isAlt=true;
+   // The compared card too; more is green.
+   d=armour("30");shows(d,other);
+   require(nativeText(cards[1],"Isolation")=="10 -> 35","the compared piece: "+nativeText(cards[1],"Isolation"));
+   require(changeColours(nativeField(cards[0],"Isolation")).join()==[NEUTRAL,NEUTRAL,GREEN].join(),"more isolation is green");
+   // Points past 100 stop nothing more; 100 already stays one value.
+   d=armour("90");shows(d,other);require(nativeText(cards[0],"Isolation")=="90 -> 100","no more than 100: "+nativeText(cards[0],"Isolation"));
+   d=armour("100");shows(d,other);require(nativeText(cards[0],"Isolation")=="100","100 stays");
+   // The piece's own roll (+5 points, added) first: base -> in a match.
+   d=armour("30");d.modifiers=[{icon:1,textValue:"Isolation: +5\n",props:[{prop_id:8,prop_value:"5"}]}];shows(d,other);
+   require(nativeText(cards[0],"Isolation")=="30 -> 60","own roll and the skill: "+nativeText(cards[0],"Isolation"));
+   // A piece without an isolation line: its own card.
+   d=armour(null);shows(d,armour(null));require(nativeText(cards[0],"Armor")=="60","no isolation line");
+   // An exe that sends no floats: the piece's own numbers.
+   profile.setKitModifiers(null);d=armour("30");shows(d,other);
+   require(nativeText(cards[0],"Isolation")=="30","no floats: the piece's own isolation");
+   Scene.isAlt=false;
+  }
   // Held Alt over a weapon whose own movement line is a penalty, with Bear Arms (kit float 62 above 0):
   // the line reads "-5% -> 0%" (weapon_core::initialize 0x2E2C5C..0x2E2C9C leaves a penalty out); a
   // bonus, Bear Arms off and an exe that sends no floats leave it as released.
@@ -778,6 +816,8 @@ package {
     // A grenade's and a trap's (throwable-cards-1); 166 the pocket units (pocket-units-1), no bar.
     for each(spec in [[23,"Explosion radius",1,"m"],[167,"Stamina damage",1,""],[168,"Fuse time",0,"s"],[169,"Throw speed",1,"m/s"],[170,"Defuse time",1,"s"]])list.push({prop_id:spec[0],prop_name:spec[1],direction:spec[2],postfix:spec[3],comparable:true,min_value:0,max_value:100});
     list.push({prop_id:166,prop_name:"Pocket slots",comparable:false});
+    // An armour piece's (the stock lines; added, mod_type 1).
+    for each(spec in [[6,"Armor",1,""],[8,"Isolation",1,""]])list.push({prop_id:spec[0],prop_name:spec[1],direction:spec[2],postfix:spec[3],comparable:true,min_value:0,max_value:100,modifier_type:0});
     // A round's lines (AmmoDetails labels them by these names), and Pierces (pierce-line-1), no bar.
     for each(spec in [[21,"Damage"],[22,"Armor penetration"],[163,"Bullet speed"],[16,"Rounds in a pack"],[174,"Pierces"]])list.push({prop_id:spec[0],prop_name:spec[1],comparable:false});
     // The rolls' own properties, multiplied (modifier_type 1) as the exe tells the movie (mod_type 2).
@@ -1008,6 +1048,7 @@ package {
      altChecks();
      throwableChecks();
      medicineChecks();
+     isolationChecks();
      bearArmsChecks();
     }
     if(frame==140){Scene.isAlt=true;}

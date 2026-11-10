@@ -154,6 +154,45 @@ Unchanged in a match: armour penetration (`splash_pierce`, the trap's `armor_pie
 a source today (Grenadier); S11 and S12 are there as the exe applies them (no skill, roll or item
 gives them). Pocket counts (S15, S17, `pocket_units` 166) are the paper doll's, not a card bar.
 
+## Armour: isolation
+
+The owner, 2026-11-10: "alt on items ... should work and be affected by resistance skill in
+anomalous skill tree"; "alt on equipment for isolation". Held Alt over a piece with an Isolation
+line (prop 8, `st_inv_ano_armor`: armour; a piece without the line has nothing to show), the
+line reads "original -> current" with Resistance (skill 502, `artefact-skills.md`), green. Every
+other line of the piece is its own; as on every Alt card, the original is the piece's base, before
+its own rolls (an isolation roll and the skill: `30 -> 60`).
+
+| card line | in a match |
+|---|---|
+| Isolation (8) | min(100, points + 5 x rank), rank 0..5 from the kit's float 40, bits 0..2 |
+
+- **What the line is:** the piece's `hit_params/<part>/hit_types/<toxic, radiation, fire,
+  shock>/armor` x100, one number for every part it covers (`content_edit.py` `ano_armor`; LIKELY
+  that every piece keeps the four types and its parts equal: the card's line is its own text,
+  `ui_desc/props_list`).
+- **The match** (PROVEN, `armour-params.md`, `artefact-skills.md`): a part's armour A against a
+  hit's type is the sum over the worn pieces that cover the part (0x33F2DD); the hit keeps
+  D x (1 - clamp(A - P, 0, 1)) (0x32A07E). Resistance is our hook at 0x32A083
+  (`artefact.isolation`, `artefact_skills.rs` `Skills::armour`): A + 0.05 a rank for the four
+  anomalous types, before the piercing and the clamp. So no point past 100 stops more (the cap;
+  P for an anomalous hit is LIKELY 0, not traced).
+- **Once a part, not once a piece:** the +5 a rank is added to the part's sum, whatever covers it
+  (a bare part too). A card's "30 -> 35" is true of the parts that piece covers; where two pieces
+  cover one part the skill counts once, so the cards' currents do not add up. A kit total (per
+  body part) would be the place for the whole of it; there is none in the lobby.
+- **The rank** is parsed as the exe's `Skills::parse` (an exact integer below 2^14, the rank at
+  most 5, Keeper's draw at most 6; otherwise no skill). The 5 points a rank are the patch's
+  `Resistance::ARMOUR`, typed in `MatchEffects` as the medical ranks' rules are: the movie gets
+  no number of an exe skill.
+- **Left out:** modifier 8 `anomaly_damage` (x max(0, 1 + S8) on an anomalous hit before armour,
+  0x332890): no skill or item gives it, and it is no line of a piece. Forest Protection (523)
+  is bullets inside an anomaly, not isolation.
+- **Checked:** `WeaponDetailsHarness` `isolationChecks` (Ruffle): ranks 0, 1, 5, other skills'
+  bits beside it, refused values, the compared card, the colour, the cap, an own roll, a piece
+  without the line, no floats. Not run in a game. (2026-11-10: the harness's `throwableChecks`
+  and `medicineChecks` fail on main since the Pocket slots row; run with those two left out.)
+
 ## How
 
 - **Exe** (`weight_ui_026g.c`): before each weight callback (`update_player_items_weight`
