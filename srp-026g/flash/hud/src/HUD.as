@@ -1628,6 +1628,7 @@ package
          this.show_pregame(false);
          this.set_match_time("");
          this.deathEyes.countdown("");
+         this.deathEyes.black = false;
          if(this.progress_indicator.respawn_time)
          {
             this.set_respawn_time("");
@@ -2112,6 +2113,13 @@ package
          this.progress_indicator.team_1_progress.visible = this.progress_indicator.team_2_progress.visible = true;
       }
       
+      // The view black (the exe: a dead player whose corpse is shot in the head, until the
+      // respawn): DeathEyes' black, under the hud as its fading is; the hud's reset clears it.
+      public function set_dead_black(on:Boolean) : void
+      {
+         this.deathEyes.black = on;
+      }
+
       public function set_respawn_time(time:String) : void
       {
          this.deathEyes.countdown(time);

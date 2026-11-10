@@ -48,3 +48,18 @@ complete darkening before restart". Code: the hud movie,
   rollback, a stopped countdown, the texts, a real click on a kit over it; `--video` records it
   over a 5 s countdown (`--blood` with the hud's blood). **Not run in a game.**
 - **Release:** the hud movie (its `movie` row of `release/content.tsv`), a content patch.
+
+## The black view
+
+- **What:** `root.set_dead_black(on:Boolean)` (the exe: a dead player whose corpse is shot in the
+  head, until the respawn): the whole screen opaque black. `DeathEyes.black`, a second shape over
+  the fading's, in the same place: over the 3D view and the screen effects, under the hud's root
+  (the countdown, the kits and the kill feed stay over it); it never takes a click.
+- **Size:** the stage's, as the fading's (`place`, at every resize), drawn only while on.
+- **Off:** by the exe (`false`) and by the hud's `reset`; not by the countdown's end. The same
+  value again changes nothing; the countdown's fading goes on under it and shows when it is off.
+- **F11, Blackout:** as the fading, it stays.
+- **Checked:** the movie built; in Ruffle with a harness that is not in the repository: on, off,
+  each twice, 800x480, 3440x1440, 1024x1280 and 2560x1080 all black, with and without a
+  countdown; `scripts/death-eyes/check.sh` passes as before. **Not run in a game**; `HUD.reset`
+  clearing it and the exe's call were read, not run.
