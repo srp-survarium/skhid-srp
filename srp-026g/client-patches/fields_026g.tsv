@@ -500,6 +500,10 @@ survarium::core_place	kit0	0x0	ptr<survarium::player>	the place's kit 0 player (
 survarium::core_place	kit1	0x4	ptr<survarium::player>	the place's kit 1 player
 survarium::core_place	kit2	0x8	ptr<survarium::player>	the place's kit 2 player
 survarium::core_place	size	0x30	size	a place's entry: 30h bytes (core_active_player 0x2D0AE7)
+survarium::core_place	kit	0xC	u8	the place's kit, whose player core_active_player gives: [place + kit x 4] (0x2D0AF9 movzx ecx,byte [eax+0Ch])
+survarium::core_place	kits	0x0	obj<survarium::place_kit>	its kits' players as one array (kit0, kit1, kit2), indexed by its kit as core_active_player does (0x2D0AFD lea eax,[eax+ecx*4])
+survarium::place_kit	player	0x0	ptr<survarium::player>	the kit's player, 0 none (core_active_player 0x2D0B00)
+survarium::place_kit	size	0x4	size	a kit's player is its pointer: core_active_player steps 4 (0x2D0AFD)
 survarium::item	active_object	-0x10	obj<survarium::item>	a weapon's inventory item's active object (a weapon slot holds active+10h): only for an item known to be a weapon's
 survarium::weapon	core	0x4	ptr<survarium::core_world>	the bound world core (bind_to_game_core 0x2E3117); a cooked gun has none
 survarium::weapon	registry_id	0xC	u8	its index in core+18B4Ch (bind_to_game_core 0x2E311F; the held/pending ids serialized 0x2DB626)
