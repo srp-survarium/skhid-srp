@@ -672,11 +672,6 @@ pub fn rename_kit(account: &mut Account, kit_id: u32, name: &str) -> Result<(), 
     Ok(())
 }
 
-/// `49 01`: the account's autobuy box.
-pub fn set_autobuy(account: &mut Account, on: bool) {
-    account.autobuy = on;
-}
-
 /// `49 02`: the kit the account plays.
 pub fn set_active_kit(account: &mut Account, kit_id: u32, now: u64) -> Result<(), ActionError> {
     let index = account.kit_index(kit_id).ok_or(ActionError::NoSuchKit)?;
@@ -2794,8 +2789,6 @@ mod tests {
         );
         set_active_kit(&mut account, 2, NOW).unwrap();
         assert_eq!(account.active_kit, 2);
-        set_autobuy(&mut account, true);
-        assert!(account.autobuy);
     }
 
     /// Each reason a kit can not play comes out as its bit, every one of a

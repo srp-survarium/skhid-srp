@@ -431,7 +431,7 @@ Implemented (coded and tested):
 | Area | State |
 |---|---|
 | Login | Sign-in, registration on first sign-in, wrong password, bans with the game's ban reasons, limits, closed registration, wrong build |
-| Lobby account | The sign-in push in the order the client needs; inventory with its three "spent" lists; kits (three, every one usable without premium), move, autobuy flag, active kit, kit names |
+| Lobby account | The sign-in push in the order the client needs; inventory with its three "spent" lists; kits (three, every one usable without premium), move, the autobuy byte (always on), active kit, kit names |
 | Shop | Buy, sell, repair, gold for silver and (srp's lobby exchange) silver for gold (`47 04`); sellers by reputation level |
 | Skills | Set, reset for silver or gold |
 | Quests | Choosing a faction, daily quests, progress and pay after a match |

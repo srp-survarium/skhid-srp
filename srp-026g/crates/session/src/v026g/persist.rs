@@ -670,7 +670,7 @@ impl GameRepository for SqliteGameRepository {
             let mut statement = transaction.prepare(
                 "SELECT account_id, name, clan_tag, generic_money,
                         exp_total, quest_faction, rating, rating_before,
-                        active_kit, autobuy, next_item_id, next_quest_instance
+                        active_kit, next_item_id, next_quest_instance
                  FROM g26_accounts ORDER BY account_id",
             )?;
             let rows = statement.query_map([], |row| {
@@ -690,12 +690,11 @@ impl GameRepository for SqliteGameRepository {
                         level_stats: Default::default(),
                         kits: Vec::new(),
                         active_kit: row.get(8)?,
-                        autobuy: row.get(9)?,
                         inventory: Vec::new(),
-                        next_item_id: row.get(10)?,
+                        next_item_id: row.get(9)?,
                         quests: Vec::new(),
                         quest_cooldowns: Vec::new(),
-                        next_quest_instance: row.get(11)?,
+                        next_quest_instance: row.get(10)?,
                         extras: Default::default(),
                         map_plays: Vec::new(),
                         room_settings: None,
@@ -923,7 +922,7 @@ fn write_account(
             exp_total = excluded.exp_total,
             quest_faction = excluded.quest_faction, rating = excluded.rating,
             rating_before = excluded.rating_before, active_kit = excluded.active_kit,
-            autobuy = excluded.autobuy, next_item_id = excluded.next_item_id,
+            next_item_id = excluded.next_item_id,
             next_quest_instance = excluded.next_quest_instance,
             tutorial_step = excluded.tutorial_step, tutorial_done = excluded.tutorial_done",
         params![
@@ -942,7 +941,10 @@ fn write_account(
             account.rating,
             account.rating_before,
             account.active_kit,
-            account.autobuy,
+            // The autobuy column: kept in the schema and unused (autobuy is
+            // always on since 2026-11-10); a new row needs a value, and a saved
+            // account keeps what it had.
+            0,
             account.next_item_id,
             account.next_quest_instance,
             // The tutorial's columns: kept in the schema, unused; no
@@ -1083,7 +1085,6 @@ mod tests {
         account.generic_money = 123_456;
         account.add_experience(40_000);
         account.add_reputation(2, 500);
-        account.autobuy = true;
         rules::set_skills(&mut account, &[(101, 2), (201, 1)]).unwrap();
         rules::rename_kit(&mut account, 2, "Sniper").unwrap();
         rules::set_active_kit(&mut account, 2, 1_000).unwrap();

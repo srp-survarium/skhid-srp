@@ -187,6 +187,11 @@ What the game's Scaleform did differently from Flash, found building the rooms w
   finds the control under the point with `hitTestPoint` and calls its handler.
 - **A fill of alpha 0 is not hit-tested:** use 0.01. A gap inside a Sprite takes no click: put
   a 0.01 hit Shape over the whole row.
+- **`Array.concat` with more than one argument does not join the arrays:** each further argument
+  came out as one element (seen 2026-11-10: `a.concat([heading],rows)` drew two rows reading
+  "undefined" in the Regeneration tip and no heading; Ruffle joins them as Flash does). Join one
+  array a call (`a.concat(b)`, as every other tip does) or `push`. `scripts/weight-ui/check_ui.sh`
+  refuses a lobby source with such a call.
 - `drawCircle` after `lineStyle` draws a stray line from the pen: draw two filled circles.
 - `BitmapData.draw` from a BitmapData that was itself drawn into shows red; repeated
   alpha-blended draws wash out to white. Draw once, from the library bitmap.

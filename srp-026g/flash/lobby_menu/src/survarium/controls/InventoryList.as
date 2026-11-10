@@ -2038,8 +2038,8 @@ package survarium.controls
       }
 
       // The shop's "Hide owned" check box (shop-owned-mark.md): the compare box's symbol
-      // (CheckBoxShared; Autobuy's, CheckBoxSharedPD, fills its bitmaps unsmoothed, pixelated once the
-      // lobby is scaled to the screen), with Autobuy's label sizing and tooltip; on the compare box's
+      // (CheckBoxShared; the character panel's CheckBoxSharedPD fills its bitmaps unsmoothed, pixelated
+      // once the lobby is scaled to the screen), its label as long as its text, with a tooltip; on the compare box's
       // row, at its right (placeOwnedToggle); shown in the shop only. Off when the lobby opens.
       private function makeOwnedToggle() : void
       {

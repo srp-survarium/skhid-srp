@@ -2664,6 +2664,9 @@ st_srp_pvb_searching	Brich zuerst die Suche ab
 st_srp_pvb_team_size	%1$s vs. %2$s
 st_srp_pvb_title	Spieler vs. Bots
 st_srp_pvb_unknown_choice	Diese Karte oder Teamgröße ist gerade nicht verfügbar
+st_srp_regeneration_health	Gesundheitsregeneration
+st_srp_regeneration_label	Regeneration
+st_srp_regeneration_stamina	Energie Wiederherstellung
 st_srp_renderer_dx11	DirectX 11
 st_srp_renderer_dxvk	Vulkan/DXVK
 st_srp_renderer_option	Renderer

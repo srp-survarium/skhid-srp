@@ -1,10 +1,10 @@
 //! A 0.26g account as the lobby serves it (`docs/notes/lobby.md`
 //! §2.5..§2.14): one account with up to three kits that share its level,
-//! experience, skills and autobuy, one inventory they all equip from,
+//! experience and skills, one inventory they all equip from,
 //! money, reputations and the faction whose quests it takes.
 //!
 //! Against 0.21d (`survarium::v021d::account`): a kit ("profile" to the
-//! client) holds only its slots; level, experience, skills and autobuy
+//! client) holds only its slots; level, experience and skills
 //! moved to the account. A slot names an item of the inventory by its
 //! instance id and how many of it the kit takes; the item itself (its
 //! condition or count, modifications, upgrades) is kept once.
@@ -158,7 +158,6 @@ pub struct Account {
     pub kits: Vec<Kit>,
     /// The id of the kit it plays.
     pub active_kit: u32,
-    pub autobuy: bool,
     /// Everything it owns, the equipped items included.
     pub inventory: Vec<Item>,
     /// The id the next new item instance gets.
@@ -302,9 +301,6 @@ impl Account {
             level_stats: Default::default(),
             kits: (1..=KITS as u32).map(Kit::empty).collect(),
             active_kit: 1,
-            // On for a new account (the owner's of 2026-10-23); the player
-            // may turn it off.
-            autobuy: true,
             inventory: Vec::new(),
             next_item_id: 1,
             quests: Vec::new(),
