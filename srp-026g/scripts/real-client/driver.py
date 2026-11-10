@@ -87,6 +87,10 @@ ARROWS = ("left", "right", "up", "down")
 CORNER = (27, 34)
 
 
+class Again(Exception):
+    """The run drew something the flow cannot test, or lost a step to a box of the game's own: it starts over."""
+
+
 class Stop(Exception):
     """A step did not do what it had to."""
 
@@ -281,6 +285,31 @@ class Game:
     def __init__(self, run: "Run", account: str, process: subprocess.Popen) -> None:
         self.run, self.account, self.process = run, account, process
         self.held: set[str] = set()
+        # (test(picture), close(game)): boxes the game puts up by itself at a time of its own (the daily reward's, some
+        # seconds after a sign-in). Modal: a press elsewhere does nothing while one is up.
+        self.dialogs: list = []
+        self._closing = False
+
+    def close_dialogs(self, picture: np.ndarray | None = None) -> bool:
+        """Closes a box of `dialogs` that is up. Before every input, so the input is not lost to it."""
+        if self._closing or not self.dialogs:
+            return False
+        picture = self.picture() if picture is None else picture
+        for test, close in self.dialogs:
+            if test(picture):
+                self._closing = True
+                try:
+                    close(self)
+                finally:
+                    self._closing = False
+                return True
+        return False
+
+    def _dialog_in_wait(self, picture: np.ndarray | None = None) -> None:
+        """A box that came up during a wait is closed, and the flow starts over: the input before the wait may have
+        gone to the box."""
+        if self.close_dialogs(picture):
+            raise Again(f"{self.account}: a box of the game's own came up during a wait, and was closed")
 
     @property
     def window(self) -> int:
@@ -408,6 +437,7 @@ class Game:
 
     def move(self, x: int, y: int, tolerance: int = 14) -> None:
         """The game's arrow is the Windows cursor, seen from the window: placed there, then checked by its picture."""
+        self.close_dialogs()
         self.focus()
         self._place(x, y)
         end = time.time() + 2
@@ -542,7 +572,9 @@ class Game:
         end = time.time() + seconds
         held_since = None
         while True:
-            if test(self.picture()):
+            picture = self.picture()
+            self._dialog_in_wait(picture)
+            if test(picture):
                 held_since = held_since or time.time()
                 if time.time() - held_since >= steady:
                     return
@@ -664,10 +696,14 @@ class Run:
     def wait(self, log: Log, pattern: str, seconds: float, game: Game | None = None, since: int | None = None) -> str:
         mark = log.mark() if since is None else since
         end = time.time() + seconds
+        looked = 0.0
         while True:
             found = re.search(pattern, log.since(mark))
             if found:
                 return found.group(0)
+            if game and game.dialogs and time.time() - looked > 0.5:
+                looked = time.time()
+                game._dialog_in_wait()
             if time.time() > end:
                 why = f"not seen within {seconds} s: {pattern}"
                 raise game.fail(why) if game else Stop(why)

@@ -21,7 +21,7 @@ import subprocess
 import sys
 import time
 
-from driver import LEFT_DOWN, LEFT_UP, Game, Run, Stop, mouse, send
+from driver import LEFT_DOWN, LEFT_UP, Again, Game, Run, Stop, mouse, send
 
 PASSWORDS = dict(pair.split(":", 1) for pair in os.environ.get("SRP_TEST_ACCOUNTS", "").split(",") if pair)
 WATCH_MENU = (1099, 52)
@@ -51,8 +51,10 @@ BLACKOUT = 6  # the mode without a HUD, and so without the kit bar
 FRIENDS = (108, 1183)
 FRIEND_ROW = (110, 876)  # the first friend in the friends panel
 FRIEND_SPECTATE = (150, 907)  # its right-click menu's Spectate, for a friend in a match
-RESULTS_SAVE = (704, 881)  # "Save replay"; the floppy at the right edge is the stock screen's own, disabled
-RESULTS_CLOSE = (812, 881)
+# The results screen's row, centred: the match's code, Watch replay, Save replay, Close.
+RESULTS_CODE = (610, 881)
+RESULTS_SAVE = (812, 881)
+RESULTS_CLOSE = (920, 881)
 LEAVE_MATCH = (799, 593)
 VIEWER_PLATES, VIEWER_PLATE_Y = (999, 1156, 1310), 901  # the kit plates in a replay's viewer
 PLAYER_ROW_X = 1495  # a viewer's player list
@@ -68,10 +70,6 @@ CARD_LABEL_Y = 337
 CARD_VOTES = ((338, 440), (804, 440), (1270, 440))
 
 began = time.time()
-
-
-class Again(Exception):
-    """The run drew something it cannot test: start over."""
 
 
 def window_open(picture) -> bool:
@@ -105,9 +103,13 @@ def leave_box_open(picture) -> bool:
 
 def daily_box_open(picture) -> bool:
     """The reward box of an account's first sign-in of a day: modal, so a press anywhere else does nothing. Its title
-    band is darker than a window's and its footer nearly black."""
-    title, footer = picture[530:548, 556:680], picture[652:670, 552:572]
-    return bool(8 < title.mean() < 19 and title.std() < 6 and 1 < footer.mean() < 5 and footer.std() < 2)
+    band (left of the title, whose length is the account's) is darker than a window's and its footer nearly black; it
+    is only ever over the lobby, whose red PLAY shows dimmed behind it, so a dark place of a match is no box."""
+    title, footer = picture[530:548, 556:600], picture[652:670, 552:572]
+    if not (8 < title.mean() < 19 and title.std() < 6 and 1 < footer.mean() < 5 and footer.std() < 2):
+        return False
+    play = picture[15:45, 735:865].astype(int)
+    return bool(((play[:, :, 0] > 40) & (play[:, :, 0] > 2 * play[:, :, 1])).mean() > 0.25)
 
 
 def close_daily_box(game: Game) -> None:
@@ -202,6 +204,7 @@ def sign_in(run: Run, account: str) -> Game:
     game = run.launch(account, PASSWORDS[account])
     game.sign_in()
     say(f"{account} signed in")
+    game.dialogs.append((daily_box_open, close_daily_box))  # it comes up some seconds after the lobby, at any step
     leave_old_room(game)
     return game
 
@@ -385,6 +388,7 @@ def save(run: Run) -> None:
         a.shot(f"save-0-after-leaving-{second}")
     a.wait_screen(results_open, "the results screen", 20, steady=1)
     a.shot("save-1-results")
+    results_code(a)
     mark = run.server.mark()
     a.click(*RESULTS_SAVE, 6)
     a.expect_server(r"asked to save the replay of match 0x[0-9a-f]+", 10, mark)
@@ -397,6 +401,29 @@ def save(run: Run) -> None:
     time.sleep(0.5)
     a.shot("save-2-saved")
     say(f"saved from the results screen: {new}")
+
+
+def results_code(game: Game) -> None:
+    """Pressing the results screen's match code selects it: Ctrl+C copies it, typing changes nothing."""
+    saved = get_clipboard()
+    try:
+        set_clipboard("nothing-yet")
+        game.click(*RESULTS_CODE, 10)
+        time.sleep(0.5)
+        game.shot("save-1-code-selected")
+        game.type("zz")
+        time.sleep(0.5)
+        game.click(*RESULTS_CODE, 10)
+        time.sleep(0.4)
+        game.key_chord("ctrl", "c")
+        time.sleep(0.6)
+        copied = get_clipboard()
+        if not re.fullmatch(r"#[0-9a-f]{8}", copied):  # after the typing above: had it changed the code, it would show
+            raise game.fail(f"Ctrl+C did not copy the results screen's match code: {copied!r}")
+        game.shot("save-1-code-copied")
+        say(f"copied {copied} from the results screen")
+    finally:
+        set_clipboard(saved or " ")
 
 
 def kit_view(run: Run) -> None:
