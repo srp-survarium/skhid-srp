@@ -1,4 +1,4 @@
-//! Patch 134: texture streaming's per-frame bookkeeping in Rust (client_patch.md 3.79), the
+//! Patch 137: texture streaming's per-frame bookkeeping in Rust (client_patch.md 3.79), the
 //! same records and the same answer as the game's, with less of the render thread's frame.
 //!
 //! - scene::update_streaming_data (0x155980): each frame it rewrites the record of every object

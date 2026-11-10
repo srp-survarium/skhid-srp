@@ -116,6 +116,11 @@ package survarium.controls
       protected var _names:Object = {};
 
       protected var _namesShown:Boolean = false;
+
+      // A map not shown (the Tab map while its list is closed) is held: it draws no update, it keeps
+      // the last players' (setPlayersData) and the local player's (updatePlayerPos) and draws them
+      // when it shows again. Null while the map follows every update.
+      private var _held:HeldUpdates = null;
       
       public function Minimap()
       {
@@ -200,7 +205,43 @@ package survarium.controls
       
       public function setPlayersData(value:Object) : void
       {
+         if(this._held)
+         {
+            this._held.players = value;
+            return;
+         }
          this.setData(value);
+      }
+
+      public function get held() : Boolean
+      {
+         return this._held != null;
+      }
+
+      // Held, updates wait (the last of each kind); released, the last ones are drawn at once, the
+      // local player's first (the players' icons are told apart against its team), as if it had
+      // followed them.
+      public function set held(value:Boolean) : void
+      {
+         if(value == this.held)
+         {
+            return;
+         }
+         if(value)
+         {
+            _held = new HeldUpdates();
+            return;
+         }
+         var updates:HeldUpdates = this._held;
+         _held = null;
+         if(updates.local)
+         {
+            this.updatePlayerPos(updates.local[0],updates.local[1],updates.local[2],updates.local[3]);
+         }
+         if(updates.players)
+         {
+            this.setData(updates.players);
+         }
       }
 
       // The Tab list's rows ({id, name}, root.list_set_players): a name for each place listed.
@@ -323,6 +364,10 @@ package survarium.controls
       public function clear_minimap() : void
       {
          var _inst:MinimapObject = null;
+         if(this._held)
+         {
+            _held = new HeldUpdates();
+         }
          this._objects = new Dictionary(true);
          this._objects_static = new Dictionary(true);
          this._researchUnits = [];
@@ -371,7 +416,10 @@ package survarium.controls
             i++;
          }
          this.clear_objects(this._objects);
-         this.showNames();
+         if(this._namesShown)
+         {
+            this.showNames();
+         }
          this.update_objects();
       }
 
@@ -583,6 +631,11 @@ package survarium.controls
       
       public function updatePlayerPos(posX:Number, posY:Number, rot:Number, team:uint = 23) : void
       {
+         if(this._held)
+         {
+            this._held.local = [posX,posY,rot,team];
+            return;
+         }
          this._my_team = team;
          if(this._centerPlayer)
          {
@@ -761,3 +814,11 @@ package survarium.controls
    }
 }
 
+// What a held Minimap keeps: the last players' update (setPlayersData) and the local player's
+// (updatePlayerPos: x, y, rotation, team), each null until one comes.
+class HeldUpdates
+{
+   public var players:Object = null;
+
+   public var local:Array = null;
+}

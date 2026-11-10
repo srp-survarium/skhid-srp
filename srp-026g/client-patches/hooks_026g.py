@@ -34,6 +34,17 @@ exe, so a site that drifted fails the build. Nothing is looked up at run time.
     python hooks_026g.py --write     writes hook_entries_026g.asm and hooks_026g.rs
     python hooks_026g.py --check     says whether they are current (the self-test runs the same)
 
+A `lohook` row with `only = { <held> = "<CONST>" }` calls its handler only
+while the site's register `<held>` (a `name=REGISTER:u32` of the site's
+`holds`) is one of the values of the patch module's `CONST` (a `[u32; N]`,
+each below 256): its entry tests the register against a bit set the shim
+file makes of them (vostok::hook::Only) before it saves anything, and for any
+other value replays the site's bytes at once (pushfd, a compare, a bit test,
+popfd). For a site the game runs at every call of a hot function whose
+handler acts on a few values only (a modifier getter's index): the handler
+must do nothing for the other values, which it then never sees. A filtered
+site is not shared.
+
 A `code` or `lohook` row with `install = "on_demand"` is linked but not
 written into the exe: its site keeps the game's bytes, and the patch writes
 the jump at run time when it decides to (vostok::hook::install_on_demand,
@@ -174,7 +185,8 @@ def read_sites(path=None):
             raise Bad(f"sites_026g.tsv: {name}: a VA is `-` for an entry, and only for one")
         out[name] = {"site": name, "va": None if kind == "entry" else engine_026g.number(row["va"]), "kind": kind,
                      "callee": row["callee"].strip(), "span": None if row["span"].strip() in ("", "-")
-                     else engine_026g.number(row["span"]), "exits": exits, "what": row["what"].strip()}
+                     else engine_026g.number(row["span"]), "exits": exits, "what": row["what"].strip(),
+                     "holds": (row.get("holds") or "").strip()}
     return out
 
 
@@ -388,7 +400,27 @@ def lohook_hook(patch, row, sites, exe=None):
     return {"patch": name, "patch_no": patch["patch"], "kind": "lohook", "site": site["va"],
             "site_name": site["site"], "original": span, "handler": row["handler"], "what": site["what"],
             "exits": site["exits"], "order": row.get("order"), "install": ("lohook", 0xE9),
-            "entry": f"{name}_{row['handler']}", "shim": f"hook_{name}_{row['handler']}"}
+            "entry": f"{name}_{row['handler']}", "shim": f"hook_{name}_{row['handler']}",
+            "only": only_of(name, row, site)}
+
+
+def only_of(name, row, site):
+    """A lohook's `only = { <held> = "<CONST>" }`: (the held name, its register, the constant), or
+    None. The held name is a `name=REGISTER:u32` of the site's `holds`; the constant a name of the
+    patch module (the shim file makes the bit set of its values, vostok::hook::Only)."""
+    only = row.get("only")
+    if only is None:
+        return None
+    if not isinstance(only, dict) or len(only) != 1:
+        raise Bad(f"{name}: `only` is one {{ <held> = \"<CONST>\" }}")
+    (held, const), = only.items()
+    if not isinstance(const, str) or not re.fullmatch(r"[A-Z][A-Z0-9_]*", const):
+        raise Bad(f"{name}: `only`'s {held} names a constant of the patch module (got {const!r})")
+    for token in site["holds"].split():
+        match = re.fullmatch(r"([a-z][a-z0-9_]*)=(E[A-Z]{2}):u32", token)
+        if match and match.group(1) == held and match.group(2) != "ESP":
+            return held, match.group(2).lower(), const
+    raise Bad(f"{name}: `only` names {held!r}, no `name=REGISTER:u32` of site {site['site']}'s holds")
 
 
 def lohook_entry(h):
@@ -396,8 +428,16 @@ def lohook_entry(h):
     restore, and jump where it says (the replay stub, past the span, or an
     exit). Reached by a jump from the site; leaves esp as it was."""
     e, past = h["entry"], h["site"] + len(h["original"])
-    lines = [f"global {e}", f"extern {h['shim']}", f"{e}:",
-             "    lea esp, [esp - 4]",                  # dispatch slot; keep the game's flags for pushfd
+    lines = [f"global {e}", f"extern {h['shim']}", f"{e}:"]
+    if h.get("only"):                                   # the handler's values only: a bit test, nothing saved
+        _, reg, _ = h["only"]
+        lines += [f"extern {e}_only",
+                  "    pushfd",
+                  f"    cmp {reg}, 256", f"    jae {e}_pass",
+                  f"    bt dword [{e}_only], {reg}", f"    jc {e}_save",
+                  f"{e}_pass:", "    popfd", f"    jmp {e}_replay",
+                  f"{e}_save:", "    popfd"]
+    lines += ["    lea esp, [esp - 4]",                  # dispatch slot; keep the game's flags for pushfd
              "    pushfd", "    pushad", "    cld",
              "    mov ebp, esp",                        # ebp -> Regs; [ebp+36] the slot
              "    sub esp, 512", "    and esp, -16", "    fxsave [esp]", "    mov edi, esp",
@@ -530,6 +570,8 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
         orders = [h.get("order") for h in group]
         if any(h.get("on_demand") for h in group):
             raise Bad("a hook installed on demand cannot share its site")
+        if any(h.get("only") for h in group):
+            raise Bad("a filtered lohook (`only`) cannot share its site")
         if (any(h["kind"] != "lohook" for h in group)
                 or any(type(order) is not int for order in orders)
                 or len(set(orders)) != len(orders)):
@@ -653,6 +695,16 @@ def rs_text(hs, tables=()):
             at = h["site_name"] if h["site"] is None else f"{h['site']:#x}"
             whence = (f"from our own code's call ({h['site_name']})" if h["site"] is None
                       else f"from the game's jump at {h['site']:#x}")
+            if h.get("only"):
+                held, reg, const = h["only"]
+                lines += [
+                    f"/// The values of `{held}` ({reg.upper()}) the entry `{h['entry']}` calls its handler for",
+                    f"/// (`only`): crate::{h['patch']}::{const}; for any other it replays the site's bytes.",
+                    "#[unsafe(no_mangle)]",
+                    "#[allow(non_upper_case_globals)]",
+                    f"pub static {h['entry']}_only: Only = Only::of(&crate::{h['patch']}::{const});",
+                    "",
+                ]
             lines += [
                 f"/// The entry `{h['entry']}` ({at}, {h['what']}) calls this with the saved machine.",
                 "#[unsafe(no_mangle)]",

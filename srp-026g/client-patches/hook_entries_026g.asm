@@ -1194,6 +1194,17 @@ artefact_skills_on_spring_reload_go:
 global artefact_skills_on_shared_modifier
 extern hook_artefact_skills_on_shared_modifier
 artefact_skills_on_shared_modifier:
+extern artefact_skills_on_shared_modifier_only
+    pushfd
+    cmp esi, 256
+    jae artefact_skills_on_shared_modifier_pass
+    bt dword [artefact_skills_on_shared_modifier_only], esi
+    jc artefact_skills_on_shared_modifier_save
+artefact_skills_on_shared_modifier_pass:
+    popfd
+    jmp artefact_skills_on_shared_modifier_replay
+artefact_skills_on_shared_modifier_save:
+    popfd
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -1233,6 +1244,17 @@ artefact_skills_on_shared_modifier_replay:
 global artefact_skills_on_shared_modifiers
 extern hook_artefact_skills_on_shared_modifiers
 artefact_skills_on_shared_modifiers:
+extern artefact_skills_on_shared_modifiers_only
+    pushfd
+    cmp eax, 256
+    jae artefact_skills_on_shared_modifiers_pass
+    bt dword [artefact_skills_on_shared_modifiers_only], eax
+    jc artefact_skills_on_shared_modifiers_save
+artefact_skills_on_shared_modifiers_pass:
+    popfd
+    jmp artefact_skills_on_shared_modifiers_replay
+artefact_skills_on_shared_modifiers_save:
+    popfd
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -1382,6 +1404,17 @@ artefact_skills_on_fire_go:
 global artefact_skills_on_own_modifier
 extern hook_artefact_skills_on_own_modifier
 artefact_skills_on_own_modifier:
+extern artefact_skills_on_own_modifier_only
+    pushfd
+    cmp esi, 256
+    jae artefact_skills_on_own_modifier_pass
+    bt dword [artefact_skills_on_own_modifier_only], esi
+    jc artefact_skills_on_own_modifier_save
+artefact_skills_on_own_modifier_pass:
+    popfd
+    jmp artefact_skills_on_own_modifier_replay
+artefact_skills_on_own_modifier_save:
+    popfd
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -1584,6 +1617,369 @@ packet_recovery_on_loaded_go:
 packet_recovery_on_loaded_replay:
     db 0x8b, 0x47, 0x04, 0x85, 0xc0
     jmp 0x27c11b
+
+; 0x12eea7 process_compression with the bake's target of the type in [esp+1Ch], before the staging's create (mov esi,[esp+24h] / push 0); issued its epilogue 0x12F561 (releases [esp+10h] and [esp+1Ch], ret 28h): lohook -> bake_async_on_issue
+global bake_async_on_issue
+extern hook_bake_async_on_issue
+bake_async_on_issue:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_async_on_issue
+    mov edx, bake_async_on_issue_replay
+    cmp eax, 0
+    je bake_async_on_issue_go
+    mov edx, 0x12eead
+    cmp eax, 1
+    je bake_async_on_issue_go
+    mov edx, 0x12f561
+    cmp eax, 2
+    je bake_async_on_issue_go
+    ud2
+bake_async_on_issue_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_async_on_issue_replay:
+    db 0x8b, 0x74, 0x24, 0x24, 0x6a, 0x00
+    jmp 0x12eead
+
+; 0x12ec57 process_compression after its prologue (mov esi,eax / lea eax,[esp+40h]); tail 0x12F00B: the compress timed (ESI the timer [esp+50h]), then the texture made from [esp+18h], shared, saved, recorded, freed if EBX, the query finished, the log (EBP the type, EDI the DDS): lohook -> bake_async_on_resume
+global bake_async_on_resume
+extern hook_bake_async_on_resume
+bake_async_on_resume:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_async_on_resume
+    mov edx, bake_async_on_resume_replay
+    cmp eax, 0
+    je bake_async_on_resume_go
+    mov edx, 0x12ec5d
+    cmp eax, 1
+    je bake_async_on_resume_go
+    mov edx, 0x12f00b
+    cmp eax, 2
+    je bake_async_on_resume_go
+    ud2
+bake_async_on_resume_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_async_on_resume_replay:
+    db 0x8b, 0xf0, 0x8d, 0x44, 0x24, 0x40
+    jmp 0x12ec5d
+
+; 0x12f2d8 process_compression before make_save_descriptor (mov byte [esp+5F8h],2Fh; then mov [esp+2Ch],ebx, the bytes' data, EBX the DDS; then call 0x109ED0: ECX the physical path, EAX the virtual, [esp] the bytes; cdecl, add esp,4 after); made past the call, EAX the descriptor (0: none, the query's +0E0h 0 at 0x12F2FA, so finish_translated_query 0x109BD0 saves nothing): lohook -> bake_async_on_save
+global bake_async_on_save
+extern hook_bake_async_on_save
+bake_async_on_save:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_async_on_save
+    mov edx, bake_async_on_save_replay
+    cmp eax, 0
+    je bake_async_on_save_go
+    mov edx, 0x12f2e0
+    cmp eax, 1
+    je bake_async_on_save_go
+    mov edx, 0x12f2e9
+    cmp eax, 2
+    je bake_async_on_save_go
+    ud2
+bake_async_on_save_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_async_on_save_replay:
+    db 0xc6, 0x84, 0x24, 0xf8, 0x05, 0x00, 0x00, 0x2f
+    jmp 0x12f2e0
+
+; 0x12f3f7 process_compression after the record's push_back (mov ecx,[esp+188h]); EBX the DDS buffer until 0x12F40A, which frees it to the render allocator (0x12F41B) when not 0: lohook -> bake_async_on_free
+global bake_async_on_free
+extern hook_bake_async_on_free
+bake_async_on_free:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_async_on_free
+    mov edx, bake_async_on_free_replay
+    cmp eax, 0
+    je bake_async_on_free_go
+    mov edx, 0x12f3fe
+    cmp eax, 1
+    je bake_async_on_free_go
+    ud2
+bake_async_on_free_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_async_on_free_replay:
+    db 0x8b, 0x8c, 0x24, 0x88, 0x01, 0x00, 0x00
+    jmp 0x12f3fe
+
+; 0x11f754 compress_mip after the level's copy to its staging (push 0 / lea ecx,[esp+48h], then map2D 0x11F763 and the memcpy); kept past the Unmap: ESI's staging released, the target released, ret 20h; EBX the level's blocks wide: lohook -> bake_async_on_readback
+global bake_async_on_readback
+extern hook_bake_async_on_readback
+bake_async_on_readback:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_async_on_readback
+    mov edx, bake_async_on_readback_replay
+    cmp eax, 0
+    je bake_async_on_readback_go
+    mov edx, 0x11f75a
+    cmp eax, 1
+    je bake_async_on_readback_go
+    mov edx, 0x11f871
+    cmp eax, 2
+    je bake_async_on_readback_go
+    ud2
+bake_async_on_readback_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_async_on_readback_replay:
+    db 0x6a, 0x00, 0x8d, 0x4c, 0x24, 0x48
+    jmp 0x11f75a
+
+; 0x1024fa resources_manager::dispatch_callbacks' common end (pop edi / pop esi / pop ebx / mov esp,ebp, then pop ebp / ret 4): the thread's callbacks dispatched: lohook -> bake_async_on_dispatched
+global bake_async_on_dispatched
+extern hook_bake_async_on_dispatched
+bake_async_on_dispatched:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_async_on_dispatched
+    mov edx, bake_async_on_dispatched_replay
+    cmp eax, 0
+    je bake_async_on_dispatched_go
+    mov edx, 0x1024ff
+    cmp eax, 1
+    je bake_async_on_dispatched_go
+    ud2
+bake_async_on_dispatched_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_async_on_dispatched_replay:
+    db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5
+    jmp 0x1024ff
+
+; 0x13ca0 engine_world::tick's start (push ebp / mov ebp,esp / and esp,-8; ECX the engine world): the main loop's frame (engine_world::run calls it once a frame), before its dispatch_callbacks (0x13CE0) and the render world's tick ([esi+2C4h] +8, 0x13D31); apc's wait loops call dispatch_callbacks without it: lohook -> bake_async_on_frame
+global bake_async_on_frame
+extern hook_bake_async_on_frame
+bake_async_on_frame:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_async_on_frame
+    mov edx, bake_async_on_frame_replay
+    cmp eax, 0
+    je bake_async_on_frame_go
+    mov edx, 0x13ca6
+    cmp eax, 1
+    je bake_async_on_frame_go
+    ud2
+bake_async_on_frame_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_async_on_frame_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x13ca6
+
+; 0x1ec730 game::exit's start (push ebp / mov ebp,esp / and esp,-8; thiscall, ECX the game): every exit passes here, before the branches that skip its delete of user_data/streamed_textures (0x1EC7AE when 0x1051E0 fails, 0x1EC801 when 0x40F10 does; the delete 0x1EC832 is patch 70's nop): lohook -> bake_async_on_exit
+global bake_async_on_exit
+extern hook_bake_async_on_exit
+bake_async_on_exit:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_async_on_exit
+    mov edx, bake_async_on_exit_replay
+    cmp eax, 0
+    je bake_async_on_exit_go
+    mov edx, 0x1ec736
+    cmp eax, 1
+    je bake_async_on_exit_go
+    ud2
+bake_async_on_exit_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_async_on_exit_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x1ec736
+
+; 0x10a050 save_descriptor::~save_descriptor's start (sub esp,8 / cmp byte [esi+8],0; ESI the descriptor; its one caller ~query_result 0xF1135 with [query+0E0h]): when +8 is set it frees +0 (mt_free 0x106FC0 at 0x10A083), so a save's bytes live until its query is destroyed: lohook -> bake_async_on_save_freed
+global bake_async_on_save_freed
+extern hook_bake_async_on_save_freed
+bake_async_on_save_freed:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_async_on_save_freed
+    mov edx, bake_async_on_save_freed_replay
+    cmp eax, 0
+    je bake_async_on_save_freed_go
+    mov edx, 0x10a057
+    cmp eax, 1
+    je bake_async_on_save_freed_go
+    ud2
+bake_async_on_save_freed_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_async_on_save_freed_replay:
+    db 0x83, 0xec, 0x08, 0x80, 0x7e, 0x08, 0x00
+    jmp 0x10a057
 
 ; 0x1e944e game::game before its delete of user_data/streamed_textures (lea eax,[esp+470h] / call 0x1E8DA0: [esp+470h] the folder's physical path, a buffer_string); kept: past the delete's call (0x1E945A reads no register before it writes it): lohook -> bake_cache_on_game_start
 global bake_cache_on_game_start
@@ -5388,7 +5784,7 @@ music_on_sound_tick_replay:
 ; 0x14730 the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query: callback -> music_on_query_done (wraps engine_store_first_resource 0x14730)
     RUST_CDECL music_on_query_done, hook_music_on_query_done, 2
 
-; 0x24757c mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player): lohook -> ragdoll_on_cull
+; 0x24757c mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player); culled 0x24781E, past the bones and past the culled player's held item's vtable+4Ch (0x247811: weapon::on_culled_player_draw 0x245250 moves the weapon to the player's root), where the game's own cull (jne 0x24758C, [ebx+12Ch] not 0) ends, the stack as at the site: lohook -> ragdoll_on_cull
 global ragdoll_on_cull
 extern hook_ragdoll_on_cull
 ragdoll_on_cull:
@@ -5414,6 +5810,9 @@ ragdoll_on_cull:
     je ragdoll_on_cull_go
     mov edx, 0x247583
     cmp eax, 1
+    je ragdoll_on_cull_go
+    mov edx, 0x24781e
+    cmp eax, 2
     je ragdoll_on_cull_go
     ud2
 ragdoll_on_cull_go:

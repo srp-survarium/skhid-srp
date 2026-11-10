@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the original's and the build's texture streaming bookkeeping (patch 134, the Rust patch
+"""Run the original's and the build's texture streaming bookkeeping (patch 137, the Rust patch
 texture_streaming) on made-up scenes and texture registries, and count the instructions each
 runs.
 

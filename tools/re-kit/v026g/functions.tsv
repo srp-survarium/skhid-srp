@@ -2224,6 +2224,9 @@ va	status	ref_021d	name
 0x002717e0	verified	0x0019e562	survarium::lobby_client::discard_playing_order
 0x001ed170	observed		survarium::game::switch_to_game_world
 0x002203a0	observed		survarium::lobby_menu::show_loading_screen
+0x00013ca0	observed		vostok::engine::engine_world::tick
+0x00103140	observed		vostok::resources::resources_manager::on_created_resource
+0x00109bd0	observed	0x000cbaaa	vostok::resources::query_result::finish_translated_query
 0x003c5510	reviewed		stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >
 0x00200f50	reviewed	0x0015f1b6	survarium::game_options::activate
 0x002010e0	reviewed	0x0015f2d4	survarium::game_options::process_key_input
@@ -2258,3 +2261,10 @@ va	status	ref_021d	name
 0x00106d70	verified		ptmalloc3::memalign_starter
 0x00106d90	verified		ptmalloc3::free_starter
 0x00106fc0	verified		pt3free
+0x0011b5a0	reviewed	0x000d78ef	vostok::render::shader_constant_buffer::set_memory
+0x003a90c0	reviewed		anim_read_expression
+0x003a9250	reviewed		anim_build_node
+0x003a8c10	reviewed		anim_read_node_base_tracks
+0x003a8f40	reviewed		anim_read_node_record
+0x003a8ef0	reviewed		anim_pick_channel_value
+0x003a8d60	reviewed		anim_init_node_matrices

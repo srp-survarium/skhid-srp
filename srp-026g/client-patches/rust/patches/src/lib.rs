@@ -28,7 +28,7 @@
 // memcpy/memset are weak so the arena keeps one when a C patch (gcc emits
 // its own) is linked beside this crate (rust_patches.md, vostok::rt).
 #![cfg_attr(not(test), feature(linkage))]
-// `core::f32::math::sqrt` (sqrtss) for the texel factor patch 134 computes as the game does.
+// `core::f32::math::sqrt` (sqrtss) for the texel factor patch 137 computes as the game does.
 #![feature(core_float_math)]
 
 #[cfg(test)]
@@ -44,6 +44,7 @@ pub mod ragdoll;
 pub mod blackout;
 mod artefact_carry;
 pub mod suicide_key;
+pub mod bake_async;
 
 pub mod text_input;
 

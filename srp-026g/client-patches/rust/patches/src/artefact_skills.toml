@@ -24,14 +24,18 @@ handler = "on_spring_reload"
 
 # Resonance and Cascade (one aura, read where each effect is used; nothing kept): the shared
 # Springs' nodes at the two modifier getters, the shared Onyx before a part's protectors, the
-# shared Lifebones at a part's regeneration tick (before patch 94's booster).
+# shared Lifebones at a part's regeneration tick (before patch 94's booster). The getters run at
+# every modifier read of every player: their entries call the handler for a Spring list only
+# (`only`), any other index costs a compare.
 [[hook]]
 site = "artefact.shared_modifier"
 handler = "on_shared_modifier"
+only = { index = "SPRING_LISTS" }
 
 [[hook]]
 site = "artefact.shared_modifiers"
 handler = "on_shared_modifiers"
+only = { index = "SPRING_LISTS" }
 
 [[hook]]
 site = "artefact.shared_protection"
@@ -53,6 +57,7 @@ handler = "on_fire"
 [[hook]]
 site = "artefact.own_modifier"
 handler = "on_own_modifier"
+only = { index = "SPRING_LISTS" }
 
 [[hook]]
 site = "artefact.own_modifiers"

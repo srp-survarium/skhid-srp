@@ -1,4 +1,4 @@
-//! Texture streaming's per-frame bookkeeping as patch 134 (texture_streaming) reads and writes
+//! Texture streaming's per-frame bookkeeping as patch 137 (texture_streaming) reads and writes
 //! it (client_patch.md 3.79): the scene's streamable textures and the instances drawn with each,
 //! and the resource manager's texture registry.
 //!
