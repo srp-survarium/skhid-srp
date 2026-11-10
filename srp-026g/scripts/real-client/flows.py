@@ -515,19 +515,19 @@ def watch_open(picture) -> bool:
     return gold(picture[156:161, 535:800]) or gold(picture[156:161, 808:1075])
 
 
+BADGE = (slice(8, 36), slice(1100, 1160))  # where the Watch tab's badge is: its plate, dot, count and friend's mark
+
+
 def badge_shown(picture) -> bool:
-    """The live badge on the Watch menu: red, or yellow with a friend in a match that can be watched."""
-    area = picture[14:30, 1110:1127].astype(int)
-    red = (area[:, :, 0] > 170) & (area[:, :, 1] < 80)
-    return bool((red | friend_yellow(area)).mean() > 0.3)
-
-
-def friend_yellow(area):
-    return (area[:, :, 0] > 200) & (area[:, :, 1] > 160) & (area[:, :, 2] < 120)
+    """The live badge on the Watch menu: its red dot."""
+    area = picture[BADGE].astype(int)
+    return bool(((area[:, :, 0] > 170) & (area[:, :, 1] < 110) & (area[:, :, 2] < 100)).sum() >= 20)
 
 
 def badge_yellow(picture) -> bool:
-    return bool(friend_yellow(picture[14:30, 1110:1127].astype(int)).mean() > 0.3)
+    """The badge's yellow person: a friend plays in a match that can be watched."""
+    area = picture[BADGE].astype(int)
+    return bool(((area[:, :, 0] > 200) & (area[:, :, 1] > 160) & (area[:, :, 2] < 120)).sum() >= 15)
 
 
 def badge_tip_shown(picture) -> bool:

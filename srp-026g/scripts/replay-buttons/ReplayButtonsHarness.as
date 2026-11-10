@@ -25,7 +25,8 @@ package
    // the lobby's parts as WatchLobby lays them out at the stage's size (check.sh: 1280x720, 1920x1080):
    // - the top menu: Watch between Rooms and Ranking, every right tab's label whole, none past the
    //   bar's width nor over another; its badge counts the live matches that can be watched now
-   //   (none for 0; a plus at the list's most; yellow with a friend in one), its tip says which; its tab opens
+   //   (none for 0; a plus at the list's most; a yellow person with a friend in one, as on that
+   //   match's card), its tip says both; its tab opens
    //   Watch, Rooms' tab closes it (and Watch closes Rooms); no Watch tab on the bottom bar;
    // - the window: tabs Live (its count) and Replays; chips Everyone, Friends on Live, Mine (the
    //   default), Friends, Everyone on Replays, each the list it names (Live's Friends: the matches
@@ -380,28 +381,31 @@ package
          expect(language + ": the Watch tab says '" + (watchLabel ? watchLabel.text : null) + "'",watchLabel != null
             && watchLabel.text.toUpperCase() == String(words.getName("st_srp_watch_title")).toUpperCase());
          expect(language + ": a Watch tab on the bottom bar",find(lobby.panel,"matchesTab") == null);
-         // the badge: the live matches that can be watched now (2 of WatchFake.LIVE's 6: the others
-         // start, are over, full or closed), yellow with a friend in one, red without; a plus when
-         // the list is at its most; under the tab what it counts, while the arrow is on it
+         // the badge: a red dot and the live matches that can be watched now (2 of WatchFake.LIVE's
+         // 6: the others start, are over, full or closed), a yellow person with a friend in one; a
+         // plus when the list is at its most; under the tab what they mean, while the arrow is on it
          // (the movie's own root, which fails outside the game, makes a top menu of its own)
          W.topMenu = top;
          lobby.take(WatchFake.LIVE);
          var badge:DisplayObjectContainer = find(top,"srpWatchBadge") as DisplayObjectContainer;
          var badgeText:TextField = badge != null ? badge.getChildAt(0) as TextField : null;
          expect(language + ": the badge does not say 2: " + (badgeText ? badgeText.text : null),badge != null && badge.visible && badgeText.text == "2");
-         expect(language + ": the badge with a friend's match is not dark on yellow",badgeText != null && badgeText.textColor == 0x1B1B1B);
+         var friendMark:DisplayObject = badge != null ? badge.getChildByName("srpWatchBadgeFriend") : null;
+         expect(language + ": the badge with a friend's match has no person on it, in its plate",friendMark != null && friendMark.visible
+            && friendMark.x >= badgeText.x + badgeText.textWidth && friendMark.x + friendMark.width <= badge.width);
          watch.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OVER));
          var tip:DisplayObjectContainer = find(top,"srpWatchTip") as DisplayObjectContainer;
          var tipText:TextField = tip != null ? tip.getChildAt(0) as TextField : null;
-         expect(language + ": the badge's tip does not name the friend: " + (tipText ? tipText.text : null),tip != null && tip.visible
-            && tipText.text == words.getName("st_srp_watch_badge_friend") && tipText.textWidth > 20);
+         expect(language + ": the badge's tip does not say live matches, then the friend: " + (tipText ? tipText.text : null),tip != null && tip.visible
+            && tipText.text.indexOf(words.getName("st_srp_watch_badge_live")) == 0
+            && tipText.text.indexOf(words.getName("st_srp_watch_badge_friend")) > 0 && tipText.numLines == 2 && tipText.textWidth > 20);
          var tipBox:Rectangle = tip != null ? tip.getBounds(top) : new Rectangle();
          expect(language + ": the badge's tip is not under the Watch tab, in the bar's width: " + tipBox,tipBox.y >= watch.getBounds(top).bottom
             && tipBox.x >= 0 && tipBox.right <= top.tabPage.x + top.tabPage.width);
          lobby.take(WatchFake.LIVE.slice(0,8));
-         expect(language + ": the badge without a friend is not white on red, or its tip not the plain one: " + (tipText ? tipText.text : null),
-            badgeText != null && badgeText.text == "2" && badgeText.textColor == 0xFFFFFF && tipText != null && tip.visible
-            && tipText.text == words.getName("st_srp_watch_badge_live"));
+         expect(language + ": the badge without a friend has a person, or its tip is not the plain one: " + (tipText ? tipText.text : null),
+            badgeText != null && badgeText.text == "2" && friendMark != null && !friendMark.visible && tipText != null && tip.visible
+            && tipText.text == words.getName("st_srp_watch_badge_live") && tipText.numLines == 1);
          watch.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
          expect(language + ": the badge's tip stays after the arrow left",tip != null && !tip.visible);
          var many:Array = ["L0;20;30"];

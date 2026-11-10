@@ -16,10 +16,12 @@ Watch button wherever a match is mentioned.
   four right tabs share Ranking's old width, `TopMenuBar.RIGHT_TABS`), with our eye on it and a red
   badge counting the live matches that can be watched now (the `L0` list's rows whose card's Watch
   would be lit: in play, with a spectator's place, open to spectators; `WatchWindow.paintBadge`):
-  none for 0, a plus after the number when the list is at its most (20 rows: more may be played),
-  yellow with dark digits when a friend plays in one of them, red otherwise. With the arrow on the
-  tab a small box under it says which: "Live matches you can watch" or "A friend is playing now"
-  (`TopMenu.showWatchTip`). It opens the Watch window in the rooms
+  none for 0, a plus after the number when the list is at its most (20 rows: more may be played).
+  It reads as live, not as unread (the owner's of 2026-11-10): a dark plate with a red dot, as the
+  Live tab's, and the count in white; a yellow person after it when a friend plays in one of them
+  (`RoomsLook.person`, the same mark before the friends' names on that match's card). With the
+  arrow on the tab a small box under it says "Live matches you can watch", and on a second line "A
+  friend is playing now" when one is (`TopMenu.showWatchTip`). It opens the Watch window in the rooms
   window's frame and look (`survarium/watch/`, `RoomsLook`); opening one closes the other, and the tab
   follows the window (`selectWatchTab`). The badge's list is asked every 30 s while Live is not shown,
   never during a match (`MainScene.activeMatchMaking`).

@@ -66,16 +66,19 @@ package survarium.controls
 
       private var _roomsLabelColour:uint;
 
-      // The Watch tab: our eye in place of its art, and on it the count of the live matches that
-      // can be watched now: red, yellow when a friend plays in one; what it counts said under the
-      // tab while the arrow is on it.
+      // The Watch tab: our eye in place of its art, and on it a dark plate with a red dot (live, as
+      // the Live tab's) and the count of the live matches that can be watched now, and a yellow
+      // person when a friend plays in one; what they mean said under the tab while the arrow is on it.
       private var _watchIcon:Shape;
 
       private var _watchBadge:Sprite;
 
       private var _watchTip:Sprite;
 
-      // the badge as last drawn: its text and colour
+      // the friend's mark on the badge
+      private var _watchFriendMark:Shape;
+
+      // the badge as last drawn: its text, and whether a friend plays
       private var _watchSaid:String = null;
 
       private var _watchFriend:Boolean = false;
@@ -515,6 +518,9 @@ package survarium.controls
                field.autoSize = TextFieldAutoSize.LEFT;
                field.defaultTextFormat = new TextFormat(label != null ? label.getTextFormat().font : null,12,0xFFFFFF,true);
                this._watchBadge.addChild(field);
+               this._watchFriendMark = RoomsLook.person(RoomsLook.YELLOW,11);
+               this._watchFriendMark.name = "srpWatchBadgeFriend";
+               this._watchBadge.addChild(this._watchFriendMark);
                tab.addChild(this._watchBadge);
                this._watchSaid = null;
                tab.addEventListener(MouseEvent.ROLL_OVER,this.onWatchTabOver);
@@ -553,18 +559,33 @@ package survarium.controls
       {
          var field:TextField = this._watchBadge.getChildAt(0) as TextField;
          this._watchBadge.visible = this._watchSaid != "";
-         // dark digits on yellow, white on red
-         field.textColor = this._watchFriend ? 0x1B1B1B : 0xFFFFFF;
+         field.textColor = 0xFFFFFF;
          field.text = this._watchSaid;
-         var w:int = Math.max(18,int(field.textWidth + 10));
-         // On the text itself: a TextField has a 2 px gutter on each side, and a narrow digit
-         // centred by the field's own box sits off the middle of the circle.
-         field.x = Math.round((w - field.textWidth) / 2) - 2;
+         // from the left: the red dot, the count, the friend's mark
+         var dot:Number = 4;
+         var at:Number = 6 + 2 * dot + 4;
+         // On the text itself: a TextField has a 2 px gutter on each side.
+         field.x = at - 2;
          field.y = Math.round((18 - field.textHeight) / 2) - 2;
-         this._watchBadge.graphics.clear();
-         this._watchBadge.graphics.beginFill(this._watchFriend ? RoomsLook.YELLOW : 0xC62B22,1);
-         this._watchBadge.graphics.drawRoundRect(0,0,w,18,18,18);
-         this._watchBadge.graphics.endFill();
+         at += Math.ceil(field.textWidth);
+         this._watchFriendMark.visible = this._watchFriend;
+         if(this._watchFriend)
+         {
+            this._watchFriendMark.x = at + 5;
+            this._watchFriendMark.y = 3;
+            at += 5 + Math.ceil(this._watchFriendMark.width);
+         }
+         var w:int = int(at + 7);
+         var g:* = this._watchBadge.graphics;
+         g.clear();
+         g.lineStyle(1,0x3A4248);
+         g.beginFill(0x0C0E10,0.92);
+         g.drawRoundRect(0,0,w,18,18,18);
+         g.endFill();
+         g.lineStyle();
+         g.beginFill(RoomsLook.RED,1);
+         g.drawCircle(6 + dot,9,dot);
+         g.endFill();
       }
 
       private function onWatchTabOver(e:MouseEvent) : void
@@ -594,6 +615,7 @@ package survarium.controls
             words.embedFonts = true;
             words.selectable = false;
             words.autoSize = TextFieldAutoSize.LEFT;
+            words.multiline = true;
             words.defaultTextFormat = new TextFormat(badge.defaultTextFormat.font,13,RoomsLook.LIGHT,true);
             words.x = 8;
             words.y = 4;
@@ -606,7 +628,9 @@ package survarium.controls
          {
             return;
          }
-         field.text = LocalizationData.getName(this._watchFriend ? "st_srp_watch_badge_friend" : "st_srp_watch_badge_live");
+         // what the dot and the count are, and under it what the person is
+         field.text = LocalizationData.getName("st_srp_watch_badge_live")
+            + (this._watchFriend ? "\n" + LocalizationData.getName("st_srp_watch_badge_friend") : "");
          var w:int = int(field.textWidth + 20);
          var h:int = int(field.textHeight + 12);
          this._watchTip.graphics.clear();

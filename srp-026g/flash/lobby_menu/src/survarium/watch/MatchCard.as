@@ -53,6 +53,9 @@ package survarium.watch
 
       private var _route:Function;
 
+      // the person before the friends' names
+      private var _friendMark:Shape;
+
       // the row shown (WatchRows' object, `kind` live, recent or played)
       public var row:Object;
 
@@ -252,6 +255,10 @@ package survarium.watch
                this.showSave(false);
             }
          }
+         if(this._friendMark != null)
+         {
+            this._friendMark.visible = row.friends.length > 0;
+         }
          if(row.friends.length > 0)
          {
             var names:Array = [];
@@ -259,6 +266,17 @@ package survarium.watch
             {
                names.push(friend.name);
             }
+            // the friend's mark of the top menu's badge, then their names
+            if(this._friendMark == null)
+            {
+               this._friendMark = RoomsLook.person(RoomsLook.YELLOW,11);
+               this._friendMark.name = "srpWatchFriendMark";
+               addChild(this._friendMark);
+            }
+            this._friendMark.visible = true;
+            this._friendMark.x = x;
+            this._friendMark.y = 49;
+            x += this._friendMark.width + 5;
             this.field(LocalizationData.format("st_srp_watch_friends",names.join(", ")),x,45,Math.max(20,right - x),12,RoomsLook.YELLOW,"srpWatchFriends");
          }
       }

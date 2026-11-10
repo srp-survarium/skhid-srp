@@ -719,6 +719,26 @@ package survarium.rooms
             box.addChild(icon);
         }
 
+        // A person, `h` high, its top left at 0,0: a friend's mark (the Watch tab's badge, a
+        // card's friends line).
+        public static function person(colour:uint, h:Number):Shape
+        {
+            var mark:Shape = new Shape();
+            var r:Number = h * 0.26;
+            var w:Number = h * 0.8;
+            mark.graphics.beginFill(colour, 1);
+            mark.graphics.drawCircle(w / 2, r, r);
+            mark.graphics.endFill();
+            // the shoulders: a half round under the head
+            mark.graphics.beginFill(colour, 1);
+            mark.graphics.moveTo(0, h);
+            mark.graphics.curveTo(0, h * 0.56, w / 2, h * 0.56);
+            mark.graphics.curveTo(w, h * 0.56, w, h);
+            mark.graphics.lineTo(0, h);
+            mark.graphics.endFill();
+            return mark;
+        }
+
         // The click the game's buttons make (ButtonClick: sound_play 0).
         public static function clickSound():void
         {
