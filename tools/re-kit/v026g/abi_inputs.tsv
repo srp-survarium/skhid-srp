@@ -6001,3 +6001,22 @@ va	name	location	role	basis
 0x001ee2e0	survarium::game::replay_seek_to	entry ESP+4, ESP+8	the target, ms from the replay's start, and 0 for a user seek (the movie's update_position, 0x233E2F, at once inside scaleform_callback), 1 while playing (through enqueue_replay_seek_to 0x1EE3C0)	observed
 0x001edef0	survarium::game::read_replay_to	entry ESP+4, ESP+8	the game and t, the clock of the frame (read before the frame's keys: a seek made by a key handler is read on from with the old clock)	observed
 0x00233d30	survarium::game_world_ui::scaleform_callback	at 0x233EBD..0x233F03	select_player (0xA03270): the place and the view; the network client's +7Ch (view 0, 0x26DF70) or +88h (0x26E0D0), which follow the place only when get_active_player (0x26D6A0) has it, a place in the match now	observed
+0x000ec780	vostok::console_commands::cc_delegate::cc_delegate	EDI	the console command object (60h bytes; linked at the head of the list 0x1F1D66C)	observed
+0x000ec780	vostok::console_commands::cc_delegate::cc_delegate	EDX	the name (+10h)	observed
+0x000ec780	vostok::console_commands::cc_delegate::cc_delegate	entry ESP+4	the delegate to copy to +40h (a boost::function1<void, const char *>, 20h bytes; 0x28F040 copies an empty one, its manager 0, as empty)	observed
+0x000ec780	vostok::console_commands::cc_delegate::cc_delegate	entry ESP+8	the status byte (+1Ch): set, the name alone with no arguments shows the status instead of executing (console_commands::execute 0xEBACF); 1 for attach_to_player (0x218AC9), 0 for pause (0x1E96BD)	observed
+0x000ec780	vostok::console_commands::cc_delegate::cc_delegate	entry ESP+12	a command kind (+14h; console_commands::execute runs a command only when the kind has a bit of its mask, 0xEBAA7: the console's lines have mask 2, 0x1D6D6)	observed
+0x000ec830	vostok::console_commands::cc_delegate::execute	ECX	the command (a cc_delegate)	observed
+0x000ec830	vostok::console_commands::cc_delegate::execute	entry ESP+4	the arguments: the text after the line's first space, or 0 for a line of the name alone (console_commands::execute 0xEBB97)	observed
+0x00111c90	vostok::logging::helper::helper	EAX	the function the line is written through (+228h; a boost::function of 20h bytes, as log_message's callers make it: {0x9DAF4C | 1, 0, [0x1F1D614]}, or empty when [0x1F1D614] is 0)	observed
+0x00111c90	vostok::logging::helper::helper	ECX	the context word (+230h; the callers' [0x1F1D610])	observed
+0x00111c90	vostok::logging::helper::helper	entry ESP+4	the helper to fill (248h bytes; returned)	observed
+0x00111c90	vostok::logging::helper::helper	entry ESP+8	the template copied first (its 228h bytes; 0x21E73B8 for the callers of log_message)	observed
+0x00111c90	vostok::logging::helper::helper	entry ESP+12	the source file (+238h)	observed
+0x00111c90	vostok::logging::helper::helper	entry ESP+16	the source line (+240h)	observed
+0x00111c90	vostok::logging::helper::helper	entry ESP+20	the caller: its function's name (+23Ch)	observed
+0x00111c90	vostok::logging::helper::helper	entry ESP+24	the channel with a colon appended (+234h; log_message appends it to its copy, 0x111F29)	observed
+0x00111c90	vostok::logging::helper::helper	entry ESP+28	the level (+244h; 4 info)	observed
+0x00111d10	vostok::logging::helper::write	ESI	the helper (0x111C90's)	observed
+0x00111d10	vostok::logging::helper::write	entry ESP+4	the format	observed
+0x00111d10	vostok::logging::helper::write	entry ESP+8	the format's arguments, a va_list	observed
