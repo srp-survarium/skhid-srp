@@ -297,7 +297,7 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
                 args = [c['args'] for c in self.recorded_calls()]
                 self.assertEqual([a for a in args if a[0] == 'reg'], [expected] if expected else [])
                 if expected:
-                    self.assertLess(args.index(expected), args.index(['survarium_skhid.exe', '-mt_allocator=768', '-minimum_resources_memory_size=768']))
+                    self.assertLess(args.index(expected), args.index(['survarium_skhid.exe', '-minimum_resources_memory_size=768']))
 
     def test_launcher_mode_starts_the_skhid_launcher_in_the_same_wine(self):
         self.copy_exe()
@@ -493,7 +493,7 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         calls = self.recorded_calls()
         self.assertEqual(calls[-1]['args'], ['survarium_skhid.exe',
-            '-mt_allocator=768', '-minimum_resources_memory_size=768'])
+            '-minimum_resources_memory_size=768'])
         self.assertEqual(self.exe.read_bytes(), FIXTURE)
         self.assertFalse(self.exe.with_name(self.exe.name + '.before-memory-patch').exists())
 
@@ -515,7 +515,7 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         calls = self.recorded_calls()
         self.assertEqual([call['args'][:2] for call in calls[-2:]],
-                         [['updater_skhid.exe', 'ready'], ['survarium_skhid.exe', '-mt_allocator=768']])
+                         [['updater_skhid.exe', 'ready'], ['survarium_skhid.exe', '-minimum_resources_memory_size=768']])
 
     def test_generated_cert_only_launcher_passes_configured_server(self):
         self.copy_exe()
@@ -524,7 +524,7 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         calls = self.recorded_calls()
         self.assertEqual(calls[-1]['args'], ['survarium_skhid.exe',
-            '-mt_allocator=768', '-minimum_resources_memory_size=768', '-server=release.example:2234'])
+            '-minimum_resources_memory_size=768', '-server=release.example:2234'])
 
     def test_full_launcher_allows_an_explicit_server_override(self):
         self.copy_exe()
@@ -655,7 +655,7 @@ HDMI-1 connected 1366x768+0+0
         self.assertEqual(calls[3]['cwd'], str(self.bin))
         # No language set: none passed, the game keeps the one chosen in its Settings.
         self.assertEqual(calls[3]['args'], ['survarium_skhid.exe',
-            '-mt_allocator=768', '-minimum_resources_memory_size=768'])
+            '-minimum_resources_memory_size=768'])
         self.assertIn('qwave=', calls[3]['dll'])
         self.assertEqual(calls[3]['prefix'], str(self.bin / 'wineprefix'))
         result = self.run_script()
@@ -678,7 +678,7 @@ HDMI-1 connected 1366x768+0+0
         calls = self.recorded_calls()
         self.assertEqual([c['name'] for c in calls[-2:]], ['winetricks', 'wine'])
 
-    GAME = ['survarium_skhid.exe', '-mt_allocator=768', '-minimum_resources_memory_size=768']
+    GAME = ['survarium_skhid.exe', '-minimum_resources_memory_size=768']
 
     def assert_calibri_warned_and_game_started(self, result):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

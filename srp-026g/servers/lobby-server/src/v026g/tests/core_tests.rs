@@ -821,12 +821,7 @@ fn the_queries_are_answered() {
     world.ask(alice, (0x4B, vec![1, 2]));
     assert!(world.take(alice).is_empty());
 
-    // The autobuy box and the active kit have their own `83 49`.
-    world.ask(alice, request::autobuy(true));
-    assert!(matches!(
-        world.take(alice)[..],
-        [Decoded::Permitted(Permitted::Autobuy(true))]
-    ));
+    // The active kit has its own `83 49`.
     world.ask(alice, request::active_kit(2));
     assert!(matches!(
         world.take(alice)[..],
@@ -2043,12 +2038,12 @@ fn hundreds_of_ordered_pushes_through_a_lossy_link_all_arrive_in_order() {
     assert_eq!(amounts, (0..400).collect::<Vec<u32>>());
     // And the link still works.
     world.client(alice).loss_percent = 0;
-    world.ask(alice, request::autobuy(true));
+    world.ask(alice, request::active_kit(2));
     assert!(
         world
             .take(alice)
             .iter()
-            .any(|message| matches!(message, Decoded::Permitted(Permitted::Autobuy(true))))
+            .any(|message| matches!(message, Decoded::Permitted(Permitted::ActiveKit(2))))
     );
 }
 
@@ -3194,40 +3189,4 @@ fn a_new_account_has_no_tutorial_and_what_it_paid() {
     }
     assert_eq!(world.account(again).generic_money, money);
     world.assert_clean();
-}
-
-#[test]
-fn the_autobuy_box_is_kept_and_auto_repair_is_not() {
-    let mut world = World::new();
-    let alice = world.connect("Alice");
-    world.take(alice);
-    // The lobby's number: bit 1, the stock auto-repair, is not kept (srp
-    // has no repair); bit 0 is autobuy.
-    world.ask(alice, (0x49, vec![1, 2]));
-    assert!(matches!(
-        world.take(alice)[..],
-        [Decoded::Permitted(Permitted::Autobuy(false))]
-    ));
-    assert!(!world.account(alice).autobuy);
-    world.ask(alice, (0x49, vec![1, 3]));
-    assert!(matches!(
-        world.take(alice)[..],
-        [Decoded::Permitted(Permitted::Autobuy(true))]
-    ));
-    assert!(world.account(alice).autobuy);
-    // The account says so when it is sent again.
-    world.change(alice, |_| {});
-    world.ask(alice, request::active_kit(2));
-    world.take(alice);
-    world.ask(alice, request::move_item(2, 99, 1, 100, 7, 1));
-    assert!(world.take(alice).iter().any(|message| matches!(
-        message,
-        Decoded::Account(own) if own.autobuy
-    )));
-    world.ask(alice, (0x49, vec![1, 0]));
-    assert!(matches!(
-        world.take(alice)[..],
-        [Decoded::Permitted(Permitted::Autobuy(false))]
-    ));
-    assert!(!world.account(alice).autobuy);
 }

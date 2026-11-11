@@ -92,38 +92,21 @@ Record 0xD0 bytes, reader of the UI 0x227F60. PROVEN:
 - When the original server sent `A8` / `A9` is not known. **[srp]**: only when the operator sets `SRP_PREMIUM_DISCOUNT` (percent, 0..90, default 0): `A9` after the sign-in of an account without premium, `A8` with the results of a match whose premium half was not paid, standing for `SRP_PREMIUM_OFFER_SECONDS` (3600).
 - The one-day voucher's time was its config's `ttl_in_hours: 24` (the voucher is gone, silver-only.md).
 
-## 3. The two boxes: autobuy and auto-repair (corrects lobby.md §2.7, lobby_requests.md `49 01`)
+## 3. Autobuy: always on, no setting (corrects lobby.md §2.7, lobby_requests.md `49 01`)
 
-`49 01 <u8>` carries `LocalPlayerProfile.getAutoBuyState()`: **0 neither, 1 autobuy, 2 auto-repair, 3 both** (PROVEN in the UI). The same number is the "autobuy flag" byte of `87` and the byte of `83 49 01`: the client hands it to `root.set_autobuy` as a number (0x227760) and `LobbyMenu.set_autobuy` ticks autobuy for 1 and 3, auto-repair for 2 and 3. A wire `FF` would untick both.
+The owner, 2026-11-10: "internally autobuy is always on". The stock kit window had two boxes, and `49 01 <u8>` carried their state: **0 neither, 1 autobuy, 2 auto-repair, 3 both** (PROVEN in the stock UI). The same number is the byte after the active kit in `87` and the byte of `83 49 01`, which the client stores (lc+0x1EA974) and hands to `root.set_autobuy` (0x227760); nothing else in the exe reads it (its only references are the two stores, 0x2702CB and 0x275CC7).
 
-- **The auto-repair box is gone from the Character panel** (the owner's, 2026-10-23: wear is gone, so it did nothing). Its code is out of the movie; the original movie's graphics still place it, so `LocalPlayerProfile.init` hides it and moves Autobuy into its place (the row's start, no gap). The movie sends 0 or 1 only. Since srp has no repair at all (the owner, 2026-11-08) the server reads bit 0 alone and pushes bit 1 as 0; `g26_extras.auto_repair` stays in the table, unused.
-- **Autobuy is on by default** (the owner's, 2026-10-23): a new account starts with it ticked (`Account::with_loadout`). The server keeps only the box's state, not whether the player ever touched it, so the accounts of before were all turned on once, at the first start of an srp with the rule (the `g26_meta` mark `autobuy_turned_on`; done on live, its code since removed) [choice: an account that had turned it off gets it on again once; the box shows it, and a box turned off from then on stays off]. Unticking it sends `49 01 00` and is saved as ever.
-
-### Autobuy toggles and the native Flash boundary (2026-11-02)
-
-The owner reproduced off → on → immediately off in the revision-43 candidate.
-Its lobby packet log at 18:39:20–23 UTC has four `49 01 00` requests, each
-acknowledged with `83 49 01 00`: the server received off even on the intended on
-click. The packaged movie already contained the empty-refill-list fix, which
-keeps `fill_auto_buy_items` from overwriting the setting.
-
-The native `autobuy_changed` callback at 0x288CD0 reads `params+8` for the GFx
-argument array, then the raw byte at `args[0]+8`. It does not inspect the value's
-type or convert its numeric value. A Boolean's union byte is 0/1; the IEEE-754
-double representation of numeric 1 starts with 0. The callback passes that byte
-to the `49 01` request writer at 0x273000. PROVEN in the executable and by
-`client-patches/check_autobuy_value_026g.py`, which executes the callback with
-repeated Boolean off/on values and numeric 0/1 (the latter both send off).
-
-`LocalPlayerProfile.onAutoBuy` now passes `checkbox_autobuy.selected` directly
-as a Boolean, without the numeric ternary. Only the autobuy bit remains in this
-UI; the removed auto-repair control does not need a numeric bitmask here.
-The on-wire format and server behaviour are unchanged. The candidate source
-and packet evidence point to the numeric Flash boundary as the cause; verify
-in the rebuilt native game that off/on sends alternating `49 01 00`/`49 01 01`,
-and that it survives a kit change, match return and sign-in.
-
-What a match used: `session::v026g::autobuy` (the player's block of the last trusted snapshot when the match server read it, held to what the counters and the kit allow; else the bullets counter for a kit with one kind of ammo). Autobuy buys back in whole clips while the silver lasts. The three lists that end `89` carry what was spent (the third, repairs, always empty: no repair).
+- **Auto-repair is gone** (the owner, 2026-10-23: wear is gone; no repair at all since 2026-11-08). The results screen's "Repair cost" row stays hidden.
+- **Autobuy has no box and no setting**; it works for every account.
+  - **After a match** (`session::v026g::autobuy`): what the match used is taken off the stacks (the player's block of the last trusted snapshot when the match server read it, held to what the counters and the kit allow; else the bullets counter for a kit with one kind of ammo; `SRP_AMMO_USE=off` takes nothing) and bought back in whole steps of the shop (a clip of ammo, one of anything else) at the shop's price, from the silver the account has then, the match's pay included.
+  - **Too little silver:** it buys the whole steps the silver pays for, item by item in the order they were used, and the rest stays used up (the stack shrinks; a stack at 0 leaves the stash and its slot). With no silver nothing is bought. No debt, no notice beyond the results screen's rows.
+  - **What the account may not buy** (an item of a seller whose level it lacks) is not bought.
+  - **For nothing:** a stack the game prices at nothing (the starting pistol's ammo) is refilled without silver.
+  - **The results screen** lists the silver spent ("Spent", "Ammunition", "Special equipment"), from the three lists that end `89` (the third, repairs, always empty); its money total is net of them.
+- **The lobby:** the box is gone from the character panel. The original movie's graphics still place it and the auto-repair box, so `LocalPlayerProfile.init` hides both (their fields stay for the placed instances); the Regeneration box has their place ([regeneration-box.md](regeneration-box.md)). `LobbyMenu.set_autobuy` stays as the exe's call and does nothing. The ammo window no longer sets `auto_buy` on its moves and `fill_auto_buy_items` is out: the exe has neither string, so it never read the one or called the other, and ticked or not the lobby behaved the same but for the box.
+- **The exe** is unchanged; `autobuy_changed` (0x288CD0, the sender of `49 01`) has no caller in the movie now, so the request is never sent.
+- **The server:** `87` carries 1 (autobuy on, no repair), as it did for an account with the box ticked. No `49 01` (`ClientMessage::SetAutobuy` is out; such a request would be logged as unread, as any unknown one) and no `83 49 01`. `Account::autobuy` is out.
+- **Stored data:** the column `g26_accounts.autobuy` stays in the schema with what each account had; it is neither read nor updated, and a new account's row gets 0 (as `premium_money`, `g26_extras.auto_repair`). An account that had unticked the box is bought for again.
 
 ## 4. The daily bonus (`99`, adds to results.md §4.1)
 

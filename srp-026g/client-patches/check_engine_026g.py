@@ -19,6 +19,9 @@ runs the same (test_engine). For every function of engine_026g.tsv:
   with the stack balanced, the four registers kept and the result where C
   takes it (EAX, AL widened, EDX:EAX, ST0);
 - every vtables.tsv row: the vtable holds that function at that slot;
+- a COM method (`call` com, a system DLL's: `[[this]+slot]`, stdcall): the
+  thunk, called with an object whose vtable is a made-up one, reaches that
+  slot with `this` and the rest in the stack slots, and comes back as above;
 - a virtual function (`call` virtual: `[[this]+slot]`): each of its
   vtables.tsv rows is the exe's (the vtable holds that function at that
   slot) and each function's `ret`s pop what abi.tsv says; the thunk, called
@@ -199,7 +202,7 @@ def at_entry(run, f, entry, pops, target=None, this=None):
     out.append((not where and run.lo <= stack[0] < run.hi,
                 f"{f['symbol']}: at {target:#x} each argument where the rows put it "
                 f"({', '.join(f['args']) or 'none'}), called from the library" + (": " + "; ".join(where) if where else "")))
-    result = {None: True, "EAX": eax == RESULT, "AL": eax == RESULT & 0xFF,
+    result = {None: True, "EAX": eax == RESULT, "AL": eax == RESULT & 0xFF, "AX": eax == RESULT & 0xFFFF,
               "EDX:EAX": eax == RESULT and run.emu.reg_read(UC_X86_REG_EDX) == RESULT_HIGH,
               "XMM0": f["result"] == "XMM0" and st0(run) == 1.5}[f["result"]]
     out.append((moved == 4 and kept == KEPT and result,
@@ -231,6 +234,19 @@ def virtual(run, original, f, entry):
         out.append((all(ok for ok, _ in reached), f"{f['symbol']}: an object of {cls} (vtable {vtable:#x}) reaches "
                     f"{va:#x}" + "".join(f"; {text}" for ok, text in reached if not ok)))
     return out
+
+
+def com(run, f, entry):
+    """[(ok, text)] of a COM method (a system DLL's, not in the exe): the
+    thunk, called with an object whose vtable is a made-up one, reaches that
+    vtable's slot with `this` and the rest on the stack (stdcall), and comes
+    back balanced with what the method pops."""
+    _, slot = f["com"]
+    table, this = run.allocate(0x400), run.allocate(0x10)
+    stub = STUBS + 0x240
+    run.word(this, table)
+    run.word(table + slot, stub)
+    return at_entry(run, f, entry, f["cleanup"], target=stub, this=this)
 
 
 # ---- the functions run for real ------------------------------------------
@@ -344,6 +360,9 @@ def run_checks(original, library=None, spec=None, abi=None, inputs=None, behave=
     for f in fs:
         if f["call"] == "virtual":
             out += virtual(run, original, f, symbols[f["symbol"]])
+            continue
+        if f["call"] == "com":
+            out += com(run, f, symbols[f["symbol"]])
             continue
         pops = exe_pops(original, f["va"])
         out.append((pops == f["cleanup"], f"{f['symbol']}: {f['va']:#x}'s rets pop {pops} in the original exe; "

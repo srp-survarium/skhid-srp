@@ -9,6 +9,7 @@ use session::{LockExt, SESSION_IDLE_LIMIT, SessionStore, SignInError};
 use vostok::config;
 
 /// The 0.26g client's login server; the rest of this file is 0.21d's.
+pub mod sealed;
 pub mod v026g;
 
 const PKEY_PATH: &str = "./certs/survarium_login_server.key";

@@ -81,7 +81,7 @@ int main(int argc, char** argv)
     char exe[MAX_PATH];
     sprintf_s(exe, "%s\\survarium_skhid.exe", argv[1]);
     char command[4096];
-    sprintf_s(command, "\"%s\" -localization=english -server=127.0.0.1:9 -mt_allocator=768 -minimum_resources_memory_size=768", exe);
+    sprintf_s(command, "\"%s\" -localization=english -server=127.0.0.1:9 -minimum_resources_memory_size=768", exe);
     STARTUPINFO start = {sizeof(start)};
     PROCESS_INFORMATION process = {0};
     if (!CreateProcess(exe, command, NULL, NULL, FALSE, 0, NULL, argv[1], &start, &process)) {

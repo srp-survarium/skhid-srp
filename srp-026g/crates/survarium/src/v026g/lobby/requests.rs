@@ -288,10 +288,6 @@ pub enum ClientMessage {
 
     /// `49 00`.
     RenameKit { kit_id: u32, name: String },
-    /// `49 01`: the account's two boxes, as the lobby's number
-    /// (`LocalPlayerProfile.getAutoBuyState`; PROVEN): bit 0 is autobuy
-    /// (`on`); bit 1, the stock auto-repair, is not read (srp has no repair).
-    SetAutobuy { on: bool },
     /// `49 02`.
     SetActiveKit { kit_id: u32 },
     /// `49 03`.
@@ -717,10 +713,6 @@ fn parse_profile(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
                 kit_id: r.u32()?,
                 name: r.str()?,
             });
-        }
-        0x01 => {
-            let state = r.u8()?;
-            return Ok(M::SetAutobuy { on: state & 1 != 0 });
         }
         0x02 => return Ok(M::SetActiveKit { kit_id: r.u32()? }),
         0x03 => {

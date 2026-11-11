@@ -46,6 +46,39 @@ fn receipts_cannot_accuse_other_players_or_restart_a_settled_generation() {
 }
 
 #[test]
+fn a_module_report_is_logged_once_a_part_and_is_no_leave() {
+    use srp_validate::modules::{Code, Entry, Folder, Memory, Module, Moment, Name, PeMarks, Place, Protect, Report as Modules};
+    use srp_validate::report::Report;
+    let mut bench = Bench::growing(3, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    assert!(bench.until(10_000, |b| b.stages() == "LLL"));
+    let mut modules = Modules::new(Moment::Loaded);
+    for n in 0..12u32 {
+        let name: Vec<u16> = format!("C:\\Games\\Skhid\\m{n}.dll").encode_utf16().collect();
+        modules.add(Entry::Module(Module { name: Name::of_path(&name).unwrap(), place: Place::bare(Folder::Game), image_size: 0x1000, pe: Some(PeMarks { stamp: n, checksum: 0 }) }));
+    }
+    modules.add(Entry::Code(Code { memory: Memory::Private, protect: Protect::ExecuteReadWrite, exec_size: 0x3000, size: 0x5000, start: None, pe: None }));
+    let report = Report::Modules(modules);
+    let match_id = bench.clients[0].model.options.as_ref().unwrap().match_id;
+    // Each part with its copies (0xE0 is resent until acked), and a report
+    // of another match, which is not this one's to log.
+    for _ in 0..3 {
+        for part in 0..report.parts() {
+            let (bytes, len) = report.part(match_id, part).unwrap();
+            bench.clients[0].send(id::LEAVE, &bytes[..len], true);
+            let (other, len) = report.part(match_id ^ 1, part).unwrap();
+            bench.clients[1].send(id::LEAVE, &other[..len], true);
+        }
+    }
+    bench.run(2_000);
+    assert_eq!(bench.game().report_parts_heard(0), 2);
+    assert_eq!(bench.game().report_parts_heard(1), 0);
+    assert_eq!(bench.stages(), "LLL");
+    assert!(bench.clients.iter().all(|c| !c.closed && !c.disconnected));
+    bench.assert_no_faults();
+}
+
+#[test]
 fn a_memory_report_is_logged_once_a_part_and_is_no_leave() {
     use srp_validate::memory::{Arena, Moment, Name, Process, Report as Memory, Usage};
     use srp_validate::report::Report;

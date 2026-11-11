@@ -42,7 +42,7 @@ pub enum TextureKind {
 impl TextureKind {
     /// The game's value; none for one past the four (the game's queries
     /// have others: none of the slots).
-    fn from_raw(kind: u32) -> Option<TextureKind> {
+    pub(super) fn from_raw(kind: u32) -> Option<TextureKind> {
         match kind {
             0 => Some(TextureKind::D),
             1 => Some(TextureKind::N),
@@ -54,6 +54,11 @@ impl TextureKind {
 
     fn slot(self) -> usize {
         self as usize
+    }
+
+    /// The game's value.
+    pub(super) fn raw(self) -> u32 {
+        self as u32
     }
 }
 
@@ -110,6 +115,11 @@ impl Surface {
 }
 
 impl Model {
+    /// The model instance a frame or field of vostok gave.
+    pub(super) fn of(model: raw::RenderModelInstance) -> Model {
+        Model(model)
+    }
+
     /// One reference more (`lock xadd [model+0D0h], 1`, as translate_query
     /// takes one).
     pub fn hold(self) {
@@ -132,6 +142,15 @@ impl Model {
 }
 
 impl Texture {
+    /// The texture a frame, field or function of vostok gave.
+    pub(super) fn of(texture: raw::ResTexture) -> Texture {
+        Texture(texture)
+    }
+
+    pub(super) fn raw(self) -> raw::ResTexture {
+        self.0
+    }
+
     /// One reference more.
     pub fn hold(self) {
         // SAFETY: a texture the game keeps while a reference is held; the

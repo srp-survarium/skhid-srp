@@ -5,6 +5,9 @@ va	name	source	ret_cleanup	result
 0x00014710	vostok::render::one_way_render_channel::owner_finalize	manual	0	
 0x000147e0	on_mounted_resources	manual	0	
 0x000148b0	on_mounted_user_data	manual	0	
+0x0001b7b0	vostok::timing::timer::elapsed_ticks	manual	0	EDX:EAX: (QueryPerformanceCounter - [esi+8]) x [esi+10h] (_ftol2 0x424B86) + [esi]
+0x0001c410	vostok::memory::mt_free	manual	0	
+0x0001c6a0	vostok::memory::mt_allocate	manual	0	EAX: the memory; 0 when [1F1D61Bh] is set or the MT allocator has none
 0x0001ef10	vostok::render::one_way_render_channel::one_way_render_channel	manual	0	EAX: receiver pointer
 0x0001f090	vostok::render::one_way_render_channel::~one_way_render_channel	manual	0	
 0x0001f2c0	vostok::render::one_way_render_channel::owner_push_back	manual	0	
@@ -227,6 +230,10 @@ va	name	source	ret_cleanup	result
 0x000f70e0	vostok::memory::writer::seek	manual	4	
 0x000f8480	vostok::resources::resources_manager::add_fs_task	manual	0	
 0x000fef60	vostok::render::renderer_cook::destroy_resource	manual		
+0x00106a00	vostok::timing::timer::elapsed_ms	manual	0	ST0: elapsed_ticks / the thread's ticks a ms (fs:[2Ch] TLS, its block +8, a 64-bit count)
+0x00109ed0	vostok::resources::make_save_descriptor	manual	0	EAX: the descriptor (allocate_save_descriptor), its data an MT copy of the bytes, +8 = 1
+0x00109f30	vostok::resources::allocate_save_descriptor	manual	0	EAX: the descriptor, 18h bytes and the two paths after them, MT; 0 when MT refuses
+0x0010a050	vostok::resources::save_descriptor::~save_descriptor	manual	0	
 0x0010bcc0	vostok::resources::hdd_manager_sorting_predicate::operator()	manual	4	AL: the first query before the second
 0x0010d4e0	vostok::tasks::thread_pool::wait_for_all_children	manual	4	returns once every task the calling thread spawned has run (it runs children itself meanwhile); a user thread's current task is reset to its tls+90h
 0x001104b0	vostok::network::network_world::set_on_dispatch_callbacks	manual	32	
@@ -325,6 +332,12 @@ va	name	source	ret_cleanup	result
 0x0011e510	vostok::render::system_renderer::draw_ui_vertices	manual	20	
 0x0011e820	vostok::render::system_renderer::draw_render_models_selection	manual	8	
 0x0011f010	vostok::render::system_renderer::draw_particle_system_instance_selections	manual	4	
+0x0011f280	vostok::render::gpu_dxt_compressor::block_mip_count	manual	0	EAX: trunc(log(min(EAX,ECX)) / log 2) + 1, the block levels (10 for 512x512 blocks)
+0x0011f2f0	vostok::render::gpu_dxt_compressor::data_size	manual	0	EAX: bytes of ECX block levels from EDX x [esp+4] texels, 8 a block for format 46h else 16
+0x0011f350	vostok::render::gpu_dxt_compressor::write_dds_header	manual	0	[EAX] the 128-byte header: "DDS ", 7Ch, flags 0A100Fh, DXT1 or DXT5
+0x0011f3f0	vostok::render::gpu_dxt_compressor::compress	manual	32	
+0x0011f590	vostok::render::gpu_dxt_compressor::compress_mip	manual	32	
+0x0011f8b0	vostok::render::gpu_dxt_compressor::make_mips	manual	12	
 0x00120560	vostok::math::modf	manual	0	x87 ST0: the fractional part of the float in XMM0 (CRT modf 0x428910); the integer part as a float at [stack+4] (emulated: 1.75 -> 1, -2.25 -> -2, -0.8 -> -0)
 0x00120a50	vostok::render::texture_gpu_converter_cook::texture_gpu_converter_cook	manual	0	EAX: fixed global cook object address
 0x00120bf0	vostok::render::texture_gpu_converter_cook::allocate_resource	manual	20	EAX: address of caller-supplied pointer/count result storage on both locally returning paths
@@ -358,6 +371,9 @@ va	name	source	ret_cleanup	result
 0x00126750	vostok::render::skeleton_model_instance_cook::on_render_model_loaded	manual	8	
 0x00126af0	vostok::render::skeleton_model_instance_cook::on_all_subresources_ready	manual	4	
 0x00127700	boost::function_invoker<bind(void(*)(A*,B*),a,b)>::invoke	manual	0	
+0x0012e510	vostok::render::camouflage_decal_texture_type_baker_cook::on_textures_loaded	manual	24	
+0x0012ec40	vostok::render::camouflage_decal_texture_type_baker_cook::process_compression	manual	40	
+0x00131590	vostok::render::camouflage_decal_texture_type_baker_cook::render_bake	manual	24	
 0x00134020	vostok::render::camouflage_decal_baker_cook::translate_query	manual	4	class 6Ch; asks 4 class-6Bh (107) camouflage_decal_texture_type_baker_cook queries per P, one per type d, n, f, s (names 0x9EE7A4..0x9EE7B0, the class at 0x1342E8): a log's "cook of '' [quid n][class 107] failed" is one of them (once per baked surface, before its d, n, s lines: LIKELY f, fresnel)
 0x00135900	vostok::render::material_effects_instance_cook::on_material_ready	manual	8	
 0x00135af0	vostok::render::material_effects_instance_cook::translate_query	manual	4	
@@ -1344,12 +1360,12 @@ va	name	source	ret_cleanup	result
 0x0031c480	survarium::artefact_container_core::load	manual	4	
 0x0031c530	survarium::artefact_container_core::serialize	manual	8	
 0x0031c5b0	survarium::artefact_container_core::deserialize	manual	12	
-0x0031c6b0	survarium::artefact_container_core::can_use	manual	4	
+0x0031c6b0	survarium::artefact_container_core::can_use	manual	4	AL (EAX 0 or 1): the user can put an artefact in
 0x0031c720	survarium::artefact_container_core::use_info	manual	4	
 0x0031c780	survarium::artefact_container_core::use_execute	manual	12	
 0x0031c8a0	survarium::artefact_container_core::transfer_artefact	manual	4	
 0x0031cad0	survarium::victory_items_container_core::load	manual	4	
-0x0031cb10	survarium::victory_items_container_core::can_use	manual	4	
+0x0031cb10	survarium::victory_items_container_core::can_use	manual	4	AL: the user can put a battery in (0x31CB53 mov al,cl: the high bytes of EAX are not set)
 0x0031cbb0	survarium::victory_items_container_core::use_info	manual	4	
 0x0031cc40	survarium::victory_items_container_core::use_initialize	manual	8	
 0x0031cdb0	survarium::victory_items_container_core::put_item	manual	4	
@@ -1574,6 +1590,7 @@ va	name	source	ret_cleanup	result
 0x003bccc0	vostok::render::resource_manager::register_constant_binding	manual	4	EAX: backend constant host pointer or null
 0x003bcd20	vostok::render::resource_manager::create_texture	manual	40	EAX: cached or loaded resource pointer, or null sentinel
 0x003bcdd0	vostok::render::fix_texture_name	manual	0	
+0x003bd030	vostok::render::resource_manager::create_texture_from_memory	manual	24	EAX: the named texture (process_compression 0x12F0BB takes a count at +4)
 0x003bd120	vostok::render::resource_manager::on_texture_loaded_res_impl	manual	40	EAX: texture pointer on normal completion;0 on explicit metadata/gate failure where present
 0x003bdce0	vostok::render::resource_manager::on_texture_loaded_res	manual	24	EAX: texture pointer on normal completion;0 on explicit metadata/gate failure where present
 0x003bdeb0	vostok::render::resource_manager::on_texture_loaded	manual	20	
@@ -1676,7 +1693,7 @@ va	name	source	ret_cleanup	result
 0x003d0b40	vostok::render::res_texture::width	manual	0	
 0x003d0b60	vostok::render::res_texture::height	manual	0	
 0x003d0d70	vostok::render::res_texture::set_hw_texture	manual	20	
-0x003d0f80	vostok::render::res_texture::map2D	manual	8	
+0x003d0f80	vostok::render::res_texture::map2D	manual	8	EAX: the mapped data; 0 when not mapped (no resource, not a staging, or still drawing with the no-wait byte)
 0x003d1000	vostok::render::res_texture::clone	manual	0	
 0x003d10f0	vostok::render::untyped_buffer::untyped_buffer	manual	24	EAX: receiver pointer
 0x003d16f0	vostok::render::res_geometry::~res_geometry	manual	0	
@@ -1895,6 +1912,14 @@ va	name	source	ret_cleanup	result
 0x0044635d		auto	0	
 0x00446d42		auto	0	
 0x00447290		auto	16	
+0x0044a270	ERR_put_error	manual	0	none (OpenSSL 1.0.1h, statically linked, an unoptimised build: plain cdecl; ssl_lib.c's SSLerr calls it with lib 14h, the function's and the reason's codes, the file .\ssl\ssl_lib.c 0x8B3FAC and the line)
+0x0044c630	BIO_read	manual	0	EAX: the bytes read; -1 with the BIO's retry-read flag when a BIO pair's half has none (its BIOerr codes: function 6Fh, bio_lib.c 0x88EF94)
+0x0044c740	BIO_write	manual	0	EAX: the bytes written; -1 or 0 when the BIO takes none (its BIOerr codes: function 71h)
+0x0046b6e0	ssleay_rand_bytes	manual	0	EAX: 1 when the bytes are random, 0 when the generator is not seeded (the `bytes` slot of rand_ssleay_meth 0xA6105C: 0x46B700 with pseudo = 0, which polls the system (RAND_poll) on its first use)
+0x004d4c60	SSL_connect	manual	0	EAX: 1 connected, 0 or less not (SSL_get_error says why); called only by asio's engine::do_connect 0x38B6D3 and bio_ssl.c 0x4E90EE
+0x004d4ca0	SSL_read	manual	0	EAX: the bytes read, 0 or less none (SSL_get_error says why; SSLerr function DFh at its start); called only by asio's engine::do_read 0x37FAC9 and bio_ssl.c 0x4FF0A0
+0x004d4d70	SSL_write	manual	0	EAX: the bytes written, 0 or less none (SSLerr function D0h at its start); called only by asio's engine::do_write 0x37FAF9 and bio_ssl.c 0x4FF1F0
+0x004d6e30	SSL_get_error	manual	0	EAX: 0 none (the result above 0), 1 SSL, 2 want read, 3 want write, 5 syscall (its default); called by asio's engine::perform 0x37F971, which then takes ERR_get_error 0x37F978 as the error's code for 1 and 5
 0x00511600		manual	16	AL: the invoke's result; ECX's +0Ch (the GFx movie) vtable +0C4h (Invoke) given the four stack slots, in a profiler scope (0x2B8850)
 0x00771fa0	Scaleform::GFx::AS3::Instances::fl_display::Stage::focusGet	manual	4	the stage.focus getter (thunk 0x7750F0, member pointer 0xAFF180 set at 0x865D10, ThunkInfo "focus" 0x8F1E40): the focus group's weak pointer (MovieImpl+3B64h + 40h x byte [+3F54h], locked by 0x514370), its AvmInteractiveObj (vtable +4 of the interface at byte [obj+41h], minus 1Ch), [avm+8] raw or [avm+4] collectible (bit 0 cleared), traits [+14h] type +3Ch 12h or >= 17h: the result via 0x790E40, else emptied (0x772031); the object untested (0x77200B reads [0+14h]; patch 52 tests it)
 0x00824910		auto	0	
@@ -2019,7 +2044,7 @@ va	name	source	ret_cleanup	result
 0x00204560	survarium::profile_skin_visual_cook::on_configs_loaded	manual		
 0x002384c0	survarium::game_world_ui::show_player_list	manual	4	
 0x0079d360	Scaleform::GFx::AS3::AvmTextField::OnCharEvent	manual	8	AL: allow character insertion; false ignores character. Source AS3_AvmTextField.cpp: unguarded GetAS3Obj()->WillTrigger(textInput, false)
-0x002f8080	survarium::resupply_zone_core::can_use	manual	4	EAX: 1 when team permits and inventory can resupply
+0x002f8080	survarium::resupply_zone_core::can_use	manual	4	AL (EAX 0 or 1): 1 when team permits and inventory can resupply
 0x002f80c0	survarium::resupply_zone_core::use_hint	manual	4	EAX: localization key
 0x002f8120	survarium::resupply_zone_core::update_use	manual	12	AL: interaction still running
 0x002f81a0	survarium::resupply_zone_core::finish_use	manual	4	not used by caller
@@ -2387,6 +2412,19 @@ va	name	source	ret_cleanup	result
 0x002a9ef0	survarium::sound_game_effect_presenter::on_event	manual	12	none; kind 0 adds an entry (0x2AA870); kind 1 searches the entries for the effect (index -1 at 0x2AA155 when none) and erases [begin + 14h x index, +14h) (0x2AB420 at 0x2AA1EB): for -1 the range is the presenter's own +10h..+24h (the seed taken for an effect reference: counted down and freed when its +4 was 1; the capacity pointer's +28h counted down), the 2026-11-06 crash, patch 117 returns at 0x2AA1CD; any other kind updates the entry found (its +0Ch, the volume), [esp+10h] 0 when none and read at 0x2AA0BD, patch 117 returns there
 0x002de350	survarium::game_effect_player::stop	manual	0	none; finds the playing item whose +0 is ECX in the list +2Ch (next at +4Ch; none: a null read at 0x2DE36D), deactivates it (its vtable +20h), sets its state +44h to 2 and sends its events to the presenter (0x2DE3A0)
 0x0031a210	survarium::damage_zone_core::stop_effect	manual	0	none; the player's place (+114h) slot at ECX+1D8h + 0Ch x place {effect, +4, +8}: an effect there is stopped on the player's game_effect_player (+358h, game_effect_player::stop 0x2DE350) and the slot reset (+4 0, +8 -1); called at 0x31A342 by 0x31A300, a loop over the objects the zone's collision sensor saw leave (collision_sensor::notify_and_erase_left_objects 0x307CF0 -> 0x3198C5 -> 0x31A300), a player removed from the world too
+0x00077560	vostok::physics::bullet_physics_world::ray_query	manual	24	
+0x000716c0	vostok::physics::bt_animated_rigid_body::get_collision_group	manual	0	AX: the collision group (+30h's +0C8h's +4); the high half of EAX is not set
+0x0007ab10	vostok::physics::bullet_character_controller::get_collision_group	manual	0	AX: the collision group (+2C6FCh); the high half of EAX is not set
+0x00356d50	vostok::physics::bt_static_rigid_body::get_collision_group	manual	0	AX: the collision group (+14h's +0C8h's +4); the high half of EAX is not set
+0x00357a90	vostok::physics::bt_ghost_object::get_collision_group	manual	0	AX: the collision group (+18h's +0C8h's +4); the high half of EAX is not set
+0x002f8bb0	survarium::collision_geometry::cast_to_collision_geometry	manual	0	EAX: ECX - 4, the collision_geometry whose collision::game_object ECX is
+0x00300040		manual	0	EAX: 0 (xor eax,eax / ret: one body for many virtuals that return nothing, e.g. cast_to_collision_geometry and cast_to_usable of the classes that are no such thing)
+0x00246380		manual	0	EAX: ECX (mov eax,ecx / ret: one body for many virtuals that return this, e.g. a usable object's cast_to_usable)
+0x002dc390	survarium::collision_geometry::query_objects_by_type<survarium::usable_object>	manual	12	
+0x00300710	survarium::victory_item_core::can_use	manual	4	AL (EAX 0 or 1): the battery can be taken by the user
+0x00305070	survarium::booby_trap_core::can_use	manual	4	AL: the trap can be used by the user
+0x00246ed0	[thunk]:survarium::victory_item_core::get_transform`adjustor{20}'	manual	4	EAX = the out matrix (sub ecx,14h / jmp 0x300A20: its ret 4)
+0x002d84c0	survarium::base_player::detect_usable_object	manual	8	EAX: the usable object Use would take (the first in the ray whose can_use says yes), else the first usable object met (for the prompt), else 0
 0x000fe5e0	vostok::setup_floating_point_control	manual	0	none; behind the option at 0xA86BD0 (0x145C0): _controlfp 53-bit precision and round to nearest, MXCSR rounding cleared, _controlfp(_DN_FLUSH), then MXCSR |= 8000h (FTZ): denormals flushed on its thread
 0x0015ee30	vostok::buffer_vector<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >::erase	manual	12	none; erases [*first, *last) and moves the tail down, releasing each overwritten element (count at +0D0h); it walks the tail until the source equals end, so a first at end (std::find not finding) walks past the list (exe+0x14EE8D)
 0x00246380	survarium::inventory_item::cast_artefact	manual	0	EAX = ECX (an identity cast: vfn +54h/+58h of the artefact vtables 0xA05F44, 0xA05FE4, 0xA06084)
@@ -2402,6 +2440,9 @@ va	name	source	ret_cleanup	result
 0x0027b110	survarium::network_client::disconnect	manual	0	none; vtable 0x9FFB14 +14h, the main menu's logoff (0x1FF736, then switch_to_login): when the time rule's state +1F1C60h is not 0, clears it, unloads the world (0x1F8B40), clears the match link's disconnect callback and disconnects it; then the lobby client's 0x26F8C0, whatever the state
 0x001ed170	survarium::game::switch_to_game_world	manual	0	none; EAX the game: the game world (game+18h) the active scene (game+539Ch; the old one's on_deactivate, vtable +4, then the world's on_activate); set_game_project's (0x1F8626), so the lobby menu's on_deactivate hides the loading screen there
 0x002203a0	survarium::lobby_menu::show_loading_screen	manual	0	none; AL the flag, EDX the lobby menu: invokes the lobby movie's root.show_loading_screen; shown by switch_to_level_loading (0x220433), hidden only by lobby_menu::on_deactivate (0x21D54A)
+0x00013ca0	vostok::engine::engine_world::tick	manual	0	none; once a frame from the main loop (0.10b engine_world::run): g_debug_single_thread's resources tick, resources::dispatch_callbacks (0x13CE0), the render world's +2C8h and +2C4h ticks between more dispatches, logic_tick (0x1A030) when single-core; apc's wait loops dispatch without it
+0x00109bd0	vostok::resources::query_result::finish_translated_query	manual	0	none; finish_query_impl's end for a translate cook (the cook's +18h bit 8, 0xF0E55): set_deleter_object_if_needed (0x109AA0); a save (+0E0h not 0) clears +2C0h's 200000h and goes to the save list (0xF8A40 on 0x1B5A6F8), else the guard +2D8h down and at 0 on_created_resource (0x103140); the result (+104h) is not read here
+0x00103140	vostok::resources::resources_manager::on_created_resource	manual	0	none; result +104h 4 (requery): +100h 0, the guard +2D8h 1, +2C0h's 4100h (processed request path, translated) cleared, +14Ch 0, push_new_query (0x103D10), the resources thread woken (SetEvent [1B5A678h]); any other result (2, postponed, too): the created list (0xF8A40 on 0x1B5A6C8), woken
 0x003cfdb0	vostok::render::res_render_output::apply_fullscreen_state	manual	4	
 0x003cfe20	vostok::render::res_render_output::goto_fullscreen	manual	0	
 0x003cfe80	vostok::render::res_render_output::minimize	manual	0	
@@ -2436,5 +2477,45 @@ va	name	source	ret_cleanup	result
 0x000fc350	vostok::tasks::thread_pool::initialize	manual	4	spawns the pool's task threads, "task #%d" (0x9E8A7C), through threading::spawn (0xFC4F1)
 0x0027f780	survarium::network_client::draw_match_stats	manual	4	network_client vtable 0x9FFB14 slot 6Ch; called by game::tick (0x1EC94C, the logic thread) only when game+5870h is set, i.e. -net_stats on the command line (key 0xA9CBE0, read in game::game 0x1E9B84). Its frame is 5ab554h bytes (5.8 MiB, __chkstk 0x429F20 at 0x27F78B): above patch 128's 2 MiB stack
 0x00429f20	_chkstk	manual	0	ESP lowered by EAX, each 4 KiB page of it touched from the top down (the CRT's _alloca_probe; `mov eax,<frame>` / `call 0x429F20` in a prologue: 1754 of them, 6 above 256 KiB)
+0x000e9580	vostok::memory::platform::allocate_arenas	manual		sums the registered arenas (0xE98A0..0xE98AE) and (threads [0x1F1D634] x 2 + 8) x 8 MiB of engine-thread stacks (0xE98C2..0xE98CB, the 8 MiB at 0xE98C6; patch 129: 2 MiB) into "engine(fixed)" (0x1B3A208); sizes the resource arenas (floor minimum_resources_memory_size, 0xE9985) and the video budget (u64 0x1B3A1F8, the adapter's memory u64 0x1B3A1F0; the startup memory dump prints it as "video memory stats for engine", 0xE195D) from the address space left. The render gets the budget at its creation (engine_world 0x15574 -> 0x13C40 -> 0x18800 -> render::world 0x1EF90 -> render::engine::world 0x117820 -> 0x116590 -> device+1B0h and resource_manager+10h)
+0x00106300	vostok::platform::get_local_video_memory_size	manual	0	EDX:EAX: the adapter's memory in bytes (0x1062B0) capped at 2 GiB, or with max_video_memory (0xA87858) min(adapter, max(320 MiB, value MiB)); then at most 512 MiB when 0xFF100 returns 1; 0 gives 320 MiB
+0x00319af0	survarium::damage_zone_core::hit_objects	manual	8	none; skipped while the last hit (+1CCh, -1 none) + interval_in_msec (+1C8h) is after now (unless continuous_hit, +13Ch); else each object of the list: its hit receiver (the object +118h, vtable +20h: base_player::hit 0x2D9AE0) called once a name of hit_parts_filter (+1B0h..+1B4h, 1Ch each, the strings load 0x319500 reads), with max_hit (+1C0h) x the hit curve (0x31A410), x elapsed / interval when continuous, and max_armor_piercing (+1C4h); then +1CCh = now. Each name is looked up as a hit param by find_body_part 0x2E58B0 (body and head are the torso and head pools of human_hit_params, hit directly)
+0x00101330	dlmalloc::mspace_malloc	manual	0	EAX the memory, 0 when the callback said give up
+0x001005a0	dlmalloc::mspace_realloc	manual	0	EAX the memory (moved through mspace_malloc 0x1006DF and mspace_free 0x100733 when it cannot grow in place), 0 for none
+0x001015e0	dlmalloc::mspace_free	manual	0	
+0x00106ef0	pt3malloc	manual	0	EAX the memory, from its thread's arena's mspace (mspace_malloc 0x106F6B)
+0x000eb530	vostok::memory::mt_allocator::call_malloc	manual	20	EAX the memory (pt3malloc 0xEB54B)
+0x000e4d70	out_of_memory_with_crash	manual		never returns: logs "out of memory in arena", dumps the statistics and FATALs
+0x00106d90	ptmalloc3::free_starter	manual	0	
+0x00106fc0	pt3free	manual	0	
+0x0001c6a0	vostok::memory::mt_allocator::malloc_impl	manual	0	EAX the memory (pt3malloc 0x1C6B4), 0 when the allocator is closed ([0x1F1D61B])
+0x001c8cd0	vostok::render::render_surface_texture_instance_proxy::bound_sphere	manual	4	EAX the out pointer: 16 bytes copied from [[ECX+0Ch]+10h] (the surface instance's sphere: centre, radius)
+0x001c8b80	vostok::render::render_surface_texture_instance_proxy::last_render_time	manual	0	ST0: [[ECX+0Ch]+48h]
+0x001c8b90	vostok::render::render_surface_texture_instance_proxy::texel_factor	manual	0	ST0: [[[ECX+0Ch]+38h]+4Ch] x the largest length (math::sqrt 0x38960 each) of the first three rows of the matrix at [[ECX+0Ch]+50h]: the second against the third by fcomip, the first against that by comiss
+0x001c8cb0	vostok::render::render_surface_texture_instance_proxy (vtable +14h)	manual	0	byte [[ECX+0Ch]+4Ch] = 0
+0x001c8d40	vostok::render::grass_patch_texture_instance_proxy::bound_sphere	manual	4	EAX the out pointer: centre (0, 0, 0), radius [0xA2D8A0] (3000.0)
+0x001c8d20	vostok::render::grass_patch_texture_instance_proxy::last_render_time	manual	0	ST0: 0.0 (fldz); the decal proxy's too
+0x001c8d30	vostok::render::grass_patch_texture_instance_proxy::texel_factor	manual	0	ST0: 1.0 (fld1)
+0x001c8e00	vostok::render::decal_texture_instance_proxy::bound_sphere	manual	4	EAX the out pointer: the centre of the box at [[ECX+0Ch]+74h] (min, max: (max + min) x 0.5) and its distance to the min (math::sqrt 0x38960)
+0x001c8d80	vostok::render::decal_texture_instance_proxy::texel_factor	manual	0	ST0: max((max.x - min.x) x 0.5, (max.z - min.z) x 0.5) x 0.5 of the box at [[ECX+0Ch]+74h]
+0x00153d90	vostok::render::streaming_texture_instance (constructor)	manual	0	EAX = EDI the record: proxy ESI, next 0, owner [ESI+4], then its bound_sphere, last_render_time and texel_factor (gather_streamable_textures 0x1552B7)
+0x0011b5a0	vostok::render::shader_constant_buffer::set_memory	manual	4	EAX = ECX: the end of the bytes written; DL the XOR of the first differing byte pair (0 none); m_changed (+64h) set always
+0x003a90c0	anim_read_expression	thiscall	0	recursive pre-order expression reader (ECX=this); 2-bit op via jump table 0x3A9240: op0 (0x3A90D8) pops 2 floats from the floats buffer [this+0x1014] AND 1 time from the times buffer [this+8] (0x3A9116); op1 pops 1 float; ops 2/3 pop 1 time and recurse into two children (unbounded)
+0x003a99c0	anim_state_deserialize	manual	4	this=EAX; reader object in ECX {+4 = stream byte-cursor ptr}; entry ESP+4 = output descriptor {+0 write cursor, +4 remaining space}; inline 0x1000 buffers at this+0x10 (times) and this+0x101c (floats); pops one times entry unconditionally at 0x3A9A64 before the node passes; ret 0x4
+0x003a9900	decode_data	manual	4	this=EAX, one stack arg = reader {+4 = stream ptr}; reads 16-bit tree length T, decodes the times (0x3A9580) and floats (decode_floats 0x3A98C0, its body decode_floats_impl 0x3A9720) tables into the two inline buffers, restores the bit cursor to just past T, advances reader.+4 by bytes consumed
+0x00038ff0	vostok::math::sin	manual	0	ST0: fsin of the float argument (x87, 80-bit; every caller stores it as a float)
+0x00039000	vostok::math::cos	manual	0	ST0: fcos of the float argument (x87, 80-bit)
+0x00079c40	vostok::math::atan2	manual	0	ST0: fpatan of (entry ESP+4, entry ESP+8): atan2(y, x), the angle of (x, y) (x87, 80-bit)
+0x000ed2e0	vostok::math::quaternion::quaternion	manual	12	the quaternion (x, y, z, w floats) written at ESI from the Euler angles; sin/cos of half of each angle (0x38FF0, 0x39000), each stored as a float
+0x00074290	vostok::math::quaternion::quaternion	manual	4	EAX = ESI, the quaternion from an axis and an angle: w = cos(angle/2), xyz = axis * sin(angle/2)
+0x00074300	vostok::math::quaternion::get_axis_and_angle	manual	4	AL 1 with the axis at EDI and the angle (2 atan2(|xyz|, w), 0x79C40) at entry ESP+4; AL 0, axis (0, 0, 1) and angle 0 when |xyz| <= 1e-7
+0x003b3180	vostok::animation::evaluate_frame	manual	0	each of the channels cubic-evaluated at the time into EAX[i]: domain 0x3B3340, then ((c3 dt + c2) dt + c1) dt + c0
+0x003b3340	vostok::animation::time_channel::domain	manual	4	EAX the domain j (knots[j] <= t <= knots[j+1], t clamped to the knots, searched from *current mod count), also stored at the current; ECX the knot count, EDX j
+0x0001c3e0	survarium::scaleform_engine::sys_alloc_malloc	manual	0	EAX the memory of the "global multithreaded" arena (mt_allocator's malloc_impl 0x1C404), 0 for none; cdecl
+0x002ae470	survarium::scaleform_engine::xrSysAllocMalloc::Alloc	manual	8	EAX the memory aligned, the bytes it was moved by in the word before it; 0 for none (vtable 0xA0D538 +0Ch)
+0x000f70f0	vostok::resources::resource_base::resource_base	manual		ESI the resource; its class id written at +84h (0xF7126)
+0x0010a590	vostok::resources::managed_resource::managed_resource	manual	4	EAX the resource (ECX): its managed_node_owner at +D0h (vtable 0x9E9F40), its allocator 0x21E51E8 at +D8h
+0x00504c30	Scaleform::MemoryHeapMH::GetTotalFootprint	manual	0	EAX: its engine's +98h (not a debug heap's, flags 1000h) and every child's, under the heap's lock
+0x00504c90	Scaleform::MemoryHeapMH::GetTotalUsedSpace	manual	0	EAX: its engine's +9Ch and every child's, under the heap's lock
 0x00238530	survarium::game_world_ui::update_minimap_objects	manual	4	none: root.update_objects of the hud movie [ui+8] (0x239210), an array of {id, type, pos_x, pos_y}; type "base", "base_highlighted", "base_enemy", "artifact" (0x238AAD, 0x238AEF: the lying batteries the hud state holds for the local team), "battery_spawn" or "resupply"; the hud movie gives it to the corner minimap and the Tab map alike
 0x00236d30	survarium::game_world_ui::set_player_stats_info	manual	4	none: root.list_update_player of the hud movie (0x236FEB), the place's row (kills, deaths, ...); update_ui calls it for each place only while the Tab list is shown (+0BAh, 0x23B421..0x23B46E), a Blackout match's Tab too

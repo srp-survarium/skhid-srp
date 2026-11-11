@@ -373,7 +373,11 @@ Every finding is in the re-kit (`tools/re-kit/v026g`, the rows of this change).
    grows the instance's box by every bone's place), so a moving ragdoll needs no box.
    mt_draw's own cull is the problem: a player not seen the last frame (+0F4E2h) and
    holding an item skips the bones (0x24757C..0x24758C). The ragdoll's cull hook draws a
-   corpse of ours every frame (section 8).
+   corpse of ours every frame while its drawn bones can change: dying (its clip captured),
+   moving, and settled until one draw gave its settled pose. After that a settled corpse is
+   culled as the game culls: its bones never change, so the renderer's box (grown from the
+   bones it has) is right, and an unseen corpse keeps the bones a draw would give it
+   (section 8; the crate's `Slot::moves`).
 6. **The last hit (PROVEN): not kept.** The player keeps no hit point, direction or bone;
    the kill event has no position. Only hit_impl has them, at 0x2D9EFC: `[ebp+0Ch]` the
    hit_info (+0 the part's name, +24h the world hit point, +44h the killer's place),
@@ -476,7 +480,7 @@ generated entry saves the machine, calls the handler and replays the span, or sk
 | site | VA, span | handler | registers (vostok) | flow |
 |---|---|---|---|---|
 | `game_world.after_move` | 0x1F7C3C, 5 | `on_step` | EBX the game world | replay (the compare) |
-| `player_draw.cull` | 0x24757C, 7 | `on_cull` | EBX the player | a corpse of ours: ZF set, skip (the `je` draws); else replay |
+| `player_draw.cull` | 0x24757C, 7 | `on_cull` | EBX the player | a corpse of ours whose bones can change (dying, moving, settled not drawn yet): ZF set, skip (the `je` draws); else replay |
 | `player_draw.bones` | 0x247716, 6 | `on_bones` | EBX the player, EBP mt_draw's frame | replay |
 | `camera.eye` | 0x1F3643, 6 | `on_eye` | EBX the player, EAX the eye given | EAX our eye for our corpse, replay |
 | `bullet.ray_traced` | 0x32D627, 10 | `on_ray` | EDI the bullet, EAX its result, ESP its frame | replay (the two moves) |
