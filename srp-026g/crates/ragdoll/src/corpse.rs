@@ -34,7 +34,7 @@ use crate::ragdoll::{
     Start, StartReport, driver_bones,
 };
 use crate::shot::{Hit, RECENT, Shot, ShotHit};
-use crate::skeleton::{BONE_COUNT, HEAD, PARTS, Part};
+use crate::skeleton::{BONE_COUNT, Bone, HEAD, PARTS, Part};
 
 /// The places a match has at most (the ragdoll draws none beyond).
 pub const MAX_PLACES: usize = 32;
@@ -150,11 +150,21 @@ pub enum Slot {
         clip: Option<DriverBones>,
     },
     /// At rest: the ragdoll frozen where it lay (a shot wakes it). `since`
-    /// orders the settled ones (the oldest gives its slot up first).
+    /// orders the settled ones (the oldest gives its slot up first); `bones`
+    /// whether a draw has given the renderer its pose.
     Settled {
         ragdoll: Ragdoll,
         since: u32,
+        bones: Given,
     },
+}
+
+/// Whether the renderer has a settled body's bones: none drawn since it
+/// settled, or its pose drawn once (its next draws give the same bones).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Given {
+    NotYet,
+    Drawn,
 }
 
 /// What a dying body's draws captured.
@@ -216,27 +226,45 @@ pub enum Drawn {
 
 impl Slot {
     /// The draw of this slot's body (from `player::mt_draw`, after the
-    /// game's skeleton is made, before it is drawn): `skeleton` is the
-    /// game's, in world space. Touches nothing but this slot, so the places'
-    /// draws may run at once on several threads.
-    pub fn draw(&mut self, skeleton: &mut Skeleton) -> Drawn {
+    /// game's skeleton is made, before it is drawn): `game` gives the game's
+    /// bones, in world space, and is asked only for those the stage reads
+    /// (a dying body's whole skeleton, a moving ragdoll's driver bones, a
+    /// settled one's none); a ragdoll's bones are written to `out` (every
+    /// bone). Touches nothing but this slot, so the places' draws may run at
+    /// once on several threads.
+    pub fn draw(&mut self, game: impl Fn(Bone) -> Pose, out: &mut Skeleton) -> Drawn {
         match self {
             Slot::Free => Drawn::Game,
             Slot::Dying { captured, .. } => {
-                *captured = captured.take(skeleton);
+                let skeleton: Skeleton = core::array::from_fn(|i| game(Bone(i as u8)));
+                *captured = captured.take(&skeleton);
                 Drawn::Game
             }
             Slot::Ragdoll { ragdoll, clip } => {
-                *clip = Some(driver_bones(skeleton));
+                *clip = Some(Part::ALL.map(|p| game(p.bone())));
                 let (parts, gun) = ragdoll.poses();
-                ragdoll.rig().draw(&parts, gun, skeleton);
+                ragdoll.rig().draw(&parts, gun, out);
                 Drawn::Ragdoll
             }
-            Slot::Settled { ragdoll, .. } => {
+            Slot::Settled { ragdoll, bones, .. } => {
                 let (parts, gun) = ragdoll.poses();
-                ragdoll.rig().draw(&parts, gun, skeleton);
+                ragdoll.rig().draw(&parts, gun, out);
+                *bones = Given::Drawn;
                 Drawn::Ragdoll
             }
+        }
+    }
+
+    /// Whether its next draw can give the renderer other bones than it has:
+    /// a dying body's (its clip captured), a moving ragdoll's, a settled
+    /// one's until a draw gave its pose. Once given, a settled body can be
+    /// culled as the game culls (the renderer's box follows its bones:
+    /// unseen, its bones are already the ones it would be given).
+    pub fn moves(&self) -> bool {
+        match self {
+            Slot::Dying { .. } | Slot::Ragdoll { .. } => true,
+            Slot::Settled { bones, .. } => *bones == Given::NotYet,
+            Slot::Free => false,
         }
     }
 
@@ -709,6 +737,7 @@ fn settled(ragdoll: &Ragdoll, settles: &mut u32) -> Slot {
     Slot::Settled {
         ragdoll: *ragdoll,
         since: *settles,
+        bones: Given::NotYet,
     }
 }
 

@@ -186,8 +186,7 @@ that rule is mended when the accounts load, and never plays.
 | `SRP_RECORD_DIR` | unset (off; the compose file sets `/srv/srp/data/recordings`) | Match recordings: every datagram of a match in and out (no addresses), one LZMA2-packed file per match (`servers/match-server/src/v026g/record.rs` has the format); read with `srp-recording` |
 | `SRP_RECORD_MIN_PLAYERS` | `6` | PvP recordings are kept after this many human players enter, including late joiners. PvE recordings need one human regardless of this setting. Empty matches are discarded |
 | `SRP_RECORD_MAX_MB` | `5000` | Kept recordings over this together: the oldest are deleted |
-| `SRP_REPLAY_DIR` | unset (off; the compose file sets `/srv/srp/data/replays`) | "Watch replay" (`docs/notes/replay_watch.md`): a kept recording is made into the game's replay file here (`<match id>.sur` and its sidecar `.json`) when a player first asks for it (never at a match's end; one at a time, 20 waiting at most, at nice 19 on Linux), kept for later asks, served only at `/replays/<token>`. Must be a folder of its own: not `SRP_RECORD_DIR`, inside it or around it (then replays are off, said in the log). Off without `SRP_RECORD_DIR` or `SRP_GAME_MODES_DIR` (the lobby answers `off`) |
-| `SRP_GAME_MODES_DIR` | unset (off; the compose file sets `/srv/srp/data/game_modes`) | The game's `gameplay/game_modes/*.options` files, every patch's included (game data: never in the repository): copy them into the data volume's folder. `off` or empty in `.env`: replays off |
+| `SRP_REPLAY_DIR` | unset (off; the compose file sets `/srv/srp/data/replays`) | "Watch replay" (`docs/notes/replay_watch.md`): a kept recording is made into the game's replay file here (`<match id>.sur` and its sidecar `.json`) when a player first asks for it (never at a match's end; one at a time, 20 waiting at most, at nice 19 on Linux), kept for later asks, served only at `/replays/<token>`. Must be a folder of its own: not `SRP_RECORD_DIR`, inside it or around it (then replays are off, said in the log). The mode's config in a replay is the game data's own (`SRP_GAME_DATA`). Off without `SRP_RECORD_DIR` (the lobby answers `off`) |
 | `SRP_REPLAY_MAX_RECORDING_MB` | `24` | A larger recording is not converted (status `failed`, not tried again until a restart): the conversion's memory grows with it (123 MiB for 13.5 MB, `replay_watch.md`) |
 | `SRP_REPLAY_MAX_MB` | `1000` | Replays (`.sur` and `.json` in `SRP_REPLAY_DIR`, outside `SRP_RECORD_MAX_MB`) over this together: the oldest are deleted after each conversion and at start (the one just made stays); a deleted one is made again when asked for |
 | `SRP_PACKET_LOG` | unset | A folder: every datagram of the lobby and the match server, one file a connection (the lobby sign-in's session id left out). **Set it for every live test** |
@@ -431,7 +430,7 @@ Implemented (coded and tested):
 | Area | State |
 |---|---|
 | Login | Sign-in, registration on first sign-in, wrong password, bans with the game's ban reasons, limits, closed registration, wrong build |
-| Lobby account | The sign-in push in the order the client needs; inventory with its three "spent" lists; kits (three, every one usable without premium), move, autobuy flag, active kit, kit names |
+| Lobby account | The sign-in push in the order the client needs; inventory with its three "spent" lists; kits (three, every one usable without premium), move, the autobuy byte (always on), active kit, kit names |
 | Shop | Buy, sell, repair, gold for silver and (srp's lobby exchange) silver for gold (`47 04`); sellers by reputation level |
 | Skills | Set, reset for silver or gold |
 | Quests | Choosing a faction, daily quests, progress and pay after a match |

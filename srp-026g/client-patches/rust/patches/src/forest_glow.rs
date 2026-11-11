@@ -34,8 +34,8 @@ use crate::artefact_skills::{Copies, Kind, Skills};
 use crate::vostok::effect::{self, KeptEffect};
 use crate::vostok::log::{self, Piece::{Dec, Text}};
 use crate::vostok::resources::{self, Arrived, QueryResults, QueryTag};
-use crate::vostok::world::Player;
-use crate::vostok::{Context, Flow, GameCell, NoExit};
+use crate::vostok::world::{Player, PlayerId};
+use crate::vostok::{Context, Flow, GameCell, NoExit, Thread};
 
 /// An instance of each effect for each place of a match (every player can
 /// glow at once).
@@ -202,14 +202,34 @@ fn shows(effect: LegEffect, player: &Player<'_>) -> bool {
     }
 }
 
+/// A match's places.
+const PLACES: usize = 20;
+
+/// The player object each place's presenter last came back to: a rollback
+/// gives it back again at each tick it simulates again, and its line is said
+/// once an object.
+static PRESENTERS_BACK: GameCell<[Option<PlayerId>; PLACES]> = GameCell::new([None; PLACES]);
+
+/// Whether the presenter came back to another object than the place's last.
+fn presenter_first_back(thread: &Thread, player: &Player<'_>) -> bool {
+    let mut back = PRESENTERS_BACK.get(thread);
+    let Some(last) = back.get_mut(usize::from(player.place())) else { return true };
+    if *last == Some(player.id()) {
+        return false;
+    }
+    *last = Some(player.id());
+    PRESENTERS_BACK.set(thread, back);
+    true
+}
+
 /// A player's simulation tick: each effect it shows played when none of it
 /// plays; the effects asked for at the first tick.
 pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(player) = Player::at_tick(ctx) else { return Flow::Continue };
-    if player.take_its_presenter() {
+    let thread = ctx.thread();
+    if player.take_its_presenter() && presenter_first_back(thread, &player) {
         log::line(&[Text("forest_glow: place "), Dec(player.place().into()), Text("'s presenter back on its current kit")]);
     }
-    let thread = ctx.thread();
     let (load, action) = LOAD.get(thread).step(Event::Frame);
     LOAD.set(thread, load);
     match action {

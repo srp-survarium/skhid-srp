@@ -1422,3 +1422,33 @@ fn render_knockback() {
         }
     }
 }
+
+#[test]
+fn capsules_found_apart_never_overlap() {
+    // random capsules, many near the reach: `apart` never skips a pair
+    // `separation` finds overlapping, and skips most far ones
+    let mut seed = 0x1234_5678u32;
+    let mut next = || {
+        seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        (seed >> 8) as f32 / (1u32 << 24) as f32
+    };
+    let (mut skipped, mut far) = (0, 0);
+    for _ in 0..200_000 {
+        let capsule = |next: &mut dyn FnMut() -> f32| {
+            let shape = Capsule { half: next() * 0.3, radius: 0.02 + next() * 0.12 };
+            let axis = Vec3::new(next() - 0.5, next() - 0.5, next() - 0.5).direction_or(Vec3::Y);
+            let rotation = Quat::from_axis_angle(axis, next() * 7.0);
+            let position = Vec3::new(next() * 1.6 - 0.8, next() * 1.6 - 0.8, next() * 1.6 - 0.8);
+            Body::new(Pose::new(rotation, position), shape, 1.0)
+        };
+        let a = capsule(&mut next);
+        let b = capsule(&mut next);
+        let overlap = separation(&a, &b).is_some();
+        if apart(&a, &b) {
+            skipped += 1;
+            assert!(!overlap, "{a:?} {b:?}");
+        }
+        far += usize::from(!overlap);
+    }
+    assert!(skipped > far / 4, "{skipped} of {far}");
+}

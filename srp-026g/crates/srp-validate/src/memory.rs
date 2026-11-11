@@ -32,40 +32,7 @@ pub const MAX_PARTS: u8 = MAX_ENTRIES.div_ceil(PER_PART) as u8;
 /// A part's body at most.
 pub const MAX_BODY: usize = HEAD + PER_PART * RECORD;
 
-/// When in a match the snapshot was taken.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Moment {
-    /// The connection's first world is in: the level, its bakes and the
-    /// players' textures are loaded.
-    Loaded,
-    /// The match is closing on the game (close_current_match), its world
-    /// still there: the match's own peak.
-    Ended,
-}
-
-impl Moment {
-    pub fn word(self) -> &'static str {
-        match self {
-            Moment::Loaded => "loaded",
-            Moment::Ended => "ended",
-        }
-    }
-
-    pub(crate) fn byte(self) -> u8 {
-        match self {
-            Moment::Loaded => 0,
-            Moment::Ended => 1,
-        }
-    }
-
-    fn of(byte: u8) -> Option<Moment> {
-        match byte {
-            0 => Some(Moment::Loaded),
-            1 => Some(Moment::Ended),
-            _ => None,
-        }
-    }
-}
+pub use crate::report::Moment;
 
 /// The process as a whole.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]

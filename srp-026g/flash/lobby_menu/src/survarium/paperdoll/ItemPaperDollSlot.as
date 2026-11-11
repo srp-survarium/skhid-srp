@@ -62,7 +62,7 @@ package survarium.paperdoll
             isDropped = true;
             relocation = Relocation.move(profileId,itemId,dictId,index,targetDescriptor,_data.condition_or_stack);
             _relocateArray = [relocation];
-            playerProfile._relocateFunction(_relocateArray);
+            playerProfile.relocate(_relocateArray);
          }
          super.dropSlot(forced);
       }
@@ -154,17 +154,17 @@ package survarium.paperdoll
             if(index != ProfileSlot.WEAPON_1 && index != ProfileSlot.WEAPON_2)
             {
                trace_relocate(_relocateArray);
-               result = playerProfile._relocateFunction(_relocateArray);
+               playerProfile.relocate(_relocateArray);
             }
             else if(targetDescriptor != ItemPlace.INVENTORY)
             {
                trace_relocate(_relocateArray);
-               result = playerProfile._relocateFunction(_relocateArray);
+               playerProfile.relocate(_relocateArray);
             }
             else
             {
                trace_relocate(_relocateArray);
-               result = playerProfile._relocateFunction(_relocateArray);
+               playerProfile.relocate(_relocateArray);
             }
          }
          else
@@ -175,9 +175,9 @@ package survarium.paperdoll
                if(event.dropTarget && !(event.dragTarget is IPaperDollSlot))
                {
                   trace("relocateFabrica:other");
-                  _relocateArray = [Relocation.move(profileId,itemId,dictId,sourceDescriptor,targetDescriptor,index >= ProfileSlot.QUICK_1 && index <= ProfileSlot.QUICK_6 ? LocalPaperDoll.pocketUnits(_data as ItemData,item) : 1)];
+                  _relocateArray = [Relocation.move(profileId,itemId,dictId,sourceDescriptor,targetDescriptor,index >= ProfileSlot.QUICK_1 && index <= ProfileSlot.QUICK_6 ? LocalPaperDoll.pocketUnits(item) : 1)];
                   trace_relocate(_relocateArray);
-                  result = playerProfile._relocateFunction(_relocateArray);
+                  playerProfile.relocate(_relocateArray);
                }
                else
                {

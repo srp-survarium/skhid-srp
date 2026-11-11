@@ -561,7 +561,13 @@ pub fn animation_validate(bytes: &[u8]) -> Result<(), AnimFault> {
     let tree = b.read(16).ok_or(Short)? as usize;
     let tree_end = 16usize.checked_add(tree).ok_or(Short)?;
 
-    let mut pops_times: u64 = 0;
+    // The native decode pops one time before any node pass: an unconditional
+    // "duration" read off the times stack (0x3A9A64, `mov eax,[edi+8];
+    // mov eax,[eax-4]; add [edi+8],-4`). The length walk and the passes below
+    // never model it, so seed the pop count with it; otherwise a stream whose
+    // times table holds exactly the modelled pops lets the native read one
+    // entry below the buffer.
+    let mut pops_times: u64 = 1;
     let mut pops_floats: u64 = 0;
 
     // Tree header (0x3A99C0): node count, matrix count bit, channel mask.
@@ -629,7 +635,14 @@ pub fn animation_validate(bytes: &[u8]) -> Result<(), AnimFault> {
         let op = b.read(2).ok_or(Short)?;
         channel_pick(&mut b, channels)?;
         match op {
-            0 => pops_floats = pops_floats.saturating_add(2),
+            // op 0 (0x3A90D8) pops two floats from the floats buffer AND one
+            // time from the times buffer (0x3A9116, `mov eax,[edi+8];
+            // mov eax,[eax-4]; add [edi+8],-4`). Counting only the floats let a
+            // forest of op-0 nodes walk the times pointer past its buffer.
+            0 => {
+                pops_floats = pops_floats.saturating_add(2);
+                pops_times = pops_times.saturating_add(1);
+            }
             1 => pops_floats = pops_floats.saturating_add(1),
             // Ops 2 and 3 take two child expressions.
             _ => {
