@@ -169,15 +169,66 @@ fn login_then_lobby_fades_out_before_the_lobby_starts() {
     assert_eq!(rig.playing(), Some(Track::Main));
     assert_eq!(rig.volume(), 1.0, "faded in fully within 2 s");
     rig.ask(Some(Track::Lobby));
-    assert!(rig.fake.loads.is_empty(), "the lobby theme is not asked while the main one fades");
+    assert_eq!(rig.fake.loads.last().map(|l| l.1), Some(Track::Lobby), "the lobby theme asked at once");
+    rig.arrive(true);
+    assert_eq!(rig.playing(), Some(Track::Main), "here early: it waits for the main theme's fade");
     rig.wait(1000);
     assert!(rig.volume() > 0.4 && rig.volume() < 0.6, "half way out after 1 s");
     rig.wait(1100);
-    assert_eq!(rig.playing(), None, "the main theme gone once silent");
-    assert_eq!(rig.fake.loads.last().map(|l| l.1), Some(Track::Lobby));
-    rig.arrive(true);
-    assert_eq!(rig.playing(), Some(Track::Lobby));
+    assert_eq!(rig.playing(), Some(Track::Lobby), "it starts once the main theme is silent");
+    assert!(rig.volume() < 0.1, "from silence");
     assert!(!rig.fake.overlapped && rig.fake.most == 1);
+    assert_eq!(rig.fake.sounds.get(), 1, "the main theme's sound let go");
+}
+
+#[test]
+fn the_map_theme_is_asked_at_the_loading_start_not_after_the_fade() {
+    let mut rig = Rig::new();
+    rig.ask(Some(Track::Lobby));
+    rig.arrive(true);
+    rig.wait(3000);
+    let level = map(c"music/level_06_loading");
+    rig.ask(Some(level));
+    // asked before the map's own loads queue (game_world::load comes right after)
+    assert_eq!(rig.fake.loads.last().map(|l| l.1), Some(level));
+    rig.wait(2100);
+    assert_eq!(rig.playing(), None, "the lobby theme silent and let go");
+    rig.arrive(true);
+    assert_eq!(rig.playing(), Some(level), "a slow load starts when it arrives");
+    assert!(!rig.fake.overlapped);
+}
+
+#[test]
+fn a_sound_ready_during_a_fade_is_let_go_when_the_old_track_comes_back() {
+    let mut rig = Rig::new();
+    rig.ask(Some(Track::Lobby));
+    rig.arrive(true);
+    rig.wait(2100);
+    rig.ask(Some(map(c"music/level_02_loading")));
+    rig.arrive(true);
+    assert_eq!(rig.fake.sounds.get(), 2, "the lobby's and the map's");
+    rig.ask(Some(Track::Lobby));
+    assert_eq!(rig.fake.sounds.get(), 1, "the map's let go");
+    rig.wait(2100);
+    assert_eq!((rig.playing(), rig.volume()), (Some(Track::Lobby), 1.0));
+}
+
+#[test]
+fn a_map_theme_whose_time_went_by_during_the_fade_never_starts() {
+    let mut rig = Rig::new();
+    rig.ask(Some(Track::Lobby));
+    rig.arrive(true);
+    rig.wait(2100);
+    rig.ask(Some(map(c"music/level_07_loading")));
+    rig.arrive(true);
+    if let Some(Music::FadingOut { next: Next::Ready { want, .. }, .. }) = rig.music.as_mut() {
+        want.until = Some(Millis(rig.fake.now + 500));
+    } else {
+        panic!("the map's sound waits for the fade");
+    }
+    rig.wait(2100);
+    assert!(matches!(rig.music, Some(Music::Silent)));
+    assert_eq!((rig.fake.voices.get(), rig.fake.sounds.get()), (0, 0));
 }
 
 #[test]
@@ -188,8 +239,8 @@ fn the_map_theme_plays_fifteen_seconds_past_the_announcement() {
     rig.wait(3000);
     let level = map(c"music/level_03_loading");
     rig.ask(Some(level));
-    rig.wait(2100);
     rig.arrive(true);
+    rig.wait(2100);
     rig.wait(30_000);
     assert_eq!(rig.playing(), Some(level), "the loading and the countdown do not count");
     rig.tell(Event::Announced);
