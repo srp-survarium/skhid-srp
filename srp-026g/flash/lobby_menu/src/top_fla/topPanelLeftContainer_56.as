@@ -36,7 +36,7 @@ package top_fla
       
       public var hintButton:hitnArea;
       
-      public var txLevel:MovieClip;
+      public var txLevel:topRankLabel_60;
       
       public var progress_indicator:TopFactionProgressIndicator;
       
@@ -57,6 +57,18 @@ package top_fla
          this.__setProp_btn_add_premium_money_topPanelLeftContainer_();
          this.__setProp_progress_indicator_topPanelLeftContainer_();
          this.placeLobbyButton();
+         this.centreTopRankIcon();
+      }
+      
+      // The top-rank icon stands for the level badge (the ring with the number, txLevel), but the
+      // timeline places it at the panel's 0,0, about 1 px left of and 2 px above the ring, and a
+      // little larger than it: its middle is put on the ring's. StatusPanel shows one or the other.
+      private function centreTopRankIcon() : void
+      {
+         var ring:Rectangle = this.txLevel.ring.getBounds(this);
+         var icon:Rectangle = this.top_rank_icon.getBounds(this);
+         this.top_rank_icon.x += ring.x + ring.width / 2 - (icon.x + icon.width / 2);
+         this.top_rank_icon.y += ring.y + ring.height / 2 - (icon.y + icon.height / 2);
       }
       
       // The owner (2026-10-31): "remove premium button and put lobby button there instead". The

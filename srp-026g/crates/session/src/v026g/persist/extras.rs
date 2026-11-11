@@ -188,7 +188,6 @@ mod tests {
             (alice.name.as_str(), alice.generic_money),
             ("Alice", 777)
         );
-        assert!(alice.autobuy);
         // The tutorial's flags the step wrote are not read any more (no tutorial).
         // Nothing else of the new state: no bonus yet.
         for (_, account) in &loaded {

@@ -516,6 +516,20 @@ class Game:
             assert out[reg] == value, f"on_cull changed register {reg}"
         return bool(out[UC_X86_REG_EFLAGS] & ZF)
 
+    def culled(self, player):
+        """mt_draw's cull of a player the game would cull (its model not seen, an item to switch
+        to at +12Ch): the hook leaves at 0x24781E, past the bones and past the held item's
+        on_culled_player_draw (0x247811), every register kept. A hook that does not leave so
+        runs on into the game's own cull, whose call of the held item (ESI, a mark) fails."""
+        self.u8(player + NOT_SEEN, 1)
+        self.emu.mem_write(player + 0x12C, struct.pack("<I", 1))
+        regs = {**self.MARKS, UC_X86_REG_EBX: player}
+        out = self.run(CULL_SITE, NO_BONES, regs)
+        self.emu.mem_write(player + 0x12C, struct.pack("<I", 0))
+        for reg, value in regs.items():
+            assert out[reg] == value, f"on_cull changed register {reg}"
+        return True
+
     def draw(self, player, turn=0.0):
         """mt_draw's bones: the game's standing pose in, the bones out."""
         game = [matrix(standing_place(i), turn) for i in range(len(COOKED))]
@@ -640,6 +654,12 @@ def main():
     for _ in range(10):
         game.step()
     check(len(game.rays) == settled, "a settled ragdoll asks the level nothing")
+    game.draw(a)
+    check(game.cull(a, 0) and not game.cull(a, 1),
+          "a settled corpse whose pose a draw gave: seen, the game draws it; not seen with nothing to switch to, "
+          "the cull is the game's")
+    check(game.culled(a), "not seen and the game would cull it: culled past the held item's on_culled_player_draw "
+          "(0x24781E), which would move its weapon to the player's root")
 
     # bullets through the settled corpse (bone 7 is Spin: the torso)
     lying = game.draw(a)[0]

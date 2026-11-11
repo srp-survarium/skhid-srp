@@ -34,7 +34,6 @@ fn replays(root: &std::path::Path, players: &[u32]) -> &'static Replays {
     let settings = ReplaySettings {
         replay_dir: root.join("replays"),
         record_dir: root.join("recordings"),
-        modes_dir: root.join("modes"),
         max_recording_bytes: 1 << 20,
         max_replay_bytes: 1 << 20,
     }
@@ -219,7 +218,6 @@ fn replays_of(root: &std::path::Path, oldest: u8, revisions: Vec<Option<u8>>) ->
     let settings = ReplaySettings {
         replay_dir: root.join("replays"),
         record_dir: root.join("recordings"),
-        modes_dir: root.join("modes"),
         max_recording_bytes: 1 << 20,
         max_replay_bytes: 1 << 20,
     }

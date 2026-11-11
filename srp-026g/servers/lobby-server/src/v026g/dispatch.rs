@@ -354,12 +354,6 @@ impl Core<'_> {
                 }
                 self.push_account(who);
             }
-            // The kit window's autobuy box (`session::v026g::autobuy`).
-            M::SetAutobuy { on } => {
-                rules::set_autobuy(&mut who.account.locked(), on);
-                self.accounts.mark_dirty(who.account_id);
-                self.send(addr, lobby::permitted_autobuy(on));
-            }
             M::SetActiveKit { kit_id } => {
                 let set = rules::set_active_kit(&mut who.account.locked(), kit_id, unix);
                 match set {

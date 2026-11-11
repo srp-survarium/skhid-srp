@@ -25,7 +25,6 @@ package player_icons_fla
    import flash.utils.*;
    import flash.xml.*;
    import scaleform.gfx.Extensions;
-   import survarium.Util;
    import survarium.controls.HUDIconLayer;
    import survarium.controls.HUDMarker;
    
@@ -140,7 +139,6 @@ package player_icons_fla
          var icons:uint = value.length;
          for(var i:uint = 0; i < icons; i++)
          {
-            Util.logObject(value[i]);
             this.iconControl.set_player_icon_props(value[i]);
          }
          trace("propsSetted");

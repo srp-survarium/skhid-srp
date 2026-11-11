@@ -565,6 +565,13 @@ Patches:
   keeps what srp's login server sends after a ban's code
   (crates/ban-reason), and set_status (0x21F217) writes the ban's text anew
   from it. Nothing a match computes;
+- the sign-in's password goes through srp's own cipher where the game's
+  protocol had TLS (patch 139, the Rust patch sign_in_cipher;
+  docs/notes/sign-in-cipher.md): OpenSSL's SSL_connect (0x4D4C63), SSL_read
+  (0x4D4CA3), SSL_write (0x4D4D73) and SSL_get_error (0x4D6E33), which only
+  the login client's stream calls, are answered by crates/sign-in-cipher
+  over the SSL's BIOs, a sign-in's cipher beginning at the user name's
+  answer (0x380504). Nothing a match computes;
 - a character controller's step never leaves its position non-finite
   (patch 118, the Rust patch controller_position; docs/notes/client_patch.md
   section 3.71): at player_step's epilogue (0x7C7D7) a position (+0B0h) with
@@ -581,6 +588,16 @@ Patches:
   lobby 31 in the handshake, and while the level loads waits for
   on_match_ready's end (0x27AEBF) to close it; on_project_loaded's abort
   (0x1F8AF3) lets an open match's load go on. Nothing a match computes;
+- the game tells the match server what runs inside it besides
+  Windows' own (patch 125, module_report; README "The game tells what
+  is inside it", docs/notes/module-report.md): with a match connection's
+  first world and at its close, each module's file name, folder kind, link
+  time, image size and checksum (kernel32's Toolhelp walk), each executable
+  allocation that is no listed module (VirtualQuery), the DLLs loaded
+  since the process's start (a watch from the exe's TLS callback,
+  module_watch_026g.asm) and the other processes' always-on-top windows
+  over the game's, on patch 126's report channel (srp_validate::modules);
+  the server only logs them. Nothing a match computes;
 - a replay's keys (patch 140, replay_keys; docs/notes/replay-keys.md): a key
   that goes down in a replay at on_keyboard_action's start (0x25CD00) is
   told to the replay player movie at the frame's end (game_world::tick after
@@ -609,13 +626,15 @@ Patches:
   once (patch 70, with the late join; docs/notes/baked-textures.md). The
   Rust patch bake_cache (the arena's blocks patches.code, .data and
   .state; seven lohooks): game::game deletes user_data/streamed_textures
-  only when its stamp file names another revision (0x1E944E), and puts its
+  only when its stamp file names another bake format or other game data
+  (a fingerprint of the patches' files a bake reads) (0x1E944E), and puts its
   whole DDS files back into the baker's list (CRC 0, the first load's taken
   at 0x131C90); game::exit's delete is gone (0x1EC832); translate_query's
   look-up (0x12D4C5) lets a query whose path is under way wait, and the
   texture made (0x12F194 a bake, 0x12DDB9 a load) is given to it; an owner
   that ends otherwise has its waiting queries made again (finish_query,
-  0xF0D00); the CRC-32 step (0x42050) goes eight bytes a step. Textures
+  0xF0D00); the CRC-32 step (0x42050) goes 64 bytes a step (PCLMULQDQ)
+  or eight bytes a step. Textures
   only;
 - a weapon's upgrades in at most three upgrade records, the weapon kit
   (patch 68, with the late join; docs/notes/weapon-kit.md): the Rust patch
@@ -818,7 +837,7 @@ WORLD_UNPACK = (
 # its "Release revision <n>" commit), never a feature change: a release
 # builds with --revision=<n>, the live exe's + 1, which changes the revision
 # byte alone, and records <n> here once it went out.
-REVISION = 54
+REVISION = 55
 # The first revision whose default build takes the lobby's replay link
 # (REPLAY_LINK): the server's replay rule asks for it
 # (session::v026g::replays::MIN_REVISION).
@@ -2549,6 +2568,15 @@ INSTALLS = {
     0x59F8E: (JUMP, "create_sound_voice 0x59E70 after the constructor: sound_voices_built frees a voice with no "
                     "source and returns 0 by 0x59F9A, else replays push edi / add esi,2B0h and goes on at 0x59F95",
               None, None),
+    # patch 134 (the Rust patch constant_upload's four code hooks, constant_upload_026g.asm)
+    0x11B5A0: (ENTRY, "shader_constant_buffer::set_memory: constant_upload_set_memory, the whole function "
+                      "(ret 4)", None, None),
+    0x3DDFA1: (JUMP, "shader_constant_buffer's constructor before malloc_impl: constant_upload_alloc asks "
+                     "2 x size + 16, back at the call 0x3DDFA7", None, None),
+    0x3DDFAC: (JUMP, "the constructor before memset: constant_upload_zero zeros the whole block, back at "
+                     "0x3DDFB2", None, None),
+    0x3DDFD0: (ENTRY, "shader_constant_buffer::update: constant_upload_update, its `ret` when nothing is to "
+                      "upload, else the original's body at 0x3DDFDD", None, None),
     # the snapshot upload (every full build) and the default server's stub
     0x27AEA1: (JUMP, "on_match_ready: the snapshot upload (the late join's ready_hook first)", None, None),
     0x27A505: (JUMP, "the 0xF6 case: the snapshot upload", None, None),
@@ -2740,6 +2768,19 @@ WORLD_SECTIONS_HOOKS = (
 INSTALLS[0x3246C0] = (JUMP, "game_state_history_item::construct's last store: the six world sections' buffers "
                             "get the multithreaded allocator and a block each; back at 0x3246C6", None, None)
 
+# Patch 136 (the Rust patch animation_math, client_patch.md section 3.80): the
+# animation's sines, cosines and atan2 (calls of vostok::math's x87 functions
+# whose results are stored as floats at once) and its knot search.
+for _va, _what in ((0xED30F, "sin x"), (0xED31F, "cos x"), (0xED32F, "sin y"), (0xED33F, "cos y"),
+                   (0xED34F, "sin z"), (0xED35F, "cos z")):
+    INSTALLS[_va] = (CALLEE, f"quaternion::quaternion(float3 angles)'s {_what}: animation_math (Rust `call` hook)",
+                     None, None)
+INSTALLS[0x742A5] = (CALLEE, "quaternion::quaternion(axis, angle)'s sin: animation_math (Rust `call` hook)", None, None)
+INSTALLS[0x742B5] = (CALLEE, "quaternion::quaternion(axis, angle)'s cos: animation_math (Rust `call` hook)", None, None)
+INSTALLS[0x743B2] = (CALLEE, "get_axis_and_angle's atan2: animation_math (Rust `call` hook)", None, None)
+INSTALLS[0x3B3340] = (ENTRY, "time_channel::domain: animation_math_domain, the same search without a division "
+                             "per step", None, None)
+
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
 # A vtable our code builds and installs at run time (a rule's, a cook's):
@@ -2888,6 +2929,18 @@ def audit_installs(data, writes, installs=None):
             sys.exit(f"{va:#x}: declared {ABI} without the bytes it pops and why")
 
 
+# Patch 125's watch (module_report, module_watch_026g.asm): the exe's TLS
+# directory (0xA365A8) names a callback list of our own. The original's
+# AddressOfCallBacks (+0Ch) is 0x884AA4, a list that is its terminator alone
+# (the exe has no TLS callback); ours is module_watch_callbacks (the block
+# module_watch.data): module_watch_tls, then 0. The loader calls it on the
+# main thread before the entry point and on every later thread (stdcall, 3
+# arguments: `ret 0Ch`), and it is where the patch starts and registers
+# ntdll's DLL notification (module_watch_dll, the same shape). The field
+# already has its base relocation (the exe is never rebased).
+MODULE_WATCH_TLS_SLOT = (0xA365B4, struct.pack("<I", 0x884AA4), "module_watch_callbacks")
+
+
 # The Rust lohooks (hooks_026g.py): each a jmp to its generated entry,
 # which goes on past the span or replays it.
 for _va, _owner, _what in hooks_026g.lohook_sites():
@@ -2923,7 +2976,7 @@ ARENA_CHARACTERISTICS = 0xE0000060              # code, initialized data, execut
 ARENA_VA = 0xA42D000                            # weapon_camo_va + .srpw's three pages
 # The most the arena may take: a block of a runaway size (a state array, a
 # table) stops the link instead of growing the image. Raise it on purpose.
-ARENA_LIMIT = 0x100000
+ARENA_LIMIT = 0x180000                          # 0x100000 until patch 121 took the arena past it
 ArenaBlock = linker.ArenaBlock
 
 ARENA = (
@@ -2955,6 +3008,9 @@ ARENA = (
     ArenaBlock("patches.state", "state", 0x1000, ("rust/patches/Cargo.toml",)),
     # patch 98: the history item's six world sections on the heap
     ArenaBlock("world_sections.code", "code", 0x1000, ("world_sections_026g.asm",)),
+    # patch 125: the TLS callback and the DLL notification Windows calls, and the TLS directory's callback list
+    ArenaBlock("module_watch.code", "code", 0x10, ("module_watch_026g.asm",)),
+    ArenaBlock("module_watch.data", "data", 0x10, ("module_watch_026g.asm",)),
 )
 
 
@@ -4022,6 +4078,11 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
                 slot, old, symbol = MATCH_KEYS_POLL_SLOT
                 patch_section_value(data, slot, old, struct.pack("<I", arena_target(linked, symbol)))
+                slot, old, symbol = MODULE_WATCH_TLS_SLOT
+                callbacks = linked.symbols.get(symbol)
+                if callbacks is None or not any(lo <= callbacks < hi for lo, hi in arena_data_ranges()):
+                    sys.exit(f".srpx: {symbol!r} is no symbol of a data block of the arena")
+                patch_section_value(data, slot, old, struct.pack("<I", callbacks))
                 for va, old, new in hide_ui_table_writes(linked):
                     patch(data, va, old, new)
                 patch_section_value(data, *ARTEFACT_KEY_DEFAULT)
@@ -4310,8 +4371,11 @@ def artefacts_backs(linked):
     backs = []
     for at in entries:
         start = at + 5 + struct.unpack_from("<i", code, at + 1)[0]
+        # In the game's image: an E9h among another instruction's bytes (a
+        # call's displacement into another block) is no jump back.
         target = next((va + i + 5 + struct.unpack_from("<i", code, i + 1)[0] for i in range(start, len(code) - 4)
-                       if code[i] == 0xE9 and va + i + 5 + struct.unpack_from("<i", code, i + 1)[0] < SECTION_VA),
+                       if code[i] == 0xE9
+                       and IMAGE_BASE <= va + i + 5 + struct.unpack_from("<i", code, i + 1)[0] < SECTION_VA),
                       None)
         backs.append(target)
     return backs
