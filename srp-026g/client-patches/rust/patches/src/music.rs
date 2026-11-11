@@ -1,7 +1,7 @@
 //! Patch 88: the music (docs/notes/music.md, the owner's rules): the main
 //! theme on the login screen, the lobby theme in the lobby, the map's theme
 //! from its loading screen to 15 s past the match-start announcement; 2 s
-//! fades; never two songs at once.
+//! fades, 0.5 s out for the next track; never two songs at once.
 //!
 //! One owner of "the current music": [`Music`], a state machine whose one
 //! transition function ([`Music::step`]) takes every event and calls the
@@ -29,8 +29,34 @@ use crate::vostok::breadcrumbs::{self, Crumb};
 use crate::vostok::log::{self, Piece::Text};
 use crate::vostok::{Context, Flow, GameCell, Lock, NoExit, Thread, clock};
 
-/// A fade's length, in and out (retail's 2000 ms).
-const FADE_MS: f32 = 2000.0;
+/// A fade.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Fade {
+    /// A track fades in (retail's 2000 ms).
+    In,
+    /// The track playing fades out for the next one (the owner's 500 ms:
+    /// a map's theme starts that soon into its loading).
+    Handover,
+    /// The music fades out to silence (retail's 2000 ms).
+    Out,
+}
+
+impl Fade {
+    fn target(self) -> Volume {
+        match self {
+            Fade::In => Volume::FULL,
+            Fade::Handover | Fade::Out => Volume::SILENT,
+        }
+    }
+
+    /// Its length in ms, from full to silent or back.
+    fn ms(self) -> f32 {
+        match self {
+            Fade::In | Fade::Out => 2000.0,
+            Fade::Handover => 500.0,
+        }
+    }
+}
 /// The map's theme plays on this long past the announcement (the owner's 15 s).
 const HOLD_MS: u64 = 15_000;
 
@@ -119,8 +145,8 @@ pub trait Engine {
     fn load(&mut self, track: &Track) -> Serial;
     /// The sound playing, looped, in the bus.
     fn play(&mut self, emitter: &Self::Emitter) -> Option<Self::Voice>;
-    /// The bus's volume moves to `to` over a fade, from where it is.
-    fn fade(&mut self, to: Volume);
+    /// The bus's volume moves to the fade's target at its pace, from where it is.
+    fn fade(&mut self, fade: Fade);
     /// The bus silent at once (then on towards its target).
     fn cut(&mut self);
     /// The bus is silent, by the latest fade or cut.
@@ -189,7 +215,7 @@ impl<E, V> Music<E, V> {
         match (self, event) {
             (_, Event::Unload) => {
                 engine.cut();
-                engine.fade(Volume::SILENT);
+                engine.fade(Fade::Out);
                 Silent
             }
 
@@ -202,8 +228,12 @@ impl<E, V> Music<E, V> {
                 // the track already playing plays on (a new match's map: its own deadline)
                 Some(asked) if asked.track == playing.track => Sounding { now: playing, until: asked.until },
                 asked => {
-                    engine.fade(Volume::SILENT);
                     let next = ask(asked, engine).map_or(Next::Silence, |(want, serial)| Next::Loading { want, serial });
+                    // quickly for the next track, slowly into silence
+                    engine.fade(match next {
+                        Next::Silence => Fade::Out,
+                        Next::Loading { .. } | Next::Ready { .. } => Fade::Handover,
+                    });
                     FadingOut { now: playing, next }
                 }
             },
@@ -211,7 +241,7 @@ impl<E, V> Music<E, V> {
                 // the track fading out, asked again: back in from where it is
                 // (the next one's sound, if here, let go)
                 Some(asked) if asked.track == playing.track => {
-                    engine.fade(Volume::FULL);
+                    engine.fade(Fade::In);
                     Sounding { now: playing, until: asked.until }
                 }
                 // the same next track asked again: the fade goes on
@@ -252,7 +282,7 @@ impl<E, V> Music<E, V> {
 
             (Loading { want, .. }, Event::Frame) if want.over(now) => Silent,
             (Sounding { now: playing, until: Some(until) }, Event::Frame) if now >= until => {
-                engine.fade(Volume::SILENT);
+                engine.fade(Fade::Out);
                 FadingOut { now: playing, next: Next::Silence }
             }
             (FadingOut { now: playing, next }, Event::Frame) if engine.silent() => {
@@ -294,7 +324,7 @@ fn begin<E, V, G: Engine<Emitter = E, Voice = V>>(want: Want, emitter: E, engine
     engine.cut();
     match engine.play(&emitter) {
         Some(voice) => {
-            engine.fade(Volume::FULL);
+            engine.fade(Fade::In);
             Music::Sounding { now: Playing { track: want.track, _voice: voice, _emitter: emitter }, until: want.until }
         }
         None => Music::Silent,
@@ -307,7 +337,8 @@ fn begin<E, V, G: Engine<Emitter = E, Voice = V>>(want: Want, emitter: E, engine
 pub struct Bus<S> {
     /// The bus's scene, once open (the sound thread keeps it active).
     scene: Option<S>,
-    target: Volume,
+    /// The latest fade asked: the volume's target and pace.
+    fade: Fade,
     /// Cuts asked (each sets the volume to silent at once, once).
     cuts: u32,
     /// Commands given (fades and cuts), and the last the sound thread applied.
@@ -323,13 +354,13 @@ pub struct Bus<S> {
 impl<S: Copy> Bus<S> {
     const fn new() -> Bus<S> {
         Bus {
-            scene: None, target: Volume::SILENT, cuts: 0, commands: 0, seen_cuts: 0, seen: 0, volume: Volume::SILENT,
+            scene: None, fade: Fade::Out, cuts: 0, commands: 0, seen_cuts: 0, seen: 0, volume: Volume::SILENT,
             level: Volume::FULL,
         }
     }
 
-    fn fade(&mut self, to: Volume) {
-        self.target = to;
+    fn fade(&mut self, fade: Fade) {
+        self.fade = fade;
         self.commands = self.commands.wrapping_add(1);
     }
 
@@ -351,8 +382,8 @@ impl<S: Copy> Bus<S> {
             self.seen_cuts = self.cuts;
             self.volume = Volume::SILENT;
         }
-        let step = elapsed as f32 / FADE_MS;
-        let (now, to) = (self.volume.get(), self.target.get());
+        let step = elapsed as f32 / self.fade.ms();
+        let (now, to) = (self.volume.get(), self.fade.target().get());
         self.volume = Volume::new(if now < to { (now + step).min(to) } else { (now - step).max(to) });
         self.seen = self.commands;
         Some((scene, Volume::new(self.volume.get() * self.level.get())))
@@ -393,8 +424,8 @@ impl Engine for Game<'_> {
         self.sound.play_looped(self.thread, self.bus, emitter)
     }
 
-    fn fade(&mut self, to: Volume) {
-        BUS.with(self.thread, |bus| bus.fade(to));
+    fn fade(&mut self, fade: Fade) {
+        BUS.with(self.thread, |bus| bus.fade(fade));
     }
 
     fn cut(&mut self) {

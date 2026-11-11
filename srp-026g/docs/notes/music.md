@@ -18,7 +18,10 @@ The owner's (2026-10-28; 2026-10-31 the 15 s; 2026-10-31 one song at a time, the
   load"): its sound is asked at `switch_to_level_loading`, before `game_world::load` asks the
   map's, as retail asks it.
 - **A mode with no `ui.loading_music`:** no map theme; whatever played fades out.
-- **Fades:** a theme fades in over 2 s and fades out over 2 s (retail's 2000 ms, both ways).
+- **Fades:** a theme fades in over 2 s (retail's 2000 ms). It fades out over 0.5 s when another
+  theme follows (a handover: the owner, 2026-11-11, "music can start a bit earlier too", so a
+  map's theme starts 0.5 s into its loading), and over 2 s into silence (15 s past the
+  announcement, a mode with no theme, a replay).
 - **One song at a time:** at most one track is audible at any moment, and never two at once.
   - A change of track fades the playing one out completely (or it is stopped), and only then
     does the next one start, with its fade-in. A crossfade never happens. The next one's sound
@@ -114,7 +117,7 @@ The owner's (2026-10-28; 2026-10-31 the 15 s; 2026-10-31 one song at a time, the
 - **The bus** is a `sound_scene` (class 38, as the lobby's, creation params 8 proxies, 16
   propagators, 2 receivers) the game never makes current. The sound thread's tick
   (`sound_world::tick`, after its orders) keeps it among the active scenes and steps its volume
-  towards the target at 1/2000 a millisecond: the fades run on the sound thread, so a slow frame
+  towards the target at the fade's pace (1/2000 a millisecond; 1/500 for a handover): the fades run on the sound thread, so a slow frame
   never steps them. Its volume reaches the submix by the engine's own fade path (the scene's
   fade-in state, which writes `volume x general` to the submix every sound tick).
 - **A listener of its own:** a scene's sounds get voices only once its listener is set (its tick

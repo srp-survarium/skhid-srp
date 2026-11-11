@@ -35,7 +35,7 @@ thread). Checked:
   volume 0 at the start, 0.5 a second in, 1 at two;
 - a change of track (login -> lobby): the next asked at once, as retail
   0.69d asks it (a loading's theme so ahead of the map's own loads), and
-  played only once the first is silent (its voice and sound let go then),
+  played only once the first is silent, 0.5 s on (its voice and sound let go then),
   whether it arrived during the fade or after it; a mode's
   `ui.loading_music` (a config table made here) is its theme; one without
   plays nothing;
@@ -461,9 +461,9 @@ def main():
     calls = arrive(lobby_q, lobby)
     check(calls == [] and game.read(lobby + 0xD0) == 2,
           "the lobby theme arrives during the fade: its sound taken, not played")
-    frames(1000)
-    check(abs(volume() - 0.5) < 0.02 and not any(c[0] in ("query", "emit", "play") for c in game.calls),
-          f"half way out a second later ({volume():.3f})")
+    frames(240)
+    check(abs(volume() - 0.52) < 0.02 and not any(c[0] in ("query", "emit", "play") for c in game.calls),
+          f"a handover: half way out a quarter of a second later ({volume():.3f})")
     started = []
     for _ in range(60):
         sound(20)

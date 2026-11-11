@@ -78,8 +78,8 @@ impl Engine for Fake {
         Some(voice)
     }
 
-    fn fade(&mut self, to: Volume) {
-        self.bus.fade(to);
+    fn fade(&mut self, fade: Fade) {
+        self.bus.fade(fade);
     }
 
     fn cut(&mut self) {
@@ -172,10 +172,10 @@ fn login_then_lobby_fades_out_before_the_lobby_starts() {
     assert_eq!(rig.fake.loads.last().map(|l| l.1), Some(Track::Lobby), "the lobby theme asked at once");
     rig.arrive(true);
     assert_eq!(rig.playing(), Some(Track::Main), "here early: it waits for the main theme's fade");
-    rig.wait(1000);
-    assert!(rig.volume() > 0.4 && rig.volume() < 0.6, "half way out after 1 s");
-    rig.wait(1100);
-    assert_eq!(rig.playing(), Some(Track::Lobby), "it starts once the main theme is silent");
+    rig.wait(250);
+    assert!(rig.volume() > 0.4 && rig.volume() < 0.6, "half way out after 0.25 s");
+    rig.wait(300);
+    assert_eq!(rig.playing(), Some(Track::Lobby), "it starts once the main theme is silent, 0.5 s on");
     assert!(rig.volume() < 0.1, "from silence");
     assert!(!rig.fake.overlapped && rig.fake.most == 1);
     assert_eq!(rig.fake.sounds.get(), 1, "the main theme's sound let go");
@@ -191,8 +191,8 @@ fn the_map_theme_is_asked_at_the_loading_start_not_after_the_fade() {
     rig.ask(Some(level));
     // asked before the map's own loads queue (game_world::load comes right after)
     assert_eq!(rig.fake.loads.last().map(|l| l.1), Some(level));
-    rig.wait(2100);
-    assert_eq!(rig.playing(), None, "the lobby theme silent and let go");
+    rig.wait(600);
+    assert_eq!(rig.playing(), None, "the lobby theme silent and let go, 0.5 s on");
     rig.arrive(true);
     assert_eq!(rig.playing(), Some(level), "a slow load starts when it arrives");
     assert!(!rig.fake.overlapped);
@@ -262,7 +262,7 @@ fn a_quick_return_fades_the_same_track_back_in() {
     rig.arrive(true);
     rig.wait(2100);
     rig.ask(Some(map(c"music/level_01_loading")));
-    rig.wait(500);
+    rig.wait(200);
     rig.ask(Some(Track::Lobby));
     assert_eq!(rig.playing(), Some(Track::Lobby));
     assert!(matches!(rig.music, Some(Music::Sounding { .. })));
@@ -278,7 +278,7 @@ fn another_track_during_a_fade_out_stops_the_fading_one_at_once() {
     rig.arrive(true);
     rig.wait(2100);
     rig.ask(Some(Track::Lobby));
-    rig.wait(500);
+    rig.wait(200);
     rig.ask(Some(map(c"music/level_02_loading")));
     assert_eq!(rig.playing(), None, "stopped at once");
     assert_eq!(rig.fake.voices.get(), 0);
@@ -379,12 +379,12 @@ fn the_music_slider_scales_the_bus_not_its_fade() {
     let mut bus = Bus::new();
     bus.scene = Some(());
     bus.level = Volume::new(0.4);
-    bus.fade(Volume::FULL);
+    bus.fade(Fade::In);
     let (_, given) = bus.tick(2000).unwrap();
     assert_eq!(bus.volume, Volume::FULL, "the fade is the fade's");
     assert!((given.get() - 0.4).abs() < 1e-6, "the bus gets fade x slider");
     bus.level = Volume::SILENT;
-    bus.fade(Volume::SILENT);
+    bus.fade(Fade::Out);
     bus.tick(10);
     assert!(!bus.silent(), "a slider at 0 is not a finished fade-out");
 }
@@ -393,7 +393,7 @@ fn the_music_slider_scales_the_bus_not_its_fade() {
 fn the_bus_steps_at_a_fade_a_two_seconds() {
     let mut bus = Bus::new();
     bus.scene = Some(());
-    bus.fade(Volume::FULL);
+    bus.fade(Fade::In);
     assert!(!bus.silent() || bus.volume == Volume::SILENT);
     for _ in 0..100 {
         bus.tick(10);
@@ -405,7 +405,7 @@ fn the_bus_steps_at_a_fade_a_two_seconds() {
     assert!(bus.silent());
     bus.tick(2000);
     assert_eq!(bus.volume, Volume::FULL);
-    bus.fade(Volume::SILENT);
+    bus.fade(Fade::Out);
     bus.tick(4000);
     assert!(bus.silent());
 }
