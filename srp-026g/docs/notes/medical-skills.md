@@ -236,6 +236,9 @@ It excludes self, enemies, dead/inactive players and targets outside Cascade's r
 Each successful native lookup is an owned reference released on every exit.
 For recipients it removes the Larkspur config's affects, fills body/head/pain
 like patch 54, and adds a native effect instance with the recipient's calculator.
+The places it reaches are the copy's for its whole active (since 2026-11-11 patch 109 gives a
+Spring's and an Onyx's active to them wherever they go, artefact-skills.md "Resonance or Cascade");
+an activation without Medic's bit reaches none.
 The source's normal activation and cooldown continue unchanged. Brothers in Arms
 uses the same core lookup and team rule, after spawn invulnerability and before
 native body-part damage processing. Environmental and self damage are unchanged.

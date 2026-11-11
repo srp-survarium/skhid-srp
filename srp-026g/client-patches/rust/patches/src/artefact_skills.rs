@@ -474,6 +474,20 @@ pub fn on_shared_regeneration(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// Cascade's places with each active copy a world saves (artefact_base::serialize, after its
+/// cooldown): the teammates its activation reached keep its active to its end.
+pub fn on_save(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::save(ctx);
+    Flow::Continue
+}
+
+/// The same read back by a world's load (artefact_base::deserialize): a rollback and a late joiner
+/// give the active to the places its activation reached.
+pub fn on_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::load(ctx);
+    Flow::Continue
+}
+
 /// The own cap at patch 54's press (its `ready`, for each copy it would fire): a copy past the 4
 /// of its kind that count for its holder does not fire and stays ready.
 pub fn on_fire(ctx: &mut Context<'_>) -> Flow<NoExit> {

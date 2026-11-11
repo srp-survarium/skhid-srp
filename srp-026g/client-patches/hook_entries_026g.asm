@@ -812,7 +812,7 @@ artefact_carry_on_death_replay:
 
 ; 0x313735 artefact_base::serialize after native state-dependent fields; ESI item EDI writer: lohook -> artefact_carry_on_ground_save
 global artefact_carry_on_ground_save
-extern hook_artefact_carry_on_ground_save
+extern hook_artefact_carry_on_ground_save_chain
 artefact_carry_on_ground_save:
     lea esp, [esp - 4]
     pushfd
@@ -830,7 +830,7 @@ artefact_carry_on_ground_save:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_artefact_carry_on_ground_save
+    call hook_artefact_carry_on_ground_save_chain
     mov edx, artefact_carry_on_ground_save_replay
     cmp eax, 0
     je artefact_carry_on_ground_save_go
@@ -851,7 +851,7 @@ artefact_carry_on_ground_save_replay:
 
 ; 0x3137ec artefact_base::deserialize before EBX/EDI reused; EBX item EDI reader: lohook -> artefact_carry_on_ground_load
 global artefact_carry_on_ground_load
-extern hook_artefact_carry_on_ground_load
+extern hook_artefact_carry_on_ground_load_chain
 artefact_carry_on_ground_load:
     lea esp, [esp - 4]
     pushfd
@@ -869,7 +869,7 @@ artefact_carry_on_ground_load:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_artefact_carry_on_ground_load
+    call hook_artefact_carry_on_ground_load_chain
     mov edx, artefact_carry_on_ground_load_replay
     cmp eax, 0
     je artefact_carry_on_ground_load_go
