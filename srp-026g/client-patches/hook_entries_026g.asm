@@ -6256,10 +6256,10 @@ ragdoll_on_killed_replay:
     db 0x8b, 0x86, 0x20, 0x01, 0x00, 0x00
     jmp 0x2da3e5
 
-; 0x25cd00 game_world::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,0Ch): ECX the game world's input handler, ESP+8 the key, +0Ch its kind; taken is its `ret 0Ch` (AL the answer: 1 the key is taken, the player's handler not told): lohook -> tab_cursor_on_key
-global tab_cursor_on_key
-extern hook_tab_cursor_on_key_chain
-tab_cursor_on_key:
+; 0x25cd00 game_world::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,0Ch): ECX the game world's input handler, ESP+8 the key, +0Ch its kind; taken is its `ret 0Ch` (AL the answer: 1 the key is taken, the player's handler not told): lohook -> voice_on_key
+global voice_on_key
+extern hook_voice_on_key_chain
+voice_on_key:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -6276,25 +6276,25 @@ tab_cursor_on_key:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_tab_cursor_on_key_chain
-    mov edx, tab_cursor_on_key_replay
+    call hook_voice_on_key_chain
+    mov edx, voice_on_key_replay
     cmp eax, 0
-    je tab_cursor_on_key_go
+    je voice_on_key_go
     mov edx, 0x25cd09
     cmp eax, 1
-    je tab_cursor_on_key_go
+    je voice_on_key_go
     mov edx, 0x25cf15
     cmp eax, 2
-    je tab_cursor_on_key_go
+    je voice_on_key_go
     ud2
-tab_cursor_on_key_go:
+voice_on_key_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-tab_cursor_on_key_replay:
+voice_on_key_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8, 0x83, 0xec, 0x0c
     jmp 0x25cd09
 
@@ -6755,7 +6755,7 @@ suicide_key_on_spot:
 
 ; 0x233d30 game_world_ui::scaleform_callback's start (push ebx / push esi / mov esi,[esp+10h]): ECX the hud, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is a `ret 10h` of its own (0x233D73): lohook -> tab_cursor_on_hud_call
 global tab_cursor_on_hud_call
-extern hook_tab_cursor_on_hud_call
+extern hook_tab_cursor_on_hud_call_chain
 tab_cursor_on_hud_call:
     lea esp, [esp - 4]
     pushfd
@@ -6773,7 +6773,7 @@ tab_cursor_on_hud_call:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_tab_cursor_on_hud_call
+    call hook_tab_cursor_on_hud_call_chain
     mov edx, tab_cursor_on_hud_call_replay
     cmp eax, 0
     je tab_cursor_on_hud_call_go
@@ -7163,6 +7163,162 @@ use_scan_on_detect_go:
 use_scan_on_detect_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
     jmp 0x2d84c6
+
+; 0x27a1b0 match_client::connect's start (push ebx / push ebp / push esi / mov esi,ecx): ECX the match client, the site's ESP+4 the host, +8 the port, +0Ch the session (a replay's connect is another function, 0x122350): lohook -> voice_on_connect
+global voice_on_connect
+extern hook_voice_on_connect
+voice_on_connect:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_voice_on_connect
+    mov edx, voice_on_connect_replay
+    cmp eax, 0
+    je voice_on_connect_go
+    mov edx, 0x27a1b5
+    cmp eax, 1
+    je voice_on_connect_go
+    ud2
+voice_on_connect_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+voice_on_connect_replay:
+    db 0x53, 0x55, 0x56, 0x8b, 0xf1
+    jmp 0x27a1b5
+
+; 0x1f96f0 game_world::on_finish_match's start (push edi / mov edi,eax / mov eax,[edi+9Ch]): the match over: lohook -> voice_on_finish
+global voice_on_finish
+extern hook_voice_on_finish
+voice_on_finish:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_voice_on_finish
+    mov edx, voice_on_finish_replay
+    cmp eax, 0
+    je voice_on_finish_go
+    mov edx, 0x1f96f9
+    cmp eax, 1
+    je voice_on_finish_go
+    ud2
+voice_on_finish_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+voice_on_finish_replay:
+    db 0x57, 0x8b, 0xf8, 0x8b, 0x87, 0x9c, 0x00, 0x00, 0x00
+    jmp 0x1f96f9
+
+; 0x1f9520 game_world::on_deactivate's start (push ebx / push esi / push edi / mov edi,ecx): the match scene left: lohook -> voice_on_deactivate
+global voice_on_deactivate
+extern hook_voice_on_deactivate
+voice_on_deactivate:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_voice_on_deactivate
+    mov edx, voice_on_deactivate_replay
+    cmp eax, 0
+    je voice_on_deactivate_go
+    mov edx, 0x1f9525
+    cmp eax, 1
+    je voice_on_deactivate_go
+    ud2
+voice_on_deactivate_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+voice_on_deactivate_replay:
+    db 0x53, 0x56, 0x57, 0x8b, 0xf9
+    jmp 0x1f9525
+
+; 0x25cf70 game_world::on_mouse_key_action after it asked the input world for the keyboard (mov edi,eax / mov eax,[edi] / mov edx,[eax]; its first ten bytes are patch 31's jump, WARMUP_KEYS_HOOK, which comes back at 0x25CF6A for every button it does not take): ESI the game world's input handler (the keyboard's, the hud at +4: its cursor flag +2E0h is the hud's +2DCh), ESP+14h the button's key (151h + the button), +18h its kind; every mouse button of a match comes here before the player's handler (input priority 7, before 10): lohook -> voice_on_mouse_key
+global voice_on_mouse_key
+extern hook_voice_on_mouse_key
+voice_on_mouse_key:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_voice_on_mouse_key
+    mov edx, voice_on_mouse_key_replay
+    cmp eax, 0
+    je voice_on_mouse_key_go
+    mov edx, 0x25cf76
+    cmp eax, 1
+    je voice_on_mouse_key_go
+    ud2
+voice_on_mouse_key_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+voice_on_mouse_key_replay:
+    db 0x8b, 0xf8, 0x8b, 0x07, 0x8b, 0x10
+    jmp 0x25cf76
 
 ; 0x12e124 on_base_texture_loaded (0x12DEE0) where the camouflage layer's texture of the bake's type has no name (0x12E11B test ecx,ecx / cmp byte [ecx],0: the je and the fall-through come here), before it names the surface's own instead (mov edx,[ebp+eax*4-4Ch] / mov edi,[ebp+10h]: the suffix _camo, _camo_nmap, _camo_fmap or _camo_smap of 0x9EDD60.., EAX the type, and the surface's diffuse name; 0x328D30 joins them); ESI the bake's parameters; no_layer 0x12E25A, where the fresnel bake (0x12E0EA) and an empty name (0x12E169) go: no camouflage texture and no _aoac asked for (it reads [ebp-8], the count of textures to ask for, and no register before writing it): lohook -> weapon_camo_on_own_camouflage
 global weapon_camo_on_own_camouflage

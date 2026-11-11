@@ -1238,7 +1238,7 @@ st_health_regen_correction_perc_name	Regeneracija
 st_hide_ammo	Sakrij municiju
 st_hide_interface_action	Sakrij interfejs
 st_hide_quest_list	Sakrij zadatke
-st_hide_spam_option	Sakrij neželjene poruke
+st_hide_spam_option	Isključi glasovni čet
 st_hide_squad_list	Sakrij odred
 st_hk416_description	Nemačka jurišna puška kalibra 5,56x45. Heckler & Koch je sredinom 2000-ih prilagodio AR-15 klipnom gasnom sistemu kratkog hoda. Koriste je specijalne jedinice i više NATO vojski. Ima nišan EOTech 552 i okvir za 30 metaka. Pojedinačna i automatska paljba.
 st_hk416_name	H&K 416A5
@@ -1765,7 +1765,7 @@ st_profile_selection_warning	Promena profila produžava ponovno pojavljivanje na
 st_profile_warning_weapon	Ne možete ući u boj bez oružja!
 st_profile_warning_weapon_ammo	Nedovoljno municije u rancu za ulazak u boj!
 st_profile_warning_weapon_ammo_in_inv	Nedovoljno municije u inventaru za ulazak u boj!
-st_ptt_action	Pritisni za govor
+st_ptt_action	Govori (drži)
 st_ptt_button_option	Pritisni za govor
 st_put_item	Postavi ({USE})
 st_quest_change_warning	Pažnja! Promena zadataka smanjuje odanost frakciji!
@@ -2511,6 +2511,11 @@ st_srp_hud_mute_not_sent	Nije poslato
 st_srp_hud_muted	Čet utišan
 st_srp_hud_unmute	Uključi čet
 st_srp_hud_unmuted	Čet uključen
+st_srp_hud_voice_mute	Utišaj glas
+st_srp_hud_voice_muted	Glas utišan
+st_srp_hud_voice_not_muted	Glasovni čet nije dostupan
+st_srp_hud_voice_unmute	Uključi glas
+st_srp_hud_voice_unmuted	Glas uključen
 st_srp_inv_ammo_range	Domet
 st_srp_inv_bullet_speed	Brzina metka
 st_srp_inv_defuse_time	Vreme deaktiviranja

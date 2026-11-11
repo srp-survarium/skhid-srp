@@ -28,19 +28,27 @@
 The client is told the ports srp binds, so each game port must be the same
 number inside and outside the container. Change `SRP26_LOGIN_PORT`,
 `SRP26_LOBBY_PORT` and `SRP26_MATCH_PORT`; never map one number to another.
+Voice chat is always on the match port + 1 (the games send there; srp binds
+it): `SRP26_VOICE_PORT` must be `SRP26_MATCH_PORT` + 1. `release/release.sh`'s
+preflight stops when it is not.
 
 | | Default of the compose file | On a host of its own |
 |---|---|---|
 | Login (TCP, TLS) | 2234 | 1234 |
 | Lobby (UDP) | 2235 | 1235 |
 | Match server (UDP) | 2236 | 1236 |
+| Voice chat (UDP, the match port + 1; `SRP_VOICE=off` for none) | 2237 | 1237 |
 | Web page | `127.0.0.1:8098` | the same, or public through `caddy26` on 443 |
 
 The defaults are a block of their own so that the stack can run beside a
 0.21d server on one host without sharing a name, a volume or a port with it
 (that server has 1234 tcp+udp, 1235 tcp, 1236 udp, 80 and 443). Beside it,
 do not start `caddy26`: port 443 is the other server's. On a host of its own
-use the game's own 1234, 1235, 1236.
+use the game's own 1234, 1235, 1236 and 1237 for voice.
+
+Open every game port in the host's firewall: the login port for TCP, the
+lobby, match and voice ports for UDP. A voice port that is not open leaves
+voice silent and nothing else: the games keep playing.
 
 ## First start
 
@@ -81,7 +89,7 @@ Players start the game with `-server=<SRP_PUBLIC_HOST>:<login port>`
 | Setting | What |
 |---|---|
 | `SRP_PUBLIC_HOST` | The address players reach the host at. Required |
-| `SRP26_LOGIN_PORT`, `SRP26_LOBBY_PORT`, `SRP26_MATCH_PORT` | The game ports (above) |
+| `SRP26_LOGIN_PORT`, `SRP26_LOBBY_PORT`, `SRP26_MATCH_PORT`, `SRP26_VOICE_PORT` | The game ports (above; the voice port is the match port + 1) |
 | `SRP26_WEB_PORT` | The web page's port on the host's 127.0.0.1 (default 8098) |
 | `SRP26_HTTPS_PORT` | caddy's port (default 443) |
 | `SRP26_DOWNLOAD_DIR` | The folder with the download (default `./download`) |

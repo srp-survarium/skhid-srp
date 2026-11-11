@@ -1238,7 +1238,7 @@ st_health_regen_correction_perc_name	Regeneration
 st_hide_ammo	Munition verbergen
 st_hide_interface_action	Oberfläche ausblenden
 st_hide_quest_list	Aufgaben Fenster schließen 
-st_hide_spam_option	Spam vergeben
+st_hide_spam_option	Sprachchat deaktivieren
 st_hide_squad_list	Truppen Fenster schließen
 st_hk416_description	Deutsches Sturmgewehr, Munition: 5,56x45. Die Weiterentwicklung der AR-15-Konstruktion von Heckler & Koch mit Kurzhub-Gaskolben, Mitte der 2000er Jahre vorgestellt und bei Spezialkräften und den Armeen mehrerer NATO-Staaten im Einsatz. Diese Waffe trägt ein holografisches Visier EOTech 552. Mit einem 30-Schuss-Magazin ausgestattet. Einzel- und Dauerfeuer.
 st_hk416_name	H&K 416A5
@@ -1765,7 +1765,7 @@ st_profile_selection_warning	Nach dem Profil wechseln,  dauert die Wiedergeburt 
 st_profile_warning_weapon	Unaktive Profil: Keine Waffen
 st_profile_warning_weapon_ammo	Unaktive Profil: ungenügend Patronen im Rucksack
 st_profile_warning_weapon_ammo_in_inv	Unaktive Profil: ungenügend Patronen im Lager
-st_ptt_action	PTT
+st_ptt_action	Sprechen (gedrückt halten)
 st_ptt_button_option	PTT
 st_put_item	Setzen ({USE})
 st_quest_change_warning	Vorsicht! Bei Aufgabe wechseln die Loyalität der Gruppierung wird zu Ihnen herabgesetzt!
@@ -2511,6 +2511,11 @@ st_srp_hud_mute_not_sent	Nicht gesendet
 st_srp_hud_muted	Chat stummgeschaltet
 st_srp_hud_unmute	Chat freigeben
 st_srp_hud_unmuted	Chat freigegeben
+st_srp_hud_voice_mute	Stimme stummschalten
+st_srp_hud_voice_muted	Stimme stummgeschaltet
+st_srp_hud_voice_not_muted	Sprachchat nicht verfügbar
+st_srp_hud_voice_unmute	Stimme einschalten
+st_srp_hud_voice_unmuted	Stimme eingeschaltet
 st_srp_inv_ammo_range	Reichweite
 st_srp_inv_bullet_speed	Geschossgeschwindigkeit
 st_srp_inv_defuse_time	Entschärfzeit

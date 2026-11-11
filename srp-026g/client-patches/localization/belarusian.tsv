@@ -1238,7 +1238,7 @@ st_health_regen_correction_perc_name	Рэгенерацыя
 st_hide_ammo	Схаваць амуніцыю
 st_hide_interface_action	Схаваць інтэрфейс
 st_hide_quest_list	Схаваць акно заданняў
-st_hide_spam_option	Хаваць спам
+st_hide_spam_option	Адключыць галасавы чат
 st_hide_squad_list	Схаваць акно атрада
 st_hk416_description	Нямецкая штурмавая вінтоўка пад боепрыпас 5.56х45. Развіццё AR-15 ад Heckler & Koch з газавым поршнем кароткага ходу, з'явілася ў сярэдзіне 2000-х; служыць у спецназе і арміях НАТА. Прыцэл EOTech 552. Магазін на 30 патронаў. Агонь: адзіночны і аўтаматычны.
 st_hk416_name	H&K 416А5
@@ -1765,7 +1765,7 @@ st_profile_selection_warning	+20 секунд да часу адраджэння
 st_profile_warning_weapon	Профіль неактыўны: няма зброі
 st_profile_warning_weapon_ammo	Профіль неактыўны: недастаткова патронаў у заплечніку
 st_profile_warning_weapon_ammo_in_inv	Профіль неактыўны: недастаткова патронаў на складзе
-st_ptt_action	PTT
+st_ptt_action	Гаварыць (утрымліваць)
 st_ptt_button_option	PTT
 st_put_item	Пакласці ({USE})
 st_quest_change_warning	Увага! Пры змене задання лаяльнасць групоўкі да вас знізіцца!
@@ -2511,6 +2511,11 @@ st_srp_hud_mute_not_sent	Не адпраўлена
 st_srp_hud_muted	Чат заглушаны
 st_srp_hud_unmute	Уключыць чат
 st_srp_hud_unmuted	Чат уключаны
+st_srp_hud_voice_mute	Заглушыць голас
+st_srp_hud_voice_muted	Голас заглушаны
+st_srp_hud_voice_not_muted	Галасавы чат недаступны
+st_srp_hud_voice_unmute	Уключыць голас
+st_srp_hud_voice_unmuted	Голас уключаны
 st_srp_inv_ammo_range	Далёкасць
 st_srp_inv_bullet_speed	Хуткасць кулі
 st_srp_inv_defuse_time	Час абясшкоджвання

@@ -1238,7 +1238,7 @@ st_health_regen_correction_perc_name	Palautuminen
 st_hide_ammo	Piilota ammukset
 st_hide_interface_action	Piilota käyttöliittymä
 st_hide_quest_list	Piilota tehtäväikkuna
-st_hide_spam_option	Piilota roskaposti
+st_hide_spam_option	Poista puhechat käytöstä
 st_hide_squad_list	Piilota ryhmäikkuna
 st_hk416_description	Saksalainen rynnäkkökivääri, kaliiperi 5.56x45. Heckler & Kochin AR-15-muunnelma lyhytiskuisella kaasumännällä 2000-luvun puolivälistä. Erikoisjoukkojen ja useiden NATO-maiden armeijoiden käytössä. EOTech 552 -tähtäin, 30 patruunan lipas. Kerta- ja sarjatuli.
 st_hk416_name	H&K 416A5
@@ -1765,7 +1765,7 @@ st_profile_selection_warning	Profiilin vaihto asettaa 20 sekunnin uudelleensynty
 st_profile_warning_weapon	Et voi mennä taisteluun ilman asetta!
 st_profile_warning_weapon_ammo	Et voi mennä taisteluun, repussa on liian vähän ammuksia!
 st_profile_warning_weapon_ammo_in_inv	Et voi mennä taisteluun, tavaroissasi on liian vähän ammuksia!
-st_ptt_action	PTT
+st_ptt_action	Puhu (pidä pohjassa)
 st_ptt_button_option	PTT
 st_put_item	Aseta ({USE})
 st_quest_change_warning	Varoitus! Tehtävien vaihtaminen vähentää ryhmittymäuskollisuuttasi!
@@ -2511,6 +2511,11 @@ st_srp_hud_mute_not_sent	Ei lähetetty
 st_srp_hud_muted	Chat mykistetty
 st_srp_hud_unmute	Poista mykistys
 st_srp_hud_unmuted	Mykistys poistettu
+st_srp_hud_voice_mute	Mykistä ääni
+st_srp_hud_voice_muted	Ääni mykistetty
+st_srp_hud_voice_not_muted	Puhechat ei käytettävissä
+st_srp_hud_voice_unmute	Poista äänen mykistys
+st_srp_hud_voice_unmuted	Äänen mykistys poistettu
 st_srp_inv_ammo_range	Kantama
 st_srp_inv_bullet_speed	Luodin nopeus
 st_srp_inv_defuse_time	Purkuaika

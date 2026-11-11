@@ -1238,7 +1238,7 @@ st_health_regen_correction_perc_name	Regeneration
 st_hide_ammo	Hide ammo
 st_hide_interface_action	Hide interface
 st_hide_quest_list	Hide missions window
-st_hide_spam_option	Hide spam
+st_hide_spam_option	Disable voice chat
 st_hide_squad_list	Hide squad window
 st_hk416_description	German assault rifle, ammo: 5.56x45. Heckler & Koch's development of the AR-15 design with a short-stroke gas piston, introduced in the mid-2000s and used by special forces and the armies of several NATO countries. This one carries an EOTech 552 holographic sight. Equipped with a 30-round magazine. Supports single and automatic fire.
 st_hk416_name	H&K 416A5
@@ -1765,7 +1765,7 @@ st_profile_selection_warning	20 seconds respawn time when changing profile
 st_profile_warning_weapon	Cannot enter the battle without weapons!
 st_profile_warning_weapon_ammo	Unable to enter the battle, insufficient ammo in your backpack!
 st_profile_warning_weapon_ammo_in_inv	Unable to enter the batle, insufficient ammo in your inventory!
-st_ptt_action	PTT
+st_ptt_action	Push to talk
 st_ptt_button_option	PTT
 st_put_item	Put ({USE})
 st_quest_change_warning	Warning! Changing tasks will lower your faction loyalty!
@@ -2511,6 +2511,11 @@ st_srp_hud_mute_not_sent	Not sent
 st_srp_hud_muted	Chat muted
 st_srp_hud_unmute	Unmute chat
 st_srp_hud_unmuted	Chat unmuted
+st_srp_hud_voice_mute	Mute voice
+st_srp_hud_voice_muted	Voice muted
+st_srp_hud_voice_not_muted	Voice chat unavailable
+st_srp_hud_voice_unmute	Unmute voice
+st_srp_hud_voice_unmuted	Voice unmuted
 st_srp_inv_ammo_range	Range
 st_srp_inv_bullet_speed	Bullet speed
 st_srp_inv_defuse_time	Defuse time

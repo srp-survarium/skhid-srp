@@ -61,6 +61,22 @@ impl<'t> GameWorld<'t> {
         Some(GameWorld { this, thread: ctx.thread() })
     }
 
+    /// The world whose match is over (`game_world.finish`, before it unloads).
+    pub fn at_finish(ctx: &'t Context<'_>) -> Option<GameWorld<'t>> {
+        // SAFETY: the context is this site's: on_finish_match's game world, alive
+        // until its end, on the game's thread.
+        let this = unsafe { raw::site::game_world_finish::world(ctx) }?;
+        Some(GameWorld { this, thread: ctx.thread() })
+    }
+
+    /// The world being left (`game_world.deactivate`, before it is).
+    pub fn at_deactivate(ctx: &'t Context<'_>) -> Option<GameWorld<'t>> {
+        // SAFETY: the context is this site's: on_deactivate's game world, alive
+        // until its end, on the game's thread.
+        let this = unsafe { raw::site::game_world_deactivate::world(ctx) }?;
+        Some(GameWorld { this, thread: ctx.thread() })
+    }
+
     /// Its game's network client.
     pub fn network_client(&self) -> Option<NetworkClient<'t>> {
         // SAFETY: the world, its game and the game's client, alive for the hook.
@@ -172,6 +188,50 @@ impl<'t> NetworkClient<'t> {
     pub fn match_id(&self) -> Option<MatchId> {
         // SAFETY: the client, alive for the hook; match_options is its own.
         unsafe { raw::engine_match_options(Some(self.this)).map(|options| MatchId(read(options.seed()))) }
+    }
+
+    /// The team word of each place of the match (0 or 1 a team; its
+    /// options' record, the one a player's profile is), None past its count.
+    pub(in crate::vostok) fn place_teams(&self) -> [Option<u32>; super::types::Place::COUNT] {
+        let mut teams = [None; super::types::Place::COUNT];
+        // SAFETY: the client, alive for the hook; match_options is its own
+        // (a live or a replay client's, its vtable's), its places as long as
+        // the client; a place below the count (at most the 20 of the array)
+        // is one of them.
+        unsafe {
+            if let Some(options) = raw::engine_match_options(Some(self.this)) {
+                let places = usize::from(read(options.places())).min(teams.len());
+                for (place, team) in teams.iter_mut().enumerate().take(places) {
+                    *team = Some(read(options.first_place().at(place).team()));
+                }
+            }
+        }
+        teams
+    }
+
+    /// The client of a game, on a hook's thread.
+    pub(in crate::vostok) fn of_game(game: raw::Game, thread: &'t Thread) -> Option<NetworkClient<'t>> {
+        // SAFETY: the game's network client, alive as long as the game.
+        let this = unsafe { game.network_client() }?;
+        Some(NetworkClient { this, thread })
+    }
+
+    /// The name of a place's record (64 bytes with its zero; the match
+    /// options' own), zeros past the match's places.
+    pub(in crate::vostok) fn place_name(&self, place: super::types::Place) -> [u8; 64] {
+        let mut name = [0; 64];
+        // SAFETY: the client's options and their places live as long as the
+        // client, on the hook's thread; a place below the count is one of
+        // them, its name 64 bytes.
+        unsafe {
+            if let Some(options) = raw::engine_match_options(Some(self.this))
+                && place.index() < usize::from(read(options.places()))
+            {
+                let at = options.first_place().at(place.index()).name();
+                core::ptr::copy_nonoverlapping(at, name.as_mut_ptr(), name.len());
+            }
+        }
+        name
     }
 
     /// The local player, if the match has one.
@@ -372,6 +432,12 @@ impl<'t> Player<'t> {
     pub fn place(&self) -> u8 {
         // SAFETY: the live base player's place byte.
         unsafe { read(self.this.place()) }
+    }
+
+    /// Where its feet are (the simulated transform's translation).
+    pub fn feet(&self) -> [f32; 3] {
+        // SAFETY: the live player's three floats.
+        unsafe { floats(self.this.feet()) }
     }
 
     /// In the match's world (m_has_been_inserted).

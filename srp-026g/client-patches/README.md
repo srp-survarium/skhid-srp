@@ -175,6 +175,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `engine_026g.h`, `engine_026g.inc`, `engine_026g.rs`, `raw_026g.rs`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, their declarations for Rust (C's types, research_arena's; typed by the kinds' handles, the Rust patches' `raw`), and the thunks, the arena's block `engine.code` |
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown (none for a key pressed before they came or in their first 300 ms), and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the four entries from the game's sites and the game's own input tick, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
+| `rust/patches/src/voice.rs`, `voice.toml` | Patch 66: safe Rust voice hooks (seven named lohooks) over Vostok, through the versioned `voice-abi` interface to Rust `skhid_voice.dll` (`../client-voice`): options, push-to-talk, mutes, radio distances, the hud's list of who talks and the Tab menu's voice mute (the shared `patches.*` blocks); `cargo test` in `rust/` checks its logic |
 | `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
 | `kill_feed_026g.asm`, `check_kill_feed_026g.py` | Patch 67: the kill feed's wall, ricochet and pain flags (the arena's block `kill_feed.code`): the kill event's byte +5 from the bullet's pierces and the victim's pools, passed to the hud movie as `penetration_icon`, `ricochet_icon` and `pain_icon`; its check runs the event, the hud's handler and the row from the game's sites on made-up victims, bullets and descriptions, with the game's own part lookup (needs Unicorn) |
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
@@ -3561,6 +3562,66 @@ visibility, including a new match resetting Tab. `cargo test` in `rust/`; `../sc
 (Ruffle: the hud's Tab view and kits, the Tab list kept with them by names only, its row menu and
 its map's marked battery, the player icons' states); `check_tab_cursor_026g.py` (Ctrl's cursor in a
 Blackout match). **Not run in a game.**
+
+### 66. Voice chat in a match (not released)
+
+The owner's ask (2026-10-23; the answers and the later asks of 2026-10-25). The rules and the
+wire: `../docs/notes/voice-chat.md`; the DLL: `../client-voice`; the relay: srp's
+`match-server/src/v026g/voice.rs`.
+
+**What 0.26g has.** The sound tab's four voice controls (`s_chat_volume`, `s_use_microphone`,
+`s_mic_sens`, `s_ptt_button`) are bound by name and no variable of those names is registered;
+the action `ptt` (47h, kind 8, the chat keys, default P) is listed in the options and saved and
+nothing reads it. No capture, no codec: `skhid_voice.dll` (Rust, libopus, waveIn/waveOut,
+UDP) is loaded at the first match with `LoadLibraryA` (the exe's import), its version asked;
+without it, or of another version (unloaded), voice is off.
+
+**The sites** (names-only `voice.toml`, eight lohooks; safe `voice.rs` over `vostok/voice.rs`):
+- `configs.start` (before user.cfg): `s_chat_volume` and `s_mic_sens` (`ConsoleFloat`, 0..100, the
+  float slider's steps are 1.0), `s_use_microphone` and `g_hide_spam` (the gameplay tab's dead
+  option 5, "Hide spam", now "Disable voice chat") (`ConsoleBool`), `srp_voice_mutes`
+  (`ConsoleString`); saved in user.cfg;
+- `match_client.connect` (0x27A1B0 at its start: the host, the port, the session; a replay's match
+  client has its own connect, 0x122350): the DLL loaded once, told the options, no mutes and no
+  radio, then `sv_start(host, port + 1, session)`;
+- `game_world.finish` (on_finish_match 0x1F96F0, EAX the world) and `game_world.deactivate`
+  (on_deactivate 0x1F9520, ECX the world): push-to-talk let go, `sv_stop`, the hud's list emptied;
+- `game_world.after_move` (every frame of a match): the options to the DLL on a change, the muted
+  places, the far ones (a teammate beyond 25 m, or either of the two dead: the radio filter) and the
+  hud's `root.srp_voice_talking(name, ...)` on a change; a push-to-talk whose key or button is up
+  (user32's GetAsyncKeyState: the numpad's keys by either key NumLock gives, NumLock and Pause by
+  their own, a button by its VK_*BUTTON) or with the game out of focus is let go;
+- `tab_cursor.key` (before patch 86's) and `game_world.mouse_key` (0x25CF70, on_mouse_key_action
+  past its keyboard ask and patch 31's jump: ESI the handler, ESP+14h the button's key, +18h its
+  kind, 0 press, 1 release, 2 held): the binder's chat key (kind 8) 47h, `ptt`, down and up, on a
+  key or a mouse button, is push-to-talk; its Controls row is the game group's and can be set
+  (patch 62's `controls`);
+- `hud.callback` (after patch 86's): the Tab list's player menu asks `srp_voice_menu(place)`
+  (answered `root.srp_voice_menu(place, offered, muted)`) and sends `srp_voice_mute(place,
+  "1"|"0")` (answered `root.srp_voice_mute(place, done)`): "Mute voice" / "Unmute voice" after the
+  chat mute's entries, for a teammate whose voice id the relay sent.
+
+**Who is talking**, as 0.69's hud (`VoiceChatTalkingPanel`): a row per teammate talking, and the
+player's own while its microphone is sent, at the right edge under mid-height, a light-blue speaker
+and the name, the newest on top; a name fades over 1 s, 0.5 s after its player stops (`flash/hud`
+`VoiceSpeakers`). The muted are not shown.
+
+**Muting** is the Tab list's player menu only (the owner, 2026-11-09: a "mute the last speaker"
+key was removed, the menu does it); the action table stays the game's.
+
+**The mutes** are srp's voice ids (ROSTER, type 90h: a hash of the account with a server key;
+names can change hands), kept in `srp_voice_mutes` as eight hex digits and `|` each (56 at most,
+the oldest go first), read once a match: a record that is not 8 hex digits, or a repeat, is left
+out and logged.
+
+**Texts** in `localization/*.tsv`: `st_hide_spam_option` ("Disable voice chat"), `st_ptt_action`
+("Push to talk"), `st_srp_hud_voice_*` (the Tab menu's entries and lines).
+
+Checked: `selftest_026g.py` check 66 (the sites in the original, the eight hooks in the build, the
+game's ptt entry unchanged) and check 62 (the Controls rows: push-to-talk's in the game group, its
+key settable), `check_hide_ui_026g.py` (the list sent to the movie), `cargo test` in `rust/` (the
+mutes' text, malformed records, the radio's 25 m and the dead, the keys a held input is polled by).
+Played locally 2026-11-11 (two games under Wine, one microphone): talking and hearing in a team.
 
 ### 67. The kill feed shows a kill through a wall, by a ricochet and by pain (the next release's revision)
 
