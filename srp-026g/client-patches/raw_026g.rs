@@ -1166,6 +1166,15 @@ impl NetworkClient {
     pub unsafe fn play_state(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x1f1c60).cast::<u32>().as_ptr() }
     }
+
+    /// +0x0 (u32): its class: 0x9FFB14 a live match's network_client (its ctor writes it at 0x219E7C), REPLAY_CLIENT_VTABLE a .sur replay's replay_network_client (0x218A7C); every other field of this kind is the live client's
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A survarium::match_options (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -3680,6 +3689,24 @@ impl GameWorldUi {
     #[inline(always)]
     pub unsafe fn set_icons_movie(self, value: Option<MovieHolder>) {
         unsafe { self.0.byte_add(0x10).cast::<Option<MovieHolder>>().write_volatile(value) }
+    }
+
+    /// +0x14 (ptr<vostok::ui::movie_holder>): the replay player movie's holder (initialize_match 0x2356BC: mov eax,[esp+5E8h] the ui / mov ecx,[eax+14h] / mov edx,[ecx+108h] / mov ecx,[edx+4] the movie, for root.set_players_list 0x2356DD)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn replay_movie(self) -> Option<MovieHolder> {
+        unsafe { self.0.byte_add(0x14).cast::<Option<MovieHolder>>().read_volatile() }
+    }
+
+    /// +0x14 (ptr<vostok::ui::movie_holder>): the replay player movie's holder (initialize_match 0x2356BC: mov eax,[esp+5E8h] the ui / mov ecx,[eax+14h] / mov edx,[ecx+108h] / mov ecx,[edx+4] the movie, for root.set_players_list 0x2356DD)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_replay_movie(self, value: Option<MovieHolder>) {
+        unsafe { self.0.byte_add(0x14).cast::<Option<MovieHolder>>().write_volatile(value) }
     }
 
     /// +0x18 (ptr<survarium::game_world>): client game world, constructor 0x233810
@@ -15265,6 +15292,24 @@ impl BakeParameters {
     pub unsafe fn set_model(self, value: Option<RenderModelInstance>) {
         unsafe { self.0.byte_add(0x790).cast::<Option<RenderModelInstance>>().write_volatile(value) }
     }
+
+    /// +0x7a8 (ptr<u8>): its baked files' name, a buffer_string's begin: a C string (translate_query 0x12D4A1 mov ecx,[eax+7A8h], the %s of user_data/streamed_textures/%s%s; camouflage_decal_baker_cook::translate_query 0x13420B writes it, the asker's name and the type's letter)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn name(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x7a8).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x7a8 (ptr<u8>): its baked files' name, a buffer_string's begin: a C string (translate_query 0x12D4A1 mov ecx,[eax+7A8h], the %s of user_data/streamed_textures/%s%s; camouflage_decal_baker_cook::translate_query 0x13420B writes it, the asker's name and the type's letter)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_name(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x7a8).cast::<*mut u8>().write_volatile(value) }
+    }
 }
 
 /// A vostok::render::render_surface_instance (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -21415,6 +21460,9 @@ pub mod image {
 
     /// 0x9f70a0 (u32, vostok::render::image): decal_texture_instance_proxy's vtable (RTTI at 0x9F709C): bound_sphere 0x1C8E00, last_render_time 0x1C8D20 (fldz), texel_factor 0x1C8D80, +14h 0x1AF330 (ret)
     pub const DECAL_PROXY_VTABLE: u32 = 0x9f70a0;
+
+    /// 0x9ff344 (u32, survarium::image): replay_network_client's vtable (its ctor 0x218A40 writes it at 0x218A7C, its destructor at 0x218BC3; slot +54h is_this_place_mine, patch 24): the game's network client (+53ACh) while a .sur replay plays
+    pub const REPLAY_CLIENT_VTABLE: u32 = 0x9ff344;
 }
 
 /// A general-purpose register at a hook's site.
@@ -24045,6 +24093,21 @@ pub mod site {
         }
     }
 
+    /// bake.own_camouflage (0x12e124): on_base_texture_loaded (0x12DEE0) where the camouflage layer's texture of the bake's type has no name (0x12E11B test ecx,ecx / cmp byte [ecx],0: the je and the fall-through come here), before it names the surface's own instead (mov edx,[ebp+eax*4-4Ch] / mov edi,[ebp+10h]: the suffix _camo, _camo_nmap, _camo_fmap or _camo_smap of 0x9EDD60.., EAX the type, and the surface's diffuse name; 0x328D30 joins them); ESI the bake's parameters; no_layer 0x12E25A, where the fresnel bake (0x12E0EA) and an empty name (0x12E169) go: no camouflage texture and no _aoac asked for (it reads [ebp-8], the count of textures to ask for, and no register before writing it)
+    pub mod bake_own_camouflage {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::render::bake_parameters (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn parameters(machine: &impl Machine) -> Option<BakeParameters> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(BakeParameters)
+        }
+    }
+
     /// save.freed (0x10a050): save_descriptor::~save_descriptor's start (sub esp,8 / cmp byte [esi+8],0; ESI the descriptor; its one caller ~query_result 0xF1135 with [query+0E0h]): when +8 is set it frees +0 (mt_free 0x106FC0 at 0x10A083), so a save's bytes live until its query is destroyed
     pub mod save_freed {
         #[allow(unused_imports)]
@@ -24915,6 +24978,51 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<SslCallFrame> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(SslCallFrame)
+        }
+    }
+
+    /// minimap.enemy_spotted (0x239505): update_minimap_players (0x239420) at its test of an enemy (a place of another team than the local player, alive and in the world): cmp dword [eax+348h],esi (ESI 0), its time spotted; the ja after it (0x23950B) lists it while that is above 0, else 0x23950D drops it. shown is the listing (0x23951B, where the team test's je goes too): the icon object for the place in EAX
+    pub mod minimap_enemy_spotted {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(Player)
+        }
+    }
+
+    /// player_names.enemy_spotted (0x1f2b50): render_name (0x1F2AD0) at its test of a player of another team than the local one (0x1F2B43; a local team of 2, none, goes on at 0x1F2B4B): cmp dword [esi+348h],0, its time spotted; the ja after it (0x1F2B57) goes on while that is above 0, else 0x1F2B59 hides its marker (0x1F302C). shown is the go-on (0x1F2B5D, ECX 1, where the team tests' je go too): the marker placed, its name shown while left Alt is held (0x1F2DCD) and coloured 0xFF0000 for an enemy (0x1F300F, 0x23C0C0)
+    pub mod player_names_enemy_spotted {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(Player)
+        }
+    }
+
+    /// player_icons.enemy_ids (0x235709): game_world_ui::initialize_match (0x234880) about to send the player icons movie its enemy list (root.set_enemy_icon_ids, the Invoke at 0x235726; the icons movie [[ui+10h]+108h]+4), before any marker of the match is sent: mov ecx,[esi+10h] / mov edx,[ecx+108h]; ESI the ui (0x235702). the late join's lists_hook is on the bytes after the Invoke (0x23572B)
+    pub mod player_icons_enemy_ids {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::game_world_ui (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn ui(machine: &impl Machine) -> Option<GameWorldUi> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(GameWorldUi)
         }
     }
 }

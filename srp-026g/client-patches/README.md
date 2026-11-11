@@ -149,6 +149,8 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/memory_profile.rs`, `src/memory_profile.toml`, `src/vostok/memory_profile.rs`, `memory_profile_026g.asm`, `check_memory_profile_026g.py`, `../scripts/memory-profile/analyze.py` | Patch 127: a memory profiler of the engine's arenas for the owner and for workers' local tests, never players: on with `SKHID_MEMORY_PROFILE=on` in the game's environment. Off, the exe keeps the game's allocator bytes: its five gates (dlmalloc's three entries, ptmalloc3's two frees of mapped blocks) and the out-of-memory hook are installed on demand (`install = "on_demand"`, written at the start only when on). On, each block is counted to its arena and the call site that asked; snapshots (each arena's use, holes and sites; the address space) go to `srp_memory_profile.txt` in the user data folder at a world in, a match closing, a full arena and Scroll Lock; `analyze.py` prints the report; its check runs dlmalloc on a made-up arena in both exes and reads the snapshot (needs Unicorn; `../docs/notes/memory-profile.md`) |
 | `rust/patches/src/texture_streaming.rs`, `src/texture_streaming.toml`, `src/vostok/streaming.rs`, `check_texture_streaming_026g.py` | Patch 137: texture streaming's per-frame bookkeeping in Rust, the same values: scene::update_streaming_data (every streaming record from its proxy, the three proxy classes' virtuals read once by their vtable, one square root a surface) and resource_manager::get_texture_video_memory_size (the registry's texture memory without the "$user$" names, searched 16 bytes at a time); two lohooks, each the whole function; its check runs both functions on made-up scenes and registries in both exes, every byte the same, and counts their instructions (needs Unicorn; `../docs/notes/client_patch.md` section 3.79) |
 | `rust/patches/src/constant_upload.toml`, `constant_upload_026g.asm`, `check_constant_upload_026g.py` | Patch 134: shader constants cost the render thread less, the same bytes on the GPU: shader_constant_buffer::set_memory (0x11B5A0) copies 16 bytes at a time, not one, and update (0x3DDFD0) maps a buffer only when its bytes differ from the ones it last uploaded (four `code` hooks); its check runs set_memory on 4000 made-up cases in both exes (every register, XMM0..7 and the memory alike), the constructor, and 150 draws over four buffers with a model of the device context (the GPU's bytes after every update alike) (needs Unicorn) |
+| `rust/patches/src/replay_map.rs`, `src/replay_map.toml`, `src/vostok/ui.rs` (`GameWorldUi::at_enemy_ids`), `check_replay_map_026g.py` | Patch 135: a replay shows every enemy, spotted or not (`../docs/notes/replay-map.md`): its dot (update_minimap_players' spotted test, 0x239505), its marker and red name with Alt (render_name's, 0x1F2B50), the icons movie told `root.srp_show_enemies` before initialize_match's enemy list (0x235709); a replay known by the game's network client's class (`vostok::world::Playback`), no state of its own; its check runs the three sites in both exes (needs Unicorn) |
+| `rust/patches/src/replay_keys.rs`, `src/replay_keys.toml`, `src/vostok/world.rs` (`GameWorld::replay_player`, `places_in_match`), `src/vostok/keyboard.rs` (`GameWorldKey::replay_player`) | Patch 140: a replay's keys and the followed player's return (`../docs/notes/replay-keys.md`): at on_keyboard_action's start (0x25CD00) a key that goes down in a replay is kept, and at the frame's end (game_world::tick after the move, 0x1F7C3C) the replay player movie is told it (`root.srp_key`) and, when they changed, the places in the match (`root.srp_places`); a replay known by the game's network client's class, as patch 135 |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
@@ -165,6 +167,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/hand_kill.rs`, `src/hand_kill.toml`, `src/vostok/melee.rs`, `check_hand_kill_026g.py` | Patch 108: a gun-stock hit kills, wherever it lands (`../docs/notes/hand-kill.md`): one lohook on patch 94's `medical.hit` site (ours first in the chain); its check runs the chain in the patched exe (needs Unicorn) |
 | `rust/patches/src/text_input.rs`, `check_text_input_026g.py` | Patch 52: ignore a character event whose Scaleform text field has lost its AS3 receiver; reproduces the PIN-entry crash and checks native register/stack behavior (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `rust/patches/src/weapon_camo.rs`, `weapon_camo.toml` | Patch 44's part in the baker (Rust, one lohook at `bake.own_camouflage`, 0x12E124): a weapon's bake takes only the camouflage textures its patch names (the colours and the `_smap`, not the `_nmap`, a cloth's weave), never the surface's own `<diffuse>_camo...`; `check_weapon_camo_026g.py` runs the site |
 | `research_026g.asm`, `research_arena/`, `../crates/research-rule/` | Patch 53 (Research): four aligned assembly entries, the integer rules in Rust, and the cook, rule slots and UI integration in Rust |
 | `link_026g.py`, `arena_026g.lock.json` | The arena's linker (below, "The arena"): every block's C and NASM sources compiled to ELF32 objects and linked by GNU ld at `.srpx`'s VA, at every build; `--write` writes the lock (the linked arena's SHA-256, its blocks and symbols), `--check` compares. Needs gcc (`-m32`), GNU ld and NASM 2.16 (`nix develop ./srp-026g`) |
 | `engine_026g.tsv`, `engine_026g.py` | The engine-function library (below, "Calling the game's functions"): its functions, one row each, and the generator of the three files after it from those rows and the re-kit's ABI rows (`--write`, `--check`) |
@@ -2540,13 +2543,17 @@ non-empty `data/camouflage` text in the weapon's merged config (a camouflage upg
 there when the config has a `data` table), an `object/model` text and a model with a render
 instance, it asks for one class-6Ch bake for each of the instance's surfaces (at most 8), as the
 lobby's decal editor (0x2641A0) asks for one: a camouflage_decal_cook_parameters from the game's
-allocator with the camouflage's diffuse, `_nmap` and `_smap` names, the identity as the
+allocator with the camouflage's diffuse and `_smap` names (not its `_nmap`, a cloth's weave: the
+weapon keeps its own relief, and the Rust patch `weapon_camo` at the baker's 0x12E124 makes a name
+left empty no layer on a weapon, where the game would take the surface's own `<diffuse>_camo...`;
+2026-11-11, client_patch.md section 3.41), the identity as the
 camouflage's matrix, the render instance (one reference more), the surface's index, the scale
 (`data/camo_scale`, else 4.0), and the baked files' name `srpw1_<camouflage>_<model>_<surface>`
 ('/' and '\\' as '_'); its callback lets go of the reference and frees the parameters. The baker
-refuses a surface whose diffuse has no `_aoac` texture (it stays plain). Every register and the
+refuses a camouflage on a surface whose diffuse has no `_aoac` texture (it stays plain; a decal's
+fresnel and relief, which have no camouflage layer, are still baked there). Every register and the
 flags are kept, eax as the original's `lea` leaves it. Since patch 47 the camouflage's lookup and
-its three names are patch 47's lookup and fill (`-DDECALS`), which add the weapon's decals: a
+its names are patch 47's lookup and fill (`-DDECALS`), which add the weapon's decals: a
 weapon with decals and no camouflage is baked too.
 
 `.srpw` is a section of its own (code, three pages: patch 44's 739 bytes, the stash's and patch
@@ -2895,7 +2902,7 @@ second page, until patch 45's round 6), its state (12 bytes, the left button's p
   weapon's bake paints. lookup: the camouflage (`data/camouflage`, as patch 44 read it) and the
   decals (`data/decals`, where a decal upgrade appends {texture, low, high}, the record's u64
   put in by the game's config merge); patch 44 bakes when there is either. fill: the
-  camouflage's layer of the parameters, and for each of the first two decals the layer P +
+  camouflage's layer of the parameters (its diffuse and `_smap`), and for each of the first two decals the layer P +
   i*270h: the texture, `_nmap`, `_fmap`, `_smap` and the float4x4 the editor unpacks from the u64
   (0x263D00), its point 1.0 lower (a weapon's y -1..1 in the u64's 0..2) and its two sides halved
   (a weapon's decals are half a character's); `_<texture>_<high><low>` after the baked files'
@@ -3630,7 +3637,8 @@ and `.toml`, over `vostok::baker`, `::files` and `::crc32`; seven lohooks):
   (`BAKE_FORMAT`) or other game data: a fingerprint of the files of `resources.db`'s patches that a
   bake reads (models, material instances, textures, shaders, camouflage and decal items), from each
   patch's file table (`bake_cache/inputs.rs`); then it is made again and stamped. So a release keeps
-  it unless its patch has such a file. Revision 54's stamp counts as format 1's. Otherwise each
+  it unless its patch has such a file. The format is 2 since 2026-11-11 (a weapon's bake without the
+  camouflage's weave); revision 54's stamp, before formats, was format 1's and is no stamp now. Otherwise each
   whole DDS in it (DXT1 or DXT5, the file as long as
   its header says) goes back into the baker's list with CRC 0, at most 512 files and 896 MB (512 MB until 2026-11-09: half a 20-player
   folder was deleted at every start); the
@@ -3680,8 +3688,8 @@ site from the game's code on the game's own static baker:
 - the folder, with made-up patches of the game data (their file tables): kept and back in the
   list, a file cut short and the files past 512 deleted; kept by a release whose patch has only
   item stats, deleted and stamped anew for a patch with a texture, a decal item or one that cannot
-  be read, another format, a stamp of other bytes, no stamp, or no folder; revision 54's stamp kept
-  and stamped again (deleted with a texture in patch 55), revision 53's deleted; no `resources.db`:
+  be read, another format, a stamp of other bytes, no stamp (revision 54's and 53's are none),
+  or no folder; no `resources.db`:
   deleted, not stamped; the fingerprint the same as the check's own (Python) of the tables; the
   original deletes it every time;
 - the game's own check_loaded: a kept file's first load is used and takes the CRC read;
@@ -5387,3 +5395,65 @@ without the patch and a server with it (or the reverse) cannot sign in, which th
 patch revision keeps from happening. Nothing a match computes. Checked with `cargo test` and clippy
 (patches, sign-in-cipher, login-server, srp) and `check_sign_in_cipher_026g.py`. Played 2026-11-10: two
 games under Wine signed in to a server on another machine and played a match; no Windows game yet.
+
+## A replay shows every player (patch 135, unreleased)
+
+Watching a replay, the minimap and the Tab map showed the followed player's team and only the
+enemies that team had spotted, and over the heads only that team's markers and names: as in the
+match. A replay is watched after the match, so it shows every enemy: its dot, red, and over its head
+the marker teammates have, red, with its name in red while left Alt is held
+(`../docs/notes/replay-map.md`). In a replay the local player is the one the camera is on.
+
+- `update_minimap_players` (0x239420) lists a place's dot when its player is in the world, alive,
+  and on the local team or spotted (+348h above 0); at the spotted test (0x239505,
+  `cmp dword [eax+348h],esi`) a replay goes on to the listing (0x23951B).
+- `render_name` (0x1F2AD0) places a player's marker on the same rule (0x1F2B3D..0x1F2B62) and, while
+  left Alt is held, shows its name (0x1F2DCD), coloured by `set_player_icon_color` (0x23C0C0): an
+  enemy 0xFF0000 (0x1F300F). At its spotted test (0x1F2B50, `cmp dword [esi+348h],0`) a replay goes
+  on (0x1F2B5D).
+- The player icons movie never shows an enemy's marker (`HUDIconLayer.canShow`, the list
+  `initialize_match` sends as `root.set_enemy_icon_ids`). Before that send (0x235709, ESI the ui;
+  the late join's `lists_hook` is on the bytes after it, 0x23572B), before any marker of the
+  match, the movie is told `root.srp_show_enemies(replay)`; while true it shows enemies' markers,
+  whatever list it is given (the list is sent again at 0x236915).
+- The hud movie's Tab map names an enemy (`PlayerRed`) in red, in every match (Alt, patch 82).
+
+**Never in a match.** The patch keeps no state that says "a replay": each hook asks the game's
+own network client (the player's or the hud's game world +9Ch, +53ACh) for its class, by its vtable
+(`vostok::world::Playback`). Only a `.sur` replay's client is a `replay_network_client` (0x9FF344, its
+one constructor 0x218A40, called from 0x1EBF60); a live match's, and a live spectator's, is the
+`network_client` (0x9FFB14, 0x219E7C), and then every hook leaves the game's test as it is (no client:
+the same). Taking this path in a live game means giving its network client another class, which ends
+its match: no easier than changing the game's own `ja`. Nothing a match computes. Checked with
+`check_replay_map_026g.py` (Unicorn: each site in the original and the patched exe, a teammate and
+an enemy spotted or not, no local player; a live match, no client and a replay, by the client's
+vtable; the icons movie told or absent),
+the patch crate's tests, and the movies' Ruffle harnesses (`ReplayEnemiesHarness.as`,
+`TabMapNamesHarness.as`). Not run in a game.
+
+## A replay's keys (patch 140, unreleased)
+
+A replay had no keys of its own: its player (the movie `replay_player.swf`) is the mouse's, and a
+followed player who left the match and came back was not followed again
+(`../docs/notes/replay-keys.md`).
+
+- `game_world::on_keyboard_action` (0x25CD00) gets every key before the player's handler. At its
+  start, after the Tab cursor's hook, a key that goes down while the game plays a replay is kept:
+  the arrows, A, D, the comma, the full stop, Space, F1 to F3.
+- `game_world::tick` after the simulation's move (0x1F7C3C, every frame, a paused one too): the
+  replay player movie (`[[ui+14h]+108h]+4`, the ui the game world's +1FCh) is told the kept key,
+  `root.srp_key(name)`, and does with it what its buttons do. Not at the key: the movie's
+  `update_position` seeks at once (0x233E2F calls the seek 0x1EE2E0), and the frame's replay
+  reading (0x1EDEF0) still has the clock from before the keys, so a seek back was followed by a
+  reading on to the old time and the world stood still, ahead of the clock.
+- At the same place the movie is told the places in the match (the core's `active_places`,
+  +18FD8h), `root.srp_places` with a bool a place, when they are others than that movie was last
+  told. `select_player` (0x233EBD) follows a place only while it is in the match
+  (`get_active_player` 0x26D6A0), so the movie asks again for the followed player's place that
+  came in.
+
+Nothing a match computes, and nothing in a live match: both hooks ask the game's network client for
+its class (`vostok::world::Playback`) and do nothing without the replay client. Checked with the patch
+crate's tests (the key mapping) and in a game (2026-11-11, the owner's replay of match 0x1fe297e3:
+the keys, the merged list, 29 seeks without the history error). No Unicorn check.
+

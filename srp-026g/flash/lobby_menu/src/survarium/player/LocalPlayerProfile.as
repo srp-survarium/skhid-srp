@@ -378,7 +378,8 @@ package survarium.player
          _weightC = cur;
          _weightM = max;
          _weightEffects = effects;
-         if(_weightIndicator == null) _weightIndicator = new WeightIndicator(playerWeight);
+         // The row's boxes start as far from the panel's left side as the weight's ends from its right.
+         if(_weightIndicator == null) _weightIndicator = new WeightIndicator(playerWeight,width - KitStatIndicator.boxOf(playerWeight).right);
          showWeight();
          this._playerPaperDoll.ammoControl.update(null,"player_profile");
       }

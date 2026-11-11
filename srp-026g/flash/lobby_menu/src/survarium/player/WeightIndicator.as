@@ -13,16 +13,18 @@ package survarium.player
       private var _current:Number;
       private var _maximum:Number;
       private var _effects:WeightEffects;
-      // The kit's movement speed and, left of it, its regeneration: each its own indicator left of
-      // the weight (the regeneration's where the Autobuy box was).
+      // The kit's regeneration, then its movement speed: each its own indicator left of the
+      // weight, the three boxes the same distance apart.
       private var _speed:KitStatIndicator;
       private var _regeneration:KitStatIndicator;
       private var _regenerationStat:RegenerationExplanation;
-      public function WeightIndicator(widget:MovieClip)
+      // `left`: where the row's first box starts in the widget's parent.
+      public function WeightIndicator(widget:MovieClip, left:Number)
       {
          _widget = widget;
-         _regeneration = new KitStatIndicator(widget,"regeneration",2);
-         _speed = new KitStatIndicator(widget,"speed",1);
+         KitStatIndicator.evenSides(widget);
+         _regeneration = new KitStatIndicator(widget,"regeneration",left);
+         _speed = new KitStatIndicator(widget,"speed",(left + KitStatIndicator.boxOf(widget).x) / 2);
          var holder:Sprite = new Sprite();
          _tip = new WeightTip();
          _tip.graphics.beginFill(0,0.01);
