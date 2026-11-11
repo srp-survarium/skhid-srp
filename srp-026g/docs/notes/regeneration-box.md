@@ -8,6 +8,8 @@ the next column"; then "it should just be regen and then stamina regen".
 - **Where:** the character panel's bottom row, left of Speed and Weight, where the Autobuy box
   was (premium.md §3): `Regeneration | Speed | Weight`. The same kind of box as Speed's
   (`KitStatIndicator`: the weight's frame and a copy of the weight's own symbol).
+  The three boxes stand evenly across the panel: as far from its left side as from its right, the
+  same distance apart; in each the word is as far from the left side as the value from the right.
 - **The box's value:** health regeneration with the selected kit and the account's skills, as a
   share of the game's base rate: `100%` with nothing, `115%` with one +15 % bonus. Green above
   100 %, coral below (Speed's colours).

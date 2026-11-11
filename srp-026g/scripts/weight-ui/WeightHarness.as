@@ -44,10 +44,10 @@ package {
     var Widget:Class=domain.getDefinition("panel_fla.WeightContainer_44") as Class;
     var Indicator:Class=domain.getDefinition("survarium.player.WeightIndicator") as Class;
     label("Coral slowdown warning — native game tooltip",30,24);
-    // Two a row: each weight with its speed box (a frame wide) to its left.
+    // Two a row: each weight with its row's first box two frames left of its own, so its speed box is one frame left.
     for(var i:int=0;i<4;i++) {
      var w:Object=new Widget();w.x=240+i%2*460;w.y=530+int(i/2)*100;addChild(w as DisplayObject);widgets.push(w);
-     indicators.push(new Indicator(w));
+     indicators.push(new Indicator(w,w.x-22.45+11-2*177));
      label(["20 kg, skills and bonuses","25 kg: slowed","30 kg: carry limit","Heavyweight"][i],w.x-200,w.y-40);
     }
     var Profile:Class=domain.getDefinition("SrvLocalPlayerProfile") as Class;
@@ -169,11 +169,11 @@ package {
     require(pair[0].localToGlobal(new Point()).y==pair[1].localToGlobal(new Point()).y,"on the weight's baseline: "+pair[0].name);
    }
    require(label.getTextFormat(0,1).color==weight.textFieldLabel.getTextFormat(0,1).color,"the weight label's colour");
-   // Its frame is the weight's, one frame width left of the weight's: the same place on it.
+   // Its frame is the weight's, one frame width left of the weight's (on a whole pixel): the same place on it.
    var frame:Bitmap=speedBox(0).getChildAt(0) as Bitmap;
    require(frame.bitmapData.width==177 && frame.bitmapData.height==47,"the weight's frame");
    var at:Point=speed.localToGlobal(new Point()),home:Point=weight.localToGlobal(new Point());
-   require(at.x==home.x-177 && at.y==home.y,"beside the weight, on its row: "+at+" "+home);
+   require(Math.abs(at.x-(home.x-177))<=.5 && at.y==home.y,"beside the weight, on its row: "+at+" "+home);
    var hover:Rectangle=speedTip(0).getBounds(speedBox(0)),words:Rectangle=speed.getBounds(speedBox(0));
    require(hover.containsRect(words) && hover.width>=150,"its tooltip covers the whole box: "+hover);
    require(weight.textFieldValue.text.indexOf("%")<0,"the weight keeps its own value");
@@ -275,6 +275,14 @@ package {
     trace("ROW "+language+" "+want[0]+": box "+area+", word "+sl.textWidth.toFixed(1)+" + value "+sv.textWidth.toFixed(1)+" of "+(sv.x+sv.width-sl.x).toFixed(1));
    }
    require(areas[0].left>=0 && areas[0].right<=areas[1].left && areas[1].right<=profile.playerWeight.x,"regeneration, speed, weight, left to right inside the panel: "+language+" "+areas[0]+" "+areas[1]+" "+profile.playerWeight.x);
+   // The row's paddings: the panel's sides as far from the row, the boxes the same distance apart (a pixel's rounding),
+   // and in each box the word as far from the left side as the value from the right.
+   var own:Rectangle=new Rectangle(profile.playerWeight.x-22.45+11,profile.playerWeight.y-5,155,43);
+   require(Math.abs(areas[0].left-(580-own.right))<=1 && Math.abs((areas[1].left-areas[0].right)-(own.left-areas[1].right))<=1,"the row's boxes evenly across the panel: "+areas[0]+" "+areas[1]+" "+own);
+   for each(var side:Array in [[(p.getChildByName("regeneration") as Sprite).getChildAt(1),areas[0]],[(p.getChildByName("speed") as Sprite).getChildAt(1),areas[1]],[profile.playerWeight,own]]) {
+    var wl:Rectangle=side[0].textFieldLabel.getBounds(p),wv:Rectangle=side[0].textFieldValue.getBounds(p);
+    require(Math.abs((wl.left-side[1].left)-(side[1].right-wv.right))<.1,"the word's and the value's sides: "+wl+" "+wv+" "+side[1]);
+   }
    profile.setKitModifiers(null);profile.updateWeight(25,30,Effects.parse(-.1,.75,0,.03,0));
    require(!(p.getChildByName("regeneration") as Sprite).visible,"no kit modifiers from the exe: no regeneration box");
   }
