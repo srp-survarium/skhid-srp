@@ -22,7 +22,14 @@ log across all games.
   Modules in the Windows folder are not told.
 - **When.** With a match connection's first world (`world_load.loaded`) and when the match
   closes on the game (`match_recovery.close`), once each, on the client-report channel
-  (`srp_validate::report`, kind 2; `memory-report.md` describes the channel). Never on a timer.
+  (`srp_validate::report`, kind 2; `memory-report.md` describes the channel).
+- **Each minute in between** (the owner, 2026-11-11: a window opened and closed again mid-match
+  was never seen): a minute after the last look, a frame of the match (`game.tick`) looks at the
+  windows over the game again. When it saw otherwise than the last look, a report of moment
+  `minute <n>` (minutes since the first world, up to 254) tells those windows alone, so an
+  overlay that stays the whole match is told once and an empty one says the windows are gone.
+  The modules, loads and code are told only at the first world and the end. Nothing is
+  taken from the process list when no window is over the game, the usual look.
 - **What is told** (`srp_validate::modules`), the rare kinds first so a long module list cannot
   crowd them out; up to 144 entries a report, more are only counted:
   - **over**: each other process's window that is visible, always on top (`WS_EX_TOPMOST`), above
@@ -72,7 +79,7 @@ log across all games.
 
 - The match server logs each part once per connection to `logs/modules.log` (16 files of 4 MB):
   `<name> (account <id>), match <id>, <moment>, part 1/2 of 12 entries: <entry> | <entry> ...`
-  (`client_report.rs` gives each entry's form).
+  (`client_report.rs` gives each entry's form), the moment `loaded`, `ended` or `minute <n>`.
 - `release/moderate modules` lists each entry with the accounts that have it, rarest first, a
   module with the folders it was told in; `--account <name>` lists one account's entries with
   how many accounts share each.
@@ -97,4 +104,5 @@ log across all games.
   screen does not show either) and without the task manager, no over entry. On Windows it has
   not run: what the taskbar, Windows' own pop-ups and the usual overlays look like will show
   in the first live reports.
-- Unseen so far: the report at a match's close; Windows; what overlays look like in the log.
+- Unseen so far: the report at a match's close; a minute's report in a game (only the state machine's tests
+  and the server's line); Windows; what overlays look like in the log.

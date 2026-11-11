@@ -124,7 +124,7 @@ fn modules_line(carrier: &Carrier, part: &modules::Part, name: &str, account: u3
         .collect();
     format!(
         "{name} (account {account}), match {match_id:#x}, {}, part {}/{} of {} entries: {}",
-        part.moment.word(),
+        part.moment,
         u16::from(carrier.part) + 1,
         carrier.parts,
         part.seen,
@@ -187,5 +187,23 @@ mod tests {
              | other in \"C:\\\\Users\\\\*\\\\Downloads\" \"extra.dll\" 12000 pe - \
              | load temp \"added.dll\" 7000 pe 4b4b4321/0 at 311 unlisted"
         );
+    }
+
+    #[test]
+    fn a_minute_part_names_its_minute() {
+        use srp_validate::modules::{Entry, Minute, Moment, Report, Unseen};
+        let line = |entries: &[Entry]| {
+            let mut report = Report::new(Moment::Minute(Minute::FIRST.next().unwrap()));
+            entries.iter().for_each(|&entry| report.add(entry));
+            let (bytes, len) = srp_validate::report::Report::Modules(report).part(0x8000_0001, 0).unwrap();
+            let carrier = Carrier::parse(&bytes[..len]).unwrap();
+            let Body::Modules(part) = carrier.body else { panic!("{carrier:?}") };
+            modules_line(&carrier, &part, "Ivan", 7, 0x8000_0001)
+        };
+        assert_eq!(
+            line(&[Entry::Unseen(Unseen::NoOrder)]),
+            "Ivan (account 7), match 0x80000001, minute 2, part 1/1 of 1 entries: over unknown: game window not in the order"
+        );
+        assert_eq!(line(&[]), "Ivan (account 7), match 0x80000001, minute 2, part 1/1 of 0 entries: ");
     }
 }
