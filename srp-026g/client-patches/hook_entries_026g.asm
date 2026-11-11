@@ -3633,7 +3633,7 @@ hud_options_on_process_start_replay:
 
 ; 0x3cf8ff res_render_output::present right before the game's IDXGISwapChain::Present (mov esi,[esi+0CCh], the swap chain; then its vtable +20h, the sync interval in EAX, flags 0): ESI the render output. Every Present of the game's swap chain is here (present 0x3CF7F0, called from 0x117EDF, 0x13CA02, 0x13CB73, 0x13DD46), after its GetFullscreenState and ShowWindow: lohook -> hud_options_on_present
 global hud_options_on_present
-extern hook_hud_options_on_present
+extern hook_hud_options_on_present_chain
 hud_options_on_present:
     lea esp, [esp - 4]
     pushfd
@@ -3651,7 +3651,7 @@ hud_options_on_present:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_hud_options_on_present
+    call hook_hud_options_on_present_chain
     mov edx, hud_options_on_present_replay
     cmp eax, 0
     je hud_options_on_present_go
@@ -5598,6 +5598,70 @@ message_check_on_message_go:
 message_check_on_message_replay:
     db 0x89, 0x45, 0x0c, 0x05, 0x1d, 0xff, 0xff, 0xff
     jmp 0x27a327
+
+; module_watch.thread patch 125's TLS callback (module_watch_026g.asm module_watch_tls, the one callback of the exe's TLS directory): Windows calls it, the loader's lock held, on the main thread before the exe's entry point (reason 1) and on every thread the process gets before that thread's own start (reason 2); stdcall (the module, the reason, reserved), our code pushes the address of module_watch_dll before its call and returns with ret 0Ch: entry -> module_report_on_thread
+global module_report_on_thread
+extern hook_module_report_on_thread
+module_report_on_thread:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_module_report_on_thread
+    cmp eax, 0
+    je module_report_on_thread_go
+    ud2
+module_report_on_thread_go:
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    lea esp, [esp + 4]
+    ret
+
+; module_watch.dll patch 125's DLL notification (module_watch_026g.asm module_watch_dll, handed to ntdll's LdrRegisterDllNotification): the loader calls it, its lock held, after it mapped a DLL (reason 1) and before it unmaps one (2); stdcall (the reason, the LDR_DLL_NOTIFICATION_DATA, our context), our code returns with ret 0Ch: entry -> module_report_on_dll
+global module_report_on_dll
+extern hook_module_report_on_dll
+module_report_on_dll:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_module_report_on_dll
+    cmp eax, 0
+    je module_report_on_dll_go
+    ud2
+module_report_on_dll_go:
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    lea esp, [esp + 4]
+    ret
 
 ; 0x2402e9 on_mouse_move's pitch step (patch 112), after the window's two size calls: movss xmm1,[edi] / divss xmm1,[eax] (h / w) / movss xmm2,[esp+28h] (the yaw's step s) / mulss xmm1,xmm2; 0x2402FB multiplies xmm1 by the invert and 3/pi, 0x240309 the journal's path joins; XMM1 the pitch's step before them, XMM2 s for the yaw (0x240349): lohook -> mouse_pitch_on_pitch_step
 global mouse_pitch_on_pitch_step

@@ -50,6 +50,26 @@ engine_vk_create_instance	-	-	unsigned int engine_vk_create_instance(const void 
 engine_vk_destroy_instance	-	-	void engine_vk_destroy_instance(void *instance, const void *allocator)	dynamic	
 engine_vk_enumerate_physical_devices	-	-	unsigned int engine_vk_enumerate_physical_devices(void *instance, unsigned int *count, void **devices)	dynamic	
 engine_vk_get_physical_device_properties	-	-	void engine_vk_get_physical_device_properties(void *device, void *properties)	dynamic	
+engine_create_toolhelp32_snapshot	-	-	void *engine_create_toolhelp32_snapshot(unsigned int flags, unsigned int process)	dynamic	
+engine_module32_first_w	-	-	unsigned int engine_module32_first_w(void *snapshot, void *entry)	dynamic	
+engine_module32_next_w	-	-	unsigned int engine_module32_next_w(void *snapshot, void *entry)	dynamic	
+engine_get_temp_path_w	-	-	unsigned int engine_get_temp_path_w(unsigned int size, unsigned short *path)	dynamic	
+engine_get_windows_directory_w	-	-	unsigned int engine_get_windows_directory_w(unsigned short *path, unsigned int size)	dynamic	
+engine_get_current_process	-	-	void *engine_get_current_process(void)	dynamic	
+engine_read_process_memory	-	-	unsigned int engine_read_process_memory(void *process, const void *address, void *buffer, unsigned int size, unsigned int *read)	dynamic	
+engine_ldr_register_dll_notification	-	-	unsigned int engine_ldr_register_dll_notification(unsigned int flags, const void *callback, void *context, void **cookie)	dynamic	
+engine_process32_first_w	-	-	unsigned int engine_process32_first_w(void *snapshot, void *entry)	dynamic	
+engine_process32_next_w	-	-	unsigned int engine_process32_next_w(void *snapshot, void *entry)	dynamic	
+engine_open_process	-	-	void *engine_open_process(unsigned int access, unsigned int inherit, unsigned int process)	dynamic	
+engine_query_full_process_image_name_w	-	-	unsigned int engine_query_full_process_image_name_w(void *process, unsigned int flags, unsigned short *name, unsigned int *size)	dynamic	
+engine_get_top_window	-	-	void *engine_get_top_window(void *window)	dynamic	
+engine_get_window	-	-	void *engine_get_window(void *window, unsigned int which)	dynamic	
+engine_get_ancestor	-	-	void *engine_get_ancestor(void *window, unsigned int which)	dynamic	
+engine_is_window_visible	-	-	unsigned int engine_is_window_visible(void *window)	dynamic	
+engine_get_window_thread_process_id	-	-	unsigned int engine_get_window_thread_process_id(void *window, unsigned int *process)	dynamic	
+engine_get_window_rect	-	-	unsigned int engine_get_window_rect(void *window, void *rect)	dynamic	
+engine_get_class_name_w	-	-	unsigned int engine_get_class_name_w(void *window, unsigned short *name, unsigned int size)	dynamic	
+engine_get_module_file_name_w	-	-	unsigned int engine_get_module_file_name_w(void *module, unsigned short *path, unsigned int size)	dynamic	
 engine_com_release	-	-	unsigned int engine_com_release(void *object)	dynamic	
 engine_enum_process_modules	-	-	unsigned int engine_enum_process_modules(void *process, void **modules, unsigned int size, unsigned int *needed)	dynamic	
 engine_ray_test	0x075e20	ECX:world ESP+4:result ESP+8:origin ESP+12:direction ESP+16:length ESP+20:group ESP+24:mask ESP+28:delegate ESP+32:unflipped	void engine_ray_test(struct bullet_physics_world *world, struct ray_result *result, const float *origin, const float *direction, float length, unsigned int group, unsigned int mask, const void *delegate, unsigned int unflipped)	thunk	

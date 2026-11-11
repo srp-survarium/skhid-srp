@@ -1070,6 +1070,15 @@ vostok::memory::profile_frame	memory	0x8	u32	their second: the memory mspace_mal
 vostok::memory::out_of_memory_frame	return_address	0x0	u32	memory.out_of_memory's ESP: the callback's return (heap_out_of_memory_return from mspace_malloc)
 vostok::memory::out_of_memory_frame	space	0x4	u32	its first argument: the arena's mspace (create_mspace_with_base made it at the arena's start)
 vostok::memory::out_of_memory_frame	allocator	0x8	ptr<vostok::memory::base_allocator>	its second: the doug_lea_allocator the mspace was made with (initialize_impl 0xE4F60: push esi)
+vostok::modules::tls_callback_frame	notify	0x4	u32	module_watch.thread's own argument (by the site's ESP, the return address into module_watch_tls at +0): the address of module_watch_dll, our DLL notification's entry, which module_watch_tls pushes
+vostok::modules::tls_callback_frame	reason	0x10	u32	the TLS callback's second argument (PIMAGE_TLS_CALLBACK: DllHandle +0Ch, Reason +10h, Reserved +14h, after the loader's return address at +8): 1 the process starts, 2 a thread starts, 3 a thread ends, 0 the process ends
+vostok::modules::dll_notification_frame	reason	0x8	u32	the DLL notification's first argument (LDR_DLL_NOTIFICATION_FUNCTION, after module_watch_dll's and ntdll's return addresses): 1 loaded, 2 unloaded
+vostok::modules::dll_notification_frame	data	0xC	ptr<ntdll::dll_notification>	its second: the LDR_DLL_NOTIFICATION_DATA, alive for the call
+ntdll::dll_notification	full_name	0x4	ptr<ntdll::unicode_string>	LDR_DLL_LOADED_NOTIFICATION_DATA.FullDllName (Flags +0, BaseDllName +8; the unloaded one's is the same): the DLL's full path
+ntdll::dll_notification	base	0xC	u32	DllBase: where the image is mapped
+ntdll::dll_notification	image_size	0x10	u32	SizeOfImage
+ntdll::unicode_string	length	0x0	u16	UNICODE_STRING.Length: the string's bytes (two a unit), without a terminator
+ntdll::unicode_string	buffer	0x4	ptr<u8>	UNICODE_STRING.Buffer: its UTF-16 units (MaximumLength +2)
 vostok::render::scene	streamable	0x126158	ptr<vostok::render::streamable_texture>	the streamable textures' vector begin, 148h bytes each (update_streaming_data 0x15598C; process_pending_remove_texture_instances 0x155A32)
 vostok::render::scene	streamable_end	0x12615C	ptr<vostok::render::streamable_texture>	its end (update_streaming_data 0x155984)
 vostok::render::streamable_texture	instances	0x110	ptr<vostok::render::streaming_texture_instance>	the first of the list of what is drawn with the texture, 0 for none (0x155996)

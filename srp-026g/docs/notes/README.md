@@ -49,6 +49,7 @@ given), LIKELY or GUESS.
 | [data.md](data.md) | `resources.db`: items, skills, drops, quests, item configs |
 | [client_patch.md](client_patch.md) | Porting the srp client patch, the function map |
 | [memory-report.md](memory-report.md) | Memory reports (exe patch 126): what each game tells the match server of its arenas, address space and video budget, when (the first world, the match's end), the generic client-report channel, `release/moderate memory`, the edge cases |
+| [module-report.md](module-report.md) | Module reports (exe patch 125): what each game tells the match server of what is loaded into it and drawn over it (modules, code that is no module, DLLs loaded since the process's first instruction, other programs' always-on-top windows over the game), the rules (log only, folders without user names), `release/moderate modules` |
 | [rust_patches.md](rust_patches.md) | Writing an exe patch in Rust: the workspace, the hook ABI, the engine bindings, typed game memory, panics and the log, testing, the equivalence gate a port must pass, the size budget |
 | [replay_sur.md](replay_sur.md) | The client's own replay file (`.sur`, `-match_replay`): its layout, and `srp-recording-to-sur`, which makes one from a match recording |
 | [replay_watch.md](replay_watch.md) | "Watch replay" from the lobby's History, the server side: conversion at match end, the lobby's `R1` answers and `9E` link, the download tokens, `/replays/<token>`, what is and is not reachable over HTTP |

@@ -69,6 +69,8 @@ pub mod ray_test;
 mod rt;
 pub mod sound;
 pub mod system;
+pub mod modules;
+pub mod module_watch;
 pub mod voices;
 pub mod settings;
 mod sync;
