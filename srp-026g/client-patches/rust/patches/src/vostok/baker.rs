@@ -267,6 +267,44 @@ impl Parameters {
         // SAFETY: as kind.
         unsafe { self.0.model() }.map(Model)
     }
+
+    /// Whose bake it is, by its files' name.
+    pub fn asker(self) -> Asker {
+        // SAFETY: as kind; the name is a buffer_string's text, NUL-ended
+        // within a record's path, alive while the bake's query is.
+        let name = unsafe { c_string(self.0.name(), RECORD_TEXT) };
+        Asker::of_name(name.map_or(&[], |name| name.to_bytes()))
+    }
+
+    /// `bake.own_camouflage`'s: on_base_texture_loaded where the camouflage
+    /// layer's texture of the bake's type has no name, before the game names
+    /// the surface's own (`<diffuse>_camo`, `_camo_nmap`, `_camo_smap`).
+    pub fn at_own_camouflage(ctx: &Context<'_>) -> Option<Parameters> {
+        // SAFETY: the site's ESI: the bake's parameters, on_base_texture_
+        // loaded's second argument (0x12E0DB mov esi,[ebp+0Ch]).
+        unsafe { raw::site::bake_own_camouflage::parameters(ctx) }.map(Parameters)
+    }
+}
+
+/// Who asked for a bake. Its files' name says: patch 44 names a weapon's
+/// `srpw<n>_...` (weapon_camo_026g.asm's name_format); the game's own bakes
+/// (a character's part, the decal editor's) are named of the part and never
+/// begin so.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Asker {
+    /// The game: a character's part.
+    Character,
+    /// Patch 44: a weapon's surface.
+    Weapon,
+}
+
+impl Asker {
+    /// A weapon's bake names begin so (before the number).
+    const WEAPON: &'static [u8] = b"srpw";
+
+    fn of_name(name: &[u8]) -> Asker {
+        if name.starts_with(Asker::WEAPON) { Asker::Weapon } else { Asker::Character }
+    }
 }
 
 /// `bake.lookup`, translate_query before its look-up of a saved texture
@@ -519,5 +557,19 @@ impl FreeRecord {
             baker.set_list_end(Some(record.at(1)));
             baker.list_bytes().write_volatile(read(baker.list_bytes()).wrapping_add(size));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Asker;
+
+    #[test]
+    fn a_bake_is_a_weapon_s_by_its_name() {
+        assert_eq!(Asker::of_name(b"srpw1_character_human_camo_premium_city_camo_weapons_ak_12_ak_12_0d"), Asker::Weapon);
+        assert_eq!(Asker::of_name(b"srpw1__weapons_sks_sks_1_decal_1_1_8a30ce0020080000n"), Asker::Weapon);
+        assert_eq!(Asker::of_name(b"edge_researcher_03_legs_s3d"), Asker::Character);
+        assert_eq!(Asker::of_name(b"srp"), Asker::Character);
+        assert_eq!(Asker::of_name(b""), Asker::Character);
     }
 }

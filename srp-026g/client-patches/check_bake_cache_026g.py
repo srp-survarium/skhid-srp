@@ -25,10 +25,9 @@ sets it. Every site runs from the game's own code:
   to srp_patches.log; a release whose patch has only item stats keeps it; a
   patch with a texture, a decal item or one that cannot be read, another
   format, a stamp of other bytes, no stamp or no folder: deleted (the stub)
-  and stamped anew; revision 54's stamp (before formats) is kept and
-  stamped again unless a patch past 54 has a texture, revision 53's is
-  deleted; with no resources.db where the game mounts it from, deleted and
-  not stamped. The original calls the stub every time;
+  and stamped anew; revision 54's stamp (before formats: format 1's) and
+  revision 53's are deleted too; with no resources.db where the game
+  mounts it from, deleted and not stamped. The original calls the stub every time;
 - a kept file's first load (check_loaded_baked_texture 0x131B40, the game's
   own, with the CRC 0x3C0F70 a stub as in check_baked_texture_026g.py): it is
   used and its record takes the CRC read; a second load of other bytes is
@@ -92,7 +91,6 @@ ALLOCATE, RESOURCE, SET_RESOURCE, RELEASE_TEXTURE, DESTROY_MODEL = 0xE4F90, 0x12
 CHECK, CRC_OF, LOG_FILTER, ASSERTION = 0x131B40, 0x3C0F70, 0x111860, 0x113450
 LOG_FILTER_ON, IS_DEBUGGER_PRESENT = 0x1F1D60C, 0x870194
 NAMES = 0xAC3334
-REVISION_BYTE = 0x380866
 CRC_STEP, TABLE = 0x42050, 0x1C210                   # the CRC-32 step; the table's maker (0x225FD68)
 BUFFER, CRC_STATE = 0x40000000, 0x31000000 + 0xF0000
 IAT = {"FindFirstFileA": 0x870238, "FindNextFileA": 0x87023C, "FindClose": 0x870228, "CreateFileA": 0x870048,
@@ -162,7 +160,10 @@ def fingerprint(patches):
     return h
 
 
-def made(inputs, form=1):
+BAKE_FORMAT = 2                                # bake_cache.rs's
+
+
+def made(inputs, form=BAKE_FORMAT):
     return f"Skhid baked textures, format {form}, inputs {inputs:016x}\r\n".encode()
 
 
@@ -607,7 +608,6 @@ def main():
         failed += not ok
         print(f"  {'ok' if ok else 'FAIL'}  {text}")
 
-    revision = built[base.file_offset(REVISION_BYTE)]
     # the players' game data: patches with textures (12, 54), item stats only (53)
     data = {12: TEXTURES, 53: STATS, 54: [("textures", None), ("textures/b.dds", (500, 0x99))] + DECALS}
     inputs = fingerprint(data)
@@ -681,15 +681,15 @@ def main():
         ("a release whose patch has a texture (55)", stamp, texture55, False, made(fingerprint(texture55))),
         ("a release whose patch cannot be read (55)", stamp, dict(data | {55: None}), False,
          made(fingerprint(dict(data | {55: None})))),
-        ("another format's folder (format 2)", made(inputs, 2), data, False, stamp),
-        ("revision 54's folder (before format stamps), no patch past 54 with bake data", 
-         f"Skhid baked textures, revision {revision}\r\n".encode(), stats55, revision == 54, stamp),
+        ("another format's folder (format 1)", made(inputs, 1), data, False, stamp),
+        ("revision 54's folder (before format stamps: format 1's), no patch past 54 with bake data",
+         b"Skhid baked textures, revision 54\r\n", stats55, False, stamp),
         ("revision 54's folder, a texture in patch 55", b"Skhid baked textures, revision 54\r\n", texture55,
          False, made(fingerprint(texture55))),
         ("revision 53's folder", b"Skhid baked textures, revision 53\r\n", data, False, stamp),
         ("a folder with no stamp (the stock game's, or none)", None, data, False, stamp),
-        ("a stamp of other bytes", b"Skhid baked textures, format 1, inputs " + b"x" * 16 + b"\r\n", data, False,
-         stamp),
+        ("a stamp of other bytes", f"Skhid baked textures, format {BAKE_FORMAT}, inputs ".encode() + b"x" * 16 + b"\r\n",
+         data, False, stamp),
     )
     for what, stamped, patches, keeps, after in cases:
         kept, now = start(stamped, patches)

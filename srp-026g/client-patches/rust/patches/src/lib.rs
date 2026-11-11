@@ -85,6 +85,7 @@ pub mod subtick_hits;
 pub mod keyboard_layout;
 pub mod mouse_pitch;
 pub mod bake_cache;
+pub mod weapon_camo;
 pub mod key_remap;
 pub mod deserialize_guards;
 pub mod effect_presenters;

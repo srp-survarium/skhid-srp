@@ -3915,6 +3915,26 @@ pub extern "C" fn hook_use_scan_on_detect(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- weapon_camo (patch 44) ----
+
+/// The named exits of weapon_camo::on_own_camouflage (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum WeaponCamoOnOwnCamouflageExit { NoLayer }
+/// The entry `weapon_camo_on_own_camouflage` (0x12e124, on_base_texture_loaded (0x12DEE0) where the camouflage layer's texture of the bake's type has no name (0x12E11B test ecx,ecx / cmp byte [ecx],0: the je and the fall-through come here), before it names the surface's own instead (mov edx,[ebp+eax*4-4Ch] / mov edi,[ebp+10h]: the suffix _camo, _camo_nmap, _camo_fmap or _camo_smap of 0x9EDD60.., EAX the type, and the surface's diffuse name; 0x328D30 joins them); ESI the bake's parameters; no_layer 0x12E25A, where the fresnel bake (0x12E0EA) and an empty name (0x12E169) go: no camouflage texture and no _aoac asked for (it reads [ebp-8], the count of textures to ask for, and no register before writing it)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_camo_on_own_camouflage(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_camo_on_own_camouflage` calls this, from the game's jump at 0x12e124,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_camo::on_own_camouflage(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- weapon_kit (patch 68) ----
 
 /// The entry `weapon_kit_on_query` (0x2f1776, translate_query after 0x2F2060 copied the query (mov ecx,[ebp+38h] / mov eax,[ebp+44h]): ESP patch 68's room (weapon_kit.query_room), EBP the frame whose [ebp+40h] (the item's upgrades' buffer_vector) is read at 0x2F1799 (their count) and 0x2F18D0 (each record's dict id and value) and nowhere else; AL 0x2F2060's answer (0: the query not copied, as on another thread's query, 0x2F206F)) calls this with the saved machine.

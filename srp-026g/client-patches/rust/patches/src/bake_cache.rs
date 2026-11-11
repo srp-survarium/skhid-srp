@@ -56,7 +56,6 @@ const PREFIX: &[u8] = b"user_data/streamed_textures/";
 const STAMP_NAME: &[u8] = b"srp_baked_textures.txt";
 const STAMP_FORMAT: &[u8] = b"Skhid baked textures, format ";
 const STAMP_INPUTS: &[u8] = b", inputs ";
-const STAMP_REVISION: &[u8] = b"Skhid baked textures, revision ";
 /// A stamp's bytes at most.
 const STAMP: usize = 80;
 const DDS_FILES: &[u8] = b"*.dds";
@@ -71,12 +70,10 @@ const PATCH_NAME: &[u8] = b"resources.db.patch_";
 /// player's folder once; the test `the_bake_code_is_this_format` fails at
 /// any change of the code it names until its hash is set again, so that
 /// change is weighed. Format 1: revision 54's bakes (patch 121's are the
-/// same bytes).
-const BAKE_FORMAT: u32 = 1;
-/// The stamp before formats that is this format's (revision 54's exe bakes
-/// as format 1): `(revision, format)`. Its folder is kept, and stamped
-/// again, when no patch past 54 changed what a bake reads.
-const REVISION_FORMAT: (u32, u32) = (54, 1);
+/// same bytes). Format 2: a weapon's bake without the camouflage's `_nmap`
+/// (its `n` texture not baked, or of its decals alone) and without the
+/// surface's own `_camo` textures (weapon_camo).
+const BAKE_FORMAT: u32 = 2;
 
 /// Half the list: the game's own bakes have the rest.
 const SEED_FILES: u32 = 512;
@@ -175,27 +172,24 @@ fn read_hex(text: &[u8]) -> Option<u64> {
     })
 }
 
-/// What a folder's stamp file says its bakes were made with.
+/// What a folder's stamp file says its bakes were made with: "Skhid baked
+/// textures, format F, inputs H\r\n", the bake format and the fingerprint of
+/// the game data a bake reads (`inputs`), 16 hex digits. Any other text is
+/// no stamp (revision 54's "Skhid baked textures, revision 54", before
+/// formats, was format 1's).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Stamp {
-    /// "Skhid baked textures, format F, inputs H\r\n": the bake format and
-    /// the fingerprint of the game data a bake reads (`inputs`), 16 hex
-    /// digits.
-    Made { format: u32, inputs: u64 },
-    /// "Skhid baked textures, revision R\r\n", before formats: the exe's
-    /// revision that made them.
-    Revision(u32),
+struct Stamp {
+    format: u32,
+    inputs: u64,
 }
 
 impl Stamp {
     fn parse(text: &[u8]) -> Option<Stamp> {
         let text = text.strip_suffix(b"\r\n")?;
-        if let Some(rest) = text.strip_prefix(STAMP_FORMAT) {
-            let comma = rest.iter().position(|&b| b == b',')?;
-            let (format, inputs) = (read_decimal(&rest[..comma])?, read_hex(rest[comma..].strip_prefix(STAMP_INPUTS)?)?);
-            return Some(Stamp::Made { format, inputs });
-        }
-        text.strip_prefix(STAMP_REVISION).and_then(read_decimal).map(Stamp::Revision)
+        let rest = text.strip_prefix(STAMP_FORMAT)?;
+        let comma = rest.iter().position(|&b| b == b',')?;
+        let (format, inputs) = (read_decimal(&rest[..comma])?, read_hex(rest[comma..].strip_prefix(STAMP_INPUTS)?)?);
+        Some(Stamp { format, inputs })
     }
 }
 
@@ -260,9 +254,9 @@ fn seed(name: &[u8], size: u32) -> bool {
 struct GameData([Patch; 256]);
 
 impl GameData {
-    /// The fingerprint of the patches up to `last`.
-    fn inputs(&self, last: u32) -> u64 {
-        inputs::fingerprint((1..=255u8).filter(|&n| u32::from(n) <= last).map(|n| (n, self.0[usize::from(n)])))
+    /// The fingerprint of the patches.
+    fn inputs(&self) -> u64 {
+        inputs::fingerprint((1..=255u8).map(|n| (n, self.0[usize::from(n)])))
     }
 }
 
@@ -326,9 +320,6 @@ fn game_data(thread: &Thread) -> Option<GameData> {
 enum Keep {
     /// Its stamp is this game's: its textures go back into the list.
     Kept,
-    /// Its stamp is revision 54's, of this format and game data: kept, and
-    /// stamped this format's, of `inputs`.
-    Restamped { inputs: u64 },
     /// Another format, other game data, or no stamp: the stock delete, then
     /// stamped of `inputs`; not stamped when the game data is not known.
     Deleted { inputs: Option<u64> },
@@ -338,12 +329,9 @@ enum Keep {
 /// format, of the same game data.
 fn decide(found: Option<Stamp>, data: Option<&GameData>) -> Keep {
     let Some(data) = data else { return Keep::Deleted { inputs: None } };
-    let now = data.inputs(u32::MAX);
+    let now = data.inputs();
     match found {
-        Some(Stamp::Made { format, inputs }) if format == BAKE_FORMAT && inputs == now => Keep::Kept,
-        Some(Stamp::Revision(revision)) if (revision, BAKE_FORMAT) == REVISION_FORMAT && data.inputs(revision) == now => {
-            Keep::Restamped { inputs: now }
-        }
+        Some(Stamp { format, inputs }) if format == BAKE_FORMAT && inputs == now => Keep::Kept,
         _ => Keep::Deleted { inputs: Some(now) },
     }
 }
@@ -403,15 +391,6 @@ fn write_stamp(at: &mut [u8; PATH], base: usize, inputs: u64) {
     let n = made_text(&mut stamp, BAKE_FORMAT, inputs);
     let Some(mut file) = File::create_always(path(at)) else { return };
     file.write(&stamp[..n]);
-}
-
-/// The folder stamped again (revision 54's stamp, kept).
-fn restamp(folder_path: Option<&[u8]>, inputs: u64) {
-    let mut at = [0u8; PATH];
-    let base = folder(&mut at[..FOLDER], folder_path);
-    if base != 0 {
-        write_stamp(&mut at, base, inputs);
-    }
 }
 
 /// After the stock delete: the folder made again and its stamp written (of
@@ -672,10 +651,6 @@ pub fn on_game_start(ctx: &mut Context<'_>) -> Flow<BakeCacheOnGameStartExit> {
     let keep = decide(read_stamp(folder.path()), data.as_ref());
     match keep {
         Keep::Kept => seed_folder(folder.path()),
-        Keep::Restamped { inputs } => {
-            restamp(folder.path(), inputs);
-            seed_folder(folder.path());
-        }
         Keep::Deleted { inputs } => {
             folder.delete();
             stamp(folder.path(), inputs);
@@ -683,10 +658,9 @@ pub fn on_game_start(ctx: &mut Context<'_>) -> Flow<BakeCacheOnGameStartExit> {
     }
     let what = match keep {
         Keep::Kept => "kept: ",
-        Keep::Restamped { .. } => "kept (revision 54's, stamped again): ",
         Keep::Deleted { .. } => "deleted (another format, other game data or no stamp): ",
     };
-    let (mut text, inputs) = ([0u8; STAMP], data.map(|data| data.inputs(u32::MAX)));
+    let (mut text, inputs) = ([0u8; STAMP], data.map(|data| data.inputs()));
     let n = inputs.map_or(0, |inputs| made_text(&mut text, BAKE_FORMAT, inputs) - 2);
     let made = core::str::from_utf8(&text[..n]).unwrap_or("");
     log::line(&[Text("bake_cache: the baked textures "), Text(what),
@@ -804,11 +778,10 @@ mod tests {
         let mut out = [0u8; STAMP];
         let n = made_text(&mut out, 1, 0x7A07_992F_99F5_AA9C);
         assert_eq!(&out[..n], b"Skhid baked textures, format 1, inputs 7a07992f99f5aa9c\r\n");
-        assert_eq!(Stamp::parse(&out[..n]), Some(Stamp::Made { format: 1, inputs: 0x7A07_992F_99F5_AA9C }));
+        assert_eq!(Stamp::parse(&out[..n]), Some(Stamp { format: 1, inputs: 0x7A07_992F_99F5_AA9C }));
         let n = made_text(&mut out, u32::MAX, u64::MAX);
         assert_eq!(n, 66);
-        assert_eq!(Stamp::parse(b"Skhid baked textures, revision 54\r\n"), Some(Stamp::Revision(54)));
-        for other in [&b"Skhid baked textures, revision 54"[..], b"Skhid baked textures, revision \r\n",
+        for other in [&b"Skhid baked textures, revision 54\r\n"[..], b"Skhid baked textures, format 1, inputs 7a07992f99f5aa9c",
                       b"Skhid baked textures, format 1, inputs 7a07992f99f5aa9\r\n",
                       b"Skhid baked textures, format 1, inputs 7A07992F99F5AA9C\r\n",
                       b"Skhid baked textures, format x, inputs 7a07992f99f5aa9c\r\n", b""] {
@@ -827,34 +800,28 @@ mod tests {
         data.0[40] = Patch::Files(1);
         data.0[54] = Patch::Files(2);
         data.0[55] = Patch::Nothing;
-        let now = data.inputs(u32::MAX);
-        let made = |format, inputs| Some(Stamp::Made { format, inputs });
+        let now = data.inputs();
+        let made = |format, inputs| Some(Stamp { format, inputs });
         let deleted = Keep::Deleted { inputs: Some(now) };
         assert_eq!(decide(made(BAKE_FORMAT, now), Some(&data)), Keep::Kept);
         assert_eq!(decide(made(BAKE_FORMAT + 1, now), Some(&data)), deleted);
         assert_eq!(decide(made(BAKE_FORMAT, now ^ 1), Some(&data)), deleted);
         assert_eq!(decide(None, Some(&data)), deleted);
         assert_eq!(decide(made(BAKE_FORMAT, now), None), Keep::Deleted { inputs: None }, "the game data not known");
-        // revision 54's stamp: kept when no patch past 54 has bake data
-        assert_eq!(decide(Some(Stamp::Revision(54)), Some(&data)), Keep::Restamped { inputs: now });
-        assert_eq!(decide(Some(Stamp::Revision(53)), Some(&data)), deleted);
-        for later in [Patch::Files(3), Patch::Whole(3), Patch::Unreadable] {
-            data.0[55] = later;
-            let now = data.inputs(u32::MAX);
-            assert_eq!(decide(Some(Stamp::Revision(54)), Some(&data)), Keep::Deleted { inputs: Some(now) });
-        }
     }
 
     /// The code that decides the bytes a bake makes: patch 121's bake, the
-    /// baker's API, the weapons' camouflage and decals (patches 44 and 47).
+    /// baker's API, the weapons' camouflage and decals (patches 44 and 47,
+    /// and 44's part in the baker).
     /// An exe patch of the baker's own code (0x11F000..0x120000,
     /// 0x12C000..0x133000) is such a change too.
-    const BAKE_CODE: [&[u8]; 6] = [include_bytes!("bake_async.rs"), include_bytes!("bake_async.toml"),
+    const BAKE_CODE: [&[u8]; 8] = [include_bytes!("bake_async.rs"), include_bytes!("bake_async.toml"),
                                    include_bytes!("vostok/bake_gpu.rs"), include_bytes!("vostok/baker.rs"),
                                    include_bytes!("../../../weapon_camo_026g.asm"),
-                                   include_bytes!("../../../weapon_decals_026g.asm")];
+                                   include_bytes!("../../../weapon_decals_026g.asm"),
+                                   include_bytes!("weapon_camo.rs"), include_bytes!("weapon_camo.toml")];
     /// BAKE_CODE's hash (its bytes but '\r') as BAKE_FORMAT was set.
-    const BAKE_CODE_HASH: u64 = 0x5a6b_8807_f040_7dbf;
+    const BAKE_CODE_HASH: u64 = 0xc895_cd16_fc9e_db1a;
 
     #[test]
     fn the_bake_code_is_this_format() {
@@ -863,7 +830,7 @@ mod tests {
         });
         assert_eq!(hash.get(), BAKE_CODE_HASH,
                    "the bake code changed (BAKE_CODE): if a bake makes other bytes of the same game data now, bump \
-                    BAKE_FORMAT (every player's folder is deleted once, REVISION_FORMAT no longer kept); either way \
+                    BAKE_FORMAT (every player's folder is deleted once); either way \
                     set BAKE_CODE_HASH to {:#018x}", hash.get());
     }
 }
