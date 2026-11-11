@@ -29,8 +29,14 @@ handler = "on_save"
 site = "carry.load"
 handler = "on_load"
 
-# Shared sites compose explicitly in blackout::on_input_end and ragdoll's
-# on_bones/on_cull; there is one installed detour at each address.
+# Shared sites compose explicitly in ragdoll's on_bones/on_cull; there is one
+# installed detour at each address. The input builder's end is this patch's
+# own (patch 65 no longer filters the input, 2026-11-11); its handler goes on
+# to patch 85's pickup.
+
+[[hook]]
+site = "input_builder.end"
+handler = "on_input_end"
 
 [[hook]]
 site = "carry.weapon"

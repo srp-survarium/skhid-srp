@@ -291,6 +291,21 @@ pub extern "C" fn hook_artefact_carry_on_load(frame: &mut Frame) -> u32 {
 
 // ---- artefact_carry (patch 78) ----
 
+/// The entry `artefact_carry_on_input_end` (0x2421b0, process_first_person_mode's epilogue (ebx the handler; the early exit 0x241284 comes here too)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_input_end(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_carry_on_input_end` calls this, from the game's jump at 0x2421b0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_carry::on_input_end(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefact_carry (patch 78) ----
+
 /// The named exits of artefact_carry::on_weapon (the order the shim's Flow code
 /// follows, 2 upward).
 #[repr(u32)]
@@ -1491,21 +1506,6 @@ pub extern "C" fn hook_blackout_on_tab(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::blackout::on_tab(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- blackout (patch 65) ----
-
-/// The entry `blackout_on_input_end` (0x2421b0, process_first_person_mode's epilogue (ebx the handler; the early exit 0x241284 comes here too)) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_blackout_on_input_end(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `blackout_on_input_end` calls this, from the game's jump at 0x2421b0,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::blackout::on_input_end(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},

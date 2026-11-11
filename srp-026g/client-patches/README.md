@@ -121,7 +121,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_spot_026g.py` | Runs the original's and patch 38's input apply (the spot and its wait, the player's tick's countdown) with the game's own spottable code of players and batteries on made-up ray hits (needs Unicorn) |
 | `artefacts_026g.asm`, `check_artefacts_026g.py` | Patch 54: a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills pain, body and head, one press fires every ready artefact of its kind; the arena's block `artefacts.code` (linked by `link_026g.py`); its check runs Spring's loader and links, the modifier getter, Lifebone's active and the action with the game's own code on made-up artefacts, and the press through inventory::action and Spring's own enable/disable_active (needs Unicorn) |
 | `check_artefact_glow_026g.py` | No patch: the artefacts' first-person glow is the content pack `artefact-glow` (`../scripts/artefact-glow/make_pack.py`, `../docs/notes/artefacts.md`). Runs the game's own effect code, in the original and the build: the particle cook's `view` (0x25A86F) on the pack's composite, the first- and third-person presenters' constructors (their particle presenters' views 0 and 1), the particle presenter's handler 0x2AC400 (an activation plays an effect only in the presenters of its view), the whole chain from player::set_effect_presenter and game_effect_player's dispatch 0x2DE3A0 and the artefact's effect calculator 0x313640 (the effect ends when the artefact is no longer active) (needs Unicorn) |
-| `rust/patches/src/blackout.rs`, `src/blackout.toml`, `check_blackout_026g.py` | Patch 65 (a prototype): Blackout, a battery match with no interface, the teammates' markers kept and their names on Tab: six `lohook`s at sites of its own (`sites_026g.tsv`); its check runs each from the game's code before the site on made-up objects, the original beside (needs Unicorn) |
+| `rust/patches/src/blackout.rs`, `src/blackout.toml`, `check_blackout_026g.py` | Patch 65 (a prototype): Blackout, a battery match with no interface, the teammates' markers kept and their names on Tab, the player's input on Tab as in every mode: five `lohook`s at sites of its own (`sites_026g.tsv`); its check runs each from the game's code before the site on made-up objects, the original beside (needs Unicorn) |
 | `check_suicide_key_026g.py` | Runs the original's and patch 34's last action call of the input builder, with the game's own event buffer code, on made-up input handlers (needs Unicorn) |
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
@@ -3533,16 +3533,19 @@ land beside it unchanged:
   esp+14h). The options' +57870h holds "SRBO", else zeros; the patch keeps the match's flag.
 - **The interface.** `player_icons.update_start` (0x23AA10, each frame): the hud movie
   `root.force_interface_hidden(flag)` (its root hidden but for the pre-match countdown and, while
-  Tab is held, its Tab view: HUD.as) and the player icons `root.force_interface_hidden(flag)`
+  Tab is held, its Tab view: HUD.as; since 2026-11-09 the Tab list among it, by names only, with its
+  map and row menu) and the player icons `root.force_interface_hidden(flag)`
   (forced: the objects' markers hidden, the teammates' kept as in a plain match), each told at a
   change of the movie or the state, again while a movie does not take it. Forced, the movies'
   `hide_interface` does nothing (patch 62's F11, a match's reset).
 - **Tab.** `keyboard.tab_state` (0x25CD2C, BL Tab down): Tab's state; in a Blackout match BL
   cleared, so the key goes on as with Tab up (the game's Tab test at 0x25CD39; patch 58's kit keys
-  at 0x25CD41). `input_builder.end` (0x2421B0, EBX the handler): while Tab is held the input's
-  actions mask (+33Ch) blocks acts immediately (Use is none: a search held through Tab goes on) and
-  movement after 200 ms, and an act held through Tab stays out until let go.
-  The input is filtered before it is applied and sent: every game plays what was sent.
+  at 0x25CD41); show_player_list (0x2384C0, called at 0x25CD34 with the byte stored before) still
+  gets Tab, so the hud's list flag (+0BAh) and patch 86's cursor are a plain match's. The Tab map's
+  objects need nothing of this patch: update_ui calls update_minimap_objects (0x238530, the marked
+  batteries as "artifact") whatever the interface shows. The player's input is the game's, Tab or not, as in every mode (2026-11-11; before, Tab
+  held blocked the acts and, after 200 ms, the moves at `input_builder.end` 0x2421B0, now patch 78's
+  site alone).
 - **Teammate names.** `player_names.visibility` (0x1F2F10) keeps the native Alt/crosshair
   decision, except that Tab in Blackout shows names for the local team (teams 0 and 1).
   This runs after the native life, visibility and projection checks. Enemies, spectators
@@ -3555,7 +3558,9 @@ crate's block and state); `check_blackout_026g.py` (Unicorn, from the game's cod
 site, the original beside): the options read on nine blocks for both reads; the feed over
 sixteen frames; Tab and the input; names across modes, teams, native decisions and cached
 visibility, including a new match resetting Tab. `cargo test` in `rust/`; `../scripts/blackout-kits/check.sh`
-(Ruffle: the hud's Tab view and kits, the player icons' states). **Not run in a game.**
+(Ruffle: the hud's Tab view and kits, the Tab list kept with them by names only, its row menu and
+its map's marked battery, the player icons' states); `check_tab_cursor_026g.py` (Ctrl's cursor in a
+Blackout match). **Not run in a game.**
 
 ### 67. The kill feed shows a kill through a wall, by a ricochet and by pain (the next release's revision)
 
@@ -4013,9 +4018,10 @@ mode), sent by lobby_client::comment_about_user (0x274470): never the own
 name, one of the three choices that changes the state the lobby's ignore list
 gives (a `<muted>` player's id marked with bit 31), the connection up.
 
-Nothing a match computes changes. Blackout matches (no list) keep Ctrl as
-crouch. `check_tab_cursor_026g.py` runs both hooks from the game's code
-beside the original.
+Nothing a match computes changes. A Blackout match's Tab view has the list
+too (since 2026-11-09, so players can mute there): Ctrl with Tab held is the
+cursor's as in any match. `check_tab_cursor_026g.py` runs both hooks from the
+game's code beside the original.
 
 ## World check (patch 87, unreleased)
 

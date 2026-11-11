@@ -6020,3 +6020,6 @@ va	name	location	role	basis
 0x00111d10	vostok::logging::helper::write	ESI	the helper (0x111C90's)	observed
 0x00111d10	vostok::logging::helper::write	entry ESP+4	the format	observed
 0x00111d10	vostok::logging::helper::write	entry ESP+8	the format's arguments, a va_list	observed
+0x00238530	survarium::game_world_ui::update_minimap_objects	entry ESP+4	the game_world_ui (edi pushed at 0x23B477); update_ui calls it only when the checksum of the hud state [ui+24h..2D8h) differs from [ui+2E0h], stored after it (0x23B47D); nothing of the interface, Tab or patch 65 (Blackout) gates it, so a Blackout match feeds the Tab map its marked batteries as a plain one	observed
+0x00236d30	survarium::game_world_ui::set_player_stats_info	entry ESP+4	the place (update_ui's loop byte, 0x23B469)	observed
+0x002d8bb0	survarium::base_player::process_quick_slots	at 0x2D8D80..0x2D8DFF	the quick-use bits (4000h << n, n 0..5) of the current mask against the previous: a press gives inventory::action (0x2FCAA0) the slot of ordinal n (quick_slot_to_inventory_slot 0x2FE7F0; 17h none ends the loop) with 1, a release with 0, whatever the item (a medkit, a grenade set, a trap, an artefact); a pocket's (slots 0Dh..12h) only while byte [[player+128h]+0Eh] is set; then the grenade bit (800000h) the same way to the first grenade set's slot (0x2FE8B0, 0x2D8E18)	observed
