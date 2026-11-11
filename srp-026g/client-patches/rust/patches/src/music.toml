@@ -17,11 +17,13 @@ order = 4
 [[hook]]
 site = "game.tick"
 handler = "on_frame"
+order = 1
 
-# the login screen: the main theme
+# the login screen: the main theme (before patch 83's DXVK marker, order 2)
 [[hook]]
 site = "login_menu.activated"
 handler = "on_login"
+order = 1
 
 # the lobby: the lobby theme
 [[hook]]

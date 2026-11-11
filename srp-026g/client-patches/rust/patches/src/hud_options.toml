@@ -14,6 +14,27 @@ site = "configs.start"
 handler = "on_configs"
 order = 2
 
+# the process's start, before any Direct3D DLL is loaded: the renderer chosen,
+# DXVK loaded from dxvk\ when picked (docs/notes/dxvk-option.md)
+[[hook]]
+site = "memory.allocate_arenas"
+handler = "on_process_start"
+
+# every Present of the game's swap chain, right before it: with DXVK, a window
+# DXGI's flip model refuses (topmost, no frame style: DXVK's fullscreen) made a
+# popup (docs/notes/dxvk-option.md, "The fullscreen window")
+[[hook]]
+site = "render_output.present"
+handler = "on_present"
+order = 1
+
+# the engine's DirectDraw probe of the video memory, its number read: the
+# DirectDraw object it never releases released, the GPU's own Direct3D driver
+# with it (docs/notes/dxvk-option.md, "The address space (SRP-3)")
+[[hook]]
+site = "video_memory.ddraw_probed"
+handler = "on_ddraw_probed"
+
 [[hook]]
 site = "options.callback"
 handler = "on_options_call"
@@ -22,6 +43,13 @@ order = 2
 [[hook]]
 site = "player_icons.update_start"
 handler = "on_update_icons"
+order = 2
+
+# the login screen shows (after patch 88's theme there): the renderer works,
+# the DXVK marker written at configs.start goes (docs/notes/dxvk-option.md)
+[[hook]]
+site = "login_menu.activated"
+handler = "on_login"
 order = 2
 
 [[hook]]

@@ -15,6 +15,10 @@ DATA_NAME=server-game-data.db
 # Where a checkout keeps its item tables (srp-item-tables).
 # shellcheck disable=SC2034 # used by the scripts that source this
 ITEM_TABLES_DIR=srp-026g/docs/data
+# The file in the folder of a quick build (build-content --quick), which
+# release.sh refuses a patch beside.
+# shellcheck disable=SC2034 # used by the scripts that source this
+QUICK_MARK=QUICK-BUILD
 # The stock 0.26g resources.db (build 2777).
 # shellcheck disable=SC2034 # used by the scripts that source this
 STOCK_DB_SHA256=c74078be702d17113b9ca23f59aa2b0087238481e7f01fb793620d51d875492c
@@ -269,6 +273,49 @@ item_tables_bin() {
     printf '%s\n' "$ROOT/srp-026g/target/release/srp-item-tables"
 }
 
+# The world check (srp-world-check, the match server's own check of an
+# upload, run on recorded worlds): $SRP_WORLD_CHECK_BIN, else built here.
+world_check_bin() {
+    if [[ -n ${SRP_WORLD_CHECK_BIN:-} ]]; then
+        printf '%s\n' "$SRP_WORLD_CHECK_BIN"
+        return
+    fi
+    say "building srp-world-check (srp-026g, nix develop) ..." >&2
+    (cd "$ROOT" && nice -n 10 nix develop ./srp-026g -c bash -c \
+        'cd srp-026g && cargo build --quiet --release -p match-server --bin srp-world-check') >&2 ||
+        die "srp-world-check did not build"
+    printf '%s\n' "$ROOT/srp-026g/target/release/srp-world-check"
+}
+
+# The server's image (srp-026g/Dockerfile) built here from <src>, main's
+# srp-026g source, into <out>: a zstd docker-archive tagged $IMAGE, which
+# the host's `docker load` takes, so the live host (one core, the running
+# matches) compiles nothing. Rootless podman and skopeo from nixpkgs, at
+# nice 10; their settings (Docker Hub for the Dockerfile's short names, any
+# image accepted, as Docker does) in a folder of their own beside <out>,
+# none of this machine's. $SKHID_BUILD_IMAGE_BIN: run as <it> <src> <out>
+# instead.
+build_image() {
+    local src=$1 out=$2 conf status=0
+    if [[ -n ${SKHID_BUILD_IMAGE_BIN:-} ]]; then
+        "$SKHID_BUILD_IMAGE_BIN" "$src" "$out"
+        return
+    fi
+    conf=$(mktemp -d "${out%/*}/image.XXXXXX")
+    printf '{"default":[{"type":"insecureAcceptAnything"}]}\n' >"$conf/policy.json"
+    printf 'unqualified-search-registries = ["docker.io"]\n' >"$conf/registries.conf"
+    # shellcheck disable=SC2016
+    nice -n 10 nix shell nixpkgs#podman nixpkgs#skopeo nixpkgs#zstd -c bash -euo pipefail -c '
+        conf=$1 src=$2 out=$3 image=$4 name=localhost/srp-026g-release:${conf##*.}
+        export CONTAINERS_REGISTRIES_CONF=$conf/registries.conf
+        podman build --signature-policy "$conf/policy.json" -t "$name" "$src"
+        skopeo --policy "$conf/policy.json" copy -q "containers-storage:$name" "docker-archive:$conf/image.tar:$image"
+        podman rmi "$name" >/dev/null
+        zstd -T0 -q -f "$conf/image.tar" -o "$out"
+    ' _ "$conf" "$src" "$out" "$IMAGE" || status=$?
+    rm -rf "$conf"
+    return "$status"
+}
 
 # The building steps (build-patch, build-server-db, build-zip) run at nice
 # 10, with every child: the release PC goes on doing other things.
@@ -292,6 +339,28 @@ client_patches_python() {
     local src=$1
     shift
     (cd "$src/srp-026g/client-patches" && nix develop "$src/srp-026g" -c python3 "$@")
+}
+
+# The exe patches' self-test (srp-026g/client-patches/selftest_026g.py) of
+# the checkout <src> on the original exe <exe>, its output into <log>, its
+# builds into <scratch>: its Linux part (imagehlp's checksum and the
+# certificate's read, test_windows, are Windows' own), in that checkout's
+# dev shell with nixpkgs' Python unicorn, at nice 10: nothing of this
+# machine's PATH is needed but nix. Fails when a check fails. For
+# release/test.sh: $SKHID_SELFTEST_BIN <src> <exe> instead.
+run_selftest() {
+    local src=$1 exe=$2 log=$3 scratch=$4
+    if [[ -n ${SKHID_SELFTEST_BIN:-} ]]; then
+        "$SKHID_SELFTEST_BIN" "$src" "$exe" >"$log" 2>&1
+        return
+    fi
+    # shellcheck disable=SC2016 # the dev shell's bash expands them
+    (cd "$src/srp-026g/client-patches" && SRP_026G_SCRATCH=$scratch nice -n 10 nix develop "$src/srp-026g" -c bash -c '
+        py=$(python3 -c "import sys; print(f\"python{sys.version_info.major}.{sys.version_info.minor}\")")
+        unicorn=$(nix build --no-link --print-out-paths --inputs-from "$1" nixpkgs#python3Packages.unicorn | head -n 1)
+        PYTHONPATH=$unicorn/lib/$py/site-packages exec python3 -u -c \
+            "import selftest_026g as st; st.test_windows = lambda *a, **k: None; st.main()" "$2"' - "$src/srp-026g" "$exe") \
+        >"$log" 2>&1
 }
 
 # `<sha256> <name>` of every file entry of a ZIP, in name order. (Python's
@@ -530,7 +599,7 @@ list_game_json() {
 }
 
 # Every patch of LIST (read_patch_list first) in ~/.cache/skhid-release/patches/
-# ($XDG_CACHE_HOME), each checked by its size and sha256 there, else
+# ($XDG_CACHE_HOME), each checked by its size and sha256 there (cached_sha256), else
 # downloaded there from the patches server (200, the row's size and
 # sha256), never from a mirror's quota. Sets PATCH_CACHE to that folder.
 PATCH_CACHE=''
@@ -541,7 +610,7 @@ cache_patches() {
     while read -r name sha size urls; do
         [[ -n $name ]] || continue
         file=$PATCH_CACHE/$name
-        if [[ -f $file && $(size_of "$file") == "$size" && $(sha256_of "$file") == "$sha" ]]; then
+        if [[ -f $file && $(size_of "$file") == "$size" && $(cached_sha256 "$file") == "$sha" ]]; then
             say "$name: in the cache"
             continue
         fi
@@ -581,12 +650,13 @@ check_file_urls() {
     ((URLS_GOOD)) || { URL_PROBLEM="none of its URLs gives it (the last: $last)"; return 1; }
 }
 
-# The sha256 of the stock db $1, hashed once and then cached by its size,
-# time and path (~/.cache/skhid-release/stock-db.sha256).
-stock_sha256() {
+# The sha256 of a big file $1 (the stock db, a patch of the cache), hashed once
+# and then cached by its size, time (to the nanosecond), inode and path
+# (~/.cache/skhid-release/file-sha256s): a write to it is hashed anew.
+cached_sha256() {
     local cache key stock
-    cache=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/stock-db.sha256
-    key="$(stat -c '%s %Y' "$1") $(readlink -f "$1")"
+    cache=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/file-sha256s
+    key="$(stat -c '%s %.9Y %i' "$1") $(readlink -f "$1")"
     stock=$(grep -F -- "$key " "$cache" 2>/dev/null | tail -n 1 || true)
     stock=${stock##* }
     if [[ -z $stock ]]; then
@@ -810,8 +880,9 @@ served_patches() {
 #   min.old          SRP_MIN_PATCH_REVISION before (`none`: no line)
 #   changed.txt      the server source files that changed, the ZIP's changed
 #                    entries (release.sh)
-#   src.tar src/ old-src.tgz  with server code: main's source (src/, where
-#                    the image is built), the tree's files before
+#   src.tar image.tar.zst old-src.tgz  with server code: main's source and
+#                    its image (built here, loaded on the host, then
+#                    removed), the tree's files before
 #   rollback.sh rollback.env  release/host-rollback.sh and what it puts back
 REL='' REL_DIR='' BEFORE_TAG='' STAGED=0
 release_folder() { # <revision> <stamp> [label]
@@ -845,7 +916,7 @@ stage_upload() {
 # log), state stopped.
 stage_abandon() {
     ((STAGED)) || return 0
-    if on_target "cd $REL_DIR && rm -rf $ZIP_NAME $DATA_NAME ./*.part src src.tar bot-data bot-data.list bot-data.sh && echo stopped > state && rm -f ../download/.$ZIP_NAME.new ../download/.$DATA_NAME.new"; then
+    if on_target "cd $REL_DIR && rm -rf $ZIP_NAME $DATA_NAME ./*.part src src.tar image.tar.zst bot-data bot-data.list bot-data.sh && echo stopped > state && rm -f ../download/.$ZIP_NAME.new ../download/.$DATA_NAME.new"; then
         say "staged files: removed ($TARGET_DIR/$REL stays, state stopped)"
     else
         say "staged files: NOT removed: $TARGET_DIR/$REL"
@@ -1239,7 +1310,9 @@ check_server() {
         return 1
     fi
     say "srp26: ${state#ok }"
-    line=$(on_target "cd $D && $TARGET_COMPOSE logs --no-log-prefix --tail=500 srp26 2>&1 | grep 'game data:' | tail -n 1" || true)
+    # The whole log of the container just made: a first start can log hundreds of
+    # lines after the game data line (rev54: the silver pay-back, a line an account).
+    line=$(on_target "cd $D && $TARGET_COMPOSE logs --no-log-prefix srp26 2>&1 | grep 'game data:' | tail -n 1" || true)
     count=$(grep -c . <<<"$OFFERED" || true)
     if [[ $line != *"; $count patch(es) offered at /patches"* ]]; then
         say "srp26's log has no game data line of the new server data ($count patch(es)): ${line:-none}"

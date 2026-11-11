@@ -1,6 +1,7 @@
-//! What a match took of an account's supplies, and the two boxes of the
-//! kit window that put it right: autobuy and auto-repair (`49 01`, the
-//! lobby's number: bit 0 and bit 1).
+//! What a match took of an account's supplies, and autobuy, which buys it
+//! back: always on, for every account, with no setting (the owner,
+//! 2026-11-10: "internally autobuy is always on"; the kit window's box and
+//! its `49 01` are gone, the stored flag is not read).
 //!
 //! The money the server spends this way is shown on the results screen:
 //! the three lists that end `89` (`lobby.md` §2.9), "Ammunition", "Special
@@ -37,21 +38,20 @@
 //!
 //! `SRP_AMMO_USE=off` takes nothing at all (ammo and the rest).
 //!
-//! # The boxes ([`settle`])
+//! # Autobuy ([`settle`])
 //!
 //! - **Autobuy** buys back what was taken, in whole steps of the shop (a
 //!   clip of ammo, one of anything else), as many as the silver pays for
 //!   [0.21d's rule, `survarium::v021d::supplies`], at the shop's price for
-//!   an account that may buy the item there; ammo the game prices at
+//!   an account that may buy the item there. With too little silver it buys
+//!   the whole steps the silver pays for and the rest stays used up; with
+//!   none, nothing. Ammo the game prices at
 //!   nothing (the starting pistol's) is refilled for nothing [as
 //!   `rules::buy`'s refill]. What the account may not buy is not bought.
-//! - **Auto-repair** repairs every item the match wore, for silver, by the
-//!   lobby's own repair ([`super::items_rules::repair`], `47 03` paid in silver), in the
-//!   order the match wore them, while the silver lasts.
+//! - **No auto-repair**: srp has no repair (the owner, 2026-11-08).
 
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::item_params::{item_params, shop_unit};
-use survarium::v026g::lobby::requests::RepairPayment;
 use survarium::v026g::lobby::{SpentMoney, limits};
 use survarium::v026g::match_msgs::players::Supplies;
 use survarium::v026g::prices;
@@ -68,8 +68,6 @@ pub const BUCKSHOT: &str = "ammo_12mm_buck";
 pub struct Settled {
     /// `(dict id, units)` bought back.
     pub bought: Vec<(u16, u32)>,
-    /// `(item id, silver)`: the repairs made.
-    pub repaired: Vec<(u32, u32)>,
     /// What the results screen lists.
     pub spent: SpentMoney,
 }
@@ -199,17 +197,14 @@ fn step_cost(account: &Account, dict_id: u16) -> Option<u32> {
         .map(|_| 0)
 }
 
-/// After a match: take what it used ([`used`]) off the stacks, buy it back
-/// if the account's autobuy is on, and repair the items the match wore
-/// (`worn`, by item id) if its auto-repair is. Call it before the kits are
+/// After a match: take what it used ([`used`]) off the stacks and buy it
+/// back (autobuy: always, for every account). Call it before the kits are
 /// brought up to the inventory ([`Account::sync_kits`]).
-pub fn settle(account: &mut Account, used: &[(u16, u32)], worn: &[u32], now: u64) -> Settled {
+pub fn settle(account: &mut Account, used: &[(u16, u32)]) -> Settled {
     let mut settled = Settled::default();
     for &(dict_id, units) in used {
         let mut bought = 0;
-        if account.autobuy
-            && let Some(cost) = step_cost(account, dict_id)
-        {
+        if let Some(cost) = step_cost(account, dict_id) {
             let unit = shop_unit(dict_id);
             let wanted = units.div_ceil(unit);
             let steps = match cost {
@@ -243,23 +238,6 @@ pub fn settle(account: &mut Account, used: &[(u16, u32)], worn: &[u32], now: u64
             *stack = stack.saturating_sub(units).saturating_add(bought);
             if *stack == 0 {
                 account.inventory.remove(index);
-            }
-        }
-    }
-    if account.extras.auto_repair {
-        for &item_id in worn {
-            let Some(dict_id) = account.item(item_id).map(|item| item.dict_id) else {
-                continue;
-            };
-            let before = account.generic_money;
-            // The items rule: it mends defects too (the plain one does not).
-            if super::items_rules::repair(account, item_id, RepairPayment::Silver, now).is_err() {
-                continue;
-            }
-            let silver = before.saturating_sub(account.generic_money);
-            settled.repaired.push((item_id, silver));
-            if silver > 0 && settled.spent.repair.len() < limits::SPENT_REPAIR {
-                settled.spent.repair.push((silver, dict_id));
             }
         }
     }
@@ -447,20 +425,19 @@ mod tests {
     }
 
     #[test]
-    fn without_the_boxes_what_was_used_is_gone_and_nothing_is_spent() {
+    fn without_silver_what_was_used_is_gone_and_nothing_is_spent() {
         let (mut account, rifle, ammo) = rifleman(300);
-        // Autobuy is on for a new account: the player turned it off.
-        account.autobuy = false;
         account.item_mut(rifle).unwrap().condition_or_stack = 900_000;
+        account.generic_money = 0;
         let money = account.generic_money;
         let rounds = dict("ammo_5.45x39_7n6m");
-        let settled = settle(&mut account, &[(rounds, 45)], &[rifle], 0);
+        let settled = settle(&mut account, &[(rounds, 45)]);
         assert_eq!(settled, Settled::default());
         assert_eq!(account.item(ammo).unwrap().condition_or_stack, 255);
         assert_eq!(account.item(rifle).unwrap().condition_or_stack, 900_000);
         assert_eq!(account.generic_money, money);
         // A stack used up leaves the inventory and its slot.
-        settle(&mut account, &[(rounds, 255)], &[], 0);
+        settle(&mut account, &[(rounds, 255)]);
         assert!(account.item(ammo).is_none());
         assert!(account.sync_kits());
         assert_eq!(account.kits[0].slots[8], None);
@@ -469,11 +446,10 @@ mod tests {
     #[test]
     fn autobuy_buys_back_whole_clips_within_the_money() {
         let (mut account, _, ammo) = rifleman(300);
-        account.autobuy = true;
         account.generic_money = 1_000;
         let rounds = dict("ammo_5.45x39_7n6m");
         // 45 used: two clips of 30 at 30 silver (its `base_cost`).
-        let settled = settle(&mut account, &[(rounds, 45)], &[], 0);
+        let settled = settle(&mut account, &[(rounds, 45)]);
         assert_eq!(settled.bought, [(rounds, 60)]);
         assert_eq!(settled.spent.autobuy_ammo, [(60, rounds)]);
         assert!(settled.spent.autobuy_consumables.is_empty());
@@ -481,14 +457,14 @@ mod tests {
         assert_eq!(account.generic_money, 940);
         // Silver for one clip only.
         account.generic_money = 50;
-        let settled = settle(&mut account, &[(rounds, 90)], &[], 0);
+        let settled = settle(&mut account, &[(rounds, 90)]);
         assert_eq!(settled.bought, [(rounds, 30)]);
         assert_eq!(settled.spent.autobuy_ammo, [(30, rounds)]);
         assert_eq!(account.item(ammo).unwrap().condition_or_stack, 255);
         assert_eq!(account.generic_money, 20);
         // No silver: nothing bought, nothing listed.
         account.generic_money = 0;
-        let settled = settle(&mut account, &[(rounds, 30)], &[], 0);
+        let settled = settle(&mut account, &[(rounds, 30)]);
         assert_eq!(settled, Settled::default());
         assert_eq!(account.item(ammo).unwrap().condition_or_stack, 225);
     }
@@ -496,7 +472,6 @@ mod tests {
     #[test]
     fn ammo_is_bought_back_at_no_reputation_and_a_drug_is_not() {
         let (mut account, _, ammo) = rifleman(300);
-        account.autobuy = true;
         account.generic_money = 1_000;
         // Known to no seller.
         for (_, points) in &mut account.reputations {
@@ -505,7 +480,7 @@ mod tests {
         let rounds = dict("ammo_5.45x39_7n6m");
         let medkit = dict("medkit");
         let kits = account.add_item(medkit, 5);
-        let settled = settle(&mut account, &[(rounds, 30), (medkit, 2)], &[], 0);
+        let settled = settle(&mut account, &[(rounds, 30), (medkit, 2)]);
         // The clip came back; the medkits (Scavengers, level 3) did not.
         assert_eq!(settled.bought, [(rounds, 30)]);
         assert_eq!(account.item(ammo).unwrap().condition_or_stack, 300);
@@ -516,12 +491,11 @@ mod tests {
     #[test]
     fn consumables_are_bought_back_one_by_one_in_their_own_list() {
         let (mut account, _, _) = rifleman(300);
-        account.autobuy = true;
         account.generic_money = 1_000;
         let medkit = dict("medkit");
         let kits = account.add_item(medkit, 5);
         let cost = prices::price(medkit).unwrap().cost;
-        let settled = settle(&mut account, &[(medkit, 2)], &[], 0);
+        let settled = settle(&mut account, &[(medkit, 2)]);
         assert_eq!(settled.bought, [(medkit, 2)]);
         assert_eq!(settled.spent.autobuy_consumables, [(2 * cost, medkit)]);
         assert!(settled.spent.autobuy_ammo.is_empty());
@@ -532,12 +506,11 @@ mod tests {
     #[test]
     fn the_starting_ammo_is_refilled_for_nothing() {
         let mut account = Account::new("Alice");
-        account.autobuy = true;
         let money = account.generic_money;
         let ammo = account.kits[0].slots[8].unwrap().item_id;
         let rounds = dict("ammo_7.62x25");
         let unit = shop_unit(rounds);
-        let settled = settle(&mut account, &[(rounds, 10)], &[], 0);
+        let settled = settle(&mut account, &[(rounds, 10)]);
         // A whole clip back, for the 0 the game prices it at: no row.
         assert_eq!(settled.bought, [(rounds, unit)]);
         assert_eq!(settled.spent, SpentMoney::default());
@@ -549,37 +522,11 @@ mod tests {
     }
 
     #[test]
-    fn auto_repair_pays_the_lobbys_price() {
-        let (mut account, rifle, _) = rifleman(300);
-        account.extras.auto_repair = true;
-        account.generic_money = 100_000;
-        account.item_mut(rifle).unwrap().condition_or_stack = 900_000;
-        let settled = settle(&mut account, &[], &[rifle], 0);
-        let cost = 100_000 - account.generic_money;
-        assert!(cost > 0);
-        assert_eq!(settled.repaired, [(rifle, cost)]);
-        assert_eq!(settled.spent.repair, [(cost, dict("ak_74m"))]);
-        assert_eq!(
-            account.item(rifle).unwrap().condition_or_stack,
-            FULL_CONDITION
-        );
-        // Nothing worn, or no silver for it: no repair.
-        assert_eq!(settle(&mut account, &[], &[rifle], 0), Settled::default());
-        account.item_mut(rifle).unwrap().condition_or_stack = 500_000;
-        account.generic_money = 1;
-        assert_eq!(settle(&mut account, &[], &[rifle], 0), Settled::default());
-        assert_eq!(account.item(rifle).unwrap().condition_or_stack, 500_000);
-    }
-
-    #[test]
     fn the_spent_lists_go_out_with_the_inventory() {
-        let (mut account, rifle, _) = rifleman(300);
-        account.autobuy = true;
-        account.extras.auto_repair = true;
+        let (mut account, _, _) = rifleman(300);
         account.generic_money = 100_000;
-        account.item_mut(rifle).unwrap().condition_or_stack = 900_000;
         let rounds = dict("ammo_5.45x39_7n6m");
-        let settled = settle(&mut account, &[(rounds, 45)], &[rifle], 0);
+        let settled = settle(&mut account, &[(rounds, 45)]);
         account.sync_kits();
         let message = super::super::wire::inventory_with_spent(&account, &settled.spent).unwrap();
         let mut client = Client::signed_in();
@@ -588,15 +535,12 @@ mod tests {
         };
         assert_eq!(spent, settled.spent);
         assert_eq!(spent.autobuy_ammo.len(), 1);
-        assert_eq!(spent.repair.len(), 1);
-        // The tail: one ammo row, no consumables, one repair row.
+        // The tail: one ammo row, no consumables, no repair rows.
         let body = message.body();
-        let tail = &body[body.len() - 15..];
+        let tail = &body[body.len() - 9..];
         assert_eq!(tail[0], 1);
         assert_eq!(tail[1..5], 60_u32.to_le_bytes());
         assert_eq!(tail[5..7], rounds.to_le_bytes());
-        assert_eq!(tail[7], 0);
-        assert_eq!(tail[8], 1);
-        assert_eq!(tail[13..15], dict("ak_74m").to_le_bytes());
+        assert_eq!(tail[7..9], [0, 0]);
     }
 }

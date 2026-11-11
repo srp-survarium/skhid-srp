@@ -177,7 +177,236 @@ fn an_animated_block_ends_where_its_bits_do() {
     world.push(1);
     world.extend(animation);
     world.extend([0; 12]);
-    assert!(Frame::parse(&world, Places::of(1)).is_ok());
+    // The length walk ends the block here, but a set animation flag means a
+    // real tree: `T` = 0 cannot be one, so the content validator refuses it.
+    assert_eq!(
+        Frame::parse(&world, Places::of(1)),
+        Err(Refusal::Animation {
+            slot: Slot(0),
+            at: 40,
+            fault: AnimFault::TreeLength,
+        })
+    );
+}
+
+/// Writes bits most significant first, like the animation encoder, to test
+/// [`animation_validate`] against hand-built streams.
+struct BitW {
+    bytes: Vec<u8>,
+    at: usize,
+}
+
+impl BitW {
+    fn new() -> Self {
+        BitW { bytes: Vec::new(), at: 0 }
+    }
+
+    fn put(&mut self, value: u32, bits: usize) -> &mut Self {
+        for i in (0..bits).rev() {
+            if self.at.is_multiple_of(8) {
+                self.bytes.push(0);
+            }
+            let bit = (value.wrapping_shr(i as u32) & 1) as u8;
+            let shift = (7 ^ (self.at % 8)) as u32;
+            *self.bytes.last_mut().unwrap() |= bit.wrapping_shl(shift);
+            self.at = self.at.wrapping_add(1);
+        }
+        self
+    }
+
+    fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
+/// The header of a tree with `nodes` nodes and `channels_mask` set channel
+/// bits, behind a `tree`-bit length.
+fn tree_header(w: &mut BitW, tree: u32, nodes: u32, channels_mask: u32) {
+    w.put(tree, 16).put(nodes, 6).put(0, 1).put(channels_mask, 4);
+}
+
+#[test]
+fn animation_validate_accepts_a_minimal_tree() {
+    // No nodes (the 11-bit header is the whole tree), one time (the native's
+    // unconditional duration pop at 0x3A9A64 reads it off the times buffer),
+    // and the 12 floats the matrix init always pops, written plainly.
+    let mut w = BitW::new();
+    tree_header(&mut w, 11, 0, 0);
+    w.put(1, 10).put(0, 1).put(0, 32); // times: count 1, the duration time
+    w.put(0, 1).put(12, 10); // floats: not indexed, 12 of them
+    for _ in 0..12 {
+        w.put(0, 32);
+    }
+    assert_eq!(animation_validate(w.bytes()), Ok(()));
+}
+
+#[test]
+fn animation_validate_counts_the_native_duration_time_pop() {
+    // The native decode unconditionally pops one "duration" time (0x3A9A64)
+    // before any node pass. The same minimal tree with an empty times table is
+    // read one entry below the buffer by the native client, so the seal must
+    // refuse it even though nothing in the tree itself pops a time.
+    let mut w = BitW::new();
+    tree_header(&mut w, 11, 0, 0);
+    w.put(0, 10); // times: count 0 -- no duration time for the native to pop
+    w.put(0, 1).put(12, 10); // floats: not indexed, 12 of them
+    for _ in 0..12 {
+        w.put(0, 32);
+    }
+    assert_eq!(animation_validate(w.bytes()), Err(AnimFault::TableUnderrun));
+}
+
+#[test]
+fn animation_validate_rejects_a_non_finite_float() {
+    // The twelve matrix floats, but one is +infinity (exponent all ones).
+    let mut w = BitW::new();
+    tree_header(&mut w, 11, 0, 0);
+    w.put(1, 10).put(0, 1).put(0, 32); // times: count 1, the duration time
+    w.put(0, 1).put(12, 10); // floats: not indexed, 12
+    for i in 0..12 {
+        w.put(if i == 5 { 0x7F80_0000 } else { 0 }, 32);
+    }
+    assert_eq!(animation_validate(w.bytes()), Err(AnimFault::FloatNotNumber));
+}
+
+#[test]
+fn animation_validate_rejects_a_wrong_tree_length() {
+    // The same 11-bit tree, but `T` claims 10: the structure outruns it.
+    let mut w = BitW::new();
+    tree_header(&mut w, 10, 0, 0);
+    w.put(1, 10).put(0, 1).put(0, 32);
+    w.put(0, 1).put(12, 10);
+    for _ in 0..12 {
+        w.put(0, 32);
+    }
+    assert_eq!(animation_validate(w.bytes()), Err(AnimFault::TreeLength));
+}
+
+#[test]
+fn animation_validate_rejects_a_table_under_run() {
+    // No floats, but the matrix init pops 12 (the duration time is there, so
+    // only the floats run short).
+    let mut w = BitW::new();
+    tree_header(&mut w, 11, 0, 0);
+    w.put(1, 10).put(0, 1).put(0, 32); // times: count 1, the duration time
+    w.put(0, 1).put(0, 10); // floats: not indexed, count 0
+    assert_eq!(animation_validate(w.bytes()), Err(AnimFault::TableUnderrun));
+}
+
+/// The minimal tree's 12 floats as a table of two unique ones, the last
+/// float's index `last` (in width(2) = 2 bits).
+fn indexed_floats(last: u32) -> Vec<u8> {
+    let mut w = BitW::new();
+    tree_header(&mut w, 11, 0, 0);
+    w.put(1, 10).put(0, 1).put(0, 32); // times: count 1, the duration time
+    w.put(1, 1).put(12, 10); // floats: indexed, count 12
+    w.put(2, 4); // unique = 2, in width(12) = 4 bits
+    w.put(0, 32).put(0x3F80_0000, 32); // the two table floats
+    for _ in 0..11 {
+        w.put(1, 2);
+    }
+    w.put(last, 2);
+    w.bytes().to_vec()
+}
+
+#[test]
+fn animation_validate_bounds_a_floats_index_below_the_unique_count() {
+    assert_eq!(animation_validate(&indexed_floats(0)), Ok(()));
+    assert_eq!(animation_validate(&indexed_floats(1)), Ok(()));
+    // The unique count: the index `save_floats` (0x397040) wrote for a NaN,
+    // which its `find` never matches (rec026g_20261106-211841_03439962, a
+    // revision-50 game); a game with exe patch 117 has no NaN to save.
+    assert_eq!(
+        animation_validate(&indexed_floats(2)),
+        Err(AnimFault::FloatsIndex)
+    );
+    assert_eq!(
+        animation_validate(&indexed_floats(3)),
+        Err(AnimFault::FloatsIndex)
+    );
+}
+
+#[test]
+fn animation_validate_refuses_a_nan_entry_named_or_not() {
+    // A revision-50 game's stream for a NaN value: the entry kept, no index
+    // naming it, the value's index the count (place 12 of
+    // rec026g_20261106-211841_03439962); and a crafted one naming it.
+    let stream = |named: bool| {
+        let mut w = BitW::new();
+        tree_header(&mut w, 11, 0, 0);
+        w.put(0, 10); // times: count 0
+        w.put(1, 1).put(12, 10); // floats: indexed, count 12
+        w.put(2, 4); // unique = 2
+        w.put(0x3F80_0000, 32).put(0xFFC0_0000, 32); // 1.0 and a NaN
+        for _ in 0..11 {
+            w.put(0, 2);
+        }
+        w.put(if named { 1 } else { 2 }, 2);
+        w.bytes().to_vec()
+    };
+    for named in [false, true] {
+        assert_eq!(
+            animation_validate(&stream(named)),
+            Err(AnimFault::FloatNotNumber)
+        );
+    }
+}
+
+#[test]
+fn animation_validate_rejects_a_times_index_at_the_unique_count() {
+    // A time is a u32, always found by the encoder's search: an index at the
+    // count is no stream the game writes.
+    let mut w = BitW::new();
+    tree_header(&mut w, 11, 0, 0);
+    w.put(2, 10); // times: count 2
+    w.put(1, 1).put(0, 32); // indexed, base 0
+    w.put(0, 5); // each delta 0 bits
+    w.put(1, 2); // unique = 1, in width(2) = 2 bits
+    w.put(0, 1).put(1, 1); // indexes in width(1) = 1 bit: 0, then 1
+    w.put(0, 1).put(12, 10); // floats: not indexed, 12 of them
+    for _ in 0..12 {
+        w.put(0, 32);
+    }
+    assert_eq!(animation_validate(w.bytes()), Err(AnimFault::TimesIndex));
+}
+
+#[test]
+fn animation_validate_rejects_a_channel_index() {
+    // A node that picks a channel from an empty channel set.
+    let mut w = BitW::new();
+    tree_header(&mut w, 0, 1, 0); // 1 node, 0 channels
+    // Base tracks (0x3A8C10): four bits, a zero time track, a flag track.
+    w.put(0, 1).put(0, 1).put(0, 1).put(0, 1);
+    w.put(0, 6); // time-track count 0
+    w.put(0, 1).put(0, 1); // flag track
+    // Node record (0x3A8F40) up to its first channel pick.
+    w.put(0, 4).put(0, 1).put(0, 1); // the record head, M = 1
+    w.put(0, 10).put(0, 1); // the one M entry
+    w.put(0, 1); // before the first pick
+    assert_eq!(animation_validate(w.bytes()), Err(AnimFault::ChannelIndex));
+}
+
+#[test]
+fn animation_validate_rejects_runaway_recursion() {
+    // One node with one expression root, then only internal ops: the tree
+    // never closes, and the node cap stops it before a stack would.
+    let mut w = BitW::new();
+    tree_header(&mut w, 0, 1, 1); // 1 node, 1 channel (a pick reads 0 bits)
+    w.put(0, 1).put(0, 1).put(0, 1).put(0, 1);
+    w.put(0, 6);
+    w.put(0, 1).put(0, 1);
+    // Node record, M = 1, then the fixed fields and exprs = 1.
+    w.put(0, 4).put(0, 1).put(0, 1);
+    w.put(0, 10).put(0, 1);
+    w.put(0, 1);
+    for width in [1, 5, 2, 1, 3, 3, 2, 1, 1] {
+        w.put(0, width);
+    }
+    w.put(1, 2); // exprs = 1
+    for _ in 0..70_000 {
+        w.put(2, 2); // op 2: two children, forever -- past the node cap
+    }
+    assert_eq!(animation_validate(w.bytes()), Err(AnimFault::Recursion));
 }
 
 #[test]
@@ -213,4 +442,40 @@ fn a_refusal_says_part_offset_and_reason() {
         line(Refusal::Trailing { at: 0x50, len: 3 }),
         "end at 0x50: 3 bytes after the effects"
     );
+}
+
+#[test]
+fn bits_read_as_one_bit_at_a_time_would() {
+    // The reference: most significant first, one bit a step.
+    fn one_at_a_time(bytes: &[u8], at: usize, bits: usize) -> Option<u32> {
+        if bits > 32 || at + bits > bytes.len() * 8 {
+            return None;
+        }
+        Some((at..at + bits).fold(0u32, |value, bit| {
+            value.wrapping_shl(1) | u32::from(bytes[bit / 8] >> (7 - bit % 8) & 1)
+        }))
+    }
+    let bytes = [0xA5, 0x3C, 0xFF, 0x00, 0x96, 0x71, 0xE8, 0x0F, 0x5A];
+    for at in 0..=bytes.len() * 8 {
+        for bits in 0..=33 {
+            let mut reader = Bits { bytes: &bytes, at };
+            let read = reader.read(bits);
+            assert_eq!(read, one_at_a_time(&bytes, at, bits), "at {at}, {bits} bits");
+            let after = if read.is_some() { at + bits } else { at };
+            assert_eq!(reader.at, after, "at {at}, {bits} bits");
+        }
+    }
+}
+
+#[test]
+fn animation_validate_accepts_the_world_check_fixture() {
+    // check_world_check_026g.py's ANIMATION, the smallest tree the i686 check
+    // is driven with: the host build must take the same bytes.
+    let mut bytes = std::vec![0x00, 0x0b, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x06];
+    bytes.extend_from_slice(&[0; 49]);
+    assert_eq!(animation_validate(&bytes), Ok(()));
+    // The fixture before the duration time was counted is refused now.
+    let mut old = std::vec![0x00, 0x0b, 0x00, 0x00, 0x00, 0x0c];
+    old.extend_from_slice(&[0; 48]);
+    assert_eq!(animation_validate(&old), Err(AnimFault::TableUnderrun));
 }

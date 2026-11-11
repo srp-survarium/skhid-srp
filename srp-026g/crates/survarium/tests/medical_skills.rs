@@ -1,6 +1,18 @@
 //! Cross-check the content-built tree and the native 68-float wire payload.
 use survarium::v026g::skills::{SkillError, SkillsTree};
 
+/// `(id, ranks, branch_points, column, row, modifier, bit shift)`: the
+/// modifier carrying the packed ranks (43 the tree's first ten, 45 the
+/// combo skills) and the rank field's first bit (medical-skills.md).
+#[rustfmt::skip]
+const TREE: [(u16, u8, u32, u8, u8, usize, u32); 13] = [
+    (301, 3, 0, 2, 1, 43, 0), (302, 2, 0, 3, 1, 43, 3),
+    (311, 5, 3, 1, 2, 43, 6), (313, 2, 3, 3, 2, 45, 2), (312, 3, 3, 4, 2, 43, 9),
+    (342, 2, 10, 1, 3, 43, 21), (303, 2, 10, 2, 3, 45, 0), (321, 3, 10, 4, 3, 43, 12),
+    (332, 5, 15, 2, 4, 43, 17), (323, 4, 15, 3, 4, 45, 4), (333, 4, 15, 4, 4, 45, 7),
+    (331, 1, 20, 2, 5, 43, 16), (322, 1, 20, 3, 5, 43, 15),
+];
+
 #[test]
 #[ignore = "requires SRP_MEDICAL_SKILLS_CONFIG from release/build-content"]
 fn medical_tree_progression_and_native_payload() {
@@ -20,93 +32,135 @@ fn medical_tree_progression_and_native_payload() {
     for skill in tree.skills.iter().filter(|skill| skill.branch() == 2) {
         assert!(physical.insert((skill.column, skill.row)), "{}", skill.id);
     }
-    let ids = [301, 302, 311, 312, 321, 322, 331, 332, 341, 342];
-    let shifts = [0, 3, 6, 9, 12, 15, 16, 17, 20, 21];
-    let ranks = [5, 5, 5, 5, 5, 1, 1, 5, 1, 5];
-    let requirements = [0, 0, 5, 5, 10, 20, 20, 20, 25, 10];
-    assert_eq!(
-        (
-            tree.skill(342).unwrap().column,
-            tree.skill(342).unwrap().row
-        ),
-        (3, 3)
-    );
-    assert_eq!(
-        (
-            tree.skill(322).unwrap().column,
-            tree.skill(322).unwrap().row
-        ),
-        (4, 4)
-    );
-    let ten_points = [(301, 5), (302, 5), (342, 1)];
-    tree.validate(100, &ten_points).unwrap();
-    assert!(matches!(
-        tree.validate(100, &[(301, 5), (302, 4), (342, 1)]),
-        Err(SkillError::Locked { .. })
-    ));
-    assert!(matches!(
-        tree.validate(100, &[(301, 5), (302, 5), (322, 1)]),
-        Err(SkillError::Locked { .. })
-    ));
-    tree.validate(100, &[(301, 5), (302, 5), (311, 5), (312, 5), (322, 1)])
-        .unwrap();
-    let layout = [
-        (301, 2, 1),
-        (302, 3, 1),
-        (311, 1, 2),
-        (312, 4, 2),
-        (321, 2, 3),
-        (342, 3, 3),
-        (331, 2, 4),
-        (332, 3, 4),
-        (322, 4, 4),
-        (341, 2, 5),
-    ];
-    for (id, column, row) in layout {
-        let skill = tree.skill(id).unwrap();
-        assert_eq!((skill.column, skill.row), (column, row), "skill {id}");
-    }
+    let medical: Vec<u16> = tree
+        .skills
+        .iter()
+        .filter(|skill| skill.branch() == 3)
+        .map(|skill| skill.id)
+        .collect();
+    let mut expected: Vec<u16> = TREE.iter().map(|row| row.0).collect();
+    expected.sort_unstable();
+    assert_eq!(medical, expected, "Medic (341) left the tree");
+    assert!(tree.skill(341).is_none());
     let mut positions = std::collections::HashSet::new();
-    for skill in tree.skills.iter().filter(|skill| skill.branch() == 3) {
-        assert!(
-            positions.insert((skill.column, skill.row)),
-            "overlapping skill {}",
-            skill.id
-        );
-    }
-    let mut spent = Vec::new();
-    for ((id, rank), required) in ids.into_iter().zip(ranks).zip(requirements) {
+    for &(id, ranks, branch_points, column, row, ..) in &TREE {
         let skill = tree.skill(id).unwrap();
-        assert_eq!((skill.levels_amount, skill.branch_points), (rank, required));
+        assert_eq!(
+            (
+                skill.levels_amount,
+                skill.branch_points,
+                skill.column,
+                skill.row
+            ),
+            (ranks, branch_points, column, row),
+            "skill {id}"
+        );
+        assert_eq!(skill.levels.len(), usize::from(ranks), "skill {id}");
         assert!(skill.unknown_modifiers.is_empty());
-        if required > 0 {
+        assert!(positions.insert((column, row)), "overlapping skill {id}");
+        if branch_points > 0 {
             assert!(matches!(
                 tree.validate(100, &[(id, 1)]),
                 Err(SkillError::Locked { .. })
             ));
         }
-        for n in 1..=rank {
+        assert!(matches!(
+            tree.validate(100, &[(id, ranks + 1)]),
+            Err(SkillError::TooManyPoints { .. })
+        ));
+    }
+    // Each tier needs its threshold in the rows above: 0/3/10/15/20.
+    let tier_one = [(301, 3), (302, 2)];
+    tree.validate(100, &[(301, 3), (311, 1)]).unwrap();
+    tree.validate(100, &[(301, 1), (302, 2), (311, 1)]).unwrap();
+    assert!(matches!(
+        tree.validate(100, &[(301, 2), (311, 1)]),
+        Err(SkillError::Locked { skill: 311, .. })
+    ));
+    let mut nine = tier_one.to_vec();
+    nine.extend([(311, 4), (303, 1)]);
+    assert!(matches!(
+        tree.validate(100, &nine),
+        Err(SkillError::Locked { skill: 303, .. })
+    ));
+    let mut ten = tier_one.to_vec();
+    ten.extend([(311, 5), (303, 1)]);
+    tree.validate(100, &ten).unwrap();
+    let mut fourteen = tier_one.to_vec();
+    fourteen.extend([(311, 5), (312, 3), (313, 1), (323, 1)]);
+    assert!(matches!(
+        tree.validate(100, &fourteen),
+        Err(SkillError::Locked { skill: 323, .. })
+    ));
+    let mut fifteen = tier_one.to_vec();
+    fifteen.extend([(311, 5), (312, 3), (313, 2), (323, 1)]);
+    tree.validate(100, &fifteen).unwrap();
+    // A full build: every skill at its top rank but one of the tier-5 pair
+    // and one of tier 4's Unflinching and Concentration.
+    let mut spent = Vec::new();
+    for &(id, ranks, ..) in &TREE {
+        if id == 322 || id == 333 {
+            continue;
+        }
+        for n in 1..=ranks {
             let mut preview = spent.clone();
             preview.push((id, n));
             tree.validate(100, &preview).unwrap();
         }
-        spent.push((id, rank));
+        spent.push((id, ranks));
     }
-    assert_eq!(spent.iter().map(|(_, n)| u32::from(*n)).sum::<u32>(), 38);
-    let modifiers = tree.modifiers(&spent);
-    let encoded: u32 = ranks
-        .into_iter()
-        .zip(shifts)
-        .map(|(rank, shift)| u32::from(rank) << shift)
-        .sum();
-    assert_eq!(modifiers[43], encoded as f32);
-    assert_eq!(modifiers[43] as u32, encoded);
-    assert_eq!(modifiers[33], 0.0); // activation is filtered by native medicine kind
-    assert!((modifiers[57] - 0.25).abs() < 1e-6);
-    assert_eq!(modifiers[15], 1.0);
-    assert_eq!(modifiers[64], 1.0);
-    for old in [111, 113] {
+    assert_eq!(spent.iter().map(|(_, n)| u32::from(*n)).sum::<u32>(), 32);
+    let mut medicine = spent.clone();
+    medicine.retain(|&(id, _)| id != 331);
+    medicine.push((322, 1));
+    tree.validate(100, &medicine).unwrap();
+    for set in [&spent, &medicine] {
+        let mut both = set.clone();
+        both.push(if set.contains(&(331, 1)) {
+            (322, 1)
+        } else {
+            (331, 1)
+        });
+        assert!(matches!(
+            tree.validate(100, &both),
+            Err(SkillError::Exclusive(..))
+        ));
+    }
+    for old in [111, 113, 322] {
         assert!(tree.skill(old).unwrap().antiskills.contains(&331));
         assert!(tree.skill(331).unwrap().antiskills.contains(&old));
     }
+    // Concentration instead of Unflinching: the same 32 points; both refused.
+    let concentration: Vec<(u16, u8)> = spent
+        .iter()
+        .map(|&(id, n)| if id == 323 { (333, n) } else { (id, n) })
+        .collect();
+    tree.validate(100, &concentration).unwrap();
+    let mut both = spent.clone();
+    both.push((333, 1));
+    assert!(matches!(
+        tree.validate(100, &both),
+        Err(SkillError::Exclusive(..))
+    ));
+    assert_eq!(tree.skill(323).unwrap().antiskills, [333]);
+    assert_eq!(tree.skill(333).unwrap().antiskills, [323]);
+    assert_eq!(tree.modifiers(&concentration)[45], 522.0);
+    // Both tier-5 unlocks' packed bits, to check the transport of each.
+    let mut all = spent.clone();
+    all.push((322, 1));
+    let modifiers = tree.modifiers(&all);
+    for slot in [43, 45] {
+        let encoded: u32 = TREE
+            .iter()
+            .filter(|row| row.5 == slot && all.iter().any(|&(id, _)| id == row.0))
+            .map(|&(_, ranks, .., shift)| u32::from(ranks) << shift)
+            .sum();
+        assert_eq!(modifiers[slot], encoded as f32, "modifier {slot}");
+        assert_eq!(modifiers[slot] as u32, encoded);
+    }
+    assert_eq!(modifiers[45], 74.0);
+    assert_eq!(modifiers[33], 0.0); // activation is filtered by native medicine kind
+    assert!((modifiers[57] - 0.24).abs() < 1e-6);
+    assert_eq!(modifiers[15], 1.0);
+    assert_eq!(modifiers[64], 1.0);
 }

@@ -201,7 +201,10 @@ class LocalizationTests(unittest.TestCase):
         self.assertEqual(checker.audit_content_sources(self.root, {'st_new_item'}), [])
         self.assertTrue(any('st_new_item' in issue for issue in checker.audit_content_sources(self.root, set())))
         manifest.write_text('edit\tcatalog.json\t-\ttranslations\nedit\titem.json\t-\titem\n')
-        self.assertTrue(any('must end' in issue for issue in checker.audit_content_sources(self.root, {'st_new_item'})))
+        self.assertEqual(checker.audit_content_sources(self.root, {'st_new_item'}), [])
+        manifest.write_text('edit\tcatalog.json\t-\ttranslations\nedit\tcatalog.json\t-\tagain\n')
+        self.assertTrue(any('exactly one' in issue for issue in checker.audit_content_sources(self.root, {'st_new_item'})))
+        manifest.write_text('edit\tcatalog.json\t-\ttranslations\nedit\titem.json\t-\titem\n')
         (edits / 'item.json').write_text(json.dumps({'edit_text': [
             {'file': 'localization/polish/localization', 'path': 'strings/st_new_item'}]}))
         self.assertTrue(any('edit dictionary text' in issue

@@ -118,7 +118,7 @@ movie's `SquadList`, `RoomsLook.squadTag`. Tests: `core_tests::rooms_tests::squa
   classes `SquadIcon<n>`): no new art. No text, so every language fits; the name keeps its
   place and is cut an icon's width earlier (no layout jump). Wire: the state's `S;<marks>`
   row, the members list's `squad` field (`lobby.md` §2.16.3).
-- **The scale-out** (six waiting Play users open a room, a pair counting two): the queue's
+- **The scale-out** (four waiting Play users open a room, a pair counting two): the queue's
   order, a pair together or not at all: at its cut both stay queued.
 - **Known, not done** (the review of #884, for later):
   - in a private room a pair waiting to go in late goes in together, on the team its owner

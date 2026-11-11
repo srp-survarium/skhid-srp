@@ -244,7 +244,7 @@ class ReplayTest(unittest.TestCase):
         command, folder = started
         game = os.path.join(self.x86, "survarium_skhid.exe")
         # No -localization: the game keeps its own language (game patch 79).
-        self.assertEqual(command, f'"{game}" -mt_allocator=768 '
+        self.assertEqual(command, f'"{game}" '
                                   f'-minimum_resources_memory_size=768 -match_replay="{replay_path}"')
         self.assertEqual(os.path.normcase(folder.rstrip("\\")), os.path.normcase(self.x86))
 

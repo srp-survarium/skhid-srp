@@ -1,0 +1,295 @@
+{
+ "_about": "The 0.21d Radar's (v021d_level_03) electric anomalies hit the legs only, as 0.26g's own Vostok electric zones do (owner, 2026-11-09: the central one hit the torso, not the legs). 0.21d's data, ported as it was, named the torso and head health pools (`body`, `head`) in hit_parts_filter, which take the hit directly; the zone hits every listed part whatever its height. The six corridor zones drop `body`; the central zone (was body, head, feet, hands at 0.9 every 2 s) takes the stock 0.6 every second on both feet.",
+ "set_entry": [
+  {
+   "file": "projects/v021d_level_03/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "anomaly/random_anomalies/antena/entarance/elctro_damage_zone(2)"
+   },
+   "from": {
+    "max_hit": 0.6,
+    "interval_in_msec": 1000,
+    "hit_parts_filter[0]": "body",
+    "hit_parts_filter[1]": "right_foot",
+    "hit_parts_filter[2]": "left_foot"
+   },
+   "to": {
+    "hit_parts_filter": [
+     "right_foot",
+     "left_foot"
+    ]
+   }
+  },
+  {
+   "file": "projects/v021d_level_03/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "anomaly/random_anomalies/antena/entarance/elctro_damage_zone(3)"
+   },
+   "from": {
+    "max_hit": 0.6,
+    "interval_in_msec": 1000,
+    "hit_parts_filter[0]": "body",
+    "hit_parts_filter[1]": "right_foot",
+    "hit_parts_filter[2]": "left_foot"
+   },
+   "to": {
+    "hit_parts_filter": [
+     "right_foot",
+     "left_foot"
+    ]
+   }
+  },
+  {
+   "file": "projects/v021d_level_03/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "anomaly/random_anomalies/antena/coridor_2/elctro_damage_zone"
+   },
+   "from": {
+    "max_hit": 0.6,
+    "interval_in_msec": 1000,
+    "hit_parts_filter[0]": "body",
+    "hit_parts_filter[1]": "right_foot",
+    "hit_parts_filter[2]": "left_foot"
+   },
+   "to": {
+    "hit_parts_filter": [
+     "right_foot",
+     "left_foot"
+    ]
+   }
+  },
+  {
+   "file": "projects/v021d_level_03/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "anomaly/random_anomalies/antena/coridor_2/elctro_damage_zone(1)"
+   },
+   "from": {
+    "max_hit": 0.6,
+    "interval_in_msec": 1000,
+    "hit_parts_filter[0]": "body",
+    "hit_parts_filter[1]": "right_foot",
+    "hit_parts_filter[2]": "left_foot"
+   },
+   "to": {
+    "hit_parts_filter": [
+     "right_foot",
+     "left_foot"
+    ]
+   }
+  },
+  {
+   "file": "projects/v021d_level_03/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "anomaly/random_anomalies/antena/coridor_1/elctro_damage_zone"
+   },
+   "from": {
+    "max_hit": 0.6,
+    "interval_in_msec": 1000,
+    "hit_parts_filter[0]": "body",
+    "hit_parts_filter[1]": "right_foot",
+    "hit_parts_filter[2]": "left_foot"
+   },
+   "to": {
+    "hit_parts_filter": [
+     "right_foot",
+     "left_foot"
+    ]
+   }
+  },
+  {
+   "file": "projects/v021d_level_03/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "anomaly/random_anomalies/antena/coridor_1/elctro_damage_zone(1)"
+   },
+   "from": {
+    "max_hit": 0.6,
+    "interval_in_msec": 1000,
+    "hit_parts_filter[0]": "body",
+    "hit_parts_filter[1]": "right_foot",
+    "hit_parts_filter[2]": "left_foot"
+   },
+   "to": {
+    "hit_parts_filter": [
+     "right_foot",
+     "left_foot"
+    ]
+   }
+  },
+  {
+   "file": "projects/v021d_level_03/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "anomaly/electro/electric_hit_damage_zone"
+   },
+   "from": {
+    "max_hit": 0.9,
+    "interval_in_msec": 2000,
+    "hit_parts_filter[0]": "body",
+    "hit_parts_filter[1]": "head",
+    "hit_parts_filter[2]": "right_foot",
+    "hit_parts_filter[3]": "left_foot",
+    "hit_parts_filter[4]": "right_arm",
+    "hit_parts_filter[5]": "left_arm"
+   },
+   "to": {
+    "max_hit": 0.6,
+    "interval_in_msec": 1000,
+    "hit_parts_filter": [
+     "right_foot",
+     "left_foot"
+    ]
+   }
+  },
+  {
+   "file": "projects/v021d_level_03/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "anomaly/random_anomalies/antena/entarance/elctro_damage_zone(2)"
+   },
+   "from": {
+    "max_hit": 0.6,
+    "interval_in_msec": 1000,
+    "hit_parts_filter[0]": "body",
+    "hit_parts_filter[1]": "right_foot",
+    "hit_parts_filter[2]": "left_foot"
+   },
+   "to": {
+    "hit_parts_filter": [
+     "right_foot",
+     "left_foot"
+    ]
+   }
+  },
+  {
+   "file": "projects/v021d_level_03/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "anomaly/random_anomalies/antena/entarance/elctro_damage_zone(3)"
+   },
+   "from": {
+    "max_hit": 0.6,
+    "interval_in_msec": 1000,
+    "hit_parts_filter[0]": "body",
+    "hit_parts_filter[1]": "right_foot",
+    "hit_parts_filter[2]": "left_foot"
+   },
+   "to": {
+    "hit_parts_filter": [
+     "right_foot",
+     "left_foot"
+    ]
+   }
+  },
+  {
+   "file": "projects/v021d_level_03/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "anomaly/random_anomalies/antena/coridor_2/elctro_damage_zone"
+   },
+   "from": {
+    "max_hit": 0.6,
+    "interval_in_msec": 1000,
+    "hit_parts_filter[0]": "body",
+    "hit_parts_filter[1]": "right_foot",
+    "hit_parts_filter[2]": "left_foot"
+   },
+   "to": {
+    "hit_parts_filter": [
+     "right_foot",
+     "left_foot"
+    ]
+   }
+  },
+  {
+   "file": "projects/v021d_level_03/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "anomaly/random_anomalies/antena/coridor_2/elctro_damage_zone(1)"
+   },
+   "from": {
+    "max_hit": 0.6,
+    "interval_in_msec": 1000,
+    "hit_parts_filter[0]": "body",
+    "hit_parts_filter[1]": "right_foot",
+    "hit_parts_filter[2]": "left_foot"
+   },
+   "to": {
+    "hit_parts_filter": [
+     "right_foot",
+     "left_foot"
+    ]
+   }
+  },
+  {
+   "file": "projects/v021d_level_03/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "anomaly/random_anomalies/antena/coridor_1/elctro_damage_zone"
+   },
+   "from": {
+    "max_hit": 0.6,
+    "interval_in_msec": 1000,
+    "hit_parts_filter[0]": "body",
+    "hit_parts_filter[1]": "right_foot",
+    "hit_parts_filter[2]": "left_foot"
+   },
+   "to": {
+    "hit_parts_filter": [
+     "right_foot",
+     "left_foot"
+    ]
+   }
+  },
+  {
+   "file": "projects/v021d_level_03/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "anomaly/random_anomalies/antena/coridor_1/elctro_damage_zone(1)"
+   },
+   "from": {
+    "max_hit": 0.6,
+    "interval_in_msec": 1000,
+    "hit_parts_filter[0]": "body",
+    "hit_parts_filter[1]": "right_foot",
+    "hit_parts_filter[2]": "left_foot"
+   },
+   "to": {
+    "hit_parts_filter": [
+     "right_foot",
+     "left_foot"
+    ]
+   }
+  },
+  {
+   "file": "projects/v021d_level_03/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "anomaly/electro/electric_hit_damage_zone"
+   },
+   "from": {
+    "max_hit": 0.9,
+    "interval_in_msec": 2000,
+    "hit_parts_filter[0]": "body",
+    "hit_parts_filter[1]": "head",
+    "hit_parts_filter[2]": "right_foot",
+    "hit_parts_filter[3]": "left_foot",
+    "hit_parts_filter[4]": "right_arm",
+    "hit_parts_filter[5]": "left_arm"
+   },
+   "to": {
+    "max_hit": 0.6,
+    "interval_in_msec": 1000,
+    "hit_parts_filter": [
+     "right_foot",
+     "left_foot"
+    ]
+   }
+  }
+ ]
+}

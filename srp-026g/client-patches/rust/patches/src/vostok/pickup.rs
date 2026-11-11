@@ -1645,6 +1645,15 @@ pub(in crate::vostok) unsafe fn place_lying(inventory: raw::Inventory, slot: Wea
         if !ours.has(Models::BODY) && Scene::has(model) {
             return ours;
         }
+        let scope = weapon.optics().and_then(|optics| optics.model())
+            .filter(|&scope| ours.has(Models::SCOPE) || !Scene::has(scope));
+        // A body placed before, no scope to place: only moved (its bind pose
+        // is skinned once; its model's binds, which gave it then, stay).
+        if ours.has(Models::BODY) && scope.is_none() {
+            Scene::as_world(model);
+            scene.present(model, transform);
+            return ours;
+        }
         // The bind pose: each bone the inverse of its inverse bind (the
         // renderer skins with inverse bind x bone: the mesh as authored).
         let mut bones = [IDENTITY; super::draw::MAX_BONES];
@@ -1665,8 +1674,7 @@ pub(in crate::vostok) unsafe fn place_lying(inventory: raw::Inventory, slot: Wea
             scene.skin(model, bones);
             now |= Models::BODY;
         }
-        if let Some(scope) = weapon.optics().and_then(|optics| optics.model())
-            && (ours.has(Models::SCOPE) || !Scene::has(scope)) {
+        if let Some(scope) = scope {
             let mut at = [0.0f32; 16];
             raw::engine_weapon_locator(at.as_mut_ptr(), Some(weapon.scope_locator()), transform.as_ptr(),
                                        bones.as_ptr().cast(), IDENTITY.as_ptr());

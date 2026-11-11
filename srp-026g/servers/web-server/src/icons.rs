@@ -1,11 +1,12 @@
 //! The wiki's icons, from the game's lobby (`lobby_menu.swf`): each item's,
-//! each modification's (`ui_desc.icon`) and each item group's (the shop's
-//! filter buttons). Built per release with the calculator
+//! each modification's (`ui_desc.icon`), each item group's (the shop's
+//! filter buttons), each quest's (`ui.icon`, the quest list's) and each
+//! faction's (the quest window's faction tab). Built per release with the calculator
 //! (`srp-026g/scripts/damage-calc/build_site.py`, through
 //! `srp-026g/scripts/wiki/build_icons.py`) into `../wiki/icons/`; every file
 //! is part of the binary, `../wiki/icons/files.rs` lists them. The
-//! modification and group icons are white glyphs on transparent, for the
-//! page to tint (CSS masks).
+//! modification, group and quest icons are white glyphs on transparent, for
+//! the page to tint (CSS masks); a faction's emblem is in its colours.
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -19,6 +20,10 @@ pub(crate) enum IconSet {
     Modifier,
     /// By `items_dict`'s `item_category`.
     Group,
+    /// By the quest's `ui.icon`.
+    Quest,
+    /// By the faction's id.
+    Faction,
 }
 
 impl IconSet {
@@ -27,6 +32,8 @@ impl IconSet {
             Self::Item => "items",
             Self::Modifier => "mods",
             Self::Group => "groups",
+            Self::Quest => "quests",
+            Self::Faction => "factions",
         }
     }
 }

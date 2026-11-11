@@ -594,6 +594,8 @@ st_change_quest_label	Aufgabe wechseln
 st_change_weapon_speed_description	Geschwindigkeit der Waffen Wechselung:
 st_change_weapon_speed_name	Gewandten Hände
 st_character	Charakter
+st_character_decals_1_10_name	Wildschweinjäger
+st_character_decals_1_11_name	Hirschjäger
 st_character_decals_1_12_name	Jarilo
 st_character_decals_1_1_name	Literat
 st_character_decals_1_2_name	Trupp "Alpha"
@@ -603,6 +605,7 @@ st_character_decals_1_5_name	Veteran
 st_character_decals_1_6_name	Meister
 st_character_decals_1_7_name	Legende
 st_character_decals_1_8_name	Flüchtigen Husaren
+st_character_decals_1_9_name	Musiker
 st_character_decals_2_1_name	Landstreicher Neuling
 st_character_decals_2_2_name	Landstreicher Veteran
 st_character_decals_2_3_name	Rekrut des schwarzen Marktes
@@ -749,8 +752,15 @@ st_character_decals_5_6_name	Wappen von Lettland
 st_character_decals_5_7_name	Wappen von Litauen
 st_character_decals_5_8_name	Wappen von Estland
 st_character_decals_5_9_name	Wappen von Moldova
+st_character_decals_7_10_name	Streichhölzer
+st_character_decals_7_23_name	Herz
+st_character_decals_7_24_name	Schrecklicher Kürbis
 st_character_decals_7_27_name	Kleeornament
 st_character_decals_7_28_name	Hufeisen
+st_character_decals_7_30_name	Brieftaube
+st_character_decals_7_31_name	Sieg
+st_character_decals_7_35_name	Blutige Hand
+st_character_decals_7_37_name	Der Hüter
 st_character_decals_7_9_name	Kräuter
 st_character_decals_generic_desc	Verwenden Sie die Litzen im Erscheinungsbild Fenster der kugelsicheren Westen und Hosen , um Aussehen zu verändern.
 st_characteristics_label	Die Charakteristiken des Spielers
@@ -877,7 +887,7 @@ st_ct_max_members_count_error	Fehler beim Hinzufügen. In der Klan Mannschaft be
 st_current_value	\nAktueller Wert
 st_cz_75_description	Tschechische Selbstladepistole, Munition: 9x19. Eine der meistkopierten Pistolen des Kalten Krieges.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Komm jeden Tag, und bekomm <highlight> x2 </highlight> der Erfahrung und der Reputation für <highlight> erste drei </highlight> die Siege.
+st_daily_bonus_description	Jeden Tag: <highlight>x2</highlight> Erfahrung für die <highlight>ersten drei</highlight> Siege.
 st_daily_bonus_hint	Begrüßungs Fenster zeigen
 st_daily_bonus_label	Willkommen zurück
 st_daily_bonus_progress	Ihr Progress vom Tag
@@ -1228,7 +1238,7 @@ st_health_regen_correction_perc_name	Regeneration
 st_hide_ammo	Munition verbergen
 st_hide_interface_action	Oberfläche ausblenden
 st_hide_quest_list	Aufgaben Fenster schließen 
-st_hide_spam_option	Spam vergeben
+st_hide_spam_option	Sprachchat deaktivieren
 st_hide_squad_list	Truppen Fenster schließen
 st_hk416_description	Deutsches Sturmgewehr, Munition: 5,56x45. Die Weiterentwicklung der AR-15-Konstruktion von Heckler & Koch mit Kurzhub-Gaskolben, Mitte der 2000er Jahre vorgestellt und bei Spezialkräften und den Armeen mehrerer NATO-Staaten im Einsatz. Diese Waffe trägt ein holografisches Visier EOTech 552. Mit einem 30-Schuss-Magazin ausgestattet. Einzel- und Dauerfeuer.
 st_hk416_name	H&K 416A5
@@ -1266,6 +1276,7 @@ st_inv_additional_ammo_bags	Patronen Beutel
 st_inv_ano_armor	Isolierung
 st_inv_armor	Rüstung
 st_inv_arp	Panzerschutzkraft
+st_inv_artefact_recharge	Aufladezeit der Artefakte
 st_inv_artefact_slots	Container für Artefakten
 st_inv_buckshot	Schrotkugeln
 st_inv_clip_size	Patronen in der Packung
@@ -1754,7 +1765,7 @@ st_profile_selection_warning	Nach dem Profil wechseln,  dauert die Wiedergeburt 
 st_profile_warning_weapon	Unaktive Profil: Keine Waffen
 st_profile_warning_weapon_ammo	Unaktive Profil: ungenügend Patronen im Rucksack
 st_profile_warning_weapon_ammo_in_inv	Unaktive Profil: ungenügend Patronen im Lager
-st_ptt_action	PTT
+st_ptt_action	Sprechen (gedrückt halten)
 st_ptt_button_option	PTT
 st_put_item	Setzen ({USE})
 st_quest_change_warning	Vorsicht! Bei Aufgabe wechseln die Loyalität der Gruppierung wird zu Ihnen herabgesetzt!
@@ -1777,7 +1788,7 @@ st_ranking	Rating
 st_ranking_diff	Unterschied
 st_rattle_activation_hint	Der Klapper ist aktiviert! Ihre Schritte sind für den Gegner unhörbar!
 st_rattle_pickup_hint	Das Artefakt Klapper. Verringert die Laute der Schritte auf 50 %.
-st_rdgm_descr	Description is not ready!!!
+st_rdgm_descr	Rauchhandgranate. Legt einen dichten Sichtschutz, der Bewegungen verbirgt.
 st_rdgm_name	Rauchgranate RDG-M
 st_reach_level	<green>Stufe </green> erreicht
 st_ready	Bereit
@@ -1785,6 +1796,8 @@ st_refill_ammo_btn	Umbenennen
 st_refill_ammo_label	Ausrüstung
 st_regen_booster_description	Alte armee- Ration wurde Erfolgreich von den Armeen der GUS-Staaten in der Vorkrisenperiode verwendet. Erhöht den Metabolismus, dabei ziemlich lecker.
 st_regen_booster_name	Ration
+st_regen_delay_name	Regenerationsverzögerung
+st_regen_limit_name	Regenerationsgrenze
 st_registration_str	Konto registrieren
 st_regular_fix	Reparatur
 st_regular_money	Silber
@@ -2182,13 +2195,55 @@ st_sr3m_description	Description is not ready!!!
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_ammo069_23mm_r_desc	Eine 23-mm-Schrotpatrone für die KS-23M. Bringt hohen Schaden gegen nicht gepanzerte Ziele.
 st_srp_ammo069_23mm_r_name	23x75R, Schrotkugel
+st_srp_ammo_buckshot	Schrot
 st_srp_ammo_scar_ap_desc	Panzerbrechende Patronen 7,62x51 für das FN SCAR-H. Jede Munitionstasche fasst 20 Patronen.
 st_srp_ammo_scar_ap_name	7,62x51 AP SCAR-H, 20 Schuss
+st_srp_ammo_slug	Flintenkugel
 st_srp_ammo_stats	Munitionswerte
+st_srp_artefact_501_description	Zeit zum Einsammeln eines Artefakts:
+st_srp_artefact_501_name	Flinke Hände
+st_srp_artefact_502_description	Isolierung gegen Anomalien:
+st_srp_artefact_502_name	Widerstand
+st_srp_artefact_512_description	Dauer der aktiven Artefaktwirkung:
+st_srp_artefact_512_name	Artefaktwissen
+st_srp_artefact_513_description	Passive Artefakte leuchten an den Beinen der Spieler, auch an deinen.
+st_srp_artefact_513_name	Artefaktsicht
+st_srp_artefact_521_description	Das Match beginnt mit einem zufälligen Artefakt im Behälter; eine Art für alle im Match.
+st_srp_artefact_521_name	Hüter der Artefakte
+st_srp_artefact_522_description	Eine Tasche wird zu einem Artefaktbehälter.
+st_srp_artefact_522_name	Artefaktbehälter
+st_srp_artefact_523_description	Schaden durch Kugeln und Splitter in einer Anomalie:
+st_srp_artefact_523_name	Schutz des Waldes
+st_srp_artefact_531_description	Jede Feder beschleunigt auch das Nachladen: +5% passiv, +15% solange aktiv.
+st_srp_artefact_531_name	Feder II
+st_srp_artefact_532_description	Kein Fallschaden, solange ein Onyx aktiv ist.
+st_srp_artefact_532_name	Onyx II
+st_srp_artefact_533_description	Das Aktivieren eines Lebknochens stellt die ganze Ausdauer wieder her.
+st_srp_artefact_533_name	Lebknochen II
+st_srp_artefact_541_description	Die passiven Wirkungen deiner Artefakte wirken auch auf lebende Teamkameraden im Umkreis von 9 m.
+st_srp_artefact_541_name	Resonanz
+st_srp_artefact_542_description	Aktivierte Artefakte wirken auch auf lebende Teamkameraden im Umkreis von 6 m. "Sie leuchten, du strahlst"
+st_srp_artefact_542_name	Kaskade
+st_srp_artefact_points	 Punkte
 st_srp_attachments	Anbauteile
+st_srp_ban_reason_account_trading	Verkauf oder versuchter Verkauf eines Kontos.
+st_srp_ban_reason_administration	Entscheidung der Administration.
+st_srp_ban_reason_advertising	Werbung.
+st_srp_ban_reason_bad_language	Obszöne Sprache.
+st_srp_ban_reason_cheating	Cheats oder andere verbotene Software.
+st_srp_ban_reason_false_information	Verbreitung falscher Informationen.
+st_srp_ban_reason_farm_pressure	Belästigen oder Teamkills von Spielern, die nicht farmen.
+st_srp_ban_reason_flood	Spam oder Flooding.
+st_srp_ban_reason_insults	Beleidigungen oder Provokation.
+st_srp_ban_reason_nickname	Unzulässiger Name.
+st_srp_ban_reason_politics	Politische Diskussionen.
+st_srp_ban_reason_racism	Rassismus oder Nazismus.
+st_srp_ban_reason_teamkilling	Töten von Teamkameraden.
+st_srp_ban_reason_threats	Drohungen im echten Leben.
 st_srp_crosshair_dynamic	Dynamisches Visier
 st_srp_crosshair_hidden	Verstecktes Visier
 st_srp_crosshair_static	Statisches Visier
+st_srp_deep_pockets_name	Habarschik
 st_srp_equipment029_bm_back_6_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment029_bm_back_6_name	Wächterrucksack
 st_srp_equipment029_bm_back_8_desc	Beschreibung noch nicht verfügbar.
@@ -2376,6 +2431,8 @@ st_srp_equipment046_edge_back_6_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_edge_back_6_name	Stalkers Rucksack
 st_srp_equipment046_edge_back_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_edge_back_7_name	Talisman
+st_srp_equipment046_edge_boots_6_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment046_edge_boots_6_name	Stalkers Schnürstiefel
 st_srp_equipment046_edge_boots_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_edge_boots_7_name	Zaubererstiefel
 st_srp_equipment046_edge_gloves_5_desc	Beschreibung noch nicht verfügbar.
@@ -2390,6 +2447,8 @@ st_srp_equipment046_edge_legs_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_edge_legs_7_name	Veles-Hose
 st_srp_equipment046_edge_mask_6_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_edge_mask_6_name	NVD
+st_srp_equipment046_edge_mask_7_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment046_edge_mask_7_name	Veles-Maske
 st_srp_equipment046_edge_torso_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_edge_torso_7_name	Velesweste
 st_srp_equipment046_renesanse_boots_3_desc	Beschreibung noch nicht verfügbar.
@@ -2400,6 +2459,8 @@ st_srp_equipment046_renesanse_gloves_3_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_renesanse_gloves_3_name	OZK-UV-Handschuhe
 st_srp_equipment046_renesanse_gloves_5_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_renesanse_gloves_5_name	Handschuhe des Spions
+st_srp_equipment046_renesanse_gloves_6_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment046_renesanse_gloves_6_name	Handschuhe "Sturm"
 st_srp_equipment046_renesanse_gloves_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_renesanse_gloves_7_name	Scharfschützenhandschuhe
 st_srp_equipment046_renesanse_helmet_7_desc	Beschreibung noch nicht verfügbar.
@@ -2416,20 +2477,26 @@ st_srp_equipment046_renesanse_torso_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_renesanse_torso_7_name	Scharfschützenweste
 st_srp_equipment046_scavenger_boots_5_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_scavenger_boots_5_name	Saboteur-Stiefel
+st_srp_equipment046_scavenger_boots_6_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment046_scavenger_boots_6_name	Verstärkte gefütterte Stiefel
 st_srp_equipment046_scavenger_boots_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment046_scavenger_boots_7_name	Pfadfinderstiefel
+st_srp_equipment069_league_shadow_mask_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment069_league_shadow_mask_name	Delta Maske
 st_srp_equipment069_leagues_back_2_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment069_leagues_back_2_name	Sanitätertasche
 st_srp_equipment069_leagues_back_5_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment069_leagues_back_5_name	Soldatenrucksack
-st_srp_exchange_balance	Guthaben
-st_srp_exchange_button	Tauschen
-st_srp_exchange_gold	Gold
-st_srp_exchange_pay	Sie zahlen
-st_srp_exchange_receive	Sie erhalten
-st_srp_exchange_short_gold	Nicht genug Gold
-st_srp_exchange_short_silver	Nicht genug Silber
-st_srp_exchange_title	Tausch
+st_srp_equipment069_snow_20_boots_7_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment069_snow_20_boots_7_name	Schnee-20 Stiefel
+st_srp_equipment069_snow_20_gloves_7_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment069_snow_20_gloves_7_name	Schnee-20 Handschuhe
+st_srp_equipment069_snow_20_helmet_7_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment069_snow_20_helmet_7_name	Schnee-20 Helm
+st_srp_equipment069_snow_20_legs_7_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment069_snow_20_legs_7_name	Schnee-20 Hose
+st_srp_equipment069_snow_20_torso_7_desc	Beschreibung noch nicht verfügbar.
+st_srp_equipment069_snow_20_torso_7_name	Schnee-20 Panzerweste
 st_srp_hide_hit_markers_option	Trefferanzeige ausblenden
 st_srp_hide_quests_option	Aufgaben ausblenden
 st_srp_hide_scores_option	Spielerpunkte ausblenden
@@ -2444,10 +2511,32 @@ st_srp_hud_mute_not_sent	Nicht gesendet
 st_srp_hud_muted	Chat stummgeschaltet
 st_srp_hud_unmute	Chat freigeben
 st_srp_hud_unmuted	Chat freigegeben
+st_srp_hud_voice_mute	Stimme stummschalten
+st_srp_hud_voice_muted	Stimme stummgeschaltet
+st_srp_hud_voice_not_muted	Sprachchat nicht verfügbar
+st_srp_hud_voice_unmute	Stimme einschalten
+st_srp_hud_voice_unmuted	Stimme eingeschaltet
 st_srp_inv_ammo_range	Reichweite
 st_srp_inv_bullet_speed	Geschossgeschwindigkeit
+st_srp_inv_defuse_time	Entschärfzeit
+st_srp_inv_fuse_time	Zündzeit
+st_srp_inv_material_pierce	Durchschlägt
 st_srp_inv_pellets	Schrotkugeln
+st_srp_inv_pocket_units	Taschenplätze
+st_srp_inv_pocket_units_whole	∞
+st_srp_inv_stamina_damage	Ausdauerschaden
+st_srp_inv_throw_speed	Wurfgeschwindigkeit
 st_srp_inventory_search	Suche
+st_srp_inventory_search_examples	+Tasche, +Zelle, +Patronen, +10
+st_srp_inventory_search_tip_bonus	Gegenstände mit Patronen- und Taschen-Bonus
+st_srp_inventory_search_tip_bonus_example	+Patronen +Tasche
+st_srp_inventory_search_tip_faction	verkauft von der Arme oder dem Schwarzen Markt
+st_srp_inventory_search_tip_faction_example	+Arme +Schwarzer
+st_srp_inventory_search_tip_kind	Helme oder Stiefel
+st_srp_inventory_search_tip_kind_example	+helmet +boots
+st_srp_inventory_search_tip_level	Gegenstände der Stufe 10 oder 11
+st_srp_inventory_search_tip_level_example	+10 +11
+st_srp_item_props_mps	m/s
 st_srp_language_option	Sprache:
 st_srp_language_restart	Gilt nach einem Neustart.
 st_srp_loadout_block_ammo	Zu wenig Munition für eine Waffe
@@ -2470,6 +2559,8 @@ st_srp_lobby_hangar	Hangar
 st_srp_lobby_room	Zimmer
 st_srp_lobby_title	Lobby
 st_srp_login_account_hint	Konto wird beim ersten Login erstellt
+st_srp_login_ban_ends	Endet um %1$s (in %2$s).
+st_srp_login_ban_forever	Die Sperre ist dauerhaft.
 st_srp_map_chemical_plant	Chemiebetrieb
 st_srp_map_chemical_plant_v011	Chemiebetrieb (v0.11)
 st_srp_map_cologne	Köln
@@ -2507,13 +2598,55 @@ st_srp_matches_starting	Start
 st_srp_matches_title	Matches
 st_srp_matches_versus	gegen
 st_srp_matches_waiting	Warten
+st_srp_medical_301_description	Wird zu Schmerzschutz und Wirkungsdauer von Schmerzmitteln addiert:
+st_srp_medical_301_name	Starkes Schmerzmittel
+st_srp_medical_302_description	Verkürzung der Aktivierungszeit von Erste-Hilfe-Sets und Verbänden:
+st_srp_medical_302_name	Schnelles Verbinden
+st_srp_medical_303_description	Solange ein Schmerzmittel wirkt, Verringerung der Energiekosten beim Sprinten:
+st_srp_medical_303_name	Taube Beine
+st_srp_medical_311_description	Die Gesundheitsregeneration beginnt so viele Sekunden früher:
+st_srp_medical_311_name	Stoffwechsel
+st_srp_medical_312_description	Bonus auf die Heilung durch Erste-Hilfe-Sets und Verbände:
+st_srp_medical_312_name	Medizinische Ausbildung
+st_srp_medical_313_description	Bonus auf die Heilung durch Erste-Hilfe-Sets und Verbände in der Hocke:
+st_srp_medical_313_name	In Deckung
+st_srp_medical_321_description	Bonus auf die Bewegungsgeschwindigkeit bei weniger als 30 Gesundheit:
+st_srp_medical_321_name	Adrenalin
+st_srp_medical_322_description	Jede Tasche mit Medizin fasst einen weiteren Gegenstand.
+st_srp_medical_322_name	Zusätzliche Medizin
+st_srp_medical_323_description	Solange ein Schmerzmittel wirkt, Verringerung der Verlangsamung durch feindliche Treffer:
+st_srp_medical_323_name	Standhaft
+st_srp_medical_331_description	Ersetzt den Platz für die Sekundärwaffe durch eine zusätzliche Vorratstasche.
+st_srp_medical_331_name	Vorratstasche
+st_srp_medical_332_description	Bonus auf die maximale Gesundheit von Armen und Beinen:
+st_srp_medical_332_name	Starke Knochen
+st_srp_medical_333_description	Solange ein Schmerzmittel wirkt, Verringerung des Verwackelns des Zielfernrohrs:
+st_srp_medical_333_name	Konzentration
+st_srp_medical_342_description	Verringerung des durch Verbündete erlittenen Schadens:
+st_srp_medical_342_name	Waffenbrüder
+st_srp_medical_seconds	 s
+st_srp_medicine_crouched_healing	Heilung in der Hocke
+st_srp_medicine_hit_slow	Trefferverlangsamung
+st_srp_medicine_sight_sway	Verwackeln
+st_srp_medicine_sprint_stamina	Sprint-Energie
+st_srp_melee_knockback	Kolbenschlag-Wucht
 st_srp_mode_blackout	Schutzeinrichtung: Blackout
 st_srp_mode_chargers	Schutzeinrichtung: Ladestationen
 st_srp_mode_protective_device	Schutzeinrichtung
 st_srp_mode_research	Forschung
 st_srp_mode_team_deathmatch	Kommandokampf
+st_srp_mouse_lock_option	Vertikale Empfindlichkeit koppeln
+st_srp_mouse_vertical_option	Vertikale Empfindlichkeit
 st_srp_optics	Optik
 st_srp_options_hud	HUD:
+st_srp_pierce_brick	Ziegel, Stahl
+st_srp_pierce_car	Auto
+st_srp_pierce_concrete	Beton
+st_srp_pierce_glass	Glas
+st_srp_pierce_plywood	Sperrholz
+st_srp_pierce_stone	Stein
+st_srp_pierce_tinplate	Blech
+st_srp_pierce_value	%1$s · %2$s
 st_srp_play_in_squad	Im Trupp
 st_srp_pvb_at_limit	Die Höchstzahl an Bot-Matches läuft bereits, versuche es in einer Minute erneut
 st_srp_pvb_at_limit_count	Die Höchstzahl an Bot-Matches läuft bereits (%1$s/%2$s), versuche es in einer Minute erneut
@@ -2536,6 +2669,12 @@ st_srp_pvb_searching	Brich zuerst die Suche ab
 st_srp_pvb_team_size	%1$s vs. %2$s
 st_srp_pvb_title	Spieler vs. Bots
 st_srp_pvb_unknown_choice	Diese Karte oder Teamgröße ist gerade nicht verfügbar
+st_srp_regeneration_health	Gesundheitsregeneration
+st_srp_regeneration_label	Regeneration
+st_srp_regeneration_stamina	Energie Wiederherstellung
+st_srp_renderer_dx11	DirectX 11
+st_srp_renderer_dxvk	Vulkan/DXVK
+st_srp_renderer_option	Renderer
 st_srp_replay_asking	Asking the match server for the replay of this match…
 st_srp_replay_being_made	The replay is being made from the match record. This happens the first time anyone watches this match and takes a little while.\nYou can close this window: the server keeps making it.\n\n%1$s
 st_srp_replay_busy	The server is busy with other replays right now. Try again in a minute.
@@ -2566,6 +2705,7 @@ st_srp_rooms_all	Alle
 st_srp_rooms_all_rooms	Alle Räume
 st_srp_rooms_any	Alle
 st_srp_rooms_back	Zurück
+st_srp_rooms_bots	Mit Bots
 st_srp_rooms_code_10	Der Besitzer hat dich entfernt.
 st_srp_rooms_code_11	Verlasse zuerst dein Clanteam.
 st_srp_rooms_code_12	Deine Ausrüstung liegt über der max. Stufe.
@@ -2600,6 +2740,7 @@ st_srp_rooms_join_why_4	Das Match ist voll.
 st_srp_rooms_join_why_5	Bald Wartung: keine neuen Beitritte.
 st_srp_rooms_join_why_6	Das Match endet: du spielst das nächste.
 st_srp_rooms_join_why_7	Dieses Match hat sein Spielerlimit erreicht. Du spielst im nächsten Match.
+st_srp_rooms_join_why_8	Das Match kann gerade keine Spieler aufnehmen. Du spielst im nächsten Match.
 st_srp_rooms_joined_room	%1$s ist dem Raum beigetreten
 st_srp_rooms_late_hint	Wer jetzt beitritt, sieht den Raum, dann geht es ins Match.
 st_srp_rooms_leave	Verlassen
@@ -2667,12 +2808,30 @@ st_srp_skills	Fähigkeiten
 st_srp_speed_label	Tempo
 st_srp_speed_title	Bewegungstempo: %1$s
 st_srp_static_minimap_option	Statische Minikarte
+st_srp_unit_days	%1$s T.
+st_srp_unit_hours	%1$s Std.
 st_srp_unit_kg	%1$s kg
 st_srp_unit_meters	%1$sm
+st_srp_unit_minutes	%1$s Min.
 st_srp_unit_mps	%1$s m/s
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
+st_srp_vulkan_dedicated_gpu	Dedizierte GPU bevorzugen
+st_srp_vulkan_dedicated_gpu_hint	Wählt auf Laptops die stärkere Grafikkarte.\n+ Bessere Leistung auf Laptops\n- Braucht mehr Akku
+st_srp_vulkan_frame_limit	Bildratenlimit
+st_srp_vulkan_frame_limit_hint	Begrenzt, wie viele Bilder pro Sekunde das Spiel zeichnet.
+st_srp_vulkan_low_latency	Eingabeverzögerung senken
+st_srp_vulkan_low_latency_hint	Das Spiel reagiert schneller auf die Maus.\n+ Zielen reagiert schneller\n- Kann auf manchen PCs weniger flüssig wirken
+st_srp_vulkan_off	Aus
+st_srp_vulkan_options	Vulkan-Optionen
+st_srp_vulkan_overlay	Leistungsanzeige
+st_srp_vulkan_overlay_fps	FPS
+st_srp_vulkan_overlay_frametimes	FPS+Graph
+st_srp_vulkan_overlay_full	Vollständig
+st_srp_vulkan_overlay_hint	Zeigt die Geschwindigkeit des Spiels am Bildschirm.
+st_srp_vulkan_tear_free	Kein Tearing ohne VSync
+st_srp_vulkan_tear_free_hint	Hält das Bild ganz, wenn die vertikale Synchronisierung aus ist.\n+ Keine Risse beim schnellen Drehen\n- Etwas mehr Eingabeverzögerung als nur VSync aus
 st_srp_weapon069_akmsu_desc	Verkürzte AKMS mit Klappschaft, Munition: 7,62x39. Einzel- und Dauerfeuer.
 st_srp_weapon069_akmsu_name	AKMSU
 st_srp_weapon069_famas_desc	Französisches Bullpup-Sturmgewehr, Munition: 5,56x45. Einzelfeuer, Dreischussfeuerstöße und Dauerfeuer.
@@ -2686,7 +2845,6 @@ st_srp_weapon069_mauser_m712_name	Mauser M.712
 st_srp_weapon069_ppsh_drum_desc	Schpagin-Maschinenpistole mit Trommelmagazin für 71 Patronen, Munition: 7,62x25. Einzel- und Dauerfeuer.
 st_srp_weapon069_ppsh_drum_name	PPSH-41 „Trommel“
 st_srp_weapon_aim_zoom	Basis-Zielzoom
-st_srp_weapon_bullet_speed_varies	Variabel
 st_srp_weapon_chamber	Repetierzeit
 st_srp_weapon_draw_time	Ziehzeit
 st_srp_weapon_full_damage	Voller Schaden bis
@@ -2703,6 +2861,7 @@ st_srp_weapon_reload	Nachladen
 st_srp_weapon_reload_empty	Nachladen (leer)
 st_srp_weapon_reload_tactical	Taktisches Nachladen
 st_srp_weapon_shift_hint	Shift: Details · Alt: im Match
+st_srp_weapon_slot_closed	%1$s: keine zweite Waffe
 st_srp_weapon_spread_growth	Zunahme der Streuung
 st_srp_weapon_spread_max	Maximale Zusatzstreuung
 st_srp_weapon_spread_per_shot	Streuung pro Schuss

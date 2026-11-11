@@ -545,7 +545,7 @@ fn hundreds_of_ordered_pushes_survive_a_lossy_udp_link() {
     alice.take();
     alice.client.loss_percent = 25;
     let pushes: Vec<_> = (0..320)
-        .map(|index| survarium::v026g::lobby::money(index, 0))
+        .map(survarium::v026g::lobby::money)
         .collect();
     server.inbox.push(alice.account_id, pushes);
     let amounts = |peer: &Peer| -> Vec<u32> {

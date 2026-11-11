@@ -1,5 +1,6 @@
 package top_fla
 {
+   import flash.display.DisplayObject;
    import flash.display.MovieClip;
    import flash.text.TextField;
    
@@ -17,6 +18,13 @@ package top_fla
       public function set text(value:String) : void
       {
          this.textField.text = value;
+      }
+      
+      // The badge's ring: the timeline's first child (a shape with no instance name), under the
+      // number.
+      public function get ring() : DisplayObject
+      {
+         return getChildAt(0);
       }
       
       internal function frame1() : *

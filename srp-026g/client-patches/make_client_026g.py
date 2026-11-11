@@ -22,9 +22,14 @@ USAGE
         [--check]                    every check, nothing written
         [--pack-zip]                 write the output as a ZIP instead of a folder
         [--bugtrap=<BugTrap.dll>]     defaults to the Rust release build in this repo
+        [--voice=<skhid_voice.dll>]  defaults to the Rust release build in this repo
+                                     (`nix develop ./srp-026g -c bash
+                                     srp-026g/client-voice/build.sh`)
         [--updater=<updater_skhid.exe>]  defaults to the release build in this repo
         [--extractor=<7zr.exe>]      defaults to the copy in this repo; it must be
                                      the file the updater is built to run
+        [--dxvk=<dxvk-3.1.1.tar.gz>] DXVK's release archive; by default the copy in
+                                     ~/.cache/skhid, downloaded from GitHub once
         [--site=https://<host>]      the server's web page; https://<host of --server>
                                      when not given
         [--no-launcher]              without the launcher and its updater
@@ -53,20 +58,30 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
     <output>/game/binaries/x86/play_skhid.bat
         starts it from that folder (the client finds its certificate by a
         path relative to the working directory) with the launch line:
-        survarium_skhid.exe -mt_allocator=768 -minimum_resources_memory_size=768
+        survarium_skhid.exe -minimum_resources_memory_size=768
         Full builds use the embedded server; -server=host:port can still
         override it. Cert-only passes -server= at launch as before.
-        (-mt_allocator: the global multithreaded arena, 376 MiB by
-        default, which map loading ran out of in upstream's live runs;
-        -minimum_resources_memory_size: the resources arenas' floor.
-        Two different arenas: docs/SRP-026G.md.)
+        (-minimum_resources_memory_size: the resources arenas' floor. The
+        global multithreaded arena is the exe's own, at least 1024 MiB
+        (patch 129), and no launch line names it: docs/SRP-026G.md.)
     <output>/game/binaries/x86/bugtrap.dll
         the Rust SRP crash reporter; saves zipped dumps locally; Submit Bug opens SRP Discord in the browser.
+    <output>/game/binaries/x86/skhid_voice.dll
+        voice chat (../client-voice, exe patch 66): the exe loads it at the
+        first match; without it voice is off. Built by client-voice/build.sh
+        in the pinned Nix shell; its exports are checked here.
     <output>/game/binaries/x86/play_skhid.sh
         the Linux launcher: creates a local Wine prefix, installs DXVK through
         Winetricks and launches with the same server and language as the batch file.
     <output>/LINUX.txt
         Linux setup and troubleshooting instructions.
+    <output>/game/binaries/x86/play_skhid_mac.sh
+        the macOS (Apple silicon) launcher: downloads a pinned Wine (athei's
+        build of CrossOver 26.3's sources, DXMT inside) and the raw-mouse Mac
+        driver once, creates a local Wine prefix and launches with the same
+        server as the batch file.
+    <output>/MACOS.txt
+        macOS setup and troubleshooting instructions.
     <output>/game/resources/ssl/survarium_login_server.crt
         srp's login certificate (beside this script; the same file as in ../certs): the client accepts the
         login server only with this very file.
@@ -86,6 +101,10 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
         compiled into the updater. This tool refuses another file.
     <output>/game/binaries/x86/updater_skhid.url
         the server it asks: --site.
+    <output>/game/binaries/x86/dxvk/d3d8.dll, d3d9.dll, d3d10core.dll, d3d11.dll, dxgi.dll
+        DXVK's 32-bit DLLs, unchanged (DXVK_VERSION, pinned): the game loads
+        them from there at its start when the Settings' Renderer is Vulkan/DXVK
+        (../docs/notes/dxvk-option.md).
     <output>/game/binaries/x86/launcher_skhid/index-*.html
         what the launcher shows while and when the server's page does not
         load (launcher/launcher_pages.py).
@@ -99,8 +118,12 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
         (Skhid-without-updater.bat here, with the files of --downloads
         written in at its end: `#skhid-file <name> <sha256> <size> <url>...`).
     <output>/Skhid.sh
-        the same for Linux (Skhid.sh beside this script): `bash Skhid.sh`
-        runs play_skhid.sh from wherever it is called, with its arguments.
+        the same for Linux and macOS (Skhid.sh beside this script): `bash Skhid.sh`
+        runs play_skhid.sh (play_skhid_mac.sh on macOS) from wherever it is
+        called, with its arguments.
+    <output>/Skhid.command
+        for macOS: double-clicked in Finder, it opens Terminal and runs
+        `bash Skhid.sh launcher` (Skhid.command here).
     <output>/VPN.txt
         for a player whose provider blocks the server (Russia): which
         programs to put in a VPN's split tunnelling, how in the usual VPN
@@ -146,10 +169,13 @@ updater downloads the original game from its pinned mirror when it is missing.
 """
 
 import hashlib
+import io
 import os
 from pathlib import Path
 import re
 import sys
+import tarfile
+import urllib.request
 import zipfile
 
 import patch_026g as P
@@ -168,6 +194,21 @@ EXTRACTOR_NAME = "7zr.exe"
 EXTRACTOR_EXE = os.path.abspath(os.path.join(HERE, "..", "..", "client", "updater", "extractor", EXTRACTOR_NAME))
 EXTRACTOR_SIZE = 602624
 EXTRACTOR_SHA256 = "256feca8e274e5da655e2a284fabafd9f554365eb164862089dacd4e8276d282"
+# DXVK (../docs/notes/dxvk-option.md): the release archive and its x32 DLLs,
+# the ones `winetricks dxvk` installs (d3d8, d3d9, d3d10core, d3d11, dxgi),
+# pinned. The game loads them from dxvk\ when its Renderer is Vulkan/DXVK
+# (exe patch 83's DXVK_DLLS; a test here compares the names).
+DXVK_VERSION = "3.1.1"
+DXVK_URL = f"https://github.com/doitsujin/dxvk/releases/download/v{DXVK_VERSION}/dxvk-{DXVK_VERSION}.tar.gz"
+DXVK_SHA256 = "40565b4a724aadc4433fa4e010b4b23916d9b1f1baeee64e17186db94f54e608"
+DXVK_DLLS = {
+    "d3d8.dll": "9152ba43386e756790a66f61cdcee01b3287d156d4161c7456d816faa82fc364",
+    "d3d9.dll": "265888c31ca78dffa290c39cb7e50bfb02762590e41927906e46fb32f01497fa",
+    "d3d10core.dll": "110c41a5f67a0ab6d4eea586708883ce05aede204a0df6665e6362669079c2ba",
+    "d3d11.dll": "f44543cbe5c40202915a02ed6e9ac8140c3524e846ae67b01f6faa79485d1fd3",
+    "dxgi.dll": "abd1449dc28d536a4289c256ae7f4b6bbd15fa552792b7170c2ddece473c8bda",
+}
+DXVK_CACHE = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache", "skhid", f"dxvk-{DXVK_VERSION}.tar.gz")
 BUGTRAP_DLL = os.path.abspath(os.path.join(
     HERE, "..", "..", "client", "bugtrap", "target", "i686-win7-windows-msvc", "release", "BugTrap.dll"))
 # Where the original game is had by hand: the patches server's address of its
@@ -185,8 +226,11 @@ STARTER = "Skhid.bat"
 WITHOUT_UPDATER = "Skhid-without-updater.bat"
 CERT_REL = os.path.join("resources", "ssl", "survarium_login_server.crt")
 LINUX_LAUNCHER = os.path.join("game", EXE_DIR, "play_skhid.sh")
-# The same for Linux, run as `bash Skhid.sh` beside the `game` folder.
+MAC_LAUNCHER = os.path.join("game", EXE_DIR, "play_skhid_mac.sh")
+# The same for Linux and macOS, run as `bash Skhid.sh` beside the `game` folder.
 LINUX_STARTER = "Skhid.sh"
+# The launcher's starter for a double-click in macOS's Finder.
+MAC_STARTER = "Skhid.command"
 # For a player who cannot reach the server: what to put in a VPN's split
 # tunnelling, and the firewall rules (beside Skhid.bat).
 VPN_HELP = "VPN.txt"
@@ -197,8 +241,8 @@ DEFENDER_SETUP = "Skhid-defender-setup.cmd"
 # For a player for whom nothing works: the logs and the folder's state in one
 # ZIP to send (beside Skhid.bat).
 COLLECT_LOGS = "Skhid-collect-logs.cmd"
-# What a Linux unpacker makes executable.
-SCRIPTS = (LINUX_LAUNCHER, LINUX_STARTER)
+# What a Linux or macOS unpacker makes executable.
+SCRIPTS = (LINUX_LAUNCHER, MAC_LAUNCHER, LINUX_STARTER, MAC_STARTER)
 
 
 def sha256(data):
@@ -219,6 +263,31 @@ def read_bugtrap(path):
             or int.from_bytes(data[pe + 24:pe + 26], "little") != 0x10b
             or not int.from_bytes(data[pe + 22:pe + 24], "little") & 0x2000):
         sys.exit(f"{path}: expected a 32-bit x86 Windows DLL")
+    return data
+
+
+VOICE_DLL = os.path.abspath(os.path.join(HERE, "..", "target-voice", "i686-win7-windows-msvc", "release", "skhid_voice.dll"))
+# What patch 66 asks of the DLL by name (the shared voice-abi crate).
+VOICE_EXPORTS = (b"sv_version", b"sv_start", b"sv_stop", b"sv_ptt", b"sv_settings", b"sv_radio", b"sv_mute",
+                 b"sv_talking", b"sv_slot", b"sv_voice_id")
+
+
+def read_voice(path):
+    """skhid_voice.dll: a 32-bit x86 DLL that exports every function patch 66 asks for."""
+    try:
+        with open(path, "rb") as dll:
+            data = dll.read()
+    except OSError as e:
+        sys.exit(f"{path}: cannot read skhid_voice.dll ({e}). Build it with `nix develop ./srp-026g -c bash "
+                 "srp-026g/client-voice/build.sh`, or pass --voice=<path>.")
+    pe = int.from_bytes(data[0x3c:0x40], "little")
+    if (len(data) < 64 or data[:2] != b"MZ" or pe + 26 > len(data) or data[pe:pe + 4] != b"PE\0\0"
+            or int.from_bytes(data[pe + 4:pe + 6], "little") != 0x14c
+            or not int.from_bytes(data[pe + 22:pe + 24], "little") & 0x2000):
+        sys.exit(f"{path}: expected a 32-bit x86 Windows DLL")
+    missing = [name.decode() for name in VOICE_EXPORTS if name + b"\0" not in data]
+    if missing:
+        sys.exit(f"{path}: not skhid_voice.dll: no {', '.join(missing)}")
     return data
 
 
@@ -257,6 +326,37 @@ def read_extractor(path):
     return data
 
 
+def read_dxvk(path=None):
+    """DXVK's DLLs, {name: bytes}, from its release archive: `path`, else the
+    cache, downloaded into it the first time. The archive and each DLL must be
+    the pinned ones."""
+    if path is None and not DXVK_CACHE.is_file():
+        print(f"downloading {DXVK_URL}")
+        try:
+            with urllib.request.urlopen(DXVK_URL, timeout=120) as answer:
+                data = answer.read()
+        except OSError as e:
+            sys.exit(f"{DXVK_URL}: cannot download DXVK ({e}); pass --dxvk=<dxvk-{DXVK_VERSION}.tar.gz>")
+        if sha256(data) != DXVK_SHA256:
+            sys.exit(f"{DXVK_URL}: not the pinned archive (sha256 {sha256(data)}, expected {DXVK_SHA256})")
+        DXVK_CACHE.parent.mkdir(parents=True, exist_ok=True)
+        part = DXVK_CACHE.with_suffix(".part")
+        part.write_bytes(data)
+        part.replace(DXVK_CACHE)
+    path = Path(path or DXVK_CACHE)
+    data = path.read_bytes()
+    if sha256(data) != DXVK_SHA256:
+        sys.exit(f"{path}: not DXVK {DXVK_VERSION}'s release archive (sha256 {DXVK_SHA256})")
+    dlls = {}
+    with tarfile.open(fileobj=io.BytesIO(data)) as archive:
+        for name, digest in DXVK_DLLS.items():
+            dll = archive.extractfile(f"dxvk-{DXVK_VERSION}/x32/{name}").read()
+            if sha256(dll) != digest:
+                sys.exit(f"{path}: x32/{name} is not the pinned file (sha256 {digest})")
+            dlls[name] = dll
+    return dlls
+
+
 def game_root(folder):
     """The folder that holds binaries/x86/survarium.exe: `folder` or its `game`."""
     for root in (folder, os.path.join(folder, "game")):
@@ -277,7 +377,7 @@ def parse_server(text):
 def game_arguments(server, embedded=False):
     """What the game is started with after its language."""
     return (("" if embedded else f"-server={server} ")
-            + "-mt_allocator=768 -minimum_resources_memory_size=768")
+            + "-minimum_resources_memory_size=768")
 
 
 def launch_line(server, embedded=False):
@@ -398,8 +498,8 @@ def russian_script(name):
     return script
 
 
-def sh(server, embedded=False):
-    with open(os.path.join(HERE, "play_skhid.sh"), "rb") as source:
+def sh(server, embedded=False, name="play_skhid.sh"):
+    with open(os.path.join(HERE, name), "rb") as source:
         # Windows checkouts may use CRLF; Bash and the substitutions need LF.
         script = source.read().replace(b"\r\n", b"\n")
     return script.replace(
@@ -450,6 +550,8 @@ def readme(server, description, files, embedded=False, site=None):
             "   which downloads a missing game and looks for updates first). For a new",
             "   installation, use the launcher first. See LINUX.txt for setup and",
             "   troubleshooting.",
+            f"   macOS (Apple silicon): double-click {MAC_STARTER} (or the same commands",
+            "   in Terminal); the first start downloads Wine for macOS. See MACOS.txt.",
             "3. Sign in with any user name and password. A new name is registered on its",
             "   first sign-in; remember the password.",
             "",
@@ -470,11 +572,13 @@ def readme(server, description, files, embedded=False, site=None):
             f"{STARTER} beside the `game` folder: it starts the launcher, nothing else.",
             f"{WITHOUT_UPDATER} beside it: installs, updates and starts the game without",
             "the launcher and the updater.",
-            f"{LINUX_STARTER} beside it, for Linux: it runs play_skhid.sh, nothing else.",
+            f"{LINUX_STARTER} beside it, for Linux and macOS: it runs play_skhid.sh",
+            f"(play_skhid_mac.sh on macOS), nothing else; {MAC_STARTER} runs it from Finder.",
             "In game\\binaries\\x86: survarium_skhid.exe (the game for this server),",
             "launcher_skhid.exe, updater_skhid.exe with updater_skhid.url, the folder",
-            "launcher_skhid (the launcher's own pages), and play_skhid.bat and",
-            "play_skhid.sh, which start the game alone, without looking for updates.",
+            "launcher_skhid (the launcher's own pages), and play_skhid.bat,",
+            "play_skhid.sh and play_skhid_mac.sh, which start the game alone, without",
+            "looking for updates.",
             "7zr.exe is the standalone extractor of 7-Zip, unchanged: the updater",
             "unpacks the original game with it, and runs it only if it is exactly that",
             "file. 7-Zip Copyright (C) 1999-2025 Igor Pavlov. It is free software under",
@@ -511,6 +615,8 @@ def readme(server, description, files, embedded=False, site=None):
             "3. Windows: double-click game\\binaries\\x86\\play_skhid.bat.",
             "   Linux: install Wine and Winetricks, then run bash play_skhid.sh",
             "   from game/binaries/x86. See LINUX.txt for setup and troubleshooting.",
+            "   macOS (Apple silicon): run bash play_skhid_mac.sh from",
+            "   game/binaries/x86. See MACOS.txt.",
             "   These launchers supply the options the game needs.",
             "4. Sign in with any user name and password. A new name is registered on its",
             "   first sign-in; remember the password.",
@@ -526,7 +632,7 @@ def readme(server, description, files, embedded=False, site=None):
         (f"  Default server: {server} (embedded in survarium_skhid.exe)" if embedded
          else f"  Server: {server} (SERVER in play_skhid.bat)"),
         "  -server=         override the login server (host:port)",
-        "  -mt_allocator=768, -minimum_resources_memory_size=768",
+        "  -minimum_resources_memory_size=768",
         "                   memory for the game, MB (maps need more than the default)",
         "",
         "The rules of the server are on its page:",
@@ -551,9 +657,11 @@ def main():
     options = [a for a in sys.argv[1:] if a.startswith("--")]
     mode, check, server = "section", False, None
     bugtrap_path = BUGTRAP_DLL
+    voice_path = VOICE_DLL
     archive = False
     launcher, updater_path, site = True, UPDATER_EXE, None
     extractor_path = EXTRACTOR_EXE
+    dxvk_path = None
     late_join, revision, required = True, None, None
     downloads = []
     for option in options:
@@ -577,10 +685,14 @@ def main():
             server = parse_server(option[9:])
         elif option.startswith("--bugtrap="):
             bugtrap_path = option[len("--bugtrap="):]
+        elif option.startswith("--voice="):
+            voice_path = option[len("--voice="):]
         elif option.startswith("--updater="):
             updater_path = option[len("--updater="):]
         elif option.startswith("--extractor="):
             extractor_path = option[len("--extractor="):]
+        elif option.startswith("--dxvk="):
+            dxvk_path = option[len("--dxvk="):]
         elif option.startswith("--site="):
             site = L.parse_site(option[len("--site="):])
         elif option == "--no-launcher":
@@ -597,6 +709,7 @@ def main():
         if archive or not os.path.isdir(output) or os.listdir(output):
             sys.exit(f"{output}: output already exists; use a new ZIP or an empty folder")
     bugtrap = read_bugtrap(bugtrap_path)
+    voice = read_voice(voice_path)
 
     # The exe: patch_026g.py refuses anything but the original.
     original = Path(source, EXE_DIR, "survarium.exe").read_bytes()
@@ -624,10 +737,13 @@ def main():
     files = [
         (os.path.join("game", EXE_DIR, "survarium_skhid.exe"), exe),
         (os.path.join("game", EXE_DIR, "bugtrap.dll"), bugtrap),
+        (os.path.join("game", EXE_DIR, "skhid_voice.dll"), voice),
         (os.path.join("game", EXE_DIR, "play_skhid.bat"), bat(server, embedded)),
         (LINUX_LAUNCHER, sh(server, embedded)),
+        (MAC_LAUNCHER, sh(server, embedded, "play_skhid_mac.sh")),
         (os.path.join("game", CERT_REL), srp_cert),
         ("LINUX.txt", Path(HERE, "LINUX.txt").read_bytes()),
+        ("MACOS.txt", Path(HERE, "MACOS.txt").read_bytes()),
     ]
     launcher_description = None
     if launcher:
@@ -645,10 +761,12 @@ def main():
             (os.path.join("game", EXE_DIR, L.UPDATER_NAME), read_updater(updater_path)),
             (os.path.join("game", EXE_DIR, EXTRACTOR_NAME), read_extractor(extractor_path)),
             (os.path.join("game", EXE_DIR, "updater_skhid.url"), (site + "\r\n").encode("ascii")),
+            *((os.path.join("game", EXE_DIR, "dxvk", name), dll) for name, dll in read_dxvk(dxvk_path).items()),
             (STARTER, starter()),
             (WITHOUT_UPDATER, without_updater(downloads)),
             # Windows checkouts may use CRLF; Bash needs LF.
             (LINUX_STARTER, Path(HERE, LINUX_STARTER).read_bytes().replace(b"\r\n", b"\n")),
+            (MAC_STARTER, Path(HERE, MAC_STARTER).read_bytes().replace(b"\r\n", b"\n")),
             (VPN_HELP, vpn_help()),
             (NETWORK_SETUP, russian_script(NETWORK_SETUP)),
             (DEFENDER_SETUP, russian_script(DEFENDER_SETUP)),

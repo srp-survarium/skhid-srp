@@ -126,6 +126,8 @@ pub enum ServerId {
     Important = 0xA4,
     AdminText = 0xA5,
     AdminTextClear = 0xA6,
+    /// `A8`, `A9`: the premium offers; srp makes neither (there is no
+    /// premium account).
     PremiumStore = 0xA8,
     PremiumDiscount = 0xA9,
     SignedOut = 0xAA,
@@ -348,6 +350,11 @@ pub mod limits {
     pub const CLAN_TEAM_MEMBERS: usize = 100;
     /// A clan rank's name (32-byte buffer).
     pub const RANK_NAME: usize = 31;
+    /// A clan member's display name in `read_clan_info`: a 32-byte record
+    /// field (stride 0x22, name at +0..+0x20), like the rank name -- NOT the
+    /// 64-byte account-name buffer `NAME` guards. A member whose account name
+    /// is 32..=63 would otherwise overflow every other member's client.
+    pub const CLAN_MEMBER_NAME: usize = 31;
     /// Items of a shop record.
     pub const SHOP_RECORD_ITEMS: usize = 5;
     /// The search properties of 0x85.

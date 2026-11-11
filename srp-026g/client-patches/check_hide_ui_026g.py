@@ -68,12 +68,13 @@ HANDLER, WORLD, HUD, LOBBY = 0x20000000, 0x20010000, 0x20020000, 0x20030000
 HOLDER, UI, MOVIE, BINDER, KEYS = 0x20040000, 0x20041000, 0x20042000, 0x20050000, 0x20060000
 STACK, SENTINEL = 0x21000000, 0x22000000
 # kernel32's imports the patches' shared code reaches at a hook (the Lock's
-# GetCurrentThreadId; patch 88's clock, QueryPerformanceCounter / -Frequency):
+# GetCurrentThreadId; patch 88's clock, QueryPerformanceCounter / -Frequency; the log's CreateFileA):
 # one thread, the counter 0 at 10 MHz; a harness of its own sets them anew
 IMPORTS = 0x3E000000
 IMPORT_STUBS = ((0x870118, b"\xB8\x01\x00\x00\x00\xC3"),
                 (0x870158, b"\x8B\x44\x24\x04\xC7\x00\x00\x00\x00\x00\xC7\x40\x04\x00\x00\x00\x00\xB0\x01\xC2\x04\x00"),
-                (0x870150, b"\x8B\x44\x24\x04\xC7\x00\x80\x96\x98\x00\xC7\x40\x04\x00\x00\x00\x00\xB0\x01\xC2\x04\x00"))
+                (0x870150, b"\x8B\x44\x24\x04\xC7\x00\x80\x96\x98\x00\xC7\x40\x04\x00\x00\x00\x00\xB0\x01\xC2\x04\x00"),
+                (0x870048, b"\xB8\xFF\xFF\xFF\xFF\xC2\x1C\x00"))   # the patches' log: CreateFileA fails, nothing written
 REGS = (UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI,
         UC_X86_REG_EBP)
 GAME = dict(zip(REGS, (0x0A0A0A0A, 0x0C0C0C0C, 0x0D0D0D0D, 0x0B0B0B0B, 0x05050505, 0x0E0E0E0E, 0x0019FF00)))
@@ -449,10 +450,15 @@ def main():
     b_rows, b_calls = p_opt.table()
     new = [{"action_id": 0x19, "group_id": 2, "type": 1, "label": "st_hide_interface_action"},
            {"action_id": 0x23, "group_id": 2, "type": 1, "label": "st_hold_artifact_action"}]
-    report(len(a_rows) == 40 and len(b_rows) == 42 and b_rows[:40] == a_rows and b_rows[40:] == new
+    # push-to-talk (47h): the original's row is the chat group's with its key button disabled (type 0);
+    # the build's is a game key that can be set
+    ptt = [row for row in a_rows if row["action_id"] == 0x47]
+    moved = [dict(row, group_id=2, type=1) if row["action_id"] == 0x47 else row for row in a_rows]
+    report(len(a_rows) == 40 and len(b_rows) == 42 and b_rows[:40] == moved and b_rows[40:] == new
+           and [(row["group_id"], row["type"]) for row in ptt] == [(1, 0)]
            and [c[2] for c in b_calls] == [b"root.set_keybindings"],
-           f"the list sent to the movie (root.set_keybindings): the original's {len(a_rows)} rows, then "
-           f"{b_rows[40:]}")
+           f"the list sent to the movie (root.set_keybindings): the original's {len(a_rows)} rows, "
+           f"push-to-talk's (47h) in the game group with type 1, then {b_rows[40:]}")
     s_opt.call(KEYS_FROM_BINDER, [OPTIONS, 1])
     p_opt.call(KEYS_FROM_BINDER, [OPTIONS, 1])
     a_keys, b_keys = s_opt.set_keybind_calls(), p_opt.set_keybind_calls()

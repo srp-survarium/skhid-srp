@@ -8,8 +8,9 @@
 //! lowest first. It takes the files the server reads ([`is_read`]): every
 //! file under `gameplay/`, the game's texts in the languages of srp's web
 //! page ([`LOCALIZATIONS`]), and each project's `client_project` cut to its
-//! `server_objects` ([`server_objects_of`]): srp reads a map's respawn
-//! points and battery containers there, and the rest of a project, its
+//! `server_objects` and the objects a world saves ([`objects_of`]): srp
+//! reads a map's respawn points and battery containers there, and checks a
+//! world's game objects against the others; the rest of a project, its
 //! world (0.6 to 1.2 MB each, 60 MB for 0.26g's 73), is the client's. Each
 //! file is read from the archive whose file is seen, and checked against
 //! that archive's table: its size, and the table's CRC-32 of its bytes
@@ -44,11 +45,45 @@ use crate::{Archive, Error, crc32};
 /// The files of `gameplay/` are read whole.
 pub const GAMEPLAY: &str = "gameplay/";
 /// A project is there when `projects/<project>/client_project` is; the
-/// data keeps its `server_objects` ([`server_objects_of`]).
+/// data keeps its `server_objects` and its world's objects ([`objects_of`]).
 pub const PROJECTS: &str = "projects/";
 pub const PROJECT_MARKER: &str = "/client_project";
 /// The table of a project the data keeps.
 pub const SERVER_OBJECTS: &str = "server_objects";
+/// The list of a project's client objects, of which the data keeps those a
+/// world saves ([`WORLD_OBJECTS`]).
+pub const CLIENT_OBJECTS: &str = "client_objects";
+/// The `game_object_type`s of the client objects a world saves in its game
+/// objects (`simple_game_project::insert` 0x285750; effect zones save
+/// nothing): srp reads a world's game objects with them.
+pub const WORLD_OBJECTS: [&str; 3] = ["damage_zone", "resupply_zone", "generic_anomaly_core"];
+/// The other `game_object_type`s of the players' projects (stock 0.26g and
+/// every live patch, 116 projects, 2026-11-07): these save nothing in a
+/// world's game objects. Every upload of 118 live recordings of rev 50 (over
+/// 50,000 worlds of 40 maps, every type here but `lpv_occluder` and `track`
+/// on them) reads exactly with [`WORLD_OBJECTS`] alone; `track` is the lobby
+/// scene's camera, `lpv_occluder` lighting (LIKELY, by its name). A type of
+/// neither list stops the data ([`objects_of`]): whether the game saves it
+/// is not known, and if it does, srp would refuse every world of the map.
+pub const UNSAVED_OBJECTS: [&str; 17] = [
+    "ambient_light",
+    "artefact_container",
+    "collision_geometry",
+    "decal",
+    "effect_zone",
+    "environment",
+    "environment_probe",
+    "light",
+    "lpv_occluder",
+    "object_sound",
+    "particle",
+    "skeleton_visual",
+    "track",
+    "vegetation",
+    "victory_items_spawn_box",
+    "volume_fog",
+    "wire_set",
+];
 /// The game's texts in the languages of srp's web page (its names of the
 /// maps and modes), read whole.
 pub const LOCALIZATIONS: [&str; 2] = [
@@ -58,12 +93,13 @@ pub const LOCALIZATIONS: [&str; 2] = [
 /// What the data was made of ([`Provenance`]).
 pub const PROVENANCE: &str = "srp/provenance";
 /// The length of every animation clip ([`ClipLengths`]). A file added to
-/// data 3: data made without it is still data 3, and has no lengths.
+/// data 3 (and kept in data 4): data made without it has no lengths.
 pub const CLIP_LENGTHS: &str = "srp/clip_lengths";
-/// The first line of [`PROVENANCE`]. Data 3 keeps each project's
-/// `server_objects` and the [`LOCALIZATIONS`]; data 2 had the projects
-/// empty, and is refused by name.
-pub const FORMAT: &str = "skhid server game data 3";
+/// The first line of [`PROVENANCE`]. Data 4 keeps each project's
+/// `server_objects` and its [`WORLD_OBJECTS`], and the [`LOCALIZATIONS`];
+/// data 3 had the server objects alone, data 2 the projects empty: both are
+/// refused by name.
+pub const FORMAT: &str = "skhid server game data 4";
 
 /// The game's archive, in its game folder.
 pub const RESOURCES_DB: &str = "resources.db";
@@ -81,20 +117,47 @@ pub fn is_read(path: &str) -> bool {
 
 /// The `client_project` `bytes`, a binary config, cut to its
 /// `server_objects` as they are (its respawn points, battery containers,
-/// spawners and stations): a config of that one table, or of none for a
-/// project without it (`lobby_scene/day`). A project that is not a config
-/// is refused: the game could not load it either.
-pub fn server_objects_of(bytes: &[u8]) -> Result<Vec<u8>, String> {
+/// spawners and stations) and its `client_objects` of the
+/// [`WORLD_OBJECTS`] types, each as it is, in their order: a config of those
+/// two tables, or of what the project has of them (`lobby_scene/day` has
+/// neither). A project that is not a config is refused: the game could not
+/// load it either.
+pub fn objects_of(bytes: &[u8]) -> Result<Vec<u8>, String> {
     use binary_config_parser::tree::ConfigValue;
     let project = ConfigValue::parse(bytes).map_err(|cause| cause.to_string())?;
     if !matches!(project, ConfigValue::Named(_)) {
         return Err("not a binary config of named values".into());
     }
+    let objects = project.get(CLIENT_OBJECTS).map(ConfigValue::children).unwrap_or_default();
+    for object in &objects {
+        match object.get("game_object_type").and_then(ConfigValue::as_str) {
+            Some(kind) if WORLD_OBJECTS.contains(&kind) || UNSAVED_OBJECTS.contains(&kind) => {}
+            kind => {
+                return Err(format!(
+                    "a client object of type {kind:?}, which srp does not know: whether a world \
+                     saves it in its game objects is not known (resources_db::server::\
+                     WORLD_OBJECTS, UNSAVED_OBJECTS)"
+                ));
+            }
+        }
+    }
+    let saved = |object: &&ConfigValue| {
+        object
+            .get("game_object_type")
+            .and_then(ConfigValue::as_str)
+            .is_some_and(|kind| WORLD_OBJECTS.contains(&kind))
+    };
     let kept = project
         .entries()
         .iter()
-        .filter(|(name, _)| name == SERVER_OBJECTS)
-        .cloned()
+        .filter_map(|(name, value)| match name.as_str() {
+            SERVER_OBJECTS => Some((name.clone(), value.clone())),
+            CLIENT_OBJECTS => Some((
+                name.clone(),
+                ConfigValue::Indexed(value.children().into_iter().filter(saved).cloned().collect()),
+            )),
+            _ => None,
+        })
         .collect();
     ConfigValue::Named(kept)
         .to_bytes()
@@ -435,8 +498,9 @@ impl Provenance {
         let mut lines = text.lines();
         if lines.next() != Some(FORMAT) {
             return Err(content(format!(
-                "{PROVENANCE} does not start {FORMAT:?}: data of another srp-game-data (data 2 kept \
-                 the projects empty: build it again with this srp's srp-game-data)"
+                "{PROVENANCE} does not start {FORMAT:?}: data of another srp-game-data (data 3 kept \
+                 no world objects, data 2 the projects empty: build it again with this srp's \
+                 srp-game-data)"
             )));
         }
         let wrong = |line: &str| content(format!("{PROVENANCE}: a wrong line: {line:?}"));
@@ -732,7 +796,7 @@ pub fn build(db: &Path, patches: &[PatchFile], game: Option<&GameArchive>) -> Re
             )));
         }
         let kept = if path.starts_with(PROJECTS) {
-            server_objects_of(&bytes)
+            objects_of(&bytes)
                 .map_err(|why| content(format!("{}: {path}: {why}", names[index])))?
         } else {
             bytes

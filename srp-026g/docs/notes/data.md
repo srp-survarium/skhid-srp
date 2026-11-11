@@ -395,6 +395,11 @@ Removed keys:
   srp-021d `quests.rs::kind` constants must change.
 - Ids run from 10101 to 41113. Factions: 63/64/121/121 quests.
 - The localization objective keys lost their per-level suffix: `st_*_obj_N` became `st_*_obj`.
+- `ui.icon` is the quest list's icon (PROVEN): the quest reader 0x321310 keeps it at descriptor
+  + 0xB8 (`faction` at + 0x1C), `lobby_menu::add_quest` 0x28DE20 sends it as `quest_icon`, and
+  `QuestListRender` draws frame `quest_icon + 1` of its `questIcon` (SrvQuestSideRenderer's child;
+  15 frames). A faction's emblem in the quest window is frame `faction_id` of SrvQuestFactionTab's
+  `icon` (ButtonQuestFaction). The wiki's quests page shows both (`scripts/wiki/build_icons.py`).
 
 ### static_game_parameters (dump `static_game_parameters.txt`): PROVEN
 - Same structure. `ui_properties` grows from 46 to 57 (props 123–133 added).
@@ -712,7 +717,9 @@ own `GangShop.createItem`) call the same adapter. The UI harness exercises the
 real shop price-list/reconnect path, including zero, negative, positive and
 golden weapons, whose silver bonus is retained.
 This is the weapon's base stat; Bear Arms (skill 112, modifier 62) does not
-rewrite its card, just as it does not change the weapon's weight.
+rewrite its card, just as it does not change the weapon's weight. Held Alt the
+card shows the line as a match has it, a cancelled penalty "-5% -> 0%"
+(`alt-weapon-stats.md`, "Movement speed under Bear Arms").
 
 `weight_ui_026g` caches the same player stamina config at 0x22110F, owned by that
 lobby instance. At 0x2222EB it extends the existing two-number movie callback
@@ -739,7 +746,7 @@ takes into account, as its own indicator ("some might think this is
 associated with weight"). Left of the weight the lobby shows a box of the
 same kind: the weight's frame (`WeightFrame`, the original's bitmap under
 playerWeight) beside the weight's, with "Speed" and "97%" in a second copy
-of the weight's own symbol (`SpeedIndicator`; its fonts, sizes, colours and
+of the weight's own symbol (`KitStatIndicator`; its fonts, sizes, colours and
 baseline; no bar; coral below 100 %, green above). A TextField made in code
 lost the value's size to the style sheet in the game (the owner's 2026-10-29
 screenshot: a small, raised "99%" beside a frameless "Speed"). Its own
@@ -753,8 +760,8 @@ pocket item by its displayed name with the sum of its own modifications
 +5 %"), and the weapon in hand ("AK-74M -5 %"). None at 0; biggest speed-up
 first, biggest slow-down last; green faster, red slower (the item card rows'
 own colours, `ModificatorListRenderer`'s style sheet). The total is summed
-from that list (`SpeedParts.sources`). The weight's tooltip stays the weight's. The Autobuy box's label is as long as its text (the
-symbol's fixed width cut "Automatikus vásárlás"). UI only: no gameplay or
+from that list (`SpeedParts.sources`). The weight's tooltip stays the weight's. Left of the speed's box is the regeneration's, the same kind of box
+([regeneration-box.md](regeneration-box.md); the Autobuy box was there until 2026-11-10). UI only: no gameplay or
 simulation change.
 
 - **The game's rule.** `base_player::movement_speed` 0x2DBB50 returns

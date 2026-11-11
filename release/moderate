@@ -1,0 +1,1061 @@
+#!/usr/bin/env python3
+"""Moderate the live 0.26g server from your machine: who registers, who signs in
+(with addresses), who shares an address, bans, chat mutes, closing sign-ups.
+
+  release/moderate registrations [--since 2h] [-n 20] [--follow]
+  release/moderate joins         [--since 30m] [-n 20] [--follow]   sign-ins and refused ones
+  release/moderate watch [--all] [--every 60]                       suspicious sign-ups and sign-ins, as notices
+  release/moderate who <name | address | range>                    accounts like that name (fuzzy), who shares their address
+  release/moderate bans                                             banned accounts and addresses
+  release/moderate modules [--account A] [--at-most 3] [--log-mb 16]   DLLs and other code in games (patch 125), rarest first
+  release/moderate memory [--account A] [--log-mb 16]              games' memory headroom (patch 126), tightest arena first
+  release/moderate ban <name | address | range> <hours | forever> [--reason R] [--with-ip] [--tell]
+  release/moderate unban <name | address | range> [--with-ip]
+  release/moderate mute <name> <hours | forever> --reason R         the player is told the reason
+  release/moderate unmute <name>
+  release/moderate signups [open | closed]                          no argument: the current state
+  release/moderate reset-password <name>                            its next sign-in sets the new one
+  release/moderate give <name> <item name | id> [count]
+  release/moderate money <name> --silver=+N|-N --reason R             silver only: gold is gone
+
+Lines are plain text, one row each, times in UTC; --json gives one JSON object a line. A sign-up
+or sign-in that looks like a banned player back starts with "!! <why> !!" (red on a terminal,
+not with NO_COLOR; --json: "suspicious"): BANNED IP <address or range>, IP of banned <login>
+(a banned account's last address), name like banned <login> (the names' letters without digits
+or e-mail domain: the same, reversed, one inside the other, or a letter or two apart). Changes
+take --dry-run: the request is shown and not sent, and exit 1 when the page refuses. Python 3, stdlib only (here: nix-shell -p python3).
+
+Reads (registrations, joins, who, bans, modules, memory) run a small read-only Python on the live host: srp.db
+opened read-only, and only the last --log-mb MB of logs/srp.log (registrations) and
+logs/login.log (sign-ins), logs/modules.log* (modules), logs/memory.log* (memory), read by seek, under nice/ionice.
+The live host is small: keep
+--follow at 30 s or more. Changes go through the admin page, POSTed by curl on the jump host
+(the address in SRP_ADMIN_IPS); curl reads the URL and the form from stdin, so neither the token
+nor the secret path is in any command line, and neither is ever printed.
+
+Environment (nothing else is read):
+  SKHID_JUMP        ssh target of the jump host, e.g. root@2.28.121.133
+  SKHID_LIVE        ssh target of the live host as the jump host reaches it, e.g. root@64.176.67.220
+  SKHID_SITE        the site, e.g. https://skhid.link                     (changes only)
+  SRP_ADMIN_PATH    the admin page's secret path                          (changes only)
+  SRP_ADMIN_TOKEN   the admin page's token                                (changes only)
+  SKHID_LIVE_DATA   optional: srp's data folder on the live host
+                    (default /var/lib/docker/volumes/srp26_srp26-data/_data)
+The first three are in private/release/release.env. The admin path and token: the live
+container's environment is the truth (the .env values once gave a 404). In bash:
+  . private/release/release.env; export SKHID_JUMP SKHID_LIVE SKHID_SITE
+  export SRP_ADMIN_PATH="$(ssh "$SKHID_JUMP" "ssh $SKHID_LIVE docker exec srp26-srp26-1 printenv SRP_ADMIN_PATH")"
+  export SRP_ADMIN_TOKEN="$(ssh "$SKHID_JUMP" "ssh $SKHID_LIVE docker exec srp26-srp26-1 printenv SRP_ADMIN_TOKEN")"
+In fish: set -x SRP_ADMIN_TOKEN (ssh $SKHID_JUMP "ssh $SKHID_LIVE docker exec srp26-srp26-1 printenv SRP_ADMIN_TOKEN")
+
+What is not recorded: an account's creation time (only the "Registered new account" log line,
+so older ones than the log read have none); where a successful sign-in came from, in logs
+written before the release that logs it (those rows show the account's last address as last
+saved, marked "last"); wrong passwords carry no address. A change prints the admin page's answer
+line (e.g. "No such user." is a refusal; nothing changed). srp keeps accounts in memory and saves them every
+few minutes, so a brand-new account may not be in srp.db yet ("not saved yet").
+"""
+
+import argparse
+import datetime
+import difflib
+import html
+import ipaddress
+import json
+import os
+import re
+import shutil
+import signal
+import sqlite3
+import subprocess
+import sys
+import time
+
+# Set when this file runs on the live host (`remote` puts it before the
+# source): the request.
+REQUEST = globals().get("REQUEST")
+
+# Suspicious rows (`suspicious`) are red on a terminal (not with NO_COLOR).
+COLOR = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
+
+DEFAULT_DATA ="/var/lib/docker/volumes/srp26_srp26-data/_data"
+
+# The words the login server takes a ban's reason by (BAN_WORDS in
+# srp-026g/servers/login-server/src/v026g.rs), with the text the player sees
+# (st_srp_ban_reason_*, English). The first row with a word wins; none: the
+# default, "Decision of the administration."
+BAN_WORDS = [
+    ("Harassing or team-killing players who don't farm.", ["farm"]),
+    ("Cheats or other prohibited software.", ["cheat", "hack", "aimbot", "wallhack", "exploit"]),
+    ("Killing teammates.", ["teamkill", "team kill", "team-kill"]),
+    ("Selling or trying to sell an account.", ["trading", "account sale", "selling"]),
+    ("Real-life threats.", ["threat", "treating", "real life", "reallife"]),
+    ("Spreading false information.", ["incorrect", "false info", "misinform"]),
+    ("Racism or Nazism.", ["racism", "fascism", "faschism", "nazi"]),
+    ("Political discussion.", ["politic"]),
+    ("Advertising.", ["advert"]),
+    ("Spam or flooding.", ["flood", "spam"]),
+    ("An unacceptable name.", ["nickname", "nick name", "user name", "username"]),
+    ("Insults or provocation.", ["insult", "abus", "harass"]),
+    ("Obscene language.", ["language", "swear", "profan", "obscen"]),
+]
+
+
+# ---- on the live host: read-only ------------------------------------------
+
+
+def remote_main(request):
+    now = time.time()
+    data = request["data"]
+    db = sqlite3.connect("file:%s/srp.db?mode=ro" % data, uri=True)
+    db.row_factory = sqlite3.Row
+    nets = []
+    for row in db.execute("SELECT net, until, reason FROM ip_bans"):
+        if row["until"] is None or row["until"] > now:
+            try:
+                nets.append((ipaddress.ip_network(row["net"], strict=False), dict(row)))
+            except ValueError:
+                pass
+    kind = request["kind"]
+    out = {}
+    if kind in ("registrations", "joins", "watch"):
+        banned = [
+            {"id": row["id"], "login": row["login"], "last_ip": row["last_ip"],
+             "cores": cores([row["login"], row["name"], row["game_name"]])}
+            for row in db.execute(
+                "SELECT * FROM accounts WHERE banned = 1 AND (banned_until IS NULL OR banned_until > ?)", (now,))
+        ]
+        logs = {"registrations": "srp.log", "joins": "login.log"}
+        pos = request.get("pos") or {}
+        out["pos"], out["events"], firsts = {}, [], []
+        for each in list(logs) if kind == "watch" else [kind]:
+            text, out["pos"][each] = read_log("%s/logs/%s" % (data, logs[each]), pos.get(each), request["window"])
+            first = re.search(r"^(\d{4}-\d\d-\d\dT\S+Z) ", text, re.M)
+            if first:
+                firsts.append(first.group(1))
+            for event in registrations(db, text) if each == "registrations" else joins(db, text):
+                event["account"] = account(db, nets, event["account"], now)
+                event["suspicious"] = suspicious(event, nets, banned)
+                out["events"].append(event)
+        out["events"].sort(key=lambda event: event["at"])
+        out["first"] = max(firsts) if firsts else None
+    elif kind == "who":
+        out["accounts"] = [account(db, nets, row, now) for row in find(db, request["target"])]
+    elif kind == "bans":
+        rows = db.execute(
+            "SELECT * FROM accounts WHERE banned = 1 AND (banned_until IS NULL OR banned_until > ?) ORDER BY id",
+            (now,),
+        )
+        out["accounts"] = [account(db, nets, row, now) for row in rows]
+        out["nets"] = [ban for _, ban in nets]
+    elif kind == "modules":
+        out["text"] = read_newest("%s/logs/modules.log" % data, request["window"])
+    elif kind == "memory":
+        out["memory"] = memory_summary(read_newest("%s/logs/memory.log" % data, request["window"]), request.get("account"))
+    sys.stdout.write(json.dumps(out))
+
+
+def read_newest(path, window):
+    """The whole lines of the last `window` bytes of `path` and its rotated
+    files before it (.1, .2 ...), oldest first. Read by seek."""
+    parts, left, n = [], window, 0
+    while left > 0:
+        name = path if n == 0 else "%s.%d" % (path, n)
+        if not os.path.exists(name):
+            break
+        size = os.stat(name).st_size
+        start = max(0, size - left)
+        with open(name, "rb") as f:
+            f.seek(start)
+            chunk = f.read()
+        if start > 0:
+            chunk = chunk.split(b"\n", 1)[1] if b"\n" in chunk else b""
+        parts.append(chunk)
+        left -= size
+        n += 1
+    return b"".join(reversed(parts)).decode("utf-8", "replace")
+
+
+MEMORY_PART = re.compile(
+    r"^(?P<at>\d{4}-\d\d-\d\dT\S+Z) \[\w+\] (?P<name>.+) \(account (?P<id>\d+)\), match (?P<match>0x[0-9a-f]+), "
+    r"(?P<moment>loaded|ended), part \d+/\d+: (?P<list>.*)$", re.M)
+MEMORY_PROCESS = re.compile(r"^process free (\d+) largest (\d+) video (\d+)$")
+MEMORY_ARENA = re.compile(r'^arena "((?:[^"\\]|\\.)*)" size (\d+) (?:used (\d+) largest (\d+)|counted (\d+)|unknown)$')
+
+
+def memory_summary(text, account=None):
+    """The tightest each arena and the address space came, across the memory
+    reports in `text` (memory.log, client patch 126; one line a part): per
+    arena the reports, the unknown ones, the least left (size - used) and the
+    least largest free block, each with who, when and at which moment; for
+    the process the least largest free region and free total, and the least
+    video budget. `account`: only its reports (name or id)."""
+    arenas, process = {}, {"reports": 0}
+    target = account.casefold() if account else None
+
+    def at(line):
+        return {"who": line["name"], "account": int(line["id"]), "at": line["at"], "match": line["match"],
+                "moment": line["moment"]}
+
+    def least(row, key, value, line):
+        if key not in row or value < row[key]["value"]:
+            row[key] = dict(at(line), value=value)
+
+    for line in MEMORY_PART.finditer(text):
+        if target and target not in (line["id"], line["name"].casefold()):
+            continue
+        for entry in line["list"].split(" | "):
+            p, a = MEMORY_PROCESS.match(entry), MEMORY_ARENA.match(entry)
+            if p:
+                free, largest, video = (int(x) for x in p.groups())
+                process["reports"] += 1
+                least(process, "largest_free", largest, line)
+                least(process, "free", free, line)
+                least(process, "video", video, line)
+            elif a:
+                name = re.sub(r"\\(.)", r"\1", a.group(1))
+                size = int(a.group(2))
+                row = arenas.setdefault(name, {"name": name, "reports": 0, "unknown": 0, "size": 0})
+                row["reports"] += 1
+                row["size"] = max(row["size"], size)
+                used = a.group(3) or a.group(5)
+                if used is None:
+                    row["unknown"] += 1
+                    continue
+                least(row, "left", size - int(used), line)
+                if a.group(4) is not None:
+                    least(row, "largest_free", int(a.group(4)), line)
+    return {"process": process, "arenas": list(arenas.values())}
+
+
+def suspicious(event, nets, banned):
+    """Why the event looks like a banned player back: its address (logged,
+    else its account's last) is a banned address or range or another banned
+    account's last one, or its names are like a banned account's. Empty: none."""
+    acc = event["account"] or {}
+    addr = event.get("addr") or acc.get("last_ip")
+    why = []
+    net = ip_ban(nets, addr) if addr else None
+    if net:
+        why.append("BANNED IP %s" % net)
+    mine = cores([event["name"], acc.get("login"), acc.get("name"), acc.get("character")])
+    same_ip, like = [], []
+    for other in banned:
+        if other["id"] == acc.get("id"):
+            continue
+        if addr and other["last_ip"] == addr:
+            same_ip.append(other["login"])
+        elif any(alike(a, b) for a in mine for b in other["cores"]):
+            like.append(other["login"])
+    if same_ip:
+        why.append("IP of banned " + ", ".join(same_ip))
+    if like:
+        why.append("name like banned " + ", ".join(like))
+    return why
+
+
+def cores(names):
+    """A name's letters, lower case, without an e-mail's domain:
+    Wolfie_99@example.com -> wolfie. Shorter than 4 letters: nothing to compare."""
+    found = set()
+    for name in names:
+        core = "".join(c for c in (name or "").split("@")[0].lower() if c.isalpha())
+        if len(core) >= 4:
+            found.add(core)
+    return found
+
+
+def alike(a, b):
+    """The same core, reversed (flow, wolf), one inside the other (wolfie,
+    wolfiepro; 5 letters at least), or a letter apart, two from 6 letters
+    (wolfie, golfia)."""
+    short, long_ = sorted((a, b), key=len)
+    if a == b or a == b[::-1] or (len(short) >= 5 and short in long_):
+        return True
+    most = 1 if len(short) < 6 else 2
+    if len(long_) - len(short) > most:
+        return False
+    row = list(range(len(long_) + 1))
+    for i, c in enumerate(short, 1):
+        prev, row[0] = row[0], i
+        for j, d in enumerate(long_, 1):
+            prev, row[j] = row[j], min(row[j] + 1, row[j - 1] + 1, prev + (c != d))
+    return row[-1] <= most
+
+
+def read_log(path, pos, window):
+    """The log's whole lines after `pos` ([inode, offset], from the last
+    read), at most `window` bytes from its end; no `pos`: its last `window`
+    bytes, the rotated log's (.1) end first if it is shorter. Read by seek,
+    never the whole file. Returns (text, new pos)."""
+    st = os.stat(path)
+    older = path + ".1"
+    parts = []  # (file, start, whether start is a line's start)
+    if pos and pos[0] == st.st_ino and pos[1] <= st.st_size:
+        start = max(pos[1], st.st_size - window)
+        parts.append((path, start, start == pos[1]))
+    else:
+        if pos and os.path.exists(older) and os.stat(older).st_ino == pos[0]:
+            parts.append((older, pos[1], True))
+        elif not pos and st.st_size < window and os.path.exists(older):
+            parts.append((older, max(0, os.stat(older).st_size - (window - st.st_size)), False))
+        start = 0 if pos else max(0, st.st_size - window)
+        parts.append((path, start, start == 0))
+    data = b""
+    end = st.st_size
+    for name, start, whole in parts:
+        with open(name, "rb") as f:
+            f.seek(start)
+            chunk = f.read(st.st_size - start) if name == path else f.read()
+        if not whole:
+            chunk = chunk.split(b"\n", 1)[1] if b"\n" in chunk else b""
+        if name == path:
+            # A line still being written is read the next time.
+            unfinished = len(chunk) - (chunk.rfind(b"\n") + 1)
+            chunk = chunk[: len(chunk) - unfinished]
+            end = st.st_size - unfinished
+        data += chunk
+    return data.decode("utf-8", "replace"), [st.st_ino, end]
+
+
+LINE = re.compile(r"^(\d{4}-\d\d-\d\dT[\d:.]+Z) \[\w+\] (.*)$", re.M)
+
+
+def registrations(db, text):
+    events = []
+    for at, message in LINE.findall(text):
+        if message.startswith("Registered new account "):
+            name = message[len("Registered new account ") :].strip()
+            row = db.execute("SELECT * FROM accounts WHERE login = ? COLLATE NOCASE", (name.lower(),)).fetchone()
+            events.append({"at": at, "kind": "registered", "name": name, "account": row})
+    return events
+
+
+JOIN_LINES = [
+    ("joined", None, re.compile(r"Sign-in: account=0x(?P<id>[0-9a-f]+)(?: from (?P<addr>\S+))? session=")),
+    ("refused", "banned account", re.compile(r"Sign-in of banned account (?P<name>.+) from (?P<addr>\S+) refused$")),
+    ("refused", "banned address", re.compile(r"Sign-in of (?P<name>.+) from banned address (?P<addr>\S+) \((?P<detail>[^)]*)\) refused$")),
+    ("refused", "sign-ups closed", re.compile(r"Sign-in of new user name (?P<name>.+) from (?P<addr>\S+): registration is closed$")),
+    ("refused", None, re.compile(r"Sign-in of (?P<name>.+) from (?P<addr>\S+) refused: (?P<detail>.+)$")),
+    ("flagged", "stale shell_32.dll in %TEMP%", re.compile(r"Cheat check: (?P<name>.+) from (?P<addr>\S+) has a stale")),
+]
+
+
+def joins(db, text):
+    events = []
+    last_name = None
+    for at, message in LINE.findall(text):
+        if message.startswith("User name: "):
+            last_name = message[len("User name: ") :]
+            continue
+        for kind, detail, pattern in JOIN_LINES:
+            m = pattern.match(message)
+            if not m:
+                continue
+            found = m.groupdict()
+            said = " ".join(d for d in (detail, found.get("detail")) if d)
+            event = {"at": at, "kind": kind, "detail": said or None}
+            if kind == "joined":
+                row = db.execute("SELECT * FROM accounts WHERE id = ?", (int(found["id"], 16),)).fetchone()
+                event["name"] = row["login"] if row else (last_name or "").strip()
+                event["id"] = int(found["id"], 16)
+            else:
+                event["name"] = found["name"].strip()
+                row = db.execute("SELECT * FROM accounts WHERE login = ? COLLATE NOCASE", (event["name"].lower(),)).fetchone()
+            event["account"] = row
+            if found.get("addr"):
+                event["addr"] = address(found["addr"])
+            events.append(event)
+            break
+    return events
+
+
+def address(peer):
+    """1.2.3.4:5678 or [::ffff:1.2.3.4]:5678 -> 1.2.3.4."""
+    if peer.startswith("[") and "]" in peer:
+        peer = peer[1 : peer.index("]")]
+    elif peer.count(":") == 1:
+        peer = peer.split(":")[0]
+    try:
+        ip = ipaddress.ip_address(peer)
+    except ValueError:
+        return peer
+    return str(ip.ipv4_mapped or ip) if ip.version == 6 else str(ip)
+
+
+def in_net(net, addr):
+    try:
+        ip = ipaddress.ip_address(addr)
+    except (TypeError, ValueError):
+        return False
+    return ip.version == net.version and ip in net
+
+
+def ip_ban(nets, addr):
+    """The banned address or range `addr` is in, if any."""
+    return next((ban["net"] for net, ban in nets if in_net(net, addr)), None)
+
+
+def find(db, target):
+    try:
+        net = ipaddress.ip_network(target, strict=False)
+    except ValueError:
+        net = None
+    if net is not None:
+        rows = db.execute("SELECT * FROM accounts WHERE last_ip IS NOT NULL ORDER BY id").fetchall()
+        return [row for row in rows if in_net(net, row["last_ip"])]
+    # Compared here, not in SQL: its NOCASE and lower() know only Latin.
+    key = target.strip().casefold()
+    scored = []
+    for row in db.execute("SELECT * FROM accounts ORDER BY id"):
+        names = {(n or "").casefold() for n in (row["login"], row["login"].split("@")[0], row["name"], row["game_name"])}
+        best = max(likeness(key, n) for n in names - {""})
+        if best >= 0.6:
+            scored.append((best, row))
+    scored.sort(key=lambda each: (-each[0], each[1]["id"]))
+    return [row for _, row in scored[:30]]
+
+
+def likeness(key, name):
+    """1: the same name; 0.9 to 1: one inside the other; else how alike they
+    are (difflib), at least 0.8 when their letters are (`alike`: wolfie99,
+    Wolfie)."""
+    if key == name:
+        return 1.0
+    if min(len(key), len(name)) >= 3 and (key in name or name in key):
+        return 0.9 + 0.09 * min(len(key), len(name)) / max(len(key), len(name))
+    ratio = difflib.SequenceMatcher(None, key, name).ratio()
+    if any(alike(a, b) for a in cores([key]) for b in cores([name])):
+        ratio = max(ratio, 0.8)
+    return ratio
+
+
+def account(db, nets, row, now):
+    if row is None:
+        return None
+
+    def holds(flag, until):
+        return bool(flag) and (until is None or until > now)
+
+    found = {
+        "id": row["id"],
+        "login": row["login"],
+        "name": row["name"],
+        "character": row["game_name"],
+        "last_ip": row["last_ip"],
+        "banned": {"until": row["banned_until"], "reason": row["ban_reason"]}
+        if holds(row["banned"], row["banned_until"])
+        else None,
+        "muted": {"until": row["chat_ban_until"], "reason": row["chat_ban_reason"]}
+        if holds(row["chat_ban_reason"] is not None, row["chat_ban_until"])
+        else None,
+        "ip_ban": ip_ban(nets, row["last_ip"]),
+        "same_ip": [],
+    }
+    if row["last_ip"]:
+        for other in db.execute(
+            "SELECT id, login, banned, banned_until FROM accounts WHERE last_ip = ? AND id != ? ORDER BY id",
+            (row["last_ip"], row["id"]),
+        ):
+            found["same_ip"].append(
+                {"id": other["id"], "login": other["login"], "banned": holds(other["banned"], other["banned_until"])}
+            )
+    return found
+
+
+# ---- on your machine -------------------------------------------------------
+
+
+def need(name):
+    value = os.environ.get(name, "").strip()
+    if not value:
+        sys.exit("moderate: %s is not set (release/moderate --help says how to fill it)" % name)
+    return value
+
+
+def host(name):
+    value = need(name)
+    if not re.fullmatch(r"[A-Za-z0-9@._-]+", value):
+        sys.exit("moderate: %s is not a plain ssh target (user@host)" % name)
+    return value
+
+
+def ssh_jump(command):
+    return ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=20", host("SKHID_JUMP"), command]
+
+
+def remote(request):
+    """Runs this file on the live host with `request`; its JSON answer."""
+    request["data"] = os.environ.get("SKHID_LIVE_DATA", "").strip() or DEFAULT_DATA
+    if not re.fullmatch(r"/[A-Za-z0-9._/-]+", request["data"]):
+        sys.exit("moderate: SKHID_LIVE_DATA is not a plain absolute path")
+    with open(os.path.abspath(__file__), encoding="utf-8") as f:
+        source = f.read()
+    program = "import json\nREQUEST = json.loads(%r)\n%s" % (json.dumps(request), source)
+    live = host("SKHID_LIVE")
+    command = "ssh -o BatchMode=yes -o ConnectTimeout=20 %s 'nice -n19 ionice -c3 python3 -'" % live
+    done = subprocess.run(ssh_jump(command), input=program, capture_output=True, text=True)
+    if done.returncode != 0:
+        sys.exit("moderate: the live read failed (exit %d): %s" % (done.returncode, done.stderr.strip()[-2000:]))
+    return json.loads(done.stdout)
+
+
+def parse_since(text):
+    if text is None:
+        return None
+    m = re.fullmatch(r"(\d+)([mhd])", text)
+    if m:
+        seconds = int(m.group(1)) * {"m": 60, "h": 3600, "d": 86400}[m.group(2)]
+        return datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=seconds)
+    try:
+        at = datetime.datetime.fromisoformat(text.replace("Z", ""))
+    except ValueError:
+        sys.exit("moderate: --since takes 30m, 2h, 3d or a UTC time like 2026-11-06 or 2026-11-06T10:00")
+    return at.replace(tzinfo=datetime.timezone.utc)
+
+
+def log_time(at):
+    return datetime.datetime.fromisoformat(at.replace("Z", "")[:19]).replace(tzinfo=datetime.timezone.utc)
+
+
+def stamp(at):
+    return at.replace("T", " ")[:19]
+
+
+def when(until):
+    if until is None:
+        return "for good"
+    return "until " + datetime.datetime.fromtimestamp(until, datetime.timezone.utc).strftime("%Y-%m-%d %H:%M")
+
+
+def account_line(acc):
+    if acc is None:
+        return "(not saved yet)"
+    parts = ["#%d %s" % (acc["id"], acc["login"])]
+    names = [n for n in (acc["name"], acc["character"]) if n and n.lower() != acc["login"]]
+    if names:
+        parts.append('"%s"' % " / ".join(dict.fromkeys(names)))
+    if acc["banned"]:
+        parts.append("BANNED %s (%s)" % (when(acc["banned"]["until"]), acc["banned"]["reason"]))
+    if acc["muted"]:
+        parts.append("MUTED %s (%s)" % (when(acc["muted"]["until"]), acc["muted"]["reason"]))
+    return "  ".join(parts)
+
+
+def same_ip_line(acc):
+    if not acc or not acc["same_ip"]:
+        return ""
+    return "  same address: " + ", ".join(
+        "#%d %s%s" % (o["id"], o["login"], " (BANNED)" if o["banned"] else "") for o in acc["same_ip"]
+    )
+
+
+def event_line(event):
+    acc = event["account"]
+    addr = event.get("addr")
+    shown = addr or ((acc or {}).get("last_ip") and "%s (last)" % acc["last_ip"]) or "-"
+    kind = event["kind"]
+    who = account_line(acc) if acc else "%s (no account)" % event["name"]
+    if kind == "registered" and acc is None:
+        who = "%s (not saved yet)" % event["name"]
+    detail = "  -- %s" % event["detail"] if event.get("detail") else ""
+    line = "%s  %-10s  %-18s  %s%s%s" % (stamp(event["at"]), kind, shown, who, same_ip_line(acc), detail)
+    if not event["suspicious"]:
+        return line
+    line = "!! %s !!  %s" % ("; ".join(event["suspicious"]), line)
+    return "\033[1;31m%s\033[0m" % line if COLOR else line
+
+
+def emit(args, row, line):
+    print(json.dumps(row, ensure_ascii=False) if args.json else line, flush=True)
+
+
+def watch(args, kind):
+    since = parse_since(args.since)
+    window = int(args.log_mb * 1024 * 1024)
+    answer = remote({"kind": kind, "window": window})
+    events = [e for e in answer["events"] if since is None or log_time(e["at"]) >= since]
+    if since is not None and answer["first"] and log_time(answer["first"]) > since:
+        print("moderate: the log read starts at %s UTC; --log-mb for more" % stamp(answer["first"]), file=sys.stderr)
+    for event in list(reversed(events))[: args.n]:
+        emit(args, event, event_line(event))
+    if not args.follow:
+        return
+    print("-- following, every %d s (Ctrl-C stops) --" % args.every, file=sys.stderr, flush=True)
+    pos = answer["pos"]
+    try:
+        while True:
+            time.sleep(args.every)
+            answer = remote({"kind": kind, "window": window, "pos": pos})
+            pos = answer["pos"]
+            for event in answer["events"]:
+                emit(args, event, event_line(event))
+    except KeyboardInterrupt:
+        pass
+
+
+def alert(args):
+    """Sign-ups and sign-ins as they come, from now on: the suspicious ones
+    (all with --all), each suspicious one also a desktop notice."""
+    notify = shutil.which("notify-send")
+    # A 1-byte read: no whole line, just where the logs end now.
+    pos = remote({"kind": "watch", "window": 1})["pos"]
+    print("-- watching sign-ups and sign-ins, every %d s%s (Ctrl-C stops) --" % (
+        args.every, "" if notify else "; no notify-send, so no notices"), file=sys.stderr, flush=True)
+    try:
+        while True:
+            time.sleep(args.every)
+            answer = remote({"kind": "watch", "window": 4 * 1024 * 1024, "pos": pos})
+            pos = answer["pos"]
+            for event in answer["events"]:
+                if event["suspicious"] or args.all:
+                    emit(args, event, event_line(event))
+                if event["suspicious"] and notify:
+                    acc = event["account"] or {}
+                    text = "%s %s from %s: %s" % (
+                        event["kind"], acc.get("login") or event["name"],
+                        event.get("addr") or acc.get("last_ip") or "-", "; ".join(event["suspicious"]))
+                    subprocess.run([notify, "-u", "critical", "skhid", text], check=False)
+    except KeyboardInterrupt:
+        pass
+
+
+def who(args):
+    accounts = remote({"kind": "who", "target": args.target})["accounts"]
+    if not accounts:
+        sys.exit("moderate: no account matches %r" % args.target)
+    for acc in accounts:
+        emit(args, acc, "%s  %s%s" % (acc["last_ip"] or "-", account_line(acc), same_ip_line(acc)))
+
+
+MODULE_REPORT = re.compile(
+    r"^(?P<at>\d{4}-\d\d-\d\dT\S+Z) \[\w+\] (?P<name>.+) \(account (?P<id>\d+)\), match (?P<match>0x[0-9a-f]+), "
+    r"(?P<moment>loaded|ended|minute \d+), part \d+/\d+ of \d+ entries: (?P<list>.*)$", re.M)
+PE = r"pe (-|[0-9a-f]{8}/[0-9a-f]+)"
+QUOTED = r'"((?:[^"\\]|\\.)*)"'
+PLACE = r"(game|temp|other)(?: in %s)?" % QUOTED
+MODULE = re.compile(r"^%s %s ([0-9a-f]+) %s$" % (PLACE, QUOTED, PE))
+CODE = re.compile(r"^code (private|mapped|image) (x|rx|rwx|wcx) ([0-9a-f]+)/([0-9a-f]+) start (-|[0-9a-f]{8}) %s$" % PE)
+LOAD = re.compile(r"^load %s %s ([0-9a-f]+) %s at (\d+) (listed|unlisted)$" % (PLACE, QUOTED, PE))
+OVER = re.compile(r"^over (\?|%s) class (\?|%s) ([0-9a-f]+) (\d+)x(\d+) from (\?|windows|%s)$" % (QUOTED, QUOTED, PLACE))
+UNSEEN = re.compile(r"^over unknown: (.+)$")
+
+
+def unquote(text):
+    """A name as Rust's Debug wrote it: \\" \\\\ and \\u{...} escapes."""
+    return re.sub(r'\\u\{([0-9a-f]+)\}|\\(.)', lambda m: chr(int(m.group(1), 16)) if m.group(1) else m.group(2), text)
+
+
+def module_reports(text):
+    """Every entry told in modules.log's `text` (client patch 125), to the
+    accounts that have it (each its name and the last time seen with it).
+    A module is (folder, name, image size, pe), the folders it was told
+    in apart (an overlay's differ by its version); code that is no module is
+    ("code", memory, protection, exec size, size, pe), its start's
+    fingerprints apart: JIT code differs at every run, a DLL's does not. The watch's entries, the times they happened at apart: ("load",
+    folder, name, image size, pe, listed), ("over", exe name or "?", class or "?",
+    extended styles, "?", "windows" or its exe's folder kind) for another
+    process's always-on-top window over the game's, the sizes it covered
+    and its exe's folders apart, ("unseen", why) where that could
+    not be told.
+    Returns (held, starts, dirs)."""
+    held, starts, dirs = {}, {}, {}
+    for report in MODULE_REPORT.finditer(text):
+        for entry in report["list"].split(" | "):
+            module, code = MODULE.match(entry), CODE.match(entry)
+            dir = None
+            if module:
+                folder, dir, name, size, pe = module.groups()
+                key = (folder, unquote(name), int(size, 16), pe)
+            elif code:
+                memory, protect, exec_size, size, start, pe = code.groups()
+                key = ("code", memory, protect, int(exec_size, 16), int(size, 16), pe)
+                if start != "-":
+                    starts.setdefault(key, set()).add(start)
+            elif load := LOAD.match(entry):
+                folder, dir, name, size, pe, _, listed = load.groups()
+                key = ("load", folder, unquote(name), int(size, 16), pe, listed)
+            elif over := OVER.match(entry):
+                key = ("over", "?" if over[1] == "?" else unquote(over[2]), "?" if over[3] == "?" else unquote(over[4]), int(over[5], 16), over[9] or over[8])
+                dirs.setdefault(key, set()).add("%sx%s" % (over[6], over[7]))
+                dir = over[10]
+            elif unseen := UNSEEN.match(entry):
+                key = ("unseen", unseen[1])
+            else:
+                continue
+            held.setdefault(key, {})[int(report["id"])] = (report["name"], report["at"])
+            if dir:
+                dirs.setdefault(key, set()).add(unquote(dir))
+    return held, starts, dirs
+
+
+def built(pe):
+    if pe == "-":
+        return "no pe"
+    stamp_hex, checksum = pe.split("/")
+    day = datetime.datetime.fromtimestamp(int(stamp_hex, 16), datetime.timezone.utc).strftime("%Y-%m-%d")
+    return "built %s sum %s" % (day, checksum)
+
+
+def module_line(key, accounts, starts, dirs=()):
+    names = ", ".join("%s (%d)" % (who, n) for n, (who, _) in sorted(accounts.items())[:6])
+    more = " +%d" % (len(accounts) - 6) if len(accounts) > 6 else ""
+    if key[0] == "code":
+        _, memory, protect, exec_size, size, pe = key
+        what = "code   %-7s %-3s exec %x of %x  %d start(s)  %s" % (memory, protect, exec_size, size, len(starts), built(pe))
+    elif key[0] == "load":
+        _, folder, name, size, pe, listed = key
+        what = "load   %-5s  %-32s  size %x  %s  %s" % (folder, name, size, built(pe), "still listed" if listed == "listed" else "NOT in the loader's list")
+    elif key[0] == "over":
+        _, name, cls, style, home = key
+        how = [word for bit, word in ((0x80000, "layered"), (0x20, "click-through"), (0x8000000, "never active"), (0x80, "tool window")) if style & bit]
+        what = "over   %-5s  %-32s  class %s  styles %x (%s)" % (home, name, cls, style, ", ".join(how) or "plain")
+    elif key[0] == "unseen":
+        what = "over   unknown: %s" % key[1]
+    else:
+        folder, name, size, pe = key
+        what = "%-5s  %-32s  size %x  %s" % (folder, name, size, built(pe))
+    if dirs:
+        what += ("  covering/in " if key[0] == "over" else "  in ") + ", ".join(sorted(dirs))
+    return "%4d  %s  -- %s%s" % (len(accounts), what, names, more)
+
+
+def modules(args):
+    held, starts, dirs = module_reports(remote({"kind": "modules", "window": int(args.log_mb * 1024 * 1024)})["text"])
+    if not held:
+        sys.exit("moderate: no module reports in the read (clients before patch 125 send none)")
+    if args.account:
+        target = args.account.casefold()
+        mine = {key: accounts for key, accounts in held.items()
+                if any(str(n) == target or who.casefold() == target for n, (who, _) in accounts.items())}
+        if not mine:
+            sys.exit("moderate: no module report of %r in the read" % args.account)
+        held = mine
+    for key, accounts in sorted(held.items(), key=lambda item: (len(item[1]), str(item[0]).casefold())):
+        if args.account or len(accounts) <= args.at_most:
+            fields = {"code": ("kind", "memory", "protect", "exec_size", "size", "pe"),
+                      "load": ("kind", "folder", "name", "image_size", "pe", "listed"),
+                      "over": ("kind", "name", "class", "styles", "home"),
+                      "unseen": ("kind", "why")}.get(key[0], ("folder", "name", "image_size", "pe"))
+            row = dict(zip(fields, key))
+            row["starts"] = sorted(starts.get(key, ()))
+            row["dirs"] = sorted(dirs.get(key, ()))
+            row["accounts"] = {str(n): who for n, (who, _) in accounts.items()}
+            emit(args, row, module_line(key, accounts, starts.get(key, ()), dirs.get(key, ())))
+def mib(n):
+    return "%.1f MiB" % (n / 1048576)
+
+
+def memory_where(least):
+    return "%s (%d) %s %s, match %s" % (least["who"], least["account"], least["at"], least["moment"], least["match"])
+
+
+def memory(args):
+    summary = remote({"kind": "memory", "window": int(args.log_mb * 1024 * 1024), "account": args.account})["memory"]
+    process, arenas = summary["process"], summary["arenas"]
+    if not process["reports"] and not arenas:
+        sys.exit("moderate: no memory reports in the read (clients before patch 126 send none)")
+    if process["reports"]:
+        emit(args, dict(process, kind="process"),
+             "address space  %d reports  least largest free %s: %s  least free %s  least video budget %s" % (
+                 process["reports"], mib(process["largest_free"]["value"]), memory_where(process["largest_free"]),
+                 mib(process["free"]["value"]), mib(process["video"]["value"])))
+    # tightest first: the least left as a share of the arena
+    for row in sorted(arenas, key=lambda r: r["left"]["value"] / r["size"] if "left" in r and r["size"] else 2):
+        text = "%-32s %10s  %d reports" % (row["name"], mib(row["size"]), row["reports"])
+        if row["unknown"]:
+            text += " (%d unknown)" % row["unknown"]
+        if "left" in row:
+            left = row["left"]
+            text += "  least left %s (%.1f %% used): %s" % (
+                mib(left["value"]), 100 - 100 * left["value"] / row["size"] if row["size"] else 0, memory_where(left))
+        if "largest_free" in row:
+            text += "  least largest free %s" % mib(row["largest_free"]["value"])
+        emit(args, dict(row, kind="arena"), text)
+
+
+def bans(args):
+    answer = remote({"kind": "bans"})
+    for acc in answer["accounts"]:
+        emit(args, acc, "account  %s  %s%s" % (acc["last_ip"] or "-", account_line(acc), same_ip_line(acc)))
+    for ban in answer["nets"]:
+        emit(args, ban, "address  %s  %s (%s)" % (ban["net"], when(ban["until"]), ban["reason"]))
+
+
+# ---- changes, through the admin page ---------------------------------------
+
+
+def quoted(value):
+    if any(ord(c) < 32 or ord(c) == 127 for c in value):
+        sys.exit("moderate: no control characters or line breaks in the fields")
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def admin(args, fields, what, direct=False):
+    """POSTs `fields` (name, value) to the admin page from the jump host;
+    the page's answer line. `direct`: a script's request, answered by one
+    line of text, not the page. --dry-run: shows the request, sends nothing."""
+    site = need("SKHID_SITE").rstrip("/")
+    fields = list(fields) + [("lang", "en")]
+    if args.dry_run:
+        shown = " ".join("%s=%s" % (k, json.dumps(v, ensure_ascii=False) if " " in v or not v else v) for k, v in fields)
+        line = "dry run: POST %s/<SRP_ADMIN_PATH> token=<SRP_ADMIN_TOKEN> %s (curl on %s, the form on stdin)" % (
+            site, shown, host("SKHID_JUMP"))
+        emit(args, {"dry_run": True, "fields": dict(fields), "what": what}, line)
+        return None
+    path = need("SRP_ADMIN_PATH").strip("/")
+    token = need("SRP_ADMIN_TOKEN")
+    if not re.fullmatch(r"[A-Za-z0-9._~/-]+", path):
+        sys.exit("moderate: SRP_ADMIN_PATH has characters this script does not send (not shown)")
+    config = ['url = "%s/%s"' % (quoted(site), path), 'data-urlencode = "token=%s"' % quoted(token)]
+    config += ['data-urlencode = "%s=%s"' % (k, quoted(v)) for k, v in fields]
+    done = subprocess.run(
+        ssh_jump("curl -sS --max-time 30 -w '\\n%{http_code}' -K -"),
+        input="\n".join(config) + "\n",
+        capture_output=True,
+        text=True,
+    )
+    body, _, status = done.stdout.rpartition("\n")
+    if direct:
+        # One line of text (password_reset.rs); "pending" (202) is done too.
+        said = body.strip()[:300] if status.strip() in ("200", "202", "404", "400") else ""
+        if done.returncode != 0 or status.strip() not in ("200", "202"):
+            sys.exit("moderate: the admin page answered HTTP %s %s %s" % (
+                status.strip() or "none", said, done.stderr.strip()[-500:]))
+        return {"what": what, "answer": said}
+    # The page puts the token back in its form: the body is never printed.
+    if done.returncode != 0 or status.strip() != "200":
+        sys.exit(
+            "moderate: the admin page answered HTTP %s (404: wrong SRP_ADMIN_PATH or the jump host not in "
+            "SRP_ADMIN_IPS) %s" % (status.strip() or "none", done.stderr.strip()[-500:])
+        )
+    head = body.split("<main>", 1)[-1].split("<h1>", 1)[0]
+    note = re.search(r"<p class=note>(.*?)</p>", head, re.S)
+    said = html.unescape(note.group(1)) if note else ""
+    signups = re.search(r'p-signups"><p class=note>(.*?)</p>', body, re.S)
+    row = {"what": what, "answer": said}
+    if signups:
+        row["signups"] = html.unescape(signups.group(1))
+    plan = re.search(r"name=money_plan value=([^\s>]+)", body)
+    if plan:
+        row["plan"] = plan.group(1)
+    if said in ("Wrong token.",) or said.startswith("Too many wrong tokens"):
+        sys.exit("moderate: the admin page said: %s" % said)
+    return row
+
+
+def duration(text):
+    if text in ("forever", "for-good"):
+        return ""
+    if not re.fullmatch(r"[1-9]\d*", text):
+        sys.exit("moderate: hours are a whole number, or forever")
+    return text
+
+
+def ban(args):
+    hours = duration(args.hours)
+    told = [label for label, words in BAN_WORDS if any(w in args.reason.lower() for w in words)]
+    if told and not args.tell:
+        sys.exit(
+            "moderate: the game would tell the player \"%s\" (the reason has a word the login server maps). "
+            "Reword it, or --tell to send it so." % told[0]
+        )
+    print(
+        'moderate: the player sees "You are banned. %s" and when it ends' % (
+            told[0] if told else "Decision of the administration."),
+        file=sys.stderr,
+    )
+    fields = [("tab", "ban"), ("ban_user", account_or_address(args.target)), ("hours", hours), ("reason", args.reason)]
+    if args.with_ip:
+        fields.append(("with_ip", "on"))
+    answered(args, admin(args, fields, "ban"), r" banned (for good|for \d+ h)")
+
+
+def unban(args):
+    fields = [("tab", "unban"), ("unban_user", account_or_address(args.target))]
+    if args.with_ip:
+        fields.append(("unban_ip", "on"))
+    answered(args, admin(args, fields, "unban"), r" unbanned\.")
+
+
+def mute(args):
+    if not args.reason.strip():
+        sys.exit("moderate: a mute needs --reason: the player is told it")
+    fields = [("tab", "mute"), ("mute_user", named(args.target)["login"]), ("mute_hours", duration(args.hours)),
+              ("mute_reason", args.reason)]
+    answered(args, admin(args, fields, "mute"), r"chat muted ")
+
+
+def unmute(args):
+    answered(args, admin(args, [("tab", "mute"), ("mute_user", named(args.target)["login"]), ("unmute", "1")], "unmute"),
+             r"chat unmuted\.")
+
+
+def signups(args):
+    fields = [("tab", "signups")] + ([("signups", args.state)] if args.state else [])
+    row = admin(args, fields, "signups")
+    if row is not None and not args.state:
+        row["answer"] = row.get("signups", "")
+    answered(args, row, r"^New accounts are" if args.state else None)
+
+
+def named(target):
+    """The one account `target` names, by its user name or else its
+    character name, in any case; refused with the likely ones otherwise.
+    The page's own lookup knows case only in Latin letters."""
+    accounts = remote({"kind": "who", "target": target})["accounts"]
+    key = target.strip().casefold()
+    # A user name outranks another account's character name.
+    found = [a for a in accounts if a["login"].casefold() == key] or [
+        a for a in accounts if key in ((a["name"] or "").casefold(), (a["character"] or "").casefold())]
+    if len(found) != 1:
+        likely = ", ".join(
+            "#%d %s%s" % (a["id"], a["login"], " (%s)" % a["name"] if a["name"] and a["name"].casefold() != a["login"] else "")
+            for a in (found or accounts)[:10]) or "none"
+        sys.exit("moderate: %r names %s account; likely: %s" % (
+            target, "more than one" if found else "no", likely))
+    print("moderate: %s" % account_line(found[0]), file=sys.stderr)
+    return found[0]
+
+
+def account_or_address(target):
+    """An address or range as it is; else the account's user name."""
+    try:
+        ipaddress.ip_network(target, strict=False)
+        return target
+    except ValueError:
+        return named(target)["login"]
+
+
+def reset_password(args):
+    """Clears the password (srp-026g/docs/notes/password-reset.md): the
+    player's next sign-in, with any password, sets the new one, so reset
+    when the player is ready to sign in."""
+    acc = named(args.target)
+    print("moderate: its next sign-in, with any password, sets the new one; tell the player to sign in now",
+          file=sys.stderr)
+    answered(args, admin(args, [("tab", "reset_password"), ("login", acc["login"])], "reset-password", direct=True))
+
+
+def give(args):
+    fields = [("tab", "item"), ("item_user", named(args.target)["login"]), ("item", args.item), ("count", str(args.count))]
+    answered(args, admin(args, fields, "give"), r": given \d+ of ")
+
+
+def money(args):
+    """The page's two steps: a preview hands out a plan, the confirm applies
+    it only if neither the account nor the fields changed since."""
+    if not args.reason.strip():
+        sys.exit("moderate: money needs --reason (kept in the account's history)")
+    if not re.fullmatch(r"[+-]?\d+", args.silver):
+        sys.exit("moderate: give --silver, a whole number, + or -")
+    fields = [("tab", "money"), ("user", named(args.target)["login"]), ("silver", args.silver),
+              ("money_reason", args.reason)]
+    preview = admin(args, fields, "money")
+    if preview is None:
+        return
+    plan = preview.pop("plan", None)
+    if not plan:
+        answered(args, preview, r"(?!)")
+    answered(args, admin(args, fields + [("confirm", "1"), ("money_plan", plan)], "money"), r"silver .*→")
+
+
+def answered(args, row, done=None):
+    """Prints the page's answer line; exits 1 when it is not `done`'s."""
+    if row is None:
+        return
+    if not row["answer"]:
+        sys.exit("moderate: the admin page gave no answer line")
+    emit(args, row, row["answer"])
+    if done and not re.search(done, row["answer"]):
+        sys.exit(1)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="release/moderate", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--json", action="store_true", help="one JSON object a line")
+    commands = parser.add_subparsers(dest="command", required=True)
+
+    for name, text in (("registrations", "new accounts (srp.log)"), ("joins", "sign-ins and refused ones (login.log)")):
+        p = commands.add_parser(name, help=text)
+        p.add_argument("--since", help="30m, 2h, 3d, or a UTC time (2026-11-06T10:00)")
+        p.add_argument("-n", type=int, default=20, help="at most this many, newest first (default 20)")
+        p.add_argument("--follow", action="store_true", help="then print new ones as they come")
+        p.add_argument("--every", type=int, default=60, help="--follow's poll, seconds (at least 30; default 60)")
+        p.add_argument("--log-mb", type=float, default=4, help="how much of the log's end to read (default 4)")
+        p.set_defaults(run=lambda args, kind=name: watch(args, kind))
+
+    p = commands.add_parser("watch", help="suspicious sign-ups and sign-ins from now on, as desktop notices")
+    p.add_argument("--all", action="store_true", help="print every sign-up and sign-in, not only suspicious ones")
+    p.add_argument("--every", type=int, default=60, help="poll, seconds (at least 30; default 60)")
+    p.set_defaults(run=alert)
+    p = commands.add_parser("who", help="accounts like a user or character name (fuzzy), or by address/range")
+    p.add_argument("target")
+    p.set_defaults(run=who)
+    p = commands.add_parser("bans", help="banned accounts and addresses (srp.db)")
+    p.set_defaults(run=bans)
+    p = commands.add_parser("modules", help="the DLLs and other code games told they run (modules.log), rarest first")
+    p.add_argument("--account", help="only the modules of this account (name or id), each with how many have it")
+    p.add_argument("--at-most", type=int, default=3, help="only modules this many accounts or fewer have (default 3)")
+    p.add_argument("--log-mb", type=float, default=16, help="how much of the log's end to read (default 16)")
+    p.set_defaults(run=modules)
+    p = commands.add_parser("memory", help="how close games came to each arena's end and the address space's (memory.log)")
+    p.add_argument("--account", help="only this account's reports (name or id)")
+    p.add_argument("--log-mb", type=float, default=16, help="how much of the log's end to read (default 16)")
+    p.set_defaults(run=memory)
+
+    def change(name, text):
+        p = commands.add_parser(name, help=text)
+        p.add_argument("--dry-run", action="store_true", help="show the request, send nothing")
+        return p
+
+    p = change("ban", "ban an account (user or character name) or an address/range")
+    p.add_argument("target")
+    p.add_argument("hours", help="hours, or forever")
+    p.add_argument("--reason", default="", help="kept with the ban; see the warning about words")
+    p.add_argument("--with-ip", action="store_true", help="also ban the address it last signed in from")
+    p.add_argument("--tell", action="store_true", help="send a reason the game turns into a ban message")
+    p.set_defaults(run=ban)
+    p = change("unban", "lift a ban")
+    p.add_argument("target")
+    p.add_argument("--with-ip", action="store_true", help="also lift the ban of its last address")
+    p.set_defaults(run=unban)
+    p = change("mute", "mute an account's chat")
+    p.add_argument("target")
+    p.add_argument("hours", help="hours, or forever")
+    p.add_argument("--reason", required=True, help="the player is told it")
+    p.set_defaults(run=mute)
+    p = change("unmute", "lift a chat mute")
+    p.add_argument("target")
+    p.set_defaults(run=unmute)
+    p = change("signups", "close or open the registration of new accounts")
+    p.add_argument("state", nargs="?", choices=("open", "closed"))
+    p.set_defaults(run=signups)
+    p = change("reset-password", "clear an account's password: its next sign-in sets the new one")
+    p.add_argument("target", help="user name or character name")
+    p.set_defaults(run=reset_password)
+    p = change("give", "give an account an item")
+    p.add_argument("target", help="user or character name")
+    p.add_argument("item", help="the item's exact name or id (e.g. ak_12 or 363)")
+    p.add_argument("count", nargs="?", type=int, default=1)
+    p.set_defaults(run=give)
+    p = change("money", "add (+) or take (-) silver")
+    p.add_argument("target", help="user or character name")
+    p.add_argument("--silver", default="", help="e.g. --silver=+2000 or --silver=-500")
+    p.add_argument("--reason", default="", help="required; kept in the account's history")
+    p.set_defaults(run=money)
+
+    args = parser.parse_args()
+    if hasattr(signal, "SIGPIPE"):
+        signal.signal(signal.SIGPIPE, signal.SIG_DFL)  # `| head` ends it quietly
+    if getattr(args, "every", 60) < 30:
+        parser.error("--every: at least 30 s (the live host is small)")
+    args.run(args)
+
+
+if __name__ == "__main__":
+    if REQUEST is not None:
+        remote_main(REQUEST)
+    else:
+        main()

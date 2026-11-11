@@ -33,6 +33,8 @@
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream, UdpSocket};
 use std::path::{Path, PathBuf};
+
+use login_server::sealed::test_key;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -130,8 +132,7 @@ fn start_with(dir: &Path, bots: &[&str], change: impl FnOnce(&mut Options)) -> S
         SqliteGameRepository::open_in(dir).expect("the 0.26g tables"),
     ))
     .expect("the 0.26g accounts");
-    let certs = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../certs");
-    let mut options = Options::local(&certs);
+    let mut options = Options::local();
     // One map, so the scripted simulation knows its mode
     // (`SRP_MATCH_MAPS`).
     options.lobby.maps = vec![MAP];
@@ -146,7 +147,7 @@ fn start_with(dir: &Path, bots: &[&str], change: impl FnOnce(&mut Options)) -> S
 /// bot's sign-in, `srp::bot::sign_in`): the sign-in in the clear, the TLS
 /// handshake, the digest and the password.
 fn sign_in(login: SocketAddr, user_name: &str, password: &str) -> SignIn {
-    srp::bot::sign_in(login, user_name, password).expect("the login server")
+    srp::bot::sign_in(login, test_key().public(), user_name, password).expect("the login server")
 }
 
 /// The session and the lobby's address of a `08` reply.
@@ -192,8 +193,14 @@ impl Game {
     /// started.
     fn signed_in(stack: &Stack, name: &'static str, password: &str) -> Self {
         let revision = survarium::v026g::match_msgs::late_join::PATCH_REVISION;
-        let reply =
-            srp::bot::sign_in_with_revision(stack.login_addr, name, password, revision).unwrap();
+        let reply = srp::bot::sign_in_with_revision(
+            stack.login_addr,
+            test_key().public(),
+            name,
+            password,
+            revision,
+        )
+        .unwrap();
         let (session, lobby_addr) = accepted(&reply);
         assert_eq!(
             lobby_addr, stack.lobby_addr,
@@ -408,18 +415,15 @@ fn account_id(stack: &Stack, name: &str) -> u32 {
     stack.store.account_id_by_name(name).expect("an account")
 }
 
-/// `(silver, gold, experience)` of the account in the server's memory.
+/// `(silver, gold, experience)` of the account in the server's memory, as
+/// the client is told them: gold is always 0.
 fn held(stack: &Stack, name: &str) -> (u32, u32, u32) {
     let account = stack
         .accounts
         .get(account_id(stack, name))
         .expect("a 0.26g account");
     let account = account.locked();
-    (
-        account.generic_money,
-        account.premium_money,
-        account.exp_total,
-    )
+    (account.generic_money, 0, account.exp_total)
 }
 
 // ------------------------------------------------------------------ tests
@@ -471,9 +475,9 @@ fn two_new_players_sign_in_shop_play_a_match_and_are_paid() {
     // A new account's start (there is no tutorial).
     assert_eq!((start_money.0, start_money.1), {
         let grant = session::v026g::tutorial::new_account();
-        (grant.silver, grant.gold)
+        (grant.silver, 0)
     });
-    assert_eq!(start_money.2, session::v026g::tutorial::experience());
+    assert_eq!(start_money.2, session::v026g::tutorial::start_experience());
 
     // ---- 3. Alice buys something the shop sells her now: `83 47 00`, the
     // inventory, the account and the money.
@@ -913,14 +917,7 @@ fn two_new_players_sign_in_shop_play_a_match_and_are_paid() {
     for (id, paid) in [(alice_id, alice_paid), (bob_id, bob_paid)] {
         let account = kept.get(id).expect("the account in the file");
         let account = account.locked();
-        assert_eq!(
-            (
-                account.generic_money,
-                account.premium_money,
-                account.exp_total
-            ),
-            paid
-        );
+        assert_eq!((account.generic_money, 0, account.exp_total), paid);
     }
     assert!(
         kept.get(alice_id)
@@ -1245,6 +1242,7 @@ impl BotRun {
             server: stack.login_addr.to_string(),
             name: name.to_owned(),
             password: "the-bots-password".to_owned(),
+            server_key: test_key().public(),
             once,
             kit: None,
             drive,

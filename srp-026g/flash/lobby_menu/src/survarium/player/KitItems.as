@@ -4,7 +4,8 @@ package survarium.player
    // ({name, value}; the profile's, from the item's modifications: built-in,
    // rolled and defects): movement speed (prop 105: the armour's and the
    // pockets', and the first weapon's own movement parameter) and carry limit
-   // (prop 106, kg: the armour's and the pockets'). The totals are summed
+   // (prop 106, kg: the armour's and the pockets'), health and stamina
+   // regeneration (props 103 and 104). The totals are summed
    // from these lists. Each entry also has its item's category (items_dict's
    // item_category), for its row's group icon.
    public final class KitItems
@@ -17,5 +18,9 @@ package survarium.player
       public var limit:Array = [];
       // {name, value, category}: the armour's and the pockets' energy costs (prop 116).
       public var stamina:Array = [];
+      // {name, value, category}: the armour's and the pockets' health regeneration (prop 103)
+      // and stamina regeneration (prop 104).
+      public var regeneration:Array = [];
+      public var staminaRegeneration:Array = [];
    }
 }

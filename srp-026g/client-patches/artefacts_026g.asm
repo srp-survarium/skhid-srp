@@ -26,9 +26,17 @@
 ; `active/stopping_power_mod`, linked and unlinked with the active's three.
 ; List 42 (artefact_synergy, which no code of 0.26g reads and no config
 ; sets) is the stagger's: a hit's slow is times max(0, 1 + its sum).
+; Spring II (the artefact tree, patch 109; artefact-skills.md): two reload
+; speed nodes (list 13) after those (the sizes grow to 3F8h), +3D8h linked
+; and unlinked with the passive's (0x311AD0, 0x311D10), +3E8h with the
+; active's. Their values are patch 109's (its entry artefact_skills_on_spring_reload
+; at the passive's link: the holder's Spring II, else 0).
 BITS 32
 global artefacts_loader, artefacts_link, artefacts_unlink, artefacts_lifebone, artefacts_fire
-global artefacts_stagger, artefacts_onyx, artefacts_popup
+global artefacts_stagger, artefacts_onyx, artefacts_popup, artefacts_link_passive, artefacts_unlink_passive
+extern medical_skills_on_stopping  ; patch 94's generated entry (rust_patches.md, `entry`)
+extern artefact_skills_on_spring_reload  ; patch 109's (cdecl: the Spring)
+extern artefact_skills_on_fire  ; patch 109's (cdecl: the artefact, its fires in/out)
 section .text
 
 %define CONFIG_CHILD 0xF6B10       ; eax = a config value, edi = a key: eax = its child
@@ -54,6 +62,11 @@ section .text
 %define STOPPING 0x2A              ; list 42: the stagger's multiplier
 %define AIM_NODE 0x3B8             ; the active's aim_time node in a Spring
 %define STOP_NODE 0x3C8            ; the active's stopping power node
+%define RELOAD 0xD                 ; the reload_speed modifier's index (13)
+%define RELOAD_PASSIVE_NODE 0x3D8  ; Spring II's reload node of the passive
+%define RELOAD_ACTIVE_NODE 0x3E8   ; ... of the active
+%define PASSIVE_LINK_BACK 0x311ADA ; the passive's link after its first instructions
+%define PASSIVE_UNLINK_BACK 0x311D15 ; the passive's unlink after `push ebx; mov ebx,[esp+8]`
 %define FIRST_SLOT 13              ; the inventory's artefact slots, 13..18
 %define LAST_SLOT 18
 
@@ -73,6 +86,10 @@ artefacts_onyx:
     jmp near onyx_hit              ; +30 from 0x312C03
 artefacts_popup:
     jmp near onyx_popup            ; +35 from 0x25F9DD
+artefacts_link_passive:
+    jmp near link_passive          ; +40 from 0x311AD0
+artefacts_unlink_passive:
+    jmp near unlink_passive        ; +45 from 0x311D10
 
 ; The loader at 0x33AE13 `mov dword [esi+48h],13h` (the active's third
 ; node): ebx = `data`, esi = the config; eax, edi and xmm0 are the next
@@ -97,6 +114,12 @@ loader:
     call value                     ; xmm0 = active/stopping_power_mod
     lea edx, [esi+STOP_NODE-0x340]
     mov ecx, STOPPING
+    call node
+    xorps xmm0, xmm0               ; Spring II's two: values at the passive's link
+    lea edx, [esi+RELOAD_PASSIVE_NODE-0x340]
+    mov ecx, RELOAD
+    call node
+    lea edx, [esi+RELOAD_ACTIVE_NODE-0x340]
     call node
     movups xmm0, [esp]
     add esp, 16
@@ -184,12 +207,48 @@ link_active:
     call link
     lea edx, [ebx+STOP_NODE]
     call link
+    lea edx, [ebx+RELOAD_ACTIVE_NODE]
+    call link
     popad
     push ebx
     push esi
     mov esi, eax
     mov eax, [esi+0x250]
     jmp LINK_BACK
+
+; 0x311AD0 `push ebx; push esi; mov esi,eax; mov eax,[esi+250h]`, eax = the
+; Spring: patch 109 gives its reload nodes their values (the holder's Spring
+; II), the passive's goes in, then the function links its own two.
+link_passive:
+    pushad
+    mov ebx, eax
+    push eax
+    call artefact_skills_on_spring_reload
+    add esp, 4
+    mov eax, ebx
+    call lists
+    lea edx, [ebx+RELOAD_PASSIVE_NODE]
+    call link
+    popad
+    push ebx
+    push esi
+    mov esi, eax
+    mov eax, [esi+0x250]
+    jmp PASSIVE_LINK_BACK
+
+; 0x311D10 `push ebx; mov ebx,[esp+8]`, [esp+4] = the Spring: the passive's
+; reload node out before the original's two.
+unlink_passive:
+    pushad
+    mov ebx, [esp+0x24]
+    mov eax, ebx
+    call lists
+    lea eax, [ebx+RELOAD_PASSIVE_NODE]
+    call unlink
+    popad
+    push ebx
+    mov ebx, [esp+8]
+    jmp PASSIVE_UNLINK_BACK
 
 ; 0x311DA0 `push ebx; mov ebx,[esp+8]`, [esp+4] = the Spring: its two
 ; nodes out before the original's three.
@@ -202,6 +261,8 @@ unlink_active:
     call unlink
     lea eax, [ebx+STOP_NODE]
     call unlink
+    lea eax, [ebx+RELOAD_ACTIVE_NODE]
+    call unlink
     popad
     push ebx
     mov ebx, [esp+8]
@@ -211,7 +272,9 @@ unlink_active:
 ; ways there, the hits' loop or none): esi = the player, xmm0 and the local
 ; [esp+14h] = the sum of the recent hits' stopping power (the min after it
 ; reads the local), xmm1 0. The sum becomes M42(sum): times max(0, 1 + list
-; 42), so an active Spring's -1 takes the slow away.
+; 42), so an active Spring's -1 takes the slow away; then the medical
+; skills' Unflinching (patch 94's entry medical_skills_on_stopping, cdecl:
+; the player, the sum in and out; it keeps every register) times its own.
 stagger:
     push esi
     sub esp, 8
@@ -224,6 +287,13 @@ stagger:
     mov esi, STOPPING
     call GETTER
     pop esi
+    sub esp, 4
+    movss [esp], xmm0              ; the sum, Spring's factor applied
+    push esi                       ; the player
+    call medical_skills_on_stopping
+    add esp, 4
+    movss xmm0, [esp]              ; the sum, Unflinching's factor applied
+    add esp, 4
     movss [esp+0x14], xmm0
     xorps xmm1, xmm1
     movss xmm2, [esi+0x31C]
@@ -275,7 +345,9 @@ lifebone_active:
 ; active still fires the ready ones of its kind. A key-up goes on as the
 ; original (it does nothing). Onyx (its enable_active 0x3128C0): each Onyx
 ; fired adds ONYX_EXTRA_MS to every fired one's active time (+F14h), so n
-; fired together are all active 3 s + (n - 1) s and end together.
+; fired together are all active 3 s + (n - 1) s and end together. Ready
+; (below) leaves out a copy past the 4 of its kind that count (patch 109): a
+; press fires at most 4, and a fifth adds no time.
 fire_kind:
     cmp byte [esp+4], 0
     je .original
@@ -354,12 +426,21 @@ kin:
     ret
 
 ; ecx = an artefact: CF = 1 when it is ready, in its passive (state 3) with
-; no cooldown (+28Ch). Keeps every register.
+; no cooldown (+28Ch), and one of the 4 copies of its kind that count for its
+; holder (patch 109's entry artefact_skills_on_fire makes its fires 0 for one
+; past them: at most 4 copies of a kind count, the owner 2026-11-07; it does
+; not fire and stays ready). Keeps every register.
 ready:
     cmp dword [ecx+0x280], 3
     jne .no
     cmp dword [ecx+0x28C], 0
     jne .no
+    push 1                         ; its fires
+    push ecx
+    call artefact_skills_on_fire
+    cmp dword [esp+4], 0
+    lea esp, [esp+8]               ; the flags kept
+    je .no
     stc
     ret
 .no:

@@ -18,6 +18,8 @@ package survarium.controls
    import survarium.constants.PropertyDirection;
    import survarium.constants.SuperCategory;
    import survarium.constants.ItemCategory;
+   import survarium.constants.QuickSlotSize;
+   import survarium.data.LocalizationData;
    
    public class ItemCompare extends MovieClip
    {
@@ -200,13 +202,19 @@ package survarium.controls
          return this._primary;
       }
 
-      public function getSecondaryData() : Object { return this._secondary; }
+      // The item this card's is compared with: none beside itself.
+      public function getSecondaryData() : Object { return this._secondary != this._primary ? this._secondary : null; }
 
       public function refreshComparison() : void { updateData(); }
       
+      // The item to compare with is kept as it is given, and whether it is the card's own item
+      // is asked when the card is drawn (getSecondaryData). It was asked here, of the item the
+      // card held before: after a hover over the equipped item itself, the next item's card was
+      // given that item to compare with, refused it as its own, and stood alone (no colours, no
+      // dash for a row only the other has, a shotgun's rounds all listed).
       public function setSecondaryWeapon(item:Object) : void
       {
-         if(this._secondary != item && this._primary != item)
+         if(this._secondary != item)
          {
             _secondary = item;
             this.updateData();
@@ -237,7 +245,6 @@ package survarium.controls
             return;
          }
          trace("ItemCompare::updateData");
-         var prim_cat:int = ItemFactory.getCategory(this._primary.category);
          var medical:Boolean = this._primary.category == ItemCategory.MEDKITS;
          var weaponDetails:Boolean = WeaponDetails.read(this._primary) != null;
          // A round's stats are all detail rows (AmmoDetails): no bars.
@@ -247,7 +254,7 @@ package survarium.controls
          var propDescription:Object = null;
          var indicators:uint = this._indicator.length;
          var modifier_value:Number = 0;
-         // Held Alt over a weapon or a medicine: the stats as a match has them, with the kit and the skills.
+         // Held Alt over a weapon, a medicine, a grenade or a trap: the stats as a match has them, with the kit and the skills.
          var effects:MatchEffects = LocalPlayerProfile.heldMatchEffects(this._primary);
          // The item's own base value of the property last read (initPropValues).
          var base_value:Number = 0;
@@ -282,8 +289,12 @@ package survarium.controls
                }
             }
             // The exe sends a line's prop_value as the config's text ("175", ui_desc/props_list):
-            // a number before any sum, where "175" + 0 would be "1750".
+            // a number before any sum, where "175" + 0 would be "1750". A weapon's damage and armour
+            // piercing with its best round (WeaponDetails.bestRoundFactor), whole as the card shows
+            // them (Util.getNumberString cuts a fraction's float tail: 34 x 1.2 read 40.79).
             var base:Number = ModificationRolls.value(baseProperty);
+            var roundFactor:Number = WeaponDetails.bestRoundFactor(owner,propDescription.prop_id);
+            if(roundFactor != 1) base = Math.round(base * roundFactor);
             base_value = base;
             if(modifierType == ModifierType.ADD)
             {
@@ -324,7 +335,26 @@ package survarium.controls
             _diff.indicator.value = currentValue;
             _diff.indicator.setChange(null,null);
          }
-         for each(var s:Object in this._primary.properties)
+         // What one unit takes of a pocket (docs/notes/one-pocket-a-type.md, "The pocket's units
+         // shown"): 1, the RGD-5's 2, a booster's whole pocket; less is better. The first row.
+         var depth:int = pocketDepth(this._primary);
+         if(depth > 0 && index < indicators)
+         {
+            modifier_value = 0;
+            initIndicatorValues(this._indicator[index],{prop_id:POCKET_DEPTH,prop_name:LocalizationData.getName("st_srp_inv_pocket_units"),
+               min_value:0,max_value:PlayerInfo.MAX_POCKET_UNITS,direction:PropertyDirection.LOWER_IS_BETTER},depth,depth);
+            if(depth == PlayerInfo.MAX_POCKET_UNITS) _diff.indicator.setChange(LocalizationData.getName("st_srp_inv_pocket_units_whole"),null);
+            index++;
+         }
+         // A grenade, a trap or a booster has no row for a stat only the other item has (a smoke
+         // grenade's damage is not 0). Weapons, armour and medicines have: their stats are of
+         // one kind, and the two cards' rows face each other (a medkit's disinfection: 0 %).
+         var ownOnly:Boolean = depth > 0 && !(medical && depth < PlayerInfo.MAX_POCKET_UNITS);
+         // Held Alt over a medicine: under its own lines, what the medical skills do while it is
+         // active or as it heals (MatchEffects.medicineSkillLines). They keep their rows: with
+         // more to show than the card's rows, it is the stat rows before the weight that go.
+         var skillLines:Array = effects != null && medical ? effects.medicineSkillLines(this._primary) : [];
+         for each(var s:Object in fitted(cardRows(ownOnly),ammoDetails,weaponDetails,indicators - index - skillLines.length))
          {
             if(ammoDetails || weaponDetails && s.prop_id == 24) continue;
             var _valueObject:Object = s;
@@ -340,6 +370,14 @@ package survarium.controls
                if(propDescription.comparable)
                {
                   initPropValues(_valueObject,this._primary);
+                  // A stat only the compared item has (cardRows): the item has none of it, so it
+                  // is 0 held Alt too. The skills change what an item has (Potent Painkiller
+                  // gave a medkit beside a painkiller "Pain protection 0 -> 3%").
+                  if(_valueObject.absent)
+                  {
+                     _value = base_value = 0;
+                     modifier_value = 0;
+                  }
                   initIndicatorValues(this._indicator[index],propDescription,_value,_value);
                   // While Alt is held, a value its modifications, the kit or the skills change
                   // reads "base -> in a match", the current green when better, red when worse.
@@ -354,6 +392,20 @@ package survarium.controls
                }
             }
          }
+         // Held Alt over a medicine: below its own lines, what the medical skills do while it is
+         // active or as it heals (MatchEffects.medicineSkillLines), "100 -> in a match" in %.
+         if(effects != null && medical)
+         {
+            for each(var line:Object in skillLines)
+            {
+               if(index == indicators) break;
+               modifier_value = 0;
+               initIndicatorValues(this._indicator[index],{prop_id:-1,prop_name:line.name,postfix:"%",min_value:0,max_value:200,
+                  direction:line.higherIsBetter ? PropertyDirection.HIGHER_IS_BETTER : PropertyDirection.LOWER_IS_BETTER},line.after,line.after);
+               _diff.indicator.setChange(MatchEffects.change(line.before,line.after,2) + "%",MatchEffects.verdict(line.before,line.after,line.higherIsBetter));
+               index++;
+            }
+         }
          while(index < indicators)
          {
             _diff = this._indicator[index];
@@ -361,7 +413,7 @@ package survarium.controls
             _diff.visible = false;
             index++;
          }
-         if(!this._secondary || (prim_cat == SuperCategory.WEAPONS ? (prim_cat != ItemFactory.getCategory(this._secondary.category)) : this._primary.category != this._secondary.category))
+         if(!this.comparedItem())
          {
             dispatchEvent(new Event(Event.RESIZE));
             return;
@@ -372,13 +424,13 @@ package survarium.controls
             _diff = this._indicator[index];
             if(_diff.visible)
             {
-               // A medicine without this property has no comparable value.
-               // Missing healing is not a claim of zero healing.
-               _diff.indicator.compare = medical ? _diff.indicator.value : 0;
+               // A row the other item has none of: against itself where the card lists only
+               // its own item's (ownOnly), against 0 otherwise.
+               _diff.indicator.compare = ownOnly ? _diff.indicator.value : 0;
             }
             index++;
          }
-         for each(s in this._secondary.properties)
+         for each(s in weightLast(this._secondary.properties))
          {
             if(ammoDetails || weaponDetails && s.prop_id == 24) continue;
             _valueObject = s;
@@ -396,7 +448,7 @@ package survarium.controls
                   _diff = this._indicator[index];
                   if(!_diff.visible)
                   {
-                     if(medical) break;
+                     if(ownOnly) break;
                      initIndicatorValues(this._indicator[index],propDescription,_value,0);
                      break;
                   }
@@ -410,8 +462,111 @@ package survarium.controls
                }
             }
          }
+         var theirs:int = pocketDepth(this._secondary);
+         index = 0;
+         while(theirs > 0 && index < indicators)
+         {
+            _diff = this._indicator[index];
+            if(_diff.visible && _diff.id == POCKET_DEPTH) _diff.indicator.compare = theirs;
+            index++;
+         }
          dispatchEvent(new Event(Event.RESIZE));
+      }
+
+      // The item the card's rows are compared with: the one given, of the card's item's kind (a
+      // weapon with a weapon, else of its category), or none.
+      private function comparedItem() : Object
+      {
+         var other:Object = this.getSecondaryData();
+         if(!other) return null;
+         var kind:int = ItemFactory.getCategory(this._primary.category);
+         var same:Boolean = kind == SuperCategory.WEAPONS ? kind == ItemFactory.getCategory(other.category) : this._primary.category == other.category;
+         return same ? other : null;
+      }
+
+      // The properties the card's rows are of, in order. Alone, or `ownOnly`: the item's own.
+      // Beside a compared item: each property either has, in one order on both cards (the
+      // properties of the item that has more of them, of the lower dictionary id of two with as
+      // many, then the other's own), a property the card's item has none of with the value 0.
+      // The weight last.
+      private function cardRows(ownOnly:Boolean) : Array
+      {
+         var other:Object = this.comparedItem();
+         if(ownOnly || other == null) return weightLast(this._primary.properties);
+         var own:Array = [];
+         var theirs:Array = [];
+         var prop:Object;
+         var mine:Object = {};
+         for each(prop in this._primary.properties)
+         {
+            own.push(prop);
+            if(mine[prop.prop_id] == undefined) mine[prop.prop_id] = prop;
+         }
+         for each(prop in other.properties) theirs.push(prop);
+         var otherLeads:Boolean = theirs.length > own.length || theirs.length == own.length && int(other.dictId) < int(this._primary.dictId);
+         var rows:Array = [];
+         var seen:Object = {};
+         for each(prop in otherLeads ? theirs.concat(own) : own.concat(theirs))
+         {
+            if(seen[prop.prop_id]) continue;
+            seen[prop.prop_id] = true;
+            rows.push(mine[prop.prop_id] != undefined ? mine[prop.prop_id] : {prop_id:prop.prop_id,prop_value:0,absent:true});
+         }
+         return weightLast(rows);
+      }
+
+      // Of `rows`, those the card draws (the comparable ones) and has `room` for: with more, the
+      // stats the item has none of go first (the last of them first), then the ones before the
+      // last row (the weight), which is kept. No room: none.
+      private function fitted(rows:Array, ammoDetails:Boolean, weaponDetails:Boolean, room:int) : Array
+      {
+         var drawn:Array = [];
+         for each(var prop:Object in rows)
+         {
+            if(ammoDetails || weaponDetails && prop.prop_id == 24) continue;
+            var description:Object = _propsDescriptor.getPropertyDescription(prop.prop_id);
+            if(description && description.comparable) drawn.push(prop);
+         }
+         if(room <= 0) return [];
+         var over:int = drawn.length - room;
+         for(var i:int = drawn.length - 1; i >= 0 && over > 0; i--)
+         {
+            if(drawn[i].absent)
+            {
+               drawn.splice(i,1);
+               over--;
+            }
+         }
+         if(over > 0) drawn.splice(drawn.length - 1 - over,over);
+         return drawn;
+      }
+
+      // An item's properties in the card's order: its own, the weight last. The weight is the property named as the kit's weight (the exe hands the lobby the
+      // properties' names, not their keys).
+      private function weightLast(properties:Object) : Array
+      {
+         var rows:Array = [];
+         var weight:Array = [];
+         var name:String = LocalizationData.getName("equipment_weight");
+         for each(var prop:Object in properties)
+         {
+            (_propsDescriptor.getPropertyDescription(prop.prop_id).prop_name == name ? weight : rows).push(prop);
+         }
+         return rows.concat(weight);
+      }
+
+      // The card row of a pocket item's units: the id of the property that carries
+      // parameters/pocket_units (content-edit pocket-units-1).
+      private static const POCKET_DEPTH:int = 166;
+
+      // The pocket units one of `item` takes: all of them (MAX_POCKET_UNITS) for an item that
+      // fills a pocket; 0 for an item that goes in no pocket.
+      private static function pocketDepth(item:Object) : int
+      {
+         if(item == null || item.category != ItemCategory.MEDKITS && item.category != ItemCategory.BOOBY_TRAPS && item.category != ItemCategory.GRENADES)
+            return 0;
+         if(item.quickSlotItemSize == QuickSlotSize.WHOLE) return PlayerInfo.MAX_POCKET_UNITS;
+         return item.quickSlotItemSize == QuickSlotSize.PAIR ? 2 : 1;
       }
    }
 }
-

@@ -117,11 +117,6 @@ package survarium.ammo
          _owner = value;
       }
       
-      public function isPremium() : Boolean
-      {
-         return this._data && !this._data.canBuy && this._data.premiumCost;
-      }
-      
       override public function get width() : Number
       {
          return 274;
@@ -166,17 +161,15 @@ package survarium.ammo
          copy.canBuy = item.canBuy;
          copy.unlockLevelLabel = item.unlockLevelLabel;
          copy.itemLevel = item.itemLevel;
-         copy.premiumCost = item.premiumCost;
          itemLevel = item.itemLevel;
          _data = copy;
          _cardItem = item;
          var unlocked:Boolean = !(item.canBuy == false && this._data.value == 0);
-         var premium:Boolean = this.isPremium();
-         _item_price = premium ? this._data.premiumCost : this._data.cost;
+         _item_price = this._data.cost;
          _clipSize = copy.clipSize;
          _clipsInBag = copy.clipsInBag;
          this.textField.text = copy.name;
-         this.textField.textColor = premium ? Colors.GOLD : Colors.SILVER;
+         this.textField.textColor = Colors.SILVER;
          this.slider.shiftInterval = -3;
          this.slider.renderer = "ItemRoundCell";
          this.slider.alpha = 1;
@@ -184,13 +177,12 @@ package survarium.ammo
          this.weaponSlot.content = this._data.icon;
          this.slider.removeEventListener(SliderEvent.VALUE_CHANGE,this.onElementSlider);
          var ownedCount:int = this._data.value;
-         var goldTint:ColorTransform;
          _max = int(int(this.available * this._clipsInBag) * this._clipSize);
          if(!this._data.canBuy)
          {
             _max = Math.min(this._max,int(int(ownedCount / this._clipSize) * this._clipSize));
          }
-         trace("ASE::max:",this._max,this.available,this._clipsInBag,this._clipSize,this._data.canBuy,this.index,"inv::",ownedCount,this._data.count,this._data.premiumCost);
+         trace("ASE::max:",this._max,this.available,this._clipsInBag,this._clipSize,this._data.canBuy,this.index,"inv::",ownedCount,this._data.count);
          focusable = true;
          _ignoreChange = true;
          this.stepper_storage.editable = true;
@@ -228,22 +220,10 @@ package survarium.ammo
          this.updateText();
          this.updateSteppers();
          _ignoreChange = false;
-         if(premium)
-         {
-            goldTint = new ColorTransform(0.7,0.7,0.7,1,136,103,15,0);
-            this.stepper_storage.nextBtn.transform.colorTransform = goldTint;
-            this.stepper_storage.prevBtn.transform.colorTransform = goldTint;
-            this.textField.x = 133;
-            this.lock_mc.y = this.textField.y + 6;
-            this.lock_mc.x = this.textField.x - this.lock_mc.width - 4;
-         }
-         else
-         {
-            this.textField.x = 123;
-            this.lock_mc.y = this.slider.y + 4;
-            this.lock_mc.x = this.slider.x + 3;
-         }
-         this.lock_mc.visible = !unlocked || premium;
+         this.textField.x = 123;
+         this.lock_mc.y = this.slider.y + 4;
+         this.lock_mc.x = this.slider.x + 3;
+         this.lock_mc.visible = !unlocked;
          if(!unlocked)
          {
             if(this._data.unlockLevelLabel)
@@ -447,11 +427,6 @@ package survarium.ammo
          this.textFieldEquipped.text = LocalizationData.getName("ammo_equipped_label");
          this.textFieldStorage.text = LocalizationData.getName("ammo_storage_label");
          this.lock.mouseEnabled = this.textFieldLock2.mouseEnabled = this.textFieldLock.mouseEnabled = false;
-      }
-      
-      protected function onAutoBuyBtnClicked(event:ButtonEvent) : void
-      {
-         dispatchEvent(new Event(Event.CHANGE));
       }
       
       protected function stepperChange(event:Event) : void

@@ -35,7 +35,19 @@ global symbol of its own, which the link resolves for every caller):
                arguments "-", no re-kit row), "virtual" (a virtual
                function, called through its object's vtable: va is
                `<class>+<slot>`, the class whose virtual it is and the slot's
-               byte offset; a cdecl thunk, below, that calls `[[this]+slot]`)
+               byte offset; a cdecl thunk, below, that calls `[[this]+slot]`),
+               "com" (a method of a COM interface of a system DLL, not of
+               the exe: va is `<Interface>+<slot>`, the interface's name and
+               its method's byte offset in the interface's vtable; stdcall,
+               `this` the first stack argument; arguments "-", no re-kit
+               row: the interface's declaration (d3d11.h) is the contract;
+               a cdecl thunk that pushes the arguments, `this` last, and
+               calls `[[this]+slot]`),
+               "dynamic" (a function of a DLL the game does not import, whose
+               address a GetProcAddress gives at run time: va and arguments
+               "-", stdcall as its prototype says; the `raw` layer's
+               `<symbol>(function, ...)` calls it at that address; nothing in
+               the arena or the C and NASM files)
 
 fields_026g.tsv is the game's objects' fields Rust reads and writes (kind,
 field, offset, type, about): each kind a handle `raw::<Kind>` (a
@@ -61,8 +73,9 @@ at most the slots' bytes). Each argument's word must be in a re-kit role of
 its location, and no two arguments' words may each fit the other's location:
 two parameters given each other's locations are refused (a swap the thunk
 would follow faithfully, which no entry check can see). A result is read
-from abi.tsv's `result` (EAX, AL widened to EAX, EDX:EAX for a 64-bit
-return, XMM0 moved to ST0 for a float).
+from abi.tsv's `result` (EAX, AL or AX widened to EAX, EDX:EAX for a 64-bit
+return, XMM0 moved to ST0 for a float, ST0 as it is: a float a function called
+directly in its own convention returns as C does).
 Anything else (an XMM or byte-register argument, varargs, a range) is
 refused: add the row to the re-kit, or call that function by hand.
 
@@ -97,8 +110,10 @@ FIELDS = HERE / "fields_026g.tsv"
 SITES = HERE / "sites_026g.tsv"
 HEADER, INCLUDE, ASM, RUST = (HERE / f"engine_026g{suffix}" for suffix in (".h", ".inc", ".asm", ".rs"))
 RAW = HERE / "raw_026g.rs"
-CALLS = ("thunk", "stdcall", "cdecl", "thiscall", "import", "virtual")
-THUNKED = ("thunk", "virtual")                  # the calls made through a cdecl thunk of the library
+CALLS = ("thunk", "stdcall", "cdecl", "thiscall", "import", "virtual", "com", "dynamic")
+THUNKED = ("thunk", "virtual", "com")           # the calls made through a cdecl thunk of the library
+# a COM method's va: the interface (d3d11.h's name, ID3D11DeviceContext) + its slot
+COM = re.compile(r"(I[A-Za-z0-9]+)\+(0x[0-9A-Fa-f]+|[0-9][0-9A-Fa-f]*h)")
 VIRTUAL = re.compile(r"((?:[a-z_][a-z0-9_]*::)+[a-z_][a-z0-9_]*)\+(0x[0-9A-Fa-f]+|[0-9][0-9A-Fa-f]*h)")
 REGISTERS = ("EAX", "ECX", "EDX", "EBX", "ESI", "EDI", "EBP")
 SAVED = ("ebp", "ebx", "esi", "edi")             # pushed in this order; cdecl's callee-saved
@@ -140,7 +155,7 @@ def location(text):
 
 
 def result_of(text):
-    match = re.match(r"\s*(EDX:EAX|EAX|AL|XMM0)\b", text or "")
+    match = re.match(r"\s*(EDX:EAX|EAX|AX|AL|XMM0|ST0)\b", text or "")
     return match.group(1) if match else None
 
 
@@ -181,6 +196,9 @@ def rows_of(va, abi=None, inputs=None):
     for row in inputs:
         if int(row["va"], 16) == va:
             out["names"].add(row["name"])
+            if " at 0x" in row["location"]:
+                continue                     # a register inside the function (a site's), no input
+
             out["locations"].add(location(row["location"]))
             out["roles"].setdefault(location(row["location"]), []).append(row["role"])
     out["names"].discard("")
@@ -249,6 +267,8 @@ def function(row, abi=None, inputs=None, vtables=None):
     ret, name, params = parse_prototype(row["prototype"])
     vostok = parse_vostok(row.get("vostok"), name, params)
     call = (row.get("call") or "thunk").strip()
+    if call == "com":
+        return com_method(row, name, params, ret, vostok)
     if call == "virtual":
         base, slot, found = implementations(row["va"], vtables)
         out = None
@@ -260,6 +280,15 @@ def function(row, abi=None, inputs=None, vtables=None):
                               "rows (each must take its arguments where the others do and pop what they pop)")
             out = out or one
         return dict(out, va=None, call="virtual", name=f"{base}+{slot:#x}", virtual=(base, slot, found))
+    if call == "dynamic":
+        if row["va"].strip() != "-" or row["arguments"].strip() != "-":
+            raise Refused(f"{name}: a dynamic function's va and arguments are \"-\" (stdcall, its prototype's)")
+        if not re.fullmatch(r"engine_[a-z0-9_]+", name) or name != row["symbol"]:
+            raise Refused(f"{row['symbol']}: the prototype names {name}; a symbol is engine_<what>")
+        return {"symbol": name, "va": None, "args": [f"ESP+{4 * i + 4}" for i in range(len(params))],
+                "params": params, "ret": ret, "cleanup": 4 * len(params),
+                "result": None if return_kind(ret) is None else "EAX", "name": "a GetProcAddress result",
+                "prototype": row["prototype"].strip(), "call": call, "vostok": vostok}
     va = number(row["va"])
     if name != row["symbol"] or not re.fullmatch(r"engine_[a-z0-9_]+", name):
         raise Refused(f"{row['symbol']}: the prototype names {name}; a symbol is engine_<what>")
@@ -308,19 +337,47 @@ def function(row, abi=None, inputs=None, vtables=None):
         if len(rows["results"]) != 1:
             raise Refused(f"{name}: returns {ret}, abi.tsv gives {sorted(rows['results']) or 'no'} result")
         result = rows["results"].pop()
-        fits = {"word": ("EAX", "AL"), "u64": ("EDX:EAX",), "float": ("XMM0",)}[kind]
+        fits = {"word": ("EAX", "AX", "AL"), "u64": ("EDX:EAX",), "float": ("XMM0", "ST0")}[kind]
         if result not in fits:
             raise Refused(f"{name}: returns {ret}, but {va:#x}'s result is {result}")
+        if result == "ST0" and call in THUNKED:
+            raise Refused(f"{name}: returns {ret} in ST0; call it directly (cdecl or stdcall), not through a thunk")
     if call != "thunk":
         stack = [f"ESP+{4 * i + 4}" for i in range(len(args) - (call == "thiscall"))]
         if args != (["ECX"] if call == "thiscall" else []) + stack \
-                or cleanup != (0 if call == "cdecl" else 4 * len(stack)) or result not in (None, "EAX", "AL"):
+                or cleanup != (0 if call == "cdecl" else 4 * len(stack)) \
+                or result not in (None, "EAX", "AX", "AL", "ST0"):
             raise Refused(f"{name}: not {call} ({describe_args(params, args)}; pops {cleanup}; {result})")
         if result == "AL" and not re.fullmatch(r"(unsigned )?char", ret.strip()):
             raise Refused(f"{name}: called directly, its result is AL only: the prototype returns unsigned char")
+        if result == "AX" and ret.strip() != "unsigned short":
+            raise Refused(f"{name}: called directly, its result is AX only: the prototype returns unsigned short")
     return {"symbol": name, "va": va, "args": args, "params": params, "ret": ret, "cleanup": cleanup,
             "result": result, "name": sorted(rows["names"])[0] if rows["names"] else "",
             "prototype": row["prototype"].strip(), "call": call, "vostok": vostok}
+
+
+def com_method(row, name, params, ret, vostok):
+    """A `com` row: a method of a system DLL's COM interface, stdcall with
+    `this` the first stack argument, through `[[this]+slot]`."""
+    match = COM.fullmatch(row["va"].strip())
+    if not match:
+        raise Refused(f"{name}: a COM method's va {row['va']!r} is <Interface>+<slot> (ID3D11DeviceContext+0x3c)")
+    interface, slot = match.group(1), number(match.group(2))
+    if slot % 4 or not 12 <= slot < 0x400:
+        raise Refused(f"{name}: {row['va']}: a method's slot is a multiple of 4, past IUnknown's three, under 0x400")
+    if name != row["symbol"] or not re.fullmatch(r"engine_[a-z0-9_]+", name):
+        raise Refused(f"{row['symbol']}: the prototype names {name}; a symbol is engine_<what>")
+    if row["arguments"].strip() != "-":
+        raise Refused(f"{name}: a COM method's arguments are \"-\" (stdcall, `this` first: its prototype's)")
+    if not params or not params[0][0].strip().endswith("*"):
+        raise Refused(f"{name}: a COM method's first parameter is the interface pointer (`this`)")
+    if return_kind(ret) not in (None, "word"):
+        raise Refused(f"{name}: a COM method returns nothing or a word (an HRESULT) in EAX")
+    return {"symbol": name, "va": None, "args": [f"ESP+{4 * i + 4}" for i in range(len(params))], "params": params,
+            "ret": ret, "cleanup": 4 * len(params), "result": None if return_kind(ret) is None else "EAX",
+            "name": f"{interface}+{slot:#x}", "prototype": row["prototype"].strip(), "call": "com",
+            "vostok": vostok, "com": (interface, slot)}
 
 
 def describe_args(params, args):
@@ -456,9 +513,14 @@ def raw_type(kind, tags, prefix=""):
 
 
 def describe(f):
+    if f["call"] == "dynamic":
+        return "a function at the address GetProcAddress gives (stdcall)"
     if f["call"] == "import":
         return f"the IAT slot {f['va']:#x} (an import, stdcall)"
     where = describe_args(f["params"], f["args"])
+    if f["call"] == "com":
+        return (f"COM {f['name']} (stdcall through the interface's vtable): {where}; pops {f['cleanup']}"
+                + (f"; {f['result']}" if f["result"] else ""))
     if f["call"] == "virtual":
         base, slot, found = f["virtual"]
         bodies = sorted({va for _, va, _ in found})
@@ -489,6 +551,10 @@ def thunk(f):
     if f["call"] == "virtual":                       # thiscall: `this` in ECX, its vtable first
         lines += ["    mov eax, [ecx]                   ; this's vtable",
                   f"    call [eax + {f['virtual'][1]:#x}]"]
+    elif f["call"] == "com":                         # stdcall: `this` the first stack argument, pushed last
+        lines += ["    mov eax, [esp]                   ; this",
+                  "    mov eax, [eax]                   ; its vtable",
+                  f"    call [eax + {f['com'][1]:#x}]"]
     else:
         lines.append(f"    call {f['va']:#x}")
     left = pushed - f["cleanup"]
@@ -496,6 +562,8 @@ def thunk(f):
         lines.append(f"    add esp, {left}                  ; the caller's part of the stack")
     if f["result"] == "AL":
         lines.append("    movzx eax, al")
+    elif f["result"] == "AX":
+        lines.append("    movzx eax, ax")
     elif f["result"] == "XMM0":
         lines += ["    sub esp, 4", "    movss [esp], xmm0", "    fld dword [esp]", "    add esp, 4"]
     lines += [f"    pop {r}" for r in reversed(SAVED)]
@@ -506,6 +574,7 @@ def thunk(f):
 def asm_text(fs):
     """`fs`: every row; a thunk for each called through one, the address of
     each other (a direct function's VA, an import's IAT slot)."""
+    fs = [f for f in fs if f["call"] != "dynamic"]
     thunks = [f for f in fs if f["call"] in THUNKED]
     lines = [f"; The engine-function library ({GENERATED}).",
              "; A thunk per function, each a global symbol: cdecl in, the engine's",
@@ -522,6 +591,7 @@ def asm_text(fs):
 
 
 def header_text(fs):
+    fs = [f for f in fs if f["call"] != "dynamic"]
     tags = sorted({t for f in fs for t in re.findall(r"\bstruct\s+(\w+)", f["prototype"])})
     lines = [f"/* The engine-function library ({GENERATED}).",
              " *",
@@ -546,18 +616,19 @@ def header_text(fs):
 
 
 def include_text(fs):
+    fs = [f for f in fs if f["call"] != "dynamic"]
     lines = [f"; The engine-function library's functions ({GENERATED}).",
              "; cdecl: push the arguments right to left, call, add esp, 4 x their count;",
              "; EBX, ESI, EDI and EBP are kept, EAX, ECX and EDX are not. The link gives",
              "; each its address."]
     for f in fs:
-        how = {"thunk": [], "virtual": [], "import": ["; `call [symbol]`: stdcall, it pops its arguments"]}.get(
+        how = {"thunk": [], "virtual": [], "com": [], "import": ["; `call [symbol]`: stdcall, it pops its arguments"]}.get(
             f["call"], [f"; {f['call']}: push (and ECX for thiscall) as that convention says"])
         lines += [f"; {f['prototype']}", f"; {describe(f)}"] + how + [f"extern {f['symbol']}"]
     return "\n".join(lines) + "\n"
 
 
-RUST_BASES = {"void": "c_void", "char": "u8", "unsigned char": "u8", "unsigned int": "u32", "float": "f32",
+RUST_BASES = {"void": "c_void", "char": "u8", "unsigned char": "u8", "unsigned short": "u16", "unsigned int": "u32", "float": "f32",
               "unsigned long long": "u64"}
 # C parameter names that are Rust keywords: written as raw identifiers.
 RUST_KEYWORDS = {"as", "async", "await", "box", "break", "const", "continue", "crate", "dyn", "else", "enum",
@@ -596,13 +667,25 @@ def rust_functions(fs, tags=()):
         ret = "" if return_kind(f["ret"]) is None else f" -> {raw_type(f['ret'], tags)}"
         return params, ret
     for abi in ("C", "stdcall", "cdecl", "thiscall"):
-        group = [f for f in fs if {"thunk": "C", "virtual": "C"}.get(f["call"], f["call"]) == abi]
+        group = [f for f in fs if {"thunk": "C", "virtual": "C", "com": "C"}.get(f["call"], f["call"]) == abi]
         if group:
             lines += ["", "#[allow(dead_code)]", f'unsafe extern "{abi}" {{']
             for f in group:
                 params, ret = signature(f)
                 lines += [f"    /// {describe(f)}", f"    pub fn {f['symbol']}({params}){ret};"]
             lines.append("}")
+    for f in (f for f in fs if f["call"] == "dynamic"):
+        params, ret = signature(f)
+        types = ", ".join(raw_type(kind, tags) for kind, _ in f["params"])
+        names = ", ".join(f"{'r#' if name in RUST_KEYWORDS else ''}{name}" for _, name in f["params"])
+        lines += ["", f"/// {describe(f)}: {f['prototype']}", "///", "/// # Safety",
+                  "/// `function` is that function (a GetProcAddress result of its name).",
+                  # the arguments are the Windows function's own (CreateFileW has seven), and the function
+                  "#[allow(dead_code, clippy::too_many_arguments)]" if len(f["params"]) >= 7 else "#[allow(dead_code)]",
+                  "#[inline(always)]",
+                  f"pub unsafe fn {f['symbol']}(function: NonNull<c_void>{', ' if params else ''}{params}){ret} {{",
+                  f'    let function = unsafe {{ core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn({types}){ret}>(function.as_ptr()) }};',
+                  f"    unsafe {{ function({names}) }}", "}"]
     imports = [f for f in fs if f["call"] == "import"]
     if imports:
         lines += ["", "#[allow(dead_code, non_upper_case_globals)]", 'unsafe extern "C" {']
@@ -628,7 +711,7 @@ def rust_text(fs):
              "",
              "#[allow(unused_imports)]",
              "use core::ffi::c_void;"]
-    return "\n".join(lines + rust_functions(fs)) + "\n"
+    return "\n".join(lines + rust_functions([f for f in fs if f["call"] != "dynamic"])) + "\n"
 
 
 SAFETY_ALIVE = "`self` is alive (its fields are its kind's: the type says so)."

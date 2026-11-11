@@ -322,7 +322,8 @@ def main():
 
     r.death()
     assert r.queries == [], "a replayed death asks again"
-    print("ok the same life's death again (a rollback replaying it): no second cook")
+    assert sum("pickup: death hook: place 5 " in l for l in r.log) == 1, r.log
+    print("ok the same life's death again (a rollback replaying it): no second cook, its line said once")
 
     r.complete(q, COOKED)
     assert r.read(COOKED + 0xD0) == 2 and recipe in r.frees and copy in r.live
@@ -336,6 +337,8 @@ def main():
     r.remove(PLAYER, respawn)
     assert any("its body left the world: the drop stays, alone, the gun of place 5 kit 1 slot 10 of place 5 at %d ms"
                % respawn in l for l in r.log), r.log
+    r.remove(PLAYER, respawn)
+    assert sum("its body left the world" in l for l in r.log) == 1, "a replayed removal's line said again"
     r.step(respawn + 600_000)
     assert r.read(COOKED + 0xD0) == 2, "freed after the respawn (the drop stays until the player dies again)"
     gone = respawn + 600_000                            # its next death, holding nothing: no drop now
@@ -1077,17 +1080,62 @@ GET_ACTIVE_PLAYER = 0x27A9C0
 
 
 def world_with(states):
-    """A world as the 0xE8 handler loads it: its time, the mask, each place's state (not animated),
-    six empty sections."""
-    out = bytearray(struct.pack("<II", DIED + 2_000, sum(1 << place for place in states)))
+    """Current TDM snapshot around the pickup records this harness exercises."""
+    from check_world_check_026g import sections, player
+    now = DIED + 2_000
+    out = bytearray(struct.pack("<II", now, sum(1 << place for place in states)))
     for place in sorted(states):
-        out += struct.pack("<H", len(states[place])) + states[place] + b"\0"
-    return bytes(out + bytes(2 * 6))
+        value = states[place]
+        # Most pickup cases supply just the kit bytes and their record.
+        if len(value) == 31:
+            value += player()[31:]
+        out += struct.pack("<H", len(value)) + value + b"\0"
+    for section in sections(now):
+        out += struct.pack('<H',len(section)) + section
+    return bytes(out)
+
+
+def world_sections(world):
+    from check_world_roundtrip_026g import walk, animation_len
+    body = world[4:]
+    states = walk(body)
+    at = 4
+    for _,start,end in states:
+        at = end+1
+        if body[end]: at += animation_len(body[at:])
+    sections = []
+    for _ in range(6):
+        size, = struct.unpack_from('<H',body,at)
+        sections.append(body[at+2:at+2+size]); at+=2+size
+    return sections
+
+
+def install_validation_context(r, world):
+    # Historical round-trip fixtures and synthetic pickup worlds are TDM.
+    # Other corpora supply (mode,batteries,respawn) from host drift_dump.
+    context = getattr(r, 'validation_context', None)
+    if context is None:
+        rules = world_sections(world)[4]
+        waits, = struct.unpack_from('<I',rules,13)
+        point_bytes = len(rules)-(13+8+4*waits.bit_count()+12+5*20+2)
+        assert point_bytes >= 0 and point_bytes % 2 == 0, 'supply the snapshot match context'
+        context = (4,0,point_bytes//2)
+    mode,batteries,points = context
+    table,rule,respawn = r.blk(8),r.blk(0x200),r.blk(0x200)
+    r.word(CLIENT+0x1F1C40,MATCH)
+    r.word(CORE+0x18824,table);r.word(CORE+0x18828,table+8)
+    r.word(table,rule);r.word(table+4,respawn)
+    r.word(rule,{2:0xA06AB4,3:0xA06C04,4:0xA06CBC,5:0xA06A54}[mode])
+    r.word(rule+0x10c,5 if mode==5 else 0)
+    slots=r.blk(max(4,batteries*4))
+    r.word(rule+0x110,slots);r.word(rule+0x114,slots+batteries*4)
+    r.word(respawn,0xA06D1C);r.word(respawn+0x194,points)
 
 
 def load_world(r, world):
     """process_dynamic_match_info at world_load.unpacked (patch 87's site, patch 85's preparation composed):
     the world in the frame's buffer {allocator, begin, capacity, size} at EBP-24h, EDI the client."""
+    install_validation_context(r, world)
     frame, at = r.blk(0x100) + 0x80, r.blk(len(world))
     r.emu.mem_write(at, world)
     for off, value in ((-0x24, 0), (-0x20, at), (-0x1C, 0x8000), (-0x18, len(world))):
@@ -1589,7 +1637,7 @@ def no_branch_into(original):
     stock = test.Image(original)
     for va, size in NEW_SPANS.items():
         spelled = [va + i for i in range(1, size) if original.find(struct.pack("<I", va + i)) != -1]
-        hits = [x for x in test.aimed_inside(original, va, size, 0x82)
+        hits = [x for x in test.aimed_into(original, va, va + size)
                 if x not in spelled and test.starts_instruction(stock, x)]
         assert not hits, (hex(va), [hex(h) for h in hits])
 
@@ -2440,6 +2488,7 @@ WEAPON_DRAW, WEAPON_DRAWN, WEAPON_SKIPPED = 0x2477C8, 0x2477CE, 0x2477DF
 ICONS_SITE, ICONS_AFTER = 0x23AA10, 0x23AA16
 BUILDER_END, BUILDER_AFTER = 0x2421B0, 0x2421B5
 RAY_TEST, REMOVE_MODEL, TRANSLATE = 0x75E20, 0x21F40, 0x1FF0F0
+USE_GATHER, USE_FREE = 0x2DC390, 0xEB5B0     # the use scan's usable objects' query and its frees
 USE = 1 << 21
 IDENTITY = (1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.)
 NAME_KEY, NAME = b"st_wpn_svd_name", "SVD"
@@ -2457,6 +2506,52 @@ class Prompt(Pick):
         self.wall, self.removed = False, []
         for at in (RAY_TEST, REMOVE_MODEL, TRANSLATE):
             self.emu.hook_add(UC_HOOK_CODE, self.fixtures, begin=at, end=at)
+        # The physics world: ray_test by its address; the use scan's ray_query
+        # (vtable+4Ch) and what it asks of a hit by stubs. use_hit: None, no
+        # usable object in the use ray; "usable" or "refusing", one whose
+        # can_use says yes or no.
+        self.use_hit = None
+        self.world, table, self.use_stubs = self.blk(0x10), self.blk(0x100), self.blk(0x40)
+        self.emu.mem_write(self.use_stubs, b"\xCC" * 0x40)
+        self.word(self.world, table)
+        self.word(table + 0x4C, self.use_stubs)
+        for at in (self.use_stubs, self.use_stubs + 0x10, self.use_stubs + 0x20, self.use_stubs + 0x30,
+                   USE_GATHER, USE_FREE):
+            self.emu.hook_add(UC_HOOK_CODE, self.use_scan, begin=at, end=at)
+
+    def use_scan(self, emu, address, *_):
+        sp, s = emu.reg_read(UC_X86_REG_ESP), self.use_stubs
+        if address == s:                            # ray_query(world; origin, direction, length, hits, group, mask)
+            if self.use_hit is not None:
+                hit, obj, obj_table, owner, owner_table = (self.blk(0x28), self.blk(0x10), self.blk(0x10),
+                                                           self.blk(0x10), self.blk(0x10))
+                self.usable, usable_table = self.blk(0x10), self.blk(0x40)
+                self.word(hit + 0x1C, obj)
+                emu.mem_write(hit, struct.pack("<3f", 0., 0.4, 0.8))   # by the gun, 0.6 m below the eye
+                self.word(obj, obj_table)
+                self.word(obj_table, s + 0x10)
+                self.word(obj + 0xC, owner)
+                self.word(owner, owner_table)
+                self.word(owner_table + 4, s + 0x20)
+                self.word(self.usable, usable_table)
+                self.word(usable_table + 0x30, s + 0x30)
+                hits = self.read(sp + 16)
+                self.word(hits, hit)
+                self.word(hits + 4, hit + 0x28)
+            self.ret(24)
+        elif address == s + 0x10:                   # the hit's collision group: usable
+            self.ret(0, 0x80)
+        elif address == s + 0x20:                   # its collision geometry
+            self.ret(0, self.blk(0x20))
+        elif address == USE_GATHER:                 # ESI the list: the usable object
+            slot = self.blk(4)
+            self.word(slot, self.usable)
+            self.word(emu.reg_read(UC_X86_REG_ESI), slot)
+            self.ret(12)
+        elif address == s + 0x30:                   # its can_use
+            self.ret(4, 1 if self.use_hit == "usable" else 0)
+        else:                                       # a free
+            self.ret(16)
 
     def fixtures(self, emu, address, *_):
         sp = emu.reg_read(UC_X86_REG_ESP)
@@ -2480,7 +2575,7 @@ class Prompt(Pick):
         super().setup(double_handed)
         p = self.picker
         self.emu.mem_write(PLACES_AT, b"\x08")
-        self.word(p + 0x350, 0x5050)                    # its physics world
+        self.word(p + 0x350, self.world)                # its physics world
         self.eye([0., 0., 1.], [0., 1.0, 0.])
         # The donor's gun on its ragdoll at (0, 1, 1): its model's instance in the scene (what
         # patch 78's hiding takes out), without its resource (replaced as the body went to ragdoll):
@@ -2557,6 +2652,13 @@ def stage2b(patched):
     assert r.hud() == [("st_weapon_pick_up", NAME)], r.invokes()
     assert r.hud() == [("st_weapon_pick_up", NAME)]
     assert sights(r) == ["offered"], "once per drop and reason"
+    # The picker turning away and back, again and again: each sight once a body.
+    for _ in range(3):
+        r.eye([1., 0., 0.], [0., 1.0, 0.])
+        r.hud()
+        r.eye([0., 0., 1.], [0., 1.0, 0.])
+        assert r.hud() == [("st_weapon_pick_up", NAME)]
+    assert sights(r) == ["offered", "in reach, not aimed at its box"], sights(r)
     boxes = [l for l in r.log if "the gun box of place 5" in l]
     assert len(boxes) == 1 and boxes[0].endswith(
         "place 3: the gun box of place 5 at (0, 1000, 1000), half sizes (50, 50, 500) mm"), boxes
@@ -2627,6 +2729,21 @@ def stage2b(patched):
         assert len(sights(g)) == 1 and sights(g)[0].startswith(sight), (case, sights(g))
     print("ok aimed at but refused, the prompt says why: a second rifle, one gun only (modifier 64), no gun in "
           "hands (a battery), a weapon switch under way, already taken; Use does nothing")
+    # What the game's own Use takes goes first (patch 23's use scan): a battery
+    # by the body's gun, no prompt and Use the game's; one that refuses (its
+    # can_use no) leaves the gun's pickup as it was.
+    g = Prompt(patched)
+    g.setup()
+    g.use_hit = "usable"
+    assert g.draw()
+    assert g.hud() == [] and g.build(USE) == USE and sights(g) == [], (g.invokes(), sights(g))
+    g = Prompt(patched)
+    g.setup()
+    g.use_hit = "refusing"
+    assert g.draw() and g.hud() == [("st_weapon_pick_up", NAME)], g.invokes()
+    assert g.build(USE) == command(PLACE)
+    print("ok a usable object in the game's use ray (a battery by the gun) goes first: no prompt, Use the game's; "
+          "one that refuses leaves the pickup offered")
     g = Prompt(patched)
     g.setup()
     g.word(g.picker + 0x324, DIED + 60_000)
@@ -2752,7 +2869,7 @@ class Death(Prompt):
     def viewer(self, p):
         """`p` the local player, looking from (0, 1, 0) along z at the gun drawn at (0, 1, 1)."""
         self.word(CLIENT + 4, p)
-        self.word(p + 0x350, 0x5050)
+        self.word(p + 0x350, self.world)
         m = list(IDENTITY)
         m[8:11], m[12:15] = [0., 0., 1.], [0., 1.0, 0.]
         self.emu.mem_write(p + 0x44C, struct.pack("<16f", *m))

@@ -12,6 +12,7 @@ import shutil
 import stat
 import struct
 import subprocess
+import tarfile
 import tempfile
 import time
 import unittest
@@ -76,6 +77,9 @@ class ReleaseTests(unittest.TestCase):
         dll[86:88] = (0x2000).to_bytes(2, 'little')
         dll[88:90] = (0x10b).to_bytes(2, 'little')
         self.dll.write_bytes(dll)
+        # skhid_voice.dll: the same header, with patch 66's export names.
+        self.voice = self.root / 'skhid_voice.dll'
+        self.voice.write_bytes(bytes(dll) + b''.join(name + b'\0' for name in overlay.VOICE_EXPORTS))
         # The launcher's fixtures: an "original" launcher in the game folder
         # and an updater with the manifest the builder insists on.
         (self.exe.parent / 'survarium_launcher.exe').write_bytes(b'original launcher fixture')
@@ -83,14 +87,28 @@ class ReleaseTests(unittest.TestCase):
         updater = bytearray(dll)
         updater[86:88] = (0x0102).to_bytes(2, 'little')
         self.updater.write_bytes(updater + b"<requestedExecutionLevel level='asInvoker' uiAccess='false'/>")
-        self.without_launcher = {'README.txt', 'LINUX.txt',
+        # DXVK's release archive, a stand-in with its two DLLs, and its pins
+        # (build() gives the builder these in place of the real ones).
+        self.dxvk_dlls = {name: b'MZ dxvk fixture ' + name.encode() for name in overlay.DXVK_DLLS}
+        self.dxvk = self.root / f'dxvk-{overlay.DXVK_VERSION}.tar.gz'
+        with tarfile.open(self.dxvk, 'w:gz') as archive:
+            for name, data in self.dxvk_dlls.items():
+                info = tarfile.TarInfo(f'dxvk-{overlay.DXVK_VERSION}/x32/{name}')
+                info.size = len(data)
+                archive.addfile(info, io.BytesIO(data))
+        self.dxvk_pins = dict(DXVK_SHA256=hashlib.sha256(self.dxvk.read_bytes()).hexdigest(),
+                              DXVK_DLLS={name: hashlib.sha256(data).hexdigest() for name, data in self.dxvk_dlls.items()})
+        self.without_launcher = {'README.txt', 'LINUX.txt', 'MACOS.txt',
             'game/binaries/x86/survarium_skhid.exe', 'game/binaries/x86/bugtrap.dll',
-            'game/binaries/x86/play_skhid.bat', 'game/binaries/x86/play_skhid.sh',
+            'game/binaries/x86/skhid_voice.dll', 'game/binaries/x86/play_skhid.bat', 'game/binaries/x86/play_skhid.sh',
+            'game/binaries/x86/play_skhid_mac.sh',
             'game/resources/ssl/survarium_login_server.crt'}
         self.names = self.without_launcher | {
             'game/binaries/x86/launcher_skhid.exe', 'game/binaries/x86/updater_skhid.exe',
             'game/binaries/x86/7zr.exe',
+            *(f'game/binaries/x86/dxvk/{name}' for name in ('d3d8.dll', 'd3d9.dll', 'd3d10core.dll', 'd3d11.dll', 'dxgi.dll')),
             'game/binaries/x86/updater_skhid.url', 'Skhid.bat', 'Skhid-without-updater.bat', 'Skhid.sh',
+            'Skhid.command',
             'VPN.txt', 'Skhid-network-setup.cmd', 'Skhid-defender-setup.cmd', 'Skhid-collect-logs.cmd',
         } | {f'game/binaries/x86/launcher_skhid/index-{blank}{code}.html'
              for blank in ('', 'blank-') for code in ('en', 'ru', 'ua', 'de', 'pl')}
@@ -98,13 +116,13 @@ class ReleaseTests(unittest.TestCase):
     def build(self, output, *options):
         args = ['make_client_026g.py', str(self.game), str(output),
                 '--server=release.example:2234',
-                '--bugtrap=' + str(self.dll), '--updater=' + str(self.updater), *options]
+                '--bugtrap=' + str(self.dll), '--voice=' + str(self.voice), '--updater=' + str(self.updater), '--dxvk=' + str(self.dxvk), *options]
         # Binary patching has its own disassembly suite. Exercise every other
         # part of the real release builder, including source reads and ZIP I/O.
         launcher = mock.patch.object(
             overlay.L, 'build', return_value=(b'patched launcher fixture', 'test launcher'))
         with mock.patch.object(overlay.P, 'build', return_value=(b'patched fixture', 'test patch')) as patcher:
-            with launcher as self.launcher, mock.patch('sys.argv', args), \
+            with launcher as self.launcher, mock.patch('sys.argv', args), mock.patch.multiple(overlay, **self.dxvk_pins), \
                     contextlib.redirect_stdout(io.StringIO()) as messages:
                 overlay.main()
         self.assertEqual(self.exe.read_bytes(), b'original fixture')
@@ -118,7 +136,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertNotIn(b'LANGUAGE', windows)
         self.assertNotIn(b'localization', windows)
         self.assertNotIn(b'localization', linux)
-        self.assertRegex(windows, rb'start "" survarium_skhid\.exe -(server|mt_allocator)=')
+        self.assertRegex(windows, rb'start "" survarium_skhid\.exe -(server|minimum_resources_memory_size)=')
         refused = self.root / 'refused'
         with self.assertRaises(SystemExit):
             self.build(refused, '--localization=polish')
@@ -171,7 +189,7 @@ class ReleaseTests(unittest.TestCase):
             for name, path in paths.items():
                 self.assertEqual(z.read(name), path.read_bytes(), name)
                 info = z.getinfo(name)
-                expected = 0o755 if name.endswith('.sh') else 0o644
+                expected = 0o755 if name.endswith(('.sh', '.command')) else 0o644
                 self.assertEqual(stat.S_IMODE(info.external_attr >> 16), expected)
                 self.assertEqual(info.compress_type, zipfile.ZIP_DEFLATED)
         script = paths['game/binaries/x86/play_skhid.sh']
@@ -185,7 +203,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(self.launcher.call_args.args[0], b'original launcher fixture')
         self.assertEqual(self.launcher.call_args.kwargs, dict(
             site='https://release.example', game_exe='survarium_skhid.exe',
-            arguments='-mt_allocator=768 -minimum_resources_memory_size=768'))
+            arguments='-minimum_resources_memory_size=768'))
         self.assertEqual(paths['game/binaries/x86/launcher_skhid.exe'].read_bytes(), b'patched launcher fixture')
         self.assertEqual(paths['game/binaries/x86/updater_skhid.exe'].read_bytes(), self.updater.read_bytes())
         self.assertEqual(paths['game/binaries/x86/updater_skhid.url'].read_bytes(), b'https://release.example\r\n')
@@ -320,15 +338,39 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn('not the extractor the updater is built to run', str(refused.exception))
         self.assertFalse((self.root / 'refused').exists())
 
+    def test_dxvk_shipped_is_what_the_game_loads(self):
+        # The game (exe patch 83) loads DXVK's DLLs from dxvk\ by name, when
+        # all of them are there: the builder ships those names, winetricks
+        # dxvk's set, and the archive's dxvk folder holds the pinned DLLs.
+        rust = Path(overlay.HERE, 'rust', 'patches', 'src', 'hud_options.rs').read_text(encoding='utf-8')
+        loads = re.search(r'pub const DXVK_DLLS: \[DxvkDll; 5\] =\s*\[(.*?)\];', rust, re.S).group(1)
+        names = ['d3d8.dll', 'd3d9.dll', 'd3d10core.dll', 'd3d11.dll', 'dxgi.dll']
+        self.assertEqual(sorted(re.findall(r'dxvk\\\\([a-z0-9]+\.dll)', loads)), sorted(names))
+        self.assertEqual(list(overlay.DXVK_DLLS), names)
+        archive = self.root / 'dxvk.zip'
+        self.build(archive, '--pack-zip')
+        with zipfile.ZipFile(archive) as z:
+            for name, data in self.dxvk_dlls.items():
+                self.assertEqual(z.read(f'game/binaries/x86/dxvk/{name}'), data)
+
+    def test_another_dxvk_archive_than_the_pinned_one_is_refused(self):
+        other = self.root / 'other.tar.gz'
+        other.write_bytes(b'not dxvk')
+        with self.assertRaises(SystemExit) as refused:
+            self.build(self.root / 'refused', '--dxvk=' + str(other))
+        self.assertIn("not DXVK 3.1.1's release archive", str(refused.exception))
+        self.assertFalse((self.root / 'refused').exists())
+
     def test_certificate_only_launcher_has_an_explicit_server(self):
         archive = self.root / 'certificate.zip'
         call, _ = self.build(archive, '--pack-zip', '--cert-only')
         self.assertEqual(call.args[1:], ('cert-only', None, None, None))
         # The game's launcher passes the address too: this exe has none inside.
         self.assertEqual(self.launcher.call_args.kwargs['arguments'],
-                         '-server=release.example:2234 -mt_allocator=768 -minimum_resources_memory_size=768')
+                         '-server=release.example:2234 -minimum_resources_memory_size=768')
         with zipfile.ZipFile(archive) as z:
             self.assertIn(b'server=release.example:2234\n', z.read('game/binaries/x86/play_skhid.sh'))
+            self.assertIn(b'server=release.example:2234\n', z.read('game/binaries/x86/play_skhid_mac.sh'))
 
     def test_the_default_exe_has_the_late_join_and_can_be_built_without(self):
         code = Path(overlay.P.late_join_bin()).read_bytes()
@@ -404,7 +446,7 @@ class ReleaseTests(unittest.TestCase):
                 # HAPP's example, the first one, by its full path.
                 self.assertIn('C:\\Games\\Survarium\\game\\binaries\\x86\\' + program, half)
             self.assertLess(half.index('HAPP'), half.index('v2rayN'))
-            for host_or_port in ('skhid.link', 'TCP 443', 'TCP 8090', 'TCP 1234', 'UDP 1235', 'UDP 1236',
+            for host_or_port in ('skhid.link', 'TCP 443', 'TCP 8090', 'TCP 1234', 'UDP 1235', 'UDP 1236', 'UDP 1237',
                                  'https://skhid.link/patches', 'Skhid-network-setup.cmd', 'LINUX.txt'):
                 self.assertIn(host_or_port, half)
         # Public names only: no address, no other host.

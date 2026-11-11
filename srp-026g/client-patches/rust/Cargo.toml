@@ -28,9 +28,11 @@ publish = false
 unsafe_op_in_unsafe_fn = "deny"
 
 # The patches keep their state in fixed static tables (no heap, so no Box):
-# a state enum's largest variant is its table row's size, never a copy cost.
+# a state enum's largest variant is its table row's size, never a copy cost,
+# and a value refused is given back whole in its Err (a bake owner's).
 [workspace.lints.clippy]
 large_enum_variant = "allow"
+result_large_err = "allow"
 
 # The game's build aborts on a panic (link_026g.py); cargo's tests unwind.
 [profile.dev]

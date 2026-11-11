@@ -21,7 +21,7 @@ How 0.26g functions were found without a PDB: through the assert/log strings tha
 | Browser server (HTTP `/hello`) | used, port 80 | **gone**. No `http_client` in the exe. | browser-server unused |
 | Sign-in step 1 (plain) | `01 len email ver[12]="0.21d" eula u32 queue` | **same layout**, ver = `"0.26g0"` | version string only |
 | Step 2 (plain, 1 byte) | `0B` → TLS | same | none |
-| TLS | OpenSSL 1.0.0g, verify against `../../resources/ssl/survarium_login_server.crt` | **OpenSSL 1.0.1h**. Same file path, same "accept preverified" callback. | Copy srp's cert over the shipped 0.26g cert (different key, expired 2015) |
+| TLS (srp since patch 139: its own cipher instead, `sign-in-cipher.md`) | OpenSSL 1.0.0g, verify against `../../resources/ssl/survarium_login_server.crt` | **OpenSSL 1.0.1h**. Same file path, same "accept preverified" callback. | Copy srp's cert over the shipped 0.26g cert (different key, expired 2015) |
 | Step 3 (TLS, password) | `len pw` | **`02 digest[40]`** (remembered login) or **`03 digest[40] len pw`** (typed). digest = lowercase hex SHA-1(password). | **Must change** |
 | Reply 0x08 | `08 L1 browser L2 query u32 session` + 12 bytes (lobby and messaging ip:port) | **`08 u32 session u32 lobby_ip u16 lobby_port`** (11 bytes) | **Must change** |
 | Login reply enum | 0x08..0x16, invalid 0x1F | renumbered from 0x11 up: ban reasons 0x12..0x1F, then 0x20..0x25; invalid 0x2D | update constants |
@@ -173,6 +173,7 @@ Dispatch in `on_sign_in_answer_received` 0x37FB10 is on byte 0:
   - Layout `25 | 1 byte skipped | u32 queue_id | u32 place | u32 total`, the same as 0.21d's 0x16.
   - The client resolves UDP `<login host>:<m_host_port>` (itoa of +0x296, 0x37fbcf), starts the 10 s queue ping and listens for answers.
 - **Any other byte** → callback with that byte. For mapping, see §4.5.
+- **srp: a ban's reason and end** (after 0x12..0x1F): srp's reason id, then for a ban that ends its seconds left, `u32` LE, in the same write (`crates/ban-reason`). The stock client reads byte 0 alone; patch 116 (`client-patches/README.md`, "A ban's reason and end on the sign-in screen") shows srp's reason and the end instead of the game's reason.
 
 ### 4.5 Login server message ids (0.26g)
 

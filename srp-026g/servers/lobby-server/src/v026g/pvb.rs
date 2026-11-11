@@ -57,7 +57,7 @@
 //! | Setting | Default | What | Read by |
 //! |---|---|---|---|
 //! | `SRP_PVB` | on | `off`: the mode is not offered | the lobby, the match server |
-//! | `SRP_PVB_MAX_MATCHES` | 5 | the most matches against bots at once, 1 to 20; the match server keeps up to that many bots' maps in memory | the lobby, the match server |
+//! | `SRP_PVB_MAX_MATCHES` | 5 | the most matches against bots at once (private rooms' with bots too, `rooms`), 1 to 20; the match server keeps up to that many bots' maps in memory | the lobby, the match server |
 //! | `SRP_PVB_RUSHER_KIT` | `9-10=alt,13-15=smg` | what the rusher bots of tiers 9-10 and 13-15 wear: the owner's `9-10=alt,13-15=smg` when unset; `control` (the old kit: the SPAS-12 with buckshot), `smg` (the tier's SMG: `sr2m`, `fn_p90`), `alt` (`ump45`, `kriss_vector`), `slug` / `helmet` (the SPAS-12 with slugs / buckshot and the SMG kit's helmet); one word for both tiers or `9-10=alt,13-15=smg`; a kit whose items the game data lacks is the old kit (`loadouts::RusherKit`) | the lobby |
 //! | `SRP_PVB_PAY` | 0.25 | the share of a match's silver and experience it pays, 0 to 1; only a match played to its own end pays | the rewards (`session::v026g::pvb`) |
 //! | `SRP_PVB_STALL_S` | 60 | a match whose only player uploads no world it is asked for this long is over, 10 to 3600 | the match server |
@@ -112,6 +112,9 @@ pub struct Config {
     /// rusher bots of each tier wear; `SRP_PVB_MASKS` (default `top`; `off`): whether every bot wears the respirator
     /// the top players of its tier wear.
     pub rusher_kits: RusherKits,
+    /// The maps a private room with bots may hold ([`bot_maps`]); none with
+    /// the mode off.
+    pub bot_maps: Vec<u8>,
 }
 
 impl Default for Config {
@@ -122,6 +125,7 @@ impl Default for Config {
             max_gear: rules().pvb.max_gear,
             max_matches: session::v026g::pvb::DEFAULT_MAX_MATCHES,
             rusher_kits: RusherKits::owners(),
+            bot_maps: Vec::new(),
         }
     }
 }
@@ -144,20 +148,31 @@ impl Config {
             }),
             _ => Masks::TopPlayers,
         };
+        let enabled = session::v026g::pvb::enabled();
+        let dir = std::env::var("SRP_MAPDATA_DIR").ok();
+        let dir = dir
+            .as_deref()
+            .map(str::trim)
+            .filter(|dir| !dir.is_empty() && !dir.eq_ignore_ascii_case("off"));
         let config = Self {
-            enabled: session::v026g::pvb::enabled(),
+            enabled,
             max_gear: rules().pvb.max_gear,
             max_matches: session::v026g::pvb::max_matches(),
             rusher_kits,
+            bot_maps: match (enabled, dir) {
+                (true, Some(dir)) => bot_maps(maps::playable(), std::path::Path::new(dir)),
+                _ => Vec::new(),
+            },
         };
         if config.enabled {
             log::info!(
                 "Player vs Bots is on: equipment level {} at most, {} matches at once, pay {} of \
-                 silver and experience, rusher kits {:?}",
+                 silver and experience, rusher kits {:?}; {} maps for rooms with bots",
                 config.max_gear,
                 config.max_matches,
                 session::v026g::pvb::pay(),
-                config.rusher_kits
+                config.rusher_kits,
+                config.bot_maps.len()
             );
         }
         config
@@ -177,6 +192,24 @@ fn parse_rusher_kits(value: &str) -> Result<RusherKits, String> {
         Some(kit) => Err(format!("`{}` is a bench-only kit", kit.name())),
         None => Ok(kits),
     }
+}
+
+/// The maps of `maps` the server's bots play: in the modes they play
+/// (batteries, timed batteries, Team Deathmatch: not Research, which the
+/// match server refuses them, nor Blackout, which Play vs Bots never
+/// offered) and with a bots' map in `dir` (`SRP_MAPDATA_DIR`, the match
+/// server's: without one its bots only run their script).
+pub fn bot_maps<'a>(maps: impl Iterator<Item = &'a MapMode>, dir: &std::path::Path) -> Vec<u8> {
+    maps.filter(|map| {
+        matches!(
+            map.mode,
+            maps::GameMode::Batteries
+                | maps::GameMode::TimedBatteries
+                | maps::GameMode::TeamDeathmatch
+        ) && dir.join(mapdata::format::file_name(map.project)).is_file()
+    })
+    .map(|map| map.id)
+    .collect()
 }
 
 /// The offered maps as the dictionary has them.
@@ -218,17 +251,17 @@ fn why(code: PvbCode) -> &'static str {
 }
 
 impl Core<'_> {
-    /// The matches against bots running now (made, and not over at the
-    /// match server).
+    /// The matches the server's bots play in running now (made, and not
+    /// over at the match server): against bots, and rooms' with bots.
     pub(super) fn pvb_running(&self) -> usize {
         self.matches
             .values()
-            .filter(|running| running.vs_bots && self.host.is_open(running.ticket.match_id))
+            .filter(|running| running.server_bots && self.host.is_open(running.ticket.match_id))
             .count()
     }
 
     /// The choices held now for players other than `asker`.
-    fn pvb_held(&self, asker: u32, now: Instant) -> usize {
+    pub(super) fn pvb_held(&self, asker: u32, now: Instant) -> usize {
         self.pvb_holds
             .iter()
             .filter(|(account_id, hold)| **account_id != asker && hold.until > now)
@@ -510,6 +543,36 @@ mod tests {
             (config.max_gear, config.max_matches),
             (rules().pvb.max_gear, 5)
         );
+        assert!(config.bot_maps.is_empty());
+    }
+
+    /// The bots play a map of their modes with a bots' map file, nothing
+    /// else: every map has one here but those in batteries.
+    #[test]
+    fn the_bots_play_their_modes_maps_with_a_file() {
+        let dir = std::env::temp_dir().join(format!("srp-bot-maps-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let with_file: Vec<&MapMode> = maps::playable()
+            .filter(|map| map.mode != maps::GameMode::Batteries)
+            .collect();
+        for map in &with_file {
+            std::fs::write(dir.join(mapdata::format::file_name(map.project)), b"").unwrap();
+        }
+        let found = bot_maps(maps::playable(), &dir);
+        std::fs::remove_dir_all(&dir).unwrap();
+        let expected: Vec<u8> = maps::playable()
+            .filter(|map| {
+                matches!(
+                    map.mode,
+                    maps::GameMode::Batteries
+                        | maps::GameMode::TimedBatteries
+                        | maps::GameMode::TeamDeathmatch
+                ) && with_file.iter().any(|other| other.project == map.project)
+            })
+            .map(|map| map.id)
+            .collect();
+        assert!(!found.is_empty());
+        assert_eq!(found, expected);
     }
 
     /// The rusher kit setting: the owner's kits (`alt` at 9-10, `smg` at 13-15, the top players' respirator) unless set, `control`
