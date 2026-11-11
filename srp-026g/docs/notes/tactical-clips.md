@@ -255,3 +255,11 @@ Local startup follow-up: combine the pending SCAR ammunition, medicine and reloa
 one `next` row, as the replay parser requires. The 22 `session` replay tests pass, and the
 PR server starts with its built game data. The isolated client and server use local test
 revision 255 to match the test patch; the repository release revision stays unchanged.
+
+## The Uzi at its clips' own speed (2026-11-11)
+
+The owner: the Uzi's reload played in slow motion. Its pair was 0.69d0's (2.6 / 3.5 s), but its
+clips are 0.29a3's: `uzi/reload_tactic` 55 frames (1.833 s at 30/s) and `uzi/reload_029a3` 80
+(2.667 s), so the compiled clips stretched them to 78 and 105 frames, 71 % and 76 % of their
+speed. `weapon-stats.tsv` now gives the Uzi and its two premiums the clips' own lengths,
+1.833 / 2.667 s (was 2.6 / 3.5). 0.29a3's own config played the tactical clip at 2.0 s.

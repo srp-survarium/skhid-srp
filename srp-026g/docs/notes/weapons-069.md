@@ -88,6 +88,11 @@ older file under the same name, the port moves 0.69d0's to a name of its own (th
   Remington 870 (start, one shell, finish, chambering); 0.69d0's "load into an empty chamber"
   start and the Mauser's aimed shots are 0.69d0-only and left out. The Mauser's empty reload
   plays the slide at its fifth event (sound 6: 0.69d0's clip leaves its events' indices at 255).
+- The Mauser moves with the rifles' set (@17): its `user_animations` is 0.69d0's own,
+  `gameplay/items/weapons/common/rifles.user_animations` (0.69d0's Kedr and AK-74M have it too);
+  up to @16 it was the APS template's `pistols_new.user_animations`. Still one-handed
+  (`double_handed` false, as in 0.69d0). @17 is @16 with the one config the porter makes again
+  (`pack_models.py --under gameplay`).
 - The KS-23M's fire sounds are four (the live Remington 870's), not 0.69d0's eight: its fire
   state lists them twice (unsuppressed, then a suppressed half that repeats them). Every entry of
   an item config counts against the 16 KB stack arena the client rebuilds an upgraded item in,
