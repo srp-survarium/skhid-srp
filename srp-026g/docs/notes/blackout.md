@@ -67,8 +67,9 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   teammates' names over their markers and the time left until the match ends (the hud's own match timer, in its normal place at the top of the
   screen, the rest of the bar hidden; the owner, 2026-10-26) and the Tab list with its map (below);
   hidden again when Tab is let go.
-- **The Tab list on Tab** (the owner, 2026-11-09, so that players can mute people in this mode;
-  before, from 2026-10-25, Tab never showed the list): the list as a plain match shows it, where a
+- **The Tab list on Tab** (the owner, 2026-11-09, so that players can mute people in this mode, and
+  2026-11-11: "you can see your teammates when you press tab", "without scores though"; before,
+  from 2026-10-25, Tab never showed the list): the list as a plain match shows it, where a
   plain match shows it, alive or dead:
   - **No score:** names only, as the Settings' "Hide player scores" shows them (no score, kills,
     deaths or rank columns, no column headers, sorted by clan then name), whatever that setting
@@ -103,9 +104,20 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   the 200 ms grace. Ctrl is the list cursor's (above), as in a plain match.
 - **Tab held stops the player after 200 ms:** a quick tap keeps walking and sprinting;
   holding longer stops them. Actions, including jumping, are blocked immediately (a crouch stays, it does not
-  move); no fire, aim, reload, held breath, grenade, melee, drop or quick use. The mouse
-  look (but while the list's cursor is shown), the weapon keys, the fire mode, spot, the suicide
-  key and Use stay.
+  move); no fire, aim, reload, held breath, grenade, melee or drop, and no quick use but a
+  medicine's or an artefact's (below). The mouse look (but while the list's cursor is shown), the
+  weapon keys, the fire mode, spot, the suicide key and Use stay.
+- **Medicine and artefacts work on Tab** (the owner, 2026-11-11: "you can also use medkits and
+  artis while tabbed (though you cannot shoot)"; before, no quick use at all):
+  - A quick-use key whose slot holds a medicine (any medical consumable) or an artefact is sent
+    as with Tab up: pressed with Tab held it uses the item, held through Tab's press or release it
+    goes on. Its carry chord (the artefact key with a quick-use key, `held_artefact_transfer.md`)
+    works the same.
+  - A quick-use key of anything else in a pocket (a grenade, a trap, a booster) stays an act:
+    out while Tab is held, and out after it until let go. The game uses a pocket's grenade by its
+    quick-use key as by the grenade key, so that key would throw.
+  - A dead player has no quick use, as always. The moves still stop after 200 ms: a medicine
+    taken on Tab is taken standing.
 - **Use is never stopped by Tab** (the owner, 2026-11-05: "Tab shouldn't affect the collection at
   all"): an artefact search or an ammo refill held through Tab keeps filling and ends as without
   Tab; Use pressed with Tab held uses as it would without it.
@@ -174,6 +186,15 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
     names as with Alt. Keep the native enemy/spectator decisions and earlier visibility checks;
     releasing Tab restores the native Alt/crosshair decision.
   - `input_builder.end` (0x2421B0): acts out while Tab is held; moves out after a 200 ms grace, reset by release or a new match.
+    Of the six quick-use bits (4000h..80000h) those of a medicine or an artefact are no acts:
+    `player_icons.update_start` reads the local player's inventory each frame of a Blackout match,
+    Tab held or not (`Inventory::quick_item`: the game's own quick_slot_to_inventory_slot 0x2FE7F0
+    for each ordinal, the slot's item by its vtable, the medkit's or an artefact's), and keeps their
+    bits for the filter. base_player::process_quick_slots (0x2D8BB0) gives a quick-use bit's press
+    and release to inventory::action (0x2FCAA0) of that slot whatever the item, the grenade key's
+    (800000h) to the first grenade set's slot (0x2FE8B0) alike: so the filter goes by the item,
+    not by the key. Read every frame, a key held when Tab goes down is never out for one input
+    (the game would take that as a release and a new press).
   - **Beside the other patches:** patch 63 (team damage, #370) reads srp's block at
     `match_options::deserialize`'s end (0x1F0F30), Research's markers (#367) wrap update_ui's call
     of update_player_icons (0x23B207), patch 62 (F11) keeps its reset (0x234AE8) and key: each owns
@@ -225,7 +246,9 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   hud becomes the Disabled level once both are merged, its countdown and Tab view kept.
 - **Not played yet** (the Tab list, 2026-11-09): the list's place and look over the hidden root at
   real resolutions and interface scales, the right-click through Scaleform on the kept list, a mute
-  sent from a Blackout match, and the Tab map's marked batteries in a real match.
+  sent from a Blackout match, and the Tab map's marked batteries in a real match. Nor the quick use
+  on Tab (2026-11-11): a medkit and an artefact used with Tab held, a grenade pocket's key doing
+  nothing there.
 
 ## Open for the owner
 

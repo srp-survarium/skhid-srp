@@ -36,7 +36,12 @@ records each call. The original runs the same way and must do what it did:
   while Tab is held in a Blackout match the action mask has no move and no
   act but Use (a search held through Tab goes on), an act held through Tab
   stays out until let go; the original and a
-  match without send what is pressed.
+  match without send what is pressed;
+- quick use on Tab: a made-up local player ([[[ui+18h]+9Ch]+53ACh]+4) whose
+  quick uses are a medkit, a grenade set and an artefact in a container, by
+  the game's own quick_slot_to_inventory_slot (0x2FE7F0): the markers' feed
+  reads them, and Tab then leaves the medkit's and the artefact's keys and
+  holds the grenade set's out; none left for a dead player or without one.
 """
 import struct
 import sys
@@ -66,6 +71,13 @@ PLACE_COUNT = 4
 FORWARD, BACK, LEFT, RIGHT, JUMP, FIRE, RELOAD, AIM = 0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80
 CROUCH, SPRINT, WEAPON_1, GRENADE, MELEE, SPOT = 0x100, 0x200, 0x1000, 0x800000, 0x8000000, 0x10000000
 QUICK_1, USE = 0x4000, 0x200000
+QUICK_2, QUICK_3 = 0x8000, 0x10000
+# a made-up local player: the ui's world, its game, the network client, the player, its inventory
+LOCAL = 0x30300000
+L_WORLD, L_GAME, L_CLIENT, L_PLAYER, L_INVENTORY = LOCAL, LOCAL + 0x1000, LOCAL + 0x7000, LOCAL + 0x8000, LOCAL + 0x9000
+L_ITEMS, L_VTABLE, L_CONTAINERS = LOCAL + 0xA000, LOCAL + 0xC000, LOCAL + 0xD000
+MEDKIT_VTABLE, SPRING_VTABLE = 0xA1C79C, 0xA05F44     # raw::image's
+ITEM_NO_ARTEFACT = 0x300040                            # inventory_item's vtable +58h: no artefact
 
 
 def empty_options(block=b""):
@@ -85,7 +97,7 @@ def srpx(*entries):
 class Run(hide.Run):
     def __init__(self, data):
         super().__init__(data)
-        for at, size in ((OPTIONS, 0x60000), (WORK, 0x10000), (0x30200000, 0x1000)):
+        for at, size in ((OPTIONS, 0x60000), (WORK, 0x10000), (0x30200000, 0x1000), (LOCAL, 0x10000)):
             self.emu.mem_map(at, size, UC_PROT_ALL)
         self.refused, self.refusing = (), ()
         self.ticks = 0
@@ -169,6 +181,28 @@ class Run(hide.Run):
 
     # update_ui's `push edi / call` of update_player_icons (0x23B206), the hud in edi, its icons'
     # movie `icons` (0: none), to past update_player_icons' prologue: the Invokes.
+    def local_player(self, alive=1):
+        """The ui's local player, alive or dead: quick use 1 a medkit (slot 13),
+        2 an item of another class (a grenade set's place, slot 14), 3 an
+        artefact (a Spring) in its one container. `None`: no local player."""
+        self.emu.mem_write(LOCAL, bytes(0x10000))
+        self.word(hide.HUD + 0x18, 0 if alive is None else L_WORLD)
+        self.word(L_WORLD + 0x9C, L_GAME)
+        self.word(L_GAME + 0x53AC, L_CLIENT)
+        self.word(L_CLIENT + 4, L_PLAYER)
+        self.word(L_PLAYER + 0x10C, L_INVENTORY)
+        self.emu.mem_write(L_PLAYER + 0x33C, bytes([alive or 0]))
+        self.word(L_VTABLE + 0x58, ITEM_NO_ARTEFACT)
+        items = [L_ITEMS + 0x400 * n for n in range(3)]
+        for item, vtable in zip(items, (MEDKIT_VTABLE, L_VTABLE, SPRING_VTABLE)):
+            self.word(item, vtable)
+            self.word(item + 0x24C, 1)
+        self.word(L_INVENTORY + 0x10C + 4 * 13, items[0])
+        self.word(L_INVENTORY + 0x10C + 4 * 14, items[1])
+        self.word(L_CONTAINERS, items[2])
+        self.word(L_INVENTORY + 0x168, L_CONTAINERS)
+        self.emu.mem_write(L_INVENTORY + 0x16C, b"\x01")
+
     def icons_fed(self, icons=hide.ICONS_MOVIE, others=False):
         """The site run as the game runs it: whether it went on as the game's,
         and the Invokes (without the other patches' of the same site unless
@@ -374,6 +408,28 @@ def main():
     patched.static_info(empty_options(on))
     b = patched.input(moving)
     report(b == (moving, True), "a new Blackout match's static info forgets a Tab of before: all that is pressed")
+
+    print("Quick use on Tab (the local player's inventory read at the markers' feed)")
+    pressed = FIRE | GRENADE | QUICK_1 | QUICK_2 | QUICK_3
+    cases = [
+        ("a medkit, a grenade set and an artefact: the medkit's and the artefact's keys sent", 1, QUICK_1 | QUICK_3),
+        ("the player dead: no quick use", 0, 0),
+        ("no local player (a replay): no quick use", None, 0),
+    ]
+    for name, alive, want in cases:
+        patched.static_info(empty_options(on))
+        patched.local_player(alive)
+        back, _ = patched.icons_fed()
+        patched.tab(1)
+        patched.ticks += 200
+        b = patched.input(pressed)
+        patched.tab(0)
+        after = patched.input(pressed)
+        report(back and b == (want, True) and after == (want, True),
+               f"{name}: Tab down {b[0]:#x} sent (pressed {pressed:#x}); Tab up, all still held: {after[0]:#x} "
+               "(fire, the grenade and the other quick uses stay out until let go)")
+    patched.local_player(None)
+    patched.input(0)
 
     print("Tab movement grace: immediate names, 200 ms before stopping movement")
     patched.static_info(empty_options(on))

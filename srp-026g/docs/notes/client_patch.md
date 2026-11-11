@@ -1762,7 +1762,9 @@ The owner's report (2026-10-25, revision 33): short freezes in matches at ~100 f
   pressed again; the hud's bar stayed at its last fill, since `set_using_info_message` (0x23A560)
   sends the prompt only when its id differs from the one it last sent (ui+334h), and the progress
   message (0x23A430) does not change that id: after a use the container's prompt is the one sent
-  before it. Use is no longer one of Tab's acts (owner: Tab must not affect the collection). A plain
+  before it. Use is no longer one of Tab's acts (owner: Tab must not affect the collection); nor,
+  since 2026-11-11, the quick-use key of a medicine or an artefact (`blackout.md`: the filter goes by
+  the slot's item, a grenade set's quick-use key throws as the grenade key does). A plain
   match never had it: the game world answers 0 for every key while Tab is down (0x25CF0D `xor
   al,al`), Tab binds only `send_to` (kind 8, the chat's; the player's handler asks kind 1, or 4,
   game+F544h), so E reaches `player_input_handler::on_keyboard_action` (0x23FE00) every tick.
