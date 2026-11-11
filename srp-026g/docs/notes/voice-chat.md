@@ -251,31 +251,49 @@ Little-endian. Every datagram starts with `56 01 <type>`: the magic, the version
 Where the build differs from or adds to the design above:
 
 - **The exe patch is 66**, the safe Rust module `client-patches/rust/patches/src/voice.rs` over
-  its boundary `vostok/voice.rs`. Its names-only `voice.toml` chains seven lohooks of
+  its boundary `vostok/voice.rs`. Its names-only `voice.toml` chains eight lohooks of
   `sites_026g.tsv`: `configs.start` (the variables, before user.cfg), `match_client.connect`
-  (`sv_start(host, match port + 1, session)`), `game_world.finish` and `game_world.deactivate`
-  (`sv_stop`), `game_world.after_move` (every frame), `tab_cursor.key` (push-to-talk) and
-  `hud.callback` (the Tab menu's voice entries). README patch 66, client_patch.md 3.71.
+  (the options told, no mutes and no radio, then `sv_start(host, match port + 1, session)`),
+  `game_world.finish` and `game_world.deactivate` (`sv_stop`, the talking list emptied),
+  `game_world.after_move` (every frame), `tab_cursor.key` and `game_world.mouse_key`
+  (push-to-talk on a key or a mouse button) and `hud.callback` (the Tab menu's voice entries).
+  README patch 66, client_patch.md 3.71.
 - **Options:** `s_chat_volume` and `s_mic_sens` are 0..100 (the game's float slider steps by 1),
   defaults 100 and 50; `s_use_microphone` default on. **"Disable voice chat"** is the gameplay
   tab's dead option 5 (`g_hide_spam`, "Hide spam"), relabelled in `localization/*.tsv`, next to
   "Hide chat in match" (patch 58's dead option 4, the same way).
-- **Keys:** PTT is the stock `ptt` (P, the chat keys' group; relabelled "Push to talk"), the one
-  voice key. A held PTT is let go when its key is up (user32's GetAsyncKeyState, so a release the
-  chat box took is seen) or the game loses the keyboard. A "mute the last speaker" key (the action
-  table's dead entry 37h renamed, a 43rd Controls row) was built and removed (the owner,
+- **Keys:** PTT is the stock `ptt` (P; relabelled "Push to talk"), the one voice key. The owner,
+  2026-11-11: "P push to talk is not part of chat, it is part of general controls", "and it should
+  be rebindable": its Controls row (the game's is the chat group's, its key button disabled) is in
+  the game group and can be set (patch 62's `controls`); the action stays the binder's chat kind,
+  as the game made it. A key or a mouse button: the game world's keys (`tab_cursor.key`) and its
+  mouse buttons (`game_world.mouse_key`, past patch 31's jump) both ask the binder. A held PTT is
+  let go when its release comes, when user32's GetAsyncKeyState says it is up (so a release the
+  chat box took is seen; the numpad's keys by both the key they map to and the digit NumLock gives,
+  NumLock and Pause by their own, a mouse button by its VK_*BUTTON; the buttons past the side ones
+  only by their release), or when the game loses the keyboard. A "mute the last speaker" key (the
+  action table's dead entry 37h renamed, a 43rd Controls row) was built and removed (the owner,
   2026-11-09: "that mute last speaker button can be removed, since now this can be done in UI");
-  the exe's action table and Controls stay the game's.
+  the exe's action table stays the game's.
+- **The options from the start:** at the match's connect the DLL is told the game's options, no
+  mutes and no radio before `sv_start`, so the loading plays and says HELLO as the options are (the
+  DLL kept the last match's, by place, or its defaults; the review of 2026-11-11); the match's
+  first frame then tells the mutes and the radio of its places.
 - **Muting** (the owner, 2026-11-06: in the Tab list's player menu): a right-click on a teammate's
   row (Ctrl for the cursor, patch 86) offers "Mute voice" or "Unmute voice" after the chat mute's
   entries, for a teammate whose voice id the relay sent; the menu shows "Voice muted", "Voice
   unmuted" or "Voice chat unavailable". 0.69 had a team panel with the chat input instead (its
   `VoiceChatEditPanel`: a text-mute and a voice-mute button per row, mutes for the match only).
 - **Who is talking** (the owner, 2026-11-06: as 0.69's `VoiceChatTalkingPanel`): `hud`'s
-  `VoiceSpeakers` at the left, mid-height (0.69's (20,370) of 1280x720): a row per teammate
-  talking, a light-blue speaker (0x73B9FF) and the name, 25 px apart, the newest on top; a name
-  fades over 1 s, 0.5 s after its player stops. Neither the player's own name nor the muted show
-  (0.69's own-microphone icon and its speaker over heads were not picked).
+  `VoiceSpeakers`, a row per teammate talking, a light-blue speaker (0x73B9FF) and the name, 25 px
+  apart, the newest on top; a name fades over 1 s, 0.5 s after its player stops. The muted do not
+  show. The owner, 2026-11-11: "when I speak I want to see this with an icon somewhere" (the
+  player's own name shows while its microphone is sent: the relay answered and the capture runs)
+  and "usually you want those on the right" (the list at the right edge, under mid-height, each
+  row ending at the margin, the speaker left of the name; 0.69's was at the left). The names are
+  text fields in DefaultLabel3's embedded font (a Label drew its text lower than its field in the
+  game, cut). The list is emptied when the match ends or is left (`sv_stop`'s sites). 0.69's
+  speaker over heads was not picked.
 - **The radio** (the DLL): a teammate farther than 25 m, or either player dead, through a filter
   fitted to 0.69's `_radio` quick-command recordings (high-pass 405 Hz, peaks and dips up to 6.3
   kHz), retail static under it (`tutorial_interference_02`, -44 dBFS), and retail's squelch at the

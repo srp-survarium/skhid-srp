@@ -4,15 +4,18 @@ package survarium.controls
    import flash.display.Graphics;
    import flash.display.Shape;
    import flash.display.Sprite;
-   import flash.geom.ColorTransform;
+   import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
+   import flash.text.TextFormat;
    import scaleform.clik.core.UIComponent;
 
-   // Voice chat: which teammates are talking (exe patch 66 calls HUD.srp_voice_talking with their
-   // names on every change; docs/notes/voice-chat.md), as 0.69's VoiceChatTalkingPanel shows it:
-   // a row each, a light-blue speaker and the name, 25 px apart, the newest talker on top; a
-   // name stays while its player talks and fades out over 1 s, 0.5 s after the player stops.
-   // Muted players never show (the exe leaves them out), nor the player's own. Not clickable.
+   // Voice chat: who is talking (exe patch 66 calls HUD.srp_voice_talking with the names on every
+   // change; docs/notes/voice-chat.md): the teammates heard, and the player's own name while its
+   // microphone is sent. As 0.69's VoiceChatTalkingPanel shows it: a row each, a light-blue
+   // speaker and the name, 25 px apart, the newest talker on top; a name stays while its player
+   // talks and fades out over 1 s, 0.5 s after the player stops. Muted players never show (the exe
+   // leaves them out). The rows end at the component's x (the hud puts it at the right edge): the
+   // name, the speaker left of it. Not clickable.
    public class VoiceSpeakers extends UIComponent
    {
 
@@ -26,7 +29,12 @@ package survarium.controls
 
       public static const FADE_S:Number = 1;
 
-      protected static const TEXT_SCALE:Number = 0.6;
+      protected static const TEXT_SIZE:Number = 16;
+
+      // The speaker's drawing: 24 px wide, its middle at this y.
+      protected static const SPEAKER_WIDTH:Number = 24;
+
+      protected static const SPEAKER_MIDDLE:Number = 13;
 
       // 0.69's speaker (HudVoicePanelTalkingPlayer's)
       protected static const SPEAKER:uint = 0x73B9FF;
@@ -36,11 +44,24 @@ package survarium.controls
       // The rows, top first: {sprite, name, talking}.
       protected var _rows:Array = [];
 
+      // DefaultLabel3's embedded font, as the Tab list's player menu takes it: the label supplies
+      // the font only (a Label on the stage draws its text lower in the game than its field is
+      // high, and cut).
+      protected var _format:TextFormat;
+
+      protected var _embed:Boolean;
+
       public function VoiceSpeakers()
       {
          super();
          mouseEnabled = false;
          mouseChildren = false;
+         var source:TextField = new DefaultLabel3().textField;
+         _embed = source.embedFonts;
+         _format = source.length > 0 ? source.getTextFormat() : source.defaultTextFormat;
+         this._format.size = TEXT_SIZE;
+         this._format.color = NAME;
+         this._format.align = "left";
       }
 
       // names: the teammates talking now.
@@ -141,28 +162,25 @@ package survarium.controls
       protected function makeRow(name:String) : Object
       {
          var sprite:Sprite = new Sprite();
+         var field:TextField = new TextField();
+         field.defaultTextFormat = this._format;
+         field.embedFonts = this._embed;
+         field.selectable = false;
+         field.mouseEnabled = false;
+         field.multiline = false;
+         field.wordWrap = false;
+         field.autoSize = TextFieldAutoSize.LEFT;
+         field.text = name;
+         // the name ends at the row's x, its middle at the speaker's; the speaker left of it
+         field.x = -field.width;
+         field.y = SPEAKER_MIDDLE - field.height / 2;
+         sprite.addChild(field);
          var mark:Shape = new Shape();
          drawSpeaker(mark.graphics);
+         mark.x = field.x - SPEAKER_WIDTH - 2;
          sprite.addChild(mark);
-         var label:DefaultLabel3 = new DefaultLabel3();
-         label.textField.wordWrap = false;
-         label.textField.multiline = false;
-         label.autoSize = TextFieldAutoSize.LEFT;
-         label.scaleX = label.scaleY = TEXT_SCALE;
-         label.x = 26;
-         label.y = -3;
-         label.text = name;
-         // Tinted, not recoloured: the label's frame script and its redraws reset the text's own
-         // format to the symbol's (white).
-         label.transform.colorTransform = tint(NAME);
-         sprite.addChild(label);
          addChild(sprite);
          return {sprite:sprite, name:name, talking:false};
-      }
-
-      protected static function tint(colour:uint) : ColorTransform
-      {
-         return new ColorTransform(((colour >> 16) & 0xFF) / 255,((colour >> 8) & 0xFF) / 255,(colour & 0xFF) / 255);
       }
 
       // 0.69's speaker: a box, a cone, two waves (lines, no circles: a circle after lineStyle

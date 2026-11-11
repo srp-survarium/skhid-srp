@@ -3940,6 +3940,21 @@ pub extern "C" fn hook_voice_on_deactivate(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- voice (patch 66) ----
+
+/// The entry `voice_on_mouse_key` (0x25cf70, game_world::on_mouse_key_action after it asked the input world for the keyboard (mov edi,eax / mov eax,[edi] / mov edx,[eax]; its first ten bytes are patch 31's jump, WARMUP_KEYS_HOOK, which comes back at 0x25CF6A for every button it does not take): ESI the game world's input handler (the keyboard's, the hud at +4: its cursor flag +2E0h is the hud's +2DCh), ESP+14h the button's key (151h + the button), +18h its kind; every mouse button of a match comes here before the player's handler (input priority 7, before 10)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_voice_on_mouse_key(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `voice_on_mouse_key` calls this, from the game's jump at 0x25cf70,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::voice::on_mouse_key(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- weapon_kit (patch 68) ----
 
 /// The entry `weapon_kit_on_query` (0x2f1776, translate_query after 0x2F2060 copied the query (mov ecx,[ebp+38h] / mov eax,[ebp+44h]): ESP patch 68's room (weapon_kit.query_room), EBP the frame whose [ebp+40h] (the item's upgrades' buffer_vector) is read at 0x2F1799 (their count) and 0x2F18D0 (each record's dict id and value) and nowhere else; AL 0x2F2060's answer (0: the query not copied, as on another thread's query, 0x2F206F)) calls this with the saved machine.

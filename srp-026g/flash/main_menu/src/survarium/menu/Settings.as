@@ -1009,6 +1009,8 @@ package survarium.menu
       // "Lock vertical sensitivity" and "Vertical sensitivity" under it, then Invert mouse and the
       // lobby's keys, at the tab's own spacing (the timeline's, read once). The chat's keys go to the
       // right column under the game's, whose list (it scrolls) ends where they begin.
+      protected static const GAME_LIST_GAP:Number = 4;
+
       protected function layoutControls() : void
       {
          var c:MovieClip = this.settings_content;
@@ -1021,7 +1023,7 @@ package survarium.menu
          {
             space = {"slider":c._slider_mouse_sens.y,"box":c._setter_inverse_mouse.y - c._slider_mouse_sens.y,
                "boxX":c._setter_inverse_mouse.x,"heading":c.s_lobby.y - c._setter_inverse_mouse.y,
-               "list":c.keysLobby.y - c.s_lobby.y,"listGap":c.s_chat_keys.y - (c.keysLobby.y + c.keysLobby.height),
+               "list":c.keysLobby.y - c.s_lobby.y,
                "chatList":c.keysChat.y - c.s_chat_keys.y,"headingX":c.s_chat_keys.x - c.keysChat.x,
                "bottom":c.keysGame.y + c.keysGame.height,
                "sliderTop":c._slider_mouse_sens.y - c._slider_mouse_sens.getBounds(c).top,
@@ -1046,7 +1048,10 @@ package survarium.menu
          c.keysChat.y = space.bottom - chatRows * c.keysChat.rowHeight;
          c.s_chat_keys.x = c.keysGame.x + space.headingX;
          c.s_chat_keys.y = c.keysChat.y - space.chatList;
-         c.keysGame.height = c.s_chat_keys.y - space.listGap - c.keysGame.y;
+         // the game's list is whole rows (its scroll bar is as tall as the list: a part of a row
+         // left under the last one showed as room for one more; the owner, 2026-11-11): as many as
+         // fit over the chat's heading, the gap to it the tab's own at most, GAME_LIST_GAP at least
+         c.keysGame.height = Math.floor((c.s_chat_keys.y - GAME_LIST_GAP - c.keysGame.y) / c.keysGame.rowHeight) * c.keysGame.rowHeight;
       }
       
       // The option of the HUD group whose checkbox `control` is, or null.

@@ -346,6 +346,8 @@ vostok::console_commands::cc_bool	vtable	0x0	u32	its vtable: CC_BOOL_VTABLE, wri
 vostok::console_commands::image	cc_bool_vtable	0x9E7C4C	u32	cc_bool's vtable (the hud's show_quests_progress 0x2339E8; its execute 0xECA30)
 survarium::game_world_key_frame	key	0x8	u32	game_world::on_keyboard_action's second argument at its start (0x25CD00, by the site's ESP): the DirectInput key (0Fh Tab, 1Dh/9Dh the Ctrl keys)
 survarium::game_world_key_frame	state	0xC	u32	its third: the key's kind, 1 down, 2 up, 3 held (as keyboard_action_frame's state; match_keys_026g.asm)
+survarium::game_world_mouse_frame	key	0x14	u32	game_world::on_mouse_key_action's second argument at 0x25CF70 (by the site's ESP, after its three pushes; mov ebp,[esp+14h] at 0x25CF7F): 151h + the mouse button (0 the left, 1 the right, 2 the middle, 3 and 4 the side buttons; `add edi,151h` at 0x3B9981)
+survarium::game_world_mouse_frame	kind	0x18	u32	its third (cmp [esp+18h],0 at 0x25CF9D): 0 the press, 1 the release, 2 held (the mouse's process 0x3B9D90; as the character's mouse handler reads it, 0x265C20)
 survarium::game_world_input	ui	0x4	obj<survarium::game_world_ui>	the hud inside the game world's input handler (game_world+1F8h, on_keyboard_action's ECX): its +4 (lea esi,[edi+4] at 0x25CD30, show_player_list's ESI)
 survarium::game_world_ui	list_shown	0xBA	u8	the Tab list shown: show_player_list 0x2384C0 writes it (0x23850A), from on_keyboard_action's Tab test at every key (0x25CD34)
 survarium::game_world_ui	cursor_shown	0x2DC	u8	the hud's cursor shown: show_cursor 0x23A930 writes it (0x23A9BB); the game world's mouse handlers read it as handler+2E0h (0x25CFF3, 0x25D118): moves and buttons go to the hud's movies, not the player

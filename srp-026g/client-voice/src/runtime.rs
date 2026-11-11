@@ -399,7 +399,10 @@ mod platform {
             } else {
                 // Keep timeout and speaker status current without an output
                 // device. A long scheduling pause cannot cause a busy loop.
-                if now.wrapping_sub(next_mix) > 200 {
+                // Signed: a next mix still ahead of now is not a pause (as
+                // unsigned it was, and every 5 ms pass mixed a frame: the
+                // jitter buffers drained 4 times too fast).
+                if (now.wrapping_sub(next_mix) as i32) > 200 {
                     next_mix = now;
                 }
                 let mut count = 0;

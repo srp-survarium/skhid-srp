@@ -7116,6 +7116,45 @@ voice_on_deactivate_replay:
     db 0x53, 0x56, 0x57, 0x8b, 0xf9
     jmp 0x1f9525
 
+; 0x25cf70 game_world::on_mouse_key_action after it asked the input world for the keyboard (mov edi,eax / mov eax,[edi] / mov edx,[eax]; its first ten bytes are patch 31's jump, WARMUP_KEYS_HOOK, which comes back at 0x25CF6A for every button it does not take): ESI the game world's input handler (the keyboard's, the hud at +4: its cursor flag +2E0h is the hud's +2DCh), ESP+14h the button's key (151h + the button), +18h its kind; every mouse button of a match comes here before the player's handler (input priority 7, before 10): lohook -> voice_on_mouse_key
+global voice_on_mouse_key
+extern hook_voice_on_mouse_key
+voice_on_mouse_key:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_voice_on_mouse_key
+    mov edx, voice_on_mouse_key_replay
+    cmp eax, 0
+    je voice_on_mouse_key_go
+    mov edx, 0x25cf76
+    cmp eax, 1
+    je voice_on_mouse_key_go
+    ud2
+voice_on_mouse_key_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+voice_on_mouse_key_replay:
+    db 0x8b, 0xf8, 0x8b, 0x07, 0x8b, 0x10
+    jmp 0x25cf76
+
 ; 0x2f1776 translate_query after 0x2F2060 copied the query (mov ecx,[ebp+38h] / mov eax,[ebp+44h]): ESP patch 68's room (weapon_kit.query_room), EBP the frame whose [ebp+40h] (the item's upgrades' buffer_vector) is read at 0x2F1799 (their count) and 0x2F18D0 (each record's dict id and value) and nowhere else; AL 0x2F2060's answer (0: the query not copied, as on another thread's query, 0x2F206F): lohook -> weapon_kit_on_query
 global weapon_kit_on_query
 extern hook_weapon_kit_on_query

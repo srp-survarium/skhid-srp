@@ -8860,6 +8860,39 @@ impl GameWorldKeyFrame {
     }
 }
 
+/// A survarium::game_world_mouse_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GameWorldMouseFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl GameWorldMouseFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x14 (u32): game_world::on_mouse_key_action's second argument at 0x25CF70 (by the site's ESP, after its three pushes; mov ebp,[esp+14h] at 0x25CF7F): 151h + the mouse button (0 the left, 1 the right, 2 the middle, 3 and 4 the side buttons; `add edi,151h` at 0x3B9981)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn key(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x14).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x18 (u32): its third (cmp [esp+18h],0 at 0x25CF9D): 0 the press, 1 the release, 2 held (the mouse's process 0x3B9D90; as the character's mouse handler reads it, 0x265C20)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn kind(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x18).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A survarium::game_world_input (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -22780,6 +22813,30 @@ pub mod site {
         }
     }
 
+    /// game_world.mouse_key (0x25cf70): game_world::on_mouse_key_action after it asked the input world for the keyboard (mov edi,eax / mov eax,[edi] / mov edx,[eax]; its first ten bytes are patch 31's jump, WARMUP_KEYS_HOOK, which comes back at 0x25CF6A for every button it does not take): ESI the game world's input handler (the keyboard's, the hud at +4: its cursor flag +2E0h is the hud's +2DCh), ESP+14h the button's key (151h + the button), +18h its kind; every mouse button of a match comes here before the player's handler (input priority 7, before 10)
+    pub mod game_world_mouse_key {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::game_world_input (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn input(machine: &impl Machine) -> Option<GameWorldInput> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(GameWorldInput)
+        }
+
+        /// the site's ESP: a survarium::game_world_mouse_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<GameWorldMouseFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(GameWorldMouseFrame)
+        }
+    }
+
     /// hud.callback (0x233d30): game_world_ui::scaleform_callback's start (push ebx / push esi / mov esi,[esp+10h]): ECX the hud, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is a `ret 10h` of its own (0x233D73)
     pub mod hud_callback {
         #[allow(unused_imports)]
@@ -24418,6 +24475,36 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<MatchConnectFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(MatchConnectFrame)
+        }
+    }
+
+    /// game_world.finish (0x1f96f0): game_world::on_finish_match's start (push edi / mov edi,eax / mov eax,[edi+9Ch]): the match over
+    pub mod game_world_finish {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a survarium::game_world (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn world(machine: &impl Machine) -> Option<GameWorld> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(GameWorld)
+        }
+    }
+
+    /// game_world.deactivate (0x1f9520): game_world::on_deactivate's start (push ebx / push esi / push edi / mov edi,ecx): the match scene left
+    pub mod game_world_deactivate {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::game_world (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn world(machine: &impl Machine) -> Option<GameWorld> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(GameWorld)
         }
     }
 

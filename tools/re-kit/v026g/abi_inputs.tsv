@@ -6033,3 +6033,7 @@ va	name	location	role	basis
 0x0010a590	vostok::resources::managed_resource::managed_resource	entry ESP+4	its bytes (kept at +5Ch)	observed
 0x00504c30	Scaleform::MemoryHeapMH::GetTotalFootprint	ECX	the heap	observed
 0x00504c90	Scaleform::MemoryHeapMH::GetTotalUsedSpace	ECX	the heap	observed
+0x0025cf60	survarium::game_world::on_mouse_key_action	ECX	the game world's input handler, the keyboard's (game_world+1F8h; the hud at +4, its cursor flag at +2E0h, read at 0x25CFF3)	observed
+0x0025cf60	survarium::game_world::on_mouse_key_action	entry ESP+4	the input world (its vtable+24h at 0x25CF6A, as on_keyboard_action's)	observed
+0x0025cf60	survarium::game_world::on_mouse_key_action	entry ESP+8	the key: 151h + the mouse button (0x3B9981), 151h the left (0x25CF95)	observed
+0x0025cf60	survarium::game_world::on_mouse_key_action	entry ESP+12	the kind (0 the press, 1 the release, 2 held), as the mouse's process 0x3B9D90 gives every listener	observed

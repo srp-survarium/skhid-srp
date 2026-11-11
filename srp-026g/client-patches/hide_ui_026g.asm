@@ -52,7 +52,8 @@
 ; read from the binder, the keys applied with the console's bind/unbind),
 ; each counting 28h rows. A key set for an action without a row is kept
 ; nowhere (0x2013A0 finds no row) and never applied. `controls` below is that
-; table again, the same 40 rows (each row's pointers its own), a 41st:
+; table again, the same 40 rows (each row's pointers its own; push-to-talk's
+; alone changed, to the game group and a key that can be set), a 41st:
 ; toggle_replay_ui in the game group, labelled st_hide_interface_action
 ; (its text in client-patches/localization/*.tsv), and a 42nd for patch 78:
 ; artefact (23h, default H, its default key patch_026g.py's
@@ -346,6 +347,7 @@ controls:                          ; the game's 40 rows (0xA9DB28), in their ord
     CONTROL 0x44, 0x9FC944, 0, 1   ; st_show_friends_action
     CONTROL 0x45, 0x9FC92C, 1, 0   ; st_send_message_action
     CONTROL 0x46, 0x9FC910, 1, 0   ; st_select_send_to_action
-    CONTROL 0x47, 0x9FC900, 1, 0   ; st_ptt_action
+    CONTROL 0x47, 0x9FC900, 2, 1   ; st_ptt_action: the game's row is group 1 (chat), type 0 (its key button
+                                   ; disabled, BindKeyRender.as); patch 66's push-to-talk is a game key, rebindable
     CONTROL TOGGLE_UI, hide_interface_label, 2, 1   ; st_hide_interface_action (F11)
     CONTROL HOLD_ARTIFACT, hold_artifact_label, 2, 1   ; st_hold_artifact_action (H): patch 78's carry chord

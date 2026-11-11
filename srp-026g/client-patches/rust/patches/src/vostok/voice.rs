@@ -12,7 +12,7 @@ use core::ptr::NonNull;
 use super::context::Context;
 use super::hook::Thread;
 use super::input::Action;
-use super::keyboard::{Dik, GameWorldKey, KeyKind};
+use super::keyboard::{ButtonKind, Dik, GameWorldButton, GameWorldKey, KeyKind, MouseButton};
 use super::language::ConsoleString;
 use super::hud_input::HudCall;
 use super::settings::{ConsoleBool, ConsoleFloat, save_user_config};
@@ -152,14 +152,32 @@ impl<'c> Connect<'c> {
         let port = port.checked_add(1)?;
         Some(Connect { host, port, session })
     }
+
+    /// The relay's port: the match's and one.
+    pub fn port(&self) -> u16 {
+        self.port
+    }
+
+    pub fn session(&self) -> u32 {
+        self.session
+    }
 }
 
-/// A press or a release of push-to-talk (`ptt`, 47h, a chat key: the binder's
-/// kind 8), at the game world's keys' start (`tab_cursor.key`).
+/// What push-to-talk is held by: a key, or a mouse button (the options bind
+/// either).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TalkInput {
+    Key(Dik),
+    Button(MouseButton),
+}
+
+/// A press or a release of push-to-talk (`ptt`, 47h; the binder's kind 8, the
+/// chat's, whatever group the options list it in), at the game world's keys'
+/// start (`tab_cursor.key`) or its mouse buttons' (`game_world.mouse_key`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TalkKey {
-    Down(Dik),
-    Up(Dik),
+    Down(TalkInput),
+    Up(TalkInput),
 }
 
 impl TalkKey {
@@ -169,10 +187,89 @@ impl TalkKey {
         if key.chat_action()? != Action::PTT {
             return None;
         }
+        let input = TalkInput::Key(key.key());
         match key.kind() {
-            KeyKind::Down => Some(TalkKey::Down(key.key())),
-            KeyKind::Up => Some(TalkKey::Up(key.key())),
+            KeyKind::Down => Some(TalkKey::Down(input)),
+            KeyKind::Up => Some(TalkKey::Up(input)),
             KeyKind::Held => None,
+        }
+    }
+
+    /// The event when the button is bound to `ptt`.
+    pub fn of_button(button: &GameWorldButton<'_>) -> Option<TalkKey> {
+        if button.chat_action()? != Action::PTT {
+            return None;
+        }
+        let input = TalkInput::Button(button.button());
+        match button.kind() {
+            ButtonKind::Press => Some(TalkKey::Down(input)),
+            ButtonKind::Release => Some(TalkKey::Up(input)),
+            ButtonKind::Held => None,
+        }
+    }
+}
+
+/// The virtual keys GetAsyncKeyState may report a held input by: a key's own,
+/// as MapVirtualKeyA(MAPVK_VSC_TO_VK_EX) names its scan code (`mapped`), and
+/// another where that differs from what a press sets. The numpad's digits and
+/// its point map to the navigation keys, which a press sets only with NumLock
+/// off (on, it sets VK_NUMPAD0..9 and VK_DECIMAL); NumLock and Pause map
+/// swapped (Pause is E0h 45h to DirectInput, its own VK_PAUSE). A mouse button
+/// is its own VK_*BUTTON; one past the side buttons has none to read.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Polled {
+    /// Down when one of these is (0: none).
+    Keys(u32, u32),
+    /// Nothing to read: only its release event ends it.
+    Unknown,
+}
+
+const VK_LBUTTON: u32 = 0x01;
+const VK_RBUTTON: u32 = 0x02;
+const VK_MBUTTON: u32 = 0x04;
+const VK_XBUTTON1: u32 = 0x05;
+const VK_XBUTTON2: u32 = 0x06;
+const VK_PAUSE: u32 = 0x13;
+const VK_NUMPAD0: u32 = 0x60;
+const VK_DECIMAL: u32 = 0x6E;
+const VK_NUMLOCK: u32 = 0x90;
+
+impl Polled {
+    /// `mapped` is the input's scan code mapped by MapVirtualKeyA (0: none);
+    /// a button needs none.
+    fn of(input: TalkInput, mapped: impl FnOnce(u32) -> u32) -> Polled {
+        match input {
+            TalkInput::Button(button) => match button.number() {
+                0 => Polled::Keys(VK_LBUTTON, 0),
+                1 => Polled::Keys(VK_RBUTTON, 0),
+                2 => Polled::Keys(VK_MBUTTON, 0),
+                3 => Polled::Keys(VK_XBUTTON1, 0),
+                4 => Polled::Keys(VK_XBUTTON2, 0),
+                _ => Polled::Unknown,
+            },
+            TalkInput::Key(key) => {
+                let code = u32::from(key.code());
+                // DIK_NUMLOCK, DIK_PAUSE (E0h 45h)
+                match code {
+                    0x45 => return Polled::Keys(VK_NUMLOCK, 0),
+                    0xC5 => return Polled::Keys(VK_PAUSE, 0),
+                    _ => (),
+                }
+                // the numpad's 7 8 9 / 4 5 6 / 1 2 3 / 0 . (DIK_NUMPAD7.. DIK_DECIMAL)
+                let numpad = match code {
+                    0x47..=0x49 => VK_NUMPAD0 + 7 + (code - 0x47),
+                    0x4B..=0x4D => VK_NUMPAD0 + 4 + (code - 0x4B),
+                    0x4F..=0x51 => VK_NUMPAD0 + 1 + (code - 0x4F),
+                    0x52 => VK_NUMPAD0,
+                    0x53 => VK_DECIMAL,
+                    _ => 0,
+                };
+                let scan = if code & 0x80 != 0 { 0xE000 | (code & 0x7F) } else { code };
+                match (mapped(scan), numpad) {
+                    (0, 0) => Polled::Unknown,
+                    (vk, numpad) => Polled::Keys(vk, numpad),
+                }
+            }
         }
     }
 }
@@ -276,10 +373,23 @@ impl<'t> Scene<'t> {
 
     /// Each frame of a match (`game_world.after_move`): the world's game and its hud.
     pub fn at_frame(ctx: &'t Context<'_>) -> Option<Scene<'t>> {
-        let world = GameWorld::at_after_move(ctx)?;
+        Some(Scene::of(GameWorld::at_after_move(ctx)?, ctx.thread()))
+    }
+
+    /// The match over (`game_world.finish`): its world's hud, before it goes.
+    pub fn at_finish(ctx: &'t Context<'_>) -> Option<Scene<'t>> {
+        Some(Scene::of(GameWorld::at_finish(ctx)?, ctx.thread()))
+    }
+
+    /// The match left (`game_world.deactivate`): its world's hud, before it goes.
+    pub fn at_deactivate(ctx: &'t Context<'_>) -> Option<Scene<'t>> {
+        Some(Scene::of(GameWorld::at_deactivate(ctx)?, ctx.thread()))
+    }
+
+    fn of(world: GameWorld<'t>, thread: &'t Thread) -> Scene<'t> {
         // SAFETY: the world's game and its hud (inside it), alive for the hook.
         let (game, movie) = unsafe { (world.this.game(), movie_of(world.this.ui().hud_movie())) };
-        Some(Scene { game, movie, thread: ctx.thread() })
+        Scene { game, movie, thread }
     }
 
     /// At a hud movie's call (`hud.callback`): the hud's game (the call
@@ -330,15 +440,17 @@ impl Window {
         }
     }
 
-    /// The key is down now (a DirectInput code is its scan code, bit 80h
-    /// the E0h-prefixed ones: MAPVK_VSC_TO_VK_EX's 0xE0nn).
-    fn down(self, key: Dik) -> bool {
-        let code = u32::from(key.code());
-        let scan = if code & 0x80 != 0 { 0xE000 | (code & 0x7F) } else { code };
+    /// The input is down now, or cannot be read (a DirectInput code is its
+    /// scan code, bit 80h the E0h-prefixed ones: MAPVK_VSC_TO_VK_EX's 0xE0nn).
+    fn down(self, input: TalkInput) -> bool {
         // SAFETY: user32's exports by their rows' signatures.
-        unsafe {
-            let vk = raw::engine_map_virtual_key_a(self.virtual_key, scan, 3);
-            vk != 0 && raw::engine_get_async_key_state(self.key_state, vk) & 0x8000 != 0
+        let polled = Polled::of(input, |scan| unsafe { raw::engine_map_virtual_key_a(self.virtual_key, scan, 3) });
+        match polled {
+            Polled::Unknown => true,
+            Polled::Keys(a, b) => [a, b].into_iter().filter(|&vk| vk != 0).any(|vk| {
+                // SAFETY: user32's export by its row's signature.
+                unsafe { raw::engine_get_async_key_state(self.key_state, vk) & 0x8000 != 0 }
+            }),
         }
     }
 }
@@ -403,11 +515,20 @@ impl Dll {
         unsafe { (self.api.radio)(places.0) }
     }
 
-    /// The teammates it plays now (the DLL's word; its bit 31, the local
-    /// microphone, is not one of them).
+    /// The places talking now (the DLL's word): the teammates it plays, and
+    /// the local player's own place while its microphone is sent (the relay
+    /// has answered and the capture runs). Bit 31, the microphone sent before
+    /// the relay gave a place, is not one of them.
     pub fn talking(self) -> Places {
         // SAFETY: the checked API.
         Places::of_word(unsafe { (self.api.talking)() })
+    }
+
+    /// For the voice log: the place the relay gave this game (below 0: no
+    /// answer yet) and the DLL's whole talking word, bit 31 too.
+    pub fn state(self) -> (i32, u32) {
+        // SAFETY: the checked API.
+        unsafe { ((self.api.slot)(), (self.api.talking)()) }
     }
 
     /// The place's voice id, from the roster the relay sent.
@@ -421,9 +542,45 @@ impl Dll {
         self.window.is_none_or(Window::focused)
     }
 
-    /// The key is still down (so when user32 lacked the functions: its up
-    /// event and the DLL's 30 s limit still end a press).
-    pub fn key_down(self, key: Dik) -> bool {
-        self.window.is_none_or(|window| window.down(key))
+    /// The input is still down (so when user32 lacked the functions, or it
+    /// cannot be read: its up event and the DLL's 30 s limit still end a press).
+    pub fn key_down(self, input: TalkInput) -> bool {
+        self.window.is_none_or(|window| window.down(input))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // MapVirtualKeyA(MAPVK_VSC_TO_VK_EX) as Windows maps these scan codes.
+    fn windows(scan: u32) -> u32 {
+        match scan {
+            0x19 => 0x50,   // P
+            0x52 => 0x2D,   // numpad 0 -> VK_INSERT
+            0x47 => 0x24,   // numpad 7 -> VK_HOME
+            0x53 => 0x2E,   // numpad . -> VK_DELETE
+            0xE01D => 0xA3, // right Ctrl
+            _ => 0,
+        }
+    }
+
+    #[test]
+    fn a_held_input_is_read_by_the_keys_a_press_sets() {
+        let key = |code| Polled::of(TalkInput::Key(Dik::new(code)), windows);
+        assert_eq!(key(0x19), Polled::Keys(0x50, 0));
+        assert_eq!(key(0x9D), Polled::Keys(0xA3, 0));
+        // NumLock on or off: the navigation key or the digit
+        assert_eq!(key(0x52), Polled::Keys(0x2D, VK_NUMPAD0));
+        assert_eq!(key(0x47), Polled::Keys(0x24, VK_NUMPAD0 + 7));
+        assert_eq!(key(0x53), Polled::Keys(0x2E, VK_DECIMAL));
+        assert_eq!(key(0x45), Polled::Keys(VK_NUMLOCK, 0));
+        assert_eq!(key(0xC5), Polled::Keys(VK_PAUSE, 0));
+        assert_eq!(key(0x7F), Polled::Unknown);
+        let button = |n| Polled::of(TalkInput::Button(MouseButton::new(n)), |_| panic!("a button maps no scan code"));
+        assert_eq!(button(0), Polled::Keys(VK_LBUTTON, 0));
+        assert_eq!(button(3), Polled::Keys(VK_XBUTTON1, 0));
+        assert_eq!(button(4), Polled::Keys(VK_XBUTTON2, 0));
+        assert_eq!(button(5), Polled::Unknown);
     }
 }

@@ -12,8 +12,10 @@
 //!   mutes and who is far (the radio) told to the DLL when they change, a
 //!   held push-to-talk let go when the key is up or the game lost the
 //!   keyboard, and the hud's list of who talks;
-//! - the game world's keys (`tab_cursor.key`): push-to-talk (`ptt`, P, the
-//!   chat keys' group);
+//! - the game world's keys (`tab_cursor.key`) and mouse buttons
+//!   (`game_world.mouse_key`): push-to-talk (`ptt`, P; the binder's chat
+//!   kind, listed with the game's keys in the options: patch 62's
+//!   `controls`; a key or a button);
 //! - the hud's calls (`hud.callback`): the Tab list's player menu (patch 86's)
 //!   asks `srp_voice_menu(place)`, answered `root.srp_voice_menu(place,
 //!   offered, muted)` (a teammate whose voice id is known), and sends
@@ -29,9 +31,9 @@ use core::ffi::CStr;
 use crate::vostok::log::{self, Piece::*};
 use crate::vostok::types::Place;
 use crate::vostok::voice::{
-    self as engine, Connect, Dll, MUTES_SIZE, Places, Roster, Scene, Settings, TalkKey, VoiceId, name_text,
+    self as engine, Connect, Dll, MUTES_SIZE, Places, Roster, Scene, Settings, TalkInput, TalkKey, VoiceId, name_text,
 };
-use crate::vostok::{Context, Dik, Flow, GameCell, GameWorldKey, HudCall, NoExit, Thread, VoiceOnHudCallExit};
+use crate::vostok::{Context, Flow, GameCell, GameWorldButton, GameWorldKey, HudCall, NoExit, Thread, VoiceOnHudCallExit};
 
 /// A teammate farther than this is heard through the radio (the owner,
 /// 2026-10-25); a dead one, or any when the local player is dead, too.
@@ -45,15 +47,45 @@ struct Told {
     radio: Places,
 }
 
+/// `SKHID_VOICE_LOG` as the game was started with it (`on` or `1`), read at
+/// each match connect: on, srp_patches.log gets what the match's voice does
+/// (its start, each press of push-to-talk and why it ended, the relay's
+/// answer and who talks). Off, nothing: a local diagnostic, never a player's.
+#[derive(Clone, Copy, PartialEq)]
+enum Trace {
+    Off,
+    /// With what the log last said of the DLL (`Dll::state`).
+    On(Option<(i32, u32)>),
+}
+
+const TRACE_VARIABLE: &[u8] = b"SKHID_VOICE_LOG\0";
+
+impl Trace {
+    fn read(thread: &Thread) -> Trace {
+        let mut value = [0_u8; 8];
+        match crate::vostok::memory_profile::environment(thread, TRACE_VARIABLE, &mut value) {
+            Some(value) if value.eq_ignore_ascii_case(b"on") || value == b"1" => Trace::On(None),
+            _ => Trace::Off,
+        }
+    }
+
+    fn line(self, pieces: &[log::Piece]) {
+        if let Trace::On(_) = self {
+            log::line_of(&[&[Text("voice log: ")], pieces]);
+        }
+    }
+}
+
 /// A match with voice.
 #[derive(Clone, Copy)]
 struct Live {
     mutes: Mutes,
     told: Option<Told>,
-    /// The key push-to-talk is held by.
-    talk: Option<Dik>,
+    /// The key or button push-to-talk is held by.
+    talk: Option<TalkInput>,
     /// The speakers the hud's list was told.
     shown: Option<Places>,
+    trace: Trace,
 }
 
 #[derive(Clone, Copy)]
@@ -194,8 +226,25 @@ pub fn on_connect(ctx: &mut Context<'_>) -> Flow<NoExit> {
         VOICE.set(thread, Voice::Idle(dll));
         return Flow::Continue;
     };
-    let next = if dll.start(&connect) {
-        Voice::Live(dll, Live { mutes: load_mutes(thread), told: None, talk: None, shown: None })
+    let trace = Trace::read(thread);
+    // What the DLL plays and sends by from its start: this game's options, and
+    // no mutes and no radio until the match's first frame knows its places (the
+    // DLL keeps the last match's, by place, or its defaults; the relay forwards
+    // to the seat from its connect, during the loading).
+    let told = Told { settings: engine::settings(thread), muted: Places::NONE, radio: Places::NONE };
+    dll.settings(told.settings);
+    dll.mute(told.muted);
+    dll.radio(told.radio);
+    let started = dll.start(&connect);
+    trace.line(&[
+        Text("the relay's port "),
+        Dec(u32::from(connect.port())),
+        Text(", session "),
+        Hex(connect.session()),
+        Text(if started { ": started" } else { ": the DLL refused the start" }),
+    ]);
+    let next = if started {
+        Voice::Live(dll, Live { mutes: load_mutes(thread), told: Some(told), talk: None, shown: None, trace })
     } else {
         Voice::Idle(dll)
     };
@@ -203,21 +252,28 @@ pub fn on_connect(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-fn stop(thread: &Thread) {
-    if let Voice::Live(dll, _) = VOICE.get(thread) {
+/// The match's voice stopped, and the hud's list emptied (a name shown when
+/// it ended would stay to the next match's reset).
+fn stop(thread: &Thread, scene: Option<Scene<'_>>) {
+    if let Voice::Live(dll, live) = VOICE.get(thread) {
         dll.talk(false);
         dll.stop();
+        if live.shown.is_some_and(|shown| shown != Places::NONE)
+            && let Some(scene) = scene
+        {
+            show_speakers(&scene, &Roster::EMPTY, Places::NONE);
+        }
         VOICE.set(thread, Voice::Idle(dll));
     }
 }
 
 pub fn on_finish(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    stop(ctx.thread());
+    stop(ctx.thread(), Scene::at_finish(ctx));
     Flow::Continue
 }
 
 pub fn on_deactivate(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    stop(ctx.thread());
+    stop(ctx.thread(), Scene::at_deactivate(ctx));
     Flow::Continue
 }
 
@@ -251,11 +307,33 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Voice::Live(dll, mut live) = VOICE.get(thread) else { return Flow::Continue };
     let settings = engine::settings(thread);
     let speaking = matches!(settings, Settings::On { microphone: true, .. });
-    if let Some(key) = live.talk
-        && (!speaking || !dll.focused() || !dll.key_down(key))
-    {
-        dll.talk(false);
-        live.talk = None;
+    if let Some(key) = live.talk {
+        let ended = if !speaking {
+            Some("the microphone is off in the options")
+        } else if !dll.focused() {
+            Some("the game is not the foreground window")
+        } else if !dll.key_down(key) {
+            Some("its key is up (GetAsyncKeyState)")
+        } else {
+            None
+        };
+        if let Some(why) = ended {
+            dll.talk(false);
+            live.talk = None;
+            live.trace.line(&[Text("push-to-talk let go: "), Text(why)]);
+        }
+    }
+    if let Trace::On(said) = live.trace {
+        let state = dll.state();
+        if said != Some(state) {
+            live.trace.line(&[
+                Text(if state.0 < 0 { "no answer of the relay yet, place " } else { "the relay's place " }),
+                Dec(state.0 as u32),
+                Text(", talking "),
+                Hex(state.1),
+            ]);
+            live.trace = Trace::On(Some(state));
+        }
     }
     let roster = scene.roster(true);
     let told = Told { settings, muted: muted(dll, &roster, &live.mutes), radio: radio(&roster) };
@@ -274,8 +352,13 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
         Settings::Off => Places::NONE,
         Settings::On { .. } => dll.talking(),
     };
-    let speakers =
-        Place::all().filter(|&p| talking.has(p) && roster.teammate(p)).fold(Places::NONE, Places::with).without(told.muted);
+    // The local player's own place too, while its microphone is sent (the
+    // owner, 2026-11-11: "when I speak I want to see this with an icon").
+    let own = roster.local();
+    let speakers = Place::all()
+        .filter(|&p| talking.has(p) && (roster.teammate(p) || own == Some(p)))
+        .fold(Places::NONE, Places::with)
+        .without(told.muted);
     if live.shown != Some(speakers) && show_speakers(&scene, &roster, speakers) {
         live.shown = Some(speakers);
     }
@@ -283,8 +366,8 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// The hud's list (`root.srp_voice_talking`): the speakers' names (as 0.69's,
-/// the teammates only).
+/// The hud's list (`root.srp_voice_talking`): the speakers' names (as 0.69's
+/// list, the teammates; the local player's own while it is sent).
 fn show_speakers(scene: &Scene<'_>, roster: &Roster, speakers: Places) -> bool {
     let Some(movie) = scene.movie() else { return false };
     let mut names: [&CStr; Place::COUNT] = [c""; Place::COUNT];
@@ -299,24 +382,42 @@ fn show_speakers(scene: &Scene<'_>, roster: &Roster, speakers: Places) -> bool {
 pub fn on_key(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(key) = GameWorldKey::at_start(ctx) else { return Flow::Continue };
     let Some(event) = TalkKey::of(&key) else { return Flow::Continue };
-    let thread = key.thread();
-    let Voice::Live(dll, mut live) = VOICE.get(thread) else { return Flow::Continue };
+    talk_key(key.thread(), event);
+    Flow::Continue
+}
+
+/// A mouse button of the game world (`game_world.mouse_key`): push-to-talk
+/// bound to one. The button goes on to the game as before.
+pub fn on_mouse_key(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let Some(button) = GameWorldButton::at_start(ctx) else { return Flow::Continue };
+    let Some(event) = TalkKey::of_button(&button) else { return Flow::Continue };
+    talk_key(ctx.thread(), event);
+    Flow::Continue
+}
+
+fn talk_key(thread: &Thread, event: TalkKey) {
+    let Voice::Live(dll, mut live) = VOICE.get(thread) else { return };
     match event {
         TalkKey::Down(code) => {
-            if live.talk.is_none() && matches!(engine::settings(thread), Settings::On { microphone: true, .. }) {
-                dll.talk(true);
-                live.talk = Some(code);
+            if live.talk.is_none() {
+                if matches!(engine::settings(thread), Settings::On { microphone: true, .. }) {
+                    dll.talk(true);
+                    live.talk = Some(code);
+                    live.trace.line(&[Text("push-to-talk down")]);
+                } else {
+                    live.trace.line(&[Text("push-to-talk down, not taken: voice or the microphone is off in the options")]);
+                }
             }
         }
         TalkKey::Up(code) => {
             if live.talk == Some(code) {
                 dll.talk(false);
                 live.talk = None;
+                live.trace.line(&[Text("push-to-talk up")]);
             }
         }
     }
     VOICE.set(thread, Voice::Live(dll, live));
-    Flow::Continue
 }
 
 /// "1" or "0" from a movie.

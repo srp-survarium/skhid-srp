@@ -916,14 +916,16 @@ impl<S: Seats> Relay<S> {
         out: &mut Vec<(SocketAddr, Vec<u8>)>,
     ) {
         for (session, listener) in &self.listeners {
+            // The registry (a lock the match thread shares) is asked last: only
+            // for a listener of the speaker's match and team.
             if *session != speaker
-                && self.seats.voice_seat(*session) == Some(listener.seat)
                 && listener.hears
                 && listener.seat.match_id == utterance.match_id
                 && listener.seat.team == utterance.team
                 && listener.seat.place != utterance.speaker
                 && !muted(listener.muted, utterance.speaker)
                 && now.saturating_duration_since(listener.last_hello) <= HELLO_FRESH
+                && self.seats.voice_seat(*session) == Some(listener.seat)
             {
                 out.push((listener.addr, datagram.to_vec()));
             }

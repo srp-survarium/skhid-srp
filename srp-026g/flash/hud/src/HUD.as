@@ -996,13 +996,14 @@ package
          this.contextInfo3.layoutData.alignH = "center";
          this.contextInfo3.layoutData.offsetV = this.stageHeight / 3;
          this.contextInfo3.layoutData.offsetH = 0;
-         // On the left, at mid-height, as 0.69's (its 1280x720 hud's (20,370)): clear of the
-         // minimap, the chat and the kill feed.
+         // At the right edge, under mid-height (the owner, 2026-11-11: "usually you want those on
+         // the right"; 0.69's were on the left): under the kill feed and the container's icon, over
+         // the player's info. Its rows end at its x and it has no width of its own.
          this.voiceSpeakers.layoutData = new LayoutData();
          this.voiceSpeakers.layoutData.alignV = "center";
-         this.voiceSpeakers.layoutData.alignH = "left";
-         this.voiceSpeakers.layoutData.offsetV = 10;
-         this.voiceSpeakers.layoutData.offsetH = borderOffset + 22;
+         this.voiceSpeakers.layoutData.alignH = "right";
+         this.voiceSpeakers.layoutData.offsetV = 50;
+         this.voiceSpeakers.layoutData.offsetH = -borderOffset;
          this.chat.layoutData = new LayoutData();
          this.chat.layoutData.alignV = "bottom";
          this.chat.layoutData.alignH = "center";

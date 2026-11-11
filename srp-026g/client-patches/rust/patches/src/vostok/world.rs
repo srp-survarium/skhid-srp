@@ -60,6 +60,22 @@ impl<'t> GameWorld<'t> {
         Some(GameWorld { this, thread: ctx.thread() })
     }
 
+    /// The world whose match is over (`game_world.finish`, before it unloads).
+    pub fn at_finish(ctx: &'t Context<'_>) -> Option<GameWorld<'t>> {
+        // SAFETY: the context is this site's: on_finish_match's game world, alive
+        // until its end, on the game's thread.
+        let this = unsafe { raw::site::game_world_finish::world(ctx) }?;
+        Some(GameWorld { this, thread: ctx.thread() })
+    }
+
+    /// The world being left (`game_world.deactivate`, before it is).
+    pub fn at_deactivate(ctx: &'t Context<'_>) -> Option<GameWorld<'t>> {
+        // SAFETY: the context is this site's: on_deactivate's game world, alive
+        // until its end, on the game's thread.
+        let this = unsafe { raw::site::game_world_deactivate::world(ctx) }?;
+        Some(GameWorld { this, thread: ctx.thread() })
+    }
+
     /// Its game's network client.
     pub fn network_client(&self) -> Option<NetworkClient<'t>> {
         // SAFETY: the world, its game and the game's client, alive for the hook.
