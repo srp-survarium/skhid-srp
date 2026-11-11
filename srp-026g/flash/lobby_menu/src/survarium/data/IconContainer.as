@@ -101,6 +101,12 @@ package survarium.data
          return icon;
       }
       
+      // An icon's own pixels (shared: draw from them, never change them).
+      public function iconData(iconID:uint) : BitmapData
+      {
+         return this._icons[iconID] as BitmapData;
+      }
+
       public function toString() : String
       {
          return "[IconContainer]";

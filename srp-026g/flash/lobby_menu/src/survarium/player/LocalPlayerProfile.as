@@ -41,6 +41,7 @@ package survarium.player
    import survarium.item.ModificationRolls;
    import survarium.constants.SuperCategory;
    import survarium.constants.UiSound;
+   import survarium.face.FaceChoice;
    import survarium.rooms.RoomsLook;
    import survarium.rooms.RoomsWindow;
    
@@ -1084,6 +1085,7 @@ package survarium.player
          me._reasonsFallback.addEventListener(TimerEvent.TIMER_COMPLETE,me.onReasonsFallback);
          me._reasonsFallback.start();
          me.askPresets();
+         FaceChoice.lobbyLive();
       }
       
       // StatusPanel: Play greyed from its start until the reasons are known.

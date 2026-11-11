@@ -24,9 +24,9 @@ patch 81 (`client-patches/rust/patches/src/lobby_scene.rs`), the lobby movie's w
 - **The button** is the player panel's, top left, in the premium button's place (the owner,
   2026-10-31: "remove premium button and put lobby button there instead"): the original's
   premium button is taken out of the panel (`topPanelLeftContainer_56.placeLobbyButton`) and the
-  lobby button (`survarium.lobbypick.LobbyButton`) takes its place and size. It has the money
-  boxes' frame and nothing else of a money box: a button made in code (no timeline, so no state
-  frame places a coin, an amount or a hint again; the owner's test of `SrvButtonTop` showed the
+  lobby button (`survarium.controls.PanelButton`, the FACE button's class too) takes its place
+  and size. It has the money boxes' frame and nothing else of a money box: a button made in code
+  (no timeline, so no state frame places a coin, an amount or a hint again; the owner's test of `SrvButtonTop` showed the
   coin on a press and a "silver 0" hint), its back the money boxes' own piece for each state
   (`btnBackUp`, `btnBackHover`, `btnBackDown`, `btnBackDisabled`) stretched to the box, no tooltip
   and no data. Its label is the top menu's look (Calibri bold 16, 0x9BADC1, upper case), centred
@@ -39,9 +39,10 @@ patch 81 (`client-patches/rust/patches/src/lobby_scene.rs`), the lobby movie's w
   the exe (user.cfg saved at once when it changed), read once into `Lobby` (`Lobby::parse`): no
   line, an empty or unknown value is the Room. The four lobbies ship with the game (the owner,
   2026-10-30: "lobby files can't be missing"): there is no fallback for a missing one.
-- **The window** (`LobbyWindow`, the lobby movie's ActionScript): the four cards in id order, two
-  by two, each a rooms map-vote card (`RoomsRoom`): 280 x 190, the lobby's render over the whole
-  card (`RoomsLook.cover`, as `mapRender`), its name in white on a band of black at 0.62 along the
+- **The window** (`LobbyWindow`, the lobby movie's ActionScript; its frame, cards, gold pick, press
+  routing and opening are `survarium/rooms/CardWindow`, the faces' window's too): the four cards
+  in id order, two by two, each a rooms map-vote card (`RoomsRoom`): 280 x 190, the lobby's render
+  over the whole card (`RoomsLook.cover`, as `mapRender`), its name in white on a band of black at 0.62 along the
   bottom 58 px; the pick framed gold (3 px), the others 1 px. The pictures are the empty scenes
   (the owner, 2026-10-31: no character), from the stock camera, made by the diagnostics sweep's
   `empty` (`camera_sweep.rs`; never in a release). A click sends

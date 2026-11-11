@@ -15,6 +15,7 @@ package survarium.controls
    import scaleform.clik.events.ButtonEvent;
    import scaleform.gfx.MouseEventEx;
    import survarium.data.LocalizationData;
+   import survarium.face.FaceChoice;
    import survarium.gsearch.MatchMakingSettings;
    import survarium.player.LocalPlayerProfile;
    import survarium.rooms.RoomsWindow;
@@ -135,6 +136,11 @@ package survarium.controls
          }
          // The kit presets' list (presets.md): the Character panel's.
          if(LocalPlayerProfile.presetsTake(players))
+         {
+            return;
+         }
+         // The account's face (face-choice.md): srp's answer to the Face button's asks.
+         if(FaceChoice.take(players))
          {
             return;
          }

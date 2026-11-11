@@ -2496,6 +2496,8 @@ st_srp_equipment069_snow_20_legs_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment069_snow_20_legs_7_name	Schnee-20 Hose
 st_srp_equipment069_snow_20_torso_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment069_snow_20_torso_7_name	Schnee-20 Panzerweste
+st_srp_face	Gesicht
+st_srp_face_card	Gesicht %1$s
 st_srp_hide_hit_markers_option	Trefferanzeige ausblenden
 st_srp_hide_quests_option	Aufgaben ausblenden
 st_srp_hide_scores_option	Spielerpunkte ausblenden

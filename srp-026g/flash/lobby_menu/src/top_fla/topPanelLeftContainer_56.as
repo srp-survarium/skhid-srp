@@ -24,8 +24,9 @@ package top_fla
    import flash.ui.*;
    import flash.utils.*;
    import flash.xml.*;
+   import survarium.controls.PanelButton;
    import survarium.data.LocalizationData;
-   import survarium.lobbypick.LobbyButton;
+   import survarium.face.FaceButton;
    
    public dynamic class topPanelLeftContainer_56 extends MovieClip
    {
@@ -47,7 +48,10 @@ package top_fla
       public var textFieldName:FixedTextTopNickname2;
       
       // the lobby button (StatusPanel.LOBBY_WINDOW), in the premium button's place
-      public var btn_lobby:LobbyButton;
+      public var btn_lobby:PanelButton;
+      
+      // the face button (face-choice.md), left of the lobby button
+      public var btn_face:FaceButton;
       
       public function topPanelLeftContainer_56()
       {
@@ -57,16 +61,17 @@ package top_fla
          this.__setProp_btn_add_premium_money_topPanelLeftContainer_();
          this.__setProp_progress_indicator_topPanelLeftContainer_();
          this.placeLobbyButton();
+         this.placeFaceButton();
       }
       
       // The owner (2026-10-31): "remove premium button and put lobby button there instead". The
       // premium button (the original's, `btn_premium`, which the timeline places) is taken out and
-      // the lobby button (survarium.lobbypick.LobbyButton: the money boxes' frame, nothing else of
+      // the lobby button (survarium.controls.PanelButton: the money boxes' frame, nothing else of
       // a money box) takes its place and size.
       private function placeLobbyButton() : void
       {
          var slot:DisplayObject = getChildByName("btn_premium");
-         var button:LobbyButton = new LobbyButton(slot.width,slot.height);
+         var button:PanelButton = new PanelButton(slot.width,slot.height);
          button.name = "btn_lobby";
          button.x = slot.x;
          button.y = slot.y;
@@ -79,6 +84,22 @@ package top_fla
       private function lobbyLabel(text:String) : void
       {
          this.btn_lobby.text = text;
+      }
+      
+      // Between the face button and the lobby button.
+      private static const FACE_GAP:Number = 8;
+      
+      // The owner (2026-11-09): "the button for choosing a face should be to the left of LOBBY
+      // button". The face button (survarium.face.FaceButton) is the lobby button's size and look,
+      // FACE_GAP left of it, in the room the gold box (hidden: silver only) left.
+      private function placeFaceButton() : void
+      {
+         var lobby:PanelButton = this.btn_lobby;
+         var button:FaceButton = new FaceButton(lobby.boxWidth,lobby.boxHeight);
+         button.x = lobby.x - FACE_GAP - lobby.boxWidth;
+         button.y = lobby.y;
+         addChildAt(button,getChildIndex(lobby));
+         this.btn_face = button;
       }
       
       internal function __setProp_hintButton_topPanelLeftContainer_() : *

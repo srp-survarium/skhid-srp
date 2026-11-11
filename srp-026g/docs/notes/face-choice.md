@@ -83,8 +83,29 @@ neutral_03_head). A line marked [pick] is a worker's choice the owner may change
 
 ## Lobby
 
-- A face picker by the Character panel's paper doll: the faces in turn, the preview the lobby's
-  own character. [pick] Short text in the dictionaries.
+- The owner, 2026-11-09: "the button for choosing a face should be to the left of LOBBY button".
+  A FACE button (`st_srp_face`, every dictionary) in the player panel, 8 px left of LOBBY, its
+  size and look (`survarium/controls/PanelButton`, the two buttons' class).
+- The owner, 2026-11-09, playing the drop-down: "faces select should be in style of lobby
+  select". A click opens the faces' window as LOBBY opens the lobby window, and of its kind (both
+  `survarium/rooms/CardWindow`): in the middle of the lobby, a modal (Esc or the button again
+  close it); the title (`st_srp_face`, upper case); a card a face (140 x 180), its portrait over
+  the card and "Face <n>" in white on the dark band (`st_srp_face_card`, every dictionary), in
+  rows of at most six, evened (11: six and five, the shorter row centred); the account's face
+  framed gold. A press on a card chooses that face at once and closes the window, as a lobby's
+  pick does, which shows the lobby's character. [pick] (`survarium/face/FaceButton`,
+  `FaceWindow`, `FaceChoice`.)
+- A card's portrait is the face's `heads[i].icon`: the cell `[i + 1, 16]` of the lobby's
+  equipment atlas, which the faces pack draws (the movie does not read the game data, so column
+  16 is `FaceWindow.ICON_COLUMN`, as `faces_026::ICON_COLUMN`), its middle 80 px across the card
+  on a dark backdrop. An atlas without that cell: the face's number.
+- Hidden until srp answers, and when the data has one face.
+- A pick shows at once. One choice is asked at a time, and the last pick wins: when an answer
+  comes and the player went on meanwhile, the next is asked. A refusal brings srp's face back.
+  No answer in 5 s: srp's face, and the state asked again.
+- The preview is the lobby's own character: the exe redraws it when srp's `87` comes. The
+  camera stays as it is. [pick]
+- Checked in Ruffle: `scripts/face-picker/check.sh <lobby_menu.swf> [work dir] [atlas.png]`.
 
 ## Release
 
