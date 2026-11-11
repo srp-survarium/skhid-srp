@@ -14,6 +14,7 @@ use core::sync::atomic::{AtomicU32, Ordering};
 
 use super::context::Context;
 use super::hook::Thread;
+use super::ui::{Movie, movie_of};
 use crate::raw;
 
 /// Reads a field's place (raw's accessor gives it).
@@ -66,6 +67,78 @@ impl<'t> GameWorld<'t> {
         let this = unsafe { self.this.game()?.network_client() }?;
         Some(NetworkClient { this, thread: self.thread })
     }
+
+    /// The world of the player at `minimap.enemy_spotted` (update_minimap_players' spotted test).
+    pub fn at_minimap_enemy(ctx: &'t Context<'_>) -> Option<GameWorld<'t>> {
+        // SAFETY: the context is this site's: a place's player in the world and alive, which
+        // keeps its game world (+F474h), on the game's thread.
+        let this = unsafe { raw::site::minimap_enemy_spotted::player(ctx)?.game_world() }?;
+        Some(GameWorld { this, thread: ctx.thread() })
+    }
+
+    /// The world of the player at `player_names.enemy_spotted` (render_name's spotted test).
+    pub fn at_name_enemy(ctx: &'t Context<'_>) -> Option<GameWorld<'t>> {
+        // SAFETY: as at_minimap_enemy: render_name's player, in the world.
+        let this = unsafe { raw::site::player_names_enemy_spotted::player(ctx)?.game_world() }?;
+        Some(GameWorld { this, thread: ctx.thread() })
+    }
+
+    /// The hud's world at `player_icons.enemy_ids` (initialize_match).
+    pub fn at_enemy_ids(ctx: &'t Context<'_>) -> Option<GameWorld<'t>> {
+        // SAFETY: initialize_match's ui in ESI and its world (+18h), alive while it runs.
+        let this = unsafe { raw::site::player_icons_enemy_ids::ui(ctx)?.world() }?;
+        Some(GameWorld { this, thread: ctx.thread() })
+    }
+
+    /// What its game plays (a world with no client: a match).
+    pub fn playback(&self) -> Playback {
+        self.network_client().map_or(Playback::Match, |client| client.playback())
+    }
+
+    /// The replay player movie (replay_player.swf) of this world's hud, when
+    /// its game plays a replay (its network client's class) and the hud has
+    /// the movie. A live match has none.
+    pub fn replay_player(&self) -> Option<Movie<'t>> {
+        if self.playback() != Playback::Replay {
+            return None;
+        }
+        // SAFETY: the world and the hud inside it, alive for the hook, on its
+        // thread; the holder is the hud's own.
+        unsafe { movie_of(self.this.ui().replay_movie()) }
+    }
+
+    /// The places in the match now (the core's, core_active_player 0x2D0AD4);
+    /// none without a match.
+    pub fn places_in_match(&self) -> Option<Places> {
+        // SAFETY: the world, its match and the core inside it, alive for the hook.
+        unsafe { Some(Places(read(self.this.pvp_match()?.core().active_places()))) }
+    }
+}
+
+/// The roster places in the match, a bit each (a place that left has none
+/// until it comes back).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Places(pub u32);
+
+impl Places {
+    /// As many as a match has (core_world's loops: `cmp bl,14h` 0x2D21CC).
+    pub const COUNT: usize = 20;
+
+    /// Each place of the match in turn: whether it is in.
+    pub fn each(self) -> [bool; Places::COUNT] {
+        core::array::from_fn(|place| self.0 >> place & 1 != 0)
+    }
+}
+
+/// What the game plays, from its network client's class (its vtable), read at each ask: there is
+/// no flag of ours to set. A live match's client (and a live spectator's) is the network_client;
+/// a `.sur` replay's the replay_network_client, which no live match has.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Playback {
+    /// A match played or spectated live.
+    Match,
+    /// A `.sur` replay.
+    Replay,
 }
 
 /// The network client: the match's places and the local player.
@@ -78,6 +151,15 @@ impl<'t> NetworkClient<'t> {
     /// The client a site's typed register holds, on its hook's thread.
     pub(in crate::vostok) fn of(this: raw::NetworkClient, thread: &'t Thread) -> NetworkClient<'t> {
         NetworkClient { this, thread }
+    }
+
+    /// What it plays: its class (vtable +0), the one field both kinds of client share.
+    pub fn playback(&self) -> Playback {
+        // SAFETY: the client, alive for the hook; its vtable is its first word.
+        match unsafe { read(self.this.vtable()) } {
+            raw::image::REPLAY_CLIENT_VTABLE => Playback::Replay,
+            _ => Playback::Match,
+        }
     }
 
     /// The match's places' count (0 without match options).

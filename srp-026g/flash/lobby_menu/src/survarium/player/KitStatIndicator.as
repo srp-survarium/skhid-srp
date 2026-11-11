@@ -10,7 +10,7 @@ package survarium.player
    import panel_fla.WeightContainer_44;
 
    // A number of the kit (IKitStat: the movement speed, the regeneration) in a box of
-   // its own left of the weight's, the same kind of box. Its frame is the weight's
+   // its own on the weight's row, the same kind of box. Its frame is the weight's
    // (WeightFrame), its word and value a copy of the weight's own symbol, so they have
    // the weight label's and value's fonts, sizes, colours and baseline; its own tooltip
    // with the number's parts covers the whole box. Hidden when the exe gives none.
@@ -22,13 +22,26 @@ package survarium.player
       private static const WIDGET_Y:Number = 5;
       // The frame's opaque box in its bitmap (around it, the shadow).
       private static const BOX:Rectangle = new Rectangle(11,0,155,43);
+      // The value ends as far from its box's right side as the word starts from its left
+      // (the symbol has it 3.4 nearer the right side).
+      private static const VALUE_SHIFT:Number = -3.4;
       private var _box:Sprite;
       private var _widget:WeightContainer_44;
       private var _tip:WeightTip;
       private var _weight:MovieClip;
-      // `weight`: the weight's widget, in its place on its frame. `name`: the box's. `column`:
-      // how many boxes left of the weight's it is, 1 the one beside it.
-      public function KitStatIndicator(weight:MovieClip, name:String, column:int)
+      // The weight's own box in its parent: where `weight`'s frame is opaque.
+      public static function boxOf(weight:MovieClip) : Rectangle
+      {
+         return new Rectangle(weight.x - WIDGET_X + BOX.x,weight.y - WIDGET_Y + BOX.y,BOX.width,BOX.height);
+      }
+      // The same room each side of a box's word and value (the weight's own and a copy's).
+      public static function evenSides(widget:MovieClip) : void
+      {
+         widget.textFieldValue.x += VALUE_SHIFT;
+      }
+      // `weight`: the weight's widget, in its place on its frame. `name`: the box's. `left`:
+      // where the box starts in the weight's parent, on the weight's row.
+      public function KitStatIndicator(weight:MovieClip, name:String, left:Number)
       {
          _weight = weight;
          var frame:Bitmap = new Bitmap(new WeightFrame());
@@ -39,6 +52,7 @@ package survarium.player
          _widget.x = WIDGET_X;
          _widget.y = WIDGET_Y;
          _widget.progress_indicator.visible = false;
+         evenSides(_widget);
          _box.addChild(_widget);
          var hover:Sprite = new Sprite();
          _tip = new WeightTip();
@@ -47,8 +61,8 @@ package survarium.player
          _tip.graphics.endFill();
          hover.addChild(_tip);
          _box.addChild(hover);
-         // Its frame beside the weight's or the box's before it, on the weight's row, under the same panels.
-         _box.x = weight.x - WIDGET_X - column * frame.width;
+         // On the weight's row, under the same panels; on a whole pixel, as the frame is a bitmap.
+         _box.x = Math.round(left - BOX.x);
          _box.y = weight.y - WIDGET_Y;
          var panel:DisplayObjectContainer = weight.parent;
          panel.addChildAt(_box,panel.getChildIndex(weight));
