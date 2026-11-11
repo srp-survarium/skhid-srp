@@ -10,8 +10,31 @@ use super::context::Context;
 use super::hook::Thread;
 use super::breadcrumbs::Match;
 use super::parse::Reader;
+use super::ui::c_string;
 use super::world::read;
 use crate::raw;
+use core::ffi::CStr;
+
+/// A place's name: 64 bytes with its zero.
+const NAME_LIMIT: usize = 64;
+
+/// The bytes `reader` has not read: from its cursor to its end; none when the
+/// cursor is outside its bytes.
+///
+/// # Safety
+/// `reader` is a live reader of a message, its bytes alive for `'a`.
+pub(super) unsafe fn unread<'a>(reader: raw::BufferReader) -> Reader<'a> {
+    // SAFETY: the caller's.
+    let (begin, cursor, size) = unsafe { (reader.begin(), reader.cursor(), *reader.size()) };
+    let (first, at) = (begin as usize, cursor as usize);
+    let end = first.wrapping_add(size as usize);
+    if cursor.is_null() || at < first || at > end || end < first {
+        return Reader::new(&[]);
+    }
+    // SAFETY: begin..begin+size are the message's bytes, alive for 'a, and
+    // cursor..end lies inside them.
+    unsafe { Reader::of_memory(cursor, end - at) }
+}
 
 /// The options just read and the reader they were read from (its cursor
 /// where the options end).
@@ -48,15 +71,16 @@ impl<'t> OptionsRead<'t> {
     /// cursor to its end; none when the cursor is outside its bytes.
     pub fn rest(&self) -> Reader<'t> {
         // SAFETY: a live reader, for the hook.
-        let (begin, cursor, size) = unsafe { (self.reader.begin(), self.reader.cursor(), *self.reader.size()) };
-        let (first, at) = (begin as usize, cursor as usize);
-        let end = first.wrapping_add(size as usize);
-        if cursor.is_null() || at < first || at > end || end < first {
-            return Reader::new(&[]);
-        }
-        // SAFETY: begin..begin+size are the message's bytes, alive for the hook,
-        // and cursor..end lies inside them.
-        unsafe { Reader::of_memory(cursor, end - at) }
+        unsafe { unread(self.reader) }
+    }
+
+    /// The name of each of the match's places, place 0 first (none for a
+    /// name that is no C string in its 64 bytes).
+    pub fn place_names(&self) -> impl Iterator<Item = Option<&'t CStr>> + '_ {
+        // SAFETY: the options are alive for the hook; a place below the count
+        // is one of the array, its name a C string in its 64 bytes.
+        let places = unsafe { read(self.options.places()) };
+        (0..usize::from(places)).map(|place| unsafe { c_string(self.options.first_place().at(place).name(), NAME_LIMIT) })
     }
 
     /// What names the match, for the crash report's breadcrumbs.
