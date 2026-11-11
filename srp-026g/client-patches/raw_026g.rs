@@ -15265,6 +15265,24 @@ impl BakeParameters {
     pub unsafe fn set_model(self, value: Option<RenderModelInstance>) {
         unsafe { self.0.byte_add(0x790).cast::<Option<RenderModelInstance>>().write_volatile(value) }
     }
+
+    /// +0x7a8 (ptr<u8>): its baked files' name, a buffer_string's begin: a C string (translate_query 0x12D4A1 mov ecx,[eax+7A8h], the %s of user_data/streamed_textures/%s%s; camouflage_decal_baker_cook::translate_query 0x13420B writes it, the asker's name and the type's letter)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn name(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x7a8).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x7a8 (ptr<u8>): its baked files' name, a buffer_string's begin: a C string (translate_query 0x12D4A1 mov ecx,[eax+7A8h], the %s of user_data/streamed_textures/%s%s; camouflage_decal_baker_cook::translate_query 0x13420B writes it, the asker's name and the type's letter)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_name(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x7a8).cast::<*mut u8>().write_volatile(value) }
+    }
 }
 
 /// A vostok::render::render_surface_instance (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -24042,6 +24060,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<SaveSiteFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(SaveSiteFrame)
+        }
+    }
+
+    /// bake.own_camouflage (0x12e124): on_base_texture_loaded (0x12DEE0) where the camouflage layer's texture of the bake's type has no name (0x12E11B test ecx,ecx / cmp byte [ecx],0: the je and the fall-through come here), before it names the surface's own instead (mov edx,[ebp+eax*4-4Ch] / mov edi,[ebp+10h]: the suffix _camo, _camo_nmap, _camo_fmap or _camo_smap of 0x9EDD60.., EAX the type, and the surface's diffuse name; 0x328D30 joins them); ESI the bake's parameters; no_layer 0x12E25A, where the fresnel bake (0x12E0EA) and an empty name (0x12E169) go: no camouflage texture and no _aoac asked for (it reads [ebp-8], the count of textures to ask for, and no register before writing it)
+    pub mod bake_own_camouflage {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::render::bake_parameters (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn parameters(machine: &impl Machine) -> Option<BakeParameters> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(BakeParameters)
         }
     }
 

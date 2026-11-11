@@ -165,6 +165,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/hand_kill.rs`, `src/hand_kill.toml`, `src/vostok/melee.rs`, `check_hand_kill_026g.py` | Patch 108: a gun-stock hit kills, wherever it lands (`../docs/notes/hand-kill.md`): one lohook on patch 94's `medical.hit` site (ours first in the chain); its check runs the chain in the patched exe (needs Unicorn) |
 | `rust/patches/src/text_input.rs`, `check_text_input_026g.py` | Patch 52: ignore a character event whose Scaleform text field has lost its AS3 receiver; reproduces the PIN-entry crash and checks native register/stack behavior (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `rust/patches/src/weapon_camo.rs`, `weapon_camo.toml` | Patch 44's part in the baker (Rust, one lohook at `bake.own_camouflage`, 0x12E124): a weapon's bake takes only the camouflage textures its patch names (the colours and the `_smap`, not the `_nmap`, a cloth's weave), never the surface's own `<diffuse>_camo...`; `check_weapon_camo_026g.py` runs the site |
 | `research_026g.asm`, `research_arena/`, `../crates/research-rule/` | Patch 53 (Research): four aligned assembly entries, the integer rules in Rust, and the cook, rule slots and UI integration in Rust |
 | `link_026g.py`, `arena_026g.lock.json` | The arena's linker (below, "The arena"): every block's C and NASM sources compiled to ELF32 objects and linked by GNU ld at `.srpx`'s VA, at every build; `--write` writes the lock (the linked arena's SHA-256, its blocks and symbols), `--check` compares. Needs gcc (`-m32`), GNU ld and NASM 2.16 (`nix develop ./srp-026g`) |
 | `engine_026g.tsv`, `engine_026g.py` | The engine-function library (below, "Calling the game's functions"): its functions, one row each, and the generator of the three files after it from those rows and the re-kit's ABI rows (`--write`, `--check`) |
@@ -2540,13 +2541,16 @@ non-empty `data/camouflage` text in the weapon's merged config (a camouflage upg
 there when the config has a `data` table), an `object/model` text and a model with a render
 instance, it asks for one class-6Ch bake for each of the instance's surfaces (at most 8), as the
 lobby's decal editor (0x2641A0) asks for one: a camouflage_decal_cook_parameters from the game's
-allocator with the camouflage's diffuse, `_nmap` and `_smap` names, the identity as the
+allocator with the camouflage's diffuse and `_smap` names (not its `_nmap`, a cloth's weave: the
+weapon keeps its own relief, and the Rust patch `weapon_camo` at the baker's 0x12E124 makes a name
+left empty no layer on a weapon, where the game would take the surface's own `<diffuse>_camo...`;
+2026-11-11, client_patch.md section 3.41), the identity as the
 camouflage's matrix, the render instance (one reference more), the surface's index, the scale
 (`data/camo_scale`, else 4.0), and the baked files' name `srpw1_<camouflage>_<model>_<surface>`
 ('/' and '\\' as '_'); its callback lets go of the reference and frees the parameters. The baker
 refuses a surface whose diffuse has no `_aoac` texture (it stays plain). Every register and the
 flags are kept, eax as the original's `lea` leaves it. Since patch 47 the camouflage's lookup and
-its three names are patch 47's lookup and fill (`-DDECALS`), which add the weapon's decals: a
+its names are patch 47's lookup and fill (`-DDECALS`), which add the weapon's decals: a
 weapon with decals and no camouflage is baked too.
 
 `.srpw` is a section of its own (code, three pages: patch 44's 739 bytes, the stash's and patch
@@ -2895,7 +2899,7 @@ second page, until patch 45's round 6), its state (12 bytes, the left button's p
   weapon's bake paints. lookup: the camouflage (`data/camouflage`, as patch 44 read it) and the
   decals (`data/decals`, where a decal upgrade appends {texture, low, high}, the record's u64
   put in by the game's config merge); patch 44 bakes when there is either. fill: the
-  camouflage's layer of the parameters, and for each of the first two decals the layer P +
+  camouflage's layer of the parameters (its diffuse and `_smap`), and for each of the first two decals the layer P +
   i*270h: the texture, `_nmap`, `_fmap`, `_smap` and the float4x4 the editor unpacks from the u64
   (0x263D00), its point 1.0 lower (a weapon's y -1..1 in the u64's 0..2) and its two sides halved
   (a weapon's decals are half a character's); `_<texture>_<high><low>` after the baked files'
@@ -3625,7 +3629,8 @@ and `.toml`, over `vostok::baker`, `::files` and `::crc32`; seven lohooks):
   (`BAKE_FORMAT`) or other game data: a fingerprint of the files of `resources.db`'s patches that a
   bake reads (models, material instances, textures, shaders, camouflage and decal items), from each
   patch's file table (`bake_cache/inputs.rs`); then it is made again and stamped. So a release keeps
-  it unless its patch has such a file. Revision 54's stamp counts as format 1's. Otherwise each
+  it unless its patch has such a file. The format is 2 since 2026-11-11 (a weapon's bake without the
+  camouflage's weave); revision 54's stamp, before formats, was format 1's and is no stamp now. Otherwise each
   whole DDS in it (DXT1 or DXT5, the file as long as
   its header says) goes back into the baker's list with CRC 0, at most 512 files and 896 MB (512 MB until 2026-11-09: half a 20-player
   folder was deleted at every start); the
@@ -3675,8 +3680,8 @@ site from the game's code on the game's own static baker:
 - the folder, with made-up patches of the game data (their file tables): kept and back in the
   list, a file cut short and the files past 512 deleted; kept by a release whose patch has only
   item stats, deleted and stamped anew for a patch with a texture, a decal item or one that cannot
-  be read, another format, a stamp of other bytes, no stamp, or no folder; revision 54's stamp kept
-  and stamped again (deleted with a texture in patch 55), revision 53's deleted; no `resources.db`:
+  be read, another format, a stamp of other bytes, no stamp (revision 54's and 53's are none),
+  or no folder; no `resources.db`:
   deleted, not stamped; the fingerprint the same as the check's own (Python) of the tables; the
   original deletes it every time;
 - the game's own check_loaded: a kept file's first load is used and takes the CRC read;

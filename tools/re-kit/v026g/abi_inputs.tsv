@@ -5988,3 +5988,8 @@ va	name	location	role	basis
 0x0010a590	vostok::resources::managed_resource::managed_resource	entry ESP+4	its bytes (kept at +5Ch)	observed
 0x00504c30	Scaleform::MemoryHeapMH::GetTotalFootprint	ECX	the heap	observed
 0x00504c90	Scaleform::MemoryHeapMH::GetTotalUsedSpace	ECX	the heap	observed
+0x0012dee0	vostok::render::camouflage_decal_texture_type_baker_cook::on_base_texture_loaded	ECX	the baker cook	observed
+0x0012dee0	vostok::render::camouflage_decal_texture_type_baker_cook::on_base_texture_loaded	entry ESP+4	the base texture's queries_result (+40h must be 1, 0x12DEF9; +128h the texture, 0x12DF56)	observed
+0x0012dee0	vostok::render::camouflage_decal_texture_type_baker_cook::on_base_texture_loaded	entry ESP+8	the bake's parameters (+7A0h the type, +798h the scale, the layers; ESI from 0x12E0DB)	observed
+0x0012dee0	vostok::render::camouflage_decal_texture_type_baker_cook::on_base_texture_loaded	entry ESP+12	the surface's diffuse texture name, which 0x328D30 joins with _aoac and the _camo suffixes (0 asks for no _aoac, 0x12E1C8)	observed
+0x0012dee0	vostok::render::camouflage_decal_texture_type_baker_cook::on_base_texture_loaded	entry ESP+20	the query (finish_query's, 0x12E298)	observed

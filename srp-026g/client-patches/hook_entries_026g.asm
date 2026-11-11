@@ -6999,6 +6999,48 @@ use_scan_on_detect_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
     jmp 0x2d84c6
 
+; 0x12e124 on_base_texture_loaded (0x12DEE0) where the camouflage layer's texture of the bake's type has no name (0x12E11B test ecx,ecx / cmp byte [ecx],0: the je and the fall-through come here), before it names the surface's own instead (mov edx,[ebp+eax*4-4Ch] / mov edi,[ebp+10h]: the suffix _camo, _camo_nmap, _camo_fmap or _camo_smap of 0x9EDD60.., EAX the type, and the surface's diffuse name; 0x328D30 joins them); ESI the bake's parameters; no_layer 0x12E25A, where the fresnel bake (0x12E0EA) and an empty name (0x12E169) go: no camouflage texture and no _aoac asked for (it reads [ebp-8], the count of textures to ask for, and no register before writing it): lohook -> weapon_camo_on_own_camouflage
+global weapon_camo_on_own_camouflage
+extern hook_weapon_camo_on_own_camouflage
+weapon_camo_on_own_camouflage:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_camo_on_own_camouflage
+    mov edx, weapon_camo_on_own_camouflage_replay
+    cmp eax, 0
+    je weapon_camo_on_own_camouflage_go
+    mov edx, 0x12e12b
+    cmp eax, 1
+    je weapon_camo_on_own_camouflage_go
+    mov edx, 0x12e25a
+    cmp eax, 2
+    je weapon_camo_on_own_camouflage_go
+    ud2
+weapon_camo_on_own_camouflage_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_camo_on_own_camouflage_replay:
+    db 0x8b, 0x54, 0x85, 0xb4, 0x8b, 0x7d, 0x10
+    jmp 0x12e12b
+
 ; 0x2f1776 translate_query after 0x2F2060 copied the query (mov ecx,[ebp+38h] / mov eax,[ebp+44h]): ESP patch 68's room (weapon_kit.query_room), EBP the frame whose [ebp+40h] (the item's upgrades' buffer_vector) is read at 0x2F1799 (their count) and 0x2F18D0 (each record's dict id and value) and nowhere else; AL 0x2F2060's answer (0: the query not copied, as on another thread's query, 0x2F206F): lohook -> weapon_kit_on_query
 global weapon_kit_on_query
 extern hook_weapon_kit_on_query
