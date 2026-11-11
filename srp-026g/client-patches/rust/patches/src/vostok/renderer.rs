@@ -575,8 +575,11 @@ impl Manifest {
 }
 
 /// The manifests a look found, at most 8, in the order found, and how many
-/// Vulkan driver DLLs the look's instance had loaded (a driver that gives no
-/// device is loaded too, and stays mapped while an instance lives).
+/// Vulkan driver DLLs the look's instance loaded (a driver that gives no
+/// device is loaded too, and stays mapped while an instance lives). Only the
+/// DLLs that came with this instance: a driver an earlier look left mapped
+/// (NVIDIA's stays after its look) is another vendor's, and is not counted
+/// and its folder not read.
 #[derive(Default)]
 pub struct Manifests {
     pub list: [Option<Manifest>; 8],
@@ -604,29 +607,55 @@ impl Manifests {
 #[repr(C, align(4))]
 struct FindData([u8; 320]);
 
-/// Into `manifests`, every `.json` in the folder of each Vulkan driver DLL
-/// loaded now (K32EnumProcessModules through kernel32's GetProcAddress; a
-/// driver exports vk_icdNegotiateLoaderICDInterfaceVersion).
-///
-/// # Safety
-/// Called while the loader's instance lives, on the thread that made it.
-unsafe fn driver_manifests(manifests: &mut Manifests) {
-    const FILE_ATTRIBUTE_DIRECTORY: u8 = 0x10;
-    unsafe {
-        let kernel = (raw::engine_get_module_handle_a)(c"kernel32.dll".as_ptr().cast());
-        let Some(enumerate) = NonNull::new((raw::engine_get_proc_address)(kernel, c"K32EnumProcessModules".as_ptr().cast()))
-        else {
-            return;
-        };
-        let mut modules = [null_mut(); 512];
+/// The process's modules at one moment (K32EnumProcessModules), at most 512.
+struct Modules {
+    handles: [*mut c_void; 512],
+    count: usize,
+}
+
+impl Modules {
+    /// kernel32's K32EnumProcessModules (through its GetProcAddress); None
+    /// where it has none.
+    unsafe fn enumerator() -> Option<NonNull<c_void>> {
+        unsafe {
+            let kernel = (raw::engine_get_module_handle_a)(c"kernel32.dll".as_ptr().cast());
+            NonNull::new((raw::engine_get_proc_address)(kernel, c"K32EnumProcessModules".as_ptr().cast()))
+        }
+    }
+
+    /// The modules loaded now; None when the call fails.
+    unsafe fn now(enumerate: NonNull<c_void>) -> Option<Self> {
+        let mut modules = Self { handles: [null_mut(); 512], count: 0 };
         let mut needed = 0u32;
         // GetCurrentProcess's pseudo-handle, -1
         let process = usize::MAX as *mut c_void;
-        if raw::engine_enum_process_modules(enumerate, process, modules.as_mut_ptr(), size_of_val(&modules) as u32, &mut needed) == 0 {
-            return;
+        let room = size_of_val(&modules.handles) as u32;
+        if unsafe { raw::engine_enum_process_modules(enumerate, process, modules.handles.as_mut_ptr(), room, &mut needed) } == 0 {
+            return None;
         }
-        for &module in &modules[..(needed as usize / size_of::<*mut c_void>()).min(modules.len())] {
-            if (raw::engine_get_proc_address)(module, c"vk_icdNegotiateLoaderICDInterfaceVersion".as_ptr().cast()).is_null() {
+        modules.count = (needed as usize / size_of::<*mut c_void>()).min(modules.handles.len());
+        Some(modules)
+    }
+
+    fn list(&self) -> &[*mut c_void] {
+        &self.handles[..self.count]
+    }
+}
+
+/// Into `manifests`, every `.json` in the folder of each Vulkan driver DLL
+/// the instance loaded: a module of `now` that `before` (the modules right
+/// before the instance was made) has not, and that exports
+/// vk_icdNegotiateLoaderICDInterfaceVersion.
+///
+/// # Safety
+/// Called while the loader's instance lives, on the thread that made it.
+unsafe fn driver_manifests(manifests: &mut Manifests, before: &Modules, now: &Modules) {
+    const FILE_ATTRIBUTE_DIRECTORY: u8 = 0x10;
+    unsafe {
+        for &module in now.list() {
+            if before.list().contains(&module)
+                || (raw::engine_get_proc_address)(module, c"vk_icdNegotiateLoaderICDInterfaceVersion".as_ptr().cast()).is_null()
+            {
                 continue;
             }
             manifests.drivers += 1;
@@ -703,6 +732,11 @@ fn look_with(_: &Thread, manifests: Option<&mut Manifests>) -> Result<Gpus, Vulk
             extension_count: 0,
             extensions: null(),
         };
+        // the modules there before the instance: the drivers it loads are the ones that come after
+        let before = match &manifests {
+            Some(_) => Modules::enumerator().and_then(|enumerate| Some((enumerate, Modules::now(enumerate)?))),
+            None => None,
+        };
         let mut instance: *mut c_void = null_mut();
         let made = raw::engine_vk_create_instance(create, (&raw const info).cast(), null(), &mut instance);
         if made != 0 || instance.is_null() {
@@ -720,8 +754,11 @@ fn look_with(_: &Thread, manifests: Option<&mut Manifests>) -> Result<Gpus, Vulk
                 *slot = Some(Gpu::of_properties(&room));
             }
         }
-        if let Some(manifests) = manifests {
-            driver_manifests(manifests);
+        // without both lists nothing says which drivers are this instance's: no manifests, no count
+        if let (Some(manifests), Some((enumerate, before))) = (manifests, &before)
+            && let Some(now) = Modules::now(*enumerate)
+        {
+            driver_manifests(manifests, before, &now);
         }
         raw::engine_vk_destroy_instance(destroy, instance, null());
         (raw::engine_free_library)(library);

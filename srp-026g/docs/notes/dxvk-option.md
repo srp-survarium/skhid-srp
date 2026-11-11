@@ -344,6 +344,9 @@ thread reading it is shown (the start, the login screen and every Present are th
   The same is done when the GPU is listed once but the look's instance loaded two or more of the vendor's drivers: a
   stale package (an old `amdvlk.inf` beside Adrenalin's driver, SRP-3) whose driver finds no device still stays
   mapped, about 100 MiB of a 32-bit game's address space, while an instance lives.
+  The drivers of a look are the DLLs that came with its instance (the process's modules noted right before
+  `vkCreateInstance`, the new ones after): a driver an earlier vendor's look left mapped (NVIDIA's stays) is
+  neither counted nor its folder read.
   Anything less certain leaves the glob and the layers as they were and says why: a manifest that gives the GPU twice
   (two such GPUs, or an elevated game where the loader ignores `VK_DRIVER_FILES`), no manifest that gives it alone, a
   last look that does not. A player's own `VK_DRIVER_FILES` or `VK_ICD_FILENAMES` is kept like their
