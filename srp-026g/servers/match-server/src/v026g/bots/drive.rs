@@ -325,11 +325,32 @@ pub(super) fn drive_tick(
 ) -> Decision {
     bot.stamina.tick(time, bot.sent_keys, me.carrying.is_some());
     bot.motor.gauge = tuning.think.stamina.then(|| bot.stamina.gauge());
+    // [2d] In a carried route jump no other jump is pressed (`jump_carry`).
+    bot.motor.carrying = tuning.feel.carry_jumps && bot.carry.holds(time);
     let mut decision = drive_tick_inner(bot, me, view, tactics, tuning, time, searching);
     // The motor turned the view's elevation; the input carries the game's pitch unit (`pitch.rs`).
     decision.turn.1 = Pitch::view(me.pitch, bot.reflex.kick_before()).turn_for(tuning.kin.pitch_scale, decision.turn.1);
     // [A277] At the clip end of the shot that emptied the weapon: the count's reload and its key, the sprint taken off.
     decision.keys = bot.reflex.keys_sent(time, decision.keys);
+    // [2d] A route jump that went out this tick is carried through the client's clip, and the carry has the last word on the
+    // walk's keys and the view's yaw, whatever path of the tick made them (`jump_carry`, `feel.carry_jumps`).
+    if tuning.feel.carry_jumps {
+        let press = bot
+            .jump_watch
+            .filter(|watch| watch.at == time && watch.by == "route")
+            .and_then(|watch| watch.route)
+            .map(|route| jump_carry::Press {
+                time,
+                way: [route.landing.x - route.take_off.x, route.landing.z - route.take_off.z],
+                keys: decision.keys,
+                speed: me.speed(),
+                held_ticks: bot.jump_hold,
+            });
+        bot.carry = bot.carry.next(time, press);
+        decision = bot.carry.hold(time, me.yaw, decision);
+    } else {
+        bot.carry = jump_carry::JumpCarry::Free;
+    }
     // [A325f] The legs' `leg_damage` gate (`kin.leg_damage`; the world's affects, `legs`): the bot does not ask for a move, sprint
     // or jump its legs refuse (two legs held: none until the first ends; one: no sprint, no jump), on every path of the tick (an
     // unstick's keys too). Its own reckoned body takes the same keys.
@@ -396,7 +417,7 @@ fn drive_tick_inner(
         bot.motor.turn_time = None;
         bot.motor.track = None;
         let decision = bot.motor.rest();
-        let by = (keys & key::JUMP != 0).then_some("unstick");
+        let by = (keys & key::JUMP != 0 && !bot.motor.carrying).then_some("unstick");
         bot.reflex.skipped_tick(time);
         let keys = jumping(bot, keys, by, me.feet, time);
         return Decision { keys, ..decision };
@@ -2035,7 +2056,12 @@ fn drive_tick_inner(
         JumpBy::Hop => "hop",
     });
     // [trap_react] A noticed trap on the route, a little ahead: the same jump.
-    let by = by.or_else(|| (bot.control.reacts() && trap_react::jump_due(bot, me, time, &tuning.traps.react)).then_some("trap"));
+    // [2d] A carried route jump's clip: no other jump goes out (`jump_carry`); the trap's jump waits for it.
+    let by = if bot.motor.carrying {
+        None
+    } else {
+        by.or_else(|| (bot.control.reacts() && trap_react::jump_due(bot, me, time, &tuning.traps.react)).then_some("trap"))
+    };
     if lift_face {
         let stage = if walking_aimed {
             motor::lifts::Keys::AimedWalk

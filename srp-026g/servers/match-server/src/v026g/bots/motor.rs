@@ -243,6 +243,14 @@ pub struct Feel {
     /// diagonal, off the jump's line: at Vostok Radar Station's take-off 17 of 31 failed bench presses held a side key,
     /// against 5 of 40 that got up (A198). Off: the side keys as before (counted, `straight_jumps`).
     pub straight_jumps: bool,
+    /// [2d, owner-14 row 13] A route jump pressed is carried through the client's clip whatever the reckoning says
+    /// (`jump_carry`): from the press to the clip's end (0.80 s, a sprint jump's 0.955 s) the tick's final keys are forward
+    /// (and the sprint as pressed), no back, side or crouch key and no other jump, and the view stays within [`JUMP_FACING`]
+    /// of the jump's way. The reckoning put the body up the link ~100 ms after the press and the walk then steered at the
+    /// next leg (keys off the way in 92 of 118 broken carries; carried 0.7-0.95 m presses got up 72 %, broken ones 44 %,
+    /// PROVEN, `jumps-rootcause.md` 1c). Also: a walking ledge jump is not pressed standing at its face where a run-up is
+    /// clear ([`face_presses`]). Off: the carry lasts while the motor's own route jump steering does (as before).
+    pub carry_jumps: bool,
     /// A ledge jump of the route is pressed only when its landing is within the jump's reach of the feet: with the feet
     /// more than [`PRESS_UNDER_M`] under the take-off and the landing higher above them than the jump the press makes
     /// gets up ([`mapdata::grid::SPRINT_JUMP_LOW_M`] at a sprint, else [`mapdata::grid::STANDING_JUMP_M`]: the client's
@@ -365,6 +373,7 @@ impl Default for Feel {
             fight_lift: false,
             sprint_through: true,
             straight_jumps: false,
+            carry_jumps: true,
             press_in_reach: false,
             sprint_turns: None,
         }
@@ -832,6 +841,8 @@ pub struct Motor {
     /// The bar as the bot reckons it ([`stamina`]), when `think.stamina` is on: the sprint is let go of at an empty
     /// bar and for a jump the bar could not pay.
     pub gauge: Option<super::stamina::Gauge>,
+    /// [2d] A route jump is carried through its clip now (`jump_carry`, set by the driver each tick): no jump is pressed.
+    pub carrying: bool,
     /// Tired: the sprint was let go of at the empty bar and is not taken up again before the bar is back over
     /// [`stamina::CLEAR_ABOVE`](super::stamina::CLEAR_ABOVE).
     tired: bool,
@@ -901,6 +912,8 @@ struct JumpTry {
     /// What refused the lift at the face after it had reached it (the walk aims, the bar is spent...): the jump is the way
     /// up from then, and a lift not taken up again within [`LIFT_RESUME_S`] is counted left for this ([`lifts::left`]).
     lift_refused_at_face: Option<lifts::Refused>,
+    /// [2d] This try was backed off from once for a press standing at the face ([`Feel::carry_jumps`], [`face_presses`]).
+    faced: bool,
 }
 
 /// The sprint lift up a face ([`Feel::fight_lift`]).
@@ -1022,6 +1035,8 @@ struct Ahead {
     lead_m: f32,
     /// [A347a] The latest press of a walking jump onto a short top, metres before the take-off (`Route::ledge_least`); 0 for none.
     least_m: f32,
+    /// The run-up walked into the jump from, metres behind the take-off; 0: none is clear (pressed from where it stands).
+    run_up: f32,
 }
 
 impl Ahead {
@@ -1104,6 +1119,7 @@ impl Motor {
             drop_aim_run: 0,
             ahead_cap: None,
             gauge: None,
+            carrying: false,
             tired: false,
             reserve: None,
             released_by_bar: false,
@@ -2094,6 +2110,7 @@ impl Motor {
                 lift_noted: false,
                 lift_seen: None,
                 lift_refused_at_face: None,
+                faced: false,
             },
         };
         let in_the_air = jump.pressed.is_some_and(|at| self.since(at) < CARRY_S);
@@ -2138,6 +2155,7 @@ impl Motor {
                 take_off_above: take_off.y - feet.y,
                 lead_m: 0.0,
                 least_m: 0.0,
+                run_up: 0.0,
             });
         }
         let lead_m = route.ledge_lead(k).unwrap_or(0.0);
@@ -2332,6 +2350,7 @@ impl Motor {
             take_off_above: take_off.y - feet.y,
             lead_m,
             least_m: route.ledge_least(k).unwrap_or(0.0),
+            run_up,
         })
     }
 
@@ -2348,7 +2367,7 @@ impl Motor {
         let Some(mut jump) = self.jump_try else {
             return 0;
         };
-        if pose.no_jump {
+        if pose.no_jump || self.carrying {
             return 0;
         }
         // The sprint lift is no press: the sprint into the face carries the body up.
@@ -2449,6 +2468,26 @@ impl Motor {
             self.links.backed_off();
             late_presses::backed_off();
             return 0;
+        }
+        // [2d] Never pressed standing at the face: the client's walking jump from rest at a face is pushed back by it while
+        // the clip's root goes on (Chemical Plant's 1.03 m ledge, pressed 0.08-0.27 m before the take-off with no run-up, rose
+        // 0.94-0.99 m and never got up, `jumps-rootcause.md` 2). Where a run-up is clear, the body backs off to it once (no try
+        // spent) and walks into the jump; with none clear it presses as before.
+        if self.feel.carry_jumps
+            && matches!(ahead.leap, Leap::Ledge | Leap::SprintLedge)
+            && !ahead.approach.runs_through()
+            && pose.speed < STILL_MS
+            && ahead.run_up > 0.0
+        {
+            if !jump.faced {
+                jump.faced = true;
+                jump.back = true;
+                self.jump_try = Some(jump);
+                self.links.backed_off();
+                face_presses::backed_off();
+                return 0;
+            }
+            face_presses::pressed();
         }
         if let BandTry::Held { refused, .. } = jump.band {
             band_jumps::pressed_after_hold();
@@ -2620,6 +2659,7 @@ impl Motor {
             .next_jump(from)
             .is_some_and(|(_, before)| before <= 2.0 * feel.hop_look_m);
         let hop = may
+            && !self.carrying
             && cooled
             && !jumped
             && !low
@@ -3171,6 +3211,28 @@ pub mod low_presses {
 }
 
 /// [A347a] The walking jumps onto a short top backed off from: the press would have come later than the window's latest.
+/// [2d] Route ledge presses that came standing at the face ([`Feel::carry_jumps`]): backed off to the run-up, and pressed
+/// there all the same (a second arrival at rest).
+pub mod face_presses {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static BACKED_OFF: AtomicU64 = AtomicU64::new(0);
+    static PRESSED: AtomicU64 = AtomicU64::new(0);
+
+    pub fn backed_off() {
+        BACKED_OFF.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn pressed() {
+        PRESSED.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Backed off, pressed at rest.
+    pub fn counts() -> [u64; 2] {
+        [BACKED_OFF.load(Ordering::Relaxed), PRESSED.load(Ordering::Relaxed)]
+    }
+}
+
 pub mod late_presses {
     use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -4852,6 +4914,7 @@ mod tests {
             lift_noted: false,
             lift_seen: Some(0),
             lift_refused_at_face: Some(lifts::Refused::Blocked),
+            faced: false,
         });
         let before = lifts::left_counts();
         let band = 2; // 0.95-1.05
@@ -4919,6 +4982,25 @@ mod tests {
         assert!(late_presses::count() > backed, "it backed off");
     }
 
+    /// [2d] A walking ledge jump is not pressed standing at its face: a body at rest at the take-off backs off to its run-up once
+    /// and presses walking into it (and gets up); off, it presses where it stands.
+    #[test]
+    fn a_walking_jump_is_not_pressed_at_rest_at_the_face() {
+        let (_, ledge) = up_a_ledge(false);
+        let climb = |carry: bool| {
+            let (mut route, _) = up_a_ledge(false);
+            let feel = Feel { carry_jumps: carry, ..Feel::default() };
+            climb_ledge_feel(&mut route, &ledge, ledge.take_off, yaw_of([1.0, 0.0]), 400, false, 0, feel)
+        };
+        let off = climb(false);
+        assert!(off.presses.first().is_some_and(|(_, at)| at.speed < STILL_MS), "{:?}", off.presses);
+        let before = face_presses::counts();
+        let on = climb(true);
+        assert!(face_presses::counts()[0] > before[0], "backed off");
+        assert!(on.presses.first().is_some_and(|(_, at)| at.speed >= 1.0), "{:?}", on.presses);
+        assert!(on.up, "{:?}", on.poses.last());
+    }
+
     /// A sprint-band ledge jump (1.2 m, over the walk jump's 1.09) of a body that starts at the take-off, at rest: without
     /// `band_jump_gate` the old fallback presses it there at a walk (the client makes a walk jump of that, which
     /// does not get up); with it the body backs off for a run-up and presses only at speed with the sprint held.
@@ -4940,7 +5022,8 @@ mod tests {
         };
         let presses = |gate: bool| {
             let mut route = Route::new(vec![p(0.0, 0.0, false), p(8.0, 0.0, false), p(8.4, 1.2, true), p(14.0, 1.2, false)]);
-            let feel = Feel { band_jump_gate: gate, ..Feel::default() };
+            // The old fallback is the body as it was: no back-off from a press at rest at the face ([`Feel::carry_jumps`]).
+            let feel = Feel { band_jump_gate: gate, carry_jumps: gate, ..Feel::default() };
             climb_ledge_feel(&mut route, &ledge, Vec3::new(8.0, 0.0, 0.0), yaw_of([1.0, 0.0]), 600, false, 0, feel)
         };
         let before = band_jumps::counts();
@@ -4970,7 +5053,7 @@ mod tests {
         let presses = |from_grid: bool| {
             let mut route = Route::new(vec![p(0.0, 0.0, false), p(8.0, 0.0, false), p(8.4, 1.07, true), p(14.0, 1.07, false)]);
             assert_eq!(route.points()[2].jump, Some(Leap::SprintLedge));
-            let feel = Feel { band_jump_gate: true, band_from_grid: from_grid, ..Feel::default() };
+            let feel = Feel { band_jump_gate: true, band_from_grid: from_grid, carry_jumps: from_grid, ..Feel::default() };
             climb_ledge_feel(&mut route, &ledge, Vec3::new(8.0, 0.0, 0.0), yaw_of([1.0, 0.0]), 600, false, 0, feel)
         };
         let old = presses(false);
@@ -5440,6 +5523,7 @@ mod tests {
             take_off_above,
             lead_m: 0.0,
             least_m: 0.0,
+            run_up: 0.0,
         };
         // Vostok Radar Station (8.41, 2.86, -16.51), up 0.95 m: walking jumps pressed 0.08-0.40 m under the take-off.
         for under in [0.08, 0.18, 0.30, 0.40] {
@@ -5527,7 +5611,8 @@ mod tests {
     fn under_a_jump_that_did_not_get_up_the_route_is_taken_back() {
         let mut rng = Rng::new(23);
         let (mut route, _) = up_a_ledge(false);
-        let mut motor = Motor::new(Feel::default(), &mut rng);
+        // A body held still at the take-off (no back-off to a run-up at the face: [`Feel::carry_jumps`] off).
+        let mut motor = Motor::new(Feel { carry_jumps: false, ..Feel::default() }, &mut rng);
         // Pressed at the take-off.
         let mut pressed = false;
         for _ in 0..40 {
