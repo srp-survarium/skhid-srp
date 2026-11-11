@@ -5023,6 +5023,9 @@ nothing in the db. The rules and the entries are in
   at `render_output.present` (order 2 after patch 83's). A module and a load tell where the
   file's folder is, a user's name left out. Memory is read only with
   `ReadProcessMemory`.
+- **Each minute between** (`game.tick`, order 3, while the match is the connection's live one): a look at
+  the windows over the game's alone, told (kind 2, moment `minute <n>`, only those entries) when it
+  saw otherwise than the last look; the process list is taken only when some window is over the game.
 
 **The server.** The match server logs each part once per connection, of its own match only, to
 `logs/modules.log` (16 files of 4 MB). `release/moderate modules` reads its end and lists each
