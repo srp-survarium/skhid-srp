@@ -39,7 +39,8 @@ struct Watch {
     at: u32,
     /// The minute of the next look; `None` after the last.
     next: Option<Minute>,
-    /// What the last look that ran saw; `None`: none could run.
+    /// What the last look that ran saw, as told; `None`: none ran, or its
+    /// report did not go, so the next look tells what it sees.
     last: Option<Windows>,
 }
 
@@ -49,6 +50,9 @@ enum Event {
     /// A frame of the game's match.
     Frame(Key),
     Closing(Key),
+    /// The report just made did not go (its walks could not run, or the
+    /// packet pool had no room).
+    Lost(Key),
 }
 
 /// What to report.
@@ -65,7 +69,8 @@ enum Tell {
 /// A world after a connection's first (a resync's) and a close of a
 /// connection that had no world, or closes again, report nothing. A minute
 /// after the last look, a frame of the connection's match looks again and
-/// tells what it saw if it differs from what the last look saw.
+/// tells what it saw if it differs from what the last look saw; after a
+/// report that did not go (`Lost`) it tells what it sees.
 fn step(state: Reported, event: Event, now: u32, look: impl FnOnce() -> Option<Windows>) -> (Reported, Option<Tell>) {
     match (state, event) {
         (Reported::Loaded(seen, _) | Reported::Ended(seen), Event::WorldLoaded(key)) if seen == key => (state, None),
@@ -86,6 +91,10 @@ fn step(state: Reported, event: Event, now: u32, look: impl FnOnce() -> Option<W
             (Reported::Ended(key), Some(Tell::All(Moment::Ended, look())))
         }
         (_, Event::Closing(_)) => (state, None),
+        (Reported::Loaded(seen, watch), Event::Lost(key)) if seen == key => {
+            (Reported::Loaded(key, Watch { last: None, ..watch }), None)
+        }
+        (_, Event::Lost(_)) => (state, None),
     }
 }
 
@@ -132,21 +141,28 @@ pub fn on_present(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 fn report(thread: &Thread, connection: &Connection<'_>, event: Event) {
-    let (next, tell) = step(REPORTED.get(thread), event, tick_count(), Windows::look);
-    REPORTED.set(thread, next);
-    let modules = match tell {
+    let advance = |event| {
+        let (next, tell) = step(REPORTED.get(thread), event, tick_count(), Windows::look);
+        REPORTED.set(thread, next);
+        tell
+    };
+    let modules = match advance(event) {
         None => return,
         Some(Tell::Windows(minute, windows)) => windows.report(Moment::Minute(minute)),
         Some(Tell::All(moment, windows)) => match windows.and_then(|windows| snapshot(thread, moment, windows)) {
             Some(modules) => modules,
             None => {
                 line(&[Text("modules "), Text(moment.word()), Text(": the walks could not run; nothing told")]);
+                advance(Event::Lost(connection.key()));
                 return;
             }
         },
     };
     let (moment, entries) = (modules.moment(), modules.entries().len() as u32);
     let told = connection.tell(&Report::Modules(modules));
+    if !told {
+        advance(Event::Lost(connection.key()));
+    }
     let told = if told { " entries told the server" } else { " entries not told (no link or no room)" };
     let match_id = connection.match_id();
     match moment {
@@ -244,5 +260,23 @@ mod tests {
         let (state, _) = step(Reported::Loaded(a, watch), Event::Frame(a), MINUTE, || Some(windows));
         assert_eq!(state, Reported::Loaded(a, Watch { at: MINUTE, next: None, last: Some(windows) }));
         assert_eq!(step(state, Event::Frame(a), 9 * MINUTE, || panic!("no look after the last minute")), (state, None));
+    }
+
+    #[test]
+    fn a_report_that_did_not_go_is_told_at_the_next_minute() {
+        let (a, b) = ((0x1000, 7), (0x1000, 8));
+        let over = Windows::unseen(Unseen::NoOrder);
+        let (state, _) = step(Reported::Nothing, Event::WorldLoaded(a), 0, || Some(over));
+        // the load's report did not go: minute 1 tells the same windows
+        let (state, _) = step(state, Event::Lost(a), 0, || panic!("no look at a loss"));
+        let (state, tell) = step(state, Event::Frame(a), MINUTE, || Some(over));
+        assert_eq!(tell, Some(Tell::Windows(Minute::FIRST, over)));
+        // told: minute 2 tells nothing; another connection's loss changes nothing
+        assert_eq!(step(state, Event::Lost(b), MINUTE, || None), (state, None));
+        let (state, tell) = step(state, Event::Frame(a), 2 * MINUTE, || Some(over));
+        assert_eq!(tell, None);
+        // a loss after the end changes nothing
+        let (ended, _) = step(state, Event::Closing(a), 2 * MINUTE, || Some(over));
+        assert_eq!(step(ended, Event::Lost(a), 2 * MINUTE, || None), (ended, None));
     }
 }
