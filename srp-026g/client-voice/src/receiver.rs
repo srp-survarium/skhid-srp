@@ -5,6 +5,24 @@ use crate::{
     wire::Message,
 };
 const RING: usize = 32;
+/// Speech is played this much louder than decoded (+6 dB): at the game's
+/// own volumes voice was too quiet (the owner, 2026-11-12).
+const SPEECH_GAIN: f32 = 2.;
+/// The radio's static bed under a far teammate's words, of retail's level
+/// (1.0, about -44 dB): a quarter (-12 dB), the radio was too noisy.
+const RADIO_BED: f32 = 0.25;
+/// The mix's knee: below it a sample is as summed; above it the rest of the
+/// way to full scale is approached smoothly, so loud or several talkers
+/// never clip hard.
+const KNEE: f32 = 0.5;
+fn soft_limit(x: f32) -> f32 {
+    let over = x.abs() - KNEE;
+    if over <= 0. {
+        x
+    } else {
+        x.signum() * (KNEE + (1. - KNEE) * (over / (1. - KNEE)).tanh())
+    }
+}
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Stats {
     pub decoded: u32,
@@ -318,10 +336,10 @@ impl Core {
             s.finish_effect(far, &mut self.stats);
             if let Some(mut pcm) = s.play(now, far, &mut self.stats) {
                 if far {
-                    s.radio.process(&mut pcm, 1.);
+                    s.radio.process(&mut pcm, RADIO_BED);
                 }
                 for (a, p) in acc.iter_mut().zip(pcm) {
-                    *a += p * volume;
+                    *a += p * SPEECH_GAIN * volume;
                 }
             }
             s.finish_effect(far, &mut self.stats);
@@ -338,7 +356,7 @@ impl Core {
                 }
             }
         }
-        acc.map(|x| (x * 32767.).round().clamp(-32768., 32767.) as i16)
+        acc.map(|x| (soft_limit(x) * 32767.).round().clamp(-32768., 32767.) as i16)
     }
     pub fn talking(&self, now: u32) -> u32 {
         self.speakers.iter().enumerate().fold(0, |mask, (slot, s)| {
