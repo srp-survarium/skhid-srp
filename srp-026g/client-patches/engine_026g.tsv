@@ -35,7 +35,7 @@ engine_decal_value	0x264a10	ESI:lobby_character	unsigned long long engine_decal_
 engine_mouse_ray	0x26d130	ESI:menu EDI:direction ESP+4:eye	void engine_mouse_ray(void *menu, float *direction, float *eye)	thunk	
 engine_accept_decal_edit	0x263950	ESI:lobby_character ESP+4:host ESP+8:decal	void engine_accept_decal_edit(void *character, unsigned int host, unsigned int decal)	thunk	
 engine_cc_bool	0x01ddb0	EAX:object ESP+4:name ESP+8:value ESP+12:saved ESP+16:kind	void engine_cc_bool(struct cc_bool *object, const char *name, unsigned char *value, unsigned int saved, unsigned int kind)	thunk	
-engine_binded_action	0x207d50	EAX:binder EDI:kinds ESI:key ESP+4:toggle	unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsigned int key, unsigned int *toggle)	thunk	
+engine_binded_action	0x207d50	EAX:binder EDI:kinds ESI:key ESP+4:toggle	unsigned int engine_binded_action(const struct key_binder *binder, unsigned int kinds, unsigned int key, unsigned int *toggle)	thunk	
 engine_action_present	0x242460	ESP+4:receiver ESP+8:identifier ESP+12:state	unsigned char engine_action_present(struct player_input_handler *handler, unsigned int action, unsigned int *state)	stdcall	handler: InputHandler, action: Action, state: Out<u32> -> bool
 engine_create_file_a	0x870048	-	void *engine_create_file_a(const char *name, unsigned int access, unsigned int share, void *security, unsigned int disposition, unsigned int flags, void *template_file)	import	
 engine_write_file	0x870108	-	unsigned int engine_write_file(void *file, const void *bytes, unsigned int size, unsigned int *written, void *overlapped)	import	
@@ -224,6 +224,8 @@ engine_append_packet_bytes	0x7ac10	ESP+4:buffer_writer ESP+8:source_bytes EDI:by
 engine_set_environment_variable_a	0x87029c	-	unsigned int engine_set_environment_variable_a(const char *name, const char *value)	import	
 engine_show_scene_movie	0x23dc00	EAX:scene ESI:movie	void engine_show_scene_movie(struct game_world *scene, struct movie_slot *movie)	thunk	
 engine_hide_scene_movie	0x23dc70	EAX:movie EDX:scene	void engine_hide_scene_movie(struct movie_slot *movie, struct game_world *scene)	thunk	
+engine_get_foreground_window	-	-	void *engine_get_foreground_window(void)	dynamic	
+engine_map_virtual_key_a	-	-	unsigned int engine_map_virtual_key_a(unsigned int code, unsigned int map)	dynamic	
 engine_get_system_time_as_file_time	0x870244	-	void engine_get_system_time_as_file_time(unsigned int *file_time)	import	
 engine_file_time_to_local_file_time	0x870230	-	unsigned int engine_file_time_to_local_file_time(const unsigned int *file_time, unsigned int *local)	import	
 engine_file_time_to_system_time	0x87022c	-	unsigned int engine_file_time_to_system_time(const unsigned int *file_time, unsigned int *system_time)	import	
@@ -243,3 +245,7 @@ engine_bio_read	0x44c630	ESP+4:bio ESP+8:room ESP+12:length	unsigned int engine_
 engine_bio_write	0x44c740	ESP+4:bio ESP+8:bytes ESP+12:length	unsigned int engine_bio_write(struct bio *bio, const unsigned char *bytes, unsigned int length)	cdecl	
 engine_err_put_error	0x44a270	ESP+4:library ESP+8:function ESP+12:reason ESP+16:file ESP+20:line	void engine_err_put_error(unsigned int library, unsigned int function, unsigned int reason, const char *file, unsigned int line)	cdecl	
 engine_rand_bytes	0x46b6e0	ESP+4:room ESP+8:length	unsigned int engine_rand_bytes(unsigned char *room, unsigned int length)	cdecl	
+engine_cc_delegate	0x0ec780	EDI:object EDX:name ESP+4:delegate ESP+8:status ESP+12:kind	void engine_cc_delegate(struct cc_delegate *object, const char *name, const void *delegate, unsigned int status, unsigned int kind)	thunk	
+engine_cc_delegate_execute	0x0ec830	ECX:command ESP+4:arguments	void engine_cc_delegate_execute(struct cc_delegate *command, const char *arguments)	thiscall	command: ConsoleCommand, arguments: ConsoleArguments ->
+engine_log_helper	0x111c90	EAX:function ECX:context ESP+4:helper ESP+8:template ESP+12:file ESP+16:line ESP+20:caller ESP+24:channel ESP+28:level	struct log_helper *engine_log_helper(const struct log_function *function, unsigned int context, struct log_helper *helper, const struct log_helper *template_helper, const char *file, unsigned int line, const char *caller, const char *channel, unsigned int level)	thunk	
+engine_log_write	0x111d10	ESI:helper ESP+4:format ESP+8:arguments	void engine_log_write(struct log_helper *helper, const char *format, const void *arguments)	thunk	

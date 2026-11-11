@@ -25,6 +25,7 @@ struct bullet_manager;
 struct bullet_physics_world;
 struct camouflage_decal_texture_type_baker_cook;
 struct cc_bool;
+struct cc_delegate;
 struct cc_float;
 struct cc_string;
 struct closest_ray_result_callback;
@@ -61,11 +62,14 @@ struct inventory_recipe;
 struct item;
 struct item_entry;
 struct items_dictionary;
+struct key_binder;
 struct keyboard;
 struct lobby_camera;
 struct lobby_character;
 struct lobby_client;
 struct lobby_menu;
+struct log_function;
+struct log_helper;
 struct match_options;
 struct match_options_holder;
 struct match_packet;
@@ -233,7 +237,7 @@ void engine_accept_decal_edit(void *character, unsigned int host, unsigned int d
 void engine_cc_bool(struct cc_bool *object, const char *name, unsigned char *value, unsigned int saved, unsigned int kind);
 
 /* 0x207d50 survarium::key_binder::get_binded_action: binder EAX, kinds EDI, key ESI, toggle ESP+4; pops 4; EAX */
-unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsigned int key, unsigned int *toggle);
+unsigned int engine_binded_action(const struct key_binder *binder, unsigned int kinds, unsigned int key, unsigned int *toggle);
 
 /* 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly */
 unsigned char __attribute__((stdcall)) engine_action_present(struct player_input_handler *handler, unsigned int action, unsigned int *state);
@@ -768,5 +772,17 @@ void __attribute__((cdecl)) engine_err_put_error(unsigned int library, unsigned 
 
 /* 0x46b6e0 ssleay_rand_bytes: room ESP+4, length ESP+8; pops 0; EAX; cdecl, called directly */
 unsigned int __attribute__((cdecl)) engine_rand_bytes(unsigned char *room, unsigned int length);
+
+/* 0xec780 vostok::console_commands::cc_delegate::cc_delegate: object EDI, name EDX, delegate ESP+4, status ESP+8, kind ESP+12; pops 12 */
+void engine_cc_delegate(struct cc_delegate *object, const char *name, const void *delegate, unsigned int status, unsigned int kind);
+
+/* 0xec830 vostok::console_commands::cc_delegate::execute: command ECX, arguments ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_cc_delegate_execute(struct cc_delegate *command, const char *arguments);
+
+/* 0x111c90 vostok::logging::helper::helper: function EAX, context ECX, helper ESP+4, template_helper ESP+8, file ESP+12, line ESP+16, caller ESP+20, channel ESP+24, level ESP+28; pops 28; EAX */
+struct log_helper *engine_log_helper(const struct log_function *function, unsigned int context, struct log_helper *helper, const struct log_helper *template_helper, const char *file, unsigned int line, const char *caller, const char *channel, unsigned int level);
+
+/* 0x111d10 vostok::logging::helper::write: helper ESI, format ESP+4, arguments ESP+8; pops 8 */
+void engine_log_write(struct log_helper *helper, const char *format, const void *arguments);
 
 #endif

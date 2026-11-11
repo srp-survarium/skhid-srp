@@ -53,6 +53,7 @@ package
    import survarium.controls.QuickSlots;
    import survarium.controls.ResearchUnits;
    import survarium.controls.ResearchCountdownLayout;
+   import survarium.controls.VoiceSpeakers;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
    import survarium.data.ItemDescriptor;
@@ -237,6 +238,9 @@ package
 
       private var _researchCountdowns:ResearchCountdownLayout;
 
+      // Voice chat: the teammates talking now (srp_voice_talking).
+      public var voiceSpeakers:VoiceSpeakers;
+
       // The units' place in the indicator's own space (placeResearchUnits).
       protected var _researchX:Number = 0;
 
@@ -380,6 +384,8 @@ package
          researchUnits = new ResearchUnits();
          this.researchUnits.visible = false;
          addChild(this.researchUnits);
+         voiceSpeakers = new VoiceSpeakers();
+         addChild(this.voiceSpeakers);
          pregameInfo = new SrvContextInfoPregame();
          addChild(this.pregameInfo);
          // The stock "premium players in the match" box: srp has no premium (the owner, 2026-11-09)
@@ -570,10 +576,13 @@ package
       // countdown (keptWhenForced: the game shows it while it runs and hides it when play starts) and
       // the use prompt with its progress (contextInfo, root.set_context: the game shows it at what the
       // player can use, an artefact container or an ammo stash, and fills it while used); while
-      // the Tab list is asked for (show_player_list) the match's time left, the chat with its history and,
-      // alive, the intact player-info panel (ammo and body state) and quick-use slots;
+      // the Tab list is asked for (show_player_list) the list itself with its map and row menu (names
+      // only: no score, showScores; the map's marked batteries as in a plain match, while the icons
+      // movie keeps their markers in the world hidden), the match's time left, the chat with its
+      // history, who is talking (voice chat) and, alive, the intact player-info panel (ammo and body
+      // state) and quick-use slots;
       // while the game shows the kits (the death screen, before the start), the
-      // kits to pick from (keptOnTab), never the list; while the player types in the chat (focus_chat),
+      // kits to pick from (keptOnTab); while the player types in the chat (focus_chat),
       // the chat (keptWhileTyping). A kept part is in _keptLayer (KeptLayer: on the stage over the root,
       // placed as the root is), so the hidden root leaves it, and works there as in the root; back at its
       // place in the root when not.
@@ -612,6 +621,7 @@ package
       public function force_interface_hidden(forced:Boolean) : void
       {
          this._forcedView.forced = forced;
+         this.showScores();
          this.setInterfaceHidden(forced);
          if(forced)
             this._modeNotice.begin("blackout");
@@ -631,16 +641,19 @@ package
          return [this.pregameInfo,this.contextInfo,this._modeNotice];
       }
 
+      // The Tab list with either view, in the root's order: the chat under it, the kits over it; who
+      // is talking (voice chat) only here in a forced match (the owner, 2026-11-11: "we need to also
+      // show in blackout only when tabbed that someone is speaking").
       private function keptOnTab() : Array
       {
          if(this._profilePanel.visible)
          {
-            return [this._profilePanel,this.matchTime(),this.chat];
+            return [this.matchTime(),this.chat,this.voiceSpeakers,this.player_list,this._profilePanel];
          }
          // Ammo and the body doll share a size-dependent, bottom-right layout.
          // Keep their owner intact: removing either child changes its bounds
          // and a reflow can push the other child beyond the viewport.
-         return [this.playerInfo,this.quick_slots,this.matchTime(),this.chat];
+         return [this.playerInfo,this.quick_slots,this.matchTime(),this.chat,this.voiceSpeakers,this.player_list];
       }
 
       private function keptWhileTyping() : Array
@@ -990,6 +1003,14 @@ package
          this.contextInfo3.layoutData.alignH = "center";
          this.contextInfo3.layoutData.offsetV = this.stageHeight / 3;
          this.contextInfo3.layoutData.offsetH = 0;
+         // At the right edge, under mid-height (the owner, 2026-11-11: "usually you want those on
+         // the right"; 0.69's were on the left): under the kill feed and the container's icon, over
+         // the player's info. Its rows end at its x and it has no width of its own.
+         this.voiceSpeakers.layoutData = new LayoutData();
+         this.voiceSpeakers.layoutData.alignV = "center";
+         this.voiceSpeakers.layoutData.alignH = "right";
+         this.voiceSpeakers.layoutData.offsetV = 50;
+         this.voiceSpeakers.layoutData.offsetH = -borderOffset;
          this.chat.layoutData = new LayoutData();
          this.chat.layoutData.alignV = "bottom";
          this.chat.layoutData.alignH = "center";
@@ -1353,10 +1374,20 @@ package
       public function srp_hud_options(hideHitMarkers:Boolean, hideScores:Boolean, hideCrosshair:Boolean, mapNames:Boolean) : void
       {
          this.crosshair.hitMarkersHidden = hideHitMarkers;
-         this.player_list.players.namesOnly = hideScores;
+         this._scoresHidden = hideScores;
+         this.showScores();
          this.crosshair.crosshairHidden = hideCrosshair;
          this._mapNamesAlways = mapNames;
          this.showMapNames();
+      }
+
+      // "Hide player scores" (patch 83), as last told.
+      private var _scoresHidden:Boolean = false;
+
+      // The Tab list's names only: by the setting, and always in a forced match (Blackout shows no score).
+      private function showScores() : void
+      {
+         this.player_list.players.namesOnly = this._scoresHidden || this._forcedView != null && this._forcedView.forced;
       }
       
       public function show_oxygen(bool:Boolean) : void
@@ -1383,8 +1414,7 @@ package
 
       // The Tab map's names over the player icons, shown while Alt is held (the exe's patch 82 tells
       // the movie each change; docs/notes/tab-map-names.md), or with "Names on map" shown unless it is.
-      // The map is the Tab list's, so they show only with it: never in Blackout, whose Tab keeps the
-      // list hidden.
+      // The map is the Tab list's, so they show only with it (in Blackout too, in its Tab view).
       public function show_map_names(altHeld:Boolean) : void
       {
          this._mapNamesAlt = altHeld;
@@ -1411,16 +1441,12 @@ package
          {
             this._rowMenu.close();
          }
-         // Forced (Blackout): Tab shows its view (keptOnTab), never the list.
-         this._forcedView.tab = bool;
-         if(this._forcedView.forced)
-         {
-            return;
-         }
+         // Forced (Blackout): the list in Tab's view (keptOnTab), the quests' tasks not.
          this.player_list.visible = bool;
          // its map draws the players only while it shows (Minimap.held)
          this.tabMinimap.held = !bool;
-         this.questTaskList.visible = bool && this.questList.visible;
+         this._forcedView.tab = bool;
+         this.questTaskList.visible = bool && this.questList.visible && !this._forcedView.forced;
       }
       
       // The exe's answers to the Tab list's player menu (exe patch 86): what a place offers, and a friend
@@ -1607,6 +1633,7 @@ package
          this.hide_interface(false);
          this.clear_minimap();
          this.chat.clear();
+         this.voiceSpeakers.clear();
          this.show_ammo(false);
          this.show_slots(false);
          this.show_game_info(false);
@@ -1634,6 +1661,25 @@ package
          }
       }
       
+      // Voice chat (exe patch 66, docs/notes/voice-chat.md): the names of the teammates talking now
+      // (none: nobody). Called on a change only.
+      public function srp_voice_talking(... names) : void
+      {
+         this.voiceSpeakers.update(names);
+      }
+
+      // The exe's answers to the Tab list's player menu's voice entries (exe patch 66): whether a
+      // place's voice can be muted and is, and a voice mute done or not.
+      public function srp_voice_menu(place:uint, offered:uint, muted:uint) : void
+      {
+         this._rowMenu.voiceOffered(place,offered != 0,muted != 0);
+      }
+
+      public function srp_voice_mute(place:uint, done:uint) : void
+      {
+         this._rowMenu.voiceMuted(place,done != 0);
+      }
+
       public function clear_minimap() : void
       {
          this.minimap.clear_minimap();

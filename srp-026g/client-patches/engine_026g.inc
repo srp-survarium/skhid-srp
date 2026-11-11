@@ -110,7 +110,7 @@ extern engine_accept_decal_edit
 ; void engine_cc_bool(struct cc_bool *object, const char *name, unsigned char *value, unsigned int saved, unsigned int kind)
 ; 0x1ddb0 vostok::console_commands::cc_value<bool>::cc_value: object EAX, name ESP+4, value ESP+8, saved ESP+12, kind ESP+16; pops 16
 extern engine_cc_bool
-; unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsigned int key, unsigned int *toggle)
+; unsigned int engine_binded_action(const struct key_binder *binder, unsigned int kinds, unsigned int key, unsigned int *toggle)
 ; 0x207d50 survarium::key_binder::get_binded_action: binder EAX, kinds EDI, key ESI, toggle ESP+4; pops 4; EAX
 extern engine_binded_action
 ; unsigned char engine_action_present(struct player_input_handler *handler, unsigned int action, unsigned int *state)
@@ -732,3 +732,16 @@ extern engine_err_put_error
 ; 0x46b6e0 ssleay_rand_bytes: room ESP+4, length ESP+8; pops 0; EAX; cdecl, called directly
 ; cdecl: push (and ECX for thiscall) as that convention says
 extern engine_rand_bytes
+; void engine_cc_delegate(struct cc_delegate *object, const char *name, const void *delegate, unsigned int status, unsigned int kind)
+; 0xec780 vostok::console_commands::cc_delegate::cc_delegate: object EDI, name EDX, delegate ESP+4, status ESP+8, kind ESP+12; pops 12
+extern engine_cc_delegate
+; void engine_cc_delegate_execute(struct cc_delegate *command, const char *arguments)
+; 0xec830 vostok::console_commands::cc_delegate::execute: command ECX, arguments ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_cc_delegate_execute
+; struct log_helper *engine_log_helper(const struct log_function *function, unsigned int context, struct log_helper *helper, const struct log_helper *template_helper, const char *file, unsigned int line, const char *caller, const char *channel, unsigned int level)
+; 0x111c90 vostok::logging::helper::helper: function EAX, context ECX, helper ESP+4, template_helper ESP+8, file ESP+12, line ESP+16, caller ESP+20, channel ESP+24, level ESP+28; pops 28; EAX
+extern engine_log_helper
+; void engine_log_write(struct log_helper *helper, const char *format, const void *arguments)
+; 0x111d10 vostok::logging::helper::write: helper ESI, format ESP+4, arguments ESP+8; pops 8
+extern engine_log_write

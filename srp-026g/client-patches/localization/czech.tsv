@@ -1238,7 +1238,7 @@ st_health_regen_correction_perc_name	Regenerace
 st_hide_ammo	Skrýt munici
 st_hide_interface_action	Skrýt rozhraní
 st_hide_quest_list	Skrýt okno úkolů
-st_hide_spam_option	Skrýt spam
+st_hide_spam_option	Vypnout hlasový chat
 st_hide_squad_list	Skrýt okno čety
 st_hk416_description	Německá útočná puška na náboje 5.56x45. Úprava AR-15 od Heckler & Koch s pístem s krátkým zdvihem, zavedená v polovině 00. let. Slouží u speciálních sil a několika armád NATO. Tato má holografický zaměřovač EOTech 552. Zásobník na 30 nábojů. Jednotlivá i automatická střelba.
 st_hk416_name	H&K 416A5
@@ -1765,7 +1765,7 @@ st_profile_selection_warning	Změna profilu prodlouží oživení o 20 sekund
 st_profile_warning_weapon	Profil není aktivní: chybí zbraň
 st_profile_warning_weapon_ammo	Profil není aktivní: v batohu není dost munice
 st_profile_warning_weapon_ammo_in_inv	Profil není aktivní: ve skladu není dost munice
-st_ptt_action	PTT
+st_ptt_action	Mluvit (podržet)
 st_ptt_button_option	PTT
 st_put_item	Položit ({USE})
 st_quest_change_warning	Pozor! Změna úkolů sníží loajalitu k frakci!
@@ -2511,6 +2511,11 @@ st_srp_hud_mute_not_sent	Neodesláno
 st_srp_hud_muted	Chat ztlumen
 st_srp_hud_unmute	Zapnout chat
 st_srp_hud_unmuted	Chat zapnut
+st_srp_hud_voice_mute	Ztlumit hlas
+st_srp_hud_voice_muted	Hlas ztlumen
+st_srp_hud_voice_not_muted	Hlasový chat není dostupný
+st_srp_hud_voice_unmute	Zapnout hlas
+st_srp_hud_voice_unmuted	Hlas zapnut
 st_srp_inv_ammo_range	Dostřel
 st_srp_inv_bullet_speed	Rychlost střely
 st_srp_inv_defuse_time	Doba zneškodnění

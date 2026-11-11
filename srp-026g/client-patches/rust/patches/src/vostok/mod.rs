@@ -35,6 +35,7 @@ pub mod carry_ground;
 pub mod carry_flower;
 mod cell;
 pub mod clock;
+pub mod console;
 pub mod controller;
 pub mod crc32;
 mod context;
@@ -72,6 +73,7 @@ pub mod system;
 pub mod modules;
 pub mod module_watch;
 pub mod voices;
+pub mod voice;
 pub mod settings;
 mod sync;
 pub mod trace;
@@ -101,6 +103,8 @@ mod generated {
     #[allow(unused_imports)]
     use super::resources::{QueryResults, QueryTag};
     #[allow(unused_imports)]
+    use super::console::{ConsoleArguments, ConsoleCommand};
+    #[allow(unused_imports)]
     use core::ffi::c_void;
     include!("../../../../hooks_026g.rs");
 }
@@ -111,7 +115,7 @@ pub use context::{Context, Exit, Flag, Flow, NoExit, Reg, Ret};
 pub use generated::*;
 pub use hook::{CallbackEntry, Handle, InstallRefused, OnDemand, Out, Regs, Thread};
 pub use input::{Action, ActionMask, ActionState, InputChange, InputHandler, KeyboardAction, Rotation, UnknownActionState};
-pub use keyboard::{Dik, GameWorldKey, GameWorldKeys, KeyEvents, KeyKind, KeyMoves, KeyName, TabTest};
+pub use keyboard::{Dik, GameWorldButton, GameWorldKey, GameWorldKeys, KeyEvents, KeyKind, KeyMoves, KeyName, TabTest};
 pub use hud_input::{CursorMovie, Hud, HudCall, HudView, MenuChange, MenuClose};
 pub use lobby::{Lobby, MuteChoice, Muted, NotConnected};
 pub use options::OptionsRead;

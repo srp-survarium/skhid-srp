@@ -1238,7 +1238,7 @@ st_health_regen_correction_perc_name	Regeneracja
 st_hide_ammo	Ukryj amunicję
 st_hide_interface_action	Ukryj interfejs
 st_hide_quest_list	Ukryj okno zadań
-st_hide_spam_option	Ukryj spam
+st_hide_spam_option	Wyłącz czat głosowy
 st_hide_squad_list	Ukryj okno brygady
 st_hk416_description	Niemiecki karabinek automatyczny, amunicja: 5,56x45. Rozwinięcie konstrukcji AR-15 firmy Heckler & Koch z tłokiem gazowym o krótkim ruchu, przedstawione w połowie lat 2000. i używane przez wojska specjalne oraz armie kilku państw NATO. Ten egzemplarz ma celownik holograficzny EOTech 552. Wyposażony w 30-nabojowy magazynek. Posiada tryb ognia pojedynczego i ciągłego.
 st_hk416_name	H&K 416A5
@@ -1765,7 +1765,7 @@ st_profile_selection_warning	+20 sekund do czasu odrodzenia przy zmianie profilu
 st_profile_warning_weapon	Profil nieaktywny: brak broni
 st_profile_warning_weapon_ammo	Profil nieaktywny: za mało naboi w plecaku
 st_profile_warning_weapon_ammo_in_inv	Profil nieaktywny: za mało naboi w magazynie
-st_ptt_action	PTT
+st_ptt_action	Mów (przytrzymaj)
 st_ptt_button_option	PTT
 st_put_item	Umieść ({USE})
 st_quest_change_warning	Uwaga! Przy zmianie zadań spadnie lojalność frakcji wobec ciebie!
@@ -2511,6 +2511,11 @@ st_srp_hud_mute_not_sent	Nie wysłano
 st_srp_hud_muted	Czat wyciszony
 st_srp_hud_unmute	Włącz czat
 st_srp_hud_unmuted	Czat włączony
+st_srp_hud_voice_mute	Wycisz głos
+st_srp_hud_voice_muted	Głos wyciszony
+st_srp_hud_voice_not_muted	Czat głosowy niedostępny
+st_srp_hud_voice_unmute	Włącz głos
+st_srp_hud_voice_unmuted	Głos włączony
 st_srp_inv_ammo_range	Zasięg
 st_srp_inv_bullet_speed	Prędkość pocisku
 st_srp_inv_defuse_time	Czas rozbrajania

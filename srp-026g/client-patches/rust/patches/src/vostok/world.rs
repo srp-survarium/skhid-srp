@@ -61,6 +61,22 @@ impl<'t> GameWorld<'t> {
         Some(GameWorld { this, thread: ctx.thread() })
     }
 
+    /// The world whose match is over (`game_world.finish`, before it unloads).
+    pub fn at_finish(ctx: &'t Context<'_>) -> Option<GameWorld<'t>> {
+        // SAFETY: the context is this site's: on_finish_match's game world, alive
+        // until its end, on the game's thread.
+        let this = unsafe { raw::site::game_world_finish::world(ctx) }?;
+        Some(GameWorld { this, thread: ctx.thread() })
+    }
+
+    /// The world being left (`game_world.deactivate`, before it is).
+    pub fn at_deactivate(ctx: &'t Context<'_>) -> Option<GameWorld<'t>> {
+        // SAFETY: the context is this site's: on_deactivate's game world, alive
+        // until its end, on the game's thread.
+        let this = unsafe { raw::site::game_world_deactivate::world(ctx) }?;
+        Some(GameWorld { this, thread: ctx.thread() })
+    }
+
     /// Its game's network client.
     pub fn network_client(&self) -> Option<NetworkClient<'t>> {
         // SAFETY: the world, its game and the game's client, alive for the hook.
@@ -172,6 +188,50 @@ impl<'t> NetworkClient<'t> {
     pub fn match_id(&self) -> Option<MatchId> {
         // SAFETY: the client, alive for the hook; match_options is its own.
         unsafe { raw::engine_match_options(Some(self.this)).map(|options| MatchId(read(options.seed()))) }
+    }
+
+    /// The team word of each place of the match (0 or 1 a team; its
+    /// options' record, the one a player's profile is), None past its count.
+    pub(in crate::vostok) fn place_teams(&self) -> [Option<u32>; super::types::Place::COUNT] {
+        let mut teams = [None; super::types::Place::COUNT];
+        // SAFETY: the client, alive for the hook; match_options is its own
+        // (a live or a replay client's, its vtable's), its places as long as
+        // the client; a place below the count (at most the 20 of the array)
+        // is one of them.
+        unsafe {
+            if let Some(options) = raw::engine_match_options(Some(self.this)) {
+                let places = usize::from(read(options.places())).min(teams.len());
+                for (place, team) in teams.iter_mut().enumerate().take(places) {
+                    *team = Some(read(options.first_place().at(place).team()));
+                }
+            }
+        }
+        teams
+    }
+
+    /// The client of a game, on a hook's thread.
+    pub(in crate::vostok) fn of_game(game: raw::Game, thread: &'t Thread) -> Option<NetworkClient<'t>> {
+        // SAFETY: the game's network client, alive as long as the game.
+        let this = unsafe { game.network_client() }?;
+        Some(NetworkClient { this, thread })
+    }
+
+    /// The name of a place's record (64 bytes with its zero; the match
+    /// options' own), zeros past the match's places.
+    pub(in crate::vostok) fn place_name(&self, place: super::types::Place) -> [u8; 64] {
+        let mut name = [0; 64];
+        // SAFETY: the client's options and their places live as long as the
+        // client, on the hook's thread; a place below the count is one of
+        // them, its name 64 bytes.
+        unsafe {
+            if let Some(options) = raw::engine_match_options(Some(self.this))
+                && place.index() < usize::from(read(options.places()))
+            {
+                let at = options.first_place().at(place.index()).name();
+                core::ptr::copy_nonoverlapping(at, name.as_mut_ptr(), name.len());
+            }
+        }
+        name
     }
 
     /// The local player, if the match has one.
@@ -372,6 +432,12 @@ impl<'t> Player<'t> {
     pub fn place(&self) -> u8 {
         // SAFETY: the live base player's place byte.
         unsafe { read(self.this.place()) }
+    }
+
+    /// Where its feet are (the simulated transform's translation).
+    pub fn feet(&self) -> [f32; 3] {
+        // SAFETY: the live player's three floats.
+        unsafe { floats(self.this.feet()) }
     }
 
     /// In the match's world (m_has_been_inserted).
@@ -598,5 +664,61 @@ impl BodyId {
     /// The body as a value (a shot's key).
     pub fn key(self) -> u32 {
         self.0
+    }
+}
+
+/// The map the game has loaded, while a match (live or replay) is in its
+/// world: its project's name as the data names it (the maps_dict id's game
+/// mode config's `map_name`, `level_01/day_2`) and that id.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LoadedMap {
+    name: [u8; LoadedMap::MOST],
+    len: u8,
+    /// The maps_dict id (match_options +577B4h), when the client has options.
+    pub id: Option<u8>,
+}
+
+impl LoadedMap {
+    /// The longest name kept; a longer one is cut.
+    const MOST: usize = 64;
+
+    /// The name (ASCII as the data has it; "?" for any other byte).
+    pub fn name(&self) -> &str {
+        core::str::from_utf8(&self.name[..usize::from(self.len)]).unwrap_or("?")
+    }
+
+    /// A map of this name and id (tests, and what `loaded_map` builds).
+    pub fn new(name: &[u8], id: Option<u8>) -> LoadedMap {
+        let mut out = LoadedMap { name: [0; LoadedMap::MOST], len: 0, id };
+        for (slot, &byte) in out.name.iter_mut().zip(name) {
+            *slot = if byte.is_ascii_graphic() { byte } else { b'?' };
+            out.len += 1;
+        }
+        out
+    }
+}
+
+/// The map of the match the engine world's game has in its world, none in
+/// the lobby (the world's match 0), before the engine runs or without a name.
+pub fn loaded_map(_: &Thread) -> Option<LoadedMap> {
+    // SAFETY: the image's engine world slot, the engine world, its game, the
+    // game's embedded world and its match are live while the game runs (each
+    // pointer 0 when absent, as match_core in artefact_skills reads them);
+    // the map's name is the game's buffer_string, its text zero-terminated in
+    // its 200h bytes; the options are the client's own (match_options,
+    // vtable +34h, a live and a replay client alike).
+    unsafe {
+        let game = raw::image::engine_world().world()?.game()?;
+        game.world().pvp_match()?;
+        let name = super::ui::c_string(game.map_name().begin().cast_const(), 0x200)?.to_bytes();
+        if name.is_empty() {
+            return None;
+        }
+        // No client, no id: the options' call is through the client's vtable.
+        let id = game
+            .network_client()
+            .and_then(|client| raw::engine_match_options(Some(client)))
+            .map(|options| read(options.map()));
+        Some(LoadedMap::new(name, id))
     }
 }

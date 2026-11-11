@@ -96,6 +96,7 @@ pub mod module_report;
 pub mod memory_report;
 pub mod memory_profile;
 pub mod hud_cursor;
+pub mod voice;
 pub mod ban_time;
 pub mod sign_in_cipher;
 pub mod controller_position;
@@ -105,3 +106,5 @@ pub mod texture_streaming;
 pub mod animation_math;
 pub mod replay_keys;
 pub mod replay_map;
+// patch 133: the console command `where`
+pub mod console_where;
