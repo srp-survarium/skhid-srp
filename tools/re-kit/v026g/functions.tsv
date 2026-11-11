@@ -167,6 +167,9 @@ va	status	ref_021d	name
 0x0006f109	verified	0x00051a73	render_line0
 0x0006f181	verified	0x00051aeb	accumulate_fit
 0x0006f561	verified	0x00051ecb	inspect_error
+0x000716c0	reviewed	0x00053e64	vostok::physics::bt_animated_rigid_body::get_collision_group
+0x00077560	reviewed	0x00057966	vostok::physics::bullet_physics_world::ray_query
+0x0007ab10	reviewed	0x0021c787	vostok::physics::bullet_character_controller::get_collision_group
 0x0007ab30	reviewed	0x00155e22	vostok::network_core::mutable_buffer::resize
 0x0007ab70	observed		vostok::network_core::mutable_buffer::reallocate
 0x0007ac10	reviewed	0x00155ebe	vostok::network_core::buffer_writer::w
@@ -1438,8 +1441,12 @@ va	status	ref_021d	name
 0x00379f20	reviewed	0x00239f4d	vostok::network::match_client::on_disconnect
 0x0037a0e0	reviewed	0x0023a01b	vostok::network::match_client::new_packet
 0x0037a140	reviewed	0x0023a05e	vostok::network::match_client::stats
+0x0037f940	reviewed		boost::asio::ssl::detail::engine::perform
+0x0037fab0	reviewed		boost::asio::ssl::detail::engine::do_read
+0x0037fae0	reviewed		boost::asio::ssl::detail::engine::do_write
 0x003860f0	reviewed	0x002420f9	vostok::network::match_client_impl::clone_packet
 0x003861d0	reviewed	0x00242192	vostok::network::match_client_impl::disconnect
+0x0038b6d0	reviewed		boost::asio::ssl::detail::engine::do_connect
 0x0038c970	reviewed	0x0024663d	vostok::ai::fsm::append_transition
 0x0038ca20	reviewed	0x002466ca	vostok::ai::fsm::tick
 0x0038caf0	reviewed	0x0024677b	vostok::ai::fsm::pop_state
@@ -1787,6 +1794,19 @@ va	status	ref_021d	name
 0x0044635d	verified	0x002b2710	IsRootUNCName
 0x00446d42	verified	0x002e997b	strtok_s
 0x00447290	verified	0x002ea080	_aullrem
+0x0044a270	verified		ERR_put_error
+0x0044a4e0	verified		ERR_get_error
+0x0044c630	verified		BIO_read
+0x0044c740	verified		BIO_write
+0x0044cc80	verified		BIO_ctrl_pending
+0x0046b6e0	verified		ssleay_rand_bytes
+0x004d42d0	verified		SSL_new
+0x004d4c30	verified		SSL_accept
+0x004d4c60	verified		SSL_connect
+0x004d4ca0	verified		SSL_read
+0x004d4d10	verified		SSL_peek
+0x004d4d70	verified		SSL_write
+0x004d6e30	verified		SSL_get_error
 0x00771fa0	observed		Scaleform::GFx::AS3::Instances::fl_display::Stage::focusGet
 0x00824910	verified	0x00664190	strncpy
 0x00824c68	verified	0x006642b4	feof
@@ -2215,6 +2235,14 @@ va	status	ref_021d	name
 0x002ac400	observed		survarium::particle_game_effect_presenter::on_event
 0x002de350	observed		survarium::game_effect_player::stop
 0x0031a210	observed		survarium::damage_zone_core::stop_effect
+0x002dc390	observed		survarium::collision_geometry::query_objects_by_type<survarium::usable_object>
+0x002dd730	observed		[thunk]:survarium::collision_geometry_subscriber::`vcall'{32}'
+0x002f8bb0	observed		survarium::collision_geometry::cast_to_collision_geometry
+0x00305070	observed		survarium::booby_trap_core::can_use
+0x00356d50	observed		vostok::physics::bt_static_rigid_body::get_collision_group
+0x00356d50	observed		vostok::physics::bt_dynamic_rigid_body::get_collision_group
+0x00357a90	observed		vostok::physics::bt_ghost_object::get_collision_group
+0x00246ed0	observed		[thunk]:survarium::victory_item_core::get_transform`adjustor{20}'
 0x0021beb0	observed		survarium::network_client::connect_to_match
 0x0027b880	observed		survarium::network_client::process_static_match_info
 0x0027aa20	verified	0x001a25cc	survarium::network_client::on_match_ready
@@ -2223,6 +2251,9 @@ va	status	ref_021d	name
 0x002717e0	verified	0x0019e562	survarium::lobby_client::discard_playing_order
 0x001ed170	observed		survarium::game::switch_to_game_world
 0x002203a0	observed		survarium::lobby_menu::show_loading_screen
+0x00013ca0	observed		vostok::engine::engine_world::tick
+0x00103140	observed		vostok::resources::resources_manager::on_created_resource
+0x00109bd0	observed	0x000cbaaa	vostok::resources::query_result::finish_translated_query
 0x003c5510	reviewed		stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >
 0x00200f50	reviewed	0x0015f1b6	survarium::game_options::activate
 0x002010e0	reviewed	0x0015f2d4	survarium::game_options::process_key_input
@@ -2245,3 +2276,45 @@ va	status	ref_021d	name
 0x000fc350	observed		vostok::tasks::thread_pool::initialize
 0x0027f780	reviewed	0x001a3c98	survarium::network_client::draw_match_stats
 0x00429f20	reviewed		_chkstk
+0x000e9580	reviewed		vostok::memory::platform::allocate_arenas
+0x00106300	reviewed		vostok::platform::get_local_video_memory_size
+0x00319af0	observed		survarium::damage_zone_core::hit_objects
+0x00101330	verified		dlmalloc::mspace_malloc
+0x001005a0	verified		dlmalloc::mspace_realloc
+0x001015e0	verified		dlmalloc::mspace_free
+0x00100750	verified		dlmalloc::mspace_memalign
+0x00106ef0	verified		pt3malloc
+0x000eb530	reviewed		vostok::memory::mt_allocator::call_malloc
+0x00106d70	verified		ptmalloc3::memalign_starter
+0x00106d90	verified		ptmalloc3::free_starter
+0x00106fc0	verified		pt3free
+0x0011b5a0	reviewed	0x000d78ef	vostok::render::shader_constant_buffer::set_memory
+0x003a90c0	reviewed		anim_read_expression
+0x003a9250	reviewed		anim_build_node
+0x003a8c10	reviewed		anim_read_node_base_tracks
+0x003a8f40	reviewed		anim_read_node_record
+0x003a8ef0	reviewed		anim_pick_channel_value
+0x003a8d60	reviewed		anim_init_node_matrices
+0x0042111a	observed		WinMainCRTStartup
+0x00038ff0	reviewed		vostok::math::sin
+0x00039000	reviewed		vostok::math::cos
+0x00079c40	reviewed		vostok::math::atan2
+0x000ed2e0	reviewed	0x000b67d6	vostok::math::quaternion::quaternion
+0x00074290	reviewed		vostok::math::quaternion::quaternion
+0x00074300	reviewed		vostok::math::quaternion::get_axis_and_angle
+0x003b3180	reviewed	0x00260e7f	vostok::animation::evaluate_frame
+0x003b3340	reviewed		vostok::animation::time_channel::domain
+0x0001c3e0	reviewed		survarium::scaleform_engine::sys_alloc_malloc
+0x0001c410	reviewed		survarium::scaleform_engine::sys_alloc_free
+0x002ae470	observed		survarium::scaleform_engine::xrSysAllocMalloc::Alloc
+0x002ae4b0	observed		survarium::scaleform_engine::xrSysAllocMalloc::Free
+0x002ae4d0	observed		survarium::scaleform_engine::xrSysAllocMalloc::Realloc
+0x002ae550	reviewed		survarium::scaleform_engine::initialize_system
+0x005057f0	reviewed		Scaleform::System::Init
+0x00504720	reviewed		Scaleform::MemoryHeap::CreateRootHeapMH
+0x00504bc0	reviewed		Scaleform::MemoryHeapMH::CreateHeap
+0x00504c30	reviewed		Scaleform::MemoryHeapMH::GetTotalFootprint
+0x00504c90	reviewed		Scaleform::MemoryHeapMH::GetTotalUsedSpace
+0x00532490	reviewed		Scaleform::HeapMH::RootMH::CreateHeap
+0x000f70f0	reviewed		vostok::resources::resource_base::resource_base
+0x0010a590	reviewed		vostok::resources::managed_resource::managed_resource

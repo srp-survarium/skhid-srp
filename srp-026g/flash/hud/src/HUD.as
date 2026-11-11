@@ -342,7 +342,6 @@ package
          _keptLayer = new KeptLayer(this,this.keepLaidOut);
          _forcedView = new ForcedView(this._keptLayer,this.keptWhenForced,this.keptOnTab,this.keptWhileTyping,
                                       this.holdChatHistory);
-         this.addEventListener(Event.ENTER_FRAME,this.onIntroductionFrame);
          stage.addChildAt(this._keptLayer,stage.getChildIndex(this) + 1);
          _stageLayer = new Sprite();
          this._stageLayer.name = "stageLayer";
@@ -381,11 +380,10 @@ package
          progress_indicator = new SrvMatchProgress();
          addChild(this.progress_indicator);
          // Beside the indicator, not in it (the layout centres the indicator by
-         // its whole width), following it every frame (followIndicator).
+         // its whole width), following it every frame of a Research match (followIndicator).
          researchUnits = new ResearchUnits();
          this.researchUnits.visible = false;
          addChild(this.researchUnits);
-         this.researchUnits.addEventListener(Event.ENTER_FRAME,this.onResearchFrame);
          voiceSpeakers = new VoiceSpeakers();
          addChild(this.voiceSpeakers);
          pregameInfo = new SrvContextInfoPregame();
@@ -591,16 +589,30 @@ package
       private var _modeNotice:ModeNotice;
       private var _pregameText:String = "";
 
+      // Each frame the mode notice shows (its countdown, then its reading time): its end, and its place
+      // under the countdown or the match timer. The rest of the match, no frame runs anything for it.
       private function onIntroductionFrame(event:Event) : void
       {
          this._modeNotice.update(getTimer(),false,
             this.pregameInfo != null && this.pregameInfo.visible);
+         this.followModeNotice();
+      }
+
+      // After each change of the notice: shown, it is placed now and every frame until it ends.
+      private function followModeNotice() : void
+      {
+         if(!this._modeNotice.shown)
+         {
+            removeEventListener(Event.ENTER_FRAME,this.onIntroductionFrame);
+            return;
+         }
          var bottom:Number = this.pregameInfo != null && this.pregameInfo.visible ?
             this.pregameInfo.getBounds(this).bottom : 0;
          var timer:DisplayObject = this.matchTime() as DisplayObject;
          if(timer != null)
             bottom = Math.max(bottom,timer.getBounds(this).bottom);
          this._modeNotice.place(this.stageWidth,bottom);
+         addEventListener(Event.ENTER_FRAME,this.onIntroductionFrame);
       }
 
       public function force_interface_hidden(forced:Boolean) : void
@@ -611,6 +623,7 @@ package
             this._modeNotice.begin("blackout");
          else
             this._modeNotice.reset();
+         this.followModeNotice();
          this.set_pregame(this._pregameText);
       }
 
@@ -1418,6 +1431,8 @@ package
             return;
          }
          this.player_list.visible = bool;
+         // its map draws the players only while it shows (Minimap.held)
+         this.tabMinimap.held = !bool;
          this.questTaskList.visible = bool && this.questList.visible;
       }
       
@@ -1468,6 +1483,7 @@ package
       {
          this.pregameInfo.visible = bool;
          this._modeNotice.update(getTimer(),true,bool);
+         this.followModeNotice();
          this.placeResearchCountdowns();
       }
       
@@ -1596,6 +1612,7 @@ package
          this._artefactOfferValue = "";
          this._nativeContext = {text:"",value:0,visible:true};
          this._modeNotice.reset();
+         this.followModeNotice();
          this._pregameText = "";
          // a new match starts with the interface shown (the movie is the last match's; the exe's
          // patch 62 shows the player icons' with it); a forced one stays forced until patch 65
@@ -1718,8 +1735,10 @@ package
          }
          _gameType = type;
          this.researchUnits.visible = type == this.GAME_MODE_RESEARCH;
+         this.researchUnits.removeEventListener(Event.ENTER_FRAME,this.onResearchFrame);
          if(type == this.GAME_MODE_RESEARCH)
          {
+            this.researchUnits.addEventListener(Event.ENTER_FRAME,this.onResearchFrame);
             // Research centres the visible score bars on the actual viewport.
             // Timeline labels can change width after generic layout offsets
             // were measured; Research must not wait for a resize to settle.
@@ -1747,6 +1766,7 @@ package
       {
          this.matchTime().text = time;
          this._modeNotice.update(getTimer(),true,this.pregameInfo.visible);
+         this.followModeNotice();
       }
 
       // The match's time left as the mode shows it: Team Deathmatch's and Research's label, or the
@@ -2088,15 +2108,12 @@ package
          this.researchUnits.followIndicator(this.progress_indicator,this._researchX,this._researchY);
       }
 
-      // Every frame of a Research match: the layout moves the indicator at
+      // Every frame of a Research match (set_game_type): the layout moves the indicator at
       // many calls (scores, messages, resizes), the units follow it.
       private function onResearchFrame(e:Event) : void
       {
-         if(this.researchUnits.visible)
-         {
-            this.followIndicator();
-            this.placeResearchCountdowns();
-         }
+         this.followIndicator();
+         this.placeResearchCountdowns();
       }
 
       private function placeResearchCountdowns() : void

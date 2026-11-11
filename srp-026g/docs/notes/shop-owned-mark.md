@@ -13,7 +13,8 @@ items".
   are never marked (a bundle's id is not an item's).
   - A scope, camouflage or decal worn on an item stays one item of the stash (`items.md` §6, the
     stash lists it once, attached to its host): it is owned whatever wears it.
-- **The "Hide owned" box:** the lobby's own check box, the character panel's Autobuy box: its look,
+- **The "Hide owned" box:** the lobby's own check box, made as the character panel's Autobuy box was (that box is gone
+  since 2026-11-10, premium.md §3): its look,
   label and tooltip as Autobuy's (the owner, 2026-11-01: "there was already toggle logic before").
   Its symbol is "Comparing items"' (`CheckBoxShared`): the same box, tick and label as Autobuy's
   (`CheckBoxSharedPD`), whose bitmaps fill shapes unsmoothed, so its tick was pixelated wherever

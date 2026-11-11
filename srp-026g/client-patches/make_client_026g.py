@@ -58,13 +58,12 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
     <output>/game/binaries/x86/play_skhid.bat
         starts it from that folder (the client finds its certificate by a
         path relative to the working directory) with the launch line:
-        survarium_skhid.exe -mt_allocator=768 -minimum_resources_memory_size=768
+        survarium_skhid.exe -minimum_resources_memory_size=768
         Full builds use the embedded server; -server=host:port can still
         override it. Cert-only passes -server= at launch as before.
-        (-mt_allocator: the global multithreaded arena, 376 MiB by
-        default, which map loading ran out of in upstream's live runs;
-        -minimum_resources_memory_size: the resources arenas' floor.
-        Two different arenas: docs/SRP-026G.md.)
+        (-minimum_resources_memory_size: the resources arenas' floor. The
+        global multithreaded arena is the exe's own, at least 1024 MiB
+        (patch 129), and no launch line names it: docs/SRP-026G.md.)
     <output>/game/binaries/x86/bugtrap.dll
         the Rust SRP crash reporter; saves zipped dumps locally; Submit Bug opens SRP Discord in the browser.
     <output>/game/binaries/x86/skhid_voice.dll
@@ -378,7 +377,7 @@ def parse_server(text):
 def game_arguments(server, embedded=False):
     """What the game is started with after its language."""
     return (("" if embedded else f"-server={server} ")
-            + "-mt_allocator=768 -minimum_resources_memory_size=768")
+            + "-minimum_resources_memory_size=768")
 
 
 def launch_line(server, embedded=False):
@@ -633,7 +632,7 @@ def readme(server, description, files, embedded=False, site=None):
         (f"  Default server: {server} (embedded in survarium_skhid.exe)" if embedded
          else f"  Server: {server} (SERVER in play_skhid.bat)"),
         "  -server=         override the login server (host:port)",
-        "  -mt_allocator=768, -minimum_resources_memory_size=768",
+        "  -minimum_resources_memory_size=768",
         "                   memory for the game, MB (maps need more than the default)",
         "",
         "The rules of the server are on its page:",

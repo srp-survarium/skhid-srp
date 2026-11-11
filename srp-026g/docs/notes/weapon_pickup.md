@@ -104,6 +104,14 @@
   offered all the same (the pickup waits for it, at most 2 s). Not aimed at, out of
   reach or out of sight: no prompt, as for the crate and the artefacts. A
   dead player has no prompt.
+- What the game's own Use takes goes first (the owner, 2026-11-07, from a
+  player: a battery lying by a body's gun was missed for the gun): while the
+  game's use scan (patch 23's, `use_scan::detect`) finds an object whose
+  can_use says yes (a battery, a battery container, an artefact container,
+  the ammo crate, a trap), no gun prompt is shown and Use goes to the game;
+  one that refuses (a battery while already carrying one) leaves the gun's
+  pickup as it was. One rule, not a battery's: any usable object in reach
+  wins (my pick).
 - The replacement rule (Codex's, approved): the gun in hands is replaced,
   never the other slot's; any gun for any gun; the carry rules after the
   skill modifiers hold: `disable_second_weapon` (modifier 64) keeps guns to
@@ -752,10 +760,15 @@ over `vostok/pickup.rs` (`drawn_gun`, `gun_name`) and `vostok/ui.rs`
   engine_cfg_child reads past the end for a missing one), translated by the
   game's text translator (0x1FF0F0); `Pick up %1$s ({USE})`, `{USE}` the
   bound key (the localizer's), `%1$s` the name (the movie's
-  `LocalizationData.format`). The target is remembered for Use.
-  Each kept pose's verdict is logged once per drop body and change of
-  reason (never per frame): `pickup: place P sees the gun of place T:
-  offered`, or `out of reach (2.2 m)` (the box's centre farther than the
+  `LocalizationData.format`). The target is remembered for Use. First of
+  all (when any drop is seen) the game's use scan (`use_scan::detect`, the
+  Rust detect_usable_object): an object Use takes now there means no prompt
+  and no target (`use_scan::rule::use_owner`).
+  Each kept pose's verdict is logged once per drop body and kind of
+  verdict (a refusal by its reason; never per frame, and a viewer turning
+  to and from a drop says each once; the last 4 bodies of a place are
+  remembered, with the box line at a body's first verdict):
+  `pickup: place P sees the gun of place T: offered`, or `out of reach (2.2 m)` (the box's centre farther than the
   reach and its padded half diagonal), `in reach, not aimed at its box`,
   `not offered, no line of sight`, `already taken`, `no drop in its
   record`, `the body drawn is not its drop's`, `its gun not made on this
@@ -943,6 +956,10 @@ policy, the cache, the log) over `vostok/gun_cook.rs` (the cook).
   MiB`; at the next frame `cook of ...: made, inventory 0x..., N ms after it
   was asked for (the death), address space A -> B MiB` or `FAILED`; a wait:
   `pickup: waited W ms for the gun of place P kit K slot S: made` or why not.
+  `death hook: place P life L at T ms` and `its body left the world: ...` are
+  said once for each death and removal: a rollback runs both hooks again at
+  each tick it simulates again (the owner's log of 2026-11-09: 13 064 and
+  7 977 such lines in its last 3 MB).
 - **Checked:** `check_weapon_pickup_026g.py` (Unicorn) runs the death, the
   frame's step and the destruction of the built exe with the game's own
   profile code, match_options, boost binder and invoker: the query and its

@@ -60,11 +60,9 @@ SRP_WEB_TRUST_PROXY=off
 # SRP_DOWNLOAD_SHA256=
 
 # "Watch replay" (docs/notes/replay_watch.md): on with the compose
-# default, a folder of the data volume with the game's
-# gameplay/game_modes/*.options files, every patch's included (game data:
-# copy them there by hand, never into a repository); `off` switches it off.
-# The replays go to SRP_REPLAY_DIR (compose default /srv/srp/data/replays).
-# SRP_GAME_MODES_DIR=/srv/srp/data/game_modes
+# default; the replays go to SRP_REPLAY_DIR (compose default
+# /srv/srp/data/replays), `off` switches it off.
+# SRP_REPLAY_DIR=/srv/srp/data/replays
 # A larger recording is not converted (the conversion's memory grows with
 # it; 24 MB fits the 512 MB container).
 # SRP_REPLAY_MAX_RECORDING_MB=24

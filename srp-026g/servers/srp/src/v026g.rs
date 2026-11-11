@@ -26,13 +26,13 @@
 use std::io;
 use std::net::{SocketAddr, TcpListener, UdpSocket};
 use std::panic::AssertUnwindSafe;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use lobby_server::v026g::{self as lobby, Inbox, Lobby, MatchFinished, MatchHost};
+use login_server::sealed::ServerKey;
 use login_server::v026g::{self as login, Endpoint, RevisionGate};
 use match_server::v026g::{self as matches, MatchRegistry};
 use session::SessionStore;
@@ -388,13 +388,14 @@ pub struct Options {
     /// clients are told.
     pub match_bind: String,
     pub match_public_host: String,
-    /// The folder with `survarium_login_server.key` and `.crt`.
-    pub certs: PathBuf,
+    /// The login server's key of the sign-in cipher, or why there is none
+    /// (`SRP_SIGN_IN_KEY`): without one the servers do not start.
+    pub sign_in_key: Result<ServerKey, String>,
     /// **Testing only** (`SRP_BOT_ACCOUNTS`, `session::v026g::bots`): the
     /// names of the accounts that are test bots (`srp-bot`). Empty, the
     /// default: nothing about bots is on.
     pub bots: Vec<String>,
-    /// "Watch replay" (`SRP_REPLAY_DIR`, `SRP_GAME_MODES_DIR`; `None`:
+    /// "Watch replay" (`SRP_REPLAY_DIR`; `None`:
     /// off): the folders the match server converts recordings into, the
     /// lobby gives tokens for and the web page serves from.
     pub replays: Option<ReplaySettings>,
@@ -417,7 +418,7 @@ impl Options {
             lobby: lobby::Settings::from_env(),
             match_bind: config.match_server.bind_addr(),
             match_public_host: config.match_server.public_host.clone(),
-            certs: PathBuf::from("./certs"),
+            sign_in_key: login_server::sealed::key_from_env(),
             bots: session::v026g::bots::from_env(),
             replays: ReplaySettings::from_env(),
             voice: matches::voice::enabled_from_env(),
@@ -425,14 +426,14 @@ impl Options {
     }
 
     /// Everything on 127.0.0.1, on free ports: for the tests.
-    pub fn local(certs: &Path) -> Self {
+    pub fn local() -> Self {
         Self {
             login_bind: "127.0.0.1:0".to_owned(),
             login_public_host: "127.0.0.1".to_owned(),
             lobby: lobby::Settings::local("127.0.0.1:0"),
             match_bind: "127.0.0.1:0".to_owned(),
             match_public_host: "127.0.0.1".to_owned(),
-            certs: certs.to_owned(),
+            sign_in_key: Ok(login_server::sealed::test_key()),
             bots: Vec::new(),
             replays: None,
             voice: false,
@@ -554,22 +555,13 @@ impl Stack {
         let login_addr = listener.local_addr()?;
         // Here, not on every sign-in: srp started from another folder
         // would refuse them all.
-        for file in ["survarium_login_server.key", "survarium_login_server.crt"] {
-            let path = options.certs.join(file);
-            if !path.is_file() {
-                return Err(io::Error::other(format!(
-                    "the login server's {} is missing (run srp from the repository's root)",
-                    path.display()
-                )));
-            }
-        }
+        let key = options.sign_in_key.clone().map_err(io::Error::other)?;
         let endpoint = Endpoint {
             public_host: options.login_public_host.clone(),
             lobby_host: options.lobby.public_host.clone(),
             lobby_port: lobby_addr.port(),
             local_peers: options.lobby.local_peers,
-            key: options.certs.join("survarium_login_server.key"),
-            certificate: options.certs.join("survarium_login_server.crt"),
+            key,
             // Older games are kept out from their sign-in on; the lobby
             // refuses the sessions they had before (`patch_check`).
             revision_gate: RevisionGate {
@@ -582,7 +574,7 @@ impl Stack {
         match matches::replay::start(replays.clone()) {
             Some(Ok(thread)) => threads.push(thread),
             Some(Err(error)) => log::error!("Replays: the conversion thread failed: {error}"),
-            None => log::info!("Replays are off (SRP_REPLAY_DIR, SRP_GAME_MODES_DIR)"),
+            None => log::info!("Replays are off (SRP_REPLAY_DIR)"),
         }
         {
             let (registry, store, accounts, results, inbox, stop, replays) = (

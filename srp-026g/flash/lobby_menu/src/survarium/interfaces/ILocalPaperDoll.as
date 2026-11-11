@@ -23,6 +23,8 @@ package survarium.interfaces
       
       function getSlot(item:ItemData, preferEmpty:Boolean = false) : int;
       
+      function pocketOf(dictId:int) : int;
+      
       function hoverItem(itemId:uint = 0) : void;
       
       function hoverWeaponsFor(scopeDictId:int = -1) : void;

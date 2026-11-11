@@ -39,12 +39,21 @@ package survarium.controls
 
       private static var additionalMedicine:Boolean = false;
 
+      // Supply Pocket (331) taken: the skill that closes the second weapon slot, where Deep
+      // Pockets does not.
+      public static var supplyPocket:Boolean = false;
+
       // Only committed skill values affect equipment, never unspent previews.
       public static function medicalSkills(value:Array) : void
       {
          additionalMedicine = false;
+         supplyPocket = false;
          for each(var skill:Object in value)
          {
+            if(skill != null && skill.id == 331 && skill.value > 0)
+            {
+               supplyPocket = true;
+            }
             if(skill != null && skill.id == 322 && skill.value > 0)
             {
                additionalMedicine = true;

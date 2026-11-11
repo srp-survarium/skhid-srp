@@ -15,7 +15,8 @@
 //!   and returns a [`Flow`]; state shared between hooks is a [`GameCell`].
 //!
 //! - state shared between hooks on several of the game's threads (the
-//!   draws, the bullets) is a [`Lock`]; the ragdoll's world ([`world`]), the
+//!   draws, the bullets) is a [`Lock`], a value only its own thread may
+//!   touch a [`ThreadBound`] in it; the ragdoll's world ([`world`]), the
 //!   draw's sites ([`draw`]), the camera's ([`camera`]), a bullet's ray
 //!   ([`bullet`]), the machine's clock ([`clock`]) and the opt-in
 //!   diagnostics ([`trace`]) are patch 76's.
@@ -50,25 +51,32 @@ pub mod lobby;
 pub mod lobby_camera;
 pub mod lobby_menu;
 pub mod login;
+pub mod openssl;
 pub mod mouse;
 pub mod log;
 pub mod melee;
 pub mod memory;
+pub mod memory_profile;
 mod options;
 pub mod parse;
 pub mod resources;
 pub mod renderer;
 pub mod gun_cook;
 pub mod pickup;
+pub mod use_scan;
+pub mod streaming;
 pub mod ray_test;
 mod rt;
 pub mod sound;
 pub mod system;
+pub mod modules;
+pub mod module_watch;
 pub mod voices;
 pub mod voice;
 pub mod settings;
 mod sync;
 pub mod trace;
+pub mod trig;
 pub mod types;
 mod upgrades;
 pub mod world;
@@ -84,7 +92,7 @@ mod generated {
     #[allow(unused_imports)]
     use super::context::{Context, Flow, Frame};
     #[allow(unused_imports)]
-    use super::hook::{Handle, Out, Thread};
+    use super::hook::{Handle, Only, Out, Thread};
     #[allow(unused_imports)]
     use super::input::{Action, InputHandler};
     #[allow(unused_imports)]
@@ -99,10 +107,10 @@ mod generated {
 }
 
 pub use cell::GameCell;
-pub use sync::Lock;
+pub use sync::{Lock, ThreadBound, ThreadId, YieldingLock};
 pub use context::{Context, Exit, Flag, Flow, NoExit, Reg, Ret};
 pub use generated::*;
-pub use hook::{CallbackEntry, Handle, Out, Regs, Thread};
+pub use hook::{CallbackEntry, Handle, InstallRefused, OnDemand, Out, Regs, Thread};
 pub use input::{Action, ActionMask, ActionState, InputChange, InputHandler, KeyboardAction, Rotation, UnknownActionState};
 pub use keyboard::{Dik, GameWorldKey, GameWorldKeys, KeyEvents, KeyKind, KeyMoves, KeyName, TabTest};
 pub use hud_input::{CursorMovie, Hud, HudCall, HudView, MenuChange, MenuClose};
@@ -138,6 +146,7 @@ pub mod artefact_skills;
 pub mod keeper;
 pub mod effect;
 pub mod animation_id;
+pub mod bake_gpu;
 pub mod deserialize;
 pub mod effect_presenter;
 

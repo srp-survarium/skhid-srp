@@ -1,0 +1,16 @@
+# Patch 137, texture streaming's per-frame bookkeeping in Rust (client_patch.md 3.79): two
+# functions the render thread runs every frame, each whole in Rust, by a lohook at its start
+# that leaves by its `ret`.
+name = "texture_streaming"
+patch = 137
+
+# scene::update_streaming_data (0x155980): every streaming record rewritten from its proxy.
+[[hook]]
+site = "streaming.update"
+handler = "on_update"
+
+# resource_manager::get_texture_video_memory_size (0x3BE280): the registry's texture memory
+# without the "$user$" textures, for the renderer's statistics.
+[[hook]]
+site = "streaming.texture_memory"
+handler = "on_texture_memory"

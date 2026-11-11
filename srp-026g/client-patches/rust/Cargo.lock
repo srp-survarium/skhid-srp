@@ -17,6 +17,7 @@ dependencies = [
  "artefact-carry",
  "ban-reason",
  "ragdoll",
+ "sign-in-cipher",
  "srp-validate",
  "voice-abi",
  "weapon-kit",
@@ -26,6 +27,10 @@ dependencies = [
 
 [[package]]
 name = "ragdoll"
+version = "0.1.0"
+
+[[package]]
+name = "sign-in-cipher"
 version = "0.1.0"
 
 [[package]]

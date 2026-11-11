@@ -97,8 +97,8 @@
 //!   player that finished the match: [`Results::use_drop_card`]
 //!   (`docs/notes/drop_cards.md`).
 //! - **Ammo and consumables used** are taken off the stacks as far as
-//!   the last trusted snapshot proves them used, and the account's autobuy
-//!   and auto-repair boxes buy them back and repair what the match wore:
+//!   the last trusted snapshot proves them used, and autobuy (always on,
+//!   no setting) buys them back as far as the silver goes:
 //!   [`super::autobuy`]. The screen's money total is net of what they
 //!   spent: the client takes it off itself, from the lists the inventory
 //!   push carries (`VictoryScreen.updateMoney`); the rows here are gross.
@@ -432,7 +432,7 @@ pub struct Reward {
     /// `(dict id, units)` of ammo and other stacks the match is known to
     /// have used ([`super::autobuy`]).
     pub supplies_used: Vec<(u16, u32)>,
-    /// What autobuy and auto-repair spent after the match: the lists the
+    /// What autobuy spent after the match: the lists the
     /// results screen shows.
     pub spent: lobby::SpentMoney,
 }
@@ -517,7 +517,7 @@ impl MatchReport {
         ))
     }
 
-    /// `89` with the money autobuy and auto-repair spent for the account's
+    /// `89` with the money autobuy spent for the account's
     /// player after the match, for the results screen's lists; `None` when
     /// nothing was spent. Send it before the screen (`97`): a client that
     /// signed in after the match has its inventory without the lists.
@@ -555,7 +555,7 @@ impl MatchReport {
         let screen = self.screen_for(account_id)?;
         Some((|| -> Result<Vec<ServerMessage>, WireError> {
             let mut push = wire::after_change(account)?;
-            // The inventory carries what autobuy and auto-repair spent.
+            // The inventory carries what autobuy spent.
             if let Some(spent) = self.spent_inventory(account_id, account) {
                 push[0] = spent?;
             }
@@ -2027,7 +2027,7 @@ impl<'a> Shared<'a> {
                 reward.drop = Some(dropped);
             }
         }
-        // The supplies used are taken, and the account's autobuy box buys
+        // The supplies used are taken, and autobuy buys
         // them back, paid from what it has now (the match's pay included).
         reward.spent = super::autobuy::settle(account, &reward.supplies_used).spent;
         account.sync_kits();

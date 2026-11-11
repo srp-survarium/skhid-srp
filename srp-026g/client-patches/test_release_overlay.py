@@ -136,7 +136,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertNotIn(b'LANGUAGE', windows)
         self.assertNotIn(b'localization', windows)
         self.assertNotIn(b'localization', linux)
-        self.assertRegex(windows, rb'start "" survarium_skhid\.exe -(server|mt_allocator)=')
+        self.assertRegex(windows, rb'start "" survarium_skhid\.exe -(server|minimum_resources_memory_size)=')
         refused = self.root / 'refused'
         with self.assertRaises(SystemExit):
             self.build(refused, '--localization=polish')
@@ -203,7 +203,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(self.launcher.call_args.args[0], b'original launcher fixture')
         self.assertEqual(self.launcher.call_args.kwargs, dict(
             site='https://release.example', game_exe='survarium_skhid.exe',
-            arguments='-mt_allocator=768 -minimum_resources_memory_size=768'))
+            arguments='-minimum_resources_memory_size=768'))
         self.assertEqual(paths['game/binaries/x86/launcher_skhid.exe'].read_bytes(), b'patched launcher fixture')
         self.assertEqual(paths['game/binaries/x86/updater_skhid.exe'].read_bytes(), self.updater.read_bytes())
         self.assertEqual(paths['game/binaries/x86/updater_skhid.url'].read_bytes(), b'https://release.example\r\n')
@@ -367,7 +367,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(call.args[1:], ('cert-only', None, None, None))
         # The game's launcher passes the address too: this exe has none inside.
         self.assertEqual(self.launcher.call_args.kwargs['arguments'],
-                         '-server=release.example:2234 -mt_allocator=768 -minimum_resources_memory_size=768')
+                         '-server=release.example:2234 -minimum_resources_memory_size=768')
         with zipfile.ZipFile(archive) as z:
             self.assertIn(b'server=release.example:2234\n', z.read('game/binaries/x86/play_skhid.sh'))
             self.assertIn(b'server=release.example:2234\n', z.read('game/binaries/x86/play_skhid_mac.sh'))
