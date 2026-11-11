@@ -85,6 +85,7 @@ pub mod subtick_hits;
 pub mod keyboard_layout;
 pub mod mouse_pitch;
 pub mod bake_cache;
+pub mod weapon_camo;
 pub mod key_remap;
 pub mod deserialize_guards;
 pub mod effect_presenters;
@@ -103,3 +104,7 @@ pub mod use_scan;
 pub mod unplayed_match;
 pub mod texture_streaming;
 pub mod animation_math;
+pub mod replay_keys;
+pub mod replay_map;
+// patch 133: the console command `where`
+pub mod console_where;

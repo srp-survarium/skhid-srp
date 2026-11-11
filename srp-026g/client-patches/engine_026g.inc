@@ -732,3 +732,16 @@ extern engine_err_put_error
 ; 0x46b6e0 ssleay_rand_bytes: room ESP+4, length ESP+8; pops 0; EAX; cdecl, called directly
 ; cdecl: push (and ECX for thiscall) as that convention says
 extern engine_rand_bytes
+; void engine_cc_delegate(struct cc_delegate *object, const char *name, const void *delegate, unsigned int status, unsigned int kind)
+; 0xec780 vostok::console_commands::cc_delegate::cc_delegate: object EDI, name EDX, delegate ESP+4, status ESP+8, kind ESP+12; pops 12
+extern engine_cc_delegate
+; void engine_cc_delegate_execute(struct cc_delegate *command, const char *arguments)
+; 0xec830 vostok::console_commands::cc_delegate::execute: command ECX, arguments ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_cc_delegate_execute
+; struct log_helper *engine_log_helper(const struct log_function *function, unsigned int context, struct log_helper *helper, const struct log_helper *template_helper, const char *file, unsigned int line, const char *caller, const char *channel, unsigned int level)
+; 0x111c90 vostok::logging::helper::helper: function EAX, context ECX, helper ESP+4, template_helper ESP+8, file ESP+12, line ESP+16, caller ESP+20, channel ESP+24, level ESP+28; pops 28; EAX
+extern engine_log_helper
+; void engine_log_write(struct log_helper *helper, const char *format, const void *arguments)
+; 0x111d10 vostok::logging::helper::write: helper ESI, format ESP+4, arguments ESP+8; pops 8
+extern engine_log_write

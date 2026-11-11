@@ -90,6 +90,7 @@ vostok::buffer_reader	cursor	0x4	ptr<u8>	the next byte to read
 vostok::buffer_reader	size	0x8	u32	the bytes from begin
 survarium::game_world_ui	hud_movie	0x8	ptr<vostok::ui::movie_holder>	the hud movie's holder (initialize_match 0x234AE8: [[+8]+108h]+4 the movie)
 survarium::game_world_ui	icons_movie	0x10	ptr<vostok::ui::movie_holder>	the player icons movie's holder (update_player_icons 0x23ACC1: [[+10h]+108h]+4 the movie)
+survarium::game_world_ui	replay_movie	0x14	ptr<vostok::ui::movie_holder>	the replay player movie's holder (initialize_match 0x2356BC: mov eax,[esp+5E8h] the ui / mov ecx,[eax+14h] / mov edx,[ecx+108h] / mov ecx,[edx+4] the movie, for root.set_players_list 0x2356DD)
 vostok::ui::movie_holder	view	0x108	ptr<vostok::ui::movie_view>	the holder's movie view ([+108h]+4 the Scaleform movie, 0x2384EE)
 vostok::ui::movie_view	movie	0x4	ptr<scaleform::gfx_movie>	the Scaleform movie (GFx::Movie, Invoke 0x511600's this)
 survarium::static_info_frame	reader	-0x2C	obj<vostok::buffer_reader>	process_static_match_info's local reader {begin, cursor, size} (by EBP; filled 0x27B903..0x27B90B, deserialize's EAX at 0x27B925)
@@ -754,6 +755,7 @@ survarium::image	baked_resource_name	0xAC3334	u32	the object whose +8 names a ba
 survarium::image	unmanaged_resource_allocator	0x21E76C8	u32	the allocator set_unmanaged_resource 0xF0080 gets with a baked texture resource (push 21E76C8h, 0x12F1B1 and 0x12DDD6)
 vostok::render::bake_parameters	kind	0x7A0	u32	a bake's camouflage_decal_texture_type_baker_cook_parameters: its texture type, 0 d, 1 n, 2 f, 3 s (0x12DD95 cmp dword [esi+7A0h],3)
 vostok::render::bake_parameters	model	0x790	ptr<vostok::render::render_model_instance>	the model instance whose surface it bakes (translate_query keeps a reference while it runs, EDI; its end 0x12D443 lets it go)
+vostok::render::bake_parameters	name	0x7A8	ptr<u8>	its baked files' name, a buffer_string's begin: a C string (translate_query 0x12D4A1 mov ecx,[eax+7A8h], the %s of user_data/streamed_textures/%s%s; camouflage_decal_baker_cook::translate_query 0x13420B writes it, the asker's name and the type's letter)
 vostok::render::render_model_instance	references	0xD0	u32	a render_model_instance's references (lock xadd; translate_query's end 0x12D443 lets one go, 0xE0210 at 0)
 vostok::render::render_surface_instance	textures	0x0	obj<vostok::render::texture_slot>	a model instance's surface a bake is for (render_surface_instance): its four textures by type, d n f s (process_compression 0x12F0E0 mov edx,[esp+610h] / mov [edx],ecx; on_baked_texture_loaded 0x12C6D0..0x12C760, +4 a type)
 vostok::render::texture_slot	texture	0x0	ptr<vostok::render::res_texture>	a surface's texture of one type (0 none)
@@ -1124,3 +1126,23 @@ openssl::ssl_call_frame	length	0x10	u32	their length (EBP+10h; asio's do_read 0x
 openssl::ssl	rbio	0xC	ptr<openssl::bio>	the BIO the SSL reads the peer's bytes from (SSL_get_rbio): asio's engine sets its half of a BIO pair, into whose other half it puts what the socket read (engine::put_input)
 openssl::ssl	wbio	0x10	ptr<openssl::bio>	the BIO the SSL writes to (the same half): asio's engine takes the bytes from the other half and sends them (engine::get_output)
 openssl::bio	flags	0x14	u32	the BIO's flags (BIO_FLAGS_READ 1, SHOULD_RETRY 8: BIO_read of an empty pair sets both)
+survarium::network_client	vtable	0x0	u32	its class: 0x9FFB14 a live match's network_client (its ctor writes it at 0x219E7C), REPLAY_CLIENT_VTABLE a .sur replay's replay_network_client (0x218A7C); every other field of this kind is the live client's
+survarium::image	replay_client_vtable	0x9FF344	u32	replay_network_client's vtable (its ctor 0x218A40 writes it at 0x218A7C, its destructor at 0x218BC3; slot +54h is_this_place_mine, patch 24): the game's network client (+53ACh) while a .sur replay plays
+vostok::console_commands::cc_delegate	size	0x60	size	a cc_delegate console command's object (cc_delegate::cc_delegate 0xEC780: the base fields as cc_value<bool>'s, +40h the delegate's copy, 20h bytes; attach_to_player's 0xA2AE350, its guard at +60h)
+vostok::console_commands::cc_delegate	vtable	0x0	u32	its vtable: cc_delegate's 0x9E7C0C as the constructor leaves it; patch 133's copy (console_where.toml) written after it
+vostok::console_commands::cc_delegate_methods	rtti	-4	u32	native complete object locator (0xA3E110)
+vostok::console_commands::cc_delegate_methods	size	0x1C	size	seven methods: the destructor 0xEC7E0, execute 0xEC830 (+4, console_commands::execute 0xEBB98), status, info, syntax, fill_command_args_list, save_to (0x15A4B0, ret 8: not saved)
+vostok::console_commands::image	cc_delegate_methods	0x9E7C0C	obj<vostok::console_commands::cc_delegate_methods>	cc_delegate's vtable including RTTI at -4 (cc_delegate::cc_delegate 0xEC7C6)
+vostok::logging::log_function	size	0x20	size	the boost::function a line is written through, as log_message's callers make it on their stack (console_commands::execute 0xEBA04..0xEBA38): empty (all 0), or the log's sink
+vostok::logging::log_function	manager	0x0	u32	its manager: LOG_FUNCTION_MANAGER | 1 (trivially copied, nothing to destroy) when [log_state+8] is set, else 0 (empty: the line goes nowhere, 0x111E4D)
+vostok::logging::log_function	sink	0x8	u32	the function itself: [log_state+8]
+vostok::logging::log_helper	size	0x248	size	a line's helper (log_message's [ebp-24Ch]): the template's 228h bytes, then the function, the context, the channel, the file, the caller, the line and the level (helper::helper 0x111C90)
+vostok::logging::log_state	filtered	0x0	u32	not 0: a line is written only when has_passed_filters (0x111860) passes its channel and level (every caller of log_message, 0xEB9E9)
+vostok::logging::log_state	context	0x4	u32	the word every caller passes as log_message's second argument (helper +230h; its meaning not established)
+vostok::logging::log_state	sink	0x8	u32	the function the game's lines go through (0 none: an empty log_function)
+vostok::logging::image	log_state	0x1F1D60C	obj<vostok::logging::log_state>	the logging globals log_message's callers read (console_commands::execute 0xEB9E9, 0xEBA09, 0xEBA3B)
+vostok::logging::image	log_template	0x21E73B8	obj<vostok::logging::log_helper>	the template helper every caller of log_message passes (its third argument, copied into the line's helper by 0x111C90)
+vostok::logging::image	log_function_manager	0x9DAF4C	u32	the log sink's boost::function manager (console_commands::execute 0xEBA28: or 1, its word +0)
+survarium::player	camera_handler	0xF470	ptr<survarium::player_input_handler>	the input handler whose camera is on this player (update_camera 0x1F348D: 0, not the camera's player, returns at once)
+survarium::player_input_handler	view	0x48	f32	the camera's transform, a row-vector 4x4 (16 f32: the rows right, up, forward and the place): update_inverted_view 0x2422B0 writes it (0x24243B), the eyes' transform in modes 0 and 4, else its third-person step
+survarium::game	map_name	0x55E0	obj<vostok::buffer_string>	the match's project, as its maps_dict id's game mode config names it (mode.match_making_params.map_name, e.g. level_01/day_2): network_client::query_players assigns it before game_world::load (0x27B085), the replay's query too (0x218F3C); a buffer_string over 200h bytes at +55ECh (game::game 0x1E9291); never cleared, so the last match's in the lobby

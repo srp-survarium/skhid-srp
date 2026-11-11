@@ -3474,3 +3474,10 @@ va	status	ref_021d	name
 0x007bd6a0	inferred-high	0x005f9af0	Scaleform::GFx::AS3::VM::ExecuteCode
 0x007c2180	inferred-high	0x005fdf70	Scaleform::GFx::AS3::Value::Convert2String
 0x007ca880	inferred-high	0x006065b0	Scaleform::GFx::AS3::Object::FindDynamicSlot
+0x0023c0c0	inferred-medium		survarium::game_world_ui::set_player_icon_color
+0x001ee2e0	inferred-medium		survarium::game::replay_seek_to
+0x001edef0	inferred-medium		survarium::game::read_replay_to
+0x0026d590	inferred-medium		survarium::base_local_network_client::follow_player
+0x0026d630	inferred-medium		survarium::base_local_network_client::follow_nobody
+0x00111c90	inferred-high		vostok::logging::helper::helper
+0x00111d10	inferred-high		vostok::logging::helper::write

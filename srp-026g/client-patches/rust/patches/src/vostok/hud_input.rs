@@ -42,6 +42,11 @@ impl<'t> Hud<'t> {
         Hud { this, thread: PhantomData }
     }
 
+    /// The hud itself, for what else `vostok` reads of it.
+    pub(super) fn raw(&self) -> raw::GameWorldUi {
+        self.this
+    }
+
     pub fn view(&self) -> HudView {
         // SAFETY: the hud is alive for the hook, on its thread.
         unsafe {

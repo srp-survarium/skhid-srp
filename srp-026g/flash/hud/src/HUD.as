@@ -576,10 +576,12 @@ package
       // countdown (keptWhenForced: the game shows it while it runs and hides it when play starts) and
       // the use prompt with its progress (contextInfo, root.set_context: the game shows it at what the
       // player can use, an artefact container or an ammo stash, and fills it while used); while
-      // the Tab list is asked for (show_player_list) the match's time left, the chat with its history and,
-      // alive, the intact player-info panel (ammo and body state) and quick-use slots;
+      // the Tab list is asked for (show_player_list) the list itself with its map and row menu (names
+      // only: no score, showScores; the map's marked batteries as in a plain match, while the icons
+      // movie keeps their markers in the world hidden), the match's time left, the chat with its
+      // history and, alive, the intact player-info panel (ammo and body state) and quick-use slots;
       // while the game shows the kits (the death screen, before the start), the
-      // kits to pick from (keptOnTab), never the list; while the player types in the chat (focus_chat),
+      // kits to pick from (keptOnTab); while the player types in the chat (focus_chat),
       // the chat (keptWhileTyping). A kept part is in _keptLayer (KeptLayer: on the stage over the root,
       // placed as the root is), so the hidden root leaves it, and works there as in the root; back at its
       // place in the root when not.
@@ -618,6 +620,7 @@ package
       public function force_interface_hidden(forced:Boolean) : void
       {
          this._forcedView.forced = forced;
+         this.showScores();
          this.setInterfaceHidden(forced);
          if(forced)
             this._modeNotice.begin("blackout");
@@ -637,16 +640,17 @@ package
          return [this.pregameInfo,this.contextInfo,this._modeNotice];
       }
 
+      // The Tab list with either view, in the root's order: the chat under it, the kits over it.
       private function keptOnTab() : Array
       {
          if(this._profilePanel.visible)
          {
-            return [this._profilePanel,this.matchTime(),this.chat];
+            return [this.matchTime(),this.chat,this.player_list,this._profilePanel];
          }
          // Ammo and the body doll share a size-dependent, bottom-right layout.
          // Keep their owner intact: removing either child changes its bounds
          // and a reflow can push the other child beyond the viewport.
-         return [this.playerInfo,this.quick_slots,this.matchTime(),this.chat];
+         return [this.playerInfo,this.quick_slots,this.matchTime(),this.chat,this.player_list];
       }
 
       private function keptWhileTyping() : Array
@@ -1367,10 +1371,20 @@ package
       public function srp_hud_options(hideHitMarkers:Boolean, hideScores:Boolean, hideCrosshair:Boolean, mapNames:Boolean) : void
       {
          this.crosshair.hitMarkersHidden = hideHitMarkers;
-         this.player_list.players.namesOnly = hideScores;
+         this._scoresHidden = hideScores;
+         this.showScores();
          this.crosshair.crosshairHidden = hideCrosshair;
          this._mapNamesAlways = mapNames;
          this.showMapNames();
+      }
+
+      // "Hide player scores" (patch 83), as last told.
+      private var _scoresHidden:Boolean = false;
+
+      // The Tab list's names only: by the setting, and always in a forced match (Blackout shows no score).
+      private function showScores() : void
+      {
+         this.player_list.players.namesOnly = this._scoresHidden || this._forcedView != null && this._forcedView.forced;
       }
       
       public function show_oxygen(bool:Boolean) : void
@@ -1397,8 +1411,7 @@ package
 
       // The Tab map's names over the player icons, shown while Alt is held (the exe's patch 82 tells
       // the movie each change; docs/notes/tab-map-names.md), or with "Names on map" shown unless it is.
-      // The map is the Tab list's, so they show only with it: never in Blackout, whose Tab keeps the
-      // list hidden.
+      // The map is the Tab list's, so they show only with it (in Blackout too, in its Tab view).
       public function show_map_names(altHeld:Boolean) : void
       {
          this._mapNamesAlt = altHeld;
@@ -1425,16 +1438,12 @@ package
          {
             this._rowMenu.close();
          }
-         // Forced (Blackout): Tab shows its view (keptOnTab), never the list.
-         this._forcedView.tab = bool;
-         if(this._forcedView.forced)
-         {
-            return;
-         }
+         // Forced (Blackout): the list in Tab's view (keptOnTab), the quests' tasks not.
          this.player_list.visible = bool;
          // its map draws the players only while it shows (Minimap.held)
          this.tabMinimap.held = !bool;
-         this.questTaskList.visible = bool && this.questList.visible;
+         this._forcedView.tab = bool;
+         this.questTaskList.visible = bool && this.questList.visible && !this._forcedView.forced;
       }
       
       // The exe's answers to the Tab list's player menu (exe patch 86): what a place offers, and a friend

@@ -1,8 +1,8 @@
 # Patch 66: team voice chat (docs/notes/voice-chat.md). Only the decisions:
 # which sites, and the handlers; the logic is voice.rs. configs.start after
-# patches 79, 83, 81, 88 and 112 (orders 1 to 5), game_world.after_move
+# patches 79, 83, 81, 88, 112 and console_where (orders 1 to 6), game_world.after_move
 # after patches 76, 87 and the medical skills (0 to 2); the game world's keys
-# before patch 86's (it may take a key), the hud's calls after patch 86's;
+# first of three (before patch 86's, which may take a key, and 140's), the hud's calls after patch 86's;
 # the game world's mouse buttons (push-to-talk on a button), taking none.
 name = "voice"
 patch = 66
@@ -10,7 +10,7 @@ patch = 66
 [[hook]]
 site = "configs.start"
 handler = "on_configs"
-order = 6
+order = 7
 
 [[hook]]
 site = "match_client.connect"
@@ -32,7 +32,7 @@ order = 3
 [[hook]]
 site = "tab_cursor.key"
 handler = "on_key"
-order = 1
+order = 0
 
 [[hook]]
 site = "game_world.mouse_key"

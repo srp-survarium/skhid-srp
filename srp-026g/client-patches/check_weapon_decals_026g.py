@@ -193,7 +193,7 @@ def check_bake(original, build, say):
         say(len(queries) == surfaces, f"{title}: {surfaces} queries (got {len(queries)})")
         for i, q in enumerate(queries):
             p, (names, _, p_model, surface, _, one, editor) = q[8], q[9]
-            want_camo = {"diffuse": camouflage, "normal": camouflage + "_nmap", "fresnel": "",
+            want_camo = {"diffuse": camouflage, "normal": "", "fresnel": "",
                          "smoothness": camouflage + "_smap"} if camouflage else \
                 {"diffuse": "", "normal": "", "fresnel": "", "smoothness": ""}
             want_name = f"srpw1_{safe(camouflage or '')}_{safe(camo.MODEL)}_{i}" + "".join(

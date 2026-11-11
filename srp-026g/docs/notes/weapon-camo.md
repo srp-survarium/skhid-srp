@@ -32,6 +32,12 @@ where the premium (camouflaged) weapons have their paint; the tooling to do that
   weapons and armour mixed, each with its own record; sold, it comes off all.
 - **Tiling.** `data/camo_scale` of the weapon config (4.0 for all, the stock bakes' value): the
   camouflage repeats that many times across the weapon's texture. Per weapon, tunable in data.
+- **What a weapon takes of a camouflage.** Its colours and its finish (the `_smap`: how matt the
+  paint is), not its relief. The camouflages were drawn for cloth: each one's `_nmap` is a weave,
+  and a weapon baked with it looked woven (the owner, 2026-11-11: "for weapons we use skins from
+  equipment and it has this \"cloth\" pattern", "can it be removed?"). A painted part keeps the
+  weapon's own relief. Armour takes all three, as before. A camouflage whose colours are a
+  photograph of cloth (the plain "fabric" ones) still shows that in its colours.
 - **What a match sees.** Every game builds a weapon from its item's upgrades (0x2F14C0); the
   camouflage is baked on each game's own GPU, as armour's. No simulation change: games with and
   without patch 44 play together (without it the weapon is plain).
@@ -40,7 +46,9 @@ where the premium (camouflaged) weapons have their paint; the tooling to do that
   takes the camouflage when its bake lands (the lobby's decal editor does the same on armour).
 - **Cost.** A bake per weapon surface the first time a camouflage is seen on that weapon (cached in
   `Documents/Survarium/streamed_textures/srpw1_*`, the 1 GiB baked-texture cache armour uses):
-  three 2048² textures (diffuse, normal, smoothness), about 11 MB on disk and in video memory.
+  two 2048² textures (diffuse and smoothness), about 5.5 MB on disk and in video memory; the
+  weapon's own normal texture is used as it is (until 2026-11-11 a third, the normal with the
+  camouflage's weave, 11 MB together).
 
 ## The weapon's upgrade window (patches 32 and 45)
 
@@ -154,8 +162,12 @@ three upgrades an item: "let's remove one decal instead for now". Two again sinc
   weapon again and bakes the new place: the weapon shows its old decals for a moment.
 - **Cost.** One bake per weapon surface for each new combination of camouflage and decals (the
   same cache as the camouflage's, `srpw1_*` names with the decals' textures and places).
+  With a decal the normal is baked too (the decal's relief over the weapon's own).
 - **On a camouflaged weapon** a surface without an `_aoac` texture (barrels, own sights) takes
-  neither; without a camouflage, decals go on any surface.
+  neither the camouflage nor a decal's colours and finish; a decal's fresnel and, since
+  2026-11-11, its relief are baked there alone (those two bakes have no camouflage layer, so
+  nothing asks them for the `_aoac`): a decal put on such a surface shows as a faint shape
+  without its picture. Without a camouflage, decals go on any surface.
 
 ## The engine (client 0.26g, PROVEN unless tagged)
 
@@ -163,6 +175,23 @@ three upgrades an item: "let's remove one decal instead for now". Two again sinc
   when `<diffuse>_aoac.dds` loads beside its diffuse (0x12E8E9): c = lerp(diffuse, camo(uv ×
   scale), 1 − aoac.G); overlay(c, aoac.B); c × aoac.R (`bake_decal_composition.ps`). Without it
   the surface stays plain, silently.
+- The bake is three bakes a surface, one a texture type (d, n, s; a fourth, fresnel, has no
+  camouflage layer), each with the camouflage layer's texture of its type: `<camo>`,
+  `<camo>_nmap`, `<camo>_smap`. A type whose layer has no name takes the surface's own
+  `<diffuse>_camo`, `_camo_nmap` or `_camo_smap` (a character part's default camouflage,
+  0x12E124); a texture that does not load is left out; a type with nothing to bake leaves the
+  surface's texture as it is. In the normal bake the camouflage's `_nmap` is added to the
+  surface's as a detail and kept by the mask (`camouflage_texture_use_flags.y`; without it the
+  surface's normal passes through).
+- [srp] A weapon's bake names the camouflage's colours and `_smap` only (patch 47's fill), and
+  a layer it does not name is no layer: the Rust patch `weapon_camo` at the baker's
+  `bake.own_camouflage` (0x12E124) sends a weapon's bake (its files are `srpw...`) past the
+  surface's own names. Some weapons have files of those names that are no camouflage: the
+  premium paints `ak_12_camo`, `aks74u_camo`, `akmn_camo`, `neostead_camo`, `rem700_camo` (and
+  its `_smap`), `vepr_main_camo`, `vepr_sec_camo`, `vsk_9a91_camo` (and its `_smap`) and
+  `sks_camo_nmap`. Until 2026-11-11 a weapon with a decal and no camouflage took them as its
+  camouflage (LIKELY seen as the premium paint tiled over the painted parts; not looked at in a
+  game).
 - A camouflage item's modification adds `camouflage` to the host config's `data` table (modifier
   type 3, path `data`); a host config without `data` drops it (0x2F1430). Weapon configs have no
   `data`: the data patch adds one (holding `camo_scale`).
@@ -218,12 +247,24 @@ three upgrades an item: "let's remove one decal instead for now". Two again sinc
   lobby-bench-light-1 and weapon-attachments-1; `release/build-content 27` makes it with every
   edit list at 0 unexpected differences. **Lobby-tested only** (the camouflage, revision 25's
   build); this build is not run in a game.
+- 2026-11-11, the camouflage's relief left out: `check_weapon_camo_026g.py` (the names a bake is
+  given; the baker's site on a weapon's and a character's bake of each type, against the
+  original), `check_weapon_decals_026g.py`, `check_bake_cache_026g.py` (bake format 2),
+  `check_hooks_026g.py`, `cargo test` and clippy of the patches crate, the self-test. **Not run in
+  a game.**
 
 ## Not done
 
 - Decals on weapons: written (patch 47, above), not run in a game: the preview on the weapon, the
   place a click gives and a weapon's decal bake are emulated only.
 - A match (first and third person) not yet seen.
+- The camouflage without its weave (2026-11-11): emulated only, not seen in a game. To look at: a
+  painted weapon in the lobby and in a match (its own relief under the paint, no weave), one with
+  a decal and a camouflage, an AK-12 or an SKS with a decal and no camouflage (plain but for the
+  decal), and armour as before.
+- A decal on a camouflaged weapon's surface that has no `_aoac` (above): every surface needs a
+  mask, one that paints nothing where nothing is painted (`weapon_camo.py --bare-masks`, as the
+  weapon packs have), in a new `weapon-camo` pack.
 - The two-page window (arrows, places, the inventory's filter on a turn, the new texts): built,
   not seen in a game.
 - The other 69 textures' picks were made after the owner's 22, by looking (the MP7 black copies the owner's MP7): worth a pass in the picker.

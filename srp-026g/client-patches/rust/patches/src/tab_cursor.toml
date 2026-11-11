@@ -7,7 +7,7 @@ patch = 86
 [[hook]]
 site = "tab_cursor.key"
 handler = "on_key"
-order = 2                           # after patch 66's chat keys, which never take a key
+order = 1                           # after patch 66's keys (voice.toml, order 0), which never take one
 
 [[hook]]
 site = "hud.callback"
