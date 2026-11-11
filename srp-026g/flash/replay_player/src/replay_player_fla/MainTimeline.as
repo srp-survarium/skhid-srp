@@ -236,6 +236,12 @@ package replay_player_fla
             case "free_view":
                freeView = true;
                return;
+            case "another":
+               // The game's next or previous player (F6, F5): the row
+               // clicked is not the one watched any more, and the list
+               // cannot tell which is.
+               followed = null;
+               return;
             case "pause":
                this.btn_play.selected = !this.btn_play.selected;
                this.onPlayClicked(null);

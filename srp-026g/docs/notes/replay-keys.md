@@ -18,7 +18,8 @@ leaves, their replay just stops even if they enter again".
   back has a roster place for each time). A click follows the place that is in the match now.
 - **A followed player who comes back** (the same place again, or a new one) is followed again as it
   comes in, also after a seek, in the view (first or third person) last clicked in the list. Not in
-  the free view.
+  the free view, and not after F5 / F6 (the game's own previous / next player: the list does not
+  know whom they chose) until a row is clicked again.
 
 ## How
 

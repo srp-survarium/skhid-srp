@@ -62,6 +62,8 @@ impl Dik {
     pub const F1: Dik = Dik(0x3B);
     pub const F2: Dik = Dik(0x3C);
     pub const F3: Dik = Dik(0x3D);
+    pub const F5: Dik = Dik(0x3F);
+    pub const F6: Dik = Dik(0x40);
     pub const LEFT: Dik = Dik(0xCB);
     pub const RIGHT: Dik = Dik(0xCD);
 

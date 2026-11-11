@@ -48,6 +48,9 @@ enum ReplayKey {
     /// free view: a player followed (F1, F3), the free view (F2).
     Followed,
     FreeView,
+    /// The game's own next and previous player (F6, F5): the movie's
+    /// followed row is no longer the one watched.
+    Another,
 }
 
 impl ReplayKey {
@@ -62,6 +65,7 @@ impl ReplayKey {
             Dik::SPACE => ReplayKey::Pause,
             Dik::F1 | Dik::F3 => ReplayKey::Followed,
             Dik::F2 => ReplayKey::FreeView,
+            Dik::F5 | Dik::F6 => ReplayKey::Another,
             _ => return None,
         })
     }
@@ -78,6 +82,7 @@ impl ReplayKey {
             ReplayKey::Pause => c"pause",
             ReplayKey::Followed => c"followed",
             ReplayKey::FreeView => c"free_view",
+            ReplayKey::Another => c"another",
         }
     }
 }
@@ -148,11 +153,13 @@ mod tests {
 
     #[test]
     fn each_key_has_its_own_name() {
-        let keys = [Dik::LEFT, Dik::RIGHT, Dik::A, Dik::D, Dik::COMMA, Dik::PERIOD, Dik::SPACE, Dik::F2, Dik::F1];
+        let keys =
+            [Dik::LEFT, Dik::RIGHT, Dik::A, Dik::D, Dik::COMMA, Dik::PERIOD, Dik::SPACE, Dik::F2, Dik::F1, Dik::F5];
         let mut names: Vec<_> = keys.iter().map(|&key| ReplayKey::of(key).unwrap().name()).collect();
         names.sort();
         names.dedup();
         assert_eq!(names.len(), keys.len());
         assert_eq!(ReplayKey::of(Dik::F3), ReplayKey::of(Dik::F1));
+        assert_eq!(ReplayKey::of(Dik::F6), ReplayKey::of(Dik::F5));
     }
 }
