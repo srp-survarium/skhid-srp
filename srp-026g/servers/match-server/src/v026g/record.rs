@@ -807,7 +807,6 @@ mod tests {
                 ReplaySettings {
                     replay_dir: root.join("replays"),
                     record_dir: dir.clone(),
-                    modes_dir: root.join("modes"),
                     max_recording_bytes: 1 << 20,
                     max_replay_bytes: 1 << 20,
                 }
@@ -1002,7 +1001,6 @@ mod tests {
                 ReplaySettings {
                     replay_dir: root.join("replays"),
                     record_dir: dir.clone(),
-                    modes_dir: root.join("modes"),
                     max_recording_bytes: 1 << 20,
                     max_replay_bytes: 1 << 20,
                 }

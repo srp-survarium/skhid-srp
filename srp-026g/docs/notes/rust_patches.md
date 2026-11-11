@@ -169,6 +169,21 @@ arguments and cleans up as the function did; it adds no `fxsave`.
 
 **`entry`**: the way from our own NASM into Rust (patch 48's preview apply calls patch 68's). Its generated entry saves the machine and aligns the stack as a lohook's does, so the Context's site ESP is the caller's (the return address, then the arguments), and returns with `ret`; the caller pops its arguments. Never a hand-written `#[no_mangle]` export called from NASM: rustc's i686 code keeps 16-byte locals with movaps and assumes 16 at every call, and the game's stack (our NASM's too) is aligned to 4 only, a #GP on a real CPU that Unicorn does not raise (#893's review). `check_hooks_026g.py` runs the entry from each of the four skews.
 
+**Filtered** (`only = { <held> = "<CONST>" }` on a lohook of its own site): the entry calls its handler only while the site's register `<held>` (a `name=REGISTER:u32` of the site's `holds`) is one of the values of the patch's constant `CONST` (a `[u32; N]`, each below 256). The shim file makes their bit set (`vostok::hook::Only`, exported as `<entry>_only`); the entry tests the register against it (`pushfd`, `cmp`, `bt`, `popfd`) before it saves anything, and for any other value jumps straight to the site's replayed bytes. For a site of a hot function whose handler acts on a few values only: patch 109's modifier getters, where the machine save (`fxsave`/`fxrstor`) of every call was most of their cost. The handler still does nothing for the other values (it is the definition; the filter only spares the call). The self-test's test_rust_hooks checks the test comes first.
+
+**Installed on demand** (`install = "on_demand"` on a `code` hook or a lohook
+of its own site): the hook is generated and linked as any other, but the build
+does not write its site, so the exe keeps the game's bytes there. The generated
+`<patch>_on_demand()` lists the patch's such sites (the VA, the game's bytes
+read from the exe, the entry's address). Only `vostok` writes them, in two
+steps (`hook::unlock_on_demand`: every site's bytes checked and every page made
+writable, all or none; then `Unlocked::write`: the jumps, the protections back,
+the instruction cache flushed; dropped unwritten, the pages are restored), from
+a safe function of its own that checks when no other thread can run those
+sites' code. Patch 127 (the memory profiler) installs its allocator gates this
+way through `vostok::memory_profile::start`, which checks it runs in
+allocate_region's frame at the start, once, and only when the profile is on, so
+an off game runs the original allocator.
 **Lohook chains**: handlers sharing an exact named site declare distinct
 integer `order`s. A single entry saves/restores the machine; handlers observe
 earlier Context writes and the first non-`Continue` ends the chain. A partial
@@ -180,7 +195,9 @@ State shared between hooks is a `vostok::GameCell<T>`, reachable only inside
 a hook (a `Thread` token), so patch code stays safe and single-threaded.
 State the game reaches from several of its threads (mt_draw's tasks, the
 bullet manager's) is a `vostok::Lock<T>` instead: a spin lock, its value
-`&mut` inside `with`, a lock taken again on its own thread a panic. A
+`&mut` inside `with`, a lock taken again on its own thread a panic. State a
+thread may hold for long (patch 127's profiler) is a `vostok::YieldingLock<T>`:
+the same, its waiters giving their time slice away after a few spins. A
 static that is not all zeros goes to `patches.data`, a zero one to
 `patches.state` (ARENA).
 The crash report's breadcrumbs are `vostok::breadcrumbs::record(thread,
@@ -342,20 +359,21 @@ bit when the key went down.
   patch_026g.py. link_026g.py links the arena and writes the lock; it builds
   the crate and runs the layer check first.
 - **Overlap audit**: hooks_026g.py rejects two Rust hooks whose replaced
-  spans overlap (each hook names its patch); the whole arena's audit, across
-  the asm and C installs too, is selftest_026g.py's span check (it now
-  includes the Rust hooks).
+  spans overlap (each hook names its patch); the whole build's audit, across
+  the asm and C installs too, is patch_026g.py's apply(): two writes over the
+  same bytes stop the build (the self-test's test_writes and test_apply).
 - **Sizes**: `python link_026g.py --sizes` prints each block's bytes and
   pages and, for `patches.code`, each patch's bytes from its symbols -- the
   budget a port reports before and after.
 - **Tests**: `cargo test` and `cargo clippy --all-targets` in `rust/` (i686);
   the patch's own Unicorn check unchanged (`check_suicide_key_026g.py` runs
   the site to the reconvergence point against the original exe, which is the
-  behavioural proof and handles the call-and-return shape); `selftest_026g.py`
-  check 35 (the action table, the builder's 35 queries without 1Fh and
-  without the bit, the consumer and its one caller, the site, the generated
-  entry's shape, the blocks and the lock) plus the engine, hooks-staleness
-  and layer checks.
+  behavioural proof and handles the call-and-return shape); at a release,
+  `selftest_026g.py`'s general rules derive every hook's checks from its
+  declaration (the site's bytes, its branch to the generated entry, the
+  entry's ABI, nothing aiming inside: test_writes, test_rust_hooks,
+  test_rust_code, test_call_shapes) plus the engine, hooks-staleness and
+  layer checks: a new patch adds no line to it.
 - **The alignment probe** (`align_probe_026g.py`): Unicorn does not fault on a misaligned aligned-SSE operand. A check that imports it and calls `install()` has every Unicorn machine check each aligned-SSE memory operand our code runs (`.srp` to the arena's end) and reports the misaligned ones; `python align_probe_026g.py check_<patch>_026g.py <exe>` runs any check under it unchanged. `check_weapon_kit_026g.py` and `check_upgrade_preview_026g.py` have it built in.
 - **Not run in a game** until the owner plays it.
 
@@ -393,3 +411,22 @@ The example's `patches.code` is about 190 bytes: the generated entry
 (`RUST_CALL`), the shim, `OrigActionPresent::call`, and the weak
 `memcpy`/`memset` the arena keeps one of. `core::fmt` is never linked (the
 log takes pieces). `link_026g.py --sizes` gives the per-patch bytes.
+
+## Voice hook additions
+
+Patch 66 uses the same named-site declarations for five lohooks, a register-convention
+call and two vtable pointer writes. The call adapter takes each argument from the
+engine row's register or stack location, aligns the stack for Rust, and preserves
+the nonvolatile registers. Pointer installs are generated and audited with code
+installs. Void originals have a void Rust result. A lohook covering exactly one
+`call rel32` replays a generated call to its original target, rather than copying
+the displacement. Other relative-control-flow spans are still refused.
+
+The engine generator supports scalar float arguments in XMM registers; voice
+uses this for `cc_value<float>`'s minimum. `Context::reg(Esp)` is the original
+game stack pointer, accounting for the entry's dispatch slot and saved flags.
+
+Voice policy is safe Rust in `voice.rs`; the Vostok boundary owns console storage,
+live game snapshots, Scaleform values and the checked `voice-abi::Api` token.
+The optional DLL has one versioned ABI shared with its Rust implementation.
+The runtime supplies bounded byte comparison for LLVM-generated comparisons.

@@ -19,7 +19,7 @@ Matches: MATCH-SYNC-026G.md.
 |---|---|---|
 | Build | "0.26g0" (string 0x9DAE98), build 2777, compiled 2015-01-14 | README.md |
 | File | `downloads/v026g/extracted/Survarium/game/binaries/x86/survarium.exe`, 12 894 840 bytes, sha256 `ac33d993…f153` (full value in `patch_026g.py`) | client_patch.md "Exes used" |
-| Layout | image base 0x10000, 7 sections, no ASLR flag (DLL characteristics 0x8000). Only 0x5D zero bytes after `.text` (0x86F5A3–0x86F5FF) | client_patch.md §3, §3.1, §3.3 |
+| Layout | image base 0x10000, 7 sections, no ASLR flag (DLL characteristics 0x8000; the patched exe 0x8100, NX_COMPAT added, client_patch.md §3.3). Only 0x5D zero bytes after `.text` (0x86F5A3–0x86F5FF) | client_patch.md §3, §3.1, §3.3 |
 | Symbols | **No PDB** (none for any public build after 0.21d) | README.md, RE-TOOLKIT.md |
 | `resources.db` | 2015-01-17, 6 285 533 906 bytes, 78 961 entries, CRC 0x4A01F332 | data.md, client_patch.md §0 |
 | OpenSSL | 1.0.1h (string 0x8B3F90) | login_chat.md §3 |
@@ -70,7 +70,7 @@ How names were found:
 | `-splash_screen=0` | no splash (0.21d: `-no_splash_screen`) | used in the shortcut | |
 | `-localization=ukrainian` | language. The client maps russian, english, ukrainian, german, polish to its chat room and language byte | used in the shortcut; mapping PROVEN | login_chat.md §5.6 |
 | `-minimum_resources_memory_size=<MiB>` | The floor of the resources arenas: option object 0xA83080, a float read at 0xE9966; default 0x150 = 336 MiB. PROVEN (read 2026-10-12) | used in the shortcut (768) | |
-| `-mt_allocator=<MiB>` | The global multithreaded allocator's arena: option object 0xA80150, read at 0xE0FF5; without the key 16 + 360 = 376 MiB, with it `value << 20`. PROVEN (read 2026-10-12). A different arena from the line above. Upstream ran out of it loading a map (live, Wine) and passes 768 | **not in the shortcut yet**; in `make_client_026g.py` and the web page | SRP-026G.md |
+| `-mt_allocator=<MiB>` | The global multithreaded allocator's arena: option object 0xA80150, read at 0xE0FF5; without the key 16 + 360 = 376 MiB, with it `value << 20`. PROVEN (read 2026-10-12). A different arena from the line above. Upstream ran out of it loading a map (live, Wine) and passes 768. Patch 37 made 768 the exe's default; patch 129 makes it at least 1024 MiB, a value given raised to that | no launch line passes it since patch 129: the exe owns the number | SRP-026G.md, `client_patch.md` 3.78 |
 | `-account_name=`, `-account_password=` | fill in the login (key objects 0xAA4910, 0xAA4B40) | PROVEN; that the launcher passes them LIKELY | login_chat.md §1 |
 | `-spectator` | "connect as spectator" | PROVEN it exists | login_chat.md §1 |
 | `-hash_check_interval_in_ms=N` | world hash interval; default 100 (0x27CC4F), option object 0xAA19F8 | PROVEN; the `=N` form LIKELY, not tried | match.md §14 |

@@ -49,7 +49,8 @@ put() { # <file in the folder> <name in download/>
     if test "$1" -ef "download/$2"; then return 0; fi
     ln -f "$1" "download/.$2.new" && mv -f "download/.$2.new" "download/$2"
 }
-number() { n=${1##*/}; n=${n#srp-}; n=${n%.db}; echo "${n:-0}"; }
+# srp-<unix>.db only; another name (srp-<unix>-before-pay-back.db) is 0, never taken.
+number() { n=${1##*/}; n=${n#srp-}; n=${n%.db}; case $n in ""|*[!0-9]*) n=0 ;; esac; echo "$n"; }
 
 # The srp.db to put back: the folder's copy, else srp's own newer than
 # BACKUP_BEFORE, else none (the new srp never opened srp.db).

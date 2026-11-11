@@ -22,6 +22,7 @@ package
    // - a player that leaves the data loses its icon and name; one that comes (an enemy spotted)
    //   gets its name; an ally taking the battery (another icon) keeps its name; the list's rows
    //   made again rename;
+   // - an enemy's name red (PlayerRed), an ally's white, also after a text set again;
    // - Blackout: its Tab keeps the list hidden (HUD.show_player_list, forced), and the names are in
    //   the list's map: none on screen with Alt held.
    // Prints "NAMES ..." lines and ends with "NAMES RESULT pass" or "NAMES RESULT fail: ...".
@@ -169,6 +170,9 @@ package
             + "the own icon none, a place with no row none (" + names(tabMap) + ")");
          check(names(corner) == "","the corner minimap shows none (" + names(corner) + ")");
          var shown:Object = icons(tabMap);
+         check(label(shown[2]).textColor == 0xFF0000 && label(shown[1]).textColor == 0xFFFFFF
+            && label(shown[3]).textColor == 0xFFFFFF,"the enemy's name red, the allies' white ("
+            + label(shown[2]).textColor.toString(16) + ")");
          check(placed(shown[1]) && placed(shown[2]) && placed(shown[3]),"each name centred just over its icon");
          var text:TextField = label(shown[1]);
          var before:Point = text.localToGlobal(new Point(0,0));
@@ -207,6 +211,8 @@ package
             {id:4,team:2,name:"Unseen"}]);
          check(names(tabMap) == "1=Ally,3=Newcomer,4=Unseen","the rows made again rename place 3 (" + names(tabMap) + ")");
          check(placed(icons(tabMap)[3]),"the renamed one centred again");
+         check(label(icons(tabMap)[4]).textColor == 0xFF0000 && label(icons(tabMap)[3]).textColor == 0xFFFFFF,
+            "after the rows made again: the enemy's name still red, the renamed ally's white");
          check(names(tabMap,true) == "1=Ally,3=Newcomer,4=Unseen","Tab (the list shown): the names on screen");
 
          // Blackout: HUD.show_player_list, forced, never shows the list

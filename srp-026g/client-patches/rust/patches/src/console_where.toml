@@ -1,0 +1,28 @@
+# Patch 133: the console command `where` prints the camera's character's
+# place and look (console_where.rs; client_patch.md section 3.81). Only the
+# decisions: the sites and the handlers. configs.start after patches 79, 83,
+# 81, 88 and 112 (orders 1 to 5).
+name = "console_where"
+patch = 133
+
+# on_configs_loaded's start: the command put in the console's list
+[[hook]]
+site = "configs.start"
+handler = "on_configs"
+order = 6
+
+# update_camera after the view's update: the camera's player and view kept
+[[hook]]
+site = "camera.viewed"
+handler = "on_viewed"
+
+# the command's object: a copy of cc_delegate's vtable, execute ours
+[[vtable]]
+name = "methods"
+source = "cc_delegate_methods"
+check = "check_console_where_026g.py"
+
+[[hook]]
+site = "cc_delegate.execute"
+handler = "on_execute"
+proof = "where through console_commands::execute"

@@ -27,17 +27,19 @@ The icons are the lobby's, from flash_movies/lobby_menu.swf through FFDec,
 drawn as its skill renderer (SrvSkillRendererCh) draws them: what lies under
 its iconContainer (a plate, and `background`'s child at frame branch + 1, the
 branch's tint), the icon in the container's mask, what lies over it (the
-rim); a skill that `survarium.char.MedicalSkillIcon` names (its `show` switch)
+rim); a skill that `survarium.char.SkillIcon069` names (its `show` switch)
 has that bitmap, fitted to the icon sets' box; any other is frame `ui.icon` + 1
 of the icon set PerkIconContainer places at frame branch + 1 (the movie's
 SkillListRenderer). The renderer's overSprite, lockSprite and lockSpriteRed
 are the page's hover, locked and excluded states; its skillProgressIndicator
 (SkillProgressIndicator: SkillListRenderer's pip class on an arc of `radius`,
-`angleStep` apart) is drawn empty, one pip a rank.
+`angleStep` apart) is drawn for every number of ranks taken (its frames
+`filled` below the rank, `empty` above it), for the planner.
 
 Writes <out>/skills.<lang>.html (the wiki page's body, the server adds the
 site's header), <out>/icons/<id>.webp, <out>/skills.js (the tooltip: hover, taps, keys;
-placed out of the page's flow), <out>/files.rs (those files, for the
+placed out of the page's flow; and the planner: ranks taken by clicks, the
+points and the level they need), <out>/files.rs (those files, for the
 server's include) and <out>/built-from.tsv (the patches it was built from:
 release/release.sh rebuilds the page, through release/build-site, when it
 offers others). Needs pillow and java on PATH.
@@ -83,6 +85,16 @@ WORDS = {
     "wiki": ("Wiki", "Вікі"),
     "or": ("or", "або"),
     "max": ("Maximum:", "Максимум:"),
+    # The planner (skills.js): the points a build spends, the level that has them, and what the
+    # level is in matches and hours at what a match is now (the server's levels section).
+    "spent": ("Points", "Очки"),
+    "level": ("Level", "Рівень"),
+    "matches": ("matches", "матчів"),
+    "hours": ("h", "год"),
+    "reset": ("Reset", "Скинути"),
+    "hint": ("Click a skill to add a rank, right-click to take one back.",
+             "Клік додає ранг, правий клік забирає."),
+    "hint-touch": ("Tap a skill, then + or −.", "Торкніться навички, потім + або −."),
 }
 # The lobby's skill renderer, and its sprites for the states: hovered, locked (its tier not
 # reached), excluded (another skill excluding it is hovered).
@@ -90,8 +102,8 @@ RENDERER = "SrvSkillRendererCh"
 OVERLAYS = {"over": "overSprite", "lock": "lockSprite", "lock-red": "lockSpriteRed"}
 SVG, FFDEC = "http://www.w3.org/2000/svg", "https://www.free-decompiler.com/flash"
 SHAPES = {2, 22, 32, 83}
-# The movie's scripts read: the medical icons, the rank indicator, the skill renderer.
-SCRIPTS = ("survarium.char.MedicalSkillIcon", "survarium.char.SkillProgressIndicator",
+# The movie's scripts read: our trees' icons, the rank indicator, the skill renderer.
+SCRIPTS = ("survarium.char.SkillIcon069", "survarium.char.SkillProgressIndicator",
            "survarium.buttons.SkillListRenderer", "survarium.char.CharWindow", "SrvCharWindow")
 ZOOM = 2
 PLACE_OBJECT2, PLACE_OBJECT3, REMOVE_OBJECT, REMOVE_OBJECT2, SHOW_FRAME, DEFINE_SPRITE = 26, 70, 5, 28, 1, 39
@@ -192,8 +204,8 @@ def icons(args, raw, work, tree, out):
     if not steps:
         die("lobby_menu.swf: no indicator angle step")
     step = steps[-1]
-    _, empty = found(r"< _value \? (\d+) : (\d+)\)", indicator, "no pip frames")
-    radius, step, empty = int(radius), int(step), int(empty)
+    filled, empty = found(r"< _value \? (\d+) : (\d+)\)", indicator, "no pip frames")
+    radius, step, filled, empty = int(radius), int(step), int(filled), int(empty)
     _, tags = swf.split(movie.read_bytes())
     ids = {name: cid for cid, name in swf.symbol_classes(tags)}
     for name in ("PerkIconContainer", RENDERER, pip_class):
@@ -244,7 +256,7 @@ def icons(args, raw, work, tree, out):
         elif s["branch"] < len(sets):
             wanted[s["id"]] = ("sprite", sets[s["branch"]], s["icon"] + 1)
         else:
-            die(f"skill {s['id']}: no icon (MedicalSkillIcon has none, PerkIconContainer no frame {s['branch'] + 1})")
+            die(f"skill {s['id']}: no icon (SkillIcon069 has none, PerkIconContainer no frame {s['branch'] + 1})")
     chars = {cid for _, cid, _ in wanted.values()} | set(under) | set(over) | {tint, named["iconContainer"][0]}
     chars |= {named[n][0] for n in OVERLAYS.values()} | set(sets) | {ids[pip_class], tab_icon}
     subprocess.run(ffdec + ["-format", "sprite:png,shape:png,image:png", "-zoom", str(ZOOM),
@@ -273,7 +285,7 @@ def icons(args, raw, work, tree, out):
             spots.append((ox + math.cos(a) * radius - centre[0], oy - radius - math.sin(a) * radius - centre[1]))
         return spots
 
-    pip = art(ids[pip_class], empty)
+    pip, pip_filled = art(ids[pip_class], empty), art(ids[pip_class], filled)
     counts = sorted({s["ranks"] for s in tree if s["ranks"]})
     reach = max((max(abs(x), abs(y)) for n in counts for x, y in pips(n)), default=0) * ZOOM + max(pip.size) / 2
     # The layers are concentric discs: each is centred on one canvas, big enough for the pips.
@@ -307,7 +319,7 @@ def icons(args, raw, work, tree, out):
             canvas = centred(art(tint, branch + 1) if c == background else under_art[c], canvas)
         icon = art(cid, frame)
         if kind == "image":
-            # MedicalSkillIcon fits its bitmap to the icon set's box.
+            # SkillIcon069 fits its bitmap to the icon set's box.
             icon = icon.resize(frame_size, Image.LANCZOS)
         icon = centred(icon)
         icon.putalpha(Image.fromarray(numpy.minimum(numpy.asarray(icon.getchannel("A")), numpy.asarray(mask))))
@@ -316,11 +328,15 @@ def icons(args, raw, work, tree, out):
             canvas = centred(im, canvas)
         urls[skill] = save(canvas, skill)
     overlays = {key: save(centred(art(named[name][0])), key) for key, name in OVERLAYS.items()}
+    # One indicator a number of ranks and of ranks taken (the planner's): pips-<ranks>, empty,
+    # and pips-<ranks>-<taken>.
     for n in counts:
-        canvas = Image.new("RGBA", (side, side))
-        for x, y in pips(n):
-            canvas = centred(pip, canvas, (x * ZOOM, y * ZOOM))
-        overlays[f"pips-{n}"] = save(canvas, f"pips-{n}")
+        for taken in range(n + 1):
+            canvas = Image.new("RGBA", (side, side))
+            for j, (x, y) in enumerate(pips(n)):
+                canvas = centred(pip_filled if j < taken else pip, canvas, (x * ZOOM, y * ZOOM))
+            name = f"pips-{n}-{taken}" if taken else f"pips-{n}"
+            overlays[name] = save(canvas, name)
     # Each branch's tab icon, cut to its picture: a light glyph the page tints in its heading's
     # colour (the wiki's .glyph, as its modification icons).
     branch_icons = {}
@@ -333,6 +349,28 @@ def icons(args, raw, work, tree, out):
         im.save(path, "WEBP", quality=90, method=6)
         branch_icons[branch] = f"{SITE}/icons/branch-{branch}.webp?v={version(path.read_bytes())}"
     return urls, overlays, side / plate, branch_icons
+
+
+def current(skill, text):
+    """The "Current value" line of each rank a skill can have (1 to its ranks), as HTML, for the
+    planner: the lobby's label with d[r][1] + postfix, and at the last rank (whose d[r][1] the
+    lobby does not show) its maximum, d[last][0] + postfix; the value in the game's green. None
+    for a skill without a postfix."""
+    if not skill["postfix"]:
+        return []
+    postfix, rows, ranks = text(skill["postfix"]), skill["rows"], skill["ranks"]
+    bare = lambda value: re.sub(r"</?\w+>", "", str(value)).strip()
+    return [markup(f'{text("st_current_value")} <green>{bare(rows[r][1] if r < ranks else rows[r][0])}{postfix}</green>')
+            for r in range(1, ranks + 1)]
+
+
+def markup(said):
+    """Game text as HTML: the markup (<green>) as the movie's stylesheet draws it."""
+    said = html.escape(said.strip())
+    said = said.replace("&lt;green&gt;", '<span class="skill-value">').replace("&lt;/green&gt;", "</span>")
+    said = re.sub(r"&lt;/?\w+&gt;", "", said).replace("\n", "<br>")
+    # A value stays on its label's line.
+    return re.sub(r'\s*<span class="skill-value">\s*', '&nbsp;<span class="skill-value">', said)
 
 
 def tooltip(skill, text, maximum):
@@ -348,11 +386,7 @@ def tooltip(skill, text, maximum):
         said += line(skill["rows"][0])
         if skill["ranks"] > 1:
             said += "\n" + maximum + line(skill["rows"][-1])
-    said = html.escape(said.strip())
-    said = said.replace("&lt;green&gt;", '<span class="skill-value">').replace("&lt;/green&gt;", "</span>")
-    said = re.sub(r"&lt;/?\w+&gt;", "", said).replace("\n", "<br>")
-    # A value stays on its label's line.
-    return re.sub(r'\s*<span class="skill-value">\s*', '&nbsp;<span class="skill-value">', said)
+    return markup(said)
 
 
 def skills_of(raw):
@@ -392,6 +426,12 @@ def page(lang, tree, texts, urls, overlays, disc, script_url, branch_icons):
     columns = max(s["column"] for s in tree)
     out = [f'<p class="breadcrumb"><a href="/wiki?lang={lang}">{word("wiki")}</a> / {word("title")}</p>',
            f'<div class="wiki-heading"><div><h1>{word("title")}</h1></div></div>',
+           # The planner's bar (skills.js fills it; without the script it stays hidden).
+           f'<div class="skill-plan" hidden><span class="skill-plan-sum"><span>{word("spent")} <b data-plan="points">0</b></span>'
+           f'<span>{word("level")} <b data-plan="level">0</b></span>'
+           f'<span data-plan="play" data-matches="{word("matches")}" data-hours="{word("hours")}"></span></span>'
+           f'<button type="button" data-plan="reset">{word("reset")}</button>'
+           f'<span class="skill-plan-hint" data-touch="{esc(word("hint-touch"))}">{word("hint")}</span></div>',
            f'<div class="skill-trees" style="--disc:{disc:.4f}">']
     # The exclusions: hovering a skill locks what it excludes in red, as the lobby does.
     # (A hovered skill with a mouse; an opened one, tapped; a focused one, keyboard.)
@@ -401,7 +441,8 @@ def page(lang, tree, texts, urls, overlays, disc, script_url, branch_icons):
     if style(""):
         out.append(f'<style>{style(":is(.open,:focus-visible)")}{{display:block}}'
                    f'@media(hover:hover){{{style(":hover")}{{display:block}}}}</style>')
-    excluded = {x for s in tree for x in s["excludes"]}
+    # Either side of an exclusion can be locked in red: by hovering, or by the planner.
+    excluded = {x for s in tree for x in s["excludes"]} | {s["id"] for s in tree if s["excludes"]}
     overlay = lambda key: f'<img class="skill-{key.split("-")[0] if key.startswith("pips") else key}" src="{overlays[key]}" alt="" loading="lazy">'
     for branch in sorted({s["branch"] for s in tree}):
         skills = sorted((s for s in tree if s["branch"] == branch), key=lambda s: (s["tier"], s["column"]))
@@ -409,7 +450,7 @@ def page(lang, tree, texts, urls, overlays, disc, script_url, branch_icons):
         # A tier's threshold: the least any of its skills needs; a skill that
         # needs more than the branch's other ranks add up to is out of reach.
         needs = {t: min(s["needs"] for s in skills if s["tier"] == t) for t in tiers}
-        out.append(f'<section class="skill-branch"><h2><span class="glyph" style="--icon:url(\'{branch_icons[branch]}\')" aria-hidden="true"></span>{esc(text(BRANCHES[branch]))}</h2>'
+        out.append(f'<section class="skill-branch"><h2><span class="glyph" style="--icon:url(\'{branch_icons[branch]}\')" aria-hidden="true"></span>{esc(text(BRANCHES[branch]))}<span class="skill-branch-points"></span></h2>'
                    f'<div class="skill-grid" style="--columns:{columns}">')
         for t in tiers:
             out.append(f'<div class="skill-tier" style="grid-row:{t}"><b>{NUMERALS[t - 1]}</b> · {points(lang, needs[t])}</div>')
@@ -419,14 +460,25 @@ def page(lang, tree, texts, urls, overlays, disc, script_url, branch_icons):
             locked = s["needs"] > reach
             # PerkTipRenderer: the name, a line, the text; one line unless the skill has one rank.
             wrap = " wrap" if s["ranks"] <= 1 else ""
-            tip = f'<div class="skill-tip{wrap}"><b>{esc(name)}</b><p>{tooltip(s, text, word("max"))}</p></div>'
+            # The tooltip, and for the planner the "Current value" of each rank (skills.js
+            # shows the one of the ranks taken).
+            now = "".join(f'<p class="skill-now">{line}</p>' for line in current(s, text))
+            tip = f'<div class="skill-tip{wrap}"><b>{esc(name)}</b><p>{tooltip(s, text, word("max"))}</p>{now}</div>'
             badge = f'<span class="skill-or">{word("or")}</span>' if s["excludes"] else ""
+            # The planner's rules (skills.js): ranks, the branch points its row needs, its row
+            # (the walk's order), the skills it excludes; the indicator of each number of ranks taken.
+            plan = f' data-ranks="{s["ranks"]}" data-needs="{s["needs"]}" data-row="{s["tier"]}"'
+            if s["excludes"]:
+                plan += f' data-excludes="{" ".join(map(str, s["excludes"]))}"'
+            fills = " ".join(overlays[f"pips-{s['ranks']}-{k}"] for k in range(1, s["ranks"] + 1))
+            pips = (f'<img class="skill-pips" src="{overlays[f"pips-{s['ranks']}"]}" data-fills="{fills}" alt="" loading="lazy">'
+                    if s["ranks"] else "")
             out.append(
-                f'<div class="skill{" locked" if locked else ""}" tabindex="0" data-skill="{s["id"]}" '
+                f'<div class="skill{" locked" if locked else ""}" tabindex="0" data-skill="{s["id"]}"{plan} '
                 f'style="grid-area:{s["tier"]}/{s["column"] + 1}">'
                 f'<span class="skill-disc"><img src="{urls[s["id"]]}" alt="" loading="lazy">'
-                f'{overlay("over")}{overlay("lock") if locked else ""}{overlay("lock-red") if s["id"] in excluded else ""}'
-                f'{overlay(f"pips-{s['ranks']}") if s["ranks"] else ""}{badge}</span>'
+                f'{overlay("over")}{overlay("lock")}{overlay("lock-red") if s["id"] in excluded else ""}'
+                f'{pips}{badge}</span>'
                 f'<span class="skill-name">{esc(name)}</span>{tip}</div>')
         out.append("</div></section>")
     out.append('</div>\n<div class="skill-float" role="tooltip" hidden></div>')

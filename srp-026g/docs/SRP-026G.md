@@ -186,8 +186,7 @@ that rule is mended when the accounts load, and never plays.
 | `SRP_RECORD_DIR` | unset (off; the compose file sets `/srv/srp/data/recordings`) | Match recordings: every datagram of a match in and out (no addresses), one LZMA2-packed file per match (`servers/match-server/src/v026g/record.rs` has the format); read with `srp-recording` |
 | `SRP_RECORD_MIN_PLAYERS` | `6` | PvP recordings are kept after this many human players enter, including late joiners. PvE recordings need one human regardless of this setting. Empty matches are discarded |
 | `SRP_RECORD_MAX_MB` | `5000` | Kept recordings over this together: the oldest are deleted |
-| `SRP_REPLAY_DIR` | unset (off; the compose file sets `/srv/srp/data/replays`) | "Watch replay" (`docs/notes/replay_watch.md`): a kept recording is made into the game's replay file here (`<match id>.sur` and its sidecar `.json`) when a player first asks for it (never at a match's end; one at a time, 20 waiting at most, at nice 19 on Linux), kept for later asks, served only at `/replays/<token>`. Must be a folder of its own: not `SRP_RECORD_DIR`, inside it or around it (then replays are off, said in the log). Off without `SRP_RECORD_DIR` or `SRP_GAME_MODES_DIR` (the lobby answers `off`) |
-| `SRP_GAME_MODES_DIR` | unset (off; the compose file sets `/srv/srp/data/game_modes`) | The game's `gameplay/game_modes/*.options` files, every patch's included (game data: never in the repository): copy them into the data volume's folder. `off` or empty in `.env`: replays off |
+| `SRP_REPLAY_DIR` | unset (off; the compose file sets `/srv/srp/data/replays`) | "Watch replay" (`docs/notes/replay_watch.md`): a kept recording is made into the game's replay file here (`<match id>.sur` and its sidecar `.json`) when a player first asks for it (never at a match's end; one at a time, 20 waiting at most, at nice 19 on Linux), kept for later asks, served only at `/replays/<token>`. Must be a folder of its own: not `SRP_RECORD_DIR`, inside it or around it (then replays are off, said in the log). The mode's config in a replay is the game data's own (`SRP_GAME_DATA`). Off without `SRP_RECORD_DIR` (the lobby answers `off`) |
 | `SRP_REPLAY_MAX_RECORDING_MB` | `24` | A larger recording is not converted (status `failed`, not tried again until a restart): the conversion's memory grows with it (123 MiB for 13.5 MB, `replay_watch.md`) |
 | `SRP_REPLAY_MAX_MB` | `1000` | Replays (`.sur` and `.json` in `SRP_REPLAY_DIR`, outside `SRP_RECORD_MAX_MB`) over this together: the oldest are deleted after each conversion and at start (the one just made stays); a deleted one is made again when asked for |
 | `SRP_PACKET_LOG` | unset | A folder: every datagram of the lobby and the match server, one file a connection (the lobby sign-in's session id left out). **Set it for every live test** |
@@ -294,19 +293,17 @@ name belongs to whoever registers it first, as any name does.
 | `SRP_EXPERIENCE_RATE` | 2 | What a match's experience is multiplied by (1 to 100). 1 is the original's pace; 2 is the owner's choice of 2026-10-14 (it was 1 from 2026-10-12 and 3 before). Until 2026-10-14 it multiplied the reputation too, which now has `SRP_REPUTATION_RATE` |
 | `SRP_MONEY_RATE` | unset: by match level | The percent of the original's silver a match's three rows pay; premium's half follows. Unset, it goes by the match's level (the owner's choice of 2026-10-14): 150 at levels 0 to 5, ten more each level, 220 from level 12. Set (1 to 1000), it is that percent at every level (it was 120 from 2026-10-13, 80 before) |
 | `SRP_REPUTATION_RATE` | 120 | The percent of the original's reputation a match's rows and the quests completed in it pay (1 to 1000). 120 is the owner's choice of 2026-10-14 |
-| `SRP_ITEM_WEAR` | off | `on`: a match wears the weapons and armour of the kits played, as the game's data says, and a worn item may get a defect. Off is the owner's choice (2026-10-13): an item stays as it is. The first start of a database with it off makes every worn weapon and armour piece whole, once |
 | `SRP_DAILY_BONUS` | on | `off`: no doubled victories, no seven-day reward, and no daily bonus message to the client |
 | `SRP_DAILY_BONUS_RESET_HOUR` | 0 | The hour of UTC (0 to 23) a daily bonus day starts at |
-| `SRP_PREMIUM_PRICES` | `100,200,400,1000,2500,4500,8000` | Gold for premium time, shortest first: a day, 3 days, a week, a month, 90 days, 180 days, a year. 90 days = 2,500 is from a January 2015 sale notice; the rest is the owner's choice (2026-10-12). |
+| `SRP_PREMIUM_PRICES` | `10000,20000,40000,100000,250000,450000,800000` | Silver for premium time (gold is gone, 2026-11-08: the gold prices times 100), shortest first: a day, 3 days, a week, a month, 90 days, 180 days, a year. 90 days = 2,500 is from a January 2015 sale notice; the rest is the owner's choice (2026-10-12). |
 | `SRP_CLAN_COST` | 50000 | Silver to register a clan (owner's choice) |
 | `SRP_CLAN_MAX_MEMBERS` | 30 | Most members of a clan (owner's choice) |
 | `SRP_CLAN_PLAYERS_REQUIRED` | 1 | Players who must accept before a clan is registered. The game's text says 5: the example `.env` sets 5 for the live server |
 | `SRP_CLAN_TEAM_MIN`, `SRP_CLAN_TEAM_MAX` | 1, 10 | Players a clan team presses Play with |
 | `SRP_PREMIUM_DISCOUNT` | 0 | Percent off premium time for a player without premium (0 to 90); 0 offers none |
 | `SRP_PREMIUM_OFFER_SECONDS` | 3600 | How long the premium offer after a match stands (the client counts it down) |
-| `SRP_RENAME_COST` | the rename voucher's price in the game's dictionary | Gold for a nickname change |
+| `SRP_RENAME_COST` | the rename voucher's price in the game's dictionary | Silver for a nickname change |
 | `SRP_AMMO_USE` | on | `off`: a match takes no ammo off the account |
-| `SRP_ITEM_DEFECTS` | on | `off`: items get no defects |
 
 ### Web page (`servers/web-server`)
 
@@ -336,7 +333,7 @@ read by the 0.21d browser server and by the compose file's caddy, not by the
 
 - `/`: what the server is; step one, where the original game is had
   (`SRP_GAME_URL`); step two, the download of the few files that go over it;
-  the launch line (`-localization=… -server=<host>:<port> -mt_allocator=768
+  the launch line (`-localization=… -server=<host>:<port>
   -minimum_resources_memory_size=768`); players online; how matches start.
 - `/exchange` (`GET`): a short page saying that silver and gold are
   exchanged in the game now (the lobby's exchange window,
@@ -439,7 +436,7 @@ Implemented (coded and tested):
 | Area | State |
 |---|---|
 | Login | Sign-in, registration on first sign-in, wrong password, bans with the game's ban reasons, limits, closed registration, wrong build |
-| Lobby account | The sign-in push in the order the client needs; inventory with its three "spent" lists; kits (three, every one usable without premium), move, autobuy flag, active kit, kit names |
+| Lobby account | The sign-in push in the order the client needs; inventory with its three "spent" lists; kits (three, every one usable without premium), move, the autobuy byte (always on), active kit, kit names |
 | Shop | Buy, sell, repair, gold for silver and (srp's lobby exchange) silver for gold (`47 04`); sellers by reputation level |
 | Skills | Set, reset for silver or gold |
 | Quests | Choosing a faction, daily quests, progress and pay after a match |
@@ -505,7 +502,7 @@ cargo run --release -p resources-db --bin srp-game-data -- build --dir <the game
 set SRP_GAME_DATA=game-data.db
 set SRP_MIN_PATCH_REVISION=<the newest patch's n; leave it out without patches>
 cargo run -p srp
-survarium_srp.exe -localization=ukrainian -splash_screen=0 -server=127.0.0.1:1234 -mt_allocator=768 -minimum_resources_memory_size=768
+survarium_srp.exe -localization=ukrainian -splash_screen=0 -server=127.0.0.1:1234 -minimum_resources_memory_size=768
 ```
 
 `--dir` takes `resources.db` and every `resources.db.patch_<n>` of that
@@ -520,8 +517,11 @@ with it `value << 20`), and `-minimum_resources_memory_size=<MiB>` is the
 floor of the resources arenas (option object 0xA83080, a float read at
 0xE9966, default 0x150 = 336 MiB). Neither covers the other. Upstream
 (`origin/feature/server-026g`, live under Wine) ran out of the 376 MiB arena
-while loading a map and fixed it with `-mt_allocator=768`. Both keys together are what the players' start
-file and the shortcuts use, and maps load with them (live since 2026-10-12).
+while loading a map and fixed it with `-mt_allocator=768`, which our launch lines passed from
+2026-10-12. The exe now owns that number: patch 37 made 768 MiB its default, and patch 129 makes the
+arena at least 1024 MiB with or without the key (a larger value is still taken), so no launch line
+names it any more. The launch lines pass `-minimum_resources_memory_size=768`, which patch 37 also
+made the exe's default.
 
 Start the game from its `game\binaries\x86` folder (the client finds its
 login certificate by a path relative to the working directory). The game

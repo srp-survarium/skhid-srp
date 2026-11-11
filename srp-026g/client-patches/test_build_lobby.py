@@ -71,27 +71,14 @@ class LobbySourceTests(unittest.TestCase):
         spec = json.loads((TREE / 'movie.json').read_text())
         self.assertEqual(spec['movie_sha256'], lobby.BASE_SHA256)
 
-    def test_the_exchange_and_the_server_agree_on_the_buy_gold_mark(self):
-        window = (TREE / 'src' / 'survarium' / 'messages' / 'MessageMoneyExchange.as').read_text(encoding='utf-8')
-        server = (HERE.parent / 'crates' / 'survarium' / 'src' / 'v026g' / 'lobby' / 'requests.rs').read_text(encoding='utf-8')
-        sent = re.search(r'BUY_GOLD:uint = (0x[0-9A-Fa-f]+);', window)
-        read = re.search(r'pub const BUY_PREMIUM: u32 = (0x[0-9A-Fa-f_]+);', server)
-        self.assertIsNotNone(sent)
-        self.assertIsNotNone(read)
-        self.assertEqual(int(sent.group(1), 16), int(read.group(1).replace('_', ''), 16))
-
-    def test_every_exchange_text_is_in_every_language(self):
-        window = (TREE / 'src' / 'survarium' / 'messages' / 'MessageMoneyExchange.as').read_text(encoding='utf-8')
-        texts = re.search(r'TEXT:Object = \{(.*?)\};', window, re.S).group(1)
-        rows = re.findall(r'"(\w+)": ?\[(.*?)\]', texts, re.S)
-        self.assertGreater(len(rows), 5)
-        for key, row in rows:
-            self.assertEqual(len(re.findall(r'"[^"]+"', row)), 5, key)
-
-    def test_get_gold_opens_the_exchange_over_the_dialog_on_the_buy_side(self):
-        source = (TREE / 'src' / 'survarium' / 'messages' / 'MessageMoneyExchange.as').read_text(encoding='utf-8')
-        body = re.search(r'public static function buyGold\(\) : void\s*\{(.*?)\n      \}', source, re.S).group(1)
-        self.assertRegex(body, r'Message\.showMessage\("exchange",\{\s*label:"",\s*srpBuyGold:true\s*\},true,0,true\);')
+    def test_nothing_in_the_lobby_is_bought_or_shown_in_gold(self):
+        # One currency, silver (the owner, 2026-11-08): no gold balance, exchange or gold price is read.
+        gone = re.compile(r'PlayerInfo\.premiumMoney|premiumExchangeRate|MessageMoneyExchange|buyGold'
+                          r'|MoneyType\.PREMIUM\s*:|\.isPremium\s*\?')
+        hits = [f'{path.relative_to(TREE)}: {line.strip()}'
+                for path in sorted((TREE / 'src').rglob('*.as'))
+                for line in path.read_text(encoding='utf-8').splitlines() if gone.search(line)]
+        self.assertEqual(hits, [])
 
     def test_the_weapon_window_title_is_in_every_language(self):
         edits = json.loads((HERE.parent / 'scripts' / 'content-edit' / 'weapon-attachments-1.json').read_text(encoding='utf-8'))

@@ -90,6 +90,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
+name = "ban-reason"
+version = "0.1.0"
+
+[[package]]
 name = "base64ct"
 version = "1.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -458,6 +462,7 @@ version = "0.1.0"
 dependencies = [
  "env_logger",
  "log",
+ "mapdata",
  "session",
  "survarium",
  "udp-transport",
@@ -474,10 +479,12 @@ checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
 name = "login-server"
 version = "0.1.0"
 dependencies = [
+ "ban-reason",
  "env_logger",
  "log",
  "openssl",
  "session",
+ "sign-in-cipher",
  "vostok",
 ]
 
@@ -491,6 +498,7 @@ checksum = "7277c9742229dc25243236d578b6471a798c554512c6f6a04365ec2e87c2a3bb"
 name = "mapdata"
 version = "0.1.0"
 dependencies = [
+ "artefact-carry",
  "binary-config-parser",
  "clap",
  "resources-db 0.1.0 (git+https://github.com/srp-survarium/vostok-resources-db?rev=9498aca14014ef74460429f51eb41a6af333522c)",
@@ -510,6 +518,8 @@ dependencies = [
  "serde",
  "serde_json",
  "session",
+ "skhid-voice",
+ "srp-validate",
  "survarium",
  "udp-transport",
  "vostok",
@@ -803,6 +813,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
+name = "sign-in-cipher"
+version = "0.1.0"
+
+[[package]]
+name = "skhid-voice"
+version = "0.1.0"
+dependencies = [
+ "voice-abi",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "smallvec"
 version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -822,6 +844,7 @@ dependencies = [
 name = "srp"
 version = "0.1.0"
 dependencies = [
+ "ban-reason",
  "ctrlc",
  "lobby-server",
  "log",
@@ -832,6 +855,16 @@ dependencies = [
  "survarium",
  "vostok",
  "web-server",
+]
+
+[[package]]
+name = "srp-validate"
+version = "0.1.0"
+dependencies = [
+ "artefact-carry",
+ "survarium",
+ "weapon-pickup",
+ "world-frame",
 ]
 
 [[package]]
@@ -858,6 +891,7 @@ dependencies = [
  "resources-db 0.1.0",
  "serde",
  "serde_json",
+ "srp-validate",
  "udp-transport",
  "weapon-kit",
  "weapon-pickup",
@@ -914,6 +948,7 @@ name = "udp-transport"
 version = "0.1.0"
 dependencies = [
  "log",
+ "srp-validate",
 ]
 
 [[package]]
@@ -939,6 +974,10 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+
+[[package]]
+name = "voice-abi"
+version = "0.1.0"
 
 [[package]]
 name = "vostok"

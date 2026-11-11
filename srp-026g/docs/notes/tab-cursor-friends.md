@@ -22,7 +22,9 @@ friends, etc.; for now just adding to friends."
   state of the match before.
 - **Dead or before the start:** the kits' cursor is already shown, so right-click on a row works
   there without Ctrl. Tab let go leaves that cursor to the kits.
-- **Blackout:** Tab shows no list there, so Ctrl crouches and no cursor shows.
+- **Blackout:** as in any match (the owner, 2026-11-09: players must be able to mute there):
+  its Tab view has the list (names only), so Ctrl with Tab held shows the cursor and the row menu
+  works; `blackout.md`.
 - **Typing in the chat:** the chat takes every key, Ctrl included, as before.
 - **The interface hidden (F11):** the list is hidden with the rest of the hud, but Tab and Ctrl
   still show the cursor. There is nothing to click, and Tab let go hides it again.

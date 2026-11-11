@@ -53,6 +53,8 @@ At the root:
 - To **host one**: `srp-021d/docs/DEPLOY.md` or `srp-026g/docs/DEPLOY.md`.
 - To **release a change of the 0.26g server** to its players: `release/` and
   `.claude/skills/skhid-release/SKILL.md`.
+- To **moderate the live 0.26g server** (new accounts, sign-ins with addresses, shared
+  addresses, bans, chat mutes, closing sign-ups, password resets, items and money): `release/moderate --help`.
 - To **make a game copy that connects to it**: the version folder's
   `client-patches/README.md`.
 - To **understand a protocol**: `docs/notes/README.md` in the version folder.

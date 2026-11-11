@@ -1,12 +1,14 @@
 package survarium.controls
 {
    import com.greensock.TweenLite;
+   import flash.display.DisplayObject;
    import flash.display.MovieClip;
    import flash.display.Sprite;
    import flash.events.Event;
    import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
    import flash.geom.ColorTransform;
+   import flash.geom.Point;
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
    import flash.text.TextFormat;
@@ -29,13 +31,11 @@ package survarium.controls
    import survarium.gsearch.MatchMakingSettings;
    import survarium.messages.MessageBase;
    import survarium.messages.MessageEnterName;
-   import survarium.messages.MessageMoneyExchange;
    import survarium.rooms.RoomsLook;
    import survarium.player.LocalPlayerProfile;
    import survarium.rooms.RoomsWindow;
    import survarium.constants.ClanState;
    import survarium.constants.Faction;
-   import survarium.constants.VoucherType;
    
    public class StatusPanel extends UIComponent
    {
@@ -57,9 +57,6 @@ package survarium.controls
       // the lobby button: the player panel's (topPanelLeftContainer_56)
       public var btn_lobby:LobbyButton;
 
-      // the premium offer after a match (LobbyMenu.show_premium_post_reward): its seconds left, 0 none
-      public var premiumDiscount:int = 0;
-      
       private var _show_query:Boolean = true;
       
       private var _time:int;
@@ -120,11 +117,7 @@ package survarium.controls
       
       public var icon_generic:MovieClip;
       
-      public var icon_premium:MovieClip;
-      
       public var txGeneric:TextField;
-      
-      public var txPremium:TextField;
       
       public var centerContainerTop:MovieClip;
       
@@ -142,15 +135,9 @@ package survarium.controls
       
       public var labelInfoAdmin:MovieClip;
       
-      public var changeNameCostPremium:int;
-      
-      public var postRewardData:Object;
+      public var changeNameCost:int;
       
       protected var _topMenu:MovieClip;
-      
-      protected var _premiumOptions:Array = [];
-      
-      protected var _premiumOptionsDiscount:Array = [];
       
       protected var _changeNicknameMessage:MessageEnterName;
       
@@ -165,8 +152,8 @@ package survarium.controls
       private var _vtMessage:MessageBase;
       
       protected var _factionData:Object;
-      
-      protected var firstScale:int = 0;
+
+      private var _band:DisplayObject;
 
       // The game's own label of Play while it is the rooms' Leave, and ours.
       private var _roomsPlayLabel:String;
@@ -183,10 +170,10 @@ package survarium.controls
          this.btn_add_regular_money = this.panel_player.btn_add_regular_money;
          this.btn_add_premium_money = this.panel_player.btn_add_premium_money;
          this.txGeneric = this.panel_player.btn_add_regular_money.content.txMoney;
-         this.txPremium = this.panel_player.btn_add_premium_money.content.txMoney;
+         this.showBalanceWithoutBox();
          this.videoTutorial = this.left_corner.videoTutorial;
-         this.icon_premium = this.panel_player.btn_add_premium_money.content.icon;
-         this.txPremium.mouseEnabled = this.btn_add_premium_money.mouseEnabled = false;
+         // No gold: its box in the top bar is hidden (the owner, 2026-11-08).
+         this.btn_add_premium_money.visible = false;
          this.txGeneric.mouseEnabled = this.btn_add_regular_money.mouseEnabled = false;
          this.playBtn = this.play_container.playBtn;
          this.factionHint = this.panelFaction.factionHint;
@@ -327,16 +314,11 @@ package survarium.controls
       
       public function set player_level(value:uint) : void
       {
-         if(value != TOP_RANK_LEVEL)
-         {
-            this.panel_player.top_rank_icon.visible = false;
-            this.panel_player.txLevel.text = value.toString();
-         }
-         else
-         {
-            this.panel_player.top_rank_icon.visible = true;
-            this.panel_player.txLevel.text = "";
-         }
+         // one badge at a time: the icon at the top rank, the ring with the number below it
+         var topRank:Boolean = value == TOP_RANK_LEVEL;
+         this.panel_player.top_rank_icon.visible = topRank;
+         this.panel_player.txLevel.visible = !topRank;
+         this.panel_player.txLevel.text = topRank ? "" : value.toString();
       }
       
       public function set progress_hint(value:String) : void
@@ -365,21 +347,6 @@ package survarium.controls
          this.newItemsIcon.x = this._topMenu.x + ((this._topMenu.tabPage as ButtonBar).buttonWidth + (this._topMenu.tabPage as ButtonBar).spacing) * ((this._topMenu as TopMenu).SHOP_INDEX + 1) - 45;
          this.newItemsIcon.y = this._topMenu.y + 20;
          addChild(this.newItemsIcon);
-      }
-      
-      public function setPremiumStore(value:Array) : void
-      {
-         _premiumOptions = value;
-      }
-      
-      public function setPremiumStoreDiscount(value:Array) : void
-      {
-         _premiumOptionsDiscount = value;
-      }
-      
-      public function getPremiumStore() : Array
-      {
-         return this._premiumOptions;
       }
       
       public function setTopMenu(value:MovieClip) : void
@@ -427,12 +394,28 @@ package survarium.controls
          }
       }
       
-      public function setMoneyData(generic:uint, premium:uint) : void
+      // The silver balance is no button (the owner, 2026-11-08: "silver is a button, even though it
+      // doesn't do anything, it shouldn't be a button"): its coin and amount (the box's `content`) are
+      // taken out of the money box into the panel, where they were on the screen, and the box is
+      // hidden. What the box's timeline might place again stays inside the hidden box.
+      private function showBalanceWithoutBox() : void
+      {
+         var box:MovieClip = this.btn_add_regular_money as MovieClip;
+         var content:DisplayObject = box.content;
+         var at:Point = this.panel_player.globalToLocal(box.localToGlobal(new Point(content.x,content.y)));
+         content.x = at.x;
+         content.y = at.y;
+         content.scaleX *= box.scaleX;
+         content.scaleY *= box.scaleY;
+         this.panel_player.addChildAt(content,this.panel_player.getChildIndex(box) + 1);
+         box.visible = false;
+      }
+
+      public function setMoneyData(generic:uint) : void
       {
          this.panel_player.hintButton.alpha = 0;
          trace("setMoneyData",this.btn_add_regular_money);
          this.txGeneric.text = Util.getMoneyString(generic);
-         this.txPremium.text = Util.getMoneyString(premium);
          invalidateData();
       }
       
@@ -498,17 +481,21 @@ package survarium.controls
          var txF:TextFormat = tx.getTextFormat(0,1);
          tx.autoSize = TextFieldAutoSize.LEFT;
          tx.defaultTextFormat = txF;
-         tx = this.txPremium;
-         txF = tx.getTextFormat(0,1);
-         tx.autoSize = TextFieldAutoSize.LEFT;
-         tx.defaultTextFormat = txF;
-         this.icon_premium.gotoAndStop(2);
          LocalizationData.addButton(this.playBtn,"Play");
          panel_games_block = this.mid_back.getChildByName("panel_games_block") as MovieClip;
          panel_players_block = this.mid_back.getChildByName("panel_players_block") as MovieClip;
+         // mid_back's third child is the band behind the bar (a 1920 wide picture, unnamed)
+         var i:int = 0;
+         while(i < this.mid_back.numChildren)
+         {
+            if(this.mid_back.getChildAt(i) != panel_games_block && this.mid_back.getChildAt(i) != panel_players_block)
+            {
+               _band = this.mid_back.getChildAt(i);
+            }
+            i++;
+         }
          constraints.addElement("btn_settings",this.btn_settings,Constraints.RIGHT);
          constraints.addElement("btn_off",this.btn_off,Constraints.RIGHT);
-         constraints.addElement("mid_back",this.mid_back,Constraints.CENTER_H);
          constraints.addElement("panel_info_blog",this.panel_info_blog,Constraints.LEFT);
          constraints.addElement("panel_player",this.panel_player,Constraints.LEFT);
          constraints.addElement("panel_time_block",this.panel_time_block,Constraints.RIGHT);
@@ -528,10 +515,6 @@ package survarium.controls
             constraints.addElement("top_menu",this._topMenu,Constraints.CENTER_H);
          }
          this.btn_lobby.addEventListener(ButtonEvent.CLICK,this.onClickLobby);
-         this.btn_add_regular_money.enabled = true;
-         this.btn_add_premium_money.enabled = true;
-         this.btn_add_premium_money.addEventListener(ButtonEvent.CLICK,this.onPremiumMoneyAddClick);
-         this.btn_add_regular_money.addEventListener(ButtonEvent.CLICK,this.onRegulatMoneyAddClick);
          this.left_corner.btnKnowledgeBase.addEventListener(ButtonEvent.CLICK,this.onKnowlengeBaseClick);
          var date:Date = new Date();
          _time = getTimer() - date.milliseconds - int(date.seconds) * 1000;
@@ -550,8 +533,6 @@ package survarium.controls
          this.btn_off.tooltipRendererName = "SrvProfileTipRenderer";
          this.btnChangeName.tooltipRendererName = "SrvProfileTipRenderer";
          this.factionHint.tooltipRendererName = "SrvProfileTipRendererStyled";
-         this.btn_add_premium_money.tooltipRendererName = "SrvProfileTipRenderer";
-         this.btn_add_regular_money.tooltipRendererName = "SrvProfileTipRenderer";
          this.panel_player.hintButton.tooltipRendererName = "SrvProfileTipRenderer";
          this.right_corner.btnShowDailyMessage.tooltipRendererName = "SrvProfileTipRenderer";
          this.left_corner.btnKnowledgeBase.tooltipRendererName = "SrvProfileTipRenderer";
@@ -559,10 +540,10 @@ package survarium.controls
          this.left_corner.videoTutorial.closeBtn.addEventListener(MouseEvent.CLICK,this.closeVT);
          this.left_corner.videoTutorial.clickArea.addEventListener(MouseEvent.CLICK,this.showVT);
          this.left_corner.notesTutorial.visible = false;
+         // The stock "Buy gold" label: there is no gold.
          if((this.right_corner.textFieldShop))
          {
-            LocalizationData.addTextField(this.right_corner.textFieldShop,"online_store");
-            this.right_corner.textFieldShop.mouseEnabled = false;
+            this.right_corner.textFieldShop.visible = false;
          }
          LocalizationData.addCallback(this.updateButtons,"btn_settings_label");
          stage.addEventListener(Event.RESIZE,this.onStageResize);
@@ -619,11 +600,6 @@ package survarium.controls
          this.play_container.dropDownButton.label = selectedOption;
       }
       
-      private function onRegulatMoneyAddClick(e:ButtonEvent) : void
-      {
-         MessageMoneyExchange.open(false);
-      }
-      
       public function setFactionProgress(value:Object) : void
       {
          trace("setVFactionProgress::",value,"|",this._activeFactionName);
@@ -665,40 +641,27 @@ package survarium.controls
          }
       }
       
+      // The top bar spans the lobby's width (MainScene.stageWidth, in the lobby's units: 1920 below
+      // an aspect of 1.85, wider above) at its own scale 1: the constraints move its parts to their
+      // edges or the middle, none is stretched. (Stretching the panel to that width and scaling its
+      // parts back assumed the panel's bounds stay those of its symbol; they do not, so on a wide
+      // screen everything ended short of the right edge, and Play, not constrained, was stretched
+      // over the Clan tab.)
       override protected function draw() : void
       {
-         var scale:Number = 1;
-         var upscale:Number = 0;
-         var newWidth:int;
-         var originHeight:Number;
-         newWidth = MainScene.stageWidth;
-         originHeight = _height / scaleY;
-         trace("SP::updateSize",newWidth,upscale,"|",height,_height,originHeight);
          if(isInvalid(InvalidationType.SETTINGS))
          {
-            setActualSize(newWidth / scale,originHeight);
-            setSize(newWidth / scale,originHeight);
+            setActualScale(1,1);
             if((constraints))
             {
-               constraints.update(newWidth / (scale - upscale),originHeight);
+               constraints.update(MainScene.stageWidth,_originalHeight);
             }
-            if(this.firstScale < 2)
-            {
-            }
+            // the band behind the bar covers the lobby's whole width
+            this._band.width = MainScene.stageWidth;
             this.reflowPlayers();
          }
-         var stScale:Number = 1;
-         if(MainScene.stageWidth / MainScene.stageHeight < 1.85)
-         {
-            setActualScale(stScale - upscale,stScale - upscale);
-         }
-         trace("SP::",this.centerContainerTop,this.play_container,this.matchSettings);
          this.play_container.x = this.centerContainerTop.x;
          this.matchSettings.x = int(this.play_container.x + 8);
-         firstScale += 1;
-         if((this.labelInfo))
-         {
-         }
          dispatchEvent(new Event(LAID_OUT));
       }
       
@@ -741,15 +704,11 @@ package survarium.controls
       
       public function showChangeNameMessage(e:ButtonEvent = null) : void
       {
-         var voucherId:uint = PlayerInfo.getVoucherId(VoucherType.RENAME);
          var messageData:Object = {
             nickname:PlayerInfo.nickname,
-            premiumCost:this.changeNameCostPremium,
-            vouchersCost:1,
-            voucherId:voucherId,
+            cost:this.changeNameCost,
             changeNameFailedDelay:this.changeNameFailedDelay,
-            changeNameDelay:this.changeNameDelay,
-            selectVoucher:Boolean(e == null)
+            changeNameDelay:this.changeNameDelay
          };
          _changeNicknameMessage = Message.showMessage("change_name",messageData);
       }
@@ -759,8 +718,6 @@ package survarium.controls
          this.btn_settings.data = {name:LocalizationData.getName("btn_settings_label")};
          this.btn_off.data = {name:LocalizationData.getName("btn_exit_label")};
          this.btnChangeName.data = {name:LocalizationData.getName("btn_change_name_label")};
-         this.btn_add_premium_money.data = {name:LocalizationData.getName("btn_add_premium_label")};
-         this.btn_add_regular_money.data = {name:LocalizationData.getName("btn_exchange_premium_money")};
          this.left_corner.btnKnowledgeBase.data = {name:LocalizationData.getName("btn_knowledge_base")};
          this.left_corner.videoTutorial.textField.text = LocalizationData.getName("youtube_video_tutorial_button");
          this.left_corner.videoTutorial.closeBtn.x = this.left_corner.videoTutorial.textField.x + this.left_corner.videoTutorial.textField.textWidth + 10;
@@ -858,11 +815,6 @@ package survarium.controls
          this.btnChangeName.setActualSize(newWidth,this.btnChangeName.height);
       }
       
-      private function onPremiumMoneyAddClick(e:Event) : void
-      {
-         MessageMoneyExchange.open(true);
-      }
-      
       private function onKnowlengeBaseClick(e:Event) : void
       {
          var object:Object = {
@@ -874,41 +826,9 @@ package survarium.controls
          Message.showMessage("apply",object,true);
       }
       
-      protected function goToStore() : void
-      {
-         MessageMoneyExchange.buyGold();
-      }
-      
       protected function goToKnowledgeBase() : void
       {
          ExternalInterface.call("go_to_knowledge_base");
-      }
-      
-      public function showPremium(value:Object = null) : void
-      {
-         var messData:Object = null;
-         if((value))
-         {
-            messData = value;
-         }
-         else
-         {
-            messData = new Object();
-         }
-         if(!this.premiumDiscount)
-         {
-            messData.options = this._premiumOptions;
-            Message.showMessage("premium",messData,true);
-         }
-         else
-         {
-            messData.options = this._premiumOptionsDiscount;
-            messData.money = this.postRewardData.money;
-            messData.experience = this.postRewardData.experience;
-            messData.reputation = this.postRewardData.reputation;
-            messData.factionId = this.postRewardData.factionId;
-            Message.showMessage("post_premium",messData,true);
-         }
       }
       
       // Play in a room or a room's queue (survarium.rooms): "Leave room" or

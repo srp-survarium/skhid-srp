@@ -30,7 +30,24 @@ impl ScoreEvent {
     /// 0.21d's winners' battery bonus: 0.26g counts it nowhere (its
     /// finish_match 0x2F4CF0 counts 11, 12 and 27 only; no site adds to it).
     pub const WINNING_TEAM_VI_BONUS: ScoreEvent = ScoreEvent(16);
+    /// A death, and a suicide (counted for the place's kit at the time).
+    pub const DEATH: ScoreEvent = ScoreEvent(2);
+    pub const SUICIDE: ScoreEvent = ScoreEvent(3);
 }
+
+/// The deaths and suicides the match's statistics count for `place`, in every kit; 0 for a place
+/// that is no record's.
+pub(super) fn deaths(statistics: raw::SharedStatistics, place: u8) -> u32 {
+    let Some(place) = Place::parse(place) else { return 0 };
+    [ScoreEvent::DEATH, ScoreEvent::SUICIDE]
+        .into_iter()
+        .flat_map(|event| (0..Kit::COUNT).map(move |kit| usize::from(event.0) * Kit::COUNT + kit))
+        // SAFETY: the live statistics of the hook's world; one of the 20 records, one of its 28 x 3
+        // cells.
+        .map(|cell| u32::from(unsafe { read(statistics.players().at(usize::from(place.0)).events().at(cell).count()) }))
+        .sum()
+}
+
 
 /// A place of the match: the statistics hold 20 records.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]

@@ -15,12 +15,13 @@ eq046_blackmarket_helmet_7	Watchman helmet	helmet	9	Black Market		Head: armour 3
 eq046_edge_helmet_6	Stalker's helmet	helmet	9	The Fringe Settlers		Head: armour 35, isolation 25	1.6		Armor, Isolation, Weight	
 ren_helmet_2	Helmet "Vityaz-S"	helmet	9	The Renaissance Army		Head: armour 40, isolation 10	1.8		Armor, Isolation, Weight	yes
 scav_helmet_7	Pathfinder helmet	helmet	9	Scavengers		Head: armour 35, isolation 15	1		Armor, Isolation, Weight	yes
-eq046_edge_helmet_7	Veles Helmet	helmet	10	The Fringe Settlers		Head: armour 50, isolation 13	2.9		Armor, Isolation, Weight	
-eq046_renesanse_helmet_7	Sniper Helmet	helmet	10	The Renaissance Army		Head: armour 35, isolation 28	1.5		Armor, Isolation, Weight	
+eq046_renesanse_helmet_7	Sniper Helmet	helmet	11	The Renaissance Army		Head: armour 50, isolation 20	1		Armor, Isolation, Weight	
+eq069_snow_20_helmet_7	Snow-20 Helmet	helmet	11	The Renaissance Army		Head: armour 50, isolation 20	1		Armor, Isolation, Weight	
 bm_helmet_8	Helmet "Omicron"	helmet	12	Black Market		Head: armour 40, isolation 60	1.8		Armor, Isolation, Weight	yes
 edge_helmet_4	Master's hood	helmet	12	The Fringe Settlers		Head: armour 20, isolation 25	0.15		Armor, Isolation, Weight	
 ren_helmet_4	"Molot UM-2" helmet	helmet	12	The Renaissance Army		Head/Face: armour 55, isolation 30	4.5		Armor, Isolation, Weight	
 scav_helmet_8	Combat helmet	helmet	12	Scavengers		Head: armour 50, isolation 25	3		Armor, Isolation, Weight	yes
+eq046_edge_helmet_7	Veles Helmet	helmet	13	The Fringe Settlers		Head: armour 60, isolation 20	1.5		Armor, Isolation, Weight	
 bm_helmet_9	Mercenary helmet	helmet	14	Black Market		Head: armour 45, isolation 20	1.7		Armor, Isolation, Weight	yes
 edge_helmet_5	"Keeper" helmet	helmet	14	The Fringe Settlers		Head: armour 50, isolation 25	2		Armor, Isolation, Weight	yes
 ren_helmet_5	"OZK-18KB" Helmet	helmet	14	The Renaissance Army		Head: armour 35, isolation 70	2		Armor, Isolation, Weight	yes
@@ -42,12 +43,14 @@ bandit_026_mask	Bandit balaclava	mask	8	Black Market		Face: armour 30, isolation
 edge_resp_3	Gas mask "Smaragd"	mask	8	The Fringe Settlers		Face: armour 20, isolation 65	1		Armor, Weight, Isolation	
 face_069d_balaclava_3_hole	3-Hole Balaclava	mask	8	Scavengers		Face: armour 30, isolation 5	1		Armor, Weight, Isolation	
 ren_mask_3	Respirator "Zanaves"	mask	8	The Renaissance Army		Face: armour 15, isolation 50	0.8		Armor, Weight, Isolation	
-eq046_edge_mask_6	NVD	mask	9	The Fringe Settlers		Face: armour 30, isolation 20	0.8		Armor, Weight, Isolation	
+eq046_edge_mask_6	NVD	mask	9	The Fringe Settlers		Face: armour 5, isolation 5	0.3	Sight sway -0.1	Armor, Weight, Isolation	
 ren_mask_2	Assault mask	mask	9	The Renaissance Army		Face: armour 40, isolation 5	1.5		Armor, Weight, Isolation	
-eq046_renesanse_mask_7	Spectrum-M Thermal vision	mask	10	The Renaissance Army		Face: armour 27, isolation 37	0.5		Armor, Weight, Isolation	
 face_069d_protective_mask	Protective mask	mask	10	Black Market		Face: armour 40, isolation 5	1.5		Armor, Weight, Isolation	
+eq046_renesanse_mask_7	Spectrum-M Thermal vision	mask	11	The Renaissance Army		Face: armour 30, isolation 37	0.5		Armor, Weight, Isolation	
 bm_mask_8	Mask "Omicron"	mask	12	Black Market		Face: armour 35, isolation 60	0.8		Armor, Weight, Isolation	
+eq046_edge_mask_7	Veles Mask	mask	13	The Fringe Settlers		Face: armour 35, isolation 65	0.6		Armor, Weight, Isolation	
 edge_mask_5	"Keeper" mask	mask	14	The Fringe Settlers		Face: armour 50, isolation 25	2		Armor, Weight, Isolation	
+eq069_league_shadow_mask	Delta mask	mask	14	Independent traders		Face: armour 5, isolation 5	0.5	Aiming speed -8%	Armor, Weight, Isolation	
 ren_mask_5	"PMK-7S" Gas mask	mask	14	The Renaissance Army		Face: armour 35, isolation 70	1.2		Armor, Weight, Isolation	
 scav_mask_9	Gas mask "Barrier"	mask	14	Scavengers		Face: armour 30, isolation 70	0.8		Armor, Weight, Isolation	
 eq046_bm_mask_10	Armored mask	mask	15	Black Market		Face: armour 50, isolation 15	1.2		Armor, Weight, Isolation	
@@ -90,8 +93,8 @@ edge_torso_7	Warrior jacket	body	9	The Fringe Settlers		Chest/Back/Arms: armour 
 edge_torso_7_premium	Jacket "Berserker"	body	9	The Fringe Settlers	yes	Chest/Back/Arms: armour 60, isolation 20	8	Item slots +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 ren_torso_2	Body Armor Vest "Shturm"	body	9	The Renaissance Army		Chest/Back/Arms: armour 70, isolation 15	12	Item slots +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 scav_torso_7	Pathfinder bulletproof vest	body	9	Scavengers		Chest/Back/Arms: armour 65, isolation 20	9	Ammo bags +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
-eq046_edge_torso_7	Veles Vest	body	10	The Fringe Settlers		Chest/Back/Arms: armour 67, isolation 17	8.2	Ammo bags +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
-eq046_renesanse_torso_7	Sniper Vest	body	10	The Renaissance Army		Chest/Back/Arms: armour 57, isolation 27	8	Item slots +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
+eq046_renesanse_torso_7	Sniper Vest	body	11	The Renaissance Army		Chest/Back/Arms: armour 72, isolation 20	6	Item slots +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
+eq069_snow_20_torso_7	Snow-20 Vest	body	11	The Renaissance Army		Chest/Back/Arms: armour 70, isolation 20	7	Item slots +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 bm_torso_8	Bulletproof vest "Omicron"	body	12	Black Market		Chest/Back/Arms: armour 70, isolation 60	11.5	Item slots +1, Pocket capacity +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 bm_torso_8_premium	Bulletproof vest "Omicron MKII"	body	12	Black Market	yes	Chest/Back/Arms: armour 70, isolation 60	11.5	Item slots +1, Pocket capacity +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 edge_torso_4	"Leshy" vest	body	12	The Fringe Settlers		Chest/Back/Arms: armour 65, isolation 25	7	Regeneration +12%	Armor, Isolation, Weight, Stamina regeneration, Movement speed, Weight limit, Energy costs	
@@ -100,6 +103,7 @@ ren_torso_4	"Molot UM-2" Vest	body	12	The Renaissance Army		Chest/Back/Arms: arm
 ren_torso_4_premium	"Molot UM-2A" Vest	body	12	The Renaissance Army	yes	Chest/Back/Arms: armour 75, isolation 20	15	Ammo bags +2	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 scav_toro_8	Combat Bulletproof Vest	body	12	Scavengers		Chest/Back/Arms: armour 70, isolation 20	12.5	Item slots +1, Ammo bags +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 scav_toro_8_premium	Veteran Bulletproof Vest	body	12	Scavengers	yes	Chest/Back/Arms: armour 70, isolation 20	12.5	Item slots +1, Ammo bags +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
+eq046_edge_torso_7	Veles Vest	body	13	The Fringe Settlers		Chest/Back/Arms: armour 80, isolation 25	10	Ammo bags +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 bm_torso_9	Mercenary jacket	body	14	Black Market		Chest/Back/Arms: armour 70, isolation 20	8	Ammo bags +1, Movement speed +4%	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Weight limit, Energy costs	
 edge_torso_5	Bulletproof vest "Keeper"	body	14	The Fringe Settlers		Chest/Back/Arms: armour 70, isolation 25	10	Item slots +1, Ammo bags +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 edge_torso_5_special	Keeper Of The Sun Vest	body	14	The Fringe Settlers	yes	Chest/Back/Arms: armour 70, isolation 25	10	Item slots +1, Ammo bags +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
@@ -123,11 +127,11 @@ ren_back_3	Cylinder "Zarya 4N"	backpack	8	The Renaissance Army			5		Weight, Weig
 bm_back_6	Watchman backpack	backpack	9	Black Market			4	Item slots +1, Pocket capacity +1	Weight, Regeneration, Weight limit	
 eq046_edge_back_6	Stalker's backpack	backpack	9	The Fringe Settlers			4.5	Ammo bags +1, Item slots +1	Weight, Regeneration, Weight limit	
 scav_back_7	Field radio	backpack	9	Scavengers			4	Respawn time -0.25	Weight, Regeneration, Weight limit	
-eq046_edge_back_7	Token	backpack	10	The Fringe Settlers			3.3	Artifact container +1, Pocket capacity +1	Weight, Regeneration, Weight limit	
+eq046_edge_back_7	Token	backpack	10	The Fringe Settlers			3	Artifact container +1, Pocket capacity +1	Weight, Regeneration, Weight limit	
 bm_back_8	Life support system M-1	backpack	12	Black Market			5	Regeneration +12%, Stamina regeneration +8%	Weight, Weight limit	
 scav_back_8	Big backpack	backpack	12	Scavengers			6	Item slots +1, Pocket capacity +2	Weight, Regeneration, Weight limit	
 bm_back_9	Antiradar Veil	backpack	14	Black Market			4	Item slots +1, Respawn time -0.2	Weight, Regeneration, Weight limit	
-edge_back_5	"Wanderer" Container	backpack	14	The Fringe Settlers			4	Artifact container +1, Pocket capacity +1	Weight, Regeneration, Weight limit	
+edge_back_5	"Wanderer" Container	backpack	14	The Fringe Settlers			4	Artifact container +1, Pocket capacity +1, Item slots +1	Weight, Regeneration, Weight limit	
 eq069_leagues_back_5	Soldier's backpack	backpack	14	Scavengers			8	Ammo bags +2, Item slots +1, Pocket capacity +2	Weight, Regeneration, Weight limit	
 ren_back_1	Assault fighter's backpack	backpack	14	The Renaissance Army			8	Item slots +2, Pocket capacity +2	Weight, Regeneration, Weight limit	
 ren_back_5	"UKV-1" cylinder	backpack	14	The Renaissance Army			8		Weight, Weight limit, Energy costs, Oxygen capacity	
@@ -149,14 +153,16 @@ eq046_renesanse_gloves_5	Scout's gloves	gloves	8	The Renaissance Army		Hands: ar
 bm_gloves_6	Watchman gloves	gloves	9	Black Market		Hands: armour 60, isolation 30	0.5	Weapon recoil -8%	Armor, Isolation, Weight, Dispersion off the hip, Aiming speed, Collection time, Reload speed	
 edge_gloves_2	Stalker's gloves	gloves	9	The Fringe Settlers		Hands: armour 60, isolation 25	0.2	Reload speed +12%	Armor, Isolation, Weight, Dispersion off the hip, Aiming speed, Collection time, Weapon recoil	
 eq046_edge_gloves_5	Warrior gloves	gloves	9	The Fringe Settlers		Hands: armour 60, isolation 20	0.3	Weapon recoil -8%	Armor, Isolation, Weight, Dispersion off the hip, Aiming speed, Collection time, Reload speed	
+eq046_renesanse_gloves_6	"Shturm" gloves	gloves	9	The Renaissance Army		Hands: armour 70, isolation 2	0.5	Weapon recoil -8%	Armor, Isolation, Weight, Dispersion off the hip, Aiming speed, Collection time, Reload speed	
 ren_gloves_1	Assault gloves	gloves	9	The Renaissance Army		Hands: armour 60, isolation 10	0.25	Weapon recoil -8%	Armor, Isolation, Weight, Dispersion off the hip, Aiming speed, Collection time, Reload speed	
 scav_gloves_7	Pathfinder gloves	gloves	9	Scavengers		Hands: armour 65, isolation 20	0.3	Aiming speed -8%	Armor, Isolation, Weight, Dispersion off the hip, Collection time, Reload speed, Weapon recoil	
-eq046_edge_gloves_7	Sorcerer Gloves	gloves	10	The Fringe Settlers		Hands: armour 67, isolation 15	0.3	Dispersion off the hip -8%	Armor, Isolation, Weight, Aiming speed, Collection time, Reload speed, Weapon recoil	
-eq046_renesanse_gloves_7	Sniper gloves	gloves	10	The Renaissance Army		Hands: armour 60, isolation 28	0.25	Aiming speed -8%	Armor, Isolation, Weight, Dispersion off the hip, Collection time, Reload speed, Weapon recoil	
+eq046_renesanse_gloves_7	Sniper gloves	gloves	11	The Renaissance Army		Hands: armour 70, isolation 20	0.3	Aiming speed -8%	Armor, Isolation, Weight, Dispersion off the hip, Collection time, Reload speed, Weapon recoil	
+eq069_snow_20_gloves_7	Snow-20 Gloves	gloves	11	The Renaissance Army		Hands: armour 72, isolation 20	0.2		Armor, Isolation, Weight, Dispersion off the hip, Aiming speed, Collection time, Reload speed, Weapon recoil	
 bm_gloves_8	Gloves "Omicron"	gloves	12	Black Market		Hands: armour 70, isolation 60	0.5	Collection time -20%	Armor, Isolation, Weight, Dispersion off the hip, Aiming speed, Reload speed, Weapon recoil	
 edge_gloves_4	Master's gloves	gloves	12	The Fringe Settlers		Hands: armour 65, isolation 25	0.3	Aiming speed -8%	Armor, Isolation, Weight, Dispersion off the hip, Collection time, Reload speed, Weapon recoil	
 ren_gloves_4	Reinforced gloves	gloves	12	The Renaissance Army		Hands: armour 75, isolation 20	0.4	Weapon recoil -8%	Armor, Isolation, Weight, Dispersion off the hip, Aiming speed, Collection time, Reload speed	
 scav_gloves_8	Combat gloves	gloves	12	Scavengers		Hands: armour 75, isolation 20	0.6	Reload speed +12%	Armor, Isolation, Weight, Dispersion off the hip, Aiming speed, Collection time, Weapon recoil	
+eq046_edge_gloves_7	Sorcerer Gloves	gloves	13	The Fringe Settlers		Hands: armour 80, isolation 20	0.7		Armor, Isolation, Weight, Dispersion off the hip, Aiming speed, Collection time, Reload speed, Weapon recoil	
 bm_gloves_9	Mercenary gloves	gloves	14	Black Market		Hands: armour 70, isolation 20	0.5	Dispersion off the hip -8%	Armor, Isolation, Weight, Aiming speed, Collection time, Reload speed, Weapon recoil	
 edge_gloves_5	Keeper's gloves	gloves	14	The Fringe Settlers		Hands: armour 70, isolation 30	0.3	Dispersion off the hip -8%	Armor, Isolation, Weight, Aiming speed, Collection time, Reload speed, Weapon recoil	
 ren_gloves_5	"OZK-18KB" Gloves	gloves	14	The Renaissance Army		Hands: armour 70, isolation 70	0.5	Collection time -20%	Armor, Isolation, Weight, Dispersion off the hip, Aiming speed, Reload speed, Weapon recoil	
@@ -204,8 +210,8 @@ edge_legs_7	Warrior pants	pants	9	The Fringe Settlers		Legs: armour 60, isolatio
 edge_legs_7_premium	Pants "Berserker"	pants	9	The Fringe Settlers	yes	Legs: armour 60, isolation 20	2	Ammo bags +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 ren_legs_2	"Shturm" pants	pants	9	The Renaissance Army		Legs: armour 70, isolation 10	2.5		Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 scav_legs_7	Pathfinder pants	pants	9	Scavengers		Legs: armour 65, isolation 20	2	Item slots +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
-eq046_edge_legs_7	Veles Pants	pants	10	The Fringe Settlers		Legs: armour 67, isolation 17	2	Ammo bags +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
-eq046_renesanse_legs_7	Sniper Pants	pants	10	The Renaissance Army		Legs: armour 57, isolation 28	1.8	Pocket capacity +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
+eq046_renesanse_legs_7	Sniper Pants	pants	11	The Renaissance Army		Legs: armour 72, isolation 20	1.5		Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
+eq069_snow_20_legs_7	Snow-20 Pants	pants	11	The Renaissance Army		Legs: armour 72, isolation 20	1.5		Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 bm_legs_8	Pants "Omicron"	pants	12	Black Market		Legs: armour 70, isolation 60	2.5	Artifact container +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 bm_legs_8_premium	Pants "Omicron MKII"	pants	12	Black Market	yes	Legs: armour 70, isolation 60	2.5	Artifact container +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 edge_legs_4	"Leshy" pants	pants	12	The Fringe Settlers		Legs: armour 65, isolation 25	2	Item slots +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
@@ -214,6 +220,7 @@ ren_legs_4	"Molot UM-2" pants	pants	12	The Renaissance Army		Legs: armour 75, is
 ren_legs_4_premium	"Molot UM-2A" pants	pants	12	The Renaissance Army	yes	Legs: armour 75, isolation 20	3.5	Stamina regeneration +8%	Armor, Isolation, Weight, Regeneration, Movement speed, Weight limit, Energy costs	
 scav_legs_8	Combat pants	pants	12	Scavengers		Legs: armour 75, isolation 20	3	Item slots +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 scav_legs_8_premium	Veteran pants	pants	12	Scavengers	yes	Legs: armour 75, isolation 20	3	Item slots +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
+eq046_edge_legs_7	Veles Pants	pants	13	The Fringe Settlers		Legs: armour 80, isolation 25	3		Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 bm_legs_9	Mercenary pants	pants	14	Black Market		Legs: armour 70, isolation 20	2	Item slots +1, Movement speed +4%	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Weight limit, Energy costs	
 edge_legs_5	"Keeper" pants	pants	14	The Fringe Settlers		Legs: armour 70, isolation 30	3	Ammo bags +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 edge_legs_5_special	Keeper Of The Sun Pants	pants	14	The Fringe Settlers	yes	Legs: armour 70, isolation 30	3	Ammo bags +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
@@ -234,6 +241,7 @@ scav_boots_3	Military boots	boots	4	Scavengers		Feet: armour 30, isolation 10	0.
 stk2_novice_026_boots	Novice's boots	boots	4	Independent traders		Feet: armour 35, isolation 10	0.9	Energy costs -8%	Armor, Isolation, Weight, Movement speed	
 bm_boots_3	Choppers	boots	5	Black Market		Feet: armour 55, isolation 10	1.1		Armor, Isolation, Weight, Movement speed, Energy costs	
 eq046_scavenger_boots_5	Saboteur boots	boots	5	Scavengers		Feet: armour 45, isolation 20	1	Energy costs -8%	Armor, Isolation, Weight, Movement speed	
+eq046_scavenger_boots_6	Reinforced padded boots	boots	5	Scavengers		Feet: armour 55, isolation 10	1.3	Stamina regeneration +8%	Armor, Isolation, Weight, Movement speed, Energy costs	
 edge_hunter_boots_1	Hunter's boots	boots	6	The Fringe Settlers		Feet: armour 50, isolation 20	1	Movement speed +4%	Armor, Isolation, Weight, Energy costs	
 ren_boots_1	Army boots	boots	6	The Renaissance Army		Feet: armour 60, isolation 10	1.2	Energy costs -8%	Armor, Isolation, Weight, Movement speed	
 stk2_bandit_026_boots	Sneakers	boots	6	Independent traders		Feet: armour 50, isolation 10	1	Movement speed +4%	Armor, Isolation, Weight, Energy costs	
@@ -243,13 +251,15 @@ edge_boots_3	Explorer's boots	boots	8	The Fringe Settlers		Feet: armour 50, isol
 ren_boots_3	Scout's boots	boots	8	The Renaissance Army		Feet: armour 50, isolation 40	1	Movement speed +4%	Armor, Isolation, Weight, Energy costs	
 edge_boots_2	Stalker's boots	boots	9	The Fringe Settlers		Feet: armour 60, isolation 20	1.2	Movement speed +4%	Armor, Isolation, Weight, Energy costs	
 eq046_blackmarket_boots_7	Watchman boots	boots	9	Black Market		Feet: armour 60, isolation 30	1.3	Movement speed +4%	Armor, Isolation, Weight, Energy costs	
+eq046_edge_boots_6	Stalker's laced boots	boots	9	The Fringe Settlers		Feet: armour 45, isolation 25	0.8	Energy costs -8%	Armor, Isolation, Weight, Movement speed	
 eq046_scavenger_boots_7	Pathfinder boots	boots	9	Scavengers		Feet: armour 65, isolation 20	1.3	Movement speed +4%	Armor, Isolation, Weight, Energy costs	
-eq046_edge_boots_7	Sorcerer Boots	boots	10	The Fringe Settlers		Feet: armour 67, isolation 17	1.2	Stamina regeneration +8%	Armor, Isolation, Weight, Movement speed, Energy costs	
-eq046_renesanse_boots_7	Sniper Boots	boots	10	The Renaissance Army		Feet: armour 60, isolation 22	1.1	Energy costs -8%	Armor, Isolation, Weight, Movement speed	
+eq046_renesanse_boots_7	Sniper Boots	boots	11	The Renaissance Army		Feet: armour 72, isolation 20	0.5		Armor, Isolation, Weight, Movement speed, Energy costs	
+eq069_snow_20_boots_7	Snow-20 Boots	boots	11	The Renaissance Army		Feet: armour 72, isolation 20	0.5		Armor, Isolation, Weight, Movement speed, Energy costs	
 bm_boots_8	Boots "Omicron"	boots	12	Black Market		Feet: armour 70, isolation 60	1.6	Energy costs -8%	Armor, Isolation, Weight, Movement speed	
 edge_boots_4	Master's boots	boots	12	The Fringe Settlers		Feet: armour 65, isolation 25	1	Energy costs -8%	Armor, Isolation, Weight, Movement speed	
 ren_boots_4	Reinforced boots	boots	12	The Renaissance Army		Feet: armour 75, isolation 10	2		Armor, Isolation, Weight, Movement speed, Energy costs	
 scav_boots_8	Combat boots	boots	12	Scavengers		Feet: armour 75, isolation 10	2.2	Stamina regeneration +8%	Armor, Isolation, Weight, Movement speed, Energy costs	
+eq046_edge_boots_7	Sorcerer Boots	boots	13	The Fringe Settlers		Feet: armour 80, isolation 20	1.2		Armor, Isolation, Weight, Movement speed, Energy costs	
 bm_boots_9	Mercenary boots	boots	14	Black Market		Feet: armour 70, isolation 20	1.5	Movement speed +4%	Armor, Isolation, Weight, Energy costs	
 edge_boots_5	Keeper's boots	boots	14	The Fringe Settlers		Feet: armour 70, isolation 30	2.2	Movement speed +4%	Armor, Isolation, Weight, Energy costs	
 ren_boots_5	"OZK-18KB" Boots	boots	14	The Renaissance Army		Feet: armour 70, isolation 70	2.5	Energy costs -8%	Armor, Isolation, Weight, Movement speed	

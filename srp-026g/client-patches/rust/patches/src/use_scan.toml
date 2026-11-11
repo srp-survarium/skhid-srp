@@ -1,0 +1,13 @@
+# Patch 23, a battery under the floor one stands on, and the use scan it
+# lives in: base_player::detect_usable_object (0x2D84C0) is Rust. Its whole
+# body is use_scan.rs (the game's rule and patch 23's, use_scan/rule.rs);
+# the hook is its start, and it leaves by the function's own `ret 8`.
+# weapon_pickup asks the same scan whether Use is the game's.
+name = "use_scan"
+patch = 23
+
+# detect_usable_object's start: every use scan (a use's start, its tick,
+# the prompt).
+[[hook]]
+site = "use.detect"
+handler = "on_detect"

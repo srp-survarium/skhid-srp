@@ -9,7 +9,6 @@ Run from the checkout root:
 ```sh
 node srp-026g/scripts/weapon-balance/audit.js > /tmp/weapon-balance.tsv
 node srp-026g/scripts/weapon-balance/audit.test.js
-python3 srp-026g/scripts/weapon-balance/check_content.py "$SKHID_PACKS_DIR"
 ```
 
 The audit reads current weapon, ammo, armour and modification TSVs, calls the

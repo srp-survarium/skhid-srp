@@ -40,3 +40,42 @@
   6Dh, 6Eh), a winex11 bug (`tools/wine`).
 - **Checked:** `check_keyboard_layout_026g.py` (both exes, Unicorn).
   **Not run in a game.**
+
+# The desktop's moved keys are moved in the game (patch 110)
+
+- **The owner's report (2026-11-05, niri, `caps:swapescape`):** since
+  revision 49 (#1240, Wine's Wayland driver) the Caps Lock key is no longer
+  Esc in the game.
+- **The engine.** The game's keys are DirectInput's buffered events, read in
+  `keyboard::execute` (0x3B8D20): each event's DirectInput code is the key
+  for the keys' states, the Shift/Ctrl/Alt flags and every handler.
+- **Wine.**
+  - X11 driver: a key's scan code and virtual key come from its keysym, so a
+    key the desktop moved arrives moved.
+  - Wayland driver: the scan code is the physical key's and the virtual key
+    comes from a fixed QWERTY table of it, in DirectInput and WM_KEYDOWN
+    alike. Only the layout's key names (each key's keysym: the Caps Lock key
+    is `Escape`) and its text say what the desktop moved.
+- **The patch** (Rust `key_remap`, one lohook `keyboard.events`, 0x3B914B,
+  after GetDeviceData): each event's key among the 14 function keys (Esc,
+  Backspace, Tab, Enter, both Ctrl, Shift, Alt and Windows keys, Caps Lock,
+  Menu) becomes the function key its name says.
+  - The names: DirectInput's (the game's get_dik_name, 0x3B9C00), in the
+    layout patch 107 recorded, which the polling thread is lent while it
+    reads them; read once a layout.
+  - Letters and digits stay the physical keys, as DirectInput gives them on
+    Windows: WASD stay WASD in every layout.
+  - A key named nothing of the 14 (AltGr's `ISO_Level3_Shift`,
+    `caps:hyper`'s `Hyper_L`) stays itself.
+- **What changes:**
+  - Wayland: `caps:swapescape`, `caps:escape`, `ctrl:nocaps`,
+    `ctrl:swapcaps`, `altwin:swap_alt_win` and the like work in the game.
+  - X11: nothing (its names are the moved keys' own, or `Control`).
+  - Windows: nothing (no `wine_get_version` in ntdll: no name is read).
+  - Before a layout is told (none before the window's first focus): nothing.
+  - Each client's own keys: no row in `simulation_changes.tsv`.
+- **Not fixed here:** Caps Lock's light for the text. Wine toggles its
+  VK_CAPITAL with the physical Caps Lock key, which the desktop made Esc, so
+  the chat's capitals may follow that key, not the desktop's Caps Lock.
+- **Checked:** `check_key_remap_026g.py` (both exes, Unicorn).
+  **Not run in a game.**

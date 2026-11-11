@@ -44,10 +44,10 @@ package {
     var Widget:Class=domain.getDefinition("panel_fla.WeightContainer_44") as Class;
     var Indicator:Class=domain.getDefinition("survarium.player.WeightIndicator") as Class;
     label("Coral slowdown warning — native game tooltip",30,24);
-    // Two a row: each weight with its speed box (a frame wide) to its left.
+    // Two a row: each weight with its row's first box two frames left of its own, so its speed box is one frame left.
     for(var i:int=0;i<4;i++) {
      var w:Object=new Widget();w.x=240+i%2*460;w.y=530+int(i/2)*100;addChild(w as DisplayObject);widgets.push(w);
-     indicators.push(new Indicator(w));
+     indicators.push(new Indicator(w,w.x-22.45+11-2*177));
      label(["20 kg, skills and bonuses","25 kg: slowed","30 kg: carry limit","Heavyweight"][i],w.x-200,w.y-40);
     }
     var Profile:Class=domain.getDefinition("SrvLocalPlayerProfile") as Class;
@@ -124,7 +124,7 @@ package {
   }
   // The kit's speed, a second indicator left of the weight with its own tooltip:
   // base x max(0, 1 + weight + skills + bonuses + weapon), Bear Arms leaving a
-  // weapon's penalty out (WeightEffects, SpeedParts, SpeedExplanation, SpeedIndicator).
+  // weapon's penalty out (WeightEffects, SpeedParts, SpeedExplanation, KitStatIndicator).
   private function checkSpeed():void {
    require(Effects.parse(-.1,.75,0).speedExplanation==null,"an old exe gives no speed");
    require(Effects.parse(-.1,.75,0,.03,7).speedExplanation==null,"invalid Bear Arms state refused");
@@ -169,11 +169,11 @@ package {
     require(pair[0].localToGlobal(new Point()).y==pair[1].localToGlobal(new Point()).y,"on the weight's baseline: "+pair[0].name);
    }
    require(label.getTextFormat(0,1).color==weight.textFieldLabel.getTextFormat(0,1).color,"the weight label's colour");
-   // Its frame is the weight's, one frame width left of the weight's: the same place on it.
+   // Its frame is the weight's, one frame width left of the weight's (on a whole pixel): the same place on it.
    var frame:Bitmap=speedBox(0).getChildAt(0) as Bitmap;
    require(frame.bitmapData.width==177 && frame.bitmapData.height==47,"the weight's frame");
    var at:Point=speed.localToGlobal(new Point()),home:Point=weight.localToGlobal(new Point());
-   require(at.x==home.x-177 && at.y==home.y,"beside the weight, on its row: "+at+" "+home);
+   require(Math.abs(at.x-(home.x-177))<=.5 && at.y==home.y,"beside the weight, on its row: "+at+" "+home);
    var hover:Rectangle=speedTip(0).getBounds(speedBox(0)),words:Rectangle=speed.getBounds(speedBox(0));
    require(hover.containsRect(words) && hover.width>=150,"its tooltip covers the whole box: "+hover);
    require(weight.textFieldValue.text.indexOf("%")<0,"the weight keeps its own value");
@@ -225,25 +225,66 @@ package {
   }
   private function speedWidget(i:int):Object {return speedBox(i).getChildAt(1);}
   private function speedTip(i:int):Object {return speedTipOf(speedBox(i));}
-  // In the inventory's profile, in `language`: the speed's box apart from the Autobuy box's text, the boots slot
-  // and the weight's frame, inside the panel; its word apart from its value.
+  // The kit's regeneration (RegenerationParts, RegenerationExplanation): the health's rate is the box's value and the
+  // tooltip's first section, the stamina's the second; each base x max(0, 1 + S), S the kit's float (the skills) and its items.
+  private function modifiers(health:Number,stamina:Number):Object {
+   var values:Array=[];for(var i:int=0;i<68;i++)values.push(0);values[2]=health;values[3]=stamina;
+   return (domain.getDefinition("survarium.player.KitModifiers") as Object).parse(values);
+  }
+  private function checkRegeneration():void {
+   var Regeneration:Object=domain.getDefinition("survarium.player.RegenerationExplanation");
+   var k:Object=kit([],null);
+   k.regeneration.push({name:"Duty suit",value:.15,category:3},{name:"Rations",value:.15,category:null});
+   k.staminaRegeneration.push({name:"Freedom boots",value:.08,category:6},{name:"Worn trousers",value:-.1,category:4});
+   var x:Object=Regeneration.of(modifiers(0,.12),k);
+   require(Math.abs(x.health-1.3)<1e-9 && Math.abs(x.stamina-1.1)<1e-9,"130% = 1 + 15% + 15%; 110% = 1 + 8% - 10% + 12%: "+x.health+" "+x.stamina);
+   require(x.label=="Regeneration" && x.value=="130%" && x.valueStyle=="green","the box: "+x.label+" "+x.value+" "+x.valueStyle);
+   require(x.title=="Health regeneration: 130%" && x.titleValue=="130%" && x.titleStyle=="green","the heading: "+x.title);
+   var rows:Array=x.rows();
+   require(rows.length==6,"two health rows, the stamina heading, three stamina rows: "+rows.length);
+   for each(var entry:Object in rows)require(!(entry is Array) && (entry.heading!=undefined || entry.label!=undefined),"every entry a heading or a named row");
+   for each(var want:Array in [[0,"Duty suit <green>+15%</green>"],[1,"Rations <green>+15%</green>"],[3,"Freedom boots <green>+8%</green>"],[4,"Worn trousers <red>-10%</red>"],[5,"Breath <green>+12%</green>"]])
+    require(said(rows[want[0]])==want[1],"regeneration row "+want[0]+": "+said(rows[want[0]])+" (want "+want[1]+")");
+   require(rows[2].heading=="Stamina regeneration: 110%" && rows[2].headingValue=="110%" && rows[2].headingStyle=="green","the second section: "+rows[2].heading);
+   require(rows[0].group>=0 && rows[1].group==undefined && rows[1].icon==9 && rows[5].icon==10,"an armour's group icon, the booster's and the skill's own icons");
+   var none:Object=Regeneration.of(modifiers(0,0),kit([],null));
+   require(none.value=="100%" && none.valueStyle=="highlight" && none.titleStyle=="white" && none.rows().length==1 && none.rows()[0].heading=="Stamina regeneration: 100%" && none.rows()[0].headingStyle=="white","nothing changes it: 100%, the stamina heading alone");
+   var skills:Object=Regeneration.of(modifiers(.05,0),kit([],null));
+   require(said(skills.rows()[0])=="Skills <green>+5%</green>","a skill of the health's float: "+said(skills.rows()[0]));
+   var worse:Object=Regeneration.of(modifiers(-.2,-2),kit([],null));
+   require(worse.value=="80%" && worse.valueStyle=="weight_warning" && worse.titleStyle=="red" && worse.stamina==0,"slower: coral, red; never below zero");
+  }
+  // In the inventory's profile, in `language`: the regeneration's box, the speed's and the weight's side by side, the
+  // regeneration's inside the panel and apart from the boots slot; each box's word apart from its value; no Autobuy box.
   private function checkProfileRow(language:String):void {
    var p:DisplayObjectContainer=profile as DisplayObjectContainer;
    // The profile took the texts before this language (LocalizationData.addCallback calls it once then):
-   // its next kit update puts the speed's word in.
+   // its next kit update puts the boxes' words in.
+   profile.setKitModifiers(modifiers(.15,.12));
    profile.updateWeight(25,30,Effects.parse(-.1,.75,0,.03,0));
-   var box:Sprite=p.getChildByName("speed") as Sprite;require(box!=null && box.visible,"the profile's speed box: "+language);
-   var area:Rectangle=speedTipOf(box).getBounds(p);
-   var autobuy:Object=profile.checkbox_autobuy;autobuy.validateNow();var text:TextField=autobuy.textField;
-   require(text.text==HarnessText.STOCK[language].autobuy_button_label,"Autobuy's text: "+language+" "+text.text);
-   var autobuyRight:Number=text.localToGlobal(new Point(text.textWidth+4,0)).x-p.localToGlobal(new Point()).x;
-   require(autobuyRight<=area.left,"apart from Autobuy: "+language+" "+autobuyRight+" "+area);
-   require(!area.intersects(profile.profileItems.slotFoot.getBounds(p)),"apart from the boots: "+language);
-   require(area.right<=profile.playerWeight.x && area.left>=0,"left of the weight, inside the panel: "+language+" "+area);
-   var words:Object=box.getChildAt(1),sl:TextField=words.textFieldLabel,sv:TextField=words.textFieldValue;
-   require(sl.text==HarnessText.DATA[language].st_srp_speed_label,"translated word: "+language);
-   require(sl.x+2+sl.textWidth+6<=sv.x+sv.width-2-sv.textWidth,"its word apart from its value: "+language+" "+sl.text+" "+sv.text);
-   trace("SPEED ROW "+language+": Autobuy text ends at "+autobuyRight.toFixed(1)+", box "+area+", word "+sl.textWidth.toFixed(1)+" + value "+sv.textWidth.toFixed(1)+" of "+(sv.x+sv.width-sl.x).toFixed(1));
+   require(!profile.checkbox_autobuy.visible && !profile.checkbox_autorepair.visible,"no Autobuy or auto-repair box");
+   var areas:Array=[];
+   for each(var want:Array in [["regeneration","st_srp_regeneration_label","115%"],["speed","st_srp_speed_label","93%"]]) {
+    var box:Sprite=p.getChildByName(want[0]) as Sprite;require(box!=null && box.visible,"the profile's "+want[0]+" box: "+language);
+    var area:Rectangle=speedTipOf(box).getBounds(p);areas.push(area);
+    require(!area.intersects(profile.profileItems.slotFoot.getBounds(p)),want[0]+" apart from the boots: "+language);
+    var words:Object=box.getChildAt(1),sl:TextField=words.textFieldLabel,sv:TextField=words.textFieldValue;
+    require(sl.text==HarnessText.DATA[language][want[1]],want[0]+"'s translated word: "+language+" "+sl.text);
+    require(sv.text.replace(/\s+$/,"")==want[2],want[0]+"'s value: "+sv.text);
+    require(sl.x+2+sl.textWidth+6<=sv.x+sv.width-2-sv.textWidth,want[0]+"'s word apart from its value: "+language+" "+sl.text+" "+sv.text);
+    trace("ROW "+language+" "+want[0]+": box "+area+", word "+sl.textWidth.toFixed(1)+" + value "+sv.textWidth.toFixed(1)+" of "+(sv.x+sv.width-sl.x).toFixed(1));
+   }
+   require(areas[0].left>=0 && areas[0].right<=areas[1].left && areas[1].right<=profile.playerWeight.x,"regeneration, speed, weight, left to right inside the panel: "+language+" "+areas[0]+" "+areas[1]+" "+profile.playerWeight.x);
+   // The row's paddings: the panel's sides as far from the row, the boxes the same distance apart (a pixel's rounding),
+   // and in each box the word as far from the left side as the value from the right.
+   var own:Rectangle=new Rectangle(profile.playerWeight.x-22.45+11,profile.playerWeight.y-5,155,43);
+   require(Math.abs(areas[0].left-(580-own.right))<=1 && Math.abs((areas[1].left-areas[0].right)-(own.left-areas[1].right))<=1,"the row's boxes evenly across the panel: "+areas[0]+" "+areas[1]+" "+own);
+   for each(var side:Array in [[(p.getChildByName("regeneration") as Sprite).getChildAt(1),areas[0]],[(p.getChildByName("speed") as Sprite).getChildAt(1),areas[1]],[profile.playerWeight,own]]) {
+    var wl:Rectangle=side[0].textFieldLabel.getBounds(p),wv:Rectangle=side[0].textFieldValue.getBounds(p);
+    require(Math.abs((wl.left-side[1].left)-(side[1].right-wv.right))<.1,"the word's and the value's sides: "+wl+" "+wv+" "+side[1]);
+   }
+   profile.setKitModifiers(null);profile.updateWeight(25,30,Effects.parse(-.1,.75,0,.03,0));
+   require(!(p.getChildByName("regeneration") as Sprite).visible,"no kit modifiers from the exe: no regeneration box");
   }
   private function speedTipOf(box:Sprite):DisplayObject {return (box.getChildAt(2) as Sprite).getChildAt(0);}
   // A filter icon's glyph (its frame's largest shape) in `space`.
@@ -295,8 +336,9 @@ package {
      require(early.length==1 && early[0].label.indexOf("#")<0 && early[0].label.indexOf("Skills")==0,"a skill row before the skills: "+early[0].label);
      // The exe's root.fill_skills_properties gives each skill's name (CharWindow records them).
      var Names:Object=domain.getDefinition("survarium.char.SkillNames");
-     Names.record(208,"Rapid");Names.record(209,"Athlete");Names.record(202,"Packrat");Names.record(201,"Marathoner");
+     Names.record(208,"Rapid");Names.record(209,"Athlete");Names.record(202,"Packrat");Names.record(201,"Marathoner");Names.record(204,"Breath");
      checkStamina();
+     checkRegeneration();
      checkSpeed();
      checkLimit();
      indicators[1].update(25,30,Effects.parse(-.1,.75,0));

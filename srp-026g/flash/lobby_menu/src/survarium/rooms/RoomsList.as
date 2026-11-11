@@ -121,7 +121,7 @@ package survarium.rooms
                 var mine:Boolean = win._room != null && room.key == win._room.key;
                 // A long name cut to its column, as the members' names are.
                 RoomsLook.fitName(look.text(row, "", 10, 10, columnW(0, tw) - 10, 17, mine ? RoomsLook.YELLOW : on ? 0xFFFFFF : RoomsLook.LIGHT),
-                    (room.pin ? "PIN · " : "") + room.name, "");
+                    (room.bots ? "BOT · " : room.pin ? "PIN · " : "") + room.name, "");
                 look.text(row, String(room.level), columnX(1, tw), 10, columnW(1, tw), 17, RoomsLook.LIGHT);
                 // A private room has no max level: its cell empty.
                 look.text(row, room.pin ? "" : win.levelText(room.max), columnX(2, tw), 10, columnW(2, tw), 17, RoomsLook.LIGHT);

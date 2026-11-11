@@ -272,6 +272,9 @@ fn a_registry_makes_the_bots_kits_with_the_store_of_the_bot_tuning() {
         }
         let ticket = registry.create(setup).expect("a match with two bots");
         let formed = registry.formed(ticket.match_id).expect("it is formed");
+        // As it came but for the match's Keeper draw, which every profile gets (main's patch 109).
+        let mut human = human.clone();
+        survarium::v026g::keeper::give(&mut human, formed.keeper);
         assert_eq!(formed.profiles[0], human, "a human's profile is as it came");
         for place in [2, 3] {
             let pockets = ProfilePockets::of_profile(&formed.profiles[place], true).expect("a bot has kits");
@@ -354,7 +357,7 @@ fn with_the_map_the_servers_bot_sees_its_body_in_the_worlds_and_walks_smoothly()
         current_index: 0,
         target_index: 0,
         pickup: weapon_pickup::Record::EMPTY,
-        items: vec![1, 2, 3],
+        items: vec![1], // the fixture profile has one item
         alive: true,
         has_to_die: false,
         look_pitch: 0.0,

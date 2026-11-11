@@ -69,6 +69,21 @@ older file under the same name, the port moves 0.69d0's to a name of its own (th
   holster (with their sound) and reload; the M4A1 firing mix.
 - PPSH-41 "Drum": 0.69d0's own PPSh rig, clips and hand points: the drum grip, the left wrist on
   the drum's front (the live PPSh's points held the box magazine's place).
+- The drum sits in the magazine slot as 0.69d0 draws it (@15): across the gun (14.8 cm wide, 5.4 cm
+  along the bore), its neck in the well where the live box magazine's is (within 1 cm, as 0.69d0's
+  own 30-round box), its rounds along the bore. Both of 0.69d0's PPSh magazines are authored in the
+  slot's frame (the box's rounds lie along the bore there too); up to @14 the drum was turned a
+  quarter turn more, which put its neck 1.9 cm aside and 2 to 3 cm ahead of the well and its rounds
+  across the bore, in every view (the bind pose and the clips hold the magazine bone alike: the turn
+  was in the vertices). @15 is @14 with the five files the porter makes again without the turn
+  (`scripts/weapons-069/pack_models.py`: the drum and its rounds, their boxes and the model's); the
+  icon is @14's.
+- The drum stands straight in the well (@16). 0.69d0's PPSh has its magazine socket turned
+  -3.74 degrees about X; up to @15 the porter took that turn with the wrong sign, so the drum
+  leant 7.5 degrees off: its neck 6 to 8 mm through the well's front wall, a 9 to 10 mm gap
+  behind it. resource-porter #44 places a module by the engine's own frames (row vectors:
+  module, then locator, then bone). @16 is @15 with the same five files made again; the porter
+  before #44 makes @15's 1751 files byte for byte, after it only those five differ.
 - G3SG/1, Mauser, KS-23M: their own 0.69d0 rigs and clips. The KS-23M is a pump as the
   Remington 870 (start, one shell, finish, chambering); 0.69d0's "load into an empty chamber"
   start and the Mauser's aimed shots are 0.69d0-only and left out. The Mauser's empty reload

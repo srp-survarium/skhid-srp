@@ -112,7 +112,7 @@ fn main() {
             log::error!(
                 "srp: cannot start the 0.26g servers: {error} (if it is not about SRP_BOT_TUNING: \
                  is another srp running, or a port of SRP_LOGIN_PORT / SRP_LOBBY_PORT / \
-                 SRP_MATCH_PORT taken?)"
+                 SRP_MATCH_PORT or the voice port, the match port + 1, taken?)"
             );
             std::process::exit(1);
         }

@@ -8,3 +8,5 @@ workspace = true
 
 [dependencies]
 log = { workspace = true }
+# the client reports' carrier length (client patch 126 on), from their codec
+srp-validate = { workspace = true }

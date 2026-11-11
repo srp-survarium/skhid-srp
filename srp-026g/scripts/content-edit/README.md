@@ -485,3 +485,19 @@ Applied to the live tree of patch 45 (`content_edit.py`): 1 file edited, `/skill
 (the server's `SkillsTree::validate` refused every point in them as `Locked`; now as `Unknown`), so
 none is repaired; the walk that unlocks a branch's rows skipped them, so no other skill's threshold
 moves. Presentation only: no simulation change.
+
+## pierce-line-1.json (2026-11-05)
+
+| change | why |
+|---|---|
+| `ui_properties` line 174 (`st_srp_inv_material_pierce`, "Pierces", made like the clip size line 16, not comparable) | the owner's: each weapon card says the hardest wall its bullet gets through and the damage it keeps there (`../../docs/notes/pierce_line.md`) |
+| a `props_list` line 174 on every round the item dictionary pairs with a weapon (`items_compatibility`): `<weapon dict_id>:<rank>:<key>:<percent> ...`, the tier (`st_srp_pierce_glass` .. `_stone`) and the damage kept for each of its weapons | computed, not written in the list (`add_entry`'s `pierce_line`, `content_edit.py` `pierce_lines`): bullet_pierce x k_arp above each tier material's `armor` in `game_materials/game.materials` (try_pierce 0x32D960 stops at P <= A), percent round(100 x k). The rank (0 the softest) orders the lobby's best round and its comparison |
+| no weapon config changed | several are within 3 entries (one line) of the 565 the client rebuilds an upgraded item in (`tables.rs` `MAX_CONFIG_ENTRIES`): with a line on every weapon the SV-98 had 566 and build-content stopped |
+
+The last edit row, so it reads the weapons (declared in `_inputs`), rounds and dictionary as every
+row above leaves them: a retune of `weapon-stats.tsv` or `ammo.tsv`, or a new gun or round, needs no
+change here. `release/build-content` (`pierce_check`) computes every line again from the final files
+and stops when one differs. On the players' files (the stock db and the patches of
+release/patches.tsv up to 49): 40 files edited (39 rounds), 0 unexpected differences; each weapon's
+best round: 82 Concrete, 11 Plywood, 7 Brick, 2 Stone (the VSSKs' VPS), 1 Tinplate. Presentation
+only: no simulation change.

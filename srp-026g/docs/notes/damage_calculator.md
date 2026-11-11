@@ -37,7 +37,26 @@ number from the game data, the rules as the client's hit code applies them. Buil
 - The calculator keeps its own look; only the site's header sits above it.
 - The formula says how one bullet through several hit boxes counts (each pool its largest
   share). The calculator itself shows one box per shot.
-- Not modelled: cover a bullet passes through, ricochets, explosions, anomalies.
+- Formula (owner 2026-11-05): numbered steps in the bullet's order (Bullet, Wall, Onyx, Armour,
+  Pools, Pain, Death), each a bold label and its rule in one chip, no sentences (the trace has the
+  details), the operation written out (no word standing for a value); armour and penetration in the
+  page's units (x100), no letter for two things, a legend line for D, P and A. One grid for all
+  rows (number | label | rule | input | D | P), legend and note inside the panel; the page's text
+  font, no chips. Beside each step this shot's numbers as a running chain, from the same result
+  the trace shows: the step's input (secondary), then D and P after it in their own aligned columns,
+  bold (from Armour on, the hit and the pools in the D column); "none" carries the values through,
+  "—" after a bullet the wall keeps. On a phone the D and P columns stay aligned under each rule.
+- Wall (owner 2026-11-05): the shooter picks the wall the bullet goes through just in front of the
+  target, in a drop-down: `<none>` first (the default: no change), then the material groups by
+  armour, named as retail names materials where they fit (Plywood, Tinplate, Brick, steel,
+  Concrete). One wall. Each group is materials of `game_materials/game.materials` with one `armor`
+  (read from the data; a group whose materials differ stops the build).
+- The wall's rule is the game's (`bullet::try_pierce` 0x32D960, `update_bullet_position`
+  0x32EE90): k = 1 − (1 − clamp((P − A) / A, 0, 1))², 1 for A = 0; k ≤ 0 stops the bullet ("does
+  not get through", one line). Else damage, penetration and speed × k, then damage and penetration
+  no higher than the falloff gives at the slower speed. Every result (doll, tables, chart) is
+  behind the wall; the formula section has it as one step.
+- Not modelled: ricochets, the wall's deflection, explosions, anomalies.
 
 ## Serving
 

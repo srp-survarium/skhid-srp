@@ -252,7 +252,7 @@ st_ammo_sp6_name	9x39 SP-6
 st_ammo_storage_label	Storage
 st_aniso_filtering_option	Anisotrope filtering
 st_anomaly_damage_corr_perc_name	Anomaly damage
-st_anomaly_skills_label	Knowledge of the Forest.
+st_anomaly_skills_label	Knowledge of the Forest
 st_antialiasing_option	Antialiasing
 st_antitoxin_description	A complex medicine designed to neutralize poisons and toxins in the human body. To maximize the effect, consume prior to harmful impact. 
 st_antitoxin_name	Antitoxin
@@ -594,6 +594,8 @@ st_change_quest_label	Change task
 st_change_weapon_speed_description	Change weapon swap speed:
 st_change_weapon_speed_name	Deft hands
 st_character	Character
+st_character_decals_1_10_name	Boar hunter
+st_character_decals_1_11_name	Deer hunter
 st_character_decals_1_12_name	Jarilo
 st_character_decals_1_1_name	Literator
 st_character_decals_1_2_name	"Alpha" Squad
@@ -603,6 +605,7 @@ st_character_decals_1_5_name	Veteran
 st_character_decals_1_6_name	Master
 st_character_decals_1_7_name	Legend
 st_character_decals_1_8_name	Flying Hussars
+st_character_decals_1_9_name	Musician
 st_character_decals_2_1_name	Scavengers rookie
 st_character_decals_2_2_name	Scavengers veteran
 st_character_decals_2_3_name	Black Market Recruit
@@ -749,8 +752,15 @@ st_character_decals_5_6_name	Coat of arms of Lithuania
 st_character_decals_5_7_name	Coat of arms of Lithuania
 st_character_decals_5_8_name	Coat of arms of Estonia
 st_character_decals_5_9_name	Coat of arms of Moldova
+st_character_decals_7_10_name	Matchsticks
+st_character_decals_7_23_name	Heart
+st_character_decals_7_24_name	Frightening Pumpkin
 st_character_decals_7_27_name	Clover ornament
 st_character_decals_7_28_name	Horseshoe
+st_character_decals_7_30_name	Homing pigeon
+st_character_decals_7_31_name	Victory
+st_character_decals_7_35_name	Bloody Hand
+st_character_decals_7_37_name	The Keeper
 st_character_decals_7_9_name	Herbs
 st_character_decals_generic_desc	Use decals in the vests and pants window to change their appearance.
 st_characteristics_label	Player stats
@@ -877,7 +887,7 @@ st_ct_max_members_count_error	Error adding new players. The clan team already ha
 st_current_value	\nCurrent value:
 st_cz_75_description	Czech self-loading pistol, ammo: 9x19. One of the most copied pistols of the Cold War.
 st_cz_75_name	CZ 75
-st_daily_bonus_description	Play everyday and get <highlight>x2</highlight> experience and reputation for the <highlight>first three</highlight> victories.
+st_daily_bonus_description	Every day: <highlight>x2</highlight> experience for the <highlight>first three</highlight> victories.
 st_daily_bonus_hint	Show the welcoming screen
 st_daily_bonus_label	Welcome back
 st_daily_bonus_progress	Your progress for the current day
@@ -1228,7 +1238,7 @@ st_health_regen_correction_perc_name	Regeneration
 st_hide_ammo	Hide ammo
 st_hide_interface_action	Hide interface
 st_hide_quest_list	Hide missions window
-st_hide_spam_option	Hide spam
+st_hide_spam_option	Disable voice chat
 st_hide_squad_list	Hide squad window
 st_hk416_description	German assault rifle, ammo: 5.56x45. Heckler & Koch's development of the AR-15 design with a short-stroke gas piston, introduced in the mid-2000s and used by special forces and the armies of several NATO countries. This one carries an EOTech 552 holographic sight. Equipped with a 30-round magazine. Supports single and automatic fire.
 st_hk416_name	H&K 416A5
@@ -1266,6 +1276,7 @@ st_inv_additional_ammo_bags	Ammo bags
 st_inv_ano_armor	Isolation
 st_inv_armor	Armor
 st_inv_arp	Armor penetration
+st_inv_artefact_recharge	Artifact recharge time
 st_inv_artefact_slots	Artifact container
 st_inv_buckshot	Buckshot
 st_inv_clip_size	Bullets in pack
@@ -1754,7 +1765,7 @@ st_profile_selection_warning	20 seconds respawn time when changing profile
 st_profile_warning_weapon	Cannot enter the battle without weapons!
 st_profile_warning_weapon_ammo	Unable to enter the battle, insufficient ammo in your backpack!
 st_profile_warning_weapon_ammo_in_inv	Unable to enter the batle, insufficient ammo in your inventory!
-st_ptt_action	PTT
+st_ptt_action	Push to talk
 st_ptt_button_option	PTT
 st_put_item	Put ({USE})
 st_quest_change_warning	Warning! Changing tasks will lower your faction loyalty!
@@ -1777,7 +1788,7 @@ st_ranking	Ranking
 st_ranking_diff	Difference
 st_rattle_activation_hint	Rattle is activated! Your footsteps cannot be heard by your enemy.
 st_rattle_pickup_hint	Rattle artifact. Hushes the sound of steps by 50%.
-st_rdgm_descr	ОПИСАНИЕ НЕ ГОТОВО!!!
+st_rdgm_descr	Hand smoke grenade. Lays a thick screen that hides movement.
 st_rdgm_name	Smoke grenade RDG-M
 st_reach_level	reached <green>Level</green>
 st_ready	Ready
@@ -1785,6 +1796,8 @@ st_refill_ammo_btn	Apply
 st_refill_ammo_label	Ammo
 st_regen_booster_description	Old army rations. Successfully used by the armies of the CIS countries in the pre-crisis period. Increases metabolism while still being quite tasty.
 st_regen_booster_name	Rations
+st_regen_delay_name	Regeneration delay
+st_regen_limit_name	Regeneration limit
 st_registration_str	Create account
 st_regular_fix	Repair
 st_regular_money	Silver
@@ -2182,13 +2195,55 @@ st_sr3m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_sr3m_name	SR-3M "Vikhr"
 st_srp_ammo069_23mm_r_desc	A 23 mm round stuffed with smallshot, for the KS-23M. Provides high damage against non-armoured targets.
 st_srp_ammo069_23mm_r_name	23x75R, smallshot
+st_srp_ammo_buckshot	Buckshot
 st_srp_ammo_scar_ap_desc	Armour-piercing 7.62x51 cartridges for the FN SCAR-H. Each ammunition bag holds 20 rounds.
 st_srp_ammo_scar_ap_name	7.62x51 AP SCAR-H, 20-round pack
+st_srp_ammo_slug	Slug
 st_srp_ammo_stats	Ammo stats
+st_srp_artefact_501_description	Time to collect an artifact:
+st_srp_artefact_501_name	Quick Hands
+st_srp_artefact_502_description	Isolation against anomalies:
+st_srp_artefact_502_name	Resistance
+st_srp_artefact_512_description	Duration of active artifact effects:
+st_srp_artefact_512_name	Knowledge of Artifacts
+st_srp_artefact_513_description	See passive artifacts as a glow on players' legs, your own included.
+st_srp_artefact_513_name	Artifact Sight
+st_srp_artefact_521_description	Start the match with a random artifact in a container; one kind for everyone in the match.
+st_srp_artefact_521_name	Keeper of the Artifacts
+st_srp_artefact_522_description	One pocket becomes an artifact container.
+st_srp_artefact_522_name	Artifact Container
+st_srp_artefact_523_description	Bullet and fragment damage taken inside an anomaly:
+st_srp_artefact_523_name	Forest Protection
+st_srp_artefact_531_description	Each Spring also speeds up reloading: +5% passive, +15% while active.
+st_srp_artefact_531_name	Spring II
+st_srp_artefact_532_description	No fall damage while an Onyx is active.
+st_srp_artefact_532_name	Onyx II
+st_srp_artefact_533_description	Activating a Larkspur restores all energy.
+st_srp_artefact_533_name	Larkspur II
+st_srp_artefact_541_description	Your artifacts' passive effects also work on living teammates within 9 m.
+st_srp_artefact_541_name	Resonance
+st_srp_artefact_542_description	Activated artifacts also work on living teammates within 6 m. "They glow, you shine"
+st_srp_artefact_542_name	Cascade
+st_srp_artefact_points	 points
 st_srp_attachments	Attachments
+st_srp_ban_reason_account_trading	Selling or trying to sell an account.
+st_srp_ban_reason_administration	Decision of the administration.
+st_srp_ban_reason_advertising	Advertising.
+st_srp_ban_reason_bad_language	Obscene language.
+st_srp_ban_reason_cheating	Cheats or other prohibited software.
+st_srp_ban_reason_false_information	Spreading false information.
+st_srp_ban_reason_farm_pressure	Harassing or team-killing players who don't farm.
+st_srp_ban_reason_flood	Spam or flooding.
+st_srp_ban_reason_insults	Insults or provocation.
+st_srp_ban_reason_nickname	An unacceptable name.
+st_srp_ban_reason_politics	Political discussion.
+st_srp_ban_reason_racism	Racism or Nazism.
+st_srp_ban_reason_teamkilling	Killing teammates.
+st_srp_ban_reason_threats	Real-life threats.
 st_srp_crosshair_dynamic	Dynamic crosshair
 st_srp_crosshair_hidden	Hidden crosshair
 st_srp_crosshair_static	Static crosshair
+st_srp_deep_pockets_name	Deep Pockets
 st_srp_equipment029_bm_back_6_desc	Description not available yet.
 st_srp_equipment029_bm_back_6_name	Watchman backpack
 st_srp_equipment029_bm_back_8_desc	Description not available yet.
@@ -2376,6 +2431,8 @@ st_srp_equipment046_edge_back_6_desc	Description not available yet.
 st_srp_equipment046_edge_back_6_name	Stalker's backpack
 st_srp_equipment046_edge_back_7_desc	Description not available yet.
 st_srp_equipment046_edge_back_7_name	Token
+st_srp_equipment046_edge_boots_6_desc	Description not available yet.
+st_srp_equipment046_edge_boots_6_name	Stalker's laced boots
 st_srp_equipment046_edge_boots_7_desc	Description not available yet.
 st_srp_equipment046_edge_boots_7_name	Sorcerer Boots
 st_srp_equipment046_edge_gloves_5_desc	Description not available yet.
@@ -2390,6 +2447,8 @@ st_srp_equipment046_edge_legs_7_desc	Description not available yet.
 st_srp_equipment046_edge_legs_7_name	Veles Pants
 st_srp_equipment046_edge_mask_6_desc	Description not available yet.
 st_srp_equipment046_edge_mask_6_name	NVD
+st_srp_equipment046_edge_mask_7_desc	Description not available yet.
+st_srp_equipment046_edge_mask_7_name	Veles Mask
 st_srp_equipment046_edge_torso_7_desc	Description not available yet.
 st_srp_equipment046_edge_torso_7_name	Veles Vest
 st_srp_equipment046_renesanse_boots_3_desc	Description not available yet.
@@ -2400,6 +2459,8 @@ st_srp_equipment046_renesanse_gloves_3_desc	Description not available yet.
 st_srp_equipment046_renesanse_gloves_3_name	OZK-UV Gloves
 st_srp_equipment046_renesanse_gloves_5_desc	Description not available yet.
 st_srp_equipment046_renesanse_gloves_5_name	Scout's gloves
+st_srp_equipment046_renesanse_gloves_6_desc	Description not available yet.
+st_srp_equipment046_renesanse_gloves_6_name	"Shturm" gloves
 st_srp_equipment046_renesanse_gloves_7_desc	Description not available yet.
 st_srp_equipment046_renesanse_gloves_7_name	Sniper gloves
 st_srp_equipment046_renesanse_helmet_7_desc	Description not available yet.
@@ -2416,20 +2477,26 @@ st_srp_equipment046_renesanse_torso_7_desc	Description not available yet.
 st_srp_equipment046_renesanse_torso_7_name	Sniper Vest
 st_srp_equipment046_scavenger_boots_5_desc	Description not available yet.
 st_srp_equipment046_scavenger_boots_5_name	Saboteur boots
+st_srp_equipment046_scavenger_boots_6_desc	Description not available yet.
+st_srp_equipment046_scavenger_boots_6_name	Reinforced padded boots
 st_srp_equipment046_scavenger_boots_7_desc	Description not available yet.
 st_srp_equipment046_scavenger_boots_7_name	Pathfinder boots
+st_srp_equipment069_league_shadow_mask_desc	Description not available yet.
+st_srp_equipment069_league_shadow_mask_name	Delta mask
 st_srp_equipment069_leagues_back_2_desc	Description not available yet.
 st_srp_equipment069_leagues_back_2_name	Medic's bag
 st_srp_equipment069_leagues_back_5_desc	Description not available yet.
 st_srp_equipment069_leagues_back_5_name	Soldier's backpack
-st_srp_exchange_balance	Balance
-st_srp_exchange_button	Exchange
-st_srp_exchange_gold	Gold
-st_srp_exchange_pay	Pay
-st_srp_exchange_receive	Receive
-st_srp_exchange_short_gold	Not enough gold
-st_srp_exchange_short_silver	Not enough silver
-st_srp_exchange_title	Exchange
+st_srp_equipment069_snow_20_boots_7_desc	Description not available yet.
+st_srp_equipment069_snow_20_boots_7_name	Snow-20 Boots
+st_srp_equipment069_snow_20_gloves_7_desc	Description not available yet.
+st_srp_equipment069_snow_20_gloves_7_name	Snow-20 Gloves
+st_srp_equipment069_snow_20_helmet_7_desc	Description not available yet.
+st_srp_equipment069_snow_20_helmet_7_name	Snow-20 Helmet
+st_srp_equipment069_snow_20_legs_7_desc	Description not available yet.
+st_srp_equipment069_snow_20_legs_7_name	Snow-20 Pants
+st_srp_equipment069_snow_20_torso_7_desc	Description not available yet.
+st_srp_equipment069_snow_20_torso_7_name	Snow-20 Vest
 st_srp_hide_hit_markers_option	Hide hit markers
 st_srp_hide_quests_option	Hide quests
 st_srp_hide_scores_option	Hide player scores
@@ -2444,10 +2511,32 @@ st_srp_hud_mute_not_sent	Not sent
 st_srp_hud_muted	Chat muted
 st_srp_hud_unmute	Unmute chat
 st_srp_hud_unmuted	Chat unmuted
+st_srp_hud_voice_mute	Mute voice
+st_srp_hud_voice_muted	Voice muted
+st_srp_hud_voice_not_muted	Voice chat unavailable
+st_srp_hud_voice_unmute	Unmute voice
+st_srp_hud_voice_unmuted	Voice unmuted
 st_srp_inv_ammo_range	Range
 st_srp_inv_bullet_speed	Bullet speed
+st_srp_inv_defuse_time	Defuse time
+st_srp_inv_fuse_time	Fuse time
+st_srp_inv_material_pierce	Pierces
 st_srp_inv_pellets	Pellets
+st_srp_inv_pocket_units	Pocket slots
+st_srp_inv_pocket_units_whole	∞
+st_srp_inv_stamina_damage	Stamina damage
+st_srp_inv_throw_speed	Throw speed
 st_srp_inventory_search	Search
+st_srp_inventory_search_examples	+pocket, +slot, +ammo, +10
+st_srp_inventory_search_tip_bonus	items with both the ammo and pocket bonus
+st_srp_inventory_search_tip_bonus_example	+ammo +pocket
+st_srp_inventory_search_tip_faction	items sold by the Army or the Black Market
+st_srp_inventory_search_tip_faction_example	+army +black
+st_srp_inventory_search_tip_kind	helmets or boots
+st_srp_inventory_search_tip_kind_example	+helmet +boots
+st_srp_inventory_search_tip_level	items of level 10 or 11
+st_srp_inventory_search_tip_level_example	+10 +11
+st_srp_item_props_mps	m/s
 st_srp_language_option	Language:
 st_srp_language_restart	Applies after restart.
 st_srp_loadout_block_ammo	Too little ammo for a weapon
@@ -2470,6 +2559,8 @@ st_srp_lobby_hangar	Hangar
 st_srp_lobby_room	Room
 st_srp_lobby_title	Lobby
 st_srp_login_account_hint	Account created on first sign-in
+st_srp_login_ban_ends	Ends at %1$s (in %2$s).
+st_srp_login_ban_forever	The ban is permanent.
 st_srp_map_chemical_plant	Chemical Plant
 st_srp_map_chemical_plant_v011	Chemical Plant (v0.11)
 st_srp_map_cologne	Cologne
@@ -2507,13 +2598,55 @@ st_srp_matches_starting	starting
 st_srp_matches_title	Matches
 st_srp_matches_versus	v
 st_srp_matches_waiting	waiting
+st_srp_medical_301_description	Adds to the painkiller's pain protection and duration:
+st_srp_medical_301_name	Potent Painkiller
+st_srp_medical_302_description	Reduction in activation time of first-aid kits and bandages:
+st_srp_medical_302_name	Fast Bandaging
+st_srp_medical_303_description	While a painkiller is active, reduction in sprint stamina use:
+st_srp_medical_303_name	Numb Legs
+st_srp_medical_311_description	Health regeneration starts this many seconds sooner:
+st_srp_medical_311_name	Metabolism
+st_srp_medical_312_description	Bonus to health restored by first-aid kits and bandages:
+st_srp_medical_312_name	Medical Training
+st_srp_medical_313_description	Bonus to health restored by first-aid kits and bandages while crouched:
+st_srp_medical_313_name	Take Cover
+st_srp_medical_321_description	Bonus to movement speed while health is below 30:
+st_srp_medical_321_name	Adrenalin
+st_srp_medical_322_description	Each pocket containing medicine holds one extra item.
+st_srp_medical_322_name	Additional Medicine
+st_srp_medical_323_description	While a painkiller is active, reduction in the stopping power of enemy hits:
+st_srp_medical_323_name	Unflinching
+st_srp_medical_331_description	Replaces the secondary weapon slot with an additional supply pocket.
+st_srp_medical_331_name	Supply Pocket
+st_srp_medical_332_description	Bonus to maximum health of arms and legs:
+st_srp_medical_332_name	Strong Bones
+st_srp_medical_333_description	While a painkiller is active, reduction in sight sway:
+st_srp_medical_333_name	Concentration
+st_srp_medical_342_description	Reduction in damage received from allies:
+st_srp_medical_342_name	Brothers in Arms
+st_srp_medical_seconds	 s
+st_srp_medicine_crouched_healing	Healing crouched
+st_srp_medicine_hit_slow	Slow from bullets
+st_srp_medicine_sight_sway	Sight sway
+st_srp_medicine_sprint_stamina	Sprint stamina
+st_srp_melee_knockback	Melee knockback
 st_srp_mode_blackout	Protective device: blackout
 st_srp_mode_chargers	Protective device: chargers
 st_srp_mode_protective_device	Protective device
 st_srp_mode_research	Research
 st_srp_mode_team_deathmatch	Team Deathmatch
+st_srp_mouse_lock_option	Lock vertical sensitivity
+st_srp_mouse_vertical_option	Vertical sensitivity
 st_srp_optics	Optics
 st_srp_options_hud	HUD:
+st_srp_pierce_brick	Brick, steel
+st_srp_pierce_car	Car
+st_srp_pierce_concrete	Concrete
+st_srp_pierce_glass	Glass
+st_srp_pierce_plywood	Plywood
+st_srp_pierce_stone	Stone
+st_srp_pierce_tinplate	Tinplate
+st_srp_pierce_value	%1$s · %2$s
 st_srp_play_in_squad	In squad
 st_srp_pvb_at_limit	The most bot matches at a time are already running, try again in a minute
 st_srp_pvb_at_limit_count	The most bot matches at a time are already running (%1$s/%2$s), try again in a minute
@@ -2536,6 +2669,12 @@ st_srp_pvb_searching	Leave the search first
 st_srp_pvb_team_size	%1$s vs %2$s
 st_srp_pvb_title	Player vs Bots
 st_srp_pvb_unknown_choice	This map or team size is not available now
+st_srp_regeneration_health	Health regeneration
+st_srp_regeneration_label	Regeneration
+st_srp_regeneration_stamina	Stamina regeneration
+st_srp_renderer_dx11	DirectX 11
+st_srp_renderer_dxvk	Vulkan/DXVK
+st_srp_renderer_option	Renderer
 st_srp_replay_asking	Asking the match server for the replay of this match…
 st_srp_replay_being_made	The replay is being made from the match record. This happens the first time anyone watches this match and takes a little while.\nYou can close this window: the server keeps making it.\n\n%1$s
 st_srp_replay_busy	The server is busy with other replays right now. Try again in a minute.
@@ -2566,6 +2705,7 @@ st_srp_rooms_all	All
 st_srp_rooms_all_rooms	All rooms
 st_srp_rooms_any	Any
 st_srp_rooms_back	Back
+st_srp_rooms_bots	With bots
 st_srp_rooms_code_10	The owner removed you from that room.
 st_srp_rooms_code_11	Leave your clan team first.
 st_srp_rooms_code_12	Your equipment is above the max level.
@@ -2600,6 +2740,7 @@ st_srp_rooms_join_why_4	The match is full.
 st_srp_rooms_join_why_5	Server maintenance soon: no new joins.
 st_srp_rooms_join_why_6	The match is ending: you'll play the next one.
 st_srp_rooms_join_why_7	This match has reached its player limit. You'll join the next match.
+st_srp_rooms_join_why_8	The match can't take players now. You'll join the next match.
 st_srp_rooms_joined_room	%1$s joined the room
 st_srp_rooms_late_hint	Who joins now sees the room, then goes into the match.
 st_srp_rooms_leave	Leave
@@ -2667,12 +2808,30 @@ st_srp_skills	Skills
 st_srp_speed_label	Speed
 st_srp_speed_title	Movement speed: %1$s
 st_srp_static_minimap_option	Static minimap
+st_srp_unit_days	%1$s d
+st_srp_unit_hours	%1$s h
 st_srp_unit_kg	%1$s kg
 st_srp_unit_meters	%1$sm
+st_srp_unit_minutes	%1$s min
 st_srp_unit_mps	%1$s m/s
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
+st_srp_vulkan_dedicated_gpu	Prefer the dedicated GPU
+st_srp_vulkan_dedicated_gpu_hint	Picks the stronger graphics card on laptops.\n+ Better performance on laptops\n- Uses more battery
+st_srp_vulkan_frame_limit	Frame rate limit
+st_srp_vulkan_frame_limit_hint	Caps how many frames per second the game draws.
+st_srp_vulkan_low_latency	Reduce input lag
+st_srp_vulkan_low_latency_hint	Makes the game react sooner to your mouse.\n+ Aim reacts faster\n- May feel less smooth on some PCs
+st_srp_vulkan_off	Off
+st_srp_vulkan_options	Vulkan options
+st_srp_vulkan_overlay	Performance overlay
+st_srp_vulkan_overlay_fps	FPS
+st_srp_vulkan_overlay_frametimes	FPS+graph
+st_srp_vulkan_overlay_full	Full
+st_srp_vulkan_overlay_hint	Shows the game's speed on screen.
+st_srp_vulkan_tear_free	Tear-free with vsync off
+st_srp_vulkan_tear_free_hint	Keeps the picture whole when vertical sync is off.\n+ No torn lines when turning fast\n- A bit more input delay than plain vsync off
 st_srp_weapon069_akmsu_desc	Shortened AKMS with a folding stock, ammo: 7.62x39. Supports single shot and automatic fire modes.
 st_srp_weapon069_akmsu_name	AKMSU
 st_srp_weapon069_famas_desc	French bullpup assault rifle, ammo: 5.56x45. Supports single shot, three-round burst and automatic fire modes.
@@ -2686,7 +2845,6 @@ st_srp_weapon069_mauser_m712_name	Mauser M.712
 st_srp_weapon069_ppsh_drum_desc	Shpagin submachine gun with a 71-round drum magazine, ammo: 7.62x25. Supports single shot and automatic fire modes.
 st_srp_weapon069_ppsh_drum_name	PPSH-41 "Drum"
 st_srp_weapon_aim_zoom	Base aim zoom
-st_srp_weapon_bullet_speed_varies	Varies
 st_srp_weapon_chamber	Chambering time
 st_srp_weapon_draw_time	Draw time
 st_srp_weapon_full_damage	Full damage up to
@@ -2703,6 +2861,7 @@ st_srp_weapon_reload	Reload
 st_srp_weapon_reload_empty	Reload (empty)
 st_srp_weapon_reload_tactical	Tactical reload
 st_srp_weapon_shift_hint	Shift: details · Alt: in a match
+st_srp_weapon_slot_closed	%1$s: no second weapon
 st_srp_weapon_spread_growth	Spread growth rate
 st_srp_weapon_spread_max	Maximum extra spread
 st_srp_weapon_spread_per_shot	Spread added per shot

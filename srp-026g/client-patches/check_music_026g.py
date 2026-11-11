@@ -33,15 +33,21 @@ thread). Checked:
   taken and played as a looping hud sound in the bus (emit_hud_sound's
   emitter, the bus's scene, the logic world user; play mode 1); the bus's
   volume 0 at the start, 0.5 a second in, 1 at two;
-- a change of track (login -> lobby): the next asked only once the first is
-  silent (its voice and sound let go then); a mode's `ui.loading_music`
-  (a config table made here) is its theme; one without plays nothing;
+- a change of track (login -> lobby): the next asked at once, as retail
+  0.69d asks it (a loading's theme so ahead of the map's own loads), and
+  played only once the first is silent, 0.5 s on (its voice and sound let go then),
+  whether it arrived during the fade or after it; a mode's
+  `ui.loading_music` (a config table made here) is its theme; one without
+  plays nothing;
 - the announcement: the map's theme full until 15 s, then a 2 s fade-out, let
   go when silent, nothing asked after;
 - a callback whose tag nobody waits for: its sound taken and let go at once;
 - the unload: the voice and the sound let go at once;
 - a bus the engine refuses (a null first result): logged, asked again once
   at the next screen, a second refusal logged and nothing asked after;
+- the login screen's chain: after the theme, patch 83's handler deletes the
+  game's `dxvk.pending` (DeleteFileA, stub 0x87021C; docs/notes/dxvk-option.md),
+  the lobby deletes nothing;
 - the Music slider: `s_music_volume` registered at on_configs_loaded's start
   (after patches 79's and 83's), found by the console's lookup (0xEB7C0, the
   stock option's), a saved kind-2 cc_float of 0 to 100 at 100; the game's
@@ -72,6 +78,7 @@ INVOKER = 0x3AAA20                       # the bound cdecl function's invoker (v
 FUNCTION_VTABLE, PARAMS_HELPER = 0x9DB9E0, 0x9FC7C0
 QPC_SLOT, QPF_SLOT, THREAD_SLOT = 0x870158, 0x870150, 0x870118
 CREATE_FILE_SLOT, WRITE_FILE_SLOT, CLOSE_SLOT = 0x870048, 0x870108, 0x870040   # the log's kernel32
+DELETE_FILE_SLOT = 0x87021C             # DeleteFileA: patch 83's DXVK marker, at the login screen
 FREQUENCY = 10_000_000
 HEAP, STUBS, STACK = 0x30000000, 0x31000000, 0x32000000
 GAME, WORLD, USER, SCENE, RESULTS, UI = (HEAP + 0x10000 * i for i in range(6))
@@ -117,6 +124,12 @@ class Game:
             self.word(slot, stub)
             emu.mem_write(stub, code)
         emu.hook_add(UC_HOOK_CODE, self.write_file, begin=STUBS + 0xA0, end=STUBS + 0xA0)
+        # DeleteFileA (stdcall 1): the names kept
+        self.deleted = []
+        self.word(DELETE_FILE_SLOT, STUBS + 0xC0)
+        emu.mem_write(STUBS + 0xC0, b"\xB8\x01\x00\x00\x00\xC2\x04\x00")
+        emu.hook_add(UC_HOOK_CODE, lambda emu, *_: self.deleted.append(self.text(self.read(emu.reg_read(UC_X86_REG_ESP) + 4))),
+                     begin=STUBS + 0xC0, end=STUBS + 0xC0)
         self.calls = []
         self.proxies = 0
         for stub in (QUERY, EMIT, PLAY, FREE_VOICE, RELEASE, SSCANF, INVALID):
@@ -343,14 +356,16 @@ def main():
     name = game.put_text("s_music_volume")
     node = game.call(FIND, {UC_X86_REG_ESI: name})[UC_X86_REG_EAX]
     music_value = game.read(node + 0x40) if node else 0
-    check(node and game.read(LIST_HEAD) == node and game.read(node) == CC_FLOAT_VTABLE
+    registered = game.read(LIST_HEAD)                 # the chain's newest (patch 112's registers after this one)
+    check(node and game.read(node) == CC_FLOAT_VTABLE
           and game.text(game.read(node + 0x10)) == "s_music_volume" and game.read(node + 0x14) == 2
           and game.read(node + 0x1C, 2)[1] == 1 and (game.float(node + 0x44), game.float(node + 0x48)) == (0.0, 100.0)
           and game.float(music_value) == 100.0 and head != node,
-          "configs.start: s_music_volume registered last of the chain, found by the console's lookup (0xEB7C0, the "
+          "configs.start: s_music_volume registered in the chain, found by the console's lookup (0xEB7C0, the "
           "Settings' Music option's): a cc_float, saved (user.cfg), kind 2, 0 to 100, 100 at first")
     run("configs")
-    check(game.read(LIST_HEAD) == node, "configs.start again: registered once")
+    check(game.read(LIST_HEAD) == registered and game.call(FIND, {UC_X86_REG_ESI: name})[UC_X86_REG_EAX] == node,
+          "configs.start again: registered once")
 
     def slider(text):
         game.call(SET_FLOAT, {UC_X86_REG_ECX: node}, (game.put_text(text),))
@@ -361,7 +376,8 @@ def main():
           "the least; 62.50; 100")
     check(run("sound", EDI=WORLD, EBX=10) == [] and game.read(WORLD + 0x48E4) == 0,
           "the sound thread's tick before the bus: the world untouched")
-    check(run("login", ESI=HEAP + 0x200) == [], "the login screen before the first frame: the theme waits")
+    check(run("login", ESI=HEAP + 0x200) == [] and game.deleted == ["dxvk.pending"],
+          f"the login screen before the first frame: the theme waits; patch 83 deletes the DXVK marker ({game.deleted})")
     calls = run("frame", EBX=GAME)
     q = calls[0] if calls else None
     function = q[4] if q else bytes(0x20)
@@ -382,10 +398,11 @@ def main():
     calls = game.callback(bus_function + 8, results(SCENE))
     main_q = calls[0] if calls else None
     check(game.read(SCENE + 0xD0) == 2 and len(calls) == 1 and main_q[1:4] == ("music/main_theme", 256, 1)
-          and struct.unpack_from("<4xI", main_q[4])[0] == 0 and struct.unpack_from("<8xII", main_q[4])[1] == 2
+          and struct.unpack_from("<4xI", main_q[4])[0] == 0 and struct.unpack_from("<8xII", main_q[4])[1] == 3
           and main_q[6] == 0,
           "the bus arrives (its scene taken: one reference more); the waiting main theme asked: "
-          "music/main_theme (class 256), tag 2, no user data")
+          "music/main_theme (class 256), tag 3 (the first track's, after the bus's 0 and the game effect's 1), "
+          "no user data")
     half = lambda at: struct.unpack("<3H", game.read(at, 6))
     check(game.read(SCENE + 0x2FA, 1) == b"\x01" and half(SCENE + 0x120) == (0, 0, 0)
           and half(SCENE + 0x128) == (0, 0, 0x3C00) and half(SCENE + 0x130) == (0, 0x3C00, 0),
@@ -436,39 +453,45 @@ def main():
           "(General is the engine's, +2E8h)")
 
     calls = run("lobby", EDI=HEAP + 0x300)
-    check(calls == [], "the lobby: nothing asked while the main theme fades out")
-    frames(1000)
-    check(abs(volume() - 0.5) < 0.02 and not any(c[0] == "query" for c in game.calls),
-          f"half way out a second later ({volume():.3f})")
-    asked = []
+    check([c[0] for c in calls] == ["query"] and calls[0][1:4] == ("music/lobby_theme", 256, 1),
+          "the lobby: its theme asked at once, while the main theme fades out")
+    check(game.deleted == ["dxvk.pending"], f"the lobby: nothing more deleted ({game.deleted})")
+    lobby_q = calls[0]
+    lobby = sound_at(2)
+    calls = arrive(lobby_q, lobby)
+    check(calls == [] and game.read(lobby + 0xD0) == 2,
+          "the lobby theme arrives during the fade: its sound taken, not played")
+    frames(240)
+    check(abs(volume() - 0.52) < 0.02 and not any(c[0] in ("query", "emit", "play") for c in game.calls),
+          f"a handover: half way out a quarter of a second later ({volume():.3f})")
+    started = []
     for _ in range(60):
         sound(20)
         calls = run("frame", EBX=GAME)
         if calls:
-            asked = calls
+            started = calls
             break
-    check([c[0] for c in asked] == ["release voice", "release", "query"] and asked[0][1:] == (main_voice, 0)
-          and asked[1][1] == main and asked[2][1:4] == ("music/lobby_theme", 256, 1) and volume() == 0.0,
-          "silent: the main theme's voice and sound let go, only then the lobby theme asked")
-    lobby_q = asked[2]
-    lobby = sound_at(2)
-    calls = arrive(lobby_q, lobby)
-    check([c[0] for c in calls] == ["emit", "play"], "the lobby theme plays")
+    check([c[0] for c in started] == ["release voice", "release", "emit", "play"] and started[0][1:] == (main_voice, 0)
+          and started[1][1] == main and started[2][1] == lobby and volume() == 0.0,
+          "silent: the main theme's voice and sound let go, only then the lobby theme played")
     sound(2000)
 
     level = cfg_table(game, {"loading_music": "music/level_04_loading", "mode_name": "st_mode_02_name"})
-    check(run("loading", ESI=level) == [], "a loading: the lobby theme fades out first")
-    asked = []
+    asked = run("loading", ESI=level)
+    check([c[0] for c in asked] == ["query"] and asked[0][1:4] == ("music/level_04_loading", 256, 1),
+          "a loading: the mode's ui.loading_music asked at once, at switch_to_level_loading")
+    released = []
     for _ in range(150):
         sound(20)
         calls = run("frame", EBX=GAME)
         if calls:
-            asked = calls
+            released = calls
             break
-    check(asked and asked[-1][1:4] == ("music/level_04_loading", 256, 1), "then the mode's ui.loading_music asked")
+    check([c[0] for c in released] == ["release voice", "release"] and released[1][1] == lobby,
+          "the lobby theme let go once silent; the map's theme, not here yet, waits")
     map_sound = sound_at(3)
-    calls = arrive(asked[-1], map_sound)
-    check([c[0] for c in calls] == ["emit", "play"], "the map's theme plays")
+    calls = arrive(asked[0], map_sound)
+    check([c[0] for c in calls] == ["emit", "play"], "the map's theme plays when it arrives")
     frames(30_000)
     check(volume() == 1.0, "through the loading and the countdown")
     run("announced", EDI=HEAP + 0x400)

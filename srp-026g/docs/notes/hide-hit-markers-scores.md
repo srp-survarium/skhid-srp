@@ -105,8 +105,9 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
   branch `feat/interface-level`, not merged): the selector decides which parts of the hud show;
   these change what the crosshair and the Tab list show when they do. Disabled hides both anyway.
 - **F11 (hide interface):** unchanged; both options apply again when the interface shows.
-- **Blackout:** no effect there, nothing to change: its interface is forced hidden (no crosshair,
-  and Tab never shows the list). The saved choice is kept for the next match.
+- **Blackout:** its interface is forced hidden (no crosshair); its Tab view has the list (since
+  2026-11-09, `blackout.md`) always by names only, as "Hide player scores" shows it, whatever the
+  option says. The saved choice is kept for the next match.
 - **Replays:** the replay's hud follows the options as a match's does.
 
 ## How
@@ -114,7 +115,7 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
 - **Exe** (Rust, five lohooks of `hud_options.toml`, order 2, each after another patch's hook at
   the same site):
   - `configs.start` (game::on_configs_loaded's start, after patch 79): registers the four saved
-    bools (cc_value<bool>::cc_value 0x1DDB0, then cc_bool's vtable 0x9E7C4C) before user.cfg runs;
+    bools (cc_value<bool>::cc_value 0x1DDB0, then cc_bool's vtable 0x9E7C4C) before user.cfg runs (and `srp_dxvk`, `dxvk-option.md`, the same way);
   - `options.callback` (game_options::scaleform_callback's start, after patch 79): a call named
     `srp_hide_hit_markers`, `srp_hide_scores`, `srp_map_names` or `srp_hide_crosshair` answers
     `root.srp_check_option(name, label, "1"|"0")`; with "1" or "0" it saves that first (user.cfg at
