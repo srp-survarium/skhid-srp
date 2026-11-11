@@ -13,6 +13,7 @@ RUN apt-get update \
 WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY crates crates
+COPY client-voice client-voice
 COPY servers servers
 COPY scripts scripts
 COPY resources/binary-config-examples resources/binary-config-examples
