@@ -3,7 +3,9 @@
 //! Only logged.
 //!
 //! After the first world of a match connection loads, and when the match
-//! closes, the client tells these kinds of entry:
+//! closes, the client tells these kinds of entry (and in between, at a
+//! minute whose look at the windows over the game saw otherwise than the
+//! report before, only its [`Over`] or [`Unseen`] entries, [`Moment::Minute`]):
 //! - a [`Module`]: a DLL (or the exe) in the loader's list, outside the
 //!   Windows folder: its file name, where its folder is ([`Place`]: a
 //!   user's name in the path is left out, so no Windows user name leaves
@@ -38,9 +40,79 @@
 //!   place: u8 folder  u8 len  dir[len] (UTF-8, at most 64 bytes)
 //!   at: seconds since the game started
 //!   pe: u8 has  u32 stamp  u32 checksum (all zero without)
+//!   moment: 0 loaded, 1 ended, from 2 a minute (the minute + 1)
 //! ```
 
-pub use crate::report::Moment;
+/// When in a match a module report was made: as every report's
+/// ([`crate::report::Moment`]), or a minute's look at the windows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Moment {
+    /// The connection's first world is in.
+    Loaded,
+    /// The match is closing on the game.
+    Ended,
+    /// A look at the windows over the game's, at this minute after the first world.
+    Minute(Minute),
+}
+
+/// A minute of a match connection after its first world: 1 to
+/// [`Minute::LAST`], each its own moment byte, so the server tells one
+/// minute's report from a copy of another's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Minute(u8);
+
+impl Minute {
+    pub const FIRST: Minute = Minute(1);
+    /// The last minute that has a byte (over four hours: no match lasts so long).
+    pub const LAST: Minute = Minute(u8::MAX - 1);
+
+    /// The minute after this one; `None` after the last.
+    pub fn next(self) -> Option<Minute> {
+        self.0.checked_add(1).filter(|_| self < Minute::LAST).map(Minute)
+    }
+
+    pub fn get(self) -> u8 {
+        self.0
+    }
+}
+
+impl Moment {
+    /// Its kind: `loaded`, `ended` or `minute` (without the minute's number).
+    pub fn word(self) -> &'static str {
+        match self {
+            Moment::Loaded => "loaded",
+            Moment::Ended => "ended",
+            Moment::Minute(_) => "minute",
+        }
+    }
+
+    pub(crate) fn byte(self) -> u8 {
+        match self {
+            Moment::Loaded => 0,
+            Moment::Ended => 1,
+            Moment::Minute(Minute(minute)) => minute.saturating_add(1),
+        }
+    }
+
+    /// Every byte is one.
+    fn of(byte: u8) -> Moment {
+        match byte.checked_sub(1) {
+            None => Moment::Loaded,
+            Some(0) => Moment::Ended,
+            Some(minute) => Moment::Minute(Minute(minute)),
+        }
+    }
+}
+
+/// As the log writes it: `loaded`, `ended`, `minute 7`.
+impl core::fmt::Display for Moment {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Moment::Minute(minute) => write!(f, "minute {}", minute.0),
+            moment => f.write_str(moment.word()),
+        }
+    }
+}
 
 /// A name's bytes; a longer one is cut at a character's start.
 pub const NAME: usize = 32;
@@ -998,7 +1070,7 @@ impl Part {
     pub(crate) fn parse(bytes: &[u8], more: bool) -> Option<Part> {
         let (head, mut records) = bytes.split_at_checked(HEAD)?;
         let &[moment, count, seen] = head else { return None };
-        let moment = Moment::of(moment)?;
+        let moment = Moment::of(moment);
         if usize::from(count) > PER_PART || (more && count == 0) || bytes.len() > MAX_BODY {
             return None;
         }
@@ -1275,6 +1347,23 @@ mod tests {
     }
 
     #[test]
+    fn every_moment_has_a_byte_of_its_own() {
+        use std::string::ToString;
+        let mut moments = std::vec![Moment::Loaded, Moment::Ended];
+        let mut minute = Some(Minute::FIRST);
+        while let Some(at) = minute {
+            moments.push(Moment::Minute(at));
+            minute = at.next();
+        }
+        assert_eq!(moments.last(), Some(&Moment::Minute(Minute::LAST)));
+        let bytes: std::collections::BTreeSet<u8> = moments.iter().map(|moment| moment.byte()).collect();
+        assert_eq!((moments.len(), bytes.len()), (256, 256));
+        assert!(moments.iter().all(|&moment| Moment::of(moment.byte()) == moment));
+        assert_eq!(Moment::Minute(Minute::FIRST.next().unwrap()).to_string(), "minute 2");
+        assert_eq!(Moment::Ended.to_string(), "ended");
+    }
+
+    #[test]
     fn a_part_is_exact() {
         let mut report = Report::new(Moment::Loaded);
         (0..30).for_each(|n| report.add(if n == 1 { code(1) } else { module("x.dll", Folder::Temp, n) }));
@@ -1293,7 +1382,6 @@ mod tests {
             bytes[at] = value;
             crate::report::Carrier::parse(&bytes)
         };
-        assert_eq!(bad(15, 2), None, "a moment");
         assert_eq!(bad(15 + 1, bytes[15 + 1] + 1), None, "a count of more than there is");
         assert_eq!(bad(module_at, 5), None, "a kind");
         assert_eq!(bad(module_at + 1, 0), None, "an empty name");

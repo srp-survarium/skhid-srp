@@ -420,6 +420,10 @@ fn windows_over(kernel32: &Kernel32) -> Result<[Option<Over>; MAX_OVER], Unseen>
             break;
         }
         if window == game {
+            // the usual look (once a minute in a match): nothing over the game, no process list taken
+            if found.iter().all(Option::is_none) {
+                return Ok([None; MAX_OVER]);
+            }
             let names = process_names(kernel32, &found.map(|found| found.map(|(process, _)| process)));
             let (folder, temp, windows) = (kernel32.file_of(core::ptr::null_mut()).folder(), kernel32.temp(), kernel32.windows());
             let mut told = [None; MAX_OVER];
@@ -461,25 +465,51 @@ fn windows_over(kernel32: &Kernel32) -> Result<[Option<Over>; MAX_OVER], Unseen>
     Err(Unseen::NoOrder)
 }
 
-/// The windows over the game's, into `report`, or why that cannot be told.
-fn overs(kernel32: &Kernel32, report: &mut Report) {
-    match windows_over(kernel32) {
-        Ok(overs) => overs.into_iter().flatten().for_each(|over| report.add(Entry::Over(over))),
-        Err(unseen) => report.add(Entry::Unseen(unseen)),
+/// What a look at the other processes' windows over the game's saw
+/// ([`windows_over`]), or why it could not tell.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Windows(Result<[Option<Over>; MAX_OVER], Unseen>);
+
+impl Windows {
+    /// A look now. `None`: kernel32 lacks a function the walks need.
+    pub fn look() -> Option<Windows> {
+        Some(Windows(windows_over(&Kernel32::get()?)))
+    }
+
+    /// A look that could not tell, for `unseen`.
+    #[cfg(test)]
+    pub fn unseen(unseen: Unseen) -> Windows {
+        Windows(Err(unseen))
+    }
+
+    /// Its entries, into `report`.
+    fn add_to(self, report: &mut Report) {
+        match self.0 {
+            Ok(overs) => overs.into_iter().flatten().for_each(|over| report.add(Entry::Over(over))),
+            Err(unseen) => report.add(Entry::Unseen(unseen)),
+        }
+    }
+
+    /// A report of these windows only (a minute's look).
+    pub fn report(self, moment: Moment) -> Report {
+        let mut report = Report::new(moment);
+        self.add_to(&mut report);
+        report
     }
 }
 
-/// Everything patch 125 tells of this process at `moment`. What is rare
+/// Everything patch 125 tells of this process at `moment`, with the
+/// windows a look just saw. What is rare
 /// and says most goes first, so a long module list cannot crowd it out:
 /// the windows over the game, then the modules, the watch's loads and the
 /// code that is no module. `None`: the
 /// walks could not run (kernel32 lacks a function, or no snapshot); a
 /// report then says nothing.
-pub fn snapshot(thread: &Thread, moment: Moment) -> Option<Report> {
+pub fn snapshot(thread: &Thread, moment: Moment, windows: Windows) -> Option<Report> {
     let kernel32 = Kernel32::get()?;
     let mut report = Report::new(moment);
     let kept = module_watch::kept(thread);
-    overs(&kernel32, &mut report);
+    windows.add_to(&mut report);
     let bases = modules(&kernel32, &mut report)?;
     kept.loads(|base| bases.listed(base)).for_each(|load| report.add(Entry::Load(load)));
     code(&kernel32, &bases, &mut report);

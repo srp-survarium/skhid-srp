@@ -135,8 +135,39 @@ pub struct Playing<V, E> {
     _emitter: E,
 }
 
+/// What follows a fade-out. Its sound is asked for as soon as it is wanted,
+/// not when the fade ends: a map's theme is asked at the loading's start,
+/// ahead of the map's own loads, as retail 0.69d asks it. It starts only once
+/// the bus is silent.
+pub enum Next<E> {
+    /// Silence.
+    Silence,
+    /// Its sound on the way.
+    Loading { want: Want, serial: Serial },
+    /// Its sound here, waiting for the silence.
+    Ready { want: Want, emitter: E },
+}
+
+impl<E> Next<E> {
+    fn track(&self) -> Option<Track> {
+        match self {
+            Next::Silence => None,
+            Next::Loading { want, .. } | Next::Ready { want, .. } => Some(want.track),
+        }
+    }
+
+    fn announced(self, now: Millis) -> Next<E> {
+        match self {
+            Next::Silence => Next::Silence,
+            Next::Loading { want, serial } => Next::Loading { want: want.announced(now), serial },
+            Next::Ready { want, emitter } => Next::Ready { want: want.announced(now), emitter },
+        }
+    }
+}
+
 /// The current music. At most one [`Playing`] exists, so at most one track
-/// is ever heard: a new voice is made only from `Loading`, which holds none.
+/// is ever heard: a voice is made only where none is held (from `Loading`,
+/// or from `FadingOut` once its track is silent and let go).
 pub enum Music<E, V> {
     /// Nothing plays.
     Silent,
@@ -146,7 +177,7 @@ pub enum Music<E, V> {
     Sounding { now: Playing<V, E>, until: Option<Millis> },
     /// A track fades out (the bus's target silent); `next` starts when the
     /// bus is silent.
-    FadingOut { now: Playing<V, E>, next: Option<Want> },
+    FadingOut { now: Playing<V, E>, next: Next<E> },
 }
 
 impl<E, V> Music<E, V> {
@@ -170,19 +201,21 @@ impl<E, V> Music<E, V> {
             (Sounding { now: playing, .. }, Event::Ask(asked)) => match asked {
                 // the track already playing plays on (a new match's map: its own deadline)
                 Some(asked) if asked.track == playing.track => Sounding { now: playing, until: asked.until },
-                next => {
+                asked => {
                     engine.fade(Volume::SILENT);
+                    let next = ask(asked, engine).map_or(Next::Silence, |(want, serial)| Next::Loading { want, serial });
                     FadingOut { now: playing, next }
                 }
             },
             (FadingOut { now: playing, next }, Event::Ask(asked)) => match asked {
                 // the track fading out, asked again: back in from where it is
+                // (the next one's sound, if here, let go)
                 Some(asked) if asked.track == playing.track => {
                     engine.fade(Volume::FULL);
                     Sounding { now: playing, until: asked.until }
                 }
                 // the same next track asked again: the fade goes on
-                asked if asked.map(|a| a.track) == next.map(|n| n.track) => FadingOut { now: playing, next },
+                asked if asked.map(|a| a.track) == next.track() => FadingOut { now: playing, next },
                 // another one: the fading track stopped at once
                 asked => {
                     drop(playing);
@@ -196,40 +229,40 @@ impl<E, V> Music<E, V> {
                 let want = Want { track: playing.track, until }.announced(now);
                 Sounding { now: playing, until: want.until }
             }
-            (FadingOut { now: playing, next }, Event::Announced) => {
-                FadingOut { now: playing, next: next.map(|n| n.announced(now)) }
-            }
+            (FadingOut { now: playing, next }, Event::Announced) => FadingOut { now: playing, next: next.announced(now) },
             (Silent, Event::Announced) => Silent,
 
             (Loading { want, serial }, Event::Arrived(arrived, sound)) if arrived == serial => match sound {
                 // a track that is not there: silence
                 None => Silent,
-                // its time went by while it loaded
-                Some(_) if want.over(now) => Silent,
-                Some(emitter) => {
-                    // the bus is silent (nothing played since it was cut or
-                    // faded out): the voice starts there and fades in
-                    engine.cut();
-                    match engine.play(&emitter) {
-                        Some(voice) => {
-                            engine.fade(Volume::FULL);
-                            Sounding { now: Playing { track: want.track, _voice: voice, _emitter: emitter }, until: want.until }
-                        }
-                        None => Silent,
-                    }
-                }
+                Some(emitter) => begin(want, emitter, engine),
             },
+            (FadingOut { now: playing, next: Next::Loading { want, serial } }, Event::Arrived(arrived, sound))
+                if arrived == serial =>
+            {
+                let next = match sound {
+                    Some(emitter) if !want.over(now) => Next::Ready { want, emitter },
+                    // not there, or its time went by while it loaded: silence follows
+                    _ => Next::Silence,
+                };
+                FadingOut { now: playing, next }
+            }
             // a sound nobody waits for any more: let go of it here
             (state, Event::Arrived(..)) => state,
 
             (Loading { want, .. }, Event::Frame) if want.over(now) => Silent,
             (Sounding { now: playing, until: Some(until) }, Event::Frame) if now >= until => {
                 engine.fade(Volume::SILENT);
-                FadingOut { now: playing, next: None }
+                FadingOut { now: playing, next: Next::Silence }
             }
             (FadingOut { now: playing, next }, Event::Frame) if engine.silent() => {
                 drop(playing);
-                start(next, engine)
+                match next {
+                    Next::Silence => Silent,
+                    Next::Loading { want, .. } if want.over(now) => Silent,
+                    Next::Loading { want, serial } => Loading { want, serial },
+                    Next::Ready { want, emitter } => begin(want, emitter, engine),
+                }
             }
             (state, Event::Frame) => state,
         }
@@ -242,11 +275,29 @@ impl<E, V> Music<E, V> {
     }
 }
 
-/// A track starts: its sound is asked for (None, or its time gone: silence).
+/// A track wanted: its sound asked for (None, or its time gone: nothing asked).
+fn ask<E, V, G: Engine<Emitter = E, Voice = V>>(want: Option<Want>, engine: &mut G) -> Option<(Want, Serial)> {
+    want.filter(|want| !want.over(engine.now())).map(|want| (want, engine.load(&want.track)))
+}
+
+/// A track starts from silence: its sound asked for.
 fn start<E, V, G: Engine<Emitter = E, Voice = V>>(want: Option<Want>, engine: &mut G) -> Music<E, V> {
-    match want {
-        Some(want) if !want.over(engine.now()) => Music::Loading { serial: engine.load(&want.track), want },
-        _ => Music::Silent,
+    ask(want, engine).map_or(Music::Silent, |(want, serial)| Music::Loading { want, serial })
+}
+
+/// A track's sound here, the bus silent (nothing played since it was cut or
+/// faded out): the voice starts there and fades in (its time gone: silence).
+fn begin<E, V, G: Engine<Emitter = E, Voice = V>>(want: Want, emitter: E, engine: &mut G) -> Music<E, V> {
+    if want.over(engine.now()) {
+        return Music::Silent;
+    }
+    engine.cut();
+    match engine.play(&emitter) {
+        Some(voice) => {
+            engine.fade(Volume::FULL);
+            Music::Sounding { now: Playing { track: want.track, _voice: voice, _emitter: emitter }, until: want.until }
+        }
+        None => Music::Silent,
     }
 }
 
