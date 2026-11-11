@@ -70,7 +70,12 @@ impl<'t> Player<'t> {
         unsafe { Some(*self.at.profile()?.team()) }
     }
     pub(super) fn ally(self, other: Self) -> bool {
-        self.at != other.at && matches!(self.team(), Some(0 | 1)) && self.team() == other.team()
+        self.allies()(other)
+    }
+    /// [`ally`](Self::ally) of this player, its team read once: the test of a whole roster.
+    pub(super) fn allies(self) -> impl Fn(Self) -> bool {
+        let team = self.team().filter(|team| matches!(team, 0 | 1));
+        move |other| team.is_some() && self.at != other.at && other.team() == team
     }
     pub(super) fn active(self) -> bool {
         // The core lookup already checked the synchronized active roster.
@@ -348,6 +353,12 @@ pub fn regenerate(ctx: &mut Context<'_>) {
         let (Some(pool), Some(frame)) = (site::pool(ctx), site::frame(ctx)) else {
             return;
         };
+        // A pool that does not regenerate keeps its delay and limit: its
+        // owner's modifiers are not read (most parts, every tick).
+        let rate = *frame.rate();
+        if !Regeneration::regenerates(rate) {
+            return;
+        }
         let Some(at) = pool.model().and_then(|m| m.owner()) else {
             return;
         };
@@ -360,7 +371,7 @@ pub fn regenerate(ctx: &mut Context<'_>) {
             raw::engine_apply_modifier(modifiers, REGENERATION_LIMIT, 1.0, 1.0) - 1.0,
         )
         .unwrap_or_default();
-        let (delay, limit) = regeneration.apply(*frame.rate(), delay, *frame.limit());
+        let (delay, limit) = regeneration.apply(rate, delay, *frame.limit());
         *frame.limit() = limit;
         delay
     };

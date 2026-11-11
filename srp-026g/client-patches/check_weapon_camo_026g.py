@@ -31,7 +31,7 @@ surface (at most 8), each of one request {"", 6Ch} with a variant of
 concrete_type_helper<P*> (the P, a pointer to itself, the type),
 the game's allocator and no parent, its function bind's manager | 1 with
 bake_done and the P; the P from the game's allocator with the allocation
-name the editor gives, its camouflage names (`<camo>`, `<camo>_nmap`,
+name the editor gives, its camouflage names (`<camo>`, no normal,
 `<camo>_smap`, no fresnel), the identity in its camouflage matrix, the
 render instance (one reference more each), the surface's index, the scale
 (`data/camo_scale`, else 4.0), 1 at +79Ch, 0 at +7A0h and the name
@@ -39,6 +39,17 @@ render instance (one reference more each), the surface's index, the scale
 callback the reference given back and the P deallocated from the game's
 allocator. Without one of them: no query, no allocation and no lookup of a
 key a table does not have. The original asks for nothing.
+
+The baker's part (the Rust patch weapon_camo, `bake.own_camouflage`):
+on_base_texture_loaded from its test of the camouflage layer's name of the
+bake's type (0x12E11B) to where it goes, of the original and of the build,
+on made-up parameters (the type at +7A0h, the baked files' name at +7A8h)
+and a made-up frame (the suffixes at [ebp-4Ch], the surface's diffuse name
+at [ebp+10h]). A name goes on with it (0x12E158); with no name the
+original takes the surface's own (0x12E12B, EDX the type's suffix, EDI the
+diffuse name), and so does the build for a character's bake, while a
+weapon's (`srpw...`) has no camouflage layer (0x12E25A): each with the
+registers and flags of the original's at that place.
 """
 import os
 import re
@@ -67,6 +78,10 @@ STOP_AT, HEAP, STACK = 0x30000000, 0x31000000, 0x32000000
 ALLOCATOR, RESULT = 0x34000000, 0x35000000
 T_BOOL, T_INT, T_FLOAT, T_TABLE, T_STRING = 0, 1, 2, 3, 5
 CAMO = "character/human/base_camo/multicam_512"
+BAKE_NAME_TEST, BAKE_OWN, BAKE_NAMED, BAKE_NO_LAYER = 0x12E11B, 0x12E12B, 0x12E158, 0x12E25A
+BAKE_FRESNEL_SKIP = 0x12E0EA                   # je 0x12E25A: the fresnel bake has no camouflage layer
+BAKE_PARAMETERS_SIZE = 0x8BC
+SUFFIXES = (b"_camo", b"_camo_nmap", b"_camo_fmap", b"_camo_smap")
 MODEL = "weapons/uzi"
 
 
@@ -301,6 +316,41 @@ REGS = {"eax": 0xA0A0A0A0, "ecx": 0xC0C0C0C0, "edx": 0xD0D0D0D0, "ebx": 0xB0B0B0
         "ebp": 0xBEBEBEBE, "esi": 0x51515151, "edi": 0x7A7A7A7A}
 
 
+def own_camouflage(exe, bake_name, layer_name, kind):
+    """on_base_texture_loaded from 0x12E11B (ECX the camouflage layer's name
+    of the bake's type, EAX the type, ESI the parameters) to the first of
+    0x12E12B, 0x12E158 and 0x12E25A: where it stopped and the machine there."""
+    run = Run(exe)
+    emu = run.emu
+    for at in (BAKE_OWN, BAKE_NAMED, BAKE_NO_LAYER):
+        emu.hook_add(UC_HOOK_CODE, lambda e, a, s, u: e.emu_stop(), begin=at, end=at)
+    parameters = run.alloc(b"\0" * BAKE_PARAMETERS_SIZE)
+    run.word(parameters + 0x7A0, kind)
+    run.word(parameters + 0x7A8, run.alloc(bake_name.encode("ascii") + b"\0"))
+    frame = STACK + 0x80000
+    emu.mem_write(frame - 0x200, b"\xEE" * 0x400)
+    for i, suffix in enumerate(SUFFIXES):
+        run.word(frame - 0x4C + 4 * i, run.alloc(suffix + b"\0"))
+    run.word(frame + 0x10, run.alloc(b"weapons/sks/sks\0"))
+    regs = dict(REGS, eax=kind, esi=parameters, ebp=frame, esp=frame - 0x200,
+                ecx=0 if layer_name is None else run.alloc(layer_name.encode("ascii") + b"\0"))
+    for name, reg in REGISTERS.items():
+        emu.reg_write(reg, regs[name])
+    emu.reg_write(UC_X86_REG_EFLAGS, 0x203)
+    emu.emu_start(BAKE_NAME_TEST, STOP_AT, count=2_000_000)
+    if run.error:
+        raise Failed(run.error)
+    out = {name: emu.reg_read(reg) for name, reg in REGISTERS.items()}
+    out["flags"] = emu.reg_read(UC_X86_REG_EFLAGS) & 0x41
+    out["stack"] = bytes(emu.mem_read(out["esp"], 0x44))
+    for name in ("edx", "edi"):                 # texts of this run's heap: compared as texts
+        if HEAP <= out[name] < run.heap:
+            out[name] = run.text(out[name])
+    for name in ("ecx", "esi"):                 # this run's own layer name and parameters
+        out[name] = out[name] == regs[name]
+    return emu.reg_read(UC_X86_REG_EIP), out
+
+
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
@@ -382,7 +432,7 @@ def main():
             say(fobj[0] == BIND_MANAGER | 1 and fobj[1] == 0 and fobj[3] == 0 and fobj[4] == p
                 and run.section_name(bake_done) == ".srpw",
                 f"{title} #{i}: the function: bind's manager | 1, bake_done in .srpw, 0, P")
-            say(names == {"diffuse": camo, "normal": camo + "_nmap", "fresnel": "", "smoothness": camo + "_smap",
+            say(names == {"diffuse": camo, "normal": "", "fresnel": "", "smoothness": camo + "_smap",
                           "name": f"srpw1_{safe(camo)}_{safe(model_path)}_{i}"},
                 f"{title} #{i}: the names {names}")
             say(matrix == identity, f"{title} #{i}: the camouflage's matrix is the identity")
@@ -395,6 +445,32 @@ def main():
             say(invoker == INVOKER and done == [("deallocate", q[8], ALLOCATOR, q[8])],
                 f"{title} #{i}: the callback deallocates P from the game's allocator")
         say(run.read(render + 0xD0) == 5, f"{title}: every reference given back")
+    say(original[BAKE_FRESNEL_SKIP - base.IMAGE_BASE - 0x1000 + 0x400:][:6] == bytes.fromhex("0f846a010000"),
+        "the fresnel bake's `je 0x12E25A` (0x12E0EA): the place of a bake with no camouflage layer")
+    weapon_bake = f"srpw1_{CAMO.replace('/', '_')}_weapons_sks_sks_0"
+    character_bake = "edge_researcher_03_legs_s3"
+    for kind, letter in ((0, "d"), (1, "n"), (3, "s")):
+        for layer_title, layer in (("no name", ""), ("a null name", None), ("a name", CAMO)):
+            for asker, bake_name in (("a weapon's", weapon_bake + letter), ("a character's", character_bake + letter)):
+                title = f"the baker, {asker} {letter} bake, the camouflage layer's texture {layer_title}"
+                try:
+                    (o_at, o), (b_at, b) = (own_camouflage(exe, bake_name, layer, kind) for exe in (original, build))
+                except Failed as error:
+                    say(False, f"{title}: {error}")
+                    continue
+                say(o_at == (BAKE_NAMED if layer else BAKE_OWN)
+                    and (layer or (o["edx"], o["edi"]) == (SUFFIXES[kind].decode(), "weapons/sks/sks")),
+                    f"{title}: the original goes on with it" if layer else
+                    f"{title}: the original takes the surface's own ({o['edi']}{o['edx']})")
+                if layer or asker == "a character's":
+                    say((b_at, b) == (o_at, o), f"{title}: the build as the original, at {b_at:#x}")
+                else:
+                    kept = {name: REGS[name] for name in ("edx", "ebx", "edi")}
+                    say(b_at == BAKE_NO_LAYER and {name: b[name] for name in kept} == kept and b["eax"] == kind
+                        and b["ecx"] and b["esi"] and (b["ebp"], b["esp"], b["flags"], b["stack"])
+                        == (o["ebp"], o["esp"], o["flags"], o["stack"]),
+                        f"{title}: the build has no camouflage layer ({b_at:#x}), every register, the flags and the "
+                        "stack as at the test")
     print("all checks passed" if not failures else f"{failures} FAILED")
     sys.exit(1 if failures else 0)
 

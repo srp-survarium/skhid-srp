@@ -80,22 +80,21 @@ pub const RESONANCE_REACH: f32 = 9.0;
 /// Medic, which only Cascade grants) (the owner, 2026-11-07: 6 m, was 5 m).
 pub const CASCADE_REACH: f32 = 6.0;
 
-/// The packed skills of a kit's modifier 40.
+/// The packed skills of a kit's modifier 40: its bits, valid ([`Skills::parse`]). Kept packed, each
+/// skill a bit test: the aura reads every carrier's at every modifier getter's call.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Skills {
-    resistance: Resistance,
-    keeper: bool,
-    draw: Option<Draw>,
-    resonance: bool,
-    spring: bool,
-    onyx: bool,
-    larkspur: bool,
-    cascade: bool,
-    sight: bool,
-    late: bool,
-}
+pub struct Skills(u16);
 
 impl Skills {
+    const KEEPER: u16 = 1 << 3;
+    const RESONANCE: u16 = 1 << 4;
+    const SPRING: u16 = 1 << 5;
+    const ONYX: u16 = 1 << 6;
+    const LARKSPUR: u16 = 1 << 7;
+    const CASCADE: u16 = 1 << 8;
+    const SIGHT: u16 = 1 << 12;
+    const LATE: u16 = 1 << 13;
+
     /// Bits: 0..2 Resistance, 3 Keeper, 4 Resonance, 5 Spring II, 6 Onyx II, 7 Larkspur II,
     /// 8 Cascade, 9..11 the match's Keeper draw 1..6 (0 none; with the skill or not), 12 Artifact
     /// Sight, 13 a late joiner's kit (srp's mark, survarium::v026g::keeper::LATE). Anything else (a
@@ -104,67 +103,56 @@ impl Skills {
         if !(0.0..16384.0).contains(&value) || value != (value as u32) as f32 {
             return None;
         }
-        let bits = value as u32;
-        let resistance = (bits & 7) as u8;
-        if resistance > Resistance::MOST {
-            return None;
-        }
-        let bit = |n: u32| bits & (1 << n) != 0;
-        let draw = match ((bits >> 9) & 7) as u8 {
-            0 => None,
-            draw => Some(Draw::parse(draw)?),
-        };
-        Some(Self {
-            resistance: Resistance(resistance),
-            keeper: bit(3),
-            draw,
-            resonance: bit(4),
-            spring: bit(5),
-            onyx: bit(6),
-            larkspur: bit(7),
-            cascade: bit(8),
-            sight: bit(12),
-            late: bit(13),
-        })
+        let bits = value as u16;
+        let valid = (bits & 7) as u8 <= Resistance::MOST && ((bits >> 9) & 7) as u8 <= Draw::MOST;
+        valid.then_some(Self(bits))
+    }
+
+    fn has(self, skill: u16) -> bool {
+        self.0 & skill != 0
+    }
+
+    fn resistance(self) -> Resistance {
+        Resistance((self.0 & 7) as u8)
     }
 
     /// The kit is a late joiner's (srp took it into the match once in process): Keeper's gift
     /// comes after its first death, not at the match's start.
     pub fn late(self) -> bool {
-        self.late
+        self.has(Self::LATE)
     }
 
     /// Artifact Sight (the owner, 2026-11-07): this game shows the leg quarters of passive
     /// artefacts (patch 111's glow), its own player's too.
     pub fn sight(self) -> bool {
-        self.sight
+        self.has(Self::SIGHT)
     }
 
     /// Keeper of the Artifacts taken.
     pub fn keeper(self) -> bool {
-        self.keeper
+        self.has(Self::KEEPER)
     }
 
     /// The match's Keeper draw (srp writes it into every kit of the match), none in the lobby.
     pub fn draw(self) -> Option<Draw> {
-        self.draw
+        Draw::parse(((self.0 >> 9) & 7) as u8)
     }
 
     /// Onyx II: no fall damage while one of the player's Onyx is active.
     pub fn onyx(self) -> bool {
-        self.onyx
+        self.has(Self::ONYX)
     }
 
     /// Spring II (the owner, 2026-11-05): each carried Spring's reload speed (modifier 13),
     /// +5% while its passive is on and +10% more while its active is, as its other nodes:
     /// (passive, active) node values, 0 without the skill.
     pub fn spring_reload(self) -> (f32, f32) {
-        if self.spring { (0.05, 0.10) } else { (0.0, 0.0) }
+        if self.has(Self::SPRING) { (0.05, 0.10) } else { (0.0, 0.0) }
     }
 
     /// Larkspur II: a Larkspur's activation restores all energy.
     pub fn larkspur(self) -> bool {
-        self.larkspur
+        self.has(Self::LARKSPUR)
     }
 
     /// How far (squared metres) this carrier's artefacts give their `phase` to its teammates:
@@ -172,8 +160,8 @@ impl Skills {
     /// [`CASCADE_REACH`].
     pub fn reach(self, phase: Phase) -> Option<f32> {
         match phase {
-            Phase::Passive => self.resonance.then_some(RESONANCE_REACH * RESONANCE_REACH),
-            Phase::Active => self.cascade.then_some(CASCADE_REACH * CASCADE_REACH),
+            Phase::Passive => self.has(Self::RESONANCE).then_some(RESONANCE_REACH * RESONANCE_REACH),
+            Phase::Active => self.has(Self::CASCADE).then_some(CASCADE_REACH * CASCADE_REACH),
         }
     }
 
@@ -181,7 +169,7 @@ impl Skills {
     /// anomalous types, before the piercing's subtraction and the native clamp.
     pub fn armour(self, native: f32, kind: HitKind) -> f32 {
         if kind.anomalous() {
-            native + f32::from(self.resistance.0) * Resistance::ARMOUR
+            native + f32::from(self.resistance().0) * Resistance::ARMOUR
         } else {
             native
         }
@@ -288,6 +276,11 @@ impl Room {
 
     pub fn after(own: usize) -> Self {
         Self(usize::from(Self::MOST).saturating_sub(own) as u8)
+    }
+
+    /// Whether there is room for one copy more.
+    pub fn open(self) -> bool {
+        self.0 > 0
     }
 
     /// One copy more, if there is room for it.
@@ -583,25 +576,45 @@ mod tests {
         }
         assert_eq!(Skills::parse(0.0), Some(Skills::default()));
         let full = Skills::parse(509.0).unwrap();
-        assert_eq!(full.resistance, Resistance(5));
-        assert!(full.keeper && full.draw.is_none());
-        assert!(full.resonance && full.spring && full.onyx && full.larkspur && full.cascade);
+        assert_eq!(full.resistance(), Resistance(5));
+        assert!(full.keeper() && full.draw().is_none());
+        assert!(full.has(Skills::RESONANCE) && full.spring_reload() == (0.05, 0.10) && full.onyx() && full.larkspur());
+        assert!(full.has(Skills::CASCADE));
         for draw in 1..=6u8 {
             let skills = Skills::parse(8.0 + f32::from(draw) * 512.0).unwrap();
-            assert!(skills.keeper && skills.draw == Draw::parse(draw));
+            assert!(skills.keeper() && skills.draw() == Draw::parse(draw));
             // Every kit of the match has the draw, a player without the skill too.
             let skills = Skills::parse(f32::from(draw) * 512.0).unwrap();
-            assert!(!skills.keeper && skills.draw.map(Draw::get) == Some(draw));
+            assert!(!skills.keeper() && skills.draw().map(Draw::get) == Some(draw));
         }
         assert!(Skills::parse(508.0 + 6.0 * 512.0).is_some());
         // Artifact Sight, bit 12: alone, with every other bit and a draw.
         assert!(Skills::parse(4096.0).unwrap().sight());
         let all = Skills::parse(4096.0 + 508.0 + 6.0 * 512.0).unwrap();
-        assert!(all.sight() && all.keeper && all.cascade && all.draw.map(Draw::get) == Some(6));
+        assert!(all.sight() && all.keeper() && all.has(Skills::CASCADE) && all.draw().map(Draw::get) == Some(6));
         assert!(!full.sight());
         // A late joiner's kit, bit 13.
         assert!(Skills::parse(8192.0 + 8.0 + 512.0).unwrap().late());
         assert!(!all.late());
+    }
+
+    #[test]
+    fn every_valid_payload_keeps_each_bit_and_every_other_is_none() {
+        // Kept packed: each skill as its own decode of the payload's bits.
+        for bits in 0..16384u32 {
+            let parsed = Skills::parse(bits as f32);
+            let valid = bits & 7 <= 5 && (bits >> 9) & 7 <= 6;
+            assert_eq!(parsed.is_some(), valid, "{bits}");
+            let Some(skills) = parsed else { continue };
+            let bit = |n: u32| bits & (1 << n) != 0;
+            assert_eq!(skills.resistance(), Resistance((bits & 7) as u8));
+            assert_eq!(skills.draw().map(Draw::get), Some((bits >> 9) & 7).filter(|&draw| draw != 0).map(|draw| draw as u8));
+            assert_eq!([skills.keeper(), skills.onyx(), skills.larkspur(), skills.sight(), skills.late()],
+                       [bit(3), bit(6), bit(7), bit(12), bit(13)], "{bits}");
+            assert_eq!(skills.spring_reload(), if bit(5) { (0.05, 0.10) } else { (0.0, 0.0) });
+            assert_eq!((skills.reach(Phase::Passive).is_some(), skills.reach(Phase::Active).is_some()), (bit(4), bit(8)));
+            assert_eq!(Skills::parse(bits as f32 + 0.5), None);
+        }
     }
 
     #[test]

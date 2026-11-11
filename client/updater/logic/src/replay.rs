@@ -29,7 +29,7 @@ pub const GAME_EXE: &str = "survarium_skhid.exe";
 /// What the launcher's PLAY gives the game after its language (the
 /// `arguments` value of `launcher_values_026g.asm`). The game exe has its
 /// login server inside; a replay connects to none.
-pub const GAME_ARGUMENTS: &str = "-mt_allocator=768 -minimum_resources_memory_size=768";
+pub const GAME_ARGUMENTS: &str = "-minimum_resources_memory_size=768";
 /// The game cuts a replay's name at 259 bytes (0x1F02EC: a 0x104-byte
 /// buffer) and reads its command line as ANSI text.
 pub const MAX_GAME_PATH: usize = 259;
@@ -467,7 +467,7 @@ mod tests {
         let replay = r"D:\My Games\Survarium\game\replays\srp_0a1b2c3d.sur";
         assert_eq!(
             game_command(game, replay).unwrap(),
-            format!("\"{game}\" -mt_allocator=768 -minimum_resources_memory_size=768 -match_replay=\"{replay}\"")
+            format!("\"{game}\" -minimum_resources_memory_size=768 -match_replay=\"{replay}\"")
         );
         assert!(game_command(game, r"\\server\share\game\replays\srp_0a1b2c3d.sur").is_some());
         assert!(game_command(game, r"D:\GAMES~1\SURVAR~1\game\replays\SRP_0A~1.SUR").is_some());

@@ -292,7 +292,8 @@ pointers; not yet measured on Windows: see Dump contents).
   files are excluded. Directories and reparse points are excluded when Windows
   reports them as such; Wine may expose host symlinks as ordinary files.
 - The client patches' log: `srp_patches.log` beside the EXE (`vostok/log.rs`;
-  the game never cuts it), first, as `logs/game-exe/srp_patches.log`,
+  past 8 MiB the game renames it `srp_patches.old.log`, which is not
+  collected, and begins a new one), first, as `logs/game-exe/srp_patches.log`,
   whatever its age: its last 2 MiB, from the first whole line in them
   (`collection.txt` says from which byte), under the same filter and budgets.
   Its `srp: ` lines are each a record of their own for the filter.

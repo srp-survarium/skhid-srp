@@ -29,11 +29,17 @@ impl Regeneration {
         })
     }
 
+    /// Whether a pool's tick at `rate` (a second) regenerates at all; one
+    /// that does not keeps its delay and limit whatever the modifiers.
+    pub fn regenerates(rate: f32) -> bool {
+        rate > 0.0
+    }
+
     /// The delay (ms) and limit one tick of a pool's regeneration uses. A
     /// pool that does not regenerate (rate 0) keeps its own: raising its
     /// limit would only make the native heal it by nothing.
     pub fn apply(self, rate: f32, delay_ms: u32, limit: f32) -> (u32, f32) {
-        if rate > 0.0 {
+        if Self::regenerates(rate) {
             (delay_ms.saturating_sub(self.sooner_ms), limit.max((limit + self.raise).min(1.0)))
         } else {
             (delay_ms, limit)

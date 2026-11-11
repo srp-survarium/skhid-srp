@@ -1,5 +1,5 @@
 //! Patch 133: the console command `where` says where the camera's character
-//! is and where it looks (docs/notes/client_patch.md section 3.80).
+//! is and where it looks (docs/notes/client_patch.md section 3.81).
 //!
 //! Every frame, update_camera after the view's update (`camera.viewed`)
 //! keeps the camera's player's place and the view's transform, on the draw's

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Patch 133 (the Rust patch console_where, rust/patches/src/console_where.rs):
-the console command `where` (client_patch.md section 3.80).
+the console command `where` (client_patch.md section 3.81).
 
     python check_console_where_026g.py <original survarium.exe>
 
@@ -81,6 +81,7 @@ class Run(language.Run):
         emu.mem_map(OBJECTS, 0x60000, UC_PROT_ALL)
         emu.mem_map(MAPS, 0x400000, UC_PROT_ALL)
         self.now, self.writes, self.logged, self.passes, self.passing = 0, [], b"", [], True
+        self.last_line, self.unwritten = None, 0
         stubs = ((TICK_SLOT, b"\xC3"),
                  (CREATE_SLOT, b"\xB8\x07\x00\x00\x00\xC2\x1C\x00"),
                  (WRITE_SLOT, b"\xB8\x01\x00\x00\x00\xC2\x14\x00"),
@@ -150,6 +151,17 @@ class Run(language.Run):
         self.call(EXECUTE, (TEXT, 2, 2))
         return self.writes, self.logged
 
+    def patches_log(self, text):
+        """What srp_patches.log gets when the patch logs `text` now (vostok::log's repeats): a line the same as
+        the one before it is counted, not written; the next other line comes after the count."""
+        line = b"srp: " + text + b"\r\n"
+        if line == self.last_line:
+            self.unwritten += 1
+            return b""
+        said = b"srp: (the line above: %d more times)\r\n" % self.unwritten if self.unwritten else b""
+        self.last_line, self.unwritten = line, 0
+        return said + line
+
     def game_log(self, text):
         """The game's own log_message of `text` with "%s" as our line's: its helper."""
         self.emu.mem_write(TEXT, b"%s\0srp\0game\0" + text + b"\0")
@@ -163,8 +175,9 @@ class Run(language.Run):
                                 TEXT, TEXT + 12))
         return self.writes
 
-    def map(self, name=None, map_id=0, replay=False, playing=True):
-        """The engine world's game in a match of map `name` (None: the engine not running)."""
+    def map(self, name=None, map_id=0, replay=False, playing=True, client=True):
+        """The engine world's game in a match of map `name` (None: the engine not running); no network
+        client unless `client`."""
         self.emu.mem_write(MAPS, bytes(0x400000))
         if name is None:
             self.word(ENGINE_SLOT, 0)
@@ -177,7 +190,9 @@ class Run(language.Run):
         self.word(GAME + 0x55E0, text)
         self.word(GAME + 0x55E4, text + len(name))
         self.word(GAME + 0x55E8, text + 0x200)
-        self.word(GAME + 0x53AC, CLIENT)
+        self.word(GAME + 0x53AC, CLIENT if client else 0)
+        if not client:
+            return
         if replay:
             self.word(CLIENT, REPLAY_CLIENT_VTABLE)
             self.emu.mem_write(CLIENT + 0x1C + 0x577B4, bytes([map_id]))
@@ -294,7 +309,7 @@ def main():
     check(len(writes) == 1 and writes[0]["argument"] == b"where: map - no camera yet" and writes[0]["format"] == b"%s"
            and writes[0]["channel"] == b"game:" and writes[0]["level"] == 4 and writes[0]["template"] == LOG_TEMPLATE
            and writes[0]["context"] == CONTEXT and writes[0]["function"] == want_function
-           and logged == b"srp: where: map - no camera yet\r\n",
+           and logged == new.patches_log(b"where: map - no camera yet"),
            "where through console_commands::execute, before any view: \"where: map - no camera yet\" to the game's log "
            "(\"%s\", game:, info, the template, the sink's function, the context) and to srp_patches.log")
     game = new.game_log(b"where: map - no camera yet")
@@ -304,15 +319,17 @@ def main():
     check(same, "the game's own log_message of that line fills its helper as ours, field by field")
     for r in (old, new):
         r.word(LOG_SINK, 0)
-    writes, _ = new.execute("where")
-    check(len(writes) == 1 and writes[0]["function"] == bytes(0x20), "no sink: an empty function, as the game's")
+    writes, logged = new.execute("where")
+    check(len(writes) == 1 and writes[0]["function"] == bytes(0x20)
+          and logged == new.patches_log(b"where: map - no camera yet"), "no sink: an empty function, as the game's")
     new.word(LOG_FILTERED, 1)
     for passing in (False, True):
         new.passing, new.passes = passing, []
         writes, logged = new.execute("where")
-        check(new.passes == [(b"game", 4)] and len(writes) == int(passing) and logged.startswith(b"srp: where:"),
+        check(new.passes == [(b"game", 4)] and len(writes) == int(passing)
+              and logged == new.patches_log(b"where: map - no camera yet"),
                f"the log filtered: has_passed_filters(\"game\", 4) asked; {'written' if passing else 'not written'} "
-               "(srp_patches.log either way)")
+               "(srp_patches.log either way: a repeat, counted)")
     new.word(LOG_FILTERED, 0)
     writes, _ = old.execute("where")
     check(len(writes) == 1 and writes[0]["format"] == b"unknown command [%s]",
@@ -338,25 +355,29 @@ def main():
             ok = (close(got["pos"], pos, 0.0006) and (shown_eye is None) == ("eye" not in got)
                   and (shown_eye is None or close(got["eye"], shown_eye, 0.0006)) and close(got["dir"], d, 0.0011)
                   and abs((got["yaw"] - yaw + 180) % 360 - 180) <= 0.06 and abs(got["pitch"] - pitch) <= 0.06
-                  and got["map"] == "-" and got["rest"] == "" and logged == b"srp: " + text.encode() + b"\r\n")
+                  and got["map"] == "-" and got["rest"] == "" and logged == new.patches_log(text.encode()))
             check(ok, f"{name}, {line!r}: {text}")
         new.now = 110_000
-        writes, _ = new.execute("where")
-        check(writes[0]["argument"].decode().endswith(" (10.0 s ago)"), f"{name}, 10 s later: (10.0 s ago)")
+        writes, logged = new.execute("where")
+        check(writes[0]["argument"].decode().endswith(" (10.0 s ago)") and logged == new.patches_log(writes[0]["argument"]),
+              f"{name}, 10 s later: (10.0 s ago)")
 
     # the map first
     new.now = 110_400
-    tail = new.execute("where")[0][0]["argument"].decode().split(" pos ", 1)[1]
+    writes, logged = new.execute("where")
+    check(logged == new.patches_log(writes[0]["argument"]), "the map first: the line before, to srp_patches.log")
+    tail = writes[0]["argument"].decode().split(" pos ", 1)[1]
     for name, args, want in (
             ("a live match", dict(name="v021d_level_03/day_2", map_id=61), "v021d_level_03/day_2 (id 61)"),
             ("a replay", dict(name="level_01/day_2", map_id=117, replay=True), "level_01/day_2 (id 117)"),
+            ("no network client: no id", dict(name="level_01/day_2", map_id=117, client=False), "level_01/day_2"),
             ("the world with no match (the lobby after one)",
              dict(name="level_01/day_2", map_id=117, playing=False), "-"),
             ("the engine not running", dict(), "-")):
         new.map(**args)
         writes, logged = new.execute("where")
         text = writes[0]["argument"].decode()
-        check(text == f"where: map {want} pos {tail}" and logged == b"srp: " + text.encode() + b"\r\n",
+        check(text == f"where: map {want} pos {tail}" and logged == new.patches_log(text.encode()),
               f"the map first, {name}: {text}")
 
 

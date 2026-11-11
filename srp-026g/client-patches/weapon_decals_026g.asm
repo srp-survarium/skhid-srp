@@ -226,6 +226,10 @@ decals:
 
 ; patch 44's bake_surface, edi = P (its name begun), ebp = patch 44's frame.
 ; Every register kept.
+; Of a camouflage the weapon takes the colours and the `_smap`, not the
+; `_nmap`: that is the weave of the cloth the camouflages were drawn for,
+; and the weapon keeps its own relief. A name left empty is no layer on a
+; weapon (the Rust patch weapon_camo, at the baker's `bake.own_camouflage`).
 fill:
     pushad
     mov esi, [ebp+CAMO]
@@ -234,12 +238,6 @@ fill:
     lea eax, [edi+P_CAMO+LAYER_DIFFUSE]
     mov ecx, esi
     call string_assign
-    push SUFFIX_NMAP
-    push esi
-    push FORMAT_STRING
-    lea eax, [edi+P_CAMO+LAYER_NORMAL]
-    call string_appendf
-    add esp, 12
     push SUFFIX_SMAP
     push esi
     push FORMAT_STRING

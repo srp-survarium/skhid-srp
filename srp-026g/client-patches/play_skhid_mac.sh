@@ -293,7 +293,7 @@ Details: game/binaries/x86/updater_skhid.log"
     fi
     check_nx_compat
     echo "Starting Survarium. Log: $log"
-    args=(-mt_allocator=768 -minimum_resources_memory_size=768)
+    args=(-minimum_resources_memory_size=768)
     [[ -z "$server" ]] || args+=("-server=$server")
     "$WINE" "$exe" "${args[@]}" >>"$log" 2>&1 || die "Game exited with an error. See $log"
 }

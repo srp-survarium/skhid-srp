@@ -220,7 +220,52 @@ impl History {
     }
 }
 
-static CACHE: Lock<[Option<Entry>; TICKETS]> = Lock::new([const { None }; TICKETS]);
+/// Fixed slots, a scan reading those up to the last one in use (`end`:
+/// every slot past it is free).
+struct Slots<T, const N: usize> {
+    slots: [Option<T>; N],
+    end: usize,
+}
+
+impl<T, const N: usize> Slots<T, N> {
+    const fn new() -> Self {
+        Slots { slots: [const { None }; N], end: 0 }
+    }
+
+    /// The slots up to the last one in use, in order.
+    fn iter(&self) -> core::slice::Iter<'_, Option<T>> {
+        self.slots[..self.end].iter()
+    }
+
+    fn iter_mut(&mut self) -> core::slice::IterMut<'_, Option<T>> {
+        self.slots[..self.end].iter_mut()
+    }
+
+    /// `value` in the first free slot; given back when there is none.
+    fn insert(&mut self, value: T) -> Option<T> {
+        let at = self.iter().position(Option::is_none).unwrap_or(self.end);
+        let Some(free) = self.slots.get_mut(at) else { return Some(value) };
+        *free = Some(value);
+        self.end = self.end.max(at + 1);
+        None
+    }
+
+    /// The first value `gone` holds for, taken out.
+    fn take(&mut self, mut gone: impl FnMut(&T) -> bool) -> Option<T> {
+        let taken = self.iter_mut().find(|v| v.as_ref().is_some_and(&mut gone))?.take();
+        while self.end > 0 && self.slots[self.end - 1].is_none() {
+            self.end -= 1;
+        }
+        taken
+    }
+}
+
+/// The copies, a cook ticket's slot each: a scan reads a match's few, not
+/// all [`TICKETS`] (the records' loads scan them several times for each
+/// player state a tick reads).
+type Cache = Slots<Entry, TICKETS>;
+
+static CACHE: Lock<Cache> = Lock::new(Cache::new());
 
 /// A player was made (a player cook's completion) since the last move: a
 /// late joiner's install may be among the next callbacks.
@@ -813,7 +858,8 @@ pub fn on_remove(ctx: &mut Context<'_>) -> Flow<NoExit> {
     }
     let Some((world, place)) = located(&player) else { return Flow::Continue };
     update_record(thread, world, place, |r| *r = r.respawned());
-    if let Some(gun) = record_at(thread, world, place).drop.gun() {
+    if let Some(gun) = record_at(thread, world, place).drop.gun()
+        && first_line(&REMOVALS_SAID, thread, usize::from(place.get()), player.time()) {
         log_recipe("its body left the world: the drop stays, alone,", gun.recipe,
                    &[Text(" of place "), Dec(u32::from(place.get())), Text(" at "), Dec(player.time()), Text(" ms")]);
     }
@@ -821,6 +867,26 @@ pub fn on_remove(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 // ---- the death and the pickup -----------------------------------------------------------------
+
+/// The last death (its life and time) and removal (its time) each place's
+/// line said: a rollback runs both hooks again at each tick it simulates
+/// again, the same death or removal, and its line is said once.
+static DEATHS_SAID: GameCell<[Option<(u32, u32)>; PLACES as usize]> = GameCell::new([None; PLACES as usize]);
+static REMOVALS_SAID: GameCell<[Option<u32>; PLACES as usize]> = GameCell::new([None; PLACES as usize]);
+
+/// Whether `key` is not what `place`'s last line in `said` said (it is from
+/// now on).
+fn first_line<K: Copy + PartialEq>(said: &GameCell<[Option<K>; PLACES as usize]>, thread: &Thread, place: usize,
+                                    key: K) -> bool {
+    let mut lines = said.get(thread);
+    let Some(last) = lines.get_mut(place) else { return true };
+    if *last == Some(key) {
+        return false;
+    }
+    *last = Some(key);
+    said.set(thread, lines);
+    true
+}
 
 /// The death of a player (composed from artefact_carry's `carry.client_death`,
 /// the player still intact): its drop is the gun it held of its two weapon
@@ -832,8 +898,10 @@ pub fn on_remove(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// its hands; the prompt's box is the copy's, the same gun.
 pub fn died(player: &Player<'_>, thread: &Thread) {
     breadcrumbs::record(thread, Crumb::Death { place: player.place(), life: player.spawned(), time: player.time() });
-    log(&[Text("death hook: place "), Dec(u32::from(player.place())), Text(" life "), Dec(player.spawned()),
-          Text(" at "), Dec(player.time()), Text(" ms")]);
+    if first_line(&DEATHS_SAID, thread, usize::from(player.place()), (player.spawned(), player.time())) {
+        log(&[Text("death hook: place "), Dec(u32::from(player.place())), Text(" life "), Dec(player.spawned()),
+              Text(" at "), Dec(player.time()), Text(" ms")]);
+    }
     // The only cancel of a pickup waiting for its switch (the gun in hands drawn again).
     cancel(player, thread, Cancel::Death);
     let Some((world, place)) = located(player) else { return };
@@ -912,10 +980,10 @@ fn revive(thread: &Thread, place: Place, was: impl Fn(DropOf) -> bool, recipe: R
         if cache.iter().flatten().any(|e| current(e) && e.recipe == recipe) {
             return true;
         }
-        let Some(k) = cache.iter().position(|e| e.as_ref().is_some_and(|e| ended(e) && e.recipe == recipe)) else {
+        let Some(e) = cache.iter_mut().flatten().find(|e| ended(e) && e.recipe == recipe) else {
             return false;
         };
-        if let Some(At::Drop(d)) = cache[k].as_mut().map(|e| &mut e.at) {
+        if let At::Drop(d) = &mut e.at {
             d.lies = Lies::Current;
         }
         true
@@ -1197,13 +1265,7 @@ fn ask(player: &Player<'_>, thread: &Thread, recipe: Recipe, at: At) -> Option<C
     let id = gun.id();
     let entry = Entry { gun, of, recipe, donor: player.id(), at, report: Report::Asked { memory }, history: History::Fresh,
                         last: None };
-    let leftover = CACHE.with(thread, |cache| match cache.iter_mut().find(|e| e.is_none()) {
-        Some(free) => {
-            *free = Some(entry);
-            None
-        }
-        None => Some(entry),
-    });
+    let leftover = CACHE.with(thread, |cache| cache.insert(entry));
     let kept = leftover.is_none();
     // No room (a ticket each, so never): given back outside the lock.
     drop(leftover);
@@ -1297,7 +1359,7 @@ fn release_where(thread: &Thread, mut gone: impl FnMut(&Entry) -> bool) {
     loop {
         // One at a time, each dropped outside the lock (the cooked
         // inventory's own teardown).
-        let taken = CACHE.with(thread, |cache| cache.iter_mut().find(|e| e.as_ref().is_some_and(&mut gone))?.take());
+        let taken = CACHE.with(thread, |cache| cache.take(&mut gone));
         match taken {
             Some(entry) => {
                 let address = native::gun_id(thread, entry.gun.id(), entry.recipe.slot).map_or(0, ItemId::address);
@@ -1612,7 +1674,13 @@ pub fn draw_drops(ctx: &Context<'_>, guns: &[Option<DroppedGun>; PLACES as usize
         }
     }
     DRAWN.with(thread, |all| *all = bodies);
-    let copies = CACHE.with(thread, |cache| cache.each_ref().map(|e| e.as_ref().map(|e| e.gun.id())));
+    let copies = CACHE.with(thread, |cache| {
+        let mut ids = [None; TICKETS];
+        for (id, e) in ids.iter_mut().zip(cache.iter()) {
+            *id = e.as_ref().map(|e| e.gun.id());
+        }
+        ids
+    });
     for id in copies.iter().flatten().filter(|id| !drawn.contains(&Some(**id))) {
         gun_cook::hide(thread, *id);
     }
@@ -1796,27 +1864,69 @@ enum Sight {
     Offered,
 }
 
-/// Each place's drop body and what was last logged of it.
-static SIGHTS: GameCell<[Option<(Body, Sight)>; PLACES as usize]> = GameCell::new([None; PLACES as usize]);
-
-/// One line for each drop whose sight changed (a new body, or a new reason).
-/// A new drop's gun box is logged once (its world centre and half sizes).
-fn log_sights(thread: &Thread, viewer: &Player<'_>, now: [Option<(Body, Sight, GunPose)>; PLACES as usize]) {
-    let before = SIGHTS.get(thread);
-    for (n, (was, is)) in before.iter().zip(now.iter()).enumerate() {
-        let Some((body, sight, pose)) = *is else { continue };
-        if was.map(|(b, _)| b) != Some(body) {
-            log_box(viewer, n as u8, &pose);
-        }
-        if *was != Some((body, sight)) {
-            log_sight(viewer, n as u8, sight);
+impl Sight {
+    /// Its kind's bit in a [`SightsLogged`] (a refusal's by its reason).
+    fn kind(self) -> u16 {
+        use weapon_pickup::Refusal as R;
+        1 << match self {
+            Sight::OutOfReach => 0,
+            Sight::NotAimedAt => 1,
+            Sight::NotItsBody => 2,
+            Sight::Taken => 3,
+            Sight::NoDrop => 4,
+            Sight::NoPicker => 5,
+            Sight::Blocked => 6,
+            Sight::Offered => 7,
+            Sight::Refused { why: R::Dead, .. } => 8,
+            Sight::Refused { why: R::NoGunInHands, .. } => 9,
+            Sight::Refused { why: R::Switching, .. } => 10,
+            Sight::Refused { why: R::NotAvailable, .. } => 11,
+            Sight::Refused { why: R::SecondWeaponDisabled, .. } => 12,
+            Sight::Refused { why: R::TwoDoubleHanded, .. } => 13,
         }
     }
-    // A drop not seen this frame keeps what was logged of it.
-    let mut kept = before;
-    for (k, is) in kept.iter_mut().zip(now) {
-        if let Some((body, sight, _)) = is {
-            *k = Some((body, sight));
+}
+
+/// The kinds of sight logged of one drop body (a set of [`Sight::kind`]s).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct SightsLogged(u16);
+
+impl SightsLogged {
+    /// Adds `sight`'s kind: whether it is new.
+    fn add(&mut self, sight: Sight) -> bool {
+        let new = self.0 & sight.kind() == 0;
+        self.0 |= sight.kind();
+        new
+    }
+}
+
+/// The drop bodies of a place the log remembers, the newest first: the
+/// body seen at a place can flip between its objects, and each flip would
+/// otherwise be logged as a new body.
+const BODIES_KEPT: usize = 4;
+
+/// A place's last drop bodies, each with the sights logged of it.
+type BodiesLogged = [Option<(Body, SightsLogged)>; BODIES_KEPT];
+
+/// Each place's drop bodies logged.
+static SIGHTS: GameCell<[BodiesLogged; PLACES as usize]> = GameCell::new([[None; BODIES_KEPT]; PLACES as usize]);
+
+/// A line for each kind of sight a drop body gets, once a body: the prompt
+/// runs every frame, and a viewer moving or turning by a drop flips between
+/// sights (in reach or not, aimed at or not) many times a second. A body's
+/// gun box is logged with its first sight (its world centre and half sizes).
+fn log_sights(thread: &Thread, viewer: &Player<'_>, now: [Option<(Body, Sight, GunPose)>; PLACES as usize]) {
+    let mut kept = SIGHTS.get(thread);
+    for (n, (bodies, is)) in kept.iter_mut().zip(now).enumerate() {
+        let Some((body, sight, pose)) = is else { continue };
+        if !bodies.iter().flatten().any(|&(b, _)| b == body) {
+            bodies.rotate_right(1);
+            bodies[0] = Some((body, SightsLogged(0)));
+            log_box(viewer, n as u8, &pose);
+        }
+        let logged = bodies.iter_mut().flatten().find(|(b, _)| *b == body);
+        if logged.is_some_and(|(_, logged)| logged.add(sight)) {
+            log_sight(viewer, n as u8, sight);
         }
     }
     SIGHTS.set(thread, kept);
@@ -2107,7 +2217,7 @@ fn log_registered(what: &str, player: &Player<'_>, pending: Pending, registered:
 }
 
 /// `parts` as one line `pid P pickup: ...` of `srp_patches.log` (the first
-/// 34 pieces: the line's room; written and the file closed at once).
+/// 34 pieces: the line's room; `vostok::log` appends it at once).
 fn log_joined(parts: &[&[Piece<'_>]]) {
     let mut pieces = [Text(""); 34];
     let head = [Text("pid "), Dec(gun_cook::process_id()), Text(" pickup: ")];
@@ -2199,6 +2309,32 @@ pub fn on_load_ordinal(ctx: &mut Context<'_>) -> Flow<NoExit> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn slots_fill_the_first_free_and_scan_up_to_the_last_in_use() {
+        let mut slots: Slots<u32, 4> = Slots::new();
+        assert_eq!(slots.iter().count(), 0);
+        for v in 1..=4 {
+            assert_eq!(slots.insert(v), None);
+        }
+        assert_eq!(slots.insert(5), Some(5), "full: given back");
+        assert_eq!(slots.take(|&v| v == 2), Some(2));
+        assert_eq!(slots.iter().count(), 4, "a hole below the last in use");
+        assert_eq!(slots.insert(6), None);
+        assert_eq!(slots.iter().flatten().copied().collect::<std::vec::Vec<_>>(), [1, 6, 3, 4]);
+        assert_eq!(slots.take(|&v| v == 4), Some(4));
+        assert_eq!(slots.take(|&v| v == 3), Some(3));
+        assert_eq!(slots.iter().count(), 2, "the free slots at the end are not scanned");
+        assert_eq!(slots.take(|&v| v == 9), None);
+        *slots.iter_mut().next().unwrap() = None;
+        assert_eq!(slots.iter().flatten().copied().collect::<std::vec::Vec<_>>(), [6]);
+        assert_eq!(slots.insert(7), None, "the first free slot, below the end");
+        assert_eq!(slots.iter().flatten().copied().collect::<std::vec::Vec<_>>(), [7, 6]);
+        assert_eq!(slots.take(|_| true), Some(7));
+        assert_eq!(slots.take(|_| true), Some(6));
+        assert_eq!(slots.iter().count(), 0);
+        assert!(slots.slots.iter().all(Option::is_none));
+    }
 
     const IDENTITY: [f32; 16] = [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.];
 

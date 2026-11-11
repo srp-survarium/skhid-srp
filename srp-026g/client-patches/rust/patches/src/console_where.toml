@@ -1,5 +1,5 @@
 # Patch 133: the console command `where` prints the camera's character's
-# place and look (console_where.rs; client_patch.md section 3.80). Only the
+# place and look (console_where.rs; client_patch.md section 3.81). Only the
 # decisions: the sites and the handlers. configs.start after patches 79, 83,
 # 81, 88 and 112 (orders 1 to 5).
 name = "console_where"

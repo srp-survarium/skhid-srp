@@ -26,6 +26,13 @@ python3 srp-026g/scripts/local-clients/run.py init \
 `--game-dir` contains `resources.db`, `resources/ssl/`, and `binaries/x86/`.
 The server's working directory must contain its `certs/` directory. Build the
 server with `cargo build --locked -p srp` from `srp-026g` before starting it.
+The local server is given the sign-in cipher's secret key (`SRP_SIGN_IN_KEY`,
+`docs/notes/sign-in-cipher.md`) from `~/.config/skhid/sign_in_cipher.key`,
+unless the configuration's `server.env` or the environment sets it; the key
+is no file of the repository.
+
+`"remote_login": "host:port"` in the configuration points the games at a
+login server that is not this machine's (`start --clients-only`).
 If the Wine executable needs a different wineserver path, edit the configuration.
 
 Edit `private/local-clients/config.json` to choose names, passwords, ports,

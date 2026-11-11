@@ -147,9 +147,6 @@ pub enum Permitted {
         amount: u32,
     },
     OfferBought,
-    /// `83 49 01`: the autobuy box (bit 1, the stock auto-repair, is not
-    /// kept: srp has no repair).
-    Autobuy(bool),
     ActiveKit(u32),
     NicknameCheck {
         nickname: String,
@@ -363,15 +360,6 @@ impl<'a> Reader<'a> {
     }
     fn bool(&mut self) -> Result<bool, ModelError> {
         Ok(self.u8()? != 0)
-    }
-    /// The autobuy and auto-repair boxes: the lobby ticks them for 0..=3
-    /// only (`LobbyMenu.set_autobuy` compares the number with 1, 2 and 3),
-    /// so any other value would show both off.
-    fn auto_state(&mut self) -> Result<u8, ModelError> {
-        match self.u8()? {
-            state @ 0..=3 => Ok(state),
-            _ => Err(self.bad("an autobuy state past 3")),
-        }
     }
     fn u16(&mut self) -> Result<u16, ModelError> {
         let bytes = self.take(2)?;
@@ -1129,7 +1117,6 @@ impl Client {
             client_id::PROFILE => {
                 let event = r.u8()?;
                 match event {
-                    0x01 => Permitted::Autobuy(r.auto_state()? & 1 != 0),
                     0x02 => Permitted::ActiveKit(r.u32()?),
                     0x03 => {
                         let (nickname, refusal) = self.read_name_check(r, 6)?;
@@ -1527,12 +1514,15 @@ impl Client {
                     revisions.push(r.u32()?);
                 }
                 let active_kit = r.u32()?;
-                let auto_state = r.auto_state()?;
+                // The kit window's boxes (`root.set_autobuy`): autobuy always
+                // on, no repair.
+                if r.u8()? != super::push::AUTOBUY_ON {
+                    return Err(r.bad("the autobuy byte is not 1: autobuy is always on"));
+                }
                 let account = OwnAccount {
                     body,
                     revisions,
                     active_kit,
-                    autobuy: auto_state & 1 != 0,
                     level: r.u8()?,
                     exp_total: r.u32()?,
                     exp_level_start: r.u32()?,
