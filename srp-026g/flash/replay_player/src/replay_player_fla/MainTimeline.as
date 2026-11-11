@@ -98,6 +98,13 @@ package replay_player_fla
       // The free view flies with A and D, so there they do not seek.
       public var freeView:Boolean;
       
+      // The player followed from the list: every place they had and the view
+      // asked for (null: none was clicked, or the free view's button was).
+      public var followed:Object;
+      
+      // The places in the match, as the game last told (srp_places).
+      public var placesIn:Array = [];
+      
       public function MainTimeline()
       {
          super();
@@ -122,6 +129,7 @@ package replay_player_fla
       {
          this.playersBar.selectedIndex = -1;
          freeView = true;
+         followed = null;
          ExternalInterface.call("select_free_view");
       }
       
@@ -141,10 +149,13 @@ package replay_player_fla
             trace("PlayerView",buttonRenderer.data.name,innerButton ? (e.target.name == "btnFirstView" ? 0 : 1) : 0);
             // Every place the player had: the game follows the one that is in
             // the match now and does nothing for the others.
-            var view:uint = innerButton ? (e.target.name == "btnFirstView" ? 0 : 1) : 0;
-            for each(var place:uint in buttonRenderer.data.ids)
+            followed = {
+               "ids":buttonRenderer.data.ids,
+               "view":innerButton ? (e.target.name == "btnFirstView" ? 0 : 1) : 0
+            };
+            for each(var place:uint in followed.ids)
             {
-               ExternalInterface.call("select_player",place,view);
+               ExternalInterface.call("select_player",place,followed.view);
             }
          }
          if(innerButton)
@@ -208,49 +219,74 @@ package replay_player_fla
          this.slider.value += e.target == this.btn_previous_frame ? -1 : 1;
       }
       
-      // The keys that seek, as a video player's (the owner, 2026-11-10): left
-      // and right (and A and D while a player is followed) 5 s back and on,
-      // the comma and the full stop one tick. Through the seek bar, as the
-      // frame buttons go. Not while a text is typed (the speed).
-      public function onSeekKey(e:KeyboardEvent) : void
+      // The keys of a replay, as a video player's (the owner, 2026-11-10). The
+      // movie gets no key from the game: exe patch 140 names each one here as
+      // it goes down. Left and right (and A and D while a player is followed:
+      // the free view flies with them) 5 s back and on, the comma and the
+      // full stop one tick, through the seek bar as the frame buttons go; the
+      // space bar plays and pauses as the play button does.
+      public function srp_key(name:String) : void
       {
          var step:int = 0;
-         switch(e.keyCode)
+         switch(name)
          {
-            case Keyboard.F1:
-            case Keyboard.F3:
+            case "followed":
                freeView = false;
                return;
-            case Keyboard.F2:
+            case "free_view":
                freeView = true;
                return;
-            case Keyboard.LEFT:
+            case "pause":
+               this.btn_play.selected = !this.btn_play.selected;
+               this.onPlayClicked(null);
+               return;
+            case "back":
                step = -SEEK_KEY_MS;
                break;
-            case Keyboard.RIGHT:
+            case "forward":
                step = SEEK_KEY_MS;
                break;
-            case Keyboard.A:
+            case "strafe_back":
                step = this.freeView ? 0 : -SEEK_KEY_MS;
                break;
-            case Keyboard.D:
+            case "strafe_forward":
                step = this.freeView ? 0 : SEEK_KEY_MS;
                break;
-            case Keyboard.COMMA:
+            case "tick_back":
                step = -SEEK_TICK_MS;
                break;
-            case Keyboard.PERIOD:
+            case "tick_forward":
                step = SEEK_TICK_MS;
                break;
          }
-         if(step == 0 || e.target is TextField)
+         var to:Number = Math.max(this.slider.minimum,Math.min(this.slider.maximum,this.slider.position + step));
+         if(step != 0 && to != this.slider.position)
+         {
+            this.slider.value = to;
+         }
+      }
+      
+      // The places in the match, a Boolean a place, from exe patch 140 when
+      // they change (an entry, a leave, a seek). The game follows a place only
+      // from select_player, and only one in the match at that moment, so the
+      // followed player's place that comes in (the same one again, or their
+      // next) is asked for again (the owner, 2026-11-11: "if the person
+      // leaves, their replay just stops even if they enter again"). Not in
+      // the free view, which the viewer chose.
+      public function srp_places(... places) : void
+      {
+         var before:Array = this.placesIn;
+         this.placesIn = places;
+         if(!this.followed || this.freeView)
          {
             return;
          }
-         var to:Number = Math.max(this.slider.minimum,Math.min(this.slider.maximum,this.slider.position + step));
-         if(to != this.slider.position)
+         for each(var place:uint in this.followed.ids)
          {
-            this.slider.value = to;
+            if(places[place] && !before[place])
+            {
+               ExternalInterface.call("select_player",place,this.followed.view);
+            }
          }
       }
       
@@ -671,7 +707,6 @@ package replay_player_fla
          this.layout.tiedToStageSize = true;
          addChild(this.layout);
          stage.addEventListener(Event.RESIZE,this.onStageResize);
-         stage.addEventListener(KeyboardEvent.KEY_DOWN,this.onSeekKey);
          this.onStageResize();
          this.btn_play.selected = true;
          this.stepper.addEventListener(IndexEvent.INDEX_CHANGE,this.onStepperUpdate);

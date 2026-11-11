@@ -16,6 +16,8 @@ use core::marker::PhantomData;
 use super::context::{Context, Reg};
 use super::hook::Thread;
 use super::hud_input::Hud;
+use super::ui::Movie;
+use super::world::GameWorld;
 use crate::raw;
 
 /// The key being handled, after the game's ask of Tab.
@@ -52,6 +54,16 @@ impl Dik {
     pub const LEFT_ALT: Dik = Dik(0x38);
     /// DIK_RMENU: the right Alt (alt_is_held 0x241200 asks both).
     pub const RIGHT_ALT: Dik = Dik(0xB8);
+    pub const A: Dik = Dik(0x1E);
+    pub const D: Dik = Dik(0x20);
+    pub const COMMA: Dik = Dik(0x33);
+    pub const PERIOD: Dik = Dik(0x34);
+    pub const SPACE: Dik = Dik(0x39);
+    pub const F1: Dik = Dik(0x3B);
+    pub const F2: Dik = Dik(0x3C);
+    pub const F3: Dik = Dik(0x3D);
+    pub const LEFT: Dik = Dik(0xCB);
+    pub const RIGHT: Dik = Dik(0xCD);
 
     /// A key code as the game passes one (a u32): None past the 256 codes.
     fn of(raw: u32) -> Option<Dik> {
@@ -118,6 +130,15 @@ impl<'c, 'm> GameWorldKey<'c, 'm> {
 
     pub fn thread(&self) -> &Thread {
         self.ctx.thread()
+    }
+
+    /// The replay player movie (replay_player.swf) of this key's game world,
+    /// when its game plays a replay (its network client's class) and the hud
+    /// has the movie. A live match's keys get none.
+    pub fn replay_player(&self) -> Option<Movie<'_>> {
+        // SAFETY: the hud of the hook's site and its world, alive while
+        // on_keyboard_action runs on the game's thread.
+        GameWorld::of(unsafe { self.hud.raw().world() }?, self.ctx.thread()).replay_player()
     }
 
     /// The key is taken here: no later handler (the player's) gets it. The

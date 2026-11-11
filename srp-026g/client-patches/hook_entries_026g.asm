@@ -5667,6 +5667,48 @@ ragdoll_on_killed_replay:
     db 0x8b, 0x86, 0x20, 0x01, 0x00, 0x00
     jmp 0x2da3e5
 
+; 0x25cd00 game_world::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,0Ch): ECX the game world's input handler, ESP+8 the key, +0Ch its kind; taken is its `ret 0Ch` (AL the answer: 1 the key is taken, the player's handler not told): lohook -> tab_cursor_on_key
+global tab_cursor_on_key
+extern hook_tab_cursor_on_key_chain
+tab_cursor_on_key:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_tab_cursor_on_key_chain
+    mov edx, tab_cursor_on_key_replay
+    cmp eax, 0
+    je tab_cursor_on_key_go
+    mov edx, 0x25cd09
+    cmp eax, 1
+    je tab_cursor_on_key_go
+    mov edx, 0x25cf15
+    cmp eax, 2
+    je tab_cursor_on_key_go
+    ud2
+tab_cursor_on_key_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+tab_cursor_on_key_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8, 0x83, 0xec, 0x0c
+    jmp 0x25cd09
+
 ; 0x239505 update_minimap_players (0x239420) at its test of an enemy (a place of another team than the local player, alive and in the world): cmp dword [eax+348h],esi (ESI 0), its time spotted; the ja after it (0x23950B) lists it while that is above 0, else 0x23950D drops it. shown is the listing (0x23951B, where the team test's je goes too): the icon object for the place in EAX: lohook -> replay_map_on_enemy
 global replay_map_on_enemy
 extern hook_replay_map_on_enemy
@@ -5914,48 +5956,6 @@ sound_voices_on_voice_made_replay:
 global suicide_key_on_spot
 suicide_key_on_spot:
     RUST_CALL hook_suicide_key_on_spot, 3, 12
-
-; 0x25cd00 game_world::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,0Ch): ECX the game world's input handler, ESP+8 the key, +0Ch its kind; taken is its `ret 0Ch` (AL the answer: 1 the key is taken, the player's handler not told): lohook -> tab_cursor_on_key
-global tab_cursor_on_key
-extern hook_tab_cursor_on_key
-tab_cursor_on_key:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_tab_cursor_on_key
-    mov edx, tab_cursor_on_key_replay
-    cmp eax, 0
-    je tab_cursor_on_key_go
-    mov edx, 0x25cd09
-    cmp eax, 1
-    je tab_cursor_on_key_go
-    mov edx, 0x25cf15
-    cmp eax, 2
-    je tab_cursor_on_key_go
-    ud2
-tab_cursor_on_key_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-tab_cursor_on_key_replay:
-    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8, 0x83, 0xec, 0x0c
-    jmp 0x25cd09
 
 ; 0x233d30 game_world_ui::scaleform_callback's start (push ebx / push esi / mov esi,[esp+10h]): ECX the hud, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is a `ret 10h` of its own (0x233D73): lohook -> tab_cursor_on_hud_call
 global tab_cursor_on_hud_call

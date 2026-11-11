@@ -95,4 +95,5 @@ pub mod ban_time;
 pub mod controller_position;
 pub mod use_scan;
 pub mod unplayed_match;
+pub mod replay_keys;
 pub mod replay_map;

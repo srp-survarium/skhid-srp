@@ -145,6 +145,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_memory_defaults_026g.py` | Patch 37 (`MEMORY_DEFAULTS`), patch 124 (`ARENA_DEFAULTS`), patch 128 (`THREAD_STACKS`) and patch 129 (`MT_ARENA` in `patch_026g.py`): the resource floor (768 MiB), the resources helper (32 MiB) and render (320 MiB) arenas' defaults, a command-line value still taking over, an engine thread's stack (2 MiB), the multithreaded arena's floor (1024 MiB, with or without its key) and allocate_arenas' stack term; its check runs the native option reads, the registrations' sizes, threading::spawn to CreateThread and the stack term's sum in both exes (needs Unicorn; `../docs/notes/client_patch.md` sections 3.75, 3.77 and 3.78) |
 | `rust/patches/src/memory_profile.rs`, `src/memory_profile.toml`, `src/vostok/memory_profile.rs`, `memory_profile_026g.asm`, `check_memory_profile_026g.py`, `../scripts/memory-profile/analyze.py` | Patch 127: a memory profiler of the engine's arenas for the owner and for workers' local tests, never players: on with `SKHID_MEMORY_PROFILE=on` in the game's environment. Off, the exe keeps the game's allocator bytes: its five gates (dlmalloc's three entries, ptmalloc3's two frees of mapped blocks) and the out-of-memory hook are installed on demand (`install = "on_demand"`, written at the start only when on). On, each block is counted to its arena and the call site that asked; snapshots (each arena's use, holes and sites; the address space) go to `srp_memory_profile.txt` in the user data folder at a world in, a match closing, a full arena and Scroll Lock; `analyze.py` prints the report; its check runs dlmalloc on a made-up arena in both exes and reads the snapshot (needs Unicorn; `../docs/notes/memory-profile.md`) |
 | `rust/patches/src/replay_map.rs`, `src/replay_map.toml`, `src/vostok/ui.rs` (`GameWorldUi::at_enemy_ids`), `check_replay_map_026g.py` | Patch 135: a replay shows every enemy, spotted or not (`../docs/notes/replay-map.md`): its dot (update_minimap_players' spotted test, 0x239505), its marker and red name with Alt (render_name's, 0x1F2B50), the icons movie told `root.srp_show_enemies` before initialize_match's enemy list (0x235709); a replay known by the game's network client's class (`vostok::world::Playback`), no state of its own; its check runs the three sites in both exes (needs Unicorn) |
+| `rust/patches/src/replay_keys.rs`, `src/replay_keys.toml`, `src/vostok/world.rs` (`GameWorld::replay_player`, `places_in_match`), `src/vostok/keyboard.rs` (`GameWorldKey::replay_player`) | Patch 140: a replay's keys and the followed player's return (`../docs/notes/replay-keys.md`): at on_keyboard_action's start (0x25CD00) a key that goes down in a replay is kept, and at the frame's end (game_world::tick after the move, 0x1F7C3C) the replay player movie is told it (`root.srp_key`) and, when they changed, the places in the match (`root.srp_places`); a replay known by the game's network client's class, as patch 135 |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
@@ -5143,3 +5144,30 @@ an enemy spotted or not, no local player; a live match, no client and a replay, 
 vtable; the icons movie told or absent),
 the patch crate's tests, and the movies' Ruffle harnesses (`ReplayEnemiesHarness.as`,
 `TabMapNamesHarness.as`). Not run in a game.
+
+## A replay's keys (patch 140, unreleased)
+
+A replay had no keys of its own: its player (the movie `replay_player.swf`) is the mouse's, and a
+followed player who left the match and came back was not followed again
+(`../docs/notes/replay-keys.md`).
+
+- `game_world::on_keyboard_action` (0x25CD00) gets every key before the player's handler. At its
+  start, after the Tab cursor's hook, a key that goes down while the game plays a replay is kept:
+  the arrows, A, D, the comma, the full stop, Space, F1 to F3.
+- `game_world::tick` after the simulation's move (0x1F7C3C, every frame, a paused one too): the
+  replay player movie (`[[ui+14h]+108h]+4`, the ui the game world's +1FCh) is told the kept key,
+  `root.srp_key(name)`, and does with it what its buttons do. Not at the key: the movie's
+  `update_position` seeks at once (0x233E2F calls the seek 0x1EE2E0), and the frame's replay
+  reading (0x1EDEF0) still has the clock from before the keys, so a seek back was followed by a
+  reading on to the old time and the world stood still, ahead of the clock.
+- At the same place the movie is told the places in the match (the core's `active_places`,
+  +18FD8h), `root.srp_places` with a bool a place, when they are others than that movie was last
+  told. `select_player` (0x233EBD) follows a place only while it is in the match
+  (`get_active_player` 0x26D6A0), so the movie asks again for the followed player's place that
+  came in.
+
+Nothing a match computes, and nothing in a live match: both hooks ask the game's network client for
+its class (`vostok::world::Playback`) and do nothing without the replay client. Checked with the patch
+crate's tests (the key mapping) and in a game (2026-11-11, the owner's replay of match 0x1fe297e3:
+the keys, the merged list, 29 seeks without the history error). No Unicorn check.
+

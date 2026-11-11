@@ -90,6 +90,7 @@ vostok::buffer_reader	cursor	0x4	ptr<u8>	the next byte to read
 vostok::buffer_reader	size	0x8	u32	the bytes from begin
 survarium::game_world_ui	hud_movie	0x8	ptr<vostok::ui::movie_holder>	the hud movie's holder (initialize_match 0x234AE8: [[+8]+108h]+4 the movie)
 survarium::game_world_ui	icons_movie	0x10	ptr<vostok::ui::movie_holder>	the player icons movie's holder (update_player_icons 0x23ACC1: [[+10h]+108h]+4 the movie)
+survarium::game_world_ui	replay_movie	0x14	ptr<vostok::ui::movie_holder>	the replay player movie's holder (initialize_match 0x2356BC: mov eax,[esp+5E8h] the ui / mov ecx,[eax+14h] / mov edx,[ecx+108h] / mov ecx,[edx+4] the movie, for root.set_players_list 0x2356DD)
 vostok::ui::movie_holder	view	0x108	ptr<vostok::ui::movie_view>	the holder's movie view ([+108h]+4 the Scaleform movie, 0x2384EE)
 vostok::ui::movie_view	movie	0x4	ptr<scaleform::gfx_movie>	the Scaleform movie (GFx::Movie, Invoke 0x511600's this)
 survarium::static_info_frame	reader	-0x2C	obj<vostok::buffer_reader>	process_static_match_info's local reader {begin, cursor, size} (by EBP; filled 0x27B903..0x27B90B, deserialize's EAX at 0x27B925)
