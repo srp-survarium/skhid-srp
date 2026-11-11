@@ -102,3 +102,4 @@ pub mod use_scan;
 pub mod unplayed_match;
 pub mod texture_streaming;
 pub mod animation_math;
+pub mod replay_map;

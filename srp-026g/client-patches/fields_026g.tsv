@@ -1118,3 +1118,5 @@ openssl::ssl_call_frame	length	0x10	u32	their length (EBP+10h; asio's do_read 0x
 openssl::ssl	rbio	0xC	ptr<openssl::bio>	the BIO the SSL reads the peer's bytes from (SSL_get_rbio): asio's engine sets its half of a BIO pair, into whose other half it puts what the socket read (engine::put_input)
 openssl::ssl	wbio	0x10	ptr<openssl::bio>	the BIO the SSL writes to (the same half): asio's engine takes the bytes from the other half and sends them (engine::get_output)
 openssl::bio	flags	0x14	u32	the BIO's flags (BIO_FLAGS_READ 1, SHOULD_RETRY 8: BIO_read of an empty pair sets both)
+survarium::network_client	vtable	0x0	u32	its class: 0x9FFB14 a live match's network_client (its ctor writes it at 0x219E7C), REPLAY_CLIENT_VTABLE a .sur replay's replay_network_client (0x218A7C); every other field of this kind is the live client's
+survarium::image	replay_client_vtable	0x9FF344	u32	replay_network_client's vtable (its ctor 0x218A40 writes it at 0x218A7C, its destructor at 0x218BC3; slot +54h is_this_place_mine, patch 24): the game's network client (+53ACh) while a .sur replay plays

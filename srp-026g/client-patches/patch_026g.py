@@ -598,6 +598,15 @@ Patches:
   module_watch_026g.asm) and the other processes' always-on-top windows
   over the game's, on patch 126's report channel (srp_validate::modules);
   the server only logs them. Nothing a match computes;
+- a replay shows every enemy, spotted or not (patch 135, replay_map;
+  docs/notes/replay-map.md): at update_minimap_players' spotted test
+  (0x239505) a replay lists its dot (0x23951B); at render_name's (0x1F2B50)
+  its marker goes on (0x1F2B5D), its name red with Alt; before
+  initialize_match sends the icons movie its enemy list (0x235709) the movie
+  is told root.srp_show_enemies. A replay is the game's network client
+  being a replay_network_client (its vtable 0x9FF344), asked at each hook:
+  no state of the patch's, a live match never takes it. Nothing a match
+  computes;
 - the game tells the match server how much memory it has left (patch 126,
   memory_report; docs/notes/memory-report.md, client_patch.md section
   3.76): when a match connection's first world is in (world_load.loaded)

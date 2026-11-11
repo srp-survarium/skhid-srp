@@ -2517,3 +2517,4 @@ va	name	source	ret_cleanup	result
 0x0010a590	vostok::resources::managed_resource::managed_resource	manual	4	EAX the resource (ECX): its managed_node_owner at +D0h (vtable 0x9E9F40), its allocator 0x21E51E8 at +D8h
 0x00504c30	Scaleform::MemoryHeapMH::GetTotalFootprint	manual	0	EAX: its engine's +98h (not a debug heap's, flags 1000h) and every child's, under the heap's lock
 0x00504c90	Scaleform::MemoryHeapMH::GetTotalUsedSpace	manual	0	EAX: its engine's +9Ch and every child's, under the heap's lock
+0x0023c0c0	survarium::game_world_ui::set_player_icon_color	manual	12	none: the hud row of the place ([ESP+4] + 0x380 + place x 24) takes the colour, its dirty bit 4 (+389h) set only on a change; the icons movie gets it as props.rgb (name and icon)

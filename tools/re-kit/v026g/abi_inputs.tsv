@@ -5988,3 +5988,7 @@ va	name	location	role	basis
 0x0010a590	vostok::resources::managed_resource::managed_resource	entry ESP+4	its bytes (kept at +5Ch)	observed
 0x00504c30	Scaleform::MemoryHeapMH::GetTotalFootprint	ECX	the heap	observed
 0x00504c90	Scaleform::MemoryHeapMH::GetTotalUsedSpace	ECX	the heap	observed
+0x0023c0c0	survarium::game_world_ui::set_player_icon_color	AL, CL, ESP+12	the colour 0xRRGGBB = AL<<16 | CL<<8 | the byte at ESP+12: render_name gives a squad member 0x61FF55 (0x1F2FCD), a teammate 0xFFFFFF (0x1F2FD4), an enemy 0xFF0000 (0x1F300F)	observed
+0x0023c0c0	survarium::game_world_ui::set_player_icon_color	entry ESP+4, ESP+8	the hud's rows (render_name passes [player+F478h]+214h, the ui abi_inputs names at 0x1F2F10, as EDI) and the place (+114h of the player)	observed
+0x001f2ad0	survarium::player::render_name	at 0x1F2B3D..0x1F2B62	the marker goes on (ECX 1, 0x1F2B5D) for a teammate (the local team [client+4]+6B8h+45ECh, 2 with no local player) or with no local player, else only while spotted (+348h above 0, 0x1F2B50); else ECX 0 and the marker is hidden (0x1F302C); left Alt (0x1F2DCD) then shows the name of any player that went on	observed
+0x00234880	survarium::game_world_ui::initialize_match	at 0x235702..0x235726	ESI the ui ([esp+5E8h]); root.set_enemy_icon_ids (0xA034BC) to the icons movie [[ui+10h]+108h]+4, before the match's markers are sent; a second sender at 0x236915	observed

@@ -3441,6 +3441,61 @@ pub extern "C" fn hook_ragdoll_on_killed(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- replay_map (patch 135) ----
+
+/// The named exits of replay_map::on_enemy (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ReplayMapOnEnemyExit { Shown }
+/// The entry `replay_map_on_enemy` (0x239505, update_minimap_players (0x239420) at its test of an enemy (a place of another team than the local player, alive and in the world): cmp dword [eax+348h],esi (ESI 0), its time spotted; the ja after it (0x23950B) lists it while that is above 0, else 0x23950D drops it. shown is the listing (0x23951B, where the team test's je goes too): the icon object for the place in EAX) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_replay_map_on_enemy(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `replay_map_on_enemy` calls this, from the game's jump at 0x239505,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::replay_map::on_enemy(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- replay_map (patch 135) ----
+
+/// The named exits of replay_map::on_name (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ReplayMapOnNameExit { Shown }
+/// The entry `replay_map_on_name` (0x1f2b50, render_name (0x1F2AD0) at its test of a player of another team than the local one (0x1F2B43; a local team of 2, none, goes on at 0x1F2B4B): cmp dword [esi+348h],0, its time spotted; the ja after it (0x1F2B57) goes on while that is above 0, else 0x1F2B59 hides its marker (0x1F302C). shown is the go-on (0x1F2B5D, ECX 1, where the team tests' je go too): the marker placed, its name shown while left Alt is held (0x1F2DCD) and coloured 0xFF0000 for an enemy (0x1F300F, 0x23C0C0)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_replay_map_on_name(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `replay_map_on_name` calls this, from the game's jump at 0x1f2b50,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::replay_map::on_name(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- replay_map (patch 135) ----
+
+/// The entry `replay_map_on_enemy_ids` (0x235709, game_world_ui::initialize_match (0x234880) about to send the player icons movie its enemy list (root.set_enemy_icon_ids, the Invoke at 0x235726; the icons movie [[ui+10h]+108h]+4), before any marker of the match is sent: mov ecx,[esi+10h] / mov edx,[ecx+108h]; ESI the ui (0x235702). the late join's lists_hook is on the bytes after the Invoke (0x23572B)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_replay_map_on_enemy_ids(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `replay_map_on_enemy_ids` calls this, from the game's jump at 0x235709,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::replay_map::on_enemy_ids(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- scaleform_capture (patch 93) ----
 
 /// The named exits of scaleform_capture::on_next_capture (the order the shim's Flow code
