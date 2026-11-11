@@ -67,7 +67,7 @@
 use core::ffi::CStr;
 
 use crate::vostok::language::ConsoleString;
-use crate::vostok::log::{Piece::*, line};
+use crate::vostok::log::{Piece, Piece::*, line, line_of};
 use crate::vostok::renderer::{DelayedImport, Gpu, GpuKind, Gpus, Manifests, OutputWindow, ProbeDirectDraw, Vulkan,
                               VulkanVersion, WindowStyles, best_version, bind_delayed_import, clear_environment,
                               dxvk_first, dxvk_pick, environment_set, exists_beside_exe, get_environment, is_loaded,
@@ -654,19 +654,34 @@ struct OneDriver<'a> {
 /// deleted), and the vendor's own layers go off too (the loader keeps one of
 /// two same-named layers, which may be in the other driver's DLL). A last look
 /// with exactly that must give DXVK the same GPU, else all is as before.
+/// The same when the glob loaded another driver of the vendor that gives no
+/// device (SRP-3: a player's RX with a stale `amdvlk.inf` package's
+/// `amdvlk32.dll`, 102 MiB, mapped beside the display driver's 85 MiB one;
+/// 38 MiB of the address space left in a load): it gives DXVK nothing and
+/// takes its room all the same.
 /// Nothing when the loader ignores `VK_DRIVER_FILES` (an elevated game: one
 /// manifest gives every copy) or no manifest alone gives the GPU.
 fn one_driver(thread: &Thread, of: OneDriver<'_>) {
     let OneDriver { gpu, copies: drivers_of_gpu, manifests, players, drivers, filter } = of;
-    if drivers_of_gpu < 2 {
+    let loaded = manifests.drivers;
+    if drivers_of_gpu < 2 && loaded < 2 {
         return;
     }
+    // what the lines say: the GPU's copies, or the drivers loaded when only one gives it
+    let head = |line_end: &[Piece]| {
+        if drivers_of_gpu >= 2 {
+            line_of(&[&[Text("dxvk: DXVK's GPU has "), Dec(drivers_of_gpu), Text(" drivers")], line_end]);
+        } else {
+            line_of(&[&[Text("dxvk: "), Dec(loaded), Text(" Vulkan drivers of DXVK's GPU's vendor loaded, one gives it")],
+                      line_end]);
+        }
+    };
     let copies = |list: &Gpus| copies_of(list, &gpu);
     let as_before = |thread: &Thread, why: &str| {
         clear_environment(thread, c"VK_DRIVER_FILES");
         set_environment(thread, c"VK_LOADER_DRIVERS_SELECT", drivers);
         players.only(thread, Some(gpu.vendor));
-        line(&[Text("dxvk: DXVK's GPU has "), Dec(drivers_of_gpu), Text(" drivers, all kept ("), Text(why), Text(")")]);
+        head(&[Text(", all kept ("), Text(why), Text(")")]);
     };
     clear_environment(thread, c"VK_LOADER_DRIVERS_SELECT");
     let mut chosen = None;
@@ -695,8 +710,7 @@ fn one_driver(thread: &Thread, of: OneDriver<'_>) {
     if !same {
         return as_before(thread, "the last look with one gave DXVK another GPU");
     }
-    line(&[Text("dxvk: DXVK's GPU has "), Dec(drivers_of_gpu), Text(" drivers: "), Text(manifest.as_str()),
-           Text(" only (VK_DRIVER_FILES), its layers off")]);
+    head(&[Text(": "), Text(manifest.as_str()), Text(" only (VK_DRIVER_FILES), its layers off")]);
 }
 
 /// The implicit Vulkan layers a GPU vendor's driver manifest declares, each
