@@ -152,7 +152,7 @@ weapon / kills the same players get with their other weapons.
 | MP7 damage 0.35 -> 0.40, FNC 0.45 -> 0.50 | keeps two guns that played average or weak (kill index 0.9, 0.75) where they were after the piercing fix |
 | KRISS damage 0.45 -> 0.42 | kill index 1.22 (1.09-1.36) |
 | SR-2M 900 -> 800 rounds a minute | kill index 1.33, the best accuracy of the automatics |
-| SR-3M (and premium) 900 -> 800 rounds a minute, damage 0.55 -> 0.45 | the fastest automatic in the recorded kills, kill index 1.22 |
+| SR-3M (and premium) 900 -> 800 rounds a minute, damage 0.55 -> 0.45, magazine 20 -> 30 (the owner, 2026-11-11, as 0.27d0 and 0.31a2) | the fastest automatic in the recorded kills, kill index 1.22 |
 | AS Val, 9A-91, VSS, VSK-94 (and premiums) damage 0.55 -> 0.50 | the same 9x39 numbers as the SR-3M |
 | PP-2000 750 -> 680 rounds a minute | kill index 1.22 |
 | Mosin damage 1.0 -> 1.1, piercing 0.35 -> 0.40; TOZ-122 damage 1.1 -> 1.2 | the two beginner rifles played weakest (kill index 0.54, 0.66) |

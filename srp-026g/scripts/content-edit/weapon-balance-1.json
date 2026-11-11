@@ -26,6 +26,8 @@
   {"file": "gameplay/items/weapons/wpn_sr3m.options", "path": "parameters/bullet_damage", "from": 0.55, "to": 0.45},
   {"file": "gameplay/items/weapons/wpn_sr3m_premium.options", "path": "parameters/rounds_per_minute", "from": 900, "to": 800},
   {"file": "gameplay/items/weapons/wpn_sr3m_premium.options", "path": "parameters/bullet_damage", "from": 0.55, "to": 0.45},
+  {"file": "gameplay/items/weapons/wpn_sr3m.options", "path": "parameters/magazine_capacity", "from": 20, "to": 30},
+  {"file": "gameplay/items/weapons/wpn_sr3m_premium.options", "path": "parameters/magazine_capacity", "from": 20, "to": 30},
   {"file": "gameplay/items/weapons/wpn_val.options", "path": "parameters/bullet_damage", "from": 0.55, "to": 0.5},
   {"file": "gameplay/items/weapons/wpn_a9_91.options", "path": "parameters/bullet_damage", "from": 0.55, "to": 0.5},
   {"file": "gameplay/items/weapons/wpn_vss.options", "path": "parameters/bullet_damage", "from": 0.55, "to": 0.5},
