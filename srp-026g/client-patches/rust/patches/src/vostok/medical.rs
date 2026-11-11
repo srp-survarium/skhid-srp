@@ -6,6 +6,7 @@ use crate::{
     raw,
 };
 use super::effect::OwnedEffect;
+use srp_validate::Places;
 use core::{
     ffi::CStr,
     sync::atomic::{AtomicU32, Ordering},
@@ -482,9 +483,10 @@ pub fn protect(ctx: &mut Context<'_>) {
 /// becomes active and its holder has the share (Medic's bit, which skill 542 sets), each living
 /// teammate within Cascade's reach plays the kind's own activation glow for the active's length (as
 /// its holder does: Spring blue, Lifebone green, Onyx orange), and a Lifebone's also does to it what
-/// its active does to its holder (the configured affects removed, body, head and pain full). What a
-/// Spring's or an Onyx's active gives is read where it is used (patch 109's aura); this is its
-/// activation's part.
+/// its active does to its holder (the configured affects removed, body, head and pain full). The
+/// places reached are the copy's for its whole active (patch 109's aura gives a Spring's and an
+/// Onyx's active to them where it is used, wherever they go, `artefact_skills::activate`); an
+/// activation without the share reaches none.
 pub fn share_active(ctx: &mut Context<'_>) {
     use raw::site::medical_artefact as site;
     // SAFETY: the actual activation owns this item and its inventory holder.
@@ -493,37 +495,32 @@ pub fn share_active(ctx: &mut Context<'_>) {
         let Some(item) = site::item(ctx) else {
             return;
         };
-        let Some(holder) = item.item().inventory().and_then(|v| v.holder()) else {
+        let artefact = item.item().artefact();
+        let Some((kind, length_ms)) = super::artefact_skills::activated(artefact) else {
             return;
         };
-        let at = holder.player();
-        let Some((kind, length_ms)) = super::artefact_skills::activated(item.item().artefact()) else {
-            return;
-        };
-        let source = Player::new(ctx.thread(), at);
-        if !source.skills().is_medic() {
-            return;
-        }
-        let time = ctx.reg(super::Reg::Edi);
-        let reach = crate::artefact_skills::CASCADE_REACH * crate::artefact_skills::CASCADE_REACH;
-        for place in 0..20 {
-            let Some(target) = source.at_place(ctx.thread(), place) else {
-                continue;
-            };
-            if !target.0.active()
-                || !source.ally(target.0)
-                || source.distance_squared(target.0) > reach
-            {
-                continue;
-            }
-            if kind == crate::artefact_skills::Kind::Lifebone {
-                heal_as_lifebone(item, target.0, time);
-            }
-            if let Some(resource) = item.active_resource() {
-                OwnedEffect::emit(ctx.thread(), resource, Some(length_ms))
-                    .play_timed(ctx.thread(), target.0.at, time);
+        let source = item.item().inventory().and_then(|v| v.holder()).map(|holder| Player::new(ctx.thread(), holder.player()));
+        let mut reached = Places::EMPTY;
+        if let Some(source) = source.filter(|source| source.skills().is_medic()) {
+            let time = ctx.reg(super::Reg::Edi);
+            let reach = crate::artefact_skills::CASCADE_REACH * crate::artefact_skills::CASCADE_REACH;
+            for place in 0..20 {
+                let Some(target) = source.at_place(ctx.thread(), place) else {
+                    continue;
+                };
+                if !target.0.active() || !source.ally(target.0) || source.distance_squared(target.0) > reach {
+                    continue;
+                }
+                reached = Places::new(reached.bits() | 1 << place).unwrap_or(reached);
+                if kind == crate::artefact_skills::Kind::Lifebone {
+                    heal_as_lifebone(item, target.0, time);
+                }
+                if let Some(resource) = item.active_resource() {
+                    OwnedEffect::emit(ctx.thread(), resource, Some(length_ms)).play_timed(ctx.thread(), target.0.at, time);
+                }
             }
         }
+        super::artefact_skills::activate(ctx.thread(), artefact, reached);
     }
 }
 

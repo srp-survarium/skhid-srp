@@ -484,6 +484,21 @@ pub extern "C" fn hook_artefact_carry_on_ground_save(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- artefact_skills (patch 109) ----
+
+/// The entry `artefact_skills_on_save` (0x313735, artefact_base::serialize after native state-dependent fields; ESI item EDI writer) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_skills_on_save(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_skills_on_save` calls this, from the game's jump at 0x313735,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_skills::on_save(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- artefact_carry (patch 78) ----
 
 /// The entry `artefact_carry_on_ground_load` (0x3137ec, artefact_base::deserialize before EBX/EDI reused; EBX item EDI reader) calls this with the saved machine.
@@ -493,6 +508,21 @@ pub extern "C" fn hook_artefact_carry_on_ground_load(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::artefact_carry::on_ground_load(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefact_skills (patch 109) ----
+
+/// The entry `artefact_skills_on_load` (0x3137ec, artefact_base::deserialize before EBX/EDI reused; EBX item EDI reader) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_skills_on_load(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_skills_on_load` calls this, from the game's jump at 0x3137ec,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_skills::on_load(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -4268,6 +4298,24 @@ pub extern "C" fn hook_world_check_on_raw(frame: &mut Frame) -> u32 {
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
     }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_ground_save_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_artefact_carry_on_ground_save(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_artefact_skills_on_save(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_carry_on_ground_load_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_artefact_carry_on_ground_load(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_artefact_skills_on_load(frame);
+    if flow != 0 { return flow; }
+    0
 }
 
 #[unsafe(no_mangle)]

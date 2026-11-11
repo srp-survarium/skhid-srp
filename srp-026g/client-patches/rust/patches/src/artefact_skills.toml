@@ -41,6 +41,20 @@ only = { index = "SPRING_LISTS" }
 site = "artefact.shared_protection"
 handler = "on_shared_protection"
 
+# Cascade's actives (the owner, 2026-11-11: "they should get full effect"): the teammates an
+# activation reached (Medic's path, patch 94's medical.artefact) keep the copy's active to its end,
+# wherever they go. Those places are saved with each active copy (4 bytes after its cooldown, state
+# 4 only), at patch 78's sites in artefact_base's codec (its dropped copy's bytes, state 6).
+[[hook]]
+site = "carry.ground_save"
+handler = "on_save"
+order = 2
+
+[[hook]]
+site = "carry.ground_load"
+handler = "on_load"
+order = 2
+
 [[hook]]
 site = "medical.regenerate"
 handler = "on_shared_regeneration"

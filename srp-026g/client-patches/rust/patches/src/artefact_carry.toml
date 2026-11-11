@@ -75,10 +75,12 @@ handler = "on_death"
 [[hook]]
 site = "carry.ground_save"
 handler = "on_ground_save"
+order = 1
 
 [[hook]]
 site = "carry.ground_load"
 handler = "on_ground_load"
+order = 1
 
 [[hook]]
 site = "carry.client_death"
