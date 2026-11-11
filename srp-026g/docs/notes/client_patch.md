@@ -3412,3 +3412,47 @@ What it is for and the owner's rules: [dxvk-option.md](dxvk-option.md). Here: wh
   no engine allocation; the login screen's turn-off), `check_music_026g.py` (the login screen's
   chain), `../scripts/dxvk-loader/run.sh` (the loader under Wine). **Not run** on Windows or in a
   game.
+
+### 3.71 Voice chat in a match (written 2026-10-25, ported to the named sites 2026-11-06, README patch 66, not released; the rules: `voice-chat.md`) — PROVEN in the code; not run in a game
+
+The owner's ask (2026-10-23, answers 2026-10-25, the mute and the list as 0.69's 2026-11-06). Team
+push-to-talk through `skhid_voice.dll` (`../../client-voice`) and srp's voice relay on the match
+port + 1. The Rust patch `voice.rs` (`voice.toml`, eight lohooks; its boundary `vostok/voice.rs`):
+
+- **The variables** (`configs.start`, before user.cfg): the sound tab's stock controls are bound by
+  name to `s_chat_volume`, `s_use_microphone`, `s_mic_sens` (0x262DE8..0x262EC9) and nothing
+  registers them; `ConsoleFloat` (0..100, the float slider's steps of 1) and `ConsoleBool` do, with
+  `g_hide_spam` (the gameplay tab's dead option 5, "Disable voice chat") and the `ConsoleString`
+  `srp_voice_mutes` (each muted voice id, 8 hex digits and `|`: parsed once a match, a malformed
+  record left out and logged).
+- **Connect, end** (`match_client.connect` 0x27A1B0 at its start: ECX the client, [esp+4] the
+  host, +8 the port, +0Ch the session; a replay's connect is 0x122350): the DLL loaded once
+  (`LoadLibraryA`, its ten exports and version through `voice_abi`), `sv_start(host, port + 1,
+  session)`, the options told before it (no mutes, no radio: the DLL keeps the last match's);
+  `game_world.finish` (on_finish_match 0x1F96F0, EAX the world) and `game_world.deactivate`
+  (on_deactivate 0x1F9520, ECX the world): push-to-talk let go, `sv_stop`, the hud's list emptied.
+- **Every frame** (`game_world.after_move`): the options, the muted teammates and the far ones (a
+  teammate beyond 25 m, or either of the two not alive: the radio filter) to the DLL on a change;
+  a held push-to-talk let go when its key is up (user32's GetAsyncKeyState, so a release the chat
+  box took is seen: MapVirtualKeyA's VK of the scan code, and for the numpad's digits and point the
+  VK_NUMPADn/VK_DECIMAL a press sets with NumLock on, as the scan code maps to the navigation
+  keys; NumLock and Pause, which map swapped, by VK_NUMLOCK and VK_PAUSE; a mouse button by
+  VK_LBUTTON..VK_XBUTTON2, those past it by their release only) or the game lost the keyboard; the
+  hud's `root.srp_voice_talking(names...)` on a change (0.69's list: the teammates, newest on top,
+  fading 1 s after 0.5 s; and the player's own while its microphone is sent).
+- **The key** (`tab_cursor.key`, before patch 86's): the binder's chat key (kind 8, as
+  chat_handler::on_keyboard_action asks at 0x208887, the binder [game+5344h]) `ptt` (47h, P) down
+  and up. **A mouse button** (`game_world.mouse_key`, 0x25CF70: `mov edi,eax / mov eax,[edi] /
+  mov edx,[eax]` after on_mouse_key_action's ask of the keyboard, ESI the game world's input
+  handler, the keyboard's: its cursor flag +2E0h is the hud's +2DCh; ESP+14h the key, 151h + the
+  button, +18h the kind, 0 press, 1 release, 2 held): the same ask of the binder with the button's
+  key. The function's first ten bytes are patch 31's jump (WARMUP_KEYS_HOOK), which takes a button
+  held from a shown cursor (its held states and release) and comes back at 0x25CF6A otherwise; such
+  a release is seen by the poll above. Patch 62's controls have `ptt` in the game group with a key
+  that can be set (the game's row: the chat group, type 0, its key button disabled); muting is the
+  Tab menu's.
+- **The Tab list's player menu** (`hud.callback`, after patch 86's): `srp_voice_menu(place)` is
+  answered `root.srp_voice_menu(place, offered, muted)` (a teammate whose voice id the relay sent),
+  `srp_voice_mute(place, "1"|"0")` `root.srp_voice_mute(place, done)`; the menu shows "Mute voice"
+  or "Unmute voice" after the chat's entries.
+- **Checked**: `selftest_026g.py` check 66, `cargo test` (rust/: the mutes' text, the radio). **Not run**: a game.

@@ -57,6 +57,7 @@ are the better way: they need none of this.
   skhid.link        TCP 1234          game: sign-in
   skhid.link        UDP 1235          game: lobby
   skhid.link        UDP 1236          game: matches
+  skhid.link        UDP 1237          game: voice chat
 The patch server's address is in the launcher's patch list
 (https://skhid.link/patches). It is another server than skhid.link: a VPN
 routed for skhid.link alone may still fail the updates.
@@ -127,6 +128,7 @@ Zapret
   skhid.link        TCP 1234          игра: вход
   skhid.link        UDP 1235          игра: лобби
   skhid.link        UDP 1236          игра: бои
+  skhid.link        UDP 1237          игра: голосовой чат
 Адрес сервера патчей есть в списке патчей лаунчера
 (https://skhid.link/patches). Это другой сервер, не skhid.link: VPN,
 настроенный только для skhid.link, может не пропустить обновления.

@@ -96,6 +96,7 @@ pub mod module_report;
 pub mod memory_report;
 pub mod memory_profile;
 pub mod hud_cursor;
+pub mod voice;
 pub mod ban_time;
 pub mod sign_in_cipher;
 pub mod controller_position;

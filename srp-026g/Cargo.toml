@@ -10,6 +10,8 @@ members = [
   "crates/artefact-carry",
   "crates/weapon-pickup",
   "crates/ragdoll",
+  "crates/voice-abi",
+  "client-voice",
   "crates/survarium",
   "crates/udp-transport",
   "crates/vostok",

@@ -26,4 +26,6 @@ world-frame = { path = "../../../crates/world-frame" }
 weapon-pickup = { path = "../../../crates/weapon-pickup" }
 # patch 68's weapon kit: srp's servers pack it, the client reads the same crate
 weapon-kit = { path = "../../../crates/weapon-kit" }
+# patch 66: the voice DLL's C ABI, shared with srp-026g/client-voice
+voice-abi = { path = "../../../crates/voice-abi" }
 srp-validate = { path = "../../../crates/srp-validate" }

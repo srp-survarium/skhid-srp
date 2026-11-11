@@ -117,6 +117,12 @@ impl<'t> Hud<'t> {
         unsafe { movie_of(self.this.hud_movie()) }
     }
 
+    /// The hud's game.
+    pub(in crate::vostok) fn game(&self) -> Option<raw::Game> {
+        // SAFETY: the hud's game world and its game live as long as the hud.
+        unsafe { self.this.world()?.game() }
+    }
+
     /// The lobby the match's network client keeps (its messaging, the match's places).
     pub fn lobby(&self) -> Option<Lobby<'_>> {
         // SAFETY: the hud's game world, its game and network client live as

@@ -519,6 +519,17 @@ Patches:
   the key (back at 0x26CCAE, al 1); while the movie says its interface is
   hidden (root.interface_hidden) any other key goes straight to the movie
   (back at 0x26CDD2), no window key or F6's Play acting;
+- voice chat in a match (patch 66, with the late join; docs/notes/voice-chat.md):
+  Rust patches::voice (the arena's shared patches blocks) with
+  skhid_voice.dll beside the exe: the sound tab's voice options, "Disable
+  voice chat" (the dead g_hide_spam) and the mutes registered before
+  user.cfg (configs.start); the DLL started at match_client::connect
+  (0x27A1B0) on the match port + 1 and stopped at on_finish_match (0x1F96F0)
+  and on_deactivate (0x1F9520); every frame (game_world.after_move) the
+  options, mutes, radio distances and the hud's list of who talks;
+  push-to-talk (ptt, 47h) from the game world's keys (tab_cursor.key);
+  "Mute voice" in the Tab list's player menu (hud.callback, after patch
+  86's);
 - the kill feed shows a kill through a wall, by a ricochet and by pain (patch 67,
   with the late join; docs/notes/kill-feed-icons.md). kill_feed_026g.asm
   (the arena's block kill_feed.code): generate_killed_event (0x2DA170, at
@@ -2488,6 +2499,12 @@ ARTEFACT_KEY_DEFAULT = (0xA74D6C, bytes(4), struct.pack("<I", 0x9FDCA8))
 HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
 # the replay's toggle, the key not taken; the lobby's key taken, and the key to the movie
 
+# Voice chat (patch 66, README; client_patch.md section 3.71; the rules:
+# ../docs/notes/voice-chat.md): the safe Rust module voice.rs and its named
+# sites in voice.toml, in the shared patches blocks (ARENA below), with
+# skhid_voice.dll beside the exe (srp-026g/client-voice). Its one key is the
+# game's own ptt (47h, kind 8: only the chat handler and this patch ask kind
+# 8, default P); the action table and the Controls rows stay the game's.
 # The kill feed's wall, ricochet and pain icons (patch 67, README; client_patch.md
 # section 3.55; the rules: ../docs/notes/kill-feed-icons.md):
 # kill_feed_026g.asm in the arena's block kill_feed.code (ARENA below), two

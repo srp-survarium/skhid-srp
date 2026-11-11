@@ -1238,7 +1238,7 @@ st_health_regen_correction_perc_name	Regeneráció
 st_hide_ammo	Lőszer elrejtése
 st_hide_interface_action	Kezelőfelület elrejtése
 st_hide_quest_list	Feladatablak elrejtése
-st_hide_spam_option	Spam elrejtése
+st_hide_spam_option	Hangcsevegés kikapcsolása
 st_hide_squad_list	Osztagablak elrejtése
 st_hk416_description	Német gépkarabély, 5.56x45 lőszerrel. A Heckler & Koch AR-15-alapú fejlesztése rövid löketű gázdugattyúval, a 2000-es évek közepéről. Különleges erők és több NATO-hadsereg használja. EOTech 552 holografikus irányzékkal, 30 lőszeres tárral. Egyes és sorozatlövés.
 st_hk416_name	H&K 416A5
@@ -1765,7 +1765,7 @@ st_profile_selection_warning	Profilváltáskor +20 másodperc újraéledési id�
 st_profile_warning_weapon	A profil nem aktív: nincs fegyver
 st_profile_warning_weapon_ammo	A profil nem aktív: kevés a lőszer a hátizsákban
 st_profile_warning_weapon_ammo_in_inv	A profil nem aktív: kevés a lőszer a raktárban
-st_ptt_action	PTT
+st_ptt_action	Beszéd (nyomva tartva)
 st_ptt_button_option	PTT
 st_put_item	Lerakás ({USE})
 st_quest_change_warning	Figyelem! A feladatcsere csökkenti a frakcióhűséged!
@@ -2511,6 +2511,11 @@ st_srp_hud_mute_not_sent	Nincs elküldve
 st_srp_hud_muted	Chat némítva
 st_srp_hud_unmute	Némítás feloldása
 st_srp_hud_unmuted	Némítás feloldva
+st_srp_hud_voice_mute	Hang némítása
+st_srp_hud_voice_muted	Hang némítva
+st_srp_hud_voice_not_muted	A hangcsevegés nem érhető el
+st_srp_hud_voice_unmute	Hang visszakapcsolása
+st_srp_hud_voice_unmuted	Hang visszakapcsolva
 st_srp_inv_ammo_range	Lőtávolság
 st_srp_inv_bullet_speed	Lövedéksebesség
 st_srp_inv_defuse_time	Hatástalanítási idő
