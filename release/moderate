@@ -630,7 +630,7 @@ def who(args):
 
 MODULE_REPORT = re.compile(
     r"^(?P<at>\d{4}-\d\d-\d\dT\S+Z) \[\w+\] (?P<name>.+) \(account (?P<id>\d+)\), match (?P<match>0x[0-9a-f]+), "
-    r"(?P<moment>loaded|ended), part \d+/\d+ of \d+ entries: (?P<list>.*)$", re.M)
+    r"(?P<moment>loaded|ended|minute \d+), part \d+/\d+ of \d+ entries: (?P<list>.*)$", re.M)
 PE = r"pe (-|[0-9a-f]{8}/[0-9a-f]+)"
 QUOTED = r'"((?:[^"\\]|\\.)*)"'
 PLACE = r"(game|temp|other)(?: in %s)?" % QUOTED
