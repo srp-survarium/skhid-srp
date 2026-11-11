@@ -9,7 +9,7 @@ patch = 140
 [[hook]]
 site = "tab_cursor.key"
 handler = "on_key"
-order = 1
+order = 2
 
 # game_world::tick after the simulation's move: the places in the match, told
 # to the movie when they change.

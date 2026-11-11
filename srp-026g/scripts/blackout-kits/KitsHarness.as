@@ -1,6 +1,7 @@
 package
 {
    import flash.display.DisplayObject;
+   import flash.display.DisplayObjectContainer;
    import flash.display.Loader;
    import flash.display.MovieClip;
    import flash.display.Sprite;
@@ -30,6 +31,11 @@ package
    // - the body's state kept inside HUDPlayerInfo with ammo stays where it
    //   was, shown, and takes the body parts' state (partHP) there;
    // - death and respawn with Tab held switch between the kits and body without another Tab event.
+   // - the Tab list (SrvPlayerList with srp's PlayerRowMenu, names only as HUD.showScores makes a forced
+   //   match's) kept with either view, where it was, the kits over it: its rows' scores hidden, a
+   //   right-click (Scaleform's MouseEventEx) on a player's row opening the row menu there with the chat
+   //   mute entries (the exe's srp_player_menu answered as patch 86 does), the Tab map's marked battery
+   //   (update_objects' "artifact") drawn in the kept list; given back to the root with Tab up;
    // - the use prompt (SrvContextInfo, root.set_context) kept while forced, where it was, its progress
    //   (frame 2) filled there; given back to the root when the match is no longer forced;
    // Prints "KITS ..." lines (trace) and ends with "KITS RESULT pass" or "KITS RESULT fail: ...".
@@ -65,6 +71,14 @@ package
       private var context:MovieClip;
 
       private var view:Object;
+
+      private var list:MovieClip;
+
+      private var menu:Object;
+
+      private var Ex:Class;
+
+      private var menuCalls:Array = [];
 
       private var history:Array = [];
 
@@ -138,6 +152,27 @@ package
          context.x = 500;
          context.y = 40;                 // above the kits: their click lands on them
          face.addChild(context);
+         // The Tab list as the hud makes it (HUD: SrvPlayerList, PlayerRowMenu in it), off the window: the
+         // kits are clicked; names only, as a forced match's (HUD.showScores).
+         var List:Class = domain.getDefinition("SrvPlayerList") as Class;
+         list = new List() as MovieClip;
+         list.x = 2000;
+         list.y = 20;
+         list.visible = false;
+         face.addChild(list);
+         var Menu:Class = domain.getDefinition("survarium.controls.PlayerRowMenu") as Class;
+         menu = new Menu(list.players);
+         list.addChild(DisplayObject(menu));
+         menu.call = function(method:String, place:String, ... choice):void
+         {
+            menuCalls.push([method,place].concat(choice).join(" "));
+            if(method == "srp_player_menu")
+            {
+               menu.offered(uint(place),true,true,0);
+            }
+         };
+         list.players.namesOnly = true;
+         Ex = domain.getDefinition("scaleform.gfx.MouseEventEx") as Class;
          var View:Class = domain.getDefinition("survarium.controls.ForcedView") as Class;
          // The hud's lists (HUD.keptWhenForced, keptOnTab, keptWhileTyping).
          view = new View(kept,function():Array
@@ -145,7 +180,7 @@ package
             return [context];
          },function():Array
          {
-            return panel.visible ? [panel,chat] : [info,chat];
+            return panel.visible ? [chat,list,panel] : [info,chat,list];
          },function():Array
          {
             return [chat];
@@ -236,7 +271,10 @@ package
             message("a message after it");
             expectChat("a message after it, nothing typed, no Tab",false,false);
             var dollAt:Point = doll.localToGlobal(new Point(0,0));
+            var listAt:Point = list.localToGlobal(new Point(0,0));
+            list.visible = true;        // HUD.show_player_list(true), then the view's Tab
             view.tab = true;
+            expectList(listAt);
             expectChat("Tab held: the chat's history",true,false);
             if(history.join() != "true")
             {
@@ -279,11 +317,19 @@ package
                {
                   failures.push("death while Tab held: the kits must replace the body");
                }
+               if(list.parent != kept || !shown(list) || kept.getChildIndex(panel) < kept.getChildIndex(list))
+               {
+                  failures.push("death while Tab held: the list kept under the kits");
+               }
                panel.visible = false;
                view.refresh();
                if(shown(panel) || !shown(doll) || panel.parent != face || info.parent != kept)
                {
                   failures.push("respawn while Tab held: the body must replace the kits");
+               }
+               if(list.parent != kept || !shown(list))
+               {
+                  failures.push("respawn while Tab held: the list still kept");
                }
                panel.visible = true;
                view.refresh();
@@ -338,8 +384,14 @@ package
       {
          call(function():void
          {
+            list.visible = false;   // HUD.show_player_list(false): the menu closed, the list hidden
+            menu.close();
             view.tab = false;
          });
+         if(list.parent != face || list.x != 2000 || list.y != 20 || shown(list))
+         {
+            failures.push("given back: the list at " + list.x + "," + list.y + ", in the root " + (list.parent == face) + ", shown " + shown(list));
+         }
          if(history.join() != "true,false")
          {
             failures.push("Tab let go: the history " + history.join());
@@ -364,6 +416,72 @@ package
             failures.push("unforced: the use prompt at " + context.x + "," + context.y + ", in the root " + (context.parent == face));
          }
          finish(failures.length ? "fail: " + failures.join("; ") : "pass");
+      }
+
+      // Tab held: the list kept where it was, shown, its rows by name only; a right-click on a player's
+      // row opens the row menu there; the Tab map draws a marked battery.
+      private function expectList(at:Point) : void
+      {
+         var now:Point = list.localToGlobal(new Point(0,0));
+         trace("KITS Tab held: the list at " + at + " in the root, " + now + " kept, shown " + shown(list));
+         if(list.parent != kept || !shown(list) || Point.distance(at,now) > 0.5)
+         {
+            failures.push("Tab held: the list kept " + (list.parent == kept) + ", shown " + shown(list) + ", from " + at + " to " + now);
+         }
+         try
+         {
+            var Renderer:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("PlayerListRenderer") as Class;
+            var row:Object = new Renderer();
+            row.owner = list.players.team2list;     // its list, as the list makes its rows (namesOnly)
+            row.setData({id:3,team:1,name:"Wolf",kills:2,deaths:1,rank:40,score:120});
+            list.players.team2list.addChild(DisplayObject(row));
+            row.validateNow();
+            var scores:Boolean = shown(row.ui_kills) || shown(row.ui_deaths) || shown(row.ui_rank) || row.ui_score != null && shown(row.ui_score);
+            var event:MouseEvent = new Ex(MouseEvent.CLICK) as MouseEvent;
+            Object(event).buttonIdx = 1;
+            DisplayObject(row).dispatchEvent(event);
+            trace("KITS a right-click on a kept row: the menu " + menu.state + ", shown " + shown(DisplayObject(menu)) + ", asked " + menuCalls.join(",") + "; the row's scores shown " + scores);
+            if(menu.state != "open" || !shown(DisplayObject(menu)) || menuCalls.join(",") != "srp_player_menu 3" || scores)
+            {
+               failures.push("the kept list's row: menu " + menu.state + ", shown " + shown(DisplayObject(menu)) + ", asked " + menuCalls.join(",") + ", scores shown " + scores);
+            }
+         }
+         catch(err:Error)
+         {
+            failures.push("the kept list's row: " + err.getStackTrace());
+         }
+         try
+         {
+            list.minimap.setObjectData([{id:40,type:"artifact",pos_x:10,pos_y:10}]);
+            var battery:DisplayObject = find(list.minimap,loader.contentLoaderInfo.applicationDomain.getDefinition("ArtifactArrow") as Class);
+            trace("KITS the Tab map's marked battery: drawn " + (battery != null) + ", shown " + (battery != null && shown(battery)));
+            if(battery == null || !shown(battery))
+            {
+               failures.push("the Tab map's marked battery: drawn " + (battery != null));
+            }
+         }
+         catch(err2:Error)
+         {
+            failures.push("the Tab map's objects: " + err2.getStackTrace());
+         }
+      }
+
+      private static function find(at:DisplayObject, type:Class) : DisplayObject
+      {
+         if(at is type)
+         {
+            return at;
+         }
+         var container:DisplayObjectContainer = at as DisplayObjectContainer;
+         for(var i:int = 0; container != null && i < container.numChildren; i++)
+         {
+            var found:DisplayObject = find(container.getChildAt(i),type);
+            if(found != null)
+            {
+               return found;
+            }
+         }
+         return null;
       }
 
       // Whether a part is on the screen: itself and every parent up to the stage visible.

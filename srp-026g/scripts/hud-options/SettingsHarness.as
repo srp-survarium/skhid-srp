@@ -1506,8 +1506,9 @@ package
             if (settings.settings_content.currentFrame != 2) settings.settings_content.gotoAndStop(2);
         }
 
-        // The key lists filled after the tab's bind, as applyKeys fills them: 5 lobby keys, 3 chat keys,
-        // 34 game keys (the game's counts).
+        // The key lists filled after the tab's bind, as applyKeys fills them: 5 lobby keys, 2 chat keys,
+        // 35 game keys (the build's counts: the game's 32 game keys, its push-to-talk, which patch 66
+        // lists with them, and the two rows patch 62 adds).
         private function keys(settings:*, domain:ApplicationDomain):void
         {
             var c:* = settings.settings_content;
@@ -1518,10 +1519,10 @@ package
                 return out;
             };
             c.keysLobby.dataProvider = new DP(rows(5, 0));
-            c.keysChat.dataProvider = new DP(rows(3, 1));
-            c.keysGame.dataProvider = new DP(rows(34, 2));
+            c.keysChat.dataProvider = new DP(rows(2, 1));
+            c.keysGame.dataProvider = new DP(rows(35, 2));
             c.keysLobby.height = 5 * c.keysLobby.rowHeight;
-            c.keysChat.height = 3 * c.keysChat.rowHeight;
+            c.keysChat.height = 2 * c.keysChat.rowHeight;
         }
 
         // "Lock vertical sensitivity" and "Vertical sensitivity" (exe patch 112,
@@ -1618,15 +1619,21 @@ package
                     require(column[i].visible, "controls: " + column[i].name + " shown");
                     if (i + 1 < column.length)
                     {
-                        // the game's list as sized (it redraws at its next frame)
-                        var here:Array = column[i] == c.keysGame ? [c.keysGame.y, c.keysGame.y + c.keysGame.height] : span(column[i]);
-                        var next:Array = span(column[i + 1]);
+                        // the game's and the chat's lists as sized (they redraw at their next frame)
+                        var sized:Function = function(item:*):Array {
+                            return item == c.keysGame || item == c.keysChat ? [item.y, item.y + item.height] : span(item);
+                        };
+                        var here:Array = sized(column[i]);
+                        var next:Array = sized(column[i + 1]);
                         require(here[1] <= next[0] + 1, "controls: " + column[i].name + " (" + here + ") over " + column[i + 1].name + " (" + next + ")");
                     }
                 }
             }
-            require(span(c.keysLobby)[1] <= 400 && span(c.keysChat)[1] <= c.button_default_controls.y,
-                "controls: the lobby's keys in the window, the chat's above the default button: " + span(c.keysLobby) + ", " + span(c.keysChat));
+            require(span(c.keysLobby)[1] <= 400 && c.keysChat.y + c.keysChat.height <= c.button_default_controls.y,
+                "controls: the lobby's keys in the window, the chat's above the default button: " + span(c.keysLobby) + ", "
+                + (c.keysChat.y + c.keysChat.height));
+            require(c.keysGame.height >= 9 * c.keysGame.rowHeight && c.keysGame.height % c.keysGame.rowHeight == 0,
+                "controls: the game's list is whole rows, 9 or more (its scroll bar no taller than its rows): " + c.keysGame.height);
             require(near(box.x, c._setter_inverse_mouse.x) && near(vertical.x, main.x) && near(c.keysChat.x, c.keysGame.x),
                 "controls: the box at Invert mouse's x, the vertical slider at the main one's, the chat's keys at the game's");
             var edge:Number = 297;                       // the column divider
@@ -1643,7 +1650,9 @@ package
             vertical.label = texts[0][18];
             trace("SETTINGS controls layout: slider " + main.y + ", box " + box.y + ", vertical " + vertical.y + ", invert "
                 + c._setter_inverse_mouse.y + ", lobby " + c.s_lobby.y + " to " + span(c.keysLobby)[1] + "; game to " + (c.keysGame.y + c.keysGame.height)
-                + ", chat " + c.s_chat_keys.y + " to " + span(c.keysChat)[1] + ", button " + c.button_default_controls.y);
+                + ", chat " + c.s_chat_keys.y + " to " + span(c.keysChat)[1] + ", button " + c.button_default_controls.y
+                + "; game list at " + c.keysGame.y + ", " + c.keysGame.height + " high, rows of " + c.keysGame.rowHeight
+                + ", chat list at " + c.keysChat.y);
         }
 
         // The two sliders at their borders (the stock mouse_sensitivity's 0.01 to 10, from its console

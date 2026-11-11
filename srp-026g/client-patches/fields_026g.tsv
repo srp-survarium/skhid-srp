@@ -347,6 +347,8 @@ vostok::console_commands::cc_bool	vtable	0x0	u32	its vtable: CC_BOOL_VTABLE, wri
 vostok::console_commands::image	cc_bool_vtable	0x9E7C4C	u32	cc_bool's vtable (the hud's show_quests_progress 0x2339E8; its execute 0xECA30)
 survarium::game_world_key_frame	key	0x8	u32	game_world::on_keyboard_action's second argument at its start (0x25CD00, by the site's ESP): the DirectInput key (0Fh Tab, 1Dh/9Dh the Ctrl keys)
 survarium::game_world_key_frame	state	0xC	u32	its third: the key's kind, 1 down, 2 up, 3 held (as keyboard_action_frame's state; match_keys_026g.asm)
+survarium::game_world_mouse_frame	key	0x14	u32	game_world::on_mouse_key_action's second argument at 0x25CF70 (by the site's ESP, after its three pushes; mov ebp,[esp+14h] at 0x25CF7F): 151h + the mouse button (0 the left, 1 the right, 2 the middle, 3 and 4 the side buttons; `add edi,151h` at 0x3B9981)
+survarium::game_world_mouse_frame	kind	0x18	u32	its third (cmp [esp+18h],0 at 0x25CF9D): 0 the press, 1 the release, 2 held (the mouse's process 0x3B9D90; as the character's mouse handler reads it, 0x265C20)
 survarium::game_world_input	ui	0x4	obj<survarium::game_world_ui>	the hud inside the game world's input handler (game_world+1F8h, on_keyboard_action's ECX): its +4 (lea esi,[edi+4] at 0x25CD30, show_player_list's ESI)
 survarium::game_world_ui	list_shown	0xBA	u8	the Tab list shown: show_player_list 0x2384C0 writes it (0x23850A), from on_keyboard_action's Tab test at every key (0x25CD34)
 survarium::game_world_ui	cursor_shown	0x2DC	u8	the hud's cursor shown: show_cursor 0x23A930 writes it (0x23A9BB); the game world's mouse handlers read it as handler+2E0h (0x25CFF3, 0x25D118): moves and buttons go to the hud's movies, not the player
@@ -870,6 +872,10 @@ survarium::game_world	ui	0x1FC	obj<survarium::game_world_ui>	the hud (game_world
 survarium::game_world_ui	cursor_movie	0xC	obj<survarium::movie_slot>	the hud's cursor movie: show_cursor shows it (0x23A995) and hides it (0x23A9B3), the hud's +2DCh with it
 survarium::movie_slot	holder	0x0	ptr<vostok::ui::movie_holder>	a scene's movie: base_game_scene::show_movie reads it (0x23DC26), hide_movie does nothing while it is 0 (0x23DC71)
 survarium::initialize_match_frame	ui	0x4	ptr<survarium::game_world_ui>	initialize_match's first argument at its start (0x234880, by the site's ESP): the hud, called once a match from 0x1F855D (the late join's rebuild enters at 0x234E71)
+survarium::game	binder	0x5344	ptr<survarium::key_binder>	the key binder: chat_handler::on_keyboard_action asks it for the chat keys (0x208887: mov eax,[ecx+5344h], its handler+10h the game; key_binder::get_binded_action 0x207D50 with EDI 8)
+survarium::match_connect_frame	host	0x4	ptr<u8>	match_client::connect's first argument at its start (0x27A1B0, by the site's ESP): the match server's host, a C string
+survarium::match_connect_frame	port	0x8	u16	its second: the match server's UDP port, the dword's low 16 bits (the lobby's 0x82 handler stores only a word, 0x274A67, and pushes the whole dword, 0x274ACD: the high half is stack leftovers)
+survarium::match_connect_frame	session	0xC	u32	its third: the session the match server gave
 vostok::network::login_client_impl	answer	0x2AA	u8	the sign-in answer's first byte, its code: one async_read_some of at most 52h bytes lands here (0x38010D); on_sign_in_answer_received dispatches on it (0x37FB47) and reads 08h's and 25h's bodies after it (0x37FD26, 0x37FB7F)
 vostok::network::sign_in_answer_frame	transferred	0x10	u32	on_sign_in_answer_received's bytes read (EBP+10h; 0 returns at 0x37FB3D)
 survarium::login_menu	status	0xF4	u32	the status set_status shows (written at 0x21EEB0; its jump table 0x21F2A4): 0Ch..19h the bans (the answer's code - 6), whose text is st_login_menu_status_user_banned + st_ban_reason_* (0x21F310)
@@ -1122,3 +1128,21 @@ openssl::ssl	wbio	0x10	ptr<openssl::bio>	the BIO the SSL writes to (the same hal
 openssl::bio	flags	0x14	u32	the BIO's flags (BIO_FLAGS_READ 1, SHOULD_RETRY 8: BIO_read of an empty pair sets both)
 survarium::network_client	vtable	0x0	u32	its class: 0x9FFB14 a live match's network_client (its ctor writes it at 0x219E7C), REPLAY_CLIENT_VTABLE a .sur replay's replay_network_client (0x218A7C); every other field of this kind is the live client's
 survarium::image	replay_client_vtable	0x9FF344	u32	replay_network_client's vtable (its ctor 0x218A40 writes it at 0x218A7C, its destructor at 0x218BC3; slot +54h is_this_place_mine, patch 24): the game's network client (+53ACh) while a .sur replay plays
+vostok::console_commands::cc_delegate	size	0x60	size	a cc_delegate console command's object (cc_delegate::cc_delegate 0xEC780: the base fields as cc_value<bool>'s, +40h the delegate's copy, 20h bytes; attach_to_player's 0xA2AE350, its guard at +60h)
+vostok::console_commands::cc_delegate	vtable	0x0	u32	its vtable: cc_delegate's 0x9E7C0C as the constructor leaves it; patch 133's copy (console_where.toml) written after it
+vostok::console_commands::cc_delegate_methods	rtti	-4	u32	native complete object locator (0xA3E110)
+vostok::console_commands::cc_delegate_methods	size	0x1C	size	seven methods: the destructor 0xEC7E0, execute 0xEC830 (+4, console_commands::execute 0xEBB98), status, info, syntax, fill_command_args_list, save_to (0x15A4B0, ret 8: not saved)
+vostok::console_commands::image	cc_delegate_methods	0x9E7C0C	obj<vostok::console_commands::cc_delegate_methods>	cc_delegate's vtable including RTTI at -4 (cc_delegate::cc_delegate 0xEC7C6)
+vostok::logging::log_function	size	0x20	size	the boost::function a line is written through, as log_message's callers make it on their stack (console_commands::execute 0xEBA04..0xEBA38): empty (all 0), or the log's sink
+vostok::logging::log_function	manager	0x0	u32	its manager: LOG_FUNCTION_MANAGER | 1 (trivially copied, nothing to destroy) when [log_state+8] is set, else 0 (empty: the line goes nowhere, 0x111E4D)
+vostok::logging::log_function	sink	0x8	u32	the function itself: [log_state+8]
+vostok::logging::log_helper	size	0x248	size	a line's helper (log_message's [ebp-24Ch]): the template's 228h bytes, then the function, the context, the channel, the file, the caller, the line and the level (helper::helper 0x111C90)
+vostok::logging::log_state	filtered	0x0	u32	not 0: a line is written only when has_passed_filters (0x111860) passes its channel and level (every caller of log_message, 0xEB9E9)
+vostok::logging::log_state	context	0x4	u32	the word every caller passes as log_message's second argument (helper +230h; its meaning not established)
+vostok::logging::log_state	sink	0x8	u32	the function the game's lines go through (0 none: an empty log_function)
+vostok::logging::image	log_state	0x1F1D60C	obj<vostok::logging::log_state>	the logging globals log_message's callers read (console_commands::execute 0xEB9E9, 0xEBA09, 0xEBA3B)
+vostok::logging::image	log_template	0x21E73B8	obj<vostok::logging::log_helper>	the template helper every caller of log_message passes (its third argument, copied into the line's helper by 0x111C90)
+vostok::logging::image	log_function_manager	0x9DAF4C	u32	the log sink's boost::function manager (console_commands::execute 0xEBA28: or 1, its word +0)
+survarium::player	camera_handler	0xF470	ptr<survarium::player_input_handler>	the input handler whose camera is on this player (update_camera 0x1F348D: 0, not the camera's player, returns at once)
+survarium::player_input_handler	view	0x48	f32	the camera's transform, a row-vector 4x4 (16 f32: the rows right, up, forward and the place): update_inverted_view 0x2422B0 writes it (0x24243B), the eyes' transform in modes 0 and 4, else its third-person step
+survarium::game	map_name	0x55E0	obj<vostok::buffer_string>	the match's project, as its maps_dict id's game mode config names it (mode.match_making_params.map_name, e.g. level_01/day_2): network_client::query_players assigns it before game_world::load (0x27B085), the replay's query too (0x218F3C); a buffer_string over 200h bytes at +55ECh (game::game 0x1E9291); never cleared, so the last match's in the lobby

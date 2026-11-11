@@ -105,8 +105,9 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
   branch `feat/interface-level`, not merged): the selector decides which parts of the hud show;
   these change what the crosshair and the Tab list show when they do. Disabled hides both anyway.
 - **F11 (hide interface):** unchanged; both options apply again when the interface shows.
-- **Blackout:** no effect there, nothing to change: its interface is forced hidden (no crosshair,
-  and Tab never shows the list). The saved choice is kept for the next match.
+- **Blackout:** its interface is forced hidden (no crosshair); its Tab view has the list (since
+  2026-11-09, `blackout.md`) always by names only, as "Hide player scores" shows it, whatever the
+  option says. The saved choice is kept for the next match.
 - **Replays:** the replay's hud follows the options as a match's does.
 
 ## How

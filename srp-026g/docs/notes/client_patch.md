@@ -1756,7 +1756,9 @@ The owner's report (2026-10-25, revision 33): short freezes in matches at ~100 f
   After show_player_list, `test bl,bl / jnz 0x25CF0D` (0x25CD39) sends every key to the function's
   end while Tab is down: patch 58's kit keys (0x25CD41) never get one. In Blackout the hook clears
   bl after the call's byte is stored (0x25CD28: [esp+14h], loaded at 0x25CD2C), so 1 to 3 reach the
-  kits Tab shows and show_player_list still gets Tab.
+  kits Tab shows and show_player_list still gets Tab (its +0BAh, so update_ui's list rows
+  0x23B421, update_minimap_objects 0x238530 and patch 86's cursor are a plain match's: Blackout's
+  Tab view has the list since 2026-11-09).
 - **Use held through Tab** (PROVEN in the code, 2026-11-05; the owner's report: Tab during an
   artefact search froze it, and it stayed frozen after Tab). A use ends at the first tick whose
   input lacks Use: `artefact_container_core::use_execute` (0x31C780, every tick of a use from
@@ -1767,7 +1769,8 @@ The owner's report (2026-10-25, revision 33): short freezes in matches at ~100 f
   pressed again; the hud's bar stayed at its last fill, since `set_using_info_message` (0x23A560)
   sends the prompt only when its id differs from the one it last sent (ui+334h), and the progress
   message (0x23A430) does not change that id: after a use the container's prompt is the one sent
-  before it. Use is no longer one of Tab's acts (owner: Tab must not affect the collection). A plain
+  before it. Use is no longer one of Tab's acts (owner: Tab must not affect the collection); since
+  2026-11-11 Blackout filters nothing of the input (`blackout.md`). A plain
   match never had it: the game world answers 0 for every key while Tab is down (0x25CF0D `xor
   al,al`), Tab binds only `send_to` (kind 8, the chat's; the player's handler asks kind 1, or 4,
   game+F544h), so E reaches `player_input_handler::on_keyboard_action` (0x23FE00) every tick.
@@ -1782,7 +1785,8 @@ The owner's report (2026-10-25, revision 33): short freezes in matches at ~100 f
   blackout.rs and blackout.toml; `rust_patches.md`), five `lohook`s at sites of its own
   (`sites_026g.tsv`; their bytes read from the original exe at every build): `static_info.options_read`
   0x27B92D, `replay.options_read` 0x1F0971, `player_icons.update_start` 0x23AA10,
-  `keyboard.tab_state` 0x25CD2C, `input_builder.end` 0x2421B0. Its state is the crate's
+  `keyboard.tab_state` 0x25CD2C, `player_names.visibility` 0x1F2F10 (since 2026-11-11 no
+  `input_builder.end`: the input is the game's, Tab or not). Its state is the crate's
   (`patches.state`). No other patch is touched: patch 63's 0x1F0F30, Research's 0x23B207 and patch
   62's sites stay theirs alone. Movies: the hud's and the player icons' `force_interface_hidden`
   (forced, `hide_interface` does nothing: F11 and a match's reset leave it). No content of its own.
@@ -2100,6 +2104,24 @@ A perf profile of the live revision-54 game while shooting (the owner's, 2026-11
 - **What changes:** the time these take. Every float the game computes is the same, so nothing a match computes changes; no row in `../../crates/session/src/v026g/simulation_changes.tsv`.
 - **Checked:** `check_animation_math_026g.py` (Unicorn 2.1.4) runs the game's own functions whole in both exes on the same inputs: quaternion(angles) on 20000 angle triples (the animation's range, up to 200, 0, -0, multiples of pi/2, tiny, NaN, 1e30, 64 and just above), quaternion(axis, angle) on 5000, get_axis_and_angle on 5000 quaternions (unit, near identity, w 0), domain on 30000 made-up channels (1 to 40 knots: sorted, with equal knots, unsorted; NaN or anything after the last knot; t inside, outside, on a knot, NaN; current inside, past n and near 2^32), evaluate_frame on 2000 bones of nine channels: 0 differ (the floats written bit for bit; domain's EAX, EDX, ECX, XMM0, XMM1, XMM2, the stored domain, the kept registers, ESP; 2578 channels with no such domain (unsorted, or one knot and what follows it below t) search forever in both). Unicorn's fsin is QEMU's, so this proves the plumbing both ways (the fast answer and the game's own function through the same callers); that the fast answers are a real x87's is the crate's test above. Instructions (not cycles: one fsin is about 100 cycles, the patch's call about 90 simple instructions): quaternion(angles) 126 -> 669 a quaternion (six calls), domain 2 469 951 -> 2 057 507 over the searches that end (no `div` a try; one only when current >= n), evaluate_frame 955 -> 827 a bone. `cargo test` and `clippy --all-targets` of the patches crate, check_engine_026g.py and check_hooks_026g.py pass.
 - **Expected saving** (from the profile, not measured in a game): the nine sites hold almost all of the simulation thread's sin/cos/atan2 calls (6.4 % of its samples); about 9 ns a call instead of 25 saves some 4 % of that thread; the knot search's `div` per try, perhaps a third of its 3.2 %. Not run in a game.
+### 3.81 The console command `where` (written 2026-11-09, README patch 133, the next release's revision) — PROVEN in the code, the registration, update_camera and the console's execute run with Unicorn in both exes; not run in a game
+
+The owner, 2026-11-09: a console command that writes to the log and the console where the character is and where it looks, and (after the first test in a game, the same day) the map. `~`, then `where` (any text after it is ignored):
+
+```
+where: map v021d_level_03/day_2 (id 61) pos -51.899 5.414 12.914 eye -51.900 7.114 12.914 dir 0.697 -0.150 -0.702 yaw 135.2 pitch -8.6
+```
+
+`map` the loaded match's project as the data names it (what content edits: `projects/<it>/client_project`) and its maps_dict id; `map -` in the lobby, in a world without a match or before the engine runs (no id when the client gives no options). `pos` the camera's player's simulated place (+40Ch's translation, the coordinates the map projects use), three decimals; `eye` the camera's place (the view's translation), only when it is not `pos` to the millimetre; `dir` the view's forward (its third row) as a unit vector; `yaw` its heading in degrees from +Z towards +X (0 to 360), `pitch` its angle above the horizontal, one decimal. A view older than a second ends with `(N s ago)` (the lobby after a match, a player not drawn); before any view the line is `where: no camera yet`. The line goes to the game's log, so to the console's lines and `Survarium_<user>.log`, and to `srp_patches.log`. It shows only what the camera shows, so it ships always on.
+
+- **The command** (PROVEN). `cc_delegate::cc_delegate` (0xEC780; EDI the object, EDX the name, entry ESP+4 the delegate, ESP+8 the status byte +1Ch, ESP+12 the kind +14h; `ret 0Ch`) makes a console_command (+0Ch the list's next, the new head of 0x1F1D66C; +18h 1; +1Dh 1; +20h an empty on-executed delegate), then cc_delegate's vtable 0x9E7C0C and a copy of the delegate at +40h (0x28F040: an empty one, its manager 0, stays empty). The object is 60h bytes (attach_to_player's at 0xA2AE350, its guard at 0xA2AE3B0). cc_delegate's vtable has seven slots: the destructor 0xEC7E0, execute 0xEC830 (+4), status 0xEC4B0, info 0xEC800 ("function call"), syntax 0xEC500, fill_command_args_list 0x75AF0 (`ret 4`), save_to 0x15A4B0 (`ret 8`: never in user.cfg). `console_commands::execute` (0xEB980, cdecl line, filter, mask) cuts the name at the first space, finds the command by name (0xEB7C0, a plain walk of the list from the head, so a command registered at any time is found), runs it only when filter is 2 or its +18h, and its kind has a bit of the mask; with no arguments and the status byte set it prints the status instead; else it calls vtable+4 with the arguments (0 for none, 0xEBB98). The console (`console_impl::on_text_commit` 0x1D5F0) logs `~<line>` and calls execute(line, 2, 2) (0x1D6DB); user.cfg's lines have mask 2 too. No stock command is named `where` (no such string in the exe).
+- **The game's log** (PROVEN). `log_message` (0x111ED0, varargs) copies the channel with a colon after it, makes a helper on its stack (`helper::helper` 0x111C90: EAX the boost function the line goes through, ECX the context word [0x1F1D610], entry ESP+4 the helper, +8 the template 0x21E73B8 (its 228h bytes copied in), +0Ch the file, +10h the line, +14h the caller's name, +18h the channel, +1Ch the level; `ret 1Ch`; EAX the helper), then `helper::write` (0x111D10: ESI the helper, entry ESP+4 the format, +8 the va_list; `ret 8`): under the critical section 0x1F1D8D0, vsnprintf_s into 4000h bytes and each line through the function. Every caller builds the function on its stack as {0x9DAF4C | 1, 0, [0x1F1D614]} (empty when [0x1F1D614] is 0: nothing written, 0x111E4D) and, while [0x1F1D60C] is set, asks has_passed_filters(channel, level) first (0xEB9E9). The console's tick (0x1D0D0) draws the logging core's lines ([0x1F1D608]), which is how a command's message reaches it. Both helper functions take fixed arguments, so the engine library calls them (`engine_log_helper`, `engine_log_write`); `vostok::console::game_line` makes the function and the helper as log_message does, the format "%s" and a va_list of the one text: channel "game", level 4 (info), file and caller "srp".
+- **The map** (PROVEN in the code). `network_client::query_players` (0x27AED0) looks the match's game mode config up by its maps_dict id (match_options +577B4h; 0x21F910), takes `mode.match_making_params.map_name` (0x27B051..0x27B06D, the strings 0x9FF2FC, 0x9FF304, 0x9FF318) and assigns it to the game's buffer_string +55E0h (0x27B085, `buffer_string::assign` 0x127C0) before game_world::load; the replay's query does the same (0x218F08..0x218F3C). The game's constructor makes that string over 200h bytes at +55ECh (0x1E9291) and nothing clears it, so in the lobby it still names the last match: the patch says `map -` unless the engine world's game (0x1F1D310, +2D0h) has a match in its world (+18h, +4D4Ch: set for a live and a replay match, 0 again at the unload, as patch 109's match_core reads it). The id is the client's own options' (`match_options`, base_network_client vtable +34h: network_client 0x219990 [+1F1C48h]+0Ch, replay_network_client 0x2189E0 +1Ch). Read at the command, on the console's thread: a match ending at that moment could make it read the last one's name (LIKELY harmless: the string's room is the game's, never freed).
+- **The view** (PROVEN). `player::update_camera` (0x1F3480, from `player::mt_draw` 0x247847 for every drawn player, so maybe on a task thread: `mt_player_draw`) returns at once for a player whose +0F470h (the camera's input handler) is 0; for the camera's player it gives `update_inverted_view` (0x2422B0, at 0x1F364B; patch 46's death_view in our exe) the eyes' transform (+44Ch, modes 0 and 4) or the body's raised 1.4 m (the others), and that writes the handler's view (+48h, a row-vector 4x4: right, up, forward, place): the eyes' transform as it is in modes 0 and 4, else its third-person step, whose place is the point less the distance (+354h) times the third row plus 0.2 times the first (0x2423B2..0x242407: the third row is forward). The site `camera.viewed` is the instruction after that call (0x1F3650, `mov edx,[ebx+0F478h]`, 6 bytes, EBX the player): the patch keeps the player's place and the view there, with GetTickCount's time, in a `vostok::Lock`: the draw runs on the logic thread or a task of it, the console's execute on the thread of the console's window input (LIKELY the main thread, which runs engine_world; not traced), so the two may differ and the lock is what makes the read safe either way. So "the character" is whichever player the camera is on: the local player, the one spectated (mode 4), a replay's attached player.
+- **The patch** (`rust/patches/src/console_where.rs`, `console_where.toml`): `configs.start` (order 6, after patch 112) registers the command once (`vostok::console::Command::register`: the constructor with an empty delegate, status 0, kind 2, then the object's vtable the generated copy `console_where_methods_vtable`, the game's RTTI and slots but execute, `[[vtable]]` of the image row `cc_delegate_methods`); the copy's execute (`cc_delegate.execute`, the callee `engine_cc_delegate_execute`, thiscall) is `on_execute`, which never calls the game's (its delegate is empty); `camera.viewed` is `on_viewed`; `vostok::world::loaded_map` reads the map at the command. 2455 bytes of patches.code.
+- **What changes:** one more console command and a lohook that reads the camera every frame. Nothing a match computes; no row in `../../crates/session/src/v026g/simulation_changes.tsv`.
+- **Seen in passing** (PROVEN in the code, not tried): the replay's `attach_to_player` (0x218ACC) and `pause` (0x1E96C0) are cc_delegates of kind 1, and the console's lines run with mask 2, so execute skips them (0xEBAA7) without a word; `replay_sur.md`'s list of console commands may not work from `~`.
+- **Checked:** `check_console_where_026g.py` (Unicorn 2.1.4): `where` registered once at the list's head (the original has none) with its fields and the copy's slots; `where` through console_commands::execute before any view ("no camera yet"), the helper ours fills field by field the one the game's own log_message fills for the same line, the sink's function and an empty one, the filters asked ("game", 4); the original's "unknown command [%s]"; update_camera in modes 4 and 2 leaves the original's view bit for bit, then the line's numbers are the view's (to their decimals), with and without arguments, and 10 s later "(10.0 s ago)"; the map: a live client's (`map v021d_level_03/day_2 (id 61)`) and a replay client's options through the game's own getters, `map -` for a world with no match and the engine not running. The self-test's per-hook rules on the default build (test_call_shapes, test_rust_hooks, test_rust_code, test_writes) pass, the slot reached through the game's own caller; `check_engine_026g.py` proves the four new library rows; the checks sharing the sites (language, hud_options, music, mouse_pitch, lobby_scene, death_camera, ragdoll) pass, hud_options' and lobby_scene's lists of configs.start's registrations now with `where` at their head. `cargo test` and `cargo clippy --all-targets` in `rust/` clean. **Not run** in a game: the console's window, the log file, a spectator, a replay, the free camera.
 
 ## 4. Mode 3 batteries: not needed in 0.26g
 
@@ -3111,8 +3133,8 @@ profile's name, `[%s] %s` with its clan tag, 0x235090). The movie keeps the
 rows' names by place (`HUD.list_set_players` -> `Minimap.setPlayerNames`, the
 Tab map's alone) and an icon shows its place's while the names are shown,
 none for the local player (`is_local_player`). The Tab map is the Tab list's
-(`SrvPlayerList.minimap`), which Blackout's forced Tab never shows, so no
-name shows in Blackout.
+(`SrvPlayerList.minimap`), which Blackout's forced Tab shows too since
+2026-11-09 (`blackout.md`), so the names show there as in any match.
 
 Checked: `check_map_names_026g.py` (Unicorn) runs on_keyboard_action from its
 start to past show_player_list (0x25CD39) in both builds on a made-up input
@@ -3390,3 +3412,47 @@ What it is for and the owner's rules: [dxvk-option.md](dxvk-option.md). Here: wh
   no engine allocation; the login screen's turn-off), `check_music_026g.py` (the login screen's
   chain), `../scripts/dxvk-loader/run.sh` (the loader under Wine). **Not run** on Windows or in a
   game.
+
+### 3.71 Voice chat in a match (written 2026-10-25, ported to the named sites 2026-11-06, README patch 66, not released; the rules: `voice-chat.md`) — PROVEN in the code; not run in a game
+
+The owner's ask (2026-10-23, answers 2026-10-25, the mute and the list as 0.69's 2026-11-06). Team
+push-to-talk through `skhid_voice.dll` (`../../client-voice`) and srp's voice relay on the match
+port + 1. The Rust patch `voice.rs` (`voice.toml`, eight lohooks; its boundary `vostok/voice.rs`):
+
+- **The variables** (`configs.start`, before user.cfg): the sound tab's stock controls are bound by
+  name to `s_chat_volume`, `s_use_microphone`, `s_mic_sens` (0x262DE8..0x262EC9) and nothing
+  registers them; `ConsoleFloat` (0..100, the float slider's steps of 1) and `ConsoleBool` do, with
+  `g_hide_spam` (the gameplay tab's dead option 5, "Disable voice chat") and the `ConsoleString`
+  `srp_voice_mutes` (each muted voice id, 8 hex digits and `|`: parsed once a match, a malformed
+  record left out and logged).
+- **Connect, end** (`match_client.connect` 0x27A1B0 at its start: ECX the client, [esp+4] the
+  host, +8 the port, +0Ch the session; a replay's connect is 0x122350): the DLL loaded once
+  (`LoadLibraryA`, its ten exports and version through `voice_abi`), `sv_start(host, port + 1,
+  session)`, the options told before it (no mutes, no radio: the DLL keeps the last match's);
+  `game_world.finish` (on_finish_match 0x1F96F0, EAX the world) and `game_world.deactivate`
+  (on_deactivate 0x1F9520, ECX the world): push-to-talk let go, `sv_stop`, the hud's list emptied.
+- **Every frame** (`game_world.after_move`): the options, the muted teammates and the far ones (a
+  teammate beyond 25 m, or either of the two not alive: the radio filter) to the DLL on a change;
+  a held push-to-talk let go when its key is up (user32's GetAsyncKeyState, so a release the chat
+  box took is seen: MapVirtualKeyA's VK of the scan code, and for the numpad's digits and point the
+  VK_NUMPADn/VK_DECIMAL a press sets with NumLock on, as the scan code maps to the navigation
+  keys; NumLock and Pause, which map swapped, by VK_NUMLOCK and VK_PAUSE; a mouse button by
+  VK_LBUTTON..VK_XBUTTON2, those past it by their release only) or the game lost the keyboard; the
+  hud's `root.srp_voice_talking(names...)` on a change (0.69's list: the teammates, newest on top,
+  fading 1 s after 0.5 s; and the player's own while its microphone is sent).
+- **The key** (`tab_cursor.key`, before patch 86's): the binder's chat key (kind 8, as
+  chat_handler::on_keyboard_action asks at 0x208887, the binder [game+5344h]) `ptt` (47h, P) down
+  and up. **A mouse button** (`game_world.mouse_key`, 0x25CF70: `mov edi,eax / mov eax,[edi] /
+  mov edx,[eax]` after on_mouse_key_action's ask of the keyboard, ESI the game world's input
+  handler, the keyboard's: its cursor flag +2E0h is the hud's +2DCh; ESP+14h the key, 151h + the
+  button, +18h the kind, 0 press, 1 release, 2 held): the same ask of the binder with the button's
+  key. The function's first ten bytes are patch 31's jump (WARMUP_KEYS_HOOK), which takes a button
+  held from a shown cursor (its held states and release) and comes back at 0x25CF6A otherwise; such
+  a release is seen by the poll above. Patch 62's controls have `ptt` in the game group with a key
+  that can be set (the game's row: the chat group, type 0, its key button disabled); muting is the
+  Tab menu's.
+- **The Tab list's player menu** (`hud.callback`, after patch 86's): `srp_voice_menu(place)` is
+  answered `root.srp_voice_menu(place, offered, muted)` (a teammate whose voice id the relay sent),
+  `srp_voice_mute(place, "1"|"0")` `root.srp_voice_mute(place, done)`; the menu shows "Mute voice"
+  or "Unmute voice" after the chat's entries.
+- **Checked**: `selftest_026g.py` check 66, `cargo test` (rust/: the mutes' text, the radio). **Not run**: a game.
