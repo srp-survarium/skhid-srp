@@ -1040,6 +1040,7 @@ va	status	ref_021d	name
 0x00294870	reviewed	0x001a9ab6	survarium::object_sound::on_sound_resources_ready
 0x00294930	reviewed	0x001a9b08	survarium::object_sound::insert
 0x00294a90	reviewed	0x001a9c2d	survarium::object_sound::remove
+0x002959a0	reviewed	0x001aa6d6	survarium::portable_interactive_object::on_hand_ik_event
 0x002989d0	reviewed	0x001b22d2	survarium::damage_zone::damage_zone
 0x0029ab20	reviewed	0x00177271	survarium::lobby_menu::fill_match_statistic
 0x002a6470	reviewed	0x001b3d18	survarium::player_equipment_sound_effect::on_player_sound_event
@@ -1452,6 +1453,7 @@ va	status	ref_021d	name
 0x0038caf0	reviewed	0x0024677b	vostok::ai::fsm::pop_state
 0x0038cc90	reviewed	0x0024679d	vostok::ai::fsm::serialize
 0x0038ccf0	reviewed	0x002467ef	vostok::ai::fsm::deserialize
+0x00392d90	reviewed	0x0024ad0d	vostok::animation::hand_to_weapon_ik_solver::activate_hand
 0x00396120	verified	0x0024d48f	vostok::bit_index
 0x003b9f40	reviewed	0x00265dc7	vostok::render::device::device
 0x003b9fe0	reviewed	0x00265e60	vostok::render::device::on_device_removed
