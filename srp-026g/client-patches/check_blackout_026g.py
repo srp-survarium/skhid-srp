@@ -33,15 +33,8 @@ records each call. The original runs the same way and must do what it did:
   same-team names only in Blackout (an enemy's never), preserving other decisions, registers and
   stack; a new match resets the held key;
 - the input: process_first_person_mode's epilogue 0x2421B0 to its `ret 8`:
-  while Tab is held in a Blackout match the action mask has no move and no
-  act but Use (a search held through Tab goes on), an act held through Tab
-  stays out until let go; the original and a
-  match without send what is pressed;
-- quick use on Tab: a made-up local player ([[[ui+18h]+9Ch]+53ACh]+4) whose
-  quick uses are a medkit, a grenade set and an artefact in a container, by
-  the game's own quick_slot_to_inventory_slot (0x2FE7F0): the markers' feed
-  reads them, and Tab then leaves the medkit's and the artefact's keys and
-  holds the grenade set's out; none left for a dead player or without one.
+  a Blackout match sends what is pressed, Tab held or not, as the original
+  and a match without (the hook there is patch 78's, which passes it on).
 """
 import struct
 import sys
@@ -71,13 +64,6 @@ PLACE_COUNT = 4
 FORWARD, BACK, LEFT, RIGHT, JUMP, FIRE, RELOAD, AIM = 0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80
 CROUCH, SPRINT, WEAPON_1, GRENADE, MELEE, SPOT = 0x100, 0x200, 0x1000, 0x800000, 0x8000000, 0x10000000
 QUICK_1, USE = 0x4000, 0x200000
-QUICK_2, QUICK_3 = 0x8000, 0x10000
-# a made-up local player: the ui's world, its game, the network client, the player, its inventory
-LOCAL = 0x30300000
-L_WORLD, L_GAME, L_CLIENT, L_PLAYER, L_INVENTORY = LOCAL, LOCAL + 0x1000, LOCAL + 0x7000, LOCAL + 0x8000, LOCAL + 0x9000
-L_ITEMS, L_VTABLE, L_CONTAINERS = LOCAL + 0xA000, LOCAL + 0xC000, LOCAL + 0xD000
-MEDKIT_VTABLE, SPRING_VTABLE = 0xA1C79C, 0xA05F44     # raw::image's
-ITEM_NO_ARTEFACT = 0x300040                            # inventory_item's vtable +58h: no artefact
 
 
 def empty_options(block=b""):
@@ -97,7 +83,7 @@ def srpx(*entries):
 class Run(hide.Run):
     def __init__(self, data):
         super().__init__(data)
-        for at, size in ((OPTIONS, 0x60000), (WORK, 0x10000), (0x30200000, 0x1000), (LOCAL, 0x10000)):
+        for at, size in ((OPTIONS, 0x60000), (WORK, 0x10000), (0x30200000, 0x1000)):
             self.emu.mem_map(at, size, UC_PROT_ALL)
         self.refused, self.refusing = (), ()
         self.ticks = 0
@@ -181,28 +167,6 @@ class Run(hide.Run):
 
     # update_ui's `push edi / call` of update_player_icons (0x23B206), the hud in edi, its icons'
     # movie `icons` (0: none), to past update_player_icons' prologue: the Invokes.
-    def local_player(self, alive=1):
-        """The ui's local player, alive or dead: quick use 1 a medkit (slot 13),
-        2 an item of another class (a grenade set's place, slot 14), 3 an
-        artefact (a Spring) in its one container. `None`: no local player."""
-        self.emu.mem_write(LOCAL, bytes(0x10000))
-        self.word(hide.HUD + 0x18, 0 if alive is None else L_WORLD)
-        self.word(L_WORLD + 0x9C, L_GAME)
-        self.word(L_GAME + 0x53AC, L_CLIENT)
-        self.word(L_CLIENT + 4, L_PLAYER)
-        self.word(L_PLAYER + 0x10C, L_INVENTORY)
-        self.emu.mem_write(L_PLAYER + 0x33C, bytes([alive or 0]))
-        self.word(L_VTABLE + 0x58, ITEM_NO_ARTEFACT)
-        items = [L_ITEMS + 0x400 * n for n in range(3)]
-        for item, vtable in zip(items, (MEDKIT_VTABLE, L_VTABLE, SPRING_VTABLE)):
-            self.word(item, vtable)
-            self.word(item + 0x24C, 1)
-        self.word(L_INVENTORY + 0x10C + 4 * 13, items[0])
-        self.word(L_INVENTORY + 0x10C + 4 * 14, items[1])
-        self.word(L_CONTAINERS, items[2])
-        self.word(L_INVENTORY + 0x168, L_CONTAINERS)
-        self.emu.mem_write(L_INVENTORY + 0x16C, b"\x01")
-
     def icons_fed(self, icons=hide.ICONS_MOVIE, others=False):
         """The site run as the game runs it: whether it went on as the game's,
         and the Invokes (without the other patches' of the same site unless
@@ -367,92 +331,38 @@ def main():
     print("Tab (on_keyboard_action 0x25CD2C, the input builder's end 0x2421B0)")
     moving = FORWARD | SPRINT | FIRE | AIM | CROUCH | WEAPON_1
     steps = [
-        ("Tab up: moving, sprinting, firing and aiming, crouched", 0, moving, moving),
-        ("Tab down: no move, no fire, no aim; the crouch and the weapon key stay", 1, moving,
-         CROUCH | WEAPON_1),
-        ("Tab held, fire still held: a grenade, melee, quick use 1, jump, reload pressed: none of them; "
-         "spot and use (a search goes on) stay", 1, FIRE | GRENADE | MELEE | USE | QUICK_1 | JUMP | RELOAD | SPOT,
-         SPOT | USE),
-        ("Tab up, fire, the grenade and use still held: fire and the grenade stay out, use goes on, the moves "
-         "come back", 0, FORWARD | LEFT | FIRE | GRENADE | USE, FORWARD | LEFT | USE),
-        ("fire let go, the grenade still held", 0, FORWARD | GRENADE, FORWARD),
-        ("fire pressed again: it fires; the grenade let go", 0, FORWARD | FIRE, FORWARD | FIRE),
-        ("the grenade pressed again", 0, GRENADE, GRENADE),
+        ("Tab up: moving, sprinting, firing and aiming, crouched", 0, moving),
+        ("Tab down: the same, as in every mode", 1, moving),
+        ("Tab held: a grenade, melee, quick use 1, jump, reload, spot and use", 1,
+         FIRE | GRENADE | MELEE | USE | QUICK_1 | JUMP | RELOAD | SPOT),
+        ("Tab up, all still held", 0, FORWARD | LEFT | FIRE | GRENADE | USE),
     ]
     for run in (stock, patched):
         run.static_info(empty_options(on))
-    for name, down, mask, want in steps:
+    for name, down, mask in steps:
         a_tab, b_tab = stock.tab(down), patched.tab(down)
-        stock.ticks += 200
-        patched.ticks += 200
         a, b = stock.input(mask), patched.input(mask)
-        ok = a_tab == (KEY_END if down else KEY_ON) and b_tab == KEY_ON and a == (mask, True) and b == (want, True)
-        report(ok, f"{name}: {b[0]:#x} sent (pressed {mask:#x}); the original sends what is pressed; "
-                   "show_player_list given the byte; the key goes on (0x25cd41: the kits' keys 1 to 3)"
+        ok = a_tab == (KEY_END if down else KEY_ON) and b_tab == KEY_ON and a == (mask, True) and b == (mask, True)
+        report(ok, f"{name}: {b[0]:#x} sent, what is pressed, as the original; show_player_list given the byte; "
+                   "the key goes on (0x25cd41: the kits' keys 1 to 3)"
                    + (", the original's to the end (0x25cf0d: its Tab list)" if down else ""))
-    patched.tab(1)
-    patched.ticks += 200
-    blocked = FORWARD | BACK | LEFT | RIGHT | SPRINT | JUMP | FIRE | RELOAD | AIM | 0xFC000 | 0x100000 \
-        | 0x400000 | GRENADE | MELEE
-    b = patched.input(0xFFFFFFFF)
-    blocked |= 1 << 29  # the carry chord's marker is produced only by a valid chord
-    report(b == (0xFFFFFFFF & ~blocked, True), f"Tab down, every bit pressed: {b[0]:#x} sent, all but the moves "
-           "and acts (use is none)")
     patched.tab(0)
-    patched.input(0)
     patched.static_info(empty_options(b""))
     where = patched.tab(1)
     b = patched.input(moving)
     report(b == (moving, True) and where == KEY_END, f"a match without Blackout, Tab down: {b[0]:#x} sent, all "
            "that is pressed; the key to the end (0x25cf0d) as the original's")
-    patched.static_info(empty_options(on))
-    b = patched.input(moving)
-    report(b == (moving, True), "a new Blackout match's static info forgets a Tab of before: all that is pressed")
+    patched.tab(0)
 
-    print("Quick use on Tab (the local player's inventory read at the markers' feed)")
-    pressed = FIRE | GRENADE | QUICK_1 | QUICK_2 | QUICK_3
-    cases = [
-        ("a medkit, a grenade set and an artefact: the medkit's and the artefact's keys sent", 1, QUICK_1 | QUICK_3),
-        ("the player dead: no quick use", 0, 0),
-        ("no local player (a replay): no quick use", None, 0),
-    ]
-    for name, alive, want in cases:
-        patched.static_info(empty_options(on))
-        patched.local_player(alive)
-        back, _ = patched.icons_fed()
-        patched.tab(1)
-        patched.ticks += 200
-        b = patched.input(pressed)
-        patched.tab(0)
-        after = patched.input(pressed)
-        report(back and b == (want, True) and after == (want, True),
-               f"{name}: Tab down {b[0]:#x} sent (pressed {pressed:#x}); Tab up, all still held: {after[0]:#x} "
-               "(fire, the grenade and the other quick uses stay out until let go)")
-    patched.local_player(None)
-    patched.input(0)
-
-    print("Tab movement grace: immediate names, 200 ms before stopping movement")
+    print("Tab held: names shown at once and while held; a new match forgets Tab")
     patched.static_info(empty_options(on))
-    patched.ticks = 1000
     patched.tab(1)
-    for now in (1000, 1199, 1200, 1250):
-        patched.ticks = now
-        patched.tab(1)
+    for _ in range(3):
         visible, _, kept = patched.name_visible(0, 0, 0)
-        expected = moving & ~(FIRE | AIM) if now < 1200 else CROUCH | WEAPON_1
-        report(patched.input(moving) == (expected, True) and visible == 1 and kept,
-               f"Tab at {now - 1000} ms: movement {'kept' if now < 1200 else 'blocked'}, names shown")
-    patched.tab(0)
-    report(patched.input(FORWARD | FIRE) == (FORWARD, True), "release restores movement; held fire stays suppressed")
-    patched.ticks = 1300
-    patched.tab(1)
-    patched.ticks = 1399
-    patched.tab(0)
-    report(patched.input(FORWARD) == (FORWARD, True), "a short Tab tap never stops movement")
-    patched.tab(1)
+        report(visible == 1 and kept, "Tab held: the teammate's name shown, registers and stack kept")
     patched.static_info(empty_options(on))
-    patched.ticks += 500
-    report(patched.input(moving) == (moving, True), "new match clears the grace and held actions")
+    visible, _, kept = patched.name_visible(0, 0, 0)
+    report(visible == 0 and kept, "a new match's static info forgets a Tab of before: the native decision")
 
     print("teammate names: the Alt/crosshair result, after visibility and projection")
     for blackout in (False, True):

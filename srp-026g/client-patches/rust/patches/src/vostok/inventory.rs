@@ -14,16 +14,6 @@ use crate::raw;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ContainerSpace { Missing, Full, Available }
 
-/// What a quick-use key acts on, by the item's class.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum QuickItem {
-    /// A `survarium::medkit`: every medical consumable.
-    Drug,
-    Artefact,
-    /// Any other item of a pocket: a grenade set, a trap, a booster.
-    Other,
-}
-
 /// A player's inventory on the simulation thread. These views are not
 /// stored between hooks; a later interaction resolves the player again.
 pub struct Inventory<'t> {
@@ -102,18 +92,17 @@ impl<'t> Inventory<'t> {
         self.passive_item(expected).map(|item| item.address())
     }
 
-    /// The slot a quick-use ordinal names, by the native ordering (23: none).
-    fn quick_slot(&self, quick: u8) -> Option<u32> {
+    /// Resolve a quick-use ordinal with the native ordering, then require a
+    /// passive, owned artefact. Medkits and empty containers return None.
+    pub fn quick_artefact(&self, quick: u8) -> Option<Artefact> {
         if quick >= 6 || !self.alive() {
             return None;
         }
         // SAFETY: native lookup, verified ABI; it only reads this inventory.
         let slot = unsafe { raw::engine_quick_inventory_slot(Some(self.this), u32::from(quick)) };
-        (slot != 23).then_some(slot)
-    }
-
-    /// The artefact container a native slot number names, if it is one.
-    fn container_of(&self, slot: u32) -> Option<ContainerIndex> {
+        if slot == 23 {
+            return None;
+        }
         let containers = self.containers()?;
         // Reconstruct an address using native wrapping arithmetic, then
         // parse it against the external allocation before dereferencing.
@@ -123,42 +112,12 @@ impl<'t> Inventory<'t> {
         if offset % 4 != 0 {
             return None;
         }
-        ContainerIndex::parse(u8::try_from(offset / 4).ok()?)
-    }
-
-    /// Resolve a quick-use ordinal with the native ordering, then require a
-    /// passive, owned artefact. Medkits and empty containers return None.
-    pub fn quick_artefact(&self, quick: u8) -> Option<Artefact> {
-        let slot = self.container_of(self.quick_slot(quick)?)?;
+        let slot = ContainerIndex::parse(u8::try_from(offset / 4).ok()?)?;
         let item = self.item_in(slot)?;
         // SAFETY: the item came from a native artefact slot, not a drug slot.
         let id = ArtefactId::parse(unsafe { read(item.id()) })?;
         let artefact = Artefact { id, slot };
         self.passive_item(artefact).map(|_| artefact)
-    }
-
-    /// What a quick-use key would act on: the item of the ordinal's slot (one
-    /// of the inventory's own or an artefact container's), by its class.
-    /// `None` for an ordinal with no item and for a dead holder.
-    pub fn quick_item(&self, quick: u8) -> Option<QuickItem> {
-        let slot = self.quick_slot(quick)?;
-        // SAFETY: the live inventory's own slots; a slot past them is read
-        // only as a parsed container's entry. The item's vtable is its class.
-        let vtable = unsafe {
-            let slots = self.this.slots();
-            let own = self.this.slots_end().index_from(slots).unwrap_or(0);
-            let entry = match usize::try_from(slot) {
-                Ok(index) if index < own => slots.at(index),
-                _ => self.containers()?.entry(self.container_of(slot)?)?,
-            };
-            read(entry.item()?.vtable())
-        };
-        Some(match vtable {
-            raw::image::MEDKIT_VTABLE => QuickItem::Drug,
-            raw::image::SPRING_VTABLE | raw::image::LIFEBONE_VTABLE | raw::image::ONYX_VTABLE
-            | raw::image::RATTLE_VTABLE => QuickItem::Artefact,
-            _ => QuickItem::Other,
-        })
     }
 
     /// Keeper's gift: an unused pool artefact (state 0, in no inventory, never given: keeper's

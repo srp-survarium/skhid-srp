@@ -92,10 +92,6 @@ impl ActionMask {
     pub const SPRINT: ActionMask = ActionMask(0x200);
     /// The six quick-use slots, 4000h..80000h.
     pub const QUICK_USE: ActionMask = ActionMask(0x3F << 14);
-    /// The quick-use key of ordinal `quick` (0..6); none beyond.
-    pub const fn quick_use(quick: u8) -> ActionMask {
-        if quick < 6 { ActionMask(1 << (14 + quick)) } else { ActionMask::NONE }
-    }
     pub const HOLD_BREATH: ActionMask = ActionMask(1 << 20);
     pub const USE: ActionMask = ActionMask(1 << 21);
     pub const DROP: ActionMask = ActionMask(1 << 22);

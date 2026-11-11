@@ -1762,9 +1762,8 @@ The owner's report (2026-10-25, revision 33): short freezes in matches at ~100 f
   pressed again; the hud's bar stayed at its last fill, since `set_using_info_message` (0x23A560)
   sends the prompt only when its id differs from the one it last sent (ui+334h), and the progress
   message (0x23A430) does not change that id: after a use the container's prompt is the one sent
-  before it. Use is no longer one of Tab's acts (owner: Tab must not affect the collection); nor,
-  since 2026-11-11, the quick-use key of a medicine or an artefact (`blackout.md`: the filter goes by
-  the slot's item, a grenade set's quick-use key throws as the grenade key does). A plain
+  before it. Use is no longer one of Tab's acts (owner: Tab must not affect the collection); since
+  2026-11-11 Blackout filters nothing of the input (`blackout.md`). A plain
   match never had it: the game world answers 0 for every key while Tab is down (0x25CF0D `xor
   al,al`), Tab binds only `send_to` (kind 8, the chat's; the player's handler asks kind 1, or 4,
   game+F544h), so E reaches `player_input_handler::on_keyboard_action` (0x23FE00) every tick.
@@ -1779,7 +1778,8 @@ The owner's report (2026-10-25, revision 33): short freezes in matches at ~100 f
   blackout.rs and blackout.toml; `rust_patches.md`), five `lohook`s at sites of its own
   (`sites_026g.tsv`; their bytes read from the original exe at every build): `static_info.options_read`
   0x27B92D, `replay.options_read` 0x1F0971, `player_icons.update_start` 0x23AA10,
-  `keyboard.tab_state` 0x25CD2C, `input_builder.end` 0x2421B0. Its state is the crate's
+  `keyboard.tab_state` 0x25CD2C, `player_names.visibility` 0x1F2F10 (since 2026-11-11 no
+  `input_builder.end`: the input is the game's, Tab or not). Its state is the crate's
   (`patches.state`). No other patch is touched: patch 63's 0x1F0F30, Research's 0x23B207 and patch
   62's sites stay theirs alone. Movies: the hud's and the player icons' `force_interface_hidden`
   (forced, `hide_interface` does nothing: F11 and a match's reset leave it). No content of its own.

@@ -100,39 +100,21 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   between the kits and the alive player's view immediately.
 - **Keys while Tab is held** go on as with Tab up (a plain match's Tab list keeps the game world's
   own keys, the kits' and the chat's, while it is up, and the player's go on; Blackout's list does
-  not): the kits' 1 to 3, the replay's keys; acts are filtered, and movement is filtered after
-  the 200 ms grace. Ctrl is the list cursor's (above), as in a plain match.
-- **Tab held stops the player after 200 ms:** a quick tap keeps walking and sprinting;
-  holding longer stops them. Actions, including jumping, are blocked immediately (a crouch stays, it does not
-  move); no fire, aim, reload, held breath, grenade, melee or drop, and no quick use but a
-  medicine's or an artefact's (below). The mouse look (but while the list's cursor is shown), the
-  weapon keys, the fire mode, spot, the suicide key and Use stay.
-- **Medicine and artefacts work on Tab** (the owner, 2026-11-11: "you can also use medkits and
-  artis while tabbed (though you cannot shoot)"; before, no quick use at all):
-  - A quick-use key whose slot holds a medicine (any medical consumable) or an artefact is sent
-    as with Tab up: pressed with Tab held it uses the item, held through Tab's press or release it
-    goes on. Its carry chord (the artefact key with a quick-use key, `held_artefact_transfer.md`)
-    works the same.
-  - A quick-use key of anything else in a pocket (a grenade, a trap, a booster) stays an act:
-    out while Tab is held, and out after it until let go. The game uses a pocket's grenade by its
-    quick-use key as by the grenade key, so that key would throw.
-  - A dead player has no quick use, as always. The moves still stop after 200 ms: a medicine
-    taken on Tab is taken standing.
-- **Use is never stopped by Tab** (the owner, 2026-11-05: "Tab shouldn't affect the collection at
-  all"): an artefact search or an ammo refill held through Tab keeps filling and ends as without
-  Tab; Use pressed with Tab held uses as it would without it.
-- **On Tab's release:** the moves come back at once; an act whose key was held through Tab acts
-  again only after it is let go and pressed again (nothing fires on the release).
-- **In step for everyone:** the local input is filtered before it is sent, as if those keys were
-  not pressed; no rule of the match changes (every game, a late joiner and a replay play the
-  input sent).
+  not): the kits' 1 to 3, the replay's keys. Ctrl is the list cursor's (above), as in a plain match.
+- **The player on Tab, as in every mode** (the owner, 2026-11-11: "no need to stop movements right
+  now", and shooting "should be like in other modes, since map now closes the shooting view"):
+  nothing of the player's input is filtered. Moving, shooting, the medicine and the artefacts'
+  quick use, grenades and Use (an artefact search, an ammo refill) work with Tab held as in a
+  plain match. Before, from 2026-10-25, Tab held blocked every act but Use, and the moves after
+  200 ms; on 2026-11-11 the medicine and artefacts were let through first, then the whole filter
+  went.
 - **Kept:** the screen effects (pain edges, blood, grenade flash), the Esc menu, the kit screen's
   cursor; keys 1 to 3 pick a kit.
 - **F11 does nothing**; a replay's controls still toggle with it.
 - **Esc works as in any match** (the owner, 2026-10-25: "so people could leave"): the Esc menu is
   the main menu movie (its leave_match, settings and exit_to_os callbacks, game_options
   0x1FF5D0) and its cursor its own movie; the forced hiding touches the hud and the markers'
-  movies only, and Tab's filter only the input's move and act bits, so the countdown, being
+  movies only, so the countdown, being
   alive, dead or holding Tab change nothing of it. After leaving, the next match is set again by
   its own static info and reset (shown and free unless it is Blackout too).
 - **Points count twice** (the owner, 2026-10-25: "everything should give twice as much match
@@ -166,7 +148,7 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   map's options and only for them (`static_info::MatchOptions` carries the `MatchMap`; read back,
   the entry and the map's mode must agree); a late joiner's static info keeps it.
 - **Exe, patch 65:** the Rust module `patches::blackout` (`client-patches/rust/patches/src/
-  blackout.rs`, its hooks `blackout.toml`; `client_patch.md` 3.58, `rust_patches.md`), six
+  blackout.rs`, its hooks `blackout.toml`; `client_patch.md` 3.58, `rust_patches.md`), five
   `lohook`s at sites of its own (`sites_026g.tsv`), no other patch touched:
   - `static_info.options_read` (0x27B92D) and `replay.options_read` (0x1F0971), after the two
     calls of `match_options::deserialize` (the 0xE4's and a replay's chunk 1): srp's block is read
@@ -185,16 +167,8 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   - `player_names.visibility` (0x1F2F10): while Tab is held, show all eligible teammate
     names as with Alt. Keep the native enemy/spectator decisions and earlier visibility checks;
     releasing Tab restores the native Alt/crosshair decision.
-  - `input_builder.end` (0x2421B0): acts out while Tab is held; moves out after a 200 ms grace, reset by release or a new match.
-    Of the six quick-use bits (4000h..80000h) those of a medicine or an artefact are no acts:
-    `player_icons.update_start` reads the local player's inventory each frame of a Blackout match,
-    Tab held or not (`Inventory::quick_item`: the game's own quick_slot_to_inventory_slot 0x2FE7F0
-    for each ordinal, the slot's item by its vtable, the medkit's or an artefact's), and keeps their
-    bits for the filter. base_player::process_quick_slots (0x2D8BB0) gives a quick-use bit's press
-    and release to inventory::action (0x2FCAA0) of that slot whatever the item, the grenade key's
-    (800000h) to the first grenade set's slot (0x2FE8B0) alike: so the filter goes by the item,
-    not by the key. Read every frame, a key held when Tab goes down is never out for one input
-    (the game would take that as a release and a new press).
+  - no input hook: since 2026-11-11 `input_builder.end` (0x2421B0) is patch 78's (the carry
+    chord, then patch 85's pickup), which had run there through this patch's handler.
   - **Beside the other patches:** patch 63 (team damage, #370) reads srp's block at
     `match_options::deserialize`'s end (0x1F0F30), Research's markers (#367) wrap update_ui's call
     of update_player_icons (0x23B207), patch 62 (F11) keeps its reset (0x234AE8) and key: each owns
@@ -246,9 +220,8 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   hud becomes the Disabled level once both are merged, its countdown and Tab view kept.
 - **Not played yet** (the Tab list, 2026-11-09): the list's place and look over the hidden root at
   real resolutions and interface scales, the right-click through Scaleform on the kept list, a mute
-  sent from a Blackout match, and the Tab map's marked batteries in a real match. Nor the quick use
-  on Tab (2026-11-11): a medkit and an artefact used with Tab held, a grenade pocket's key doing
-  nothing there.
+  sent from a Blackout match, and the Tab map's marked batteries in a real match. Nor the player's
+  input on Tab left as in every mode (2026-11-11).
 
 ## Open for the owner
 
