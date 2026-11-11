@@ -460,14 +460,11 @@ dependencies = [
 name = "lobby-server"
 version = "0.1.0"
 dependencies = [
- "bytemuck",
  "env_logger",
  "log",
  "mapdata",
- "openssl",
  "session",
  "survarium",
- "thiserror",
  "udp-transport",
  "vostok",
 ]
