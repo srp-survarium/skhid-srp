@@ -292,8 +292,10 @@ Where the build differs from or adds to the design above:
   and "usually you want those on the right" (the list at the right edge, under mid-height, each
   row ending at the margin, the speaker left of the name; 0.69's was at the left). The names are
   text fields in DefaultLabel3's embedded font (a Label drew its text lower than its field in the
-  game, cut). The list is emptied when the match ends or is left (`sv_stop`'s sites). 0.69's
-  speaker over heads was not picked.
+  game, cut). The list is emptied when the match ends or is left (`sv_stop`'s sites). In Blackout
+  (the interface forced hidden) it shows only while Tab is held, with the Tab list (the owner,
+  2026-11-11: "we need to also show in blackout only when tabbed that someone is speaking";
+  HUD.keptOnTab). 0.69's speaker over heads was not picked.
 - **The radio** (the DLL): a teammate farther than 25 m, or either player dead, through a filter
   fitted to 0.69's `_radio` quick-command recordings (high-pass 405 Hz, peaks and dips up to 6.3
   kHz), retail static under it (`tutorial_interference_02`, -44 dBFS), and retail's squelch at the

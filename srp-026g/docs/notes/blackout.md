@@ -196,7 +196,8 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   scale, also when kept before the layout's first pass at the match's start); while forced, the
   game's Tab (`show_player_list`) moves the match's time left (the label `set_match_time` writes
   for the mode, `matchTime`), the Tab list (`player_list`, with its map and `PlayerRowMenu`;
-  `namesOnly` while forced, `HUD.showScores`) and, alive, the ammo (`ammoInd`) and the quick-use
+  `namesOnly` while forced, `HUD.showScores`), who is talking in voice chat (`voiceSpeakers`, patch
+  66: shown only on Tab while forced; the owner, 2026-11-11) and, alive, the ammo (`ammoInd`) and the quick-use
   slots or, while the game shows the kits (`show_profiles_selector`: the death screen, before the
   start), the kits (`_profilePanel`, over the list) into that layer and back (`keptOnTab`: what it
   kept is given back as it was). Forced, `hide_interface` (F11, patch 62; a match's reset) does

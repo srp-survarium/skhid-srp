@@ -579,7 +579,8 @@ package
       // the Tab list is asked for (show_player_list) the list itself with its map and row menu (names
       // only: no score, showScores; the map's marked batteries as in a plain match, while the icons
       // movie keeps their markers in the world hidden), the match's time left, the chat with its
-      // history and, alive, the intact player-info panel (ammo and body state) and quick-use slots;
+      // history, who is talking (voice chat) and, alive, the intact player-info panel (ammo and body
+      // state) and quick-use slots;
       // while the game shows the kits (the death screen, before the start), the
       // kits to pick from (keptOnTab); while the player types in the chat (focus_chat),
       // the chat (keptWhileTyping). A kept part is in _keptLayer (KeptLayer: on the stage over the root,
@@ -640,17 +641,19 @@ package
          return [this.pregameInfo,this.contextInfo,this._modeNotice];
       }
 
-      // The Tab list with either view, in the root's order: the chat under it, the kits over it.
+      // The Tab list with either view, in the root's order: the chat under it, the kits over it; who
+      // is talking (voice chat) only here in a forced match (the owner, 2026-11-11: "we need to also
+      // show in blackout only when tabbed that someone is speaking").
       private function keptOnTab() : Array
       {
          if(this._profilePanel.visible)
          {
-            return [this.matchTime(),this.chat,this.player_list,this._profilePanel];
+            return [this.matchTime(),this.chat,this.voiceSpeakers,this.player_list,this._profilePanel];
          }
          // Ammo and the body doll share a size-dependent, bottom-right layout.
          // Keep their owner intact: removing either child changes its bounds
          // and a reflow can push the other child beyond the viewport.
-         return [this.playerInfo,this.quick_slots,this.matchTime(),this.chat,this.player_list];
+         return [this.playerInfo,this.quick_slots,this.matchTime(),this.chat,this.voiceSpeakers,this.player_list];
       }
 
       private function keptWhileTyping() : Array
