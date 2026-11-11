@@ -23,7 +23,8 @@ fixes them; the RE is in `client_patch.md` section 3.57.
 - **Revision 32 made it worse for new players** (#400, server only): a new account has three kits
   wearing the same seven items, so a newcomer who joins costs three times the same bakes. The delete
   and the per-object bakes are stock. Our weapon camouflage and decals (patches 44, 47) bake up to
-  20 textures for each painted weapon (5 surfaces × d, n, f, s) the first time it is seen. They are
+  20 textures for each painted weapon (5 surfaces × d, n, f, s; with a camouflage and no decal,
+  d and s only since 2026-11-11, 10) the first time it is seen. They are
   not new in revision 32.
 - **Not the cause:** "cook of '' [class 107] failed" is the fresnel query of a surface that has no
   fresnel layer (and, since 2026-11-11, a painted weapon's normal query: the weapon keeps its own). "new id = N" is a texture loaded from the folder (a cache hit), not a bake.

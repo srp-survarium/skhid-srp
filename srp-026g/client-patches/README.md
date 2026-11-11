@@ -2550,7 +2550,8 @@ left empty no layer on a weapon, where the game would take the surface's own `<d
 camouflage's matrix, the render instance (one reference more), the surface's index, the scale
 (`data/camo_scale`, else 4.0), and the baked files' name `srpw1_<camouflage>_<model>_<surface>`
 ('/' and '\\' as '_'); its callback lets go of the reference and frees the parameters. The baker
-refuses a surface whose diffuse has no `_aoac` texture (it stays plain). Every register and the
+refuses a camouflage on a surface whose diffuse has no `_aoac` texture (it stays plain; a decal's
+fresnel and relief, which have no camouflage layer, are still baked there). Every register and the
 flags are kept, eax as the original's `lea` leaves it. Since patch 47 the camouflage's lookup and
 its names are patch 47's lookup and fill (`-DDECALS`), which add the weapon's decals: a
 weapon with decals and no camouflage is baked too.
