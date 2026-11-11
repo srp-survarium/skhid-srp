@@ -14,6 +14,7 @@ use core::sync::atomic::{AtomicU32, Ordering};
 
 use super::context::Context;
 use super::hook::Thread;
+use super::ui::{Movie, movie_of};
 use crate::raw;
 
 /// Reads a field's place (raw's accessor gives it).
@@ -92,6 +93,40 @@ impl<'t> GameWorld<'t> {
     /// What its game plays (a world with no client: a match).
     pub fn playback(&self) -> Playback {
         self.network_client().map_or(Playback::Match, |client| client.playback())
+    }
+
+    /// The replay player movie (replay_player.swf) of this world's hud, when
+    /// its game plays a replay (its network client's class) and the hud has
+    /// the movie. A live match has none.
+    pub fn replay_player(&self) -> Option<Movie<'t>> {
+        if self.playback() != Playback::Replay {
+            return None;
+        }
+        // SAFETY: the world and the hud inside it, alive for the hook, on its
+        // thread; the holder is the hud's own.
+        unsafe { movie_of(self.this.ui().replay_movie()) }
+    }
+
+    /// The places in the match now (the core's, core_active_player 0x2D0AD4);
+    /// none without a match.
+    pub fn places_in_match(&self) -> Option<Places> {
+        // SAFETY: the world, its match and the core inside it, alive for the hook.
+        unsafe { Some(Places(read(self.this.pvp_match()?.core().active_places()))) }
+    }
+}
+
+/// The roster places in the match, a bit each (a place that left has none
+/// until it comes back).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Places(pub u32);
+
+impl Places {
+    /// As many as a match has (core_world's loops: `cmp bl,14h` 0x2D21CC).
+    pub const COUNT: usize = 20;
+
+    /// Each place of the match in turn: whether it is in.
+    pub fn each(self) -> [bool; Places::COUNT] {
+        core::array::from_fn(|place| self.0 >> place & 1 != 0)
     }
 }
 

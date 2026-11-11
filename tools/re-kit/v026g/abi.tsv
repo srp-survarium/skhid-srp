@@ -2518,3 +2518,5 @@ va	name	source	ret_cleanup	result
 0x00504c30	Scaleform::MemoryHeapMH::GetTotalFootprint	manual	0	EAX: its engine's +98h (not a debug heap's, flags 1000h) and every child's, under the heap's lock
 0x00504c90	Scaleform::MemoryHeapMH::GetTotalUsedSpace	manual	0	EAX: its engine's +9Ch and every child's, under the heap's lock
 0x0023c0c0	survarium::game_world_ui::set_player_icon_color	manual	12	none: the hud row of the place ([ESP+4] + 0x380 + place x 24) takes the colour, its dirty bit 4 (+389h) set only on a change; the icons movie gets it as props.rgb (name and icon)
+0x001ee2e0	survarium::game::replay_seek_to	manual	8	none: the key frame at or before the target loaded (game_world_core::deserialize 0x2D0B70, mode 0 a user seek, 2 while playing), the clock and the reading set to its time, the body read to the target (0x1EDEF0), the clock set to the target; nothing when no key frame is found
+0x001edef0	survarium::game::read_replay_to	manual	8	none: while the last record read is before (t / 50 + 1) * 50, the world is moved to it (game_world_core::move 0x2D2E40) and the next record read and applied; a type 0 record ends it

@@ -2308,3 +2308,4 @@ va	status	ref_021d	name
 0x00532490	reviewed		Scaleform::HeapMH::RootMH::CreateHeap
 0x000f70f0	reviewed		vostok::resources::resource_base::resource_base
 0x0010a590	reviewed		vostok::resources::managed_resource::managed_resource
+0x001ee3c0	observed		survarium::game::enqueue_replay_seek_to
