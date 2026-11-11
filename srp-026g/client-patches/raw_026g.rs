@@ -421,6 +421,226 @@ pub unsafe fn engine_vk_get_physical_device_properties(function: NonNull<c_void>
     unsafe { function(device, properties) }
 }
 
+/// a function at the address GetProcAddress gives (stdcall): void *engine_create_toolhelp32_snapshot(unsigned int flags, unsigned int process)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_create_toolhelp32_snapshot(function: NonNull<c_void>, flags: u32, process: u32) -> *mut c_void {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(u32, u32) -> *mut c_void>(function.as_ptr()) };
+    unsafe { function(flags, process) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_module32_first_w(void *snapshot, void *entry)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_module32_first_w(function: NonNull<c_void>, snapshot: *mut c_void, entry: *mut c_void) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *mut c_void) -> u32>(function.as_ptr()) };
+    unsafe { function(snapshot, entry) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_module32_next_w(void *snapshot, void *entry)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_module32_next_w(function: NonNull<c_void>, snapshot: *mut c_void, entry: *mut c_void) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *mut c_void) -> u32>(function.as_ptr()) };
+    unsafe { function(snapshot, entry) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_get_temp_path_w(unsigned int size, unsigned short *path)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_get_temp_path_w(function: NonNull<c_void>, size: u32, path: *mut u16) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(u32, *mut u16) -> u32>(function.as_ptr()) };
+    unsafe { function(size, path) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_get_windows_directory_w(unsigned short *path, unsigned int size)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_get_windows_directory_w(function: NonNull<c_void>, path: *mut u16, size: u32) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut u16, u32) -> u32>(function.as_ptr()) };
+    unsafe { function(path, size) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void *engine_get_current_process(void)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_get_current_process(function: NonNull<c_void>) -> *mut c_void {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn() -> *mut c_void>(function.as_ptr()) };
+    unsafe { function() }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_read_process_memory(void *process, const void *address, void *buffer, unsigned int size, unsigned int *read)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_read_process_memory(function: NonNull<c_void>, process: *mut c_void, address: *const c_void, buffer: *mut c_void, size: u32, read: *mut u32) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *const c_void, *mut c_void, u32, *mut u32) -> u32>(function.as_ptr()) };
+    unsafe { function(process, address, buffer, size, read) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_ldr_register_dll_notification(unsigned int flags, const void *callback, void *context, void **cookie)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_ldr_register_dll_notification(function: NonNull<c_void>, flags: u32, callback: *const c_void, context: *mut c_void, cookie: *mut *mut c_void) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(u32, *const c_void, *mut c_void, *mut *mut c_void) -> u32>(function.as_ptr()) };
+    unsafe { function(flags, callback, context, cookie) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_process32_first_w(void *snapshot, void *entry)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_process32_first_w(function: NonNull<c_void>, snapshot: *mut c_void, entry: *mut c_void) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *mut c_void) -> u32>(function.as_ptr()) };
+    unsafe { function(snapshot, entry) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_process32_next_w(void *snapshot, void *entry)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_process32_next_w(function: NonNull<c_void>, snapshot: *mut c_void, entry: *mut c_void) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *mut c_void) -> u32>(function.as_ptr()) };
+    unsafe { function(snapshot, entry) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void *engine_open_process(unsigned int access, unsigned int inherit, unsigned int process)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_open_process(function: NonNull<c_void>, access: u32, inherit: u32, process: u32) -> *mut c_void {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(u32, u32, u32) -> *mut c_void>(function.as_ptr()) };
+    unsafe { function(access, inherit, process) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_query_full_process_image_name_w(void *process, unsigned int flags, unsigned short *name, unsigned int *size)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_query_full_process_image_name_w(function: NonNull<c_void>, process: *mut c_void, flags: u32, name: *mut u16, size: *mut u32) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, *mut u16, *mut u32) -> u32>(function.as_ptr()) };
+    unsafe { function(process, flags, name, size) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void *engine_get_top_window(void *window)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_get_top_window(function: NonNull<c_void>, window: *mut c_void) -> *mut c_void {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void) -> *mut c_void>(function.as_ptr()) };
+    unsafe { function(window) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void *engine_get_window(void *window, unsigned int which)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_get_window(function: NonNull<c_void>, window: *mut c_void, which: u32) -> *mut c_void {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32) -> *mut c_void>(function.as_ptr()) };
+    unsafe { function(window, which) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void *engine_get_ancestor(void *window, unsigned int which)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_get_ancestor(function: NonNull<c_void>, window: *mut c_void, which: u32) -> *mut c_void {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32) -> *mut c_void>(function.as_ptr()) };
+    unsafe { function(window, which) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_is_window_visible(void *window)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_is_window_visible(function: NonNull<c_void>, window: *mut c_void) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void) -> u32>(function.as_ptr()) };
+    unsafe { function(window) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_get_window_thread_process_id(void *window, unsigned int *process)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_get_window_thread_process_id(function: NonNull<c_void>, window: *mut c_void, process: *mut u32) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *mut u32) -> u32>(function.as_ptr()) };
+    unsafe { function(window, process) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_get_window_rect(void *window, void *rect)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_get_window_rect(function: NonNull<c_void>, window: *mut c_void, rect: *mut c_void) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *mut c_void) -> u32>(function.as_ptr()) };
+    unsafe { function(window, rect) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_get_class_name_w(void *window, unsigned short *name, unsigned int size)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_get_class_name_w(function: NonNull<c_void>, window: *mut c_void, name: *mut u16, size: u32) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *mut u16, u32) -> u32>(function.as_ptr()) };
+    unsafe { function(window, name, size) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_get_module_file_name_w(void *module, unsigned short *path, unsigned int size)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_get_module_file_name_w(function: NonNull<c_void>, module: *mut c_void, path: *mut u16, size: u32) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *mut u16, u32) -> u32>(function.as_ptr()) };
+    unsafe { function(module, path, size) }
+}
+
 /// a function at the address GetProcAddress gives (stdcall): unsigned int engine_com_release(void *object)
 ///
 /// # Safety
@@ -19732,6 +19952,174 @@ impl OutOfMemoryFrame {
     }
 }
 
+/// A vostok::modules::tls_callback_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TlsCallbackFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl TlsCallbackFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (u32): module_watch.thread's own argument (by the site's ESP, the return address into module_watch_tls at +0): the address of module_watch_dll, our DLL notification's entry, which module_watch_tls pushes
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn notify(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x10 (u32): the TLS callback's second argument (PIMAGE_TLS_CALLBACK: DllHandle +0Ch, Reason +10h, Reserved +14h, after the loader's return address at +8): 1 the process starts, 2 a thread starts, 3 a thread ends, 0 the process ends
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn reason(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x10).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::modules::dll_notification_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DllNotificationFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl DllNotificationFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (u32): the DLL notification's first argument (LDR_DLL_NOTIFICATION_FUNCTION, after module_watch_dll's and ntdll's return addresses): 1 loaded, 2 unloaded
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn reason(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xc (ptr<ntdll::dll_notification>): its second: the LDR_DLL_NOTIFICATION_DATA, alive for the call
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn data(self) -> Option<DllNotification> {
+        unsafe { self.0.byte_add(0xc).cast::<Option<DllNotification>>().read_volatile() }
+    }
+
+    /// +0xc (ptr<ntdll::dll_notification>): its second: the LDR_DLL_NOTIFICATION_DATA, alive for the call
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_data(self, value: Option<DllNotification>) {
+        unsafe { self.0.byte_add(0xc).cast::<Option<DllNotification>>().write_volatile(value) }
+    }
+}
+
+/// A ntdll::dll_notification (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DllNotification(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl DllNotification {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<ntdll::unicode_string>): LDR_DLL_LOADED_NOTIFICATION_DATA.FullDllName (Flags +0, BaseDllName +8; the unloaded one's is the same): the DLL's full path
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn full_name(self) -> Option<UnicodeString> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<UnicodeString>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<ntdll::unicode_string>): LDR_DLL_LOADED_NOTIFICATION_DATA.FullDllName (Flags +0, BaseDllName +8; the unloaded one's is the same): the DLL's full path
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_full_name(self, value: Option<UnicodeString>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<UnicodeString>>().write_volatile(value) }
+    }
+
+    /// +0xc (u32): DllBase: where the image is mapped
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn base(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xc).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x10 (u32): SizeOfImage
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn image_size(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x10).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A ntdll::unicode_string (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnicodeString(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl UnicodeString {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u16): UNICODE_STRING.Length: the string's bytes (two a unit), without a terminator
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn length(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x0).cast::<u16>().as_ptr() }
+    }
+
+    /// +0x4 (ptr<u8>): UNICODE_STRING.Buffer: its UTF-16 units (MaximumLength +2)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn buffer(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x4).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<u8>): UNICODE_STRING.Buffer: its UTF-16 units (MaximumLength +2)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_buffer(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x4).cast::<*mut u8>().write_volatile(value) }
+    }
+}
+
 /// A vostok::render::scene (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -24422,6 +24810,36 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<ProfileFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(ProfileFrame)
+        }
+    }
+
+    /// module_watch.thread (our entry): patch 125's TLS callback (module_watch_026g.asm module_watch_tls, the one callback of the exe's TLS directory): Windows calls it, the loader's lock held, on the main thread before the exe's entry point (reason 1) and on every thread the process gets before that thread's own start (reason 2); stdcall (the module, the reason, reserved), our code pushes the address of module_watch_dll before its call and returns with ret 0Ch
+    pub mod module_watch_thread {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::modules::tls_callback_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<TlsCallbackFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(TlsCallbackFrame)
+        }
+    }
+
+    /// module_watch.dll (our entry): patch 125's DLL notification (module_watch_026g.asm module_watch_dll, handed to ntdll's LdrRegisterDllNotification): the loader calls it, its lock held, after it mapped a DLL (reason 1) and before it unmaps one (2); stdcall (the reason, the LDR_DLL_NOTIFICATION_DATA, our context), our code returns with ret 0Ch
+    pub mod module_watch_dll {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::modules::dll_notification_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<DllNotificationFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(DllNotificationFrame)
         }
     }
 

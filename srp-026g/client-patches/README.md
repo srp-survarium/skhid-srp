@@ -4986,6 +4986,46 @@ A played match (states 1-3, a resync's) and a closed one go as before (patch 119
 Nothing a match computes. Checked with `check_unplayed_match_026g.py` (Unicorn) and the patch crate's
 tests. Not run in a game.
 
+## The game tells what is inside it (patch 125, unreleased)
+
+Each game tells the match server what runs inside it besides Windows' own DLLs, which DLLs
+were loaded since its first instruction and which other programs' always-on-top windows
+(overlays) are over it. The server only logs it, like the revision byte: no automatic action,
+nothing in the db. The rules and the entries are in
+`docs/notes/module-report.md`.
+
+**The patch** (`module_report`, Rust; `srp_validate::modules`; `module_watch_026g.asm`):
+
+- **The watch.** The exe's TLS directory (0xA365A8, AddressOfCallBacks at +0Ch: 0x884AA4, an
+  empty list, becomes `module_watch_callbacks` in the block `module_watch.data`) names
+  `module_watch_tls`, which Windows calls on the main thread before the exe's entry point (and on
+  every later thread, which does nothing). The first call registers `module_watch_dll` with ntdll's
+  `LdrRegisterDllNotification`. Both are stdcall with three arguments (`ret 0Ch`) and call the
+  patch's generated entries (`module_watch.thread`, `module_watch.dll`), which keep the whole
+  machine. Kept: each DLL loaded outside the Windows folder (32), with its header's link time
+  and checksum read then.
+- **The report**, with a match connection's first world (`world_load.loaded`, order 5) and at
+  the match's close (`match_recovery.close`, order 2), on patch 126's client-report channel
+  (kind 2): the other processes' always-on-top windows over the game's (from `GetTopWindow`
+  down the order to the game's window, the one `render_output.present` last presented to: exe
+  name from the process list and folder from `QueryFullProcessImageNameW`, class, extended
+  styles, the size covered), or why that cannot
+  be told; the loader's modules (Toolhelp); the watch's loads; the
+  executable allocations that are no listed module (`VirtualQuery`). The game's window is noted
+  at `render_output.present` (order 2 after patch 83's). A module and a load tell where the
+  file's folder is, a user's name left out. Memory is read only with
+  `ReadProcessMemory`.
+
+**The server.** The match server logs each part once per connection, of its own match only, to
+`logs/modules.log` (16 files of 4 MB). `release/moderate modules` reads its end and lists each
+entry with the accounts that have it, rarest first; `--account <name>` lists one account's.
+
+Nothing a match computes. Checked with `srp-validate`'s tests, the patch crate's tests and
+Clippy, the match server's tests and `check_module_report_026g.py` (Unicorn: the watch as
+Windows calls it). Run once in a headless Wine game (2026-11-10): it starts, plays and
+reports its modules and loads, and an always-on-top window over a windowed game; Windows
+not at all.
+
 ## Room for the resources helper and render arenas (patch 124, unreleased)
 
 A match load with many decorated players (about 800 camouflage and decal bakes) runs out of two

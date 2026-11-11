@@ -5955,6 +5955,8 @@ va	name	location	role	basis
 0x0011b5a0	vostok::render::shader_constant_buffer::set_memory	ESI	byte offset into the shadow (+58h)	observed
 0x0011b5a0	vostok::render::shader_constant_buffer::set_memory	entry ESP+4	shader_constant_buffer receiver	observed
 0x0023d070	survarium::game_world_ui::update_game_stats	EAX	the ui; called by update_ui every 40 ms (0x23B4B3): root.set_game_stats (state 1..3, fps, latency) only when one of them differs from the last sent (0x23D10D..0x23D129)	observed
+0x003cf7f0	vostok::render::res_render_output::present	EAX+0xCC	the render output's IDXGISwapChain: GetFullscreenState through its vtable +2Ch (0x3CF81C..0x3CF832), Present through +20h (0x3CF8FF..0x3CF907)	observed
+0x0042111a	WinMainCRTStartup	PE header	the exe's AddressOfEntryPoint (call 0x42DBFC / jmp 0x420F9C: the CRT's cookie init, then its startup); the TLS directory (0xA365A8) is called before it, its callback list at 0x884AA4 empty in the original	observed
 0x00038ff0	vostok::math::sin	entry ESP+4	the angle (float; cdecl)	observed
 0x00039000	vostok::math::cos	entry ESP+4	the angle (float; cdecl)	observed
 0x00079c40	vostok::math::atan2	entry ESP+4	y, the sine side (float, loaded first: ST1 of fpatan; cdecl)	observed
