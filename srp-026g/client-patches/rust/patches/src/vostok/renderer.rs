@@ -574,10 +574,13 @@ impl Manifest {
     }
 }
 
-/// The manifests a look found, at most 8, in the order found.
+/// The manifests a look found, at most 8, in the order found, and how many
+/// Vulkan driver DLLs the look's instance had loaded (a driver that gives no
+/// device is loaded too, and stays mapped while an instance lives).
 #[derive(Default)]
 pub struct Manifests {
     pub list: [Option<Manifest>; 8],
+    pub drivers: u32,
 }
 
 impl Manifests {
@@ -626,6 +629,7 @@ unsafe fn driver_manifests(manifests: &mut Manifests) {
             if (raw::engine_get_proc_address)(module, c"vk_icdNegotiateLoaderICDInterfaceVersion".as_ptr().cast()).is_null() {
                 continue;
             }
+            manifests.drivers += 1;
             let mut folder = Path { bytes: [0; PATH_ROOM], len: 0 };
             let len = (raw::engine_get_module_file_name_a)(module, folder.bytes.as_mut_ptr(), PATH_ROOM as u32) as usize;
             let Some(slash) = (len > 0 && len < PATH_ROOM).then(|| folder.bytes[..len].iter().rposition(|&b| b == b'\\')).flatten()

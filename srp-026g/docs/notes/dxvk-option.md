@@ -341,11 +341,15 @@ thread reading it is shown (the start, the login screen and every Present are th
   alone (`VK_DRIVER_FILES`, the glob deleted); the first that gives the GPU exactly as DXVK picked it (its driver
   version: the driver DXVK uses now) is kept, with every vendor's layers off (the loader keeps one of two same-named
   layers, which may be in the other driver's DLL), after a last look with exactly that must give DXVK the same GPU.
+  The same is done when the GPU is listed once but the look's instance loaded two or more of the vendor's drivers: a
+  stale package (an old `amdvlk.inf` beside Adrenalin's driver, SRP-3) whose driver finds no device still stays
+  mapped, about 100 MiB of a 32-bit game's address space, while an instance lives.
   Anything less certain leaves the glob and the layers as they were and says why: a manifest that gives the GPU twice
   (two such GPUs, or an elevated game where the loader ignores `VK_DRIVER_FILES`), no manifest that gives it alone, a
   last look that does not. A player's own `VK_DRIVER_FILES` or `VK_ICD_FILENAMES` is kept like their
   `VK_LOADER_DRIVERS_SELECT` (every driver they allow looked at). `srp_patches.log`: `dxvk: DXVK's GPU has 2 drivers:
-  <manifest> only (VK_DRIVER_FILES), its layers off`, or `..., all kept (<why>)`.
+  <manifest> only (VK_DRIVER_FILES), its layers off` (`dxvk: 2 Vulkan drivers of DXVK's GPU's vendor loaded, one gives
+  it: ...` for a stale one), or `..., all kept (<why>)`.
 - **The video-memory probe's DirectDraw object** (with either renderer, `on_ddraw_probed`). The engine's VRAM check
   (`get_local_video_memory_size` 0x106300, through 0x1060F0, to `GetVideoMemoryViaDirectDraw` 0x105DB0, the DirectX
   SDK sample's) makes a DirectDraw object and releases only the IDirectDraw7 it asks it for. DirectDrawCreate loads

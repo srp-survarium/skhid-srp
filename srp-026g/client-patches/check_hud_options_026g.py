@@ -242,20 +242,23 @@ class Run(language.Run):
         self.mallocs += 1
 
     def windows_world(self, user_cfg=None, present=DXVK, marker=False, vulkan=None, fails=None, windows_dxgi=False,
-                      called=None, gpus=None, env=None, ignores=False, ignores_files=None, hidden=(), last_fails=False):
+                      called=None, gpus=None, env=None, ignores=False, ignores_files=None, hidden=(), last_fails=False,
+                      strays=()):
         """What the stubs answer: user.cfg's text (None: no file), the dxvk\\ files there, a marker left,
         an NVIDIA device's (apiVersion, type) (None: no vulkan-1.dll) or the GPUs, each (vendor, apiVersion, type,
         name[, its driver's manifest, its driverVersion]), a DLL whose load fails, whether Windows' dxgi.dll is
         loaded already (the Vulkan loader's), a delayed import the game called already (its slot set), the
         process's environment, whether the loader ignores VK_LOADER_DRIVERS_SELECT (as in an elevated process)
         and VK_DRIVER_FILES (as SELECT, unless given), manifests FindFirstFileA does not list, whether an instance
-        of one driver with every layer off fails (the last look)."""
+        of one driver with every layer off fails (the last look), the manifests of drivers that load and give no
+        device (a stale package's)."""
         if gpus is None and vulkan is not None:
             gpus = [(NVIDIA, vulkan[0], vulkan[1], "NVIDIA GeForce RTX 4080")]
         self.user_cfg, self.present, self.marker, self.vulkan, self.fails = user_cfg, set(present), marker, gpus, fails
         self.env, self.ignores, self.visible = dict(env or {}), ignores, []
         self.ignores_files = ignores if ignores_files is None else ignores_files
         self.hidden, self.last_fails, self.instance, self.finds = set(hidden), last_fails, False, {}
+        self.strays, self.taken_strays = list(strays), []
         self.windows_dxgi, self.modules = windows_dxgi, {}
         for name, slot in MODULE_SLOTS.items():
             self.word(slot, CALLED if name == called else 0)
@@ -346,7 +349,7 @@ class Run(language.Run):
             self.calls_made.append((name, pattern))
             assert pattern.endswith("*.json"), pattern
             folder = pattern[:-len("*.json")]
-            names = [m[len(folder):] for m in dict.fromkeys(manifest_of(g) for g in self.vulkan or [])
+            names = [m[len(folder):] for m in dict.fromkeys([manifest_of(g) for g in self.vulkan or []] + self.strays)
                      if folder_of(m) == folder and m not in self.hidden]
             names = names + [MANIFESTS.get(next((v for v, f in FOLDERS.items() if f == folder), 0), "x.json")
                              .replace("32", "64")]
@@ -407,8 +410,11 @@ class Run(language.Run):
                                  and (glob is None or named(gpu).startswith(glob.rstrip("*"))))
             cpu = [(LAVAPIPE, vk_version(1, 4, 354), 4, "llvmpipe")] if files is None and glob is None else []
             self.visible = cpu + [g for g in self.vulkan if taken(g)]
+            # a stray driver (no device) is loaded as any other the variables take
+            self.taken_strays = [m for m in self.strays if (files is None or m == files)
+                                 and (glob is None or m[len(folder_of(m)):].startswith(glob.rstrip("*")))]
             last = files is not None and self.env.get("DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1") == "1"
-            if not self.visible or (self.last_fails and last):
+            if not (self.visible or self.taken_strays) or (self.last_fails and last):
                 result = 0xFFFFFFF7                          # VK_ERROR_INCOMPATIBLE_DRIVER
             else:
                 self.word(arg(2), INSTANCE)
@@ -459,7 +465,7 @@ class Run(language.Run):
 
     def folder_handles(self):
         """Each driver folder's DLL's module handle, by the folders' names."""
-        folders = sorted({folder_of(manifest_of(g)) for g in self.vulkan or []})
+        folders = sorted({folder_of(manifest_of(g)) for g in self.vulkan or []} | {folder_of(m) for m in self.strays})
         return {folder: DRIVER_MODULES + 0x10000 * i for i, folder in enumerate(folders)}
 
     def driver_modules(self):
@@ -470,7 +476,8 @@ class Run(language.Run):
         if not self.instance:
             return []
         handles = self.folder_handles()
-        return sorted({handles[folder_of(manifest_of(g))] for g in self.visible if g[0] != LAVAPIPE})
+        return sorted({handles[folder_of(manifest_of(g))] for g in self.visible if g[0] != LAVAPIPE}
+                      | {handles[folder_of(m)] for m in self.taken_strays})
 
     def found(self, data, name):
         """A WIN32_FIND_DATAA of a file `name`: dwFileAttributes FILE_ATTRIBUTE_ARCHIVE, cFileName at 44."""
@@ -1010,6 +1017,8 @@ def one_driver(patched, expect):
     rx_package = (AMD, api, 2, "AMD Radeon RX 7800 XT", package, 0x8002)
     rx_store = (AMD, api, 2, "AMD Radeon RX 7800 XT", FOLDERS[AMD] + MANIFESTS[AMD], 0x8001)
     amd_layer = "DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1"
+    # a stale package's driver (amdvlk.inf's amdvlk32.dll on a player's RX): loaded by AMD's glob, no device
+    stale = "C:\\DS\\amdvlk\\amdvlk32.json"
     for what, world, files, glob, layer, words in [
         ("two drivers of the RX: the package's (DXVK's) alone, the glob deleted, AMD's layer off, said",
          dict(gpus=[rx_package, rx_store]), package, None, "1",
@@ -1026,6 +1035,13 @@ def one_driver(patched, expect):
          dict(gpus=[rx_package, rx_store], last_fails=True), None, "amd*", None,
          b"all kept (the last look with one gave DXVK another GPU)"),
         ("one RX, one driver: nothing more", dict(gpus=[rx_store]), None, "amd*", None, b'"amd*" only'),
+        ("a stale AMD package's driver loaded beside the RX's, giving no device (SRP-3): the RX's alone, said",
+         dict(gpus=[rx_store], strays=[stale]), FOLDERS[AMD] + MANIFESTS[AMD], None, "1",
+         b"dxvk: 2 Vulkan drivers of DXVK's GPU's vendor loaded, one gives it: C:\\DS\\amd\\amd-vulkan32.json only "
+         b"(VK_DRIVER_FILES), its layers off"),
+        ("a stale driver, and the last look with the RX's alone fails: as before, said",
+         dict(gpus=[rx_store], strays=[stale], last_fails=True), None, "amd*", None,
+         b"2 Vulkan drivers of DXVK's GPU's vendor loaded, one gives it, all kept (the last look"),
         ("the player's own VK_DRIVER_FILES: kept, every driver it takes looked at",
          dict(gpus=[rx_package, rx_store], env={DRIVER_FILES: package}), package, None, None,
          b"the player's own VK_DRIVER_FILES or VK_ICD_FILENAMES kept"),
@@ -1035,7 +1051,7 @@ def one_driver(patched, expect):
         loaded = all(r.modules.get(name) for name in ("dxgi.dll", "d3d11.dll", "d3d9.dll"))
         state = (r.env.get(DRIVER_FILES), r.env.get(SELECT), r.env.get(amd_layer))
         expect(kept_regs and r.mallocs == 0 and loaded and r.marker and state == (files, glob, layer)
-               and words in r.logged and (files == package or b"its layers off" not in r.logged),
+               and words in r.logged and (files is not None or b"its layers off" not in r.logged),
                f"one driver of DXVK's GPU, {what}: DXVK loaded, VK_DRIVER_FILES {files}, VK_LOADER_DRIVERS_SELECT "
                f"{glob}, AMD's layer switch {layer}"
                + ("" if state == (files, glob, layer) else f": {state}")
