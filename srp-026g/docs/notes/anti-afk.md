@@ -97,3 +97,14 @@ The owner, 2026-11-01: the simplest version first.
   The check runner reports the branch's existing `docker-compose.yml` setting as not covered;
   this change did not edit that file.
 - Not played with a native client, deployed or released.
+
+### Merge review
+
+- Integrated `main` at `bc580831c` in `8c24df992`; resolved the registry export conflict
+  by retaining both `IdleRemoved` and `VoiceSeat`. No blocking review findings.
+- The combined tree passed `nix develop ./srp-026g --command tools/check`: all six server
+  crate checks above (500 session unit tests and 682 match-server unit tests, plus their
+  integration/doc tests and Clippy) and the runner's additional `replay-files` check
+  (generated engine/hooks/arena checks, native replay harness, patch tests and Clippy).
+- Detection uses accepted input changes only. Periodic scripted input can reset it; held
+  keys alone do not. These are deliberate limits of this input-inactivity rule.
