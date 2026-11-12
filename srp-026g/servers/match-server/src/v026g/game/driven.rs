@@ -748,6 +748,7 @@ impl Game {
                         saved.is_low_stamina(),
                         saved.current_time_ms(),
                         saved.last_spending_time_ms(),
+                        saved.spending_speed_modifier().get(),
                     ),
                 );
             }
