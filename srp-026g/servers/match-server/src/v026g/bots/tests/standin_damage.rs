@@ -433,14 +433,16 @@ const REGENERATION_MODIFIER: &str = "health_regeneration_speed_modifier";
 
 /// [G37] The scale of the pools' regeneration rate for a body wearing `kit` (the respirator `mask` in place of the
 /// table's mask piece): `max(0, 1 + S2)`, S2 the added modifiers on [`REGENERATION_MODIFIER`] of the worn items' default
-/// modifications (the game data's; `body_part::regenerate` 0x32A4B0: rate = speed x max(0, 1 + S2), PROVEN). Counted:
-/// 2,199 of 2,275 regenerating PvB bot rows rise at 1 + S2 with the items' defaults (modifications 1093 +0.12 and 1094
-/// +0.15; exactness `settle-body` 13). The bots' skills add none to it (same count).
+/// modifications (the game data's; `body_part::regenerate` 0x32A4B0: rate = speed x max(0, 1 + S2), PROVEN; exactness
+/// `settle-body` 13: modifications 1093 +0.12 and 1094 +0.15). Every worn item counts, a backpack too (two of the
+/// modifications' carriers are backpacks). On the live game data no bots' tier kit wears a carrier, so their scale is 1
+/// (the ignored test `the_live_kits_carry_no_regeneration_modification`).
 pub(crate) fn regeneration_scale(kit: Option<&RoleGear>, mask: Option<Mask>) -> f32 {
+    let dictionary = survarium::v026g::dictionary::Dictionary::shared();
     let s2: f32 = worn_names(kit, mask)
         .into_iter()
-        .filter_map(damage::armour_named)
-        .map(|item: &ArmourParams| survarium::v026g::loadouts::default_modifier(item.dict_id, REGENERATION_MODIFIER))
+        .filter_map(|name| dictionary.item_named(name))
+        .map(|item| survarium::v026g::loadouts::default_modifier(item.dict_id, REGENERATION_MODIFIER))
         .sum();
     (1.0 + s2).max(0.0)
 }
@@ -655,7 +657,8 @@ mod tests {
     #[test]
     fn worn_items_scale_the_regeneration_by_their_default_modifications() {
         use survarium::v026g::loadouts::{BotRole, default_modifier};
-        let of = |name: &str| damage::armour_named(name).map_or(0.0, |item| default_modifier(item.dict_id, REGENERATION_MODIFIER));
+        let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+        let of = |name: &str| dictionary.item_named(name).map_or(0.0, |item| default_modifier(item.dict_id, REGENERATION_MODIFIER));
         assert!(near(regeneration_scale(None, None), 1.0));
         for tier in BotTier::ALL {
             for role in BotRole::ALL {
@@ -667,29 +670,47 @@ mod tests {
     }
 
     /// [G37] On the live game data (`SRP_GAME_DATA`): modification 1093 adds 0.12 and 1094 0.15 to the regeneration
-    /// (exactness `settle-body` 13: `edge_torso_4` and `edge_back_6` carry them), and some bots' kit wears one. Run alone:
+    /// (exactness `settle-body` 13); a kit wearing one of their carriers, a torso and a backpack, regenerates 1.27 times as
+    /// fast; no bots' tier kit wears a carrier (each kit's items and scale printed). Run alone:
     /// `SRP_GAME_DATA=<server-game-data.db> cargo test -p match-server --lib -- --ignored --exact
-    /// v026g::bots::tests::standin_damage::tests::the_live_kits_carry_the_regeneration_modifications`.
+    /// v026g::bots::tests::standin_damage::tests::the_live_kits_carry_no_regeneration_modification`.
     #[test]
     #[ignore = "needs SRP_GAME_DATA, the server's game data"]
-    fn the_live_kits_carry_the_regeneration_modifications() {
-        use survarium::v026g::loadouts::{BotRole, default_modifier};
+    fn the_live_kits_carry_no_regeneration_modification() {
+        use survarium::v026g::loadouts::BotRole;
         survarium::v026g::game_data::init().expect("SRP_GAME_DATA reads and passes srp's checks");
-        let of = |name: &str| default_modifier(damage::armour_named(name).expect("an armour item").dict_id, REGENERATION_MODIFIER);
-        assert!(near(of("edge_torso_4"), 0.12), "{}", of("edge_torso_4"));
-        assert!(near(of("edge_back_6"), 0.15), "{}", of("edge_back_6"));
-        let mut scaled = Vec::new();
+        // The two modifications add 0.12 and 0.15 to the parameter (type 1, added).
+        let table = survarium::v026g::modifications::Modifications::shared();
+        let path = format!("parameters/{REGENERATION_MODIFIER}");
+        for (id, value) in [(1093, 0.12), (1094, 0.15)] {
+            let row = table.modification(id).expect("the modification");
+            let added: f32 = row.modifiers.iter().filter(|m| m.kind == 1 && m.path == path).map(|m| m.value).sum();
+            assert!(near(added, value), "{id}: {added}");
+        }
+        // The items that carry one by default.
+        let carriers: Vec<&str> = survarium::v026g::dictionary::Dictionary::shared()
+            .items
+            .iter()
+            .filter(|item| {
+                survarium::v026g::item_params::item_params(item.dict_id)
+                    .is_some_and(|params| params.default_modifications.iter().any(|id| [1093, 1094].contains(id)))
+            })
+            .map(|item| item.name.as_str())
+            .collect();
+        eprintln!("carriers: {carriers:?}");
+        // A torso with 1093 and a backpack with 1094: 1 + 0.12 + 0.15.
+        static CARRYING: RoleGear = RoleGear { weapon: "", ammo: "", armour: &[(2, "edge_torso_4"), (3, "edge_back_6")] };
+        assert!(near(regeneration_scale(Some(&CARRYING), None), 1.27), "{}", regeneration_scale(Some(&CARRYING), None));
         for tier in BotTier::ALL {
             for role in BotRole::ALL {
                 let kit = kit_of(tier, RusherKit::Control, tier.gear().of(role).weapon);
+                let worn = worn_names(kit, None);
                 let scale = regeneration_scale(kit, None);
-                eprintln!("{tier:?} {role:?}: regeneration x {scale:.2}");
-                if scale > 1.0 {
-                    scaled.push((tier, role, scale));
-                }
+                eprintln!("{tier:?} {role:?}: {worn:?} regeneration x {scale:.2}");
+                assert!(worn.iter().all(|name| !carriers.contains(name)), "{tier:?} {role:?} wears a carrier: update the G37 note");
+                assert!(near(scale, 1.0), "{tier:?} {role:?}: {scale}");
             }
         }
-        assert!(!scaled.is_empty(), "no bots' kit carries a regeneration modification");
     }
 
     /// [G31] A box's armour is the sum of the worn items' on it (0x33F0C0).
