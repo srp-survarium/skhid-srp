@@ -1883,6 +1883,7 @@ va	status	ref_021d	name
 0x002d1340	inferred-high	0x001cb043	survarium::game_world_core::erase_impl
 0x002d55b0	inferred-high	0x001dc824	survarium::pvp_match_core::pvp_match_core
 0x002d5750	inferred-high	0x001dca6c	survarium::pvp_match_core::~pvp_match_core
+0x002d5a90	inferred-high		survarium::player_params_modifiers_container::link_modifier [descriptive]
 0x002d5bc0	inferred-medium		survarium::player_params_modifiers_container::apply_modifiers
 0x002d61f0	inferred-medium	0x001d2539	survarium::hit_receiver::`scalar deleting destructor'
 0x002d6210	inferred-medium	0x001d2556	survarium::hit_initiator::`scalar deleting destructor'
@@ -3162,6 +3163,7 @@ va	status	ref_021d	name
 0x002d43b0	inferred-medium		survarium::game_world_core::new_world_event
 0x002d0a60	inferred-medium		survarium::game_world_core::push_world_event
 0x002e58b0	inferred-medium		survarium::damage_model::find_body_part
+0x002e5950	inferred-medium		survarium::base_player::notify_drug_activity [descriptive]
 0x00131ed0	inferred-high		vostok::render::camouflage_decal_texture_type_baker_cook::find_baked_texture
 0x00132e40	inferred-high		vostok::buffer_vector<vostok::render::baked_texture_data>::erase
 0x00133120	inferred-high		vostok::render::baked_texture_data::baked_texture_data
@@ -3383,6 +3385,7 @@ va	status	ref_021d	name
 0x0031be60	inferred-medium	0x001ee33e	survarium::zone_group::recharge
 0x0031c360	inferred-medium		vostok::buffer_vector<artefact pointer>::push_back
 0x0033c400	inferred-high	0x001eea6b	survarium::state_prio
+0x0033dac0	inferred-high		survarium::medkit::find_damage_protection [descriptive]
 0x002ee930	inferred-medium	0x00194e92	survarium::artefact_cook::construct_derived_resource
 0x002df780	inferred-high		survarium::weapon_core::set_states [descriptive]
 0x0030b9a0	inferred-high		survarium::weapon_core_cook::on_weapon_states_loaded [descriptive]
