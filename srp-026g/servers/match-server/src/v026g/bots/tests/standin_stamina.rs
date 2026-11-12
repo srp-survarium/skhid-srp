@@ -116,14 +116,23 @@ impl Rates {
                 let weight = kit.weight();
                 let t = bot_skills::weight_cost(weight, capacity);
                 let index = |name| modifier_index(name).expect("a modifier of the 68");
-                let carried = 1.0 + survarium::v026g::item_params::player()
-                    .max_carried_weight_spending_speed_modifier
-                    * t;
-                let spending = 1.0 + modifiers[index("stamina_spending_speed_skill")];
+                // The client's getter: S19 = the kit's float + the items' nodes + the weight's node, S67 after it; S3 the kit's
+                // float + the items' nodes (`docs/notes/stamina_and_modifiers.md`).
+                let items = |parameter| -> f32 {
+                    kit.items
+                        .iter()
+                        .map(|item| bot_skills::item_added(item.dict_id, &bot_skills::wire_mods(item.mods), parameter))
+                        .sum()
+                };
+                let s19 = modifiers[index("stamina_spending_speed")]
+                    + items("stamina_spending_speed_modifier")
+                    + survarium::v026g::item_params::player().max_carried_weight_spending_speed_modifier * t;
+                let factor = (1.0 + s19).max(0.0) * (1.0 + modifiers[index("stamina_spending_speed_skill")]).max(0.0);
+                let s3 = modifiers[index("stamina_regeneration_speed")] + items("stamina_regeneration_speed_modifier");
                 return Self {
-                    spend: SPRINT_SPEND_PER_S * carried * spending,
-                    regen: REGEN_PER_S * (1.0 + modifiers[index("stamina_regeneration_speed")]),
-                    jump: JUMP_COST * carried * spending,
+                    spend: SPRINT_SPEND_PER_S * factor,
+                    regen: REGEN_PER_S * (1.0 + s3).max(0.0),
+                    jump: JUMP_COST * factor,
                     can_sprint: weight < capacity || modifiers[index("can_sprint")] > 0.0,
                     weight_cost: t,
                 };
@@ -217,7 +226,13 @@ impl Stamina {
     /// its last spending); none while the model is off (`SRP_BENCH_STAMINA`): a bar that is never spent is no client's record,
     /// and the bots then reckon their own as before.
     pub(crate) fn saved(&self, tick: u32) -> Option<crate::v026g::bots::stamina::Saved> {
-        self.on.then_some(crate::v026g::bots::stamina::Saved { at: tick, value: self.value, low: self.low(), last_spend: self.last_sprint })
+        self.on.then_some(crate::v026g::bots::stamina::Saved { at: tick, value: self.value, low: self.low(), last_spend: self.last_sprint, weight: self.weight_node() })
+    }
+
+    /// [F2] The weight's node of the body's record (`m_spending_speed_modifier`, 0x329B20): 1.5 x its kit's `t`, the node
+    /// its own spending holds.
+    fn weight_node(&self) -> f32 {
+        survarium::v026g::item_params::player().max_carried_weight_spending_speed_modifier * self.rates.weight_cost
     }
 
     pub(crate) fn low(&self) -> bool {
@@ -493,7 +508,7 @@ mod tests {
                     seen.push(item);
                     let body = Rates::of(tier, item);
                     let bot = stamina::Rates::of_kit(kit, &modifiers);
-                    assert_eq!((bot.spend, bot.regen, bot.jump), (body.spend, body.regen, body.jump), "{tier:?} {role:?} {k} {item}");
+                    assert_eq!((bot.spend(), bot.regen(), bot.jump()), (body.spend, body.regen, body.jump), "{tier:?} {role:?} {k} {item}");
                 }
             }
         }
