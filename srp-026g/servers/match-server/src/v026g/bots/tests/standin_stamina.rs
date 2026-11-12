@@ -20,12 +20,18 @@
 //!   at its walk speed), whatever its keys; an overburdened body (the kit's
 //!   weight at its capacity, no skill 213) never sprints;
 //! - a jump needs the flag clear and the bar at its cost, `10 × (1 + 1.5 t)
-//!   × (1 + skill 201)`, which it spends at the press (the take-off is about
-//!   0.2 s after it in the game: LIKELY); a refused press spends nothing;
+//!   × (1 + skill 201)`, which it spends at the press. Not the client's: the
+//!   client tests the bar at the press (0x2D6420) and spends it at the
+//!   take-off event (the "jump" callback, 0x3434B9), 150-200 ms after the
+//!   press for a short jump and about 250-300 ms for a sprint jump (PROVEN,
+//!   rig `notes-jump-state.md` 0, 6); kept as the stand-in's model until
+//!   changed (register G58); a refused press spends nothing;
 //! - a bullet that hits takes the weapon's `stamina_damage` (the shotgun's
 //!   per pellet that lands) from the victim's bar, and restarts the wait.
-//!   Grenades' damage to it is not modelled (LIKELY the same path, not
-//!   proven).
+//!   Grenades' damage to it is not modelled; the client's blast takes it
+//!   by the same path: each of the six parts it hits gets the set's
+//!   `stamina_damage` x max(0, 1 + S11 of the thrower) (`splash_parameters`
+//!   0x30A350..0x30A480; PROVEN, the rig's register L26).
 //!
 //! `t` is the weight's cost, `clamp((w - 20) / (capacity - 20), 0, 1)`, of
 //! the kit the body's weapon belongs to in the bench's tier; the skills are

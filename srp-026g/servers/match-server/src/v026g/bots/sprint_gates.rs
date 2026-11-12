@@ -95,11 +95,13 @@ impl Stagger {
     }
 
     /// The share the hits take off the speed factor at `time`: the hits younger than [`STAGGER_MS`] summed, at most
-    /// [`STAGGER_MAX`].
+    /// [`STAGGER_MAX`]. [F4] A hit stamped at `time` itself is not in it yet (0 < age < 500 ms): the client's stagger node
+    /// takes a hit on the step after its stamp (exactness S5: 1,571 worlds where a hit of the world's own time was counted a
+    /// tick early).
     pub fn share(&self, time: u32) -> f32 {
         self.hits
             .iter()
-            .filter(|&&(at, _)| at <= time && time < at + STAGGER_MS)
+            .filter(|&&(at, _)| at < time && time < at + STAGGER_MS)
             .map(|&(_, power)| power)
             .sum::<f32>()
             .min(STAGGER_MAX)

@@ -1297,6 +1297,7 @@ va	name	source	ret_cleanup	result
 0x003009b0	survarium::victory_item_core::set_transform	manual	4	none; +204h and +244h := the matrix; if physical (+2C8h), the body follows
 0x00300a20	survarium::victory_item_core::get_transform	manual	4	EAX = the out matrix: carried, the user's +40Ch; in a container, its vt+44h; else translate(-[+284h]) x +204h
 0x00300e50	survarium::victory_item_core::drop	manual	0	none; insert (vt+9Ch) at translate(+284h) x +204h: a battery drops at its last carried transform, the simulation's "Weapon" bone (0x344E40), not at the drawn bones
+0x00301b30	survarium::victory_item_core::carry_to_drop_predicate	manual	0	AL 1 when the user's held (+128h) != pending (+12Ch) and the user is alive (+33Ch): the carry -> drop transition (0x301AF8)
 0x00301c40	survarium::victory_item_core::set_spotted	manual	4	
 0x00301ca0	survarium::victory_item_core::can_be_spotted_by	manual	4	AL: always 1
 0x00303b90	survarium::grenade_core::start_fuse	manual	16	
@@ -1307,6 +1308,7 @@ va	name	source	ret_cleanup	result
 0x00304f30	survarium::booby_trap_core::use_execute	manual	12	AL = still in use
 0x003052e0	survarium::booby_trap_core::serialize	manual	8	
 0x003053c0	survarium::booby_trap_core::deserialize	manual	12	
+0x00305540	survarium::booby_trap_core::hit_by_type	manual	28h	none; the hit receiver's vtable +24h (bullets 0x32DA3A, splash): when the 4th argument (the hit type) == the set's +298h defuse_by_hit (absent: 8, none), is_explosive (+220h) ? explode (vfn +40h) : disarm 0x3050C0; no team test
 0x00305ea0	survarium::booby_trap_set_core::try_to_place_trap	manual	4	AL = a trap was placed
 0x00306490	survarium::booby_trap_set_core::get_visible_place_transform	manual	20	AL = a place was found; the 64-byte transform is written through a stack pointer argument
 0x00306720	survarium::booby_trap_set_core::action	manual	8	
@@ -1967,6 +1969,7 @@ va	name	source	ret_cleanup	result
 0x00102d10	vostok::resources::register_cook	manual	0	
 0x00313900	survarium::game_match_rule_base::game_match_rule_base	manual	4	EAX: this
 0x002f4250	survarium::tdm_rule_core_cook::create_resource	manual	4	EAX: the rule (0 when not allocated)
+0x002f4800	survarium::respawn_point_core::is_free	manual	8	AL 0 when a body of the list (entry ESP+8; each body's transform body+118h vfn +28h, +30h) is nearer in 3D than the point's +30h ally_check_radius (its team [+6B8h]+45ECh == entry ESP+4) or +34h enemy_check_radius (other team); ESI the point (+8 position)
 0x002063f0	survarium::tdm_rule_cook::create_resource	manual	4	EAX: the rule
 0x00316090	survarium::tdm_rule_core::on_event	manual	12	
 0x00316590	survarium::tdm_rule_core::on_player_entered_match	manual	8	

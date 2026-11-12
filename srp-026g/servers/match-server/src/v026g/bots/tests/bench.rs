@@ -1349,8 +1349,9 @@ pub(crate) fn real_bot_cost() {
             // The zones' own shapes, for their hits on the bodies; batteries
             // taken from floors of zones on all match, and their spots.
             // The zones' damage to the stand-in's bodies, with
-            // SRP_BENCH_ZONE_DAMAGE=1 only (a GUESS of the game's until the
-            // owner's CG-20 test): off, the bench decides as before.
+            // SRP_BENCH_ZONE_DAMAGE=1 only (the client's zones hurt every body
+            // in their sensor: PROVEN, `hit_objects` 0x319AF0, s4-effects
+            // `notes-effects.md` 1.3): off, the bench decides as before.
             let zone_damage = bench_settings().var("SRP_BENCH_ZONE_DAMAGE").is_ok_and(|v| v == "1");
             game.zone_routed = bots.match_wide_tuning().hazard.zone_pools == super::tuning::ZonePools::Routed;
             // The client's zone rule (a hit at the body's place in the zone, the interval included; bots in live lose exactly
@@ -2508,6 +2509,8 @@ pub(crate) fn real_bot_cost() {
             // [A318] Whether the reckoning takes the client's walk tick in the bench's matches (it did not before the world's walker).
             eprintln!("route hash: camper {:016x} bots {:016x}", bots.bench_route_hash[0], bots.bench_route_hash[1]);
             eprintln!("walker_holds so far: {}", crate::v026g::bots::body::walker_holds::count());
+            let gate = crate::v026g::bots::drive::press_gate::counts();
+            eprintln!("jump press gate so far: let through {}, dropped in the air {}, held through a crouch {}", gate[0], gate[1], gate[2]);
             let saved = crate::v026g::bots::stamina::counts::saved_worlds();
             eprintln!("stamina saved worlds so far: {} (reckoned 5+ off {}, 20+ off {})", saved[0], saved[1], saved[2]);
             let riser = crate::v026g::bots::drive::riser_counts::counts();

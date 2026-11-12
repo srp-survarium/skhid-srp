@@ -55,7 +55,8 @@ fn heading_alike(a: Option<&Rec>, b: Option<&Rec>) -> bool {
 const NEAREST_EDGES_M: [f32; 6] = [1.0, 3.0, 6.0, 12.0, 22.0, 40.0];
 
 /// The way a body walks: the walk's progress (0 at its own spawns, 1 at the enemy's, `Tactics::progress_at`) a second on, per living bot with a known
-/// side. A second that moved the progress by at least this much is forward (or back), the rest stood. GUESS: 1 % of the way a second.
+/// side. A second that moved the progress by at least this much is forward (or back), the rest stood: 1 % of the way a second, this
+/// tally's choice of a threshold (register G76), no claim about play.
 const ADVANCE_EPS: f32 = 0.01;
 /// The progress levels sampled, in fifths of the way.
 const LEVEL_BINS: usize = 5;

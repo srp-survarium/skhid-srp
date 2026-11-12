@@ -2772,7 +2772,7 @@ pub(super) mod tests {
         };
         let (on, off) = (run(SpeedCap::Client), run(SpeedCap::Off));
         // Tick 21 releases the sprint; the move into tick 22 is the first by its keys (speeds[21]).
-        assert!((on[19] - 5.0).abs() < 1e-3 && (off[19] - 5.0).abs() < 1e-3, "sprinting: {on:?}");
+        assert!((on[19] - 4.9587).abs() < 1e-3 && (off[19] - 4.9587).abs() < 1e-3, "sprinting: {on:?}");
         assert!((on[21] - 3.5).abs() < 1e-3, "the walk cap at once: {on:?}");
         assert!(off[21] > 4.5, "the blend alone carries the sprint: {off:?}");
         assert!(on.iter().all(|v| *v <= 5.0 + 1e-3));

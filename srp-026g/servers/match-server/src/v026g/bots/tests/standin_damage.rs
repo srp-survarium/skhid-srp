@@ -13,8 +13,10 @@
 //!   (`loadouts::TierGear`), a shotgun's shot its `buck_shot` pellets, as
 //!   many as [`pellets_hitting`] lets land;
 //! - the kit worn: the armour of the tier's kit that has the target's held
-//!   gun (a weapon is in one kit of a tier), the largest `ranged` armour of
-//!   its items on the box hit (LIKELY, `damage` module doc);
+//!   gun (a weapon is in one kit of a tier), the SUM of the `ranged` armour
+//!   of its items on the box hit (PROVEN: `armor::on_holder_assigned`
+//!   0x33F0C0 adds each item's values to the part's node, `addss` at
+//!   0x33F2DD..0x33F2EA; the `damage` module doc, `damage_model.md`);
 //! - the part hit: with the boxes volume ([`super::standin_hitbox`],
 //!   `SRP_BENCH_HIT_MODEL=on`) the shape the shot ray met says the hit box
 //!   ([`hit_boxes`]); with the old disc, drawn by [`HIT_SHARES`] of the
@@ -24,10 +26,8 @@
 //!   kills. The leg and hand pools do not kill and the stand-in's own leg
 //!   model ([`stand_in_leg_hit`]) keeps handling the legs.
 //!
-//! Not modelled: the regeneration of `head` and `pain` (the body's `health`
-//! has none either, in the stand-in), a bullet that crosses two boxes, the
-//! killer's spawn protection, skills and modifications (none changes a hit
-//! in 0.26g's data).
+//! The pools regenerate ([`regenerate`], [`Pools`]). Not modelled: a bullet
+//! that crosses two boxes, the killer's spawn protection.
 
 use mapdata::{Load, Pierce};
 use survarium::v026g::damage::{self, AmmoParams, ArmourParams, BodyParams};
@@ -217,10 +217,10 @@ pub(crate) fn pellets_hitting(buck_shot: u32, distance: f32) -> u32 {
 /// by itself: `regeneration_timeout` (8 s) after its last hit it gains
 /// `regeneration_speed` of its health a second up to `regeneration_threshold`
 /// of it, body and head 0.03 a second up to half, pain 0.10 up to full
-/// (`human_hit_params`; `body_part::regenerate` 0x32A4B0: PROVEN as code, the
-/// data's reading LIKELY). Not modelled: `health_regeneration_speed_modifier`
-/// (no item of the tiers' kits sets it: GUESS), the Larkspur and the other
-/// drugs. Healing items act through [`Pools::restore`] (and `Body::health`).
+/// (`human_hit_params`, read: exactness `s3-damage` 1.1; `body_part::regenerate`
+/// 0x32A4B0: PROVEN), the rate times [`regeneration_scale`] of the worn kit.
+/// Not modelled: the Larkspur and the other drugs. Healing items act through
+/// [`Pools::restore`] (and `Body::health`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Pools {
     pub(crate) head: f32,
@@ -283,7 +283,8 @@ impl Default for Pools {
 /// One pool's regeneration over `dt_s` after `part`'s timeout since `hit`
 /// (the pool's last hit), at `now` ms.
 /// [A341] `sooner_ms`: Metabolism's (311) head start, the client's `Skills::regeneration_delay_ms`.
-fn regenerated(part: &damage::BodyPart, health: f32, hit: Option<u32>, now: u32, dt_s: f32, sooner_ms: u32) -> f32 {
+/// `scale`: [`regeneration_scale`] of the body's kit.
+fn regenerated(part: &damage::BodyPart, health: f32, hit: Option<u32>, now: u32, dt_s: f32, sooner_ms: u32, scale: f32) -> f32 {
     let Some(hit) = hit else {
         return health;
     };
@@ -292,7 +293,7 @@ fn regenerated(part: &damage::BodyPart, health: f32, hit: Option<u32>, now: u32,
     if (now.saturating_sub(hit) as f32) < timeout_ms || health >= cap {
         return health;
     }
-    (health + part.regeneration_speed * dt_s).min(cap)
+    (health + part.regeneration_speed * scale * dt_s).min(cap)
 }
 
 /// Every living body's pools regenerate by one tick, `now` ms: the client's
@@ -313,10 +314,11 @@ pub(crate) fn regenerate(model: &Model, bodies: &mut [Body], now: u32) {
         }
         let pool_part = |name: &str| human.part(name).expect("the body has the pool");
         let sooner = body.heal.factors.regeneration_sooner_ms;
-        body.health = regenerated(pool_part("body"), body.health, pools.hit_at[0], now, dt_s, sooner);
+        let scale = regeneration_scale(kit_of(model.tier, model.rusher, body.gun.item), model.mask);
+        body.health = regenerated(pool_part("body"), body.health, pools.hit_at[0], now, dt_s, sooner, scale);
         pools.body_seen = body.health;
-        pools.head = regenerated(pool_part("head"), pools.head, pools.hit_at[1], now, dt_s, sooner);
-        pools.pain = regenerated(pool_part("pain"), pools.pain, pools.hit_at[2], now, dt_s, sooner);
+        pools.head = regenerated(pool_part("head"), pools.head, pools.hit_at[1], now, dt_s, sooner, scale);
+        pools.pain = regenerated(pool_part("pain"), pools.pain, pools.hit_at[2], now, dt_s, sooner, scale);
     }
 }
 
@@ -410,18 +412,39 @@ pub(crate) fn armour_on_masked(kit: Option<&RoleGear>, mask: Option<Mask>, hit_b
         .into_iter()
         .filter_map(damage::armour_named)
         .map(|item: &ArmourParams| item.of(hit_box))
-        .fold(0.0, f32::max)
+        .sum()
 }
 
-/// The largest `ranged` armour on `hit_box` among `kit`'s items.
+/// The `ranged` armour on `hit_box` of `kit`'s items: their sum, as the client adds them (0x33F0C0, `addss`
+/// 0x33F2DD..0x33F2EA).
 pub(crate) fn armour_on(kit: Option<&RoleGear>, hit_box: &str) -> f32 {
     kit.map_or(0.0, |kit| {
         kit.armour
             .iter()
             .filter_map(|(_, name)| damage::armour_named(name))
             .map(|item: &ArmourParams| item.of(hit_box))
-            .fold(0.0, f32::max)
+            .sum()
     })
+}
+
+/// The worn items' parameter the pools' regeneration rate is scaled by: the modifier `health_regeneration_speed`
+/// (index 2 of the exe's name table 0x928448, `skills::MODIFIER_NAMES`).
+const REGENERATION_MODIFIER: &str = "health_regeneration_speed_modifier";
+
+/// [G37] The scale of the pools' regeneration rate for a body wearing `kit` (the respirator `mask` in place of the
+/// table's mask piece): `max(0, 1 + S2)`, S2 the added modifiers on [`REGENERATION_MODIFIER`] of the worn items' default
+/// modifications (the game data's; `body_part::regenerate` 0x32A4B0: rate = speed x max(0, 1 + S2), PROVEN; exactness
+/// `settle-body` 13: modifications 1093 +0.12 and 1094 +0.15). Every worn item counts, a backpack too (two of the
+/// modifications' carriers are backpacks). On the live game data no bots' tier kit wears a carrier, so their scale is 1
+/// (the ignored test `the_live_kits_carry_no_regeneration_modification`).
+pub(crate) fn regeneration_scale(kit: Option<&RoleGear>, mask: Option<Mask>) -> f32 {
+    let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+    let s2: f32 = worn_names(kit, mask)
+        .into_iter()
+        .filter_map(|name| dictionary.item_named(name))
+        .map(|item| survarium::v026g::loadouts::default_modifier(item.dict_id, REGENERATION_MODIFIER))
+        .sum();
+    (1.0 + s2).max(0.0)
 }
 
 /// What one pellet or bullet of the hit does to `pools`: `(body, head,
@@ -627,6 +650,121 @@ mod tests {
         body.pools.head -= taken[1];
         body.pools.pain -= taken[2];
         (body.health, body.pools)
+    }
+
+    /// [G37] The pools' regeneration is scaled by the kit's worn items: for every bots' kit, 1 plus the sum of its items'
+    /// regeneration modifiers (read from the game data in use); none worn, the base rate.
+    #[test]
+    fn worn_items_scale_the_regeneration_by_their_default_modifications() {
+        use survarium::v026g::loadouts::{BotRole, default_modifier};
+        let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+        let of = |name: &str| dictionary.item_named(name).map_or(0.0, |item| default_modifier(item.dict_id, REGENERATION_MODIFIER));
+        assert!(near(regeneration_scale(None, None), 1.0));
+        for tier in BotTier::ALL {
+            for role in BotRole::ALL {
+                let kit = kit_of(tier, RusherKit::Control, tier.gear().of(role).weapon);
+                let sum: f32 = kit.map_or(0.0, |kit| kit.armour.iter().map(|(_, name)| of(name)).sum());
+                assert!(near(regeneration_scale(kit, None), 1.0 + sum), "{tier:?} {role:?}");
+            }
+        }
+    }
+
+    /// [G37] On the live game data (`SRP_GAME_DATA`): modification 1093 adds 0.12 and 1094 0.15 to the regeneration
+    /// (exactness `settle-body` 13); a kit wearing one of their carriers, a torso and a backpack, regenerates 1.27 times as
+    /// fast; no bots' tier kit wears a carrier (each kit's items and scale printed). Run alone:
+    /// `SRP_GAME_DATA=<server-game-data.db> cargo test -p match-server --lib -- --ignored --exact
+    /// v026g::bots::tests::standin_damage::tests::the_live_kits_carry_no_regeneration_modification`.
+    #[test]
+    #[ignore = "needs SRP_GAME_DATA, the server's game data"]
+    fn the_live_kits_carry_no_regeneration_modification() {
+        use survarium::v026g::loadouts::BotRole;
+        survarium::v026g::game_data::init().expect("SRP_GAME_DATA reads and passes srp's checks");
+        // The two modifications add 0.12 and 0.15 to the parameter (type 1, added).
+        let table = survarium::v026g::modifications::Modifications::shared();
+        let path = format!("parameters/{REGENERATION_MODIFIER}");
+        for (id, value) in [(1093, 0.12), (1094, 0.15)] {
+            let row = table.modification(id).expect("the modification");
+            let added: f32 = row.modifiers.iter().filter(|m| m.kind == 1 && m.path == path).map(|m| m.value).sum();
+            assert!(near(added, value), "{id}: {added}");
+        }
+        // The items that carry one by default.
+        let carriers: Vec<&str> = survarium::v026g::dictionary::Dictionary::shared()
+            .items
+            .iter()
+            .filter(|item| {
+                survarium::v026g::item_params::item_params(item.dict_id)
+                    .is_some_and(|params| params.default_modifications.iter().any(|id| [1093, 1094].contains(id)))
+            })
+            .map(|item| item.name.as_str())
+            .collect();
+        eprintln!("carriers: {carriers:?}");
+        // A torso with 1093 and a backpack with 1094: 1 + 0.12 + 0.15.
+        static CARRYING: RoleGear = RoleGear { weapon: "", ammo: "", armour: &[(2, "edge_torso_4"), (3, "edge_back_6")] };
+        assert!(near(regeneration_scale(Some(&CARRYING), None), 1.27), "{}", regeneration_scale(Some(&CARRYING), None));
+        for tier in BotTier::ALL {
+            for role in BotRole::ALL {
+                let kit = kit_of(tier, RusherKit::Control, tier.gear().of(role).weapon);
+                let worn = worn_names(kit, None);
+                let scale = regeneration_scale(kit, None);
+                eprintln!("{tier:?} {role:?}: {worn:?} regeneration x {scale:.2}");
+                assert!(worn.iter().all(|name| !carriers.contains(name)), "{tier:?} {role:?} wears a carrier: update the G37 note");
+                assert!(near(scale, 1.0), "{tier:?} {role:?}: {scale}");
+            }
+        }
+    }
+
+    /// [G31] On the live game data: the boxes of the bots' kits (every tier, role and rusher kit, with the table's mask
+    /// and with the tier's top respirator) that two or more worn items armour, where the sum differs from the largest
+    /// (printed). Run alone as the test above, `--exact ..::the_live_kits_boxes_armoured_twice`.
+    #[test]
+    #[ignore = "needs SRP_GAME_DATA, the server's game data"]
+    fn the_live_kits_boxes_armoured_twice() {
+        use survarium::v026g::loadouts::BotRole;
+        survarium::v026g::game_data::init().expect("SRP_GAME_DATA reads and passes srp's checks");
+        const BOXES: [&str; 12] = [
+            "back", "front", "brain", "face", "right_hip", "left_hip", "right_foot", "left_foot", "right_arm", "left_arm",
+            "right_forearm", "left_forearm",
+        ];
+        let mut twice = 0;
+        for tier in BotTier::ALL {
+            for role in BotRole::ALL {
+                for rusher in RusherKit::ALL {
+                    let gear = tier.gear().of_kit(role, rusher);
+                    for mask in [None, tier.top_mask()] {
+                        for hit_box in BOXES {
+                            let on: Vec<(&str, f32)> = worn_names(Some(gear), mask)
+                                .into_iter()
+                                .filter_map(damage::armour_named)
+                                .map(|item| (item.name, item.of(hit_box)))
+                                .filter(|&(_, armour)| armour > 0.0)
+                                .collect();
+                            if on.len() >= 2 {
+                                twice += 1;
+                                eprintln!("{tier:?} {role:?} {rusher:?} mask {mask:?} {hit_box}: {on:?}");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        eprintln!("boxes armoured twice: {twice}");
+    }
+
+    /// [G31] A box's armour is the sum of the worn items' on it (0x33F0C0).
+    #[test]
+    fn a_box_takes_the_sum_of_the_worn_items_armour() {
+        use survarium::v026g::loadouts::BotRole;
+        for tier in BotTier::ALL {
+            for role in BotRole::ALL {
+                let kit = kit_of(tier, RusherKit::Control, tier.gear().of(role).weapon);
+                for hit_box in ["face", "front", "brain"] {
+                    let each: f32 = kit.map_or(0.0, |kit| {
+                        kit.armour.iter().filter_map(|(_, name)| damage::armour_named(name)).map(|item| item.of(hit_box)).sum()
+                    });
+                    assert!(near(armour_on(kit, hit_box), each), "{tier:?} {role:?} {hit_box}");
+                }
+            }
+        }
     }
 
     #[test]

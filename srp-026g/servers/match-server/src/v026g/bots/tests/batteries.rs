@@ -185,9 +185,12 @@ pub(crate) fn a_battery_sunk_under_the_floor_is_taken_through_it_by_the_patched_
 
 /// A wall 3 m high between the bot and battery 1 (25, 0.3, 12), where it
 /// stands 1.3 m east of it, and the stand-in's use stopped by the bullet
-/// mesh (as the client's, LIKELY: b9 of 0x7db2c16a, 9 uses aimed right at
-/// it from where the mesh blocks the line, taken at once from a side with
-/// a clear one). The bot takes it from round the wall (before: four uses
+/// mesh (as the client's, PROVEN: `detect_usable_object` 0x2D84C0's ray
+/// stops at the first walkable and hittable hit, a wall or a floor, patch
+/// 23's battery below the feet within 1 m across the one exception; s6-use
+/// `notes-use.md` 1.1. Seen in b9 of 0x7db2c16a: 9 uses aimed right at it
+/// from where the mesh blocks the line, taken at once from a side with a
+/// clear one). The bot takes it from round the wall (before: four uses
 /// there, failed, the play taken again, and so on).
 #[test]
 pub(crate) fn a_bot_takes_a_battery_from_round_a_wall_its_use_cannot_pass() {

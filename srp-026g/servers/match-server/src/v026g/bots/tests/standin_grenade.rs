@@ -12,20 +12,27 @@
 //!   `splash_min_damage` at the radius (PROVEN).
 //! - Which parts: the `splash_affected_bodies` of the grenade, one hit each
 //!   with armour piercing 1.0, so armour does not hold (PROVEN), every one
-//!   cut by the walls between the part and the blast. **GUESS:** a part is
-//!   reached only along a clear line on the bullet mesh (the mesh keeps no
-//!   material per face; the blast's power `splash_pierce` is 0.15, which a
-//!   wall of any resistance above 0.15 stops outright, and a material of
-//!   resistance 0 passes it whole: the stand-in has none of those), and a
-//!   part's place is a fixed height over the feet ([`part_point`]).
+//!   cut by the walls between the part and the blast. **Not the client's
+//!   wall rule:** the stand-in reaches a part only along a clear line on the
+//!   bullet mesh, and a part's place is a fixed height over the feet
+//!   ([`part_point`]). The client's (`explosion_trace` 0x3393F0, PROVEN;
+//!   s7-thrown `notes-thrown.md` 1.3, `thrown_and_placed.md`): an all-hits
+//!   ray from the blast's centre to the part's bone; each front face of a
+//!   material of armour v multiplies the power s (from `splash_pierce`
+//!   0.15) by 1 - (1 - c)^2, c = clamp(s / v - 1, 0, 1), so a face of
+//!   armour 0.15 or more stops it and armour 0 passes it whole; the part
+//!   takes `amount x kept / splash_pierce`. Kept as the stand-in's model
+//!   until changed (register G38).
 //! - What it takes: the body, pain and leg pools by [`damage::BodyParams::hits_taken`],
 //!   the largest hit to each pool; the head pool is not among the
 //!   grenade's parts. A leg pool at 0 breaks the leg as a bullet's does.
 //!
 //! Not modelled: the stagger and stamina damage of the blast
 //! (`stopping_power`, `stamina_damage`: the call at 0x2DA5B0), the blast's
-//! sound, and a second grenade of one thrower inside 8 s counting only its
-//! increase over the first on a pool (the same initiator, LIKELY).
+//! sound. Two grenades of one thrower add in full, as in the client: its
+//! once-a-part record is keyed by the bullet id alone and a blast carries id
+//! -1, which skips it (`hit_by_type` 0x32A12F, 0x32A136; PROVEN, exactness
+//! s3-damage notes 1.2 item 3; register G39).
 
 use mapdata::Vec3;
 use survarium::v026g::damage::{self, SplashParams};
@@ -118,9 +125,13 @@ pub(crate) fn splash() -> &'static SplashParams {
     damage::splash_named(BOT_GRENADE.name).expect("the bots' grenade has a blast")
 }
 
-/// Where a body part is, for the line from the blast. GUESS: the client
-/// takes each part's physics body; the stand-in has the chest, the legs'
-/// middle and the feet at fixed heights over the feet.
+/// Where a body part is, for the line from the blast. The client takes the
+/// hit model's bones RightArm, RightUpLeg, LeftUpLeg, LeftArm, Chest and
+/// Head at their pose (the grenade's `splash_affected_bodies`; the Head's
+/// box feeds no pool from an explosive hit): PROVEN, the rig's register
+/// L46, `thrown_and_placed.md`. The stand-in has the chest, the legs'
+/// middle and the feet at fixed heights over the feet: not the client's
+/// points.
 pub(crate) fn part_point(body: &Body, part: &str) -> Vec3 {
     let up = match part {
         "right_leg" | "left_leg" | "right_hip" | "left_hip" => 0.5,

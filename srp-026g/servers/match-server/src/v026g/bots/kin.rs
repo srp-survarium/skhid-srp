@@ -9,10 +9,10 @@
 //!   0x2D9060): each tick the body moves at the movement class's desired
 //!   speed × the body's factor `f = 1 + Σ movement_speed_modifier`
 //!   (0x2D5AE0; weapons, mods, a hurt leg, the battery). PROVEN.
-//! - **Desired speeds**, m/s (forward / side / back): walk 3.5 / 2.5 /
-//!   3.0, aiming 3.0 / 2.0 / 2.5, crouched 2.5 / 2.0 / 2.0, crouched and
-//!   aiming 2.0 / 1.5 / 1.5; sprint 5.0 (the config's 5.5 is the sprint
-//!   animation's own speed). Forward diagonals go at the forward speed,
+//! - **Speeds**, m/s (forward / side / back), the body's on traced steps (F5): walk 3.5 / 2.4933 /
+//!   3.0, aiming 3.0 / 1.9947 / 2.5, crouched 2.5 / 2.0143 / 1.95, crouched and
+//!   aiming 2.0 / 1.5107 / 1.4625; sprint 4.9587 (the config's desired speeds x the clip's root speed / its default; the
+//!   config's 5.5 is the sprint animation's own speed). Forward diagonals go at the forward speed,
 //!   back diagonals at the back speed; F+B and L+R cancel. PROVEN.
 //! - **Sprint** is a state, not the keys: it starts on SPRINT and FORWARD
 //!   with none of BACK, FIRE, CROUCH (`sprint_predicate` 0x2FBC90) and
@@ -431,14 +431,57 @@ pub enum FixFloor {
 /// the diagonal of a 0.25 m cell, 0.18 m, times tan 55); a little over that.
 pub const FIX_ABOVE_M: f32 = 0.3;
 
+#[cfg(test)]
+thread_local! {
+    /// [`PreF5Speeds`]: this thread's defaults are the speeds before F5.
+    static PRE_F5_SPEEDS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Whether the defaults are the speeds before F5 (tests whose pinned numbers predate it, [`PreF5Speeds`]); never live.
+fn pre_f5() -> bool {
+    #[cfg(test)]
+    {
+        PRE_F5_SPEEDS.get()
+    }
+    #[cfg(not(test))]
+    {
+        false
+    }
+}
+
+/// The speeds before F5 (the config's desired speeds) for this thread's defaults while it lives: tests whose pinned numbers
+/// predate F5.
+#[cfg(test)]
+pub(crate) struct PreF5Speeds(());
+
+#[cfg(test)]
+impl PreF5Speeds {
+    pub(crate) fn scope() -> Self {
+        PRE_F5_SPEEDS.set(true);
+        Self(())
+    }
+}
+
+#[cfg(test)]
+impl Drop for PreF5Speeds {
+    fn drop(&mut self) {
+        PRE_F5_SPEEDS.set(false);
+    }
+}
+
 impl Default for Kinematics {
     fn default() -> Self {
         Self {
-            walk: [3.5, 2.5, 3.0],
-            aim: [3.0, 2.0, 2.5],
-            crouch: [2.5, 2.0, 2.0],
-            crouch_aim: [2.0, 1.5, 1.5],
-            sprint: 5.0,
+            // [F5] The speeds the body moves at: the config's desired speeds x the clip's root speed / its default, PROVEN on
+            // traced steady steps (exactness F5, 2026-11-12T14:24Z): sprint 4.9587 (10,909 of 11,214 steps), sideways 2.4933
+            // and aimed 1.9947 (490 of 499), crouched back 1.95 (58 of 58), crouched sideways 2.0143 (141 of 141), crouched
+            // and aimed back 1.4625 and sideways 1.5107; forward and back otherwise exact. A crouched strafe to the RIGHT moves
+            // at 2.0837 (aimed 1.5628): one side speed a class here, the left's (`Speeds`).
+            walk: if pre_f5() { [3.5, 2.5, 3.0] } else { [3.5, 2.4933, 3.0] },
+            aim: if pre_f5() { [3.0, 2.0, 2.5] } else { [3.0, 1.9947, 2.5] },
+            crouch: if pre_f5() { [2.5, 2.0, 2.0] } else { [2.5, 2.0143, 1.95] },
+            crouch_aim: if pre_f5() { [2.0, 1.5, 1.5] } else { [2.0, 1.5107, 1.4625] },
+            sprint: if pre_f5() { 5.0 } else { 4.9587 },
             blend_ticks: 6,
             mixer: Mixer::Layers,
             fix_blend: FixBlend::Replayed,
@@ -823,16 +866,16 @@ mod tests {
         };
         let close = |a: f32, b: f32| (a - b).abs() < 1e-4;
         assert!(close(speed(key::FORWARD), 3.5));
-        assert!(close(speed(key::LEFT), 2.5));
+        assert!(close(speed(key::LEFT), 2.4933));
         assert!(close(speed(key::BACK), 3.0));
         assert!(
             close(speed(key::FORWARD | key::LEFT), 3.5),
             "forward diagonals"
         );
         assert!(close(speed(key::BACK | key::RIGHT), 3.0), "back diagonals");
-        assert!(close(speed(key::FORWARD | key::SPRINT), 5.0));
+        assert!(close(speed(key::FORWARD | key::SPRINT), 4.9587));
         assert!(
-            close(speed(key::FORWARD | key::RIGHT | key::SPRINT), 5.0),
+            close(speed(key::FORWARD | key::RIGHT | key::SPRINT), 4.9587),
             "a diagonal sprints"
         );
         assert!(
@@ -841,14 +884,14 @@ mod tests {
         );
         assert!(close(speed(key::FORWARD | key::CROUCH | key::SPRINT), 2.5));
         assert!(close(speed(key::FORWARD | key::AIM), 3.0));
-        assert!(close(speed(key::BACK | key::CROUCH | key::AIM), 1.5));
+        assert!(close(speed(key::BACK | key::CROUCH | key::AIM), 1.4625));
         assert_eq!(speed(key::FORWARD | key::BACK), 0.0);
         assert_eq!(speed(key::LEFT | key::RIGHT), 0.0);
         // At yaw 0 forward is +z, LEFT is -x (a positive yaw turns left).
         let at = |keys| k.target_velocity(keys, 0.0, 1.0);
         assert!(close(at(key::FORWARD)[1], 3.5));
-        assert!(close(at(key::LEFT)[0], -2.5));
-        assert!(close(at(key::RIGHT)[0], 2.5));
+        assert!(close(at(key::LEFT)[0], -2.4933));
+        assert!(close(at(key::RIGHT)[0], 2.4933));
         assert!(close(k.target_velocity(key::FORWARD, 0.0, 0.95)[1], 3.325));
     }
 

@@ -25,10 +25,11 @@ const OFF_LABELS: [&str; 5] = ["on", "1-3", "3-10", "10-30", "30+"];
 /// The distance bands, metres (upper edges; the last takes the rest).
 const BAND_EDGES: [f32; 4] = [10.0, 20.0, 40.0, 65.0];
 const BAND_LABELS: [&str; 5] = ["0-10", "10-20", "20-40", "40-65", "65+"];
-/// A shot within this of the shooter's last one goes on its burst, ms (GUESS: two cycles of a 600-round-a-minute rifle and a
-/// tick's slack).
+/// A shot within this of the shooter's last one goes on its burst, ms: this tally's choice of where a burst ends (register
+/// G66), no claim about the game.
 const BURST_MS: u32 = 300;
-/// The shooter is under fire when an enemy's shot was at him, or hit him, within this, ms (GUESS: a second).
+/// The shooter is under fire when an enemy's shot was at him, or hit him, within this, ms: this tally's choice of a window
+/// (register G67), no claim about the game.
 const UNDER_FIRE_MS: u32 = 1_000;
 /// The time to the first shot, bins (upper edges, ms; the last takes the rest).
 const TTFS_BINS_MS: [u32; 8] = [250, 500, 750, 1_000, 1_500, 2_000, 3_000, 5_000];

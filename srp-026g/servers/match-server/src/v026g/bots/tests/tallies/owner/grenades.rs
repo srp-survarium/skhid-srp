@@ -9,7 +9,13 @@ use crate::v026g::bots::view::{eye_height, still_eye};
 use super::*;
 
 /// The grenade leaves the hand this long after the key goes down, ms
-/// (`arc::LAUNCH_DELAY_S`: the throw animation's event, LIKELY +-200 ms).
+/// (`arc::LAUNCH_DELAY_S`, 1.1 s). Not the client's rule: the client
+/// launches at S + 500 ms with S = max(press + 400, release) on the 50 ms
+/// grid (a tap at press + 900 in 88 throws; the `shoot` knot at frame 16,
+/// 533 ms, the flight starting at S + 500 by the tick's lists, 0x2D1E20):
+/// PROVEN, FIXES F21 amended, the rig's register L57, s7-thrown
+/// `notes-thrown.md` 1.1. Kept as the bench's model until changed
+/// (register G70).
 const LAUNCH_MS: u32 = (arc::LAUNCH_DELAY_S * 1000.0) as u32;
 
 /// The bot is to hold its look, and not fire, this long after the press, ms:
@@ -147,8 +153,9 @@ pub(super) struct LiveBlasts {
 }
 
 /// Grenades: the bots' grenade's blast, from the game data (the RGD-5's `rgd-5.options`: `splash_radius` 10 m,
-/// `splash_max_damage` 1.3 to `splash_min_damage` 0.05; linear between: GUESS), on a body with a line from the
-/// landing.
+/// `splash_max_damage` 1.3 to `splash_min_damage` 0.05; linear between: PROVEN, `bullet_manager::explode` 0x339630,
+/// f = (R - d) / R from the object's origin, skipped when f < 0 (0x339736), amount = min + (max - min) f
+/// (0x33973C..0x339750), s7-thrown `notes-thrown.md` 1.3), on a body with a line from the landing.
 pub(crate) fn blast_m() -> f32 {
     arc::Grenade::bots().splash_m
 }

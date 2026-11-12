@@ -37,8 +37,8 @@ pub const JUMP_COST: f32 = 10.0;
 pub const WAIT_MS: u32 = 1_000;
 /// The low flag is set at a bar of 0 and cleared over this.
 pub const CLEAR_ABOVE: f32 = 20.0;
-/// A sprint covers this much ground a second, m/s (`kin::Kinematics::default().sprint`).
-pub const SPRINT_MPS: f32 = 5.0;
+/// A sprint covers this much ground a second, m/s (`kin::Kinematics::default().sprint`, F5: the body's on traced steps).
+pub const SPRINT_MPS: f32 = 4.9587;
 /// What a sprint spends a metre.
 pub const SPEND_PER_M: f32 = SPRINT_SPEND_PER_S / SPRINT_MPS;
 /// The bar a sprint jump wants at its take-off over what its run-up spends: the jump's cost and a margin, so a
