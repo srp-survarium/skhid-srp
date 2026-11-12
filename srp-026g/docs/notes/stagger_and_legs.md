@@ -15,8 +15,10 @@ is given, unless said otherwise; config values as the game data has them. Counte
   500 ms of its age and then drops out. Hits add up to the cap; a new hit restarts nothing.
 - **How it reaches the speed**: (1) `base_player::max_speed` 0x2DC010 reads the modifiers every step, so a gait at
   its cap (walking forward, sprinting) drops at once; (2) a change selects the animations again in that frame, and
-  the clip's new playback speed arrives through the 0.3 s blend (LIKELY for the blend), which is how gaits under the
-  cap (sideways, backwards, aiming, crouched) slow; (3) `can_sprint` 0x2DBF40 is false while the value is not zero:
+  the same clip's play rate goes to its new value along a 0.3 s linear ramp of the rate itself (a time-scale
+  transition, `new_time_scale` 0x3A28D0, read at 10 ms pieces: (k - 0.4) / 6 of the change on step k, 7 steps; a
+  second change during it nests), which is how gaits under the cap (sideways, backwards, aiming, crouched) slow;
+  (3) `can_sprint` 0x2DBF40 is false while the value is not zero:
   the sprint ends. The jump is not refused (`is_trying_to_jump` 0x2FC230 has no stagger test).
 
 ## Leg wounds

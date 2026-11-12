@@ -2132,6 +2132,7 @@ va	status	ref_021d	name
 0x0030e7c0	inferred-medium	0x001f1b54	survarium::weapon_core_fire_state::`scalar deleting destructor'
 0x0030e7e0	inferred-medium	0x001f1b70	survarium::weapon_core_fire_state::initialize
 0x0030e800	inferred-high	0x001f1ba6	survarium::weapon_core_fire_state::weapon_and_hands_expression
+0x0030e8a0	inferred-high		survarium::weapon_core_fire_state::get_weapon_lexeme
 0x0030edf0	inferred-high	0x001f20a1	survarium::weapon_core_shotgun_reload_start_substate::initialize
 0x0030eee0	inferred-high	0x001f22d2	survarium::weapon_core_shotgun_reload_one_round_substate::weapon_core_shotgun_reload_one_round_substate
 0x0030ef40	inferred-medium	0x001f2085	survarium::weapon_core_shotgun_reload_base_substate::`scalar deleting destructor'
@@ -2150,6 +2151,7 @@ va	status	ref_021d	name
 0x0030f2a0	inferred-medium	0x001f2895	survarium::animations_registrator<survarium::double_barreled_weapon_core_idle_state,survarium::weapon_core_idle_state_base>::register_animations
 0x0030f310	inferred-high	0x001f28e7	survarium::double_barreled_weapon_core_reload_state::double_barreled_weapon_core_reload_state
 0x0030f470	inferred-high	0x001f29aa	survarium::double_barreled_weapon_core_reload_state::weapon_and_hands_expression
+0x0030f5a0	inferred-high		survarium::double_barreled_weapon_core_reload_state::get_weapon_lexeme
 0x0030f660	inferred-high	0x001f2b59	survarium::double_barreled_weapon_core_fire_state::double_barreled_weapon_core_fire_state
 0x0030f7f0	inferred-medium	0x001f2c29	survarium::double_barreled_weapon_core_fire_state::initialize
 0x0030f830	inferred-high	0x001f2c83	survarium::double_barreled_weapon_core_fire_state::weapon_and_hands_expression
@@ -2185,6 +2187,7 @@ va	status	ref_021d	name
 0x00310e40	inferred-high	0x001f34e8	survarium::weapon_core_reload_state_base::on_animation_end_impl
 0x00310e70	inferred-high	0x001f3567	survarium::weapon_core_chamber_a_round_state_base::on_animation_end_impl
 0x00310e90	inferred-high	0x001f3659	survarium::weapon_core_shotgun_reload_base_substate::weapon_core_shotgun_reload_base_substate
+0x00311070	inferred-high		survarium::weapon_core_shotgun_reload_base_substate::get_weapon_lexeme
 0x003114e0	inferred-medium	0x001f3b8c	survarium::damage_zone_core_cook::create_resource
 0x00311840	inferred-medium		survarium::artefact_spring_core::artefact_spring_core
 0x00311890	inferred-medium	0x001f3e14	survarium::artefact_spring_core::tick_impl
@@ -2263,6 +2266,7 @@ va	status	ref_021d	name
 0x0031eab0	inferred-high	0x001f8b55	survarium::weapon_core_base_state::weapon_core_base_state
 0x0031eb40	inferred-medium	0x001f15f3	survarium::weapon_core_base_state::`scalar deleting destructor'
 0x0031eb70	inferred-medium	0x001aa14d	survarium::weapon_core_base_state::initialize
+0x0031ecf0	inferred-medium		survarium::weapon_core_base_state::get_item_lexeme_impl
 0x0031ee40	inferred-medium		survarium::single_game_effect::activate_effect
 0x0031f020	inferred-medium		survarium::single_game_effect::deactivate_effect
 0x00321310	inferred-high		survarium::quest_descriptor::load
@@ -2888,6 +2892,7 @@ va	status	ref_021d	name
 0x003a00c0	inferred-medium	0x002540d1	vostok::animation::mixing::n_ary_tree::update_animation_state
 0x003a0190	inferred-medium	0x00254160	vostok::animation::mixing::n_ary_tree::update_time_synchronization_group
 0x003a0260	inferred-medium	0x0025420c	vostok::animation::mixing::n_ary_tree::need_new_transform
+0x003a0360	inferred-medium		vostok::animation::mixing::n_ary_tree::process_animation_event
 0x003a2790	inferred-medium	0x00255899	vostok::animation::mixing::n_ary_tree_transition_tree_constructor::add_animation_node
 0x003a28d0	inferred-medium	0x002559ba	vostok::animation::mixing::n_ary_tree_transition_tree_constructor::new_time_scale
 0x003a2ce0	inferred-medium	0x00255cad	vostok::animation::mixing::n_ary_tree_transition_tree_constructor::new_animation
@@ -2953,11 +2958,14 @@ va	status	ref_021d	name
 0x003b3fd0	inferred-medium	0x00261af2	vostok::animation::mixing::n_ary_tree_node_cloner::propagate<vostok::animation::mixing::n_ary_tree_addition_node>
 0x003b4070	inferred-medium	0x00261b78	vostok::animation::mixing::n_ary_tree_node_cloner::propagate<vostok::animation::mixing::n_ary_tree_subtraction_node>
 0x003b4110	inferred-medium	0x00261bfe	vostok::animation::mixing::n_ary_tree_node_cloner::propagate<vostok::animation::mixing::n_ary_tree_multiplication_node>
+0x003b42f0	inferred-medium		vostok::animation::mixing::n_ary_tree_animation_event_iterator::compute_next_event
+0x003b4800	inferred-medium		vostok::animation::mixing::n_ary_tree_animation_event_iterator::advance
 0x003b5790	inferred-medium	0x00262e69	vostok::animation::skeleton_animation_scene_operator::~skeleton_animation_scene_operator
 0x003b6220	inferred-medium	0x00263437	vostok::animation::animation_collection::animation_collection
 0x003b6a90	inferred-medium	0x00263ac1	vostok::animation::mixing::n_ary_tree_weight_transition_end_time_calculator::visit
 0x003b6bb0	inferred-medium	0x00263b4e	vostok::animation::mixing::n_ary_tree_weight_event_iterator::operator++
 0x003b6c00	inferred-medium	0x0026244d	vostok::animation::mixing::n_ary_tree_time_in_ms_calculator::visit
+0x003b6c90	inferred-high		vostok::animation::mixing::n_ary_tree_time_in_ms_calculator::visit
 0x003b6f60	inferred-medium	0x002626ba	vostok::animation::mixing::n_ary_tree_time_in_ms_calculator::n_ary_tree_time_in_ms_calculator
 0x003b7b90	inferred-medium	0x00264306	vostok::input::input_world::~input_world
 0x003b7d60	inferred-medium	0x0026445c	vostok::input::input_world::add_handler
@@ -3297,6 +3305,7 @@ va	status	ref_021d	name
 0x001ba090	inferred-medium		stlp_std::priv::__insertion_sort<vostok::render::environment_probe * *,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>
 0x002e26b0	inferred-medium		survarium::weapon_core::ammo_ordinal
 0x002e2750	inferred-medium		survarium::weapon_core::ammo_by_ordinal
+0x002e27c0	inferred-high		survarium::weapon_core::load_ammo
 0x003046f0	inferred-high	0x001e9cc8	survarium::booby_trap_core::load
 0x0031ff60	inferred-high	0x001f9af9	survarium::create_hit_type_parameters
 0x00323a10	inferred-high	0x001ff6fb	survarium::game_material::load_from_config
@@ -3304,6 +3313,7 @@ va	status	ref_021d	name
 0x0030df10	inferred-medium		survarium::weapon_core_hide_state_base::get_weapon_lexeme
 0x0030df10	inferred-medium		survarium::weapon_core_show_state_base::get_weapon_lexeme
 0x0030e510	inferred-medium		survarium::weapon_core_chamber_a_round_state::get_weapon_lexeme
+0x0030e5c0	inferred-high		survarium::computed_fire_animation_time_scale
 0x002f5500	inferred-medium		survarium::shared_statistics::on_player_weapon_firing
 0x0033aa40	inferred-medium		survarium::weapon_core_fire_state_base::finalize
 0x00391c40	inferred-medium		vostok::animation::animation_player::subscribe_event_channel
@@ -3578,6 +3588,7 @@ va	status	ref_021d	name
 0x003b2050	inferred-medium	0x0026022f	vostok::animation::bone_matrices_computer::computed_local_bone_transform
 0x003b3180	inferred-medium	0x00260e7f	vostok::animation::evaluate_frame
 0x003b3340	inferred-medium		vostok::animation::time_channel::domain
+0x003b3a70	inferred-medium		vostok::animation::mixing::n_ary_tree_animation_time_calculator::n_ary_tree_animation_time_calculator
 0x00405490	inferred-high	0x00295a60	stlp_std::priv::_Rb_global<bool>::_M_increment
 0x00422380	inferred-high	0x002b0c30	strstr
 0x00511ca0	inferred-high	0x00378440	Scaleform::GFx::MovieImpl::AdvanceFrame
@@ -3610,15 +3621,20 @@ va	status	ref_021d	name
 0x002fba50	inferred-medium		survarium::weapon_user_animations_selector::set_first_state
 0x002feec0	inferred-medium		survarium::weapon_controller_core::activate
 0x0031e7a0	inferred-medium		survarium::move_direction_animation_group
+0x0031e960	inferred-medium		survarium::weapon_core_base_state::make_hands_lexeme_parameters
 0x00337850	inferred-medium		survarium::player_logic_crouch_on_site_state::build_animations
 0x00337d10	inferred-medium		survarium::player_logic_crouch_walk_state::build_move_animation
 0x0039f860	inferred-high	0x00253bef	vostok::animation::mixing::n_ary_tree::accumulate_object_movement
 0x0039f450	inferred-high	0x0025391e	vostok::animation::mixing::n_ary_tree::set_object_transform
 0x0039fd70	inferred-high	0x00253e40	vostok::animation::mixing::n_ary_tree::update_synchronization_group_using_integration
+0x0039ffd0	inferred-medium		vostok::animation::mixing::n_ary_tree_animation_node::update_clip_time
 0x0039fd00	inferred-medium	0x00253de5	vostok::animation::mixing::n_ary_tree::computed_animation_time
 0x003a19f0	inferred-high	0x00255304	vostok::animation::mixing::n_ary_tree::tick
+0x003a1e40	inferred-medium		vostok::animation::mixing::n_ary_tree::remove_ended_animations
 0x003a0230	inferred-medium	0x002541e6	vostok::animation::mixing::n_ary_tree::update_animation_states
 0x003a0df0	inferred-medium	0x00254925	vostok::animation::mixing::n_ary_tree::process_events
+0x003a0f00	inferred-medium		vostok::animation::mixing::n_ary_tree::advance_event_queue
+0x003a1690	inferred-medium		vostok::animation::mixing::n_ary_tree::tick_events
 0x003b0b00	inferred-high	0x0025f180	vostok::animation::mixing::n_ary_tree_weight_calculator::visit_animation_node
 0x003b0de0	inferred-high	0x0025f3cf	vostok::animation::mixing::n_ary_tree_weight_calculator::visit_weight_node
 0x003b1580	inferred-medium		vostok::animation::mixing::n_ary_tree_time_scale_calculator::visit_time_scale_node
@@ -3626,3 +3642,43 @@ va	status	ref_021d	name
 0x003b2d20	inferred-high	0x00260b7b	vostok::animation::bone_matrices_computer::get_object_transform
 0x00395370	inferred-high	0x0024cda0	vostok::animation::linear_interpolator::transition_time
 0x002da9a0	inferred-medium		survarium::base_player::update_to
+0x00329710	inferred-high		survarium::player_stamina::spend_jump
+0x002d6420	inferred-high		survarium::player_stamina::can_afford_jump
+0x003296c0	inferred-high		survarium::player_stamina::subtract_clamped
+0x00329960	inferred-high		survarium::player_stamina::boost
+0x0030a090	inferred-high		survarium::grenade_set_core::can_throw
+0x00310450	inferred-high		survarium::weapon_core_throw_grenade_idle_substate::is_ready_for_transition
+0x00310480	inferred-medium		survarium::weapon_core_throw_grenade_throw_substate::initialize
+0x003393f0	inferred-high		survarium::bullet_manager::explosion_trace
+0x00323a40	inferred-medium		survarium::game_material::load_physic
+0x002d86a0	inferred-high		survarium::base_player::update_use
+0x00300830	inferred-high		survarium::victory_item_core::update_use
+0x0031ccf0	inferred-high		survarium::victory_items_container_core::update_use
+0x002f8570	inferred-high		survarium::usable_object::use_initialize
+0x002f85b0	inferred-high		survarium::usable_object::finish_use
+0x00300d40	inferred-high		survarium::victory_item_core::can_be_activated
+0x00300d70	inferred-high		survarium::victory_item_core::can_be_held
+0x00300da0	inferred-high		survarium::victory_item_core::activate
+0x00300dc0	inferred-high		survarium::victory_item_core::start_dropped_physics
+0x00301140	inferred-high		survarium::victory_item_core::tick_physics
+0x00338ef0	inferred-high		survarium::victory_item_core_put_state::on_animation_end_impl
+0x002f7fe0	inferred-high		survarium::resupply_zone_core::load
+0x002d9570	inferred-medium		survarium::base_player::set_pending_call
+0x003b4f40	inferred-high		vostok::animation::skeleton_animation_data::create_in_place
+0x003b50d0	inferred-medium		vostok::animation::skeleton_animation_data::computed_size
+0x003b3200	inferred-high		vostok::animation::bone_animation::create_in_place
+0x003b3250	inferred-high		vostok::animation::time_channel::create_in_place
+0x003b3050	inferred-high		vostok::animation::time_channel::domains_count
+0x003b33b0	inferred-high		vostok::animation::bspline_span_to_polynomial
+0x003aa880	inferred-medium		vostok::animation::skeleton_animation_cook::request
+0x003aa6b0	inferred-medium		vostok::animation::skeleton_animation_cook::on_loaded
+0x003adaa0	inferred-medium		vostok::animation::single_animation_cook::request
+0x00397c30	inferred-high		vostok::animation::mixing::n_ary_tree_animation_node::n_ary_tree_animation_node
+0x003a5fa0	inferred-high		vostok::animation::mixing::n_ary_tree_transition_tree_constructor::n_ary_tree_transition_tree_constructor
+0x00391860	inferred-high		vostok::animation::animation_player::set_target_and_tick
+0x00391160	inferred-high		vostok::animation::animation_player::set_target
+0x003b4400	inferred-high		vostok::animation::mixing::n_ary_tree_animation_event_iterator::next_event_in_interval
+0x003b6960	inferred-high		vostok::animation::mixing::n_ary_tree_weight_transition_end_time_calculator::visit
+0x003b23a0	inferred-high		vostok::animation::bone_matrices_computer::computed_bone_matrix
+0x003b1fb0	inferred-medium		vostok::animation::mix_scales
+0x00310350	inferred-high		survarium::weapon_core_throw_grenade_substate::get_weapon_lexeme
