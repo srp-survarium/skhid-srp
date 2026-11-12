@@ -1049,17 +1049,6 @@ pub unsafe fn engine_vk_cmd_copy_image(function: NonNull<c_void>, buffer: *mut c
     unsafe { function(buffer, source_low, source_high, source_layout, destination_low, destination_high, destination_layout, count, regions) }
 }
 
-/// a function at the address GetProcAddress gives (stdcall): void engine_vk_cmd_clear_color_image(void *buffer, unsigned int image_low, unsigned int image_high, unsigned int layout, const void *color, unsigned int count, const void *ranges)
-///
-/// # Safety
-/// `function` is that function (a GetProcAddress result of its name).
-#[allow(dead_code, clippy::too_many_arguments)]
-#[inline(always)]
-pub unsafe fn engine_vk_cmd_clear_color_image(function: NonNull<c_void>, buffer: *mut c_void, image_low: u32, image_high: u32, layout: u32, color: *const c_void, count: u32, ranges: *const c_void) {
-    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, u32, *const c_void, u32, *const c_void)>(function.as_ptr()) };
-    unsafe { function(buffer, image_low, image_high, layout, color, count, ranges) }
-}
-
 /// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_queue_submit(void *queue, unsigned int count, const void *submits, unsigned int fence_low, unsigned int fence_high)
 ///
 /// # Safety
@@ -1102,6 +1091,105 @@ pub unsafe fn engine_vk_signal_semaphore(function: NonNull<c_void>, device: *mut
 pub unsafe fn engine_vk_get_semaphore_counter_value(function: NonNull<c_void>, device: *mut c_void, semaphore_low: u32, semaphore_high: u32, value: *mut u64) -> u32 {
     let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, *mut u64) -> u32>(function.as_ptr()) };
     unsafe { function(device, semaphore_low, semaphore_high, value) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_create_object(void *device, const void *info, const void *allocator, unsigned long long *object)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_create_object(function: NonNull<c_void>, device: *mut c_void, info: *const c_void, allocator: *const c_void, object: *mut u64) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *const c_void, *const c_void, *mut u64) -> u32>(function.as_ptr()) };
+    unsafe { function(device, info, allocator, object) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void engine_vk_destroy_object(void *device, unsigned int object_low, unsigned int object_high, const void *allocator)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_destroy_object(function: NonNull<c_void>, device: *mut c_void, object_low: u32, object_high: u32, allocator: *const c_void) {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, *const c_void)>(function.as_ptr()) };
+    unsafe { function(device, object_low, object_high, allocator) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_create_compute_pipelines(void *device, unsigned int cache_low, unsigned int cache_high, unsigned int count, const void *infos, const void *allocator, unsigned long long *pipelines)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_vk_create_compute_pipelines(function: NonNull<c_void>, device: *mut c_void, cache_low: u32, cache_high: u32, count: u32, infos: *const c_void, allocator: *const c_void, pipelines: *mut u64) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, u32, *const c_void, *const c_void, *mut u64) -> u32>(function.as_ptr()) };
+    unsafe { function(device, cache_low, cache_high, count, infos, allocator, pipelines) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_allocate_descriptor_sets(void *device, const void *info, unsigned long long *sets)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_allocate_descriptor_sets(function: NonNull<c_void>, device: *mut c_void, info: *const c_void, sets: *mut u64) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *const c_void, *mut u64) -> u32>(function.as_ptr()) };
+    unsafe { function(device, info, sets) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void engine_vk_update_descriptor_sets(void *device, unsigned int write_count, const void *writes, unsigned int copy_count, const void *copies)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_update_descriptor_sets(function: NonNull<c_void>, device: *mut c_void, write_count: u32, writes: *const c_void, copy_count: u32, copies: *const c_void) {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, *const c_void, u32, *const c_void)>(function.as_ptr()) };
+    unsafe { function(device, write_count, writes, copy_count, copies) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void engine_vk_cmd_bind_pipeline(void *buffer, unsigned int bind_point, unsigned int pipeline_low, unsigned int pipeline_high)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_cmd_bind_pipeline(function: NonNull<c_void>, buffer: *mut c_void, bind_point: u32, pipeline_low: u32, pipeline_high: u32) {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, u32)>(function.as_ptr()) };
+    unsafe { function(buffer, bind_point, pipeline_low, pipeline_high) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void engine_vk_cmd_bind_descriptor_sets(void *buffer, unsigned int bind_point, unsigned int layout_low, unsigned int layout_high, unsigned int first, unsigned int count, const void *sets, unsigned int dynamic_count, const void *dynamic_offsets)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_vk_cmd_bind_descriptor_sets(function: NonNull<c_void>, buffer: *mut c_void, bind_point: u32, layout_low: u32, layout_high: u32, first: u32, count: u32, sets: *const c_void, dynamic_count: u32, dynamic_offsets: *const c_void) {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, u32, u32, u32, *const c_void, u32, *const c_void)>(function.as_ptr()) };
+    unsafe { function(buffer, bind_point, layout_low, layout_high, first, count, sets, dynamic_count, dynamic_offsets) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void engine_vk_cmd_push_constants(void *buffer, unsigned int layout_low, unsigned int layout_high, unsigned int stages, unsigned int offset, unsigned int size, const void *values)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_vk_cmd_push_constants(function: NonNull<c_void>, buffer: *mut c_void, layout_low: u32, layout_high: u32, stages: u32, offset: u32, size: u32, values: *const c_void) {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, u32, u32, u32, *const c_void)>(function.as_ptr()) };
+    unsafe { function(buffer, layout_low, layout_high, stages, offset, size, values) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void engine_vk_cmd_dispatch(void *buffer, unsigned int x, unsigned int y, unsigned int z)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_cmd_dispatch(function: NonNull<c_void>, buffer: *mut c_void, x: u32, y: u32, z: u32) {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, u32)>(function.as_ptr()) };
+    unsafe { function(buffer, x, y, z) }
 }
 
 #[allow(dead_code, non_upper_case_globals)]

@@ -357,6 +357,15 @@ def test_bins():
           "the Rust patches keep the raw/vostok/patches layers (no address or hand-made binding outside raw, each "
           "patch module forbids unsafe and names only vostok)"
           + (": stale " + ", ".join(hook_stale) if hook_stale else "") + (f": {layers}" if layers else ""))
+    import dlss_motion_026g
+    try:
+        dlss_motion_026g.check()
+        motion_stale = None
+    except dlss_motion_026g.Refused as error:
+        motion_stale = str(error)
+    check(motion_stale is None,
+          "dlss_motion_026g.rs is what the DLSS link's motion shader builds to (dlss_motion_026g.py --write)"
+          + (f": {motion_stale}" if motion_stale else ""))
     # The arena (Research, the artefacts, the engine library) is linked from
     # its sources here, as by every build, and is the lock's.
     linked = P.arena()

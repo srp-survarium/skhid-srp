@@ -874,7 +874,24 @@ struct Vulkan {
     barrier: Function,
     blit: Function,
     copy: Function,
-    clear_color: Function,
+    create_image_view: Function,
+    destroy_image_view: Function,
+    create_shader_module: Function,
+    destroy_shader_module: Function,
+    create_set_layout: Function,
+    destroy_set_layout: Function,
+    create_pipeline_layout: Function,
+    destroy_pipeline_layout: Function,
+    create_pipelines: Function,
+    destroy_pipeline: Function,
+    create_descriptor_pool: Function,
+    destroy_descriptor_pool: Function,
+    allocate_sets: Function,
+    update_sets: Function,
+    bind_pipeline: Function,
+    bind_sets: Function,
+    push_constants: Function,
+    dispatch: Function,
     submit: Function,
     wait_idle: Function,
     signal: Function,
@@ -972,7 +989,24 @@ impl Device {
             barrier: f(c"vkCmdPipelineBarrier")?,
             blit: f(c"vkCmdBlitImage")?,
             copy: f(c"vkCmdCopyImage")?,
-            clear_color: f(c"vkCmdClearColorImage")?,
+            create_image_view: f(c"vkCreateImageView")?,
+            destroy_image_view: f(c"vkDestroyImageView")?,
+            create_shader_module: f(c"vkCreateShaderModule")?,
+            destroy_shader_module: f(c"vkDestroyShaderModule")?,
+            create_set_layout: f(c"vkCreateDescriptorSetLayout")?,
+            destroy_set_layout: f(c"vkDestroyDescriptorSetLayout")?,
+            create_pipeline_layout: f(c"vkCreatePipelineLayout")?,
+            destroy_pipeline_layout: f(c"vkDestroyPipelineLayout")?,
+            create_pipelines: f(c"vkCreateComputePipelines")?,
+            destroy_pipeline: f(c"vkDestroyPipeline")?,
+            create_descriptor_pool: f(c"vkCreateDescriptorPool")?,
+            destroy_descriptor_pool: f(c"vkDestroyDescriptorPool")?,
+            allocate_sets: f(c"vkAllocateDescriptorSets")?,
+            update_sets: f(c"vkUpdateDescriptorSets")?,
+            bind_pipeline: f(c"vkCmdBindPipeline")?,
+            bind_sets: f(c"vkCmdBindDescriptorSets")?,
+            push_constants: f(c"vkCmdPushConstants")?,
+            dispatch: f(c"vkCmdDispatch")?,
             submit: f(c"vkQueueSubmit")?,
             wait_idle: f(c"vkQueueWaitIdle")?,
             signal: f(c"vkSignalSemaphore")?,
@@ -1059,10 +1093,20 @@ const STRUCTURE_SUBMIT_INFO: u32 = 4;
 const STRUCTURE_MEMORY_ALLOCATE_INFO: u32 = 5;
 const STRUCTURE_SEMAPHORE_CREATE_INFO: u32 = 9;
 const STRUCTURE_IMAGE_CREATE_INFO: u32 = 14;
+const STRUCTURE_IMAGE_VIEW_CREATE_INFO: u32 = 15;
+const STRUCTURE_SHADER_MODULE_CREATE_INFO: u32 = 16;
+const STRUCTURE_PIPELINE_SHADER_STAGE_CREATE_INFO: u32 = 18;
+const STRUCTURE_COMPUTE_PIPELINE_CREATE_INFO: u32 = 29;
+const STRUCTURE_PIPELINE_LAYOUT_CREATE_INFO: u32 = 30;
+const STRUCTURE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO: u32 = 32;
+const STRUCTURE_DESCRIPTOR_POOL_CREATE_INFO: u32 = 33;
+const STRUCTURE_DESCRIPTOR_SET_ALLOCATE_INFO: u32 = 34;
+const STRUCTURE_WRITE_DESCRIPTOR_SET: u32 = 35;
 const STRUCTURE_COMMAND_POOL_CREATE_INFO: u32 = 39;
 const STRUCTURE_COMMAND_BUFFER_ALLOCATE_INFO: u32 = 40;
 const STRUCTURE_COMMAND_BUFFER_BEGIN_INFO: u32 = 42;
 const STRUCTURE_IMAGE_MEMORY_BARRIER: u32 = 45;
+const STRUCTURE_MEMORY_BARRIER: u32 = 46;
 /// A structure type an extension added (vulkan_core.h's numbering:
 /// 1000000000 + 1000 * (the extension's number - 1) + its own).
 const fn of_extension(number: u32, own: u32) -> u32 {
@@ -1083,6 +1127,7 @@ const STRUCTURE_SEMAPHORE_SIGNAL_INFO: u32 = of_extension(208, 5);
 /// VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT, and the semaphores' same bit.
 const OPAQUE_WIN32: u32 = 2;
 const FORMAT_R16G16_SFLOAT: u32 = 83;
+const FORMAT_R16G16B16A16_SFLOAT: u32 = 97;
 const USAGE_TRANSFER_SRC: u32 = 1;
 const USAGE_TRANSFER_DST: u32 = 2;
 const USAGE_SAMPLED: u32 = 4;
@@ -1091,12 +1136,20 @@ const LAYOUT_UNDEFINED: u32 = 0;
 const LAYOUT_GENERAL: u32 = 1;
 const LAYOUT_TRANSFER_SRC: u32 = 6;
 const LAYOUT_TRANSFER_DST: u32 = 7;
+const ACCESS_SHADER_READ: u32 = 0x20;
+const ACCESS_SHADER_WRITE: u32 = 0x40;
 const ACCESS_TRANSFER_READ: u32 = 0x800;
 const ACCESS_TRANSFER_WRITE: u32 = 0x1000;
 /// VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT: whatever DXVK did
 /// with an image before, or does after.
 const ACCESS_ANY: u32 = 1 << 15 | 1 << 16;
+const STAGE_COMPUTE: u32 = 0x800;
 const STAGE_TRANSFER: u32 = 0x1000;
+/// VK_SHADER_STAGE_COMPUTE_BIT and VK_PIPELINE_BIND_POINT_COMPUTE.
+const SHADER_COMPUTE: u32 = 0x20;
+const BIND_COMPUTE: u32 = 1;
+const DESCRIPTOR_SAMPLED_IMAGE: u32 = 2;
+const DESCRIPTOR_STORAGE_IMAGE: u32 = 3;
 const STAGE_ALL_COMMANDS: u32 = 1 << 16;
 const ASPECT_COLOR: u32 = 1;
 const ASPECT_DEPTH: u32 = 2;
@@ -1316,6 +1369,145 @@ struct Blit {
     destination_box: [[i32; 3]; 2],
 }
 
+/// VkMemoryBarrier.
+#[repr(C)]
+struct MemoryBarrier {
+    s_type: u32,
+    next: *const c_void,
+    source_access: u32,
+    destination_access: u32,
+}
+
+#[repr(C, align(8))]
+struct ImageViewCreateInfo {
+    s_type: u32,
+    next: *const c_void,
+    flags: u32,
+    pad: u32,
+    image: u64,
+    view_type: u32,
+    format: u32,
+    components: [u32; 4],
+    range: Range,
+}
+
+#[repr(C)]
+struct ShaderModuleCreateInfo {
+    s_type: u32,
+    next: *const c_void,
+    flags: u32,
+    code_size: u32,
+    code: *const u32,
+}
+
+/// VkDescriptorSetLayoutBinding.
+#[repr(C)]
+struct SetLayoutBinding {
+    binding: u32,
+    kind: u32,
+    count: u32,
+    stages: u32,
+    samplers: *const u64,
+}
+
+/// VkDescriptorSetLayoutCreateInfo.
+#[repr(C)]
+struct SetLayoutCreateInfo {
+    s_type: u32,
+    next: *const c_void,
+    flags: u32,
+    count: u32,
+    bindings: *const SetLayoutBinding,
+}
+
+#[repr(C)]
+struct PushConstantRange {
+    stages: u32,
+    offset: u32,
+    size: u32,
+}
+
+#[repr(C)]
+struct PipelineLayoutCreateInfo {
+    s_type: u32,
+    next: *const c_void,
+    flags: u32,
+    set_layout_count: u32,
+    set_layouts: *const u64,
+    range_count: u32,
+    ranges: *const PushConstantRange,
+}
+
+/// VkPipelineShaderStageCreateInfo.
+#[repr(C, align(8))]
+struct ShaderStageCreateInfo {
+    s_type: u32,
+    next: *const c_void,
+    flags: u32,
+    stage: u32,
+    module: u64,
+    name: *const u8,
+    specialization: *const c_void,
+}
+
+#[repr(C, align(8))]
+struct ComputePipelineCreateInfo {
+    s_type: u32,
+    next: *const c_void,
+    flags: u32,
+    pad: u32,
+    stage: ShaderStageCreateInfo,
+    layout: u64,
+    base: u64,
+    base_index: i32,
+}
+
+#[repr(C)]
+struct DescriptorPoolSize {
+    kind: u32,
+    count: u32,
+}
+
+#[repr(C)]
+struct DescriptorPoolCreateInfo {
+    s_type: u32,
+    next: *const c_void,
+    flags: u32,
+    max_sets: u32,
+    size_count: u32,
+    sizes: *const DescriptorPoolSize,
+}
+
+#[repr(C, align(8))]
+struct DescriptorSetAllocateInfo {
+    s_type: u32,
+    next: *const c_void,
+    pool: u64,
+    count: u32,
+    layouts: *const u64,
+}
+
+#[repr(C, align(8))]
+struct DescriptorImageInfo {
+    sampler: u64,
+    view: u64,
+    layout: u32,
+}
+
+#[repr(C, align(8))]
+struct WriteDescriptorSet {
+    s_type: u32,
+    next: *const c_void,
+    set: u64,
+    binding: u32,
+    element: u32,
+    count: u32,
+    kind: u32,
+    image: *const DescriptorImageInfo,
+    buffer: *const c_void,
+    texel_view: *const c_void,
+}
+
 /// VkImageCopy: each image's layers and corner, and the box copied.
 #[repr(C)]
 struct ImageCopy {
@@ -1371,6 +1563,22 @@ const _: () = assert!(
 const _: () = assert!(size_of::<CommandBufferAllocateInfo>() == 24);
 const _: () = assert!(size_of::<ImageBarrier>() == 64 && core::mem::offset_of!(ImageBarrier, image) == 32);
 const _: () = assert!(size_of::<Blit>() == 80 && size_of::<ImageCopy>() == 68);
+const _: () = assert!(size_of::<MemoryBarrier>() == 16 && size_of::<ShaderModuleCreateInfo>() == 20);
+const _: () = assert!(size_of::<ImageViewCreateInfo>() == 72 && core::mem::offset_of!(ImageViewCreateInfo, image) == 16);
+const _: () = assert!(size_of::<SetLayoutBinding>() == 20 && size_of::<SetLayoutCreateInfo>() == 20);
+const _: () = assert!(size_of::<PushConstantRange>() == 12 && size_of::<PipelineLayoutCreateInfo>() == 28);
+const _: () =
+    assert!(size_of::<ShaderStageCreateInfo>() == 32 && core::mem::offset_of!(ShaderStageCreateInfo, module) == 16);
+const _: () = assert!(
+    size_of::<ComputePipelineCreateInfo>() == 72
+        && core::mem::offset_of!(ComputePipelineCreateInfo, stage) == 16
+        && core::mem::offset_of!(ComputePipelineCreateInfo, layout) == 48
+);
+const _: () = assert!(size_of::<DescriptorPoolSize>() == 8 && size_of::<DescriptorPoolCreateInfo>() == 24);
+const _: () =
+    assert!(size_of::<DescriptorSetAllocateInfo>() == 24 && core::mem::offset_of!(DescriptorSetAllocateInfo, pool) == 8);
+const _: () = assert!(size_of::<DescriptorImageInfo>() == 24);
+const _: () = assert!(size_of::<WriteDescriptorSet>() == 48 && core::mem::offset_of!(WriteDescriptorSet, set) == 8);
 const _: () = assert!(size_of::<SubmitInfo>() == 36 && size_of::<TimelineSubmitInfo>() == 24);
 const _: () =
     assert!(size_of::<SemaphoreSignalInfo>() == 24 && core::mem::offset_of!(SemaphoreSignalInfo, value) == 16);
@@ -1411,6 +1619,7 @@ pub struct Shared {
     /// copied into: what the screen image's quad samples in place of the
     /// frame's picture. The render thread's.
     screen: ThreadBound<ColourTarget>,
+    motion: MotionPass,
 }
 // SAFETY: as Device's.
 unsafe impl Send for Shared {}
@@ -1452,7 +1661,7 @@ impl Shared {
             images: [
                 Image { format: colour.format, ..none },
                 Image { format: depth.format, ..none },
-                Image { format: FORMAT_R16G16_SFLOAT, ..none },
+                Image { format: FORMAT_R16G16_SFLOAT, usage: USAGE_STORAGE | USAGE_SAMPLED, ..none },
                 Image {
                     format: colour.format,
                     size: output,
@@ -1464,6 +1673,7 @@ impl Shared {
             pool: 0,
             buffers: [null_mut(); 2 * SLOTS as usize],
             screen: ThreadBound::new(thread, screen),
+            motion: MotionPass::NONE,
         };
         match shared.fill(device, helper) {
             Ok(()) => Ok(shared),
@@ -1690,6 +1900,7 @@ impl Shared {
         }
         let handle = NonNull::new(handle).map(Handle).ok_or(Failure::Device("vkGetSemaphoreWin32HandleKHR", 0))?;
         setup.semaphore = helper.give(handle)?;
+        self.motion.fill(device, &self.images[DEPTH], &self.images[MOTION])?;
         helper.write(&setup).map_err(|error| Failure::Pipe("the Setup", error))
     }
 
@@ -1711,9 +1922,10 @@ impl Shared {
     /// A frame's part of the link, where the screen image is next: the
     /// helper told the frame, then, on DXVK's queue (locked for it), two
     /// submits. The copy-in: the frame's picture and the depth of its
-    /// depth-stencil copied into the shared colour and depth (a Setup's
-    /// first frame also clears the shared motion to none, which nothing
-    /// fills yet), signalling [`Frame::copied`]. Then, after a wait for
+    /// depth-stencil copied into the shared colour and depth, and the
+    /// motion pass ([`MotionPass`]) writing the shared motion from that
+    /// depth and the engine's object motion, signalling [`Frame::copied`].
+    /// Then, after a wait for
     /// [`Frame::upscaled`], the helper's output copied into the screen's
     /// texture, in a command buffer of its own (a wait without one is left
     /// by the driver for DXVK's next submit, which nothing of ours could
@@ -1749,6 +1961,11 @@ impl Shared {
         if colour.size != input(COLOR).size || depth.size != input(DEPTH).size {
             return Ok(None);
         }
+        // the engine's object motion of this frame, where the frame has one
+        let objects = match told.motion.and_then(|motion| motion.objects) {
+            Some(objects) => Some(Surface::of_resource(objects.resource(), "the object motion's IDXGIVkInteropSurface")?),
+            None => None,
+        };
         let first = frame.0 == 0;
         helper
             .write(&FrameMsg {
@@ -1786,24 +2003,29 @@ impl Shared {
         let (read, written) = ((ACCESS_ANY, ACCESS_TRANSFER_READ), (0, ACCESS_TRANSFER_WRITE));
         let (was_read, was_written) = ((ACCESS_TRANSFER_READ, ACCESS_ANY), (ACCESS_TRANSFER_WRITE, 0));
         let ours = (LAYOUT_GENERAL, LAYOUT_GENERAL);
-        let before = [
-            barrier(colour.image, ASPECT_COLOR, read, (colour.layout, LAYOUT_TRANSFER_SRC), stay),
-            barrier(depth.image, depth_aspects, read, (depth.layout, LAYOUT_TRANSFER_SRC), stay),
-            barrier(input(COLOR).image, ASPECT_COLOR, written, (from, LAYOUT_GENERAL), taken),
-            barrier(input(DEPTH).image, depth_aspects, written, (from, LAYOUT_GENERAL), taken),
-            barrier(input(MOTION).image, ASPECT_COLOR, written, (from, LAYOUT_GENERAL), taken),
-            barrier(input(OUTPUT).image, ASPECT_COLOR, (0, 0), (LAYOUT_UNDEFINED, LAYOUT_GENERAL), stay),
-        ];
-        let after = [
-            barrier(colour.image, ASPECT_COLOR, was_read, (LAYOUT_TRANSFER_SRC, colour.layout), stay),
-            barrier(depth.image, depth_aspects, was_read, (LAYOUT_TRANSFER_SRC, depth.layout), stay),
-            barrier(input(COLOR).image, ASPECT_COLOR, was_written, ours, given),
-            barrier(input(DEPTH).image, depth_aspects, was_written, ours, given),
-            barrier(input(MOTION).image, ASPECT_COLOR, was_written, ours, given),
-            barrier(input(OUTPUT).image, ASPECT_COLOR, (0, 0), ours, given),
-        ];
-        // the output is touched by the copy-in on the first frame only: made GENERAL and given to the helper
-        let count = if first { 6 } else { 5 };
+        let pass = &self.motion;
+        let (mut before, mut after) = (Barriers::new(), Barriers::new());
+        before.push(barrier(colour.image, ASPECT_COLOR, read, (colour.layout, LAYOUT_TRANSFER_SRC), stay));
+        before.push(barrier(depth.image, depth_aspects, read, (depth.layout, LAYOUT_TRANSFER_SRC), stay));
+        before.push(barrier(input(COLOR).image, ASPECT_COLOR, written, (from, LAYOUT_GENERAL), taken));
+        before.push(barrier(input(DEPTH).image, depth_aspects, written, (from, LAYOUT_GENERAL), taken));
+        before.push(barrier(input(MOTION).image, ASPECT_COLOR, (0, ACCESS_SHADER_WRITE), (from, LAYOUT_GENERAL), taken));
+        // our copy of the object motion is ours alone: only its first layout is to be made
+        before.push(barrier(pass.objects.image, ASPECT_COLOR, written, (from, LAYOUT_GENERAL), stay));
+        after.push(barrier(colour.image, ASPECT_COLOR, was_read, (LAYOUT_TRANSFER_SRC, colour.layout), stay));
+        after.push(barrier(depth.image, depth_aspects, was_read, (LAYOUT_TRANSFER_SRC, depth.layout), stay));
+        after.push(barrier(input(COLOR).image, ASPECT_COLOR, was_written, ours, given));
+        after.push(barrier(input(DEPTH).image, depth_aspects, was_written, ours, given));
+        after.push(barrier(input(MOTION).image, ASPECT_COLOR, (ACCESS_SHADER_WRITE, 0), ours, given));
+        if let Some(objects) = &objects {
+            before.push(barrier(objects.image, ASPECT_COLOR, read, (objects.layout, LAYOUT_TRANSFER_SRC), stay));
+            after.push(barrier(objects.image, ASPECT_COLOR, was_read, (LAYOUT_TRANSFER_SRC, objects.layout), stay));
+        }
+        if first {
+            // the output is touched by the copy-in on the first frame only: made GENERAL and given to the helper
+            before.push(barrier(input(OUTPUT).image, ASPECT_COLOR, (0, 0), (LAYOUT_UNDEFINED, LAYOUT_GENERAL), stay));
+            after.push(barrier(input(OUTPUT).image, ASPECT_COLOR, (0, 0), ours, given));
+        }
         // after the helper's output: taken back for the copy, then the helper's again
         let out_before = [
             barrier(input(OUTPUT).image, ASPECT_COLOR, (0, ACCESS_TRANSFER_READ), ours, (FAMILY_EXTERNAL, device.family)),
@@ -1815,12 +2037,14 @@ impl Shared {
         ];
         let layers = |aspect| Layers { aspect, mip: 0, base_layer: 0, layers: 1 };
         let corner = |size: Size| [[0, 0, 0], [size.width as i32, size.height as i32, 1]];
-        let blit = Blit {
+        let blit = |from: Size, to: Size| Blit {
             source: layers(ASPECT_COLOR),
-            source_box: corner(colour.size),
+            source_box: corner(from),
             destination: layers(ASPECT_COLOR),
-            destination_box: corner(input(COLOR).size),
+            destination_box: corner(to),
         };
+        let (colour_blit, objects_blit) =
+            (blit(colour.size, input(COLOR).size), objects.map(|objects| blit(objects.size, pass.objects.size)));
         let whole = |aspect, size: Size| ImageCopy {
             source: layers(aspect),
             source_at: [0; 3],
@@ -1829,6 +2053,19 @@ impl Shared {
             extent: [size.width, size.height, 1],
         };
         let (depth_copy, output_copy) = (whole(ASPECT_DEPTH, depth.size), whole(ASPECT_COLOR, screen.size));
+        // the copies' writes are whole before the motion pass reads them
+        let copied_in = MemoryBarrier {
+            s_type: STRUCTURE_MEMORY_BARRIER,
+            next: null(),
+            source_access: ACCESS_TRANSFER_WRITE,
+            destination_access: ACCESS_SHADER_READ | ACCESS_SHADER_WRITE,
+        };
+        let constants = MotionFrame {
+            reproject: told.motion.map_or([0.0; 16], |motion| motion.reproject),
+            jitter: told.motion.map_or([0.0; 2], |motion| motion.jitter_clip),
+            camera: if told.motion.is_some() { 1.0 } else { 0.0 },
+            object_motion: if objects.is_some() { 1.0 } else { 0.0 },
+        };
         // recorded once, executed once (ONE_TIME_SUBMIT)
         let begin = CommandBufferBeginInfo {
             s_type: STRUCTURE_COMMAND_BUFFER_BEGIN_INFO,
@@ -1840,7 +2077,8 @@ impl Shared {
         // caller's word), their images are this device's and alive (the
         // engine's until the hook returns, ours until the set is retired),
         // and every barrier gives DXVK's images back in the layout DXVK
-        // keeps them in.
+        // keeps them in. The motion pass's pipeline, set and views are this
+        // set's own.
         unsafe {
             check(
                 "vkBeginCommandBuffer",
@@ -1850,14 +2088,14 @@ impl Shared {
                 vk.barrier.0,
                 buffer,
                 STAGE_ALL_COMMANDS,
-                STAGE_TRANSFER,
+                STAGE_TRANSFER | STAGE_COMPUTE,
                 0,
                 0,
                 null(),
                 0,
                 null(),
-                count,
-                before.as_ptr().cast(),
+                before.len,
+                before.list.as_ptr().cast(),
             );
             // nearest (0): the picture as it is, both the render size
             raw::engine_vk_cmd_blit_image(
@@ -1870,7 +2108,7 @@ impl Shared {
                 high(input(COLOR).image),
                 LAYOUT_GENERAL,
                 1,
-                (&raw const blit).cast(),
+                (&raw const colour_blit).cast(),
                 0,
             );
             raw::engine_vk_cmd_copy_image(
@@ -1885,32 +2123,79 @@ impl Shared {
                 1,
                 (&raw const depth_copy).cast(),
             );
-            if first {
-                let still = [0u32; 4];
-                let motion = Range::of(ASPECT_COLOR);
-                raw::engine_vk_cmd_clear_color_image(
-                    vk.clear_color.0,
+            if let (Some(objects), Some(objects_blit)) = (&objects, &objects_blit) {
+                // the engine's object motion into our copy of it, whatever format the engine made it in
+                raw::engine_vk_cmd_blit_image(
+                    vk.blit.0,
                     buffer,
-                    low(input(MOTION).image),
-                    high(input(MOTION).image),
+                    low(objects.image),
+                    high(objects.image),
+                    LAYOUT_TRANSFER_SRC,
+                    low(pass.objects.image),
+                    high(pass.objects.image),
                     LAYOUT_GENERAL,
-                    still.as_ptr().cast(),
                     1,
-                    (&raw const motion).cast(),
+                    (&raw const *objects_blit).cast(),
+                    0,
                 );
             }
             raw::engine_vk_cmd_pipeline_barrier(
                 vk.barrier.0,
                 buffer,
                 STAGE_TRANSFER,
+                STAGE_COMPUTE,
+                0,
+                1,
+                (&raw const copied_in).cast(),
+                0,
+                null(),
+                0,
+                null(),
+            );
+            raw::engine_vk_cmd_bind_pipeline(vk.bind_pipeline.0, buffer, BIND_COMPUTE, low(pass.pipeline), high(pass.pipeline));
+            raw::engine_vk_cmd_bind_descriptor_sets(
+                vk.bind_sets.0,
+                buffer,
+                BIND_COMPUTE,
+                low(pass.layout),
+                high(pass.layout),
+                0,
+                1,
+                (&raw const pass.set).cast(),
+                0,
+                null(),
+            );
+            raw::engine_vk_cmd_push_constants(
+                vk.push_constants.0,
+                buffer,
+                low(pass.layout),
+                high(pass.layout),
+                SHADER_COMPUTE,
+                0,
+                size_of::<MotionFrame>() as u32,
+                (&raw const constants).cast(),
+            );
+            // the shader's groups are 8 x 8 pixels
+            let groups = |pixels: u32| pixels.div_ceil(8);
+            raw::engine_vk_cmd_dispatch(
+                vk.dispatch.0,
+                buffer,
+                groups(input(MOTION).size.width),
+                groups(input(MOTION).size.height),
+                1,
+            );
+            raw::engine_vk_cmd_pipeline_barrier(
+                vk.barrier.0,
+                buffer,
+                STAGE_TRANSFER | STAGE_COMPUTE,
                 STAGE_ALL_COMMANDS,
                 0,
                 0,
                 null(),
                 0,
                 null(),
-                count,
-                after.as_ptr().cast(),
+                after.len,
+                after.list.as_ptr().cast(),
             );
             check("vkEndCommandBuffer", raw::engine_vk_end_command_buffer(vk.end.0, buffer))?;
             check(
@@ -2065,10 +2350,363 @@ impl Shared {
                 high(self.timeline),
                 null(),
             );
+        }
+        // before the images its views are of
+        self.motion.destroy(device);
+        // SAFETY: as above.
+        unsafe {
             for image in self.images {
                 raw::engine_vk_destroy_image(vk.destroy_image.0, dev, low(image.image), high(image.image), null());
                 raw::engine_vk_free_memory(vk.free_memory.0, dev, low(image.memory), high(image.memory), null());
             }
+        }
+    }
+}
+
+// ---- the motion pass
+
+include!("../../../../dlss_motion_026g.rs");
+
+/// The motion pass's push constants (dlss_motion_026g.comp's `Frame`).
+#[repr(C)]
+struct MotionFrame {
+    reproject: [f32; 16],
+    jitter: [f32; 2],
+    camera: f32,
+    object_motion: f32,
+}
+
+const _: () = assert!(size_of::<MotionFrame>() == 80);
+
+/// A frame's image barriers, as many as it has.
+struct Barriers {
+    list: [ImageBarrier; 8],
+    len: u32,
+}
+
+impl Barriers {
+    fn new() -> Barriers {
+        let none = ImageBarrier {
+            s_type: STRUCTURE_IMAGE_MEMORY_BARRIER,
+            next: null(),
+            source_access: 0,
+            destination_access: 0,
+            old_layout: 0,
+            new_layout: 0,
+            source_family: FAMILY_IGNORED,
+            destination_family: FAMILY_IGNORED,
+            image: 0,
+            range: Range::of(ASPECT_COLOR),
+        };
+        Barriers { list: [none; 8], len: 0 }
+    }
+
+    /// One more; past the room there is none is added (a frame has at
+    /// most eight).
+    fn push(&mut self, barrier: ImageBarrier) {
+        if let Some(slot) = self.list.get_mut(self.len as usize) {
+            *slot = barrier;
+            self.len += 1;
+        }
+    }
+}
+
+/// The motion pass of a set of shared images (dlss_motion_026g.comp): its
+/// compute pipeline, the views it reads the shared depth and writes the
+/// shared motion through, and our own copy of the engine's object motion
+/// with its view (the engine's image is only copied from: a view of ours on
+/// it would outlive a target the engine makes again). What is not made is
+/// 0, which Vulkan's destroys take.
+struct MotionPass {
+    module: u64,
+    set_layout: u64,
+    layout: u64,
+    pipeline: u64,
+    pool: u64,
+    set: u64,
+    objects: Image,
+    /// Of the shared depth, of our object motion, of the shared motion.
+    views: [u64; 3],
+}
+
+impl MotionPass {
+    const NONE: MotionPass = MotionPass {
+        module: 0,
+        set_layout: 0,
+        layout: 0,
+        pipeline: 0,
+        pool: 0,
+        set: 0,
+        objects: Image {
+            image: 0,
+            memory: 0,
+            bytes: 0,
+            memory_type: 0,
+            format: FORMAT_R16G16B16A16_SFLOAT,
+            size: Size { width: 0, height: 0 },
+            usage: USAGE_TRANSFER_DST | USAGE_SAMPLED,
+        },
+        views: [0; 3],
+    };
+
+    /// The pass made for a set's shared `depth` and `motion`. A failure
+    /// leaves what was made for [`MotionPass::destroy`].
+    fn fill(&mut self, device: &Device, depth: &Image, motion: &Image) -> Result<(), Failure> {
+        let (vk, dev) = (&device.vulkan, device.device.as_ptr());
+        // SAFETY: vkCreate* on DXVK's device with vulkan_core.h's
+        // structures, each alive for its call, and room for each handle.
+        let create = |function: Function, what: &'static str, info: *const c_void, object: &mut u64| unsafe {
+            check(what, raw::engine_vk_create_object(function.0, dev, info, null(), object))
+        };
+        // our copy of the object motion: an image of the render size, its own memory
+        self.objects.size = depth.size;
+        let info = ImageCreateInfo {
+            s_type: STRUCTURE_IMAGE_CREATE_INFO,
+            image_type: 1,
+            format: self.objects.format,
+            extent: [self.objects.size.width, self.objects.size.height, 1],
+            mip_levels: 1,
+            array_layers: 1,
+            samples: 1,
+            usage: self.objects.usage,
+            initial_layout: LAYOUT_UNDEFINED,
+            ..ImageCreateInfo::zeroed()
+        };
+        let mut needs = MemoryRequirements { size: 0, alignment: 0, memory_types: 0 };
+        // SAFETY: as the shared images', without the export.
+        unsafe {
+            check(
+                "vkCreateImage",
+                raw::engine_vk_create_image(vk.create_image.0, dev, (&raw const info).cast(), null(), &mut self.objects.image),
+            )?;
+            raw::engine_vk_get_image_memory_requirements(
+                vk.image_memory_requirements.0,
+                dev,
+                low(self.objects.image),
+                high(self.objects.image),
+                (&raw mut needs).cast(),
+            );
+        }
+        self.objects.bytes = needs.size;
+        self.objects.memory_type =
+            device.device_local(needs.memory_types).ok_or(Failure::Device("a GPU memory type", needs.memory_types))?;
+        let allocate = MemoryAllocateInfo {
+            s_type: STRUCTURE_MEMORY_ALLOCATE_INFO,
+            next: null(),
+            size: needs.size,
+            memory_type: self.objects.memory_type,
+        };
+        // SAFETY: the image's own memory allocated and bound.
+        unsafe {
+            check(
+                "vkAllocateMemory",
+                raw::engine_vk_allocate_memory(
+                    vk.allocate_memory.0,
+                    dev,
+                    (&raw const allocate).cast(),
+                    null(),
+                    &mut self.objects.memory,
+                ),
+            )?;
+            check(
+                "vkBindImageMemory",
+                raw::engine_vk_bind_image_memory(
+                    vk.bind_image_memory.0,
+                    dev,
+                    low(self.objects.image),
+                    high(self.objects.image),
+                    low(self.objects.memory),
+                    high(self.objects.memory),
+                    0,
+                    0,
+                ),
+            )?;
+        }
+        // a 2D view (1) of an image's one mip and layer, its components as they are
+        let viewed = [(depth.image, depth.format, ASPECT_DEPTH), (self.objects.image, self.objects.format, ASPECT_COLOR), (
+            motion.image,
+            motion.format,
+            ASPECT_COLOR,
+        )];
+        for (view, (image, format, aspect)) in self.views.iter_mut().zip(viewed) {
+            let info = ImageViewCreateInfo {
+                s_type: STRUCTURE_IMAGE_VIEW_CREATE_INFO,
+                next: null(),
+                flags: 0,
+                pad: 0,
+                image,
+                view_type: 1,
+                format,
+                components: [0; 4],
+                range: Range::of(aspect),
+            };
+            create(vk.create_image_view, "vkCreateImageView", (&raw const info).cast(), view)?;
+        }
+        let module = ShaderModuleCreateInfo {
+            s_type: STRUCTURE_SHADER_MODULE_CREATE_INFO,
+            next: null(),
+            flags: 0,
+            code_size: core::mem::size_of_val(&MOTION_SPIRV) as u32,
+            code: MOTION_SPIRV.as_ptr(),
+        };
+        create(vk.create_shader_module, "vkCreateShaderModule", (&raw const module).cast(), &mut self.module)?;
+        // the shader's set 0: the depth and the object motion sampled, the motion stored
+        let binding = |binding, kind| SetLayoutBinding { binding, kind, count: 1, stages: SHADER_COMPUTE, samplers: null() };
+        let bindings =
+            [binding(0, DESCRIPTOR_SAMPLED_IMAGE), binding(1, DESCRIPTOR_SAMPLED_IMAGE), binding(2, DESCRIPTOR_STORAGE_IMAGE)];
+        let set_layout = SetLayoutCreateInfo {
+            s_type: STRUCTURE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            next: null(),
+            flags: 0,
+            count: bindings.len() as u32,
+            bindings: bindings.as_ptr(),
+        };
+        create(
+            vk.create_set_layout,
+            "vkCreateDescriptorSetLayout",
+            (&raw const set_layout).cast(),
+            &mut self.set_layout,
+        )?;
+        let constants = PushConstantRange { stages: SHADER_COMPUTE, offset: 0, size: size_of::<MotionFrame>() as u32 };
+        let layout = PipelineLayoutCreateInfo {
+            s_type: STRUCTURE_PIPELINE_LAYOUT_CREATE_INFO,
+            next: null(),
+            flags: 0,
+            set_layout_count: 1,
+            set_layouts: &self.set_layout,
+            range_count: 1,
+            ranges: &constants,
+        };
+        create(vk.create_pipeline_layout, "vkCreatePipelineLayout", (&raw const layout).cast(), &mut self.layout)?;
+        let pipeline = ComputePipelineCreateInfo {
+            s_type: STRUCTURE_COMPUTE_PIPELINE_CREATE_INFO,
+            next: null(),
+            flags: 0,
+            pad: 0,
+            stage: ShaderStageCreateInfo {
+                s_type: STRUCTURE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                next: null(),
+                flags: 0,
+                stage: SHADER_COMPUTE,
+                module: self.module,
+                name: c"main".as_ptr().cast(),
+                specialization: null(),
+            },
+            layout: self.layout,
+            base: 0,
+            base_index: -1,
+        };
+        // SAFETY: one compute pipeline of the module and layout just made, no cache.
+        unsafe {
+            check(
+                "vkCreateComputePipelines",
+                raw::engine_vk_create_compute_pipelines(
+                    vk.create_pipelines.0,
+                    dev,
+                    0,
+                    0,
+                    1,
+                    (&raw const pipeline).cast(),
+                    null(),
+                    &mut self.pipeline,
+                ),
+            )?;
+        }
+        // one set: two sampled images and a storage image
+        let sizes = [
+            DescriptorPoolSize { kind: DESCRIPTOR_SAMPLED_IMAGE, count: 2 },
+            DescriptorPoolSize { kind: DESCRIPTOR_STORAGE_IMAGE, count: 1 },
+        ];
+        let pool = DescriptorPoolCreateInfo {
+            s_type: STRUCTURE_DESCRIPTOR_POOL_CREATE_INFO,
+            next: null(),
+            flags: 0,
+            max_sets: 1,
+            size_count: sizes.len() as u32,
+            sizes: sizes.as_ptr(),
+        };
+        create(vk.create_descriptor_pool, "vkCreateDescriptorPool", (&raw const pool).cast(), &mut self.pool)?;
+        let allocate = DescriptorSetAllocateInfo {
+            s_type: STRUCTURE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            next: null(),
+            pool: self.pool,
+            count: 1,
+            layouts: &self.set_layout,
+        };
+        // SAFETY: the pool's one set, of the layout just made.
+        unsafe {
+            check(
+                "vkAllocateDescriptorSets",
+                raw::engine_vk_allocate_descriptor_sets(
+                    vk.allocate_sets.0,
+                    dev,
+                    (&raw const allocate).cast(),
+                    &mut self.set,
+                ),
+            )?;
+        }
+        // every image is read and written in GENERAL, the layout the helper shares them in
+        let images = self.views.map(|view| DescriptorImageInfo { sampler: 0, view, layout: LAYOUT_GENERAL });
+        let write = |binding: u32, kind| WriteDescriptorSet {
+            s_type: STRUCTURE_WRITE_DESCRIPTOR_SET,
+            next: null(),
+            set: self.set,
+            binding,
+            element: 0,
+            count: 1,
+            kind,
+            image: &images[binding as usize],
+            buffer: null(),
+            texel_view: null(),
+        };
+        let writes =
+            [write(0, DESCRIPTOR_SAMPLED_IMAGE), write(1, DESCRIPTOR_SAMPLED_IMAGE), write(2, DESCRIPTOR_STORAGE_IMAGE)];
+        // SAFETY: the set's three bindings written with the views made above.
+        unsafe {
+            raw::engine_vk_update_descriptor_sets(
+                vk.update_sets.0,
+                dev,
+                writes.len() as u32,
+                writes.as_ptr().cast(),
+                0,
+                null(),
+            );
+        }
+        Ok(())
+    }
+
+    /// Everything of the pass destroyed; nothing of it is on the queue.
+    fn destroy(&self, device: &Device) {
+        let (vk, dev) = (&device.vulkan, device.device.as_ptr());
+        // SAFETY: each object is this device's, made here, used no more
+        // (0 where it was not made); the pool takes its set with it.
+        let destroy = |function: Function, object: u64| unsafe {
+            raw::engine_vk_destroy_object(function.0, dev, low(object), high(object), null())
+        };
+        destroy(vk.destroy_descriptor_pool, self.pool);
+        destroy(vk.destroy_pipeline, self.pipeline);
+        destroy(vk.destroy_pipeline_layout, self.layout);
+        destroy(vk.destroy_set_layout, self.set_layout);
+        destroy(vk.destroy_shader_module, self.module);
+        for view in self.views {
+            destroy(vk.destroy_image_view, view);
+        }
+        // SAFETY: as above.
+        unsafe {
+            raw::engine_vk_destroy_image(
+                vk.destroy_image.0,
+                dev,
+                low(self.objects.image),
+                high(self.objects.image),
+                null(),
+            );
+            raw::engine_vk_free_memory(
+                vk.free_memory.0,
+                dev,
+                low(self.objects.memory),
+                high(self.objects.memory),
+                null(),
+            );
         }
     }
 }
@@ -2083,8 +2721,9 @@ pub struct Picture {
     pub depth: DepthTexture,
 }
 
-/// What the helper is told of a frame beside its images.
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// What the helper and the motion pass are told of a frame beside its
+/// images.
+#[derive(Clone, Copy)]
 pub struct Told {
     /// The jitter of the frame's projection, in render pixels (DLSS's
     /// Jitter_Offset_X and _Y).
@@ -2092,11 +2731,27 @@ pub struct Told {
     /// DLSS's history is thrown away (a Setup's first frame is, whatever
     /// this says).
     pub reset: bool,
+    /// What the motion pass is given; without it the frame's motion is none
+    /// anywhere (a still camera on a still world).
+    pub motion: Option<Motion>,
 }
 
 impl Told {
-    /// A frame with no jitter that goes on from the one before.
-    pub const STILL: Told = Told { jitter: [0.0; 2], reset: false };
+    /// A frame with no jitter and no motion that goes on from the one before.
+    pub const STILL: Told = Told { jitter: [0.0; 2], reset: false, motion: None };
+}
+
+/// What the motion pass is given of a frame (dlss_motion_026g.comp).
+#[derive(Clone, Copy)]
+pub struct Motion {
+    /// This frame's clip position to the previous frame's, neither
+    /// jittered: the engine's rows (previous clip = clip * this).
+    pub reproject: [f32; 16],
+    /// Where this frame's picture is moved by its jitter, in clip units.
+    pub jitter_clip: [f32; 2],
+    /// `$user$object_motion_vectors` where the engine's object motion pass
+    /// drew this frame.
+    pub objects: Option<ColourTexture>,
 }
 
 /// `render.screen_image`: renderer::present about to hand the frame's

@@ -6,8 +6,9 @@ edited by hand).
     python dlss_motion_026g.py --check    builds it and compares with dlss_motion_026g.rs
 
 Needs glslangValidator (`nix develop ./srp-026g`; the flake's lock pins it,
-so the words are the same on every machine). link_026g.py runs the check
-before it builds the crate: a shader edited without --write cannot ship.
+so the words are the same on every machine). selftest_026g.py runs the
+check with the other generated files': a shader edited without --write does
+not pass a release's self-test.
 """
 import argparse
 import struct
@@ -54,7 +55,7 @@ def render(code):
         "// (`python dlss_motion_026g.py --write` after a change of the shader.)",
         "",
         "/// The motion pass's compute shader, SPIR-V words (entry point `main`).",
-        f"pub(super) static MOTION_SPIRV: [u32; {len(code)}] = [",
+        f"static MOTION_SPIRV: [u32; {len(code)}] = [",
     ]
     for at in range(0, len(code), 8):
         lines.append("    " + " ".join(f"{word:#010x}," for word in code[at:at + 8]))
