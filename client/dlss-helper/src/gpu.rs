@@ -302,7 +302,7 @@ impl Gpu {
             unsafe { self.device.free_memory(memory, None) };
             return fail(format!("vkBindImageMemory: {e:?}"));
         }
-        let aspect = aspect(slot);
+        let aspect = aspect(format);
         let vci = vk::ImageViewCreateInfo::default()
             .image(image)
             .view_type(vk::ImageViewType::TYPE_2D)
@@ -349,8 +349,13 @@ impl Drop for Gpu {
     }
 }
 
-pub fn aspect(slot: Slot) -> vk::ImageAspectFlags {
-    if slot == Slot::Depth { vk::ImageAspectFlags::DEPTH } else { vk::ImageAspectFlags::COLOR }
+/// The aspect DLSS reads: depth of a depth(-stencil) format, colour of any other
+/// (a depth the game wrote into an R32_SFLOAT image is a colour image).
+pub fn aspect(format: vk::Format) -> vk::ImageAspectFlags {
+    match format {
+        vk::Format::D16_UNORM | vk::Format::X8_D24_UNORM_PACK32 | vk::Format::D32_SFLOAT | vk::Format::D16_UNORM_S8_UINT | vk::Format::D24_UNORM_S8_UINT | vk::Format::D32_SFLOAT_S8_UINT => vk::ImageAspectFlags::DEPTH,
+        _ => vk::ImageAspectFlags::COLOR,
+    }
 }
 pub fn range(aspect: vk::ImageAspectFlags) -> vk::ImageSubresourceRange {
     vk::ImageSubresourceRange { aspect_mask: aspect, base_mip_level: 0, level_count: 1, base_array_layer: 0, layer_count: 1 }
