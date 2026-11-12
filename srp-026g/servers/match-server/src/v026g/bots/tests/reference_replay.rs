@@ -41,7 +41,7 @@ use mapdata::controller::tick::{Controller, Settings};
 use mapdata::{Vec3, World};
 
 use super::super::body::{BodyTrack, Fix};
-use super::super::jump_arc::{Clip, FPS as JUMP_FPS, PREPARE_MS, TAKEOFF_FRAME};
+use super::super::jump_arc::{Clip, PREPARE_MS, TAKEOFF_FRAME};
 use super::super::kin::Local;
 use super::bench::bench_tuning;
 use crate::v026g::drive::key;
@@ -560,7 +560,8 @@ impl RefJump {
             Clip::Sprint(_) => PREPARE_MS,
             Clip::Short(_) => 0.0,
         };
-        ((time.saturating_sub(self.press) as f32 - prepare).max(0.0) / 1000.0 * JUMP_FPS * self.clip.time_scale()).min(self.clip.air_end_frame())
+        // [A364 P6] The clip's time scale on the floor, 1.5 frames a step in the air.
+        self.clip.frame_after(time.saturating_sub(self.press) as f32 - prepare).min(self.clip.air_end_frame())
     }
 
     /// Sets the body's walk for input tick `k` (yaw `yaw`, keys `keys`); true when the clip ends with this tick (`end_jump` done).

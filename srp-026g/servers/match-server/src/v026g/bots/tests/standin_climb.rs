@@ -235,8 +235,9 @@ mod tests {
         let mut body = standin_jump::honest_body(&grid, Vec3::new(11.1, 3.0, 5.0));
         body.yaw = std::f32::consts::FRAC_PI_2;
         let jump = key::FORWARD | key::JUMP;
-        let (free, _) = standin_jump::honest_jump_in(&grid, &walls, None, body.clone(), jump, 0.0);
-        let (held, _) = standin_jump::honest_jump_in(&grid, &walls, Some(&sections), body, jump, 0.0);
+        // [A364 P6] Pressed walking (3.5 m/s): a short jump's ground move is the press's walk, frozen; from a standstill only the air control.
+        let (free, _) = standin_jump::honest_jump_in(&grid, &walls, None, body.clone(), jump, 3.5);
+        let (held, _) = standin_jump::honest_jump_in(&grid, &walls, Some(&sections), body, jump, 3.5);
         assert!(free.y < 0.5, "unheld, the body walks off the edge and falls: {free:?}");
         assert!((held.y - 3.0).abs() < 0.1 && held.x > 10.9, "held, it stays on the ledge: {held:?}");
     }
