@@ -1,0 +1,20 @@
+va	status	size	name
+0x0060a830	verified-pdb	21	bool vostok::render::stage_rain::is_effects_ready() const
+0x0060a880	verified-pdb	140	void vostok::render::stage_rain::~stage_rain()
+0x0060a910	verified-pdb	2312	void vostok::render::stage_rain::execute()
+0x0060b220	verified-pdb	843	vostok::render::stage_rain::stage_rain(vostok::render::renderer*, vostok::render::renderer_context*)
+0x00627590	verified-pdb	21	bool vostok::render::stage_pre_rain::is_effects_ready() const
+0x006275b0	verified-pdb	1377	vostok::math::float3 vostok::render::stage_pre_rain::compute_aligment(vostok::math::float3 const&, vostok::math::float4x4 const&, float)
+0x00627b20	verified-pdb	136	void vostok::render::stage_pre_rain::~stage_pre_rain()
+0x00627bb0	verified-pdb	1863	vostok::math::float4x4 vostok::render::stage_pre_rain::render_rain_shadow_map()
+0x00628300	verified-pdb	727	void vostok::render::stage_pre_rain::execute()
+0x006285e0	verified-pdb	569	vostok::render::stage_pre_rain::stage_pre_rain(vostok::render::renderer*, vostok::render::renderer_context*)
+0x00604310	verified-pdb	811	vostok::render::scene_shader_constants::scene_shader_constants()
+0x00603ec0	verified-pdb	926	void vostok::render::scene_shader_constants::set(vostok::render::renderer_context*, vostok::math::float3 const&, vostok::math::float3 const&, vostok::math::float3 const&, vostok::math::float3 const&, float, float, float, vostok::math::float4 const&, vostok::render::post_process_parameters const&)
+0x000853f0	verified-pdb	473	void vostok::render::effect_complex_post_process_blend<1,1,1>::compile(vostok::render::effect_compiler&, vostok::render::custom_config_value const&)
+0x00084e50	verified-pdb	473	void vostok::render::effect_complex_post_process_blend<1,1,0>::compile(vostok::render::effect_compiler&, vostok::render::custom_config_value const&)
+0x00085210	verified-pdb	473	void vostok::render::effect_complex_post_process_blend<1,0,1>::compile(vostok::render::effect_compiler&, vostok::render::custom_config_value const&)
+0x00084c70	verified-pdb	473	void vostok::render::effect_complex_post_process_blend<1,0,0>::compile(vostok::render::effect_compiler&, vostok::render::custom_config_value const&)
+0x00085030	verified-pdb	472	void vostok::render::effect_complex_post_process_blend<0,0,1>::compile(vostok::render::effect_compiler&, vostok::render::custom_config_value const&)
+0x00084a90	verified-pdb	472	void vostok::render::effect_complex_post_process_blend<0,0,0>::compile(vostok::render::effect_compiler&, vostok::render::custom_config_value const&)
+0x00607160	verified-pdb	6803	void vostok::render::stage_postprocess::execute()

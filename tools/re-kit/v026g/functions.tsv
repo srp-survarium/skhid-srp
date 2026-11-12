@@ -2320,3 +2320,9 @@ va	status	ref_021d	name
 0x000f70f0	reviewed		vostok::resources::resource_base::resource_base
 0x0010a590	reviewed		vostok::resources::managed_resource::managed_resource
 0x001ee3c0	observed		survarium::game::enqueue_replay_seek_to
+0x002911c0	verified	0x001a7726	survarium::object_volume_fog::load
+0x001af7c0	verified	0x001258b4	vostok::render::scene_shader_constants::scene_shader_constants
+0x001afb10	verified	0x00125b1f	vostok::render::scene_shader_constants::set
+0x00132a90	verified	0x000da127	vostok::render::backend::set_ps_constant
+0x001af590	verified	0x001256f9	vostok::render::dof_shader_constants::dof_shader_constants
+0x001af6d0	verified	0x001257e3	vostok::render::dof_shader_constants::set

@@ -1793,10 +1793,10 @@ va	name	location	role	basis
 0x001acf30	vostok::render::stage_screen_space_reflections::accumulate_models_local_reflections	stack+4	reflection stage receiver	inferred
 0x001acf30	vostok::render::stage_screen_space_reflections::accumulate_models_local_reflections	EAX	model list	inferred
 0x001ad3e0	vostok::render::stage_screen_space_reflections::execute	ECX	reflection stage receiver	inferred
-0x001ad830	vostok::render::stage_rain::stage_rain	ESI	rain stage receiver	inferred
-0x001ad830	vostok::render::stage_rain::stage_rain	ECX	renderer	inferred
-0x001ad830	vostok::render::stage_rain::stage_rain	EAX	renderer context	inferred
-0x001adb00	vostok::render::stage_rain::execute	ECX	rain stage receiver	inferred
+0x001ad830	vostok::render::stage_rain::stage_rain	ESI	rain stage receiver	observed
+0x001ad830	vostok::render::stage_rain::stage_rain	ECX	renderer	observed
+0x001ad830	vostok::render::stage_rain::stage_rain	EAX	renderer context	observed
+0x001adb00	vostok::render::stage_rain::execute	ECX	rain stage receiver	observed
 0x001ae200	vostok::render::backend::flush_rt_views	EDI	backend receiver	observed
 0x001ae3b0	vostok::render::stage_apply_distortion::execute	ECX	apply-distortion stage receiver	inferred
 0x001aeb50	vostok::render::stage_volume_fog::execute	ECX	volume-fog stage receiver	inferred
@@ -4179,8 +4179,8 @@ va	name	location	role	basis
 0x003dc790	vostok::render::binary_shader_source::~binary_shader_source	ECX	binary_shader_source receiver	inferred
 0x003dc7f0	vostok::render::binary_shader_source::`scalar deleting destructor'	ECX	binary_shader_source receiver	inferred
 0x003dc7f0	vostok::render::binary_shader_source::`scalar deleting destructor'	stack+4	deletion flags bit0	inferred
-0x003dc950	vostok::render::shader_binary_source_cook::converted_shader_loaded	stack+4	continuation payload	inferred
-0x003dc950	vostok::render::shader_binary_source_cook::converted_shader_loaded	stack+8	results/query-result record	inferred
+0x003dc950	vostok::render::shader_binary_source_cook::converted_shader_loaded	stack+4	continuation payload	observed
+0x003dc950	vostok::render::shader_binary_source_cook::converted_shader_loaded	stack+8	results/query-result record	observed
 0x003dcb90	vostok::render::shader_binary_source_cook::translate_query	ECX	cook receiver retained in callback binding	inferred
 0x003dcb90	vostok::render::shader_binary_source_cook::translate_query	stack+4	query result object	inferred
 0x003dd0d0	vostok::render::shader_binary_source_cook::delete_resource	stack+4	shader resource to delete	inferred
@@ -6077,3 +6077,26 @@ va	name	location	role	basis
 0x0025cf60	survarium::game_world::on_mouse_key_action	entry ESP+4	the input world (its vtable+24h at 0x25CF6A, as on_keyboard_action's)	observed
 0x0025cf60	survarium::game_world::on_mouse_key_action	entry ESP+8	the key: 151h + the mouse button (0x3B9981), 151h the left (0x25CF95)	observed
 0x0025cf60	survarium::game_world::on_mouse_key_action	entry ESP+12	the kind (0 the press, 1 the release, 2 held), as the mouse's process 0x3B9D90 gives every listener	observed
+0x002911c0	survarium::object_volume_fog::load	ECX	volume fog object receiver; density_offset stored as float at +0x178	observed
+0x002911c0	survarium::object_volume_fog::load	stack+4	binary config value; density_offset accepts float type 2 or signed integer	observed
+0x001af7c0	vostok::render::scene_shader_constants::scene_shader_constants	EDI	scene_shader_constants receiver	observed
+0x001afb10	vostok::render::scene_shader_constants::set	ESI	scene_shader_constants receiver	observed
+0x001afb10	vostok::render::scene_shader_constants::set	ECX	height_lights float3 reference; fourth component is fixed to 1	observed
+0x001afb10	vostok::render::scene_shader_constants::set	EAX	fade_color float3 reference; fourth component is fixed to 1	observed
+0x001afb10	vostok::render::scene_shader_constants::set	entry ESP+4	mid_tones float3 reference	observed
+0x001afb10	vostok::render::scene_shader_constants::set	entry ESP+8	shadows float3 reference	observed
+0x001afb10	vostok::render::scene_shader_constants::set	entry ESP+12	gamma_correction_factor float value	observed
+0x001afb10	vostok::render::scene_shader_constants::set	entry ESP+16	image_grain_parameters float4 reference	observed
+0x001afb10	vostok::render::scene_shader_constants::set	entry ESP+20	environment_properties reference; reads blueshift at +0x1f8 and bloom scale at +0x230	observed
+0x00132a90	vostok::render::backend::set_ps_constant	EDI	backend receiver; must match backend singleton	observed
+0x00132a90	vostok::render::backend::set_ps_constant	EAX	shader_constant_host pointer; reflected slot/size and update marker checked	observed
+0x00132a90	vostok::render::backend::set_ps_constant	entry ESP+4	constant data reference; reflected host determines byte count	observed
+0x001af590	vostok::render::dof_shader_constants::dof_shader_constants	EDI	receiver; four named hosts at +0/+4/+8/+C (Unicorn check_post_constants.py)	observed
+0x001af6d0	vostok::render::dof_shader_constants::set	ESI	receiver; host pointers at +0/+4/+8/+C	observed
+0x001af6d0	vostok::render::dof_shader_constants::set	EAX	DOF highlights float3 reference	observed
+0x001af6d0	vostok::render::dof_shader_constants::set	entry ESP+4	focus distance, float; focus power is fixed to 1.0	observed
+0x001af6d0	vostok::render::dof_shader_constants::set	entry ESP+8	focus region, float; focus power is fixed to 1.0	observed
+0x001af6d0	vostok::render::dof_shader_constants::set	entry ESP+12	near blur amount, float; focus power is fixed to 1.0	observed
+0x001af6d0	vostok::render::dof_shader_constants::set	entry ESP+16	far blur amount, float; focus power is fixed to 1.0	observed
+0x001af6d0	vostok::render::dof_shader_constants::set	entry ESP+20	bokeh radius, float; focus power is fixed to 1.0	observed
+0x001af6d0	vostok::render::dof_shader_constants::set	entry ESP+24	bokeh density, float; focus power is fixed to 1.0	observed

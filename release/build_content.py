@@ -56,8 +56,16 @@ LOBBY = 'lobby_menu'
 # type is not one 0.26g uses at that structural path, with the reason it is
 # right: {(game path, structural path): reason}. It never lets a key that
 # exists change its type (a number between int and float only where the base
-# configs have both there: content_type_check.number_either). Empty: today's content needs none.
-TYPE_ALLOWLIST = {}
+# configs have both there: content_type_check.number_either).
+TYPE_ALLOWLIST = {
+    (f'projects/v011w_level_03_evn/evening_{mode}/client_project',
+     '/client_objects[volume_fog]/density_offset'):
+        'Original 0.11e evening fog uses 5.2. Verified stock 0.26g load at '
+        '0x291362 reads density_offset, branches on config type 2 (float) at '
+        '0x29137b, otherwise converts int, and stores float at object+0x178. '
+        'Keep the authored fractional density; see docs/notes/v011-weather.md.'
+    for mode in (2, 4)
+}
 
 SIMULATION_CHANGES = 'srp-026g/crates/session/src/v026g/simulation_changes.tsv'
 

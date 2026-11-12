@@ -975,10 +975,6 @@ va	status	ref_021d	name
 0x001af3b0	inferred-medium	0x00125574	vostok::render::create_color_grading_base_lut
 0x001af450	inferred-medium	0x00125607	vostok::render::bloom_shader_constants::bloom_shader_constants
 0x001af500	inferred-medium	0x00125682	vostok::render::bloom_shader_constants::set
-0x001af590	inferred-medium	0x001256f9	vostok::render::dof_shader_constants::dof_shader_constants
-0x001af6d0	inferred-medium	0x001257e3	vostok::render::dof_shader_constants::set
-0x001af7c0	inferred-medium	0x001258b4	vostok::render::scene_shader_constants::scene_shader_constants
-0x001afb10	inferred-medium	0x00125b1f	vostok::render::scene_shader_constants::set
 0x001b10e0	inferred-medium	0x00126d22	vostok::render::stage_postprocess::fill_surface2
 0x001b3530	inferred-medium	0x00128f84	vostok::buffer_vector<vostok::intrusive_ptr<vostok::render::res_texture,vostok::render::resource_intrusive_base,vostok::threading::single_threading_policy> >::resize
 0x001b51d0	inferred-medium	0x0012a050	vostok::render::effect_complex_post_process_blend<0,0>::compile
@@ -1741,7 +1737,6 @@ va	status	ref_021d	name
 0x00290f50	inferred-high	0x001a75a8	survarium::object_lpv_occluder::`scalar deleting destructor'
 0x00290f80	inferred-medium	0x001a75ca	survarium::object_lpv_occluder::load
 0x00291190	inferred-high	0x001a7704	survarium::object_volume_fog::`scalar deleting destructor'
-0x002911c0	inferred-medium	0x001a7726	survarium::object_volume_fog::load
 0x002916f0	inferred-medium	0x001a7b80	survarium::object_light::`scalar deleting destructor'
 0x00291ae0	inferred-medium	0x001a7d2d	survarium::object_skeleton_visual::`scalar deleting destructor'
 0x00292620	inferred-medium	0x001a85c7	survarium::object_skeleton_visual::calculate_animation_bone_matrices_if_needs
