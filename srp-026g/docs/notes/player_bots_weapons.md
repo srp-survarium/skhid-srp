@@ -910,8 +910,9 @@ human, and no lag compensation (no code rewinds a target for a shooter; the only
 history, 11 items). What the server's picture of the human decides is **where the bot aims**: his inputs as they
 arrive (one way ping old) reckoned on the grid, and the uploaded worlds (about 0.5 s old, every 3-5 s).
 
-**3. The bullet flies (PROVEN).** `bullet::tick` 0x32C180 steps a bullet through a 50 ms world tick in up to 30
-sub-steps (`pick_next_permissible_time` 0x32CDD0), each tested by `check_collision` 0x32D4E0 (LIKELY a ray along the sub-step's segment, then
+**3. The bullet flies (PROVEN).** `bullet::tick` 0x32C180 steps a bullet through a 50 ms world tick in sub-steps
+(`pick_next_permissible_time` 0x32CDD0; their number is not bounded: 30 is the cap of changes of course, `bullet_flight.md`), each tested by
+`check_collision` 0x32D4E0 (one closest-hit ray along the sub-step's segment, `ray_test` 0x75E20; then
 `update_bullet_position` 0x32EE90 moves the bullet); the bullet ends when its speed falls under 1 m/s (PROVEN). Its path is
 `p(t) = p0 + v0 (t - k t^2 / 2) + g t^2 / 2` (`compute_parabolic_position` 0x32CB10, `compute_trajectory_position`
 0x32CCC0), `v0` the ammunition's `muzzle_speed`, `k` its `air_resistance` (1 for every kit ammunition), `g` the

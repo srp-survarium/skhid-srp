@@ -187,20 +187,21 @@ pub(crate) fn stand_in_step_input() -> crate::v026g::bots::kin::StepInput {
 }
 
 /// [A364 P9] Whether every ground step of the stand-in's walk is the client's own controller kept across the body's steps
-/// (`SRP_BENCH_STAND_IN_CLIENT_STEP=kept`, or `tuning` with the bench tuning's `kin.client_step = kept`): the bench's world walks
-/// as the client's body, so a reckoning by the same controller is judged against the client and not against the lattice.
+/// (`SRP_BENCH_STAND_IN_CLIENT_STEP`: `kept`, the default since #1681's bench; `tuning` with the bench tuning's
+/// `kin.client_step = kept`): the bench's world walks as the client's body (the port is the game's feet on 99.5 % of 221,000 traced
+/// steps), so a reckoning is judged against the client and not against the lattice. `on` and `off` are the older worlds.
 pub(crate) fn stand_in_kept() -> bool {
     static TUNED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *TUNED.get_or_init(|| match super::bench_settings().var("SRP_BENCH_STAND_IN_CLIENT_STEP").as_deref() {
-        Ok("kept") => true,
+        Ok("on" | "off") => false,
         Ok("tuning") => super::bench::bench_tuning().kin.client_step == crate::v026g::bots::kin::ClientStep::Kept,
-        _ => false,
+        _ => true,
     })
 }
 
 /// [A318] Whether the stand-in's walk takes the client's walk tick where the lattice has a step rising or blocked
-/// (`SRP_BENCH_STAND_IN_CLIENT_STEP`): on by default, so the bench's humans walk as the client's body does (the owner: benches on
-/// the client's code); `off` the lattice alone; `tuning` as the bench tuning's `kin.client_step` (the reckoning's rule).
+/// (`SRP_BENCH_STAND_IN_CLIENT_STEP=on`; the default is now [`stand_in_kept`]'s, which comes first); `off` the lattice alone;
+/// `tuning` as the bench tuning's `kin.client_step` (the reckoning's rule).
 pub(crate) fn stand_in_client_step() -> bool {
     static TUNED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *TUNED.get_or_init(|| match super::bench_settings().var("SRP_BENCH_STAND_IN_CLIENT_STEP").as_deref() {

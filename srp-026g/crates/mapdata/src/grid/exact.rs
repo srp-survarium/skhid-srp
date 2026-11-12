@@ -304,7 +304,7 @@ impl WalkGrid {
     pub(super) fn capsule_meets(&self, walls: &Walls, x: f32, z: f32, feet: f32, height: f32) -> bool {
         let slab = self.body.radius / CAP_SLABS as f32;
         let cap_from = feet + height - self.body.radius;
-        let step = feet + self.body.walked_step();
+        let step = feet + self.body.step;
         if cap_from > step && walls.within(x, z, step, cap_from, self.capsule_reach(0.0)) {
             return true;
         }
@@ -330,7 +330,7 @@ impl WalkGrid {
             let (x, z) = (self.x0 + (i as f32 + 0.5) * self.cell, self.z0 + (k as f32 + 0.5) * self.cell);
             let feet = self.height[a];
             // None near in the whole band: the common case, one look.
-            if !walls.within(x, z, feet + self.body.walked_step(), feet + self.body.stand_height, radius) {
+            if !walls.within(x, z, feet + self.body.step, feet + self.body.stand_height, radius) {
                 continue;
             }
             if !self.capsule_meets(walls, x, z, feet, self.body.stand_height) {
@@ -362,7 +362,7 @@ impl WalkGrid {
             }
             let reach = length.max(WALK_OFF_REACH_M) / length;
             let to = Vec3::new(from.x + (landing.x - from.x) * reach, from.y, from.z + (landing.z - from.z) * reach);
-            walls.nearest_ahead(from, to, from.y + self.body.walked_step(), from.y + self.body.crouch_height, limit).is_some_and(|d| d < limit)
+            walls.nearest_ahead(from, to, from.y + self.body.step, from.y + self.body.crouch_height, limit).is_some_and(|d| d < limit)
         };
         let mut cut = 0;
         for a in 0..self.height.len() {
@@ -384,7 +384,7 @@ impl WalkGrid {
     /// `triangles` for every call: for a few points, not a sweep.
     pub fn nearest_wall(&self, triangles: &[Triangle], x: f32, z: f32, y: f32, limit: f32) -> Option<(f32, [Vec3; 3])> {
         let walls = Walls::new(triangles, self.x0, self.z0, self.cell, self.nx, self.nz);
-        walls.nearest_wall(x, z, y + self.body.walked_step(), y + self.body.stand_height, limit)
+        walls.nearest_wall(x, z, y + self.body.step, y + self.body.stand_height, limit)
     }
 
     /// How many floors of the grid have a wall of `triangles` (the walls [`Erosion::Exact`] erodes by) nearer than
@@ -395,7 +395,7 @@ impl WalkGrid {
         let (mut near, mut nearest) = (0, f32::MAX);
         for node in 0..self.len() as NodeId {
             let p = self.position(node);
-            if let Some(d) = walls.nearest(p.x, p.z, p.y + self.body.walked_step(), p.y + self.body.stand_height, radius) {
+            if let Some(d) = walls.nearest(p.x, p.z, p.y + self.body.step, p.y + self.body.stand_height, radius) {
                 nearest = nearest.min(d);
                 near += usize::from(d < radius);
             }

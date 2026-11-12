@@ -25,8 +25,8 @@ traps of 402 live matches of 12+ humans. The full record with scripts is outside
 ## What it does
 - Sensor: a cylinder radius 0.25 m, 0.2 m high; in play a body whose foot point is within **0.6 m** has set it off (565 of 566
   samples). Any body: enemy, ally, the placer (only the skill `friendly_trap`, modifier 44, stops a same-team catch).
-- Damage: `right_foot` and `left_foot`, `slash`, 0.6 each, armour piercing 1 (armour does not hold). Both leg pools to 0: no
-  sprint, no jump, about 8 s, speed -0.2 per leg. Pain +0.3 per foot and **both count** (0.40 left of 1.0 in 113 of 122 catches).
+- Damage: `right_foot` and `left_foot`, `slash`, the config's `amount` each (0.6 to revision 49, 0.55 from 56) times the placer's `device_damage` modifier (0x304B1B), armour piercing 1 (armour does not hold). Both leg pools to 0: no
+  sprint, no jump, about 8 s, speed -0.2 per leg. Pain + half of the amount per foot (the foot's slash route 0.5: +0.3 then, +0.275 now) and **both count** (0.40 left of 1.0 in 113 of 122 catches).
   No root: the victim keeps aim and fire. The kill is the placer's; an ally's death is his team kill.
 - Humans (12+ matches): 85 % of catches are enemies, 11 % allies, 4 % the placer (median 3 s after placing); 9.4 enemy catches
   per armed trap-hour; 46 % of caught enemies die within 20 s.

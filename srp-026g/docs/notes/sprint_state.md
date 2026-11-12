@@ -63,12 +63,11 @@ One replayed match, 16 bodies, 220,994 steps:
   held and not sprinting, by the first cause in the code's order: the jump state 209 (preparing 119, in the air 79,
   landing 11), a reload's window 380, low stamina 213 (one body, the heaviest: 11.3 s of sprint, about 3 s of walk),
   aiming or lowering the aim 129, crouch or no room 32, stagger 6, the press itself 3, a grenade 1, **not explained
-  42** (9 episodes; 18 of those steps walk slower than the body's own cap: LIKELY leg wounds, which a recording does
-  not hold). The reload, aim and grenade windows are assumed lengths (the longest stock times; a recording does not
-  hold the weapon's state): upper bounds.
+  42** (9 episodes; by the match's own worlds: 5 steps with both legs broken, 12 with the weapon not idle or the aim
+  not down, 25 where the saved game has the sprint flag set and the replay had not). The reload, aim and grenade
+  windows are assumed lengths (the longest stock times; a recording does not hold the weapon's state): upper bounds.
 
 ## Not read
 
 The jump state's `is_ready_for_transition` 0x337330 (when a landing lets the sprint resume); where the client
-clears SPRINT in its outgoing input; the frame order of the weapon's `update_logic`, `apply_new_input` and the
-controller's step (measured above, not read).
+clears SPRINT in its outgoing input.

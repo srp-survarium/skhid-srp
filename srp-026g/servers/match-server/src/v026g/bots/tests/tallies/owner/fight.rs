@@ -619,6 +619,27 @@ impl FightCounts {
             self.fire_move[move_of(rec)] += 1;
             if MOVES[move_of(rec)] == "air" {
                 *self.fire_air_play.entry(usize::from(rec.play)).or_default() += 1;
+                // `SRP_BENCH_AIR_ROWS` (A368, local): one row a fire tick in the air: who, when, where, the play's index (the
+                // `airfire-plays` line names them), the keys, in a hold or walking to a goal, and the flight: a walk off an
+                // edge (it carries speed across) or a jump, where and when it began.
+                if crate::v026g::bots::tests::bench_settings().flag("SRP_BENCH_AIR_ROWS") {
+                    let flight = body.flight.as_ref().map_or("landing\t\t\t\t".to_owned(), |f| {
+                        let kind = if f.carry == [0.0; 2] { "jump" } else { "walk-off" };
+                        format!("{kind}\t{}\t{:.2}\t{:.2}\t{:.2}", f.at, f.from.x, f.from.y, f.from.z)
+                    });
+                    eprintln!(
+                        "airfire\t{place}\t{}\t{:.2}\t{:.2}\t{:.2}\t{}\t{:#x}\t{}\t{}\t{}\t{flight}",
+                        game.tick,
+                        rec.feet.x,
+                        rec.feet.y,
+                        rec.feet.z,
+                        rec.play,
+                        rec.keys,
+                        u8::from(rec.hold),
+                        u8::from(rec.travel),
+                        u8::from(rec.has_route),
+                    );
+                }
             }
             self.fire_side_key += u32::from(rec.keys & SIDE_KEYS != 0);
             // At the target: with a line to him or not.
@@ -951,6 +972,9 @@ impl FightCounts {
             w.kept,
             w.bytes / 1024
         );
+        if crate::v026g::bots::tests::bench_settings().flag("SRP_BENCH_AIR_ROWS") {
+            eprintln!("airfire-plays\t{}", run.plays.iter().enumerate().map(|(i, name)| format!("{i}={name}")).collect::<Vec<_>>().join(","));
+        }
         let air: BTreeMap<String, u32> = self
             .fire_air_play
             .iter()
