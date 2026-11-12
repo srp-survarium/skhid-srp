@@ -2368,3 +2368,4 @@ va	status	ref_021d	name
 0x000b8510	reviewed		btTriangleConvexcastCallback::btTriangleConvexcastCallback
 0x000b8670	reviewed		btTriangleConvexcastCallback::processTriangle
 0x000b8900	reviewed		btContinuousConvexCollision::computeClosestPoints
+0x000fe5e0	reviewed		vostok::setup_floating_point_control

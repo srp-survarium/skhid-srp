@@ -135,17 +135,31 @@ Bullet's shapes against the export's triangles, 278,040 primitives:
 So the map differences of this section are real and explain none of the navigation faults counted in those
 matches: those are in the movement and in the map builder's rules, not in the geometry.
 
-## 6. Float control words of the running game (measured; for the walk tick's exactness)
+## 6. Float control words at the walk tick (PROVEN)
 
-`fpu_sample.py` (through `bw_run_replay.py --fpu`), 300 rounds over every thread, two matches: the engine's
-threads (start 0xE0910, `threading::spawn_internal` 0xE0930) run with **x87 control word 0x007F (24-bit
-precision, round to nearest) and MXCSR 0x9FC0 (flush to zero, denormals are zero, round to nearest)**; the
-thread caught inside `bullet_physics_world::tick` had 0x007F in 93 of 93 samples. The same thread showed
-0x027F in 25 of 600 samples, none of them in the tick (something it calls raises the precision and puts it
-back). `vostok::setup_floating_point_control` 0xFE5E0 sets it: `_controlfp_s(_PC_24, _MCW_PC)`,
-`_controlfp_s(_RC_NEAR, _MCW_RC)`, MXCSR's rounding bits cleared. LIKELY for "the walk tick always runs at
-24 bits" until every caller of the tick is read; if it holds, an x87 chain of the tick is single precision at
-every step, which plain `f32` arithmetic reproduces.
+`vostok::setup_floating_point_control` 0xFE5E0, on unless its switch (0xA86BD0, made from the literal "1") says
+otherwise: `_controlfp_s(_PC_24, _MCW_PC)`, `_controlfp_s(_RC_NEAR, _MCW_RC)`, MXCSR's rounding bits cleared,
+`_controlfp_s(_DN_FLUSH, _MCW_DN)`, MXCSR `or 0x8000`. Its two callers are the engine's thread procedure (0xE36ED:
+every thread the engine spawns, at its start) and the core's start on the main thread (0xE4298). So the engine's
+threads run with **x87 control word 0x007F (24-bit precision, round to nearest) and MXCSR 0x9FC0 (flush to zero,
+denormals are zero)**.
+
+Measured on the running game from outside (`fpu_sample.py`, `fpu_eip.py`; a sample suspends one thread for one
+`GetThreadContext`): the 71 engine threads show 0x007F / 0x9FC0, the driver's, the audio's and the system's
+threads 0x027F / 0x1F80. Of 355,000 samples of the engine threads, 84 had the thread's own instruction pointer
+inside the walk tick or the cast (the character controller 12, `btCollisionWorld` 3, the continuous convex cast
+6, the simplex solver, GJK and EPA 63): **all 84 at 0x007F / 0x9FC0**, on one thread. 26 samples were at another
+word (0x027F, or 0x0C7F as a float-to-int helper sets for one instruction), none inside those ranges.
+
+For a port:
+
+- An x87 add, subtract, multiply, divide or square root at 24 bits is rounded to single precision as it is made:
+  for results in single precision's exponent range it is `f32` arithmetic, step by step. The walk tick's port in
+  plain `f32` is the right model of the exe's x87 chains; arithmetic in double rounded at each store would not be.
+- Under flush to zero and denormals are zero a result under 1.18e-38 is 0 in the game and a denormal in Rust.
+- A Unicorn run of the game's code must set the control word to 0x007F (Unicorn's default is 0x037F). On the
+  exe's own cast the two words give the same outcomes and differ by 1e-7 m on flats and 0.5-5 mm at edges
+  (`bullet_cast.md` §3).
 
 ## 7. Not covered
 
