@@ -78,8 +78,8 @@ impl WalkGrid {
         let feet = self.height[a];
         let centre = Vec3::new(self.x0 + (i as f32 + 0.5) * self.cell, feet, self.z0 + (k as f32 + 0.5) * self.cell);
         // [A364 C2 row 50] A wall from the step up stops the capsule (was the step + 0.1 m, the stand-in's ray height); lower, a
-        // sprinting body steps over it (to 0.85 m; walking, from 0.76 it is held: [`Body::walked_step`], which the grid's
-        // gait-blind walks do not use).
+        // sprinting body steps over it (every height measured to 0.85 m; walking, from 0.76 it is held: [`Body::walked_step`],
+        // which the grid's gait-blind walks do not use).
         let (low, high) = (feet + self.body.step, feet + self.body.stand_height);
         let mut bits = 0u16;
         for (d, &(di, dk)) in DIRS.iter().enumerate() {

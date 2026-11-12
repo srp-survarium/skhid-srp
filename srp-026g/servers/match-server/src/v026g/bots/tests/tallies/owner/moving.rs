@@ -744,6 +744,23 @@ impl MoveCounts {
                 }
             }
         }
+        // [A364 C2] Seconds a bot stood still against a riser only a sprint climbs: alive, under 0.3 m/s, a floor of a
+        // neighbouring cell 0.76-0.80 m over its own (the walked step to the step, `mapdata::Body::walked_step`) within 0.6 m of
+        // the feet. By the floors' heights, not the links, so arms with and without such links count alike. [walking, carrying].
+        let mut riser_s = [0u32; 2];
+        let (walked, step) = (grid.body().walked_step(), grid.body().step);
+        for recs in run.recs.iter().enumerate().filter(|&(p, _)| run.is_bot[p]).map(|(_, r)| r) {
+            for r in recs.iter().step_by(TPS).filter(|r| r.alive && r.speed < 0.3) {
+                let Some(a) = grid.locate(r.feet, 0.5) else { continue };
+                let base = grid.position(a).y;
+                let f = r.feet;
+                let against = grid.floors_in([f.x - 0.6, f.z - 0.6, f.x + 0.6, f.z + 0.6]).any(|b| {
+                    let q = grid.position(b);
+                    (walked..=step).contains(&(q.y - base)) && q.distance_xz(f) <= 0.6
+                });
+                riser_s[usize::from(r.carrying)] += u32::from(against);
+            }
+        }
         let per_km = |n: u32| if km > 0.0 { (100.0 * f64::from(n) / km).round() / 100.0 } else { 0.0 };
         let high_pct = Scale::pct(high as f64, alive as f64);
         let perch_pct = Scale::pct((perch_s * TPS as u64) as f64, alive as f64);
@@ -755,6 +772,7 @@ impl MoveCounts {
             "climbs_per_km": per_km(climbs),
             "high_time_pct": high_pct,
             "perch_time_pct": perch_pct,
+            "riser_stand_s": riser_s,
         });
         let players = level
             .map(|&(name, p75, rates)| match rates {

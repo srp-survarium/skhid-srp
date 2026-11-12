@@ -463,10 +463,12 @@ impl Body {
     /// feet is walked over, one at 0.76 holds the body.
     ///
     /// The grid's walks are for every gait, and a SPRINTING body takes the simple capsule test (0x7D33D): it climbs a vertical
-    /// face cleanly to 0.850 m (`grid-rules` S1), past the step. So the Walk links and the walls go by the step, as before #1686,
+    /// face cleanly at every height measured up to 0.850 m (`grid-rules` S1; higher is not settled: the starts overlap, the
+    /// penetration solver is not ported), past the step. So the Walk links and the walls go by the step, as before #1686,
     /// which used this for both: of 1,122 risers of 0.755-0.805 m on Vector Laboratory, 564 of 0.76-0.80 lost their Walk link and
     /// 442 got no Jump either; the routes went round them (drops 4 m+ +51 %, z 2.6, nav-team's then-vs-now 4b). That a body must
-    /// sprint up a riser of 0.76-0.80 m is the motor's to know (a gait for the link), not a reason to cut the way.
+    /// sprint up a riser of 0.76-0.80 m is the link's gait ([`WalkGrid::link_gait`]), for the motor and for the routes of a body
+    /// that cannot sprint, not a reason to cut the way.
     pub fn walked_step(&self) -> f32 {
         self.step - MOVE_STEP_MARGIN_M
     }
@@ -522,9 +524,11 @@ impl Default for Body {
     }
 }
 
-/// [A364 C2] The gait a Walk link needs ([`WalkGrid::walk_gait`]). The grid's walks are for every gait, but the client's walking
+/// [A364 C2] The gait a Walk link needs ([`WalkGrid::link_gait`]). The grid's walks are for every gait, but the client's walking
 /// body is held by a face from [`Body::walked_step`] (0.76 m) up (its complex move test), while a sprinting body (the simple
-/// capsule test, 0x7D33D) climbs a vertical face to 0.85 m: a Walk link rising that much is a sprint's.
+/// capsule test, 0x7D33D) climbs every vertical face measured up to 0.85 m (higher not settled: the penetration solver), so up
+/// to the grid's step 0.80: a Walk link rising 0.76-0.80 is a sprint's. A body that cannot sprint (a carrier, a leg wound, the
+/// low flag, aim, fire, crouch) does not climb it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WalkGait {
     /// Any gait walks it.
@@ -654,7 +658,7 @@ pub const POCKET_EXIT_LOW_M: f32 = 0.2;
 pub const POCKET_EXIT_HIGH_M: f32 = 1.35;
 pub const POCKET_EXIT_FLOORS: usize = 2_000;
 /// The client's step up (the live `cc_step_height` 0.80, `startup.cfg`:33; A364 C2 row 2: was the exe's default step 0.6; a
-/// sprinting body climbs a vertical face to 0.85, a walking one to 0.755, [`Body::walked_step`]), and its standing jump's top
+/// sprinting body climbs every vertical face measured to 0.85, a walking one to 0.755, [`Body::walked_step`]), and its standing jump's top
 /// (the `on_site*` clips' root, PROVEN, the jump study), metres.
 pub const STEP_UP_M: f32 = 0.8;
 /// [A364 C2] `cc_move_step_margin` (`startup.cfg`, 0.040): the margin under the walking move test's cylinder ([`Body::walked_step`]).
@@ -3602,7 +3606,7 @@ impl WalkGrid {
     /// [A364 C2] The gait the Walk link `a` -> `b` needs ([`WalkGait`]), or `None` where `a` has no Walk link to `b`: a rise of
     /// [`Body::walked_step`] or more (0.76 m with the clients' numbers) is climbed only sprinting. Derived from the two floors'
     /// heights: in neither the file nor the digest.
-    pub fn walk_gait(&self, a: NodeId, b: NodeId) -> Option<WalkGait> {
+    pub fn link_gait(&self, a: NodeId, b: NodeId) -> Option<WalkGait> {
         self.links(a).any(|(c, kind)| c == b && kind == LinkKind::Walk).then(|| {
             if self.height[b as usize] - self.height[a as usize] >= self.body.walked_step() { WalkGait::Sprint } else { WalkGait::Any }
         })
@@ -4039,7 +4043,10 @@ impl WalkGrid {
     /// `max_rise` metres (`None`: as high as the grid's own links, the
     /// grid body's [`Body::max_jump`]): a body that cannot sprint (a battery
     /// carrier) clears [`STANDING_JUMP_M`] at most, and a jump link above
-    /// that is a link it cannot take.
+    /// that is a link it cannot take. [A364 C2] With a limit the body is one
+    /// that cannot sprint: it takes no Walk link only a sprint climbs either
+    /// ([`WalkGait::Sprint`]: a carrier never sprints, `can_sprint` 0x2DBF40,
+    /// `sprint_state.md`:24).
     pub fn start_search_reaching(
         &self,
         from: NodeId,
@@ -4292,7 +4299,7 @@ pub struct SlicedSearch {
     closed: u16,
     expanded: usize,
     budget: usize,
-    /// The highest jump link the body takes ([`WalkGrid::start_search_reaching`]).
+    /// The highest jump link the body takes ([`WalkGrid::start_search_reaching`]); with one, no sprint-only Walk link either.
     max_rise: Option<f32>,
     /// The floor expanded so far that is nearest the goal (by the
     /// heuristic), and how near: where [`Self::partial`] leads.
@@ -4375,6 +4382,13 @@ impl SlicedSearch {
                 }
                 if kind == LinkKind::Jump
                     && max_rise.is_some_and(|top| grid.height[v as usize] - grid.height[u as usize] > top)
+                {
+                    continue;
+                }
+                // [A364 C2] Nor a Walk link only a sprint climbs ([`WalkGait::Sprint`]).
+                if kind == LinkKind::Walk
+                    && max_rise.is_some()
+                    && grid.height[v as usize] - grid.height[u as usize] >= grid.body.walked_step()
                 {
                     continue;
                 }
@@ -5809,9 +5823,20 @@ pub(crate) mod tests {
             assert_eq!(walk(low, top), up, "up {height}");
             assert_eq!(walk(top, low), up, "down {height}");
             let gait = if height < client.walked_step() { WalkGait::Any } else { WalkGait::Sprint };
-            assert_eq!(grid.walk_gait(low, top), Some(gait), "up {height}");
-            assert_eq!(grid.walk_gait(top, low), Some(WalkGait::Any), "down {height}");
-            assert_eq!(grid.walk_gait(low, low), None);
+            assert_eq!(grid.link_gait(low, top), Some(gait), "up {height}");
+            assert_eq!(grid.link_gait(top, low), Some(WalkGait::Any), "down {height}");
+            assert_eq!(grid.link_gait(low, low), None);
+            // A body that cannot sprint (a carrier's search, with a jump limit) does not walk up a sprint's riser; the riser is
+            // this yard's only way up.
+            let carrier = |a: NodeId, b: NodeId| match grid.start_search_reaching(a, b, usize::MAX, Some(STANDING_JUMP_M)) {
+                Err(search) => search,
+                Ok(mut search) => {
+                    let mut iters = usize::MAX;
+                    search.step(&grid, |_| true, |_| 1.0, &mut iters).unwrap()
+                }
+            };
+            assert_eq!(matches!(carrier(low, top), Search::Found(_)), gait == WalkGait::Any, "carrier up {height}");
+            assert!(matches!(carrier(top, low), Search::Found(_)), "carrier down {height}");
         }
     }
 
