@@ -637,7 +637,71 @@ much of the motion is negative; a line at every reset). A jittered picture witho
   Not seen: a moving camera (the camera's motion in rt 18, a cut at a respawn, the death camera or
   another player watched, a cut taken falsely in a fast turn), the first-person models (their jitter and
   motion), the `Scene` and `Targets` resets, DLSS taking any of it (so the jitter's sign as DLSS wants
-  it), a played match, the lobby, Windows; the sites' install is not in the Unicorn check.
-- Open, in the game: the motion compute pass, the screen-image swap, the mip bias's reach (the link's,
-  after it); of the inputs: what in the lit frame does not follow the jitter, which passes take one eye
-  ray and mirror it, a cut under the thresholds.
+  it), a played match, the lobby, Windows. (The jitter's sign and the sites' install in the Unicorn
+  check: done with the frame, below.)
+- **The frame joined** (the link, the render size and the frame's inputs in one branch; "The link"):
+  implemented: the start's asks, the Setup at the frame's own size and formats, a frame at the screen
+  image (the copy-in of `$user$present` and the depth, the motion pass, the copy of the helper's output
+  into the screen's texture, the screen image's quad drawing it), the jitter and resets told, native asked
+  by a link that stops, one timeline semaphore per Setup.
+  Tested: the crate's tests (the link's transition with a picture as its frame, the gate, the cameras'
+  reprojection matrix against two projections of a point, a frame that is none of the inputs') and
+  Clippy; `check_hud_options_026g.py`, 281 cases (new: a start where DLSS is to run writes the thirteen
+  sites of the 3D frame, each a jump into the arena with nops to its span's end, each span made writable
+  once and given its protection back; every other start leaves the game's bytes and makes no page
+  writable: the sites' install is in the Unicorn check now); `check_engine_026g.py`; `engine_026g.py`,
+  `hooks_026g.py`, `dlss_motion_026g.py` and `link_026g.py` `--check`.
+  Seen in the game (2026-11-12, Wine 11.8 staging, RTX 3060 Ti, the helper PR #1709's build, the replay
+  `rec026g_20261109-195343` whose camera stands still, no input, a headless display, fullscreen
+  1920x1080, 17 to 24 frames a second; the test folder and its run script are the worktree's
+  `private/dlss-frame/`, the pictures `private/renders/dlss-frame/`):
+  - **DLSS's output is the frame shown, the HUD over it at full size.** The log of a run: `render size:
+    the 3D frame 1280x720 of 1920x1080`, `dlss: offered: DLSS at Quality renders 1280x720 for 1920x1080
+    (the helper's answer: 1280x720); the Setup is sent, 19 MiB shared`, `dlss: the first frame is
+    submitted: the screen image shows the helper's output from here on`, and every 300th frame `dlss:
+    frame 300: its picture is copied in, the screen image shows the helper's output of it; the timeline
+    at 600; the helper's last report: frame 299, DLSS took 1849 us of the GPU` (1.3 to 6.5 ms over the
+    runs, beside other workers' builds). The shared depth as D24_UNORM_S8_UINT was taken by the helper
+    and by DLSS. `still-side-by-side.png` and six `still-crop-*.png` (3x, nearest pixel): the same still
+    frame native, at 0.667 through the stock stretch, and with DLSS: thin branches and the roof's edge
+    whole where the stretch breaks them into blocks, the slabs' edges smooth, the grass blades apart;
+    the minimap, the objective letters and the countdown text the same pixels in all three;
+  - **in numbers** (the root mean square difference of 255 from the native frame, three still parts of
+    the picture; two native frames 4 s apart differ by 1.5 to 2.4): the stock stretch 6.5, 8.0 and 11.1;
+    DLSS 3.5, 4.3 and 7.4. Two DLSS frames 4 or 8 s apart differ by 0.7 to 1.2: steadier than the native
+    frame is with itself, no shimmer and no smear in the still parts;
+  - **the jitter's sign, settled:** four builds, DLSS given the frame's jitter with each sign of each
+    axis, the same frame against native (the three parts): as it is (+x, +y) 6.7, 3.1 and 4.4; (-x, +y)
+    8.9, 4.8, 6.2; (+x, -y) 9.6, 6.4, 8.5; negated (-x, -y) 10.9, 7.0, 9.1, with a weave on flat walls
+    and the slabs' edges broken into dashes; two frames of the negated build differ by 1.4 to 2.1 where
+    the right one's differ by 0.7 to 1.2. Without jitter and with the game's AA (the join's first build)
+    DLSS's picture was soft: 11.1, 5.8, 7.2. So DLSS takes the picture's move, x right and y down, and
+    the probe's "negated sample offset" is this same value: the sample is at the centre minus the move;
+  - **on the inputs' open point** (the lit frame following a one-pixel jitter less exactly than the
+    depth): nothing of it shows in DLSS's still frame; its frames are steadier than native's, so no pass
+    is named here;
+  - **the helper ended from outside in the match** (kill -9 at second 33): `dlss: the helper is gone
+    with frames waited for: the timeline signalled up to 920 from the game`, `dlss: on, not run: the
+    helper ended, exit code 1`; the capture a second later and every one after is the native frame
+    (`helper-killed-crop-thin-lines.png`), the match going on;
+  - **the motion pass's camera math, on a read-back** (`SKHID_DLSS_MOTION_PROBE`, the jitter running):
+    the previous camera a centimetre to the right of this frame's, the pass's output and the frame's
+    linear depth read back at frames 150, 450 and 750. Of 1280x720 pixels, the 912,000 between 0.3 and
+    50 m (the others are the sky) have the motion their depth gives, `-5.651 / z` pixels along x: off by
+    0.0002 to 0.0018 pixel on average by depth band, 0.0044 at most (the half float of the linear
+    depth), and exactly 0 along y. So the clip position from the depth, the jitter taken out, the
+    matrix's rows and the pixel units are right; the previous camera was made up, not a frame's;
+  - the tick off with `SKHID_DLSS_RENDER_SCALE=0.667`: the stretch stays (the link asks nothing of the
+    render size then).
+  Not seen: a camera that moves (the replay's stands: the motion of a turn or a walk as DLSS takes it,
+  a cut's reset), rt 18's object motion as DLSS takes it (players run through the view in the replay:
+  no smear was looked for on them), the first-person weapon and hands, particles and transparent
+  surfaces, a frame that is none of the inputs' (the lobby, a view mode), a new size in the game (the
+  Settings: input), the exit through game::exit, a frame whose command buffers were busy, windowed,
+  Windows, a GPU where DXVK's depth-stencil is not D24S8. Not played, not released.
+- Open: `client/dlss-helper/PROTOCOL.md` (PR #1709) to say a Setup's semaphore may be a new one ("The
+  link", a new size); the mip bias's reach (not looked at in a capture); the helper's barriers name a
+  D24S8 image's depth aspect alone (a validation layer would ask for both: the driver takes it); the
+  screen image's point sampler for the frames the link does not take (the first second, a busy frame);
+  of the inputs: which passes take one eye ray and mirror it, a cut under the thresholds; and the played
+  match.
