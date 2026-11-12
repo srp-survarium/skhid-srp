@@ -69,7 +69,10 @@ players.
   drug in use can lift the pool over 0 again in the same step, after the bullet (23 dead bodies show a pool over 0).
 - Concussion, poisoning and the pain's thresholds gate nothing: their only readers are the damage sounds (0x23EFD0,
   0x23F610) and the screen's effects (0x32A7A0). A painkiller in use takes a tenth of the pain's damage
-  (`damage_protection`, 0x33DB30).
+  (`damage_protection`, 0x33DB30). The live game's medical tab (client patch 94, `medical_skills.rs`
+  `pain_coefficient`) lowers that coefficient by the victim's rank of Potent Painkiller (skill 301): 0.9 - 0.01 a rank
+  from revision 50 (0.87 at rank 3: 26 of 26 bullets), 0.9 - 0.005 a rank at revisions 47 to 49 (0.875 at rank 5: 39
+  of 39).
 
 ## Against the bots
 
@@ -83,5 +86,5 @@ players.
 
 ## Not read
 
-The armour of a bullet that meets several boxes; fall damage's entry (cited from `fall_damage.md`); a pain factor
-of 0.875 on some played bodies' hits (in none of the stock data: the live client's own patches are to be read).
+Fall damage's entry (cited from `fall_damage.md`); 24 + 19 bullets on bodies under a painkiller at other pain
+ratios (0.74 to 0.97): their boxes' records had left the part's list before the world.

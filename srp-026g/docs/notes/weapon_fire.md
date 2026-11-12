@@ -84,8 +84,9 @@ a shot; the magazine fell by exactly the shots in 56,617 pairs and by more in no
 length (0x2E12B6, 0x2E165A); the clip turns the eye bone `Item`, and with it the head matrix (0x2DA4B0), **2.22
 degrees to the right at x = +1 and 2.44 to the left at x = -1**. The shake axis is the weight of the hands' clip
 `camerashake_v2` (0x2E39B0, for any living body), which turns `Item` 0.17 to 0.90 degrees off the aim at weight 1
-(mean 0.59; mean yaw 0.52 to the left) and moves only while the state at [[weapon+330h]+124h] is 5 (0x2E13DB: not
-named).
+(mean 0.59; mean yaw 0.52 to the left) and moves only while the weapon is in its fire state (weapon+330h is the
+weapon machine's current state, its +124h the state's id: 1 show, 2 hide, 3 idle, 4 reload, 5 fire, 6 chamber, 7
+throw, 8 melee; 0x2E13DB).
 
 ## The recoil
 
@@ -132,9 +133,14 @@ last tick was all PID; a body's kicks over the draws from its saved seed are one
 
 ## Not read
 
-Why a fifth of the passes are 1 to 3 ms off (the clip's own clock is not in a world: a traced run at the
-next-event routine 0x3B42F0 settles it); who seeds the weapon's own generator (only its constructor and
-`deserialize` write it); what state gates the shake clip's play (0x2E13DB); the cone of a weapon with a scope (some
-played bodies' cones are 2 or 4 times the weapon's table value: the scopes' modifications are not read). A weapon
+Why a fifth of the passes are 1 to 3 ms off (the clips' clocks ARE in every world, as the animation's mixing tree:
+`outside_a_world.md`; its decode settles this without a traced run); who seeds the weapon's own generator (only
+its constructor and `deserialize` write it).
+
+Settled: the hip and aim multipliers of the cone are the weapon config's `dispersion/from_the_hip_multiplier` and
+`aim_multiplier` (1 when absent, 0x330FB2, 0x330FEB); no modification and no scope changes them. The played
+bodies' cones at 2 or 4 times their kit gun's value were **a gun picked up from another body** (client patch 85):
+with the gun really held (the head's pickup record), 0 of 33,912 and 1 of 54,077 player cones are off, and all
+3,845 player aim times fit. A weapon
 tick that is not 50 ms comes with an input at a time off the 50 ms
 grid inside the step (1,466 of 1,472 such worlds).

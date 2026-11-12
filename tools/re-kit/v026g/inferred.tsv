@@ -1060,6 +1060,7 @@ va	status	ref_021d	name
 0x001ef9c0	inferred-medium	0x00155280	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf0<void,vostok::render::scene_renderer>,boost::_bi::list1<boost::_bi::value<vostok::render::scene_renderer *> > > >::manager
 0x001f01b0	inferred-medium		survarium::open_file_impl
 0x001f1070	inferred-medium	0x001f5c52	survarium::player_profile::deserialize_static
+0x001f1120	inferred-high		survarium::player_profile::deserialize_static_kits [descriptive]
 0x001f1350	inferred-medium	0x001f5b53	survarium::inventory_item_descr::deserialize
 0x001f17c0	inferred-medium		survarium::player::collision_transform
 0x001f1990	inferred-medium	0x00156074	survarium::player_creation_params::load
@@ -2186,6 +2187,7 @@ va	status	ref_021d	name
 0x00310330	inferred-medium	0x00208d38	survarium::weapon_core_throw_grenade_base_substate::`scalar deleting destructor'
 0x003103a0	inferred-medium		survarium::weapon_core_throw_grenade_base_substate::initialize
 0x00310680	inferred-high		survarium::weapon_core_throw_grenade_base_substate::on_animation_event
+0x003107b0	inferred-high		survarium::weapon_core_melee_state::weapon_core_melee_state
 0x003108b0	inferred-medium	0x00209592	survarium::weapon_core_melee_state::`scalar deleting destructor'
 0x00310e40	inferred-high	0x001f34e8	survarium::weapon_core_reload_state_base::on_animation_end_impl
 0x00310e70	inferred-high	0x001f3567	survarium::weapon_core_chamber_a_round_state_base::on_animation_end_impl
@@ -2335,6 +2337,7 @@ va	status	ref_021d	name
 0x00333580	inferred-medium		survarium::composite_game_effect::on_event
 0x003340c0	inferred-medium		survarium::composite_game_effect::activate_effect
 0x003341d0	inferred-medium		survarium::composite_game_effect::deactivate_effect
+0x00335990	inferred-high		survarium::player_logic_stand_state::movement_clip_pair [descriptive]
 0x00337480	inferred-medium		survarium::player_logic_stand_jump_state::serialize
 0x00338280	inferred-medium		survarium::player_logic_dead_state::get_death_animations
 0x00338330	inferred-medium		survarium::player_logic_dead_state::activate
@@ -3171,6 +3174,7 @@ va	status	ref_021d	name
 0x002d0a60	inferred-medium		survarium::game_world_core::push_world_event
 0x002e58b0	inferred-medium		survarium::damage_model::find_body_part
 0x002e5900	inferred-high		survarium::damage_model::dispatch_affect
+0x002e5990	inferred-medium		survarium::damage_model::recount_broken_limbs [descriptive]
 0x00131ed0	inferred-high		vostok::render::camouflage_decal_texture_type_baker_cook::find_baked_texture
 0x00132e40	inferred-high		vostok::buffer_vector<vostok::render::baked_texture_data>::erase
 0x00133120	inferred-high		vostok::render::baked_texture_data::baked_texture_data
@@ -3455,6 +3459,7 @@ va	status	ref_021d	name
 0x00300ce0	inferred-medium	0x001e769b	survarium::victory_item_core::picked_up_by_player
 0x00300f20	inferred-high	0x001e779c	survarium::victory_item_core::put_to_container
 0x00335ea0	inferred-medium		survarium::player_logic_stand_on_site_state::selected_animations
+0x00335f10	inferred-high		survarium::player_logic_stand_run_state::get_movement_lexeme [descriptive]
 0x00336400	inferred-medium		survarium::player_logic_stand_run_state::selected_animations
 0x003364f0	inferred-medium		survarium::player_logic_stand_sprint_state::selected_animations
 0x00336a10	inferred-medium		survarium::player_logic_stand_sprint_state::initialize

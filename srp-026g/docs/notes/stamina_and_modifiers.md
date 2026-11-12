@@ -55,10 +55,13 @@ steady sprint steps within 0.005 m/s). The other gaits' speeds from their clips 
 - A jump's spending starts 150 ms after the press in 4,617 of 4,799 jumps; 980 of 6,024 presses by bots never took
   off and spent nothing.
 - The jump's gate (0x2FC230): the key, no leg wound (0x2FC254), the low flag clear (0x2FC260), the bar at the cost
-  (0x2D6420), on the ground (0x7EF90); and no crouch state has a jump (`crouch_logic.md`). Of 6,069 lone presses by
+  (0x2D6420), on the ground (0x7EF90: the capsule not crouched, the vertical fall velocity under 4 m/s, the
+  supporting normal no steeper than `cc_max_slope_angle_cos`, 55 degrees in `startup.cfg`); and no crouch state has a jump (`crouch_logic.md`). Of 6,069 lone presses by
   bots with 250 ms before the next world, 1,557 spent nothing: the bar under the cost in the world before 580; of
   the other 977: crouched 311, already in a jump 204, a leg pool empty 166, other 10, none of these seen in the two
-  worlds around the press 339 (the worlds are a second apart). At a tick's precision (a replayed match's traced
+  worlds around the press 339 (the worlds are a second apart), of which by the gate's own tests: the crouch key held
+  between the worlds 68, the selector still in the jump's landing 85, a forced crouch 10, ground steeper than 55
+  degrees 60, falling at 4 m/s or more 4, descending 58, climbing 26, nothing seen 28. At a tick's precision (a replayed match's traced
   steps): 138 presses, 130 took off (129 of them one-tick presses), 8 did not: in a jump's air 5, falling 1,
   crouched 1, none of the controller's causes 1 (the bar or a leg, which a trace does not hold).
 - A hit's drain clusters at the weapons' values (15, 20, 30, 35, 50, 60). The hits that drain nothing are hits
