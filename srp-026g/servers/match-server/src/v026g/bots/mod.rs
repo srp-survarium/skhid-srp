@@ -1419,6 +1419,14 @@ impl Bots {
         }
     }
 
+    /// [F1] A trusted world's saved stamina record of one place (`srp_validate::world::Stamina`): a bot's own bar is the
+    /// record's at the world's time, its ticks since played again on it ([`stamina::Reckoning::saved`]).
+    pub fn stamina(&mut self, place: Place, saved: stamina::Saved) {
+        if let Some(Some(bot)) = self.bots.get_mut(place) {
+            bot.stamina.saved(saved);
+        }
+    }
+
     /// [2e] A trusted world's recent hits on one place (`m_recent_hits`: the world's ms, each hit's stopping speed): the
     /// stagger of its reckoned body ([`kin::SprintGates`], [`kin::SpeedTerms::LegsStagger`]).
     pub fn hits(&mut self, place: Place, hits: &[(u32, f32)]) {

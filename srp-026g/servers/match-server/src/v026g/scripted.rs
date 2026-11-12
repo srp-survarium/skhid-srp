@@ -483,7 +483,9 @@ fn kits_of(profile: &MatchProfile) -> [Vec<Item<'static>>; 3] {
 fn valid_empty_inventory() -> Vec<u8> {
     let mut bytes = vec![0; 4]; // no hit effects
     bytes.extend([0xff, 0xff]); // no active objects
-    bytes.extend([0; 29]); // stamina
+    // The stamina: a full bar (`m_value` 100), the rest zero (no spending, the flag clear, no modifiers).
+    bytes.extend(100.0f32.to_le_bytes());
+    bytes.extend([0; 25]);
     bytes.extend([0; 5]); // weight and inventory bool
     bytes.extend([0xff, 0, 0, 0]); // no carried item, artefacts or slots
     bytes

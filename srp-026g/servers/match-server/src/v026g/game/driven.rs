@@ -690,7 +690,7 @@ impl Game {
         };
         for block in blocks {
             let place = usize::from(block.place);
-            let Some((_, motion)) = Motion::find(block.state, snapshot.time) else {
+            let Some((items, motion)) = Motion::find(block.state, snapshot.time) else {
                 log::debug!(
                     "Match {id:#x}: player {place}'s body is not read in the world at {} ms",
                     snapshot.time
@@ -730,6 +730,21 @@ impl Game {
                     walkers.bots.pools(place, pools);
                 }
                 walkers.bots.bullet_hit(place, damage.last_hit_time_ms);
+            }
+            // [F1] The place's saved stamina record (`srp_validate`'s view of the state, the world format's one definition): a
+            // bot's own bar is the record's.
+            if let Ok(state) = srp_validate::world::PlayerState::read(block.state, items, None) {
+                let saved = state.stamina();
+                walkers.bots.stamina(
+                    place,
+                    crate::v026g::bots::stamina::Saved::of(
+                        snapshot.time,
+                        saved.value().get(),
+                        saved.is_low_stamina(),
+                        saved.current_time_ms(),
+                        saved.last_spending_time_ms(),
+                    ),
+                );
             }
             let notes = walkers.bots.fixed(place, fix, health);
             log_notes(id, notes);
