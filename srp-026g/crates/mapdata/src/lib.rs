@@ -452,6 +452,7 @@ pub fn grid_key_with_links(
     // And the walk check over every link.
     if body.client_controller && body.walk_every_link {
         digest.u32(WALK_EVERY_LINK_ALGO);
+    }
     // And the jumps' flights ending at the game's last air step.
     if body.jump_air_steps {
         digest.u32(JUMP_AIR_STEPS_ALGO);

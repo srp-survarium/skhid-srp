@@ -312,8 +312,11 @@ pub struct Body {
     /// no body walks on near either floor, a rise, a floor with no standing room), not only those beside a face over the
     /// body's slope: in the stance the route takes there (crouched where either floor has no standing room, as the bots'
     /// routes crouch), from the floor and from where the link before it along the same way left the body, and keeps it only
-    /// where the body arrives on two of the three lines (`grid::controlled`). A failing link that is a floor's only way in or
-    /// back stays, marked ([`WalkGrid::walk_marked`]). Off: one link at a time, from a start pushed out of the faces, kept
+    /// where the body arrives on two of the three lines, or comes onto the far floor's level walked on up to 1.5 m past it
+    /// (`grid::controlled`). Of the links that fail, only a riser the body stalls under is cut (a rise over 0.2 m walked under
+    /// half the way, `controlled::CUT_RISE_M`), and only where a walking way round it leads from its foot to its top; a cut
+    /// that would leave a floor without its only way in or back, or its only walking one, is not made. The risers kept so
+    /// stay, marked ([`WalkGrid::walk_marked`]). Off: one link at a time, from a start pushed out of the faces, kept
     /// at half the way (owner-14 report row 12: the client's tick stalls on chains of links that each passed alone; 924
     /// blocked worlds within 0.5 m of a stall). A build input: in the key when set.
     pub walk_every_link: bool,
