@@ -35,7 +35,8 @@ name the editor gives, its camouflage names (`<camo>`, no normal,
 `<camo>_smap`, no fresnel), the identity in its camouflage matrix, the
 render instance (one reference more each), the surface's index, the scale
 (`data/camo_scale`, else 4.0), 1 at +79Ch, 0 at +7A0h and the name
-`srpw1_<camo>_<model>_<index>` with '/' and '\\' made '_'; after each
+`srpw1_<camo>_<model>_<index>` made `srpw1_<its FNV-1a 64, 16 hex digits>`
+(a long camouflage and model too); after each
 callback the reference given back and the P deallocated from the game's
 allocator. Without one of them: no query, no allocation and no lookup of a
 key a table does not have. The original asks for nothing.
@@ -78,11 +79,22 @@ STOP_AT, HEAP, STACK = 0x30000000, 0x31000000, 0x32000000
 ALLOCATOR, RESULT = 0x34000000, 0x35000000
 T_BOOL, T_INT, T_FLOAT, T_TABLE, T_STRING = 0, 1, 2, 3, 5
 CAMO = "character/human/base_camo/multicam_512"
+LONG_CAMO = "character/human/camo/black_market/brown_leather_03"      # a player's crash, 2026-11-12
+LONG_MODEL = "weapons/pkp_pecheneg/pkp_pecheneg_n_cobra_ekp_8"
 BAKE_NAME_TEST, BAKE_OWN, BAKE_NAMED, BAKE_NO_LAYER = 0x12E11B, 0x12E12B, 0x12E158, 0x12E25A
 BAKE_FRESNEL_SKIP = 0x12E0EA                   # je 0x12E25A: the fresnel bake has no camouflage layer
 BAKE_PARAMETERS_SIZE = 0x8BC
 SUFFIXES = (b"_camo", b"_camo_nmap", b"_camo_fmap", b"_camo_smap")
 MODEL = "weapons/uzi"
+
+
+def baked_name(name):
+    """The baked files' name patch 44 makes of its whole name: srpw1_ and
+    the name's FNV-1a 64."""
+    h = 0xCBF29CE484222325
+    for byte in name.encode():
+        h = ((h ^ byte) * 0x100000001B3) & 0xFFFFFFFFFFFFFFFF
+    return f"srpw1_{h:016x}"
 
 
 class Failed(Exception):
@@ -206,10 +218,11 @@ class Run:
         if name == "appendf":
             target, fmt = reg(UC_X86_REG_EAX), self.text(arg(0))
             values, k = [], 1
-            for spec in re.findall(r"%[sd]", fmt):
-                values.append(self.text(arg(k)) if spec == "%s" else struct.unpack("<i", struct.pack("<I", arg(k)))[0])
+            for spec in re.findall(r"%(?:s|d|08x)", fmt):
+                values.append(self.text(arg(k)) if spec == "%s" else
+                              struct.unpack("<i", struct.pack("<I", arg(k)))[0] if spec == "%d" else arg(k))
                 k += 1
-            text = (fmt.replace("%s", "{}").replace("%d", "{}")).format(*values).encode()
+            text = re.sub(r"%(s|d)", "{}", fmt).replace("%08x", "{:08x}").format(*values).encode()
             begin, end, cap = self.string(target)
             text = text[:cap - begin - 1]       # vsnprintf into cap - begin bytes
             self.emu.mem_write(end, text + b"\0")
@@ -383,6 +396,8 @@ def main():
         ("twelve surfaces: eight", weapon({"camouflage": CAMO}), 12, 4.0, MODEL, CAMO),
         ("a model path with \\", weapon({"camouflage": "camo\\x"}, model="weapons\\ak_74n/premium"), 2, 4.0,
          "weapons\\ak_74n/premium", "camo\\x"),
+        ("the camouflage and model of a long name", weapon({"camouflage": LONG_CAMO}, model=LONG_MODEL), 1, 4.0,
+         LONG_MODEL, LONG_CAMO),
     )
     for title, root, surfaces, with_render in plain:
         results = []
@@ -417,7 +432,6 @@ def main():
         say(len(queries) == want and len(allocations) == want,
             f"{title}: {want} queries and allocations (got {len(queries)}, {len(allocations)})")
         say(run.read(render + 0xD0) == 5 + want, f"{title}: the render instance holds {want} references more")
-        safe = lambda text: text.replace("/", "_").replace("\\", "_")
         for i, (q, a) in enumerate(zip(queries, allocations)):
             _, reqs, variant, words, fobj, allocator, parent, flag, p, params = q
             names, matrix, p_model, surface, p_scale, one, editor = params
@@ -433,7 +447,7 @@ def main():
                 and run.section_name(bake_done) == ".srpw",
                 f"{title} #{i}: the function: bind's manager | 1, bake_done in .srpw, 0, P")
             say(names == {"diffuse": camo, "normal": "", "fresnel": "", "smoothness": camo + "_smap",
-                          "name": f"srpw1_{safe(camo)}_{safe(model_path)}_{i}"},
+                          "name": baked_name(f"srpw1_{camo}_{model_path}_{i}")},
                 f"{title} #{i}: the names {names}")
             say(matrix == identity, f"{title} #{i}: the camouflage's matrix is the identity")
             say(p_model == render and surface == i and abs(p_scale - scale) < 1e-6 and one == 1 and editor == 0,
@@ -447,7 +461,7 @@ def main():
         say(run.read(render + 0xD0) == 5, f"{title}: every reference given back")
     say(original[BAKE_FRESNEL_SKIP - base.IMAGE_BASE - 0x1000 + 0x400:][:6] == bytes.fromhex("0f846a010000"),
         "the fresnel bake's `je 0x12E25A` (0x12E0EA): the place of a bake with no camouflage layer")
-    weapon_bake = f"srpw1_{CAMO.replace('/', '_')}_weapons_sks_sks_0"
+    weapon_bake = baked_name(f"srpw1_{CAMO}_weapons/sks/sks_0")
     character_bake = "edge_researcher_03_legs_s3"
     for kind, letter in ((0, "d"), (1, "n"), (3, "s")):
         for layer_title, layer in (("no name", ""), ("a null name", None), ("a name", CAMO)):

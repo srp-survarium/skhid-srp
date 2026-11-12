@@ -19,7 +19,7 @@ P's first two decal layers (P + i*270h) the decal's texture, `_nmap`,
 point 1.0 lower and the two sides halved (a u64 0 or a value that is no
 integer: the decal's default, the left or the right side of the receiver),
 the camouflage's layer as patch 44's, the name `srpw1_<camouflage>_<model>
-_<surface>` and `_<texture>_<high><low>` a decal ('/' and '\\' made '_'); a
+_<surface>` and `_<texture>_<high><low>` a decal, made `srpw1_<its FNV-1a 64>`; a
 third decal, an entry that is no table or has no texture: not painted;
 `data/decals` empty and no camouflage: no query.
 
@@ -144,7 +144,6 @@ def close(a, b, eps=2e-5):
 
 
 def check_bake(original, build, say):
-    safe = lambda text: text.replace("/", "_").replace("\\", "_")
     v1 = (0x98074123, 0x76961E1C)          # placed values (any u64 the editor gives)
     v2 = (0x20080000 ^ 0x5A5, 0x8A30CE00 ^ 0x1234)
     plain = (
@@ -196,8 +195,8 @@ def check_bake(original, build, say):
             want_camo = {"diffuse": camouflage, "normal": "", "fresnel": "",
                          "smoothness": camouflage + "_smap"} if camouflage else \
                 {"diffuse": "", "normal": "", "fresnel": "", "smoothness": ""}
-            want_name = f"srpw1_{safe(camouflage or '')}_{safe(camo.MODEL)}_{i}" + "".join(
-                f"_{safe(tex)}_{high:08x}{low:08x}" for tex, (low, high) in (d for d in decals if d))
+            want_name = camo.baked_name(f"srpw1_{camouflage or ''}_{camo.MODEL}_{i}" + "".join(
+                f"_{tex}_{high:08x}{low:08x}" for tex, (low, high) in (d for d in decals if d)))
             got_camo = {k: v for k, v in names.items() if k != "name"}
             say(got_camo == want_camo and names["name"] == want_name and p_model == render and surface == i
                 and one == 1 and editor == 0,

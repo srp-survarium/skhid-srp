@@ -2552,8 +2552,10 @@ weapon keeps its own relief, and the Rust patch `weapon_camo` at the baker's 0x1
 left empty no layer on a weapon, where the game would take the surface's own `<diffuse>_camo...`;
 2026-11-11, client_patch.md section 3.41), the identity as the
 camouflage's matrix, the render instance (one reference more), the surface's index, the scale
-(`data/camo_scale`, else 4.0), and the baked files' name `srpw1_<camouflage>_<model>_<surface>`
-('/' and '\\' as '_'); its callback lets go of the reference and frees the parameters. The baker
+(`data/camo_scale`, else 4.0), and the baked files' name: `srpw1_<camouflage>_<model>_<surface>`
+and the decals' parts, made `srpw1_<its FNV-1a 64, 16 hex digits>` (since 2026-11-12: the whole
+name, a camouflage, a model and two decals, made a path longer than Windows' 260 characters with a
+long Documents folder; the file was not made and the game stopped at an assertion); its callback lets go of the reference and frees the parameters. The baker
 refuses a camouflage on a surface whose diffuse has no `_aoac` texture (it stays plain; a decal's
 fresnel and relief, which have no camouflage layer, are still baked there). Every register and the
 flags are kept, eax as the original's `lea` leaves it. Since patch 47 the camouflage's lookup and
