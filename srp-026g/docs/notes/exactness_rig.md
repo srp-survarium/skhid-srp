@@ -299,6 +299,40 @@ normal 38, a jump's flag 12, the velocity 9, the place 3) and the step's inputs.
 steps, at one of the 39 steps above) it stays within 5.6 cm and ends within 2.7 cm: the difference is carried,
 it does not grow.
 
+### 3g. What a step costs, and what was taken out of it (PROVEN as counts)
+
+Where a step's time goes on the shapes world (one thread; clocks and counts patched in for the measurement only):
+the casts are nearly all of it, and a cast is the exe's closest-point loop (`getClosestPointsNonVirtual` 0xD6CD0),
+7 to 8 rounds a call from its fixed first axis because the capsule's core is round. That arithmetic is the exe's
+and stays as it is. What is not the exe's is which triangles are cast at all: a leaf of a mesh's tree holds up to
+four, and every one was cast when the leaf's box met the swept box.
+
+- **A triangle wholly outside the swept shape's box grown by 0.02 m is not cast** (`out_of_reach`: the corners'
+  box in the mesh's frame, then Akenine-Moller's triangle-box test on the placed corners). Its cast is a miss:
+  the cast reports a hit only where the detector's distance is at most 0.001 m and goes to the penetration solver
+  only where the shapes' cores are under 0.01 m apart, and the detector's distance is never under the true one but
+  by rounding (its closest vector is a point of its simplex, so of the difference of the two shapes). Counted with
+  both run side by side: 2.06 million casts the test leaves out, none other than a miss.
+- The tree walk keeps its stack in the frame (one heap allocation a sweep before).
+
+| per step | bodies walking into what is there (36,000 steps, two maps) | traced play (8,993 steps) |
+|---|---|---|
+| triangle casts, before | 118.3 / 71.5 | 25.1 |
+| triangle casts, after | 45.1 / 30.5 | 10.2 |
+| closest-point rounds, before -> after | 997 -> 569 / 706 -> 435 | 145 after |
+| time (pairs run in turn, the least of each) | 86 -> 66 us / 75 -> 62 us | 21.1 -> 15.5 us |
+
+The first column is the walks of a cost test (300 bodies from floor triangles of Chemical Plant mode 2 / Vector
+Laboratory mode 4, straight on for three seconds, turning every second): 20 hits and 14 starts inside a face a
+step, four times the casts of play. The second is the chain of section 3f, the bodies of a real match.
+
+The answers are the same to the bit: the chain's and the 1,000 single steps' outputs byte for byte (993 of 1,000
+the game's in every field, as before), and every body's whole state after each of 4.32 million steps on all 72
+map files (1,000 bodies of 60 steps a file; there about 100 -> 71 us a step). The walk grid of Chemical Plant
+mode 2 built with its tick passes on the shapes world has the same 3.07 million links to the byte and takes 96.6 s
+on 4 CPUs (132.2 s before; 88.0 s on the placed triangles). After the change the closest-point loop is about 60 %
+of a step in play (19 calls, 10 of 16 us): what is left is the exe's own work.
+
 ## 4. What was read on the way (PROVEN)
 
 - `objectQuerySingle` 0xA14E0, a compound (type 31, 0xA22EE): the cast shape's box in the compound's frame,
