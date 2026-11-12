@@ -276,6 +276,29 @@ game, the same 1,000 steps: **every field the game's in 993** (981 before), the 
 fraction in the step: which comes first follows the exe's broadphase and trees, whose walks are not ported
 (LIKELY the cause, by that count).
 
+### 3f. A body kept across ticks (PROVEN as counts)
+
+The counts above start every step from the game's own state. A reckoning keeps one controller for a body and
+steps it tick after tick; `Controller::tick` is that step: the crouch key, the walk vector and the air control as
+the game's logic writes them, the sprint flag (+204h: `step_forward_impl` then takes the simple move test,
+0x7D33D), then the step.
+
+Every whole step of the traced match in order (`export_chain_cases.py`, `port-runner ... chain`,
+`chain_report.py`): 8,993 steps of 16 bodies in 50 chains of steps 50 ms apart (the longest 348 steps, 17 s). The
+port carries its own state from step to step; from the trace it takes only what the game wrote between two steps
+(a field whose bytes before a step are not its bytes after the step before: the crouch wish 71 times, the ceiling
+normal 38, a jump's flag 12, the velocity 9, the place 3) and the step's inputs.
+
+| | steps | share |
+|---|---|---|
+| each step from the game's own state: every field the game's | 8,954 of 8,993 | 99.6 % |
+| the chain: the origin the game's bits | 8,012 | 89.1 % |
+| the chain: within 1 mm / 1 cm / 10 cm of the game | 8,115 / 8,712 / 8,993 | 90.2 / 96.9 / 100 % |
+
+42 of the 50 chains are the game's bits from end to end; where a chain leaves the game (after a median of 162
+steps, at one of the 39 steps above) it stays within 5.6 cm and ends within 2.7 cm: the difference is carried,
+it does not grow.
+
 ## 4. What was read on the way (PROVEN)
 
 - `objectQuerySingle` 0xA14E0, a compound (type 31, 0xA22EE): the cast shape's box in the compound's frame,
