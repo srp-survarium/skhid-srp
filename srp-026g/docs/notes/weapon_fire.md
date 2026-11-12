@@ -54,7 +54,11 @@ and the stamina damage do not differ from revision 43 on). See also `player_bots
   **or the whole value, by the clip's length (80 at 750, 250 at 240, 500 at 120, one rifle's 96 at 625)**. So the
   rate is 60,000 / pass a minute (606 at 600 rpm), not rpm. Counted on the bullets in flight: where this and
   ceil(60,000 / rpm) - 1 differ, 440 gaps are on this value and 156 on the other; a fifth of all passes (4,020 of
-  20,280) are 1 to 3 ms off it, on both sides, the rhythm staying shifted (not explained: below).
+  20,280) are 1 to 3 ms off it, on both sides: **the clip's clock is exact; the bullets' saved born time is not
+  the shot's once a bullet changes course** (a pierce or a ricochet re-bases it by the hit's time,
+  `bullet_flight.md`): on bullets still on their first segment the pass, the other of N - 1 and N for a whole
+  60000 / rpm after a rebuild of the tree, or a later selection on the 50 ms grid give 8,685 of 8,685
+  (`saved_mixing_tree.md`).
 - At each clip end (`on_animation_end` 0x30EA50) the FIRE in force decides: held, a shot and another pass; up, the
   state ends. **A pass under way when FIRE is let go still fires** if its end comes at or before the release's
   tick. FIRE pressed again before the next clip end goes on in the old rhythm; after it, a new run starts at the
@@ -133,9 +137,9 @@ last tick was all PID; a body's kicks over the draws from its saved seed are one
 
 ## Not read
 
-Why a fifth of the passes are 1 to 3 ms off (the clips' clocks ARE in every world, as the animation's mixing tree:
-`outside_a_world.md`; its decode settles this without a traced run); who seeds the weapon's own generator (only
-its constructor and `deserialize` write it).
+Who seeds the weapon's own generator (only its constructor and `deserialize` write it). The clips' clocks are in
+every world, as the animation's mixing tree: the next shot and a reload's end are read from it
+(`saved_mixing_tree.md`).
 
 Settled: the hip and aim multipliers of the cone are the weapon config's `dispersion/from_the_hip_multiplier` and
 `aim_multiplier` (1 when absent, 0x330FB2, 0x330FEB); no modification and no scope changes them. The played

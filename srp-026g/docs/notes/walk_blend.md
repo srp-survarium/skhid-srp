@@ -112,6 +112,8 @@ for six steps, about 24 mm; side changes a median 0.060 m/s); a rate change of o
 
 ## Not read
 
-Which node leads a group when transitions overlap; which clip's interval end is the
-bake of a start (the tree's node list at a start is in no trace). 0x3FE260 is only a function object's call
+Which node leads a group when transitions overlap. (What bakes a start is settled: every baking event of any
+node on the body inside the 0.3 s blend, each saved in the world: of 2,756 clean starts the first was the
+on-site clip's interval end in 1,042, the idle hands clip's in 603, none in 834; `saved_mixing_tree.md`.)
+0x3FE260 is only a function object's call
 operator, not a callback of its own.
