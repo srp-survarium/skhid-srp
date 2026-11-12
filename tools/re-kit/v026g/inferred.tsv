@@ -3602,3 +3602,8 @@ va	status	ref_021d	name
 0x002fbce0	inferred-medium		survarium::weapon_user_animations_selector::sprint_to_on_site_predicate
 0x002fbdf0	inferred-medium		survarium::weapon_user_animations_selector::crouch_on_site_predicate
 0x002fbe50	inferred-medium		survarium::weapon_user_animations_selector::crouch_run_predicate
+0x0032a9c0	inferred-high		survarium::body_part::update_movement_speed_modifier
+0x0032ab90	inferred-medium		survarium::body_part_threshold::apply_affects
+0x0032a600	inferred-medium		survarium::body_part::expire_affects
+0x0032ac90	inferred-medium		survarium::body_part::reset
+0x003200c0	inferred-medium		survarium::load_body_part_threshold

@@ -2438,3 +2438,4 @@ va	status	ref_021d	name
 0x00336a50	reviewed		survarium::player_logic_stand_sprint_state::finalize
 0x00336a90	reviewed		survarium::player_logic_stand_sprint_state::is_ready_for_transition
 0x002dc010	reviewed		survarium::base_player::max_speed
+0x002dbcd0	reviewed		survarium::base_player::update_stagger
