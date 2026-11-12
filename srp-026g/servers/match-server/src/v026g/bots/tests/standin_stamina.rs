@@ -207,6 +207,13 @@ impl Stamina {
         self.value
     }
 
+    /// [F1] The bar as the body's saved record has it in a world of `tick` (what a client writes: its value, its low flag,
+    /// its last spending); none while the model is off (`SRP_BENCH_STAMINA`): a bar that is never spent is no client's record,
+    /// and the bots then reckon their own as before.
+    pub(crate) fn saved(&self, tick: u32) -> Option<crate::v026g::bots::stamina::Saved> {
+        self.on.then_some(crate::v026g::bots::stamina::Saved { at: tick, value: self.value, low: self.low(), last_spend: self.last_sprint })
+    }
+
     pub(crate) fn low(&self) -> bool {
         self.flag == Flag::Low
     }

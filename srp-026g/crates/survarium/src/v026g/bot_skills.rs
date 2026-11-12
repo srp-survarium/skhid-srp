@@ -101,22 +101,27 @@ pub const AMMO_POUCH: &[(u16, u8)] = &[(102, 5), (104, 2), (108, 3), (109, 1)];
 /// The points of [`AMMO_POUCH`].
 pub const AMMO_POUCH_POINTS: u8 = 11;
 
-/// [A341] The medical block every tier adds (`SRP_BOT_MEDICAL_SKILLS`, on unless off), 15 points in the medical tab
-/// (`scripts/content-edit/medical-skills-1.json`, the tab the players' data ships), whose thresholds count apart from the
-/// aim and survival tabs, so the tiers' other rows and the tier a player meets do not change:
-/// - 302 Fast Bandaging, 5: a healing medicine's activation delay -2 % a rank, -10 % (the client's `Skills::use_time` at
+/// [A341, F65] The medical block every tier adds (`SRP_BOT_MEDICAL_SKILLS`, on unless off), 11 points in the medical tab
+/// (`scripts/content-edit/medical-skills-1.json`, the tab the players' data ships; thresholds 0/3/10/15/20), whose thresholds
+/// count apart from the aim and survival tabs, so the tiers' other rows and the tier a player meets do not change. Each rank
+/// is within the client's cap (`client-patches/rust/patches/src/medical_skills.rs` `Field::new`): a rank over its cap makes
+/// `Skills::parse` refuse the WHOLE set and the client gives the body no medical skill at all (`vostok/medical.rs`
+/// `unwrap_or_default`, PROVEN by the code: the 5-rank block of A341 had none in the client since the tree's rev-50 caps):
+/// - 301 Painkiller, 1 (row 1: the row-2 skills need 3 points above): a hit's pain coefficient -0.01, a painkiller's 1.5 s
+///   longer (`Skills::pain_coefficient`, `pain_duration_ms`);
+/// - 302 Fast Bandaging, 2 (its cap): a healing medicine's activation delay -5 % a rank, -10 % (`Skills::use_time` at
 ///   `medical.use_time` 0x33D486, XMM0 the activation delay, `sites_026g.tsv`), the medkit's 2 s to 1.8 s;
-/// - 312 Medical Training, 5 (needs 5 points above: 302's): `drug_amount_modifier` 0.05 a rank (modifier 57), the drug's
-///   amounts x 1.25;
-/// - 311 Metabolism, 5: natural regeneration starts 0.5 s a rank sooner (`Skills::regeneration_delay_ms`).
+/// - 312 Medical Training, 3 (its cap): `drug_amount_modifier` 0.08 a rank (modifier 57; the tab's own value,
+///   `scripts/content-edit/medical-skills-1.json`), the drug's amounts x 1.24;
+/// - 311 Metabolism, 5 (its cap): natural regeneration starts 0.5 s a rank sooner (`Skills::regeneration_delay_ms`).
 ///
 /// The bots' heal model reads the first two from the kit's modifiers (`match-server` `bots/plays/heal.rs`
 /// `DrugFactors`). Left out: 321 Adrenalin (a speed the bots' motion model does not know), 322 Additional Medicine and 341
 /// Medic (the bots' pockets ignore skills; no bot carries a Larkspur).
-pub const MEDICAL: &[(u16, u8)] = &[(302, 5), (312, 5), (311, 5)];
+pub const MEDICAL: &[(u16, u8)] = &[(301, 1), (302, 2), (312, 3), (311, 5)];
 
 /// The points of [`MEDICAL`].
-pub const MEDICAL_POINTS: u8 = 15;
+pub const MEDICAL_POINTS: u8 = 11;
 
 /// Whether the bots take [`MEDICAL`]: `SRP_BOT_MEDICAL_SKILLS` on unless `0`/`off`/`false`, and the players' skills tree of
 /// the game data in use has its skills (0.26g's own archive, the tests' data, has no medical tab: it came with a content
@@ -796,9 +801,9 @@ mod tests {
             assert_eq!(profile_movement_level(&profile, kits.len()), None);
         }
     }
-    /// [A341] The medical block is a set every tier can add on the players' tree (its tab's thresholds apart from the other
-    /// tabs), and it gives the client's packed ranks (modifier 43 `armored_trap`: 302 at bit 3, 311 at bit 6, 312 at bit 9,
-    /// `client-patches/rust/patches/src/medical_skills.rs` `Skills::parse`) and `drug_amount` 0.25, and nothing else.
+    /// [A341, F65] The medical block is a set every tier can add on the players' tree (its tab's thresholds apart from the other
+    /// tabs), and it gives the client's packed ranks (modifier 43 `armored_trap`: 301 at bit 0, 302 at bit 3, 311 at bit 6, 312 at bit 9,
+    /// `client-patches/rust/patches/src/medical_skills.rs` `Skills::parse`) and `drug_amount` 0.24, and nothing else.
     /// On the players' data (`SRP_GAME_DATA`, the live `server-game-data.db`): 0.26g's own archive has no medical tab.
     #[test]
     #[ignore = "needs SRP_GAME_DATA, the players' game data with the medical tab"]
@@ -819,8 +824,8 @@ mod tests {
                 let with = tree.modifiers(&skills);
                 let changed: Vec<usize> = (0..MODIFIERS).filter(|&i| (with[i] - without[i]).abs() > 1e-6).collect();
                 assert_eq!(changed, vec![index("armored_trap"), index("drug_amount")], "{tier:?} {pouch}");
-                assert_eq!(with[index("armored_trap")] - without[index("armored_trap")], (5 * 8 + 5 * 64 + 5 * 512) as f32);
-                assert!((with[index("drug_amount")] - 0.25).abs() < 1e-6);
+                assert_eq!(with[index("armored_trap")] - without[index("armored_trap")], (1 + 2 * 8 + 5 * 64 + 3 * 512) as f32);
+                assert!((with[index("drug_amount")] - 0.24).abs() < 1e-6);
             }
         }
     }

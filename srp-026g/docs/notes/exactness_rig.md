@@ -250,7 +250,8 @@ triangle, so it could meet a nearer face of another object, and met a primitive'
   0x8D680's; the virtual capsule support groups its sums differently). A hit's normal is rotated by the ray's own
   basis and made unit; the callback's fraction must be strictly over the hit's. **This build adds a second cast:**
   when the forward cast misses and the ray starts inside the shape's box, it casts back from the ray's end to its
-  start and reports `1 - fraction` with that cast's normal;
+  start and reports `1 - fraction` with that cast's normal (so a bullet that goes on from 1 mm inside a pierced hit
+  box meets that box's far side: an exit hit, `bullet_flight.md`);
 - a mesh: the ray's ends in the mesh's frame through `btTransform::inverse` 0x72D20, each triangle by
   `btTriangleRaycastCallback::processTriangle` 0xB8010 (the normal turned over when the start is not in front), the
   bridge's `reportHit` 0xA0F60 rotating the normal by the object's basis;

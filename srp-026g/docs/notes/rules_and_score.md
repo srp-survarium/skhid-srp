@@ -13,7 +13,9 @@ these rules in the lockstep; the server only relays entries and inputs and ends 
   now + floor(`respawn_time` x 1000 x max(0, 1 + the dying kit's modifier 60) + 0.5), rounded up to the 50 ms tick.
   `respawn_time` is the mode's: 10 s in the battery modes and Research, 8 s in Team Deathmatch; a kit with the radio
   has modifier 60 at -0.2. Counted: the delay fits 102,103 of 102,159 deaths of the first set and 48,962 of 49,164 of
-  the second; the others were shorter by about a quarter (its source in those kits is not read).
+  the second; the others were shorter by about a quarter: **two backpacks carry a built-in respawn bonus**
+  (`scavenger_back_7` -0.25, `bm_back_9` -0.20, as item default modifications; the terms add to the radio's). With
+  every kit item's bonus summed the delay fits 102,149 of 102,159 and 49,156 of 49,164.
 - **Who is placed**: at the tick whose time equals a body's respawn time; a body left without a free point is tried
   again 50 ms later.
 - **Where** (`select_respawn_points` 0x3171D0): the team's points whose zone checkers are empty and that have no
@@ -99,5 +101,6 @@ by anyone; its first spotter in its life gets event 19. Traps are not spottable.
 
 ## Not read
 
-What shortens some respawn delays by a quarter (an item's modification in those kits); who sets a body's
-respawn-disabled flag; the original game's weight of a team kill.
+The original game's weight of a team kill; 18 respawn delays off in kits with no respawn item. (Settled: a
+body's respawn-disabled flag is never set in a match: only the constructor writes it, and the player class's
+toggle 0x1F2990 passes the request to the network client without storing it.)

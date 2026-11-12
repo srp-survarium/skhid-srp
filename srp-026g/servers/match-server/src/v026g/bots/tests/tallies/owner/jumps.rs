@@ -660,6 +660,27 @@ impl JumpCounts {
                     );
                 }
             }
+            // `SRP_BENCH_AIR_ROWS` (A368, local): one row a press with a back or side key and no forward one: who, when, where,
+            // what pressed it, the hide, the keys, the play's index (the `airfire-plays` line names them) and its flags.
+            if flags.contains(&"BACK_SIDE") && crate::v026g::bots::tests::bench_settings().flag("SRP_BENCH_AIR_ROWS") {
+                let recs = &run.recs[p.place];
+                let ri = run.index(p.t).min(recs.len().saturating_sub(1));
+                eprintln!(
+                    "backside\t{}\t{}\t{:.2}\t{:.2}\t{:.2}\t{}\t{}\t{:#x}\t{}\t{}\t{}\t{}",
+                    p.place,
+                    p.t,
+                    p.feet.x,
+                    p.feet.y,
+                    p.feet.z,
+                    p.by,
+                    p.cover,
+                    recs.get(ri).map_or(0, |r| r.keys),
+                    recs.get(ri).map_or(0, |r| r.play),
+                    recs.get(ri).map_or(0, |r| u8::from(r.hold)),
+                    recs.get(ri).map_or(0, |r| u8::from(r.travel)),
+                    flags.join(","),
+                );
+            }
             if flags.contains(&"NOT_FREED") {
                 not_freed_pre.add(run, p.by, p.place, run.index(p.t));
             }

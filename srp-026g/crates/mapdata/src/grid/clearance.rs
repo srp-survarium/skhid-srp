@@ -68,7 +68,7 @@ impl WalkGrid {
         let (i, k) = self.cell_xz(self.cell_of[a] as usize);
         let (x, z) = (self.x0 + (i as f32 + 0.5) * self.cell, self.z0 + (k as f32 + 0.5) * self.cell);
         let feet = self.height[a];
-        let (step, top) = (feet + self.body.walked_step(), feet + self.body.stand_height);
+        let (step, top) = (feet + self.body.step, feet + self.body.stand_height);
         let radius = self.body.radius;
         // No wall within the table's reach anywhere in the band: the common case, one look.
         if walls.nearest(x, z, step, top, CLEARANCE_MAX_M).is_none() {
