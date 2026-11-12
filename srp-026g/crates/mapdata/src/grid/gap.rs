@@ -1149,10 +1149,7 @@ impl WalkGrid {
     }
 
     /// How far from `a`'s centre in direction `d` a body walks on `a`'s height before it falls ([`Self::walk_off`]): while a
-    /// surface of that height is under its centre (past the floors erosion took from the edge), up to 2 m. [2a] With
-    /// [`Body::fall_stops_on_solids`] a surface rising up to a step under it goes on too: the body walks up it, it does not
-    /// fall under it (Vector Laboratory (-42.2, 20.9, -9.8): a floor rising 0.03-0.08 m along the way read as an edge, and the
-    /// walk-off "landed" 5 m down under it).
+    /// surface of that height is under its centre (past the floors erosion took from the edge), up to 2 m.
     fn walk_off_edge(&self, a: usize, d: usize, solids: &Solids) -> f32 {
         let from = self.position(a as NodeId);
         let h = self.height[a];
@@ -1160,13 +1157,12 @@ impl WalkGrid {
         let len = ((di * di + dk * dk) as f32).sqrt();
         let (ux, uz) = (di as f32 / len, dk as f32 / len);
         let ds = 0.5 * self.cell;
-        let up = if self.body.fall_stops_on_solids { self.body.step } else { 0.06 };
         let surface_under = |s: f32| {
             let (px, pz) = (from.x + ux * s, from.z + uz * s);
             self.cell_at(px, pz).is_some_and(|c| {
                 solids.spans[solids.start[c] as usize..solids.start[c + 1] as usize]
                     .iter()
-                    .any(|&(_, hi)| hi >= h - 0.06 && hi <= h + up)
+                    .any(|&(_, hi)| (hi - h).abs() <= 0.06)
             })
         };
         let mut edge = 0.0f32;
