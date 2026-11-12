@@ -1,0 +1,11 @@
+{
+  "_about": "The STALKER maps are played in Free for All only (the owner, 2026-11-12: \"new stalker maps should only have FFA\", \"no TDM yet\"): the six Team Deathmatch rows of pack stalker-maps@6 (maps_dict 210-215) are taken out of the dictionary, so neither srp nor a game has them as a map and nothing can offer or start one (a room's pool and create window, a vote, Play, a clan match, the bots, the site's Maps tab all list the dictionary's playable rows). Only the rows go: the six TDM configs, their projects with both teams' spawns and stashes, their modes.tsv and maps.tsv rows, names, loading pictures and minimaps stay as they are, and the Free for All rows 42-44 (Experimental Pool, Military Warehouses, Training Camp), whose configs are copies under ffa/ on the same projects, are untouched. Repair Depot, Station and Depository have no Free for All and are not played. Ids 210-215 stay these six configs' and are never given to another row. To offer Team Deathmatch on them: delete this list and its row of release/content.tsv, nothing else. It stays the last list that edits maps_dict: one that appends a row goes above it, so its count and its id check see the six rows (docs/notes/stalker-maps.md).",
+  "remove_entry": [
+    {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "where": {"id": 210, "cfg_mode_name": "v010b_cs_mp_bath_level_03_day_4.options"}},
+    {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "where": {"id": 211, "cfg_mode_name": "v010b_cs_mp_military_1_level_03_day_4.options"}},
+    {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "where": {"id": 212, "cfg_mode_name": "v010b_cs_training_camp_level_03_day_4.options"}},
+    {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "where": {"id": 213, "cfg_mode_name": "v010b_cs_mp_rembasa_level_03_day_4.options"}},
+    {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "where": {"id": 214, "cfg_mode_name": "v010b_soc_ug_station_level_03_day_4.options"}},
+    {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "where": {"id": 215, "cfg_mode_name": "v010b_soc_ug_depository_level_03_day_4.options"}}
+  ]
+}

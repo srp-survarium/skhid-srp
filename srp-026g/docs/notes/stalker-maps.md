@@ -6,6 +6,33 @@ Where the work stands and how to continue: `stalker-maps-handoff.md`.
 FFA points and mode-8 configs for Pool, Military Warehouses and Training Camp:
 `stalker-ffa.md` (depends on the current FFA runtime; not released).
 
+## Free for All only, for now (the owner, 2026-11-12)
+
+"New stalker maps should only have FFA", "no TDM yet": players get Free for All
+on Experimental Pool, Military Warehouses and Training Camp (maps_dict 42-44)
+and no Team Deathmatch on any of the six. `content-edit/stalker-tdm-hold-1.json`
+takes the six TDM rows (210-215) out of `maps_dict`, so neither srp nor the game
+has them as maps: no room pool or create window, vote card, Play, clan match,
+Player vs Bots, room with bots or Maps tab can list them (each lists the
+dictionary's playable rows; a room saved with them is fitted without them).
+Repair Depot, Station and Depository have no FFA and are not played.
+
+Everything else stays: the six TDM configs, the projects with both teams'
+spawns and stashes, their `modes.tsv`/`maps.tsv` rows, names, pictures and
+minimaps; the FFA configs are copies on the same projects. Ids 210-215 stay
+these configs' and are given to nothing else.
+
+**To offer Team Deathmatch on them later:** delete `stalker-tdm-hold-1.json` and
+its row of `release/content.tsv`. The list must stay the last that edits
+`maps_dict` (a list that appends rows goes above it). Before that:
+
+- The six maps need their top-down renders for the Maps tab
+  (`scripts/damage-calc/assets/maps`), or `release/build-site` stops.
+- Training Camp's west stash pair (team 0's `stash2`, team 1's `stash5`, at
+  about (-20.0, -9.6) and (-20.8, -9.8)) stands 1.0 and 1.7 m outside the
+  crater wall of `training-camp-arena-1.json`: players may not reach them.
+- Bots: no bots' map data for these maps (`release/bot-data.tsv`).
+
 | maps_dict id | level (`map_id`) | project / HUD key | map | source | loading id |
 | ---: | ---: | --- | --- | --- | ---: |
 | 210 | 14 | `cs_mp_bath` | Experimental Pool · Бассейн | Clear Sky `mp_bath` | 30 |
