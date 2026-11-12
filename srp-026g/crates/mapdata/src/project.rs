@@ -775,38 +775,40 @@ impl MapData {
         out
     }
 
+    /// For each library, the library a body with `filter` meets in its place: itself, or, for a walking body's
+    /// `walker_collision` the archive does not have, the model's own `collision` when the map has it
+    /// ([`Self::triangles`]).
+    pub fn libraries_met(&self, filter: CollisionFilter) -> Vec<u32> {
+        let own = 0..self.libraries.len() as u32;
+        if filter != CollisionFilter::WALKER {
+            return own.collect();
+        }
+        let by_name: HashMap<&str, u32> = self
+            .libraries
+            .iter()
+            .zip(own.clone())
+            .map(|(library, i)| (library.name.as_str(), i))
+            .collect();
+        own.map(|i| {
+            let library = &self.libraries[i as usize];
+            if !library.faces.is_empty() || !library.name.contains(WALKER_COLLISION) {
+                return i;
+            }
+            let stand_in = library.name.replacen(WALKER_COLLISION, BULLET_COLLISION, 1);
+            by_name.get(stand_in.as_str()).copied().unwrap_or(i)
+        })
+        .collect()
+    }
+
     /// Each triangle a body with `filter` meets, placed in the map frame, with its face's armor
     /// ([`Self::triangles`] without the armor, [`Self::bullet_mesh`] with it).
     fn place_faces(&self, filter: CollisionFilter, mut each: impl FnMut(Triangle, FaceArmor)) {
-        let walking = filter == CollisionFilter::WALKER;
-        let by_name: HashMap<&str, usize> = if walking {
-            self.libraries
-                .iter()
-                .enumerate()
-                .map(|(i, library)| (library.name.as_str(), i))
-                .collect()
-        } else {
-            HashMap::new()
-        };
-        let library_of = |placement: &Placement| -> &Library {
-            let library = &self.libraries[placement.library as usize];
-            if walking && library.faces.is_empty() {
-                let stand_in = library
-                    .name
-                    .contains(WALKER_COLLISION)
-                    .then(|| library.name.replacen(WALKER_COLLISION, BULLET_COLLISION, 1))
-                    .and_then(|name| by_name.get(name.as_str()).copied());
-                if let Some(index) = stand_in {
-                    return &self.libraries[index];
-                }
-            }
-            library
-        };
+        let met = self.libraries_met(filter);
         for placement in &self.placements {
             if !filter.meets(placement.cgroup, placement.cmask) {
                 continue;
             }
-            let library = library_of(placement);
+            let library = &self.libraries[met[placement.library as usize] as usize];
             let transform = placement.transform();
             let world: Vec<Vec3> = library
                 .vertices

@@ -421,6 +421,72 @@ pub fn cast_triangle(
     CastEnd::Hit { fraction, normal: [n[0] * rlen, n[1] * rlen, n[2] * rlen], point }
 }
 
+/// 0xA14E0 `btCollisionWorld::objectQuerySingle`'s convex branch (shape type under 20; after the cast's return at
+/// 0xA15D8) for one convex shape B: a box, a sphere, a cylinder or a capsule, the object's own shape or a compound's
+/// child under [`compose`]d transforms. The cast (0xB9320) with the shape's own margin, then the report of a hit under
+/// `closest_fraction` (the callback's `m_closestHitFraction`) with its normal made unit: the callback's
+/// `addSingleResult` gets a `LocalConvexResult` without shape info (0x9FC20 with a null `m_localShapeInfo`),
+/// `normalInWorldSpace` true.
+pub fn cast_convex<B: ShapeB>(
+    cast: &Cast,
+    other: &B,
+    margin: f32,
+    transform: &Transform,
+    allowed_penetration: f32,
+    closest_fraction: f32,
+) -> CastEnd {
+    let (fraction, n, point) = match time_of_impact(cast, other, margin, transform, allowed_penetration) {
+        Toi::Hit { fraction, normal, point } => (fraction, normal, point),
+        Toi::Miss(_) => return CastEnd::Miss,
+        Toi::NeedsPenetration { lambda } => return CastEnd::NeedsPenetration { lambda },
+    };
+    // 0xA15E0..0xA1622: the normal's squared length over 1e-4, in the source's order here ((x*x + y*y) + z*z);
+    // 0xA1628..0xA1635: the callback's fraction over the hit's.
+    let len2 = (n[0] * n[0] + n[1] * n[1]) + n[2] * n[2];
+    if !(len2 > SHORT_NORMAL) || !(closest_fraction > fraction) {
+        return CastEnd::Miss;
+    }
+    // 0xA163B..0xA1684: x87 at 24-bit precision, 1 / sqrt, then each component times it.
+    let rlen = ONE / len2.sqrt();
+    CastEnd::Hit { fraction, normal: [n[0] * rlen, n[1] * rlen, n[2] * rlen], point }
+}
+
+/// 0xA2C30 (`btCompoundLeafCallback::Process`): a compound's child placed in the world, `world * child`, in the
+/// order of operations of its inlined `btTransform::operator*` (row 0 and the origin's x in the source's order; rows
+/// 1 and 2 and the origin's y and z with the first column's product added last). Bit for bit the transform B of the
+/// 260 distinct children the recorded casts met (`docs/notes/exactness_rig.md`).
+pub fn compose(world: &Transform, child: &Transform) -> Transform {
+    let (w, c) = (&world.basis, &child.basis);
+    let (wo, co) = (&world.origin, &child.origin);
+    let mut basis = [[0.0f32; 3]; 3];
+    for (r, row) in basis.iter_mut().enumerate() {
+        for (col, value) in row.iter_mut().enumerate() {
+            *value = if r == 0 {
+                // 0xA2E65..0xA2F11.
+                (w[0][0] * c[0][col] + w[0][1] * c[1][col]) + w[0][2] * c[2][col]
+            } else {
+                // 0xA2D82..0xA2E5B (row 1), 0xA2CFD..0xA2D87 (row 2).
+                (w[r][1] * c[1][col] + w[r][2] * c[2][col]) + c[0][col] * w[r][0]
+            };
+        }
+    }
+    let origin = [
+        // 0xA2C70..0xA2C8D.
+        ((w[0][0] * co[0] + w[0][1] * co[1]) + w[0][2] * co[2]) + wo[0],
+        // 0xA2C9C..0xA2CBF.
+        ((w[1][1] * co[1] + w[1][2] * co[2]) + w[1][0] * co[0]) + wo[1],
+        // 0xA2CCA..0xA2CE9.
+        ((w[2][1] * co[1] + w[2][2] * co[2]) + w[2][0] * co[0]) + wo[2],
+    ];
+    Transform { basis, origin }
+}
+
+/// A basis sent through a quaternion and back (`getRotation` 0x72B90, `setRotation` 0x72A50), as the down sweep's
+/// second look at a round shape reads its rotation (0x84190, 0x848C7).
+pub fn through_quaternion(basis: &[[f32; 3]; 3]) -> [[f32; 3]; 3] {
+    set_rotation(get_rotation(basis))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
