@@ -544,6 +544,11 @@ impl BodyTrack {
         self.own.set_aim_out_ms(ms);
     }
 
+    /// [A364 P10] The bot's reckoned bar's low flag: `can_sprint` takes no sprint under it.
+    pub fn set_low_stamina(&mut self, low: bool) {
+        self.own.set_low_stamina(low);
+    }
+
     /// [A325f] The tick as the client takes it: its keys without what the legs refuse at its time ([`super::legs`]). [2e] With
     /// [`SprintGates::Client`] also without what `can_sprint` refuses: no sights and no sprint in a reload, no sprint in a stagger
     /// or for the gun's `aim_time` after AIM went up ([`super::sprint_gates`]).
@@ -1058,9 +1063,12 @@ fn advance(
             }
             continue;
         }
-        // [A318] The client's step cap (`max_speed` 0x2DC010 in 0x2D9060) on the blend's speed, by the keys moving it; not in a jump.
+        // [A318] The client's step cap (`max_speed` 0x2DC010 in 0x2D9060) on the blend's speed; not in a jump. [A364 P10] Its sprint
+        // flag is one input AHEAD of the walk vector: the step ending at t moves by the input stamped t-50 but its flag follows the
+        // input stamped t (99.5 % of 220,994 traced steps, 98.4 % at t-50: `docs/notes/sprint_state.md`), so the cap is the newest
+        // input's (`at.keys`), the move the held-back one's.
         let jumping = at.time + step * TICK_MS <= at.air_until;
-        let local = if jumping { local } else { kin.speed_cap.capped(local, step_keys, level) };
+        let local = if jumping { local } else { kin.speed_cap.capped(local, at.keys, level) };
         at.velocity = to_world(local, step_yaw);
         let to = Vec3::new(
             at.feet.x + at.velocity[0] * TICK_S,

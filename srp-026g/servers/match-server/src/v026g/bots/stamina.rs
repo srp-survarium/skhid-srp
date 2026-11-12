@@ -2,13 +2,16 @@
 //! law from the keys it sent, as the stand-in's body does in the bench (`tests/standin_stamina.rs`, from #557;
 //! `player_stamina::tick` 0x329790, `regenerate` 0x3298C0, `spend` 0x329A20, `sprint` 0x329A70, the jump's gate
 //! 0x2FC230; PROVEN unless marked):
-//! - the bar is 0-100; the sprint keys (SPRINT and FORWARD, none of BACK, FIRE, CROUCH, AIM) spend
-//!   [`SPRINT_SPEND_PER_S`] a second whether the body can move at sprint or not (LIKELY). A carrier spends nothing (GUESS);
+//! - the bar is 0-100; it is spent at [`SPRINT_SPEND_PER_S`] a second only while the body IS in the sprint state
+//!   (`player_stamina::tick` 0x329790 asks the item's `is_sprinting`, PROVEN: `docs/notes/sprint_state.md`, A364 P10): the sprint
+//!   keys (SPRINT and FORWARD, none of BACK, FIRE, CROUCH, AIM) and `can_sprint` 0x2DBF40 letting it (the low flag clear, not a
+//!   carrier, not in a reload), and not at a jump's press (the state ends at the press). A refused sprint costs nothing;
 //! - not sprinting, the bar regenerates at [`REGEN_PER_S`] when it is empty or more than [`WAIT_MS`] after the last
 //!   spending (a sprint, a jump or a hit);
-//! - the low flag is set when the bar is at 0 after a tick and cleared over [`CLEAR_ABOVE`]: a lockout let go at 0
-//!   takes about 3 s to clear (the first tick regenerates because the bar is empty, the wait holds it a second, then
-//!   2 s of regeneration); while the sprint keys stay held it lasts as long as they do;
+//! - the low flag is set when the bar is at 0 after a tick and cleared over [`CLEAR_ABOVE`]: a lockout takes about 3 s to
+//!   clear (the first tick regenerates because the bar is empty, the wait holds it a second, then 2 s of regeneration), the
+//!   sprint keys held or not (the flag refuses the state, so nothing is spent): the game's heaviest body (32.9 kg) sprints,
+//!   walks about 3 s, sprints again (A364, `private/grid/rig/sprint-census.txt`);
 //! - a jump needs the flag clear and the bar at [`JUMP_COST`], spent at the press; a refused press spends nothing.
 //!
 //! The rates are the light kit's (no weight cost, no skills, [`Rates::LIGHT`]) unless `think.stamina_rates` is `kit`:
@@ -137,18 +140,25 @@ impl Reckoning {
         Gauge { value: self.value, low: self.low(), rates: self.rates }
     }
 
+    /// [A364 P10] Whether the body is in the client's sprint state with `keys`: the sprint keys, `can_sprint` letting it (the low
+    /// flag clear, no carrier, nothing `refused`) and no jump's press in them (the state ends at the press, PROVEN).
+    pub fn sprinting(&self, keys: u32, carrying: bool, refused: bool) -> bool {
+        let press = keys & key::JUMP != 0 && self.keys & key::JUMP == 0;
+        Kinematics::sprints(keys) && !carrying && !refused && self.flag == Flag::Fine && !press
+    }
+
     /// The jump goes: the flag clear and the bar at its cost.
     pub fn may_jump(&self) -> bool {
         self.flag == Flag::Fine && self.value >= self.rates.jump
     }
 
-    /// One tick at `now` ms, with the keys the bot sent in the tick before (`keys`) and whether it carries (no
-    /// spending then). A jump pressed in them (a new press: not held in the tick before that) spends its cost if it
-    /// went.
-    pub fn tick(&mut self, now: u32, keys: u32, carrying: bool) {
+    /// One tick at `now` ms, with the keys the bot sent in the tick before (`keys`), whether it carries and whether its own
+    /// `can_sprint` refuses (`refused`: a reload). A jump pressed in them (a new press: not held in the tick before that) spends
+    /// its cost if it went. The bar is spent only in the sprint state ([`Reckoning::sprinting`]).
+    pub fn tick(&mut self, now: u32, keys: u32, carrying: bool, refused: bool) {
         let dt = now.saturating_sub(self.last_tick) as f32 / 1_000.0;
         let held = Kinematics::sprints(keys);
-        if held && !carrying {
+        if self.sprinting(keys, carrying, refused) {
             self.value = (self.value - self.rates.spend * dt).max(0.0);
             self.last_spend = Some(self.last_tick);
         } else if self.value < MAX && (self.value == 0.0 || self.last_spend.is_none_or(|at| now > at + WAIT_MS)) {
@@ -187,7 +197,7 @@ impl Reckoning {
 }
 
 /// The bench's counts (all matches): lockouts begun, ticks a body was locked out, of those with the sprint keys
-/// held (the lockout lasts as long as they do: the harm), jump presses the bar refused, sprints let go at the empty
+/// held (the client walks them: A364 P10), jump presses the bar refused, sprints let go at the empty
 /// bar, sprint segments that were short of the bar when first seen, the ticks a tired body was kept walking into a
 /// sprint jump, the sprint gap segments short only by the gap's run, and the ms of sprint saved for them.
 pub mod counts {
@@ -250,40 +260,49 @@ mod tests {
         let mut now = from;
         while now < from + ms {
             now += 50;
-            r.tick(now, keys, false);
+            r.tick(now, keys, false, false);
         }
         now
     }
 
-    /// The law: a sprint of 20 s empties the bar and sets the flag; with the sprint keys let go the flag clears in
-    /// about 3 s (one regenerating tick, the 1 s wait, then 2 s); held, it lasts; a jump needs the flag clear and
-    /// 10 of the bar.
+    /// The law: a sprint of 20 s empties the bar and sets the flag; the flag clears in about 3 s (one regenerating tick, the
+    /// 1 s wait, then 2 s), the sprint keys held or not (A364 P10: the flag refuses the sprint state, nothing is spent); a jump
+    /// needs the flag clear and 10 of the bar.
     #[test]
     fn the_bar_is_spent_by_a_sprint_and_a_lockout_clears_in_about_three_seconds() {
         let sprint = key::FORWARD | key::SPRINT;
         let mut r = Reckoning::default();
         let now = run(&mut r, 0, 19_000, sprint);
         assert!(r.value() > 0.0 && !r.low(), "{} {}", r.value(), r.low());
-        let now = run(&mut r, now, 1_500, sprint);
+        let now = run(&mut r, now, 1_000, sprint);
         assert!(r.low() && r.value() <= 1e-3, "{} {}", r.value(), r.low());
-        // Held on: it stays locked out.
-        let held = run(&mut r, now, 5_000, sprint);
-        assert!(r.low());
+        // Held on: it clears all the same, in about 3 s, and the sprint spends again.
+        let mut held = r;
+        let (mut t, mut seconds) = (now, 0.0);
+        while held.low() && seconds < 10.0 {
+            t += 50;
+            seconds += 0.05;
+            held.tick(t, sprint, false, false);
+        }
+        assert!((2.8..3.4).contains(&seconds), "held: {seconds}");
+        let before = held.value();
+        held.tick(t + 50, sprint, false, false);
+        assert!(held.value() < before, "sprinting again spends");
         // Let go: clear after about 3 s.
-        let mut t = held;
+        let mut t = now;
         let mut seconds = 0.0;
         while r.low() && seconds < 10.0 {
             t += 50;
             seconds += 0.05;
-            r.tick(t, 0, false);
+            r.tick(t, 0, false, false);
         }
         assert!((2.8..3.4).contains(&seconds), "{seconds}");
         // A jump press spends 10; one at a bar under 10 is refused and spent nothing.
         let mut full = Reckoning::default();
-        full.tick(50, key::JUMP, false);
+        full.tick(50, key::JUMP, false, false);
         assert!((full.value() - (MAX - JUMP_COST)).abs() < 1e-3, "{}", full.value());
         let mut empty = Reckoning { value: 4.0, ..Reckoning::default() };
-        empty.tick(50, key::JUMP, false);
+        empty.tick(50, key::JUMP, false, false);
         assert!(empty.value() >= 4.0);
     }
 
@@ -311,7 +330,7 @@ mod tests {
         assert!(kit.low() && kit.value() <= 1e-3, "{}", kit.value());
         let mut jump = Reckoning::default();
         jump.set_rates(heavy);
-        jump.tick(50, key::JUMP, false);
+        jump.tick(50, key::JUMP, false, false);
         assert!((jump.value() - (MAX - 25.0)).abs() < 1e-3, "{}", jump.value());
         let half = Reckoning { value: 50.0, rates: heavy, ..Reckoning::default() };
         assert!(Reckoning { value: 50.0, ..Reckoning::default() }.covers(20.0, 2.0));

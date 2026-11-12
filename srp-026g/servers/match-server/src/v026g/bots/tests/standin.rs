@@ -1399,6 +1399,21 @@ impl Game {
                     keys &= !key::SPRINT;
                 }
             }
+            // [A364 P10] The client's sprint state, for the bar (`player_stamina::tick` 0x329790 spends only in it): the newest input's
+            // keys (the flag is one input ahead of the walk vector), `can_sprint` letting them (no carrier, no trap, the flag clear,
+            // and with the client's gates no reload, busy weapon, stagger or aim's way out) and no jump (the state ends at the press;
+            // the harness holds the press keys through the air).
+            let refused = stand_in_sprint_gates()
+                && (body.stock.reloading()
+                    || body.stock.busy()
+                    || body.stagger.share(tick) > 1e-5
+                    || (body.keys & key::AIM == 0 && tick < body.aim_out_until));
+            let sprint_state = Kinematics::sprints(body.keys)
+                && body.carrying.is_none()
+                && !caught
+                && body.stamina.may_sprint()
+                && !refused
+                && body.keys & key::JUMP == 0;
             let local = body
                 .blend
                 .tick_mixed(self.kin.target_local(keys, level), self.kin.blend_ticks, super::standin_jump::stand_in_mixer());
@@ -1616,8 +1631,7 @@ impl Game {
                 }
             }
             let sprint_keys = Kinematics::sprints(body.keys);
-            body.stamina
-                .tick(tick, sprint_keys && body.carrying.is_none(), sprint_keys);
+            body.stamina.tick(tick, sprint_state, sprint_keys);
         }
         if !super::view::live_eye() {
             self.shoot(tick);

@@ -14,8 +14,12 @@
 //!   aiming 2.0 / 1.5 / 1.5; sprint 5.0 (the config's 5.5 is the sprint
 //!   animation's own speed). Forward diagonals go at the forward speed,
 //!   back diagonals at the back speed; F+B and L+R cancel. PROVEN.
-//! - **Sprint** needs SPRINT and FORWARD with none of BACK, FIRE, CROUCH
-//!   (0x2F1220); aiming blocks it (LIKELY); strafing does not. PROVEN.
+//! - **Sprint** is a state, not the keys: it starts on SPRINT and FORWARD
+//!   with none of BACK, FIRE, CROUCH (`sprint_predicate` 0x2FBC90) and
+//!   `can_sprint` 0x2DBF40 letting it; AIM refuses and ends it; it ends at
+//!   a JUMP press, by crouch, when the predicate fails; strafing does not
+//!   end it. PROVEN (`docs/notes/sprint_state.md`, A364 P10; 0x2F1220 is
+//!   the jump state's key test, not the sprint's).
 //! - **A change of speed** is a 0.3 s animation blend (0x921804): linear
 //!   over 6 ticks from the present velocity to the new one, held in the
 //!   body's frame, so a turn turns it at once. Blend PROVEN; the linear
@@ -146,8 +150,8 @@ pub struct Kinematics {
 pub enum SpeedCap {
     /// The blend's speed as it is (as it was).
     Off,
-    /// Capped at the client's `max_speed` (`max(desired x F, minimal)`, the floor included) by the sprint state's keys
-    /// ([`Kinematics::sprint_state`]) and the level; not in a jump (the cap is skipped while `+0x2C70C` is set, 0x2D915E, which
+    /// Capped at the client's `max_speed` (`max(desired x F, minimal)`, the floor included) by the sprint state of the newest
+    /// input ([`Kinematics::sprint_state`]: one input ahead of the walk vector, A364 P10) and the level; not in a jump (the cap is skipped while `+0x2C70C` is set, 0x2D915E, which
     /// `end_jump` 0x7F050 clears: LIKELY the jump's flag).
     #[default]
     Client,
@@ -189,9 +193,10 @@ pub enum LevelSource {
     Computed,
 }
 
-/// [A331] Whether a battery carrier sprints. The owner: "battery cariers cant sprint"; `can_sprint` 0x2DBF40 and the jump
-/// predicate 0x2FC230 refuse while the hands' item byte +0x388 != 0 (fx-review A332; that the take sets it for the battery was not
-/// found: LIKELY by the exe). A carrier then walks at the run's 3.5 x F x 0.95 where a sprinter went 5.0 x F.
+/// [A331] Whether a battery carrier sprints. The owner: "battery cariers cant sprint"; the battery's own `can_sprint` (the held
+/// item's, asked by `base_player::can_sprint` 0x2DBF40) refuses it, PROVEN (`docs/notes/sprint_state.md`, A364 P10; the "+0x388"
+/// this note cited is the damage model's broken-leg count, not the item's). A carrier then walks at the run's 3.5 x F x 0.95 where
+/// a sprinter went 5.0 x F.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CarrierSprint {
@@ -724,10 +729,11 @@ impl Kinematics {
     }
 
     /// [A318] Whether the keys hold the client's sprint state: [`Self::sprints`]. The start predicates (`sprint_predicate` 0x2FBC90,
-    /// `is_trying_to_sprint` 0x2FC1F0) test SPRINT and FORWARD with none of `0x122` (BACK, FIRE, CROUCH); AIM ends the state through
-    /// its own exits (PROVEN, static, fx-review A328 on the movement FSM built in 0x2FAB70): 0x2FBD50 (to stand_run) and 0x2FBCE0 (to
-    /// stand_on_site) leave when `sprint_predicate` fails or AIM (keys +0x330 bit 0x80, 0x2FBD65 / 0x2FBCF5) is held with the hands'
-    /// item byte +0x389 != 2 (which items are 2 is not read). The live game agrees: humans holding SPRINT + FORWARD + AIM move at a
+    /// `is_trying_to_sprint` 0x2FC1F0) test SPRINT and FORWARD with none of `0x122` (BACK, FIRE, CROUCH); AIM both refuses and ends
+    /// the state (PROVEN, A364 P10, `docs/notes/sprint_state.md`; fx-review A328 on the movement FSM built in 0x2FAB70): 0x2FBD50 (to
+    /// stand_run) and 0x2FBCE0 (to stand_on_site) leave when `sprint_predicate` fails or AIM (keys +0x330 bit 0x80, 0x2FBD65 /
+    /// 0x2FBCF5) is held. `can_sprint`'s gates (a reload, the aim's way out, a stagger, the legs, the bot's own low stamina) reach the
+    /// reckoned body as keys without SPRINT (`BodyTrack::as_taken`). The live game agrees: humans holding SPRINT + FORWARD + AIM move at a
     /// median 3.69 m/s (89 worlds), 5.59 without AIM. The state ends on the release tick (fx-smoke: the client's flag, 2,524 worlds).
     pub fn sprint_state(keys: u32) -> bool {
         Self::sprints(keys)

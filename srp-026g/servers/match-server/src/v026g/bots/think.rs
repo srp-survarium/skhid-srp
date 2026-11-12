@@ -229,6 +229,7 @@ impl Bots {
                 bot.place,
                 bot.reflex.reload_note().map(|reload| (reload.at, reload.until)),
                 bot.reflex.held_gun().aim_ms,
+                bot.stamina.low(),
             );
             self.tracker.input(
                 bot.place,
