@@ -2802,7 +2802,9 @@ INSTALLS[0x3B3340] = (ENTRY, "time_channel::domain: animation_math_domain, the s
                              "per step", None, None)
 
 # Distance detail: native bounded integer command owns Apply/Cancel/save.
-# Full detail also selects LOD0 and keeps the top texture levels.
+# Maximum also selects LOD0. Of textures it touches only the requests of records that are not
+# streamed (no mip cut for them); streaming itself stays on in the game (client_patch.md,
+# "Textures in Maximum").
 DETAIL_HOOKS = (
     (0x3CF3D5, bytes.fromhex("b94b000000"), "detail_commit", 0xE9),
     (0x3CE2BE, bytes.fromhex("6a018d8f5e020000"), "detail_register", 0xE9),

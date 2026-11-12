@@ -2556,3 +2556,5 @@ va	name	source	ret_cleanup	result
 0x00267b10	survarium::timelimit_rule::fill_match_hud_state	manual	8	
 0x00233680	survarium::match_hud_state::match_hud_state	manual	0	EAX: the state (ESI)
 0x002f4580	survarium::respawn_point_core::load	manual	8	Loads point properties; invulnerability_time is signed integer seconds multiplied by 1000 at 0x2F462A, stored at point+20h
+0x00013da0	vostok::engine::engine_world::command_line_editor	manual	0	AL the byte at 0x225FD56 (zero-initialised .data, no writer in the image)
+0x003cd310	vostok::render::render_cc_u32::is_changed	manual	0	AL 1 when the value differs from its previous copy, else 0

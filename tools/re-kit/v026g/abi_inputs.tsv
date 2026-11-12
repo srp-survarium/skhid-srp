@@ -6130,3 +6130,4 @@ va	name	location	role	basis
 0x000f6d00	vostok::configs::binary_config_value::relocate_in_place	entry ESP+4	the config allocation base added to offsets; ret 4	observed
 0x002f4580	survarium::respawn_point_core::load	entry ESP+4	respawn_point_core output, kept in EBP from 0x2F4589	observed
 0x002f4580	survarium::respawn_point_core::load	entry ESP+8	binary config table, kept in EBX from 0x2F4584	observed
+0x003cd310	vostok::render::render_cc_u32::is_changed	ECX	render command (its header); value pointer at +50h, previous-value pointer at +60h	observed

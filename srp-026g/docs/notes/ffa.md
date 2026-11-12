@@ -164,8 +164,24 @@ and spatial review; they still need multiplayer playtesting for balance.
 
 ## Where it is played
 
-- **Rooms:** one more mode of the pool, as Research is: in every room's default pool, a mode tick
-  of the create window, cards of the vote.
+- **Rooms:** a mode of the pool, as Research is: in every room's default pool, a mode tick of the
+  create window.
+  - **Always the vote's third card** (the owner, 2026-11-12: "ffa should be a third pane always,
+    blackout should be in general pool"; before, each free-for-all was one more entry the three
+    cards were drawn from alike, and Blackout had the third card, 2026-11-02): every vote, public
+    or private, of a room whose pool has a free-for-all.
+    - Cards 1 and 2: drawn from the rest of the pool, Blackout's maps as any other's (on one of
+      the two at the most, `blackout.md`); never a free-for-all.
+    - Card 3: one of the pool's free-for-alls at random, on a map cards 1 and 2 are not while
+      there is one; won, its match is a free-for-all (as below).
+    - No switch. A pool without one (a private room's maker unticked the mode, or the server's
+      `SRP_MATCH_MODES` leaves 8 out) or of free-for-alls alone: its three cards drawn as before.
+      A public room's pool has them (the default pool is every playable map).
+    - A room with bots keeps the free-for-alls its bots play in its pool (below), so its third
+      card is one of them. (Blackout's never was: the bots do not play it.)
+    - The card is there whatever the room's size and members: the match seats 10 and starts
+      with whoever can play, as below. Nothing is offered that a room cannot start.
+    - The mode is named in one place, `session::v026g::rooms::THIRD_CARD` (`Rooms::draw`).
   - A room's free-for-all seats 10 of its members who can play: who had no place in its last
     match first (`Rooms::left_out`), then in the order they came. The others wait for the next
     match. A full match takes no late joiner (`registry::join`: Full), and a member waiting beside
@@ -240,7 +256,8 @@ and spatial review; they still need multiplayer playtesting for balance.
 
 - Kills, not score, decide the end, the winner and the ranking, so the top row is the winner.
 - No player minimum (0.31's mode had 3).
-- A room with more members than 10 seats the first 10 (the room's order); no FFA-only card filter.
+- A room with more members than 10 seats the first 10 (the room's order); no FFA-only card filter:
+  the third card is a free-for-all in a room of 16 too.
 - Player vs Bots offers the day free-for-alls only.
 
 
