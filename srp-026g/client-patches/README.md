@@ -2555,7 +2555,9 @@ camouflage's matrix, the render instance (one reference more), the surface's ind
 (`data/camo_scale`, else 4.0), and the baked files' name: `srpw1_<camouflage>_<model>_<surface>`
 and the decals' parts until 2026-11-12, now `srpw1_` and 16 hex digits that the Rust patch
 weapon_camo writes (entry `weapon_camo.bake_name`, through the dword `bake_name` the build fills):
-the FNV-1a 64 of the model, the surface, the scale and each layer's matrix and texture names. The
+the FNV-1a 64 of the model, the surface, the scale and, of each layer that has a texture, its matrix
+and texture names (a layer with none gives a word 0: its matrix is never written, the allocator's
+leftovers, and made the name of one weapon differ from bake to bake until #1740's fix). The
 old name, a camouflage, a model and two decals, made a path longer than Windows' 260 characters with
 a long Documents folder; the file was not made and the game stopped at an assertion. A surface it
 does not name is not baked; a build without the arena bakes no weapon; its callback lets go of the reference and frees the parameters. The baker
