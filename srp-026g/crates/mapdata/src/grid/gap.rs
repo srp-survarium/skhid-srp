@@ -462,31 +462,49 @@ impl WalkGrid {
         })
     }
 
-    /// [2a] The cells a body centred at (`x`, `z`) rests on a top in: its own and those of 8 points [`Body::hold_radius`] less
-    /// half a cell out (each such cell reaches half a cell or more further: the cells are coarser than the hold).
-    fn hold_cells(&self, x: f32, z: f32) -> impl Iterator<Item = usize> + '_ {
-        let r = (self.body.hold_radius() - 0.5 * self.cell).max(0.0);
-        let ring = (0..8).map(move |i| {
-            let t = i as f32 * std::f32::consts::FRAC_PI_4;
+    /// [2a] Where under a body centred at (`x`, `z`) a top holds it: its centre and 8 points at each of [`Body::hold_radius`]
+    /// and half of it (a rail's 0.1 m top between the outer ones is under an inner one).
+    fn hold_points(&self, x: f32, z: f32) -> impl Iterator<Item = (f32, f32)> + use<> {
+        let r = self.body.hold_radius();
+        let ring = (0..16).map(move |i| {
+            let t = (i % 8) as f32 * std::f32::consts::FRAC_PI_4;
+            let r = if i < 8 { r } else { 0.5 * r };
             (x + r * t.cos(), z + r * t.sin())
         });
-        std::iter::once((x, z)).chain(ring).filter_map(|(px, pz)| self.cell_at(px, pz))
+        std::iter::once((x, z)).chain(ring)
     }
 
-    /// [2a] The highest ground top in [`Self::hold_cells`] around (`x`, `z`) that feet going down from `high` to `low` pass
-    /// (at least [`TOP_PASSED_M`] under `high`, not under `low`).
+    /// [2a] The cells of [`Self::hold_points`] around (`x`, `z`), for the floors a held body is on.
+    fn hold_cells(&self, x: f32, z: f32) -> impl Iterator<Item = usize> + '_ {
+        self.hold_points(x, z).filter_map(|(px, pz)| self.cell_at(px, pz))
+    }
+
+    /// [2a] The highest ground top under [`Self::hold_points`] around (`x`, `z`) that feet going down from `high` to `low`
+    /// pass (at least [`TOP_PASSED_M`] under `high`, not under `low`): a ray down the ground faces from there, where the
+    /// point's cell has solid in that band at all (the cells as a cheap first test).
     fn ground_top_passed(&self, solids: &Solids, x: f32, z: f32, low: f32, high: f32) -> Option<f32> {
-        self.hold_cells(x, z)
-            .flat_map(|c| {
-                let range = solids.start[c] as usize..solids.start[c + 1] as usize;
-                solids.spans[range.clone()]
+        self.ground_tops(solids, x, z, low, high).into_iter().flatten().max_by(f32::total_cmp)
+    }
+
+    /// [2a] Per point of [`Self::hold_points`] (the centre, the outer ring, the inner ring, each ring in turn round), the
+    /// highest ground top under it at least [`TOP_PASSED_M`] under `high` and not under `low`.
+    fn ground_tops(&self, solids: &Solids, x: f32, z: f32, low: f32, high: f32) -> [Option<f32>; 17] {
+        let mut tops = [None; 17];
+        let (Some(ground), top) = (solids.ground.as_ref(), high - TOP_PASSED_M) else { return tops };
+        if top <= low {
+            return tops;
+        }
+        for (slot, (px, pz)) in tops.iter_mut().zip(self.hold_points(x, z)) {
+            let solid = self.cell_at(px, pz).is_some_and(|c| {
+                solids.spans[solids.start[c] as usize..solids.start[c + 1] as usize]
                     .iter()
-                    .zip(&solids.ground[range])
-                    .filter(|&(_, &ground)| ground)
-                    .map(|(&(_, hi), _)| hi)
-            })
-            .filter(|&hi| hi >= low - 1e-4 && hi < high - TOP_PASSED_M)
-            .max_by(f32::total_cmp)
+                    .any(|&(lo, hi)| lo <= top && hi >= low - 1e-4)
+            });
+            if solid {
+                *slot = ground.ray_cast(Vec3::new(px, top, pz), Vec3::new(0.0, -1.0, 0.0), top - low + 1e-4).map(|t| top - t);
+            }
+        }
+        tops
     }
 
     /// The highest floor in `cell` between `low` and `high` (and up to 0.05 m over it: a top just over the feet).
@@ -518,14 +536,19 @@ impl WalkGrid {
         }
     }
 
-    /// [2a] The Drop links of `wide` whose landing a ground top holds the body over ([`Body::fall_stops_on_solids`],
-    /// [`Self::come_down`]): a top up to the take-off's own level and over the landing by more than a step (off a lower one
-    /// the body steps down onto the landing), within [`Body::hold_radius`] of the landing's centre. The body comes down there,
-    /// or never leaves the take-off's level, not on the landing: a slab between them, or a crack narrower than the body
-    /// between thin tops (School's one-cell pits 2.3-3.9 m under the road, a floor on each side). A ledge's own face takes
-    /// the floors beside it (the erosion), so a drop off a ledge lands a radius out, past the hold. As (take-off, direction,
-    /// rank 0) for `cut_keeping_reach`.
+    /// [2a] The Drop links of `wide` whose landing a ground top holds the body over ([`Body::fall_stops_on_solids`]), within
+    /// [`Body::hold_radius`] of the landing's centre, so the body comes down there or never leaves the take-off's level, not
+    /// on the landing. As (take-off, direction, rank 0) for `cut_keeping_reach`:
+    /// - a top over the landing by more than a step (off a lower one the body steps down onto the landing) and under the
+    ///   take-off by more than a step (a step down the client walks) with no floor at it ([`Down::Held`]): a slab whose floors
+    ///   the erosion took, where the body stays with no way on. A top with a floor is a ledge partway down: the body did go
+    ///   down, walks on from there, and the link stays (`drop_check`'s rule, A313: asking for the landing itself made
+    ///   fx-bench's drift worse);
+    /// - tops at the take-off's level on opposite sides of the landing: a crack narrower than the body (School's one-cell pits
+    ///   2.3-3.9 m under the road). One side only is the take-off's own edge, which the body walks off and comes down past
+    ///   (the landing's centre is a cell or more from it, the capsule lands further out).
     pub(super) fn drops_under_solids(&self, wide: &Wide, solids: &Solids) -> Vec<(u32, usize, f32)> {
+        let step = self.body.step;
         let mut failing = Vec::new();
         for a in 0..self.len() {
             for d in 0..DIRS.len() {
@@ -534,11 +557,23 @@ impl WalkGrid {
                     continue;
                 }
                 let (ha, hb) = (self.height[a], self.height[b as usize]);
+                if ha - hb <= step + SAME_TOP {
+                    continue;
+                }
                 let p = self.position(b);
-                let step = self.body.step;
-                if ha - hb > step + SAME_TOP
-                    && self.come_down(solids, (p.x, p.z), hb + step + SAME_TOP, ha + SAME_TOP + TOP_PASSED_M) != Down::Air
-                {
+                let slab = ha - hb > 2.0 * step + SAME_TOP
+                    && self.come_down(solids, (p.x, p.z), hb + step + SAME_TOP, ha - step + TOP_PASSED_M) == Down::Held;
+                let crack = || {
+                    let level = (ha - step).max(hb + step + SAME_TOP);
+                    let tops = self.ground_tops(solids, p.x, p.z, level, ha + SAME_TOP + TOP_PASSED_M);
+                    // The rings' points 4 apart are opposite.
+                    (1..17).any(|i| {
+                        let ring = (i - 1) / 8;
+                        let opposite = 1 + ring * 8 + ((i - 1) % 8 + 4) % 8;
+                        tops[i].is_some() && tops[opposite].is_some()
+                    })
+                };
+                if slab || crack() {
                     failing.push((a as u32, d, 0.0));
                 }
             }
@@ -1869,16 +1904,16 @@ mod tests {
         assert_eq!(open, all(&build(false, false)), "the switch leaves the open edge's links");
     }
 
-    /// [2a] A plain Drop into a slot a cell wide between a deck at 3 m and a slab at 2 m: the capsule rests on the slab 0.125 m
-    /// from the slot's centre, so with [`Body::fall_stops_on_solids`] the Drop to the ground under the slot goes (the ground
-    /// has another way in).
+    /// [2a] A plain Drop into a crack a cell wide between two decks at 3 m (thin, the ground open under them): the capsule
+    /// rests on both edges, 0.125 m from the crack's centre each side, so with [`Body::fall_stops_on_solids`] the Drop to the
+    /// ground under the crack goes (the ground has another way in).
     #[test]
     fn a_drop_through_a_slot_narrower_than_the_body_goes_with_fall_stops_on_solids() {
         let mut t = quad(0.0, 0.0, 14.0, 10.0, 0.0).to_vec();
         t.extend(quad(0.0, 0.0, 6.0, 10.0, 3.0));
         let (back, area) = way_back(3.0, 0.0, 1.0);
         t.extend(back);
-        t.extend(quad(6.25, 0.0, 9.0, 10.0, 2.0));
+        t.extend(quad(6.25, 0.0, 9.0, 10.0, 3.0));
         let build = |fall_stops_on_solids: bool| {
             let body = Body { fall_stops_on_solids, ..Body::default() };
             let start = [Vec3::new(3.0, 3.0, 5.0)];

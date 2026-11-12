@@ -959,9 +959,10 @@ struct Solids {
     /// Per cell, its first span; `nx * nz + 1` entries.
     start: Vec<u32>,
     spans: Vec<(f32, f32)>,
-    /// Per span, whether its top is ground a body stands on (a `walk` face, or within the body's slope): what a fall stops at
-    /// ([`Body::fall_stops_on_solids`]).
-    ground: Vec<bool>,
+    /// [2a] With [`Body::fall_stops_on_solids`]: the faces a body stands on (a `walk` face, or a `by_slope` one within the
+    /// body's slope), for the rays a fall stops at; the cells' spans are too coarse for it (a ledge's face column carries the
+    /// ledge's top over the ground at its foot).
+    ground: Option<RayTree>,
 }
 
 /// The links while the grid is built, a whole floor id a direction; packed
@@ -1153,7 +1154,22 @@ impl WalkGrid {
         let mut solids = Solids {
             start: Vec::with_capacity(nx * nz + 1),
             spans: Vec::new(),
-            ground: Vec::new(),
+            ground: body.fall_stops_on_solids.then(|| {
+                RayTree::from_corners(
+                    triangles
+                        .iter()
+                        .filter(|t| match t.walker {
+                            WalkerBehaviour::Walk => true,
+                            WalkerBehaviour::BySlope => {
+                                let [a, b, c] = t.v;
+                                let n = (b - a).cross(c - a);
+                                n.length() > 1e-9 && n.y.abs() / n.length() >= body.min_ground_normal_y
+                            }
+                            _ => false,
+                        })
+                        .map(|t| t.v),
+                )
+            }),
         };
         for (index, mut column) in columns.into_iter().enumerate() {
             start.push(height.len() as u32);
@@ -1181,7 +1197,6 @@ impl WalkGrid {
             solids
                 .spans
                 .extend(merged.iter().map(|span| (span.low, span.high)));
-            solids.ground.extend(merged.iter().map(|span| span.walk >= 2));
             for (k, span) in merged.iter().enumerate() {
                 if span.walk == 0 {
                     continue;
@@ -1251,8 +1266,10 @@ impl WalkGrid {
             OffMeshLinks::Gaps => grid.gap_links(&wide, &solids, &mut stats.gaps),
         };
         if body.fall_stops_on_solids {
+            // The faces' own geometry, not a walk test that may miss: a floor no body gets down to is let go as the carried
+            // landings' are ([`Body::keep_last_resorts`]); the only way back out of a floor a body walks to stays.
             let failing = grid.drops_under_solids(&wide, &solids);
-            (stats.drops_under_solid, stats.drops_under_solid_kept) = grid.cut_keeping_reach(&mut wide, failing, seeds, spawns, true);
+            (stats.drops_under_solid, stats.drops_under_solid_kept) = grid.cut_keeping_reach(&mut wide, failing, seeds, spawns, body.keep_last_resorts);
         }
         if body.slip_landings {
             wide.slips = grid.slip_landings(&wide, &solids);
