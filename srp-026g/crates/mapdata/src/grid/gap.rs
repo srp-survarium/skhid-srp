@@ -519,10 +519,12 @@ impl WalkGrid {
     }
 
     /// [2a] The Drop links of `wide` whose landing a ground top holds the body over ([`Body::fall_stops_on_solids`],
-    /// [`Self::come_down`]): a top under the take-off by more than a step (a step down the client walks) and over the landing
-    /// by more than a step (off a lower one the body steps down onto the landing), within [`Body::hold_radius`] of the
-    /// landing's centre. The body comes down there, a floor or none, not on the landing. As (take-off, direction, rank 0) for
-    /// `cut_keeping_reach`.
+    /// [`Self::come_down`]): a top up to the take-off's own level and over the landing by more than a step (off a lower one
+    /// the body steps down onto the landing), within [`Body::hold_radius`] of the landing's centre. The body comes down there,
+    /// or never leaves the take-off's level, not on the landing: a slab between them, or a crack narrower than the body
+    /// between thin tops (School's one-cell pits 2.3-3.9 m under the road, a floor on each side). A ledge's own face takes
+    /// the floors beside it (the erosion), so a drop off a ledge lands a radius out, past the hold. As (take-off, direction,
+    /// rank 0) for `cut_keeping_reach`.
     pub(super) fn drops_under_solids(&self, wide: &Wide, solids: &Solids) -> Vec<(u32, usize, f32)> {
         let mut failing = Vec::new();
         for a in 0..self.len() {
@@ -534,8 +536,8 @@ impl WalkGrid {
                 let (ha, hb) = (self.height[a], self.height[b as usize]);
                 let p = self.position(b);
                 let step = self.body.step;
-                if ha - hb > 2.0 * step
-                    && self.come_down(solids, (p.x, p.z), hb + step + SAME_TOP, ha - step + TOP_PASSED_M) != Down::Air
+                if ha - hb > step + SAME_TOP
+                    && self.come_down(solids, (p.x, p.z), hb + step + SAME_TOP, ha + SAME_TOP + TOP_PASSED_M) != Down::Air
                 {
                     failing.push((a as u32, d, 0.0));
                 }
