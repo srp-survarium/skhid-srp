@@ -1193,6 +1193,8 @@ st_finish_match_mode_04_winner_message	Victory! All enemies have been defeated.
 st_finish_match_mode_05_draw_message	Draw. Both teams researched as much
 st_finish_match_mode_05_loser_message	Defeat. The enemy team has completed researching anomalous activity
 st_finish_match_mode_05_winner_message	Victory! Your team has completed researching anomalous activity
+st_finish_match_mode_08_loser_message	Defeat. You do not have the most kills
+st_finish_match_mode_08_winner_message	Victory! You have the most kills
 st_first_weapon_action	Weapon 1
 st_fix	Fix
 st_fn_fnc_description	Belgian assault rifle, ammo: 5.56x45. Developed by FN Herstal in the 1970s and adopted by the Belgian army; licence versions serve in Sweden and Indonesia. Equipped with a 30-round magazine. Supports single and automatic fire.
@@ -1517,6 +1519,8 @@ st_mode_04_description	Secure the position of your group in the area by eliminat
 st_mode_04_name	Team Deathmatch
 st_mode_05_description	Your task is to seize control of mobile research units. Each unit captured by your team produces anomalous activity research points. The winner is the team with the most points at the end of the match.
 st_mode_05_name	Research
+st_mode_08_description	Every soldier fights for himself. The match ends when someone reaches the kill target or the time runs out. The soldier with the most kills wins.
+st_mode_08_name	Free for all
 st_modification_screen_edit_decal_hint	To change the size and position of a decal, click on its slot
 st_modification_screen_hint	Drag camouflage or decal from your inventory into the item modification slot
 st_modified	Modified
@@ -2636,6 +2640,7 @@ st_srp_medicine_sprint_stamina	Sprint stamina
 st_srp_melee_knockback	Melee knockback
 st_srp_mode_blackout	Protective device: blackout
 st_srp_mode_chargers	Protective device: chargers
+st_srp_mode_free_for_all	Free for all
 st_srp_mode_protective_device	Protective device
 st_srp_mode_research	Research
 st_srp_mode_team_deathmatch	Team Deathmatch
@@ -2903,6 +2908,7 @@ st_start_match_welcome_message	Find batteries and deliver them to your base!
 st_start_match_welcome_message_2	Locate and protect battery charging stations!
 st_start_match_welcome_message_3	Eliminate as many enemies as possible!
 st_start_match_welcome_message_5	Find and capture research units!
+st_start_match_welcome_message_8	Free for all. First to %1$s kills wins
 st_statistic_sync_text	Receiving match stats
 st_statistics_daily_bonus	Daily bonus
 st_statistics_equipment_bonus	Equipment bonus

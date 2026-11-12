@@ -2548,3 +2548,10 @@ va	name	source	ret_cleanup	result
 0x0001dcd0	vostok::console_commands::cc_u32::cc_u32	manual	24	
 0x003cd300	vostok::render::render_cc_u32::execute	manual	4
 0x001f01b0	survarium::open_file_impl	manual	0	EAX file handle
+0x003171d0	survarium::player_respawn_rule_base::select_respawn_points	manual	24	
+0x00316da0	survarium::player_respawn_rule_base::spawn_player	manual	12	
+0x002f4800	survarium::respawn_point_core::is_clear_for_team	manual	8	AL: 1 when no player of the team is nearer than the point's ally radius (+30h) and no other player nearer than its enemy radius (+34h)
+0x003174c0	vostok::buffer_vector<survarium::respawn_point_core *>::push_back	manual	4	
+0x002f4580	survarium::respawn_point_core::load	manual	8	
+0x00267b10	survarium::timelimit_rule::fill_match_hud_state	manual	8	
+0x00233680	survarium::match_hud_state::match_hud_state	manual	0	EAX: the state (ESI)

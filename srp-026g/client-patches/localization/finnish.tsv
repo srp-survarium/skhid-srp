@@ -1193,6 +1193,8 @@ st_finish_match_mode_04_winner_message	Voitto! Kaikki viholliset kukistettiin.
 st_finish_match_mode_05_draw_message	Tasapeli. Joukkueet tutkivat yhtä paljon
 st_finish_match_mode_05_loser_message	Tappio. Vihollisjoukkue sai anomaliatutkimuksen valmiiksi
 st_finish_match_mode_05_winner_message	Voitto! Joukkueesi sai anomaliatutkimuksen valmiiksi
+st_finish_match_mode_08_loser_message	Tappio. Sinulla ei ole eniten tappoja
+st_finish_match_mode_08_winner_message	Voitto! Sinulla on eniten tappoja
 st_first_weapon_action	Ase 1
 st_fix	Korjaa
 st_fn_fnc_description	Belgialainen rynnäkkökivääri, kaliiperi 5.56x45. FN Herstalin 1970-luvun kehitystyö, Belgian armeijan käytössä. Lisenssiversioita Ruotsissa ja Indonesiassa. 30 patruunan lipas. Kerta- ja sarjatuli.
@@ -1517,6 +1519,8 @@ st_mode_04_description	Vahvista joukkueesi asemaa alueella eliminoimalla mahdoll
 st_mode_04_name	Joukkuetaistelu
 st_mode_05_description	Tehtäväsi on vallata liikkuvat tutkimusyksiköt. Jokainen vallattu yksikkö tuottaa joukkueellesi anomaliatutkimuspisteitä. Eniten pisteitä ottelun lopussa kerännyt joukkue voittaa.
 st_mode_05_name	Tutkimus
+st_mode_08_description	Jokainen taistelee itsensä puolesta. Ottelu päättyy, kun joku saavuttaa vaaditun tappomäärän tai aika loppuu. Eniten tappoja saanut taistelija voittaa.
+st_mode_08_name	Kaikki kaikkia vastaan
 st_modification_screen_edit_decal_hint	Muuta merkin kokoa ja sijaintia klikkaamalla sen paikkaa
 st_modification_screen_hint	Vedä maastokuvio tai merkki tavaroistasi esineen muokkauspaikkaan
 st_modified	Muokattu
@@ -2636,6 +2640,7 @@ st_srp_medicine_sprint_stamina	Sprintin kestävyys
 st_srp_melee_knockback	Perälyönnin työntö
 st_srp_mode_blackout	Suojalaite: sähkökatko
 st_srp_mode_chargers	Suojalaite: laturit
+st_srp_mode_free_for_all	Kaikki kaikkia vastaan
 st_srp_mode_protective_device	Suojalaite
 st_srp_mode_research	Tutkimus
 st_srp_mode_team_deathmatch	Joukkuetaistelu
@@ -2903,6 +2908,7 @@ st_start_match_welcome_message	Etsi akkuja ja vie ne tukikohtaasi!
 st_start_match_welcome_message_2	Etsi ja suojaa akkujen latausasemat!
 st_start_match_welcome_message_3	Eliminoi mahdollisimman monta vihollista!
 st_start_match_welcome_message_5	Etsi ja valtaa tutkimusyksiköt!
+st_start_match_welcome_message_8	Kaikki kaikkia vastaan. Ensimmäisenä %1$s tappoa saanut voittaa
 st_statistic_sync_text	Vastaanotetaan ottelutilastoja
 st_statistics_daily_bonus	Päiväbonus
 st_statistics_equipment_bonus	Varustebonus

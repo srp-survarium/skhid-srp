@@ -6,8 +6,9 @@ fn the_test_archive_is_0_26g_with_the_test_patches() {
     assert_eq!(data.origin, TEST_ORIGIN);
     // 0.26g's 508, the Bandit balaclava's config of patch 15, the English
     // and Ukrainian localizations, srp's own configs (SRP_TABLES and the
-    // shop's), and Blackout's 24 (BLACKOUT_EDITS).
-    assert_eq!(data.len(), 511 + SRP_TABLES.len() + 1 + 24);
+    // shop's), Blackout's 24 (BLACKOUT_EDITS) and the free-for-alls' 24
+    // (FREE_FOR_ALL_EDITS).
+    assert_eq!(data.len(), 511 + SRP_TABLES.len() + 1 + 24 + 24);
     assert!(data.file("localization/ukrainian/localization").is_some());
     assert!(
         data.file("gameplay/items/armour/mask/bandit_026.options")
@@ -93,8 +94,10 @@ fn srp_needs_readable_server_game_data() {
     with_srp_tables(&mut files);
     with_pocket_units(&mut files);
     with_blackout_maps(&mut files);
+    let mut projects = opened.projects.clone();
+    with_free_for_all_maps(&mut files, &mut projects);
     assert_eq!(files, shared().files);
-    assert_eq!(opened.projects, shared().projects);
+    assert_eq!(projects, shared().projects);
     assert_eq!(opened.provenance, shared().provenance);
     // SAFETY: as above.
     unsafe {

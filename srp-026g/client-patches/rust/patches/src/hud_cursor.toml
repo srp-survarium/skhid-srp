@@ -9,6 +9,7 @@ patch = 113
 [[hook]]
 site = "hud.initialize_match"
 handler = "on_match_start"
+order = 0
 
 # show_cursor's show: no movie while the main menu is shown.
 [[hook]]

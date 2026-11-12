@@ -128,6 +128,7 @@ given), LIKELY or GUESS.
 | [artefact-score.md](artefact-score.md) | Match score for an artefact put into a slot |
 | [artefacts.md](artefacts.md) | Artefacts: patch 54 and the artefacts table |
 | [blackout.md](blackout.md) | Blackout: the mode with the UI off |
+| [ffa.md](ffa.md) | Free for all: the design (mode 7, each player their own side) and why 0.26g carries two sides only; not built, the options and sizes |
 | [breakable_lamps.md](breakable_lamps.md) | Breakable lamps |
 | [buy-gold.md](buy-gold.md) | No "Get Gold": silver only |
 | [buy-modified.md](buy-modified.md) | Buy from a modified item's right-click menu |

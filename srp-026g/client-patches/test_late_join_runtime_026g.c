@@ -221,7 +221,21 @@ static void concurrent_destruction(void) {
     }
 }
 
+static void wrong_solo_identity(void) {
+    reset();
+    lj_u8 bytes[15]; packet(bytes, 1);
+    bytes[13] = 0;
+    bytes[14] = 7; /* Place 2 must have identity 6, never another player's. */
+    lj_prepare(&state, bytes, sizeof(bytes));
+    assert(last_status == LJ_FAILED && allocations == 0 && queries == 0);
+    bytes[14] = 6;
+    bytes[13] = 1; /* No squads in FFA. */
+    lj_prepare(&state, bytes, sizeof(bytes));
+    assert(last_status == LJ_FAILED && allocations == 0 && queries == 0);
+}
+
 int main(void) {
+    wrong_solo_identity();
     successful_load();
     cancelled_load();
     partial_failure();

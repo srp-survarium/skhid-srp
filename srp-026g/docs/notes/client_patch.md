@@ -3041,6 +3041,119 @@ hooks in the patched exe on made-up objects (a relay paid at its own team's
 delivery, steps dropped at the other team's), and the game's own serialize and
 deserialize of two records with the hooks inside.
 
+### Free for all (patch 142)
+
+`free_for_all` (Rust, `vostok::respawn`, `vostok::ui`) lets a player have a team of his own (srp's
+free-for-all, mode 8: 4 + his place; `ffa.md`). PROVEN in the exe (ffa.md, "Why two sides are the
+limit"): the respawn tick 0x316820 batches due players into two stack vectors by team,
+select_respawn_points 0x3171D0 indexes the point groups (team 0, 1, 2) by that team, and a
+resupply zone serves its own team or team 2 only. The rest of the team code compares teams for
+equality.
+
+- **The mode number 8** (PROVEN, 2026-11-11: every read of `mode.mode` in the exe). The config key
+  "mode" (0x9FF2FC) has 15 references; two read the number (the same key twice, `mode.mode`):
+  game_world_ui::initialize_match 0x234D1C..0x234D31 (into the hud's +20h, and to the movie as
+  `root.set_game_type`, 0x234D6B) and the quests' 0x2A3620..0x2A362F (a local, [esp+18h]). The
+  others read `mode.match_making_params.map_name` (0x218F0B, 0x27B054, 0x2C67A6),
+  `mode.ui.loading_screen_id` (0x22048E), `mode.name` (0x2C9C87), `mode.rules` (0x2CC34D),
+  `mode.parameters.*` (0x2F24D5, 0x2F3D28, 0x314821, 0x31602A, 0x316765, 0x317E1B), and a
+  collision geometry's own "mode" (0x2F8D04). Every use of the number is a compare for equality:
+  the hud's +20h at 0x234D73 (2, 3, 4, else on to 0x234E71), 0x2385D8 (2, 3), 0x238CC9 (3),
+  0x23B339 (the welcome: 2, 3, 4; 5 in patch 53's stub), 0x23B3DE (4); the quests' local at
+  0x2A36B5, 0x2A3AD9 and 0x2A3BED (2, 3; the jump table at 0x2A36AA there is indexed by the
+  quest's type, not the mode). No jump table, array index or bound takes it: 8 goes every "else"
+  way, as Research's 5 does. The results screen's `game_mode` (0x29B7BE) is the server's byte,
+  given to the lobby movie as it is.
+- `respawn.due_team` 0x3168CE (`lea edx,[eax+eax*2] / mov eax,[ebp-10h]`, 6 bytes; EAX the
+  team): a team of 2 or more becomes 0 for the vector index. No match mixes teams 0/1 with
+  others, so the first vector then holds only free-for-all players.
+- `respawn.select` 0x3171DC (`mov edi,[ecx+eax*4+194h]`, 7 bytes, after the frame and pushes; ECX
+  the rule, EBP the frame: +8 team, +0Ch due, +10h living, +18h time, +1Ch chosen): when the first
+  due player's team is 2 or more, every due player in order gets a point of the team-2 group
+  (+190h, count +19Ch, 38h each; the first 64):
+  - a point's rank is the squared distance from its position (+8h) to the nearest living player
+    (his simulated transform's translation, player +43Ch: what 0x2F4800 measures from, through
+    the collision object's getter 0x1F17C0) and to the nearest point given before at this tick;
+  - a point passes when it is not given yet, no given point is inside its enemy radius (+34h),
+    and 0x2F4800 is true for his own team and the living players;
+  - every passing point enters the choice in map order, without distance weighting. The index
+    is `mix(time + place * 0x9E3779B9) mod count`, wrapping u32 throughout: xor-shift 16,
+    multiply 0x7FEB352D, xor-shift 15, multiply 0x846CA68B, xor-shift 16. This avoids the
+    former three-farthest edge bias and tick-modulo cycles at regular respawn intervals;
+  - with no passing point, use the same mix among the five best-ranked points
+    (or all points on a smaller map; equal ranks by point index).
+  Points are pushed with 0x3174C0; exit `done` 0x317354, the function's epilogue (ret 18h). The
+  points' ally/enemy zone checkers (+28h/+2Ch) are not consulted. Every game computes the same:
+  the inputs are the world's (positions, the rule's points, the tick's time, places), the code is
+  the arena's (one build for every game of a match); selection mixing uses wrapping u32,
+  and distance arithmetic is single precision
+  subss, mulss, addss, minss and ucomiss only (the crate is built for pentium4: no x87
+  arithmetic, no fused multiply-add; read in the linked code), each rounded as IEEE 754 says
+  under the thread's MXCSR, the one the game's own clear test runs with at the same place.
+- `resupply.can_use` 0x2F8086 and `resupply.use_info` 0x2F80C6 (`mov edx,[eax+6B8h]`, 6 bytes;
+  EAX the player): a player of team 2 or more exits to the allowed path (0x2F809C, 0x2F80E4) with
+  EDX his profile. Those two addresses are patch 85's sites `pickup.can_use` and `pickup.use_hint`
+  (`mov ecx,[eax+10Ch]`, 6 bytes, a jump to their entry in the built exe): the spans do not
+  overlap (0x2F8086..0x2F808C and 0x2F809C..0x2F80A2; 0x2F80C6..0x2F80CC and 0x2F80E4..0x2F80EA),
+  our exit lands on their first byte as the game's own `je` at 0x2F8095 / 0x2F80D5 does, and
+  their entry keeps EAX and EDX for the `push edx` after their span (0x2F80A8, 0x2F80F0).
+- **The kill target.** `static_info.options_read` and `replay.options_read` (after patches 65,
+  86, 83 and 88 in the chains): srp's block after the options ("SRPX", then `{tag, len, bytes}`)
+  holds tag 3, two bytes, `kills_to_win` (u16, never 0) in a free-for-all only. With it the
+  patch's state is a free-for-all's (the target, the options' places), else another match's.
+- **The hud state** (PROVEN): the hud (game_world_ui) holds at +24h..+2D8h the state the rules fill
+  each frame (game_world::tick 0x1F7F7A..0x1F7F90: its first byte the place of the network client's
+  player (+4: the local player, in a replay the one the camera is on, as is_player_current 0x242A40
+  reads it, `REPLAY_REATTACH_THUNK`), 0FFh none; then game_world_core::fill_match_hud_state 0x2D36B0
+  calls each rule's slot +44h), which update_ui hashes (0x23B2D2) to see a change. The kd rule
+  (0x323980) fills +98h + 8 x place (kills u16, deaths u16, in the match u8) for its
+  record count (20 with the growing-roster patch); the time rule (0x267B10) +4 (whole seconds left in process, 0 once over) and +138h (1
+  while it waits or counts down). The state is never cleared after the hud's constructor (0x233680),
+  so only the match's places are read.
+- `player_icons.update_start` 0x23AA10 (after patches 65 and 83): the hud movie is told
+  `root.set_ffa_progress(own, top, target)` (three GFx uints, Invoke 0x511600) when the movie or
+  the numbers are not the last told, and again while the movie does not take it: own the viewed
+  place's kills (0 without one), top the most of the match's places. `hud.initialize_match`
+  0x234880 (after patch 113) forgets what was told: the next frame, after initialize_match set
+  the hud's game type, tells it again.
+- **The messages.** `game_world_ui.welcome` 0x23B36A (after patch 88; EDI the hud): mode 8 has no
+  welcome text (0x23B339's compares, patch 53's stub), so the hook shows the dictionary's
+  `st_start_match_welcome_message_8` (translate_text 0x1FF0F0), its `%1$s` the target, by the
+  movie's `root.set_parameterized_message(text, 21h, 14h, 6000)`, as the game's
+  show_parametrized_message 0x2375C0 invokes it for a key. The end is seen in the hud state at
+  `player_icons.update_start`: in play (not the pregame, positive time remaining), then a place at the
+  target or the exact deadline: `st_finish_match_mode_08_winner_message` to the viewed place with the
+  most kills, at least one (srp's `ffa_top_kills`), `..._loser_message` to another, once; a game
+  that never saw the match in play is told nothing. The displayed seconds are whole
+  (0x267B5F), so they are not used for completion: the HUD reads the core's time and
+  owned time rule's state/start/duration (type 2, +148h/+12Ch/+138h), with the wrapping
+  subtraction of rule_completed 0x318360. Its roster count is read live through the
+  match wrapper's options (+124h), the exact object late-join installation updates.
+  This does not assume it aliases the client's options ([nc+1F1C48h]+0Ch).
+- **The terminal KD standing (2026-11-12).** `kd_stats.event` hooks on_event's entry
+  0x3237E0 (ECX the rule, ESP+4 event, +8 payload, +0Ch completed world time). For
+  FFA death events (1), the safe Rust hook reads its record count (+1B0h; the
+  growing-roster constructor fixes it at 20), inline KD
+  records (+110h, stride 8), and owning core (+1B4h). Once the target is present,
+  or the time rule is outside play, it returns through the original ret 0Ch at
+  0x323861. Otherwise the full original handler counts the victim's death and an
+  enemy killer's kill. The winning event finishes in full; later events change no
+  KD counters. Those native serialized records are the only completion state, so
+  deserialize 0x323910 restores both a pre-win world and a terminal world correctly.
+  Other modes and other event kinds run the original handler.
+- **The world check** (patch 87, `world_check::Match::of`): the game names its match's mode by its
+  rule objects; a match with one respawn rule and no rule of a mode is a free-for-all's
+  (srp-validate's `mode::FREE_FOR_ALL`: no rule between the respawn points and the kd stats).
+
+Simulation: respawns and resupply are the world's, so every client of a match must run it; the
+hud's numbers and messages are the interface's. `check_free_for_all_026g.py` runs the hooks in
+the patched exe: the tick's batching span, the whole select_respawn_points with the game's own
+clear test, sqrt and push_back on made-up players and points (hand-made cases and 300 seeded
+random matches against the check's own model of the rule), both zone functions through patch
+85's hooks, the options' two reads, update_player_icons' start with made-up hud states,
+initialize_match's start and update_ui's welcome for every mode, the original beside. Not run
+in a game.
+
 ### A bullet stops a drug (patch 84)
 
 `drug_interrupt` (Rust, `vostok::drug`) is a lohook at 0x2D9CB1 in

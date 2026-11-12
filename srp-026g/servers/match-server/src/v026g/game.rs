@@ -4250,6 +4250,12 @@ impl Game {
     /// Read a trusted snapshot's statistics and rules: the standing, the
     /// phase, and whether the mode's rule has its end.
     fn observe(&mut self, snapshot: &Snapshot, vouchers: usize) {
+        // FFA's first terminal trusted world owns the results throughout
+        // the closing delay. Later uploads still serve synchronization,
+        // but cannot replace its standings, statistics or kill streaks.
+        if self.game_mode() == RuleMode::FreeForAll && self.mode_end_at.is_some() {
+            return;
+        }
         let Some(decoded) = snapshot::decode(
             snapshot.time,
             &snapshot.body,
@@ -4358,7 +4364,13 @@ impl Game {
                         )
                     }),
                 RuleMode::Research => research_end.is_some(),
-                _ => standing.is_some_and(|standing| {
+                RuleMode::FreeForAll => decoded.rules.as_ref().is_some_and(|read| {
+                    rules::ffa_finished(
+                        read.kills_deaths.iter().map(|record| record.kills),
+                        self.formed.played.map().kills_to_win,
+                    )
+                }),
+                RuleMode::Batteries | RuleMode::TimedBatteries => standing.is_some_and(|standing| {
                     rules::gather_finished(standing.points, self.batteries() as u32)
                 }),
             };

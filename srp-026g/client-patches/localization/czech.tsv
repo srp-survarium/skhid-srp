@@ -1193,6 +1193,8 @@ st_finish_match_mode_04_winner_message	Vítězství! Všichni nepřátelé byli 
 st_finish_match_mode_05_draw_message	Remíza. Oba týmy dosáhly ve výzkumu stejného pokroku
 st_finish_match_mode_05_loser_message	Porážka. Nepřátelský tým dokončil výzkum anomální aktivity
 st_finish_match_mode_05_winner_message	Vítězství! Tvůj tým dokončil výzkum anomální aktivity
+st_finish_match_mode_08_loser_message	Porážka. Nemáš nejvíce zabití
+st_finish_match_mode_08_winner_message	Vítězství! Máš nejvíce zabití
 st_first_weapon_action	Zbraň 1
 st_fix	Opravit
 st_fn_fnc_description	Belgická útočná puška na náboje 5.56x45. Vyvinutá FN Herstal v 70. letech, zavedená v belgické armádě. Licenční verze slouží ve Švédsku a Indonésii. Zásobník na 30 nábojů. Střílí jednotlivě i automaticky.
@@ -1517,6 +1519,8 @@ st_mode_04_description	Upevni pozici svého týmu vyřazením co nejvíce nepř�
 st_mode_04_name	Týmový deathmatch
 st_mode_05_description	Tvým úkolem je ovládnout mobilní výzkumné jednotky. Každá zabraná jednotka přináší týmu body výzkumu anomální aktivity. Vyhrává tým s nejvíce body na konci zápasu.
 st_mode_05_name	Výzkum
+st_mode_08_description	Každý bojuje sám za sebe. Zápas končí, když někdo dosáhne potřebného počtu zabití nebo když vyprší čas. Vyhrává bojovník s nejvíce zabitími.
+st_mode_08_name	Každý proti každému
 st_modification_screen_edit_decal_hint	Velikost a umístění nášivky změníš kliknutím na její slot
 st_modification_screen_hint	Přetáhni kamufláž nebo nášivku z inventáře do slotu úprav předmětu
 st_modified	Upraveno
@@ -2636,6 +2640,7 @@ st_srp_medicine_sprint_stamina	Výdrž na sprint
 st_srp_melee_knockback	Odhození pažbou
 st_srp_mode_blackout	Ochranné zařízení: výpadek
 st_srp_mode_chargers	Ochranné zařízení: nabíječky
+st_srp_mode_free_for_all	Každý proti každému
 st_srp_mode_protective_device	Ochranné zařízení
 st_srp_mode_research	Výzkum
 st_srp_mode_team_deathmatch	Týmový deathmatch
@@ -2903,6 +2908,7 @@ st_start_match_welcome_message	Najdi baterie a dones je na svou základnu!
 st_start_match_welcome_message_2	Najdi a chraň nabíjecí stanice baterií!
 st_start_match_welcome_message_3	Vyřaď co nejvíce nepřátel!
 st_start_match_welcome_message_5	Najdi a zaber výzkumné jednotky!
+st_start_match_welcome_message_8	Každý proti každému. Vyhrává první, kdo dosáhne %1$s zabití
 st_statistic_sync_text	Načítání statistik zápasu
 st_statistics_daily_bonus	Denní bonus
 st_statistics_equipment_bonus	Bonus za vybavení

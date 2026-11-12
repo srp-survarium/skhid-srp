@@ -1193,6 +1193,8 @@ st_finish_match_mode_04_winner_message	Перамога! Усе праціўні
 st_finish_match_mode_05_draw_message	Нічыя. Каманды даследавалі пароўну
 st_finish_match_mode_05_loser_message	Паражэнне. Каманда праціўніка завяршыла даследаванне анамальнай актыўнасці
 st_finish_match_mode_05_winner_message	Перамога! Ваша каманда завяршыла даследаванне анамальнай актыўнасці
+st_finish_match_mode_08_loser_message	Паражэнне. Найбольш забойстваў не ў вас
+st_finish_match_mode_08_winner_message	Перамога! У вас найбольш забойстваў
 st_first_weapon_action	Зброя 1
 st_fix	Палагодзіць
 st_fn_fnc_description	Бельгійская штурмавая вінтоўка пад боепрыпас 5.56х45. Распрацавана FN Herstal у 70-х гадах для бельгійскай арміі; ліцэнзійныя версіі служаць у Швецыі і Інданезіі. Магазін на 30 патронаў. Агонь: адзіночны і аўтаматычны.
@@ -1517,6 +1519,8 @@ st_mode_04_description	Замацуйце пазіцыі вашай групы, 
 st_mode_04_name	Камандны бой
 st_mode_05_description	Ваша задача - захапіць кантроль над мабільнымі даследчымі ўстаноўкамі. Кожная ўстаноўка, захопленая вашай камандай, вырабляе ачкі даследавання анамальнай актыўнасці. Перамагае каманда, якая набрала больш ачкоў да канца матча.
 st_mode_05_name	Даследаванне
+st_mode_08_description	Кожны сам за сябе. Матч заканчваецца, калі нехта набярэ патрэбную колькасць забойстваў або скончыцца час. Перамагае баец з найбольшай колькасцю забойстваў.
+st_mode_08_name	Усе супраць усіх
 st_modification_screen_edit_decal_hint	Каб змяніць памер і становішча нашыўкі, націсніце на яе слот
 st_modification_screen_hint	Перацягніце камуфляж або нашыўку з вашага інвентару ў адпаведны слот мадыфікацыі прадмета
 st_modified	Мадыфікавана
@@ -2636,6 +2640,7 @@ st_srp_medicine_sprint_stamina	Энергія на спрынт
 st_srp_melee_knockback	Адкідванне прыкладам
 st_srp_mode_blackout	Ахоўная прылада: блэкаўт
 st_srp_mode_chargers	Ахоўная прылада: зараднікі
+st_srp_mode_free_for_all	Усе супраць усіх
 st_srp_mode_protective_device	Ахоўная прылада
 st_srp_mode_research	Даследаванне
 st_srp_mode_team_deathmatch	Камандны бой
@@ -2903,6 +2908,7 @@ st_start_match_welcome_message	Знайдзіце батарэі і дастаў
 st_start_match_welcome_message_2	Знайдзіце і абараніце месцы зарадкі батарэй!
 st_start_match_welcome_message_3	Знішчыце як мага больш праціўнікаў!
 st_start_match_welcome_message_5	Знайдзіце і захапіце даследчыя ўстаноўкі!
+st_start_match_welcome_message_8	Усе супраць усіх. Перамагае першы, хто набярэ %1$s забойстваў
 st_statistic_sync_text	Атрыманне статыстыкі матча
 st_statistics_daily_bonus	Штодзённы бонус
 st_statistics_equipment_bonus	Бонус экіпіроўкі

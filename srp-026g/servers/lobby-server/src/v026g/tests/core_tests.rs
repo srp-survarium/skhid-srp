@@ -22,7 +22,7 @@ use survarium::v026g::prices;
 use survarium::v026g::shop_offers;
 
 use super::client::{TestClient, request};
-use super::{TestHost, denial, find, sent_to_match, signed_in};
+use super::{TestHost, denial, find, sent_to_match, signed_in, two_team_settings};
 use crate::v026g::core::Core;
 use crate::v026g::{Inbox, MatchFinished, Settings};
 
@@ -45,8 +45,10 @@ struct World {
 }
 
 impl World {
+    /// A lobby whose rooms play matches of two teams
+    /// ([`two_team_settings`]).
     fn new() -> Self {
-        Self::with_settings(Settings::local("127.0.0.1:0"))
+        Self::with_settings(two_team_settings())
     }
 
     fn with_settings(settings: Settings) -> Self {

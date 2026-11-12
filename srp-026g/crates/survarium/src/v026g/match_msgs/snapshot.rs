@@ -1355,7 +1355,9 @@ impl Rules {
             let fixed_at = match game_mode {
                 RuleMode::TeamDeathmatch => Some(middle.len().checked_sub(Tdm::LEN)),
                 RuleMode::Research => Some(research_at),
-                _ => None,
+                // No mode rule: the respawn rule ends where the kd rule begins.
+                RuleMode::FreeForAll => Some(Some(middle.len())),
+                RuleMode::Batteries | RuleMode::TimedBatteries => None,
             };
             if let Some(end) = fixed_at {
                 if let Some(end) = end
@@ -1459,6 +1461,11 @@ impl Decoded<'_> {
     /// Research's shown points when its rule was read (the rule copies
     /// them into the statistics in play only), else the statistics'.
     pub fn standing(&self, game_mode: RuleMode, teams: &[u8]) -> Option<Standing> {
+        // A free-for-all has no teams' standing: its players rank by the kd
+        // rule's kills.
+        if game_mode == RuleMode::FreeForAll {
+            return None;
+        }
         let tail = self.statistics.as_ref().map(|statistics| statistics.tail);
         if game_mode == RuleMode::Research {
             let research = self.rules.as_ref().and_then(|rules| rules.research.as_ref());
