@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# usage: release/discord-post [--dry-run] [<zip>]
+#
+# The players' ZIP as one message of a Discord channel, with its sha256 and
+# a few words in Russian and English: a player whose provider blocks the
+# site still gets the file the site's page gives. release.sh runs it once a
+# live release went out (its step 8), with the ZIP it shipped; by hand,
+# without <zip>, it takes the one $SKHID_SITE/download gives now.
+#   1. the ZIP: its size, its sha256, its exe's revision (the message names
+#      them). Larger than $SKHID_DISCORD_MAX_MB (default 20: what a bot may
+#      attach in a server without boosts is Discord's to say) it is not
+#      posted: this stops, saying so;
+#   2. POST <api>/channels/$SKHID_DISCORD_CHANNEL/messages as the bot
+#      $SKHID_DISCORD_TOKEN (given to curl on its stdin, never in a command
+#      line; neither is printed): the words and the file. The bot needs View
+#      Channel, Send Messages and Attach Files there;
+#   3. the answer must be 200 with the attachment at the ZIP's size; else
+#      this stops with Discord's words (40005: the server takes smaller
+#      files than $SKHID_DISCORD_MAX_MB says).
+# Only the ZIP: the patches of resources.db (tens to hundreds of megabytes)
+# are not posted, and the game's updater still gets them, and the list of
+# them, from the servers (client/updater/README.md, "Patches").
+#
+#   --dry-run  step 1, then prints the message; asks Discord nothing and
+#              needs neither setting
+. "$(dirname "$0")/lib.sh"
+
+zip=''
+while (($#)); do
+    case $1 in
+    -h | --help) usage ;;
+    --dry-run) DRY_RUN=1; shift ;;
+    -*) die "unknown option $1 (--help)" ;;
+    *) [[ -z $zip ]] || usage 1; zip=$1; shift ;;
+    esac
+done
+need_cmds curl jq sha256sum od
+load_env
+api=${SKHID_DISCORD_API:-https://discord.com/api/v10}
+max_mb=${SKHID_DISCORD_MAX_MB:-20}
+[[ $max_mb =~ ^[1-9][0-9]{0,3}$ ]] || die "SKHID_DISCORD_MAX_MB: a whole number of megabytes"
+if ((!DRY_RUN)); then
+    load_env SKHID_DISCORD_CHANNEL SKHID_DISCORD_TOKEN
+    [[ $SKHID_DISCORD_CHANNEL =~ ^[0-9]{15,20}$ ]] || die "SKHID_DISCORD_CHANNEL is not a channel's ID (its digits)"
+    [[ $SKHID_DISCORD_TOKEN =~ ^[A-Za-z0-9._-]+$ ]] || die "SKHID_DISCORD_TOKEN is not a bot's token"
+fi
+
+work=$(mktemp -d "${TMPDIR:-/tmp}/skhid-discord.XXXXXX")
+trap 'rm -rf "$work"' EXIT
+if [[ -z $zip ]]; then
+    load_env SKHID_SITE
+    zip=$work/$ZIP_NAME
+    fetch_site_zip "$SKHID_SITE" "$zip"
+fi
+[[ -f $zip ]] || die "$zip: no such file"
+
+# 1. The ZIP.
+size=$(size_of "$zip") sha=$(sha256_of "$zip")
+rev=$(zip_revision "$zip" "$work/exe")
+is_revision "$rev" || die "$zip: no $ZIP_EXE of ours in it (its revision: $rev): not the players' ZIP"
+((size <= max_mb * 1024 * 1024)) ||
+    die "$zip is $size bytes, over the $max_mb MB a message's file may be (SKHID_DISCORD_MAX_MB): NOT POSTED"
+
+# Short: the same words in both languages.
+message="**Skhid: revision $rev**
+\`$ZIP_NAME\`, $size bytes, sha256 \`$sha\`
+
+Тот же ZIP, что даёт сайт, если сайт у вас не открывается. Распакуйте его в папку игры с заменой файлов (новая установка: в пустую папку) и запустите Skhid.bat. Патчи контента и вход игра по-прежнему берёт с серверов: не выходит, см. VPN.txt в архиве. Проверить файл: \`certutil -hashfile $ZIP_NAME SHA256\`.
+
+The same ZIP the site gives, for when the site does not open for you. Unpack it into the game's folder, replacing the files (a new install: into an empty folder), and start Skhid.bat. The content patches and the sign-in still come from the servers: if they do not, see VPN.txt in the ZIP. To check the file: \`certutil -hashfile $ZIP_NAME SHA256\`."
+((${#message} <= 2000)) || die "the message is ${#message} characters: Discord takes 2000"
+
+if ((DRY_RUN)); then
+    say "[dry run] the file: $zip as $ZIP_NAME, $size bytes (the most: $max_mb MB), sha256 $sha, revision $rev"
+    say "[dry run] the message:"
+    say "    ${message//$'\n'/$'\n'    }"
+    say "[dry run] nothing was posted"
+    exit 0
+fi
+
+# 2. The post. No one is mentioned, whatever the words hold.
+jq -n --arg content "$message" '{content: $content, allowed_mentions: {parse: []}}' >"$work/payload.json"
+status=$(printf 'header = "Authorization: Bot %s"\n' "$SKHID_DISCORD_TOKEN" |
+    curl -sS --max-time 600 -o "$work/answer.json" -w '%{http_code}' -K - \
+        -F "payload_json=<$work/payload.json;type=application/json" \
+        -F "files[0]=@$zip;filename=$ZIP_NAME;type=application/zip" \
+        "$api/channels/$SKHID_DISCORD_CHANNEL/messages" || true)
+
+# 3. The answer.
+if [[ $status != 200 ]]; then
+    why=$(jq -r '"\(.message // "no words") (code \(.code // "none"))"' "$work/answer.json" 2>/dev/null || true)
+    hint=''
+    case $status in
+    401) hint=": SKHID_DISCORD_TOKEN is not a bot's token Discord knows" ;;
+    403) hint=": the bot needs View Channel, Send Messages and Attach Files in the channel" ;;
+    404) hint=": SKHID_DISCORD_CHANNEL is no channel the bot sees" ;;
+    413) hint=": the server takes smaller files than $max_mb MB (SKHID_DISCORD_MAX_MB); the ZIP is $size bytes" ;;
+    esac
+    die "Discord answered ${status:-nothing}, ${why:-no JSON}$hint: NOT POSTED"
+fi
+id=$(jq -r '.id // empty' "$work/answer.json")
+posted=$(jq -r '.attachments[0].size // empty' "$work/answer.json")
+[[ -n $id && $posted == "$size" ]] ||
+    die "Discord answered 200 with message ${id:-(none)} and a file of ${posted:-no} bytes, not the ZIP's $size: look at the channel"
+say "posted to the Discord channel: $ZIP_NAME, $size bytes, sha256 $sha, revision $rev (message $id)"
