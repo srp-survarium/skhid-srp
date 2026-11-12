@@ -1524,7 +1524,7 @@ impl Game {
         if peer.executable.identity().is_none() && let Upload::Offer(identity) = carrier.upload {
             log::info!(target: super::client_report::MODULES, "{} (account {}), match {:#x}, executable sha256 {} size {}", place.name, place.account_id, self.id, identity, identity.size());
         }
-        if let Some((sha256, answer)) = peer.executable.receive(carrier.upload, now) {
+        if let Some((sha256, answer)) = peer.executable.receive(carrier.upload, now, self.settings.released_executable) {
             let reply = Reply { match_id: carrier.match_id, sha256, answer };
             // Only a peer that offered this protocol ever receives its E4 reply.
             // Lost application replies are retried by the client's next offer.

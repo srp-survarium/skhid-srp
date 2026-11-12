@@ -143,15 +143,19 @@
 #      links), their sha256, the image ID, the setting (and the source) kept
 #      in the folder with its rollback, srp.db copied to the jump host too
 #      (live only); the server data (and source) and the ZIP in place,
-#      SRP_MIN_PATCH_REVISION=<rev>, srp26 made anew: the ZIP goes in while
+#      SRP_MIN_PATCH_REVISION=<rev> and SRP_RELEASED_EXE_SHA256=<the sha256
+#      of the ZIP's game exe> (the match server reads it at its start and
+#      asks no game that reports this exe for its file; any other exe it
+#      has not stored is collected), srp26 made anew: the ZIP goes in while
 #      srp26 is stopped, so the site never offers the old ZIP beside the new
 #      /patches and revision (an updater would enable PLAY for a game the
 #      login server refuses);
 #   6. checks the container, the log's game data line, /patches and /game
 #      (the list's files; any rows of srp's mirrors.tsv after each one's
 #      URLs, release/add-mirror) and /api/client-files (the new ZIP and, from an
-#      srp that says it, min-revision <rev>). A failed check prints srp's log and runs the
-#      folder's rollback (srp.db, image, data, ZIP, setting, source: as
+#      srp that says it, min-revision <rev>), and says what srp's log tells
+#      of the release's exe. A failed check prints srp's log and runs the
+#      folder's rollback (srp.db, image, data, ZIP, settings, source: as
 #      before), with --now too. The run's output is the folder's release.log;
 #   7. live only, once it all went out (never after a stop or a rollback):
 #      the record. An annotated tag 026g-rev<n> on the commit that was built
@@ -1860,6 +1864,7 @@ if ((!DRY_RUN)); then
     say "  download/$ZIP_NAME: $ZIP_SIZE bytes, sha256 $ZIP_SHA (revision $live_rev -> $rev)"
     say "  download/$DATA_NAME: sha256 $DATA_SHA"
     say "  .env: SRP_MIN_PATCH_REVISION $OLD_MIN -> $rev"
+    say "  .env: SRP_RELEASED_EXE_SHA256 -> $EXE_SHA (the ZIP's game exe: no game that reports it is asked for its file)"
     if ((${#BD_TODO[@]})); then
         say "  the bots' data in the volume ($RUN_VOLUME_DIR), ${#BD_TODO[@]} file(s) (the old ones kept in $TARGET_DIR/$REL/old-bot-data):"
         printf '    %s\n' "${BD_REPORT[@]:-put in as listed}"

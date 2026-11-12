@@ -154,6 +154,19 @@ but still logs hashes. Operators may archive/remove files and restart to rebuild
 the in-memory catalog. Raw match recordings can also contain these protocol
 packets; playable replays select gameplay records, not executable payloads.
 
+**The release's own executable is not collected.** The release writes the
+SHA-256 of the game executable in the players' download into the server's
+`.env` (`SRP_RELEASED_EXE_SHA256`, beside `SRP_MIN_PATCH_REVISION`; `release/lib.sh`,
+`swap_server`), and the match server reads it once, at its start: the
+release's restart. An offer of that hash is answered `Stored` without
+looking at the store: no upload, nothing written, nothing reserved; the
+hash is logged as any other. Every other hash the server has not stored is
+collected as above, and no one is refused or removed by either answer.
+Without the setting (a local server) the release's own executable is
+collected like any other. A rollback puts the line back as it was. Before
+this, the first players after each release (up to 16 at once) each uploaded
+the 14 MB executable the release had just given them.
+
 Implementation and validation are recorded below; this source change is not a
 release and has not collected a live player's executable.
 
