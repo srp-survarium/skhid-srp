@@ -9,7 +9,8 @@ workspace = true
 [dependencies]
 binary-config-parser = { workspace = true }
 clap = { workspace = true }
-vostok-resources-db = { workspace = true }
+# The archive reader: folder hard links, patches laid over one another.
+resources-db = { workspace = true }
 # The map table (map id -> project) for `mapdata-dump`.
 survarium = { workspace = true }
 

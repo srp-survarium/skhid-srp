@@ -8,9 +8,9 @@ patch revision 56 (the exe and the game data the players have).
 
 **Result in one line:** on the 16 Player vs Bots projects (levels 01-08, day, modes 2 and 4) every static body
 of the game is one export placement in the same place with the same vertices and the same walker behaviour;
-the export differs only where the archive reader does not follow a folder hard link (71 walker placements
-missing or in another shape, 94 bullet-only ones missing) and in how primitives are scaled and rounded
-(section 5).
+the export differed only where the archive reader did not follow a folder hard link (71 walker placements
+missing or in another shape, 94 bullet-only ones missing) and in how primitives were scaled and rounded
+(section 5); both are fixed, and the game's shape is now nowhere past the export's (5.4).
 
 ## 1. How the game builds the world (the code)
 
@@ -134,6 +134,28 @@ Bullet's shapes against the export's triangles, 278,040 primitives:
 
 So the map differences of this section are real and explain none of the navigation faults counted in those
 matches: those are in the movement and in the map builder's rules, not in the geometry.
+
+### 5.4 Fixed (2026-11-12): the export now equals the game's world
+
+Both causes fixed in the exporter; the same 16 captures laid against the new export (`bw_diff.py`):
+
+- **Folder hard links:** `mapdata` reads `resources.db` with the in-tree `resources-db` (it lists a linked
+  folder's files under the link's path, refuses a link to a folder it is in, and lays the patches over one
+  another as the game mounts them) instead of the external `vostok-resources-db`. Empty libraries the game has
+  a shape for: 417 placements before, **0** after; meshes paired 10,696 -> 11,090 (the linked ones), every one
+  within 1 mm, same indices, same walker behaviour.
+- **Primitives:** `PrimitiveShape::from_engine` takes the library scale as Bullet does. `create_primitive_shape`
+  0x7A390 and `create_compound_shape` 0x7A460 call `setLocalScaling(scale)`; the compound gives each child the
+  scale in the child's own axes and multiplies its origin by it. A box's, cylinder's and capsule's
+  `setLocalScaling` (vtable slot 5, 0xA9BE0) keeps the margin (each implicit dim `(dim + margin) x scale -
+  margin`, margin 0.04 at 0xA2D7DC, `getMargin` 0x74190 reads +30h); a cylinder's radius is its x half extent
+  (`CylinderLocalSupportY` 0xA9F10), a capsule's the implicit dim on axis (up + 2) % 3 = z (support 0xA5E90); a
+  sphere's `setLocalScaling` (0x8DEF0) only stores the scale. All PROVEN. Round shapes are drawn around the game's
+  shape with 12 to 96 sides, as many as keep them within 1 cm.
+  Over the 278,123 primitives: the game's shape past the export's at most **0.0000 m** (box, cylinder),
+  -0.0000 (capsule), -0.0001 (sphere): never; the export past the game's at most 0.029 m (a box's corner, the
+  margin's rounding), 0.024 (a cylinder's rim), 0.010 (capsule, sphere); 0 primitives 0.05 m or more off
+  (was 498).
 
 ## 6. Float control words at the walk tick (PROVEN)
 
