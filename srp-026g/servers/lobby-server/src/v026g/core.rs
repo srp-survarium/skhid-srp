@@ -425,6 +425,7 @@ impl<'a> Core<'a> {
                     }
                     match requests::parse(id, &payload) {
                         Ok(message) => self.handle(from, message, now),
+                        Err(ParseError::InvalidComment { .. }) => self.refuse_comment(from),
                         Err(ParseError::Trailing { message, extra }) => {
                             log::warn!("Lobby message {id:#04X} has {extra} bytes too many");
                             self.handle(from, *message, now);

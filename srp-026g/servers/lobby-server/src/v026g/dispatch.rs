@@ -346,8 +346,9 @@ impl Core<'_> {
                 self.send(addr, lobby::permitted_nickname_check(&nickname, refusal));
             }
             M::ChangeNickname { nickname } => self.change_nickname(who, &nickname),
-            // Not kept, and the player is told so.
-            M::CommentAboutUser { .. } => self.deny(addr, id::PROFILE, text::COMMENT),
+            M::CommentAboutUser { nickname, comment } => {
+                self.comment_about_user(who, &nickname, comment, unix);
+            }
             M::SetChatMute { nickname, mode } => self.set_chat_mute(who, &nickname, mode, now),
             M::HideVideoLink => {}
             M::Clan(request) => self.clan_request(who, &request, now),
@@ -414,6 +415,45 @@ impl Core<'_> {
                 }
             }
             M::ImportantRead { message_id, answer } => self.important_read(who, message_id, answer),
+        }
+    }
+
+    pub(super) fn refuse_comment(&mut self, addr: SocketAddr) {
+        self.deny(addr, id::PROFILE, text::COMMENT);
+    }
+
+    fn comment_about_user(
+        &mut self,
+        who: &Who,
+        nickname: &str,
+        comment: survarium::v026g::lobby::requests::PlayerComment,
+        at: u64,
+    ) {
+        // Resolve the displayed nickname, including offline players; the
+        // authenticated session supplies the sender. Self-comments are excluded.
+        let target = self
+            .account_named(nickname, who.account_id)
+            .and_then(|id| self.name_of(id).map(|name| (id, name)));
+        let Some((target_id, target_name)) = target else {
+            self.deny(who.addr, id::PROFILE, "st_player_not_found");
+            return;
+        };
+        let record = session::v026g::comments::StoredComment {
+            at,
+            sender_id: who.account_id,
+            sender_name: who.name.clone(),
+            target_id,
+            target_name,
+            comment,
+        };
+        match self.accounts.save_player_comment(&record) {
+            Ok(()) => {
+                self.send(who.addr, lobby::permitted_player_comment());
+            }
+            Err(error) => {
+                log::warn!("{}: player comment was not stored: {error}", who.name);
+                self.refuse_comment(who.addr);
+            }
         }
     }
 

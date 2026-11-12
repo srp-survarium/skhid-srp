@@ -453,9 +453,11 @@ yet (`WORK.md` has each one's entry):
 | Silent lobby clients and their return | `transport.md` §6.1 |
 | Match server: sync order, paired uploads, hash phases | MATCH-SYNC-026G.md |
 
+Reports and praise (`49 05`) are stored in the database; see
+[`player-comments.md`](notes/player-comments.md) for reasons and review queries.
+
 Refused or absent, and nobody is on it:
 
-- Comments about a user (`49 05`): refused.
 - A browser server and presence pings: 0.26g has none.
 - The mode 3 battery patch of 0.21d: not needed (0.26g serializes the
   next-battery time).

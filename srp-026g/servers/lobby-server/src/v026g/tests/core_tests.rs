@@ -50,8 +50,12 @@ impl World {
     }
 
     fn with_settings(settings: Settings) -> Self {
+        Self::with_accounts(settings, GameAccounts::new())
+    }
+
+    fn with_accounts(settings: Settings, accounts: GameAccounts) -> Self {
         let store: &'static SessionStore = Box::leak(Box::new(SessionStore::new()));
-        let accounts: &'static GameAccounts = Box::leak(Box::new(GameAccounts::new()));
+        let accounts: &'static GameAccounts = Box::leak(Box::new(accounts));
         // The tests are written against the stock first kit (the TT-33): a
         // new account has no starter kit unless a test turns it on.
         accounts.set_starter_kit(false);
@@ -716,10 +720,9 @@ fn what_srp_does_not_have_is_refused_never_ignored() {
         (0x47, u32s(6, &[1, 0], &[]), "st_cannot_buy_item"),
         // A repair: srp has none, not read.
         (0x47, u32s(3, &[1], &[1]), "st_cannot_buy_item"),
-        // A nickname change, a comment about a player.
+        // A nickname change.
         // (A name too short.)
         (0x49, bytes(&[&[4, 2], b"Al", &[0, 0, 0, 0]]), "st_change_name_error"),
-        (0x49, bytes(&[&[5, 3], b"Bob", &[1, 1]]), "st_error_during_storing_user_comment"),
         // Clans: reserve a name, create, invite, a clan team.
         (0x49, bytes(&[&[6, 4], b"Clan", &[2], b"CL"]), "st_cant_reserve_clan"),
         (0x49, vec![7], "st_cant_create_clan"),
@@ -984,7 +987,10 @@ fn a_kits_pockets_go_to_the_match_packed() {
     });
     let profile = crate::v026g::match_profile(&account, 0, 0, 1_000);
     let (index, count) = profile.kits[0].slots[13].expect("the grenade in the first pocket");
-    assert_eq!((profile.items[usize::from(index)].dict_id, count), (smoke, 1));
+    assert_eq!(
+        (profile.items[usize::from(index)].dict_id, count),
+        (smoke, 1)
+    );
     assert_eq!(profile.kits[0].slots[14], None);
     assert!(account.kits[0].slots[13].is_none() && account.kits[0].slots[14].is_some());
 }
@@ -1359,7 +1365,10 @@ fn a_player_removed_as_idle_is_named_in_the_match_and_the_general_chat() {
     world.settle();
     assert_eq!(
         lines(world.take(bob)),
-        [line(channel::MATCH, english), line(channel::GENERAL, english)]
+        [
+            line(channel::MATCH, english),
+            line(channel::GENERAL, english)
+        ]
     );
     assert_eq!(lines(world.take(alice)), [line(channel::GENERAL, english)]);
     assert_eq!(
@@ -1711,11 +1720,14 @@ fn a_squad_info_carries_the_lobby_picks() {
     let bob = world.connect("Bob");
     let picks = |decoded: &[Decoded]| {
         decoded.iter().rev().find_map(|message| match message {
-            Decoded::SquadInfo { squad_id, picks, .. } => Some((*squad_id != 0, *picks)),
+            Decoded::SquadInfo {
+                squad_id, picks, ..
+            } => Some((*squad_id != 0, *picks)),
             _ => None,
         })
     };
-    let pick = |world: &mut World, who, id: u32| world.ask(who, request::ranking(LOBBY_PICK_BASE + id, 1));
+    let pick =
+        |world: &mut World, who, id: u32| world.ask(who, request::ranking(LOBBY_PICK_BASE + id, 1));
     // Out of a squad: the own pick alone, sent back at once; nothing answered else.
     world.take(alice);
     pick(&mut world, alice, 4);
@@ -1731,7 +1743,11 @@ fn a_squad_info_carries_the_lobby_picks() {
     world.take(alice);
     pick(&mut world, bob, 1);
     assert_eq!(picks(&world.take(bob)), Some((true, [1, 2])));
-    assert_eq!(picks(&world.take(alice)), None, "the commander's squad info is as it was");
+    assert_eq!(
+        picks(&world.take(alice)),
+        None,
+        "the commander's squad info is as it was"
+    );
     // A start past the picks is no pick.
     pick(&mut world, bob, 5);
     assert_eq!(picks(&world.take(bob)), None);
@@ -1785,10 +1801,7 @@ fn a_squad_of_two_forms_shows_each_mate_and_plays_together() {
             .collect::<Vec<_>>(),
         // Both free in the lobby (no room, a kit that plays): ready, so that
         // the commander's Play takes the other along.
-        [
-            (alice_id, "Alice", true, true),
-            (bob_id, "Bob", true, true)
-        ]
+        [(alice_id, "Alice", true, true), (bob_id, "Bob", true, true)]
     );
     // Her own entry has her own kit's id; Bob's an id that is none of
     // hers, so her client asks for him.
@@ -2089,9 +2102,7 @@ fn hundreds_of_ordered_pushes_through_a_lossy_link_all_arrive_in_order() {
     // still acking its datagram, which would stop the channel for good
     // (transport.md §4.1): the transport must hold the later ones back.
     world.client(alice).loss_percent = 33;
-    let pushes: Vec<_> = (0..400)
-        .map(survarium::v026g::lobby::money)
-        .collect();
+    let pushes: Vec<_> = (0..400).map(survarium::v026g::lobby::money).collect();
     world.inbox.push(world.ids[alice].0, pushes);
     world.advance(Duration::from_secs(40));
     let client = world.client(alice);
@@ -2772,6 +2783,7 @@ mod away_tests;
 mod balance_tests;
 mod chat_mute_tests;
 mod clan_tests;
+mod comments_tests;
 mod feedback_tests;
 mod gear_tests;
 mod items_tests;
@@ -2980,7 +2992,10 @@ fn a_bundle_and_a_premium_item_are_bought_for_silver() {
     assert!(owned.contains(&(id("ammo_5.45x39_7n6m"), 3_000)));
 
     // Two drop cards from the shop's list: their 100 gold in silver each.
-    world.ask(alice, request::buy(id("drop_card"), 2, 0, INVENTORY_SLOT, 1));
+    world.ask(
+        alice,
+        request::buy(id("drop_card"), 2, 0, INVENTORY_SLOT, 1),
+    );
     let decoded = world.take(alice);
     assert!(matches!(
         &decoded[0],

@@ -14,6 +14,41 @@ fn read(text: &str) -> ClientMessage {
 use ClientMessage as M;
 
 #[test]
+fn player_comments_accept_only_the_seven_menu_choices() {
+    let choices = [
+        (1, 1, PlayerComment::BotOrCheater),
+        (1, 2, PlayerComment::Swearing),
+        (1, 3, PlayerComment::UnsportingBehavior),
+        (1, 4, PlayerComment::AccountTrading),
+        (2, 1, PlayerComment::Friendly),
+        (2, 2, PlayerComment::GoodPlayer),
+        (2, 3, PlayerComment::BornLeader),
+    ];
+    for kind in (0..=u8::MAX).filter(|&kind| kind != super::super::CHAT_MUTE_ACTION) {
+        for reason in 0..=u8::MAX {
+            let parsed = parse(0x49, &[5, 3, b'B', b'o', b'b', kind, reason]);
+            match choices.iter().find(|(k, r, _)| (*k, *r) == (kind, reason)) {
+                Some((_, _, comment)) => {
+                    assert_eq!(comment.wire(), (kind, reason));
+                    assert_eq!(
+                        parsed,
+                        Ok(M::CommentAboutUser {
+                            nickname: "Bob".into(),
+                            comment: *comment,
+                        })
+                    );
+                }
+                None => assert_eq!(parsed, Err(ParseError::InvalidComment { kind, reason })),
+            }
+        }
+    }
+    assert!(matches!(
+        parse(0x49, &[5, 3, b'B', b'o', b'b', 1]),
+        Err(ParseError::Truncated { .. })
+    ));
+}
+
+#[test]
 fn chat_mute_extension_is_typed_and_rejects_unknown_modes() {
     use super::super::ChatMuteMode::{Hidden, Placeholder};
     for (wire, mode) in [
@@ -217,7 +252,10 @@ fn inventory_actions() {
         M::Craft { a0: 5, a1: 6 }
     );
     // The stock windows' "paid in gold" byte is read and changes nothing.
-    assert_eq!(read("46 09 05000000 06000000 01"), M::Craft { a0: 5, a1: 6 });
+    assert_eq!(
+        read("46 09 05000000 06000000 01"),
+        M::Craft { a0: 5, a1: 6 }
+    );
     assert_eq!(read("46 0A"), M::TutorialWeaponChosen);
 }
 
@@ -279,10 +317,7 @@ fn skills() {
         }
     );
     assert_eq!(read("48 00 00"), M::SetSkills { skills: Vec::new() });
-    assert_eq!(
-        read("48 01 01 00"),
-        M::ResetSkills { branch: 1 }
-    );
+    assert_eq!(read("48 01 01 00"), M::ResetSkills { branch: 1 });
     assert_eq!(read("48 01 01 01"), M::ResetSkills { branch: 1 });
 }
 
@@ -312,8 +347,7 @@ fn kit_and_account_actions() {
         read("49 05 'Bob' 01 02"),
         M::CommentAboutUser {
             nickname: "Bob".into(),
-            a: 1,
-            b: 2
+            comment: PlayerComment::Swearing
         }
     );
     assert_eq!(read("49 24 00"), M::HideVideoLink);
