@@ -572,7 +572,7 @@ fn half(bits: u16) -> f32 {
             let small = fraction as f32 / 16_777_216.0;
             if sign == 0 { small } else { -small }
         }
-        31 => f32::from_bits(sign | 0x7F80_0000 | fraction << 13),
+        31 => f32::from_bits(sign | 0xFF << 23 | fraction << 13),
         _ => f32::from_bits(sign | (exponent + 112) << 23 | fraction << 13),
     }
 }
