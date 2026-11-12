@@ -27,7 +27,8 @@ They build each map's grid as a match has it (the default tuning's body, off-mes
 the grid the bots walk. Run them in release with the private map files.
 
 - `how_walkable_the_real_routes_are`: every route of a table from its side's spawns through its points (legs with no
-  way, jumps, the way's length against the straight one, points lost); `SRP_ROUTES_POINTS_OUT` adds each point's floor.
+  way, jumps, the way's length against the straight one, the leg out of the base apart, every leg's way over its
+  straight line, points lost); `SRP_ROUTES_POINTS_OUT` adds each point's floor.
 - `real_routes_and_the_damage_zones`: the table against the zones a match has; `SRP_ZONE_FLOORS_DIR` gets each map's
   zone floors.
 - `how_reachable_the_real_positions_are`: a corpus of places players stood at (`SRP_POSITIONS`, a TSV with `project`,
