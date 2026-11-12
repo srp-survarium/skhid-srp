@@ -227,6 +227,8 @@ global engine_render_window_set_size
 global engine_set_viewports
 global engine_create_render_target
 global engine_release_render_target
+global engine_context_push_set_p
+global engine_context_set_p
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -2644,6 +2646,38 @@ engine_set_viewports:
     push dword [esp + 24]   ; backend -> 4
     mov esi, [esp + 24]   ; viewport
     call 0x11c080
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_context_push_set_p:
+    ; 0x1392c0 vostok::render::renderer_context::push_set_p: context ESI, matrix ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; matrix -> 4
+    mov esi, [esp + 24]   ; context
+    call 0x1392c0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_context_set_p:
+    ; 0x14a6f0 vostok::render::renderer_context::set_p: matrix EAX, context ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; context -> 4
+    mov eax, [esp + 24]   ; matrix
+    call 0x14a6f0
     pop edi
     pop esi
     pop ebx

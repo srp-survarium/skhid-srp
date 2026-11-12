@@ -1162,3 +1162,22 @@ vostok::render::render_target	texture	0x1C	ptr<vostok::render::res_texture>	m_te
 vostok::render::render_frame	window	0x2C	ptr<vostok::render::render_output_window>	renderer::render's [esp+2Ch] between its set_scene_view (0x13D244) and its present stage (0x13DB16): the output window it was given (pushed to setup_render_output_window at 0x13D278 as [esp+34h] after two pushes)
 vostok::render::set_size_targets_frame	width	0x4	u32	render_output_window::set_size's create_targets arguments at 0x119B2B: the force at [esp], the width the targets are made at
 vostok::render::set_size_targets_frame	height	0x8	u32	the height the targets are made at
+vostok::render::render_frame	view_mode	0xC	u32	renderer::render's [esp+0Ch] from 0x13D2A7: the frame's view mode, the scene view's (+46Ch) or a debug override (0x13D2AB..0x13D2E0); 3 is lit (cmp [esp+0Ch],3 at 0x13D391, the temporal jitter's condition)
+vostok::render::render_frame	jitterer	0x64	obj<vostok::render::temporal_projection_matrix_modifier>	renderer::render's temporal_projection_matrix_modifier ([esp+64h], filled at 0x13D3BD..0x13D3DE: the context, the output's size, need_modify), handed to push_jittering at 0x13D3E3; render pops the projection at 0x13D47B when its need_modify ([esp+70h]) is set
+vostok::render::render_frame	unjittered_projection	0xB0	f32	renderer::render's [esp+0B0h], the first of 16 f32: the projection before the frame's jitter, what push_jittering (0x1BE4A0) answers (EAX, 0x13D3E8) and render copies to the renderer's +20h (0x13D3EA), the projection stage_shadow_direct::execute puts back for the sun's shadows (0x172EA3)
+vostok::render::temporal_projection_matrix_modifier	context	0x0	ptr<vostok::render::renderer_context>	m_renderer_context (push_jittering 0x1BE4BC, 0x1BE4DC)
+vostok::render::temporal_projection_matrix_modifier	need_modify	0xC	u8	m_need_modify: the frame's projection is jittered (render's al at 0x13D3C8: r_antialiasing_method 2, the lit view mode, the scene view's post-process); push_jittering pushes only when set (0x1BE4AE), render pops only when set (0x13D47B)
+vostok::render::temporal_projection_matrix_modifier	jittered	0xD	u8	m_jittered: push_jittering set the jittered projection (0x1BE66D, after its push of the old one 0x1BE657 and set_p 0x1BE661)
+vostok::render::renderer_context	targets	0x119C	ptr<vostok::render::target_family>	the frame's targets, the first of their descriptors (get_rt 0x11C1D0: index * 0A0h + 98h of [context+119Ch])
+vostok::render::renderer_context	scene	0x416C	u32	the scene being rendered, as an identity (renderer::render stores it at 0x13D210)
+vostok::render::renderer_context	scene_view	0x4170	ptr<vostok::render::scene_view>	the scene view being rendered (set_scene_view 0x149AB8)
+vostok::render::renderer_context	view	0x4E18	f32	m_v, the first of 16 f32: the view matrix, a row-vector 4x4 (set_v 0x14A257 copies it here)
+vostok::render::renderer_context	projection	0x4F58	f32	m_p, the first of 16 f32: the projection, a row-vector 4x4 (set_p 0x14A704 copies it here; clip = v * P, +20h and +24h its e20 and e21, the x and y the clip position gets per unit of view z)
+vostok::render::scene_view	use_post_process	0x1DE3C	u8	m_use_post_process: stage_postprocess::execute runs only when set (0x1B22D8); one of the temporal jitter's conditions (0x13D3A4)
+vostok::render::target_family	target	0x98	ptr<vostok::render::render_target>	a target's render_target (get_rt 0x11C1D0)
+vostok::render::target_family	texture	0x9C	ptr<vostok::render::res_texture>	the target as a texture (get_t 0x1392E0: index * 0A0h + 9Ch)
+vostok::render::target_family	size	0xA0	size	a target's descriptor: 0A0h bytes, by rt index (lea ecx,[ecx+ecx*4] / shl ecx,5, 0x1392EA)
+vostok::render::render_target	width	0x20	u32	its width (accumulate_motion_vectors' viewport 0x1B1C4B; render_target::create)
+vostok::render::render_target	height	0x24	u32	its height (0x1B1C90)
+vostok::render::new_rt_frame	format	0x0	u32	create_targets' pushed format of the target it is about to make with new_rt (0x1629A0: EDX the rt index, EAX the targets, the size's two words above): at 0x163433 rt 18's, the HDR format (push ebp, 0x163432)
+vostok::render::postprocess_frame	motion_blur	0x14	u8	stage_postprocess::execute's [esp+14h]: the frame's motion blur runs (1 at 0x1B234C: r_motion_blur_quality and not the image's 0x1F1DA3C; 0 at 0x1B235A), read at 0x1B2FAE
