@@ -43,6 +43,11 @@ moves at 0.9918 x 5 x F (LIKELY the sprint clip's own root speed).
   client's rate in 5,310 of 5,542 pairs; a rise in 21,997 of 22,335.
 - A jump's spending starts 150 ms after the press in 4,617 of 4,799 jumps; 980 of 6,024 presses by bots never took
   off and spent nothing.
+- The jump's gate (0x2FC230): the key, no leg wound (0x2FC254), the low flag clear (0x2FC260), the bar at the cost
+  (0x2D6420), on the ground (0x7EF90); and no crouch state has a jump (`crouch_logic.md`). Of 6,069 lone presses by
+  bots with 250 ms before the next world, 1,557 spent nothing: the bar under the cost in the world before 580; of
+  the other 977: crouched 311, already in a jump 204, a leg pool empty 166, other 10, none of these seen in the two
+  worlds around the press 339 (the worlds are a second apart).
 - A hit's drain clusters at the weapons' values (15, 20, 30, 35, 50, 60).
 
 ## Against the bots' reckoned bar (`bots/stamina.rs`)
@@ -57,7 +62,7 @@ record, so a bot's own bar can be taken from it.
 
 ## Not read
 
-When the breath's reserve ticks; why some presses never take off; melee's stamina; a grenade thrower's modifier on
+When the breath's reserve ticks; melee's stamina; a grenade thrower's modifier on
 its stamina damage; the per-round ammo weight; the indices with no direct reader below.
 
 ## The kit's modifier indices
