@@ -824,7 +824,9 @@ mod tests {
     /// - `surface_dy`: with no floor, the walker collision's surface under the feet (its height less the feet's, looked
     ///   for from half a metre over them to 1.5 m under; empty: none, the body was in the air or on something the map's
     ///   walker collision does not have);
-    /// - `near_dxz`, `near_dy`: with no floor, the nearest reached floor within 2 m and 1.5 m of height.
+    /// - `near_dxz`, `near_dy`: with no floor, the nearest reached floor within 2 m and 1.5 m of height;
+    /// - `under_m`: how far under the floor the nearest floor a storey or more under it lies (the bench's rule for an
+    ///   upper level, `tests::upper::storey_under`); empty: it is the lowest there.
     ///
     /// The grid is a match's ([`match_world`]). Run in release.
     #[test]
@@ -846,7 +848,7 @@ mod tests {
         let col = |name: &str| head.iter().position(|h| *h == name).unwrap_or_else(|| panic!("no column {name}"));
         let (c_project, cx, cy, cz) = (col("project"), col("x"), col("y"), col("z"));
         let mut out = String::from(
-            "project\tx\ty\tz\tfloor_dxz\tfloor_dy\tstand\treached\treturns\tshut\tzone\tfrom_0\tfrom_1\tgoal_0\tgoal_1\tsurface_dy\tnear_dxz\tnear_dy\n",
+            "project\tx\ty\tz\tfloor_dxz\tfloor_dy\tstand\treached\treturns\tshut\tzone\tfrom_0\tfrom_1\tgoal_0\tgoal_1\tsurface_dy\tnear_dxz\tnear_dy\tunder_m\n",
         );
         let mut current: Option<(String, Map)> = None;
         let flag = |b: bool| if b { "1" } else { "0" };
@@ -889,8 +891,9 @@ mod tests {
                     };
                     let cost = |team: usize| if map.from[team].reaches(node) { format!("{:.0}", map.from[team].get(node)) } else { String::new() };
                     let goal = |team: i32| flag(map.tactics.walkable(node) && map.tactics.allowed(node, 0, Some(team), false));
+                    let under = crate::v026g::bots::tests::upper::storey_under(grid, node).map_or(String::new(), |m| format!("{m:.1}"));
                     out.push_str(&format!(
-                        "{:.2}\t{:.2}\t{}\t{}\t{}\t{}\t{zone}\t{}\t{}\t{}\t{}\t\t\t\n",
+                        "{:.2}\t{:.2}\t{}\t{}\t{}\t{}\t{zone}\t{}\t{}\t{}\t{}\t\t\t\t{under}\n",
                         at.distance_xz(p),
                         at.y - p.y,
                         flag(grid.can_stand(node)),
@@ -910,7 +913,7 @@ mod tests {
                         .map_or(String::new(), |t| format!("{:.2}", 0.5 - t));
                     let near = nearest(2.0, 1.5, &|node| grid.reached(node))
                         .map_or(String::from("\t"), |(_, at)| format!("{:.2}\t{:.2}", at.distance_xz(p), at.y - p.y));
-                    out.push_str(&format!("\t\t\t\t\t\t\t\t\t\t\t{surface}\t{near}\n"));
+                    out.push_str(&format!("\t\t\t\t\t\t\t\t\t\t\t{surface}\t{near}\t\n"));
                 }
             }
         }
