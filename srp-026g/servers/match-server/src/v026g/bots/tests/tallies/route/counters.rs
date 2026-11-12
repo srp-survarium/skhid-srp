@@ -358,6 +358,17 @@ pub(super) fn low_presses() -> Box<dyn RouteTopic> {
     )
 }
 
+/// [A364 P6] The walking jumps checked for the walk that carries them to the landing (`motor::walk_reach`, `Feel::walk_jump_reach`):
+/// backed off to the run-up, pressed short all the same, pressed with the walk that reaches.
+pub(super) fn walk_reach() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::motor::walk_reach::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!("walk_reach_backed/short/reached {}/{}/{}", d[0], d[1], d[2]));
+        },
+    )
+}
+
 /// The rests (still 0.5 s or more) on a lip or within the body's radius of one, and the seconds spent in them
 /// (`rest::stops`): the owner's symptom, on and off.
 pub(super) fn rest_stops() -> Box<dyn RouteTopic> {
