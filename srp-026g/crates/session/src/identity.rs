@@ -28,9 +28,7 @@ pub(crate) fn unique_names<'a>(
         if let Some(other) = owners.insert(key(name), id) {
             return Err(PersistError::BadRow(
                 id,
-                format!(
-                    "nickname {name:?} also belongs to account {other}; repair duplicate nicknames before starting"
-                ),
+                format!("nickname {name:?} also belongs to account {other}"),
             ));
         }
     }

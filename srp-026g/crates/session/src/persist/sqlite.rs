@@ -10,6 +10,7 @@ use survarium::dictionary::PROFILE_SLOTS;
 use survarium::v021d::account::{Account as GameAccount, Item, Profile};
 use survarium::v021d::quests::QuestInstance;
 
+use crate::nickname_key::{Named, Rename, renames};
 use crate::{Ban, IpBan, Net};
 
 use super::{
@@ -194,8 +195,8 @@ pub(super) const MIGRATIONS: &[&str] = &[
         kicks INTEGER NOT NULL CHECK (kicks BETWEEN 1 AND 4294967295)
     );
     ",
-    // 8: one nickname per Unicode-case/Cyrillic-lookalike key. Existing
-    // collisions must be repaired with scripts/repair-nicknames.py first.
+    // 8: one nickname per Unicode-case/Cyrillic-lookalike key. The accounts
+    // that share one are renamed first ([`rename_shared_nicknames`]).
     "CREATE UNIQUE INDEX accounts_unique_nickname ON accounts(name COLLATE skhid_nickname);",
 ];
 
@@ -252,7 +253,10 @@ impl SqliteRepository {
     }
 }
 
-fn connect(path: &Path) -> Result<Connection, PersistError> {
+/// A connection to srp.db, for the account store and the 0.26g tables alike.
+/// Every one knows the collation of the nickname index: without it SQLite
+/// refuses a write to `accounts` and a `VACUUM`.
+pub(crate) fn connect(path: &Path) -> Result<Connection, PersistError> {
     let connection = Connection::open(path)?;
     crate::nickname_key::sqlite_collation(&connection)?;
     let _mode: String = connection.query_row("PRAGMA journal_mode = WAL", [], |row| row.get(0))?;
@@ -284,10 +288,51 @@ pub(super) fn migrate(connection: &Connection, target: usize) -> Result<(), Pers
     let found = check_version(connection)? as usize;
     for (index, step) in MIGRATIONS.iter().enumerate().take(target).skip(found) {
         let transaction = connection.unchecked_transaction()?;
+        // Step 8's index needs the rows unique first.
+        if index + 1 == 8 {
+            rename_shared_nicknames(&transaction)?;
+        }
         transaction.execute_batch(step)?;
         transaction.pragma_update(None, "user_version", index as i64 + 1)?;
         transaction.commit()?;
         log::info!("Database schema upgraded to version {}", index + 1);
+    }
+    Ok(())
+}
+
+/// Before step 8's index, in its transaction: of the accounts whose names
+/// have one key the lowest id keeps its name and the others are renamed
+/// ([`crate::nickname_key::renames`]), in every column that holds the name.
+/// Logins, passwords and everything an account owns stay as they are.
+fn rename_shared_nicknames(transaction: &Transaction) -> Result<(), PersistError> {
+    let accounts = transaction
+        .prepare("SELECT id, login, name FROM accounts ORDER BY id")?
+        .query_map([], |row| {
+            Ok(Named {
+                id: row.get(0)?,
+                login: row.get(1)?,
+                name: row.get(2)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    // The 0.26g account's copy, in a file that has its tables.
+    let game_copy: bool = transaction.query_row(
+        "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'g26_accounts')",
+        [],
+        |row| row.get(0),
+    )?;
+    for Rename { id, from, to } in renames(&accounts) {
+        transaction.execute(
+            "UPDATE accounts SET name = ?2, game_name = ?2 WHERE id = ?1",
+            params![id, to],
+        )?;
+        if game_copy {
+            transaction.execute(
+                "UPDATE g26_accounts SET name = ?2 WHERE account_id = ?1",
+                params![id, to],
+            )?;
+        }
+        log::warn!("Account {id}: the nickname {from:?} was another account's; it is now {to:?}");
     }
     Ok(())
 }
