@@ -413,6 +413,7 @@ impl Sim {
                                 sprinting: false,
                                 recent_hits: Vec::new(),
                                 leg_damage_ends: [None; 2],
+                                leg_last_hits: [0; 2],
                             },
                         );
                         motion::state_bytes(

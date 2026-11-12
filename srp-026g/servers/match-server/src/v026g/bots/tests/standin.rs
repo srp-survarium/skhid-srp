@@ -2181,6 +2181,10 @@ impl Game {
             other.legs[leg] = (other.legs[leg] - STAND_IN_LEG_HIT).max(0.0);
             if other.legs[leg] <= 0.0 && other.leg_broken_until == 0 {
                 other.leg_broken_until = tick + STAND_IN_LEG_BROKEN_MS;
+            } else if other.leg_broken_until > tick {
+                // [F12] A wound is held the leg's regeneration delay past its last damaging hit (the client's tick, 0x32A551).
+                let delay = crate::v026g::bots::legs::regeneration_delay_ms(other.heal.factors.regeneration_sooner_ms);
+                other.leg_broken_until = other.leg_broken_until.max(tick + delay);
             }
         }
         self.settle(shooter, target, team_hit, pain_before, tick);
@@ -2236,6 +2240,10 @@ impl Game {
                     other.legs[leg] = (other.legs[leg] - STAND_IN_LEG_HIT).max(0.0);
                     if other.legs[leg] <= 0.0 && other.leg_broken_until == 0 {
                         other.leg_broken_until = tick + STAND_IN_LEG_BROKEN_MS;
+                    } else if other.leg_broken_until > tick {
+                        // [F12] A wound is held the leg's regeneration delay past its last damaging hit (the client's tick, 0x32A551).
+                        let delay = crate::v026g::bots::legs::regeneration_delay_ms(other.heal.factors.regeneration_sooner_ms);
+                        other.leg_broken_until = other.leg_broken_until.max(tick + delay);
                     }
                 }
             }
