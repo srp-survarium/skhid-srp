@@ -231,6 +231,51 @@ where the exe's ray meets the convex shape (Bullet's ray against a convex shape 
 of two faces met at the same fraction the down sweep keeps (the exe's order through its broadphase and mesh
 trees is not ported). The penetration fallback is in no step that is off.
 
+### 3e. The second looks' ray, bit for bit (PROVEN)
+
+The walk tick looks twice at some hits with a ray: the wall normal (`get_wall_normal_via_ray` 0x898C0) and steep
+ground (0x849BB in 0x84810). Read in the exe: each makes a closest-ray callback (0x83FD0) and calls
+`btCollisionWorld::rayTestSingle` 0xA02D0 **on the object the sweep hit** (the result's own object, its root shape
++D4h under its transform +10h; 0x899C7..0x899FF, 0x84B5D..0x84B8E): one object, never the world. Afterwards only the
+callback's object (+8, a hit or not) and its normal (+40h) are read. The port's ray went over every placed
+triangle, so it could meet a nearer face of another object, and met a primitive's drawn triangles.
+
+`rayTestSingle` is ported whole (`crates/mapdata/src/controller/exe_ray.rs`), in the exe's order of operations:
+
+- a convex shape: `btSubsimplexConvexCast::calcTimeOfImpact` 0xB72A0 of a point (`btSphereShape(0)`) against the
+  shape, 32 rounds at most (Bullet's source has 64), with the shapes' own virtual supports, margin in (not
+  0x8D680's; the virtual capsule support groups its sums differently). A hit's normal is rotated by the ray's own
+  basis and made unit; the callback's fraction must be strictly over the hit's. **This build adds a second cast:**
+  when the forward cast misses and the ray starts inside the shape's box, it casts back from the ray's end to its
+  start and reports `1 - fraction` with that cast's normal;
+- a mesh: the ray's ends in the mesh's frame through `btTransform::inverse` 0x72D20, each triangle by
+  `btTriangleRaycastCallback::processTriangle` 0xB8010 (the normal turned over when the start is not in front), the
+  bridge's `reportHit` 0xA0F60 rotating the normal by the object's basis;
+- a compound: each child by the same function under `object * child`, composed inline as 0xA2C30 composes it but
+  for the origin's x (`RayTester::Process` 0xA10B0).
+
+The callback's `addSingleResult` 0x84040 stores whatever it is handed, with no test of its own.
+
+Proof (the private rig; `tests/exe_ray_corpus.rs` with `SRP_EXE_RAY_CORPUS`): every 0xA02D0 call of all 6,784
+traced steps (1,285 calls of the two looks, 2,164 calls for compounds' children under them) and 11,206 more calls
+made in the rig on the game's objects with made rays (the capsule only so: the traced world has none).
+
+| | recorded | the exe's bits |
+|---|---|---|
+| a triangle (0xB8010) | 7,668 | 7,668 |
+| a cast against a box / a cylinder / a sphere / a capsule | 7,687 / 679 / 72 / 546 | all |
+| a compound child's transform | 4,200 | 4,200 |
+| the whole call: the callback's bytes after | 12,491 | 12,491 |
+
+Put back into the source's order one sum at a time, 23 of 29 changes break records (the others are sums the
+recorded data does not tell apart: LIKELY).
+
+With it (`Collision::look_ray`, the contact carrying its object) the port's step on the shapes world against the
+game, the same 1,000 steps: **every field the game's in 993** (981 before), the origin's bits in 997. The 7 left
+(3 with the origin off, the worst 1.8 mm; 4 with the surface normal alone) each have two hits at exactly one
+fraction in the step: which comes first follows the exe's broadphase and trees, whose walks are not ported
+(LIKELY the cause, by that count).
+
 ## 4. What was read on the way (PROVEN)
 
 - `objectQuerySingle` 0xA14E0, a compound (type 31, 0xA22EE): the cast shape's box in the compound's frame,

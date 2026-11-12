@@ -20,8 +20,9 @@
 use std::collections::HashMap;
 
 use super::exe_cast::{self, CastEnd};
-use super::exe_gjk::{self, Transform, WorldShape};
-use super::{BULLET_TOLERANCE_M, Contact, Face, Shape, SmallRound, StartOverlap, Surface, exe_cast_of, overlapping_at};
+use super::exe_gjk::{self, Axis, Transform, WorldShape};
+use super::exe_ray::{self, ClosestRayCallback, ConvexRay, ConvexShape, NormalSpace, RayFlags, TriangleRay};
+use super::{BULLET_TOLERANCE_M, Contact, Face, Shape, SmallRound, SolidId, StartOverlap, Surface, exe_cast_of, overlapping_at};
 use crate::bullet::{self, ConvexKind};
 use crate::math::Vec3;
 use crate::{CollisionFilter, MapData, WalkerBehaviour};
@@ -142,6 +143,9 @@ struct Primitive {
     margin: f32,
     /// The half sides of a box around it in its own frame, margin in.
     half: V3,
+    /// The shape as the ray's cast reads it (its class's own support and box); none for a cylinder that is not y-up
+    /// (the game makes none: `create_bt_primitive` 0x7A1F0), which a ray does not meet here.
+    ray: Option<ConvexShape>,
     /// Its drawn triangles in the library's frame (the map's): what the contact is read from where the exe's cast
     /// goes on to its penetration solver.
     stand_in: Vec<[Vec3; 3]>,
@@ -164,7 +168,12 @@ enum Part {
 #[derive(Clone, Copy, Debug)]
 struct Leaf {
     transform: Transform,
+    /// The same transform as the ray test composes it (`RayTester::Process` 0xA10B0 groups a child's origin x
+    /// differently from the sweep's 0xA2C30).
+    ray_transform: Transform,
     part: Part,
+    /// The object it is a part of (an index into the objects).
+    object: u32,
 }
 
 /// The game's objects a walking body meets.
@@ -176,6 +185,8 @@ pub(super) struct Solids {
     tree: Tree,
     meshes: Vec<Mesh>,
     primitives: Vec<Primitive>,
+    /// Each object's leaves (a run of the leaves, a compound's children in the compound's order).
+    objects: Vec<std::ops::Range<u32>>,
 }
 
 /// The box of a box of half sides `half` about `centre` (in a part's frame) under `transform`.
@@ -216,24 +227,31 @@ fn face_of(v: [Vec3; 3], walker: WalkerBehaviour) -> Face {
 impl Primitive {
     fn new(convex: &bullet::Convex, stand_in: Vec<[Vec3; 3]>) -> Primitive {
         let (dims, m) = (convex.dims, convex.margin);
-        let (shape, margin, half) = match convex.kind {
-            ConvexKind::Box => (WorldShape::Box { half_extents: dims }, m, dims.map(|d| d + m)),
+        let (shape, margin, half, ray) = match convex.kind {
+            ConvexKind::Box => {
+                (WorldShape::Box { half_extents: dims }, m, dims.map(|d| d + m), Some(ConvexShape::Box { implicit: dims, margin: m }))
+            }
             ConvexKind::Sphere => {
                 // `btSphereShape::getMargin`: the radius (+20h) times the scaling (+10h).
+                let ray = ConvexShape::sphere(dims[0], convex.scaling[0]);
                 let radius = dims[0] * convex.scaling[0];
-                (WorldShape::Sphere, radius, [radius; 3])
+                (WorldShape::Sphere, radius, [radius; 3], Some(ray))
             }
-            ConvexKind::Cylinder { up } => (WorldShape::cylinder(dims, up), m, dims.map(|d| d + m)),
+            ConvexKind::Cylinder { up } => {
+                let ray = (up == Axis::Y).then_some(ConvexShape::CylinderY { implicit: dims, margin: m });
+                (WorldShape::cylinder(dims, up), m, dims.map(|d| d + m), ray)
+            }
             ConvexKind::Capsule { up } => {
                 // The support reaches the radius times the scaling from the axis' ends (0x8D9BB).
                 let radius = dims[(up.index() + 2) % 3];
                 let reach = radius * convex.scaling.iter().fold(1.0f32, |a, &s| a.max(s));
                 let mut half = [reach; 3];
                 half[up.index()] = dims[up.index()] + reach;
-                (WorldShape::capsule(dims, convex.scaling, m, up), m, half)
+                let ray = ConvexShape::Capsule { implicit: dims, scaling: convex.scaling, margin: m, up };
+                (WorldShape::capsule(dims, convex.scaling, m, up), m, half, Some(ray))
             }
         };
-        Primitive { shape, margin, half, stand_in }
+        Primitive { shape, margin, half, ray, stand_in }
     }
 }
 
@@ -290,20 +308,33 @@ impl Builder {
         (self.solids.primitives.len() - 1) as u32
     }
 
-    fn place_mesh(&mut self, transform: Transform, mesh: u32) {
+    /// A new object: the parts placed until the next one are its.
+    fn object(&mut self) {
+        let at = self.solids.leaves.len() as u32;
+        self.solids.objects.push(at..at);
+    }
+
+    fn leaf(&mut self, bounds: Box3, transform: Transform, ray_transform: Transform, part: Part) {
+        let object = self.solids.objects.last_mut().expect("an object begun before its parts");
+        object.end += 1;
+        let object = (self.solids.objects.len() - 1) as u32;
+        self.solids.boxes.push(bounds);
+        self.solids.leaves.push(Leaf { transform, ray_transform, part, object });
+    }
+
+    /// A mesh under `transform` (the sweep's) and `ray_transform` (the ray test's: the same but for a compound's child).
+    fn place_mesh(&mut self, transform: Transform, ray_transform: Transform, mesh: u32) {
         let m = &self.solids.meshes[mesh as usize];
         let Some(root) = m.tree.nodes.first() else { return };
         let (lo, hi) = root.bounds;
         let centre = [0, 1, 2].map(|i| (lo[i] + hi[i]) * 0.5);
         let half = [0, 1, 2].map(|i| (hi[i] - lo[i]) * 0.5);
-        self.solids.boxes.push(world_box(&transform, centre, half));
-        self.solids.leaves.push(Leaf { transform, part: Part::Mesh(mesh) });
+        self.leaf(world_box(&transform, centre, half), transform, ray_transform, Part::Mesh(mesh));
     }
 
-    fn place_primitive(&mut self, transform: Transform, shape: u32, on: Surface, place: crate::math::Transform) {
+    fn place_primitive(&mut self, transform: Transform, ray_transform: Transform, shape: u32, on: Surface, place: crate::math::Transform) {
         let half = self.solids.primitives[shape as usize].half;
-        self.solids.boxes.push(world_box(&transform, [0.0; 3], half));
-        self.solids.leaves.push(Leaf { transform, part: Part::Primitive { shape, on, place } });
+        self.leaf(world_box(&transform, [0.0; 3], half), transform, ray_transform, Part::Primitive { shape, on, place });
     }
 
     fn finish(mut self) -> Solids {
@@ -351,30 +382,32 @@ impl Solids {
             };
             let object = *world.object(index);
             let place = placement.transform();
+            builder.object();
             match world.shape(library_index) {
                 bullet::Shape::Empty => {}
                 bullet::Shape::Mesh(mesh) => {
                     let id = mesh_of(&mut builder, 0, mesh);
-                    builder.place_mesh(object, id);
+                    builder.place_mesh(object, object, id);
                 }
                 // An object's whole shape: the callback gets no shape info and takes the walker behaviour 0.
                 bullet::Shape::Convex(convex) => {
                     let id = primitive_of(&mut builder, 0, convex);
                     let on = Surface::Primitive { walker: WalkerBehaviour::BySlope, round: small_round(convex, &object.basis) };
-                    builder.place_primitive(object, id, on, place);
+                    builder.place_primitive(object, object, id, on, place);
                 }
                 bullet::Shape::Compound { children, .. } => {
                     for (part, child) in children.iter().enumerate() {
                         let transform = exe_cast::compose(&object, &child.transform);
+                        let ray_transform = exe_ray::compose_child(&object, &child.transform);
                         match &child.part {
                             bullet::Part::Mesh(mesh) => {
                                 let id = mesh_of(&mut builder, part, mesh);
-                                builder.place_mesh(transform, id);
+                                builder.place_mesh(transform, ray_transform, id);
                             }
                             bullet::Part::Convex(convex) => {
                                 let id = primitive_of(&mut builder, part, convex);
                                 let on = Surface::Primitive { walker: convex.walker, round: small_round(convex, &transform.basis) };
-                                builder.place_primitive(transform, id, on, place);
+                                builder.place_primitive(transform, ray_transform, id, on, place);
                             }
                         }
                     }
@@ -403,17 +436,19 @@ impl Solids {
         let pad = Vec3::new(BULLET_TOLERANCE_M, BULLET_TOLERANCE_M, BULLET_TOLERANCE_M);
         let (lo, hi) = (lo0.min(lo1) - pad, hi0.max(hi1) + pad);
         let swept: Box3 = ([lo.x, lo.y, -hi.z], [hi.x, hi.y, -lo.z]);
-        let out = |fraction: f32, normal: V3, point: V3, on: Surface| Contact {
-            t: fraction,
-            point: Vec3::from_array(flip(point)),
-            normal: Vec3::from_array(flip(normal)),
-            on,
-        };
         self.tree.each_in(&swept, |i| {
             if !overlaps(&self.boxes[i], &swept) {
                 return;
             }
             let leaf = &self.leaves[i];
+            let object = Some(SolidId(leaf.object));
+            let out = |fraction: f32, normal: V3, point: V3, on: Surface| Contact {
+                t: fraction,
+                point: Vec3::from_array(flip(point)),
+                normal: Vec3::from_array(flip(normal)),
+                on,
+                object,
+            };
             match leaf.part {
                 Part::Primitive { shape: id, on, place } => {
                     let primitive = &self.primitives[id as usize];
@@ -430,7 +465,7 @@ impl Solids {
                                 .filter(|(gap, _)| *gap <= BULLET_TOLERANCE_M)
                                 .min_by(|a, b| a.0.total_cmp(&b.0));
                             if let Some((_, touch)) = deepest {
-                                each(Contact { t: touch.t, point: touch.point, normal: touch.normal, on });
+                                each(Contact { t: touch.t, point: touch.point, normal: touch.normal, on, object });
                             }
                         }
                     }
@@ -453,7 +488,7 @@ impl Solids {
                                 }
                                 if let Some((_, touch)) = overlapping_at(shape, by, lambda, &face, start) {
                                     let on = Surface::Face { walker: face.walker, normal: face.normal };
-                                    each(Contact { t: touch.t, point: touch.point, normal: touch.normal, on });
+                                    each(Contact { t: touch.t, point: touch.point, normal: touch.normal, on, object });
                                 }
                             }
                         }
@@ -461,6 +496,58 @@ impl Solids {
                 }
             }
         });
+    }
+}
+
+impl Solids {
+    /// `btCollisionWorld::rayTestSingle` 0xA02D0 on one object, as the walk tick's second looks call it: a ray from `a`
+    /// to `b` (the map frame; identity bases) against the object's whole shape under its transform, into a fresh
+    /// closest-ray callback (0x83FD0, its flags 0). The normal the callback holds after, in the map frame.
+    ///
+    /// A compound's children and a mesh's triangles are offered where their boxes meet the ray's box, in this
+    /// world's order (the exe's own trees' walks, 0xA54A0 and 0xC39B0, are not ported): a hit needs the ray through
+    /// the box, so the hits are the exe's; which of two at exactly one fraction comes first can differ.
+    pub(super) fn look_ray(&self, object: u32, a: Vec3, b: Vec3) -> Option<Vec3> {
+        let end = |p: Vec3| Transform { basis: exe_cast::IDENTITY.basis, origin: flip(p.to_array()) };
+        let (from, to) = (end(a), end(b));
+        let bounds: Box3 = (
+            [0, 1, 2].map(|i| from.origin[i].min(to.origin[i]) - BOX_PAD_M),
+            [0, 1, 2].map(|i| from.origin[i].max(to.origin[i]) + BOX_PAD_M),
+        );
+        let mut callback = ClosestRayCallback::new(from.origin, to.origin);
+        for i in self.objects[object as usize].clone() {
+            if !overlaps(&self.boxes[i as usize], &bounds) {
+                continue;
+            }
+            let leaf = &self.leaves[i as usize];
+            let world = &leaf.ray_transform;
+            match leaf.part {
+                Part::Primitive { shape, .. } => {
+                    let Some(convex) = self.primitives[shape as usize].ray else { continue };
+                    if let ConvexRay::Hit { fraction, normal } = exe_ray::ray_convex(&from, &to, &convex, world, callback.closest).answer {
+                        callback.add_single_result(object, normal, fraction, NormalSpace::World);
+                    }
+                }
+                Part::Mesh(id) => {
+                    let mesh = &self.meshes[id as usize];
+                    let (local_from, local_to) = exe_ray::mesh_ray(from.origin, to.origin, world);
+                    let local: Box3 = (
+                        [0, 1, 2].map(|k| local_from[k].min(local_to[k]) - BOX_PAD_M),
+                        [0, 1, 2].map(|k| local_from[k].max(local_to[k]) + BOX_PAD_M),
+                    );
+                    // `rcb.m_hitFraction = resultCallback.m_closestHitFraction` (0xA09A4), then each report's answer.
+                    let mut hit_fraction = callback.closest;
+                    mesh.tree.each_in(&local, |k| {
+                        let triangle = &mesh.triangles[k];
+                        if let TriangleRay::Hit { normal, distance } = exe_ray::ray_triangle(local_from, local_to, RayFlags(0), hit_fraction, &triangle.v) {
+                            let n = exe_ray::bridge_normal(&world.basis, normal);
+                            hit_fraction = callback.add_single_result(object, n, distance, NormalSpace::World);
+                        }
+                    });
+                }
+            }
+        }
+        callback.hit.map(|hit| Vec3::from_array(flip(hit.normal)))
     }
 }
 
@@ -508,7 +595,8 @@ mod tests {
     fn a_mesh_under_the_identity_is_met_as_its_placed_triangles_are() {
         let mut builder = Builder::default();
         let mesh = builder.mesh(mesh_of(&floor()));
-        builder.place_mesh(IDENTITY, mesh);
+        builder.object();
+        builder.place_mesh(IDENTITY, IDENTITY, mesh);
         let shapes = world(builder.finish());
         let soup = Collision::build(&floor()).with_caster(Caster::Exe(StartOverlap::FaceWitness));
         for (shape, by) in [
@@ -541,7 +629,8 @@ mod tests {
             .collect();
         let mut builder = Builder::default();
         let mesh = builder.mesh(local);
-        builder.place_mesh(quarter, mesh);
+        builder.object();
+        builder.place_mesh(quarter, quarter, mesh);
         let shapes = world(builder.finish());
         let soup = Collision::build(&floor()).with_caster(Caster::Exe(StartOverlap::FaceWitness));
         let (shape, by) = (capsule(1.0, 3.0, 4.0), Vec3::new(0.25, -3.0, 0.5));
@@ -566,7 +655,8 @@ mod tests {
         let id = builder.primitive(&block(), Vec::new());
         let on = Surface::Primitive { walker: WalkerBehaviour::BySlope, round: None };
         // The box's centre at map (2, 0.5, 3): Bullet's z is -3.
-        builder.place_primitive(at(2.0, 0.5, -3.0), id, on, Placed::new(Vec3::ZERO, Vec3::new(2.0, 0.5, 3.0)));
+        builder.object();
+        builder.place_primitive(at(2.0, 0.5, -3.0), at(2.0, 0.5, -3.0), id, on, Placed::new(Vec3::ZERO, Vec3::new(2.0, 0.5, 3.0)));
         let shapes = world(builder.finish());
         let top = hits(&shapes, capsule(2.0, 3.0, 3.0), Vec3::new(0.0, -3.0, 0.0));
         assert_eq!(top.len(), 1);
@@ -574,6 +664,12 @@ mod tests {
         assert!((top[0].t - 1.1 / 3.0).abs() < 1e-3, "{}", top[0].t);
         assert!(top[0].normal.y > 0.999 && (top[0].point.y - 1.0).abs() < 2e-3 && (top[0].point.z - 3.0).abs() < 1e-3, "{:?}", top[0]);
         assert_eq!(top[0].on, on);
+        // The second looks' ray meets the box it names, with the face's normal: down onto the top, and from the side.
+        let top_normal = shapes.look_ray(top[0].object, Vec3::new(2.0, 2.0, 3.0), Vec3::new(2.0, 0.5, 3.0)).expect("the top");
+        assert!(top_normal.y > 0.999, "{top_normal:?}");
+        let side = shapes.look_ray(top[0].object, Vec3::new(2.0, 0.5, 6.0), Vec3::new(2.0, 0.5, 3.0)).expect("the side");
+        assert!(side.z > 0.999, "{side:?}");
+        assert_eq!(shapes.look_ray(top[0].object, Vec3::new(9.0, 2.0, 3.0), Vec3::new(9.0, 0.0, 3.0)), None);
         // 0.37 m past the edge along z: the capsule's side (radius 0.38) still meets the edge, rounded by the margin.
         let edge = hits(&shapes, capsule(2.0, 3.0, 4.37), Vec3::new(0.0, -3.0, 0.0));
         assert_eq!(edge.len(), 1);
