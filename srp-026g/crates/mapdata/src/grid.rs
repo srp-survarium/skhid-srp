@@ -705,7 +705,7 @@ pub fn edge_hold_m(radius: f32) -> f32 {
 
 /// [A364 C2 rows 18, 24] `cc_idle_max_slope_angle_cos` (`startup.cfg`:14, the live `resources.db`): a body at rest slides from
 /// ground steeper than 45 deg (`need_slide` 0x7BC20; the exe's default is 40 deg).
-pub const IDLE_SLOPE_COS_LIVE: f32 = 0.707_11;
+pub const IDLE_SLOPE_COS_LIVE: f32 = crate::controller::tick::Settings::LIVE.idle_max_slope_cos;
 
 /// [A347a] A tick's walk at the walk's speed, metres: the press is made on a tick, so a press window narrower than this is
 /// missed between two ticks (3.5 m/s, `controlled::WALK_MPS`, PROVEN; the 50 ms tick the controller pass steps, PROVEN).

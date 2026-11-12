@@ -69,7 +69,7 @@ fn print(name: &str, value: u64) -> u64 {
 /// Gap links: the walking and sprint jumps, the drops walked off, the two-way filter.
 #[test]
 fn the_gap_links_pass_is_pinned() {
-    assert_eq!(GAP_LINKS_ALGO, 3, "raise GAP_LINKS_ALGO with the pin");
+    assert_eq!(GAP_LINKS_ALGO, 4, "raise GAP_LINKS_ALGO with the pin");
     let d = print("gap", digest_of(Body::default(), OffMeshLinks::Gaps));
     assert_ne!(d, digest_of(Body::default(), OffMeshLinks::None), "the world makes gap links");
     assert_eq!(d, PIN_GAP);
