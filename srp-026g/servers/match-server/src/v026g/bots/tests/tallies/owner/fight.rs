@@ -623,12 +623,12 @@ impl FightCounts {
                 // `airfire-plays` line names them), the keys, in a hold or walking to a goal, and the flight: a walk off an
                 // edge (it carries speed across) or a jump, where and when it began.
                 if crate::v026g::bots::tests::bench_settings().flag("SRP_BENCH_AIR_ROWS") {
-                    let flight = body.flight.as_ref().map_or("landing				".to_owned(), |f| {
+                    let flight = body.flight.as_ref().map_or("landing\t\t\t\t".to_owned(), |f| {
                         let kind = if f.carry == [0.0; 2] { "jump" } else { "walk-off" };
-                        format!("{kind}	{}	{:.2}	{:.2}	{:.2}", f.at, f.from.x, f.from.y, f.from.z)
+                        format!("{kind}\t{}\t{:.2}\t{:.2}\t{:.2}", f.at, f.from.x, f.from.y, f.from.z)
                     });
                     eprintln!(
-                        "airfire	{place}	{}	{:.2}	{:.2}	{:.2}	{}	{:#x}	{}	{}	{}	{flight}",
+                        "airfire\t{place}\t{}\t{:.2}\t{:.2}\t{:.2}\t{}\t{:#x}\t{}\t{}\t{}\t{flight}",
                         game.tick,
                         rec.feet.x,
                         rec.feet.y,
@@ -973,7 +973,7 @@ impl FightCounts {
             w.bytes / 1024
         );
         if crate::v026g::bots::tests::bench_settings().flag("SRP_BENCH_AIR_ROWS") {
-            eprintln!("airfire-plays	{}", run.plays.iter().enumerate().map(|(i, name)| format!("{i}={name}")).collect::<Vec<_>>().join(","));
+            eprintln!("airfire-plays\t{}", run.plays.iter().enumerate().map(|(i, name)| format!("{i}={name}")).collect::<Vec<_>>().join(","));
         }
         let air: BTreeMap<String, u32> = self
             .fire_air_play
