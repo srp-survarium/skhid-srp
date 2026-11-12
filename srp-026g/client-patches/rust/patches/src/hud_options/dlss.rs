@@ -437,10 +437,10 @@ fn act(thread: &Thread, link: &Live, present: Option<&Present>, action: Action<H
                 Hello::NotOpen => None,
             })),
         },
-        Action::AwaitHello => match ends()? {
-            Err(broken) => Some(broken),
-            Ok((helper, _)) => or_broken(helper.hello_answer(thread).map(|answer| answer.map(Event::HelloAnswered))),
-        },
+        Action::AwaitHello => {
+            let (helper, _) = link.ends()?;
+            or_broken(answer(thread, helper, helper.hello_answer(thread)).map(|answer| answer.map(Event::HelloAnswered)))
+        }
         Action::Share { render, output } => {
             let (helper, device) = link.ends()?;
             let back = &present?.back;
@@ -454,15 +454,15 @@ fn act(thread: &Thread, link: &Live, present: Option<&Present>, action: Action<H
                 Some(Event::SetupSent { shared, output, now })
             }))
         }
-        Action::AwaitSetup => match ends()? {
-            Err(broken) => Some(broken),
-            Ok((helper, _)) => or_broken(helper.setup_answer(thread).map(|answer| {
+        Action::AwaitSetup => {
+            let (helper, _) = link.ends()?;
+            or_broken(answer(thread, helper, helper.setup_answer(thread)).map(|answer| {
                 if matches!(answer, Some(Ok(()))) {
                     line(&[Text("dlss: running: the helper took the Setup; each Present submits a frame")]);
                 }
                 answer.map(Event::SetupAnswered)
-            })),
-        },
+            }))
+        }
         Action::Submit(frame) => match ends()? {
             Err(broken) => Some(broken),
             Ok((helper, device)) => {
@@ -516,6 +516,7 @@ fn act(thread: &Thread, link: &Live, present: Option<&Present>, action: Action<H
             None
         }
         Action::Quit { helper, device, shared } => {
+            line(&[Text("dlss: the game exits: the helper is told to quit")]);
             helper.quit(thread);
             // it finishes the frames it was told, then quits
             if !helper.wait(thread, 3000) {
@@ -525,6 +526,17 @@ fn act(thread: &Thread, link: &Live, present: Option<&Present>, action: Action<H
             end(thread, helper, device, shared);
             None
         }
+    }
+}
+
+/// What a read of the helper's answer found, the answer first: a helper that
+/// says no ends right after, and its reason is in the pipe; only without an
+/// answer does a helper that has ended count as that.
+fn answer<T>(thread: &Thread, helper: &Helper, read: Result<Option<T>, Failure>) -> Result<Option<T>, Failure> {
+    match (read, helper.ended(thread)) {
+        (Ok(Some(answer)), _) => Ok(Some(answer)),
+        (_, Some(code)) => Err(Failure::Ended(code)),
+        (read, None) => read,
     }
 }
 
