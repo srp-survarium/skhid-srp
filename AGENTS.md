@@ -1,5 +1,15 @@
 # Agent instructions
 
+## Rust client transition
+
+- For networking and client-runtime migration work, read
+  `srp-026g/docs/PLAN-RUST-CLIENT.md` and the latest entry in
+  `srp-026g/docs/RUST-CLIENT-WORK.md` first. Update the status and handoff with
+  exact evidence; distinguish implemented, tested, played and released.
+- This transition uses the existing Rust arena framework (`rust_patches.md`),
+  generated bindings and hooks. Rust logic belongs in safe modules; native ABI
+  glue remains generated NASM. The arena placement and lock rules below apply.
+
 ## Commits and pull requests
 
 - Do not add `Co-Authored-By: Claude ...` (or any other AI co-author trailer) to commit messages.
