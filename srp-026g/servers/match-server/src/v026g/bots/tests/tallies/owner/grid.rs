@@ -35,10 +35,10 @@ const STAND_TICKS: u32 = 2 * TPS as u32;
 /// A stand on a dry island counts from this many ticks in a row (10 s).
 const ISLAND_STAND_TICKS: u32 = 10 * TPS as u32;
 /// A fall is the route's own when its landing is within this of a corner of the route's drops, m (the shared tally's is 1).
-const PLANNED_LANDING_M: f32 = 2.0;
+pub(super) const PLANNED_LANDING_M: f32 = 2.0;
 const SHARED_LANDING_M: f32 = 1.0;
 /// A fall from this much in a tick, and a drop in a second from this much, m.
-const FALL_M: f32 = 1.0;
+pub(super) const FALL_M: f32 = 1.0;
 const DROP_M: f32 = 4.0;
 /// The exe body's standing jump top, m: the capped band ends here.
 /// The exe's standing top (the one number, `mapdata::Body::default().max_jump`).
@@ -227,6 +227,26 @@ impl GridCounts {
     }
 }
 
+/// A drop of a bot's route: a point and the next, [`FALL_M`] or more under it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct RouteDrop {
+    pub(super) top: Vec3,
+    pub(super) landing: Vec3,
+}
+
+/// The drops of `bot`'s route. A fall that lands within [`PLANNED_LANDING_M`] of one's landing is the route's own (this
+/// topic's falls; the fight topic's fire in the air, which also takes a flight that left from one's top).
+pub(super) fn route_drops_of(bot: &Bot) -> Vec<RouteDrop> {
+    bot.route.as_ref().map_or_else(Vec::new, |(route, _)| {
+        route
+            .points()
+            .windows(2)
+            .filter(|w| w[0].at.y - w[1].at.y >= FALL_M)
+            .map(|w| RouteDrop { top: w[0].at, landing: w[1].at })
+            .collect()
+    })
+}
+
 impl Topic for GridCounts {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
@@ -236,9 +256,7 @@ impl Topic for GridCounts {
         let Some(bot) = bot else {
             return;
         };
-        self.route_drops[place] = bot.route.as_ref().map_or_else(Vec::new, |(route, _)| {
-            route.points().windows(2).filter(|w| w[0].at.y - w[1].at.y >= FALL_M).map(|w| w[1].at).collect()
-        });
+        self.route_drops[place] = route_drops_of(bot).into_iter().map(|drop| drop.landing).collect();
         self.guard[place] = bot.bench_guard;
         self.walking_out[place] = bot.zone_walk.is_some();
         self.chosen[place] = bot.intent.zone_ok;

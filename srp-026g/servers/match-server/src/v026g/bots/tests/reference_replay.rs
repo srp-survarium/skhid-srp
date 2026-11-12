@@ -252,7 +252,7 @@ fn reference_replay() {
                     next_life += 1;
                 }
                 if presses.contains(&t) {
-                    let mut probe = bar;
+                    let mut probe = bar.clone();
                     probe.tick(t, k & !key::JUMP, false, false);
                     if probe.may_jump() {
                         kept.push(t);
