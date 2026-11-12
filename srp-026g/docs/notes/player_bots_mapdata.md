@@ -46,7 +46,9 @@ Mode variants of one map place different props (level_01: 1157 / 1159 /
   `create_rotation` = Rx·Ry·Rz (unit test). The object's own `scale` is not
   applied. All 43 spawns of level_01/day_4 stand -0.036..+0.120 m above
   the walker mesh this way, those of level_05/evening_2 within 0.15 m
-  (tests on the game data). PROVEN.
+  (tests on the game data). PROVEN, and against the game's own world:
+  all 21,247 placements of the 16 Player vs Bots projects, rotations to
+  2e-7, every mesh vertex (`collision_world.md` §5).
 - **Groups.** The walking body (group 4, mask 2) meets objects with
   `cgroup & 2`, a bullet (16, 8) `cgroup & 8`; an object meets a body when
   `cgroup & mask` and `cmask & group`. PROVEN.
@@ -54,13 +56,21 @@ Mode variants of one map place different props (level_01: 1157 / 1159 /
   `resources-db` listing resolves a link to its target's payload under the
   link's own path; links to links would be counted in
   `Resources::unresolved_links` (0 in the shipped archive). PROVEN.
+  A link to a **folder** is not resolved (58 in the stock archive, 23 of
+  them `collision` or `walker_collision`): that library comes out empty
+  (`collision_world.md` §5.1).
 - **Walker behaviour** per face: `face_data` names a shading group, the
   model's `settings` give its game material, `game.materials` its
   `physic.walker_behaviour`: 0 ground up to 60°, 1 (`walk`) always ground,
-  2 (`dont_walk`) never. Values and slope LIKELY (`player_bots.md` §5).
+  2 (`dont_walk`) never. Values PROVEN (the game keeps them as the top
+  two bits of each face's word; 0 of 9.5 million faces differ from the
+  export's: `collision_world.md` §1, §5); the slope LIKELY
+  (`player_bots.md` §5).
 - **Primitives** (`exported_primitives`: box, sphere, cylinder, capsule)
   are turned into triangles (box exact, round shapes 12 sides × 6 rings),
-  with the material of their `mtl`.
+  with the material of their `mtl`. Bullet's own shapes differ from these
+  under a non-uniform library scale and by their roundness
+  (`collision_world.md` §5.2).
 - **Body** (`grid::Body`): radius 0.38, stand 1.8, crouch 1.1, step 0.6
   (PROVEN); ground walked up to 50° (PROVEN, `impassable_slope`), faces up
   to 60° floors, climbs up 50-60° ground cut past a step; drop ≤ 5 m
@@ -68,8 +78,14 @@ Mode variants of one map place different props (level_01: 1157 / 1159 /
   logs; was 1.3 m, GUESS). Since 2026-10-23, `player_bots_stuck.md`.
 - **A missing `walker_collision`** (fruit trees, level 3's anomalous
   trees, a bench, a wheel: 0-60 placements a map) is stood in for by the
-  model's `collision` for the walking body (`MapData::triangles`, LIKELY:
-  `player_bots_stuck.md`).
+  model's `collision` for the walking body (`MapData::triangles`,
+  `player_bots_stuck.md`). It is a folder hard link the reader does not
+  follow. The stand-in is what the game has for the trees and the bench
+  (PROVEN: the same vertex buffer in the game's memory) and is not for
+  `vehicle/azlk_damaged`, `props/tool/weel_sport_02` and
+  `props/electric/tv_working_02`; a linked `collision` (rubble and a
+  bridge piece of level 5, two poplars of level 2) has no stand-in at all
+  (`collision_world.md` §5.1).
 - **Play area.** The walker mesh reaches far off the map (to -666 m); the
   grid covers the `levelmap` x/z box, widened by 5 m and to hold every
   spawn and objective. level_03's box is 2 m and level_06, 07 and 08 have
