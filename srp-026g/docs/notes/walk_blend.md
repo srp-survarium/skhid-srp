@@ -43,13 +43,20 @@ and its horizontal length is at least `max_speed` 0x2DC010 times the step, it is
   10h), a clip's start (80h, with 1 for a new one), the end of a weight transition (100h) and a rate's sign change
   (40h); a clip's sound or `shoot` knot (20h) is not one. A frame with such an event has one step of a blend up to
   about 4 % of the speed off.
+- **An aim change is two nested rate ramps.** The step ending 50 k ms after the AIM input moves at
+  vA + (vB - vA) x [1 - (1 - u(k)) (1 - u(k - n))], u(j) = clamp((j - 0.4) / 6, 0, 1) for j >= 1, else 0;
+  n = ceil(T / 50 ms) - 1, T the gun's aim time (`aim_time` x max(0, 1 + modifier 49)). The first ramp is the
+  selection the key asks, the second the one selection the weapon asks when its aim transition arrives. Every
+  selection takes the aimed (or unaimed) clip of the direction at once: the builder's aiming argument is the
+  weapon's flag +5E8h (0x2E1110, 0x335F35). T over 0.30 s leaves the plain ramp.
 
 ## The order in a frame
 
 The player's update to the newest input's time (0x2DA9A0), for each queued input time t: `base_player::tick`
 0x2DAA60 (the animation ticks to t, the clips re-selected at the previous input's time when the keys changed: the flag
 +33Eh is set by `apply_new_input` itself when the key word changes, 0x2D8995, and also by a change of the carried
-weight, the stagger, a leg's term, a hit animation, and at every tick of the weapon's aim transition, 0x2E0A59), then
+weight, the stagger, a leg's term, a hit animation, and once by the weapon, at the tick its aim transition arrives:
+`transition_helper::tick` 0x32FE40 returns 1 only then, 0x32FEC2; the flag 0x2E0A59), then
 `apply_new_input` 0x2D86E0 at t; after the loop the walk vector (0x2DAA2B), then the physics step. So **the step
 ending at t moves by the blend of the inputs up to t - 50 ms, and is capped by the keys of input t** (`max_speed`
 asks whether the body sprints after input t is applied).
@@ -66,6 +73,7 @@ asks whether the body sprints after input t is applied).
 | sprint start | 210 | 0.1198 0.2784 0.4417 0.6098 0.7827 0.9603 of the change; the rate blend with a measured rate ratio 1.212 fits to 0.0001 m/s |
 | sprint release, the step ending the release's input | 201 | at the walk cap in 192 (5.287 -> 3.731 m/s): the cap is input t's |
 | a second change during a blend | 495 (4,455 steps) | nested layers: median error 0.0001 m/s (kept frozen 0.118, snapped 0.036) |
+| an aim change with the move keys held (aim off 20, aim on 1) | 21 | two nested rate ramps n ticks apart: 20 within 0.0023 m/s on every step (the other starts inside an earlier blend); the plain ramp is off by 0.011 (n = 4) and 0.033 (n = 3) |
 
 The sprint start's rate ratio is 1.2121 from the clips themselves: the sprint clip has 18 keys (0.6 s, two
 intervals of 9 frames, its root 3.2727 m) against the run clip's 24 (0.8 s, two of 12, 2.8 m), played at 5 / 5.5
@@ -83,7 +91,7 @@ the speed factor F, and the body moves at the clip's root speed x that rate, cut
 | run forward and its diagonals | 3.5 | 3.5, 3.5 | 3.5 | 17,295 of 17,585 |
 | run back and its diagonals | 3.2 | 3.2, 3.0 | 3.0 | 62 of 77 |
 | run left, right | 2.2440 | 2.25, 2.5 | **2.4933** | 490 of 499 |
-| aimed forward, back | 3.5, 3.2 | 3.5, 3.0; 3.2, 2.5 | 3.0, 2.5 | 312 of 481 (the others in the aim's ramp) |
+| aimed forward, back | 3.5, 3.2 | 3.5, 3.0; 3.2, 2.5 | 3.0, 2.5 | 312 of 481 (the others in the aim's two ramps) |
 | aimed left, right | 2.2440 | 2.25, 2.0 | **1.9947** | 61 of 89 |
 | crouch forward | 2.2 | 2.2, 2.5 | 2.5 | 3,016 of 3,059 |
 | crouch back | 1.95 | 2.0, 2.0 | **1.95** | 58 of 58 |
@@ -104,7 +112,8 @@ for six steps, about 24 mm; side changes a median 0.060 m/s); a rate change of o
 
 ## Not read
 
-Which node leads a group when transitions overlap; the aim's curves (the clips are selected again at every tick of
-the weapon's aim transition, 0x2E0A59: what each selection takes is not read); which clip's interval end is the
-bake of a start (the tree's node list at a start is in no trace). 0x3FE260 is only a function object's call
+Which node leads a group when transitions overlap. (What bakes a start is settled: every baking event of any
+node on the body inside the 0.3 s blend, each saved in the world: of 2,756 clean starts the first was the
+on-site clip's interval end in 1,042, the idle hands clip's in 603, none in 834; `saved_mixing_tree.md`.)
+0x3FE260 is only a function object's call
 operator, not a callback of its own.

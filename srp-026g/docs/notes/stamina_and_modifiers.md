@@ -19,7 +19,11 @@ the last spending time, two boost times, and two modifier nodes.
 - **A hit drains it**: a bullet's first damaging hit takes the weapon's `stamina_damage` (5 to 80 by weapon) x the
   ammo's factor x max(0, 1 + S66) (0x2D9D0D..0x2D9DFE); a grenade its splash value.
 - **A kill boosts the killer's** (a skill): about 100 x S63 over S28 ms (0x2DA1B1, 0x329960).
-- **Holding the breath** to the end of its reserve empties the bar (0x31D7B0).
+- **Holding the breath** (only while aimed; the reserve is `max_breath_holding_time` 5 s x max(0, 1 + S23), refilled
+  at each aim and at each hold's end) to the end of its reserve empties the bar once, in that tick (0x31D7B0);
+  never outside a hold. A hold needs the low flag clear.
+- **A melee attack costs nothing**; its hit is a 1.7 m bullet of the weapon's `melee` block and drains the victim's
+  bar like a round (0x33AB50, 0x2D9DC6).
 - The record's two nodes are the carried weight's (0x329B20): the spending node 1.5 t on index 19 and the movement
   node -0.2 x max(0, 1 + S26) x t on index 4 (none with S32), t the weight's share over a threshold. So the stamina
   itself does not change the speed; the weight does, through that node.
@@ -28,7 +32,10 @@ the last spending time, two boost times, and two modifier nodes.
 
 Summed over the 23 slots (0x2FC6E0): an item's unit weight (+218h) x its count (+260h where its kind stacks, else
 1), and for a weapon its loaded rounds (+5E5h, one more with a round chambered, +5F1h) x its ammo item's unit
-weight. Overburdened is the weight at or over 30 + S5 unless S31 (0x329C60): no sprint. Index 32 refuses the sprint
+weight. An item's unit weight is its `weight`, or for ammo `clip_weight` / `clip_size` (0x2C8474..0x2C84F5). A life
+starts with min(the kit's count, the item's storage + what the last body held of it) in each slot
+(`setup_from_profile` 0x2FCB70, `unload_to_profile` 0x2FD2D0): 11,959 of 11,959 pocket slots of bots' later lives.
+Overburdened is the weight at or over 30 + S5 unless S31 (0x329C60): no sprint. Index 32 refuses the sprint
 outright (0x2DBFC4).
 
 ## The speed factor
@@ -48,33 +55,38 @@ steady sprint steps within 0.005 m/s). The other gaits' speeds from their clips 
 - A jump's spending starts 150 ms after the press in 4,617 of 4,799 jumps; 980 of 6,024 presses by bots never took
   off and spent nothing.
 - The jump's gate (0x2FC230): the key, no leg wound (0x2FC254), the low flag clear (0x2FC260), the bar at the cost
-  (0x2D6420), on the ground (0x7EF90); and no crouch state has a jump (`crouch_logic.md`). Of 6,069 lone presses by
+  (0x2D6420), on the ground (0x7EF90: the capsule not crouched, the vertical fall velocity under 4 m/s, the
+  supporting normal no steeper than `cc_max_slope_angle_cos`, 55 degrees in `startup.cfg`); and no crouch state has a jump (`crouch_logic.md`). Of 6,069 lone presses by
   bots with 250 ms before the next world, 1,557 spent nothing: the bar under the cost in the world before 580; of
   the other 977: crouched 311, already in a jump 204, a leg pool empty 166, other 10, none of these seen in the two
-  worlds around the press 339 (the worlds are a second apart). At a tick's precision (a replayed match's traced
+  worlds around the press 339 (the worlds are a second apart), of which by the gate's own tests: the crouch key held
+  between the worlds 68, the selector still in the jump's landing 85, a forced crouch 10, ground steeper than 55
+  degrees 60, falling at 4 m/s or more 4, descending 58, climbing 26, nothing seen 28. At a tick's precision (a replayed match's traced
   steps): 138 presses, 130 took off (129 of them one-tick presses), 8 did not: in a jump's air 5, falling 1,
   crouched 1, none of the controller's causes 1 (the bar or a leg, which a trace does not hold).
-- A hit's drain clusters at the weapons' values (15, 20, 30, 35, 50, 60).
+- A hit's drain clusters at the weapons' values (15, 20, 30, 35, 50, 60). The hits that drain nothing are hits
+  with no id (400 of 772) and a bullet's later hits (339).
 
 ## Against the bots' reckoned bar (`bots/stamina.rs`)
 
-The constants, the regeneration's rules, the low flag and the jump's gate are the client's. Different: a hit's
-drain is not counted (the largest error: after a hit the reckoned bar is up to 70 over); the jump's cost is spent
-at the press, also for presses that never take off; the weight is the kit's as bought, while a life starts lighter
-by the ammo already spent (the spending rate a median 6.8 % high); the items' spending and regeneration
-modifications are not in the rates; the kill boost and the breath's emptying are not ported. Before any hit the
-reckoned bar is the saved one in 85.6 % of worlds; the low flag differs in 376 of 340,918. The world saves the
-record, so a bot's own bar can be taken from it.
+The constants, the regeneration's rules, the low flag and the jump's gate are the client's. Different: a hit's drain
+is not counted (the largest error: after a hit the reckoned bar is up to 70 over); the jump's cost is spent at the
+press, also for presses that never take off; the weight is the kit's as bought, while a life starts lighter by the
+ammo already spent (the spending rate a median 6.8 % high); the items' spending and regeneration modifications are
+not in the rates; the kill boost is not ported (the breath's emptying needs a held breath, which the bots never
+ask). Before any hit the reckoned bar is the saved one in 85.6 % of worlds; the low flag differs in 376 of 340,918.
+The world saves the record, so a bot's own bar can be taken from it.
 
 ## Not read
 
-When the breath's reserve ticks; melee's stamina; a grenade thrower's modifier on
-its stamina damage; the per-round ammo weight; the indices with no direct reader below.
+Nothing of this section is left unread; the ten indices 9, 10, 25, 37, 40, 42, 43, 45, 47 and 64 have no reader in
+the exe.
 
 ## The kit's modifier indices
 
 "Reads" is the number of direct calls of the getter found for the index; the first site is given, with the kit's
-nearest name at or under it (LIKELY the function, not checked one by one).
+nearest name at or under it (checked: 97 of 101 sites lie in that function; 0x30F61D, 0x3110D5, 0x31D1C8 and
+0x33292B lie in a later one the kit does not name).
 
 | index | name | what it scales | reads | a site |
 |---|---|---|---|---|
@@ -94,14 +106,14 @@ nearest name at or under it (LIKELY the function, not checked one by one).
 | 13 | `reload_speed_modifier` | the reload clips' speed (reload states, 4 functions): time / max(0, 1 + S13), LIKELY the form | 4 | 0x30e25a weapon_core_reload_state::get_weapon_lexeme |
 | 14 | `artefact_slots_modifier` | artefact slots (setup_from_profile 0x2FD20F; additive) | 3 | 0x236151 game_world_ui::initialize_match |
 | 15 | `pocket_slots_modifier` | pocket slots (UI 0x2360B0; apply_kit_parameter) | 2 | 0x2360b0 game_world_ui::initialize_match |
-| 16 | `ammo_bags_modifier` | ammo bags (apply_kit_parameter, LIKELY) | 1 | 0x2f768d player_profile::apply_kit_parameter |
-| 17 | `pocket_slot_size_modifier` | pocket slot size (apply_kit_parameter, LIKELY) | 1 | 0x2f768d player_profile::apply_kit_parameter |
+| 16 | `ammo_bags_modifier` | ammo bags (the lobby only: `apply_kit_parameter` with 16 at 0x222A5F, 0x288E3D) | 1 | 0x2f768d player_profile::apply_kit_parameter |
+| 17 | `pocket_slot_size_modifier` | pocket slot size (the lobby only: with 17 at 0x222A93, 0x288E6F) | 1 | 0x2f768d player_profile::apply_kit_parameter |
 | 18 | `recoil_modifier` | the recoil kick (weapon_recoil_calculator::on_shot 0x331DC7, 0x331EA5, 0x331F5A) | 3 | 0x331dc7 weapon_recoil_calculator::on_shot |
 | 19 | `stamina_spending_speed_modifier` | the sprint's and the jump's stamina cost (sprint 0x329A92, the jump 0x32972F, its gate 0x2D643C) | 3 | 0x2d643c player_stamina::can_afford_jump |
 | 20 | `movement_speed_when_aiming_modifier` | the movement factor while aiming: min(F(4), F(4 and 20)) (movement_speed 0x2DBC1D) | 1 | 0x2dbc1d base_player::movement_speed |
 | 21 | `chamber_a_round_modifier` | the chamber clip's speed (weapon_core_chamber_a_round_state 0x30E58D), as 13 | 1 | 0x30e58d weapon_core_chamber_a_round_state::get_weapon_lexeme |
 | 22 | `change_weapon_speed_modifier` | the weapon's HOLSTER clip's speed (weapon_core_hide_state_base 0x30DF7B): hide_time / max(0, 1 + S22); so also a battery's take | 1 | 0x30df7b weapon_core_hide_state_base::get_weapon_lexeme |
-| 23 | `breath_holding_time_modifier` | the breath hold's reserve (breath_state_holding::initialize 0x31D1C8, restart_on_aim 0x31D9C9) | 2 | 0x31d1c8 breath_state_holding::initialize |
+| 23 | `breath_holding_time_modifier` | the breath hold's reserve (the holding state's finalize 0x31D1C8, restart_on_aim 0x31D9C9) | 2 | 0x31d1c8 breath_state_holding::finalize |
 | 24 | `dispersion_movement_influence_modifier` | the character dispersion of a moving state (apply_modifiers 0x331715, with 56) | 1 | 0x331715 dispersion_calculator::get_character_state_dispersion |
 | 25 | `use_two_double_handed_weapons_modifier` | no direct getter call found | 0 | - |
 | 26 | `overweight_penalty_modifier` | the weight's speed cost: -0.2 x max(0, 1 + S26) x t (update_weight_modifiers 0x329BF4) | 1 | 0x329bf4 player_stamina::update_weight_modifiers |

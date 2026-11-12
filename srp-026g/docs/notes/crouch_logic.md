@@ -49,9 +49,9 @@ wish), s = +202h `m_can_stand`, c = +203h `m_capsule_is_in_crouch`.
 | release under a ceiling | t | 50 ms after the stand test passes | with l | 50, at 100 to 1,400 ms |
 
 Every run of steps whose key and wish differ is one of the rules: the key held without the wish, 17 runs, all in a
-jump; the wish without the key, 742 runs: 678 the one step after a release, 49 a ceiling, 12 after a hit (LIKELY
-the legs: the leg pools are not in a recording; 7 of them start without the key 50 ms after a hit and last up to
-3 s), 3 at a death. None is left over.
+jump; the wish without the key, 742 runs: 678 the one step after a release, 49 a ceiling, 12 after a hit: both
+legs broken (the match's own worlds hold two leg wounds at each of the 7 starts without the key, 7 of 7), 3 at a
+death. None is left over.
 
 ## The capsule, the speed, the jump, the sprint
 
@@ -78,7 +78,9 @@ key of a dead body.
 
 ## Not read
 
-How the key layer keeps a toggle; the order of the input, the step and the logic's tick in a frame (measured:
-the input, the step, then the logic); the conditions of some setters of +33Eh (0x2E0A59, 0x2E0B6E, 0x330990), so
-whether a held jump key gets a selector tick 100 ms after a release without another event; with both legs broken,
-the key and a move key held, LIKELY a change of state every tick (no data).
+How the key layer keeps a toggle; the conditions of some setters of +33Eh (0x2E0B6E, 0x330990), so whether a held
+jump key gets a selector tick 100 ms after a release without another event.
+
+A frame: the logic's tick to T, the input stamped T, then the step ending at T (`update_to` 0x2DA9A0). With both
+legs broken, the crouch key and a move key held, the two crouch states swap at each selector tick and THE BODY
+WALKS, about 0.5 m/s (16 of 16 pairs of worlds moved); without the crouch key it stands, crouched.
