@@ -95,3 +95,47 @@ install = "on_demand"
 site = "render.present_stage"
 handler = "on_present_stage"
 install = "on_demand"
+
+# The frame's inputs for DLSS (docs/notes/dlss-option.md, "The frame's inputs";
+# hud_options/frame_inputs.rs): written with the render scale's sites, each one doing
+# nothing unless its piece is asked (DLSS's link, or the diagnostics switch SKHID_DLSS_INPUTS).
+# a frame's projection set, where the engine pushes its own jitter: the frame's jitter
+[[hook]]
+site = "render.jittered"
+handler = "on_jittered"
+install = "on_demand"
+
+# the post-process's AA choice: none in a frame of ours
+[[hook]]
+site = "postprocess.aa_method"
+handler = "on_aa_method"
+install = "on_demand"
+
+# the object motion pass's gates: run in every frame of ours
+[[hook]]
+site = "postprocess.motion_gate"
+handler = "on_motion_gate"
+install = "on_demand"
+
+[[hook]]
+site = "postprocess.motion_quality"
+handler = "on_motion_quality"
+install = "on_demand"
+
+# its target's clear at the frame's start: the same
+[[hook]]
+site = "postprocess.motion_clear"
+handler = "on_motion_clear"
+install = "on_demand"
+
+# its target's format: signed at a render scale
+[[hook]]
+site = "targets.motion_format"
+handler = "on_motion_format"
+install = "on_demand"
+
+# the context's eye rays, which the engine mirrors from one corner: each corner's own under a jitter
+[[hook]]
+site = "context.eye_rays"
+handler = "on_eye_rays"
+install = "on_demand"

@@ -78,7 +78,9 @@ use crate::vostok::settings::{ConsoleBool, FieldOfView, OptionsCall, SliderSteps
                               save_user_config};
 use crate::vostok::{Context, Flow, GameCell, GameWorldUi, HudOptionsOnOptionsCallExit, Lock, NoExit, Thread};
 
+pub mod frame_inputs;
 pub mod render_size;
+pub use frame_inputs::{on_aa_method, on_eye_rays, on_jittered, on_motion_clear, on_motion_format, on_motion_gate, on_motion_quality};
 pub use render_size::{on_depth_texture, on_output_set, on_output_setup, on_present_stage, on_targets_size};
 
 /// A Settings checkbox kept in user.cfg as `<name> on|off`: the Settings ask
@@ -1140,6 +1142,7 @@ pub fn on_process_start(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let marker = file_exists(thread, DXVK_MARKER);
     drive(thread, Event::Started { choice, files, marker });
     render_size::start(thread);
+    frame_inputs::start(thread);
     Flow::Continue
 }
 
