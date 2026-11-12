@@ -61,6 +61,8 @@ pub struct ControlledStats {
     pub checks_crouched: usize,
     /// [2c] Of the failed checks, those the body walks from the floor but not on from the link before ([`Body::walk_every_link`]).
     pub checks_chain_failed: usize,
+    /// [2c] Of the failed checks, those walked crouched.
+    pub checks_failed_crouched: usize,
 }
 
 /// [2c] One walk check's answer ([`WalkGrid::walk_link`]).
@@ -249,7 +251,7 @@ fn out_of_faces_of(world: &Collision, feet: Vec3, height: f32) -> Vec3 {
 /// ended at `to`.
 pub fn walk_share(world: &Collision, s: &Settings, start: WalkStart, from: Vec3, to: Vec3) -> (f32, bool) {
     let mut c = Controller::standing_at(start.place(world, from));
-    match walk_on(world, s, &mut c, from, to) {
+    match walk_on(world, s, &mut c, from, to, 0) {
         // A low ceiling: the client slides under it or crouches: not a stall the pass knows.
         Walked::Ceiling => (1.0, false),
         Walked::At => (1.0, true),
@@ -293,10 +295,15 @@ pub fn body_at(world: &Collision, start: WalkStart, stance: Stance, feet: Vec3) 
     }
 }
 
-/// The controller `c` walked from where it is toward `to` (feet) at [`WALK_MPS`] for the ticks the leg from `from` takes and
-/// two more: how it ended, the share counted along `from` -> `to`. `c` is left where the walk left it, so a next leg goes on
-/// from there.
-pub fn walk_on(world: &Collision, s: &Settings, c: &mut Controller, from: Vec3, to: Vec3) -> Walked {
+/// [2c] The walk check's spare ticks ([`walk_on`]): [`Body::walk_every_link`] asks for arrival, which a body slowed by a
+/// wall's slide reaches later; [`walk_share`] has none (half the way needs none). A body held where it is ends a walk at
+/// once, so spare ticks cost only a body still moving.
+pub const SPARE_TICKS: usize = 8;
+
+/// The controller `c` walked from where it is toward `to` (feet) at [`WALK_MPS`] for the ticks the leg from `from` takes, two
+/// more and `spare` more: how it ended, the share counted along `from` -> `to`. `c` is left where the walk left it, so a next
+/// leg goes on from there.
+pub fn walk_on(world: &Collision, s: &Settings, c: &mut Controller, from: Vec3, to: Vec3, spare: usize) -> Walked {
     let flat = Vec3::new(to.x - from.x, 0.0, to.z - from.z);
     let length = flat.length();
     if length < 1e-4 {
@@ -304,7 +311,7 @@ pub fn walk_on(world: &Collision, s: &Settings, c: &mut Controller, from: Vec3, 
     }
     let dir = flat * (1.0 / length);
     let step = WALK_MPS * 0.05;
-    let ticks = (length / step).ceil() as usize + 2;
+    let ticks = (length / step).ceil() as usize + 2 + spare;
     let mut best = 0.0f32;
     for _ in 0..ticks {
         let feet = c.feet();
@@ -595,6 +602,11 @@ impl WalkGrid {
         stats.checks_crouched = checks.iter().filter(|&&(a, d)| self.stance(a, wide.links[a][d] as usize) == Stance::Crouched).count();
         let walked = parallel(&checks, |&(a, d)| self.walk_link(wide, world, s, start, a, d));
         stats.checks_chain_failed = walked.iter().filter(|w| w.chain_failed).count();
+        stats.checks_failed_crouched = checks
+            .iter()
+            .zip(&walked)
+            .filter(|&(&(a, d), w)| !w.passes && self.stance(a, wide.links[a][d] as usize) == Stance::Crouched)
+            .count();
         let failing = checks
             .iter()
             .zip(walked)
@@ -644,10 +656,10 @@ impl WalkGrid {
         for off in STARTS {
             let (from, to) = (pa + side * off, pb + side * off);
             let mut c = body_at(world, start, stance, from);
-            let mut centre = walk_on(world, s, &mut c, from, to);
+            let mut centre = walk_on(world, s, &mut c, from, to, SPARE_TICKS);
             if centre == Walked::Ceiling && stance == Stance::Standing {
                 let mut c = body_at(world, start, Stance::Crouched, from);
-                centre = walk_on(world, s, &mut c, from, to);
+                centre = walk_on(world, s, &mut c, from, to, SPARE_TICKS);
             }
             share = share.max(match centre {
                 Walked::Short(x) => x,
@@ -657,7 +669,7 @@ impl WalkGrid {
                 let from_q = self.position(q as NodeId) + side * off;
                 let mut c = body_at(world, start, stance, from_q);
                 // The link before failing is its own check's; from where it leaves the body this one says nothing.
-                walk_on(world, s, &mut c, from_q, from) != Walked::At || arrives(walk_on(world, s, &mut c, from, to))
+                walk_on(world, s, &mut c, from_q, from, SPARE_TICKS) != Walked::At || arrives(walk_on(world, s, &mut c, from, to, SPARE_TICKS))
             });
             if arrives(centre) && !chained {
                 chain_failed = true;
