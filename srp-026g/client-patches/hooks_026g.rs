@@ -2471,6 +2471,21 @@ pub extern "C" fn hook_hud_options_on_motion_format(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- hud_options (patch 83) ----
+
+/// The entry `hud_options_on_eye_rays` (0x14ad23, renderer_context::update_eye_rays (0x14AA50, from every set_p) at its last store (mov [eax+5404h],edx, the fourth world ray's z; add esp,24h / ret after it): the eight rays written but that word, EAX the context) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_options_on_eye_rays(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_options_on_eye_rays` calls this, from the game's jump at 0x14ad23,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_options::on_eye_rays(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- input_check (patch 99) ----
 
 /// The named exits of input_check::on_change_input (the order the shim's Flow code
@@ -4980,9 +4995,10 @@ unsafe extern "C" {
     fn hud_options_on_motion_quality();
     fn hud_options_on_motion_clear();
     fn hud_options_on_motion_format();
+    fn hud_options_on_eye_rays();
 }
 /// hud_options's sites that keep the game's bytes until it installs them.
-pub fn hud_options_on_demand() -> [super::hook::OnDemand; 11] {
+pub fn hud_options_on_demand() -> [super::hook::OnDemand; 12] {
     [
         // render_window.targets_size: render_output_window::set_size with create_targets' arguments pushed (lea eax,[ebx+118h]; then xor d
         // SAFETY: the site's span as the original exe has it; hud_options_on_targets_size is the
@@ -5028,6 +5044,10 @@ pub fn hud_options_on_demand() -> [super::hook::OnDemand; 11] {
         // SAFETY: the site's span as the original exe has it; hud_options_on_motion_format is the
         // generated or linked entry for it, alive as long as the executable.
         unsafe { super::hook::OnDemand::new(0x163433, &[0xba, 0x12, 0x00, 0x00, 0x00], hud_options_on_motion_format as *const () as usize as u32) },
+        // context.eye_rays: renderer_context::update_eye_rays (0x14AA50, from every set_p) at its last store (mov [eax+5404h],ed
+        // SAFETY: the site's span as the original exe has it; hud_options_on_eye_rays is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x14ad23, &[0x89, 0x90, 0x04, 0x54, 0x00, 0x00], hud_options_on_eye_rays as *const () as usize as u32) },
     ]
 }
 

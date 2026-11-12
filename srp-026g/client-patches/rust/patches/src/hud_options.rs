@@ -80,7 +80,7 @@ use crate::vostok::{Context, Flow, GameCell, GameWorldUi, HudOptionsOnOptionsCal
 
 pub mod frame_inputs;
 pub mod render_size;
-pub use frame_inputs::{on_aa_method, on_jittered, on_motion_clear, on_motion_format, on_motion_gate, on_motion_quality};
+pub use frame_inputs::{on_aa_method, on_eye_rays, on_jittered, on_motion_clear, on_motion_format, on_motion_gate, on_motion_quality};
 pub use render_size::{on_depth_texture, on_output_set, on_output_setup, on_present_stage, on_targets_size};
 
 /// A Settings checkbox kept in user.cfg as `<name> on|off`: the Settings ask

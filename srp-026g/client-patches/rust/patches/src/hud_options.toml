@@ -133,3 +133,9 @@ install = "on_demand"
 site = "targets.motion_format"
 handler = "on_motion_format"
 install = "on_demand"
+
+# the context's eye rays, which the engine mirrors from one corner: each corner's own under a jitter
+[[hook]]
+site = "context.eye_rays"
+handler = "on_eye_rays"
+install = "on_demand"

@@ -22,7 +22,7 @@
 
 use super::render_size;
 use crate::vostok::files::{File, Path};
-use crate::vostok::frame_inputs::{self, JitterSeam, Matrix, MotionFormat, MotionGate, PixelFormat, Pixels, SceneId, Target,
+use crate::vostok::frame_inputs::{self, EyeRays, JitterSeam, Matrix, MotionFormat, MotionGate, PixelFormat, Pixels, SceneId, Target,
                                   TargetIndex, Targets};
 use crate::vostok::log::{Piece::{self, *}, line};
 use crate::vostok::render_size::{DepthTexture, Size};
@@ -418,6 +418,40 @@ pub fn on_jittered(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// The rays from the eye through the frame's four corners at the far plane
+/// (clip x,y (-1,1), (-1,-1), (1,1), (1,-1), the engine's order), in the
+/// view and then in the world: each corner unprojected by the projection's
+/// inverse and turned by the view's. The engine unprojects the first and
+/// mirrors it, which a jittered projection is not.
+fn eye_rays(projection_inverted: &Matrix, view_inverted: &Matrix) -> [[f32; 3]; 8] {
+    let (p, v) = (&projection_inverted.0, &view_inverted.0);
+    let mut rays = [[0.0; 3]; 8];
+    for (corner, [x, y]) in [[-1.0f32, 1.0f32], [-1.0, -1.0], [1.0, 1.0], [1.0, -1.0]].into_iter().enumerate() {
+        let at = |column: usize| x * p[column] + y * p[4 + column] + p[8 + column] + p[12 + column];
+        let ray = [at(0) / at(3), at(1) / at(3), at(2) / at(3)];
+        rays[corner] = ray;
+        rays[4 + corner] = [0, 1, 2].map(|axis| ray[0] * v[axis] + ray[1] * v[4 + axis] + ray[2] * v[8 + axis]);
+    }
+    rays
+}
+
+/// `context.eye_rays`: in a jittered frame of ours each corner's eye ray is
+/// its own, so a position rebuilt from depth is where the jittered frame
+/// drew it.
+pub fn on_eye_rays(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if !OWNER.with(ctx.thread(), |owner| owner.runs(Pieces::JITTER)) {
+        return Flow::Continue;
+    }
+    match EyeRays::at(ctx) {
+        Some(rays) => {
+            let exact = eye_rays(&rays.projection_inverted(), &rays.view_inverted());
+            rays.set(&exact);
+            Flow::Skip
+        }
+        None => Flow::Continue,
+    }
+}
+
 /// The render scale made the frame's targets ([`render_size::on_targets_size`]).
 pub fn targets_made(thread: &Thread) {
     OWNER.with(thread, |owner| owner.frames = step(owner.frames, Event::TargetsMade, owner.pace));
@@ -671,6 +705,41 @@ mod tests {
         // depth is the projection's own
         assert_eq!((moved.0[10], moved.0[14], moved.0[11]), (perspective().0[10], perspective().0[14], 1.0));
         assert_eq!(Jitter::NONE.of_projection(&perspective(), render), perspective());
+    }
+
+    /// The inverse of [`perspective`] with a jitter's two elements `e20`, `e21`.
+    fn perspective_inverted(e20: f32, e21: f32) -> Matrix {
+        let p = perspective().0;
+        let mut m = [0.0; 16];
+        (m[0], m[5], m[11], m[14], m[15]) = (1.0 / p[0], 1.0 / p[5], 1.0 / p[14], 1.0, -p[10] / p[14]);
+        (m[12], m[13]) = (-e20 / p[0], -e21 / p[5]);
+        Matrix(m)
+    }
+
+    #[test]
+    fn each_corner_has_its_own_eye_ray() {
+        // the engine's own for a projection that is the same either side: the first corner's, mirrored
+        let rays = eye_rays(&perspective_inverted(0.0, 0.0), &Matrix(IDENTITY));
+        let [x, y, z] = rays[0];
+        assert!((z - 1000.0).abs() < 2.0 && x < 0.0 && y > 0.0, "{:?}", rays[0]);
+        assert_eq!([rays[1], rays[2], rays[3]], [[x, -y, z], [-x, y, z], [-x, -y, z]]);
+        assert_eq!(rays[4..], rays[..4]);
+        // a jittered one: each ray lands on its corner, which the mirrored rays do not
+        let render = Size { width: 1280, height: 720 };
+        let jittered = Jitter { x: 0.5, y: -0.25 }.of_projection(&perspective(), render);
+        let (e20, e21) = (jittered.0[8], jittered.0[9]);
+        let rays = eye_rays(&perspective_inverted(e20, e21), &Matrix(IDENTITY));
+        for (ray, corner) in rays[..4].iter().zip([[0.0, 0.0], [0.0, 720.0], [1280.0, 0.0], [1280.0, 720.0]]) {
+            let at = pixel(&jittered, *ray, render);
+            assert!((at[0] - corner[0]).abs() < 1e-2 && (at[1] - corner[1]).abs() < 1e-2, "{ray:?} at {at:?}");
+        }
+        let mirrored = pixel(&jittered, [-rays[0][0], -rays[0][1], rays[0][2]], render);
+        assert!((mirrored[0] - 1281.0).abs() < 1e-2 && (mirrored[1] - 719.5).abs() < 1e-2, "{mirrored:?}");
+        // the world's rays are the view's turned: a view looking along the world's x
+        let mut turned = IDENTITY;
+        (turned[0], turned[2], turned[8], turned[10]) = (0.0, -1.0, 1.0, 0.0);
+        let world = eye_rays(&perspective_inverted(0.0, 0.0), &Matrix(turned));
+        assert_eq!(world[4], [world[0][2], world[0][1], -world[0][0]]);
     }
 
     #[test]

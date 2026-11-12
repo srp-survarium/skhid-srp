@@ -4270,6 +4270,45 @@ hud_options_on_motion_format_replay:
     db 0xba, 0x12, 0x00, 0x00, 0x00
     jmp 0x163438
 
+; 0x14ad23 renderer_context::update_eye_rays (0x14AA50, from every set_p) at its last store (mov [eax+5404h],edx, the fourth world ray's z; add esp,24h / ret after it): the eight rays written but that word, EAX the context: lohook -> hud_options_on_eye_rays
+global hud_options_on_eye_rays
+extern hook_hud_options_on_eye_rays
+hud_options_on_eye_rays:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_options_on_eye_rays
+    mov edx, hud_options_on_eye_rays_replay
+    cmp eax, 0
+    je hud_options_on_eye_rays_go
+    mov edx, 0x14ad29
+    cmp eax, 1
+    je hud_options_on_eye_rays_go
+    ud2
+hud_options_on_eye_rays_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_options_on_eye_rays_replay:
+    db 0x89, 0x90, 0x04, 0x54, 0x00, 0x00
+    jmp 0x14ad29
+
 ; 0x1fab50 game_world_core::change_input<client_update<player_input,220,235,221,236>>'s start (push ebp / mov ebp,esp / and esp,-8), every player input a world takes: a local one, a relayed one (0xEB, the batch 0x27C5C1), a moved one (0xEF) and a replay's; ESP+4 the core, +8 the input (half2 rotation, then the action mask), +10h its time, +14h the player; refused is its `ret 24h` (0x1FAC4E, the duplicate's; EAX the event action, 6 as both refusals return it): lohook -> input_check_on_change_input
 global input_check_on_change_input
 extern hook_input_check_on_change_input

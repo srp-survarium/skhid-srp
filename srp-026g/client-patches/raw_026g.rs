@@ -21716,6 +21716,33 @@ impl RendererContext {
     pub unsafe fn projection(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x4f58).cast::<f32>().as_ptr() }
     }
+
+    /// +0x4e98 (f32): m_v_inverted, the first of 16 f32 (set_v 0x14A27B..0x14A28F: try_invert into it); update_eye_rays turns the view's eye rays into the world's with its rows (0x14ABFC..)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn view_inverted(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x4e98).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x4fd8 (f32): m_p_inverted, the first of 16 f32 (set_p 0x14A73C..0x14A75A: invert4x4 of the projection); update_near_far and update_eye_rays read it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn projection_inverted(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x4fd8).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x53a8 (f32): m_eye_rays, the first of 24 f32: the view's rays through the frame's corners at the far plane, four float3 (+53A8h (-1,1), +53B4h (-1,-1), +53C0h (1,1), +53CCh (1,-1) of clip x,y), then the same four in the world (+53D8h..+5404h). update_eye_rays (0x14AA50, from set_p) unprojects the first and mirrors it for the other three: right only for a projection that is the same either side of its axis
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn eye_rays(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x53a8).cast::<f32>().as_ptr() }
+    }
 }
 
 /// A vostok::render::scene_view (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -26282,6 +26309,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<NewRtFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(NewRtFrame)
+        }
+    }
+
+    /// context.eye_rays (0x14ad23): renderer_context::update_eye_rays (0x14AA50, from every set_p) at its last store (mov [eax+5404h],edx, the fourth world ray's z; add esp,24h / ret after it): the eight rays written but that word, EAX the context
+    pub mod context_eye_rays {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a vostok::render::renderer_context (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn context(machine: &impl Machine) -> Option<RendererContext> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(RendererContext)
         }
     }
 }

@@ -9,7 +9,9 @@
 //!   context's current one, and the sun's shadows put the projection before
 //!   the jitter back (stage_shadow_direct::execute 0x172EA3, the renderer's
 //!   +20h), so a projection set here is the whole frame's and nothing
-//!   else's.
+//!   else's. The context's eye rays (what the deferred passes rebuild a
+//!   position from depth with) are mirrored from one corner by the engine;
+//!   [`EyeRays`] is where each corner gets its own.
 //! - The game's own AA ([`no_aa`]), the object motion pass whatever its
 //!   options say ([`MotionGate`]; its other gate and its target's clear are
 //!   their sites' exits alone), and that target's format ([`MotionFormat`]).
@@ -139,6 +141,41 @@ impl JitterSeam {
                 write(jitterer.jittered(), 1);
             }
         }
+    }
+}
+
+/// `context.eye_rays`: update_eye_rays about to return, the context's eye
+/// rays written (all but the last word).
+pub struct EyeRays {
+    context: raw::RendererContext,
+}
+
+impl EyeRays {
+    pub fn at(ctx: &Context<'_>) -> Option<EyeRays> {
+        // SAFETY: the context is this site's: its EAX the renderer context.
+        let context = unsafe { raw::site::context_eye_rays::context(ctx) }?;
+        Some(EyeRays { context })
+    }
+
+    /// The inverse of the projection the rays are of.
+    pub fn projection_inverted(&self) -> Matrix {
+        // SAFETY: the context's m_p_inverted, 16 f32 set_p just wrote.
+        unsafe { Matrix::read(self.context.projection_inverted()) }
+    }
+
+    /// The inverse of the context's view.
+    pub fn view_inverted(&self) -> Matrix {
+        // SAFETY: the context's m_v_inverted, 16 f32.
+        unsafe { Matrix::read(self.context.view_inverted()) }
+    }
+
+    /// The context's eye rays are `rays`: the view's four, then the world's
+    /// four. The caller skips the site's instruction (the last word's own
+    /// store).
+    pub fn set(self, rays: &[[f32; 3]; 8]) {
+        // SAFETY: m_eye_rays, 24 f32 the render thread alone writes, here in
+        // update_eye_rays itself.
+        unsafe { write(self.context.eye_rays().cast::<[[f32; 3]; 8]>(), *rays) }
     }
 }
 
