@@ -79,5 +79,5 @@ players.
 
 ## Not read
 
-Any effect of concussion, poisoning and the pain's thresholds
+The armour of a bullet that meets several boxes; any effect of concussion, poisoning and the pain's thresholds
 beyond the screen and the statistics; some modifiers' names; fall damage's entry (cited from `fall_damage.md`).
