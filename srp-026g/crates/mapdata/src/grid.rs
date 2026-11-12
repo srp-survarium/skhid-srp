@@ -1048,6 +1048,10 @@ struct Wide {
     /// [2c] [`Body::walk_every_link`]: the Walk links that failed the walk check and were kept as a floor's only way, as
     /// (from, to).
     marked: Vec<(u32, u32)>,
+    /// [routes corpus] [`Body::wall_held_tops`]: the Jump links kept for a wall that holds the body on their narrow top
+    /// ([`WalkGrid::held_by_wall`]), as (from, to), sorted: the jump's carry past the top does not apply to them
+    /// ([`WalkGrid::drop_overshot_landings`]).
+    held: Vec<(u32, u32)>,
 }
 
 /// A floor put aside by [`Body::wall_give_back`] ([`Wide::aside`]): where it is and its room.
@@ -1364,6 +1368,8 @@ impl WalkGrid {
         let walls = (body.erosion == Erosion::Exact || body.drop_room).then(|| exact::Walls::new(triangles, x0, z0, cell, nx, nz));
         (stats.exact_eroded, stats.wall_given_back) =
             grid.erode(&mut wide, &cut, &solids, walls.as_ref().filter(|_| body.erosion == Erosion::Exact), triangles);
+        wide.held.sort_unstable();
+        wide.held.dedup();
         if body.run_ups_after_erosion {
             (stats.sprint_cut, stats.capped_no_run_up) = grid.drop_short_run_ups(&mut wide, RunUp::Metres(SPRINT_RUN_UP_M));
         }
@@ -1496,6 +1502,7 @@ impl WalkGrid {
             given: Vec::new(),
             aside: Vec::new(),
             marked: Vec::new(),
+            held: Vec::new(),
         }
     }
 
@@ -1648,6 +1655,10 @@ impl WalkGrid {
             for (d, &(di, dk)) in DIRS.iter().enumerate() {
                 let b = wide.links[a][d];
                 if b == NONE || wide.kinds[a][d] != LinkKind::Jump {
+                    continue;
+                }
+                // A wall holds the body on the top: the jump's carry past it does not apply ([`Body::wall_held_tops`]).
+                if wide.held.binary_search(&(a as u32, b)).is_ok() {
                     continue;
                 }
                 let rise = self.height[b as usize] - self.height[a];
@@ -1881,14 +1892,18 @@ impl WalkGrid {
         for a in 0..self.height.len() {
             for d in 0..8 {
                 let b = wide.links[a][d];
-                if b != NONE
-                    && wide.kinds[a][d] == LinkKind::Jump
-                    && !self.lands_on(wide, b as usize, d, solids)
-                {
+                if b == NONE || wide.kinds[a][d] != LinkKind::Jump || Self::lands(wide, b as usize, d) {
+                    continue;
+                }
+                if self.lands_on(wide, b as usize, d, solids) {
+                    wide.held.push((a as u32, b));
+                } else {
                     wide.links[a][d] = NONE;
                 }
             }
         }
+        wide.held.sort_unstable();
+        wide.held.dedup();
     }
 
     /// Takes away the sprint jumps (a Jump link above [`Body::max_jump`]) with no straight run of
@@ -2180,6 +2195,9 @@ impl WalkGrid {
                         && (!walked || kind == LinkKind::Jump)
                         && (kind != LinkKind::Jump || self.lands_on(wide, b as usize, d, solids))
                     {
+                        if kind == LinkKind::Jump && !Self::lands(wide, b as usize, d) {
+                            wide.held.push((a as u32, b));
+                        }
                         wide.links[a][d] = b;
                         wide.kinds[a][d] = kind;
                         break;
@@ -2586,6 +2604,11 @@ impl WalkGrid {
         }
         wide.marked.retain(|&(a, b)| alive[a as usize] && alive[b as usize]);
         for (a, b) in &mut wide.marked {
+            *a = new_id[*a as usize];
+            *b = new_id[*b as usize];
+        }
+        wide.held.retain(|&(a, b)| alive[a as usize] && alive[b as usize]);
+        for (a, b) in &mut wide.held {
             *a = new_id[*a as usize];
             *b = new_id[*b as usize];
         }
