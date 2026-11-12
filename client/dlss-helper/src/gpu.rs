@@ -72,7 +72,7 @@ impl Adapter {
             }
             let gipa = windows_sys::Win32::System::LibraryLoader::GetProcAddress(module, c"vkGetInstanceProcAddr".as_ptr().cast())
                 .ok_or_else(|| "vulkan-1.dll has no vkGetInstanceProcAddr".to_string())?;
-            ash::Entry::from_static_fn(ash::StaticFn { get_instance_proc_addr: std::mem::transmute(gipa) })
+            ash::Entry::from_static_fn(ash::StaticFn { get_instance_proc_addr: std::mem::transmute::<unsafe extern "system" fn() -> isize, vk::PFN_vkGetInstanceProcAddr>(gipa) })
         };
         let available = unsafe { entry.enumerate_instance_extension_properties(None) }.map_err(vkerr("instance extensions"))?;
         // NGX asks for VK_KHR_get_physical_device_properties2 alone (main.rs logs anything more).

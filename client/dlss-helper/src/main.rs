@@ -136,7 +136,7 @@ fn start(hello: &Hello, system: System, dir: &std::path::Path) -> Result<Machine
     }
     if system == System::Wine {
         let core = platform::wine_ngx_core().map_err(no)?;
-        log!("NGX core folder (NGXCore key): {}", core.display());
+        log!("NGX core folder: {}", core.display());
     }
     let nvapi = platform::load_nvapi(system, dir).map_err(no)?;
     log!("nvapi: {}", nvapi.display());

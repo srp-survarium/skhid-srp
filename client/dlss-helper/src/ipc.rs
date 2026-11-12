@@ -158,12 +158,13 @@ pub enum Mode {
     Pass,
 }
 
-/// NGX's NVSDK_NGX_PerfQuality_Value.
+/// NGX's NVSDK_NGX_PerfQuality_Value (its MaxPerf, Balanced, MaxQuality, UltraPerformance, DLAA).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(clippy::enum_variant_names)] // DLSS's own name of the mode
 pub enum Quality {
-    MaxPerf = 0,
+    Performance = 0,
     Balanced = 1,
-    MaxQuality = 2,
+    Quality = 2,
     UltraPerformance = 3,
     Dlaa = 5,
 }
@@ -172,9 +173,9 @@ impl Quality {
     /// Each side's scale when NGX gives no optimal size.
     pub fn scale(self) -> f64 {
         match self {
-            Quality::MaxPerf => 0.5,
+            Quality::Performance => 0.5,
             Quality::Balanced => 0.58,
-            Quality::MaxQuality => 1.0 / 1.5,
+            Quality::Quality => 1.0 / 1.5,
             Quality::UltraPerformance => 1.0 / 3.0,
             Quality::Dlaa => 1.0,
         }
@@ -196,9 +197,9 @@ impl TryFrom<HelloMsg> for Hello {
             return Err(format!("not this protocol (magic {:#x}, version {}; expected {MAGIC:#x}, {VERSION})", m.magic, m.version));
         }
         let quality = match m.quality {
-            0 => Quality::MaxPerf,
+            0 => Quality::Performance,
             1 => Quality::Balanced,
-            2 => Quality::MaxQuality,
+            2 => Quality::Quality,
             3 => Quality::UltraPerformance,
             5 => Quality::Dlaa,
             q => return Err(format!("unknown quality {q}")),

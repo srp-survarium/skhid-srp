@@ -8,7 +8,7 @@ use std::os::windows::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress, LoadLibraryW};
-use windows_sys::Win32::System::Registry::{HKEY_LOCAL_MACHINE, RRF_RT_REG_SZ, RegGetValueW};
+use windows_sys::Win32::System::Registry::{HKEY_LOCAL_MACHINE, REG_SZ, RRF_RT_REG_SZ, RegGetValueW, RegSetKeyValueW};
 
 static LOG: Mutex<Option<File>> = Mutex::new(None);
 
@@ -99,47 +99,47 @@ fn same_dir(file: &Path, dir: &Path) -> bool {
     a == Some(dir.to_string_lossy().to_lowercase())
 }
 
-/// Under Wine, whether the prefix has NVIDIA's NGX core where NGX's loader
-/// looks (the NGXCore key's folder, as Proton sets it), and if not, why and
-/// where the driver keeps it.
+const NGX_KEY: &str = "SOFTWARE\\NVIDIA Corporation\\Global\\NGXCore";
+
+/// Where Linux distributions put the NVIDIA driver's Wine DLLs (nvngx.dll,
+/// _nvngx.dll), as Wine's Z: drive shows them.
+const DRIVER_WINE_DIRS: [&str; 4] = [
+    "Z:\\usr\\lib\\nvidia\\wine",                    // Arch
+    "Z:\\usr\\lib64\\nvidia\\wine",                  // Fedora, openSUSE, Gentoo
+    "Z:\\usr\\lib\\x86_64-linux-gnu\\nvidia\\wine",  // Debian, Ubuntu
+    "Z:\\run\\opengl-driver\\lib\\nvidia\\wine",     // NixOS
+];
+
+/// Under Wine: the folder of NVIDIA's NGX core, where NGX's loader looks for
+/// it (the NGXCore key's FullPath, the key Proton sets). A prefix without the
+/// key, or with one that names a folder without the core, gets it set to the
+/// driver's own folder (the core runs from there, so it always is the
+/// installed driver's); without a driver folder the error says so.
 pub fn wine_ngx_core() -> Result<PathBuf, String> {
-    let key = wide("SOFTWARE\\NVIDIA Corporation\\Global\\NGXCore");
-    let name = wide("FullPath");
+    let (key, name) = (wide(NGX_KEY), wide("FullPath"));
     let mut buf = [0u16; 1024];
     let mut size = (buf.len() * 2) as u32;
     // SAFETY: buffers of the given size.
     let r = unsafe { RegGetValueW(HKEY_LOCAL_MACHINE, key.as_ptr(), name.as_ptr(), RRF_RT_REG_SZ, std::ptr::null_mut(), buf.as_mut_ptr().cast(), &mut size) };
-    let hint = || {
-        let found = DRIVER_WINE_DIRS.iter().map(|d| PathBuf::from(format!("Z:{}", d.replace('/', "\\")))).find(|d| d.join("_nvngx.dll").is_file());
-        match found {
-            Some(d) => format!(
-                "copy nvngx.dll and _nvngx.dll from {} into C:\\windows\\system32 and set HKLM\\SOFTWARE\\NVIDIA Corporation\\Global\\NGXCore FullPath = C:\\Windows\\System32 (play_skhid.sh does this)",
-                d.display()
-            ),
-            None => "the NVIDIA driver's Wine NGX files (nvidia/wine/_nvngx.dll) were not found: an NVIDIA driver 470 or later with its Wine files is needed".into(),
+    if r == 0 {
+        let dir = PathBuf::from(OsString::from_wide(&buf[..(size as usize / 2).saturating_sub(1)]));
+        if dir.join("_nvngx.dll").is_file() {
+            return Ok(dir);
         }
+        log!("the NGXCore key names {}, which has no _nvngx.dll", dir.display());
+    }
+    let Some(dir) = DRIVER_WINE_DIRS.iter().map(PathBuf::from).find(|d| d.join("_nvngx.dll").is_file()) else {
+        return Err("no NVIDIA NGX in this Wine prefix, and the NVIDIA driver's nvidia/wine/_nvngx.dll was not found (see LINUX.txt)".into());
     };
+    let value = wide_path(&dir);
+    // SAFETY: a NUL-ended string of the given byte size.
+    let r = unsafe { RegSetKeyValueW(HKEY_LOCAL_MACHINE, key.as_ptr(), name.as_ptr(), REG_SZ, value.as_ptr().cast(), (value.len() * 2) as u32) };
     if r != 0 {
-        return Err(format!("this Wine prefix has no NGX core (no NGXCore key): {}", hint()));
+        return Err(format!("no NVIDIA NGX in this Wine prefix, and the NGXCore key cannot be set to {} (error {r})", dir.display()));
     }
-    let len = (size as usize / 2).saturating_sub(1);
-    let dir = PathBuf::from(OsString::from_wide(&buf[..len]));
-    if !dir.join("_nvngx.dll").is_file() {
-        return Err(format!("the NGXCore key names {}, which has no _nvngx.dll: {}", dir.display(), hint()));
-    }
+    log!("NGXCore key set to the driver's folder {}", dir.display());
     Ok(dir)
 }
-
-/// Where Linux distributions put the NVIDIA driver's Wine DLLs.
-pub const DRIVER_WINE_DIRS: [&str; 6] = [
-    "/usr/lib/nvidia/wine",
-    "/usr/lib64/nvidia/wine",
-    "/usr/lib/x86_64-linux-gnu/nvidia/wine",
-    "/usr/lib/nvidia/wine64",
-    "/run/opengl-driver/lib/nvidia/wine",
-    "/usr/lib64/nvidia/wine64",
-];
-
 /// A folder NGX may write its logs and caches to.
 pub fn data_dir() -> Vec<u16> {
     let dir = std::env::temp_dir().join("skhid_dlss");
