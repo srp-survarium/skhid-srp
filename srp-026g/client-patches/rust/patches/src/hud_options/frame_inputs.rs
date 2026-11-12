@@ -67,6 +67,10 @@ pub struct Jitter {
 
 impl Jitter {
     pub const NONE: Jitter = Jitter { x: 0.0, y: 0.0 };
+    /// The diagnostics' four: left and up, right and up, left and down,
+    /// right and down, a half pixel each way.
+    const CORNERS: [Jitter; 4] =
+        [Jitter { x: -0.5, y: -0.5 }, Jitter { x: 0.5, y: -0.5 }, Jitter { x: -0.5, y: 0.5 }, Jitter { x: 0.5, y: 0.5 }];
 
     /// The `phase`th offset of the Halton(2,3) sequence.
     fn of_phase(phase: u32) -> Jitter {
@@ -210,6 +214,10 @@ enum Pace {
     /// The sequence, each offset for `hold` frames (1 for DLSS; more is a
     /// diagnostic, to see each offset's picture).
     Sequence { hold: u32 },
+    /// A diagnostic: the four offsets a half pixel out ([`Jitter::CORNERS`]),
+    /// each for `hold` frames. Two of them are a whole render pixel apart,
+    /// so their pictures are compared pixel for pixel.
+    Corners { hold: u32 },
 }
 
 /// What happens to the frames.
@@ -228,6 +236,7 @@ fn step(frames: Frames, event: Event, pace: Pace) -> Frames {
     let jitter = |count: u32, phases: u32| match pace {
         Pace::Still => Jitter::NONE,
         Pace::Sequence { hold } => Jitter::of_phase(count / hold.max(1) % phases.max(1)),
+        Pace::Corners { hold } => Jitter::CORNERS[(count / hold.max(1) % 4) as usize],
     };
     match (frames, event) {
         (_, Event::Other) => Frames::Idle,
@@ -304,6 +313,9 @@ pub struct FrameInputs {
     pub depth: DepthTexture,
     /// `$user$position`: the linear view depth.
     pub linear_depth: Target,
+    /// `$user$albedo`, for the diagnostics' look (the post-process may have
+    /// used it as its scratch by the frame's end).
+    albedo: Option<Target>,
     /// `$user$object_motion_vectors`, and whether it was made signed.
     pub motion: Target,
     pub motion_signed: bool,
@@ -325,6 +337,7 @@ pub fn frame(thread: &Thread) -> Option<FrameInputs> {
             colour: targets.get(thread, TargetIndex::Present)?,
             depth,
             linear_depth: targets.get(thread, TargetIndex::LinearDepth)?,
+            albedo: targets.get(thread, TargetIndex::Albedo),
             motion: targets.get(thread, TargetIndex::ObjectMotion)?,
             motion_signed: owner.wanted.has(Pieces::SIGNED_MOTION),
         })
@@ -333,15 +346,16 @@ pub fn frame(thread: &Thread) -> Option<FrameInputs> {
 
 /// The diagnostics switch's text: the pieces by name (`jitter`, `aa`,
 /// `motion`, `signed`, or `all`), and `hold<frames>` (each jitter offset
-/// that many frames) and `look<frames>` (the frame looked at that often),
-/// between commas.
+/// that many frames), `corners<frames>` (the four half-pixel offsets in
+/// place of the sequence, each that many frames) and `look<frames>` (the
+/// frame looked at that often), between commas.
 fn switch_of_text(text: &[u8]) -> Option<(Pieces, Pace, Option<u32>)> {
     let number = |digits: &[u8]| {
         (!digits.is_empty() && digits.len() <= 6 && digits.iter().all(u8::is_ascii_digit))
             .then(|| digits.iter().fold(0u32, |n, digit| n * 10 + u32::from(digit - b'0')))
             .filter(|&n| n > 0)
     };
-    let (mut pieces, mut hold, mut look) = (Pieces::NONE, 1, None);
+    let (mut pieces, mut hold, mut corners, mut look) = (Pieces::NONE, 1, None, None);
     for word in text.split(|&byte| byte == b',') {
         match word {
             b"all" => pieces = Pieces::ALL,
@@ -349,21 +363,26 @@ fn switch_of_text(text: &[u8]) -> Option<(Pieces, Pace, Option<u32>)> {
             b"aa" => pieces = pieces.with(Pieces::NO_AA),
             b"motion" => pieces = pieces.with(Pieces::MOTION),
             b"signed" => pieces = pieces.with(Pieces::SIGNED_MOTION),
-            _ => match (word.strip_prefix(b"hold"), word.strip_prefix(b"look")) {
-                (Some(digits), _) => hold = number(digits)?,
-                (_, Some(digits)) => look = Some(number(digits)?),
+            _ => match (word.strip_prefix(b"hold"), word.strip_prefix(b"corners"), word.strip_prefix(b"look")) {
+                (Some(digits), _, _) => hold = number(digits)?,
+                (_, Some(digits), _) => corners = Some(number(digits)?),
+                (_, _, Some(digits)) => look = Some(number(digits)?),
                 _ => return None,
             },
         }
     }
-    let pace = if pieces.has(Pieces::JITTER) { Pace::Sequence { hold } } else { Pace::Still };
+    let pace = match corners {
+        _ if !pieces.has(Pieces::JITTER) => Pace::Still,
+        Some(hold) => Pace::Corners { hold },
+        None => Pace::Sequence { hold },
+    };
     (pieces != Pieces::NONE).then_some((pieces, pace, look))
 }
 
 /// The process's start, after the render scale's: the diagnostics switch
-/// `SKHID_DLSS_INPUTS` (`all`, or `jitter,aa,motion,signed`; `hold120` and
-/// `look60` beside them), for a game with `SKHID_DLSS_RENDER_SCALE` and no
-/// helper. Unset, nothing is asked.
+/// `SKHID_DLSS_INPUTS` (`all`, or `jitter,aa,motion,signed`; `hold120`,
+/// `corners20` and `look60` beside them), for a game with
+/// `SKHID_DLSS_RENDER_SCALE` and no helper. Unset, nothing is asked.
 pub fn start(thread: &Thread) {
     let mut room = [0u8; 64];
     let len = get_environment(thread, c"SKHID_DLSS_INPUTS", &mut room);
@@ -382,7 +401,7 @@ pub fn start(thread: &Thread) {
                    name(Pieces::MOTION, " motion"), name(Pieces::SIGNED_MOTION, " signed"),
                    Text(if render_size::installed() { "" } else { ": no render scale asked (SKHID_DLSS_RENDER_SCALE), so nothing runs" })]);
         }
-        None => line(&[Text("frame inputs: SKHID_DLSS_INPUTS is not all or jitter,aa,motion,signed (hold<frames>, look<frames>): nothing asked")]),
+        None => line(&[Text("frame inputs: SKHID_DLSS_INPUTS is not all or jitter,aa,motion,signed (hold<frames>, corners<frames>, look<frames>): nothing asked")]),
     }
 }
 
@@ -535,7 +554,8 @@ fn thousandths(value: f32) -> [Piece<'static>; 2] {
 /// The diagnostics' look at a frame: a line of its jitter and reset, the
 /// object motion read back (how much of it is negative), and the frame and
 /// its motion written beside the game as `dlss-inputs-<frame>-present.bin`
-/// and `-motion.bin` (a 16-byte header: `SKRT`, the width, the height, a
+/// and `-motion.bin`, with the linear depth and the G-buffer's albedo
+/// (`-depth.bin`, `-albedo.bin`) (a 16-byte header: `SKRT`, the width, the height, a
 /// pixel's bytes; then the rows).
 fn look(thread: &Thread, run: &Run, wanted: Pieces, inputs: &FrameInputs) {
     let [xs, x] = thousandths(inputs.jitter.x());
@@ -548,6 +568,11 @@ fn look(thread: &Thread, run: &Run, wanted: Pieces, inputs: &FrameInputs) {
     let written = frame_inputs::read_back(thread, &inputs.colour, PixelFormat::Rgba8, |pixels| write(run.count, b"present", pixels));
     if written.is_none() {
         line(&[Text("frame inputs: the frame was not read back")]);
+    }
+    // the frame's geometry alone, with no lighting or temporal pass in it
+    frame_inputs::read_back(thread, &inputs.linear_depth, PixelFormat::R16Float, |pixels| write(run.count, b"depth", pixels));
+    if let Some(albedo) = inputs.albedo {
+        frame_inputs::read_back(thread, &albedo, PixelFormat::Rgba8, |pixels| write(run.count, b"albedo", pixels));
     }
     if !wanted.has(Pieces::SIGNED_MOTION) {
         return;
@@ -790,6 +815,14 @@ mod tests {
             assert_eq!(run(frames).now.jitter, Jitter::of_phase(count / 3));
         }
         assert_eq!(run(step(Frames::Idle, frame(camera_at([0.0, 0.0, 0.0]), scene), Pace::Still)).now.jitter, Jitter::NONE);
+        // the diagnostics' corners: each held, the first and the last a whole pixel apart both ways
+        let corners = Pace::Corners { hold: 2 };
+        let mut frames = Frames::Idle;
+        for count in 0..16usize {
+            frames = step(frames, frame(camera_at([0.0, 0.0, 0.0]), scene), corners);
+            assert_eq!(run(frames).now.jitter, Jitter::CORNERS[count / 2 % 4]);
+        }
+        assert_eq!((Jitter::CORNERS[3].x - Jitter::CORNERS[0].x, Jitter::CORNERS[3].y - Jitter::CORNERS[0].y), (1.0, 1.0));
     }
 
     #[test]
@@ -799,7 +832,11 @@ mod tests {
                    Some((Pieces::JITTER, Pace::Sequence { hold: 120 }, Some(60))));
         assert_eq!(switch_of_text(b"aa,motion,signed"),
                    Some((Pieces::NO_AA.with(Pieces::MOTION).with(Pieces::SIGNED_MOTION), Pace::Still, None)));
-        for refused in [&b""[..], b"hold3", b"jitter,", b"jitter,hold", b"jitter,hold0", b"jitter,look1234567", b"taa", b"all;aa"] {
+        assert_eq!(switch_of_text(b"jitter,aa,corners20,look20"),
+                   Some((Pieces::JITTER.with(Pieces::NO_AA), Pace::Corners { hold: 20 }, Some(20))));
+        assert_eq!(switch_of_text(b"aa,corners20"), Some((Pieces::NO_AA, Pace::Still, None)));
+        for refused in [&b""[..], b"hold3", b"jitter,", b"jitter,hold", b"jitter,hold0", b"jitter,look1234567", b"taa", b"all;aa",
+                        b"jitter,corners", b"jitter,corners0"] {
             assert_eq!(switch_of_text(refused), None, "{:?}", core::str::from_utf8(refused));
         }
     }

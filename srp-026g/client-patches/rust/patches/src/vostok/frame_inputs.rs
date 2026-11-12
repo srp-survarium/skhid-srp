@@ -244,6 +244,8 @@ pub struct Targets {
 pub enum TargetIndex {
     /// `$user$position`: the linear view depth, R16_FLOAT.
     LinearDepth = 9,
+    /// `$user$albedo`: the G-buffer's albedo, RGBA8.
+    Albedo = 13,
     /// `$user$object_motion_vectors`.
     ObjectMotion = 18,
     /// `$user$present`: the frame after the post-process, RGBA8.
@@ -297,6 +299,8 @@ pub enum PixelFormat {
     Rgba16Float,
     /// DXGI_FORMAT_R8G8B8A8_UNORM.
     Rgba8,
+    /// DXGI_FORMAT_R16_FLOAT: one half float.
+    R16Float,
 }
 
 impl PixelFormat {
@@ -304,6 +308,7 @@ impl PixelFormat {
         match self {
             PixelFormat::Rgba16Float => RGBA16_FLOAT,
             PixelFormat::Rgba8 => 28,
+            PixelFormat::R16Float => 54,
         }
     }
 
@@ -312,6 +317,7 @@ impl PixelFormat {
         match self {
             PixelFormat::Rgba16Float => 8,
             PixelFormat::Rgba8 => 4,
+            PixelFormat::R16Float => 2,
         }
     }
 }
