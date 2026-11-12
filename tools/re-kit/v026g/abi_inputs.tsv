@@ -5302,6 +5302,7 @@ va	name	location	role	basis
 0x002daa60	survarium::base_player::tick	ECX	live player; copied to EBX, clock written at 0x2DAA7F before held tick	observed
 0x002daa60	survarium::base_player::tick	entry ESP+4	simulation time	observed
 0x002d6990	survarium::base_player::base_player	entry ESP+4	destination storage, copied to EBP at 0x2D6995	observed
+0x002d6990	survarium::base_player::base_player	params +1B0h/+1B4h	copied to player+304h air_control_speed (0x2D6BDA) and +308h jump_from_site_speed (0x2D6BE6); base_load 0x2D6600 reads them (0xA10568 -> +1B0h at 0x2D6789, 0xA1057C -> +1B4h at 0x2D67AD)	observed
 0x002daf60	survarium::base_player::serialize	at 0x2DB47E: EBX, EDI	live player and buffer writer at epilogue, after last native field	observed
 0x002db490	survarium::base_player::deserialize	at 0x2DBAB5: EBX, ESI	live player and reader after final native field; before physics post-restore	observed
 0x00260270	survarium::artefact_lifebone::on_subresources_loaded	EDI	live Lifebone object; assigns queries 0/1/2 at +4ACh/+4B0h/+4B4h	observed
@@ -6004,6 +6005,7 @@ va	name	location	role	basis
 0x00316da0	survarium::player_respawn_rule_base::spawn_player	entry ESP+4	the place (low byte); the new kit is the place's pending +0Dh made current (0x316DE3); a kit change runs vfn +60h first	observed
 0x00316da0	survarium::player_respawn_rule_base::spawn_player	entry ESP+8	the spawn time: the player's vfn +1Ch(time, point + 8, its rotation, 0) initialises it, vfn +20h(1) puts it into the world (0x316EA9); ret 0Ch	observed
 0x00316da0	survarium::player_respawn_rule_base::spawn_player	entry ESP+0Ch	the respawn point (+8 position, +14h rotation, +20h its protection added to the time at player +32Ch)	observed
+0x003171d0	survarium::player_respawn_rule_base::select_respawn_points	entry ESP+0Ch	the occupancy list: every player in the world (+33Fh) whose respawn is not this tick (tick 0x3168D9..0x3168EC); alive is not read	observed
 0x0031b6c0	survarium::generic_anomaly_core::spawn_artefact	ECX	the anomaly: draws (+1B8h LCG) the chance +134h, then a free container of +140h..+144h (none: returns, +13Ch the earliest next) and a dormant pool artefact (+1B0h, +1B4h of them, state +280h 0); ret 4	observed
 0x0031b5b0	survarium::generic_anomaly_core::tick	ECX	the anomaly: selects a state (0x31BA90) and executes it with no null check (0x31BCB0 reads state +1Ch), spawns when +124h artefacts_enabled, +138h and the time +13Ch come, then ticks every pool artefact (vfn +74h)	observed
 0x002e9c70	survarium::generic_anomaly_core_cook::translate_query	entry ESP+4	the query (its +108h the anomaly's config): cooks the artefacts pool (query_for_artefacts 0x2E9D40, each artefacts entry {dict_id, count} count times) only when artefacts_enabled is set; else the anomaly is made with none	observed

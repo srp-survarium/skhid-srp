@@ -12,9 +12,10 @@
 //!   and is gone. The catch takes both legs to 0 (no jump, no sprint, speed [`SLOW`]) for
 //!   [`LEGS_MS`], and 0.3 pain a foot ([`PAIN`] together); no root, no health;
 //! - a ranged hit on its cylinder (radius [`HIT_R`], half-height [`HIT_HALF`], [`HIT_UP`] above
-//!   the floor point) disarms it, whoever shot (the design's section 8 says so; the same
-//!   section also says a hit by the user's own team is refused: **GUESS**, the model takes any
-//!   shooter); a use held [`DEFUSE_MS`] on it by its placer or a body of the other team does too
+//!   the floor point) disarms it, whoever shot, as the client's: a `ranged` hit (the trap's
+//!   `defuse_by_hit`) disarms it with no team test, the placer's own too, and a blast
+//!   (`explosive`) does nothing to it (PROVEN, `booby_trap_core` 0x305540 -> 0x3050C0; exactness
+//!   `routes-readings` 1.4, register G62); a use held [`DEFUSE_MS`] on it by its placer or a body of the other team does too
 //!   (`can_defuse`); disarmed it stands [`GONE_MS`] and is gone.
 //!
 //! What it has of it:

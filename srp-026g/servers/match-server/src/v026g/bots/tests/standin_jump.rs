@@ -20,8 +20,15 @@ pub(crate) struct StandInJump {
 }
 
 /// The client's jump standing or walking: the `on_site*` clips' root tops
-/// at 0.998 m (PROVEN, the jump study). How far it carries was never
-/// measured: GUESS 0.6 m ahead, kept short on purpose.
+/// at 0.998 m (PROVEN, the jump study). The stand-in lands it 0.6 m ahead.
+/// Not the client's: from a standstill with no key it lands in place
+/// (`on_site` has no travel); with forward pressed it plays `on_site_fwd`
+/// scaled by s = min(max(1, v) / 4, 0.99), 0.50 m from take-off to landing
+/// (0.604 m from the press) with the key let go, 1.10 m (1.204 m) with it
+/// held (air control 1.0 m/s); other keys and S per key in exactness
+/// `routes-readings` 1.5 (PROVEN inputs 0x337280, 0x2D7990, 0x2D6BDA;
+/// DERIVED legs). Kept as the stand-in's model until changed (register
+/// G47).
 pub(crate) const STANDING_JUMP: StandInJump = StandInJump {
     rise_m: mapdata::grid::STANDING_JUMP_M,
     ahead_m: 0.6,
@@ -29,7 +36,8 @@ pub(crate) const STANDING_JUMP: StandInJump = StandInJump {
 
 /// [`STANDING_JUMP`] as the stand-in game jumps it: `SRP_BENCH_JUMP_AHEAD_M`
 /// sets how far ahead a jump with no grid link lands (a sensitivity row;
-/// the grid lists pocket exits up to 1.0 m across), else the GUESS 0.6 m.
+/// the grid lists pocket exits up to 1.0 m across), else 0.6 m (not the
+/// client's: see [`STANDING_JUMP`]; register G48).
 pub(crate) fn standing_jump() -> StandInJump {
     static AHEAD: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
     let ahead_m = *AHEAD.get_or_init(|| {
@@ -46,7 +54,12 @@ pub(crate) fn standing_jump() -> StandInJump {
 /// study), played at a press with forward and sprint held at walk speed or
 /// more, any weapon, no battery carried (PROVEN,
 /// `player_logic_jump_state::initialize` 0x337040). No bot's jump picks it
-/// yet. The distance is [`STANDING_JUMP`]'s (GUESS).
+/// yet. The distance is [`STANDING_JUMP`]'s, 0.6 m. Not the client's: from
+/// the press to the take-off 0.875 F m (F the kit's walk factor), in the air
+/// 3.257..3.286 m, the press to the landing 4.13..4.16 m at F = 1 (DERIVED
+/// from the clips' roots and the take-off clip at time scale 1.0, 0x342E05;
+/// exactness `routes-readings` 1.6). Kept as the stand-in's model until
+/// changed (register G49).
 pub(crate) const SPRINT_JUMP: StandInJump = StandInJump {
     rise_m: 1.30,
     ahead_m: 0.6,
@@ -663,9 +676,14 @@ impl Clip {
 }
 
 /// The short jump (`on_site_fwd`, codes 5-12): 0.80 s, 1.0 m up at 1.78 m,
-/// 2.67 m forward, even from a standstill. With no movement key the
-/// body jumps in place (`on_site`, the same rise). The back and side clips
-/// were not measured: GUESS, the forward clip's travel along their way.
+/// 2.67 m forward over the clip. With no movement key the body jumps in
+/// place (`on_site`, the same rise). The back clip and the four diagonals
+/// carry the forward clip's 2.667 m along their way on the same table (EXACT);
+/// the right clip carries 2.000 m (linear) and the left 2.222 m (uneven), and
+/// the client scales each by s = min(max(1, v) / S, 0.99), S 4, back 3,
+/// back-right 2.75 (PROVEN as data, the clips' roots; exactness
+/// `routes-readings` 1.5, 1.7). The stand-in flies the forward table for
+/// every way, unscaled: kept as its model until changed (register G52).
 pub(crate) static SHORT_CLIP: Clip = Clip {
     ms: 800.0,
     flag_ms: 200.0,
@@ -677,8 +695,11 @@ pub(crate) static SHORT_CLIP: Clip = Clip {
     ],
 };
 
-/// The sprint jump (`sprint_from_left_leg`, codes 2-4), played at the
-/// sprint time scale (0.88 s): 1.28 m up, 4.42 m forward; the right leg's
+/// The sprint jump (`sprint_from_left_leg`, codes 2-4), played here in
+/// 0.88 s: 1.28 m up, 4.42 m forward. The client plays the take-off clip at
+/// time scale 1.0, 0.80 s (0x342D70 sets +44h to 1.0 at 0x342E05; 12 air
+/// steps in 16 of 16 sprint jumps; exactness `routes-readings` 1.6): kept as
+/// the stand-in's model until changed (register G49); the right leg's
 /// tops at 1.35 m (the left one taken: the bot cannot see the leg). Its
 /// diagonals carry 3.12 m on each axis, 4.41 m along the way.
 pub(crate) static SPRINT_CLIP: Clip = Clip {

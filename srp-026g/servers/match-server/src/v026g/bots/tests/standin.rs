@@ -98,7 +98,11 @@ pub(crate) const RESPAWN_BATTERIES_MS: u32 = 8_000;
 /// The same in Team Deathmatch: 8 s, less the radio's 20 %.
 pub(crate) const RESPAWN_TDM_MS: u32 = 6_400;
 
-/// A respawn point is taken while a living body stands within this of it, m (the check volumes of the game's point: GUESS, the shapes were not read; the points lie 1.5-3 m apart).
+/// A respawn point is taken while a living body stands within this of it, m (1.0 m across, 2 m in height, any team). Not
+/// the client's rule: `respawn_point_core::is_free` 0x2F4800 takes a point when a body in the world (a dead one too, +33Fh,
+/// 0x3168D9) is nearer in 3D than the point's `ally_check_radius` (a mate) or `enemy_check_radius` (an enemy), 0x2F48A8;
+/// the data's radii are 0.8 / 1.2 m on 3,433 of 4,065 points, every stock map's (`client_project` `respawn_points`). PROVEN,
+/// exactness `routes-readings` 1.1; kept as the stand-in's model until changed (register G21).
 const SPAWN_FREE_M: f32 = 1.0;
 
 /// Whether a spawn goes onto a free point of the team's, as the game's respawn rule does (`SRP_BENCH_SPAWN_POINTS`, on unless `random`: the old draw).
@@ -201,9 +205,16 @@ pub(crate) const RESPAWN_TDM_S: u32 = 8;
 
 /// How long after a carrier lets go of the battery his weapon fires again,
 /// ms, when the stand-in does not read it from the weapon: the weapon's show
-/// time follows the drop, about 0.8 s for most weapons (LIKELY: private
-/// sprint-jump-re FINDINGS section 9; the stand-in's bodies hold their
-/// primary).
+/// time, 0.8 s for 73 of the 83 weapons (the stand-in's bodies hold their
+/// primary). The stand-in frees the battery at the press and starts the show
+/// then. Not the client's order: a living carrier keeps the battery through
+/// the put-down, `states[2].put_time` 0.6 s, then the battery is freed and
+/// the weapon activated on the same tick, so the gun is usable at press +
+/// 0.6 s + `show_time` / max(0, 1 + S22) (PROVEN: 0x301B30, 0x301270,
+/// 0x338F00 -> 0x30D750, 0x2D76D0..0x2D772F; a dead carrier skips the
+/// put-down; exactness `routes-readings` 1.2, one link open: that the
+/// weapon's first state is `show`). Kept as the stand-in's model until
+/// changed (register G22).
 pub(crate) const DRAW_MS: u32 = 800;
 
 /// [`draw_ms`] with the choice made: the weapon's `show_time`
