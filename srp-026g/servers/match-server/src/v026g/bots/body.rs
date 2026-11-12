@@ -974,13 +974,15 @@ impl BodyTrack {
         for tick in self.ticks.iter().take_while(|tick| tick.time <= time) {
             let jump = tick.keys & key::JUMP != 0;
             if jump && !held && tick.keys & key::CROUCH == 0 && tick.jump == JumpGate::Open {
+                // [A364 P6] The press's walk: the walk cap along the view once forward was held long enough (a world's body mid-jump
+                // shows no walk vector), else at rest.
                 let speed = if forward >= MOVING_TICKS { WALK_CAP_MS } else { 0.0 };
-                pressed = Some((tick.time, tick.keys, speed));
+                pressed = Some((tick.time, tick.keys, to_world([speed, 0.0], wrap(yaw))));
             }
             held = jump;
             forward = if tick.keys & key::FORWARD != 0 { forward + 1 } else { 0 };
         }
-        pressed.and_then(|(at, keys, speed)| JumpArc::seen(at, keys, speed, time, feet, wrap(yaw)))
+        pressed.and_then(|(at, keys, walk)| JumpArc::seen(at, keys, walk, time, feet, wrap(yaw)))
     }
 }
 
@@ -1167,7 +1169,7 @@ fn advance(
             && at.fall == Fall::Ground
             && at.node.is_some()
         {
-            at.arc = Some(JumpArc::pressed(tick.time, tick.keys, at.velocity[0].hypot(at.velocity[1]), at.feet, at.yaw));
+            at.arc = Some(JumpArc::pressed(tick.time, tick.keys, at.velocity, at.feet, at.yaw));
         }
     } else if tick.keys & key::JUMP != 0 && at.keys & key::JUMP == 0 {
         at.air_until = tick.time + JUMP_AIR_MS;
