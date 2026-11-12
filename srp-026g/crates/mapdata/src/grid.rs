@@ -308,6 +308,12 @@ pub struct Body {
     /// rail top 25.16 over the slab 24.26 to the ground 20.76, 0 of 95 presses got down; 116 of 148 walked-off gap drops of
     /// 1.5 m+ landed under a solid). A build input: in the key when set.
     pub fall_stops_on_solids: bool,
+    /// [A364 P6] Whether a gap link's jump flies the game's air phase, not the whole clip: twelve steps from the clip's `jump`
+    /// event, so the short jump ends at frame 22.5 (2.50 m on, 0.35 m up) and the body falls from there at the root's last
+    /// descent (`gap`'s `fly`, `fly_clip`). Off: the flight follows the clip to its frame 24 (2.67 m on, back at the take-off's
+    /// height), farther than any jump of the game (A364's traces: 20 of 20 jumps end at their twelfth air step). A build input:
+    /// in the key when set.
+    pub jump_air_steps: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -391,6 +397,7 @@ impl Body {
             start_witness: false,
             give_back_in_cell: false,
             fall_stops_on_solids: false,
+            jump_air_steps: false,
         }
     }
 }
@@ -480,6 +487,7 @@ impl Default for Body {
             start_witness: false,
             give_back_in_cell: false,
             fall_stops_on_solids: false,
+            jump_air_steps: false,
         }
     }
 }
