@@ -1,0 +1,6 @@
+full_name	reason
+logic/vip/mode_2/victory_item_spawner(49)	Buried by v0.11 geometry (support 0.283 m above the item) and no reachable clear pickup ray.
+logic/vip/mode_2/victory_item_spawner(3)	No clear pickup ray from a walkable point reachable from both teams.
+logic/vip/mode_2/victory_item_spawner(2)	Supporting prop differs: nearest support is 0.854 m below the item.
+logic/vip/mode_2/victory_item_spawner	No clear pickup ray from a walkable point reachable from both teams.
+logic/vip/mode_2/victory_item_spawner(23)	Supporting prop differs: nearest support is 0.927 m below the item.

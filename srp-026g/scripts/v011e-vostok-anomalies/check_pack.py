@@ -86,16 +86,17 @@ def check(base, folder, available):
           'duplicate and dangling links refused')
     edits = pack.HERE.parent / 'content-edit'
     donor = json.loads((edits / 'v021d-radar-electric-1.json').read_text())
-    expected = [entry | {'file': entry['file'].replace('v021d_level_03', 'v011e_level_03')}
-                for entry in donor['set_entry']
-                if entry['where']['full_name'] == 'anomaly/electro/electric_hit_damage_zone']
-    actual = json.loads((edits / 'v011e-vostok-electric-1.json').read_text())
-    assert len(expected) == 2 and actual['set_entry'] == expected, 'donor damage tuning drifted'
+    assert all(entry['where']['full_name'].startswith('anomaly/random_anomalies/antena/')
+               for entry in donor['set_entry']), 'corridor tuning must not weaken the transformer field'
+    for imported in imported_by_mode:
+        field = next(o for o in imported if o['full_name'] == 'anomaly/electro/electric_hit_damage_zone')
+        assert abs(field['max_hit'] - 0.9) < 1e-6 and field['interval_in_msec'] == 2000
+        assert field['hit_parts_filter'] == ['body', 'head', 'right_foot', 'left_foot', 'right_arm', 'left_arm']
     manifest = (pack.HERE.parents[2] / 'release/content.tsv').read_text().splitlines()
     row = next(line.split('\t') for line in manifest if line.startswith(f'pack\t{pack.PACK_ID}@'))
     assert row[1] == f'{pack.PACK_ID}@{pack.VERSION}'
     assert row[2] == pack.sha256((folder / 'pack.json').read_bytes())
-    print('Current donor tuning and manifest pack identity match')
+    print('Original transformer pulse, corridor-only tuning and manifest pack identity checked')
 
 
 if __name__ == '__main__':
