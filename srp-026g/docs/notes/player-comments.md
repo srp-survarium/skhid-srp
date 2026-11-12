@@ -56,7 +56,9 @@ accounts and prior audit history intact.
 Feedback rows are independent of account replacement and deletion, as the admin
 audit trail is. Tests cover report/praise byte pairs, the separate mute command,
 all seven choices through lobby transport, missing/self targets, failed writes
-and retries, daily deduplication, database contention, upgrade, rename and
-reopen. Actual client play and deployment require separate validation.
+and retries, daily deduplication, database contention, upgrade and reopen.
+A live admin rename of both players preserves earlier name snapshots and
+account-based deduplication while later feedback records their new names.
+Actual client play and deployment require separate validation.
 
 Review validation on current main is recorded in the pull request.

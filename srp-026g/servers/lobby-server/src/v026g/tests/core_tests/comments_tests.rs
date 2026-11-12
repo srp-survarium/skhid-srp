@@ -114,3 +114,52 @@ fn bad_comments_and_failed_writes_never_receive_success() {
     assert!(world.take(bob).is_empty());
     world.assert_clean();
 }
+
+#[test]
+fn live_renames_keep_feedback_and_daily_duplicates_attached_to_account_ids() {
+    let mut repository = MemoryGameRepository::default();
+    let mut world = world(&repository);
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    world.take(alice);
+    world.ask(alice, comment("Bob", 1, 1));
+    assert!(stored(&world.take(alice)));
+    let original = repository.player_comments(world.ids[bob].0, 10).unwrap();
+
+    for (player, name) in [(alice, "Alisa"), (bob, "Boris")] {
+        let id = world.ids[player].0;
+        world
+            .store
+            .admin_rename_026g(
+                world.accounts,
+                id,
+                &session::v026g::names::Nickname::parse(name).unwrap(),
+            )
+            .unwrap();
+        world.inbox.account_changed(id);
+    }
+    world.settle();
+    world.take(alice);
+    world.ask(alice, comment("Bob", 1, 2));
+    assert_eq!(
+        denial(&world.take(alice), 0x49).as_deref(),
+        Some("st_player_not_found")
+    );
+    world.ask(alice, comment("Boris", 1, 1));
+    assert!(stored(&world.take(alice)));
+    assert_eq!(
+        repository.player_comments(world.ids[bob].0, 10).unwrap(),
+        original
+    );
+
+    world.ask(alice, comment("Boris", 2, 2));
+    assert!(stored(&world.take(alice)));
+    let rows = repository.player_comments(world.ids[bob].0, 10).unwrap();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0].sender_id, world.ids[alice].0);
+    assert_eq!(rows[0].sender_name, "Alisa");
+    assert_eq!(rows[0].target_name, "Boris");
+    assert_eq!(rows[1].sender_name, "Alice");
+    assert_eq!(rows[1].target_name, "Bob");
+    world.assert_clean();
+}
