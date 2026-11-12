@@ -1071,6 +1071,13 @@ mod tests {
         }
     }
 
+    /// The players' data (`SRP_GAME_DATA`), read once for the ignored tests of one run (a second `init` after a table was read
+    /// is refused).
+    fn live_data() {
+        static READ: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+        READ.get_or_init(|| crate::v026g::game_data::init().map(|_| ()).expect("SRP_GAME_DATA reads and passes srp's checks"));
+    }
+
     /// On the live game data (`SRP_GAME_DATA`, the server's file) the same
     /// holds for every rusher kit of both higher tiers, the SMGs of the
     /// 0.29a3 weapons among them. Run alone:
@@ -1079,7 +1086,7 @@ mod tests {
     #[test]
     #[ignore = "needs SRP_GAME_DATA, the server's game data"]
     fn on_the_live_data_no_rusher_kit_is_over_its_capacity() {
-        crate::v026g::game_data::init().expect("SRP_GAME_DATA reads and passes srp's checks");
+        live_data();
         no_bot_kit_is_over_its_capacity();
         the_rushers_smg_kit_is_no_slower_than_the_old_one();
         a_bots_profile_gives_its_speed_level();
@@ -1143,7 +1150,7 @@ mod tests {
     #[test]
     #[ignore = "needs SRP_GAME_DATA, the players' game data with the medical tab (tools/check bot-skills-live)"]
     fn on_the_live_data_every_build_is_a_set_the_tree_allows() {
-        crate::v026g::game_data::init().expect("SRP_GAME_DATA reads and passes srp's checks");
+        live_data();
         let tree = SkillsTree::shared();
         assert!(medical_skills(), "the data's tree has the medical block's skills and the switch is on");
         let builds = the_builds_hold(tree, true);
