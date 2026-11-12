@@ -273,7 +273,19 @@ EOF
 cat >"$T/bin/build-image" <<'EOF'
 #!/usr/bin/env bash
 printf 'build-image %s\n' "$*" >>"$TEST_LOG"
-if [[ -e $TEST_DIR/build-fails ]]; then echo "build: cargo failed" >&2; exit 1; fi
+# $TEST_DIR/build-hangs: it runs on (a sleep of its own; both PIDs in
+# $TEST_DIR/build-image.pids). With $TEST_DIR/selftest-hangs too, a failure
+# comes once the self-test runs.
+if [[ -e $TEST_DIR/build-hangs ]]; then
+    sleep 300 &
+    printf '%s %s\n' "$$" "$!" >"$TEST_DIR/build-image.pids"
+    wait
+fi
+if [[ -e $TEST_DIR/build-fails ]]; then
+    if [[ -e $TEST_DIR/selftest-hangs ]]; then for _ in $(seq 100); do [[ -s $TEST_DIR/selftest.pids ]] && break; sleep 0.1; done; fi
+    echo "build: cargo failed" >&2
+    exit 1
+fi
 find "$1" -type f | sort >"$2"
 EOF
 export SKHID_BUILD_IMAGE_BIN=$T/bin/build-image
@@ -1140,7 +1152,11 @@ while (($#)); do
 done
 if [[ -e $TEST_DIR/build-zip-fails ]]; then echo "build-zip: the build failed" >&2; exit 1; fi
 # A slow build: the seconds of $TEST_DIR/build-zip-sleep.
-if [[ -s $TEST_DIR/build-zip-sleep ]]; then sleep "$(cat "$TEST_DIR/build-zip-sleep")"; fi
+if [[ -s $TEST_DIR/build-zip-sleep ]]; then
+    sleep "$(cat "$TEST_DIR/build-zip-sleep")" &
+    printf '%s %s\n' "$$" "$!" >"$TEST_DIR/build-zip.pids"
+    wait
+fi
 git -C "$TEST_DIR/repo" cat-file -e "$ref^{commit}" || exit 1
 mkdir -p "$work"
 numbers=$(grep -v '^#' "$patches" | cut -f1 | sed -n 's/^resources\.db\.patch_//p')
@@ -1172,6 +1188,12 @@ while (($#)); do
     esac
 done
 if [[ -e $TEST_DIR/build-site-fails ]]; then echo "build.py: the Maps tab's build failed" >&2; exit 1; fi
+# $TEST_DIR/build-site-hangs: it runs on (both PIDs in $TEST_DIR/build-site.pids).
+if [[ -e $TEST_DIR/build-site-hangs ]]; then
+    sleep 300 &
+    printf '%s %s\n' "$$" "$!" >"$TEST_DIR/build-site.pids"
+    wait
+fi
 . "$SKHID_RELEASE_ENV"
 rows=$(grep -v '^#' "$SKHID_PATCH_LIST" | cut -f1,2)
 if [[ -n $with && ! -e $TEST_DIR/build-site-wrong ]]; then rows+=$'\n'"${with##*/}"$'\t'"$(sha256sum <"$with" | cut -c1-64)"; fi
@@ -1386,7 +1408,7 @@ check "release: ... its message: the UTC time, the ZIP's and the server data's s
     "grep -qE '^Revision 12, released 20[0-9]{2}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} UTC$' <<<\"\$1\" && grep -q 'sha256 $zip_sha$' <<<\"\$1\" && grep -q 'server-game-data.db: sha256 $data_sha$' <<<\"\$1\" && grep -q 'sha256 $exe_with (--server=127.0.0.1:1234), $exe_without without a server' <<<\"\$1\"" _ "$tag_text"
 check "release: ... its tagger is the owner (no one else)" grep -q '^tagger the owner <owner@example.org>' <<<"$tag_text"
 check "release: ... with the self-test: the plan says so, the tag does not say it went without" bash -c \
-    "grep -q \"the exe patches' self-test: in step 2, beside the rest\" <<<\"\$1\" && ! grep -q 'WITHOUT the exe patches' <<<\"\$2\"" _ "$out" "$tag_text"
+    "grep -q \"the exe patches' self-test: running since the preflight, beside the rest\" <<<\"\$1\" && ! grep -q 'WITHOUT the exe patches' <<<\"\$2\"" _ "$out" "$tag_text"
 check "release: main is a merge commit: the released commit, then the record" \
     test "$(git -C "$T/origin.git" log -1 --format='%P' main)" = "$released $(git -C "$T/origin.git" rev-parse 'main^2')"
 check "release: ... the record PR's merge, as GitHub's" has "$(git -C "$T/origin.git" log -1 --format=%B main)" "^Merge pull request #[0-9]* from srp/release/record-rev12"
@@ -1416,10 +1438,10 @@ check "release: ... made once in step 2 too, in its work folder" \
     grep -qE 'server-game-data\.db --dir .*/skhid-release\.[^/]*/item-tables$' "$T/item-tables.args"
 check "release: ... before anything is staged" bash -c \
     "t=\$(grep -n 'the item tables of it: made' <<<\"\$1\" | head -n 1 | cut -d: -f1); s=\$(grep -n '2. staging in the release folder' <<<\"\$1\" | head -n 1 | cut -d: -f1); test -n \"\$t\" -a -n \"\$s\" && ((t < s))" _ "$out"
-check "release: runs the exe patches' self-test once, of the commit built, on SKHID_GAME's survarium.exe" bash -c \
-    "test \$(wc -l <$T/selftest.args) = 1 && grep -qE '/zip/src $T/game/(game/)?binaries/x86/survarium\\.exe\$' $T/selftest.args"
-check "release: ... started after build-zip, before the staging; its result after the staging, before the go" bash -c \
-    "z=\$(grep -n '2. building the ZIP' <<<\"\$1\" | head -n 1 | cut -d: -f1); b=\$(grep -n 'the exe patches. self-test of .* started' <<<\"\$1\" | head -n 1 | cut -d: -f1); s=\$(grep -n '2. staging in the release folder' <<<\"\$1\" | head -n 1 | cut -d: -f1); t=\$(grep -n 'the exe patches. self-test: all checks passed' <<<\"\$1\" | head -n 1 | cut -d: -f1); g=\$(grep -n '^go: given beforehand' <<<\"\$1\" | head -n 1 | cut -d: -f1); test -n \"\$z\" -a -n \"\$b\" -a -n \"\$s\" -a -n \"\$t\" -a -n \"\$g\" && ((z < b && b < s && s < t && t < g))" _ "$out"
+check "release: runs the exe patches' self-test once, of the commit built (a worktree of its own), on SKHID_GAME's survarium.exe" bash -c \
+    "test \$(wc -l <$T/selftest.args) = 1 && grep -qE '/selftest-src $T/game/(game/)?binaries/x86/survarium\\.exe\$' $T/selftest.args && ! git -C $T/repo worktree list | grep -q /selftest-src"
+check "release: ... started in the preflight, before step 2; its result after the staging, before the go" bash -c \
+    "z=\$(grep -n '2. building the ZIP' <<<\"\$1\" | head -n 1 | cut -d: -f1); b=\$(grep -n 'the exe patches. self-test of .* started' <<<\"\$1\" | head -n 1 | cut -d: -f1); s=\$(grep -n '2. staging in the release folder' <<<\"\$1\" | head -n 1 | cut -d: -f1); t=\$(grep -n 'the exe patches. self-test: all checks passed' <<<\"\$1\" | head -n 1 | cut -d: -f1); g=\$(grep -n '^go: given beforehand' <<<\"\$1\" | head -n 1 | cut -d: -f1); test -n \"\$z\" -a -n \"\$b\" -a -n \"\$s\" -a -n \"\$t\" -a -n \"\$g\" && ((b < z && z < s && s < t && t < g))" _ "$out"
 check "release: ... says it all, and ends 0" bash -c "grep -q 'done     the PR merged (a merge commit): main has REVISION 12' <<<\"\$1\" && ! grep -q 'NOT COMPLETE' <<<\"\$1\"" _ "$out"
 check "release: no change of what a match computes: said, the replays' list as it was" bash -c \
     "grep -q 'replays: no change of what a match computes is marked (.*): recordings from revision 11 on stay watchable' <<<\"\$1\" && git -C $T/origin.git show main:srp-026g/crates/session/src/v026g/simulation_changes.tsv | grep -qx \$'11\tthe TDM end'" _ "$out"
@@ -1661,11 +1683,46 @@ expect_refused "release --resources: pages to rebuild need the server code built
     "the Maps tab and the calculator are rebuilt by this release, and --server-code no builds no server code" \
     "$here/release.sh" --resources "$T/r14/resources.db.patch_14" --server-code no
 check "release: ... without the 2-min rebuild" test ! -s "$T/build-site.args"
+out=$(setsid -w env SKHID_RELEASE_ENV="$(changed_env 's/^SKHID_MIN_FREE_MB=.*/SKHID_MIN_FREE_MB=999999999/')" \
+    "$here/release.sh" --resources "$T/r14/resources.db.patch_14" </dev/null 2>&1) && fail "release.sh, too little disk here: ran ($out)"
+check "release --resources: a preflight problem before the rebuild: the pages are not rebuilt (it stops anyway)" bash -c \
+    "grep -q 'MISSING  free here: .* (SKHID_MIN_FREE_MB)' <<<\"\$1\" && grep -q 'the Maps tab and the calculator: not rebuilt, as the preflight has 1 problem(s) already' <<<\"\$1\" && test ! -s $T/build-site.args" _ "$out"
+# A problem found while the rebuild runs (beside the checks after it): the
+# rebuild stopped, its pages not taken, the problem in the list.
+touch "$T/build-site-hangs"
+rm -f "$T/build-site.pids"
+mid_at=$SECONDS
 out=$(setsid -w env SKHID_RELEASE_ENV="$(changed_env 's/^SKHID_LIVE_MIN_FREE_MB=.*/SKHID_LIVE_MIN_FREE_MB=999999999/')" \
-    "$here/release.sh" --resources "$T/r14/resources.db.patch_14" </dev/null 2>&1) && fail "release.sh, too little disk: ran ($out)"
-check "release --resources: another preflight problem: the pages are not rebuilt (it stops anyway)" bash -c \
-    "grep -q 'MISSING  free on the live host: .* (SKHID_LIVE_MIN_FREE_MB)' <<<\"\$1\" && grep -q 'the Maps tab and the calculator: not rebuilt, as the preflight has 1 problem(s) already' <<<\"\$1\" && test ! -s $T/build-site.args" _ "$out"
+    "$here/release.sh" --resources "$T/r14/resources.db.patch_14" </dev/null 2>&1) && fail "release.sh, too little disk there: ran ($out)"
+rm "$T/build-site-hangs"
+mid_took=$((SECONDS - mid_at))
+check "release --resources: a preflight problem while the pages are rebuilt: the rebuild stopped, not waited for (${mid_took} s)" bash -c \
+    "test $mid_took -le 20 && grep -q 'MISSING  free on the live host: .* (SKHID_LIVE_MIN_FREE_MB)' <<<\"\$1\" && grep -q 'the Maps tab and the calculator: not rebuilt, as the preflight has 1 problem(s) already' <<<\"\$1\" && grep -q '^  - free on the live host' <<<\"\$1\" && grep -q 'nothing was done' <<<\"\$1\"" _ "$out"
+check "release: ... its build killed (if it had begun), its worktree removed" bash -c \
+    "{ test ! -e $T/build-site.pids || { read -r a b <$T/build-site.pids && ! kill -0 \$a 2>/dev/null && ! kill -0 \$b 2>/dev/null; }; } && ! git -C $T/repo worktree list | grep -q '/site\$'"
 check "release: ... none of them planned or published anything" bash -c \
+    "test ! -s $T/state/admin.log && test ! -e $T/patches/resources.db.patch_14 && test ! -e $T/lock"
+# Ctrl-C in the preflight, the rebuild running: every job stopped, at once.
+touch "$T/build-site-hangs"
+rm -f "$T/build-site.pids"
+set -m
+env --default-signal=INT,TERM,HUP "$here/release.sh" --resources "$T/r14/resources.db.patch_14" >"$T/pre.out" 2>&1 </dev/null &
+pre_pid=$!
+set +m
+for _ in $(seq 300); do [[ -s $T/build-site.pids ]] && break; sleep 0.1; done
+kill -INT -- "-$pre_pid"
+pre_at=$SECONDS
+for _ in $(seq 150); do kill -0 "$pre_pid" 2>/dev/null || break; sleep 0.1; done
+pre_took=$((SECONDS - pre_at))
+if kill -0 "$pre_pid" 2>/dev/null; then kill -9 -- "-$pre_pid"; fi
+wait "$pre_pid" 2>/dev/null || true
+rm "$T/build-site-hangs"
+printf '%s\n' "$(cat "$T/pre.out")" >>"$T/outputs"
+check "release: Ctrl-C in the preflight, the pages rebuilding: ends in a few seconds (${pre_took} s)" bash -c \
+    "test $pre_took -le 5 && grep -q 'interrupted' $T/pre.out"
+check "release: ... kills the rebuild, removes its worktree" bash -c \
+    "read -r a b <$T/build-site.pids && ! kill -0 \$a 2>/dev/null && ! kill -0 \$b 2>/dev/null && ! git -C $T/repo worktree list | grep -q '/site\$'"
+check "release: ... nothing planned, published or locked" bash -c \
     "test ! -s $T/state/admin.log && test ! -e $T/patches/resources.db.patch_14 && test ! -e $T/lock"
 
 # The dry run. The live tree's GRID_ALGO other than main's (as main's change
@@ -1856,12 +1913,17 @@ check "release: a mirror that is a web page is a problem" has "$out" \
     "resources.db.patch_3: $M/page/resources.db.patch_3 answers with a web page"
 SKHID_RELEASE_ENV=$T/release.env
 
-# A failure before the swap: the build of the image here stops before
+# A failure before the swap: the build of the image here (a job beside the
+# ZIP and the self-test, failing once the self-test runs) stops before
 # anything is written on the host; its load there, after the tag moved.
-touch "$T/build-fails"
+rm -f "$T/selftest.pids"
+touch "$T/build-fails" "$T/selftest-hangs"
 run yes --minutes 2 --label c || true
-rm "$T/build-fails"
-check "release: a failed build here stops before the swap" has "$out" "STOPPED before the swap"
+rm "$T/build-fails" "$T/selftest-hangs"
+check "release: a failed build here stops before the swap" bash -c \
+    "grep -q 'the server.s image did not build: build: cargo failed' <<<\"\$1\" && grep -q 'STOPPED before the swap' <<<\"\$1\"" _ "$out"
+check "release: ... kills the jobs still running (the self-test and what it started)" bash -c \
+    "read -r a b <$T/selftest.pids && ! kill -0 \$a 2>/dev/null && ! kill -0 \$b 2>/dev/null"
 check "release: ... with no image tagged or loaded on the host" bash -c "! grep -qE '^docker (tag|load)' $T/log"
 touch "$T/load-fails"
 run yes --minutes 2 --label c || true
@@ -1920,7 +1982,7 @@ check "release: ... removes the staged files" nothing_staged
 check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
 check "release: ... and makes no record" no_record 14
 
-# A stop while the self-test runs (in the background, from build-zip to
+# A stop while the self-test runs (in the background, from the preflight to
 # the go): the item tables' tool failing after it started; the self-test
 # killed, its whole process group.
 : >"$T/state/admin.log"
@@ -2241,7 +2303,7 @@ echo 300 >"$T/state/ends-in"
 run quiet --dry-run || fail "release.sh --dry-run, a match ending in 5 min: $out"
 check "release: a match ending in 5 min: the maintenance in 6 min" bash -c "grep -q 'in 6 min (now: /api/stats: the last match ends in 5:00 at the latest (last_match_ends_in 300), then 30 s' <<<\"\$1\"" _ "$(plan_line)"
 check "release --dry-run: prints the order: the lock and the staging, the go, the plan, the swap" in_order "$out" \
-    '^\[dry run\] 2. take the release lock' '^\[dry run\] 2. build here' '^\[dry run\] 3. then wait for the go' \
+    '^\[dry run\] 2. take the release lock' '^\[dry run\] 2. in the background: .*build-zip' '^\[dry run\]    meanwhile, build here: release/build-server-db' '^\[dry run\] 3. then wait for the go' \
     '^\[dry run\] 4. right after the go: plan the maintenance' '^\[dry run\] 5. at the planned time' \
     'docker compose up -d --no-deps --force-recreate srp26'
 echo 299 >"$T/state/ends-in"
@@ -2337,15 +2399,18 @@ check "release: ... its folder says stopped" grep -qx stopped "$(folder 16 int)/
 check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
 check "release: ... frees the lock" test ! -e "$T/lock"
 
-# Ctrl-C during the staging (the build of the ZIP), to the whole process
-# group as a terminal sends it: before the go, nothing planned.
+# Ctrl-C during the staging (the builds of the ZIP and of the image, each a
+# job of its own), to the whole process group as a terminal sends it:
+# before the go, nothing planned, every job killed.
 : >"$T/state/admin.log"
 echo 30 >"$T/build-zip-sleep"
+rm -f "$T/build-zip.pids" "$T/build-image.pids"
+touch "$T/build-hangs"
 set -m
-"${signalable[@]}" "$here/release.sh" --yes --i-know --minutes 60 --label stg >"$T/stg.out" 2>&1 </dev/null &
+"${signalable[@]}" "$here/release.sh" --yes --i-know --minutes 60 --server-code yes --label stg >"$T/stg.out" 2>&1 </dev/null &
 stg_pid=$!
 set +m
-for _ in $(seq 300); do grep -q '2. building the ZIP' "$T/stg.out" && break; sleep 0.1; done
+for _ in $(seq 300); do [[ -s $T/build-zip.pids && -s $T/build-image.pids ]] && break; sleep 0.1; done
 sleep 1
 kill -INT -- "-$stg_pid"
 stg_at=$SECONDS
@@ -2353,11 +2418,13 @@ for _ in $(seq 150); do kill -0 "$stg_pid" 2>/dev/null || break; sleep 0.1; done
 stg_took=$((SECONDS - stg_at))
 if kill -0 "$stg_pid" 2>/dev/null; then kill -9 -- "-$stg_pid"; fi
 wait "$stg_pid" 2>/dev/null || true
-rm -f "$T/build-zip-sleep"
+rm -f "$T/build-zip-sleep" "$T/build-hangs"
 out=$(cat "$T/stg.out")
 printf '%s\n' "$out" >>"$T/outputs"
 check "release: Ctrl-C during the staging, before the go, ends it in a few seconds (${stg_took} s)" test "$stg_took" -le 5
 check "release: ... it was building, nothing planned" bash -c "grep -q '2. building the ZIP' <<<\"\$1\" && grep -q 'interrupted' <<<\"\$1\" && ! grep -q '4. maintenance planned' <<<\"\$1\"" _ "$out"
+check "release: ... kills every job: the ZIP's build and the image's, with what they started" bash -c \
+    "read -r a b <$T/build-zip.pids && read -r c d <$T/build-image.pids && ! kill -0 \$a 2>/dev/null && ! kill -0 \$b 2>/dev/null && ! kill -0 \$c 2>/dev/null && ! kill -0 \$d 2>/dev/null"
 check "release: ... plans and cancels nothing" test -z "$(admin_log)" -a ! -e "$T/state/maint"
 check "release: ... staged nothing (no folder yet)" test -z "$(folder 16 stg)"
 check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
@@ -2514,7 +2581,7 @@ run quiet --dry-run --now --no-maintenance || fail "release.sh --now --dry-run: 
 check "release --now: --no-maintenance with it is accepted, and said to be the same" has "$out" "note: --now plans no maintenance anyway"
 check "release --now --dry-run: says there is no notice" has "$out" "maintenance: NONE, NO NOTICE (--now)"
 check "release --now --dry-run: prints the order: the staging, the go, the swap at once" in_order "$out" \
-    '^\[dry run\] 2. take the release lock' '^\[dry run\] 2. build here' '^\[dry run\] 3. then wait for the go' \
+    '^\[dry run\] 2. take the release lock' '^\[dry run\] 2. in the background: .*build-zip' '^\[dry run\]    meanwhile, build here: release/build-server-db' '^\[dry run\] 3. then wait for the go' \
     '^\[dry run\] 4. no maintenance planned (--now' '^\[dry run\] 5. at the go: the swap at once, NO wait for matches' \
     'the stop ends without results (--now)' 'compose stop srp26'
 check "release --now --dry-run: no POST, no admin page" bash -c "! grep -q 'POST ' <<<\"\$1\" && test ! -s $T/state/admin-seen.log" _ "$out"
