@@ -7,12 +7,15 @@ fn registration_cannot_shadow_a_squad_friend() {
     let mut world = World::new();
     let alice = world.connect("Alice");
     let bob = world.connect("Bob");
-    for nickname in ["Alice@other.example", "bOB@other.example"] {
+    for (login, taken) in [
+        ("Alice@other.example", "Alice"),
+        ("bOB@other.example", "bOB"),
+    ] {
+        let id = world.store.sign_in(login, b"password").unwrap();
         assert_eq!(
-            world.store.sign_in(nickname, b"password"),
-            Err(session::SignInError::InvalidUserName)
+            world.store.account(id).unwrap().locked().name(),
+            format!("{taken}_{id}")
         );
-        assert!(world.store.account_id_by_name(nickname).is_none());
     }
     form_squad(&mut world, alice, bob);
     assert_eq!(

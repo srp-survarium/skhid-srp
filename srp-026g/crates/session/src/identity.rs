@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use crate::nickname_key::key;
+use crate::nickname_key::{key, replacement};
 use crate::persist::PersistError;
 use crate::v026g::names::{Nickname, RenameError};
 use crate::v026g::{GameAccounts, names, premium};
@@ -67,7 +67,7 @@ impl SessionStore {
         }
     }
 
-    pub(super) fn display_name_taken(&self, name: &str, except: Option<u32>) -> bool {
+    fn display_name_taken(&self, name: &str, except: Option<u32>) -> bool {
         let accounts: Vec<_> = self.accounts.locked().values().cloned().collect();
         accounts.iter().any(|account| {
             let account = account.locked();
@@ -75,7 +75,7 @@ impl SessionStore {
         })
     }
 
-    pub(super) fn nickname_taken_locked(
+    fn nickname_taken_locked(
         &self,
         logins: &HashMap<String, u32>,
         name: &str,
@@ -85,6 +85,26 @@ impl SessionStore {
             .iter()
             .any(|(login, id)| Some(*id) != except && key(login) == key(name))
             || self.display_name_taken(name, except)
+    }
+
+    /// The display name of the new account `account_id`, whose user name
+    /// shows as `name`: that name, or its replacement
+    /// ([`crate::nickname_key::replacement`]) when it is another account's
+    /// name or login. Nobody is refused an account for a name it did not
+    /// choose; the player renames it later.
+    pub(super) fn sign_up_name_locked(
+        &self,
+        logins: &HashMap<String, u32>,
+        name: String,
+        account_id: u32,
+    ) -> String {
+        let taken = |name: &str| self.nickname_taken_locked(logins, name, None);
+        if !taken(&name) {
+            return name;
+        }
+        let to = replacement(&name, account_id, taken);
+        log::info!("Account {account_id}: the name {name:?} is another account's; it is {to:?}");
+        to
     }
 
     /// A UI availability hint. The mutation rechecks under the same lock
