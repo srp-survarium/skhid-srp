@@ -40,8 +40,9 @@ players.
 - the shares routed to the pools (the table) go in with no penetration (0x33FA80).
 - Counted: each pool's loss is its new hit records (the body 7,019 of 7,034; the pain 10,197 of 10,371, the others
   falls, which leave no record). A whole hit foretold from a bullet a world held in flight agrees to the number in
-  604 of 2,019: the bullet's loss of damage after the save, and the armour of a bullet that meets several boxes,
-  are not settled.
+  604 of 2,019 by this rule alone, and in 1,876 of 1,955 with the bullet's own losses (`bullet_flight.md`): the
+  fall-off goes on to the hit, and a bullet goes through every body: the first box takes the bullet's damage, every
+  later box the weapon's least damage and pierce.
 
 ## Wounds and what they gate
 

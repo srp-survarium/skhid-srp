@@ -2299,6 +2299,7 @@ va	status	ref_021d	name
 0x00322830	inferred-medium	0x001fed48	survarium::bullet_manager::emit_bullet
 0x003228e0	inferred-medium	0x001fedfa	survarium::bullet_manager::destroy_bullet
 0x00322a30	inferred-medium	0x001fee29	vostok::buffer_vector<survarium::bullet *>::push_back
+0x00322ee0	inferred-high		survarium::bullet_manager::remove_dead_bullets
 0x00323200	inferred-medium	0x001ff2fd	vostok::memory::single_size_buffer_allocator<140,vostok::threading::simple_lock>::allocate_impl
 0x00323410	inferred-medium	0x001ff440	boost::detail::function::void_function_obj_invoker0<boost::_bi::bind_t<void,boost::_mfi::mf4<void,survarium::bullet_manager,survarium::bullet *,vostok::math::float3 const &,vostok::math::float3 const &,float>,boost::_bi::list5<boost::_bi::value<survarium::bullet_manager *>,boost::_bi::value<survarium::bullet *>,boost::reference_wrapper<vostok::math::float3 const >,boost::reference_wrapper<vostok::math::float3 const >,boost::_bi::value<float> > >,void>::invoke
 0x00323790	inferred-medium	0x001fd610	survarium::kd_stats_rule::kd_stats_rule
@@ -2324,6 +2325,7 @@ va	status	ref_021d	name
 0x0032c180	inferred-medium	0x0020183d	survarium::bullet::tick
 0x0032c520	inferred-high	0x00201ad8	survarium::bullet::compute_damage_speed
 0x0032cdd0	inferred-high	0x00202086	survarium::bullet::pick_next_permissible_time
+0x0032ced0	inferred-high		survarium::bullet::pick_check_time
 0x0032cfb0	inferred-high	0x002021bf	survarium::bullet::get_check_time_in_vacuum
 0x0032d140	inferred-high	0x002022fe	survarium::bullet::get_check_time
 0x0032d300	inferred-medium	0x0020244f	survarium::bullet::compute_max_error
@@ -3601,6 +3603,7 @@ va	status	ref_021d	name
 0x000d6cd0	inferred-medium	0x000a689f	btGjkPairDetector::getClosestPointsNonVirtual
 0x000ed2e0	inferred-high	0x000b67d6	vostok::math::quaternion::quaternion
 0x000eea10	inferred-medium	0x000b7e87	vostok::math::mul4x4
+0x000ef370	inferred-medium		vostok::math::rotation_around_axis
 0x000f1fd0	inferred-high	0x000bb117	vostok::math::aabb::modify
 0x000f2bc0	inferred-high	0x000bbb88	vostok::math::cuboid::test_inexact
 0x001073b0	inferred-high	0x000c9e94	vostok::math::aabb_plane::test
