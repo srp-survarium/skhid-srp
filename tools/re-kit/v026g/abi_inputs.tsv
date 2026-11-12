@@ -6338,3 +6338,5 @@ va	name	location	role	basis
 0x003296c0	survarium::player_stamina::subtract_clamped	stack+4	amount	observed
 0x00329960	survarium::player_stamina::boost	EDI	stamina	observed
 0x00329960	survarium::player_stamina::boost	EAX	time_ms	observed
+0x00310450	survarium::weapon_core_throw_grenade_idle_substate::is_ready_for_transition	ECX	substate	observed
+0x003393f0	survarium::bullet_manager::explosion_trace	EAX	centre_to_bone	observed

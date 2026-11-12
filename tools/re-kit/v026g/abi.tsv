@@ -2732,3 +2732,5 @@ va	name	source	ret_cleanup	result
 0x00329710	survarium::player_stamina::spend_jump	manual	0	none; the jump's cost [+0Ch] through apply_modifier 0x2D5AE0 with index 19 then 67, taken from the bar by 0x3296C0, the last spending time (+74h) = the last tick's (+70h); its caller is the jump clip's event 0x3434B9
 0x002d6420	survarium::player_stamina::can_afford_jump	manual	0	EAX = 1 when the bar (+6Ch) is at or over the jump's cost (the same two modifiers as 0x329710)
 0x003296c0	survarium::player_stamina::subtract_clamped	manual	4	none; the bar (+6Ch) less the amount, held to 0 and the maximum [+0]
+0x00310450	survarium::weapon_core_throw_grenade_idle_substate::is_ready_for_transition	manual	0	AL = 1 when the inventory's grenade slot (+17Ch) is no longer this set's (+254h): the key's release
+0x003393f0	survarium::bullet_manager::explosion_trace	manual	16	XMM0 = the power kept: each front face of a material with armour v (+4Ch) cuts s to s x (1 - (1 - c)^2), c = clamp(s / v - 1, 0, 1) (0x339577..0x339598)
