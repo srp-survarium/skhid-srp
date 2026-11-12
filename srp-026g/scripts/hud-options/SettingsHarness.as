@@ -1028,7 +1028,7 @@ package
             {
                 var one:* = controls[i];
                 var label:String = i < VULKAN_LISTS ? one.textFieldLabel.text : one.label;
-                // an option not offered (DLSS here) greyed: its disabled frame
+                // an option not offered (DLSS here) greyed: dimmed, on its resting frame
                 require(one != null && one.visible && (!one.enabled || one.alpha == 1) && label == labels[i],
                     "Vulkan options: " + VULKAN[i]
                     + " in the panel with the exe's label (" + label + ", visible " + one.visible + ", alpha " + one.alpha + ")");
@@ -1042,8 +1042,8 @@ package
                 && controls[1].dataProvider[2] == texts[0][27] && controls[0].selectedIndex == 0 && controls[1].selectedIndex == 0
                 && !controls[DLSS].selected && !controls[3].selected && !controls[4].selected && controls[5].selected,
                 "Vulkan options: the lists' choices; each control its saved value (Prefer the dedicated GPU on)");
-            require(!controls[DLSS].enabled && controls[0].enabled && controls[1].enabled && controls[3].enabled,
-                "Vulkan options: DLSS not offered (no helper answered) greyed, the others not");
+            require(!controls[DLSS].enabled && controls[DLSS].currentLabel == "up" && controls[0].enabled && controls[1].enabled && controls[3].enabled,
+                "Vulkan options: DLSS not offered (no helper answered) greyed and, unticked, an empty box (no tick), the others not");
             var rhythm:Number = controls[1].y - controls[0].y;
             for (i = 1; i < controls.length; ++i)
             {
