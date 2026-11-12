@@ -29,7 +29,6 @@ use super::{DLSS, DXVK_MARKER, Renderer, renderer};
 use crate::vostok::dlss::{self, BackBuffer, Device, Failure, Frame, Hello, Helper, HelperWatch, Refusal, SLOTS, Shared, Size, SwapChain, Tick,
                           Watched};
 use crate::vostok::log::{Piece, Piece::*, line, line_of};
-use crate::vostok::renderer::{clear_environment, get_environment, is_loaded, set_environment};
 use crate::vostok::settings::{file_exists, save_user_config};
 use crate::vostok::{Lock, Thread, hud_options_on_watch_entry};
 
@@ -541,9 +540,8 @@ fn tick_off(thread: &Thread) {
 /// DXVK's device of the swap chain, the helper started, its watch started.
 fn start(thread: &Thread, chain: SwapChain) -> Result<(Helper, Device), Failure> {
     let device = Device::of(thread, chain)?;
-    // DXVK took Vulkan from winevulkan.dll: Wine
-    let helper = if is_loaded(thread, c"winevulkan.dll") { for_wine(thread, || Helper::start(thread)) } else { Helper::start(thread) };
-    let helper = match helper {
+    // the game's environment as it is: what the helper needs of Wine it sets up itself (client/dlss-helper/README.md)
+    let helper = match Helper::start(thread) {
         Ok(helper) => helper,
         Err(why) => {
             device.release(thread);
@@ -557,44 +555,6 @@ fn start(thread: &Thread, chain: SwapChain) -> Result<(Helper, Device), Failure>
         return Err(why);
     }
     Ok((helper, device))
-}
-
-/// `start` with what the helper needs of Wine in its environment, which a
-/// process gets from the one that starts it (docs/notes/dlss-option.md,
-/// "What 'can it run' checks"): NGX finds the GPU through nvapi64.dll, which
-/// under Wine is dxvk-nvapi's beside the helper, over DXVK's own dxgi.dll
-/// there (`WINEDLLOVERRIDES`, added to the game's), with
-/// `DXVK_ENABLE_NVAPI`. The game's own two are put back after.
-fn for_wine<R>(thread: &Thread, start: impl FnOnce() -> R) -> R {
-    const OVERRIDES: &CStr = c"WINEDLLOVERRIDES";
-    const NVAPI: &CStr = c"DXVK_ENABLE_NVAPI";
-    const HELPERS: &[u8] = b"dxgi=n,b;nvapi64=n\0";
-    let mut games = [0u8; 512];
-    let len = get_environment(thread, OVERRIDES, &mut games);
-    let mut nvapi = [0u8; 16];
-    let nvapi_len = get_environment(thread, NVAPI, &mut nvapi);
-    // the game's overrides, then the helper's (a later one of a DLL takes over)
-    let mut both = [0u8; 512 + 1 + HELPERS.len()];
-    both[..len].copy_from_slice(&games[..len]);
-    let at = if len == 0 { 0 } else { len + 1 };
-    if len != 0 {
-        both[len] = b';';
-    }
-    both[at..at + HELPERS.len()].copy_from_slice(HELPERS);
-    if let Ok(value) = CStr::from_bytes_until_nul(&both) {
-        set_environment(thread, OVERRIDES, value);
-    }
-    set_environment(thread, NVAPI, c"1");
-    let out = start();
-    let put_back = |name: &CStr, value: &[u8], len: usize| match CStr::from_bytes_until_nul(value) {
-        Ok(value) if len != 0 => {
-            set_environment(thread, name, value);
-        }
-        _ => clear_environment(thread, name),
-    };
-    put_back(OVERRIDES, &games, len);
-    put_back(NVAPI, &nvapi, nvapi_len);
-    out
 }
 
 /// The line that says why DLSS does not run.

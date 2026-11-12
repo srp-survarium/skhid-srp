@@ -206,7 +206,7 @@ impl Kernel {
 // records, the same layout in the 32-bit game and the 64-bit helper; a u64
 // lies at a multiple of 8 in each, so Rust's i686 layout is the helper's)
 
-const MAGIC: u32 = 0x5353_4c44; // "DLSS"
+const MAGIC: u32 = u32::from_le_bytes(*b"DLSS");
 const VERSION: u32 = 3;
 /// NGX's NVSDK_NGX_PerfQuality_Value_MaxQuality: DLSS at Quality.
 const QUALITY: i32 = 2;
@@ -353,8 +353,8 @@ impl Helper {
     /// helper's own folder, no window, nothing inherited.
     pub fn start(_: &Thread) -> Result<Helper, Failure> {
         const PIPE_ACCESS_DUPLEX: u32 = 3;
-        const FILE_FLAG_FIRST_PIPE_INSTANCE: u32 = 0x0008_0000;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        const FILE_FLAG_FIRST_PIPE_INSTANCE: u32 = 1 << 19;
+        const CREATE_NO_WINDOW: u32 = 1 << 27;
         let kernel = Kernel::load().ok_or(Failure::Start("GetProcAddress", last_error()))?;
         let too_long = Failure::Start("the helper's path", 0);
         let mut name = Path::empty();
@@ -911,17 +911,22 @@ const STRUCTURE_COMMAND_POOL_CREATE_INFO: u32 = 39;
 const STRUCTURE_COMMAND_BUFFER_ALLOCATE_INFO: u32 = 40;
 const STRUCTURE_COMMAND_BUFFER_BEGIN_INFO: u32 = 42;
 const STRUCTURE_IMAGE_MEMORY_BARRIER: u32 = 45;
-const STRUCTURE_PROPERTIES_2: u32 = 1_000_059_001;
-const STRUCTURE_ID_PROPERTIES: u32 = 1_000_071_004;
-const STRUCTURE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO: u32 = 1_000_072_001;
-const STRUCTURE_EXPORT_MEMORY_ALLOCATE_INFO: u32 = 1_000_072_002;
-const STRUCTURE_MEMORY_GET_WIN32_HANDLE_INFO: u32 = 1_000_073_003;
-const STRUCTURE_EXPORT_SEMAPHORE_CREATE_INFO: u32 = 1_000_077_000;
-const STRUCTURE_SEMAPHORE_GET_WIN32_HANDLE_INFO: u32 = 1_000_078_003;
-const STRUCTURE_MEMORY_DEDICATED_ALLOCATE_INFO: u32 = 1_000_127_001;
-const STRUCTURE_SEMAPHORE_TYPE_CREATE_INFO: u32 = 1_000_207_002;
-const STRUCTURE_TIMELINE_SEMAPHORE_SUBMIT_INFO: u32 = 1_000_207_003;
-const STRUCTURE_SEMAPHORE_SIGNAL_INFO: u32 = 1_000_207_005;
+/// A structure type an extension added (vulkan_core.h's numbering:
+/// 1000000000 + 1000 * (the extension's number - 1) + its own).
+const fn of_extension(number: u32, own: u32) -> u32 {
+    1000 * 1000 * 1000 + 1000 * (number - 1) + own
+}
+const STRUCTURE_PROPERTIES_2: u32 = of_extension(60, 1);
+const STRUCTURE_ID_PROPERTIES: u32 = of_extension(72, 4);
+const STRUCTURE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO: u32 = of_extension(73, 1);
+const STRUCTURE_EXPORT_MEMORY_ALLOCATE_INFO: u32 = of_extension(73, 2);
+const STRUCTURE_MEMORY_GET_WIN32_HANDLE_INFO: u32 = of_extension(74, 3);
+const STRUCTURE_EXPORT_SEMAPHORE_CREATE_INFO: u32 = of_extension(78, 0);
+const STRUCTURE_SEMAPHORE_GET_WIN32_HANDLE_INFO: u32 = of_extension(79, 3);
+const STRUCTURE_MEMORY_DEDICATED_ALLOCATE_INFO: u32 = of_extension(128, 1);
+const STRUCTURE_SEMAPHORE_TYPE_CREATE_INFO: u32 = of_extension(208, 2);
+const STRUCTURE_TIMELINE_SEMAPHORE_SUBMIT_INFO: u32 = of_extension(208, 3);
+const STRUCTURE_SEMAPHORE_SIGNAL_INFO: u32 = of_extension(208, 5);
 
 /// VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT, and the semaphores' same bit.
 const OPAQUE_WIN32: u32 = 2;
@@ -938,9 +943,9 @@ const ACCESS_TRANSFER_READ: u32 = 0x800;
 const ACCESS_TRANSFER_WRITE: u32 = 0x1000;
 /// VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT: whatever DXVK did
 /// with an image before, or does after.
-const ACCESS_ANY: u32 = 0x8000 | 0x1_0000;
+const ACCESS_ANY: u32 = 1 << 15 | 1 << 16;
 const STAGE_TRANSFER: u32 = 0x1000;
-const STAGE_ALL_COMMANDS: u32 = 0x1_0000;
+const STAGE_ALL_COMMANDS: u32 = 1 << 16;
 const ASPECT_COLOR: u32 = 1;
 const ASPECT_DEPTH: u32 = 2;
 const FAMILY_IGNORED: u32 = !0;
