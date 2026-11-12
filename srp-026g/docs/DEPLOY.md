@@ -181,7 +181,9 @@ the new one, and recreate the container.
   goes out in this order: the patch file at its URL, then, with srp26
   stopped, the new `server-game-data.db` and the players' ZIP of that
   revision over the old ones in `download/` and `SRP_MIN_PATCH_REVISION` in
-  `.env` set to the release's revision, then a new container. The ZIP
+  `.env` set to the release's revision (with `SRP_RELEASED_EXE_SHA256`, the
+  sha256 of that ZIP's game exe, which the match server then asks no game
+  for: `SRP-026G.md`), then a new container. The ZIP
   goes in with them, never after the start: the site serves whatever ZIP is
   in `download/` at once, and the old ZIP beside the new `/patches` and
   revision lets a launcher enable PLAY for a game the login server refuses

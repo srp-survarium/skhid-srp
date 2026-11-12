@@ -154,6 +154,19 @@ but still logs hashes. Operators may archive/remove files and restart to rebuild
 the in-memory catalog. Raw match recordings can also contain these protocol
 packets; playable replays select gameplay records, not executable payloads.
 
+**The release's own executable is not collected.** The release writes the
+SHA-256 of the game executable in the players' download into the server's
+`.env` (`SRP_RELEASED_EXE_SHA256`, beside `SRP_MIN_PATCH_REVISION`; `release/lib.sh`,
+`swap_server`), and the match server reads it once, at its start: the
+release's restart. An offer of that hash is answered `Stored` without
+looking at the store: no upload, nothing written, nothing reserved; the
+hash is logged as any other. Every other hash the server has not stored is
+collected as above, and no one is refused or removed by either answer.
+Without the setting (a local server) the release's own executable is
+collected like any other. A rollback puts the line back as it was. Before
+this, the first players after each release (up to 16 at once) each uploaded
+the 14 MB executable the release had just given them.
+
 Implementation and validation are recorded below; this source change is not a
 release and has not collected a live player's executable.
 
@@ -231,3 +244,34 @@ world-check above, world-drift (`7fcf3f90b666`, the same `0xa4ccfd` fault), and
 HUD-options (`c963856499a8`, the same `configs.start` assertion). All affected
 Rust checks and the executable-report, distance-detail and replay-file checks
 pass. Real Windows/Wine executable-upload testing and release remain outstanding.
+
+2026-11-12, branch `fix/released-exe-hash`, based on `ec63bb36e` (the release's
+own executable is not collected):
+
+- Implemented: the setting and its type (`executable::Released`, read with the
+  match server's settings at its start), the offer's answer, the release's
+  write of the line at the swap, its rollback, the line the release prints.
+- Tested: the match server's tests and Clippy (683 passed, 19 ignored);
+  `release/test.sh` against its stand-ins (all passed: the line at the swap of
+  `deploy` and `release.sh`, back or gone after a rollback, back in place by the
+  way a refused rollback names).
+- Played, the collection's first run in a game: one headless Wine client (DXVK,
+  an Xorg dummy display), a debug server of this branch with
+  `SRP_RELEASED_EXE_SHA256` the test exe's hash, revision 57 content, a Player vs
+  Bots match on Rudnya, nobody playing.
+  - The exe whose hash the server was given (1920x1080, 17 frames a second):
+    the offer came 105 s after the world (8 KiB hashed a frame), the answer was
+    `Stored`; one offer, one reply, no data packet in 3.5 minutes, and
+    `client-executables/` was never created.
+  - The same exe with one byte of its DOS stub's text changed (1280x720, 42
+    frames a second): the offer 42 s after the world, `Need 0`, 35,208 data
+    packets, `Stored` 387 s after the offer (36 kB/s). The stored file is the
+    changed exe's 14,083,192 bytes and SHA-256, mode 0600 in a folder 0700. Frame
+    times while it ran were those after it (median 22.3 ms against 23.0 ms; 14
+    frames over 100 ms in 387 s against 22 in the 143 s after); the server took
+    31 % of a core against 27 % after (debug build, 15 bots, its packet log on).
+    The match's recording is 9.8 MB (the first run's 3.5 minutes: 1.0 MB).
+- Not seen: Windows; more than one upload at once; a frame rate under 17 (the
+  upload's speed follows the frame rate, and the server gives it ten minutes);
+  the release's swap on a host (only the stand-ins).
+- Released: no.

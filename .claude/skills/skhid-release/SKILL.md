@@ -456,14 +456,22 @@ The order, as it runs:
    atomic; the ZIP goes in while srp26 is stopped, never after its start:
    see below), sets
    `SRP_MIN_PATCH_REVISION=<rev>` (that line only; it must be at least the
-   highest patch, or srp refuses to start) and runs
+   highest patch, or srp refuses to start) and
+   `SRP_RELEASED_EXE_SHA256=<the sha256 of the ZIP's game exe>` (that line
+   only: the match server reads it at its start and asks no game that
+   reports this exe for its file, so the first players of a release do not
+   each upload the exe the release just gave them; any other exe the
+   server has not stored is collected as before) and runs
    `docker compose up -d --no-deps --force-recreate srp26` (after any
    `.env` change the container is made anew, never just restarted).
 6. **Checks**: the container running, healthy, not restarting; the
    log's `game data:` line; `/patches` and `/game` the list's (with any
    rows of `mirrors.tsv` among each file's URLs);
    `/api/client-files` names the new ZIP and (an srp that says it)
-   `min-revision <rev>`. Then srp.db: at its start srp copies it with `VACUUM INTO` to
+   `min-revision <rev>`; and it prints what srp's log says of the
+   release's exe (`Executables: the release's own is sha256 …`; an srp
+   from before the setting says nothing, which is said and fails
+   nothing). Then srp.db: at its start srp copies it with `VACUUM INTO` to
    `backups/srp-<unix>.db` before it opens it, so that copy is the state
    just before the release; it is copied (`docker exec ... cat`) into the
    folder and, from live, to the jump host (`$SKHID_BACKUP_DIR`, default
@@ -592,6 +600,7 @@ Every release keeps a folder on its target:
 | `old-Survarium-0.26g-srp-files.zip`, `old-server-game-data.db` | `download/`'s files before the swap (hard links) |
 | `srp-<unix>.db`, `srp-db.name` | srp.db as it was before the release (srp's own start backup) |
 | `image.old`, `image.new`, `min.old` | the image IDs before and after, `SRP_MIN_PATCH_REVISION` before |
+| `released-exe.old` | the `SRP_RELEASED_EXE_SHA256` line of `.env` before (empty: there was none) |
 | `changed.txt` | the server source files that changed, the ZIP's changed entries |
 | `src.tar`, `old-src.tgz` | with server code: main's source, the tree's files it replaced |
 | `rollback.sh`, `rollback.env` | the rollback (`release/host-rollback.sh`) and what it puts back |
@@ -632,7 +641,8 @@ release/rollback [--test] [--keep-db] release-rev<rev>-<stamp>[-<label>]
 It runs the folder's `rollback.sh <folder>` on the target (by hand there:
 `sh <folder>/rollback.sh <folder> [--keep-db]`, as root): the ZIP and the
 server data from before (renamed into place), `SRP_MIN_PATCH_REVISION`
-back (or its line removed), the server source back, the image that ran
+and `SRP_RELEASED_EXE_SHA256` back (or their lines removed), the server
+source back, the image that ran
 before tagged `srp-026g:latest`, and srp.db as it was before the release
 (the folder's copy; or, when the run did not get to keep one, srp's own
 backup in the volume made by the new start; none at all means the new srp
