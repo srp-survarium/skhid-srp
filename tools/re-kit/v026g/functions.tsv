@@ -2360,3 +2360,12 @@ va	status	ref_021d	name
 0x000829e0	reviewed	0x00059aa0	vostok::physics::collision_shape_cook::on_collision_sources_loaded
 0x003570a0	reviewed		vostok::physics::bt_static_rigid_body::get_triangle_material
 0x00356d00	reviewed	0x0021bc68	vostok::physics::bt_static_rigid_body::get_walker_behaviour
+0x000a36e0	reviewed		btCollisionWorld::convexSweepTest
+0x000a3420	reviewed		btSingleSweepCallback::btSingleSweepCallback
+0x000a14e0	reviewed		btCollisionWorld::objectQuerySingle
+0x000a29f0	reviewed		BridgeTriangleConvexcastCallback::BridgeTriangleConvexcastCallback
+0x000a2a40	reviewed		BridgeTriangleConvexcastCallback::reportHit
+0x000b8510	reviewed		btTriangleConvexcastCallback::btTriangleConvexcastCallback
+0x000b8670	reviewed		btTriangleConvexcastCallback::processTriangle
+0x000b8900	reviewed		btContinuousConvexCollision::computeClosestPoints
+0x000fe5e0	reviewed		vostok::setup_floating_point_control

@@ -13,6 +13,7 @@ game on Windows; nothing here is in the players' download, and nothing is writte
 | `bw_probe.py` | vertical probes of a capture's walker world (what the game has under a recorded body) |
 | `bw_show.py` | one library's game shape beside its export library |
 | `fpu_sample.py` | the control-word sampler by itself (`python fpu_sample.py <pid>`) |
+| `fpu_eip.py` | the engine threads' control words by code range: a sample counts where the thread's own instruction pointer is (the walk tick, `btCollisionWorld`, the convex cast, GJK) (`python fpu_eip.py <pid>`) |
 | `test_bw.py` | the capture format and the walk on a made-up memory image |
 
 ```sh

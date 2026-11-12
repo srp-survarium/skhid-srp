@@ -6260,3 +6260,20 @@ va	name	location	role	basis
 0x00356d00	vostok::physics::bt_static_rigid_body::get_walker_behaviour	ECX	bt_static_rigid_body (+10h its bt_collision_shape)	observed
 0x00356d00	vostok::physics::bt_static_rigid_body::get_walker_behaviour	entry ESP+4	s32 triangle or child shape index	observed
 0x00356d00	vostok::physics::bt_static_rigid_body::get_walker_behaviour	entry ESP+8	bool is_shape_index	observed
+0x000a36e0	btCollisionWorld::convexSweepTest	entry ESP+4	btCollisionWorld (the dynamics world)	observed
+0x000a36e0	btCollisionWorld::convexSweepTest	entry ESP+8	const btConvexShape* castShape	observed
+0x000a36e0	btCollisionWorld::convexSweepTest	entry ESP+12	const btTransform* from	observed
+0x000a36e0	btCollisionWorld::convexSweepTest	entry ESP+16	const btTransform* to	observed
+0x000a36e0	btCollisionWorld::convexSweepTest	entry ESP+20	ConvexResultCallback* resultCallback	observed
+0x000a14e0	btCollisionWorld::objectQuerySingle	entry ESP+4	const btConvexShape* castShape	observed
+0x000a14e0	btCollisionWorld::objectQuerySingle	entry ESP+8	const btTransform* convexFromTrans	observed
+0x000a14e0	btCollisionWorld::objectQuerySingle	entry ESP+12	const btTransform* convexToTrans	observed
+0x000a14e0	btCollisionWorld::objectQuerySingle	entry ESP+16	btCollisionObject* collisionObject	observed
+0x000a14e0	btCollisionWorld::objectQuerySingle	entry ESP+20	const btCollisionShape* collisionShape	observed
+0x000a14e0	btCollisionWorld::objectQuerySingle	entry ESP+24	const btTransform* colObjWorldTransform	observed
+0x000a14e0	btCollisionWorld::objectQuerySingle	entry ESP+28	ConvexResultCallback* resultCallback	observed
+0x000a14e0	btCollisionWorld::objectQuerySingle	entry ESP+32	float allowedPenetration	observed
+0x000b8670	btTriangleConvexcastCallback::processTriangle	ECX	btTriangleConvexcastCallback (+10h from, +50h to, +90h triangle to world, +D0h m_hitFraction, +D4h triangle margin, +D8h allowed penetration)	observed
+0x000b8670	btTriangleConvexcastCallback::processTriangle	entry ESP+4	btVector3* triangle (three corners, 16 bytes each)	observed
+0x000b8670	btTriangleConvexcastCallback::processTriangle	entry ESP+8	int partId	observed
+0x000b8670	btTriangleConvexcastCallback::processTriangle	entry ESP+12	int triangleIndex	observed

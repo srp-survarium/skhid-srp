@@ -129,3 +129,6 @@ vtable	slot	va	class	base	basis
 0x00a1f258	0x14	0x00356d00	vostok::physics::bt_static_rigid_body	vostok::physics::base_physics_object	observed: the walker behaviour of a face (the face data word's top two bits), the vcall of the character controller's down-sweep callback 0x84420
 0x009e2af4	0x10	0x00070c00	vostok::physics::bt_animated_rigid_body	vostok::physics::base_physics_object	observed: get_triangle_material (the word at +38h)
 0x009e2af4	0x14	0x00070c10	vostok::physics::bt_animated_rigid_body	vostok::physics::base_physics_object	observed: the walker behaviour of a face: always 0
+0x009e4820	0x04	0x000b8670	BridgeTriangleConvexcastCallback	btTriangleConvexcastCallback	observed: made at 0xA2A23 (objectQuerySingle's triangle mesh branch); processTriangle
+0x009e4820	0x08	0x000a2a40	BridgeTriangleConvexcastCallback	btTriangleConvexcastCallback	observed: reportHit: a hit at or under the result callback's closest fraction goes to its addSingleResult
+0x009e4e80	0x04	0x000b9320	btContinuousConvexCollision	btConvexCast	observed: made on the stack at 0xA15B9 (primitives) and 0xB8749 (triangles); calcTimeOfImpact
