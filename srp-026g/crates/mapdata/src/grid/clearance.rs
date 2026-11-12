@@ -9,7 +9,9 @@
 //! The clearance of a floor is the radius plus how far the nearest wall is from touching the standing capsule there: a wall in the
 //! cylinder's band at ground distance `d` gives `d`; a wall in the round top, at `h` metres over the cylinder's top and ground
 //! distance `d`, touches at the reach `sqrt(r^2 - h^2)`, so it gives `d + r - reach`. So **a clearance of at least the radius means
-//! the capsule fits** (no wall touches it), and 0.41 m is the controller's hold. One byte a floor, [`CLEARANCE_STEP_M`] a step,
+//! the capsule fits** (no wall touches it), and 0.42 m is the walking controller's hold (the radius and
+//! `cc_move_step_margin` 0.04: a walking body's centre is held 0.4200 m off a wall head-on, measured with the exact tick, A364 C2
+//! row 51; sprinting or crouched, 0.38). One byte a floor, [`CLEARANCE_STEP_M`] a step,
 //! up to [`CLEARANCE_MAX_M`].
 
 use super::exact::Walls;
@@ -66,7 +68,7 @@ impl WalkGrid {
         let (i, k) = self.cell_xz(self.cell_of[a] as usize);
         let (x, z) = (self.x0 + (i as f32 + 0.5) * self.cell, self.z0 + (k as f32 + 0.5) * self.cell);
         let feet = self.height[a];
-        let (step, top) = (feet + self.body.step, feet + self.body.stand_height);
+        let (step, top) = (feet + self.body.walked_step(), feet + self.body.stand_height);
         let radius = self.body.radius;
         // No wall within the table's reach anywhere in the band: the common case, one look.
         if walls.nearest(x, z, step, top, CLEARANCE_MAX_M).is_none() {
