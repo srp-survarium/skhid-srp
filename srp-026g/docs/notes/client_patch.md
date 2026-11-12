@@ -3459,56 +3459,71 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eight lohooks; its boundary `
 
 ### Distance detail option
 
-`detail_026g.asm` lives in the linked `detail.code` arena block. One existing
-native command, `r_use_texture_streaming`, owns the setting. No shadow bool or
-second settings file is introduced. The active render-options pointer is
-`[0x2260498]`, streaming at `+0x132`. Native registration at `0x3CE2BE` binds
-current and previous values (`+0x25E`), serializable user command, reload
-reason 2. `render_cc_bool::execute` at `0x3CD180` copies current to previous
-before parsing the new value. The menu's pending choice does not alter
-render state until its native Apply (`0x261820`). Cancel (`0x261880`) restores
-the option's saved baseline. Existing renderer option processing owns reload.
+`detail_026g.asm` lives in the linked `detail.code` arena block. Graphics item
+19 is an `options_item_int`, type `string_selector` (1), constructed by the
+same `0x261100` constructor as texture/geometry quality. It has two localized
+choices: Normal (0) and Maximum (1). Flash only places the stock arrow picker;
+its value, data provider, setters, Apply/Cancel and preset notifications use
+the ordinary Settings path. There is no Flash value conversion or preset
+synchronization handler.
 
-The graphics-tab allocation/count at `0x262753` grows from 19 to 20. Both
-constructor exits (`0x262C08`, `0x262C17`) append native `options_item_bool`
-item 19, using the generated `engine_options_item` thunk for the observed
-constructor ABI at `0x260E90`. Native allocation, callbacks, destructor,
-Apply/Cancel and console persistence are retained. The label array count
-(`0x2007B6`), emission count (`0x200B10`) and newly initialized twentieth
-buffer at `ESI + 19*0x4C` in `fill_settings_data` use
-`st_distance_detail_option`. Flash maps option 19 to the same arrow picker as
-the quality rows. Its localized label carries `title|normal|maximum`; the
-content manifest supplies all six translations. Settings converts the native
-boolean at its incoming single/bulk value and outgoing setter boundaries:
-Normal index 0 is native 1; Maximum index 1 is native 0. Pending UI values
-stay in picker order, including Apply/Cancel and tab revisits. Existing option
-ids stay fixed. The Graphics preset change handler stages option 19 through
-its existing setter (Ultra -> Maximum, other named presets -> Normal). A
-manual mismatch selects Custom through option 8's existing setter. Both
-controls use normal Settings change tracking and native Apply/Cancel, with
-no second saved preset state.
+The existing serialized `r_use_texture_streaming` command remains the storage
+owner. The integer option's vtable keeps native `call`, `fill_data`,
+`fill_value` and `revert`. Only initialize and Apply convert between choice
+index and streaming boolean: Normal -> on, Maximum -> off. Initialize reads
+the command's boolean once. Apply copies a temporary native bool receiver on
+the stack and calls native bool Apply (`0x261820`) through the engine library.
+That retains `render_cc_bool::execute` (`0x3CD180`), previous-value tracking
+and renderer texture reload. The integer saved/pending bytes are at +1E/+1D;
+the renderer reads its active options (`[0x2260498]`, streaming +132), never
+an unapplied menu choice. The temporary receiver cannot escape Apply.
+
+The native preset selector (`0x2620A0`) and native integer option's Custom
+comparison (`0x261310`) each iterate eleven entries. The first ten retain the
+engine's live, config-populated table at `0x1F1B188`; the extra entry is option
+19, value 1 for Ultra (preset 4), 0 for presets 0..3. Custom (5) changes no
+individual values. The native Default graphics loop (`0x1FF460`) also appends
+option 19, Maximum, after its original ten rows. Hooks at `0x261350` and
+`0x2620DA` avoid overwriting the original table-address relocations. The loop
+counts and default-loop continuation are the only other preset changes.
+
+The graphics allocation/count grows 19 -> 20 (`0x262753`); both constructor
+exits append the option. The label array/counts (`0x2007B6`, `0x200B10`) include
+`st_distance_detail_option`. Native integer `fill_data` translates the two
+choice keys. The content manifest provides title and choices in all six
+languages. Existing option ids stay fixed.
 
 When streaming is off, the renderer hooks select maximum detail:
 
 | Hook | Native behavior retained or changed |
 | --- | --- |
 | `0x16EEF7`, static model selector | Missing LOD0 still returns `0xAA`; otherwise use native LOD0 return, bypassing distance/projected-box thresholds. |
-| `0x158D26`, material selector | Return shader LOD0. Adaptive mode retains `r_use_shader_lods` and shading-quality behavior. |
-| `0x1605E0`, grass culling | Keep the initialized LOD0, then execute the native available-LOD clamp. Normal visibility culling remains. |
-| `0x3D9C43`, effect texture request | Native streaming-off path already requests all mips (`-1`); additionally set mip-cut to zero, overriding the texture-quality top-mip cut. |
+| `0x158D26`, material selector | Return shader LOD0. Normal retains native shader LOD and shading-quality behavior. |
+| `0x1605E0`, grass culling | Keep initialized LOD0, then execute the native available-LOD clamp. Visibility culling remains. |
+| `0x3D9C43`, texture request | Native non-streamed request already asks for all mips; keep top levels by setting mip-cut to zero. |
 
-Adaptive mode replays every displaced instruction. Full detail does not
-remove GPU mipmaps: the complete chain stays available for normal hardware
-filtering. `r_grass_lod1_distance` / `r_grass_lod2_distance` still govern
-adaptive grass. `r_debug_use_skeletel_mesh_lods` has registration but no
-identified reader in this executable; no speculative skeletal hook is added.
-Explicitly requested LODs and terrain-specific rendering are not rewritten.
+Normal replays the displaced instructions. Full detail keeps hardware mip
+filtering and the full mip chain. Explicit LOD requests, skeletal and terrain
+rendering are not rewritten. Hospital reproduction inputs and geometry counts
+remain in `scripts/distance-detail/reproduction.txt`; those are not FPS costs.
 
-Native measurements, including the hospital's projected extent crossing
-0.4 at the supplied camera poses, are documented with the reproducible
-asset-based harness in `scripts/distance-detail/reproduction.txt`. The native
-fixture verifies Apply changes current and retains previous, Cancel leaves
-current intact, default behavior matches the original, and maximum mode
-keeps LOD0. Windows CRT formatting and allocators are mocked at their boundary;
-the actual option constructor and bool parsing execute. No runtime reload,
-GPU rendering or save/restart cycle has been played yet.
+Validation: `check_detail_026g.py` executes native constructor, all five preset
+callbacks, Custom matching/mismatch, Default, UInt selection and fill_value,
+Cancel, Apply and reinitialize. Initialize and Apply run through the real
+options_tab virtual call sites. Only allocation, CRT formatting and GFx
+Movie::Invoke boundaries are mocked. Native renderer selection tests remain.
+The Ruffle harness consumes those native callback traces and clicks both arrow
+buttons repeatedly, checks Apply enabling/clearing, Cancel restoration,
+presets, tab revisits and translations. Run:
+
+```
+python check_detail_026g.py original.exe --out /tmp/detail-native
+../scripts/distance-detail/check.sh main_menu.swf /tmp/detail-ui /tmp/detail-native/native-check.json
+```
+
+The earlier checkbox-backed picker plus Flash conversion failed in the live
+game (Ultra kept Normal, arrow direction and Apply state were wrong). Its
+synthetic identity-setter test did not model the native callbacks. That adapter
+and test have been replaced. Native/UI checks are separate from a played
+save/restart and FPS/VRAM comparison; the corrected version still needs that
+live validation before release.

@@ -1,41 +1,113 @@
 {
-  "_about": "Graphics option 19: localized picker title|normal|maximum; native r_use_texture_streaming remains the saved boolean. Normal uses distance detail; Maximum keeps full textures, models and materials. Native Apply reloads textures.",
+  "_about": "Native integer graphics option 19. Choices and preset membership use the stock options system. Only its load/apply methods convert Normal/Maximum to the existing streaming command.",
   "add_key": [
     {
       "file": "localization/english/localization",
       "table": "strings",
       "key": "st_distance_detail_option",
-      "text": "Distance detail|Normal|Maximum"
+      "text": "Distance detail"
+    },
+    {
+      "file": "localization/english/localization",
+      "table": "strings",
+      "key": "st_distance_detail_normal",
+      "text": "Normal"
+    },
+    {
+      "file": "localization/english/localization",
+      "table": "strings",
+      "key": "st_distance_detail_maximum",
+      "text": "Maximum"
     },
     {
       "file": "localization/german/localization",
       "table": "strings",
       "key": "st_distance_detail_option",
-      "text": "Detailgrad|Normal|Maximal"
+      "text": "Detailgrad"
+    },
+    {
+      "file": "localization/german/localization",
+      "table": "strings",
+      "key": "st_distance_detail_normal",
+      "text": "Normal"
+    },
+    {
+      "file": "localization/german/localization",
+      "table": "strings",
+      "key": "st_distance_detail_maximum",
+      "text": "Maximal"
     },
     {
       "file": "localization/polish/localization",
       "table": "strings",
       "key": "st_distance_detail_option",
-      "text": "Szczegółowość|Normalna|Maksymalna"
+      "text": "Szczegółowość"
+    },
+    {
+      "file": "localization/polish/localization",
+      "table": "strings",
+      "key": "st_distance_detail_normal",
+      "text": "Normalna"
+    },
+    {
+      "file": "localization/polish/localization",
+      "table": "strings",
+      "key": "st_distance_detail_maximum",
+      "text": "Maksymalna"
     },
     {
       "file": "localization/russian/localization",
       "table": "strings",
       "key": "st_distance_detail_option",
-      "text": "Детализация|Обычная|Максимум"
+      "text": "Детализация"
+    },
+    {
+      "file": "localization/russian/localization",
+      "table": "strings",
+      "key": "st_distance_detail_normal",
+      "text": "Обычная"
+    },
+    {
+      "file": "localization/russian/localization",
+      "table": "strings",
+      "key": "st_distance_detail_maximum",
+      "text": "Максимум"
     },
     {
       "file": "localization/original/localization",
       "table": "strings",
       "key": "st_distance_detail_option",
-      "text": "Детализация|Обычная|Максимум"
+      "text": "Детализация"
+    },
+    {
+      "file": "localization/original/localization",
+      "table": "strings",
+      "key": "st_distance_detail_normal",
+      "text": "Обычная"
+    },
+    {
+      "file": "localization/original/localization",
+      "table": "strings",
+      "key": "st_distance_detail_maximum",
+      "text": "Максимум"
     },
     {
       "file": "localization/ukrainian/localization",
       "table": "strings",
       "key": "st_distance_detail_option",
-      "text": "Деталізація|Звичайна|Максимум"
+      "text": "Деталізація"
+    },
+    {
+      "file": "localization/ukrainian/localization",
+      "table": "strings",
+      "key": "st_distance_detail_normal",
+      "text": "Звичайна"
+    },
+    {
+      "file": "localization/ukrainian/localization",
+      "table": "strings",
+      "key": "st_distance_detail_maximum",
+      "text": "Максимум"
     }
   ]
 }

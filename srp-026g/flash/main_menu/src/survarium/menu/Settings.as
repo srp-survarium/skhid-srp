@@ -158,7 +158,6 @@ package survarium.menu
       {
          var control:*;
          trace("setValue");
-         value = SrpDistanceDetail.value(tabIndex,elementId,value);
          this._content_values[tabIndex][elementId] = value;
          if(isBaseline)
          {
@@ -180,12 +179,11 @@ package survarium.menu
          var control:*;
          while(i < values.length)
          {
-            var choice:Number = SrpDistanceDetail.value(tabIndex,values[i].id,values[i].value);
-            this._content_values[tabIndex][values[i].id] = choice;
+            this._content_values[tabIndex][values[i].id] = values[i].value;
             if(isBaseline)
             {
                control = this.settings_content[this._element_map[tabIndex][values[i].id]];
-               this._elements[control] = choice;
+               this._elements[control] = values[i].value;
             }
             i++;
          }
@@ -692,7 +690,7 @@ package survarium.menu
             control = this.settings_content[this._element_map[this.tabs.selectedIndex][i]];
             if(control)
             {
-               setting = tabIndex == 2 && i == 19 ? SrpDistanceDetail.setting(settings[i]) : settings[i];
+               setting = settings[i];
                this._setters[control] = setting.setter;
                if(setting)
                {
@@ -831,25 +829,6 @@ package survarium.menu
          {
             this._changed[event.target] = 0;
             _changes -= 1;
-         }
-         // Distance detail is a member of the Graphics preset, just like
-         // the native quality rows. Use the same pending setters and change
-         // tracking; Apply/Cancel still belong to the native options tab.
-         if(!this._ignoreChange && this.tabs.selectedIndex == 2)
-         {
-            var preset:OptionStepper = this.settings_content["_overall_graphics"];
-            var detail:OptionStepper = this.settings_content["_distance_detail"];
-            if(event.target == preset && preset.selectedIndex >= 0 && preset.selectedIndex < 5)
-            {
-               detail.selectedIndex = preset.selectedIndex == 4 ? 1 : 0;
-               detail.validateNow();
-            }
-            else if(event.target == detail && preset.selectedIndex >= 0 && preset.selectedIndex < 5
-                    && detail.selectedIndex != (preset.selectedIndex == 4 ? 1 : 0))
-            {
-               preset.selectedIndex = 5; // Custom: the pending detail differs from the preset.
-               preset.validateNow();
-            }
          }
          this.checkButtons();
       }

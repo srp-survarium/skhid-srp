@@ -1144,7 +1144,6 @@ va	status	ref_021d	name
 0x001fec90	inferred-medium	0x0015d8d9	stlp_std::priv::_Rb_tree<enum vostok::input::enum_keyboard,stlp_std::less<enum vostok::input::enum_keyboard>,stlp_std::pair<enum vostok::input::enum_keyboard const ,survarium::dik_to_swf_bind>,stlp_std::priv::_Select1st<stlp_std::pair<enum vostok::input::enum_keyboard const ,survarium::dik_to_swf_bind> >,stlp_std::priv::_MapTraitsT<stlp_std::pair<enum vostok::input::enum_keyboard const ,survarium::dik_to_swf_bind> >,survarium::std_allocator<stlp_std::pair<enum vostok::input::enum_keyboard,survarium::dik_to_swf_bind> > >::_M_insert
 0x001fef90	inferred-medium		survarium::text_translator::expand_text
 0x001ff410	inferred-medium	0x0015dc55	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf1<void,survarium::text_translator,vostok::resources::queries_result &>,boost::_bi::list2<boost::_bi::value<survarium::text_translator *>,boost::arg<1> > > >::manager
-0x001ff460	inferred-medium	0x0015dc9e	survarium::game_options::apply_default_graphic
 0x001ff5d0	inferred-medium	0x0015dd31	survarium::game_options::scaleform_callback
 0x001ff980	inferred-medium	0x0015dfcf	survarium::game_options::show_options
 0x001ff9e0	inferred-medium	0x0015e015	survarium::game_options::game_options
@@ -1562,13 +1561,6 @@ va	status	ref_021d	name
 0x0025f520	inferred-medium	0x00195a47	survarium::artefact<survarium::artefact_onyx_core>::~artefact<survarium::artefact_onyx_core>
 0x0025fa60	inferred-medium	0x00195e83	survarium::artefact<survarium::artefact_rattle_core>::~artefact<survarium::artefact_rattle_core>
 0x00260fd0	inferred-medium	0x00196915	survarium::options_item_base::revert
-0x00261100	inferred-medium	0x0019699a	survarium::options_item_int::options_item_int
-0x00261130	inferred-medium	0x001969c8	survarium::options_item_int::initialize
-0x00261150	inferred-medium	0x001969e4	survarium::options_item_int::fill_data
-0x00261260	inferred-medium	0x00196a67	survarium::options_item_int::fill_value
-0x002612a0	inferred-medium	0x00196a7a	survarium::options_item_int::apply
-0x00261300	inferred-medium	0x00196ac3	survarium::options_item_int::revert
-0x00261310	inferred-medium	0x00196ace	survarium::options_item_int::scaleform_call
 0x00261510	inferred-medium	0x00196c14	survarium::options_item_float::fill_data
 0x00261690	inferred-medium	0x00196cca	survarium::options_item_float::fill_value
 0x00261750	inferred-medium	0x00196d33	survarium::options_item_float::revert
@@ -1584,11 +1576,8 @@ va	status	ref_021d	name
 0x00261f40	inferred-medium	0x001972ae	survarium::options_monitor_index_selector::options_monitor_index_selector
 0x00262020	inferred-medium	0x00197363	survarium::options_monitor_index_selector::scaleform_call
 0x00262060	inferred-medium	0x00197378	survarium::options_monitor_index_selector::revert
-0x002620a0	inferred-medium	0x001973af	survarium::options_graphics_quality_selector::scaleform_call
 0x00262300	inferred-medium	0x00197474	survarium::options_tab::options_tab
 0x00262f00	inferred-medium	0x00197c1f	survarium::options_tab::~options_tab
-0x00262ff0	inferred-medium	0x00197c8c	survarium::options_tab::apply
-0x002630a0	inferred-medium	0x00197d24	survarium::options_tab::initialize_data
 0x002636b0	inferred-medium		survarium::lobby_character::start_decal_edit
 0x00263950	inferred-medium		survarium::lobby_character::accept_decal_edit
 0x00263a70	inferred-medium		survarium::lobby_character::cancel_decal_edit

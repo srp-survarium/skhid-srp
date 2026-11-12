@@ -4,25 +4,10 @@ package
     import flash.display.MovieClip;
     import survarium.menu.Settings;
 
-    // Native video option 19 remains r_use_texture_streaming (1 adaptive,
-    // 0 maximum). Convert at the Settings boundary; the UI uses increasing
-    // quality: Normal = 0, Maximum = 1. Native Apply/Cancel owns the value.
+    // Placement only. Native options_item_int supplies the localized choices,
+    // values, preset membership, change notifications and Apply/Cancel.
     public class SrpDistanceDetail
     {
-        public static function value(tab:uint, id:uint, nativeValue:Number):Number
-        {
-            return tab == 2 && id == 19 ? 1 - nativeValue : nativeValue;
-        }
-
-        public static function setting(nativeSetting:Object):Object
-        {
-            // One localized native label carries title|normal|maximum.
-            var texts:Array = nativeSetting.label.split("|");
-            var setter:Function = nativeSetting.setter;
-            return {label:texts[0], dataProvider:[texts[1], texts[2]],
-                    setter:function(index:int):int { return 1 - int(setter(1 - index)); }};
-        }
-
         public static function apply(settings:Settings):void
         {
             var content:MovieClip = settings.settings_content;

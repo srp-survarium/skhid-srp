@@ -4,7 +4,8 @@
 ; A function called directly (or an import) is its address alone.
 bits 32
 section .text
-global engine_options_item
+global engine_options_int
+global engine_options_bool_apply
 global engine_cfg_child
 global engine_cfg_has
 global engine_malloc
@@ -311,18 +312,34 @@ engine_err_put_error equ 0x44a270   ; 0x44a270 ERR_put_error: library ESP+4, fun
 engine_rand_bytes equ 0x46b6e0   ; 0x46b6e0 ssleay_rand_bytes: room ESP+4, length ESP+8; pops 0; EAX; cdecl, called directly
 engine_cc_delegate_execute equ 0xec830   ; 0xec830 vostok::console_commands::cc_delegate::execute: command ECX, arguments ESP+4; pops 4; thiscall, called directly
 
-engine_options_item:
-    ; 0x260e90 survarium::options_item_base::options_item_base: receiver EDI, command EAX, parent ESP+4, id ESP+8, type ESP+12; pops 12
+engine_options_int:
+    ; 0x261100 survarium::options_item_int::options_item_int: parent ECX, id EAX, receiver ESP+4, command ESP+8, values ESP+12, count ESP+16; pops 16; EAX
     push ebp
     push ebx
     push esi
     push edi
-    push dword [esp + 36]   ; type -> 12
-    push dword [esp + 36]   ; id -> 8
-    push dword [esp + 36]   ; parent -> 4
-    mov edi, [esp + 32]   ; receiver
-    mov eax, [esp + 36]   ; command
-    call 0x260e90
+    push dword [esp + 40]   ; count -> 16
+    push dword [esp + 40]   ; values -> 12
+    push dword [esp + 40]   ; command -> 8
+    push dword [esp + 40]   ; receiver -> 4
+    mov ecx, [esp + 36]   ; parent
+    mov eax, [esp + 40]   ; id
+    call 0x261100
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_options_bool_apply:
+    ; 0x261820 survarium::options_item_bool::apply: receiver ECX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; receiver
+    call 0x261820
     pop edi
     pop esi
     pop ebx

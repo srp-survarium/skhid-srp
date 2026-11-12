@@ -11,8 +11,10 @@ use core::ffi::c_void;
 
 #[allow(dead_code)]
 unsafe extern "C" {
-    /// 0x260e90 survarium::options_item_base::options_item_base: receiver EDI, command EAX, parent ESP+4, id ESP+8, type ESP+12; pops 12
-    pub fn engine_options_item(receiver: *mut c_void, command: *const u8, parent: *mut c_void, id: u32, r#type: u32);
+    /// 0x261100 survarium::options_item_int::options_item_int: parent ECX, id EAX, receiver ESP+4, command ESP+8, values ESP+12, count ESP+16; pops 16; EAX
+    pub fn engine_options_int(parent: *mut c_void, id: u32, receiver: *mut c_void, command: *const u8, values: *const *const u8, count: u32) -> *mut c_void;
+    /// 0x261820 survarium::options_item_bool::apply: receiver ECX; pops 0
+    pub fn engine_options_bool_apply(receiver: *mut c_void);
     /// 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
     pub fn engine_cfg_child(table: *const c_void, key: *const u8) -> *const c_void;
     /// 0xf6c00 vostok::configs::binary_config_value::value_exists: table EAX, key ESI; pops 0; AL

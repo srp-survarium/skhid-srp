@@ -128,8 +128,11 @@ struct usable_user;
 struct weapon_locator;
 struct world_user;
 
-/* 0x260e90 survarium::options_item_base::options_item_base: receiver EDI, command EAX, parent ESP+4, id ESP+8, type ESP+12; pops 12 */
-void engine_options_item(void *receiver, const char *command, void *parent, unsigned int id, unsigned int type);
+/* 0x261100 survarium::options_item_int::options_item_int: parent ECX, id EAX, receiver ESP+4, command ESP+8, values ESP+12, count ESP+16; pops 16; EAX */
+void *engine_options_int(void *parent, unsigned int id, void *receiver, const char *command, const char *const *values, unsigned int count);
+
+/* 0x261820 survarium::options_item_bool::apply: receiver ECX; pops 0 */
+void engine_options_bool_apply(void *receiver);
 
 /* 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX */
 const struct engine_cfg *engine_cfg_child(const struct engine_cfg *table, const char *key);

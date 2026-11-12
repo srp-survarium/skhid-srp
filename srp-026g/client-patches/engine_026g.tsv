@@ -1,5 +1,6 @@
 symbol	va	arguments	prototype	call	vostok
-engine_options_item	0x260e90	EDI:receiver EAX:command ESP+4:parent ESP+8:id ESP+12:type	void engine_options_item(void *receiver, const char *command, void *parent, unsigned int id, unsigned int type)	thunk
+engine_options_int	0x261100	ECX:parent EAX:id ESP+4:receiver ESP+8:command ESP+12:values ESP+16:count	void *engine_options_int(void *parent, unsigned int id, void *receiver, const char *command, const char *const *values, unsigned int count)	thunk
+engine_options_bool_apply	0x261820	ECX:receiver	void engine_options_bool_apply(void *receiver)	thunk
 engine_cfg_child	0x0f6b10	EAX:table EDI:key	const struct engine_cfg *engine_cfg_child(const struct engine_cfg *table, const char *key)	thunk	
 engine_cfg_has	0x0f6c00	EAX:table ESI:key	unsigned int engine_cfg_has(const struct engine_cfg *table, const char *key)	thunk	
 engine_malloc	0x0e4f90	ESI:allocator EAX:size ESP+4:description	void *engine_malloc(void *allocator, unsigned int size, const void *where)	thunk	

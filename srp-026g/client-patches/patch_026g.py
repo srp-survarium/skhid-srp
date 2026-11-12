@@ -2801,6 +2801,9 @@ INSTALLS[0x3B3340] = (ENTRY, "time_channel::domain: animation_math_domain, the s
 # Distance-based detail: native streaming command owns Apply/Cancel/save.
 # Full detail also selects LOD0 and keeps the top texture levels.
 DETAIL_HOOKS = (
+    (0x261350, bytes.fromhex("0fb6c103c7"), "detail_preset_compare", 0xE9),
+    (0x2620DA, bytes.fromhex("8d04808d3c41"), "detail_preset_address", 0xE9),
+    (0x1FF5B6, bytes.fromhex("83c508836c241001"), "detail_default_next", 0xE9),
     (0x262C08, bytes.fromhex("8bc35f5e5b"), "detail_options", 0xE9),
     (0x262C17, bytes.fromhex("8bc35f5e5b"), "detail_options", 0xE9),
     (0x2009B9, bytes.fromhex("8d8658050000"), "detail_label", 0xE9),
@@ -2810,6 +2813,9 @@ DETAIL_HOOKS = (
     (0x3D9C43, bytes.fromhex("8b9194810800"), "detail_texture", 0xE9),
 )
 DETAIL_PATCHES = (
+    (0x261373, bytes.fromhex("80f90a"), bytes.fromhex("80f90b")),
+    (0x2620CA, bytes.fromhex("c74424100a000000"), bytes.fromhex("c74424100b000000")),
+    (0x1FF46C, bytes.fromhex("c74424100a000000"), bytes.fromhex("c74424100b000000")),
     (0x262753, bytes.fromhex("bf13000000c6430413"), bytes.fromhex("bf14000000c6430414")),
     (0x2007B6, bytes.fromhex("6a13"), bytes.fromhex("6a14")),
     (0x200B10, bytes.fromhex("b313"), bytes.fromhex("b314")),
@@ -2843,6 +2849,10 @@ BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
 # its script does not have (test_call_shapes).
 RESEARCH_CHECK = "check_research_026g.py"
 INSTALLED_VTABLES = (
+    ("Distance detail's integer option", "detail.code", "detail_option_vtable", 0xA0670C, 6, 2, {
+        1: ("check_detail_026g.py", "driven: initialize through options_tab::initialize_data at 0x263163"),
+        4: ("check_detail_026g.py", "driven: Apply through options_tab::apply at 0x263000"),
+    }),
     ("Research's rule", "research.code", "rn_rule_vtable", 0xA15DA4, 20, 9, {
         7: (RESEARCH_CHECK, "driven: slot 7, on_event(type, data, time), through the dispatcher 0x2D1EA0"),
         8: (RESEARCH_CHECK, "driven: slot 8, entered(place, time), through the world's loop 0x2D2010"),

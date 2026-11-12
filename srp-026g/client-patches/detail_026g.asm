@@ -1,30 +1,33 @@
 ; Distance-based detail, native r_use_texture_streaming owns the setting.
 ; Its render-options command already handles Apply, Cancel, saving and reload.
-; The renderer's active options, never the menu's pending checkbox, decide LOD.
+; A native integer option participates in the stock graphics preset system.
 BITS 32
 %include "engine_026g.inc"
 global detail_options, detail_label, detail_model, detail_shader, detail_texture, detail_grass
+global detail_option_vtable, detail_initialize, detail_apply
+global detail_preset_compare, detail_preset_address, detail_default_next
 section .text
 
 ; Both graphics-tab constructor exits, after all original items were stored.
 ; EBX owns the tab; its array and count have been extended to 20 items.
 detail_options:
     push detail_allocation
-    push 0x1c
+    push 0x20
     push dword [0x1f1d9c4]
     call engine_malloc
     add esp, 12
     test eax, eax
     jz .store
     mov edi, eax
-    push 0                         ; native boolean option
-    push 19                        ; appended item, existing ids unchanged
-    push ebx
-    push 0xa2844c                  ; r_use_texture_streaming
+    push 2
+    push detail_values
+    push 0xa2844c                  ; existing r_use_texture_streaming command
     push edi
-    call engine_options_item
-    add esp, 20
-    mov dword [edi], 0xa06744      ; native options_item_bool vtable
+    push 19
+    push ebx
+    call engine_options_int
+    add esp, 24
+    mov dword [edi], detail_option_vtable + 4
     mov eax, edi
 .store:
     mov edx, [ebx]
@@ -34,6 +37,88 @@ detail_options:
     pop esi
     pop ebx
     ret 8
+
+; Native integer lifecycle; only storage conversion differs. Normal (0)
+; maps to streaming on, Maximum (1) to off. No conversion in ActionScript.
+detail_initialize:
+    mov eax, [ecx+8]
+    test eax, eax
+    jz .normal
+    mov eax, [eax+0x40]
+    cmp byte [eax], 0
+    sete al
+    jmp .store
+.normal:
+    xor eax, eax
+.store:
+    mov [ecx+0x1d], al
+    mov [ecx+0x1e], al
+    ret
+
+detail_apply:
+    push esi
+    push edi
+    movzx edx, byte [ecx+0x1d]
+    mov [ecx+0x1e], dl
+    xor edx, 1
+    ; A temporary native bool receiver uses the existing command's Apply,
+    ; including renderer reload tracking. It cannot escape this call.
+    sub esp, 0x1c
+    mov esi, ecx
+    mov edi, esp
+    mov ecx, 7
+    rep movsd
+    mov [esp+0x18], edx
+    push esp
+    call engine_options_bool_apply
+    add esp, 0x20
+    pop edi
+    pop esi
+    ret
+
+; The game's first ten entries are populated from its graphics preset data.
+; Keep those exact entries and append detail to the same native loops.
+detail_preset_compare:
+    cmp cl, 10
+    je .detail
+    movzx eax, cl
+    add eax, edi
+    lea eax, [eax*8+0x1f1b188]
+    jmp .compare
+.detail:
+    mov eax, detail_preset_normal
+    cmp edi, 40                    ; Ultra row index 4 * original stride 10
+    jne .compare
+    mov eax, detail_preset_maximum
+.compare:
+    cmp [eax], ebp
+    jmp 0x261363
+
+detail_preset_address:
+    cmp ecx, 10
+    je .detail
+    lea eax, [eax+eax*4]
+    lea edi, [ecx+eax*2]
+    lea edi, [edi*8+0x1f1b188]
+    jmp 0x2620e7
+.detail:
+    mov edi, detail_preset_normal
+    cmp eax, 4
+    jne .done
+    mov edi, detail_preset_maximum
+.done:
+    jmp 0x2620e7
+
+detail_default_next:
+    add ebp, 8
+    sub dword [esp+0x10], 1
+    pushfd
+    cmp dword [esp+0x14], 1
+    jne .done
+    mov ebp, detail_preset_maximum
+.done:
+    popfd
+    jmp 0x1ff5be
 
 ; fill_settings_data: its twentieth label buffer is initialized by the
 ; enlarged native array constructor. Preserve the preceding comparison flags.
@@ -97,5 +182,15 @@ detail_texture:
     jmp 0x3d9c49
 
 section .rodata
+align 4
+; RTTI locator followed by the six standard options_item_int slots.
+detail_option_vtable:
+    dd 0xa4c770
+    dd 0x261310, detail_initialize, 0x261150, 0x261260, detail_apply, 0x261300
+detail_values: dd detail_normal_key, detail_maximum_key
+detail_preset_normal: dd 19, 0
+detail_preset_maximum: dd 19, 1
+detail_normal_key: db "st_distance_detail_normal", 0
+detail_maximum_key: db "st_distance_detail_maximum", 0
 detail_allocation: db "distance detail option", 0
 detail_label_key: db "st_distance_detail_option", 0

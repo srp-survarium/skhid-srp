@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check.sh <main_menu.swf> [work dir]: distance detail in isolated CPU Ruffle.
+# check.sh <main_menu.swf> <work dir> <native-check.json>: real callback traces in CPU Ruffle.
 set -euo pipefail
 here=$(dirname "$(readlink -f "$0")")
 lobby=$(readlink -f "$1")
@@ -11,6 +11,8 @@ if [[ $# -ge 2 ]]; then
 else
     work=$(mktemp -d)
 fi
+
+cp "${3:?native-check.json from check_detail_026g.py is required}" "$work/native-check.json"
 
 java=$(sed -n 's/.*"java": *"\([^"]*\)".*/\1/p' "$tools")
 flex=$(sed -n 's/.*"flex": *"\([^"]*\)".*/\1/p' "$tools")

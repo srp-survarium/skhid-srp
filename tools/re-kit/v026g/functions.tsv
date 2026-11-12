@@ -2325,3 +2325,14 @@ va	status	ref_021d	name
 0x000f70f0	reviewed		vostok::resources::resource_base::resource_base
 0x0010a590	reviewed		vostok::resources::managed_resource::managed_resource
 0x001ee3c0	observed		survarium::game::enqueue_replay_seek_to
+0x001ff460	reviewed	0x0015dc9e	survarium::game_options::apply_default_graphic
+0x00261100	reviewed	0x0019699a	survarium::options_item_int::options_item_int
+0x00261130	reviewed	0x001969c8	survarium::options_item_int::initialize
+0x00261150	reviewed	0x001969e4	survarium::options_item_int::fill_data
+0x00261260	reviewed	0x00196a67	survarium::options_item_int::fill_value
+0x002612a0	reviewed	0x00196a7a	survarium::options_item_int::apply
+0x00261300	reviewed	0x00196ac3	survarium::options_item_int::revert
+0x00261310	reviewed	0x00196ace	survarium::options_item_int::scaleform_call
+0x002620a0	reviewed	0x001973af	survarium::options_graphics_quality_selector::scaleform_call
+0x00262ff0	reviewed	0x00197c8c	survarium::options_tab::apply
+0x002630a0	reviewed	0x00197d24	survarium::options_tab::initialize_data

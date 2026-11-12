@@ -5535,7 +5535,9 @@ command controls the setting (`off` for maximum, `on` for adaptive detail).
 Hardware mip filtering and visibility culling remain active.
 The Graphics presets include this row: Ultra selects Maximum; Minimum, Low,
 Medium and High select Normal. Changing this row away from the selected
-preset selects Custom through the same native preset setter.
+preset selects Custom through the native integer-option comparison. The
+option uses the same native integer option and preset loops as the other
+quality rows; Flash only places the stock arrow picker.
 
 The screenshot's hospital model switches LOD1 → LOD0 when the view turns
 5.4° at the same player position. Executing the original selector with the
@@ -5548,7 +5550,9 @@ Validation: `check_detail_026g.py` executes native model/material/grass/texture
 paths and menu Apply/Cancel in Unicorn; `selftest_026g.py::test_detail` checks
 hook bytes, targets, relocations and counts. The engine-call library and FOV
 checks pass. `../scripts/distance-detail/check.sh` checks all six translated
-labels, native setter binding and tab revisits in CPU Ruffle. The manifest
+labels, both arrow buttons, Apply/Cancel state and tab revisits in CPU Ruffle,
+replaying callbacks captured by the native check (its third argument is the
+`native-check.json` report). The manifest
 content build contains only main_menu and the six localization tables.
 Implemented and tested in emulation; not played or released. Texture reload,
 save/restart and FPS/RAM/VRAM costs still need a running-client check.
