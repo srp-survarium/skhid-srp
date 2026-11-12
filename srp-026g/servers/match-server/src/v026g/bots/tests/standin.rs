@@ -46,11 +46,11 @@ pub(crate) fn stand_in_legs() -> bool {
     *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_LEGS").map_or(true, |v| v != "off"))
 }
 
-/// [A313] The client's legs term of the speed factor, `max(0, 1 + each leg's term)`: -0.2 a leg at 0 (broken: at or under 0.005,
-/// as the worlds show it), -0.1 a leg under 20 % of its 0.5 pool.
+/// [A313] The client's legs term of the speed factor, `max(0, 1 + each leg's term)`: -0.2 a leg at exactly 0, -0.1 a leg over 0 and
+/// under 20 % of its 0.5 pool (A364 P11: the last matching threshold, 0x32A9C0).
 pub(crate) fn stand_in_legs_factor(legs: [f32; 2]) -> f32 {
     let term = |pool: f32| -> f32 {
-        if pool <= 0.005 {
+        if pool <= 0.0 {
             -0.2
         } else if pool < 0.2 * 0.5 {
             -0.1
@@ -1349,7 +1349,8 @@ impl Game {
             standin_heal::advance(body, tick);
             let mut level = if body.carrying.is_some() { 0.95 } else { 1.0 } * body.speed_level;
             if standin_stagger::model_on() {
-                level *= 1.0 - body.stagger.share(tick);
+                // [A364 P11] The client takes the stagger off the factor (`F = 1 + S4 - stagger`), not as a share of it.
+                level = (level - body.stagger.share(tick)).max(0.0);
             } else if body.last_hit != 0 && tick < body.last_hit + STAND_IN_STAGGER_MS {
                 level *= STAND_IN_STAGGER;
             }
@@ -1376,7 +1377,10 @@ impl Game {
                 _ => (body.keys, body.yaw),
             };
             body.held = (step_input == super::super::kin::StepInput::Previous).then_some((body.keys, body.yaw));
-            let mut keys = if body.carrying.is_some() || caught || !body.stamina.may_sprint() {
+            // [A364 P11] A leg's `leg_damage` affect (the stand-in's broken leg, 8 s) takes the sprint as it takes the jump: `can_sprint`
+            // 0x2DBF40 (PROVEN, `docs/notes/stagger_and_legs.md`), and what the bench's worlds show the bots.
+            let leg_affect = body.leg_broken_until > tick;
+            let mut keys = if body.carrying.is_some() || caught || leg_affect || !body.stamina.may_sprint() {
                 moving & !key::SPRINT
             } else {
                 moving
@@ -1396,8 +1400,10 @@ impl Game {
             }
             // [A364 P10] The client's sprint state, for the bar (`player_stamina::tick` 0x329790 spends only in it): the newest input's
             // keys (the flag is one input ahead of the walk vector), `can_sprint` letting them (no carrier, no trap, the flag clear,
-            // and with the client's gates no reload, busy weapon, stagger or aim's way out) and no jump (the state ends at the press;
-            // the harness holds the press keys through the air).
+            // and with the client's gates no reload, busy weapon, stagger or aim's way out), and not in a jump: the state ends at the
+            // jump's PRESS (a JUMP new against the input before) and the jump state holds it off through the air. [A364 P11] JUMP merely
+            // held is no exit (`sprint_predicate` 0x2FBC90 does not test it): a carry holding the press keys after the landing
+            // sprints again.
             let refused = stand_in_sprint_gates()
                 && (body.stock.reloading()
                     || body.stock.busy()
@@ -1406,12 +1412,28 @@ impl Game {
             let sprint_state = Kinematics::sprints(body.keys)
                 && body.carrying.is_none()
                 && !caught
+                && !leg_affect
                 && body.stamina.may_sprint()
                 && !refused
-                && body.keys & key::JUMP == 0;
+                && !(body.keys & key::JUMP != 0 && moving & key::JUMP == 0)
+                && body.flight.is_none()
+                && tick >= body.air_until;
             let local = body
                 .blend
                 .tick_mixed(self.kin.target_local(keys, level), self.kin.blend_ticks, super::standin_jump::stand_in_mixer());
+            // [A364 P11] The client's step cap (`max_speed` 0x2DC010 in 0x2D9060: the sprint's 5.0 x F in the sprint state, else the
+            // walk's 3.5 x F), not in a jump: a change of F (a stagger, a released sprint) reaches a gait at its cap at once, and the
+            // 0.3 s blend only the gaits under it and the way back (PROVEN, `docs/notes/stagger_and_legs.md`: walking forward 0.664 of
+            // the speed on the step ending 50-99 ms after the hit). With the client's sprint gates ([`stand_in_sprint_gates`]).
+            let local = if stand_in_sprint_gates() && body.flight.is_none() && tick >= body.air_until {
+                use mapdata::controller::speed::{Gait, Heading, Stance, cap};
+                let gait = if sprint_state { Gait::Sprint } else { Gait::Move { stance: Stance::Stand, heading: Heading::Forward, aiming: false } };
+                let most = cap(gait, level);
+                let len = local[0].hypot(local[1]);
+                if len > most { [local[0] * most / len, local[1] * most / len] } else { local }
+            } else {
+                local
+            };
             let v = to_world(local, moving_yaw);
             let to = Vec3::new(
                 body.feet.x + v[0] * TICK_S,
@@ -2943,7 +2965,17 @@ impl Game {
         let hurts = self
             .bodies
             .iter()
-            .map(|b| Hurt::of(b.legs.map(Some), b.last_hit, tick))
+            // [A364 P11] With the leg's `leg_damage` affect, as a live world carries it (`game/driven.rs`): the bots' jump gate is the
+            // affect, not the pool. The stand-in holds one affect for its legs (no jump, no sprint until it ends; it does not take
+            // the both-legs stop), so it shows as one part's.
+            .map(|b| {
+                let legs = if b.leg_broken_until > tick {
+                    super::super::legs::LegDamage::One { until: b.leg_broken_until }
+                } else {
+                    super::super::legs::LegDamage::Sound
+                };
+                Hurt::of(b.legs.map(Some), b.last_hit, tick).with_leg_damage(legs)
+            })
             .collect();
         self.hurts.push_back((tick, hurts));
         while self.hurts.len() > 40 {
