@@ -170,8 +170,8 @@ and spatial review; they still need multiplayer playtesting for balance.
     blackout should be in general pool"; before, each free-for-all was one more entry the three
     cards were drawn from alike, and Blackout had the third card, 2026-11-02): every vote, public
     or private, of a room whose pool has a free-for-all.
-    - Cards 1 and 2: drawn from the rest of the pool, Blackout's maps as any other's; never a
-      free-for-all.
+    - Cards 1 and 2: drawn from the rest of the pool, Blackout's maps as any other's (on one of
+      the two at the most, `blackout.md`); never a free-for-all.
     - Card 3: one of the pool's free-for-alls at random, on a map cards 1 and 2 are not while
       there is one; won, its match is a free-for-all (as below).
     - No switch. A pool without one (a private room's maker unticked the mode, or the server's

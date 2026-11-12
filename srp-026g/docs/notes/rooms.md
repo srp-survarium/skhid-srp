@@ -127,6 +127,11 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     other's, never a free-for-all), card 3 one of its free-for-alls, on another map than
     theirs while there is one; a pool without a free-for-all or of free-for-alls alone draws
     its three as before (`ffa.md`, "Where it is played"; `rooms::THIRD_CARD` names the mode).
+  - **Blackout is on one card at the most** (the owner's of 2026-11-12: "Make it so blackout
+    cannot be on two cards at the same time"): in every vote, one without a free-for-all card
+    too. A second Blackout card drawn gives its place to a map of another mode while the pool
+    has one the vote does not show; a pool with nothing else keeps it, never a card fewer
+    (`blackout.md`; `rooms::ONE_CARD_AT_MOST` names the mode).
 - **The match starts at the room's minimum** (the owner's of 2026-10-20: "threshold is 2
   players though, not 4"; "just let people play, since rules are in rooms"; live, room 5209
   sat in "Awaiting other players" with 2 of 5): the game itself waits for 80 % of the

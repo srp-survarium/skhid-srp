@@ -21,7 +21,8 @@
 //!   change its vote. Each card is a map with its weather and mode
 //!   (a `maps_dict` id); the card with the most votes is played, a tie and no
 //!   vote at all are drawn at random. The third card is a free-for-all
-//!   while the pool has one (the owner's of 2026-11-12, [`THIRD_CARD`]).
+//!   while the pool has one (the owner's of 2026-11-12, [`THIRD_CARD`]),
+//!   and Blackout is on one card at the most ([`ONE_CARD_AT_MOST`]).
 //! - There are no teams in the room: the sides are drawn when the match
 //!   starts (squads together, the sides as even as they can be).
 //! - A squad (two at most) comes together, by its commander alone: a join
@@ -83,6 +84,14 @@ pub const CARDS: usize = 3;
 /// card and never drawn for the first two; every other mode's are the rest
 /// of the pool ([`Rooms::draw`]). The one place that names the mode.
 pub const THIRD_CARD: maps::GameMode = maps::GameMode::FreeForAll;
+/// The mode a vote shows on one of its cards at the most, while the room's
+/// pool has maps of other modes to show in its place (the owner's of
+/// 2026-11-12: "Make it so blackout cannot be on two cards at the same
+/// time"). Every vote, one whose third card is not [`THIRD_CARD`]'s too. Its
+/// maps are drawn as any other's; a second one drawn gives its place to a
+/// map of another mode ([`Rooms::one_card_at_most`]). The one place that
+/// names the mode.
+pub const ONE_CARD_AT_MOST: maps::GameMode = maps::GameMode::Blackout;
 /// The pool entries one piece of a draft carries (the wire's).
 pub const DRAFT_CHUNK: usize = survarium::v026g::lobby::rooms::BITS_PER_CHUNK as usize;
 /// The pieces a draft has at most (the wire's).
@@ -1290,6 +1299,8 @@ impl Rooms {
     /// on a map the first two are not while the pool has such a one; the
     /// first two of the rest of the pool. A pool without that mode (a
     /// private room's maker left it out) or of it alone: three of it.
+    /// Either way one card at the most of [`ONE_CARD_AT_MOST`]'s mode
+    /// while the pool has others to show ([`Self::pick`]).
     fn draw(pool: &[u8], below: &mut impl FnMut(usize) -> usize) -> Vec<u8> {
         let mut left: Vec<u8> = pool.to_vec();
         left.sort_unstable();
@@ -1314,14 +1325,41 @@ impl Rooms {
         cards
     }
 
-    /// `count` of `left` at random, all different while it has as many.
+    /// `count` of `left` at random, all different while it has as many, and
+    /// one of them at the most of [`ONE_CARD_AT_MOST`]'s mode while it has
+    /// others to show.
     fn pick(mut left: Vec<u8>, count: usize, below: &mut impl FnMut(usize) -> usize) -> Vec<u8> {
         let mut cards = Vec::new();
         while cards.len() < count && !left.is_empty() {
             let pick = below(left.len()).min(left.len() - 1);
             cards.push(left.swap_remove(pick));
         }
+        Self::one_card_at_most(&mut cards, left, below);
         cards
+    }
+
+    /// [`ONE_CARD_AT_MOST`] of the `cards` just drawn: while two of them
+    /// are of its mode, one of those, any alike, gives its place to a map
+    /// of another mode among `left` (the maps not drawn), any alike; none
+    /// left, the cards stay. The draw before it treats the mode as any
+    /// other, so a vote has a card of it as often as without this rule, on
+    /// each place as often; only a second one is not shown.
+    fn one_card_at_most(cards: &mut [u8], left: Vec<u8>, below: &mut impl FnMut(usize) -> usize) {
+        let mut others: Vec<u8> = left
+            .into_iter()
+            .filter(|&id| !is_one_card_at_most(id))
+            .collect();
+        loop {
+            let places: Vec<usize> = (0..cards.len())
+                .filter(|&place| is_one_card_at_most(cards[place]))
+                .collect();
+            if places.len() < 2 || others.is_empty() {
+                return;
+            }
+            let place = places[below(places.len()).min(places.len() - 1)];
+            let other = below(others.len()).min(others.len() - 1);
+            cards[place] = others.swap_remove(other);
+        }
     }
 
     /// The pass of the lobby's tick. Two members who count begin the vote,
@@ -1725,6 +1763,11 @@ fn location(id: u8) -> Option<u8> {
 /// [`THIRD_CARD`]'s mode.
 fn is_for_third_card(id: u8) -> bool {
     maps::map_mode(id).is_some_and(|map| map.mode == THIRD_CARD)
+}
+
+/// Whether a map is of [`ONE_CARD_AT_MOST`]'s mode.
+fn is_one_card_at_most(id: u8) -> bool {
+    maps::map_mode(id).is_some_and(|map| map.mode == ONE_CARD_AT_MOST)
 }
 
 #[cfg(test)]
@@ -2420,8 +2463,14 @@ mod tests {
             Rooms::draw(&pool, &mut first),
             vec![plain[0], plain[2], free_for_all[1]]
         );
-        // Whatever is drawn, Blackout in the pool too.
+        // Whatever is drawn, Blackout in the pool too: on one card at the
+        // most (the owner's of 2026-11-12: "Make it so blackout cannot be on
+        // two cards at the same time"), the first as well as the second;
+        // in a pool without a free-for-all too.
+        let two_teams: Vec<u8> = plain.iter().chain(&blackout).copied().collect();
         let pool: Vec<u8> = pool.iter().chain(&blackout).copied().collect();
+        let blackouts = |cards: &[u8]| cards.iter().filter(|id| blackout.contains(id)).count();
+        let mut carried = [0, 0];
         for seed in 0..32 {
             let mut turn = seed;
             let mut below = |bound: usize| {
@@ -2436,14 +2485,22 @@ mod tests {
                     .all(|id| plain.contains(id) || blackout.contains(id)),
                 "{cards:?}"
             );
+            assert!(blackouts(&cards) <= 1, "{cards:?}");
+            for place in 0..2 {
+                carried[place] += blackouts(&cards[place..=place]);
+            }
             assert!(free_for_all.contains(&cards[2]), "{cards:?}");
             assert!(
                 !cards[..2]
                     .iter()
                     .any(|&id| location(id) == location(cards[2]))
             );
+            let cards = Rooms::draw(&two_teams, &mut below);
+            assert_eq!(cards.len(), CARDS);
+            assert!(blackouts(&cards) <= 1, "{cards:?}");
         }
-        // Blackout is of the rest: nothing else there, it is the first two.
+        assert!(carried[0] > 0 && carried[1] > 0, "{carried:?}");
+        // Nothing but Blackout for the first two: both, not a card fewer.
         let pool = [blackout[0], blackout[1], free_for_all[0], free_for_all[2]];
         let cards = Rooms::draw(&pool, &mut first);
         assert!(cards[..2].iter().all(|id| blackout.contains(id)), "{cards:?}");

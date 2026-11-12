@@ -27,6 +27,17 @@ distinguish teams… this is the new battery mode". The owner's changes of 2026-
   cards 1 and 2 are drawn from, beside every other map of the pool but the free-for-alls; the
   third card is a free-for-all (`ffa.md`, "Where it is played"). A pool without a free-for-all
   draws all three alike, Blackout's maps among them. Won, a Blackout card's match is Blackout.
+  - **On one card of a vote at the most** (the owner, 2026-11-12: "Make it so blackout cannot be
+    on two cards at the same time"): every vote, one of a pool without a free-for-all (three
+    cards drawn alike) too.
+    - The cards are drawn first with Blackout's maps as any other's. While two of them are
+      Blackout, one of those, any alike, gives its place to a map of another mode the pool has
+      and the vote does not show, any alike.
+    - So a vote has a Blackout card as often as without this rule, on card 1 as often as on
+      card 2; only a second one is never shown.
+    - While there is one: a pool that leaves nothing else to show (Blackout and free-for-alls
+      alone, Blackout alone) keeps its Blackout cards, never a card fewer.
+    - The mode is named in one place: `session::v026g::rooms::ONE_CARD_AT_MOST`.
   - From 2026-11-02 until then Blackout had the third card itself (the owner, 2026-11-02:
     "offers blackout in voting always as a third choice"). The rule is one, and names its mode
     in one place: `session::v026g::rooms::THIRD_CARD`.
