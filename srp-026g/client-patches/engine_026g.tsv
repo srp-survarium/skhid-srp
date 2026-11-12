@@ -267,6 +267,7 @@ engine_interop_lock_queue	IDXGIVkInteropDevice+0x1c	-	void engine_interop_lock_q
 engine_interop_release_queue	IDXGIVkInteropDevice+0x20	-	void engine_interop_release_queue(struct interop_device *device)	com	
 engine_interop_submission_queue	IDXGIVkInteropDevice1+0x24	-	void engine_interop_submission_queue(struct interop_device *device, void **queue, unsigned int *index, unsigned int *family)	com	
 engine_interop_image_info	IDXGIVkInteropSurface+0x10	-	unsigned int engine_interop_image_info(struct interop_surface *surface, unsigned long long *image, unsigned int *layout, void *info)	com	
+engine_resource_interop_surface	-	-	unsigned int engine_resource_interop_surface(struct hw_resource *resource, const void *iid, struct interop_surface **surface)	dynamic	
 engine_vk_get_instance_proc_addr	-	-	void *engine_vk_get_instance_proc_addr(void *instance, const char *name)	dynamic	
 engine_vk_get_device_proc_addr	-	-	void *engine_vk_get_device_proc_addr(void *device, const char *name)	dynamic	
 engine_vk_get_physical_device_properties2	-	-	void engine_vk_get_physical_device_properties2(void *device, void *properties)	dynamic	
@@ -288,8 +289,8 @@ engine_vk_begin_command_buffer	-	-	unsigned int engine_vk_begin_command_buffer(v
 engine_vk_end_command_buffer	-	-	unsigned int engine_vk_end_command_buffer(void *buffer)	dynamic	
 engine_vk_cmd_pipeline_barrier	-	-	void engine_vk_cmd_pipeline_barrier(void *buffer, unsigned int source_stages, unsigned int destination_stages, unsigned int dependency, unsigned int memory_count, const void *memory, unsigned int buffer_count, const void *buffers, unsigned int image_count, const void *images)	dynamic	
 engine_vk_cmd_blit_image	-	-	void engine_vk_cmd_blit_image(void *buffer, unsigned int source_low, unsigned int source_high, unsigned int source_layout, unsigned int destination_low, unsigned int destination_high, unsigned int destination_layout, unsigned int count, const void *regions, unsigned int filter)	dynamic	
+engine_vk_cmd_copy_image	-	-	void engine_vk_cmd_copy_image(void *buffer, unsigned int source_low, unsigned int source_high, unsigned int source_layout, unsigned int destination_low, unsigned int destination_high, unsigned int destination_layout, unsigned int count, const void *regions)	dynamic	
 engine_vk_cmd_clear_color_image	-	-	void engine_vk_cmd_clear_color_image(void *buffer, unsigned int image_low, unsigned int image_high, unsigned int layout, const void *color, unsigned int count, const void *ranges)	dynamic	
-engine_vk_cmd_clear_depth_stencil_image	-	-	void engine_vk_cmd_clear_depth_stencil_image(void *buffer, unsigned int image_low, unsigned int image_high, unsigned int layout, const void *value, unsigned int count, const void *ranges)	dynamic	
 engine_vk_queue_submit	-	-	unsigned int engine_vk_queue_submit(void *queue, unsigned int count, const void *submits, unsigned int fence_low, unsigned int fence_high)	dynamic	
 engine_vk_queue_wait_idle	-	-	unsigned int engine_vk_queue_wait_idle(void *queue)	dynamic	
 engine_vk_signal_semaphore	-	-	unsigned int engine_vk_signal_semaphore(void *device, const void *info)	dynamic	

@@ -29,6 +29,12 @@ use crate::raw;
 const R24G8_TYPELESS: u32 = 0x2C;
 /// render_target::create's usage of a depth-stencil target (0x3D1F2A).
 const DEPTH_STENCIL: u32 = 0;
+/// DXGI_FORMAT_R8G8B8A8_UNORM, `$user$present`'s format (create_targets'
+/// push 1Ch for rt 52, 0x16322F).
+const R8G8B8A8_UNORM: u32 = 0x1C;
+/// render_target::create's usage of a colour target, new_rt's (push 1,
+/// 0x162A17).
+const COLOUR: u32 = 1;
 
 /// A size in pixels.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -45,20 +51,19 @@ impl Size {
     }
 }
 
-/// A depth-stencil target of ours (the engine's render_target, usage
-/// depth-stencil: an R24G8 texture, its D24S8 view and its res_texture, as
-/// the render output's own), one reference held, let go when dropped. The
-/// render thread's: made, bound and dropped there.
-pub struct DepthTarget {
+/// One reference of a render target of ours (the engine's render_target,
+/// made as new_rt makes the frame's), let go when dropped. The render
+/// thread's: made and dropped there.
+struct Held {
     target: raw::RenderTarget,
-    size: Size,
     _local: PhantomData<*const ()>,
 }
 
-impl DepthTarget {
-    /// A depth-stencil of `size`; None when the engine made none (no
+impl Held {
+    /// A target of `size`, `format` (a DXGI_FORMAT) and `usage`
+    /// (render_target::create's); None when the engine made none (no
     /// resource manager yet, the GPU's memory).
-    pub fn make(_: &Thread, size: Size) -> Option<DepthTarget> {
+    fn make(size: Size, format: u32, usage: u32) -> Option<Held> {
         // SAFETY: the render resources' global, a pointer the game sets once.
         let manager = unsafe { raw::image::render_resources().manager() }?;
         // SAFETY: create_render_target (0x3BF930) as new_rt calls it
@@ -66,8 +71,7 @@ impl DepthTarget {
         // default memory, not pooled; on the thread that makes the frame's
         // targets.
         let target = unsafe {
-            raw::engine_create_render_target(Some(manager), null(), size.width, size.height, R24G8_TYPELESS, DEPTH_STENCIL,
-                                             None, 0, 0, 0)
+            raw::engine_create_render_target(Some(manager), null(), size.width, size.height, format, usage, None, 0, 0, 0)
         }?;
         // SAFETY: the target the game just made: its count, plain adds as
         // new_rt's (inc [eax], 0x162A3F).
@@ -75,29 +79,11 @@ impl DepthTarget {
             let count = target.references();
             write(count, read(count).wrapping_add(1));
         }
-        let made = DepthTarget { target, size, _local: PhantomData };
-        // a target whose view or texture the device refused is dropped here
-        (made.view() != 0 && made.texture().is_some()).then_some(made)
-    }
-
-    pub fn size(&self) -> Size {
-        self.size
-    }
-
-    /// Its ID3D11DepthStencilView (0 none).
-    fn view(&self) -> u32 {
-        // SAFETY: a target we hold a reference of.
-        unsafe { read(self.target.depth_stencil_view()) }
-    }
-
-    /// Its res_texture, what the engine samples it through.
-    pub fn texture(&self) -> Option<DepthTexture> {
-        // SAFETY: as view.
-        unsafe { self.target.texture() }.map(DepthTexture)
+        Some(Held { target, _local: PhantomData })
     }
 }
 
-impl Drop for DepthTarget {
+impl Drop for Held {
     fn drop(&mut self) {
         // SAFETY: our reference let go as new_rt lets a target go
         // (add [eax],-1, then resource_manager::release 0x3BFBC0 at 0), on
@@ -110,6 +96,91 @@ impl Drop for DepthTarget {
                 raw::engine_release_render_target(raw::image::render_resources().manager(), Some(self.target));
             }
         }
+    }
+}
+
+/// A depth-stencil target of ours (the engine's render_target, usage
+/// depth-stencil: an R24G8 texture, its D24S8 view and its res_texture, as
+/// the render output's own), one reference held, let go when dropped. The
+/// render thread's: made, bound and dropped there.
+pub struct DepthTarget {
+    held: Held,
+    size: Size,
+}
+
+impl DepthTarget {
+    /// A depth-stencil of `size`; None when the engine made none (no
+    /// resource manager yet, the GPU's memory).
+    pub fn make(_: &Thread, size: Size) -> Option<DepthTarget> {
+        let made = DepthTarget { held: Held::make(size, R24G8_TYPELESS, DEPTH_STENCIL)?, size };
+        // a target whose view or texture the device refused is dropped here
+        (made.view() != 0 && made.texture().is_some()).then_some(made)
+    }
+
+    pub fn size(&self) -> Size {
+        self.size
+    }
+
+    /// Its ID3D11DepthStencilView (0 none).
+    fn view(&self) -> u32 {
+        // SAFETY: a target we hold a reference of.
+        unsafe { read(self.held.target.depth_stencil_view()) }
+    }
+
+    /// Its res_texture, what the engine samples it through.
+    pub fn texture(&self) -> Option<DepthTexture> {
+        // SAFETY: as view.
+        unsafe { self.held.target.texture() }.map(DepthTexture)
+    }
+}
+
+/// A colour target of ours, made as `$user$present` is (create_targets'
+/// new_rt of rt 52, 0x16322F: R8G8B8A8_UNORM): what the screen image's quad
+/// samples in place of it, at the window's size. One reference held, let go
+/// when dropped; the render thread's.
+pub struct ColourTarget {
+    held: Held,
+    size: Size,
+}
+
+impl ColourTarget {
+    /// A target of `size`; None when the engine made none.
+    pub fn make(_: &Thread, size: Size) -> Option<ColourTarget> {
+        let made = ColourTarget { held: Held::make(size, R8G8B8A8_UNORM, COLOUR)?, size };
+        made.texture().is_some().then_some(made)
+    }
+
+    pub fn size(&self) -> Size {
+        self.size
+    }
+
+    /// Its res_texture, what the engine samples it through.
+    pub fn texture(&self) -> Option<ColourTexture> {
+        // SAFETY: a target we hold a reference of.
+        unsafe { self.held.target.texture() }.map(ColourTexture)
+    }
+}
+
+/// A colour target's texture, for the hook that read it (the target is its
+/// owner's for at least that long).
+#[derive(Clone, Copy)]
+pub struct ColourTexture(raw::ResTexture);
+
+impl ColourTexture {
+    /// The frame's picture as the screen image is handed it
+    /// (`$user$present`, or one of ours in its place).
+    pub(in crate::vostok) fn of(texture: raw::ResTexture) -> ColourTexture {
+        ColourTexture(texture)
+    }
+
+    pub(in crate::vostok) fn raw(&self) -> raw::ResTexture {
+        self.0
+    }
+
+    /// Its ID3D11Resource, what DXVK's interop names its VkImage by.
+    pub(in crate::vostok) fn resource(&self) -> Option<raw::HwResource> {
+        // SAFETY: a texture of a target its owner holds for the hook.
+        unsafe { self.0.hw_resource() }
     }
 }
 
@@ -203,6 +274,19 @@ pub fn leave(_: &Thread) {
 /// it (the target is its owner's for at least that long).
 #[derive(Clone, Copy)]
 pub struct DepthTexture(raw::ResTexture);
+
+impl DepthTexture {
+    /// Its ID3D11Resource, what DXVK's interop names its VkImage by.
+    pub(in crate::vostok) fn resource(&self) -> Option<raw::HwResource> {
+        // SAFETY: a texture of a target its owner holds for the hook.
+        unsafe { self.0.hw_resource() }
+    }
+
+    /// The resource's address, for a log line.
+    pub fn resource_address(&self) -> u32 {
+        self.resource().map_or(0, |resource| resource.address())
+    }
+}
 
 /// At `gbuffer.depth_texture`: the linear depth (rt 9) is copied from
 /// `texture` (as `t_depth_render_target`), not from the render output's.

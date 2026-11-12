@@ -11,9 +11,12 @@
 //!   module DXVK took them from (`winevulkan.dll` under Wine, else
 //!   `vulkan-1.dll`).
 //! - [`Shared`]: the four images and the timeline semaphore made and
-//!   exported on DXVK's device, and each frame's two submits on DXVK's queue:
-//!   the copy-in that signals the frame's inputs, and the wait for the
-//!   helper's output.
+//!   exported on DXVK's device, the texture the screen image shows, and each
+//!   frame's two submits on DXVK's queue: the copy-in of the frame's picture
+//!   and depth that signals the frame's inputs, and the wait for the
+//!   helper's output with its copy into that texture.
+//! - [`ScreenImage`], [`Picture`]: the frame where its picture goes to the
+//!   window (`render.screen_image`), and the texture shown in its place.
 //! - [`HelperWatch`]: the helper's process as its watch sees it, on a thread
 //!   of its own: DXVK's queue waits for a value only the helper signals, so
 //!   when the helper is gone the watch signals it ([`release`]), whatever
@@ -26,18 +29,14 @@ use core::mem::size_of;
 use core::ptr::{NonNull, null, null_mut};
 
 use super::OrigThreadEntry;
+use super::baker::Texture;
 use super::context::Context;
 use super::hook::{CallbackEntry, Thread};
+pub use super::render_size::Size;
+use super::render_size::{ColourTarget, ColourTexture, DepthTexture};
 use super::renderer::{Path, beside_exe};
-use super::sync::Lock;
+use super::sync::{Lock, ThreadBound};
 use crate::raw;
-
-/// A size in pixels.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Size {
-    pub width: u32,
-    pub height: u32,
-}
 
 /// `GetTickCount`'s milliseconds, which wrap.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -137,6 +136,9 @@ pub enum Failure {
     Pipe(&'static str, u32),
     /// No answer from a helper that still runs: to what.
     Late(&'static str),
+    /// The 3D frame is not rendered at a render size (its depth-stencil
+    /// was not made): there is nothing to upscale.
+    NoRenderSize,
 }
 
 /// A kernel handle of ours (a pipe, a process), open.
@@ -338,6 +340,14 @@ unsafe impl Wire for FrameStat {}
 enum Between {
     Quit = 1,
     NewSize = 2,
+}
+
+/// The helper's report of a frame it finished: which, and how long DLSS's
+/// evaluate took on the GPU (its timestamps).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Report {
+    pub frame: u64,
+    pub dlss_microseconds: u32,
 }
 
 /// Whether a Hello went out.
@@ -567,11 +577,15 @@ impl Helper {
             .map(|reply| if reply.ok == 1 { Ok(()) } else { Err(Refusal::of(&reply.text, reply.ngx_result)) }))
     }
 
-    /// The helper's frame reports that have come, read and let go (its GPU
-    /// times: nothing here uses them), so the pipe never fills.
-    pub fn frames_done(&self, _: &Thread) -> Result<(), Failure> {
-        while self.read::<FrameStat>("a frame's report")?.is_some() {}
-        Ok(())
+    /// The helper's frame reports that have come, read off the pipe so it
+    /// never fills: the last of them.
+    pub fn frames_done(&self, _: &Thread) -> Result<Option<Report>, Failure> {
+        let mut last = None;
+        while let Some(stat) = self.read::<FrameStat>("a frame's report")? {
+            let ticks = stat.ts_eval_end.wrapping_sub(stat.ts_eval_begin);
+            last = Some(Report { frame: stat.frame, dlss_microseconds: (ticks as f64 * stat.tick_ns / 1000.0) as u32 });
+        }
+        Ok(last)
     }
 
     fn between(&self, what: Between) -> Result<(), u32> {
@@ -736,15 +750,64 @@ unsafe fn com_release(object: u32) {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SwapChain(raw::SwapChain);
 
-/// The swap chain's back buffer at a Present: the frame as the window gets
-/// it, DXVK's image of it.
+/// A D3D11 texture as DXVK has it: its VkImage, the layout DXVK keeps it in
+/// between its own commands, its format and its size.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct BackBuffer {
+pub struct Surface {
     image: u64,
-    /// The layout DXVK keeps the image in between its own commands.
     layout: u32,
     format: u32,
     pub size: Size,
+}
+
+impl Surface {
+    /// # Safety
+    /// `surface` is a live IDXGIVkInteropSurface, one reference of it the
+    /// caller's: let go here.
+    unsafe fn of(surface: raw::InteropSurface) -> Result<Surface, Failure> {
+        let mut info = ImageCreateInfo::zeroed();
+        info.s_type = STRUCTURE_IMAGE_CREATE_INFO;
+        let (mut image, mut layout) = (0u64, 0u32);
+        // SAFETY: GetVulkanImageInfo with room for the three it writes (the
+        // create info's type set, no chain, as DXVK asks); then the
+        // caller's reference let go.
+        let got = unsafe {
+            let got = raw::engine_interop_image_info(Some(surface), &mut image, &mut layout, (&raw mut info).cast());
+            com_release(surface.address());
+            got
+        };
+        if (got as i32) < 0 || image == 0 {
+            return Err(Failure::Device("GetVulkanImageInfo", got));
+        }
+        Ok(Surface { image, layout, format: info.format, size: Size { width: info.extent[0], height: info.extent[1] } })
+    }
+
+    /// A texture of the engine's as DXVK has it now (the engine makes its
+    /// targets again at a new size, so each use asks); a failure is
+    /// `what`'s.
+    fn of_resource(resource: Option<raw::HwResource>, what: &'static str) -> Result<Surface, Failure> {
+        let resource = resource.ok_or(Failure::Device(what, 0))?;
+        let mut surface = None;
+        // SAFETY: IUnknown::QueryInterface, the first entry of the vtable a
+        // COM object's first word names (stdcall, the object its first
+        // argument), of a live ID3D11Resource of DXVK's: it answers the
+        // texture's interop surface, one reference ours.
+        let got = unsafe {
+            let vtable = *(resource.address() as usize as *const *const *mut c_void);
+            match NonNull::new(*vtable) {
+                Some(query) => raw::engine_resource_interop_surface(
+                    query,
+                    Some(resource),
+                    IID_INTEROP_SURFACE.as_ptr().cast(),
+                    &mut surface,
+                ),
+                None => 0,
+            }
+        };
+        let Some(surface) = surface.filter(|_| (got as i32) >= 0) else { return Err(Failure::Device(what, got)) };
+        // SAFETY: the surface QueryInterface just gave, its reference ours.
+        unsafe { Surface::of(surface) }
+    }
 }
 
 impl SwapChain {
@@ -755,8 +818,9 @@ impl SwapChain {
         unsafe { raw::site::render_output_present::output(ctx)?.swap_chain() }.map(SwapChain)
     }
 
-    /// Its back buffer as DXVK has it; a failure names the call.
-    pub fn back_buffer(self, _: &Thread) -> Result<BackBuffer, Failure> {
+    /// Its back buffer as DXVK has it (the output's size is its size); a
+    /// failure names the call.
+    pub fn back_buffer(self, _: &Thread) -> Result<Surface, Failure> {
         let mut surface = None;
         // SAFETY: IDXGISwapChain::GetBuffer on the game's live swap chain, on
         // the thread that presents with it: DXVK answers its back buffer's
@@ -767,25 +831,8 @@ impl SwapChain {
         let Some(surface) = surface.filter(|_| (got as i32) >= 0) else {
             return Err(Failure::Device("the back buffer's IDXGIVkInteropSurface", got));
         };
-        let mut info = ImageCreateInfo::zeroed();
-        info.s_type = STRUCTURE_IMAGE_CREATE_INFO;
-        let (mut image, mut layout) = (0u64, 0u32);
-        // SAFETY: GetVulkanImageInfo with room for the three it writes (the
-        // create info's type set, no chain, as DXVK asks); then our reference let go.
-        let got = unsafe {
-            let got = raw::engine_interop_image_info(Some(surface), &mut image, &mut layout, (&raw mut info).cast());
-            com_release(surface.address());
-            got
-        };
-        if (got as i32) < 0 || image == 0 {
-            return Err(Failure::Device("GetVulkanImageInfo", got));
-        }
-        Ok(BackBuffer {
-            image,
-            layout,
-            format: info.format,
-            size: Size { width: info.extent[0], height: info.extent[1] },
-        })
+        // SAFETY: the surface GetBuffer just gave, its reference ours.
+        unsafe { Surface::of(surface) }
     }
 
     /// DXVK's device behind it; a failure names what is not there.
@@ -826,8 +873,8 @@ struct Vulkan {
     end: Function,
     barrier: Function,
     blit: Function,
+    copy: Function,
     clear_color: Function,
-    clear_depth: Function,
     submit: Function,
     wait_idle: Function,
     signal: Function,
@@ -924,8 +971,8 @@ impl Device {
             end: f(c"vkEndCommandBuffer")?,
             barrier: f(c"vkCmdPipelineBarrier")?,
             blit: f(c"vkCmdBlitImage")?,
+            copy: f(c"vkCmdCopyImage")?,
             clear_color: f(c"vkCmdClearColorImage")?,
-            clear_depth: f(c"vkCmdClearDepthStencilImage")?,
             submit: f(c"vkQueueSubmit")?,
             wait_idle: f(c"vkQueueWaitIdle")?,
             signal: f(c"vkSignalSemaphore")?,
@@ -1035,7 +1082,6 @@ const STRUCTURE_SEMAPHORE_SIGNAL_INFO: u32 = of_extension(208, 5);
 
 /// VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT, and the semaphores' same bit.
 const OPAQUE_WIN32: u32 = 2;
-const FORMAT_D32_SFLOAT: u32 = 126;
 const FORMAT_R16G16_SFLOAT: u32 = 83;
 const USAGE_TRANSFER_SRC: u32 = 1;
 const USAGE_TRANSFER_DST: u32 = 2;
@@ -1044,6 +1090,7 @@ const USAGE_STORAGE: u32 = 8;
 const LAYOUT_UNDEFINED: u32 = 0;
 const LAYOUT_GENERAL: u32 = 1;
 const LAYOUT_TRANSFER_SRC: u32 = 6;
+const LAYOUT_TRANSFER_DST: u32 = 7;
 const ACCESS_TRANSFER_READ: u32 = 0x800;
 const ACCESS_TRANSFER_WRITE: u32 = 0x1000;
 /// VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT: whatever DXVK did
@@ -1053,6 +1100,18 @@ const STAGE_TRANSFER: u32 = 0x1000;
 const STAGE_ALL_COMMANDS: u32 = 1 << 16;
 const ASPECT_COLOR: u32 = 1;
 const ASPECT_DEPTH: u32 = 2;
+const ASPECT_STENCIL: u32 = 4;
+
+/// The aspects of an image of a depth format (VK_FORMAT_D16_UNORM 124 to
+/// D32_SFLOAT_S8_UINT 130, without the stencil-only 127), which a barrier
+/// names whole; none for any other format.
+fn depth_aspects(format: u32) -> Option<u32> {
+    match format {
+        124..=126 => Some(ASPECT_DEPTH),
+        128..=130 => Some(ASPECT_DEPTH | ASPECT_STENCIL),
+        _ => None,
+    }
+}
 const FAMILY_IGNORED: u32 = !0;
 /// VK_QUEUE_FAMILY_EXTERNAL: the other process's device.
 const FAMILY_EXTERNAL: u32 = !1;
@@ -1257,6 +1316,16 @@ struct Blit {
     destination_box: [[i32; 3]; 2],
 }
 
+/// VkImageCopy: each image's layers and corner, and the box copied.
+#[repr(C)]
+struct ImageCopy {
+    source: Layers,
+    source_at: [i32; 3],
+    destination: Layers,
+    destination_at: [i32; 3],
+    extent: [u32; 3],
+}
+
 #[repr(C)]
 struct SubmitInfo {
     s_type: u32,
@@ -1301,7 +1370,7 @@ const _: () = assert!(
 );
 const _: () = assert!(size_of::<CommandBufferAllocateInfo>() == 24);
 const _: () = assert!(size_of::<ImageBarrier>() == 64 && core::mem::offset_of!(ImageBarrier, image) == 32);
-const _: () = assert!(size_of::<Blit>() == 80);
+const _: () = assert!(size_of::<Blit>() == 80 && size_of::<ImageCopy>() == 68);
 const _: () = assert!(size_of::<SubmitInfo>() == 36 && size_of::<TimelineSubmitInfo>() == 24);
 const _: () =
     assert!(size_of::<SemaphoreSignalInfo>() == 24 && core::mem::offset_of!(SemaphoreSignalInfo, value) == 16);
@@ -1327,15 +1396,21 @@ const MOTION: usize = 2;
 const OUTPUT: usize = 3;
 
 /// The four images and the timeline semaphore the game and the helper
-/// share, made and exported on DXVK's device, and the frames' command
-/// buffers. Its one owner retires it ([`Shared::retire`]).
+/// share, made and exported on DXVK's device, the frames' command buffers,
+/// and the texture the screen image shows. Its one owner retires it
+/// ([`Shared::retire`]). A set is one Setup's: a new size is a new set, its
+/// own timeline semaphore from 0 (the helper imports each Setup's).
 pub struct Shared {
     images: [Image; 4],
     timeline: u64,
     pool: u64,
     /// The copy-in buffers, then the buffers that wait for the helper's
-    /// output, a frame's two [`SLOTS`] apart.
+    /// output and copy it, a frame's two [`SLOTS`] apart.
     buffers: [*mut c_void; 2 * SLOTS as usize],
+    /// The engine's texture of the output's size the helper's output is
+    /// copied into: what the screen image's quad samples in place of the
+    /// frame's picture. The render thread's.
+    screen: ThreadBound<ColourTarget>,
 }
 // SAFETY: as Device's.
 unsafe impl Send for Shared {}
@@ -1346,27 +1421,41 @@ fn check(what: &'static str, result: u32) -> Result<(), Failure> {
 }
 
 impl Shared {
-    /// The images (colour in the back buffer's format, depth and motion at
-    /// the render size; the output at the output's), the timeline and the
+    /// The screen's texture made at the output's size; the images (colour,
+    /// depth and motion at the frame's render size, which is its
+    /// depth-stencil's; the output at the output's), the timeline and the
     /// command buffers made, their handles given to the helper and the
-    /// Setup sent. A failure leaves nothing made.
+    /// Setup sent. Colour and output take the screen texture's format (the
+    /// picture's own: both are made as `$user$present` is), depth the
+    /// depth-stencil's own, so its depth is copied as it is. A failure
+    /// leaves nothing made.
     pub fn make(
-        _: &Thread,
+        thread: &Thread,
         device: &Device,
         helper: &Helper,
-        back: &BackBuffer,
-        render: Size,
+        output: Size,
+        depth: &DepthTexture,
     ) -> Result<Shared, Failure> {
+        let depth = Surface::of_resource(depth.resource(), "the depth-stencil's IDXGIVkInteropSurface")?;
+        if depth_aspects(depth.format).is_none() {
+            return Err(Failure::Device("the depth-stencil's Vulkan format", depth.format));
+        }
+        let screen =
+            ColourTarget::make(thread, output).ok_or(Failure::Device("the screen image's own texture", 0))?;
+        let colour = Surface::of_resource(
+            screen.texture().and_then(|texture| texture.resource()),
+            "the screen texture's IDXGIVkInteropSurface",
+        )?;
         let inputs = USAGE_TRANSFER_DST | USAGE_SAMPLED;
-        let none = Image { image: 0, memory: 0, bytes: 0, memory_type: 0, format: 0, size: render, usage: inputs };
+        let none = Image { image: 0, memory: 0, bytes: 0, memory_type: 0, format: 0, size: depth.size, usage: inputs };
         let mut shared = Shared {
             images: [
-                Image { format: back.format, ..none },
-                Image { format: FORMAT_D32_SFLOAT, ..none },
+                Image { format: colour.format, ..none },
+                Image { format: depth.format, ..none },
                 Image { format: FORMAT_R16G16_SFLOAT, ..none },
                 Image {
-                    format: back.format,
-                    size: back.size,
+                    format: colour.format,
+                    size: output,
                     usage: USAGE_STORAGE | USAGE_SAMPLED | USAGE_TRANSFER_SRC,
                     ..none
                 },
@@ -1374,6 +1463,7 @@ impl Shared {
             timeline: 0,
             pool: 0,
             buffers: [null_mut(); 2 * SLOTS as usize],
+            screen: ThreadBound::new(thread, screen),
         };
         match shared.fill(device, helper) {
             Ok(()) => Ok(shared),
@@ -1618,85 +1708,127 @@ impl Shared {
         device.reached(self.timeline)
     }
 
-    /// A frame's part of the link: the helper told the frame, then, on
-    /// DXVK's queue (locked for it), the copy-in (the back buffer scaled
-    /// into the shared colour; the first frame also clears depth to far and
-    /// motion to none, which nothing fills yet) that signals
-    /// [`Frame::copied`], and a wait for [`Frame::upscaled`] in a command
-    /// buffer of its own, empty yet (the copy of the output goes there): a
-    /// wait without one is left by the driver for DXVK's next submit, which
-    /// nothing of ours could then wait out. The wait is told to the watch.
-    /// The frame's two command buffers must be free ([`Frame::buffers_free`]).
+    /// A frame's part of the link, where the screen image is next: the
+    /// helper told the frame, then, on DXVK's queue (locked for it), two
+    /// submits. The copy-in: the frame's picture and the depth of its
+    /// depth-stencil copied into the shared colour and depth (a Setup's
+    /// first frame also clears the shared motion to none, which nothing
+    /// fills yet), signalling [`Frame::copied`]. Then, after a wait for
+    /// [`Frame::upscaled`], the helper's output copied into the screen's
+    /// texture, in a command buffer of its own (a wait without one is left
+    /// by the driver for DXVK's next submit, which nothing of ours could
+    /// then wait out): DXVK's later commands (the screen image's quad of
+    /// that texture, Scaleform, the present) run after it, with no wait on
+    /// the CPU. The wait is told to the watch. The frame's two command
+    /// buffers must be free ([`Frame::buffers_free`]).
+    ///
+    /// Answers the texture the screen image shows; none, with nothing told
+    /// or queued, when the picture is not this set's (another size: the
+    /// window's changed and the Present after this has not seen it).
     pub fn submit(
         &self,
         thread: &Thread,
         device: &Device,
         helper: &Helper,
-        back: &BackBuffer,
+        picture: &Picture,
         frame: Frame,
-    ) -> Result<(), Failure> {
+        told: &Told,
+    ) -> Result<Option<ColourTexture>, Failure> {
+        let Some(shown) = self.screen.get(thread).and_then(ColourTarget::texture) else { return Ok(None) };
+        // SAFETY: DXVK's rendering commands of the frame submitted first
+        // (FlushRenderingCommands, on the thread of the immediate context):
+        // the picture and the depth are whole on its queue.
+        unsafe { raw::engine_interop_flush(Some(device.interop)) };
+        let colour = Surface::of_resource(picture.colour.resource(), "the picture's IDXGIVkInteropSurface")?;
+        let depth = Surface::of_resource(picture.depth.resource(), "the depth-stencil's IDXGIVkInteropSurface")?;
+        let screen = Surface::of_resource(shown.resource(), "the screen texture's IDXGIVkInteropSurface")?;
+        let input = |i: usize| self.images[i];
+        let Some(depth_aspects) = depth_aspects(depth.format).filter(|_| depth.format == input(DEPTH).format) else {
+            return Ok(None);
+        };
+        if colour.size != input(COLOR).size || depth.size != input(DEPTH).size {
+            return Ok(None);
+        }
         let first = frame.0 == 0;
         helper
             .write(&FrameMsg {
                 frame: frame.0,
                 wait_value: frame.copied(),
                 signal_value: frame.upscaled(),
-                jitter_x: 0.0,
-                jitter_y: 0.0,
+                jitter_x: told.jitter[0],
+                jitter_y: told.jitter[1],
                 mv_scale_x: 1.0,
                 mv_scale_y: 1.0,
-                reset: u32::from(first),
+                reset: u32::from(first || told.reset),
                 quit: 0,
             })
             .map_err(|error| Failure::Pipe("a frame", error))?;
         let vk = &device.vulkan;
         let buffer = self.buffers[(frame.0 % SLOTS) as usize];
         let waiter = self.buffers[(SLOTS + frame.0 % SLOTS) as usize];
-        let barrier =
-            |image: u64, aspect, source_access, destination_access, old_layout, new_layout, families: (u32, u32)| {
-                ImageBarrier {
-                    s_type: STRUCTURE_IMAGE_MEMORY_BARRIER,
-                    next: null(),
-                    source_access,
-                    destination_access,
-                    old_layout,
-                    new_layout,
-                    source_family: families.0,
-                    destination_family: families.1,
-                    image,
-                    range: Range::of(aspect),
-                }
-            };
+        let barrier = |image: u64, aspect, access: (u32, u32), layouts: (u32, u32), families: (u32, u32)| ImageBarrier {
+            s_type: STRUCTURE_IMAGE_MEMORY_BARRIER,
+            next: null(),
+            source_access: access.0,
+            destination_access: access.1,
+            old_layout: layouts.0,
+            new_layout: layouts.1,
+            source_family: families.0,
+            destination_family: families.1,
+            image,
+            range: Range::of(aspect),
+        };
         let stay = (FAMILY_IGNORED, FAMILY_IGNORED);
         // the helper had them since the last frame; the first frame nobody had them
         let (taken, from) =
             if first { (stay, LAYOUT_UNDEFINED) } else { ((FAMILY_EXTERNAL, device.family), LAYOUT_GENERAL) };
         let given = (device.family, FAMILY_EXTERNAL);
-        let input = |i: usize| self.images[i];
+        let (read, written) = ((ACCESS_ANY, ACCESS_TRANSFER_READ), (0, ACCESS_TRANSFER_WRITE));
+        let (was_read, was_written) = ((ACCESS_TRANSFER_READ, ACCESS_ANY), (ACCESS_TRANSFER_WRITE, 0));
+        let ours = (LAYOUT_GENERAL, LAYOUT_GENERAL);
         let before = [
-            barrier(back.image, ASPECT_COLOR, ACCESS_ANY, ACCESS_TRANSFER_READ, back.layout, LAYOUT_TRANSFER_SRC, stay),
-            barrier(input(COLOR).image, ASPECT_COLOR, 0, ACCESS_TRANSFER_WRITE, from, LAYOUT_GENERAL, taken),
-            barrier(input(DEPTH).image, ASPECT_DEPTH, 0, ACCESS_TRANSFER_WRITE, from, LAYOUT_GENERAL, taken),
-            barrier(input(MOTION).image, ASPECT_COLOR, 0, ACCESS_TRANSFER_WRITE, from, LAYOUT_GENERAL, taken),
-            barrier(input(OUTPUT).image, ASPECT_COLOR, 0, 0, LAYOUT_UNDEFINED, LAYOUT_GENERAL, stay),
+            barrier(colour.image, ASPECT_COLOR, read, (colour.layout, LAYOUT_TRANSFER_SRC), stay),
+            barrier(depth.image, depth_aspects, read, (depth.layout, LAYOUT_TRANSFER_SRC), stay),
+            barrier(input(COLOR).image, ASPECT_COLOR, written, (from, LAYOUT_GENERAL), taken),
+            barrier(input(DEPTH).image, depth_aspects, written, (from, LAYOUT_GENERAL), taken),
+            barrier(input(MOTION).image, ASPECT_COLOR, written, (from, LAYOUT_GENERAL), taken),
+            barrier(input(OUTPUT).image, ASPECT_COLOR, (0, 0), (LAYOUT_UNDEFINED, LAYOUT_GENERAL), stay),
         ];
         let after = [
-            barrier(back.image, ASPECT_COLOR, 0, ACCESS_ANY, LAYOUT_TRANSFER_SRC, back.layout, stay),
-            barrier(input(COLOR).image, ASPECT_COLOR, ACCESS_TRANSFER_WRITE, 0, LAYOUT_GENERAL, LAYOUT_GENERAL, given),
-            barrier(input(DEPTH).image, ASPECT_DEPTH, ACCESS_TRANSFER_WRITE, 0, LAYOUT_GENERAL, LAYOUT_GENERAL, given),
-            barrier(input(MOTION).image, ASPECT_COLOR, ACCESS_TRANSFER_WRITE, 0, LAYOUT_GENERAL, LAYOUT_GENERAL, given),
-            barrier(input(OUTPUT).image, ASPECT_COLOR, 0, 0, LAYOUT_GENERAL, LAYOUT_GENERAL, given),
+            barrier(colour.image, ASPECT_COLOR, was_read, (LAYOUT_TRANSFER_SRC, colour.layout), stay),
+            barrier(depth.image, depth_aspects, was_read, (LAYOUT_TRANSFER_SRC, depth.layout), stay),
+            barrier(input(COLOR).image, ASPECT_COLOR, was_written, ours, given),
+            barrier(input(DEPTH).image, depth_aspects, was_written, ours, given),
+            barrier(input(MOTION).image, ASPECT_COLOR, was_written, ours, given),
+            barrier(input(OUTPUT).image, ASPECT_COLOR, (0, 0), ours, given),
         ];
-        // the output is touched on the first frame only: made GENERAL and given to the helper
-        let count = if first { 5 } else { 4 };
-        let layers = Layers { aspect: ASPECT_COLOR, mip: 0, base_layer: 0, layers: 1 };
+        // the output is touched by the copy-in on the first frame only: made GENERAL and given to the helper
+        let count = if first { 6 } else { 5 };
+        // after the helper's output: taken back for the copy, then the helper's again
+        let out_before = [
+            barrier(input(OUTPUT).image, ASPECT_COLOR, (0, ACCESS_TRANSFER_READ), ours, (FAMILY_EXTERNAL, device.family)),
+            barrier(screen.image, ASPECT_COLOR, (ACCESS_ANY, ACCESS_TRANSFER_WRITE), (screen.layout, LAYOUT_TRANSFER_DST), stay),
+        ];
+        let out_after = [
+            barrier(input(OUTPUT).image, ASPECT_COLOR, (ACCESS_TRANSFER_READ, 0), ours, given),
+            barrier(screen.image, ASPECT_COLOR, (ACCESS_TRANSFER_WRITE, ACCESS_ANY), (LAYOUT_TRANSFER_DST, screen.layout), stay),
+        ];
+        let layers = |aspect| Layers { aspect, mip: 0, base_layer: 0, layers: 1 };
         let corner = |size: Size| [[0, 0, 0], [size.width as i32, size.height as i32, 1]];
         let blit = Blit {
-            source: layers,
-            source_box: corner(back.size),
-            destination: layers,
+            source: layers(ASPECT_COLOR),
+            source_box: corner(colour.size),
+            destination: layers(ASPECT_COLOR),
             destination_box: corner(input(COLOR).size),
         };
+        let whole = |aspect, size: Size| ImageCopy {
+            source: layers(aspect),
+            source_at: [0; 3],
+            destination: layers(aspect),
+            destination_at: [0; 3],
+            extent: [size.width, size.height, 1],
+        };
+        let (depth_copy, output_copy) = (whole(ASPECT_DEPTH, depth.size), whole(ASPECT_COLOR, screen.size));
         // recorded once, executed once (ONE_TIME_SUBMIT)
         let begin = CommandBufferBeginInfo {
             s_type: STRUCTURE_COMMAND_BUFFER_BEGIN_INFO,
@@ -1704,13 +1836,12 @@ impl Shared {
             flags: 1,
             inheritance: null(),
         };
-        // SAFETY: DXVK's rendering commands of the frame submitted first
-        // (FlushRenderingCommands, on the thread of the immediate context),
-        // then our command buffer recorded: it is free (the caller's word),
-        // its images are this device's and alive, and every barrier gives an
-        // image back in the layout DXVK keeps it in.
+        // SAFETY: our two command buffers recorded: they are free (the
+        // caller's word), their images are this device's and alive (the
+        // engine's until the hook returns, ours until the set is retired),
+        // and every barrier gives DXVK's images back in the layout DXVK
+        // keeps them in.
         unsafe {
-            raw::engine_interop_flush(Some(device.interop));
             check(
                 "vkBeginCommandBuffer",
                 raw::engine_vk_begin_command_buffer(vk.begin.0, buffer, (&raw const begin).cast()),
@@ -1728,34 +1859,35 @@ impl Shared {
                 count,
                 before.as_ptr().cast(),
             );
-            // linear (1): the whole frame into the render size
+            // nearest (0): the picture as it is, both the render size
             raw::engine_vk_cmd_blit_image(
                 vk.blit.0,
                 buffer,
-                low(back.image),
-                high(back.image),
+                low(colour.image),
+                high(colour.image),
                 LAYOUT_TRANSFER_SRC,
                 low(input(COLOR).image),
                 high(input(COLOR).image),
                 LAYOUT_GENERAL,
                 1,
                 (&raw const blit).cast(),
+                0,
+            );
+            raw::engine_vk_cmd_copy_image(
+                vk.copy.0,
+                buffer,
+                low(depth.image),
+                high(depth.image),
+                LAYOUT_TRANSFER_SRC,
+                low(input(DEPTH).image),
+                high(input(DEPTH).image),
+                LAYOUT_GENERAL,
                 1,
+                (&raw const depth_copy).cast(),
             );
             if first {
-                let far = [1.0f32.to_bits(), 0];
                 let still = [0u32; 4];
-                let (depth, motion) = (Range::of(ASPECT_DEPTH), Range::of(ASPECT_COLOR));
-                raw::engine_vk_cmd_clear_depth_stencil_image(
-                    vk.clear_depth.0,
-                    buffer,
-                    low(input(DEPTH).image),
-                    high(input(DEPTH).image),
-                    LAYOUT_GENERAL,
-                    far.as_ptr().cast(),
-                    1,
-                    (&raw const depth).cast(),
-                );
+                let motion = Range::of(ASPECT_COLOR);
                 raw::engine_vk_cmd_clear_color_image(
                     vk.clear_color.0,
                     buffer,
@@ -1785,6 +1917,44 @@ impl Shared {
                 "vkBeginCommandBuffer",
                 raw::engine_vk_begin_command_buffer(vk.begin.0, waiter, (&raw const begin).cast()),
             )?;
+            raw::engine_vk_cmd_pipeline_barrier(
+                vk.barrier.0,
+                waiter,
+                STAGE_ALL_COMMANDS,
+                STAGE_TRANSFER,
+                0,
+                0,
+                null(),
+                0,
+                null(),
+                2,
+                out_before.as_ptr().cast(),
+            );
+            raw::engine_vk_cmd_copy_image(
+                vk.copy.0,
+                waiter,
+                low(input(OUTPUT).image),
+                high(input(OUTPUT).image),
+                LAYOUT_GENERAL,
+                low(screen.image),
+                high(screen.image),
+                LAYOUT_TRANSFER_DST,
+                1,
+                (&raw const output_copy).cast(),
+            );
+            raw::engine_vk_cmd_pipeline_barrier(
+                vk.barrier.0,
+                waiter,
+                STAGE_TRANSFER,
+                STAGE_ALL_COMMANDS,
+                0,
+                0,
+                null(),
+                0,
+                null(),
+                2,
+                out_after.as_ptr().cast(),
+            );
             check("vkEndCommandBuffer", raw::engine_vk_end_command_buffer(vk.end.0, waiter))?;
         }
         let (copied, upscaled, timeline, stage) =
@@ -1818,7 +1988,7 @@ impl Shared {
                 signal_count: 1,
                 signals: timeline.as_ptr(),
             },
-            // after the helper's output: nothing of ours yet, and DXVK's later commands wait for it
+            // after the helper's output: its copy to the screen's texture, and DXVK's later commands wait for it
             SubmitInfo {
                 s_type: STRUCTURE_SUBMIT_INFO,
                 next: (&raw const waits).cast(),
@@ -1850,7 +2020,7 @@ impl Shared {
             raw::engine_interop_release_queue(Some(device.interop));
             submitted
         };
-        check("vkQueueSubmit", submitted)
+        check("vkQueueSubmit", submitted).map(|()| Some(shown))
     }
 
     /// The end of the set: DXVK's queue waited empty (the helper is gone or
@@ -1873,7 +2043,9 @@ impl Shared {
     }
 
     /// Everything made destroyed (what was not made is 0, which Vulkan
-    /// takes); nothing of it is on the queue.
+    /// takes); nothing of it is on the queue. The screen's texture goes
+    /// with `self`: the engine's reference of ours let go (a frame that
+    /// still shows it holds its own).
     fn destroy(self, device: &Device) {
         let (vk, dev) = (&device.vulkan, device.device.as_ptr());
         // SAFETY: each object is this device's, made here, used no more;
@@ -1897,6 +2069,68 @@ impl Shared {
                 raw::engine_vk_destroy_image(vk.destroy_image.0, dev, low(image.image), high(image.image), null());
                 raw::engine_vk_free_memory(vk.free_memory.0, dev, low(image.memory), high(image.memory), null());
             }
+        }
+    }
+}
+
+// ---- the frame at the screen image
+
+/// The frame where the screen image is next: its picture after the
+/// post-process (`$user$present`) and its depth-stencil, both at the render
+/// size.
+pub struct Picture {
+    pub colour: ColourTexture,
+    pub depth: DepthTexture,
+}
+
+/// What the helper is told of a frame beside its images.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Told {
+    /// The jitter of the frame's projection, in render pixels (DLSS's
+    /// Jitter_Offset_X and _Y).
+    pub jitter: [f32; 2],
+    /// DLSS's history is thrown away (a Setup's first frame is, whatever
+    /// this says).
+    pub reset: bool,
+}
+
+impl Told {
+    /// A frame with no jitter that goes on from the one before.
+    pub const STILL: Told = Told { jitter: [0.0; 2], reset: false };
+}
+
+/// `render.screen_image`: renderer::present about to hand the frame's
+/// picture to the screen image's quad.
+pub struct ScreenImage {
+    frame: raw::PresentFrame,
+}
+
+impl ScreenImage {
+    pub fn at(ctx: &Context<'_>) -> Option<ScreenImage> {
+        // SAFETY: the context is this site's: its ESP is the argument
+        // renderer::present pushed for stage_screen_image::execute.
+        let frame = unsafe { raw::site::render_screen_image::frame(ctx) }?;
+        Some(ScreenImage { frame })
+    }
+
+    /// The frame's picture, as the quad would sample it.
+    pub fn picture(&self) -> Option<ColourTexture> {
+        // SAFETY: the pushed texture, alive for the call (present holds a
+        // reference of it for the callee).
+        unsafe { self.frame.texture() }.map(ColourTexture::of)
+    }
+
+    /// The quad samples `texture` instead: the callee's reference is one of
+    /// `texture`, and the picture's is let go (the frame's targets hold
+    /// their own).
+    pub fn show(self, texture: ColourTexture) {
+        // SAFETY: as picture; the word is execute's argument, which it
+        // reads once entered and lets go at its end (0x1BD35A, 0x1BD589).
+        unsafe {
+            let Some(picture) = self.frame.texture() else { return };
+            Texture::of(texture.raw()).hold();
+            self.frame.set_texture(Some(texture.raw()));
+            Texture::of(picture).release();
         }
     }
 }

@@ -70,6 +70,7 @@
 use core::ffi::CStr;
 
 pub mod dlss;
+pub use dlss::on_screen_image;
 
 use crate::vostok::dlss::{HELPER_FILES, HelperWatch, SwapChain};
 use crate::vostok::language::ConsoleString;

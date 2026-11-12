@@ -1166,3 +1166,4 @@ vostok::render::render_target	texture	0x1C	ptr<vostok::render::res_texture>	m_te
 vostok::render::render_frame	window	0x2C	ptr<vostok::render::render_output_window>	renderer::render's [esp+2Ch] between its set_scene_view (0x13D244) and its present stage (0x13DB16): the output window it was given (pushed to setup_render_output_window at 0x13D278 as [esp+34h] after two pushes)
 vostok::render::set_size_targets_frame	width	0x4	u32	render_output_window::set_size's create_targets arguments at 0x119B2B: the force at [esp], the width the targets are made at
 vostok::render::set_size_targets_frame	height	0x8	u32	the height the targets are made at
+vostok::render::present_frame	texture	0x0	ptr<vostok::render::res_texture>	renderer::present's [esp] at 0x1418E5: stage_screen_image::execute's argument, the texture its quad samples (by value, one reference the callee lets go: add [eax+4],-1 at 0x1BD35A, then 0x3BEE00 at 0)

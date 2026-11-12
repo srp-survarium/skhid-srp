@@ -109,3 +109,11 @@ install = "on_demand"
 site = "render.present_stage"
 handler = "on_present_stage"
 install = "on_demand"
+
+# the frame's picture about to go to the window: while DLSS's link runs it goes to the helper,
+# and the screen image shows the helper's output of it (hud_options/dlss.rs); written with the
+# render scale's sites
+[[hook]]
+site = "render.screen_image"
+handler = "on_screen_image"
+install = "on_demand"

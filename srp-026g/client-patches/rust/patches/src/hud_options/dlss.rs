@@ -14,10 +14,15 @@
 //!   after the Setup's answer submits a frame.
 //! - A Present of another size tells the helper (a new size), retires what
 //!   was shared and says Hello again.
+//! - With the tick on the 3D frame is rendered at Quality's render size
+//!   from the start ([`render_size`]: a ratio is taken only then). While
+//!   the link runs, each frame goes to the helper where its picture is
+//!   whole (`render.screen_image`), and the screen image shows the helper's
+//!   output of it at the window's size ([`on_screen_image`]).
 //! - Any failure stops the link for the process: the helper ended, the
 //!   timeline released, what was shared retired, the reason in
-//!   `srp_patches.log`; the game's frame is its own all along (nothing reads
-//!   the helper's output yet: docs/notes/dlss-option.md, "Status").
+//!   `srp_patches.log`; that frame is shown as it is (the stock stretch)
+//!   and the next one is native.
 //! - The helper's watch ([`watch`]) runs on a thread of its own: DXVK's queue
 //!   waits for a value only the helper signals, and the game's thread may
 //!   wait for that queue (a Present), so the helper's end is seen there and
@@ -25,15 +30,17 @@
 
 use core::ffi::CStr;
 
+use super::render_size::{self, Ratio, RenderScale};
 use super::{DLSS, DXVK_MARKER, Renderer, renderer};
 use crate::vostok::dlss::{
-    self, BackBuffer, Device, Failure, Frame, Hello, Helper, HelperWatch, Refusal, Shared, Size, SwapChain, Tick,
-    Watched,
+    self, Device, Failure, Frame, Hello, Helper, HelperWatch, Picture, Refusal, Report, ScreenImage, Shared, Size,
+    Surface, SwapChain, Tick, Told, Watched,
 };
 use crate::vostok::log::{Piece, Piece::*, line, line_of};
+use crate::vostok::render_size::ColourTexture;
 use crate::vostok::renderer::environment_set;
 use crate::vostok::settings::{file_exists, save_user_config};
-use crate::vostok::{GameCell, Lock, Thread, hud_options_on_watch_entry};
+use crate::vostok::{Context, Flow, GameCell, Lock, NoExit, Thread, hud_options_on_watch_entry};
 
 /// Why nothing starts in this process.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -44,6 +51,9 @@ pub enum NotRun {
     NotNvidia,
     /// The helper's files are not in `dlss\`.
     NoFiles,
+    /// The 3D frame's render size was not taken (its sites are not the
+    /// game's code).
+    NoRenderSize,
     /// The game has exited.
     Exited,
 }
@@ -88,7 +98,8 @@ pub enum Link<H, D, S> {
     Sharing { helper: H, device: D, output: Size },
     /// The Setup is sent.
     Setup { helper: H, device: D, shared: S, output: Size, since: Tick },
-    /// Each Present of this output submits a frame, this one next.
+    /// Each frame's picture of this output goes to the helper, this frame
+    /// next.
     Running { helper: H, device: D, shared: S, output: Size, frame: Frame },
     /// It failed before the helper said yes.
     Failed(Failure),
@@ -127,6 +138,8 @@ pub enum Event<H, D, S> {
         now: Tick,
     },
     SetupAnswered(Result<(), Refusal>),
+    /// The 3D frame is whole in its targets: the screen image is next.
+    Picture,
     /// The state's frame is on DXVK's queue.
     Submitted,
     /// The helper ended, the pipe broke, or a call of DXVK's device failed.
@@ -144,10 +157,11 @@ pub enum Action<H, D, S> {
     SayHello(Size),
     /// Read the Hello's answer, if it has come.
     AwaitHello,
-    /// Make the images for this render size and send the Setup; the output
-    /// the Hello was for.
+    /// Make the images for the frame's render size and send the Setup; the
+    /// render size the helper answered (said only: the frame's own is the
+    /// engine's), the output the Hello was for.
     Share {
-        render: Size,
+        answered: Size,
         output: Size,
     },
     AwaitSetup,
@@ -258,8 +272,8 @@ impl<H, D, S> Link<H, D, S> {
             (Link::Asked { helper, device, purpose: Purpose::Ask, .. }, Event::HelloAnswered(Ok(_))) => {
                 (Link::Offered, Action::Dismiss { helper, device })
             }
-            (Link::Asked { helper, device, output, .. }, Event::HelloAnswered(Ok(render))) => {
-                (Link::Sharing { helper, device, output }, Action::Share { render, output })
+            (Link::Asked { helper, device, output, .. }, Event::HelloAnswered(Ok(answered))) => {
+                (Link::Sharing { helper, device, output }, Action::Share { answered, output })
             }
             (state @ Link::Asked { .. }, Event::HelloAnswered(Err(refusal))) => {
                 state.step(Event::Broken(Failure::Refused(refusal)))
@@ -279,10 +293,13 @@ impl<H, D, S> Link<H, D, S> {
             }
             (Link::Running { helper, device, shared, output, frame }, Event::Frame { output: now_output, now }) => {
                 if now_output == output {
-                    (Link::Running { helper, device, shared, output, frame }, Action::Submit(frame))
+                    (Link::Running { helper, device, shared, output, frame }, Action::Nothing)
                 } else {
                     (Link::Starting { helper, device, purpose: Purpose::Resize, since: now }, Action::Resize(shared))
                 }
+            }
+            (Link::Running { helper, device, shared, output, frame }, Event::Picture) => {
+                (Link::Running { helper, device, shared, output, frame }, Action::Submit(frame))
             }
             (Link::Running { helper, device, shared, output, frame }, Event::Submitted) => {
                 (Link::Running { helper, device, shared, output, frame: frame.next() }, Action::Nothing)
@@ -330,6 +347,8 @@ pub enum DlssOffer {
     NotNvidia,
     /// The helper's files are not there.
     NoFiles,
+    /// The 3D frame's render size was not taken.
+    NoRenderSize,
     /// The helper has not answered yet.
     NotYet,
     /// The helper did not start, said no, or ended before it answered.
@@ -343,6 +362,7 @@ impl DlssOffer {
             _ if !dxvk => DlssOffer::NoDxvk,
             Link::Off(NotRun::NotNvidia) => DlssOffer::NotNvidia,
             Link::Off(NotRun::NoFiles) => DlssOffer::NoFiles,
+            Link::Off(NotRun::NoRenderSize) => DlssOffer::NoRenderSize,
             Link::Off(NotRun::Undecided | NotRun::Exited) | Link::Waiting(Purpose::Ask | Purpose::Run) => {
                 DlssOffer::NotYet
             }
@@ -380,8 +400,9 @@ static LINK: Lock<Live> = Lock::new(Link::Off(NotRun::Undecided));
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Progress {
     Unsaid,
-    /// A line at every frame whose number is a multiple of [`PROGRESS_EVERY`].
-    Said,
+    /// A line at every frame whose number is a multiple of
+    /// [`PROGRESS_EVERY`], with the helper's last report of a frame.
+    Said(Option<Report>),
 }
 
 static PROGRESS: GameCell<Progress> = GameCell::new(Progress::Unsaid);
@@ -393,20 +414,31 @@ const PROGRESS_EVERY: u64 = 300;
 /// helper's answer (DXVK reads its options before the first frame).
 pub const MIP_BIAS: &CStr = c"-1.585";
 
+/// The 3D frame's share of the output with DLSS at Quality, each side.
+pub const RENDER_SHARE: f32 = 1.0 / 1.5;
+
 /// The process's start with DXVK: whether the helper will be asked, from
 /// DXVK's GPU and the helper's files, and what for, from the tick. Whether
-/// DLSS is to run (the mip bias goes with it).
+/// DLSS is to run (the mip bias goes with it): then the 3D frame is asked
+/// at Quality's render size here, where alone a ratio is taken; a ratio not
+/// taken is no DLSS in this process.
 pub fn at_start(thread: &Thread, nvidia: bool, files: bool, tick: bool) -> bool {
     let purpose = if tick { Purpose::Run } else { Purpose::Ask };
-    let link = NotRun::of(nvidia, files).map_or(Link::Waiting(purpose), Link::Off);
+    let mut link = NotRun::of(nvidia, files).map_or(Link::Waiting(purpose), Link::Off);
+    if matches!(link, Link::Waiting(Purpose::Run))
+        && !Ratio::new(RENDER_SHARE).is_some_and(|ratio| render_size::ask(thread, RenderScale::Ratio(ratio)))
+    {
+        link = Link::Off(NotRun::NoRenderSize);
+    }
     match &link {
+        Link::Off(NotRun::NoRenderSize) => line(&[Text("dlss: on, not run: the 3D frame's render size was not taken")]),
         Link::Off(NotRun::NotNvidia) if tick => line(&[Text("dlss: on, not run: DXVK's GPU is not NVIDIA's")]),
         Link::Off(NotRun::NoFiles) if tick => line(&[Text("dlss: on, not run: the helper's files are not in dlss\\")]),
         _ => {}
     }
     let runs = matches!(link, Link::Waiting(Purpose::Run));
     if runs && environment_set(thread, c"SKHID_DLSS_LOG") {
-        PROGRESS.set(thread, Progress::Said);
+        PROGRESS.set(thread, Progress::Said(None));
     }
     LINK.with(thread, |state| *state = link);
     runs
@@ -415,25 +447,74 @@ pub fn at_start(thread: &Thread, nvidia: bool, files: bool, tick: bool) -> bool 
 /// What a Present gives the link.
 struct Present {
     chain: SwapChain,
-    back: BackBuffer,
+    back: Surface,
 }
 
-/// A Present: the link's step for it.
+/// The hook the link is stepped from, and what it gives.
+enum Site<'a> {
+    /// A Present: the swap chain and its back buffer.
+    Present(Present),
+    /// The screen image: the frame's picture, and where the texture shown
+    /// in its place is put.
+    Picture { picture: Picture, shown: &'a mut Option<ColourTexture> },
+    /// The exit: nothing.
+    Elsewhere,
+}
+
+impl Site<'_> {
+    fn present(&self) -> Option<&Present> {
+        match self {
+            Site::Present(present) => Some(present),
+            _ => None,
+        }
+    }
+}
+
+/// A Present: the link's step for it (the helper's start, the Hello, the
+/// Setup, a new size; a frame's own step is the screen image's).
 pub fn on_present(thread: &Thread, chain: SwapChain) {
     if LINK.with(thread, |link| link.rests()) {
         return;
     }
     match chain.back_buffer(thread) {
         Ok(back) => {
-            drive(thread, Some(&Present { chain, back }), Event::Frame { output: back.size, now: Tick::now(thread) })
+            let event = Event::Frame { output: back.size, now: Tick::now(thread) };
+            drive(thread, &mut Site::Present(Present { chain, back }), event)
         }
-        Err(why) => drive(thread, None, Event::Broken(why)),
+        Err(why) => drive(thread, &mut Site::Elsewhere, Event::Broken(why)),
     }
+}
+
+/// `render.screen_image`: the 3D frame is whole in its targets, at the
+/// render size, and the screen image is next. While the link runs, the
+/// frame's picture and depth go to the helper, and the screen image's quad
+/// samples the texture the helper's output is copied into, at the window's
+/// size; Scaleform draws over it after. A frame the link does not take (it
+/// does not run yet, its command buffers are busy, the window's size just
+/// changed, a failure now) is shown as it is: the stock stretch.
+pub fn on_screen_image(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let thread = ctx.thread();
+    if !LINK.with(thread, |link| matches!(link, Link::Running { .. })) {
+        return Flow::Continue;
+    }
+    let Some(screen) = ScreenImage::at(ctx) else { return Flow::Continue };
+    let Some(colour) = screen.picture() else { return Flow::Continue };
+    // a frame without the render size's depth-stencil is a native one: nothing to upscale any more
+    let Some(depth) = render_size::depth_texture(thread) else {
+        drive(thread, &mut Site::Elsewhere, Event::Broken(Failure::NoRenderSize));
+        return Flow::Continue;
+    };
+    let mut shown = None;
+    drive(thread, &mut Site::Picture { picture: Picture { colour, depth }, shown: &mut shown }, Event::Picture);
+    if let Some(texture) = shown {
+        screen.show(texture);
+    }
+    Flow::Continue
 }
 
 /// The game's exit: the helper told to quit and everything of the link ended.
 pub fn on_exit(thread: &Thread) {
-    drive(thread, None, Event::Exit);
+    drive(thread, &mut Site::Elsewhere, Event::Exit);
 }
 
 /// The login screen is shown (user.cfg has run): a tick the helper refused
@@ -445,23 +526,28 @@ pub fn on_login(thread: &Thread) {
 }
 
 /// `event` through [`Link::step`], its action done; an action's outcome is
-/// the next event.
-fn drive(thread: &Thread, present: Option<&Present>, event: Event<Helper, Device, Shared>) {
-    LINK.with(thread, |link| {
+/// the next event. A link that rests after it renders nothing smaller: the
+/// next frame is native (a stop, a failure, a refusal).
+fn drive(thread: &Thread, site: &mut Site<'_>, event: Event<Helper, Device, Shared>) {
+    let rests = LINK.with(thread, |link| {
         let mut event = Some(event);
         while let Some(now) = event.take() {
             let (next, action) = core::mem::replace(link, Link::Off(NotRun::Undecided)).step(now);
             *link = next;
-            event = act(thread, link, present, action);
+            event = act(thread, link, site, action);
         }
+        link.rests()
     });
+    if rests {
+        render_size::ask(thread, RenderScale::Native);
+    }
 }
 
 /// An action done on the state it left: the event that follows, if any.
 fn act(
     thread: &Thread,
     link: &Live,
-    present: Option<&Present>,
+    site: &mut Site<'_>,
     action: Action<Helper, Device, Shared>,
 ) -> Option<Event<Helper, Device, Shared>> {
     let now = Tick::now(thread);
@@ -478,7 +564,7 @@ fn act(
     };
     match action {
         Action::Nothing => None,
-        Action::Start => Some(match start(thread, present?.chain) {
+        Action::Start => Some(match start(thread, site.present()?.chain) {
             Ok((helper, device)) => {
                 line(&[Text("dlss: the helper is started (dlss\\dlss_helper.exe)")]);
                 Event::Started { helper, device, now }
@@ -498,13 +584,17 @@ fn act(
                 answer(thread, helper, helper.hello_answer(thread)).map(|answer| answer.map(Event::HelloAnswered)),
             )
         }
-        Action::Share { render, output } => {
+        Action::Share { answered, output } => {
             let (helper, device) = link.ends()?;
-            let back = &present?.back;
-            if back.size != output {
+            if site.present()?.back.size != output {
                 return or_broken(helper.new_size(thread).map(|()| Some(Event::OutputChanged { now })));
             }
-            or_broken(Shared::make(thread, device, helper, back, render).map(|shared| {
+            // the frame's own render size (the engine's, even), not the helper's answer (NGX's, which may be odd)
+            let Some(depth) = render_size::depth_texture(thread) else {
+                return Some(Event::Broken(Failure::NoRenderSize));
+            };
+            or_broken(Shared::make(thread, device, helper, output, &depth).map(|shared| {
+                let (render, _) = shared.sizes();
                 line(&[
                     Text("dlss: offered: DLSS at Quality renders "),
                     Dec(render.width),
@@ -514,7 +604,11 @@ fn act(
                     Dec(output.width),
                     Text("x"),
                     Dec(output.height),
-                    Text("; the Setup is sent, "),
+                    Text(" (the helper's answer: "),
+                    Dec(answered.width),
+                    Text("x"),
+                    Dec(answered.height),
+                    Text("); the Setup is sent, "),
                     Dec((shared.bytes() >> 20) as u32),
                     Text(" MiB shared"),
                 ]);
@@ -525,7 +619,7 @@ fn act(
             let (helper, _) = link.ends()?;
             or_broken(answer(thread, helper, helper.setup_answer(thread)).map(|answer| {
                 if matches!(answer, Some(Ok(()))) {
-                    line(&[Text("dlss: running: the helper took the Setup; each Present submits a frame")]);
+                    line(&[Text("dlss: running: the helper took the Setup; each frame's picture goes to it")]);
                 }
                 answer.map(Event::SetupAnswered)
             }))
@@ -533,36 +627,35 @@ fn act(
         Action::Submit(frame) => match ends()? {
             Err(broken) => Some(broken),
             Ok((helper, device)) => {
-                let (shared, back) = (link.shared()?, &present?.back);
-                let submitted =
-                    helper.frames_done(thread).and_then(|()| shared.reached(thread, device)).and_then(|reached| {
+                let shared = link.shared()?;
+                let Site::Picture { picture, shown } = site else { return None };
+                let submitted = helper
+                    .frames_done(thread)
+                    .and_then(|report| {
+                        if let (Some(report), Progress::Said(_)) = (report, PROGRESS.get(thread)) {
+                            PROGRESS.set(thread, Progress::Said(Some(report)));
+                        }
+                        shared.reached(thread, device)
+                    })
+                    .and_then(|reached| {
                         if !frame.buffers_free(reached) {
-                            // DXVK's queue is that far behind: this Present has no frame of the link
+                            // DXVK's queue is that far behind: this frame is none of the link's
                             return Ok(None);
                         }
-                        if PROGRESS.get(thread) == Progress::Said && frame.0.is_multiple_of(PROGRESS_EVERY) {
-                            line(&[
-                                Text("dlss: frame "),
-                                Dec(frame.0 as u32),
-                                Text(" is next: the timeline at "),
-                                Dec(reached as u32),
-                                Text(" (the helper's output of the frame before is "),
-                                Dec(frame.copied() as u32 - 1),
-                                Text(")"),
-                            ]);
+                        let texture = shared.submit(thread, device, helper, picture, frame, &Told::STILL)?;
+                        if texture.is_some() {
+                            said(thread, frame, reached);
                         }
-                        shared.submit(thread, device, helper, back, frame).map(|()| Some(Event::Submitted))
+                        **shown = texture;
+                        Ok(texture.map(|_| Event::Submitted))
                     });
-                if frame.0 == 0 && matches!(submitted, Ok(Some(_))) {
-                    line(&[Text("dlss: the first frame is submitted")]);
-                }
                 or_broken(submitted)
             }
         },
         Action::Resize(shared) => {
             let (helper, device) = link.ends()?;
             shared.retire(thread, device);
-            if let Some(present) = present {
+            if let Some(present) = site.present() {
                 line(&[
                     Text("dlss: the output is "),
                     Dec(present.back.size.width),
@@ -606,6 +699,37 @@ fn act(
             end(thread, helper, device, shared);
             None
         }
+    }
+}
+
+/// A frame is on DXVK's queue and the screen image shows the helper's
+/// output of it: the first one's line, and the progress lines.
+fn said(thread: &Thread, frame: Frame, reached: u64) {
+    if frame.0 == 0 {
+        line(&[Text("dlss: the first frame is submitted: the screen image shows the helper's output from here on")]);
+    }
+    let Progress::Said(report) = PROGRESS.get(thread) else { return };
+    if !frame.0.is_multiple_of(PROGRESS_EVERY) {
+        return;
+    }
+    let head = [
+        Text("dlss: frame "),
+        Dec(frame.0 as u32),
+        Text(": its picture is copied in, the screen image shows the helper's output of it; the timeline at "),
+        Dec(reached as u32),
+    ];
+    match report {
+        Some(report) => line_of(&[
+            &head,
+            &[
+                Text("; the helper's last report: frame "),
+                Dec(report.frame as u32),
+                Text(", DLSS took "),
+                Dec(report.dlss_microseconds),
+                Text(" us of the GPU"),
+            ],
+        ]),
+        None => line(&head),
     }
 }
 
@@ -715,6 +839,7 @@ fn say(purpose: Purpose, why: &Failure) {
             head,
             &[Text("the helper runs and "), Text(what), Text(" in "), Dec(ANSWER_WAIT / 1000), Text(" s")],
         ]),
+        Failure::NoRenderSize => line_of(&[head, &[Text("the 3D frame is not at a render size")]]),
     }
 }
 
@@ -809,7 +934,7 @@ mod tests {
 
     fn running() -> Test {
         let (link, action) = run(Purpose::Run).step(Event::HelloAnswered(Ok(RENDER)));
-        assert_eq!(action, Action::Share { render: RENDER, output: HD });
+        assert_eq!(action, Action::Share { answered: RENDER, output: HD });
         assert_eq!(DlssOffer::of(true, &link), DlssOffer::Offered);
         let (link, action) = link.step(Event::SetupSent { shared: "shared", output: HD, now: at(1000) });
         assert_eq!(action, Action::Nothing);
@@ -821,16 +946,21 @@ mod tests {
     }
 
     #[test]
-    fn with_the_tick_on_the_helper_is_asked_then_set_up_then_each_present_is_a_frame() {
+    fn with_the_tick_on_the_helper_is_asked_then_set_up_then_each_picture_is_a_frame() {
+        // before the Setup's answer a picture is nothing of the link's: shown as it is
+        assert_eq!(run(Purpose::Run).step(Event::Picture).1, Action::Nothing);
         let link = running();
+        // a Present of the same output is no frame: a frame goes where its picture is whole
         let (link, action) = link.step(frame(HD, 1020));
+        assert_eq!(action, Action::Nothing);
+        let (link, action) = link.step(Event::Picture);
         assert_eq!(action, Action::Submit(Frame(0)));
-        // a Present whose command buffer is not free yet is no frame: the same one next
-        let (link, action) = link.step(frame(HD, 1030));
+        // a picture whose command buffers are not free yet is no frame: the same one next
+        let (link, action) = link.step(Event::Picture);
         assert_eq!(action, Action::Submit(Frame(0)));
         let (link, action) = link.step(Event::Submitted);
         assert_eq!(action, Action::Nothing);
-        let (link, action) = link.step(frame(HD, 1040));
+        let (link, action) = link.step(Event::Picture);
         assert_eq!(action, Action::Submit(Frame(1)));
         assert_eq!(
             link,
@@ -948,7 +1078,7 @@ mod tests {
         assert_eq!(action, Action::SayHello(QHD));
         let (link, _) = link.step(Event::HelloSent { output: QHD, now: at(2010) });
         let (link, action) = link.step(Event::HelloAnswered(Ok(Size { width: 1707, height: 960 })));
-        assert_eq!(action, Action::Share { render: Size { width: 1707, height: 960 }, output: QHD });
+        assert_eq!(action, Action::Share { answered: Size { width: 1707, height: 960 }, output: QHD });
         // the output changed again before the images were made: again
         let (link, action) = link.step(Event::OutputChanged { now: at(2500) });
         assert_eq!(
@@ -987,6 +1117,7 @@ mod tests {
         assert_eq!(NotRun::of(true, false), Some(NotRun::NoFiles));
         assert_eq!(DlssOffer::of(true, &Test::Off(NotRun::NotNvidia)), DlssOffer::NotNvidia);
         assert_eq!(DlssOffer::of(true, &Test::Off(NotRun::NoFiles)), DlssOffer::NoFiles);
+        assert_eq!(DlssOffer::of(true, &Test::Off(NotRun::NoRenderSize)), DlssOffer::NoRenderSize);
         for purpose in [Purpose::Ask, Purpose::Run] {
             assert_eq!(DlssOffer::of(true, &Test::Waiting(purpose)), DlssOffer::NotYet);
         }

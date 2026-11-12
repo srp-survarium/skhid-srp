@@ -796,6 +796,17 @@ pub unsafe fn engine_get_exit_code_process(function: NonNull<c_void>, process: *
     unsafe { function(process, code) }
 }
 
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_resource_interop_surface(struct hw_resource *resource, const void *iid, struct interop_surface **surface)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_resource_interop_surface(function: NonNull<c_void>, resource: Option<HwResource>, iid: *const c_void, surface: *mut Option<InteropSurface>) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(Option<HwResource>, *const c_void, *mut Option<InteropSurface>) -> u32>(function.as_ptr()) };
+    unsafe { function(resource, iid, surface) }
+}
+
 /// a function at the address GetProcAddress gives (stdcall): void *engine_vk_get_instance_proc_addr(void *instance, const char *name)
 ///
 /// # Safety
@@ -1027,6 +1038,17 @@ pub unsafe fn engine_vk_cmd_blit_image(function: NonNull<c_void>, buffer: *mut c
     unsafe { function(buffer, source_low, source_high, source_layout, destination_low, destination_high, destination_layout, count, regions, filter) }
 }
 
+/// a function at the address GetProcAddress gives (stdcall): void engine_vk_cmd_copy_image(void *buffer, unsigned int source_low, unsigned int source_high, unsigned int source_layout, unsigned int destination_low, unsigned int destination_high, unsigned int destination_layout, unsigned int count, const void *regions)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_vk_cmd_copy_image(function: NonNull<c_void>, buffer: *mut c_void, source_low: u32, source_high: u32, source_layout: u32, destination_low: u32, destination_high: u32, destination_layout: u32, count: u32, regions: *const c_void) {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, u32, u32, u32, u32, u32, *const c_void)>(function.as_ptr()) };
+    unsafe { function(buffer, source_low, source_high, source_layout, destination_low, destination_high, destination_layout, count, regions) }
+}
+
 /// a function at the address GetProcAddress gives (stdcall): void engine_vk_cmd_clear_color_image(void *buffer, unsigned int image_low, unsigned int image_high, unsigned int layout, const void *color, unsigned int count, const void *ranges)
 ///
 /// # Safety
@@ -1036,17 +1058,6 @@ pub unsafe fn engine_vk_cmd_blit_image(function: NonNull<c_void>, buffer: *mut c
 pub unsafe fn engine_vk_cmd_clear_color_image(function: NonNull<c_void>, buffer: *mut c_void, image_low: u32, image_high: u32, layout: u32, color: *const c_void, count: u32, ranges: *const c_void) {
     let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, u32, *const c_void, u32, *const c_void)>(function.as_ptr()) };
     unsafe { function(buffer, image_low, image_high, layout, color, count, ranges) }
-}
-
-/// a function at the address GetProcAddress gives (stdcall): void engine_vk_cmd_clear_depth_stencil_image(void *buffer, unsigned int image_low, unsigned int image_high, unsigned int layout, const void *value, unsigned int count, const void *ranges)
-///
-/// # Safety
-/// `function` is that function (a GetProcAddress result of its name).
-#[allow(dead_code, clippy::too_many_arguments)]
-#[inline(always)]
-pub unsafe fn engine_vk_cmd_clear_depth_stencil_image(function: NonNull<c_void>, buffer: *mut c_void, image_low: u32, image_high: u32, layout: u32, value: *const c_void, count: u32, ranges: *const c_void) {
-    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, u32, *const c_void, u32, *const c_void)>(function.as_ptr()) };
-    unsafe { function(buffer, image_low, image_high, layout, value, count, ranges) }
 }
 
 /// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_queue_submit(void *queue, unsigned int count, const void *submits, unsigned int fence_low, unsigned int fence_high)
@@ -21999,6 +22010,39 @@ impl SetSizeTargetsFrame {
     }
 }
 
+/// A vostok::render::present_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PresentFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PresentFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::render::res_texture>): renderer::present's [esp] at 0x1418E5: stage_screen_image::execute's argument, the texture its quad samples (by value, one reference the callee lets go: add [eax+4],-1 at 0x1BD35A, then 0x3BEE00 at 0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn texture(self) -> Option<ResTexture> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ResTexture>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::render::res_texture>): renderer::present's [esp] at 0x1418E5: stage_screen_image::execute's argument, the texture its quad samples (by value, one reference the callee lets go: add [eax+4],-1 at 0x1BD35A, then 0x3BEE00 at 0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_texture(self, value: Option<ResTexture>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ResTexture>>().write_volatile(value) }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -26352,6 +26396,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<RenderFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(RenderFrame)
+        }
+    }
+
+    /// render.screen_image (0x1418e5): renderer::present (0x1418C0, from renderer::render's 0x13DB36) with stage_screen_image::execute's argument pushed (mov ecx,[edx+1DCh], the stage; then its vtable +28h, 0x1BD320, called at 0x1418F0): [esp] the texture the screen image's quad samples onto the back buffer, get_t(52) with one reference added for the callee (0x1418C6..0x1418E2: [context+119Ch] + 211Ch, inc [eax+4]); execute lets that reference go (0x1BD35A, 0x1BD589). The frame's stages are done, the viewport and base depth-stencil are the output's (render.present_stage ran)
+    pub mod render_screen_image {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::render::present_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<PresentFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(PresentFrame)
         }
     }
 }

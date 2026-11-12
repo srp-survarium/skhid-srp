@@ -4032,6 +4032,45 @@ hud_options_on_present_stage_replay:
     db 0x8b, 0x74, 0x24, 0x2c, 0x51
     jmp 0x13db1b
 
+; 0x1418e5 renderer::present (0x1418C0, from renderer::render's 0x13DB36) with stage_screen_image::execute's argument pushed (mov ecx,[edx+1DCh], the stage; then its vtable +28h, 0x1BD320, called at 0x1418F0): [esp] the texture the screen image's quad samples onto the back buffer, get_t(52) with one reference added for the callee (0x1418C6..0x1418E2: [context+119Ch] + 211Ch, inc [eax+4]); execute lets that reference go (0x1BD35A, 0x1BD589). The frame's stages are done, the viewport and base depth-stencil are the output's (render.present_stage ran): lohook -> hud_options_on_screen_image
+global hud_options_on_screen_image
+extern hook_hud_options_on_screen_image
+hud_options_on_screen_image:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_options_on_screen_image
+    mov edx, hud_options_on_screen_image_replay
+    cmp eax, 0
+    je hud_options_on_screen_image_go
+    mov edx, 0x1418eb
+    cmp eax, 1
+    je hud_options_on_screen_image_go
+    ud2
+hud_options_on_screen_image_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_options_on_screen_image_replay:
+    db 0x8b, 0x8a, 0xdc, 0x01, 0x00, 0x00
+    jmp 0x1418eb
+
 ; 0x1fab50 game_world_core::change_input<client_update<player_input,220,235,221,236>>'s start (push ebp / mov ebp,esp / and esp,-8), every player input a world takes: a local one, a relayed one (0xEB, the batch 0x27C5C1), a moved one (0xEF) and a replay's; ESP+4 the core, +8 the input (half2 rotation, then the action mask), +10h its time, +14h the player; refused is its `ret 24h` (0x1FAC4E, the duplicate's; EAX the event action, 6 as both refusals return it): lohook -> input_check_on_change_input
 global input_check_on_change_input
 extern hook_input_check_on_change_input

@@ -14,7 +14,7 @@
 #![forbid(unsafe_code)]
 
 use crate::vostok::log::{Piece::*, line};
-use crate::vostok::render_size::{self, DepthTarget, Size, TargetsSize};
+use crate::vostok::render_size::{self, DepthTarget, DepthTexture, Size, TargetsSize};
 use crate::vostok::renderer::get_environment;
 use crate::vostok::{Context, Flow, Lock, NoExit, Thread, ThreadBound};
 
@@ -176,6 +176,20 @@ pub fn ask(thread: &Thread, scale: RenderScale) -> bool {
     }
     OWNER.with(thread, |owner| owner.step(Event::Asked(scale)));
     true
+}
+
+/// The scaled frame being rendered: its ratio and its size. None while the
+/// frame is native.
+pub fn scaled(thread: &Thread) -> Option<(Ratio, Size)> {
+    OWNER.with(thread, |owner| match &owner.frame {
+        Frame::Native => None,
+        Frame::Scaled { ratio, depth } => depth.get(thread).map(|depth| (*ratio, depth.size())),
+    })
+}
+
+/// The scaled frame's depth-stencil as a texture, on its thread.
+pub fn depth_texture(thread: &Thread) -> Option<DepthTexture> {
+    OWNER.with(thread, |owner| owner.depth(thread).and_then(DepthTarget::texture))
 }
 
 /// The diagnostics switch's fallback: the frames left until native is asked

@@ -2401,6 +2401,21 @@ pub extern "C" fn hook_hud_options_on_present_stage(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- hud_options (patch 83) ----
+
+/// The entry `hud_options_on_screen_image` (0x1418e5, renderer::present (0x1418C0, from renderer::render's 0x13DB36) with stage_screen_image::execute's argument pushed (mov ecx,[edx+1DCh], the stage; then its vtable +28h, 0x1BD320, called at 0x1418F0): [esp] the texture the screen image's quad samples onto the back buffer, get_t(52) with one reference added for the callee (0x1418C6..0x1418E2: [context+119Ch] + 211Ch, inc [eax+4]); execute lets that reference go (0x1BD35A, 0x1BD589). The frame's stages are done, the viewport and base depth-stencil are the output's (render.present_stage ran)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_options_on_screen_image(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_options_on_screen_image` calls this, from the game's jump at 0x1418e5,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_options::on_screen_image(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- input_check (patch 99) ----
 
 /// The named exits of input_check::on_change_input (the order the shim's Flow code
@@ -4922,9 +4937,10 @@ unsafe extern "C" {
     fn hud_options_on_output_set();
     fn hud_options_on_depth_texture();
     fn hud_options_on_present_stage();
+    fn hud_options_on_screen_image();
 }
 /// hud_options's sites that keep the game's bytes until it installs them.
-pub fn hud_options_on_demand() -> [super::hook::OnDemand; 5] {
+pub fn hud_options_on_demand() -> [super::hook::OnDemand; 6] {
     [
         // render_window.targets_size: render_output_window::set_size with create_targets' arguments pushed (lea eax,[ebx+118h]; then xor d
         // SAFETY: the site's span as the original exe has it; hud_options_on_targets_size is the
@@ -4946,6 +4962,10 @@ pub fn hud_options_on_demand() -> [super::hook::OnDemand; 5] {
         // SAFETY: the site's span as the original exe has it; hud_options_on_present_stage is the
         // generated or linked entry for it, alive as long as the executable.
         unsafe { super::hook::OnDemand::new(0x13db16, &[0x8b, 0x74, 0x24, 0x2c, 0x51], hud_options_on_present_stage as *const () as usize as u32) },
+        // render.screen_image: renderer::present (0x1418C0, from renderer::render's 0x13DB36) with stage_screen_image::execute's ar
+        // SAFETY: the site's span as the original exe has it; hud_options_on_screen_image is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x1418e5, &[0x8b, 0x8a, 0xdc, 0x01, 0x00, 0x00], hud_options_on_screen_image as *const () as usize as u32) },
     ]
 }
 
