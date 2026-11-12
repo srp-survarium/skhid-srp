@@ -110,8 +110,19 @@ pub struct Damage {
     /// one, in part order: `body_part_parameters::serialize` 0x32AE00 writes each part's affects as {u8 type, u32 end}
     /// (0x32B720); an affect ends at its hit's time + `affect_duration_sec` x 1000 of its type (0x32AC54..0x32AC61);
     /// `damage_model` +0x388 counts the parts holding one (0x2E537E / 0x2E5387, recount 0x2E5990), and the movement
-    /// state machine stops every move at 2 (fx-review A325f, PROVEN).
-    pub leg_damage_ends: Vec<u32>,
+    /// state machine stops every move at 2 (fx-review A325f, PROVEN). [F12] With each, the part's last damaging hit: the
+    /// tick does not expire a wound within the part's regeneration delay of it (0x32A551), which the body's owner knows.
+    pub leg_wounds: Vec<LegWound>,
+}
+
+/// [F12] A part's `leg_damage` wound as a world saves it: its affect's end and the part's last damaging hit (`m_last_hit_time`,
+/// the part record's +4, +B0h: written only by a hit with damage over 0, 0x32A29E; none for 0). The tick keeps the wound until
+/// the later of the end and the hit + the part's regeneration delay (0x32A551, PROVEN): the game data's `regeneration_timeout`
+/// less 500 ms a rank of Metabolism less the Regeneration booster's 2 s, not under 0 (`bots::legs::LegWound::end_held`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LegWound {
+    pub end: u32,
+    pub last_hit: Option<u32>,
 }
 
 /// `hit_affects_type_enum`'s `leg_damage` (fx-review A325f; `human_hit_params.options` `affect_duration_sec/leg_damage`).
@@ -303,7 +314,7 @@ fn damage_model(s: &[u8], head: usize, inserted_at: usize, now: u32) -> Option<D
         }
         let mut at = start + 22;
         let mut parts = Vec::new();
-        let mut leg_damage_ends = Vec::new();
+        let mut leg_wounds = Vec::new();
         let ends = loop {
             // The usable-object flag: clear right before the time, or set
             // with its 32 bytes.
@@ -314,6 +325,7 @@ fn damage_model(s: &[u8], head: usize, inserted_at: usize, now: u32) -> Option<D
                 break false;
             }
             let health = f32_at(s, at)?;
+            let part_last_hit = u32_at(s, at + 4)?;
             if !(health.is_finite() && (0.0..=1000.0).contains(&health)) {
                 break false;
             }
@@ -334,7 +346,7 @@ fn damage_model(s: &[u8], head: usize, inserted_at: usize, now: u32) -> Option<D
             }
             at += 1 + 8 * usize::from(s[at]) + 4;
             parts.push(health);
-            leg_damage_ends.extend(leg_end);
+            leg_wounds.extend(leg_end.map(|end| LegWound { end, last_hit: (part_last_hit != 0).then_some(part_last_hit) }));
         };
         if !ends || parts.is_empty() {
             continue;
@@ -347,7 +359,7 @@ fn damage_model(s: &[u8], head: usize, inserted_at: usize, now: u32) -> Option<D
             linear_horizontal_speed: f32_at(s, start + 1)?,
             last_hit_time_ms: u32_at(s, start + 6)?,
             part_health: parts,
-            leg_damage_ends,
+            leg_wounds,
         });
     }
     found
@@ -377,6 +389,8 @@ pub struct Tail {
     pub recent_hits: Vec<(u32, f32)>,
     /// The legs' (parts 6 and 7) `leg_damage` affect's end, if any (written as the affect {4, end}).
     pub leg_damage_ends: [Option<u32>; 2],
+    /// [F12] The legs' (parts 6 and 7) last damaging hit (`m_last_hit_time`, 0 for none).
+    pub leg_last_hits: [u32; 2],
 }
 
 /// A whole player state for tests and tools: the head (its time set to the
@@ -397,7 +411,7 @@ pub fn state_bytes(head: &PlayerState, inventory: &[u8], tail: &Tail) -> Vec<u8>
     out.extend([0; 8]); // invulnerability
     for part in 0..20usize {
         out.extend(if part == 0 { tail.health } else { 1.0f32 }.to_le_bytes());
-        out.extend(0u32.to_le_bytes());
+        out.extend(part.checked_sub(6).and_then(|leg| tail.leg_last_hits.get(leg).copied()).unwrap_or(0).to_le_bytes());
         out.push(1); // one {u8, u32}
         match part.checked_sub(6).and_then(|leg| tail.leg_damage_ends.get(leg).copied().flatten()) {
             Some(end) => {
@@ -473,6 +487,7 @@ mod tests {
                 sprinting: false,
                 recent_hits: hits.to_vec(),
                 leg_damage_ends: [None, None],
+                leg_last_hits: [0; 2],
             },
         )
     }
@@ -489,13 +504,23 @@ mod tests {
             sprinting: false,
             recent_hits: Vec::new(),
             leg_damage_ends: [Some(110_000), Some(111_500)],
+            leg_last_hits: [0; 2],
         };
-        let read = |tail: &Tail| Motion::read(&state_bytes(&head(true, 5), &[7; 40], tail), 5).unwrap().damage.unwrap().leg_damage_ends;
+        let read = |tail: &Tail| {
+            Motion::read(&state_bytes(&head(true, 5), &[7; 40], tail), 5).unwrap().damage.unwrap().leg_wounds.iter().map(|w| w.end).collect::<Vec<_>>()
+        };
         assert_eq!(read(&tail), vec![110_000, 111_500]);
         tail.leg_damage_ends = [None, Some(111_500)];
         assert_eq!(read(&tail), vec![111_500]);
         tail.leg_damage_ends = [None, None];
         assert!(read(&tail).is_empty(), "the other affects (type 3) are not leg damage");
+        // [F12] Each wound with its leg's last damaging hit (0: none); a hit with no wound makes none.
+        tail.leg_damage_ends = [Some(110_000), Some(111_500)];
+        tail.leg_last_hits = [105_000, 0];
+        let wounds = Motion::read(&state_bytes(&head(true, 5), &[7; 40], &tail), 5).unwrap().damage.unwrap().leg_wounds;
+        assert_eq!(wounds, vec![LegWound { end: 110_000, last_hit: Some(105_000) }, LegWound { end: 111_500, last_hit: None }]);
+        tail.leg_damage_ends = [None, None];
+        assert!(read(&tail).is_empty(), "a hit alone is no wound");
     }
 
     #[test]

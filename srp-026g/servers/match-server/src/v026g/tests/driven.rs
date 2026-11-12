@@ -375,6 +375,7 @@ fn with_the_map_the_servers_bot_sees_its_body_in_the_worlds_and_walks_smoothly()
         sprinting: false,
         recent_hits: Vec::new(),
         leg_damage_ends: [None, None],
+        leg_last_hits: [0; 2],
     });
     bench.join(0);
     assert!(bench.until(2_000, |bench| bench.clients[0].entered() == [0, 1]));

@@ -1419,6 +1419,13 @@ impl Bots {
         }
     }
 
+    /// [F12] The leg regeneration delay of the body at `place` (its wounds are held this long after the leg's last hit): a
+    /// bot's from its Metabolism, any other body's the game data's alone.
+    pub fn wound_delay_ms(&self, place: Place) -> u32 {
+        let sooner = self.bots.get(place).and_then(Option::as_ref).map_or(0, |bot| bot.features.stock.pantry.factors().regeneration_sooner_ms);
+        legs::regeneration_delay_ms(sooner)
+    }
+
     /// [2e] A trusted world's recent hits on one place (`m_recent_hits`: the world's ms, each hit's stopping speed): the
     /// stagger of its reckoned body ([`kin::SprintGates`], [`kin::SpeedTerms::LegsStagger`]).
     pub fn hits(&mut self, place: Place, hits: &[(u32, f32)]) {
