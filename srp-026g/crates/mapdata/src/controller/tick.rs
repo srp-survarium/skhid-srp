@@ -133,6 +133,11 @@ pub struct Controller {
     pub want_crouch: bool,
     /// +0x202 `m_can_stand`: a crouched body may stand (the tail's stand test, made only with the key released).
     pub can_stand: bool,
+    /// +0x205 `m_colliding_with_player`: the world found the body overlapping an enemy's (`bullet_physics_world::tick`
+    /// 0x75811 / 0x75848, which also zeroes both velocities and sets both transforms). Nothing clears it but the
+    /// controller's own `initialize`; a body with it set never skips its step (0x7C892). The world's write: a caller
+    /// that knows of such a meeting sets it.
+    pub colliding_with_player: bool,
     /// +0x2C720: the ceiling normal of the last stand test.
     pub ceiling_normal: Vec3,
     /// +0x30: the air control vector the game sets in a jump (a speed, m/s).
@@ -188,6 +193,33 @@ fn dims_of((w, h): (f32, f32)) -> (f32, f32) {
 
 fn len2(v: Vec3) -> f32 {
     (v.y * v.y + v.z * v.z) + v.x * v.x
+}
+
+/// The normalisation inlined in `step_jump_forward` (0x7CC93..0x7CDCB): the vector over the size of its largest
+/// component first (the first of equal ones in the order x, y, z by the exe's compares), then over its length; (1, 0, 0)
+/// only for a vector with no component over 0. There is no least length: a contact the body stands on, whose normal is
+/// up but for rounding, gives its rounding's direction (counted: 27 of 155 first air steps of a replayed match differed
+/// from the game with the least length of `normalized_safe` here).
+fn normalized_by_largest(v: Vec3) -> Vec3 {
+    let (ax, ay, az) = (v.x.abs(), v.y.abs(), v.z.abs());
+    // 0x7CCD0..0x7CD01: `fcomip` |y| against |x|, then `comiss` |z| against the larger.
+    let largest = if ay > ax {
+        if az > ay { az } else { ay }
+    } else if az > ax {
+        az
+    } else {
+        ax
+    };
+    // 0x7CD07: `comiss largest, 0; jna` to the fallback (0x7CDB7).
+    if !(largest > 0.0) {
+        return Vec3::new(1.0, 0.0, 0.0);
+    }
+    // 0x7CD10..0x7CD35: each component times 1 / largest.
+    let s = 1.0 / largest;
+    let (x, y, z) = (s * v.x, v.y * s, v.z * s);
+    // ORDER (asm 0x7CD39..0x7CD59): (z*z + y*y) + x*x; then 1 / sqrt in x87 at 24 bits, stored as f32 (0x7CD7A).
+    let r = 1.0 / ((z * z + y * y) + x * x).sqrt();
+    Vec3::new(r * x, y * r, z * r)
 }
 
 /// `normalized_safe` 0x7AA50.
@@ -294,6 +326,7 @@ impl Controller {
             input_crouch: false,
             want_crouch: false,
             can_stand: true,
+            colliding_with_player: false,
             // The exe's constructor starts it at -up (Unicorn).
             ceiling_normal: Vec3::new(0.0, -1.0, 0.0),
             air_control: Vec3::ZERO,
@@ -380,6 +413,7 @@ impl Controller {
             && len2(v) == 0.0
             && !self.need_slide(s)
             && !self.ceiling_push_due()
+            && !self.colliding_with_player
             && self.crouched == self.input_crouch
             && self.slide == Vec3::ZERO
         {
@@ -641,7 +675,7 @@ impl Controller {
                 Some((f, n)) => {
                     let dn = (n.y * UP.y + n.z * UP.z) + UP.x * n.x;
                     let h = Vec3::new(n.x - UP.x * dn, n.y - UP.y * dn, n.z - UP.z * dn);
-                    let h = normalized_safe(h, Vec3::new(1.0, 0.0, 0.0));
+                    let h = normalized_by_largest(h);
                     if !s.wall_slide {
                         self.pos = Vec3::new(pos.x * (1.0 - f) + t.x * f, pos.y * (1.0 - f) + t.y * f, pos.z * (1.0 - f) + t.z * f);
                     } else {
@@ -1387,6 +1421,36 @@ mod tests {
         c.can_stand = false;
         c.jump();
         assert!(c.jumping && c.want_crouch);
+    }
+
+    /// The jump's sideways step makes a hit's horizontal normal unit however short it is: a body that leaves a box's
+    /// top meets it with a normal that is up but for rounding, and slides by that rounding's direction as the game does.
+    #[test]
+    fn a_short_horizontal_normal_is_made_unit_in_the_air() {
+        let n = normalized_by_largest(Vec3::new(1.2586433e-5, 0.0, -9.141725e-5));
+        assert!((n.length() - 1.0).abs() < 1e-6 && n.y == 0.0, "{n:?}");
+        assert!((n.x / n.z - 1.2586433e-5 / -9.141725e-5).abs() < 1e-6, "{n:?}");
+        // The least-length rule of the ground's steps would give its fallback here.
+        assert_eq!(normalized_safe(Vec3::new(1.2586433e-5, 0.0, -9.141725e-5), Vec3::new(1.0, 0.0, 0.0)), Vec3::new(1.0, 0.0, 0.0));
+        assert_eq!(normalized_by_largest(Vec3::ZERO), Vec3::new(1.0, 0.0, 0.0));
+        assert_eq!(normalized_by_largest(Vec3::new(0.0, -3.0, 0.0)), Vec3::new(0.0, -1.0, 0.0));
+        // The first of equal components leads: (1, 1, 1) over 1, then over the square root of 3.
+        let d = normalized_by_largest(Vec3::new(2.0, -2.0, 2.0));
+        assert!((d.x - 0.57735026).abs() < 1e-7 && d.y == -d.x && d.z == d.x, "{d:?}");
+    }
+
+    /// A body the world found overlapping an enemy's never skips its step again.
+    #[test]
+    fn a_body_that_met_an_enemy_does_not_skip_its_step() {
+        let mut tris = Vec::new();
+        ground(0.0, -10.0, 10.0, &mut tris);
+        let world = Collision::build(&tris);
+        let mut c = Controller::standing_at(Vec3::ZERO);
+        c.step(&world, 0.05, &Settings::LIVE);
+        assert!(c.step(&world, 0.05, &Settings::LIVE).skipped);
+        c.colliding_with_player = true;
+        assert!(!c.step(&world, 0.05, &Settings::LIVE).skipped);
+        assert!(c.colliding_with_player);
     }
 
     /// A wall stops the body with its side 0.42 m off it (the cylinder 0.38 m plus the 0.04 m margin): the exe's too (Unicorn).

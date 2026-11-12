@@ -2446,3 +2446,4 @@ va	status	ref_021d	name
 0x002d7920	reviewed		survarium::base_player::jump
 0x002fbea0	reviewed		survarium::weapon_user_animations_selector::crouch_to_on_site_predicate
 0x002fbf00	reviewed		survarium::weapon_user_animations_selector::crouch_to_run_predicate
+0x0007cb90	reviewed	0x0021ddbd	vostok::physics::bullet_character_controller::step_jump_forward
