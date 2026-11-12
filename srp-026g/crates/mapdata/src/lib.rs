@@ -112,7 +112,7 @@ pub const CELL: f32 = 0.25;
 /// with any change to the build that changes a grid (the pinned digest
 /// test in `grid.rs` fails until then), so a stored or shared grid of the
 /// old build is never taken for the new.
-pub const GRID_ALGO: u32 = 13;
+pub const GRID_ALGO: u32 = 14;
 /// The same for the gap links' pass ([`grid::gap`]), in [`grid_key_with_links`]
 /// only when a build makes them ([`OffMeshLinks::Gaps`]): a grid without
 /// them keys, builds and writes as before they were made.
