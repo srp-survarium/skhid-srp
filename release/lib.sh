@@ -287,6 +287,52 @@ world_check_bin() {
     printf '%s\n' "$ROOT/srp-026g/target/release/srp-world-check"
 }
 
+# srp-build-maps built from this checkout ($SRP_BUILD_MAPS_BIN names one built
+# already), as release/build-bot-maps builds it: prints its path.
+build_maps_bin() {
+    if [[ -n ${SRP_BUILD_MAPS_BIN:-} ]]; then
+        printf '%s\n' "$SRP_BUILD_MAPS_BIN"
+        return
+    fi
+    say "building srp-build-maps (srp-026g, nix develop) ..." >&2
+    (cd "$ROOT" && nice -n 10 nix develop ./srp-026g -c bash -c \
+        'cd srp-026g && cargo build --quiet --release -p match-server --bin srp-build-maps') >&2 ||
+        die "srp-build-maps did not build"
+    printf '%s\n' "$ROOT/srp-026g/target/release/srp-build-maps"
+}
+
+# The built files (mapdata/built/<name>) the server reads each offered map
+# of the bots' data list from (its mapdata/<level>_<weather>.mapdata rows),
+# by the keys this checkout's srp-build-maps computes (--files: nothing is
+# built), checked against the list: one line a file the list lacks; fails
+# when there is one. <bin> <mapdata folder>.
+bot_maps_built_check() {
+    local bin=$1 maps=$2 path project rest names name i listed bad=0
+    local projects=()
+    for path in "${BD_PATH[@]}"; do
+        [[ $path =~ ^mapdata/(level_[0-9a-z]+)_([a-z]+_[0-9]+)\.mapdata$ ]] || continue
+        projects+=("${BASH_REMATCH[1]}/${BASH_REMATCH[2]}")
+    done
+    ((${#projects[@]})) || return 0
+    names=$("$bin" --files "$maps" "${projects[@]}" 2>&1) || {
+        say "srp-build-maps --files failed: $(tail -n 2 <<<"$names" | tr '\n' ' ')"
+        return 1
+    }
+    while IFS=$'\t' read -r project rest; do
+        for name in $rest; do
+            listed=0
+            for i in "${!BD_PATH[@]}"; do
+                if [[ ${BD_PATH[i]} == "mapdata/built/$name" ]]; then listed=1; break; fi
+            done
+            if ((!listed)); then
+                say "$project: mapdata/built/$name is not in the list (its key is this checkout's grid, sight or tactics rules and the map file)"
+                bad=1
+            fi
+        done
+    done <<<"$names"
+    return "$bad"
+}
+
 # The server's image (srp-026g/Dockerfile) built here from <src>, main's
 # srp-026g source, into <out>: a zstd docker-archive tagged $IMAGE, which
 # the host's `docker load` takes, so the live host (one core, the running

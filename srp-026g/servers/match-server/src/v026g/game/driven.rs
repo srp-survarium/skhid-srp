@@ -27,8 +27,9 @@
 //!   the worlds the match trusts ([`Game::observe_driven`]); while they
 //!   play the clients are asked for a world every `timing.pvb_world` (2 s; `SRP_PVB_WORLD_MS`), and
 //!   every [`WAITING_REFRESH`] while one waits to see its body (just
-//!   entered, or dead). Until the map's walk grid is built (0.3 to 0.8 s,
-//!   on a thread of its own) they stand; if the map has no file they run
+//!   entered, or dead). Until the map's walk grid is built (18 to 47 s on a PC with today's grid rules, a read of its
+//!   pre-built files 1.4 to 2.4 s: `release/build-bot-maps`; on a thread of its own) they do not enter, so the clients'
+//!   countdown waits for them, up to [`MAP_HOLD_CAP`] ([`MapHold`]), and stand if it ends first; if the map has no file they run
 //!   the stage 0 script instead. `SRP_BOT_TUNING` (a JSON merge patch over
 //!   the defaults, read once when the server starts: a file it cannot use stops the server) changes their numbers; `SRP_BOT_TRACE_DIR` keeps
 //!   their decisions (`SRP_BOT_TRACE_MAX_MB` of them); `bot-routes.json` in
@@ -70,6 +71,66 @@ use crate::v026g::drive::{self, Drive};
 /// body, at least this often.
 const WAITING_REFRESH: Duration = Duration::from_secs(1);
 
+/// [owner-14 row 1] The bots' places wait this long at most for their map before they enter anyway, from when a client
+/// first simulates. The clients start the countdown once `floor(0.8 x N)` of the N places entered (`start.rs`), so while
+/// the bots wait the countdown waits ("Awaiting other players"); after the cap they enter and stand until the map is
+/// built, as before. The owner's 14 matches (2026-11-08): 9 built their map in the match, 18-47 s on a PC, against the 20 s
+/// countdown, and every bot stood 8-26 s after play began; the players' host is slower (one core). 60 s is the report's
+/// proposal (GUESS: one countdown and a half; the clients' own wait for missing players is 5 minutes).
+pub(super) const MAP_HOLD_CAP: Duration = Duration::from_secs(60);
+
+/// Whether the bots' entry waits for their map ([`MAP_HOLD_CAP`]): one state a match, one transition ([`MapHold::poll`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum MapHold {
+    /// No client simulates yet: nobody enters.
+    NotYet,
+    /// The bots have no map yet: their places do not enter, since then.
+    Holding { since: Instant },
+    /// They enter: their map was ready (or will never be), the countdown began without them, or the cap passed.
+    Released,
+}
+
+/// Why a hold ended, for the log ([`MapHold::poll`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum HoldEnd {
+    /// Their map is ready, or the map has none (the stage 0 script).
+    Ready,
+    /// The countdown began with the players alone (they make the clients' number), or the match is a room's, whose start
+    /// the stand-ins make (`start.rs`): the bots' entry holds nothing back there.
+    NotTheirs,
+    /// [`MAP_HOLD_CAP`] passed.
+    Cap,
+}
+
+/// What a poll of the hold did, for the log.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum HoldStep {
+    Began,
+    Ended { after: Duration, why: HoldEnd },
+}
+
+impl MapHold {
+    /// A poll at `now` with a client simulating: `ready`, the bots have their map (or will never get one); `may_hold`, the
+    /// countdown has not begun and the match is not a room's. The new state, and what to log.
+    pub(super) fn poll(self, now: Instant, ready: bool, may_hold: bool) -> (Self, Option<HoldStep>) {
+        let end = |since: Instant, why| (Self::Released, Some(HoldStep::Ended { after: now.saturating_duration_since(since), why }));
+        match self {
+            Self::Released => (self, None),
+            Self::NotYet if ready || !may_hold => (Self::Released, None),
+            Self::NotYet => (Self::Holding { since: now }, Some(HoldStep::Began)),
+            Self::Holding { since } if ready => end(since, HoldEnd::Ready),
+            Self::Holding { since } if !may_hold => end(since, HoldEnd::NotTheirs),
+            Self::Holding { since } if now.saturating_duration_since(since) >= MAP_HOLD_CAP => end(since, HoldEnd::Cap),
+            Self::Holding { .. } => (self, None),
+        }
+    }
+
+    /// Whether the bots' places may enter.
+    pub(super) fn released(self) -> bool {
+        self == Self::Released
+    }
+}
+
 /// The bots of a match and their map.
 pub(super) struct Walkers {
     pub(super) bots: Bots,
@@ -93,6 +154,8 @@ pub(super) struct Walkers {
     waiting: Option<std::time::Instant>,
     /// The roster events handed to the bots so far.
     events_seen: usize,
+    /// Whether their entry waits for their map ([`MAP_HOLD_CAP`]).
+    hold: MapHold,
 }
 
 impl Walkers {
@@ -225,6 +288,7 @@ impl Walkers {
             absent: false,
             waiting: None,
             events_seen: 0,
+            hold: MapHold::NotYet,
             kit_in_use: all_kits,
             speed_kits,
         })
@@ -760,7 +824,38 @@ impl Game {
         }
     }
 
-    /// Enter the server's bots once somebody simulates, and relay the
+    /// [owner-14 row 1] With a client simulating: whether the server's bots may enter now, or wait for their map
+    /// ([`MapHold`]); logs the hold's start and end. A match with no walkers (the stage 0 script) never waits.
+    fn bots_may_enter(&mut self, now: Instant) -> bool {
+        let id = self.id;
+        let may_hold = self.rule.state == rules::state::WAITING_FOR_PLAYERS && self.formed.room_minimum.is_none();
+        let Some(walkers) = self.walkers.as_mut() else {
+            return true;
+        };
+        walkers.world(id);
+        let ready = walkers.absent || walkers.bots.has_map();
+        let (hold, step) = walkers.hold.poll(now, ready, may_hold);
+        walkers.hold = hold;
+        match step {
+            Some(HoldStep::Began) => log::info!(
+                "Match {id:#x}: the server's bots wait for their map {} before they enter (the countdown waits with them, {} s at most)",
+                walkers.project,
+                MAP_HOLD_CAP.as_secs()
+            ),
+            Some(HoldStep::Ended { after, why }) => {
+                let why = match why {
+                    HoldEnd::Ready => "their map is ready",
+                    HoldEnd::NotTheirs => "the countdown began without them",
+                    HoldEnd::Cap => "the cap passed: they stand until their map is ready",
+                };
+                log::info!("Match {id:#x}: the server's bots enter after {:.1} s of waiting for their map: {why}", after.as_secs_f32());
+            }
+            None => {}
+        }
+        hold.released()
+    }
+
+    /// Enter the server's bots once somebody simulates (and their map is ready, [`MapHold`]), and relay the
     /// inputs they have due.
     pub(super) fn poll_driven(&mut self, now: Instant) {
         if self.clock_start.is_none()
@@ -771,6 +866,7 @@ impl Game {
             return;
         }
         let clock = self.clock(now);
+        let may_enter = self.live() > 0 && self.bots_may_enter(now);
         let mut due = Vec::new();
         for index in 0..self.drives.len() {
             if self.drives[index].is_none() {
@@ -781,7 +877,7 @@ impl Game {
                 .iter()
                 .any(|(_, who, entered)| *who == index && *entered);
             if !entered {
-                if self.live() == 0 {
+                if !may_enter {
                     continue;
                 }
                 let at = grid_up(clock + ROSTER_LEAD_MS);
@@ -1006,6 +1102,26 @@ mod tests {
     use crate::v026g::bots::live_grenades::KitPockets;
     use super::*;
     use survarium::v026g::loadouts::{BotEquipment, BotMask, BotRole, BotTier, RusherKit, bot_profile};
+
+    /// [owner-14 row 1] The bots' entry waits while their map is built, and only then: a map ready at the first poll holds
+    /// nothing; one being built holds until it is ready, the countdown begins without them, or the cap passes; released,
+    /// it stays released.
+    #[test]
+    fn the_bots_wait_for_their_map_up_to_the_cap() {
+        let t0 = Instant::now();
+        let at = |s: u64| t0 + Duration::from_secs(s);
+        assert_eq!(MapHold::NotYet.poll(t0, true, true), (MapHold::Released, None));
+        assert_eq!(MapHold::NotYet.poll(t0, false, false), (MapHold::Released, None), "a room's, or the countdown began");
+        let (held, step) = MapHold::NotYet.poll(t0, false, true);
+        assert_eq!((held, step), (MapHold::Holding { since: t0 }, Some(HoldStep::Began)));
+        assert!(!held.released());
+        assert_eq!(held.poll(at(30), false, true), (held, None));
+        let ended = |s, why| (MapHold::Released, Some(HoldStep::Ended { after: Duration::from_secs(s), why }));
+        assert_eq!(held.poll(at(33), true, true), ended(33, HoldEnd::Ready));
+        assert_eq!(held.poll(at(20), false, false), ended(20, HoldEnd::NotTheirs));
+        assert_eq!(held.poll(at(MAP_HOLD_CAP.as_secs()), false, true), ended(MAP_HOLD_CAP.as_secs(), HoldEnd::Cap));
+        assert_eq!(MapHold::Released.poll(at(70), false, true), (MapHold::Released, None));
+    }
 
     /// What the other bots believe of a bot's weapon: its role's, but the
     /// rusher's follows the kit it wears (the SMG is an SMG, the SPAS-12 a

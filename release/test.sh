@@ -117,6 +117,25 @@ echo "ok: the match server takes every world"
 EOF
 chmod +x "$T/bin/srp-world-check"
 export SRP_WORLD_CHECK_BIN=$T/bin/srp-world-check
+# srp-build-maps --files <mapdata> <project>...: its arguments a line of
+# $TEST_DIR/build-maps.args; each project's line names no built file (the
+# list has none to find), unless $TEST_DIR/built-missing is there: then
+# three names the list lacks.
+cat >"$T/bin/srp-build-maps" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$TEST_DIR/build-maps.args"
+[[ $1 == --files ]] || exit 2
+shift 2
+for project in "$@"; do
+    if [[ -e $TEST_DIR/built-missing ]]; then
+        printf '%s\tgrid-00000000000000aa.bin\tsight-00000000000000bb.bin\ttactics-00000000000000cc.bin\n' "$project"
+    else
+        printf '%s\n' "$project"
+    fi
+done
+EOF
+chmod +x "$T/bin/srp-build-maps"
+export SRP_BUILD_MAPS_BIN=$T/bin/srp-build-maps
 # The exe patches' self-test (release.sh, step 2, after build-zip): its
 # arguments (the commit's checkout, the original exe) a line of
 # $TEST_DIR/selftest.args; $TEST_DIR/selftest-fails: a check fails;
@@ -1368,9 +1387,8 @@ check "release: ... the rollback is told (BOT_DATA=1)" grep -qx "BOT_DATA=1" "$(
 check "release: ... the staged files' sha256 are in new.sha" grep -q "bot-data/mapdata/bot-routes.json" "$(folder 12 a)/new.sha"
 expect_refused "release: bot-data.sh run again on a folder with its log refuses, the log and the volume as they were" "bot-data.log is there already"     sh "$(folder 12 a)/bot-data.sh" "$(folder 12 a)" "$T/volume"
 check "release: ... the log still says what the first run did" test "$(wc -l <"$(folder 12 a)/bot-data.log")" = 2
-check "release: says the built maps are not pre-built (srp has no command)" has "$out" "srp has no pre-build command"
-check "release: ... reads the algorithm constants in the live tree: as main's, a map file changes" has "$out" \
-    "the algorithm constants are the live tree's, but 1 map file(s) change"
+check "release: checks the offered maps' built files (srp-build-maps --files)" has "$out" "the built maps: every offered map's grid, sight tree and tactics are listed"
+check "release: ... for the list's map" grep -q -- "--files $T/bot-data/mapdata level_t/day_2" "$T/build-maps.args"
 check "release: the maintenance ended with the restart" test ! -e "$T/state/maint"
 check "release: took the lock on the jump host" grep -q "^ssh jump mkdir $T/lock" "$T/args"
 check "release: ... and freed it" test ! -e "$T/lock"
@@ -1534,6 +1552,10 @@ expect_refused "release: the bots' data folder not set" "SKHID_BOT_DATA is not s
     env SKHID_RELEASE_ENV="$(changed_env "/^SKHID_BOT_DATA=/d")" "$here/release.sh"
 expect_refused "release: the bots' data folder is not a folder" "SKHID_BOT_DATA: $T/nowhere is not a folder" \
     env SKHID_RELEASE_ENV="$(changed_env "s|^SKHID_BOT_DATA=.*|SKHID_BOT_DATA=$T/nowhere|")" "$here/release.sh"
+touch "$T/built-missing"
+expect_refused "release: an offered map's built files not in the list (owner-14 row 1)" \
+    "the built maps: level_t/day_2: mapdata/built/grid-00000000000000aa.bin is not in the list" "$here/release.sh"
+rm "$T/built-missing"
 mv "$T/bot-data/bot-routes/routes-t.json" "$T/routes-t.json.away"
 expect_refused "release: a bots' data file missing" "the bots' data: bot-routes/routes-t.json: not in $T/bot-data" "$here/release.sh"
 mv "$T/routes-t.json.away" "$T/bot-data/bot-routes/routes-t.json"
@@ -1701,8 +1723,8 @@ check "release --dry-run: ... and step 4 makes the item tables, before staging" 
     '^\[dry run\]    then the checks of release/deploy on both, the item tables of the server data (srp-item-tables: a failure stops here), and the release folder:'
 check "release --dry-run: ... its server-code report has them changed, as the real run's" bash -c \
     "grep -q '^             CHANGED   servers/web-server/maps/ (a real run rebuilds it)\$' <<<\"\$1\" && grep -q '^             CHANGED   servers/web-server/damage/ (a real run rebuilds it)\$' <<<\"\$1\" && grep -q '^  server code: its image built here and loaded on the host before the swap' <<<\"\$1\"" _ "$out"
-check "release --dry-run: a GRID_ALGO of the live tree other than main's is warned about" has "$out" \
-    "^  WARNING  the built maps (mapdata/built, [0-9]* file(s) now): pub const GRID_ALGO: u32 = 2; pub const SIGHT_ALGO: u32 = 1; on the live tree, pub const GRID_ALGO: u32 = 3; pub const SIGHT_ALGO: u32 = 1; on main: the first match on each map after the swap builds its grid and tree again"
+check "release --dry-run: checks the offered maps' built files too (no warning about GRID_ALGO: the keys are checked)" has "$out" \
+    "^  ok       the built maps: every offered map's grid, sight tree and tactics are listed"
 sed -i 's/^pub const GRID_ALGO: u32 = 2;$/pub const GRID_ALGO: u32 = 3;/' "$T/live/crates/mapdata/src/lib.rs"
 mkdir -p "$T/worlds-given"
 run quiet --dry-run --resources "$T/r14/resources.db.patch_14" --minutes 2 --worlds "$T/worlds-given" &&
