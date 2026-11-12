@@ -187,7 +187,7 @@ pub const START_WITNESS_ALGO: u32 = 0x5329_0301;
 pub const GIVE_BACK_IN_CELL_ALGO: u32 = 0x5331_0101;
 /// The same for the falls that stop at any ground top under the body ([`Body::fall_stops_on_solids`], owner-14 row 2), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
-pub const FALL_STOPS_ON_SOLIDS_ALGO: u32 = 0x5402_0a02;
+pub const FALL_STOPS_ON_SOLIDS_ALGO: u32 = 0x5402_0a01;
 /// The same for the walk check over every link a body may meet trouble on ([`Body::walk_every_link`], owner-14 row 12), in
 /// [`grid_key_with_links`] only for a body that asks for it with [`Body::client_controller`]. A value of its own.
 pub const WALK_EVERY_LINK_ALGO: u32 = 0x5402_0c04;

@@ -443,17 +443,19 @@ impl Body {
         self.step + self.radius * (1.0 - self.min_ground_normal_y)
     }
 
-    /// How far from its centre a ground top holds the falling capsule ([`Self::fall_stops_on_solids`]): its round bottom meets an
-    /// edge at a normal within the slope a body at rest holds on, `radius * sin(acos(idle slope cos))` ([`IDLE_SLOPE_COS_LIVE`]
-    /// with the clients' numbers: 0.2687 m).
+    /// How far from its centre a ground top holds the falling or walking capsule ([`Self::fall_stops_on_solids`]): its round
+    /// bottom meets an edge at a normal within the slope it stands on, `radius * sin(acos(min_ground_normal_y))`. With the
+    /// clients' numbers (r 0.38, 55 deg, `startup.cfg` `cc_max_slope_angle_cos 0.57358`) 0.311 m.
     ///
-    /// [A364 C2 row 24] Was the walk-up slope (55 deg, 0.311 m). A body that falls onto a top comes to rest, and a body at rest
-    /// slides from the idle slope (`need_slide` 0x7BC20 with `cc_idle_max_slope_angle_cos`): measured with the exact tick (the
-    /// exactness rig, `grid-rules` S5), a body falling straight down past a 1 m top's edge from 0.3 / 1 / 3 m over it is caught to
-    /// 0.265 / 0.25 / 0.26 m past the edge, not 0.311.
+    /// [A364 C2 row 24, kept] The exactness rig measured 0.25-0.265 m for a body falling straight down onto a top's edge and
+    /// left still there: a body at rest slides from the idle slope (45 deg, [`Self::idle_slope_cos`]). The flights this hold
+    /// stops are bodies moving through the air, which land through `step_down` 0x7E1B0 on ground within the walk slope; the idle
+    /// rule is for a body at rest ([`edge_hold_m`]). Benched with the idle hold (0.2687 m): the gap flights no longer stopped on
+    /// those tops made 12-15 % more GapJump links on Rudnya and School, routes stuck +6.7 % (z 2.2), stuck again +35 % (z 4.1),
+    /// gap links given up 7 -> 11 (z 2.45) (`nav-builder2-20261112/bench-c2-v1-split.txt`, arm E). LIKELY; a flight's landing
+    /// on a rim traced in the rig would settle it.
     pub fn hold_radius(&self) -> f32 {
-        let c = self.idle_slope_cos();
-        self.radius * (1.0 - c * c).max(0.0).sqrt()
+        self.radius * (1.0 - self.min_ground_normal_y * self.min_ground_normal_y).max(0.0).sqrt()
     }
 
     /// The cosine of the steepest ground a body at rest holds on: the live `cc_idle_max_slope_angle_cos` (45 deg,
