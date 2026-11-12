@@ -3626,3 +3626,7 @@ va	status	ref_021d	name
 0x003b2d20	inferred-high	0x00260b7b	vostok::animation::bone_matrices_computer::get_object_transform
 0x00395370	inferred-high	0x0024cda0	vostok::animation::linear_interpolator::transition_time
 0x002da9a0	inferred-medium		survarium::base_player::update_to
+0x00329710	inferred-high		survarium::player_stamina::spend_jump
+0x002d6420	inferred-high		survarium::player_stamina::can_afford_jump
+0x003296c0	inferred-high		survarium::player_stamina::subtract_clamped
+0x00329960	inferred-high		survarium::player_stamina::boost
