@@ -51,6 +51,7 @@
 //!   result's `DebugDraw` and `reportFailure` (vtable +0, +8) are the base class's empty functions.
 // The exe's comparisons are ported as written: `!(a > b)` and `a > b` differ on NaN, as `comiss` branches do.
 #![allow(clippy::neg_cmp_op_on_partial_ord)]
+use super::exe_epa;
 use super::exe_gjk::{
     self as gjk, CastShape, ClosestPointInput, Detector, Margins, Outcome, Penetration, ShapeB, Transform, Triangle, Vec3,
 };
@@ -132,9 +133,6 @@ pub enum Toi {
     Hit { fraction: f32, normal: Vec3, point: Vec3 },
     /// AL 0, and why; the result is not written.
     Miss(Miss),
-    /// A closest-point call at `lambda` of the way needs Bullet's penetration-depth solver (the shape's core is in or
-    /// within 0.01 of shape B on a degenerate simplex), which is not ported.
-    NeedsPenetration { lambda: f32 },
 }
 
 /// What the cast of one triangle ends in.
@@ -146,8 +144,6 @@ pub enum CastEnd {
     /// No report: no approach along the contact normal, the way ends first, the iteration ran out, the normal is too
     /// short, or the hit is not under the fraction the callback began with.
     Miss,
-    /// The closest points at `lambda` of the way need Bullet's penetration-depth solver, which is not ported.
-    NeedsPenetration { lambda: f32 },
 }
 
 /// A quaternion (x, y, z, w), as `btQuaternion` keeps it.
@@ -284,6 +280,8 @@ const TIME_STEP: f32 = 1.0;
 /// the point collector): the simplex solver reset, a detector of the two shapes with each one's own `getMargin`
 /// (vtable +28h), the caster's penetration solver and `m_catchDegeneracies` 1, the largest distance squared 1e18;
 /// then the collector's `addContactPoint` (0xB88B0), which keeps a point closer than what it holds (1e18 when new).
+/// Where the detector goes on to the penetration-depth solver (the shapes' cores overlap, or are within 0.01 m on a
+/// degenerate simplex) the contact is the solver's ([`exe_epa::detector_tail`]: the exe's bits on 6,146 recorded calls).
 fn closest<B: ShapeB>(
     cast: &Cast,
     transform_a: Transform,
@@ -296,13 +294,28 @@ fn closest<B: ShapeB>(
         penetration: Penetration::Solver { catch_degeneracies: true },
     };
     let input = ClosestPointInput { transform_a, transform_b, maximum_distance_squared: BT_LARGE_FLOAT };
-    match gjk::get_closest_points(&detector, &cast.shape, other, &input).outcome {
-        // 0xB88BB: `comiss m_distance, depth; jna`: kept when 1e18 > depth.
-        Outcome::Contact { normal_on_b, point_on_b, distance } if BT_LARGE_FLOAT > distance => {
-            Collector::Point { normal: normal_on_b, point: point_on_b, distance }
+    let contact = match gjk::get_closest_points(&detector, &cast.shape, other, &input).outcome {
+        Outcome::Contact { normal_on_b, point_on_b, distance } => Some((normal_on_b, point_on_b, distance)),
+        Outcome::NoContact => None,
+        Outcome::NeedsPenetration(start) => {
+            exe_epa::detector_tail(
+                exe_epa::Convex { shape: &cast.shape, margin: cast.margin },
+                &start.local_a,
+                exe_epa::Convex { shape: &exe_epa::B(other), margin: margin_b },
+                &start.local_b,
+                start.gjk,
+                start.margin_sum,
+                margin_b,
+                start.position_offset,
+                BT_LARGE_FLOAT,
+            )
+            .contact
         }
-        Outcome::Contact { .. } | Outcome::NoContact => Collector::Empty,
-        Outcome::NeedsPenetration(_) => Collector::NeedsPenetration,
+    };
+    match contact {
+        // 0xB88BB: `comiss m_distance, depth; jna`: kept when 1e18 > depth.
+        Some((normal, point, distance)) if BT_LARGE_FLOAT > distance => Collector::Point { normal, point, distance },
+        _ => Collector::Empty,
     }
 }
 
@@ -312,8 +325,6 @@ enum Collector {
     Point { normal: Vec3, point: Vec3, distance: f32 },
     /// `m_hasResult` clear.
     Empty,
-    /// The call went to the penetration-depth solver, which is not ported.
-    NeedsPenetration,
 }
 
 /// 0xB9320 `btContinuousConvexCollision::calcTimeOfImpact(fromA, toA, fromB, toB, result)` for shape A cast along a
@@ -350,7 +361,6 @@ pub fn time_of_impact<B: ShapeB>(
         // 0xB9541: dist = the allowed penetration + the distance.
         Collector::Point { normal, point, distance } => (normal, point, allowed_penetration + distance),
         Collector::Empty => return Toi::Miss(Miss::NoClosestPoints),
-        Collector::NeedsPenetration => return Toi::NeedsPenetration { lambda },
     };
     // 0xB9584: no report for a move away from the contact normal.
     if SIMD_EPSILON >= projected(n) {
@@ -382,7 +392,6 @@ pub fn time_of_impact<B: ShapeB>(
                 n = normal;
             }
             Collector::Empty => return Toi::Miss(Miss::LostContact),
-            Collector::NeedsPenetration => return Toi::NeedsPenetration { lambda },
         }
         iterations += 1;
         if iterations > MAX_ITERATIONS {
@@ -408,7 +417,6 @@ pub fn cast_triangle(
     let (fraction, n, point) = match time_of_impact(cast, triangle, margin, transform, allowed_penetration) {
         Toi::Hit { fraction, normal, point } => (fraction, normal, point),
         Toi::Miss(_) => return CastEnd::Miss,
-        Toi::NeedsPenetration { lambda } => return CastEnd::NeedsPenetration { lambda },
     };
     // 0xB877A..0xB87D2: the normal's squared length over 1e-4 (ORDER (asm): (y*y + z*z) + x*x) and the fraction under
     // the callback's.
@@ -438,7 +446,6 @@ pub fn cast_convex<B: ShapeB>(
     let (fraction, n, point) = match time_of_impact(cast, other, margin, transform, allowed_penetration) {
         Toi::Hit { fraction, normal, point } => (fraction, normal, point),
         Toi::Miss(_) => return CastEnd::Miss,
-        Toi::NeedsPenetration { lambda } => return CastEnd::NeedsPenetration { lambda },
     };
     // 0xA15E0..0xA1622: the normal's squared length over 1e-4, in the source's order here ((x*x + y*y) + z*z);
     // 0xA1628..0xA1635: the callback's fraction over the hit's.

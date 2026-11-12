@@ -101,4 +101,6 @@ deaths): one traced bot fell 6.4 m into it, walked in it for 20 s without a spri
 
 ## Not read
 
-30 course rows under the rule with the pool not full; the medical skills patch's delay rule against the stock one.
+Nothing of this note's own. Settled since: the 30 course rows under the rule had their pool hit after the course
+began (30 of 30; 63 of 63 on played bodies); the live game's medical skills shorten a healing item's delay by
+5 % a rank of Fast Bandaging from revision 50 (2 % before), after the stock factor, and never the painkiller's.

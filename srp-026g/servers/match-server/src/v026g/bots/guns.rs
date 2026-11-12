@@ -79,7 +79,8 @@ use survarium::v026g::loadouts::{
     BOT_AMMO_SLOTS, BotEquipment, BotMask, BotRole, BotTier, KitSwitches, Loadout, RusherKit, RusherKits, bot_kits,
     upgrades_on,
 };
-use survarium::v026g::skills::{MODIFIERS, modifier_index};
+use survarium::v026g::modifications::{MODIFIER_ADD, MODIFIER_MULTIPLY, Modifications};
+use survarium::v026g::skills::{MODIFIERS, SkillsTree, modifier_index};
 use survarium::v026g::weapons::{Dispersion, Optic};
 
 /// How a weapon reloads, ms (see the module's notes for where each comes
@@ -577,17 +578,86 @@ impl ModCounts {
     }
 }
 
-/// The least a human's reload time is of the weapon's base: the weapon's
-/// -15 % (2044) over the most reload speed a player sums, +27 % (skill 108 at
-/// 0.12 and gloves 1144 at 0.15; `fact-weapon-mods.md` §3.2).
-pub const HUMAN_MIN_RELOAD_RATIO: f32 = 0.85 / 1.27;
-/// The least a human's aim time is of the weapon's base: skill 101 (-10 %)
-/// and gloves 1084 (-10 %).
-pub const HUMAN_MIN_AIM_RATIO: f32 = 0.80;
+/// [A375] The fastest reload and aim a human can have, as shares of the weapon's base, from the game data (F67: they were
+/// made by hand, 0.85 / 1.27 and 0.80, `fact-weapon-mods.md` §3.2, from the skills' and one pair of gloves' upgrade):
+/// - the reload: `(1 + w) / (1 + s + g)`, `w` the most a weapon modification shortens `parameters/reload_time` (its
+///   multiplying change: 2044's -15 %), `s` every rank of every skill of the tree that sets `reload_speed` (108), `g` the
+///   most the worn pieces add to `reload_speed_modifier` ([`worn_bound`]);
+/// - the aim: `1 + s + g` of the skills' `aim_time` (101) and the worn pieces' `aim_time_modifier`; a weapon's own
+///   aim-time modification is left out, as before (LIKELY inert, `fact-weapon-mods.md` §3.1).
+///
+/// The skills are summed whatever their exclusions and the points a level allows: a bound, not a build.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HumanBounds {
+    pub reload_ratio: f32,
+    pub aim_ratio: f32,
+}
+
+/// The most the pieces a human wears add to `parameter` (`reload_speed_modifier`, `aim_time_modifier`), toward `better`
+/// (`f32::max` for a speed, `f32::min` for a time): for each profile slot the best item that fits it, an item being its
+/// own default modifications (the item's config, [`default_modifier`](survarium::v026g::loadouts::default_modifier)) plus,
+/// for each kind of modification it takes, the best of that kind; summed over the slots.
+pub fn worn_bound(mods: &Modifications, parameter: &str, better: fn(f32, f32) -> f32) -> f32 {
+    use survarium::v026g::modifications::item_mods;
+    let path = format!("parameters/{parameter}");
+    let change = |row: &survarium::v026g::modifications::Modification| -> f32 {
+        row.modifiers.iter().filter(|m| m.kind == MODIFIER_ADD && m.path == path).map(|m| m.value).sum()
+    };
+    let dictionary = Dictionary::shared();
+    let piece = |dict_id: u16| -> f32 {
+        let kinds = item_mods(dict_id).map_or(0, |allowed| allowed.modifications);
+        let upgrades: f32 = (0..64u8)
+            .filter(|&kind| kinds & (1 << kind) != 0)
+            .map(|kind| mods.modifications.iter().filter(|row| row.kind == kind).map(change).fold(0.0, better))
+            .sum();
+        survarium::v026g::loadouts::default_modifier(dict_id, parameter) + upgrades
+    };
+    (0..survarium::dictionary::PROFILE_SLOTS as u8)
+        .map(|slot| {
+            dictionary.items.iter().filter(|item| dictionary.fits(item.dict_id, slot)).map(|item| piece(item.dict_id)).fold(0.0, better)
+        })
+        .sum()
+}
+
+impl HumanBounds {
+    /// The bounds the skills tree `tree` and the modifications `mods` give, with the dictionary's items.
+    pub fn of(tree: &SkillsTree, mods: &Modifications) -> Self {
+        let skills = |name: &str| -> f32 {
+            let index = modifier_index(name).expect("a modifier of the 68");
+            tree.skills
+                .iter()
+                .flat_map(|skill| skill.levels.iter().flatten())
+                .filter(|&&(modifier, _)| modifier == index)
+                .map(|&(_, value)| value)
+                .sum()
+        };
+        let weapon = mods
+            .modifications
+            .iter()
+            .map(|row| {
+                row.modifiers
+                    .iter()
+                    .filter(|m| m.kind == MODIFIER_MULTIPLY && m.path == "parameters/reload_time")
+                    .map(|m| m.value)
+                    .sum::<f32>()
+            })
+            .fold(0.0_f32, f32::min);
+        Self {
+            reload_ratio: (1.0 + weapon) / (1.0 + skills("reload_speed") + worn_bound(mods, "reload_speed_modifier", f32::max)),
+            aim_ratio: 1.0 + skills("aim_time") + worn_bound(mods, "aim_time_modifier", f32::min),
+        }
+    }
+
+    /// The players' data's ([`SkillsTree::shared`], [`Modifications::shared`]), once a process.
+    pub fn shared() -> Self {
+        static SHARED: std::sync::OnceLock<HumanBounds> = std::sync::OnceLock::new();
+        *SHARED.get_or_init(|| Self::of(SkillsTree::shared(), Modifications::shared()))
+    }
+}
 
 /// [measure] The bots that now hold a modded weapon, by what is modded, and
 /// those whose weapon is modded past what a player can have
-/// ([`HUMAN_MIN_RELOAD_RATIO`], [`HUMAN_MIN_AIM_RATIO`]): the harm, which the
+/// ([`HumanBounds`]): the harm, which the
 /// owner's table keeps at 0.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct HeldMods {
@@ -617,8 +687,8 @@ impl HeldMods {
         self.aim += u32::from(held.aim_ms != base.aim_ms);
         self.rate += u32::from(held.rpm != base.rpm);
         self.chamber += u32::from(held.chamber_ms != base.chamber_ms);
-        self.out_of_range +=
-            u32::from(reload < HUMAN_MIN_RELOAD_RATIO - 0.005 || aim < HUMAN_MIN_AIM_RATIO - 0.005);
+        let human = HumanBounds::shared();
+        self.out_of_range += u32::from(reload < human.reload_ratio - 0.005 || aim < human.aim_ratio - 0.005);
     }
 }
 
@@ -1139,6 +1209,43 @@ mod tests {
         assert_eq!(Arms::fallback().primary.0.item, "ak_74u");
     }
 
+    /// The players' data (`SRP_GAME_DATA`), read once for the ignored tests of one run (a second `init` after a table was read
+    /// is refused).
+    fn live_data() {
+        static READ: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+        READ.get_or_init(|| survarium::v026g::game_data::init().map(|_| ()).expect("SRP_GAME_DATA reads and passes srp's checks"));
+    }
+
+    /// [A375] The humans' fastest reload and aim come from the data. The parts the hand-made numbers had are there (the
+    /// weapon's 2044 -15 %, skill 108's 0.12 and skill 101's -10 %), and the worn pieces give at least gloves 1144's +15 %
+    /// and 1084's -10 %; where an item's own config adds to a parameter too (item 25), the bound takes it.
+    #[test]
+    fn the_humans_bounds_come_from_the_data() {
+        the_humans_bounds_hold();
+    }
+
+    fn the_humans_bounds_hold() -> HumanBounds {
+        let mods = Modifications::shared();
+        let bounds = HumanBounds::shared();
+        let worn_reload = worn_bound(mods, "reload_speed_modifier", f32::max);
+        let worn_aim = worn_bound(mods, "aim_time_modifier", f32::min);
+        assert!(worn_reload >= 0.15 - 1e-6 && worn_aim <= -0.10 + 1e-6, "{worn_reload} {worn_aim}");
+        assert!((bounds.reload_ratio - 0.85 / (1.12 + worn_reload)).abs() < 1e-6, "{bounds:?} {worn_reload}");
+        assert!((bounds.aim_ratio - (0.90 + worn_aim)).abs() < 1e-6, "{bounds:?} {worn_aim}");
+        // Never above what the hand-made numbers allowed: they missed the items' own configs.
+        assert!(bounds.reload_ratio <= 0.85 / 1.27 + 1e-6 && bounds.aim_ratio <= 0.80 + 1e-6, "{bounds:?}");
+        eprintln!("A375 bounds {bounds:?}: worn reload {worn_reload}, worn aim {worn_aim}");
+        bounds
+    }
+
+    /// [A375] The same on the players' data (`SRP_GAME_DATA`); run with the other live tests of this module.
+    #[test]
+    #[ignore = "needs SRP_GAME_DATA, the server's game data"]
+    fn on_the_live_data_the_humans_bounds_hold() {
+        live_data();
+        the_humans_bounds_hold();
+    }
+
     /// Every kit of every tier and each rusher kit the game data can make:
     /// its weapon is known, a life's rounds are the kit's slot, its storage
     /// the lives' worth.
@@ -1186,7 +1293,7 @@ mod tests {
     #[test]
     #[ignore = "needs SRP_GAME_DATA, the server's game data"]
     fn on_the_live_data_every_rusher_kit_has_its_arms() {
-        survarium::v026g::game_data::init().expect("SRP_GAME_DATA reads and passes srp's checks");
+        live_data();
         every_kit_of_every_tier_is_known();
         for (tier, kit, item, rounds, magazine) in [
             (BotTier::Mid, RusherKit::Smg, "sr2m", 200, 20),

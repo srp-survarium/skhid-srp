@@ -2064,6 +2064,11 @@ fn drive_tick_inner(
     } else {
         by.or_else(|| (bot.control.reacts() && trap_react::jump_due(bot, me, time, &tuning.traps.react)).then_some("trap"))
     };
+    // [C2 riser] A route's walk up a 0.76-0.80 m riser (`WalkGait::SprintOrJump`): sprint into it, else a walking jump at it.
+    let by = match riser_gait(bot, me, &mut decision.keys, time, tuning) {
+        Some(riser) if by.is_none() && !bot.motor.carrying => Some(riser),
+        _ => by,
+    };
     if lift_face {
         let stage = if walking_aimed {
             motor::lifts::Keys::AimedWalk
@@ -2219,6 +2224,65 @@ pub(super) fn jumping(bot: &mut Bot, keys: u32, by: Option<&'static str>, feet: 
         bot.reflex.gate_jump(time);
     }
     (keys | key::JUMP) & !key::FIRE
+}
+
+/// [C2 riser] A riser's top this near (flat, m) is sprinted at: the sprint state follows the keys one input ahead (A364 P10),
+/// so the body sprints at the face from about two steps before it at a walk. GUESS: 1.0 m, a margin over the two steps.
+const RISER_SPRINT_M: f32 = 1.0;
+/// ... and a walking jump is pressed at its face when the body may not sprint: the top is a cell past the face, the capsule's
+/// centre its radius before it, so the face is met with the top about 0.5-0.65 m on. GUESS: 0.7 m.
+const RISER_JUMP_M: f32 = 0.7;
+/// A riser's jump is not pressed again within this long of the bot's last jump, ms (the jump's air and landing).
+const RISER_JUMP_AGAIN_MS: u32 = 1_000;
+
+/// [C2 riser] The client's walking body is held by a face from 0.76 m up (its complex move test), a sprinting one climbs it
+/// (the simple capsule test, 0x7D33D), and the jump's gate has no held-item test (0x2FC230): a route's Walk link up a riser of
+/// 0.76-0.80 m (`WalkGait::SprintOrJump`, #1716) is sprinted into when the body may sprint (`sprint_block` none, no leg wound,
+/// no crouch, the walk forward), else jumped at its face when it may jump; with neither, nothing is pressed and it is counted
+/// (the route's way up is shut for it: a reroute is the next step). Returns the jump's origin when one is to be pressed.
+fn riser_gait(bot: &Bot, me: &PlaceView, keys: &mut u32, time: u32, tuning: &Tuning) -> Option<&'static str> {
+    let top = bot.route.as_ref().and_then(|(route, _)| route.riser_ahead(me.feet, RISER_SPRINT_M))?;
+    if *keys & key::FORWARD == 0 {
+        return None;
+    }
+    let leg_free = bot.hurt.leg_damage.at(time) == super::legs::LegGate::Free;
+    let may_sprint = sprint_block(bot, me, time, tuning.think.stamina).is_none()
+        && leg_free
+        && *keys & (key::CROUCH | key::AIM | key::FIRE | key::BACK) == 0;
+    if may_sprint {
+        *keys |= key::SPRINT;
+        riser_counts::note(0);
+        return None;
+    }
+    let may_jump = bot.hurt.may_jump(time) && (!tuning.think.stamina || bot.stamina.may_jump());
+    let near = top.distance_xz(me.feet) <= RISER_JUMP_M;
+    let again = bot.jump_watch.as_ref().is_some_and(|watch| time < watch.at + RISER_JUMP_AGAIN_MS);
+    if !may_jump {
+        riser_counts::note(2);
+        None
+    } else if near && !again && bot.jump_hold == 0 {
+        riser_counts::note(1);
+        Some("riser")
+    } else {
+        None
+    }
+}
+
+/// [C2 riser] The bench's counts: ticks a riser was sprinted at, walking jumps pressed at one, ticks at one the body could do
+/// neither.
+pub mod riser_counts {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTS: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
+
+    pub fn note(kind: usize) {
+        COUNTS[kind].fetch_add(1, Ordering::Relaxed);
+    }
+
+    #[cfg(test)]
+    pub fn counts() -> [u64; 3] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
 }
 
 /// The route's drops this far on (m along it) are the guard's planned falls.

@@ -109,20 +109,26 @@ pub const BOT_SKILL_TIERS: [BotSkillTier; 3] = [
 ///   little longer.
 pub const AMMO_POUCH: SkillIntent = SkillIntent { want: &[102, 104, 108, 109], open: &[103], points: 11 };
 
-/// [A341] The medical block every tier adds (`SRP_BOT_MEDICAL_SKILLS`, on unless off), 15 points in the medical tab
-/// (`scripts/content-edit/medical-skills-1.json`, the tab the players' data ships), whose thresholds count apart from the
-/// aim and survival tabs, so the tiers' other rows and the tier a player meets do not change:
-/// - 302 Fast Bandaging: a healing medicine's activation delay shorter (the client's `Skills::use_time` at
-///   `medical.use_time` 0x33D486, XMM0 the activation delay, `sites_026g.tsv`; the rate a rank is the client patch's);
-/// - 312 Medical Training (its row needs the threshold above): `drug_amount_modifier` (modifier 57), the drug's amounts up;
-/// - 311 Metabolism: natural regeneration starts sooner (`Skills::regeneration_delay_ms`);
-/// - 301 Potent Painkiller opens the second row where 302 alone no longer reaches its threshold (302 takes fewer ranks since
-///   2026-11-09), with the points that takes only; the client applies it, the bots' heal model does not read it.
+/// [A341, F65, A372] The medical block every tier adds (`SRP_BOT_MEDICAL_SKILLS`, on unless off), 11 points in the medical
+/// tab (`scripts/content-edit/medical-skills-1.json`, the tab the players' data ships), whose thresholds count apart from
+/// the aim and survival tabs, so the tiers' other rows and the tier a player meets do not change. Each rank must be within
+/// the client's cap (`client-patches/rust/patches/src/medical_skills.rs` `Field::new`): a rank over its cap makes
+/// `Skills::parse` refuse the WHOLE set and the client gives the body no medical skill at all (`vostok/medical.rs`
+/// `unwrap_or_default`, PROVEN by the code: the 5-rank block of A341 had none in the client since the tree's rev-50 caps).
+/// [`resolve`] gives each skill at most the live tree's ranks; the patch's caps are the tree's (the text test of the
+/// patch's caps keeps them so). On revision 56 it resolves to 301:1, 302:2, 312:3, 311:5:
+/// - 302 Fast Bandaging: a healing medicine's activation delay shorter (`Skills::use_time` at `medical.use_time` 0x33D486,
+///   XMM0 the activation delay, `sites_026g.tsv`);
+/// - 312 Medical Training (its row needs 3 points above): `drug_amount_modifier` (modifier 57), the drug's amounts up;
+/// - 311 Metabolism (row 2 too): natural regeneration starts sooner (`Skills::regeneration_delay_ms`);
+/// - 301 Painkiller opens the second row where 302 alone does not reach its threshold, with the point that takes: a hit's
+///   pain coefficient lower, a painkiller longer (`Skills::pain_coefficient`, `pain_duration_ms`); the bots' heal model
+///   does not read it.
 ///
 /// The bots' heal model reads the first two from the kit's modifiers (`match-server` `bots/plays/heal.rs`
 /// `DrugFactors`). Left out: 321 Adrenalin (a speed the bots' motion model does not know), 322 Additional Medicine and 341
 /// Medic (the bots' pockets ignore skills; no bot carries a Larkspur).
-pub const MEDICAL: SkillIntent = SkillIntent { want: &[302, 312, 311], open: &[301], points: 15 };
+pub const MEDICAL: SkillIntent = SkillIntent { want: &[302, 312, 311], open: &[301], points: 11 };
 
 /// Whether the bots take [`MEDICAL`]: `SRP_BOT_MEDICAL_SKILLS` on unless `0`/`off`/`false`, and the players' skills tree of
 /// the game data in use has its skills (0.26g's own archive, the tests' data, has no medical tab: it came with a content
@@ -1173,6 +1179,9 @@ mod tests {
                 let medical: Vec<(u16, u8)> =
                     with.skills.iter().copied().filter(|&(id, _)| MEDICAL.want.contains(&id) || MEDICAL.open.contains(&id)).collect();
                 assert_eq!(with.modifiers[packed] - without.modifiers[packed], tree.modifiers(&medical)[packed]);
+                // Revision 56's tree: 301:1, 302:2, 311:5, 312:3 in the client's packed ranks (bits 0, 3, 6, 9), the drug x 1.24.
+                assert_eq!(with.modifiers[packed] - without.modifiers[packed], (1 + 2 * 8 + 5 * 64 + 3 * 512) as f32);
+                assert!((with.modifiers[index("drug_amount")] - 0.24).abs() < 1e-6);
                 eprintln!(
                     "A372 build gear<={} pouch={pouch}: level {} unspent {} skills {:?} short {:?}",
                     tier.up_to_gear_level, with.level, with.unspent, with.skills, with.short

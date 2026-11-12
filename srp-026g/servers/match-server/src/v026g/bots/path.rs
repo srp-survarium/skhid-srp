@@ -141,6 +141,9 @@ pub struct Route {
     /// The middles of the doorways the route crosses ([`Route::door_centred`]), each a corner of it: the walk steers at the
     /// first one it has not reached however near the corner after it is ([`Route::gate_within`]).
     gates: Vec<Vec3>,
+    /// [C2 riser] The tops of the route's Walk links up a riser the client's WALKING body is held by
+    /// ([`mapdata::grid::WalkGait::SprintOrJump`]: 0.76-0.80 m): a sprint steps up it, else a walking jump; the planner sets them.
+    risers: Vec<Vec3>,
     /// Made by the planner from a path of floors ([`pull_straight`]), so `sprint_drops` holds every Drop link of it.
     planned: bool,
 }
@@ -1033,6 +1036,10 @@ fn pull_straight(
     route.sprint_drops = sprint_drops;
     route.ledge_leads = ledge_leads;
     route.ledge_tops = ledge_tops;
+    route.risers = (1..nodes.len())
+        .filter(|&i| into[i] == LinkKind::Walk && grid.link_gait(nodes[i - 1], nodes[i]) == Some(mapdata::grid::WalkGait::SprintOrJump))
+        .map(|i| grid.position(nodes[i]))
+        .collect();
     route.planned = true;
     route
 }
@@ -1218,13 +1225,14 @@ impl Route {
             new_at.push(total);
         }
         let floors = self.rescaled_floors(&new_at);
-        let Self { sprint_drops, ledge_leads, ledge_tops, mut gates, planned, below_walk_m, past_drop, .. } = self;
+        let Self { sprint_drops, ledge_leads, ledge_tops, mut gates, risers, planned, below_walk_m, past_drop, .. } = self;
         gates.extend(corner.iter().flatten());
         let mut route = Self::with_floors(points, floors);
         route.sprint_drops = sprint_drops;
         route.ledge_leads = ledge_leads;
         route.ledge_tops = ledge_tops;
         route.gates = gates;
+        route.risers = risers;
         route.planned = planned;
         route.below_walk_m = below_walk_m;
         route.past_drop = past_drop;
@@ -1246,6 +1254,7 @@ impl Route {
             ledge_leads,
             ledge_tops,
             gates,
+            risers,
             ..
         } = self;
         // A planned walk has its start at least (an escape's walk to an
@@ -1267,6 +1276,7 @@ impl Route {
         route.ledge_leads = ledge_leads;
         route.ledge_tops = ledge_tops;
         route.gates = gates;
+        route.risers = risers;
         route.planned = planned;
         route
     }
@@ -1308,6 +1318,7 @@ impl Route {
         route.ledge_leads = self.ledge_leads.iter().chain(&mid.ledge_leads).copied().collect();
         route.ledge_tops = self.ledge_tops.iter().chain(&mid.ledge_tops).copied().collect();
         route.gates = self.gates.iter().chain(&mid.gates).copied().collect();
+        route.risers = self.risers.iter().chain(&mid.risers).copied().collect();
         route.planned = self.planned && mid.planned;
         route
     }
@@ -1343,6 +1354,7 @@ impl Route {
             ledge_leads: Vec::new(),
             ledge_tops: Vec::new(),
             gates: Vec::new(),
+            risers: Vec::new(),
             planned: false,
         }
     }
@@ -1365,6 +1377,7 @@ impl Route {
         route.ledge_leads = self.ledge_leads;
         route.ledge_tops = self.ledge_tops;
         route.gates = self.gates;
+        route.risers = self.risers;
         route.planned = self.planned;
         route
     }
@@ -1379,6 +1392,16 @@ impl Route {
             .filter(|(point, a)| **a > s + GATE_REACHED_M && **a <= s + ahead && self.gates.contains(&point.at))
             .map(|(_, &a)| a)
             .next()
+    }
+
+    /// [C2 riser] The nearest riser top of the route ([`Route::risers`]) within `within` m (flat) of `feet` that is still
+    /// over them by half a metre (not yet climbed).
+    pub fn riser_ahead(&self, feet: Vec3, within: f32) -> Option<Vec3> {
+        self.risers
+            .iter()
+            .filter(|top| top.y - feet.y > 0.5 && top.distance_xz(feet) <= within)
+            .min_by(|a, b| a.distance_xz(feet).total_cmp(&b.distance_xz(feet)))
+            .copied()
     }
 
     /// The door gates of this route ([`Route::door_centred`]): the corners put at the middle of a doorway.

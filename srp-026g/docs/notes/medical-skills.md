@@ -24,6 +24,10 @@ been played or released.
 | 5 | 20 | 331 | Supply Pocket | Secondary weapon replaced with supply pocket | One rank |
 | 5 | 20 | 322 | Additional Medicine | One extra medicine per medicine pocket | One rank |
 
+Fast Bandaging's factor comes after the stock one (`medkit::set_active` 0x33D481, then the patch's hook) and only for an
+item that heals: the painkiller's delay is never shortened. Before revision 50 a rank took 2 % (counted on recorded
+matches: the largest delays left at rank 5 are 1,750 ms of a 2 s medkit); from 50, 5 %: no recorded delay exceeds it.
+
 The four-column layout, from tier 1 down to tier 5 (`S` Supply Pocket and `M`
 Additional Medicine, one or the other):
 
