@@ -3,8 +3,10 @@
 Read in the executable (virtual addresses, image base 0x10000; names in `tools/re-kit/v026g`) and the game data.
 PROVEN where an address is given, unless said otherwise. Counted on the saved worlds of recorded matches read with
 the repository's own parser: 949 recordings with bots on one side (436,790 worlds) and 446 of the later set (191,201
-worlds); a body with no client revision note is a bot. The matches ran client revisions 40 to 50; which bot code ran
-in each was not checked. See also `grenade_ccd.md`, `grenade_bounce.md`, `grenade_visibility.md`, `bear_traps.md`,
+worlds); a body with no client revision note is a bot. The matches ran revisions 40 to 50, so their bots ran the
+code released then (the tags `026g-rev40` to `026g-rev50`: one grenade play in `reflex.rs`, no arc model): the
+counts of the bots' throws below are of that code, and the files named under "Against the bots" are this branch's,
+not yet measured the same way. See also `grenade_ccd.md`, `grenade_bounce.md`, `grenade_visibility.md`, `bear_traps.md`,
 `damage_model.md`, `stamina_and_modifiers.md` (S<n>: the kit's modifier of index n), `spotting.md`.
 
 ## What a world holds
