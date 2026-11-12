@@ -49,9 +49,18 @@ players.
 - Affects come only from thresholds (one call site, 0x32AB90): `leg_damage` and `hand_damage` last 8 s from the hit
   that empties the pool, concussion and poisoning 10 s. **No threshold starts a bleeding**: 0.26g has none.
 - **A wound's end waits for the part's regeneration to begin**: the tick returns before it expires a wound while
-  the time is within 8 s of the part's last damaging hit (0x32A551). So a wound ends at the later of its saved end
-  and the last hit + 8 s. Counted: 77 leg, 62 hand and 17 head wounds seen past their saved end, all within 8 s of
-  the last hit, none beyond.
+  the time is within the part's regeneration delay of its last damaging hit (0x32A547..0x32A551: time at most the
+  part's +B0h plus the delay; a delay of 0 skips the test). So a wound ends at the later of its saved end and the
+  last hit + that delay. **The delay is not a fixed 8 s**: it is the part's own (+ACh: the config's
+  `regeneration_timeout`, 8 s for every pool) after its regeneration listeners and the medical patch: Metabolism
+  takes 0.5 s a rank off the seven pools' delay at the player's start (both legs and both hands among them), the
+  Regeneration booster 2 s more at the tick (`medical-skills.md`, `regeneration-booster.md`); a Lifebone's passive
+  may change it (0 in today's data). The last hit's time (+B0h) is the second field of a part's saved record, after
+  its health (`serialize` 0x32AE25, 0x32AE45); only a hit that takes health writes it (0x32A29E), a hit on a hip
+  or a foot for its leg's pool too. Counted: 77 leg, 62 hand and 17 head wounds seen past their saved end, all
+  within 8 s of the last hit, none beyond; every one on a body with no Metabolism rank (the recordings are older
+  than the bots' medical ranks), the latest world still wounded at the last hit + 8,000 ms exactly. A wound on a
+  body with a rank is in no recording read: its shorter hold is read in the patch's source, not seen.
 - The readers of the two wound counts (the damage model's +388h legs, +389h hands), all of them:
 
 | count | gate | where | counted |
