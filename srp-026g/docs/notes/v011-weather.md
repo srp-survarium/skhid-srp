@@ -307,3 +307,34 @@ flags. The private runner now sets those for subsequent launches; the existing
 stage buffers remain useful for the measurements above. Production renderer
 integration, a final native sweep and moving-camera rain verification remain
 outstanding. Nothing was released.
+
+## Live original-post diagnostic bridge (2026-11-12, tests queued)
+
+The porter now has a reusable original-post command list (`post_replay.h`) and
+an opt-in native observer bridge (`original_post_live.c`). Both compile under
+MinGW with `-Wall -Wextra -Werror`. This is diagnostic code outside the client
+patch arena; no production runtime hooks or release change are included.
+
+The bridge selects the exact observed native composition/post bytecodes,
+retains current-frame depth, and validates texture dimensions, formats and mip
+chains before using live frame/luminance/grading data. It packs native linear
+scattering for the original shader, uses original grain/bokeh assets and
+weather constants, updates grain phase, executes the unchanged original VS/PS,
+and copies the private result into the native post target. Native drawing is
+retained when an input contract fails. It runs only with the private capture
+camera enabled. Lens flares are absent and native downstream presentation
+remains; neither full appearance nor moving-rain parity is established.
+
+The reusable command-list harness checks malformed packets, repeated draws and
+restoration of viewport/rasterizer/CB/SRV/VS/RT/topology. Eight GPU comparisons
+against the existing exact original post outputs are queued in
+`run_input_substitutions.py`, after the remaining source sweep. Only if all
+match does `run_live_original_post.py` launch two poses × two frames for each
+weather in `/tmp/v011-weather-native-original-post`, using the unchanged
+version-1 baseline content to isolate the shader change. No live-test pass is
+claimed yet. Build inputs and DLL/EXE hashes are in
+`/tmp/v011-weather-reference/live-post-build.json`.
+
+All three evening reference sweep batches are now frozen (125 new locations,
+plus three reused initial cameras). Rain sweep batch 1 is running at this
+checkpoint. Initial references remain unchanged.
