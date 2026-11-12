@@ -422,7 +422,11 @@ fn reference_replay() {
             }
             let v = super::super::kin::to_world(local, kyaw);
             let keys = keys_in(k);
-            body.want_crouch = keys & key::CROUCH != 0;
+            // [A364 P2] The crouch key through the game's logic (`Controller::crouch_key`, PROVEN on 27,790 traced steps): held,
+            // no stand test and no ceiling push; released, the body stands on the SECOND step after (the stand test first) and
+            // stays down under a ceiling. Setting `want_crouch` from the key stood it a step early and pushed it out from under
+            // ceilings the game keeps it under.
+            body.crouch_key(keys & key::CROUCH != 0);
             let was = body.feet();
             let tick_turn = turn_at(t);
             yaw += tick_turn;
