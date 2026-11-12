@@ -2292,6 +2292,7 @@ va	status	ref_021d	name
 0x00323790	inferred-medium	0x001fd610	survarium::kd_stats_rule::kd_stats_rule
 0x00323c80	inferred-medium	0x001ff8e4	survarium::animation_analysis_result::`scalar deleting destructor'
 0x00323d60	inferred-medium		survarium::blackboard::serialize
+0x00323dc0	inferred-medium		survarium::blackboard::deserialize
 0x00324110	inferred-medium		survarium::game_rules_history_item::serialize
 0x00324210	inferred-medium		survarium::game_objects_serialized_state::serialize
 0x00324310	inferred-medium		survarium::game_effect_player_history_item::serialize
@@ -3162,6 +3163,7 @@ va	status	ref_021d	name
 0x002d43b0	inferred-medium		survarium::game_world_core::new_world_event
 0x002d0a60	inferred-medium		survarium::game_world_core::push_world_event
 0x002e58b0	inferred-medium		survarium::damage_model::find_body_part
+0x002e5990	inferred-medium		survarium::damage_model::recount_broken_limbs [descriptive]
 0x00131ed0	inferred-high		vostok::render::camouflage_decal_texture_type_baker_cook::find_baked_texture
 0x00132e40	inferred-high		vostok::buffer_vector<vostok::render::baked_texture_data>::erase
 0x00133120	inferred-high		vostok::render::baked_texture_data::baked_texture_data
@@ -3417,6 +3419,8 @@ va	status	ref_021d	name
 0x00201040	inferred-medium		survarium::game_options::deactivate
 0x00424ca0	inferred-high		_alloca_probe_16
 0x002d4850	inferred-high		survarium::timed_list::insert_before
+0x002d4ab0	inferred-medium		survarium::game_world_core::add_first_world_input_entry [descriptive]
+0x002d4b50	inferred-medium		survarium::game_world_core::add_first_world_profile_entry [descriptive]
 0x00245c50	inferred-high		survarium::delayed_callbacks_queue::destroy_range
 0x00018190	inferred-high		vostok::fs::native_path::format
 0x000dfe30	inferred-high		vostok::resources::queue_unmount

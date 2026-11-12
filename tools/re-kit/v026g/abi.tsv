@@ -1252,7 +1252,7 @@ va	name	source	ret_cleanup	result
 0x002e5290	survarium::damage_model::reset	manual	4	
 0x002e5370	survarium::damage_model::on_broken_limb_affect	manual	12	
 0x002e53b0	survarium::damage_model::serialize	manual	4	
-0x002e5480	survarium::damage_model::deserialize	manual	12	
+0x002e5480	survarium::damage_model::deserialize	manual	12	none; after the parts, zeroes the broken legs' +388h and hands' +389h counts and recounts them from the saved affects (0x2E5518..0x2E5538 -> 0x2E5990): the counts are derived at every load
 0x002e5550	survarium::damage_model::get_invulnerability	manual	0	x87 ST0: Zero, one, or one minus an unsigned time ratio is left on the x87 stack before each observed return.
 0x002e9c70	survarium::generic_anomaly_core_cook::translate_query	manual	4	
 0x002e9d40	survarium::generic_anomaly_core_cook::query_for_artefacts	manual	16	
@@ -1397,6 +1397,7 @@ va	name	source	ret_cleanup	result
 0x0031db00	survarium::breath_vibration_calculator::deserialize	manual	8	
 0x0031eb80	survarium::weapon_core_base_state::serialize	manual	8	
 0x0031ebb0	survarium::weapon_core_base_state::deserialize	manual	12	
+0x00321790	survarium::game_world_core_client::player_slot::apply_profile_input	manual	12	none; ECX the place's slot (+0/+4/+8 its three kit players, +0Ch the current kit, +0Dh the next kit, +28h the core, +2Ch the place); walks the place's kit-choice list (core+89D8h + place x 480h, +8 its newest entry, +4 the next older) to the first entry whose time +20h is at or before the tick (entry ESP+8) and makes its kit byte +8 the next kit; keeps the old one for a value of 3 or more or a kit the place has no player for (0x3217C8..0x3217D5). Runs every tick: a world's next kit (0x2D2A37) lasts one tick against the game's own list
 0x00321b90	survarium::bullet_manager::serialize	manual	4	
 0x00321c50	survarium::bullet_manager::deserialize	manual	4	
 0x003237e0	survarium::kd_stats_rule::on_event	manual	12	
