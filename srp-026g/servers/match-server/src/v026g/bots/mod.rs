@@ -1775,8 +1775,8 @@ impl Bots {
                 stuck::escape_floors::count(0);
             }
             let ticks = |rng: &mut Rng, s: (f32, f32)| (rng.range(s.0, s.1) / kin::TICK_S) as u32;
-            // [pockets] No jump the game would refuse (a broken leg, a hit's
-            // stagger): the keys alone.
+            // [pockets] No jump the game would refuse (a leg's `leg_damage`), nor one the bots' own policy holds after a hit
+            // (`motor::HIT_JUMP_HOLD_MS`): the keys alone.
             let jump = if bot.hurt.may_jump(time) {
                 key::JUMP
             } else {
