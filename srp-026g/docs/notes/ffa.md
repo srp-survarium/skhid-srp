@@ -524,3 +524,26 @@ from other solo points and 2 m from harmful zones; the complete six-metre
 exit remains walkable and clear of those zones. The composed-project geometry
 probe passes all 22 solo points on each of the two Vostok ports. The source
 TSV and content recipe carry the same correction.
+
+Current-main integration also includes the weapon requests and the shared
+artefact-skill fix through `1823f0fd5`. The regenerated combined arena SHA256
+is `be3392cafe51318a4d32f124c72c83f5a3f04988e7870484fa33f96420ecc527`.
+
+The manifest-built local test archive completed successfully (105 files,
+141,585,705 bytes; SHA256
+`c392265045ac16437b6b3571831ed899141e4d6274ae9870fc38472223e04b3b`).
+Its server-data SHA256 is
+`05d95ce1532e62b64a319bcd65c7cef79ef8630dc55d99125afe6e8afdb75561`.
+The archive was read back by the builder. All 30 extracted projects exactly
+match the independently verified final project trees; all 765 solo spawns
+have 20 m exclusion and two seconds of protection and pass native loading.
+The actual archive also passes both Vostok geometry checks and the strict
+composed preservation check, including Research map 249. The ignored
+real-data test `the_released_free_for_alls_play_on_their_tdm_projects`
+passes against this server data. These are local quick-build artifacts;
+they do not reserve or publish a revision.
+
+The refreshed server end-to-end run passes all nine match tests. A separate
+password-reset web test failed its zero packet-order-drop assertion under
+load (WebBob: 40 drops); the exact test passes unchanged in isolation
+(10.24 s). Neither intermittent test result is described as a gameplay fix.
