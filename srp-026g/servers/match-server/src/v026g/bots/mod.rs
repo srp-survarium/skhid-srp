@@ -401,6 +401,8 @@ pub struct Bot {
     /// Ticks left of a jump held with the trigger let go ([`JUMP_HOLD_MS`]),
     /// and the last tick the trigger was down.
     jump_hold: u32,
+    /// [F3] The jump held is a press from a crouch: the crouch key stays up while it is held.
+    jump_crouch: bool,
     /// [2d] The route jump carried through its clip ([`jump_carry`], `feel.carry_jumps`).
     carry: jump_carry::JumpCarry,
     fired_at: Option<u32>,
@@ -605,6 +607,7 @@ impl Bot {
             held_short_m: 0.0,
             blind_since: None,
             jump_hold: 0,
+            jump_crouch: false,
             carry: jump_carry::JumpCarry::Free,
             fired_at: None,
             hurt: Hurt::default(),
@@ -867,6 +870,7 @@ impl Bot {
         self.zone_walk = None;
         self.zone_note = None;
         self.jump_hold = 0;
+        self.jump_crouch = false;
         self.fired_at = None;
         // The kit it spawned in keeps its storage less what it fired; the
         // kit it picked fills this life from its own (0x2FCB70: the slot's

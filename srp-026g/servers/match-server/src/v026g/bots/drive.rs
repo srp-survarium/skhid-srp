@@ -2171,15 +2171,60 @@ pub(super) fn pace_gate(bot: &mut Bot, feet: Vec3, intent: &Intent, tuning: &Tun
     bot.pace.decide(&tuning.pace, time, feet, &points[..n], goal, &bot.memory)
 }
 
+/// [F3] A jump press is held this many ticks from a crouch: the crouch key let go on the press's tick, the capsule stands a
+/// step after (crouch_logic: the target is still 1.1 m at the key's tick), and the jump key is still down then: no crouch
+/// state takes a jump (0x2FC230's gate, `docs/notes/crouch_logic.md`).
+const CROUCH_JUMP_HOLD_TICKS: u32 = 2;
+
+/// [F3] The client's own refusals of a jump press, counted (exactness S5: of 6,069 lone presses, 1,557 did nothing: in a jump
+/// 204, crouched 311, the bar 580, a leg wound 166): presses dropped in the air or the landing of the bot's last jump, and
+/// presses from a crouch held on through the crouch's release.
+pub mod press_gate {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTS: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
+
+    /// A press let through (0), dropped in the air (1), held through a crouch's release (2).
+    pub fn note(kind: usize) {
+        COUNTS[kind].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> [u64; 3] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+}
+
 pub(super) fn jumping(bot: &mut Bot, keys: u32, by: Option<&'static str>, feet: Vec3, time: u32) -> u32 {
     let firing = keys & key::FIRE != 0;
-    if let Some(by) = by.filter(|_| bot.jump_hold == 0) {
+    // [F3] No press in the air or the landing of the bot's last jump (the client's gate wants the body on the ground,
+    // `on_ground` 0x7EF90, and the jump state's landing done, 0x337330): the press would do nothing and the motor would count
+    // a try that never was.
+    let airborne = bot.jump_watch.as_ref().is_some_and(|watch| time < watch.at + super::body::JUMP_AIR_MS);
+    let by = match by.filter(|_| bot.jump_hold == 0) {
+        Some(_) if airborne => {
+            press_gate::note(1);
+            None
+        }
+        by => by,
+    };
+    // [F3] A press from a crouch (the key held now or on the tick before) lets the crouch go and holds the jump until the
+    // capsule stands.
+    let crouched = (keys | bot.sent_keys) & key::CROUCH != 0;
+    if let Some(by) = by {
         let lately = firing || bot.fired_at.is_some_and(|at| time < at + JUMP_HOLD_MS);
         bot.jump_hold = if lately {
             (JUMP_HOLD_MS as f32 / (kin::TICK_S * 1000.0)).round() as u32
         } else {
             1
         };
+        if crouched {
+            bot.jump_hold = bot.jump_hold.max(CROUCH_JUMP_HOLD_TICKS);
+            bot.jump_crouch = true;
+            press_gate::note(2);
+        } else {
+            bot.jump_crouch = false;
+            press_gate::note(0);
+        }
         bot.jump_followed(time, Some(feet), "jumped again");
         bot.reflex.jumped(by);
         let route = (by == "route").then(|| bot.motor.route_press()).flatten();
@@ -2218,7 +2263,9 @@ pub(super) fn jumping(bot: &mut Bot, keys: u32, by: Option<&'static str>, feet: 
         bot.reflex.hold_fire(time);
         bot.reflex.gate_jump(time);
     }
-    (keys | key::JUMP) & !key::FIRE
+    // [F3] A press from a crouch keeps the crouch key up while the jump is held.
+    let crouch = if bot.jump_crouch { key::CROUCH } else { 0 };
+    (keys | key::JUMP) & !key::FIRE & !crouch
 }
 
 /// The route's drops this far on (m along it) are the guard's planned falls.
