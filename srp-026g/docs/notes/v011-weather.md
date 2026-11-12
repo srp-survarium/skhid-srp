@@ -14,7 +14,7 @@ Adding four map rows also advances Blackout's strict append counts by four.
 Each new project gets the existing Keeper pool, and the new maps' match
 settings are recorded in `simulation_changes.tsv` as `next`.
 
-The current pack is `v011e-radar-weather@4`. Version 1 is the private native
+The current pack is `v011e-radar-weather@5`. Version 1 is the private native
 baseline; version 2 selects existing 2048 mips for the three vehicle atlases,
 byte-identical to the merged Radar streaming fix. It keeps the original cloud
 texture at 4096x1024. Version 3 adds seven complete, unchanged original shader
@@ -338,3 +338,98 @@ claimed yet. Build inputs and DLL/EXE hashes are in
 All three evening reference sweep batches are now frozen (125 new locations,
 plus three reused initial cameras). Rain sweep batch 1 is running at this
 checkpoint. Initial references remain unchanged.
+
+## Original gamma copy and pack 5 (2026-11-12)
+
+Captured final-copy instructions establish another adapter requirement:
+original `copy_image.ps` SHA256
+`685c00b3451a1fb3291f40696e7b4ae34b0b18f6bad32ab62e634b5f8f9cb451`
+computes `pow(abs(color), 1/(2.2*gamma))`; native `495af559...` computes
+`1.055*pow(abs(color), 1/(2.4*gamma))-0.055`. Their UV inputs are registers 2
+and 1 respectively. The observer calls this `.present-draw`, but the original
+archive's separate `present.ps` (`0a747779...`) is a plain blit. It cannot
+supply the observed gamma conversion. The captured post output equals the
+captured gamma-copy input byte-for-byte in all eight inspected combinations
+(two views × two weather variants × original/native); those views provide no
+evidence of another intermediate image modification.
+
+Pack `v011e-radar-weather@5` adds the unchanged original gamma-copy shader.
+All 6,005 version-4 overlay files remain byte-identical; only
+`shaders/sm_4_0/copy_image_v011w.ps/<67 underscores>` is added (6,006 total).
+Pack JSON SHA256:
+`e002c5352c079e6c00183ccab24d79af5edadf8bd93969ff70cd4f4992347a7a`.
+The manifest row uses version 5. The stock-wrapper Unicorn check passes all
+16 original shaders. The manifest content build passed at
+`/tmp/v011-weather-content-gamma-v5`. This is a local QUICK-BUILD: mounted
+players-file verification, site pages and item tables were not requested; it
+is not release validation. Patch SHA256:
+`79603a9fd8c419a0b768131e4ce137a41692f90e4fc147b309e4e8c2e686ad15`;
+server-data SHA256:
+`993e40504ef82d95040133820e41008aa7799870b69db06520570982238bb8d7`.
+
+The diagnostic bridge now requires paired post/gamma-copy packets, validates
+the current device and full viewport, and draws the original gamma copy only
+after a successful original post in the same frame. It copies the live gamma
+constant and current input, preserving native context state. Both programs
+compile with warnings treated as errors. CPU packet checks pass presentation
+preparation plus 13 rejection cases, including missing/different-frame quad
+sources. The presentation packet explicitly derives its TL quad from the same
+frame's original post capture. All eight original-post and eight original
+gamma-copy command-list GPU comparisons passed byte-for-byte, including
+repeated execution and native-context restoration. This establishes geometry
+reuse for these eight captured gamma-copy draws. Result manifests:
+`command-replays/results.json` SHA256
+`423a9e41c81f21f2fd89c3028ca5def92e30e26125c1420e1f0a8dcfb2340787`,
+`presentation-command-replays/results.json` SHA256
+`b83216d5b833b45ed1df5de609fe5d6c831c2279e7c95c405f15f8dd5a78d52a`,
+both under `/tmp/v011-weather-reference`.
+
+The original skylight bytecode provides a useful next boundary: its pixel
+shader reads only normal XY and performs the same sphere-map reconstruction,
+then uses original skylight basis vectors. Its original vertex shader is
+`9dab4eced49b2980e4e70843a6f42e9f59a84bf6e696121bc0c931e685a9f6f4`,
+with POSITION float4/TEXCOORD float2 inputs, UV output register 1 and basis
+outputs 2/3/4. Its sole constant is `skylight_parameters6` at b0 offset 0.
+This shader was extracted and hash-checked against the 0.11e catalog in
+`/tmp/v011-weather-source/skylight-vs-original.{dxbc,json}`. This is binding
+analysis, not a skylight implementation or a visual-parity result.
+
+
+## Completed GPU diagnostics and source sweep (2026-11-12)
+
+The earlier queued checks are complete. The live original post/gamma bridge
+executed 660 paired draws for evening and 480 for rain, with zero rejections.
+Each capture has two views and two frames; camera position, direction, FOV and
+resolution agree with the original and native baseline. Reports and contact
+sheets are `/tmp/v011-weather-reference/live-post-comparison/{evening,rain}.{json,png}`.
+The live test deliberately retains version-1 content to isolate the shader
+change; it does not validate version-5 content in play.
+
+Display RGB RMSE (baseline → bridge), first frame:
+
+| Weather / view | Baseline | Original post + gamma |
+| --- | ---: | ---: |
+| Evening factory | 0.104025 | 0.099595 |
+| Evening yard | 0.112383 | 0.111317 |
+| Rain factory | 0.083476 | 0.076492 |
+| Rain yard | 0.066650 | 0.064147 |
+
+The modest improvement does not resolve the dark lighting. Rain factory mean
+luma is 0.07751 versus original 0.12991; rain yard is 0.09692 versus 0.15071.
+Screenshots were visually inspected. Lighting before post-processing remains
+the next boundary; neither full renderer parity nor moving-rain parity is
+established. The bridge remains a diagnostic, with CPU scattering conversion,
+absent lens flares and no production scene lifecycle integration.
+
+Eight controlled native-frame/native-frame-plus-luminance substitutions also
+finished. Each pair produces identical output in these views, consistent with
+the observed exposure clamp; this is not a general luminance-independence claim.
+Metrics: `/tmp/v011-weather-reference/input-substitution/metrics.json`, SHA256
+`5a1d4b621db33957f5243b45765bab6d0f4d3e499e2cf530488b98a4d8951c57`.
+
+All six original sweep batches completed. Frozen file hashes and actual camera
+metadata were verified: 500 new frames plus 12 reused initial frames, covering
+128 locations per weather variant. Receipt:
+`/tmp/v011-weather-reference/sweep/completion-receipt.json`. Initial originals
+remain unchanged. A final native sweep is still required after renderer fixes.
+Nothing was released.
