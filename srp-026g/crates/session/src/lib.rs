@@ -29,6 +29,8 @@ use survarium::v021d;
 
 mod afk;
 pub mod bans;
+mod identity;
+mod nickname_key;
 pub mod chat_mutes;
 pub mod limits;
 mod matchmaking;
@@ -150,7 +152,7 @@ pub struct Account {
     /// The argon2id hash of its password ([`password`]); `None` until a
     /// sign-in sets one.
     pub password_hash: Option<String>,
-    pub name: String,
+    name: String,
     /// Profiles, inventory, money and reputations, as 0.21d has them.
     pub game: v021d::account::Account,
 
@@ -238,6 +240,11 @@ pub const RESET_WRITE_WAIT: Duration = if cfg!(test) {
 };
 
 impl Account {
+    /// The display name. Changes go through the store's shared namespace.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
     /// A new account: one profile in the game's test loadout.
     pub fn new(id: u32, name: String) -> Self {
         Self {
@@ -384,13 +391,14 @@ pub type BannedAccount = (u32, String, String, Ban, Option<IpAddr>);
 /// Maps sign-ins to shared accounts. Cheap to clone behind an `Arc`.
 ///
 /// Lock order: `sessions` is never held while the matchmaking is asked;
-/// `logins` before `accounts`. No account lock is held while another is
+/// `logins` serializes registration, renaming and name snapshots; it comes
+/// before the saver writer and `accounts`. No account lock is held while another is
 /// taken, and none while a password is hashed or an account written. The
 /// saver's writer comes before `sessions`, which is never held while a
 /// session is written; the saver's sets of sessions are taken alone.
 pub struct SessionStore {
     accounts: Mutex<HashMap<u32, Arc<Mutex<Account>>>>,
-    /// Account ids by [`persist::login_key`].
+    /// Account ids by [`persist::login_key`]; also the name-transaction lock.
     logins: Mutex<HashMap<String, u32>>,
     next_account_id: AtomicU32,
     failures: Mutex<HashMap<String, Failures>>,
@@ -490,6 +498,9 @@ impl SessionStore {
         mut repository: Box<dyn AccountRepository>,
     ) -> Result<Self, PersistError> {
         let loaded = repository.load_all()?;
+        identity::unique_names(
+            loaded.accounts.iter().map(|record| (record.id, record.name.as_str())),
+        )?;
         let stored_sessions = repository.load_sessions()?;
         log::info!(
             "Loaded {} accounts from {}",
@@ -707,7 +718,7 @@ impl SessionStore {
                     return Err(SignInError::RegistrationLimit);
                 }
                 let hash = password::hash(password).ok_or(SignInError::WrongPassword)?;
-                let (account_id, created) = self.find_or_create(&key, user_name.trim(), Some(hash));
+                let (account_id, created) = self.find_or_create(&key, user_name.trim(), Some(hash))?;
                 if let Some(password_epoch) = created {
                     if let Some(ip) = ip {
                         self.limits.registered(ip, now);
@@ -813,9 +824,12 @@ impl SessionStore {
     /// Resolve the account for a client, creating a default one, with no
     /// password, if there is none. The account is found by its user name
     /// ([`persist::login_key`]); an empty one falls back to the address.
+    #[cfg(any(test, feature = "test-support"))]
     pub fn get_or_create_account(&self, ip: IpAddr, user_name: &str) -> u32 {
         let key = persist::login_key(ip, user_name);
-        self.find_or_create(&key, user_name.trim(), None).0
+        self.find_or_create(&key, user_name.trim(), None)
+            .expect("test account has a unique nickname")
+            .0
     }
 
     /// The account of `key`, made if there is none: its id, and the password
@@ -830,10 +844,10 @@ impl SessionStore {
         key: &str,
         user_name: &str,
         password_hash: Option<String>,
-    ) -> (u32, Option<u64>) {
+    ) -> Result<(u32, Option<u64>), SignInError> {
         let mut logins = self.logins.locked();
         if let Some(&account_id) = logins.get(key) {
-            return (account_id, None);
+            return Ok((account_id, None));
         }
         let account_id = self.next_account_id.fetch_add(1, Ordering::Relaxed);
         let shown = user_name.split('@').next().unwrap_or_default();
@@ -842,6 +856,11 @@ impl SessionStore {
         } else {
             v021d::account::cap(shown)
         };
+        if self.nickname_taken_locked(&logins, &name, None)
+            || self.display_name_taken(key, None)
+        {
+            return Err(SignInError::InvalidUserName);
+        }
         let mut account = Account::new(account_id, name);
         account.login = key.to_owned();
         account.password_hash = password_hash;
@@ -853,7 +872,7 @@ impl SessionStore {
         drop(logins);
         self.mark_dirty(account_id);
         self.save_soon();
-        (account_id, Some(password_epoch))
+        Ok((account_id, Some(password_epoch)))
     }
 
     /// The account changed: the saver writes it on its next pass. Never
@@ -904,12 +923,13 @@ impl SessionStore {
         let Some(persistence) = &self.persistence else {
             return 0;
         };
+        let names = self.logins.locked();
         let mut writer = persistence.writer.locked();
         let mut dirty: Vec<u32> = std::mem::take(&mut *persistence.dirty.locked())
             .into_iter()
             .collect();
         dirty.sort_unstable();
-        let mut written = 0;
+        let mut records = Vec::new();
         for account_id in dirty {
             let Some(account) = self.account(account_id) else {
                 continue;
@@ -918,17 +938,28 @@ impl SessionStore {
             if writer.saved.get(&account_id) == Some(&record) {
                 continue;
             }
-            match writer.repository.save_account(&record) {
-                Ok(()) => {
-                    writer.saved.insert(account_id, record);
-                    written += 1;
-                }
-                Err(error) => {
-                    log::error!("Account {account_id} not saved: {error}; retrying");
-                    persistence.dirty.locked().insert(account_id);
-                }
-            }
+            records.push(record);
         }
+        // A coherent namespace snapshot: a rename cannot move a name
+        // between accounts halfway through this batch. No account is locked
+        // during I/O. The next rename is marked for the following pass.
+        drop(names);
+        let written = if records.is_empty() {
+            0
+        } else if let Err(error) = writer.repository.save_accounts(&records) {
+            log::error!("Accounts not saved: {error}; retrying");
+            persistence
+                .dirty
+                .locked()
+                .extend(records.iter().map(|record| record.id));
+            0
+        } else {
+            let written = records.len();
+            writer
+                .saved
+                .extend(records.into_iter().map(|record| (record.id, record)));
+            written
+        };
         // After the accounts: a session's row needs its account's.
         let sessions = self.save_sessions(persistence, &mut writer, now);
         if sessions > 0 {
@@ -2503,15 +2534,14 @@ mod tests {
     }
 
     #[test]
-    fn the_admin_finds_an_account_by_user_name_or_by_a_shown_name_only_one_has() {
+    fn the_admin_finds_an_account_by_user_name_or_its_unique_shown_name() {
         let store = SessionStore::new();
         let a = store.sign_in("Alpha@one.test", b"pw").unwrap();
-        store.sign_in("alpha@two.test", b"pw").unwrap();
+        assert_eq!(store.sign_in("alpha@two.test", b"pw"), Err(SignInError::InvalidUserName));
         let b = store.sign_in("bravo@x.test", b"pw").unwrap();
         assert_eq!(store.find_account("ALPHA@one.test"), Some(a));
         assert_eq!(store.find_account("Bravo"), Some(b));
-        // Two accounts show "alpha": the user name is needed.
-        assert_eq!(store.find_account("alpha"), None);
+        assert_eq!(store.find_account("alpha"), Some(a));
         assert_eq!(store.find_account("nobody"), None);
     }
 

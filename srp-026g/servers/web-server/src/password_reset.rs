@@ -82,7 +82,7 @@ impl Web {
             let account = account.locked();
             (
                 account.login.clone(),
-                account.name.clone(),
+                account.name().to_owned(),
                 account.last_ip,
                 account.last_sign_in,
             )

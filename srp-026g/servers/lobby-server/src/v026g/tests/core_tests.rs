@@ -2781,6 +2781,7 @@ mod reconnect_tests;
 mod replay_tests;
 mod room_chat_tests;
 mod rooms_tests;
+mod squad_name_tests;
 
 // ---- the premium shop, the premium items, the daily bonus, the tutorial, a
 // ---- nickname change (`shop`)
@@ -3134,7 +3135,7 @@ fn a_nickname_is_checked_and_changed() {
     // old name is free.
     let alice_id = world.ids[alice].0;
     assert_eq!(
-        world.store.account(alice_id).unwrap().locked().name,
+        world.store.account(alice_id).unwrap().locked().name(),
         "Alisa"
     );
     world.ask(bob, request::find_players("Alis"));

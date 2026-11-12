@@ -210,6 +210,21 @@ impl Core<'_> {
             .map(|(id, _)| id)
     }
 
+    /// Squad messages name a connected player. Older accounts can share
+    /// display names: finding an offline namesake first must not hide the
+    /// player in the lobby. An ambiguous name cannot identify a recipient.
+    fn squad_player_named(&self, name: &str, except: u32) -> Option<u32> {
+        let mut matching = self
+            .by_account
+            .values()
+            .filter_map(|addr| self.player(*addr))
+            .filter(|player| {
+                player.account_id != except && player.name.eq_ignore_ascii_case(name)
+            });
+        let account_id = matching.next()?.account_id;
+        matching.next().is_none().then_some(account_id)
+    }
+
     pub(super) fn ignores(&self, account_id: u32, sender: u32) -> bool {
         self.store
             .account(account_id)
@@ -557,7 +572,6 @@ impl Core<'_> {
         text: &str,
         now: Instant,
     ) {
-        let target = self.account_named(target_name, who.account_id);
         let request = |to| Request {
             from: who.account_id,
             from_name: who.name.clone(),
@@ -576,7 +590,7 @@ impl Core<'_> {
                     return;
                 }
                 let in_match = player.in_match.is_some();
-                let Some(target) = target else {
+                let Some(target) = self.account_named(target_name, who.account_id) else {
                     log::info!("{}: no player {target_name} to befriend", who.name);
                     // From a match (the Tab list's menu: a bot's place has no
                     // account) the lobby's message box would come up only
@@ -596,10 +610,9 @@ impl Core<'_> {
                 self.request(request(target));
             }
             important::SQUAD_INVITE | important::SQUAD_INVITE_ACCEPTED => {
-                let target = target.filter(|target| self.by_account.contains_key(target));
-                let Some(target) = target else {
+                let Some(target) = self.squad_player_named(target_name, who.account_id) else {
                     log::info!(
-                        "{}: squad message {kind} not sent: {target_name} is not in the lobby",
+                        "{}: squad message {kind} not sent: {target_name} is not a unique player in the lobby",
                         who.name
                     );
                     // The invite is the player's own act; the acceptance
@@ -902,7 +915,7 @@ impl Core<'_> {
         let me = who.account_id;
         let result = match message {
             ClientMessage::DisbandSquad => squads.disband(me),
-            ClientMessage::AddSquadMember { name } => match self.account_named(name, me) {
+            ClientMessage::AddSquadMember { name } => match self.squad_player_named(name, me) {
                 Some(member) => squads.add(me, member).map(drop),
                 None => Err(SquadError::NotInvited),
             },

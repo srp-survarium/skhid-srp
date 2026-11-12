@@ -90,6 +90,7 @@ fn main() {
             std::process::exit(1);
         }
     };
+    store.restore_026g_names(&accounts);
     accounts.spawn_saver();
     let on_exit = (store.clone(), accounts.clone());
     let stop = ctrlc::set_handler(move || {

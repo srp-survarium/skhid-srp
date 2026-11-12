@@ -344,7 +344,7 @@ impl<'a> Core<'a> {
         if let Some(account) = self.accounts.get(account_id) {
             return Some(account.locked().name.clone());
         }
-        Some(self.store.account(account_id)?.locked().name.clone())
+        Some(self.store.account(account_id)?.locked().name().to_owned())
     }
 
     /// The account's clan tag (none: srp has no clans yet).
@@ -550,7 +550,7 @@ impl<'a> Core<'a> {
         };
         let (account_id, login_name) = {
             let account = account.locked();
-            (account.id, account.name.clone())
+            (account.id, account.name().to_owned())
         };
 
         // The account's other link: another game signed in with it (the

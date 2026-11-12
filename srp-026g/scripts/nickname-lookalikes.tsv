@@ -1,0 +1,18 @@
+# Lowercase Cyrillic lookalikes -> Latin. Applied after Unicode lowercase.
+# Keep this list explicit: no edit-distance, digit/letter or punctuation folding.
+а	a
+в	b
+е	e
+к	k
+м	m
+н	h
+о	o
+р	p
+с	c
+т	t
+у	y
+х	x
+і	i
+ј	j
+ѕ	s
+ӏ	l
