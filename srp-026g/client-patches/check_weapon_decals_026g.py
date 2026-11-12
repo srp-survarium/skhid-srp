@@ -19,7 +19,10 @@ P's first two decal layers (P + i*270h) the decal's texture, `_nmap`,
 point 1.0 lower and the two sides halved (a u64 0 or a value that is no
 integer: the decal's default, the left or the right side of the receiver),
 the camouflage's layer as patch 44's, the name of them all (the Rust patch
-weapon_camo's, as check_weapon_camo_026g.py's); a
+weapon_camo's, as check_weapon_camo_026g.py's: of the layers that have a
+texture, so the same from a P allocated with other bytes in it, another
+for each other set of decals, and one name for the same decals written two
+ways); a
 third decal, an entry that is no table or has no texture: not painted;
 `data/decals` empty and no camouflage: no query.
 
@@ -176,6 +179,7 @@ def check_bake(original, build, say):
         ("the second of two only", {"camouflage": camo.CAMO, "decals": [[""], [DECAL_B, v2[0], v2[1]]]}, 1,
          camo.CAMO, [None, (DECAL_B, v2)]),
     )
+    first_names = {}                       # each case's name of surface 0
     for title, data, surfaces, camouflage, decals in cases:
         root = camo.weapon(data)
         o_run = BakeRun(original)
@@ -214,6 +218,24 @@ def check_bake(original, build, say):
         for q in queries:
             run.callback(q[4])
         say(run.read(render + 0xD0) == 5, f"{title}: every reference given back")
+        again = BakeRun(build)
+        again.surfaces, again.fill = surfaces, camo.FILLS[1]
+        again.site(camo.config(again, root), camo.make_render(again, references=5)[0], dict(camo.REGS))
+        named = lambda r: [c[9][0]["name"] for c in r.calls if c[0] == "query_resources"]
+        say(named(again) == named(run) and len(set(named(run))) == surfaces,
+            f"{title}: the same names from blocks that held other bytes, one a surface: {named(again)}")
+        first_names[title] = named(run)[0]
+    plain_run = BakeRun(build)
+    plain_run.surfaces = 1
+    plain_run.site(camo.config(plain_run, camo.weapon({"camouflage": camo.CAMO})),
+                   camo.make_render(plain_run, references=5)[0], dict(camo.REGS))
+    first_names["a camouflage and no decal"] = [c[9][0]["name"] for c in plain_run.calls
+                                                if c[0] == "query_resources"][0]
+    same = ("never placed: the defaults", "values that are no integers: the defaults")
+    say(first_names[same[0]] == first_names[same[1]], "the same two decals at their defaults, written two ways: "
+        "one name")
+    others = [name for title, name in first_names.items() if title != same[1]]
+    say(len(set(others)) == len(others), f"every other set of decals, and none, has a name of its own: {others}")
 
 
 # ------------------------------------------------------------------ the editor
