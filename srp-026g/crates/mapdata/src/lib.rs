@@ -190,7 +190,7 @@ pub const GIVE_BACK_IN_CELL_ALGO: u32 = 0x5331_0101;
 pub const FALL_STOPS_ON_SOLIDS_ALGO: u32 = 0x5402_0a01;
 /// The same for the gap links' flights ending at the game's last air step ([`Body::jump_air_steps`], A364 P6), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
-pub const JUMP_AIR_STEPS_ALGO: u32 = 0x5364_0601;
+pub const JUMP_AIR_STEPS_ALGO: u32 = 0x5364_0602;
 /// The same for the exact erosion pass ([`Erosion::Exact`], `grid::exact`), in [`grid_key_with_links`] only for a body
 /// that asks for it: the grids of the cells' erosion key, build and write as before. 2: floors keep a quarter cell of
 /// slack (the nearer-than-the-radius-less-a-quarter rule; 1 was the full radius). 3: the capsule's round top (a wall above the

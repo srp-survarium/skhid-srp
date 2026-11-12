@@ -238,14 +238,19 @@ struct Clip<'a> {
     leaves: f32,
     /// Seconds between two samples (2 frames at the clip's rate).
     sample_s: f32,
-    /// The clip's time scale (1 for the short jump, [`SPRINT_CLIP_RATE`] for the sprint jumps): [`Self::air_end_frame`].
-    scale: f32,
+    /// The clip's frame at the first air step ([`TAKEOFF_FRAME`] for the short jump, [`SPRINT_TAKEOFF_FRAME`] for the sprint
+    /// jumps): [`air_end`].
+    takeoff: f32,
 }
 
-/// [A364 P6] The clip's `jump` event: the first of the game's air steps, frame.
+/// [A364 P6] The short clip's `jump` event: the first of the game's air steps, frame.
 const TAKEOFF_FRAME: f32 = 6.0;
-/// [A364 P6] The game's air phase: this many steps of 50 ms from [`TAKEOFF_FRAME`], 1.5 frames a step at the clip's time scale
-/// (PROVEN, 20 of 20 traced jumps of the game's own bodies, `private/grid/rig/jump-census.txt`; the bots' `jump_arc::AIR_STEPS`).
+/// [A364 P6] A sprint clip's frame at the first air step: 6.6 (the game, 16 traced sprint jumps, `jump-fit-jumps2.tsv`: 9 of
+/// 16 in 6.57-6.63, the rest up to 7.44; the bots' `jump_arc` since #1662). In the air every clip advances 1.5 frames a step,
+/// the sprint's too (116 of 116): its time scale (0.909) is the run-up's, not the air's.
+const SPRINT_TAKEOFF_FRAME: f32 = 6.6;
+/// [A364 P6] The game's air phase: this many steps of 50 ms from the take-off frame, 1.5 frames a step for every clip
+/// (PROVEN, 116 of 116 traced jumps of the game's own bodies, `private/grid/rig/jump-fit-jumps2.tsv`; the bots' `jump_arc::AIR_STEPS`).
 const AIR_STEPS: f32 = 12.0;
 const AIR_STEP_S: f32 = 0.05;
 
@@ -257,13 +262,14 @@ fn root_at(ahead: &[f32; 13], rise: &[f32; 13], frame: f32) -> (f32, f32) {
     (ahead[i] + (ahead[i + 1] - ahead[i]) * t, rise[i] + (rise[i + 1] - rise[i]) * t)
 }
 
-/// [A364 P6] Where the game's air phase ends on a clip of time scale `scale` ([`crate::Body::jump_air_steps`]): the root's
-/// (ahead, rise) at its last air step, frame 6 + 11 x 1.5 x scale (22.5 for the short jump: 2.50 m on, 0.35 m up; the clip's
-/// frame 24 is never played in the air), and the speed it falls at from there, m/s down: the root's descent over that last
-/// step (`end_jump` 0x7F050 keeps the downward part of the air branch's root speed, as `jump_arc::Clip::end_descent`).
-fn air_end(ahead: &[f32; 13], rise: &[f32; 13], scale: f32) -> (f32, f32, f32) {
-    let step = 1.5 * scale;
-    let end = TAKEOFF_FRAME + (AIR_STEPS - 1.0) * step;
+/// [A364 P6] Where the game's air phase ends on a clip whose first air step reads frame `takeoff`
+/// ([`crate::Body::jump_air_steps`]): the root's (ahead, rise) at its last air step, frame `takeoff` + 11 x 1.5 (22.5 for the
+/// short jump: 2.50 m on, 0.35 m up; 23.1 for a sprint jump; the clip's frame 24 is never played in the air), and the speed it
+/// falls at from there, m/s down: the root's descent over that last step (`end_jump` 0x7F050 keeps the downward part of the
+/// air branch's root speed, as `jump_arc::Clip::end_descent`).
+fn air_end(ahead: &[f32; 13], rise: &[f32; 13], takeoff: f32) -> (f32, f32, f32) {
+    let step = 1.5;
+    let end = takeoff + (AIR_STEPS - 1.0) * step;
     let (on, up) = root_at(ahead, rise, end);
     let (_, before) = root_at(ahead, rise, end - step);
     (on, up, ((before - up) / AIR_STEP_S).max(0.0))
@@ -680,7 +686,7 @@ impl WalkGrid {
         let past_apex = |ahead: f32| frame_at(ahead).map_or(ahead >= APEX_AHEAD_M, |frame| frame >= SHORT_APEX_FRAME);
         let clip_end = match frozen {
             Some(v) => v * (TAKEOFF_FRAME + (AIR_STEPS - 1.0) * 1.5) / CLIP_FPS,
-            None if self.body.jump_air_steps => air_end(&SHORT_JUMP_AHEAD, &SHORT_JUMP_RISE, 1.0).0,
+            None if self.body.jump_air_steps => air_end(&SHORT_JUMP_AHEAD, &SHORT_JUMP_RISE, TAKEOFF_FRAME).0,
             None => SHORT_JUMP_AHEAD[SHORT_JUMP_AHEAD.len() - 1],
         };
         let end = clip_end - lead;
@@ -698,7 +704,7 @@ impl WalkGrid {
                 // clip's last downward speed (J0 g2b). [A364 P6] With
                 // `jump_air_steps`, from the air phase's end.
                 if self.body.jump_air_steps {
-                    let (_, up, down) = air_end(&SHORT_JUMP_AHEAD, &SHORT_JUMP_RISE, 1.0);
+                    let (_, up, down) = air_end(&SHORT_JUMP_AHEAD, &SHORT_JUMP_RISE, TAKEOFF_FRAME);
                     return Some((Flight::Over { body, y: h + up, last, down }, over));
                 }
                 let n = SHORT_JUMP_RISE.len();
@@ -863,7 +869,7 @@ impl WalkGrid {
         let apex = clip.ahead[(0..13).max_by(|&i, &j| clip.rise[i].total_cmp(&clip.rise[j])).unwrap_or(0)];
         let landing = |s: f32, y: f32, top: f32| self.come_down(solids, at(s), y, top);
         // [A364 P6] With `jump_air_steps` the flight ends at the game's last air step.
-        let air = self.body.jump_air_steps.then(|| air_end(clip.ahead, clip.rise, clip.scale));
+        let air = self.body.jump_air_steps.then(|| air_end(clip.ahead, clip.rise, clip.takeoff));
         let end = start + air.map_or(clip.ahead[12], |(on, _, _)| on);
         let mut last = h;
         let mut body = pre;
@@ -942,7 +948,7 @@ impl WalkGrid {
                 return SprintLanding::Misses;
             }
             for rise in &SPRINT_JUMP_RISE {
-                let clip = Clip { ahead: &SPRINT_JUMP_AHEAD, rise, leaves: SPRINT_LEAVES_M, sample_s, scale: SPRINT_CLIP_RATE };
+                let clip = Clip { ahead: &SPRINT_JUMP_AHEAD, rise, leaves: SPRINT_LEAVES_M, sample_s, takeoff: SPRINT_TAKEOFF_FRAME };
                 let Some((flight, over)) = self.fly_clip(a, d, &clip, start, pre, sunk, solids) else {
                     return SprintLanding::Misses;
                 };
@@ -2095,14 +2101,14 @@ mod tests {
     }
 
     /// [A364 P6] The short jump's air phase ends at frame 22.5, 2.50 m on and 0.35 m up (the game's traced jumps, 17 of 17), and
-    /// falls from there; the sprint jump's at frame 6 + 11 x 1.5 x 0.909 = 21.0 (the bots' `jump_arc::Clip::air_end_frame`).
+    /// falls from there; the sprint jump's at frame 6.6 + 11 x 1.5 = 23.1 (16 traced sprint jumps; the bots' `jump_arc`, #1662).
     #[test]
     fn a_jump_flight_ends_at_the_games_twelfth_air_step() {
-        let (on, up, down) = air_end(&SHORT_JUMP_AHEAD, &SHORT_JUMP_RISE, 1.0);
+        let (on, up, down) = air_end(&SHORT_JUMP_AHEAD, &SHORT_JUMP_RISE, TAKEOFF_FRAME);
         assert!((on - 2.50).abs() < 0.01 && (up - 0.35).abs() < 0.01, "{on} {up}");
         assert!(down > 3.0 && down < 8.0, "{down}");
-        let (on, up, _) = air_end(&SPRINT_JUMP_AHEAD, &SPRINT_JUMP_RISE[0], SPRINT_CLIP_RATE);
-        let (want_on, want_up) = root_at(&SPRINT_JUMP_AHEAD, &SPRINT_JUMP_RISE[0], 21.0);
+        let (on, up, _) = air_end(&SPRINT_JUMP_AHEAD, &SPRINT_JUMP_RISE[0], SPRINT_TAKEOFF_FRAME);
+        let (want_on, want_up) = root_at(&SPRINT_JUMP_AHEAD, &SPRINT_JUMP_RISE[0], 23.1);
         assert!((on - want_on).abs() < 1e-3 && (up - want_up).abs() < 1e-3 && on < SPRINT_JUMP_AHEAD[12]);
     }
 
