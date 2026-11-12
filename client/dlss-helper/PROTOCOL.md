@@ -40,7 +40,9 @@ Tested).
   size for the output size and quality.
 - `HelloReply` (272 bytes): `ok`, `ngx_result` (NGX's code when it was NGX that refused),
   `render_w`, `render_h`, `text[256]` (UTF-8, NUL-ended: why not, when `ok = 0`; the game logs
-  it). The game sizes its render targets from this reply. After `ok = 0` the helper exits.
+  it). The size is DLSS's suggestion: the game renders at its own even size (1280x720 for 1080p,
+  854x480 for 720p) and the Setup's images say which; the DLSS feature is made for the sizes of
+  the Setup's images. After `ok = 0` the helper exits.
 - The first Hello takes 0.3 s (no DLSS) to 1.0 s (NGX, DLSS's kernels); a later one a few ms.
 
 ## 3. Setup: what is shared (made and exported by the game, on DXVK's VkDevice)
@@ -50,10 +52,10 @@ exclusive sharing, `VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT` on both
 VkExternalMemoryImageCreateInfo and VkExportMemoryAllocateInfo, plus
 VkMemoryDedicatedAllocateInfo, a DEVICE_LOCAL memory type:
 
-| index | what | size | format (the probe's) | usage |
+| index | what | size | format (the game's; the probe's) | usage |
 |---|---|---|---|---|
 | 0 | colour | render | R8G8B8A8_UNORM | TRANSFER_DST, SAMPLED |
-| 1 | depth | render | D32_SFLOAT (aspect DEPTH) | TRANSFER_DST, SAMPLED |
+| 1 | depth | render | D24_UNORM_S8_UINT, the game's depth-stencil (the probe: D32_SFLOAT); read by its depth aspect | TRANSFER_DST, SAMPLED |
 | 2 | motion | render | R16G16_SFLOAT | TRANSFER_DST, SAMPLED |
 | 3 | output | output | R8G8B8A8_UNORM | STORAGE, SAMPLED, TRANSFER_SRC |
 
@@ -67,8 +69,9 @@ VkMemoryDedicatedAllocateInfo, a DEVICE_LOCAL memory type:
   memoryTypeBits). The helper closes each handle once imported or refused.
 - One timeline semaphore (VkSemaphoreTypeCreateInfo TIMELINE, VkExportSemaphoreCreateInfo
   OPAQUE_WIN32) made by the game on DXVK's device; the helper imports it
-  (vkImportSemaphoreWin32HandleKHR, OPAQUE_WIN32, not temporary). The same semaphore serves
-  every size: at a new size the game exports a new handle of it and its values go on.
+  (vkImportSemaphoreWin32HandleKHR, OPAQUE_WIN32, not temporary). Each Setup has its own
+  semaphore: at a new size the game makes and exports a new one, its values start again (frames
+  counted from 0), and the helper destroys the old one with the old images.
 - Handles: vkGetMemoryWin32HandleKHR / vkGetSemaphoreWin32HandleKHR (NT handles) in the game,
   `DuplicateHandle(game, h, helper process, DUPLICATE_SAME_ACCESS)`, the game closes its own
   copy, and the value in the helper's handle table goes into `SetupMsg`.
@@ -88,7 +91,7 @@ value 2N+2 = the helper's DLSS output of frame N is in the shared output
 ```
 
 (Any increasing values do: each `FrameMsg` names its own `wait_value` and `signal_value`,
-`signal_value > wait_value`, above every value used before.)
+`signal_value > wait_value`, above every value used before on that Setup's semaphore.)
 
 Game, all on DXVK's queue (GetSubmissionQueue1, family F):
 
@@ -128,7 +131,7 @@ VK_QUEUE_FAMILY_EXTERNAL at every hand-over.
 
 A new size: once the old size's last frame is through (the game saw its `signal_value`), the
 game sends `FrameMsg{quit = 2}`, then a Hello with the new output size and a Setup with new
-images (and a new handle of the timeline semaphore). The helper frees the old images and DLSS
+images and a new timeline semaphore, its values from the start again. The helper frees the old images and DLSS
 feature and keeps its device and NGX: 36 ms measured, against 0.8 s for a new helper.
 
 ## 5. DLSS's inputs (per frame, the helper's side)
