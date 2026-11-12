@@ -216,3 +216,18 @@ Review and main integration, 2026-11-12:
   `0xa4ccfd` fault in all 20 chunks. No corpus-wide agreement is claimed.
 - Combined HUD-options (`b8439d25a4a9`) reproduces the same `configs.start`
   assertion. The automatic run finishes with only these three known failures.
+
+Main advanced during verification to `b4e08f97f` (local replay-file opening).
+Integrated that change too and regenerated the shared arena: size `0x11c44c`,
+SHA-256 `0d4bd09a888d78f6811e55e0930f3d793bf849165d7f860c0d79f2797aa0e070`.
+Client tests/Clippy (`55b5f488ecd8`), generated ABI/hooks/lock and native checks
+(`006beff71781`), and distance-detail native/menu checks (`a8c013d943bd`)
+pass together on this tree. World-check (`78e885993975`) again reports
+9,606 accepted and 241,154 refused of 250,760, the same existing baseline.
+Replay-file native success/failure, generated hooks and client tests/Clippy
+also pass on the final combined arena (`1fc057583b52`).
+The final automatic run reproduces only the three documented baseline failures:
+world-check above, world-drift (`7fcf3f90b666`, the same `0xa4ccfd` fault), and
+HUD-options (`c963856499a8`, the same `configs.start` assertion). All affected
+Rust checks and the executable-report, distance-detail and replay-file checks
+pass. Real Windows/Wine executable-upload testing and release remain outstanding.
