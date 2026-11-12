@@ -1776,6 +1776,11 @@ pub(crate) fn real_bot_cost() {
                     for (place, hits) in game.hits_at(world_tick).unwrap_or_default().into_iter().enumerate() {
                         bots.hits(place, &hits);
                     }
+                    for (place, saved) in game.staminas_at(world_tick).unwrap_or_default().into_iter().enumerate() {
+                        if let Some(saved) = saved {
+                            bots.stamina(place, saved);
+                        }
+                    }
                     standin_heal::tell(&mut game, &mut bots, world_tick);
                     standin_traps::tell(&mut game, &mut bots, world_tick);
                     if let Some((_, fixes, health, facts)) = game.world_at(world_tick) {
@@ -2503,6 +2508,8 @@ pub(crate) fn real_bot_cost() {
             // [A318] Whether the reckoning takes the client's walk tick in the bench's matches (it did not before the world's walker).
             eprintln!("route hash: camper {:016x} bots {:016x}", bots.bench_route_hash[0], bots.bench_route_hash[1]);
             eprintln!("walker_holds so far: {}", crate::v026g::bots::body::walker_holds::count());
+            let saved = crate::v026g::bots::stamina::counts::saved_worlds();
+            eprintln!("stamina saved worlds so far: {} (reckoned 5+ off {}, 20+ off {})", saved[0], saved[1], saved[2]);
             let riser = crate::v026g::bots::drive::riser_counts::counts();
             eprintln!("risers so far: sprinted ticks {}, jumps {}, neither ticks {}", riser[0], riser[1], riser[2]);
             let (ground, hard, client, moved) = crate::v026g::bots::body::client_steps::all();

@@ -551,6 +551,8 @@ pub(crate) struct Game {
     pub(crate) hurts: VecDeque<(u32, Vec<Hurt>)>,
     /// [2e] The bodies' recent hits in those worlds, as a world's `m_recent_hits` ([`Game::hits_at`]).
     pub(crate) recent_hits: VecDeque<(u32, BodiesHits)>,
+    /// [F1] The bodies' stamina bars at each world tick, as their saved records have them.
+    pub(crate) staminas: VecDeque<(u32, Vec<Option<crate::v026g::bots::stamina::Saved>>)>,
     pub(crate) tick: u32,
     pub(crate) rng: Rng,
     /// How a hit hurts ([`standin_damage`]).
@@ -961,6 +963,7 @@ impl Game {
             history: VecDeque::new(),
             hurts: VecDeque::new(),
             recent_hits: VecDeque::new(),
+            staminas: VecDeque::new(),
             tick: 0,
             rng: Rng::new(seed),
             damage: standin_damage::Model::default(),
@@ -3005,6 +3008,11 @@ impl Game {
         while self.recent_hits.len() > 40 {
             self.recent_hits.pop_front();
         }
+        let staminas = self.bodies.iter().map(|b| b.stamina.saved(tick)).collect();
+        self.staminas.push_back((tick, staminas));
+        while self.staminas.len() > 40 {
+            self.staminas.pop_front();
+        }
         self.trap_record();
         self.seen
             .push_back((tick, self.bodies.iter().map(standin_heal::seen).collect()));
@@ -3023,6 +3031,12 @@ impl Game {
     pub(crate) fn hits_at(&self, tick: u32) -> Option<BodiesHits> {
         let (_, hits) = self.recent_hits.iter().find(|(t, _)| *t == tick)?;
         Some(hits.clone())
+    }
+
+    /// [F1] The bodies' saved stamina records at a world of `tick`.
+    pub(crate) fn staminas_at(&self, tick: u32) -> Option<Vec<Option<crate::v026g::bots::stamina::Saved>>> {
+        let (_, staminas) = self.staminas.iter().find(|(t, _)| *t == tick)?;
+        Some(staminas.clone())
     }
 
     pub(crate) fn world_at(&self, tick: u32) -> Option<Recorded> {
