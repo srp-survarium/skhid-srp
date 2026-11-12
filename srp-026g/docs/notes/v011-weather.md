@@ -799,3 +799,56 @@ play validation has been completed.
 Porter checkpoint for this scope review and completed read-only captures:
 `352843f`. The shared replay implementation remains the verified `630b5ff`
 version; no producer-replay expansion or production renderer change is included.
+
+## Native diffuse calibration: evening result (2026-11-12)
+
+The smaller native-lighting approach now has a matched version-5 A/B. A private
+content edit multiplies `environment_probes_diffuse_intensity_multiplier` by
+three in the two evening and two rain projects (evening 1 -> 3; rain 0.7 -> 2.1).
+It changes no specular, AO, probe selection or composition code. The quick
+`release/build-content 57` run passed with four edited files and no unexpected
+edit differences; full players-file validation was not run. The edit and its
+manifest row remain an uncommitted candidate, not accepted release content.
+
+Both fresh native baselines completed. The evening candidate also completed:
+eight camera-matched 1280x720 views, plus three stage captures. Position, direction,
+FOV, capture IDs and pinned build inputs passed checks. Captured global-probe
+constants confirm diffuse 1.9 -> 5.7 and unchanged specular zero. The native rain
+baseline confirms diffuse 0.77; its candidate is still running at this checkpoint.
+
+All eight evening views improve in display RGB RMSE. Mean per-view RMSE changes
+from 0.20753 to 0.15848 (23.6% reduction). Selected display-luma means:
+
+| View | Original | Native baseline | Diffuse x3 |
+| --- | ---: | ---: | ---: |
+| Factory interior | .1351 | .0550 | .1019 |
+| Yard north | .1997 | .0984 | .1924 |
+| Yard south | .2147 | .1103 | .2170 |
+| Factory upper / distant landscape | .5392 | .2073 | .2377 |
+
+Both contact sheets were visually inspected. Interior readability improves;
+the outdoor landscape and sunlit surfaces remain substantially too dark/warm.
+A larger global multiplier is not justified by these results: courtyard means
+are already close. This supports keeping native lighting as the simpler
+candidate, but does not establish acceptable overall appearance. Next compare
+the existing original post/gamma adapter on these same eight views, including
+outdoors; full original AO/probe reconstruction remains deferred.
+
+Evidence: `/tmp/v011-weather-reference/lighting-report/`, with
+`evening.json` SHA256
+`902cee6eac1f3778ca1408e6610e8b0dc681dba3774741ea7b666d6996d7e023`,
+`summary-evening.json` SHA256
+`d6a35e8dad251fa6de228dcb37a84135900f2cd6767f77302f9a0f6cb21bc906`,
+and `audit-evening.json` SHA256
+`60755ba256d234211d94eb7e1cb2eaac0ddbbbd610677d8d3529ae597c2dec6d`.
+Raw images, camera metadata, stage buffers, build pins and helper snapshots are
+under `/tmp/v011-weather-lighting-comparison/`. A scoped readiness adjustment
+and the capture-status partial-write retry (`7d70ee1`) let the isolated captures
+finish; the first incomplete rain attempt is retained separately. Only inactive
+disposable Wine prefixes were removed to recover space; original reference
+captures and all comparison evidence remain preserved.
+
+The original-post comparison is queued after the current lighting batch; it is
+not a passed test yet. Moving-rain validation, selected-candidate wide sweep,
+production integration and local play remain outstanding. No weather merge or
+release is claimed.
