@@ -244,8 +244,6 @@ pub struct Targets {
 pub enum TargetIndex {
     /// `$user$position`: the linear view depth, R16_FLOAT.
     LinearDepth = 9,
-    /// `$user$albedo`: the G-buffer's albedo, RGBA8.
-    Albedo = 13,
     /// `$user$object_motion_vectors`.
     ObjectMotion = 18,
     /// `$user$present`: the frame after the post-process, RGBA8.

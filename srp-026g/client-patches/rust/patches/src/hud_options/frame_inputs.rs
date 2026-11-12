@@ -313,9 +313,6 @@ pub struct FrameInputs {
     pub depth: DepthTexture,
     /// `$user$position`: the linear view depth.
     pub linear_depth: Target,
-    /// `$user$albedo`, for the diagnostics' look (the post-process may have
-    /// used it as its scratch by the frame's end).
-    albedo: Option<Target>,
     /// `$user$object_motion_vectors`, and whether it was made signed.
     pub motion: Target,
     pub motion_signed: bool,
@@ -337,7 +334,6 @@ pub fn frame(thread: &Thread) -> Option<FrameInputs> {
             colour: targets.get(thread, TargetIndex::Present)?,
             depth,
             linear_depth: targets.get(thread, TargetIndex::LinearDepth)?,
-            albedo: targets.get(thread, TargetIndex::Albedo),
             motion: targets.get(thread, TargetIndex::ObjectMotion)?,
             motion_signed: owner.wanted.has(Pieces::SIGNED_MOTION),
         })
@@ -554,8 +550,7 @@ fn thousandths(value: f32) -> [Piece<'static>; 2] {
 /// The diagnostics' look at a frame: a line of its jitter and reset, the
 /// object motion read back (how much of it is negative), and the frame and
 /// its motion written beside the game as `dlss-inputs-<frame>-present.bin`
-/// and `-motion.bin`, with the linear depth and the G-buffer's albedo
-/// (`-depth.bin`, `-albedo.bin`) (a 16-byte header: `SKRT`, the width, the height, a
+/// and `-motion.bin`, with the linear depth (`-depth.bin`) (a 16-byte header: `SKRT`, the width, the height, a
 /// pixel's bytes; then the rows).
 fn look(thread: &Thread, run: &Run, wanted: Pieces, inputs: &FrameInputs) {
     let [xs, x] = thousandths(inputs.jitter.x());
@@ -569,11 +564,9 @@ fn look(thread: &Thread, run: &Run, wanted: Pieces, inputs: &FrameInputs) {
     if written.is_none() {
         line(&[Text("frame inputs: the frame was not read back")]);
     }
-    // the frame's geometry alone, with no lighting or temporal pass in it
+    // the frame's geometry alone, with no lighting or temporal pass in it (the G-buffer's colour targets
+    // are the post-process's scratch by now: rt 13 read here is the frame itself)
     frame_inputs::read_back(thread, &inputs.linear_depth, PixelFormat::R16Float, |pixels| write(run.count, b"depth", pixels));
-    if let Some(albedo) = inputs.albedo {
-        frame_inputs::read_back(thread, &albedo, PixelFormat::Rgba8, |pixels| write(run.count, b"albedo", pixels));
-    }
     if !wanted.has(Pieces::SIGNED_MOTION) {
         return;
     }
