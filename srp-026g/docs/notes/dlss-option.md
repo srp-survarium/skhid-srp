@@ -154,10 +154,28 @@ projection and the movie's stage: no reader of the targets' size exists outside
 
 ## The frame with DLSS (design)
 
-- **Render size:** `set_size(w, h)` keeps the window and back buffer at w x h; `create_targets` and
-  the output's depth-stencil get the render size (the helper's answer). Every stage, the
-  post-process included, runs at the render size into `$user$present`. Viewports: RE open (which
-  stages set theirs from the output's size rather than a target's).
+- **Render size** (implemented: patch 83's `hud_options/render_size.rs`, the engine's side
+  `vostok/render_size.rs`): `set_size(w, h)` keeps the window and back buffer at w x h; its
+  `create_targets` takes the render size (the ratio's share of each side, rounded to an even
+  number: the half targets are shifts). Every stage, the post-process included, runs at the render
+  size into `$user$present`. How the three things that take the output's size are handled ("The
+  render size", 1 to 3):
+  - **the depth-stencil is one of ours**, not the output's made smaller: the engine's own
+    `render_target` with the depth usage (`create_render_target` 0x3BF930: R24G8, its D24S8 view
+    and its texture, what the output's own is), made with the targets. Between the frame's
+    `setup_render_output_window` and its present stage it is the backend's `m_base_zb`, and the
+    G-buffer's `t_depth_render_target` (ECX at 0x177CFA). The output's own stays the window's
+    size for Scaleform and the overlay: every bind has colour and depth of one size;
+  - **the base viewport** is set to the render size right after `setup_render_output_window`
+    (0x13D29C; `set_viewports`, so the scissor follows);
+  - **the screen image's viewport** is set to the output's size before the present stage
+    (0x13DB16), where `m_base_zb` becomes the output's again.
+  One owner holds the scale wanted and the frame as made (native, or scaled with its
+  depth-stencil); the five sites are written on demand, at the process's start, only when a scale
+  is asked (before the render device exists: nothing runs them), so a game without it runs the
+  engine's own code. The link's interface is one function, `render_size::ask(thread, scale)`: a
+  ratio at the process's start, native any time. Until the link exists the diagnostics switch
+  `SKHID_DLSS_RENDER_SCALE=0.667` asks (`0.667,300`: native again after 300 frames).
 - **Where DLSS sits:** in place of the engine's AA, at the end of the post-process: DLSS reads
   `$user$present` (RGBA8, LDR, after the tone curve, LUT, sharpen and gamma), depth and motion, and
   writes a full-size image; `stage_screen_image::execute` is handed that image instead of present.
@@ -195,18 +213,25 @@ projection and the movie's stage: no reader of the targets' size exists outside
   them; DLSS may smear them a little. A reactive/transparency mask is a later step.
 - **Reset** (DLSS's history thrown away): the first frame of a size, a map load, a camera cut
   (spawn, death camera, spectator switch: the previous view matrix far from the current one).
-- **Depth:** the output's D24S8 depth, its depth aspect, not inverted (the engine's projection is
-  0 near, 1 far). The probe shared a D32 image; a D24S8 one is copied into a shared image of its own
+- **Depth:** the frame's own D24S8 depth-stencil (`render_size`'s `DepthTarget`, the render
+  size), its depth aspect, not inverted (the engine's projection is 0 near, 1 far). The probe shared a D32 image; a D24S8 one is copied into a shared image of its own
   format (depth aspect only), or written by the same compute pass as the motion (R32_SFLOAT): to be
   settled with the helper.
 
 ## Falling back
 
 - No broken frame: a frame that DLSS did not finish shows `$user$present` through the stock screen
-  image quad (a plain bilinear stretch of the render size), the same draw as today.
+  image quad, the same draw as today. OBSERVED (the captures): that quad samples by point (0.10b's
+  `present_2rt.ps` reads `t_base` with `s_accumulator`; LIKELY the same blob in 0.26g), so the
+  stretch is the nearest pixel's, blocks of 1 and 2 pixels at 0.667, not a bilinear one. Open: a linear sampler for that draw if
+  the fallback frame should look better than that.
 - Any helper failure (no answer at the start, a setup refused, the pipe broken, the helper process
   gone, its timeline value late): DLSS stops for the process, the line in `srp_patches.log` says
-  why, and the next frame's `set_size` (forced) makes every target native again.
+  why, and the link asks native (`render_size::ask`): at the next frame's start
+  (`render.output_setup`, before `setup_render_output_window`) the engine's own forced `set_size`
+  of the window at its size and mode makes every target native again and our depth-stencil is let
+  go. `set_size` also puts the window's style and place back (SetWindowLong, SetWindowPos), as an
+  options apply does.
 - A helper that dies after the game queued its wait: the game signals that timeline value itself
   from the host (a timeline semaphore takes a host signal), so DXVK's queue never waits forever;
   that frame shows the last good output (the shared output keeps it), one repeated frame.
@@ -248,6 +273,21 @@ projection and the movie's stage: no reader of the targets' size exists outside
   dictionary's texts inside). Not played, not released.
 - Open, on the helper (the probe's protocol, final): starting it from the game, Hello and Setup,
   the per-frame submit and sync, the helper's folder and its Wine packaging (nvapi), Windows.
-- Open, in the game: the render size seam (targets, the output's depth, viewports), jitter, the
-  motion compute pass, rt 18's format, AA off while DLSS runs, the screen-image swap, the reset
-  triggers, the mip bias's reach.
+- The render size: implemented (above). Tested: the crate's tests (the ratio, the even render
+  size, the owner's steps) and Clippy; `check_hud_options_026g.py` (every start reads the switch
+  last; with it unset nothing more). Seen in the game (2026-11-12, Wine 11.8, DXVK, RTX 3060 Ti,
+  two replays on a headless display, no input, fullscreen 1920x1080, SSDO and SSR on): with
+  `SKHID_DLSS_RENDER_SCALE=0.667` the log's `render size: the 3D frame 1280x720 of 1920x1080`,
+  the frame filling the window with the scene where it is natively, the HUD (minimap, scores,
+  timer, objective letters, the world marks over their places) at the same places and size as
+  natively, the replay playing on (captures every 3 s for 25 s, each another frame); with
+  `0.667,150` the log's `native asked` and the match going on at the native size (the forced
+  `set_size` inside a frame). The first try at 1281x720 showed bright specks at edges (an odd
+  side), not seen at 1280. Not seen: a played match (input, the first-person weapon, aiming and
+  hits), the lobby and menus, a window resize or an options apply while scaled, a windowed game,
+  Windows, the sites' install in Unicorn. Not released.
+- Found on the way, not this work's: the first replay tried (`rec026g_20261109-180618`) ends the
+  game in `inventory_item::deserialize` (exe+0x2EFF87, a read of 10Ch) some seconds into the
+  match, natively as well as scaled (seven runs, the same address); the other replay plays.
+- Open, in the game: jitter, the motion compute pass, rt 18's format, AA off while DLSS runs, the
+  screen-image swap, the reset triggers, the mip bias's reach.

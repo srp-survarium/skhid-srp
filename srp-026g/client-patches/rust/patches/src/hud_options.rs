@@ -2,7 +2,8 @@
 //! four settings of the match hud kept in user.cfg, "Hide hit markers", "Hide
 //! player scores", "Names on map" and the crosshair list's "Hidden crosshair"; and the
 //! Graphics tab's Renderer list and its Vulkan options
-//! (docs/notes/dxvk-option.md), which the next start reads. The hooks are
+//! (docs/notes/dxvk-option.md), which the next start reads; and the render
+//! scale (`render_size`, docs/notes/dlss-option.md). The hooks are
 //! `hud_options.toml`'s, each a `lohook` after another patch's at the same site:
 //!
 //! - on_configs_loaded before user.cfg (`configs.start`, after patch 79):
