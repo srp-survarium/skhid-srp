@@ -418,6 +418,22 @@ impl Stock {
         true
     }
 
+    /// [2e] A reload under way (its clip or its round loop): the sights are down and the client takes no sprint.
+    pub(crate) fn reloading(&self) -> bool {
+        matches!(self.busy, Busy::Until(_) | Busy::Loop)
+    }
+
+    /// [2e] The weapon is not idle (a reload, or the fire clip of the shot that emptied it): `weapon_core::can_sprint` 0x2E3A10
+    /// refuses the sprint.
+    pub(crate) fn busy(&self) -> bool {
+        self.busy != Busy::Free
+    }
+
+    /// [2e] The gun in hands' `aim_time`, ms: after AIM goes up the sights take this long to come down.
+    pub(crate) fn aim_ms(&self) -> u32 {
+        self.load.gun.aim_ms
+    }
+
     /// The reload key went down at `now` ms: a reload begins if the weapon
     /// has room, there is ammo and nothing is under way.
     pub(crate) fn reload_key(&mut self, now: u32) {

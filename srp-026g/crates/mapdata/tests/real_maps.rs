@@ -22,7 +22,6 @@ fn load(map_id: u8) -> Option<MapData> {
             return None;
         }
     };
-    assert_eq!(resources.unresolved_links, 0);
     let materials = Materials::load(&mut resources).unwrap();
     let project = maps::map_mode(map_id).unwrap().project;
     let t = Instant::now();

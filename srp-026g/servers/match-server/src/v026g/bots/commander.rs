@@ -693,6 +693,40 @@ impl Bots {
         for bot in self.bots.iter_mut().flatten().filter(|b| b.team == team) {
             bot.stuck.share(spots.clone());
         }
+        // [unstick.dead_links] The links its bots failed, for the match: one failed `after` times, whichever bots, is shut
+        // to every search of the team's bots for the rest of the match, and the map's list goes to the log.
+        let dead_tuning = tuning.unstick.dead_links.unwrap_or_default();
+        let dead = &mut self.features.dead_links;
+        for bot in self.bots.iter_mut().flatten().filter(|b| b.team == team) {
+            for newly in dead.learn(now, bot.place, &bot.stuck.tell_failed_links(), &dead_tuning) {
+                let (from, to) = (newly.link.take_off, newly.link.landing);
+                notes.push(Note {
+                    place: usize::MAX,
+                    time: now,
+                    text: format!(
+                        "{}{} ({:?}): {:?} ({:.1}, {:.1}, {:.1}) -> ({:.1}, {:.1}, {:.1}) failed {} times, by players {:?}{}; the map's dead links: {}",
+                        super::dead_links::PREFIX,
+                        self.level,
+                        self.mode,
+                        newly.link.kind,
+                        from.x,
+                        from.y,
+                        from.z,
+                        to.x,
+                        to.y,
+                        to.z,
+                        newly.by.len(),
+                        newly.by,
+                        if tuning.unstick.dead_links.is_some() { "" } else { " (logged only: the team's switch is off)" },
+                        dead.list()
+                    ),
+                });
+            }
+        }
+        let dead_shut = if tuning.unstick.dead_links.is_some() { dead.shut() } else { Vec::new() };
+        for bot in self.bots.iter_mut().flatten().filter(|b| b.team == team) {
+            bot.stuck.share_dead(dead_shut.clone());
+        }
         let since_theft = state
             .knowledge
             .thefts

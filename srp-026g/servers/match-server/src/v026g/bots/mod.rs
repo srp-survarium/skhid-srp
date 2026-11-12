@@ -44,6 +44,7 @@ pub mod contact;
 pub mod control;
 pub mod crossing;
 pub mod curve;
+pub mod dead_links;
 pub mod doors;
 pub mod encode;
 pub mod escape;
@@ -89,6 +90,7 @@ pub mod sense;
 pub mod shot_reach;
 pub mod signals;
 pub mod smoke;
+pub mod sprint_gates;
 pub mod squad;
 pub mod stamina;
 pub mod stock;
@@ -1398,7 +1400,8 @@ impl Bots {
     /// [`Self::fixed`]): what its jumps may do ([`Hurt::may_jump`]).
     pub fn hurt(&mut self, place: Place, hurt: Hurt) {
         // [A313] The legs' term of the speed factor for the body's reckoning, with `kin.speed_terms` legs.
-        let legs = (self.tunings.match_wide().kin.speed_terms == kin::SpeedTerms::Legs).then(|| hurt.legs_factor());
+        let legs = matches!(self.tunings.match_wide().kin.speed_terms, kin::SpeedTerms::Legs | kin::SpeedTerms::LegsStagger)
+            .then(|| hurt.legs_factor());
         self.tracker.set_legs(place, legs);
         // [A325f] The legs' `leg_damage` gate on the moves of the place's reckoned body and of a bot's own keys.
         let hurt = if self.tunings.match_wide().kin.leg_damage == kin::LegDamageGate::Client {
@@ -1414,6 +1417,12 @@ impl Bots {
                 bot.features.stock.pantry.hit(hit);
             }
         }
+    }
+
+    /// [2e] A trusted world's recent hits on one place (`m_recent_hits`: the world's ms, each hit's stopping speed): the
+    /// stagger of its reckoned body ([`kin::SprintGates`], [`kin::SpeedTerms::LegsStagger`]).
+    pub fn hits(&mut self, place: Place, hits: &[(u32, f32)]) {
+        self.tracker.set_hits(place, hits);
     }
 
     /// What the bot at `place` counts of its drugs, for the tests.
@@ -1705,7 +1714,13 @@ impl Bots {
             {
                 let landings = stuck::drops_off(&tactics.world.grid, feet, shut.near_m.get());
                 if !landings.is_empty() {
-                    bot.stuck.failed_drop(time, feet, &landings, shut.kept_ms);
+                    // The drop its route went down: its take-off and landing waypoints, for the match's dead links.
+                    let taken = bot.route.as_ref().and_then(|(route, _)| {
+                        let points = route.points();
+                        let k = route.segment();
+                        Some((points.get(k)?.at, points.get(k + 1)?.at))
+                    });
+                    bot.stuck.failed_drop(time, feet, &landings, shut.kept_ms, taken);
                     bot.note(
                         &mut notes,
                         time,

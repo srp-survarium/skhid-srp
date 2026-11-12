@@ -3,10 +3,13 @@
 
 use std::collections::HashMap;
 use std::fmt;
+use std::fs::File;
+use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
 use binary_config_parser::{ConfigError, ConfigValue};
-use vostok_resources_db::{Archive, FileEntry, NodeKind};
+use resources_db::Archive;
+use resources_db::overlay::Overlay;
 
 /// The variable the tests and `mapdata-dump` read the archive's path from.
 pub const PATH_VARIABLE: &str = "SRP_RESOURCES_DB";
@@ -29,80 +32,64 @@ impl From<ConfigError> for Error {
 }
 
 pub struct Resources {
-    archives: Vec<Archive>,
-    /// By path: the archive that gives it (the last layer that has it) and
-    /// its entry there.
-    files: HashMap<String, (usize, FileEntry)>,
-    /// Index entries that are hard links whose target is not a file (a link
-    /// to a link); none in the shipped 0.26g archive.
-    pub unresolved_links: usize,
+    /// The archives laid over one another as the game mounts them.
+    overlay: Overlay<BufReader<File>>,
+    /// Every file seen, by its [`normalize`]d path: its path in the archive.
+    paths: HashMap<String, String>,
 }
 
 impl Resources {
     /// Opens the archive and indexes its files by path.
-    ///
-    /// Many collision meshes (walker meshes above all) are **hard links** in
-    /// the index: a node that points at another node's payload. The
-    /// `resources-db` listing resolves them to the target's payload under the
-    /// link's own path, so they are kept here as files like any other; a
-    /// loader that took only plain file nodes would lose those meshes.
     pub fn open(path: &Path) -> Result<Self, Error> {
         Self::open_layers(&[path.to_path_buf()])
     }
 
     /// The archives mounted in order, as the game mounts `resources.db` and
-    /// its `resources.db.patch_<n>`: a file of a later one wins.
+    /// its `resources.db.patch_<n>`: a file of a later one wins, folders merge
+    /// (`resources_db::overlay`).
+    ///
+    /// Many collision meshes are **hard links** in the index: a node that
+    /// points at another node, a file or a whole folder (0.26g's archive has
+    /// 58 links to folders, e.g. a model's `collision` folder that is another
+    /// model's). The game reads the target's files under the link's own path;
+    /// so does this reader (`resources_db`), so a linked folder's meshes and
+    /// primitives are there like any other.
     pub fn open_layers(paths: &[PathBuf]) -> Result<Self, Error> {
         let mut archives = Vec::with_capacity(paths.len());
-        let mut files = HashMap::new();
-        let mut unresolved_links = 0;
-        for (layer, path) in paths.iter().enumerate() {
-            let archive = Archive::open(path)
-                .map_err(|error| Error(format!("{}: {error}", path.display())))?;
-            // The unpacker indexes slices directly; a damaged file must not
-            // take the caller down, so treat a panic while listing as a load
-            // error.
-            let entries = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| archive.list()))
-                .map_err(|_| Error(format!("{}: unreadable file index", path.display())))?;
-            for entry in entries {
-                match entry.kind {
-                    NodeKind::File { .. } => {
-                        files.insert(
-                            normalize(&String::from_utf8_lossy(&entry.path)),
-                            (layer, entry),
-                        );
-                    }
-                    NodeKind::HardLink => unresolved_links += 1,
-                    _ => {}
-                }
-            }
-            archives.push(archive);
+        let mut names = Vec::with_capacity(paths.len());
+        for path in paths {
+            let at = |error: &dyn fmt::Display| Error(format!("{}: {error}", path.display()));
+            let file = File::open(path).map_err(|error| at(&error))?;
+            archives.push(Archive::new(BufReader::new(file)).map_err(|error| at(&error))?);
+            names.push(path.display().to_string());
         }
-        Ok(Self {
-            archives,
-            files,
-            unresolved_links,
-        })
+        let overlay = Overlay::new(archives, &names).map_err(|error| Error(error.to_string()))?;
+        let paths = overlay
+            .files_under("")
+            .map(|(path, _, _)| (normalize(path), path.to_owned()))
+            .collect();
+        Ok(Self { overlay, paths })
     }
 
     /// Every file's path (normalized), in no order.
     pub fn paths(&self) -> impl Iterator<Item = &str> {
-        self.files.keys().map(String::as_str)
+        self.paths.keys().map(String::as_str)
     }
 
     pub fn exists(&self, path: &str) -> bool {
-        self.files.contains_key(&normalize(path))
+        self.paths.contains_key(&normalize(path))
     }
 
     /// File bytes by engine path; a leading `resources/` is optional.
     pub fn read(&mut self, path: &str) -> Result<Vec<u8>, Error> {
-        let (layer, entry) = self
-            .files
+        let stored = self
+            .paths
             .get(&normalize(path))
             .ok_or_else(|| Error(format!("missing resource `{path}`")))?;
-        self.archives[*layer]
-            .read_file(entry)
-            .map_err(|error| Error(format!("{path}: {error}")))
+        self.overlay
+            .read(stored)
+            .map_err(|error| Error(format!("{path}: {error}")))?
+            .ok_or_else(|| Error(format!("missing resource `{path}`")))
     }
 
     pub fn config(&mut self, path: &str) -> Result<ConfigValue, Error> {

@@ -6260,3 +6260,60 @@ va	name	location	role	basis
 0x00356d00	vostok::physics::bt_static_rigid_body::get_walker_behaviour	ECX	bt_static_rigid_body (+10h its bt_collision_shape)	observed
 0x00356d00	vostok::physics::bt_static_rigid_body::get_walker_behaviour	entry ESP+4	s32 triangle or child shape index	observed
 0x00356d00	vostok::physics::bt_static_rigid_body::get_walker_behaviour	entry ESP+8	bool is_shape_index	observed
+0x000a36e0	btCollisionWorld::convexSweepTest	entry ESP+4	btCollisionWorld (the dynamics world)	observed
+0x000a36e0	btCollisionWorld::convexSweepTest	entry ESP+8	const btConvexShape* castShape	observed
+0x000a36e0	btCollisionWorld::convexSweepTest	entry ESP+12	const btTransform* from	observed
+0x000a36e0	btCollisionWorld::convexSweepTest	entry ESP+16	const btTransform* to	observed
+0x000a36e0	btCollisionWorld::convexSweepTest	entry ESP+20	ConvexResultCallback* resultCallback	observed
+0x000a14e0	btCollisionWorld::objectQuerySingle	entry ESP+4	const btConvexShape* castShape	observed
+0x000a14e0	btCollisionWorld::objectQuerySingle	entry ESP+8	const btTransform* convexFromTrans	observed
+0x000a14e0	btCollisionWorld::objectQuerySingle	entry ESP+12	const btTransform* convexToTrans	observed
+0x000a14e0	btCollisionWorld::objectQuerySingle	entry ESP+16	btCollisionObject* collisionObject	observed
+0x000a14e0	btCollisionWorld::objectQuerySingle	entry ESP+20	const btCollisionShape* collisionShape	observed
+0x000a14e0	btCollisionWorld::objectQuerySingle	entry ESP+24	const btTransform* colObjWorldTransform	observed
+0x000a14e0	btCollisionWorld::objectQuerySingle	entry ESP+28	ConvexResultCallback* resultCallback	observed
+0x000a14e0	btCollisionWorld::objectQuerySingle	entry ESP+32	float allowedPenetration	observed
+0x000b8670	btTriangleConvexcastCallback::processTriangle	ECX	btTriangleConvexcastCallback (+10h from, +50h to, +90h triangle to world, +D0h m_hitFraction, +D4h triangle margin, +D8h allowed penetration)	observed
+0x000b8670	btTriangleConvexcastCallback::processTriangle	entry ESP+4	btVector3* triangle (three corners, 16 bytes each)	observed
+0x000b8670	btTriangleConvexcastCallback::processTriangle	entry ESP+8	int partId	observed
+0x000b8670	btTriangleConvexcastCallback::processTriangle	entry ESP+12	int triangleIndex	observed
+0x0007b730	vostok::physics::bullet_character_controller::updateAction	ECX	the controller (its btActionInterface part is at +0)	observed
+0x0007b730	vostok::physics::bullet_character_controller::updateAction	entry ESP+4	the collision world (not read by it)	observed
+0x0007b730	vostok::physics::bullet_character_controller::updateAction	entry ESP+8	float dt: the atomic tick's ms times 0.001f (27,166 of 27,166 traced steps)	observed
+0x0007f6d0	vostok::physics::bullet_character_controller::set_transform	EAX	the transform (64 bytes; the feet at +30h)	observed
+0x0007f6d0	vostok::physics::bullet_character_controller::set_transform	entry ESP+4	the controller	observed
+0x0007f7f0	vostok::physics::bullet_character_controller::serialize	ESI	the controller	observed
+0x0007f7f0	vostok::physics::bullet_character_controller::serialize	EDI	the writer	observed
+0x0009b260	btDiscreteDynamicsWorld::stepSimulation	ECX	the dynamics world	observed
+0x0009b260	btDiscreteDynamicsWorld::stepSimulation	entry ESP+4	float timeStep	observed
+0x0009b260	btDiscreteDynamicsWorld::stepSimulation	entry ESP+8	int maxSubSteps	observed
+0x0009b260	btDiscreteDynamicsWorld::stepSimulation	entry ESP+12	float fixedTimeStep	observed
+0x0009b810	btDiscreteDynamicsWorld::updateActions	EDI	the dynamics world	observed
+0x0009b810	btDiscreteDynamicsWorld::updateActions	entry ESP+4	float timeStep (the whole step's)	observed
+0x002d1e20	survarium::game_world_core::atomic_tick	EDI	the match time the step ends at, ms (traced: 1,995 ticks)	observed
+0x002d1e20	survarium::game_world_core::atomic_tick	entry ESP+8	the step's length, ms: 50 for a whole grid step, less for a part	observed
+0x000a58f0	btDbvt::collideTV	entry ESP+4	the root node (const btDbvtNode*)	observed
+0x000a58f0	btDbvt::collideTV	entry ESP+8	the callback's data: {the query's arguments*, the compound shape*} at 0xA29A0..0xA29A7	observed
+0x000a58f0	btDbvt::collideTV	EAX	the box to test (btDbvtVolume*: min, max)	observed
+0x0008a130	btAlignedAllocDefault	entry ESP+4	size	observed
+0x0008a130	btAlignedAllocDefault	entry ESP+8	alignment	observed
+0x0008a170	btAlignedFreeDefault	entry ESP+4	the block	observed
+0x000a8380	btBvhTriangleMeshShape::performConvexcast	entry ESP+4	the mesh shape (an object's own, or a compound's child)	observed
+0x000a8380	btBvhTriangleMeshShape::performConvexcast	entry ESP+8	the triangle callback (BridgeTriangleConvexcastCallback, vtable 0x9E4820)	observed
+0x000a8380	btBvhTriangleMeshShape::performConvexcast	entry ESP+12	the cast's start in the mesh's frame (btVector3*)	observed
+0x000a8380	btBvhTriangleMeshShape::performConvexcast	EAX	the cast's end in the mesh's frame (btVector3*)	observed
+0x000a8380	btBvhTriangleMeshShape::performConvexcast	ESI	the cast shape's box min (btVector3*)	observed
+0x000a8380	btBvhTriangleMeshShape::performConvexcast	EDX	the cast shape's box max (btVector3*)	observed
+0x00087b60	vostok::physics::character_controller_jump_tester::convex_sweep_test	ESI	the tester (inside the controller): +5058h the cast shape, +5060h the btCollisionWorld it sweeps (0x87C44, 0x87C4F)	observed
+0x0007f7b0	vostok::physics::bullet_character_controller::can_stand_up	EAX	the Bullet controller	observed
+0x0007bd10	vostok::physics::bullet_character_controller::need_push_from_low_ceiling	EAX	the Bullet controller	observed
+0x0007bad0	vostok::physics::bullet_character_controller::get_push_from_low_ceiling	ECX	the Bullet controller	observed
+0x0007bad0	vostok::physics::bullet_character_controller::get_push_from_low_ceiling	EAX	the vector to write (16 bytes)	observed
+0x0007c7e0	vostok::physics::bullet_character_controller::can_skeep_player_step	EDX	the Bullet controller	observed
+0x000d1170	btVoronoiSimplexSolver::reset	EAX	the simplex solver	observed
+0x000d1200	btVoronoiSimplexSolver::addVertex	EAX	the simplex solver	observed
+0x000d1280	btVoronoiSimplexSolver::updateClosestVectorAndPoints	entry ESP+4	the simplex solver	observed
+0x000d1c70	btVoronoiSimplexSolver::inSimplex	EDX	the simplex solver	observed
+0x000d6cd0	btGjkPairDetector::getClosestPointsNonVirtual	entry ESP+4	the detector	observed
+0x000d6cd0	btGjkPairDetector::getClosestPointsNonVirtual	entry ESP+8	the input: transform A, transform B (+40h), the largest distance squared (+80h)	observed
+0x0008d680	btConvexShape::localGetSupportVertexWithoutMarginNonVirtual	ECX	the convex shape	observed

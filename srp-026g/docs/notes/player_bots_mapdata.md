@@ -52,13 +52,15 @@ Mode variants of one map place different props (level_01: 1157 / 1159 /
 - **Groups.** The walking body (group 4, mask 2) meets objects with
   `cgroup & 2`, a bullet (16, 8) `cgroup & 8`; an object meets a body when
   `cgroup & mask` and `cmask & group`. PROVEN.
-- **Hard links.** Many meshes are hard links in the archive's index. The
-  `resources-db` listing resolves a link to its target's payload under the
-  link's own path; links to links would be counted in
-  `Resources::unresolved_links` (0 in the shipped archive). PROVEN.
-  A link to a **folder** is not resolved (58 in the stock archive, 23 of
-  them `collision` or `walker_collision`): that library comes out empty
-  (`collision_world.md` §5.1).
+- **Hard links.** Many meshes are hard links in the archive's index, to a
+  file or to a whole **folder** (58 in the stock archive, 23 of them
+  `collision` or `walker_collision`). The reader (the in-tree
+  `resources-db`, since 2026-11-12) lists a linked file's bytes, and a
+  linked folder's files, under the link's own path, as the engine reads
+  them; a link to a folder it is in is refused. PROVEN: every linked shape
+  of the 16 Player vs Bots projects equals the game's (`collision_world.md`
+  §5.1, §5.4). Before, the external `vostok-resources-db` listing took a
+  folder link for one empty entry and those libraries came out empty.
 - **Walker behaviour** per face: `face_data` names a shading group, the
   model's `settings` give its game material, `game.materials` its
   `physic.walker_behaviour`: 0 ground up to 60°, 1 (`walk`) always ground,
@@ -67,25 +69,26 @@ Mode variants of one map place different props (level_01: 1157 / 1159 /
   export's: `collision_world.md` §1, §5); the slope LIKELY
   (`player_bots.md` §5).
 - **Primitives** (`exported_primitives`: box, sphere, cylinder, capsule)
-  are turned into triangles (box exact, round shapes 12 sides × 6 rings),
-  with the material of their `mtl`. Bullet's own shapes differ from these
-  under a non-uniform library scale and by their roundness
-  (`collision_world.md` §5.2).
+  are turned into triangles with the material of their `mtl`, scaled as
+  Bullet scales them (`Library::add_primitives`, `PrimitiveShape::from_engine`:
+  a compound's child keeps its rotation, its origin and its own dims take
+  the library scale, a cylinder's and a sphere's radius the x scale, a
+  capsule keeps its 0.04 margin through the scale; PROVEN in the exe). A box
+  is exact; a round shape's facets are drawn around it, never inside it,
+  with as many sides as keep them within 1 cm of it (12 to 96). The game's
+  shape is nowhere past the export's (`collision_world.md` §5.4).
 - **Body** (`grid::Body`): radius 0.38, stand 1.8, crouch 1.1, step 0.6
   (PROVEN); ground walked up to 50° (PROVEN, `impassable_slope`), faces up
   to 60° floors, climbs up 50-60° ground cut past a step; drop ≤ 5 m
   (`fall_params.harmless_height`); jump ≤ 1.05 m (LIKELY, from the live
   logs; was 1.3 m, GUESS). Since 2026-10-23, `player_bots_stuck.md`.
-- **A missing `walker_collision`** (fruit trees, level 3's anomalous
-  trees, a bench, a wheel: 0-60 placements a map) is stood in for by the
-  model's `collision` for the walking body (`MapData::triangles`,
-  `player_bots_stuck.md`). It is a folder hard link the reader does not
-  follow. The stand-in is what the game has for the trees and the bench
-  (PROVEN: the same vertex buffer in the game's memory) and is not for
-  `vehicle/azlk_damaged`, `props/tool/weel_sport_02` and
-  `props/electric/tv_working_02`; a linked `collision` (rubble and a
-  bridge piece of level 5, two poplars of level 2) has no stand-in at all
-  (`collision_world.md` §5.1).
+- **A missing `walker_collision`** (an empty library) is stood in for by
+  the model's `collision` for the walking body (`MapData::triangles`,
+  `player_bots_stuck.md`). The ones it was written for (fruit trees, level
+  3's anomalous trees, a bench, a wheel) were folder hard links the old
+  reader did not follow; with the reader that follows them no library of
+  the 16 Player vs Bots projects is empty, so the stand-in does not act
+  there (`collision_world.md` §5.4).
 - **Play area.** The walker mesh reaches far off the map (to -666 m); the
   grid covers the `levelmap` x/z box, widened by 5 m and to hold every
   spawn and objective. level_03's box is 2 m and level_06, 07 and 08 have

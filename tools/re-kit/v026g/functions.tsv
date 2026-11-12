@@ -2360,3 +2360,46 @@ va	status	ref_021d	name
 0x000829e0	reviewed	0x00059aa0	vostok::physics::collision_shape_cook::on_collision_sources_loaded
 0x003570a0	reviewed		vostok::physics::bt_static_rigid_body::get_triangle_material
 0x00356d00	reviewed	0x0021bc68	vostok::physics::bt_static_rigid_body::get_walker_behaviour
+0x00074190	reviewed		btConvexInternalShape::getMargin
+0x0008def0	reviewed		btConvexInternalShape::setLocalScaling
+0x000a5e20	reviewed		btCapsuleShape::btCapsuleShape
+0x000a5e90	reviewed		btCapsuleShape::localGetSupportingVertexWithoutMargin
+0x000a9be0	reviewed		btBoxShape::setLocalScaling
+0x000a9f10	reviewed		CylinderLocalSupportY
+0x000a36e0	reviewed		btCollisionWorld::convexSweepTest
+0x000a3420	reviewed		btSingleSweepCallback::btSingleSweepCallback
+0x000a14e0	reviewed		btCollisionWorld::objectQuerySingle
+0x000a29f0	reviewed		BridgeTriangleConvexcastCallback::BridgeTriangleConvexcastCallback
+0x000a2a40	reviewed		BridgeTriangleConvexcastCallback::reportHit
+0x000b8510	reviewed		btTriangleConvexcastCallback::btTriangleConvexcastCallback
+0x000b8670	reviewed		btTriangleConvexcastCallback::processTriangle
+0x000b8900	reviewed		btContinuousConvexCollision::computeClosestPoints
+0x000fe5e0	reviewed		vostok::setup_floating_point_control
+0x0007b730	reviewed	0x0021d189	vostok::physics::bullet_character_controller::updateAction
+0x0007f6d0	reviewed	0x0021ff5d	vostok::physics::bullet_character_controller::set_transform
+0x0007f7f0	observed		vostok::physics::bullet_character_controller::serialize
+0x0009b260	reviewed		btDiscreteDynamicsWorld::stepSimulation
+0x0009b810	reviewed		btDiscreteDynamicsWorld::updateActions
+0x000a58f0	reviewed		btDbvt::collideTV
+0x0008a130	reviewed		btAlignedAllocDefault
+0x0008a170	reviewed		btAlignedFreeDefault
+0x000a8380	reviewed		btBvhTriangleMeshShape::performConvexcast
+0x00087b60	reviewed	0x002232a0	vostok::physics::character_controller_jump_tester::convex_sweep_test
+0x0007f7b0	reviewed		vostok::physics::bullet_character_controller::can_stand_up
+0x0007bd10	reviewed		vostok::physics::bullet_character_controller::need_push_from_low_ceiling
+0x0007bad0	reviewed		vostok::physics::bullet_character_controller::get_push_from_low_ceiling
+0x0007c7e0	reviewed	0x0021db35	vostok::physics::bullet_character_controller::can_skeep_player_step
+0x000d1170	verified		btVoronoiSimplexSolver::reset
+0x000d1200	verified		btVoronoiSimplexSolver::addVertex
+0x000d1280	verified		btVoronoiSimplexSolver::updateClosestVectorAndPoints
+0x000d1c70	verified		btVoronoiSimplexSolver::inSimplex
+0x000d1120	verified		btVoronoiSimplexSolver::reduceVertices
+0x000d10a0	verified		btVoronoiSimplexSolver::removeVertex
+0x000d1e80	reviewed		btVoronoiSimplexSolver::compute_points
+0x000d1ed0	verified		btVoronoiSimplexSolver::closestPtPointTriangle
+0x000d25b0	verified		btVoronoiSimplexSolver::pointOutsideOfPlane
+0x000d2700	verified		btVoronoiSimplexSolver::closestPtPointTetrahedron
+0x000d6cd0	verified		btGjkPairDetector::getClosestPointsNonVirtual
+0x0008d680	verified		btConvexShape::localGetSupportVertexWithoutMarginNonVirtual
+0x00072eb0	reviewed		btTransformUtil::calculateVelocity
+0x0008b2d0	reviewed		btTransformUtil::integrateTransform
