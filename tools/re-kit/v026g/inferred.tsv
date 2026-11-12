@@ -3607,3 +3607,22 @@ va	status	ref_021d	name
 0x0032a600	inferred-medium		survarium::body_part::expire_affects
 0x0032ac90	inferred-medium		survarium::body_part::reset
 0x003200c0	inferred-medium		survarium::load_body_part_threshold
+0x002fba50	inferred-medium		survarium::weapon_user_animations_selector::set_first_state
+0x002feec0	inferred-medium		survarium::weapon_controller_core::activate
+0x0031e7a0	inferred-medium		survarium::move_direction_animation_group
+0x00337850	inferred-medium		survarium::player_logic_crouch_on_site_state::build_animations
+0x00337d10	inferred-medium		survarium::player_logic_crouch_walk_state::build_move_animation
+0x0039f860	inferred-high	0x00253bef	vostok::animation::mixing::n_ary_tree::accumulate_object_movement
+0x0039f450	inferred-high	0x0025391e	vostok::animation::mixing::n_ary_tree::set_object_transform
+0x0039fd70	inferred-high	0x00253e40	vostok::animation::mixing::n_ary_tree::update_synchronization_group_using_integration
+0x0039fd00	inferred-medium	0x00253de5	vostok::animation::mixing::n_ary_tree::computed_animation_time
+0x003a19f0	inferred-high	0x00255304	vostok::animation::mixing::n_ary_tree::tick
+0x003a0230	inferred-medium	0x002541e6	vostok::animation::mixing::n_ary_tree::update_animation_states
+0x003a0df0	inferred-medium	0x00254925	vostok::animation::mixing::n_ary_tree::process_events
+0x003b0b00	inferred-high	0x0025f180	vostok::animation::mixing::n_ary_tree_weight_calculator::visit_animation_node
+0x003b0de0	inferred-high	0x0025f3cf	vostok::animation::mixing::n_ary_tree_weight_calculator::visit_weight_node
+0x003b1580	inferred-medium		vostok::animation::mixing::n_ary_tree_time_scale_calculator::visit_time_scale_node
+0x003b1b60	inferred-high	0x0025fec1	vostok::animation::mix_translations
+0x003b2d20	inferred-high	0x00260b7b	vostok::animation::bone_matrices_computer::get_object_transform
+0x00395370	inferred-high	0x0024cda0	vostok::animation::linear_interpolator::transition_time
+0x002da9a0	inferred-medium		survarium::base_player::update_to
