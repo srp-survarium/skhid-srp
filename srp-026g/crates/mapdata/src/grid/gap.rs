@@ -385,6 +385,28 @@ pub struct GapStats {
     pub kept: usize,
 }
 
+impl GapStats {
+    /// Adds another's counts (a run of floors of [`WalkGrid::gap_links`]).
+    fn add(&mut self, o: &GapStats) {
+        self.tried += o.tried;
+        self.no_gap += o.no_gap;
+        self.no_run_up += o.no_run_up;
+        self.no_landing += o.no_landing;
+        self.adjacent += o.adjacent;
+        self.narrow_window += o.narrow_window;
+        self.no_room += o.no_room;
+        self.too_high += o.too_high;
+        self.made += o.made;
+        self.sprint += o.sprint;
+        self.one_way += o.one_way;
+        self.sampled += o.sampled;
+        self.kept += o.kept;
+    }
+}
+
+/// The floors one thread of [`WalkGrid::gap_links`] takes at a time.
+const GAP_RUN: usize = 2048;
+
 /// Which off-mesh links a build makes
 /// ([`WalkGrid::build_kept_with_links`]). Without them a grid is the one
 /// built before they were made: the same key, digest and file
@@ -1445,21 +1467,31 @@ impl WalkGrid {
         if self.body.max_jump <= 0.0 {
             return Vec::new();
         }
-        let mut found: Vec<(OffLink, usize)> = Vec::new();
-        let mut scratch: Vec<OffLink> = Vec::new();
-        for a in 0..n {
-            if self.ceiling[a] - self.height[a] < self.body.stand_height {
-                continue;
-            }
-            for d in 0..8 {
-                let b = wide.links[a][d];
-                if b != NONE && wide.kinds[a][d] != LinkKind::Drop {
+        // The floors in runs on the machine's threads, each run's links in floor order and the runs in order: the links and
+        // their order are the serial loop's (the flights read the grid only).
+        let runs: Vec<std::ops::Range<usize>> = (0..n).step_by(GAP_RUN).map(|a| a..(a + GAP_RUN).min(n)).collect();
+        let per_run = super::controlled::parallel(&runs, |run| {
+            let (mut found, mut stats, mut scratch) = (Vec::<(OffLink, usize)>::new(), GapStats::default(), Vec::<OffLink>::new());
+            for a in run.clone() {
+                if self.ceiling[a] - self.height[a] < self.body.stand_height {
                     continue;
                 }
-                let before = scratch.len();
-                self.gap_link(wide, a, d, solids, stats, &mut scratch);
-                found.extend(scratch.drain(before..).map(|link| (link, d)));
+                for d in 0..8 {
+                    let b = wide.links[a][d];
+                    if b != NONE && wide.kinds[a][d] != LinkKind::Drop {
+                        continue;
+                    }
+                    let before = scratch.len();
+                    self.gap_link(wide, a, d, solids, &mut stats, &mut scratch);
+                    found.extend(scratch.drain(before..).map(|link| (link, d)));
+                }
             }
+            (found, stats)
+        });
+        let mut found: Vec<(OffLink, usize)> = Vec::new();
+        for (run, run_stats) in per_run {
+            found.extend(run);
+            stats.add(&run_stats);
         }
         // One a metre of edge, direction and level (the first, in floor
         // order); a drop one a metre of edge and level whatever its way,
