@@ -39,8 +39,11 @@ pub(super) struct Spread {
 }
 
 /// The client's gates on the shot and the aim-in the bench applies, ms after the sprint's last tick and after a jump's
-/// press (`SRP_BENCH_SPRINT_GATE`, `SRP_BENCH_JUMP_GATE`; fx-grid, `private/grid/aim-gates/FINDINGS.md`: 300 PROVEN, 1200
-/// LIKELY). `None`: no gate.
+/// press (`SRP_BENCH_SPRINT_GATE`, `SRP_BENCH_JUMP_GATE`; fx-grid, `private/grid/aim-gates/FINDINGS.md`: the sprint's 300
+/// PROVEN, 0x3B6A90 with the 0.3 at 0x921804). A flat jump gate is not the client's: the client's is the jump state (the
+/// fire gate's kind 4, 0x2E3CCD; the aim dropped, 0x2FB9E3), the 24-frame 0.8 s take-off clip and then the landing (short:
+/// done within 50 ms of the first ground step; sprint: the 0.4 s `landing_and_run` interval, 200-600 ms counted), rig
+/// `notes-jump-state.md` 0; the flat `jump_ms` is kept as the bench's model until changed (register G4). `None`: no gate.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct ClientGates {
     pub(crate) sprint_ms: Option<u32>,

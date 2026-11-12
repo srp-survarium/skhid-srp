@@ -1,8 +1,11 @@
 //! Which faces of the walker world the live players stand inside (A191): the live ground samples closer than 0.30 m to a wall section
 //! of the capsule rule ([`super::standin_capsule`]), grouped by the collision library the face comes from and by whether the face is the
 //! model's own `walker_collision` or the bullet `collision` that stands in for a `walker_collision` the archive does not have
-//! (`MapData::triangles`: LIKELY, from bots caught against fruit trees' bullet meshes). A measurement: what the capsule is held by
-//! that the client's capsule is not.
+//! (`MapData::triangles`). That stand-in is not always the client's: a missing `walker_collision` is a folder hard link in the
+//! archive's index, and the game walks on the linked folder's shape; the model's own `collision` is right for 252 placements and
+//! wrong for 9 (`azlk_damaged` on Rudnya, `weel_sport_02` on School), and 62 walker-and-bullet and 94 bullet-only placements have
+//! nothing in the game (PROVEN, `docs/notes/collision_world.md` section 5; register G12). A measurement: what the capsule is held
+//! by that the client's capsule is not.
 //!
 //! `SRP_MAPDATA_DIR=<maps> SRP_HUMAN_DIR=<live samples> SRP_PROJECTS="level_01/day_2;.." cargo test -p match-server --release
 //! false_walls -- --ignored --nocapture`

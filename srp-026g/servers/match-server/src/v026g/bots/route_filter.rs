@@ -83,8 +83,9 @@ pub struct Weights {
 /// What a floor the soft part keeps out costs a weighed search, times its
 /// length: the soft part's "only if there is no other way" as a cost, as
 /// Valve's `func_nav_avoid` raises an area's cost (24 times there) rather
-/// than shuts it. GUESS: 10, more than any lane (`ThreatTuning::lane_cost`
-/// 3 makes 4), so a trap is walked round before a lane is.
+/// than shuts it. 10 is our choice (register G654), no claim about the
+/// game: more than any lane (`ThreatTuning::lane_cost` 3 makes 4), so a
+/// trap is walked round before a lane is.
 pub const SOFT_COST: f32 = 10.0;
 
 /// The regions held threat spots see ([`Covered`]) and the points of a

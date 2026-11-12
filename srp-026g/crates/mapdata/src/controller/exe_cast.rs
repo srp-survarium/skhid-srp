@@ -494,6 +494,21 @@ pub fn through_quaternion(basis: &[[f32; 3]; 3]) -> [[f32; 3]; 3] {
     set_rotation(get_rotation(basis))
 }
 
+/// The rotation the down sweep's second look reads of a compound's child (0x84190, then `setRotation` 0x72A50 at
+/// 0x848C7): the child's quaternion times the object's in Bullet's `operator*`, `R_child R_object`, as the exe has it
+/// (not the child's world rotation `R_object R_child`), in the asm's order of operations (0x841F4..0x842B0), not
+/// normalised. Bit for bit with the exe's own 0x84190 and 0x72A50 run in Unicorn on the 4,933 small round children the
+/// walker meets on the eight maps and on 5,000 made pairs.
+pub fn child_hit_rotation(object: &[[f32; 3]; 3], child: &[[f32; 3]; 3]) -> [[f32; 3]; 3] {
+    let (o, c) = (get_rotation(object), get_rotation(child));
+    set_rotation(Quaternion {
+        x: ((c.y * o.z + o.w * c.x) + o.x * c.w) - c.z * o.y,
+        y: ((c.y * o.w + c.z * o.x) + o.y * c.w) - o.z * c.x,
+        z: ((c.z * o.w + o.y * c.x) + o.z * c.w) - c.y * o.x,
+        w: ((o.w * c.w - o.x * c.x) - o.y * c.y) - c.z * o.z,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

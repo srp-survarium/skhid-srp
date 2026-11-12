@@ -88,9 +88,12 @@ Two facts about the model that a reader of that file needs: the trap counters ex
   objective {delivered, carrier_kill} | score X`, and the same objects as `sums.owner.scoreboard`. The score is the client's own sum
   (`snapshot::score` over `static_info::score_weights(mode)`; the table is not copied); events are the game's ids: 0 kill, 1 assist,
   2 death, 6 brought (100 hundredths: the stand-in's carrier delivers alone), 20 put in, 10 enemy carrier killed. Headshot (15), steal
-  (17) and found (19) are not counted (no part in the stand-in / not in its log as counts). **Assists are a GUESS** (a non-killer teammate who hit the
-  victim within 10 s); the line `owner-test scoreboard:` prints their share of the kills next to the live 0.19 a kill, and the
-  window is the thing to move. The owner's bar (BENCH-DECISIONS §5) is read from these lines: the rank an average player's live score
+  (17) and found (19) are not counted (no part in the stand-in / not in its log as counts). **Assists are not the client's rule**
+  (the bench counts a non-killer teammate who hit the victim within 10 s). The client's, `count_assists` 0x2F56A0 (PROVEN,
+  `rules_and_score.md`): at a kill, every other place of the killer's team whose share of the victim's received damage from
+  that team is 0.1 or more (0x921948), with no time window (the received damage is cleared at the victim's death and when
+  his pain pool regenerates full). The bench's rule is kept until changed (register G1); the line `owner-test scoreboard:`
+  prints their share of the kills next to the live 0.19 a kill. The owner's bar (BENCH-DECISIONS §5) is read from these lines: the rank an average player's live score
   per minute would take in each team.
 - **One hold definition.** The camper topic and the outcomes use the same hold: kills from one place within 10 m of the first, 120 s
   apart, a killer from a flank at 60 degrees or more off every victim's bearing (an-anticamper §2.5: the live holds and the owner's the
@@ -134,7 +137,7 @@ Two facts about the model that a reader of that file needs: the trap counters ex
 - **The top is PairUp's own rule** (`plays::pair_up::TopRule`, one function for the play and the counters): the stand-in human and camper
   are ranked like the bots, and a stand-in who leads is counted in `top of team N` as well as in his own group. A missing number panics.
 - **Mode and score:** the scoreboard takes the match's mode from the bench (`day_<mode>`, never inferred; an unknown mode panics) and the
-  objective kinds from (mode, event). `score` has no assists; `score_with_assist_guess` is the guess.
+  objective kinds from (mode, event). `score` has no assists; `score_with_assist_guess` adds the bench's assist rule (not the client's: register G1).
 - **The unified hold is geometry only** (10 m, 60 degrees): the camper topic still counts a holder after one kill, the outcomes after two,
   and the live 32 % flank share is after two (an-anticamper §2.5), so `camper_kills_off_lane` is not that number; the lane cone is still
   15 degrees against the report's 20.

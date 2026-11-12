@@ -33,7 +33,9 @@
 //!   aim key is held at a round end with a round in the weapon (0x339DE0);
 //!   no shot until the finish clip is over;
 //! - the ammo: a life starts with the kit's slot rounds, loaded from it
-//!   (LIKELY: [`Load::of`]); the kit is the body's bot's own ([`Fill::kit`],
+//!   ([`Load::of`]: min(carried, capacity), as the client's
+//!   `weapon_core::initialize` 0x2E2B71 -> 0x2E27C0, PROVEN, the rig's
+//!   register L5); the kit is the body's bot's own ([`Fill::kit`],
 //!   from `Game::kits`: the client fills the bot's profile), a guess by the
 //!   weapon's name only where none is known ([`Fill::guess`]: one role's bags
 //!   can differ from another's); the kit has only [`BOT_AMMO_LIVES`] lives' worth
