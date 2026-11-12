@@ -344,8 +344,9 @@ pub fn walker_walls(world: &mapdata::World) -> Arc<RayTree> {
 }
 
 /// [A318] The client's jump gate for a press, past what the reckoned body itself knows (standing, uncrouched, no jump under
-/// way): `player_logic_jump_state` starts only with the bar at the jump's cost and not low (`player_stamina`, 0x2FC230), no
-/// battery carried (`can_sprint`'s item test, LIKELY) and legs that may jump (`motor::Hurt::may_jump`). A bot's is its own
+/// way): `player_logic_jump_state` starts only with the bar at the jump's cost and not low (`player_stamina`, 0x2FC230) and legs
+/// that may jump (`motor::Hurt::may_jump`); it has no held-item test (0x2FC230..0x2FC293, PROVEN: a carrier jumps, 668 of 56,753
+/// carrying rows in a jump, exactness 2026-11-12T16:20Z; only the sprint's `can_sprint` refuses a carrier). A bot's is its own
 /// reckoning's ([`super::stamina::Reckoning::may_jump`]); a human's is not known: open.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum JumpGate {
@@ -367,7 +368,8 @@ const KEPT_MS: u32 = 20_000;
 const LOCATE_M: f32 = 1.5;
 /// A body is reckoned on this far past its last known tick at most, ms.
 const PROJECT_MS: u32 = 3_000;
-/// The pitch's limit, radians (LIKELY, `kin`).
+/// The pitch's limit in the game's own unit: +-1 at the clamp 0x2E1012 (PROVEN, exactness FIXES F27 / F29 amended; the unit is
+/// 67.48 degrees, not a radian: `pitch::PitchScale`).
 const MAX_PITCH: f32 = 1.0;
 /// A jump pressed keeps the reckoned body in the air this long, ms
 /// ([`jumped_to`]). The worlds of the owner's matches of 2026-10-23 show a
