@@ -2319,3 +2319,6 @@ va	status	ref_021d	name
 0x000f70f0	reviewed		vostok::resources::resource_base::resource_base
 0x0010a590	reviewed		vostok::resources::managed_resource::managed_resource
 0x001ee3c0	observed		survarium::game::enqueue_replay_seek_to
+0x00116550	reviewed		vostok::render::backend::target_width
+0x00116570	reviewed		vostok::render::backend::target_height
+0x001418c0	reviewed		vostok::render::renderer::present

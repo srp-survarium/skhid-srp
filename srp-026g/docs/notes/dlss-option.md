@@ -93,6 +93,65 @@ The owner (2026-11-12): "let's do it as DXVK option". Off by default; only with 
     the scene view's +42Ch); the first-person one: `foreground_begin`'s `set_p` (0x13E103). Shadow,
     light and rain maps have their own `set_p` calls. PROVEN.
 
+## The render size (what sizes itself from where)
+
+Read in the 0.26g exe (addresses given; the re-kit's `abi_inputs.tsv` rows repeat them), with the
+0.10b source for intent. PROVEN unless tagged.
+
+**Follows the targets** (nothing to do):
+
+- Every target of the frame is made by `create_targets` (72 `new_rt`, 2 `new_lt`, no depth
+  target), called only from `render_output_window::set_size` (0x119B33), the window's constructor
+  (0x1198E9 -> 0x162860) and the memory estimate (0x162D75, makes nothing). `set_size` is called
+  only by that constructor (0x119972) and `end_render_options_changing` (0x1181CF, forced): 0.26g
+  has no per-frame resize.
+- The half and quarter targets (SSAO 20, SSDO 28, bloom 39..51, luminance, particles) are shifts
+  of the size `create_targets` was given (0x162DA0..0x163B80).
+- The screen-space constants: `screen_res` (size and inverse size) is the targets' size
+  (`set_target_context` 0x149BD0, the only reader of it: context +4120h/+4124h, targets
+  +2F80h/+2F84h). The stages' own constants take a target's or a texture's width (as 0.10b's
+  `stage_postprocess.cpp`, `stage_ambient_occlusion.cpp`). LIKELY for the post shaders'
+  uv scales: no reader of the output's size is in any stage (below), the shaders not re-read.
+- The stages' viewports: each of the 41 `backend::set_viewports` calls (0x11C080) outside the
+  shadow maps, the bakes and the Hi-Z takes a render target's size (render_target +20h/+24h:
+  `system_renderer::fill_surface` 0x11DA3D, distortion 0x17B642, forward lighting, particle
+  lighting 0x19644D, atmosphere 0x1A3762, SSR 0x1ACFD1, volume fog, motion vectors 0x1B1C90, the
+  colour grading) or is the kept viewport put back or re-ranged (`foreground_begin` 0x13E03B,
+  `foreground_end`, the restores).
+- The scissor: `set_viewports` itself sets the scissor rectangle to the viewport (0x11C149..
+  0x11C197), the engine's only `RSSetScissorRects`.
+
+**Does not follow** (sizes itself from the output; how each is handled is in "The frame with
+DLSS"):
+
+1. **The frame's base viewport.** `renderer::setup_render_output_window` (0x13BAC0, called at
+   0x13D297 before the stages) sets it from `backend::target_width/height`: the render output's
+   +90h/+94h (0x13BBB8..0x13BBE8). Every stage saves and restores this one.
+2. **The screen image's viewport.** `stage_screen_image::execute` (0x1BD320) sets none: its quad
+   covers the frame's base viewport, which stock is the window.
+3. **The depth-stencil.** The render output's own (`update_depth_stencil_buffer` 0x3D0040, at the
+   output's +90h/+94h): its view (+D4h) is the backend's `m_base_zb` (+29D4h,
+   `set_render_output` 0x11B6D0) that every stage's `reset_depth_stencil_target` binds beside the
+   colour targets; its texture (+D8h) is `t_depth_render_target` (`stage_gbuffer` 0x177CEE), which
+   `copy_depth_rt.ps` samples by uv 0..1 into rt 9, the linear depth of every screen-space pass.
+   The same view is Scaleform's stencil on the back buffer (`render_flash_ui` 0x13CF7E) and the
+   overlay's after it (0x13DC01), so it cannot simply be made smaller: a depth view smaller than
+   the colour target is refused by D3D11 (and by DXVK's `ValidateRenderTargets`). And a forced
+   `set_size` at an unchanged window size does not remake it (`res_render_output::resize`
+   0x3CFBBE drops the force).
+4. **The backend's `target_width/height`** elsewhere: `draw_screen_lines` 0x11D0EE,
+   `draw_3D_point` 0x11D379, the statistics 0x15C305, `stage_view_mode` (0x1BBA1B): debug
+   drawing on the back buffer after the UI, right at the output's size. Left as they are.
+5. **`renderer::render`'s own copy of the output's size** (0x13D0EF) for the texture streaming and
+   the TAA jitter (LIKELY, from 0.10b): streaming at the output's size is what DLSS wants (mips
+   for the screen), the game's TAA is off under DLSS. Left.
+
+**Scaleform and the HUD** read nothing of the 3D size: the flash renderer is reset with the
+window's size (+108h/+10Ch, 0x119BDE), sets its own viewport, and draws on the back buffer with
+the output's depth-stencil. Mouse, crosshair and the HUD's world markers are the game's
+projection and the movie's stage: no reader of the targets' size exists outside
+`set_target_context`.
+
 ## The frame with DLSS (design)
 
 - **Render size:** `set_size(w, h)` keeps the window and back buffer at w x h; `create_targets` and
