@@ -102,6 +102,8 @@ pub struct Kinematics {
     pub carrier_sprint: CarrierSprint,
     /// [A325f] Whether a body's leg damage gates its moves as the client's does ([`LegDamageGate`]).
     pub leg_damage: LegDamageGate,
+    /// [2e] Whether the reckoned body takes no sprint the client refuses ([`SprintGates`]).
+    pub sprint_gates: SprintGates,
     /// [A304] The flattest ramp face (degrees, the grid's ramp mark) [`SlopeSpeed::RampsGrade`] slows on: a floor whose mark is
     /// flatter counts as unmarked. 35 (the lab, 2026-11-05: Vostok Radar Station's and Chemical Plant's stairs carry 20-39 degree
     /// marks and the client climbs them at full speed; Cologne's slowing stairs are 45; 35 was better than 40 and 44). 20: every
@@ -242,6 +244,29 @@ pub enum SpeedTerms {
     /// 23.5 -> 18.9 %, median 0.45 -> 0.33 m). The battery and the stagger terms gave nothing there (4.1 % and 4.7 % against
     /// 3.6 %), the recorded speed worse.
     Legs,
+    /// [2e, owner-14 row 15] The legs' term, and a hit's stagger: the factor less min(the stopping speeds of the hits of the
+    /// last 0.5 s, 0.5), from each world's `m_recent_hits` (`hit_impl` 0x2D9B90, the update 0x2DBCD0, PROVEN,
+    /// `sprint-jump-re/FINDINGS.md` 1.8; [`super::sprint_gates::Stagger`]). On the owner's 14 recordings the client moved 0.80 of
+    /// its keys' way 250-500 ms after a hit and 0.78 at 500-1000 ms (1.00 never hit), and 2,086 walking-class worlds over 0.2 m
+    /// were a stagger the model lacked (`drift-walking-rootcause.md` D). ON and KEPT_RIGHT (a correctness fix by the client's
+    /// code). The earlier lab's "gave nothing" counted worlds 1 m off; a stagger is 0.2-0.4 m.
+    LegsStagger,
+}
+
+/// [2e, owner-14 row 15] Whether the reckoned body takes the sprint the client refuses ([`super::sprint_gates`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SprintGates {
+    /// As it was: the keys alone (SPRINT and FORWARD without BACK, FIRE, CROUCH, AIM) sprint.
+    Keys,
+    /// The client's `can_sprint` 0x2DBF40 as far as it is known: no sprint while a hit's stagger is on (every body, from the
+    /// worlds' hits); for a bot's own body also none while it reloads (whose sights are down too: AIM does not slow it) and none
+    /// for its gun's `aim_time` after AIM goes up (the aim transition at exactly 0). The bot's keys do not change, only its
+    /// reckoned place. PROVEN (`sprint-jump-re/FINDINGS.md` 1.4; the 14 recordings: 1,656 of 1,699 sprint-key worlds with the
+    /// client not sprinting had one of these causes; 2,615 worlds walked at the walk speed with AIM held in a reload,
+    /// `drift-walking-rootcause.md` C, E). ON and KEPT_RIGHT.
+    #[default]
+    Client,
 }
 
 /// [A304] How the reckoned body's ground step goes over a slope of the walk grid.
@@ -417,12 +442,13 @@ impl Default for Kinematics {
             ramp_min_deg: 35.0,
             walk_bridges: true,
             jump_arc: false,
-            speed_terms: SpeedTerms::Legs,
+            speed_terms: SpeedTerms::LegsStagger,
             speed_cap: SpeedCap::Client,
             level_read: LevelRead::Settled,
             level_source: LevelSource::Computed,
             carrier_sprint: CarrierSprint::Refused,
             leg_damage: LegDamageGate::Client,
+            sprint_gates: SprintGates::Client,
         }
     }
 }

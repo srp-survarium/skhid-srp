@@ -42,6 +42,7 @@
   "level_source": "computed",
   "carrier_sprint": "refused",
   "leg_damage": "client",
+  "sprint_gates": "keys",
   "ramp_min_deg": 35.0,
   "walk_bridges": true,
   "jump_arc": false

@@ -394,6 +394,8 @@ pub(crate) struct Body {
     pub(crate) last_hit: u32,
     /// The hits of the last half second and their stopping power ([`standin_stagger`]).
     pub(crate) stagger: standin_stagger::Stagger,
+    /// [2e] Until when the sights are still coming down after AIM went up, ms ([`stand_in_sprint_gates`]).
+    pub(crate) aim_out_until: u32,
     /// The movement level of the body's kit ([`standin_level`], `SRP_BENCH_STAND_IN_LEVEL`): 1.0, the nominal speed, unless set.
     pub(crate) speed_level: f32,
     /// The bot's target as its last input was made (the reflex's).
@@ -492,6 +494,18 @@ pub(crate) const STAND_IN_LEG_HIT: f32 = 0.25;
 pub(crate) const STAND_IN_LEG_BROKEN_MS: u32 = 8_000;
 
 /// After a hit the stand-in walks at this share of its speed for
+/// [2e] Each body's recent hits at a world (when, stopping speed), as `m_recent_hits` ([`Game::hits_at`]).
+pub(crate) type BodiesHits = Vec<Vec<(u32, f32)>>;
+
+/// [2e] Whether the stand-in takes the sprint as the client's `can_sprint` 0x2DBF40 does (`SRP_BENCH_STAND_IN_SPRINT=client`): no
+/// sprint while its weapon is busy (a reload, an emptying shot's clip), in a stagger, or for its gun's `aim_time` after AIM went up;
+/// no sights in a reload (sprint-jump RE `FINDINGS.md` 1.4, 1.8, PROVEN). Unset: as before (the sprint refused for a battery, the
+/// bar, a caught leg only), so other benches keep their bases until a re-base takes it on.
+pub(crate) fn stand_in_sprint_gates() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_SPRINT").is_ok_and(|v| v == "client"))
+}
+
 /// [`STAND_IN_STAGGER_MS`] (the game's stagger: up to half, a rifle hit
 /// 15-35 %, PROVEN; the share a GUESS between).
 pub(crate) const STAND_IN_STAGGER: f32 = 0.75;
@@ -532,6 +546,8 @@ pub(crate) struct Game {
     pub(crate) history: VecDeque<Recorded>,
     /// The bodies' hurts in those worlds ([`Game::hurts_at`]).
     pub(crate) hurts: VecDeque<(u32, Vec<Hurt>)>,
+    /// [2e] The bodies' recent hits in those worlds, as a world's `m_recent_hits` ([`Game::hits_at`]).
+    pub(crate) recent_hits: VecDeque<(u32, BodiesHits)>,
     pub(crate) tick: u32,
     pub(crate) rng: Rng,
     /// How a hit hurts ([`standin_damage`]).
@@ -914,6 +930,7 @@ impl Game {
             leg_broken_until: 0,
             last_hit: 0,
             stagger: standin_stagger::Stagger::default(),
+            aim_out_until: 0,
             speed_level: 1.0,
             target: None,
             spread: bench_spread::Spread::default(),
@@ -939,6 +956,7 @@ impl Game {
             kits: vec![None; teams.len()],
             history: VecDeque::new(),
             hurts: VecDeque::new(),
+            recent_hits: VecDeque::new(),
             tick: 0,
             rng: Rng::new(seed),
             damage: standin_damage::Model::default(),
@@ -1224,11 +1242,14 @@ impl Game {
                 let late = super::standin_jump::stand_in_step_input() == super::super::kin::StepInput::Previous;
                 if late && jump && body.alive && body.node.is_some() && body.flight.is_none() {
                     let staggered = body.last_hit != 0 && tick < body.last_hit + STAND_IN_STAGGER_MS;
-                    body.jump_due = Some((tick, keys, body.yaw, body.step_m / TICK_S, body.carrying.is_none() && !staggered));
+                    // [2e] With the client's sprint gates, a busy weapon or the sights coming down take the sprint jump too.
+                    let gated = stand_in_sprint_gates() && (body.stock.busy() || (keys & key::AIM == 0 && tick < body.aim_out_until));
+                    body.jump_due = Some((tick, keys, body.yaw, body.step_m / TICK_S, body.carrying.is_none() && !staggered && !gated));
                 } else if jump && body.alive && body.node.is_some() && body.flight.is_none() {
                     let staggered =
                         body.last_hit != 0 && tick < body.last_hit + STAND_IN_STAGGER_MS;
-                    let may_sprint = body.carrying.is_none() && !staggered;
+                    let gated = stand_in_sprint_gates() && (body.stock.busy() || (keys & key::AIM == 0 && tick < body.aim_out_until));
+                    let may_sprint = body.carrying.is_none() && !staggered && !gated;
                     let (clip, dir) = jump_of(keys, body.yaw, body.step_m / TICK_S, may_sprint);
                     let u = press_draw(tick, place);
                     let prepare = if std::ptr::eq(clip, &SPRINT_CLIP) {
@@ -1352,11 +1373,24 @@ impl Game {
                 _ => (body.keys, body.yaw),
             };
             body.held = (step_input == super::super::kin::StepInput::Previous).then_some((body.keys, body.yaw));
-            let keys = if body.carrying.is_some() || caught || !body.stamina.may_sprint() {
+            let mut keys = if body.carrying.is_some() || caught || !body.stamina.may_sprint() {
                 moving & !key::SPRINT
             } else {
                 moving
             };
+            // [2e] The client's `can_sprint` (`SRP_BENCH_STAND_IN_SPRINT=client`, [`stand_in_sprint_gates`]): a reload takes the sights
+            // down and the sprint, a busy weapon, a stagger and the sights' time after AIM went up take the sprint.
+            if stand_in_sprint_gates() {
+                if moving & key::AIM != 0 {
+                    body.aim_out_until = tick + body.stock.aim_ms();
+                }
+                if body.stock.reloading() {
+                    keys &= !(key::AIM | key::SPRINT);
+                }
+                if body.stock.busy() || body.stagger.share(tick) > 1e-5 || (keys & key::AIM == 0 && tick < body.aim_out_until) {
+                    keys &= !key::SPRINT;
+                }
+            }
             let local = body
                 .blend
                 .tick_mixed(self.kin.target_local(keys, level), self.kin.blend_ticks, super::standin_jump::stand_in_mixer());
@@ -2897,6 +2931,11 @@ impl Game {
         while self.hurts.len() > 40 {
             self.hurts.pop_front();
         }
+        let hits = self.bodies.iter().map(|b| b.stagger.hits().to_vec()).collect();
+        self.recent_hits.push_back((tick, hits));
+        while self.recent_hits.len() > 40 {
+            self.recent_hits.pop_front();
+        }
         self.trap_record();
         self.seen
             .push_back((tick, self.bodies.iter().map(standin_heal::seen).collect()));
@@ -2909,6 +2948,12 @@ impl Game {
     pub(crate) fn hurts_at(&self, tick: u32) -> Option<Vec<Hurt>> {
         let (_, hurts) = self.hurts.iter().find(|(t, _)| *t == tick)?;
         Some(hurts.clone())
+    }
+
+    /// [2e] The bodies' recent hits at a world of `tick`.
+    pub(crate) fn hits_at(&self, tick: u32) -> Option<BodiesHits> {
+        let (_, hits) = self.recent_hits.iter().find(|(t, _)| *t == tick)?;
+        Some(hits.clone())
     }
 
     pub(crate) fn world_at(&self, tick: u32) -> Option<Recorded> {
