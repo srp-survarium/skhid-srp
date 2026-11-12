@@ -886,9 +886,10 @@ Enabled by opt+11Eh and scene_view+1DE3Ch. Order (PIX labels in the code):
      LUT: c = srgb_decode(LUT3D(srgb_encode(c) * 15/16 + 1/32))
      vignette if image_grain.w > 0.1: c *= min(pow(1 - |uv - 0.5|^2, w + 1), 1)
    DOF / bokeh variants (39254d25, a62ce2b4) when the scene uses them
-6 AA: r_antialiasing_method (opt+F0h) selects FXAA (post_process_fxaa, "L:fxaa"), MLAA,
-   SRAA or temporal AA (effects at stage+B8h..+E4h); r_fxaa_quality_* tune FXAA
-7 sharpen ("L:sharpen", post_process_post_sharpen.ps f6e6e71d...8a59a0):
+6 AA: r_antialiasing_method (opt+F0h, read at 0x1B22EB): 1 FXAA (post_process_fxaa, "L:fxaa",
+   0x1B2C95), 2 the temporal AA (0x1B2E52), else none; MLAA and SRAA effects are loaded
+   (stage+B8h..+E4h) and never chosen; r_fxaa_quality_* tune FXAA
+7 sharpen, only after FXAA (method 1, 0x1B2D20; "L:sharpen", post_process_post_sharpen.ps f6e6e71d...8a59a0):
      c = 0.98*c + 0.02*(9c - 8 neighbours); then sRGB-style encode
      pow(c, 1/(2.4 * r_gamma_correction_factor)) * 1.055 - 0.055   (gamma here)
 8 copy_rewrite -> present (rt 52, RGBA8); present.ps is a plain copy
@@ -899,7 +900,18 @@ Step 1 and the TAA, read for DLSS ([dlss-option.md](dlss-option.md), "What the e
 is stored as 0) holds `current uv - previous uv` and `z = 1` for every visible skinned model (previous
 bones) and every moved rigid model, world models with the scene's projection, then the first-person
 models after `foreground_begin`; the rest is 0. The TAA reprojects the other pixels from linear depth
-and the previous view, on the LDR present, without jitter. PROVEN.
+and the previous view (the stage's +10h, the context's view copied at the end of every execute), on
+the LDR present; its shader reads no jitter. PROVEN. rt 18 is cleared at the frame's start by the
+stage's `clear_surfaces` (0x1B1E70) under the pass's own gate.
+
+The engine's temporal jitter: with `r_antialiasing_method` 2, the lit view mode and the scene view's
+post-process, `renderer::render` pushes a projection moved by +-0.25 pixel of the window, alternating by
+the frame index (`temporal_projection_matrix_modifier::push_jittering` 0x1BE4A0, the call at 0x13D3E3),
+before the visibility stage, and pops it after the stages (0x13D47B). The projection before it is kept
+at the renderer's +20h, which `stage_shadow_direct::execute` puts back for the sun's shadows (0x172EA3);
+`foreground_begin` builds the first-person projection from the current (jittered) one. The eye rays
+(`update_eye_rays` 0x14AA50) are one corner's, mirrored: off by twice the jitter at the far corner. PROVEN
+([dlss-option.md](dlss-option.md), "The frame's inputs").
 
 PROVEN for the shaders quoted and the label order; which branches run (AA method, sharpen flag
 at 0x1B2D20, motion blur `r_motion_blur_quality` opt+E4h, lens flares, radial blur,
