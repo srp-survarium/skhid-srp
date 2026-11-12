@@ -66,6 +66,7 @@ fn full_account(id: u32) -> Account {
         until: Some(1_900_000_000),
         reason: "spam, Ш".into(),
     });
+    account.afk_kicks = crate::afk::DailyKicks::parse(20_000, 2);
     let game = &mut account.game;
     game.generic_money = 12_345;
     game.premium_money = 77;
@@ -543,6 +544,94 @@ fn unix_now() -> u64 {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs()
+}
+
+#[test]
+fn afk_kicks_and_bans_survive_restarts_and_end_sessions() {
+    let dir = TempDir::new("afk");
+    let open = || {
+        SessionStore::with_repository(GATHER, Box::new(SqliteRepository::open(&dir.db()).unwrap()))
+            .unwrap()
+    };
+    let now = unix_now();
+    let store = open();
+    let id = store.sign_in("idle", b"pw").unwrap();
+    let other = store.sign_in("other", b"pw").unwrap();
+    let other_session = store.create_session(other);
+    assert!(store.record_afk_kick_at(id, now).is_none());
+    drop(store);
+    let store = open();
+    assert!(store.record_afk_kick_at(id, now).is_none());
+    let session = store.create_session(id);
+    store.flush();
+    let ban = store.record_afk_kick_at(id, now).unwrap();
+    assert_eq!(ban.until, Some(now + 1800));
+    assert!(store.account_for_session(session).is_none());
+    assert!(store.account_for_session(other_session).is_some());
+    assert_eq!(store.sign_in("idle", b"pw"), Err(SignInError::Banned));
+    let account = store.account(id).unwrap();
+    assert!(account.locked().ban_at(now + 1799).is_some());
+    assert!(account.locked().ban_at(now + 1800).is_none());
+    drop(account);
+    drop(store);
+
+    let store = open();
+    assert_eq!(store.account_ban(id), Some(ban));
+    assert!(store.account_for_session(session).is_none());
+    // Lifting a ban does not wipe the day's offences.
+    assert!(store.unban_account(id));
+    assert!(store.record_afk_kick_at(id, now).is_none());
+    drop(store);
+    let store = open();
+    assert!(store.record_afk_kick_at(id, now).is_none());
+    let session = store.create_session(id);
+    let ban = store.record_afk_kick_at(id, now).unwrap();
+    assert_eq!(ban.until, Some(now + 21_600));
+    assert!(store.account_for_session(session).is_none());
+    drop(store);
+    let store = open();
+    assert_eq!(store.account_ban(id), Some(ban));
+    assert_eq!(
+        store
+            .account(id)
+            .unwrap()
+            .locked()
+            .afk_kicks
+            .unwrap()
+            .stored(),
+        (now / 86_400, 6)
+    );
+    let next_day = (now / 86_400 + 1) * 86_400;
+    assert!(store.record_afk_kick_at(id, next_day).is_none());
+    assert_eq!(
+        store
+            .account(id)
+            .unwrap()
+            .locked()
+            .afk_kicks
+            .unwrap()
+            .stored(),
+        (next_day / 86_400, 1)
+    );
+}
+
+#[test]
+fn afk_migration_preserves_existing_accounts_and_starts_without_kicks() {
+    let dir = TempDir::new("afk-migration");
+    let mut repository = SqliteRepository::open(&dir.db()).unwrap();
+    let mut account = full_account(4);
+    account.afk_kicks = None;
+    let record = AccountRecord::of(&account);
+    repository.save_account(&record).unwrap();
+    drop(repository);
+    // Version 6 has all the existing fields but no AFK table.
+    let connection = Connection::open(dir.db()).unwrap();
+    connection
+        .execute_batch("DROP TABLE afk_kicks; PRAGMA user_version = 6;")
+        .unwrap();
+    drop(connection);
+    let mut repository = SqliteRepository::open(&dir.db()).unwrap();
+    assert_eq!(repository.load_all().unwrap().accounts, vec![record]);
 }
 
 /// A store over `repository` holding one account, written.

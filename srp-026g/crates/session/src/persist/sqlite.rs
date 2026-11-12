@@ -186,6 +186,14 @@ pub(super) const MIGRATIONS: &[&str] = &[
     ALTER TABLE accounts ADD COLUMN chat_ban_reason TEXT;
     ALTER TABLE accounts ADD COLUMN chat_ban_until  INTEGER;
     ",
+    // 7: nonempty daily AFK history, saved with the account and its ban.
+    "
+    CREATE TABLE afk_kicks (
+        account_id INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+        utc_day INTEGER NOT NULL CHECK (utc_day >= 0),
+        kicks INTEGER NOT NULL CHECK (kicks BETWEEN 1 AND 4294967295)
+    );
+    ",
 ];
 
 /// The child tables of an account, children of children first.
@@ -202,6 +210,7 @@ const CHILD_TABLES: &[&str] = &[
     "friends",
     "ignored",
     "notices",
+    "afk_kicks",
 ];
 
 pub struct SqliteRepository {
@@ -373,6 +382,7 @@ impl AccountRepository for SqliteRepository {
                         .get::<_, Option<String>>(16)?
                         .and_then(|ip| ip.parse().ok()),
                     chat_ban: chat_ban(row.get(17)?, row.get(18)?),
+                    afk_kicks: None,
                 })
             })?;
             for row in rows {
@@ -499,6 +509,19 @@ fn load_children(
     record: &mut AccountRecord,
 ) -> Result<(), PersistError> {
     let id = record.id;
+    let kicks: Option<(u64, u32)> = transaction
+        .query_row(
+            "SELECT utc_day, kicks FROM afk_kicks WHERE account_id = ?1",
+            [id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()?;
+    record.afk_kicks = kicks
+        .map(|(day, count)| {
+            crate::afk::DailyKicks::parse(day, count)
+                .ok_or_else(|| PersistError::BadRow(id, "zero AFK kick count".into()))
+        })
+        .transpose()?;
     let game = &mut record.game;
 
     let mut statement =
@@ -696,6 +719,7 @@ fn write_account(transaction: &Transaction, record: &AccountRecord) -> Result<()
         notices,
         ban,
         chat_ban,
+        afk_kicks,
         last_ip,
     } = record;
     let GameAccount {
@@ -764,6 +788,13 @@ fn write_account(transaction: &Transaction, record: &AccountRecord) -> Result<()
     )?;
     for table in CHILD_TABLES {
         transaction.execute(&format!("DELETE FROM {table} WHERE account_id = ?1"), [id])?;
+    }
+    if let Some(kicks) = afk_kicks {
+        let (day, count) = kicks.stored();
+        transaction.execute(
+            "INSERT INTO afk_kicks (account_id, utc_day, kicks) VALUES (?1, ?2, ?3)",
+            params![id, day, count],
+        )?;
     }
 
     let mut statement = transaction
