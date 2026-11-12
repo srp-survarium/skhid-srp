@@ -1043,6 +1043,7 @@ package
          this.inventory_list.bundleList.list.addEventListener(ListEvent.ITEM_ROLL_OUT,this.hideItemHint);
          this.inventory_list.addEventListener(Event.CLOSE,this.hideItemHint);
          this.inventory_list.addEventListener(Events.OPEN_MODIFIERS,this.openModifierWindow);
+         this.inventory_list.addEventListener(MouseEvent.MOUSE_DOWN,this.onInventoryPress);
          this.inventory_list.addEventListener(Events.CRAFFT_ITEM,this.openCraftWindow);
          this.inventory_list.itemControlPanel.addEventListener(Events.CRAFFT_ITEM,this.openCraftWindow);
          trace("ROOT:player_profile",this.player_profile);
@@ -4774,6 +4775,14 @@ package
          {
             return window.parent != null;
          });
+      }
+
+      // A press in the inventory puts it over the chat windows (the owner's
+      // of 2026-11-12: the chat should go behind the inventory); a chat's
+      // bottom tab brings its window up again.
+      private function onInventoryPress(e:MouseEvent) : void
+      {
+         this.chat.under(this.inventory_list);
       }
 
       private function closeLobbyWindow() : void

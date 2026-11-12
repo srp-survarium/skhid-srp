@@ -318,6 +318,32 @@ package survarium.chat
          };
       }
 
+      // The chat windows over `window` go under it, in their order.
+      public function under(window:DisplayObject) : void
+      {
+         var layer:DisplayObjectContainer = window.parent;
+         if(layer == null)
+         {
+            return;
+         }
+         var over:Array = [];
+         for each(var tab:LobbyChatTab in this._tabs)
+         {
+            if(tab != null && tab.parent == layer && layer.getChildIndex(tab) > layer.getChildIndex(window))
+            {
+               over.push(tab);
+            }
+         }
+         over.sort(function(a:DisplayObject, b:DisplayObject):int
+         {
+            return layer.getChildIndex(a) - layer.getChildIndex(b);
+         });
+         for each(tab in over)
+         {
+            layer.setChildIndex(tab,layer.getChildIndex(window));
+         }
+      }
+
       // On top: nothing shown over the window that raising it would put
       // under it. The lobby's stage layer (LobbyMenu._stageLayer: messages,
       // transient windows, cards) stays over every window.
