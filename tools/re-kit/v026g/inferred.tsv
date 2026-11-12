@@ -3481,3 +3481,5 @@ va	status	ref_021d	name
 0x0026d630	inferred-medium		survarium::base_local_network_client::follow_nobody
 0x00111c90	inferred-high		vostok::logging::helper::helper
 0x00111d10	inferred-high		vostok::logging::helper::write
+0x001b1840	inferred-high		vostok::render::remove_model_skeletal_filter_predicate::operator()
+0x001b66b0	inferred-high		std::find_if<render_surface_instance**, remove_model_skeletal_filter_predicate>

@@ -2819,6 +2819,8 @@ st_srp_unit_seconds	%1$sс
 st_srp_unit_times	%1$sx
 st_srp_vulkan_dedicated_gpu	Прыярытэт дыскрэтнай GPU
 st_srp_vulkan_dedicated_gpu_hint	Выбірае больш магутную відэакарту на ноўтбуках.\n+ Лепшая прадукцыйнасць на ноўтбуках\n- Траціць больш батарэі
+st_srp_vulkan_dlss	NVIDIA DLSS
+st_srp_vulkan_dlss_hint	Малюе гульню ў меншай раздзяляльнасці і павялічвае яе праз NVIDIA DLSS. Толькі для відэакарт RTX.\n+ Больш кадраў у секунду\n- Карцінка крыху мякчэйшая, больш відэапамяці
 st_srp_vulkan_frame_limit	Абмежаванне FPS
 st_srp_vulkan_frame_limit_hint	Абмяжоўвае, колькі кадраў у секунду малюе гульня.
 st_srp_vulkan_low_latency	Знізіць затрымку ўводу

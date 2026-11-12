@@ -156,6 +156,9 @@ package
                     try
                     {
                         checkVulkanLook(settings);
+                        var dlss:* = vulkanControl(settings, "_srp_dxvk_dlss");
+                        trace("SETTINGS look DLSS (not offered): selected " + dlss.selected + ", enabled " + dlss.enabled
+                            + ", frame " + dlss.currentLabel);
                     }
                     catch (error:Error)
                     {
@@ -461,24 +464,39 @@ package
         // root.srp_hud_texts as patch 83 answers it (its TEXTS), in the first dictionary.
         private function hudTexts(root:*):void
         {
-            root.srp_hud_texts(texts[0][2], texts[0][5], texts[0][6], texts[0][7], texts[0][8], texts[0][9], texts[0][15],
-                texts[0][16], texts[0][4], texts[0][19], texts[0][30], texts[0][31], texts[0][32], texts[0][33], texts[0][34]);
+            root.srp_hud_texts.apply(null, hudTextsOf(texts[0]));
         }
 
-        // The Vulkan options as patch 83 names them, in the panel's order, and their values without a user.cfg
-        // line (Prefer the dedicated GPU on).
-        private static const VULKAN:Array = ["srp_dxvk_frame_limit", "srp_dxvk_overlay", "srp_dxvk_low_latency",
-            "srp_dxvk_tear_free", "srp_dxvk_dedicated_gpu"];
-        private static const VULKAN_DEFAULTS:Array = ["0", "0", "0", "0", "1"];
+        // root.srp_hud_texts' values in a dictionary `t` (patch 83's TEXTS): the HUD group's six, the Renderer's
+        // two, its note, the Vulkan options' button, then its six options' hints in the panel's order.
+        private static function hudTextsOf(t:Array):Array
+        {
+            return [t[2], t[5], t[6], t[7], t[8], t[9], t[15], t[16], t[4], t[19]].concat(
+                VULKAN_HINTS.map(function(at:int, ...rest):String { return t[at]; }));
+        }
+
+        // The Vulkan options as patch 83 names them, in the panel's order: the two lists, then the four
+        // checkboxes; their values without a user.cfg line (Prefer the dedicated GPU on); each one's label and hint
+        // (their places in check.sh's texts).
+        private static const VULKAN:Array = ["srp_dxvk_frame_limit", "srp_dxvk_overlay", "srp_dxvk_dlss",
+            "srp_dxvk_low_latency", "srp_dxvk_tear_free", "srp_dxvk_dedicated_gpu"];
+        private static const VULKAN_LISTS:int = 2;
+        private static const VULKAN_DEFAULTS:Array = ["0", "0", "0", "0", "0", "1"];
+        private static const VULKAN_LABELS:Array = [20, 25, 35, 22, 23, 24];
+        private static const VULKAN_HINTS:Array = [30, 31, 36, 32, 33, 34];
+        // DLSS's place, and its running value when this process does not offer it (patch 83: no helper answered)
+        private static const DLSS:int = 2;
+        private static const NOT_OFFERED:String = "-";
 
         // A Vulkan option's answer as patch 83 gives it: name, label, saved, running[, the list's choices].
         private function vulkanAnswer(i:int, saved:String, running:String, row:Array = null):void
         {
             var t:Array = row != null ? row : texts[0];
             var root:* = loader.content;
-            if (i == 0) root.srp_check_option(VULKAN[0], t[20], saved, running, t[21], "60", "120", "144", "165", "240");
-            else if (i == 1) root.srp_check_option(VULKAN[1], t[25], saved, running, t[21], t[26], t[27], t[28]);
-            else root.srp_check_option(VULKAN[i], t[20 + i], saved, running);
+            var label:String = t[VULKAN_LABELS[i]];
+            if (i == 0) root.srp_check_option(VULKAN[0], label, saved, running, t[21], "60", "120", "144", "165", "240");
+            else if (i == 1) root.srp_check_option(VULKAN[1], label, saved, running, t[21], t[26], t[27], t[28]);
+            else root.srp_check_option(VULKAN[i], label, saved, running);
         }
 
         // The Graphics tab as the exe makes it: its 19 options (English labels, values as a game's), then
@@ -515,9 +533,12 @@ package
             root.set_values(2, values);
             hudTexts(root);
             root.srp_check_option("srp_dxvk", texts[0][14], saved, running);
+            // DLSS not offered unless the running values are given (no helper answers in a test player)
             for (var o:int = 0; o < VULKAN.length; ++o)
             {
-                vulkanAnswer(o, (options || VULKAN_DEFAULTS)[o], (runningOptions || options || VULKAN_DEFAULTS)[o]);
+                var run:String = o == DLSS && runningOptions == null ? NOT_OFFERED
+                    : (runningOptions || options || VULKAN_DEFAULTS)[o];
+                vulkanAnswer(o, (options || VULKAN_DEFAULTS)[o], run);
             }
             // the gamma slider's label, which the game sets through the timeline's alias (its FLA text otherwise)
             settings.settings_content.slider_gamma.textField.text = "Gamma:";
@@ -924,8 +945,9 @@ package
             for (var h:int = 0; h < controls.length; ++h)
             {
                 require(controls[h].tipData != null
-                    && controls[h].tipData.name == texts[0][30 + h]
-                    && texts.every(function(t:Array, ...rest):Boolean { return t[30 + h].split("\n").length == (h < 2 ? 1 : 3); }),
+                    && controls[h].tipData.name == texts[0][VULKAN_HINTS[h]]
+                    && texts.every(function(t:Array, ...rest):Boolean {
+                        return t[VULKAN_HINTS[h]].split("\n").length == (h < VULKAN_LISTS ? 1 : 3); }),
                     "Vulkan options: " + VULKAN[h] + " has its hint (" + (controls[h].tipData ? controls[h].tipData.name : null) + ")");
             }
             var Point:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("flash.geom.Point") as Class;
@@ -987,7 +1009,7 @@ package
             for (var g:int = 0; g < controls.length; ++g)
             {
                 var gx:Number = origin.x + controls[g].x;
-                require(g < 2 ? near(gx, list.x) && near(controls[g].width, list.width) && near(controls[g].textFieldLabel.x,
+                require(g < VULKAN_LISTS ? near(gx, list.x) && near(controls[g].width, list.width) && near(controls[g].textFieldLabel.x,
                         list.textFieldLabel.x)
                     : near(gx, c._fullscreen.x) && near(controls[g].textField.y, c._fullscreen.textField.y)
                         && near(controls[g].textField.x, c._fullscreen.textField.x),
@@ -1000,14 +1022,16 @@ package
                 require(!(rowSpan.top < bounds.bottom && rowSpan.bottom > bounds.bottom), "Vulkan options: the panel ("
                     + bounds + ") ends on a row's boundary, " + underRow.name + " (" + rowSpan + ") not half under it");
             }
-            var labels:Array = [texts[0][20], texts[0][25], texts[0][22], texts[0][23], texts[0][24]];
+            var labels:Array = VULKAN_LABELS.map(function(at:int, ...rest):String { return texts[0][at]; });
             var at:Number = -1;
             for (var i:int = 0; i < controls.length; ++i)
             {
                 var one:* = controls[i];
-                var label:String = i < 2 ? one.textFieldLabel.text : one.label;
-                require(one != null && one.visible && one.alpha == 1 && label == labels[i], "Vulkan options: " + VULKAN[i]
-                    + " in the panel with the exe's label (" + label + ")");
+                var label:String = i < VULKAN_LISTS ? one.textFieldLabel.text : one.label;
+                // an option not offered (DLSS here) greyed: its disabled frame
+                require(one != null && one.visible && (!one.enabled || one.alpha == 1) && label == labels[i],
+                    "Vulkan options: " + VULKAN[i]
+                    + " in the panel with the exe's label (" + label + ", visible " + one.visible + ", alpha " + one.alpha + ")");
                 var top:Number = span(one)[0];
                 require(top > at && near(one.x, controls[0].x), "Vulkan options: " + VULKAN[i] + " in order, at the panel's left");
                 at = span(one)[1];
@@ -1016,17 +1040,22 @@ package
             require(controls[0].dataProvider.length == 6 && controls[0].dataProvider[0] == texts[0][21]
                 && controls[0].dataProvider[3] == "144" && controls[1].dataProvider.length == 4
                 && controls[1].dataProvider[2] == texts[0][27] && controls[0].selectedIndex == 0 && controls[1].selectedIndex == 0
-                && !controls[2].selected && !controls[3].selected && controls[4].selected,
+                && !controls[DLSS].selected && !controls[3].selected && !controls[4].selected && controls[5].selected,
                 "Vulkan options: the lists' choices; each control its saved value (Prefer the dedicated GPU on)");
+            require(!controls[DLSS].enabled && controls[0].enabled && controls[1].enabled && controls[3].enabled,
+                "Vulkan options: DLSS not offered (no helper answered) greyed, the others not");
             var rhythm:Number = controls[1].y - controls[0].y;
             for (i = 1; i < controls.length; ++i)
             {
-                require(near(controls[i].y - controls[i - 1].y, rhythm), "Vulkan options: the five rows on one step ("
+                require(near(controls[i].y - controls[i - 1].y, rhythm), "Vulkan options: the six rows on one step ("
                     + VULKAN[i] + ": " + (controls[i].y - controls[i - 1].y) + ", " + rhythm + ")");
             }
             // the background as drawn (its 1-pixel border adds half a pixel on each side)
-            var under:Number = bounds.height - (controls[4].y + 26);
-            require(rhythm >= step - 0.1 && rhythm <= step + 3 && Math.abs(controls[0].width - list.width) < 1
+            var under:Number = bounds.height - (controls[controls.length - 1].y + 26);
+            // the step grows by at most a column row's height (the gamma slider's, about 30) over the gaps: six rows
+            // end in the slider's row, which the panel then covers whole
+            require(rhythm >= step - 0.1 && rhythm <= step + 32 / (controls.length - 1)
+                && Math.abs(controls[0].width - list.width) < 1
                 && Math.abs(under - controls[0].y) < 1.5,
                 "Vulkan options: the rows a list's step apart (or a little more, to end on a row's edge), the lists the "
                 + "Renderer's width, the padding over the first row the padding under the last (" + controls[0].y + ", "
@@ -1036,10 +1065,11 @@ package
             var DataProvider:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.data.DataProvider") as Class;
             for each (var t:Array in texts)
             {
-                vulkanAnswer(0, "0", "0", t);
-                vulkanAnswer(1, "0", "0", t);
-                for (i = 2; i < controls.length; ++i) vulkanAnswer(i, VULKAN_DEFAULTS[i], VULKAN_DEFAULTS[i], t);
-                for (i = 0; i < 2; ++i)
+                for (i = 0; i < controls.length; ++i)
+                {
+                    vulkanAnswer(i, VULKAN_DEFAULTS[i], i == DLSS ? NOT_OFFERED : VULKAN_DEFAULTS[i], t);
+                }
+                for (i = 0; i < VULKAN_LISTS; ++i)
                 {
                     var menu:* = controls[i];
                     require(menu.textFieldLabel.textWidth + 4 < menu.textFieldLabel.width, "Vulkan options: " + menu.textFieldLabel.text
@@ -1053,7 +1083,7 @@ package
                     }
                     menu.selectedIndex = 0;
                 }
-                for (i = 2; i < controls.length; ++i)
+                for (i = VULKAN_LISTS; i < controls.length; ++i)
                 {
                     var box:* = controls[i];
                     box.validateNow();
@@ -1063,7 +1093,7 @@ package
                     widest = Math.max(widest, end);
                 }
                 // the exe's texts in that dictionary: the button sized to its text (the preset buttons' width at least)
-                root.srp_hud_texts(t[2], t[5], t[6], t[7], t[8], t[9], t[15], t[16], t[4], t[19], t[30], t[31], t[32], t[33], t[34]);
+                root.srp_hud_texts.apply(null, hudTextsOf(t));
                 row.validateNow();
                 require(row.label == t[19] && row.textField.textWidth + 4 <= row.textField.width * row.scaleX
                     && row.width >= optimal.width - 0.5 && row.width <= list.width, "Vulkan options: " + t[19]
@@ -1081,7 +1111,7 @@ package
                 var local:* = target.globalToLocal(new Point(x, y));
                 target.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN, true, false, local.x, local.y));
             };
-            var spot:Rectangle = controls[2].getBounds(content.stage);
+            var spot:Rectangle = controls[DLSS + 1].getBounds(content.stage);
             pressAt(panel, spot.left + 8, spot.top + 8);
             require(panel.stage != null, "Vulkan options: a press in the panel keeps it");
             controls[0].open();
@@ -1103,7 +1133,9 @@ package
                 + "target) closes the panel");
             click(row);
             require(panel.stage != null, "Vulkan options: a click of the button after it opens it");
-            pressAt(c.slider_gamma, c.slider_gamma.getBounds(content.stage).left + 5, c.slider_gamma.getBounds(content.stage).bottom - 5);
+            // the right column's first row (the open panel covers the left column down to the gamma slider)
+            var outside:Rectangle = c._overall_graphics.getBounds(content.stage);
+            pressAt(c._overall_graphics, outside.left + 5, outside.bottom - 5);
             require(panel.stage == null, "Vulkan options: a press outside closes the panel");
             click(row);
             // the button keeps its pointer and its held frames through its own roll-out (a state it draws on the
@@ -1141,25 +1173,39 @@ package
             pick(list, 1);
             // a change pending until Apply, Cancel dropping it
             require(!settings.btn_accept.enabled, "Vulkan options: nothing pending before a change");
-            controls[2].selected = true;
+            controls[3].selected = true;
             require(settings.btn_accept.enabled, "Vulkan options: Reduce input lag checked is a change");
             click(settings.btn_cancel);
-            require(!controls[2].selected && !settings.btn_accept.enabled, "Vulkan options: Cancel unchecks it");
+            require(!controls[3].selected && !settings.btn_accept.enabled, "Vulkan options: Cancel unchecks it");
             // in the open panel (a list opens on the stage only)
             click(row);
             pick(controls[0], 3);
-            controls[4].selected = false;
+            controls[5].selected = false;
             settings.closePanel();
             require(settings.btn_accept.enabled && !note.visible, "Vulkan options: 144 and the dedicated GPU off are a change, no note yet");
             click(settings.btn_accept);
-            require(!settings.btn_accept.enabled && controls[0].selectedIndex == 3 && !controls[4].selected && note.visible,
+            require(!settings.btn_accept.enabled && controls[0].selectedIndex == 3 && !controls[5].selected && note.visible,
                 "Vulkan options: Apply saves them; the note (saved is not what runs)");
             // the exe's answers: what it saved, and running DXVK with what the start had
-            graphicsTab(settings, "1", "1", ["3", "0", "0", "0", "0"], ["0", "0", "0", "0", "1"]);
-            require(note.visible && controls[0].selectedIndex == 3 && !controls[4].selected,
+            graphicsTab(settings, "1", "1", ["3", "0", "0", "0", "0", "0"], ["0", "0", "0", "0", "0", "1"]);
+            require(note.visible && controls[0].selectedIndex == 3 && !controls[5].selected,
                 "Vulkan options: DXVK running with other options: the note");
-            graphicsTab(settings, "1", "1", ["3", "0", "0", "0", "0"]);
+            graphicsTab(settings, "1", "1", ["3", "0", "0", "0", "0", "0"]);
             require(!note.visible, "Vulkan options: saved as running: no note");
+            // DLSS not offered: its saved value shown greyed, no note for it, nothing pending
+            graphicsTab(settings, "1", "1", ["3", "0", "1", "0", "0", "0"]);
+            require(!controls[DLSS].enabled && controls[DLSS].selected && !note.visible && !settings.btn_accept.enabled,
+                "Vulkan options: DLSS not offered: its saved tick greyed, no note, nothing pending");
+            // offered (running Off): a pick pending until Apply, then the note
+            graphicsTab(settings, "1", "1", ["3", "0", "0", "0", "0", "0"], ["3", "0", "0", "0", "0", "0"]);
+            require(controls[DLSS].enabled && !note.visible, "Vulkan options: DLSS offered: enabled, no note");
+            click(row);
+            controls[DLSS].selected = true;
+            settings.closePanel();
+            require(settings.btn_accept.enabled && !note.visible, "Vulkan options: DLSS ticked is a change, no note yet");
+            click(settings.btn_accept);
+            require(!settings.btn_accept.enabled && controls[DLSS].selected && note.visible,
+                "Vulkan options: Apply saves DLSS on; the note (the next start runs it)");
             graphicsTab(settings, "0");
             require(!row.enabled && !note.visible && !settings.btn_accept.enabled && panel.stage == null,
                 "Vulkan options: back to DirectX 11, nothing pending");

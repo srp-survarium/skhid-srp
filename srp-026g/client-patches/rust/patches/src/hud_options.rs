@@ -9,7 +9,8 @@
 //!   the console variables `srp_hide_hit_markers`, `srp_hide_scores`,
 //!   `srp_map_names`, `srp_hide_crosshair` and `srp_dxvk`, saved in user.cfg, off by default,
 //!   and the Vulkan options' `srp_dxvk_frame_limit`, `srp_dxvk_low_latency`,
-//!   `srp_dxvk_tear_free`, `srp_dxvk_dedicated_gpu` (on by default) and `srp_dxvk_overlay`;
+//!   `srp_dxvk_tear_free`, `srp_dxvk_dedicated_gpu` (on by default), `srp_dxvk_dlss`
+//!   (docs/notes/dlss-option.md: offered only where it runs, [`DlssOffer`]) and `srp_dxvk_overlay`;
 //! - the Settings' call (`options.callback`, after patch 79): a setting's
 //!   name answers the main menu with `root.srp_check_option(name, label,
 //!   saved)`, and with "1" or "0" (a list: its index) saves that first
@@ -139,6 +140,9 @@ pub static LOW_LATENCY: Setting = Setting::new(c"srp_dxvk_low_latency", c"st_srp
 pub static TEAR_FREE: Setting = Setting::new(c"srp_dxvk_tear_free", c"st_srp_vulkan_tear_free");
 /// On by default: a user.cfg without its line prefers the dedicated GPU.
 pub static DEDICATED_GPU: Setting = Setting::with(c"srp_dxvk_dedicated_gpu", c"st_srp_vulkan_dedicated_gpu", true);
+/// DLSS at Quality (docs/notes/dlss-option.md): offered only where it runs
+/// ([`DlssOffer`]).
+pub static DLSS: Setting = Setting::new(c"srp_dxvk_dlss", c"st_srp_vulkan_dlss");
 static FRAME_LIMIT_SAVED: ConsoleString<8> = ConsoleString::new();
 static OVERLAY_SAVED: ConsoleString<16> = ConsoleString::new();
 
@@ -244,6 +248,53 @@ impl ListChoice for Overlay {
     }
 }
 
+/// Whether this process offers DLSS, or why not: DLSS runs only in its
+/// 64-bit helper, on DXVK's GPU, an NVIDIA one (docs/notes/dlss-option.md,
+/// "The option"). Not offered, its checkbox is greyed in the Settings.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DlssOffer {
+    Offered,
+    /// DirectX 11 runs: no Vulkan device to share the frame from.
+    NoDxvk,
+    /// DXVK's GPU is not NVIDIA's.
+    NotNvidia,
+    /// No helper answered at this start that DLSS runs.
+    NoHelper,
+}
+
+impl DlssOffer {
+    /// From this process's renderer, DXVK's GPU and whether the helper said
+    /// at this start that DLSS runs.
+    pub fn of(dxvk: bool, gpu: Option<Gpu>, helper_runs: bool) -> DlssOffer {
+        match (dxvk, gpu) {
+            (false, _) => DlssOffer::NoDxvk,
+            (true, Some(gpu)) if gpu.vendor == VENDOR_NVIDIA => {
+                if helper_runs { DlssOffer::Offered } else { DlssOffer::NoHelper }
+            }
+            (true, _) => DlssOffer::NotNvidia,
+        }
+    }
+
+    /// This process's: no helper is started yet (docs/notes/dlss-option.md,
+    /// "Status"), so DLSS is offered nowhere.
+    fn now(thread: &Thread) -> DlssOffer {
+        let gpu = DXVK_GPU.with(thread, |kept| *kept);
+        DlssOffer::of(matches!(renderer(thread), Renderer::Dxvk(_)), gpu, false)
+    }
+
+    fn why(self) -> &'static str {
+        match self {
+            DlssOffer::Offered => "offered",
+            DlssOffer::NoDxvk => "DirectX 11 runs",
+            DlssOffer::NotNvidia => "DXVK's GPU is not NVIDIA's",
+            DlssOffer::NoHelper => "no DLSS helper answered at this start",
+        }
+    }
+}
+
+/// The Settings' running value of an option this process does not offer.
+const NOT_OFFERED: &CStr = c"-";
+
 /// The Vulkan options' two lists, kept in user.cfg as `<name> <word>`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum VulkanList {
@@ -324,6 +375,7 @@ pub struct VulkanOptions {
     pub tear_free: bool,
     pub dedicated_gpu: bool,
     pub overlay: Overlay,
+    pub dlss: bool,
 }
 
 /// The Settings' digits: a checkbox's "1" or "0", a list's index.
@@ -337,6 +389,7 @@ impl VulkanOptions {
             tear_free: TEAR_FREE.of_user_cfg(text),
             dedicated_gpu: DEDICATED_GPU.of_user_cfg(text),
             overlay: Overlay::of_word(user_cfg_word(text, VulkanList::Overlay.name())),
+            dlss: DLSS.of_user_cfg(text),
         }
     }
 
@@ -348,6 +401,7 @@ impl VulkanOptions {
             tear_free: TEAR_FREE.on(thread),
             dedicated_gpu: DEDICATED_GPU.on(thread),
             overlay: Overlay::of_word(Some(OVERLAY_SAVED.get(thread))),
+            dlss: DLSS.on(thread),
         }
     }
 
@@ -369,6 +423,7 @@ impl VulkanOptions {
             n if n == LOW_LATENCY.name => checked(self.low_latency),
             n if n == TEAR_FREE.name => checked(self.tear_free),
             n if n == DEDICATED_GPU.name => checked(self.dedicated_gpu),
+            n if n == DLSS.name => checked(self.dlss),
             n => VulkanList::named(n).map(|list| DIGITS[self.index(list)]),
         }
     }
@@ -958,6 +1013,10 @@ fn drive(thread: &Thread, event: Event) {
                     Err(Called(i)) => line(&[Text("dxvk: the game had called DLL "), Dec(i as u32),
                                              Text(" of dxgi, d3d11, d3d10core, d3d9 (from 0) already: not bound")]),
                 }
+                let offer = DlssOffer::now(thread);
+                if options.dlss && offer != DlssOffer::Offered {
+                    line(&[Text("dlss: on, not run: "), Text(offer.why())]);
+                }
             }
             Action::TurnOff => {
                 DXVK.value.set(thread, false);
@@ -997,8 +1056,8 @@ fn load_dxvk(thread: &Thread) -> Result<(), Stopped> {
 }
 
 /// Every setting of this patch, as the Settings call them.
-pub static SETTINGS: [&Setting; 8] =
-    [&HIDE_HIT_MARKERS, &HIDE_SCORES, &MAP_NAMES, &HIDE_CROSSHAIR, &DXVK, &LOW_LATENCY, &TEAR_FREE, &DEDICATED_GPU];
+pub static SETTINGS: [&Setting; 9] = [&HIDE_HIT_MARKERS, &HIDE_SCORES, &MAP_NAMES, &HIDE_CROSSHAIR, &DXVK, &LOW_LATENCY,
+                                      &TEAR_FREE, &DEDICATED_GPU, &DLSS];
 
 /// The Settings' "HUD:" group's own texts (dictionary keys), in the order
 /// `root.srp_hud_texts` gives them: the heading, the stock quest progress
@@ -1006,12 +1065,12 @@ pub static SETTINGS: [&Setting; 8] =
 /// three choices, the stock fixed minimap checkbox's label; then the
 /// Graphics tab's Renderer list's two choices, its note (the Language
 /// choice's "Applies after restart."), the Vulkan options' button and its
-/// five options' hints (in the panel's order).
-pub const TEXTS: [&CStr; 15] = [c"st_srp_options_hud", c"st_srp_hide_quests_option", c"st_srp_crosshair_dynamic",
+/// six options' hints (in the panel's order).
+pub const TEXTS: [&CStr; 16] = [c"st_srp_options_hud", c"st_srp_hide_quests_option", c"st_srp_crosshair_dynamic",
                                 c"st_srp_crosshair_static", c"st_srp_crosshair_hidden", c"st_srp_static_minimap_option",
                                 c"st_srp_renderer_dx11", c"st_srp_renderer_dxvk", c"st_srp_language_restart",
                                 c"st_srp_vulkan_options", c"st_srp_vulkan_frame_limit_hint", c"st_srp_vulkan_overlay_hint",
-                                c"st_srp_vulkan_low_latency_hint", c"st_srp_vulkan_tear_free_hint",
+                                c"st_srp_vulkan_dlss_hint", c"st_srp_vulkan_low_latency_hint", c"st_srp_vulkan_tear_free_hint",
                                 c"st_srp_vulkan_dedicated_gpu_hint"];
 
 /// The setting the Settings' call names.
@@ -1124,6 +1183,9 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<HudOptionsOnOptionsCallExi
         // the renderer this process runs ("1": DXVK loaded at its start), or the option's value it runs
         let running = if core::ptr::eq(setting, &DXVK) {
             Some(DIGITS[usize::from(matches!(renderer(thread), Renderer::Dxvk(_)))])
+        } else if core::ptr::eq(setting, &DLSS) && DlssOffer::now(thread) != DlssOffer::Offered {
+            // not offered here (no helper answered, another vendor's GPU, DirectX 11): greyed
+            Some(NOT_OFFERED)
         } else {
             VulkanOptions::running(thread).shown(setting.name)
         };
@@ -1279,6 +1341,7 @@ mod tests {
         tear_free: false,
         dedicated_gpu: true,
         overlay: Overlay::Off,
+        dlss: false,
     };
     const VULKAN: Choice = Choice::Vulkan(DEFAULTS);
 
@@ -1302,6 +1365,7 @@ mod tests {
             tear_free: true,
             dedicated_gpu: false,
             overlay: Overlay::FrameTimes,
+            dlss: false,
         };
         assert_eq!(Choice::of_user_cfg(text), Choice::Vulkan(all));
         // a word the lists do not have, or none, is the first choice; a checkbox's other word its default
@@ -1315,6 +1379,30 @@ mod tests {
             let text = [b"srp_dxvk on\r\nsrp_dxvk_overlay ", overlay.word().to_bytes(), b"\r\n"].concat();
             assert_eq!(Choice::of_user_cfg(&text), Choice::Vulkan(VulkanOptions { overlay: *overlay, ..DEFAULTS }));
         }
+        let dlss = VulkanOptions { dlss: true, ..DEFAULTS };
+        assert_eq!(Choice::of_user_cfg(b"srp_dxvk on\r\nsrp_dxvk_dlss on\r\n"), Choice::Vulkan(dlss));
+        // DLSS gives DXVK nothing of its own until it runs
+        assert_eq!(dlss.config().as_str(), DEFAULTS.config().as_str());
+        assert!(dlss.shown(c"srp_dxvk_dlss") == Some(c"1") && DEFAULTS.shown(c"srp_dxvk_dlss") == Some(c"0"));
+    }
+
+    #[test]
+    fn dlss_is_offered_with_dxvk_on_an_nvidia_gpu_whose_helper_runs_only() {
+        let gpu = |vendor| Some(Gpu { vendor, device: 0, driver: 0, kind: GpuKind::Discrete, version: Some(VULKAN_NEEDED),
+                                      name: [0; crate::vostok::renderer::GPU_NAME] });
+        assert_eq!(DlssOffer::of(true, gpu(VENDOR_NVIDIA), true), DlssOffer::Offered);
+        assert_eq!(DlssOffer::of(true, gpu(VENDOR_NVIDIA), false), DlssOffer::NoHelper);
+        for vendor in [VENDOR_AMD, VENDOR_INTEL] {
+            assert_eq!(DlssOffer::of(true, gpu(vendor), true), DlssOffer::NotNvidia);
+        }
+        // DXVK's GPU not known (every driver looked at and none picked): not offered
+        assert_eq!(DlssOffer::of(true, None, true), DlssOffer::NotNvidia);
+        for helper_runs in [false, true] {
+            assert_eq!(DlssOffer::of(false, gpu(VENDOR_NVIDIA), helper_runs), DlssOffer::NoDxvk);
+        }
+        // the Settings' running value of an option not offered is no checkbox value
+        assert!(DIGITS.iter().all(|digit| *digit != NOT_OFFERED));
+        assert!(!DLSS.of_user_cfg(b"") && !DLSS.value.initial(), "off by default");
     }
 
     #[test]
@@ -1333,6 +1421,7 @@ mod tests {
             tear_free: true,
             dedicated_gpu: true,
             overlay: Overlay::Full,
+            dlss: false,
         };
         let config = all.config();
         assert_eq!(config.as_str(), "dxvk.maxFrameRate = 240; dxvk.latencySleep = True; dxvk.tearFree = True; \
@@ -1356,6 +1445,7 @@ mod tests {
             tear_free: true,
             dedicated_gpu: true,
             overlay: Overlay::Full,
+            dlss: false,
         };
         let gpu = |vendor| Some(Gpu { vendor, device: 0, driver: 0, kind: GpuKind::Discrete, version: Some(VULKAN_NEEDED),
                                       name: [0; crate::vostok::renderer::GPU_NAME] });

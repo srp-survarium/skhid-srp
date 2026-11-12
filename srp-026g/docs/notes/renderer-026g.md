@@ -894,6 +894,13 @@ Enabled by opt+11Eh and scene_view+1DE3Ch. Order (PIX labels in the code):
 8 copy_rewrite -> present (rt 52, RGBA8); present.ps is a plain copy
 ```
 
+Step 1 and the TAA, read for DLSS ([dlss-option.md](dlss-option.md), "What the engine has"):
+`$user$object_motion_vectors` (rt 18, the HDR format: R11G11B10_FLOAT under DXVK, so negative motion
+is stored as 0) holds `current uv - previous uv` and `z = 1` for every visible skinned model (previous
+bones) and every moved rigid model, world models with the scene's projection, then the first-person
+models after `foreground_begin`; the rest is 0. The TAA reprojects the other pixels from linear depth
+and the previous view, on the LDR present, without jitter. PROVEN.
+
 PROVEN for the shaders quoted and the label order; which branches run (AA method, sharpen flag
 at 0x1B2D20, motion blur `r_motion_blur_quality` opt+E4h, lens flares, radial blur,
 `effect_aberration_and_sharpen<a,b,c>`) depends on the user options and was not traced branch by
