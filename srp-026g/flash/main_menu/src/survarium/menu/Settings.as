@@ -158,6 +158,7 @@ package survarium.menu
       {
          var control:*;
          trace("setValue");
+         value = SrpDistanceDetail.value(tabIndex,elementId,value);
          this._content_values[tabIndex][elementId] = value;
          if(isBaseline)
          {
@@ -179,11 +180,12 @@ package survarium.menu
          var control:*;
          while(i < values.length)
          {
-            this._content_values[tabIndex][values[i].id] = values[i].value;
+            var choice:Number = SrpDistanceDetail.value(tabIndex,values[i].id,values[i].value);
+            this._content_values[tabIndex][values[i].id] = choice;
             if(isBaseline)
             {
                control = this.settings_content[this._element_map[tabIndex][values[i].id]];
-               this._elements[control] = values[i].value;
+               this._elements[control] = choice;
             }
             i++;
          }
@@ -690,28 +692,28 @@ package survarium.menu
             control = this.settings_content[this._element_map[this.tabs.selectedIndex][i]];
             if(control)
             {
-               setting = settings[i];
+               setting = tabIndex == 2 && i == 19 ? SrpDistanceDetail.setting(settings[i]) : settings[i];
                this._setters[control] = setting.setter;
                if(setting)
                {
                   control.label = setting.label;
                }
-               if(settings[i].dataProvider && ((!(settings[i].dataProvider is Array)) || settings[i].dataProvider is Array && settings[i].dataProvider.length))
+               if(setting.dataProvider && ((!(setting.dataProvider is Array)) || setting.dataProvider is Array && setting.dataProvider.length))
                {
                   if(control is OptionSlider)
                   {
-                     control.dataProvider = settings[i].dataProvider;
+                     control.dataProvider = setting.dataProvider;
                   }
                   else
                   {
                      items = new Array();
                      j = 0;
-                     while(j < settings[i].dataProvider.length)
+                     while(j < setting.dataProvider.length)
                      {
-                        if(!(settings[i].dataProvider[j] is String))
+                        if(!(setting.dataProvider[j] is String))
                         {
                            items[j] = new Object();
-                           source = settings[i].dataProvider[j];
+                           source = setting.dataProvider[j];
                            for(field in source)
                            {
                               items[j][field] = source[field];
@@ -719,7 +721,7 @@ package survarium.menu
                         }
                         else
                         {
-                           items[j] = settings[i].dataProvider[j];
+                           items[j] = setting.dataProvider[j];
                         }
                         j++;
                      }
@@ -829,6 +831,25 @@ package survarium.menu
          {
             this._changed[event.target] = 0;
             _changes -= 1;
+         }
+         // Distance detail is a member of the Graphics preset, just like
+         // the native quality rows. Use the same pending setters and change
+         // tracking; Apply/Cancel still belong to the native options tab.
+         if(!this._ignoreChange && this.tabs.selectedIndex == 2)
+         {
+            var preset:OptionStepper = this.settings_content["_overall_graphics"];
+            var detail:OptionStepper = this.settings_content["_distance_detail"];
+            if(event.target == preset && preset.selectedIndex >= 0 && preset.selectedIndex < 5)
+            {
+               detail.selectedIndex = preset.selectedIndex == 4 ? 1 : 0;
+               detail.validateNow();
+            }
+            else if(event.target == detail && preset.selectedIndex >= 0 && preset.selectedIndex < 5
+                    && detail.selectedIndex != (preset.selectedIndex == 4 ? 1 : 0))
+            {
+               preset.selectedIndex = 5; // Custom: the pending detail differs from the preset.
+               preset.validateNow();
+            }
          }
          this.checkButtons();
       }

@@ -5526,13 +5526,16 @@ the keys, the merged list, 29 seeks without the history error). No Unicorn check
 
 ## Distance detail option
 
-Graphics now includes **Reduce detail with distance (off = maximum)**.
-Unchecked keeps full texture mip chains, static model LOD0, material LOD0
-and grass LOD0. Checked preserves the existing adaptive behavior, including
+Graphics now includes a **Distance detail** arrow picker: **Normal** or
+**Maximum**. Maximum keeps full texture mip chains, static model LOD0, material
+LOD0 and grass LOD0. Normal preserves the existing adaptive behavior, including
 the FOV correction. Apply, Cancel and persistence use the existing native
 `r_use_texture_streaming` option; its default remains on. The same console
 command controls the setting (`off` for maximum, `on` for adaptive detail).
 Hardware mip filtering and visibility culling remain active.
+The Graphics presets include this row: Ultra selects Maximum; Minimum, Low,
+Medium and High select Normal. Changing this row away from the selected
+preset selects Custom through the same native preset setter.
 
 The screenshot's hospital model switches LOD1 → LOD0 when the view turns
 5.4° at the same player position. Executing the original selector with the

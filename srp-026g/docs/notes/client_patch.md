@@ -3465,7 +3465,7 @@ second settings file is introduced. The active render-options pointer is
 `[0x2260498]`, streaming at `+0x132`. Native registration at `0x3CE2BE` binds
 current and previous values (`+0x25E`), serializable user command, reload
 reason 2. `render_cc_bool::execute` at `0x3CD180` copies current to previous
-before parsing the new value. The menu's pending checkbox does not alter
+before parsing the new value. The menu's pending choice does not alter
 render state until its native Apply (`0x261820`). Cancel (`0x261880`) restores
 the option's saved baseline. Existing renderer option processing owns reload.
 
@@ -3476,8 +3476,17 @@ constructor ABI at `0x260E90`. Native allocation, callbacks, destructor,
 Apply/Cancel and console persistence are retained. The label array count
 (`0x2007B6`), emission count (`0x200B10`) and newly initialized twentieth
 buffer at `ESI + 19*0x4C` in `fill_settings_data` use
-`st_distance_detail_option`. Flash maps option 19 to a script-created checkbox;
-the content manifest adds its translations. Existing option ids stay fixed.
+`st_distance_detail_option`. Flash maps option 19 to the same arrow picker as
+the quality rows. Its localized label carries `title|normal|maximum`; the
+content manifest supplies all six translations. Settings converts the native
+boolean at its incoming single/bulk value and outgoing setter boundaries:
+Normal index 0 is native 1; Maximum index 1 is native 0. Pending UI values
+stay in picker order, including Apply/Cancel and tab revisits. Existing option
+ids stay fixed. The Graphics preset change handler stages option 19 through
+its existing setter (Ultra -> Maximum, other named presets -> Normal). A
+manual mismatch selects Custom through option 8's existing setter. Both
+controls use normal Settings change tracking and native Apply/Cancel, with
+no second saved preset state.
 
 When streaming is off, the renderer hooks select maximum detail:
 
