@@ -79,8 +79,13 @@ The world saves the record, so a bot's own bar can be taken from it.
 
 ## Not read
 
-Nothing of this section is left unread; the ten indices 9, 10, 25, 37, 40, 42, 43, 45, 47 and 64 have no reader in
-the exe.
+Nothing of this section is left unread. The ten indices 9, 10, 25, 37, 40, 42, 43, 45, 47 and 64 have no reader in
+the stock exe; in the shipped client srp's patches read eight of them: 9 and 10 the regeneration's limit and delay
+(`client-patches/rust/patches/src/vostok/medical.rs` `regenerate`, through the getter), 25 and 64 the carry rule of a
+picked weapon (`vostok/pickup.rs`), 40 the artefact tree's packed ranks (`artefact_skills.rs`; the server also writes
+the Keeper's draw into it), 42 the stagger under a Spring's active (`artefacts_026g.asm`, through the getter), 43 and
+45 the medical tree's packed ranks (`medical_skills.rs` `Skills::parse`). 37 and 47 have no reader found (no getter
+call, no direct read at the 144 sites that index a kit's block, nothing in the patches' sources).
 
 ## The kit's modifier indices
 
@@ -103,7 +108,7 @@ nearest name at or under it (checked: 97 of 101 sites lie in that function; 0x30
 | 10 | `engineer_success_chance_modifier` | no direct getter call found | 0 | - |
 | 11 | `device_damage_modifier` | a trap's / grenade's damage (booby_trap hit_victim, grenade splash_parameters) | 5 | 0x304b1b booby_trap_core::hit_victim |
 | 12 | `splash_radius_modifier` | a trap's / grenade's splash radius | 4 | 0x305657 booby_trap_core::splash_hit_params |
-| 13 | `reload_speed_modifier` | the reload clips' speed (reload states, 4 functions): time / max(0, 1 + S13), LIKELY the form | 4 | 0x30e25a weapon_core_reload_state::get_weapon_lexeme |
+| 13 | `reload_speed_modifier` | the reload clips' speed (reload states, 4 functions): the clip's time scale is (clip length / `reload_time`, the state's +138h, set at 0x30E052) x max(0, 1 + S13), k 1 (0x30E1F6); the reload ends at the clip's end, so its time is `reload_time` / max(0, 1 + S13) | 4 | 0x30e25a weapon_core_reload_state::get_weapon_lexeme |
 | 14 | `artefact_slots_modifier` | artefact slots (setup_from_profile 0x2FD20F; additive) | 3 | 0x236151 game_world_ui::initialize_match |
 | 15 | `pocket_slots_modifier` | pocket slots (UI 0x2360B0; apply_kit_parameter) | 2 | 0x2360b0 game_world_ui::initialize_match |
 | 16 | `ammo_bags_modifier` | ammo bags (the lobby only: `apply_kit_parameter` with 16 at 0x222A5F, 0x288E3D) | 1 | 0x2f768d player_profile::apply_kit_parameter |
@@ -112,7 +117,7 @@ nearest name at or under it (checked: 97 of 101 sites lie in that function; 0x30
 | 19 | `stamina_spending_speed_modifier` | the sprint's and the jump's stamina cost (sprint 0x329A92, the jump 0x32972F, its gate 0x2D643C) | 3 | 0x2d643c player_stamina::can_afford_jump |
 | 20 | `movement_speed_when_aiming_modifier` | the movement factor while aiming: min(F(4), F(4 and 20)) (movement_speed 0x2DBC1D) | 1 | 0x2dbc1d base_player::movement_speed |
 | 21 | `chamber_a_round_modifier` | the chamber clip's speed (weapon_core_chamber_a_round_state 0x30E58D), as 13 | 1 | 0x30e58d weapon_core_chamber_a_round_state::get_weapon_lexeme |
-| 22 | `change_weapon_speed_modifier` | the weapon's HOLSTER clip's speed (weapon_core_hide_state_base 0x30DF7B): hide_time / max(0, 1 + S22); so also a battery's take | 1 | 0x30df7b weapon_core_hide_state_base::get_weapon_lexeme |
+| 22 | `change_weapon_speed_modifier` | the weapon's DRAW and HOLSTER clips' speed: the show and the hide states share the reader (their vtables 0xA14BEC and 0xA14CC8 hold 0x30D9C0 at +20h, which calls 0x30DF10; B the state's +150h, k 1 at 0x30DF16, index 22 at 0x30DF7B): show_time and hide_time / max(0, 1 + S22); so also a battery's take | 1 | 0x30df7b weapon_core_hide_state_base::get_weapon_lexeme |
 | 23 | `breath_holding_time_modifier` | the breath hold's reserve (the holding state's finalize 0x31D1C8, restart_on_aim 0x31D9C9) | 2 | 0x31d1c8 breath_state_holding::finalize |
 | 24 | `dispersion_movement_influence_modifier` | the character dispersion of a moving state (apply_modifiers 0x331715, with 56) | 1 | 0x331715 dispersion_calculator::get_character_state_dispersion |
 | 25 | `use_two_double_handed_weapons_modifier` | no direct getter call found | 0 | - |

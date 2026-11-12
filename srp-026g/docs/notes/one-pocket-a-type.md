@@ -116,8 +116,13 @@ double-handed one without Terminator).
     (`process_default_relocate_item` 0x289B04: `min(units, pocket size)`, `fills_whole_pocket` 1)
     knows no `pocket_units` and asks to keep 2 RGD-5s in a pocket of 2 or 3;
   - a lobby whose skills changed may still count what they opened.
-- **Confidence:** `KitLayout` is LIKELY (how the exe sums the modifiers was not read); it is the
-  count the new-account grant (`new_account.rs` checks every preset against it) and the bots'
+- **Confidence:** the exe's sum (`apply_kit_parameter` 0x2F7660 / 0x2F7470) is B + the kit's float +
+  the worn gear's and pockets' own parameter and their modifications' `lobby_info` values (row loader
+  0x2C9E10; slots 0..6 and 13..18); on revision 56 `KitLayout` (type-1 modifiers over every kit item)
+  equals it: own parameters are 0 in every item, `lobby_info` equals the type-1 sum in 182 of 182 rows,
+  no weapon or ammunition carries one (DERIVED). It differs only below 0: the exe keeps the low byte of
+  the truncation (no clamp: -1 is 255), `KitLayout` gives 0. `KitLayout` is the count the new-account
+  grant (`new_account.rs` checks every preset against it) and the bots'
   kits are built with. A kit the server holds to a smaller layout than the exe's would show fewer
   units than the lobby allows, never more.
 - **Match:** the crate refills a pocket to the kit's count (`resupply_from_profile` 0x2FDC10, the
@@ -168,8 +173,8 @@ is bought); the slider may still lower a pocket.
     not raised past the stack together (`Account::shared_stack_over`; a match hands out each
     slot's count);
   - the server takes no ammunition off when bags are taken away: it did not before either.
-  - Confidence: the bag count is LIKELY, as the pockets' (the same sum, how the exe adds the
-    modifiers not read). A count above the exe's would fill more rounds than the ammo window
+  - Confidence: the bag count is the same sum (index 16, 0x288E4B; B = `player/ammo_bags_count`,
+    0x22112B; the row's `lobby_info/ammo_bags` +1Ch): DERIVED as the pockets'. A count above the exe's would fill more rounds than the ammo window
     shows room for.
 - **A drop on the character** (the inventory's item dragged out of its window, `DragRegion`): a
   pocket item goes as a double click sends it, into its own pocket, else the next free one,

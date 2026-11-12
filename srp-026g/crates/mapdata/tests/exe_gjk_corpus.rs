@@ -15,6 +15,7 @@
 //! `m_catchDegeneracies` (+1BCh), and after the call `m_lastUsedMethod`, `m_curIter`, `m_degenerateSimplex`
 //! (+1C0h), `m_cachedSeparatingAxis` (+1D8h), `m_cachedSeparatingDistance` (+1E8h), and whether it has a penetration
 //! solver (+1ECh).
+use mapdata::controller::exe_epa;
 use mapdata::controller::exe_gjk::{
     Axis, CastShape, ClosestPointInput, Detector, Margins, Outcome, Penetration, Transform, Triangle, WorldShape, get_closest_points,
 };
@@ -79,29 +80,60 @@ fn every_recorded_call_gives_the_exes_bits() {
             maximum_distance_squared: f32_at(r, 0x160),
         };
         let answer = get_closest_points(&detector, &shape, &other, &input);
-        // The exe went on to its penetration solver: the port must stop there too, and nowhere else.
-        if r[0x1B9] != 0 {
-            assert!(matches!(answer.outcome, Outcome::NeedsPenetration(_)), "record {index}: {:?}", answer.outcome);
-            penetration += 1;
-            continue;
-        }
-        compared += 1;
-        match answer.outcome {
+        let state = answer.state;
+        // The detector's own answer, or, where it goes on to the penetration solver (as the exe did: +1B9h), that
+        // solver's ([`exe_epa::detector_tail`]) with what it leaves in the detector.
+        let (contact, method, axis, cached) = match answer.outcome {
             Outcome::Contact { normal_on_b, point_on_b, distance } => {
+                assert_eq!(r[0x1B9], 0, "record {index}: the exe went to its penetration solver");
+                (Some((normal_on_b, point_on_b, distance)), state.last_used_method.code(), state.cached_separating_axis, state.cached_separating_distance)
+            }
+            Outcome::NoContact => {
+                assert_eq!(r[0x1B9], 0, "record {index}: the exe went to its penetration solver");
+                (None, state.last_used_method.code(), state.cached_separating_axis, state.cached_separating_distance)
+            }
+            Outcome::NeedsPenetration(start) => {
+                assert_ne!(r[0x1B9], 0, "record {index}: the exe made no penetration call");
+                penetration += 1;
+                // Each shape's own `getMargin` (a sphere's is its radius times its scaling).
+                let own = |at: usize| if u32_at(r, at + 4) == 8 { f32_at(r, at + 0x20) * f32_at(r, at + 0x10) } else { f32_at(r, at + 0x30) };
+                let tail = exe_epa::detector_tail(
+                    exe_epa::Convex { shape: &shape, margin: own(0) },
+                    &start.local_a,
+                    exe_epa::Convex { shape: &exe_epa::B(&other), margin: own(0x60) },
+                    &start.local_b,
+                    start.gjk,
+                    start.margin_sum,
+                    match detector.margins {
+                        Margins::Applied { b, .. } => b,
+                        Margins::Ignored => 0.0,
+                    },
+                    start.position_offset,
+                    input.maximum_distance_squared,
+                );
+                (
+                    tail.contact,
+                    tail.method.map_or(state.last_used_method.code(), |m| m as i32),
+                    tail.cached_axis,
+                    tail.cached_distance.unwrap_or(state.cached_separating_distance),
+                )
+            }
+        };
+        compared += 1;
+        match contact {
+            Some((normal_on_b, point_on_b, distance)) => {
                 assert_eq!(r[0x1A4], 1, "record {index}: the exe reported no contact");
                 assert_eq!(bits(normal_on_b), bits(vec3_at(r, 0x180)), "record {index}: the normal");
                 assert_eq!(bits(point_on_b), bits(vec3_at(r, 0x190)), "record {index}: the point");
                 assert_eq!(distance.to_bits(), u32_at(r, 0x1A0), "record {index}: the distance");
             }
-            Outcome::NoContact => assert_eq!(r[0x1A4], 0, "record {index}: the exe reported a contact"),
-            Outcome::NeedsPenetration(_) => panic!("record {index}: the exe made no penetration call"),
+            None => assert_eq!(r[0x1A4], 0, "record {index}: the exe reported a contact"),
         }
-        let state = answer.state;
-        assert_eq!(state.last_used_method.code(), u32_at(r, 0x1C0) as i32, "record {index}: m_lastUsedMethod");
+        assert_eq!(method, u32_at(r, 0x1C0) as i32, "record {index}: m_lastUsedMethod");
         assert_eq!(state.cur_iter, u32_at(r, 0x1C4), "record {index}: m_curIter");
         assert_eq!(state.degenerate_simplex.code(), u32_at(r, 0x1C8) as i32, "record {index}: m_degenerateSimplex");
-        assert_eq!(bits(state.cached_separating_axis), bits(vec3_at(r, 0x1D8)), "record {index}: m_cachedSeparatingAxis");
-        assert_eq!(state.cached_separating_distance.to_bits(), u32_at(r, 0x1E8), "record {index}: m_cachedSeparatingDistance");
+        assert_eq!(bits(axis), bits(vec3_at(r, 0x1D8)), "record {index}: m_cachedSeparatingAxis");
+        assert_eq!(cached.to_bits(), u32_at(r, 0x1E8), "record {index}: m_cachedSeparatingDistance");
     }
-    eprintln!("{compared} recorded calls give the exe's bits; {penetration} go on to the penetration solver in both");
+    eprintln!("{compared} recorded calls give the exe's bits; {penetration} of them through the penetration solver");
 }

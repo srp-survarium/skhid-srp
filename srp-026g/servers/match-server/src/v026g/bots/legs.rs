@@ -38,6 +38,33 @@ pub enum LegGate {
 /// The keys a moving state needs: the moves, the sprint, the jump.
 const MOVES: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT;
 
+/// [F12] A leg wound's end as the client's tick keeps it: the later of its saved end and its leg's last damaging hit + the
+/// body's regeneration delay `delay_ms` (0x32A551; [`regeneration_delay_ms`]); a delay of 0 holds nothing past the end. A
+/// FORECAST between worlds: the world itself lists a wound for as long as the client holds it ([`end_listed`]).
+pub fn end_held(wound: survarium::v026g::match_msgs::motion::LegWound, delay_ms: u32) -> u32 {
+    match wound.last_hit {
+        Some(hit) if delay_ms > 0 => wound.end.max(hit.saturating_add(delay_ms)),
+        _ => wound.end,
+    }
+}
+
+/// [F12] The end of a wound a world of `now` LISTS: every world lists a wound while the client holds it (the expiry 0x32A600
+/// takes it off the part's list), so a listed wound is on at the world's time whatever its saved end (exactness: 21 bot leg
+/// wounds were listed past their saved end). Its forecast end ([`end_held`]) while that is still ahead; past it, on until a
+/// world no longer lists it (`u32::MAX`: the next world's word replaces it).
+pub fn end_listed(wound: survarium::v026g::match_msgs::motion::LegWound, delay_ms: u32, now: u32) -> u32 {
+    let held = end_held(wound, delay_ms);
+    if held > now { held } else { u32::MAX }
+}
+
+/// [F12] A leg's regeneration delay for a body whose Metabolism starts it `sooner_ms` sooner (500 ms a rank:
+/// `stock::DrugFactors::regeneration_sooner_ms`): the game data's leg `regeneration_timeout` less it, not under 0 (PROVEN,
+/// exactness 18:23Z; the Regeneration booster's 2 s is not taken: the server does not see a booster under way).
+pub fn regeneration_delay_ms(sooner_ms: u32) -> u32 {
+    let timeout_s = survarium::v026g::damage::human().part("left_leg").map_or(0.0, |part| part.regeneration_timeout);
+    ((timeout_s * 1000.0).round() as u32).saturating_sub(sooner_ms)
+}
+
 impl LegDamage {
     /// From a world at `now`: the parts' `leg_damage` ends (an end at or before `now` is over).
     pub fn of(ends: &[u32], now: u32) -> Self {
@@ -74,6 +101,26 @@ impl LegGate {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [F12] A wound is held the leg's regeneration delay past its last damaging hit: 8 s less 500 ms a Metabolism rank (a
+    /// bot's 5 ranks: 5.5 s), the saved end if later; none past the end with no hit or a delay of 0.
+    #[test]
+    fn a_wound_is_held_the_legs_regeneration_delay_past_its_last_hit() {
+        use survarium::v026g::match_msgs::motion::LegWound;
+        assert_eq!(regeneration_delay_ms(0), 8_000);
+        assert_eq!(regeneration_delay_ms(2_500), 5_500);
+        assert_eq!(regeneration_delay_ms(9_000), 0);
+        let wound = LegWound { end: 110_000, last_hit: Some(105_000) };
+        assert_eq!(end_held(wound, 5_500), 110_500);
+        assert_eq!(end_held(wound, 8_000), 113_000);
+        assert_eq!(end_held(LegWound { last_hit: Some(100_000), ..wound }, 5_500), 110_000, "the saved end is later");
+        assert_eq!(end_held(LegWound { last_hit: None, ..wound }, 5_500), 110_000);
+        assert_eq!(end_held(wound, 0), 110_000);
+        // A listed wound past its forecast end is on until a world drops it.
+        assert_eq!(end_listed(wound, 5_500, 109_000), 110_500);
+        assert_eq!(end_listed(wound, 5_500, 112_000), u32::MAX);
+        assert_eq!(LegDamage::of(&[end_listed(wound, 5_500, 112_000)], 112_000).at(115_000), LegGate::NoSprintJump);
+    }
 
     #[test]
     fn two_legs_stand_until_the_first_end_then_one_leg_until_the_second() {

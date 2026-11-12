@@ -2963,6 +2963,7 @@ va	name	location	role	basis
 0x002f5da0	vostok::network_core::buffer_writer::w<unsigned short>	stack+16	diagnostic caller function name	observed
 0x002f5da0	vostok::network_core::buffer_writer::w<unsigned short>	stack+20	diagnostic value label	observed
 0x002f73f0	survarium::player_profile::player_profile	ECX	this (4634h bytes)	observed
+0x002f7470	survarium::player_profile::add_item_kit_parameters	entry [ebp+8], [ebp+0Ch], [ebp+10h]	the parameter index, the profile item, the dictionary; result: the entry's params[i] plus its rows' lobby field (map at 0x2F7643)	observed
 0x002f7c10	survarium::inventory_item_descr::inventory_item_descr	ECX	this (B4h bytes)	observed
 0x002f81f0	survarium::usable_object::load	ECX	usable_receiver	inferred
 0x002f81f0	survarium::usable_object::load	stack+4	config	inferred
@@ -5105,6 +5106,7 @@ va	name	location	role	basis
 0x002e3130	survarium::weapon_core::serialize	stack+8	client/context writer; not dereferenced on stowed user==0 path	observed
 0x002e3490	survarium::weapon_core::deserialize	stack+8	client_reader: optional client/context reader forwarded to active controller path; unused for stowed weapon	observed
 0x002e3490	survarium::weapon_core::deserialize	stack+12	deserialization context forwarded to item and active state readers	observed
+0x002e3490	survarium::weapon_core::deserialize	at 0x2E35B1	a weapon with no user (+8 zero) returns at 0x2E37E9; one with a user links its movement node +610h (0x2E37E4, the Bear Arms test as initialize's)	observed
 0x00318400	survarium::player_input::deserialize	ESI	destination player input	observed
 0x00318400	survarium::player_input::deserialize	EAX	reader with cursor at +4	observed
 0x00318400	survarium::player_input::deserialize	ECX	current match time ms	observed
@@ -5301,6 +5303,7 @@ va	name	location	role	basis
 0x002d86e0	survarium::base_player::apply_new_input	entry ESP+8	immutable eight-byte input, angle pair then u32 actions; bits through 28 native	observed
 0x002daa60	survarium::base_player::tick	ECX	live player; copied to EBX, clock written at 0x2DAA7F before held tick	observed
 0x002daa60	survarium::base_player::tick	entry ESP+4	simulation time	observed
+0x002dac00	survarium::base_player::initialize	at 0x2DADC0..0x2DAE44	the weapon in hand at spawn: inventory slot 7 when it holds an item (inventory::action(7, 1) 0x2FCAA0), else slot 10, else none; then +128h := +12Ch, vtable +10h(player), +14h initialize (links the weapon's movement node, 0x2E2C9C), +18h(1)	observed
 0x002d6990	survarium::base_player::base_player	entry ESP+4	destination storage, copied to EBP at 0x2D6995	observed
 0x002daf60	survarium::base_player::serialize	at 0x2DB47E: EBX, EDI	live player and buffer writer at epilogue, after last native field	observed
 0x002db490	survarium::base_player::deserialize	at 0x2DBAB5: EBX, ESI	live player and reader after final native field; before physics post-restore	observed
@@ -5400,6 +5403,7 @@ va	name	location	role	basis
 0x00339630	survarium::bullet_manager::explode	entry ESP+4	the bullet manager (game_world_core +18F58h; +98h its physics world)	observed
 0x00339630	survarium::bullet_manager::explode	entry ESP+8	the blast's centre (float3*: a grenade's transform +30h, a trap's +1D0h)	observed
 0x00339630	survarium::bullet_manager::explode	entry ESP+12	the hit initiator (the thrower's +324h)	observed
+0x00339630	survarium::bullet_manager::explode	hit record	hit +20h = [splash] (a hit_inflictor, slot 0 0x300040: no bullet), the hit's initiator = [[splash]+8], hit +40h = [[splash]+0Ch] (the grenade or trap set), piercing 1.0 (0x339853)	observed
 0x003393f0		EAX	the ray (float3*): from the blast to the point it reaches for, its length the trace's	observed
 0x003393f0		entry ESP+4	the bullet manager (+98h the physics world it traces, +94h the materials)	observed
 0x003393f0		entry ESP+8	the blast's centre (float3*), where the trace starts	observed
@@ -5508,6 +5512,7 @@ va	name	location	role	basis
 0x0032b9f0	survarium::hit_info::hit_info	stack+28	stored at +30h (0x32BA35)	observed
 0x0032b9f0	survarium::hit_info::hit_info	stack+32	stored at +40h (0x32BA47): the weapon whose vtable +64h hit_impl asks for the slow (0x2D9CC8)	observed
 0x002d9b90	survarium::base_player::hit_impl	EBX and ESI at 0x2D9CB1	the victim (EBX) and the hit_info (ESI) once damage_model::hit_body_part (0x2E5080, edi the damage model) returned 1, the hit having taken health; it returns at once (0x2D9CAB, 0x2D9F1A) when it returned 0: no slow, no listeners, no hit report, no death; nor does it get there for a dead or dying victim (+33Ch, +33Dh) or a fully invulnerable one (get_invulnerability 0x2E5550 at 1.0)	observed
+0x002d9b90	survarium::base_player::hit_impl	[EBP+8] at 0x2D9C9E	the hit flag of event 23: 1 iff the hit source's ([hit+20h]) vtable slot 0 gives a bullet whose +54h m_max_damage_dealt is still 0.0 (0x2D9C84..0x2D9C9A); grenades and traps (slot 0 0x300040) and anomalies give 0	observed
 0x00332440	survarium::ammo_data::load	entry ESP+4	+4Ch damage_type (hit_type_enum through survarium::hit_type 0x304370; 0 ranged when the config has no damage_type, 0x332708..0x332725); loaded for a weapon's melee/data at weapon+53Ch (0x2DF3CD: damage_type blunt in every 0.26g weapon) and an ammo item's data at +268h (0x31F7EB: no 0.26g ammo has damage_type, so every bullet is ranged)	observed
 0x0032d960	survarium::bullet::try_pierce	EBX at 0x32D9DD	the bullet: +8h m_initiator (the attacker, its place at +4), +40h its ammo data (+4Ch the hit type), +50h m_ignorable_object (bullet::serialize 0x32C086: its shooter), never hit (cmp esi,[ebx+50h] / je, 0x32D9DD), +60h the time; the hit receiver's vtable +24h is base_player::hit 0x2D9A60 for a player (0x32DA3A)	observed
 0x001b9390	stlp_std::priv::__introsort_loop<vostok::render::environment_probe * *,vostok::render::environment_probe *,int,`vostok::render::stage_visibility::filter_and_sort_env_probes'::`4'::sort_by_size_predicate>	entry ESP+4	first probe pointer slot	observed
