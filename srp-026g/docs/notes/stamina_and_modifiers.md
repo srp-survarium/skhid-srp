@@ -26,8 +26,10 @@ the last spending time, two boost times, and two modifier nodes.
 
 ## The carried weight
 
-The slots' weights x their counts, and the rounds loaded in each weapon (0x2FC6E0). Overburdened is the weight at
-or over 30 + S5 unless S31 (0x329C60): no sprint. Index 32 refuses the sprint outright (0x2DBFC4).
+Summed over the 23 slots (0x2FC6E0): an item's unit weight (+218h) x its count (+260h where its kind stacks, else
+1), and for a weapon its loaded rounds (+5E5h, one more with a round chambered, +5F1h) x its ammo item's unit
+weight. Overburdened is the weight at or over 30 + S5 unless S31 (0x329C60): no sprint. Index 32 refuses the sprint
+outright (0x2DBFC4).
 
 ## The speed factor
 
@@ -47,7 +49,9 @@ moves at 0.9918 x 5 x F (LIKELY the sprint clip's own root speed).
   (0x2D6420), on the ground (0x7EF90); and no crouch state has a jump (`crouch_logic.md`). Of 6,069 lone presses by
   bots with 250 ms before the next world, 1,557 spent nothing: the bar under the cost in the world before 580; of
   the other 977: crouched 311, already in a jump 204, a leg pool empty 166, other 10, none of these seen in the two
-  worlds around the press 339 (the worlds are a second apart).
+  worlds around the press 339 (the worlds are a second apart). At a tick's precision (a replayed match's traced
+  steps): 138 presses, 130 took off (129 of them one-tick presses), 8 did not: in a jump's air 5, falling 1,
+  crouched 1, none of the controller's causes 1 (the bar or a leg, which a trace does not hold).
 - A hit's drain clusters at the weapons' values (15, 20, 30, 35, 50, 60).
 
 ## Against the bots' reckoned bar (`bots/stamina.rs`)

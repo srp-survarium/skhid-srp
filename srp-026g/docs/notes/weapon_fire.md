@@ -3,7 +3,9 @@
 Read in the executable (virtual addresses, image base 0x10000; names in `tools/re-kit/v026g`). PROVEN where an
 address is given, unless said otherwise. Counted on saved worlds of recorded matches read with the repository's own
 parser (`srp-validate`): 25,417 worlds of 50 matches against bots and 13,013 worlds of 37 matches between players;
-the weapon numbers from the rev56 game data. See also `player_bots_weapons.md` (the cone's parameters),
+the weapon numbers from the rev56 game data, which is not the table of every match counted: patch 45 changed
+the `reload_time` of 27 weapons and the sample holds matches from both sides of it (rpm, the recoil, the dispersion
+and the stamina damage do not differ from revision 43 on). See also `player_bots_weapons.md` (the cone's parameters),
 `sprint_state.md`.
 
 ## The weapon's states
@@ -23,6 +25,16 @@ the weapon numbers from the rev56 game data. See also `player_bots_weapons.md` (
   (`reload_or_empty_pred_and_ended` 0x2E3F70).
 - **The magazine fills at the reload clip's end**, not at the key (0x310E40 -> `load_magazine` 0x2E17D0), and the
   recoil is reset there (0x310E52). A jump ends a reload early and nothing is loaded (0x2E4010); so does death.
+- **A reload's length**: the hands' first reload clip is scaled to `reload_time` and its speed x max(0, 1 + the
+  reload speed modifier) (0x30E000, 0x30D750, 0x30E25A): reload_time x 1000 / (1 + the modifier) ms, floored. A
+  pistol's reload from empty and a double barrel's of both shells play the hands' second clip at the first's speed
+  (0x30FE90, 0x30F5A0): `reload_time` x clip 2 / clip 1 of the HANDS' clips (`user_animations`), not the item's. A
+  round-by-round reload's start, round and finish clips are all sped by the modifier (0x3110D5). A bolt's chamber
+  clip lasts `chamber_a_round_time` / (1 + the chamber modifier) (0x30E2B0, 0x30E58D).
+- **The load at a spawn**: slot 7's weapon is in hand, else slot 10's (0x2DADC6); a weapon loads min(carried,
+  capacity) when it is first taken in hand (`load_ammo_on_next_activate` +5F4h, set at 0x2FCBEC, read once at
+  0x2E2B71 -> 0x2E27C0).
+- Idle goes back to fire on FIRE held alone, no new press needed (`fire_pred` 0x2E3CB0).
 - No aiming in a reload (`can_aim` 0x2E3AA0: idle or fire). The aim goes in or out over `aim_time` x max(0, 1 + its
   modifier) from whatever it was (0x2E1B50, 0x2E1BF0); only an aim of exactly 1 counts as aimed.
 - The fire state (0x30E910, 0x30EA00, 0x30EA50, 0x30EBF0): the queue starts at min(the fire mode's count, the
@@ -34,10 +46,15 @@ the weapon numbers from the rev56 game data. See also `player_bots_weapons.md` (
 - The weapon changes state inside a tick, at an animation event's own time: `tick_animations` 0x2D8EE0 walks the
   animation player event by event and runs the selection (and with it `update_logic`) at each event that asks for
   one.
-- The first shot is at the press's tick. A pass of the fire clip is 60 / rpm s by the clip's speed (rpm x
-  0.016666668 at 0x30B336, 0x30E5C0); measured on 106,728 bullets seen in flight, the shots are
-  **ceil(60,000 / rpm) - 1 whole ms apart** (99 at 600 rpm, 92 at 650, 74 at 800, 59 at 1000; LIKELY because the
-  factor is a hair over 1/60 and event times are whole milliseconds).
+- The first shot is at the press's tick. **A pass of the fire clip is floor(1000 x L / S) whole ms in single
+  precision**, L the clip's seconds (frames x 0.033333335) and S = L x (rpm x 0.016666668) its speed (0x30B336,
+  0x30E5C0): an event's time is truncated to a ms (0x3B6C5F), an event at the tick's own time is taken in that tick
+  (0x3A1A2C), and the loop restarts from the event with no remainder (0x3A0734). That is floor(60,000 / rpm) when
+  60,000 / rpm is not whole (92 at 650, 85 at 700); when it is whole, one less (99 at 600, 74 at 800, 59 at 1000)
+  **or the whole value, by the clip's length (80 at 750, 250 at 240, 500 at 120, one rifle's 96 at 625)**. So the
+  rate is 60,000 / pass a minute (606 at 600 rpm), not rpm. Counted on the bullets in flight: where this and
+  ceil(60,000 / rpm) - 1 differ, 440 gaps are on this value and 156 on the other; a fifth of all passes (4,020 of
+  20,280) are 1 to 3 ms off it, on both sides, the rhythm staying shifted (not explained: below).
 - At each clip end (`on_animation_end` 0x30EA50) the FIRE in force decides: held, a shot and another pass; up, the
   state ends. **A pass under way when FIRE is let go still fires** if its end comes at or before the release's
   tick. FIRE pressed again before the next clip end goes on in the old rhythm; after it, a new run starts at the
@@ -89,7 +106,11 @@ last tick was all PID; a body's kicks over the draws from its saved seed are one
   of the kicks misses the shot of the pass that ends after the last held tick (one kick short in 10,212 windows,
   two in 3,319). One-round weapons and bolt actions agree with the client's rule and the bots' alike.
 - **The reload**: the bots count the rounds in at the key and reset the recoil there; the client at the clip's end.
-  Of 10,932 timed reloads the client's refill held the bots' time within 50 ms in 7,503.
+  Of 2,104 reloads pressed with rounds left (weapons whose time no patch changed) none refilled sooner than
+  `reload_time` / 1.12 and 1,988 held `reload_time` itself (the bots' reload speed is 0, or 0.12 with the ammo
+  pouch's skill). The bots take a pistol's empty-reload share from the item's clips: for two pistols they differ from
+  the hands' (1,621 and 1,447 ms against the client's 2,692 and 2,403). (An earlier count here, 7,503 of 10,932
+  within 50 ms, laid one table's times on matches of two tables.)
 - **The recoil's draws**: the bots take the middle of each range; the client draws from the saved seed.
 - **The cone**: the bots take no bloom, the character part settled, no skill, low-stamina or broken-hands term; the
   pellet cone lacks the weapon's base as a factor (bases 0.8 to 2.0).
@@ -98,9 +119,10 @@ last tick was all PID; a body's kicks over the draws from its saved seed are one
 
 ## Not read
 
-The animation player's event list and how a clip loops (the pass length above is measured); the order of the inputs
-and the player's tick in the world's loop (measured); who seeds the weapon's own generator (only its constructor and
-`deserialize` write it); the names of the low-stamina and broken-hands
-terms; where the reload-speed modifier enters; the pistol's and the double barrel's reload clips; the shake axis's
-reader. A weapon tick that is not 50 ms comes with an input at a time off the 50 ms grid inside the step (1,466 of
-1,472 such worlds).
+Why a fifth of the passes are 1 to 3 ms off (the clip's own clock is not in a world: a traced run at the
+next-event routine 0x3B42F0 settles it); the order of the inputs and the player's tick in the world's loop
+(measured); who seeds the weapon's own generator (only its constructor and `deserialize` write it); the names of the
+low-stamina and broken-hands terms; whether the recoil's shake clip (its weight is the shake axis, read only at
+0x2E39B0, for any living body) and the side kick's clip (`recoil_horiz`, index 1, 0x2E12B6) turn the eye bone, and to
+which side: both are in the clips' data. A weapon tick that is not 50 ms comes with an input at a time off the 50 ms
+grid inside the step (1,466 of 1,472 such worlds).
