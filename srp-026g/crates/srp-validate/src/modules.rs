@@ -5,7 +5,8 @@
 //! After the first world of a match connection loads, and when the match
 //! closes, the client tells these kinds of entry (and in between, at a
 //! minute whose look at the windows over the game saw otherwise than the
-//! report before, only its [`Over`] or [`Unseen`] entries, [`Moment::Minute`]):
+//! report before, only its [`Over`], [`Unseen`] and [`Exe`] entries,
+//! [`Moment::Minute`]):
 //! - a [`Module`]: a DLL (or the exe) in the loader's list, outside the
 //!   Windows folder: its file name, where its folder is ([`Place`]: a
 //!   user's name in the path is left out, so no Windows user name leaves
@@ -20,7 +21,9 @@
 //! - an [`Over`]: a window of another process that is always on top, above
 //!   the game's window and over some of it (an overlay), by its exe's file
 //!   name and folder ([`Home`]), its class, its extended styles and how
-//!   much of the game it is over; or [`Unseen`], why that could not be told.
+//!   much of the game it is over; or [`Unseen`], why that could not be told;
+//! - an [`Exe`]: the file of such a window's exe, by its size and SHA-256
+//!   once the game has read it through ([`File`]). The file stays on the PC.
 //!
 //! An overlay (Discord, Steam, RTSS, OBS) puts DLLs into the game and a
 //! window over it: the entries are read against every other game's.
@@ -37,11 +40,15 @@
 //!   kind 3 over:   name[32]  class[32] (zeros: none)  u32 style  u16 width  u16 height
 //!                  u8 home (0 unknown, 1 the Windows folder, 2 a place)  place (with 2)
 //!   kind 4 unseen: u8 why
+//!   kind 5 exe:    name[32]  u8 file (0 not read, 1 too big, 2 hashed)
+//!                  u32 size  sha256[32] (with 2)  place
 //!   place: u8 folder  u8 len  dir[len] (UTF-8, at most 64 bytes)
 //!   at: seconds since the game started
 //!   pe: u8 has  u32 stamp  u32 checksum (all zero without)
 //!   moment: 0 loaded, 1 ended, from 2 a minute (the minute + 1)
 //! ```
+
+use crate::executable::Identity;
 
 /// When in a match a module report was made: as every report's
 /// ([`crate::report::Moment`]), or a minute's look at the windows.
@@ -713,6 +720,31 @@ impl Rect {
     }
 }
 
+/// The file of an exe whose window was over the game's ([`Over`], one
+/// outside the Windows folder), told once the game has read it through.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Exe {
+    pub name: Name,
+    pub place: Place,
+    pub file: File,
+}
+
+/// What reading an [`Exe`]'s file gave.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum File {
+    /// Its size and its SHA-256.
+    Hashed(Identity),
+    /// Larger than [`crate::executable::MAX_FILE`]: not read to its end.
+    TooBig,
+    /// It could not be opened or read, or is empty.
+    Unread,
+}
+
+impl File {
+    /// A hash's bytes as told: the file's size and its SHA-256.
+    const HASH: usize = 4 + 32;
+}
+
 /// Why nothing is told of the windows over the game's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Unseen {
@@ -742,6 +774,7 @@ pub enum Entry {
     Load(Load),
     Over(Over),
     Unseen(Unseen),
+    Exe(Exe),
 }
 
 fn folder_byte(folder: Folder) -> u8 {
@@ -777,6 +810,10 @@ impl Entry {
             Entry::Code(_) => (2 + 8 + 5 + PE, None),
             Entry::Load(load) => (NAME + 4 + 4 + 1 + PE, Some(load.place)),
             Entry::Unseen(_) => (1, None),
+            Entry::Exe(exe) => match exe.file {
+                File::Hashed(_) => (NAME + 1 + File::HASH, Some(exe.place)),
+                File::TooBig | File::Unread => (NAME + 1, Some(exe.place)),
+            },
             Entry::Over(over) => (
                 NAME + NAME + 4 + 4 + 1,
                 match over.home {
@@ -848,6 +885,21 @@ impl Entry {
             Entry::Unseen(unseen) => {
                 *kind = 4;
                 body.copy_from_slice(&[Unseen::ALL.iter().position(|why| why == unseen).unwrap_or_default() as u8]);
+            }
+            Entry::Exe(exe) => {
+                *kind = 5;
+                take(body, NAME).copy_from_slice(&exe.name.bytes);
+                let file = take(body, 1);
+                match exe.file {
+                    File::Unread => {}
+                    File::TooBig => file.copy_from_slice(&[1]),
+                    File::Hashed(identity) => {
+                        file.copy_from_slice(&[2]);
+                        put_words(take(body, 4), &[identity.size()]);
+                        take(body, 32).copy_from_slice(&identity.sha256);
+                    }
+                }
+                exe.place.put(body);
             }
         }
     }
@@ -942,6 +994,22 @@ impl Entry {
             4 => {
                 let (&why, rest) = body.split_first()?;
                 Some((Entry::Unseen(*Unseen::ALL.get(usize::from(why))?), rest))
+            }
+            5 => {
+                let (name, rest) = body.split_at_checked(NAME)?;
+                let (&file, rest) = rest.split_first()?;
+                let (file, rest) = match file {
+                    0 => (File::Unread, rest),
+                    1 => (File::TooBig, rest),
+                    2 => {
+                        let (size, rest) = rest.split_at_checked(4)?;
+                        let (sha256, rest) = rest.split_first_chunk::<32>()?;
+                        (File::Hashed(Identity::new(word(size)?, *sha256)?), rest)
+                    }
+                    _ => return None,
+                };
+                let (place, rest) = Place::parse(rest)?;
+                Some((Entry::Exe(Exe { name: Name::parse(name)?, place, file }), rest))
             }
             _ => None,
         }
@@ -1225,10 +1293,14 @@ mod tests {
         let name = Name::of_path(&wide(&std::format!("w{n}.dll"))).unwrap();
         let pe = n.is_multiple_of(2).then_some(PeMarks { stamp: n, checksum: 7 });
         let place = deep(Folder::Other, n as usize * 3 % (DIR + 1));
-        match n % 3 {
+        match n % 4 {
             0 => Entry::Load(Load { name, place, image_size: 0x9000, pe, at: n, listed: n.is_multiple_of(10) }),
             1 => Entry::Over(Over { name: (n % 2 == 1).then_some(name), class: (n % 4 < 2).then_some(name), style: n, width: n as u16, height: 9, home: [Home::Unknown, Home::Windows, Home::At(place)][n as usize / 3 % 3] }),
-            _ => Entry::Unseen(Unseen::ALL[n as usize % 2]),
+            2 => Entry::Unseen(Unseen::ALL[n as usize % 2]),
+            _ => {
+                let hashed = File::Hashed(Identity::new(n, [n as u8; 32]).unwrap());
+                Entry::Exe(Exe { name, place, file: [hashed, File::TooBig, File::Unread][n as usize / 4 % 3] })
+            }
         }
     }
 
@@ -1244,11 +1316,12 @@ mod tests {
             heard.extend_from_slice(carried(&report, part).1.unwrap().entries());
         }
         assert_eq!(heard, all);
-        // the first part's entries: a load (no folder text), a window, an unseen
+        // the first part's entries: a load (no folder text), a window, an unseen, a hashed exe
         let (bytes, _) = carried(&report, 0);
         let load = FIRST;
         let over = load + 1 + NAME + 9 + PE + 2;
         let unseen = over + 1 + NAME + NAME + 8 + 1;
+        let exe = unseen + 2;
         let bad = |at: usize, value: u8| {
             let mut bytes = bytes.clone();
             bytes[at] = value;
@@ -1257,11 +1330,16 @@ mod tests {
         assert_eq!(bad(load + 1 + NAME + 8, 2), None, "a load's listed flag");
         assert_eq!(bad(load + 1 + NAME + 9 + PE, 3), None, "a load's folder");
         assert_eq!(bad(load + 1 + NAME + 9 + PE + 1, 1), None, "a folder's text longer than it is");
-        assert_eq!((bytes[over], bytes[unseen]), (3, 4));
+        assert_eq!((bytes[over], bytes[unseen], bytes[exe]), (3, 4, 5));
         assert_eq!(bad(over + 2, 1), None, "a window's exe name after its end");
         assert_eq!(bad(over + 1 + NAME + 2, 1), None, "a window's class after its end");
         assert_eq!(bad(over + 1 + NAME + NAME + 8, 3), None, "where a window's exe is");
         assert_eq!(bad(unseen + 1, 2), None, "why nothing is told");
+        let file = exe + 1 + NAME;
+        assert_eq!(bad(file, 3), None, "what reading an exe's file gave");
+        assert_eq!(bad(file, 1), None, "a hash after a file too big");
+        assert_eq!(bad(file + 1, 0), None, "an empty file's hash");
+        assert_eq!(bad(file + 4, 2), None, "a hash of more than is read");
     }
 
     #[test]
