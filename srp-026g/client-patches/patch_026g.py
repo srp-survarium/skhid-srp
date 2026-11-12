@@ -636,7 +636,7 @@ Patches:
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md). The
   Rust patch bake_cache (the arena's blocks patches.code, .data and
-  .state; seven lohooks): game::game deletes user_data/streamed_textures
+  .state; eight lohooks): game::game deletes user_data/streamed_textures
   only when its stamp file names another bake format or other game data
   (a fingerprint of the patches' files a bake reads) (0x1E944E), and puts its
   whole DDS files back into the baker's list (CRC 0, the first load's taken
@@ -644,8 +644,9 @@ Patches:
   look-up (0x12D4C5) lets a query whose path is under way wait, and the
   texture made (0x12F194 a bake, 0x12DDB9 a load) is given to it; an owner
   that ends otherwise has its waiting queries made again (finish_query,
-  0xF0D00); the CRC-32 step (0x42050) goes 64 bytes a step (PCLMULQDQ)
-  or eight bytes a step. Textures
+  0xF0D00); the folder holds 3 GiB, the list 4096 records, the oldest let
+  go first (remove_unwanted_files whole, 0x131F90); the CRC-32 step
+  (0x42050) goes 64 bytes a step (PCLMULQDQ) or eight bytes a step. Textures
   only;
 - a weapon's upgrades in at most three upgrade records, the weapon kit
   (patch 68, with the late join; docs/notes/weapon-kit.md): the Rust patch
@@ -2536,7 +2537,8 @@ KILL_FEED_ARGUMENT = (0x23B6F0, bytes.fromhex("0fb65704"), bytes.fromhex("0fb757
 # rust/patches/src/bake_cache.toml, sites_026g.tsv bake.* and crc32.step:
 # game::game before its delete 0x1E944E, check_loaded's CRC compare
 # 0x131C90, translate_query before its look-up 0x12D4C5, the textures made
-# 0x12F194 and 0x12DDB9, finish_query 0xF0D00, the CRC-32 step 0x42050), and
+# 0x12F194 and 0x12DDB9, finish_query 0xF0D00, remove_unwanted_files 0x131F90,
+# the CRC-32 step 0x42050), and
 # game::exit's delete (0x1EC832) nops (BAKE_CACHE_KEEP).
 BAKE_CACHE_KEEP = (0x1EC832, bytes.fromhex("e869c5ffff"), bytes.fromhex("0f1f440000"))   # game::exit's delete
 

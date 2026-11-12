@@ -2308,6 +2308,48 @@ bake_cache_on_finish_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
     jmp 0xf0d06
 
+; 0x131f90 remove_unwanted_files' start (sub esp,5B0h; stdcall, [esp+4] the cook), after each bake's push_back (0x12F405), the function's one caller; returned is its `ret 4` (0x132639), reached here with the entry's ESP: lohook -> bake_cache_on_trim
+global bake_cache_on_trim
+extern hook_bake_cache_on_trim
+bake_cache_on_trim:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_bake_cache_on_trim
+    mov edx, bake_cache_on_trim_replay
+    cmp eax, 0
+    je bake_cache_on_trim_go
+    mov edx, 0x131f96
+    cmp eax, 1
+    je bake_cache_on_trim_go
+    mov edx, 0x132639
+    cmp eax, 2
+    je bake_cache_on_trim_go
+    ud2
+bake_cache_on_trim_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+bake_cache_on_trim_replay:
+    db 0x81, 0xec, 0xb0, 0x05, 0x00, 0x00
+    jmp 0x131f96
+
 ; 0x42050 the CRC-32 step's start (mov ecx,[esp+4] / push edi; EAX &the CRC, EDX the bytes, [esp+4] the count); done its own ret 4 (it leaves ECX the new CRC, EDX past the bytes): lohook -> bake_cache_on_crc_step
 global bake_cache_on_crc_step
 extern hook_bake_cache_on_crc_step

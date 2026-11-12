@@ -15,8 +15,8 @@
 //!   materials, textures, shaders or camouflage and decal items), so across
 //!   releases until one of them changes; its files of a whole DDS go back
 //!   into the list (CRC 0: the first load takes the CRC of what it reads,
-//!   `on_check_crc`), at most SEED_FILES and SEED_BYTES of them, the rest
-//!   deleted. Another format, other game data, or no stamp: the stock
+//!   `on_check_crc`), at most SEED_BYTES of them and what the list has room
+//!   for less SEED_ROOM, the rest deleted. Another format, other game data, or no stamp: the stock
 //!   delete, then the stamp (game::exit's delete is a byte write:
 //!   patch_026g.py BAKE_CACHE_KEEP);
 //! - a texture whose bake or load is under way (its owner, the first query
@@ -30,7 +30,13 @@
 //! - the CRC-32 step, which a bake and a load run over the whole file (and
 //!   the texture streamer over each archive mip it checks): folded 64 bytes
 //!   a step with carry-less multiplies, or eight bytes a step through tables
-//!   (`vostok::crc32::update`, the same value).
+//!   (`vostok::crc32::update`, the same value);
+//! - the list is LIST_RECORDS records of our own, not the baker's 1024
+//!   (`List::move_to` at the game's start), and remove_unwanted_files, which
+//!   keeps the folder's bytes down after each bake, is `on_trim`: the oldest
+//!   records and their files go while the folder holds more than
+//!   FOLDER_BYTES (stock: 1 GiB, about one 20-player match's bakes) or the
+//!   list has no room for the next bake's record.
 //!
 //! Textures only: nothing a match computes. The look-up, the textures made
 //! and finish_query run on the resource threads too: the tables are behind
@@ -43,14 +49,14 @@ use inputs::Patch;
 
 use core::sync::atomic::{AtomicU32, Ordering};
 
-use crate::vostok::baker::{CheckCrc, Finish, Folder, List, Lookup, Made, Query, Surface, Texture, TextureKind,
-                           Waiter, RECORD_TEXT};
+use crate::vostok::baker::{CheckCrc, Finish, Folder, Held, List, Lookup, Made, Query, Surface, Texture, TextureKind,
+                           Waiter, RECORD_BYTES, RECORD_TEXT};
 use crate::vostok::crc32::{self as crc_step, CrcCall};
 use crate::vostok::files::{self, File, Find, FindData, Path};
-use crate::vostok::log::{self, Piece::Text};
+use crate::vostok::log::{self, Piece::Dec, Piece::Text};
 use crate::vostok::memory_profile;
 use crate::vostok::{BakeCacheOnCrcStepExit, BakeCacheOnFinishExit, BakeCacheOnGameStartExit, BakeCacheOnLookupExit,
-                    Context, Flow, Lock, NoExit, Thread};
+                    BakeCacheOnTrimExit, Context, Flow, Lock, NoExit, Thread};
 
 const PREFIX: &[u8] = b"user_data/streamed_textures/";
 const STAMP_NAME: &[u8] = b"srp_baked_textures.txt";
@@ -75,13 +81,24 @@ const PATCH_NAME: &[u8] = b"resources.db.patch_";
 /// surface's own `_camo` textures (weapon_camo).
 const BAKE_FORMAT: u32 = 2;
 
-/// Half the list: the game's own bakes have the rest.
-const SEED_FILES: u32 = 512;
-/// What remove_unwanted_files keeps (1 GiB) less 128 MiB for this game's
-/// bakes before it trims. A 20-player match's folder is 0.9-1 GB (~500
-/// files); half of 1 GiB deleted half of it at every start, and that game
-/// baked ~400 textures again (fps-measure r54-warm, 2026-11-09).
-const SEED_BYTES: u32 = 896 << 20;
+/// The records the list has room for, in pages of our own (the baker's own
+/// storage is 1024: at about 2 MB a file, 2 GiB of them).
+const LIST_RECORDS: usize = 4096;
+/// The bytes of baked files the folder holds at most; past them the oldest
+/// go. Stock 1 GiB: a 20-player match's folder is 0.9-1 GB (~500 files), so
+/// a game let go of one match's bakes to keep the next one's (the owner's
+/// game of 2026-11-12: 415 bakes and 295 files let go in 28 minutes). Under
+/// 4 GiB: the baker counts them in 32 bits.
+const FOLDER_BYTES: u32 = 3 << 30;
+/// With less than DISK_LOW free on the folder's drive the folder holds
+/// FOLDER_BYTES_DISK_LOW at most (the game's own rule).
+const DISK_LOW: u64 = 50 << 20;
+const FOLDER_BYTES_DISK_LOW: u32 = 50 << 20;
+/// A kept folder's files back in the list at the start: FOLDER_BYTES less
+/// 128 MiB, and the list's room less SEED_ROOM records, for this game's
+/// bakes before the trim lets any go.
+const SEED_BYTES: u32 = FOLDER_BYTES - (128 << 20);
+const SEED_ROOM: u32 = 512;
 const OWNERS: usize = 64;
 const WAITERS: usize = 192;
 const PER_OWNER: usize = 16;
@@ -315,6 +332,25 @@ fn game_data(thread: &Thread) -> Option<GameData> {
     Some(data)
 }
 
+/// What the folder may hold: FOLDER_BYTES, or FOLDER_BYTES_DISK_LOW when
+/// its drive has less than DISK_LOW free (not known: as if it had room).
+fn folder_limit(disk_free: Option<u64>) -> u32 {
+    match disk_free {
+        Some(free) if free < DISK_LOW => FOLDER_BYTES_DISK_LOW,
+        _ => FOLDER_BYTES,
+    }
+}
+
+/// Whether the list holds too much: its files' bytes past `limit`, or no
+/// room for the next bake's record (the game's push_back writes it without
+/// asking).
+fn over(held: Held, limit: u32) -> bool {
+    held.bytes > limit || held.records >= held.room
+}
+
+/// The trim's lines, one a second.
+static TRIMMED: log::Limited = log::Limited::new("trims");
+
 /// What the start does with the folder.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Keep {
@@ -349,8 +385,9 @@ fn read_stamp(folder_path: Option<&[u8]>) -> Option<Stamp> {
 }
 
 /// A kept folder's textures back into the list: each whole DDS, at most
-/// SEED_FILES and SEED_BYTES of them; the rest deleted.
+/// SEED_BYTES of them and the list's room less SEED_ROOM; the rest deleted.
 fn seed_folder(folder_path: Option<&[u8]>) {
+    let seed_files = List::held().map_or(0, |held| held.room.saturating_sub(SEED_ROOM));
     let (mut at, mut data) = ([0u8; PATH], FindData::new());
     let base = folder(&mut at[..FOLDER], folder_path);
     if base == 0 {
@@ -363,7 +400,7 @@ fn seed_folder(folder_path: Option<&[u8]>) {
         if !data.is_folder() && join(&mut at[base..], data.name(), b"") {
             let file = path(&at);
             let kept = data.size().filter(|&size| {
-                whole(file, size) && files < SEED_FILES && size <= SEED_BYTES.wrapping_sub(bytes)
+                whole(file, size) && files < seed_files && size <= SEED_BYTES.wrapping_sub(bytes)
                     && seed(data.name(), size)
             });
             match kept {
@@ -453,6 +490,10 @@ struct Tables {
     kept_clock: u32,
     /// A waiting query and its owner's index.
     waiters: [Option<(Waiter, u8)>; WAITERS],
+    /// The folder's physical path with its separator, NUL-ended, as the
+    /// game's start had it (the trim's files are under it); empty before
+    /// that, or when it did not fit.
+    folder: [u8; FOLDER],
 }
 
 static TABLES: Lock<Tables> = Lock::new(Tables {
@@ -461,6 +502,7 @@ static TABLES: Lock<Tables> = Lock::new(Tables {
     kept_bytes: 0,
     kept_clock: 0,
     waiters: [const { None }; WAITERS],
+    folder: [0; FOLDER],
 });
 /// The owners in the table: finish_query's quick test, read without the lock.
 static OWNED: AtomicU32 = AtomicU32::new(0);
@@ -647,6 +689,13 @@ fn share(thread: &Thread, made: &Made, how: How) {
 /// the code goes on past the delete's call.
 pub fn on_game_start(ctx: &mut Context<'_>) -> Flow<BakeCacheOnGameStartExit> {
     let Some(folder) = Folder::at(ctx) else { return Flow::Continue };
+    // before the list's first record (a kept file's below, or a bake's)
+    if let Some(room) = memory_profile::reserve::<u8>(ctx.thread(), LIST_RECORDS * RECORD_BYTES) {
+        List::move_to(room.keep());
+    }
+    TABLES.with(ctx.thread(), |t| {
+        self::folder(&mut t.folder, folder.path());
+    });
     let data = game_data(ctx.thread());
     let keep = decide(read_stamp(folder.path()), data.as_ref());
     match keep {
@@ -666,6 +715,44 @@ pub fn on_game_start(ctx: &mut Context<'_>) -> Flow<BakeCacheOnGameStartExit> {
     log::line(&[Text("bake_cache: the baked textures "), Text(what),
                 Text(if inputs.is_some() { made } else { "the game data not found, not stamped" })]);
     Flow::Exit(BakeCacheOnGameStartExit::Kept)
+}
+
+/// `bake.trim`: remove_unwanted_files, whole (after each bake's record is
+/// pushed): while the list holds too much (`over`), its oldest record with
+/// no load under way goes, and its file. The game's own walk let go of
+/// every other record from the oldest on and went on past the list's new
+/// end to its old one, so a trim of more than half the list (a full disk's)
+/// read records no longer there.
+pub fn on_trim(ctx: &mut Context<'_>) -> Flow<BakeCacheOnTrimExit> {
+    let mut at = [0u8; PATH];
+    let base = TABLES.with(ctx.thread(), |t| {
+        let base = text(&t.folder).len();
+        at[..base].copy_from_slice(&t.folder[..base]);
+        base
+    });
+    let limit = folder_limit(files::disk_free(&at[..base]));
+    let mut gone = 0u32;
+    while List::held().is_some_and(|held| over(held, limit)) {
+        // every record loading: nothing to let go
+        let Some(record) = List::oldest() else { break };
+        if base != 0
+            && let Some(name) = record.path().and_then(|path| path.strip_prefix(PREFIX))
+            && join(&mut at[base..], name, b"")
+        {
+            files::delete(path(&at));
+        }
+        record.remove();
+        gone += 1;
+    }
+    if gone != 0
+        && let Some(held) = List::held()
+    {
+        TRIMMED.line(ctx.thread(), &[Text("bake_cache: the oldest baked textures let go: "), Dec(gone),
+                                     Text("; the folder holds "), Dec(held.bytes >> 20), Text(" MB in "),
+                                     Dec(held.records), Text(" files, at most "), Dec(limit >> 20), Text(" MB and "),
+                                     Dec(held.room.saturating_sub(1)), Text(" files")]);
+    }
+    Flow::Exit(BakeCacheOnTrimExit::Returned)
 }
 
 /// `bake.check_crc`: a record of CRC 0 (one the start made of a kept file)
@@ -820,8 +907,33 @@ mod tests {
                                    include_bytes!("../../../weapon_camo_026g.asm"),
                                    include_bytes!("../../../weapon_decals_026g.asm"),
                                    include_bytes!("weapon_camo.rs"), include_bytes!("weapon_camo.toml")];
+    #[test]
+    fn the_folder_holds_three_gib_or_what_a_full_disk_leaves() {
+        assert_eq!(folder_limit(None), FOLDER_BYTES);
+        assert_eq!(folder_limit(Some(DISK_LOW)), FOLDER_BYTES);
+        assert_eq!(folder_limit(Some(u64::MAX)), FOLDER_BYTES);
+        assert_eq!(folder_limit(Some(DISK_LOW - 1)), FOLDER_BYTES_DISK_LOW);
+        assert_eq!(folder_limit(Some(0)), FOLDER_BYTES_DISK_LOW);
+        // a kept folder and one bake's file (5.6 MB at most) more stay in 32 bits
+        assert!(u64::from(FOLDER_BYTES) + (8 << 20) < 1 << 32);
+        assert!(SEED_BYTES < FOLDER_BYTES && (SEED_ROOM as usize) < LIST_RECORDS);
+    }
+
+    #[test]
+    fn the_list_is_trimmed_past_its_bytes_or_with_no_room_left() {
+        let held = |records, bytes| Held { records, room: 4096, bytes };
+        assert!(!over(held(0, 0), FOLDER_BYTES));
+        assert!(!over(held(4095, FOLDER_BYTES), FOLDER_BYTES));
+        assert!(over(held(1, FOLDER_BYTES + 1), FOLDER_BYTES));
+        // the next push_back needs a free record
+        assert!(over(held(4096, 0), FOLDER_BYTES));
+        assert!(over(held(1, 1), 0));
+        // a list with no room at all (never made) is over: the walk ends at its first look
+        assert!(over(Held { records: 0, room: 0, bytes: 0 }, FOLDER_BYTES));
+    }
+
     /// BAKE_CODE's hash (its bytes but '\r') as BAKE_FORMAT was set.
-    const BAKE_CODE_HASH: u64 = 0xc895_cd16_fc9e_db1a;
+    const BAKE_CODE_HASH: u64 = 0x6576_de59_3627_e31c;
 
     #[test]
     fn the_bake_code_is_this_format() {

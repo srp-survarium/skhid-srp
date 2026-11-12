@@ -136,6 +136,10 @@ extern engine_close_handle
 ; the IAT slot 0x87021c (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_delete_file_a
+; unsigned int engine_get_disk_free_space_ex_w(const void *folder, void *free_for_caller, void *total, void *free)
+; the IAT slot 0x870174 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_disk_free_space_ex_w
 ; void *engine_load_library_a(const char *name)
 ; the IAT slot 0x870080 (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments

@@ -1299,6 +1299,26 @@ pub extern "C" fn hook_bake_cache_on_finish(frame: &mut Frame) -> u32 {
 
 // ---- bake_cache (patch 70) ----
 
+/// The named exits of bake_cache::on_trim (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum BakeCacheOnTrimExit { Returned }
+/// The entry `bake_cache_on_trim` (0x131f90, remove_unwanted_files' start (sub esp,5B0h; stdcall, [esp+4] the cook), after each bake's push_back (0x12F405), the function's one caller; returned is its `ret 4` (0x132639), reached here with the entry's ESP) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_cache_on_trim(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_cache_on_trim` calls this, from the game's jump at 0x131f90,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_cache::on_trim(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- bake_cache (patch 70) ----
+
 /// The named exits of bake_cache::on_crc_step (the order the shim's Flow code
 /// follows, 2 upward).
 #[repr(u32)]

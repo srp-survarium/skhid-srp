@@ -3703,9 +3703,31 @@ and `.toml`, over `vostok::baker`, `::files` and `::crc32`; seven lohooks):
   it unless its patch has such a file. The format is 2 since 2026-11-11 (a weapon's bake without the
   camouflage's weave); revision 54's stamp, before formats, was format 1's and is no stamp now. Otherwise each
   whole DDS in it (DXT1 or DXT5, the file as long as
-  its header says) goes back into the baker's list with CRC 0, at most 512 files and 896 MB (512 MB until 2026-11-09: half a 20-player
-  folder was deleted at every start); the
+  its header says) goes back into the baker's list with CRC 0, at most 3 GiB less 128 MiB of them and
+  the list's room less 512 records (512 files and 896 MB until 2026-11-12); the
   rest are deleted. `game::exit`'s delete (0x1EC832) is a 5-byte nop (`BAKE_CACHE_KEEP`).
+- The folder holds 3 GiB, not 1 GiB (2026-11-12; `on_game_start`, and remove_unwanted_files whole in
+  Rust, 0x131F90, `on_trim`, its exit the function's own `ret 4` at 0x132639). 1 GiB is about one
+  20-player match's bakes (0.9-1 GB, ~500 files), so a game let go of one match's files to keep the
+  next one's: the owner's game of 2026-11-12, its folder kept, baked 415 textures and deleted 295
+  files in 28 minutes. Two things stood in the way of a larger number in place of the game's
+  `40000000h` (0x131FF2):
+  - the list is 1024 records inside the baker (+23Ch), about 2 GiB of files of 2 MB, and its
+    push_back (0x132640) writes the 1025th past them, over the list's bytes (+4923Ch). At the
+    game's start, before the first record, the empty list is moved into 4096 records of pages of
+    the patch's own (begin, end, capacity at +230h; the storage's address is only in the baker's
+    constructor 0x12CCE0, every other use is through the three pointers: 0x12F3DB, 0x131B8D,
+    0x131ED0, 0x131FA6, 0x132267). Without the pages the list stays the baker's own;
+  - the game's walk (0x132290..0x132629) lets go of every other record from the oldest on (after
+    an erase it steps over the record that took the place) up to the list's end as it was before
+    the first erase, so past half the list it reads records no longer there. The trim here: while
+    the list's bytes are over the limit, or the list has no room for the next record, the oldest
+    record with no load under way goes (its file deleted, DeleteFileA of the folder's physical path
+    kept from the game's start; the list's last record takes its place: the game's look-ups are by
+    path, 0x131ED0 and 0x131B8D, and its own trim sorted the list). With less than 50 MB free on the
+    folder's drive the limit is 50 MB, the game's rule (GetDiskFreeSpaceExW of the drive's root; the
+    game asked the folder itself, converted to wide characters). A line a second goes to
+    `srp_patches.log` ("the oldest baked textures let go: N; the folder holds M MB in K files").
 - check_loaded_baked_texture's CRC compare (0x131C90, `on_check_crc`): a record of CRC 0
   takes the CRC of the bytes loaded, so a kept file is used; then stock rules apply.
 - translate_query before its look-up (`lea edx,[esp+1B8h]` before `call 0x131ED0`, 0x12D4C5,
@@ -3741,7 +3763,7 @@ and `.toml`, over `vostok::baker`, `::files` and `::crc32`; seven lohooks):
   is not deleted): otherwise the next start deletes the folder again.
 
 Textures only; games with and without it play together. Sites (lohooks, JUMP): 0x1E944E,
-0x131C90, 0x12D4C5, 0x12F194, 0x12DDB9, 0xF0D00, 0x42050; no base relocation under them, no branch
+0x131C90, 0x12D4C5, 0x12F194, 0x12DDB9, 0xF0D00, 0x131F90, 0x42050; no base relocation under them, no branch
 into them (each span branch-free: main's lohooks replay it).
 
 **Checked:** `selftest_026g.py` check 70 (the sites' original code, the generated lohooks at
@@ -3749,7 +3771,8 @@ their sites and exits, the nop, no relocation or branch inside). `check_bake_cac
 (Unicorn) runs every
 site from the game's code on the game's own static baker:
 - the folder, with made-up patches of the game data (their file tables): kept and back in the
-  list, a file cut short and the files past 512 deleted; kept by a release whose patch has only
+  list (4096 records of pages kept), a file cut short and the files past the list's room less 512
+  deleted; kept by a release whose patch has only
   item stats, deleted and stamped anew for a patch with a texture, a decal item or one that cannot
   be read, another format, a stamp of other bytes, no stamp (revision 54's and 53's are none),
   or no folder; no `resources.db`:
@@ -3764,6 +3787,11 @@ site from the game's code on the game's own static baker:
 - a held texture: a respawn's query gets it at once with no look-up; past 256 MB the least used
   goes;
 - a folder whose delete leaves a file: not stamped;
+- the trim from the function's entry: records of 3 GiB stay; 5 MB more and the oldest record with no
+  load under way goes with its file, the last in its place; less than 50 MB free on the drive: down
+  to 50 MB, the loading record left; a list of 4096 records lets its oldest go; with no folder known
+  (the baker's own 1024 records, full) the record goes and no file is deleted; `ret 4`, ebx, esi,
+  edi and ebp kept;
 - the CRC-32 step against the original on 32 buffers of 0 to 10 MB from unaligned starts with
   random CRCs, on a processor without PCLMULQDQ (Penryn) and one with it (Westmere): the CRC and
   every register the same; 3.25 and 0.48 instructions a byte against 11;
