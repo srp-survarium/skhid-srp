@@ -3598,3 +3598,7 @@ va	status	ref_021d	name
 0x0026d630	inferred-medium		survarium::base_local_network_client::follow_nobody
 0x00111c90	inferred-high		vostok::logging::helper::helper
 0x00111d10	inferred-high		vostok::logging::helper::write
+0x002fbd50	inferred-medium		survarium::weapon_user_animations_selector::sprint_to_run_predicate
+0x002fbce0	inferred-medium		survarium::weapon_user_animations_selector::sprint_to_on_site_predicate
+0x002fbdf0	inferred-medium		survarium::weapon_user_animations_selector::crouch_on_site_predicate
+0x002fbe50	inferred-medium		survarium::weapon_user_animations_selector::crouch_run_predicate
