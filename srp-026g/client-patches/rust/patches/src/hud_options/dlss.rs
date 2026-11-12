@@ -26,7 +26,7 @@
 use core::ffi::CStr;
 
 use super::{DLSS, DXVK_MARKER, Renderer, renderer};
-use crate::vostok::dlss::{self, BackBuffer, Device, Failure, Frame, Hello, Helper, HelperWatch, Refusal, SLOTS, Shared, Size, SwapChain, Tick,
+use crate::vostok::dlss::{self, BackBuffer, Device, Failure, Frame, Hello, Helper, HelperWatch, Refusal, Shared, Size, SwapChain, Tick,
                           Watched};
 use crate::vostok::log::{Piece, Piece::*, line, line_of};
 use crate::vostok::settings::{file_exists, save_user_config};
@@ -130,7 +130,7 @@ pub enum Action<H, D, S> {
     /// the Hello was for.
     Share { render: Size, output: Size },
     AwaitSetup,
-    /// Submit this frame, if its command buffer is free.
+    /// Submit this frame, if its command buffers are free.
     Submit(Frame),
     /// Tell the helper a new size comes and retire what was shared.
     Resize(S),
@@ -403,12 +403,6 @@ fn drive(thread: &Thread, present: Option<&Present>, event: Event<Helper, Device
     });
 }
 
-/// Whether a frame's command buffer is free: the timeline is past the copy
-/// of the frame that used it last.
-pub fn free(frame: Frame, reached: u64) -> bool {
-    frame.0 < SLOTS || reached >= Frame(frame.0 - SLOTS).copied()
-}
-
 /// An action done on the state it left: the event that follows, if any.
 fn act(thread: &Thread, link: &Live, present: Option<&Present>, action: Action<Helper, Device, Shared>) -> Option<Event<Helper, Device, Shared>> {
     let now = Tick::now(thread);
@@ -468,7 +462,7 @@ fn act(thread: &Thread, link: &Live, present: Option<&Present>, action: Action<H
             Ok((helper, device)) => {
                 let (shared, back) = (link.shared()?, &present?.back);
                 let submitted = helper.frames_done(thread).and_then(|()| shared.reached(thread, device)).and_then(|reached| {
-                    if !free(frame, reached) {
+                    if !frame.buffers_free(reached) {
                         // DXVK's queue is that far behind: this Present has no frame of the link
                         return Ok(None);
                     }
@@ -551,10 +545,10 @@ fn end(thread: &Thread, helper: Helper, device: Device, shared: Option<Shared>) 
     device.release(thread);
 }
 
-/// The line of a timeline value the game signalled itself.
+/// The line of the timeline's values the game signalled itself, up to the last.
 fn released(value: Option<u64>) {
     if let Some(value) = value {
-        line(&[Text("dlss: the helper is gone with a frame waited for: the timeline signalled to "), Dec(value as u32),
+        line(&[Text("dlss: the helper is gone with frames waited for: the timeline signalled up to "), Dec(value as u32),
                Text(" from the game")]);
     }
 }
@@ -613,11 +607,13 @@ fn say(purpose: Purpose, why: &Failure) {
 /// How long the watch waits for the helper's end between its looks at the
 /// timeline.
 const LOOK: u32 = 500;
-/// The looks in a row (5 s) that find the helper's turn on the timeline
+/// The looks in a row (3 s) that find the helper's turn on the timeline
 /// unmoved before the watch ends the helper. A timer, because a helper that
 /// hangs gives no event, and DXVK's queue (and soon the game's thread, in a
-/// Present) waits for its signal; a frame of DLSS takes it about 1 ms.
-pub const STUCK_LOOKS: u32 = 10;
+/// Present) waits for its signal; a frame of DLSS takes it about 1 ms, and
+/// the GPU's driver gives up on a queue that waits about 11 s (seen: the
+/// device lost), so the timer is well under that.
+pub const STUCK_LOOKS: u32 = 6;
 
 /// The watch's count of looks that found the same wait unmoved; None when
 /// the timeline is not behind, or it is not the helper's turn.
@@ -837,18 +833,9 @@ mod tests {
     }
 
     #[test]
-    fn a_command_buffer_is_free_once_the_timeline_passed_its_last_copy() {
-        for early in 0..SLOTS {
-            assert!(free(Frame(early), 0));
-        }
-        // frame 4 takes frame 0's: free once frame 0's copy (value 1) is done
-        assert!(!free(Frame(SLOTS), 0) && free(Frame(SLOTS), 1));
-        assert!(!free(Frame(SLOTS + 3), Frame(3).copied() - 1) && free(Frame(SLOTS + 3), Frame(3).copied()));
-    }
-
-    #[test]
     fn the_watch_counts_looks_at_the_same_unmoved_turn_of_the_helper() {
-        let turn = dlss::Behind { queued: Frame(5).upscaled(), reached: Frame(5).copied() };
+        // frames 5 to 7 on the queue, the helper's output of frame 5 missing
+        let turn = dlss::Behind { queued: Frame(7).upscaled(), reached: Frame(5).copied() };
         assert!(turn.helpers_turn());
         let mut stuck = None;
         for look in 1..=STUCK_LOOKS {
@@ -856,7 +843,7 @@ mod tests {
             assert_eq!(stuck, Some((turn, look)));
         }
         // the timeline moved, or caught up: from the start
-        let next = dlss::Behind { queued: Frame(6).upscaled(), reached: Frame(6).copied() };
+        let next = dlss::Behind { queued: Frame(7).upscaled(), reached: Frame(6).copied() };
         assert_eq!(looks(stuck, Some(next)), Some((next, 1)));
         assert_eq!(looks(stuck, None), None);
         // the game's own copy has not run (DXVK's queue is behind): not the helper's turn

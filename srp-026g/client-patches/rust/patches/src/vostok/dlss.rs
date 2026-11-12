@@ -79,14 +79,23 @@ impl Frame {
     pub fn next(self) -> Frame {
         Frame(self.0 + 1)
     }
+
+    /// Whether the frame's two command buffers are free, the timeline at
+    /// `reached`: the frame that used them last is [`SLOTS`] before it, and
+    /// the frame after that one has been copied, which DXVK's queue does
+    /// only after it has run that frame's two buffers.
+    pub fn buffers_free(self, reached: u64) -> bool {
+        self.0 < SLOTS || reached >= Frame(self.0 - SLOTS + 1).copied()
+    }
 }
 
-/// The copy-in command buffers of a set of shared images: a frame uses the
-/// one of its number modulo this.
+/// The command buffers of a set of shared images, a pair each (the copy-in
+/// and the one that waits for the helper's output): a frame uses the pair
+/// of its number modulo this.
 pub const SLOTS: u64 = 4;
 
-/// The text of a helper's refusal that is kept (the first bytes of its 256).
-pub const REFUSAL_TEXT: usize = 96;
+/// The text of a helper's refusal (the reply's 256 bytes, NUL-ended).
+pub const REFUSAL_TEXT: usize = 256;
 
 /// The helper's "no": its text and NGX's result.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -96,11 +105,8 @@ pub struct Refusal {
 }
 
 impl Refusal {
-    fn of(text: &[u8; 256], ngx: i32) -> Refusal {
-        let mut kept = [0; REFUSAL_TEXT];
-        let len = text.iter().position(|&b| b == 0).unwrap_or(text.len()).min(REFUSAL_TEXT);
-        kept[..len].copy_from_slice(&text[..len]);
-        Refusal { text: kept, ngx: ngx as u32 }
+    fn of(text: &[u8; REFUSAL_TEXT], ngx: i32) -> Refusal {
+        Refusal { text: *text, ngx: ngx as u32 }
     }
 
     pub fn text(&self) -> &str {
@@ -1204,13 +1210,15 @@ const MOTION: usize = 2;
 const OUTPUT: usize = 3;
 
 /// The four images and the timeline semaphore the game and the helper
-/// share, made and exported on DXVK's device, and the copy-in command
+/// share, made and exported on DXVK's device, and the frames' command
 /// buffers. Its one owner retires it ([`Shared::retire`]).
 pub struct Shared {
     images: [Image; 4],
     timeline: u64,
     pool: u64,
-    buffers: [*mut c_void; SLOTS as usize],
+    /// The copy-in buffers, then the buffers that wait for the helper's
+    /// output, a frame's two [`SLOTS`] apart.
+    buffers: [*mut c_void; 2 * SLOTS as usize],
 }
 // SAFETY: as Device's.
 unsafe impl Send for Shared {}
@@ -1237,7 +1245,7 @@ impl Shared {
             ],
             timeline: 0,
             pool: 0,
-            buffers: [null_mut(); SLOTS as usize],
+            buffers: [null_mut(); 2 * SLOTS as usize],
         };
         match shared.fill(device, helper) {
             Ok(()) => Ok(shared),
@@ -1319,7 +1327,7 @@ impl Shared {
                   raw::engine_vk_get_semaphore_win32_handle(vk.semaphore_handle.0, dev, (&raw const ask).cast(), &mut handle))?;
             check("vkCreateCommandPool", raw::engine_vk_create_command_pool(vk.create_command_pool.0, dev, (&raw const pool).cast(), null(), &mut self.pool))?;
             let buffers = CommandBufferAllocateInfo { s_type: STRUCTURE_COMMAND_BUFFER_ALLOCATE_INFO, next: null(), pool: self.pool, level: 0,
-                                                      count: SLOTS as u32 };
+                                                      count: 2 * SLOTS as u32 };
             check("vkAllocateCommandBuffers",
                   raw::engine_vk_allocate_command_buffers(vk.allocate_command_buffers.0, dev, (&raw const buffers).cast(), self.buffers.as_mut_ptr()))?;
         }
@@ -1347,9 +1355,11 @@ impl Shared {
     /// DXVK's queue (locked for it), the copy-in (the back buffer scaled
     /// into the shared colour; the first frame also clears depth to far and
     /// motion to none, which nothing fills yet) that signals
-    /// [`Frame::copied`], and a wait for [`Frame::upscaled`]; the wait is
-    /// told to the watch. The frame's command buffer must be free (the
-    /// timeline past the copy of the frame [`SLOTS`] before it).
+    /// [`Frame::copied`], and a wait for [`Frame::upscaled`] in a command
+    /// buffer of its own, empty yet (the copy of the output goes there): a
+    /// wait without one is left by the driver for DXVK's next submit, which
+    /// nothing of ours could then wait out. The wait is told to the watch.
+    /// The frame's two command buffers must be free ([`Frame::buffers_free`]).
     pub fn submit(&self, thread: &Thread, device: &Device, helper: &Helper, back: &BackBuffer, frame: Frame) -> Result<(), Failure> {
         let first = frame.0 == 0;
         helper
@@ -1358,6 +1368,7 @@ impl Shared {
             .map_err(|error| Failure::Pipe("a frame", error))?;
         let vk = &device.vulkan;
         let buffer = self.buffers[(frame.0 % SLOTS) as usize];
+        let waiter = self.buffers[(SLOTS + frame.0 % SLOTS) as usize];
         let barrier = |image: u64, aspect, source_access, destination_access, old_layout, new_layout, families: (u32, u32)| ImageBarrier {
             s_type: STRUCTURE_IMAGE_MEMORY_BARRIER,
             next: null(),
@@ -1421,6 +1432,8 @@ impl Shared {
             raw::engine_vk_cmd_pipeline_barrier(vk.barrier.0, buffer, STAGE_TRANSFER, STAGE_ALL_COMMANDS, 0, 0, null(), 0, null(), count,
                                                 after.as_ptr().cast());
             check("vkEndCommandBuffer", raw::engine_vk_end_command_buffer(vk.end.0, buffer))?;
+            check("vkBeginCommandBuffer", raw::engine_vk_begin_command_buffer(vk.begin.0, waiter, (&raw const begin).cast()))?;
+            check("vkEndCommandBuffer", raw::engine_vk_end_command_buffer(vk.end.0, waiter))?;
         }
         let (copied, upscaled, timeline, stage) = ([frame.copied()], [frame.upscaled()], [self.timeline], [STAGE_ALL_COMMANDS]);
         let signals = TimelineSubmitInfo { s_type: STRUCTURE_TIMELINE_SEMAPHORE_SUBMIT_INFO, next: null(), wait_count: 0, waits: null(),
@@ -1431,9 +1444,9 @@ impl Shared {
             // the copy-in, which signals the frame's inputs
             SubmitInfo { s_type: STRUCTURE_SUBMIT_INFO, next: (&raw const signals).cast(), wait_count: 0, waits: null(), wait_stages: null(),
                          buffer_count: 1, buffers: &buffer, signal_count: 1, signals: timeline.as_ptr() },
-            // nothing of ours yet after the helper's output: DXVK's later commands wait for it
+            // after the helper's output: nothing of ours yet, and DXVK's later commands wait for it
             SubmitInfo { s_type: STRUCTURE_SUBMIT_INFO, next: (&raw const waits).cast(), wait_count: 1, waits: timeline.as_ptr(),
-                         wait_stages: stage.as_ptr(), buffer_count: 0, buffers: null(), signal_count: 0, signals: null() },
+                         wait_stages: stage.as_ptr(), buffer_count: 1, buffers: &waiter, signal_count: 0, signals: null() },
         ];
         // told before it is queued: the watch never misses a wait that is on the queue
         WATCH.with(thread, |watch| {
@@ -1526,12 +1539,51 @@ pub struct Behind {
 
 impl Behind {
     /// Whether the helper is the one the timeline waits for: the game's
-    /// copy of the frame waited for is done ([`Frame::copied`], the value
-    /// right under [`Frame::upscaled`]), its output is not.
+    /// copy of a frame is done (an odd value, [`Frame::copied`]) and that
+    /// frame's output is not. At an even value the game's next copy has not
+    /// run yet: DXVK's queue is the one behind.
     pub fn helpers_turn(self) -> bool {
-        self.reached + 1 == self.queued
+        self.reached % 2 == 1
     }
 }
+
+/// What the game does at one look at the timeline to play the part of a
+/// helper that is gone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Play {
+    /// The timeline has reached every wait.
+    Done,
+    /// Signal this value.
+    Signal(u64),
+    /// The game's next copy has not run on the GPU yet: look again.
+    Wait,
+}
+
+/// The looks (a millisecond apart) the game's next copy is waited for before
+/// its value is signalled too.
+pub const PATIENCE: u32 = 200;
+
+impl Play {
+    /// The play at a look that found the timeline `behind`, after `waited`
+    /// looks in a row at the game's turn. The helper's values are signalled
+    /// one at a time, each right after the game's copy before it: a signal
+    /// further ahead would be undone by the game's own copies still on
+    /// DXVK's queue, which signal the values in between (seen: the timeline
+    /// set to the last wait's value, a queued copy's lower value after it,
+    /// and that copy's wait never met). A game's turn that does not come
+    /// (that copy lost) is signalled too, so the queue cannot stay stuck.
+    pub fn at(behind: Option<Behind>, waited: u32) -> Play {
+        match behind {
+            None => Play::Done,
+            Some(behind) if behind.helpers_turn() || waited >= PATIENCE => Play::Signal(behind.reached + 1),
+            Some(_) => Play::Wait,
+        }
+    }
+}
+
+/// The most looks of one release (3 s): a few frames are in flight, each a
+/// signal and the wait for the game's next copy.
+const RELEASE_LOOKS: u32 = 3000;
 
 /// The wait on DXVK's queue that the timeline has not reached yet, if any.
 pub fn behind(thread: &Thread) -> Option<Behind> {
@@ -1542,21 +1594,37 @@ pub fn behind(thread: &Thread) -> Option<Behind> {
     })
 }
 
-/// The helper is gone: the timeline signalled from here to the value DXVK's
-/// queue waits for, when it has not reached it (a timeline semaphore takes a
-/// host signal), so the queue goes on. The value signalled.
+/// The helper is gone: its part of the timeline played from here (a timeline
+/// semaphore takes a host signal), value by value ([`Play`]), until every
+/// wait on DXVK's queue is met, so the queue goes on. The last value
+/// signalled.
 pub fn release(thread: &Thread) -> Option<u64> {
-    WATCH.with(thread, |watch| {
-        let watch = watch.as_ref()?;
-        if watch.reached()? >= watch.queued {
-            return None;
+    let (mut last, mut waited) = (None, 0);
+    for _ in 0..RELEASE_LOOKS {
+        let play = WATCH.with(thread, |watch| {
+            let Some(watch) = watch.as_ref() else { return Play::Done };
+            let Some(reached) = watch.reached() else { return Play::Done };
+            let play = Play::at((reached < watch.queued).then_some(Behind { queued: watch.queued, reached }), waited);
+            if let Play::Signal(value) = play {
+                let info = SemaphoreSignalInfo { s_type: STRUCTURE_SEMAPHORE_SIGNAL_INFO, next: null(), semaphore: watch.timeline, value };
+                // SAFETY: vkSignalSemaphore on the live timeline (the lock), to
+                // the value after its own; the helper, the only other
+                // signaller of that value, is gone.
+                if unsafe { raw::engine_vk_signal_semaphore(watch.signal.0, watch.device.as_ptr(), (&raw const info).cast()) } != 0 {
+                    return Play::Done;
+                }
+            }
+            play
+        });
+        match play {
+            Play::Done => break,
+            Play::Signal(value) => (last, waited) = (Some(value), 0),
+            Play::Wait => waited += 1,
         }
-        let info = SemaphoreSignalInfo { s_type: STRUCTURE_SEMAPHORE_SIGNAL_INFO, next: null(), semaphore: watch.timeline, value: watch.queued };
-        // SAFETY: vkSignalSemaphore on the live timeline (the lock), to a
-        // value above its own; the helper, the only other signaller, is gone.
-        let signalled = unsafe { raw::engine_vk_signal_semaphore(watch.signal.0, watch.device.as_ptr(), (&raw const info).cast()) };
-        (signalled == 0).then_some(watch.queued)
-    })
+        // SAFETY: Sleep (the exe's import): the GPU runs the game's next copy meanwhile.
+        unsafe { (raw::engine_sleep)(1) };
+    }
+    last
 }
 
 #[cfg(test)]
@@ -1568,6 +1636,30 @@ mod tests {
         assert_eq!((Frame(0).copied(), Frame(0).upscaled()), (1, 2));
         assert_eq!((Frame(7).copied(), Frame(7).upscaled()), (15, 16));
         assert_eq!(Frame(7).next(), Frame(8));
+    }
+
+    #[test]
+    fn a_gone_helpers_values_are_signalled_one_at_a_time_after_the_games_copies() {
+        // frames 5 to 7 are on the queue; the helper went after frame 4
+        let queued = Frame(7).upscaled();
+        let at = |reached| Some(Behind { queued, reached });
+        // frame 5's copy has not run yet: the game's turn, waited for
+        assert_eq!(Play::at(at(Frame(4).upscaled()), 0), Play::Wait);
+        assert!(!at(Frame(4).upscaled()).unwrap().helpers_turn());
+        // it ran: the helper's value for frame 5, and no further (frame 6's copy signals the next)
+        assert!(at(Frame(5).copied()).unwrap().helpers_turn());
+        assert_eq!(Play::at(at(Frame(5).copied()), 0), Play::Signal(Frame(5).upscaled()));
+        assert_eq!(Play::at(at(Frame(5).upscaled()), 3), Play::Wait);
+        assert_eq!(Play::at(at(Frame(7).copied()), 0), Play::Signal(queued));
+        assert_eq!(Play::at(None, 0), Play::Done);
+        // a copy that never comes is signalled too, after the patience
+        assert_eq!(Play::at(at(Frame(5).upscaled()), PATIENCE), Play::Signal(Frame(6).copied()));
+        for early in 0..SLOTS {
+            assert!(Frame(early).buffers_free(0));
+        }
+        // frame 4 takes frame 0's pair: free once frame 1's copy (value 3) is done, past frame 0's wait (2)
+        assert!(!Frame(SLOTS).buffers_free(2) && Frame(SLOTS).buffers_free(3));
+        assert!(!Frame(SLOTS + 3).buffers_free(Frame(4).copied() - 1) && Frame(SLOTS + 3).buffers_free(Frame(4).copied()));
     }
 
     #[test]
@@ -1583,7 +1675,11 @@ mod tests {
         let refusal = Refusal::of(&text, -0x4530_0000 + 2);
         assert_eq!(refusal.text(), "no RT");
         assert_eq!(refusal.ngx, 0xBAD0_0002);
+        // a text without its NUL, or cut inside a character: what is whole
         let long = [b'x'; 256];
         assert_eq!(Refusal::of(&long, 1).text().len(), REFUSAL_TEXT);
+        let mut cut = [0u8; 256];
+        cut[..2].copy_from_slice(&[b'a', 0xD0]);
+        assert_eq!(Refusal::of(&cut, 1).text(), "a");
     }
 }
