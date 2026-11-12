@@ -522,6 +522,17 @@ impl Default for Body {
     }
 }
 
+/// [A364 C2] The gait a Walk link needs ([`WalkGrid::walk_gait`]). The grid's walks are for every gait, but the client's walking
+/// body is held by a face from [`Body::walked_step`] (0.76 m) up (its complex move test), while a sprinting body (the simple
+/// capsule test, 0x7D33D) climbs a vertical face to 0.85 m: a Walk link rising that much is a sprint's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WalkGait {
+    /// Any gait walks it.
+    Any,
+    /// Only a sprinting body climbs it.
+    Sprint,
+}
+
 /// How one floor reaches the next.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -3588,6 +3599,15 @@ impl WalkGrid {
         self.walk_marked.len()
     }
 
+    /// [A364 C2] The gait the Walk link `a` -> `b` needs ([`WalkGait`]), or `None` where `a` has no Walk link to `b`: a rise of
+    /// [`Body::walked_step`] or more (0.76 m with the clients' numbers) is climbed only sprinting. Derived from the two floors'
+    /// heights: in neither the file nor the digest.
+    pub fn walk_gait(&self, a: NodeId, b: NodeId) -> Option<WalkGait> {
+        self.links(a).any(|(c, kind)| c == b && kind == LinkKind::Walk).then(|| {
+            if self.height[b as usize] - self.height[a as usize] >= self.body.walked_step() { WalkGait::Sprint } else { WalkGait::Any }
+        })
+    }
+
     /// The links out of a floor.
     pub fn links(&self, node: NodeId) -> impl Iterator<Item = (NodeId, LinkKind)> + '_ {
         let a = node as usize;
@@ -5788,6 +5808,10 @@ pub(crate) mod tests {
             let walk = |a: NodeId, b: NodeId| grid.links(a).any(|(c, kind)| c == b && kind == LinkKind::Walk);
             assert_eq!(walk(low, top), up, "up {height}");
             assert_eq!(walk(top, low), up, "down {height}");
+            let gait = if height < client.walked_step() { WalkGait::Any } else { WalkGait::Sprint };
+            assert_eq!(grid.walk_gait(low, top), Some(gait), "up {height}");
+            assert_eq!(grid.walk_gait(top, low), Some(WalkGait::Any), "down {height}");
+            assert_eq!(grid.walk_gait(low, low), None);
         }
     }
 
