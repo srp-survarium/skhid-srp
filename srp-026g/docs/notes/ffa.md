@@ -547,3 +547,31 @@ The refreshed server end-to-end run passes all nine match tests. A separate
 password-reset web test failed its zero packet-order-drop assertion under
 load (WebBob: 40 drops); the exact test passes unchanged in isolation
 (10.24 s). Neither intermittent test result is described as a gameplay fix.
+
+The final server/end-to-end checks pass after integrating main through
+`9f7d31bde`, including the previously intermittent password-reset test.
+Some passing results were not cached: the check runner captured its input
+snapshot before that integration, although these server checks ran after it.
+Native FFA/late-join/roundtrip and main's artefact-skill checks pass in the
+combined arena; client Rust remains 318 passed, two ignored, with clean Clippy.
+
+The generic corpus check uses the candidate's data for every recording, which
+is incompatible with pre-FFA TDM projects: the native respawn cook saves all
+three teams' points, including the newly added solo points. With candidate
+data it checks 44,218 worlds (22,690 pass, 21,528 are refused). This is not
+resolved by changing the parser. Comparing the same complete 103-recording
+corpus with its recorded content proves all 44,218 worlds valid: 44,117 worlds
+from revisions through 56 pass with the released revision-56 data; the 101
+revision-57 local Vostok worlds pass with the composed current data. There are
+no omitted worlds in that revision-matched comparison. The simulation-change
+entry remains necessary so old replays are refused when the content ships.
+
+The earlier three-player School FFA recording `205B42E4` also passes the final
+server validator and data: all 140 worlds, zero refusals or omissions. Three
+sampled worlds pass the native/host drift comparison in explicit mode 8 with
+56 respawn points: 54 checks including mutated copies, zero differences.
+Explicit context matters: the generic raw-dump inference can also interpret
+these rule bytes as mode 2 with 47 points. This diagnostic uses the match's
+actual FFA context instead. These recorded worlds predate the final selection
+and UI corrections; they establish format compatibility, not a fresh playtest
+of those corrections. No running client was changed or stopped.
