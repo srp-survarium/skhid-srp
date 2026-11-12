@@ -63,6 +63,43 @@
         '');
       };
 
+      # dlss_helper.exe (client/dlss-helper, DLSS for the Vulkan renderer:
+      # docs/notes/dlss-option.md) is a 64-bit program: NVIDIA ships DLSS for
+      # x64 only. The same C runtime and SDK as msvcLibs, 64-bit, plus the C++
+      # runtime (libcpmt) and user32 that NVIDIA's NGX library needs. SDK 10.0.22621:
+      # xwin 0.7 finds no x86_64 headers package of 10.0.26100 ("unable to
+      # find x86_64 headers"); only import libraries are kept anyway.
+      msvcLibs64 = pkgs.stdenvNoCC.mkDerivation {
+        name = "msvc-crt-14.44.17.14-sdk-10.0.22621-x64-libs";
+        nativeBuildInputs = [ pkgs.xwin ];
+        SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+        outputHashMode = "recursive";
+        outputHashAlgo = "sha256";
+        outputHash = "sha256-/Y4rO/8ZOV8DxT6oj2tAUCP2SxElCpeJBL5PU1xCVzM=";
+        buildCommand = builtins.replaceStrings [ "\r" ] [ "" ] (''
+          xwin --accept-license --log-level warn --http-retry 3 --timeout 600s \
+            --arch x86_64 --variant desktop \
+            --crt-version 14.44.17.14 --sdk-version 10.0.22621 \
+            --cache-dir "$TMPDIR/cache" splat --output "$TMPDIR/splat"
+          mkdir -p "$out/lib/x64"
+          for lib in libcmt libcpmt libvcruntime oldnames libucrt \
+                     kernel32 ntdll userenv ws2_32 dbghelp advapi32 user32 uuid; do
+            for dir in crt/lib/x86_64 sdk/lib/ucrt/x86_64 sdk/lib/um/x86_64; do
+              find "$TMPDIR/splat/$dir" -maxdepth 1 -iname "$lib.lib" \
+                -exec cp -P -t "$out/lib/x64" {} +
+            done
+          done
+        '');
+      };
+
+      # NVIDIA's NGX library (DLSS SDK 310.9.16, lib/Windows_x86_64/x64,
+      # the static C runtime's build), linked into dlss_helper.exe: the SDK's
+      # supported way to reach the driver's NGX core. Pinned by its hash.
+      ngxStaticLib = pkgs.fetchurl {
+        url = "https://raw.githubusercontent.com/NVIDIA/DLSS/v310.9.16/lib/Windows_x86_64/x64/nvsdk_ngx_s.lib";
+        hash = "sha256-e5pSOcEUWvX2RatHKqBm+ep52zasgZViMSquadZfN2U=";
+      };
+
       # NASM 2.16.03 for the exe patches' arena (client-patches/link_026g.py
       # links it from source at every build, the release's too): NASM 3
       # assembles `jmp near` to a label as a two-byte short jump, so the
@@ -199,6 +236,9 @@
           PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig:${pkgs.libopus.dev}/lib/pkgconfig";
           # Where client/bugtrap and client/updater link the C runtime from.
           SKHID_MSVC_LIB = "${msvcLibs}/lib/x86";
+          # Where client/dlss-helper (x64) links the C runtime and NGX from.
+          SKHID_MSVC_LIB64 = "${msvcLibs64}/lib/x64";
+          SKHID_NGX_LIB = "${ngxStaticLib}";
           VOICE_OPUS_LIB_DIR = "${voiceOpusMsvc}/lib";
           # `cargo test --target i686-unknown-linux-gnu` in client-patches/rust
           # links its test binaries against 32-bit glibc with this.

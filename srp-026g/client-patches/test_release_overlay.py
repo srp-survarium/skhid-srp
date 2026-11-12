@@ -91,13 +91,37 @@ class ReleaseTests(unittest.TestCase):
         # (build() gives the builder these in place of the real ones).
         self.dxvk_dlls = {name: b'MZ dxvk fixture ' + name.encode() for name in overlay.DXVK_DLLS}
         self.dxvk = self.root / f'dxvk-{overlay.DXVK_VERSION}.tar.gz'
+        # The dlss folder's stand-ins: DXVK's 64-bit dxgi.dll in the same
+        # archive, dxvk-nvapi's archive, NVIDIA's DLL and licence, a 64-bit
+        # helper; each with its pin.
+        digest = lambda data: hashlib.sha256(data).hexdigest()
+        self.dlss = {'dlss_helper.exe': None, 'nvngx_dlss.dll': b'MZ dlss fixture',
+                     'NVIDIA-DLSS-SDK-LICENSE.txt': b'licence fixture', 'wine/dxgi.dll': b'MZ dxgi x64 fixture',
+                     'wine/nvapi64.dll': b'MZ nvapi fixture'}
         with tarfile.open(self.dxvk, 'w:gz') as archive:
-            for name, data in self.dxvk_dlls.items():
-                info = tarfile.TarInfo(f'dxvk-{overlay.DXVK_VERSION}/x32/{name}')
+            for name, data in [*((f'x32/{name}', data) for name, data in self.dxvk_dlls.items()),
+                               ('x64/dxgi.dll', self.dlss['wine/dxgi.dll'])]:
+                info = tarfile.TarInfo(f'dxvk-{overlay.DXVK_VERSION}/{name}')
                 info.size = len(data)
                 archive.addfile(info, io.BytesIO(data))
-        self.dxvk_pins = dict(DXVK_SHA256=hashlib.sha256(self.dxvk.read_bytes()).hexdigest(),
-                              DXVK_DLLS={name: hashlib.sha256(data).hexdigest() for name, data in self.dxvk_dlls.items()})
+        self.nvapi = self.root / 'dxvk-nvapi.tar.gz'
+        with tarfile.open(self.nvapi, 'w:gz') as archive:
+            info = tarfile.TarInfo('./x64/nvapi64.dll')
+            info.size = len(self.dlss['wine/nvapi64.dll'])
+            archive.addfile(info, io.BytesIO(self.dlss['wine/nvapi64.dll']))
+        helper = bytearray(dll)
+        helper[68:70] = (0x8664).to_bytes(2, 'little')
+        self.dlss['dlss_helper.exe'] = bytes(helper)
+        self.dlss_files = {}
+        for name in ('dlss_helper.exe', 'nvngx_dlss.dll', 'NVIDIA-DLSS-SDK-LICENSE.txt'):
+            self.dlss_files[name] = self.root / name
+            self.dlss_files[name].write_bytes(self.dlss[name])
+        self.dxvk_pins = dict(DXVK_SHA256=digest(self.dxvk.read_bytes()),
+                              DXVK_DLLS={name: digest(data) for name, data in self.dxvk_dlls.items()},
+                              DXVK_X64_DXGI_SHA256=digest(self.dlss['wine/dxgi.dll']),
+                              NVAPI_SHA256=digest(self.nvapi.read_bytes()), NVAPI_DLL_SHA256=digest(self.dlss['wine/nvapi64.dll']),
+                              DLSS_SHA256=digest(self.dlss['nvngx_dlss.dll']),
+                              DLSS_LICENSE_SHA256=digest(self.dlss['NVIDIA-DLSS-SDK-LICENSE.txt']))
         self.without_launcher = {'README.txt', 'LINUX.txt', 'MACOS.txt',
             'game/binaries/x86/survarium_skhid.exe', 'game/binaries/x86/bugtrap.dll',
             'game/binaries/x86/skhid_voice.dll', 'game/binaries/x86/play_skhid.bat', 'game/binaries/x86/play_skhid.sh',
@@ -107,6 +131,7 @@ class ReleaseTests(unittest.TestCase):
             'game/binaries/x86/launcher_skhid.exe', 'game/binaries/x86/updater_skhid.exe',
             'game/binaries/x86/7zr.exe',
             *(f'game/binaries/x86/dxvk/{name}' for name in ('d3d8.dll', 'd3d9.dll', 'd3d10core.dll', 'd3d11.dll', 'dxgi.dll')),
+            *(f'game/binaries/x86/dlss/{name}' for name in (*self.dlss, 'LICENSES.txt')),
             'game/binaries/x86/updater_skhid.url', 'Skhid.bat', 'Skhid-without-updater.bat', 'Skhid.sh',
             'Skhid.command',
             'VPN.txt', 'Skhid-network-setup.cmd', 'Skhid-defender-setup.cmd', 'Skhid-collect-logs.cmd',
@@ -116,7 +141,9 @@ class ReleaseTests(unittest.TestCase):
     def build(self, output, *options):
         args = ['make_client_026g.py', str(self.game), str(output),
                 '--server=release.example:2234',
-                '--bugtrap=' + str(self.dll), '--voice=' + str(self.voice), '--updater=' + str(self.updater), '--dxvk=' + str(self.dxvk), *options]
+                '--bugtrap=' + str(self.dll), '--voice=' + str(self.voice), '--updater=' + str(self.updater), '--dxvk=' + str(self.dxvk),
+                '--dlss-helper=' + str(self.dlss_files['dlss_helper.exe']), '--dlss=' + str(self.dlss_files['nvngx_dlss.dll']),
+                '--dlss-license=' + str(self.dlss_files['NVIDIA-DLSS-SDK-LICENSE.txt']), '--nvapi=' + str(self.nvapi), *options]
         # Binary patching has its own disassembly suite. Exercise every other
         # part of the real release builder, including source reads and ZIP I/O.
         launcher = mock.patch.object(
@@ -352,6 +379,34 @@ class ReleaseTests(unittest.TestCase):
         with zipfile.ZipFile(archive) as z:
             for name, data in self.dxvk_dlls.items():
                 self.assertEqual(z.read(f'game/binaries/x86/dxvk/{name}'), data)
+
+    def test_dlss_folder_is_the_helper_and_the_pinned_files(self):
+        # dlss\ beside the exe (docs/notes/dlss-option.md): the 64-bit helper,
+        # NVIDIA's DLL and licence, wine\'s two DLLs, the third-party notices.
+        archive = self.root / 'dlss.zip'
+        self.build(archive, '--pack-zip')
+        with zipfile.ZipFile(archive) as z:
+            for name, data in self.dlss.items():
+                self.assertEqual(z.read(f'game/binaries/x86/dlss/{name}'), data)
+            notices = z.read('game/binaries/x86/dlss/LICENSES.txt').decode('utf-8')
+        for word in ('NVIDIA Corporation', 'NVIDIA-DLSS-SDK-LICENSE.txt', 'MIT License', 'zlib/libpng license',
+                     f'DLSS {overlay.DLSS_VERSION}', f'dxvk-nvapi {overlay.NVAPI_VERSION}', f'DXVK {overlay.DXVK_VERSION}'):
+            self.assertIn(word, notices)
+        self.assertNotIn('\n', notices.replace('\r\n', ''))
+
+    def test_a_dlss_file_that_is_not_the_pinned_one_or_a_32_bit_helper_is_refused(self):
+        other = self.root / 'other.bin'
+        other.write_bytes(b'MZ not it')
+        for option, said in (('--dlss=', "not NVIDIA's nvngx_dlss.dll"), ('--dlss-license=', 'LICENSE.txt'),
+                             ('--nvapi=', 'not dxvk-nvapi'), ('--dlss-helper=', 'not a 64-bit Windows program'),
+                             ('--dlss-helper=' + str(self.dll) + '#', 'cannot read dlss_helper.exe')):
+            with self.assertRaises(SystemExit) as refused:
+                self.build(self.root / 'refused', option + str(other) if option.endswith('=') else option)
+            self.assertIn(said, str(refused.exception))
+            self.assertFalse((self.root / 'refused').exists())
+        with self.assertRaises(SystemExit) as refused:
+            self.build(self.root / 'refused', '--dlss-helper=' + str(self.dll))
+        self.assertIn('not a 64-bit Windows program', str(refused.exception))
 
     def test_another_dxvk_archive_than_the_pinned_one_is_refused(self):
         other = self.root / 'other.tar.gz'

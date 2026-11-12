@@ -30,6 +30,13 @@ USAGE
                                      the file the updater is built to run
         [--dxvk=<dxvk-3.1.1.tar.gz>] DXVK's release archive; by default the copy in
                                      ~/.cache/skhid, downloaded from GitHub once
+        [--dlss-helper=<dlss_helper.exe>]  defaults to the Rust release build in this
+                                     repo (client/dlss-helper/build.sh)
+        [--dlss=<nvngx_dlss.dll>]    NVIDIA's DLSS DLL, [--dlss-license=<LICENSE.txt>]
+                                     its SDK's licence, [--nvapi=<dxvk-nvapi-v0.9.2.tar.gz>]
+                                     dxvk-nvapi's release archive; by default the
+                                     copies in ~/.cache/skhid, downloaded from
+                                     GitHub once
         [--site=https://<host>]      the server's web page; https://<host of --server>
                                      when not given
         [--no-launcher]              without the launcher and its updater
@@ -105,6 +112,14 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
         DXVK's 32-bit DLLs, unchanged (DXVK_VERSION, pinned): the game loads
         them from there at its start when the Settings' Renderer is Vulkan/DXVK
         (../docs/notes/dxvk-option.md).
+    <output>/game/binaries/x86/dlss/dlss_helper.exe, nvngx_dlss.dll,
+            wine/dxgi.dll, wine/nvapi64.dll, LICENSES.txt, NVIDIA-DLSS-SDK-LICENSE.txt
+        NVIDIA DLSS for the Vulkan renderer (../docs/notes/dlss-option.md,
+        ../../client/dlss-helper/README.md): the 64-bit helper the game starts
+        (the Rust release build), NVIDIA's DLSS DLL (DLSS_VERSION, pinned),
+        what the helper loads under Wine only (DXVK's 64-bit dxgi.dll from the
+        pinned DXVK archive, dxvk-nvapi's nvapi64.dll, pinned), and their
+        licences.
     <output>/game/binaries/x86/launcher_skhid/index-*.html
         what the launcher shows while and when the server's page does not
         load (launcher/launcher_pages.py).
@@ -208,7 +223,26 @@ DXVK_DLLS = {
     "d3d11.dll": "f44543cbe5c40202915a02ed6e9ac8140c3524e846ae67b01f6faa79485d1fd3",
     "dxgi.dll": "abd1449dc28d536a4289c256ae7f4b6bbd15fa552792b7170c2ddece473c8bda",
 }
-DXVK_CACHE = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache", "skhid", f"dxvk-{DXVK_VERSION}.tar.gz")
+CACHE = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache", "skhid")
+DXVK_CACHE = CACHE / f"dxvk-{DXVK_VERSION}.tar.gz"
+# DLSS (../docs/notes/dlss-option.md; ../../client/dlss-helper/README.md has
+# the files and their licences): the helper the game starts from dlss\, with
+# NVIDIA's DLSS DLL beside it (the DLSS SDK's release build, pinned, and the
+# SDK's licence to ship with it), and in dlss\wine what the helper loads
+# under Wine only: DXVK's 64-bit dxgi.dll (the pinned DXVK archive's) and
+# dxvk-nvapi's nvapi64.dll (its release archive, pinned).
+DLSS_VERSION = "310.9.16"
+DLSS_URL = f"https://raw.githubusercontent.com/NVIDIA/DLSS/v{DLSS_VERSION}/lib/Windows_x86_64/rel/nvngx_dlss.dll"
+DLSS_SHA256 = "d00b5b0ab29c3ca101b70c3a5ecb3a01b7ef33766a3383a28a18623083e6123e"
+DLSS_LICENSE_URL = f"https://raw.githubusercontent.com/NVIDIA/DLSS/v{DLSS_VERSION}/LICENSE.txt"
+DLSS_LICENSE_SHA256 = "d4216e39ebef5f9b50a6712ebb37beeb5379862a67733a9999c651f21592aaf0"
+DXVK_X64_DXGI_SHA256 = "e3c1178eb7f0dd59f91bcfcc257549e5b9cfdb5e8508719293de7f8704f53160"
+NVAPI_VERSION = "0.9.2"
+NVAPI_URL = f"https://github.com/jp7677/dxvk-nvapi/releases/download/v{NVAPI_VERSION}/dxvk-nvapi-v{NVAPI_VERSION}.tar.gz"
+NVAPI_SHA256 = "60c284223530d643c446c263f1e1a96c6de7b5ff21796219646da734d97a70d6"
+NVAPI_DLL_SHA256 = "1bcf9b68a53f35d94e9e7dfdb68244d74c6300f3979906009478c320a780e12e"
+DLSS_DIR = os.path.abspath(os.path.join(HERE, "..", "..", "client", "dlss-helper"))
+DLSS_HELPER_EXE = os.path.join(DLSS_DIR, "target", "x86_64-pc-windows-msvc", "release", "dlss_helper.exe")
 BUGTRAP_DLL = os.path.abspath(os.path.join(
     HERE, "..", "..", "client", "bugtrap", "target", "i686-win7-windows-msvc", "release", "BugTrap.dll"))
 # Where the original game is had by hand: the patches server's address of its
@@ -326,35 +360,85 @@ def read_extractor(path):
     return data
 
 
+def read_pinned(path, url, digest, cache, what, option):
+    """A pinned download's bytes: `path`, else the cache file, downloaded into
+    it from `url` the first time. Anything but the pinned bytes is refused."""
+    if path is None and not cache.is_file():
+        print(f"downloading {url}")
+        try:
+            with urllib.request.urlopen(url, timeout=120) as answer:
+                data = answer.read()
+        except OSError as e:
+            sys.exit(f"{url}: cannot download {what} ({e}); pass {option}")
+        if sha256(data) != digest:
+            sys.exit(f"{url}: not the pinned file (sha256 {sha256(data)}, expected {digest})")
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        part = cache.with_suffix(".part")
+        part.write_bytes(data)
+        part.replace(cache)
+    path = Path(path or cache)
+    data = path.read_bytes()
+    if sha256(data) != digest:
+        sys.exit(f"{path}: not {what} (sha256 {digest})")
+    return data
+
+
+def read_dxvk_archive(path=None):
+    """DXVK's release archive (the pinned one), opened."""
+    data = read_pinned(path, DXVK_URL, DXVK_SHA256, DXVK_CACHE, f"DXVK {DXVK_VERSION}'s release archive",
+                       f"--dxvk=<dxvk-{DXVK_VERSION}.tar.gz>")
+    return tarfile.open(fileobj=io.BytesIO(data))
+
+
 def read_dxvk(path=None):
     """DXVK's DLLs, {name: bytes}, from its release archive: `path`, else the
     cache, downloaded into it the first time. The archive and each DLL must be
     the pinned ones."""
-    if path is None and not DXVK_CACHE.is_file():
-        print(f"downloading {DXVK_URL}")
-        try:
-            with urllib.request.urlopen(DXVK_URL, timeout=120) as answer:
-                data = answer.read()
-        except OSError as e:
-            sys.exit(f"{DXVK_URL}: cannot download DXVK ({e}); pass --dxvk=<dxvk-{DXVK_VERSION}.tar.gz>")
-        if sha256(data) != DXVK_SHA256:
-            sys.exit(f"{DXVK_URL}: not the pinned archive (sha256 {sha256(data)}, expected {DXVK_SHA256})")
-        DXVK_CACHE.parent.mkdir(parents=True, exist_ok=True)
-        part = DXVK_CACHE.with_suffix(".part")
-        part.write_bytes(data)
-        part.replace(DXVK_CACHE)
-    path = Path(path or DXVK_CACHE)
-    data = path.read_bytes()
-    if sha256(data) != DXVK_SHA256:
-        sys.exit(f"{path}: not DXVK {DXVK_VERSION}'s release archive (sha256 {DXVK_SHA256})")
     dlls = {}
-    with tarfile.open(fileobj=io.BytesIO(data)) as archive:
+    with read_dxvk_archive(path) as archive:
         for name, digest in DXVK_DLLS.items():
             dll = archive.extractfile(f"dxvk-{DXVK_VERSION}/x32/{name}").read()
             if sha256(dll) != digest:
-                sys.exit(f"{path}: x32/{name} is not the pinned file (sha256 {digest})")
+                sys.exit(f"{path or DXVK_CACHE}: x32/{name} is not the pinned file (sha256 {digest})")
             dlls[name] = dll
     return dlls
+
+
+def read_dlss(helper_path, dlss_path=None, license_path=None, nvapi_path=None, dxvk_path=None):
+    """The dlss\\ folder's files, {name: bytes}: the helper (a 64-bit Windows
+    program), NVIDIA's DLSS DLL and licence, and wine\\'s two DLLs, each the
+    pinned file."""
+    try:
+        helper = Path(helper_path).read_bytes()
+    except OSError as e:
+        sys.exit(f"{helper_path}: cannot read dlss_helper.exe ({e}). Build it with `nix develop ./srp-026g -c "
+                 "client/dlss-helper/build.sh`, or pass --dlss-helper=<path>.")
+    pe = int.from_bytes(helper[0x3c:0x40], "little") if helper[:2] == b"MZ" else None
+    if pe is None or helper[pe:pe + 4] != b"PE\0\0" or int.from_bytes(helper[pe + 4:pe + 6], "little") != 0x8664:
+        sys.exit(f"{helper_path}: not a 64-bit Windows program")
+    with read_dxvk_archive(dxvk_path) as archive:
+        dxgi = archive.extractfile(f"dxvk-{DXVK_VERSION}/x64/dxgi.dll").read()
+    if sha256(dxgi) != DXVK_X64_DXGI_SHA256:
+        sys.exit(f"{dxvk_path or DXVK_CACHE}: x64/dxgi.dll is not the pinned file (sha256 {DXVK_X64_DXGI_SHA256})")
+    nvapi_archive = read_pinned(nvapi_path, NVAPI_URL, NVAPI_SHA256, CACHE / f"dxvk-nvapi-v{NVAPI_VERSION}.tar.gz",
+                                f"dxvk-nvapi {NVAPI_VERSION}'s release archive",
+                                f"--nvapi=<dxvk-nvapi-v{NVAPI_VERSION}.tar.gz>")
+    with tarfile.open(fileobj=io.BytesIO(nvapi_archive)) as archive:
+        nvapi = archive.extractfile("./x64/nvapi64.dll").read()
+    if sha256(nvapi) != NVAPI_DLL_SHA256:
+        sys.exit(f"{nvapi_path or 'dxvk-nvapi'}: x64/nvapi64.dll is not the pinned file (sha256 {NVAPI_DLL_SHA256})")
+    return {
+        "dlss_helper.exe": helper,
+        "nvngx_dlss.dll": read_pinned(dlss_path, DLSS_URL, DLSS_SHA256, CACHE / f"nvngx_dlss-{DLSS_VERSION}.dll",
+                                      f"NVIDIA's nvngx_dlss.dll {DLSS_VERSION}", "--dlss=<nvngx_dlss.dll>"),
+        "NVIDIA-DLSS-SDK-LICENSE.txt": read_pinned(license_path, DLSS_LICENSE_URL, DLSS_LICENSE_SHA256,
+                                                   CACHE / f"nvidia-dlss-sdk-{DLSS_VERSION}-LICENSE.txt",
+                                                   f"the DLSS SDK {DLSS_VERSION}'s LICENSE.txt",
+                                                   "--dlss-license=<LICENSE.txt>"),
+        "LICENSES.txt": Path(DLSS_DIR, "LICENSES.txt").read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"),
+        os.path.join("wine", "dxgi.dll"): dxgi,
+        os.path.join("wine", "nvapi64.dll"): nvapi,
+    }
 
 
 def game_root(folder):
@@ -662,6 +746,7 @@ def main():
     launcher, updater_path, site = True, UPDATER_EXE, None
     extractor_path = EXTRACTOR_EXE
     dxvk_path = None
+    dlss_helper_path, dlss_path, dlss_license_path, nvapi_path = DLSS_HELPER_EXE, None, None, None
     late_join, revision, required = True, None, None
     downloads = []
     for option in options:
@@ -693,6 +778,14 @@ def main():
             extractor_path = option[len("--extractor="):]
         elif option.startswith("--dxvk="):
             dxvk_path = option[len("--dxvk="):]
+        elif option.startswith("--dlss-helper="):
+            dlss_helper_path = option[len("--dlss-helper="):]
+        elif option.startswith("--dlss="):
+            dlss_path = option[len("--dlss="):]
+        elif option.startswith("--dlss-license="):
+            dlss_license_path = option[len("--dlss-license="):]
+        elif option.startswith("--nvapi="):
+            nvapi_path = option[len("--nvapi="):]
         elif option.startswith("--site="):
             site = L.parse_site(option[len("--site="):])
         elif option == "--no-launcher":
@@ -762,6 +855,8 @@ def main():
             (os.path.join("game", EXE_DIR, EXTRACTOR_NAME), read_extractor(extractor_path)),
             (os.path.join("game", EXE_DIR, "updater_skhid.url"), (site + "\r\n").encode("ascii")),
             *((os.path.join("game", EXE_DIR, "dxvk", name), dll) for name, dll in read_dxvk(dxvk_path).items()),
+            *((os.path.join("game", EXE_DIR, "dlss", name), data) for name, data in
+              read_dlss(dlss_helper_path, dlss_path, dlss_license_path, nvapi_path, dxvk_path).items()),
             (STARTER, starter()),
             (WITHOUT_UPDATER, without_updater(downloads)),
             # Windows checkouts may use CRLF; Bash needs LF.

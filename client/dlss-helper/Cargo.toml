@@ -1,0 +1,33 @@
+[package]
+name = "dlss-helper"
+version = "0.1.0"
+edition = "2024"
+
+# dlss_helper.exe: the game's DLSS, a 64-bit process (PROTOCOL.md).
+[[bin]]
+name = "dlss_helper"
+path = "src/main.rs"
+
+[dependencies]
+# Vulkan's types and function tables only: vulkan-1.dll is loaded by the
+# program itself (no `loaded`/`linked`).
+ash = { version = "=0.38.0", default-features = false, features = ["std"] }
+windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_Environment", "Win32_System_LibraryLoader", "Win32_System_Pipes", "Win32_System_Registry", "Win32_System_SystemInformation", "Win32_System_Threading"] }
+
+# Its own workspace, as client/bugtrap: built for x86_64-pc-windows-msvc,
+# never with the server workspace.
+[workspace]
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+opt-level = "s"
+debug = 2
+strip = false
+
+[profile.dev]
+panic = "abort"
+
+[profile.release.package."*"]
+opt-level = "s"
