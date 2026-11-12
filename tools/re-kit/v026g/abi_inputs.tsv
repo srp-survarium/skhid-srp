@@ -6317,3 +6317,7 @@ va	name	location	role	basis
 0x000d6cd0	btGjkPairDetector::getClosestPointsNonVirtual	entry ESP+4	the detector	observed
 0x000d6cd0	btGjkPairDetector::getClosestPointsNonVirtual	entry ESP+8	the input: transform A, transform B (+40h), the largest distance squared (+80h)	observed
 0x0008d680	btConvexShape::localGetSupportVertexWithoutMarginNonVirtual	ECX	the convex shape	observed
+0x00072b90	btMatrix3x3::getRotation	ESI	the matrix	observed
+0x00072a50	btMatrix3x3::setRotation	ECX	the quaternion	observed
+0x00072eb0	btTransformUtil::calculateVelocity	ESI	the angular velocity out	observed
+0x00072eb0	btTransformUtil::calculateVelocity	EDX	the linear velocity out	observed

@@ -507,7 +507,9 @@ fn advance_exe(shape: Shape, by: Vec3, face: &Face, start: StartOverlap) -> Opti
     };
     let cast = exe_cast::Cast { shape: cast_shape, margin, from: from.to_array(), by: by.to_array() };
     let triangle = exe_gjk::Triangle([face.v[0].to_array(), face.v[1].to_array(), face.v[2].to_array()]);
-    match exe_cast::cast_triangle(&cast, &triangle, 1.0) {
+    // The face is in world coordinates (transform B the identity), its margin 0, the sweep's allowed penetration 0
+    // (`convexSweepTest` 0xA34E8), and the callback's fraction 1 (every face's hit is handed on).
+    match exe_cast::cast_triangle(&cast, &triangle, 0.0, &exe_cast::IDENTITY, 0.0, 1.0) {
         exe_cast::CastEnd::Hit { fraction, normal, point } => {
             Some(Contact { t: fraction, point: Vec3::from_array(point), normal: Vec3::from_array(normal), face: 0 })
         }
