@@ -5140,8 +5140,9 @@ nothing in the db. The rules and the entries are in
   the windows over the game's alone, told (kind 2, moment `minute <n>`, only those entries) when it
   saw otherwise than the last look; the process list is taken only when some window is over the game.
 - **An over window's exe file** (outside the Windows folder): each frame of the match one step,
-  the file opened read-only (`CreateFileW`) or its next 8 KiB read and hashed, one file at a
-  time; its size and SHA-256 (or `too big`, over 16 MiB, or `unread`) are an entry of the first
+  the file opened read-only (`CreateFileW`) and asked its size, or its next 8 KiB read and
+  hashed, one file at a time; its size and SHA-256 (or `too big`, over 16 MiB by its size and
+  then never read, or `unread`) are an entry of the first
   report after its end. The file is never sent. No new hook or engine function.
 
 **The server.** The match server logs each part once per connection, of its own match only, to

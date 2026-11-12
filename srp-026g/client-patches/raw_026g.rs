@@ -21730,6 +21730,15 @@ impl RespawnPointCore {
         unsafe { self.0.byte_add(0x34).cast::<f32>().as_ptr() }
     }
 
+    /// +0x20 (u32): invulnerability duration in milliseconds, load 0x2F4628..0x2F4630 multiplies legacy seconds by 1000
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn protection_ms(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x20).cast::<u32>().as_ptr() }
+    }
+
     /// 0x38 bytes: a point of a group (select's step 0x317270)
     pub const SIZE: usize = 0x38;
 
@@ -26663,6 +26672,30 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<KdEventFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(KdEventFrame)
+        }
+    }
+
+    /// respawn.protection_read (0x2f4628): respawn_point_core::load before legacy seconds conversion (mov edx,[eax]; imul edx,1000); EBP point, EBX config; applied skips the conversion and store after an explicit millisecond setting
+    pub mod respawn_protection_read {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a survarium::respawn_point_core (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn point(machine: &impl Machine) -> Option<RespawnPointCore> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(RespawnPointCore)
+        }
+
+        /// EBX: a vostok::engine_cfg (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn config(machine: &impl Machine) -> Option<EngineCfg> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EngineCfg)
         }
     }
 }

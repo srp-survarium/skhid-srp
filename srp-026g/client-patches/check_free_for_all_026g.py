@@ -323,12 +323,56 @@ def model(points, due, living, time):
     return chosen
 
 
+def check_protection(patched):
+    """Run the original seconds conversion and the installed optional-ms hook."""
+    r = Run(bytes(patched))
+    point, config, legacy, override = DATA + 0xC0000, DATA + 0xC1000, DATA + 0xC2000, DATA + 0xC3000
+    r.word(config + 0x14, 3)  # relocated named table, no iterated children
+    r.word(legacy, 2)
+    current = [None]
+
+    def has(emu, *_):
+        assert emu.reg_read(UC_X86_REG_EAX) == config
+        assert r.text(emu.reg_read(UC_X86_REG_ESI)) == b'invulnerability_time_ms'
+        emu.reg_write(UC_X86_REG_EAX, int(current[0] is not None))
+        r.leave(emu, 0)
+
+    def child(emu, *_):
+        assert emu.reg_read(UC_X86_REG_EAX) == config
+        key = r.text(emu.reg_read(UC_X86_REG_EDI))
+        assert key in (b'invulnerability_time', b'invulnerability_time_ms'), key
+        emu.reg_write(UC_X86_REG_EAX, legacy if key == b'invulnerability_time' else override)
+        r.leave(emu, 0)
+
+    r.emu.hook_add(UC_HOOK_CODE, has, begin=0xF6C00, end=0xF6C00)
+    r.emu.hook_add(UC_HOOK_CODE, child, begin=0xF6B10, end=0xF6B10)
+    for value, expected in [(None, 2000), ((1, 500), 500), ((1, 0), 0),
+                            ((1, 2000), 2000), ((1, 0xFFFFFFFF), 2000),
+                            ((2, 0x3F000000), 2000)]:
+        current[0] = value
+        if value is not None:
+            kind, data = value
+            r.word(override, data)
+            r.word(override + 0x14, kind)
+        r.word(point + 0x20, 0x12345678)
+        sp = hide.STACK + 0x9000
+        regs = {**hide.GAME, UC_X86_REG_EBP: point, UC_X86_REG_EBX: config,
+                UC_X86_REG_ESI: 0xA12CC4}
+        after, end_sp = r.run(0x2F461F, (0x2F4638,), sp, regs)
+        assert r.stopped == 0x2F4638 and end_sp == sp
+        assert r.read(point + 0x20) == expected, (value, r.read(point + 0x20))
+        assert after[UC_X86_REG_EBX] == config and after[UC_X86_REG_EBP] == point
+        assert after[UC_X86_REG_ESI] == 0xA12CC4 and after[UC_X86_REG_EDI] == 0x9E1C18
+    print('ok native seconds load preserved; optional 500 ms and zero exact; invalid overrides ignored')
+
+
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
     original = open(sys.argv[1], 'rb').read()
     patched, _ = base.build(original, 'section', open(base.default_bin('section'), 'rb').read(), None,
                             open(base.late_join_bin(), 'rb').read())
+    check_protection(patched)
     stock, r = Run(original), Run(bytes(patched))
 
     assert r.due(0) == (0, 0x7EC70000) and r.due(1) == (3, 0x7EC70000)

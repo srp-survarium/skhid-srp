@@ -1191,3 +1191,4 @@ survarium::kd_stats_rule	core	0x1B4	ptr<survarium::core_world>	the owning world,
 survarium::kd_event_frame	event	0x4	u32	on_event first argument: event 1 is a death, 0x3237E0
 survarium::kd_event_frame	time	0xC	u32	on_event third argument: completed world time, dispatched by 0x2D1EC0
 survarium::pvp_match	options	0x124	ptr<survarium::match_options>	borrowed match options (constructor 0x2D55B0 argument +10h); lj_native_install updates this roster, UI 0x23B42C..0x23B435 reads it
+survarium::respawn_point_core	protection_ms	0x20	u32	invulnerability duration in milliseconds, load 0x2F4628..0x2F4630 multiplies legacy seconds by 1000

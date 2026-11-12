@@ -55,3 +55,8 @@ order = 1
 site = "game_world_ui.welcome"
 handler = "on_welcome"
 order = 1
+
+# Optional per-point duration, with millisecond precision.
+[[hook]]
+site = "respawn.protection_read"
+handler = "on_protection_read"

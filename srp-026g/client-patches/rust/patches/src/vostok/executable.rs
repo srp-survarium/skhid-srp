@@ -55,6 +55,17 @@ impl Executable {
     }
 }
 impl Source for Executable {
+    fn size(&mut self) -> Option<u64> {
+        /// `FILE_END`: the distance is from the file's end.
+        const END: u32 = 2;
+        let mut high = 0u32;
+        // SAFETY: live handle; no distance from the end, so the position the
+        // call returns is the size: its low half, the high half into `high`.
+        let low = unsafe { raw::engine_set_file_pointer(self.seek, self.file, 0, (&raw mut high).cast(), END) };
+        // INVALID_SET_FILE_POINTER: the call failed (a size whose low half is
+        // all ones is taken for that too). Then back to the start.
+        (low != u32::MAX && self.seek(0)).then_some(u64::from(high) << 32 | u64::from(low))
+    }
     fn read(&mut self, into: &mut [u8]) -> Option<usize> {
         let mut got = 0;
         // SAFETY: owned open handle, writable buffer and DWORD; synchronous read.

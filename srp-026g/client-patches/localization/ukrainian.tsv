@@ -883,6 +883,10 @@ st_crosshair_static_option	Статичний приціл
 st_crosshair_type_option	Вибір прицілу
 st_crouch_action	Присісти (утрим.)
 st_crouch_toggle_action	Присісти
+st_cs_mp_bath_name	Басейн
+st_cs_mp_military_1_name	Армійські склади
+st_cs_mp_rembasa_name	Ремонтна база
+st_cs_training_camp_name	Тренувальний табір
 st_ct_max_members_count_error	Помилка додавання. У клановій команді вже знаходиться максимальна кількість гравців.
 st_current_value	\nПоточне значення:
 st_cz_75_description	Чеський самозарядний пістолет, набій: 9x19. Один із найбільш копійованих пістолетів холодної війни.
@@ -2170,6 +2174,8 @@ st_snp_steady_breath_desc	Ви швидше відновлюєтеся післ�
 st_snp_steady_breath_name	Рівний видих
 st_snp_steady_grip_desc	Підвищує точність стрільби під час руху.
 st_snp_steady_grip_name	Міцна хватка
+st_soc_ug_depository_name	Сховище
+st_soc_ug_station_name	Станція
 st_soc_vepr_description	Російський самозарядний карабін сімейства «Вепр» під боєприпас 7.62х39. Виготовляється заводом «Молот» у Вятських Полянах на посиленій ствольній коробці кулемета РПК як мисливська і спортивна зброя. Обладнаний магазином на 10 набоїв. Лише одиничний вогонь.
 st_soc_vepr_name	СОК-94
 st_socom16_description	ОПИСАНИЕ НЕ ГОТОВО!!!
@@ -2572,6 +2578,10 @@ st_srp_login_ban_forever	Бан безстроковий.
 st_srp_map_chemical_plant	Хімзавод
 st_srp_map_chemical_plant_v011	Хімзавод (v0.11)
 st_srp_map_cologne	Кельн
+st_srp_map_cs_mp_bath	Басейн
+st_srp_map_cs_mp_military_1	Армійські склади
+st_srp_map_cs_mp_rembasa	Ремонтна база
+st_srp_map_cs_training_camp	Тренувальний табір
 st_srp_map_london	Лондон
 st_srp_map_mamayev_kurgan	Мамаїв курган
 st_srp_map_mamayev_kurgan_v021	Мамаїв курган (v0.21)
@@ -2579,6 +2589,8 @@ st_srp_map_names_option	Імена на мапі
 st_srp_map_rudnya	Рудня
 st_srp_map_rudnya_v069	Рудня (v0.69)
 st_srp_map_school	Школа
+st_srp_map_soc_ug_depository	Сховище
+st_srp_map_soc_ug_station	Станція
 st_srp_map_tarakanovsky_fort	Тараканівський форт
 st_srp_map_vector	Лабораторія "Вектор"
 st_srp_map_vostok	РЛС "Восток"

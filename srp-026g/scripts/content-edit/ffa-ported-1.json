@@ -39,11 +39,11 @@
   {"file": "gameplay/game_modes/ffa/v069d_level_01_day_8.options", "path": "mode/rules", "value": 90}
  ],
  "append_entry": [
-  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "expected_count": 180, "unique_key": "id", "value": {"cfg_mode_name": "ffa/v021d_level_03_day_8.options", "id": 164}},
-  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "expected_count": 181, "unique_key": "id", "value": {"cfg_mode_name": "ffa/v021d_level_06_day_8.options", "id": 165}},
-  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "expected_count": 182, "unique_key": "id", "value": {"cfg_mode_name": "ffa/v011e_level_04_day_8.options", "id": 167}},
-  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "expected_count": 183, "unique_key": "id", "value": {"cfg_mode_name": "ffa/v011e_level_03_day_8.options", "id": 168}},
-  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "expected_count": 184, "unique_key": "id", "value": {"cfg_mode_name": "ffa/v069d_level_01_day_8.options", "id": 169}}
+  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "expected_count": 186, "unique_key": "id", "value": {"cfg_mode_name": "ffa/v021d_level_03_day_8.options", "id": 164}},
+  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "expected_count": 187, "unique_key": "id", "value": {"cfg_mode_name": "ffa/v021d_level_06_day_8.options", "id": 165}},
+  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "expected_count": 188, "unique_key": "id", "value": {"cfg_mode_name": "ffa/v011e_level_04_day_8.options", "id": 167}},
+  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "expected_count": 189, "unique_key": "id", "value": {"cfg_mode_name": "ffa/v011e_level_03_day_8.options", "id": 168}},
+  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "expected_count": 190, "unique_key": "id", "value": {"cfg_mode_name": "ffa/v069d_level_01_day_8.options", "id": 169}}
  ],
  "add_entry": [
   {"files": "projects/v021d_level_03/day_4/client_project", "list": "server_objects/respawn_points", "after": {"point_id": 21}, "like": {"point_id": 0}, "values": {"name": "ffa_ported_00", "full_name": "logic/modes/ffa/respawn/ffa_ported_00", "point_id": 22, "team": 2, "priority": 1, "is_temporary": false, "position": [0.125, 5.386455, -26.940994], "rotation": [0.0, 6.086836, 0.0], "invulnerability_time": 2, "enemy_check_radius": 30.0, "ally_check_radius": 1.0}},

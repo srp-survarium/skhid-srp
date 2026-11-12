@@ -3757,6 +3757,48 @@ music_on_announced_replay:
     db 0xc6, 0x87, 0x70, 0x03, 0x00, 0x00, 0x01
     jmp 0x23b371
 
+; 0x2f4628 respawn_point_core::load before legacy seconds conversion (mov edx,[eax]; imul edx,1000); EBP point, EBX config; applied skips the conversion and store after an explicit millisecond setting: lohook -> free_for_all_on_protection_read
+global free_for_all_on_protection_read
+extern hook_free_for_all_on_protection_read
+free_for_all_on_protection_read:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_free_for_all_on_protection_read
+    mov edx, free_for_all_on_protection_read_replay
+    cmp eax, 0
+    je free_for_all_on_protection_read_go
+    mov edx, 0x2f4630
+    cmp eax, 1
+    je free_for_all_on_protection_read_go
+    mov edx, 0x2f4633
+    cmp eax, 2
+    je free_for_all_on_protection_read_go
+    ud2
+free_for_all_on_protection_read_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+free_for_all_on_protection_read_replay:
+    db 0x8b, 0x10, 0x69, 0xd2, 0xe8, 0x03, 0x00, 0x00
+    jmp 0x2f4630
+
 ; 0x2e50c7 EDI damage model ESI hit_info; invulnerability applied: lohook -> hand_kill_on_hit
 global hand_kill_on_hit
 extern hook_hand_kill_on_hit_chain

@@ -883,6 +883,10 @@ st_crosshair_static_option	Statische Visier
 st_crosshair_type_option	Visier Auswahl
 st_crouch_action	Hocken (halt.)
 st_crouch_toggle_action	Hocken
+st_cs_mp_bath_name	Versuchsbecken
+st_cs_mp_military_1_name	Military Warehouses
+st_cs_mp_rembasa_name	Reparaturdepot
+st_cs_training_camp_name	Trainingslager
 st_ct_max_members_count_error	Fehler beim Hinzufügen. In der Klan Mannschaft befindet sich schon die Maximale Anzahl der Spieler.
 st_current_value	\nAktueller Wert
 st_cz_75_description	Tschechische Selbstladepistole, Munition: 9x19. Eine der meistkopierten Pistolen des Kalten Krieges.
@@ -2170,6 +2174,8 @@ st_snp_steady_breath_desc	Sie rehabilitieren sich schneller nach dem Luft anhalt
 st_snp_steady_breath_name	glatt ausatmen
 st_snp_steady_grip_desc	Erhöht die Genauigkeit des Schießens beim Bewegen.
 st_snp_steady_grip_name	Fest im Griff
+st_soc_ug_depository_name	Depot
+st_soc_ug_station_name	Station
 st_soc_vepr_description	Russischer Selbstladekarabiner der Wepr-Familie, Munition: 7,62x39. Vom Werk Molot in Wjatskije Poljany auf dem verstärkten Gehäuse des RPK-Maschinengewehrs als Jagd- und Sportwaffe gebaut. Mit einem 10-Schuss-Magazin ausgestattet. Nur Einzelfeuer.
 st_soc_vepr_name	SOK-94
 st_socom16_description	Description is not ready!!!
@@ -2572,6 +2578,10 @@ st_srp_login_ban_forever	Die Sperre ist dauerhaft.
 st_srp_map_chemical_plant	Chemiebetrieb
 st_srp_map_chemical_plant_v011	Chemiebetrieb (v0.11)
 st_srp_map_cologne	Köln
+st_srp_map_cs_mp_bath	Versuchsbecken
+st_srp_map_cs_mp_military_1	Military Warehouses
+st_srp_map_cs_mp_rembasa	Reparaturdepot
+st_srp_map_cs_training_camp	Trainingslager
 st_srp_map_london	London
 st_srp_map_mamayev_kurgan	Mamaew kurgan
 st_srp_map_mamayev_kurgan_v021	Mamaew kurgan (v0.21)
@@ -2579,6 +2589,8 @@ st_srp_map_names_option	Namen auf Karte
 st_srp_map_rudnya	Rudnya
 st_srp_map_rudnya_v069	Rudnya (v0.69)
 st_srp_map_school	Schule
+st_srp_map_soc_ug_depository	Depot
+st_srp_map_soc_ug_station	Station
 st_srp_map_tarakanovsky_fort	Tarakanowski Fort
 st_srp_map_vector	Labor Vektor
 st_srp_map_vostok	RS Vostok

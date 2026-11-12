@@ -409,6 +409,18 @@ enum Reading<F> {
     Done(File),
 }
 
+impl<F> Reading<F> {
+    /// After the file's opening or a step of its reading.
+    fn of(hashed: Hashed<F>) -> Reading<F> {
+        match hashed {
+            Hashed::More(hashing) => Reading::Hashing(hashing),
+            Hashed::Whole(_, identity) => Reading::Done(File::Hashed(identity)),
+            Hashed::TooBig => Reading::Done(File::TooBig),
+            Hashed::Unread => Reading::Done(File::Unread),
+        }
+    }
+}
+
 impl<F: Source> Files<F> {
     fn new() -> Files<F> {
         Files { slots: core::array::from_fn(|_| None) }
@@ -425,17 +437,13 @@ impl<F: Source> Files<F> {
         }
     }
 
-    /// A frame: the first file not read through yet is opened, or read on.
+    /// A frame: the first file not read through yet is opened and asked its
+    /// size (one too big is done with at once, never read), or read on.
     fn step(&mut self, open: impl FnOnce(&Path) -> Option<F>) {
         let Some(slot) = self.slots.iter_mut().flatten().find(|slot| !matches!(slot.state, Reading::Done(_))) else { return };
         slot.state = match core::mem::replace(&mut slot.state, Reading::Done(File::Unread)) {
-            Reading::Waiting => open(&slot.path).map_or(Reading::Done(File::Unread), |file| Reading::Hashing(Hashing::new(file))),
-            Reading::Hashing(hashing) => match hashing.step() {
-                Hashed::More(hashing) => Reading::Hashing(hashing),
-                Hashed::Whole(_, identity) => Reading::Done(File::Hashed(identity)),
-                Hashed::TooBig => Reading::Done(File::TooBig),
-                Hashed::Unread => Reading::Done(File::Unread),
-            },
+            Reading::Waiting => open(&slot.path).map_or(Reading::Done(File::Unread), |file| Reading::of(Hashing::start(file))),
+            Reading::Hashing(hashing) => Reading::of(hashing.step()),
             done @ Reading::Done(_) => done,
         };
     }
@@ -668,10 +676,12 @@ mod tests {
     #[test]
     fn the_windows_exe_files_are_read_one_after_the_other_and_told_when_whole() {
         use srp_validate::executable::{Identity, MAX_FILE};
-        /// A file of so many zeros.
+        /// A file of so many zeros left to read.
         struct Zeros(usize);
         impl Source for Zeros {
+            fn size(&mut self) -> Option<u64> { Some(self.0 as u64) }
             fn read(&mut self, into: &mut [u8]) -> Option<usize> {
+                assert!(self.0 <= MAX_FILE as usize, "a file too big is never read");
                 let read = into.len().min(self.0);
                 self.0 -= read;
                 Some(read)
@@ -704,8 +714,8 @@ mod tests {
         hash.update(&[0; 8193]);
         let whole = File::Hashed(Identity::new(8193, hash.finish()).unwrap());
         assert_eq!(told(&files)[..2], [Some((name(&small), whole)), None]);
-        // none.exe cannot be opened; big.exe is opened and read until it is past the most
-        (0..MAX_FILE / 8192 + 3).for_each(|_| files.step(open));
+        // none.exe cannot be opened; big.exe is opened and too big by its size at once, with no read
+        (0..2).for_each(|_| files.step(open));
         assert_eq!(told(&files)[1..4], [Some((name(&none), File::Unread)), Some((name(&big), File::TooBig)), None]);
         files.step(|_| panic!("every file is read through"));
     }
