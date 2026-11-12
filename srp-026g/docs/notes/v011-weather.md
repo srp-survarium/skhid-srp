@@ -551,3 +551,102 @@ keep geometry coverage and the encoded accumulator/probe ordering intact.
 Initialization, camera discontinuities, resize and scene teardown remain
 unverified. Production integration, final native sweep and dynamic rain remain
 outstanding. The weather content remains version 5; no release or PR was made.
+
+## Original ambient pipeline on native inputs (2026-11-12)
+
+`original_ambient_live.c` now owns original accumulation, history mask, temporal
+resolve and skylight passes, with previous AO/depth/view, in the render observer.
+It runs once per frame at the first recognized native probe. All outputs remain
+private: native probes, light composition and final presentation are unchanged.
+This is diagnostic integration, not a completed weather renderer.
+
+Native input captures established these boundary mappings:
+
+- Depth is R16_FLOAT; the physical stencil surface is R24G8_TYPELESS with a
+  D24_UNORM_S8_UINT view. The original nonzero-stencil coverage test is usable
+  at this boundary. Native and original stencil numbers differ; their nonzero
+  geometry coverage is not claimed pixel-identical.
+- Native normal XY is R16G16_FLOAT, using the same sphere-map encoding as the
+  original R10G10B10A2_UNORM XY. The unchanged skylight shader reads the native
+  float2 texture directly. No repacking/precision loss is introduced.
+- Native global constants are 416 bytes: the first 224 bytes contain the same
+  projection/view transforms. Native screen dimensions at 224 map to original
+  offset 288 in a 304-byte buffer. The current native projection/jitter is kept.
+- Native probe CB0 is 208 bytes; eye-ray XYZ at 112 maps to original mask/sky
+  offset 16 and temporal offset 20. Accumulation receives those live rays in
+  its original 36-byte quad vertices. Preserve captured index offsets and base
+  vertex: the evening packet uses base 0, the rainy packet base 7. An initial
+  overly restrictive quad guard rejected rain before drawing; the corrected
+  owner resolves the indexed quad within the captured allocation.
+
+History is empty or valid with previous present, capture-camera ID and view.
+Initialization, a present gap or a new capture-camera ID zeros previous AO/depth
+and the history mask. The unchanged original temporal shader then takes its
+current-AO-only branch. Subsequent frames connect GPU-produced accumulation and
+mask to temporal resolve, connect its AO to skylight, and retain both outputs
+needed by the next history step. Mismatched input/device/resolution contracts
+stop and release the diagnostic instead of substituting arbitrary inputs.
+
+Each reset and settled capture records five output targets, previous AO/depth,
+current depth/normal/stencil, mapped constants and eye-ray geometry. Independent
+`replay_live_ambient.py` packets retain the exact original shader identities and
+captured geometry/state, with the captured native inputs and history substituted.
+`replay_ssao_chain.exe --reset-history` additionally reproduces reset-mask clear;
+it saves all five outputs. CPU checks reject stale eye rays, retained reset
+history, missing/truncated inputs, overwrite attempts and bad packet extents.
+
+The initial prototype completed 1,126 evening and 1,249 rainy frames, with five
+resets per run and no rejected inputs. Eight snapshots independently replayed
+all 24 AO/depth/skylight outputs byte-identically (`live-ambient-replay/results.json`,
+SHA256 `91c276ba504b98cdd2260595a0cbb7b8a88a6bbb542588b436ebc61d7f0229f0`).
+Review then found that accumulation still retained captured eye rays. Those are
+now updated from the current native camera; the later validation below applies
+to the corrected implementation. The failed intermediate rainy capture and all
+earlier evidence were preserved.
+
+These native runs deliberately use the earlier version-1 weather content
+baseline to isolate renderer behavior, not the version-5 release candidate.
+Original reference captures are reused unchanged. No weather release or PR was
+made. Production ownership/hooks, resize and scene teardown, original probe and
+encoded-light composition, moving-rain parity, local play and the final native
+100+ camera sweep remain outstanding.
+
+Corrected implementation validation (`live-ambient-v3-*` evidence):
+
+- Native evening: **1,332 executed frames**, five resets, zero rejections.
+  Native rain: **1,271 frames**, five resets, zero rejections. Both processes
+  completed successfully and their isolated runtimes stopped.
+- **20 snapshots**, ten reset and ten settled, independently replayed all
+  **100 output targets byte-identically**. This includes accumulation, history
+  mask, temporal AO/depth and skylight, with the rainy base-7 quad preserved.
+  `/tmp/v011-weather-reference/live-ambient-v3-replay/results.json`, SHA256
+  `aa90257587069ec4be9b0259808ac4b37fc7a7f1aafde4413089cf6904d1ae6b`.
+- Original post, gamma and skylight command-list regressions remain exact,
+  including their context-state restoration checks:
+  `live-ambient-v3-replay/regressions.json`, SHA256
+  `2ecd497f95e984b40b273966619d903b1dadab8b16189006a04344979d471bdc`.
+  The original SSAO-to-skylight chain regression also remained byte-identical.
+- Both weather fixtures pass reset/steady CPU preparation and 21 rejection
+  cases each. Observer, chain and command-list programs build with
+  `-Wall -Wextra -Werror`. No Rust or game-content sources changed here.
+- `live-ambient-v3-completion.json` verifies build pins, all captured files and
+  ten actual camera requests, SHA256
+  `5134e5c3e9bf2ee58b81ac446c9acad842f3e355c74f1f1de4134829f8adf660`.
+  Private output and native probe geometry have the same captured Present ID;
+  control status is polled one to four frames later, retaining the same camera
+  ID, position, direction and FOV. This distinction is recorded in the receipt.
+- Buffer comparisons are in
+  `/tmp/v011-weather-reference/live-ambient-v3-visuals/`. They compare AO and
+  encoded skylight, not the final game image. Weapon coverage differs from the
+  original login-scene capture; native floor/detail inputs also still differ.
+  Exact replay establishes the shader/input pipeline, not full scene fidelity.
+
+Next: integrate original probes and the encoded-light accumulator/composition
+with these verified producers, preserving the original light ordering. Do not
+publish this diagnostic as a final weather-lighting fix. Continuous camera
+motion, intentional frame-gap recovery, resize and teardown remain untested;
+these captures verify initialization and discrete camera-ID resets only.
+
+Resource-porter checkpoint: `f9fea35` (`feat/v011-vostok-weather`). This game
+worktree checkpoint changes documentation only; content version 5 and the
+unreleased production integration status remain unchanged.
