@@ -53,7 +53,7 @@ pub const AIR_FRAMES_PER_STEP: f32 = FPS * TICK_S;
 /// The sprint jump clip's time scale (FINDINGS 3.3).
 const SPRINT_TIME_SCALE: f32 = 0.909;
 /// `air_control_speed` (player +0x304, `default.player`), m/s.
-const AIR_CONTROL_MS: f32 = 1.0;
+pub(crate) const AIR_CONTROL_MS: f32 = 1.0;
 /// How far over the arc's feet a floor's top may be and neither hold the body as a wall nor be missed coming down (the capsule's
 /// lower sphere on a lip), m. GUESS (the old reckoning's rise cap 1.09 m over the clip's 0.998 m apex, not a client read); the
 /// read that proves it: A325's rail and ledge rows (the capsule's edge rule, JUMP-FINDINGS 1).
