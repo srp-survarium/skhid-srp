@@ -116,7 +116,11 @@ The completed local Training Camp match is in the private world corpus at
 `local/stalker-ffa-crater/rec026g_20261112-202431_2533279d.srprec` (45,082 bytes,
 SHA-256 `1a81bf6c94e558b79fec02c98aacbf8bef4af601d7646115eeef2e8603c2de7c`).
 The server logged the completed recording after both updated clients entered;
-it is included in the combined-tree world checks before merge.
+all 15 saved worlds passed the combined-tree server check. The native/host
+comparison agreed on all 1,044 sampled worlds and their mutated copies on the
+integration with main `4bebbb538`. Main's later executable-size precheck
+(`6baf30627`) was integrated and the arena relinked; focused final native and
+Rust results are recorded in the PR.
 
 The combined-main quick content build passed (`tools/check build-content`,
 key `59385548a82b`). Its archive SHA-256 is
@@ -131,3 +135,9 @@ harness lacks Calibri's infinity glyph for the existing pocket-units string,
 and HUD-options fails the existing `configs.start` registration assertion.
 The same failures were reproduced in a clean detached baseline checkout;
 no validation rule was loosened.
+
+The full historical corpus is not green: 22,705 of 44,233 worlds passed and
+21,528 were refused, mostly for older respawn counts plus invalid object states.
+The additional full baseline comparison was stopped after resource contention;
+these corpus failures remain a validation limit, not a claimed baseline pass.
+The new Training Camp recording has no refused worlds.
