@@ -74,8 +74,9 @@ pub struct BotSkillTier {
 /// in the lowest tier 201 opens 209's row, which 204 alone no longer does
 /// since the tree's change of 2026-11-09). Left out, with
 /// the reason in the note: 103 (the bots time a bolt's chambering by the
-/// clip), 213 (two of ten). 102 (no speed in the client's aiming speed,
-/// LIKELY) and 108 (the bots time a reload by the clip) are left out of
+/// clip), 213 (two of ten). 102 (no speed: PROVEN, modifier 20 above 0 has
+/// no effect in the client, 0x2DBC1D..0x2DBC4C) and 108 (the bots time a
+/// reload by the clip) are left out of
 /// these rows and given only by the owner's kit ([`AMMO_POUCH`]), where
 /// they are the way to skill 109.
 #[rustfmt::skip]
