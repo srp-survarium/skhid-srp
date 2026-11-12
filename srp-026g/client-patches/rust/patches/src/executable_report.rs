@@ -22,6 +22,9 @@ pub fn on_close(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 pub trait Source {
+    /// The file's size in bytes, the file left at its start; `None`: it
+    /// cannot be told.
+    fn size(&mut self) -> Option<u64>;
     fn read(&mut self, into: &mut [u8]) -> Option<usize>;
     fn seek(&mut self, offset: u32) -> bool;
 }
@@ -34,13 +37,22 @@ pub enum Hashed<F> {
     More(Hashing<F>),
     /// The whole file's size and SHA-256, and the file.
     Whole(F, Identity),
-    /// Larger than [`MAX_FILE`]: not read on.
+    /// Larger than [`MAX_FILE`]: not read.
     TooBig,
-    /// A read failed, or the file is empty.
+    /// Its size cannot be told, a read failed, or the file is empty.
     Unread,
 }
 impl<F: Source> Hashing<F> {
-    pub fn new(file: F) -> Self { Self { file, hash: Sha256::new(), size: 0 } }
+    /// `file`, just opened, asked its size before any read: one larger than
+    /// [`MAX_FILE`] is too big at once, one that is empty or cannot tell its
+    /// size is unread, any other is read from its start.
+    pub fn start(mut file: F) -> Hashed<F> {
+        match file.size() {
+            None | Some(0) => Hashed::Unread,
+            Some(size) if size > u64::from(MAX_FILE) => Hashed::TooBig,
+            Some(_) => Hashed::More(Self { file, hash: Sha256::new(), size: 0 }),
+        }
+    }
     pub fn step(mut self) -> Hashed<F> {
         let mut bytes = [0; 8192];
         match self.file.read(&mut bytes).filter(|&n| n <= bytes.len()) {
@@ -64,9 +76,20 @@ enum State<F> {
     Sending { file: F, identity: Identity, offset: u32, end: u32, last: Option<u32> },
     Done,
 }
+impl<F> State<F> {
+    /// After the file's opening or a step of its hashing: hashing on, the
+    /// whole file's offer, or nothing of one too big or unread.
+    fn hashed(hashed: Hashed<F>) -> Self {
+        match hashed {
+            Hashed::More(hashing) => State::Hashing(hashing),
+            Hashed::Whole(file, identity) => State::Offering { file, identity, last: None },
+            Hashed::TooBig | Hashed::Unread => State::Done,
+        }
+    }
+}
 pub struct Client<F> { state: State<F> }
 impl<F: Source> Client<F> {
-    pub fn new(file: F) -> Self { Self { state: State::Hashing(Hashing::new(file)) } }
+    pub fn new(file: F) -> Self { Self { state: State::hashed(Hashing::start(file)) } }
     pub fn reply(&mut self, reply: Reply) {
         let old = core::mem::replace(&mut self.state, State::Done);
         self.state = match old {
@@ -86,11 +109,7 @@ impl<F: Source> Client<F> {
     pub fn tick(&mut self, now: u32, match_id: u32, mut send: impl FnMut(Carrier<'_>) -> bool) {
         let old = core::mem::replace(&mut self.state, State::Done);
         self.state = match old {
-            State::Hashing(hashing) => match hashing.step() {
-                Hashed::More(hashing) => State::Hashing(hashing),
-                Hashed::Whole(file, identity) => State::Offering { file, identity, last: None },
-                Hashed::TooBig | Hashed::Unread => State::Done,
-            },
+            State::Hashing(hashing) => State::hashed(hashing.step()),
             State::Offering { file, identity, last } => {
                 if last.is_none_or(|last| now.wrapping_sub(last) >= 1000)
                     && send(Carrier { match_id, upload: Upload::Offer(identity) }) {
@@ -136,6 +155,7 @@ mod tests {
     use std::{rc::Rc, cell::Cell, vec::Vec};
     struct File { bytes: Vec<u8>, at: usize, dropped: Rc<Cell<bool>> }
     impl Source for File {
+        fn size(&mut self) -> Option<u64> { Some(self.bytes.len() as u64) }
         fn read(&mut self, into: &mut [u8]) -> Option<usize> {
             let n = into.len().min(self.bytes.len() - self.at).min(137); // short reads
             into[..n].copy_from_slice(&self.bytes[self.at..self.at+n]); self.at += n; Some(n)

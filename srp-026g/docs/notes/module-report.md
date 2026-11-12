@@ -47,8 +47,9 @@ log across all games.
     read rarest first. The first 16 from the top. Where it cannot be told, one entry says why:
     the game has no window yet, or its window is not in the order;
   - **exe**: the file of an over window's exe outside the Windows folder: its name, its place
-    and its size and SHA-256, or that it is larger than 16 MiB (`too big`) or could not be
-    opened or read (`unread`). Reading takes some seconds (below), so a file is told by the
+    and its size and SHA-256, or that it is larger than 16 MiB (`too big`: told by its size,
+    such a file is never read) or could not be opened, asked its size or read (`unread`).
+    Reading takes some seconds (below), so a file is told by the
     first report after its end: the next minute's (a file read through is a change to tell,
     its window still there or gone) or the match's end. The first 8 exes a connection;
   - **module**: each module of the loader's list: name, place, image size, the PE header's
@@ -85,7 +86,9 @@ log across all games.
   (as Windows named it) to the connection's files, each path once. Each frame of the match
   (`game.tick`) takes one step: the first file not read through is opened (`CreateFileW`,
   read-only; others may read, rename or delete it meanwhile, so an updater is never in the
-  game's way, but not write it) or its next 8 KiB are read and hashed
+  game's way, but not write it) and asked its size (`SetFilePointer` to its end and back: one
+  over 16 MiB is `too big` at once, with no read, one whose size Windows does not tell is
+  `unread`), or its next 8 KiB are read and hashed
   (`executable_report::Hashing`, the running executable's own pacing), so a 2 MB exe takes
   about 4 s at 60 frames a second and no frame reads more. One file is open at a time; the
   match's close closes it and forgets the connection's files, and another match reads anew.
@@ -133,7 +136,7 @@ log across all games.
   and the server's line); Windows; what overlays look like in the log.
 - An over window's exe file (2026-11-12): the entry's codec (`srp-validate`'s tests), the files
   read one after the other, a step a frame, with one that cannot be opened and one too big
-  (the patch crate's tests), the server's line and the tool's `file` lines. Not run in a game:
+  (told by its size, never read; the patch crate's tests), the server's line and the tool's `file` lines. Not run in a game:
   no file of another program has been opened by the game yet, on Wine or Windows, so what a
   frame's step costs there (the open, a read from a cold disk) is not measured.
 
@@ -151,7 +154,9 @@ can lie: this is a client report, not remote attestation.
 After the first world, hashing reads at most 8 KiB per frame. An offer carries
 only size and SHA-256, logged in `modules.log` as `executable sha256 <hex> size
 <bytes>` and included by `release/moderate modules` (also `--account` and
-`--json`). Files over 16 MiB, empty files, or read/open failures produce no offer.
+`--json`). Files over 16 MiB, empty files, or read/open failures produce no offer;
+the size is asked right after the open, so a file over 16 MiB or one whose size
+cannot be told is not read at all.
 
 The match server replies with `Stored`, `Refused`, or the next window offset.
 Only `Need` starts an upload. E0 carriers have the separate impossible prefix
