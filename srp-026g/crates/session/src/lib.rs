@@ -27,6 +27,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use survarium::dictionary::Dictionary;
 use survarium::v021d;
 
+mod afk;
 pub mod bans;
 pub mod chat_mutes;
 pub mod limits;
@@ -169,6 +170,8 @@ pub struct Account {
     /// Whether, and how long, the admin muted its chat: nobody gets its
     /// lines (`docs/notes/admin-chat-mute.md`).
     pub chat_ban: Option<Ban>,
+    /// Daily AFK removals; mutated only by `record_afk_kick`.
+    pub(crate) afk_kicks: Option<afk::DailyKicks>,
     /// Where it last signed in from: what banning its address bans.
     pub last_ip: Option<IpAddr>,
     /// When it last signed in (Unix seconds), since srp started: not kept,
@@ -250,6 +253,7 @@ impl Account {
             notices: Vec::new(),
             ban: None,
             chat_ban: None,
+            afk_kicks: None,
             last_ip: None,
             last_sign_in: None,
             password_epoch: 0,
@@ -1129,18 +1133,23 @@ impl SessionStore {
 
     /// The session of a sign-in, with the patch revision it advertised
     /// (kept across restarts), unless the admin reset the password it was
-    /// checked against since: then `None`, and nothing is left of it. The
+    /// checked against since, or the account is now banned: then `None`,
+    /// and nothing is left of it. The
     /// epoch is checked once the session is in: a reset moves the epoch on
     /// before it ends the account's sessions, so either the reset ends this
-    /// one or this sees the new epoch.
+    /// one or this sees the new epoch. Bans use the same ordering: set the
+    /// ban before ending sessions, and recheck it after insertion.
     pub fn create_signed_in_session(
         &self,
         signed_in: SignedIn,
         client_revision: u8,
     ) -> Option<u32> {
         self.new_session(signed_in.account_id, client_revision, || {
-            self.account(signed_in.account_id)
-                .is_some_and(|account| account.locked().password_epoch == signed_in.password_epoch)
+            self.account(signed_in.account_id).is_some_and(|account| {
+                let account = account.locked();
+                account.password_epoch == signed_in.password_epoch
+                    && account.ban_at(unix_now()).is_none()
+            })
         })
     }
 

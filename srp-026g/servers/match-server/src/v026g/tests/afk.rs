@@ -8,18 +8,23 @@ use super::{Bench, MAP_BATTERIES, session_of, setup};
 use crate::v026g::afk::Setting;
 use crate::v026g::{IdleRemoved, Settings};
 
-/// Three players, all alive in every world; `bots` places are test bots'.
+/// Six players, all alive in every world; `bots` places are test bots'.
 fn bench_of(settings: Settings, private: bool, bots: &[usize]) -> Bench {
-    let mut setup = setup(3, MAP_BATTERIES);
+    bench_with_count(6, settings, private, bots)
+}
+
+fn bench_with_count(count: usize, settings: Settings, private: bool, bots: &[usize]) -> Bench {
+    let mut setup = setup(count, MAP_BATTERIES);
     setup.private = private;
     let mut bench = Bench::with_setup(setup, settings, bots, &[], false);
-    alive(&mut bench, [true; 3]);
+    alive(&mut bench, vec![true; count]);
     bench.join_all();
     bench
 }
 
 /// Every simulating client's worlds have the players alive or dead.
-fn alive(bench: &mut Bench, alive: [bool; 3]) {
+fn alive(bench: &mut Bench, alive: impl AsRef<[bool]>) {
+    let alive = alive.as_ref();
     for client in &mut bench.clients {
         client.sim.player_states = alive
             .iter()
@@ -80,10 +85,10 @@ fn a_player_without_input_for_three_minutes_of_play_is_removed() {
     let mut bench = bench_of(Settings::default(), false, &[]);
     // The countdown does not count: 20 s and more passed since the join.
     let play_at = until_play(&mut bench);
-    play(&mut bench, 175_000, &[1, 2]);
+    play(&mut bench, 175_000, &[1, 2, 3, 4, 5]);
     assert!(!bench.clients[0].told_to_leave);
     assert!(bench.idle_removed.try_recv().is_err());
-    play(&mut bench, 15_000, &[1, 2]);
+    play(&mut bench, 15_000, &[1, 2, 3, 4, 5]);
     assert!(removed(&bench, 0), "{}", bench.stages());
     assert!(bench.ms - play_at <= 190_000);
     // srp is told once, with its character's name: the chat says so.
@@ -98,7 +103,7 @@ fn a_player_without_input_for_three_minutes_of_play_is_removed() {
     );
     // The others play on, the match with them.
     assert!(!bench.clients[1].told_to_leave && !bench.clients[2].told_to_leave);
-    play(&mut bench, 200_000, &[1, 2]);
+    play(&mut bench, 200_000, &[1, 2, 3, 4, 5]);
     assert!(!bench.clients[1].told_to_leave && !bench.clients[2].told_to_leave);
     assert!(
         bench.idle_removed.try_recv().is_err(),
@@ -112,13 +117,13 @@ fn a_player_without_input_for_three_minutes_of_play_is_removed() {
 fn an_input_starts_the_three_minutes_again() {
     let mut bench = bench_of(Settings::default(), false, &[]);
     until_play(&mut bench);
-    play(&mut bench, 120_000, &[1, 2]);
+    play(&mut bench, 120_000, &[1, 2, 3, 4, 5]);
     // One turn of the view.
-    play(&mut bench, 2_000, &[0, 1, 2]);
-    play(&mut bench, 170_000, &[1, 2]);
+    play(&mut bench, 2_000, &[0, 1, 2, 3, 4, 5]);
+    play(&mut bench, 170_000, &[1, 2, 3, 4, 5]);
     assert!(!bench.clients[0].told_to_leave);
     assert!(bench.idle_removed.try_recv().is_err());
-    play(&mut bench, 20_000, &[1, 2]);
+    play(&mut bench, 20_000, &[1, 2, 3, 4, 5]);
     assert!(removed(&bench, 0));
 }
 
@@ -127,8 +132,8 @@ fn time_dead_does_not_count() {
     let mut bench = bench_of(Settings::default(), false, &[]);
     until_play(&mut bench);
     // Player 0 is dead in every world from here on, and never respawns.
-    alive(&mut bench, [false, true, true]);
-    play(&mut bench, 400_000, &[1, 2]);
+    alive(&mut bench, [false, true, true, true, true, true]);
+    play(&mut bench, 400_000, &[1, 2, 3, 4, 5]);
     assert!(!bench.clients[0].told_to_leave);
     assert!(bench.idle_removed.try_recv().is_err());
 }
@@ -137,20 +142,20 @@ fn time_dead_does_not_count() {
 fn time_its_game_is_not_heard_does_not_count() {
     let mut bench = bench_of(Settings::default(), false, &[]);
     let play_at = until_play(&mut bench);
-    play(&mut bench, 100_000, &[1, 2]);
+    play(&mut bench, 100_000, &[1, 2, 3, 4, 5]);
     // Its game shows no running simulation for two minutes (no hash
     // report, no world): a hitch, a resync, a PC that froze. The others
     // vouch for the worlds all the while.
     bench.clients[0].no_hashes = true;
     bench.clients[0].no_uploads = true;
-    play(&mut bench, 120_000, &[1, 2]);
+    play(&mut bench, 120_000, &[1, 2, 3, 4, 5]);
     bench.clients[0].no_hashes = false;
     bench.clients[0].no_uploads = false;
     // 100 s counted before: three minutes are reached 80 s on, not at once.
-    play(&mut bench, 60_000, &[1, 2]);
+    play(&mut bench, 60_000, &[1, 2, 3, 4, 5]);
     assert!(!bench.clients[0].told_to_leave);
     assert!(bench.idle_removed.try_recv().is_err());
-    play(&mut bench, 40_000, &[1, 2]);
+    play(&mut bench, 40_000, &[1, 2, 3, 4, 5]);
     assert!(removed(&bench, 0));
     assert!(bench.ms - play_at >= 300_000);
 }
@@ -182,7 +187,7 @@ fn a_bot_is_never_removed() {
     // Place 2 is a test bot's: it never gives an input.
     let mut bench = bench_of(Settings::default(), false, &[2]);
     until_play(&mut bench);
-    play(&mut bench, 400_000, &[0, 1]);
+    play(&mut bench, 400_000, &[0, 1, 3, 4, 5]);
     assert!(bench.clients.iter().all(|client| !client.told_to_leave));
     assert!(bench.idle_removed.try_recv().is_err());
     assert!(bench.registry.seat(session_of(2)).is_some());
@@ -191,9 +196,11 @@ fn a_bot_is_never_removed() {
 #[test]
 fn a_match_against_bots_removes_nobody() {
     // The owner's of 2026-11-02: "it should also be fine to afk w/bots".
-    let mut bench = Bench::vs_bots(3, MAP_BATTERIES, Settings::default(), &[1, 2]);
-    alive(&mut bench, [true; 3]);
-    bench.join(0);
+    let mut bench = Bench::vs_bots(6, MAP_BATTERIES, Settings::default(), &[5]);
+    alive(&mut bench, [true; 6]);
+    for place in 0..5 {
+        bench.join(place);
+    }
     until_play(&mut bench);
     play(&mut bench, 400_000, &[]);
     assert!(!bench.clients[0].told_to_leave);
@@ -206,10 +213,71 @@ fn a_match_against_bots_removes_nobody() {
 fn a_player_who_leaves_is_no_idle_removal() {
     let mut bench = bench_of(Settings::default(), false, &[]);
     until_play(&mut bench);
-    play(&mut bench, 30_000, &[0, 1, 2]);
+    play(&mut bench, 30_000, &[0, 1, 2, 3, 4, 5]);
     // By its own word (0xE0): it leaves, nobody is told it was idle.
     bench.clients[0].leave();
-    play(&mut bench, 30_000, &[1, 2]);
+    play(&mut bench, 30_000, &[1, 2, 3, 4, 5]);
     assert!(bench.registry.seat(session_of(0)).is_none());
     assert!(bench.idle_removed.try_recv().is_err());
+}
+
+#[test]
+fn four_or_fewer_humans_are_exempt_even_with_a_test_bot() {
+    for (count, bots) in [(2, &[][..]), (4, &[][..]), (5, &[4][..])] {
+        let mut bench = bench_with_count(count, Settings::default(), false, bots);
+        until_play(&mut bench);
+        play(&mut bench, 400_000, &[]);
+        assert!(bench.clients.iter().all(|client| !client.told_to_leave));
+        assert!(bench.idle_removed.try_recv().is_err());
+        bench.assert_no_faults();
+    }
+}
+
+#[test]
+fn simultaneous_afk_kicks_stop_at_four_remaining_humans() {
+    let mut bench = bench_of(Settings::default(), false, &[]);
+    until_play(&mut bench);
+    play(&mut bench, 400_000, &[]);
+    assert_eq!(bench.idle_removed.try_iter().count(), 2);
+    assert_eq!(
+        bench
+            .clients
+            .iter()
+            .filter(|client| client.told_to_leave)
+            .count(),
+        2
+    );
+    bench.assert_no_faults();
+}
+
+#[test]
+fn a_departure_pauses_enforcement_when_only_four_remain() {
+    let mut bench = bench_with_count(5, Settings::default(), false, &[]);
+    until_play(&mut bench);
+    play(&mut bench, 100_000, &[1, 2, 3, 4]);
+    bench.clients[4].leave();
+    play(&mut bench, 300_000, &[1, 2, 3]);
+    assert!(!bench.clients[0].told_to_leave);
+    assert!(bench.idle_removed.try_recv().is_err());
+    bench.assert_no_faults();
+}
+
+#[test]
+fn a_fifth_human_enables_enforcement_without_counting_the_exempt_time() {
+    let mut bench = Bench::growing(4, MAP_BATTERIES, Settings::default());
+    alive(&mut bench, [true; 4]);
+    bench.join_all();
+    until_play(&mut bench);
+    play(&mut bench, 250_000, &[1, 2, 3]);
+    assert!(bench.idle_removed.try_recv().is_err());
+    let fifth = super::late_join::reserve(&mut bench);
+    bench.join(fifth);
+    alive(&mut bench, [true; 5]);
+    play(&mut bench, 160_000, &[1, 2, 3, 4]);
+    assert!(!bench.clients[0].told_to_leave);
+    assert!(bench.idle_removed.try_recv().is_err());
+    play(&mut bench, 40_000, &[1, 2, 3, 4]);
+    assert!(removed(&bench, 0));
+    assert_eq!(bench.idle_removed.try_iter().count(), 1);
+    bench.assert_no_faults();
 }

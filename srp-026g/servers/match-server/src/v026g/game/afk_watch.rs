@@ -22,19 +22,30 @@ impl Game {
         if self.afk.is_exempt() {
             return;
         }
-        let mut idle = Vec::new();
+        // Count connected human places, including dead/loading/resyncing
+        // players. A departed player and a bot do not keep enforcement on.
+        let mut humans = self
+            .peers
+            .iter()
+            .enumerate()
+            .filter(|(index, peer)| {
+                !self.is_bot(*index) && peer.as_ref().is_some_and(|peer| peer.stage != Stage::Gone)
+            })
+            .count();
         for index in 0..self.peers.len() {
             // A bot's place is never looked at.
             if self.is_bot(index) {
                 continue;
             }
-            let presence = self.presence(index, now);
+            let presence = if humans <= 4 {
+                Presence::Away
+            } else {
+                self.presence(index, now)
+            };
             if self.afk.poll(index, presence, now) == Action::Remove {
-                idle.push(index);
+                self.remove_idle(index, now);
+                humans -= 1;
             }
-        }
-        for index in idle {
-            self.remove_idle(index, now);
         }
     }
 

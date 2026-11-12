@@ -353,8 +353,10 @@ impl matches::ResultsSink for Settler {
     }
 
     /// A player removed as idle (anti-AFK): the lobby says so in the
-    /// match's chat and the general chat.
+    /// match's chat and the general chat, and the account counts the kick
+    /// toward its daily bans.
     fn idle_removed(&mut self, removed: matches::IdleRemoved) {
+        self.store.record_afk_kick(removed.account_id);
         self.inbox
             .idle_removed(removed.match_id, removed.account_id, &removed.name);
     }

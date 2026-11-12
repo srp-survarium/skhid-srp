@@ -77,6 +77,7 @@ pub struct AccountRecord {
     pub notices: Vec<(u8, String)>,
     pub ban: Option<Ban>,
     pub chat_ban: Option<Ban>,
+    pub(crate) afk_kicks: Option<crate::afk::DailyKicks>,
     pub last_ip: Option<IpAddr>,
 }
 
@@ -99,6 +100,7 @@ impl AccountRecord {
             notices,
             ban,
             chat_ban,
+            afk_kicks,
             last_ip,
             // Not kept: only the admin's password reset shows the first,
             // and the second orders sign-ins against resets while srp runs.
@@ -117,6 +119,7 @@ impl AccountRecord {
             notices: notices.clone(),
             ban: ban.clone(),
             chat_ban: chat_ban.clone(),
+            afk_kicks: *afk_kicks,
             last_ip: *last_ip,
         }
     }
@@ -135,6 +138,7 @@ impl AccountRecord {
             notices: self.notices,
             ban: self.ban,
             chat_ban: self.chat_ban,
+            afk_kicks: self.afk_kicks,
             last_ip: self.last_ip,
             last_sign_in: None,
             password_epoch: 0,
