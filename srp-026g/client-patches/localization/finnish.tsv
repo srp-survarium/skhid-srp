@@ -2819,11 +2819,8 @@ st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
 st_srp_vulkan_dedicated_gpu	Suosi erillistä näytönohjainta
 st_srp_vulkan_dedicated_gpu_hint	Valitsee kannettavissa tehokkaamman näytönohjaimen.\n+ Parempi suorituskyky kannettavissa\n- Kuluttaa enemmän akkua
-st_srp_vulkan_dlss	DLSS
-st_srp_vulkan_dlss_balanced	Tasapaino
-st_srp_vulkan_dlss_hint	Piirtää pelin pienempänä ja skaalaa sen ylös NVIDIA DLSS:llä. Vain RTX-näytönohjaimille.
-st_srp_vulkan_dlss_performance	Suorituskyky
-st_srp_vulkan_dlss_quality	Laatu
+st_srp_vulkan_dlss	NVIDIA DLSS
+st_srp_vulkan_dlss_hint	Piirtää pelin pienempänä ja skaalaa sen ylös NVIDIA DLSS:llä. Vain RTX-näytönohjaimille.\n+ Suurempi kuvataajuus\n- Hieman pehmeämpi kuva, enemmän näyttömuistia
 st_srp_vulkan_frame_limit	Kuvataajuusraja
 st_srp_vulkan_frame_limit_hint	Rajoittaa, montako kuvaa sekunnissa peli piirtää.
 st_srp_vulkan_low_latency	Vähennä syöteviivettä

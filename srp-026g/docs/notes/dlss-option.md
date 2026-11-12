@@ -22,25 +22,25 @@ The owner (2026-11-12): "let's do it as DXVK option". Off by default; only with 
 
 ## The option
 
-- **Where:** the Vulkan options panel (`SrpVulkanOptions.as`), a third list after Performance
-  overlay: "DLSS" (`st_srp_vulkan_dlss`), Off / Quality / Balanced / Performance
-  (`st_srp_vulkan_off`, `st_srp_vulkan_dlss_quality`, `_balanced`, `_performance`), its hint one
-  line (`st_srp_vulkan_dlss_hint`), ten languages. No Ultra Performance (a 3x upscale of 1080p is
-  360p) and no DLAA (no upscale: the game's own AA is the comparison) in the first version.
-- **Kept** in user.cfg as `srp_dxvk_dlss off|quality|balanced|performance`, read once at the start
-  with the other Vulkan options (`VulkanOptions`); an unknown word is Off. Pending until Apply,
-  Cancel puts the saved one back, "Applies after restart." as the other options.
-- **Offered only where it can run:** the exe answers the list's state with its choices; a list not
-  offered is greyed (its saved choice shown, not changeable) and its hint says why:
+- **A tick, not a list** (the owner on #1648, 2026-11-12): one checkbox in the Vulkan options
+  panel (`SrpVulkanOptions.as`), the first checkbox, right under Performance overlay: "NVIDIA DLSS"
+  (`st_srp_vulkan_dlss`), its hint in the checkboxes' style, what it does, "+" and "-"
+  (`st_srp_vulkan_dlss_hint`), ten languages. On is DLSS at **Quality**; no mode choice: the probe
+  measured Performance no cheaper (2.06 against 1.13 ms at 1080p) and taking more VRAM.
+- **Kept** in user.cfg as `srp_dxvk_dlss on|off`, off by default, read once at the start with the
+  other Vulkan options (`VulkanOptions`). Pending until Apply, Cancel puts the saved one back,
+  "Applies after restart." as the other options.
+- **Offered only where it can run:** the exe answers the checkbox's running value `-` when this
+  process does not offer it; it is then greyed (its saved tick shown, not changeable, no restart
+  note for it), the reason in `srp_patches.log` (`dlss: on, not run: <why>`):
   - DirectX 11 running or picked: the whole panel is greyed already;
   - DXVK's GPU (the start's Vulkan look, `DXVK_GPU`) is not NVIDIA's (vendor 0x10DE);
   - the helper's files are not there (`binaries\x86\dlss\dlss_helper.exe`, `nvngx_dlss.dll`);
   - the helper's answer at this start said no (a GPU without DLSS: GTX, no driver NGX, 32-bit
-    Windows): the reason in `srp_patches.log`, the saved choice back to Off (as a failed DXVK
-    start turns the Renderer off), so the next start does not try again.
-- The quality values sent to NGX: Quality = MaxQuality (2), Balanced = Balanced (1), Performance =
-  MaxPerf (0). Render size: the helper's answer (NGX's optimal size for the output and quality);
-  the usual ratios are 0.667, 0.58, 0.5 of each side.
+    Windows): the reason in `srp_patches.log`, the saved tick off (as a failed DXVK start turns
+    the Renderer off), so the next start does not try again.
+- NGX's quality: MaxQuality (2). Render size: the helper's answer (NGX's optimal size for the
+  output at Quality, about 0.667 of each side).
 
 ## What the engine has (0.26g, evidence)
 
@@ -112,13 +112,13 @@ The owner (2026-11-12): "let's do it as DXVK option". Off by default; only with 
   stays the player's (it runs before DLSS). DLSS sharpening 0 (the game's own 2 % sharpen stays: it
   holds the gamma encode).
 - **Jitter:** a Halton(2,3) sequence, `8 * (output / render)^2` phases (NVIDIA's guide: 18 at
-  Quality, 32 at Performance), offsets in render pixels in [-0.5, 0.5], added to the scene's
+  Quality), offsets in render pixels in [-0.5, 0.5], added to the scene's
   projection as a clip-space translation at `set_scene_view`'s `set_p` and at `foreground_begin`'s;
   never to shadow, light or rain projections. The same offsets go to DLSS (`Jitter_Offset_X/Y`). The
   engine's motion shaders project current and previous with the same (jittered) `m_P`, so their
   motion holds no jitter. The sign DLSS is given: the probe scored the negated sample offset better
-  at Quality (21.9 against 19.2 dB PSNR; Performance unclear); to be checked on a game frame.
-- **Mip bias:** `log2(render / output) - 1` (Quality -1.58, Performance -2), DXVK's
+  at Quality (21.9 against 19.2 dB PSNR); to be checked on a game frame.
+- **Mip bias:** `log2(render / output) - 1` (-1.58 at Quality), DXVK's
   `d3d11.samplerLodBias` in `DXVK_CONFIG`, set at the start only when the helper said DLSS runs
   (DXVK reads its config at its first device, before any frame). LIKELY: DXVK applies it to every
   sampler it may bias (not to point-mip or LOD-clamped ones); to be checked in a capture.
@@ -174,18 +174,18 @@ The owner (2026-11-12): "let's do it as DXVK option". Off by default; only with 
   `dxgi.dll` loaded before NGX (`DXVK_ENABLE_NVAPI=1`, `WINEDLLOVERRIDES dxgi=n,b;nvapi64=n` for the
   helper only: without nvapi64 NGX's init fails with 0xBAD00002), and the prefix the driver's
   `nvngx.dll`, `_nvngx.dll` and the `NGXCore` key (`play_skhid.sh`'s prefix set-up). Any of them
-  missing: the Hello fails, the list is greyed, the reason logged.
+  missing: the Hello fails, the checkbox is greyed, the reason logged.
 
 ## Status
 
-- Implemented: this spec; the option (list, user.cfg, Settings answers, greyed when not offered,
-  ten languages); the start's gate (NVIDIA GPU, the helper's files). Since no helper ships yet,
-  the list is greyed on every PC.
-- Tested: the patch's Rust tests (the gate, the list's words and indexes) and Clippy; patch 83 in
-  Unicorn (`check_hud_options_026g.py`: the third list registered and answered, running "-", the
+- Implemented: this spec; the option (a checkbox, user.cfg, Settings answers, greyed when not
+  offered, ten languages); the start's gate (DXVK, an NVIDIA GPU, the helper's answer). Since no
+  helper ships yet, the checkbox is greyed on every PC.
+- Tested: the patch's Rust tests (the gate, user.cfg's word, the answer) and Clippy; patch 83 in
+  Unicorn (`check_hud_options_026g.py`: the checkbox registered and answered, running "-", the
   start's `dlss:` line on an RTX and on an RX); the Settings movie in Ruffle
   (`scripts/hud-options/check.sh`: six rows on one step, about 40 px now, the panel ending under the
-  gamma slider; DLSS greyed when not offered, a pick pending until Apply when offered, every
+  gamma slider; DLSS greyed when not offered, a tick pending until Apply when offered, every
   dictionary's texts inside). Not played, not released.
 - Open, on the helper (the probe's protocol, final): starting it from the game, Hello and Setup,
   the per-frame submit and sync, the helper's folder and its Wine packaging (nvapi), Windows.

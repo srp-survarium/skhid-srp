@@ -9,8 +9,8 @@
 //!   the console variables `srp_hide_hit_markers`, `srp_hide_scores`,
 //!   `srp_map_names`, `srp_hide_crosshair` and `srp_dxvk`, saved in user.cfg, off by default,
 //!   and the Vulkan options' `srp_dxvk_frame_limit`, `srp_dxvk_low_latency`,
-//!   `srp_dxvk_tear_free`, `srp_dxvk_dedicated_gpu` (on by default), `srp_dxvk_overlay`
-//!   and `srp_dxvk_dlss` (docs/notes/dlss-option.md: offered only where it runs, [`DlssOffer`]);
+//!   `srp_dxvk_tear_free`, `srp_dxvk_dedicated_gpu` (on by default), `srp_dxvk_dlss`
+//!   (docs/notes/dlss-option.md: offered only where it runs, [`DlssOffer`]) and `srp_dxvk_overlay`;
 //! - the Settings' call (`options.callback`, after patch 79): a setting's
 //!   name answers the main menu with `root.srp_check_option(name, label,
 //!   saved)`, and with "1" or "0" (a list: its index) saves that first
@@ -140,9 +140,11 @@ pub static LOW_LATENCY: Setting = Setting::new(c"srp_dxvk_low_latency", c"st_srp
 pub static TEAR_FREE: Setting = Setting::new(c"srp_dxvk_tear_free", c"st_srp_vulkan_tear_free");
 /// On by default: a user.cfg without its line prefers the dedicated GPU.
 pub static DEDICATED_GPU: Setting = Setting::with(c"srp_dxvk_dedicated_gpu", c"st_srp_vulkan_dedicated_gpu", true);
+/// DLSS at Quality (docs/notes/dlss-option.md): offered only where it runs
+/// ([`DlssOffer`]).
+pub static DLSS: Setting = Setting::new(c"srp_dxvk_dlss", c"st_srp_vulkan_dlss");
 static FRAME_LIMIT_SAVED: ConsoleString<8> = ConsoleString::new();
 static OVERLAY_SAVED: ConsoleString<16> = ConsoleString::new();
-static DLSS_SAVED: ConsoleString<16> = ConsoleString::new();
 
 /// A list choice's text: a dictionary key, or the text itself (a number).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -246,41 +248,9 @@ impl ListChoice for Overlay {
     }
 }
 
-/// DLSS's upscaling (docs/notes/dlss-option.md): the render size's share of
-/// the window's, NVIDIA's quality modes.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Dlss {
-    Off,
-    Quality,
-    Balanced,
-    Performance,
-}
-
-impl ListChoice for Dlss {
-    const ALL: &'static [Dlss] = &[Dlss::Off, Dlss::Quality, Dlss::Balanced, Dlss::Performance];
-
-    fn word(self) -> &'static CStr {
-        match self {
-            Dlss::Off => c"off",
-            Dlss::Quality => c"quality",
-            Dlss::Balanced => c"balanced",
-            Dlss::Performance => c"performance",
-        }
-    }
-
-    fn text(self) -> ChoiceText {
-        match self {
-            Dlss::Off => OFF,
-            Dlss::Quality => ChoiceText::Key(c"st_srp_vulkan_dlss_quality"),
-            Dlss::Balanced => ChoiceText::Key(c"st_srp_vulkan_dlss_balanced"),
-            Dlss::Performance => ChoiceText::Key(c"st_srp_vulkan_dlss_performance"),
-        }
-    }
-}
-
-/// Whether this process offers the DLSS list, or why not: DLSS runs only in
-/// its 64-bit helper, on DXVK's GPU, an NVIDIA one (docs/notes/dlss-option.md,
-/// "The option"). A list not offered is greyed in the Settings.
+/// Whether this process offers DLSS, or why not: DLSS runs only in its
+/// 64-bit helper, on DXVK's GPU, an NVIDIA one (docs/notes/dlss-option.md,
+/// "The option"). Not offered, its checkbox is greyed in the Settings.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DlssOffer {
     Offered,
@@ -322,25 +292,23 @@ impl DlssOffer {
     }
 }
 
-/// The Settings' running value of a list this process does not offer.
+/// The Settings' running value of an option this process does not offer.
 const NOT_OFFERED: &CStr = c"-";
 
-/// The Vulkan options' three lists, kept in user.cfg as `<name> <word>`.
+/// The Vulkan options' two lists, kept in user.cfg as `<name> <word>`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum VulkanList {
     FrameLimit,
     Overlay,
-    Dlss,
 }
 
 impl VulkanList {
-    pub const ALL: [VulkanList; 3] = [VulkanList::FrameLimit, VulkanList::Overlay, VulkanList::Dlss];
+    pub const ALL: [VulkanList; 2] = [VulkanList::FrameLimit, VulkanList::Overlay];
 
     pub fn name(self) -> &'static CStr {
         match self {
             VulkanList::FrameLimit => c"srp_dxvk_frame_limit",
             VulkanList::Overlay => c"srp_dxvk_overlay",
-            VulkanList::Dlss => c"srp_dxvk_dlss",
         }
     }
 
@@ -348,7 +316,6 @@ impl VulkanList {
         match self {
             VulkanList::FrameLimit => c"st_srp_vulkan_frame_limit",
             VulkanList::Overlay => c"st_srp_vulkan_overlay",
-            VulkanList::Dlss => c"st_srp_vulkan_dlss",
         }
     }
 
@@ -360,7 +327,6 @@ impl VulkanList {
         match self {
             VulkanList::FrameLimit => FRAME_LIMIT_SAVED.register(thread, self.name()),
             VulkanList::Overlay => OVERLAY_SAVED.register(thread, self.name()),
-            VulkanList::Dlss => DLSS_SAVED.register(thread, self.name()),
         }
     }
 
@@ -371,18 +337,16 @@ impl VulkanList {
                 FrameLimit::of_index(index).map(|c| FRAME_LIMIT_SAVED.set(thread, c.word().to_bytes())).is_some()
             }
             VulkanList::Overlay => Overlay::of_index(index).map(|c| OVERLAY_SAVED.set(thread, c.word().to_bytes())).is_some(),
-            VulkanList::Dlss => Dlss::of_index(index).map(|c| DLSS_SAVED.set(thread, c.word().to_bytes())).is_some(),
         }
     }
 
     /// Its choices' texts, in the list's order (at most [`MAX_CHOICES`]).
     fn texts(self) -> impl Iterator<Item = ChoiceText> {
-        let (limits, overlays, dlss): (&[FrameLimit], &[Overlay], &[Dlss]) = match self {
-            VulkanList::FrameLimit => (FrameLimit::ALL, &[], &[]),
-            VulkanList::Overlay => (&[], Overlay::ALL, &[]),
-            VulkanList::Dlss => (&[], &[], Dlss::ALL),
+        let (limits, overlays): (&[FrameLimit], &[Overlay]) = match self {
+            VulkanList::FrameLimit => (FrameLimit::ALL, &[]),
+            VulkanList::Overlay => (&[], Overlay::ALL),
         };
-        limits.iter().map(|c| c.text()).chain(overlays.iter().map(|c| c.text())).chain(dlss.iter().map(|c| c.text()))
+        limits.iter().map(|c| c.text()).chain(overlays.iter().map(|c| c.text()))
     }
 }
 
@@ -411,7 +375,7 @@ pub struct VulkanOptions {
     pub tear_free: bool,
     pub dedicated_gpu: bool,
     pub overlay: Overlay,
-    pub dlss: Dlss,
+    pub dlss: bool,
 }
 
 /// The Settings' digits: a checkbox's "1" or "0", a list's index.
@@ -425,7 +389,7 @@ impl VulkanOptions {
             tear_free: TEAR_FREE.of_user_cfg(text),
             dedicated_gpu: DEDICATED_GPU.of_user_cfg(text),
             overlay: Overlay::of_word(user_cfg_word(text, VulkanList::Overlay.name())),
-            dlss: Dlss::of_word(user_cfg_word(text, VulkanList::Dlss.name())),
+            dlss: DLSS.of_user_cfg(text),
         }
     }
 
@@ -437,7 +401,7 @@ impl VulkanOptions {
             tear_free: TEAR_FREE.on(thread),
             dedicated_gpu: DEDICATED_GPU.on(thread),
             overlay: Overlay::of_word(Some(OVERLAY_SAVED.get(thread))),
-            dlss: Dlss::of_word(Some(DLSS_SAVED.get(thread))),
+            dlss: DLSS.on(thread),
         }
     }
 
@@ -459,6 +423,7 @@ impl VulkanOptions {
             n if n == LOW_LATENCY.name => checked(self.low_latency),
             n if n == TEAR_FREE.name => checked(self.tear_free),
             n if n == DEDICATED_GPU.name => checked(self.dedicated_gpu),
+            n if n == DLSS.name => checked(self.dlss),
             n => VulkanList::named(n).map(|list| DIGITS[self.index(list)]),
         }
     }
@@ -468,7 +433,6 @@ impl VulkanOptions {
         match list {
             VulkanList::FrameLimit => self.frame_limit.index(),
             VulkanList::Overlay => self.overlay.index(),
-            VulkanList::Dlss => self.dlss.index(),
         }
     }
 
@@ -1050,9 +1014,8 @@ fn drive(thread: &Thread, event: Event) {
                                              Text(" of dxgi, d3d11, d3d10core, d3d9 (from 0) already: not bound")]),
                 }
                 let offer = DlssOffer::now(thread);
-                if options.dlss != Dlss::Off && offer != DlssOffer::Offered {
-                    line(&[Text("dlss: "), Text(options.dlss.word().to_str().unwrap_or("?")), Text(" picked, not run: "),
-                           Text(offer.why())]);
+                if options.dlss && offer != DlssOffer::Offered {
+                    line(&[Text("dlss: on, not run: "), Text(offer.why())]);
                 }
             }
             Action::TurnOff => {
@@ -1093,8 +1056,8 @@ fn load_dxvk(thread: &Thread) -> Result<(), Stopped> {
 }
 
 /// Every setting of this patch, as the Settings call them.
-pub static SETTINGS: [&Setting; 8] =
-    [&HIDE_HIT_MARKERS, &HIDE_SCORES, &MAP_NAMES, &HIDE_CROSSHAIR, &DXVK, &LOW_LATENCY, &TEAR_FREE, &DEDICATED_GPU];
+pub static SETTINGS: [&Setting; 9] = [&HIDE_HIT_MARKERS, &HIDE_SCORES, &MAP_NAMES, &HIDE_CROSSHAIR, &DXVK, &LOW_LATENCY,
+                                      &TEAR_FREE, &DEDICATED_GPU, &DLSS];
 
 /// The Settings' "HUD:" group's own texts (dictionary keys), in the order
 /// `root.srp_hud_texts` gives them: the heading, the stock quest progress
@@ -1220,6 +1183,9 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<HudOptionsOnOptionsCallExi
         // the renderer this process runs ("1": DXVK loaded at its start), or the option's value it runs
         let running = if core::ptr::eq(setting, &DXVK) {
             Some(DIGITS[usize::from(matches!(renderer(thread), Renderer::Dxvk(_)))])
+        } else if core::ptr::eq(setting, &DLSS) && DlssOffer::now(thread) != DlssOffer::Offered {
+            // not offered here (no helper answered, another vendor's GPU, DirectX 11): greyed
+            Some(NOT_OFFERED)
         } else {
             VulkanOptions::running(thread).shown(setting.name)
         };
@@ -1238,11 +1204,7 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<HudOptionsOnOptionsCallExi
     values[0] = list.name();
     values[1] = call.translate(list.label(), &mut label);
     values[2] = DIGITS[VulkanOptions::saved(thread).index(list)];
-    // a list this process does not offer (DLSS where it cannot run) is greyed
-    values[3] = match list {
-        VulkanList::Dlss if DlssOffer::now(thread) != DlssOffer::Offered => NOT_OFFERED,
-        _ => DIGITS[VulkanOptions::running(thread).index(list)],
-    };
+    values[3] = DIGITS[VulkanOptions::running(thread).index(list)];
     let mut count = 4;
     for (text, room) in list.texts().zip(rooms.iter_mut()) {
         values[count] = match text {
@@ -1379,7 +1341,7 @@ mod tests {
         tear_free: false,
         dedicated_gpu: true,
         overlay: Overlay::Off,
-        dlss: Dlss::Off,
+        dlss: false,
     };
     const VULKAN: Choice = Choice::Vulkan(DEFAULTS);
 
@@ -1403,7 +1365,7 @@ mod tests {
             tear_free: true,
             dedicated_gpu: false,
             overlay: Overlay::FrameTimes,
-            dlss: Dlss::Off,
+            dlss: false,
         };
         assert_eq!(Choice::of_user_cfg(text), Choice::Vulkan(all));
         // a word the lists do not have, or none, is the first choice; a checkbox's other word its default
@@ -1417,13 +1379,11 @@ mod tests {
             let text = [b"srp_dxvk on\r\nsrp_dxvk_overlay ", overlay.word().to_bytes(), b"\r\n"].concat();
             assert_eq!(Choice::of_user_cfg(&text), Choice::Vulkan(VulkanOptions { overlay: *overlay, ..DEFAULTS }));
         }
-        for dlss in Dlss::ALL {
-            let text = [b"srp_dxvk on\r\nsrp_dxvk_dlss ", dlss.word().to_bytes(), b"\r\n"].concat();
-            assert_eq!(Choice::of_user_cfg(&text), Choice::Vulkan(VulkanOptions { dlss: *dlss, ..DEFAULTS }));
-        }
+        let dlss = VulkanOptions { dlss: true, ..DEFAULTS };
+        assert_eq!(Choice::of_user_cfg(b"srp_dxvk on\r\nsrp_dxvk_dlss on\r\n"), Choice::Vulkan(dlss));
         // DLSS gives DXVK nothing of its own until it runs
-        let dlss = VulkanOptions { dlss: Dlss::Quality, ..DEFAULTS };
         assert_eq!(dlss.config().as_str(), DEFAULTS.config().as_str());
+        assert!(dlss.shown(c"srp_dxvk_dlss") == Some(c"1") && DEFAULTS.shown(c"srp_dxvk_dlss") == Some(c"0"));
     }
 
     #[test]
@@ -1440,11 +1400,9 @@ mod tests {
         for helper_runs in [false, true] {
             assert_eq!(DlssOffer::of(false, gpu(VENDOR_NVIDIA), helper_runs), DlssOffer::NoDxvk);
         }
-        assert_eq!(VulkanList::Dlss.texts().collect::<Vec<_>>(),
-                   [OFF, ChoiceText::Key(c"st_srp_vulkan_dlss_quality"), ChoiceText::Key(c"st_srp_vulkan_dlss_balanced"),
-                    ChoiceText::Key(c"st_srp_vulkan_dlss_performance")]);
-        // the Settings' running value of a list not offered is no index
+        // the Settings' running value of an option not offered is no checkbox value
         assert!(DIGITS.iter().all(|digit| *digit != NOT_OFFERED));
+        assert!(!DLSS.of_user_cfg(b"") && !DLSS.value.initial(), "off by default");
     }
 
     #[test]
@@ -1463,7 +1421,7 @@ mod tests {
             tear_free: true,
             dedicated_gpu: true,
             overlay: Overlay::Full,
-            dlss: Dlss::Off,
+            dlss: false,
         };
         let config = all.config();
         assert_eq!(config.as_str(), "dxvk.maxFrameRate = 240; dxvk.latencySleep = True; dxvk.tearFree = True; \
@@ -1487,7 +1445,7 @@ mod tests {
             tear_free: true,
             dedicated_gpu: true,
             overlay: Overlay::Full,
-            dlss: Dlss::Off,
+            dlss: false,
         };
         let gpu = |vendor| Some(Gpu { vendor, device: 0, driver: 0, kind: GpuKind::Discrete, version: Some(VULKAN_NEEDED),
                                       name: [0; crate::vostok::renderer::GPU_NAME] });
@@ -1577,9 +1535,6 @@ mod tests {
         assert_eq!(FrameLimit::of_index(c"6"), None);
         assert_eq!(Overlay::of_index(c"3"), Some(Overlay::Full));
         assert_eq!(Overlay::of_index(c"4"), None);
-        assert_eq!(Dlss::of_index(c"1"), Some(Dlss::Quality));
-        assert_eq!(Dlss::of_index(c"3"), Some(Dlss::Performance));
-        assert_eq!(Dlss::of_index(c"4"), None);
         for text in [c"", c"-1", c"10", c"fps"] {
             assert_eq!(Overlay::of_index(text), None);
         }
@@ -1701,6 +1656,5 @@ mod tests {
         // the lists' words fit their console variables (with the NUL)
         assert!(FrameLimit::ALL.iter().all(|c| c.word().count_bytes() < 8));
         assert!(Overlay::ALL.iter().all(|c| c.word().count_bytes() < 16));
-        assert!(Dlss::ALL.iter().all(|c| c.word().count_bytes() < 16));
     }
 }

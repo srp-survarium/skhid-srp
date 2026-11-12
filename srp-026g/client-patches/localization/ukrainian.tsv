@@ -2819,11 +2819,8 @@ st_srp_unit_seconds	%1$sс
 st_srp_unit_times	%1$sx
 st_srp_vulkan_dedicated_gpu	Пріоритет дискретної GPU
 st_srp_vulkan_dedicated_gpu_hint	Вибирає потужнішу відеокарту на ноутбуках.\n+ Краща продуктивність на ноутбуках\n- Витрачає більше батареї
-st_srp_vulkan_dlss	DLSS
-st_srp_vulkan_dlss_balanced	Баланс
-st_srp_vulkan_dlss_hint	Малює гру в меншій роздільності й збільшує її через NVIDIA DLSS. Лише для відеокарт RTX.
-st_srp_vulkan_dlss_performance	Швидкість
-st_srp_vulkan_dlss_quality	Якість
+st_srp_vulkan_dlss	NVIDIA DLSS
+st_srp_vulkan_dlss_hint	Малює гру в меншій роздільності й збільшує її через NVIDIA DLSS. Лише для відеокарт RTX.\n+ Більше кадрів на секунду\n- Картинка трохи м'якша, більше відеопам'яті
 st_srp_vulkan_frame_limit	Обмеження FPS
 st_srp_vulkan_frame_limit_hint	Обмежує, скільки кадрів на секунду малює гра.
 st_srp_vulkan_low_latency	Зменшити затримку вводу

@@ -14,11 +14,11 @@ Scaleform's Invoke 0x511600 a stub that records each call; translate_text
 - on_configs_loaded's start (0x1EA210 to 0x1EA216, the chain: patch 79's
   hook, then this one): the console variables `srp_hide_hit_markers`,
   `srp_hide_scores`, `srp_map_names`, `srp_hide_crosshair`, `srp_dxvk` and the Vulkan options'
-  `srp_dxvk_low_latency`, `srp_dxvk_tear_free` and `srp_dxvk_dedicated_gpu` registered once, after patch 79's `localization`, with
+  `srp_dxvk_low_latency`, `srp_dxvk_tear_free`, `srp_dxvk_dedicated_gpu` and `srp_dxvk_dlss` registered once, after patch 79's `localization`, with
   the game's own cc_value<bool>::cc_value (a cc_bool, saved, kind 2: user.cfg's
   lines set them), off (`srp_dxvk_dedicated_gpu` on); the game's own cc_bool::execute sets each from a
-  user.cfg line's value; then the three lists `srp_dxvk_frame_limit`, `srp_dxvk_overlay` and
-  `srp_dxvk_dlss`, saved cc_strings, empty; registers and stack as the original's, no file
+  user.cfg line's value; then the two lists `srp_dxvk_frame_limit` and `srp_dxvk_overlay`, saved
+  cc_strings, empty; registers and stack as the original's, no file
   opened;
 - the process's start (memory::platform::allocate_arenas 0xE9580 to past its
   first instruction, `mov eax,11A8h`), kernel32's and shell32's imports and
@@ -102,21 +102,20 @@ EXECUTE_BOOL, CC_BOOL_VTABLE = 0xECA30, 0x9E7C4C
 SETTINGS = {"srp_hide_hit_markers": "Hide hit markers", "srp_hide_scores": "Hide player scores",
             "srp_map_names": "Names on map", "srp_hide_crosshair": "Hidden crosshair",
             "srp_dxvk": "Renderer", "srp_dxvk_low_latency": "Reduce input lag",
-            "srp_dxvk_tear_free": "Tear-free with vsync off", "srp_dxvk_dedicated_gpu": "Prefer the dedicated GPU"}
+            "srp_dxvk_tear_free": "Tear-free with vsync off", "srp_dxvk_dedicated_gpu": "Prefer the dedicated GPU",
+            "srp_dxvk_dlss": "NVIDIA DLSS"}
 # the checkboxes on until user.cfg says otherwise
 ON_BY_DEFAULT = {"srp_dxvk_dedicated_gpu"}
 # the Renderer and the Vulkan options answer the value this process runs after the saved one
 RUNNING = {"srp_dxvk", "srp_dxvk_low_latency", "srp_dxvk_tear_free", "srp_dxvk_dedicated_gpu"}
+# an option a process may not offer (DLSS: not with DirectX 11, not on another vendor's GPU, not without its
+# helper's answer): its running value then "-" (the Settings grey it); none offers it yet
+NOT_OFFERED = {"srp_dxvk_dlss"}
 # the Vulkan options' lists (cc_strings): label, user.cfg's words and the choices' texts, in the list's order
 LISTS = {"srp_dxvk_frame_limit": ("Frame rate limit", ("0", "60", "120", "144", "165", "240"),
                                   ("Off", "60", "120", "144", "165", "240")),
          "srp_dxvk_overlay": ("Performance overlay", ("off", "fps", "frametimes", "full"),
-                              ("Off", "FPS", "FPS+graph", "Full")),
-         "srp_dxvk_dlss": ("DLSS", ("off", "quality", "balanced", "performance"),
-                           ("Off", "Quality", "Balanced", "Performance"))}
-# the lists a process may not offer (DLSS: not with DirectX 11, not on another vendor's GPU, not without its
-# helper's answer), their running value then "-" (the Settings grey them)
-NOT_OFFERED = {"srp_dxvk_dlss"}
+                              ("Off", "FPS", "FPS+graph", "Full"))}
 # the group's own texts, in root.srp_hud_texts' order
 TEXTS = {"st_srp_options_hud": "HUD:", "st_srp_hide_quests_option": "Hide quests", "st_srp_crosshair_dynamic": "Dynamic crosshair",
          "st_srp_crosshair_static": "Static crosshair", "st_srp_crosshair_hidden": "Hidden crosshair",
@@ -125,7 +124,7 @@ TEXTS = {"st_srp_options_hud": "HUD:", "st_srp_hide_quests_option": "Hide quests
          "st_srp_vulkan_options": "Vulkan options",
          "st_srp_vulkan_frame_limit_hint": "Caps how many frames per second the game draws.",
          "st_srp_vulkan_overlay_hint": "Shows the game's speed on screen.",
-         "st_srp_vulkan_dlss_hint": "Draws the game smaller and upscales it with NVIDIA DLSS. RTX graphics cards only.",
+         "st_srp_vulkan_dlss_hint": "Draws the game smaller and upscales it with NVIDIA DLSS. RTX graphics cards only.\n+ Higher frame rate\n- Slightly softer picture, more video memory",
          "st_srp_vulkan_low_latency_hint": "Makes the game react sooner to your mouse.\n+ Aim reacts faster\n- May feel less smooth on some PCs",
          "st_srp_vulkan_tear_free_hint": "Keeps the picture whole when vertical sync is off.\n+ No torn lines when turning fast\n- A bit more input delay than plain vsync off",
          "st_srp_vulkan_dedicated_gpu_hint": "Picks the stronger graphics card on laptops.\n+ Better performance on laptops\n- Uses more battery"}
@@ -135,11 +134,10 @@ language.ENGLISH.update({"st_srp_hide_hit_markers_option": b"Hide hit markers", 
                          "st_srp_renderer_option": b"Renderer", "st_srp_vulkan_low_latency": b"Reduce input lag",
                          "st_srp_vulkan_tear_free": b"Tear-free with vsync off",
                          "st_srp_vulkan_dedicated_gpu": b"Prefer the dedicated GPU",
+                         "st_srp_vulkan_dlss": b"NVIDIA DLSS",
                          "st_srp_vulkan_frame_limit": b"Frame rate limit", "st_srp_vulkan_overlay": b"Performance overlay",
                          "st_srp_vulkan_off": b"Off", "st_srp_vulkan_overlay_fps": b"FPS",
                          "st_srp_vulkan_overlay_frametimes": b"FPS+graph", "st_srp_vulkan_overlay_full": b"Full",
-                         "st_srp_vulkan_dlss": b"DLSS", "st_srp_vulkan_dlss_quality": b"Quality",
-                         "st_srp_vulkan_dlss_balanced": b"Balanced", "st_srp_vulkan_dlss_performance": b"Performance",
                          "st_fov_option": b"FOV"})
 OTHER_HUD = 0x20076800                  # another hud movie (a new game world's)
 # a match's options and the message they are read from (check_blackout_026g.py's OPTIONS and WORK
@@ -689,18 +687,18 @@ def main():
     variables = {name: console_bool(ours, node) for name, node in zip(names, nodes) if name in SETTINGS}
     expect(a_regs == b_regs and a_sp == b_sp and a_head == head_before
            and names == ["srp_voice_mutes", "g_hide_spam", "s_use_microphone", "s_mic_sens", "s_chat_volume",
-                         "where", "srp_mouse_vertical", "srp_mouse_vertical_locked", "s_music_volume", "srp_dxvk_dlss",
-                         "srp_dxvk_overlay", "srp_dxvk_frame_limit", "srp_dxvk_dedicated_gpu", "srp_dxvk_tear_free", "srp_dxvk_low_latency",
+                         "where", "srp_mouse_vertical", "srp_mouse_vertical_locked", "s_music_volume", "srp_dxvk_overlay",
+                         "srp_dxvk_frame_limit", "srp_dxvk_dlss", "srp_dxvk_dedicated_gpu", "srp_dxvk_tear_free", "srp_dxvk_low_latency",
                          "srp_dxvk", "srp_hide_crosshair", "srp_map_names", "srp_hide_scores", "srp_hide_hit_markers",
                          "localization"]
            and all((kind, saved) == (2, 1) and ours.read(value, 1) == (b"\x01" if name in ON_BY_DEFAULT else b"\0")
                    for name, (_, kind, saved, value) in variables.items()),
-           "configs.start: registers and stack as the original's; the eight settings, "
+           "configs.start: registers and stack as the original's; the nine settings, "
            "saved bools of kind 2, off (Prefer the dedicated GPU on), registered after patch 79's `localization`, "
-           f"then the Vulkan options' three lists (the original registers nothing) ({names})")
+           f"then the Vulkan options' two lists (the original registers nothing) ({names})")
     lists = {name: language.console_variable(ours, node) for name, node in zip(names, nodes) if name in LISTS}
     expect(all(size in (8, 16) and saved == 1 and ours.read(buffer, 1) == b"\0" for _, buffer, size, saved in lists.values()),
-           f"configs.start: the three lists saved cc_strings, empty (the first choice) ({lists})")
+           f"configs.start: the two lists saved cc_strings, empty (the first choice) ({lists})")
     _, _, again = ours.start()
     again_nodes = [node for node in registered(ours, again, head_before) if ours.text(ours.read(node + 0x10)) != b"srp_lobby"]
     expect(again_nodes == nodes, "configs.start again: each registered once")
@@ -732,7 +730,8 @@ def main():
             after = state()
             # the Renderer's answer says the renderer running too: DirectX here (no DXVK loaded at the start);
             # a Vulkan option's the value it runs, without DXVK the saved one
-            running = ("0",) if name == "srp_dxvk" else ("1" if on else "0",) if name in RUNNING else ()
+            running = (("0",) if name == "srp_dxvk" else ("-",) if name in NOT_OFFERED
+                       else ("1" if on else "0",) if name in RUNNING else ())
             answer = (name, label, "1" if on else "0") + running
             expect(invokes == [(language.MOVIE, "root.srp_check_option", answer)]
                    and count == saves and after[name] == on and all(after[n] == before[n] for n in others),
@@ -757,13 +756,11 @@ def main():
             before_other = ours.read(buffers[other], 16)
             invokes, count = ours.callback(name, argument)
             saved = ours.text(buffers[name]).decode()
-            running = "-" if name in NOT_OFFERED else str(index)
-            answer = (name, label, str(index), running) + choices
+            answer = (name, label, str(index), str(index)) + choices
             expect(invokes == [(language.MOVIE, "root.srp_check_option", answer)] and count == saves
                    and saved == words[index] and ours.read(buffers[other], 16) == before_other,
-                   f"{name} with {case}: user.cfg's word {words[index]!r} (another list unchanged), user.cfg written "
-                   f"{saves} time(s), the answer its index {index} saved, running {running!r} (no DXVK: the saved one, "
-                   "or not offered) and the choices' texts"
+                   f"{name} with {case}: user.cfg's word {words[index]!r} (the other list unchanged), user.cfg written "
+                   f"{saves} time(s), the answer its index {index} saved and running (no DXVK) and the choices' texts"
                    + ("" if invokes == [(language.MOVIE, "root.srp_check_option", answer)] else f": {invokes}"))
             stock_invokes, stock_saves = stock.callback(name, argument)
             expect(stock_invokes == [] and stock_saves == 0, f"the original ignores {name} ({case})")
@@ -900,14 +897,14 @@ def renderer(original, patched, expect):
          dict(user_cfg=every, vulkan=good), opened + files + marker + nvidia + every_config + loads + log, True,
          b'dxvk: DXVK_CONFIG "dxvk.maxFrameRate = 144; dxvk.latencySleep = True; dxvk.tearFree = True; '
          b'dxvk.hud = fps,frametimes,gpuload,compiler,memory"'),
-        ("DLSS picked on an RTX: nothing more given to DXVK, the log says it is not run (no helper answers yet)",
-         dict(user_cfg=on + b"srp_dxvk_dlss quality\r\n", vulkan=good),
+        ("DLSS on, an RTX: nothing more given to DXVK, the log says it is not run (no helper answers yet)",
+         dict(user_cfg=on + b"srp_dxvk_dlss on\r\n", vulkan=good),
          opened + files + marker + nvidia + config + loads + log + log, True,
-         b"dlss: quality picked, not run: no DLSS helper answered at this start"),
-        ("DLSS picked on an RX: not run, DXVK's GPU not NVIDIA's",
-         dict(user_cfg=on + b"srp_dxvk_dlss performance\r\n", gpus=[rx]),
+         b"dlss: on, not run: no DLSS helper answered at this start"),
+        ("DLSS on, an RX: not run, DXVK's GPU not NVIDIA's",
+         dict(user_cfg=on + b"srp_dxvk_dlss on\r\n", gpus=[rx]),
          opened + files + marker + mark + reads + alone("amd*") + kept("amd*") + amd_config + loads + log + log,
-         True, b"dlss: performance picked, not run: DXVK's GPU is not NVIDIA's"),
+         True, b"dlss: on, not run: DXVK's GPU is not NVIDIA's"),
         ("an RTX beside a Radeon iGPU: AMD's look finds the iGPU (its driver let go with the instance), NVIDIA's "
          "the RTX, a discrete GPU; AMD's layer (its 85 MiB driver DLL) off and said",
          dict(user_cfg=on, gpus=[radeon_igpu, rtx]),
@@ -1019,7 +1016,7 @@ def renderer(original, patched, expect):
                                  ("srp_dxvk_low_latency", "0", ("0", "1")), ("srp_dxvk_dedicated_gpu", "1", ("1", "0")),
                                  ("srp_dxvk_overlay", "3", ("3", "3")),
                                  # DXVK on an RTX, but no DLSS helper answered at the start: not offered
-                                 ("srp_dxvk_dlss", "2", ("2", "-"))]:
+                                 ("srp_dxvk_dlss", "1", ("1", "-"))]:
         invokes, _ = r.callback(name, argument)
         answer = [v[2:4] for _, m, v in invokes if m == "root.srp_check_option"]
         expect(answer == [want], f"{name} set to {argument} in a process that runs DXVK: saved {want[0]}, "

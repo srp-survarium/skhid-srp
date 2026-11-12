@@ -111,7 +111,7 @@ window keeping its size.
     use: one under Vulkan 1.4 is skipped before (`dxvk_device_filter.cpp` testAdapter,
     `dxvk_device_info.cpp` checkDeviceCompatibility), so an integrated GPU of 1.4 beside a dedicated one
     of 1.3 is kept too.
-  - DLSS (a sixth, a list after Performance overlay, `srp_dxvk_dlss`): offered only where it runs,
+  - DLSS (a sixth, the first checkbox, `srp_dxvk_dlss on|off`, DLSS at Quality): offered only where it runs,
     greyed otherwise; [dlss-option.md](dlss-option.md).
   - An option off is DXVK's default, not named. The game's own anisotropic filtering, FXAA and
     vsync settings stay the game's.

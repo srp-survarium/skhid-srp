@@ -24,9 +24,9 @@ package
     // (the button held pressed, its arrow turned up), over the column (a popup, as a list's), its rows on
     // the column's grid,
     // holding the six options exe patch 83 keeps in user.cfg and gives DXVK at the next start with
-    // Vulkan/DXVK: the frame rate limit, the performance overlay and DLSS (lists, the exe's index), Reduce
-    // input lag, Tear-free with vsync off and Prefer the dedicated GPU (checkboxes, "1" or "0"). A list
-    // this process does not offer (DLSS where it cannot run: the exe's running value "-") is greyed. A press
+    // Vulkan/DXVK: the frame rate limit and the performance overlay (lists, the exe's index), DLSS,
+    // Reduce input lag, Tear-free with vsync off and Prefer the dedicated GPU (checkboxes, "1" or "0"). An
+    // option this process does not offer (DLSS where it cannot run: the exe's running value "-") is greyed. A press
     // outside the panel (and outside a list of its own while that is open) or Esc closes it; the button
     // again too. SrpRendererChoice owns it: the button is disabled while the Renderer list shows
     // DirectX 11, and its options are the Renderer's pending
@@ -42,10 +42,10 @@ package
         public static const LOW_LATENCY:String = "srp_dxvk_low_latency";
         public static const TEAR_FREE:String = "srp_dxvk_tear_free";
         public static const DEDICATED_GPU:String = "srp_dxvk_dedicated_gpu";
-        // In the panel's order: the three lists, then the three checkboxes.
+        // In the panel's order: the two lists, then the four checkboxes (DLSS first).
         public static const NAMES:Array = [FRAME_LIMIT, OVERLAY, DLSS, LOW_LATENCY, TEAR_FREE, DEDICATED_GPU];
-        private static const LISTS:int = 3;
-        // The exe's running value of a list this process does not offer.
+        private static const LISTS:int = 2;
+        // The exe's running value of an option this process does not offer.
         private static const NOT_OFFERED:String = "-";
         // Over the panel's first row and under its last; out of the column on its left and right.
         private static const PADDING:Number = 8;
@@ -235,7 +235,7 @@ package
             saved[name] = values[2];
             running[name] = values[3];
             put(name, saved[name]);
-            // a list not offered shows its saved choice, greyed
+            // an option not offered shows its saved value, greyed
             control.enabled = running[name] != NOT_OFFERED;
         }
 
@@ -261,7 +261,7 @@ package
             return false;
         }
 
-        // A saved value is not the one this process runs: the next start changes it (a list not offered runs
+        // A saved value is not the one this process runs: the next start changes it (an option not offered runs
         // nothing).
         public function get restart():Boolean
         {

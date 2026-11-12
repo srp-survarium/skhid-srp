@@ -156,6 +156,9 @@ package
                     try
                     {
                         checkVulkanLook(settings);
+                        var dlss:* = vulkanControl(settings, "_srp_dxvk_dlss");
+                        trace("SETTINGS look DLSS (not offered): selected " + dlss.selected + ", enabled " + dlss.enabled
+                            + ", frame " + dlss.currentLabel);
                     }
                     catch (error:Error)
                     {
@@ -472,15 +475,15 @@ package
                 VULKAN_HINTS.map(function(at:int, ...rest):String { return t[at]; }));
         }
 
-        // The Vulkan options as patch 83 names them, in the panel's order: the three lists, then the three
+        // The Vulkan options as patch 83 names them, in the panel's order: the two lists, then the four
         // checkboxes; their values without a user.cfg line (Prefer the dedicated GPU on); each one's label and hint
         // (their places in check.sh's texts).
         private static const VULKAN:Array = ["srp_dxvk_frame_limit", "srp_dxvk_overlay", "srp_dxvk_dlss",
             "srp_dxvk_low_latency", "srp_dxvk_tear_free", "srp_dxvk_dedicated_gpu"];
-        private static const VULKAN_LISTS:int = 3;
+        private static const VULKAN_LISTS:int = 2;
         private static const VULKAN_DEFAULTS:Array = ["0", "0", "0", "0", "0", "1"];
         private static const VULKAN_LABELS:Array = [20, 25, 35, 22, 23, 24];
-        private static const VULKAN_HINTS:Array = [30, 31, 39, 32, 33, 34];
+        private static const VULKAN_HINTS:Array = [30, 31, 36, 32, 33, 34];
         // DLSS's place, and its running value when this process does not offer it (patch 83: no helper answered)
         private static const DLSS:int = 2;
         private static const NOT_OFFERED:String = "-";
@@ -493,7 +496,6 @@ package
             var label:String = t[VULKAN_LABELS[i]];
             if (i == 0) root.srp_check_option(VULKAN[0], label, saved, running, t[21], "60", "120", "144", "165", "240");
             else if (i == 1) root.srp_check_option(VULKAN[1], label, saved, running, t[21], t[26], t[27], t[28]);
-            else if (i == DLSS) root.srp_check_option(VULKAN[DLSS], label, saved, running, t[21], t[36], t[37], t[38]);
             else root.srp_check_option(VULKAN[i], label, saved, running);
         }
 
@@ -1026,8 +1028,8 @@ package
             {
                 var one:* = controls[i];
                 var label:String = i < VULKAN_LISTS ? one.textFieldLabel.text : one.label;
-                // a list not offered (DLSS here) greyed: its disabled frame draws it at 0.7
-                require(one != null && one.visible && (one.enabled ? one.alpha == 1 : one.alpha < 1) && label == labels[i],
+                // an option not offered (DLSS here) greyed: its disabled frame
+                require(one != null && one.visible && (!one.enabled || one.alpha == 1) && label == labels[i],
                     "Vulkan options: " + VULKAN[i]
                     + " in the panel with the exe's label (" + label + ", visible " + one.visible + ", alpha " + one.alpha + ")");
                 var top:Number = span(one)[0];
@@ -1038,9 +1040,7 @@ package
             require(controls[0].dataProvider.length == 6 && controls[0].dataProvider[0] == texts[0][21]
                 && controls[0].dataProvider[3] == "144" && controls[1].dataProvider.length == 4
                 && controls[1].dataProvider[2] == texts[0][27] && controls[0].selectedIndex == 0 && controls[1].selectedIndex == 0
-                && controls[DLSS].dataProvider.length == 4 && controls[DLSS].dataProvider[1] == texts[0][36]
-                && controls[DLSS].selectedIndex == 0
-                && !controls[3].selected && !controls[4].selected && controls[5].selected,
+                && !controls[DLSS].selected && !controls[3].selected && !controls[4].selected && controls[5].selected,
                 "Vulkan options: the lists' choices; each control its saved value (Prefer the dedicated GPU on)");
             require(!controls[DLSS].enabled && controls[0].enabled && controls[1].enabled && controls[3].enabled,
                 "Vulkan options: DLSS not offered (no helper answered) greyed, the others not");
@@ -1111,7 +1111,7 @@ package
                 var local:* = target.globalToLocal(new Point(x, y));
                 target.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN, true, false, local.x, local.y));
             };
-            var spot:Rectangle = controls[VULKAN_LISTS].getBounds(content.stage);
+            var spot:Rectangle = controls[DLSS + 1].getBounds(content.stage);
             pressAt(panel, spot.left + 8, spot.top + 8);
             require(panel.stage != null, "Vulkan options: a press in the panel keeps it");
             controls[0].open();
@@ -1192,20 +1192,20 @@ package
                 "Vulkan options: DXVK running with other options: the note");
             graphicsTab(settings, "1", "1", ["3", "0", "0", "0", "0", "0"]);
             require(!note.visible, "Vulkan options: saved as running: no note");
-            // DLSS not offered: its saved choice shown greyed, no note for it, nothing pending
+            // DLSS not offered: its saved value shown greyed, no note for it, nothing pending
             graphicsTab(settings, "1", "1", ["3", "0", "1", "0", "0", "0"]);
-            require(!controls[DLSS].enabled && controls[DLSS].selectedIndex == 1 && !note.visible && !settings.btn_accept.enabled,
-                "Vulkan options: DLSS not offered: its saved Quality greyed, no note, nothing pending");
+            require(!controls[DLSS].enabled && controls[DLSS].selected && !note.visible && !settings.btn_accept.enabled,
+                "Vulkan options: DLSS not offered: its saved tick greyed, no note, nothing pending");
             // offered (running Off): a pick pending until Apply, then the note
             graphicsTab(settings, "1", "1", ["3", "0", "0", "0", "0", "0"], ["3", "0", "0", "0", "0", "0"]);
             require(controls[DLSS].enabled && !note.visible, "Vulkan options: DLSS offered: enabled, no note");
             click(row);
-            pick(controls[DLSS], 2);
+            controls[DLSS].selected = true;
             settings.closePanel();
-            require(settings.btn_accept.enabled && !note.visible, "Vulkan options: DLSS Balanced is a change, no note yet");
+            require(settings.btn_accept.enabled && !note.visible, "Vulkan options: DLSS ticked is a change, no note yet");
             click(settings.btn_accept);
-            require(!settings.btn_accept.enabled && controls[DLSS].selectedIndex == 2 && note.visible,
-                "Vulkan options: Apply saves DLSS Balanced; the note (the next start runs it)");
+            require(!settings.btn_accept.enabled && controls[DLSS].selected && note.visible,
+                "Vulkan options: Apply saves DLSS on; the note (the next start runs it)");
             graphicsTab(settings, "0");
             require(!row.enabled && !note.visible && !settings.btn_accept.enabled && panel.stage == null,
                 "Vulkan options: back to DirectX 11, nothing pending");
