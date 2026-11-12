@@ -12,6 +12,7 @@ Nothing here is chosen by the calculator: every number is the game's.
 """
 import json
 import os
+import re
 import sys
 
 source, target = sys.argv[1], sys.argv[2]
@@ -216,8 +217,7 @@ default_ammo = {w: s[0] for w, s in compat.items()}
 # name them (st_<artefact>_pickup_hint: "Onyx artifact. ...", "Артефакт
 # Онікс. ..."): the Lifebone config is the Larkspur, Живокіст.
 def pickup_name(key, strings, pattern):
-    import re
-    m = re.match(pattern, strings.get(f"st_{key}_pickup_hint", ""))
+    m =re.match(pattern, strings.get(f"st_{key}_pickup_hint", ""))
     return m.group(1) if m else None
 
 
@@ -276,7 +276,8 @@ presets = {str(d) for item in weapons.values() for d in item["default_modificati
 ui_props = {}
 for q in rows(load("gameplay__static_game_parameters.options.json").get("ui_properties", [])):
     ui_props[q["prop_id"]] = {"label": text(q.get("prop_name", "")), "label_uk": text_uk(q.get("prop_name", "")), "mod_type": q.get("mod_type", 2),
-                              "direction": q.get("direction", 1), "postfix": text(q["postfix"]) if q.get("postfix") else ""}
+                              "direction": q.get("direction", 1), "postfix": text(q["postfix"]) if q.get("postfix") else "",
+                              "postfix_uk": text_uk(q["postfix"]) if q.get("postfix") else None}
 mods_cfg = load("gameplay__items__modifications__modifications.options.json")
 mods = {}
 for kind, table in (("mod", mods_cfg["modifications"]), ("defect", mods_cfg["defects"])):
@@ -314,6 +315,72 @@ def item_mods(params, default, shown):
     out["default"] = [str(d) for d in default if str(d) in mods and (shown or mods[str(d)]["effects"])]
     return out
 
+
+# Recovery (the healing section): what changes a pool's regeneration and a
+# medicine's healing besides the Larkspur. body_part::regenerate (0x32A4B0)
+# multiplies each pool's speed by max(0, 1 + the kit's sum of
+# health_regeneration_speed_modifier); exe patch 94 takes the kit's
+# engineer_success_chance_modifier as seconds on the delay after a hit and
+# its engineer_use_time_modifier as a share of the pool on the limit
+# (docs/notes/regeneration-booster.md).
+REGENERATION = {"parameters/health_regeneration_speed_modifier": "speed",
+                "parameters/engineer_success_chance_modifier": "delay_s",
+                "parameters/engineer_use_time_modifier": "limit"}
+
+
+def regeneration_of(m):
+    effects = (("/".join(e["path"]), e["value"]) for e in rows(m.get("modifiers") or []))
+    return {REGENERATION[path]: r(value) for path, value in effects if path in REGENERATION}
+
+
+every_mod = {m["id"]: m for m in rows(mods_cfg["modifications"])}
+# The bonus that rolls on equipment: one kind, its grades, and the slots with
+# an item that takes it (a piece carries one bonus of a kind at most).
+rolled = sorted((m for m in every_mod.values() if m.get("drop_weight", 0) > 0 and "speed" in regeneration_of(m)),
+                key=lambda m: regeneration_of(m)["speed"])
+kinds = {m["type_mask"].index("1") for m in rolled}
+if len(kinds) > 1:
+    sys.exit(f"the regeneration bonus rolls as several kinds: {sorted(kinds)}")
+gear = None
+if rolled:
+    kind = kinds.pop()
+    takes = {a["slot"] for a in armour.values() if a["available_modifications_mask"][kind - 1:kind] == "1"}
+    prop = ui_props.get(rows(rolled[0]["ui_desc"]["props_list"])[0]["prop_id"], {})
+    gear = {"label": prop.get("label"), "label_uk": prop.get("label_uk"), "icon": rolled[0]["ui_desc"].get("icon"),
+            "slots": sorted(takes), "grades": [{"id": str(m["id"]), "value": regeneration_of(m)["speed"]} for m in rolled]}
+# A booster's built-in bonuses, while it is in a pocket.
+boosters = {}
+for file in files("gameplay__items__boosters__"):
+    cfg = load(file)
+    total, bonuses = {}, []
+    for d in cfg.get("default_modifications", []):
+        desc = every_mod.get(d, {}).get("ui_desc", {})
+        # What its card lists: "<prop name>: <value>", per ui_properties.
+        bonuses += [{**ui_props.get(q["prop_id"], {}), "value": float(q["prop_value"]), "icon": desc.get("icon")}
+                    for q in rows(desc.get("props_list") or [])]
+        for k, v in regeneration_of(every_mod.get(d, {})).items():
+            total[k] = r(total.get(k, 0) + v)
+    if total:
+        boosters[key_of(file)] = {"name": ui(cfg)["name"], "name_uk": ui(cfg)["name_uk"], **total, "bonuses": bonuses}
+# The medical skills that change recovery, by their ids in the tree
+# (docs/notes/medical-skills.md; rules.js has what each does): its ranks and
+# what one rank gives, the number the lobby prints for it (" <green>+0.5"),
+# and its tooltip's line for a rank as the lobby writes it: the description,
+# then that number with the postfix.
+RECOVERY_SKILLS = {311: "metabolism", 332: "strong_bones", 312: "medical_training", 313: "take_cover", 302: "fast_bandaging"}
+skills = {}
+for s in rows(load("gameplay__skills__skills_tree.options.json")["skills_tree"]):
+    if s["id"] in RECOVERY_SKILLS:
+        printed = re.sub(r"<[^>]*>", "", s["ui"]["skill_descriptions"][0][0]).strip()
+        step = float(re.search(r"\d+(?:\.\d+)?", printed).group(0))
+        postfix = s["ui"].get("postfix", "")
+        skills[RECOVERY_SKILLS[s["id"]]] = {
+            "id": s["id"], "name": text(s["ui"]["name"]), "name_uk": text_uk(s["ui"]["name"]), "ranks": s["levels_amount"],
+            "step": r(step / 100 if postfix == "st_percent_postfix" else step),
+            "description": text(s["ui"]["description"]), "description_uk": text_uk(s["ui"]["description"]),
+            # The postfix as the game has it (" s", "%"): its own space or none.
+            "rank": printed + strings.get(postfix, "").rstrip(), "rank_uk": printed + strings_uk.get(postfix, "").rstrip() if strings_uk.get(postfix) else None}
+recovery = {"gear": gear, "boosters": boosters, "skills": skills}
 
 for table in (weapons, armour):
     for item in table.values():
@@ -367,6 +434,7 @@ out = {
     "ammo": ammo,
     "armour": armour,
     "body": body,
+    "recovery": recovery,
 }
 with open(target, "w", encoding="utf-8") as f:
     json.dump(out, f, ensure_ascii=False, indent=1)

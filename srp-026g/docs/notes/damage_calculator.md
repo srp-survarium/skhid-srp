@@ -29,9 +29,28 @@ number from the game data, the rules as the client's hit code applies them. Buil
   window's height; two clicks for the distance; the distance slider moves the target along the
   same line. On a wide screen (1700 px and up) it sits between shooter and target.
 - Healing, at the bottom: recovering by itself, the Larkspur (Живокіст) carried and activated,
-  the medikit and bandages, side by side; every number from the data. How many Larkspurs (1–4)
-  is chosen there; each adds its own regeneration callback. Under it, the time from empty to full
-  for none and 1–4 Larkspurs (past two, the added wait outgrows what the speed saves).
+  the medikit and bandages, side by side; every number from the data. Under it, the time from
+  empty to full for none and 1–4 Larkspurs, the picked number marked.
+- Recovery bonuses (owner 2026-11-12: "it should take into account all bonuses to recovery",
+  "those should all be togglable", "I want this to be combinable"): everything that changes the
+  healing section's numbers is picked there, each on or off in any mix, and both tables follow:
+  - the Larkspurs carried, none to four (item tiles; each adds its own regeneration callback);
+  - a booster with a regeneration bonus (the Rations: speed +15 %, the delay −2 s, the limit
+    +100 %), an item tile; hovering it (or focusing it; on a phone, a tap) shows its card, the
+    name and its built-in bonuses as the lobby lists them (the owner: "when I hover over rations,
+    I want to see what they do", "helper window");
+  - the Regeneration bonus of each slot that takes one (jacket, trousers, backpack), a button per
+    grade as the armour bonuses have; a piece carries one bonus of a kind;
+  - the medical skills, a button per rank: Metabolism (the delay), Strong Bones (a leg's or
+    hand's maximum), Medical Training and Take Cover (what a medicine heals; Take Cover's ranks
+    count as crouched), Fast Bandaging (the wait before a medicine works). Each has its lobby
+    icon (the skills page's, as its build draws them) and, hovering its icon or name, a card:
+    its name and the lobby tooltip's line for a rank (the owner: "same for skills and maybe they
+    should have skill icons too").
+  The grades, the slots, the booster's bonuses and each skill's ranks and step come from the game
+  data (`recovery` of `calc-data.json`; a skill's step is the number the lobby prints for a rank);
+  the rules are the exe's (`rules.js`: `regeneration`, `medicine`; regeneration-booster.md,
+  medical-skills.md). The picks are kept with the page's other choices.
 - The map's readout sits under it, two lines whatever the state, so the map never moves.
 - Compare table: every weapon with its icon, sortable by any column, column separators.
 - The calculator keeps its own look; only the site's header sits above it.

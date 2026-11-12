@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>Damage calculator</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -106,7 +107,24 @@ h3.sub { margin: 0 0 8px; font: 700 .78rem var(--font-display); letter-spacing: 
 .note { font-size: .8rem; color: var(--ink-3) }
 /* Modification rows, as the lobby draws them */
 .fxrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px }
+#healpick { display: grid; gap: 10px; justify-items: start }
 #healpick .lbl { margin-right: 6px }
+#healpick .fxtile + .lbl { margin-left: 14px }
+#healpick > .gamemods { max-width: 100% }
+@media (max-width: 560px) {
+  #healpick > .gamemods { grid-template-columns: 31px minmax(0, 1fr); row-gap: 0 }
+  #healpick > .gamemods .gmrow > .gico { grid-row: span 2 }
+  #healpick > .gamemods .gmrow > .gsteps { margin-bottom: 6px }
+}
+/* An item tile's card: what it gives, on hover or focus */
+.fxhint { position: relative; display: inline-flex }
+.fxhint > .gamemods { position: absolute; left: 0; top: calc(100% + 6px); z-index: 5; width: max-content; max-width: min(380px, calc(100vw - 110px)); display: none; pointer-events: none; box-shadow: 0 6px 18px rgba(0, 0, 0, .4) }
+.fxhint:hover > .gamemods, .fxhint:focus-within > .gamemods, .gico:hover + .fxhint > .gamemods { display: grid }
+.glabel.fxhint { cursor: help }
+.gamemods .gname { grid-column: 1 / -1; font-size: 15px; padding-bottom: 2px }
+.gamemods .gtext { grid-column: 1 / -1; display: block; white-space: normal }
+/* On a phone a tile's card sits under the tiles' row, from its left: a tile may be at the screen's edge */
+@media (max-width: 560px) { #healpick .fxrow { position: relative } .fxrow .fxhint { position: static } .fxrow .fxhint > .gamemods { max-width: 100% } }
 .fxrow .chips { margin-left: 8px }
 .fxtile { width: 86px; height: 46px; padding: 2px; border: 1px solid var(--rule); background: var(--bg); cursor: pointer; opacity: .4; display: grid; place-items: center; font: .78rem var(--font-body); color: var(--ink-2) }
 .fxtile img { width: 100%; height: 100%; object-fit: contain; display: block }
@@ -426,7 +444,7 @@ tr.click { cursor: pointer } tr.click:hover td { background: color-mix(in srgb, 
 
   <section style="display:grid;gap:10px">
     <h2 data-uk="Лікування">Healing</h2>
-    <div class="fxrow" id="healpick"></div>
+    <div id="healpick"></div>
     <div class="tablebox"><table id="heal"></table></div>
     <div class="tablebox"><table id="fulltime"></table></div>
   </section>

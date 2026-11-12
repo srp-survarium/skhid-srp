@@ -81,6 +81,12 @@ data["hud_doll"] = {
     "zones": {"front": zones(os.path.join(assets, "doll", "doll_front.svg")),
               "back": zones(os.path.join(assets, "doll", "doll_back.svg"))},
 }
+# The recovery skills' icons, as the lobby's skill renderer draws them: the
+# skills page's own (srp-026g/scripts/skills-tab/build.py, run first).
+skill_icons = os.path.join(here, "..", "..", "servers", "web-server", "skills", "icons")
+data["skill_icons"] = {str(s["id"]): uri(os.path.join(skill_icons, f"{s['id']}.webp"), "image/webp")
+                       for s in ((data.get("recovery") or {}).get("skills") or {}).values()
+                       if os.path.isfile(os.path.join(skill_icons, f"{s['id']}.webp"))}
 data["mod_icons"] = {name.removeprefix("mod_icon_").removesuffix(".png"): uri(os.path.join(assets, "mod_icons", name), "image/png")
                      for name in os.listdir(os.path.join(assets, "mod_icons"))}
 # Top-down maps: the scale and heights go in the page, the images ship beside
