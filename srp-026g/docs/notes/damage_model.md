@@ -57,9 +57,10 @@ players.
   Regeneration booster 2 s more at the tick (`medical-skills.md`, `regeneration-booster.md`); a Lifebone's passive
   may change it (0 in today's data). The last hit's time (+B0h) is the second field of a part's saved record, after
   its health (`serialize` 0x32AE25, 0x32AE45); only a hit that takes health writes it (0x32A29E), a hit on a hip
-  or a foot for its leg's pool too. Counted: 77 leg, 62 hand and 17 head wounds seen past their saved end, all
-  within 8 s of the last hit, none beyond; every one on a body with no Metabolism rank (the recordings are older
-  than the bots' medical ranks), the latest world still wounded at the last hit + 8,000 ms exactly. A wound on a
+  or a foot for its leg's pool too. Counted: 77 leg, 62 hand and 17 head rows of a body's world with a
+  wound past its saved end (21 leg and 13 hand wounds of bots), all within 8 s of the last hit, none beyond; every
+  one on a body with no Metabolism rank (the recordings are older than the bots' medical ranks), the latest world
+  still wounded at the last hit + 8,000 ms exactly. A wound on a
   body with a rank is in no recording read: its shorter hold is read in the patch's source, not seen.
 - The readers of the two wound counts (the damage model's +388h legs, +389h hands), all of them:
 
