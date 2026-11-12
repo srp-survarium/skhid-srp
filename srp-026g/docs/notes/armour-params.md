@@ -26,12 +26,16 @@ artefacts, drugs and the oxygen tank run around it (the calculator's
 | hit_params/<part>/health | adds to the part's health pool | health points | added | PROVEN 0x33EC9B, 0x33F297 | (no config sets it) |
 | hit_params/<part>/regeneration_speed | adds to the part's regeneration | per second | added | PROVEN 0x33ECCA, 0x33F2A4 | (no config sets it) |
 
-Damage types (7; 0.26g dropped `blunt`): `ranged` bullets (PROVEN: the
-gunshot path the calculator uses), `slash` melee and traps, `explosive`
-grenades and explosions, `fire`, `radiation`, `shock`, `toxic` anomalies and
-gas (LIKELY, by name and the configs that deal them). Penetration P is the
-bullet's for `ranged`; for the other types, what P is was not traced
-(LIKELY 0, so armour stops that fraction outright).
+Damage types (8; armour lists 7, and no piece has `blunt`): `ranged` bullets
+(the gunshot path the calculator uses), `blunt` every weapon's melee (103
+weapons, read at 0x2DF3CD through `ammo_data::load` 0x332440) and 19 anomaly
+rows, so armour never stops a melee hit (a missing type loads as 0, 0x33EC32,
+summed at 0x33F2C0); `slash` the bear trap's bite only (2 rows); `explosive`
+grenade blasts (2 configs); `toxic`, `fire`, `shock`, `radiation` map zones
+(524, 150, 104, 96 rows) (PROVEN: the configs' keys and their readers).
+Penetration P is the hit's +38h: a bullet's for `ranged`, 1.0 for a blast
+(0x339853), the zone's `max_armor_piercing` for an anomaly, the trap's
+`armor_piercing` 1.
 
 ## Weight
 
@@ -62,7 +66,7 @@ here: the wiki shows them as "Comes with" / "Can roll" (modifiers page).
 | key | does | unit | combines | confidence | label |
 |---|---|---|---|---|---|
 | data/amount_time_sec | how long the tank runs once switched on | seconds | used up while active; off when empty | PROVEN `oxygen_tank::oxygen_tank` 0x33E085, `tick` 0x33E5D0 | Oxygen: N s |
-| data/influences[] {body_part, hit_type, threshold, hit_coeff} | while the tank is on, a matching hit (face, toxic) below `threshold` does nothing; above it, (D - threshold) x `hit_coeff` | damage points; factor | per hit | PROVEN 0x33E6F0 (formula), 0x33E246/0x33E270 (fields); "while on" LIKELY | Gas protection: hits up to N blocked, rest x0.01 |
+| data/influences[] {body_part, hit_type, threshold, hit_coeff} | while the tank is on, a matching hit (face, toxic) below `threshold` does nothing; above it, (D - threshold) x `hit_coeff` | damage points; factor | per hit | PROVEN 0x33E6F0 (formula), 0x33E246/0x33E270 (fields); "while on" PROVEN (`set_active` 0x33E400 links and unlinks the rows in the part's protectors; `tick` turns the tank off at 0 ms left or when the wearer dies, 0x33E66F) | Gas protection: hits up to N blocked, rest x0.01 |
 | parameters/oxygen_amount | same number as amount_time_sec | - | - | not read by the client (no such string in the exe) | (skip) |
 
 All 5 stock tanks and the 0.29 Firefighter tank use face/toxic, hit_coeff

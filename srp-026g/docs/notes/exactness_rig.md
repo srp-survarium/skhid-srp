@@ -360,7 +360,8 @@ the air), every step through the port on the shapes world, each from the game's 
   `m_colliding_with_player` is clear (0x7C892); the world sets it on both bodies of an overlapping enemy pair
   (`bullet_physics_world::tick` 0x75811, 0x75848) and only the controller's `initialize` clears it. The port had no
   such flag and skipped 355 steps the game took (their feet under a millimetre apart in 340).
-  `Controller::colliding_with_player` is the world's write; the bodies' pushing each other apart is not ported.
+  `Controller::colliding_with_player` is the world's write; the bodies' pushing each other apart is not ported (the rule: `collision_world.md` §3, the enemy reset of
+  0x75730..0x7586C).
 
 What is left (1,126 steps, 0.51 %): 504 landings whose only difference is the surface normal kept of two contacts
 at one fraction (the exe's order of objects and triangles, not ported: 3j), and steps at walls and edges of the same

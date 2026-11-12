@@ -43,7 +43,7 @@ Tags: PROVEN (read in the code at the address given), LIKELY, GUESS.
   and the static info names each kit's slot items (`static_info.md` 3.1). So the per-kit events
   are **exactly per weapon for a kit with one gun** (slot 10 empty): kills (event 0 less grenade
   kills 25; melee 13 is the gun's own butt, `[bullet+40h] == weapon+53Ch` at 0x2DA2CD), shots 22,
-  hits 23 (LIKELY: grenade shrapnel hits may count as event 23 too, see 3).
+  hits 23 (grenades and traps never count: 3).
 - A kit with two guns mixes them; a gun picked up off the ground (patch 85) is counted under the
   picker's kit. So the no-patch split is right for one-gun kits and a mix for the rest.
 
@@ -65,7 +65,9 @@ The statistics handler (`base_game_statistics_handler`, vtable 0xA0755C, the sam
   passes `[bullet+0Ch]` (0x32D9E6) as `base_player::hit`'s last argument, which `hit_info::hit_info`
   stores at +40h (0x32BA47), which hit_impl passes on (0x2D9F03); the bullet's +0Ch is the weapon
   core + 10h (0x32BB12, the weapon from instant_fire's `mov edi,ebx` 0x2E2518). For a grenade or a
-  trap it is that item (0x2D9AE0's own argument, stored at hit +40h; LIKELY that it is the item).
+  trap it is the grenade's or trap's set, an inventory item (`[grenade+0Ch]` 0x2E85C4, `[trap+194h]` 0x2E6694,
+  passed by `bullet_manager::explode` 0x33985C to `base_player::hit` 0x2D9A60, stored at hit +40h; 0x2D9AE0 is
+  the anomalies' path, with no source) (PROVEN).
 - **The instance id** (PROVEN): `profile [player+6B8h]`, kit `[player+115h]`, slot `[weapon item+254h]`
   (hit, kill: the bullet's weapon, 0x2D9F97, 0x2DA1EA) or the inventory's selected slot
   `[[player+10Ch]+170h]` (shot, 0x2D7854): `item = word [profile + 98h + (kit x 1C1h + slot) x 4]`
@@ -87,16 +89,21 @@ The statistics handler (`base_game_statistics_handler`, vtable 0xA0755C, the sam
 - **Hits** (PROVEN): every hit that took health (hit_impl, `hit_impl` row of `abi_inputs.tsv`) ends in
   `generate_hit_event` 0x2D9F40; its handler call reaches 0x2F5450, which adds 1 to
   `events[23][attacker kit]` (`[record + kit x 2 + 8Ah]`) when the attacker is a place, of the other
-  team, the call's flag (0x2D9F40's 7th argument) is set and the hit is not melee. One hit a pellet.
-  A hit with no bullet (0x2D9AE0's path: grenades, traps) also reaches it (LIKELY counted the same).
+  team, the call's flag (0x2D9F40's 7th argument) is set and the hit is not melee. At most one hit a
+  pellet. The flag is set only for a bullet's first damaging hit (`hit_impl` 0x2D9C84..0x2D9C9A: the hit
+  source's vtable slot 0 gives a bullet and its `m_max_damage_dealt` +54h is still 0, which
+  `hit_body_part` raises at 0x2E50EC). A grenade's or trap's hit (their source's slot 0 is 0x300040,
+  `return 0`), an anomaly's (no attacker) and a bullet's later hits are never counted (PROVEN).
 - **Kills** (PROVEN, `results.md` 9): 0x2F4EB0 counts event 0 under the killer's kit for an enemy,
   4 for a teammate, 3 for no killer or oneself, plus 15, 13, 10 and 25 (the category test at
   0x2F514E).
 - **Per kit in memory, never per weapon** (PROVEN for the record: `events[28][3]` of u16 in each
   0x1F8-byte place record from `shared_statistics`+0, 20 places, then the battery manager at
   +2760h). The three handler thunks are the only sites that see the weapon, and they keep nothing.
-  That no other object counts per weapon: LIKELY (the statistics are the only counters of these
-  events that the hud and the results read).
+  That no other object counts per weapon: PROVEN (the handler slots are only 0x26DA00 / 0x26DA50 /
+  0x26DA80, vtables 0xA0755C and 0xA07FBC, both dropping the weapon; the statistics' saved fields are per
+  preset, named by their writer strings 0x335750, 0x3353C0; the hud's only `weapon_stats` call is the ammo
+  panel, `HUD.as:1024`).
 
 ## 4. The smallest patch that reports it (proposed, not written)
 

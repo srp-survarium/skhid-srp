@@ -982,17 +982,33 @@ mod tests {
         assert_eq!(names.map(field), MEDICAL_CAPS);
         assert!(source.contains(&format!("f32::from(self.bandaging) * {BANDAGING_PER_RANK}")), "Fast Bandaging's factor");
         assert!(source.contains(&format!("u32::from(self.metabolism) * {METABOLISM_PER_RANK_MS}")), "Metabolism's head start");
-        // The bots' block: each rank within its field's cap (301 at bit 0, 302 at 3, 311 at 6, 312 at 9).
-        for &(id, rank) in survarium::v026g::bot_skills::MEDICAL {
-            let shift = match id {
-                301 => 0,
-                302 => 3,
-                311 => 6,
-                312 => 9,
-                _ => panic!("a medical skill of the block with no field here: {id}"),
-            };
-            let (_, most) = MEDICAL_CAPS.iter().find(|(s, _)| *s == shift).copied().unwrap();
-            assert!(u32::from(rank) <= most, "skill {id} at {rank} over the client's cap {most}");
+        medical_ranks_within_caps();
+    }
+
+    /// [F65, A372] The bots' medical block: each skill of its intent has its field (301 at bit 0, 302 at 3, 311 at 6, 312 at
+    /// 9), and each rank the bots' builds resolve ([`survarium::v026g::bot_skills::BotBuilds`]) is within the field's cap. On
+    /// the tests' data the tree has no medical tab and the builds hold none; the players' data: the ignored test below.
+    fn medical_ranks_within_caps() {
+        use survarium::v026g::bot_skills::{BOT_SKILL_TIERS, BotBuilds, MEDICAL};
+        let shift = |id: u16| match id {
+            301 => 0,
+            302 => 3,
+            311 => 6,
+            312 => 9,
+            _ => panic!("a medical skill of the block with no field here: {id}"),
+        };
+        let medical: Vec<u16> = MEDICAL.want.iter().chain(MEDICAL.open).copied().collect();
+        for &id in &medical {
+            shift(id);
+        }
+        let builds = BotBuilds::shared().expect("the bots' builds");
+        for tier in &BOT_SKILL_TIERS {
+            for pouch in [false, true] {
+                for &(id, rank) in builds.of(tier, pouch).skills.iter().filter(|(id, _)| medical.contains(id)) {
+                    let (_, most) = MEDICAL_CAPS.iter().find(|(s, _)| *s == shift(id)).copied().unwrap();
+                    assert!(u32::from(rank) <= most, "skill {id} at {rank} over the client's cap {most}");
+                }
+            }
         }
     }
 
@@ -1003,6 +1019,7 @@ mod tests {
     fn a_bots_profile_on_the_players_data_gives_its_pantry_the_medical_factors() {
         use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKits, bot_profile};
         survarium::v026g::game_data::init().expect("SRP_GAME_DATA reads and passes srp's checks");
+        medical_ranks_within_caps();
         for tier in BotTier::ALL {
             for role in BotRole::ALL {
                 let profile = bot_profile(1, 0, role, BotEquipment::of(tier, RusherKits::default()));
