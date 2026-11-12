@@ -481,7 +481,8 @@ impl WalkGrid {
 
     /// [2a] The highest ground top under [`Self::hold_points`] around (`x`, `z`) that feet going down from `high` to `low`
     /// pass (at least [`TOP_PASSED_M`] under `high`, not under `low`): a ray down the ground faces from there, where the
-    /// point's cell has solid in that band at all (the cells as a cheap first test).
+    /// point's cell has a piece of them in that band at all (the cells as a cheap first test: a ray's hit is on a piece of its
+    /// cell, so the test leaves no hit out).
     fn ground_top_passed(&self, solids: &Solids, x: f32, z: f32, low: f32, high: f32) -> Option<f32> {
         self.ground_tops(solids, x, z, low, high).into_iter().flatten().max_by(f32::total_cmp)
     }
@@ -496,7 +497,7 @@ impl WalkGrid {
         }
         for (slot, (px, pz)) in tops.iter_mut().zip(self.hold_points(x, z)) {
             let solid = self.cell_at(px, pz).is_some_and(|c| {
-                solids.spans[solids.start[c] as usize..solids.start[c + 1] as usize]
+                solids.ground_spans[solids.ground_start[c] as usize..solids.ground_start[c + 1] as usize]
                     .iter()
                     .any(|&(lo, hi)| lo <= top && hi >= low - 1e-4)
             });

@@ -963,6 +963,11 @@ struct Solids {
     /// body's slope), for the rays a fall stops at; the cells' spans are too coarse for it (a ledge's face column carries the
     /// ledge's top over the ground at its foot).
     ground: Option<RayTree>,
+    /// [2a] With it: per cell, its first piece of those faces (`nx * nz + 1` entries), and the pieces' height ranges, merged
+    /// where they overlap: where a ray down [`Self::ground`] can hit, the cheap first test of a fall's rays (a wall's span
+    /// overlaps every height, its faces are none of these).
+    ground_start: Vec<u32>,
+    ground_spans: Vec<(f32, f32)>,
 }
 
 /// The links while the grid is built, a whole floor id a direction; packed
@@ -1154,6 +1159,8 @@ impl WalkGrid {
         let mut solids = Solids {
             start: Vec::with_capacity(nx * nz + 1),
             spans: Vec::new(),
+            ground_start: Vec::new(),
+            ground_spans: Vec::new(),
             ground: body.fall_stops_on_solids.then(|| {
                 RayTree::from_corners(
                     triangles
@@ -1174,10 +1181,22 @@ impl WalkGrid {
         for (index, mut column) in columns.into_iter().enumerate() {
             start.push(height.len() as u32);
             solids.start.push(solids.spans.len() as u32);
+            if body.fall_stops_on_solids {
+                solids.ground_start.push(solids.ground_spans.len() as u32);
+            }
             if column.is_empty() {
                 continue;
             }
             column.sort_by(|a, b| a.low.total_cmp(&b.low));
+            if body.fall_stops_on_solids {
+                let first = solids.ground_spans.len();
+                for span in column.iter().filter(|span| span.walk >= 2) {
+                    match solids.ground_spans[first..].last_mut() {
+                        Some(last) if span.low <= last.1 + 1e-4 => last.1 = last.1.max(span.high),
+                        _ => solids.ground_spans.push((span.low, span.high)),
+                    }
+                }
+            }
             let mut merged: Vec<Span> = Vec::with_capacity(column.len());
             for span in column {
                 if let Some(last) = merged.last_mut()
@@ -1213,6 +1232,9 @@ impl WalkGrid {
         }
         start.push(height.len() as u32);
         solids.start.push(solids.spans.len() as u32);
+        if body.fall_stops_on_solids {
+            solids.ground_start.push(solids.ground_spans.len() as u32);
+        }
         stats.floors = height.len();
 
         let mut grid = Self {
