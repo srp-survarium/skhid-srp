@@ -157,6 +157,19 @@ they wait up to 0.2 to 0.6 s too long until the gun takes the factor from the pr
 modifiers. The test `every_tier_is_a_set_a_player_could_have` checks that the pouch changes no
 other modifier.
 
+**Intents, resolved at the start (A372, 2026-11-12).** The rows and the two blocks are no longer sets of points but
+intents (`bot_skills::SkillIntent`): the skills in order of want and the points to spend. When the server starts,
+`bot_skills::BotBuilds` spends them against the players' tree (`resolve`): each wanted skill takes as many points as its
+ranks and the points left allow; a skill whose row is still locked is first opened with the intent's later skills in the
+rows above it, no more than the threshold needs (one point kept for the skill). The level is the points spent. Every
+build is checked by `SkillsTree::validate`, logged ("the bots' skills, gear up to ...": wanted, resolved, level, unspent,
+what fell short and why), and a build the tree refuses keeps Player vs Bots off (`pvb::Config::from_env`). The code names
+no rank count, row or threshold. Since the tree of 2026-11-09 (102, 201, 204 take three ranks, 302 two, 312 three) three
+openers stand last in their intents, each only to reach a threshold the listed skills no longer reach: 201 in the lowest
+tier (for 209), 103 in the pouch (for 109), 301 in the medical block (for 312 and 311). On the tests' tree (five ranks a
+stock skill) the intents resolve to the old sets exactly (`every_tier_is_a_set_a_player_could_have`); on the players'
+tree `tools/check bot-skills-live` checks them (`on_the_live_data_every_build_is_a_set_the_tree_allows`).
+
 Mass against capacity (the server's game data, `Loadout::weight`; the tests
 in `bot_skills.rs`). The speed level is `movement_level`: 1 + 208's 0.05 −
 0.2 × (1 + `overweight_penalty`) × t.
