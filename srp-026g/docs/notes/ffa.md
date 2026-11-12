@@ -510,3 +510,17 @@ The server end-to-end suite initially passed eight tests and timed out in
 waiting for newcomer input, with no lobby or match protocol faults. The exact
 test passed in isolation on the unchanged code (92.49 s). This is recorded
 as a timing-sensitive test result, not evidence that a gameplay fault was fixed.
+
+The final project probe loaded 2,162 spawn records, including all 765 solo
+records, through the native binary-config relocator and spawn loader without
+invalid pointers. All solo exclusion radii read back as 20 m, including
+School's three original integer-valued records.
+
+Composing with main's restored Vostok electrical anomalies exposed one unsafe
+v0.11 solo point (`ffa_ported_12`, point 40). Its authored position moved
+3.26 m to `[-38.503, 5.99284, -22.748001]`, facing yaw `2.3561945`.
+The replacement has reachable standing floor, body clearance, at least 12 m
+from other solo points and 2 m from harmful zones; the complete six-metre
+exit remains walkable and clear of those zones. The composed-project geometry
+probe passes all 22 solo points on each of the two Vostok ports. The source
+TSV and content recipe carry the same correction.
