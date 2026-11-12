@@ -80,7 +80,7 @@ use crate::sight::RayTree;
 mod clearance;
 pub use clearance::{CLEARANCE_MAX_M, CLEARANCE_STEP_M};
 mod doors;
-mod drop_check;
+pub mod drop_check;
 mod exact;
 mod open;
 mod rim;
@@ -295,6 +295,15 @@ pub struct Body {
     /// (School's sill at 41.9 21.7 142.9: 144 visits by 89 players in the routes corpus, no link from a spawn). A build input:
     /// in the key when set.
     pub wall_held_tops: bool,
+    /// [feed 67] With [`Self::drop_check`]: whether a Drop link is kept only where the client's body walked off it as a bot walks
+    /// it (3.5 m/s at the landing, re-aimed each 50 ms step, on along the link once within 0.3 m of it) comes to STAND on its
+    /// landing within 2 s of leaving the take-off (0.5 m across, 0.2 m in height: the exactness session's walk of the Drop
+    /// links, FINDINGS-FEED line 67, `grid::drop_check::walk_drop`); a link whose body lands on another floor lower down, and
+    /// arrives there walked at it, is re-aimed there; the others are cut. Off: a link is kept where the body only goes down
+    /// (min(0.4 m, half the drop) under the take-off) on any line, wherever it lands (Chemical Plant mode 2: 245 of 6,000 sampled
+    /// links land on a level above the landing and 26 fall past it, and pass). A link that is the only way to a floor or back
+    /// from it is kept. A build input: in the key when set.
+    pub drop_lands: bool,
     /// [A318] Whether the floors the erosion rounds took beside a wall the body clears are given back (`grid::wall_give_back`):
     /// the exact pass keeps them, a wall face (not a rise of the ground) stands within 0.6 m, and the client's walk tick stands a
     /// body there. Needs [`Erosion::Exact`]. A build input: in the key when set.
@@ -441,6 +450,7 @@ impl Body {
             rim_jumps: false,
             fastest_walk_cap: crate::controller::jump::WALK_CAP_MS,
             wall_held_tops: false,
+            drop_lands: false,
             wall_give_back: false,
             exe_collision: false,
             walk_start_clear: false,
@@ -554,6 +564,7 @@ impl Default for Body {
             rim_jumps: false,
             fastest_walk_cap: crate::controller::jump::WALK_CAP_MS,
             wall_held_tops: false,
+            drop_lands: false,
             wall_give_back: false,
             exe_collision: false,
             walk_start_clear: false,
@@ -1289,6 +1300,8 @@ pub struct BuildStats {
     /// kept because they are the only way to a floor or back from it.
     pub drops_unfollowed: usize,
     pub drops_unfollowed_kept: usize,
+    /// The Drop links re-aimed at the floor the client's body lands on ([`Body::drop_lands`]).
+    pub drops_reaimed: usize,
     /// The Drop links taken away because a ground top with no floor holds the body over their landing
     /// ([`Body::fall_stops_on_solids`]), and those kept because they are the only way to a floor or back from it.
     pub drops_under_solid: usize,
@@ -1599,7 +1612,13 @@ impl WalkGrid {
             (stats.overshot_cut, stats.overshot_kept) = grid.drop_overshot_landings(&mut wide, seeds, spawns);
         }
         if body.drop_check {
-            let failing = grid.unfollowed_drops(&wide, triangles, seeds, spawns);
+            let failing = if body.drop_lands {
+                let (cut, reaim) = grid.landing_drops(&wide, triangles, seeds, spawns);
+                stats.drops_reaimed = grid.reaim_drops(&mut wide, &reaim);
+                cut
+            } else {
+                grid.unfollowed_drops(&wide, triangles, seeds, spawns)
+            };
             (stats.drops_unfollowed, stats.drops_unfollowed_kept) = grid.cut_keeping_reach(&mut wide, failing, seeds, spawns, true, false);
         }
         stats.floors_after_erosion = grid.len();

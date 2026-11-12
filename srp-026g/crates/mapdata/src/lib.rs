@@ -177,6 +177,9 @@ pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b04;
 /// The same for the jumps onto a narrow top a wall beyond holds the body on ([`Body::wall_held_tops`], the routes corpus), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
+/// The same for the Drop links kept only where the client's body stands on their landing, re-aimed where it lands elsewhere
+/// ([`Body::drop_lands`], feed 67), in [`grid_key_with_links`] only for a body that asks for it. A value of its own.
+pub const DROP_LANDS_ALGO: u32 = 0x5067_0001;
 /// The same for the floors given back beside walls the body clears ([`Body::wall_give_back`], A318), in [`grid_key_with_links`]
 /// only for a body that asks for it. A value of its own. 0103: the stand test runs the client's steps (A364 C2 row 45).
 pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0103;
@@ -430,6 +433,9 @@ pub fn grid_key_with_links(
     // And the walk tick's check of the Drop links.
     if body.drop_check {
         digest.u32(DROP_CHECK_ALGO);
+        if body.drop_lands {
+            digest.u32(DROP_LANDS_ALGO);
+        }
     }
     // And the walk check's ceiling refusals.
     if body.walk_ceiling_stalls {

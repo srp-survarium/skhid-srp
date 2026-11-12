@@ -26,6 +26,7 @@
   "walk_ceiling_stalls": true,
   "rim_jumps": true,
   "wall_held_tops": true,
+  "drop_lands": true,
   "wall_give_back": true,
   "exe_collision": true,
   "walk_start_clear": true,

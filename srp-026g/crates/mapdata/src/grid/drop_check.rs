@@ -14,9 +14,9 @@
 //! centre): 36,829 of 494,533 links (7.4 %) left the body on the take-off's level.
 
 use super::{DIRS, LinkKind, NONE, SEED_M, SPAWN_M, Triangle, Vec3, WalkGrid, Wide};
-use super::controlled::{STARTS, out_of_walls, parallel};
+use super::controlled::{STARTS, Stance, WalkStart, body_at, out_of_walls, parallel};
 use crate::controller::Collision;
-use crate::controller::tick::{Controller, Settings};
+use crate::controller::tick::{Controller, CrouchInput, Settings, TickInput};
 
 /// The tick, s (the census's: 30 a second).
 const DT: f32 = 1.0 / 30.0;
@@ -148,6 +148,206 @@ fn left_take_off(from_y: f32, to_y: f32) -> f32 {
     from_y - LEAVE_M.min(0.5 * (from_y - to_y).max(0.0))
 }
 
+/// [feed 67] The step of [`walk_drop`], s: the client's 50 ms tick.
+const LAND_DT: f32 = 0.05;
+/// [feed 67] The steps a body has to leave the take-off in (3 s), and then to come to stand on the landing (2 s).
+const LEAVE_STEPS: usize = 60;
+const LAND_STEPS: usize = 40;
+/// [feed 67] Within this of the to-point across, m, the body walks on along the link's line instead of steering at it (a body
+/// stopped over a short drop's to-point stays on the rim: the exactness session's first walk, 1,877 of 6,000 on Chemical Plant).
+const WALK_ON_WITHIN_M: f32 = 0.3;
+/// [feed 67] A body has arrived standing within this of the to-point across, m, and [`ARRIVE_HEIGHT_M`] of its height.
+const ARRIVE_FLAT_M: f32 = 0.5;
+const ARRIVE_HEIGHT_M: f32 = 0.2;
+
+/// [feed 67] How the client's body walking off a Drop link ends ([`walk_drop`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum DropWalk {
+    /// Standing on the to-point's floor ([`ARRIVE_FLAT_M`] across, [`ARRIVE_HEIGHT_M`] in height) within [`LAND_STEPS`] of
+    /// leaving the take-off's level.
+    Arrives,
+    /// Left the take-off's level and came to stand elsewhere: its feet there (a ledge partway, a floor past the landing).
+    LandsAt(Vec3),
+    /// Left the take-off's level and not standing [`LAND_STEPS`] later (falling on, sliding down a steep face).
+    Unsettled,
+    /// Walked [`MOVED_M`] or more from its start and never left the take-off's level (a rim the erosion took, a deck over the
+    /// landing).
+    Held,
+    /// Never got [`MOVED_M`] from its start: says nothing of the drop.
+    NoMove,
+}
+
+/// [feed 67] [`super::Body::drop_lands`]: the client's body set standing at `from` ([`body_at`]) walks at 3.5 m/s at `to`,
+/// re-aimed each 50 ms step, and on along the link's line once within [`WALK_ON_WITHIN_M`] of it, as a bot walks on to its next
+/// node; the exactness session's walk of the Drop links (`private/grid/rig/link-walk`, `kinds.rs` `drop_one`, FINDINGS-FEED
+/// line 67), its leave rule ([`left_take_off`]) and its arrival.
+pub fn walk_drop(world: &Collision, s: &Settings, start: WalkStart, from: Vec3, to: Vec3) -> DropWalk {
+    let mut c = body_at(world, start, Stance::Standing, from);
+    let first = c.feet();
+    let down = left_take_off(from.y, to.y);
+    let len = flat(from, to).max(1e-4);
+    let line = Vec3::new((to.x - from.x) / len, 0.0, (to.z - from.z) / len);
+    let mut moved = 0.0f32;
+    let mut left: Option<usize> = None;
+    for n in 1..=LEAVE_STEPS + LAND_STEPS {
+        let feet = c.feet();
+        let d = flat(feet, to);
+        let walk = if d <= WALK_ON_WITHIN_M {
+            line * (WALK_MPS * LAND_DT)
+        } else {
+            Vec3::new((to.x - feet.x) / d, 0.0, (to.z - feet.z) / d) * (WALK_MPS * LAND_DT).min(d)
+        };
+        c.tick(world, LAND_DT, s, TickInput {
+            walk,
+            air_control: Vec3::ZERO,
+            crouch: CrouchInput::Tested { key: false, legs_broken: false },
+            sprinting: false,
+        });
+        let feet = c.feet();
+        moved = moved.max(flat(feet, first));
+        if left.is_none() && feet.y <= down {
+            left = Some(n);
+        }
+        match left {
+            None if n >= LEAVE_STEPS => return if moved < MOVED_M { DropWalk::NoMove } else { DropWalk::Held },
+            None => {}
+            Some(t) => {
+                let standing = !c.jumping && c.on_ground(s);
+                if standing && flat(feet, to) <= ARRIVE_FLAT_M && (feet.y - to.y).abs() <= ARRIVE_HEIGHT_M {
+                    return DropWalk::Arrives;
+                }
+                if n - t >= LAND_STEPS {
+                    return if standing { DropWalk::LandsAt(feet) } else { DropWalk::Unsettled };
+                }
+            }
+        }
+    }
+    DropWalk::Unsettled
+}
+
+/// [feed 67] What [`super::Body::drop_lands`] does with one Drop link.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+enum Verdict {
+    /// A line arrives, or a line's body cannot move (it says nothing).
+    #[default]
+    Keep,
+    /// The body lands on another floor of the grid, and walked at that floor it arrives there: the link goes there.
+    Reaim(u32),
+    /// No line arrives and no landing is a floor the body arrives at.
+    Cut,
+}
+
+impl WalkGrid {
+    /// [feed 67] The Drop links out of a floor a body gets to from the seeds or a spawn, as (take-off, direction, from, to).
+    fn reached_drops(&self, wide: &Wide, seeds: &[Vec3], spawns: &[Vec3]) -> Vec<(u32, usize, Vec3, Vec3)> {
+        let n = self.height.len();
+        let mut reached = vec![false; n];
+        let mut queue: Vec<u32> = seeds
+            .iter()
+            .filter_map(|&p| self.locate(p, SEED_M))
+            .chain(spawns.iter().filter_map(|&p| self.locate(p, SPAWN_M)))
+            .collect();
+        for &a in &queue {
+            reached[a as usize] = true;
+        }
+        while let Some(a) = queue.pop() {
+            for b in wide.out(a as usize).chain(wide.slips_from(a)) {
+                if !reached[b as usize] {
+                    reached[b as usize] = true;
+                    queue.push(b);
+                }
+            }
+        }
+        (0..n)
+            .filter(|&a| reached[a])
+            .flat_map(|a| {
+                (0..DIRS.len()).filter_map(move |d| {
+                    let b = wide.links[a][d];
+                    (b != NONE && wide.kinds[a][d] == LinkKind::Drop).then(|| (a as u32, d, self.position(a as u32), self.position(b)))
+                })
+            })
+            .collect()
+    }
+
+    /// [feed 67] [`super::Body::drop_lands`]: every Drop link out of a reached floor walked by the client's body to its landing
+    /// ([`walk_drop`], on the three [`STARTS`] lines across it). A link is kept when a line arrives (or a line's body cannot
+    /// move). When none does and a line's body comes to stand on another floor lower than the take-off, and the body walked at
+    /// that floor arrives there, the link is re-aimed at it; else it is cut. Returns the links to cut (take-off, direction,
+    /// rank 0) and the re-aims (take-off, direction, new landing). On the machine's threads; in link order.
+    pub(super) fn landing_drops(
+        &self,
+        wide: &Wide,
+        triangles: &[Triangle],
+        seeds: &[Vec3],
+        spawns: &[Vec3],
+    ) -> (Vec<(u32, usize, f32)>, Vec<(u32, usize, u32)>) {
+        let links = self.reached_drops(wide, seeds, spawns);
+        if links.is_empty() {
+            return (Vec::new(), Vec::new());
+        }
+        let (caster, s) = self.body.controller();
+        let world = Collision::build(triangles).with_caster(caster);
+        let start = self.body.walk_start();
+        let verdicts = parallel(&links, |&(a, _, from, to)| self.drop_verdict(&world, &s, start, a, from, to));
+        let mut cut = Vec::new();
+        let mut reaim = Vec::new();
+        for (&(a, d, _, _), v) in links.iter().zip(verdicts) {
+            match v {
+                Verdict::Keep => {}
+                Verdict::Reaim(b) => reaim.push((a, d, b)),
+                Verdict::Cut => cut.push((a, d, 0.0)),
+            }
+        }
+        (cut, reaim)
+    }
+
+    /// [feed 67] One link of [`Self::landing_drops`].
+    fn drop_verdict(&self, world: &Collision, s: &Settings, start: WalkStart, a: u32, from: Vec3, to: Vec3) -> Verdict {
+        let len = flat(from, to).max(1e-3);
+        let side = Vec3::new(-(to.z - from.z) / len, 0.0, (to.x - from.x) / len);
+        let walks = STARTS.map(|off| walk_drop(world, s, start, from + side * off, to + side * off));
+        if walks.iter().any(|w| matches!(w, DropWalk::Arrives | DropWalk::NoMove)) {
+            return Verdict::Keep;
+        }
+        for (w, off) in walks.iter().zip(STARTS) {
+            let DropWalk::LandsAt(feet) = *w else { continue };
+            let Some(b) = self.locate_within(feet, ARRIVE_FLAT_M, ARRIVE_HEIGHT_M) else { continue };
+            let at = self.position(b);
+            if b == a || (at.y - feet.y).abs() > ARRIVE_HEIGHT_M || at.y >= from.y - self.body.step {
+                continue;
+            }
+            if walk_drop(world, s, start, from + side * off, at + side * off) == DropWalk::Arrives {
+                return Verdict::Reaim(b);
+            }
+        }
+        Verdict::Cut
+    }
+
+    /// [feed 67] Re-aims Drop links ([`Self::landing_drops`]): the link (take-off, direction) goes to the new landing, in its
+    /// direction's slot when the landing is in that neighbour cell, else as an off-mesh walk-off ([`LinkKind::GapDrop`],
+    /// [`super::gap::Takeoff::WalkOff`]) in place of the slot's link (none added where the take-off already has one there).
+    /// Returns how many were re-aimed.
+    pub(super) fn reaim_drops(&self, wide: &mut Wide, reaim: &[(u32, usize, u32)]) -> usize {
+        let mut added = false;
+        for &(a, d, b) in reaim {
+            let old = wide.links[a as usize][d];
+            if self.cell_of[old as usize] == self.cell_of[b as usize] {
+                wide.links[a as usize][d] = b;
+                continue;
+            }
+            wide.links[a as usize][d] = NONE;
+            if !wide.out(a as usize).any(|x| x == b) {
+                wide.off.push(super::gap::OffLink { from: a, to: b, kind: LinkKind::GapDrop, press: super::gap::Takeoff::WalkOff });
+                added = true;
+            }
+        }
+        if added {
+            wide.off.sort_by_key(|l| (l.from, l.to));
+        }
+        reaim.len()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -186,6 +386,31 @@ mod tests {
         tris.extend(quad(-5.0, 0.0, -2.0, 2.0, 2.0));
         let world = Collision::build(&tris);
         assert!(follows(&world, &Settings::LIVE, Vec3::new(-0.25, 2.0, 0.0), Vec3::new(0.25, 1.0, 0.0)));
+    }
+
+    /// [feed 67] The client's body walked off a slab stands on the ground below: it arrives. With a ledge 1 m down over the
+    /// landing it lands on the ledge (the old rule passed it: it went down), and walked at the ledge it arrives there. Under a
+    /// deck that goes on it never leaves the take-off's level.
+    #[test]
+    fn walk_drop_arrives_lands_on_a_ledge_or_is_held() {
+        let s = Settings::LIVE;
+        let mut tris = Vec::new();
+        tris.extend(quad(-10.0, 10.0, -10.0, 10.0, 0.0));
+        tris.extend(quad(-5.0, 0.0, -2.0, 2.0, 2.0));
+        let (from, to) = (Vec3::new(-0.25, 2.0, 0.0), Vec3::new(0.25, 0.0, 0.0));
+        let start = WalkStart::Clear;
+        assert_eq!(walk_drop(&Collision::build(&tris), &s, start, from, to), DropWalk::Arrives);
+
+        let mut ledge = tris.clone();
+        ledge.extend(quad(0.0, 3.0, -2.0, 2.0, 1.0));
+        let world = Collision::build(&ledge);
+        let DropWalk::LandsAt(feet) = walk_drop(&world, &s, start, from, to) else { panic!("lands elsewhere") };
+        assert!((feet.y - 1.0).abs() < 0.1, "{feet:?}");
+        assert_eq!(walk_drop(&world, &s, start, from, Vec3::new(0.25, 1.0, 0.0)), DropWalk::Arrives);
+
+        let mut deck = tris.clone();
+        deck.extend(quad(0.0, 5.0, -2.0, 2.0, 2.0));
+        assert_eq!(walk_drop(&Collision::build(&deck), &s, start, from, to), DropWalk::Held);
     }
 
     /// A take-off boxed in by walls (the body cannot move from it on any line) says nothing of the drop: the link is kept.
