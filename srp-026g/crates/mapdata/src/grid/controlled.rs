@@ -251,7 +251,7 @@ fn out_of_faces_of(world: &Collision, feet: Vec3, height: f32) -> Vec3 {
 /// ended at `to`.
 pub fn walk_share(world: &Collision, s: &Settings, start: WalkStart, from: Vec3, to: Vec3) -> (f32, bool) {
     let mut c = Controller::standing_at(start.place(world, from));
-    match walk_on(world, s, &mut c, from, to, 0) {
+    match walk_on(world, s, &mut c, from, to, 0, AT_HEIGHT_M) {
         // A low ceiling: the client slides under it or crouches: not a stall the pass knows.
         Walked::Ceiling => (1.0, false),
         Walked::At => (1.0, true),
@@ -292,8 +292,9 @@ pub fn body_at(world: &Collision, start: WalkStart, stance: Stance, feet: Vec3) 
                 WalkStart::AboveStep => out_of_walls(world, feet),
                 WalkStart::Clear => out_of_faces_of(world, feet, CROUCH_HEIGHT_M),
             };
+            // The crouch key held, as the game's input has it before every step (`Controller::crouch_key`, A364).
             let mut c = Controller::standing_at(at);
-            c.want_crouch = true;
+            c.crouch_key(true);
             c
         }
     }
@@ -305,9 +306,10 @@ pub fn body_at(world: &Collision, start: WalkStart, stance: Stance, feet: Vec3) 
 pub const SPARE_TICKS: usize = 8;
 
 /// The controller `c` walked from where it is toward `to` (feet) at [`WALK_MPS`] for the ticks the leg from `from` takes, two
-/// more and `spare` more: how it ended, the share counted along `from` -> `to`. `c` is left where the walk left it, so a next
-/// leg goes on from there.
-pub fn walk_on(world: &Collision, s: &Settings, c: &mut Controller, from: Vec3, to: Vec3, spare: usize) -> Walked {
+/// more and `spare` more: how it ended, the share counted along `from` -> `to`. At `to` is within [`AT_FLAT_M`] across and
+/// from [`AT_HEIGHT_M`] under its height to `above` over it. `c` is left where the walk left it, so a next leg goes on from
+/// there.
+pub fn walk_on(world: &Collision, s: &Settings, c: &mut Controller, from: Vec3, to: Vec3, spare: usize, above: f32) -> Walked {
     let flat = Vec3::new(to.x - from.x, 0.0, to.z - from.z);
     let length = flat.length();
     if length < 1e-4 {
@@ -320,7 +322,7 @@ pub fn walk_on(world: &Collision, s: &Settings, c: &mut Controller, from: Vec3, 
     for _ in 0..ticks {
         let feet = c.feet();
         let left = Vec3::new(to.x - feet.x, 0.0, to.z - feet.z);
-        if left.length() <= AT_FLAT_M && (feet.y - to.y).abs() <= AT_HEIGHT_M {
+        if left.length() <= AT_FLAT_M && feet.y - to.y >= -AT_HEIGHT_M && feet.y - to.y <= above {
             return Walked::At;
         }
         let along = Vec3::new(feet.x - from.x, 0.0, feet.z - from.z).dot(dir) / length;
@@ -342,7 +344,7 @@ pub fn walk_on(world: &Collision, s: &Settings, c: &mut Controller, from: Vec3, 
     let feet = c.feet();
     let left = Vec3::new(to.x - feet.x, 0.0, to.z - feet.z);
     let share = best.max(Vec3::new(feet.x - from.x, 0.0, feet.z - from.z).dot(dir) / length);
-    if left.length() <= AT_FLAT_M && (feet.y - to.y).abs() <= AT_HEIGHT_M { Walked::AtEnd(share) } else { Walked::Short(share) }
+    if left.length() <= AT_FLAT_M && feet.y - to.y >= -AT_HEIGHT_M && feet.y - to.y <= above { Walked::AtEnd(share) } else { Walked::Short(share) }
 }
 
 /// [A318] One tick of the client's walk for a standing body at `feet` asked to move `by` (flat): the feet it starts from
@@ -635,7 +637,11 @@ impl WalkGrid {
     /// [`Stance`], on each of [`STARTS`]: from `a` (the body set where it can be), and, where a Walk link leads into `a` along
     /// the same way, on from where walking that link left the body (a body walks a route's links one after another, it is
     /// not set back on each floor's centre). A line passes when the body arrives both ways (a refusal under a low ceiling
-    /// says nothing: it passes); the link passes on two lines of three.
+    /// says nothing: it passes); the link passes on two lines of three. Arriving is being over the far floor up to a step
+    /// over its height: the client's tick steps a body up onto a top the cells keep no floor for (a prop, a curb, the cell's
+    /// lower floor beside it) and its step down takes it off again (`cc_step_height` 0.80, startup.cfg). Chemical Plant: of
+    /// the walks that got 90 % of the way and did not arrive within 0.2 m, 178,181 of 182,878 stood 0.2-0.8 m over the far
+    /// floor, a few hundred higher; asking for 0.2 m cut 52,383 links, 17 times the old check's 3,031.
     fn walk_link(&self, wide: &Wide, world: &Collision, s: &Settings, start: WalkStart, a: usize, d: usize) -> LinkWalk {
         let b = wide.links[a][d] as usize;
         let back = wide.links[a][d ^ 1];
@@ -657,10 +663,10 @@ impl WalkGrid {
         for off in STARTS {
             let (from, to) = (pa + side * off, pb + side * off);
             let mut c = body_at(world, start, stance, from);
-            let mut centre = walk_on(world, s, &mut c, from, to, SPARE_TICKS);
+            let mut centre = walk_on(world, s, &mut c, from, to, SPARE_TICKS, self.body.step);
             if centre == Walked::Ceiling && stance == Stance::Standing {
                 let mut c = body_at(world, start, Stance::Crouched, from);
-                centre = walk_on(world, s, &mut c, from, to, SPARE_TICKS);
+                centre = walk_on(world, s, &mut c, from, to, SPARE_TICKS, self.body.step);
             }
             share = share.max(match centre {
                 Walked::Short(x) => x,
@@ -673,8 +679,8 @@ impl WalkGrid {
                 let from_q = self.position(q as NodeId) + side * off;
                 let mut c = body_at(world, start, stance, from_q);
                 // The link before failing is its own check's; from where it leaves the body this one says nothing.
-                !matches!(walk_on(world, s, &mut c, from_q, from, SPARE_TICKS), Walked::At | Walked::AtEnd(_))
-                    || arrives(walk_on(world, s, &mut c, from, to, SPARE_TICKS))
+                !matches!(walk_on(world, s, &mut c, from_q, from, SPARE_TICKS, self.body.step), Walked::At | Walked::AtEnd(_))
+                    || arrives(walk_on(world, s, &mut c, from, to, SPARE_TICKS, self.body.step))
             });
             if chained {
                 lines += 1;
