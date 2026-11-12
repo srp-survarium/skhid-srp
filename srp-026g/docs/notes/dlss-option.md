@@ -49,8 +49,9 @@ The owner (2026-11-12): "let's do it as DXVK option". Off by default; only with 
 - **`srp_patches.log`** says what the link did: `dlss: the helper is started`, `dlss: offered: ...`
   (the render size for the output), `dlss: running: ...`, and when it does not run, why:
   `dlss: on, not run: <why>` (the tick on), `dlss: not offered: <why>` (the tick off).
-- NGX's quality: MaxQuality (2). Render size: the helper's answer (NGX's optimal size for the
-  output at Quality, about 0.667 of each side).
+- NGX's quality: MaxQuality (2). Render size: 1 / 1.5 of each side of the output, each rounded to
+  an even number (the engine's half targets are shifts): 1280x720 for 1920x1080. The helper's
+  answer (NGX's optimal size, the same share cut to whole pixels) is said in the log, not used.
 
 ## What the engine has (0.26g, evidence)
 
@@ -216,8 +217,9 @@ projection and the movie's stage: no reader of the targets' size exists outside
   first-person projection is made from the frame's). The same offsets go to DLSS
   (`Jitter_Offset_X/Y`). The engine's motion pass projects current and previous with the same
   (jittered) projection, so its motion holds no jitter. The sign DLSS is given: the probe scored the
-  negated sample offset better at Quality (21.9 against 19.2 dB PSNR); to be checked on a game frame
-  (the convention of the value the link reads is below).
+  negated sample offset better at Quality (21.9 against 19.2 dB PSNR); on the game's still frame
+  DLSS is right with the frame's `Jitter` as it is, the picture's move (x right, y down), and wrong
+  with any other sign ("Status"; the convention of the value the link reads is below).
 - **Mip bias:** `log2(render / output) - 1` (-1.585 at Quality, the render size 1 / 1.5 of the
   output's each way), DXVK's `d3d11.samplerLodBias` in `DXVK_CONFIG`. DXVK reads its options at
   its first device, before any frame, and the helper is asked at the first frame (below), so the
@@ -232,7 +234,7 @@ projection and the movie's stage: no reader of the targets' size exists outside
   instead of a copy: where rt 18's `z > 0`, `-xy * render size`; elsewhere the camera's motion from
   the depth and the current and previous view-projection (the TAA shader's own math). rt 18 is made
   RGBA16_FLOAT while DLSS runs (`new_rt`'s format for index 18), so negative motion survives. The
-  protocol's MV image stays as the probe has it.
+  protocol's MV image stays as the probe has it. Built: "The link", the motion pass.
 - **First-person weapon and hands:** already in rt 18 (foreground pass, skinned, own projection):
   their motion is what they move on screen (about none when only the camera turns), so DLSS keeps
   them sharp; jittered with the scene (`foreground_begin`'s projection). Their depth is the
@@ -244,9 +246,12 @@ projection and the movie's stage: no reader of the targets' size exists outside
   spectator switch: the view not where a frame's motion leaves it). "The frame's inputs" says how each
   is taken.
 - **Depth:** the frame's own D24S8 depth-stencil (`render_size`'s `DepthTarget`, the render
-  size), its depth aspect, not inverted (the engine's projection is 0 near, 1 far). The probe shared a D32 image; a D24S8 one is copied into a shared image of its own
-  format (depth aspect only), or written by the same compute pass as the motion (R32_SFLOAT): to be
-  settled with the helper.
+  size), its depth aspect, not inverted (the engine's projection is 0 near, 1 far). The probe
+  shared a D32 image; here the shared depth image has the depth-stencil's own format (as DXVK made
+  it: D24_UNORM_S8_UINT on the RTX 3060 Ti) and the depth aspect is copied into it as it is
+  (vkCmdCopyImage; formats that differ cannot be copied, and a depth format takes no compute
+  write). The helper reads an image of a depth format by its depth aspect (its PROTOCOL.md,
+  section 3), and DLSS took it (seen).
 
 ## The frame's inputs (implemented: `hud_options/frame_inputs.rs`, `vostok/frame_inputs.rs`)
 
@@ -378,7 +383,7 @@ much of the motion is negative; a line at every reset). A jittered picture witho
   to notice. The link starts a **watch** with the helper, a thread of its own that waits for the
   helper's process to end: then it plays the helper's part of the timeline itself, from the host
   (a timeline semaphore takes a host signal), and DXVK's queue goes on; those frames show what
-  the shared output last held (a repeated frame, once the output is shown at all). The helper's
+  the shared output last held (a repeated frame). The helper's
   values are signalled **one at a time**, each right after the game's copy before it: the game's
   own copies of later frames are still on DXVK's queue and signal the values in between, so a
   signal straight to the last wait's value was undone by the next of them (the timeline went
@@ -406,8 +411,8 @@ much of the motion is negative; a line at every reset). A jittered picture witho
   value on the timeline.
 - Where and when (the owner, 2026-11-12): the helper is started at **the first Present**, when the
   output window and its swap chain exist, so its Hello carries the output's real size; the Hello's
-  answer is the "can it run" answer above and gives the render size. With the tick on, the images
-  are made for that answer and the Setup sent; the frames follow the Setup's answer. A Present of
+  answer is the "can it run" answer above. With the tick on, the images are made at the frame's
+  own render size and the Setup sent; the frames follow the Setup's answer. A Present of
   **another output size** tells the helper a new size (`FrameMsg.quit = 2`, the helper keeps its
   device and NGX), retires what was shared and says Hello and Setup again. Nothing waits: each step
   is taken at a Present when the helper's answer has come (the pipe is only read when a whole
@@ -430,10 +435,12 @@ much of the motion is negative; a line at every reset). A jittered picture witho
 - **One owner, one state** (`Link`, one transition `Link::step`): not started (nothing will
   start: `Off`; or waiting for the first Present), the helper starting, asked (the Hello sent),
   offered (the helper said yes, the tick off: nothing runs), sharing and set up (the Setup sent),
-  running (each Present a frame), failed (before the helper's yes) or stopped (after it), each
-  with its reason. The Settings' gate (`DlssOffer`) is read from that state.
+  running (each frame's picture a frame of the link), failed (before the helper's yes) or stopped
+  (after it), each with its reason. The Settings' gate (`DlssOffer`) is read from that state.
 - **Hooks:** the process's start (`memory.allocate_arenas`: whether anything starts, the mip
-  bias), each Present (`render_output.present`: the link's step), the login screen
+  bias, the render size and the frame's inputs asked), each Present (`render_output.present`: the
+  helper's start, the Hello, the Setup, a new size), the screen image (`render.screen_image`,
+  written on demand with the render size's sites: a frame), the login screen
   (`login_menu.activated`: a refused tick goes off), the game's exit from its menus
   (`game.exit_start`, game::exit 0x1EC730, which the Exit buttons call: the helper told to quit,
   given 3 s, everything of the link ended while DXVK's device lives), and the watch's thread
@@ -447,33 +454,93 @@ much of the motion is negative; a line at every reset). A jittered picture witho
   `winevulkan.dll` when it is loaded, else `vulkan-1.dll` (vkGetInstanceProcAddr, then
   vkGetDeviceProcAddr on DXVK's device: a missing `vkGetMemoryWin32HandleKHR` is a DXVK device
   without the extension, a failure with that name).
-- **What a frame does now:** the helper is told the frame (`FrameMsg`, jitter 0, reset on a
-  Setup's first frame), then, with DXVK's queue locked, two submits: the copy-in (the back buffer,
-  the frame as the window gets it, scaled into the shared colour image; a Setup's first frame
-  also clears the shared depth to far and motion to none, which nothing fills yet) that signals
-  2N+1, and a wait for 2N+2 in a command buffer of its own, empty yet (the copy of the output
-  goes there), so the wait is a batch of its own on the queue, which the queue's idle covers
-  before the semaphore is retired (a submit that only waits may be left by a driver for the
-  queue's next submit). The shared colour and output take the back buffer's format; depth is D32_SFLOAT, motion
-  R16G16_SFLOAT. Four pairs of command buffers in turn: a frame whose pair is still on the GPU
-  (the timeline has not passed the copy of the frame three before) is no frame of the link.
-  The scene at the render size, the real depth and motion, and the output's way to the screen
-  are the next pieces.
-- **A new size** makes a new timeline semaphore with the new images (the helper imports the
-  Setup's semaphore each time); its frames count from 0 again.
-- **The helper's frame reports** (`FrameStat`) are read off the pipe at each Present and dropped.
-- **Seeing it run:** a game started with `SKHID_DLSS_LOG` set says every 300th frame and the
-  timeline's value in `srp_patches.log` (a local diagnostic; unset, nothing).
-- **With the render size** (PR #1717, `hud_options::render_size`; not joined here):
-  - the start asks the ratio (`render_size::ask`, 1 / 1.5) where it sets the mip bias (the tick
-    on, an NVIDIA GPU, the helper's files), since a ratio is taken only then; every stop of the
-    link (a failure, a refusal) asks native;
-  - the Setup's images take the frame's own render size, not the Hello's answer: NGX's optimal
-    size may be odd (853x480 for 1280x720, seen) where the engine's is even (854x480), and the
-    helper makes DLSS's feature from the Setup's image sizes, so the two need not be compared;
-  - the copy-in reads `$user$present` and the frame's own depth-stencil (both at the render
-    size) in place of the back buffer, and the link then runs before the screen image, not at
-    the Present.
+- **The start** (`dlss::at_start`, where the mip bias is set: the tick on, an NVIDIA GPU by the
+  Vulkan look, the helper's files): the 3D frame is asked at Quality's share of the window
+  (`render_size::ask`, 1 / 1.5 each side: a ratio is taken only then, when the frame's sites are
+  written) with the frame's inputs (`frame_inputs::ask`, all of them), so the game renders smaller
+  from its first frame, shown by the stock stretch until the helper's Setup is answered (about a
+  second). A ratio not taken (a site that is not the game's code) is no DLSS in this process:
+  `dlss: on, not run: the 3D frame's render size was not taken`, the checkbox greyed.
+- **A link that was to run and stops asks native** (`render_size::ask`): a failure, a refusal, a
+  helper that ended. The next frame's start makes the targets native again ("Falling back"). With
+  the tick off the link asks nothing of the render size (the diagnostics switch's scale stays).
+- **The Setup** carries the frame's own render size, the engine's even one (its depth-stencil's:
+  1280x720 for 1920x1080, 854x480 for 1280x720), never the Hello's answer, which is only said in
+  the log (NGX's optimal size: 853x480 for 1280x720, seen): the helper makes DLSS's feature from
+  the Setup's image sizes. Made with it (`Shared`):
+  - the four shared images: colour (the picture's format, R8G8B8A8_UNORM), depth (**the
+    depth-stencil's own format**, D24_UNORM_S8_UINT seen: its depth aspect is copied as it is, and
+    the helper reads a depth format by its depth aspect; no conversion), motion (R16G16_SFLOAT,
+    written by the motion pass), output (the picture's format, the window's size);
+  - **the screen's texture**: an engine render target of the window's size, made as
+    `$user$present` is (`create_render_target`, R8G8B8A8_UNORM), which the helper's output is
+    copied into and the screen image's quad samples;
+  - the motion pass's pipeline, its views and its own copy of the object motion (below);
+  - **a timeline semaphore of its own**, from 0, and the frames' command buffers.
+- **A frame** is taken where its picture is whole and the screen image is next
+  (`render.screen_image` 0x1418E5: `renderer::present` with `stage_screen_image::execute`'s
+  argument pushed, after the stages, the post-process and `render.present_stage`), not at the
+  Present. The link running, with DXVK's rendering flushed (`FlushRenderingCommands`):
+  - the helper is told the frame (`FrameMsg`): the jitter (below), the reset (a Setup's first
+    frame; the inputs' `First`, `Targets`, `Scene`, `Cut`), motion in render pixels (scale 1);
+  - **the copy-in** (one command buffer, signals 2N+1): `$user$present` (the picture after the
+    tone curve, the game's AA off) copied into the shared colour, the depth aspect of the
+    frame's own depth-stencil into the shared depth, the engine's object motion (rt 18) into our
+    copy of it; then **the motion pass** writes the shared motion; DXVK's images are given back
+    in the layout DXVK keeps them in, the shared ones to the helper;
+  - **the copy-out** (a command buffer of its own that waits for 2N+2, the helper's output): the
+    shared output copied into the screen's texture. No wait on the CPU: DXVK's later commands
+    (the quad, Scaleform, the present) are behind it on the queue;
+  - the word `stage_screen_image::execute` is handed becomes the screen's texture (one reference
+    of it for the callee, the picture's let go): **the stage's own quad draws DLSS's output**, at
+    the window's size (the viewport `render.present_stage` set), point-sampled one to one, and
+    Scaleform draws over it at full size.
+  A frame the link does not take is shown as it is, the stock stretch of the picture: before the
+  Setup's answer; a frame whose command buffers are still on the GPU (four pairs in turn: the
+  timeline has not passed the copy of the frame three before); a picture of another size than
+  the set's (the window's size changed and the Present after it has not seen it); a failure in
+  the frame (then the link stops, and the next frame is native).
+- **A frame that is none of the inputs'** (no post-process, another view mode than lit: no
+  jitter, no object motion, no camera kept) is upscaled by itself: reset, jitter 0, no motion.
+- **The jitter DLSS is given** is the inputs' `Jitter` negated, both axes (`JITTER_SIGN`): the
+  inputs move the picture x right and y down, so the pixel's sample is at its centre minus
+  (x, y); DLSS takes the sample's place from the pixel's centre (`Jitter_Offset_X/Y`, x right, y
+  down). Settled on the still frame ("Status").
+- **The motion pass** (`dlss_motion_026g.comp`, a compute shader on DXVK's device, 8x8 groups,
+  in the copy-in after the copies): for every render pixel, where its surface was in the frame
+  before, in render pixels, current to previous, without either frame's jitter. Where rt 18's
+  z > 0 (the engine's object motion pass drew: skinned, moved and first-person models), `-xy *
+  render size`; elsewhere the camera's: the pixel's clip position (its centre, less the frame's
+  jitter; its depth from the shared depth) through one matrix the game makes in doubles, the
+  inverse of this frame's view-projection times the last frame's (`reproject`; both cameras
+  without jitter, the inputs'), the difference of the two clip positions in pixels, y down. On a
+  reset there is no frame before: no motion is written. The engine's images are only copied
+  from (rt 18 into an RGBA16F image of ours, any format the engine made it in): a view of ours
+  on an engine image would outlive a target the engine makes again.
+  - **Built in the repo's toolchain:** `dlss_motion_026g.py --write` runs `glslangValidator`
+    (the dev shell's, pinned by the flake's lock) and writes the SPIR-V words as
+    `dlss_motion_026g.rs`, which `vostok/dlss.rs` includes; `selftest_026g.py` runs its `--check`.
+  - **The probe** (`SKHID_DLSS_MOTION_PROBE`, a local diagnostic): the pass is given a made-up
+    previous camera, this frame's a centimetre to its right, and no object motion; what it
+    writes is copied into rt 18 and, every 300 frames, read back with the frame's linear depth
+    (`dlss-inputs-<frame>-probe-motion.bin`, `-probe-depth.bin`): a pixel z metres away must
+    have moved `-0.01 * e00 * width / (2 z)` pixels along x and none along y.
+- **A new size** (a Present whose back buffer is another size than the set's): the old set is
+  retired once DXVK's queue is idle (its frames through), the helper told (`FrameMsg.quit = 2`),
+  and a Hello and a Setup follow with a new set, **its own timeline semaphore, its frames from 0
+  again**. The helper imports each Setup's semaphore handle into a new semaphore of its own and
+  destroys the old one with the old images (`client/dlss-helper/src/gpu.rs`, `import`), so
+  nothing of it relies on one semaphore across sizes; one per set keeps the old size's waits
+  apart from the new one's and gives every shared thing one owner. (PROTOCOL.md's sentence "the
+  same semaphore serves every size ... its values go on" is the other choice, which the helper
+  takes as well; that file is PR #1709's and is to say "each Setup carries its semaphore: a new
+  one, values from 0, or a new handle of the same one, its values going on".)
+- **The helper's frame reports** (`FrameStat`) are read off the pipe at each frame; the last one
+  is kept for the progress line (which frame, how long DLSS's evaluate took on the GPU).
+- **Seeing it run:** `dlss: the first frame is submitted: the screen image shows the helper's
+  output from here on` in every game; a game started with `SKHID_DLSS_LOG` set says every 300th
+  frame, the timeline's value and the helper's last report in `srp_patches.log` (a local
+  diagnostic; unset, nothing).
 
 ## Status
 

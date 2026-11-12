@@ -3433,6 +3433,23 @@ What it is for and the owner's rules: [dxvk-option.md](dxvk-option.md). Here: wh
   `postprocess.motion_quality` 0x1B2365 and `postprocess.motion_clear` 0x1B1E75 (the object motion pass and
   its target's clear whatever the options), `targets.motion_format` 0x163433 (rt 18 RGBA16_FLOAT). The
   library: `engine_context_push_set_p` 0x1392C0, `engine_context_set_p` 0x14A6F0.
+- **DLSS's frame** (2026-11-12, unreleased; [dlss-option.md](dlss-option.md), "The link"): the link, the
+  render scale and the frame's inputs joined (`hud_options/dlss.rs`, `vostok/dlss.rs`). With the tick on the
+  start asks the render scale (1 / 1.5) and the inputs; one more lohook written with the render scale's,
+  `render.screen_image` 0x1418E5 (`renderer::present` 0x1418C0 with `stage_screen_image::execute`'s
+  argument pushed: the texture its quad samples): while the link runs, the frame's picture
+  (`$user$present`) and the depth of its depth-stencil are copied into the shared images on DXVK's queue,
+  a compute pass there writes the shared motion (`dlss_motion_026g.comp`, built by `dlss_motion_026g.py`
+  with glslangValidator into the SPIR-V words of `dlss_motion_026g.rs`), the helper's output is copied
+  into an engine texture of the window's size, and the pushed word becomes that texture, so the stage's own
+  quad draws DLSS's output and Scaleform draws over it. The library: `engine_resource_interop_surface`
+  (IUnknown::QueryInterface of a texture's ID3D11Resource for DXVK's interop surface), and of Vulkan
+  `engine_vk_cmd_copy_image`, `engine_vk_create_object` and `engine_vk_destroy_object` (every vkCreate* and
+  vkDestroy* of the usual shape), `engine_vk_create_compute_pipelines`, `engine_vk_allocate_descriptor_sets`,
+  `engine_vk_update_descriptor_sets`, `engine_vk_cmd_bind_pipeline`, `engine_vk_cmd_bind_descriptor_sets`,
+  `engine_vk_cmd_push_constants`, `engine_vk_cmd_dispatch`. **Checked:** `check_hud_options_026g.py` (a start
+  where DLSS is to run writes the thirteen sites of the 3D frame, each a jump into the arena; every other
+  start leaves the game's bytes). Seen in a replay under Wine (dlss-option.md, "Status"); not played.
 
 ### 3.71 Voice chat in a match (written 2026-10-25, ported to the named sites 2026-11-06, README patch 66, not released; the rules: `voice-chat.md`) — PROVEN in the code; not run in a game
 
