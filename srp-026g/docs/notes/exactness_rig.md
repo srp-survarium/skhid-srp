@@ -333,6 +333,35 @@ mode 2 built with its tick passes on the shapes world has the same 3.07 million 
 on 4 CPUs (132.2 s before; 88.0 s on the placed triangles). After the change the closest-point loop is about 60 %
 of a step in play (19 calls, 10 of 16 us): what is left is the exe's own work.
 
+### 3h. A long replay, and two things it found in the port (PROVEN)
+
+A second, longer trace of a replayed match (16 bodies, 220,994 whole steps in 2,421 chains, 116 jumps: 1,612 steps in
+the air), every step through the port on the shapes world, each from the game's own state and in chains
+(`run_each_jumps2.sh`, `offsteps_jumps2.py`):
+
+| | every field the game's | first air steps of a jump off | chains the game's bits end to end |
+|---|---|---|---|
+| before | 219,482 (99.32 %) | 27 of 155 | 2,213 of 2,421 |
+| after the two fixes | 219,868 (99.49 %) | 1 of 155 | 2,257 of 2,421 |
+
+- **The jump's sideways step makes the hit's horizontal normal unit by its largest component, with no least
+  length** (`step_jump_forward` 0x7CB90, inlined at 0x7CC93..0x7CDCB: each component over the largest's size, then
+  over the length; (1, 0, 0) only for a vector with no component over 0). The port used the ground steps'
+  `normalized_safe` 0x7AA50, which gives its fallback under a squared length of 1e-5. A jump's first air step does
+  not rise: the capsule sweeps while it still stands on its floor, and on a box's top the contact's normal is up
+  but for rounding (about 1e-5 across). The game slides by that rounding's direction, or passes when it points
+  away; the port slid along x. With the game's own walk vectors fed in, the kept body is the game's feet within
+  1 cm from the press to the landing in 104 of 115 recorded jumps (78 before; short jumps 91 of 99, 65 before).
+- **A body that met an enemy's never skips its step again.** `can_skip_player_step` 0x7C7E0 also asks that +205h
+  `m_colliding_with_player` is clear (0x7C892); the world sets it on both bodies of an overlapping enemy pair
+  (`bullet_physics_world::tick` 0x75811, 0x75848) and only the controller's `initialize` clears it. The port had no
+  such flag and skipped 355 steps the game took (their feet under a millimetre apart in 340).
+  `Controller::colliding_with_player` is the world's write; the bodies' pushing each other apart is not ported.
+
+What is left (1,126 steps, 0.51 %): 504 landings whose only difference is the surface normal kept of two contacts
+at one fraction (the exe's order of objects and triangles, not ported), and steps at walls and edges of the same
+kind; 22 steps in the air.
+
 ## 4. What was read on the way (PROVEN)
 
 - `objectQuerySingle` 0xA14E0, a compound (type 31, 0xA22EE): the cast shape's box in the compound's frame,
