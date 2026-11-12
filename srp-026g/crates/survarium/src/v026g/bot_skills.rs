@@ -37,14 +37,17 @@ use super::skills::{MODIFIERS, SkillError, SkillsTree, modifier_index};
 /// The player modifier `max_carried_weight` (index 5 of the 68).
 pub const MAX_CARRIED_WEIGHT: usize = 5;
 
-/// A build as it is wanted: the skills in order of want and the points to spend on them. It names no rank count, row or
-/// threshold: those are the live tree's, and [`resolve`] spends the points against it when the server starts.
+/// A build as it is wanted: the skills in order of want, the skills that may open their rows, and the points to spend. It
+/// names no rank count, row or threshold: those are the live tree's, and [`resolve`] spends the points against it when the
+/// server starts.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SkillIntent {
-    /// The skills, the most wanted first. Each takes as many points as its ranks and the points left allow; one whose row is
-    /// still locked is opened first with the skills after it in this list that sit in the rows above it, no more than its
-    /// threshold needs.
+    /// The skills, the most wanted first. Each takes as many points as its ranks and the points left allow; where the points
+    /// run out, the least wanted go without.
     pub want: &'static [u16],
+    /// The skills that open a wanted skill's locked row: in the rows above it, in this order, a point at a time, no more than
+    /// its threshold needs, before it takes its own. They take no point for themselves.
+    pub open: &'static [u16],
     /// The points to spend.
     pub points: u8,
 }
@@ -67,9 +70,9 @@ pub struct BotSkillTier {
 /// 2026-10-23; `player_bots_skills.md` §3): their skills by the points
 /// they put in, at about their level. The carry path (a row-1 skill of the
 /// survival tab, then 209: +10 kg) is in every tier: the owner's ask, and
-/// what all ten of the 11-15 players have. In the lowest tier 201 comes
-/// after 209: it is there to open 209's row (204 alone no longer does, since
-/// the tree's change of 2026-11-09), and takes what is left. Left out, with
+/// what all ten of the 11-15 players have (the owner kept it, 2026-11-12:
+/// in the lowest tier 201 opens 209's row, which 204 alone no longer does
+/// since the tree's change of 2026-11-09). Left out, with
 /// the reason in the note: 103 (the bots time a bolt's chambering by the
 /// clip), 213 (two of ten). 102 (no speed in the client's aiming speed,
 /// LIKELY) and 108 (the bots time a reload by the clip) are left out of
@@ -79,11 +82,11 @@ pub struct BotSkillTier {
 pub const BOT_SKILL_TIERS: [BotSkillTier; 3] = [
     // Gear 1 to 5 (the starting roles): aim time, stamina regeneration,
     // the carry.
-    BotSkillTier { up_to_gear_level: 5, intent: SkillIntent { want: &[101, 204, 209, 201], points: 15 } },
+    BotSkillTier { up_to_gear_level: 5, intent: SkillIntent { want: &[101, 204, 209], open: &[201], points: 15 } },
     // Gear 6 to 10: and stamina spent.
-    BotSkillTier { up_to_gear_level: 10, intent: SkillIntent { want: &[101, 201, 204, 209], points: 20 } },
+    BotSkillTier { up_to_gear_level: 10, intent: SkillIntent { want: &[101, 201, 204, 209], open: &[], points: 20 } },
     // Gear 11 to 15: and movement speed and the overweight penalty.
-    BotSkillTier { up_to_gear_level: 15, intent: SkillIntent { want: &[101, 201, 204, 209, 202, 208], points: 30 } },
+    BotSkillTier { up_to_gear_level: 15, intent: SkillIntent { want: &[101, 201, 204, 209, 202, 208], open: &[], points: 30 } },
 ];
 
 /// What the owner's kit ([`new_kit`](super::loadouts::new_kit)) adds to
@@ -100,10 +103,11 @@ pub const BOT_SKILL_TIERS: [BotSkillTier; 3] = [
 ///   reload by the clip (`Gun::reload_ms`), so they wait a little longer
 ///   than needed unless the bots' upgrades are on (`SRP_BOT_UPGRADES`), where
 ///   the gun learns the factor (`guns::Factors`);
-/// - 103 bolt cocking speed, last: only to open 109's row where the others
-///   no longer reach its threshold (the tree of 2026-11-09 gives 102 fewer
-///   ranks); the bots time a bolt by the clip, so they wait a little longer.
-pub const AMMO_POUCH: SkillIntent = SkillIntent { want: &[102, 104, 108, 109, 103], points: 11 };
+/// - 103 bolt cocking speed opens 109's row where the others no longer reach
+///   its threshold (the tree of 2026-11-09 gives 102 fewer ranks), with the
+///   points that takes only; the bots time a bolt by the clip, so they wait a
+///   little longer.
+pub const AMMO_POUCH: SkillIntent = SkillIntent { want: &[102, 104, 108, 109], open: &[103], points: 11 };
 
 /// [A341] The medical block every tier adds (`SRP_BOT_MEDICAL_SKILLS`, on unless off), 15 points in the medical tab
 /// (`scripts/content-edit/medical-skills-1.json`, the tab the players' data ships), whose thresholds count apart from the
@@ -112,13 +116,13 @@ pub const AMMO_POUCH: SkillIntent = SkillIntent { want: &[102, 104, 108, 109, 10
 ///   `medical.use_time` 0x33D486, XMM0 the activation delay, `sites_026g.tsv`; the rate a rank is the client patch's);
 /// - 312 Medical Training (its row needs the threshold above): `drug_amount_modifier` (modifier 57), the drug's amounts up;
 /// - 311 Metabolism: natural regeneration starts sooner (`Skills::regeneration_delay_ms`);
-/// - 301 Potent Painkiller, last: only to open the second row where 302 alone no longer reaches its threshold (302 takes
-///   fewer ranks since 2026-11-09); the client applies it, the bots' heal model does not read it.
+/// - 301 Potent Painkiller opens the second row where 302 alone no longer reaches its threshold (302 takes fewer ranks since
+///   2026-11-09), with the points that takes only; the client applies it, the bots' heal model does not read it.
 ///
 /// The bots' heal model reads the first two from the kit's modifiers (`match-server` `bots/plays/heal.rs`
 /// `DrugFactors`). Left out: 321 Adrenalin (a speed the bots' motion model does not know), 322 Additional Medicine and 341
 /// Medic (the bots' pockets ignore skills; no bot carries a Larkspur).
-pub const MEDICAL: SkillIntent = SkillIntent { want: &[302, 312, 311, 301], points: 15 };
+pub const MEDICAL: SkillIntent = SkillIntent { want: &[302, 312, 311], open: &[301], points: 15 };
 
 /// Whether the bots take [`MEDICAL`]: `SRP_BOT_MEDICAL_SKILLS` on unless `0`/`off`/`false`, and the players' skills tree of
 /// the game data in use has its skills (0.26g's own archive, the tests' data, has no medical tab: it came with a content
@@ -131,7 +135,7 @@ pub fn medical_skills() -> bool {
             std::env::var("SRP_BOT_MEDICAL_SKILLS").ok().as_deref(),
         );
         let tree = SkillsTree::shared();
-        let in_data = MEDICAL.want.iter().all(|&id| tree.skill(id).is_some());
+        let in_data = MEDICAL.want.iter().chain(MEDICAL.open).all(|&id| tree.skill(id).is_some());
         log::info!(
             "the bots' medical skills: SRP_BOT_MEDICAL_SKILLS {}, the game data's tree {} them",
             if asked { "on" } else { "off" },
@@ -226,13 +230,13 @@ fn locked(tree: &SkillsTree, set: &[(u16, u8)], skill: &super::skills::Skill) ->
     (skill.branch_points > unlocked).then_some(unlocked)
 }
 
-/// `set` with `skill`'s row opened by the wanted skills `want` that sit in the rows above it in its branch, a point at a time
-/// to the first that can take one (in want order), spending at most `most`; `None` when they can not open it.
+/// `set` with `skill`'s row opened by the skills `open` that sit in the rows above it in its branch, a point at a time to the
+/// first that can take one (in their order), spending at most `most`; `None` when they can not open it.
 fn open_row(
     tree: &SkillsTree,
     set: &[(u16, u8)],
     skill: &super::skills::Skill,
-    want: &[u16],
+    open: &[u16],
     most: u8,
 ) -> Option<(Vec<(u16, u8)>, u8)> {
     let mut trial = set.to_vec();
@@ -241,7 +245,7 @@ fn open_row(
         if spent == most {
             return None;
         }
-        let opener = want.iter().filter_map(|&id| tree.skill(id)).find(|other| {
+        let opener = open.iter().filter_map(|&id| tree.skill(id)).find(|other| {
             other.id != skill.id
                 && other.branch() == skill.branch()
                 && other.row < skill.row
@@ -278,7 +282,7 @@ pub fn resolve(tree: &SkillsTree, blocks: &[SkillIntent]) -> Result<ResolvedBuil
             }
             if let Some(unlocked) = locked(tree, &set, skill) {
                 // Keep a point for the skill itself.
-                match open_row(tree, &set, skill, block.want, left - 1) {
+                match open_row(tree, &set, skill, block.open, left - 1) {
                     Some((opened, spent)) => {
                         set = opened;
                         left -= spent;
@@ -389,7 +393,7 @@ impl BotBuilds {
                     if pouch { " with the owner's kit" } else { "" },
                     Self::intents(tier, pouch, medical_skills())
                         .iter()
-                        .map(|intent| format!("{:?} for {}", intent.want, intent.points))
+                        .map(|intent| format!("{:?} (rows opened by {:?}) for {}", intent.want, intent.open, intent.points))
                         .collect::<Vec<_>>()
                         .join(" + "),
                     build.skills,
@@ -878,6 +882,7 @@ mod tests {
             let pouch_sets: Vec<usize> = AMMO_POUCH
                 .want
                 .iter()
+                .chain(AMMO_POUCH.open)
                 .filter_map(|&id| tree.skill(id))
                 .flat_map(|skill| skill.levels.iter().flatten().map(|&(modifier, _)| modifier))
                 .collect();
@@ -931,10 +936,11 @@ mod tests {
         assert!((with[index("movement_speed_when_aiming")] - 0.05).abs() < 1e-6);
     }
 
-    /// The resolver alone, on a small tree of its own: a locked row is opened by the intent's later skills in the rows above,
-    /// no more than its threshold needs, keeping a point for the skill; one it can not open is reported; the points cap all.
+    /// The resolver alone, on a small tree of its own: a locked row is opened by the intent's openers in the rows above, no
+    /// more than its threshold needs and none for themselves, keeping a point for the skill; a row they can not open is
+    /// reported; where the points run out, the least wanted go without.
     #[test]
-    fn an_intent_opens_a_locked_row_with_its_own_later_skills() {
+    fn an_intent_opens_a_locked_row_with_its_openers() {
         let skill = |id: u16, ranks: u8, needs: u32, row: u8| super::super::skills::Skill {
             id,
             levels_amount: ranks,
@@ -948,31 +954,32 @@ mod tests {
         let tree = SkillsTree {
             skills: vec![skill(201, 3, 0, 1), skill(204, 3, 0, 1), skill(209, 5, 5, 2), skill(211, 3, 15, 4)],
         };
-        let one = |want: &'static [u16], points| resolve(&tree, &[SkillIntent { want, points }]).unwrap();
-        // 204 alone opens 3 of 209's 5: 201 gives the 2 more, 209 its five, 201 the rest.
-        let build = one(&[204, 209, 201], 15);
-        assert_eq!(build.skills, [(204, 3), (201, 3), (209, 5)]);
-        assert_eq!((build.level, build.unspent), (11, 4));
-        let build = one(&[204, 209, 201], 9);
+        let one = |want: &'static [u16], open: &'static [u16], points| {
+            resolve(&tree, &[SkillIntent { want, open, points }]).unwrap()
+        };
+        // 204 alone gives 3 of the 5 209's row needs: the opener 201 gives the 2 more and no more, 209 its five.
+        let build = one(&[204, 209], &[201], 15);
+        assert_eq!(build.skills, [(204, 3), (201, 2), (209, 5)]);
+        assert_eq!((build.level, build.unspent), (10, 5));
+        assert!(build.short.is_empty());
+        // Short of points: the least wanted (209) goes with less; the opener's two are spent first.
+        let build = one(&[204, 209], &[201], 9);
         assert_eq!(build.skills, [(204, 3), (201, 2), (209, 4)]);
-        assert_eq!(build.short, [Shortfall { skill: 209, got: 4, ranks: 5, why: Short::Points }, Shortfall {
-            skill: 201,
-            got: 2,
-            ranks: 3,
-            why: Short::Points
-        }]);
-        // Nothing after it to open its row: 209 is reported, its points stay unspent.
-        let build = one(&[204, 209], 15);
+        assert_eq!(build.short, [Shortfall { skill: 209, got: 4, ranks: 5, why: Short::Points }]);
+        // No opener: 209 is reported, its points stay unspent.
+        let build = one(&[204, 209], &[], 15);
         assert_eq!(build.skills, [(204, 3)]);
         assert_eq!(build.short, [Shortfall { skill: 209, got: 0, ranks: 5, why: Short::Locked { needs: 5, unlocked: 0 } }]);
-        // A row the rows above can not reach (6 of 15 at most) stays locked; an unknown skill is reported.
-        let build = one(&[211, 201, 204, 999], 20);
+        // A row the rows above can not reach (6 of 15 at most) stays locked, and the openers keep their points; an unknown
+        // skill is reported.
+        let build = one(&[211, 201, 204, 999], &[201, 204], 20);
         assert_eq!(build.skills, [(201, 3), (204, 3)]);
         assert!(build.short.iter().any(|s| s.skill == 211 && matches!(s.why, Short::Locked { needs: 15, .. })));
         assert!(build.short.contains(&Shortfall { skill: 999, got: 0, ranks: 0, why: Short::Unknown }));
-        // Not one point more than the intent has.
-        let build = one(&[204, 209, 201], 3);
+        // Not one point more than the intent has: no point left for 209, so no opener either.
+        let build = one(&[204, 209], &[201], 3);
         assert_eq!(build.skills, [(204, 3)]);
+        assert_eq!(build.short, [Shortfall { skill: 209, got: 0, ranks: 5, why: Short::Points }]);
     }
 
     /// No bot kit is overburdened: every kit of every tier and role
@@ -1164,7 +1171,7 @@ mod tests {
                     (0..MODIFIERS).filter(|&i| (with.modifiers[i] - without.modifiers[i]).abs() > 1e-6).collect();
                 assert_eq!(changed, vec![packed, index("drug_amount")], "{tier:?} {pouch}");
                 let medical: Vec<(u16, u8)> =
-                    with.skills.iter().copied().filter(|&(id, _)| MEDICAL.want.contains(&id)).collect();
+                    with.skills.iter().copied().filter(|&(id, _)| MEDICAL.want.contains(&id) || MEDICAL.open.contains(&id)).collect();
                 assert_eq!(with.modifiers[packed] - without.modifiers[packed], tree.modifiers(&medical)[packed]);
                 eprintln!(
                     "A372 build gear<={} pouch={pouch}: level {} unspent {} skills {:?} short {:?}",
