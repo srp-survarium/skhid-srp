@@ -25,6 +25,8 @@
 mod aead;
 pub mod game;
 mod sha256;
+/// Streaming SHA-256, also used to identify the running client file.
+pub use sha256::Sha256;
 mod x25519;
 
 /// Mixed into the keys: another protocol's messages derive other keys.

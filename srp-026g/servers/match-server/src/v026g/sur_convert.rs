@@ -510,6 +510,7 @@ impl Gather {
                     let Some(whole) = place.options.push(message) else {
                         continue;
                     };
+                    if whole.starts_with(&srp_validate::executable::REPLY_MAGIC) { continue; }
                     let clock = (i64::from(record.at_ms) - self.offset).max(0) as u32;
                     if let Ok(prepare) = late_join::Prepare::decode(&whole, dictionary) {
                         let first = self.prepared.entry(prepare.proposal.place).or_insert(clock);

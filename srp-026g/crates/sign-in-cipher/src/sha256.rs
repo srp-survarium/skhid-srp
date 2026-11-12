@@ -77,6 +77,10 @@ pub struct Sha256 {
     length: u64,
 }
 
+impl Default for Sha256 {
+    fn default() -> Self { Self::new() }
+}
+
 impl Sha256 {
     pub const fn new() -> Self {
         Self {

@@ -27,6 +27,7 @@ pub mod recovery;
 pub mod reader;
 pub mod refusal;
 pub mod report;
+pub mod executable;
 pub mod transport;
 pub mod world;
 
