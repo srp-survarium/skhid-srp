@@ -20,24 +20,37 @@ use super::controlled::{out_of_walls, parallel};
 use super::exact::Walls;
 use super::*;
 use crate::controller::{Collision, Shape};
-use crate::controller::tick::{Controller, Settings};
+use crate::controller::tick::{Controller, CrouchInput, Settings, TickInput};
 
 /// How near a wall face must be for the round to be its doing, m.
 pub const WALL_NEAR_M: f32 = 0.6;
 /// How far the feet may move (or drop) in the stand test, m.
 const STAND_MOVED_M: f32 = 0.1;
-/// The stand test's ticks (1 s at 30 a second).
-const STAND_TICKS: usize = 30;
+/// The client's step, s (0x9CC878; every step of the traces is 50 ms).
+const STAND_DT: f32 = 0.05;
+/// The stand test's steps (1 s of the client's).
+const STAND_STEPS: usize = 20;
+/// [A364 C2 row 45] The test body is set this far over the floor, m, falling at [`STAND_FALL_MPS`], so its first step runs.
+const STAND_LIFT_M: f32 = 0.005;
+/// See [`STAND_LIFT_M`], m/s.
+const STAND_FALL_MPS: f32 = 0.01;
 
 /// Whether the client's walk tick stands a body on `feet`: set there out of the walls, 1 s with no keys, the feet move and drop
-/// under [`STAND_MOVED_M`].
-pub(super) fn stands(world: &Collision, feet: Vec3) -> bool {
-    let s = Settings::LIVE;
+/// under [`STAND_MOVED_M`]. The body is stepped by the grid's collision and settings (`world`, `s`: [`Body::controller`]).
+///
+/// [A364 C2 row 45] The body arrives with a speed: it is set [`STAND_LIFT_M`] over the feet, falling at [`STAND_FALL_MPS`], so its
+/// first step runs and it lands, with the contact it lands on. A body set standing with no speed and the contact normal up is
+/// exactly the state `can_skip_player_step` 0x7C7E0 skips (no walk, no velocity, no slide due with an up normal, no ceiling push,
+/// +205h clear): every step returned at once, the feet never moved, and the test passed everywhere, in mid-air included (the
+/// exactness rig: 2,160 of 2,160 steps skipped). Landed on a rim, the contact's normal leans and `need_slide` 0x7BC20 slides the
+/// body off as the client's: a body held still stands only to about 0.25 m past a straight edge.
+pub(super) fn stands(world: &Collision, s: &Settings, feet: Vec3) -> bool {
     let start = out_of_walls(world, feet);
-    let mut body = Controller::standing_at(start);
-    for _ in 0..STAND_TICKS {
-        body.walk = Vec3::ZERO;
-        body.step(world, 1.0 / 30.0, &s);
+    let mut body = Controller::standing_at(start + Vec3::new(0.0, STAND_LIFT_M, 0.0));
+    body.velocity = Vec3::new(0.0, -STAND_FALL_MPS, 0.0);
+    let still = TickInput { walk: Vec3::ZERO, air_control: Vec3::ZERO, crouch: CrouchInput::Tested { key: false, legs_broken: false }, sprinting: false };
+    for _ in 0..STAND_STEPS {
+        body.tick(world, STAND_DT, s, still);
     }
     let end = body.feet();
     (end.x - start.x).hypot(end.z - start.z) < STAND_MOVED_M && start.y - end.y < STAND_MOVED_M
@@ -56,7 +69,7 @@ enum Judge {
 /// [A331] Whether the client's walk tick stands a body somewhere in the cell of `centre` (half its side `half`): the body set at
 /// the centre and pushed out of the walls as the client's world pushes it ([`out_of_walls`]: the standing cylinder with its
 /// margin), clear of every wall there, inside the cell, and standing there ([`stands`]).
-pub(super) fn stands_in_cell(world: &Collision, centre: Vec3, half: f32) -> bool {
+pub(super) fn stands_in_cell(world: &Collision, s: &Settings, centre: Vec3, half: f32) -> bool {
     let at = out_of_walls(world, centre);
     if (at.x - centre.x).abs() > half || (at.z - centre.z).abs() > half {
         return false;
@@ -65,7 +78,7 @@ pub(super) fn stands_in_cell(world: &Collision, centre: Vec3, half: f32) -> bool
     if world.nearest_to(cyl, 0.0, |f| f.normal.y.abs() < 0.5).is_some_and(|(gap, _, _)| gap < 0.0) {
         return false;
     }
-    stands(world, at)
+    stands(world, s, at)
 }
 
 impl WalkGrid {
@@ -102,11 +115,12 @@ impl WalkGrid {
         if candidates.is_empty() {
             return 0;
         }
-        let world = Collision::build(triangles);
+        let (caster, s) = self.body.controller();
+        let world = Collision::build(triangles).with_caster(caster);
         let half = self.cell / 2.0;
         let ok = parallel(&candidates, |&(a, judge)| match judge {
-            Judge::Centre => stands(&world, centre(a)),
-            Judge::InCell => stands_in_cell(&world, centre(a), half),
+            Judge::Centre => stands(&world, &s, centre(a)),
+            Judge::InCell => stands_in_cell(&world, &s, centre(a), half),
         });
         let mut back = 0;
         for (&(a, _), keep) in candidates.iter().zip(ok) {
@@ -174,7 +188,28 @@ mod tests {
         assert!(!at(&off, 4.875), "the centre is under the exact clearance");
         assert!(at(&on, 4.875), "the body stands in the cell's far half");
         assert!(!at(&on, 5.375), "pushed out of its cell: stays taken");
-        assert!(stands_in_cell(&Collision::build(&tris), Vec3::new(4.875, 0.0, 5.125), 0.125));
+        assert!(stands_in_cell(&Collision::build(&tris), &Settings::LIVE, Vec3::new(4.875, 0.0, 5.125), 0.125));
+    }
+
+    /// [A364 C2 row 45] The stand test runs the client's steps: a body on flat ground stands, one in mid-air or with its centre
+    /// well past a top's edge does not (before, every step was skipped and both passed).
+    #[test]
+    fn the_stand_test_refuses_mid_air_and_past_an_edge() {
+        let mut tris = ground();
+        // A 1 m top over x < 5 (its edge face at x 5).
+        let top = |a: Vec3, b: Vec3, c: Vec3, d: Vec3| {
+            [Triangle { v: [a, b, c], walker: WalkerBehaviour::BySlope }, Triangle { v: [a, c, d], walker: WalkerBehaviour::BySlope }]
+        };
+        tris.extend(top(Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 1.0, 10.0), Vec3::new(5.0, 1.0, 10.0), Vec3::new(5.0, 1.0, 0.0)));
+        tris.extend(top(Vec3::new(5.0, 0.0, 0.0), Vec3::new(5.0, 1.0, 0.0), Vec3::new(5.0, 1.0, 10.0), Vec3::new(5.0, 0.0, 10.0)));
+        for caster in [crate::controller::Caster::Conservative, Body::client().controller().0] {
+            let world = Collision::build(&tris).with_caster(caster);
+            let s = Body::client().controller().1;
+            assert!(stands(&world, &s, Vec3::new(4.0, 1.0, 5.0)), "on the top");
+            assert!(stands(&world, &s, Vec3::new(7.0, 0.0, 5.0)), "on the ground");
+            assert!(!stands(&world, &s, Vec3::new(7.0, 0.3, 5.0)), "0.3 m in the air");
+            assert!(!stands(&world, &s, Vec3::new(5.35, 1.0, 5.0)), "0.35 m past the edge");
+        }
     }
 
     /// Off, the grid is the one without the pass.
