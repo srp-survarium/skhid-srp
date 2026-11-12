@@ -222,6 +222,12 @@ pub struct GridTuning {
     /// (1,058 s). Exe- and recording-proven, so ON and kept by `all_off` (a link the client cannot take is wrong by the game).
     /// A grid is the map's.
     pub fall_stops_on_solids: bool,
+    /// [A364 P6] Whether the maps' gap links fly a jump's game air phase (`mapdata::Body::jump_air_steps`): twelve steps from
+    /// the clip's take-off, the short jump ending at frame 22.5 (2.50 m on, 0.35 m up) and falling from there, as the bots'
+    /// reckoning flies it since #1655 (`jump_arc::AIR_STEPS`). Off, the builder flew the clip to frame 24 (2.67 m, landing at
+    /// the take-off's height): links built on a longer flight than the client makes (with the client-true stand-in, missed
+    /// jumps 21 -> 32, z 2.6). Exe-proven (A364's traces, 20 of 20 jumps), so ON and kept by `all_off`. A grid is the map's.
+    pub jump_air_steps: bool,
     /// [A333] Whether a route's straight legs (the pull, `path.rs`) cross a floor nearer a wall than the client's body holds
     /// ([`PULL_HOLD_M`], the grid's table of wall clearances) only as a floor of the route's own path
     /// (`mapdata::WalkGrid::with_pull_hold`): a leg pulled past a wall's corner or along a wall keeps to the cells the search
@@ -283,6 +289,7 @@ impl Default for GridTuning {
             start_witness: true,
             give_back_in_cell: false,
             fall_stops_on_solids: true,
+            jump_air_steps: true,
             wall_clear_pull: false,
             pull_walk: false,
         }
@@ -329,6 +336,7 @@ impl GridTuning {
             start_witness: self.start_witness,
             give_back_in_cell: self.give_back_in_cell,
             fall_stops_on_solids: self.fall_stops_on_solids,
+            jump_air_steps: self.jump_air_steps,
             ..body
         }
     }
