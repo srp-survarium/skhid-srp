@@ -8,7 +8,9 @@ screens. All original TDM spawn positions are preserved.
 
 This integrates the previously unmerged `stalker-maps@6` pack, which supplies
 six TDM ports. The other three are Repair Depot, Station and Depository. Only
-the three requested maps receive FFA configurations. The pack is immutable:
+the three requested maps receive FFA configurations. Team Deathmatch on all
+six is not offered yet (`stalker-tdm-hold-1.json`; `stalker-maps.md`, "Free
+for All only, for now"). The pack is immutable:
 `pack.json` SHA-256 is
 `ceb6ae661dda93e24f62d5c59a5cfba68cc9d4e3cd2e34d2eba1b52d99bd17cb`.
 Its source and porter history are in `stalker-maps.md` and
