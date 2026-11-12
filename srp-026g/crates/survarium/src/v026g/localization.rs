@@ -126,11 +126,14 @@ mod tests {
             Some("Protective device")
         );
         assert_eq!(text(Language::English, "no such key"), None);
-        // Every playable map's and mode's key is in both; Blackout's mode
-        // name is srp's own (`client-patches/localization`), which the test
-        // data's stock localizations lack.
-        let blackout = super::super::maps::GameMode::Blackout;
-        for map in super::super::maps::playable().filter(|map| map.mode != blackout) {
+        // Every playable map's and mode's key is in both; Blackout's and
+        // the free-for-all's mode names are srp's own
+        // (`client-patches/localization`), which the test data's stock
+        // localizations lack.
+        use super::super::maps::GameMode;
+        for map in super::super::maps::playable()
+            .filter(|map| !matches!(map.mode, GameMode::Blackout | GameMode::FreeForAll))
+        {
             for language in Language::ALL {
                 assert!(
                     shared(language).get(map.map_name_key).is_some(),

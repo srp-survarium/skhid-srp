@@ -104,9 +104,9 @@ pub const ROOM_CHAT: u32 = ROOMS_FIRST + 30;
 /// room's queue (its PIN, if it asks one, given just before), or join it if
 /// a place is free. Answered with the state.
 pub const ROOM_QUEUE_BASE: u32 = ROOMS_FIRST + 200_000;
-/// `ROOM_BITS_BASE + chunk × 2^20 + bits`: 20 entries of the pool of the
-/// room the asker creates next, entry `chunk × 20 + b` in by bit `b`
-/// ([`bits_answer`]).
+/// `ROOM_BITS_BASE + chunk × 2^16 + bits`: 16 entries of the pool of the
+/// room the asker creates next, entry `chunk × 16 + b` in by bit `b`
+/// ([`bits_answer`]); [`CHUNKS`] of them end below [`ROOM_CREATE_BASE`].
 pub const ROOM_BITS_BASE: u32 = ROOMS_FIRST + 1_000_000;
 /// `ROOM_CREATE_BASE + code` ([`create_start`]): make a room. Answered with
 /// the state.
@@ -121,9 +121,11 @@ pub const ROOM_KEY_MAX: u32 = 99_999;
 /// The largest PIN.
 pub const PIN_MAX: u16 = 9999;
 /// The pool entries one bits request carries.
-pub const BITS_PER_CHUNK: u32 = 20;
-/// The most chunks: a pool of 160 entries at the most.
-pub const CHUNKS: u32 = 8;
+pub const BITS_PER_CHUNK: u32 = 16;
+/// The most chunks: a pool of 256 entries at the most (every playable map:
+/// 167 in the live data with the free-for-alls, 142 before them; 20 a chunk
+/// and 8 chunks, 160, until then).
+pub const CHUNKS: u32 = 16;
 /// The most pool entries a create can name: one bit each.
 pub const POOL_BITS: usize = (CHUNKS * BITS_PER_CHUNK) as usize;
 /// The pool's entries a page of [`room_pool`] lists.
@@ -406,8 +408,8 @@ pub fn member_gear_place(value: u32) -> Option<(u8, u32)> {
     (check < KICK_CHECKS).then(|| ((value % MEMBERS_MAX as u32) as u8, check))
 }
 
-/// The start of 20 entries of a pool: `chunk` 0 to [`CHUNKS`] − 1, `bits`
-/// below 2^20.
+/// The start of 16 entries of a pool: `chunk` 0 to [`CHUNKS`] − 1, `bits`
+/// below 2^16.
 pub fn bits_start(chunk: u8, bits: u32) -> u32 {
     ROOM_BITS_BASE + u32::from(chunk) * (1 << BITS_PER_CHUNK) + (bits & ((1 << BITS_PER_CHUNK) - 1))
 }
@@ -1084,8 +1086,8 @@ pub fn room_pool(entries: &[PoolEntry], page: u8) -> Result<ServerMessage, WireE
 /// `91` as the answer to `3B 00 <ROOM_FORM> 1`, `place = ROOM_FORM + i`:
 /// `S1;F;<saved>;<size>;<min side>;<max level>;<wait>;<modes off>` (`saved`
 /// 1: the asker's own settings, 0: the defaults; `modes off` the modes left
-/// out, `,` between them, empty for none), then a row a chunk of 20 entries
-/// of the pool, `E;<chunk>;<bits>`: entry `chunk × 20 + b`'s tile is in by
+/// out, `,` between them, empty for none), then a row a chunk of 16 entries
+/// of the pool, `E;<chunk>;<bits>`: entry `chunk × 16 + b`'s tile is in by
 /// bit `b` ([`RoomForm::tiles_on`]), every chunk the pool has (one at least).
 pub fn room_form(form: &RoomForm) -> Result<ServerMessage, WireError> {
     at_most("room form entries", form.tiles_on.len(), POOL_BITS)?;
@@ -1341,12 +1343,16 @@ mod tests {
             Some(RoomRequest::Members { key: ROOM_KEY_MAX })
         );
         assert_eq!(
-            room_request(bits_start(7, 0xF_FFFF), 1),
+            room_request(bits_start(15, 0xFFFF), 1),
             Some(RoomRequest::Bits {
-                chunk: 7,
-                bits: 0xF_FFFF
+                chunk: 15,
+                bits: 0xFFFF
             })
         );
+        // 256 entries, and the chunks' starts end below the create's.
+        assert_eq!(POOL_BITS, 256);
+        const { assert!(ROOM_BITS_BASE + CHUNKS * (1 << BITS_PER_CHUNK) <= ROOM_CREATE_BASE) };
+        assert_eq!(room_request(bits_start(15, 0xFFFF) + 1, 1), None);
         assert_eq!(room_request(ROOMS_LAST, 1), None);
         assert_eq!(room_request(ROOMS_FIRST - 1, 1), None);
     }
@@ -1419,7 +1425,7 @@ mod tests {
         };
         assert_eq!(
             form_names(&form),
-            ["S1;F;1;9;2;7;45;3,4", "E;0;524293", "E;1;5"]
+            ["S1;F;1;9;2;7;45;3,4", "E;0;5", "E;1;88"]
         );
         assert!(room_form(&form).is_ok());
         // No pool: one chunk all the same; no mode out: an empty field.
@@ -1430,6 +1436,15 @@ mod tests {
             ..form
         };
         assert_eq!(form_names(&form), ["S1;F;0;9;2;7;45;", "E;0;0"]);
+        // A big pool (the free-for-alls' maps too): a row each 16, 256 at most.
+        let big = RoomForm {
+            tiles_on: (0..POOL_BITS).map(|index| index % 3 != 0).collect(),
+            ..form.clone()
+        };
+        let names = form_names(&big);
+        assert_eq!(names.len(), 1 + 16);
+        assert_eq!(names[16], format!("E;15;{}", 0x6DB6_u32));
+        assert!(room_form(&big).is_ok());
         // More entries than a create can name: refused.
         let form = RoomForm {
             tiles_on: vec![true; POOL_BITS + 1],

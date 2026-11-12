@@ -426,6 +426,13 @@ impl MatchRegistry {
         if map.mode.rules() == maps::RuleMode::Research && setup.players.iter().any(|player| player.driven) {
             return Err(CreateError::Map(map.id));
         }
+        if maps::player_cap(map).is_some_and(|cap| setup.players.len() > cap) {
+            return Err(CreateError::Roster(setup.players.len()));
+        }
+        let mut setup = setup;
+        for (place, player) in setup.players.iter_mut().enumerate() {
+            own_side(map, place, &mut player.profile);
+        }
         let mut inner = self.inner();
         for (place, player) in setup.players.iter().enumerate() {
             // The server's own bots have no session to clash.
@@ -597,7 +604,10 @@ impl MatchRegistry {
         if !formed.growing_roster {
             return Err(JoinError::Unavailable);
         }
-        if players.len() > MAX_PLAYERS - formed.places.len() {
+        let cap = maps::player_cap(formed.played.map())
+            .unwrap_or(MAX_PLAYERS)
+            .min(MAX_PLAYERS);
+        if players.len() > cap.saturating_sub(formed.places.len()) {
             return Err(JoinError::Full);
         }
         let Some(admitting) = inner
@@ -638,6 +648,10 @@ impl MatchRegistry {
         };
         let mut next = (**formed).clone();
         let first = next.places.len();
+        let mut players = players;
+        for (offset, player) in players.iter_mut().enumerate() {
+            own_side(next.played.map(), first + offset, &mut player.profile);
+        }
         next.profiles.extend(players.iter().map(|player| {
             let mut profile = player.profile.clone();
             gift(&mut profile, next.keeper);
@@ -971,6 +985,16 @@ pub enum MatchEnd {
     /// room's minimum can play it ([`MatchSetup::room_minimum`]). Nothing
     /// of it counts, and its room makes another.
     NotMade,
+}
+
+/// A free-for-all's place plays on a side of its own and in no squad
+/// (`maps::free_for_all_team`); in any other mode the lobby's team and squad
+/// stand.
+fn own_side(map: &maps::MapMode, place: usize, profile: &mut MatchProfile) {
+    if map.mode == GameMode::FreeForAll {
+        profile.team = maps::free_for_all_team(place);
+        profile.squad = 0;
+    }
 }
 
 /// The standing value for "no team": a draw.

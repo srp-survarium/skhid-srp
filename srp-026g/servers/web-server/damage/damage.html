@@ -116,7 +116,7 @@ h3.sub { margin: 0 0 8px; font: 700 .78rem var(--font-display); letter-spacing: 
 .fxrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px }
 #healpick { display: grid; gap: 10px; justify-items: start }
 #healpick .lbl { margin-right: 6px }
-#healpick .fxtile + .lbl { margin-left: 14px }
+#healpick .fxhint + .lbl { margin-left: 14px }
 #healpick > .gamemods { max-width: 100% }
 @media (max-width: 560px) {
   #healpick > .gamemods { grid-template-columns: 31px minmax(0, 1fr); row-gap: 0 }
@@ -126,12 +126,16 @@ h3.sub { margin: 0 0 8px; font: 700 .78rem var(--font-display); letter-spacing: 
 /* An item tile's card: what it gives, on hover or focus */
 .fxhint { position: relative; display: inline-flex }
 .fxhint > .gamemods { position: absolute; left: 0; top: calc(100% + 6px); z-index: 5; width: max-content; max-width: min(380px, calc(100vw - 110px)); display: none; pointer-events: none; box-shadow: 0 6px 18px rgba(0, 0, 0, .4) }
-.fxhint:hover > .gamemods, .fxhint:focus-within > .gamemods, .gico:hover + .fxhint > .gamemods { display: grid }
+.fxhint:hover > .gamemods, .fxtile:focus-visible + .gamemods, .gico:hover + .fxhint > .gamemods { display: grid }
+/* Away after a click until the pointer comes back, as a tooltip goes (a touch screen has no pointer to leave) */
+@media (hover: hover) { .fxhint.quiet > .gamemods { display: none } }
 .glabel.fxhint { cursor: help }
 .gamemods .gname { grid-column: 1 / -1; font-size: 15px; padding-bottom: 2px }
 .gamemods .gtext { grid-column: 1 / -1; display: block; white-space: normal }
+.gamemods .gtext + .gtext { margin-top: 6px }
+.gamemods.plain { grid-template-columns: max-content minmax(0, 1fr) }
 /* On a phone a tile's card sits under the tiles' row, from its left: a tile may be at the screen's edge */
-@media (max-width: 560px) { #healpick .fxrow { position: relative } .fxrow .fxhint { position: static } .fxrow .fxhint > .gamemods { max-width: 100% } }
+@media (max-width: 560px) { .fxrow { position: relative } .fxrow .fxhint { position: static } .fxrow .fxhint > .gamemods { max-width: 100% } }
 .fxrow .chips { margin-left: 8px }
 .fxtile { width: 86px; height: 46px; padding: 2px; border: 1px solid var(--rule); background: var(--bg); cursor: pointer; opacity: .4; display: grid; place-items: center; font: .78rem var(--font-body); color: var(--ink-2) }
 .fxtile img { width: 100%; height: 100%; object-fit: contain; display: block }
@@ -394,7 +398,7 @@ tr.click { cursor: pointer } tr.click:hover td { background: color-mix(in srgb, 
         <div class="note" data-uk="Біль, який ціль уже має від попередніх влучань. Спадає до нуля по 10 за секунду, коли 8 с немає влучань.">Pain the target already carries from earlier hits. It drains back to none at 10 a second once 8 s pass without a hit.</div>
       </div>
       <div class="more" id="amods-box"><h3 class="sub" data-uk="Бонуси броні">Armour bonuses</h3><div class="mods" id="amods"></div></div>
-      <details class="more" id="tfx-box" open><summary data-uk="Артефакти й препарати">Artefacts &amp; drugs</summary><div class="mods" id="tfx"></div></details>
+      <details class="more" id="tfx-box" open><summary data-uk="Артефакти, препарати й навички">Artefacts, drugs &amp; skills</summary><div class="mods" id="tfx"></div></details>
     </section>
 
     <section class="mapsec" aria-labelledby="h-map">
@@ -456,4 +460,4 @@ tr.click { cursor: pointer } tr.click:hover td { background: color-mix(in srgb, 
     <div class="tablebox"><table id="fulltime"></table></div>
   </section>
 </div>
-<script src="/damage/calc.js?v=6ff1a06740c1"></script>
+<script src="/damage/calc.js?v=4d666e29a9a0"></script>

@@ -19,7 +19,8 @@ package survarium.rooms
             "3": "st_srp_mode_chargers",
             "4": "st_srp_mode_team_deathmatch",
             "5": "st_srp_mode_research",
-            "6": "st_srp_mode_blackout"
+            "6": "st_srp_mode_blackout",
+            "8": "st_srp_mode_free_for_all"
         };
         // maps_dict's map_weather_id: 1 day, 2 rain, 3 evening, 4 night, 5 prerain.
         private static const WEATHER:Object = {

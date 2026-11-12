@@ -2341,5 +2341,6 @@ va	status	ref_021d	name
 0x0001dcd0	observed		vostok::console_commands::cc_u32::cc_u32
 0x003cd300	observed		vostok::render::render_cc_u32::execute
 0x001f01b0	observed		survarium::open_file_impl
+0x000f6d00	observed		vostok::configs::binary_config_value::relocate_in_place
 0x00013da0	reviewed	0x00012c0b	vostok::engine::engine_world::command_line_editor
 0x003cd310	reviewed	0x00273594	vostok::render::render_cc_u32::is_changed

@@ -85,7 +85,11 @@ fn datagram(id: u8, x: Option<u8>, payload: &[u8]) -> Vec<u8> {
 /// and the server's folders, where the writer would never put them, to
 /// show that none reaches the replay. Returns the mode config's name.
 fn write_recording(path: &Path, secrets: &[&str]) -> String {
-    let map = survarium::v026g::maps::playable().next().unwrap();
+    // A match of two teams (its places are on teams 0 and 1): the first
+    // battery map.
+    let map = survarium::v026g::maps::playable_in(survarium::v026g::maps::GameMode::Batteries)
+        .next()
+        .expect("the game has battery maps");
     let options = MatchOptions {
         players: vec![profile("a", 0), profile("b", 1)],
         map: survarium::v026g::maps::MatchMap::of(map.id).unwrap(),

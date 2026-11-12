@@ -91,6 +91,7 @@ package survarium.controls
          var clr:int;
          if(_data)
          {
+            var board:PlayerList = owner != null ? owner.parent as PlayerList : null;
             this.ui_name.text = _data.name;
             if(_data.online != undefined && _data.online == false)
             {
@@ -131,7 +132,8 @@ package survarium.controls
                {
                   this.squad_icon.visible = true;
                   this.squad_icon.gotoAndStop(_data.squad_id);
-                  if(_data.team != TeamSide.ALLY)
+                  // ranked (free for all), every other player is an opponent, squad mates too
+                  if(board != null && board.ranked ? _data.isLocal != true : _data.team != TeamSide.ALLY)
                   {
                      this.ui_name.textColor = 16777215;
                      colorTransform = new ColorTransform();

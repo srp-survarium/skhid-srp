@@ -88,6 +88,7 @@ struct player;
 struct player_input_handler;
 struct player_params_modifiers_container;
 struct player_profile;
+struct player_vector;
 struct pthreads3_allocator;
 struct pure_game_effect_emitter;
 struct queries_result;
@@ -104,6 +105,8 @@ struct render_visual;
 struct res_texture;
 struct resource_manager;
 struct resource_request;
+struct respawn_point_core;
+struct respawn_point_vector;
 struct save_descriptor;
 struct scene_model;
 struct scene_model_ref;
@@ -799,5 +802,11 @@ extern unsigned int (__attribute__((stdcall)) *const engine_message_box_a)(void 
 
 /* the IAT slot 0x87020c (an import, stdcall) */
 extern void (__attribute__((stdcall)) *const engine_exit_process)(unsigned int code);
+
+/* 0x2f4800 survarium::respawn_point_core::is_clear_for_team: point ESI, team ESP+4, players ESP+8; pops 8; AL */
+unsigned int engine_respawn_point_clear(const struct respawn_point_core *point, unsigned int team, const struct player_vector *players);
+
+/* 0x3174c0 vostok::buffer_vector<survarium::respawn_point_core *>::push_back: vector ESI, point ESP+4; pops 4 */
+void engine_respawn_points_push(struct respawn_point_vector *vector, struct respawn_point_core *const *point);
 
 #endif

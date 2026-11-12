@@ -25,6 +25,10 @@ pub(crate) enum Rule {
 }
 
 impl Match {
+    /// A match has one respawn rule and at most one rule of its mode: with
+    /// none it is a free-for-all (mode 8: the time, respawn and kd rules
+    /// alone, ffa.md), whose world has no rule between the respawn points
+    /// and the kd stats.
     pub(crate) fn of(rules: impl IntoIterator<Item = Rule>) -> Option<Self> {
         let (mut mode, mut respawn) = (None, None);
         for rule in rules {
@@ -38,7 +42,7 @@ impl Match {
                 Rule::Other => {}
             }
         }
-        let (game_mode, batteries) = mode?;
+        let (game_mode, batteries) = mode.unwrap_or((srp_validate::mode::FREE_FOR_ALL, 0));
         Some(Self { game_mode, batteries, respawn_points: respawn? })
     }
 
@@ -128,14 +132,18 @@ fn log(thread: &Thread, error: Failure, len: usize) {
 mod tests {
     use super::*;
     #[test]
-    fn a_match_has_exactly_one_mode_and_respawn_rule() {
+    fn a_match_has_one_respawn_rule_and_at_most_one_mode_rule() {
         let mode = Rule::Mode { game_mode: 4, batteries: 0 };
         let respawn = Rule::Respawn { points: 3 };
         assert_eq!(Match::of([mode, Rule::Other, respawn]), Some(Match {
             game_mode: 4, batteries: 0, respawn_points: 3,
         }));
-        for rules in [vec![], vec![mode], vec![respawn], vec![mode,mode,respawn],
-                      vec![mode,respawn,respawn]] { assert_eq!(Match::of(rules), None); }
+        // A free-for-all's rules: the time's, the respawn's and the kd's.
+        assert_eq!(Match::of([Rule::Other, respawn, Rule::Other]), Some(Match {
+            game_mode: srp_validate::mode::FREE_FOR_ALL, batteries: 0, respawn_points: 3,
+        }));
+        for rules in [vec![], vec![mode], vec![mode,mode,respawn],
+                      vec![mode,respawn,respawn], vec![respawn,respawn]] { assert_eq!(Match::of(rules), None); }
     }
     #[test]
     fn missing_time_match_and_incomplete_sections_are_refused() {

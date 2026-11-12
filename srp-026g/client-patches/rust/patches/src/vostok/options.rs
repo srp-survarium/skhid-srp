@@ -59,6 +59,13 @@ impl<'t> OptionsRead<'t> {
         unsafe { Reader::of_memory(cursor, end - at) }
     }
 
+    /// The match's places' count: the roster the rules and the hud state are
+    /// filled for.
+    pub fn places(&self) -> u8 {
+        // SAFETY: the options are alive for the hook; a plain value of theirs.
+        unsafe { read(self.options.places()) }
+    }
+
     /// What names the match, for the crash report's breadcrumbs.
     pub fn context(&self, blackout: bool) -> Match {
         // SAFETY: the options are alive for the hook; plain values of theirs.

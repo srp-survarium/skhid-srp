@@ -66,13 +66,15 @@ fn memory_line(carrier: &Carrier, part: &memory::Part, name: &str, account: u32,
 /// - `over "<exe name>"|? class "<class>"|? <extended styles> <width>x<height> from <place>|windows|?`
 ///   (another process's always-on-top window over the game's, and where its exe is),
 /// - `over unknown: <why>`,
+/// - `exe <place> "<name>" sha256 <hex> size <bytes>` (the file of such a window's exe, read
+///   through), or `... too big` / `... unread` where it was not,
 ///
 /// sizes and addresses hex, seconds decimal, `-` for what is not there; a
 /// place is `game`, `temp` or `other`, then ` in "<folders>"` where it has
 /// any (below the game's or the temporary folder; an other one's from its
 /// drive, a user's name `*`).
 fn modules_line(carrier: &Carrier, part: &modules::Part, name: &str, account: u32, match_id: u32) -> String {
-    use srp_validate::modules::{Entry, Home, Name, PeMarks, Place};
+    use srp_validate::modules::{Entry, File, Home, Name, PeMarks, Place};
     let place = |place: Place| match place.dir.as_str() {
         "" => place.folder.word().to_string(),
         dir => format!("{} in {dir:?}", place.folder.word()),
@@ -120,6 +122,14 @@ fn modules_line(carrier: &Carrier, part: &modules::Part, name: &str, account: u3
                 )
             }
             Entry::Unseen(why) => format!("over unknown: {}", why.word()),
+            Entry::Exe(exe) => {
+                let file = match exe.file {
+                    File::Hashed(identity) => format!("sha256 {identity} size {}", identity.size()),
+                    File::TooBig => "too big".to_string(),
+                    File::Unread => "unread".to_string(),
+                };
+                format!("exe {} {:?} {file}", place(exe.place), exe.name)
+            }
         })
         .collect();
     format!(
@@ -157,8 +167,9 @@ mod tests {
 
     #[test]
     fn a_module_part_is_one_line() {
+        use srp_validate::executable::Identity;
         use srp_validate::modules::{
-            Entry, Folder, Home, Load, Module, Moment, Name, Over, PeMarks, Place, Report, Unseen,
+            Entry, Exe, File, Folder, Home, Load, Module, Moment, Name, Over, PeMarks, Place, Report, Unseen,
         };
         let wide = |text: &str| text.encode_utf16().collect::<Vec<u16>>();
         let downloads = Place::of(&wide("C:\\Users\\Ivan\\Downloads\\extra.dll"), &[], &[], &[]).unwrap();
@@ -169,6 +180,8 @@ mod tests {
             Entry::Over(Over { name: Some(name("overlay.exe")), class: Some(name("Overlay")), style: 0x8_00a8, width: 1280, height: 720, home: Home::At(downloads) }),
             Entry::Over(Over { name: Some(name("explorer.exe")), class: None, style: 0x88, width: 1280, height: 40, home: Home::Windows }),
             Entry::Unseen(Unseen::NoOrder),
+            Entry::Exe(Exe { name: name("overlay.exe"), place: downloads, file: File::Hashed(Identity::new(4321, [0xab; 32]).unwrap()) }),
+            Entry::Exe(Exe { name: name("big.exe"), place: Place::bare(Folder::Game), file: File::TooBig }),
             Entry::Module(Module { name: name("extra.dll"), place: downloads, image_size: 0x1_2000, pe: None }),
             Entry::Load(Load { name: name("added.dll"), place: Place::bare(Folder::Temp), image_size: 0x7000, pe: shell, at: 311, listed: false }),
         ] {
@@ -180,10 +193,12 @@ mod tests {
         let Body::Modules(part) = carrier.body else { panic!("{carrier:?}") };
         assert_eq!(
             modules_line(&carrier, &part, "Ivan", 7, 0x8000_0001),
-            "Ivan (account 7), match 0x80000001, ended, part 1/1 of 5 entries: \
+            "Ivan (account 7), match 0x80000001, ended, part 1/1 of 7 entries: \
              over \"overlay.exe\" class \"Overlay\" 800a8 1280x720 from other in \"C:\\\\Users\\\\*\\\\Downloads\" \
              | over \"explorer.exe\" class ? 88 1280x40 from windows \
              | over unknown: game window not in the order \
+             | exe other in \"C:\\\\Users\\\\*\\\\Downloads\" \"overlay.exe\" sha256 abababababababababababababababababababababababababababababababab size 4321 \
+             | exe game \"big.exe\" too big \
              | other in \"C:\\\\Users\\\\*\\\\Downloads\" \"extra.dll\" 12000 pe - \
              | load temp \"added.dll\" 7000 pe 4b4b4321/0 at 311 unlisted"
         );

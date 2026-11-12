@@ -719,7 +719,7 @@ impl SessionStore {
                     return Err(SignInError::RegistrationLimit);
                 }
                 let hash = password::hash(password).ok_or(SignInError::WrongPassword)?;
-                let (account_id, created) = self.find_or_create(&key, user_name.trim(), Some(hash))?;
+                let (account_id, created) = self.find_or_create(&key, user_name.trim(), Some(hash));
                 if let Some(password_epoch) = created {
                     if let Some(ip) = ip {
                         self.limits.registered(ip, now);
@@ -828,9 +828,7 @@ impl SessionStore {
     #[cfg(any(test, feature = "test-support"))]
     pub fn get_or_create_account(&self, ip: IpAddr, user_name: &str) -> u32 {
         let key = persist::login_key(ip, user_name);
-        self.find_or_create(&key, user_name.trim(), None)
-            .expect("test account has a unique nickname")
-            .0
+        self.find_or_create(&key, user_name.trim(), None).0
     }
 
     /// The account of `key`, made if there is none: its id, and the password
@@ -839,16 +837,19 @@ impl SessionStore {
     /// not taken for the password it was made with). Ids are
     /// handed out in order. Other players see the display name, so a user
     /// name with an `@` shows only its part before it; with nothing there,
-    /// the name falls back to a unique value derived from the id.
+    /// the name falls back to a value derived from the id. A name that is
+    /// another account's gets the id after it
+    /// ([`Self::sign_up_name_locked`]), under the lock every claim of a name
+    /// holds.
     fn find_or_create(
         &self,
         key: &str,
         user_name: &str,
         password_hash: Option<String>,
-    ) -> Result<(u32, Option<u64>), SignInError> {
+    ) -> (u32, Option<u64>) {
         let mut logins = self.logins.locked();
         if let Some(&account_id) = logins.get(key) {
-            return Ok((account_id, None));
+            return (account_id, None);
         }
         let account_id = self.next_account_id.fetch_add(1, Ordering::Relaxed);
         let shown = user_name.split('@').next().unwrap_or_default();
@@ -857,11 +858,7 @@ impl SessionStore {
         } else {
             v021d::account::cap(shown)
         };
-        if self.nickname_taken_locked(&logins, &name, None)
-            || self.display_name_taken(key, None)
-        {
-            return Err(SignInError::InvalidUserName);
-        }
+        let name = self.sign_up_name_locked(&logins, name, account_id);
         let mut account = Account::new(account_id, name);
         account.login = key.to_owned();
         account.password_hash = password_hash;
@@ -873,7 +870,7 @@ impl SessionStore {
         drop(logins);
         self.mark_dirty(account_id);
         self.save_soon();
-        Ok((account_id, Some(password_epoch)))
+        (account_id, Some(password_epoch))
     }
 
     /// The account changed: the saver writes it on its next pass. Never
@@ -2538,7 +2535,8 @@ mod tests {
     fn the_admin_finds_an_account_by_user_name_or_its_unique_shown_name() {
         let store = SessionStore::new();
         let a = store.sign_in("Alpha@one.test", b"pw").unwrap();
-        assert_eq!(store.sign_in("alpha@two.test", b"pw"), Err(SignInError::InvalidUserName));
+        // Its shown name is its own (`alpha_2`): `alpha` stays one account's.
+        store.sign_in("alpha@two.test", b"pw").unwrap();
         let b = store.sign_in("bravo@x.test", b"pw").unwrap();
         assert_eq!(store.find_account("ALPHA@one.test"), Some(a));
         assert_eq!(store.find_account("Bravo"), Some(b));

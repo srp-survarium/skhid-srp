@@ -86,6 +86,20 @@ fn choose(world: &mut World, index: usize, size: u8, map_id: u8) -> String {
     name
 }
 
+/// The free-for-alls offered: the day of each of the eight levels of
+/// [`MAPS`], by level (`ffa.md`).
+fn free_for_all_days() -> Vec<u8> {
+    let days: Vec<u8> = (1..=8)
+        .map(|level| {
+            maps::find(level, maps::weather::DAY, maps::GameMode::FreeForAll)
+                .unwrap_or_else(|| panic!("no free-for-all of level {level} by day"))
+                .id
+        })
+        .collect();
+    assert!(days.is_sorted(), "the status lists them by id: {days:?}");
+    days
+}
+
 /// The player chooses and presses Play: the match it was sent to.
 fn play_vs_bots(world: &mut World, index: usize, size: u8, map_id: u8) -> (u32, u8) {
     assert_eq!(
@@ -111,14 +125,16 @@ fn gear_5_gets_an_8_v_8_with_15_bots_on_the_map_chosen() {
     with_gear(&mut world, alice, 5);
     let (header, maps) = status(&mut world, alice);
     assert_eq!(header, "B1;0;5;5;6.8.10;8;61;0;5");
-    // The owner's maps, each free for five matches.
+    // The owner's maps, then the free-for-all of each of their eight
+    // levels by day, each free for five matches.
     let listed: Vec<u8> = maps
         .iter()
         .map(|row| row.split(';').next().unwrap().parse().unwrap())
         .collect();
-    assert_eq!(listed, MAPS);
+    assert_eq!(listed, [&MAPS[..], &free_for_all_days()[..]].concat());
     assert_eq!(maps[0], "61;1;2;5");
     assert_eq!(maps[8], "117;1;4;5");
+    assert_eq!(maps[16], format!("{};1;8;5", free_for_all_days()[0]));
 
     let (ticket, team) = play_vs_bots(&mut world, alice, 8, 61);
     assert_eq!(team, 0);
@@ -192,6 +208,52 @@ fn every_size_has_its_bots_on_both_sides() {
     }
 }
 
+/// A free-for-all against bots (`ffa.md`): the player and the server's bots
+/// up to the map's most players, min(2N, 10) of them for a size of N (every
+/// size offered makes 10), in a match the match server can make (each on a
+/// side of its own: `TestHost::create`).
+#[test]
+fn a_free_for_all_against_bots_is_the_player_and_bots_up_to_its_most_players() {
+    let mut world = world_with(5);
+    let map_id = free_for_all_days()[0];
+    let cap = maps::player_cap(maps::map_mode(map_id).unwrap()).expect("a free-for-all's");
+    assert_eq!(cap, 10);
+    for (n, &size) in survarium::v026g::lobby::rooms::rules()
+        .pvb
+        .sizes
+        .iter()
+        .enumerate()
+    {
+        let player = world.connect(&format!("P{n}"));
+        let (ticket, _) = play_vs_bots(&mut world, player, size, map_id);
+        let made = world.host.made.locked();
+        let (_, setup) = made.iter().find(|(id, _)| *id == ticket).unwrap();
+        assert_eq!(setup.map.map().id, map_id);
+        assert_eq!(setup.map.mode(), maps::GameMode::FreeForAll);
+        assert!(setup.vs_bots);
+        assert_eq!(setup.players.len(), (2 * usize::from(size)).min(cap), "size {size}");
+        assert_eq!(setup.players[0].account_id, world.ids[player].0);
+        assert!(!setup.players[0].driven);
+        assert!(setup.players[1..].iter().all(|bot| bot.driven && bot.account_id == 0));
+        drop(made);
+        let running = world
+            .core
+            .matches
+            .values()
+            .find(|running| running.ticket.match_id == ticket)
+            .unwrap();
+        assert!(running.server_bots && running.fixed_teams);
+        assert_eq!(running.seats.len(), cap);
+    }
+    // A free-for-all of another weather, or of London, is not offered.
+    let other = world.connect("Other");
+    let evening = maps::playable_in(maps::GameMode::FreeForAll)
+        .find(|map| map.weather != maps::weather::DAY)
+        .expect("a free-for-all not by day");
+    assert_eq!(choose(&mut world, other, 8, evening.id), "B2;no;10;0;5;3;5");
+    world.assert_clean();
+}
+
 /// Equipment level 6 is over the most (5): refused with code 1 and both
 /// levels, in the status and the choice; the Play then goes into a room.
 #[test]
@@ -201,7 +263,8 @@ fn gear_6_is_refused_with_code_1_and_its_level() {
     with_gear(&mut world, bob, 6);
     let (header, maps) = status(&mut world, bob);
     assert_eq!(header, "B1;1;6;5;6.8.10;8;61;0;5");
-    assert_eq!(maps.len(), MAPS.len());
+    // The owner's 16 maps and the 8 free-for-alls.
+    assert_eq!(maps.len(), MAPS.len() + free_for_all_days().len());
     assert_eq!(choose(&mut world, bob, 8, 61), "B2;no;1;6;5;0;5");
     assert!(world.core.pvb_holds.is_empty());
     world.ask(bob, request::play(1));

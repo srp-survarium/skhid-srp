@@ -53,8 +53,7 @@ fn the_options_of_every_map_are_accepted() {
     let data = Data(Dictionary::shared());
     let mut modes = Vec::new();
     for map in maps::playable() {
-        let played = maps::MatchMap::of(map.id).unwrap();
-        let options = info::MatchOptions { map: played, ..options(false) };
+        let options = options_on(maps::MatchMap::of(map.id).unwrap());
         let bytes = info::options_bytes(&options, data.0).unwrap();
         assert_eq!(messages::options(&bytes, &data), Ok(1), "map {}", map.id);
         if !modes.contains(&map.mode) {
@@ -63,7 +62,69 @@ fn the_options_of_every_map_are_accepted() {
     }
     // The test archive's: Research's maps come with a pack.
     assert!(modes.contains(&maps::GameMode::Blackout), "{modes:?}");
-    assert!(modes.len() >= 4, "{modes:?}");
+    assert!(modes.contains(&maps::GameMode::FreeForAll), "{modes:?}");
+    assert!(modes.len() >= 5, "{modes:?}");
+}
+
+/// The options of a match on `map`: its one player on team 0, or in a
+/// free-for-all on his own side.
+fn options_on(map: maps::MatchMap) -> info::MatchOptions {
+    let mut options = info::MatchOptions { map, ..options(false) };
+    if map.mode() == maps::GameMode::FreeForAll {
+        options.players[0].team = maps::free_for_all_team(0);
+    }
+    options
+}
+
+/// A free-for-all's options: each place on its own side, and srp's entry
+/// with the kills that win. Neither goes without the other, at the server
+/// or at the clients' check.
+#[test]
+fn a_free_for_alls_own_sides_and_kill_target_go_together() {
+    let data = Data(Dictionary::shared());
+    let map = maps::playable()
+        .find(|map| map.mode == maps::GameMode::FreeForAll)
+        .and_then(|map| maps::MatchMap::of(map.id))
+        .expect("a free-for-all map");
+    let options = options_on(map);
+    assert_eq!(options.players[0].team, 4);
+    let bytes = info::options_bytes(&options, data.0).unwrap();
+    let entry = b"SRPX\x03\x02\x1e\x00";
+    assert!(bytes.ends_with(entry), "30 kills win");
+    assert_eq!(messages::options(&bytes, &data), Ok(1));
+    assert_eq!(info::parse_options(&bytes, data.0).unwrap(), options);
+    // The server writes no free-for-all with a team of the two, and no
+    // other mode with a side of one's own.
+    let mut teams = options.clone();
+    teams.players[0].team = 0;
+    assert_eq!(
+        info::options_bytes(&teams, data.0),
+        Err(info::StaticInfoError::Team { player: 0, team: 0 })
+    );
+    let mut own = options_on(maps::MatchMap::of(61).unwrap());
+    own.players[0].team = 4;
+    assert_eq!(
+        info::options_bytes(&own, data.0),
+        Err(info::StaticInfoError::Team { player: 0, team: 4 })
+    );
+    // The clients' check: own sides without the entry, with Blackout's, or
+    // with no kills to win; the entry with the two teams.
+    let native = &bytes[..bytes.len() - entry.len()];
+    for suffix in [
+        &b""[..],
+        b"SRPX\x02\x01\x01",
+        b"SRPX\x03\x02\x00\x00",
+        b"SRPX\x03\x01\x1e",
+        b"SRPX\x03\x02\x1e\x00\x02\x01\x01",
+    ] {
+        let bad = [native, suffix].concat();
+        assert!(messages::options(&bad, &data).is_err(), "{suffix:?}");
+        assert!(info::parse_options(&bad, data.0).is_err(), "{suffix:?}");
+    }
+    let plain = info::options_bytes(&options_on(maps::MatchMap::of(61).unwrap()), data.0).unwrap();
+    let bad = [&plain[..], entry].concat();
+    assert!(messages::options(&bad, &data).is_err());
+    assert!(info::parse_options(&bad, data.0).is_err());
 }
 
 #[test]

@@ -29,7 +29,16 @@ package survarium.controls
       // The Settings' "Hide player scores" (exe patch 83): each team's players by clan, then name (byClanAndName),
       // their score, kills, deaths and rank not shown (PlayerListRenderer asks namesOnly).
       private var _namesOnly:Boolean = false;
-      
+
+      // Free for all (HUD.set_game_type with GAME_MODE_FREE_FOR_ALL; the exe sends the local player as
+      // the ally, every other as an enemy): every player on one ranking (byStanding, or names only by
+      // byClanAndName), filling the left column before continuing on the right.
+      // Other modes keep each team in its own column.
+      private var _ranked:Boolean = false;
+
+      // PlayerListz's authored lists each fit ten 30 px rows (twenty match places).
+      private static const COLUMN_ROWS:int = 10;
+
       public var team1:TextField;
       
       public var team2:TextField;
@@ -83,6 +92,66 @@ package survarium.controls
             this.splitTeams();
             this.populateTeams();
          }
+      }
+
+      public function get ranked() : Boolean
+      {
+         return this._ranked;
+      }
+
+      // A change lays the players out again; ranked, the teams' names are not shown.
+      public function set ranked(value:Boolean) : void
+      {
+         _ranked = value;
+         if(this.team1 && this.team2)
+         {
+            this.team1.visible = this.team2.visible = !value;
+         }
+         if(this._players)
+         {
+            this.splitTeams();
+            this.populateTeams();
+         }
+      }
+
+      // The ranking's order, the results screen's (the server's, docs/notes/ffa.md): kills, then the
+      // score (the row's `rank` carries the score the game counts; it sends no `score`), highest
+      // first; then deaths, fewest first; then the player's place in the match (the row's id).
+      public static function byStanding(a:Object, b:Object) : int
+      {
+         var order:int = compare(Number(b.kills),Number(a.kills));
+         if(order == 0)
+         {
+            order = compare(Number(b.score),Number(a.score));
+         }
+         if(order == 0)
+         {
+            order = compare(Number(b.rank),Number(a.rank));
+         }
+         if(order == 0)
+         {
+            order = compare(Number(a.deaths),Number(b.deaths));
+         }
+         return order != 0 ? order : compare(Number(a.id),Number(b.id));
+      }
+
+      // The column that shows a player's row (found by `field`), null for none.
+      private function columnOf(field:String, value:*) : DataProvider
+      {
+         for each(var column:DataProvider in [this._team1DP,this._team2DP])
+         {
+            if(column)
+            {
+               for(var i:uint = 0; i < column.length; i++)
+               {
+                  if(column[i][field] == value)
+                  {
+                     return column;
+                  }
+               }
+            }
+         }
+         return null;
       }
       
       // A row's name is "[TAG] name" for a player in a clan (initialize_match makes it so), else the name.
@@ -215,8 +284,6 @@ package survarium.controls
       
       public function set_online_player(name:String, bool:Boolean) : void
       {
-         var teamDP:DataProvider;
-         var team:uint;
          for(var t:uint = 0; t < this._players.length; t++)
          {
             if(this._players[t].name == name)
@@ -225,17 +292,13 @@ package survarium.controls
                {
                   return;
                }
-               team = (this._players[t].team);
                break;
             }
          }
-         if(team == TeamSide.ALLY)
+         var teamDP:DataProvider = this.columnOf("name",name);
+         if(teamDP == null)
          {
-            teamDP = this._team1DP;
-         }
-         else
-         {
-            teamDP = this._team2DP;
+            return;
          }
          for(var i:uint = 0; i < teamDP.length; i++)
          {
@@ -250,8 +313,6 @@ package survarium.controls
       
       public function updatePlayer(player:Object) : void
       {
-         var teamDP:DataProvider;
-         var team:uint;
          for(var t:uint = 0; t < this._players.length; t++)
          {
             if(this._players[t].id == player.id)
@@ -261,17 +322,13 @@ package survarium.controls
                {
                   return;
                }
-               team = (this._players[t].team);
                break;
             }
          }
-         if(team == TeamSide.ALLY)
+         var teamDP:DataProvider = this.columnOf("id",player.id);
+         if(teamDP == null)
          {
-            teamDP = this._team1DP;
-         }
-         else
-         {
-            teamDP = this._team2DP;
+            return;
          }
          for(var i:uint = 0; i < teamDP.length; i++)
          {
@@ -290,6 +347,13 @@ package survarium.controls
                teamDP[i].rank = player.rank;
                teamDP[i].score = player.score;
                trace("sortAfterUpdate::");
+               if(this._ranked)
+               {
+                  // new kills may move the player into the other column
+                  this.splitTeams();
+                  this.populateTeams();
+                  return;
+               }
                this.sortTeam(teamDP);
                for(j = 0; j < teamDP.length; j++)
                {
@@ -311,6 +375,10 @@ package survarium.controls
          if(this._namesOnly)
          {
             team.sort(PlayerList.byClanAndName);
+         }
+         else if(this._ranked)
+         {
+            team.sort(PlayerList.byStanding);
          }
          else
          {
@@ -340,14 +408,17 @@ package survarium.controls
             {
                this._players[i].score = 0;
             }
-            if(this._players[i].team == TeamSide.ALLY)
+            if(!this._ranked)
             {
-               this._team1.push(this._players[i]);
+               (this._players[i].team == TeamSide.ALLY ? this._team1 : this._team2).push(this._players[i]);
             }
-            else
-            {
-               this._team2.push(this._players[i]);
-            }
+         }
+         if(this._ranked)
+         {
+            var ranking:Array = this._players.concat();
+            ranking.sort(this._namesOnly ? PlayerList.byClanAndName : PlayerList.byStanding);
+            _team1 = ranking.slice(0,COLUMN_ROWS);
+            _team2 = ranking.slice(COLUMN_ROWS);
          }
       }
       

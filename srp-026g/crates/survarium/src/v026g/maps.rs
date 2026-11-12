@@ -54,15 +54,22 @@ pub enum RuleMode {
     /// Research: three units to capture, the first team to 100 points
     /// wins; rule 480, exe patch 53 (`docs/notes/research_mode.md`).
     Research = 5,
+    /// Free for all: each player his own side, the first to the kill target
+    /// wins (`docs/notes/ffa.md`). No rule of its own: its configs are Team
+    /// Deathmatch's without the tdm rule, on TDM's projects, whose team-2
+    /// respawn points (content edit ffa-1) the free-for-all exe patch spawns
+    /// each player at.
+    FreeForAll = 8,
 }
 
 impl RuleMode {
     /// The modes a match can be.
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 5] = [
         Self::Batteries,
         Self::TimedBatteries,
         Self::TeamDeathmatch,
         Self::Research,
+        Self::FreeForAll,
     ];
 
     /// The mode of a config's `mode.mode`, if srp plays it.
@@ -81,18 +88,18 @@ impl RuleMode {
     }
 
     /// The rule classes a map of it plays (`mode.rules`), in the order its
-    /// world saves them: timelimit (93), respawn (91), its own rule, kd
-    /// stats (94). srp reads a world's rules section in that order alone
+    /// world saves them: timelimit (93), respawn (91), its own rule (a
+    /// free-for-all has none), kd stats (94). srp reads a world's rules section in that order alone
     /// (`srp_validate::world::rules`, snapshot_rules.md section 2), so a
     /// playable map with another list stops the data ([`MapMode::of`]).
-    pub const fn rule_classes(self) -> [u16; 4] {
-        let own = match self {
-            Self::Batteries => 88,
-            Self::TimedBatteries => 89,
-            Self::TeamDeathmatch => 90,
-            Self::Research => 480,
-        };
-        [93, 91, own, 94]
+    pub const fn rule_classes(self) -> &'static [u16] {
+        match self {
+            Self::Batteries => &[93, 91, 88, 94],
+            Self::TimedBatteries => &[93, 91, 89, 94],
+            Self::TeamDeathmatch => &[93, 91, 90, 94],
+            Self::Research => &[93, 91, 480, 94],
+            Self::FreeForAll => &[93, 91, 94],
+        }
     }
 
     /// A playable map's `rules`: its [`rule_classes`](Self::rule_classes),
@@ -129,6 +136,7 @@ pub enum GameMode {
     TimedBatteries,
     TeamDeathmatch,
     Research,
+    FreeForAll,
     /// "Protective device: blackout" (`docs/notes/blackout.md`): the rules
     /// of [`BLACKOUT_RULES`], the static info's Blackout entry (exe patch
     /// 65) and its own pay.
@@ -163,6 +171,7 @@ impl GameMode {
             Self::TimedBatteries => RuleMode::TimedBatteries,
             Self::TeamDeathmatch => RuleMode::TeamDeathmatch,
             Self::Research => RuleMode::Research,
+            Self::FreeForAll => RuleMode::FreeForAll,
             Self::Blackout => BLACKOUT_RULES,
         }
     }
@@ -183,11 +192,12 @@ impl GameMode {
     }
 
     /// Every mode.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::Batteries,
         Self::TimedBatteries,
         Self::TeamDeathmatch,
         Self::Research,
+        Self::FreeForAll,
         Self::Blackout,
     ];
 }
@@ -200,6 +210,7 @@ impl From<RuleMode> for GameMode {
             RuleMode::TimedBatteries => Self::TimedBatteries,
             RuleMode::TeamDeathmatch => Self::TeamDeathmatch,
             RuleMode::Research => Self::Research,
+            RuleMode::FreeForAll => Self::FreeForAll,
         }
     }
 }
@@ -286,6 +297,11 @@ pub struct MapMode {
     pub tickets_count: u32,
     /// Mode 5: the points that win (`resources_count`, 100).
     pub resources_count: u32,
+    /// A free-for-all: the kills that win (`kills_to_win`, 30).
+    pub kills_to_win: u32,
+    /// `match_making_params.max_players`: the most a match of it takes. Only
+    /// a free-for-all's is kept to (10; `docs/notes/ffa.md`).
+    pub max_players: u32,
     /// How many respawn points the project has: every entry of its
     /// `server_objects.respawn_points`, whatever its team or layer, is
     /// loaded (`player_respawn_rule_cook` 0x2C6910), so this is how many
@@ -293,6 +309,9 @@ pub struct MapMode {
     /// (snapshot_rules.md §2.3). PROVEN (code and data). 0 without a
     /// project.
     pub respawn_points: usize,
+    /// Of those, the team-2 points: a free-for-all's (its exe patch spawns
+    /// its players there and nowhere else).
+    pub solo_respawn_points: usize,
     /// Modes 2 and 3: whose the two battery containers are, by container
     /// id: `victory_items_containers[..].team` of the project by its `id`.
     /// PROVEN (data). A battery's container id in a snapshot is this id,
@@ -334,6 +353,8 @@ fn leak_str(text: &str) -> &'static str {
 pub struct ProjectObjects {
     /// [`MapMode::respawn_points`].
     pub respawn_points: usize,
+    /// [`MapMode::solo_respawn_points`].
+    pub solo_respawn_points: usize,
     /// The battery containers' teams by container id, if the project has
     /// containers ([`MapMode::container_teams`]).
     pub container_teams: Option<[u8; 2]>,
@@ -357,9 +378,15 @@ impl ProjectObjects {
         dictionary: &Dictionary,
     ) -> Result<Self, ConfigError> {
         let objects = project.get("server_objects");
-        let respawn_points = objects
+        let points = objects
             .and_then(|objects| objects.get("respawn_points"))
-            .map_or(0, |points| points.children().len());
+            .map(ConfigValue::children)
+            .unwrap_or_default();
+        let respawn_points = points.len();
+        let solo_respawn_points = points
+            .iter()
+            .filter(|point| point.get("team").and_then(ConfigValue::as_i32) == Some(2))
+            .count();
         let containers = objects
             .filter(|_| with_batteries)
             .and_then(|objects| objects.get("victory_items_containers"))
@@ -396,6 +423,7 @@ impl ProjectObjects {
         };
         Ok(Self {
             respawn_points,
+            solo_respawn_points,
             container_teams,
             world_objects: world_objects(project, data, dictionary)?,
         })
@@ -675,6 +703,7 @@ impl MapMode {
             .transpose()?
             .unwrap_or(ProjectObjects {
                 respawn_points: 0,
+                solo_respawn_points: 0,
                 container_teams: None,
                 world_objects: &NO_WORLD_OBJECTS,
             });
@@ -707,7 +736,10 @@ impl MapMode {
             spawn_points_count: int(p, "spawn_points_count")?,
             tickets_count: int(p, "tickets_count")?,
             resources_count: int(p, "resources_count")?,
+            kills_to_win: int(p, "kills_to_win")?,
+            max_players: int(making, "max_players")?,
             respawn_points: objects.respawn_points,
+            solo_respawn_points: objects.solo_respawn_points,
             container_teams: objects
                 .container_teams
                 .filter(|_| rule_mode.has_batteries()),
@@ -730,6 +762,18 @@ impl MapMode {
                 return Err(ConfigError(
                     "it is mode 5 and has no `resources_count`".to_owned(),
                 ));
+            }
+            if rule_mode == RuleMode::FreeForAll
+                && (row.kills_to_win == 0 || row.solo_respawn_points == 0 || row.max_players == 0)
+            {
+                return Err(ConfigError(format!(
+                    "it is a free-for-all with {} kills to win, {} players at most and {} team-2 \
+                     respawn points in {}",
+                    row.kills_to_win,
+                    row.max_players,
+                    row.solo_respawn_points,
+                    row.project
+                )));
             }
             rule_mode.check_rules(row.rules)?;
         }
@@ -813,6 +857,21 @@ pub fn playable_in(mode: GameMode) -> impl Iterator<Item = &'static MapMode> {
     playable().filter(move |map| map.mode == mode)
 }
 
+/// A free-for-all's side of roster place `place`: a team of its own, 4 +
+/// the place (`docs/notes/ffa.md`). The game reads team 2 as "neutral" and 3
+/// as "none", and the free-for-all exe patch lets a team of 2 or more respawn
+/// and resupply.
+pub fn free_for_all_team(place: usize) -> u8 {
+    srp_validate::own_side(place)
+}
+
+/// The most players a match on `map` takes, the server's bots among them: a
+/// free-for-all's config's `max_players` (10); any other mode's none of its
+/// own.
+pub fn player_cap(map: &MapMode) -> Option<usize> {
+    (map.mode == GameMode::FreeForAll).then_some(map.max_players as usize)
+}
+
 /// The id for a level, weather and mode, if it can be played.
 pub fn find(level: u8, weather: u8, mode: GameMode) -> Option<&'static MapMode> {
     playable().find(|map| (map.level, map.weather, map.mode) == (level, weather, mode))
@@ -874,8 +933,10 @@ mod tests {
         assert_eq!(ids(GameMode::Batteries), mode_2);
         assert_eq!(ids(GameMode::TimedBatteries), mode_3);
         assert_eq!(ids(GameMode::TeamDeathmatch), mode_4);
-        // And Blackout's 24, one for each battery map.
-        assert_eq!(playable().count(), 72 + 24);
+        // And Blackout's 24, one for each battery map, and a free-for-all
+        // for each Team Deathmatch map (`ffa_ids`).
+        assert_eq!(ids(GameMode::FreeForAll), ffa_ids());
+        assert_eq!(playable().count(), 72 + 24 + 24);
         for bad in [11, 45, 107, 108, 114, 115].into_iter().chain(141..=151) {
             assert!(playable().all(|map| map.id != bad), "{bad}");
         }
@@ -883,9 +944,14 @@ mod tests {
         for missing in [114, 141, 142].into_iter().chain(143..=151) {
             assert!(map_mode(missing).is_none(), "{missing}");
         }
-        // 12 ids a level: 3 weathers × 3 modes, and Blackout in each weather.
+        // 15 ids a level: 3 weathers × 3 modes, and in each weather Blackout
+        // and a free-for-all.
         for level in 1..=8 {
-            assert_eq!(playable().filter(|map| map.level == level).count(), 12);
+            assert_eq!(playable().filter(|map| map.level == level).count(), 15);
+            for mode in [GameMode::Blackout, GameMode::FreeForAll] {
+                let of_mode = playable_in(mode).filter(|map| map.level == level).count();
+                assert_eq!(of_mode, 3, "level {level}, {mode:?}");
+            }
         }
     }
 
@@ -909,8 +975,12 @@ mod tests {
         assert_eq!(missing, [114, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151]);
         // A playable id's config name spells its level, weather and mode,
         // and its project is `level_0X/<weather>_<mode>` (Blackout's: its
-        // battery map's, `blackout_is_a_mode_of_its_own_maps`).
-        for map in playable().filter(|map| map.mode != GameMode::Blackout) {
+        // battery map's, `blackout_is_a_mode_of_its_own_maps`; a
+        // free-for-all's: its Team Deathmatch map's,
+        // `the_free_for_alls_play_on_their_tdm_projects`).
+        for map in playable()
+            .filter(|map| !matches!(map.mode, GameMode::Blackout | GameMode::FreeForAll))
+        {
             let weather = match map.weather {
                 weather::DAY => "day",
                 weather::RAIN => "rain",
@@ -953,7 +1023,7 @@ mod tests {
     #[test]
     fn a_mode_with_rules_other_than_the_world_check_reads_stops_the_data() {
         for mode in RuleMode::ALL {
-            assert!(mode.check_rules(&mode.rule_classes()).is_ok());
+            assert!(mode.check_rules(mode.rule_classes()).is_ok());
         }
         let wrong = RuleMode::TeamDeathmatch.check_rules(&[93, 91, 90, 94, 500]).unwrap_err();
         assert!(wrong.0.contains("[93, 91, 90, 94, 500]"), "{}", wrong.0);
@@ -968,15 +1038,19 @@ mod tests {
             assert_eq!(map.countdown_time, 20, "{}", map.id);
             assert_eq!(map.wait_player_percent, 0.8, "{}", map.id);
             assert_eq!(map.respawn_time, 8, "{}", map.id);
-            let (rule, icon) = match map.mode.rules() {
-                RuleMode::Batteries => (88, 0),
-                RuleMode::TimedBatteries => (89, 0),
-                _ => (90, 2),
+            let (rules, icon): (&[u16], u8) = match map.mode.rules() {
+                RuleMode::Batteries => (&[93, 91, 88, 94], 0),
+                RuleMode::TimedBatteries => (&[93, 91, 89, 94], 0),
+                RuleMode::TeamDeathmatch => (&[93, 91, 90, 94], 2),
+                RuleMode::FreeForAll => (&[93, 91, 94], 2),
+                RuleMode::Research => panic!("the test data has no Research"),
             };
-            assert_eq!(map.rules, [93, 91, rule, 94], "{}", map.id);
+            assert_eq!(map.rules, rules, "{}", map.id);
             assert_eq!(map.icon, icon, "{}", map.id);
             match map.mode {
-                GameMode::TeamDeathmatch => {
+                // A free-for-all's config is its Team Deathmatch's: the
+                // tickets stay, with no rule to count them.
+                GameMode::TeamDeathmatch | GameMode::FreeForAll => {
                     // 150 tickets on level_05 and level_08, else 100.
                     let tickets = if matches!(map.level, 5 | 8) { 150 } else { 100 };
                     assert_eq!(map.tickets_count, tickets, "{}", map.id);
@@ -1010,14 +1084,24 @@ mod tests {
         }
     }
 
+    /// The free-for-all points content edit ffa-1 adds to each level's Team
+    /// Deathmatch projects (`scripts/ffa-mode/checked.tsv`: 0.31a2's that
+    /// stand on 0.26g's ground).
+    const FFA_POINTS: [usize; 9] = [28, 25, 24, 30, 24, 25, 29, 23, 22];
+
     /// Every playable row of `table` of a level of 1 to 9 has what srp
-    /// had by hand.
-    fn as_before(table: &[MapMode]) {
+    /// had by hand; `free_for_all`: its Team Deathmatch projects have the
+    /// free-for-all's points too.
+    fn as_before(table: &[MapMode], free_for_all: bool) {
         for map in table.iter().filter(|map| map.is_playable()) {
             let level = usize::from(map.level);
             assert!((1..=9).contains(&level), "{}", map.id);
+            let added = if free_for_all { FFA_POINTS[level - 1] } else { 0 };
             let (points, teams) = match map.mode {
-                GameMode::TeamDeathmatch => (TDM_BEFORE[level - 1], None),
+                // A free-for-all plays on its Team Deathmatch project.
+                GameMode::TeamDeathmatch | GameMode::FreeForAll => {
+                    (TDM_BEFORE[level - 1] + added, None)
+                }
                 _ => (GATHER_BEFORE[level - 1], Some(teams_before(map.level))),
             };
             assert_eq!(map.respawn_points, points, "{} ({})", map.id, map.project);
@@ -1027,13 +1111,17 @@ mod tests {
 
     #[test]
     fn the_projects_give_what_srp_had_by_hand() {
-        // The test data: 0.26g's maps, levels 1 to 8, all 72, and Blackout's 24.
-        assert_eq!(playable().count(), 72 + 24);
-        as_before(all());
-        // Spot checks: level_04's Team Deathmatch has 75 points (39 of
-        // layer `tdm`), level_02's 31 (one of team 2).
-        assert_eq!(find(4, weather::RAIN, GameMode::TeamDeathmatch).unwrap().respawn_points, 75);
-        assert_eq!(find(2, weather::DAY, GameMode::TeamDeathmatch).unwrap().respawn_points, 31);
+        // The test data: 0.26g's maps, levels 1 to 8, all 72, Blackout's 24
+        // and the free-for-alls' 24.
+        assert_eq!(playable().count(), 72 + 24 + 24);
+        as_before(all(), true);
+        // Spot checks: level_04's Team Deathmatch has 75 points of its own
+        // (39 of layer `tdm`), level_02's 31 (one of team 2), and each the
+        // free-for-all's.
+        let level_04 = find(4, weather::RAIN, GameMode::TeamDeathmatch).unwrap();
+        assert_eq!((level_04.respawn_points, level_04.solo_respawn_points), (75 + 30, 30));
+        let level_02 = find(2, weather::DAY, GameMode::TeamDeathmatch).unwrap();
+        assert_eq!((level_02.respawn_points, level_02.solo_respawn_points), (31 + 25, 1 + 25));
         assert_eq!(
             find(7, weather::DAY, GameMode::TimedBatteries).unwrap().container_teams,
             Some([0, 1])
@@ -1090,7 +1178,7 @@ mod tests {
             assert!(!playable_in(game_mode).contains(&added.id));
             assert_eq!(playable_in(game_mode), ids(game_mode));
         }
-        assert_eq!(table.iter().filter(|map| map.is_playable()).count(), 73 + 24);
+        assert_eq!(table.iter().filter(|map| map.is_playable()).count(), 73 + 24 + 24);
     }
 
     #[test]
@@ -1226,6 +1314,70 @@ mod tests {
         data
     }
 
+    /// The free-for-alls' ids (content edit ffa-1) the test data has: levels
+    /// 1 to 8 in their three weathers (London's, 163, is a patch's).
+    fn ffa_ids() -> Vec<u8> {
+        (46..=60).chain(154..=162).collect()
+    }
+
+    /// Each of `table`'s `count` free-for-alls is playable on its level's
+    /// Team Deathmatch project, which holds its team-2 points, with the
+    /// owner's kill target and the most players.
+    fn free_for_alls_play_on_their_tdm_projects(table: &[MapMode], count: usize) {
+        let ffa: Vec<&MapMode> = table
+            .iter()
+            .filter(|map| map.mode == GameMode::FreeForAll)
+            .collect();
+        assert_eq!(ffa.len(), count);
+        for map in ffa {
+            assert_eq!(map.mode.rules().number(), 8);
+            assert_eq!(map.mode.lobby_number(), 8);
+            assert!(map.config.starts_with("ffa/"), "{}", map.config);
+            assert!(map.is_playable(), "{}", map.config);
+            let tdm = table
+                .iter()
+                .find(|other| {
+                    other.mode == GameMode::TeamDeathmatch
+                        && (other.level, other.weather) == (map.level, map.weather)
+                })
+                .unwrap();
+            assert_eq!(
+                map.config,
+                format!("ffa/{}8.options", tdm.config.strip_suffix("4.options").unwrap())
+            );
+            assert_eq!(map.project, tdm.project);
+            assert_eq!(map.respawn_points, tdm.respawn_points);
+            assert!(map.solo_respawn_points >= 20, "{} {}", map.config, map.solo_respawn_points);
+            assert_eq!((map.kills_to_win, map.match_time), (30, tdm.match_time));
+            assert_eq!(player_cap(map), Some(10));
+            assert_eq!(map.rules, &[93, 91, 94]);
+            assert_eq!(map.mode_name_key, "st_mode_08_name");
+        }
+    }
+
+    /// The test data's, made of content edit ffa-1 as the content patch
+    /// makes them (`game_data::test_archive`).
+    #[test]
+    fn the_free_for_alls_play_on_their_tdm_projects() {
+        free_for_alls_play_on_their_tdm_projects(all(), 24);
+    }
+
+    /// Built data with both FFA edit lists, including London and all five ports.
+    #[test]
+    #[ignore = "needs SRP_TEST_GAME_DATA from build-content with both FFA edit lists"]
+    fn the_released_free_for_alls_play_on_their_tdm_projects() {
+        let data = GameData::open(&env_path("SRP_TEST_GAME_DATA")).unwrap();
+        let maps = fixtures::table_of(&data).unwrap();
+        free_for_alls_play_on_their_tdm_projects(&maps, 30);
+        let ports: Vec<_> = maps.iter()
+            .filter(|m| m.mode == GameMode::FreeForAll && m.level >= 10)
+            .map(|m| (m.id, m.level, m.solo_respawn_points))
+            .collect();
+        assert_eq!(ports, [
+            (164, 10, 22), (165, 11, 22), (167, 12, 22), (168, 13, 22), (169, 14, 22)
+        ]);
+    }
+
     /// The live game data: 0.26g's archive (`SRP_TEST_RESOURCES_DB`) with
     /// skhid's patches (`SRP_TEST_SKHID_PATCHES`, by spaces: patch 12 and
     /// patch 14, London) over it. The maps of 0.26g, levels 1 to 8, have
@@ -1260,7 +1412,7 @@ mod tests {
         for map in table.iter().filter(|map| stock.contains(&map.id)) {
             assert_eq!(Some(map), map_mode(map.id), "{}", map.id);
         }
-        as_before(&table);
+        as_before(&table, false);
         let london: Vec<&&MapMode> = played.iter().filter(|map| map.level == 9).collect();
         assert_eq!(london.len(), 3);
         for map in london {

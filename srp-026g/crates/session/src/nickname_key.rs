@@ -46,6 +46,23 @@ pub(crate) fn sqlite_collation(connection: &rusqlite::Connection) -> rusqlite::R
     connection.create_collation("skhid_nickname", |a, b| key(a).cmp(&key(b)))
 }
 
+/// The name account `id` gets when `name` is another account's, at sign-up
+/// and in a database from before nicknames were unique alike: `<name>_<id>`,
+/// cut to the client's buffer, with a counter after it while `taken` says
+/// that is another account's name or login.
+pub(crate) fn replacement(name: &str, id: u32, taken: impl Fn(&str) -> bool) -> String {
+    (0u32..)
+        .map(|attempt| {
+            let suffix = match attempt {
+                0 => format!("_{id}"),
+                _ => format!("_{id}_{attempt}"),
+            };
+            format!("{}{suffix}", cut(name, limits::NAME - suffix.len()))
+        })
+        .find(|to| !taken(to))
+        .expect("a counter no account's name ends with")
+}
+
 /// An account's names in a database from before nicknames were unique.
 pub(crate) struct Named {
     pub id: u32,
@@ -67,8 +84,7 @@ pub(crate) struct Rename {
 /// order of their ids. A shared name stays with the account that plays: the
 /// most experience, the lowest id among equals (the owner, 2026-11-12, of two
 /// accounts named alike: the one in use keeps the name). Each other account
-/// becomes `<name>_<id>`, cut to the client's buffer, with a counter after it
-/// while that is another account's name or login.
+/// gets its [`replacement`].
 pub(crate) fn renames(accounts: &[Named]) -> Vec<Rename> {
     let mut taken: HashSet<NicknameKey> = accounts
         .iter()
@@ -90,17 +106,7 @@ pub(crate) fn renames(accounts: &[Named]) -> Vec<Rename> {
         if keepers[&key(&account.name)].id == account.id {
             continue;
         }
-        let to = (0u32..)
-            .map(|attempt| {
-                let suffix = match attempt {
-                    0 => format!("_{}", account.id),
-                    _ => format!("_{}_{attempt}", account.id),
-                };
-                let name = cut(&account.name, limits::NAME - suffix.len());
-                format!("{name}{suffix}")
-            })
-            .find(|to| !taken.contains(&key(to)))
-            .expect("a counter no account's name ends with");
+        let to = replacement(&account.name, account.id, |to| taken.contains(&key(to)));
         taken.insert(key(&to));
         renames.push(Rename {
             id: account.id,

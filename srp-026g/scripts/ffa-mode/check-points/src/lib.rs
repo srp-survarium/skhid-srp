@@ -1,0 +1,142 @@
+//! Collision and standing-body checks shared by imported and authored FFA spawns.
+
+use mapdata::{Body, MapData, Materials, RayTree, Resources, Vec3, WalkGrid};
+
+/// The ground ray starts this far above the point.
+const ABOVE: f32 = 1.5;
+/// And looks this far below it.
+const BELOW: f32 = 0.5;
+/// A point this near its ground stays as it is.
+const ON_GROUND: f32 = 0.05;
+/// The standing body (`gameplay/players/default.player`, mapdata's
+/// [`Body`]).
+const RADIUS: f32 = 0.38;
+const HEIGHT: f32 = 1.8;
+/// Heights above the ground of the rings of rays.
+const RINGS: [f32; 4] = [0.65, 1.0, 1.42, 1.65];
+const DIRECTIONS: usize = 16;
+/// How far from the point (on the ground plane) and from its ground (in
+/// height) a floor of the walk grid may be.
+const FLOOR_REACH: f32 = 0.6;
+const FLOOR_HEIGHT: f32 = 0.35;
+
+/// What the check makes of a point.
+pub enum Verdict {
+    /// On its ground: the donor's position as it is.
+    Kept,
+    /// Moved by `ground - y` onto its ground.
+    Nudged {
+        ground: f32,
+    },
+    Dropped(String),
+}
+
+/// A 0.26g project's collision: rays on the walker mesh and its walk grid.
+pub struct Map {
+    pub rays: RayTree,
+    pub grid: WalkGrid,
+    pub data: MapData,
+}
+
+impl Map {
+    pub fn load(
+        resources: &mut Resources,
+        materials: &Materials,
+        project: &str,
+    ) -> Result<Self, String> {
+        let map = MapData::load(resources, materials, project).map_err(|e| e.to_string())?;
+        let walker = map.walker_triangles();
+        let grid = WalkGrid::build_kept(
+            &walker,
+            map.play_area(mapdata::AREA_MARGIN),
+            mapdata::CELL,
+            Body::default(),
+            &map.grid_seeds(),
+        );
+        Ok(Self {
+            rays: RayTree::build(&walker),
+            grid,
+            data: map,
+        })
+    }
+
+    pub fn check(&self, point: Vec3) -> Verdict {
+        let top = point + Vec3::new(0.0, ABOVE, 0.0);
+        let down = Vec3::new(0.0, -1.0, 0.0);
+        let Some(t) = self.rays.ray_cast(top, down, ABOVE + BELOW) else {
+            return Verdict::Dropped(match self.rays.ray_cast(point, down, 50.0) {
+                Some(depth) => format!("the ground is {depth:.2} m below"),
+                None => "no ground below".to_owned(),
+            });
+        };
+        let ground = top.y - t;
+        let rise = ground - point.y;
+        if rise > BELOW {
+            return Verdict::Dropped(format!("collision {rise:.2} m above the point"));
+        }
+        let feet = Vec3::new(point.x, ground, point.z);
+        if let Some(why) = self.blocked(feet) {
+            return Verdict::Dropped(why);
+        }
+        if !self.on_floor(feet) {
+            return Verdict::Dropped(format!(
+                "no floor reached from the map's spawns within {FLOOR_REACH} m"
+            ));
+        }
+        if rise.abs() <= ON_GROUND {
+            Verdict::Kept
+        } else {
+            Verdict::Nudged { ground }
+        }
+    }
+
+    /// What a standing body at `feet` meets, if anything.
+    fn blocked(&self, feet: Vec3) -> Option<String> {
+        let up = Vec3::new(0.0, 1.0, 0.0);
+        let base = feet + Vec3::new(0.0, 0.02, 0.0);
+        if let Some(t) = self.rays.ray_cast(base, up, HEIGHT - 0.02) {
+            return Some(format!("collision {:.2} m over the ground", t + 0.02));
+        }
+        for height in RINGS {
+            let reach = ring_radius(height);
+            let centre = feet + Vec3::new(0.0, height, 0.0);
+            for k in 0..DIRECTIONS {
+                let angle = k as f32 * std::f32::consts::TAU / DIRECTIONS as f32;
+                let dir = Vec3::new(angle.cos(), 0.0, angle.sin());
+                if let Some(t) = self.rays.ray_cast(centre, dir, reach) {
+                    return Some(format!(
+                        "collision {t:.2} m from the body's axis at {height} m"
+                    ));
+                }
+            }
+        }
+        None
+    }
+
+    /// Whether a kept floor of the walk grid, where a body stands, is near.
+    fn on_floor(&self, feet: Vec3) -> bool {
+        let area = [
+            feet.x - FLOOR_REACH,
+            feet.z - FLOOR_REACH,
+            feet.x + FLOOR_REACH,
+            feet.z + FLOOR_REACH,
+        ];
+        self.grid.floors_in(area).any(|node| {
+            let at = self.grid.position(node);
+            at.distance_xz(feet) <= FLOOR_REACH
+                && (at.y - feet.y).abs() <= FLOOR_HEIGHT
+                && self.grid.can_stand(node)
+        })
+    }
+}
+
+/// The body's half width at `height` above its feet (the capsule's top
+/// narrows).
+fn ring_radius(height: f32) -> f32 {
+    let over = height - (HEIGHT - RADIUS);
+    if over <= 0.0 {
+        RADIUS
+    } else {
+        (RADIUS * RADIUS - over * over).max(0.0).sqrt()
+    }
+}

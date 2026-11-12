@@ -3464,3 +3464,12 @@ va	status	ref_021d	name
 0x0026d630	inferred-medium		survarium::base_local_network_client::follow_nobody
 0x00111c90	inferred-high		vostok::logging::helper::helper
 0x00111d10	inferred-high		vostok::logging::helper::write
+0x002f43a0	inferred-medium	0x0020becb	survarium::players_checker::tick
+0x002f4800	inferred-medium		survarium::respawn_point_core::is_clear_for_team
+0x002f48d0	inferred-medium		survarium::respawn_point_core::is_clear_for_team_counting
+0x00316ec0	inferred-medium		survarium::player_respawn_rule_core::player_respawn_rule_core
+0x00317360	inferred-medium		survarium::player_respawn_rule_base::select_team_2_respawn_points
+0x003174c0	inferred-medium		vostok::buffer_vector<survarium::respawn_point_core *>::push_back
+0x002f4580	inferred-medium		survarium::respawn_point_core::load
+0x00267b10	inferred-high		survarium::timelimit_rule::fill_match_hud_state
+0x00233680	inferred-medium		survarium::match_hud_state::match_hud_state
