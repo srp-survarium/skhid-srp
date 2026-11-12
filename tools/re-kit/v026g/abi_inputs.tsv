@@ -6324,3 +6324,7 @@ va	name	location	role	basis
 0x00072a50	btMatrix3x3::setRotation	ECX	the quaternion	observed
 0x00072eb0	btTransformUtil::calculateVelocity	ESI	the angular velocity out	observed
 0x00072eb0	btTransformUtil::calculateVelocity	EDX	the linear velocity out	observed
+0x00084420	vostok::physics::character_step_down_sweep_test_callback::addSingleResult	ECX	the callback	observed
+0x00084420	vostok::physics::character_step_down_sweep_test_callback::addSingleResult	entry ESP+4	the LocalConvexResult: +0 the object, +4 the shape info or null, +10h the normal, +20h the point, +30h the fraction	observed
+0x00084810	vostok::physics::character_step_down_sweep_test_callback::get_normal_via_ray_test	EAX	the callback	observed
+0x00084190	vostok::physics::character_step_down_sweep_test_callback::hit_shape_rotation	EDI	the quaternion out	observed

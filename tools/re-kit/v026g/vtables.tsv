@@ -140,3 +140,4 @@ vtable	slot	va	class	base	basis
 0x009e4e80	0x04	0x000b9320	btContinuousConvexCollision	btConvexCast	observed: made on the stack at 0xA15B9 (primitives) and 0xB8749 (triangles); calcTimeOfImpact
 0x009e3b9c	0x04	0x0007b730	vostok::physics::bullet_character_controller	btActionInterface	observed: the controller's first vtable (+0); updateActions calls it at 0x9B846 (13,698 of 13,698 traced steps return to 0x9B848)
 0x009e45e4	0x2c	0x0009b260	btSoftRigidDynamicsWorld	btDynamicsWorld	observed: the vtable of a running game's dynamics world (bullet_physics_world +3Ch); stepSimulation, called twice by bullet_physics_world::tick (0x7562A, 0x7565A)
+0x009e4b9c	0x54	0x000a9bc0	btCylinderShape	btCylinderShape	observed: getRadius, the vcall of the down sweep's second look 0x8484E

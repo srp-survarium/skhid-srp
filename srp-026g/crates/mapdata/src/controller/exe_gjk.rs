@@ -172,9 +172,24 @@ pub enum WorldShape {
     /// Type 13 (`CYLINDER_SHAPE_PROXYTYPE`), case 0x8D816: as [`CastShape::Cylinder`] (the implicit dimensions on
     /// the radial axis and on `up`, the up axis +40h; neither the margin nor the scaling is read).
     Cylinder { radius: f32, half_height: f32, up: Axis },
+    /// Type 10 (`CAPSULE_SHAPE_PROXYTYPE`), case 0x8D9BB: as [`CastShape::Capsule`] (0x8D680 serves both shapes of
+    /// a pair, so a capsule standing in the world is read as the controller's own is). No recorded call has one
+    /// as shape B (the maps have few), so this case is the cast shape's, proven there.
+    Capsule { radius: f32, half_height: f32, scaling: Vec3, margin: f32, up: Axis },
 }
 
 impl WorldShape {
+    /// A capsule from its fields as the executable keeps them, as [`CastShape::capsule`].
+    pub fn capsule(implicit_dimensions: Vec3, scaling: Vec3, margin: f32, up: Axis) -> WorldShape {
+        WorldShape::Capsule {
+            radius: implicit_dimensions[(up.index() + 2) % 3],
+            half_height: implicit_dimensions[up.index()],
+            scaling,
+            margin,
+            up,
+        }
+    }
+
     /// A cylinder from its implicit dimensions (+20h) and up axis (+40h), as [`CastShape::cylinder`].
     pub fn cylinder(implicit_dimensions: Vec3, up: Axis) -> WorldShape {
         let axes = CylinderAxes::of(up);
@@ -1065,6 +1080,9 @@ pub fn support_world_shape(shape: &WorldShape, dir: Vec3) -> Vec3 {
         // Case 0x8D6A8: zero.
         WorldShape::Sphere => ORIGIN,
         WorldShape::Cylinder { radius, half_height, up } => support_cylinder(radius, half_height, up, dir),
+        WorldShape::Capsule { radius, half_height, scaling, margin, up } => {
+            support_capsule(radius, half_height, scaling, margin, up, dir)
+        }
     }
 }
 
