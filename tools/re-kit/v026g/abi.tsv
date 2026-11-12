@@ -195,7 +195,7 @@ va	name	source	ret_cleanup	result
 0x000eb590	vostok::memory::mt_allocator::call_realloc	manual	24	EAX: the block, or 0
 0x000eb5b0	vostok::memory::mt_allocator::call_free	manual	16	
 0x0007ac10	vostok::network_core::buffer_writer::w	manual	8	
-0x0007ef90	vostok::physics::bullet_character_controller::on_ground	manual	0	EAX low byte: 1 when |velocity.up| < 4.0 (0xA7AB10) and the last hit normal.up >= the walkable-slope dot (0x21E51D8); 0 if +0x203 is set
+0x0007ef90	vostok::physics::bullet_character_controller::on_ground	manual	0	EAX low byte: 1 when |velocity.up| < 4.0 (0xA7AB10) and the last hit normal.up >= the walkable-slope dot (0x21E51D8); 0 if +0x203 is set; first of all 0 when the capsule's crouch flag +203h is set (0x7EF91): three tests, the jump's gate 0x2FC285 its caller
 0x0007f050	vostok::physics::bullet_character_controller::end_jump	manual	0	clears the jump flag +0x2C70C; velocity +0x2C770 := up x min(velocity.up, 0)
 0x0007fe40	vostok::physics::bullet_character_controller::set_landing_callback	manual	4	stores the delegate at +0x2C748 and the minimum speed at +0x2C740
 0x000803d0	vostok::physics::bullet_character_controller::call_landing_callback	manual	4	calls the stored delegate with the speed

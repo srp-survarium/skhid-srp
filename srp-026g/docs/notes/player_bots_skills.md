@@ -120,7 +120,10 @@ or weapon level of the kit:
 its kits (`bot_skills::gear_level`, the same measure). Each row is the
 band's skills in the order of their mean points, each taken to five.
 Every row keeps the carry path at five: a row-1 skill at five, then 209
-at five, which gives 40 kg. The owner asked for it ("level up max
+at five, which gives 40 kg (the sets are literals of the tree as it was to patch 49: under the tree of patch 54
+the server clamps 102, 201, 204 to three ranks, 302 to two and 312 to three, `SkillsTree::modifiers`, and 209,
+109, 312 and 311 are then held without the points their rows ask: no value is past the tree's maximum, but the
+set is not one the skills window allows). The owner asked for it ("level up max
 equipment mass for them"), and the 11–15 players all have it.
 
 The carry path costs ten points that most players below gear 11 do not
