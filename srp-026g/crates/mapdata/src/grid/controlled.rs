@@ -510,6 +510,18 @@ impl WalkGrid {
         true
     }
 
+    /// [A366] The walkable top of the client's walker (the map's walker triangles) under `at` (flat) from `from_y` down to `reach`
+    /// below it: a ray straight down, the first face met whose normal stands within the body's walkable slope
+    /// ([`Body::min_ground_normal_y`]). None without [`Self::with_client_walker`] or with no such face: the grid's floors are all
+    /// there is to read then.
+    pub fn walker_ground_below(&self, at: Vec3, from_y: f32, reach: f32) -> Option<f32> {
+        let world = self.walker.as_deref()?;
+        let a = Vec3::new(at.x, from_y, at.z);
+        let b = Vec3::new(at.x, from_y - reach, at.z);
+        let (share, normal) = world.ray(a, b)?;
+        (normal.y >= self.body.min_ground_normal_y).then_some(from_y - share * reach)
+    }
+
     /// The controller pass ([`Body::client_controller`], module documentation).
     /// The bridges are made here; the walk links that fail their check are returned (a floor, a direction and the share the body
     /// got), for the build to take away with `cut_keeping_reach`.
