@@ -16,9 +16,13 @@
 //!   releases until one of them changes; its files of a whole DDS go back
 //!   into the list (CRC 0: the first load takes the CRC of what it reads,
 //!   `on_check_crc`), at most SEED_BYTES of them and what the list has room
-//!   for less SEED_ROOM, the rest deleted. Another format, other game data, or no stamp: the stock
-//!   delete, then the stamp (game::exit's delete is a byte write:
-//!   patch_026g.py BAKE_CACHE_KEEP);
+//!   for less SEED_ROOM, the rest deleted. A stamp of an earlier release
+//!   (the fingerprint of the patches up to one of them) keeps the folder
+//!   too when the patches since replace nothing a bake reads but models'
+//!   files: the bakes of those models are deleted, by their names, and the
+//!   folder is stamped again (`replaced_since`). Another format, other
+//!   game data, or no stamp: the stock delete, then the stamp (game::exit's
+//!   delete is a byte write: patch_026g.py BAKE_CACHE_KEEP);
 //! - a texture whose bake or load is under way (its owner, the first query
 //!   of its path) is not baked or loaded again: a later query of the path
 //!   waits, and gets the owner's texture when it is made (`on_baked`,
@@ -45,7 +49,7 @@
 #![forbid(unsafe_code)]
 
 mod inputs;
-use inputs::Patch;
+use inputs::{Models, Patch, Replaced, Stamped};
 
 use core::sync::atomic::{AtomicU32, Ordering};
 
@@ -54,7 +58,7 @@ use crate::vostok::baker::{CheckCrc, Finish, Folder, Held, List, Lookup, Made, Q
 use crate::vostok::crc32::{self as crc_step, CrcCall};
 use crate::vostok::files::{self, File, Find, FindData, Path};
 use crate::vostok::log::{self, Piece::Dec, Piece::Text};
-use crate::vostok::memory_profile;
+use crate::vostok::memory_profile::{self, Room};
 use crate::vostok::{BakeCacheOnCrcStepExit, BakeCacheOnFinishExit, BakeCacheOnGameStartExit, BakeCacheOnLookupExit,
                     BakeCacheOnTrimExit, Context, Flow, Lock, NoExit, Thread};
 
@@ -70,6 +74,7 @@ const DDS_FILES: &[u8] = b"*.dds";
 const GAME_DATA: &[u8] = b"..\\..\\";
 const PATCHES: &[u8] = b"resources.db.patch_*";
 const PATCH_NAME: &[u8] = b"resources.db.patch_";
+const RESOURCES: &[u8] = b"resources.db";
 
 /// What a bake makes of the same game data, as the bake code makes it. A
 /// change of that code that makes other bytes bumps it, which deletes every
@@ -271,9 +276,14 @@ fn seed(name: &[u8], size: u32) -> bool {
 struct GameData([Patch; 256]);
 
 impl GameData {
+    /// Each patch's number and what it gives, in their order.
+    fn patches(&self) -> impl Iterator<Item = (u8, Patch)> + '_ {
+        (1..=255u8).map(|n| (n, self.0[usize::from(n)]))
+    }
+
     /// The fingerprint of the patches.
     fn inputs(&self) -> u64 {
-        inputs::fingerprint((1..=255u8).map(|n| (n, self.0[usize::from(n)])))
+        inputs::fingerprint(self.patches())
     }
 }
 
@@ -285,36 +295,71 @@ fn patch_number(name: &[u8]) -> Option<u8> {
     u8::try_from(n).ok().filter(|&n| n != 0)
 }
 
-/// What the patch `n` gives: its file table read whole (pages of our own,
-/// given back after).
-fn read_patch(thread: &Thread, n: u8) -> Patch {
+/// The file table of the patch `n`, or of resources.db (none), read whole
+/// into pages of our own (given back when dropped); none when it cannot be
+/// read.
+fn read_table(thread: &Thread, n: Option<u8>) -> Option<Room<u8>> {
     let mut name = [0u8; 48];
-    let at = GAME_DATA.len() + PATCH_NAME.len();
-    name[..GAME_DATA.len()].copy_from_slice(GAME_DATA);
-    name[GAME_DATA.len()..at].copy_from_slice(PATCH_NAME);
-    decimal(&mut name[at..], u32::from(n));
-    let Some(mut file) = File::open(path(&name)) else { return Patch::Unreadable };
+    match n {
+        Some(n) => {
+            let at = GAME_DATA.len() + PATCH_NAME.len();
+            name[..GAME_DATA.len()].copy_from_slice(GAME_DATA);
+            name[GAME_DATA.len()..at].copy_from_slice(PATCH_NAME);
+            decimal(&mut name[at..], u32::from(n));
+        }
+        None => {
+            join(&mut name, GAME_DATA, RESOURCES);
+        }
+    }
+    let mut file = File::open(path(&name))?;
     let mut header = [0u8; inputs::HEADER];
-    let size = (file.read(&mut header) == Some(inputs::HEADER as u32)).then(|| inputs::table_size(&header)).flatten();
-    let Some(mut table) = size.and_then(|size| memory_profile::reserve::<u8>(thread, size as usize)) else {
-        return Patch::Unreadable;
-    };
+    let size = (file.read(&mut header) == Some(inputs::HEADER as u32)).then(|| inputs::table_size(&header)).flatten()?;
+    let mut table = memory_profile::reserve::<u8>(thread, size as usize)?;
     let bytes = table.items();
     let mut got = 0;
     while got < bytes.len() {
         match file.read(&mut bytes[got..]) {
             Some(more) if more > 0 => got += more as usize,
-            _ => return Patch::Unreadable,
+            _ => return None,
         }
     }
-    inputs::patch(bytes)
+    Some(table)
+}
+
+/// What the patch `n` gives: of its file table.
+fn read_patch(thread: &Thread, n: u8) -> Patch {
+    read_table(thread, Some(n)).map_or(Patch::Unreadable, |mut table| inputs::patch(table.items()))
+}
+
+/// The models whose bakes the patches past `last` made stale, into
+/// `models`: each such patch against resources.db and each patch under it
+/// that has files a bake reads (`inputs::replaced`). False when any bake
+/// may be stale: such a patch replaces something else a bake reads, or it
+/// or a table under it is not followed or cannot be read.
+fn replaced_since(thread: &Thread, data: &GameData, last: u8, models: &mut Models) -> bool {
+    for (n, patch) in data.patches().filter(|&(n, _)| n > last) {
+        match patch {
+            Patch::Nothing => continue,
+            Patch::Files(_) => {}
+            Patch::Whole(_) | Patch::Unreadable => return false,
+        }
+        let Some(mut new) = read_table(thread, Some(n)) else { return false };
+        let lower = data.patches().filter(|&(lower, gives)| lower < n && gives != Patch::Nothing);
+        for under in core::iter::once(None).chain(lower.map(|(lower, _)| Some(lower))) {
+            let Some(mut under) = read_table(thread, under) else { return false };
+            if inputs::replaced(new.items(), under.items(), models) == Replaced::Bakes {
+                return false;
+            }
+        }
+    }
+    true
 }
 
 /// The game data's patches, each read; none when resources.db is not where
 /// the game mounts it from (the walk would see no patch: nothing is known).
 fn game_data(thread: &Thread) -> Option<GameData> {
     let (mut at, mut found) = ([0u8; 64], FindData::new());
-    join(&mut at, GAME_DATA, b"resources.db");
+    join(&mut at, GAME_DATA, RESOURCES);
     drop(Find::first(path(&at), &mut found)?);
     let mut data = GameData([Patch::Nothing; 256]);
     join(&mut at, GAME_DATA, PATCHES);
@@ -356,19 +401,25 @@ static TRIMMED: log::Limited = log::Limited::new("trims");
 enum Keep {
     /// Its stamp is this game's: its textures go back into the list.
     Kept,
+    /// Its stamp is this format's, of the game data up to the patch `last`
+    /// (an earlier release's): kept but for what the patches past it
+    /// replaced (`replaced_since`), then stamped of `inputs`.
+    Behind { last: u8, inputs: u64 },
     /// Another format, other game data, or no stamp: the stock delete, then
     /// stamped of `inputs`; not stamped when the game data is not known.
     Deleted { inputs: Option<u64> },
 }
 
 /// Whether the bakes the stamp says are what this game bakes: the same
-/// format, of the same game data.
+/// format, of the same game data or of its patches up to an earlier one.
 fn decide(found: Option<Stamp>, data: Option<&GameData>) -> Keep {
     let Some(data) = data else { return Keep::Deleted { inputs: None } };
     let now = data.inputs();
-    match found {
-        Some(Stamp { format, inputs }) if format == BAKE_FORMAT && inputs == now => Keep::Kept,
-        _ => Keep::Deleted { inputs: Some(now) },
+    let stamped = found.filter(|stamp| stamp.format == BAKE_FORMAT).map(|stamp| inputs::stamped(data.patches(), stamp.inputs));
+    match stamped {
+        Some(Stamped::Current) => Keep::Kept,
+        Some(Stamped::Behind { last }) => Keep::Behind { last, inputs: now },
+        Some(Stamped::Other) | None => Keep::Deleted { inputs: Some(now) },
     }
 }
 
@@ -384,38 +435,65 @@ fn read_stamp(folder_path: Option<&[u8]>) -> Option<Stamp> {
     Stamp::parse(&found[..got as usize])
 }
 
+/// The stale files of a kept folder: how many were deleted, and whether
+/// one stayed (held open by another game).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Stale {
+    deleted: u32,
+    left: bool,
+}
+
 /// A kept folder's textures back into the list: each whole DDS, at most
 /// SEED_BYTES of them and the list's room less SEED_ROOM; the rest deleted.
-fn seed_folder(folder_path: Option<&[u8]>) {
+/// A bake of one of the `stale` models is deleted and not listed.
+fn seed_folder(folder_path: Option<&[u8]>, stale: &Models) -> Stale {
     let seed_files = List::held().map_or(0, |held| held.room.saturating_sub(SEED_ROOM));
     let (mut at, mut data) = ([0u8; PATH], FindData::new());
+    let mut gone = Stale { deleted: 0, left: false };
     let base = folder(&mut at[..FOLDER], folder_path);
     if base == 0 {
-        return;
+        return gone;
     }
     let (mut files, mut bytes) = (0u32, 0u32);
     join(&mut at[base..], DDS_FILES, b"");
-    let Some(mut find) = Find::first(path(&at), &mut data) else { return };
+    let Some(mut find) = Find::first(path(&at), &mut data) else { return gone };
     loop {
         if !data.is_folder() && join(&mut at[base..], data.name(), b"") {
             let file = path(&at);
-            let kept = data.size().filter(|&size| {
-                whole(file, size) && files < seed_files && size <= SEED_BYTES.wrapping_sub(bytes)
-                    && seed(data.name(), size)
-            });
-            match kept {
-                Some(size) => {
-                    files += 1;
-                    bytes = bytes.wrapping_add(size);
+            if stale.bake_of(data.name()) {
+                match files::delete(file) {
+                    true => gone.deleted += 1,
+                    false => gone.left = true,
                 }
-                None => {
-                    files::delete(file);
+            } else {
+                let kept = data.size().filter(|&size| {
+                    whole(file, size) && files < seed_files && size <= SEED_BYTES.wrapping_sub(bytes)
+                        && seed(data.name(), size)
+                });
+                match kept {
+                    Some(size) => {
+                        files += 1;
+                        bytes = bytes.wrapping_add(size);
+                    }
+                    None => {
+                        files::delete(file);
+                    }
                 }
             }
         }
         if !find.next(&mut data) {
             break;
         }
+    }
+    gone
+}
+
+/// A kept folder stamped again: this format's, of `inputs`.
+fn stamp_kept(folder_path: Option<&[u8]>, inputs: u64) {
+    let mut at = [0u8; PATH];
+    let base = folder(&mut at[..FOLDER], folder_path);
+    if base != 0 {
+        write_stamp(&mut at, base, inputs);
     }
 }
 
@@ -697,23 +775,46 @@ pub fn on_game_start(ctx: &mut Context<'_>) -> Flow<BakeCacheOnGameStartExit> {
         self::folder(&mut t.folder, folder.path());
     });
     let data = game_data(ctx.thread());
-    let keep = decide(read_stamp(folder.path()), data.as_ref());
-    match keep {
-        Keep::Kept => seed_folder(folder.path()),
+    let mut models = Models::new();
+    let since = match (decide(read_stamp(folder.path()), data.as_ref()), data.as_ref()) {
+        // the patches past the stamp's replace something any bake may have read
+        (Keep::Behind { last, inputs }, Some(data)) if !replaced_since(ctx.thread(), data, last, &mut models) => {
+            Keep::Deleted { inputs: Some(inputs) }
+        }
+        (keep, _) => keep,
+    };
+    let stale = match since {
+        Keep::Kept => seed_folder(folder.path(), &models),
+        Keep::Behind { inputs, .. } => {
+            let stale = seed_folder(folder.path(), &models);
+            // a stale file that stayed: the stamp too, and the next start lets it go
+            if !stale.left {
+                stamp_kept(folder.path(), inputs);
+            }
+            stale
+        }
         Keep::Deleted { inputs } => {
             folder.delete();
             stamp(folder.path(), inputs);
+            Stale { deleted: 0, left: false }
         }
-    }
-    let what = match keep {
-        Keep::Kept => "kept: ",
-        Keep::Deleted { .. } => "deleted (another format, other game data or no stamp): ",
     };
     let (mut text, inputs) = ([0u8; STAMP], data.map(|data| data.inputs()));
     let n = inputs.map_or(0, |inputs| made_text(&mut text, BAKE_FORMAT, inputs) - 2);
     let made = core::str::from_utf8(&text[..n]).unwrap_or("");
-    log::line(&[Text("bake_cache: the baked textures "), Text(what),
-                Text(if inputs.is_some() { made } else { "the game data not found, not stamped" })]);
+    let made = if inputs.is_some() { made } else { "the game data not found, not stamped" };
+    let textures = Text("bake_cache: the baked textures ");
+    match since {
+        Keep::Kept => log::line(&[textures, Text("kept: "), Text(made)]),
+        Keep::Behind { last, .. } => {
+            log::line(&[textures, Text("kept but "), Dec(stale.deleted), Text(" of "), Dec(models.count() as u32),
+                        Text(" models the patches past "), Dec(u32::from(last)), Text(" replaced"),
+                        Text(if stale.left { " (one stayed: not stamped): " } else { ": " }), Text(made)]);
+        }
+        Keep::Deleted { .. } => {
+            log::line(&[textures, Text("deleted (another format, other game data or no stamp): "), Text(made)]);
+        }
+    }
     Flow::Exit(BakeCacheOnGameStartExit::Kept)
 }
 
@@ -895,6 +996,18 @@ mod tests {
         assert_eq!(decide(made(BAKE_FORMAT, now ^ 1), Some(&data)), deleted);
         assert_eq!(decide(None, Some(&data)), deleted);
         assert_eq!(decide(made(BAKE_FORMAT, now), None), Keep::Deleted { inputs: None }, "the game data not known");
+        // a release since: the stamp is of the patches up to 54, or up to 40
+        let earlier = now;
+        data.0[56] = Patch::Files(3);
+        let now = data.inputs();
+        assert_eq!(decide(made(BAKE_FORMAT, earlier), Some(&data)), Keep::Behind { last: 54, inputs: now });
+        assert_eq!(decide(made(BAKE_FORMAT + 1, earlier), Some(&data)), Keep::Deleted { inputs: Some(now) });
+        data.0[54] = Patch::Nothing;
+        data.0[56] = Patch::Nothing;
+        let first = data.inputs();
+        data.0[54] = Patch::Files(2);
+        data.0[56] = Patch::Files(3);
+        assert_eq!(decide(made(BAKE_FORMAT, first), Some(&data)), Keep::Behind { last: 40, inputs: now });
     }
 
     /// The code that decides the bytes a bake makes: patch 121's bake, the

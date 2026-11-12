@@ -3700,7 +3700,14 @@ and `.toml`, over `vostok::baker`, `::files` and `::crc32`; seven lohooks):
   (`BAKE_FORMAT`) or other game data: a fingerprint of the files of `resources.db`'s patches that a
   bake reads (models, material instances, textures, shaders, camouflage and decal items), from each
   patch's file table (`bake_cache/inputs.rs`); then it is made again and stamped. So a release keeps
-  it unless its patch has such a file. The format is 2 since 2026-11-11 (a weapon's bake without the
+  it unless its patch has such a file. Since 2026-11-12 such a release deletes only what it made
+  stale: a stamp that is the fingerprint of the patches up to an earlier one says which came since,
+  and each of those is asked against `resources.db`'s table and the patches' under it (`replaced`).
+  Files the game data did not have delete nothing; a file of a model it has deletes that model's
+  bakes (a baked file's name holds its model's name) and the rest are kept; anything else it has (a
+  texture, a material, a shader, a camouflage or decal item) deletes the folder as before. Of the
+  17 patches of 24 to 56 that changed the fingerprint, 2 delete the folder now, 7 some models'
+  bakes and 8 nothing (`baked-textures.md`). The format is 2 since 2026-11-11 (a weapon's bake without the
   camouflage's weave); revision 54's stamp, before formats, was format 1's and is no stamp now. Otherwise each
   whole DDS in it (DXT1 or DXT5, the file as long as
   its header says) goes back into the baker's list with CRC 0, at most 3 GiB less 128 MiB of them and

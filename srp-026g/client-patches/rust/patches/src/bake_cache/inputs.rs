@@ -19,6 +19,15 @@
 //! a patch whose table cannot be read: its number alone. Either changes the
 //! fingerprint whenever such a patch comes, which deletes the folder: a
 //! fingerprint that is wrong only ever deletes too often.
+//!
+//! A changed fingerprint does not delete the whole folder when it is that
+//! of an earlier release ([`stamped`]: the fingerprint of the first of the
+//! patches there are now) and the patches since replace nothing but models'
+//! files ([`replaced`]): a file the game data did not have is new, and no
+//! kept bake read it; a model's file makes that model's bakes stale, whose
+//! names hold the model's ([`Models`]). Of the 17 patches of 24 to 56 that
+//! changed the fingerprint, 6 only added files, 9 replaced models' files
+//! (two of them textures or materials too: those delete the folder).
 
 /// The folders of the game data a bake reads (`resources/` stripped).
 pub const FOLDERS: [&[u8]; 5] = [b"textures", b"models", b"material_instances", b"shaders", b"gameplay/items/upgrades"];
@@ -67,20 +76,57 @@ impl Fnv {
     }
 }
 
+/// The fingerprint `hash` with the patch `n` after it; none for a patch
+/// that gives nothing.
+fn fold(hash: Fnv, n: u8, patch: Patch) -> Option<Fnv> {
+    let (tag, value) = match patch {
+        Patch::Nothing => return None,
+        Patch::Files(value) => (1, value),
+        Patch::Whole(value) => (2, value),
+        Patch::Unreadable => (3, 0),
+    };
+    Some(hash.word(u32::from(n)).word(tag).word(value as u32).word((value >> 32) as u32))
+}
+
 /// The fingerprint of the patches `(n, what it gives)`, in their order:
 /// each patch that gives something, its number and that.
 pub fn fingerprint(patches: impl Iterator<Item = (u8, Patch)>) -> u64 {
+    patches.fold(Fnv::new(), |hash, (n, patch)| fold(hash, n, patch).unwrap_or(hash)).get()
+}
+
+/// What a folder's stamp is the fingerprint of, among the patches there
+/// are now.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Stamped {
+    /// Of all of them: no patch a bake reads came since.
+    Current,
+    /// Of the patches up to `last` (0: of none): the ones past it that give
+    /// something came since. Patches are released in their numbers' order
+    /// and never changed, so a fingerprint of the first of them is that of
+    /// an earlier release.
+    Behind { last: u8 },
+    /// Of other game data.
+    Other,
+}
+
+/// What `stamp` is the fingerprint of, among the patches `(n, what it
+/// gives)` in their order.
+pub fn stamped(patches: impl Iterator<Item = (u8, Patch)>, stamp: u64) -> Stamped {
     let mut hash = Fnv::new();
+    let mut last = (hash.get() == stamp).then_some(0);
     for (n, patch) in patches {
-        let (tag, value) = match patch {
-            Patch::Nothing => continue,
-            Patch::Files(value) => (1, value),
-            Patch::Whole(value) => (2, value),
-            Patch::Unreadable => (3, 0),
-        };
-        hash = hash.word(u32::from(n)).word(tag).word(value as u32).word((value >> 32) as u32);
+        if let Some(next) = fold(hash, n, patch) {
+            hash = next;
+            if hash.get() == stamp {
+                last = Some(n);
+            }
+        }
     }
-    hash.get()
+    match last {
+        Some(_) if hash.get() == stamp => Stamped::Current,
+        Some(last) => Stamped::Behind { last },
+        None => Stamped::Other,
+    }
 }
 
 // ---- the file table ------------------------------------------------------------
@@ -172,9 +218,19 @@ pub fn patch(table: &[u8]) -> Patch {
 }
 
 /// The files under [`FOLDERS`], hashed in the table's order; none when
-/// there is none. Depth first, the path in one buffer: a level's next
-/// sibling is noted before its folder is entered.
+/// there is none.
 fn files(table: &Table<'_>) -> Result<Option<u64>, Refused> {
+    let (mut hash, mut any) = (Fnv::new(), false);
+    walk(table, |path, size, crc| {
+        hash = hash.bytes(path).bytes(&[0]).word(size).word(crc);
+        any = true;
+        Ok(true)
+    })?;
+    Ok(any.then(|| hash.get()))
+}
+
+/// The table's root folder.
+fn root(table: &Table<'_>) -> Result<usize, Refused> {
     let mut root = table.pointer(ROOT_NODE)?;
     if root == 0 {
         root = ROOT_BASE;
@@ -182,11 +238,18 @@ fn files(table: &Table<'_>) -> Result<Option<u64>, Refused> {
     if table.u16(root + FLAGS)? & FOLDER == 0 {
         return Err(Refused);
     }
+    Ok(root)
+}
+
+/// Each file under [`FOLDERS`] to `file` (its path, size and CRC) in the
+/// table's order, until it says false. Depth first, the path in one
+/// buffer: a level's next sibling is noted before its folder is entered.
+fn walk(table: &Table<'_>, mut file: impl FnMut(&[u8], u32, u32) -> Result<bool, Refused>) -> Result<(), Refused> {
     // a node takes more than FLAGS bytes of the table
     let mut budget = table.0.len() / FLAGS + 1;
     let (mut path, mut levels) = ([0u8; PATH], [(0usize, 0usize); DEPTH]);
-    levels[0] = (table.first_child(root)?, 0);
-    let (mut depth, mut hash, mut any) = (1, Fnv::new(), false);
+    levels[0] = (table.first_child(root(table)?)?, 0);
+    let mut depth = 1;
     while depth > 0 {
         let (node, length) = levels[depth - 1];
         if node == 0 {
@@ -222,15 +285,154 @@ fn files(table: &Table<'_>) -> Result<Option<u64>, Refused> {
             if flags & HARD_LINK != 0 {
                 return Err(Refused);
             }
-            let file = node.checked_sub(FILE_BASE).ok_or(Refused)?;
-            let (size, crc) = (table.u32(file)?, table.u32(file + 16)?);
-            hash = hash.bytes(at).bytes(&[0]).word(size).word(crc);
-            any = true;
+            let entry = node.checked_sub(FILE_BASE).ok_or(Refused)?;
+            if !file(at, table.u32(entry)?, table.u32(entry + 16)?)? {
+                return Ok(());
+            }
         } else {
             return Err(Refused);
         }
     }
-    Ok(any.then(|| hash.get()))
+    Ok(())
+}
+
+// ---- what a release replaces ---------------------------------------------------------
+
+/// A model's name at most (the game data's longest is 45).
+const MODEL_NAME: usize = 64;
+/// The models of one start at most (patch 44 replaced files of 12).
+const MODELS: usize = 96;
+/// The folders under `models/` that are a model: `<name>.<one of these>`.
+const MODEL_KINDS: [&[u8]; 2] = [b"skinned_model", b"model"];
+
+/// The names of the models whose files the patches since a folder's stamp
+/// replaced: the bakes of those models are stale, and no other. A baked
+/// file's name holds its model's name: `<camouflage><model><type>` for a
+/// character's item (`rubber_greenscavenger_sniper_10_legs_s1d`), and
+/// `srpw1_<camouflage>_<the model's path>_<surface>...` for a weapon.
+pub struct Models {
+    names: [[u8; MODEL_NAME]; MODELS],
+    lengths: [u8; MODELS],
+    count: usize,
+}
+
+impl Models {
+    pub const fn new() -> Models {
+        Models { names: [[0; MODEL_NAME]; MODELS], lengths: [0; MODELS], count: 0 }
+    }
+
+    fn names(&self) -> impl Iterator<Item = &[u8]> {
+        self.names.iter().zip(&self.lengths).take(self.count).map(|(name, &length)| &name[..usize::from(length)])
+    }
+
+    pub fn count(&self) -> usize {
+        self.count
+    }
+
+    /// The model `name` in the list (once); false when it has no room for
+    /// it or the name is none a model has.
+    fn add(&mut self, name: &[u8]) -> bool {
+        if self.names().any(|have| have.eq_ignore_ascii_case(name)) {
+            return true;
+        }
+        if name.is_empty() || name.len() > MODEL_NAME || self.count == MODELS {
+            return false;
+        }
+        self.names[self.count][..name.len()].copy_from_slice(name);
+        self.lengths[self.count] = name.len() as u8;
+        self.count += 1;
+        true
+    }
+
+    /// Whether a baked file of this name is one of these models': the name
+    /// holds a model's name (the letters' case aside). A short name is in
+    /// other models' files too: more is baked again, never less.
+    pub fn bake_of(&self, file: &[u8]) -> bool {
+        self.names().any(|name| file.windows(name.len()).any(|part| part.eq_ignore_ascii_case(name)))
+    }
+}
+
+impl Default for Models {
+    fn default() -> Models {
+        Models::new()
+    }
+}
+
+/// The model a file under `models/` is of: its folder's path (the first
+/// `<name>.skinned_model` or `<name>.model` on the file's way) and its
+/// name; none for a file in no model's folder.
+fn model(path: &[u8]) -> Option<(&[u8], &[u8])> {
+    let mut end = b"models".len();
+    path.strip_prefix(b"models/")?;
+    loop {
+        let start = end + 1;
+        // the last part is the file
+        end = start + path.get(start..)?.iter().position(|&b| b == b'/')?;
+        let part = &path[start..end];
+        if let Some(dot) = part.iter().rposition(|&b| b == b'.')
+            && MODEL_KINDS.contains(&&part[dot + 1..])
+        {
+            return Some((&path[..end], &part[..dot]));
+        }
+    }
+}
+
+/// Whether the table has a folder or a file at `path` (the letters' case
+/// aside).
+fn has(table: &Table<'_>, path: &[u8]) -> Result<bool, Refused> {
+    let (mut node, mut budget) = (root(table)?, table.0.len() / FLAGS + 1);
+    for name in path.split(|&b| b == b'/') {
+        if table.u16(node + FLAGS)? & FOLDER == 0 {
+            return Ok(false);
+        }
+        node = table.first_child(node)?;
+        while node != 0 && !table.name(node)?.eq_ignore_ascii_case(name) {
+            budget = budget.checked_sub(1).ok_or(Refused)?;
+            node = table.pointer(node.checked_add(NEXT).ok_or(Refused)?)?;
+        }
+        if node == 0 {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+/// What a patch replaces of the game data under it that a bake reads.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Replaced {
+    /// Nothing but files of models: their bakes are stale, no other.
+    Models,
+    /// A texture, a material, a shader or a camouflage or decal item, which
+    /// any bake may have read; a file under `models/` in no model's folder;
+    /// more models than the list holds; or a table this walk does not
+    /// follow. Every bake may be stale.
+    Bakes,
+}
+
+/// What the patch `new` replaces of `under` (resources.db's table, or a
+/// lower patch's) that a bake reads. A file that `under` does not have is
+/// new to it: a bake that read it was made after the patch came. A file of
+/// a model `under` has (its folder there) makes that model's bakes stale,
+/// its name into `models`; any other file `under` has makes every bake
+/// stale. The same patch is asked against each table under it.
+///
+/// Not seen: a new file an older file names and did not find (a material's
+/// texture missing until now). A bake made without it stays; a release
+/// that adds such a file bumps the bake format.
+pub fn replaced(new: &[u8], under: &[u8], models: &mut Models) -> Replaced {
+    let (new, under) = (Table(new), Table(under));
+    let mut all = false;
+    let walked = walk(&new, |path, _, _| {
+        all = match model(path) {
+            Some((folder, name)) => has(&under, folder)? && !models.add(name),
+            None => has(&under, path)?,
+        };
+        Ok(!all)
+    });
+    match walked {
+        Ok(()) if !all => Replaced::Models,
+        _ => Replaced::Bakes,
+    }
 }
 
 #[cfg(test)]
@@ -363,5 +565,125 @@ mod tests {
         assert!(leads(b"textures") && leads(b"gameplay/items/upgrades/decals"));
         assert!(!leads(b"gameplay/items/weapons") && !leads(b"gameplay/item") && !leads(b"sounds"));
         assert!(under(b"textures/a") && !under(b"textures") && !under(b"gameplay/items/a.options"));
+    }
+
+    #[test]
+    fn a_stamp_of_an_earlier_release_is_behind() {
+        let some = [(12, Patch::Files(5)), (14, Patch::Nothing), (17, Patch::Whole(9)), (20, Patch::Files(7))];
+        let of = |count: usize| fingerprint(some[..count].iter().copied());
+        assert_eq!(stamped(some.into_iter(), of(4)), Stamped::Current);
+        // patch 14 gives nothing: the fingerprint of the first two is the first's
+        assert_eq!(stamped(some.into_iter(), of(1)), Stamped::Behind { last: 12 });
+        assert_eq!(stamped(some.into_iter(), of(2)), Stamped::Behind { last: 12 });
+        assert_eq!(stamped(some.into_iter(), of(3)), Stamped::Behind { last: 17 });
+        assert_eq!(stamped(some.into_iter(), of(0)), Stamped::Behind { last: 0 });
+        assert_eq!(stamped(some.into_iter(), of(4) ^ 1), Stamped::Other);
+        // a later release's stamp, of a patch this game data lacks
+        assert_eq!(stamped(some[..3].iter().copied(), of(4)), Stamped::Other);
+        // a patch that gives nothing since: still this game's
+        assert_eq!(stamped(some.into_iter().chain([(55, Patch::Nothing)]), of(4)), Stamped::Current);
+        assert_eq!(stamped(core::iter::empty(), of(0)), Stamped::Current);
+    }
+
+    #[test]
+    fn a_file_s_model() {
+        assert_eq!(model(b"models/weapons/dmr/g3a3/g3a3.skinned_model/render/export_properties"),
+                   Some((&b"models/weapons/dmr/g3a3/g3a3.skinned_model"[..], &b"g3a3"[..])));
+        assert_eq!(model(b"models/character/human/edge/edge_sniper_06_legs_s1.skinned_model/settings").map(|m| m.1),
+                   Some(&b"edge_sniper_06_legs_s1"[..]));
+        assert_eq!(model(b"models/item/a.model/render/b.model/x"), Some((&b"models/item/a.model"[..], &b"a"[..])));
+        // a file named as a model's folder is, a folder of another kind, no folder, another root
+        for none in [&b"models/a.skinned_model"[..], b"models/a.b/c", b"models/readme.txt", b"models/a/b/c",
+                     b"textures/a.model/b", b"models"] {
+            assert_eq!(model(none), None, "{:?}", core::str::from_utf8(none));
+        }
+    }
+
+    const BASE: [(&str, Option<(u32, u32)>); 12] =
+        [("models", None), ("models/weapons", None), ("models/weapons/ak.skinned_model", None),
+         ("models/weapons/ak.skinned_model/settings", Some((4, 1))), ("models/weapons/loose", Some((1, 1))),
+         ("textures", None), ("textures/ak.dds", Some((9, 3))), ("gameplay", None), ("gameplay/items", None),
+         ("gameplay/items/upgrades", None), ("gameplay/items/upgrades/city.options", Some((5, 7))),
+         ("sounds", None)];
+
+    #[test]
+    fn what_the_game_data_has() {
+        let base = Table(&table(&BASE));
+        for there in [&b"models"[..], b"models/weapons/ak.skinned_model", b"models/weapons/AK.skinned_model/Settings",
+                      b"textures/ak.dds", b"sounds"] {
+            assert!(matches!(has(&base, there), Ok(true)), "{:?}", core::str::from_utf8(there));
+        }
+        for missing in [&b"models/weapons/vss.skinned_model"[..], b"textures/ak.dds/x", b"textures/ak", b"texture",
+                        b"sounds/a", b""] {
+            assert!(matches!(has(&base, missing), Ok(false)), "{:?}", core::str::from_utf8(missing));
+        }
+        assert!(has(&Table(&[0u8; 10]), b"models").is_err());
+    }
+
+    #[test]
+    fn a_release_replaces_models_files_or_more() {
+        let base = table(&BASE);
+        let against = |entries: &[(&str, Option<(u32, u32)>)]| {
+            let mut models = Models::new();
+            (replaced(&table(entries), &base, &mut models), models)
+        };
+        // a new gun: its model, its texture, its camouflage; nothing a kept bake read
+        let (what, models) = against(&[("models", None), ("models/weapons", None), ("models/weapons/vss.skinned_model", None),
+                                       ("models/weapons/vss.skinned_model/settings", Some((4, 2))), ("textures", None),
+                                       ("textures/vss.dds", Some((9, 4))), ("gameplay", None), ("gameplay/items", None),
+                                       ("gameplay/items/upgrades", None),
+                                       ("gameplay/items/upgrades/forest.options", Some((5, 8))),
+                                       ("models/weapons/new_loose", Some((1, 1)))]);
+        assert_eq!((what, models.count()), (Replaced::Models, 0));
+        assert!(!models.bake_of(b"srpw1_city_weapons_ak_0d.dds"));
+        // a model's file replaced and a file new to its folder: that model's bakes, once
+        let (what, models) = against(&[("models", None), ("models/weapons", None), ("models/weapons/ak.skinned_model", None),
+                                       ("models/weapons/ak.skinned_model/settings", Some((4, 9))),
+                                       ("models/weapons/ak.skinned_model/render", None),
+                                       ("models/weapons/ak.skinned_model/render/export_properties", Some((7, 7))),
+                                       ("textures", None), ("textures/vss.dds", Some((9, 4)))]);
+        assert_eq!((what, models.count()), (Replaced::Models, 1));
+        assert!(models.bake_of(b"srpw1_city_weapons_ak_0d.dds") && models.bake_of(b"cityAK_s1d.dds"));
+        assert!(!models.bake_of(b"srpw1_city_weapons_vss_0d.dds") && !models.bake_of(b"a"));
+        // a texture, a camouflage item, a file under models/ in no model's folder: any bake
+        for entries in [&[("textures", None), ("textures/ak.dds", Some((9, 4)))][..],
+                        &[("gameplay", None), ("gameplay/items", None), ("gameplay/items/upgrades", None),
+                          ("gameplay/items/upgrades/city.options", Some((5, 7)))],
+                        &[("models", None), ("models/weapons", None), ("models/weapons/loose", Some((1, 2)))]] {
+            assert_eq!(against(entries).0, Replaced::Bakes, "{entries:?}");
+        }
+        // what a bake does not read is not asked
+        assert_eq!(against(&[("sounds", None), ("sounds/a", Some((1, 1)))]).0, Replaced::Models);
+        // a table not followed, either one
+        let mut linked = Writer::new();
+        linked.add("textures", None, 0);
+        linked.add("textures/new.dds", Some((1, 2)), HARD_LINK);
+        assert_eq!(replaced(&linked.bytes, &base, &mut Models::new()), Replaced::Bakes);
+        assert_eq!(replaced(&table(&[("textures", None), ("textures/ak.dds", Some((1, 1)))]), &[0u8; 10], &mut Models::new()),
+                   Replaced::Bakes);
+    }
+
+    #[test]
+    fn more_models_than_the_list_holds_is_every_bake() {
+        let folders: Vec<std::string::String> = (0..=MODELS).map(|i| std::format!("models/m{i}.model")).collect();
+        let files: Vec<std::string::String> = folders.iter().map(|folder| std::format!("{folder}/settings")).collect();
+        let entries = |count: usize| {
+            let mut entries = std::vec![("models", None)];
+            for (folder, file) in folders.iter().zip(&files).take(count) {
+                entries.extend([(folder.as_str(), None), (file.as_str(), Some((1, 1)))]);
+            }
+            table(&entries)
+        };
+        let mut models = Models::new();
+        assert_eq!(replaced(&entries(MODELS), &entries(MODELS + 1), &mut models), Replaced::Models);
+        assert_eq!(models.count(), MODELS);
+        // the same ones again are in the list; one more is not
+        assert_eq!(replaced(&entries(MODELS), &entries(MODELS + 1), &mut models), Replaced::Models);
+        assert_eq!(replaced(&entries(MODELS + 1), &entries(MODELS + 1), &mut models), Replaced::Bakes);
+        // a name longer than a model's
+        let long = std::format!("models/{}.model", "x".repeat(MODEL_NAME + 1));
+        let file = std::format!("{long}/settings");
+        let table = table(&[("models", None), (long.as_str(), None), (file.as_str(), Some((1, 1)))]);
+        assert_eq!(replaced(&table, &table, &mut Models::new()), Replaced::Bakes);
     }
 }
