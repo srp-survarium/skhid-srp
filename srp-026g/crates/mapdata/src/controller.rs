@@ -11,6 +11,7 @@
 //! steps that far along the move and measures again, until the gap is under [`CONTACT_M`] or the move ends. A capsule that only
 //! translates gets no closer than its speed allows, so no contact is stepped over.
 pub mod exe_cast;
+pub mod exe_epa;
 pub mod exe_gjk;
 pub mod exe_ray;
 pub mod gjk;
@@ -153,10 +154,10 @@ pub enum Caster {
     Bullet(StartOverlap),
     /// The exe's own arithmetic ([`exe_cast`] over [`exe_gjk`]): Bullet's GJK with its Voronoi simplex solver and the
     /// time-of-impact loop in the exe's order of operations, bit for bit on 57,617 recorded closest-point calls of the
-    /// game (`docs/notes/exactness_rig.md`). Where the exe goes on to its penetration-depth solver (not ported: the
-    /// shape's core in the face or within 0.01 m of it on a degenerate simplex) the contact is [`Caster::Bullet`]'s, with
-    /// this [`StartOverlap`].
-    Exe(StartOverlap),
+    /// game (`docs/notes/exactness_rig.md`), and where the exe goes on to its penetration-depth solver (the shape's
+    /// core in the face or within 0.01 m of it on a degenerate simplex) that solver's own answer ([`exe_epa`]: the
+    /// exe's bits on 10,666 recorded calls).
+    Exe,
 }
 
 /// Where [`Caster::Bullet`] puts a contact met already overlapping at the start (the cylinder's core inside the face, where
@@ -187,9 +188,8 @@ enum Sweeps {
     /// Every face on its own, placed in the map frame, by this caster.
     Faces(Caster),
     /// The game's own objects by the exe's cast ([`Collision::build_exe`]): each mesh in its own frame under its
-    /// object's transform, each primitive as the convex shape it is. Where the exe goes on to its penetration solver
-    /// the contact is [`Caster::Bullet`]'s with this [`StartOverlap`], against the face or the primitive's triangles.
-    Solids(Box<solids::Solids>, StartOverlap),
+    /// object's transform, each primitive as the convex shape it is, the penetration solver's answer included.
+    Solids(Box<solids::Solids>),
 }
 
 /// The first contact of a sweep.
@@ -317,9 +317,9 @@ impl Collision {
     /// transforms the exe composes), met as `objectQuerySingle` 0xA14E0 meets them. Rays and the nearest-face
     /// questions still read the placed triangles ([`MapData::walker_triangles`]; a primitive's are its drawn
     /// stand-in). `None` for a map without the game's shapes (a file older than format 6).
-    pub fn build_exe(map: &MapData, start: StartOverlap) -> Option<Self> {
+    pub fn build_exe(map: &MapData) -> Option<Self> {
         let solids = solids::Solids::build(map)?;
-        Some(Self { sweeps: Sweeps::Solids(Box::new(solids), start), ..Self::build(&map.walker_triangles()) })
+        Some(Self { sweeps: Sweeps::Solids(Box::new(solids)), ..Self::build(&map.walker_triangles()) })
     }
 
     fn split(faces: &mut [Face], first: usize, end: usize, nodes: &mut Vec<Node>) -> usize {
@@ -345,7 +345,7 @@ impl Collision {
     pub fn bytes(&self) -> usize {
         let solids = match &self.sweeps {
             Sweeps::Faces(_) => 0,
-            Sweeps::Solids(solids, _) => solids.bytes(),
+            Sweeps::Solids(solids) => solids.bytes(),
         };
         self.faces.capacity() * std::mem::size_of::<Face>() + self.nodes.capacity() * std::mem::size_of::<Node>() + solids
     }
@@ -410,13 +410,13 @@ impl Collision {
     pub fn sweep_each(&self, shape: Shape, by: Vec3, mut each: impl FnMut(Contact)) {
         let caster = match &self.sweeps {
             Sweeps::Faces(caster) => *caster,
-            Sweeps::Solids(solids, start) => return solids.sweep_each(shape, by, *start, each),
+            Sweeps::Solids(solids) => return solids.sweep_each(shape, by, each),
         };
         let (lo0, hi0) = shape.aabb();
         let (lo1, hi1) = shape.moved(by).aabb();
         let touch = match caster {
             Caster::Conservative => CONTACT_M,
-            Caster::Bullet(_) | Caster::Exe(_) => BULLET_TOLERANCE_M,
+            Caster::Bullet(_) | Caster::Exe => BULLET_TOLERANCE_M,
         };
         let pad = Vec3::new(touch, touch, touch);
         self.faces_in(lo0.min(lo1) - pad, hi0.max(hi1) + pad, |f| {
@@ -427,7 +427,7 @@ impl Collision {
             let touch = match caster {
                 Caster::Conservative => advance(shape, by, face),
                 Caster::Bullet(start) => advance_bullet(shape, by, face, start),
-                Caster::Exe(start) => advance_exe(shape, by, face, start),
+                Caster::Exe => advance_exe(shape, by, face),
             };
             if let Some(Touch { t, point, normal }) = touch {
                 each(Contact { t, point, normal, on: Surface::Face { walker: face.walker, normal: face.normal }, object: None });
@@ -442,7 +442,7 @@ impl Collision {
     /// triangles know no objects) the ray meets the nearest placed face of any object ([`Self::ray`]).
     pub fn look_ray(&self, object: Option<SolidId>, a: Vec3, b: Vec3) -> Option<Vec3> {
         match (&self.sweeps, object) {
-            (Sweeps::Solids(solids, _), Some(SolidId(id))) => solids.look_ray(id, a, b),
+            (Sweeps::Solids(solids), Some(SolidId(id))) => solids.look_ray(id, a, b),
             _ => self.ray(a, b).map(|(_, normal)| normal),
         }
     }
@@ -597,7 +597,7 @@ fn exe_cast_of(shape: Shape, by: Vec3) -> exe_cast::Cast {
 }
 
 /// [`Caster::Exe`] against one face: the exe's cast of its own shape ([`exe_cast::cast_triangle`]).
-fn advance_exe(shape: Shape, by: Vec3, face: &Face, start: StartOverlap) -> Option<Touch> {
+fn advance_exe(shape: Shape, by: Vec3, face: &Face) -> Option<Touch> {
     let cast = exe_cast_of(shape, by);
     let triangle = exe_gjk::Triangle([face.v[0].to_array(), face.v[1].to_array(), face.v[2].to_array()]);
     // The face is in world coordinates (transform B the identity), its margin 0, the sweep's allowed penetration 0
@@ -607,21 +607,7 @@ fn advance_exe(shape: Shape, by: Vec3, face: &Face, start: StartOverlap) -> Opti
             Some(Touch { t: fraction, point: Vec3::from_array(point), normal: Vec3::from_array(normal) })
         }
         exe_cast::CastEnd::Miss => None,
-        exe_cast::CastEnd::NeedsPenetration { lambda } => overlapping_at(shape, by, lambda, face, start).map(|(_, touch)| touch),
     }
-}
-
-/// Where the exe's cast goes on to its penetration solver (not ported) at `lambda` of the way: the contact where the
-/// cast stood, by the exact distance to `face`, and that distance (the gap).
-fn overlapping_at(shape: Shape, by: Vec3, lambda: f32, face: &Face, start: StartOverlap) -> Option<(f32, Touch)> {
-    let (gap, _, mut f, n) = shape.moved(by * lambda).gap(&face.v, face.normal);
-    if -by.dot(n) <= f32::EPSILON {
-        return None;
-    }
-    if start == StartOverlap::FaceWitness && lambda == 0.0 && gap <= 0.0 {
-        f = shape.witness_on(&face.v, f);
-    }
-    Some((gap, Touch { t: lambda, point: f, normal: n }))
 }
 
 /// Whether `keep` accepts what `contact` is on: a face by its walker behaviour and normal; a primitive (no face) is

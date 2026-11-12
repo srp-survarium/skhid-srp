@@ -131,10 +131,10 @@ the support function 0x8D680 for the four shapes, in the exe's order of operatio
 square roots at 24-bit precision are `f32`'s). Each sum of three terms is grouped as the asm groups it, which is
 often not the source's order: put back one at a time, the source's order breaks between 146 and 9,988 of the
 records. This build differs from stock Bullet in one place that matters: the exit on a stalled distance (12)
-makes no `backup_closest`. **57,617 of 57,617 calls without a penetration call give the exe's bits** (normal,
-point, distance, the detector's method, round count, degeneracy, cached axis and distance), and the port stops
-for the penetration solver on exactly the 24 calls the exe makes it on
-(`tests/exe_gjk_corpus.rs`, run with `SRP_EXE_GJK_CORPUS`: the records hold the game's triangles and stay
+makes no `backup_closest`. **57,641 of 57,641 calls give the exe's bits** (normal, point, distance, the
+detector's method, round count, degeneracy, cached axis and distance): 57,617 by the detector alone, and the 24
+the exe sends to its penetration solver by the port of that solver (3i), which the port goes to on exactly those
+24 (`tests/exe_gjk_corpus.rs`, run with `SRP_EXE_GJK_CORPUS`: the records hold the game's triangles and stay
 private). Not reached by the corpus, ported from the asm only: exits 6, 10, 13, the round limit, ignored margins,
 bases other than the identity.
 
@@ -154,8 +154,9 @@ The 9 steps left all met a wall (the move test: the wall normal by rays, the pen
 the cylinder's core starts in a face). The whole run of the 1,000 cases takes 0.87 s with `Caster::Bullet` and
 1.10 s with `Caster::Exe` (one thread, the cases' parsing and tree building included).
 
-Not ported: the penetration-depth solver (Bullet's EPA). Where the exe calls it, `Caster::Exe` gives
-`Caster::Bullet`'s contact.
+The penetration-depth solver (Bullet's EPA) was not ported when these counts were taken: where the exe calls
+it, `Caster::Exe` gave `Caster::Bullet`'s contact. It is ported since (3i), and the counts of this table stay as
+they are with it (991; one of the 9 steps left comes nearer, from under 10 cm to under 1 cm).
 
 ### 3c. The bots' map export against the game's world (PROVEN as counts)
 
@@ -229,7 +230,8 @@ apart by marking, in a run of the same 1,000 steps, each answer that is not the 
 So (LIKELY, by these counts): the 15 are the wall normal's ray, which here meets a primitive's drawn triangles
 where the exe's ray meets the convex shape (Bullet's ray against a convex shape is not ported); the 4 are which
 of two faces met at the same fraction the down sweep keeps (the exe's order through its broadphase and mesh
-trees is not ported). The penetration fallback is in no step that is off.
+trees is not ported). The penetration fallback (the stand-in of that time; the exe's own solver since 3i) is in
+no step that is off.
 
 ### 3e. The second looks' ray, bit for bit (PROVEN)
 
@@ -361,6 +363,68 @@ the air), every step through the port on the shapes world, each from the game's 
 What is left (1,126 steps, 0.51 %): 504 landings whose only difference is the surface normal kept of two contacts
 at one fraction (the exe's order of objects and triangles, not ported), and steps at walls and edges of the same
 kind; 22 steps in the air.
+
+### 3i. The penetration-depth solver, bit for bit (PROVEN)
+
+Where the detector's GJK has no valid answer (the shapes' cores overlap), or catches a degenerate simplex with the
+shapes under 0.01 m apart (0xD75DA..0xD7625), the exe zeroes `m_cachedSeparatingAxis` (0xD762B) and calls its
+penetration solver through the detector's +20h (0xD7684). Both casts the controller makes build that solver on the
+stack (`processTriangle` 0xB8741, `objectQuerySingle`'s convex branch 0xA15B1): vtable 0x9E47CC, by its RTTI
+`btGjkEpaPenetrationDepthSolver`, whose `calcPenDepth` is 0xB7EE0.
+
+- `calcPenDepth` 0xB7EE0: the guess is origin A less origin B; `btGjkEpaSolver2::Penetration` 0xD6810 (its own GJK
+  0xD2D80 on the shapes with their margins, support 0x8DD40; inside: EPA 0xD4D30) gives the two witnesses and the
+  normal, AL 1; where it has no answer `Distance` 0xD6280 (the same GJK without margins) gives them with AL 0.
+- The detector's use of it (0xD7686..0xD78A8): with AL 1 the normal is witness B less witness A made unit and the
+  distance is minus their distance, taken (method 3) when GJK had no answer or a farther one, else method 8; with
+  AL 0 and an axis written, the distance is the witnesses' less the margins (method 6, else 5). The contact is
+  then reported like GJK's own. `calcTimeOfImpact` goes on unchanged: a body that starts overlapping is a hit at
+  lambda 0 with the solver's normal when its way goes into that normal by more than 2^-23, else a miss.
+- Where this build is not Bullet's source (put back, the records differ): a division is a product with the
+  reciprocal (the triangle's and tetrahedron's weights, a new face's distance and normal, EPA's weights, the
+  fallback's and `Distance`'s normal); sums are grouped otherwise (the tetrahedron's `w3 = 1 - ((w2 + w1) + w0)`,
+  EPA's `(p2 + p1) + p0`, each determinant's products in each of its three inline copies); EPA's outer face
+  follows the best one only when the best's `p` is not under its own (0xD512A..0xD5145).
+- Constants read from the exe: 1e-4 at 0xA2D840 (GJK's least distance, duplicate and accuracy, and EPA's accuracy:
+  all four read it), -1e-5 at 0xA2DA94 (EPA's plane), -0.01 at 0xA2DA98 (EPA's inside), 2^-46 at 0xA2DA9C; 128 GJK
+  rounds (0xD3668), 64 EPA vertices (0xD4FCF), 128 faces (0xD4C46), 255 EPA rounds (0xD5150).
+
+**The corpus.** The oracle is the exe's own detector 0xD6CD0 in Unicorn on a record's inputs; it gives the rig's
+recorded answer on every record of the two detector corpora of 3b and 3d (57,641 and 32,762), so it is the
+in-game call. 10,666 solver calls: the exe's own on the traced steps (24 on the capture's triangles, 18 on the
+game's objects), the port's on the same steps (24 and 18) and on the long replay of 3h (2,421: cylinder or
+capsule against a triangle or a box), and made ones (8,161: recorded pairs pushed in up to 1.5 m or lifted off, flat and point triangles, a small
+sphere) that reach `Distance`'s answer (2,617) and EPA's fallback.
+
+**The port.** `controller/exe_epa.rs`: the Minkowski difference's supports, the solver's GJK with its three
+`projectorigin`s and `EncloseOrigin`, EPA (`newface`, `findbest`, `expand`), `Penetration`, `Distance`,
+`calcPenDepth` and the detector's branch. `exe_cast.rs` hands the detector's penetration branch to it, so the
+cast has no outcome a caller must fill in: the stand-in for a start overlap that `solids.rs` carried is gone.
+
+| against the exe | records | the exe's bits |
+|---|---|---|
+| `calcPenDepth` (AL, the normal, both witnesses, the statuses of its GJK, EPA and `Distance`, both round counts) | 10,666 | **10,666** |
+| the detector's whole call around it (the collector's normal, point and distance; method, rounds, degeneracy, cached axis and distance) | 6,146 | **6,146** |
+| every recorded detector call of 3b, the solver's 24 included | 57,641 | **57,641** |
+| every recorded `calcTimeOfImpact` (`tests/exe_toi_corpus.rs`), the 18 through the solver included | 22,727 | **22,727** |
+
+(`tests/exe_epa_corpus.rs`, run with `SRP_EXE_EPA_CORPUS`; the records stay private.) Reached by no record and
+ported from the asm alone: EPA out of faces or vertices or with a touching answer, GJK's 128-round failure, the
+detector's method 9.
+
+**What it changes**, each against the stand-in in one binary:
+
+| run | the stand-in | the exe's solver |
+|---|---|---|
+| 1,000 steps on the map's shapes (3d): every field the game's | 993 | 993 |
+| 1,000 steps on the capture's triangles (3b): the origin the exe's bits | 991 | 991 |
+| the long replay (3h): every field the game's | 219,868 | **219,901** (33 put right, none made wrong) |
+| the long replay: chains the game's bits end to end | 2,257 of 2,421 | **2,271** |
+| the long replay: first air steps of a jump off | 1 of 155 | 1 of 155 (none calls the solver) |
+
+Of the long replay's 1,093 steps still off, none is the solver's (its 2,421 calls there are the exe's bits): they
+are 3h's contacts at one fraction. Only `Caster::Exe` changes: the bots' grids and bodies cast with
+`Caster::Bullet` and its start-overlap rule (`bullet_cast.md`), which this leaves as it is.
 
 ## 4. What was read on the way (PROVEN)
 
