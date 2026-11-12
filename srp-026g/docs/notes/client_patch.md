@@ -3091,12 +3091,16 @@ equality.
   arithmetic, no fused multiply-add; read in the linked code), each rounded as IEEE 754 says
   under the thread's MXCSR, the one the game's own clear test runs with at the same place.
 - `resupply.can_use` 0x2F8086 and `resupply.use_info` 0x2F80C6 (`mov edx,[eax+6B8h]`, 6 bytes;
-  EAX the player): a player of team 2 or more exits to the allowed path (0x2F809C, 0x2F80E4) with
-  EDX his profile. Those two addresses are patch 85's sites `pickup.can_use` and `pickup.use_hint`
-  (`mov ecx,[eax+10Ch]`, 6 bytes, a jump to their entry in the built exe): the spans do not
-  overlap (0x2F8086..0x2F808C and 0x2F809C..0x2F80A2; 0x2F80C6..0x2F80CC and 0x2F80E4..0x2F80EA),
-  our exit lands on their first byte as the game's own `je` at 0x2F8095 / 0x2F80D5 does, and
-  their entry keeps EAX and EDX for the `push edx` after their span (0x2F80A8, 0x2F80F0).
+  EAX the player): no ammunition refill in a free-for-all (the owner, 2026-11-12). A player of his
+  own side (`respawn::Resupply::of`, his profile's team 2 or more) exits to the function's own
+  "no", which reads no register: can_use's `xor eax,eax / ret 4` (0x2F80BB), use_info's
+  `mov eax,9DB708h` (the empty string) `/ ret 4` (0x2F80DC). The game's team test alone would
+  serve him at a zone of team 2 and at one numbered as his side; the exit comes before it, so the
+  zone's team does not matter, and patch 85's sites after the test (`pickup.can_use` 0x2F809C,
+  `pickup.use_hint` 0x2F80E4) and the inventory test 0x2FDF50 are not reached. Both of
+  base_player's ways into a usable ask can_use first (0x2D85CE, 0x2D8917), so finish_use
+  (0x2F81A0, the client's 0x2954D0) never refills him. A player of team 0 or 1 goes on
+  to the replayed `mov edx,[eax+6B8h]`: the game's own test, unchanged.
 - **The kill target.** `static_info.options_read` and `replay.options_read` (after patches 65,
   86, 83 and 88 in the chains): srp's block after the options ("SRPX", then `{tag, len, bytes}`)
   holds tag 3, two bytes, `kills_to_win` (u16, never 0) in a free-for-all only. With it the
@@ -3145,12 +3149,14 @@ equality.
   rule objects; a match with one respawn rule and no rule of a mode is a free-for-all's
   (srp-validate's `mode::FREE_FOR_ALL`: no rule between the respawn points and the kd stats).
 
-Simulation: respawns and resupply are the world's, so every client of a match must run it; the
+Simulation: respawns and resupply are the world's, so every client of a match must run it (the
+side is the profile's team, from the match options every game of the match has); the
 hud's numbers and messages are the interface's. `check_free_for_all_026g.py` runs the hooks in
 the patched exe: the tick's batching span, the whole select_respawn_points with the game's own
 clear test, sqrt and push_back on made-up players and points (hand-made cases and 300 seeded
-random matches against the check's own model of the rule), both zone functions through patch
-85's hooks, the options' two reads, update_player_icons' start with made-up hud states,
+random matches against the check's own model of the rule), both zone functions (a free-for-all
+player refused at a zone of every team value, a team's player served as by the original exe),
+the options' two reads, update_player_icons' start with made-up hud states,
 initialize_match's start and update_ui's welcome for every mode, the original beside. Not run
 in a game.
 

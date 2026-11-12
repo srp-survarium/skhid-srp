@@ -691,7 +691,7 @@ extern engine_collision_geometry
 ; 0x2dc390 survarium::collision_geometry::query_objects_by_type<survarium::usable_object>: result ESI, geometry ESP+4, cast ESP+8, offset ESP+12; pops 12
 extern engine_query_usables
 ; unsigned char engine_can_use(struct usable_object *usable, struct usable_user *user)
-; virtual survarium::usable_object+0x30 (10 vtables of vtables.tsv: 0x2f8080, 0x300710, 0x305070, 0x31c6b0, 0x31cb10): usable ECX, user ESP+4; pops 4; AL
+; virtual survarium::usable_object+0x30 (11 vtables of vtables.tsv: 0x2f8080, 0x300710, 0x305070, 0x31c6b0, 0x31cb10): usable ECX, user ESP+4; pops 4; AL
 extern engine_can_use
 ; void engine_usable_transform(struct usable_object *usable, float *matrix)
 ; virtual survarium::usable_object+0x44 (12 vtables of vtables.tsv: 0x246ed0, 0x2f8440): usable ECX, matrix ESP+4; pops 4

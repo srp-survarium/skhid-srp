@@ -47,6 +47,11 @@ vtable	slot	va	class	base	basis
 0x00a029ec	0x20	0x00246380	survarium::resupply_zone	survarium::collision_geometry_subscriber	observed: RTTI (the locator at -4 names survarium::resupply_zone); cast_to_usable (detect_usable_object 0x2D85B3 by the thunk 0x2DD730)
 0x00a029ec	0x30	0x002f8080	survarium::resupply_zone	survarium::usable_object	observed: RTTI (the locator at -4 names survarium::resupply_zone); can_use (detect_usable_object 0x2D85CE)
 0x00a029ec	0x44	0x002f8440	survarium::resupply_zone	survarium::usable_object	observed: RTTI (the locator at -4 names survarium::resupply_zone); get_transform (patch 23)
+0x00a029ec	0x34	0x002f80c0	survarium::resupply_zone	survarium::usable_object	observed: the slot after can_use; use_hint, the key of the use prompt (patch 142's resupply.use_info)
+0x00a029ec	0x48	0x002954d0	survarium::resupply_zone	survarium::usable_object	observed: finish_use, the client's (resupply_from_profile 0x2FDC10); reached only by a use can_use allowed (0x2D85CE, 0x2D8917)
+0x00a1327c	0x30	0x002f8080	survarium::resupply_zone_core	survarium::usable_object	observed: the same slots as 0xA029EC with the core's finish_use; can_use
+0x00a1327c	0x34	0x002f80c0	survarium::resupply_zone_core	survarium::usable_object	observed: use_hint
+0x00a1327c	0x48	0x002f81a0	survarium::resupply_zone_core	survarium::usable_object	observed: finish_use (resupply_from_profile 0x2FDC10)
 0x00a0437c	0x20	0x00246380	survarium::victory_item	survarium::collision_geometry_subscriber	observed: RTTI (the locator at -4 names survarium::victory_item, the survarium::collision_geometry_subscriber at +14h); cast_to_usable (detect_usable_object 0x2D85B3 by the thunk 0x2DD730)
 0x00a0437c	0x30	0x00300710	survarium::victory_item	survarium::usable_object	observed: RTTI (the locator at -4 names survarium::victory_item, the survarium::usable_object at +14h); can_use (detect_usable_object 0x2D85CE)
 0x00a0437c	0x44	0x00246ed0	survarium::victory_item	survarium::usable_object	observed: RTTI (the locator at -4 names survarium::victory_item, the survarium::usable_object at +14h); get_transform (patch 23)

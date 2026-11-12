@@ -3595,7 +3595,7 @@ free_for_all_on_select_replay:
     db 0x8b, 0xbc, 0x81, 0x94, 0x01, 0x00, 0x00
     jmp 0x3171e3
 
-; 0x2f8086 resupply_zone_core::can_use before the team test (mov edx,[eax+6B8h]); allowed takes EDX the player's profile: lohook -> free_for_all_on_can_use
+; 0x2f8086 resupply_zone_core::can_use before the team test (mov edx,[eax+6B8h]); refused is its own no (xor eax,eax / ret 4), which reads no register: lohook -> free_for_all_on_can_use
 global free_for_all_on_can_use
 extern hook_free_for_all_on_can_use
 free_for_all_on_can_use:
@@ -3622,7 +3622,7 @@ free_for_all_on_can_use:
     mov edx, 0x2f808c
     cmp eax, 1
     je free_for_all_on_can_use_go
-    mov edx, 0x2f809c
+    mov edx, 0x2f80bb
     cmp eax, 2
     je free_for_all_on_can_use_go
     ud2
@@ -3637,7 +3637,7 @@ free_for_all_on_can_use_replay:
     db 0x8b, 0x90, 0xb8, 0x06, 0x00, 0x00
     jmp 0x2f808c
 
-; 0x2f80c6 resupply_zone_core::use_info before the team test (mov edx,[eax+6B8h]); allowed takes EDX the player's profile: lohook -> free_for_all_on_use_info
+; 0x2f80c6 resupply_zone_core::use_info before the team test (mov edx,[eax+6B8h]); refused is its own no hint (mov eax,9DB708h, the empty string / ret 4), which reads no register: lohook -> free_for_all_on_use_info
 global free_for_all_on_use_info
 extern hook_free_for_all_on_use_info
 free_for_all_on_use_info:
@@ -3664,7 +3664,7 @@ free_for_all_on_use_info:
     mov edx, 0x2f80cc
     cmp eax, 1
     je free_for_all_on_use_info_go
-    mov edx, 0x2f80e4
+    mov edx, 0x2f80dc
     cmp eax, 2
     je free_for_all_on_use_info_go
     ud2

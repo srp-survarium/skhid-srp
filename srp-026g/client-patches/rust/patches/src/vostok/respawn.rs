@@ -1,5 +1,5 @@
 //! A free-for-all's sides in the respawn rule and the resupply zones (patch
-//! 140; docs/notes/ffa.md). In a free-for-all srp gives each player a team
+//! 142; docs/notes/ffa.md). In a free-for-all srp gives each player a team
 //! of his own (4 + his place); the game's two-team code then needs three
 //! changes, each at a site of sites_026g.tsv:
 //!
@@ -9,8 +9,9 @@
 //! - the tick's selection (`respawn.select`) of that vector: [`RespawnSelect`],
 //!   the team-2 group of points and the game's own clear test, one point at a
 //!   time;
-//! - a resupply zone serves its team (or team 2): a player of his own side
-//!   is served by every zone (`resupply.can_use`, `resupply.use_info`).
+//! - a resupply zone serves its team (a zone of team 2 everyone): a player
+//!   of his own side is served by none (`resupply.can_use`,
+//!   `resupply.use_info`: [`Resupply`]), whatever team the map gave the zone.
 //!
 //! Every field is fields_026g.tsv's, every function engine_026g.tsv's.
 
@@ -222,29 +223,59 @@ pub enum ResupplySite {
     UseInfo,
 }
 
-/// At `resupply.can_use` or `resupply.use_info` (`site`): a player of his
-/// own side is served as a zone's own team is. When he is, EDX takes his
-/// profile, as the game's `allowed` path wants it, and the caller exits there.
-pub fn serve_own_side(ctx: &mut Context<'_>, site: ResupplySite) -> bool {
+/// What a resupply zone is to the player who asks it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Resupply {
+    /// One of a match's two teams: the game's own test of the zone's team
+    /// decides, as it always did.
+    ZonesTeamTest,
+    /// A side of his own (a free-for-all): no zone serves him, whatever its
+    /// team (the game's test alone would serve him at a zone of team 2, and
+    /// at one whose team is his side's number).
+    Refused,
+}
+
+impl Resupply {
+    /// The one rule: a free-for-all has no ammunition refill.
+    pub fn of(side: Side) -> Resupply {
+        match side {
+            Side::Team(_) => Resupply::ZonesTeamTest,
+            Side::Own(_) => Resupply::Refused,
+        }
+    }
+}
+
+/// At `resupply.can_use` or `resupply.use_info` (`site`), before the zone's
+/// test of the team: what the zone is to the player asking (EAX). His side is
+/// his profile's team, the match options' own: the same for every game of the
+/// match, a late joiner's and a replay's. A player without a profile is the
+/// game's to refuse.
+pub fn resupply_at(ctx: &Context<'_>, site: ResupplySite) -> Resupply {
     // SAFETY: the context is `site`'s: EAX the player using the zone, alive
     // on the game's thread.
-    let profile = unsafe {
+    let side = unsafe {
         let player = match site {
             ResupplySite::CanUse => raw::site::resupply_can_use::player(ctx),
             ResupplySite::UseInfo => raw::site::resupply_use_info::player(ctx),
         };
-        let Some(player) = player else { return false };
-        match side_of(player) {
-            Some(Side::Own(_)) => player.profile(),
-            _ => None,
-        }
+        player.and_then(|player| side_of(player))
     };
-    match profile {
-        Some(profile) => {
-            ctx.set_reg(Reg::Edx, profile.address());
-            true
+    side.map_or(Resupply::ZonesTeamTest, Resupply::of)
+}
+
+#[cfg(test)]
+mod resupply_tests {
+    use super::*;
+
+    #[test]
+    fn a_free_for_all_side_is_refused_and_a_team_is_the_games() {
+        assert_eq!(Resupply::of(Side::of(0)), Resupply::ZonesTeamTest);
+        assert_eq!(Resupply::of(Side::of(1)), Resupply::ZonesTeamTest);
+        // Every side of a free-for-all (4 + the place), and the two values
+        // the game reads as "neutral" and "none".
+        for team in (2..=23).chain([u32::MAX]) {
+            assert_eq!(Resupply::of(Side::of(team)), Resupply::Refused, "{team}");
         }
-        None => false,
     }
 }
 
