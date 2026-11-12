@@ -157,6 +157,44 @@ Both causes fixed in the exporter; the same 16 captures laid against the new exp
   margin's rounding), 0.024 (a cylinder's rim), 0.010 (capsule, sphere); 0 primitives 0.05 m or more off
   (was 498).
 
+### 5.5 The game's shapes themselves, as bits (2026-11-12, map format 6)
+
+The export now also keeps what the game casts against (A364's P4 a, `crates/mapdata/src/bullet.rs`): each
+library's Bullet shape and each placement's object transform, every value made with the exe's own operations in
+its order. `mapdata-shapes` writes them as bits; `bw_shapes.py` lays them against a capture, pairing by group,
+mask and origin bits (the pairs come out in the placements' order: the game's world order is the project's).
+
+| what | read in the exe (PROVEN) |
+|---|---|
+| a library's shape | the cook (0x83600): one primitive by itself when there is exactly one and its position is under 1e-5 on every axis (`create_primitive_shape` 0x7A390, no rotation, no position), else a compound (0x7A460); a mesh by itself, or the compound's last child under the identity, added after the compound's scaling (0x83486..0x834B1) |
+| a primitive | sphere (0x74210): radius in +20h and as the margin; box (0xA96D0) and cylinder (0xA9D40, up axis 1): `setSafeMargin` (0xA8CA0: 0.1 x the smallest half extent when under 0.04), then `half - margin`; capsule (0xA5E20): `(radius, height x 0.5, radius)`, margin 0.04, up axis 1; then `setLocalScaling` as in 5.4 |
+| a compound's child | `from_vostok(create_rotation(rotation) * create_translation(position))`; `create_rotation` (0x725E0) on x87 `fsin`/`fcos`, cos(z) kept at x87 precision for its one product with cos(y); `from_vostok` (0x74470) transposes, flips the terms in one z row or column and makes every zero +0; the compound's scaling multiplies the origin |
+| an object | the loader (0x22C3D0..0x22C458): `scale * rotation * translation` (0x2F8770), then `set_scale(1, 1, 1)` (0x727B0): each basis row times `1 / sqrt(length2)`, the x87 at 24-bit precision there; through `from_vostok` (`set_transform` 0x356CC0, `setWorldTransform` 0x70C20) |
+| a mesh | the file's vertices under the scaling `(sx, sy, -sz)`; the cast takes `vertex x scaling` in f32, the export's library vertex with z negated, the same bits |
+
+Without the loader's unit axes, 774 of the 2,182 objects of `level_07/day_4` were 1-2 ulps off in their basis
+(a scale of exactly 1 too: the rows are made unit all the same); with them, none.
+
+**The 16 PvB captures against the dump of 2026-11-12 (Linux), values with the game's bits:**
+
+| field | the same bits | values |
+|---|---|---|
+| object transforms (9 basis + 3 origin) | 254,964 | 254,964 |
+| shape kind (mesh, convex, compound) | 21,246 | 21,247 |
+| compound scaling; child count | 33,474; 11,158 | 33,474; 11,158 |
+| child transforms; child kind | 3,349,488; 279,124 | 3,349,488; 279,124 |
+| primitives: type, up axis | 278,123; 19,307 | 278,123; 19,307 |
+| primitives: local scaling, implicit dims, margin | 834,369; 834,369; 278,123 | the same |
+| primitives: walker behaviour (the shape's word >> 14) | 219,023 | 219,023 |
+| mesh scaling; mesh corners as the cast takes them | 33,267; 86,637,033 | the same |
+| mesh walker behaviour (face data >> 14) | 9,626,337 | 9,626,337 |
+
+The exception is one object of one capture: on Vector Laboratory, mode 4, the spawn base's walker library
+(`base_v_born_place.model/walker_collision`, a mesh and 119 primitives) is a compound of 120 children in two
+captures of the same exe and project and the mesh alone in the third (`level_07_4.bwc`). The game built it without
+its primitives in that run; the export has the shape of the other two. LIKELY a race in the game's loading of the
+library's `exported_primitives` (not read).
+
 ## 6. Float control words at the walk tick (PROVEN)
 
 `vostok::setup_floating_point_control` 0xFE5E0, on unless its switch (0xA86BD0, made from the literal "1") says

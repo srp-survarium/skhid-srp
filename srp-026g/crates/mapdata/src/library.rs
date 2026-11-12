@@ -22,6 +22,7 @@ use std::collections::HashMap;
 
 use binary_config_parser::ConfigValue;
 
+use crate::bullet::{is_lone, mesh_scaling, Mesh, PrimitiveRow, Primitives, Shape};
 use crate::config::{float3, float3_req};
 use crate::math::{Rotation, Vec3};
 use crate::pierce::{Armor, FaceArmor};
@@ -169,7 +170,7 @@ impl Library {
         resources: &mut Resources,
         materials: &Materials,
         lib_name: &str,
-    ) -> Result<Self, Error> {
+    ) -> Result<(Self, Shape), Error> {
         let (path, scale) = split_scale(lib_name);
         let settings_path = match path.find(".model") {
             Some(at) => format!("{}/settings", &path[..at + ".model".len()]),
@@ -198,6 +199,7 @@ impl Library {
             ..Self::default()
         };
 
+        let mut mesh = None;
         let vertices_path = format!("{path}/vertices");
         if resources.exists(&vertices_path) {
             let vertices = resources.read(&vertices_path)?;
@@ -208,24 +210,30 @@ impl Library {
             } else {
                 None
             };
-            library.add_mesh(
+            mesh = Some(library.add_mesh(
                 &vertices,
                 &indices,
                 face_data.as_deref(),
                 scale,
                 &surface_of,
-            )?;
+            )?);
         }
 
         let primitives_path = format!("{path}/exported_primitives");
-        if resources.exists(&primitives_path) {
+        let primitives = if resources.exists(&primitives_path) {
             let config = resources.config(&primitives_path)?;
-            library.add_primitives(&config, scale, &surface_of)?;
-        }
-        Ok(library)
+            library.add_primitives(&config, scale, &surface_of)?
+        } else {
+            Primitives::None
+        };
+        let shape = primitives
+            .with_mesh(mesh)
+            .map_err(|e| Error(format!("{lib_name}: {e}")))?;
+        Ok((library, shape))
     }
 
-    /// Adds the chunked mesh files' triangles.
+    /// Adds the chunked mesh files' triangles; the game's mesh shape of them. A triangle that names a vertex the
+    /// file does not have is an error: the game's mesh would read past its vertices.
     pub fn add_mesh(
         &mut self,
         vertices: &[u8],
@@ -233,7 +241,7 @@ impl Library {
         face_data: Option<&[u8]>,
         scale: Vec3,
         surface_of: &dyn Fn(&str) -> Surface,
-    ) -> Result<(), Error> {
+    ) -> Result<Mesh, Error> {
         let vertices = chunk(vertices, CHUNK_VERTICES)
             .ok_or_else(|| Error(format!("{}: no vertex chunk", self.name)))?;
         let indices = chunk(indices, CHUNK_INDICES)
@@ -249,24 +257,26 @@ impl Library {
         let faces = face_data
             .map(|bytes| face_surfaces(bytes, surface_of))
             .unwrap_or_default();
+        let first = self.faces.len() as u32;
         for (n, tri) in indices.as_chunks::<12>().0.iter().enumerate() {
             let t = [0, 4, 8].map(|at| u32::from_le_bytes(word(tri, at)));
             if t.iter().any(|&i| i >= count) {
-                continue;
+                return Err(Error(format!("{}: triangle {n} names no vertex", self.name)));
             }
             let surface = faces.get(n).copied().unwrap_or_default();
             self.faces.push(Face { corners: t.map(|i| i + base), surface });
         }
-        Ok(())
+        Ok(Mesh { scaling: mesh_scaling(scale), faces: first..self.faces.len() as u32 })
     }
 
-    /// Adds the `exported_primitives` as triangles.
+    /// Adds the `exported_primitives` as triangles; the game's shape of them ([`Primitives::build`]). A type the
+    /// game does not make is an error.
     pub fn add_primitives(
         &mut self,
         config: &ConfigValue,
         scale: Vec3,
         surface_of: &dyn Fn(&str) -> Surface,
-    ) -> Result<(), Error> {
+    ) -> Result<Primitives, Error> {
         let names: Vec<String> = config
             .get("mtl_list")
             .map(|list| {
@@ -277,25 +287,25 @@ impl Library {
             })
             .unwrap_or_default();
         let primitives = config.req("primitives")?.children();
-        // A lone primitive at the origin is built without its rotation
-        // (`collision_shape_cook.cpp`).
+        // A lone primitive at the origin is built without its rotation and position (the cook's 0x83600).
         let single = primitives.len() == 1
-            && float3(primitives[0], "position").is_some_and(|p| p.length() < 1e-4);
+            && float3(primitives[0], "position").is_some_and(|p| is_lone(1, p));
+        let mut rows = Vec::with_capacity(primitives.len());
         for primitive in primitives {
-            let Some(shape) = PrimitiveShape::from_engine(
-                primitive.i32_at("type")?,
-                float3_req(primitive, "scale")?,
-                scale,
-            ) else {
-                continue;
+            let kind = primitive.i32_at("type")?;
+            let dim = float3_req(primitive, "scale")?;
+            let Some(shape) = PrimitiveShape::from_engine(kind, dim, scale) else {
+                return Err(Error(format!("{}: primitive type {kind} is none the game makes", self.name)));
+            };
+            let (angles, at) = if single {
+                (Vec3::ZERO, Vec3::ZERO)
+            } else {
+                (float3_req(primitive, "rotation")?, float3_req(primitive, "position")?)
             };
             let (rotation, position) = if single {
                 (Rotation::IDENTITY, Vec3::ZERO)
             } else {
-                (
-                    Rotation::from_angles(float3_req(primitive, "rotation")?),
-                    float3_req(primitive, "position")?,
-                )
+                (Rotation::from_angles(angles), at)
             };
             let shading_group = primitive
                 .get("mtl")
@@ -313,12 +323,21 @@ impl Library {
             let base = self.vertices.len() as u32;
             self.vertices
                 .extend(points.iter().map(|&p| rotation.apply(p) + offset));
+            let first = self.faces.len() as u32;
             for t in triangles {
                 self.faces.push(Face { corners: t.map(|i| i + base), surface });
             }
+            rows.push(PrimitiveRow {
+                kind,
+                dim,
+                position: at,
+                rotation: angles,
+                walker: surface.walker,
+                faces: first..self.faces.len() as u32,
+            });
             self.primitives += 1;
         }
-        Ok(())
+        Primitives::build(rows, scale).map_err(|e| Error(format!("{}: {e}", self.name)))
     }
 }
 
@@ -644,7 +663,7 @@ mod tests {
         );
         let indices = chunk_file(
             CHUNK_INDICES,
-            &[0u32, 1, 2, 1, 3, 2, 0, 1, 9]
+            &[0u32, 1, 2, 1, 3, 2]
                 .iter()
                 .flat_map(|v| v.to_le_bytes())
                 .collect::<Vec<_>>(),
@@ -667,10 +686,10 @@ mod tests {
             },
             _ => Surface::default(),
         };
-        library
+        let mesh = library
             .add_mesh(&vertices, &indices, Some(&face_data), scale, &surface)
             .unwrap();
-        // The third triangle names a vertex that does not exist.
+        assert_eq!(mesh, Mesh { scaling: [2.0, 1.0, -3.0], faces: 0..2 });
         let corners: Vec<[u32; 3]> = library.faces.iter().map(|f| f.corners).collect();
         assert_eq!(corners, [[0, 1, 2], [1, 3, 2]]);
         let walker: Vec<WalkerBehaviour> = library.faces.iter().map(|f| f.surface.walker).collect();
@@ -678,6 +697,13 @@ mod tests {
         let armor: Vec<FaceArmor> = library.faces.iter().map(|f| f.surface.armor).collect();
         assert_eq!(armor, [FaceArmor::FREE, FaceArmor::Material(Armor::new(0.1).unwrap())]);
         assert_eq!(library.vertices[3], Vec3::new(2.0, 1.0, 3.0));
+        // A triangle that names a vertex the file does not have is an error (the game would read past them).
+        let bad = chunk_file(
+            CHUNK_INDICES,
+            &[0u32, 1, 2, 0, 1, 9].iter().flat_map(|v| v.to_le_bytes()).collect::<Vec<_>>(),
+        );
+        let error = Library::default().add_mesh(&vertices, &bad, None, scale, &surface).unwrap_err();
+        assert!(error.to_string().contains("triangle 1 names no vertex"), "{error}");
     }
 
     #[test]

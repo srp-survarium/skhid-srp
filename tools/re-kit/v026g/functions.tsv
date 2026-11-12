@@ -2403,6 +2403,15 @@ va	status	ref_021d	name
 0x0008d680	verified		btConvexShape::localGetSupportVertexWithoutMarginNonVirtual
 0x00072eb0	reviewed		btTransformUtil::calculateVelocity
 0x0008b2d0	reviewed		btTransformUtil::integrateTransform
+0x00074210	reviewed		btSphereShape::btSphereShape
+0x000a96d0	reviewed		btBoxShape::btBoxShape
+0x000a9d40	reviewed		btCylinderShape::btCylinderShape
+0x000a8ca0	reviewed		btConvexInternalShape::setSafeMargin
+0x00070c20	reviewed		btCollisionObject::setWorldTransform
+0x00070c80	reviewed		btCollisionObject::setInterpolationWorldTransform
+0x002f8770	reviewed		survarium::collision_object_matrix
+0x000727b0	reviewed		vostok::math::float4x4::set_scale
+0x00083600	reviewed		vostok::physics::collision_shape_cook::create_primitives_shape
 0x00072b90	verified		btMatrix3x3::getRotation
 0x00072a50	verified		btMatrix3x3::setRotation
 0x00072fb0	reviewed		btTransformUtil::calculateDiffAxisAngle

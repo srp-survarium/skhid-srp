@@ -162,6 +162,16 @@ object's scale, rotation and position (LIKELY; every shape of the shipped
 maps has scale 1). Reading checks every count against the bytes left: a
 damaged file is an error, never a panic.
 
+Versions 4 and 5 added the zones' part names and each face's bullet armor;
+**version 6** (2026-11-12) adds, after the placements, the game's own Bullet
+shapes (`mapdata::bullet`): one shape per library (a mesh in its own frame
+with its scaling, a convex primitive with its implicit dims, margin, local
+scaling and up axis, or a compound of them with each child's transform) and
+one object transform per placement, all the bits the 0.26g exe has in memory
+(`collision_world.md` §5.5). The triangles stay as they were (rays, the
+grid, sight); a version 2 to 5 file is still read, without the shapes.
+`crates/mapdata/src/format.rs` has the full layout.
+
 ## 4. API
 
 ```rust
