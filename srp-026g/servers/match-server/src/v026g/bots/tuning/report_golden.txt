@@ -3,7 +3,7 @@ switches ON avoid: bot_pockets grenade_avoid kit_in_use
 switches ON cheats: sight_hold_to_next_think
 switches ON commit: crossfire_apart_mates crossfire_point cut_given_crowd held_in_pass hold_to_arrival
 switches ON cover: spot_cost=0.5 pierce={"max_share":0.5,"pierce":0.3125}
-switches ON feel: band_from_grid band_jump_gate carrier_jump_m=0.998 carry_jumps drop_aim drop_walk floor_height_clear landing_cancel_drops lip_guard_full sprint_gaps sprint_through unclear_aim zone_lines
+switches ON feel: band_from_grid band_jump_gate carrier_jump_m=0.998 carry_jumps drop_aim drop_walk floor_height_clear landing_cancel_drops lip_guard_full sprint_gaps sprint_through unclear_aim walk_jump_reach zone_lines
 switches ON grid: client_controller client_numbers crack_bridges crouch_floors drop_check drop_room drop_room_walk_faces exact_erosion exe_collision exits_in_reach fall_stops_on_solids floor_paths gap_links gap_no_vaults honest_drops landing_carry narrow_doors pocket_exits_walled press_window ramp_faces run_ups_after_erosion slip_landings start_witness steep_walk_base walk_off_lips walk_start_clear wall_give_back
 switches ON hazard: artefact_know escort_dry_post escort_reach hurt_by_shape leave_islands live_zones price_way_out run_out zone_intensity
 switches ON heal: bandages interrupt on
