@@ -61,3 +61,37 @@ order = 2
 site = "replay.options_read"
 handler = "on_replay_options"
 order = 2
+
+# The render scale (docs/notes/dlss-option.md, "The render size"; hud_options/render_size.rs):
+# the 3D frame at a share of the window's size. Written on demand, at the process's start,
+# only when a scale is asked for (DLSS's link, or the diagnostics switch
+# SKHID_DLSS_RENDER_SCALE): otherwise the engine's own code runs.
+# set_size about to make the frame's targets: their size
+[[hook]]
+site = "render_window.targets_size"
+handler = "on_targets_size"
+install = "on_demand"
+
+# a frame's start: a scale asked since the targets were made remakes them
+[[hook]]
+site = "render.output_setup"
+handler = "on_output_setup"
+install = "on_demand"
+
+# the output set up: the stages' base viewport and depth-stencil are the frame's
+[[hook]]
+site = "render.output_set"
+handler = "on_output_set"
+install = "on_demand"
+
+# the G-buffer's copy of the hardware depth to the linear one: from the frame's
+[[hook]]
+site = "gbuffer.depth_texture"
+handler = "on_depth_texture"
+install = "on_demand"
+
+# before the screen image and Scaleform: the window's viewport and depth-stencil again
+[[hook]]
+site = "render.present_stage"
+handler = "on_present_stage"
+install = "on_demand"

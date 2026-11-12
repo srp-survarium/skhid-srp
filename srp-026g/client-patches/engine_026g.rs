@@ -277,6 +277,10 @@ unsafe extern "C" {
     pub fn engine_log_helper(function: *const c_void, context: u32, helper: *mut c_void, template_helper: *const c_void, file: *const u8, line: u32, caller: *const u8, channel: *const u8, level: u32) -> *mut c_void;
     /// 0x111d10 vostok::logging::helper::write: helper ESI, format ESP+4, arguments ESP+8; pops 8
     pub fn engine_log_write(helper: *mut c_void, format: *const u8, arguments: *const c_void);
+    /// 0x119ab0 vostok::render::render_output_window::set_size: width EAX, window ESP+4, height ESP+8, fullscreen ESP+12, force ESP+16; pops 16
+    pub fn engine_render_window_set_size(width: u32, window: *mut c_void, height: u32, fullscreen: u32, force: u32);
+    /// 0x11c080 vostok::render::backend::set_viewports: viewport ESI, backend ESP+4; pops 4
+    pub fn engine_set_viewports(viewport: *const f32, backend: *mut c_void);
 }
 
 #[allow(dead_code)]
@@ -295,6 +299,10 @@ unsafe extern "stdcall" {
     pub fn engine_compress_mip(renderer: *mut c_void, levels: *mut *mut c_void, cursor: *mut c_void, wide: u32, high: u32, level: u32, format: u32, normal: u32);
     /// 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly
     pub fn engine_discard_playing_order(client: *mut c_void, left: u32);
+    /// 0x3bf930 vostok::render::resource_manager::create_render_target: manager ESP+4, name ESP+8, width ESP+12, height ESP+16, format ESP+20, usage ESP+24, texture ESP+28, memory_usage ESP+32, slice ESP+36, pooled ESP+40; pops 40; EAX; stdcall, called directly
+    pub fn engine_create_render_target(manager: *mut c_void, name: *const u8, width: u32, height: u32, format: u32, usage: u32, texture: *mut c_void, memory_usage: u32, slice: u32, pooled: u32) -> *mut c_void;
+    /// 0x3bfbc0 vostok::render::resource_manager::release: manager ESP+4, target ESP+8; pops 8; stdcall, called directly
+    pub fn engine_release_render_target(manager: *mut c_void, target: *mut c_void);
 }
 
 #[allow(dead_code)]

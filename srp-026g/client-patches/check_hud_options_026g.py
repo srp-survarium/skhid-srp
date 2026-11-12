@@ -969,7 +969,11 @@ def renderer(original, patched, expect):
          opened + files + marker + nvidia + config + loads[:2] + log,
          True, b"had called DLL 0"),
     ]
+    # the last thing every start does: the render scale's diagnostics switch read (unset here: nothing asked,
+    # no site written; docs/notes/dlss-option.md, "The render size")
+    scale = [("GetEnvironmentVariableA", "SKHID_DLSS_RENDER_SCALE")]
     for what, world, wanted, marked, words in cases:
+        wanted = wanted + scale
         r = Run(patched)
         kept_regs, calls = r.process_start(**world)
         bound = {name: r.read(slot) for name, slot in MODULE_SLOTS.items()}

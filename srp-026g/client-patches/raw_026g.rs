@@ -283,6 +283,10 @@ unsafe extern "C" {
     pub fn engine_log_helper(function: Option<LogFunction>, context: u32, helper: Option<LogHelper>, template_helper: Option<LogHelper>, file: *const u8, line: u32, caller: *const u8, channel: *const u8, level: u32) -> Option<LogHelper>;
     /// 0x111d10 vostok::logging::helper::write: helper ESI, format ESP+4, arguments ESP+8; pops 8
     pub fn engine_log_write(helper: Option<LogHelper>, format: *const u8, arguments: *const c_void);
+    /// 0x119ab0 vostok::render::render_output_window::set_size: width EAX, window ESP+4, height ESP+8, fullscreen ESP+12, force ESP+16; pops 16
+    pub fn engine_render_window_set_size(width: u32, window: Option<RenderOutputWindow>, height: u32, fullscreen: u32, force: u32);
+    /// 0x11c080 vostok::render::backend::set_viewports: viewport ESI, backend ESP+4; pops 4
+    pub fn engine_set_viewports(viewport: *const f32, backend: Option<Backend>);
 }
 
 #[allow(dead_code)]
@@ -301,6 +305,10 @@ unsafe extern "stdcall" {
     pub fn engine_compress_mip(renderer: Option<SystemRenderer>, levels: *mut Option<ResTexture>, cursor: Option<DdsCursor>, wide: u32, high: u32, level: u32, format: u32, normal: u32);
     /// 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly
     pub fn engine_discard_playing_order(client: Option<LobbyClient>, left: u32);
+    /// 0x3bf930 vostok::render::resource_manager::create_render_target: manager ESP+4, name ESP+8, width ESP+12, height ESP+16, format ESP+20, usage ESP+24, texture ESP+28, memory_usage ESP+32, slice ESP+36, pooled ESP+40; pops 40; EAX; stdcall, called directly
+    pub fn engine_create_render_target(manager: Option<ResourceManager>, name: *const u8, width: u32, height: u32, format: u32, usage: u32, texture: Option<ResTexture>, memory_usage: u32, slice: u32, pooled: u32) -> Option<RenderTarget>;
+    /// 0x3bfbc0 vostok::render::resource_manager::release: manager ESP+4, target ESP+8; pops 8; stdcall, called directly
+    pub fn engine_release_render_target(manager: Option<ResourceManager>, target: Option<RenderTarget>);
 }
 
 #[allow(dead_code)]
@@ -19272,6 +19280,33 @@ impl ResRenderOutput {
     pub unsafe fn window(self) -> *mut u32 {
         unsafe { self.0.byte_add(0xe4).cast::<u32>().as_ptr() }
     }
+
+    /// +0x90 (u32): the back buffer's width (resize 0x3CFC06; target_width 0x116566)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn width(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x90).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x94 (u32): the back buffer's height (resize 0x3CFC0C; target_height 0x116586)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn height(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x94).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xd4 (u32): m_base_zb: its own depth-stencil's view at the back buffer's size (update_depth_stencil_buffer 0x3D0175, an ID3D11DepthStencilView)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn depth_stencil_view(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xd4).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A vostok::memory::arena_list_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -21286,6 +21321,225 @@ impl LogState {
     }
 }
 
+/// A vostok::render::backend (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Backend(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl Backend {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x299c (u32): m_zb, the depth-stencil view the next flush binds (an ID3D11DepthStencilView, 0 none): every inlined reset_depth_stencil_target writes m_base_zb here and ors the dirty byte (setup_render_output_window 0x13BAF8..0x13BB22)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn depth_stencil(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x299c).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x29d4 (u32): m_base_zb: the render output's depth-stencil view (set_render_output 0x11B721, from the output's +D4h), what reset_depth_stencil_target binds beside the stages' colour targets and what render_flash_ui (0x13CF83) binds for Scaleform
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn base_depth_stencil(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x29d4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x75 (u8): set when m_zb changed, for the next flush's OMSetRenderTargets (or byte [eax+75h], 0x13BB15)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn depth_stencil_dirty(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x75).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x29a0 (ptr<vostok::render::res_render_output>): m_render_output, the output the frame presents to (set_render_output 0x11B6E3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn render_output(self) -> Option<ResRenderOutput> {
+        unsafe { self.0.byte_add(0x29a0).cast::<Option<ResRenderOutput>>().read_volatile() }
+    }
+
+    /// +0x29a0 (ptr<vostok::render::res_render_output>): m_render_output, the output the frame presents to (set_render_output 0x11B6E3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_render_output(self, value: Option<ResRenderOutput>) {
+        unsafe { self.0.byte_add(0x29a0).cast::<Option<ResRenderOutput>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::render_output_window (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RenderOutputWindow(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RenderOutputWindow {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x108 (u32): m_current_size.x, the window's size set_size was given (0x119B04)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn width(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x108).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x10c (u32): m_current_size.y (0x119B18)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn height(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x10c).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x114 (u8): m_windowed: 1 when set_size's fullscreen argument was 0 (sete al, 0x119B0A)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn windowed(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x114).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A vostok::render::render_target (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RenderTarget(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RenderTarget {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): its references, plain adds (new_rt's inc [eax] 0x162A3F / add [eax],-1 0x162A53, then resource_manager::release 0x3BFBC0 at 0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn references(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x18 (u32): m_zrt: a depth-stencil target's view (render_target::create 0x3D23DD, CreateDepthStencilView), 0 for a colour target
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn depth_stencil_view(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x18).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x1c (ptr<vostok::render::res_texture>): m_texture: the target as a texture (new_rt reads it at 0x162A78)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn texture(self) -> Option<ResTexture> {
+        unsafe { self.0.byte_add(0x1c).cast::<Option<ResTexture>>().read_volatile() }
+    }
+
+    /// +0x1c (ptr<vostok::render::res_texture>): m_texture: the target as a texture (new_rt reads it at 0x162A78)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_texture(self, value: Option<ResTexture>) {
+        unsafe { self.0.byte_add(0x1c).cast::<Option<ResTexture>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::render_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RenderFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RenderFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x2c (ptr<vostok::render::render_output_window>): renderer::render's [esp+2Ch] between its set_scene_view (0x13D244) and its present stage (0x13DB16): the output window it was given (pushed to setup_render_output_window at 0x13D278 as [esp+34h] after two pushes)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn window(self) -> Option<RenderOutputWindow> {
+        unsafe { self.0.byte_add(0x2c).cast::<Option<RenderOutputWindow>>().read_volatile() }
+    }
+
+    /// +0x2c (ptr<vostok::render::render_output_window>): renderer::render's [esp+2Ch] between its set_scene_view (0x13D244) and its present stage (0x13DB16): the output window it was given (pushed to setup_render_output_window at 0x13D278 as [esp+34h] after two pushes)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_window(self, value: Option<RenderOutputWindow>) {
+        unsafe { self.0.byte_add(0x2c).cast::<Option<RenderOutputWindow>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::set_size_targets_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SetSizeTargetsFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SetSizeTargetsFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (u32): render_output_window::set_size's create_targets arguments at 0x119B2B: the force at [esp], the width the targets are made at
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn width(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x8 (u32): the height the targets are made at
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn height(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -21564,21 +21818,6 @@ pub struct SystemRenderer(NonNull<c_void>);
 
 #[allow(dead_code)]
 impl SystemRenderer {
-    /// Its address as a value (an id, a compare): never read through.
-    #[inline(always)]
-    pub fn address(self) -> u32 {
-        self.0.as_ptr() as usize as u32
-    }
-}
-
-/// A vostok::render::backend (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
-/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Backend(NonNull<c_void>);
-
-#[allow(dead_code)]
-impl Backend {
     /// Its address as a value (an id, a compare): never read through.
     #[inline(always)]
     pub fn address(self) -> u32 {
@@ -25624,6 +25863,36 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
+        }
+    }
+
+    /// render_window.targets_size (0x119b2b): render_output_window::set_size with create_targets' arguments pushed (lea eax,[ebx+118h]; then xor dl,dl and the call 0x119B33): [esp] the force, [esp+4] and [esp+8] the size the frame's targets are made at, the window's. Every making of a frame's targets after the window's constructor is here
+    pub mod render_window_targets_size {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::render::set_size_targets_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<SetSizeTargetsFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(SetSizeTargetsFrame)
+        }
+    }
+
+    /// render.output_setup (0x13d273): renderer::render before its first setup_render_output_window (mov eax,[ebp+18h] / push eax / push ecx; the call at 0x13D297): once a frame, the scene and view set, nothing of the frame bound yet; [esp+2Ch] the output window
+    pub mod render_output_setup {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::render::render_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<RenderFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(RenderFrame)
         }
     }
 }
