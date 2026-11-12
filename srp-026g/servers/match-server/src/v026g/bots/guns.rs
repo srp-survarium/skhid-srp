@@ -583,8 +583,10 @@ impl ModCounts {
 /// - the reload: `(1 + w) / (1 + s + g)`, `w` the most a weapon modification shortens `parameters/reload_time` (its
 ///   multiplying change: 2044's -15 %), `s` every rank of every skill of the tree that sets `reload_speed` (108), `g` the
 ///   most the worn pieces add to `reload_speed_modifier` ([`worn_bound`]);
-/// - the aim: `1 + s + g` of the skills' `aim_time` (101) and the worn pieces' `aim_time_modifier`; a weapon's own
-///   aim-time modification is left out, as before (LIKELY inert, `fact-weapon-mods.md` §3.1).
+/// - the aim: `(1 + w) (1 + s + g)`, `w` the most a weapon modification shortens `parameters/aim_time` (its multiplying
+///   change), `s` and `g` the skills' `aim_time` (101) and the worn pieces' `aim_time_modifier` (`Factors`: the sights take
+///   `aim_time * max(0, 1 + s + g)`). The weapon's change is in the bound whether or not the client reads it: the bound is
+///   then never above what a human may have.
 ///
 /// The skills are summed whatever their exclusions and the points a level allows: a bound, not a build.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -619,6 +621,14 @@ pub fn worn_bound(mods: &Modifications, parameter: &str, better: fn(f32, f32) ->
         .sum()
 }
 
+/// The most one modification shortens a weapon's `path` by its multiplying change (0 when none does).
+pub fn weapon_shortening(mods: &Modifications, path: &str) -> f32 {
+    mods.modifications
+        .iter()
+        .map(|row| row.modifiers.iter().filter(|m| m.kind == MODIFIER_MULTIPLY && m.path == path).map(|m| m.value).sum::<f32>())
+        .fold(0.0_f32, f32::min)
+}
+
 impl HumanBounds {
     /// The bounds the skills tree `tree` and the modifications `mods` give, with the dictionary's items.
     pub fn of(tree: &SkillsTree, mods: &Modifications) -> Self {
@@ -631,20 +641,11 @@ impl HumanBounds {
                 .map(|&(_, value)| value)
                 .sum()
         };
-        let weapon = mods
-            .modifications
-            .iter()
-            .map(|row| {
-                row.modifiers
-                    .iter()
-                    .filter(|m| m.kind == MODIFIER_MULTIPLY && m.path == "parameters/reload_time")
-                    .map(|m| m.value)
-                    .sum::<f32>()
-            })
-            .fold(0.0_f32, f32::min);
         Self {
-            reload_ratio: (1.0 + weapon) / (1.0 + skills("reload_speed") + worn_bound(mods, "reload_speed_modifier", f32::max)),
-            aim_ratio: 1.0 + skills("aim_time") + worn_bound(mods, "aim_time_modifier", f32::min),
+            reload_ratio: (1.0 + weapon_shortening(mods, "parameters/reload_time"))
+                / (1.0 + skills("reload_speed") + worn_bound(mods, "reload_speed_modifier", f32::max)),
+            aim_ratio: (1.0 + weapon_shortening(mods, "parameters/aim_time"))
+                * (1.0 + skills("aim_time") + worn_bound(mods, "aim_time_modifier", f32::min)),
         }
     }
 
@@ -1231,10 +1232,11 @@ mod tests {
         let worn_aim = worn_bound(mods, "aim_time_modifier", f32::min);
         assert!(worn_reload >= 0.15 - 1e-6 && worn_aim <= -0.10 + 1e-6, "{worn_reload} {worn_aim}");
         assert!((bounds.reload_ratio - 0.85 / (1.12 + worn_reload)).abs() < 1e-6, "{bounds:?} {worn_reload}");
-        assert!((bounds.aim_ratio - (0.90 + worn_aim)).abs() < 1e-6, "{bounds:?} {worn_aim}");
+        let weapon_aim = weapon_shortening(mods, "parameters/aim_time");
+        assert!((bounds.aim_ratio - (1.0 + weapon_aim) * (0.90 + worn_aim)).abs() < 1e-6, "{bounds:?} {worn_aim}");
         // Never above what the hand-made numbers allowed: they missed the items' own configs.
         assert!(bounds.reload_ratio <= 0.85 / 1.27 + 1e-6 && bounds.aim_ratio <= 0.80 + 1e-6, "{bounds:?}");
-        eprintln!("A375 bounds {bounds:?}: worn reload {worn_reload}, worn aim {worn_aim}");
+        eprintln!("A375 bounds {bounds:?}: worn reload {worn_reload}, worn aim {worn_aim}, weapon aim {weapon_aim}");
         bounds
     }
 
@@ -1244,6 +1246,9 @@ mod tests {
     fn on_the_live_data_the_humans_bounds_hold() {
         live_data();
         the_humans_bounds_hold();
+        // The players' data has the weapons' aim-time modifications (type 8; the tests' data has none): in the bound.
+        let weapon_aim = weapon_shortening(Modifications::shared(), "parameters/aim_time");
+        assert!(weapon_aim < 0.0, "{weapon_aim}");
     }
 
     /// Every kit of every tier and each rusher kit the game data can make:
