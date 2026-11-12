@@ -6277,3 +6277,18 @@ va	name	location	role	basis
 0x000b8670	btTriangleConvexcastCallback::processTriangle	entry ESP+4	btVector3* triangle (three corners, 16 bytes each)	observed
 0x000b8670	btTriangleConvexcastCallback::processTriangle	entry ESP+8	int partId	observed
 0x000b8670	btTriangleConvexcastCallback::processTriangle	entry ESP+12	int triangleIndex	observed
+0x0007b730	vostok::physics::bullet_character_controller::updateAction	ECX	the controller (its btActionInterface part is at +0)	observed
+0x0007b730	vostok::physics::bullet_character_controller::updateAction	entry ESP+4	the collision world (not read by it)	observed
+0x0007b730	vostok::physics::bullet_character_controller::updateAction	entry ESP+8	float dt: the atomic tick's ms times 0.001f (27,166 of 27,166 traced steps)	observed
+0x0007f6d0	vostok::physics::bullet_character_controller::set_transform	EAX	the transform (64 bytes; the feet at +30h)	observed
+0x0007f6d0	vostok::physics::bullet_character_controller::set_transform	entry ESP+4	the controller	observed
+0x0007f7f0	vostok::physics::bullet_character_controller::serialize	ESI	the controller	observed
+0x0007f7f0	vostok::physics::bullet_character_controller::serialize	EDI	the writer	observed
+0x0009b260	btDiscreteDynamicsWorld::stepSimulation	ECX	the dynamics world	observed
+0x0009b260	btDiscreteDynamicsWorld::stepSimulation	entry ESP+4	float timeStep	observed
+0x0009b260	btDiscreteDynamicsWorld::stepSimulation	entry ESP+8	int maxSubSteps	observed
+0x0009b260	btDiscreteDynamicsWorld::stepSimulation	entry ESP+12	float fixedTimeStep	observed
+0x0009b810	btDiscreteDynamicsWorld::updateActions	EDI	the dynamics world	observed
+0x0009b810	btDiscreteDynamicsWorld::updateActions	entry ESP+4	float timeStep (the whole step's)	observed
+0x002d1e20	survarium::game_world_core::atomic_tick	EDI	the match time the step ends at, ms (traced: 1,995 ticks)	observed
+0x002d1e20	survarium::game_world_core::atomic_tick	entry ESP+8	the step's length, ms: 50 for a whole grid step, less for a part	observed

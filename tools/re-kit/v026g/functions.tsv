@@ -2369,3 +2369,8 @@ va	status	ref_021d	name
 0x000b8670	reviewed		btTriangleConvexcastCallback::processTriangle
 0x000b8900	reviewed		btContinuousConvexCollision::computeClosestPoints
 0x000fe5e0	reviewed		vostok::setup_floating_point_control
+0x0007b730	reviewed	0x0021d189	vostok::physics::bullet_character_controller::updateAction
+0x0007f6d0	reviewed	0x0021ff5d	vostok::physics::bullet_character_controller::set_transform
+0x0007f7f0	observed		vostok::physics::bullet_character_controller::serialize
+0x0009b260	reviewed		btDiscreteDynamicsWorld::stepSimulation
+0x0009b810	reviewed		btDiscreteDynamicsWorld::updateActions
