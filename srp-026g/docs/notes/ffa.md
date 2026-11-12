@@ -244,6 +244,10 @@ and spatial review; they still need multiplayer playtesting for balance.
   the reader's win/defeat (`rewards::ffa_screen`); Flash ignores those transport
   groups when laying out the FFA list.
 
+- **Rooms list (lobby):** the members of a room playing a free-for-all are shown in the match
+  (gold) with no side: no bar and no column of a team (`rooms.md`; the server tells no side,
+  the movie is unchanged).
+
 ## Why two sides are the limit (PROVEN, 2026-11-01, 0.26g exe)
 
 - **Respawn tick** 0x316820 (vtable 0xA16084 +50h):

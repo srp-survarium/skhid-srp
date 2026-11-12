@@ -392,7 +392,9 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     in a column of its own, then its name. Grey while its game is gone (`away`), red with the
     red mark when its kit or gear cannot play, white for the player itself, gold in the room's
     match. While the room plays, the side of each player in the match (a bar of the side's
-    colour; side 1 left, side 2 right; those not in the match where there is room).
+    colour; side 1 left, side 2 right; those not in the match where there is room). A
+    free-for-all has no sides (`ffa.md`): its players are told with none, so they stay in
+    the two plain columns, gold, with no bar.
   - Up to 20: one column while they fit at 18 a row; two otherwise (always two while it
     plays). Rows share the space (12 to 22 high, the font 12 to 14); the map's render is made
     up to 60 lower for a full room; nothing goes past the panel.
