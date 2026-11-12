@@ -18,7 +18,7 @@
 //! sweeps (0x86BF0, 0x88CB0, read in outline: capsule sweeps).
 // The exe's comparisons are ported as written: `!(a > b)` and `a > b` differ on NaN, as `comiss` branches do.
 #![allow(clippy::neg_cmp_op_on_partial_ord)]
-use super::{Collision, Contact, Shape};
+use super::{Collision, Contact, Shape, SmallRound, Surface};
 use crate::WalkerBehaviour;
 use crate::math::Vec3;
 
@@ -654,18 +654,21 @@ impl Controller {
                 }
             });
             let c = best?;
-            let face = world.face(c.face);
             let k = (UP.z * c.normal.z + UP.y * c.normal.y) + UP.x * c.normal.x;
             let h = Vec3::new(c.normal.x - UP.x * k, c.normal.y - UP.y * k, c.normal.z - UP.z * k);
             let mut n2 = normalized_safe(h, -dir);
             let cc = (dir.z * -n2.z + dir.y * -n2.y) + dir.x * -n2.x;
             if cc > s.wall_full_slide_dot {
                 n2 = match s.wall_normal {
-                    WallNormal::FaceMadeHorizontal => {
-                        let fnrm = if face.normal.dot(c.normal) < 0.0 { -face.normal } else { face.normal };
-                        let kf = fnrm.y;
-                        normalized_safe(Vec3::new(fnrm.x, fnrm.y - kf, fnrm.z), n2)
-                    }
+                    WallNormal::FaceMadeHorizontal => match c.on {
+                        Surface::Face { normal, .. } => {
+                            let fnrm = if normal.dot(c.normal) < 0.0 { -normal } else { normal };
+                            let kf = fnrm.y;
+                            normalized_safe(Vec3::new(fnrm.x, fnrm.y - kf, fnrm.z), n2)
+                        }
+                        // A primitive has no face: the contact's own normal stays.
+                        Surface::Primitive { .. } => n2,
+                    },
                     WallNormal::Rays => wall_normal_via_ray(world, n2, dir, from, c.point),
                 };
             }
@@ -762,8 +765,7 @@ impl Controller {
             if !(hx * hx + hz * hz < r * r - 1e-5) && c.normal.y.abs() < 0.001 {
                 continue;
             }
-            let face = world.face(c.face);
-            let n = match face.walker {
+            let n = match c.on.walker() {
                 WalkerBehaviour::Walk => UP,
                 WalkerBehaviour::DontWalk => {
                     let cm = s.max_slope_cos - 0.001;
@@ -777,7 +779,7 @@ impl Controller {
                 }
                 _ => {
                     let n = c.normal;
-                    if (UP.y * n.y + UP.z * n.z) + UP.x * n.x < s.max_slope_cos { self.ground_relook(world, c.point, n, s) } else { n }
+                    if (UP.y * n.y + UP.z * n.z) + UP.x * n.x < s.max_slope_cos { self.steep_ground(world, c, s) } else { n }
                 }
             };
             return Some((c.t, c.point, n));
@@ -785,7 +787,25 @@ impl Controller {
         None
     }
 
-    /// 0x84810 for a map face (not a small round shape): a steep hit looked at again by a ray along `-n`, from 0.5 m out along
+    /// 0x84810: the normal of a steep by-slope hit, looked at again. On a small round primitive (0x8482F..0x8499A: a sphere,
+    /// a capsule or a cylinder under 0.8 m of radius, [`SmallRound`]) it is tilted to just walkable (0x84E20) for a sphere and
+    /// for a capsule or a cylinder that lies (`1 - upright` over the callback's +94h, which 0x85176 hands the slope limit's
+    /// cosine); a capsule that stands keeps it (steep), a cylinder that stands gets the ray's look. Anything else (a face, a
+    /// box, a larger round shape) gets the ray's look ([`Self::ground_relook`]).
+    fn steep_ground(&self, world: &Collision, c: Contact, s: &Settings) -> Vec3 {
+        let n = c.normal;
+        match c.on {
+            Surface::Primitive { round: Some(round), .. } => match round {
+                SmallRound::Sphere => limit_walkable(n, s),
+                SmallRound::Capsule { upright } | SmallRound::Cylinder { upright } if 1.0 - upright > s.max_slope_cos => limit_walkable(n, s),
+                SmallRound::Capsule { .. } => n,
+                SmallRound::Cylinder { .. } => self.ground_relook(world, c.point, n, s),
+            },
+            Surface::Face { .. } | Surface::Primitive { round: None, .. } => self.ground_relook(world, c.point, n, s),
+        }
+    }
+
+    /// 0x849BB (0x84810's ray look): a steep hit looked at again by a ray along `-n`, from 0.5 m out along
     /// `n` and the ground offset over the hit point, 1 m long. No face met: the ground counts as flat (up). A face flatter than
     /// `n` and walkable: `n` tilted to just walkable (0x84E20). Else `n` as it is (steep).
     fn ground_relook(&self, world: &Collision, hp: Vec3, n: Vec3, s: &Settings) -> Vec3 {

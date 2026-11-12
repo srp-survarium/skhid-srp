@@ -13,10 +13,11 @@
 pub mod exe_cast;
 pub mod exe_gjk;
 pub mod gjk;
+mod solids;
 pub mod speed;
 pub mod tick;
 
-use crate::{Triangle, WalkerBehaviour};
+use crate::{MapData, Triangle, WalkerBehaviour};
 use crate::math::Vec3;
 
 /// The gap at which a sweep counts as touching, m.
@@ -177,7 +178,17 @@ pub const BULLET_TOLERANCE_M: f32 = 0.001;
 pub struct Collision {
     faces: Vec<Face>,
     nodes: Vec<Node>,
-    caster: Caster,
+    sweeps: Sweeps,
+}
+
+/// What a sweep is cast against.
+enum Sweeps {
+    /// Every face on its own, placed in the map frame, by this caster.
+    Faces(Caster),
+    /// The game's own objects by the exe's cast ([`Collision::build_exe`]): each mesh in its own frame under its
+    /// object's transform, each primitive as the convex shape it is. Where the exe goes on to its penetration solver
+    /// the contact is [`Caster::Bullet`]'s with this [`StartOverlap`], against the face or the primitive's triangles.
+    Solids(Box<solids::Solids>, StartOverlap),
 }
 
 /// The first contact of a sweep.
@@ -185,12 +196,51 @@ pub struct Collision {
 pub struct Contact {
     /// The share of the move done before the contact, 0..=1.
     pub t: f32,
-    /// The contact's point on the face.
+    /// The contact's point on what is met.
     pub point: Vec3,
-    /// From the face to the capsule at the contact, unit.
+    /// From what is met to the capsule at the contact, unit.
     pub normal: Vec3,
-    /// The face met (an index into [`Collision::face`]).
-    pub face: usize,
+    /// What is met.
+    pub on: Surface,
+}
+
+/// What a contact is on, as the walk tick's callbacks read it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Surface {
+    /// A triangle of a mesh: its walker behaviour and its own unit normal (either side).
+    Face { walker: WalkerBehaviour, normal: Vec3 },
+    /// One of the game's convex primitives, met as the shape itself ([`Collision::build_exe`]). Its walker behaviour
+    /// is the one the down sweep's callback 0x84420 finds: a compound's child's own (the result's shape info names the
+    /// child, 0xA2BE0), by slope for a primitive that is an object's whole shape whatever its material (no shape
+    /// info: 0x84561 takes 0). `round` for a small round one.
+    Primitive { walker: WalkerBehaviour, round: Option<SmallRound> },
+}
+
+impl Surface {
+    pub fn walker(self) -> WalkerBehaviour {
+        match self {
+            Surface::Face { walker, .. } | Surface::Primitive { walker, .. } => walker,
+        }
+    }
+}
+
+/// A sphere, a capsule or a cylinder under 0.8 m of radius (0xA7AB04; a sphere's radius times its scaling, a capsule's
+/// radius, a cylinder's with its margin, `getRadius` 0xA9BC0), which the down sweep's second look at steep ground
+/// (0x84810) treats on its own. `upright`: how far the shape's own y axis is along the world's up, the absolute value
+/// of `up . (M up)` with `M` the shape's world rotation sent through a quaternion (0x84190, 0x848C7..0x8496C).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SmallRound {
+    Sphere,
+    Capsule { upright: f32 },
+    Cylinder { upright: f32 },
+}
+
+/// A sweep's meeting with one face or shape, before it is said what it is on.
+#[derive(Clone, Copy, Debug)]
+struct Touch {
+    t: f32,
+    point: Vec3,
+    normal: Vec3,
 }
 
 /// A capsule standing upright: the centres of its lower and upper spheres and its radius.
@@ -246,12 +296,23 @@ impl Collision {
             let n = faces.len();
             Self::split(&mut faces, 0, n, &mut nodes);
         }
-        Self { faces, nodes, caster: Caster::default() }
+        Self { faces, nodes, sweeps: Sweeps::Faces(Caster::default()) }
     }
 
-    /// The same collision, its sweeps by `caster`.
+    /// The same faces, its sweeps against each face by `caster`.
     pub fn with_caster(self, caster: Caster) -> Self {
-        Self { caster, ..self }
+        Self { sweeps: Sweeps::Faces(caster), ..self }
+    }
+
+    /// The walking body's collision of `map` as the game holds it, for sweeps by the exe's own cast: the game's
+    /// objects ([`crate::bullet`]: a placed mesh's triangles in the mesh's frame under the object's transform, a box,
+    /// a sphere, a cylinder or a capsule as the convex shape with its margin, a compound's children under the
+    /// transforms the exe composes), met as `objectQuerySingle` 0xA14E0 meets them. Rays and the nearest-face
+    /// questions still read the placed triangles ([`MapData::walker_triangles`]; a primitive's are its drawn
+    /// stand-in). `None` for a map without the game's shapes (a file older than format 6).
+    pub fn build_exe(map: &MapData, start: StartOverlap) -> Option<Self> {
+        let solids = solids::Solids::build(map)?;
+        Some(Self { sweeps: Sweeps::Solids(Box::new(solids), start), ..Self::build(&map.walker_triangles()) })
     }
 
     fn split(faces: &mut [Face], first: usize, end: usize, nodes: &mut Vec<Node>) -> usize {
@@ -275,7 +336,11 @@ impl Collision {
 
     /// The heap it holds, bytes (its faces and its tree).
     pub fn bytes(&self) -> usize {
-        self.faces.capacity() * std::mem::size_of::<Face>() + self.nodes.capacity() * std::mem::size_of::<Node>()
+        let solids = match &self.sweeps {
+            Sweeps::Faces(_) => 0,
+            Sweeps::Solids(solids, _) => solids.bytes(),
+        };
+        self.faces.capacity() * std::mem::size_of::<Face>() + self.nodes.capacity() * std::mem::size_of::<Node>() + solids
     }
 
     pub fn len(&self) -> usize {
@@ -325,7 +390,7 @@ impl Collision {
     pub fn sweep_shape(&self, shape: Shape, by: Vec3, keep: impl Fn(&Face) -> bool) -> Option<Contact> {
         let mut best: Option<Contact> = None;
         self.sweep_each(shape, by, |c| {
-            if keep(&self.faces[c.face]) && best.is_none_or(|b| c.t < b.t) {
+            if keep_surface(&keep, c) && best.is_none_or(|b| c.t < b.t) {
                 best = Some(c);
             }
         });
@@ -336,9 +401,13 @@ impl Collision {
     /// callbacks are handed, in no order). A face the shape already touches at the start is reported at 0 only when the move
     /// goes into it.
     pub fn sweep_each(&self, shape: Shape, by: Vec3, mut each: impl FnMut(Contact)) {
+        let caster = match &self.sweeps {
+            Sweeps::Faces(caster) => *caster,
+            Sweeps::Solids(solids, start) => return solids.sweep_each(shape, by, *start, each),
+        };
         let (lo0, hi0) = shape.aabb();
         let (lo1, hi1) = shape.moved(by).aabb();
-        let touch = match self.caster {
+        let touch = match caster {
             Caster::Conservative => CONTACT_M,
             Caster::Bullet(_) | Caster::Exe(_) => BULLET_TOLERANCE_M,
         };
@@ -348,13 +417,13 @@ impl Collision {
             if face.normal == Vec3::ZERO {
                 return;
             }
-            let contact = match self.caster {
+            let touch = match caster {
                 Caster::Conservative => advance(shape, by, face),
                 Caster::Bullet(start) => advance_bullet(shape, by, face, start),
                 Caster::Exe(start) => advance_exe(shape, by, face, start),
             };
-            if let Some(c) = contact {
-                each(Contact { face: f, ..c });
+            if let Some(Touch { t, point, normal }) = touch {
+                each(Contact { t, point, normal, on: Surface::Face { walker: face.walker, normal: face.normal } });
             }
         });
     }
@@ -436,12 +505,12 @@ impl Collision {
 }
 
 /// The conservative advancement of `shape` moved by `by` against one face.
-fn advance(shape: Shape, by: Vec3, face: &Face) -> Option<Contact> {
+fn advance(shape: Shape, by: Vec3, face: &Face) -> Option<Touch> {
     let speed = by.length();
     let (g0, _, f0, n0) = shape.gap(&face.v, face.normal);
     if g0 <= CONTACT_M {
         // Touching or overlapping at the start: a contact only when the move goes in.
-        return (by.dot(n0) < -GOING_IN * speed).then_some(Contact { t: 0.0, point: f0, normal: n0, face: 0 });
+        return (by.dot(n0) < -GOING_IN * speed).then_some(Touch { t: 0.0, point: f0, normal: n0 });
     }
     if speed <= 0.0 {
         return None;
@@ -450,7 +519,7 @@ fn advance(shape: Shape, by: Vec3, face: &Face) -> Option<Contact> {
     for _ in 0..ADVANCE_STEPS {
         let (gap, _, f, n) = shape.moved(by * t).gap(&face.v, face.normal);
         if gap <= CONTACT_M {
-            return Some(Contact { t, point: f, normal: n, face: 0 });
+            return Some(Touch { t, point: f, normal: n });
         }
         t += gap / speed;
         if t > 1.0 {
@@ -462,7 +531,7 @@ fn advance(shape: Shape, by: Vec3, face: &Face) -> Option<Contact> {
 
 /// [`Caster::Bullet`] against one face: `btContinuousConvexCollision::calcTimeOfImpact` as the exe runs it (0xB9320; the
 /// face's margin 0, LIKELY: the map mesh's ctor 0xA7950 sets 0 and no setMargin call was found).
-fn advance_bullet(shape: Shape, by: Vec3, face: &Face, start: StartOverlap) -> Option<Contact> {
+fn advance_bullet(shape: Shape, by: Vec3, face: &Face, start: StartOverlap) -> Option<Touch> {
     let (mut gap, _, mut f, mut n) = shape.gap(&face.v, face.normal);
     // The move's part toward the face (`relLinVel . normalOnB`: the face is B, the normal points from it to the shape).
     let mut toward = -by.dot(n);
@@ -490,12 +559,12 @@ fn advance_bullet(shape: Shape, by: Vec3, face: &Face, start: StartOverlap) -> O
     if start == StartOverlap::FaceWitness && t == 0.0 && gap <= 0.0 {
         f = shape.witness_on(&face.v, f);
     }
-    Some(Contact { t, point: f, normal: n, face: 0 })
+    Some(Touch { t, point: f, normal: n })
 }
 
-/// [`Caster::Exe`] against one face: the exe's cast of its own shape ([`exe_cast::cast_triangle`]); `by` is the cast's
-/// way as the exe subtracts it (the end's origin minus the start's).
-fn advance_exe(shape: Shape, by: Vec3, face: &Face, start: StartOverlap) -> Option<Contact> {
+/// `shape` moved by `by` as the exe's sweep hands it to Bullet: `by` is the cast's way as the exe subtracts it (the
+/// end's origin minus the start's).
+fn exe_cast_of(shape: Shape, by: Vec3) -> exe_cast::Cast {
     use exe_gjk::{Axis, CastShape};
     let capsule = |radius: f32, half_height: f32| CastShape::capsule([radius, half_height, radius], [1.0; 3], EXE_CAPSULE_MARGIN_M, Axis::Y);
     let (cast_shape, margin, from) = match shape {
@@ -505,25 +574,45 @@ fn advance_exe(shape: Shape, by: Vec3, face: &Face, start: StartOverlap) -> Opti
         Shape::Cylinder { centre, half, radius, margin } => (CastShape::cylinder([radius, half, radius], Axis::Y), margin, centre),
         Shape::Sphere { centre, radius } => (CastShape::Sphere, radius, centre),
     };
-    let cast = exe_cast::Cast { shape: cast_shape, margin, from: from.to_array(), by: by.to_array() };
+    exe_cast::Cast { shape: cast_shape, margin, from: from.to_array(), by: by.to_array() }
+}
+
+/// [`Caster::Exe`] against one face: the exe's cast of its own shape ([`exe_cast::cast_triangle`]).
+fn advance_exe(shape: Shape, by: Vec3, face: &Face, start: StartOverlap) -> Option<Touch> {
+    let cast = exe_cast_of(shape, by);
     let triangle = exe_gjk::Triangle([face.v[0].to_array(), face.v[1].to_array(), face.v[2].to_array()]);
-    match exe_cast::cast_triangle(&cast, &triangle, 1.0) {
+    // The face is in world coordinates (transform B the identity), its margin 0, the sweep's allowed penetration 0
+    // (`convexSweepTest` 0xA34E8), and the callback's fraction 1 (every face's hit is handed on).
+    match exe_cast::cast_triangle(&cast, &triangle, 0.0, &exe_cast::IDENTITY, 0.0, 1.0) {
         exe_cast::CastEnd::Hit { fraction, normal, point } => {
-            Some(Contact { t: fraction, point: Vec3::from_array(point), normal: Vec3::from_array(normal), face: 0 })
+            Some(Touch { t: fraction, point: Vec3::from_array(point), normal: Vec3::from_array(normal) })
         }
         exe_cast::CastEnd::Miss => None,
-        // The penetration solver's answer is not ported: the contact where the cast stood, by the exact distance.
-        exe_cast::CastEnd::NeedsPenetration { lambda } => {
-            let (gap, _, mut f, n) = shape.moved(by * lambda).gap(&face.v, face.normal);
-            if -by.dot(n) <= f32::EPSILON {
-                return None;
-            }
-            if start == StartOverlap::FaceWitness && lambda == 0.0 && gap <= 0.0 {
-                f = shape.witness_on(&face.v, f);
-            }
-            Some(Contact { t: lambda, point: f, normal: n, face: 0 })
-        }
+        exe_cast::CastEnd::NeedsPenetration { lambda } => overlapping_at(shape, by, lambda, face, start).map(|(_, touch)| touch),
     }
+}
+
+/// Where the exe's cast goes on to its penetration solver (not ported) at `lambda` of the way: the contact where the
+/// cast stood, by the exact distance to `face`, and that distance (the gap).
+fn overlapping_at(shape: Shape, by: Vec3, lambda: f32, face: &Face, start: StartOverlap) -> Option<(f32, Touch)> {
+    let (gap, _, mut f, n) = shape.moved(by * lambda).gap(&face.v, face.normal);
+    if -by.dot(n) <= f32::EPSILON {
+        return None;
+    }
+    if start == StartOverlap::FaceWitness && lambda == 0.0 && gap <= 0.0 {
+        f = shape.witness_on(&face.v, f);
+    }
+    Some((gap, Touch { t: lambda, point: f, normal: n }))
+}
+
+/// Whether `keep` accepts what `contact` is on: a face by its walker behaviour and normal; a primitive (no face) is
+/// asked as a face of its walker behaviour whose normal is the contact's.
+fn keep_surface(keep: &impl Fn(&Face) -> bool, contact: Contact) -> bool {
+    let (walker, normal) = match contact.on {
+        Surface::Face { walker, normal } => (walker, normal),
+        Surface::Primitive { walker, .. } => (walker, contact.normal),
+    };
+    keep(&Face { v: [contact.point; 3], normal, walker })
 }
 
 /// The collision margin of the controller's capsule (+1E0h of its shape, 0.04: Bullet's default), which the exe's

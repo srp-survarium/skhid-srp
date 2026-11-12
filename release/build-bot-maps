@@ -4,7 +4,8 @@
 # Builds the bots' maps of a release ahead of the swap (A197): the walk grids,
 # sight trees and tactics srp would otherwise build in the first match on each
 # map after the swap, on the host's one core while players play (a new
-# GRID_ALGO, SIGHT_ALGO or bot body changes every key: release.sh warns).
+# GRID_ALGO, SIGHT_ALGO, grid rule or bot body changes every key: release.sh
+# refuses a release whose offered maps lack their files in the list).
 #
 #   1. builds srp-build-maps from this checkout (the commit the release ships,
 #      nix develop, nice 10; $SRP_BUILD_MAPS_BIN names one built already);

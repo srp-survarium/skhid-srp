@@ -31,6 +31,9 @@
 //!                   is not known)
 //! list placements:  u32 library, vec3 position, vec3 rotation,
 //!                   u16 cgroup, u16 cmask
+//! (version 6) list bullet shapes, one per library, in the libraries' order
+//! (version 6) list objects, one per placement, in the placements' order:
+//!                   transform (the object's world transform)
 //! magic "END\0"
 //! shape:            u8 kind (0 sphere, 1 box, 2 cylinder), vec3 center,
 //!                   3 × vec3 rotation rows, vec3 half
@@ -48,6 +51,17 @@
 //! group:            u8 enabled, u8 keep_all, u8 sequential, u32 min_active_s,
 //!                   u32 max_active_s, u32 max_charged, u32 recharge_s,
 //!                   list string zones
+//! bullet shape:     u8 kind: 0 none; 1 mesh; 2 convex; 3 compound: vec3
+//!                   scaling, list (transform, u8 part (1 mesh, 2 convex),
+//!                   mesh or convex)
+//! mesh:             vec3 scaling (the mesh interface's), u32 first face,
+//!                   u32 end face (the library's faces it holds, in order)
+//! convex:           u8 Bullet type (0 box, 8 sphere, 10 capsule,
+//!                   13 cylinder), [u8 up axis 0..2: capsule, cylinder],
+//!                   vec3 local scaling, vec3 implicit dimensions, f32 margin,
+//!                   u8 walker behaviour, u32 first face, u32 end face
+//! transform:        3 x vec3 basis rows, vec3 origin (Bullet's frame: the
+//!                   map's with z negated; every value the bits the game has)
 //! ```
 //!
 //! Version 2 (2026-10-14) added cylinders, the zones' damage and the
@@ -69,10 +83,22 @@
 //! taken before), so the bots' cover is what it was until the maps are
 //! dumped again.
 //!
+//! Version 6 (2026-11-12) added the game's own Bullet shapes after the
+//! placements (`crate::bullet`): each library's shape (a mesh in its own
+//! frame, a convex primitive with its dims, margin, scaling and up axis, or
+//! a compound of them with each child's transform) and each placement's
+//! object transform, all as the 0.26g exe makes them. A version 2 to 5 file
+//! is still read, with none (`MapData::bullet` is `None`); everything that
+//! read the file before reads it the same.
+//!
 //! Reading checks every count against the bytes left, so a damaged file is
 //! an error, never a panic or a huge allocation.
 
+use std::ops::Range;
 use std::path::Path;
+
+use crate::bullet::{self, BulletWorld};
+use crate::controller::exe_gjk::{Axis, Transform};
 
 use crate::library::{Face, Library, Surface, WalkerBehaviour};
 use crate::pierce::FaceArmor;
@@ -86,13 +112,16 @@ use crate::resources::Error;
 
 const MAGIC: &[u8; 8] = b"SRPMAPD\0";
 const END: &[u8; 4] = b"END\0";
-pub const VERSION: u32 = 5;
+pub const VERSION: u32 = 6;
 /// The oldest version [`MapData::from_bytes`] still reads.
 pub const OLDEST: u32 = 2;
 /// The first version that carries the bullet armor of the faces: an older file is read with every face of unknown
 /// material, which stops every bullet (so no pierce rule ever opens a line on it).
 pub const FIRST_WITH_ARMOR: u32 = 5;
 const _: () = assert!(FIRST_WITH_ARMOR <= VERSION);
+/// The first version that carries the game's Bullet shapes ([`MapData::bullet`]).
+pub const FIRST_WITH_BULLET: u32 = 6;
+const _: () = assert!(FIRST_WITH_BULLET <= VERSION);
 /// The file name extension.
 pub const EXTENSION: &str = "mapdata";
 
@@ -102,8 +131,10 @@ pub fn file_name(project: &str) -> String {
 }
 
 impl MapData {
+    /// The file: the current version, or the one before it for a map without the game's shapes (a test's
+    /// map, or one read from an older file), which that version describes in full.
     pub fn to_bytes(&self) -> Vec<u8> {
-        self.to_bytes_of(VERSION)
+        self.to_bytes_of(if self.bullet.is_some() { VERSION } else { FIRST_WITH_BULLET - 1 })
     }
 
     /// The file of `version` (the current one, or [`OLDEST`] for a test of the reader).
@@ -243,6 +274,11 @@ impl MapData {
             w.0.extend_from_slice(&p.cgroup.to_le_bytes());
             w.0.extend_from_slice(&p.cmask.to_le_bytes());
         });
+        if version >= FIRST_WITH_BULLET {
+            let world = self.bullet.as_ref().expect("a version 6 file is written only for a map with its shapes");
+            w.list(world.shapes(), Writer::bullet_shape);
+            w.list(world.objects(), Writer::transform);
+        }
         w.0.extend_from_slice(END);
         w.0
     }
@@ -447,6 +483,14 @@ impl MapData {
         {
             return Err(Error("a placement names no library".into()));
         }
+        if version >= FIRST_WITH_BULLET {
+            let shapes = r.list(1, Reader::bullet_shape)?;
+            let objects = r.list(48, Reader::transform)?;
+            let face_counts: Vec<u32> = map.libraries.iter().map(|l| l.faces.len() as u32).collect();
+            map.bullet = Some(
+                BulletWorld::new(shapes, objects, &face_counts, map.placements.len()).map_err(Error)?,
+            );
+        }
         if r.take(4)? != END || r.at != bytes.len() {
             return Err(Error("map data file has a bad end".into()));
         }
@@ -512,6 +556,68 @@ impl Writer {
         self.u32(items.len() as u32);
         for item in items {
             each(self, item);
+        }
+    }
+
+    fn f32s(&mut self, v: &[f32; 3]) {
+        v.iter().for_each(|&x| self.f32(x));
+    }
+
+    fn transform(&mut self, t: &Transform) {
+        t.basis.iter().for_each(|row| self.f32s(row));
+        self.f32s(&t.origin);
+    }
+
+    fn faces(&mut self, faces: &Range<u32>) {
+        self.u32(faces.start);
+        self.u32(faces.end);
+    }
+
+    fn mesh(&mut self, mesh: &bullet::Mesh) {
+        self.f32s(&mesh.scaling);
+        self.faces(&mesh.faces);
+    }
+
+    fn convex(&mut self, c: &bullet::Convex) {
+        self.0.push(c.kind.bullet_type());
+        if let Some(up) = c.kind.up() {
+            self.0.push(up.index() as u8);
+        }
+        self.f32s(&c.scaling);
+        self.f32s(&c.dims);
+        self.f32(c.margin);
+        self.0.push(c.walker as u8);
+        self.faces(&c.faces);
+    }
+
+    fn bullet_shape(&mut self, shape: &bullet::Shape) {
+        match shape {
+            bullet::Shape::Empty => self.0.push(0),
+            bullet::Shape::Mesh(mesh) => {
+                self.0.push(1);
+                self.mesh(mesh);
+            }
+            bullet::Shape::Convex(convex) => {
+                self.0.push(2);
+                self.convex(convex);
+            }
+            bullet::Shape::Compound { scaling, children } => {
+                self.0.push(3);
+                self.f32s(scaling);
+                self.list(children, |w, child| {
+                    w.transform(&child.transform);
+                    match &child.part {
+                        bullet::Part::Mesh(mesh) => {
+                            w.0.push(1);
+                            w.mesh(mesh);
+                        }
+                        bullet::Part::Convex(convex) => {
+                            w.0.push(2);
+                            w.convex(convex);
+                        }
+                    }
+                });
+            }
         }
     }
 
@@ -599,6 +705,67 @@ impl<'a> Reader<'a> {
             out.push(each(self)?);
         }
         Ok(out)
+    }
+
+    fn f32s(&mut self) -> Result<[f32; 3], Error> {
+        Ok([self.f32()?, self.f32()?, self.f32()?])
+    }
+
+    fn transform(&mut self) -> Result<Transform, Error> {
+        Ok(Transform { basis: [self.f32s()?, self.f32s()?, self.f32s()?], origin: self.f32s()? })
+    }
+
+    fn faces(&mut self) -> Result<Range<u32>, Error> {
+        let (start, end) = (self.u32()?, self.u32()?);
+        if start > end {
+            return Err(Error(format!("map data faces {start}..{end}")));
+        }
+        Ok(start..end)
+    }
+
+    fn mesh(&mut self) -> Result<bullet::Mesh, Error> {
+        Ok(bullet::Mesh { scaling: self.f32s()?, faces: self.faces()? })
+    }
+
+    fn convex(&mut self) -> Result<bullet::Convex, Error> {
+        let bullet_type = self.u8()?;
+        let up = match bullet_type {
+            10 | 13 => {
+                let up = self.u8()?;
+                Axis::from_index(i32::from(up)).ok_or_else(|| Error(format!("map data up axis {up}")))?
+            }
+            _ => Axis::Y,
+        };
+        let kind = bullet::ConvexKind::from_bullet(bullet_type, up)
+            .ok_or_else(|| Error(format!("map data convex type {bullet_type}")))?;
+        let (scaling, dims, margin) = (self.f32s()?, self.f32s()?, self.f32()?);
+        let walker = self.u8()?;
+        if walker > 2 {
+            return Err(Error(format!("map data walker behaviour {walker}")));
+        }
+        Ok(bullet::Convex { kind, scaling, dims, margin, walker: WalkerBehaviour::from_u8(walker), faces: self.faces()? })
+    }
+
+    fn bullet_shape(&mut self) -> Result<bullet::Shape, Error> {
+        Ok(match self.u8()? {
+            0 => bullet::Shape::Empty,
+            1 => bullet::Shape::Mesh(self.mesh()?),
+            2 => bullet::Shape::Convex(self.convex()?),
+            3 => {
+                let scaling = self.f32s()?;
+                let children = self.list(50, |r| {
+                    let transform = r.transform()?;
+                    let part = match r.u8()? {
+                        1 => bullet::Part::Mesh(r.mesh()?),
+                        2 => bullet::Part::Convex(r.convex()?),
+                        other => return Err(Error(format!("map data compound part {other}"))),
+                    };
+                    Ok(bullet::Child { transform, part })
+                })?;
+                bullet::Shape::Compound { scaling, children }
+            }
+            other => return Err(Error(format!("map data bullet shape {other}"))),
+        })
     }
 
     fn shapes(&mut self) -> Result<Vec<Shape>, Error> {
@@ -756,7 +923,44 @@ mod tests {
                 cgroup: 10,
                 cmask: 20,
             }],
+            bullet: Some(sample_bullet()),
         }
+    }
+
+    /// The sample's game shapes: a compound of a cylinder and the library's mesh.
+    fn sample_bullet() -> BulletWorld {
+        let cylinder = bullet::Convex::create(2, Vec3::new(0.5, 1.0, 0.0), WalkerBehaviour::Walk, 1..1).unwrap();
+        let rows = vec![bullet::PrimitiveRow {
+            kind: 2,
+            dim: Vec3::new(0.5, 1.0, 0.0),
+            position: Vec3::new(0.0, 1.0, 0.0),
+            rotation: Vec3::new(0.0, 0.3, 0.0),
+            walker: cylinder.walker,
+            faces: 1..1,
+        }];
+        let scale = Vec3::new(2.0, 2.0, 2.0);
+        let shape = bullet::Primitives::build(rows, scale)
+            .unwrap()
+            .with_mesh(Some(bullet::Mesh { scaling: bullet::mesh_scaling(scale), faces: 0..1 }))
+            .unwrap();
+        let object = bullet::object_transform(Vec3::new(0.1, 0.2, 0.3), Vec3::new(3.0, 4.0, 5.0), Vec3::ONE);
+        BulletWorld::new(vec![shape], vec![object], &[1], 1).unwrap()
+    }
+
+    /// The version 6 file keeps the game's shapes, bit for bit; a version 5 file is read without them and the
+    /// rest of the map is the same; a shape that names faces its library lacks is an error.
+    #[test]
+    fn a_version_6_file_keeps_the_game_shapes() {
+        let map = sample();
+        assert_eq!(MapData::from_bytes(&map.to_bytes()).unwrap(), map);
+        let old = MapData::from_bytes(&map.to_bytes_of(5)).unwrap();
+        assert_eq!(old, MapData { bullet: None, ..map.clone() });
+        assert_eq!(old.to_bytes(), map.to_bytes_of(5), "a map without its shapes is written as version 5");
+        let shapes = map.bullet.as_ref().unwrap().shapes().to_vec();
+        let objects = map.bullet.as_ref().unwrap().objects().to_vec();
+        assert!(BulletWorld::new(shapes.clone(), objects.clone(), &[0], 1).is_err(), "faces past the library");
+        assert!(BulletWorld::new(shapes.clone(), vec![], &[1], 1).is_err(), "an object short");
+        assert!(BulletWorld::new(vec![], objects, &[1], 1).is_err(), "a shape short");
     }
 
     /// A version 2 file (written before the artefact cores) is still read, with none.
@@ -767,6 +971,7 @@ mod tests {
         assert!(old.artefact_cores.is_empty());
         let mut expected = MapData {
             artefact_cores: Vec::new(),
+            bullet: None,
             ..map.clone()
         };
         expected.zones[0].damage.as_mut().unwrap().part_names.clear();
@@ -786,7 +991,7 @@ mod tests {
         assert_eq!(named.len(), 2, "the sample names its parts");
         assert!(old.zones[0].damage.as_ref().unwrap().part_names.is_empty());
         assert_eq!(old.zones[0].damage.as_ref().unwrap().parts, 2);
-        let mut unnamed = map.clone();
+        let mut unnamed = MapData { bullet: None, ..map.clone() };
         unnamed.zones[0].damage.as_mut().unwrap().part_names.clear();
         unnamed.libraries[0].faces[0].surface.armor = FaceArmor::Unknown;
         assert_eq!(unnamed, old);

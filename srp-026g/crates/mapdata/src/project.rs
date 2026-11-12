@@ -28,6 +28,7 @@ use std::collections::HashMap;
 
 use binary_config_parser::ConfigValue;
 
+use crate::bullet::{object_transform, BulletWorld};
 use crate::config::{children, float3, float3_or, float3_req, i32_or, str_or};
 use crate::library::{Library, Materials, WalkerBehaviour};
 use crate::pierce::FaceArmor;
@@ -603,6 +604,9 @@ pub struct MapData {
     /// Each collision library a placement uses, once, in its own space.
     pub libraries: Vec<Library>,
     pub placements: Vec<Placement>,
+    /// The game's own Bullet shapes of the libraries and the placements' object transforms (`crate::bullet`);
+    /// `None` in a file older than version 6.
+    pub bullet: Option<BulletWorld>,
 }
 
 impl MapData {
@@ -617,6 +621,8 @@ impl MapData {
         let mut map = Self::from_config(project, &root)?;
         let mut names: HashMap<String, u32> = HashMap::new();
         let mut placements = Vec::new();
+        let mut shapes = Vec::new();
+        let mut objects = Vec::new();
         for object in children(&root, "collision_objects") {
             let filter_value = |key: &str| -> Result<u16, Error> {
                 u16::try_from(object.i32_at(key)?)
@@ -633,20 +639,28 @@ impl MapData {
                 Some(&index) => index,
                 None => {
                     let index = map.libraries.len() as u32;
-                    map.libraries
-                        .push(Library::load(resources, materials, lib_name)?);
+                    let (library, shape) = Library::load(resources, materials, lib_name)?;
+                    map.libraries.push(library);
+                    shapes.push(shape);
                     names.insert(lib_name.to_owned(), index);
                     index
                 }
             };
-            placements.push(Placement {
+            let placement = Placement {
                 library,
                 position: float3_req(object, "position")?,
                 rotation: float3_req(object, "rotation")?,
                 cgroup,
                 cmask,
-            });
+            };
+            objects.push(object_transform(placement.rotation, placement.position, float3_or(object, "scale", Vec3::ONE)));
+            placements.push(placement);
         }
+        let face_counts: Vec<u32> = map.libraries.iter().map(|l| l.faces.len() as u32).collect();
+        map.bullet = Some(
+            BulletWorld::new(shapes, objects, &face_counts, placements.len())
+                .map_err(|e| Error(format!("{project}: {e}")))?,
+        );
         map.placements = placements;
         Ok(map)
     }
@@ -761,38 +775,40 @@ impl MapData {
         out
     }
 
+    /// For each library, the library a body with `filter` meets in its place: itself, or, for a walking body's
+    /// `walker_collision` the archive does not have, the model's own `collision` when the map has it
+    /// ([`Self::triangles`]).
+    pub fn libraries_met(&self, filter: CollisionFilter) -> Vec<u32> {
+        let own = 0..self.libraries.len() as u32;
+        if filter != CollisionFilter::WALKER {
+            return own.collect();
+        }
+        let by_name: HashMap<&str, u32> = self
+            .libraries
+            .iter()
+            .zip(own.clone())
+            .map(|(library, i)| (library.name.as_str(), i))
+            .collect();
+        own.map(|i| {
+            let library = &self.libraries[i as usize];
+            if !library.faces.is_empty() || !library.name.contains(WALKER_COLLISION) {
+                return i;
+            }
+            let stand_in = library.name.replacen(WALKER_COLLISION, BULLET_COLLISION, 1);
+            by_name.get(stand_in.as_str()).copied().unwrap_or(i)
+        })
+        .collect()
+    }
+
     /// Each triangle a body with `filter` meets, placed in the map frame, with its face's armor
     /// ([`Self::triangles`] without the armor, [`Self::bullet_mesh`] with it).
     fn place_faces(&self, filter: CollisionFilter, mut each: impl FnMut(Triangle, FaceArmor)) {
-        let walking = filter == CollisionFilter::WALKER;
-        let by_name: HashMap<&str, usize> = if walking {
-            self.libraries
-                .iter()
-                .enumerate()
-                .map(|(i, library)| (library.name.as_str(), i))
-                .collect()
-        } else {
-            HashMap::new()
-        };
-        let library_of = |placement: &Placement| -> &Library {
-            let library = &self.libraries[placement.library as usize];
-            if walking && library.faces.is_empty() {
-                let stand_in = library
-                    .name
-                    .contains(WALKER_COLLISION)
-                    .then(|| library.name.replacen(WALKER_COLLISION, BULLET_COLLISION, 1))
-                    .and_then(|name| by_name.get(name.as_str()).copied());
-                if let Some(index) = stand_in {
-                    return &self.libraries[index];
-                }
-            }
-            library
-        };
+        let met = self.libraries_met(filter);
         for placement in &self.placements {
             if !filter.meets(placement.cgroup, placement.cmask) {
                 continue;
             }
-            let library = library_of(placement);
+            let library = &self.libraries[met[placement.library as usize] as usize];
             let transform = placement.transform();
             let world: Vec<Vec3> = library
                 .vertices

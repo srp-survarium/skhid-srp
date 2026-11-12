@@ -974,13 +974,15 @@ impl BodyTrack {
         for tick in self.ticks.iter().take_while(|tick| tick.time <= time) {
             let jump = tick.keys & key::JUMP != 0;
             if jump && !held && tick.keys & key::CROUCH == 0 && tick.jump == JumpGate::Open {
+                // [A364 P6] The press's walk: the walk cap along the view once forward was held long enough (a world's body mid-jump
+                // shows no walk vector), else at rest.
                 let speed = if forward >= MOVING_TICKS { WALK_CAP_MS } else { 0.0 };
-                pressed = Some((tick.time, tick.keys, speed));
+                pressed = Some((tick.time, tick.keys, to_world([speed, 0.0], wrap(yaw))));
             }
             held = jump;
             forward = if tick.keys & key::FORWARD != 0 { forward + 1 } else { 0 };
         }
-        pressed.and_then(|(at, keys, speed)| JumpArc::seen(at, keys, speed, time, feet, wrap(yaw)))
+        pressed.and_then(|(at, keys, walk)| JumpArc::seen(at, keys, walk, time, feet, wrap(yaw)))
     }
 }
 
@@ -1167,7 +1169,7 @@ fn advance(
             && at.fall == Fall::Ground
             && at.node.is_some()
         {
-            at.arc = Some(JumpArc::pressed(tick.time, tick.keys, at.velocity[0].hypot(at.velocity[1]), at.feet, at.yaw));
+            at.arc = Some(JumpArc::pressed(tick.time, tick.keys, at.velocity, at.feet, at.yaw));
         }
     } else if tick.keys & key::JUMP != 0 && at.keys & key::JUMP == 0 {
         at.air_until = tick.time + JUMP_AIR_MS;
@@ -2394,8 +2396,8 @@ pub(super) mod tests {
         assert!(at.feet.x < 19.8 && at.feet.z > 13.0, "{at:?}");
     }
 
-    /// [A318] The jump arc and drop_fall's fall do not overlap (fx-zones' review): a world 900 ms into a sprint jump (past the old
-    /// 800 ms air window) with the body 1 m over its floor keeps the arc and no fall, and its feet follow the arc, not the floor; a
+    /// [A318] The jump arc and drop_fall's fall do not overlap (fx-zones' review): a world 820 ms into a sprint jump (past the old
+    /// 800 ms air window, inside its air phase: 845 ms, [A364 P6]) with the body 1 m over its floor keeps the arc and no fall, and its feet follow the arc, not the floor; a
     /// press while the body falls starts no jump (`on_ground`).
     #[test]
     fn a_jump_arc_and_a_fall_do_not_overlap() {
@@ -2409,13 +2411,13 @@ pub(super) mod tests {
             track.decided(time, run, (0.0, 0.0), 0.0, &kin, Some(&grid));
         }
         track.decided(350, run | key::JUMP, (0.0, 0.0), 0.0, &kin, Some(&grid));
-        for time in (400..=1_250).step_by(50) {
+        for time in (400..=1_150).step_by(50) {
             track.decided(time, run, (0.0, 0.0), 0.0, &kin, Some(&grid));
         }
-        track.fixed(fix(1_250, Vec3::new(5.0, 1.0, 9.0), 0.0), &kin, Some(&grid));
+        track.fixed(fix(1_170, Vec3::new(5.0, 1.0, 9.0), 0.0), &kin, Some(&grid));
         let at = *track.estimate().unwrap();
         assert!(at.arc.is_some() && at.fall == Fall::Ground, "the arc's, not a fall: {at:?}");
-        track.decided(1_300, run, (0.0, 0.0), 0.0, &kin, Some(&grid));
+        track.decided(1_200, run, (0.0, 0.0), 0.0, &kin, Some(&grid));
         let next = *track.estimate().unwrap();
         assert!(next.feet.y > 0.5, "the feet follow the arc, not the floor: {next:?}");
         // A press while falling starts nothing.

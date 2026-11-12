@@ -62,10 +62,13 @@
 #      each compared with the data volume's own (a read): those it lacks or
 #      has otherwise are put in at the swap (step 2 stages them, step 5
 #      puts them in place with srp26 stopped, the old ones kept in the
-#      folder for the rollback); and a warning about the maps' built grids
-#      and trees (mapdata/built, keyed by SIGHT_ALGO and GRID_ALGO): srp has
-#      no build command, a match builds a map it needs, on the host's one
-#      core (--no-bot-data leaves all of it out, said loudly);
+#      folder for the rollback); and the maps' built grids, sight trees and
+#      tactics (mapdata/built, keyed by this checkout's rules and the map
+#      file): each offered map's three files, as srp-build-maps --files names
+#      them, must be in the list (release/build-bot-maps builds and lists
+#      them), or the release stops, as a map without them is built by the
+#      first match on it, on the host's one core, while its bots stand
+#      (--no-bot-data leaves all of it out, said loudly);
 #      which server code differs between main and the target's tree;
 #      whether main changes what a match computes: a `next` row of
 #      srp-026g/crates/session/src/v026g/simulation_changes.tsv, which a PR
@@ -1344,30 +1347,29 @@ else
         fi
     fi
 fi
-# The maps' built grids and trees (mapdata/built, srp's own cache, written
-# by whichever match first needs a map): their key has SIGHT_ALGO and
-# GRID_ALGO of crates/mapdata and the map file's content, so a changed
-# algorithm or a replaced map file makes the first match on that map build
-# it again, on the host's one core (0.3-0.8 s off the match thread on a PC;
-# seconds there). srp has no command that builds them (a match asks:
-# bots/maps.rs `Maps::get`), so this release cannot do it before the swap:
-# it says so, and what is likely to rebuild.
+# The maps' built grids, sight trees and tactics (mapdata/built, srp's own
+# cache, keyed by the grid, sight and tactics rules of this checkout and the
+# map file): every offered map of the bots' data list must have its three
+# files in the list (release/build-bot-maps builds and lists them), or the
+# release stops. A map without them is built by the first match on it, on
+# the host's one core, longer than the countdown, while its bots stand
+# (the owner's 14 matches, 2026-11-08: 9 built in the match, 18-47 s on a
+# PC against the 20 s countdown; the server now holds the countdown up to
+# a minute for them, game/driven.rs MAP_HOLD_CAP).
 built_note=''
-if ((target_ok)) && [[ -n $main_commit && -n ${RUN_VOLUME_DIR:-} ]]; then
-    algo_main=$(git -C "$REPO" show "$main_commit:srp-026g/crates/mapdata/src/lib.rs" 2>/dev/null | grep -E '^pub const (SIGHT|GRID)_ALGO' | tr -s ' ' || true)
-    algo_live=$(on_target "cd $D && grep -E '^pub const (SIGHT|GRID)_ALGO' crates/mapdata/src/lib.rs 2>/dev/null | tr -s ' '; true" || true)
-    built_n=$(on_target "ls $(q "$RUN_VOLUME_DIR")/mapdata/built 2>/dev/null | wc -l" || echo '?')
-    maps_new=$(for i in "${BD_TODO[@]}"; do [[ ${BD_PATH[i]} == *.mapdata ]] && printf '%s\n' "${BD_PATH[i]}"; done | grep -c . || true)
-    if [[ -z $algo_main || -z $algo_live ]]; then
-        built_note="the built maps (mapdata/built, $built_n file(s) now): the algorithm constants (SIGHT_ALGO, GRID_ALGO) could not be read on main or in the live tree: the first match on each map after the swap may build it (srp has no pre-build command)"
-    elif [[ $algo_main != "$algo_live" ]]; then
-        built_note="WARNING the built maps (mapdata/built, $built_n file(s) now): $(tr '\n' ' ' <<<"$algo_live")on the live tree, $(tr '\n' ' ' <<<"$algo_main")on main: the first match on each map after the swap builds its grid and tree again, on the host's one core (srp has no pre-build command, so none is done here): the first matches per map start late; watch CPU and RAM (the container is capped at 1600 MB)"
-    elif ((maps_new)); then
-        built_note="the built maps (mapdata/built, $built_n file(s) now): the algorithm constants are the live tree's, but $maps_new map file(s) change: those maps are built again by the first match on each (srp has no pre-build command)"
+if ((no_bot_data)); then
+    built_note="the built maps: not checked (--no-bot-data): a map whose files the volume lacks is built by the first match on it"
+    say "  WARNING  $built_note"
+elif ((bd_ok)); then
+    if ! BUILD_MAPS=$(build_maps_bin 2>"$work/build-maps-build.log"); then
+        problem "the built maps: srp-build-maps did not build: $(tail -n 3 "$work/build-maps-build.log" | tr '\n' ' ')"
+    elif built_out=$(bot_maps_built_check "$BUILD_MAPS" "$bd_dir/mapdata"); then
+        built_note="the built maps: every offered map's grid, sight tree and tactics are listed (mapdata/built), by this checkout's keys"
+        okay "$built_note"
     else
-        built_note="the built maps (mapdata/built, $built_n file(s) now) keep their keys: the algorithm constants are the live tree's and no map file changes"
+        while IFS= read -r line; do problem "the built maps: $line"; done <<<"$built_out"
+        problem "the built maps: run release/build-bot-maps (it builds the offered maps and lists their files), commit release/bot-data.tsv, release again"
     fi
-    case $built_note in WARNING*) say "  WARNING  ${built_note#WARNING }" ;; *) say "  note     $built_note" ;; esac
 fi
 
 # The site.

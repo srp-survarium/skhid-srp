@@ -8,15 +8,15 @@
 //!
 //! A record is 0x200 bytes, little-endian, one call of `btGjkPairDetector::getClosestPointsNonVirtual` 0xD6CD0 taken
 //! in Unicorn while the 0.26g exe ran traced steps of the game (`docs/notes/exactness_rig.md`): the cast shape's
-//! bytes (+0: type +4, scaling +10h, implicit dims +20h, margin +30h, up axis +40h), the triangle shape's (+60h:
-//! corners at its +50h, +60h, +70h), the input (+E0h: two transforms, the largest distance squared at +80h), the
+//! bytes (+0: type +4, scaling +10h, implicit dims +20h, margin +30h, up axis +40h), the other shape's (+60h: a
+//! triangle's corners at its +50h, +60h, +70h; a box's, a sphere's or a cylinder's fields as the cast shape's), the input (+E0h: two transforms, the largest distance squared at +80h), the
 //! point collector after the call (+170h: normal +10h, point +20h, distance +30h, has-result +34h), the detector's
 //! margins (+1B0h, +1B4h), `m_ignoreMargin` (+1B8h), the count of penetration-solver calls (+1B9h),
 //! `m_catchDegeneracies` (+1BCh), and after the call `m_lastUsedMethod`, `m_curIter`, `m_degenerateSimplex`
 //! (+1C0h), `m_cachedSeparatingAxis` (+1D8h), `m_cachedSeparatingDistance` (+1E8h), and whether it has a penetration
 //! solver (+1ECh).
 use mapdata::controller::exe_gjk::{
-    Axis, CastShape, ClosestPointInput, Detector, Margins, Outcome, Penetration, Transform, Triangle, get_closest_points,
+    Axis, CastShape, ClosestPointInput, Detector, Margins, Outcome, Penetration, Transform, Triangle, WorldShape, get_closest_points,
 };
 
 const RECORD: usize = 0x200;
@@ -58,8 +58,13 @@ fn every_recorded_call_gives_the_exes_bits() {
             (13, Some(up)) => CastShape::cylinder(vec3_at(r, 0x20), up),
             (kind, _) => panic!("record {index}: a cast shape of type {kind}"),
         };
-        assert_eq!(u32_at(r, 0x64), 1, "record {index}: shape B is not a triangle");
-        let triangle = Triangle([vec3_at(r, 0xB0), vec3_at(r, 0xC0), vec3_at(r, 0xD0)]);
+        let other = match (u32_at(r, 0x64), Axis::from_index(u32_at(r, 0xA0) as i32)) {
+            (1, _) => WorldShape::Triangle(Triangle([vec3_at(r, 0xB0), vec3_at(r, 0xC0), vec3_at(r, 0xD0)])),
+            (0, _) => WorldShape::Box { half_extents: vec3_at(r, 0x80) },
+            (8, _) => WorldShape::Sphere,
+            (13, Some(up)) => WorldShape::cylinder(vec3_at(r, 0x80), up),
+            (kind, _) => panic!("record {index}: an other shape of type {kind}"),
+        };
         let detector = Detector {
             margins: if r[0x1B8] != 0 { Margins::Ignored } else { Margins::Applied { a: f32_at(r, 0x1B0), b: f32_at(r, 0x1B4) } },
             penetration: if u32_at(r, 0x1EC) != 0 {
@@ -73,7 +78,7 @@ fn every_recorded_call_gives_the_exes_bits() {
             transform_b: transform_at(r, 0x120),
             maximum_distance_squared: f32_at(r, 0x160),
         };
-        let answer = get_closest_points(&detector, &shape, &triangle, &input);
+        let answer = get_closest_points(&detector, &shape, &other, &input);
         // The exe went on to its penetration solver: the port must stop there too, and nowhere else.
         if r[0x1B9] != 0 {
             assert!(matches!(answer.outcome, Outcome::NeedsPenetration(_)), "record {index}: {:?}", answer.outcome);

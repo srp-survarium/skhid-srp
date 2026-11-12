@@ -2,7 +2,9 @@
 //! `docs/notes/player_bots_mapdata.md` §6): one [`mapdata::World`] and its
 //! [`TacticsBase`] per project, built from `<dir>/<project>.mapdata` (the
 //! file `mapdata-dump` writes) on a thread of its own. A build takes
-//! 0.3-0.8 s and the match loop is one thread, so a caller never waits: it
+//! 18-47 s on a PC with today's grid rules (the owner's 14 matches' logs,
+//! 2026-11-08; a read of its built files 1.4-2.4 s), and the one core of
+//! the players' host is slower; the match loop is one thread, so a caller never waits: it
 //! asks early ([`Maps::request`]) and looks again each tick
 //! ([`Maps::get`]) until the map is [`MapState::Ready`].
 //!
@@ -240,6 +242,22 @@ impl Maps {
 
     pub fn dir(&self) -> Option<&Path> {
         self.dir.as_deref()
+    }
+
+    /// The names of the files `project`'s grid, sight tree and tactics are read from in the built folder
+    /// ([`mapdata::built`]), by the keys this store's build computes ([`build`]), with nothing built: what a pre-built folder
+    /// must hold for the store to read the map instead of building it (`srp-build-maps --files`, `release/release.sh`).
+    pub fn built_file_names(&self, project: &str) -> Result<[String; 3], String> {
+        let dir = self.dir.as_ref().ok_or("no mapdata folder")?;
+        let (map, map_file) = read_map(&dir.join(mapdata::format::file_name(project)))?;
+        let grid_key = grid_key(&map, &map.walker_triangles(), &self.grid);
+        let sight_key = map.bullet_mesh().key();
+        let tactics_key = TacticsBase::key(map_file, grid_key, Self::margin());
+        Ok([
+            mapdata::built::grid_file_name(grid_key),
+            mapdata::built::sight_file_name(sight_key),
+            mapdata::built::tactics_file_name(tactics_key),
+        ])
     }
 
     /// How `project`'s map was made by the build that made it, once one has.
@@ -536,6 +554,26 @@ fn read_or_build<T>(
     (value, Source::Built)
 }
 
+/// A map file read: the map, and the digest of its bytes (the tactics' key has it).
+fn read_map(path: &Path) -> Result<(MapData, u64), String> {
+    stage::set("reading the map file");
+    let bytes = std::fs::read(path).map_err(|error| format!("{}: {error}", path.display()))?;
+    stage::set("parsing the map file");
+    let mut map_file = mapdata::digest::Digest::new();
+    map_file.bytes(&bytes);
+    let map_file = map_file.finish();
+    let map = MapData::from_bytes(&bytes).map_err(|error| format!("{}: {error}", path.display()))?;
+    Ok((map, map_file))
+}
+
+/// The key of `map`'s walk grid as `grid_tuning` builds it (`walker`: the map's walker triangles): the one definition the
+/// build ([`build`]) and the pre-built files' names ([`Maps::built_file_names`]) share.
+fn grid_key(map: &MapData, walker: &[mapdata::Triangle], grid_tuning: &GridTuning) -> u64 {
+    let area = map.play_area(mapdata::AREA_MARGIN);
+    let seeds = map.grid_seeds();
+    mapdata::grid_key_with_links(walker, area, mapdata::CELL, grid_tuning.body(), &seeds, grid_tuning.off_mesh_links())
+}
+
 /// Reads one map, takes or builds its grid and tree, and builds its
 /// tactics for the default margin.
 fn build(
@@ -547,15 +585,7 @@ fn build(
     open_sides: Option<f32>,
 ) -> Result<(TacticsBase, Built), String> {
     let started = Instant::now();
-    stage::set("reading the map file");
-    let bytes = std::fs::read(path).map_err(|error| format!("{}: {error}", path.display()))?;
-    stage::set("parsing the map file");
-    let mut map_file = mapdata::digest::Digest::new();
-    map_file.bytes(&bytes);
-    let map_file = map_file.finish();
-    let mut map =
-        MapData::from_bytes(&bytes).map_err(|error| format!("{}: {error}", path.display()))?;
-    drop(bytes);
+    let (mut map, map_file) = read_map(path)?;
     let built = catch_unwind(AssertUnwindSafe(|| {
         stage::set("the grid key");
         let (cell, body) = (mapdata::CELL, grid_tuning.body());
@@ -565,7 +595,7 @@ fn build(
         let spawns: Vec<mapdata::Vec3> = map.spawns.iter().map(|s| s.position).collect();
         // With the gap links when the server's tuning has them (`GridTuning::gap_links`).
         let links = grid_tuning.off_mesh_links();
-        let grid_key = mapdata::grid_key_with_links(&walker, area, cell, body, &seeds, links);
+        let grid_key = grid_key(&map, &walker, grid_tuning);
         stage::set("the grid");
         let shared = lock(cache).grids.get(&grid_key).and_then(Weak::upgrade);
         let (grid, grid_source) = match shared {
@@ -966,6 +996,12 @@ mod tests {
         assert!(files.iter().any(|name| name.starts_with("grid-")));
         assert!(files.iter().any(|name| name.starts_with("sight-")));
         assert!(files.iter().any(|name| name.starts_with("tactics-")));
+        // The names a release checks for (`srp-build-maps --files`) are the files the build wrote, nothing built.
+        let mut named = Maps::new(Some(dir.clone())).built_file_names(project).unwrap().to_vec();
+        let mut written = files.clone();
+        named.sort();
+        written.sort();
+        assert_eq!(named, written);
         // A new store (a restart) reads them: the same grid and tree.
         let second = wait_ready(&Maps::new(Some(dir.clone())), project, wait);
         assert!(!Arc::ptr_eq(&first.world.grid, &second.world.grid));

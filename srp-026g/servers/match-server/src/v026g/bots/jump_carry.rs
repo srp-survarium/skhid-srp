@@ -60,13 +60,14 @@ pub struct Press {
     pub held_ticks: u32,
 }
 
-/// The clip's length from the press, ms: 24 frames at 30 a second, at the sprint jump's time scale and after its prepare.
+/// The jump's length from the press to the end of its air phase, ms: its last air step ([`Clip::air_end_ms`]: the take-off frame at
+/// the clip's time scale, then the game's twelve air steps, A364 P6), after the sprint jump's prepare; and a step for that last step.
 pub fn clip_ms(clip: Clip) -> u32 {
     let prepare = match clip {
         Clip::Sprint(_) => super::jump_arc::PREPARE_MS,
         Clip::Short(_) => 0.0,
     };
-    (super::jump_arc::END_FRAME / super::jump_arc::FPS / clip.time_scale() * 1000.0 + prepare).ceil() as u32
+    (clip.air_end_ms() + prepare + TICK_S * 1000.0).round() as u32
 }
 
 impl JumpCarry {
@@ -124,9 +125,10 @@ mod tests {
 
     #[test]
     fn the_clips_last_as_the_client_plays_them() {
+        // The short jump's twelfth air step at frame 22.5 (750 ms after the press), held through that step.
         assert_eq!(clip_ms(Clip::of(key::FORWARD, 3.0)), 800);
         let sprint = clip_ms(Clip::of(key::FORWARD | key::SPRINT, 4.9));
-        assert!((954..=956).contains(&sprint), "{sprint}");
+        assert!((894..=896).contains(&sprint), "{sprint}");
     }
 
     /// The reckoning's false "up" (the motor steering at the next leg: back and a side key, the view turned away) and the

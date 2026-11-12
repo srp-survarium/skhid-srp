@@ -18,8 +18,16 @@
 //!   (0x2F1220); aiming blocks it (LIKELY); strafing does not. PROVEN.
 //! - **A change of speed** is a 0.3 s animation blend (0x921804): linear
 //!   over 6 ticks from the present velocity to the new one, held in the
-//!   body's frame, so a turn turns it at once. Blend PROVEN, the linear
-//!   shape LIKELY (the best fit on the recording).
+//!   body's frame, so a turn turns it at once. Blend PROVEN; the linear
+//!   shape PROVEN for a single change of keys (A364, the game's own walk
+//!   vector, +20h of the controller, at every step of 27,790 traced steps,
+//!   `docs/notes/exactness_rig.md`): a clean start is k/6 of the steady
+//!   speed from the FIRST step (0.632 1.263 1.895 2.527 3.159 3.790 of
+//!   3.79 m/s), a clean stop 5/6 4/6 3/6 2/6 1/6 0 (17 stops, the medians
+//!   0.8333 0.6667 0.5000 0.3333 0.1667 0); a released sprint is at the walk
+//!   cap on the very next step (5.15 -> 3.63 m/s), holds it five steps, then
+//!   stops over six. Changes that overlap a blend under way: the mixer's
+//!   (`Mixer::Layers`), fitted, not traced.
 //! - **Ways:** forward at yaw `a` is `(-sin a, cos a)` in the map frame; a
 //!   positive yaw turns left; LEFT goes to yaw + 90°. PROVEN.
 //! - **Order:** a world of tick T has T's turn and keys; its position is
@@ -526,9 +534,13 @@ pub enum WallSlide {
 /// chosen up to input T-50, rotated by the yaw before input T, and only then calls `apply_new_input` 0x2D86E0 for input T (player
 /// vtable +0x44; `apply_rotation` 0x2D8AD0 with the old yaw; a new clip has weight 0 on its own tick), PROVEN (fx-review A336). A
 /// world W carries input W's keys (`actions_mask` +0x330: 6,408 of 6,408 client-test worlds, 1,203 of 1,204 live) and its feet
-/// after tick W-50's step (`m_last_pos`, LIKELY). So the step into the feet at N moves with input N-100's keys and its yaw after
+/// after tick W-50's step (`m_last_pos`, which `player_step` sets to where its step began: PROVEN, A364 step 0.2,
+/// `docs/notes/body_trace.md` section 4: 617 of 628 rows of a moving body are the trace's origin one grid step before the world's
+/// time). So the step into the feet at N moves with input N-100's keys and its yaw after
 /// N-100's turn: one input behind what the reckoning had (on turning walk ticks its step matched the client-walk reference's
-/// NEXT tick in 2,360 of 2,487).
+/// NEXT tick in 2,360 of 2,487). On the game's own steps (A364 P7, `private/grid/rig/walk-truth-*.tsv`): a step that ends at t
+/// answers the input stamped t-50 in 141 of 141 walk starts of three traces, and a world W's yaw is the body's before the step
+/// ending at W: PROVEN.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StepInput {

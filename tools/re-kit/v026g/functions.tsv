@@ -2403,3 +2403,26 @@ va	status	ref_021d	name
 0x0008d680	verified		btConvexShape::localGetSupportVertexWithoutMarginNonVirtual
 0x00072eb0	reviewed		btTransformUtil::calculateVelocity
 0x0008b2d0	reviewed		btTransformUtil::integrateTransform
+0x00074210	reviewed		btSphereShape::btSphereShape
+0x000a96d0	reviewed		btBoxShape::btBoxShape
+0x000a9d40	reviewed		btCylinderShape::btCylinderShape
+0x000a8ca0	reviewed		btConvexInternalShape::setSafeMargin
+0x00070c20	reviewed		btCollisionObject::setWorldTransform
+0x00070c80	reviewed		btCollisionObject::setInterpolationWorldTransform
+0x002f8770	reviewed		survarium::collision_object_matrix
+0x000727b0	reviewed		vostok::math::float4x4::set_scale
+0x00083600	reviewed		vostok::physics::collision_shape_cook::create_primitives_shape
+0x00072b90	verified		btMatrix3x3::getRotation
+0x00072a50	verified		btMatrix3x3::setRotation
+0x00072fb0	reviewed		btTransformUtil::calculateDiffAxisAngle
+0x00072d20	reviewed		btTransform::inverse
+0x000b88b0	reviewed		btPointCollector::addContactPoint
+0x0009fc20	reviewed		btCollisionWorld::LocalConvexResult::LocalConvexResult
+0x000a2c30	reviewed		btCompoundLeafCallback::Process
+0x000a2be0	reviewed		LocalInfoAdder::addSingleResult
+0x0008d4c0	reviewed		convexHullSupport
+0x00084420	reviewed		vostok::physics::character_step_down_sweep_test_callback::addSingleResult
+0x00084810	reviewed	0x00220f3c	vostok::physics::character_step_down_sweep_test_callback::get_normal_via_ray_test
+0x000842e0	reviewed		vostok::physics::character_step_down_sweep_test_callback::character_step_down_sweep_test_callback
+0x00084190	reviewed		vostok::physics::character_step_down_sweep_test_callback::hit_shape_rotation
+0x000a9bc0	reviewed		btCylinderShape::getRadius

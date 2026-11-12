@@ -41,7 +41,7 @@ use mapdata::controller::tick::{Controller, Settings};
 use mapdata::{Vec3, World};
 
 use super::super::body::{BodyTrack, Fix};
-use super::super::jump_arc::{Clip, END_FRAME, FPS as JUMP_FPS, PREPARE_MS, TAKEOFF_FRAME};
+use super::super::jump_arc::{Clip, PREPARE_MS, TAKEOFF_FRAME};
 use super::super::kin::Local;
 use super::bench::bench_tuning;
 use crate::v026g::drive::key;
@@ -375,7 +375,7 @@ fn reference_replay() {
         let mut jump: Option<RefJump> = None;
         if jump_mode && let Some(&p) = presses.iter().rev().find(|&&p| p < t0) {
             let mut j = RefJump::new(p, keys_in(p), walk_speed(p.saturating_sub(TICK_MS)), from);
-            if j.frame(t0) < END_FRAME {
+            if j.frame(t0) < j.clip.air_end_frame() - 1e-3 {
                 if j.frame(t0) >= TAKEOFF_FRAME {
                     j.phase = RefPhase::Air;
                     body.jumping = true;
@@ -422,7 +422,11 @@ fn reference_replay() {
             }
             let v = super::super::kin::to_world(local, kyaw);
             let keys = keys_in(k);
-            body.want_crouch = keys & key::CROUCH != 0;
+            // [A364 P2] The crouch key through the game's logic (`Controller::crouch_key`, PROVEN on 27,790 traced steps): held,
+            // no stand test and no ceiling push; released, the body stands on the SECOND step after (the stand test first) and
+            // stays down under a ceiling. Setting `want_crouch` from the key stood it a step early and pushed it out from under
+            // ceilings the game keeps it under.
+            body.crouch_key(keys & key::CROUCH != 0);
             let was = body.feet();
             let tick_turn = turn_at(t);
             yaw += tick_turn;
@@ -550,13 +554,14 @@ impl RefJump {
         Self { clip: Clip::of(keys, speed), press, target: feet, phase: RefPhase::Floor }
     }
 
-    /// The clip's frame at `time` (ms), clamped to its end.
+    /// The clip's frame at `time` (ms), clamped to the air phase's last step ([A364 P6] `Clip::air_end_frame`).
     fn frame(&self, time: u32) -> f32 {
         let prepare = match self.clip {
             Clip::Sprint(_) => PREPARE_MS,
             Clip::Short(_) => 0.0,
         };
-        ((time.saturating_sub(self.press) as f32 - prepare).max(0.0) / 1000.0 * JUMP_FPS * self.clip.time_scale()).min(END_FRAME)
+        // [A364 P6] The clip's time scale on the floor, 1.5 frames a step in the air.
+        self.clip.frame_after(time.saturating_sub(self.press) as f32 - prepare).min(self.clip.air_end_frame())
     }
 
     /// Sets the body's walk for input tick `k` (yaw `yaw`, keys `keys`); true when the clip ends with this tick (`end_jump` done).
@@ -574,7 +579,8 @@ impl RefJump {
             self.phase = RefPhase::Air;
             body.jumping = true;
         }
-        let ended = f1 >= END_FRAME;
+        // [A364 P6] The air phase ends with its twelfth step, short of the clip's end.
+        let ended = f1 >= self.clip.air_end_frame() - 1e-3;
         if ended {
             body.end_jump();
         }
