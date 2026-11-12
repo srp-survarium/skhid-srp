@@ -13,7 +13,7 @@ package survarium.rooms
             "st_srp_map_chemical_plant", "st_srp_map_tarakanovsky_fort", "st_srp_map_mamayev_kurgan",
             "st_srp_map_vector", "st_srp_map_cologne", "st_srp_map_london", "st_srp_map_vostok_v021",
             "st_srp_map_mamayev_kurgan_v021", "st_srp_map_chemical_plant_v011", "st_srp_map_vostok_v011",
-            "st_srp_map_rudnya_v069"];
+            "st_srp_map_rudnya_v069", "st_srp_map_cs_mp_bath", "st_srp_map_cs_mp_military_1", "st_srp_map_cs_training_camp", "st_srp_map_cs_mp_rembasa", "st_srp_map_soc_ug_station", "st_srp_map_soc_ug_depository"];
         private static const MODES:Object = {
             "2": "st_srp_mode_protective_device",
             "3": "st_srp_mode_chargers",

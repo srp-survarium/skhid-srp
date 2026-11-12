@@ -883,6 +883,10 @@ st_crosshair_static_option	Статычны прыцэл
 st_crosshair_type_option	Выбар прыцэла
 st_crouch_action	Прысесці (утрым.)
 st_crouch_toggle_action	Прысесці
+st_cs_mp_bath_name	Experimental Pool
+st_cs_mp_military_1_name	Military Warehouses
+st_cs_mp_rembasa_name	Repair Depot
+st_cs_training_camp_name	Training Camp
 st_ct_max_members_count_error	Памылка дадавання. У кланавай камандзе ўжо знаходзіцца максімальная колькасць гульцоў.
 st_current_value	\nБягучае значэнне:
 st_cz_75_description	Чэшскі самазарадны пісталет, патрон: 9x19. Адзін з самых капіяваных пісталетаў халоднай вайны.
@@ -2170,6 +2174,8 @@ st_snp_steady_breath_desc	Вы хутчэй аднаўляецеся пасля 
 st_snp_steady_breath_name	Роўны выдых
 st_snp_steady_grip_desc	Павышае дакладнасць пры стральбе ў руху.
 st_snp_steady_grip_name	Надзейны хват
+st_soc_ug_depository_name	Depository
+st_soc_ug_station_name	Station
 st_soc_vepr_description	Расійскі самазарадны карабін сямейства «Вепр» пад боепрыпас 7.62х39. Выпускаецца заводам «Молот» у Вяцкіх Палянах на ўзмоцненай ствольнай скрынцы кулямёта РПК як паляўнічая і спартыўная зброя. Абсталяваны магазінам на 10 патронаў. Толькі адзіночны агонь.
 st_soc_vepr_name	СОК-94
 st_socom16_description	Апісанне пакуль недаступнае.
@@ -2572,6 +2578,10 @@ st_srp_login_ban_forever	Бан бестэрміновы.
 st_srp_map_chemical_plant	Хімзавод
 st_srp_map_chemical_plant_v011	Хімзавод (v0.11)
 st_srp_map_cologne	Кёльн
+st_srp_map_cs_mp_bath	Experimental Pool
+st_srp_map_cs_mp_military_1	Military Warehouses
+st_srp_map_cs_mp_rembasa	Repair Depot
+st_srp_map_cs_training_camp	Training Camp
 st_srp_map_london	Лондан
 st_srp_map_mamayev_kurgan	Мамаеў курган
 st_srp_map_mamayev_kurgan_v021	Мамаеў курган (v0.21)
@@ -2579,6 +2589,8 @@ st_srp_map_names_option	Імёны на карце
 st_srp_map_rudnya	Рудня
 st_srp_map_rudnya_v069	Рудня (v0.69)
 st_srp_map_school	Школа
+st_srp_map_soc_ug_depository	Depository
+st_srp_map_soc_ug_station	Station
 st_srp_map_tarakanovsky_fort	Тараканаўскі форт
 st_srp_map_vector	Лабараторыя "Вектар"
 st_srp_map_vostok	РЛС "Восток"

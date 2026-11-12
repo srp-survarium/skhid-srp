@@ -883,6 +883,10 @@ st_crosshair_static_option	Statikus célkereszt
 st_crosshair_type_option	Célkereszt
 st_crouch_action	Guggolás (nyomva tartva)
 st_crouch_toggle_action	Guggolás
+st_cs_mp_bath_name	Experimental Pool
+st_cs_mp_military_1_name	Military Warehouses
+st_cs_mp_rembasa_name	Repair Depot
+st_cs_training_camp_name	Training Camp
 st_ct_max_members_count_error	Nem adható hozzá több játékos. A kláncsapat megtelt.
 st_current_value	\nJelenlegi érték:
 st_cz_75_description	Cseh öntöltő pisztoly, lőszer: 9x19. A hidegháború egyik legtöbbet másolt pisztolya.
@@ -2170,6 +2174,8 @@ st_snp_steady_breath_desc	Gyorsabban regenerálódsz a lélegzet visszatartása 
 st_snp_steady_breath_name	Egyenletes kilégzés
 st_snp_steady_grip_desc	Növeli a lövési pontosságot mozgás közben.
 st_snp_steady_grip_name	Biztos fogás
+st_soc_ug_depository_name	Depository
+st_soc_ug_station_name	Station
 st_soc_vepr_description	Orosz öntöltő Vepr-karabély, 7.62x39 lőszerrel. A vjatszkije poljani Molot gyár készíti vadász- és sportfegyverként, az RPK géppuska megerősített tokjára építve. 10 lőszeres tár, csak egyes lövés.
 st_soc_vepr_name	SOK-94
 st_socom16_description	A leírás még nem érhető el.
@@ -2572,6 +2578,10 @@ st_srp_login_ban_forever	A tiltás végleges.
 st_srp_map_chemical_plant	Vegyi üzem
 st_srp_map_chemical_plant_v011	Vegyi üzem (v0.11)
 st_srp_map_cologne	Köln
+st_srp_map_cs_mp_bath	Experimental Pool
+st_srp_map_cs_mp_military_1	Military Warehouses
+st_srp_map_cs_mp_rembasa	Repair Depot
+st_srp_map_cs_training_camp	Training Camp
 st_srp_map_london	London
 st_srp_map_mamayev_kurgan	Mamajev-kurgán
 st_srp_map_mamayev_kurgan_v021	Mamajev-kurgán (v0.21)
@@ -2579,6 +2589,8 @@ st_srp_map_names_option	Nevek a térképen
 st_srp_map_rudnya	Rudnya
 st_srp_map_rudnya_v069	Rudnya (v0.69)
 st_srp_map_school	Iskola
+st_srp_map_soc_ug_depository	Depository
+st_srp_map_soc_ug_station	Station
 st_srp_map_tarakanovsky_fort	Tarakanovi erőd
 st_srp_map_vector	Vektor laboratórium
 st_srp_map_vostok	Vosztok radarállomás

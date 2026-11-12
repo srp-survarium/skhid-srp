@@ -247,3 +247,52 @@ pub fn serve_own_side(ctx: &mut Context<'_>, site: ResupplySite) -> bool {
         None => false,
     }
 }
+
+/// A non-negative, finite duration from the signed integer config format.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct ProtectionMillis(u32);
+
+impl ProtectionMillis {
+    fn parse(value: super::config::ConfigValue<'_>) -> Option<Self> {
+        let value = value.integer().ok()?;
+        (value <= i32::MAX as u32).then_some(Self(value))
+    }
+}
+
+pub enum ProtectionLoad { Legacy, Overridden }
+
+/// Apply a point's optional millisecond setting instead of its legacy seconds load.
+/// Missing or malformed optional data leaves the native duration intact.
+pub fn apply_protection_override(ctx: &Context<'_>) -> ProtectionLoad {
+    use super::config::ConfigValue;
+    use raw::site::respawn_protection_read as site;
+    // SAFETY: at this site's load, EBX owns a live relocated config and EBP
+    // owns the point being initialized. Neither escapes this synchronous hook.
+    let Some((point, config)) = (unsafe { site::point(ctx).zip(site::config(ctx)) }) else { return ProtectionLoad::Legacy };
+    // SAFETY: the loaded resource remains alive throughout this hook.
+    let Ok(table) = (unsafe { ConfigValue::read(config) }).and_then(ConfigValue::table) else { return ProtectionLoad::Legacy };
+    let Ok(Some(value)) = table.get(c"invulnerability_time_ms") else { return ProtectionLoad::Legacy };
+    let Some(duration) = ProtectionMillis::parse(value) else { return ProtectionLoad::Legacy };
+    // SAFETY: this hook is the point's initialization owner; it replaces the
+    // duration during the load before the point can be used by a respawn rule.
+    unsafe { point.protection_ms().write(duration.0) };
+    ProtectionLoad::Overridden
+}
+
+#[cfg(test)]
+mod protection_tests {
+    use super::*;
+    use super::super::config::ConfigValue;
+    #[test]
+    fn millisecond_precision_and_zero_are_preserved() {
+        assert_eq!(ProtectionMillis::parse(ConfigValue::Integer(500)), Some(ProtectionMillis(500)));
+        assert_eq!(ProtectionMillis::parse(ConfigValue::Integer(0)), Some(ProtectionMillis(0)));
+        assert_eq!(ProtectionMillis::parse(ConfigValue::Integer(2000)), Some(ProtectionMillis(2000)));
+    }
+    #[test]
+    fn negative_or_wrong_type_cannot_become_a_duration() {
+        assert_eq!(ProtectionMillis::parse(ConfigValue::Integer(u32::MAX)), None);
+        assert_eq!(ProtectionMillis::parse(ConfigValue::Number(0.5)), None);
+        assert_eq!(ProtectionMillis::parse(ConfigValue::Unsupported), None);
+    }
+}
