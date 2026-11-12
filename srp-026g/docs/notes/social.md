@@ -231,16 +231,26 @@ by its id. Adding a member still requires that account's accepted invite.
 
 The underlying namespace is owned by `SessionStore` (`crates/session/src/identity.rs`).
 Registration checks the display name **after** splitting an email login and
-cutting it to the wire's 63-byte limit. It refuses a taken name with the existing
-invalid-user-name response; it never signs the registrant into the name owner's
-account. Paid renames parse a `Nickname` and recheck availability under the same
+cutting it to the wire's 63-byte limit. A new account did not choose that name,
+so a taken one is not a refusal (the owner, 2026-11-12; until then it was the
+invalid-user-name response, which the game shows as a wrong password, and about
+1 % of sign-ups could never register): the account is made with `<name>_<id>`,
+schema 8's replacement below, from the same function
+(`nickname_key::replacement`), and the player renames it later. `adam@yahoo.com`
+signing up as account 1650 while an `Adam` exists is `adam_1650`. The name is
+picked and the account made under the login lock, the one every rename holds,
+so it is free when it is taken; the registrant is never signed into the name
+owner's account. Only the name a new account shows is checked: its login is
+what the player typed, and may read like another account's name. Sign-up still
+refuses an empty or over-long user name and one with control characters.
+Paid renames parse a `Nickname` and recheck availability under the same
 lock as registration before charging. Account IDs, logins and passwords do not
 change. Availability uses Unicode lowercase followed by the explicit Cyrillic/
 Latin pairs in `scripts/nickname-lookalikes.tsv`: for example Cyrillic `о` and
 Latin `o` share a key. The same table is used by Rust and SQLite's
 `skhid_nickname` collation. Display names retain their original spelling.
 There is no edit-distance, digit/letter or punctuation matching. A conflicting
-registration or rename returns an error; a refused rename is not charged.
+rename, paid or the admin's, returns an error; a refused rename is not charged.
 
 The live audit under these rules found 23 collision groups, including account
 649 (`sovspiranha`) and 741 (`sоvspiranha`, Cyrillic `о`), and 576 (`TECTEP`)
