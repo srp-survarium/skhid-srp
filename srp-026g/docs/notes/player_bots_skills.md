@@ -47,7 +47,7 @@ The skills that touch it (`skills_tree.options`, English texts from
 | 202 | Packrat | `overweight_penalty` -0.05 | 5 | 10 (row 3) | the speed cost × 0.75 |
 | 213 | Sprint | `can_sprint` 1 | 1 | 20 (row 5) | "You can sprint while overloaded." |
 | 214 | Heavyweight | `max_carried_weight_ultimate` 1 | 1 | 20 (row 5) | "Portable weight no longer affects movement speed, but you can't sprint." |
-| 201 | (stamina) | `stamina_spending_speed_skill` -0.02 | 5 | 0 (row 1) | opens row 2 |
+| 201 | (stamina) | `stamina_spending_speed_skill` -0.04 (live tree, revision 56; -0.02 x 5 to 2026-11-09) | 3 | 0 (row 1) | opens row 2 |
 
 213 and 214 exclude each other. 209 needs five points in row 1 of the
 branch (201 and 204), and 202 needs ten in rows 1 and 2. No item's own
@@ -150,8 +150,8 @@ level. Each row keeps all of the row below it. Left out:
 for 109, the extra ammo bag (one more magazine of rounds in the kit). 109 needs 15 points in
 the aim branch's first three rows; 101 has 5. The ten more are the least that is neither aim,
 damage nor protection: the rest of those rows are 103 (the bolt's cocking speed, so the camper's
-rate of fire), 105 (breath hold), 106 and 107 (dispersion). 102 gives +5 % movement speed while
-aiming (no effect found, §5), 104 +15 % weapon swap speed (the bots carry one weapon), 108 +12 %
+rate of fire), 105 (breath hold), 106 and 107 (dispersion). 102 gives +6 % movement speed while
+aiming at its three ranks since 2026-11-09 (+5 % at five before; no effect in the client, §5), 104 +15 % weapon swap speed (the bots carry one weapon), 108 +12 %
 reload speed: the client reloads sooner than the bots' clip-length timing (`Gun::reload_ms`), so
 they wait up to 0.2 to 0.6 s too long until the gun takes the factor from the profile's
 modifiers. The test `every_tier_is_a_set_a_player_could_have` checks that the pouch changes no
@@ -193,12 +193,13 @@ match server's bots (`servers/match-server/src/v026g/bots/`) follow it.
     toward a target (`reflex.rs`, the `ads_near_m` rule) and fires by its
     own aim error and line check (`clear_shot`). PROVEN (read). A shorter
     transition only brings the sights' accuracy sooner. LIKELY a gain.
-- **201 stamina spent −10 %, 204 stamina regeneration +10 % (given).
-  Helps.**
-  - The bots model no stamina. They press SPRINT where the way and the
-    pace allow (`mod.rs`: sprint is dropped only for crouch, fire, aim,
-    reload or a pace below Run). The client decides whether the sprint
-    happens. PROVEN (read).
+- **201 stamina spent, 204 stamina regeneration (given): −12 % and +12 % at
+  their three ranks since 2026-11-09 (−10 % and +10 % at five before; the
+  tree in the server's game data is the source). Helps.**
+  - The bots reckon their own bar (`bots/stamina.rs`, with the kit's 201
+    and 204 when `think.stamina_rates` is `kit`) and press SPRINT where the
+    way and the pace allow; the client decides whether the sprint happens.
+    PROVEN (read).
   - `kin.rs` predicts a held sprint at sprint speed, so a sprint the
     client stops for lack of stamina is mispredicted until the next world.
     More stamina means fewer such stops. LIKELY a gain.
@@ -225,15 +226,17 @@ match server's bots (`servers/match-server/src/v026g/bots/`) follow it.
     modifier 4 alone (0x2DBC47), then the higher of that and the minimal
     speed.
   - A positive `movement_speed_when_aiming` is therefore never the lower:
-    102 gives no speed. LIKELY (one function read, not measured). It would
-    not break the bots either.
+    102 gives no speed. PROVEN (0x2DBC1D sums modifiers 4 and 20 with the
+    weights 1.0 at 0xA70884, 0x2DBC47 keeps the lower). It would not break
+    the bots either.
 - **103 chamber a round (weighed, left out). Not used.**
   - The reflex lets a bolt action fire again only after `Gun::cycle_ms`,
     whose chambering is the clip's fixed length (`guns.rs`: the Mosin's
     65 frames). PROVEN (read).
-  - A faster chambering would leave the bot waiting the old time.
-    Following it needs the modifier's effect on the chamber state, which
-    is not traced (`0x30E58D` reads modifier 21).
+  - A faster chambering would leave the bot waiting the old time. The
+    chamber state divides its clip's time by max(0, 1 + modifier 21) as
+    the reload does with 13 (0x30E58D; `stamina_and_modifiers.md`); the
+    bots would follow it by reading 21 from the kit (no build has 103).
 - **108 reload (not given).** `guns.rs` times a reload by its clip
   (`Gun::reload_ms`), and the reflex counts rounds from it. A faster
   reload would be mispredicted.
