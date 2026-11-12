@@ -3322,6 +3322,21 @@ pub extern "C" fn hook_module_report_on_dll(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- module_report (patch 125) ----
+
+/// The entry `module_report_on_win_event` (module_watch.win_event, patch 125's window event callback (module_watch_026g.asm module_watch_win_event, handed to user32's SetWinEventHook out of context): Windows calls it on the thread that registered the hook (the game's main thread, which pumps messages), WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS; stdcall WINEVENTPROC (the hook, the event, the window, idObject, idChild, idEventThread, dwmsEventTime), our code returns with ret 1Ch) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_module_report_on_win_event(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `module_report_on_win_event` calls this, from our own code's call (module_watch.win_event),
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::module_report::on_win_event(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- music (patch 88) ----
 
 /// The entry `music_on_frame` (0x1ec8ec, game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game) calls this with the saved machine.

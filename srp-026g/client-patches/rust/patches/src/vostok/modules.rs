@@ -22,7 +22,8 @@ use core::ffi::{CStr, c_void};
 use core::ptr::NonNull;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use srp_validate::modules::{
-    CodeScan, Entry, Home, Module, Moment, Name, Over, PeMarks, Place, Rect, Region, Report, Unseen, START,
+    Affinity, CodeScan, Entry, Holder, Home, Module, Moment, Name, Over, PeMarks, Place, Rect, Region, Report, Unchecked, Unseen,
+    START,
 };
 
 /// kernel32's `MODULEENTRY32W` (32-bit: 1064 bytes).
@@ -319,6 +320,70 @@ pub fn presenting(ctx: &Context<'_>) {
     }
 }
 
+/// A user32 export (`GetModuleHandleA` + `GetProcAddress`); user32 is the
+/// exe's import, loaded and never unloaded.
+fn user32(name: &CStr) -> Option<NonNull<c_void>> {
+    export_of(c"user32.dll", name)
+}
+
+/// The window `window` as an [`Over`] if it is a window of another process
+/// that is visible, always on top ([`Over::TOPMOST`]) and over the game's
+/// window now; `None` otherwise (the game has no window yet, `window` is the
+/// game's own, it is gone, or it is not over the game). For the event watch
+/// ([`super::module_watch`]): one window tested when a window event tells of
+/// it. The returned [`Over::since`]/[`Over::until`] are the watch's to set.
+pub(super) fn over_now(window: *mut c_void) -> Option<Over> {
+    const ROOT: u32 = 2;
+    const GWL_EXSTYLE: u32 = -20i32 as u32;
+    const CLASS: usize = 64;
+    let kernel32 = Kernel32::get()?;
+    let presented = NonNull::new(WINDOW.load(Ordering::Relaxed) as *mut c_void)?;
+    let (root, visible, process_of, rect_of, class_of) =
+        (user32(c"GetAncestor")?, user32(c"IsWindowVisible")?, user32(c"GetWindowThreadProcessId")?, user32(c"GetWindowRect")?, user32(c"GetClassNameW")?);
+    let affinity_of = user32(c"GetWindowDisplayAffinity");
+    let rect = |window: *mut c_void| {
+        let mut rect = Rect::default();
+        // SAFETY: GetWindowRect's own export; fails on what is no window.
+        (unsafe { raw::engine_get_window_rect(rect_of, window, (&raw mut rect).cast()) } != 0).then_some(rect)
+    };
+    // SAFETY: GetAncestor's own export; null for what is no window. GetCurrentProcessId (the exe's import).
+    let (game, own) = unsafe { (raw::engine_get_ancestor(root, presented.as_ptr(), ROOT), (raw::engine_get_current_process_id)()) };
+    if window.is_null() || window == game {
+        return None;
+    }
+    let mut process = 0;
+    // SAFETY: user32's own exports on a window handle; one that is no window answers 0.
+    let (thread, shown, style) = unsafe {
+        (
+            raw::engine_get_window_thread_process_id(process_of, window, &mut process),
+            raw::engine_is_window_visible(visible, window) != 0,
+            (raw::engine_get_window_long_a)(window, GWL_EXSTYLE),
+        )
+    };
+    if !(thread != 0 && process != own && shown && style & Over::TOPMOST != 0) {
+        return None;
+    }
+    let (width, height) = rect(window).zip(rect(game)).and_then(|(window, game)| window.overlap(game))?;
+    let mut class = [0; CLASS];
+    // SAFETY: GetClassNameW writes at most CLASS units into `class`.
+    let len = unsafe { raw::engine_get_class_name_w(class_of, window, class.as_mut_ptr(), CLASS as u32) } as usize;
+    let class = Name::of(class.get(..len).unwrap_or_default());
+    let affinity = match affinity_of {
+        None => Affinity::None,
+        Some(affinity_of) => {
+            let mut value = 0u32;
+            // SAFETY: GetWindowDisplayAffinity's own export; fails on what is no window.
+            let ok = unsafe { raw::engine_get_window_display_affinity(affinity_of, window, &mut value) } != 0;
+            if ok { Affinity::of(value) } else { Affinity::None }
+        }
+    };
+    let name = process_names(&kernel32, &[Some(process)])[0];
+    let (folder, temp, windows) = (kernel32.file_of(core::ptr::null_mut()).folder(), kernel32.temp(), kernel32.windows());
+    let home = exe_of(&kernel32, process)
+        .map_or(Home::Unknown, |exe| Home::of(exe.as_units(), folder.as_units(), temp.as_units(), windows.as_units()));
+    Some(Over { name, class, style, width, height, affinity, home, since: 0, until: None })
+}
+
 /// The exe file name of each process of `ids`, from the process list
 /// (`None`: it lists none, or cannot be had).
 fn process_names<const N: usize>(kernel32: &Kernel32, ids: &[Option<u32>; N]) -> [Option<Name>; N] {
@@ -373,6 +438,264 @@ fn exe_of(kernel32: &Kernel32, process: u32) -> Option<Path> {
     (named != 0).then(|| Path::written(units, len)).filter(|path| !path.as_units().is_empty())
 }
 
+/// `GetModuleHandleA` + `GetProcAddress` for a loaded module's export.
+/// `None`: the module is not loaded or has no such export.
+pub(super) fn export_of(module: &CStr, name: &CStr) -> Option<NonNull<c_void>> {
+    // SAFETY: the exe's imports, NUL-terminated names; the module is one the
+    // exe keeps loaded (kernel32, ntdll, user32), never unloaded.
+    unsafe {
+        let module = (raw::engine_get_module_handle_a)(module.as_ptr().cast());
+        if module.is_null() { None } else { NonNull::new((raw::engine_get_proc_address)(module, name.as_ptr().cast())) }
+    }
+}
+
+/// Holders of a handle to the game process told at most, and holders the
+/// game could not check told at most (each by holder exe).
+const MAX_HOLDERS: usize = 16;
+const MAX_UNCHECKED: usize = 16;
+/// Process-object handles the scan duplicates to check at most. Windows 11
+/// 24H2 zeroes the object address for a caller without the debug right, so a
+/// match by address is not possible and each handle is a
+/// duplicate-and-compare; beyond this budget a holder's remaining handles are
+/// told unchecked, never silently dropped.
+const DUP_BUDGET: usize = 512;
+/// The system's extended handle list (`SystemExtendedHandleInformation`).
+const EXTENDED_HANDLE_INFO: u32 = 64;
+/// `STATUS_INFO_LENGTH_MISMATCH` (0xC0000004): the buffer was too small.
+const STATUS_LENGTH_MISMATCH: u32 = (0xC000 << 16) | 4;
+/// One `SYSTEM_HANDLE_TABLE_ENTRY_INFO_EX` (32-bit: 28 bytes); the list's
+/// two-word header is before the first.
+const HANDLE_HEADER: usize = 8;
+const HANDLE_ENTRY: usize = 28;
+
+/// What a scan of the system handle list found: the other processes with a
+/// handle to the game's own process object that can read its memory
+/// ([`Holder`]), and the process-object handles in holders the game could
+/// not check ([`Unchecked`]).
+pub(super) struct Holders {
+    pub(super) holders: [Option<Holder>; MAX_HOLDERS],
+    pub(super) unchecked: [Option<Unchecked>; MAX_UNCHECKED],
+}
+
+impl Holders {
+    const EMPTY: Holders = Holders { holders: [None; MAX_HOLDERS], unchecked: [None; MAX_UNCHECKED] };
+}
+
+/// A process id and the access it was granted, or a count: a small tally the
+/// scan keeps without the heap, one row per holder process.
+#[derive(Clone, Copy)]
+struct Tally {
+    rows: [(u32, u32); MAX_HOLDERS],
+    len: usize,
+}
+
+impl Tally {
+    const NONE: Tally = Tally { rows: [(0, 0); MAX_HOLDERS], len: 0 };
+
+    /// Merges `value` into the row of `pid` (ORs an access mask, or adds a
+    /// count), or starts a row; a tally that is full drops the rest.
+    fn merge(&mut self, pid: u32, value: u32, add: bool) {
+        if let Some(row) = self.rows.get_mut(..self.len).and_then(|rows| rows.iter_mut().find(|row| row.0 == pid)) {
+            row.1 = if add { row.1.saturating_add(value) } else { row.1 | value };
+        } else if let Some(slot) = self.rows.get_mut(self.len) {
+            *slot = (pid, value);
+            self.len += 1;
+        }
+    }
+}
+
+/// `N` bytes of the scan buffer at `at` as a little-endian number; 0 past the
+/// buffer's committed length `size`.
+fn read_word(buffer: NonNull<c_void>, size: usize, at: usize, n: usize) -> u32 {
+    if at.checked_add(n).is_none_or(|end| end > size) {
+        return 0;
+    }
+    // SAFETY: `at + n <= size`, the committed length we allocated and asked
+    // NtQuerySystemInformation to fill; we read our own memory, never deref a
+    // handle or object value.
+    unsafe {
+        let mut bytes = [0u8; 4];
+        core::ptr::copy_nonoverlapping(buffer.as_ptr().cast::<u8>().add(at), bytes.as_mut_ptr(), n.min(4));
+        u32::from_le_bytes(bytes)
+    }
+}
+
+/// The other processes that hold a handle to the game's own process object
+/// with memory access ([`Holders`]). The system handle list is asked
+/// (`NtQuerySystemInformation(SystemExtendedHandleInformation)`), the buffer
+/// grown on `STATUS_INFO_LENGTH_MISMATCH`; the game's process-object type and
+/// its own object are learnt from a handle the game opens to itself; another
+/// process's entry of that type is the game's by its object address where the
+/// kernel gives one, else by duplicating the handle into the game and asking
+/// its process id. A handle whose holder the game cannot open, or whose
+/// object the kernel zeroed past the duplicate budget, is told unchecked.
+///
+/// The scan reads the system-wide handle table and may duplicate handles, so
+/// it is not cheap; it runs only at a report (a match's load, its end, a
+/// minute), never on an ordinary frame.
+fn holders(kernel32: &Kernel32) -> Holders {
+    const QUERY_LIMITED: u32 = 0x1000;
+    const DUP_HANDLE: u32 = 0x40;
+    const DUPLICATE_SAME_ACCESS: u32 = 2;
+    const MEM_COMMIT_RESERVE: u32 = 0x3000;
+    const MEM_RELEASE: u32 = 0x8000;
+    const PAGE_READWRITE: u32 = 4;
+    const ACCESS: u32 = Holder::VM_READ | Holder::VM_WRITE | Holder::VM_OPERATION;
+    let (Some(query), Some(open), Some(dup), Some(pid_of)) = (
+        export_of(c"ntdll.dll", c"NtQuerySystemInformation"),
+        export_of(c"kernel32.dll", c"OpenProcess"),
+        export_of(c"kernel32.dll", c"DuplicateHandle"),
+        export_of(c"kernel32.dll", c"GetProcessId"),
+    ) else {
+        return Holders::EMPTY;
+    };
+    // SAFETY: GetCurrentProcessId (the exe's import) and GetCurrentProcess
+    // (its own export): the game's own pid and process pseudo-handle.
+    let (own_pid, own_process) =
+        unsafe { ((raw::engine_get_current_process_id)(), raw::engine_get_current_process(kernel32.current_process)) };
+
+    let mut size: u32 = 1 << 20;
+    const CAP: u32 = 64 << 20;
+    loop {
+        // SAFETY: VirtualAlloc (the exe's import): `size` committed read/write bytes, or null.
+        let buffer = unsafe { (raw::engine_virtual_alloc)(core::ptr::null_mut(), size, MEM_COMMIT_RESERVE, PAGE_READWRITE) };
+        let Some(buffer) = NonNull::new(buffer) else { return Holders::EMPTY };
+        let mut needed = 0u32;
+        // SAFETY: NtQuerySystemInformation's own export: it writes at most `size` bytes into the buffer.
+        let status =
+            unsafe { raw::engine_nt_query_system_information(query, EXTENDED_HANDLE_INFO, buffer.as_ptr(), size, &mut needed) };
+        let out = (status == 0)
+            .then(|| scan_handles(kernel32, buffer, size as usize, own_pid, own_process, open, dup, pid_of, ACCESS, QUERY_LIMITED, DUP_HANDLE, DUPLICATE_SAME_ACCESS));
+        // SAFETY: the buffer we allocated; released once (MEM_RELEASE wants size 0).
+        unsafe { (raw::engine_virtual_free)(buffer.as_ptr(), 0, MEM_RELEASE) };
+        if let Some(out) = out {
+            return out;
+        }
+        if status != STATUS_LENGTH_MISMATCH || size >= CAP {
+            return Holders::EMPTY;
+        }
+        size = size.saturating_mul(2).min(CAP);
+    }
+}
+
+/// The handle list in `buffer` (its two-word header, then 28-byte entries)
+/// scanned for the game's process-object handles in other processes. The
+/// helper the loop in [`holders`] runs once it has the list.
+#[allow(clippy::too_many_arguments)]
+fn scan_handles(
+    kernel32: &Kernel32,
+    buffer: NonNull<c_void>,
+    size: usize,
+    own_pid: u32,
+    own_process: *mut c_void,
+    open: NonNull<c_void>,
+    dup: NonNull<c_void>,
+    pid_of: NonNull<c_void>,
+    access_mask: u32,
+    query_limited: u32,
+    dup_handle: u32,
+    same_access: u32,
+) -> Holders {
+    let fits = size.saturating_sub(HANDLE_HEADER) / HANDLE_ENTRY;
+    let count = (read_word(buffer, size, 0, 4) as usize).min(fits);
+    let entry = |i: usize, at: usize, n: usize| read_word(buffer, size, HANDLE_HEADER + i * HANDLE_ENTRY + at, n);
+    // learn the game's process-object type index and its own object from a
+    // real handle the game opens to itself
+    // SAFETY: OpenProcess's own export; null when refused.
+    let me = unsafe { raw::engine_open_process(open, query_limited, 0, own_pid) };
+    let mut self_type = None;
+    for i in 0..count {
+        if entry(i, 4, 4) == own_pid && entry(i, 8, 4) as usize == me as usize && !me.is_null() {
+            self_type = Some((entry(i, 18, 2) as u16, entry(i, 0, 4)));
+            break;
+        }
+    }
+    // SAFETY: the handle opened above, closed once.
+    if !me.is_null() {
+        unsafe { (raw::engine_close_handle)(me) };
+    }
+    let Some((process_type, self_object)) = self_type else { return Holders::EMPTY };
+
+    let (mut holders, mut unchecked) = (Tally::NONE, Tally::NONE);
+    let mut dup_budget = DUP_BUDGET;
+    for i in 0..count {
+        if entry(i, 18, 2) as u16 != process_type {
+            continue;
+        }
+        let pid = entry(i, 4, 4);
+        if pid == own_pid {
+            continue;
+        }
+        let (object, granted, handle) = (entry(i, 0, 4), entry(i, 12, 4), entry(i, 8, 4));
+        // by object address where the kernel gives one, else by duplicating
+        let to_us = if self_object != 0 && object != 0 {
+            Some(object == self_object)
+        } else if dup_budget == 0 {
+            None
+        } else {
+            dup_budget -= 1;
+            // SAFETY: OpenProcess's own export; the handle (DUP_HANDLE) and the
+            // duplicate below are closed on every path that made one.
+            let holder = unsafe { raw::engine_open_process(open, dup_handle, 0, pid) };
+            let Some(holder) = NonNull::new(holder) else {
+                unchecked.merge(pid, 1, true);
+                continue;
+            };
+            let mut target = core::ptr::null_mut();
+            // SAFETY: DuplicateHandle's own export: it copies the holder's handle
+            // into the game, or fails; we deref neither the source nor the copy.
+            let copied = unsafe {
+                raw::engine_duplicate_handle(dup, holder.as_ptr(), handle as *mut c_void, own_process, &mut target, 0, 0, same_access)
+            };
+            let same = NonNull::new(target).is_some_and(|target| {
+                // SAFETY: GetProcessId's own export on the copy; then it is closed, once.
+                let pid = unsafe { raw::engine_get_process_id(pid_of, target.as_ptr()) };
+                unsafe { (raw::engine_close_handle)(target.as_ptr()) };
+                pid == own_pid
+            });
+            // SAFETY: the holder handle, closed once.
+            unsafe { (raw::engine_close_handle)(holder.as_ptr()) };
+            if copied != 0 { Some(same) } else { None }
+        };
+        match to_us {
+            Some(true) if granted & access_mask != 0 => holders.merge(pid, granted, false),
+            Some(true) | Some(false) => {}
+            None => unchecked.merge(pid, 1, true),
+        }
+    }
+    resolve_holders(kernel32, &holders, &unchecked)
+}
+
+/// The holder tallies, their exe names (one process-list walk) and homes
+/// (one handle each, closed at once, as [`exe_of`]), into [`Holder`] and
+/// [`Unchecked`] entries. No Windows user name leaves the PC (the folder masking).
+fn resolve_holders(kernel32: &Kernel32, holders: &Tally, unchecked: &Tally) -> Holders {
+    let (folder, temp, windows) = (kernel32.file_of(core::ptr::null_mut()).folder(), kernel32.temp(), kernel32.windows());
+    let home = |pid: u32| {
+        exe_of(kernel32, pid)
+            .map_or(Home::Unknown, |exe| Home::of(exe.as_units(), folder.as_units(), temp.as_units(), windows.as_units()))
+    };
+    let names = |tally: &Tally| {
+        let mut ids = [None; MAX_HOLDERS];
+        ids.iter_mut().zip(tally.rows.get(..tally.len).unwrap_or_default()).for_each(|(id, row)| *id = Some(row.0));
+        process_names(kernel32, &ids)
+    };
+    let holder_names = names(holders);
+    let mut out = Holders::EMPTY;
+    for ((pid, access), (slot, name)) in
+        holders.rows.iter().take(holders.len).zip(out.holders.iter_mut().zip(holder_names))
+    {
+        *slot = Some(Holder { name, access: *access, home: home(*pid) });
+    }
+    let unchecked_names = names(unchecked);
+    for ((pid, count), (slot, name)) in
+        unchecked.rows.iter().take(unchecked.len).zip(out.unchecked.iter_mut().zip(unchecked_names))
+    {
+        *slot = Some(Unchecked { name, count: *count, home: home(*pid) });
+    }
+    out
+}
+
 /// The other processes' windows over the game's ([`Over`]): from the top of
 /// the windows' order down to the game's own, each one that is visible,
 /// always on top and over some of the game's window, the first
@@ -404,10 +727,22 @@ fn windows_over(kernel32: &Kernel32) -> Result<[Option<Over>; MAX_OVER], Unseen>
     ) else {
         return Err(Unseen::NoWindow);
     };
+    // GetWindowDisplayAffinity is Windows 7's; a Windows without it leaves the
+    // affinity [`Affinity::None`] (`shown`), as if a capture takes the window.
+    let affinity_of = function(c"GetWindowDisplayAffinity");
     let rect = |window: *mut c_void| {
         let mut rect = Rect::default();
         // SAFETY: GetWindowRect's own export: it writes the RECT or fails on what is no window.
         (unsafe { raw::engine_get_window_rect(rect_of, window, (&raw mut rect).cast()) } != 0).then_some(rect)
+    };
+    let affinity = |window: *mut c_void| match affinity_of {
+        None => Affinity::None,
+        Some(affinity_of) => {
+            let mut value = 0u32;
+            // SAFETY: GetWindowDisplayAffinity's own export: it writes the affinity or fails on what is no window.
+            let ok = unsafe { raw::engine_get_window_display_affinity(affinity_of, window, &mut value) } != 0;
+            if ok { Affinity::of(value) } else { Affinity::None }
+        }
     };
     // SAFETY: GetAncestor's own export; null for what is no window. GetCurrentProcessId (the exe's import).
     let (game, own) = unsafe { (raw::engine_get_ancestor(root, presented.as_ptr(), ROOT), (raw::engine_get_current_process_id)()) };
@@ -457,7 +792,10 @@ fn windows_over(kernel32: &Kernel32) -> Result<[Option<Over>; MAX_OVER], Unseen>
             // SAFETY: as above.
             let len = unsafe { raw::engine_get_class_name_w(class_of, window, class.as_mut_ptr(), CLASS as u32) } as usize;
             let class = Name::of(class.get(..len).unwrap_or_default());
-            *slot = Some((process, Over { name: None, class, style, width, height, home: Home::Unknown }));
+            // a window the walk found is over the game now: its start is not
+            // pinned by an event (since 0), and it has not gone (until None).
+            let over = Over { name: None, class, style, width, height, affinity: affinity(window), home: Home::Unknown, since: 0, until: None };
+            *slot = Some((process, over));
         }
         // SAFETY: GetWindow's own export; null at the order's end or for what is no window.
         window = unsafe { raw::engine_get_window(below, window, BELOW) };
@@ -465,32 +803,61 @@ fn windows_over(kernel32: &Kernel32) -> Result<[Option<Over>; MAX_OVER], Unseen>
     Err(Unseen::NoOrder)
 }
 
-/// What a look at the other processes' windows over the game's saw
-/// ([`windows_over`]), or why it could not tell.
+/// Event-observed windows-over episodes a look drains at most.
+pub(super) const MAX_EPISODES: usize = 16;
+
+/// What a periodic look sees of the outside at a moment: the other
+/// processes' windows over the game now ([`windows_over`], or why it could
+/// not tell), the windows-over episodes the event watch
+/// ([`super::module_watch`]) saw come and go since the last look (with the
+/// match seconds they were over for), and the other processes that hold a
+/// handle to the game process with memory access ([`holders`]). The whole is
+/// compared from one minute to the next so only a change is told.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Windows(Result<[Option<Over>; MAX_OVER], Unseen>);
+pub struct Windows {
+    over: Result<[Option<Over>; MAX_OVER], Unseen>,
+    episodes: [Option<Over>; MAX_EPISODES],
+    holders: [Option<Holder>; MAX_HOLDERS],
+    unchecked: [Option<Unchecked>; MAX_UNCHECKED],
+}
 
 impl Windows {
-    /// A look now. `None`: kernel32 lacks a function the walks need.
-    pub fn look() -> Option<Windows> {
-        Some(Windows(windows_over(&Kernel32::get()?)))
+    /// A look now: the windows over the game, the episodes the event watch
+    /// saw come and go since the last look, and the handle holders.
+    /// `None`: kernel32 lacks a function the walks need.
+    pub fn look(thread: &Thread) -> Option<Windows> {
+        let kernel32 = Kernel32::get()?;
+        let episodes = module_watch::drain_episodes(thread);
+        let Holders { holders, unchecked } = holders(&kernel32);
+        Some(Windows { over: windows_over(&kernel32), episodes, holders, unchecked })
     }
 
     /// A look that could not tell, for `unseen`.
     #[cfg(test)]
     pub fn unseen(unseen: Unseen) -> Windows {
-        Windows(Err(unseen))
+        Windows {
+            over: Err(unseen),
+            episodes: [None; MAX_EPISODES],
+            holders: [None; MAX_HOLDERS],
+            unchecked: [None; MAX_UNCHECKED],
+        }
     }
 
-    /// Its entries, into `report`.
+    /// Its entries, into `report`, the rarest first so a long list of
+    /// windows cannot crowd them out: handle holders, then holders the game
+    /// could not check, then the episodes the event watch saw, then the
+    /// windows over the game now (or why none could be told).
     fn add_to(self, report: &mut Report) {
-        match self.0 {
+        self.holders.into_iter().flatten().for_each(|holder| report.add(Entry::Holder(holder)));
+        self.unchecked.into_iter().flatten().for_each(|unchecked| report.add(Entry::Unchecked(unchecked)));
+        self.episodes.into_iter().flatten().for_each(|over| report.add(Entry::Over(over)));
+        match self.over {
             Ok(overs) => overs.into_iter().flatten().for_each(|over| report.add(Entry::Over(over))),
             Err(unseen) => report.add(Entry::Unseen(unseen)),
         }
     }
 
-    /// A report of these windows only (a minute's look).
+    /// A report of these windows and holders only (a minute's look).
     pub fn report(self, moment: Moment) -> Report {
         let mut report = Report::new(moment);
         self.add_to(&mut report);

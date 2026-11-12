@@ -63,20 +63,32 @@ fn memory_line(carrier: &Carrier, part: &memory::Part, name: &str, account: u32,
 /// - `<place> "<name>" <image size> pe <stamp>/<checksum>` (a module),
 /// - `code <memory> <protect> <exec size>/<size> start <fingerprint> pe ...`,
 /// - `load <place> "<name>" <image size> pe ... at <seconds> listed|unlisted`,
-/// - `over "<exe name>"|? class "<class>"|? <extended styles> <width>x<height> from <place>|windows|?`
-///   (another process's always-on-top window over the game's, and where its exe is),
+/// - `over "<exe name>"|? class "<class>"|? <extended styles> <width>x<height> <affinity> from <place>|windows|? <since>-<until>s|<since>s+`
+///   (another process's always-on-top window over the game's, whether a screen
+///   capture leaves it out, where its exe is, and the match seconds it was over for),
 /// - `over unknown: <why>`,
+/// - `holds game memory "<exe name>"|? <access> (<rights>) from <place>|windows|?`
+///   (another process with a handle to the game's own process object that can
+///   read its memory; `<rights>` the `read`/`write`/`operation` the handle was given),
+/// - `holds game memory unchecked <count> "<exe name>"|? from <place>|windows|?`
+///   (process-object handles in a holder the game could not check),
 ///
 /// sizes and addresses hex, seconds decimal, `-` for what is not there; a
 /// place is `game`, `temp` or `other`, then ` in "<folders>"` where it has
 /// any (below the game's or the temporary folder; an other one's from its
 /// drive, a user's name `*`).
 fn modules_line(carrier: &Carrier, part: &modules::Part, name: &str, account: u32, match_id: u32) -> String {
-    use srp_validate::modules::{Entry, Home, Name, PeMarks, Place};
+    use srp_validate::modules::{Entry, Holder, Home, Name, PeMarks, Place};
     let place = |place: Place| match place.dir.as_str() {
         "" => place.folder.word().to_string(),
         dir => format!("{} in {dir:?}", place.folder.word()),
     };
+    let home = |home: Home| match home {
+        Home::Unknown => "?".to_string(),
+        Home::Windows => "windows".to_string(),
+        Home::At(at) => place(at),
+    };
+    let quoted = |name: Option<Name>| name.map_or_else(|| "?".to_string(), |name| format!("{name:?}"));
     let pe = |pe: Option<PeMarks>| pe.map_or_else(|| "-".to_string(), |pe| format!("{:08x}/{:x}", pe.stamp, pe.checksum));
     let entries: Vec<String> = part
         .entries()
@@ -104,22 +116,39 @@ fn modules_line(carrier: &Carrier, part: &modules::Part, name: &str, account: u3
                 if load.listed { "listed" } else { "unlisted" }
             ),
             Entry::Over(over) => {
-                let quoted = |name: Option<Name>| name.map_or_else(|| "?".to_string(), |name| format!("{name:?}"));
-                let home = match over.home {
-                    Home::Unknown => "?".to_string(),
-                    Home::Windows => "windows".to_string(),
-                    Home::At(at) => place(at),
+                let seen = match over.until {
+                    Some(until) => format!("{}-{until}s", over.since),
+                    None => format!("{}s+", over.since),
                 };
                 format!(
-                    "over {} class {} {:x} {}x{} from {home}",
+                    "over {} class {} {:x} {}x{} {} from {} {seen}",
                     quoted(over.name),
                     quoted(over.class),
                     over.style,
                     over.width,
-                    over.height
+                    over.height,
+                    over.affinity.word(),
+                    home(over.home),
                 )
             }
             Entry::Unseen(why) => format!("over unknown: {}", why.word()),
+            Entry::Holder(holder) => {
+                let rights: Vec<&str> = [(Holder::VM_READ, "read"), (Holder::VM_WRITE, "write"), (Holder::VM_OPERATION, "operation")]
+                    .into_iter()
+                    .filter(|&(bit, _)| holder.access & bit != 0)
+                    .map(|(_, word)| word)
+                    .collect();
+                format!(
+                    "holds game memory {} {:x} ({}) from {}",
+                    quoted(holder.name),
+                    holder.access,
+                    rights.join(", "),
+                    home(holder.home),
+                )
+            }
+            Entry::Unchecked(unchecked) => {
+                format!("holds game memory unchecked {} {} from {}", unchecked.count, quoted(unchecked.name), home(unchecked.home))
+            }
         })
         .collect();
     format!(
@@ -158,7 +187,7 @@ mod tests {
     #[test]
     fn a_module_part_is_one_line() {
         use srp_validate::modules::{
-            Entry, Folder, Home, Load, Module, Moment, Name, Over, PeMarks, Place, Report, Unseen,
+            Affinity, Entry, Folder, Holder, Home, Load, Module, Moment, Name, Over, PeMarks, Place, Report, Unchecked, Unseen,
         };
         let wide = |text: &str| text.encode_utf16().collect::<Vec<u16>>();
         let downloads = Place::of(&wide("C:\\Users\\Ivan\\Downloads\\extra.dll"), &[], &[], &[]).unwrap();
@@ -166,9 +195,11 @@ mod tests {
         let name = |text: &str| Name::of_path(&text.encode_utf16().collect::<Vec<u16>>()).unwrap();
         let mut report = Report::new(Moment::Ended);
         for entry in [
-            Entry::Over(Over { name: Some(name("overlay.exe")), class: Some(name("Overlay")), style: 0x8_00a8, width: 1280, height: 720, home: Home::At(downloads) }),
-            Entry::Over(Over { name: Some(name("explorer.exe")), class: None, style: 0x88, width: 1280, height: 40, home: Home::Windows }),
+            Entry::Over(Over { name: Some(name("overlay.exe")), class: Some(name("Overlay")), style: 0x8_00a8, width: 1280, height: 720, affinity: Affinity::ExcludeFromCapture, home: Home::At(downloads), since: 12, until: Some(48) }),
+            Entry::Over(Over { name: Some(name("explorer.exe")), class: None, style: 0x88, width: 1280, height: 40, affinity: Affinity::None, home: Home::Windows, since: 0, until: None }),
             Entry::Unseen(Unseen::NoOrder),
+            Entry::Holder(Holder { name: Some(name("recorder.exe")), access: Holder::VM_READ | Holder::VM_OPERATION, home: Home::At(downloads) }),
+            Entry::Unchecked(Unchecked { name: None, count: 2, home: Home::Unknown }),
             Entry::Module(Module { name: name("extra.dll"), place: downloads, image_size: 0x1_2000, pe: None }),
             Entry::Load(Load { name: name("added.dll"), place: Place::bare(Folder::Temp), image_size: 0x7000, pe: shell, at: 311, listed: false }),
         ] {
@@ -180,10 +211,12 @@ mod tests {
         let Body::Modules(part) = carrier.body else { panic!("{carrier:?}") };
         assert_eq!(
             modules_line(&carrier, &part, "Ivan", 7, 0x8000_0001),
-            "Ivan (account 7), match 0x80000001, ended, part 1/1 of 5 entries: \
-             over \"overlay.exe\" class \"Overlay\" 800a8 1280x720 from other in \"C:\\\\Users\\\\*\\\\Downloads\" \
-             | over \"explorer.exe\" class ? 88 1280x40 from windows \
+            "Ivan (account 7), match 0x80000001, ended, part 1/1 of 7 entries: \
+             over \"overlay.exe\" class \"Overlay\" 800a8 1280x720 hidden-from-capture from other in \"C:\\\\Users\\\\*\\\\Downloads\" 12-48s \
+             | over \"explorer.exe\" class ? 88 1280x40 shown from windows 0s+ \
              | over unknown: game window not in the order \
+             | holds game memory \"recorder.exe\" 18 (read, operation) from other in \"C:\\\\Users\\\\*\\\\Downloads\" \
+             | holds game memory unchecked 2 ? from ? \
              | other in \"C:\\\\Users\\\\*\\\\Downloads\" \"extra.dll\" 12000 pe - \
              | load temp \"added.dll\" 7000 pe 4b4b4321/0 at 311 unlisted"
         );

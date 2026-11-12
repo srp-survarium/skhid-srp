@@ -5705,6 +5705,38 @@ module_report_on_dll_go:
     lea esp, [esp + 4]
     ret
 
+; module_watch.win_event patch 125's window event callback (module_watch_026g.asm module_watch_win_event, handed to user32's SetWinEventHook out of context): Windows calls it on the thread that registered the hook (the game's main thread, which pumps messages), WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS; stdcall WINEVENTPROC (the hook, the event, the window, idObject, idChild, idEventThread, dwmsEventTime), our code returns with ret 1Ch: entry -> module_report_on_win_event
+global module_report_on_win_event
+extern hook_module_report_on_win_event
+module_report_on_win_event:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_module_report_on_win_event
+    cmp eax, 0
+    je module_report_on_win_event_go
+    ud2
+module_report_on_win_event_go:
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    lea esp, [esp + 4]
+    ret
+
 ; 0x1ec8ec game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game: lohook -> music_on_frame
 global music_on_frame
 extern hook_music_on_frame_chain

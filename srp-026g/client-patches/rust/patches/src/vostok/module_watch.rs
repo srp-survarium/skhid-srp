@@ -15,14 +15,14 @@
 //! header is read with `ReadProcessMemory`), then one record into fixed room. Nothing here is logged or acted on; the
 //! report carries it.
 
-use super::modules::{Kernel32, PATH, Path};
+use super::modules::{Kernel32, MAX_EPISODES, PATH, Path, export_of, over_now};
 use super::world::read;
 use super::{Context, Lock, Thread};
 use crate::raw;
 use core::ffi::{CStr, c_void};
 use core::num::NonZeroUsize;
 use core::ptr::NonNull;
-use srp_validate::modules::{Load, Name, PeMarks, Place};
+use srp_validate::modules::{Load, Name, Over, PeMarks, Place};
 
 /// DLL loads kept at most.
 const LOADS: usize = 32;
@@ -145,16 +145,23 @@ pub fn tls(ctx: &Context<'_>) {
     // SAFETY: the context is this entry's: its ESP module_watch_tls's frame.
     let Some(frame) = (unsafe { raw::site::module_watch_thread::frame(ctx) }) else { return };
     // SAFETY: the frame's words, there for the call.
-    let (reason, notify) = unsafe { (read(frame.reason()), read(frame.notify())) };
+    let (reason, notify, win_event) = unsafe { (read(frame.reason()), read(frame.notify()), read(frame.win_event())) };
     // a thread's start (2) and an end (3, 0) are nothing to the watch
     if reason == PROCESS_START {
-        start(ctx.thread(), notify as usize);
+        start(ctx.thread(), notify as usize, win_event as usize);
     }
 }
 
+/// The address of our window event callback (module_watch_win_event), handed
+/// up at the process's start, for [`ensure_window_watch`] to register later
+/// from the main thread; 0 before the TLS callback runs.
+static WIN_EVENT_CALLBACK: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+
 /// The game's process starts: the watch does, once, and from now on the
-/// loader calls `notify` (module_watch_dll) for each DLL.
-fn start(thread: &Thread, notify: usize) {
+/// loader calls `notify` (module_watch_dll) for each DLL. `win_event` is our
+/// window event callback, kept for [`ensure_window_watch`].
+fn start(thread: &Thread, notify: usize, win_event: usize) {
+    WIN_EVENT_CALLBACK.store(win_event, core::sync::atomic::Ordering::Relaxed);
     let Some(kernel32) = Kernel32::get() else { return };
     // SAFETY: GetModuleHandleA (the exe's import), a NUL-terminated name; ntdll is in every process.
     let ntdll = unsafe { (raw::engine_get_module_handle_a)(c"ntdll.dll".as_ptr().cast()) };
@@ -245,6 +252,142 @@ impl KeptNow {
             listed: listed(load.base),
         })
     }
+}
+
+// --- the windows-over event watch (patch 125) -------------------------------
+//
+// The look at the windows over the game each minute leaves a gap: a window
+// that came and went between two looks was never seen (the owner, 2026-11-11).
+// So the watch also asks Windows to tell it of the window events out of context
+// (`SetWinEventHook`, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS); the
+// callbacks arrive on the thread that registered the hook, during its message
+// retrieval, so the watch is registered from the game's main thread (which
+// pumps messages, `on_present`). On an event the window is tested as the
+// periodic look tests it ([`over_now`]); a window that comes over the game
+// opens an episode, one that goes closes it, and a periodic look drains the
+// closed episodes with the match seconds they were over for. It is
+// event-driven: bounded room, counts, not elapsed time.
+
+/// `EVENT_SYSTEM_FOREGROUND`: a window came to the foreground.
+const EVENT_SYSTEM_FOREGROUND: u32 = 0x0003;
+/// `EVENT_OBJECT_DESTROY` .. `EVENT_OBJECT_REORDER` (destroy, show, hide, z-order).
+const EVENT_OBJECT_DESTROY: u32 = 0x8001;
+const EVENT_OBJECT_REORDER: u32 = 0x8004;
+/// `WINEVENT_OUTOFCONTEXT` (0) | `WINEVENT_SKIPOWNPROCESS` (2): our own
+/// windows' events are never told, and the callback runs in our process.
+const WINEVENT_FLAGS: u32 = 0x0002;
+/// `OBJID_WINDOW`: the event is about the window itself, not a child object.
+const OBJID_WINDOW: u32 = 0;
+
+/// A window the event watch saw come over the game, kept until it goes.
+#[derive(Clone, Copy)]
+struct Open {
+    window: usize,
+    over: Over,
+    came: Tick,
+}
+
+/// The windows-over episodes the event watch keeps between the periodic looks.
+struct WindowWatch {
+    registered: bool,
+    /// The match's start, for an episode's match seconds; `None` before a match.
+    match_start: Option<Tick>,
+    /// Windows observed over the game now, to know when they go.
+    open: [Option<Open>; MAX_EPISODES],
+    /// Episodes that closed since the last drain: the window as it was, when
+    /// it came and when it went.
+    closed: Kept<(Over, Tick, Tick), MAX_EPISODES>,
+}
+
+static WINDOW_WATCH: Lock<WindowWatch> =
+    Lock::new(WindowWatch { registered: false, match_start: None, open: [None; MAX_EPISODES], closed: Kept::NONE });
+
+impl WindowWatch {
+    /// A window event: it came over the game (opens an episode), or it went
+    /// (closes the open one). `over`: what [`over_now`] saw of it.
+    fn event(&mut self, window: usize, over: Option<Over>, now: Tick) {
+        let open = self.open.iter().position(|slot| slot.is_some_and(|slot| slot.window == window));
+        match (over, open) {
+            (Some(over), None) => {
+                if let Some(slot) = self.open.iter_mut().find(|slot| slot.is_none()) {
+                    *slot = Some(Open { window, over, came: now });
+                }
+            }
+            (Some(_), Some(_)) => {} // already open; keep when it first came
+            (None, Some(index)) => {
+                if let Some(Open { over, came, .. }) = self.open.get_mut(index).and_then(Option::take) {
+                    self.closed.keep((over, came, now));
+                }
+            }
+            (None, None) => {}
+        }
+    }
+}
+
+/// The game's main thread pumps messages, so the out-of-context callbacks
+/// arrive there: `on_present` calls this each present and it registers the
+/// window event watch once. A Windows without `SetWinEventHook` leaves it off.
+pub fn ensure_window_watch(thread: &Thread) {
+    // our window event callback (module_watch_win_event), handed up at the
+    // process's start; 0 means the TLS callback has not run, so leave it off
+    let callback = WIN_EVENT_CALLBACK.load(core::sync::atomic::Ordering::Relaxed) as *mut c_void;
+    if callback.is_null() {
+        return;
+    }
+    let Some(set) = export_of(c"user32.dll", c"SetWinEventHook") else { return };
+    // mark it registered only now that it will be, so a Windows without the
+    // function is retried on a later present
+    let first = WINDOW_WATCH.with(thread, |watch| !core::mem::replace(&mut watch.registered, true));
+    if !first {
+        return;
+    }
+    for (min, max) in [(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND), (EVENT_OBJECT_DESTROY, EVENT_OBJECT_REORDER)] {
+        // SAFETY: SetWinEventHook's own export: out of context, skipping our own
+        // process, no dll, no pid/thread filter. The hook is never unregistered.
+        unsafe { raw::engine_set_win_event_hook(set, min, max, core::ptr::null_mut(), callback, 0, 0, WINEVENT_FLAGS) };
+    }
+}
+
+/// module_watch.win_event: user32's event callback (module_watch_026g.asm
+/// module_watch_win_event), out of context on the game's main thread.
+pub fn win_event(ctx: &Context<'_>) {
+    // SAFETY: the context is this entry's: its ESP module_watch_win_event's frame.
+    let told = unsafe {
+        let Some(frame) = raw::site::module_watch_win_event::frame(ctx) else { return };
+        (read(frame.window()), read(frame.object()), read(frame.child()))
+    };
+    let (window, object, child) = told;
+    // only a window's own event (not a child object's)
+    if object != OBJID_WINDOW || child != 0 {
+        return;
+    }
+    let over = over_now(window as *mut c_void);
+    let now = Tick::now();
+    WINDOW_WATCH.with(ctx.thread(), |watch| watch.event(window as usize, over, now));
+}
+
+/// A match's first world is in: the window episodes count from now, and any
+/// from before (the lobby's) are dropped.
+pub fn match_started(thread: &Thread, now: u32) {
+    WINDOW_WATCH.with(thread, |watch| {
+        watch.match_start = Some(Tick(now));
+        watch.open = [None; MAX_EPISODES];
+        watch.closed = Kept::NONE;
+    });
+}
+
+/// The windows-over episodes that closed since the last drain, each with the
+/// match seconds it was over for, cleared from the watch.
+pub fn drain_episodes(thread: &Thread) -> [Option<Over>; MAX_EPISODES] {
+    WINDOW_WATCH.with(thread, |watch| {
+        let start = watch.match_start.unwrap_or(Tick(0));
+        let mut out = [None; MAX_EPISODES];
+        for (slot, (over, came, went)) in out.iter_mut().zip(watch.closed.iter()) {
+            *slot = Some(Over { since: came.since(start).0, until: Some(went.since(start).0), ..over });
+        }
+        watch.closed = Kept::NONE;
+        out
+    })
 }
 
 #[cfg(test)]
