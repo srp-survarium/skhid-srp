@@ -30,8 +30,8 @@ pub(crate) const HEARD_WITHIN: Duration = Duration::from_secs(2);
 /// key of the player's.
 const PER_INPUT_FLAG: u32 = 1 << 31;
 
-/// `SRP_ANTI_AFK`: `off`, or the seconds without input after which a
-/// player is removed (default 180, at least 60).
+/// `SRP_ANTI_AFK`: `off` or `0`, or the seconds without input after which
+/// a player is removed (default 180, at least 60).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Setting {
     Off,
@@ -50,10 +50,11 @@ impl Setting {
             None | Some("") => Self::default(),
             Some(off) if off.eq_ignore_ascii_case("off") => Self::Off,
             Some(seconds) => match seconds.parse::<u64>() {
+                Ok(0) => Self::Off,
                 Ok(seconds) => Self::After(Duration::from_secs(seconds).max(LEAST_LIMIT)),
                 Err(_) => {
                     log::error!(
-                        "SRP_ANTI_AFK is `{seconds}`; it must be `off` or a number of seconds. \
+                        "SRP_ANTI_AFK is `{seconds}`; it must be `off`, `0` or a number of seconds. \
                          Using {}",
                         DEFAULT_LIMIT.as_secs()
                     );
@@ -477,6 +478,7 @@ mod tests {
         assert_eq!(Setting::parse(None), Setting::After(DEFAULT_LIMIT));
         assert_eq!(Setting::parse(Some(" ")), Setting::After(DEFAULT_LIMIT));
         assert_eq!(Setting::parse(Some("OFF")), Setting::Off);
+        assert_eq!(Setting::parse(Some("0")), Setting::Off);
         assert_eq!(
             Setting::parse(Some("240")),
             Setting::After(Duration::from_secs(240))

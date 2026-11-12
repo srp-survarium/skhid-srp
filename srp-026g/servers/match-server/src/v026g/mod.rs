@@ -100,7 +100,7 @@
 //!   server's bots whose only player has been asked for its world this
 //!   long and uploaded none is over (as deserted): its bots see the world
 //!   only through that player's uploads;
-//! - `SRP_ANTI_AFK` (default 180, at least 60; `off`): a player who gives
+//! - `SRP_ANTI_AFK` (default 180, at least 60; `off` or `0`): a player who gives
 //!   no input for that many seconds of play is removed from the match, as
 //!   one who leaves; never in a private room's match nor one against
 //!   bots ([`afk`], `docs/notes/anti-afk.md`).
