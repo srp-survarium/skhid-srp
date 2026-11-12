@@ -145,7 +145,7 @@ use survarium::v026g::lobby::{
     self, AccountBody, BonusColumn, FULL_CONDITION, FullResult, ItemDescr, ResultRow,
     ServerMessage, TitleHolder, WireError, limits,
 };
-use survarium::v026g::maps::GameMode;
+use survarium::v026g::maps::{GameMode, RuleMode};
 use survarium::v026g::match_msgs::snapshot::{EVENTS, HUNDREDTHS, KITS, PlayerStatistics, event};
 use survarium::v026g::match_msgs::static_info::{self, SCORE_WEIGHTS};
 use survarium::v026g::quests::MatchStats as QuestStats;
@@ -164,6 +164,70 @@ pub const DRAW: u8 = survarium::v026g::match_msgs::rules::DRAW;
 /// `game_team_id` for it). The client only compares the byte with the
 /// player's team.
 pub const NO_WINNER: u8 = 3;
+
+/// A free-for-all's winners' kills: the most anyone of `kills` has, the
+/// winners all who have it (ties share the win); `None` with no kill at
+/// all (`docs/notes/ffa.md`).
+pub fn ffa_top_kills(kills: impl IntoIterator<Item = u16>) -> Option<u16> {
+    kills.into_iter().max().filter(|&most| most > 0)
+}
+
+/// A free-for-all's screen for the player `player_id`: the screen calls a
+/// match won when the player's row's team is the winner team, so the
+/// winner team is his column's when he has the winners' kills, the other's
+/// when not.
+fn ffa_screen(stats: &lobby::MatchStats, player_id: u32) -> lobby::MatchStats {
+    let top = ffa_top_kills(stats.rows.iter().map(|row| row.kills));
+    let own = stats.rows.iter().find(|row| row.player_id == player_id);
+    let winner_team = match own {
+        Some(row) if top == Some(row.kills) => row.team,
+        Some(row) => 1 - row.team,
+        None => NO_WINNER,
+    };
+    lobby::MatchStats {
+        winner_team,
+        ..stats.clone()
+    }
+}
+
+/// Who won a match, as its mode decides it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Winners {
+    /// One of the two teams (0 or 1), [`DRAW`], or `None`: not known.
+    Team(Option<u8>),
+    /// A free-for-all: everyone with this many kills, the most
+    /// ([`ffa_top_kills`]); `None`: not known, or nobody killed.
+    MostKills(Option<u16>),
+}
+
+impl Winners {
+    /// The winner team of a match of teams; FFA ratings use individual
+    /// winners and its team-balance rating stays unchanged.
+    fn team(self) -> Option<u8> {
+        match self {
+            Self::Team(team) => team,
+            Self::MostKills(_) => None,
+        }
+    }
+}
+
+/// A free-for-all's results screen rows (`docs/notes/ffa.md`): one ranking
+/// in the screen's two columns, by kills, which decide the match (then
+/// score, fewer deaths, the roster place), the upper half (the extra one of
+/// an odd count) team 0, the rest team 1: the screen takes no other team.
+fn ffa_columns(rows: &mut [ResultRow]) {
+    rows.sort_by(|a, b| {
+        b.kills
+            .cmp(&a.kills)
+            .then(b.score.cmp(&a.score))
+            .then(a.deaths.cmp(&b.deaths))
+            .then(a.player_id.cmp(&b.player_id))
+    });
+    let upper = rows.len().div_ceil(2);
+    for (rank, row) in rows.iter_mut().enumerate() {
+        row.team = u8::from(rank >= upper);
+    }
+}
 
 /// The three lines of the score: their localization keys and whether the
 /// amount is shown (`gameplay/ui/victory_screen.options`, `categories`).
@@ -501,6 +565,12 @@ impl MatchReport {
     /// answer to `41 00 <match id>` too.
     pub fn screen_for(&self, account_id: u32) -> Option<Result<ServerMessage, WireError>> {
         let player = self.player(account_id)?;
+        if self.stats.game_mode == RuleMode::FreeForAll.number() {
+            return Some(lobby::match_stats(
+                &ffa_screen(&self.stats, player.player_id),
+                &player.full,
+            ));
+        }
         Some(lobby::match_stats(&self.stats, &player.full))
     }
 
@@ -1405,8 +1475,8 @@ struct Shared<'a> {
     /// Whether the numbers of the result can be used: play began and a
     /// snapshot was trusted.
     trusted: bool,
-    /// 0 or 1, [`DRAW`], or `None`.
-    winner: Option<u8>,
+    /// Who won, when trusted.
+    winners: Winners,
     /// Whether the match is of a mode with batteries (2 and 3): the
     /// battery quests, the drop chance a battery and a robbed base count in
     /// it only.
@@ -1463,7 +1533,15 @@ impl<'a> Shared<'a> {
             result,
             terms,
             trusted,
-            winner: result.winner.filter(|&winner| trusted && winner <= DRAW),
+            winners: if result.mode == GameMode::FreeForAll {
+                Winners::MostKills(
+                    trusted
+                        .then(|| ffa_top_kills(result.players.iter().map(|player| player.kills)))
+                        .flatten(),
+                )
+            } else {
+                Winners::Team(result.winner.filter(|&winner| trusted && winner <= DRAW))
+            },
             batteries,
             stole,
             weights: static_info::weights_of(result.mode.rules(), terms.score_weights),
@@ -1535,8 +1613,10 @@ impl<'a> Shared<'a> {
 
     fn won(&self, player: &PlayerResult) -> bool {
         matches!(self.standing(player), Standing::Finished | Standing::Left)
-            && player.team < 2
-            && self.winner == Some(player.team)
+            && match self.winners {
+                Winners::Team(winner) => player.team < 2 && winner == Some(player.team),
+                Winners::MostKills(top) => top == Some(player.kills),
+            }
     }
 
     /// A player's counters, if the result's numbers can be used.
@@ -1585,9 +1665,6 @@ impl<'a> Shared<'a> {
     /// one team, moves nothing.
     fn rating_changes(&self, held: &[Option<(u16, u8, String)>]) -> Vec<i32> {
         let mut changes = vec![0; self.result.players.len()];
-        let Some(winner) = self.winner else {
-            return changes;
-        };
         let rated: Vec<usize> = (0..self.result.players.len())
             .filter(|&index| {
                 held[index].is_some()
@@ -1597,6 +1674,27 @@ impl<'a> Shared<'a> {
                     )
             })
             .collect();
+        // FFA: a finished winner earns the normal Elo victory gain against
+        // the other participants' average. Everyone else stays unchanged,
+        // including leavers. Tied leaders each earn their own victory gain.
+        if matches!(self.winners, Winners::MostKills(_)) {
+            for &index in &rated {
+                let player = &self.result.players[index];
+                if self.standing(player) != Standing::Finished || !self.won(player) {
+                    continue;
+                }
+                let mut opponents = vec![(0, held[index].as_ref().unwrap().0, true)];
+                opponents.extend(rated.iter().filter(|&&other| other != index)
+                    .map(|&other| (1, held[other].as_ref().unwrap().0, true)));
+                changes[index] = v021d::rating::changes_scaled(
+                    &opponents, 0, pay::RATING_STEP, pay::RATING_SPREAD,
+                )[0].max(0);
+            }
+            return changes;
+        }
+        let Some(winner) = self.winners.team() else {
+            return changes;
+        };
         let list: Vec<(u8, u16, bool)> = rated
             .iter()
             .map(|&index| {
@@ -1634,7 +1732,7 @@ impl<'a> Shared<'a> {
     /// of a player to its side, and is moved by that part.
     fn balance_changes(&self, accounts: &GameAccounts) -> Vec<Option<i32>> {
         let mut changes = vec![None; self.result.players.len()];
-        let Some(winner) = self.winner else {
+        let Some(winner) = self.winners.team() else {
             return changes;
         };
         if self.unrated || self.result.end == MatchEnd::Deserted {
@@ -1846,7 +1944,7 @@ impl<'a> Shared<'a> {
         }
 
         // The rating.
-        if self.winner.is_some() && !self.unrated {
+        if matches!(self.winners, Winners::Team(Some(_)) | Winners::MostKills(Some(_))) && !self.unrated {
             account.rating_before = account.rating;
             account.rating = v021d::rating::moved(account.rating, rating_change);
             reward.rating_after = account.rating;
@@ -2086,6 +2184,7 @@ impl<'a> Shared<'a> {
         let shooter = best(&|line| line.accuracy * 0x1_0000 + line.shots.min(0xFFFF));
         let support = best(&|line| line.support);
         let explorer = best(&|line| line.artefacts + line.items);
+        let free_for_all = result.mode == GameMode::FreeForAll;
         let team_size = |team: u8| {
             result
                 .players
@@ -2096,7 +2195,7 @@ impl<'a> Shared<'a> {
         lobby::MatchStats {
             match_id: result.match_id,
             unknown: 0,
-            winner_team: self.winner.unwrap_or(NO_WINNER),
+            winner_team: self.winners.team().unwrap_or(NO_WINNER),
             team_scores: if self.trusted {
                 result
                     .team_points
@@ -2107,7 +2206,12 @@ impl<'a> Shared<'a> {
             // Read by the screen only in Team Deathmatch with both scores
             // 0, as the top of a bar whose value is the team's rows [GUESS:
             // the players a team had].
-            team_params: [team_size(0), team_size(1)],
+            // A free-for-all has no teams to total.
+            team_params: if free_for_all {
+                [0, 0]
+            } else {
+                [team_size(0), team_size(1)]
+            },
             game_mode: result.mode.rules().number(),
             best_player: holder(player),
             best_player_score: clamp_u16(player.map_or(0, |line| line.score)),
@@ -2119,23 +2223,30 @@ impl<'a> Shared<'a> {
             best_explorer: holder(explorer),
             explorer_artefacts: clamp_u16(explorer.map_or(0, |line| line.artefacts)),
             explorer_items: clamp_u16(explorer.map_or(0, |line| line.items)),
-            rows: lines
-                .iter()
-                .zip(held)
-                // A team past 1 would corrupt the client's stack.
-                .filter(|(line, _)| line.player.team < 2)
-                .take(limits::RESULT_ROWS)
-                .map(|(line, held)| ResultRow {
-                    name: line.player.name.clone(),
-                    clan_tag: line.tag.to_owned(),
-                    player_id: player_id(line.player),
-                    score: clamp_u16(line.score),
-                    kills: if self.trusted { line.player.kills } else { 0 },
-                    deaths: if self.trusted { line.player.deaths } else { 0 },
-                    team: line.player.team,
-                    level: held.as_ref().map_or(0, |held| u16::from(held.1)),
-                })
-                .collect(),
+            rows: {
+                let mut rows: Vec<ResultRow> = lines
+                    .iter()
+                    .zip(held)
+                    // A team past 1 would corrupt the client's stack: a
+                    // free-for-all's own teams become its columns.
+                    .filter(|(line, _)| free_for_all || line.player.team < 2)
+                    .take(limits::RESULT_ROWS)
+                    .map(|(line, held)| ResultRow {
+                        name: line.player.name.clone(),
+                        clan_tag: line.tag.to_owned(),
+                        player_id: player_id(line.player),
+                        score: clamp_u16(line.score),
+                        kills: if self.trusted { line.player.kills } else { 0 },
+                        deaths: if self.trusted { line.player.deaths } else { 0 },
+                        team: line.player.team,
+                        level: held.as_ref().map_or(0, |held| u16::from(held.1)),
+                    })
+                    .collect();
+                if free_for_all {
+                    ffa_columns(&mut rows);
+                }
+                rows
+            },
         }
     }
 }

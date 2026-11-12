@@ -1148,3 +1148,34 @@ survarium::player_input_handler	view	0x48	f32	the camera's transform, a row-vect
 survarium::game	map_name	0x55E0	obj<vostok::buffer_string>	the match's project, as its maps_dict id's game mode config names it (mode.match_making_params.map_name, e.g. level_01/day_2): network_client::query_players assigns it before game_world::load (0x27B085), the replay's query too (0x218F3C); a buffer_string over 200h bytes at +55ECh (game::game 0x1E9291); never cleared, so the last match's in the lobby
 vostok::file_open_options	assert_on_failure	0x8	u32	4179F passes to path normalization; 400D5 tests before file-open assertion
 vostok::replay_path	bytes	0x0	u8	Resolved ANSI replay path, caller-owned 260-byte buffer (1F02C0)
+survarium::player_respawn_rule_base	team_2_points	0x190	ptr<survarium::respawn_point_core>	the team-2 group of respawn points, inline (cook 0x2C6A12: team 0, 1, 2 at +188h, +18Ch, +190h; select 0x317397)
+survarium::player_respawn_rule_base	team_2_count	0x19C	u32	their count (counts at +194h, +198h, +19Ch; 0x317368)
+survarium::respawn_point_core	position	0x8	f32	its position, a float3 (is_clear_for_team 0x2F483F)
+survarium::respawn_point_core	enemy_radius	0x34	f32	enemy_check_radius: no player of another team nearer (0x2F48A3)
+survarium::respawn_point_core	size	0x38	size	a point of a group (select's step 0x317270)
+survarium::player_vector	begin	0x0	ptr<survarium::player_slot>	a vector of players: its first (the respawn tick's two due vectors and its living one, 0x316820)
+survarium::player_vector	end	0x4	ptr<survarium::player_slot>	its end
+survarium::player_slot	player	0x0	ptr<survarium::player>	a player of the vector
+survarium::player_slot	size	0x4	size	a pointer
+survarium::respawn_select_frame	team	0x8	u32	select_respawn_points' team (ebp+8): the tick's due vector's index, 0 or 1
+survarium::respawn_select_frame	due	0xC	ptr<survarium::player_vector>	that team's due players (ebp+0Ch)
+survarium::respawn_select_frame	living	0x10	ptr<survarium::player_vector>	the living players (ebp+10h, given to 0x2F4800)
+survarium::respawn_select_frame	time	0x18	u32	the tick's time, ms (ebp+18h)
+survarium::respawn_select_frame	chosen	0x1C	ptr<survarium::respawn_point_vector>	the chosen points, one for each due player in order (ebp+1Ch; the tick spawns the first that many)
+survarium::respawn_point_vector	begin	0x0	u32	a vector of point pointers: its first (filled by push_back 0x3174C0)
+survarium::game_world_ui	viewed_place	0x24	u8	the hud state's first byte (the state is +24h..+2D8h, hashed by update_ui 0x23B2D2): the place of the network client's player (+4), 0FFh none; game_world::tick writes it each frame (0x1F7F82) before the rules fill the state (game_world_core::fill_match_hud_state 0x2D36B0)
+survarium::game_world_ui	seconds_left	0x28	u32	the hud state's +4: the match's whole seconds left while the time rule is in process, 0 once its time is over (timelimit_rule::fill_match_hud_state 0x267B4F, 0x267BA3)
+survarium::game_world_ui	pregame	0x15C	u8	the hud state's +138h: 1 while the time rule waits or counts down, 0 in process (timelimit_rule::fill_match_hud_state 0x267C6A, 0x267B91; update_ui's pregame test 0x23B307)
+survarium::game_world_ui	kd	0xBC	obj<survarium::hud_kd>	the hud state's +98h: a record a place, filled for the options' places (kd_stats_rule::fill_match_hud_state 0x323980; its count the rule's +1B0h, the options' places, 0x3237B4); never cleared after the hud's constructor (0x2336D1)
+survarium::hud_kd	kills	0x0	u16	the place's kills (the rule's +110h + 8 x place, 0x32399C)
+survarium::hud_kd	deaths	0x2	u16	its deaths (0x3239AC)
+survarium::hud_kd	size	0x8	size	a place's record (0x32399C: place x 8)
+survarium::match_rule	time_start	0x12C	u32	timelimit type 2 only: state start, rule_completed 0x318364
+survarium::match_rule	match_ms	0x138	u32	timelimit type 2 only: match duration, rule_completed 0x31837D
+survarium::match_rule	time_state	0x148	u32	timelimit type 2 only: state, rule_completed 0x31836B
+survarium::kd_stats_rule	records	0x110	obj<survarium::hud_kd>	twenty serialized KD records, on_event 0x3237EF and 0x323857
+survarium::kd_stats_rule	places	0x1B0	u8	serialized record count (patched constructor fixes it at 20); constructor 0x3237C3 and fill_match_hud_state 0x323982
+survarium::kd_stats_rule	core	0x1B4	ptr<survarium::core_world>	the owning world, on_event 0x32380C
+survarium::kd_event_frame	event	0x4	u32	on_event first argument: event 1 is a death, 0x3237E0
+survarium::kd_event_frame	time	0xC	u32	on_event third argument: completed world time, dispatched by 0x2D1EC0
+survarium::pvp_match	options	0x124	ptr<survarium::match_options>	borrowed match options (constructor 0x2D55B0 argument +10h); lj_native_install updates this roster, UI 0x23B42C..0x23B435 reads it

@@ -3112,8 +3112,8 @@ va	name	location	role	basis
 0x003180e0	survarium::timelimit_rule_core::on_player_left_match	stack+4	client_id	inferred
 0x00318100	survarium::timelimit_rule_core::logic_tick	stack+4	timelimit_rule	inferred
 0x00318100	survarium::timelimit_rule_core::logic_tick	stack+8	time_ms	inferred
-0x00318360	survarium::timelimit_rule_core::rule_completed	ECX	timelimit_rule	inferred
-0x00318360	survarium::timelimit_rule_core::rule_completed	stack+4	time_ms	inferred
+0x00318360	survarium::timelimit_rule_core::rule_completed	ECX	timelimit_rule	observed
+0x00318360	survarium::timelimit_rule_core::rule_completed	stack+4	time_ms	observed
 0x003190c0	survarium::damage_zone_core::damage_zone_core	EAX	new damage-zone object storage	inferred
 0x003193f0	survarium::damage_zone_core::serialize	ECX	zone_secondary_receiver_fullobject_plus_0x130	inferred
 0x003193f0	survarium::damage_zone_core::serialize	stack+4	writer	inferred
@@ -3218,9 +3218,9 @@ va	name	location	role	basis
 0x00321b90	survarium::bullet_manager::serialize	stack+4	writer	inferred
 0x00321c50	survarium::bullet_manager::deserialize	EAX	bullet manager	inferred
 0x00321c50	survarium::bullet_manager::deserialize	stack+4	reader	inferred
-0x003237e0	survarium::kd_stats_rule::on_event	ECX	KD rule	inferred
-0x003237e0	survarium::kd_stats_rule::on_event	stack+4	event numeric ID	inferred
-0x003237e0	survarium::kd_stats_rule::on_event	stack+8	event payload pointer	inferred
+0x003237e0	survarium::kd_stats_rule::on_event	ECX	KD rule	observed
+0x003237e0	survarium::kd_stats_rule::on_event	stack+4	event numeric ID; 1 increments victim deaths and enemy killer kills (0x3237E0..0x323861)	observed
+0x003237e0	survarium::kd_stats_rule::on_event	stack+8	death event payload: byte 0 killer place (FF none), byte 1 victim place; equal places are suicide	observed
 0x00323870	survarium::kd_stats_rule::serialize	ECX	KD rule	inferred
 0x00323870	survarium::kd_stats_rule::serialize	stack+4	writer	inferred
 0x00323910	survarium::kd_stats_rule::deserialize	ECX	KD rule	inferred
@@ -6103,3 +6103,28 @@ va	name	location	role	basis
 0x003cd300	vostok::render::render_cc_u32::execute	entry ESP+4	arguments string	observed
 0x001f01b0	survarium::open_file_impl	EAX	synchronous device wrapper	observed
 0x001f01b0	survarium::open_file_impl	ESI	resolved replay path (NUL-terminated ANSI)	observed
+0x00316820	survarium::player_respawn_rule_base::tick	ECX	the rule	observed
+0x00316820	survarium::player_respawn_rule_base::tick	entry ESP+8	the time, compared with each place's respawn time at +138h	observed
+0x003171d0	survarium::player_respawn_rule_base::select_respawn_points	ECX	the rule	observed
+0x003171d0	survarium::player_respawn_rule_base::select_respawn_points	entry ESP+4	the team: the group of points (+188h + 4 x team pointer, +194h + 4 x team count) and the team 0x2F4800 tests against	observed
+0x003171d0	survarium::player_respawn_rule_base::select_respawn_points	entry ESP+8	the team's due players (a vector)	observed
+0x003171d0	survarium::player_respawn_rule_base::select_respawn_points	entry ESP+0Ch	the living players, tested against each point	observed
+0x003171d0	survarium::player_respawn_rule_base::select_respawn_points	entry ESP+18h	the out vector of chosen points	observed
+0x002f4800	survarium::respawn_point_core::is_clear_for_team	ESI	the respawn point (position +8h, ally radius +30h, enemy radius +34h)	observed
+0x002f4800	survarium::respawn_point_core::is_clear_for_team	entry ESP+4	the team	observed
+0x002f4800	survarium::respawn_point_core::is_clear_for_team	entry ESP+8	the players to test (a vector)	observed
+0x003174c0	vostok::buffer_vector<survarium::respawn_point_core *>::push_back	ESI	the vector (begin +0, end +4, capacity end +8)	observed
+0x003174c0	vostok::buffer_vector<survarium::respawn_point_core *>::push_back	entry ESP+4	the point to add: the place holding its pointer	observed
+0x002f4580	survarium::respawn_point_core::load	entry ESP+4	the respawn point it fills (EBP): +4 point_id, +18h priority, +1Ch team, +8 position, +14h the rotation's angle, +30h ally_check_radius and +34h enemy_check_radius as floats, each only when the key is there and by its type (a float as it is, 0x2F45D1 and 0x2F4600; an int through cvtsi2ss), +20h invulnerability_time x 1000, ms (0x2F4628 mov edx,[eax]; imul edx,edx,3E8h: the raw value as an int with no type test, so whole seconds only: a float there is read as its bits), +28h and +2Ch the zones of ally_zones and enemy_zones (their collision_geometries, read with no value_exists: a point needs both keys)	observed
+0x002f4580	survarium::respawn_point_core::load	entry ESP+8	the point's config table (EBX), an entry of a project's server_objects/respawn_points; called a point by the respawn rule's cook 0x2C6910 (0x2C6A8E) and from 0x2065EF; ret 8	observed
+0x00267b10	survarium::timelimit_rule::fill_match_hud_state	ECX	the time rule (vtable 0xA06E8C slot +44h): its state +148h (1 waiting, 2 the countdown, 3 in process), its start +12Ch, match_time +138h, wait +13Ch, countdown +140h, in ms	observed
+0x00267b10	survarium::timelimit_rule::fill_match_hud_state	entry ESP+4	the hud state (the hud's +24h): in process +4 the whole seconds left (the ms left x 0.001 truncated, 0x267B5F; 0 once over, 0x267B4F) and +138h 0; waiting or counting down +138h 1, +8Ch the seconds, +0Ch the text (0x267C6A)	observed
+0x00267b10	survarium::timelimit_rule::fill_match_hud_state	entry ESP+8	the time, ms	observed
+0x00233680	survarium::match_hud_state::match_hud_state	ESI	the hud state (2B4h bytes, the hud's +24h; called once, by the hud's constructor at 0x233849): +0 the viewed place 0FFh, +4, +8, +8Ch, +90h, +92h zeros, the twenty kd records at +98h zeroed (0x2336D1); nothing clears it at a new match	observed
+0x002d36b0	survarium::game_world_core::fill_match_hud_state	entry ESP+4	the core world: each rule of +18824h..+18828h asked through its vtable +44h (0x2D36D4), then the object at +18F54h through its +1Ch	observed
+0x002d36b0	survarium::game_world_core::fill_match_hud_state	entry ESP+8	the hud state (game_world +220h, the hud's +24h: game_world::tick 0x1F7F7A, which first writes its byte 0, the place of the network client's player or 0FFh, 0x1F7F82)	observed
+0x002d36b0	survarium::game_world_core::fill_match_hud_state	entry ESP+0Ch	the time, ms	observed
+0x00323980	survarium::kd_stats_rule::fill_match_hud_state	entry ESP+4	the hud state: +98h + 8 x place takes the rule's +110h + 8 x place (kills u16, deaths u16, in the match u8) for its +1B0h places (the options' count, 0x3237B4)	observed
+0x00234880	survarium::game_world_ui::initialize_match	0x234D1C..0x234D31	the map config's mode.mode into the hud's +20h (0FFh from the constructor 0x233842) and to the movie as root.set_game_type (0x234D6B); read for equality only: 0x234D73 (2, 3, 4), 0x2385D8 (2, 3), 0x238CC9 (3), 0x23B339 (2, 3, 4), 0x23B3DE (4)	observed
+0x000f6d00	vostok::configs::binary_config_value::relocate_in_place	ECX	the value record; adds the base to its nonzero name at +8 and its data at +0 for types >2, then recursively relocates every child of types 3 and 4 in place, without deduplication; reachable table records must not be shared (FFA 2026-11-12 dumps: shared collision_geometries name relocated 31 times, lookup crashes at 0xF6BC2)	observed
+0x000f6d00	vostok::configs::binary_config_value::relocate_in_place	entry ESP+4	the config allocation base added to offsets; ret 4	observed

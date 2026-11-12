@@ -375,8 +375,9 @@ mod tests {
         assert_eq!(dictionary.slot_restrictions.len(), 77);
         assert_eq!(dictionary.factions.len(), 6);
         assert_eq!(dictionary.bundles.len(), 14);
-        // 0.26g's 89 and Blackout's 24 (`game_data::test_archive`).
-        assert_eq!(dictionary.maps.len(), 89 + 24);
+        // 0.26g's 89, Blackout's 24 and the free-for-alls' 24
+        // (`game_data::test_archive`).
+        assert_eq!(dictionary.maps.len(), 89 + 24 + 24);
         assert_eq!(dictionary.match_levels.len(), 21);
         assert_eq!(dictionary.items.last().unwrap().dict_id, 1810);
         assert_eq!(dictionary.items[383].dict_id, 737);

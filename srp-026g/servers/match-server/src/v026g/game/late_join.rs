@@ -225,7 +225,11 @@ impl Game {
         if self.mode_end_at.is_some() || self.ending.is_some() || self.finished_at.is_some() {
             return Some(Closed::Ending);
         }
-        if self.players() >= MAX_PLAYERS {
+        // A free-for-all's most players are fewer (`maps::player_cap`).
+        let most = survarium::v026g::maps::player_cap(self.formed.played.map())
+            .unwrap_or(MAX_PLAYERS)
+            .min(MAX_PLAYERS);
+        if self.players() >= most {
             return Some(Closed::Full);
         }
         // One pending reservation at a time; a newcomer that failed by
@@ -927,6 +931,10 @@ impl Game {
     /// not (two placed one on each side, one of them gone). The sides it
     /// would make when not.
     fn entry_keeps_balance(&self, entering: &[usize]) -> Result<(), [i64; 2]> {
+        // A free-for-all has no sides to keep even: each place is its own.
+        if self.game_mode() == RuleMode::FreeForAll {
+            return Ok(());
+        }
         let mut sides = [0usize; 2];
         for (index, place) in self.formed.places.iter().enumerate() {
             let in_match = !self.waiting_entry(index)

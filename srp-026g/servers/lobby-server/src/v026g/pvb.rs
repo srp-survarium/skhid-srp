@@ -148,8 +148,9 @@ impl Config {
 }
 
 /// The maps of `maps` the server's bots play: in the modes they play
-/// (batteries, timed batteries, Team Deathmatch: not Research, which the
-/// match server refuses them, nor Blackout, which Play vs Bots never
+/// (batteries, timed batteries, Team Deathmatch, and a free-for-all, which
+/// they play as a Team Deathmatch with no teammates: not Research, which
+/// the match server refuses them, nor Blackout, which Play vs Bots never
 /// offered) and with a bots' map in `dir` (`SRP_MAPDATA_DIR`, the match
 /// server's: without one its bots only run their script).
 pub fn bot_maps<'a>(maps: impl Iterator<Item = &'a MapMode>, dir: &std::path::Path) -> Vec<u8> {
@@ -159,15 +160,25 @@ pub fn bot_maps<'a>(maps: impl Iterator<Item = &'a MapMode>, dir: &std::path::Pa
             maps::GameMode::Batteries
                 | maps::GameMode::TimedBatteries
                 | maps::GameMode::TeamDeathmatch
+                | maps::GameMode::FreeForAll
         ) && dir.join(mapdata::format::file_name(map.project)).is_file()
     })
     .map(|map| map.id)
     .collect()
 }
 
-/// The offered maps as the dictionary has them.
+/// The offered maps as the dictionary has them: [`MAPS`], then the day of
+/// each level the game data has a free-for-all of (`ffa.md`: the player and
+/// the bots each on his own side).
 pub fn offered_maps() -> impl Iterator<Item = &'static MapMode> {
-    MAPS.iter().filter_map(|&id| maps::map_mode(id))
+    MAPS.iter().filter_map(|&id| maps::map_mode(id)).chain(
+        maps::playable_in(maps::GameMode::FreeForAll).filter(|map| {
+            map.weather == maps::weather::DAY
+                && MAPS
+                    .iter()
+                    .any(|&id| maps::map_mode(id).is_some_and(|offered| offered.level == map.level))
+        }),
+    )
 }
 
 /// A choice held for a player's Play.
@@ -333,8 +344,9 @@ impl Core<'_> {
     pub(super) fn pvb_choose(&mut self, who: &Who, start: u32, now: Instant) {
         self.pvb_forget_old(now);
         self.pvb_holds.remove(&who.account_id);
-        let choice = lobby::pvb_choice(start)
-            .filter(|(size, map_id)| rules().pvb.sizes.contains(size) && MAPS.contains(map_id));
+        let choice = lobby::pvb_choice(start).filter(|(size, map_id)| {
+            rules().pvb.sizes.contains(size) && offered_maps().any(|map| map.id == *map_id)
+        });
         let fit = match choice {
             None => Err(PvbCode::UnknownChoice),
             Some(choice) => self.pvb_fit(who, now).map(|()| choice),
@@ -445,23 +457,36 @@ mod tests {
 
     /// The owner's list: the day of each level in batteries and in Team
     /// Deathmatch, every one playable on this server's data; no London
-    /// (level 9: maps 181 to 183), no level 88 and no timed batteries.
+    /// (level 9: maps 181 to 183), no level 88 and no timed batteries. And
+    /// after the list, the free-for-all of each of its levels by day.
     #[test]
-    fn the_maps_are_the_days_of_batteries_and_team_deathmatch_and_playable() {
-        assert_eq!(offered_maps().count(), MAPS.len());
+    fn the_maps_are_the_days_of_batteries_team_deathmatch_and_free_for_all_and_playable() {
+        assert_eq!(
+            offered_maps().count(),
+            MAPS.len()
+                + maps::playable_in(maps::GameMode::FreeForAll)
+                    .filter(|map| map.weather == maps::weather::DAY && map.level <= 8)
+                    .count()
+        );
         let mut seen = std::collections::HashSet::new();
-        for map in offered_maps() {
+        for (n, map) in offered_maps().enumerate() {
             assert!(map.is_playable(), "{} is not playable", map.id);
             assert_eq!(map.weather, maps::weather::DAY, "{} is not day", map.id);
-            assert!(
-                matches!(
-                    map.mode,
-                    maps::GameMode::Batteries | maps::GameMode::TeamDeathmatch
-                ),
-                "{} is mode {:?}",
-                map.id,
-                map.mode
-            );
+            // The owner's list first, as it is; the free-for-alls after it.
+            if let Some(&listed) = MAPS.get(n) {
+                assert_eq!(map.id, listed);
+                assert!(
+                    matches!(
+                        map.mode,
+                        maps::GameMode::Batteries | maps::GameMode::TeamDeathmatch
+                    ),
+                    "{} is mode {:?}",
+                    map.id,
+                    map.mode
+                );
+            } else {
+                assert_eq!(map.mode, maps::GameMode::FreeForAll, "{}", map.id);
+            }
             assert!(
                 (1..=8).contains(&map.level),
                 "{} is level {}",
@@ -470,8 +495,12 @@ mod tests {
             );
             assert!(seen.insert((map.level, map.mode)), "{} twice", map.id);
         }
-        // Each of the eight levels in both modes.
-        assert_eq!(seen.len(), 16);
+        // Each of the eight levels in the three modes: batteries, Team
+        // Deathmatch and free for all.
+        assert_eq!(seen.len(), 24);
+        for level in 1..=8 {
+            assert!(seen.contains(&(level, maps::GameMode::FreeForAll)), "level {level}");
+        }
         for london in [181, 182, 183] {
             assert!(!MAPS.contains(&london));
         }
@@ -520,11 +549,19 @@ mod tests {
                     maps::GameMode::Batteries
                         | maps::GameMode::TimedBatteries
                         | maps::GameMode::TeamDeathmatch
+                        | maps::GameMode::FreeForAll
                 ) && with_file.iter().any(|other| other.project == map.project)
             })
             .map(|map| map.id)
             .collect();
         assert!(!found.is_empty());
         assert_eq!(found, expected);
+        // A free-for-all is one of their modes (its map file is its Team
+        // Deathmatch's: the same project); Blackout is not, file or no file.
+        let of = |mode| maps::playable_in(mode).map(|map| map.id).collect::<Vec<u8>>();
+        let free_for_all = of(maps::GameMode::FreeForAll);
+        assert!(!free_for_all.is_empty());
+        assert!(free_for_all.iter().all(|id| found.contains(id)));
+        assert!(of(maps::GameMode::Blackout).iter().all(|id| !found.contains(id)));
     }
 }

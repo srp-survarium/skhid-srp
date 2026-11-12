@@ -503,7 +503,8 @@ impl Core<'_> {
     /// rule a late joiner is put into it by ([`policy::place_joiner`]):
     /// sides of at most `capacity` each (the caller's, a room's size), and
     /// no more places than the match has left (places are never used
-    /// twice). A side's size counts its players in the match and the
+    /// twice; a free-for-all has its map's most players,
+    /// `maps::player_cap`). A side's size counts its players in the match and the
     /// places kept for players not in it now (`Matchmaking::held_places`:
     /// a game that broke comes back to its place with Play), or one would
     /// come back to a side a late joiner had filled, past its size.
@@ -514,9 +515,12 @@ impl Core<'_> {
         live: Option<&LiveView>,
         capacity: usize,
     ) -> ([Worth; 2], LateRule) {
+        let places = maps::player_cap(running.map.map())
+            .unwrap_or(MAX_PLAYERS_PER_MATCH)
+            .min(MAX_PLAYERS_PER_MATCH);
         let rule = LateRule {
             capacity: capacity.min(MAX_PLAYERS_PER_MATCH / 2),
-            room: MAX_PLAYERS_PER_MATCH.saturating_sub(running.seats.len()),
+            room: places.saturating_sub(running.seats.len()),
             player_value: self.settings.balance.player_value(),
             lead: self.lead_now(running, live),
             kept: self.kept_places(match_id, running, live),
@@ -1076,9 +1080,20 @@ impl Core<'_> {
         // 2N - 1 of them; a room's with bots, as many on each team as it
         // says; none in any other match.
         let seat_teams: Vec<u8> = formed.seats.iter().map(|seat| seat.team).collect();
+        // A free-for-all takes no more than its most players, the bots among
+        // them (`maps::player_cap`).
+        let most = pvb
+            .map(|choice| choice.map_id)
+            .or(room.map(|room| room.map_id))
+            .and_then(maps::map_mode)
+            .and_then(maps::player_cap)
+            .unwrap_or(session::MAX_PLAYERS_PER_MATCH)
+            .min(session::MAX_PLAYERS_PER_MATCH);
         let bot_teams: Vec<u8> = match (pvb, room) {
             (Some(choice), _) => {
-                let bots = (2 * usize::from(choice.size)).saturating_sub(formed.seats.len());
+                let bots = (2 * usize::from(choice.size))
+                    .min(most)
+                    .saturating_sub(formed.seats.len());
                 server_bot_teams(&seat_teams, [sides[0].0, sides[1].0], bots)
             }
             (
@@ -1089,7 +1104,7 @@ impl Core<'_> {
                 }),
             ) => std::iter::repeat_n(0, first)
                 .chain(std::iter::repeat_n(1, second))
-                .take(session::MAX_PLAYERS_PER_MATCH.saturating_sub(seat_teams.len()))
+                .take(most.saturating_sub(seat_teams.len()))
                 .collect(),
             (None, _) => Vec::new(),
         };
@@ -1123,19 +1138,25 @@ impl Core<'_> {
             (Some(choice), _) => choice.map_id,
             (None, Some(map_id)) => map_id,
             // Neither a room's nor against bots: a map of the pool drawn at
-            // random, never Blackout (a room's mode only, by its card).
+            // random, never Blackout (a room's mode only, by its card) nor a
+            // free-for-all (this match is of two teams, up to 20 players).
             (None, None) => {
+                let drawn = |map: &&maps::MapMode| {
+                    !matches!(
+                        map.mode,
+                        maps::GameMode::Blackout | maps::GameMode::FreeForAll
+                    )
+                };
                 let pool: Vec<u8> = self
                     .settings
                     .maps
                     .iter()
-                    .copied()
-                    .filter(|&id| {
-                        maps::map_mode(id).is_some_and(|map| map.mode != maps::GameMode::Blackout)
-                    })
+                    .filter_map(|&id| maps::map_mode(id))
+                    .filter(drawn)
+                    .map(|map| map.id)
                     .collect();
                 match pool.len() {
-                    0 => maps::playable().next().map_or(0, |map| map.id),
+                    0 => maps::playable().find(drawn).map_or(0, |map| map.id),
                     count => pool[self.rng.below(count as u32) as usize],
                 }
             }
@@ -1487,6 +1508,15 @@ impl Core<'_> {
 mod tests {
     use super::*;
 
+    /// A map of two teams, for options whose places are on teams 0 and 1:
+    /// the first battery map.
+    fn two_team_map() -> maps::MatchMap {
+        let map = maps::playable_in(maps::GameMode::Batteries)
+            .next()
+            .expect("the game has battery maps");
+        maps::MatchMap::of(map.id).expect("playable")
+    }
+
     #[test]
     fn the_client_is_given_an_ipv4_address() {
         assert_eq!(ipv4_host("203.0.113.7", 1236), "203.0.113.7");
@@ -1576,7 +1606,7 @@ mod tests {
         // reads back from what it read.
         let options = MatchOptions {
             players: bots.iter().map(|bot| bot.profile.clone()).collect(),
-            map: maps::MatchMap::of(maps::playable().next().unwrap().id).unwrap(),
+            map: two_team_map(),
             match_id: 0x1234,
             match_level: 1,
             score_weights: SCORE_WEIGHTS,
@@ -1648,7 +1678,7 @@ mod tests {
         assert!(profile.items.iter().all(|item| item.instance_id != scope));
         let options = MatchOptions {
             players: vec![profile.clone()],
-            map: maps::MatchMap::of(maps::playable().next().unwrap().id).unwrap(),
+            map: two_team_map(),
             match_id: 0x1234,
             match_level: 1,
             score_weights: SCORE_WEIGHTS,
@@ -1752,7 +1782,7 @@ mod tests {
         assert_eq!(weapon_kit::unpack(&as_lobby).map(|logical| logical.len()), Ok(4));
         let options = MatchOptions {
             players: vec![profile.clone()],
-            map: maps::MatchMap::of(maps::playable().next().unwrap().id).unwrap(),
+            map: two_team_map(),
             match_id: 0x1234,
             match_level: 1,
             score_weights: SCORE_WEIGHTS,

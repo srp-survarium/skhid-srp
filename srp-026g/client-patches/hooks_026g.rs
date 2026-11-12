@@ -1452,6 +1452,21 @@ pub extern "C" fn hook_hud_options_on_static_info(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- free_for_all (patch 142) ----
+
+/// The entry `free_for_all_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_free_for_all_on_static_info(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `free_for_all_on_static_info` calls this, from the game's jump at 0x27b92d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::free_for_all::on_static_info(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- blackout (patch 65) ----
 
 /// The entry `blackout_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
@@ -1512,6 +1527,21 @@ pub extern "C" fn hook_music_on_replay(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- free_for_all (patch 142) ----
+
+/// The entry `free_for_all_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_free_for_all_on_replay_options(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `free_for_all_on_replay_options` calls this, from the game's jump at 0x1f0971,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::free_for_all::on_replay_options(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- blackout (patch 65) ----
 
 /// The entry `blackout_on_update_icons` (0x23aa10, game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui)) calls this with the saved machine.
@@ -1536,6 +1566,21 @@ pub extern "C" fn hook_hud_options_on_update_icons(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::hud_options::on_update_icons(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- free_for_all (patch 142) ----
+
+/// The entry `free_for_all_on_update_icons` (0x23aa10, game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_free_for_all_on_update_icons(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `free_for_all_on_update_icons` calls this, from the game's jump at 0x23aa10,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::free_for_all::on_update_icons(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -2176,6 +2221,161 @@ pub extern "C" fn hook_forest_glow_on_clock(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- free_for_all (patch 142) ----
+
+/// The named exits of free_for_all::on_kill_event (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum FreeForAllOnKillEventExit { Done }
+/// The entry `free_for_all_on_kill_event` (0x3237e0, kd_stats_rule::on_event entry; cmp dword [esp+4],1; done is the original ret 0Ch, before any pushes) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_free_for_all_on_kill_event(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `free_for_all_on_kill_event` calls this, from the game's jump at 0x3237e0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::free_for_all::on_kill_event(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- free_for_all (patch 142) ----
+
+/// The entry `free_for_all_on_due_team` (0x3168ce, player_respawn_rule_base::tick puts a due player into its team's vector, EAX his team (lea edx,[eax+eax*2] / mov eax,[ebp-10h]): two vectors, so a team of 2 or more must be 0 here) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_free_for_all_on_due_team(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `free_for_all_on_due_team` calls this, from the game's jump at 0x3168ce,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::free_for_all::on_due_team(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- free_for_all (patch 142) ----
+
+/// The named exits of free_for_all::on_select (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum FreeForAllOnSelectExit { Done }
+/// The entry `free_for_all_on_select` (0x3171dc, player_respawn_rule_base::select_respawn_points after its frame and pushes (mov edi,[ecx+eax*4+194h]); done is its epilogue (lea esp,[ebp-24h] ... ret 18h)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_free_for_all_on_select(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `free_for_all_on_select` calls this, from the game's jump at 0x3171dc,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::free_for_all::on_select(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- free_for_all (patch 142) ----
+
+/// The named exits of free_for_all::on_can_use (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum FreeForAllOnCanUseExit { Allowed }
+/// The entry `free_for_all_on_can_use` (0x2f8086, resupply_zone_core::can_use before the team test (mov edx,[eax+6B8h]); allowed takes EDX the player's profile) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_free_for_all_on_can_use(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `free_for_all_on_can_use` calls this, from the game's jump at 0x2f8086,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::free_for_all::on_can_use(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- free_for_all (patch 142) ----
+
+/// The named exits of free_for_all::on_use_info (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum FreeForAllOnUseInfoExit { Allowed }
+/// The entry `free_for_all_on_use_info` (0x2f80c6, resupply_zone_core::use_info before the team test (mov edx,[eax+6B8h]); allowed takes EDX the player's profile) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_free_for_all_on_use_info(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `free_for_all_on_use_info` calls this, from the game's jump at 0x2f80c6,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::free_for_all::on_use_info(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- hud_cursor (patch 113) ----
+
+/// The entry `hud_cursor_on_match_start` (0x234880, game_world_ui::initialize_match's start (sub esp,5D4h), once a match (from 0x1F855D; the late join's rebuild enters at 0x234E71): the site's ESP+4 the hud, whose kits (+2DFh) and cursor (+2DCh) are the last match's) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_cursor_on_match_start(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_cursor_on_match_start` calls this, from the game's jump at 0x234880,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_cursor::on_match_start(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- free_for_all (patch 142) ----
+
+/// The entry `free_for_all_on_initialize_match` (0x234880, game_world_ui::initialize_match's start (sub esp,5D4h), once a match (from 0x1F855D; the late join's rebuild enters at 0x234E71): the site's ESP+4 the hud, whose kits (+2DFh) and cursor (+2DCh) are the last match's) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_free_for_all_on_initialize_match(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `free_for_all_on_initialize_match` calls this, from the game's jump at 0x234880,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::free_for_all::on_initialize_match(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- music (patch 88) ----
+
+/// The entry `music_on_announced` (0x23b36a, update_ui marks the welcome message shown (mov byte [edi+370h],1; the mode's jne at 0x23B354 lands here too): once a world, at its first update past the pregame, as the countdown ends) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_music_on_announced(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `music_on_announced` calls this, from the game's jump at 0x23b36a,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::music::on_announced(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- free_for_all (patch 142) ----
+
+/// The entry `free_for_all_on_welcome` (0x23b36a, update_ui marks the welcome message shown (mov byte [edi+370h],1; the mode's jne at 0x23B354 lands here too): once a world, at its first update past the pregame, as the countdown ends) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_free_for_all_on_welcome(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `free_for_all_on_welcome` calls this, from the game's jump at 0x23b36a,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::free_for_all::on_welcome(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- hand_kill (patch 108) ----
 
 /// The entry `hand_kill_on_hit` (0x2e50c7, EDI damage model ESI hit_info; invulnerability applied) calls this with the saved machine.
@@ -2200,21 +2400,6 @@ pub extern "C" fn hook_medical_skills_on_hit(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::medical_skills::on_hit(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- hud_cursor (patch 113) ----
-
-/// The entry `hud_cursor_on_match_start` (0x234880, game_world_ui::initialize_match's start (sub esp,5D4h), once a match (from 0x1F855D; the late join's rebuild enters at 0x234E71): the site's ESP+4 the hud, whose kits (+2DFh) and cursor (+2DCh) are the last match's) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_hud_cursor_on_match_start(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `hud_cursor_on_match_start` calls this, from the game's jump at 0x234880,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::hud_cursor::on_match_start(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -3474,21 +3659,6 @@ pub extern "C" fn hook_music_on_loading(frame: &mut Frame) -> u32 {
 
 // ---- music (patch 88) ----
 
-/// The entry `music_on_announced` (0x23b36a, update_ui marks the welcome message shown (mov byte [edi+370h],1; the mode's jne at 0x23B354 lands here too): once a world, at its first update past the pregame, as the countdown ends) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_music_on_announced(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `music_on_announced` calls this, from the game's jump at 0x23b36a,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::music::on_announced(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- music (patch 88) ----
-
 /// The entry `music_on_sound_tick` (0x59ab1, sound_world::tick after process_orders, before the active scenes tick (mov esi,[edi+48E4h]): the sound thread, EDI the world, EBX the ms since its last tick) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_music_on_sound_tick(frame: &mut Frame) -> u32 {
@@ -4657,6 +4827,8 @@ pub extern "C" fn hook_blackout_on_static_info_chain(frame: &mut Frame) -> u32 {
     if flow != 0 { return flow; }
     let flow = hook_hud_options_on_static_info(frame);
     if flow != 0 { return flow; }
+    let flow = hook_free_for_all_on_static_info(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -4670,6 +4842,8 @@ pub extern "C" fn hook_blackout_on_replay_options_chain(frame: &mut Frame) -> u3
     if flow != 0 { return flow; }
     let flow = hook_music_on_replay(frame);
     if flow != 0 { return flow; }
+    let flow = hook_free_for_all_on_replay_options(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -4678,6 +4852,8 @@ pub extern "C" fn hook_blackout_on_update_icons_chain(frame: &mut Frame) -> u32 
     let flow = hook_blackout_on_update_icons(frame);
     if flow != 0 { return flow; }
     let flow = hook_hud_options_on_update_icons(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_free_for_all_on_update_icons(frame);
     if flow != 0 { return flow; }
     0
 }
@@ -4754,6 +4930,24 @@ pub extern "C" fn hook_medical_skills_on_effect_clock_chain(frame: &mut Frame) -
     let flow = hook_medical_skills_on_effect_clock(frame);
     if flow != 0 { return flow; }
     let flow = hook_forest_glow_on_clock(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_cursor_on_match_start_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_hud_cursor_on_match_start(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_free_for_all_on_initialize_match(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_music_on_announced_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_music_on_announced(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_free_for_all_on_welcome(frame);
     if flow != 0 { return flow; }
     0
 }

@@ -3472,6 +3472,291 @@ medical_skills_on_effect_clock_replay:
     db 0x8b, 0x54, 0x24, 0x10, 0x2b, 0x54, 0x24, 0x0c
     jmp 0x2e5d88
 
+; 0x3237e0 kd_stats_rule::on_event entry; cmp dword [esp+4],1; done is the original ret 0Ch, before any pushes: lohook -> free_for_all_on_kill_event
+global free_for_all_on_kill_event
+extern hook_free_for_all_on_kill_event
+free_for_all_on_kill_event:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_free_for_all_on_kill_event
+    mov edx, free_for_all_on_kill_event_replay
+    cmp eax, 0
+    je free_for_all_on_kill_event_go
+    mov edx, 0x3237e5
+    cmp eax, 1
+    je free_for_all_on_kill_event_go
+    mov edx, 0x323861
+    cmp eax, 2
+    je free_for_all_on_kill_event_go
+    ud2
+free_for_all_on_kill_event_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+free_for_all_on_kill_event_replay:
+    db 0x83, 0x7c, 0x24, 0x04, 0x01
+    jmp 0x3237e5
+
+; 0x3168ce player_respawn_rule_base::tick puts a due player into its team's vector, EAX his team (lea edx,[eax+eax*2] / mov eax,[ebp-10h]): two vectors, so a team of 2 or more must be 0 here: lohook -> free_for_all_on_due_team
+global free_for_all_on_due_team
+extern hook_free_for_all_on_due_team
+free_for_all_on_due_team:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_free_for_all_on_due_team
+    mov edx, free_for_all_on_due_team_replay
+    cmp eax, 0
+    je free_for_all_on_due_team_go
+    mov edx, 0x3168d4
+    cmp eax, 1
+    je free_for_all_on_due_team_go
+    ud2
+free_for_all_on_due_team_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+free_for_all_on_due_team_replay:
+    db 0x8d, 0x14, 0x40, 0x8b, 0x45, 0xf0
+    jmp 0x3168d4
+
+; 0x3171dc player_respawn_rule_base::select_respawn_points after its frame and pushes (mov edi,[ecx+eax*4+194h]); done is its epilogue (lea esp,[ebp-24h] ... ret 18h): lohook -> free_for_all_on_select
+global free_for_all_on_select
+extern hook_free_for_all_on_select
+free_for_all_on_select:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_free_for_all_on_select
+    mov edx, free_for_all_on_select_replay
+    cmp eax, 0
+    je free_for_all_on_select_go
+    mov edx, 0x3171e3
+    cmp eax, 1
+    je free_for_all_on_select_go
+    mov edx, 0x317354
+    cmp eax, 2
+    je free_for_all_on_select_go
+    ud2
+free_for_all_on_select_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+free_for_all_on_select_replay:
+    db 0x8b, 0xbc, 0x81, 0x94, 0x01, 0x00, 0x00
+    jmp 0x3171e3
+
+; 0x2f8086 resupply_zone_core::can_use before the team test (mov edx,[eax+6B8h]); allowed takes EDX the player's profile: lohook -> free_for_all_on_can_use
+global free_for_all_on_can_use
+extern hook_free_for_all_on_can_use
+free_for_all_on_can_use:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_free_for_all_on_can_use
+    mov edx, free_for_all_on_can_use_replay
+    cmp eax, 0
+    je free_for_all_on_can_use_go
+    mov edx, 0x2f808c
+    cmp eax, 1
+    je free_for_all_on_can_use_go
+    mov edx, 0x2f809c
+    cmp eax, 2
+    je free_for_all_on_can_use_go
+    ud2
+free_for_all_on_can_use_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+free_for_all_on_can_use_replay:
+    db 0x8b, 0x90, 0xb8, 0x06, 0x00, 0x00
+    jmp 0x2f808c
+
+; 0x2f80c6 resupply_zone_core::use_info before the team test (mov edx,[eax+6B8h]); allowed takes EDX the player's profile: lohook -> free_for_all_on_use_info
+global free_for_all_on_use_info
+extern hook_free_for_all_on_use_info
+free_for_all_on_use_info:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_free_for_all_on_use_info
+    mov edx, free_for_all_on_use_info_replay
+    cmp eax, 0
+    je free_for_all_on_use_info_go
+    mov edx, 0x2f80cc
+    cmp eax, 1
+    je free_for_all_on_use_info_go
+    mov edx, 0x2f80e4
+    cmp eax, 2
+    je free_for_all_on_use_info_go
+    ud2
+free_for_all_on_use_info_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+free_for_all_on_use_info_replay:
+    db 0x8b, 0x90, 0xb8, 0x06, 0x00, 0x00
+    jmp 0x2f80cc
+
+; 0x234880 game_world_ui::initialize_match's start (sub esp,5D4h), once a match (from 0x1F855D; the late join's rebuild enters at 0x234E71): the site's ESP+4 the hud, whose kits (+2DFh) and cursor (+2DCh) are the last match's: lohook -> hud_cursor_on_match_start
+global hud_cursor_on_match_start
+extern hook_hud_cursor_on_match_start_chain
+hud_cursor_on_match_start:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_cursor_on_match_start_chain
+    mov edx, hud_cursor_on_match_start_replay
+    cmp eax, 0
+    je hud_cursor_on_match_start_go
+    mov edx, 0x234886
+    cmp eax, 1
+    je hud_cursor_on_match_start_go
+    ud2
+hud_cursor_on_match_start_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_cursor_on_match_start_replay:
+    db 0x81, 0xec, 0xd4, 0x05, 0x00, 0x00
+    jmp 0x234886
+
+; 0x23b36a update_ui marks the welcome message shown (mov byte [edi+370h],1; the mode's jne at 0x23B354 lands here too): once a world, at its first update past the pregame, as the countdown ends: lohook -> music_on_announced
+global music_on_announced
+extern hook_music_on_announced_chain
+music_on_announced:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_music_on_announced_chain
+    mov edx, music_on_announced_replay
+    cmp eax, 0
+    je music_on_announced_go
+    mov edx, 0x23b371
+    cmp eax, 1
+    je music_on_announced_go
+    ud2
+music_on_announced_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+music_on_announced_replay:
+    db 0xc6, 0x87, 0x70, 0x03, 0x00, 0x00, 0x01
+    jmp 0x23b371
+
 ; 0x2e50c7 EDI damage model ESI hit_info; invulnerability applied: lohook -> hand_kill_on_hit
 global hand_kill_on_hit
 extern hook_hand_kill_on_hit_chain
@@ -3510,45 +3795,6 @@ hand_kill_on_hit_go:
 hand_kill_on_hit_replay:
     db 0x8d, 0x4c, 0x24, 0x10, 0x51
     jmp 0x2e50cc
-
-; 0x234880 game_world_ui::initialize_match's start (sub esp,5D4h), once a match (from 0x1F855D; the late join's rebuild enters at 0x234E71): the site's ESP+4 the hud, whose kits (+2DFh) and cursor (+2DCh) are the last match's: lohook -> hud_cursor_on_match_start
-global hud_cursor_on_match_start
-extern hook_hud_cursor_on_match_start
-hud_cursor_on_match_start:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_hud_cursor_on_match_start
-    mov edx, hud_cursor_on_match_start_replay
-    cmp eax, 0
-    je hud_cursor_on_match_start_go
-    mov edx, 0x234886
-    cmp eax, 1
-    je hud_cursor_on_match_start_go
-    ud2
-hud_cursor_on_match_start_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-hud_cursor_on_match_start_replay:
-    db 0x81, 0xec, 0xd4, 0x05, 0x00, 0x00
-    jmp 0x234886
 
 ; 0x23a992 show_cursor's show (mov eax,[edi+18h] / lea esi,[edi+0Ch], then the call of base_game_scene::show_movie 0x23DC00 at 0x23A998): kept skips the movie, the flag (+2DCh) still written at 0x23A9A1: lohook -> hud_cursor_on_cursor_shown
 global hud_cursor_on_cursor_shown
@@ -5892,45 +6138,6 @@ music_on_loading_go:
 music_on_loading_replay:
     db 0x8b, 0xc6, 0x89, 0x74, 0x24, 0x0c
     jmp 0x2204b9
-
-; 0x23b36a update_ui marks the welcome message shown (mov byte [edi+370h],1; the mode's jne at 0x23B354 lands here too): once a world, at its first update past the pregame, as the countdown ends: lohook -> music_on_announced
-global music_on_announced
-extern hook_music_on_announced
-music_on_announced:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_music_on_announced
-    mov edx, music_on_announced_replay
-    cmp eax, 0
-    je music_on_announced_go
-    mov edx, 0x23b371
-    cmp eax, 1
-    je music_on_announced_go
-    ud2
-music_on_announced_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-music_on_announced_replay:
-    db 0xc6, 0x87, 0x70, 0x03, 0x00, 0x00, 0x01
-    jmp 0x23b371
 
 ; 0x59ab1 sound_world::tick after process_orders, before the active scenes tick (mov esi,[edi+48E4h]): the sound thread, EDI the world, EBX the ms since its last tick: lohook -> music_on_sound_tick
 global music_on_sound_tick

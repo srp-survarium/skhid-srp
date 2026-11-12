@@ -27,11 +27,41 @@ def change_path(node, path, change):
     return replace_child(node, key, change_path(pack.child(node, key), rest, change))
 
 
+
+def without_ffa_spawns(root, project):
+    """Verify the explicit solo additions, then compare the original map unchanged."""
+    if not project.endswith('/day_4'):
+        return root
+    path = f'projects/{project}/client_project'
+    recipe = json.loads((pack.HERE.parent / 'content-edit/ffa-ported-1.json').read_text())
+    rows = [row for row in recipe['add_entry'] if row['files'] == path]
+    assert len(rows) == 22, f'{project}: missing authored FFA source'
+    server = pack.child(root, 'server_objects')
+    table = pack.child(server, 'respawn_points')
+    original = [node for node in table[1] if pack.bcw.to_py(node)['team'] != 2]
+    solo = [pack.bcw.to_py(node) for node in table[1] if pack.bcw.to_py(node)['team'] == 2]
+    assert len(solo) == len(rows), f'{project}: missing or extra solo spawns'
+    template = pack.bcw.to_py(original[0])
+    f32 = lambda v: struct.unpack('<f', struct.pack('<f', v))[0]
+    for point, row in zip(solo, rows):
+        expected = copy.deepcopy(template)
+        expected.update(row['values'])
+        for key in ('position', 'rotation'):
+            expected[key] = tuple(f32(v) for v in expected[key])
+        expected['enemy_check_radius'] = 20.0
+        expected['ally_check_radius'] = 1.0
+        for key in ('ally_zones', 'enemy_zones'):
+            expected[key]['collision_geometries'] = type(expected[key]['collision_geometries'])()
+        assert point == expected, f"{project}: solo spawn differs from its source: {point['name']}"
+    retained = (table[0], original, len(original))
+    return replace_child(root, 'server_objects', replace_child(server, 'respawn_points', retained))
+
+
 def check(reference, composed, packs):
     for mode in pack.MODES:
         path = pack.project('v011e_level_03', mode)
         before = pack.bcw.read((reference / path).read_bytes())
-        after = pack.bcw.read((composed / path).read_bytes())
+        after = without_ffa_spawns(pack.bcw.read((composed / path).read_bytes()), f'v011e_level_03/{mode}')
         original_objects = pack.child(before, 'client_objects')
         result_objects = pack.child(after, 'client_objects')
         imported, retained = [], []
@@ -83,7 +113,8 @@ def check(reference, composed, packs):
                 mesh['scale'] = (f32(round((right - left) / 2, 3)), *mesh['scale'][1:])
                 replacements = {o['full_name']: o for o in (field, shape)}
                 source['client_objects'] = [replacements.get(o['full_name'], o) for o in source['client_objects']]
-                actual_donor = pack.bcw.load(composed / pack.project(donor, mode))
+                actual_donor = pack.bcw.to_py(without_ffa_spawns(
+                    pack.bcw.read((composed / pack.project(donor, mode)).read_bytes()), f'{donor}/{mode}'))
                 assert actual_donor == source, '0.21d changed beyond its transformer pulse and coverage fixes'
             expected = [copy.deepcopy(o) for o in source['client_objects'] if o['full_name'].startswith(prefix)]
             # maps.tsv gives v0.11 a six-second search; v0.21 uses five.

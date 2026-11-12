@@ -803,6 +803,9 @@ pub enum ModeRule {
     Tdm(Tdm),
     /// Mode 5.
     Research(Research),
+    /// A free-for-all (mode 8): no rule of its own, the kd stats follow the
+    /// respawn rule.
+    None,
 }
 
 /// A roster place in `kd_stats_rule`.
@@ -854,7 +857,8 @@ impl<'a> Rules<'a> {
     /// and end in kd stats and two flags. The respawn rule has two bytes
     /// for each respawn point of the map, and nothing says how many: in
     /// mode 4 the rest is the tdm rule's 12 bytes; in mode 5 Research's 21
-    /// plus 96 a unit (its unit count is its byte 20); in modes 2 and 3 it
+    /// plus 96 a unit (its unit count is its byte 20); in a free-for-all
+    /// (mode 8) there is no rest; in modes 2 and 3 it
     /// is the number with which the gather rule after it reads to the kd
     /// stats exactly (the map's when known, else the smallest that does).
     pub fn read(section: &Section<'a>, context: &Context) -> Result<Self, Refusal> {
@@ -894,6 +898,7 @@ impl<'a> Rules<'a> {
                 Some((at, research)) => (respawn_to(at), Some(ModeRule::Research(research))),
                 None => (None, None),
             },
+            mode::FREE_FOR_ALL => (respawn_to(middle.len()), Some(ModeRule::None)),
             _ => {
                 let batteries = battery_records(context);
                 let read = |at: usize| {
@@ -1042,6 +1047,7 @@ pub fn rules(section: &Section, context: &Context) -> Result<(), Refusal> {
             Some(reason) => refuse(reason),
             None => Ok(()),
         },
+        ModeRule::None => Ok(()),
     }
 }
 
@@ -1159,6 +1165,36 @@ mod tests {
 
     fn reason(result: Result<(), Refusal>) -> Option<Reason> {
         result.err().map(|refusal| refusal.reason)
+    }
+
+    #[test]
+    fn a_free_for_all_has_no_rule_between_the_respawn_points_and_the_kd_stats() {
+        assert_eq!(check(&[], mode::FREE_FOR_ALL, Some(3)), Ok(()));
+        assert_eq!(check(&[], mode::FREE_FOR_ALL, None), Ok(()));
+        let bytes = bytes(&[]);
+        let section = Section {
+            at: 0,
+            bytes: &bytes,
+        };
+        let read = Rules::read(&section, &context(mode::FREE_FOR_ALL, Some(3))).unwrap();
+        assert_eq!(read.mode_rule(), &ModeRule::None);
+        assert_eq!(read.respawn().points(), &[[0, 0]; 3]);
+        assert_eq!(read.kills_deaths()[0].kills(), 3);
+        // Another count of points than the map's, or half a point.
+        assert_eq!(
+            reason(check(&[0, 0], mode::FREE_FOR_ALL, Some(3))),
+            Some(Reason::RespawnPoints { found: 4, map: 3 })
+        );
+        assert_eq!(
+            reason(check(&[0], mode::FREE_FOR_ALL, Some(3))),
+            Some(Reason::NoRespawnAndModeRule)
+        );
+        // Team Deathmatch's world is none of a free-for-all's map: its tdm
+        // rule's 12 bytes read as six more points.
+        assert_eq!(
+            reason(check(&[97, 0, 100, 0, 3, 0, 0, 0, 3, 0, 0, 0], mode::FREE_FOR_ALL, Some(3))),
+            Some(Reason::RespawnPoints { found: 9, map: 3 })
+        );
     }
 
     #[test]

@@ -76,8 +76,10 @@ pub const PIN_LIFE: Duration = Duration::from_secs(60);
 pub const PRIVATE_SIZE: u8 = (crate::MAX_PLAYERS_PER_MATCH / 2) as u8;
 /// The cards of a vote.
 pub const CARDS: usize = 3;
-/// The pool entries one piece of a draft carries.
-pub const DRAFT_CHUNK: usize = 20;
+/// The pool entries one piece of a draft carries (the wire's).
+pub const DRAFT_CHUNK: usize = survarium::v026g::lobby::rooms::BITS_PER_CHUNK as usize;
+/// The pieces a draft has at most (the wire's).
+const DRAFT_CHUNKS: usize = survarium::v026g::lobby::rooms::CHUNKS as usize;
 /// The keys new rooms are given first: four digits, easy to say.
 const SHORT_KEYS: std::ops::RangeInclusive<u32> = 1000..=9999;
 /// The largest key.
@@ -206,6 +208,10 @@ pub struct Room {
     /// newcomers, whose late join goes to the side with fewer (their team in
     /// the arrangement is not the owner's choice yet). Cleared with the match.
     pub came_in_match: HashSet<u32>,
+    /// The members who could play its last match and had no place in it (a
+    /// free-for-all takes ten, `docs/notes/ffa.md`): the first to be seated
+    /// in its next one ([`Rooms::left_out`]).
+    pub left_out: HashSet<u32>,
 }
 
 /// A line of a room's chat: a member's, or the room's own (a member came
@@ -426,8 +432,9 @@ pub enum MoveRefused {
 /// A pool being sent in pieces before its create.
 #[derive(Clone, Debug)]
 struct Draft {
-    chunks: [u32; 8],
-    seen: u8,
+    chunks: [u32; DRAFT_CHUNKS],
+    /// Bit `n`: piece `n` was sent.
+    seen: u32,
     at: Instant,
 }
 
@@ -539,19 +546,19 @@ impl Rooms {
     }
 
     /// A piece of the pool of the account's next room: entries `chunk ×
-    /// 20` to `chunk × 20 + 19`, each in by its bit. The entries in so far.
+    /// DRAFT_CHUNK` to the next piece's, each in by its bit. The entries in so far.
     pub fn draft(&mut self, account_id: u32, chunk: u8, bits: u32, now: Instant) -> u32 {
         let draft = self
             .drafts
             .entry(account_id)
             .and_modify(|draft| {
                 if now.saturating_duration_since(draft.at) > DRAFT_LIFE {
-                    draft.chunks = [0; 8];
+                    draft.chunks = [0; DRAFT_CHUNKS];
                     draft.seen = 0;
                 }
             })
             .or_insert(Draft {
-                chunks: [0; 8],
+                chunks: [0; DRAFT_CHUNKS],
                 seen: 0,
                 at: now,
             });
@@ -676,6 +683,7 @@ impl Rooms {
             chat: VecDeque::new(),
             sides: HashMap::new(),
             came_in_match: HashSet::new(),
+            left_out: HashSet::new(),
         };
         room.add_member(owner, None);
         self.rooms.insert(key, room);
@@ -1388,6 +1396,15 @@ impl Rooms {
             room.in_match = seated.iter().copied().collect();
             room.cards.clear();
             room.votes.clear();
+            room.left_out.clear();
+        }
+    }
+
+    /// The match just made ([`Rooms::started`]) had no place for `members`,
+    /// who could play it: the room's next match seats them first.
+    pub fn left_out(&mut self, key: u32, members: impl IntoIterator<Item = u32>) {
+        if let Some(room) = self.rooms.get_mut(&key) {
+            room.left_out = members.into_iter().collect();
         }
     }
 
@@ -2294,7 +2311,7 @@ mod tests {
                 &mut first,
             )
             .unwrap();
-        assert_eq!(rooms.get(key).unwrap().pool, vec![0, 2, 20]);
+        assert_eq!(rooms.get(key).unwrap().pool, vec![0, 2, DRAFT_CHUNK as u8]);
         // Too old: the default.
         rooms.draft(2, 0, 0b1, now);
         let key = rooms
@@ -2327,6 +2344,32 @@ mod tests {
             ),
             Err(Refused::Bad)
         );
+    }
+
+    /// A pool of every playable map (167 in the live data with the
+    /// free-for-alls) and more: each entry sent by its bit, each named back.
+    #[test]
+    fn a_draft_of_a_big_pool_names_every_entry() {
+        let now = Instant::now();
+        let mut rooms = Rooms::default();
+        let entries: Vec<u8> = (1..=250).collect();
+        let pieces = entries.len().div_ceil(DRAFT_CHUNK);
+        assert_eq!(pieces, DRAFT_CHUNKS);
+        for piece in 0..pieces {
+            // every entry but each piece's first
+            rooms.draft(1, piece as u8, ((1 << DRAFT_CHUNK) - 1) & !1, now);
+        }
+        let key = rooms
+            .create(1, 0, spec(8, None), &entries, &[99], &[], 50, now, &mut first)
+            .unwrap();
+        let want: Vec<u8> = entries
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| index % DRAFT_CHUNK != 0)
+            .map(|(_, &id)| id)
+            .collect();
+        assert_eq!(rooms.get(key).unwrap().pool, want);
+        assert!(want.contains(&250) && !want.contains(&1) && want.len() > 167);
     }
 
     /// Three battery maps of three different places, by id, and their

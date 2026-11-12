@@ -228,6 +228,8 @@ global engine_cc_u32
 global engine_render_u32_execute
 global engine_message_box_a
 global engine_exit_process
+global engine_respawn_point_clear
+global engine_respawn_points_push
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -2667,6 +2669,40 @@ engine_render_u32_execute:
     push dword [esp + 24]   ; arguments -> 4
     mov ecx, [esp + 24]   ; object
     call 0x3cd300
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_respawn_point_clear:
+    ; 0x2f4800 survarium::respawn_point_core::is_clear_for_team: point ESI, team ESP+4, players ESP+8; pops 8; AL
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; players -> 8
+    push dword [esp + 28]   ; team -> 4
+    mov esi, [esp + 28]   ; point
+    call 0x2f4800
+    movzx eax, al
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_respawn_points_push:
+    ; 0x3174c0 vostok::buffer_vector<survarium::respawn_point_core *>::push_back: vector ESI, point ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; point -> 4
+    mov esi, [esp + 24]   ; vector
+    call 0x3174c0
     pop edi
     pop esi
     pop ebx

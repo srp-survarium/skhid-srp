@@ -1,0 +1,57 @@
+# Patch 142: a free-for-all, each player his own side (docs/notes/ffa.md). The
+# sites are sites_026g.tsv's; the logic is free_for_all.rs. The options reads,
+# player_icons.update_start, game_world_ui.welcome and hud.initialize_match are
+# other patches' sites too (65, 86, 83 and 88; 65 and 83; 88; 113): their
+# chains run this patch's hooks last.
+name = "free_for_all"
+patch = 142
+
+# Freeze the serialized standings at the kill target or exact time limit.
+[[hook]]
+site = "kd_stats.event"
+handler = "on_kill_event"
+
+[[hook]]
+site = "respawn.due_team"
+handler = "on_due_team"
+
+[[hook]]
+site = "respawn.select"
+handler = "on_select"
+
+[[hook]]
+site = "resupply.can_use"
+handler = "on_can_use"
+
+[[hook]]
+site = "resupply.use_info"
+handler = "on_use_info"
+
+# the kill target: srp's block after the match's options
+[[hook]]
+site = "static_info.options_read"
+handler = "on_static_info"
+order = 4
+
+[[hook]]
+site = "replay.options_read"
+handler = "on_replay_options"
+order = 4
+
+# the standing to the hud movie, and the end's message
+[[hook]]
+site = "player_icons.update_start"
+handler = "on_update_icons"
+order = 3
+
+# the hud's game type is about to be set: the standing is told again
+[[hook]]
+site = "hud.initialize_match"
+handler = "on_initialize_match"
+order = 1
+
+# the welcome message
+[[hook]]
+site = "game_world_ui.welcome"
+handler = "on_welcome"
+order = 1

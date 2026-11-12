@@ -17,12 +17,11 @@ use std::collections::VecDeque;
 
 use super::curve::Input;
 use super::tuning::{ModTuning, SkillTuning};
-use super::view::{MatchView, Mode};
+use super::view::{MatchView, Mode, Side};
 
 /// What the commander of `team` reads of the match.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct MatchSignals {
-    pub team: u8,
     pub mode: Option<Mode>,
     pub score_gap: f32,
     pub time_left_s: f32,
@@ -38,7 +37,7 @@ pub struct MatchSignals {
 }
 
 impl MatchSignals {
-    pub fn read(view: &MatchView, team: u8, since_theft_s: f32) -> Self {
+    pub fn read(view: &MatchView, team: Side, since_theft_s: f32) -> Self {
         let count = |ours: bool, alive: bool| {
             view.places
                 .iter()
@@ -47,7 +46,6 @@ impl MatchSignals {
         };
         let theirs_all = count(false, false).max(1);
         Self {
-            team,
             mode: Some(view.mode),
             score_gap: view.score_gap(team),
             time_left_s: view.time_left_s,

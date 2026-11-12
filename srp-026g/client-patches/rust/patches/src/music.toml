@@ -45,6 +45,7 @@ order = 3
 [[hook]]
 site = "game_world_ui.welcome"
 handler = "on_announced"
+order = 0
 
 # the game unloads its screens: the music stops (before patch 81's lobby scene, order 2)
 [[hook]]

@@ -1280,9 +1280,17 @@ mod tests {
         payload
     }
 
+    /// The map of the recordings here: a match of two teams (places on
+    /// teams 0 and 1), the first battery map.
+    fn battery_map() -> &'static survarium::v026g::maps::MapMode {
+        survarium::v026g::maps::playable_in(survarium::v026g::maps::GameMode::Batteries)
+            .next()
+            .expect("the game has battery maps")
+    }
+
     /// Two places, a match clock 1300 ms behind the recording.
     fn recording() -> Vec<Record> {
-        let map = survarium::v026g::maps::playable().next().unwrap();
+        let map = battery_map();
         let options = MatchOptions {
             players: vec![profile("a", 0), profile("b", 1)],
             map: survarium::v026g::maps::MatchMap::of(map.id).unwrap(),
@@ -1691,7 +1699,7 @@ mod tests {
         let mut header: serde_json::Value = serde_json::from_slice(&records[0].bytes).unwrap();
         header["growing_roster"] = true.into();
         records[0].bytes = serde_json::to_vec(&header).unwrap();
-        let map = survarium::v026g::maps::playable().next().unwrap();
+        let map = battery_map();
         let options = MatchOptions {
             players: vec![profile("a", 0), profile("b", 1), armed("c", 0)],
             map: survarium::v026g::maps::MatchMap::of(map.id).unwrap(),

@@ -261,7 +261,7 @@ mod tests {
         assert!(escorts(&s, 0).is_empty());
         // An enemy carrier is not ours to escort.
         let mut s = scene();
-        s.view.places[1].team = 1;
+        s.view.places[1].team = Side::team(1);
         assert!(escorts(&s, 0).is_empty());
     }
 

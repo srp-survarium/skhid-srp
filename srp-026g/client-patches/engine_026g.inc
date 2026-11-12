@@ -762,3 +762,9 @@ extern engine_message_box_a
 ; the IAT slot 0x87020c (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_exit_process
+; unsigned int engine_respawn_point_clear(const struct respawn_point_core *point, unsigned int team, const struct player_vector *players)
+; 0x2f4800 survarium::respawn_point_core::is_clear_for_team: point ESI, team ESP+4, players ESP+8; pops 8; AL
+extern engine_respawn_point_clear
+; void engine_respawn_points_push(struct respawn_point_vector *vector, struct respawn_point_core *const *point)
+; 0x3174c0 vostok::buffer_vector<survarium::respawn_point_core *>::push_back: vector ESI, point ESP+4; pops 4
+extern engine_respawn_points_push
