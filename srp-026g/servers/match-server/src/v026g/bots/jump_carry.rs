@@ -60,16 +60,14 @@ pub struct Press {
     pub held_ticks: u32,
 }
 
-/// The jump's length from the press to the end of its air phase, ms: the frame of its last air step
-/// ([`Clip::air_end_frame`], 22.5 for the short jump: the game's twelve air steps, A364 P6) at 30 frames a second and the clip's time
-/// scale, after the sprint jump's prepare; and a step for that last step itself.
+/// The jump's length from the press to the end of its air phase, ms: its last air step ([`Clip::air_end_ms`]: the take-off frame at
+/// the clip's time scale, then the game's twelve air steps, A364 P6), after the sprint jump's prepare; and a step for that last step.
 pub fn clip_ms(clip: Clip) -> u32 {
     let prepare = match clip {
         Clip::Sprint(_) => super::jump_arc::PREPARE_MS,
         Clip::Short(_) => 0.0,
     };
-    let last = clip.air_end_frame() / super::jump_arc::FPS / clip.time_scale() * 1000.0;
-    (last + prepare + TICK_S * 1000.0).round() as u32
+    (clip.air_end_ms() + prepare + TICK_S * 1000.0).round() as u32
 }
 
 impl JumpCarry {
