@@ -6337,7 +6337,6 @@ va	name	location	role	basis
 0x0007d2a0	vostok::physics::bullet_character_controller::step_forward_impl	ECX+204h	u8 sprinting: set, the move sweep is the simple tester 0x86490 whatever the console says (0x7D33D: cmp byte [+204h],0; jnz past the complex test 0x85A90); clear, the console's choice by +203h (crouched: [0x1F1D335], standing: [0xA72106])	observed
 0x00329710	survarium::player_stamina::spend_jump	EDI	stamina	observed
 0x002d6420	survarium::player_stamina::can_afford_jump	EDI	stamina	observed
-0x002d8bb0	survarium::base_player::process_quick_slots	[[player+128h]+0Eh] at 0x2D8DA0	the hands object's byte that gates the pockets 13..18: set to 1 by both kinds of hands (empty_hands 0x299851, weapon_core 0x2DF100) and cleared by nothing: the gate never closes in the stock exe (a drug can be pressed whatever the hands hold)	observed
 0x003296c0	survarium::player_stamina::subtract_clamped	ECX	stamina	observed
 0x003296c0	survarium::player_stamina::subtract_clamped	stack+4	amount	observed
 0x00329960	survarium::player_stamina::boost	EDI	stamina	observed

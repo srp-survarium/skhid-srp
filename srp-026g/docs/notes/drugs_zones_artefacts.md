@@ -22,14 +22,15 @@ artefact as an inventory item.
 - **The press** (`process_quick_slots` 0x2D8BB0 -> `medkit::action` 0x33D700): on the key's down edge, when the item
   is not active and has a unit, `set_active` and **the unit is taken at once**. A press while the same item runs is
   ignored and spends nothing (0x33D70A). Two different items run at once.
-- **Nothing the body does gates or interrupts it** in the stock exe: the one gate of the pockets is a byte of the
-  hands object that both kinds of hands set to 1 and nothing clears (0x2D8D9A). So a drug can be pressed while
-  sprinting, aiming, firing, jumping, reloading and with broken hands; neither the press nor the tick reads the
-  selector, the stamina, the weapon or the controller (`inventory::action` 0x2FCAA0 tests the carried item only
-  for a weapon's slot). **The simulation would take the key from a battery's carrier too, but played bodies do
-  not send it**: carriers are 3.1 % of the played bodies' rows and 9 of 13,012 drugs seen in their delay were a
-  carrier's, none pressed under 500 ms before the world. What stops a player (the client's input side) is not
-  read.
+- **A battery's carrier cannot press a drug.** The pockets' keys (slots 13 to 18) are taken only when the body's
+  active object has its byte +0Eh set (`process_quick_slots` 0x2D8DA0..0x2D8DA4). A weapon and the empty hands
+  set it to 1 (0x2DF100, 0x299851); **a carried battery is itself the active object, and its constructor leaves
+  the byte 0** (0x2FFFF0). Counted: a carrier's active object is never its weapon's or hands' (57,248 of 57,248
+  carrying rows hold another object); carriers are 3.1 % of the played bodies' rows and 9 of 13,012 drugs seen
+  in their delay were a carrier's, none pressed under 500 ms before the world (a drop, a press, a take again).
+- **Nothing else the body does gates or interrupts it**: a drug can be pressed while sprinting, aiming, firing,
+  jumping, reloading and with broken hands; neither the press nor the tick reads the selector, the stamina, the
+  weapon or the controller.
 - **The course** (`medkit::tick` 0x33D790): the delay `activation_delay_sec` x max(0, 1 + modifier 33), then the
   activity `activity_time_sec` x max(0, 1 + k x modifier 34). At the first active tick the listed wounds are removed
   (0x33DA50). Each tick, for each listed pool: (total / activity time) x max(0, 1 + modifier 57) x the tick's time,
@@ -89,9 +90,8 @@ deaths): one traced bot fell 6.4 m into it, walked in it for 20 s without a spri
 ## Against the bots
 
 - `plays/heal.rs`'s item table equals the configs from revision 45 on, as literals; each value has a game-data key.
-- `heal.rs:372-391` refuses a press while carrying a battery: the same as what played bodies do (above), but its
-  reason is wrong ("the client most likely ignores the key ... counted as used and heal nothing"): the simulation
-  would take the unit and heal.
+- `heal.rs:372-391` refuses a press while carrying a battery ("the client most likely ignores the key"): EXACT,
+  and its LIKELY is PROVEN (above).
 - The bots judge a zone's danger from geometry and the anomalies' schedule only (`drive.rs:654-664`); they never
   read that their own pools fall with no hit record, nor a zone's saved last hit time.
 - `mapdata/src/controller/speed.rs`: the Spring's passive +0.02 as one on/off term; the data has +0.05 a copy.
@@ -101,5 +101,4 @@ deaths): one traced bot fell 6.4 m into it, walked in it for 20 s without a spri
 
 ## Not read
 
-30 course rows under the rule with the pool not full; what keeps a player's client from sending a drug's key while
-it carries a battery; the medical skills patch's delay rule against the stock one.
+30 course rows under the rule with the pool not full; the medical skills patch's delay rule against the stock one.
