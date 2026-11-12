@@ -1003,6 +1003,60 @@ okay() { say "  ok       $*"; }
 ssh_check() { ssh -o BatchMode=yes -o ConnectTimeout=20 "$@" </dev/null >/dev/null 2>&1; }
 free_mb() { df -Pk "$1" | awk 'NR == 2 { print int($4 / 1024) }'; }
 
+# The target's disk. Rev55's preflight began on a full one (snapshots and
+# recordings failed to write; a 0-byte recording stopped the world check).
+# Each file system the release writes on must keep SKHID_LIVE_MIN_FREE_MB
+# (default 4096) for the running server after the release's own files,
+# sized from what runs now (the new ones are about as large): in the
+# folder, the ZIP, the server data, the image's tar (at most the image's
+# size) and srp.db's copy; in the data volume, srp's own copy of srp.db at
+# its start; in Docker's root, the image loaded. Without the container
+# (inspect_target failed, said above), the folder's free space alone.
+target_disk() {
+    local headroom=${SKHID_LIVE_MIN_FREE_MB:-4096} out dev free i key value
+    local db='' zip='' data='' image=''
+    local -A fs_need=() fs_have=() fs_where=()
+    if [[ -z $RUN_VOLUME_DIR ]]; then
+        free=$(on_target "df -Pk $D | awk 'NR == 2 { print int(\$4 / 1024) }'" || echo 0)
+        if ((free >= headroom)); then okay "free on the $TARGET host: $free MB in $TARGET_DIR"; else problem "free on the $TARGET host: $free MB in $TARGET_DIR, $headroom wanted (SKHID_LIVE_MIN_FREE_MB)"; fi
+        return 0
+    fi
+    cat >"$work/disk.sh" <<'EOF'
+cd "$1" || exit 1
+root=$(docker info -f '{{.DockerRootDir}}') || exit 1
+for p in . "$2" "$root"; do echo "fs $(stat -L -c %d "$p") $(df -Pk "$p" | awk 'NR == 2 { print int($4 / 1024) }')"; done
+echo "db $(stat -c %s "$2/srp.db")"
+echo "zip $(stat -c %s "download/$4" 2>/dev/null || echo 0)"
+echo "data $(stat -c %s "download/$5" 2>/dev/null || echo 0)"
+echo "image $(docker image inspect -f '{{.Size}}' "$3")"
+EOF
+    out=$(on_target "sh -s $D $(q "$RUN_VOLUME_DIR") $(q "$RUN_IMAGE") $ZIP_NAME $DATA_NAME" "$work/disk.sh" 2>/dev/null) || out=''
+    while read -r key value; do
+        case $key in db | zip | data | image) [[ $value =~ ^[0-9]+$ ]] && printf -v "$key" '%d' $(((value + 1048575) / 1048576)) ;; esac
+    done <<<"$out"
+    # The three places in order: the folder, the volume, Docker's root.
+    local -a fs_wants=($((zip + data + image + db)) "$db" "$image") fs_names=("$TARGET_DIR" "the data volume" "Docker's root")
+    i=0
+    while read -r key dev free; do
+        [[ $key == fs && $free =~ ^[0-9]+$ ]] || continue
+        fs_need[$dev]=$((${fs_need[$dev]:-0} + fs_wants[i]))
+        fs_have[$dev]=$free
+        fs_where[$dev]+="${fs_where[$dev]:+, }${fs_names[i]}"
+        i=$((i + 1))
+    done <<<"$out"
+    if ((i != 3)) || [[ -z $db || -z $zip || -z $data || -z $image ]]; then
+        problem "free on the $TARGET host: its disk could not be read (df, stat, docker info, docker image inspect)"
+        return 0
+    fi
+    for dev in "${!fs_need[@]}"; do
+        if ((fs_have[$dev] >= fs_need[$dev] + headroom)); then
+            okay "free on the $TARGET host: ${fs_have[$dev]} MB for ${fs_where[$dev]}: the release writes ${fs_need[$dev]} MB there, $headroom MB stay for the server"
+        else
+            problem "free on the $TARGET host: ${fs_have[$dev]} MB for ${fs_where[$dev]}, $((fs_need[$dev] + headroom)) wanted: the release writes ${fs_need[$dev]} MB there (srp.db $db MB a copy, ZIP $zip, server data $data, image $image) and $headroom MB stay for the server's snapshots and recordings (SKHID_LIVE_MIN_FREE_MB): free space there first"
+        fi
+    done
+}
+
 progress "1. preflight (nothing players see)"
 jump_ok=0 target_ok=0 patches_ok=0
 if ssh_check "$SKHID_JUMP" true; then jump_ok=1; okay "ssh to the jump host ($SKHID_JUMP)"; else problem "ssh to the jump host ($SKHID_JUMP) fails (ssh -o BatchMode=yes $SKHID_JUMP true)"; fi
@@ -1224,9 +1278,6 @@ fi
 
 # The target: disk, leftovers, settings, the container, the admin page.
 if ((target_ok)); then
-    have=$(on_target "df -Pk $D | awk 'NR == 2 { print int(\$4 / 1024) }'" || echo 0)
-    need=${SKHID_LIVE_MIN_FREE_MB:-2048}
-    if ((have >= need)); then okay "free on the $TARGET host: $have MB"; else problem "free on the $TARGET host: $have MB in $TARGET_DIR, $need wanted (SKHID_LIVE_MIN_FREE_MB)"; fi
     left=$(on_target "cd $D && for f in release-rev*/state; do if test -f \"\$f\"; then case \$(cat \"\$f\") in staging | swapping) echo \"\${f%/state} (\$(cat \"\$f\"))\" ;; esac; fi; done; ls -d download/.*.new 2>/dev/null; true")
     if [[ -z $left ]]; then okay "no release folder left unfinished"; else problem "left unfinished in $TARGET_DIR: $(tr '\n' ' ' <<<"$left")— look at it (its release.log), finish or roll it back (release/rollback${step_flags[*]:+ ${step_flags[*]}} <folder>), then set its state to stopped"; fi
     fs=$(on_target "cd $D && stat -L -c %d . download" || true)
@@ -1251,6 +1302,7 @@ if ((target_ok)); then
     else
         problem "srp26's container on the $TARGET host cannot be read (docker compose ps / docker inspect)"
     fi
+    target_disk
     compose_text=$(if [[ -n $main_commit ]]; then git -C "$REPO" show "$main_commit:srp-026g/docker-compose.yml" 2>/dev/null; fi || true)
     set_now=$(env_settings_set "$compose_text" || echo "(not readable)")
     if [[ -n $set_now ]]; then say "  note     main's compose file now passes on $set_now, which the $TARGET .env sets (names only): those values take effect at the recreate"; fi
@@ -1323,7 +1375,7 @@ else
             printf '             %s\n' "${BD_REPORT[@]}"
             bd_line="${#BD_TODO[@]} file(s) put in the volume at the swap, with srp26 stopped ($BD_SAME already as listed); the old ones kept in the folder for the rollback"
             have=$(on_target "df -Pk $D | awk 'NR == 2 { print int(\$4 / 1024) }'" || echo 0)
-            need=$((${SKHID_LIVE_MIN_FREE_MB:-2048} + 2 * bd_bytes / 1048576))
+            need=$((${SKHID_LIVE_MIN_FREE_MB:-4096} + 2 * bd_bytes / 1048576))
             if ((have < need)); then problem "free on the $TARGET host: $have MB in $TARGET_DIR, $need wanted with the bots' data (staged, and the old files kept)"; fi
             have=$(on_target "df -Pk $(q "$RUN_VOLUME_DIR") | awk 'NR == 2 { print int(\$4 / 1024) }'" || echo 0)
             need=$((bd_bytes / 1048576 + 100))
@@ -1339,7 +1391,7 @@ else
         for i in "${BD_TODO[@]}"; do bd_bytes=$((bd_bytes + BD_SIZE[i])); done
         if ((target_ok)); then
             have=$(on_target "df -Pk $D | awk 'NR == 2 { print int(\$4 / 1024) }'" || echo 0)
-            need=$((${SKHID_LIVE_MIN_FREE_MB:-2048} + 2 * bd_bytes / 1048576))
+            need=$((${SKHID_LIVE_MIN_FREE_MB:-4096} + 2 * bd_bytes / 1048576))
             if ((have < need)); then problem "free on the $TARGET host: $have MB in $TARGET_DIR, $need wanted with the bots' data (all $((bd_bytes / 1048576)) MB: the volume could not be read, so every file is put)"; fi
         fi
     fi

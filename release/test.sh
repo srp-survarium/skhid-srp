@@ -251,8 +251,9 @@ inspect)
         echo "$line" ;;
     esac ;;
 volume) echo "mount $TEST_DIR/volume" ;;
+info) echo "$TEST_DIR" ;;
 image)
-    if [[ "$*" == *"latest {{.Id}}"* ]]; then echo "latest $(cat "$state/latest")"; fi ;;
+    if [[ "$*" == *"latest {{.Id}}"* ]]; then echo "latest $(cat "$state/latest")"; elif [[ "$*" == *"{{.Size}}"* ]]; then echo 1048576; fi ;;
 tag)
     if [[ $3 == srp-026g:latest ]]; then echo "$2" >"$state/tags/latest"; cp "$state/tags/latest" "$state/latest"; else echo "$2" >"$state/tags/${3//[:\/]/_}"; fi ;;
 rmi) rm -f "$state/tags/${2//[:\/]/_}" ;;
