@@ -53,6 +53,18 @@ match (16 bodies, 220,994 steps, 116 whole jumps; `docs/notes/exactness_rig.md`)
    with no wait. Counted: after a short jump a sprint resumes one step after the first ground step; after a sprint
    jump not before 200 ms and by 600 ms, the body at the walk cap meanwhile (15 of 16).
 
+## Walking off an edge
+
+Leaving the ground without a press is not a jump. The selector's state machine (built at 0x2FAB70) enters its jump
+state (kind 4: the constructor 0x336B70 writes it at +24h, 0x336B87) only by the three transitions 0x2FAFEF, 0x2FB1A7
+and 0x2FB315, all with the predicate 0x2FBDC0: the jump input and the jump gate 0x2FC230, whose ground test needs the
+ground. No other predicate of that machine tests the ground. So a body that walks off an edge keeps the state it had
+(still, run or crouched walk) at any height: the shot's gate `fire_pred` 0x2E3CB0 refuses only the jump state
+(0x2E3CCD) and `can_aim` 0x2E3AC0 tests no movement, so the sights and the shot stay open through the fall; there is
+no landing clip (the landing substates are the jump state's), only the fall's damage at the landing
+(`on_physical_controller_landing` 0x2D8220); and the cone keeps its still or moving term (the call 0x2E17A4 passes
+the state's stance +20h and kind +24h to 0x331330 / 0x331560).
+
 ## Not read
 
 Where the "jump" marks and the intervals sit in the clips (resource data: only the counts bound them); how the

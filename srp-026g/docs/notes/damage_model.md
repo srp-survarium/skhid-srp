@@ -14,7 +14,7 @@ live game's (some client patches change a term: said where it matters). See also
 | 1, 2 | back, front | hit box | body x 1, pain x 1 | | |
 | 3 | head | 0.4, lethal | | 0.03 / s up to 50 % | half: concussion; 0: death |
 | 4, 5 | brain, face | hit box | head x 1, pain x 1 | | |
-| 6, 7 | right leg, left leg | 0.5 | | 0.03 / s up to 20 % | 20 %: speed -0.1; 0: speed -0.2 and `leg_damage` |
+| 6, 7 | right leg, left leg | 0.5 (x (1 + 0.1 a rank) of Strong Bones) | | 0.03 / s up to 20 % | under 20 % of the pool's own maximum: speed -0.1; 0: speed -0.2 and `leg_damage` |
 | 8, 9 | hips | hit box | leg x 1, pain x 0.9 | | |
 | 10, 11 | feet | hit box | leg x 1, pain x 0.8 | | |
 | 12, 13 | arms | hit box | hand x 1, pain x 0.8 | | |

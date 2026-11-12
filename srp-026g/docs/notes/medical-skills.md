@@ -264,6 +264,22 @@ site `medical.sway`, sites_026g.tsv):
   with B the tick's argument ([ebp+8], never written) and the painkiller test
   of Numb Legs. A B or M not above 0 is left as it is.
 
+## What the recorded worlds show (2026-11-12)
+
+Counted on the live recordings of 2026-11-04 and 2026-11-06 and a later set (each kit's medical ranks read with the
+patch of its revision; `private/grid/rig/skills-audit/k7/`):
+
+- **Strong Bones moves the leg's hurt threshold with the pool.** A leg's speed term is -0.1 while its health is under
+  f32(its own maximum x 0.2) and -0.2 at 0 (0x32A9E5..0x32AA01), the maximum being 0.5 x (1 + 0.1 a rank). The world
+  saves the term (the part's +D8h, `serialize` 0x32AF26). It fits the pool's own maximum in 751,487 of 751,487 leg
+  rows; in the 113 rows that tell the two rules apart (a rank, health between 0.1 and the raised threshold) all carry
+  -0.1, and a fixed 0.5 fits 0 of them. The highest leg health of each kit with Strong Bones is its raised maximum in
+  1,042 of 1,042 kits.
+- **Adrenalin gives no speed past the step's cap.** The hook (0x2DBC91) scales `movement_speed`, which feeds the
+  clip's playback; the step's cap (`max_speed` 0x2DC010) is not hooked. A forward walk stays at 3.500 x F with the
+  skill at low health; a sprint goes from its 4.959 x F to the cap 5.000 x F (seen in 7 of 14 bodies with the skill at
+  low health, 0 of 288 without). Side, back and crouched walks were not seen often enough to count (2 of 6 bodies).
+
 ## Effect ownership, capacity and duration
 
 Each recipient receives an independent native effect from the source resource.
