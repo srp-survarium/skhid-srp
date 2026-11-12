@@ -531,8 +531,11 @@ enum RefPhase {
 
 /// The client's jump in the reference (fx-team, A325 jump rows):
 /// - the clip: `Clip::of` (jump codes, `player_logic_jump_state::initialize` 0x337040) by the keys at the press and the speed;
-/// - the clip's time from the press: the sprint jump's prepare phase first (`PREPARE_MS`, LIKELY), then 30 frames a second times
-///   its time scale (0x343C60, PROVEN);
+/// - the clip's time from the press: the sprint jump's prepare phase first (`PREPARE_MS`, a fixed 75 ms: not the client's rule,
+///   whose prepare lasts 2AC / (A + BC) < 2C = 80 ms by the running clip's phase at the press, 0x3375A0 with C = startup.cfg
+///   `jump_prepare_interval_length` 0.040, counted 52-81 ms from the press to the take-off clip's start, rig
+///   `notes-jump-state.md` 0; kept until changed, register G13), then 30 frames a second times its time scale (0x343C60,
+///   PROVEN);
 /// - the walk vector each tick: the tick's root delta, the root re-based on the body each tick (0x39F450, fx-review A325g), turned
 ///   by the walk's yaw (the old-yaw bake, `apply_rotation` 0x2D8AD0); all three axes in the jump (0x2D91AC), the flat part before;
 /// - the take-off: the clip's `jump` event at frame 6 (`on_jump_event` 0x3434A0) sets the controller's jump flag (+0x2C70C), and

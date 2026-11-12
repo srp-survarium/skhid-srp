@@ -1349,8 +1349,9 @@ pub(crate) fn real_bot_cost() {
             // The zones' own shapes, for their hits on the bodies; batteries
             // taken from floors of zones on all match, and their spots.
             // The zones' damage to the stand-in's bodies, with
-            // SRP_BENCH_ZONE_DAMAGE=1 only (a GUESS of the game's until the
-            // owner's CG-20 test): off, the bench decides as before.
+            // SRP_BENCH_ZONE_DAMAGE=1 only (the client's zones hurt every body
+            // in their sensor: PROVEN, `hit_objects` 0x319AF0, s4-effects
+            // `notes-effects.md` 1.3): off, the bench decides as before.
             let zone_damage = bench_settings().var("SRP_BENCH_ZONE_DAMAGE").is_ok_and(|v| v == "1");
             game.zone_routed = bots.match_wide_tuning().hazard.zone_pools == super::tuning::ZonePools::Routed;
             // The client's zone rule (a hit at the body's place in the zone, the interval included; bots in live lose exactly

@@ -12,9 +12,10 @@
 //!   and is gone. The catch takes both legs to 0 (no jump, no sprint, speed [`SLOW`]) for
 //!   [`LEGS_MS`], and 0.3 pain a foot ([`PAIN`] together); no root, no health;
 //! - a ranged hit on its cylinder (radius [`HIT_R`], half-height [`HIT_HALF`], [`HIT_UP`] above
-//!   the floor point) disarms it, whoever shot (the design's section 8 says so; the same
-//!   section also says a hit by the user's own team is refused: **GUESS**, the model takes any
-//!   shooter); a use held [`DEFUSE_MS`] on it by its placer or a body of the other team does too
+//!   the floor point) disarms it, whoever shot, as the client's: a `ranged` hit (the trap's
+//!   `defuse_by_hit`) disarms it with no team test, the placer's own too, and a blast
+//!   (`explosive`) does nothing to it (PROVEN, `booby_trap_core` 0x305540 -> 0x3050C0; exactness
+//!   `routes-readings` 1.4, register G62); a use held [`DEFUSE_MS`] on it by its placer or a body of the other team does too
 //!   (`can_defuse`); disarmed it stands [`GONE_MS`] and is gone.
 //!
 //! What it has of it:
@@ -23,8 +24,11 @@
 //! - **not modelled**: the catch's snap sound (the bots' hearing has no kind for it yet), the
 //!   recycling of the oldest trap when a pocket is out (a body places at most its pocket's count a
 //!   life), a skill that stops a same-team catch (`friendly_trap`, no bot carries it).
-//! - GUESS: the use ray's reach and tolerance ([`USE_REACH_M`], [`USE_TOL_M`]); the live use range
-//!   is not read.
+//! - the use ray's reach and tolerance ([`USE_REACH_M`] 2.0 m, [`USE_TOL_M`] 0.3 m) are not the
+//!   client's: its use distance is 1.80 m (startup.cfg line 114 `usable_objects_detection_distance`,
+//!   cvar 0xAA2DF8; the exe's own default 2.0) and its look test is the ray meeting the object's own
+//!   collision shape, no tolerance (`detect_usable_object` 0x2D84C0): PROVEN, s6-use `notes-use.md`
+//!   1.1. Kept as the stand-in's model until changed (register G63).
 
 use std::sync::OnceLock;
 
@@ -72,8 +76,10 @@ pub(crate) const GONE_MS: u32 = 8_000;
 pub(crate) const LEGS_MS: u32 = 8_000;
 pub(crate) const SLOW: f32 = 0.6;
 pub(crate) const PAIN: f32 = 0.6;
-/// The use ray's reach (the client's `usable_objects_detection_distance`) and how near the trap's
-/// middle it must pass: GUESS.
+/// The use ray's reach and how near the trap's middle it must pass. Not the client's: its
+/// `usable_objects_detection_distance` is 1.80 m (startup.cfg line 114; 2.0 is the exe's own
+/// default) and its ray must meet the trap's collision shape, no tolerance (`detect_usable_object`
+/// 0x2D84C0; s6-use `notes-use.md` 1.1). Kept as the stand-in's model until changed (register G64).
 pub(crate) const USE_REACH_M: f32 = 2.0;
 pub(crate) const USE_TOL_M: f32 = 0.3;
 

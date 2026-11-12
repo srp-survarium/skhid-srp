@@ -15,8 +15,9 @@
 //! - the shapes' sizes (`create_bt_primitive` 0x7A1F0: sphere radius, box half extents, cylinder radius and half
 //!   height, capsule radius and the cylinder length between the hemisphere centres). PROVEN;
 //! - which hit box a shape is (`hit_param`, a name of `human_hit_params`, whose pools and coefficients
-//!   [`super::standin_damage`] already applies): LIKELY, the field the 0.100b server reads, and the shares fit
-//!   the live hit shares;
+//!   [`super::standin_damage`] already applies): PROVEN, the struck shape's `hit_param` is matched byte for byte
+//!   with the damage model's pool names (`base_player::hit` 0x2D9AE0 copies it, `find_body_part` 0x2E58B0 compares;
+//!   exactness `routes-readings` 1.3, register G42);
 //! - the pose the shapes are placed in. **LIKELY**: [`TABLE`] is the shapes placed by the `on_site_idle` clips
 //!   of the rifles' list, standing and crouched, a Python port of the 0.100b server's pose code; it was checked
 //!   by bone lengths and a picture, not against a live capture. The move clips give the same hit rate within

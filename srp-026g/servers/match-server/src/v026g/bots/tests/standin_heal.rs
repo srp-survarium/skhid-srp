@@ -19,8 +19,9 @@
 //!   (`origin/main:srp-026g/scripts/content-edit/bandages-1.json`) 1 s then
 //!   1 s, 1.0 on hands and legs, 0.35 on the body, 0.14 on the head, 0.35 on
 //!   the pain; the antitoxin 1 s then 10 s, 0.5 in all on the infection (0.05
-//!   a second), and a toxic hit is halved while it is active
-//!   (LIKELY: the hit path was not read);
+//!   a second), and a toxic hit on the infection pool is halved while it is
+//!   active (PROVEN: `reduce_damage` 0x33DB30 with `drugs/antitoxin.options`
+//!   infection, `toxic`, 0.5; s4-effects `notes-effects.md`);
 //! - a use is not cancelled by its player; a death ends it, and since
 //!   revision 40 so does a ranged hit that took health (patch 84,
 //!   `origin/main:srp-026g/docs/notes/drug-interrupt.md`): in its delay it
