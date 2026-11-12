@@ -3,6 +3,7 @@
 //!
 //! ```text
 //! srp-build-maps <mapdata dir> <built dir> [<project> ...]
+//! srp-build-maps --files <mapdata dir> [<project> ...]
 //! ```
 //!
 //! The projects are every `<dir>/*.mapdata` when none is named (`level_01/day_4` names `level_01_day_4.mapdata`). The
@@ -11,6 +12,11 @@
 //! for. Each map is built and written, then a second store (a restart) must read every part back with the same
 //! digests; anything a restart would build again fails the run (exit 1). The built dir must be empty or absent, so
 //! every file in it is this build's.
+//!
+//! `--files` builds nothing: for each project it prints `<project> TAB <grid file> TAB <sight file> TAB <tactics file>`,
+//! the names the server's store reads the map from in its built folder (`Maps::built_file_names`, the same keys, the
+//! same tuning). `release/release.sh` refuses a release whose offered maps lack one of them (owner-14 report row 1: a map
+//! with no built file is built in the first match on it, longer than the countdown, while its bots stand).
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -25,11 +31,16 @@ const LIMIT: Duration = Duration::from_secs(900);
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let [dir, built, projects @ ..] = args.as_slice() else {
-        eprintln!("usage: srp-build-maps <mapdata dir> <built dir> [<project> ...]");
-        return ExitCode::from(2);
+    let result = match args.as_slice() {
+        [flag, dir, projects @ ..] if flag == "--files" => files(Path::new(dir), projects),
+        [dir, built, projects @ ..] if !dir.starts_with("--") => run(Path::new(dir), Path::new(built), projects),
+        _ => {
+            eprintln!("usage: srp-build-maps <mapdata dir> <built dir> [<project> ...]");
+            eprintln!("       srp-build-maps --files <mapdata dir> [<project> ...]");
+            return ExitCode::from(2);
+        }
     };
-    match run(Path::new(dir), Path::new(built), projects) {
+    match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(why) => {
             eprintln!("srp-build-maps: {why}");
@@ -51,6 +62,22 @@ fn projects_in(dir: &Path) -> Result<Vec<String>, String> {
         .collect();
     projects.sort();
     Ok(projects)
+}
+
+/// `--files`: the built files' names of each project, nothing built.
+fn files(dir: &Path, named: &[String]) -> Result<(), String> {
+    let loaded = LoadedTuning::from_env()?;
+    let tuning = loaded.tuning().clone();
+    let projects = if named.is_empty() { projects_in(dir)? } else { named.to_vec() };
+    if projects.is_empty() {
+        return Err(format!("no .mapdata in {}", dir.display()));
+    }
+    let store = bot_maps(dir.into(), maps::KEEP, maps::AT_ONCE, None, &tuning);
+    for project in &projects {
+        let [grid, sight, tactics] = store.built_file_names(project).map_err(|why| format!("{project}: {why}"))?;
+        println!("{project}\t{grid}\t{sight}\t{tactics}");
+    }
+    Ok(())
 }
 
 fn word(source: Source) -> &'static str {
