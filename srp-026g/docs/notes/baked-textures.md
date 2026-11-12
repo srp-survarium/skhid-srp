@@ -50,8 +50,36 @@ fixes them; the RE is in `client_patch.md` section 3.57.
     released once and never changed. So at the start every patch's file table is read (not its
     files) and the fingerprint folds, for each patch with a file in those folders, its number and
     those files (path, size and the table's CRC). A patch of Flash movies, item stats, maps or sounds
-    leaves it as it was. Of the patches 24 to 54, 14 changed it (27, 28, 30, 31, 38-41, 43-45, 49,
-    51, 54) and 17 releases would have kept the folder.
+    leaves it as it was. Of the patches 24 to 56, 17 changed it (27, 28, 30, 31, 38-41, 43-45, 49,
+    51, 54, 56) and 16 kept the folder.
+  - **A changed fingerprint deletes only what the release made stale** (2026-11-12). The stamp of an
+    earlier release is the fingerprint of the first of the patches there are now (they are released
+    in their numbers' order), so the start knows which patches came since. Each of them is asked
+    against `resources.db`'s table and each patch's under it:
+    - a file the game data did not have (a new gun's model and textures, a new camouflage) is new:
+      no kept bake read it, nothing is deleted;
+    - a file of a model the game data has (in the model's folder, `<name>.skinned_model` or
+      `<name>.model`: one replaced, or one new to it) makes that model's bakes stale. They are
+      deleted by name: a baked file's name holds its model's (`<camouflage><model><d|n|s|f>` for a
+      character's item, all 199 character bakes of the bake-stress runs; `srpw1_<camouflage>_<the
+      model's path>_<surface>...` for a weapon). A short or common name (the ported sets' `torso`,
+      `legs`) is in other models' files too: more is baked again, never less;
+    - any other file the game data has (a texture, a material instance, a shader, a camouflage or
+      decal item, a file under `models/` in no model's folder), more than 96 models, or a table not
+      followed or not read: the whole folder is deleted, as before.
+    The folder is then stamped with the new fingerprint (not if a stale file could not be deleted:
+    the next start lets it go). Of the 17 patches above this deletes the folder for 2 (38 and 51:
+    textures and materials replaced), some models' bakes for 7 (31, 41, 43, 44, 45, 49, 56) and
+    nothing for 8 (27, 28, 30, 39, 40, 54 among them: new content). The stamp's text is unchanged, so
+    a folder stamped by revision 56 is kept the same way. It costs the start one read of
+    `resources.db`'s table (10 MB) for each such patch, and under 20 ms of walking.
+  - **Not seen:** a new file that an older file names and did not find (a material's texture
+    missing until a release adds it). A bake made without it stays. The release that adds such a
+    file bumps `BAKE_FORMAT`.
+  - Two ported sets share model names (`models/ported/stk2_bandit_026/torso` and
+    `stk2_loner_026/torso`; `duty_026/duty_03_torso_s1` and `freedom_026/duty_03_torso_s1`), and
+    a character's baked file is named by the model's name alone: LIKELY the two share one baked file
+    (stock naming, not looked into).
   - A table this walk does not follow (anything `resources-db` refuses, a hard link) is hashed whole,
     and a patch that cannot be read counts as one: either only deletes the folder too often. With no
     `resources.db` where the game mounts it from (`..\..\` of its working folder) nothing is known:

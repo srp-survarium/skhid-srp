@@ -29,6 +29,12 @@ sets it. Every site runs from the game's own code:
   and stamped anew; revision 54's stamp (before formats: format 1's) and
   revision 53's are deleted too; with no resources.db where the game
   mounts it from, deleted and not stamped. The original calls the stub every time;
+- a release since the folder's stamp (resources.db a made-up table too): new
+  files only, every bake kept and the folder stamped anew; a file of a model
+  resources.db or a lower patch has, the bakes whose names hold the model's
+  name deleted and the rest kept; a stale bake held open, the stamp left; a
+  texture or a loose file under models/ replaced, or resources.db's table
+  not read: deleted (the stub);
 - a kept file's first load (check_loaded_baked_texture 0x131B40, the game's
   own, with the CRC 0x3C0F70 a stub as in check_baked_texture_026g.py): it is
   used and its record takes the CRC read; a second load of other bytes is
@@ -405,10 +411,11 @@ class Game:
         self.emu.mem_write(at, bytes(record))
         return True
 
-    def data(self, patches, db=True):
-        """The game data where the game mounts it from: resources.db and the patches {n: entries}."""
+    def data(self, patches, db=True, base=()):
+        """The game data where the game mounts it from: resources.db (of `base`'s entries) and the
+        patches {n: entries}."""
         if db:
-            self.files[DATA + "resources.db"] = b"little-endian\0"
+            self.files[DATA + "resources.db"] = archive(list(base))
         for n, entries in patches.items():
             self.files[DATA + f"resources.db.patch_{n}"] = archive(entries or [])
             if entries is None:
@@ -789,6 +796,86 @@ def main():
     kept = [p for p in game.files if p.endswith(".dds")]
     report(ok and len(game.records()) == room and len(kept) == room and game.read(BYTES) == room * len(small),
            f"{room + 100} kept files: {room} in the list (its room less 512), the 100 after them deleted")
+
+    print("a release since the folder's stamp (the patches past the stamp's against resources.db and the "
+          "patches under them)")
+    # resources.db has the Vepr's model; patch 12 brought the PPSh's
+    stock = [("models", None), ("models/weapons", None), ("models/weapons/vepr.skinned_model", None),
+            ("models/weapons/vepr.skinned_model/settings", (40, 0x11)), ("models/weapons/loose", (4, 0x12))]
+    ppsh = [("models", None), ("models/weapons", None), ("models/weapons/ppsh.skinned_model", None),
+            ("models/weapons/ppsh.skinned_model/settings", (40, 0x21))]
+    before = {12: TEXTURES + ppsh, 53: STATS}
+    was = made(fingerprint(before))
+    bakes = ["srpw1_city_weapons_vepr_0d.dds", "forestvepr_s1d.dds", "srpw1_city_weapons_ppsh_0d.dds",
+             "forestscavenger_05_torso_s1d.dds"]
+
+    def release(patches, readable=True, locked=()):
+        """The folder stamped of `before` with the four bakes, and the game data `before` and
+        `patches`: the game after its start, and whether the start left as it should."""
+        game = Game(bytes(built))
+        game.data(dict(before | patches), base=stock)
+        if not readable:
+            game.unopenable.add(DATA + "resources.db")
+        game.dirs.add(FOLDER)
+        game.files[FOLDER + "\\" + STAMP] = was
+        for name in bakes:
+            game.files[FOLDER + "\\" + name] = a
+        game.locked.update(FOLDER + "\\" + name for name in locked)
+        return game, game.start()
+
+    def after(game):
+        """The bakes in the folder, the bakes in the list, the stamp, the log's line, whether the
+        stock delete ran."""
+        listed = [r[0][len(PREFIX):] for r in game.records()]
+        return ([n for n in bakes if FOLDER + "\\" + n in game.files], listed, game.files.get(FOLDER + "\\" + STAMP),
+                game.files.get("srp_patches.log", b"").decode().strip(), any(c[0] == "wipe" for c in game.calls))
+
+    def now(patches):
+        return made(fingerprint(dict(before | patches)))
+
+    new_gun = [("models", None), ("models/weapons", None), ("models/weapons/vss.skinned_model", None),
+               ("models/weapons/vss.skinned_model/settings", (40, 0x31)), ("textures", None),
+               ("textures/vss.dds", (900, 0x32))] + DECALS
+    game, ok = release({55: new_gun})
+    there, listed, stamped, line, wiped = after(game)
+    report(ok and there == bakes and sorted(listed) == sorted(bakes) and stamped == now({55: new_gun}) and not wiped
+           and line == "srp: bake_cache: the baked textures kept but 0 of 0 models the patches past 12 replaced: "
+           + stamped.decode().strip(),
+           f"a release of new files only (55: a new gun's model and texture, a decal item): every bake kept and "
+           f"listed, stamped anew; {line!r}")
+    retune = [("models", None), ("models/weapons", None), ("models/weapons/vepr.skinned_model", None),
+              ("models/weapons/vepr.skinned_model/render", None),
+              ("models/weapons/vepr.skinned_model/render/export_properties", (70, 0x41))]
+    game, ok = release({55: retune})
+    there, listed, stamped, line, wiped = after(game)
+    report(ok and there == bakes[2:] and sorted(listed) == sorted(bakes[2:]) and stamped == now({55: retune})
+           and not wiped and "kept but 2 of 1 models the patches past 12 replaced: " in line,
+           f"a release with a file of a model resources.db has (55: the Vepr's): the two bakes whose names hold "
+           f"the model's deleted, the other two kept and listed, stamped anew; {line!r}")
+    again = [("models", None), ("models/weapons", None), ("models/weapons/ppsh.skinned_model", None),
+             ("models/weapons/ppsh.skinned_model/settings", (41, 0x51))]
+    game, ok = release({55: STATS, 56: again})
+    there, listed, stamped, line, wiped = after(game)
+    report(ok and there == bakes[:2] + bakes[3:] and stamped == now({56: again}) and not wiped
+           and "kept but 1 of 1 models the patches past 12 replaced: " in line,
+           f"two releases since, the second with a file of a model a patch brought (56: the PPSh's, of patch "
+           f"12): its bake deleted, the rest kept; {line!r}")
+    game, ok = release({55: retune}, locked=bakes[:1])
+    there, listed, stamped, line, wiped = after(game)
+    report(ok and there == [bakes[0]] + bakes[2:] and sorted(listed) == sorted(bakes[2:]) and stamped == was
+           and "(one stayed: not stamped)" in line,
+           "a stale bake that cannot be deleted (held open): not listed, the stamp left as it was, so the next "
+           "start lets it go")
+    loose = [("models", None), ("models/weapons", None), ("models/weapons/loose", (5, 0x61))]
+    for what, patches, readable in (
+            ("a texture replaced beside a model's file (55)", {55: retune + TEXTURES}, True),
+            ("a file under models/ in no model's folder replaced (55)", {55: loose}, True),
+            ("resources.db's table cannot be read", {55: new_gun}, False)):
+        game, ok = release(patches, readable)
+        there, listed, stamped, line, wiped = after(game)
+        report(ok and there == [] and listed == [] and wiped and stamped == now(patches)
+               and "deleted (another format, other game data or no stamp)" in line,
+               f"{what}: any bake may be stale: deleted (0x1E8DA0) and stamped anew")
 
     print("the trim (remove_unwanted_files 0x131F90, whole; `ret 4`)")
     game = Game(bytes(built))
