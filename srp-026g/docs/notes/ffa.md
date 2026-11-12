@@ -593,3 +593,7 @@ The full runner therefore reports four nonzero checks: the two reproduced
 baseline harness failures, the documented historical-content corpus mismatch,
 and that resolved Vostok environment failure. None was hidden by relaxing a
 validator, altering the archive, or deleting a test.
+
+The final combined arena also passes both registered native suites:
+`executable-report-native` (99.0 s, `b72e22547cd3`) and `ffa-native`
+(243.1 s, `6fc5c9897ae6`), including FFA, late joining and world round trips.
