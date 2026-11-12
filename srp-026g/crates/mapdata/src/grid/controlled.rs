@@ -940,7 +940,8 @@ mod tests {
         floor(&mut tris, 5.0, 0.0, 10.0, 6.0, 0.785);
         quad(&mut tris, Vec3::new(5.0, 0.0, 0.0), Vec3::new(5.0, 0.785, 0.0), Vec3::new(5.0, 0.785, 6.0), Vec3::new(5.0, 0.0, 6.0));
         let build = |walk_every_link: bool| {
-            let body = Body { client_controller: true, walk_start_clear: true, walk_every_link, ..Body::client() };
+            // The grid's step 0.85 (walked to 0.81, [`Body::walked_step`]) links the riser; the tick, with the live 0.80, refuses it.
+            let body = Body { client_controller: true, walk_start_clear: true, walk_every_link, step: 0.85, ..Body::client() };
             let start = [Vec3::new(1.0, 0.0, 3.0)];
             WalkGrid::build_kept_with_links(&tris, [0.0, 0.0, 10.0, 6.0], 0.25, body, &start, &start, OffMeshLinks::None)
         };
