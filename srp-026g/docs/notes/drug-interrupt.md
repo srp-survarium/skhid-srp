@@ -80,3 +80,5 @@ healing stops." Exe patch 84 (`client-patches/rust/patches/src/drug_interrupt.rs
   time, the active time, the last unit, a natural end, a death and the respawn after it, a
   rollback, another drug), `scripts/consumable-activity/check.sh` (the movie in Ruffle: red,
   not red, the last unit, the clean-up), the patch's unit tests.
+- Counted on 949 + 446 recorded matches: every early end of a bots' medkit course is a new hit record (828) or the
+  holder's death (853); none other. The painkiller is never stopped by a hit (0 of 465 early ends).

@@ -123,6 +123,7 @@ mod trap_react;
 mod trap_release;
 mod traps;
 mod unclear_aim;
+pub(crate) mod upper;
 mod walkway;
 mod weapon_class;
 mod weapon_data;

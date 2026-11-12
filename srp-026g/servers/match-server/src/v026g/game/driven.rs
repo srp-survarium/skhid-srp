@@ -721,8 +721,13 @@ impl Game {
                 .and_then(|damage| damage.part_health.first().copied());
             if let Some(damage) = motion.damage.as_ref() {
                 let legs = [6, 7].map(|part| damage.part_health.get(part).copied());
+                // [F12] A wound the world lists is on: until its forecast end (its leg's regeneration delay past the leg's last
+                // hit), or, past that, until a world no longer lists it.
+                let delay = walkers.bots.wound_delay_ms(place);
+                let leg_ends: Vec<u32> =
+                    damage.leg_wounds.iter().map(|&w| crate::v026g::bots::legs::end_listed(w, delay, snapshot.time)).collect();
                 let hurt = Hurt::of(legs, damage.last_hit_time_ms, snapshot.time)
-                    .with_leg_damage(LegDamage::of(&damage.leg_damage_ends, snapshot.time));
+                    .with_leg_damage(LegDamage::of(&leg_ends, snapshot.time));
                 walkers.bots.hurt(place, hurt);
                 // [2e] The body's recent hits (`m_recent_hits`): its stagger in the reckoning.
                 walkers.bots.hits(place, &motion.recent_hits);

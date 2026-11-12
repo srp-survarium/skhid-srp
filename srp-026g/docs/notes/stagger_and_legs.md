@@ -40,8 +40,8 @@ is given, unless said otherwise; config values as the game data has them. Counte
 ## Who else writes the movement-speed list
 
 The kit's base (a skill, +0.01 a level), the weapon in hands (+0.05 submachine guns, -0.05 heavy guns), the carried
-weight (-0.2 times its share between 20 and 30 kg), a carried battery (-0.05), the Spring artefact (+0.02, +0.1
-active), armour (0 in the live data). Drugs write another list (stamina regeneration), not this one.
+weight (-0.2 times its share between 20 and 30 kg), a carried battery (-0.05), the Spring artefact (+0.05 a copy, +0.1
+a copy active: `data/passive/movement_speed_mod`, `data/active/movement_speed_mod`), armour (0 in the live data). Drugs write another list (stamina regeneration), not this one.
 
 ## Counted (one replayed match, 352 hits; 71 on a steadily moving body, none sprinting)
 

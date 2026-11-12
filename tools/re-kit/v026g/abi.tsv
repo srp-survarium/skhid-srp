@@ -195,7 +195,7 @@ va	name	source	ret_cleanup	result
 0x000eb590	vostok::memory::mt_allocator::call_realloc	manual	24	EAX: the block, or 0
 0x000eb5b0	vostok::memory::mt_allocator::call_free	manual	16	
 0x0007ac10	vostok::network_core::buffer_writer::w	manual	8	
-0x0007ef90	vostok::physics::bullet_character_controller::on_ground	manual	0	EAX low byte: 1 when |velocity.up| < 4.0 (0xA7AB10) and the last hit normal.up >= the walkable-slope dot (0x21E51D8); 0 if +0x203 is set
+0x0007ef90	vostok::physics::bullet_character_controller::on_ground	manual	0	EAX low byte: 1 when |velocity.up| < 4.0 (0xA7AB10) and the last hit normal.up >= the walkable-slope dot (0x21E51D8); 0 if +0x203 is set; first of all 0 when the capsule's crouch flag +203h is set (0x7EF91): three tests, the jump's gate 0x2FC285 its caller
 0x0007f050	vostok::physics::bullet_character_controller::end_jump	manual	0	clears the jump flag +0x2C70C; velocity +0x2C770 := up x min(velocity.up, 0)
 0x0007fe40	vostok::physics::bullet_character_controller::set_landing_callback	manual	4	stores the delegate at +0x2C748 and the minimum speed at +0x2C740
 0x000803d0	vostok::physics::bullet_character_controller::call_landing_callback	manual	4	calls the stored delegate with the speed
@@ -1240,6 +1240,7 @@ va	name	source	ret_cleanup	result
 0x002e3a10	survarium::weapon_core::can_sprint	manual	0	
 0x002e3a70		auto	0	
 0x002e3aa0		auto	0	
+0x002e41d0	survarium::weapon_core::set_ammo_slots	manual	20	none; the weapon (entry ESP+4): +5ACh := a copy of the slots' array (entry ESP+8 begin, ESP+12 end: profile slots, 4 bytes each), +5B0h := their count (the ordinal of the weapon's own no-ammunition +53Ch for ammo_by_ordinal 0x2E2750), +5B1h and +5B2h := 0; the one caller inventory_cook::on_subresources_loaded 0x2C799A passes the kit's slots of the table 0x928780 (8, 9, 11, 12, 19, 20, 21, 22) whose item's dictionary id pairs with the weapon's in the compatibility pairs ([cook data +8] +120h..+124h, either order)
 0x002e4280	survarium::weapon_core::time_calculator_id	manual	4	
 0x002e4300	survarium::weapon_core::time_calculator	manual	8	
 0x002e43a0	survarium::weapon_core::player_stance	manual	0	
@@ -1252,7 +1253,7 @@ va	name	source	ret_cleanup	result
 0x002e5290	survarium::damage_model::reset	manual	4	
 0x002e5370	survarium::damage_model::on_broken_limb_affect	manual	12	
 0x002e53b0	survarium::damage_model::serialize	manual	4	
-0x002e5480	survarium::damage_model::deserialize	manual	12	
+0x002e5480	survarium::damage_model::deserialize	manual	12	none; after the parts, zeroes the broken legs' +388h and hands' +389h counts and recounts them from the saved affects (0x2E5518..0x2E5538 -> 0x2E5990): the counts are derived at every load
 0x002e5550	survarium::damage_model::get_invulnerability	manual	0	x87 ST0: Zero, one, or one minus an unsigned time ratio is left on the x87 stack before each observed return.
 0x002e9c70	survarium::generic_anomaly_core_cook::translate_query	manual	4	
 0x002e9d40	survarium::generic_anomaly_core_cook::query_for_artefacts	manual	16	
@@ -1397,6 +1398,7 @@ va	name	source	ret_cleanup	result
 0x0031db00	survarium::breath_vibration_calculator::deserialize	manual	8	
 0x0031eb80	survarium::weapon_core_base_state::serialize	manual	8	
 0x0031ebb0	survarium::weapon_core_base_state::deserialize	manual	12	
+0x00321790	survarium::game_world_core_client::player_slot::apply_profile_input	manual	12	none; ECX the place's slot (+0/+4/+8 its three kit players, +0Ch the current kit, +0Dh the next kit, +28h the core, +2Ch the place); walks the place's kit-choice list (core+89D8h + place x 480h, +8 its newest entry, +4 the next older) to the first entry whose time +20h is at or before the tick (entry ESP+8) and makes its kit byte +8 the next kit; keeps the old one for a value of 3 or more or a kit the place has no player for (0x3217C8..0x3217D5). Runs every tick: a world's next kit (0x2D2A37) lasts one tick against the game's own list
 0x00321b90	survarium::bullet_manager::serialize	manual	4	
 0x00321c50	survarium::bullet_manager::deserialize	manual	4	
 0x003237e0	survarium::kd_stats_rule::on_event	manual	12	
@@ -1440,7 +1442,7 @@ va	name	source	ret_cleanup	result
 0x0032ccc0	survarium::bullet::compute_trajectory_position	manual	4	
 0x0032d4e0		auto	24	
 0x0032d960	survarium::bullet::try_pierce	manual	16	the material's armor is f32 at +4Ch; the bullet's damage is f32 at +70h and its pierce f32 at +74h; a front face takes k = 1-(1-f)^2 off both, f = clamp((pierce-armor)/armor, 0, 1); armor >= pierce stops the bullet (PROVEN, 2026-10-29)
-0x0032de40		auto	12	
+0x0032de40	survarium::bullet::try_reflect	manual	12	AL 1 ricocheted; none at 2 ricochets (+88h, 0x32DE4D); a the angle above the surface, most = min(pi/2, ammo +2Ch ricochet_angle x material +54h k_ricochet); none for a > most; else a draw u of manager+0: a ricochet when u > a (1 - ammo +38h ricochet_chance x material +60h k_ricochet_chance) / most; the mirror direction turned by a random share of ammo +30h x material +58h; the speed x (1 - material +50h reflection_speed_down x a / most); change_trajectory from 1 mm before the point; +88h + 1; damage +70h and pierce +74h at most the weapon's least (0x32E33A..0x32E3C6)
 0x0032e460	survarium::player_shootmarks_storage::add_shootmark	manual	8	AL: new-entry count1 or incremented existing eight-bit occurrence count; higher EAX bits unspecified
 0x0032e4f0		auto	16	
 0x0032e740		auto	16	
@@ -2322,7 +2324,7 @@ va	name	source	ret_cleanup	result
 0x0025cb10	vostok::math::create_rotation	manual	0	EAX = ESI: float4x4 rows i = normalize(normal x direction), j = normal, k = i x normal, c = (0, 0, 0, 1); i and k NaN (1/0 times 0) when the normal is along the direction
 0x00322ab0	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::push	manual	4	none; the node on top (its +4Ch the old top, cmpxchg8b with a tag)
 0x00322b20	vostok::intrusive_mpmc_stack<survarium::bullet_manager::bullet_functor,survarium::bullet_manager::bullet_functor,76>::try_pop	manual	0	EAX: the top node, 0 when empty. bullet_manager::play_particle and play_sound pop the manager's +20h free list without testing it: 0 there writes [50h]. The list is 6 nodes a bullet slot (+0A0h, 192: 1152), every node back after each tick
-0x00321d10	survarium::bullet_manager::tick	manual	12	none; after the bullets, pops every functor of the manager's +30h stack (particles, sounds, decals, tracers: all, no cap a tick) and runs it, each node back to the +20h free list
+0x00321d10	survarium::bullet_manager::tick	manual	12	none; returns at once unless its flag argument (the world's time % 50 == 0, atomic_tick 0x2D1E21) is set (0x321D29): bullets move only on the 50 ms grid, in tick list 5; with 256 bullets or more in parallel chunks of 256 (0x321D58); after the bullets, pops every functor of the manager's +30h stack (particles, sounds, decals, tracers: all, no cap a tick) and runs it, each node back to the +20h free list
 0x00270070	survarium::lobby_client::query_elo_players	manual	8	void; sends 3B 00 <start u32> <count u8> (the ranking page's request; srp's reserved starts too): the movie's request_players_range 0x28C960 calls it with the network client's lobby client
 0x0026afb0	survarium::messaging_client::send_important_message	manual	12	
 0x00233d30	survarium::game_world_ui::scaleform_callback	manual	16	
@@ -2674,8 +2676,23 @@ va	name	source	ret_cleanup	result
 0x000d1ed0	btVoronoiSimplexSolver::closestPtPointTriangle	manual	4	AL; stack: a; EDX = b, ESI = c, EDI = p, EAX = the result. Ericson's regions; every dot product is summed (z + y) + x
 0x000d25b0	btVoronoiSimplexSolver::pointOutsideOfPlane	manual	4	EAX: -1 degenerate (signd squared under 1e-8 [0xA2DA10]), 0, 1; stack: a; ESI = b, EDX = c, ECX = d, EDI = p; both dots (z + x) + y
 0x000d2700	btVoronoiSimplexSolver::closestPtPointTetrahedron	manual	20	AL: 0 when the tetrahedron is flat; EAX = p; stack: a, b, c, d, the result. The best of the faces the point is outside of, squared distances summed (z*z + y*y) + x*x, first best 3.4e38
+0x000d2d80	gjkepa2_impl::GJK::Evaluate	manual	8	EAX = the status (0 valid, 1 inside, 2 failed after 128 rounds); stack: the GJK, the Minkowski difference; EAX = the guess
+0x000d3770	gjkepa2_impl::GJK::EncloseOrigin	manual	0	AL; ECX = the GJK; by the simplex's rank (jump table 0xD3D5C)
+0x000d3d70	gjkepa2_impl::GJK::getsupport	manual	4	none; stack: the GJK; EDI = the direction, ESI = the vertex written (d made unit, w its support)
+0x000d3e90	gjkepa2_impl::GJK::projectorigin	manual	0	XMM0 = the squared distance (-1: none); a segment: stack a (the caller pops 4), EAX = b, EDX = the weights, ESI = the mask
+0x000d4020	gjkepa2_impl::GJK::projectorigin	manual	0	XMM0 = the squared distance (-1: none); a triangle: stack a, b, c, the weights, the mask (the caller pops 14h)
+0x000d44f0	gjkepa2_impl::GJK::projectorigin	manual	0	XMM0 = the squared distance (-1: none); a tetrahedron: stack a, b, c, d, the mask (the caller pops 14h), ESI = the weights
+0x000d4d30	gjkepa2_impl::EPA::Evaluate	manual	12	EAX = the status (0 valid, 1 touching, 2 degenerated, 3 non-convex, 4 invalid hull, 5 out of faces, 6 out of vertices, 7 accuracy reached, 8 fallback, 9 failed); stack: the EPA, the GJK, the guess
+0x000d5550	gjkepa2_impl::EPA::newface	manual	16	EAX = the face or 0; EDI = a; stack: the EPA, b, c, forced
+0x000d59f0	gjkepa2_impl::EPA::findbest	manual	0	EAX = the face; EAX = the EPA
+0x000d5a40	gjkepa2_impl::EPA::expand	manual	20	AL; ECX = the EPA; stack: the pass, w, the face, the edge, the horizon
+0x000d5b80	gjkepa2_impl::Initialize	manual	0	none; ECX = transform B, EDX = the Minkowski difference; stack: shape A, transform A, shape B, the results, usemargins (the caller pops 14h). With usemargins the difference's support is 0x8DD40, else 0x8D680
+0x000d6280	btGjkEpaSolver2::Distance	manual	0	AL; ECX = shape A, EDI = transform A, EAX = shape B; stack: transform B, the guess, the results (the caller pops 0Ch); GJK without margins
+0x000d6810	btGjkEpaSolver2::Penetration	manual	0	AL; ECX = shape A, ESI = transform A, EDX = the guess; stack: shape B, transform B, the results (the caller pops 0Ch); GJK with margins on minus the guess, EPA when it ends inside
+0x000d6c30	btGjkPairDetector::btGjkPairDetector	manual	4	EAX = the detector; ESI = the detector, ECX = shape A, EDI = shape B, EAX = the penetration solver, stack: the simplex solver; the margins by each shape's vtable +28h, m_catchDegeneracies 1, m_lastUsedMethod -1
 0x000d6cd0	btGjkPairDetector::getClosestPointsNonVirtual	manual	16	none; stack: the detector, the input (two transforms, m_maximumDistanceSquared +80h), the result (addContactPoint at vtable +0Ch), the debug drawer. Detector: m_cachedSeparatingAxis +10h, the penetration solver +20h, the simplex solver +24h, the shapes +28h / +2Ch, margins +38h / +3Ch, m_ignoreMargin +40h, m_cachedSeparatingDistance +44h, m_lastUsedMethod +48h, m_curIter +4Ch, m_degenerateSimplex +50h, m_catchDegeneracies +54h. Scalar SSE f32 with x87 square roots (0x38960) at 24-bit precision; two tests in double (0.0001 at 0xA2DB70, 0.01 at 0xA2DB68). This build: no backup_closest on the stalled exit (12), only point B kept, the full-simplex (13) and iteration-limit exits skip the simplex check. The penetration solver is the indirect call at 0xD7684 (24 of 57,641 recorded calls). ported to Rust (crates/mapdata/src/controller/exe_gjk.rs) and bit for bit the exe on 57,617 recorded calls
 0x0008d680	btConvexShape::localGetSupportVertexWithoutMarginNonVirtual	manual	8	none; ECX = the shape, stack: the result, the direction. By the shape's type +4 (index bytes 0x8DD28, targets 0x8DD08): 0 box 0x8D6CA, 1 triangle 0x8D72C (corners +50h, +60h, +70h; dots (y + z) + x), 8 sphere 0x8D6A8 (zero), 10 capsule 0x8D9BB (radius = dims[(up+2)%3] of +20h, half height dims[up], scaling +10h, margin +30h, up +40h; each end ((s*v)*r + pos) - v*margin), 13 cylinder 0x8D816 (radius and half height of +20h, up +40h; neither margin nor scaling), else the virtual call at vtable +3Ch
+0x0008dd40	btConvexShape::localGetSupportVertexNonVirtual	manual	8	EAX = the result; ECX = the shape, stack: the result, the direction. A direction whose squared length is under 2^-46 (0xA2DA9C) becomes (-1, -1, -1); made unit; the support 0x8D680 of it plus the unit direction times the margin, the margin by the shape's type +4 (switch 0x8DE17, index bytes 0x8DEE0): +30h, a sphere's (type 8) +20h times +10h, else the virtual getMargin (+28h)
 0x00072eb0	btTransformUtil::calculateVelocity	manual		none; EAX = the end transform, stack: the start transform, the time step; EDX = the linear velocity out: (end origin - start origin) * (1 / step); the angular one by calculateDiffAxisAngle 0x72FB0
 0x0008b2d0	btTransformUtil::integrateTransform	manual		none; ECX = the transform, EAX = the linear velocity, EDI = the angular velocity, stack: the step, the result: origin + velocity * step, then the rotation by a quaternion (exact for an identity basis and no angular velocity: every recorded cast of the controller)
 0x00074210	btSphereShape::btSphereShape	manual	4	EAX this (40h bytes): vtable 0x9E2FCC, type 8, implicit dims +20h (radius, 0, 0), margin +30h = the radius, local scaling +10h (1, 1, 1)
@@ -2703,6 +2720,7 @@ va	name	source	ret_cleanup	result
 0x00084190	vostok::physics::character_step_down_sweep_test_callback::hit_shape_rotation	manual	0	EAX = EDI = the quaternion out (cdecl stack: the result). The hit object's rotation (its basis +10h through getRotation 0x72B90); when its root shape (+D4h) is a compound (type 31), times the rotation of the child the shape info names (the children +18h, 50h each)
 0x000a9bc0	btCylinderShape::getRadius	manual	0	st0 = the x of the half extents with the margin (0x70DD0)
 0x000b72a0	btSubsimplexConvexCast::calcTimeOfImpact	manual	20	AL 1 on a hit (the CastResult's +90h normal, +A0h hit point, +B0h fraction written); ECX = the caster (+4 the simplex solver, +8 convexA, +0Ch convexB), stack: fromA, toA, fromB, toB, the result. 32 rounds at most (the immediate 0x20 at 0xB76D5; Bullet's source has 64), epsilon 1e-4, the shapes' virtual supports with margin (vtable +38h). Ported (crates/mapdata/src/controller/exe_ray.rs) and bit for bit the exe on every recorded cast of a point against a box, a cylinder, a sphere and a capsule
+0x000b7ee0	btGjkEpaPenetrationDepthSolver::calcPenDepth	manual	40	AL = Penetration's answer; ECX not read; 10 stack arguments: the simplex solver, shape A, shape B, transform A, transform B, v, witness A, witness B, the debug drawer, the stack allocator (the first and the last two are not read). The guess is origin A less origin B; Penetration 0xD6810, and where it is false Distance 0xD6280 (AL 0 either way); v and the witnesses are written when one of them answers. Ported bit for bit (crates/mapdata/src/controller/exe_epa.rs)
 0x000b8010	btTriangleRaycastCallback::processTriangle	manual	12	none; ECX = the callback (+10h from, +20h to, +30h flags, +34h m_hitFraction), stack: the triangle, part, index. The plane's distances summed (z nz + y ny) + x nx; both ends on one side: nothing; the crossing must be under m_hitFraction (strict) and inside by three edge tests with the tolerance -1e-4 |n|^2; reportHit (vtable +8) gets the unit normal, turned over when the start is not in front, and its answer becomes m_hitFraction. Ported and bit for bit on 7,668 recorded triangles
 0x00084040	vostok::physics::closest_ray_result_callback::addSingleResult	manual	8	st0 = the fraction; ECX = the callback, stack: the LocalRayResult, normalInWorldSpace. Stores whatever it is given, with no test of the fraction: +4 the fraction, +8 the object, +40h the normal (copied when in world space, else rotated by the object's basis), +50h the point from*(1-f) + f*to
 0x00083fd0	vostok::physics::closest_ray_result_callback::closest_ray_result_callback	manual	4	none; stack: the callback out, EDX = the ray's start (+20h), ECX = its end (+30h): vtable 0x9E3F20, fraction 1, no object, group 1, mask -1, flags 0

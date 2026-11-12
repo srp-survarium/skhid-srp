@@ -119,11 +119,15 @@ reads them too); `scripts/medicines/medicines.tsv` holds each one's ids, keys, i
 - The affects (`hit_affects_type_enum`, its names' table in the exe's `.data`): death 0, bleeding
   1, concussion 2, hand_damage 3, leg_damage 4, critical_poisoning 5, poisoning 6,
   radiation_sickness 7, blindness 8 (the medkit's own 3 on the hands and 4 on the legs agree).
-- Yellow: `infection` 1 total (full over its 3 s active course), and `remove_affects` infection 6 and 7. That a
-  radiation sickness sits on `infection` is LIKELY (not seen in a game): an in-game test in a
-  radiation zone checks it.
+- Yellow: `infection` 1 total (full over its 3 s active course), and `remove_affects` infection 6 and 7. No pool's threshold
+  sets radiation_sickness (7): the infection pool's are poisoning below full and death at 0, and radiation
+  and toxic hits both give poisoning (0 of 698,871 saved worlds hold affect 7; 53,231 hold poisoning,
+  `drugs_zones_artefacts.md`). Yellow's removal of 7 does nothing.
 - The antitoxin keeps its own place: the light cure (0.1 kg) that also halves toxic damage for
   10 s.
+- A press takes the unit at once; a press while the same item is active is ignored and spends nothing
+  (`medkit::action` 0x33D70A); the heal starts at the first tick past the delay, and the wounds go then
+  (0x33D86D).
 
 ## The coloured medkits
 
