@@ -31,6 +31,7 @@ use core::ptr::{NonNull, null, null_mut};
 use super::OrigThreadEntry;
 use super::baker::Texture;
 use super::context::Context;
+use super::frame_inputs::Target;
 use super::hook::{CallbackEntry, Thread};
 pub use super::render_size::Size;
 use super::render_size::{ColourTarget, ColourTexture, DepthTexture};
@@ -1661,7 +1662,11 @@ impl Shared {
             images: [
                 Image { format: colour.format, ..none },
                 Image { format: depth.format, ..none },
-                Image { format: FORMAT_R16G16_SFLOAT, usage: USAGE_STORAGE | USAGE_SAMPLED, ..none },
+                Image {
+                    format: FORMAT_R16G16_SFLOAT,
+                    usage: USAGE_STORAGE | USAGE_SAMPLED | USAGE_TRANSFER_SRC,
+                    ..none
+                },
                 Image {
                     format: colour.format,
                     size: output,
@@ -1966,6 +1971,10 @@ impl Shared {
             Some(objects) => Some(Surface::of_resource(objects.resource(), "the object motion's IDXGIVkInteropSurface")?),
             None => None,
         };
+        let probe = match told.probe {
+            Some(probe) => Some(Surface::of_resource(probe.resource(), "the motion probe's IDXGIVkInteropSurface")?),
+            None => None,
+        };
         let first = frame.0 == 0;
         helper
             .write(&FrameMsg {
@@ -2021,6 +2030,11 @@ impl Shared {
             before.push(barrier(objects.image, ASPECT_COLOR, read, (objects.layout, LAYOUT_TRANSFER_SRC), stay));
             after.push(barrier(objects.image, ASPECT_COLOR, was_read, (LAYOUT_TRANSFER_SRC, objects.layout), stay));
         }
+        if let Some(probe) = &probe {
+            let (write, wrote) = ((ACCESS_ANY, ACCESS_TRANSFER_WRITE), (ACCESS_TRANSFER_WRITE, ACCESS_ANY));
+            before.push(barrier(probe.image, ASPECT_COLOR, write, (probe.layout, LAYOUT_TRANSFER_DST), stay));
+            after.push(barrier(probe.image, ASPECT_COLOR, wrote, (LAYOUT_TRANSFER_DST, probe.layout), stay));
+        }
         if first {
             // the output is touched by the copy-in on the first frame only: made GENERAL and given to the helper
             before.push(barrier(input(OUTPUT).image, ASPECT_COLOR, (0, 0), (LAYOUT_UNDEFINED, LAYOUT_GENERAL), stay));
@@ -2045,6 +2059,14 @@ impl Shared {
         };
         let (colour_blit, objects_blit) =
             (blit(colour.size, input(COLOR).size), objects.map(|objects| blit(objects.size, pass.objects.size)));
+        let probe_blit = probe.map(|probe| blit(input(MOTION).size, probe.size));
+        // the pass's writes are whole before the probe's copy reads them
+        let passed = MemoryBarrier {
+            s_type: STRUCTURE_MEMORY_BARRIER,
+            next: null(),
+            source_access: ACCESS_SHADER_WRITE,
+            destination_access: ACCESS_TRANSFER_READ,
+        };
         let whole = |aspect, size: Size| ImageCopy {
             source: layers(aspect),
             source_at: [0; 3],
@@ -2184,6 +2206,34 @@ impl Shared {
                 groups(input(MOTION).size.height),
                 1,
             );
+            if let (Some(probe), Some(probe_blit)) = (&probe, &probe_blit) {
+                raw::engine_vk_cmd_pipeline_barrier(
+                    vk.barrier.0,
+                    buffer,
+                    STAGE_COMPUTE,
+                    STAGE_TRANSFER,
+                    0,
+                    1,
+                    (&raw const passed).cast(),
+                    0,
+                    null(),
+                    0,
+                    null(),
+                );
+                raw::engine_vk_cmd_blit_image(
+                    vk.blit.0,
+                    buffer,
+                    low(input(MOTION).image),
+                    high(input(MOTION).image),
+                    LAYOUT_GENERAL,
+                    low(probe.image),
+                    high(probe.image),
+                    LAYOUT_TRANSFER_DST,
+                    1,
+                    (&raw const *probe_blit).cast(),
+                    0,
+                );
+            }
             raw::engine_vk_cmd_pipeline_barrier(
                 vk.barrier.0,
                 buffer,
@@ -2380,7 +2430,7 @@ const _: () = assert!(size_of::<MotionFrame>() == 80);
 
 /// A frame's image barriers, as many as it has.
 struct Barriers {
-    list: [ImageBarrier; 8],
+    list: [ImageBarrier; 9],
     len: u32,
 }
 
@@ -2398,11 +2448,11 @@ impl Barriers {
             image: 0,
             range: Range::of(ASPECT_COLOR),
         };
-        Barriers { list: [none; 8], len: 0 }
+        Barriers { list: [none; 9], len: 0 }
     }
 
     /// One more; past the room there is none is added (a frame has at
-    /// most eight).
+    /// most nine).
     fn push(&mut self, barrier: ImageBarrier) {
         if let Some(slot) = self.list.get_mut(self.len as usize) {
             *slot = barrier;
@@ -2734,11 +2784,15 @@ pub struct Told {
     /// What the motion pass is given; without it the frame's motion is none
     /// anywhere (a still camera on a still world).
     pub motion: Option<Motion>,
+    /// A diagnostic: the motion the pass wrote is also copied into this
+    /// target of the engine's (one the frame is done with), where the
+    /// engine's own read-back reaches it.
+    pub probe: Option<Target>,
 }
 
 impl Told {
     /// A frame with no jitter and no motion that goes on from the one before.
-    pub const STILL: Told = Told { jitter: [0.0; 2], reset: false, motion: None };
+    pub const STILL: Told = Told { jitter: [0.0; 2], reset: false, motion: None, probe: None };
 }
 
 /// What the motion pass is given of a frame (dlss_motion_026g.comp).
@@ -2749,9 +2803,10 @@ pub struct Motion {
     pub reproject: [f32; 16],
     /// Where this frame's picture is moved by its jitter, in clip units.
     pub jitter_clip: [f32; 2],
-    /// `$user$object_motion_vectors` where the engine's object motion pass
-    /// drew this frame.
-    pub objects: Option<ColourTexture>,
+    /// `$user$object_motion_vectors` (xy = current uv - previous uv, z
+    /// where a model was drawn), which the engine's object motion pass
+    /// cleared and drew this frame.
+    pub objects: Option<Target>,
 }
 
 /// `render.screen_image`: renderer::present about to hand the frame's

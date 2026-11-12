@@ -163,7 +163,8 @@ SLOTS = {"CreateFileA": (0x870048, 7), "ReadFile": (0x870064, 5), "WriteFile": (
          "FreeLibrary": (0x870088, 1), "GetModuleFileNameA": (0x87014C, 3), "SHGetFolderPathA": (0xAEFE7C, 5),
          "GetModuleHandleA": (0x87003C, 1), "SetEnvironmentVariableA": (0x87029C, 2),
          "GetEnvironmentVariableA": (0x8701B4, 3), "FindFirstFileA": (0x870238, 2), "FindNextFileA": (0x87023C, 2),
-         "FindClose": (0x870228, 1)}
+         "FindClose": (0x870228, 1), "VirtualProtect": (0x870200, 4)}
+PAGE_EXECUTE_READ, PAGE_EXECUTE_READWRITE = 0x20, 0x40
 # kernel32's functions patch 83 finds by GetProcAddress
 KERNEL_DYNAMIC = {"K32EnumProcessModules": 4}
 KERNEL32, EXE_MODULE, DRIVER_MODULES, NEGOTIATE = 0x76000000, 0x400000, 0x77000000, 0x77FF0000
@@ -273,7 +274,7 @@ class Run(language.Run):
         self.windows_dxgi, self.modules = windows_dxgi, {}
         for name, slot in MODULE_SLOTS.items():
             self.word(slot, CALLED if name == called else 0)
-        self.calls_made, self.logged, self.read_at = [], b"", 0
+        self.calls_made, self.logged, self.read_at, self.protected = [], b"", 0, []
         if getattr(self, "stubs", None):
             return
         self.stubs = {}
@@ -396,6 +397,10 @@ class Run(language.Run):
                 assert b"\0" in value, value
                 self.calls_made.append((name, variable, value.split(b"\0")[0].decode()))
                 self.env[variable] = value.split(b"\0")[0].decode()
+        elif name == "VirtualProtect":
+            # the render size's sites written on demand: the span, the protection asked; the one before it answered
+            self.protected.append((arg(0), arg(1), arg(2)))
+            emu.mem_write(arg(3), struct.pack("<I", PAGE_EXECUTE_READ))
         elif name == "GetEnvironmentVariableA":
             variable = self.text(arg(0)).decode()
             self.calls_made.append((name, variable))
@@ -912,9 +917,11 @@ def renderer(original, patched, expect):
          dict(user_cfg=on + b"srp_dxvk_dlss on\r\n", vulkan=good),
          opened + files + marker + nvidia + config + loads + log + log, True,
          b"dlss: on, not run: the helper's files are not in dlss\\"),
-        ("DLSS on, an RTX, the helper's files there: DXVK is given the mip bias of DLSS at Quality, said",
+        ("DLSS on, an RTX, the helper's files there: DXVK is given the mip bias of DLSS at Quality, said, and "
+         "the 3D frame's sites are written (the render size asked: below)",
          dict(user_cfg=on + b"srp_dxvk_dlss on\r\n", vulkan=good, helper=DLSS),
-         opened + files + marker + nvidia + dlss_config + loads + log + [("GetEnvironmentVariableA", "SKHID_DLSS_LOG")], True,
+         opened + files + marker + nvidia + dlss_config + loads + log + [("GetModuleHandleA", "kernel32.dll")]
+         + [("GetEnvironmentVariableA", "SKHID_DLSS_LOG"), ("GetEnvironmentVariableA", "SKHID_DLSS_MOTION_PROBE")], True,
          b'dlss: DXVK_CONFIG adds "d3d11.samplerLodBias = -1.585": the tick is on, the mip bias of DLSS at Quality'),
         ("DLSS off, an RTX, the helper's files there (it is asked at the first frame): nothing more given to DXVK",
          dict(user_cfg=on, vulkan=good, helper=DLSS),
@@ -991,10 +998,33 @@ def renderer(original, patched, expect):
     # (unset here: nothing asked, no site written; docs/notes/dlss-option.md, "The render size" and "The
     # frame's inputs")
     scale = [("GetEnvironmentVariableA", "SKHID_DLSS_RENDER_SCALE"), ("GetEnvironmentVariableA", "SKHID_DLSS_INPUTS")]
+    # the 3D frame's sites (hud_options.toml's hooks installed on demand: the render size, the frame's inputs,
+    # the screen image): the game's own bytes in the built exe, written only at a start where DLSS is to run
+    # (the tick on, an NVIDIA GPU, the helper's files), each a jump into the arena, its page made writable for
+    # the write and put back (docs/notes/dlss-option.md, "The link")
+    import hooks_026g
+    sites = [(h["site"], bytes(h["original"])) for h in hooks_026g.hooks() if h.get("on_demand") and h["patch"] == "hud_options"]
+    expect(len(sites) == 13 and all(patched[base.file_offset(site):][:len(was)] == was for site, was in sites),
+           f"the built exe keeps the game's bytes at the {len(sites)} sites of the 3D frame (installed on demand)")
     for what, world, wanted, marked, words in cases:
         wanted = wanted + scale
         r = Run(patched)
         kept_regs, calls = r.process_start(**world)
+        now = [bytes(r.emu.mem_read(site, len(was))) for site, was in sites]
+        if world.get("helper") and b"srp_dxvk_dlss on" in world["user_cfg"]:
+            jumps = [code[0] == 0xE9 and base.ARENA_VA <= site + 5 + struct.unpack("<i", code[1:5])[0] < base.ARENA_VA
+                     + 0x200000 and code[5:] == b"\x90" * (len(code) - 5) for (site, _), code in zip(sites, now)]
+            spans = [(site, len(was)) for site, was in sites]
+            expect(all(jumps) and [(at, size) for at, size, _ in r.protected] == spans + spans
+                   and [how for _, _, how in r.protected] == [PAGE_EXECUTE_READWRITE] * len(sites)
+                   + [PAGE_EXECUTE_READ] * len(sites),
+                   f"the process's start, {what.split(':')[0]}: each of the {len(sites)} sites is a jump into the "
+                   "arena, nops to its span's end, its span made writable once and given its protection back"
+                   + ("" if all(jumps) else f": {[hex(s) for (s, _), ok in zip(sites, jumps) if not ok]}"))
+        else:
+            expect(now == [was for _, was in sites] and r.protected == [],
+                   f"the process's start, {what.split(':')[0]}: the 3D frame's sites keep the game's bytes, no page "
+                   "is made writable")
         bound = {name: r.read(slot) for name, slot in MODULE_SLOTS.items()}
         loaded = {name: CALLED if name == world.get("called") else r.modules.get(name, 0) for name in MODULE_SLOTS}
         expect(kept_regs and calls == wanted and r.marker == marked and words in r.logged and r.mallocs == 0

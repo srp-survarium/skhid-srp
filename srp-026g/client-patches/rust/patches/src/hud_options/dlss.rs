@@ -30,12 +30,14 @@
 
 use core::ffi::CStr;
 
+use super::frame_inputs::{self, Camera, FrameInputs, Pieces};
 use super::render_size::{self, Ratio, RenderScale};
 use super::{DLSS, DXVK_MARKER, Renderer, renderer};
 use crate::vostok::dlss::{
-    self, Device, Failure, Frame, Hello, Helper, HelperWatch, Picture, Refusal, Report, ScreenImage, Shared, Size,
-    Surface, SwapChain, Tick, Told, Watched,
+    self, Device, Failure, Frame, Hello, Helper, HelperWatch, Motion, Picture, Refusal, Report, ScreenImage, Shared,
+    Size, Surface, SwapChain, Tick, Told, Watched,
 };
+use crate::vostok::frame_inputs::PixelFormat;
 use crate::vostok::log::{Piece, Piece::*, line, line_of};
 use crate::vostok::render_size::ColourTexture;
 use crate::vostok::renderer::environment_set;
@@ -408,6 +410,26 @@ enum Progress {
 static PROGRESS: GameCell<Progress> = GameCell::new(Progress::Unsaid);
 const PROGRESS_EVERY: u64 = 300;
 
+/// The motion pass's probe, a local diagnostic: off for players, on in a
+/// game started with `SKHID_DLSS_MOTION_PROBE` set. The pass is then given a
+/// known previous camera in place of the last frame's (this frame's, moved
+/// [`PROBE_SHIFT`] to its right) and no object motion, and what it writes
+/// is copied into the engine's object motion target and, every
+/// [`PROGRESS_EVERY`] frames, read back and written beside the game with
+/// the frame's linear depth (`dlss-inputs-<frame>-probe-motion.bin`,
+/// `-probe-depth.bin`): a pixel z metres away must have moved
+/// `-PROBE_SHIFT * e00 * width / (2 z)` render pixels along x and none
+/// along y. DLSS is given that motion too: the picture smears.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum MotionProbe {
+    Off,
+    On,
+}
+
+static MOTION_PROBE: GameCell<MotionProbe> = GameCell::new(MotionProbe::Off);
+/// How far to its right the probe's previous camera stands, metres.
+const PROBE_SHIFT: f32 = 0.01;
+
 /// DXVK's mip bias with DLSS at Quality, `d3d11.samplerLodBias`:
 /// log2(render / output) - 1 with the render size 1 / 1.5 of the output's
 /// each way. It depends on the mode alone, so the start sets it without the
@@ -431,6 +453,8 @@ pub fn at_start(thread: &Thread, nvidia: bool, files: bool, tick: bool) -> bool 
         link = Link::Off(NotRun::NoRenderSize);
     }
     match &link {
+        // with the render size, what DLSS needs of each frame: the jitter, no AA of the game's, the object motion
+        Link::Waiting(Purpose::Run) => frame_inputs::ask(thread, Pieces::ALL),
         Link::Off(NotRun::NoRenderSize) => line(&[Text("dlss: on, not run: the 3D frame's render size was not taken")]),
         Link::Off(NotRun::NotNvidia) if tick => line(&[Text("dlss: on, not run: DXVK's GPU is not NVIDIA's")]),
         Link::Off(NotRun::NoFiles) if tick => line(&[Text("dlss: on, not run: the helper's files are not in dlss\\")]),
@@ -439,6 +463,10 @@ pub fn at_start(thread: &Thread, nvidia: bool, files: bool, tick: bool) -> bool 
     let runs = matches!(link, Link::Waiting(Purpose::Run));
     if runs && environment_set(thread, c"SKHID_DLSS_LOG") {
         PROGRESS.set(thread, Progress::Said(None));
+    }
+    if runs && environment_set(thread, c"SKHID_DLSS_MOTION_PROBE") {
+        MOTION_PROBE.set(thread, MotionProbe::On);
+        line(&[Text("dlss: SKHID_DLSS_MOTION_PROBE: the motion pass is given a made-up previous camera and read back")]);
     }
     LINK.with(thread, |state| *state = link);
     runs
@@ -526,19 +554,24 @@ pub fn on_login(thread: &Thread) {
 }
 
 /// `event` through [`Link::step`], its action done; an action's outcome is
-/// the next event. A link that rests after it renders nothing smaller: the
-/// next frame is native (a stop, a failure, a refusal).
+/// the next event.
 fn drive(thread: &Thread, site: &mut Site<'_>, event: Event<Helper, Device, Shared>) {
-    let rests = LINK.with(thread, |link| {
+    LINK.with(thread, |link| {
         let mut event = Some(event);
         while let Some(now) = event.take() {
             let (next, action) = core::mem::replace(link, Link::Off(NotRun::Undecided)).step(now);
             *link = next;
             event = act(thread, link, site, action);
         }
-        link.rests()
     });
-    if rests {
+}
+
+/// A link that was to run DLSS and does not renders nothing smaller: the
+/// next frame is native (the render size is this link's ask only when the
+/// tick is on; with it off the size is whoever's asked it, the diagnostics
+/// switch's).
+fn native_again(thread: &Thread, purpose: Purpose) {
+    if purpose != Purpose::Ask {
         render_size::ask(thread, RenderScale::Native);
     }
 }
@@ -642,7 +675,15 @@ fn act(
                             // DXVK's queue is that far behind: this frame is none of the link's
                             return Ok(None);
                         }
-                        let texture = shared.submit(thread, device, helper, picture, frame, &Told::STILL)?;
+                        let inputs = frame_inputs::frame(thread);
+                        let probe = MOTION_PROBE.get(thread);
+                        let told = told(inputs.as_ref(), probe);
+                        let texture = shared.submit(thread, device, helper, picture, frame, &told)?;
+                        if let (Some(inputs), Some(_), Some(_)) = (&inputs, texture, told.probe)
+                            && frame.0 % PROGRESS_EVERY == PROGRESS_EVERY / 2
+                        {
+                            probed(thread, frame, inputs);
+                        }
                         if texture.is_some() {
                             said(thread, frame, reached);
                         }
@@ -675,6 +716,7 @@ fn act(
         }
         Action::Report { why, purpose } => {
             say(purpose, &why);
+            native_again(thread, purpose);
             None
         }
         Action::Stop { helper, device, shared, why, purpose } => {
@@ -682,6 +724,7 @@ fn act(
             helper.wait(thread, 2000);
             end(thread, helper, device, shared);
             say(purpose, &why);
+            native_again(thread, purpose);
             // the login screen was shown (its marker is gone): user.cfg has run, the tick can be saved off
             if matches!(why, Failure::Refused(_)) && !file_exists(thread, DXVK_MARKER) {
                 tick_off(thread);
@@ -700,6 +743,117 @@ fn act(
             None
         }
     }
+}
+
+/// The sign of the jitter DLSS is given (`Jitter_Offset_X` and `_Y`)
+/// against the frame's ([`frame_inputs::Jitter`]: the picture moved x right
+/// and y down): the same, both axes. Settled on a still frame of the game
+/// (docs/notes/dlss-option.md, "Status": of the four signs this one alone
+/// gives a sharp, steady picture; the others blur it or break its edges).
+const JITTER_SIGN: [f32; 2] = [1.0, 1.0];
+
+/// What the helper and the motion pass are told of the frame being
+/// rendered. A frame that is none of the inputs' (no post-process, another
+/// view mode: it has no jitter, no object motion and no camera kept) is
+/// upscaled by itself, with no history.
+fn told(inputs: Option<&FrameInputs>, probe: MotionProbe) -> Told {
+    let Some(inputs) = inputs else { return Told { reset: true, ..Told::STILL } };
+    let (width, height) = (inputs.render.width as f32, inputs.render.height as f32);
+    let probed = probe == MotionProbe::On && inputs.reset.is_none();
+    // the probe's previous camera: this frame's, a step to its right (a view's move is its last row)
+    let before = if probed {
+        let mut moved = inputs.camera;
+        moved.view.0[12] -= PROBE_SHIFT;
+        moved
+    } else {
+        inputs.camera_before
+    };
+    Told {
+        jitter: [JITTER_SIGN[0] * inputs.jitter.x(), JITTER_SIGN[1] * inputs.jitter.y()],
+        reset: inputs.reset.is_some(),
+        // a frame with no history has no frame before it to have moved from
+        motion: reproject(&inputs.camera, &before).filter(|_| inputs.reset.is_none()).map(|reproject| Motion {
+            reproject,
+            // the picture's move in clip units: x right, clip y up
+            jitter_clip: [2.0 * inputs.jitter.x() / width, -2.0 * inputs.jitter.y() / height],
+            objects: (!probed).then_some(inputs.motion),
+        }),
+        probe: probed.then_some(inputs.motion),
+    }
+}
+
+/// The probe's read-back of a frame: the motion the pass wrote (copied into
+/// the object motion target) and the frame's linear depth, written beside
+/// the game, and the line that says what the motion must be.
+fn probed(thread: &Thread, frame: Frame, inputs: &FrameInputs) {
+    let number = frame.0 as u32;
+    let motion = frame_inputs::dump(thread, number, b"probe-motion", &inputs.motion, PixelFormat::Rgba16Float);
+    let depth = frame_inputs::dump(thread, number, b"probe-depth", &inputs.linear_depth, PixelFormat::R16Float);
+    line(&[
+        Text("dlss: motion probe: frame "),
+        Dec(number),
+        Text(if motion && depth { " read back" } else { " NOT read back" }),
+        Text(": the previous camera "),
+        Dec((PROBE_SHIFT * 1000.0) as u32),
+        Text(" mm to the right, the projection's e00 "),
+        Dec((inputs.camera.projection.0[0] * 1e6) as u32),
+        Text(" /1000000 and e23 "),
+        Dec((inputs.camera.projection.0[11] * 1000.0) as u32),
+        Text(" /1000, the frame "),
+        Dec(inputs.render.width),
+        Text("x"),
+        Dec(inputs.render.height),
+    ]);
+}
+
+/// A 4x4 of the engine's (row vectors: a position times it) in doubles.
+type Matrix4 = [[f64; 4]; 4];
+
+fn matrix4(rows: &[f32; 16]) -> Matrix4 {
+    core::array::from_fn(|row| core::array::from_fn(|column| f64::from(rows[row * 4 + column])))
+}
+
+/// `a` then `b`: a position times this is the position times `a`, times `b`.
+fn product(a: &Matrix4, b: &Matrix4) -> Matrix4 {
+    core::array::from_fn(|row| core::array::from_fn(|column| (0..4).map(|k| a[row][k] * b[k][column]).sum()))
+}
+
+/// The inverse (Gauss-Jordan, the largest pivot of each column); none for a
+/// matrix that has none.
+fn inverse(matrix: &Matrix4) -> Option<Matrix4> {
+    let mut left = *matrix;
+    let mut right: Matrix4 = core::array::from_fn(|row| core::array::from_fn(|column| f64::from(u8::from(row == column))));
+    for column in 0..4 {
+        let pivot = (column..4).max_by(|&a, &b| left[a][column].abs().total_cmp(&left[b][column].abs()))?;
+        if left[pivot][column].abs() < 1e-30 {
+            return None;
+        }
+        left.swap(column, pivot);
+        right.swap(column, pivot);
+        let scale = 1.0 / left[column][column];
+        for k in 0..4 {
+            left[column][k] *= scale;
+            right[column][k] *= scale;
+        }
+        for row in (0..4).filter(|&row| row != column) {
+            let factor = left[row][column];
+            for k in 0..4 {
+                left[row][k] -= factor * left[column][k];
+                right[row][k] -= factor * right[column][k];
+            }
+        }
+    }
+    Some(right)
+}
+
+/// This frame's clip position to the last frame's (neither camera holds a
+/// jitter): back through this frame's view and projection, forth through
+/// the last frame's. The engine's rows, as the motion pass takes them. None
+/// when this frame's camera has no inverse (no picture).
+fn reproject(now: &Camera, before: &Camera) -> Option<[f32; 16]> {
+    let clip = |camera: &Camera| product(&matrix4(&camera.view.0), &matrix4(&camera.projection.0));
+    let moved = product(&inverse(&clip(now))?, &clip(before));
+    Some(core::array::from_fn(|at| moved[at / 4][at % 4] as f32))
 }
 
 /// A frame is on DXVK's queue and the screen image shows the helper's
@@ -1131,6 +1285,53 @@ mod tests {
                 && !running().rests()
                 && !Test::Waiting(Purpose::Ask).rests()
         );
+    }
+
+    #[test]
+    fn a_clip_position_goes_to_the_last_frames_through_both_cameras() {
+        use crate::vostok::frame_inputs::Matrix;
+        // a perspective projection of the engine's kind (row vectors, w = view z); the camera at the origin,
+        // and the frame before half a metre to the right of it
+        #[rustfmt::skip]
+        let projection = Matrix([
+            1.2, 0.0, 0.0, 0.0,
+            0.0, 2.1, 0.0, 0.0,
+            0.0, 0.0, 1.001, 1.0,
+            0.0, 0.0, -0.1001, 0.0,
+        ]);
+        #[rustfmt::skip]
+        let view = |x: f32| Matrix([
+            1.0, 0.0, 0.0, 0.0,
+            0.0, 1.0, 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0,
+            -x, 0.0, 0.0, 1.0,
+        ]);
+        let (now, before) = (Camera { view: view(0.0), projection }, Camera { view: view(0.5), projection });
+        let through = |position: [f64; 4], matrix: &Matrix4| -> [f64; 4] {
+            core::array::from_fn(|column| (0..4).map(|k| position[k] * matrix[k][column]).sum())
+        };
+        let clip = |camera: &Camera| product(&matrix4(&camera.view.0), &matrix4(&camera.projection.0));
+        // a point ten metres ahead: its clip position now, through the matrix, is its clip position before
+        let point = [1.0, 0.5, 10.0, 1.0];
+        let moved = through(through(point, &clip(&now)), &matrix4(&reproject(&now, &before).unwrap()));
+        let expected = through(point, &clip(&before));
+        for axis in 0..4 {
+            assert!((moved[axis] - expected[axis]).abs() < 1e-4, "{moved:?} against {expected:?}");
+        }
+        // half a metre to the right before: the point was 0.5 * 1.2 / 10 of clip x further left
+        assert!((moved[0] / moved[3] - (1.0 - 0.5) * 1.2 / 10.0).abs() < 1e-5);
+        // a camera that stands: every position stays
+        let stays = matrix4(&reproject(&now, &now).unwrap());
+        for (row, values) in stays.iter().enumerate() {
+            for (column, value) in values.iter().enumerate() {
+                assert!((value - f64::from(u8::from(row == column))).abs() < 1e-6);
+            }
+        }
+        // a camera with no inverse has no motion to give
+        assert!(reproject(&Camera { view: Matrix([0.0; 16]), projection }, &before).is_none());
+        // a frame that is none of the inputs' is upscaled with no history, no jitter, no motion
+        let alone = told(None, MotionProbe::Off);
+        assert!(alone.reset && alone.jitter == [0.0; 2] && alone.motion.is_none());
     }
 
     #[test]

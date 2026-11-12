@@ -591,6 +591,13 @@ fn look(thread: &Thread, run: &Run, wanted: Pieces, inputs: &FrameInputs) {
     }
 }
 
+/// A diagnostic of the link's (its motion probe): `target` read back and
+/// written beside the game as `dlss-inputs-<frame>-<what>.bin`, as the
+/// look's own. Whether it was read back.
+pub fn dump(thread: &Thread, frame: u32, what: &[u8], target: &Target, format: PixelFormat) -> bool {
+    frame_inputs::read_back(thread, target, format, |pixels| write(frame, what, pixels)).is_some()
+}
+
 /// The file `dlss-inputs-<frame>-<what>.bin` with `pixels`.
 fn write(frame: u32, what: &[u8], pixels: &Pixels<'_>) {
     let mut name = [0u8; 48];
