@@ -6305,3 +6305,8 @@ va	name	location	role	basis
 0x000a8380	btBvhTriangleMeshShape::performConvexcast	ESI	the cast shape's box min (btVector3*)	observed
 0x000a8380	btBvhTriangleMeshShape::performConvexcast	EDX	the cast shape's box max (btVector3*)	observed
 0x00087b60	vostok::physics::character_controller_jump_tester::convex_sweep_test	ESI	the tester (inside the controller): +5058h the cast shape, +5060h the btCollisionWorld it sweeps (0x87C44, 0x87C4F)	observed
+0x0007f7b0	vostok::physics::bullet_character_controller::can_stand_up	EAX	the Bullet controller	observed
+0x0007bd10	vostok::physics::bullet_character_controller::need_push_from_low_ceiling	EAX	the Bullet controller	observed
+0x0007bad0	vostok::physics::bullet_character_controller::get_push_from_low_ceiling	ECX	the Bullet controller	observed
+0x0007bad0	vostok::physics::bullet_character_controller::get_push_from_low_ceiling	EAX	the vector to write (16 bytes)	observed
+0x0007c7e0	vostok::physics::bullet_character_controller::can_skeep_player_step	EDX	the Bullet controller	observed

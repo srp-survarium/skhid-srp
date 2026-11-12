@@ -80,9 +80,37 @@ one `step`) and the exe in Unicorn on the same cut triangles.
 - **`m_can_stand`** (PROVEN on the traces, 30,618 steps): the game holds +202h at 0 while the crouch INPUT
   (+200h `m_input_is_in_crouch`) is held (7,604 steps), tests standing on the step after the input is let go
   while +201h `m_logic_is_in_crouch` is still set (118 times it becomes 1, 16 times it stays 0), and the capsule
-  stands on the next step, when the game's logic has cleared +201h (118). The port has no +200h and leaves
-  `can_stand` true on a held crouch (149 of 149 crouched steps of the sample). LIKELY the port can stand one
-  step earlier than the game; not yet read in the exe (0x7F7B0 and its callers).
+  stands on the next step, when the game's logic has cleared +201h (118). The port had no +200h and left
+  `can_stand` true on a held crouch (149 of 149 crouched steps of the sample): §3a.
+
+### 3a. Crouch, read in the exe and ported (PROVEN)
+
+Four bytes of the controller, by the exe's names: +200h `m_input_is_in_crouch` (i), +201h
+`m_logic_is_in_crouch` (l), +202h `m_can_stand` (s), +203h `m_capsule_is_in_crouch` (c).
+
+| who | where | what |
+|---|---|---|
+| the game's input | `base_player::apply_new_input` 0x2D86E0 (0x2D89EE) | i = the crouch key (bit 8 of the actions) |
+| the game's logic | `player_logic_crouch_state` 0x337810 / 0x337830; `base_player::jump` 0x2D793E | l = 1 on a crouch; l = 0 only when s is set; a jump clears l |
+| `player_step`'s head | 0x7BDAE..0x7BDDD | l and not c: crouch (`setup_crouch_state(1)`, which writes s = 0); not l, c and s: stand (`setup_crouch_state(0)`, s = 1) |
+| `can_skeep_player_step` | 0x7C7E0 (0x7C89A) | a step is skipped only when c equals i (and nothing else moves the body) |
+| `step_down`'s tail | 0x7E871..0x7E90D | crouched and the key RELEASED: s = the stand test 0x7F7B0 (the stand tester's sweep 0x873C0 from the collision object's origin); then, still with the key released and s = 0, the push from under a slanted ceiling 0x7BAD0 |
+
+So with the key held the game makes no stand test and no ceiling push, and a crouched body at rest skips its
+steps. After a release the next step makes the stand test, the logic then lets go of the crouch, and the step
+after that stands: the capsule is up 50 ms after the port's old rule had it up.
+
+Counted on 27,790 traced whole steps of the game's own bodies (three traces, `crouch_census.py`): held and
+crouched 6,954 steps, s = 0 after every one; released with s = 0 before, 128 steps, s set by 110 and kept 0 by
+18 (a ceiling); 113 presses (i and l set together between two steps), 112 releases (i alone cleared), 108 times
+the logic then cleared l. Of 114 releases followed for four steps, 99 are exactly held, test, stand; the rest
+are ceilings and keys pressed again. Not read (the logic's side, B6): 36 steps with the key held and no crouch
+asked (i set, l clear), and 39 steps where the logic kept l with s set.
+
+The port (`tick.rs`): `Controller::input_crouch` is +200h, `Controller::crouch_key(held)` is what the input
+and the logic do between two steps, the tail and the skip test read the key as above. On the 1,000 traced
+steps of §3 the port's crouch flags, ceiling normal and ceiling slide are now the exe's in every step (before:
+149, 5 and 1 steps off).
 
 ## 4. What was read on the way (PROVEN)
 
