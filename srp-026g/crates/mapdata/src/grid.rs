@@ -1555,8 +1555,10 @@ impl WalkGrid {
 
     /// [`Body::wall_held_tops`]: whether a body that lands on `b` moving along `d` meets a wall within [`WALL_HELD_CELLS`]
     /// cells on before any drop: the first cell along `d` that holds solid between a step over `b`'s floor and the standing
-    /// height ([`Self::wall_beside`]'s wall) holds the body, the map area's edge too; a cell with a floor more than a step
-    /// under `b` and no wall first is a drop past the top (a fence's far side), and the body is not held.
+    /// height ([`Self::wall_beside`]'s wall) holds the body, the map area's edge too; a cell that holds no surface within a step
+    /// of `b`'s floor (the top ends there) and a floor more than a step under it is a drop past the top (a fence's far side), and
+    /// the body is not held. A cell the top's own surface reaches is no drop whatever lies beside it in the cell (School's sill:
+    /// an 18 cm top, a 12 cm crack, then the wall).
     fn held_by_wall(&self, b: usize, d: usize, solids: &Solids) -> bool {
         let (i, k) = self.cell_xz(self.cell_of[b] as usize);
         let (di, dk) = DIRS[d];
@@ -1569,6 +1571,10 @@ impl WalkGrid {
             let spans = &solids.spans[solids.start[cell] as usize..solids.start[cell + 1] as usize];
             if spans.iter().any(|&(l, h)| l < high && h > low) {
                 return true;
+            }
+            // The top's own surface goes on into this cell (a crack behind it too narrow for the body, School's sill): no drop.
+            if spans.iter().any(|&(_, h)| (h - feet).abs() <= self.body.step) {
+                continue;
             }
             if (self.start[cell]..self.start[cell + 1]).any(|f| self.height[f as usize] < feet - self.body.step) {
                 return false;
@@ -6268,18 +6274,20 @@ pub(crate) mod tests {
             let (a, b, c, d) = (Vec3::new(x0, y0, z), Vec3::new(x1, y0, z), Vec3::new(x1, y1, z), Vec3::new(x0, y1, z));
             [Triangle { v: [a, b, c], walker }, Triangle { v: [a, c, d], walker }]
         };
-        let top = |wall: bool, back: f32, h: f32| {
+        let top_crack = |wall: bool, back: f32, h: f32, crack: f32| {
             let mut tris = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
             tris.extend(floor(1.0, 4.0, 9.0, back, h));
             tris.extend(face_z(4.0, 1.0, 9.0, 0.0, h));
             tris.extend(face_z(back, 1.0, 9.0, 0.0, h));
             if wall {
-                tris.extend(floor(1.0, back, 9.0, back + 1.0, 4.0));
-                tris.extend(face_z(back, 1.0, 9.0, h, 4.0));
-                tris.extend(face_z(back + 1.0, 1.0, 9.0, 0.0, 4.0));
+                let w = back + crack;
+                tris.extend(floor(1.0, w, 9.0, w + 1.0, 4.0));
+                tris.extend(face_z(w, 1.0, 9.0, if crack > 0.0 { 0.0 } else { h }, 4.0));
+                tris.extend(face_z(w + 1.0, 1.0, 9.0, 0.0, 4.0));
             }
             tris
         };
+        let top = |wall: bool, back: f32, h: f32| top_crack(wall, back, h, 0.0);
         let jumps_onto_top = |tris: &[Triangle], h: f32, on: bool| {
             let grid = WalkGrid::build(tris, AREA, 0.25, Body { wall_held_tops: on, ..Body::default() });
             (0..grid.len() as NodeId).any(|a| {
@@ -6305,6 +6313,10 @@ pub(crate) mod tests {
         assert!(!jumps_onto_top(&high, 1.0, true));
         let high_sill = top(true, 4.55, 1.0);
         assert!(jumps_onto_top(&high_sill, 1.0, true));
+        // A crack of 0.12 m between the top and the wall (School's sill): the wall holds the body all the same.
+        let cracked = top_crack(true, 4.55, 0.8, 0.12);
+        assert!(!jumps_onto_top(&cracked, 0.8, false));
+        assert!(jumps_onto_top(&cracked, 0.8, true));
     }
 
     #[test]
