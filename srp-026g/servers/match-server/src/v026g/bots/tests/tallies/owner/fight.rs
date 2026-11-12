@@ -85,19 +85,23 @@ impl FightCounts {
     }
 }
 
-/// [A377] What a flight was: the guard "fire ticks in the air" counted all of them, but a walk off the route's own drop is
-/// legal in the client (it keeps the sights and the shot open in a walk-off fall, and a fall under 5 m does no harm:
-/// A364, `fall_damage.md`), so only an unplanned fall measures harm.
+/// [A377] What a flight was. The guard "fire ticks in the air" counted all of them. The client keeps the sights and the shot
+/// open in a walk-off fall (PROVEN, exactness 2026-11-12: the jump state is entered only by the jump input, predicate
+/// 0x2FBDC0; `fire_pred` 0x2E3CB0 refuses that state alone, 0x2E3CCD; `can_aim` 0x2E3AC0 tests the weapon's states only),
+/// and a landing from up to `harmless_height` (5 m, the game data's `fall_params`) deals no damage (the landing handler
+/// 0x2D8220; `fall_damage.md`). So a walk off the route's own drop is play the client allows; an unplanned fall is the
+/// class that can show harm.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum AirClass {
     /// A walk off a drop of the bot's route: it left within [`super::grid::PLANNED_LANDING_M`] of one's top (at its height),
-    /// or lands that near one's landing. By the top too: the builder's planned landing is where a walk lands, not a run
-    /// (A377: on Tarakanovsky Fort the body flew 2-3 m past it), and that error is the builder's (`grid.drop_lands`), not
-    /// the fight's.
+    /// or lands that near one's landing. By the top too: on the four A377 bench cells, 42 of the 56 fire ticks in the air
+    /// were in flights that left from a drop's top and landed more than [`super::grid::PLANNED_LANDING_M`] from its landing
+    /// (the landing alone counted them unplanned). Why they land there is an open question for the builder
+    /// (`grid.drop_lands`).
     PlannedDrop,
     /// A fall of [`super::grid::FALL_M`] or more the route has no drop for.
     UnplannedFall,
-    /// Down less than [`super::grid::FALL_M`]: a step off a curb or a stair the route walks.
+    /// Down less than [`super::grid::FALL_M`].
     ShortStep,
     /// A jump: the jump key held as the body left the ground.
     Jump,
@@ -763,7 +767,7 @@ impl FightCounts {
                 *self.fire_air_play.entry(usize::from(rec.play)).or_default() += 1;
                 match self.flight[place].as_mut() {
                     Some(flight) => flight.fire += 1,
-                    // A body the record has in the air while dead: none opened (not seen in a run).
+                    // A body the record has in the air with no flight open (0 on the four A377 bench cells).
                     None => self.fire_air_by[AirClass::NotLanded as usize] += 1,
                 }
                 // `SRP_BENCH_AIR_ROWS` (A368, local): one row a fire tick in the air: who, when, where, the play's index (the
