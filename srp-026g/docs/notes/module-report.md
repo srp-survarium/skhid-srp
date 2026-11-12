@@ -195,3 +195,24 @@ release and has not collected a live player's executable.
   establish the real disk-read/frame-time cost or full native upload lifecycle.
 - Released: no; no revision bump, deployment, restart or live collection.
   Existing installed clients cannot send files until they receive this feature.
+
+Review and main integration, 2026-11-12:
+
+- Reviewed framing/bounds, match/hash binding, retries and duplicate windows,
+  file ownership and cleanup, store reservations/publication, native ABI/hooks
+  and replay filtering. No blocking defect found.
+- Integrated main `a3af060cd` (distance detail), retaining both sets of engine
+  bindings and check registrations. Regenerated the combined arena rather than
+  choosing either branch's old lock: size `0x11c44c`, SHA-256
+  `7594be1bdbd2489701f167791eb4b953133e220ede48d96ea8a38799a26b4f5f`.
+- Combined client tests/Clippy pass (`77ed6b05abf0`); generated ABI/hooks/lock
+  and targeted native checks pass (`925d11babbfd`). Affected server/codec/
+  transport/cipher checks retain their matching-input passes; `cargo:srp` also
+  passes (`ebf346cc3a4e`). Combined world-check (`20d740daa842`) has the same
+  refusal summary as the pre-feature baseline, compared byte for byte.
+- The distance-detail native and Ruffle menu checks pass on this combined
+  arena (`606f218a6035`), covering the main change that shared its placement.
+- Combined world-drift (`22193f666e77`) reproduces the same pre-existing
+  `0xa4ccfd` fault in all 20 chunks. No corpus-wide agreement is claimed.
+- Combined HUD-options (`b8439d25a4a9`) reproduces the same `configs.start`
+  assertion. The automatic run finishes with only these three known failures.
