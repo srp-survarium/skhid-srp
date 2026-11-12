@@ -454,6 +454,34 @@ are 3h's contacts at one fraction. Only `Caster::Exe` changes: the bots' grids a
 - A rig hazard found on the way: the controller caches its sweeps' results, so a step run twice in one emulator makes
   no sweeps the second time and returns the first run's bytes. The rig restores the controller's bytes before each run.
 
+### 3k. The up sweeps' callback and a compound child's rotation (PROVEN)
+
+- The stand-up sweep 0x86BF0 (`can_straighten` 0x7EEB0), the stand tester's sweep 0x873C0 (0x7F7B0) and the slide sweep
+  0x88CB0 are read whole: the casts were ported right (the step-cut capsule from `pos` up by the step; the crouched
+  capsule from the origin up by `standing - crouching`; the capsule from `bs` to `de`), and each one's result cache keys
+  on its inputs by equality, so it returns what the sweep would. The slide's callback 0x88C90 is the stock closest one.
+- The up sweeps' callback 0x869D0 (built by 0x868D0) was not the port's filter. It drops a hit whose height is under
+  `up . from + hh` taken at the sweep's START (the port took it at the hit's time), and one whose distance from the
+  axis through `from` (an f32 root) is within 1e-5 of the radius (0x9CBA48) or past it (the port compared squares,
+  with no rim). The exe's own callback, built by the exe, judged 20,162 made hits: the rule as read agrees on all of
+  them, the old filter on 13,053. `tick.rs` `up_sweep` now has the exe's rule.
+- The down sweep's steep look reads a compound child's rotation through 0x84190: the child's quaternion times the
+  object's (Bullet's `operator*`, child first: `R_child R_object`), not the child's world rotation. 0x84190 and
+  `setRotation` 0x72A50 run in Unicorn agree bit for bit with `exe_cast::child_hit_rotation` on the 4,933 small round
+  compound children the walker meets on the eight maps and on 5,000 made pairs; the old composed basis decided lying or
+  standing differently for 317 of the 4,933 (312 on Mamayev Kurgan, none on Vector Laboratory, so the counts below
+  cannot show it).
+- What it changes (the port before and after, one build each):
+
+| run | before | after |
+|---|---|---|
+| 1,000 steps on the capture's triangles (3b): the origin the exe's bits | 991 | 991 (outputs identical) |
+| 1,000 steps on the map's shapes (3d): every field the game's | 993 | **994** |
+| the long replay (3h): every field the game's | 219,901 | **219,906** (5 put right, none made wrong) |
+| the long replay: chains the game's bits end to end | 2,271 of 2,421 | **2,274** (3 put right, none made wrong) |
+
+  Each step put right is a step refused under a ceiling (`ceiling` set): the up sweep's case.
+
 ## 4. What was read on the way (PROVEN)
 
 - `objectQuerySingle` 0xA14E0, a compound (type 31, 0xA22EE): the cast shape's box in the compound's frame,
