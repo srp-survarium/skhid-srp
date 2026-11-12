@@ -958,7 +958,7 @@ fn drive(thread: &Thread, event: Event) {
                 let for_gpu = config.for_gpu(gpu);
                 // DLSS: whether its helper can be asked here; with the tick on, its mip bias is DXVK's from the start
                 let nvidia = gpu.is_some_and(|gpu| gpu.vendor == VENDOR_NVIDIA);
-                let helper = HELPER_FILES.iter().all(|file| exists_beside_exe(thread, file));
+                let helper = nvidia && HELPER_FILES.iter().all(|file| exists_beside_exe(thread, file));
                 let for_dlss = options.dlss && dlss::NotRun::of(nvidia, helper).is_none() && config.for_dlss();
                 if set_environment(thread, c"DXVK_CONFIG", config.as_c_str()) {
                     // the player's options on the line (it holds them all), the GPU's own on the next
