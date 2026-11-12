@@ -26,11 +26,13 @@
 use core::ffi::CStr;
 
 use super::{DLSS, DXVK_MARKER, Renderer, renderer};
-use crate::vostok::dlss::{self, BackBuffer, Device, Failure, Frame, Hello, Helper, HelperWatch, Refusal, Shared, Size, SwapChain, Tick,
-                          Watched};
+use crate::vostok::dlss::{
+    self, BackBuffer, Device, Failure, Frame, Hello, Helper, HelperWatch, Refusal, Shared, Size, SwapChain, Tick,
+    Watched,
+};
 use crate::vostok::log::{Piece, Piece::*, line, line_of};
-use crate::vostok::settings::{file_exists, save_user_config};
 use crate::vostok::renderer::environment_set;
+use crate::vostok::settings::{file_exists, save_user_config};
 use crate::vostok::{GameCell, Lock, Thread, hud_options_on_watch_entry};
 
 /// Why nothing starts in this process.
@@ -97,17 +99,33 @@ pub enum Link<H, D, S> {
 #[derive(Debug, PartialEq)]
 pub enum Event<H, D, S> {
     /// A Present, with the output's size.
-    Frame { output: Size, now: Tick },
+    Frame {
+        output: Size,
+        now: Tick,
+    },
     /// The helper's process and its watch run.
-    Started { helper: H, device: D, now: Tick },
+    Started {
+        helper: H,
+        device: D,
+        now: Tick,
+    },
     /// The helper opened the pipe and the Hello for this output went out.
-    HelloSent { output: Size, now: Tick },
+    HelloSent {
+        output: Size,
+        now: Tick,
+    },
     /// The Hello's answer: the render size, or no.
     HelloAnswered(Result<Size, Refusal>),
     /// The output is no more the Hello's: the helper was told a new size.
-    OutputChanged { now: Tick },
+    OutputChanged {
+        now: Tick,
+    },
     /// The images are made and the Setup went out.
-    SetupSent { shared: S, output: Size, now: Tick },
+    SetupSent {
+        shared: S,
+        output: Size,
+        now: Tick,
+    },
     SetupAnswered(Result<(), Refusal>),
     /// The state's frame is on DXVK's queue.
     Submitted,
@@ -128,20 +146,39 @@ pub enum Action<H, D, S> {
     AwaitHello,
     /// Make the images for this render size and send the Setup; the output
     /// the Hello was for.
-    Share { render: Size, output: Size },
+    Share {
+        render: Size,
+        output: Size,
+    },
     AwaitSetup,
     /// Submit this frame, if its command buffers are free.
     Submit(Frame),
     /// Tell the helper a new size comes and retire what was shared.
     Resize(S),
     /// The answer is all that was wanted: the helper told to quit.
-    Dismiss { helper: H, device: D },
+    Dismiss {
+        helper: H,
+        device: D,
+    },
     /// Say why nothing started.
-    Report { why: Failure, purpose: Purpose },
+    Report {
+        why: Failure,
+        purpose: Purpose,
+    },
     /// End the helper, release the timeline, retire what was shared, say why.
-    Stop { helper: H, device: D, shared: Option<S>, why: Failure, purpose: Purpose },
+    Stop {
+        helper: H,
+        device: D,
+        shared: Option<S>,
+        why: Failure,
+        purpose: Purpose,
+    },
     /// The same at the game's exit, the helper given its time to quit.
-    Quit { helper: H, device: D, shared: Option<S> },
+    Quit {
+        helper: H,
+        device: D,
+        shared: Option<S>,
+    },
 }
 
 /// How long a helper that runs may take to open the pipe, to answer the
@@ -166,7 +203,9 @@ impl<H, D, S> Link<H, D, S> {
             Link::Starting { helper, device, purpose, .. } | Link::Asked { helper, device, purpose, .. } => {
                 Ok(Parts { helper, device, shared: None, purpose, offered: purpose == Purpose::Resize })
             }
-            Link::Sharing { helper, device, .. } => Ok(Parts { helper, device, shared: None, purpose: Purpose::Run, offered: true }),
+            Link::Sharing { helper, device, .. } => {
+                Ok(Parts { helper, device, shared: None, purpose: Purpose::Run, offered: true })
+            }
             Link::Setup { helper, device, shared, .. } | Link::Running { helper, device, shared, .. } => {
                 Ok(Parts { helper, device, shared: Some(shared), purpose: Purpose::Run, offered: true })
             }
@@ -188,17 +227,22 @@ impl<H, D, S> Link<H, D, S> {
     pub fn step(self, event: Event<H, D, S>) -> (Self, Action<H, D, S>) {
         match (self, event) {
             (state, Event::Exit) => match state.parts() {
-                Ok(Parts { helper, device, shared, .. }) => (Link::Off(NotRun::Exited), Action::Quit { helper, device, shared }),
+                Ok(Parts { helper, device, shared, .. }) => {
+                    (Link::Off(NotRun::Exited), Action::Quit { helper, device, shared })
+                }
                 Err(state) => (state, Action::Nothing),
             },
             (state, Event::Broken(why)) => match state.parts() {
-                Ok(Parts { helper, device, shared, purpose, offered }) => {
-                    (if offered { Link::Stopped(why) } else { Link::Failed(why) }, Action::Stop { helper, device, shared, why, purpose })
-                }
+                Ok(Parts { helper, device, shared, purpose, offered }) => (
+                    if offered { Link::Stopped(why) } else { Link::Failed(why) },
+                    Action::Stop { helper, device, shared, why, purpose },
+                ),
                 Err(Link::Waiting(purpose)) => (Link::Failed(why), Action::Report { why, purpose }),
                 Err(state) => (state, Action::Nothing),
             },
-            (state, Event::Frame { now, .. }) if state.waits().is_some_and(|(since, _)| now.since(since) > ANSWER_WAIT) => {
+            (state, Event::Frame { now, .. })
+                if state.waits().is_some_and(|(since, _)| now.since(since) > ANSWER_WAIT) =>
+            {
                 let what = state.waits().map_or("", |(_, what)| what);
                 state.step(Event::Broken(Failure::Late(what)))
             }
@@ -217,7 +261,9 @@ impl<H, D, S> Link<H, D, S> {
             (Link::Asked { helper, device, output, .. }, Event::HelloAnswered(Ok(render))) => {
                 (Link::Sharing { helper, device, output }, Action::Share { render, output })
             }
-            (state @ Link::Asked { .. }, Event::HelloAnswered(Err(refusal))) => state.step(Event::Broken(Failure::Refused(refusal))),
+            (state @ Link::Asked { .. }, Event::HelloAnswered(Err(refusal))) => {
+                state.step(Event::Broken(Failure::Refused(refusal)))
+            }
             (Link::Sharing { helper, device, .. }, Event::OutputChanged { now }) => {
                 (Link::Starting { helper, device, purpose: Purpose::Resize, since: now }, Action::Nothing)
             }
@@ -228,7 +274,9 @@ impl<H, D, S> Link<H, D, S> {
             (Link::Setup { helper, device, shared, output, .. }, Event::SetupAnswered(Ok(()))) => {
                 (Link::Running { helper, device, shared, output, frame: Frame(0) }, Action::Nothing)
             }
-            (state @ Link::Setup { .. }, Event::SetupAnswered(Err(refusal))) => state.step(Event::Broken(Failure::SetupRefused(refusal))),
+            (state @ Link::Setup { .. }, Event::SetupAnswered(Err(refusal))) => {
+                state.step(Event::Broken(Failure::SetupRefused(refusal)))
+            }
             (Link::Running { helper, device, shared, output, frame }, Event::Frame { output: now_output, now }) => {
                 if now_output == output {
                     (Link::Running { helper, device, shared, output, frame }, Action::Submit(frame))
@@ -295,8 +343,12 @@ impl DlssOffer {
             _ if !dxvk => DlssOffer::NoDxvk,
             Link::Off(NotRun::NotNvidia) => DlssOffer::NotNvidia,
             Link::Off(NotRun::NoFiles) => DlssOffer::NoFiles,
-            Link::Off(NotRun::Undecided | NotRun::Exited) | Link::Waiting(Purpose::Ask | Purpose::Run) => DlssOffer::NotYet,
-            Link::Starting { purpose, .. } | Link::Asked { purpose, .. } if *purpose != Purpose::Resize => DlssOffer::NotYet,
+            Link::Off(NotRun::Undecided | NotRun::Exited) | Link::Waiting(Purpose::Ask | Purpose::Run) => {
+                DlssOffer::NotYet
+            }
+            Link::Starting { purpose, .. } | Link::Asked { purpose, .. } if *purpose != Purpose::Resize => {
+                DlssOffer::NotYet
+            }
             Link::Failed(why) => DlssOffer::Failed(*why),
             Link::Waiting(Purpose::Resize)
             | Link::Starting { .. }
@@ -372,7 +424,9 @@ pub fn on_present(thread: &Thread, chain: SwapChain) {
         return;
     }
     match chain.back_buffer(thread) {
-        Ok(back) => drive(thread, Some(&Present { chain, back }), Event::Frame { output: back.size, now: Tick::now(thread) }),
+        Ok(back) => {
+            drive(thread, Some(&Present { chain, back }), Event::Frame { output: back.size, now: Tick::now(thread) })
+        }
         Err(why) => drive(thread, None, Event::Broken(why)),
     }
 }
@@ -404,7 +458,12 @@ fn drive(thread: &Thread, present: Option<&Present>, event: Event<Helper, Device
 }
 
 /// An action done on the state it left: the event that follows, if any.
-fn act(thread: &Thread, link: &Live, present: Option<&Present>, action: Action<Helper, Device, Shared>) -> Option<Event<Helper, Device, Shared>> {
+fn act(
+    thread: &Thread,
+    link: &Live,
+    present: Option<&Present>,
+    action: Action<Helper, Device, Shared>,
+) -> Option<Event<Helper, Device, Shared>> {
     let now = Tick::now(thread);
     // an action on the helper first sees whether its process still runs
     let ends = || {
@@ -414,7 +473,9 @@ fn act(thread: &Thread, link: &Live, present: Option<&Present>, action: Action<H
             None => Ok((helper, device)),
         })
     };
-    let or_broken = |outcome: Result<Option<Event<Helper, Device, Shared>>, Failure>| outcome.unwrap_or_else(|why| Some(Event::Broken(why)));
+    let or_broken = |outcome: Result<Option<Event<Helper, Device, Shared>>, Failure>| {
+        outcome.unwrap_or_else(|why| Some(Event::Broken(why)))
+    };
     match action {
         Action::Nothing => None,
         Action::Start => Some(match start(thread, present?.chain) {
@@ -433,7 +494,9 @@ fn act(thread: &Thread, link: &Live, present: Option<&Present>, action: Action<H
         },
         Action::AwaitHello => {
             let (helper, _) = link.ends()?;
-            or_broken(answer(thread, helper, helper.hello_answer(thread)).map(|answer| answer.map(Event::HelloAnswered)))
+            or_broken(
+                answer(thread, helper, helper.hello_answer(thread)).map(|answer| answer.map(Event::HelloAnswered)),
+            )
         }
         Action::Share { render, output } => {
             let (helper, device) = link.ends()?;
@@ -442,9 +505,19 @@ fn act(thread: &Thread, link: &Live, present: Option<&Present>, action: Action<H
                 return or_broken(helper.new_size(thread).map(|()| Some(Event::OutputChanged { now })));
             }
             or_broken(Shared::make(thread, device, helper, back, render).map(|shared| {
-                line(&[Text("dlss: offered: DLSS at Quality renders "), Dec(render.width), Text("x"), Dec(render.height), Text(" for "),
-                       Dec(output.width), Text("x"), Dec(output.height), Text("; the Setup is sent, "), Dec((shared.bytes() >> 20) as u32),
-                       Text(" MiB shared")]);
+                line(&[
+                    Text("dlss: offered: DLSS at Quality renders "),
+                    Dec(render.width),
+                    Text("x"),
+                    Dec(render.height),
+                    Text(" for "),
+                    Dec(output.width),
+                    Text("x"),
+                    Dec(output.height),
+                    Text("; the Setup is sent, "),
+                    Dec((shared.bytes() >> 20) as u32),
+                    Text(" MiB shared"),
+                ]);
                 Some(Event::SetupSent { shared, output, now })
             }))
         }
@@ -461,17 +534,25 @@ fn act(thread: &Thread, link: &Live, present: Option<&Present>, action: Action<H
             Err(broken) => Some(broken),
             Ok((helper, device)) => {
                 let (shared, back) = (link.shared()?, &present?.back);
-                let submitted = helper.frames_done(thread).and_then(|()| shared.reached(thread, device)).and_then(|reached| {
-                    if !frame.buffers_free(reached) {
-                        // DXVK's queue is that far behind: this Present has no frame of the link
-                        return Ok(None);
-                    }
-                    if PROGRESS.get(thread) == Progress::Said && frame.0.is_multiple_of(PROGRESS_EVERY) {
-                        line(&[Text("dlss: frame "), Dec(frame.0 as u32), Text(" is next: the timeline at "), Dec(reached as u32),
-                               Text(" (the helper's output of the frame before is "), Dec(frame.copied() as u32 - 1), Text(")")]);
-                    }
-                    shared.submit(thread, device, helper, back, frame).map(|()| Some(Event::Submitted))
-                });
+                let submitted =
+                    helper.frames_done(thread).and_then(|()| shared.reached(thread, device)).and_then(|reached| {
+                        if !frame.buffers_free(reached) {
+                            // DXVK's queue is that far behind: this Present has no frame of the link
+                            return Ok(None);
+                        }
+                        if PROGRESS.get(thread) == Progress::Said && frame.0.is_multiple_of(PROGRESS_EVERY) {
+                            line(&[
+                                Text("dlss: frame "),
+                                Dec(frame.0 as u32),
+                                Text(" is next: the timeline at "),
+                                Dec(reached as u32),
+                                Text(" (the helper's output of the frame before is "),
+                                Dec(frame.copied() as u32 - 1),
+                                Text(")"),
+                            ]);
+                        }
+                        shared.submit(thread, device, helper, back, frame).map(|()| Some(Event::Submitted))
+                    });
                 if frame.0 == 0 && matches!(submitted, Ok(Some(_))) {
                     line(&[Text("dlss: the first frame is submitted")]);
                 }
@@ -482,8 +563,13 @@ fn act(thread: &Thread, link: &Live, present: Option<&Present>, action: Action<H
             let (helper, device) = link.ends()?;
             shared.retire(thread, device);
             if let Some(present) = present {
-                line(&[Text("dlss: the output is "), Dec(present.back.size.width), Text("x"), Dec(present.back.size.height),
-                       Text(" now: a new Hello and Setup")]);
+                line(&[
+                    Text("dlss: the output is "),
+                    Dec(present.back.size.width),
+                    Text("x"),
+                    Dec(present.back.size.height),
+                    Text(" now: a new Hello and Setup"),
+                ]);
             }
             or_broken(helper.new_size(thread).map(|()| None))
         }
@@ -548,8 +634,11 @@ fn end(thread: &Thread, helper: Helper, device: Device, shared: Option<Shared>) 
 /// The line of the timeline's values the game signalled itself, up to the last.
 fn released(value: Option<u64>) {
     if let Some(value) = value {
-        line(&[Text("dlss: the helper is gone with frames waited for: the timeline signalled up to "), Dec(value as u32),
-               Text(" from the game")]);
+        line(&[
+            Text("dlss: the helper is gone with frames waited for: the timeline signalled up to "),
+            Dec(value as u32),
+            Text(" from the game"),
+        ]);
     }
 }
 
@@ -590,17 +679,42 @@ fn say(purpose: Purpose, why: &Failure) {
         Purpose::Run | Purpose::Resize => &[Text("dlss: on, not run: ")],
     };
     match why {
-        Failure::Start(what, error) => {
-            line_of(&[head, &[Text("the helper was not started ("), Text(what), Text(", error "), Dec(*error), Text(")")]])
+        Failure::Start(what, error) => line_of(&[
+            head,
+            &[Text("the helper was not started ("), Text(what), Text(", error "), Dec(*error), Text(")")],
+        ]),
+        Failure::Device(what, result) => {
+            line_of(&[head, &[Text("DXVK's Vulkan device: "), Text(what), Text(", result "), Hex(*result)]])
         }
-        Failure::Device(what, result) => line_of(&[head, &[Text("DXVK's Vulkan device: "), Text(what), Text(", result "), Hex(*result)]]),
-        Failure::Refused(refusal) => line_of(&[head, &[Text("the helper says DLSS does not run here: "), Text(refusal.text()),
-                                                        Text(" (NGX "), Hex(refusal.ngx), Text(")")]]),
-        Failure::SetupRefused(refusal) => line_of(&[head, &[Text("the helper did not take the shared images: "), Text(refusal.text()),
-                                                             Text(" (NGX "), Hex(refusal.ngx), Text(")")]]),
+        Failure::Refused(refusal) => line_of(&[
+            head,
+            &[
+                Text("the helper says DLSS does not run here: "),
+                Text(refusal.text()),
+                Text(" (NGX "),
+                Hex(refusal.ngx),
+                Text(")"),
+            ],
+        ]),
+        Failure::SetupRefused(refusal) => line_of(&[
+            head,
+            &[
+                Text("the helper did not take the shared images: "),
+                Text(refusal.text()),
+                Text(" (NGX "),
+                Hex(refusal.ngx),
+                Text(")"),
+            ],
+        ]),
         Failure::Ended(code) => line_of(&[head, &[Text("the helper ended, exit code "), Dec(*code)]]),
-        Failure::Pipe(what, error) => line_of(&[head, &[Text("the helper's pipe closed ("), Text(what), Text(", error "), Dec(*error), Text(")")]]),
-        Failure::Late(what) => line_of(&[head, &[Text("the helper runs and "), Text(what), Text(" in "), Dec(ANSWER_WAIT / 1000), Text(" s")]]),
+        Failure::Pipe(what, error) => line_of(&[
+            head,
+            &[Text("the helper's pipe closed ("), Text(what), Text(", error "), Dec(*error), Text(")")],
+        ]),
+        Failure::Late(what) => line_of(&[
+            head,
+            &[Text("the helper runs and "), Text(what), Text(" in "), Dec(ANSWER_WAIT / 1000), Text(" s")],
+        ]),
     }
 }
 
@@ -635,8 +749,15 @@ pub fn watch(watch: HelperWatch<'_>) -> u32 {
     while watch.wait(LOOK) == Watched::Runs {
         stuck = looks(stuck, dlss::behind(thread));
         if let Some((behind, STUCK_LOOKS)) = stuck {
-            line(&[Text("dlss: the helper runs and did not signal "), Dec(behind.queued as u32), Text(" (the timeline at "),
-                   Dec(behind.reached as u32), Text(") in "), Dec(STUCK_LOOKS * LOOK / 1000), Text(" s: ended")]);
+            line(&[
+                Text("dlss: the helper runs and did not signal "),
+                Dec(behind.queued as u32),
+                Text(" (the timeline at "),
+                Dec(behind.reached as u32),
+                Text(") in "),
+                Dec(STUCK_LOOKS * LOOK / 1000),
+                Text(" s: ended"),
+            ]);
             watch.terminate();
         }
     }
@@ -711,7 +832,10 @@ mod tests {
         assert_eq!(action, Action::Nothing);
         let (link, action) = link.step(frame(HD, 1040));
         assert_eq!(action, Action::Submit(Frame(1)));
-        assert_eq!(link, Link::Running { helper: "helper", device: "device", shared: "shared", output: HD, frame: Frame(1) });
+        assert_eq!(
+            link,
+            Link::Running { helper: "helper", device: "device", shared: "shared", output: HD, frame: Frame(1) }
+        );
         assert_eq!(DlssOffer::of(true, &link), DlssOffer::Offered);
     }
 
@@ -743,15 +867,29 @@ mod tests {
     fn a_failure_at_any_point_stops_with_what_there_is() {
         let ended = Failure::Ended(3);
         // nothing started
-        assert_eq!(Test::Waiting(Purpose::Run).step(Event::Broken(ended)),
-                   (Link::Failed(ended), Action::Report { why: ended, purpose: Purpose::Run }));
+        assert_eq!(
+            Test::Waiting(Purpose::Run).step(Event::Broken(ended)),
+            (Link::Failed(ended), Action::Report { why: ended, purpose: Purpose::Run })
+        );
         // before the answer: not offered
         let (link, action) = run(Purpose::Run).step(Event::Broken(ended));
-        assert_eq!(action, Action::Stop { helper: "helper", device: "device", shared: None, why: ended, purpose: Purpose::Run });
+        assert_eq!(
+            action,
+            Action::Stop { helper: "helper", device: "device", shared: None, why: ended, purpose: Purpose::Run }
+        );
         assert_eq!(DlssOffer::of(true, &link), DlssOffer::Failed(ended));
         // the Setup refused, and a break while running: what was shared goes too, and the PC still offers DLSS
         let (link, action) = running().step(Event::Broken(ended));
-        assert_eq!(action, Action::Stop { helper: "helper", device: "device", shared: Some("shared"), why: ended, purpose: Purpose::Run });
+        assert_eq!(
+            action,
+            Action::Stop {
+                helper: "helper",
+                device: "device",
+                shared: Some("shared"),
+                why: ended,
+                purpose: Purpose::Run
+            }
+        );
         assert_eq!(link, Link::Stopped(ended));
         assert_eq!(DlssOffer::of(true, &link), DlssOffer::Offered);
         assert_eq!(link.step(Event::Submitted), (Link::Stopped(ended), Action::Nothing));
@@ -759,7 +897,10 @@ mod tests {
         let (link, _) = link.step(Event::SetupSent { shared: "shared", output: HD, now: at(1000) });
         let (link, action) = link.step(Event::SetupAnswered(Err(refusal())));
         let why = Failure::SetupRefused(refusal());
-        assert_eq!(action, Action::Stop { helper: "helper", device: "device", shared: Some("shared"), why, purpose: Purpose::Run });
+        assert_eq!(
+            action,
+            Action::Stop { helper: "helper", device: "device", shared: Some("shared"), why, purpose: Purpose::Run }
+        );
         assert_eq!(link, Link::Stopped(why));
     }
 
@@ -770,16 +911,26 @@ mod tests {
         assert_eq!(action, Action::AwaitHello);
         let (link, action) = link.step(frame(HD, 31 + ANSWER_WAIT));
         let why = Failure::Late("no answer to the Hello");
-        assert_eq!(action, Action::Stop { helper: "helper", device: "device", shared: None, why, purpose: Purpose::Run });
+        assert_eq!(
+            action,
+            Action::Stop { helper: "helper", device: "device", shared: None, why, purpose: Purpose::Run }
+        );
         assert_eq!(link, Link::Failed(why));
         // a pipe never opened, a Setup never answered
-        let (link, _) = Test::Waiting(Purpose::Ask).step(Event::Started { helper: "helper", device: "device", now: at(u32::MAX - 5) });
+        let (link, _) = Test::Waiting(Purpose::Ask).step(Event::Started {
+            helper: "helper",
+            device: "device",
+            now: at(u32::MAX - 5),
+        });
         let (_, action) = link.step(frame(HD, ANSWER_WAIT));
         assert!(matches!(action, Action::Stop { why: Failure::Late("it did not open the pipe"), .. }));
         let (link, _) = run(Purpose::Run).step(Event::HelloAnswered(Ok(RENDER)));
         let (link, _) = link.step(Event::SetupSent { shared: "shared", output: HD, now: at(1000) });
         let (link, action) = link.step(frame(HD, 1001 + ANSWER_WAIT));
-        assert!(matches!(action, Action::Stop { why: Failure::Late("no answer to the Setup"), shared: Some("shared"), .. }));
+        assert!(matches!(
+            action,
+            Action::Stop { why: Failure::Late("no answer to the Setup"), shared: Some("shared"), .. }
+        ));
         assert!(matches!(link, Link::Stopped(_)));
     }
 
@@ -787,7 +938,10 @@ mod tests {
     fn a_present_of_another_size_is_a_new_hello_and_setup() {
         let (link, action) = running().step(frame(QHD, 2000));
         assert_eq!(action, Action::Resize("shared"));
-        assert_eq!(link, Link::Starting { helper: "helper", device: "device", purpose: Purpose::Resize, since: at(2000) });
+        assert_eq!(
+            link,
+            Link::Starting { helper: "helper", device: "device", purpose: Purpose::Resize, since: at(2000) }
+        );
         // offered all along: the helper said yes before
         assert_eq!(DlssOffer::of(true, &link), DlssOffer::Offered);
         let (link, action) = link.step(frame(QHD, 2010));
@@ -797,8 +951,13 @@ mod tests {
         assert_eq!(action, Action::Share { render: Size { width: 1707, height: 960 }, output: QHD });
         // the output changed again before the images were made: again
         let (link, action) = link.step(Event::OutputChanged { now: at(2500) });
-        assert_eq!((&link, action), (&Link::Starting { helper: "helper", device: "device", purpose: Purpose::Resize, since: at(2500) },
-                                     Action::Nothing));
+        assert_eq!(
+            (&link, action),
+            (
+                &Link::Starting { helper: "helper", device: "device", purpose: Purpose::Resize, since: at(2500) },
+                Action::Nothing
+            )
+        );
         // a break then is a stop, not a failure
         let (link, _) = link.step(Event::Broken(Failure::Ended(0)));
         assert_eq!(link, Link::Stopped(Failure::Ended(0)));
@@ -806,11 +965,17 @@ mod tests {
 
     #[test]
     fn the_exit_quits_what_runs() {
-        assert_eq!(running().step(Event::Exit),
-                   (Link::Off(NotRun::Exited), Action::Quit { helper: "helper", device: "device", shared: Some("shared") }));
-        assert_eq!(run(Purpose::Ask).step(Event::Exit),
-                   (Link::Off(NotRun::Exited), Action::Quit { helper: "helper", device: "device", shared: None }));
-        for rests in [Test::Off(NotRun::NoFiles), Test::Waiting(Purpose::Run), Test::Offered, Test::Failed(Failure::Ended(1))] {
+        assert_eq!(
+            running().step(Event::Exit),
+            (Link::Off(NotRun::Exited), Action::Quit { helper: "helper", device: "device", shared: Some("shared") })
+        );
+        assert_eq!(
+            run(Purpose::Ask).step(Event::Exit),
+            (Link::Off(NotRun::Exited), Action::Quit { helper: "helper", device: "device", shared: None })
+        );
+        for rests in
+            [Test::Off(NotRun::NoFiles), Test::Waiting(Purpose::Run), Test::Offered, Test::Failed(Failure::Ended(1))]
+        {
             assert!(matches!(rests.step(Event::Exit), (_, Action::Nothing)));
         }
     }
@@ -829,7 +994,12 @@ mod tests {
         for link in [Test::Off(NotRun::Undecided), Test::Offered, running()] {
             assert_eq!(DlssOffer::of(false, &link), DlssOffer::NoDxvk);
         }
-        assert!(Test::Offered.rests() && Test::Off(NotRun::NoFiles).rests() && !running().rests() && !Test::Waiting(Purpose::Ask).rests());
+        assert!(
+            Test::Offered.rests()
+                && Test::Off(NotRun::NoFiles).rests()
+                && !running().rests()
+                && !Test::Waiting(Purpose::Ask).rests()
+        );
     }
 
     #[test]

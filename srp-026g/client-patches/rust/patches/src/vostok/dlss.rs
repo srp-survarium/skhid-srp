@@ -201,8 +201,16 @@ impl Kernel {
         // SAFETY: DuplicateHandle (kernel32's, by its name) with two open
         // process handles and room for the copy.
         let made = unsafe {
-            raw::engine_duplicate_handle(self.duplicate_handle.0, this_process(), handle, into, &mut copy, 0, 0,
-                                         DUPLICATE_SAME_ACCESS)
+            raw::engine_duplicate_handle(
+                self.duplicate_handle.0,
+                this_process(),
+                handle,
+                into,
+                &mut copy,
+                0,
+                0,
+                DUPLICATE_SAME_ACCESS,
+            )
         };
         if made == 0 { Err(last_error()) } else { Ok(copy) }
     }
@@ -381,12 +389,24 @@ impl Helper {
         let exe = beside_exe(HELPER_FILES[0]).ok_or(too_long)?;
         let folder = beside_exe(HELPER_FOLDER).ok_or(too_long)?;
         let mut command = Path::empty();
-        [b"\"".as_slice(), exe.text(), b"\" ", name.text()].into_iter().try_for_each(|part| command.push(part)).ok_or(too_long)?;
+        [b"\"".as_slice(), exe.text(), b"\" ", name.text()]
+            .into_iter()
+            .try_for_each(|part| command.push(part))
+            .ok_or(too_long)?;
         // SAFETY: CreateNamedPipeA (kernel32's, by its name) with a
         // NUL-terminated name; the first instance of the name, or none.
         let pipe = unsafe {
-            raw::engine_create_named_pipe_a(kernel.create_named_pipe.0, name.c(), PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE,
-                                            0, 1, 1 << 16, 1 << 16, 0, null_mut())
+            raw::engine_create_named_pipe_a(
+                kernel.create_named_pipe.0,
+                name.c(),
+                PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE,
+                0,
+                1,
+                1 << 16,
+                1 << 16,
+                0,
+                null_mut(),
+            )
         };
         // INVALID_HANDLE_VALUE (-1) is its failure
         let Some(pipe) = NonNull::new(pipe).filter(|pipe| pipe.as_ptr() as isize != -1).map(Handle) else {
@@ -399,8 +419,18 @@ impl Helper {
         // SAFETY: CreateProcessA (the exe's import): the command is ours to
         // write in, the folder NUL-terminated, the two structures its own.
         let started = unsafe {
-            (raw::engine_create_process_a)(null(), command.c_mut(), null_mut(), null_mut(), 0, CREATE_NO_WINDOW, null_mut(),
-                                           folder.c(), startup.as_mut_ptr().cast(), made.as_mut_ptr().cast())
+            (raw::engine_create_process_a)(
+                null(),
+                command.c_mut(),
+                null_mut(),
+                null_mut(),
+                0,
+                CREATE_NO_WINDOW,
+                null_mut(),
+                folder.c(),
+                startup.as_mut_ptr().cast(),
+                made.as_mut_ptr().cast(),
+            )
         };
         if started == 0 {
             let error = last_error();
@@ -438,7 +468,13 @@ impl Helper {
         // SAFETY: WriteFile (the exe's import) of a Wire record's bytes to
         // our pipe: a record fits the pipe's buffer, so it never waits long.
         let ok = unsafe {
-            (raw::engine_write_file)(self.pipe.0.as_ptr(), (message as *const M).cast(), size_of::<M>() as u32, &mut written, null_mut())
+            (raw::engine_write_file)(
+                self.pipe.0.as_ptr(),
+                (message as *const M).cast(),
+                size_of::<M>() as u32,
+                &mut written,
+                null_mut(),
+            )
         };
         if ok == 0 {
             Err(last_error())
@@ -456,8 +492,15 @@ impl Helper {
         // SAFETY: PeekNamedPipe (kernel32's, by its name) reads nothing: it
         // counts the bytes there.
         let peeked = unsafe {
-            raw::engine_peek_named_pipe(self.kernel.peek_named_pipe.0, self.pipe.0.as_ptr(), null_mut(), 0, null_mut(), &mut available,
-                                        null_mut())
+            raw::engine_peek_named_pipe(
+                self.kernel.peek_named_pipe.0,
+                self.pipe.0.as_ptr(),
+                null_mut(),
+                0,
+                null_mut(),
+                &mut available,
+                null_mut(),
+            )
         };
         if peeked == 0 {
             return Err(Failure::Pipe(what, last_error()));
@@ -470,7 +513,13 @@ impl Helper {
         // SAFETY: ReadFile (the exe's import) of a Wire record's size, all
         // of it there, into room for one.
         let ok = unsafe {
-            (raw::engine_read_file)(self.pipe.0.as_ptr(), message.as_mut_ptr().cast(), size_of::<M>() as u32, &mut read, null_mut())
+            (raw::engine_read_file)(
+                self.pipe.0.as_ptr(),
+                message.as_mut_ptr().cast(),
+                size_of::<M>() as u32,
+                &mut read,
+                null_mut(),
+            )
         };
         if ok == 0 || read as usize != size_of::<M>() {
             return Err(Failure::Pipe(what, last_error()));
@@ -483,8 +532,16 @@ impl Helper {
     pub fn hello(&self, _: &Thread, device: &Device, output: Size) -> Result<Hello, Failure> {
         /// WriteFile's error on a pipe no client has opened.
         const ERROR_PIPE_LISTENING: u32 = 536;
-        let message = HelloMsg { magic: MAGIC, version: VERSION, device_uuid: device.gpu.uuid, device_luid: device.gpu.luid,
-                                 out_w: output.width, out_h: output.height, quality: QUALITY, helper_mode: 0 };
+        let message = HelloMsg {
+            magic: MAGIC,
+            version: VERSION,
+            device_uuid: device.gpu.uuid,
+            device_luid: device.gpu.luid,
+            out_w: output.width,
+            out_h: output.height,
+            quality: QUALITY,
+            helper_mode: 0,
+        };
         match self.write(&message) {
             Ok(()) => Ok(Hello::Sent),
             Err(ERROR_PIPE_LISTENING) => Ok(Hello::NotOpen),
@@ -505,9 +562,9 @@ impl Helper {
 
     /// The Setup's answer once it has come.
     pub fn setup_answer(&self, _: &Thread) -> Result<Option<Result<(), Refusal>>, Failure> {
-        Ok(self.read::<SetupReply>("the Setup's answer")?.map(|reply| {
-            if reply.ok == 1 { Ok(()) } else { Err(Refusal::of(&reply.text, reply.ngx_result)) }
-        }))
+        Ok(self
+            .read::<SetupReply>("the Setup's answer")?
+            .map(|reply| if reply.ok == 1 { Ok(()) } else { Err(Refusal::of(&reply.text, reply.ngx_result)) }))
     }
 
     /// The helper's frame reports that have come, read and let go (its GPU
@@ -518,8 +575,17 @@ impl Helper {
     }
 
     fn between(&self, what: Between) -> Result<(), u32> {
-        self.write(&FrameMsg { frame: 0, wait_value: 0, signal_value: 0, jitter_x: 0.0, jitter_y: 0.0, mv_scale_x: 1.0,
-                               mv_scale_y: 1.0, reset: 0, quit: what as u32 })
+        self.write(&FrameMsg {
+            frame: 0,
+            wait_value: 0,
+            signal_value: 0,
+            jitter_x: 0.0,
+            jitter_y: 0.0,
+            mv_scale_x: 1.0,
+            mv_scale_y: 1.0,
+            reset: 0,
+            quit: what as u32,
+        })
     }
 
     /// A new output size is coming: a Hello and a Setup follow.
@@ -543,7 +609,10 @@ impl Helper {
     /// The watch started on a thread of its own (CreateThread, the default
     /// stack), with a handle of its own to the helper's process.
     pub fn watch(&self, _: &Thread, entry: CallbackEntry<OrigThreadEntry>) -> Result<(), Failure> {
-        let copy = self.kernel.duplicate(self.process.0.as_ptr(), this_process()).map_err(|error| Failure::Start("DuplicateHandle", error))?;
+        let copy = self
+            .kernel
+            .duplicate(self.process.0.as_ptr(), this_process())
+            .map_err(|error| Failure::Start("DuplicateHandle", error))?;
         // SAFETY: CreateThread (the exe's import) with a generated entry in a
         // thread start routine's convention, alive as long as the exe; its
         // argument the handle, which the watch closes.
@@ -692,7 +761,9 @@ impl SwapChain {
         // SAFETY: IDXGISwapChain::GetBuffer on the game's live swap chain, on
         // the thread that presents with it: DXVK answers its back buffer's
         // interop surface, one reference ours.
-        let got = unsafe { raw::engine_swap_chain_get_buffer(Some(self.0), 0, IID_INTEROP_SURFACE.as_ptr().cast(), &mut surface) };
+        let got = unsafe {
+            raw::engine_swap_chain_get_buffer(Some(self.0), 0, IID_INTEROP_SURFACE.as_ptr().cast(), &mut surface)
+        };
         let Some(surface) = surface.filter(|_| (got as i32) >= 0) else {
             return Err(Failure::Device("the back buffer's IDXGIVkInteropSurface", got));
         };
@@ -709,7 +780,12 @@ impl SwapChain {
         if (got as i32) < 0 || image == 0 {
             return Err(Failure::Device("GetVulkanImageInfo", got));
         }
-        Ok(BackBuffer { image, layout, format: info.format, size: Size { width: info.extent[0], height: info.extent[1] } })
+        Ok(BackBuffer {
+            image,
+            layout,
+            format: info.format,
+            size: Size { width: info.extent[0], height: info.extent[1] },
+        })
     }
 
     /// DXVK's device behind it; a failure names what is not there.
@@ -717,7 +793,8 @@ impl SwapChain {
         let mut device = None;
         // SAFETY: IDXGIDeviceSubObject::GetDevice on the game's live swap
         // chain: DXVK answers its device's interop interface, one reference ours.
-        let got = unsafe { raw::engine_swap_chain_get_device(Some(self.0), IID_INTEROP_DEVICE.as_ptr().cast(), &mut device) };
+        let got =
+            unsafe { raw::engine_swap_chain_get_device(Some(self.0), IID_INTEROP_DEVICE.as_ptr().cast(), &mut device) };
         device.filter(|_| (got as i32) >= 0).ok_or(Failure::Device("IDXGIVkInteropDevice1", got))
     }
 }
@@ -807,7 +884,8 @@ impl Device {
         // NUL-terminated names; DXVK keeps the module loaded.
         let entry = unsafe {
             let wine = (raw::engine_get_module_handle_a)(c"winevulkan.dll".as_ptr().cast());
-            let module = if wine.is_null() { (raw::engine_get_module_handle_a)(c"vulkan-1.dll".as_ptr().cast()) } else { wine };
+            let module =
+                if wine.is_null() { (raw::engine_get_module_handle_a)(c"vulkan-1.dll".as_ptr().cast()) } else { wine };
             if module.is_null() {
                 return Err(missing("winevulkan.dll or vulkan-1.dll"));
             }
@@ -855,8 +933,15 @@ impl Device {
         };
         let properties = of_instance(c"vkGetPhysicalDeviceProperties2")?;
         let memory = of_instance(c"vkGetPhysicalDeviceMemoryProperties")?;
-        let mut id = IdProperties { s_type: STRUCTURE_ID_PROPERTIES, next: null_mut(), device_uuid: [0; 16], driver_uuid: [0; 16],
-                                    device_luid: [0; 8], node_mask: 0, luid_valid: 0 };
+        let mut id = IdProperties {
+            s_type: STRUCTURE_ID_PROPERTIES,
+            next: null_mut(),
+            device_uuid: [0; 16],
+            driver_uuid: [0; 16],
+            device_luid: [0; 8],
+            node_mask: 0,
+            luid_valid: 0,
+        };
         let mut all = Properties2 { s_type: STRUCTURE_PROPERTIES_2, next: (&raw mut id).cast(), properties: [0; 206] };
         let mut types = MemoryProperties([0; 130]);
         // SAFETY: the two queries with DXVK's physical device and room for
@@ -869,7 +954,15 @@ impl Device {
         for (i, flags) in memory_types.iter_mut().enumerate().take((types.0[0] as usize).min(32)) {
             *flags = types.0[1 + 2 * i];
         }
-        Ok(Device { interop, device, queue, family, vulkan, gpu: GpuId { uuid: id.device_uuid, luid: id.device_luid }, memory_types })
+        Ok(Device {
+            interop,
+            device,
+            queue,
+            family,
+            vulkan,
+            gpu: GpuId { uuid: id.device_uuid, luid: id.device_luid },
+            memory_types,
+        })
     }
 
     /// The reference of DXVK's interop device let go.
@@ -889,7 +982,13 @@ impl Device {
         let mut value = 0;
         // SAFETY: vkGetSemaphoreCounterValue on a timeline semaphore of this device.
         let got = unsafe {
-            raw::engine_vk_get_semaphore_counter_value(self.vulkan.counter.0, self.device.as_ptr(), low(timeline), high(timeline), &mut value)
+            raw::engine_vk_get_semaphore_counter_value(
+                self.vulkan.counter.0,
+                self.device.as_ptr(),
+                low(timeline),
+                high(timeline),
+                &mut value,
+            )
         };
         if got == 0 { Ok(value) } else { Err(Failure::Device("vkGetSemaphoreCounterValue", got)) }
     }
@@ -1005,8 +1104,23 @@ struct ImageCreateInfo {
 
 impl ImageCreateInfo {
     fn zeroed() -> ImageCreateInfo {
-        ImageCreateInfo { s_type: 0, next: null(), flags: 0, image_type: 0, format: 0, extent: [0; 3], mip_levels: 0, array_layers: 0,
-                          samples: 0, tiling: 0, usage: 0, sharing_mode: 0, family_count: 0, families: null(), initial_layout: 0 }
+        ImageCreateInfo {
+            s_type: 0,
+            next: null(),
+            flags: 0,
+            image_type: 0,
+            format: 0,
+            extent: [0; 3],
+            mip_levels: 0,
+            array_layers: 0,
+            samples: 0,
+            tiling: 0,
+            usage: 0,
+            sharing_mode: 0,
+            family_count: 0,
+            families: null(),
+            initial_layout: 0,
+        }
     }
 }
 
@@ -1182,12 +1296,15 @@ const _: () = assert!(size_of::<MemoryRequirements>() == 24);
 const _: () = assert!(size_of::<MemoryAllocateInfo>() == 24 && core::mem::offset_of!(MemoryAllocateInfo, size) == 8);
 const _: () = assert!(size_of::<DedicatedAllocateInfo>() == 24);
 const _: () = assert!(size_of::<HandleInfo>() == 24 && core::mem::offset_of!(HandleInfo, object) == 8);
-const _: () = assert!(size_of::<SemaphoreTypeCreateInfo>() == 24 && core::mem::offset_of!(SemaphoreTypeCreateInfo, initial_value) == 16);
+const _: () = assert!(
+    size_of::<SemaphoreTypeCreateInfo>() == 24 && core::mem::offset_of!(SemaphoreTypeCreateInfo, initial_value) == 16
+);
 const _: () = assert!(size_of::<CommandBufferAllocateInfo>() == 24);
 const _: () = assert!(size_of::<ImageBarrier>() == 64 && core::mem::offset_of!(ImageBarrier, image) == 32);
 const _: () = assert!(size_of::<Blit>() == 80);
 const _: () = assert!(size_of::<SubmitInfo>() == 36 && size_of::<TimelineSubmitInfo>() == 24);
-const _: () = assert!(size_of::<SemaphoreSignalInfo>() == 24 && core::mem::offset_of!(SemaphoreSignalInfo, value) == 16);
+const _: () =
+    assert!(size_of::<SemaphoreSignalInfo>() == 24 && core::mem::offset_of!(SemaphoreSignalInfo, value) == 16);
 
 // ---- what is shared
 
@@ -1233,7 +1350,13 @@ impl Shared {
     /// the render size; the output at the output's), the timeline and the
     /// command buffers made, their handles given to the helper and the
     /// Setup sent. A failure leaves nothing made.
-    pub fn make(_: &Thread, device: &Device, helper: &Helper, back: &BackBuffer, render: Size) -> Result<Shared, Failure> {
+    pub fn make(
+        _: &Thread,
+        device: &Device,
+        helper: &Helper,
+        back: &BackBuffer,
+        render: Size,
+    ) -> Result<Shared, Failure> {
         let inputs = USAGE_TRANSFER_DST | USAGE_SAMPLED;
         let none = Image { image: 0, memory: 0, bytes: 0, memory_type: 0, format: 0, size: render, usage: inputs };
         let mut shared = Shared {
@@ -1241,7 +1364,12 @@ impl Shared {
                 Image { format: back.format, ..none },
                 Image { format: FORMAT_D32_SFLOAT, ..none },
                 Image { format: FORMAT_R16G16_SFLOAT, ..none },
-                Image { format: back.format, size: back.size, usage: USAGE_STORAGE | USAGE_SAMPLED | USAGE_TRANSFER_SRC, ..none },
+                Image {
+                    format: back.format,
+                    size: back.size,
+                    usage: USAGE_STORAGE | USAGE_SAMPLED | USAGE_TRANSFER_SRC,
+                    ..none
+                },
             ],
             timeline: 0,
             pool: 0,
@@ -1259,13 +1387,26 @@ impl Shared {
     fn fill(&mut self, device: &Device, helper: &Helper) -> Result<(), Failure> {
         let (vk, dev) = (&device.vulkan, device.device.as_ptr());
         let mut setup = SetupMsg {
-            img: [SharedImageMsg { handle: 0, alloc_size: 0, memory_type: 0, format: 0, width: 0, height: 0, usage: 0, pad: 0 }; 4],
+            img: [SharedImageMsg {
+                handle: 0,
+                alloc_size: 0,
+                memory_type: 0,
+                format: 0,
+                width: 0,
+                height: 0,
+                usage: 0,
+                pad: 0,
+            }; 4],
             semaphore: 0,
             dlss_flags: DLSS_FLAGS,
             pad: 0,
         };
         for (image, message) in self.images.iter_mut().zip(&mut setup.img) {
-            let external = HandleTypes { s_type: STRUCTURE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO, next: null(), handle_types: OPAQUE_WIN32 };
+            let external = HandleTypes {
+                s_type: STRUCTURE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
+                next: null(),
+                handle_types: OPAQUE_WIN32,
+            };
             let info = ImageCreateInfo {
                 s_type: STRUCTURE_IMAGE_CREATE_INFO,
                 next: (&raw const external).cast(),
@@ -1284,52 +1425,178 @@ impl Shared {
             // SAFETY: vkCreateImage and vkGetImageMemoryRequirements on
             // DXVK's device with vulkan_core.h's structures.
             unsafe {
-                check("vkCreateImage", raw::engine_vk_create_image(vk.create_image.0, dev, (&raw const info).cast(), null(), &mut image.image))?;
-                raw::engine_vk_get_image_memory_requirements(vk.image_memory_requirements.0, dev, low(image.image), high(image.image),
-                                                             (&raw mut needs).cast());
+                check(
+                    "vkCreateImage",
+                    raw::engine_vk_create_image(
+                        vk.create_image.0,
+                        dev,
+                        (&raw const info).cast(),
+                        null(),
+                        &mut image.image,
+                    ),
+                )?;
+                raw::engine_vk_get_image_memory_requirements(
+                    vk.image_memory_requirements.0,
+                    dev,
+                    low(image.image),
+                    high(image.image),
+                    (&raw mut needs).cast(),
+                );
             }
             image.bytes = needs.size;
-            image.memory_type = device.device_local(needs.memory_types).ok_or(Failure::Device("a GPU memory type", needs.memory_types))?;
-            let dedicated = DedicatedAllocateInfo { s_type: STRUCTURE_MEMORY_DEDICATED_ALLOCATE_INFO, next: null(), image: image.image, buffer: 0 };
-            let export = HandleTypes { s_type: STRUCTURE_EXPORT_MEMORY_ALLOCATE_INFO, next: (&raw const dedicated).cast(), handle_types: OPAQUE_WIN32 };
-            let allocate = MemoryAllocateInfo { s_type: STRUCTURE_MEMORY_ALLOCATE_INFO, next: (&raw const export).cast(), size: needs.size,
-                                                memory_type: image.memory_type };
-            let ask = |memory| HandleInfo { s_type: STRUCTURE_MEMORY_GET_WIN32_HANDLE_INFO, next: null(), object: memory, handle_type: OPAQUE_WIN32 };
+            image.memory_type = device
+                .device_local(needs.memory_types)
+                .ok_or(Failure::Device("a GPU memory type", needs.memory_types))?;
+            let dedicated = DedicatedAllocateInfo {
+                s_type: STRUCTURE_MEMORY_DEDICATED_ALLOCATE_INFO,
+                next: null(),
+                image: image.image,
+                buffer: 0,
+            };
+            let export = HandleTypes {
+                s_type: STRUCTURE_EXPORT_MEMORY_ALLOCATE_INFO,
+                next: (&raw const dedicated).cast(),
+                handle_types: OPAQUE_WIN32,
+            };
+            let allocate = MemoryAllocateInfo {
+                s_type: STRUCTURE_MEMORY_ALLOCATE_INFO,
+                next: (&raw const export).cast(),
+                size: needs.size,
+                memory_type: image.memory_type,
+            };
+            let ask = |memory| HandleInfo {
+                s_type: STRUCTURE_MEMORY_GET_WIN32_HANDLE_INFO,
+                next: null(),
+                object: memory,
+                handle_type: OPAQUE_WIN32,
+            };
             let mut handle = null_mut();
             // SAFETY: the image's own exportable memory allocated and bound,
             // and its NT handle asked for, on DXVK's device.
             unsafe {
-                check("vkAllocateMemory", raw::engine_vk_allocate_memory(vk.allocate_memory.0, dev, (&raw const allocate).cast(), null(), &mut image.memory))?;
-                check("vkBindImageMemory",
-                      raw::engine_vk_bind_image_memory(vk.bind_image_memory.0, dev, low(image.image), high(image.image), low(image.memory),
-                                                       high(image.memory), 0, 0))?;
+                check(
+                    "vkAllocateMemory",
+                    raw::engine_vk_allocate_memory(
+                        vk.allocate_memory.0,
+                        dev,
+                        (&raw const allocate).cast(),
+                        null(),
+                        &mut image.memory,
+                    ),
+                )?;
+                check(
+                    "vkBindImageMemory",
+                    raw::engine_vk_bind_image_memory(
+                        vk.bind_image_memory.0,
+                        dev,
+                        low(image.image),
+                        high(image.image),
+                        low(image.memory),
+                        high(image.memory),
+                        0,
+                        0,
+                    ),
+                )?;
                 let ask = ask(image.memory);
-                check("vkGetMemoryWin32HandleKHR", raw::engine_vk_get_memory_win32_handle(vk.memory_handle.0, dev, (&raw const ask).cast(), &mut handle))?;
+                check(
+                    "vkGetMemoryWin32HandleKHR",
+                    raw::engine_vk_get_memory_win32_handle(
+                        vk.memory_handle.0,
+                        dev,
+                        (&raw const ask).cast(),
+                        &mut handle,
+                    ),
+                )?;
             }
             let handle = NonNull::new(handle).map(Handle).ok_or(Failure::Device("vkGetMemoryWin32HandleKHR", 0))?;
-            *message = SharedImageMsg { handle: helper.give(handle)?, alloc_size: image.bytes, memory_type: image.memory_type, format: image.format,
-                                        width: image.size.width, height: image.size.height, usage: image.usage, pad: 0 };
+            *message = SharedImageMsg {
+                handle: helper.give(handle)?,
+                alloc_size: image.bytes,
+                memory_type: image.memory_type,
+                format: image.format,
+                width: image.size.width,
+                height: image.size.height,
+                usage: image.usage,
+                pad: 0,
+            };
         }
-        let export = HandleTypes { s_type: STRUCTURE_EXPORT_SEMAPHORE_CREATE_INFO, next: null(), handle_types: OPAQUE_WIN32 };
+        let export =
+            HandleTypes { s_type: STRUCTURE_EXPORT_SEMAPHORE_CREATE_INFO, next: null(), handle_types: OPAQUE_WIN32 };
         // a timeline semaphore (type 1) from 0
-        let timeline = SemaphoreTypeCreateInfo { s_type: STRUCTURE_SEMAPHORE_TYPE_CREATE_INFO, next: (&raw const export).cast(), semaphore_type: 1,
-                                                 pad: 0, initial_value: 0 };
-        let semaphore = SemaphoreCreateInfo { s_type: STRUCTURE_SEMAPHORE_CREATE_INFO, next: (&raw const timeline).cast(), flags: 0 };
+        let timeline = SemaphoreTypeCreateInfo {
+            s_type: STRUCTURE_SEMAPHORE_TYPE_CREATE_INFO,
+            next: (&raw const export).cast(),
+            semaphore_type: 1,
+            pad: 0,
+            initial_value: 0,
+        };
+        let semaphore = SemaphoreCreateInfo {
+            s_type: STRUCTURE_SEMAPHORE_CREATE_INFO,
+            next: (&raw const timeline).cast(),
+            flags: 0,
+        };
         // command buffers that are recorded again (RESET_COMMAND_BUFFER), of DXVK's queue family
-        let pool = CommandPoolCreateInfo { s_type: STRUCTURE_COMMAND_POOL_CREATE_INFO, next: null(), flags: 2, family: device.family };
+        let pool = CommandPoolCreateInfo {
+            s_type: STRUCTURE_COMMAND_POOL_CREATE_INFO,
+            next: null(),
+            flags: 2,
+            family: device.family,
+        };
         let mut handle = null_mut();
         // SAFETY: the exportable timeline semaphore, its NT handle, the
         // command pool and its primary command buffers, on DXVK's device.
         unsafe {
-            check("vkCreateSemaphore", raw::engine_vk_create_semaphore(vk.create_semaphore.0, dev, (&raw const semaphore).cast(), null(), &mut self.timeline))?;
-            let ask = HandleInfo { s_type: STRUCTURE_SEMAPHORE_GET_WIN32_HANDLE_INFO, next: null(), object: self.timeline, handle_type: OPAQUE_WIN32 };
-            check("vkGetSemaphoreWin32HandleKHR",
-                  raw::engine_vk_get_semaphore_win32_handle(vk.semaphore_handle.0, dev, (&raw const ask).cast(), &mut handle))?;
-            check("vkCreateCommandPool", raw::engine_vk_create_command_pool(vk.create_command_pool.0, dev, (&raw const pool).cast(), null(), &mut self.pool))?;
-            let buffers = CommandBufferAllocateInfo { s_type: STRUCTURE_COMMAND_BUFFER_ALLOCATE_INFO, next: null(), pool: self.pool, level: 0,
-                                                      count: 2 * SLOTS as u32 };
-            check("vkAllocateCommandBuffers",
-                  raw::engine_vk_allocate_command_buffers(vk.allocate_command_buffers.0, dev, (&raw const buffers).cast(), self.buffers.as_mut_ptr()))?;
+            check(
+                "vkCreateSemaphore",
+                raw::engine_vk_create_semaphore(
+                    vk.create_semaphore.0,
+                    dev,
+                    (&raw const semaphore).cast(),
+                    null(),
+                    &mut self.timeline,
+                ),
+            )?;
+            let ask = HandleInfo {
+                s_type: STRUCTURE_SEMAPHORE_GET_WIN32_HANDLE_INFO,
+                next: null(),
+                object: self.timeline,
+                handle_type: OPAQUE_WIN32,
+            };
+            check(
+                "vkGetSemaphoreWin32HandleKHR",
+                raw::engine_vk_get_semaphore_win32_handle(
+                    vk.semaphore_handle.0,
+                    dev,
+                    (&raw const ask).cast(),
+                    &mut handle,
+                ),
+            )?;
+            check(
+                "vkCreateCommandPool",
+                raw::engine_vk_create_command_pool(
+                    vk.create_command_pool.0,
+                    dev,
+                    (&raw const pool).cast(),
+                    null(),
+                    &mut self.pool,
+                ),
+            )?;
+            let buffers = CommandBufferAllocateInfo {
+                s_type: STRUCTURE_COMMAND_BUFFER_ALLOCATE_INFO,
+                next: null(),
+                pool: self.pool,
+                level: 0,
+                count: 2 * SLOTS as u32,
+            };
+            check(
+                "vkAllocateCommandBuffers",
+                raw::engine_vk_allocate_command_buffers(
+                    vk.allocate_command_buffers.0,
+                    dev,
+                    (&raw const buffers).cast(),
+                    self.buffers.as_mut_ptr(),
+                ),
+            )?;
         }
         let handle = NonNull::new(handle).map(Handle).ok_or(Failure::Device("vkGetSemaphoreWin32HandleKHR", 0))?;
         setup.semaphore = helper.give(handle)?;
@@ -1360,30 +1627,50 @@ impl Shared {
     /// wait without one is left by the driver for DXVK's next submit, which
     /// nothing of ours could then wait out. The wait is told to the watch.
     /// The frame's two command buffers must be free ([`Frame::buffers_free`]).
-    pub fn submit(&self, thread: &Thread, device: &Device, helper: &Helper, back: &BackBuffer, frame: Frame) -> Result<(), Failure> {
+    pub fn submit(
+        &self,
+        thread: &Thread,
+        device: &Device,
+        helper: &Helper,
+        back: &BackBuffer,
+        frame: Frame,
+    ) -> Result<(), Failure> {
         let first = frame.0 == 0;
         helper
-            .write(&FrameMsg { frame: frame.0, wait_value: frame.copied(), signal_value: frame.upscaled(), jitter_x: 0.0, jitter_y: 0.0,
-                               mv_scale_x: 1.0, mv_scale_y: 1.0, reset: u32::from(first), quit: 0 })
+            .write(&FrameMsg {
+                frame: frame.0,
+                wait_value: frame.copied(),
+                signal_value: frame.upscaled(),
+                jitter_x: 0.0,
+                jitter_y: 0.0,
+                mv_scale_x: 1.0,
+                mv_scale_y: 1.0,
+                reset: u32::from(first),
+                quit: 0,
+            })
             .map_err(|error| Failure::Pipe("a frame", error))?;
         let vk = &device.vulkan;
         let buffer = self.buffers[(frame.0 % SLOTS) as usize];
         let waiter = self.buffers[(SLOTS + frame.0 % SLOTS) as usize];
-        let barrier = |image: u64, aspect, source_access, destination_access, old_layout, new_layout, families: (u32, u32)| ImageBarrier {
-            s_type: STRUCTURE_IMAGE_MEMORY_BARRIER,
-            next: null(),
-            source_access,
-            destination_access,
-            old_layout,
-            new_layout,
-            source_family: families.0,
-            destination_family: families.1,
-            image,
-            range: Range::of(aspect),
-        };
+        let barrier =
+            |image: u64, aspect, source_access, destination_access, old_layout, new_layout, families: (u32, u32)| {
+                ImageBarrier {
+                    s_type: STRUCTURE_IMAGE_MEMORY_BARRIER,
+                    next: null(),
+                    source_access,
+                    destination_access,
+                    old_layout,
+                    new_layout,
+                    source_family: families.0,
+                    destination_family: families.1,
+                    image,
+                    range: Range::of(aspect),
+                }
+            };
         let stay = (FAMILY_IGNORED, FAMILY_IGNORED);
         // the helper had them since the last frame; the first frame nobody had them
-        let (taken, from) = if first { (stay, LAYOUT_UNDEFINED) } else { ((FAMILY_EXTERNAL, device.family), LAYOUT_GENERAL) };
+        let (taken, from) =
+            if first { (stay, LAYOUT_UNDEFINED) } else { ((FAMILY_EXTERNAL, device.family), LAYOUT_GENERAL) };
         let given = (device.family, FAMILY_EXTERNAL);
         let input = |i: usize| self.images[i];
         let before = [
@@ -1404,9 +1691,19 @@ impl Shared {
         let count = if first { 5 } else { 4 };
         let layers = Layers { aspect: ASPECT_COLOR, mip: 0, base_layer: 0, layers: 1 };
         let corner = |size: Size| [[0, 0, 0], [size.width as i32, size.height as i32, 1]];
-        let blit = Blit { source: layers, source_box: corner(back.size), destination: layers, destination_box: corner(input(COLOR).size) };
+        let blit = Blit {
+            source: layers,
+            source_box: corner(back.size),
+            destination: layers,
+            destination_box: corner(input(COLOR).size),
+        };
         // recorded once, executed once (ONE_TIME_SUBMIT)
-        let begin = CommandBufferBeginInfo { s_type: STRUCTURE_COMMAND_BUFFER_BEGIN_INFO, next: null(), flags: 1, inheritance: null() };
+        let begin = CommandBufferBeginInfo {
+            s_type: STRUCTURE_COMMAND_BUFFER_BEGIN_INFO,
+            next: null(),
+            flags: 1,
+            inheritance: null(),
+        };
         // SAFETY: DXVK's rendering commands of the frame submitted first
         // (FlushRenderingCommands, on the thread of the immediate context),
         // then our command buffer recorded: it is free (the caller's word),
@@ -1414,49 +1711,142 @@ impl Shared {
         // image back in the layout DXVK keeps it in.
         unsafe {
             raw::engine_interop_flush(Some(device.interop));
-            check("vkBeginCommandBuffer", raw::engine_vk_begin_command_buffer(vk.begin.0, buffer, (&raw const begin).cast()))?;
-            raw::engine_vk_cmd_pipeline_barrier(vk.barrier.0, buffer, STAGE_ALL_COMMANDS, STAGE_TRANSFER, 0, 0, null(), 0, null(), count,
-                                                before.as_ptr().cast());
+            check(
+                "vkBeginCommandBuffer",
+                raw::engine_vk_begin_command_buffer(vk.begin.0, buffer, (&raw const begin).cast()),
+            )?;
+            raw::engine_vk_cmd_pipeline_barrier(
+                vk.barrier.0,
+                buffer,
+                STAGE_ALL_COMMANDS,
+                STAGE_TRANSFER,
+                0,
+                0,
+                null(),
+                0,
+                null(),
+                count,
+                before.as_ptr().cast(),
+            );
             // linear (1): the whole frame into the render size
-            raw::engine_vk_cmd_blit_image(vk.blit.0, buffer, low(back.image), high(back.image), LAYOUT_TRANSFER_SRC, low(input(COLOR).image),
-                                          high(input(COLOR).image), LAYOUT_GENERAL, 1, (&raw const blit).cast(), 1);
+            raw::engine_vk_cmd_blit_image(
+                vk.blit.0,
+                buffer,
+                low(back.image),
+                high(back.image),
+                LAYOUT_TRANSFER_SRC,
+                low(input(COLOR).image),
+                high(input(COLOR).image),
+                LAYOUT_GENERAL,
+                1,
+                (&raw const blit).cast(),
+                1,
+            );
             if first {
                 let far = [1.0f32.to_bits(), 0];
                 let still = [0u32; 4];
                 let (depth, motion) = (Range::of(ASPECT_DEPTH), Range::of(ASPECT_COLOR));
-                raw::engine_vk_cmd_clear_depth_stencil_image(vk.clear_depth.0, buffer, low(input(DEPTH).image), high(input(DEPTH).image),
-                                                             LAYOUT_GENERAL, far.as_ptr().cast(), 1, (&raw const depth).cast());
-                raw::engine_vk_cmd_clear_color_image(vk.clear_color.0, buffer, low(input(MOTION).image), high(input(MOTION).image),
-                                                     LAYOUT_GENERAL, still.as_ptr().cast(), 1, (&raw const motion).cast());
+                raw::engine_vk_cmd_clear_depth_stencil_image(
+                    vk.clear_depth.0,
+                    buffer,
+                    low(input(DEPTH).image),
+                    high(input(DEPTH).image),
+                    LAYOUT_GENERAL,
+                    far.as_ptr().cast(),
+                    1,
+                    (&raw const depth).cast(),
+                );
+                raw::engine_vk_cmd_clear_color_image(
+                    vk.clear_color.0,
+                    buffer,
+                    low(input(MOTION).image),
+                    high(input(MOTION).image),
+                    LAYOUT_GENERAL,
+                    still.as_ptr().cast(),
+                    1,
+                    (&raw const motion).cast(),
+                );
             }
-            raw::engine_vk_cmd_pipeline_barrier(vk.barrier.0, buffer, STAGE_TRANSFER, STAGE_ALL_COMMANDS, 0, 0, null(), 0, null(), count,
-                                                after.as_ptr().cast());
+            raw::engine_vk_cmd_pipeline_barrier(
+                vk.barrier.0,
+                buffer,
+                STAGE_TRANSFER,
+                STAGE_ALL_COMMANDS,
+                0,
+                0,
+                null(),
+                0,
+                null(),
+                count,
+                after.as_ptr().cast(),
+            );
             check("vkEndCommandBuffer", raw::engine_vk_end_command_buffer(vk.end.0, buffer))?;
-            check("vkBeginCommandBuffer", raw::engine_vk_begin_command_buffer(vk.begin.0, waiter, (&raw const begin).cast()))?;
+            check(
+                "vkBeginCommandBuffer",
+                raw::engine_vk_begin_command_buffer(vk.begin.0, waiter, (&raw const begin).cast()),
+            )?;
             check("vkEndCommandBuffer", raw::engine_vk_end_command_buffer(vk.end.0, waiter))?;
         }
-        let (copied, upscaled, timeline, stage) = ([frame.copied()], [frame.upscaled()], [self.timeline], [STAGE_ALL_COMMANDS]);
-        let signals = TimelineSubmitInfo { s_type: STRUCTURE_TIMELINE_SEMAPHORE_SUBMIT_INFO, next: null(), wait_count: 0, waits: null(),
-                                           signal_count: 1, signals: copied.as_ptr() };
-        let waits = TimelineSubmitInfo { s_type: STRUCTURE_TIMELINE_SEMAPHORE_SUBMIT_INFO, next: null(), wait_count: 1, waits: upscaled.as_ptr(),
-                                         signal_count: 0, signals: null() };
+        let (copied, upscaled, timeline, stage) =
+            ([frame.copied()], [frame.upscaled()], [self.timeline], [STAGE_ALL_COMMANDS]);
+        let signals = TimelineSubmitInfo {
+            s_type: STRUCTURE_TIMELINE_SEMAPHORE_SUBMIT_INFO,
+            next: null(),
+            wait_count: 0,
+            waits: null(),
+            signal_count: 1,
+            signals: copied.as_ptr(),
+        };
+        let waits = TimelineSubmitInfo {
+            s_type: STRUCTURE_TIMELINE_SEMAPHORE_SUBMIT_INFO,
+            next: null(),
+            wait_count: 1,
+            waits: upscaled.as_ptr(),
+            signal_count: 0,
+            signals: null(),
+        };
         let submits = [
             // the copy-in, which signals the frame's inputs
-            SubmitInfo { s_type: STRUCTURE_SUBMIT_INFO, next: (&raw const signals).cast(), wait_count: 0, waits: null(), wait_stages: null(),
-                         buffer_count: 1, buffers: &buffer, signal_count: 1, signals: timeline.as_ptr() },
+            SubmitInfo {
+                s_type: STRUCTURE_SUBMIT_INFO,
+                next: (&raw const signals).cast(),
+                wait_count: 0,
+                waits: null(),
+                wait_stages: null(),
+                buffer_count: 1,
+                buffers: &buffer,
+                signal_count: 1,
+                signals: timeline.as_ptr(),
+            },
             // after the helper's output: nothing of ours yet, and DXVK's later commands wait for it
-            SubmitInfo { s_type: STRUCTURE_SUBMIT_INFO, next: (&raw const waits).cast(), wait_count: 1, waits: timeline.as_ptr(),
-                         wait_stages: stage.as_ptr(), buffer_count: 1, buffers: &waiter, signal_count: 0, signals: null() },
+            SubmitInfo {
+                s_type: STRUCTURE_SUBMIT_INFO,
+                next: (&raw const waits).cast(),
+                wait_count: 1,
+                waits: timeline.as_ptr(),
+                wait_stages: stage.as_ptr(),
+                buffer_count: 1,
+                buffers: &waiter,
+                signal_count: 0,
+                signals: null(),
+            },
         ];
         // told before it is queued: the watch never misses a wait that is on the queue
         WATCH.with(thread, |watch| {
-            *watch = Some(Watch { device: device.device, signal: vk.signal, counter: vk.counter, timeline: self.timeline, queued: frame.upscaled() })
+            *watch = Some(Watch {
+                device: device.device,
+                signal: vk.signal,
+                counter: vk.counter,
+                timeline: self.timeline,
+                queued: frame.upscaled(),
+            })
         });
         // SAFETY: vkQueueSubmit on DXVK's queue while DXVK's submission
         // thread is locked out of it (Lock/ReleaseSubmissionQueue).
         let submitted = unsafe {
             raw::engine_interop_lock_queue(Some(device.interop));
-            let submitted = raw::engine_vk_queue_submit(vk.submit.0, device.queue.as_ptr(), 2, submits.as_ptr().cast(), 0, 0);
+            let submitted =
+                raw::engine_vk_queue_submit(vk.submit.0, device.queue.as_ptr(), 2, submits.as_ptr().cast(), 0, 0);
             raw::engine_interop_release_queue(Some(device.interop));
             submitted
         };
@@ -1489,8 +1879,20 @@ impl Shared {
         // SAFETY: each object is this device's, made here, used no more;
         // the pool takes its command buffers with it.
         unsafe {
-            raw::engine_vk_destroy_command_pool(vk.destroy_command_pool.0, dev, low(self.pool), high(self.pool), null());
-            raw::engine_vk_destroy_semaphore(vk.destroy_semaphore.0, dev, low(self.timeline), high(self.timeline), null());
+            raw::engine_vk_destroy_command_pool(
+                vk.destroy_command_pool.0,
+                dev,
+                low(self.pool),
+                high(self.pool),
+                null(),
+            );
+            raw::engine_vk_destroy_semaphore(
+                vk.destroy_semaphore.0,
+                dev,
+                low(self.timeline),
+                high(self.timeline),
+                null(),
+            );
             for image in self.images {
                 raw::engine_vk_destroy_image(vk.destroy_image.0, dev, low(image.image), high(image.image), null());
                 raw::engine_vk_free_memory(vk.free_memory.0, dev, low(image.memory), high(image.memory), null());
@@ -1524,7 +1926,13 @@ impl Watch {
         let mut value = 0;
         // SAFETY: vkGetSemaphoreCounterValue on the live timeline (the lock).
         let got = unsafe {
-            raw::engine_vk_get_semaphore_counter_value(self.counter.0, self.device.as_ptr(), low(self.timeline), high(self.timeline), &mut value)
+            raw::engine_vk_get_semaphore_counter_value(
+                self.counter.0,
+                self.device.as_ptr(),
+                low(self.timeline),
+                high(self.timeline),
+                &mut value,
+            )
         };
         (got == 0).then_some(value)
     }
@@ -1606,11 +2014,19 @@ pub fn release(thread: &Thread) -> Option<u64> {
             let Some(reached) = watch.reached() else { return Play::Done };
             let play = Play::at((reached < watch.queued).then_some(Behind { queued: watch.queued, reached }), waited);
             if let Play::Signal(value) = play {
-                let info = SemaphoreSignalInfo { s_type: STRUCTURE_SEMAPHORE_SIGNAL_INFO, next: null(), semaphore: watch.timeline, value };
+                let info = SemaphoreSignalInfo {
+                    s_type: STRUCTURE_SEMAPHORE_SIGNAL_INFO,
+                    next: null(),
+                    semaphore: watch.timeline,
+                    value,
+                };
                 // SAFETY: vkSignalSemaphore on the live timeline (the lock), to
                 // the value after its own; the helper, the only other
                 // signaller of that value, is gone.
-                if unsafe { raw::engine_vk_signal_semaphore(watch.signal.0, watch.device.as_ptr(), (&raw const info).cast()) } != 0 {
+                if unsafe {
+                    raw::engine_vk_signal_semaphore(watch.signal.0, watch.device.as_ptr(), (&raw const info).cast())
+                } != 0
+                {
                     return Play::Done;
                 }
             }
@@ -1659,7 +2075,9 @@ mod tests {
         }
         // frame 4 takes frame 0's pair: free once frame 1's copy (value 3) is done, past frame 0's wait (2)
         assert!(!Frame(SLOTS).buffers_free(2) && Frame(SLOTS).buffers_free(3));
-        assert!(!Frame(SLOTS + 3).buffers_free(Frame(4).copied() - 1) && Frame(SLOTS + 3).buffers_free(Frame(4).copied()));
+        assert!(
+            !Frame(SLOTS + 3).buffers_free(Frame(4).copied() - 1) && Frame(SLOTS + 3).buffers_free(Frame(4).copied())
+        );
     }
 
     #[test]
