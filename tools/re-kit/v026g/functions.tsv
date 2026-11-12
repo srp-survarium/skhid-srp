@@ -2374,3 +2374,8 @@ va	status	ref_021d	name
 0x0007f7f0	observed		vostok::physics::bullet_character_controller::serialize
 0x0009b260	reviewed		btDiscreteDynamicsWorld::stepSimulation
 0x0009b810	reviewed		btDiscreteDynamicsWorld::updateActions
+0x000a58f0	reviewed		btDbvt::collideTV
+0x0008a130	reviewed		btAlignedAllocDefault
+0x0008a170	reviewed		btAlignedFreeDefault
+0x000a8380	reviewed		btBvhTriangleMeshShape::performConvexcast
+0x00087b60	reviewed	0x002232a0	vostok::physics::character_controller_jump_tester::convex_sweep_test

@@ -6292,3 +6292,16 @@ va	name	location	role	basis
 0x0009b810	btDiscreteDynamicsWorld::updateActions	entry ESP+4	float timeStep (the whole step's)	observed
 0x002d1e20	survarium::game_world_core::atomic_tick	EDI	the match time the step ends at, ms (traced: 1,995 ticks)	observed
 0x002d1e20	survarium::game_world_core::atomic_tick	entry ESP+8	the step's length, ms: 50 for a whole grid step, less for a part	observed
+0x000a58f0	btDbvt::collideTV	entry ESP+4	the root node (const btDbvtNode*)	observed
+0x000a58f0	btDbvt::collideTV	entry ESP+8	the callback's data: {the query's arguments*, the compound shape*} at 0xA29A0..0xA29A7	observed
+0x000a58f0	btDbvt::collideTV	EAX	the box to test (btDbvtVolume*: min, max)	observed
+0x0008a130	btAlignedAllocDefault	entry ESP+4	size	observed
+0x0008a130	btAlignedAllocDefault	entry ESP+8	alignment	observed
+0x0008a170	btAlignedFreeDefault	entry ESP+4	the block	observed
+0x000a8380	btBvhTriangleMeshShape::performConvexcast	entry ESP+4	the mesh shape (an object's own, or a compound's child)	observed
+0x000a8380	btBvhTriangleMeshShape::performConvexcast	entry ESP+8	the triangle callback (BridgeTriangleConvexcastCallback, vtable 0x9E4820)	observed
+0x000a8380	btBvhTriangleMeshShape::performConvexcast	entry ESP+12	the cast's start in the mesh's frame (btVector3*)	observed
+0x000a8380	btBvhTriangleMeshShape::performConvexcast	EAX	the cast's end in the mesh's frame (btVector3*)	observed
+0x000a8380	btBvhTriangleMeshShape::performConvexcast	ESI	the cast shape's box min (btVector3*)	observed
+0x000a8380	btBvhTriangleMeshShape::performConvexcast	EDX	the cast shape's box max (btVector3*)	observed
+0x00087b60	vostok::physics::character_controller_jump_tester::convex_sweep_test	ESI	the tester (inside the controller): +5058h the cast shape, +5060h the btCollisionWorld it sweeps (0x87C44, 0x87C4F)	observed
