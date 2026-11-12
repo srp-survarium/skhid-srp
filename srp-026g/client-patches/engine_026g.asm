@@ -2531,7 +2531,7 @@ engine_query_usables:
 
     align 16, db 0xCC
 engine_can_use:
-    ; virtual survarium::usable_object+0x30 (10 vtables of vtables.tsv: 0x2f8080, 0x300710, 0x305070, 0x31c6b0, 0x31cb10): usable ECX, user ESP+4; pops 4; AL
+    ; virtual survarium::usable_object+0x30 (11 vtables of vtables.tsv: 0x2f8080, 0x300710, 0x305070, 0x31c6b0, 0x31cb10): usable ECX, user ESP+4; pops 4; AL
     push ebp
     push ebx
     push esi

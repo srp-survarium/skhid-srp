@@ -37,7 +37,10 @@ render instance (one reference more each), the surface's index, the scale
 (`data/camo_scale`, else 4.0), 1 at +79Ch, 0 at +7A0h and the name
 `srpw1_` and 16 hex digits the Rust patch weapon_camo writes (its entry
 weapon_camo.bake_name: the FNV-1a 64 of the model, the surface, the scale
-and the layers), whatever the camouflage's and model's length; after each
+and the layers that have a texture), whatever the camouflage's and model's
+length, and the same name from a P allocated with other bytes in it (the
+game's allocator zeroes nothing, and no one writes the matrix of a layer
+with no decal); after each
 callback the reference given back and the P deallocated from the game's
 allocator. Without one of them: no query, no allocation and no lookup of a
 key a table does not have. The original asks for nothing.
@@ -87,15 +90,24 @@ BAKE_FRESNEL_SKIP = 0x12E0EA                   # je 0x12E25A: the fresnel bake h
 BAKE_PARAMETERS_SIZE = 0x8BC
 SUFFIXES = (b"_camo", b"_camo_nmap", b"_camo_fmap", b"_camo_smap")
 MODEL = "weapons/uzi"
+# What the made-up allocator leaves in a block it gives (the game's zeroes
+# nothing): a run takes one; the names must not tell them apart.
+FILLS = (b"\xCD", bytes(range(1, 252)))
+IDENTITY = struct.pack("<16f", *(float(r == c) for r in range(4) for c in range(4)))
 
 
 def baked_name(model, surface, scale, layers):
     """The baked files' name the Rust patch weapon_camo writes (BakedName):
     srpw1_ and the FNV-1a 64 of the model's path, the surface, the scale and
-    each layer's matrix and four texture names (`layers`: (64 bytes, names))."""
+    each layer (`layers`): a word 0 for one with no texture (None), else a
+    word 1, its matrix and its four texture names ((64 bytes, names))."""
     data = b"srpw1_" + model.encode() + b"\0" + struct.pack("<If", surface, scale)
-    for matrix, names in layers:
-        data += matrix + b"".join(name.encode() + b"\0" for name in names)
+    for layer in layers:
+        if layer is None:
+            data += struct.pack("<I", 0)
+            continue
+        matrix, names = layer
+        data += struct.pack("<I", 1) + matrix + b"".join(name.encode() + b"\0" for name in names)
     h = 0xCBF29CE484222325
     for byte in data:
         h = ((h ^ byte) * 0x100000001B3) & 0xFFFFFFFFFFFFFFFF
@@ -130,6 +142,7 @@ class Run:
         self.nodes = {}                  # table node -> {key: child record}
         self.calls, self.error = [], None
         self.surfaces = 0
+        self.fill = FILLS[0]             # what an allocated block holds
 
     def word(self, at, value):
         self.emu.mem_write(at, struct.pack("<I", value & 0xFFFFFFFF))
@@ -217,7 +230,7 @@ class Run:
             return self.ret(sp, taken)
         if name == "allocate":
             size, allocator, where = reg(UC_X86_REG_EAX), reg(UC_X86_REG_ESI), arg(0)
-            block = self.alloc(b"\xCD" * size)
+            block = self.alloc((self.fill * (size // len(self.fill) + 1))[:size])
             self.calls.append((name, size, allocator, where, block))
             return self.ret(sp, taken, block)
         if name == "appendf":
@@ -255,7 +268,8 @@ class Run:
 
     def layers(self, p):
         """P's three layers (two decals', the camouflage's): each its matrix's
-        64 bytes and its four texture names."""
+        64 bytes and its four texture names; None for a layer with no
+        texture, whose matrix no one wrote (not read here either)."""
         out = []
         for i in range(3):
             at = p + 0x270 * i
@@ -263,7 +277,7 @@ class Run:
             for field in (0x40, 0xCC, 0x158, 0x1E4):
                 begin, end, cap = self.string(at + field)
                 names.append(bytes(self.emu.mem_read(begin, end - begin)).decode())
-            out.append((bytes(self.emu.mem_read(at, 64)), names))
+            out.append((bytes(self.emu.mem_read(at, 64)), names) if any(names) else None)
         return out
 
     def parameters(self, p):
@@ -465,7 +479,8 @@ def main():
                 and run.section_name(bake_done) == ".srpw",
                 f"{title} #{i}: the function: bind's manager | 1, bake_done in .srpw, 0, P")
             say(names == {"diffuse": camo, "normal": "", "fresnel": "", "smoothness": camo + "_smap",
-                          "name": baked_name(model_path, i, scale, layers)},
+                          "name": baked_name(model_path, i, scale,
+                                             [None, None, (IDENTITY, [camo, "", "", camo + "_smap"])])},
                 f"{title} #{i}: the names {names}")
             say(matrix == identity, f"{title} #{i}: the camouflage's matrix is the identity")
             say(p_model == render and surface == i and abs(p_scale - scale) < 1e-6 and one == 1 and editor == 0,
@@ -477,6 +492,12 @@ def main():
             say(invoker == INVOKER and done == [("deallocate", q[8], ALLOCATOR, q[8])],
                 f"{title} #{i}: the callback deallocates P from the game's allocator")
         say(run.read(render + 0xD0) == 5, f"{title}: every reference given back")
+        again = Run(build)
+        again.surfaces, again.fill = surfaces, FILLS[1]
+        again.site(config(again, root), make_render(again, references=5)[0], dict(REGS))
+        named = lambda r: [c[9][0]["name"] for c in r.calls if c[0] == "query_resources"]
+        say(named(again) == named(run) and len(set(named(run))) == want,
+            f"{title}: the same names from blocks that held other bytes, one a surface: {named(again)}")
     say(original[BAKE_FRESNEL_SKIP - base.IMAGE_BASE - 0x1000 + 0x400:][:6] == bytes.fromhex("0f846a010000"),
         "the fresnel bake's `je 0x12E25A` (0x12E0EA): the place of a bake with no camouflage layer")
     weapon_bake = "srpw1_0123456789abcdef"      # a weapon's (BakedName), the baker tells it by its start

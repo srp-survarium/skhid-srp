@@ -2282,8 +2282,8 @@ pub extern "C" fn hook_free_for_all_on_select(frame: &mut Frame) -> u32 {
 /// follows, 2 upward).
 #[repr(u32)]
 #[allow(dead_code)]
-pub enum FreeForAllOnCanUseExit { Allowed }
-/// The entry `free_for_all_on_can_use` (0x2f8086, resupply_zone_core::can_use before the team test (mov edx,[eax+6B8h]); allowed takes EDX the player's profile) calls this with the saved machine.
+pub enum FreeForAllOnCanUseExit { Refused }
+/// The entry `free_for_all_on_can_use` (0x2f8086, resupply_zone_core::can_use before the team test (mov edx,[eax+6B8h]); refused is its own no (xor eax,eax / ret 4), which reads no register) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_free_for_all_on_can_use(frame: &mut Frame) -> u32 {
     // SAFETY: only the entry `free_for_all_on_can_use` calls this, from the game's jump at 0x2f8086,
@@ -2302,8 +2302,8 @@ pub extern "C" fn hook_free_for_all_on_can_use(frame: &mut Frame) -> u32 {
 /// follows, 2 upward).
 #[repr(u32)]
 #[allow(dead_code)]
-pub enum FreeForAllOnUseInfoExit { Allowed }
-/// The entry `free_for_all_on_use_info` (0x2f80c6, resupply_zone_core::use_info before the team test (mov edx,[eax+6B8h]); allowed takes EDX the player's profile) calls this with the saved machine.
+pub enum FreeForAllOnUseInfoExit { Refused }
+/// The entry `free_for_all_on_use_info` (0x2f80c6, resupply_zone_core::use_info before the team test (mov edx,[eax+6B8h]); refused is its own no hint (mov eax,9DB708h, the empty string / ret 4), which reads no register) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_free_for_all_on_use_info(frame: &mut Frame) -> u32 {
     // SAFETY: only the entry `free_for_all_on_use_info` calls this, from the game's jump at 0x2f80c6,

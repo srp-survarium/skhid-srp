@@ -1004,7 +1004,7 @@ The owner's request: the armour camouflages on the regular weapons, painted wher
 - **Why weapons stay plain** (PROVEN). Only three places make a camouflage_decal_cook_parameters (`type_to_int<P*>` 0x119590 has three producers): the profile's visual for the character's seven parts (0x204560: `parameters/camo_available` and `data/camouflage` of the part's merged config, then 0x129830 asks for a class-6Ch bake per flagged part), the lobby's decal editor (0x2641A0, one part of a model on screen, callback 0x2648E0) and skeleton_model_instance_cook's bake (0x1268C0), dead: the variant type it tests is never set. weapon_cook (0x24A920 → 0x24ACF0) queries `object/model` as class 10h with no user data and asks for no bake. The weapon's merged config (0x30A880 → 0x2F14C0) holds its upgrades as for armour.
 - **What a bake needs** (PROVEN). The baker (0x12D1D0) takes surface `[P+794h]` of `get_all_surfaces([P+790h])` (0x159700) and its gbuffer material's textures; the camouflage layer is P+520h/+5ACh/+6C4h (diffuse, `_nmap`, `_smap`; fresnel never), its scale P+798h (4.0, [0x9E4EB4]); the `<diffuse>_aoac` layer must load or the type is refused, silently (0x12E8E9). The baked files are `user_data/streamed_textures/<P+7A4h><d|n|f|s>.dds`. P+7A0h is 1 in the editor only.
 - **A camouflage's data** (PROVEN). The camouflage item's modification is a type-3 modifier at path `data` (`camouflage`, `<texture>`); 0x2F1430 finds the path in the host config or drops the modifier: a weapon config needs a `data` table (the data patch adds one).
-- **The patch** (`WEAPON_CAMO_HOOK`, `weapon_camo_026g.asm` in `.srpw` at 0xA42A000, 739 bytes since patch 47, which looks up and fills what is painted: section 3.44): at 0x24B0D2 (the model loaded, `[esp+20h]`, the merged config `[esp+3Ch]`) `call weapon_ready`, which asks for the editor's bake for each surface (at most 8) with the weapon's camouflage, `data/camo_scale` or 4.0, the name `srpw1_` and 16 hex digits that the Rust patch weapon_camo writes through `call [bake_name]` (entry `weapon_camo.bake_name`; the FNV-1a 64 of the model, surface, scale and layers; until 2026-11-12 `srpw1_<camouflage>_<object/model>_<surface>` and the decals' parts, too long for a Windows path under a long Documents folder: a player's crash), the game's allocator and no parent query; `bake_done` (through boost's bind invoker 0x127700, manager 0x9ED148) releases the render instance (0x11540) and frees P (0x1539D0), as 0x2648E0. Details: README patch 44.
+- **The patch** (`WEAPON_CAMO_HOOK`, `weapon_camo_026g.asm` in `.srpw` at 0xA42A000, 739 bytes since patch 47, which looks up and fills what is painted: section 3.44): at 0x24B0D2 (the model loaded, `[esp+20h]`, the merged config `[esp+3Ch]`) `call weapon_ready`, which asks for the editor's bake for each surface (at most 8) with the weapon's camouflage, `data/camo_scale` or 4.0, the name `srpw1_` and 16 hex digits that the Rust patch weapon_camo writes through `call [bake_name]` (entry `weapon_camo.bake_name`; the FNV-1a 64 of the model, surface, scale and the layers that have a texture (an empty layer's matrix is never written: not read); until 2026-11-12 `srpw1_<camouflage>_<object/model>_<surface>` and the decals' parts, too long for a Windows path under a long Documents folder: a player's crash), the game's allocator and no parent query; `bake_done` (through boost's bind invoker 0x127700, manager 0x9ED148) releases the render instance (0x11540) and frees P (0x1539D0), as 0x2648E0. Details: README patch 44.
 - **Checked:** selftest check 44; `check_weapon_camo_026g.py`. In a game (2026-10-20, local): an AK-12 and an Uzi with the City camouflage in slot 2 baked their three textures and showed them in the lobby. **Not seen:** a match, a replay; the cost of many bakes at a match's start.
 - **The camouflage's relief left out** (2026-11-11; the owner: "for weapons we use skins from equipment and it has this \"cloth\" pattern", "can it be removed?"; the rule: `weapon-camo.md`) — PROVEN in the code and the shader, the site run with Unicorn; not run in a game.
   - **Where the weave was** (PROVEN). Every camouflage has three textures (`<camo>`, `_nmap`, `_smap`); the `_nmap` is a cloth weave (a twill in the premium ones, whose colours are flat). The bake's shader (`bake_decal_composition.ps`, a permutation with `t_camouflage_normal`) adds it to the surface's normal as a detail and keeps it by the `_aoac` mask, when `camouflage_texture_use_flags.y` > 0; otherwise the surface's normal passes through.
@@ -3091,12 +3091,16 @@ equality.
   arithmetic, no fused multiply-add; read in the linked code), each rounded as IEEE 754 says
   under the thread's MXCSR, the one the game's own clear test runs with at the same place.
 - `resupply.can_use` 0x2F8086 and `resupply.use_info` 0x2F80C6 (`mov edx,[eax+6B8h]`, 6 bytes;
-  EAX the player): a player of team 2 or more exits to the allowed path (0x2F809C, 0x2F80E4) with
-  EDX his profile. Those two addresses are patch 85's sites `pickup.can_use` and `pickup.use_hint`
-  (`mov ecx,[eax+10Ch]`, 6 bytes, a jump to their entry in the built exe): the spans do not
-  overlap (0x2F8086..0x2F808C and 0x2F809C..0x2F80A2; 0x2F80C6..0x2F80CC and 0x2F80E4..0x2F80EA),
-  our exit lands on their first byte as the game's own `je` at 0x2F8095 / 0x2F80D5 does, and
-  their entry keeps EAX and EDX for the `push edx` after their span (0x2F80A8, 0x2F80F0).
+  EAX the player): no ammunition refill in a free-for-all (the owner, 2026-11-12). A player of his
+  own side (`respawn::Resupply::of`, his profile's team 2 or more) exits to the function's own
+  "no", which reads no register: can_use's `xor eax,eax / ret 4` (0x2F80BB), use_info's
+  `mov eax,9DB708h` (the empty string) `/ ret 4` (0x2F80DC). The game's team test alone would
+  serve him at a zone of team 2 and at one numbered as his side; the exit comes before it, so the
+  zone's team does not matter, and patch 85's sites after the test (`pickup.can_use` 0x2F809C,
+  `pickup.use_hint` 0x2F80E4) and the inventory test 0x2FDF50 are not reached. Both of
+  base_player's ways into a usable ask can_use first (0x2D85CE, 0x2D8917), so finish_use
+  (0x2F81A0, the client's 0x2954D0) never refills him. A player of team 0 or 1 goes on
+  to the replayed `mov edx,[eax+6B8h]`: the game's own test, unchanged.
 - **The kill target.** `static_info.options_read` and `replay.options_read` (after patches 65,
   86, 83 and 88 in the chains): srp's block after the options ("SRPX", then `{tag, len, bytes}`)
   holds tag 3, two bytes, `kills_to_win` (u16, never 0) in a free-for-all only. With it the
@@ -3145,12 +3149,14 @@ equality.
   rule objects; a match with one respawn rule and no rule of a mode is a free-for-all's
   (srp-validate's `mode::FREE_FOR_ALL`: no rule between the respawn points and the kd stats).
 
-Simulation: respawns and resupply are the world's, so every client of a match must run it; the
+Simulation: respawns and resupply are the world's, so every client of a match must run it (the
+side is the profile's team, from the match options every game of the match has); the
 hud's numbers and messages are the interface's. `check_free_for_all_026g.py` runs the hooks in
 the patched exe: the tick's batching span, the whole select_respawn_points with the game's own
 clear test, sqrt and push_back on made-up players and points (hand-made cases and 300 seeded
-random matches against the check's own model of the rule), both zone functions through patch
-85's hooks, the options' two reads, update_player_icons' start with made-up hud states,
+random matches against the check's own model of the rule), both zone functions (a free-for-all
+player refused at a zone of every team value, a team's player served as by the original exe),
+the options' two reads, update_player_icons' start with made-up hud states,
 initialize_match's start and update_ui's welcome for every mode, the original beside. Not run
 in a game.
 

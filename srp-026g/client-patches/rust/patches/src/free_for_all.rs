@@ -13,8 +13,9 @@
 //!   With no safe point, choose among the five best-separated points from
 //!   the nearest living or newly spawned player. No unsynchronized randomness or retained state:
 //!   clients, late joiners and replays choose from the same world's inputs.
-//! - **Resupply:** every ammo zone serves him (TDM's maps have a zone of each
-//!   team's).
+//! - **Resupply:** no ammo zone serves him (the owner, 2026-11-12: a
+//!   free-for-all has no ammunition refill): the use test says no and the
+//!   use hint is none, at a zone of any team.
 //! - **The kill target:** srp's block after the match's options holds tag 3,
 //!   `kills_to_win` (u16), in a free-for-all only. The hud movie is told
 //!   `root.set_ffa_progress(own, top, target)`: the kills of the place the
@@ -42,7 +43,7 @@ use crate::vostok::parse::Reader;
 use crate::vostok::types::Place;
 use crate::vostok::{
     respawn, Context, Due, Flow, FreeForAllOnCanUseExit, FreeForAllOnSelectExit, FreeForAllOnUseInfoExit, GameCell,
-    GameWorldUi, MatchClock, NoExit, OptionsRead, Point, RespawnSelect, ResupplySite, Side, Thread,
+    GameWorldUi, MatchClock, NoExit, OptionsRead, Point, RespawnSelect, Resupply, ResupplySite, Side, Thread,
     FreeForAllOnKillEventExit,
 };
 
@@ -206,21 +207,22 @@ pub fn on_select(ctx: &mut Context<'_>) -> Flow<FreeForAllOnSelectExit> {
     Flow::Exit(FreeForAllOnSelectExit::Done)
 }
 
-/// A resupply zone's use test: every zone serves a player of his own side.
+/// A resupply zone's use test: no zone serves a player of his own side (the
+/// game's own "no", before its test of the zone's team); a team's player is
+/// the game's to decide.
 pub fn on_can_use(ctx: &mut Context<'_>) -> Flow<FreeForAllOnCanUseExit> {
-    if respawn::serve_own_side(ctx, ResupplySite::CanUse) {
-        Flow::Exit(FreeForAllOnCanUseExit::Allowed)
-    } else {
-        Flow::Continue
+    match respawn::resupply_at(ctx, ResupplySite::CanUse) {
+        Resupply::Refused => Flow::Exit(FreeForAllOnCanUseExit::Refused),
+        Resupply::ZonesTeamTest => Flow::Continue,
     }
 }
 
-/// A resupply zone's use hint, as its use test.
+/// A resupply zone's use hint, as its use test: none for a player of his own
+/// side.
 pub fn on_use_info(ctx: &mut Context<'_>) -> Flow<FreeForAllOnUseInfoExit> {
-    if respawn::serve_own_side(ctx, ResupplySite::UseInfo) {
-        Flow::Exit(FreeForAllOnUseInfoExit::Allowed)
-    } else {
-        Flow::Continue
+    match respawn::resupply_at(ctx, ResupplySite::UseInfo) {
+        Resupply::Refused => Flow::Exit(FreeForAllOnUseInfoExit::Refused),
+        Resupply::ZonesTeamTest => Flow::Continue,
     }
 }
 

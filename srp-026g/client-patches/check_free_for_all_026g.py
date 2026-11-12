@@ -21,11 +21,13 @@ harness: Scaleform's Invoke 0x511600 a stub that records each call):
   300 seeded random ones against this file's own model of the rule. The
   callee-saved registers and the stack as the game's ret 18h leaves them. A
   vector of teams 0 and 1 takes the game's own path;
-- resupply_zone_core::can_use (0x2F8080) and use_hint (0x2F80C0): a zone
-  serves its own team, team 2's zone everyone, and every zone a player of
-  his own side: the hook leaves by the game's allowed path, which is patch
-  85's hooked site (0x2F809C, 0x2F80E4: the two compose), the profile pushed
-  to the inventory test (0x2FDF50) as the game's own path pushes it;
+- resupply_zone_core::can_use (0x2F8080) and use_hint (0x2F80C0): no
+  ammunition refill in a free-for-all (the owner, 2026-11-12): a player of
+  his own side is refused at a zone of every team value (0, 1, 2, 3, his own
+  side's number, another's, 0xFFFFFFFF), by the game's own "no" (0x2F80BB,
+  0x2F80DC) before its test of the team, the inventory test never reached;
+  a player of team 0 or 1 is served exactly as by the original exe (its
+  team's zone and team 2's), result, inventory test and path alike;
 - the options read (process_static_match_info 0x27B92D, a replay's chunk 1
   0x1F0971) with srp's block: tag 3, two bytes, is the kill target of a
   free-for-all; the hud movie is then told root.set_ffa_progress(own, top,
@@ -60,6 +62,7 @@ SELECT = 0x3171D0                              # thiscall (team, due, living, a,
 CAN_USE, USE_HINT = 0x2F8080, 0x2F80C0         # thiscall (&player); ret 4
 TEAM_TEST = {CAN_USE: 0x2F808F, USE_HINT: 0x2F80CF}    # the zone's own test of the team
 ALLOWED = {CAN_USE: 0x2F809C, USE_HINT: 0x2F80E4}      # its allowed path: patch 85's pickup sites
+REFUSED = {CAN_USE: 0x2F80BB, USE_HINT: 0x2F80DC}      # its own "no": xor eax,eax / mov eax,9DB708h; ret 4
 INVENTORY_TEST = 0x2FDF50                      # (inventory, profile) on the stack, AL the kit; pops 8, 0 = may
 NOT_HERE = 0x9DB708                            # use_hint's "no" string
 INITIALIZE, INITIALIZE_AFTER = 0x234880, 0x234886
@@ -106,7 +109,7 @@ class Run(blackout.Run):
         self.emu.hook_add(UC_HOOK_CODE, self.inventory_test, begin=INVENTORY_TEST, end=INVENTORY_TEST)
         self.emu.hook_add(UC_HOOK_CODE, self.show_message, begin=SHOW_MESSAGE, end=SHOW_MESSAGE)
         self.emu.hook_add(UC_HOOK_CODE, self.translate, begin=TRANSLATE, end=TRANSLATE)
-        for at in (*TEAM_TEST.values(), *ALLOWED.values()):
+        for at in (*TEAM_TEST.values(), *ALLOWED.values(), *REFUSED.values()):
             self.emu.hook_add(UC_HOOK_CODE, lambda emu, address, *_: self.passed.add(address), begin=at, end=at)
         self.word(HUD + 0x18, UI_WORLD)
         self.word(UI_WORLD + 0x9C, UI_GAME)
@@ -456,28 +459,38 @@ def main():
     assert r.select(line(0), [0, 2], [], 0, team=0) == []
     print('ok teams 0 and 1: the game\'s own selection (its group of team 0 empty here: nothing chosen)')
 
+    zone_teams = (0, 1, 2, 3, 4, 7, 13, 23, 0xFFFFFFFF)
     for function in (CAN_USE, USE_HINT):
         yes = 1 if function == CAN_USE else None
-        for zone_team, team, served in [(0, 0, True), (1, 0, False), (2, 0, True), (1, 1, True),
-                                        (0, 4, True), (1, 13, True), (2, 7, True)]:
-            for run in (r, stock):
-                if run is stock and team > 1:
-                    served = zone_team == 2
-                result, tested, passed = run.zone(function, zone_team, team)
+        # A team's player: served by his team's zone and team 2's, exactly as the original exe serves him.
+        for team in (0, 1):
+            for zone_team in zone_teams:
+                served = zone_team in (team, 2)
+                ours, theirs = r.zone(function, zone_team, team), stock.zone(function, zone_team, team)
+                assert ours == theirs, (hex(function), zone_team, team, ours, theirs)
+                result, tested, passed = ours
+                assert TEAM_TEST[function] in passed and REFUSED[function] not in passed or not served
                 if served:
                     assert tested == [(0, profile(0))], (zone_team, team, tested)
                     assert (result == 1) if yes else (result != NOT_HERE), (hex(function), zone_team, team, result)
                     assert ALLOWED[function] in passed
                 else:
                     assert tested == [] and result == (0 if yes else NOT_HERE), (zone_team, team, result)
-                # Our exit: the allowed path without the zone's own test of the team.
-                assert (TEAM_TEST[function] in passed) == (run is stock or team < 2), (zone_team, team, passed)
-    for site, allowed in ((0x2F8086, 0x2F809C), (0x2F80C6, 0x2F80E4)):
-        for at in (site, allowed):
-            jump = bytes(patched[hide.file_at(patched, at):][:5])
-            assert jump[0] == 0xE9 and at + 5 + struct.unpack("<i", jump[1:])[0] >= base.ARENA_VA, (hex(at), jump.hex())
-    print('ok a zone serves its team, team 2\'s everyone, and every zone a player of his own side: by the allowed '
-          'path, which is patch 85\'s hooked site (both jumps in the image), his profile given to the inventory test')
+        # A free-for-all's player (4 + his place): no zone, of any team, serves him; the original
+        # would have served him at team 2's zone and at one numbered as his side.
+        for team in (4, 7, 13, 23):
+            for zone_team in zone_teams:
+                result, tested, passed = r.zone(function, zone_team, team)
+                assert tested == [] and result == (0 if yes else NOT_HERE), (hex(function), zone_team, team, result)
+                assert passed == {REFUSED[function]}, (hex(function), zone_team, team, sorted(map(hex, passed)))
+            assert stock.zone(function, 2, team)[1] == [(0, profile(0))]
+            assert stock.zone(function, team, team)[1] == [(0, profile(0))]
+    for at in (0x2F8086, 0x2F80C6, 0x2F809C, 0x2F80E4):
+        jump = bytes(patched[hide.file_at(patched, at):][:5])
+        assert jump[0] == 0xE9 and at + 5 + struct.unpack("<i", jump[1:])[0] >= base.ARENA_VA, (hex(at), jump.hex())
+    print('ok no ammunition refill in a free-for-all: a player of his own side refused at a zone of every team '
+          'value by the game\'s own "no", the inventory test never reached; a team\'s player served exactly as '
+          'by the original (patch 85\'s sites still hooked)')
 
     target = lambda n: blackout.srpx((3, struct.pack("<H", n)))
     options = lambda block: blackout.empty_options(block)
