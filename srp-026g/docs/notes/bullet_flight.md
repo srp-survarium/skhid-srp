@@ -68,8 +68,8 @@ turns (x 0x08088405 + 1, saved), gravity (0, -9.81, 0) and its time.
 - **A back face of the map costs nothing**: the ray goes on from 1 mm past it (0x32D72F). A face is a back face
   when dot(normal, direction) >= 0 (0x32D69F), the normal being e1 x e2 of the placed triangle
   (`btTriangleRaycastCallback::processTriangle` 0xB8010 reports -(v10 x v20) in the library's mirrored frame):
-  `mapdata/src/sight.rs`'s `FRONT_NORMAL_SIGN = +1` is PROVEN for meshes (a placement whose transform mirrors is
-  not checked).
+  `mapdata/src/sight.rs`'s `FRONT_NORMAL_SIGN = +1` is PROVEN for meshes; no mesh placement of any of the 72 maps
+  mirrors (50,455 of 50,455 mesh parts), so it needs no exception.
 - A front face of the map, or any face of an object: **pierce** (`try_pierce` 0x32D960), else for a front face
   **ricochet** (`try_reflect` 0x32DE40), else the bullet stops.
 
@@ -82,7 +82,10 @@ turns (x 0x08088405 + 1, saved), gravity (0, -9.81, 0) and its time.
   the point. A face of armour 0 costs nothing but turns the bullet and counts as a change.
 - **A body is always pierced** (0x32DA3C..0x32DA68): after the body's hit, k = the weapon's least damage lo / the
   bullet's damage. The bullet goes on through every body with damage lo and pierce plo (k has no cap: a bullet a
-  wall left under lo leaves a body with lo again). No team test anywhere on the path.
+  wall left under lo leaves a body with lo again). No team test anywhere on the path. **Leaving the body costs a
+  second change of course**: the bullet goes on from 1 mm inside the box, and this build's ray test, when its
+  start is inside a convex shape, casts back from the ray's end and reports the far side (0xA0544..0xA0677,
+  `exactness_rig.md`): an object's face again, pierced with k = 1, turned again; the box's record is unchanged.
 - **Ricochet** (a front face not pierced; at most 2 a bullet, 0x32DE4D): a the angle above the surface, most =
   min(90 degrees, the ammunition's `ricochet_angle` x the material's `k_ricochet`); none above most; else with a
   draw u, a ricochet when u > a (1 - `ricochet_chance` x `k_ricochet_chance`) / most (always when grazing). The
@@ -123,7 +126,6 @@ front-face rule for the map.
 
 ## Not read
 
-A mirrored placement's faces; whether a ray starting inside a hit box reports an exit hit (it could change no
-record); 60 pairs off the simulated steps by more than 2 mm;
+60 pairs off the simulated steps by 2 to 9 mm (all before T; the step's own bounds are ruled out);
 the materials' ricochet and dispersion keys' values (in the players' resources.db only); the pose of the hit boxes
 at a hit (not ported); the parallel tick at 256 bullets or more (never reached: at most 105 in a world).
