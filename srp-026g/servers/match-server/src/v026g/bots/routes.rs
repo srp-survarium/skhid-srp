@@ -512,6 +512,16 @@ mod tests {
         assert!(why.contains("1 heights for 2 points"), "{why}");
     }
 
+    /// A real map's world as a match has it (private files; `project` is `level_01/day_2`): the grid of the default
+    /// tuning (its body, off-mesh links and extras, as the server's map store and the bench build theirs), so the checks
+    /// below walk the grid the bots walk.
+    fn match_world(dir: &OsStr, project: &str) -> mapdata::World {
+        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let path = Path::new(dir).join(mapdata::format::file_name(project));
+        let map = mapdata::MapData::read(&path).unwrap_or_else(|error| panic!("{error:?}"));
+        mapdata::World::build_with_extras(map, mapdata::CELL, tuning.grid_body(), tuning.off_mesh_links(), tuning.grid_extras())
+    }
+
     /// How walkable each route of the real table is for a bot (private
     /// files): from its side's spawn centre through its points, each leg
     /// planned as a bot of its side plans (off hazards and the other
@@ -545,10 +555,7 @@ mod tests {
         for (index, row) in table.rows.iter().enumerate() {
             let level: u8 = row.level.trim_start_matches("level_").parse().unwrap();
             let tactics = worlds.entry((level, row.mode)).or_insert_with(|| {
-                let path = std::path::Path::new(&dir)
-                    .join(format!("level_{level:02}_day_{}.mapdata", row.mode));
-                let map = mapdata::MapData::read(&path).unwrap();
-                let world = mapdata::World::build(map, mapdata::CELL, mapdata::Body::default());
+                let world = match_world(&dir, &format!("level_{level:02}/day_{}", row.mode));
                 Tactics::new(std::sync::Arc::new(world), 1.0)
             });
             let raw = row.route();
@@ -688,10 +695,7 @@ mod tests {
         for (index, row) in table.rows.iter().enumerate() {
             let level: u8 = row.level.trim_start_matches("level_").parse().unwrap();
             let tactics = maps.entry((level, row.mode)).or_insert_with(|| {
-                let path = std::path::Path::new(&dir)
-                    .join(format!("level_{level:02}_day_{}.mapdata", row.mode));
-                let map = mapdata::MapData::read(&path).unwrap();
-                let world = mapdata::World::build(map, mapdata::CELL, mapdata::Body::default());
+                let world = match_world(&dir, &format!("level_{level:02}/day_{}", row.mode));
                 let mut tactics = Tactics::new(std::sync::Arc::new(world), 1.0);
                 let anomalies = Anomalies::new(&tactics.world.map, 0x8000_0001);
                 tactics.hazards.attach(anomalies);
@@ -791,6 +795,126 @@ mod tests {
             ));
         }
         match std::env::var_os("SRP_ROUTES_ZONES_OUT") {
+            Some(file) => std::fs::write(file, out).unwrap(),
+            None => eprint!("{out}"),
+        }
+    }
+
+    /// A position's floor is the nearest within this of the feet on the ground plane, m: a corpus cell is 0.5 m, a floor
+    /// 0.25 m.
+    const SPOT_XZ_M: f32 = 0.6;
+    /// ... and within this of the feet's height, m (a floor's height is its cell centre's: on the steepest walked slope
+    /// that is a third of a metre off the feet at the cell's corner).
+    const SPOT_Y_M: f32 = 0.6;
+
+    /// How reachable the places real players stood at are for a bot (private files). `SRP_POSITIONS` is a TSV with the
+    /// columns `project` (`level_02/day_2`), `x`, `y` (the feet's height) and `z`, a row a place (the routes tool's corpus
+    /// of the live matches' standing spots; its other columns are not read); the rows of a project stand together.
+    /// `SRP_POSITIONS_OUT` gets a TSV, a row a place in the file's order:
+    ///
+    /// - `floor_dxz`, `floor_dy`: how far the nearest floor within [`SPOT_XZ_M`] and [`SPOT_Y_M`] of the feet is (its
+    ///   height less the feet's); empty: the grid has no floor there;
+    /// - `stand`, `reached`, `returns`, `shut`: that floor's `can_stand`, `reached` (a walk from a spawn gets there),
+    ///   `returns` (and back to the main area) and `in_shut_pocket`;
+    /// - `zone`: `fixed` when a damage zone that is on all match covers it, `switching` for one that switches, else `-`
+    ///   (a match's anomalies attached);
+    /// - `from_0`, `from_1`: the cost of the way from that side's spawns over the grid's links (empty: none);
+    /// - `goal_0`, `goal_1`: whether a bot of that side may have it as a goal (`Tactics::fine_goal`'s test of the floor:
+    ///   walkable, off hazards and the other side's spawn area);
+    /// - `surface_dy`: with no floor, the walker collision's surface under the feet (its height less the feet's, looked
+    ///   for from half a metre over them to 1.5 m under; empty: none, the body was in the air or on something the map's
+    ///   walker collision does not have);
+    /// - `near_dxz`, `near_dy`: with no floor, the nearest reached floor within 2 m and 1.5 m of height.
+    ///
+    /// The grid is a match's ([`match_world`]). Run in release.
+    #[test]
+    #[ignore = "needs the private map files and position corpus"]
+    fn how_reachable_the_real_positions_are() {
+        use crate::v026g::bots::anomalies::Anomalies;
+        use crate::v026g::bots::tactics::Tactics;
+        struct Map {
+            tactics: Tactics,
+            surface: mapdata::RayTree,
+            from: [mapdata::DistanceMap; 2],
+        }
+        let (Some(dir), Some(path)) = (std::env::var_os("SRP_MAPDATA_DIR"), std::env::var_os("SRP_POSITIONS")) else {
+            panic!("set SRP_MAPDATA_DIR and SRP_POSITIONS");
+        };
+        let text = std::fs::read_to_string(&path).unwrap();
+        let mut lines = text.lines();
+        let head: Vec<&str> = lines.next().unwrap_or("").split('\t').collect();
+        let col = |name: &str| head.iter().position(|h| *h == name).unwrap_or_else(|| panic!("no column {name}"));
+        let (c_project, cx, cy, cz) = (col("project"), col("x"), col("y"), col("z"));
+        let mut out = String::from(
+            "project\tx\ty\tz\tfloor_dxz\tfloor_dy\tstand\treached\treturns\tshut\tzone\tfrom_0\tfrom_1\tgoal_0\tgoal_1\tsurface_dy\tnear_dxz\tnear_dy\n",
+        );
+        let mut current: Option<(String, Map)> = None;
+        let flag = |b: bool| if b { "1" } else { "0" };
+        for line in lines.filter(|line| !line.is_empty()) {
+            let f: Vec<&str> = line.split('\t').collect();
+            let project = f[c_project];
+            let p = Vec3::new(f[cx].parse().unwrap(), f[cy].parse().unwrap(), f[cz].parse().unwrap());
+            if current.as_ref().is_none_or(|(name, _)| name != project) {
+                let world = match_world(&dir, project);
+                let surface = mapdata::RayTree::build(&world.map.walker_triangles());
+                let mut tactics = Tactics::new(std::sync::Arc::new(world), 1.0);
+                let anomalies = Anomalies::new(&tactics.world.map, 0x8000_0001);
+                tactics.hazards.attach(anomalies);
+                let from = [0, 1].map(|team| {
+                    let grid = &tactics.world.grid;
+                    let spawns: Vec<mapdata::NodeId> =
+                        tactics.world.map.spawns.iter().filter(|s| s.team == team).filter_map(|s| grid.locate(s.position, 1.0)).collect();
+                    grid.distances_from(&spawns)
+                });
+                eprintln!("{project}: {} floors", tactics.world.grid.len());
+                current = Some((project.to_owned(), Map { tactics, surface, from }));
+            }
+            let map = &current.as_ref().unwrap().1;
+            let grid = &map.tactics.world.grid;
+            let nearest = |r: f32, dy: f32, keep: &dyn Fn(mapdata::NodeId) -> bool| {
+                grid.floors_in([p.x - r, p.z - r, p.x + r, p.z + r])
+                    .filter(|&node| keep(node))
+                    .map(|node| (node, grid.position(node)))
+                    .filter(|(_, at)| at.distance_xz(p) <= r && (at.y - p.y).abs() <= dy)
+                    .min_by(|a, b| (a.1 - p).length().total_cmp(&(b.1 - p).length()))
+            };
+            out.push_str(&format!("{project}\t{:.2}\t{:.2}\t{:.2}\t", p.x, p.y, p.z));
+            match nearest(SPOT_XZ_M, SPOT_Y_M, &|_| true) {
+                Some((node, at)) => {
+                    let hazards = &map.tactics.hazards;
+                    let zone = match hazards.zone_of(node) {
+                        Some(_) if hazards.fixed_at(node) => "fixed",
+                        Some(_) => "switching",
+                        None => "-",
+                    };
+                    let cost = |team: usize| if map.from[team].reaches(node) { format!("{:.0}", map.from[team].get(node)) } else { String::new() };
+                    let goal = |team: i32| flag(map.tactics.walkable(node) && map.tactics.allowed(node, 0, Some(team), false));
+                    out.push_str(&format!(
+                        "{:.2}\t{:.2}\t{}\t{}\t{}\t{}\t{zone}\t{}\t{}\t{}\t{}\t\t\t\n",
+                        at.distance_xz(p),
+                        at.y - p.y,
+                        flag(grid.can_stand(node)),
+                        flag(grid.reached(node)),
+                        flag(grid.returns(node)),
+                        flag(grid.in_shut_pocket(node)),
+                        cost(0),
+                        cost(1),
+                        goal(0),
+                        goal(1),
+                    ));
+                }
+                None => {
+                    let surface = map
+                        .surface
+                        .ray_cast(p + Vec3::new(0.0, 0.5, 0.0), Vec3::new(0.0, -1.0, 0.0), 2.0)
+                        .map_or(String::new(), |t| format!("{:.2}", 0.5 - t));
+                    let near = nearest(2.0, 1.5, &|node| grid.reached(node))
+                        .map_or(String::from("\t"), |(_, at)| format!("{:.2}\t{:.2}", at.distance_xz(p), at.y - p.y));
+                    out.push_str(&format!("\t\t\t\t\t\t\t\t\t\t\t{surface}\t{near}\n"));
+                }
+            }
+        }
+        match std::env::var_os("SRP_POSITIONS_OUT") {
             Some(file) => std::fs::write(file, out).unwrap(),
             None => eprint!("{out}"),
         }
