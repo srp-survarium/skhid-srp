@@ -8,6 +8,10 @@ stock call arguments/registers; refusals consume the reader and close once. The
 host drift file is srp-validate's drift_dump (including inferred match context).
 Native deserialization/resource creation are stubbed: this is a boundary check,
 not evidence that a complete match or weapon resource cook succeeded.
+The standalone boundary check stops immediately after native deserialize,
+before the successful-load receipt and memory/module/executable reporting.
+The shared Run fixture still defaults to the later endpoint for its receipt
+lifecycle consumers; rejected worlds retain their full rejection path here.
 Each section may pass the original's inline buffer (patch 98 grows them); the body
 stops at 0xF000 bytes. Each load leaves one World entry in the crash report's ring.
 """
@@ -25,6 +29,7 @@ import patch_026g as base
 
 RAW_SITE, UNPACKED_SITE = 0x27C0FF, 0x27C0D0
 LOAD, LOADED, EPILOGUE, CLOSE = 0x2D0B70, 0x27C11B, 0x27C1E0, 0x27A790
+DESERIALIZED = 0x27C116  # both native load calls return here, before world_load.loaded
 CREATE_FILE, WRITE_FILE, CLOSE_HANDLE = 0x870048, 0x870108, 0x870040   # the import slots
 QPC, QPF = 0x870158, 0x870150                                            # QueryPerformanceCounter / -Frequency
 # GetTickCount (engine_get_tick_count) and GetCurrentProcessId, a constant: a
@@ -57,7 +62,9 @@ class Run:
     # one a load. A receipt is told once per generation.
     offers = None
 
-    def __init__(self, data):
+    def __init__(self, data, *, loaded=LOADED):
+        self.loaded = loaded
+        self.refusal_log = None
         self.emu = emu = Uc(UC_ARCH_X86, UC_MODE_32)
         for _, rva, vsize, raw, rsize, _ in base.Headers(data).sections(data):
             start = base.IMAGE_BASE + rva
@@ -92,7 +99,7 @@ class Run:
                         STUBS + 0x50, STUBS + 0x60, STUBS + 0x70):
             handle = emu.hook_add(UC_HOOK_CODE, self.stub, begin=address, end=address)
             if address == CLOSE: self.close_stub = handle
-        for address in (LOADED, EPILOGUE):
+        for address in (self.loaded, EPILOGUE):
             emu.hook_add(UC_HOOK_CODE, self.stop, begin=address, end=address)
 
     def match_context(self, mode=4, batteries=0, points=3):
@@ -310,7 +317,7 @@ def compare(stock, ours, path, world, can_load):
     load = getattr(stock, path)(world)
     calls = stock.calls
     fails = []
-    if load[0] != LOADED or [c[0] for c in calls] != ["load"]:
+    if load[0] != stock.loaded or [c[0] for c in calls] != ["load"]:
         fails.append(f"the original does not load it ({load[0]}, {calls})")
     got = getattr(ours, path)(world)
     if can_load:
@@ -333,9 +340,28 @@ def compare(stock, ours, path, world, can_load):
         fails.append(f"the reader not at its end: {cursor:#x}")
     if len(ours.receipts) != 1 or ours.receipts[0][13] != 1:
         fails.append(f"no rejection receipt: {ours.receipts}")
-    if len(ours.lines) != 1 or b"world_check: a world refused" not in ours.lines[0]:
-        fails.append(f"the log: {ours.lines}")
+    fails.extend(refusal_log(ours, world))
     return fails
+
+
+def refusal_log(run, world):
+    """These cases repeat identical refusals (raw/unpacked and unknown rules).
+
+    The current logger folds consecutive equal lines and emits their count
+    before the next different line. Still require the first refusal's line,
+    no extra writes for its repeats, and the exact summary afterwards.
+    """
+    previous = run.refusal_log
+    if previous is not None and previous[0] == world:
+        run.refusal_log = (world, previous[1] + 1)
+        return [f"duplicate refusal was written again: {run.lines}"] if run.lines else []
+    repeats = 0 if previous is None else previous[1]
+    summary = [f"srp: (the line above: {repeats} more times)\r\n".encode()] if repeats else []
+    run.refusal_log = (world, 0)
+    if (len(run.lines) != len(summary) + 1 or run.lines[:-1] != summary
+            or b"world_check: a world refused" not in run.lines[-1]):
+        return [f"the refusal log and repeat count: {run.lines}"]
+    return []
 
 
 def breadcrumbs(ours, worlds):
@@ -390,7 +416,7 @@ def drift(ours, path):
                 except RuntimeError as error:
                     raise RuntimeError(f"{file} copy {k} ({load}): {error}") from error
                 checks += 1
-                got = "0" if stopped == LOADED else "1" if stopped == EPILOGUE else "?"
+                got = "0" if stopped == ours.loaded else "1" if stopped == EPILOGUE else "?"
                 if got != verdict:
                     differ.append(f"{file} copy {k} ({load}): the game's build {got}, the host's {verdict}")
     return worlds, checks, differ
@@ -404,7 +430,7 @@ def main():
     original = open(args.exe, "rb").read()
     code = open(base.default_bin("section"), "rb").read()
     built, _ = base.build(original, "section", code, None, open(base.late_join_bin(), "rb").read())
-    stock, ours = Run(original), Run(bytes(built))
+    stock, ours = Run(original, loaded=DESERIALIZED), Run(bytes(built), loaded=DESERIALIZED)
     ours.offers = 5
     failed = 0
     worlds = []
