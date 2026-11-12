@@ -3630,3 +3630,8 @@ va	status	ref_021d	name
 0x002d6420	inferred-high		survarium::player_stamina::can_afford_jump
 0x003296c0	inferred-high		survarium::player_stamina::subtract_clamped
 0x00329960	inferred-high		survarium::player_stamina::boost
+0x0030a090	inferred-high		survarium::grenade_set_core::can_throw
+0x00310450	inferred-high		survarium::weapon_core_throw_grenade_idle_substate::is_ready_for_transition
+0x00310480	inferred-medium		survarium::weapon_core_throw_grenade_throw_substate::initialize
+0x003393f0	inferred-high		survarium::bullet_manager::explosion_trace
+0x00323a40	inferred-medium		survarium::game_material::load_physic
