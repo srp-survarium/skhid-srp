@@ -48,8 +48,14 @@ pub const SHORT_JUMP_RISE: [f32; 13] = [
 ];
 /// The root's highest point, m ahead of the press (frame 16).
 const APEX_AHEAD_M: f32 = 1.78;
-/// [A364 P6] The short clip's apex frame.
-const SHORT_APEX_FRAME: f32 = 16.0;
+/// [A364 P6] A short forward jump's share of its clip's travel at a press at `speed` m/s: min(max(1, speed) / 4, 0.99)
+/// (`initialize_weight_for_on_site_animation` 0x337280: 1 - that is the on-site clip's weight, 4 the forward
+/// `jump_on_site_landing_fwd`, 0.99 at 0xA2D9D4; 100 of 100 traced short jumps within 5 mm/s,
+/// `private/grid/rig/notes-jump-state.md` 2.5 and 8.4, #1666). The short clip goes 2.67 m in 0.8 s, so a press at 3.5 m/s
+/// carries 2.92 m/s: the press's speed is not frozen into the air.
+pub fn short_jump_carry(speed: f32) -> f32 {
+    (speed.max(1.0) / 4.0).min(0.99)
+}
 
 /// The presses looked at, m before the take-off floor's centre: from
 /// [`GAP_PRESS_MIN_M`] (the body leaves the floor 0.67 m on, at the clip's
@@ -664,10 +670,9 @@ impl WalkGrid {
     /// it is while the clip lifts it, to go on once it is over the face.
     /// After the clip it falls on ([`Flight::Over`], [`Self::fall_on`]).
     ///
-    /// [A364 P6] With [`crate::Body::jump_air_steps`] and the walk's `speed` at the press: the body travels at that speed, frozen
-    /// at the press (the game's walk vector holds its press value on every air step, 17 of 17 traced short jumps; the clip's
-    /// own travel is not the body's), the clip giving only the rise at each frame (30 a second), and the flight ends at the
-    /// game's last air step (frame 22.5) and falls from there.
+    /// [A364 P6] With [`crate::Body::jump_air_steps`] and the walk's `speed` at the press: the body travels the clip's way
+    /// scaled by [`short_jump_carry`] of that speed, and the flight ends at the game's last air step (frame 22.5) and falls
+    /// from there.
     fn fly(&self, a: usize, d: usize, lead: f32, speed: Option<f32>, solids: &Solids) -> Option<(Flight, Over)> {
         let from = self.position(a as NodeId);
         let h = self.height[a];
@@ -676,19 +681,17 @@ impl WalkGrid {
         let (ux, uz) = (di as f32 / len, dk as f32 / len);
         let ds = 0.5 * self.cell;
         // [A364 P6] With `jump_air_steps` the flight ends at the game's last air step, not at the clip's end, and with the
-        // press's speed the body travels at it (the clip's frame is the time at that speed).
-        let frozen = speed.filter(|_| self.body.jump_air_steps);
-        let frame_at = |ahead: f32| frozen.map(|v| ahead / v * CLIP_FPS);
-        let rise_at = |ahead: f32| match frame_at(ahead) {
-            Some(frame) => root_at(&SHORT_JUMP_AHEAD, &SHORT_JUMP_RISE, frame).1,
-            None => short_jump_rise(ahead).unwrap_or(0.0),
-        };
-        let past_apex = |ahead: f32| frame_at(ahead).map_or(ahead >= APEX_AHEAD_M, |frame| frame >= SHORT_APEX_FRAME);
-        let clip_end = match frozen {
-            Some(v) => v * (TAKEOFF_FRAME + (AIR_STEPS - 1.0) * 1.5) / CLIP_FPS,
-            None if self.body.jump_air_steps => air_end(&SHORT_JUMP_AHEAD, &SHORT_JUMP_RISE, TAKEOFF_FRAME).0,
-            None => SHORT_JUMP_AHEAD[SHORT_JUMP_AHEAD.len() - 1],
-        };
+        // press's speed the body travels the clip's way scaled by [`short_jump_carry`] (the rise at a point is the clip's
+        // at that point unscaled).
+        let carry = speed.filter(|_| self.body.jump_air_steps).map_or(1.0, short_jump_carry);
+        let rise_at = |ahead: f32| short_jump_rise(ahead / carry).unwrap_or(0.0);
+        let past_apex = |ahead: f32| ahead / carry >= APEX_AHEAD_M;
+        let clip_end = carry
+            * if self.body.jump_air_steps {
+                air_end(&SHORT_JUMP_AHEAD, &SHORT_JUMP_RISE, TAKEOFF_FRAME).0
+            } else {
+                SHORT_JUMP_AHEAD[SHORT_JUMP_AHEAD.len() - 1]
+            };
         let end = clip_end - lead;
         let at = |s: f32| (from.x + ux * s, from.z + uz * s);
         // What the body at `s` comes down on between `y` and `top`.
@@ -1447,8 +1450,9 @@ impl WalkGrid {
                     return (None, false);
                 }
                 // One level whatever the body's speed after the clip.
-                // [A364 P6] With `jump_air_steps` a flight for each walk speed at the press (the body keeps it in the air and
-                // after it), else one flight of the clip's own travel and the two speeds after it.
+                // [A364 P6] With `jump_air_steps` a flight for each walk speed at the press (its share of the clip's travel in
+                // the air, `short_jump_carry`, and the speed after it), else one flight of the clip's own travel and the two
+                // speeds after it.
                 let [v0, v1] = WALK_JUMP_AFTER_CLIP_MS;
                 let ((f0, over), (f1, over2)) = if self.body.jump_air_steps {
                     let (Some(f0), Some(f1)) = (self.fly(a, d, lead, Some(v0), solids), self.fly(a, d, lead, Some(v1), solids)) else {
@@ -2110,6 +2114,18 @@ mod tests {
         let (on, up, _) = air_end(&SPRINT_JUMP_AHEAD, &SPRINT_JUMP_RISE[0], SPRINT_TAKEOFF_FRAME);
         let (want_on, want_up) = root_at(&SPRINT_JUMP_AHEAD, &SPRINT_JUMP_RISE[0], 23.1);
         assert!((on - want_on).abs() < 1e-3 && (up - want_up).abs() < 1e-3 && on < SPRINT_JUMP_AHEAD[12]);
+    }
+
+    /// [A364 P6] A short forward jump carries min(max(1, v) / 4, 0.99) of its clip: a press at 3.5 m/s 2.92 m/s (the clip's
+    /// 3.33), the walking jumps' 3.0 and 3.6 m/s 0.75 and 0.90 of it; a standing jump 0.25 (0.83 m/s).
+    #[test]
+    fn a_short_jump_carries_a_share_of_its_clip_by_the_speed_at_the_press() {
+        let clip_mps = SHORT_JUMP_AHEAD[12] / 0.8;
+        assert!((short_jump_carry(3.5) * clip_mps - 2.92).abs() < 0.01);
+        assert_eq!(short_jump_carry(3.0), 0.75);
+        assert!((short_jump_carry(3.6) - 0.9).abs() < 1e-6);
+        assert_eq!(short_jump_carry(0.0), 0.25);
+        assert_eq!(short_jump_carry(9.0), 0.99);
     }
 
     #[test]
