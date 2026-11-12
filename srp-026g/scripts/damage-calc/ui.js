@@ -656,7 +656,9 @@ function drawExplain(target, b, sim) {
   const fired = b.wall || b;
   // A bullet the wall keeps reaches nothing: the steps after it show "—".
   const stopped = !!b.wall && !(b.wall.k > 0);
-  const onyxLog = log.filter(e => e.step === "callback" && e.depth === 0);
+  const forestSkill = (DATA.skills || {}).forest_protection;
+  const forest = forestSkill && log.find(e => e.step === "callback" && e.depth === 0 && e.name === nm(forestSkill));
+  const onyxLog = log.filter(e => e.step === "callback" && e.depth === 0 && e !== forest);
   const armour = log.find(e => e.step === "armour" && e.depth === 0);
   const pool = log.find(e => e.step === "pool" && e.depth >= 1 && e.part !== "pain");
   const pain = log.find(e => e.step === "pool" && e.part === "pain");
@@ -677,6 +679,9 @@ function drawExplain(target, b, sim) {
     onyx && [nm(onyx),
       `D, P ${by("×", onyx.passive.damage_mul, onyx.passive.armor_piercing_mul)} ${T("each", "кожен")} · ${T("active", "активний")} ${by("×", onyx.active.damage_mul, onyx.active.armor_piercing_mul)}`,
       after(true, () => onyxLog.length ? { in: `× ${onyxMul}${sup(onyxLog.length)}`, ...DP(onyxAfter.D, onyxAfter.P) }
+        : { in: none, none: true, ...DP(onyxAfter.D, onyxAfter.P) })],
+    forestSkill && [nm(forestSkill), `D × (1 − ${forestSkill.step} × ${T("rank", "ранг")}) · ${T("inside an anomaly", "в аномалії")}`,
+      after(true, () => forest ? { in: `× ${+(forest.before ? forest.D / forest.before : 1).toFixed(2)}`, ...DP(forest.D, forest.P) }
         : { in: none, none: true, ...DP(onyxAfter.D, onyxAfter.P) })],
     [T("Armour", "Броня"), T("D × (1 − (armour − P) / 100)", "D × (1 − (броня − P) / 100)"),
       after(armour, () => ({ in: T(`${PARTS[armour.part].toLowerCase()}, armour ${hp(armour.A)} − P ${hp(armour.P)}`,
@@ -740,37 +745,17 @@ function fillHealPick() {
     items.append(el("span", { class: "lbl", text: nm(b) }), RULES.hinted(t, RULES.card(nm(b), b.card || [])));
   }
   const panel = el("div", { class: "gamemods" });
-  // One bonus row: a button per option [value, text] of picks[key]; with a
-  // card, its icon and name show it on hover.
-  const steps = (icon, label, options, picks, key, card) => {
-    const group = el("span", { class: "gsteps", role: "group", "aria-label": label });
-    const paint = () => { for (const b of group.children) b.setAttribute("aria-pressed", String(b.dataset.v === String(picks[key] || ""))); };
-    for (const [v, text] of options) {
-      const b = el("button", { type: "button", class: "gstep", text });
-      b.dataset.v = v;
-      b.addEventListener("click", () => { picks[key] = String(picks[key] || "") === String(v) ? "" : v; paint(); redraw(); });
-      group.append(b);
-    }
-    paint();
-    panel.append(el("div", { class: "gmrow" }, icon, el("span", { class: card ? "glabel fxhint" : "glabel" }, `${label}:`, card), group));
-  };
-  const percent = x => `${Math.round(x * 100)}%`;
   if (rec.gear) {
     pick.gear = pick.gear || {};
     const src = DATA.mod_icons && DATA.mod_icons[rec.gear.icon], name = (LANG === "uk" && rec.gear.label_uk) || rec.gear.label;
     for (const [slot, label] of SLOTS.filter(([slot]) => rec.gear.slots.includes(slot)))
-      steps(src ? el("img", { class: "gico", src, alt: "" }) : el("span", { class: "gico" }), `${name}, ${label.toLowerCase()}`,
-        rec.gear.grades.map(g => [g.id, `+${percent(g.value)}`]), pick.gear, slot);
+      panel.append(RULES.stepsRow(src ? el("img", { class: "gico", src, alt: "" }) : el("span", { class: "gico" }), `${name}, ${label.toLowerCase()}`,
+        rec.gear.grades.map(g => [g.id, `+${Math.round(g.value * 100)}%`]), pick.gear, slot, redraw));
   }
   pick.skills = pick.skills || {};
   for (const [key, sign, unit] of [["metabolism", "−", ` ${T("s", "с")}`], ["strong_bones", "+"], ["medical_training", "+"], ["take_cover", "+"], ["fast_bandaging", "−"]]) {
-    const s = (rec.skills || {})[key]; if (!s) continue;
-    const src = DATA.skill_icons && DATA.skill_icons[s.id];
-    // Its card: the name and the lobby tooltip's line for a rank.
-    const card = el("div", { class: "gamemods" }, el("span", { class: "gname", text: nm(s) }),
-      el("span", { class: "gtext" }, `${(LANG === "uk" && s.description_uk) || s.description} `, el("span", { class: "gv good", text: (LANG === "uk" && s.rank_uk) || s.rank })));
-    steps(src ? el("img", { class: "gico", src, alt: "" }) : el("span", { class: "gico" }), nm(s),
-      Array.from({ length: s.ranks }, (_, i) => [i + 1, sign + (unit ? +((i + 1) * s.step).toFixed(2) + unit : percent((i + 1) * s.step))]), pick.skills, key, card);
+    const row = RULES.skillRow(key, sign, unit, pick.skills, redraw);
+    if (row) panel.append(row);
   }
   host.append(items, ...(panel.children.length ? [panel] : []));
 }

@@ -392,25 +392,28 @@ for file in files("gameplay__items__boosters__"):
             total[k] = r(total.get(k, 0) + v)
     if total:
         boosters[key_of(file)] = {"name": ui(cfg)["name"], "name_uk": ui(cfg)["name_uk"], **total, "card": card}
-# The medical skills that change recovery, by their ids in the tree
-# (docs/notes/medical-skills.md; rules.js has what each does): its ranks and
+# The skills the page counts, by their ids in the tree: the medical ones that
+# change recovery (docs/notes/medical-skills.md) and Forest Protection, which
+# changes a hit (docs/notes/artefact-skills.md); rules.js has what each does.
+# Of each: its ranks and
 # what one rank gives, the number the lobby prints for it (" <green>+0.5"),
 # and its tooltip's line for a rank as the lobby writes it: the description,
 # then that number with the postfix.
-RECOVERY_SKILLS = {311: "metabolism", 332: "strong_bones", 312: "medical_training", 313: "take_cover", 302: "fast_bandaging"}
+SKILLS = {311: "metabolism", 332: "strong_bones", 312: "medical_training", 313: "take_cover", 302: "fast_bandaging",
+          523: "forest_protection"}
 skills = {}
 for s in rows(load("gameplay__skills__skills_tree.options.json")["skills_tree"]):
-    if s["id"] in RECOVERY_SKILLS:
+    if s["id"] in SKILLS:
         printed = re.sub(r"<[^>]*>", "", s["ui"]["skill_descriptions"][0][0]).strip()
         step = float(re.search(r"\d+(?:\.\d+)?", printed).group(0))
         postfix = s["ui"].get("postfix", "")
-        skills[RECOVERY_SKILLS[s["id"]]] = {
+        skills[SKILLS[s["id"]]] = {
             "id": s["id"], "name": text(s["ui"]["name"]), "name_uk": text_uk(s["ui"]["name"]), "ranks": s["levels_amount"],
             "step": r(step / 100 if postfix == "st_percent_postfix" else step),
             "description": text(s["ui"]["description"]), "description_uk": text_uk(s["ui"]["description"]),
             # The postfix as the game has it (" s", "%"): its own space or none.
             "rank": printed + strings.get(postfix, "").rstrip(), "rank_uk": printed + strings_uk.get(postfix, "").rstrip() if strings_uk.get(postfix) else None}
-recovery = {"gear": gear, "boosters": boosters, "skills": skills}
+recovery = {"gear": gear, "boosters": boosters}
 
 for table in (weapons, armour):
     for item in table.values():
@@ -465,6 +468,7 @@ out = {
     "armour": armour,
     "body": body,
     "recovery": recovery,
+    "skills": skills,
 }
 with open(target, "w", encoding="utf-8") as f:
     json.dump(out, f, ensure_ascii=False, indent=1)

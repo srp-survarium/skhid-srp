@@ -18,7 +18,9 @@ number from the game data, the rules as the client's hit code applies them. Buil
   bonuses). A weapon with presets (premium) has those, fixed, as the lobby lists them; damage
   and rate of fire change the numbers.
 - Target: the HUD doll and the equipment cards (both aim), armour bonuses, Onyx (four slot
-  tiles, passive or active), the Anesthetic, the pain already taken. The Larkspur changes no hit:
+  tiles, passive or active), the Anesthetic, Forest Protection (the skill, a button per rank:
+  bullet damage −5 % a rank while the target is inside an anomaly, before armour; owner
+  2026-11-12), the pain already taken. The Larkspur changes no hit:
   its four tiles are in the healing section, for the recovery it gives. Under the doll: the hit
   part's pool and pain only, after the stepper's shot, tagged when each kills or breaks.
   Armour bonuses always shown, for the item on the part being hit only, under its icon and its
@@ -51,9 +53,10 @@ number from the game data, the rules as the client's hit code applies them. Buil
   texts (owner 2026-11-12: "anesthetic should show bonuses on hover too", "onyxes too"): a
   booster and a drug their lobby card's lines (the Anesthetic: pain threshold, activation,
   duration; no weight), an artefact (Onyx, Larkspur) its pickup and activation hints, the
-  Onyx's with the active's seconds for that many Onyx.
+  Onyx's with the active's seconds for that many Onyx. A click puts the card away until the
+  pointer comes back, as a tooltip goes (owner: "it should disappear like normal popups").
 - The grades, the slots, the booster's bonuses and each skill's ranks and step come from the game
-  data (`recovery` of `calc-data.json`; a skill's step is the number the lobby prints for a rank);
+  data (`recovery` and `skills` of `calc-data.json`; a skill's step is the number the lobby prints for a rank);
   the rules are the exe's (`rules.js`: `regeneration`, `medicine`; regeneration-booster.md,
   medical-skills.md). The picks are kept with the page's other choices.
 - The map's readout sits under it, two lines whatever the state, so the map never moves.
@@ -62,7 +65,7 @@ number from the game data, the rules as the client's hit code applies them. Buil
 - The formula says how one bullet through several hit boxes counts (each pool its largest
   share). The calculator itself shows one box per shot.
 - Formula (owner 2026-11-05): numbered steps in the bullet's order (Bullet, Wall, Onyx, Armour,
-  Pools, Pain, Death), each a bold label and its rule in one chip, no sentences (the trace has the
+  Pools, Pain, Death; Forest Protection after Onyx), each a bold label and its rule in one chip, no sentences (the trace has the
   details), the operation written out (no word standing for a value); armour and penetration in the
   page's units (x100), no letter for two things, a legend line for D, P and A. One grid for all
   rows (number | label | rule | input | D | P), legend and note inside the panel; the page's text
