@@ -1984,6 +1984,11 @@ va	name	location	role	basis
 0x001c7dd0	vostok::render::culling::portal_sector_system::sort_portals_and_calculate_rects_in_screen_space	entry ESP+12	third forwarded input, type unknown	observed
 0x001c7e60	vostok::render::culling::portal_sector_system::make_frustum_images	EAX	input float3 direction	observed
 0x001c7e60	vostok::render::culling::portal_sector_system::make_frustum_images	entry ESP+4	owner	observed
+0x001c83b0	vostok::render::calculate_streaming_texture_factor	entry ESP+4	float3 positions base	observed
+0x001c83b0	vostok::render::calculate_streaming_texture_factor	entry ESP+8	float2 UV base	observed
+0x001c83b0	vostok::render::calculate_streaming_texture_factor	entry ESP+12	vertex byte stride	observed
+0x001c83b0	vostok::render::calculate_streaming_texture_factor	entry ESP+16	u16 triangle indices	observed
+0x001c83b0	vostok::render::calculate_streaming_texture_factor	entry ESP+20	index count	observed
 0x001c9370	vostok::render::light::light	entry ESP+4	light receiver loaded after0x58 locals and two saved registers	observed
 0x001c9370	vostok::render::light::light	EAX	collision tree pointer stored owner+2B0 before first call	observed
 0x001c9710	vostok::render::light::on_render_options_changed	EDX	light receiver supplying configured/effective options388/38C	observed
