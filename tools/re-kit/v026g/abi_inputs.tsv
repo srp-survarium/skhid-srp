@@ -6310,3 +6310,10 @@ va	name	location	role	basis
 0x0007bad0	vostok::physics::bullet_character_controller::get_push_from_low_ceiling	ECX	the Bullet controller	observed
 0x0007bad0	vostok::physics::bullet_character_controller::get_push_from_low_ceiling	EAX	the vector to write (16 bytes)	observed
 0x0007c7e0	vostok::physics::bullet_character_controller::can_skeep_player_step	EDX	the Bullet controller	observed
+0x000d1170	btVoronoiSimplexSolver::reset	EAX	the simplex solver	observed
+0x000d1200	btVoronoiSimplexSolver::addVertex	EAX	the simplex solver	observed
+0x000d1280	btVoronoiSimplexSolver::updateClosestVectorAndPoints	entry ESP+4	the simplex solver	observed
+0x000d1c70	btVoronoiSimplexSolver::inSimplex	EDX	the simplex solver	observed
+0x000d6cd0	btGjkPairDetector::getClosestPointsNonVirtual	entry ESP+4	the detector	observed
+0x000d6cd0	btGjkPairDetector::getClosestPointsNonVirtual	entry ESP+8	the input: transform A, transform B (+40h), the largest distance squared (+80h)	observed
+0x0008d680	btConvexShape::localGetSupportVertexWithoutMarginNonVirtual	ECX	the convex shape	observed

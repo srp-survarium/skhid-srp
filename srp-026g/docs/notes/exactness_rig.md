@@ -112,6 +112,73 @@ and the logic do between two steps, the tail and the skip test read the key as a
 steps of §3 the port's crouch flags, ceiling normal and ceiling slide are now the exe's in every step (before:
 149, 5 and 1 steps off).
 
+### 3b. The cast, bit for bit (PROVEN)
+
+The 119 steps over tolerance sat on edges and corners: the exe's surface normal after the step is some face's
+normal in 822 of the 1,000 steps (47 of them over), an edge's or a corner's in 174 (72 over). The port's caster
+had the time-of-impact rules of `calcTimeOfImpact` on an exact capsule-triangle distance; the exe's distance is
+GJK's, an iteration in `f32`.
+
+**The corpus.** The exe in Unicorn on 1,000 traced steps, with hooks around
+`btGjkPairDetector::getClosestPointsNonVirtual` 0xD6CD0: 57,641 calls, each a record of the two shapes' bytes,
+the input, the detector's settings and its state after, and the point collector after (`gjk_corpus.py`). Cast
+shapes: the capsule (51,643), the cylinder of the move test (5,884), the sphere at the capsule's top (114); the
+other shape is always a triangle; every transform has the identity's bits; the largest distance squared is 1e18;
+24 calls go on to the penetration solver.
+
+**The port.** `controller/exe_gjk.rs`: the detector's loop, the Voronoi simplex solver (0xD1170 .. 0xD2700) and
+the support function 0x8D680 for the four shapes, in the exe's order of operations (scalar SSE `f32`; the x87
+square roots at 24-bit precision are `f32`'s). Each sum of three terms is grouped as the asm groups it, which is
+often not the source's order: put back one at a time, the source's order breaks between 146 and 9,988 of the
+records. This build differs from stock Bullet in one place that matters: the exit on a stalled distance (12)
+makes no `backup_closest`. **57,617 of 57,617 calls without a penetration call give the exe's bits** (normal,
+point, distance, the detector's method, round count, degeneracy, cached axis and distance), and the port stops
+for the penetration solver on exactly the 24 calls the exe makes it on
+(`tests/exe_gjk_corpus.rs`, run with `SRP_EXE_GJK_CORPUS`: the records hold the game's triangles and stay
+private). Not reached by the corpus, ported from the asm only: exits 6, 10, 13, the round limit, ignored margins,
+bases other than the identity.
+
+`controller/exe_cast.rs` is `processTriangle` 0xB8670 over `calcTimeOfImpact` 0xB9320 for a shape that only
+translates: the way is the end's origin less the start's (`calculateVelocity` 0x72EB0), the origin at lambda is
+`from + way * lambda` (`integrateTransform` 0x8B2D0; the basis stays the identity's bits), the reported normal is
+made unit again. `Caster::Exe` puts it under the sweeps; `Shape::CapsuleAt` carries the controller's own centre
+and dims to it; the tick's sweeps hand the way as end less start (a displacement added and subtracted again is
+not the displacement: that alone was one unit in the last place of y on 358 landings).
+
+| the port against the exe on equal triangles, 1,000 steps | the same bits | under 1e-4 m | under 1 mm | under 1 cm | under 10 cm | surface normal off |
+|---|---|---|---|---|---|---|
+| `Caster::Bullet` (exact distance, the exe's rules) | 137 | 744 | 84 | 33 | 2 | 151 |
+| `Caster::Exe` | **991** | 0 | 3 | 3 | 3 | 7 |
+
+The 9 steps left all met a wall (the move test: the wall normal by rays, the penetration solver's contact where
+the cylinder's core starts in a face). The whole run of the 1,000 cases takes 0.87 s with `Caster::Bullet` and
+1.10 s with `Caster::Exe` (one thread, the cases' parsing and tree building included).
+
+Not ported: the penetration-depth solver (Bullet's EPA). Where the exe calls it, `Caster::Exe` gives
+`Caster::Bullet`'s contact.
+
+### 3c. The bots' map export against the game's world (PROVEN as counts)
+
+The export of `level_07/day_4` (`MapData::walker_triangles`, 414,210 triangles) against the capture of the
+running game (663,122 walker triangles as this rig cuts them):
+
+- every level-mesh triangle of the game (95,554) and every placed-mesh triangle (137,896) is in the export with
+  the same corners in the same order; no walker behaviour differs; the boxes are equal to a millimetre;
+- the primitives (boxes, spheres, cylinders, capsules: real Bullet shapes in the game) are triangles in both, cut
+  differently (35,188 of the rig's 429,672 primitive triangles have a twin).
+
+The exe's own step on each world against the game, 1,000 steps:
+
+| | the same bits | under 1e-5 m | under 1 mm | under 1 cm | 1 cm or more |
+|---|---|---|---|---|---|
+| the exe on the rig's triangles | 636 | 141 | 136 | 55 | 30 |
+| the exe on the export's triangles | 637 | 138 | 137 | 57 | 30 |
+
+So the export is as good as triangles can be, and what is left against the game is the primitives being
+triangles at all: about 36 % of the steps are not the game's bits, 3 % are a centimetre or more off (the worst
+0.23 m), every one of the worst 15 beside a primitive. With the game's real shapes the same exe is the game in
+6,784 of 6,784 steps (§2).
+
 ## 4. What was read on the way (PROVEN)
 
 - `objectQuerySingle` 0xA14E0, a compound (type 31, 0xA22EE): the cast shape's box in the compound's frame,

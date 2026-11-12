@@ -2389,3 +2389,17 @@ va	status	ref_021d	name
 0x0007bd10	reviewed		vostok::physics::bullet_character_controller::need_push_from_low_ceiling
 0x0007bad0	reviewed		vostok::physics::bullet_character_controller::get_push_from_low_ceiling
 0x0007c7e0	reviewed	0x0021db35	vostok::physics::bullet_character_controller::can_skeep_player_step
+0x000d1170	verified		btVoronoiSimplexSolver::reset
+0x000d1200	verified		btVoronoiSimplexSolver::addVertex
+0x000d1280	verified		btVoronoiSimplexSolver::updateClosestVectorAndPoints
+0x000d1c70	verified		btVoronoiSimplexSolver::inSimplex
+0x000d1120	verified		btVoronoiSimplexSolver::reduceVertices
+0x000d10a0	verified		btVoronoiSimplexSolver::removeVertex
+0x000d1e80	reviewed		btVoronoiSimplexSolver::compute_points
+0x000d1ed0	verified		btVoronoiSimplexSolver::closestPtPointTriangle
+0x000d25b0	verified		btVoronoiSimplexSolver::pointOutsideOfPlane
+0x000d2700	verified		btVoronoiSimplexSolver::closestPtPointTetrahedron
+0x000d6cd0	verified		btGjkPairDetector::getClosestPointsNonVirtual
+0x0008d680	verified		btConvexShape::localGetSupportVertexWithoutMarginNonVirtual
+0x00072eb0	reviewed		btTransformUtil::calculateVelocity
+0x0008b2d0	reviewed		btTransformUtil::integrateTransform
