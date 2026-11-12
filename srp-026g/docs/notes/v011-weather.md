@@ -59,8 +59,11 @@ evening/rain recipes, a 128-position collision-checked sweep, read-only stage
 observer, and the guarded capture queue. The initial native baseline uses
 `/tmp/v011-weather-content-baseline-v9`; the atlas correction uses
 `/tmp/v011-weather-content-atlas-v2`. Original references must be frozen and
-kept. Neither original-weather capture nor native visual parity is established
-while the owner-game guard is waiting.
+kept. Both initial original capture batches are complete; native visual parity is
+not yet established. The owner explicitly authorized concurrent isolated GPU
+captures on 2026-11-12 ("no you have enough GPU"). The private queue retains
+sequential render jobs, the 2.5 GiB free-VRAM check and dummy-Xorg isolation.
+With the owner game and original capture running, 4,122 MiB remained free.
 The further original sweep is queued after those jobs: three batches per
 weather (48/48/29 new poses); three exactly matching cameras reuse the initial
 references. Its plan is `/tmp/v011-weather-reference/sweep/plan.json` and log
@@ -176,8 +179,8 @@ otherwise bokeh image requires DOF. `check_post_selection.py` in
 combinations and resolves the selected original catalog permutation. It
 passes, with authored weather quality 0/1/2/3 hashes respectively
 `4afab015...`, `88a0cc79...`, `3eefb587...`, `8696aa4b...`.
-This is CPU evidence; the queued stage captures still must confirm the live
-selection and loaded parameters.
+Live captures now confirm the quality-3 selection in both weather variants;
+see the GPU round-trip evidence below.
 
 The quality-3 weather program's resources are position t0, grain t1, frame
 t2, luminance t3, scattering t4, bokeh image t5, lens flares t6, grading 3D
@@ -197,33 +200,54 @@ Whether the actual native post-stage caller supplies the authored weather
 values remains a capture/integration check; constructor/setter tests do not
 prove their runtime inputs or shader binding order.
 
-## Original post replay evidence (pending GPU execution)
+## Original post replay: GPU round trip passed (2026-11-12)
 
-The read-only stage observer now records the original post VS/constants,
-indexed TL geometry, rasterizer/output state, full sampler descriptors and
-additional grain/bokeh texture mips. The existing screenshot-only batch keeps
-its frozen DLL. The two still-pending rich diagnostic clients were checked
-idle, their previous DLLs preserved as `camera_hook.before-post-observer.dll`,
-and their recipes repinned to the new observer. Both recipe preflights pass.
+The owner explicitly authorized concurrent isolated GPU captures ("no you have
+enough GPU"). Jobs still run sequentially on dummy Xorg with at least 2.5 GiB
+free VRAM. Both initial reference batches completed: 32 poses × two frames per
+weather, 128 frames total. All actual positions, directions, FOVs and resolutions
+match; see `/tmp/v011-weather-reference/original-camera-validation.json`.
+Initial references are frozen and unchanged. Their frozen-manifest hashes:
 
-Observer SHA256: `09bf1286b532997a6d9d330cd7b8cea21811c819c9555617de1d11df71a4a9bf`.
-Replay executable SHA256: `4ea096eab63c2e95bc920f4c4d74af3f26d6ab6aeb8fbc7aef9f45597f19eba0`.
-Both compile with `-Wall -Wextra -Werror`.
+- evening: `a674c3bb21645b503662a7b3af60146d6a7aa4204e811b2d4c58f1db37e79a65`;
+- rain: `8bf442cb50ee0c7e34e53d8daefd094c944bdd7a51d868375168916ccecb41fd`.
 
-Resource-porter `tools/render-compare/replay_post.py` prepares a verified
-packet from a `.post-draw` capture; `replay_post.exe` runs the unchanged
-original VS/PS, geometry, constants, samplers and textures outside the game.
-The comparator reports byte equality and component error against the frozen
-original draw. It refuses missing mips, constants, altered programs, invalid
-geometry/viewport/format sizes and modified replay packets. Seven such
-rejection checks pass using real bytecode and synthetic data.
-No GPU replay has run yet, and no original weather frames exist yet. The
-three capture guards remain live; another owner/test game instance currently
-matches the guard. Always check the full process pattern, not only a previously
-observed game PID, because a replacement game may already be running.
+Live diagnostics found two capture defects. The 0.11e initialization path never
+armed buffer readbacks, so the first diagnostic batches contained only images.
+It now enables the original-client observer without native stage hooks, and the
+runner rejects missing post-stage evidence. The grading volume has three mips;
+readback now records the full volume chain, preserving the existing mip-zero
+format. Replay reads the actual `.post-output` filename. Additional diagnostic
+captures went into new `rich/armed-*` and `rich/full-*` folders; earlier frozen
+images were not replaced.
 
-Next: once the rich captures arrive, prepare each captured original post draw
-and replay it under the guarded headless workflow. A byte-matching original
-round trip establishes the draw adapter before binding native scene inputs.
-The current content still uses native runtime shaders; no renderer hook or
-moving-rain parity is implied by this preparatory tooling.
+Full observer SHA256:
+`43b89a5d33ff10e054b5d7409a6f8f73ab8e4ee04348dd4dae18b7b4d385e8bc`.
+It builds with `-Wall -Wextra -Werror`. The CPU packet/comparator check passes,
+including eight rejection cases and missing volume-mip coverage.
+
+All eight original post draws (two poses × two frames × two weather variants)
+use unchanged quality-3 PS `8696aa4b...` and copy-image VS `29abfee6...`.
+Their full-mip packets replay on the GPU with **zero differing bytes** in every
+3,686,400-byte 1280×720 R11G11B10 target. Results and input hashes:
+`/tmp/v011-weather-reference/post-replays/results.json`, SHA256
+`520206f6dc04ce5a3b0b1bc8dfa61b70b3e41d15c820cf791d97e614e79cd313`.
+This proves the original post draw with original inputs; it does not establish
+native scene-input adaptation, whole-renderer parity or moving-rain parity.
+
+Original rain diagnostics confirm five shells in each captured frame, radii
+5, 6.6000004, 8.4700003, 10.6480007 and 13.1769009, density 0.8 and speed 2.
+All five share one scene time per frame, and time advances between frames.
+`original-rain-layers.json` records the constants, geometry and camera evidence.
+These are fixed-camera captures, not a walking test.
+
+The native baseline uses the existing scratch content build 57. Its first
+server startup correctly rejected minimum revision 56. Only the private capture
+EXE's declared revision and PE checksum were aligned to scratch 57, with the
+server and test bot matching; source REVISION and release state are unchanged.
+`native-scratch-revision.json` records exact hashes and changed offsets.
+
+The current queue is `/tmp/v011-weather-reference/complete_queue.py`, log
+`complete-queue.log`: native baseline plus shader-state captures, image
+comparison, then the original 128-position sweep. Native renderer integration
+and walking-rain verification remain outstanding; nothing was released.
