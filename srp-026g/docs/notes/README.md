@@ -155,6 +155,7 @@ given), LIKELY or GUESS.
 | [player_bots_mapdata.md](player_bots_mapdata.md) | Player bots: map data (`crates/mapdata`) |
 | [collision_world.md](collision_world.md) | The game's own Bullet world read from a running game and laid against the map export: how it is built, what the export gets wrong (folder hard links, primitives), the float control words |
 | [bullet_cast.md](bullet_cast.md) | Bullet's convex cast as the game calls it: the caster, the margins, a contact at the start, and the walk tick's harness run on the exe's own cast |
+| [body_trace.md](body_trace.md) | Every step the running game makes for every player's body, taken at the step with a debugger's hardware breakpoints: the frame of a tick (whole grid steps, look-ahead parts), the chain of steps, the controller's fields by the exe's names, and a replay's bodies against the recording's uploads |
 | [player_bots_research.md](player_bots_research.md) | Player bots: research |
 | [player_gear.md](player_gear.md) | A player's equipment from the Rankings and the rooms' lists |
 | [progression_sources.md](progression_sources.md) | Progression and economy: what the sources of the time say |
