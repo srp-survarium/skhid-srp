@@ -5523,3 +5523,29 @@ its class (`vostok::world::Playback`) and do nothing without the replay client. 
 crate's tests (the key mapping) and in a game (2026-11-11, the owner's replay of match 0x1fe297e3:
 the keys, the merged list, 29 seeks without the history error). No Unicorn check.
 
+
+## Distance detail option
+
+Graphics now includes **Reduce detail with distance (off = maximum)**.
+Unchecked keeps full texture mip chains, static model LOD0, material LOD0
+and grass LOD0. Checked preserves the existing adaptive behavior, including
+the FOV correction. Apply, Cancel and persistence use the existing native
+`r_use_texture_streaming` option; its default remains on. The same console
+command controls the setting (`off` for maximum, `on` for adaptive detail).
+Hardware mip filtering and visibility culling remain active.
+
+The screenshot's hospital model switches LOD1 → LOD0 when the view turns
+5.4° at the same player position. Executing the original selector with the
+released hospital asset reproduces that switch; maximum detail selects LOD0
+at both views. The model has 20,194 triangles at LOD1 and 50,496 at LOD0.
+These mesh counts measure geometry cost, not FPS or GPU memory.
+See `../scripts/distance-detail/reproduction.txt` for inputs and assumptions.
+
+Validation: `check_detail_026g.py` executes native model/material/grass/texture
+paths and menu Apply/Cancel in Unicorn; `selftest_026g.py::test_detail` checks
+hook bytes, targets, relocations and counts. The engine-call library and FOV
+checks pass. `../scripts/distance-detail/check.sh` checks all six translated
+labels, native setter binding and tab revisits in CPU Ruffle. The manifest
+content build contains only main_menu and the six localization tables.
+Implemented and tested in emulation; not played or released. Texture reload,
+save/restart and FPS/RAM/VRAM costs still need a running-client check.

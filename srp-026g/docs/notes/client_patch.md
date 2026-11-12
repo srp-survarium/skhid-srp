@@ -3456,3 +3456,50 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eight lohooks; its boundary `
   `srp_voice_mute(place, "1"|"0")` `root.srp_voice_mute(place, done)`; the menu shows "Mute voice"
   or "Unmute voice" after the chat's entries.
 - **Checked**: `selftest_026g.py` check 66, `cargo test` (rust/: the mutes' text, the radio). **Not run**: a game.
+
+### Distance detail option
+
+`detail_026g.asm` lives in the linked `detail.code` arena block. One existing
+native command, `r_use_texture_streaming`, owns the setting. No shadow bool or
+second settings file is introduced. The active render-options pointer is
+`[0x2260498]`, streaming at `+0x132`. Native registration at `0x3CE2BE` binds
+current and previous values (`+0x25E`), serializable user command, reload
+reason 2. `render_cc_bool::execute` at `0x3CD180` copies current to previous
+before parsing the new value. The menu's pending checkbox does not alter
+render state until its native Apply (`0x261820`). Cancel (`0x261880`) restores
+the option's saved baseline. Existing renderer option processing owns reload.
+
+The graphics-tab allocation/count at `0x262753` grows from 19 to 20. Both
+constructor exits (`0x262C08`, `0x262C17`) append native `options_item_bool`
+item 19, using the generated `engine_options_item` thunk for the observed
+constructor ABI at `0x260E90`. Native allocation, callbacks, destructor,
+Apply/Cancel and console persistence are retained. The label array count
+(`0x2007B6`), emission count (`0x200B10`) and newly initialized twentieth
+buffer at `ESI + 19*0x4C` in `fill_settings_data` use
+`st_distance_detail_option`. Flash maps option 19 to a script-created checkbox;
+the content manifest adds its translations. Existing option ids stay fixed.
+
+When streaming is off, the renderer hooks select maximum detail:
+
+| Hook | Native behavior retained or changed |
+| --- | --- |
+| `0x16EEF7`, static model selector | Missing LOD0 still returns `0xAA`; otherwise use native LOD0 return, bypassing distance/projected-box thresholds. |
+| `0x158D26`, material selector | Return shader LOD0. Adaptive mode retains `r_use_shader_lods` and shading-quality behavior. |
+| `0x1605E0`, grass culling | Keep the initialized LOD0, then execute the native available-LOD clamp. Normal visibility culling remains. |
+| `0x3D9C43`, effect texture request | Native streaming-off path already requests all mips (`-1`); additionally set mip-cut to zero, overriding the texture-quality top-mip cut. |
+
+Adaptive mode replays every displaced instruction. Full detail does not
+remove GPU mipmaps: the complete chain stays available for normal hardware
+filtering. `r_grass_lod1_distance` / `r_grass_lod2_distance` still govern
+adaptive grass. `r_debug_use_skeletel_mesh_lods` has registration but no
+identified reader in this executable; no speculative skeletal hook is added.
+Explicitly requested LODs and terrain-specific rendering are not rewritten.
+
+Native measurements, including the hospital's projected extent crossing
+0.4 at the supplied camera poses, are documented with the reproducible
+asset-based harness in `scripts/distance-detail/reproduction.txt`. The native
+fixture verifies Apply changes current and retains previous, Cancel leaves
+current intact, default behavior matches the original, and maximum mode
+keeps LOD0. Windows CRT formatting and allocators are mocked at their boundary;
+the actual option constructor and bool parsing execute. No runtime reload,
+GPU rendering or save/restart cycle has been played yet.

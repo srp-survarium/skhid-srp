@@ -2,6 +2,9 @@
 ; cdecl: push the arguments right to left, call, add esp, 4 x their count;
 ; EBX, ESI, EDI and EBP are kept, EAX, ECX and EDX are not. The link gives
 ; each its address.
+; void engine_options_item(void *receiver, const char *command, void *parent, unsigned int id, unsigned int type)
+; 0x260e90 survarium::options_item_base::options_item_base: receiver EDI, command EAX, parent ESP+4, id ESP+8, type ESP+12; pops 12
+extern engine_options_item
 ; const struct engine_cfg *engine_cfg_child(const struct engine_cfg *table, const char *key)
 ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
 extern engine_cfg_child

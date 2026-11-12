@@ -2798,6 +2798,25 @@ INSTALLS[0x743B2] = (CALLEE, "get_axis_and_angle's atan2: animation_math (Rust `
 INSTALLS[0x3B3340] = (ENTRY, "time_channel::domain: animation_math_domain, the same search without a division "
                              "per step", None, None)
 
+# Distance-based detail: native streaming command owns Apply/Cancel/save.
+# Full detail also selects LOD0 and keeps the top texture levels.
+DETAIL_HOOKS = (
+    (0x262C08, bytes.fromhex("8bc35f5e5b"), "detail_options", 0xE9),
+    (0x262C17, bytes.fromhex("8bc35f5e5b"), "detail_options", 0xE9),
+    (0x2009B9, bytes.fromhex("8d8658050000"), "detail_label", 0xE9),
+    (0x16EEF7, bytes.fromhex("80790100750b"), "detail_model", 0xE9),
+    (0x158D26, bytes.fromhex("8b81e8000000"), "detail_shader", 0xE9),
+    (0x1605E0, bytes.fromhex("f30f105150"), "detail_grass", 0xE9),
+    (0x3D9C43, bytes.fromhex("8b9194810800"), "detail_texture", 0xE9),
+)
+DETAIL_PATCHES = (
+    (0x262753, bytes.fromhex("bf13000000c6430413"), bytes.fromhex("bf14000000c6430414")),
+    (0x2007B6, bytes.fromhex("6a13"), bytes.fromhex("6a14")),
+    (0x200B10, bytes.fromhex("b313"), bytes.fromhex("b314")),
+)
+for _va, _old, _symbol, _opcode in DETAIL_HOOKS:
+    INSTALLS[_va] = (JUMP, "distance detail: " + _symbol + "; native stack and ownership retained", None, None)
+
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
 # A vtable our code builds and installs at run time (a rule's, a cook's):
@@ -3028,6 +3047,7 @@ ARENA = (
     # patch 125: the TLS callback and the DLL notification Windows calls, and the TLS directory's callback list
     ArenaBlock("module_watch.code", "code", 0x10, ("module_watch_026g.asm",)),
     ArenaBlock("module_watch.data", "data", 0x10, ("module_watch_026g.asm",)),
+    ArenaBlock("detail.code", "code", 0x1000, ("detail_026g.asm",)),
 )
 
 
@@ -4089,7 +4109,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
                         + KILL_FEED_HOOKS + WEIGHT_UI_HOOKS + BULLET_BOUNDS_HOOKS \
-                        + MATCH_STAT_MAP_HOOKS + AUDIO_DEVICE_HOOKS + WORLD_SECTIONS_HOOKS + rust_hooks(original):
+                        + MATCH_STAT_MAP_HOOKS + AUDIO_DEVICE_HOOKS + WORLD_SECTIONS_HOOKS + DETAIL_HOOKS + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
@@ -4103,6 +4123,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 for va, old, new in hide_ui_table_writes(linked):
                     patch(data, va, old, new)
                 patch_section_value(data, *ARTEFACT_KEY_DEFAULT)
+                for change in DETAIL_PATCHES:
+                    patch(data, *change)
                 patch(data, *KILL_FEED_ARGUMENT)
                 patch(data, *BAKE_CACHE_KEEP)
                 patch(data, *EXPAND_TEXT_UNBOUND)

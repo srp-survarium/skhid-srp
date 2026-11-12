@@ -1,0 +1,11 @@
+{
+ "_about": "Graphics option 19 uses the native saved texture-streaming command; disabling distance detail keeps full textures, static models and materials. The native renderer reloads textures on Apply.",
+ "add_key": [
+  {"file":"localization/english/localization","table":"strings","key":"st_distance_detail_option","text":"Reduce detail with distance (off = maximum)"},
+  {"file":"localization/german/localization","table":"strings","key":"st_distance_detail_option","text":"Details mit Entfernung reduzieren (aus = maximal)"},
+  {"file":"localization/polish/localization","table":"strings","key":"st_distance_detail_option","text":"Zmniejszaj szczegóły z odległością (wył. = maksimum)"},
+  {"file":"localization/russian/localization","table":"strings","key":"st_distance_detail_option","text":"Снижать детализацию вдали (выкл. = максимум)"},
+  {"file":"localization/original/localization","table":"strings","key":"st_distance_detail_option","text":"Снижать детализацию вдали (выкл. = максимум)"},
+  {"file":"localization/ukrainian/localization","table":"strings","key":"st_distance_detail_option","text":"Знижувати деталізацію вдалині (вимк. = максимум)"}
+ ]
+}

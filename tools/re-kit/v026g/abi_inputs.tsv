@@ -2521,11 +2521,14 @@ va	name	location	role	basis
 0x0025d130	survarium::game_world::set_cursor_position	entry ESP+4	x, then y (+8): the system's cursor and the hud's pointer	observed
 0x0025d160	survarium::game_world::set_pointer	ECX	the game world (vtable+30h; the pointer kept at +8Ch, +90h)	observed
 0x0025d160	survarium::game_world::set_pointer	entry ESP+4	x, then y (+8) and the wheel (+12)	observed
-0x00260e90	survarium::options_item_base::options_item_base	EDI	options item receiver	inferred
-0x00260e90	survarium::options_item_base::options_item_base	EAX	console command name	inferred
-0x00260e90	survarium::options_item_base::options_item_base	stack+4	parent tab	inferred
-0x00260e90	survarium::options_item_base::options_item_base	stack+8	option item id byte	inferred
-0x00260e90	survarium::options_item_base::options_item_base	stack+12	option item type	inferred
+0x00260e90	survarium::options_item_base::options_item_base	EAX	console command name, copied to ESI at 0x260ea2 for lookup	observed
+0x00260e90	survarium::options_item_base::options_item_base	EDI	options item receiver; ctor stores +4 callback and +8 command	observed
+0x00260e90	survarium::options_item_base::options_item_base	entry ESP+12	option item type, stored at receiver+0Ch by 0x260ee7	observed
+0x00260e90	survarium::options_item_base::options_item_base	entry ESP+4	parent tab, stored at receiver+10h by 0x260eea	observed
+0x00260e90	survarium::options_item_base::options_item_base	entry ESP+8	option item id byte, stored at receiver+14h by 0x260eed	observed
+0x002617c0	survarium::options_item_bool::initialize	ECX	receiver	observed
+0x00261820	survarium::options_item_bool::apply	ECX	receiver	observed
+0x00261880	survarium::options_item_bool::revert	ECX	receiver	observed
 0x002636b0	survarium::lobby_character::start_decal_edit	EAX	the host item id	observed
 0x002636b0	survarium::lobby_character::start_decal_edit	entry ESP+4	lobby_character	observed
 0x002636b0	survarium::lobby_character::start_decal_edit	entry ESP+8	the decal item id	observed
@@ -3934,6 +3937,8 @@ va	name	location	role	basis
 0x003cbec0	vostok::render::effect_manager::register_effect_desctiptor	entry ESP+4	owner	observed
 0x003cbec0	vostok::render::effect_manager::register_effect_desctiptor	entry ESP+8	name string	observed
 0x003cbec0	vostok::render::effect_manager::register_effect_desctiptor	entry ESP+12	descriptor	observed
+0x003cd180	vostok::render::render_cc_bool::execute	ECX	receiver	observed
+0x003cd180	vostok::render::render_cc_bool::execute	entry ESP+4	console argument string	observed
 0x003cd460	vostok::render::options::use_ssr	EAX	options owner	observed
 0x003cd4d0	vostok::render::options::set_default_values	EAX	options owner	observed
 0x003cd870	vostok::render::options::register_console_commands	EDI	options owner	observed

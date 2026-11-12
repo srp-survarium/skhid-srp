@@ -629,7 +629,7 @@ package survarium.menu
          this._element_map[1] = ["_setter_inverse_mouse","_slider_mouse_sens","_default_button","keysLobby","keysChat","keysGame"];
          // index 7, the video options' "FOV" (the original's dead "fov" again): no control; the field of
          // view is the gameplay tab's (SrpFieldOfView, patch 83's uro_fov)
-         this._element_map[2] = ["_select_monitor","_fscr_resolution","_fullscreen","_vsync","_antialias","_filtering","gamma_option","","_overall_graphics","_texture_q","_geometry_q","_shadow_q","_lighting_q","_water_q","_decorations","_post_process","_ao_q","_particples_q","_motion_blur"];
+         this._element_map[2] = ["_select_monitor","_fscr_resolution","_fullscreen","_vsync","_antialias","_filtering","gamma_option","","_overall_graphics","_texture_q","_geometry_q","_shadow_q","_lighting_q","_water_q","_decorations","_post_process","_ao_q","_particples_q","_motion_blur","_distance_detail"];
          this._element_map[3] = ["_total_volume","_game_volume","_sound_volume","_sound_сhat","_use_mik","_mic_sens","_ptt"];
          this._hudGroup = new SrpCheckGroup(this.settings_content,this.settings_content.s_friends,HUD_OPTIONS);
          for each(var option:SrpCheckOption in this._hudGroup.options)
@@ -663,6 +663,7 @@ package survarium.menu
          this._mouse.place();
          this._fov.place();
          this._renderer.place();
+         SrpDistanceDetail.apply(this);
          this._language.place();
          var key:Object;
          var tabIndex:uint;
@@ -773,6 +774,7 @@ package survarium.menu
             }
          }
          SrpVideoTab.finish(this,this._renderer);
+         SrpDistanceDetail.finish(this);
          // the HUD group, after the tab's settings are bound (their labels set)
          this._crosshair.place();
          this.applyHudTexts();

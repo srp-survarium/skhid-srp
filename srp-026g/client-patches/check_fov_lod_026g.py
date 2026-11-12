@@ -49,6 +49,10 @@ def image(data):
         emu.mem_write(start, bytes(data[raw:raw + min(rsize, vsize or rsize)]))
     for region in (STACK, WORK, RETURN):
         emu.mem_map(region, 0x10000, UC_PROT_ALL)
+    # Engine startup initializes the active render options before any LOD
+    # selection. Fixtures start in the normal distance-adaptive mode.
+    emu.mem_write(0x2260498, struct.pack('<I', WORK + 0xF000))
+    emu.mem_write(WORK + 0xF132, b'\1')
     return emu
 
 
