@@ -119,9 +119,13 @@ pub struct Controller {
     pub gravity: f32,
     /// +0x2C70C: in a jump (the game's `base_player::jump` sets it, `end_jump` clears it): the air branch moves the body.
     pub jumping: bool,
-    /// +0x201: the game asks for a crouch (player_step crouches, or stands when it may).
+    /// +0x200 `m_input_is_in_crouch`: the crouch key as the game's input has it (`base_player::apply_new_input` 0x2D86E0
+    /// writes it before the step). While it is held the step's tail makes no stand test and no ceiling push, and a body at
+    /// rest skips its step only when the capsule agrees with the key. Set it with [`Controller::crouch_key`].
+    pub input_crouch: bool,
+    /// +0x201 `m_logic_is_in_crouch`: the game's logic asks for a crouch (player_step crouches, or stands when it may).
     pub want_crouch: bool,
-    /// +0x202: a crouched body may stand (the tail's stand test).
+    /// +0x202 `m_can_stand`: a crouched body may stand (the tail's stand test, made only with the key released).
     pub can_stand: bool,
     /// +0x2C720: the ceiling normal of the last stand test.
     pub ceiling_normal: Vec3,
@@ -252,6 +256,7 @@ impl Controller {
             tick: 0.05,
             gravity: 9.8,
             jumping: false,
+            input_crouch: false,
             want_crouch: false,
             can_stand: true,
             // The exe's constructor starts it at -up (Unicorn).
@@ -335,7 +340,13 @@ impl Controller {
             return notes;
         }
         // can_skip_player_step 0x7C7E0.
-        if len2(self.walk).abs() < TINY && len2(v) == 0.0 && !self.need_slide(s) && self.slide == Vec3::ZERO && !self.crouched {
+        if len2(self.walk).abs() < TINY
+            && len2(v) == 0.0
+            && !self.need_slide(s)
+            && !self.ceiling_push_due()
+            && self.crouched == self.input_crouch
+            && self.slide == Vec3::ZERO
+        {
             notes.skipped = true;
             self.walk = Vec3::ZERO;
             return notes;
@@ -400,6 +411,33 @@ impl Controller {
         notes
     }
 
+    /// What the game's logic does with the crouch key between two steps (PROVEN: read in the exe, and counted on 27,790
+    /// traced steps of the game's own bodies with 113 presses and 112 releases, `docs/notes/exactness_rig.md`):
+    /// `base_player::apply_new_input` 0x2D86E0 writes the key into +0x200; `player_logic_crouch_state` asks for the crouch
+    /// (0x337810: +0x201 = 1) and gives it up only once the body may stand (0x337830: +0x201 = 0 when +0x202 is set). The
+    /// stand test is made by a step with the key released, so a body stands on the SECOND step after the release, 50 ms
+    /// after the key, and stays down under a ceiling.
+    ///
+    /// Call it before every step with the key's state. Not here (the logic's side, not read): the game refusing a crouch
+    /// with the key held (36 of the traced steps: +0x200 set, +0x201 clear) and `base_player::jump` 0x2D7920 clearing +0x201.
+    pub fn crouch_key(&mut self, held: bool) {
+        self.input_crouch = held;
+        if held {
+            self.want_crouch = true;
+        } else if self.can_stand {
+            self.want_crouch = false;
+        }
+    }
+
+    /// 0x7BD10 (and the same test inline in `step_down`'s tail 0x7E88A and at the head of the push 0x7BAD0): a crouched
+    /// body with the key released that may not stand, under a ceiling whose normal is over 60 degrees off straight down,
+    /// is pushed out from under it. The three places add the products in different orders; with up = (0, 1, 0) each sum
+    /// is the same bits.
+    fn ceiling_push_due(&self) -> bool {
+        let c = self.ceiling_normal;
+        self.crouched && !self.input_crouch && !self.can_stand && 0.5 > (-c.y * UP.y + -c.z * UP.z) + -c.x * UP.x
+    }
+
     /// `setup_crouch_state` 0x7F1A0: the crouched or standing capsule, its feet kept (the origin moves).
     fn set_crouched(&mut self, crouched: bool) {
         let feet = self.origin - UP * self.d();
@@ -409,8 +447,9 @@ impl Controller {
         self.origin = feet + UP * self.d();
     }
 
-    /// The tail's stand test 0x7F7B0 (LIKELY: read in outline): the crouched capsule at `pos` swept up by what standing adds; a
-    /// face met is the ceiling, its normal kept.
+    /// The tail's stand test `can_straighten` 0x7F7B0 (read whole: a crouched capsule is tested by the stand tester at
+    /// +0x144A0, sweep 0x873C0, from the collision object's origin +0xB0; the sweep itself is LIKELY, read in outline): the
+    /// crouched capsule swept up by what standing adds; a face met is the ceiling, its normal kept.
     fn stand_test(&mut self, world: &Collision) -> bool {
         // From the origin (where the body was at the tick's start), proven in Unicorn; a miss leaves -up.
         let rise = self.standing.1 - self.crouching.1;
@@ -974,10 +1013,13 @@ impl Controller {
         let d2 = self.d();
         self.pos = Vec3::new(d2 * UP.x + b.x, d2 * UP.y + b.y, d2 * UP.z + b.z);
         if self.crouched {
-            self.can_stand = self.stand_test(world);
-            let c = self.ceiling_normal;
-            if !self.can_stand && 0.5 > (-c.y * UP.y + -c.z * UP.z) + -c.x * UP.x {
+            // 0x7E871: the stand test only with the key released; with it held +0x202 stays as the crouch left it (0).
+            if !self.input_crouch {
+                self.can_stand = self.stand_test(world);
+            }
+            if self.ceiling_push_due() {
                 // 0x7BAD0: the horizontal part of the ceiling's normal, times 0.1; no decay this tick.
+                let c = self.ceiling_normal;
                 let k = (c.x * UP.x + c.z * UP.z) + c.y * UP.y;
                 self.slide = self.slide + Vec3::new(c.x - UP.x * k, c.y - UP.y * k, c.z - UP.z * k) * 0.1;
                 return;
@@ -1102,6 +1144,73 @@ mod tests {
                 assert!((f.x - x).abs() < 5e-4 && (f.y - y).abs() < 5e-4, "tick {tick}: {f:?} vs exe ({x}, {y})");
             }
         }
+    }
+
+    fn crouch_flags(c: &Controller) -> (bool, bool, bool, bool) {
+        (c.input_crouch, c.want_crouch, c.can_stand, c.crouched)
+    }
+
+    /// The crouch key through the game's logic ([`Controller::crouch_key`]): the four flags before and after each step are
+    /// the game's own bodies' (99 of 114 traced releases: held `il-c`; released `-l-c` > `-lsc`; then `--sc` > `--s-`). The
+    /// body stands on the second step after the release, and no stand test is made while the key is held.
+    #[test]
+    fn a_released_crouch_stands_a_step_after_its_stand_test() {
+        let mut tris = Vec::new();
+        ground(0.0, -10.0, 10.0, &mut tris);
+        let world = Collision::build(&tris);
+        let mut c = Controller::standing_at(Vec3::ZERO);
+        c.crouch_key(true);
+        assert_eq!(crouch_flags(&c), (true, true, true, false));
+        c.step(&world, 0.05, &Settings::LIVE);
+        assert_eq!(crouch_flags(&c), (true, true, false, true));
+        c.crouch_key(true);
+        c.step(&world, 0.05, &Settings::LIVE);
+        assert_eq!(crouch_flags(&c), (true, true, false, true), "held: +0x202 stays 0");
+        c.crouch_key(false);
+        assert_eq!(crouch_flags(&c), (false, true, false, true), "the logic keeps the crouch until the body may stand");
+        c.step(&world, 0.05, &Settings::LIVE);
+        assert_eq!(crouch_flags(&c), (false, true, true, true), "the stand test passes, the capsule is still down");
+        c.crouch_key(false);
+        assert_eq!(crouch_flags(&c), (false, false, true, true));
+        c.step(&world, 0.05, &Settings::LIVE);
+        assert_eq!(crouch_flags(&c), (false, false, true, false));
+        assert!(c.feet().y.abs() < 0.01, "{:?}", c.feet());
+    }
+
+    /// Under a ceiling between the crouched and the standing height the released body stays down (18 traced steps
+    /// `-l-c` > `-l-c`).
+    #[test]
+    fn a_crouch_under_a_low_ceiling_is_kept_after_the_release() {
+        let mut tris = Vec::new();
+        ground(0.0, -10.0, 10.0, &mut tris);
+        ground(1.4, -10.0, 10.0, &mut tris);
+        let world = Collision::build(&tris);
+        let mut c = Controller::standing_at(Vec3::ZERO);
+        // Put down as the game would have it there: crouched with the key held.
+        c.crouch_key(true);
+        c.set_crouched(true);
+        for _ in 0..4 {
+            c.crouch_key(false);
+            c.step(&world, 0.05, &Settings::LIVE);
+            assert_eq!(crouch_flags(&c), (false, true, false, true));
+        }
+    }
+
+    /// A crouched body at rest skips its step while the key is held (`can_skip_player_step` 0x7C7E0 asks that the capsule
+    /// agree with the key), and not on the step after the release, which makes the stand test.
+    #[test]
+    fn a_crouched_body_at_rest_skips_its_step_only_while_the_key_is_held() {
+        let mut tris = Vec::new();
+        ground(0.0, -10.0, 10.0, &mut tris);
+        let world = Collision::build(&tris);
+        let mut c = Controller::standing_at(Vec3::ZERO);
+        c.crouch_key(true);
+        c.step(&world, 0.05, &Settings::LIVE);
+        c.crouch_key(true);
+        assert!(c.step(&world, 0.05, &Settings::LIVE).skipped);
+        c.crouch_key(false);
+        assert!(!c.step(&world, 0.05, &Settings::LIVE).skipped);
+        assert!(c.can_stand);
     }
 
     /// A wall stops the body with its side 0.42 m off it (the cylinder 0.38 m plus the 0.04 m margin): the exe's too (Unicorn).

@@ -2385,3 +2385,7 @@ va	status	ref_021d	name
 0x0008a170	reviewed		btAlignedFreeDefault
 0x000a8380	reviewed		btBvhTriangleMeshShape::performConvexcast
 0x00087b60	reviewed	0x002232a0	vostok::physics::character_controller_jump_tester::convex_sweep_test
+0x0007f7b0	reviewed		vostok::physics::bullet_character_controller::can_stand_up
+0x0007bd10	reviewed		vostok::physics::bullet_character_controller::need_push_from_low_ceiling
+0x0007bad0	reviewed		vostok::physics::bullet_character_controller::get_push_from_low_ceiling
+0x0007c7e0	reviewed	0x0021db35	vostok::physics::bullet_character_controller::can_skeep_player_step
