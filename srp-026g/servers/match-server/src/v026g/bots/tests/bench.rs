@@ -2508,6 +2508,8 @@ pub(crate) fn real_bot_cost() {
             // [A318] Whether the reckoning takes the client's walk tick in the bench's matches (it did not before the world's walker).
             eprintln!("route hash: camper {:016x} bots {:016x}", bots.bench_route_hash[0], bots.bench_route_hash[1]);
             eprintln!("walker_holds so far: {}", crate::v026g::bots::body::walker_holds::count());
+            let gate = crate::v026g::bots::drive::press_gate::counts();
+            eprintln!("jump press gate so far: let through {}, dropped in the air {}, held through a crouch {}", gate[0], gate[1], gate[2]);
             let saved = crate::v026g::bots::stamina::counts::saved_worlds();
             eprintln!("stamina saved worlds so far: {} (reckoned 5+ off {}, 20+ off {})", saved[0], saved[1], saved[2]);
             let riser = crate::v026g::bots::drive::riser_counts::counts();
