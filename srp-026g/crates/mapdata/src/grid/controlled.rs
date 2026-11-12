@@ -63,6 +63,8 @@ pub struct ControlledStats {
     pub checks_chain_failed: usize,
     /// [2c] Of the failed checks, those walked crouched.
     pub checks_failed_crouched: usize,
+    /// [2c] Risers cut by the walk but kept, marked, for no walking way round them ([`ROUND_HOPS`]).
+    pub checks_no_way_round: usize,
 }
 
 /// [2c] One walk check's answer ([`WalkGrid::walk_link`]).
@@ -310,6 +312,9 @@ pub fn body_at(world: &Collision, start: WalkStart, stance: Stance, feet: Vec3) 
 pub const CUT_RISE_M: f32 = 0.2;
 /// [2c] See [`CUT_RISE_M`].
 pub const CUT_SHARE: f32 = 0.5;
+/// [2c] How far a walking way round a cut riser is looked for, links (cells of 0.25 m: about 20 m of a straight way). School's
+/// batteries in the v5 bench: two risers cut with no walking way round (x -17 z 71, x 66 z 55), searches failed 13 -> 465.
+pub const ROUND_HOPS: usize = 80;
 
 /// [2c] The walk check's spare ticks ([`walk_on`]): [`Body::walk_every_link`] asks for arrival, which a body slowed by a
 /// wall's slide reaches later; [`walk_share`] has none (half the way needs none). A body held where it is ends a walk at
@@ -581,7 +586,10 @@ impl WalkGrid {
         }
         wide.off.sort_by_key(|l| (l.from, l.to));
         if body.walk_every_link {
-            return self.walk_every_link(wide, &world, s, start, stats);
+            let (stats, failing, held) = self.walk_every_link(wide, &world, s, start, stats);
+            // The risers with no walking way round stay, marked (the caller marks the cut's kept ones beside them).
+            wide.marked = held;
+            return (stats, failing);
         }
         // Checks: the floors with a face no body walks on near their capsule.
         let n = self.height.len();
@@ -626,7 +634,7 @@ impl WalkGrid {
         s: &Settings,
         start: WalkStart,
         mut stats: ControlledStats,
-    ) -> (ControlledStats, Vec<(u32, usize, f32)>) {
+    ) -> (ControlledStats, Vec<(u32, usize, f32)>, Vec<(NodeId, NodeId)>) {
         let n = self.height.len();
         let floors: Vec<usize> = (0..n).collect();
         let near = parallel(&floors, |&a| {
@@ -663,8 +671,42 @@ impl WalkGrid {
             // floor's place, not under it, and the split bench put the falls 2c added on those cuts.
             .filter(|(ad, w)| self.height[wide.links[ad.0][ad.1] as usize] - self.height[ad.0] > CUT_RISE_M && w.share < CUT_SHARE)
             .map(|(&(a, d), w)| (a as u32, d, w.share))
-            .collect();
-        (stats, failing)
+            .collect::<Vec<_>>();
+        // A riser is cut only where the body has another walking way from its foot to its top close by: else the riser is the
+        // way the routes there walk (a floor a drop or a jump led to, whose walking way out it is, which the reach guard of
+        // [`WalkGrid::cut_keeping_reach`] does not see from the spawns), and a route that may not jump or drop is left none.
+        let cut: std::collections::HashSet<(u32, u32)> = failing.iter().map(|&(a, d, _)| (a, wide.links[a as usize][d])).collect();
+        let other_way = parallel(&failing, |&(a, d, _)| self.walk_way_round(wide, a, wide.links[a as usize][d], &cut));
+        let (round, held): (Vec<_>, Vec<_>) = failing.into_iter().zip(other_way).partition(|&(_, round)| round);
+        stats.checks_no_way_round = held.len();
+        let held = held.into_iter().map(|((a, d, _), _)| (a, wide.links[a as usize][d])).collect();
+        (stats, round.into_iter().map(|(f, _)| f).collect(), held)
+    }
+
+    /// [2c] Whether a walking way leads from `a` to `b` within [`ROUND_HOPS`] links without the links `cut` (Walk links only).
+    fn walk_way_round(&self, wide: &Wide, a: u32, b: u32, cut: &std::collections::HashSet<(u32, u32)>) -> bool {
+        let mut seen = std::collections::HashSet::from([a]);
+        let mut ring = vec![a];
+        for _ in 0..ROUND_HOPS {
+            let mut next = Vec::new();
+            for &x in &ring {
+                for d in 0..8 {
+                    let y = wide.links[x as usize][d];
+                    if y == NONE || wide.kinds[x as usize][d] != LinkKind::Walk || cut.contains(&(x, y)) || !seen.insert(y) {
+                        continue;
+                    }
+                    if y == b {
+                        return true;
+                    }
+                    next.push(y);
+                }
+            }
+            if next.is_empty() {
+                return false;
+            }
+            ring = next;
+        }
+        false
     }
 
     /// [2c] Whether [`Body::walk_every_link`] walks the Walk link `a` -> `b`: a face no body walks on (a `dont_walk` one, or
@@ -902,7 +944,8 @@ mod tests {
         let (off, _) = build(false);
         assert_eq!(off.walk_marked_count(), 0);
         let (on, stats) = build(true);
-        assert!(stats.controlled.checks_kept > 0, "{:?}", stats.controlled);
+        // Kept: no walking way round the riser (the step is the platform's whole edge).
+        assert!(stats.controlled.checks_no_way_round > 0 && stats.controlled.checks_dropped == 0, "{:?}", stats.controlled);
         assert!(on.walk_marked_count() > 0, "{:?}", stats.controlled);
         let top = on.locate(Vec3::new(8.0, 0.785, 3.0), 0.3).expect("the platform");
         assert!(on.reached(top), "kept as the only way up");

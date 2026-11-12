@@ -1347,10 +1347,13 @@ impl WalkGrid {
                 grid.cut_keeping_reach(&mut wide, failing, seeds, spawns, true, body.walk_every_link);
             // [2c] The kept ones are marked: a route may need them, and they are where a body is likely held.
             if body.walk_every_link {
-                wide.marked = tried
+                let kept: Vec<(u32, u32)> = tried
                     .into_iter()
                     .filter(|&(a, b)| (0..DIRS.len()).any(|d| wide.links[a as usize][d] == b && wide.kinds[a as usize][d] == LinkKind::Walk))
                     .collect();
+                wide.marked.extend(kept);
+                wide.marked.sort_unstable();
+                wide.marked.dedup();
             }
         }
         drop(solids);
