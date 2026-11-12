@@ -2819,6 +2819,11 @@ st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
 st_srp_vulkan_dedicated_gpu	Preferovat dedikovanou GPU
 st_srp_vulkan_dedicated_gpu_hint	Na noteboocích vybere silnější grafickou kartu.\n+ Lepší výkon na noteboocích\n- Spotřebuje víc baterie
+st_srp_vulkan_dlss	DLSS
+st_srp_vulkan_dlss_balanced	Vyvážený
+st_srp_vulkan_dlss_hint	Vykresluje hru v nižším rozlišení a zvětšuje ji pomocí NVIDIA DLSS. Jen pro grafické karty RTX.
+st_srp_vulkan_dlss_performance	Výkon
+st_srp_vulkan_dlss_quality	Kvalita
 st_srp_vulkan_frame_limit	Omezení FPS
 st_srp_vulkan_frame_limit_hint	Omezuje, kolik snímků za sekundu hra kreslí.
 st_srp_vulkan_low_latency	Snížit zpoždění vstupu

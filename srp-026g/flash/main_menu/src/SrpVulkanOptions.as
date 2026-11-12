@@ -23,9 +23,10 @@ package
     // drop-down's arrow at its right end (the Renderer box's own art), whose press opens a panel under it
     // (the button held pressed, its arrow turned up), over the column (a popup, as a list's), its rows on
     // the column's grid,
-    // holding the five options exe patch 83 keeps in user.cfg and gives DXVK at the next start with
-    // Vulkan/DXVK: the frame rate limit and the performance overlay (lists, the exe's index), Reduce
-    // input lag, Tear-free with vsync off and Prefer the dedicated GPU (checkboxes, "1" or "0"). A press
+    // holding the six options exe patch 83 keeps in user.cfg and gives DXVK at the next start with
+    // Vulkan/DXVK: the frame rate limit, the performance overlay and DLSS (lists, the exe's index), Reduce
+    // input lag, Tear-free with vsync off and Prefer the dedicated GPU (checkboxes, "1" or "0"). A list
+    // this process does not offer (DLSS where it cannot run: the exe's running value "-") is greyed. A press
     // outside the panel (and outside a list of its own while that is open) or Esc closes it; the button
     // again too. SrpRendererChoice owns it: the button is disabled while the Renderer list shows
     // DirectX 11, and its options are the Renderer's pending
@@ -37,12 +38,15 @@ package
     {
         public static const FRAME_LIMIT:String = "srp_dxvk_frame_limit";
         public static const OVERLAY:String = "srp_dxvk_overlay";
+        public static const DLSS:String = "srp_dxvk_dlss";
         public static const LOW_LATENCY:String = "srp_dxvk_low_latency";
         public static const TEAR_FREE:String = "srp_dxvk_tear_free";
         public static const DEDICATED_GPU:String = "srp_dxvk_dedicated_gpu";
-        // In the panel's order: the two lists, then the three checkboxes.
-        public static const NAMES:Array = [FRAME_LIMIT, OVERLAY, LOW_LATENCY, TEAR_FREE, DEDICATED_GPU];
-        private static const LISTS:int = 2;
+        // In the panel's order: the three lists, then the three checkboxes.
+        public static const NAMES:Array = [FRAME_LIMIT, OVERLAY, DLSS, LOW_LATENCY, TEAR_FREE, DEDICATED_GPU];
+        private static const LISTS:int = 3;
+        // The exe's running value of a list this process does not offer.
+        private static const NOT_OFFERED:String = "-";
         // Over the panel's first row and under its last; out of the column on its left and right.
         private static const PADDING:Number = 8;
         private static const MARGIN:Number = 6;
@@ -231,6 +235,8 @@ package
             saved[name] = values[2];
             running[name] = values[3];
             put(name, saved[name]);
+            // a list not offered shows its saved choice, greyed
+            control.enabled = running[name] != NOT_OFFERED;
         }
 
         // On the Graphics frame: every option asked for.
@@ -255,12 +261,13 @@ package
             return false;
         }
 
-        // A saved value is not the one this process runs: the next start changes it.
+        // A saved value is not the one this process runs: the next start changes it (a list not offered runs
+        // nothing).
         public function get restart():Boolean
         {
             for each (var name:String in NAMES)
             {
-                if (saved[name] != running[name])
+                if (running[name] != NOT_OFFERED && saved[name] != running[name])
                 {
                     return true;
                 }
@@ -473,7 +480,7 @@ package
         // The button at the column's left edge (the Renderer list's), `y` its row, at the tab's preset buttons'
         // width (`preset`: Optimal); the panel right under it, out by MARGIN on both sides of the column, its
         // rows on the column's grid: each list at the Renderer list's place and width (its label at the
-        // labels' x, its box at the boxes'), each checkbox at the column's (`rows[1]`, Fullscreen's) x. Its five
+        // labels' x, its box at the boxes'), each checkbox at the column's (`rows[1]`, Fullscreen's) x. Its six
         // rows on one step, the lists' (`step`, Monitor's), the padding the same over the first and under the
         // last. `rows`: the column's rows under it, which the open panel lies over: it ends in a gap between
         // two of them, none showing half below its edge; the step grows as much as that takes.

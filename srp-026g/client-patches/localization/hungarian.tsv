@@ -2819,6 +2819,11 @@ st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
 st_srp_vulkan_dedicated_gpu	Dedikált GPU előnyben
 st_srp_vulkan_dedicated_gpu_hint	Laptopokon az erősebb videokártyát választja.\n+ Jobb teljesítmény laptopokon\n- Több akkut fogyaszt
+st_srp_vulkan_dlss	DLSS
+st_srp_vulkan_dlss_balanced	Egyensúly
+st_srp_vulkan_dlss_hint	Kisebb felbontásban rajzolja a játékot, és NVIDIA DLSS-sel nagyítja fel. Csak RTX videokártyákon.
+st_srp_vulkan_dlss_performance	Teljesítmény
+st_srp_vulkan_dlss_quality	Minőség
 st_srp_vulkan_frame_limit	FPS-korlát
 st_srp_vulkan_frame_limit_hint	Korlátozza, hány képkockát rajzol a játék másodpercenként.
 st_srp_vulkan_low_latency	Kisebb beviteli késés

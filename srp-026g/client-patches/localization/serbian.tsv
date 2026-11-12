@@ -2819,6 +2819,11 @@ st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
 st_srp_vulkan_dedicated_gpu	Prednost namenskoj GPU
 st_srp_vulkan_dedicated_gpu_hint	Na laptopovima bira jaču grafičku karticu.\n+ Bolje performanse na laptopovima\n- Troši više baterije
+st_srp_vulkan_dlss	DLSS
+st_srp_vulkan_dlss_balanced	Balans
+st_srp_vulkan_dlss_hint	Crta igru u manjoj rezoluciji i uvećava je pomoću NVIDIA DLSS. Samo za RTX grafičke kartice.
+st_srp_vulkan_dlss_performance	Performanse
+st_srp_vulkan_dlss_quality	Kvalitet
 st_srp_vulkan_frame_limit	Ograničenje FPS
 st_srp_vulkan_frame_limit_hint	Ograničava koliko slika u sekundi igra crta.
 st_srp_vulkan_low_latency	Smanji kašnjenje unosa

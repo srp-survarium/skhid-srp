@@ -95,7 +95,7 @@ package
         }
 
         // The texts of the root.srp_hud_texts: the two choices, the note, the
-        // Vulkan options' button and its five options' hints.
+        // Vulkan options' button and its six options' hints.
         public function texts(directx:String, dxvk:String, restart:String, options:String, hints:Array):void
         {
             var index:int = menu.selectedIndex;

@@ -9,7 +9,7 @@
 #   and its crosshair and minimap position choices (inside their lists); the Graphics tab's
 #   Renderer list (docs/notes/dxvk-option.md: under Monitor, the rows under it
 #   moved, every dictionary's label in the column, Apply, Cancel) and its Vulkan options... button under it: disabled
-#   while the list shows DirectX 11, its panel over the column (the five options, every dictionary's texts
+#   while the list shows DirectX 11, its panel over the column (the six options, DLSS greyed while not offered, every dictionary's texts
 #   inside it), closed by a press outside it or Esc, each option pending until Apply, Cancel, the note;
 # - HudHarness.as: the crosshair's hit marker shown off and hidden on; the Tab list off as today,
 #   on names only, each team by clan tag then name (clanless next, bots last; case-insensitive);
@@ -45,7 +45,8 @@ keys = ('st_srp_hide_hit_markers_option', 'st_srp_hide_scores_option', 'st_srp_o
         'st_srp_vulkan_dedicated_gpu', 'st_srp_vulkan_overlay', 'st_srp_vulkan_overlay_fps',
         'st_srp_vulkan_overlay_frametimes', 'st_srp_vulkan_overlay_full', 'st_fov_option',
         'st_srp_vulkan_frame_limit_hint', 'st_srp_vulkan_overlay_hint', 'st_srp_vulkan_low_latency_hint',
-        'st_srp_vulkan_tear_free_hint', 'st_srp_vulkan_dedicated_gpu_hint')
+        'st_srp_vulkan_tear_free_hint', 'st_srp_vulkan_dedicated_gpu_hint', 'st_srp_vulkan_dlss', 'st_srp_vulkan_dlss_quality',
+        'st_srp_vulkan_dlss_balanced', 'st_srp_vulkan_dlss_performance', 'st_srp_vulkan_dlss_hint')
 print(json.dumps([[read_translations(CATALOG / f'{name}.tsv')[k] for k in keys] for name, *_ in LANGUAGES],
                  ensure_ascii=False, separators=(',', ':')))
 PY

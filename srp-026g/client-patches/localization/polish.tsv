@@ -2819,6 +2819,11 @@ st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
 st_srp_vulkan_dedicated_gpu	Preferuj dedykowany GPU
 st_srp_vulkan_dedicated_gpu_hint	Na laptopach wybiera mocniejszą kartę graficzną.\n+ Lepsza wydajność na laptopach\n- Zużywa więcej baterii
+st_srp_vulkan_dlss	DLSS
+st_srp_vulkan_dlss_balanced	Balans
+st_srp_vulkan_dlss_hint	Rysuje grę w niższej rozdzielczości i powiększa ją przez NVIDIA DLSS. Tylko karty graficzne RTX.
+st_srp_vulkan_dlss_performance	Wydajność
+st_srp_vulkan_dlss_quality	Jakość
 st_srp_vulkan_frame_limit	Limit klatek
 st_srp_vulkan_frame_limit_hint	Ogranicza, ile klatek na sekundę rysuje gra.
 st_srp_vulkan_low_latency	Zmniejsz opóźnienie sterowania

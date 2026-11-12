@@ -2819,6 +2819,11 @@ st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
 st_srp_vulkan_dedicated_gpu	Prefer the dedicated GPU
 st_srp_vulkan_dedicated_gpu_hint	Picks the stronger graphics card on laptops.\n+ Better performance on laptops\n- Uses more battery
+st_srp_vulkan_dlss	DLSS
+st_srp_vulkan_dlss_balanced	Balanced
+st_srp_vulkan_dlss_hint	Draws the game smaller and upscales it with NVIDIA DLSS. RTX graphics cards only.
+st_srp_vulkan_dlss_performance	Performance
+st_srp_vulkan_dlss_quality	Quality
 st_srp_vulkan_frame_limit	Frame rate limit
 st_srp_vulkan_frame_limit_hint	Caps how many frames per second the game draws.
 st_srp_vulkan_low_latency	Reduce input lag
