@@ -301,32 +301,42 @@ pub(super) fn migrate(connection: &Connection, target: usize) -> Result<(), Pers
 }
 
 /// Before step 8's index, in its transaction: of the accounts whose names
-/// have one key the lowest id keeps its name and the others are renamed
+/// have one key the one with the most 0.26g experience keeps its name (the
+/// lowest id among equals) and the others are renamed
 /// ([`crate::nickname_key::renames`]), in every column that holds the name.
 /// Logins, passwords and everything an account owns stay as they are.
 fn rename_shared_nicknames(transaction: &Transaction) -> Result<(), PersistError> {
+    // The 0.26g accounts, in a file that has their tables: the experience,
+    // and their copy of the name.
+    let game: bool = transaction.query_row(
+        "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'g26_accounts')",
+        [],
+        |row| row.get(0),
+    )?;
+    let experience = if game {
+        "COALESCE((SELECT exp_total FROM g26_accounts WHERE account_id = accounts.id), 0)"
+    } else {
+        "0"
+    };
     let accounts = transaction
-        .prepare("SELECT id, login, name FROM accounts ORDER BY id")?
+        .prepare(&format!(
+            "SELECT id, login, name, {experience} FROM accounts ORDER BY id"
+        ))?
         .query_map([], |row| {
             Ok(Named {
                 id: row.get(0)?,
                 login: row.get(1)?,
                 name: row.get(2)?,
+                experience: row.get(3)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
-    // The 0.26g account's copy, in a file that has its tables.
-    let game_copy: bool = transaction.query_row(
-        "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'g26_accounts')",
-        [],
-        |row| row.get(0),
-    )?;
     for Rename { id, from, to } in renames(&accounts) {
         transaction.execute(
             "UPDATE accounts SET name = ?2, game_name = ?2 WHERE id = ?1",
             params![id, to],
         )?;
-        if game_copy {
+        if game {
             transaction.execute(
                 "UPDATE g26_accounts SET name = ?2 WHERE account_id = ?1",
                 params![id, to],

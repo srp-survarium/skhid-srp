@@ -51,6 +51,8 @@ pub(crate) struct Named {
     pub id: u32,
     pub login: String,
     pub name: String,
+    /// Its 0.26g experience; 0 for an account with no 0.26g state.
+    pub experience: u32,
 }
 
 /// A nickname changed so that its key belongs to one account.
@@ -62,18 +64,30 @@ pub(crate) struct Rename {
 }
 
 /// The renames that leave every key to one account, for `accounts` in the
-/// order of their ids: the lowest id keeps a shared name and each other
-/// account becomes `<name>_<id>`, cut to the client's buffer, with a counter
-/// after it while that is another account's name or login.
+/// order of their ids. A shared name stays with the account that plays: the
+/// most experience, the lowest id among equals (the owner, 2026-11-12, of two
+/// accounts named alike: the one in use keeps the name). Each other account
+/// becomes `<name>_<id>`, cut to the client's buffer, with a counter after it
+/// while that is another account's name or login.
 pub(crate) fn renames(accounts: &[Named]) -> Vec<Rename> {
     let mut taken: HashSet<NicknameKey> = accounts
         .iter()
         .flat_map(|account| [key(&account.login), key(&account.name)])
         .collect();
-    let mut kept = HashSet::new();
+    let mut keepers: HashMap<NicknameKey, &Named> = HashMap::new();
+    for account in accounts {
+        keepers
+            .entry(key(&account.name))
+            .and_modify(|keeper| {
+                if account.experience > keeper.experience {
+                    *keeper = account;
+                }
+            })
+            .or_insert(account);
+    }
     let mut renames = Vec::new();
     for account in accounts {
-        if kept.insert(key(&account.name)) {
+        if keepers[&key(&account.name)].id == account.id {
             continue;
         }
         let to = (0u32..)

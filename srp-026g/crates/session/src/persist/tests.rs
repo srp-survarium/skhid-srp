@@ -1078,28 +1078,32 @@ fn a_failed_nickname_batch_rolls_back_all_names_and_account_changes() {
     assert_eq!(restored.accounts[1].name, "Bob");
 }
 
-/// Schema 8 on a database whose accounts share names: the lowest id keeps
-/// the name, the others become `<name>_<id>` in every copy of it, their
-/// logins stay, and the store and the 0.26g accounts start on the result.
+/// Schema 8 on a database whose accounts share names: the account with the
+/// most 0.26g experience keeps the name (the lowest id among equals), the
+/// others become `<name>_<id>` in every copy of it, their logins stay, and
+/// the store and the 0.26g accounts start on the result.
 #[test]
-fn a_database_with_shared_nicknames_upgrades_with_the_later_accounts_renamed() {
+fn a_database_with_shared_nicknames_upgrades_with_all_but_the_most_played_renamed() {
     use crate::v026g::{GameAccounts, GameRepository, SqliteGameRepository};
     let dir = TempDir::new("shared-nicknames");
     let long = "я".repeat(31);
-    // (id, login, name before, name after)
+    // (id, login, experience, name before, name after)
     let accounts = [
-        (1, "one@test.invalid", "Stalker", "Stalker"),
-        // Another case, and a Cyrillic `а`.
-        (2, "two@test.invalid", "STALKER", "STALKER_2"),
-        (3, "three@test.invalid", "Stаlker", "Stаlker_3"),
+        (1, "one@test.invalid", 10, "Stalker", "Stalker_1"),
+        // Another case, and the one that plays.
+        (2, "two@test.invalid", 500, "STALKER", "STALKER"),
+        // A Cyrillic `а`.
+        (3, "three@test.invalid", 10, "Stаlker", "Stаlker_3"),
         // `stalker_5` is this account's login: 5 takes the next free name.
-        (4, "Stalker_5", "Bob", "Bob"),
-        (5, "five@test.invalid", "stalker", "stalker_5_1"),
-        // Cut to the 63 bytes of a name, at a character.
-        (6, "six@test.invalid", &long, &long),
+        (4, "Stalker_5", 0, "Bob", "Bob"),
+        (5, "five@test.invalid", 0, "stalker", "stalker_5_1"),
+        // Played alike: the lower id keeps it. Cut to the 63 bytes of a
+        // name, at a character.
+        (6, "six@test.invalid", 7, &long, &long),
         (
             7,
             "seven@test.invalid",
+            7,
             &long,
             &format!("{}_7", "я".repeat(30)),
         ),
@@ -1107,7 +1111,7 @@ fn a_database_with_shared_nicknames_upgrades_with_the_later_accounts_renamed() {
     let connection = Connection::open(dir.db()).unwrap();
     migrate(&connection, 7).unwrap();
     let mut games = SqliteGameRepository::open(&dir.db()).unwrap();
-    for (id, login, name, _) in accounts {
+    for (id, login, experience, name, _) in accounts {
         connection
             .execute(
                 "INSERT INTO accounts (id, login, name, game_name, generic_money, premium_money,
@@ -1117,7 +1121,9 @@ fn a_database_with_shared_nicknames_upgrades_with_the_later_accounts_renamed() {
                 rusqlite::params![id, login, name],
             )
             .unwrap();
-        games.save(id, &crate::v026g::Account::new(name)).unwrap();
+        let mut game = crate::v026g::Account::new(name);
+        game.exp_total = experience;
+        games.save(id, &game).unwrap();
     }
 
     let repository = SqliteRepository::open(&dir.db()).unwrap();
@@ -1136,7 +1142,7 @@ fn a_database_with_shared_nicknames_upgrades_with_the_later_accounts_renamed() {
         .unwrap();
     let expected: Vec<_> = accounts
         .iter()
-        .map(|(id, login, _, name)| (*id, login.to_string(), name.to_string()))
+        .map(|(id, login, _, _, name)| (*id, login.to_string(), name.to_string()))
         .collect();
     assert_eq!(found, expected);
     // The index is made.
@@ -1149,7 +1155,7 @@ fn a_database_with_shared_nicknames_upgrades_with_the_later_accounts_renamed() {
     let store = SessionStore::with_repository(GATHER, Box::new(repository)).unwrap();
     let games = GameAccounts::with_repository(Box::new(games)).unwrap();
     store.restore_026g_names(&games);
-    for (id, _, _, name) in accounts {
+    for (id, _, _, _, name) in accounts {
         assert_eq!(store.account(id).unwrap().locked().name(), name);
         assert_eq!(games.get(id).unwrap().locked().name, name);
     }
