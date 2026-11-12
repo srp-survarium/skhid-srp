@@ -2,9 +2,11 @@ use super::*;
 
 /// How long a jump keeps a stand-in body in the air, ms: walking into a
 /// floor its floor jumps to ([`jumped_to`]) meanwhile, it gets up on it.
-/// GUESS: a bot jumps up its route's ledge 0.8 m short of it
-/// (`motor.rs` `jump_key`), 0.25 s at a run; the game's jump is up for
-/// about half a second. The stand-in had no jumps: a route up a jump link
+/// The client's jump is in the air 12 controller steps, 600 ms (the
+/// take-off at frame 4.5-6.0 of the 24-frame 0.8 s clip, the air ended at
+/// the clip's end by `end_jump` 0x7F050; 116 of 116 traced jumps): PROVEN,
+/// rig `notes-jump-state.md` 0, 8. A bot jumps up its route's ledge 0.8 m
+/// short of it (`motor.rs` `jump_key`), 0.25 s at a run. The stand-in had no jumps: a route up a jump link
 /// stood at its foot, and 100 of the 118 held-keys stuck notes of a bench
 /// were within a metre of a jump floor (`player_bots_stuck.md` §8.6).
 pub(crate) const STAND_IN_AIR_MS: u32 = 600;
@@ -273,8 +275,11 @@ pub(crate) fn stand_in_edge() -> bool {
 /// (`SRP_BENCH_STAND_IN_FALL`, on unless `off`; it acts only with [`stand_in_edge`]): [`body::slide_supported`] moves a body
 /// past its floor's boundary only toward a drop link of that floor or along a lip's floor, so a body held 0.2-0.4 m past a
 /// floor with neither stood there pushing, where the client's capsule walks on while its hemisphere still touches the edge and
-/// falls once it does not (`step_down` 0x7E1B0: no contact in the sweep, airborne; PROVEN; the landing straight below the
-/// capsule, LIKELY).
+/// falls once it does not (`step_down` 0x7E1B0: no contact in the sweep, airborne; PROVEN). The client's fall is not straight
+/// down: the body stays in its run state (no jump state without a press), so it keeps its walk speed across while the walk keys
+/// are held and stops moving across at once when they are let go; it lands about the walk speed times the air time past the
+/// edge (a 2 m drop: 3.50 m out at a 5.0 m/s sprint, 0.65 s in the air; 2.60 m at a 3.5 m/s walk; PROVEN, exactness, the exact
+/// tick's `walkoff.tsv`, `turning_and_jumps.md` "Walking off an edge"; register G50).
 pub(crate) fn stand_in_fall() -> bool {
     if let Some(on) = FALL_FORCED.with(std::cell::Cell::get) {
         return on;
@@ -402,7 +407,10 @@ pub(crate) const AIR_CONTROL_MS: f32 = 1.0;
 /// `get_air_control_vector` 0x2D7990 (a switch over the move direction, table 0x2D7B68; its constants read from the exe: 0xA70884
 /// 1.0, 0xA0D984 0.0, 0xA2D778 -1.0; PROVEN) gives [`AIR_CONTROL_MS`] along the keys' way, the diagonals normalised, and none with
 /// no key or with forward alone in a sprint jump (its forward case is 0 for the jump codes 2-4; the diagonals have no such case).
-/// `player_step` 0x7BFC5 adds it to the root motion's speed (the walk vector times 1 / dt, 0x7BF36) each tick of a jump (LIKELY).
+/// `player_step` 0x7BFC5 adds it to the root motion's speed (the walk vector times 1 / dt, 0x7BF36) each tick while the
+/// controller's jump flag is set, and only then (its air branch, 0x7BF2C; the flag set by `base_player::jump` 0x2D7920 at the
+/// take-off clip's event, cleared by `end_jump` 0x7F050 at the landing; 1,392 of 1,392 air steps: PROVEN, exactness, register
+/// G51). A walk-off fall never sets the flag, so it has no air control.
 pub(crate) fn air_control(keys: u32, yaw: f32, sprint: bool) -> [f32; 2] {
     let held = |bit| f32::from(u8::from(keys & bit != 0));
     let ahead = held(key::FORWARD) - held(key::BACK);
@@ -692,11 +700,13 @@ pub(crate) fn the_grids_gap_links_fly_this_short_clip() {
     assert_eq!(SHORT_CLIP.rise, mapdata::grid::gap::SHORT_JUMP_RISE);
 }
 
-/// Before the sprint clip, the prepare phase finishes the run's step: 0 to
-/// 0.15 s and 0 to 1.64 m, by the gait's phase at the press (EXE + clip data, PROVEN: `jump_logic_state_prepare::initialize`
-/// 0x342540 waits for the run clip's next `anim_intervals` mark, `on_interval_end` 0x342A50 starts the jump; the rate
-/// `get_prepare_time_factor` 0x3375A0 makes the wait 0-0.15 s; the sprint clips' root runs 5.455 m/s of clip time over the
-/// 0.30 s step, 0-1.636 m; sprint-jump RE `FINDINGS.md` §3.2, `re-sprint-prepare.md`. The phase is drawn uniform, LIKELY).
+/// Before the sprint clip, the prepare phase finishes the run's step: the stand-in's 0 to 0.15 s and 0 to 1.64 m, by a
+/// phase drawn uniform at the press (sprint-jump RE `FINDINGS.md` §3.2, `re-sprint-prepare.md`). Not the client's:
+/// `jump_logic_state_prepare::initialize` 0x342540 waits for the run clip's next `anim_intervals` mark (`on_interval_end`
+/// 0x342A50 starts the jump), played on at the rate of `get_prepare_time_factor` 0x3375A0, so the prepare lasts
+/// 2AC / (A + BC) < 2C = 80 ms with C = startup.cfg `jump_prepare_interval_length` 0.040 (not the exe's default 0.1);
+/// counted 52-81 ms from the press to the take-off clip's start, the body moving at its walk cap meanwhile, 0.19-0.30 m
+/// (rig `notes-jump-state.md` 0, 3, 7, 9). Kept as the stand-in's model until changed (register G53).
 pub(crate) const SPRINT_PREPARE_MS: f32 = 150.0;
 
 pub(crate) const SPRINT_PREPARE_M: f32 = 1.64;

@@ -5,8 +5,8 @@
 //! the victim's movement speed modifier: his speed is cut by that share, and he cannot sprint while it is not zero
 //! (PROVEN, `base_player::hit_impl` 0x2D9B90, the update 0x2DBCD0, sprint-jump RE `FINDINGS.md` §1.1). A rifle bullet is
 //! 0.1-0.6 (most 0.15-0.35), a shotgun pellet 0.8, a bolt rifle 0.4-0.8: one shotgun or bolt hit halves the speed, one
-//! rifle hit takes 15-35 %. Before: every hit slowed to [`super::STAND_IN_STAGGER`] (0.75, a GUESS between) for
-//! [`super::STAND_IN_STAGGER_MS`]. `SRP_BENCH_STAGGER_MODEL=off` is the old rule.
+//! rifle hit takes 15-35 %. Before: every hit slowed to [`super::STAND_IN_STAGGER`] (0.75, not the client's: the rule
+//! above is) for [`super::STAND_IN_STAGGER_MS`]. `SRP_BENCH_STAGGER_MODEL=off` is the old rule.
 //!
 //! The speed share is `1 - stagger` of a base of 1: the player's own modifiers (the weapon's +-0.05) are not in the
 //! stand-in's speed, which is a share of the bot's walking speed.

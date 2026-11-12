@@ -82,9 +82,9 @@ pub(crate) const USE_BOX_M: f32 = 0.6;
 /// How long a put-in takes, ms: the battery's put state lasts
 /// `states[2].put_time`, 0.6 s (`gameplay/victory_items/default.options`,
 /// `docs/notes/battery_pickup.md`), and the battery goes in at its end
-/// (LIKELY: in the owner's Cologne match of 2026-10-24 every put-in a bot
-/// judged failed went in 0.3-3.3 s later). `SRP_BENCH_PUT_MS=<ms>` sets
-/// another (0: in at the press, as before).
+/// if the carrier still uses that container, else it is dropped (PROVEN:
+/// `deactivate` 0x300F40, 0x30102D..0x301046; s6-use `notes-use.md` 1.2).
+/// `SRP_BENCH_PUT_MS=<ms>` sets another (0: in at the press, as before).
 pub(crate) const PUT_MS: u32 = 600;
 
 /// The respawn after a death in the battery modes, ms: `respawn_time` 10 s
@@ -510,7 +510,10 @@ pub(crate) fn stand_in_sprint_gates() -> bool {
 }
 
 /// [`STAND_IN_STAGGER_MS`] (the game's stagger: up to half, a rifle hit
-/// 15-35 %, PROVEN; the share a GUESS between).
+/// 15-35 %, PROVEN). The 0.75 is not the client's: a client hit slows by
+/// its stopping power for 500 ms (`hit_impl` 0x2D9B90, `standin_stagger.rs`,
+/// `stagger_and_legs.md`); kept as the old rule under
+/// `SRP_BENCH_STAGGER_MODEL=off` (register G25).
 pub(crate) const STAND_IN_STAGGER: f32 = 0.75;
 
 pub(crate) const STAND_IN_STAGGER_MS: u32 = 500;
@@ -663,10 +666,13 @@ pub(crate) struct Game {
     pub(crate) took: Vec<Option<u32>>,
     pub(crate) taken_killed: u32,
     /// Whether a use's ray stops at the bullet mesh short of a lying
-    /// battery (`SRP_BENCH_USE_LINE=1` in the real-map runs). LIKELY as
-    /// the client: in the owner's match of 2026-10-16 a bot aimed right
-    /// at a battery 9 times from where the mesh blocks the line, and took
-    /// it at once from a side with a clear one.
+    /// battery (`SRP_BENCH_USE_LINE=1` in the real-map runs). PROVEN as
+    /// the client: `detect_usable_object` 0x2D84C0's ray stops at the first
+    /// walkable and hittable hit, a wall or a floor (patch 23's battery
+    /// below the feet within 1 m across the one exception; s6-use
+    /// `notes-use.md` 1.1). Seen in the owner's match of 2026-10-16: a bot
+    /// aimed right at a battery 9 times from where the mesh blocks the line,
+    /// and took it at once from a side with a clear one.
     pub(crate) use_line: bool,
     /// How near a battery's middle a take's ray must pass, metres
     /// ([`BATTERY_M`]; `SRP_BENCH_TAKE_M` in the real-map runs makes takes
@@ -681,7 +687,9 @@ pub(crate) struct Game {
     pub(crate) untakeable: usize,
     /// How long a put-in takes ([`PUT_MS`]), and each place's put under
     /// way: the battery, the container, and when it began. A use pressed
-    /// while one is under way does nothing (GUESS); the put ends unmade if
+    /// while one is under way does nothing (PROVEN: a use starts only on the
+    /// key's down edge with none in progress, player+134h == 0, 0x2D88B1;
+    /// s6-use `notes-use.md` 1.1); the put ends unmade if
     /// the body died or no longer carries that battery.
     pub(crate) put_ms: u32,
     /// Enemy bodies block each other on the ground (`SRP_BENCH_BODY_BLOCK_M=<m>`, the two radii: 0.76 m in the game, PROVEN

@@ -9,10 +9,13 @@
 //!   carrier delivers alone, the client splits the bring by carry share); 20 put in (the carrier at the container, `put_in_log`);
 //!   10 enemy carrier killed (`carrier_kills`). Not counted: headshot (15), steal (17), found (19): the stand-in has no part for
 //!   the first, and the other two are not in its log as counts.
-//! - **assists (UNCALIBRATED):** the rule is the original server's, not the client's: srp's server only relays the event
-//!   (`snapshot::event::ASSIST`) and the client exe has no rule to read (checked 2026-10-29), so none is PROVEN. This one is a GUESS: a non-killer teammate of the killer who hit the victim within
-//!   [`ASSIST_MS`] before the kill. The live figure is 0.19 assists a kill (`bench-decision-metrics.md` §c): the share is printed beside
-//!   it and the window is the thing to move if it is far off.
+//! - **assists (UNCALIBRATED):** srp's server only relays the event (`snapshot::event::ASSIST`); the client has the rule:
+//!   `count_assists` 0x2F56A0, called by the kill 0x2F51CD (PROVEN, `rules_and_score.md`, s8-rules `notes-rules.md`): each other
+//!   place of the killer's team whose share of the victim's received damage from that team is 0.1 or more (0x921948) gets event
+//!   1, with no time window (the received damage is cleared at the victim's death and when his pain pool regenerates full).
+//!   The bench's rule here is not the client's: a non-killer teammate of the killer who hit the victim within [`ASSIST_MS`]
+//!   before the kill, kept until changed (register G72). The live figure is 0.19 assists a kill (`bench-decision-metrics.md`
+//!   §c): the share is printed beside it.
 //! - **score:** `snapshot::score` with `static_info::score_weights(mode)`, the client's own sum of the events (the table is not
 //!   copied), **with no assists** while their rule is UNCALIBRATED (a margin rests on kills and the objective); `score_with_assist_guess`
 //!   is the same with the guess. The live median score a minute (10.6) includes assists (0.13 a minute), headshots (15), steals (17) and
@@ -28,7 +31,9 @@ use survarium::v026g::match_msgs::static_info;
 
 use super::*;
 
-/// A teammate's hit on the victim this long before the kill makes an assist (GUESS).
+/// A teammate's hit on the victim this long before the kill makes an assist on the bench. Not the client's rule:
+/// `count_assists` 0x2F56A0 takes a share of 0.1 or more (0x921948) of the victim's received damage, with no time
+/// window (register G73).
 const ASSIST_MS: u32 = 10_000;
 /// The windows the assists a kill are also counted for, s, so that the window can be chosen against the live 0.19 a kill.
 const WINDOWS_S: [u32; 6] = [1, 2, 3, 5, 10, 30];
@@ -236,7 +241,8 @@ impl Topic for Scoreboard {
         }
         let json = serde_json::json!({ "scoreboard": entries.iter().map(Entry::json).collect::<Vec<_>>() });
         let mut lines: Vec<String> = entries.iter().map(|e| e.line(&self.context)).collect();
-        // The assist rule is a GUESS: its share of the kills is printed beside the live 0.19.
+        // The assist rule is not the client's (`count_assists` 0x2F56A0: a damage share of 0.1 or more, no window): its
+        // share of the kills is printed beside the live 0.19.
         let (kills, assists): (u32, u32) = entries.iter().fold((0, 0), |(k, a), e| (k + e.kills, a + e.assists));
         let teams: Vec<String> = (0..2u8)
             .map(|team| {
@@ -250,7 +256,7 @@ impl Topic for Scoreboard {
             })
             .collect();
         lines.push(format!(
-            "owner-test scoreboard: {}; assists UNCALIBRATED {assists} of {kills} kills = {:.2} a kill (live 0.19; the rule is a GUESS: a teammate's hit within {} s, not used in a margin); a kill's assists by window (s): {:?}",
+            "owner-test scoreboard: {}; assists UNCALIBRATED {assists} of {kills} kills = {:.2} a kill (live 0.19; not the client's rule: a teammate's hit within {} s, not used in a margin); a kill's assists by window (s): {:?}",
             teams.join(", "),
             if kills > 0 { f64::from(assists) / f64::from(kills) } else { 0.0 },
             ASSIST_MS / 1000,
