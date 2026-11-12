@@ -24,9 +24,12 @@ artefact as an inventory item.
   ignored and spends nothing (0x33D70A). Two different items run at once.
 - **Nothing the body does gates or interrupts it** in the stock exe: the one gate of the pockets is a byte of the
   hands object that both kinds of hands set to 1 and nothing clears (0x2D8D9A). So a drug can be pressed while
-  sprinting, aiming, firing, jumping, reloading, with broken hands, and while carrying a battery; neither the press
-  nor the tick reads the selector, the stamina, the weapon or the controller. The live game's artefact-carry patch
-  only watches the quick keys of slots that hold an artefact.
+  sprinting, aiming, firing, jumping, reloading and with broken hands; neither the press nor the tick reads the
+  selector, the stamina, the weapon or the controller (`inventory::action` 0x2FCAA0 tests the carried item only
+  for a weapon's slot). **The simulation would take the key from a battery's carrier too, but played bodies do
+  not send it**: carriers are 3.1 % of the played bodies' rows and 9 of 13,012 drugs seen in their delay were a
+  carrier's, none pressed under 500 ms before the world. What stops a player (the client's input side) is not
+  read.
 - **The course** (`medkit::tick` 0x33D790): the delay `activation_delay_sec` x max(0, 1 + modifier 33), then the
   activity `activity_time_sec` x max(0, 1 + k x modifier 34). At the first active tick the listed wounds are removed
   (0x33DA50). Each tick, for each listed pool: (total / activity time) x max(0, 1 + modifier 57) x the tick's time,
@@ -86,8 +89,9 @@ deaths): one traced bot fell 6.4 m into it, walked in it for 20 s without a spri
 ## Against the bots
 
 - `plays/heal.rs`'s item table equals the configs from revision 45 on, as literals; each value has a game-data key.
-- `heal.rs:372-391` refuses a press while carrying a battery ("the client most likely ignores the key"): the stock
-  exe takes it.
+- `heal.rs:372-391` refuses a press while carrying a battery: the same as what played bodies do (above), but its
+  reason is wrong ("the client most likely ignores the key ... counted as used and heal nothing"): the simulation
+  would take the unit and heal.
 - The bots judge a zone's danger from geometry and the anomalies' schedule only (`drive.rs:654-664`); they never
   read that their own pools fall with no hit record, nor a zone's saved last hit time.
 - `mapdata/src/controller/speed.rs`: the Spring's passive +0.02 as one on/off term; the data has +0.05 a copy.
@@ -97,5 +101,5 @@ deaths): one traced bot fell 6.4 m into it, walked in it for 20 s without a spri
 
 ## Not read
 
-30 course rows under the rule with the pool not full; whether a battery's carrier can heal in the LIVE game (the
-stock exe allows it; not counted on recordings); the medical skills patch's delay rule against the stock one.
+30 course rows under the rule with the pool not full; what keeps a player's client from sending a drug's key while
+it carries a battery; the medical skills patch's delay rule against the stock one.
