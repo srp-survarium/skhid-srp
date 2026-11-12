@@ -362,11 +362,19 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   (0x2D8220) does only the fall damage (modifier 30), and it is skipped for a player with the
   skill and one of its containers' Onyx in state 4 (its enable_active 0x3128C0). No timer: the
   Onyx's end ends it.
+- Cascade shares it (the owner, 2026-11-12: the II skills were not passed): a teammate that an
+  Onyx's activation reached lands unhurt while that Onyx is active, when its holder has Onyx II
+  (the aura's shared actives of the landing player, `shared`, each copy's holder's skills). The
+  recipient's own Onyx II is for its own copies only (my pick: the skill goes with the copy, as
+  Spring II's nodes do).
 
 ## Larkspur II (533)
 
 - The activation (artefact_base's action, 0x313333, never a restore or a visual) sets the
   holder's stamina to its maximum. Repeat presses during a cooldown and key-up do nothing.
+- Cascade shares it (the owner, 2026-11-12): the teammates that activation reached (the places
+  Medic's share just healed, the copy's `ACTIVATIONS`) get their stamina's maximum too, when the
+  holder has Larkspur II.
 
 ## Resonance (541) or Cascade (542): one mechanism, two triggers
 
@@ -382,6 +390,11 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   `antiskills`, as the other trees' last rows). A carrier shares by its own skill only; a
   recipient can still take passives from one teammate's Resonance and actives from another's
   Cascade.
+- The II skills go with the copy, by its holder's skill (the owner, 2026-11-12): Spring II's
+  reload nodes are the Spring's own, shared as its others (Resonance the passive's, Cascade the
+  active's); Onyx II and Larkspur II act at the active, so Cascade shares them (their sections
+  above) and Resonance has nothing of them to share. Knowledge of Artifacts' longer active is the
+  copy's own length, shared whole.
 - A recipient: another player of the carrier's team, alive, in the active roster (never the
   insertion flag +33Fh), within the radius of the carrier (positions as the game has them at
   that moment: Resonance's at each use, Cascade's at the copy's activation). Not the carrier,
@@ -422,6 +435,10 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
     Cascade, none for a passive copy; a late joiner loads it, shares, saves the same 4 bytes; a
     load of none shares none); the rest of the check with every active copy activated through
     0x313333; srp-validate's object test. Not played.
+  - Onyx II and Larkspur II with it: `check_cascade_seconds` (the landing of a teammate reached by
+    an Onyx's activation, the carrier then 30 m away; the stamina of one reached by a Larkspur's;
+    none without the carrier's skill, without Cascade, for a passive copy, another kind, a teammate
+    out of reach then, an enemy). Not played.
 - The cap per phase (my pick): at most 4 copies' passives and 4 copies' actives of a kind,
   each 4 less the recipient's own copies of the kind that count (in their passive or active, at
   most 4: "At most 4 copies of a kind" below).

@@ -119,18 +119,21 @@ fn own(player: raw::Player, kind: Kind) -> impl Iterator<Item = Own> {
         .map(|(nth, copy)| Own { copy, counts: Room::counts_own(nth) })
 }
 
+/// The player whose inventory holds `artefact`; none for one in no inventory.
+fn holder(artefact: raw::Artefact) -> Option<raw::Player> {
+    // SAFETY: a live artefact's inventory and its holder, whose interface is its base_player's
+    // (+108h).
+    unsafe { artefact.item().inventory().and_then(|inventory| inventory.holder()).map(|holder| holder.player()) }
+}
+
 /// Whether `artefact` is one of its holder's own copies past the 4 of its kind that count: it
 /// then gives nothing, its passive nor its active. The holder is its inventory's (an Onyx's protector and a
 /// Lifebone's regeneration subscriber are in their holder's parts only while it carries them);
 /// an artefact in no inventory, or in no passive nor active, counts as the game has it.
 fn uncounted(artefact: raw::Artefact) -> bool {
-    // SAFETY: a protector's or a subscriber's live artefact, its inventory and holder.
-    let holder = unsafe { artefact.item().inventory().and_then(|inventory| inventory.holder()) };
-    let (Some(holder), Some(kind)) = (holder, kind_of(artefact)) else {
+    let (Some(player), Some(kind)) = (holder(artefact), kind_of(artefact)) else {
         return false;
     };
-    // SAFETY: the holder interface is its base_player's (+108h).
-    let player = unsafe { holder.player() };
     own(player, kind).any(|own| own.copy.at == artefact && !own.counts)
 }
 
@@ -173,33 +176,52 @@ fn active_onyx(player: raw::Player) -> bool {
     carried(player).any(|copy| copy.kind == Kind::Onyx && copy.state == State::Active)
 }
 
-/// Onyx II: the landing of a player with the skill and an active Onyx does no damage.
+/// Onyx II: the landing of a player does no damage while an Onyx of a holder with the skill is
+/// active for it: one of its own, or one a teammate's Cascade gives it (the carrier's skill goes
+/// with the copy, as Spring II's reload nodes do).
 pub fn lands_unhurt(ctx: &Context<'_>) -> bool {
     // SAFETY: the landing's ECX is its live player.
     let Some(player) = (unsafe { raw::site::artefact_landing::player(ctx) }) else {
         return false;
     };
-    skills(player).onyx() && active_onyx(player)
+    if skills(player).onyx() && active_onyx(player) {
+        return true;
+    }
+    // SAFETY: the live player's world core (0 when it has none).
+    let roster = Roster::of(ctx.thread(), unsafe { player.world_core() });
+    let (_, actives) = shared(roster, Player::new(ctx.thread(), player), Kind::Onyx);
+    actives.iter().any(|onyx| holder(onyx).is_some_and(|carrier| skills(carrier).onyx()))
 }
 
-/// Larkspur II: a Larkspur's actual activation (never a restore) fills its holder's stamina.
+/// Larkspur II: a Larkspur's actual activation (never a restore) fills its holder's stamina, and
+/// that of each teammate the activation reached (Cascade's, Medic's share just before this: the
+/// places it healed).
 pub fn larkspur(ctx: &Context<'_>) {
     use raw::site::medical_artefact as site;
-    // SAFETY: the actual activation owns this item, its inventory and holder; the holder's
-    // stamina is embedded in it.
-    unsafe {
+    // SAFETY: the actual activation owns this item.
+    let artefact = unsafe {
         let Some(item) = site::item(ctx) else {
             return;
         };
-        if !item.vtable().is_some_and(|table| *table.enable_active() == raw::image::LIFEBONE_ACTIVE) {
-            return;
-        }
-        let Some(holder) = item.item().inventory().and_then(|inventory| inventory.holder()) else {
-            return;
-        };
-        let player = holder.player();
-        if skills(player).larkspur() {
-            let stamina = player.stamina();
+        item.item().artefact()
+    };
+    if kind_of(artefact) != Some(Kind::Lifebone) {
+        return;
+    }
+    let Some(player) = holder(artefact).filter(|&player| skills(player).larkspur()) else {
+        return;
+    };
+    let reached = reached(ctx.thread(), artefact);
+    // SAFETY: the live holder's world core (0 when it has none).
+    let roster = Roster::of(ctx.thread(), unsafe { player.world_core() });
+    let teammates = roster.iter().map(Player::get).filter(|&teammate| {
+        // SAFETY: a roster player's own place.
+        srp_validate::Place::new(unsafe { *teammate.place() }).is_some_and(|place| reached.contains(place))
+    });
+    for filled in core::iter::once(player).chain(teammates) {
+        // SAFETY: a live player's embedded stamina.
+        unsafe {
+            let stamina = filled.stamina();
             *stamina.current() = *stamina.maximum();
         }
     }
