@@ -481,8 +481,8 @@ pub const STAGGER_SPRINT_MS: u32 = 1_250;
 /// (the sprint-jump RE, `FINDINGS.md` §1.8).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Hurt {
-    /// A leg pool (`Damage::part_health` 6 or 7, 0.5 full) at 0: the game
-    /// takes no jump of any kind then, for about 8 s (PROVEN).
+    /// A leg pool (`Damage::part_health` 6 or 7, 0.5 full) at 0 (the team's carers read it). The game's jump gate is the leg's
+    /// `leg_damage` affect, not the pool ([`Self::may_jump`]).
     pub leg_broken: bool,
     /// The last bullet hit, the world's ms (`m_last_hit_time_ms`).
     pub last_hit_ms: Option<u32>,
@@ -493,13 +493,12 @@ pub struct Hurt {
     pub leg_damage: super::legs::LegDamage,
 }
 
-/// After a hit the body is staggered this long, ms (`stagger_duration`,
-/// PROVEN): slowed by up to half, so a jump of the route pressed then may
-/// fall short of its landing [GUESS]; it is held until the stagger ends.
+/// The bots' own policy, not a client rule: after a hit a bot presses no jump for this long, ms (`stagger_duration`). The client
+/// takes a staggered body's jump (`is_trying_to_jump` has no stagger test: PROVEN, A364 P11, `docs/notes/stagger_and_legs.md`); a
+/// stagger slows by up to half, so a route jump pressed then may fall short [GUESS], and the bot waits for the stagger's end.
 pub const HIT_JUMP_HOLD_MS: u32 = 500;
 
-/// A leg pool at or under this is broken (the worlds show 0, and 0.01-0.03
-/// just after it mends).
+/// A leg pool at or under this is broken (the worlds show 0, and 0.01-0.03 just after it mends): the team's carers' reading.
 const LEG_BROKEN: f32 = 0.005;
 
 impl Hurt {
@@ -519,12 +518,14 @@ impl Hurt {
         Self { leg_damage, ..self }
     }
 
-    /// [A313] The client's speed factor from the legs alone, `max(0, 1 + the legs' terms)`: a leg at 0 (broken) -0.2, under 20 %
-    /// of its pool -0.1 (the leg's speed node 0x32A9C0, `notes-speed.md`); 1 for a leg the world did not show.
+    /// [A313] The client's speed factor from the legs alone, `max(0, 1 + the legs' terms)`: a leg at EXACTLY 0 -0.2, over 0 and under
+    /// 20 % of its pool -0.1 (`update_movement_speed_modifier` 0x32A9C0: the last matching threshold in the config's order, PROVEN,
+    /// A364 P11 `docs/notes/stagger_and_legs.md`; the 0.005 of [`LEG_BROKEN`] gave -0.2 to a pool of 0.001-0.005); 1 for a leg the
+    /// world did not show.
     pub fn legs_factor(&self) -> f32 {
         let term = |pool: Option<f32>| -> f32 {
             match pool {
-                Some(p) if p <= LEG_BROKEN => -0.2,
+                Some(p) if p <= 0.0 => -0.2,
                 Some(p) if p < 0.2 * super::pools::LIMB_MAX => -0.1,
                 _ => 0.0,
             }
@@ -532,13 +533,12 @@ impl Hurt {
         (1.0 + term(self.legs[0]) + term(self.legs[1])).max(0.0)
     }
 
-    /// Whether the body may jump at `now`, ms: no broken leg, no `leg_damage` affect (A325f), and not
-    /// within [`HIT_JUMP_HOLD_MS`] of the last hit. Stamina is not in the
-    /// world's state, so its gate (no jump under 10, nor from 0 until back
-    /// over 20) is not known here.
+    /// Whether the body may jump at `now`, ms: no `leg_damage` affect (the client's gate: 8 s from the hit that left a leg at 0, while
+    /// the pool can stay at 0 longer: PROVEN, A364 P11, `docs/notes/stagger_and_legs.md`; the pool at 0 is not the gate), and not
+    /// within [`HIT_JUMP_HOLD_MS`] of the last hit (the bots' own policy). Stamina is not in the world's state, so its gate (no jump
+    /// under 10, nor from 0 until back over 20) is not known here.
     pub fn may_jump(&self, now: u32) -> bool {
-        !self.leg_broken
-            && self.leg_damage.at(now) == super::legs::LegGate::Free
+        self.leg_damage.at(now) == super::legs::LegGate::Free
             && self
                 .last_hit_ms
                 .is_none_or(|at| now >= at.saturating_add(HIT_JUMP_HOLD_MS))
@@ -4579,15 +4579,15 @@ mod tests {
         }
     }
 
-    /// A broken leg, or a hit within the stagger, holds the jump; a hit
-    /// time of 0 or after the world's is none.
+    /// A leg's `leg_damage` affect, or a hit within the bots' hold, holds the jump; a leg pool at 0 alone does not (A364 P11: the
+    /// client's gate is the affect, 8 s from the breaking hit); a hit time of 0 or after the world's is none.
     #[test]
     fn a_broken_leg_or_a_fresh_hit_holds_the_jump() {
         let now = 10_000;
         assert!(Hurt::default().may_jump(now));
         assert!(Hurt::of([Some(0.5), Some(0.2)], 0, now).may_jump(now));
-        assert!(!Hurt::of([Some(0.5), Some(0.0)], 0, now).may_jump(now));
-        assert!(!Hurt::of([Some(0.0), None], 0, now).may_jump(now));
+        assert!(Hurt::of([Some(0.5), Some(0.0)], 0, now).may_jump(now));
+        assert!(Hurt::of([Some(0.0), None], 0, now).leg_broken);
         assert!(Hurt::of([None, None], 0, now).may_jump(now));
         // [A325f] A `leg_damage` affect shuts the jump until it ends, whatever the pools show.
         let legs = super::super::legs::LegDamage::One { until: now + 1_000 };
