@@ -253,12 +253,12 @@ fn reference_replay() {
                 }
                 if presses.contains(&t) {
                     let mut probe = bar;
-                    probe.tick(t, k & !key::JUMP, false);
+                    probe.tick(t, k & !key::JUMP, false, false);
                     if probe.may_jump() {
                         kept.push(t);
                     }
                 }
-                bar.tick(t, k, false);
+                bar.tick(t, k, false, false);
             }
             (place, kept)
         })

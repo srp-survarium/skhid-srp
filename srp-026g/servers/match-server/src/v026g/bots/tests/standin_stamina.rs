@@ -3,11 +3,12 @@
 //! 0x3298C0, `spend` 0x329A20, `decrease` 0x3296C0, `sprint` 0x329A70 and the
 //! jump's gate `is_trying_to_jump` 0x2FC230; PROVEN unless marked), in place
 //! of a body that sprints and jumps for as long as its keys ask:
-//! - the bar is 0-100; the sprint keys (SPRINT and FORWARD, none of BACK,
-//!   FIRE, CROUCH, AIM: [`Kinematics::sprints`]) spend it at
-//!   `5 × (1 + 1.5 t) × (1 + skill 201)` a second, whether the body can
-//!   move at sprint or not (LIKELY: the hands item says "sprinting" from the
-//!   keys). A carrier spends nothing (GUESS: its hands item is the battery);
+//! - the bar is 0-100; it is spent at `5 × (1 + 1.5 t) × (1 + skill 201)` a
+//!   second only while the body IS in the sprint state (A364 P10, PROVEN:
+//!   `player_stamina::tick` asks the item's `is_sprinting`,
+//!   `docs/notes/sprint_state.md`): the sprint keys ([`Kinematics::sprints`])
+//!   that `can_sprint` lets (no carrier, the flag clear, not overburdened, no
+//!   reload or stagger) and no jump; a refused sprint costs nothing;
 //! - not sprinting, the bar regenerates at `10 × (1 + skill 204)` a second
 //!   when it is empty or more than 1 s after the last spending (a sprint, a
 //!   jump or a hit), and the regeneration runs before the low flag is
@@ -140,8 +141,8 @@ pub(crate) struct Counts {
     pub(crate) lockouts: u32,
     /// Ticks a living body had the flag set.
     pub(crate) low_ticks: u32,
-    /// Of those, the ticks its sprint keys were held (a lockout lasts as
-    /// long as the key does).
+    /// Of those, the ticks its sprint keys were held (walked: the flag
+    /// refuses the sprint state, A364 P10).
     pub(crate) sprint_keys_low: u32,
     /// Jump presses refused for the bar or the flag.
     pub(crate) jump_low: u32,
@@ -231,9 +232,8 @@ impl Stamina {
         self.last_sprint = Some(self.last_tick);
     }
 
-    /// One tick at `now` ms. `spending`: the sprint keys of a body that
-    /// spends (they are held and it carries nothing); `keys`: the sprint
-    /// keys are held.
+    /// One tick at `now` ms. `spending`: the body is in the client's sprint
+    /// state (A364 P10); `keys`: the sprint keys are held.
     pub(crate) fn tick(&mut self, now: u32, spending: bool, keys: bool) {
         if !self.on {
             return;
@@ -486,9 +486,9 @@ mod tests {
         }
     }
 
-    /// In the game: a body that holds SPRINT and FORWARD runs at the sprint
-    /// pace until its bar is empty, then walks with the keys held, and a
-    /// jump pressed while the flag is set is refused.
+    /// In the game: a body that holds SPRINT and FORWARD runs at the sprint pace until its bar is empty, then walks with the keys
+    /// held while the low flag is set, and a jump pressed then is refused; the flag clears in about 3 s with the keys held (A364 P10:
+    /// the flag refuses the sprint state, so nothing is spent and the bar regenerates), and it sprints again.
     #[test]
     fn a_game_body_runs_until_the_bar_is_empty_then_walks() {
         use super::super::{Game, soak_world};
@@ -502,29 +502,44 @@ mod tests {
         let (feet, node) = (game.bodies[0].feet, game.bodies[0].node);
         let keys = key::FORWARD | key::SPRINT;
         let mut paces = Vec::new();
-        for _ in 0..500 {
+        let step = |game: &mut Game, keys: u32, paces: &mut Vec<(f32, bool)>| {
             let at = game.tick + TICK_MS;
             game.inputs[0].push_back((at, keys, (0.0, 0.0), None, gun));
             game.step();
             let body = &mut game.bodies[0];
-            paces.push(body.step_m / super::super::TICK_S);
+            paces.push((body.step_m / super::super::TICK_S, body.stamina.low()));
             // Back to the start so the field does not run out.
             body.feet = feet;
             body.node = node;
+        };
+        while paces.len() < 1_000 && !paces.last().is_some_and(|&(_, low)| low) {
+            step(&mut game, keys, &mut paces);
         }
-        let rate = game.bodies[0].stamina.value();
-        assert!(game.bodies[0].stamina.low() || rate < 100.0, "spent");
-        let run = paces[20..60].iter().sum::<f32>() / 40.0;
-        let walk = paces[450..].iter().sum::<f32>() / 50.0;
+        let empty = paces.len();
+        assert!(empty < 1_000, "the bar empties");
+        let run = paces[20..60].iter().map(|p| p.0).sum::<f32>() / 40.0;
+        // A second into the lockout: walking with the keys held.
+        for _ in 0..30 {
+            step(&mut game, keys, &mut paces);
+        }
+        let walk = paces[empty + 10..].iter().map(|p| p.0).sum::<f32>() / 20.0;
         assert!(run > 4.5 && walk < 4.0 && walk > 3.0, "run {run:.2} m/s, walk {walk:.2} m/s");
-        assert!(game.bodies[0].stamina.low(), "locked out at 25 s of sprint keys");
+        assert!(game.bodies[0].stamina.low(), "locked out");
         // A jump pressed in the lockout is refused (and counted).
         let before = (game.jumps_refused, game.bodies[0].stamina.counts.jump_low);
-        let at = game.tick + TICK_MS;
-        game.inputs[0].push_back((at, keys | key::JUMP, (0.0, 0.0), None, gun));
-        game.step();
+        step(&mut game, keys | key::JUMP, &mut paces);
         assert_eq!(game.jumps_refused, before.0 + 1);
         assert_eq!(game.bodies[0].stamina.counts.jump_low, before.1 + 1);
+        // The keys held on: the flag clears in about 3 s from the empty bar and the body sprints again.
+        while paces.len() < empty + 200 && paces.last().is_some_and(|&(_, low)| low) {
+            step(&mut game, keys, &mut paces);
+        }
+        let cleared = (paces.len() - empty) as f32 * TICK_MS as f32 / 1_000.0;
+        assert!((2.7..3.5).contains(&cleared), "cleared after {cleared} s");
+        for _ in 0..20 {
+            step(&mut game, keys, &mut paces);
+        }
+        assert!(paces.last().is_some_and(|&(pace, _)| pace > 4.5), "sprints again: {:?}", paces.last());
     }
 
     /// Off: no spending, no flag, every jump goes.

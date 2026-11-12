@@ -781,14 +781,15 @@ impl Tracker {
         }
     }
 
-    /// [2e] A bot's own sprint gates for its body: its last reload (from, until) and its gun's `aim_time`, ms
-    /// ([`BodyTrack::note_reload`], [`BodyTrack::set_aim_out_ms`]).
-    pub fn set_own_gates(&mut self, place: Place, reload: Option<(u32, u32)>, aim_out_ms: u32) {
+    /// [2e] A bot's own sprint gates for its body: its last reload (from, until), its gun's `aim_time`, ms, and its reckoned bar's
+    /// low flag ([`BodyTrack::note_reload`], [`BodyTrack::set_aim_out_ms`], [`BodyTrack::set_low_stamina`]).
+    pub fn set_own_gates(&mut self, place: Place, reload: Option<(u32, u32)>, aim_out_ms: u32, low_stamina: bool) {
         if let Some(state) = self.places.get_mut(place) {
             if let Some((from, until)) = reload {
                 state.body.note_reload(from, until);
             }
             state.body.set_aim_out_ms(aim_out_ms);
+            state.body.set_low_stamina(low_stamina);
         }
     }
 

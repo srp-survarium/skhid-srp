@@ -323,7 +323,9 @@ pub(super) fn drive_tick(
     time: u32,
     searching: &mut Searching,
 ) -> Decision {
-    bot.stamina.tick(time, bot.sent_keys, me.carrying.is_some());
+    // [A364 P10] The bar is spent only in the sprint state: its own reload refuses it (`can_sprint`).
+    let reloading = bot.reflex.reload_note().is_some_and(|reload| reload.at <= time && time < reload.until);
+    bot.stamina.tick(time, bot.sent_keys, me.carrying.is_some(), reloading);
     bot.motor.gauge = tuning.think.stamina.then(|| bot.stamina.gauge());
     // [2d] In a carried route jump no other jump is pressed (`jump_carry`).
     bot.motor.carrying = tuning.feel.carry_jumps && bot.carry.holds(time);

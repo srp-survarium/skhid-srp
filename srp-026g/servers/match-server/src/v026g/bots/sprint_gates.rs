@@ -30,6 +30,9 @@ pub struct OwnGates {
     reloads: Vec<(u32, u32)>,
     /// The gun in hands' `aim_time`, ms: after AIM goes up the sprint waits this long.
     aim_out_ms: u32,
+    /// [A364 P10] The bot's reckoned bar's low flag: `can_sprint` 0x2DBF40 refuses the sprint under it (PROVEN,
+    /// `docs/notes/sprint_state.md`).
+    low_stamina: bool,
 }
 
 impl OwnGates {
@@ -56,6 +59,10 @@ impl OwnGates {
         self.aim_out_ms = ms;
     }
 
+    pub fn set_low_stamina(&mut self, low: bool) {
+        self.low_stamina = low;
+    }
+
     pub fn aim_out_ms(&self) -> u32 {
         self.aim_out_ms
     }
@@ -65,9 +72,11 @@ impl OwnGates {
         self.reloads.iter().any(|&(from, until)| from <= time && time < until)
     }
 
-    /// The keys of a tick at `time` as the client takes them: a reload has the sights down (no AIM) and no sprint.
+    /// The keys of a tick at `time` as the client takes them: a reload has the sights down (no AIM) and no sprint; the low
+    /// stamina flag no sprint.
     pub fn taken(&self, time: u32, keys: u32) -> u32 {
-        if self.reloading(time) { keys & !(key::AIM | key::SPRINT) } else { keys }
+        let keys = if self.reloading(time) { keys & !(key::AIM | key::SPRINT) } else { keys };
+        if self.low_stamina { keys & !key::SPRINT } else { keys }
     }
 }
 

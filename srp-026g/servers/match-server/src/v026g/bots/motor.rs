@@ -1807,8 +1807,8 @@ impl Motor {
         }
     }
 
-    /// The sprint by the reckoned bar ([`Motor::gauge`]): let go of at an empty bar (a lockout lasts as long as the
-    /// sprint keys are held) and not taken up again before the bar is back over [`stamina::CLEAR_ABOVE`]; and let go of
+    /// The sprint by the reckoned bar ([`Motor::gauge`]): let go of at an empty bar (the client walks it under the low flag
+    /// whatever the keys, A364 P10) and not taken up again before the bar is back over [`stamina::CLEAR_ABOVE`]; and let go of
     /// when a jump of the route within [`STAMINA_LOOKAHEAD_M`] would find the bar short of what the sprint there, its
     /// run-up and the jump cost ([`stamina::Reckoning::covers`]): walking, the bar comes back.
     fn sprint_by_the_bar(&mut self, route: &Route, s: f32) {
