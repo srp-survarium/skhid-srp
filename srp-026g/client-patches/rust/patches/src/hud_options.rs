@@ -77,6 +77,9 @@ use crate::vostok::settings::{ConsoleBool, FieldOfView, OptionsCall, SliderSteps
                               save_user_config};
 use crate::vostok::{Context, Flow, GameCell, GameWorldUi, HudOptionsOnOptionsCallExit, Lock, NoExit, Thread};
 
+pub mod render_size;
+pub use render_size::{on_depth_texture, on_output_set, on_output_setup, on_present_stage, on_targets_size};
+
 /// A Settings checkbox kept in user.cfg as `<name> on|off`: the Settings ask
 /// for it by the same name; its label is a dictionary key. Off until the
 /// file says otherwise, or on for one made `with` true.
@@ -1135,6 +1138,7 @@ pub fn on_process_start(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let files = DXVK_DLLS.iter().all(|dll| exists_beside_exe(thread, dll.file));
     let marker = file_exists(thread, DXVK_MARKER);
     drive(thread, Event::Started { choice, files, marker });
+    render_size::start(thread);
     Flow::Continue
 }
 

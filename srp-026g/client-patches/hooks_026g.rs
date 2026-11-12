@@ -2291,6 +2291,81 @@ pub extern "C" fn hook_hud_options_on_login(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- hud_options (patch 83) ----
+
+/// The entry `hud_options_on_targets_size` (0x119b2b, render_output_window::set_size with create_targets' arguments pushed (lea eax,[ebx+118h]; then xor dl,dl and the call 0x119B33): [esp] the force, [esp+4] and [esp+8] the size the frame's targets are made at, the window's. Every making of a frame's targets after the window's constructor is here) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_options_on_targets_size(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_options_on_targets_size` calls this, from the game's jump at 0x119b2b,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_options::on_targets_size(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- hud_options (patch 83) ----
+
+/// The entry `hud_options_on_output_setup` (0x13d273, renderer::render before its first setup_render_output_window (mov eax,[ebp+18h] / push eax / push ecx; the call at 0x13D297): once a frame, the scene and view set, nothing of the frame bound yet; [esp+2Ch] the output window) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_options_on_output_setup(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_options_on_output_setup` calls this, from the game's jump at 0x13d273,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_options::on_output_setup(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- hud_options (patch 83) ----
+
+/// The entry `hud_options_on_output_set` (0x13d29c, renderer::render after its first setup_render_output_window (mov eax,[0A7A828h]): the frame's targets are the context's, the backend's base targets the output's, the base viewport the output's size; the stages follow) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_options_on_output_set(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_options_on_output_set` calls this, from the game's jump at 0x13d29c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_options::on_output_set(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- hud_options (patch 83) ----
+
+/// The entry `hud_options_on_depth_texture` (0x177cfa, stage_gbuffer::execute with the render output's depth texture in ECX (0x177CEE: backend +29A0h, its +D8h), before it is pushed as t_depth_render_target for copy_depth_rt (push ecx / mov esi,eax / push 9F3120h): ECX the res_texture the linear depth is copied from) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_options_on_depth_texture(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_options_on_depth_texture` calls this, from the game's jump at 0x177cfa,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_options::on_depth_texture(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- hud_options (patch 83) ----
+
+/// The entry `hud_options_on_present_stage` (0x13db16, renderer::render before its present stage (mov esi,[esp+2Ch] / push ecx; renderer::present 0x1418C0 at 0x13DB36, the screen image's quad of rt 52 on the back buffer, then render_flash_ui 0x13DB3D): the stages and the debug drawing into the frame's targets are done) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_options_on_present_stage(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_options_on_present_stage` calls this, from the game's jump at 0x13db16,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_options::on_present_stage(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- input_check (patch 99) ----
 
 /// The named exits of input_check::on_change_input (the order the shim's Flow code
@@ -4784,6 +4859,41 @@ pub fn music_on_query_done_entry() -> super::hook::CallbackEntry<OrigStoreFirstR
     // SAFETY: the generated entry lives for the executable's lifetime and takes the
     // arguments of engine_store_first_resource, whose `Original` names the entry's type.
     unsafe { super::hook::CallbackEntry::from_entry(music_on_query_done as *const () as *const c_void) }
+}
+
+// ---- hud_options: its hooks installed on demand ----
+
+unsafe extern "C" {
+    fn hud_options_on_targets_size();
+    fn hud_options_on_output_setup();
+    fn hud_options_on_output_set();
+    fn hud_options_on_depth_texture();
+    fn hud_options_on_present_stage();
+}
+/// hud_options's sites that keep the game's bytes until it installs them.
+pub fn hud_options_on_demand() -> [super::hook::OnDemand; 5] {
+    [
+        // render_window.targets_size: render_output_window::set_size with create_targets' arguments pushed (lea eax,[ebx+118h]; then xor d
+        // SAFETY: the site's span as the original exe has it; hud_options_on_targets_size is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x119b2b, &[0x8d, 0x83, 0x18, 0x01, 0x00, 0x00], hud_options_on_targets_size as *const () as usize as u32) },
+        // render.output_setup: renderer::render before its first setup_render_output_window (mov eax,[ebp+18h] / push eax / push ec
+        // SAFETY: the site's span as the original exe has it; hud_options_on_output_setup is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x13d273, &[0x8b, 0x45, 0x18, 0x50, 0x51], hud_options_on_output_setup as *const () as usize as u32) },
+        // render.output_set: renderer::render after its first setup_render_output_window (mov eax,[0A7A828h]): the frame's target
+        // SAFETY: the site's span as the original exe has it; hud_options_on_output_set is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x13d29c, &[0xa1, 0x28, 0xa8, 0xa7, 0x00], hud_options_on_output_set as *const () as usize as u32) },
+        // gbuffer.depth_texture: stage_gbuffer::execute with the render output's depth texture in ECX (0x177CEE: backend +29A0h, its 
+        // SAFETY: the site's span as the original exe has it; hud_options_on_depth_texture is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x177cfa, &[0x51, 0x8b, 0xf0, 0x68, 0x20, 0x31, 0x9f, 0x00], hud_options_on_depth_texture as *const () as usize as u32) },
+        // render.present_stage: renderer::render before its present stage (mov esi,[esp+2Ch] / push ecx; renderer::present 0x1418C0 
+        // SAFETY: the site's span as the original exe has it; hud_options_on_present_stage is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x13db16, &[0x8b, 0x74, 0x24, 0x2c, 0x51], hud_options_on_present_stage as *const () as usize as u32) },
+    ]
 }
 
 // ---- memory_profile: its hooks installed on demand ----

@@ -62,6 +62,7 @@ mod options;
 pub mod parse;
 pub mod resources;
 pub mod renderer;
+pub mod render_size;
 pub mod gun_cook;
 pub mod pickup;
 pub mod use_scan;

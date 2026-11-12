@@ -3832,6 +3832,201 @@ music_on_login_replay:
     db 0x8b, 0x8e, 0x9c, 0x00, 0x00, 0x00
     jmp 0x21eace
 
+; 0x119b2b render_output_window::set_size with create_targets' arguments pushed (lea eax,[ebx+118h]; then xor dl,dl and the call 0x119B33): [esp] the force, [esp+4] and [esp+8] the size the frame's targets are made at, the window's. Every making of a frame's targets after the window's constructor is here: lohook -> hud_options_on_targets_size
+global hud_options_on_targets_size
+extern hook_hud_options_on_targets_size
+hud_options_on_targets_size:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_options_on_targets_size
+    mov edx, hud_options_on_targets_size_replay
+    cmp eax, 0
+    je hud_options_on_targets_size_go
+    mov edx, 0x119b31
+    cmp eax, 1
+    je hud_options_on_targets_size_go
+    ud2
+hud_options_on_targets_size_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_options_on_targets_size_replay:
+    db 0x8d, 0x83, 0x18, 0x01, 0x00, 0x00
+    jmp 0x119b31
+
+; 0x13d273 renderer::render before its first setup_render_output_window (mov eax,[ebp+18h] / push eax / push ecx; the call at 0x13D297): once a frame, the scene and view set, nothing of the frame bound yet; [esp+2Ch] the output window: lohook -> hud_options_on_output_setup
+global hud_options_on_output_setup
+extern hook_hud_options_on_output_setup
+hud_options_on_output_setup:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_options_on_output_setup
+    mov edx, hud_options_on_output_setup_replay
+    cmp eax, 0
+    je hud_options_on_output_setup_go
+    mov edx, 0x13d278
+    cmp eax, 1
+    je hud_options_on_output_setup_go
+    ud2
+hud_options_on_output_setup_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_options_on_output_setup_replay:
+    db 0x8b, 0x45, 0x18, 0x50, 0x51
+    jmp 0x13d278
+
+; 0x13d29c renderer::render after its first setup_render_output_window (mov eax,[0A7A828h]): the frame's targets are the context's, the backend's base targets the output's, the base viewport the output's size; the stages follow: lohook -> hud_options_on_output_set
+global hud_options_on_output_set
+extern hook_hud_options_on_output_set
+hud_options_on_output_set:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_options_on_output_set
+    mov edx, hud_options_on_output_set_replay
+    cmp eax, 0
+    je hud_options_on_output_set_go
+    mov edx, 0x13d2a1
+    cmp eax, 1
+    je hud_options_on_output_set_go
+    ud2
+hud_options_on_output_set_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_options_on_output_set_replay:
+    db 0xa1, 0x28, 0xa8, 0xa7, 0x00
+    jmp 0x13d2a1
+
+; 0x177cfa stage_gbuffer::execute with the render output's depth texture in ECX (0x177CEE: backend +29A0h, its +D8h), before it is pushed as t_depth_render_target for copy_depth_rt (push ecx / mov esi,eax / push 9F3120h): ECX the res_texture the linear depth is copied from: lohook -> hud_options_on_depth_texture
+global hud_options_on_depth_texture
+extern hook_hud_options_on_depth_texture
+hud_options_on_depth_texture:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_options_on_depth_texture
+    mov edx, hud_options_on_depth_texture_replay
+    cmp eax, 0
+    je hud_options_on_depth_texture_go
+    mov edx, 0x177d02
+    cmp eax, 1
+    je hud_options_on_depth_texture_go
+    ud2
+hud_options_on_depth_texture_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_options_on_depth_texture_replay:
+    db 0x51, 0x8b, 0xf0, 0x68, 0x20, 0x31, 0x9f, 0x00
+    jmp 0x177d02
+
+; 0x13db16 renderer::render before its present stage (mov esi,[esp+2Ch] / push ecx; renderer::present 0x1418C0 at 0x13DB36, the screen image's quad of rt 52 on the back buffer, then render_flash_ui 0x13DB3D): the stages and the debug drawing into the frame's targets are done: lohook -> hud_options_on_present_stage
+global hud_options_on_present_stage
+extern hook_hud_options_on_present_stage
+hud_options_on_present_stage:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_options_on_present_stage
+    mov edx, hud_options_on_present_stage_replay
+    cmp eax, 0
+    je hud_options_on_present_stage_go
+    mov edx, 0x13db1b
+    cmp eax, 1
+    je hud_options_on_present_stage_go
+    ud2
+hud_options_on_present_stage_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_options_on_present_stage_replay:
+    db 0x8b, 0x74, 0x24, 0x2c, 0x51
+    jmp 0x13db1b
+
 ; 0x1fab50 game_world_core::change_input<client_update<player_input,220,235,221,236>>'s start (push ebp / mov ebp,esp / and esp,-8), every player input a world takes: a local one, a relayed one (0xEB, the batch 0x27C5C1), a moved one (0xEF) and a replay's; ESP+4 the core, +8 the input (half2 rotation, then the action mask), +10h its time, +14h the player; refused is its `ret 24h` (0x1FAC4E, the duplicate's; EAX the event action, 6 as both refusals return it): lohook -> input_check_on_change_input
 global input_check_on_change_input
 extern hook_input_check_on_change_input
