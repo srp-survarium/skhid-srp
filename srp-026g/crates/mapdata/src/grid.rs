@@ -767,6 +767,9 @@ impl RunUp {
 /// [`Body::wall_held_tops`]: how many cells past a narrow top's floor a wall is looked for: 0.75 m from its centre, a gap of
 /// 0.625 m from a one-cell top's far edge, inside the 0.65 m to which the exactness session's sweep keeps the body cleanly on
 /// the top (a wider gap wedges the capsule, 0.70-0.75 m, or does nothing, 0.80 m and more: the capsule is 0.76 m wide).
+/// MEASURED: the exact tick on made scenes, walls 0.30-2.00 m past one- to two-cell tops 0.6-1.25 m high, walking and sprint
+/// jumps (`private/grid/rig/grid-rules-walltop/out/walltop-table.txt`, `walltop-h*.tsv`, `walltop-sprint.tsv`;
+/// FINDINGS-FEED-exactness 2026-11-12).
 pub const WALL_HELD_CELLS: usize = 3;
 
 /// The extra cost of a sprint-jump link (rise above [`Body::max_jump`]): the run-up and the lower success, metres of walk.
@@ -1564,8 +1567,9 @@ impl WalkGrid {
     /// cells on before any drop: the first cell along `d` that holds solid between a step over `b`'s floor and the standing
     /// height ([`Self::wall_beside`]'s wall) holds the body, the map area's edge too; a cell that holds no surface within a step
     /// of `b`'s floor (the top ends there) and a floor more than a step under it is a drop past the top (a fence's far side), and
-    /// the body is not held. A cell the top's own surface reaches is no drop whatever lies beside it in the cell (School's sill:
-    /// an 18 cm top, a 12 cm crack, then the wall).
+    /// the body is not held. A cell the top's own surface reaches is no drop whatever lies beside it in the cell: the body
+    /// (radius 0.38 m, the client's capsule) does not fit a crack narrower than a cell (School's sill: an 18 cm top, a 12 cm crack
+    /// at z 143.23-143.35, then the wall; the map's walker triangles).
     fn held_by_wall(&self, b: usize, d: usize, solids: &Solids) -> bool {
         let (i, k) = self.cell_xz(self.cell_of[b] as usize);
         let (di, dk) = DIRS[d];
