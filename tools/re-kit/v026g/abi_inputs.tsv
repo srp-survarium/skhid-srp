@@ -6083,3 +6083,7 @@ va	name	location	role	basis
 0x00261100	survarium::options_item_int::options_item_int	entry ESP+8	console command name	observed at 0x261100 and texture option caller 0x2629bf
 0x00261100	survarium::options_item_int::options_item_int	entry ESP+12	values (localized choice keys pointer)	observed at 0x261100 and texture option caller 0x2629bf
 0x00261100	survarium::options_item_int::options_item_int	entry ESP+16	choice count (low byte)	observed at 0x261100 and texture option caller 0x2629bf
+0x001cc470	grass_patch_select_model_lod	ESI	view-projection matrix	observed at grass_patch::render 0x1ccb3d..0x1ccb49 and selector body
+0x001cc470	grass_patch_select_model_lod	entry ESP+4	world transform matrix	observed at grass_patch::render 0x1ccb3d..0x1ccb49 and selector body
+0x001cc470	grass_patch_select_model_lod	entry ESP+8	viewer position float3	observed at grass_patch::render 0x1ccb3d..0x1ccb49 and selector body
+0x001cc470	grass_patch_select_model_lod	entry ESP+12	render model reference, released by the selector	observed at grass_patch::render 0x1ccb3d..0x1ccb49 and selector body

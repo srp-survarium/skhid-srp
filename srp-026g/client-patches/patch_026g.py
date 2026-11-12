@@ -2801,6 +2801,8 @@ INSTALLS[0x3B3340] = (ENTRY, "time_channel::domain: animation_math_domain, the s
 # Distance-based detail: native streaming command owns Apply/Cancel/save.
 # Full detail also selects LOD0 and keeps the top texture levels.
 DETAIL_HOOKS = (
+    (0x1CC51B, bytes.fromhex("807f0100752c"), "detail_grass_model", 0xE9),
+    (0x1605CA, bytes.fromhex("0f877d000000"), "detail_grass_distance", 0xE9),
     (0x261350, bytes.fromhex("0fb6c103c7"), "detail_preset_compare", 0xE9),
     (0x2620DA, bytes.fromhex("8d04808d3c41"), "detail_preset_address", 0xE9),
     (0x1FF5B6, bytes.fromhex("83c508836c241001"), "detail_default_next", 0xE9),

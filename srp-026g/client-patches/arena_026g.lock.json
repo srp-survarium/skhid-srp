@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 1159726,
-  "sha256": "5fc918ffa0bc74b5569b726cc69fd55c7778f3bc6610425d74b19fabb7c6e075",
+  "size": 1159798,
+  "sha256": "a15f7d10804ac7be9ca45b9a1167526b66bb428eeb328df414620af14a68cfc5",
   "blocks": {
     "bullet_bounds.code": {
       "kind": "code",
@@ -112,14 +112,14 @@
     "detail.code": {
       "kind": "code",
       "va": "0xa548000",
-      "size": 558
+      "size": 630
     }
   },
   "symbols": {
     "SRP_DIAGNOSTICS": "0xa4b37c4",
     "_RNvNtNtCsgEaDafe65MU_7patches6vostok8gun_cook12cooked_entry": "0xa443000",
     "__rodata_audio_device_code": "0xa440892",
-    "__rodata_detail_code": "0xa548193",
+    "__rodata_detail_code": "0xa5481db",
     "__rodata_hide_ui_code": "0xa43a1e2",
     "__rodata_kill_feed_code": "0xa43d178",
     "__rodata_match_keys_code": "0xa438154",
@@ -244,16 +244,18 @@
     "deserialize_guards_on_fsm": "0xa4af2c7",
     "detail_apply": "0xa548063",
     "detail_default_next": "0xa5480e1",
-    "detail_grass": "0xa54815c",
+    "detail_grass": "0xa5481a4",
+    "detail_grass_distance": "0xa548180",
+    "detail_grass_model": "0xa54815c",
     "detail_initialize": "0xa548048",
     "detail_label": "0xa5480fc",
     "detail_model": "0xa54811f",
-    "detail_option_vtable": "0xa548194",
+    "detail_option_vtable": "0xa5481dc",
     "detail_options": "0xa548000",
     "detail_preset_address": "0xa5480b6",
     "detail_preset_compare": "0xa54808d",
     "detail_shader": "0xa548143",
-    "detail_texture": "0xa548173",
+    "detail_texture": "0xa5481bb",
     "drug_interrupt_on_hit_applied": "0xa4af3f2",
     "effect_presenters_on_particle_stop": "0xa4af51b",
     "effect_presenters_on_sound_stop": "0xa4af44e",

@@ -5,6 +5,7 @@ BITS 32
 %include "engine_026g.inc"
 global detail_options, detail_label, detail_model, detail_shader, detail_texture, detail_grass
 global detail_option_vtable, detail_initialize, detail_apply
+global detail_grass_model, detail_grass_distance
 global detail_preset_compare, detail_preset_address, detail_default_next
 section .text
 
@@ -156,6 +157,36 @@ detail_shader:
 .full:
     xor eax, eax
     ret 4
+
+; The draw path selects its own model LOD; the culling patch's cached LOD
+; does not control that selection. Preserve missing LOD0 and native refcount
+; cleanup by using the selector's existing LOD0 return.
+detail_grass_model:
+    push ecx
+    mov ecx, [0x2260498]
+    cmp byte [ecx+0x132], 0
+    pop ecx
+    je 0x1cc521
+    cmp byte [edi+1], 0
+    jne 0x1cc54d
+    jmp 0x1cc521
+
+; After the frustum query, the stock code rejects patch centers over 100 m.
+; Maximum keeps those candidates. Normal retains the original comparison.
+; Occlusion and frustum culling, and shadow-pass limits, are untouched.
+detail_grass_distance:
+    pushfd
+    push ecx
+    mov ecx, [0x2260498]
+    cmp byte [ecx+0x132], 0
+    pop ecx
+    je .full
+    popfd
+    ja 0x16064d
+    jmp 0x1605d0
+.full:
+    popfd
+    jmp 0x1605d0
 
 ; process_culling already set the grass patch's LOD to zero. Keep native
 ; culling and the available-LOD clamp; skip only distance-based selection.

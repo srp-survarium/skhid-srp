@@ -2336,3 +2336,4 @@ va	status	ref_021d	name
 0x002620a0	reviewed	0x001973af	survarium::options_graphics_quality_selector::scaleform_call
 0x00262ff0	reviewed	0x00197c8c	survarium::options_tab::apply
 0x002630a0	reviewed	0x00197d24	survarium::options_tab::initialize_data
+0x001cc470	reviewed		grass_patch_select_model_lod

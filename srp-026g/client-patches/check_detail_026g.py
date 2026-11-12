@@ -192,14 +192,53 @@ def menu(emu):
     return {'presets':traces,'manual':manual,'manual_custom_cases':5,'arrow_directions':5,'apply_reopen_cases':2,'cancel_cases':1,'default_entries':11}
 
 def grass(emu, distance, thresholds, available):
+    """Culling from its distance test, not from after the rejection gate."""
     patch=fov.WORK+0x4000
     write32(emu,patch+0x409c,available)
     emu.mem_write(OPTIONS+0x50,struct.pack('<2f',*thresholds))
     emu.reg_write(UC_X86_REG_EAX,patch)
-    emu.reg_write(UC_X86_REG_ECX,OPTIONS)
+    emu.reg_write(UC_X86_REG_EBP,fov.STACK+0x9000)
+    emu.reg_write(UC_X86_REG_ESP,fov.STACK+0x8000)
     emu.reg_write(UC_X86_REG_XMM0,struct.unpack('<I',struct.pack('<f',distance*distance))[0])
-    run_until(emu,0x1605d6,0x160634)
-    return u32(emu,patch+0x4098)
+    def stop(uc,address,size,data):
+        if address in (0x16064d,0x160634): uc.emu_stop()
+    h=emu.hook_add(UC_HOOK_CODE,stop)
+    emu.emu_start(0x1605c0,fov.RETURN,count=200000)
+    emu.hook_del(h)
+    pc=emu.reg_read(UC_X86_REG_EIP)
+    assert pc in (0x16064d,0x160634),hex(pc)
+    return None if pc==0x16064d else u32(emu,patch+0x4098)
+
+def grass_model(emu,distance,kind,availability=(1,1,1,0)):
+    """The real draw-time selector and grass surface fetch, with native ref releases."""
+    model,lods,world,eye=(fov.WORK+i for i in (0x1000,0x1200,0x1300,0x1400))
+    emu.mem_write(model,b'\0'*0x150)
+    write32(emu,model+0x128,lods)
+    emu.mem_write(model+0x108,struct.pack('<6f',-1,0,-1,1,2,1))
+    emu.mem_write(lods,b'\0'*0x30)
+    emu.mem_write(lods,bytes(availability))
+    parameters=(20.,40.,240.) if kind==0 else (.4,.2,.001)
+    emu.mem_write(lods+0x10,struct.pack('<I3fI',kind,*parameters,0))
+    emu.mem_write(world,struct.pack('<16f',1,0,0,0,0,1,0,0,0,0,1,0,0,0,distance,1))
+    emu.mem_write(eye,struct.pack('<3f',0,0,0))
+    def cdecl(va,args,registers):
+        esp=fov.STACK+0x8000
+        emu.mem_write(esp,struct.pack('<'+'I'*(len(args)+1),fov.RETURN,*args))
+        emu.reg_write(UC_X86_REG_ESP,esp)
+        for register,value in registers.items(): emu.reg_write(register,value)
+        run_until(emu,va,fov.RETURN)
+        assert emu.reg_read(UC_X86_REG_ESP)==esp+4
+        return emu.reg_read(UC_X86_REG_EAX)
+    write32(emu,model+0xd0,2)
+    lod=cdecl(0x1cc470,[world,eye,model],{UC_X86_REG_ESI:fov.MATRIX})
+    assert u32(emu,model+0xd0)==1, 'selector must release exactly its reference'
+    # The draw caller next acquires another model ref and fetches the surface.
+    write32(emu,model+0xd0,2)
+    for i in range(3): write32(emu,model+0x138+4*i,fov.SURFACE+0x80*i)
+    surface=cdecl(0x1cbc20,[model],{UC_X86_REG_EAX:lod})
+    assert u32(emu,model+0xd0)==1, 'surface fetch must release exactly its reference'
+    assert surface==(fov.SURFACE+0x80*lod if lod<3 else 0)
+    return lod
 
 def labels(emu):
     array=fov.WORK+0x9000
@@ -271,15 +310,36 @@ def main():
     grass_cases=0
     for thresholds in ((40.,60.),(60.,40.)):
         for available in (0,1,2,3):
-            for distance in (1.,39.,40.,41.,59.,60.,61.,100.,1000.):
+            for distance in (1.,39.,40.,41.,59.,60.,61.,99.99,100.,100.01,240.,1000.):
                 mode(native,True);mode(patched,True)
                 assert grass(native,distance,thresholds,available)==grass(patched,distance,thresholds,available)
                 mode(patched,False)
                 assert grass(patched,distance,thresholds,available)==0
                 grass_cases+=1
+    grass_draw_cases=0
+    grass_examples=[]
+    for angle in (50.,65.,90.,100.):
+        projection=fov.projection(patched,angle,1.)
+        # Stock camera construction is fixed at 65 degrees. Compare the grass
+        # selectors with identical projection inputs at each tested FOV.
+        native.mem_write(fov.MATRIX,struct.pack("<16f",*projection))
+        for kind in (0,1):
+            for distance in (1.,19.,20.,21.,39.,40.,41.,60.,99.,100.,101.,239.,240.,241.,500.,1000.):
+                mode(native,True); mode(patched,True)
+                before=grass_model(native,distance,kind)
+                after=grass_model(patched,distance,kind)
+                assert after==before,(angle,kind,distance,before,after)
+                mode(patched,False)
+                assert grass_model(patched,distance,kind)==0
+                if angle==65 and kind==0: grass_examples.append({'distance_m':distance,'normal_lod':before,'maximum_lod':0})
+                grass_draw_cases+=1
+    for available,expected in (((0,0,0,0),0xaa),((1,0,0,0),0)):
+        for adaptive in (True,False):
+            mode(patched,adaptive)
+            assert grass_model(patched,500.,1,available)==expected
     menu_calls=menu(patched)
     labels(patched)
-    result={'adaptive_model_cases_equal':compared,'full_detail_model_cases_lod0':forced,'shader_cases':shaders,'grass_cases':grass_cases,'texture_bias_cases':3,'native_menu':menu_calls,'distance_lod_examples':examples,'live_performance_measured':False}
+    result={'adaptive_model_cases_equal':compared,'full_detail_model_cases_lod0':forced,'shader_cases':shaders,'grass_cases':grass_cases,'grass_draw_cases':grass_draw_cases,'grass_draw_examples':grass_examples,'texture_bias_cases':3,'native_menu':menu_calls,'distance_lod_examples':examples,'live_performance_measured':False}
     if args.out:
         args.out.mkdir(parents=True,exist_ok=True)
         (args.out/'native-check.json').write_text(json.dumps(result,indent=2)+'\n')

@@ -5532,7 +5532,10 @@ LOD0 and grass LOD0. Normal preserves the existing adaptive behavior, including
 the FOV correction. Apply, Cancel and persistence use the existing native
 `r_use_texture_streaming` option; its default remains on. The same console
 command controls the setting (`off` for maximum, `on` for adaptive detail).
-Hardware mip filtering and visibility culling remain active.
+Hardware mip filtering, frustum and occlusion culling remain active. Maximum
+also removes grass's separate 100-metre cutoff and forces the draw-time grass
+model selector to LOD0; changing only the culling cache did not affect that
+selector. Native shadow-pass limits and its explicit LOD bias remain.
 The Graphics presets include this row: Ultra selects Maximum; Minimum, Low,
 Medium and High select Normal. Changing this row away from the selected
 preset selects Custom through the native integer-option comparison. The

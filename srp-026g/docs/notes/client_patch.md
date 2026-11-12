@@ -3499,8 +3499,28 @@ When streaming is off, the renderer hooks select maximum detail:
 | --- | --- |
 | `0x16EEF7`, static model selector | Missing LOD0 still returns `0xAA`; otherwise use native LOD0 return, bypassing distance/projected-box thresholds. |
 | `0x158D26`, material selector | Return shader LOD0. Normal retains native shader LOD and shading-quality behavior. |
-| `0x1605E0`, grass culling | Keep initialized LOD0, then execute the native available-LOD clamp. Visibility culling remains. |
+| `0x1605E0`, grass culling | Keep initialized LOD0, then execute the native available-LOD clamp. |
+| `0x1CC51B`, grass draw selector | Use the draw path's native LOD0 return, retaining model-reference release and missing-LOD0 behavior. |
+| `0x1605CA`, grass distance rejection | Maximum bypasses the 100-metre patch-center cutoff after the frustum query. Normal preserves the original comparison and flags. |
 | `0x3D9C43`, texture request | Native non-streamed request already asks for all mips; keep top levels by setting mip-cut to zero. |
+
+Grass has two independent decisions in 0.26g: culling sets patch+4098, but
+`grass_patch::render` calls the separate selector at `0x1CC470`, then fetches
+its surface through `0x1CBC20`. The former is named `grass_patch_select_model_lod`
+in re-kit by observed behavior, not an original symbol. Only patch+4098 was
+covered initially; that did not force the mesh actually drawn. The draw selector
+uses either distance or projected bounds and releases its by-value model ref.
+The new hook follows its existing LOD0 return after the missing-LOD0 check.
+A separate 100-metre squared-distance check preceded the old culling hook.
+Maximum now keeps those frustum-query candidates too. Frustum and occlusion
+culling remain; per-pass draw limits and the shadow pass's explicit LOD bias
+remain native. The gbuffer pass supplies a 1,000,000-metre draw limit.
+
+Grass regression coverage now starts before the distance rejection and executes
+the complete draw-time selector and surface fetch, including reference counts,
+Normal parity, Maximum LOD0, missing LOD0, distance and projected-size descriptors,
+and FOVs 50/65/90/100. More distant grass can increase draw cost; these native
+checks measure selection behavior, not a live FPS comparison.
 
 Normal replays the displaced instructions. Full detail keeps hardware mip
 filtering and the full mip chain. Explicit LOD requests, skeletal and terrain
