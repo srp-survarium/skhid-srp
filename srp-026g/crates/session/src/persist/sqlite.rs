@@ -194,6 +194,9 @@ pub(super) const MIGRATIONS: &[&str] = &[
         kicks INTEGER NOT NULL CHECK (kicks BETWEEN 1 AND 4294967295)
     );
     ",
+    // 8: one nickname per Unicode-case/Cyrillic-lookalike key. Existing
+    // collisions must be repaired with scripts/repair-nicknames.py first.
+    "CREATE UNIQUE INDEX accounts_unique_nickname ON accounts(name COLLATE skhid_nickname);",
 ];
 
 /// The child tables of an account, children of children first.
@@ -251,6 +254,7 @@ impl SqliteRepository {
 
 fn connect(path: &Path) -> Result<Connection, PersistError> {
     let connection = Connection::open(path)?;
+    crate::nickname_key::sqlite_collation(&connection)?;
     let _mode: String = connection.query_row("PRAGMA journal_mode = WAL", [], |row| row.get(0))?;
     connection.execute_batch(
         "PRAGMA foreign_keys = ON;
@@ -276,6 +280,7 @@ fn check_version(connection: &Connection) -> Result<i64, PersistError> {
 /// Apply the steps the file lacks, up to `target`, each in its own
 /// transaction with its version.
 pub(super) fn migrate(connection: &Connection, target: usize) -> Result<(), PersistError> {
+    crate::nickname_key::sqlite_collation(connection)?;
     let found = check_version(connection)? as usize;
     for (index, step) in MIGRATIONS.iter().enumerate().take(target).skip(found) {
         let transaction = connection.unchecked_transaction()?;
@@ -405,9 +410,26 @@ impl AccountRepository for SqliteRepository {
         })
     }
 
-    fn save_account(&mut self, record: &AccountRecord) -> Result<(), PersistError> {
+    fn save_accounts(&mut self, records: &[AccountRecord]) -> Result<(), PersistError> {
+        crate::identity::unique_names(
+            records
+                .iter()
+                .map(|record| (record.id, record.name.as_str())),
+        )?;
         let transaction = self.connection.transaction()?;
-        write_account(&transaction, record)?;
+        // Release just this batch's old names inside the transaction. This
+        // permits A->B, B->A after intermediate renames between saver passes.
+        // Control characters cannot be claimed through registration/rename;
+        // these temporary values are never visible outside the transaction.
+        for record in records {
+            transaction.execute(
+                "UPDATE accounts SET name = char(1) || id WHERE id = ?1",
+                [record.id],
+            )?;
+        }
+        for record in records {
+            write_account(&transaction, record)?;
+        }
         transaction.commit()?;
         Ok(())
     }

@@ -18,7 +18,7 @@ use std::time::Instant;
 use session::LockExt;
 use session::v026g::{quests, rules, tutorial, wire};
 use survarium::v026g::lobby::requests::{ClientMessage, id};
-use survarium::v026g::lobby::{self, NameRefusal, Ranked, important};
+use survarium::v026g::lobby::{self, Ranked, important};
 
 use super::core::{Core, Who};
 
@@ -27,35 +27,6 @@ mod text {
     pub const DROP_CARD: &str = "st_cannot_use_drop_card";
     pub const RENAME: &str = "st_change_name_error";
     pub const COMMENT: &str = "st_error_during_storing_user_comment";
-}
-
-/// What is wrong with a name a client asks about (`49 03`, `49 08`,
-/// `49 09`), in the client's own reasons. [choice] The original server's
-/// rules are not known; these are the ones srp can keep: three characters
-/// or more, no blanks, nothing that does not print, and within the 63
-/// bytes the client's buffers hold.
-pub(super) fn name_refusal(name: &str, nickname: bool) -> Option<NameRefusal> {
-    if name.chars().count() < 3 {
-        return Some(NameRefusal::Short);
-    }
-    if name.chars().any(char::is_whitespace) {
-        return Some(NameRefusal::Space);
-    }
-    if name
-        .chars()
-        .any(|c| c.is_control() || c == char::REPLACEMENT_CHARACTER)
-    {
-        return Some(NameRefusal::WrongSymbol);
-    }
-    if name.len() > lobby::limits::NAME {
-        // A clan check has no pattern reason.
-        return Some(if nickname {
-            NameRefusal::Pattern
-        } else {
-            NameRefusal::WrongSymbol
-        });
-    }
-    None
 }
 
 impl Core<'_> {
@@ -619,31 +590,5 @@ impl Core<'_> {
             "{} asked for the reserved ranking start {start}: not answered",
             who.name
         );
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_name_is_checked_by_the_clients_reasons() {
-        assert_eq!(name_refusal("ab", true), Some(NameRefusal::Short));
-        assert_eq!(name_refusal("a b c", true), Some(NameRefusal::Space));
-        assert_eq!(
-            name_refusal("abc\u{7}", true),
-            Some(NameRefusal::WrongSymbol)
-        );
-        assert_eq!(
-            name_refusal(&"x".repeat(64), true),
-            Some(NameRefusal::Pattern)
-        );
-        // A clan check has no pattern reason.
-        assert_eq!(
-            name_refusal(&"x".repeat(64), false),
-            Some(NameRefusal::WrongSymbol)
-        );
-        assert_eq!(name_refusal("Сталкер", true), None);
-        assert_eq!(name_refusal("abc", false), None);
     }
 }

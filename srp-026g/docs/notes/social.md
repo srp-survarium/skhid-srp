@@ -218,6 +218,67 @@ Invite flow is the 0.21d one on new ids: `invite_to_squad` → `4D` type 2 text 
 
 No operation_permitted (0x83) case exists for op 0x4A (byte table 0x2751FC handles only 0x30/0x46/0x47/0x49/0x4B), so the server answers squad actions only with 0xA1.
 
+Squad name resolution must select a unique connected player, ignoring ASCII case,
+for both `4D` types 2/3 and `4A 02`. Display names are not unique in existing
+accounts: the 2026-11-12 report had offline account 777 and connected account 778
+both named `Mamoru`; player 760 (`dizkodancerskeleton`) was friends with 778.
+The global account search selected 777 before checking whether it was connected.
+At 14:12:54 UTC the live log recorded both "squad message 3 not sent: Mamoru is
+not in the lobby" and acceptance of Mamoru's invite; reverse invites failed the
+same lookup. An offline namesake must not hide the connected player. If multiple
+connected players match, refuse the ambiguous request rather than pick an account
+by its id. Adding a member still requires that account's accepted invite.
+
+The underlying namespace is owned by `SessionStore` (`crates/session/src/identity.rs`).
+Registration checks the display name **after** splitting an email login and
+cutting it to the wire's 63-byte limit. It refuses a taken name with the existing
+invalid-user-name response; it never signs the registrant into the name owner's
+account. Paid renames parse a `Nickname` and recheck availability under the same
+lock as registration before charging. Account IDs, logins and passwords do not
+change. Availability uses Unicode lowercase followed by the explicit Cyrillic/
+Latin pairs in `scripts/nickname-lookalikes.tsv`: for example Cyrillic `о` and
+Latin `o` share a key. The same table is used by Rust, SQLite's `skhid_nickname`
+collation and the repair tool. Display names retain their original spelling.
+There is no edit-distance, digit/letter or punctuation matching. A conflicting
+registration or rename returns an error; a refused rename is not charged.
+
+The live audit under these rules found 23 collision groups, including account
+649 (`sovspiranha`) and 741 (`sоvspiranha`, Cyrillic `о`), and 576 (`TECTEP`)
+and 594 (`ТЕСТЕР`). The default oldest-account rule keeps 649 and 576.
+
+Persistence schema 8 adds `accounts_unique_nickname`. A saver takes a coherent
+namespace snapshot and writes the dirty accounts in one transaction, allowing
+two accounts to exchange names through intermediate renames between saves.
+Failure rolls back the whole batch and retries it. Duplicate names at load are
+also refused, including with a non-SQLite repository. The shared account name is
+authoritative; startup restores the 0.26g display-name copies from it before the
+lobby starts, recovering a crash between the two savers' passes.
+
+Existing duplicates and lookalikes must be repaired **before deploying schema 8**. Use
+`scripts/repair-nicknames.py <srp.db> --keep 778` to print a JSON plan: by default
+the lowest account id keeps each name, except explicit `--keep` overrides.
+The owner's 2026-11-12 choice is that 778 keeps `Mamoru`, and 777 becomes
+`Mamoru_777`. `--only 777` prepares just that repair. Suffixes avoid all existing
+nicknames and logins, and fit the wire limit. The plan includes a hash of the
+namespace so a stale or edited plan cannot be applied silently.
+
+With the owner's go, stop srp and verify it is stopped, then run
+`scripts/repair-nicknames.py <srp.db> --apply-plan <reviewed.json> --backup <new-backup.db> --server-stopped`.
+This makes a complete SQLite backup (including WAL contents), changes only
+the selected accounts' display-name fields in `accounts` and `g26_accounts`, and
+checks the result in one transaction. The new server installs its unique index
+at migration; the repair tool does not install a custom collation index into
+an older server's database. A targeted repair leaves other pairs unchanged.
+Keep `nickname-lookalikes.tsv` beside the repair script when copying it to a host.
+Start the server and
+verify the names afterward. Never edit this database with srp running: its
+in-memory names would stay stale and the saver could overwrite the edit.
+
+Validation: session identity races and persistence round trips, lobby squad and
+paid-rename tests, and `python3 scripts/test_repair_nicknames.py` (targeted/full
+repair, preserved data and backup, stale plans, rollback). These are automated
+checks; they do not constitute an in-game test or a live deployment.
+
 ### 2.4 How a squad mate's 0x88 is filed (added 2026-10-12) — PROVEN
 
 The squad window keeps a panel per mate (lobby_menu+0x698, +0x69C). A panel holds copies of the mate's account body (0x4634 bytes each, from panel+0x18; the current one's index is the byte at panel+0xD2B4) and at **panel+4 the kit id it asked for**.

@@ -627,7 +627,9 @@ fn afk_migration_preserves_existing_accounts_and_starts_without_kicks() {
     // Version 6 has all the existing fields but no AFK table.
     let connection = Connection::open(dir.db()).unwrap();
     connection
-        .execute_batch("DROP TABLE afk_kicks; PRAGMA user_version = 6;")
+        .execute_batch(
+            "DROP INDEX accounts_unique_nickname; DROP TABLE afk_kicks; PRAGMA user_version = 6;",
+        )
         .unwrap();
     drop(connection);
     let mut repository = SqliteRepository::open(&dir.db()).unwrap();
@@ -988,4 +990,90 @@ fn a_chat_mute_survives_a_restart_and_a_version_5_database_gains_it() {
     assert!(store.unmute_chat(4));
     drop(store);
     assert_eq!(open().account(4).unwrap().locked().chat_ban, None);
+}
+
+#[test]
+fn nickname_constraint_rejects_duplicates_and_batch_rename_can_exchange_names() {
+    let dir = TempDir::new("nicknames");
+    let repository = SqliteRepository::open(&dir.db()).unwrap();
+    let store = SessionStore::with_repository(GATHER, Box::new(repository)).unwrap();
+    let games = crate::v026g::GameAccounts::new();
+    let settings = crate::v026g::premium::Settings {
+        rename_cost: 0,
+        ..crate::v026g::premium::Settings::default()
+    };
+    let alice = store.get_or_create_account([127, 0, 0, 1].into(), "alice-login");
+    let bob = store.get_or_create_account([127, 0, 0, 1].into(), "bob-login");
+    games.get_or_create(alice, "alice-login");
+    games.get_or_create(bob, "bob-login");
+    let rename = |id, name| {
+        store
+            .rename_026g(
+                &games,
+                &settings,
+                id,
+                &crate::v026g::names::Nickname::parse(name).unwrap(),
+            )
+            .unwrap()
+    };
+    rename(alice, "Alice");
+    rename(bob, "Bob");
+    store.flush();
+    let con = Connection::open(dir.db()).unwrap();
+    crate::nickname_key::sqlite_collation(&con).unwrap();
+    assert!(
+        con.execute("UPDATE accounts SET name = 'аLiCe' WHERE id = ?1", [bob])
+            .is_err()
+    );
+    rename(alice, "Temporary");
+    rename(bob, "Alice");
+    rename(alice, "Bob");
+    assert_eq!(store.flush(), 2);
+    let restored =
+        SessionStore::with_repository(GATHER, Box::new(SqliteRepository::open(&dir.db()).unwrap()))
+            .unwrap();
+    assert_eq!(restored.account(alice).unwrap().locked().name(), "Bob");
+    assert_eq!(restored.account(bob).unwrap().locked().name(), "Alice");
+}
+
+#[test]
+fn duplicate_nicknames_on_load_are_refused_even_without_the_database_index() {
+    let dir = TempDir::new("duplicate-nicknames");
+    let mut repository = SqliteRepository::open(&dir.db()).unwrap();
+    let mut first = Account::new(1, "Mamoru".into());
+    first.login = "old-login".into();
+    let mut second = Account::new(2, "mAMORU".into());
+    second.login = "mamoru".into();
+    Connection::open(dir.db())
+        .unwrap()
+        .execute("DROP INDEX accounts_unique_nickname", [])
+        .unwrap();
+    repository.save_account(&AccountRecord::of(&first)).unwrap();
+    repository
+        .save_account(&AccountRecord::of(&second))
+        .unwrap();
+    assert!(matches!(
+        SessionStore::with_repository(GATHER, Box::new(repository)),
+        Err(PersistError::BadRow(..))
+    ));
+}
+
+#[test]
+fn a_failed_nickname_batch_rolls_back_all_names_and_account_changes() {
+    let dir = TempDir::new("nickname-rollback");
+    let mut repository = SqliteRepository::open(&dir.db()).unwrap();
+    let mut alice = Account::new(1, "Alice".into());
+    alice.login = "alice".into();
+    let mut bob = Account::new(2, "Bob".into());
+    bob.login = "bob".into();
+    repository
+        .save_accounts(&[AccountRecord::of(&alice), AccountRecord::of(&bob)])
+        .unwrap();
+    alice.name = "Bob".into();
+    alice.game.generic_money = 1;
+    assert!(repository.save_account(&AccountRecord::of(&alice)).is_err());
+    let restored = repository.load_all().unwrap();
+    assert_eq!(restored.accounts[0].name, "Alice");
+    assert_ne!(restored.accounts[0].game.generic_money, 1);
+    assert_eq!(restored.accounts[1].name, "Bob");
 }

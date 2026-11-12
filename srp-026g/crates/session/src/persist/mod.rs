@@ -206,7 +206,11 @@ pub trait AccountRepository: Send {
     fn load_all(&mut self) -> Result<Loaded, PersistError>;
     /// Write one account whole, replacing what was kept of it, and keep the
     /// next account id past it.
-    fn save_account(&mut self, record: &AccountRecord) -> Result<(), PersistError>;
+    fn save_account(&mut self, record: &AccountRecord) -> Result<(), PersistError> {
+        self.save_accounts(std::slice::from_ref(record))
+    }
+    /// Write a coherent batch atomically, including accounts exchanging names.
+    fn save_accounts(&mut self, records: &[AccountRecord]) -> Result<(), PersistError>;
     /// The id the next new account gets.
     fn next_account_id(&mut self) -> Result<u32, PersistError>;
     /// Every kept session, by id.
@@ -291,14 +295,26 @@ impl AccountRepository for MemoryRepository {
         })
     }
 
-    fn save_account(&mut self, record: &AccountRecord) -> Result<(), PersistError> {
+    fn save_accounts(&mut self, records: &[AccountRecord]) -> Result<(), PersistError> {
         let mut inner = self.inner.locked();
-        if inner.failing_account_saves {
+        if inner.failing_account_saves
+            && let Some(record) = records.first()
+        {
             return Err(PersistError::BadRow(record.id, "disk full".into()));
         }
-        inner.next_account_id = inner.next_account_id.max(record.id + 1);
-        inner.accounts.insert(record.id, record.clone());
-        inner.saves += 1;
+        crate::identity::unique_names(
+            inner
+                .accounts
+                .values()
+                .filter(|old| !records.iter().any(|new| old.id == new.id))
+                .chain(records.iter())
+                .map(|record| (record.id, record.name.as_str())),
+        )?;
+        for record in records {
+            inner.next_account_id = inner.next_account_id.max(record.id + 1);
+            inner.accounts.insert(record.id, record.clone());
+            inner.saves += 1;
+        }
         Ok(())
     }
 
