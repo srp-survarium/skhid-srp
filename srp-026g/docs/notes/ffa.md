@@ -93,10 +93,11 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
 - **Protection:** 2 s on every team-2 point (`PROTECTION` in `scripts/ffa-mode/make_edits.py`;
   the exe reads the key as whole seconds). TDM's own points keep theirs (`maps.tsv`
   `spawn_protection_s`, teams 0 and 1 only).
-- **No resupply** (the owner, 2026-11-12: "make sure FFA doesn't have ammo refills"): no ammo zone
-  serves a free-for-all player, whatever team the map gave it: no use hint, no refill (the exe
-  patch refuses a player of his own side before the zone's test of the team). The ammo a player
-  has is his kit's at the spawn, and what he picks up.
+- **No ammo crates** (the owner, 2026-11-12/13: "there should just be no ammo crates", "then noone
+  can resupply"): content edit `no-ammo-crates-1` removes every ammo crate (its resupply zones,
+  decal, collision and models) from the projects the free-for-all configs name. Those are Team
+  Deathmatch's own projects, so Team Deathmatch on those maps has no crates either. No exe rule.
+  The ammo a player has is his kit's at the spawn, and what he picks up.
 - **Checked against 0.26g's collision** (`scripts/ffa-mode/check-points`,
   `scripts/ffa-mode/checked.tsv`): each 0.31 point is kept, nudged to the ground (under 0.43 m) or
   dropped (ground over 0.5 m off, body blocked, or no reachable floor).
@@ -285,8 +286,8 @@ and spatial review; they still need multiplayer playtesting for balance.
 - **Statistics:** `m_team_victory_items[2]` +31D8h is indexed by team (0x2F5590). This is batteries
   only.
 - **Resupply:** a zone serves its own team or team 2 (0x2F808F, 0x2F80CF): alone, a free-for-all
-  player (4 + place) would be served by a zone of team 2 and by one numbered as his side. The
-  patch refuses him at every zone before that test ("No resupply" above).
+  player (4 + place) would be served by a zone of team 2 and by one numbered as his side. Its
+  maps have no zones ("No ammo crates" above), so the exe is left as it is there.
 - **Special team values:** team 2 is "neutral" for names (0x1F2B4B), resupply (0x2F8097) and the
   minimap (0x239B3C). The HUD turns local team 3 into 0 (0x234975).
 - **Equality only (works with any value):** kd kills (0x32384F), the statistics' enemy events

@@ -139,7 +139,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/hud_cursor.rs`, `src/hud_cursor.toml`, `src/vostok/hud_input.rs` (`MenuChange`, `CursorMovie`), `check_hud_cursor_026g.py` | Patch 113: the hud's kits and cursor start over at each match (the last match's pick stayed on the kits' tab), and the main menu covers the hud's cursor (Esc over the kits left it drawn under the menu's); five lohooks, at initialize_match's start, show_cursor's show and hide and game_options' activate and deactivate; its check runs each from the game's code on a made-up game, the original beside (needs Unicorn) |
 | `rust/patches/src/ban_time.rs`, `src/ban_time.toml`, `src/vostok/login.rs` (`BanStatusText`), `src/vostok/clock.rs` (`FileTime`), `../crates/ban-reason` | Patch 116: a banned account's sign-in shows srp's reason, when the ban ends and how long it has left, from what srp's login server sends after a ban's code; two lohooks, at the sign-in answer and at set_status's built text |
 | `rust/patches/src/sign_in_cipher.rs`, `src/sign_in_cipher.toml`, `src/vostok/openssl.rs`, `../crates/sign-in-cipher`, `check_sign_in_cipher_026g.py` | Patch 139: the sign-in's password goes through srp's own cipher where the game's protocol had TLS; five lohooks, the user name's answer and OpenSSL's SSL_connect, SSL_read, SSL_write and SSL_get_error after their prologue; its check runs a sign-in through the patched exe against Python's `cryptography` (needs it and Unicorn) |
-| `rust/patches/src/free_for_all.rs`, `src/free_for_all.toml`, `src/vostok/respawn.rs`, `src/vostok/ui.rs` (`MatchClock`, the hud state), `check_free_for_all_026g.py` | Patch 142: a free-for-all (mode 8), each player his own side: he respawns alone at one of all clear points of the map's team-2 group, no ammo zone serves him, the hud movie gets his kills, the most kills and the kill target (`root.set_ffa_progress`), and the match's start and end their messages; ten lohooks (the KD death event, the respawn tick's batching and selection, the two zone tests, the options' two reads, update_player_icons' start, initialize_match's start, the welcome's mark); its check runs them in the patched exe with the game's own code around, the original beside (needs Unicorn) |
+| `rust/patches/src/free_for_all.rs`, `src/free_for_all.toml`, `src/vostok/respawn.rs`, `src/vostok/ui.rs` (`MatchClock`, the hud state), `check_free_for_all_026g.py` | Patch 142: a free-for-all (mode 8), each player his own side: he respawns alone at one of all clear points of the map's team-2 group, the hud movie gets his kills, the most kills and the kill target (`root.set_ffa_progress`), and the match's start and end their messages; nine lohooks (the KD death event, the respawn tick's batching and selection, a point's protection read, the options' two reads, update_player_icons' start, initialize_match's start, the welcome's mark); its check runs them in the patched exe with the game's own code around, the original beside (needs Unicorn) |
 | `rust/patches/src/artefact_skills.rs`, `src/artefact_skills.toml`, `src/vostok/artefact_skills.rs`, `check_artefact_skills_026g.py`, `src/artefact_keeper.rs`, `src/artefact_keeper.toml`, `src/vostok/keeper.rs`, `check_artefact_keeper_026g.py` | Patch 109: the artefact tree's skills the exe computes (`../docs/notes/artefact-skills.md`), their ranks packed in kit modifier 40; Resistance (+0.05 armour a rank against the anomalous hit types, 0x32A083), Onyx II (the landing 0x2D8220), Larkspur II (the activation 0x313333), Spring II (patch 54's reload nodes, its entry), Resonance and Cascade (the aura at the getters 0x2D5AE6 / 0x2D5C18, the protectors 0x32A020, the regeneration 0x32A53F), Keeper of the Artifacts (a Keeper gets a dormant artefact of the match's kind from the map's hidden pool at the match's start, into its first empty container, once a match: register_artefacts 0x31B8E0, the player's tick 0x2DAAD3); their checks run the game's code for each (needs Unicorn) |
 | `rust/patches/src/forest_glow.rs`, `src/forest_glow.toml`, `src/vostok/effect.rs`, `check_forest_glow_026g.py` | Patch 111: Forest Protection's grey glow on the arms while it protects a player (inside a damage zone, a rank of modifier 41 in its kit), seen by everyone; and the leg quarters, each passive artefact copy counting for a player (own and Resonance's shared, at most 4 a kind) lighting a quarter of its legs in its kind's colour, shown only by a game whose local player's current kit has Artifact Sight (513, modifier 40 bit 12) or that has no local player (pack artefact-glow@13); a place's third-person presenter given back to its current kit's object (the stock game left it on another kit's after a respawn, so other games showed none of that player's effects); played from the player's simulation tick with its own calculator, which ends each when the game no longer shows it; its check runs the tick, the effects' query and callback, the clock and the cook in the built exe (needs Unicorn) |
 | `rust/patches/src/controller_position.rs`, `src/controller_position.toml`, `src/vostok/controller.rs`, `check_controller_position_026g.py` | Patch 118: a character controller's step never leaves its position non-finite: at player_step's epilogue (0x7C7D7) a position with an infinity or a NaN goes back to m_last_pos, where the step began; one lohook; a simulation change (`../docs/notes/client_patch.md` section 3.71) |
@@ -4053,7 +4053,7 @@ deserialize.
 ## Free for all (patch 142, unreleased)
 
 A free-for-all (mode 8) gives each player a team of his own (srp: 4 + his place;
-`docs/notes/ffa.md`), which the game's two-team respawn, resupply and hud code cannot carry. The Rust
+`docs/notes/ffa.md`), which the game's two-team respawn and hud code cannot carry. The Rust
 `free_for_all` hooks (`docs/notes/client_patch.md`, "Free for all (patch 142)"):
 
 - **Respawn.** The tick's batching (0x3168CE) puts a player of team 2 or more into the first of its
@@ -4066,10 +4066,8 @@ A free-for-all (mode 8) gives each player a team of his own (srp: 4 + his place;
   milliseconds and player place, modulo the safe pool size. Safe central points have the same
   eligibility as safe edges; regular respawn intervals do not lock a player to a short rotation.
   With none safe, he chooses among the five best-separated points (or all on a smaller map). Nobody waits; clients and replays agree.
-- **No resupply** (the owner, 2026-11-12). No ammo zone serves him, whatever its team
-  (resupply_zone_core can_use 0x2F8086, use_hint 0x2F80C6, before the zone's test of the team): the
-  hooks leave by the game's own "no" (0x2F80BB `xor eax,eax`, 0x2F80DC the empty hint), so neither
-  patch 85's crate refill nor the game's is reached. A player of team 0 or 1 goes on to the game's test.
+- **No ammo crates** (the owner, 2026-11-12/13): not the exe's. Content edit `no-ammo-crates-1`
+  takes the crates out of the maps a free-for-all is played on; the zones' code is the original's.
 - **The hud.** srp's block after the match's options holds tag 3, `kills_to_win` (u16), in a
   free-for-all only. At update_player_icons' start (0x23AA10) the hud movie is told
   `root.set_ffa_progress(own, top, target)` from the hud state the rules fill each frame: the kills
@@ -4084,8 +4082,8 @@ A free-for-all (mode 8) gives each player a team of his own (srp: 4 + his place;
 
 Teams 0 and 1 are untouched. A match's computation changes (the respawns): every client of a match
 needs it. `check_free_for_all_026g.py` runs the hooks inside the game's own tick batching,
-select_respawn_points (300 random matches against its own model of the rule), the two zone
-functions, the options' reads, update_ui's welcome and update_player_icons' start.
+select_respawn_points (300 random matches against its own model of the rule), the zone
+functions' bytes (the original's), the options' reads, update_ui's welcome and update_player_icons' start.
 
 ## Names on the Tab map (patch 82, unreleased)
 

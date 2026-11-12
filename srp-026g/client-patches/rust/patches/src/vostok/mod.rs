@@ -164,4 +164,4 @@ mod world_context;
 
 pub mod replay_file;
 pub mod respawn;
-pub use respawn::{Due, Point, PointIndex, RespawnSelect, Resupply, ResupplySite, Side, TwoTeams};
+pub use respawn::{Due, Point, PointIndex, RespawnSelect, Side, TwoTeams};
