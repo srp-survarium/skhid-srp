@@ -96,8 +96,7 @@ pub const BOT_SKILL_TIERS: [BotSkillTier; 3] = [
 /// above, which the tiers' 101 starts; the rest are the least that carry no
 /// aim, damage or protection skill (the other rows are 105 breath hold, 106
 /// and 107 dispersion):
-/// - 102 moving while aiming: no speed (LIKELY, §5 of
-///   `player_bots_skills.md`);
+/// - 102 moving while aiming (`movement_speed_when_aiming`);
 /// - 104 weapon swap speed: the bots carry one weapon;
 /// - 108 reload speed: the client reloads faster; the bots time a
 ///   reload by the clip (`Gun::reload_ms`), so they wait a little longer
