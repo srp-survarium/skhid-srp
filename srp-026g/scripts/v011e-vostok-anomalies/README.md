@@ -218,6 +218,13 @@ lines match the released-data baseline exactly; all 101 worlds added by
 these three local playtests pass. The full-corpus check therefore remains
 red for the documented pre-existing failures.
 
+Resolved later on November 12: those failures were incompatible historical
+recordings left in the active corpus, including the obsolete revision-37
+prototype. They are preserved in an archive with hashes; the refreshed
+corpus passes all 44,218 worlds, including these 101 local worlds. See
+`docs/notes/packet-validation.md`, "The world corpus", for provenance and
+the safe refresh procedure. No parser checks were weakened.
+
 Before merge, current main's anti-AFK change (`43ec78031`) was integrated
 as `50964d90b`. The combined server tests and Clippy are recorded in
 `checks-merged-main.log`. This integration changes no content: the owner
