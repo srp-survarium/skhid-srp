@@ -529,7 +529,7 @@ mod tests {
     /// way's length against the straight one, and the points lost (no
     /// floor near, or not allowed). With `SRP_ROUTES_REACH_OUT` a TSV of
     /// it, a row a route in the file's order (`first_m`, `first_straight_m`: the leg out of the base, its way and its
-    /// straight line; empty when it has no way). With `SRP_ROUTES_POINTS_OUT`
+    /// straight line; empty when it has no way; `leg_ratios`: every leg's way over its straight line, `x` for none). With `SRP_ROUTES_POINTS_OUT`
     /// a TSV a row a point: its height (if given), the floor it gets
     /// without it (`y_lowest`) and with it (`y_3d`; "lost": none), and the
     /// lowest and highest usable floors within 1 m, 2 m and 5 m (a stacked spot
@@ -546,7 +546,7 @@ mod tests {
         };
         let table = RouteTable::load(path.as_ref()).unwrap();
         let mut out = String::from(
-            "row	level	mode	team	points	lost	legs	no_way	jumps	length_m	straight_m	first_m	first_straight_m
+            "row	level	mode	team	points	lost	legs	no_way	jumps	length_m	straight_m	first_m	first_straight_m	leg_ratios
 ",
         );
         let mut points_out = String::from(
@@ -637,6 +637,8 @@ mod tests {
             let (mut no_way, mut jumps, mut length, mut straight) = (0, 0, 0.0f32, 0.0f32);
             // The leg out of the base, apart: where a base has one long way out, every route of its side starts with it.
             let mut first: Option<(f32, f32)> = None;
+            // Each leg's way over its straight line (`x`: no way), to see which leg a long way is in.
+            let mut legs: Vec<String> = Vec::new();
             let mut from = start;
             for (leg, &to) in points.iter().enumerate() {
                 straight += from.distance_xz(to);
@@ -644,17 +646,22 @@ mod tests {
                     Some(way) => {
                         jumps += way.points().iter().filter(|w| w.jump.is_some()).count();
                         length += way.length();
+                        legs.push(format!("{:.2}", way.length() / from.distance_xz(to).max(1.0)));
                         if leg == 0 {
                             first = Some((way.length(), from.distance_xz(to)));
                         }
                     }
-                    None => no_way += 1,
+                    None => {
+                        no_way += 1;
+                        legs.push("x".into());
+                    }
                 }
                 from = to;
             }
+            let legs = legs.join(";");
             let first = first.map_or(String::from("	"), |(way, line)| format!("{way:.1}	{line:.1}"));
             out.push_str(&format!(
-                "{index}	{}	{}	{}	{total}	{}	{}	{no_way}	{jumps}	{length:.1}	{straight:.1}	{first}
+                "{index}	{}	{}	{}	{total}	{}	{}	{no_way}	{jumps}	{length:.1}	{straight:.1}	{first}	{legs}
 ",
                 row.level,
                 row.mode,
