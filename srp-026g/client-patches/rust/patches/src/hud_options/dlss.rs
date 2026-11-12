@@ -30,7 +30,8 @@ use crate::vostok::dlss::{self, BackBuffer, Device, Failure, Frame, Hello, Helpe
                           Watched};
 use crate::vostok::log::{Piece, Piece::*, line, line_of};
 use crate::vostok::settings::{file_exists, save_user_config};
-use crate::vostok::{Lock, Thread, hud_options_on_watch_entry};
+use crate::vostok::renderer::environment_set;
+use crate::vostok::{GameCell, Lock, Thread, hud_options_on_watch_entry};
 
 /// Why nothing starts in this process.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -322,6 +323,18 @@ type Live = Link<Helper, Device, Shared>;
 /// (the start, each Present, the Settings, the login screen, the exit).
 static LINK: Lock<Live> = Lock::new(Link::Off(NotRun::Undecided));
 
+/// The link's progress lines, a local diagnostic: off for players, on in a
+/// game started with `SKHID_DLSS_LOG` set (read once, at the start).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Progress {
+    Unsaid,
+    /// A line at every frame whose number is a multiple of [`PROGRESS_EVERY`].
+    Said,
+}
+
+static PROGRESS: GameCell<Progress> = GameCell::new(Progress::Unsaid);
+const PROGRESS_EVERY: u64 = 300;
+
 /// DXVK's mip bias with DLSS at Quality, `d3d11.samplerLodBias`:
 /// log2(render / output) - 1 with the render size 1 / 1.5 of the output's
 /// each way. It depends on the mode alone, so the start sets it without the
@@ -340,6 +353,9 @@ pub fn at_start(thread: &Thread, nvidia: bool, files: bool, tick: bool) -> bool 
         _ => {}
     }
     let runs = matches!(link, Link::Waiting(Purpose::Run));
+    if runs && environment_set(thread, c"SKHID_DLSS_LOG") {
+        PROGRESS.set(thread, Progress::Said);
+    }
     LINK.with(thread, |state| *state = link);
     runs
 }
@@ -455,6 +471,10 @@ fn act(thread: &Thread, link: &Live, present: Option<&Present>, action: Action<H
                     if !free(frame, reached) {
                         // DXVK's queue is that far behind: this Present has no frame of the link
                         return Ok(None);
+                    }
+                    if PROGRESS.get(thread) == Progress::Said && frame.0.is_multiple_of(PROGRESS_EVERY) {
+                        line(&[Text("dlss: frame "), Dec(frame.0 as u32), Text(" is next: the timeline at "), Dec(reached as u32),
+                               Text(" (the helper's output of the frame before is "), Dec(frame.copied() as u32 - 1), Text(")")]);
                     }
                     shared.submit(thread, device, helper, back, frame).map(|()| Some(Event::Submitted))
                 });
