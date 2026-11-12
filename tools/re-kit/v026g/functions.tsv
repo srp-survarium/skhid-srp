@@ -712,6 +712,7 @@ va	status	ref_021d	name
 0x001bd2c0	reviewed	0x0012f9a8	vostok::render::stage_screen_image::clear_surfaces
 0x001bd320	reviewed	0x0012fa03	vostok::render::stage_screen_image::execute
 0x001bde20	reviewed	0x001301e1	vostok::render::lights_db::add_light
+0x001be4a0	reviewed		vostok::render::temporal_projection_matrix_modifier::push_jittering
 0x001be690	reviewed	0x001328fe	vostok::render::effect_editor_view_mode::compile
 0x001be980	reviewed	0x00132b22	vostok::render::effect_fill_environment_probe_face::compile
 0x001bed60	reviewed	0x00132ca7	vostok::render::effect_fill_sky_ao_map::compile
@@ -2319,3 +2320,6 @@ va	status	ref_021d	name
 0x000f70f0	reviewed		vostok::resources::resource_base::resource_base
 0x0010a590	reviewed		vostok::resources::managed_resource::managed_resource
 0x001ee3c0	observed		survarium::game::enqueue_replay_seek_to
+0x00116550	reviewed		vostok::render::backend::target_width
+0x00116570	reviewed		vostok::render::backend::target_height
+0x001418c0	reviewed		vostok::render::renderer::present

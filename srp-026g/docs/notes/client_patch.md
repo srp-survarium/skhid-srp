@@ -3412,6 +3412,44 @@ What it is for and the owner's rules: [dxvk-option.md](dxvk-option.md). Here: wh
   no engine allocation; the login screen's turn-off), `check_music_026g.py` (the login screen's
   chain), `../scripts/dxvk-loader/run.sh` (the loader under Wine). **Not run** on Windows or in a
   game.
+- **The render scale** (2026-11-12, unreleased; [dlss-option.md](dlss-option.md), "The render size"): the 3D
+  frame at a share of the window's size (`hud_options/render_size.rs`, `vostok/render_size.rs`). Five
+  lohooks written on demand, at the process's start, only when a scale is asked (DLSS's link, or the
+  diagnostics switch `SKHID_DLSS_RENDER_SCALE=0.667`): `render_window.targets_size` 0x119B2B (set_size's
+  create_targets takes the render size, a depth-stencil of it is made), `render.output_setup` 0x13D273 (a
+  scale asked later: the forced set_size), `render.output_set` 0x13D29C (the base viewport and `m_base_zb`
+  the frame's), `gbuffer.depth_texture` 0x177CFA (`t_depth_render_target` the frame's),
+  `render.present_stage` 0x13DB16 (the window's viewport and the output's depth-stencil again). The library:
+  `engine_render_window_set_size` 0x119AB0, `engine_set_viewports` 0x11C080, `engine_create_render_target`
+  0x3BF930, `engine_release_render_target` 0x3BFBC0.
+- **The frame's inputs for DLSS** (2026-11-12, unreleased; [dlss-option.md](dlss-option.md), "The frame's
+  inputs"): in a frame rendered at a render scale, a sub-pixel jitter in the projection, none of the game's
+  AA, the object motion pass every frame into a signed target, and the link's read of the frame
+  (`hud_options/frame_inputs.rs`, `vostok/frame_inputs.rs`). Seven lohooks written with the render scale's,
+  each doing nothing unless its piece is asked (DLSS's link, or the diagnostics switch
+  `SKHID_DLSS_INPUTS=all`): `render.jittered` 0x13D3E8 (the engine's own jitter seam: the frame's projection
+  pushed, popped by `render`), `context.eye_rays` 0x14AD23 (each corner's own eye ray under a jitter),
+  `postprocess.aa_method` 0x1B22F1 (the AA method read as 0), `postprocess.motion_gate` 0x1B235A,
+  `postprocess.motion_quality` 0x1B2365 and `postprocess.motion_clear` 0x1B1E75 (the object motion pass and
+  its target's clear whatever the options), `targets.motion_format` 0x163433 (rt 18 RGBA16_FLOAT). The
+  library: `engine_context_push_set_p` 0x1392C0, `engine_context_set_p` 0x14A6F0.
+- **DLSS's frame** (2026-11-12, unreleased; [dlss-option.md](dlss-option.md), "The link"): the link, the
+  render scale and the frame's inputs joined (`hud_options/dlss.rs`, `vostok/dlss.rs`). With the tick on the
+  start asks the render scale (1 / 1.5) and the inputs; one more lohook written with the render scale's,
+  `render.screen_image` 0x1418E5 (`renderer::present` 0x1418C0 with `stage_screen_image::execute`'s
+  argument pushed: the texture its quad samples): while the link runs, the frame's picture
+  (`$user$present`) and the depth of its depth-stencil are copied into the shared images on DXVK's queue,
+  a compute pass there writes the shared motion (`dlss_motion_026g.comp`, built by `dlss_motion_026g.py`
+  with glslangValidator into the SPIR-V words of `dlss_motion_026g.rs`), the helper's output is copied
+  into an engine texture of the window's size, and the pushed word becomes that texture, so the stage's own
+  quad draws DLSS's output and Scaleform draws over it. The library: `engine_resource_interop_surface`
+  (IUnknown::QueryInterface of a texture's ID3D11Resource for DXVK's interop surface), and of Vulkan
+  `engine_vk_cmd_copy_image`, `engine_vk_create_object` and `engine_vk_destroy_object` (every vkCreate* and
+  vkDestroy* of the usual shape), `engine_vk_create_compute_pipelines`, `engine_vk_allocate_descriptor_sets`,
+  `engine_vk_update_descriptor_sets`, `engine_vk_cmd_bind_pipeline`, `engine_vk_cmd_bind_descriptor_sets`,
+  `engine_vk_cmd_push_constants`, `engine_vk_cmd_dispatch`. **Checked:** `check_hud_options_026g.py` (a start
+  where DLSS is to run writes the thirteen sites of the 3D frame, each a jump into the arena; every other
+  start leaves the game's bytes). Seen in a replay under Wine (dlss-option.md, "Status"); not played.
 
 ### 3.71 Voice chat in a match (written 2026-10-25, ported to the named sites 2026-11-06, README patch 66, not released; the rules: `voice-chat.md`) — PROVEN in the code; not run in a game
 

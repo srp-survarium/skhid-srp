@@ -249,3 +249,63 @@ engine_cc_delegate	0x0ec780	EDI:object EDX:name ESP+4:delegate ESP+8:status ESP+
 engine_cc_delegate_execute	0x0ec830	ECX:command ESP+4:arguments	void engine_cc_delegate_execute(struct cc_delegate *command, const char *arguments)	thiscall	command: ConsoleCommand, arguments: ConsoleArguments ->
 engine_log_helper	0x111c90	EAX:function ECX:context ESP+4:helper ESP+8:template ESP+12:file ESP+16:line ESP+20:caller ESP+24:channel ESP+28:level	struct log_helper *engine_log_helper(const struct log_function *function, unsigned int context, struct log_helper *helper, const struct log_helper *template_helper, const char *file, unsigned int line, const char *caller, const char *channel, unsigned int level)	thunk	
 engine_log_write	0x111d10	ESI:helper ESP+4:format ESP+8:arguments	void engine_log_write(struct log_helper *helper, const char *format, const void *arguments)	thunk	
+engine_create_process_a	0x8701bc	-	unsigned int engine_create_process_a(const char *application, char *command, void *process_security, void *thread_security, unsigned int inherit, unsigned int flags, void *environment, const char *directory, void *startup, void *information)	import	
+engine_wait_for_single_object	0x8700a8	-	unsigned int engine_wait_for_single_object(void *handle, unsigned int milliseconds)	import	
+engine_terminate_process	0x870030	-	unsigned int engine_terminate_process(void *process, unsigned int code)	import	
+engine_get_last_error	0x87005c	-	unsigned int engine_get_last_error(void)	import	
+engine_create_thread	0x870124	-	void *engine_create_thread(void *security, unsigned int stack, const void *start, void *parameter, unsigned int flags, unsigned int *id)	import	
+engine_create_named_pipe_a	-	-	void *engine_create_named_pipe_a(const char *name, unsigned int open, unsigned int mode, unsigned int instances, unsigned int out_size, unsigned int in_size, unsigned int timeout, void *security)	dynamic	
+engine_peek_named_pipe	-	-	unsigned int engine_peek_named_pipe(void *pipe, void *buffer, unsigned int size, unsigned int *read, unsigned int *available, unsigned int *left)	dynamic	
+engine_duplicate_handle	-	-	unsigned int engine_duplicate_handle(void *source_process, void *handle, void *target_process, void **target, unsigned int access, unsigned int inherit, unsigned int options)	dynamic	
+engine_get_exit_code_process	-	-	unsigned int engine_get_exit_code_process(void *process, unsigned int *code)	dynamic	
+engine_thread_entry	0x0e0910	ESP+4:thread_entry_params	unsigned int engine_thread_entry(void *params)	stdcall	watch: HelperWatch -> u32
+engine_swap_chain_get_device	IDXGISwapChain+0x1c	-	unsigned int engine_swap_chain_get_device(struct swap_chain *chain, const void *iid, struct interop_device **device)	com	
+engine_swap_chain_get_buffer	IDXGISwapChain+0x24	-	unsigned int engine_swap_chain_get_buffer(struct swap_chain *chain, unsigned int buffer, const void *iid, struct interop_surface **surface)	com	
+engine_interop_vulkan_handles	IDXGIVkInteropDevice+0xc	-	void engine_interop_vulkan_handles(struct interop_device *device, void **instance, void **physical_device, void **vulkan_device)	com	
+engine_interop_flush	IDXGIVkInteropDevice+0x18	-	void engine_interop_flush(struct interop_device *device)	com	
+engine_interop_lock_queue	IDXGIVkInteropDevice+0x1c	-	void engine_interop_lock_queue(struct interop_device *device)	com	
+engine_interop_release_queue	IDXGIVkInteropDevice+0x20	-	void engine_interop_release_queue(struct interop_device *device)	com	
+engine_interop_submission_queue	IDXGIVkInteropDevice1+0x24	-	void engine_interop_submission_queue(struct interop_device *device, void **queue, unsigned int *index, unsigned int *family)	com	
+engine_interop_image_info	IDXGIVkInteropSurface+0x10	-	unsigned int engine_interop_image_info(struct interop_surface *surface, unsigned long long *image, unsigned int *layout, void *info)	com	
+engine_resource_interop_surface	-	-	unsigned int engine_resource_interop_surface(struct hw_resource *resource, const void *iid, struct interop_surface **surface)	dynamic	
+engine_vk_get_instance_proc_addr	-	-	void *engine_vk_get_instance_proc_addr(void *instance, const char *name)	dynamic	
+engine_vk_get_device_proc_addr	-	-	void *engine_vk_get_device_proc_addr(void *device, const char *name)	dynamic	
+engine_vk_get_physical_device_properties2	-	-	void engine_vk_get_physical_device_properties2(void *device, void *properties)	dynamic	
+engine_vk_get_physical_device_memory_properties	-	-	void engine_vk_get_physical_device_memory_properties(void *device, void *properties)	dynamic	
+engine_vk_create_image	-	-	unsigned int engine_vk_create_image(void *device, const void *info, const void *allocator, unsigned long long *image)	dynamic	
+engine_vk_destroy_image	-	-	void engine_vk_destroy_image(void *device, unsigned int image_low, unsigned int image_high, const void *allocator)	dynamic	
+engine_vk_get_image_memory_requirements	-	-	void engine_vk_get_image_memory_requirements(void *device, unsigned int image_low, unsigned int image_high, void *requirements)	dynamic	
+engine_vk_allocate_memory	-	-	unsigned int engine_vk_allocate_memory(void *device, const void *info, const void *allocator, unsigned long long *memory)	dynamic	
+engine_vk_free_memory	-	-	void engine_vk_free_memory(void *device, unsigned int memory_low, unsigned int memory_high, const void *allocator)	dynamic	
+engine_vk_bind_image_memory	-	-	unsigned int engine_vk_bind_image_memory(void *device, unsigned int image_low, unsigned int image_high, unsigned int memory_low, unsigned int memory_high, unsigned int offset_low, unsigned int offset_high)	dynamic	
+engine_vk_create_semaphore	-	-	unsigned int engine_vk_create_semaphore(void *device, const void *info, const void *allocator, unsigned long long *semaphore)	dynamic	
+engine_vk_destroy_semaphore	-	-	void engine_vk_destroy_semaphore(void *device, unsigned int semaphore_low, unsigned int semaphore_high, const void *allocator)	dynamic	
+engine_vk_get_memory_win32_handle	-	-	unsigned int engine_vk_get_memory_win32_handle(void *device, const void *info, void **handle)	dynamic	
+engine_vk_get_semaphore_win32_handle	-	-	unsigned int engine_vk_get_semaphore_win32_handle(void *device, const void *info, void **handle)	dynamic	
+engine_vk_create_command_pool	-	-	unsigned int engine_vk_create_command_pool(void *device, const void *info, const void *allocator, unsigned long long *pool)	dynamic	
+engine_vk_destroy_command_pool	-	-	void engine_vk_destroy_command_pool(void *device, unsigned int pool_low, unsigned int pool_high, const void *allocator)	dynamic	
+engine_vk_allocate_command_buffers	-	-	unsigned int engine_vk_allocate_command_buffers(void *device, const void *info, void **buffers)	dynamic	
+engine_vk_begin_command_buffer	-	-	unsigned int engine_vk_begin_command_buffer(void *buffer, const void *info)	dynamic	
+engine_vk_end_command_buffer	-	-	unsigned int engine_vk_end_command_buffer(void *buffer)	dynamic	
+engine_vk_cmd_pipeline_barrier	-	-	void engine_vk_cmd_pipeline_barrier(void *buffer, unsigned int source_stages, unsigned int destination_stages, unsigned int dependency, unsigned int memory_count, const void *memory, unsigned int buffer_count, const void *buffers, unsigned int image_count, const void *images)	dynamic	
+engine_vk_cmd_blit_image	-	-	void engine_vk_cmd_blit_image(void *buffer, unsigned int source_low, unsigned int source_high, unsigned int source_layout, unsigned int destination_low, unsigned int destination_high, unsigned int destination_layout, unsigned int count, const void *regions, unsigned int filter)	dynamic	
+engine_vk_cmd_copy_image	-	-	void engine_vk_cmd_copy_image(void *buffer, unsigned int source_low, unsigned int source_high, unsigned int source_layout, unsigned int destination_low, unsigned int destination_high, unsigned int destination_layout, unsigned int count, const void *regions)	dynamic	
+engine_vk_queue_submit	-	-	unsigned int engine_vk_queue_submit(void *queue, unsigned int count, const void *submits, unsigned int fence_low, unsigned int fence_high)	dynamic	
+engine_vk_queue_wait_idle	-	-	unsigned int engine_vk_queue_wait_idle(void *queue)	dynamic	
+engine_vk_signal_semaphore	-	-	unsigned int engine_vk_signal_semaphore(void *device, const void *info)	dynamic	
+engine_vk_get_semaphore_counter_value	-	-	unsigned int engine_vk_get_semaphore_counter_value(void *device, unsigned int semaphore_low, unsigned int semaphore_high, unsigned long long *value)	dynamic	
+engine_vk_create_object	-	-	unsigned int engine_vk_create_object(void *device, const void *info, const void *allocator, unsigned long long *object)	dynamic	
+engine_vk_destroy_object	-	-	void engine_vk_destroy_object(void *device, unsigned int object_low, unsigned int object_high, const void *allocator)	dynamic	
+engine_vk_create_compute_pipelines	-	-	unsigned int engine_vk_create_compute_pipelines(void *device, unsigned int cache_low, unsigned int cache_high, unsigned int count, const void *infos, const void *allocator, unsigned long long *pipelines)	dynamic	
+engine_vk_allocate_descriptor_sets	-	-	unsigned int engine_vk_allocate_descriptor_sets(void *device, const void *info, unsigned long long *sets)	dynamic	
+engine_vk_update_descriptor_sets	-	-	void engine_vk_update_descriptor_sets(void *device, unsigned int write_count, const void *writes, unsigned int copy_count, const void *copies)	dynamic	
+engine_vk_cmd_bind_pipeline	-	-	void engine_vk_cmd_bind_pipeline(void *buffer, unsigned int bind_point, unsigned int pipeline_low, unsigned int pipeline_high)	dynamic	
+engine_vk_cmd_bind_descriptor_sets	-	-	void engine_vk_cmd_bind_descriptor_sets(void *buffer, unsigned int bind_point, unsigned int layout_low, unsigned int layout_high, unsigned int first, unsigned int count, const void *sets, unsigned int dynamic_count, const void *dynamic_offsets)	dynamic	
+engine_vk_cmd_push_constants	-	-	void engine_vk_cmd_push_constants(void *buffer, unsigned int layout_low, unsigned int layout_high, unsigned int stages, unsigned int offset, unsigned int size, const void *values)	dynamic	
+engine_vk_cmd_dispatch	-	-	void engine_vk_cmd_dispatch(void *buffer, unsigned int x, unsigned int y, unsigned int z)	dynamic	
+engine_render_window_set_size	0x119ab0	EAX:width ESP+4:owner ESP+8:height ESP+12:mode ESP+16:force	void engine_render_window_set_size(unsigned int width, struct render_output_window *window, unsigned int height, unsigned int fullscreen, unsigned int force)	thunk	
+engine_set_viewports	0x11c080	ESI:viewport ESP+4:backend	void engine_set_viewports(const float *viewport, struct backend *backend)	thunk	
+engine_create_render_target	0x3bf930	ESP+4:manager ESP+8:name ESP+12:width ESP+16:height ESP+20:format ESP+24:option ESP+28:texture ESP+32:ordinary ESP+36:existing ESP+40:opaque	struct render_target *engine_create_render_target(struct resource_manager *manager, const char *name, unsigned int width, unsigned int height, unsigned int format, unsigned int usage, struct res_texture *texture, unsigned int memory_usage, unsigned int slice, unsigned int pooled)	stdcall	
+engine_release_render_target	0x3bfbc0	ESP+4:resource_manager ESP+8:render_target	void engine_release_render_target(struct resource_manager *manager, struct render_target *target)	stdcall	
+engine_context_push_set_p	0x1392c0	ESI:context ESP+4:matrix	void engine_context_push_set_p(struct renderer_context *context, const float *matrix)	thunk	
+engine_context_set_p	0x14a6f0	EAX:matrix ESP+4:context	void engine_context_set_p(const float *matrix, struct renderer_context *context)	thunk	

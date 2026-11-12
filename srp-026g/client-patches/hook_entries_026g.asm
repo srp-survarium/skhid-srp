@@ -1989,7 +1989,7 @@ bake_async_on_frame_replay:
 
 ; 0x1ec730 game::exit's start (push ebp / mov ebp,esp / and esp,-8; thiscall, ECX the game): every exit passes here, before the branches that skip its delete of user_data/streamed_textures (0x1EC7AE when 0x1051E0 fails, 0x1EC801 when 0x40F10 does; the delete 0x1EC832 is patch 70's nop): lohook -> bake_async_on_exit
 global bake_async_on_exit
-extern hook_bake_async_on_exit
+extern hook_bake_async_on_exit_chain
 bake_async_on_exit:
     lea esp, [esp - 4]
     pushfd
@@ -2007,7 +2007,7 @@ bake_async_on_exit:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_bake_async_on_exit
+    call hook_bake_async_on_exit_chain
     mov edx, bake_async_on_exit_replay
     cmp eax, 0
     je bake_async_on_exit_go
@@ -3712,6 +3712,11 @@ hud_options_on_present_replay:
     db 0x8b, 0xb6, 0xcc, 0x00, 0x00, 0x00
     jmp 0x3cf905
 
+; 0xe0910 a thread's start routine as CreateThread calls it (stdcall, lpParameter; the engine's own is 0xE0910, which names the convention): patch 83's watch of the DLSS helper's process, on a thread of its own, its argument the watch's copy of the helper's process handle (docs/notes/dlss-option.md, "Falling back"): callback -> hud_options_on_watch (wraps engine_thread_entry 0xe0910)
+global hud_options_on_watch
+hud_options_on_watch:
+    RUST_CALL hook_hud_options_on_watch, 1, 4
+
 ; 0x105e8e the engine's DirectDraw probe of the video memory (0x105DB0, the DirectX SDK's GetVideoMemoryViaDirectDraw, called by get_local_video_memory_size's 0x1060F0) after GetAvailableVidMem, before it releases the IDirectDraw7 (mov eax,[esp+14h] / mov edx,[eax]; then Release 0x105E98 and FreeLibrary(ddraw) 0x105E9A, which unloads the DirectDraw object's code): the DirectDraw object at [esp+18h], which the probe never releases: lohook -> hud_options_on_ddraw_probed
 global hud_options_on_ddraw_probed
 extern hook_hud_options_on_ddraw_probed
@@ -3831,6 +3836,522 @@ music_on_login_go:
 music_on_login_replay:
     db 0x8b, 0x8e, 0x9c, 0x00, 0x00, 0x00
     jmp 0x21eace
+
+; 0x119b2b render_output_window::set_size with create_targets' arguments pushed (lea eax,[ebx+118h]; then xor dl,dl and the call 0x119B33): [esp] the force, [esp+4] and [esp+8] the size the frame's targets are made at, the window's. Every making of a frame's targets after the window's constructor is here: lohook -> hud_options_on_targets_size
+global hud_options_on_targets_size
+extern hook_hud_options_on_targets_size
+hud_options_on_targets_size:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_options_on_targets_size
+    mov edx, hud_options_on_targets_size_replay
+    cmp eax, 0
+    je hud_options_on_targets_size_go
+    mov edx, 0x119b31
+    cmp eax, 1
+    je hud_options_on_targets_size_go
+    ud2
+hud_options_on_targets_size_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_options_on_targets_size_replay:
+    db 0x8d, 0x83, 0x18, 0x01, 0x00, 0x00
+    jmp 0x119b31
+
+; 0x13d273 renderer::render before its first setup_render_output_window (mov eax,[ebp+18h] / push eax / push ecx; the call at 0x13D297): once a frame, the scene and view set, nothing of the frame bound yet; [esp+2Ch] the output window: lohook -> hud_options_on_output_setup
+global hud_options_on_output_setup
+extern hook_hud_options_on_output_setup
+hud_options_on_output_setup:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_options_on_output_setup
+    mov edx, hud_options_on_output_setup_replay
+    cmp eax, 0
+    je hud_options_on_output_setup_go
+    mov edx, 0x13d278
+    cmp eax, 1
+    je hud_options_on_output_setup_go
+    ud2
+hud_options_on_output_setup_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_options_on_output_setup_replay:
+    db 0x8b, 0x45, 0x18, 0x50, 0x51
+    jmp 0x13d278
+
+; 0x13d29c renderer::render after its first setup_render_output_window (mov eax,[0A7A828h]): the frame's targets are the context's, the backend's base targets the output's, the base viewport the output's size; the stages follow: lohook -> hud_options_on_output_set
+global hud_options_on_output_set
+extern hook_hud_options_on_output_set
+hud_options_on_output_set:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_options_on_output_set
+    mov edx, hud_options_on_output_set_replay
+    cmp eax, 0
+    je hud_options_on_output_set_go
+    mov edx, 0x13d2a1
+    cmp eax, 1
+    je hud_options_on_output_set_go
+    ud2
+hud_options_on_output_set_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_options_on_output_set_replay:
+    db 0xa1, 0x28, 0xa8, 0xa7, 0x00
+    jmp 0x13d2a1
+
+; 0x177cfa stage_gbuffer::execute with the render output's depth texture in ECX (0x177CEE: backend +29A0h, its +D8h), before it is pushed as t_depth_render_target for copy_depth_rt (push ecx / mov esi,eax / push 9F3120h): ECX the res_texture the linear depth is copied from: lohook -> hud_options_on_depth_texture
+global hud_options_on_depth_texture
+extern hook_hud_options_on_depth_texture
+hud_options_on_depth_texture:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_options_on_depth_texture
+    mov edx, hud_options_on_depth_texture_replay
+    cmp eax, 0
+    je hud_options_on_depth_texture_go
+    mov edx, 0x177d02
+    cmp eax, 1
+    je hud_options_on_depth_texture_go
+    ud2
+hud_options_on_depth_texture_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_options_on_depth_texture_replay:
+    db 0x51, 0x8b, 0xf0, 0x68, 0x20, 0x31, 0x9f, 0x00
+    jmp 0x177d02
+
+; 0x13db16 renderer::render before its present stage (mov esi,[esp+2Ch] / push ecx; renderer::present 0x1418C0 at 0x13DB36, the screen image's quad of rt 52 on the back buffer, then render_flash_ui 0x13DB3D): the stages and the debug drawing into the frame's targets are done: lohook -> hud_options_on_present_stage
+global hud_options_on_present_stage
+extern hook_hud_options_on_present_stage
+hud_options_on_present_stage:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_options_on_present_stage
+    mov edx, hud_options_on_present_stage_replay
+    cmp eax, 0
+    je hud_options_on_present_stage_go
+    mov edx, 0x13db1b
+    cmp eax, 1
+    je hud_options_on_present_stage_go
+    ud2
+hud_options_on_present_stage_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_options_on_present_stage_replay:
+    db 0x8b, 0x74, 0x24, 0x2c, 0x51
+    jmp 0x13db1b
+
+; 0x1418e5 renderer::present (0x1418C0, from renderer::render's 0x13DB36) with stage_screen_image::execute's argument pushed (mov ecx,[edx+1DCh], the stage; then its vtable +28h, 0x1BD320, called at 0x1418F0): [esp] the texture the screen image's quad samples onto the back buffer, get_t(52) with one reference added for the callee (0x1418C6..0x1418E2: [context+119Ch] + 211Ch, inc [eax+4]); execute lets that reference go (0x1BD35A, 0x1BD589). The frame's stages are done, the viewport and base depth-stencil are the output's (render.present_stage ran): lohook -> hud_options_on_screen_image
+global hud_options_on_screen_image
+extern hook_hud_options_on_screen_image
+hud_options_on_screen_image:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_options_on_screen_image
+    mov edx, hud_options_on_screen_image_replay
+    cmp eax, 0
+    je hud_options_on_screen_image_go
+    mov edx, 0x1418eb
+    cmp eax, 1
+    je hud_options_on_screen_image_go
+    ud2
+hud_options_on_screen_image_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_options_on_screen_image_replay:
+    db 0x8b, 0x8a, 0xdc, 0x01, 0x00, 0x00
+    jmp 0x1418eb
+
+; 0x13d3e8 renderer::render after push_jittering (0x1BE4A0, the call at 0x13D3E3) answered the frame's projection before its jitter (mov esi,eax / lea edi,[ebx+20h]: the copy to the renderer's +20h): once a rendered frame, after set_scene_view and the output's setup, before the visibility stage, the targets' clearing and the stages; the engine's own temporal jitter (r_antialiasing_method 2) is pushed by then, and render pops it at 0x13D47B after the stages: lohook -> hud_options_on_jittered
+global hud_options_on_jittered
+extern hook_hud_options_on_jittered
+hud_options_on_jittered:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_options_on_jittered
+    mov edx, hud_options_on_jittered_replay
+    cmp eax, 0
+    je hud_options_on_jittered_go
+    mov edx, 0x13d3ed
+    cmp eax, 1
+    je hud_options_on_jittered_go
+    ud2
+hud_options_on_jittered_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_options_on_jittered_replay:
+    db 0x8b, 0xf0, 0x8d, 0x7b, 0x20
+    jmp 0x13d3ed
+
+; 0x1b22f1 stage_postprocess::execute with r_antialiasing_method in EAX (mov eax,[edx+0F0h] at 0x1B22EB), before its tests (cmp eax,2 / sete bl: the temporal AA, [esp+13h]; sub eax,1 / jne after: FXAA and the sharpen, [esp+16h] and [esp+15h]): 0 none, 1 FXAA with the sharpen, 2 the temporal AA: lohook -> hud_options_on_aa_method
+global hud_options_on_aa_method
+extern hook_hud_options_on_aa_method
+hud_options_on_aa_method:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_options_on_aa_method
+    mov edx, hud_options_on_aa_method_replay
+    cmp eax, 0
+    je hud_options_on_aa_method_go
+    mov edx, 0x1b22f7
+    cmp eax, 1
+    je hud_options_on_aa_method_go
+    ud2
+hud_options_on_aa_method_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_options_on_aa_method_replay:
+    db 0x83, 0xf8, 0x02, 0x0f, 0x94, 0xc3
+    jmp 0x1b22f7
+
+; 0x1b235a stage_postprocess::execute's gate of the object motion pass without motion blur (mov byte [esp+14h],0 after cmp byte [edx+133h],0: r_use_motion_vectors_in_taa; then je, test bl,bl the temporal AA, je): accumulate is push ebp / call accumulate_motion_vectors (0x1B1B50), past r_post_process_quality's test: lohook -> hud_options_on_motion_gate
+global hud_options_on_motion_gate
+extern hook_hud_options_on_motion_gate
+hud_options_on_motion_gate:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_options_on_motion_gate
+    mov edx, hud_options_on_motion_gate_replay
+    cmp eax, 0
+    je hud_options_on_motion_gate_go
+    mov edx, 0x1b235f
+    cmp eax, 1
+    je hud_options_on_motion_gate_go
+    mov edx, 0x1b236e
+    cmp eax, 2
+    je hud_options_on_motion_gate_go
+    ud2
+hud_options_on_motion_gate_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_options_on_motion_gate_replay:
+    db 0xc6, 0x44, 0x24, 0x14, 0x00
+    jmp 0x1b235f
+
+; 0x1b2365 stage_postprocess::execute's last gate of the object motion pass (cmp dword [edx+0DCh],0: r_post_process_quality, then je 0x1B2374 past the pass): reached with motion blur on or with the temporal AA and its motion vectors on: lohook -> hud_options_on_motion_quality
+global hud_options_on_motion_quality
+extern hook_hud_options_on_motion_quality
+hud_options_on_motion_quality:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_options_on_motion_quality
+    mov edx, hud_options_on_motion_quality_replay
+    cmp eax, 0
+    je hud_options_on_motion_quality_go
+    mov edx, 0x1b236c
+    cmp eax, 1
+    je hud_options_on_motion_quality_go
+    mov edx, 0x1b236e
+    cmp eax, 2
+    je hud_options_on_motion_quality_go
+    ud2
+hud_options_on_motion_quality_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_options_on_motion_quality_replay:
+    db 0x83, 0xba, 0xdc, 0x00, 0x00, 0x00, 0x00
+    jmp 0x1b236c
+
+; 0x1b1e75 stage_postprocess::clear_surfaces (0x1B1E70, the stage's vtable+10h, from perform_surfaces_clearing at the frame's start) at its first test (cmp dword [eax+0F0h],2, EAX the options): the same gate as the object motion pass's; clear binds rt 18 and clears it to 0 (0x1B1EB8..0x1B1F64), ECX the stage: lohook -> hud_options_on_motion_clear
+global hud_options_on_motion_clear
+extern hook_hud_options_on_motion_clear
+hud_options_on_motion_clear:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_options_on_motion_clear
+    mov edx, hud_options_on_motion_clear_replay
+    cmp eax, 0
+    je hud_options_on_motion_clear_go
+    mov edx, 0x1b1e7c
+    cmp eax, 1
+    je hud_options_on_motion_clear_go
+    mov edx, 0x1b1eb8
+    cmp eax, 2
+    je hud_options_on_motion_clear_go
+    ud2
+hud_options_on_motion_clear_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_options_on_motion_clear_replay:
+    db 0x83, 0xb8, 0xf0, 0x00, 0x00, 0x00, 0x02
+    jmp 0x1b1e7c
+
+; 0x163433 create_targets about to make rt 18, $user$object_motion_vectors (mov edx,12h after push ebp, the HDR format; new_rt 0x1629A0 at 0x16343A): [esp] the format the target is made with: lohook -> hud_options_on_motion_format
+global hud_options_on_motion_format
+extern hook_hud_options_on_motion_format
+hud_options_on_motion_format:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_options_on_motion_format
+    mov edx, hud_options_on_motion_format_replay
+    cmp eax, 0
+    je hud_options_on_motion_format_go
+    mov edx, 0x163438
+    cmp eax, 1
+    je hud_options_on_motion_format_go
+    ud2
+hud_options_on_motion_format_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_options_on_motion_format_replay:
+    db 0xba, 0x12, 0x00, 0x00, 0x00
+    jmp 0x163438
+
+; 0x14ad23 renderer_context::update_eye_rays (0x14AA50, from every set_p) at its last store (mov [eax+5404h],edx, the fourth world ray's z; add esp,24h / ret after it): the eight rays written but that word, EAX the context: lohook -> hud_options_on_eye_rays
+global hud_options_on_eye_rays
+extern hook_hud_options_on_eye_rays
+hud_options_on_eye_rays:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hud_options_on_eye_rays
+    mov edx, hud_options_on_eye_rays_replay
+    cmp eax, 0
+    je hud_options_on_eye_rays_go
+    mov edx, 0x14ad29
+    cmp eax, 1
+    je hud_options_on_eye_rays_go
+    ud2
+hud_options_on_eye_rays_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hud_options_on_eye_rays_replay:
+    db 0x89, 0x90, 0x04, 0x54, 0x00, 0x00
+    jmp 0x14ad29
 
 ; 0x1fab50 game_world_core::change_input<client_update<player_input,220,235,221,236>>'s start (push ebp / mov ebp,esp / and esp,-8), every player input a world takes: a local one, a relayed one (0xEB, the batch 0x27C5C1), a moved one (0xEF) and a replay's; ESP+4 the core, +8 the input (half2 rotation, then the action mask), +10h its time, +14h the player; refused is its `ret 24h` (0x1FAC4E, the duplicate's; EAX the event action, 6 as both refusals return it): lohook -> input_check_on_change_input
 global input_check_on_change_input

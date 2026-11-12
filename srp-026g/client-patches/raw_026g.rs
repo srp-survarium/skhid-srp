@@ -283,6 +283,30 @@ unsafe extern "C" {
     pub fn engine_log_helper(function: Option<LogFunction>, context: u32, helper: Option<LogHelper>, template_helper: Option<LogHelper>, file: *const u8, line: u32, caller: *const u8, channel: *const u8, level: u32) -> Option<LogHelper>;
     /// 0x111d10 vostok::logging::helper::write: helper ESI, format ESP+4, arguments ESP+8; pops 8
     pub fn engine_log_write(helper: Option<LogHelper>, format: *const u8, arguments: *const c_void);
+    /// COM IDXGISwapChain+0x1c (stdcall through the interface's vtable): chain ESP+4, iid ESP+8, device ESP+12; pops 12; EAX
+    pub fn engine_swap_chain_get_device(chain: Option<SwapChain>, iid: *const c_void, device: *mut Option<InteropDevice>) -> u32;
+    /// COM IDXGISwapChain+0x24 (stdcall through the interface's vtable): chain ESP+4, buffer ESP+8, iid ESP+12, surface ESP+16; pops 16; EAX
+    pub fn engine_swap_chain_get_buffer(chain: Option<SwapChain>, buffer: u32, iid: *const c_void, surface: *mut Option<InteropSurface>) -> u32;
+    /// COM IDXGIVkInteropDevice+0xc (stdcall through the interface's vtable): device ESP+4, instance ESP+8, physical_device ESP+12, vulkan_device ESP+16; pops 16
+    pub fn engine_interop_vulkan_handles(device: Option<InteropDevice>, instance: *mut *mut c_void, physical_device: *mut *mut c_void, vulkan_device: *mut *mut c_void);
+    /// COM IDXGIVkInteropDevice+0x18 (stdcall through the interface's vtable): device ESP+4; pops 4
+    pub fn engine_interop_flush(device: Option<InteropDevice>);
+    /// COM IDXGIVkInteropDevice+0x1c (stdcall through the interface's vtable): device ESP+4; pops 4
+    pub fn engine_interop_lock_queue(device: Option<InteropDevice>);
+    /// COM IDXGIVkInteropDevice+0x20 (stdcall through the interface's vtable): device ESP+4; pops 4
+    pub fn engine_interop_release_queue(device: Option<InteropDevice>);
+    /// COM IDXGIVkInteropDevice1+0x24 (stdcall through the interface's vtable): device ESP+4, queue ESP+8, index ESP+12, family ESP+16; pops 16
+    pub fn engine_interop_submission_queue(device: Option<InteropDevice>, queue: *mut *mut c_void, index: *mut u32, family: *mut u32);
+    /// COM IDXGIVkInteropSurface+0x10 (stdcall through the interface's vtable): surface ESP+4, image ESP+8, layout ESP+12, info ESP+16; pops 16; EAX
+    pub fn engine_interop_image_info(surface: Option<InteropSurface>, image: *mut u64, layout: *mut u32, info: *mut c_void) -> u32;
+    /// 0x119ab0 vostok::render::render_output_window::set_size: width EAX, window ESP+4, height ESP+8, fullscreen ESP+12, force ESP+16; pops 16
+    pub fn engine_render_window_set_size(width: u32, window: Option<RenderOutputWindow>, height: u32, fullscreen: u32, force: u32);
+    /// 0x11c080 vostok::render::backend::set_viewports: viewport ESI, backend ESP+4; pops 4
+    pub fn engine_set_viewports(viewport: *const f32, backend: Option<Backend>);
+    /// 0x1392c0 vostok::render::renderer_context::push_set_p: context ESI, matrix ESP+4; pops 4
+    pub fn engine_context_push_set_p(context: Option<RendererContext>, matrix: *const f32);
+    /// 0x14a6f0 vostok::render::renderer_context::set_p: matrix EAX, context ESP+4; pops 4
+    pub fn engine_context_set_p(matrix: *const f32, context: Option<RendererContext>);
 }
 
 #[allow(dead_code)]
@@ -301,6 +325,12 @@ unsafe extern "stdcall" {
     pub fn engine_compress_mip(renderer: Option<SystemRenderer>, levels: *mut Option<ResTexture>, cursor: Option<DdsCursor>, wide: u32, high: u32, level: u32, format: u32, normal: u32);
     /// 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly
     pub fn engine_discard_playing_order(client: Option<LobbyClient>, left: u32);
+    /// 0xe0910 vostok::threading::thread_entry: params ESP+4; pops 4; EAX; stdcall, called directly
+    pub fn engine_thread_entry(params: *mut c_void) -> u32;
+    /// 0x3bf930 vostok::render::resource_manager::create_render_target: manager ESP+4, name ESP+8, width ESP+12, height ESP+16, format ESP+20, usage ESP+24, texture ESP+28, memory_usage ESP+32, slice ESP+36, pooled ESP+40; pops 40; EAX; stdcall, called directly
+    pub fn engine_create_render_target(manager: Option<ResourceManager>, name: *const u8, width: u32, height: u32, format: u32, usage: u32, texture: Option<ResTexture>, memory_usage: u32, slice: u32, pooled: u32) -> Option<RenderTarget>;
+    /// 0x3bfbc0 vostok::render::resource_manager::release: manager ESP+4, target ESP+8; pops 8; stdcall, called directly
+    pub fn engine_release_render_target(manager: Option<ResourceManager>, target: Option<RenderTarget>);
 }
 
 #[allow(dead_code)]
@@ -726,6 +756,446 @@ pub unsafe fn engine_map_virtual_key_a(function: NonNull<c_void>, code: u32, map
     unsafe { function(code, map) }
 }
 
+/// a function at the address GetProcAddress gives (stdcall): void *engine_create_named_pipe_a(const char *name, unsigned int open, unsigned int mode, unsigned int instances, unsigned int out_size, unsigned int in_size, unsigned int timeout, void *security)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_create_named_pipe_a(function: NonNull<c_void>, name: *const u8, open: u32, mode: u32, instances: u32, out_size: u32, in_size: u32, timeout: u32, security: *mut c_void) -> *mut c_void {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*const u8, u32, u32, u32, u32, u32, u32, *mut c_void) -> *mut c_void>(function.as_ptr()) };
+    unsafe { function(name, open, mode, instances, out_size, in_size, timeout, security) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_peek_named_pipe(void *pipe, void *buffer, unsigned int size, unsigned int *read, unsigned int *available, unsigned int *left)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_peek_named_pipe(function: NonNull<c_void>, pipe: *mut c_void, buffer: *mut c_void, size: u32, read: *mut u32, available: *mut u32, left: *mut u32) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *mut c_void, u32, *mut u32, *mut u32, *mut u32) -> u32>(function.as_ptr()) };
+    unsafe { function(pipe, buffer, size, read, available, left) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_duplicate_handle(void *source_process, void *handle, void *target_process, void **target, unsigned int access, unsigned int inherit, unsigned int options)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_duplicate_handle(function: NonNull<c_void>, source_process: *mut c_void, handle: *mut c_void, target_process: *mut c_void, target: *mut *mut c_void, access: u32, inherit: u32, options: u32) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *mut c_void, *mut c_void, *mut *mut c_void, u32, u32, u32) -> u32>(function.as_ptr()) };
+    unsafe { function(source_process, handle, target_process, target, access, inherit, options) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_get_exit_code_process(void *process, unsigned int *code)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_get_exit_code_process(function: NonNull<c_void>, process: *mut c_void, code: *mut u32) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *mut u32) -> u32>(function.as_ptr()) };
+    unsafe { function(process, code) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_resource_interop_surface(struct hw_resource *resource, const void *iid, struct interop_surface **surface)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_resource_interop_surface(function: NonNull<c_void>, resource: Option<HwResource>, iid: *const c_void, surface: *mut Option<InteropSurface>) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(Option<HwResource>, *const c_void, *mut Option<InteropSurface>) -> u32>(function.as_ptr()) };
+    unsafe { function(resource, iid, surface) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void *engine_vk_get_instance_proc_addr(void *instance, const char *name)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_get_instance_proc_addr(function: NonNull<c_void>, instance: *mut c_void, name: *const u8) -> *mut c_void {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *const u8) -> *mut c_void>(function.as_ptr()) };
+    unsafe { function(instance, name) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void *engine_vk_get_device_proc_addr(void *device, const char *name)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_get_device_proc_addr(function: NonNull<c_void>, device: *mut c_void, name: *const u8) -> *mut c_void {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *const u8) -> *mut c_void>(function.as_ptr()) };
+    unsafe { function(device, name) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void engine_vk_get_physical_device_properties2(void *device, void *properties)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_get_physical_device_properties2(function: NonNull<c_void>, device: *mut c_void, properties: *mut c_void) {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *mut c_void)>(function.as_ptr()) };
+    unsafe { function(device, properties) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void engine_vk_get_physical_device_memory_properties(void *device, void *properties)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_get_physical_device_memory_properties(function: NonNull<c_void>, device: *mut c_void, properties: *mut c_void) {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *mut c_void)>(function.as_ptr()) };
+    unsafe { function(device, properties) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_create_image(void *device, const void *info, const void *allocator, unsigned long long *image)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_create_image(function: NonNull<c_void>, device: *mut c_void, info: *const c_void, allocator: *const c_void, image: *mut u64) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *const c_void, *const c_void, *mut u64) -> u32>(function.as_ptr()) };
+    unsafe { function(device, info, allocator, image) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void engine_vk_destroy_image(void *device, unsigned int image_low, unsigned int image_high, const void *allocator)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_destroy_image(function: NonNull<c_void>, device: *mut c_void, image_low: u32, image_high: u32, allocator: *const c_void) {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, *const c_void)>(function.as_ptr()) };
+    unsafe { function(device, image_low, image_high, allocator) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void engine_vk_get_image_memory_requirements(void *device, unsigned int image_low, unsigned int image_high, void *requirements)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_get_image_memory_requirements(function: NonNull<c_void>, device: *mut c_void, image_low: u32, image_high: u32, requirements: *mut c_void) {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, *mut c_void)>(function.as_ptr()) };
+    unsafe { function(device, image_low, image_high, requirements) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_allocate_memory(void *device, const void *info, const void *allocator, unsigned long long *memory)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_allocate_memory(function: NonNull<c_void>, device: *mut c_void, info: *const c_void, allocator: *const c_void, memory: *mut u64) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *const c_void, *const c_void, *mut u64) -> u32>(function.as_ptr()) };
+    unsafe { function(device, info, allocator, memory) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void engine_vk_free_memory(void *device, unsigned int memory_low, unsigned int memory_high, const void *allocator)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_free_memory(function: NonNull<c_void>, device: *mut c_void, memory_low: u32, memory_high: u32, allocator: *const c_void) {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, *const c_void)>(function.as_ptr()) };
+    unsafe { function(device, memory_low, memory_high, allocator) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_bind_image_memory(void *device, unsigned int image_low, unsigned int image_high, unsigned int memory_low, unsigned int memory_high, unsigned int offset_low, unsigned int offset_high)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_vk_bind_image_memory(function: NonNull<c_void>, device: *mut c_void, image_low: u32, image_high: u32, memory_low: u32, memory_high: u32, offset_low: u32, offset_high: u32) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, u32, u32, u32, u32) -> u32>(function.as_ptr()) };
+    unsafe { function(device, image_low, image_high, memory_low, memory_high, offset_low, offset_high) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_create_semaphore(void *device, const void *info, const void *allocator, unsigned long long *semaphore)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_create_semaphore(function: NonNull<c_void>, device: *mut c_void, info: *const c_void, allocator: *const c_void, semaphore: *mut u64) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *const c_void, *const c_void, *mut u64) -> u32>(function.as_ptr()) };
+    unsafe { function(device, info, allocator, semaphore) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void engine_vk_destroy_semaphore(void *device, unsigned int semaphore_low, unsigned int semaphore_high, const void *allocator)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_destroy_semaphore(function: NonNull<c_void>, device: *mut c_void, semaphore_low: u32, semaphore_high: u32, allocator: *const c_void) {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, *const c_void)>(function.as_ptr()) };
+    unsafe { function(device, semaphore_low, semaphore_high, allocator) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_get_memory_win32_handle(void *device, const void *info, void **handle)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_get_memory_win32_handle(function: NonNull<c_void>, device: *mut c_void, info: *const c_void, handle: *mut *mut c_void) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *const c_void, *mut *mut c_void) -> u32>(function.as_ptr()) };
+    unsafe { function(device, info, handle) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_get_semaphore_win32_handle(void *device, const void *info, void **handle)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_get_semaphore_win32_handle(function: NonNull<c_void>, device: *mut c_void, info: *const c_void, handle: *mut *mut c_void) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *const c_void, *mut *mut c_void) -> u32>(function.as_ptr()) };
+    unsafe { function(device, info, handle) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_create_command_pool(void *device, const void *info, const void *allocator, unsigned long long *pool)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_create_command_pool(function: NonNull<c_void>, device: *mut c_void, info: *const c_void, allocator: *const c_void, pool: *mut u64) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *const c_void, *const c_void, *mut u64) -> u32>(function.as_ptr()) };
+    unsafe { function(device, info, allocator, pool) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void engine_vk_destroy_command_pool(void *device, unsigned int pool_low, unsigned int pool_high, const void *allocator)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_destroy_command_pool(function: NonNull<c_void>, device: *mut c_void, pool_low: u32, pool_high: u32, allocator: *const c_void) {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, *const c_void)>(function.as_ptr()) };
+    unsafe { function(device, pool_low, pool_high, allocator) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_allocate_command_buffers(void *device, const void *info, void **buffers)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_allocate_command_buffers(function: NonNull<c_void>, device: *mut c_void, info: *const c_void, buffers: *mut *mut c_void) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *const c_void, *mut *mut c_void) -> u32>(function.as_ptr()) };
+    unsafe { function(device, info, buffers) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_begin_command_buffer(void *buffer, const void *info)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_begin_command_buffer(function: NonNull<c_void>, buffer: *mut c_void, info: *const c_void) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *const c_void) -> u32>(function.as_ptr()) };
+    unsafe { function(buffer, info) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_end_command_buffer(void *buffer)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_end_command_buffer(function: NonNull<c_void>, buffer: *mut c_void) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void) -> u32>(function.as_ptr()) };
+    unsafe { function(buffer) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void engine_vk_cmd_pipeline_barrier(void *buffer, unsigned int source_stages, unsigned int destination_stages, unsigned int dependency, unsigned int memory_count, const void *memory, unsigned int buffer_count, const void *buffers, unsigned int image_count, const void *images)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_vk_cmd_pipeline_barrier(function: NonNull<c_void>, buffer: *mut c_void, source_stages: u32, destination_stages: u32, dependency: u32, memory_count: u32, memory: *const c_void, buffer_count: u32, buffers: *const c_void, image_count: u32, images: *const c_void) {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, u32, u32, *const c_void, u32, *const c_void, u32, *const c_void)>(function.as_ptr()) };
+    unsafe { function(buffer, source_stages, destination_stages, dependency, memory_count, memory, buffer_count, buffers, image_count, images) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void engine_vk_cmd_blit_image(void *buffer, unsigned int source_low, unsigned int source_high, unsigned int source_layout, unsigned int destination_low, unsigned int destination_high, unsigned int destination_layout, unsigned int count, const void *regions, unsigned int filter)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_vk_cmd_blit_image(function: NonNull<c_void>, buffer: *mut c_void, source_low: u32, source_high: u32, source_layout: u32, destination_low: u32, destination_high: u32, destination_layout: u32, count: u32, regions: *const c_void, filter: u32) {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, u32, u32, u32, u32, u32, *const c_void, u32)>(function.as_ptr()) };
+    unsafe { function(buffer, source_low, source_high, source_layout, destination_low, destination_high, destination_layout, count, regions, filter) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void engine_vk_cmd_copy_image(void *buffer, unsigned int source_low, unsigned int source_high, unsigned int source_layout, unsigned int destination_low, unsigned int destination_high, unsigned int destination_layout, unsigned int count, const void *regions)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_vk_cmd_copy_image(function: NonNull<c_void>, buffer: *mut c_void, source_low: u32, source_high: u32, source_layout: u32, destination_low: u32, destination_high: u32, destination_layout: u32, count: u32, regions: *const c_void) {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, u32, u32, u32, u32, u32, *const c_void)>(function.as_ptr()) };
+    unsafe { function(buffer, source_low, source_high, source_layout, destination_low, destination_high, destination_layout, count, regions) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_queue_submit(void *queue, unsigned int count, const void *submits, unsigned int fence_low, unsigned int fence_high)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_queue_submit(function: NonNull<c_void>, queue: *mut c_void, count: u32, submits: *const c_void, fence_low: u32, fence_high: u32) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, *const c_void, u32, u32) -> u32>(function.as_ptr()) };
+    unsafe { function(queue, count, submits, fence_low, fence_high) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_queue_wait_idle(void *queue)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_queue_wait_idle(function: NonNull<c_void>, queue: *mut c_void) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void) -> u32>(function.as_ptr()) };
+    unsafe { function(queue) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_signal_semaphore(void *device, const void *info)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_signal_semaphore(function: NonNull<c_void>, device: *mut c_void, info: *const c_void) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *const c_void) -> u32>(function.as_ptr()) };
+    unsafe { function(device, info) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_get_semaphore_counter_value(void *device, unsigned int semaphore_low, unsigned int semaphore_high, unsigned long long *value)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_get_semaphore_counter_value(function: NonNull<c_void>, device: *mut c_void, semaphore_low: u32, semaphore_high: u32, value: *mut u64) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, *mut u64) -> u32>(function.as_ptr()) };
+    unsafe { function(device, semaphore_low, semaphore_high, value) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_create_object(void *device, const void *info, const void *allocator, unsigned long long *object)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_create_object(function: NonNull<c_void>, device: *mut c_void, info: *const c_void, allocator: *const c_void, object: *mut u64) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *const c_void, *const c_void, *mut u64) -> u32>(function.as_ptr()) };
+    unsafe { function(device, info, allocator, object) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void engine_vk_destroy_object(void *device, unsigned int object_low, unsigned int object_high, const void *allocator)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_destroy_object(function: NonNull<c_void>, device: *mut c_void, object_low: u32, object_high: u32, allocator: *const c_void) {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, *const c_void)>(function.as_ptr()) };
+    unsafe { function(device, object_low, object_high, allocator) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_create_compute_pipelines(void *device, unsigned int cache_low, unsigned int cache_high, unsigned int count, const void *infos, const void *allocator, unsigned long long *pipelines)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_vk_create_compute_pipelines(function: NonNull<c_void>, device: *mut c_void, cache_low: u32, cache_high: u32, count: u32, infos: *const c_void, allocator: *const c_void, pipelines: *mut u64) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, u32, *const c_void, *const c_void, *mut u64) -> u32>(function.as_ptr()) };
+    unsafe { function(device, cache_low, cache_high, count, infos, allocator, pipelines) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_allocate_descriptor_sets(void *device, const void *info, unsigned long long *sets)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_allocate_descriptor_sets(function: NonNull<c_void>, device: *mut c_void, info: *const c_void, sets: *mut u64) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *const c_void, *mut u64) -> u32>(function.as_ptr()) };
+    unsafe { function(device, info, sets) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void engine_vk_update_descriptor_sets(void *device, unsigned int write_count, const void *writes, unsigned int copy_count, const void *copies)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_update_descriptor_sets(function: NonNull<c_void>, device: *mut c_void, write_count: u32, writes: *const c_void, copy_count: u32, copies: *const c_void) {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, *const c_void, u32, *const c_void)>(function.as_ptr()) };
+    unsafe { function(device, write_count, writes, copy_count, copies) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void engine_vk_cmd_bind_pipeline(void *buffer, unsigned int bind_point, unsigned int pipeline_low, unsigned int pipeline_high)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_cmd_bind_pipeline(function: NonNull<c_void>, buffer: *mut c_void, bind_point: u32, pipeline_low: u32, pipeline_high: u32) {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, u32)>(function.as_ptr()) };
+    unsafe { function(buffer, bind_point, pipeline_low, pipeline_high) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void engine_vk_cmd_bind_descriptor_sets(void *buffer, unsigned int bind_point, unsigned int layout_low, unsigned int layout_high, unsigned int first, unsigned int count, const void *sets, unsigned int dynamic_count, const void *dynamic_offsets)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_vk_cmd_bind_descriptor_sets(function: NonNull<c_void>, buffer: *mut c_void, bind_point: u32, layout_low: u32, layout_high: u32, first: u32, count: u32, sets: *const c_void, dynamic_count: u32, dynamic_offsets: *const c_void) {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, u32, u32, u32, *const c_void, u32, *const c_void)>(function.as_ptr()) };
+    unsafe { function(buffer, bind_point, layout_low, layout_high, first, count, sets, dynamic_count, dynamic_offsets) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void engine_vk_cmd_push_constants(void *buffer, unsigned int layout_low, unsigned int layout_high, unsigned int stages, unsigned int offset, unsigned int size, const void *values)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_vk_cmd_push_constants(function: NonNull<c_void>, buffer: *mut c_void, layout_low: u32, layout_high: u32, stages: u32, offset: u32, size: u32, values: *const c_void) {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, u32, u32, u32, *const c_void)>(function.as_ptr()) };
+    unsafe { function(buffer, layout_low, layout_high, stages, offset, size, values) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void engine_vk_cmd_dispatch(void *buffer, unsigned int x, unsigned int y, unsigned int z)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_vk_cmd_dispatch(function: NonNull<c_void>, buffer: *mut c_void, x: u32, y: u32, z: u32) {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, u32, u32)>(function.as_ptr()) };
+    unsafe { function(buffer, x, y, z) }
+}
+
 #[allow(dead_code, non_upper_case_globals)]
 unsafe extern "C" {
     /// the IAT slot 0x870048 (an import, stdcall): void *engine_create_file_a(const char *name, unsigned int access, unsigned int share, void *security, unsigned int disposition, unsigned int flags, void *template_file)
@@ -812,6 +1282,16 @@ unsafe extern "C" {
     pub static engine_file_time_to_local_file_time: unsafe extern "stdcall" fn(*const u32, *mut u32) -> u32;
     /// the IAT slot 0x87022c (an import, stdcall): unsigned int engine_file_time_to_system_time(const unsigned int *file_time, unsigned int *system_time)
     pub static engine_file_time_to_system_time: unsafe extern "stdcall" fn(*const u32, *mut u32) -> u32;
+    /// the IAT slot 0x8701bc (an import, stdcall): unsigned int engine_create_process_a(const char *application, char *command, void *process_security, void *thread_security, unsigned int inherit, unsigned int flags, void *environment, const char *directory, void *startup, void *information)
+    pub static engine_create_process_a: unsafe extern "stdcall" fn(*const u8, *mut u8, *mut c_void, *mut c_void, u32, u32, *mut c_void, *const u8, *mut c_void, *mut c_void) -> u32;
+    /// the IAT slot 0x8700a8 (an import, stdcall): unsigned int engine_wait_for_single_object(void *handle, unsigned int milliseconds)
+    pub static engine_wait_for_single_object: unsafe extern "stdcall" fn(*mut c_void, u32) -> u32;
+    /// the IAT slot 0x870030 (an import, stdcall): unsigned int engine_terminate_process(void *process, unsigned int code)
+    pub static engine_terminate_process: unsafe extern "stdcall" fn(*mut c_void, u32) -> u32;
+    /// the IAT slot 0x87005c (an import, stdcall): unsigned int engine_get_last_error(void)
+    pub static engine_get_last_error: unsafe extern "stdcall" fn() -> u32;
+    /// the IAT slot 0x870124 (an import, stdcall): void *engine_create_thread(void *security, unsigned int stack, const void *start, void *parameter, unsigned int flags, unsigned int *id)
+    pub static engine_create_thread: unsafe extern "stdcall" fn(*mut c_void, u32, *const c_void, *mut c_void, u32, *mut u32) -> *mut c_void;
 }
 
 /// A survarium::player_input_handler (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -19272,6 +19752,51 @@ impl ResRenderOutput {
     pub unsafe fn window(self) -> *mut u32 {
         unsafe { self.0.byte_add(0xe4).cast::<u32>().as_ptr() }
     }
+
+    /// +0xcc (ptr<dxgi::swap_chain>): the IDXGISwapChain it presents with (present 0x3CF81C: its GetFullscreenState, vtable +2Ch; 0x3CF8FF: its Present, +20h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn swap_chain(self) -> Option<SwapChain> {
+        unsafe { self.0.byte_add(0xcc).cast::<Option<SwapChain>>().read_volatile() }
+    }
+
+    /// +0xcc (ptr<dxgi::swap_chain>): the IDXGISwapChain it presents with (present 0x3CF81C: its GetFullscreenState, vtable +2Ch; 0x3CF8FF: its Present, +20h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_swap_chain(self, value: Option<SwapChain>) {
+        unsafe { self.0.byte_add(0xcc).cast::<Option<SwapChain>>().write_volatile(value) }
+    }
+
+    /// +0x90 (u32): the back buffer's width (resize 0x3CFC06; target_width 0x116566)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn width(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x90).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x94 (u32): the back buffer's height (resize 0x3CFC0C; target_height 0x116586)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn height(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x94).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xd4 (u32): m_base_zb: its own depth-stencil's view at the back buffer's size (update_depth_stencil_buffer 0x3D0175, an ID3D11DepthStencilView)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn depth_stencil_view(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xd4).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A vostok::memory::arena_list_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -21286,6 +21811,697 @@ impl LogState {
     }
 }
 
+/// A dxgi::swap_chain (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SwapChain(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SwapChain {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): an IDXGISwapChain's vtable (IDXGIDeviceSubObject::GetDevice +1Ch, Present +20h, GetBuffer +24h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A dxvk::interop_device (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InteropDevice(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl InteropDevice {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): DXVK's IDXGIVkInteropDevice1 (DXVK 3.1.1's dxgi_interfaces.h): GetVulkanHandles +0Ch, FlushRenderingCommands +18h, LockSubmissionQueue +1Ch, ReleaseSubmissionQueue +20h, GetSubmissionQueue1 +24h
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A dxvk::interop_surface (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InteropSurface(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl InteropSurface {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): DXVK's IDXGIVkInteropSurface of a D3D11 texture: GetVulkanImageInfo +10h
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::render::backend (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Backend(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl Backend {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x299c (u32): m_zb, the depth-stencil view the next flush binds (an ID3D11DepthStencilView, 0 none): every inlined reset_depth_stencil_target writes m_base_zb here and ors the dirty byte (setup_render_output_window 0x13BAF8..0x13BB22)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn depth_stencil(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x299c).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x29d4 (u32): m_base_zb: the render output's depth-stencil view (set_render_output 0x11B721, from the output's +D4h), what reset_depth_stencil_target binds beside the stages' colour targets and what render_flash_ui (0x13CF83) binds for Scaleform
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn base_depth_stencil(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x29d4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x75 (u8): set when m_zb changed, for the next flush's OMSetRenderTargets (or byte [eax+75h], 0x13BB15)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn depth_stencil_dirty(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x75).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x29a0 (ptr<vostok::render::res_render_output>): m_render_output, the output the frame presents to (set_render_output 0x11B6E3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn render_output(self) -> Option<ResRenderOutput> {
+        unsafe { self.0.byte_add(0x29a0).cast::<Option<ResRenderOutput>>().read_volatile() }
+    }
+
+    /// +0x29a0 (ptr<vostok::render::res_render_output>): m_render_output, the output the frame presents to (set_render_output 0x11B6E3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_render_output(self, value: Option<ResRenderOutput>) {
+        unsafe { self.0.byte_add(0x29a0).cast::<Option<ResRenderOutput>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::render_output_window (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RenderOutputWindow(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RenderOutputWindow {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x108 (u32): m_current_size.x, the window's size set_size was given (0x119B04)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn width(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x108).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x10c (u32): m_current_size.y (0x119B18)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn height(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x10c).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x114 (u8): m_windowed: 1 when set_size's fullscreen argument was 0 (sete al, 0x119B0A)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn windowed(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x114).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A vostok::render::render_target (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RenderTarget(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RenderTarget {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): its references, plain adds (new_rt's inc [eax] 0x162A3F / add [eax],-1 0x162A53, then resource_manager::release 0x3BFBC0 at 0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn references(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x18 (u32): m_zrt: a depth-stencil target's view (render_target::create 0x3D23DD, CreateDepthStencilView), 0 for a colour target
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn depth_stencil_view(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x18).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x1c (ptr<vostok::render::res_texture>): m_texture: the target as a texture (new_rt reads it at 0x162A78)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn texture(self) -> Option<ResTexture> {
+        unsafe { self.0.byte_add(0x1c).cast::<Option<ResTexture>>().read_volatile() }
+    }
+
+    /// +0x1c (ptr<vostok::render::res_texture>): m_texture: the target as a texture (new_rt reads it at 0x162A78)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_texture(self, value: Option<ResTexture>) {
+        unsafe { self.0.byte_add(0x1c).cast::<Option<ResTexture>>().write_volatile(value) }
+    }
+
+    /// +0x20 (u32): its width (accumulate_motion_vectors' viewport 0x1B1C4B; render_target::create)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn width(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x20).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x24 (u32): its height (0x1B1C90)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn height(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x24).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::render::render_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RenderFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RenderFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x2c (ptr<vostok::render::render_output_window>): renderer::render's [esp+2Ch] between its set_scene_view (0x13D244) and its present stage (0x13DB16): the output window it was given (pushed to setup_render_output_window at 0x13D278 as [esp+34h] after two pushes)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn window(self) -> Option<RenderOutputWindow> {
+        unsafe { self.0.byte_add(0x2c).cast::<Option<RenderOutputWindow>>().read_volatile() }
+    }
+
+    /// +0x2c (ptr<vostok::render::render_output_window>): renderer::render's [esp+2Ch] between its set_scene_view (0x13D244) and its present stage (0x13DB16): the output window it was given (pushed to setup_render_output_window at 0x13D278 as [esp+34h] after two pushes)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_window(self, value: Option<RenderOutputWindow>) {
+        unsafe { self.0.byte_add(0x2c).cast::<Option<RenderOutputWindow>>().write_volatile(value) }
+    }
+
+    /// +0xc (u32): renderer::render's [esp+0Ch] from 0x13D2A7: the frame's view mode, the scene view's (+46Ch) or a debug override (0x13D2AB..0x13D2E0); 3 is lit (cmp [esp+0Ch],3 at 0x13D391, the temporal jitter's condition)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn view_mode(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xc).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x64 (obj<vostok::render::temporal_projection_matrix_modifier>): renderer::render's temporal_projection_matrix_modifier ([esp+64h], filled at 0x13D3BD..0x13D3DE: the context, the output's size, need_modify), handed to push_jittering at 0x13D3E3; render pops the projection at 0x13D47B when its need_modify ([esp+70h]) is set
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn jitterer(self) -> TemporalProjectionMatrixModifier {
+        TemporalProjectionMatrixModifier(unsafe { self.0.byte_add(0x64) })
+    }
+
+    /// +0xb0 (f32): renderer::render's [esp+0B0h], the first of 16 f32: the projection before the frame's jitter, what push_jittering (0x1BE4A0) answers (EAX, 0x13D3E8) and render copies to the renderer's +20h (0x13D3EA), the projection stage_shadow_direct::execute puts back for the sun's shadows (0x172EA3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn unjittered_projection(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xb0).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A vostok::render::set_size_targets_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SetSizeTargetsFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SetSizeTargetsFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (u32): render_output_window::set_size's create_targets arguments at 0x119B2B: the force at [esp], the width the targets are made at
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn width(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x8 (u32): the height the targets are made at
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn height(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::render::present_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PresentFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PresentFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::render::res_texture>): renderer::present's [esp] at 0x1418E5: stage_screen_image::execute's argument, the texture its quad samples (by value, one reference the callee lets go: add [eax+4],-1 at 0x1BD35A, then 0x3BEE00 at 0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn texture(self) -> Option<ResTexture> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ResTexture>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::render::res_texture>): renderer::present's [esp] at 0x1418E5: stage_screen_image::execute's argument, the texture its quad samples (by value, one reference the callee lets go: add [eax+4],-1 at 0x1BD35A, then 0x3BEE00 at 0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_texture(self, value: Option<ResTexture>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ResTexture>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::temporal_projection_matrix_modifier (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TemporalProjectionMatrixModifier(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl TemporalProjectionMatrixModifier {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::render::renderer_context>): m_renderer_context (push_jittering 0x1BE4BC, 0x1BE4DC)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn context(self) -> Option<RendererContext> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<RendererContext>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::render::renderer_context>): m_renderer_context (push_jittering 0x1BE4BC, 0x1BE4DC)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_context(self, value: Option<RendererContext>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<RendererContext>>().write_volatile(value) }
+    }
+
+    /// +0xc (u8): m_need_modify: the frame's projection is jittered (render's al at 0x13D3C8: r_antialiasing_method 2, the lit view mode, the scene view's post-process); push_jittering pushes only when set (0x1BE4AE), render pops only when set (0x13D47B)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn need_modify(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0xc).cast::<u8>().as_ptr() }
+    }
+
+    /// +0xd (u8): m_jittered: push_jittering set the jittered projection (0x1BE66D, after its push of the old one 0x1BE657 and set_p 0x1BE661)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn jittered(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0xd).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A vostok::render::renderer_context (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RendererContext(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RendererContext {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x119c (ptr<vostok::render::target_family>): the frame's targets, the first of their descriptors (get_rt 0x11C1D0: index * 0A0h + 98h of [context+119Ch])
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn targets(self) -> Option<TargetFamily> {
+        unsafe { self.0.byte_add(0x119c).cast::<Option<TargetFamily>>().read_volatile() }
+    }
+
+    /// +0x119c (ptr<vostok::render::target_family>): the frame's targets, the first of their descriptors (get_rt 0x11C1D0: index * 0A0h + 98h of [context+119Ch])
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_targets(self, value: Option<TargetFamily>) {
+        unsafe { self.0.byte_add(0x119c).cast::<Option<TargetFamily>>().write_volatile(value) }
+    }
+
+    /// +0x416c (u32): the scene being rendered, as an identity (renderer::render stores it at 0x13D210)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn scene(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x416c).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x4170 (ptr<vostok::render::scene_view>): the scene view being rendered (set_scene_view 0x149AB8)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn scene_view(self) -> Option<SceneView> {
+        unsafe { self.0.byte_add(0x4170).cast::<Option<SceneView>>().read_volatile() }
+    }
+
+    /// +0x4170 (ptr<vostok::render::scene_view>): the scene view being rendered (set_scene_view 0x149AB8)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_scene_view(self, value: Option<SceneView>) {
+        unsafe { self.0.byte_add(0x4170).cast::<Option<SceneView>>().write_volatile(value) }
+    }
+
+    /// +0x4e18 (f32): m_v, the first of 16 f32: the view matrix, a row-vector 4x4 (set_v 0x14A257 copies it here)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn view(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x4e18).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x4f58 (f32): m_p, the first of 16 f32: the projection, a row-vector 4x4 (set_p 0x14A704 copies it here; clip = v * P, +20h and +24h its e20 and e21, the x and y the clip position gets per unit of view z)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn projection(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x4f58).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x4e98 (f32): m_v_inverted, the first of 16 f32 (set_v 0x14A27B..0x14A28F: try_invert into it); update_eye_rays turns the view's eye rays into the world's with its rows (0x14ABFC..)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn view_inverted(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x4e98).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x4fd8 (f32): m_p_inverted, the first of 16 f32 (set_p 0x14A73C..0x14A75A: invert4x4 of the projection); update_near_far and update_eye_rays read it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn projection_inverted(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x4fd8).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x53a8 (f32): m_eye_rays, the first of 24 f32: the view's rays through the frame's corners at the far plane, four float3 (+53A8h (-1,1), +53B4h (-1,-1), +53C0h (1,1), +53CCh (1,-1) of clip x,y), then the same four in the world (+53D8h..+5404h). update_eye_rays (0x14AA50, from set_p) unprojects the first and mirrors it for the other three: right only for a projection that is the same either side of its axis
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn eye_rays(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x53a8).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A vostok::render::scene_view (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SceneView(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SceneView {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x1de3c (u8): m_use_post_process: stage_postprocess::execute runs only when set (0x1B22D8); one of the temporal jitter's conditions (0x13D3A4)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn use_post_process(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x1de3c).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A vostok::render::target_family (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TargetFamily(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl TargetFamily {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x98 (ptr<vostok::render::render_target>): a target's render_target (get_rt 0x11C1D0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn target(self) -> Option<RenderTarget> {
+        unsafe { self.0.byte_add(0x98).cast::<Option<RenderTarget>>().read_volatile() }
+    }
+
+    /// +0x98 (ptr<vostok::render::render_target>): a target's render_target (get_rt 0x11C1D0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_target(self, value: Option<RenderTarget>) {
+        unsafe { self.0.byte_add(0x98).cast::<Option<RenderTarget>>().write_volatile(value) }
+    }
+
+    /// +0x9c (ptr<vostok::render::res_texture>): the target as a texture (get_t 0x1392E0: index * 0A0h + 9Ch)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn texture(self) -> Option<ResTexture> {
+        unsafe { self.0.byte_add(0x9c).cast::<Option<ResTexture>>().read_volatile() }
+    }
+
+    /// +0x9c (ptr<vostok::render::res_texture>): the target as a texture (get_t 0x1392E0: index * 0A0h + 9Ch)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_texture(self, value: Option<ResTexture>) {
+        unsafe { self.0.byte_add(0x9c).cast::<Option<ResTexture>>().write_volatile(value) }
+    }
+
+    /// 0xa0 bytes: a target's descriptor: 0A0h bytes, by rt index (lea ecx,[ecx+ecx*4] / shl ecx,5, 0x1392EA)
+    pub const SIZE: usize = 0xa0;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::render::target_familys (0xa0 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct TargetFamilyStorage([u8; 0xa0]);
+
+#[allow(dead_code)]
+impl TargetFamilyStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0xa0])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> TargetFamily {
+        TargetFamily(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<TargetFamily> {
+        (!rooms.is_empty()).then(|| TargetFamily(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::render::new_rt_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NewRtFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl NewRtFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): create_targets' pushed format of the target it is about to make with new_rt (0x1629A0: EDX the rt index, EAX the targets, the size's two words above): at 0x163433 rt 18's, the HDR format (push ebp, 0x163432)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn format(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::render::postprocess_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PostprocessFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PostprocessFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x14 (u8): stage_postprocess::execute's [esp+14h]: the frame's motion blur runs (1 at 0x1B234C: r_motion_blur_quality and not the image's 0x1F1DA3C; 0 at 0x1B235A), read at 0x1B2FAE
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn motion_blur(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x14).cast::<u8>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -21564,21 +22780,6 @@ pub struct SystemRenderer(NonNull<c_void>);
 
 #[allow(dead_code)]
 impl SystemRenderer {
-    /// Its address as a value (an id, a compare): never read through.
-    #[inline(always)]
-    pub fn address(self) -> u32 {
-        self.0.as_ptr() as usize as u32
-    }
-}
-
-/// A vostok::render::backend (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
-/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Backend(NonNull<c_void>);
-
-#[allow(dead_code)]
-impl Backend {
     /// Its address as a value (an id, a compare): never read through.
     #[inline(always)]
     pub fn address(self) -> u32 {
@@ -25624,6 +26825,111 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
+        }
+    }
+
+    /// render_window.targets_size (0x119b2b): render_output_window::set_size with create_targets' arguments pushed (lea eax,[ebx+118h]; then xor dl,dl and the call 0x119B33): [esp] the force, [esp+4] and [esp+8] the size the frame's targets are made at, the window's. Every making of a frame's targets after the window's constructor is here
+    pub mod render_window_targets_size {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::render::set_size_targets_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<SetSizeTargetsFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(SetSizeTargetsFrame)
+        }
+    }
+
+    /// render.output_setup (0x13d273): renderer::render before its first setup_render_output_window (mov eax,[ebp+18h] / push eax / push ecx; the call at 0x13D297): once a frame, the scene and view set, nothing of the frame bound yet; [esp+2Ch] the output window
+    pub mod render_output_setup {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::render::render_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<RenderFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(RenderFrame)
+        }
+    }
+
+    /// render.screen_image (0x1418e5): renderer::present (0x1418C0, from renderer::render's 0x13DB36) with stage_screen_image::execute's argument pushed (mov ecx,[edx+1DCh], the stage; then its vtable +28h, 0x1BD320, called at 0x1418F0): [esp] the texture the screen image's quad samples onto the back buffer, get_t(52) with one reference added for the callee (0x1418C6..0x1418E2: [context+119Ch] + 211Ch, inc [eax+4]); execute lets that reference go (0x1BD35A, 0x1BD589). The frame's stages are done, the viewport and base depth-stencil are the output's (render.present_stage ran)
+    pub mod render_screen_image {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::render::present_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<PresentFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(PresentFrame)
+        }
+    }
+
+    /// render.jittered (0x13d3e8): renderer::render after push_jittering (0x1BE4A0, the call at 0x13D3E3) answered the frame's projection before its jitter (mov esi,eax / lea edi,[ebx+20h]: the copy to the renderer's +20h): once a rendered frame, after set_scene_view and the output's setup, before the visibility stage, the targets' clearing and the stages; the engine's own temporal jitter (r_antialiasing_method 2) is pushed by then, and render pops it at 0x13D47B after the stages
+    pub mod render_jittered {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::render::render_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<RenderFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(RenderFrame)
+        }
+    }
+
+    /// postprocess.motion_gate (0x1b235a): stage_postprocess::execute's gate of the object motion pass without motion blur (mov byte [esp+14h],0 after cmp byte [edx+133h],0: r_use_motion_vectors_in_taa; then je, test bl,bl the temporal AA, je): accumulate is push ebp / call accumulate_motion_vectors (0x1B1B50), past r_post_process_quality's test
+    pub mod postprocess_motion_gate {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::render::postprocess_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<PostprocessFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(PostprocessFrame)
+        }
+    }
+
+    /// targets.motion_format (0x163433): create_targets about to make rt 18, $user$object_motion_vectors (mov edx,12h after push ebp, the HDR format; new_rt 0x1629A0 at 0x16343A): [esp] the format the target is made with
+    pub mod targets_motion_format {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::render::new_rt_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<NewRtFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(NewRtFrame)
+        }
+    }
+
+    /// context.eye_rays (0x14ad23): renderer_context::update_eye_rays (0x14AA50, from every set_p) at its last store (mov [eax+5404h],edx, the fourth world ray's z; add esp,24h / ret after it): the eight rays written but that word, EAX the context
+    pub mod context_eye_rays {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a vostok::render::renderer_context (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn context(machine: &impl Machine) -> Option<RendererContext> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(RendererContext)
         }
     }
 }

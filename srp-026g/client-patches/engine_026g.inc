@@ -745,3 +745,71 @@ extern engine_log_helper
 ; void engine_log_write(struct log_helper *helper, const char *format, const void *arguments)
 ; 0x111d10 vostok::logging::helper::write: helper ESI, format ESP+4, arguments ESP+8; pops 8
 extern engine_log_write
+; unsigned int engine_create_process_a(const char *application, char *command, void *process_security, void *thread_security, unsigned int inherit, unsigned int flags, void *environment, const char *directory, void *startup, void *information)
+; the IAT slot 0x8701bc (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_create_process_a
+; unsigned int engine_wait_for_single_object(void *handle, unsigned int milliseconds)
+; the IAT slot 0x8700a8 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_wait_for_single_object
+; unsigned int engine_terminate_process(void *process, unsigned int code)
+; the IAT slot 0x870030 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_terminate_process
+; unsigned int engine_get_last_error(void)
+; the IAT slot 0x87005c (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_last_error
+; void *engine_create_thread(void *security, unsigned int stack, const void *start, void *parameter, unsigned int flags, unsigned int *id)
+; the IAT slot 0x870124 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_create_thread
+; unsigned int engine_thread_entry(void *params)
+; 0xe0910 vostok::threading::thread_entry: params ESP+4; pops 4; EAX; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_thread_entry
+; unsigned int engine_swap_chain_get_device(struct swap_chain *chain, const void *iid, struct interop_device **device)
+; COM IDXGISwapChain+0x1c (stdcall through the interface's vtable): chain ESP+4, iid ESP+8, device ESP+12; pops 12; EAX
+extern engine_swap_chain_get_device
+; unsigned int engine_swap_chain_get_buffer(struct swap_chain *chain, unsigned int buffer, const void *iid, struct interop_surface **surface)
+; COM IDXGISwapChain+0x24 (stdcall through the interface's vtable): chain ESP+4, buffer ESP+8, iid ESP+12, surface ESP+16; pops 16; EAX
+extern engine_swap_chain_get_buffer
+; void engine_interop_vulkan_handles(struct interop_device *device, void **instance, void **physical_device, void **vulkan_device)
+; COM IDXGIVkInteropDevice+0xc (stdcall through the interface's vtable): device ESP+4, instance ESP+8, physical_device ESP+12, vulkan_device ESP+16; pops 16
+extern engine_interop_vulkan_handles
+; void engine_interop_flush(struct interop_device *device)
+; COM IDXGIVkInteropDevice+0x18 (stdcall through the interface's vtable): device ESP+4; pops 4
+extern engine_interop_flush
+; void engine_interop_lock_queue(struct interop_device *device)
+; COM IDXGIVkInteropDevice+0x1c (stdcall through the interface's vtable): device ESP+4; pops 4
+extern engine_interop_lock_queue
+; void engine_interop_release_queue(struct interop_device *device)
+; COM IDXGIVkInteropDevice+0x20 (stdcall through the interface's vtable): device ESP+4; pops 4
+extern engine_interop_release_queue
+; void engine_interop_submission_queue(struct interop_device *device, void **queue, unsigned int *index, unsigned int *family)
+; COM IDXGIVkInteropDevice1+0x24 (stdcall through the interface's vtable): device ESP+4, queue ESP+8, index ESP+12, family ESP+16; pops 16
+extern engine_interop_submission_queue
+; unsigned int engine_interop_image_info(struct interop_surface *surface, unsigned long long *image, unsigned int *layout, void *info)
+; COM IDXGIVkInteropSurface+0x10 (stdcall through the interface's vtable): surface ESP+4, image ESP+8, layout ESP+12, info ESP+16; pops 16; EAX
+extern engine_interop_image_info
+; void engine_render_window_set_size(unsigned int width, struct render_output_window *window, unsigned int height, unsigned int fullscreen, unsigned int force)
+; 0x119ab0 vostok::render::render_output_window::set_size: width EAX, window ESP+4, height ESP+8, fullscreen ESP+12, force ESP+16; pops 16
+extern engine_render_window_set_size
+; void engine_set_viewports(const float *viewport, struct backend *backend)
+; 0x11c080 vostok::render::backend::set_viewports: viewport ESI, backend ESP+4; pops 4
+extern engine_set_viewports
+; struct render_target *engine_create_render_target(struct resource_manager *manager, const char *name, unsigned int width, unsigned int height, unsigned int format, unsigned int usage, struct res_texture *texture, unsigned int memory_usage, unsigned int slice, unsigned int pooled)
+; 0x3bf930 vostok::render::resource_manager::create_render_target: manager ESP+4, name ESP+8, width ESP+12, height ESP+16, format ESP+20, usage ESP+24, texture ESP+28, memory_usage ESP+32, slice ESP+36, pooled ESP+40; pops 40; EAX; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_create_render_target
+; void engine_release_render_target(struct resource_manager *manager, struct render_target *target)
+; 0x3bfbc0 vostok::render::resource_manager::release: manager ESP+4, target ESP+8; pops 8; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_release_render_target
+; void engine_context_push_set_p(struct renderer_context *context, const float *matrix)
+; 0x1392c0 vostok::render::renderer_context::push_set_p: context ESI, matrix ESP+4; pops 4
+extern engine_context_push_set_p
+; void engine_context_set_p(const float *matrix, struct renderer_context *context)
+; 0x14a6f0 vostok::render::renderer_context::set_p: matrix EAX, context ESP+4; pops 4
+extern engine_context_set_p

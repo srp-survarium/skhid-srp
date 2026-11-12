@@ -39,6 +39,7 @@ pub mod console;
 pub mod controller;
 pub mod crc32;
 mod context;
+pub mod dlss;
 pub mod draw;
 pub mod headwear;
 mod hook;
@@ -62,6 +63,8 @@ mod options;
 pub mod parse;
 pub mod resources;
 pub mod renderer;
+pub mod render_size;
+pub mod frame_inputs;
 pub mod gun_cook;
 pub mod pickup;
 pub mod use_scan;
@@ -102,6 +105,8 @@ mod generated {
     use super::{RenderVisual, ObjectLight, GameScene};
     #[allow(unused_imports)]
     use super::resources::{QueryResults, QueryTag};
+    #[allow(unused_imports)]
+    use super::dlss::HelperWatch;
     #[allow(unused_imports)]
     use super::console::{ConsoleArguments, ConsoleCommand};
     #[allow(unused_imports)]

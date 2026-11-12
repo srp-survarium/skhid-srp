@@ -277,6 +277,30 @@ unsafe extern "C" {
     pub fn engine_log_helper(function: *const c_void, context: u32, helper: *mut c_void, template_helper: *const c_void, file: *const u8, line: u32, caller: *const u8, channel: *const u8, level: u32) -> *mut c_void;
     /// 0x111d10 vostok::logging::helper::write: helper ESI, format ESP+4, arguments ESP+8; pops 8
     pub fn engine_log_write(helper: *mut c_void, format: *const u8, arguments: *const c_void);
+    /// COM IDXGISwapChain+0x1c (stdcall through the interface's vtable): chain ESP+4, iid ESP+8, device ESP+12; pops 12; EAX
+    pub fn engine_swap_chain_get_device(chain: *mut c_void, iid: *const c_void, device: *mut *mut c_void) -> u32;
+    /// COM IDXGISwapChain+0x24 (stdcall through the interface's vtable): chain ESP+4, buffer ESP+8, iid ESP+12, surface ESP+16; pops 16; EAX
+    pub fn engine_swap_chain_get_buffer(chain: *mut c_void, buffer: u32, iid: *const c_void, surface: *mut *mut c_void) -> u32;
+    /// COM IDXGIVkInteropDevice+0xc (stdcall through the interface's vtable): device ESP+4, instance ESP+8, physical_device ESP+12, vulkan_device ESP+16; pops 16
+    pub fn engine_interop_vulkan_handles(device: *mut c_void, instance: *mut *mut c_void, physical_device: *mut *mut c_void, vulkan_device: *mut *mut c_void);
+    /// COM IDXGIVkInteropDevice+0x18 (stdcall through the interface's vtable): device ESP+4; pops 4
+    pub fn engine_interop_flush(device: *mut c_void);
+    /// COM IDXGIVkInteropDevice+0x1c (stdcall through the interface's vtable): device ESP+4; pops 4
+    pub fn engine_interop_lock_queue(device: *mut c_void);
+    /// COM IDXGIVkInteropDevice+0x20 (stdcall through the interface's vtable): device ESP+4; pops 4
+    pub fn engine_interop_release_queue(device: *mut c_void);
+    /// COM IDXGIVkInteropDevice1+0x24 (stdcall through the interface's vtable): device ESP+4, queue ESP+8, index ESP+12, family ESP+16; pops 16
+    pub fn engine_interop_submission_queue(device: *mut c_void, queue: *mut *mut c_void, index: *mut u32, family: *mut u32);
+    /// COM IDXGIVkInteropSurface+0x10 (stdcall through the interface's vtable): surface ESP+4, image ESP+8, layout ESP+12, info ESP+16; pops 16; EAX
+    pub fn engine_interop_image_info(surface: *mut c_void, image: *mut u64, layout: *mut u32, info: *mut c_void) -> u32;
+    /// 0x119ab0 vostok::render::render_output_window::set_size: width EAX, window ESP+4, height ESP+8, fullscreen ESP+12, force ESP+16; pops 16
+    pub fn engine_render_window_set_size(width: u32, window: *mut c_void, height: u32, fullscreen: u32, force: u32);
+    /// 0x11c080 vostok::render::backend::set_viewports: viewport ESI, backend ESP+4; pops 4
+    pub fn engine_set_viewports(viewport: *const f32, backend: *mut c_void);
+    /// 0x1392c0 vostok::render::renderer_context::push_set_p: context ESI, matrix ESP+4; pops 4
+    pub fn engine_context_push_set_p(context: *mut c_void, matrix: *const f32);
+    /// 0x14a6f0 vostok::render::renderer_context::set_p: matrix EAX, context ESP+4; pops 4
+    pub fn engine_context_set_p(matrix: *const f32, context: *mut c_void);
 }
 
 #[allow(dead_code)]
@@ -295,6 +319,12 @@ unsafe extern "stdcall" {
     pub fn engine_compress_mip(renderer: *mut c_void, levels: *mut *mut c_void, cursor: *mut c_void, wide: u32, high: u32, level: u32, format: u32, normal: u32);
     /// 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly
     pub fn engine_discard_playing_order(client: *mut c_void, left: u32);
+    /// 0xe0910 vostok::threading::thread_entry: params ESP+4; pops 4; EAX; stdcall, called directly
+    pub fn engine_thread_entry(params: *mut c_void) -> u32;
+    /// 0x3bf930 vostok::render::resource_manager::create_render_target: manager ESP+4, name ESP+8, width ESP+12, height ESP+16, format ESP+20, usage ESP+24, texture ESP+28, memory_usage ESP+32, slice ESP+36, pooled ESP+40; pops 40; EAX; stdcall, called directly
+    pub fn engine_create_render_target(manager: *mut c_void, name: *const u8, width: u32, height: u32, format: u32, usage: u32, texture: *mut c_void, memory_usage: u32, slice: u32, pooled: u32) -> *mut c_void;
+    /// 0x3bfbc0 vostok::render::resource_manager::release: manager ESP+4, target ESP+8; pops 8; stdcall, called directly
+    pub fn engine_release_render_target(manager: *mut c_void, target: *mut c_void);
 }
 
 #[allow(dead_code)]
@@ -465,4 +495,14 @@ unsafe extern "C" {
     pub static engine_file_time_to_local_file_time: unsafe extern "stdcall" fn(*const u32, *mut u32) -> u32;
     /// the IAT slot 0x87022c (an import, stdcall): unsigned int engine_file_time_to_system_time(const unsigned int *file_time, unsigned int *system_time)
     pub static engine_file_time_to_system_time: unsafe extern "stdcall" fn(*const u32, *mut u32) -> u32;
+    /// the IAT slot 0x8701bc (an import, stdcall): unsigned int engine_create_process_a(const char *application, char *command, void *process_security, void *thread_security, unsigned int inherit, unsigned int flags, void *environment, const char *directory, void *startup, void *information)
+    pub static engine_create_process_a: unsafe extern "stdcall" fn(*const u8, *mut u8, *mut c_void, *mut c_void, u32, u32, *mut c_void, *const u8, *mut c_void, *mut c_void) -> u32;
+    /// the IAT slot 0x8700a8 (an import, stdcall): unsigned int engine_wait_for_single_object(void *handle, unsigned int milliseconds)
+    pub static engine_wait_for_single_object: unsafe extern "stdcall" fn(*mut c_void, u32) -> u32;
+    /// the IAT slot 0x870030 (an import, stdcall): unsigned int engine_terminate_process(void *process, unsigned int code)
+    pub static engine_terminate_process: unsafe extern "stdcall" fn(*mut c_void, u32) -> u32;
+    /// the IAT slot 0x87005c (an import, stdcall): unsigned int engine_get_last_error(void)
+    pub static engine_get_last_error: unsafe extern "stdcall" fn() -> u32;
+    /// the IAT slot 0x870124 (an import, stdcall): void *engine_create_thread(void *security, unsigned int stack, const void *start, void *parameter, unsigned int flags, unsigned int *id)
+    pub static engine_create_thread: unsafe extern "stdcall" fn(*mut c_void, u32, *const c_void, *mut c_void, u32, *mut u32) -> *mut c_void;
 }

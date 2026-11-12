@@ -1,0 +1,58 @@
+// The motion DLSS is given (docs/notes/dlss-option.md, "Motion vectors for DLSS"): for every
+// render pixel, where its surface was in the frame before, in render pixels, current to
+// previous (previous = current + motion), without either frame's jitter.
+//
+// - Where the engine's object motion pass drew (`$user$object_motion_vectors`, rt 18: skinned
+//   and moved models and the first-person ones; z marks a covered pixel), its xy, which is
+//   current uv - previous uv.
+// - Elsewhere the camera's: the pixel's place from its depth, through this frame's
+//   view-projection back and the previous frame's forth (one matrix, made by the game).
+//
+// Run by patch 83's link on DXVK's device in the frame's copy-in (vostok/dlss.rs). Built by
+// dlss_motion_026g.py into dlss_motion_026g.rs (never edited by hand).
+#version 450
+// texelFetch of a texture with no sampler: a depth and a target read at their own pixels
+#extension GL_EXT_samplerless_texture_functions : require
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+// the frame's depth as its depth-stencil has it: 0 near, 1 far
+layout(set = 0, binding = 0) uniform texture2D depth;
+// rt 18
+layout(set = 0, binding = 1) uniform texture2D objects;
+layout(set = 0, binding = 2, rg16f) uniform writeonly image2D motion;
+
+layout(push_constant) uniform Frame {
+    // this frame's clip position to the previous frame's, neither jittered; the engine's
+    // rows are the columns here, so a column vector times it is the engine's row vector's
+    mat4 reproject;
+    // where this frame's picture is moved by its jitter, in clip units (jittered = plain + this)
+    vec2 jitter;
+    // 0: the camera's motion is not known this frame (none is written for it)
+    float camera;
+    // 0: rt 18 holds nothing this frame
+    float object_motion;
+} frame;
+
+void main() {
+    ivec2 at = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = imageSize(motion);
+    if (any(greaterThanEqual(at, size))) {
+        return;
+    }
+    vec2 pixels = vec2(0.0);
+    vec4 object = frame.object_motion != 0.0 ? texelFetch(objects, at, 0) : vec4(0.0);
+    if (object.z > 0.0) {
+        pixels = -object.xy * vec2(size);
+    } else if (frame.camera != 0.0) {
+        vec2 uv = (vec2(at) + 0.5) / vec2(size);
+        // clip y is up, the picture's y down
+        vec2 here = vec2(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0) - frame.jitter;
+        vec4 before = frame.reproject * vec4(here, texelFetch(depth, at, 0).r, 1.0);
+        if (before.w > 0.0) {
+            vec2 moved = before.xy / before.w - here;
+            pixels = vec2(moved.x, -moved.y) * 0.5 * vec2(size);
+        }
+    }
+    imageStore(motion, at, vec4(pixels, 0.0, 0.0));
+}

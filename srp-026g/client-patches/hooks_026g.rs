@@ -1162,6 +1162,21 @@ pub extern "C" fn hook_bake_async_on_exit(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- hud_options (patch 83) ----
+
+/// The entry `hud_options_on_exit` (0x1ec730, game::exit's start (push ebp / mov ebp,esp / and esp,-8; thiscall, ECX the game): every exit passes here, before the branches that skip its delete of user_data/streamed_textures (0x1EC7AE when 0x1051E0 fails, 0x1EC801 when 0x40F10 does; the delete 0x1EC832 is patch 70's nop)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_options_on_exit(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_options_on_exit` calls this, from the game's jump at 0x1ec730,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_options::on_exit(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- bake_async (patch 121) ----
 
 /// The entry `bake_async_on_save_freed` (0x10a050, save_descriptor::~save_descriptor's start (sub esp,8 / cmp byte [esi+8],0; ESI the descriptor; its one caller ~query_result 0xF1135 with [query+0E0h]): when +8 is set it frees +0 (mt_free 0x106FC0 at 0x10A083), so a save's bytes live until its query is destroyed) calls this with the saved machine.
@@ -2188,6 +2203,26 @@ pub extern "C" fn hook_module_report_on_present(frame: &mut Frame) -> u32 {
 
 // ---- hud_options (patch 83) ----
 
+/// The convention of engine_thread_entry (0xe0910), a callback's: a marker for
+/// the callback entries made in it (no function of the game is called through it).
+pub struct OrigThreadEntry;
+
+/// The entry `hud_options_on_watch` (a callback in engine_thread_entry's convention, a thread's start routine as CreateThread calls it (stdcall, lpParameter; the engine's own is 0xE0910, which names the convention): patch 83's watch of the DLSS helper's process, on a thread of its own, its argument the watch's copy of the helper's process handle (docs/notes/dlss-option.md, "Falling back"))
+/// calls this with its 1 arguments, typed by the row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `hud_options_on_watch`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_hud_options_on_watch(a0: *mut c_void) -> u32 {
+    // SAFETY: only the entry `hud_options_on_watch` calls this, when the game calls the callback
+    // a patch handed it, on the thread that asked; a0.. are the callback's arguments.
+    let thread = unsafe { Thread::new() };
+    let watch = unsafe { HelperWatch::from_raw(&thread, a0) };
+    crate::hud_options::on_watch(watch)
+}
+
+// ---- hud_options (patch 83) ----
+
 /// The entry `hud_options_on_ddraw_probed` (0x105e8e, the engine's DirectDraw probe of the video memory (0x105DB0, the DirectX SDK's GetVideoMemoryViaDirectDraw, called by get_local_video_memory_size's 0x1060F0) after GetAvailableVidMem, before it releases the IDirectDraw7 (mov eax,[esp+14h] / mov edx,[eax]; then Release 0x105E98 and FreeLibrary(ddraw) 0x105E9A, which unloads the DirectDraw object's code): the DirectDraw object at [esp+18h], which the probe never releases) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_hud_options_on_ddraw_probed(frame: &mut Frame) -> u32 {
@@ -2285,6 +2320,216 @@ pub extern "C" fn hook_hud_options_on_login(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::hud_options::on_login(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- hud_options (patch 83) ----
+
+/// The entry `hud_options_on_targets_size` (0x119b2b, render_output_window::set_size with create_targets' arguments pushed (lea eax,[ebx+118h]; then xor dl,dl and the call 0x119B33): [esp] the force, [esp+4] and [esp+8] the size the frame's targets are made at, the window's. Every making of a frame's targets after the window's constructor is here) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_options_on_targets_size(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_options_on_targets_size` calls this, from the game's jump at 0x119b2b,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_options::on_targets_size(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- hud_options (patch 83) ----
+
+/// The entry `hud_options_on_output_setup` (0x13d273, renderer::render before its first setup_render_output_window (mov eax,[ebp+18h] / push eax / push ecx; the call at 0x13D297): once a frame, the scene and view set, nothing of the frame bound yet; [esp+2Ch] the output window) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_options_on_output_setup(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_options_on_output_setup` calls this, from the game's jump at 0x13d273,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_options::on_output_setup(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- hud_options (patch 83) ----
+
+/// The entry `hud_options_on_output_set` (0x13d29c, renderer::render after its first setup_render_output_window (mov eax,[0A7A828h]): the frame's targets are the context's, the backend's base targets the output's, the base viewport the output's size; the stages follow) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_options_on_output_set(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_options_on_output_set` calls this, from the game's jump at 0x13d29c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_options::on_output_set(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- hud_options (patch 83) ----
+
+/// The entry `hud_options_on_depth_texture` (0x177cfa, stage_gbuffer::execute with the render output's depth texture in ECX (0x177CEE: backend +29A0h, its +D8h), before it is pushed as t_depth_render_target for copy_depth_rt (push ecx / mov esi,eax / push 9F3120h): ECX the res_texture the linear depth is copied from) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_options_on_depth_texture(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_options_on_depth_texture` calls this, from the game's jump at 0x177cfa,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_options::on_depth_texture(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- hud_options (patch 83) ----
+
+/// The entry `hud_options_on_present_stage` (0x13db16, renderer::render before its present stage (mov esi,[esp+2Ch] / push ecx; renderer::present 0x1418C0 at 0x13DB36, the screen image's quad of rt 52 on the back buffer, then render_flash_ui 0x13DB3D): the stages and the debug drawing into the frame's targets are done) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_options_on_present_stage(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_options_on_present_stage` calls this, from the game's jump at 0x13db16,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_options::on_present_stage(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- hud_options (patch 83) ----
+
+/// The entry `hud_options_on_screen_image` (0x1418e5, renderer::present (0x1418C0, from renderer::render's 0x13DB36) with stage_screen_image::execute's argument pushed (mov ecx,[edx+1DCh], the stage; then its vtable +28h, 0x1BD320, called at 0x1418F0): [esp] the texture the screen image's quad samples onto the back buffer, get_t(52) with one reference added for the callee (0x1418C6..0x1418E2: [context+119Ch] + 211Ch, inc [eax+4]); execute lets that reference go (0x1BD35A, 0x1BD589). The frame's stages are done, the viewport and base depth-stencil are the output's (render.present_stage ran)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_options_on_screen_image(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_options_on_screen_image` calls this, from the game's jump at 0x1418e5,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_options::on_screen_image(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- hud_options (patch 83) ----
+
+/// The entry `hud_options_on_jittered` (0x13d3e8, renderer::render after push_jittering (0x1BE4A0, the call at 0x13D3E3) answered the frame's projection before its jitter (mov esi,eax / lea edi,[ebx+20h]: the copy to the renderer's +20h): once a rendered frame, after set_scene_view and the output's setup, before the visibility stage, the targets' clearing and the stages; the engine's own temporal jitter (r_antialiasing_method 2) is pushed by then, and render pops it at 0x13D47B after the stages) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_options_on_jittered(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_options_on_jittered` calls this, from the game's jump at 0x13d3e8,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_options::on_jittered(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- hud_options (patch 83) ----
+
+/// The entry `hud_options_on_aa_method` (0x1b22f1, stage_postprocess::execute with r_antialiasing_method in EAX (mov eax,[edx+0F0h] at 0x1B22EB), before its tests (cmp eax,2 / sete bl: the temporal AA, [esp+13h]; sub eax,1 / jne after: FXAA and the sharpen, [esp+16h] and [esp+15h]): 0 none, 1 FXAA with the sharpen, 2 the temporal AA) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_options_on_aa_method(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_options_on_aa_method` calls this, from the game's jump at 0x1b22f1,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_options::on_aa_method(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- hud_options (patch 83) ----
+
+/// The named exits of hud_options::on_motion_gate (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum HudOptionsOnMotionGateExit { Accumulate }
+/// The entry `hud_options_on_motion_gate` (0x1b235a, stage_postprocess::execute's gate of the object motion pass without motion blur (mov byte [esp+14h],0 after cmp byte [edx+133h],0: r_use_motion_vectors_in_taa; then je, test bl,bl the temporal AA, je): accumulate is push ebp / call accumulate_motion_vectors (0x1B1B50), past r_post_process_quality's test) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_options_on_motion_gate(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_options_on_motion_gate` calls this, from the game's jump at 0x1b235a,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_options::on_motion_gate(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- hud_options (patch 83) ----
+
+/// The named exits of hud_options::on_motion_quality (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum HudOptionsOnMotionQualityExit { Accumulate }
+/// The entry `hud_options_on_motion_quality` (0x1b2365, stage_postprocess::execute's last gate of the object motion pass (cmp dword [edx+0DCh],0: r_post_process_quality, then je 0x1B2374 past the pass): reached with motion blur on or with the temporal AA and its motion vectors on) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_options_on_motion_quality(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_options_on_motion_quality` calls this, from the game's jump at 0x1b2365,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_options::on_motion_quality(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- hud_options (patch 83) ----
+
+/// The named exits of hud_options::on_motion_clear (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum HudOptionsOnMotionClearExit { Clear }
+/// The entry `hud_options_on_motion_clear` (0x1b1e75, stage_postprocess::clear_surfaces (0x1B1E70, the stage's vtable+10h, from perform_surfaces_clearing at the frame's start) at its first test (cmp dword [eax+0F0h],2, EAX the options): the same gate as the object motion pass's; clear binds rt 18 and clears it to 0 (0x1B1EB8..0x1B1F64), ECX the stage) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_options_on_motion_clear(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_options_on_motion_clear` calls this, from the game's jump at 0x1b1e75,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_options::on_motion_clear(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- hud_options (patch 83) ----
+
+/// The entry `hud_options_on_motion_format` (0x163433, create_targets about to make rt 18, $user$object_motion_vectors (mov edx,12h after push ebp, the HDR format; new_rt 0x1629A0 at 0x16343A): [esp] the format the target is made with) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_options_on_motion_format(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_options_on_motion_format` calls this, from the game's jump at 0x163433,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_options::on_motion_format(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- hud_options (patch 83) ----
+
+/// The entry `hud_options_on_eye_rays` (0x14ad23, renderer_context::update_eye_rays (0x14AA50, from every set_p) at its last store (mov [eax+5404h],edx, the fourth world ray's z; add esp,24h / ret after it): the eight rays written but that word, EAX the context) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_options_on_eye_rays(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_options_on_eye_rays` calls this, from the game's jump at 0x14ad23,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_options::on_eye_rays(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -4573,6 +4818,15 @@ pub extern "C" fn hook_packet_recovery_on_loaded_chain(frame: &mut Frame) -> u32
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_async_on_exit_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_bake_async_on_exit(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_hud_options_on_exit(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn hook_blackout_on_static_info_chain(frame: &mut Frame) -> u32 {
     let flow = hook_blackout_on_static_info(frame);
     if flow != 0 { return flow; }
@@ -4777,6 +5031,15 @@ pub fn forest_glow_on_loaded_entry() -> super::hook::CallbackEntry<OrigStoreFirs
     unsafe { super::hook::CallbackEntry::from_entry(forest_glow_on_loaded as *const () as *const c_void) }
 }
 
+unsafe extern "C" { fn hud_options_on_watch(); }
+/// The entry `hud_options_on_watch`, in engine_thread_entry's convention (a thread's start routine as CreateThread calls it (stdcall, lpParameter; the engine's own is 0xE0910, which names the convention): patch 83's watch of the DLSS helper's process, on a thread of its own, its argument the watch's copy of the helper's process handle (docs/notes/dlss-option.md, "Falling back")): a
+/// callback the patch hands the game (no site is rewritten).
+pub fn hud_options_on_watch_entry() -> super::hook::CallbackEntry<OrigThreadEntry> {
+    // SAFETY: the generated entry lives for the executable's lifetime and takes the
+    // arguments of engine_thread_entry, whose `Original` names the entry's type.
+    unsafe { super::hook::CallbackEntry::from_entry(hud_options_on_watch as *const () as *const c_void) }
+}
+
 unsafe extern "C" { fn music_on_query_done(); }
 /// The entry `music_on_query_done`, in engine_store_first_resource's convention (the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query): a
 /// callback the patch hands the game (no site is rewritten).
@@ -4784,6 +5047,81 @@ pub fn music_on_query_done_entry() -> super::hook::CallbackEntry<OrigStoreFirstR
     // SAFETY: the generated entry lives for the executable's lifetime and takes the
     // arguments of engine_store_first_resource, whose `Original` names the entry's type.
     unsafe { super::hook::CallbackEntry::from_entry(music_on_query_done as *const () as *const c_void) }
+}
+
+// ---- hud_options: its hooks installed on demand ----
+
+unsafe extern "C" {
+    fn hud_options_on_targets_size();
+    fn hud_options_on_output_setup();
+    fn hud_options_on_output_set();
+    fn hud_options_on_depth_texture();
+    fn hud_options_on_present_stage();
+    fn hud_options_on_screen_image();
+    fn hud_options_on_jittered();
+    fn hud_options_on_aa_method();
+    fn hud_options_on_motion_gate();
+    fn hud_options_on_motion_quality();
+    fn hud_options_on_motion_clear();
+    fn hud_options_on_motion_format();
+    fn hud_options_on_eye_rays();
+}
+/// hud_options's sites that keep the game's bytes until it installs them.
+pub fn hud_options_on_demand() -> [super::hook::OnDemand; 13] {
+    [
+        // render_window.targets_size: render_output_window::set_size with create_targets' arguments pushed (lea eax,[ebx+118h]; then xor d
+        // SAFETY: the site's span as the original exe has it; hud_options_on_targets_size is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x119b2b, &[0x8d, 0x83, 0x18, 0x01, 0x00, 0x00], hud_options_on_targets_size as *const () as usize as u32) },
+        // render.output_setup: renderer::render before its first setup_render_output_window (mov eax,[ebp+18h] / push eax / push ec
+        // SAFETY: the site's span as the original exe has it; hud_options_on_output_setup is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x13d273, &[0x8b, 0x45, 0x18, 0x50, 0x51], hud_options_on_output_setup as *const () as usize as u32) },
+        // render.output_set: renderer::render after its first setup_render_output_window (mov eax,[0A7A828h]): the frame's target
+        // SAFETY: the site's span as the original exe has it; hud_options_on_output_set is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x13d29c, &[0xa1, 0x28, 0xa8, 0xa7, 0x00], hud_options_on_output_set as *const () as usize as u32) },
+        // gbuffer.depth_texture: stage_gbuffer::execute with the render output's depth texture in ECX (0x177CEE: backend +29A0h, its 
+        // SAFETY: the site's span as the original exe has it; hud_options_on_depth_texture is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x177cfa, &[0x51, 0x8b, 0xf0, 0x68, 0x20, 0x31, 0x9f, 0x00], hud_options_on_depth_texture as *const () as usize as u32) },
+        // render.present_stage: renderer::render before its present stage (mov esi,[esp+2Ch] / push ecx; renderer::present 0x1418C0 
+        // SAFETY: the site's span as the original exe has it; hud_options_on_present_stage is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x13db16, &[0x8b, 0x74, 0x24, 0x2c, 0x51], hud_options_on_present_stage as *const () as usize as u32) },
+        // render.screen_image: renderer::present (0x1418C0, from renderer::render's 0x13DB36) with stage_screen_image::execute's ar
+        // SAFETY: the site's span as the original exe has it; hud_options_on_screen_image is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x1418e5, &[0x8b, 0x8a, 0xdc, 0x01, 0x00, 0x00], hud_options_on_screen_image as *const () as usize as u32) },
+        // render.jittered: renderer::render after push_jittering (0x1BE4A0, the call at 0x13D3E3) answered the frame's projecti
+        // SAFETY: the site's span as the original exe has it; hud_options_on_jittered is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x13d3e8, &[0x8b, 0xf0, 0x8d, 0x7b, 0x20], hud_options_on_jittered as *const () as usize as u32) },
+        // postprocess.aa_method: stage_postprocess::execute with r_antialiasing_method in EAX (mov eax,[edx+0F0h] at 0x1B22EB), befor
+        // SAFETY: the site's span as the original exe has it; hud_options_on_aa_method is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x1b22f1, &[0x83, 0xf8, 0x02, 0x0f, 0x94, 0xc3], hud_options_on_aa_method as *const () as usize as u32) },
+        // postprocess.motion_gate: stage_postprocess::execute's gate of the object motion pass without motion blur (mov byte [esp+14h],
+        // SAFETY: the site's span as the original exe has it; hud_options_on_motion_gate is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x1b235a, &[0xc6, 0x44, 0x24, 0x14, 0x00], hud_options_on_motion_gate as *const () as usize as u32) },
+        // postprocess.motion_quality: stage_postprocess::execute's last gate of the object motion pass (cmp dword [edx+0DCh],0: r_post_pro
+        // SAFETY: the site's span as the original exe has it; hud_options_on_motion_quality is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x1b2365, &[0x83, 0xba, 0xdc, 0x00, 0x00, 0x00, 0x00], hud_options_on_motion_quality as *const () as usize as u32) },
+        // postprocess.motion_clear: stage_postprocess::clear_surfaces (0x1B1E70, the stage's vtable+10h, from perform_surfaces_clearing 
+        // SAFETY: the site's span as the original exe has it; hud_options_on_motion_clear is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x1b1e75, &[0x83, 0xb8, 0xf0, 0x00, 0x00, 0x00, 0x02], hud_options_on_motion_clear as *const () as usize as u32) },
+        // targets.motion_format: create_targets about to make rt 18, $user$object_motion_vectors (mov edx,12h after push ebp, the HDR
+        // SAFETY: the site's span as the original exe has it; hud_options_on_motion_format is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x163433, &[0xba, 0x12, 0x00, 0x00, 0x00], hud_options_on_motion_format as *const () as usize as u32) },
+        // context.eye_rays: renderer_context::update_eye_rays (0x14AA50, from every set_p) at its last store (mov [eax+5404h],ed
+        // SAFETY: the site's span as the original exe has it; hud_options_on_eye_rays is the
+        // generated or linked entry for it, alive as long as the executable.
+        unsafe { super::hook::OnDemand::new(0x14ad23, &[0x89, 0x90, 0x04, 0x54, 0x00, 0x00], hud_options_on_eye_rays as *const () as usize as u32) },
+    ]
 }
 
 // ---- memory_profile: its hooks installed on demand ----
