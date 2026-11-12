@@ -852,3 +852,62 @@ The original-post comparison is queued after the current lighting batch; it is
 not a passed test yet. Moving-rain validation, selected-candidate wide sweep,
 production integration and local play remain outstanding. No weather merge or
 release is claimed.
+
+## Atmospheric scattering isolated by visual A/B (2026-11-12)
+
+Both native diffuse-x3 runs completed. Rain improves seven of eight views;
+yard-south becomes too bright. Mean per-view display RGB RMSE is .20753 ->
+.15848 for evening and .14465 -> .13065 for rain. Captured GPU constants,
+build hashes and actual camera metadata pass the comparison checks. The
+four-file content edit remains experimental and uncommitted.
+
+The original post/gamma bridge was then tested on all eight views of both
+weather variants, including outdoors, with the same x3 content. It executes
+1,320/1,140 paired draws with zero rejected draws. Mean RMSE improves only
+5.2%/3.8% relative to native post. It does not fix the large outdoor deficit;
+production post integration remains conditional under the reduced-complexity
+target.
+
+Captured shader inspection identifies a separate atmosphere mismatch. Original
+0.11e geometry uses multiplicative and additive scattering passes with 256x128
+Rayleigh/Mie tables; native fog uses a different equation and inputs. The new
+`original_fog_live.c` diagnostic replaces only the exact native fog PS draw,
+using unchanged original shaders, source weather tables, and live native depth,
+inverse view, eye position and viewport. Native draw geometry and coverage are
+retained. `prepare_fog_011e.py` pins the original shader identities and records
+source/asset hashes. The source Mie texture contains RGB half NaNs in columns
+254/255; those source bytes are preserved, not silently repaired. Tables match
+between the two checked original camera positions in each weather.
+
+The fog experiment completed eight matched views per weather, executing
+1,320 evening and 1,500 rain replacements without rejected draws. The original
+post bridge remains enabled to isolate this change from the preceding run:
+
+| Mean per-view display RGB RMSE | Before fog change | Original fog |
+| --- | ---: | ---: |
+| Evening | .15028 | .12358 |
+| Rain | .12564 | .07381 |
+
+At factory-upper, evening RMSE falls .31521 -> .14786, and rain .39055 ->
+.09492. All four contact sheets were inspected. Distant haze and forest brightness
+are materially closer; near surfaces still differ, and the unmodified native
+sky now has an obvious dark boundary against the corrected distant geometry.
+This is not an accepted final render. Next test matching original sky shading;
+its PS input signature matches native, and their captured to-sun vectors and
+intensities agree. Native AO/probe blending and full-light composition remain
+in place. Reassess the optional post bridge after atmosphere correction.
+
+Validation: strict C11 MinGW DLL build passes `-Wall -Wextra -Werror`; four
+malformed-input checks reject changed bytecode, truncation, invalid parameters
+and unexpected table NaNs, and the valid original fixture passes. Compiled C/H
+source and DLL hashes match the runtime pins. Native context restoration is
+code-reviewed, not independently GPU-captured. This diagnostic uses captured
+weather tables and has no production scene lifecycle; moving rain, production
+integration, the selected-candidate wide sweep and local play remain unverified.
+
+Evidence directories under `/tmp/v011-weather-reference/`:
+`lighting-report`, `lighting-post-report`, `lighting-fog-report`, `fog-assets`,
+`fog-build-source`; build receipt `fog-build.json`, input-check receipt
+`fog-preparation-checks.json`. Native raw runs are under
+`/tmp/v011-weather-lighting-{comparison,post-comparison,fog-comparison}/`.
+No original reference was replaced. No weather PR, merge or release is claimed.
