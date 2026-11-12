@@ -300,6 +300,17 @@ pub fn body_at(world: &Collision, start: WalkStart, stance: Stance, feet: Vec3) 
     }
 }
 
+/// [2c] A failing Walk link is cut only when it rises more than this, m, and its walk got under [`CUT_SHARE`] of the way:
+/// a riser the body stalls under. The exactness session's walk of 6,701 of v3's cuts on the game's shapes world
+/// (FINDINGS-FEED-exactness 2026-11-12T05:24Z): that class is crossed in 6 % (12 % walked on past the end); the classes whose
+/// walk went the full way but did not arrive are crossed a little further on in 53-73 %. The bench split the same way
+/// (`nav-builder-20261112/bench-2c-exp-risers.txt` against `bench-2c-v4.txt`): with every class cut, falls free +5.5 % (z 6.6)
+/// and hurt +29 %; with the risers alone, falls as the tip's (hurt 92 -> 90) and routes stuck -7 % (z -3.7), stuck again
+/// -36 % (z -5.9).
+pub const CUT_RISE_M: f32 = 0.2;
+/// [2c] See [`CUT_RISE_M`].
+pub const CUT_SHARE: f32 = 0.5;
+
 /// [2c] The walk check's spare ticks ([`walk_on`]): [`Body::walk_every_link`] asks for arrival, which a body slowed by a
 /// wall's slide reaches later; [`walk_share`] has none (half the way needs none). A body held where it is ends a walk at
 /// once, so spare ticks cost only a body still moving.
@@ -648,6 +659,9 @@ impl WalkGrid {
             .iter()
             .zip(walked)
             .filter(|(_, w)| !w.passes)
+            // Only a riser the body stalls under is cut ([`CUT_RISE_M`], [`CUT_SHARE`]): the walk of the others ends at the far
+            // floor's place, not under it, and the split bench put the falls 2c added on those cuts.
+            .filter(|(ad, w)| self.height[wide.links[ad.0][ad.1] as usize] - self.height[ad.0] > CUT_RISE_M && w.share < CUT_SHARE)
             .map(|(&(a, d), w)| (a as u32, d, w.share))
             .collect();
         (stats, failing)
