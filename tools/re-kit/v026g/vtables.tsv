@@ -141,3 +141,8 @@ vtable	slot	va	class	base	basis
 0x009e3b9c	0x04	0x0007b730	vostok::physics::bullet_character_controller	btActionInterface	observed: the controller's first vtable (+0); updateActions calls it at 0x9B846 (13,698 of 13,698 traced steps return to 0x9B848)
 0x009e45e4	0x2c	0x0009b260	btSoftRigidDynamicsWorld	btDynamicsWorld	observed: the vtable of a running game's dynamics world (bullet_physics_world +3Ch); stepSimulation, called twice by bullet_physics_world::tick (0x7562A, 0x7565A)
 0x009e4b9c	0x54	0x000a9bc0	btCylinderShape	btCylinderShape	observed: getRadius, the vcall of the down sweep's second look 0x8484E
+0x00a1a1bc	0x4	0x00337810	survarium::player_logic_crouch_on_site_state	vostok::state_base	observed: initialize (the crouch wish set); the state is built at 0x2FAD1E with stance 1
+0x00a1a1bc	0xc	0x00337830	survarium::player_logic_crouch_on_site_state	vostok::state_base	observed: finalize (the wish cleared when the body may stand)
+0x00a1a1e8	0x4	0x00337810	survarium::player_logic_crouch_walk_state	vostok::state_base	observed: initialize; the state is built at 0x2FAD75
+0x00a1a1e8	0xc	0x00337830	survarium::player_logic_crouch_walk_state	vostok::state_base	observed: finalize
+0x00a11094	0x2c	0x002e0ba0	survarium::weapon_core	survarium::weapon_core	observed: update_logic (the selector's tick), called through the hands' object only at 0x2D768A and 0x2D772D

@@ -3607,3 +3607,8 @@ va	status	ref_021d	name
 0x0032a600	inferred-medium		survarium::body_part::expire_affects
 0x0032ac90	inferred-medium		survarium::body_part::reset
 0x003200c0	inferred-medium		survarium::load_body_part_threshold
+0x002fba50	inferred-medium		survarium::weapon_user_animations_selector::set_first_state
+0x002feec0	inferred-medium		survarium::weapon_controller_core::activate
+0x0031e7a0	inferred-medium		survarium::move_direction_animation_group
+0x00337850	inferred-medium		survarium::player_logic_crouch_on_site_state::build_animations
+0x00337d10	inferred-medium		survarium::player_logic_crouch_walk_state::build_move_animation

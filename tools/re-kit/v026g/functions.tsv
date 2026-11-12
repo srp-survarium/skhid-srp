@@ -2444,3 +2444,5 @@ va	status	ref_021d	name
 0x00337330	reviewed		survarium::player_logic_stand_jump_state::is_ready_for_transition
 0x003434a0	reviewed		survarium::jump_logic_state_start::on_jump_event
 0x002d7920	reviewed		survarium::base_player::jump
+0x002fbea0	reviewed		survarium::weapon_user_animations_selector::crouch_to_on_site_predicate
+0x002fbf00	reviewed		survarium::weapon_user_animations_selector::crouch_to_run_predicate

@@ -139,6 +139,21 @@ pub struct Controller {
     pub air_control: Vec3,
 }
 
+/// What the game's logic does with the crouch between two steps: the key (bit 8 of the input's actions, either of
+/// the client's `crouch` and `crouch_toggle` keys), and whether the held item's animation selector tests its crouch
+/// transitions this frame (PROVEN, `docs/notes/crouch_logic.md`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CrouchInput {
+    /// Every stand and crouch state tests the crouch first of all (to crouch 0x2FBDF0 / 0x2FBE50, back 0x2FBEA0 /
+    /// 0x2FBF00): the body asks for the crouch with the key held, with both legs broken (the damage model's +388h == 2,
+    /// whatever the keys) or with no room to stand, and gives it up only with none of the three.
+    Tested { key: bool, legs_broken: bool },
+    /// The selector is in a state it does not leave for a crouch: the jump state until its landing is done
+    /// (`is_ready_for_transition` 0x337330), or the sprint state with a melee under way (0x336A90). The key is written
+    /// all the same; the wish stays as it is.
+    Held { key: bool },
+}
+
 /// What the game's logic hands a body's controller before a step, for a body kept across ticks ([`Controller::tick`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TickInput {
@@ -146,8 +161,8 @@ pub struct TickInput {
     pub walk: Vec3,
     /// +0x30: the air control of a jump (a speed, m/s).
     pub air_control: Vec3,
-    /// The crouch key (bit 8 of the input's actions, [`Controller::crouch_key`]).
-    pub crouch_key: bool,
+    /// The crouch key and what the logic's state does with it ([`Controller::crouch`]).
+    pub crouch: CrouchInput,
     /// +0x204: the body sprints. `step_forward_impl` then takes the simple move test whatever the console says
     /// (0x7D33D: `cmp byte [+204h], 0; jnz` past the complex test 0x85A90).
     pub sprinting: bool,
@@ -439,15 +454,34 @@ impl Controller {
     /// stand test is made by a step with the key released, so a body stands on the SECOND step after the release, 50 ms
     /// after the key, and stays down under a ceiling.
     ///
-    /// Call it before every step with the key's state. Not here (the logic's side, not read): the game refusing a crouch
-    /// with the key held (36 of the traced steps: +0x200 set, +0x201 clear) and `base_player::jump` 0x2D7920 clearing +0x201.
+    /// Call it before every step with the key's state: [`Self::crouch`] for a body whose legs are whole and whose
+    /// selector tests the crouch (not in a jump, no melee in a sprint).
     pub fn crouch_key(&mut self, held: bool) {
-        self.input_crouch = held;
-        if held {
-            self.want_crouch = true;
-        } else if self.can_stand {
+        self.crouch(CrouchInput::Tested { key: held, legs_broken: false });
+    }
+
+    /// What the game's logic does with the crouch between two steps ([`CrouchInput`]; counted on 220,994 traced steps:
+    /// every step whose key and wish differ is one of these rules, `docs/notes/crouch_logic.md`). The key goes into
+    /// +0x200 on every input (0x2D89EE). Where the selector tests the crouch, the wish (+0x201) is the crouch states'
+    /// to set and to give up: set with the key, both legs broken or no room to stand; given up with none of them
+    /// (`finalize` 0x337830 clears it only when +0x202 is set, and the states are left only then).
+    pub fn crouch(&mut self, input: CrouchInput) {
+        match input {
+            CrouchInput::Tested { key, legs_broken } => {
+                self.input_crouch = key;
+                self.want_crouch = key || legs_broken || !self.can_stand;
+            }
+            CrouchInput::Held { key } => self.input_crouch = key,
+        }
+    }
+
+    /// `base_player::jump` 0x2D7920, what it writes to the controller (the take-off, called by the jump clip's event
+    /// 0x3434A0): the crouch wish given up when the body may stand (0x2D793E), and jump mode (+0x2C70C).
+    pub fn jump(&mut self) {
+        if self.can_stand {
             self.want_crouch = false;
         }
+        self.jumping = true;
     }
 
     /// One step of a body kept across ticks, as the game runs it: the key and the vectors its logic writes before the
@@ -458,7 +492,7 @@ impl Controller {
     /// all (`docs/notes/exactness_rig.md` section 3f). A jump's start (`jumping`, the clip's walk vector) and a
     /// correction of the place stay the caller's writes.
     pub fn tick(&mut self, world: &Collision, dt: f32, s: &Settings, input: TickInput) -> StepNotes {
-        self.crouch_key(input.crouch_key);
+        self.crouch(input.crouch);
         self.walk = input.walk;
         self.air_control = input.air_control;
         let s = Settings {
@@ -1284,7 +1318,12 @@ mod tests {
         let mut tris = Vec::new();
         ground(0.0, -10.0, 10.0, &mut tris);
         let world = Collision::build(&tris);
-        let input = |crouch_key: bool| TickInput { walk: Vec3::new(0.1, 0.0, 0.0), air_control: Vec3::ZERO, crouch_key, sprinting: false };
+        let input = |key: bool| TickInput {
+            walk: Vec3::new(0.1, 0.0, 0.0),
+            air_control: Vec3::ZERO,
+            crouch: CrouchInput::Tested { key, legs_broken: false },
+            sprinting: false,
+        };
         let mut c = Controller::standing_at(Vec3::ZERO);
         let standing = c.dims;
         for _ in 0..4 {
@@ -1302,6 +1341,52 @@ mod tests {
         a.tick(&world, 0.05, &Settings::LIVE, input(false));
         b.tick(&world, 0.05, &Settings::LIVE, TickInput { sprinting: true, ..input(false) });
         assert_eq!(a, b);
+    }
+
+    /// The logic's other crouch rules: a state that does not test the crouch (a jump until it has landed) takes the key
+    /// and leaves the wish; both legs broken crouch the body without the key and keep it down; the take-off gives the
+    /// wish up when the body may stand.
+    #[test]
+    fn the_logic_holds_forces_and_gives_up_a_crouch() {
+        let mut tris = Vec::new();
+        ground(0.0, -10.0, 10.0, &mut tris);
+        let world = Collision::build(&tris);
+        let step = |c: &mut Controller, crouch: CrouchInput| {
+            c.tick(&world, 0.05, &Settings::LIVE, TickInput { walk: Vec3::ZERO, air_control: Vec3::ZERO, crouch, sprinting: false })
+        };
+        let tested = |key: bool, legs_broken: bool| CrouchInput::Tested { key, legs_broken };
+
+        // In a jump the key is written and nothing else: the body crouches at the first tested frame after it.
+        let mut c = Controller::standing_at(Vec3::ZERO);
+        step(&mut c, CrouchInput::Held { key: true });
+        assert_eq!(crouch_flags(&c), (true, false, true, false));
+        step(&mut c, tested(true, false));
+        assert_eq!(crouch_flags(&c), (true, true, false, true));
+        // And a crouched body's wish is kept while the state does not test it, whatever the key.
+        step(&mut c, CrouchInput::Held { key: false });
+        assert!(c.want_crouch && c.crouched && !c.input_crouch);
+
+        // Both legs broken: crouched with no key, and down for as long as they are (the key is up, so each step's tail
+        // finds room to stand, and the wish stays).
+        let mut c = Controller::standing_at(Vec3::ZERO);
+        for _ in 0..4 {
+            step(&mut c, tested(false, true));
+            assert_eq!(crouch_flags(&c), (false, true, true, true));
+        }
+        // A leg back: the wish is given up, and that step's head stands the capsule.
+        step(&mut c, tested(false, false));
+        assert_eq!(crouch_flags(&c), (false, false, true, false));
+
+        // The take-off gives the wish up only when the body may stand.
+        let mut c = Controller::standing_at(Vec3::ZERO);
+        c.crouch_key(true);
+        c.jump();
+        assert!(c.jumping && !c.want_crouch);
+        let mut c = Controller::standing_at(Vec3::ZERO);
+        c.crouch_key(true);
+        c.can_stand = false;
+        c.jump();
+        assert!(c.jumping && c.want_crouch);
     }
 
     /// A wall stops the body with its side 0.42 m off it (the cylinder 0.38 m plus the 0.04 m margin): the exe's too (Unicorn).
