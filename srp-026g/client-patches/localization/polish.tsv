@@ -883,6 +883,10 @@ st_crosshair_static_option	Celownik statyczny
 st_crosshair_type_option	Wybierz celownik
 st_crouch_action	Kucanie (przytrzymaj)
 st_crouch_toggle_action	Kucanie
+st_cs_mp_bath_name	Basen
+st_cs_mp_military_1_name	Magazyny wojskowe
+st_cs_mp_rembasa_name	Baza remontowa
+st_cs_training_camp_name	Training Camp
 st_ct_max_members_count_error	Błąd dodawania. Drużyna klanu osiągnęła już maksymalną liczbę graczy.
 st_current_value	\nBieżąca wartość:
 st_cz_75_description	Czeski pistolet samopowtarzalny, amunicja: 9x19. Jeden z najczęściej kopiowanych pistoletów zimnej wojny.
@@ -2170,6 +2174,8 @@ st_snp_steady_breath_desc	Szybciej dochodzisz do siebie po wstrzymanym oddechu.
 st_snp_steady_breath_name	Równy oddech
 st_snp_steady_grip_desc	Zwiększa celność strzału podczas poruszania się.
 st_snp_steady_grip_name	Mocny chwyt
+st_soc_ug_depository_name	Magazyn
+st_soc_ug_station_name	Stacja
 st_soc_vepr_description	Rosyjski samopowtarzalny karabinek z rodziny Wepr, amunicja: 7,62x39. Produkowany przez zakłady Mołot w Wiatskich Polanach na wzmocnionej komorze zamkowej karabinu maszynowego RPK jako broń myśliwska i sportowa. Wyposażony w 10-nabojowy magazynek. Tylko ogień pojedynczy.
 st_soc_vepr_name	SOK-94
 st_socom16_description	OPIS NIE JEST GOTOWY!!!
@@ -2572,6 +2578,10 @@ st_srp_login_ban_forever	Ban jest stały.
 st_srp_map_chemical_plant	Zakłady chemiczne
 st_srp_map_chemical_plant_v011	Zakłady chemiczne (v0.11)
 st_srp_map_cologne	Most w Kolonii
+st_srp_map_cs_mp_bath	Basen
+st_srp_map_cs_mp_military_1	Magazyny wojskowe
+st_srp_map_cs_mp_rembasa	Baza remontowa
+st_srp_map_cs_training_camp	Training Camp
 st_srp_map_london	Londyn
 st_srp_map_mamayev_kurgan	Kurhan Mamaja
 st_srp_map_mamayev_kurgan_v021	Kurhan Mamaja (v0.21)
@@ -2579,6 +2589,8 @@ st_srp_map_names_option	Nicki na mapie
 st_srp_map_rudnya	Rudnia
 st_srp_map_rudnya_v069	Rudnia (v0.69)
 st_srp_map_school	Szkoła
+st_srp_map_soc_ug_depository	Magazyn
+st_srp_map_soc_ug_station	Stacja
 st_srp_map_tarakanovsky_fort	Fort Tarakanów
 st_srp_map_vector	Laboratorium "Wektor"
 st_srp_map_vostok	Stacja Radarowa "Vostok"

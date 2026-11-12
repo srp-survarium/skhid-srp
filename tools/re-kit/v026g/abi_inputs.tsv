@@ -6128,4 +6128,6 @@ va	name	location	role	basis
 0x00234880	survarium::game_world_ui::initialize_match	0x234D1C..0x234D31	the map config's mode.mode into the hud's +20h (0FFh from the constructor 0x233842) and to the movie as root.set_game_type (0x234D6B); read for equality only: 0x234D73 (2, 3, 4), 0x2385D8 (2, 3), 0x238CC9 (3), 0x23B339 (2, 3, 4), 0x23B3DE (4)	observed
 0x000f6d00	vostok::configs::binary_config_value::relocate_in_place	ECX	the value record; adds the base to its nonzero name at +8 and its data at +0 for types >2, then recursively relocates every child of types 3 and 4 in place, without deduplication; reachable table records must not be shared (FFA 2026-11-12 dumps: shared collision_geometries name relocated 31 times, lookup crashes at 0xF6BC2)	observed
 0x000f6d00	vostok::configs::binary_config_value::relocate_in_place	entry ESP+4	the config allocation base added to offsets; ret 4	observed
+0x002f4580	survarium::respawn_point_core::load	entry ESP+4	respawn_point_core output, kept in EBP from 0x2F4589	observed
+0x002f4580	survarium::respawn_point_core::load	entry ESP+8	binary config table, kept in EBX from 0x2F4584	observed
 0x003cd310	vostok::render::render_cc_u32::is_changed	ECX	render command (its header); value pointer at +50h, previous-value pointer at +60h	observed

@@ -883,6 +883,10 @@ st_crosshair_static_option	Pevný zaměřovač
 st_crosshair_type_option	Vybrat zaměřovač
 st_crouch_action	Přikrčení (držet)
 st_crouch_toggle_action	Přikrčit se
+st_cs_mp_bath_name	Experimental Pool
+st_cs_mp_military_1_name	Military Warehouses
+st_cs_mp_rembasa_name	Repair Depot
+st_cs_training_camp_name	Training Camp
 st_ct_max_members_count_error	Nelze přidat další hráče. Klanový tým už je plný.
 st_current_value	\nAktuální hodnota:
 st_cz_75_description	Česká samonabíjecí pistole, náboj: 9x19. Jedna z nejkopírovanějších pistolí studené války.
@@ -2170,6 +2174,8 @@ st_snp_steady_breath_desc	Po zadržení dechu se rychleji zotavíš.
 st_snp_steady_breath_name	Klidný výdech
 st_snp_steady_grip_desc	Zvyšuje přesnost střelby za pohybu.
 st_snp_steady_grip_name	Pevný úchop
+st_soc_ug_depository_name	Depository
+st_soc_ug_station_name	Station
 st_soc_vepr_description	Ruská samonabíjecí karabina řady Vepr na náboje 7.62x39. Závod Molot ve Vjatských Poljanách ji vyrábí pro lov a sport na zesíleném pouzdře závěru kulometu RPK. Zásobník na 10 nábojů. Jen jednotlivé rány.
 st_soc_vepr_name	SOK-94
 st_socom16_description	Popis zatím není k dispozici.
@@ -2572,6 +2578,10 @@ st_srp_login_ban_forever	Zákaz je trvalý.
 st_srp_map_chemical_plant	Chemička
 st_srp_map_chemical_plant_v011	Chemička (v0.11)
 st_srp_map_cologne	Kolín nad Rýnem
+st_srp_map_cs_mp_bath	Experimental Pool
+st_srp_map_cs_mp_military_1	Military Warehouses
+st_srp_map_cs_mp_rembasa	Repair Depot
+st_srp_map_cs_training_camp	Training Camp
 st_srp_map_london	Londýn
 st_srp_map_mamayev_kurgan	Mamajova mohyla
 st_srp_map_mamayev_kurgan_v021	Mamajova mohyla (v0.21)
@@ -2579,6 +2589,8 @@ st_srp_map_names_option	Jména na mapě
 st_srp_map_rudnya	Rudňa
 st_srp_map_rudnya_v069	Rudňa (v0.69)
 st_srp_map_school	Škola
+st_srp_map_soc_ug_depository	Depository
+st_srp_map_soc_ug_station	Station
 st_srp_map_tarakanovsky_fort	Tarakanovská pevnost
 st_srp_map_vector	Laboratoř Vektor
 st_srp_map_vostok	Radarová stanice Vostok

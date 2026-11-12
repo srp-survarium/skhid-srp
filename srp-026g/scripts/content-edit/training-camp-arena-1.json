@@ -1,0 +1,1461 @@
+{
+  "_about": "Training Camp: crater rim closed to walkers; forest is scenery. 24 FFA points use 500 integer milliseconds (requires the optional-ms client hook); legacy seconds are zero. The original TDM points and their protection are unchanged.",
+  "copy": [
+    {
+      "files": "models/level/04/level_border.model/settings",
+      "from": "models/level/04/level_border.model/settings",
+      "to": "models/srp/training_camp_border.model/settings"
+    },
+    {
+      "files": "models/level/04/level_border.model/render/export_properties",
+      "from": "models/level/04/level_border.model/render/export_properties",
+      "to": "models/srp/training_camp_border.model/render/export_properties"
+    },
+    {
+      "files": "models/level/04/level_border.model/render/donotwalkhere_sg/export_properties",
+      "from": "models/level/04/level_border.model/render/donotwalkhere_sg/export_properties",
+      "to": "models/srp/training_camp_border.model/render/donotwalkhere_sg/export_properties"
+    },
+    {
+      "files": "models/level/04/level_border.model/render/donotwalkhere_sg/converted_model",
+      "from": "models/level/04/level_border.model/render/donotwalkhere_sg/converted_model",
+      "to": "models/srp/training_camp_border.model/render/donotwalkhere_sg/converted_model"
+    },
+    {
+      "files": "models/level/04/level_border.model/walker_collision/exported_primitives",
+      "from": "models/level/04/level_border.model/walker_collision/exported_primitives",
+      "to": "models/srp/training_camp_border.model/walker_collision/exported_primitives"
+    }
+  ],
+  "append_entry": [
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "expected_count": 30,
+      "unique_key": "node_name",
+      "value": {
+        "type": 1,
+        "mtl": 0,
+        "node_name": "|training_crater|walker_col|rim_00",
+        "position": [
+          -21.366066500000002,
+          10.0,
+          45.592426
+        ],
+        "rotation": [
+          0.0,
+          0.8498249520161013,
+          0.0
+        ],
+        "scale": [
+          9.486415008938405,
+          40.0,
+          0.5
+        ]
+      },
+      "vectors": true
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "expected_count": 31,
+      "unique_key": "node_name",
+      "value": {
+        "type": 1,
+        "mtl": 0,
+        "node_name": "|training_crater|walker_col|rim_01",
+        "position": [
+          -8.6388165,
+          10.0,
+          55.3367265
+        ],
+        "rotation": [
+          0.0,
+          0.4287780461206911,
+          0.0
+        ],
+        "scale": [
+          8.403007034569255,
+          40.0,
+          0.5
+        ]
+      },
+      "vectors": true
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "expected_count": 32,
+      "unique_key": "node_name",
+      "value": {
+        "type": 1,
+        "mtl": 0,
+        "node_name": "|training_crater|walker_col|rim_02",
+        "position": [
+          7.469109,
+          10.0,
+          59.313992
+        ],
+        "rotation": [
+          0.0,
+          0.08673832452425817,
+          0.0
+        ],
+        "scale": [
+          9.932230775510384,
+          40.0,
+          0.5
+        ]
+      },
+      "vectors": true
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "expected_count": 33,
+      "unique_key": "node_name",
+      "value": {
+        "type": 1,
+        "mtl": 0,
+        "node_name": "|training_crater|walker_col|rim_03",
+        "position": [
+          24.7702145,
+          10.0,
+          59.313992
+        ],
+        "rotation": [
+          0.0,
+          -0.09725318343547752,
+          0.0
+        ],
+        "scale": [
+          8.942105184129366,
+          40.0,
+          0.5
+        ]
+      },
+      "vectors": true
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "expected_count": 34,
+      "unique_key": "node_name",
+      "value": {
+        "type": 1,
+        "mtl": 0,
+        "node_name": "|training_crater|walker_col|rim_04",
+        "position": [
+          39.4860975,
+          10.0,
+          55.933316500000004
+        ],
+        "rotation": [
+          0.0,
+          -0.37527079087770376,
+          0.0
+        ],
+        "scale": [
+          7.803341809889727,
+          40.0,
+          0.5
+        ]
+      },
+      "vectors": true
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "expected_count": 35,
+      "unique_key": "node_name",
+      "value": {
+        "type": 1,
+        "mtl": 0,
+        "node_name": "|training_crater|walker_col|rim_05",
+        "position": [
+          49.8269885,
+          10.0,
+          46.7856055
+        ],
+        "rotation": [
+          0.0,
+          -1.0483928916103817,
+          0.0
+        ],
+        "scale": [
+          8.32248841297486,
+          40.0,
+          0.5
+        ]
+      },
+      "vectors": true
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "expected_count": 36,
+      "unique_key": "node_name",
+      "value": {
+        "type": 1,
+        "mtl": 0,
+        "node_name": "|training_crater|walker_col|rim_06",
+        "position": [
+          54.400844,
+          10.0,
+          34.2572185
+        ],
+        "rotation": [
+          0.0,
+          -1.4382448164570885,
+          0.0
+        ],
+        "scale": [
+          6.768695073478243,
+          40.0,
+          0.5
+        ]
+      },
+      "vectors": true
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "expected_count": 37,
+      "unique_key": "node_name",
+      "value": {
+        "type": 1,
+        "mtl": 0,
+        "node_name": "|training_crater|walker_col|rim_07",
+        "position": [
+          54.400844,
+          10.0,
+          22.7231485
+        ],
+        "rotation": [
+          0.0,
+          -1.712693368827609,
+          0.0
+        ],
+        "scale": [
+          6.374702599126575,
+          40.0,
+          0.5
+        ]
+      },
+      "vectors": true
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "expected_count": 38,
+      "unique_key": "node_name",
+      "value": {
+        "type": 1,
+        "mtl": 0,
+        "node_name": "|training_crater|walker_col|rim_08",
+        "position": [
+          56.787203500000004,
+          10.0,
+          11.785668
+        ],
+        "rotation": [
+          0.0,
+          -1.0358412861923234,
+          0.0
+        ],
+        "scale": [
+          6.991266692157712,
+          40.0,
+          0.5
+        ]
+      },
+      "vectors": true
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "expected_count": 39,
+      "unique_key": "node_name",
+      "value": {
+        "type": 1,
+        "mtl": 0,
+        "node_name": "|training_crater|walker_col|rim_09",
+        "position": [
+          63.54855500000001,
+          10.0,
+          -0.14612900000000018
+        ],
+        "rotation": [
+          0.0,
+          -1.0714495944383746,
+          0.0
+        ],
+        "scale": [
+          8.225249039507982,
+          40.0,
+          0.5
+        ]
+      },
+      "vectors": true
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "expected_count": 40,
+      "unique_key": "node_name",
+      "value": {
+        "type": 1,
+        "mtl": 0,
+        "node_name": "|training_crater|walker_col|rim_10",
+        "position": [
+          68.3212735,
+          10.0,
+          -14.0665585
+        ],
+        "rotation": [
+          0.0,
+          -1.4100336130120177,
+          0.0
+        ],
+        "scale": [
+          8.204057984523764,
+          40.0,
+          0.5
+        ]
+      },
+      "vectors": true
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "expected_count": 41,
+      "unique_key": "node_name",
+      "value": {
+        "type": 1,
+        "mtl": 0,
+        "node_name": "|training_crater|walker_col|rim_11",
+        "position": [
+          66.531504,
+          10.0,
+          -26.992672
+        ],
+        "rotation": [
+          0.0,
+          -2.06260546291378,
+          0.0
+        ],
+        "scale": [
+          7.066844477916567,
+          40.0,
+          0.5
+        ]
+      },
+      "vectors": true
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "expected_count": 42,
+      "unique_key": "node_name",
+      "value": {
+        "type": 1,
+        "mtl": 0,
+        "node_name": "|training_crater|walker_col|rim_12",
+        "position": [
+          57.980383,
+          10.0,
+          -36.935836
+        ],
+        "rotation": [
+          0.0,
+          -2.475623447936743,
+          0.0
+        ],
+        "scale": [
+          7.831320104447192,
+          40.0,
+          0.5
+        ]
+      },
+      "vectors": true
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "expected_count": 43,
+      "unique_key": "node_name",
+      "value": {
+        "type": 1,
+        "mtl": 0,
+        "node_name": "|training_crater|walker_col|rim_13",
+        "position": [
+          44.059953,
+          10.0,
+          -43.8960505
+        ],
+        "rotation": [
+          0.0,
+          -2.8414215061726265,
+          0.0
+        ],
+        "scale": [
+          9.493202449507288,
+          40.0,
+          0.5
+        ]
+      },
+      "vectors": true
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "expected_count": 44,
+      "unique_key": "node_name",
+      "value": {
+        "type": 1,
+        "mtl": 0,
+        "node_name": "|training_crater|walker_col|rim_14",
+        "position": [
+          27.753163999999998,
+          10.0,
+          -46.6801365
+        ],
+        "rotation": [
+          0.0,
+          -3.116597831702775,
+          0.0
+        ],
+        "scale": [
+          8.707016408277243,
+          40.0,
+          0.5
+        ]
+      },
+      "vectors": true
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "expected_count": 45,
+      "unique_key": "node_name",
+      "value": {
+        "type": 1,
+        "mtl": 0,
+        "node_name": "|training_crater|walker_col|rim_15",
+        "position": [
+          12.042964999999999,
+          10.0,
+          -45.0892305
+        ],
+        "rotation": [
+          0.0,
+          2.914793810244316,
+          0.0
+        ],
+        "scale": [
+          8.709501302804984,
+          40.0,
+          0.5
+        ]
+      },
+      "vectors": true
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "expected_count": 46,
+      "unique_key": "node_name",
+      "value": {
+        "type": 1,
+        "mtl": 0,
+        "node_name": "|training_crater|walker_col|rim_16",
+        "position": [
+          -2.4740545,
+          10.0,
+          -39.719922
+        ],
+        "rotation": [
+          0.0,
+          2.6546934251762138,
+          0.0
+        ],
+        "scale": [
+          8.400423096736105,
+          40.0,
+          0.5
+        ]
+      },
+      "vectors": true
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "expected_count": 47,
+      "unique_key": "node_name",
+      "value": {
+        "type": 1,
+        "mtl": 0,
+        "node_name": "|training_crater|walker_col|rim_17",
+        "position": [
+          -14.4058515,
+          10.0,
+          -30.9699375
+        ],
+        "rotation": [
+          0.0,
+          2.356194490192345,
+          0.0
+        ],
+        "scale": [
+          8.062114149610938,
+          40.0,
+          0.5
+        ]
+      },
+      "vectors": true
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "expected_count": 48,
+      "unique_key": "node_name",
+      "value": {
+        "type": 1,
+        "mtl": 0,
+        "node_name": "|training_crater|walker_col|rim_18",
+        "position": [
+          -19.9740235,
+          10.0,
+          -20.032457
+        ],
+        "rotation": [
+          0.0,
+          1.6396528071694667,
+          0.0
+        ],
+        "scale": [
+          6.530733436167703,
+          40.0,
+          0.5
+        ]
+      },
+      "vectors": true
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "expected_count": 49,
+      "unique_key": "node_name",
+      "value": {
+        "type": 1,
+        "mtl": 0,
+        "node_name": "|training_crater|walker_col|rim_19",
+        "position": [
+          -18.780844000000002,
+          10.0,
+          -9.0949765
+        ],
+        "rotation": [
+          0.0,
+          1.2722974495717478,
+          0.0
+        ],
+        "scale": [
+          6.159666216071583,
+          40.0,
+          0.5
+        ]
+      },
+      "vectors": true
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "expected_count": 50,
+      "unique_key": "node_name",
+      "value": {
+        "type": 1,
+        "mtl": 0,
+        "node_name": "|training_crater|walker_col|rim_20",
+        "position": [
+          -21.763793,
+          10.0,
+          1.245914
+        ],
+        "rotation": [
+          0.0,
+          2.295046306677563,
+          0.0
+        ],
+        "scale": [
+          7.653162395529312,
+          40.0,
+          0.5
+        ]
+      },
+      "vectors": true
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "expected_count": 51,
+      "unique_key": "node_name",
+      "value": {
+        "type": 1,
+        "mtl": 0,
+        "node_name": "|training_crater|walker_col|rim_21",
+        "position": [
+          -29.3205975,
+          10.0,
+          12.581121
+        ],
+        "rotation": [
+          0.0,
+          2.0214576719553032,
+          0.0
+        ],
+        "scale": [
+          7.598523799783004,
+          40.0,
+          0.5
+        ]
+      },
+      "vectors": true
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "expected_count": 52,
+      "unique_key": "node_name",
+      "value": {
+        "type": 1,
+        "mtl": 0,
+        "node_name": "|training_crater|walker_col|rim_22",
+        "position": [
+          -31.9058205,
+          10.0,
+          24.512918
+        ],
+        "rotation": [
+          0.0,
+          1.5019398464203262,
+          0.0
+        ],
+        "scale": [
+          6.5307334361677025,
+          40.0,
+          0.5
+        ]
+      },
+      "vectors": true
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "expected_count": 53,
+      "unique_key": "node_name",
+      "value": {
+        "type": 1,
+        "mtl": 0,
+        "node_name": "|training_crater|walker_col|rim_23",
+        "position": [
+          -29.320598,
+          10.0,
+          34.6549455
+        ],
+        "rotation": [
+          0.0,
+          1.1071487635084558,
+          0.0
+        ],
+        "scale": [
+          5.641390203722481,
+          40.0,
+          0.5
+        ]
+      },
+      "vectors": true
+    }
+  ],
+  "remove_entry": [
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_00001|box_prim_col_00001Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_00002|box_prim_col_00002Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_00003|box_prim_col_00003Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_00004|box_prim_col_00004Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_00005|box_prim_col_00005Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_00006|box_prim_col_00006Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_00007|box_prim_col_00007Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_00008|box_prim_col_00008Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_00009|box_prim_col_00009Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_000010|box_prim_col_000010Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_000011|box_prim_col_000011Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_000012|box_prim_col_000012Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_000014|box_prim_col_000014Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_000015|box_prim_col_000015Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_000016|box_prim_col_000016Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_000017|box_prim_col_000017Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_000018|box_prim_col_000018Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_000019|box_prim_col_000019Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_000020|box_prim_col_000020Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_000021|box_prim_col_000021Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_000022|box_prim_col_000022Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_000023|box_prim_col_000023Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_000024|box_prim_col_000024Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_000025|box_prim_col_000025Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_000026|box_prim_col_000026Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_000027|box_prim_col_000027Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_000028|box_prim_col_000028Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_000029|box_prim_col_000029Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_000031|box_prim_col_000031Shape"
+      }
+    },
+    {
+      "file": "models/srp/training_camp_border.model/walker_collision/exported_primitives",
+      "list": "primitives",
+      "where": {
+        "node_name": "|level_border|walker_col|box_prim_col_000033|box_prim_col_000033Shape"
+      }
+    }
+  ],
+  "set_entry": [
+    {
+      "file": "projects/v010b_cs_training_camp/day_4/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 0
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_4/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 1
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_4/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 2
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_4/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 3
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_4/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 4
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_4/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 5
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_4/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 6
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_4/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 7
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_4/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 8
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_4/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 9
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_4/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 10
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_4/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 11
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_4/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 12
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_4/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 13
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_4/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 14
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_4/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 15
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_4/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 16
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_4/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 17
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_4/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 18
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_4/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 19
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_4/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 20
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_4/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 21
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_4/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 22
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_4/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 23
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
+    }
+  ],
+  "add_value": [
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_4/client_project"
+      ],
+      "table": "server_objects/respawn_points[24]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    },
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_4/client_project"
+      ],
+      "table": "server_objects/respawn_points[25]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    },
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_4/client_project"
+      ],
+      "table": "server_objects/respawn_points[26]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    },
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_4/client_project"
+      ],
+      "table": "server_objects/respawn_points[27]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    },
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_4/client_project"
+      ],
+      "table": "server_objects/respawn_points[28]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    },
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_4/client_project"
+      ],
+      "table": "server_objects/respawn_points[29]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    },
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_4/client_project"
+      ],
+      "table": "server_objects/respawn_points[30]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    },
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_4/client_project"
+      ],
+      "table": "server_objects/respawn_points[31]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    },
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_4/client_project"
+      ],
+      "table": "server_objects/respawn_points[32]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    },
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_4/client_project"
+      ],
+      "table": "server_objects/respawn_points[33]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    },
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_4/client_project"
+      ],
+      "table": "server_objects/respawn_points[34]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    },
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_4/client_project"
+      ],
+      "table": "server_objects/respawn_points[35]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    },
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_4/client_project"
+      ],
+      "table": "server_objects/respawn_points[36]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    },
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_4/client_project"
+      ],
+      "table": "server_objects/respawn_points[37]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    },
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_4/client_project"
+      ],
+      "table": "server_objects/respawn_points[38]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    },
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_4/client_project"
+      ],
+      "table": "server_objects/respawn_points[39]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    },
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_4/client_project"
+      ],
+      "table": "server_objects/respawn_points[40]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    },
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_4/client_project"
+      ],
+      "table": "server_objects/respawn_points[41]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    },
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_4/client_project"
+      ],
+      "table": "server_objects/respawn_points[42]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    },
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_4/client_project"
+      ],
+      "table": "server_objects/respawn_points[43]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    },
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_4/client_project"
+      ],
+      "table": "server_objects/respawn_points[44]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    },
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_4/client_project"
+      ],
+      "table": "server_objects/respawn_points[45]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    },
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_4/client_project"
+      ],
+      "table": "server_objects/respawn_points[46]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    },
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_4/client_project"
+      ],
+      "table": "server_objects/respawn_points[47]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    }
+  ],
+  "add_entry": [
+    {
+      "files": "projects/v010b_cs_training_camp/day_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/item/quest/container_closed.model/collision",
+        "position": [
+          -20.82,
+          -1.05,
+          -9.82
+        ]
+      },
+      "like": {
+        "lib_name": "resources/models/ported/v010b/ported/cs/training_camp/training_camp_000.model/collision"
+      },
+      "values": {
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "cmask": 4,
+        "cgroup": 2,
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "lib_name": "resources/models/srp/training_camp_border.model/walker_collision"
+      }
+    }
+  ]
+}

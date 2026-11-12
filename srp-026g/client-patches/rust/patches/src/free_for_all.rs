@@ -471,6 +471,14 @@ pub fn on_update_icons(ctx: &mut Context) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// The optional millisecond duration is parsed once while the point loads.
+pub fn on_protection_read(ctx: &mut Context<'_>) -> Flow<crate::vostok::FreeForAllOnProtectionReadExit> {
+    match respawn::apply_protection_override(ctx) {
+        respawn::ProtectionLoad::Legacy => Flow::Continue,
+        respawn::ProtectionLoad::Overridden => Flow::Exit(crate::vostok::FreeForAllOnProtectionReadExit::Applied),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

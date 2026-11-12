@@ -2376,6 +2376,26 @@ pub extern "C" fn hook_free_for_all_on_welcome(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- free_for_all (patch 142) ----
+
+/// The named exits of free_for_all::on_protection_read (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum FreeForAllOnProtectionReadExit { Applied }
+/// The entry `free_for_all_on_protection_read` (0x2f4628, respawn_point_core::load before legacy seconds conversion (mov edx,[eax]; imul edx,1000); EBP point, EBX config; applied skips the conversion and store after an explicit millisecond setting) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_free_for_all_on_protection_read(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `free_for_all_on_protection_read` calls this, from the game's jump at 0x2f4628,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::free_for_all::on_protection_read(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- hand_kill (patch 108) ----
 
 /// The entry `hand_kill_on_hit` (0x2e50c7, EDI damage model ESI hit_info; invulnerability applied) calls this with the saved machine.
