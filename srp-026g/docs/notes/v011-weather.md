@@ -726,3 +726,76 @@ Resource-porter checkpoint: `630b5ff`. Completion receipt SHA256:
 All 8,194 frozen diagnostic files and four camera requests were verified;
 requested/actual coordinates agree at float32 precision. Status polling is
 one to four Presents later than the recorded probe draws.
+
+## Revised visual target and complexity review (2026-11-12)
+
+The owner explicitly accepts small differences to reduce complexity while
+preserving high overall closeness. This supersedes the earlier plan to rebuild
+every original lighting stage. Exact diagnostic replays remain useful evidence,
+not a release requirement or a requirement to ship their runtime machinery.
+Original shaders should be reused where they materially preserve the weather's
+appearance; replacing every native stage is no longer the default approach.
+
+Review of the existing captures and code gives this smaller implementation scope:
+
+- **Defer the original temporal AO/history owner.** It adds three passes,
+  previous AO/depth/view state, camera reset handling and eventual lifecycle
+  integration. Its private outputs are verified, but no final-image A/B test
+  establishes a worthwhile improvement over native AO. Keep native AO as the
+  first candidate and accept small contact-shadow/softness differences.
+- **Defer original probe-index, stencil and probe-blending reproduction.** The
+  source pipeline is now understood and captured, but its production benefit
+  has not been established. Keep native probe selection/blending initially;
+  revisit a particular defect only if visible overlaps, leaks or discontinuities
+  remain after correcting brightness/material mapping.
+- **Defer replacement of the entire encoded-light/composition pipeline.** A
+  large pre-post brightness deficit does not prove that all producers need
+  replacement. First test weather-wide ambient/probe intensity, colour and
+  material-parameter mappings through the native pipeline. Any correction must
+  work across the existing camera sweep, not be fitted separately to each view.
+- **Treat original post/gamma integration as conditional.** Existing final-image
+  comparisons show only modest improvement in the four checked weather/views:
+  RGB RMSE improves from 0.1040 to 0.0996 and 0.1124 to 0.1113 for evening;
+  0.0835 to 0.0765 and 0.0667 to 0.0641 for rain. Reassess after the lighting
+  correction. Those tests use content version 1, not the final version-5 pack.
+- **Keep the visible fixes and moving-rain check.** Geometry coverage, texture
+  streaming/material response, broad lighting/colour/fog character, and rain
+  density/speed/direction/coverage matter in play. Exact grain samples, individual
+  drop positions, tiny AO differences and D24 round-trip equality do not.
+- **Keep the wide visual sweep.** It catches holes, seams, dark regions and bad
+  materials across the map. Use a small representative set while iterating and
+  run the wide native comparison on the selected candidate. It is not a demand
+  for zero pixel error.
+
+The unvalidated `VLM011E1` producer-replay expansion has been removed from the
+working change. Its draft is preserved outside the repositories at
+`/tmp/v011-weather-reference/parked-producer-replay/`. Shared `post_replay.h`,
+`replay_post_command.c` and `replay_probe_011e.py` are restored exactly to tested
+porter checkpoint `630b5ff`. No new producer replay was executed or claimed.
+Existing replay tools and disabled diagnostic owners remain available for
+investigation; they are not production game hooks. Avoid deleting established
+shared diagnostics or other map work simply to reduce this feature's line count.
+
+The already-running read-only producer capture finished before this review:
+`/tmp/v011-weather-reference/probe-producers-v2/`, completion SHA256
+`8aa6a289a567effd56c5a130272def8d8bbfc2338a0e51fedf245bb4dfaff824`.
+All 14,006 frozen files, source snapshots, pinned binaries and four actual camera
+requests were verified. Across the four captured ambient segments there are
+four skylight draws, 50 index draws, 50 masks and 50 lighting draws.
+The recorder also observes later non-ambient masks; the ordered log distinguishes
+them. First attempt `probe-producers/` exceeded the old 30-second per-pose limit
+and is preserved. The retry uses the explicit 120-second readback timeout.
+The observer compiled with warnings as errors and both capture jobs exited 0.
+This is source evidence only; full producer replay and production integration
+are intentionally deferred. Original references remain immutable.
+
+The immediate next experiment is a bounded visual A/B of the simpler native
+lighting path with corrected weather inputs. The current final images are still
+materially too dark: rainy views with the post bridge have mean display luma
+0.0775/0.0969 against source 0.1299/0.1507. Accepting small differences does not
+make those large deficits acceptable. No weather PR, merge, release or final
+play validation has been completed.
+
+Porter checkpoint for this scope review and completed read-only captures:
+`352843f`. The shared replay implementation remains the verified `630b5ff`
+version; no producer-replay expansion or production renderer change is included.
