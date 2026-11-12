@@ -6101,3 +6101,5 @@ va	name	location	role	basis
 0x0001dcd0	vostok::console_commands::cc_u32::cc_u32	entry ESP+24	command kind	observed
 0x003cd300	vostok::render::render_cc_u32::execute	ECX	cc_u32 object receiver at render command +10h	observed
 0x003cd300	vostok::render::render_cc_u32::execute	entry ESP+4	arguments string	observed
+0x001f01b0	survarium::open_file_impl	EAX	synchronous device wrapper	observed
+0x001f01b0	survarium::open_file_impl	ESI	resolved replay path (NUL-terminated ANSI)	observed

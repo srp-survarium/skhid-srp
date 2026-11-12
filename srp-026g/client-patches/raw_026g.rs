@@ -840,6 +840,10 @@ unsafe extern "C" {
     pub static engine_file_time_to_local_file_time: unsafe extern "stdcall" fn(*const u32, *mut u32) -> u32;
     /// the IAT slot 0x87022c (an import, stdcall): unsigned int engine_file_time_to_system_time(const unsigned int *file_time, unsigned int *system_time)
     pub static engine_file_time_to_system_time: unsafe extern "stdcall" fn(*const u32, *mut u32) -> u32;
+    /// the IAT slot 0xaeff30 (an import, stdcall): unsigned int engine_message_box_a(void *window, const char *text, const char *title, unsigned int flags)
+    pub static engine_message_box_a: unsafe extern "stdcall" fn(*mut c_void, *const u8, *const u8, u32) -> u32;
+    /// the IAT slot 0x87020c (an import, stdcall): void engine_exit_process(unsigned int code)
+    pub static engine_exit_process: unsafe extern "stdcall" fn(u32);
 }
 
 /// A survarium::player_input_handler (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -21314,6 +21318,54 @@ impl LogState {
     }
 }
 
+/// A vostok::file_open_options (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FileOpenOptions(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl FileOpenOptions {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (u32): 4179F passes to path normalization; 400D5 tests before file-open assertion
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn assert_on_failure(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::replay_path (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ReplayPath(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ReplayPath {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u8): Resolved ANSI replay path, caller-owned 260-byte buffer (1F02C0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn bytes(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x0).cast::<u8>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -25652,6 +25704,36 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
+        }
+    }
+
+    /// replay.before_open (0x1f0245): open_file_impl: EDI local open options, ESI resolved path; replay separator initialization before native open
+    pub mod replay_before_open {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a vostok::file_open_options (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn options(machine: &impl Machine) -> Option<FileOpenOptions> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(FileOpenOptions)
+        }
+    }
+
+    /// replay.open_result (0x1f02a3): open_file_impl epilogue: AL native open result, ESI resolved path; REPLAY_OPEN_RESULT routes failures here too
+    pub mod replay_open_result {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::replay_path (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn path(machine: &impl Machine) -> Option<ReplayPath> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(ReplayPath)
         }
     }
 }

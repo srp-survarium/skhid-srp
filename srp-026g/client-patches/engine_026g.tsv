@@ -253,4 +253,6 @@ engine_log_write	0x111d10	ESI:helper ESP+4:format ESP+8:arguments	void engine_lo
 engine_create_file_w	-	-	void *engine_create_file_w(const unsigned short *name, unsigned int access, unsigned int share, void *security, unsigned int disposition, unsigned int flags, void *template_file)	dynamic
 engine_set_file_pointer	-	-	unsigned int engine_set_file_pointer(void *file, unsigned int distance, void *high, unsigned int method)	dynamic
 engine_cc_u32	0x01dcd0	EAX:object ESP+4:name ESP+8:value ESP+12:minimum ESP+16:maximum ESP+20:saved ESP+24:kind	void engine_cc_u32(void *object, const char *name, unsigned int *value, unsigned int minimum, unsigned int maximum, unsigned int saved, unsigned int kind)	thunk	
-engine_render_u32_execute	0x3cd300	ECX:object ESP+4:arguments	void engine_render_u32_execute(void *object, const char *arguments)	thunk	
+engine_render_u32_execute	0x3cd300	ECX:object ESP+4:arguments	void engine_render_u32_execute(void *object, const char *arguments)	thunk
+engine_message_box_a	0xaeff30	-	unsigned int engine_message_box_a(void *window, const char *text, const char *title, unsigned int flags)	import
+engine_exit_process	0x87020c	-	void engine_exit_process(unsigned int code)	import

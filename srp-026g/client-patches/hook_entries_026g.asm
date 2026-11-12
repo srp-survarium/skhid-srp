@@ -6256,6 +6256,84 @@ ragdoll_on_killed_replay:
     db 0x8b, 0x86, 0x20, 0x01, 0x00, 0x00
     jmp 0x2da3e5
 
+; 0x1f0245 open_file_impl: EDI local open options, ESI resolved path; replay separator initialization before native open: lohook -> replay_file_before_open
+global replay_file_before_open
+extern hook_replay_file_before_open
+replay_file_before_open:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_replay_file_before_open
+    mov edx, replay_file_before_open_replay
+    cmp eax, 0
+    je replay_file_before_open_go
+    mov edx, 0x1f024d
+    cmp eax, 1
+    je replay_file_before_open_go
+    ud2
+replay_file_before_open_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+replay_file_before_open_replay:
+    db 0xc6, 0x84, 0x24, 0x54, 0x01, 0x00, 0x00, 0x5c
+    jmp 0x1f024d
+
+; 0x1f02a3 open_file_impl epilogue: AL native open result, ESI resolved path; REPLAY_OPEN_RESULT routes failures here too: lohook -> replay_file_open_result
+global replay_file_open_result
+extern hook_replay_file_open_result
+replay_file_open_result:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_replay_file_open_result
+    mov edx, replay_file_open_result_replay
+    cmp eax, 0
+    je replay_file_open_result_go
+    mov edx, 0x1f02a8
+    cmp eax, 1
+    je replay_file_open_result_go
+    ud2
+replay_file_open_result_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+replay_file_open_result_replay:
+    db 0x8b, 0x44, 0x24, 0x10, 0x5f
+    jmp 0x1f02a8
+
 ; 0x25cd00 game_world::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,0Ch): ECX the game world's input handler, ESP+8 the key, +0Ch its kind; taken is its `ret 0Ch` (AL the answer: 1 the key is taken, the player's handler not told): lohook -> voice_on_key
 global voice_on_key
 extern hook_voice_on_key_chain

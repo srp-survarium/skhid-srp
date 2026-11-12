@@ -226,6 +226,8 @@ global engine_log_helper
 global engine_log_write
 global engine_cc_u32
 global engine_render_u32_execute
+global engine_message_box_a
+global engine_exit_process
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -312,6 +314,8 @@ engine_bio_write equ 0x44c740   ; 0x44c740 BIO_write: bio ESP+4, bytes ESP+8, le
 engine_err_put_error equ 0x44a270   ; 0x44a270 ERR_put_error: library ESP+4, function ESP+8, reason ESP+12, file ESP+16, line ESP+20; pops 0; cdecl, called directly
 engine_rand_bytes equ 0x46b6e0   ; 0x46b6e0 ssleay_rand_bytes: room ESP+4, length ESP+8; pops 0; EAX; cdecl, called directly
 engine_cc_delegate_execute equ 0xec830   ; 0xec830 vostok::console_commands::cc_delegate::execute: command ECX, arguments ESP+4; pops 4; thiscall, called directly
+engine_message_box_a equ 0xaeff30   ; the IAT slot 0xaeff30 (an import, stdcall)
+engine_exit_process equ 0x87020c   ; the IAT slot 0x87020c (an import, stdcall)
 
 engine_options_int:
     ; 0x261100 survarium::options_item_int::options_item_int: parent ECX, id EAX, receiver ESP+4, command ESP+8, values ESP+12, count ESP+16; pops 16; EAX

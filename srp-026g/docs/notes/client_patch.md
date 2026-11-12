@@ -3590,3 +3590,39 @@ it omits the five voice commands already registered by main's unchanged
 `vostok/voice.rs` (`srp_voice_mutes`, `g_hide_spam`, `s_use_microphone`,
 `s_mic_sens`, `s_chat_volume`). Its failure is separate from Distance detail;
 the latter registers in the renderer's command setup, not configs.start.
+
+
+### Replay file-open errors (2026-11-12, patch 141; unreleased)
+
+The report `SRP-crash-20261112-144111-401-p3908-t2952-0.zip` names revision 56,
+`survarium_skhid.exe` SHA prefix `44f7456fde7c`, and breakpoint `0x40141`.
+Its game log explicitly reports `failed opening file:Z:\full\path\to\x.sur`.
+The example path was passed literally; replay simulation had not started.
+
+Stock 0.26g SHA-256 remains
+`ac33d9937015c2299bf62cc6b127cb308b48a3475b30fff2ddd65479ae3bf153`.
+`0x1F01B0` is **observed** `survarium::open_file_impl`, from its diagnostic at
+`0x9FAE88` and `replay_match_reader.cpp` at `0x9FAEA4`. EAX is the synchronous
+device wrapper, ESI the resolved ANSI path; EAX returns the handle, `ret` pops
+zero. Its two direct callers are `0x1F05BA` and `0x1F0885`, after path resolution
+through `0x1F02C0`. The re-kit records this promotion and its inputs/result.
+
+At `0x1F0245`, EDI points to the local open options. Offset +8 controls assertions:
+`0x4179F` forwards it to path normalization, and `0x400D5` tests it before the
+Windows file-open assertion. `replay.before_open` sets only that field to zero;
+the original separator initialization and call at `0x1F024D` still execute.
+`REPLAY_OPEN_RESULT` changes `75 4D` at `0x1F0254` to `EB 4D`, routing both
+results around the reader's second assertion. `replay.open_result` at
+`0x1F02A3` consumes AL before the epilogue loads the handle. Success replays
+`mov eax,[esp+10h]; pop edi`; failure copies at most 259 path bytes, shows
+MessageBoxA (existing delay-import slot `0xAEFF30`) and calls ExitProcess(1)
+(existing import `0x87020C`). These calls use generated engine bindings.
+No global assertion state, file-system code, or replay data format changes.
+The earlier candidate hook at `0x1F0256` was rejected because its instruction
+contains a base relocation; neither installed hook contains one.
+
+Validation: the focused Unicorn check runs actual native reader/options/open
+instructions and generated Rust glue. It covers ordinary success, open failure,
+normalization failure, spaces, UNC, CP1251 Cyrillic and 259-byte paths, preserving
+stack/SSE and checking the shared file-open function is byte-identical. Windows
+calls and normalization services are stubbed. This is not a full-game play test.

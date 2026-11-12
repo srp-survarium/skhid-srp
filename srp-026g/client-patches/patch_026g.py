@@ -1441,6 +1441,9 @@ ACTION_STATE_VA = 0x242460                    # player_input_handler: the state 
 RUST_PATCHES = tuple(toml["name"] for toml in hooks_026g.read_tomls())
 
 
+# Replay reader: both open outcomes reach the Rust result hook.
+REPLAY_OPEN_RESULT = (0x1F0254, b"\x75\x4D", b"\xEB\x4D")
+
 def rust_hooks(original):
     """The Rust hooks' installs (site VA, the bytes replaced, the entry's
     arena symbol, the opcode): a span hook's bytes read from `original`, the
@@ -4126,6 +4129,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             # `.srpx`, the arena (linked above, with patch 48's code): each
             # hook's target taken from the link by its symbol.
             if linked is not None:
+                patch(data, *REPLAY_OPEN_RESULT)
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
                         + KILL_FEED_HOOKS + WEIGHT_UI_HOOKS + BULLET_BOUNDS_HOOKS \
                         + MATCH_STAT_MAP_HOOKS + AUDIO_DEVICE_HOOKS + WORLD_SECTIONS_HOOKS + DETAIL_HOOKS + rust_hooks(original):
