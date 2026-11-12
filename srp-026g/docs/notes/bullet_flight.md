@@ -13,7 +13,12 @@ game computes a bullet in the lockstep. See also `player_bots_weapons.md`, `dama
 Its id, shooter and weapon slot; **the current segment's** start position, start velocity and born time (a change
 of course starts a new segment, `change_trajectory` 0x32EE20: born + floor(1000 t), life 0); the life time in the
 segment, the flown distance (the steps' chords, all segments), the damage and pierce as they stand, the two damage
-speeds, the largest damage dealt, the pellet number, the count of changes of course and of ricochets. The current
+speeds, the largest damage dealt, the pellet number, the count of changes of course and of ricochets, and **the
+ammunition's ordinal**: the index in the weapon's list of the kit's slots 8, 9, 11, 12, 19, 20, 21, 22 (in that
+order, the table 0x928780) that hold an ammunition the weapon takes (`inventory_cook::on_subresources_loaded`
+0x2C78AC..0x2C799A, `weapon_core::set_ammo_slots` 0x2E41D0, read back by `ammo_by_ordinal` 0x2E2750): which
+stack the round came from, so the round is that slot's item (in range in 96,474 of 96,474 bullets; no kit of
+the samples holds two different rounds for one weapon). The current
 position and velocity are not saved (rebuilt from the segment at a load). The manager holds the generator of the
 turns (x 0x08088405 + 1, saved), gravity (0, -9.81, 0) and its time.
 
@@ -117,6 +122,6 @@ front-face rule for the map.
 
 A mirrored placement's faces; whether a ray starting inside a hit box reports an exit hit (it could change no
 record); the clock of a bullet that changes course several times in one tick (2,805 of 76,405 records off the
-floored millisecond); 60 pairs off the simulated steps by more than 2 mm; the saved ammunition ordinal's mapping;
+floored millisecond); 60 pairs off the simulated steps by more than 2 mm;
 the materials' ricochet and dispersion keys' values (in the players' resources.db only); the pose of the hit boxes
 at a hit (not ported); the parallel tick at 256 bullets or more (never reached: at most 105 in a world).
