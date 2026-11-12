@@ -4013,7 +4013,7 @@ only, hides the crosshair, and shows the Tab map's names without Alt (Alt hiding
 group by the main menu alone. Interface only: no simulation change. `check_hud_options_026g.py`
 runs the hooks from the game's code; `../scripts/hud-options/check.sh` the movies in Ruffle.
 
-## Artefact score (patch 80, unreleased)
+## Artefact score (patch 141, unreleased)
 
 An anomaly's artefact scores 15 taken into an empty artefact slot, 5 with every
 slot full (the owner, 2026-10-29; `docs/notes/artefact-score.md`). The game
@@ -5562,3 +5562,18 @@ Implemented and tested in emulation; not played or released. Texture reload,
 save/restart and FPS/RAM/VRAM costs still need a running-client check.
 
 Run the combined native and menu regression with `tools/check distance-detail`.
+
+
+## Replay file errors (patch 141, unreleased)
+
+A replay file that cannot be opened now shows **Couldn't open replay**, the
+attempted path, and instructions to check the file and replace an example
+command-line path with the real path in quotes. Closing the message exits only
+that replay process with code 1, without the native assertion/crash dialog.
+
+The Rust `replay_file` hooks change only the replay reader's open options and
+result handling. Successful opens use the original native file handle. The
+shared file-system function is unchanged. `check_replay_file_026g.py` exercises
+the original reader and Windows open code, with OS operations stubbed.
+See `docs/notes/client_patch.md`, "Replay file-open errors", for evidence and
+current integration limits. No release revision is changed or reserved.

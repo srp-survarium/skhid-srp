@@ -2546,4 +2546,5 @@ va	name	source	ret_cleanup	result
 0x00261100	survarium::options_item_int::options_item_int	manual	16	EAX receiver
 0x001cc470	grass_patch_select_model_lod	manual	0	EAX LOD index, 0xAA when LOD0 is absent
 0x0001dcd0	vostok::console_commands::cc_u32::cc_u32	manual	24	
-0x003cd300	vostok::render::render_cc_u32::execute	manual	4	
+0x003cd300	vostok::render::render_cc_u32::execute	manual	4
+0x001f01b0	survarium::open_file_impl	manual	0	EAX file handle
