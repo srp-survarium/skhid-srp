@@ -835,9 +835,11 @@ mod tests {
     /// - `from_0`, `from_1`: the cost of the way from that side's spawns over the grid's links (empty: none);
     /// - `goal_0`, `goal_1`: whether a bot of that side may have it as a goal (`Tactics::fine_goal`'s test of the floor:
     ///   walkable, off hazards and the other side's spawn area);
-    /// - `surface_dy`: with no floor, the walker collision's surface under the feet (its height less the feet's, looked
-    ///   for from half a metre over them to 1.5 m under; empty: none, the body was in the air or on something the map's
-    ///   walker collision does not have);
+    /// - `surface_dy`, `surface_dxz`: with no floor, the walker collision's surface under the body's footprint that is
+    ///   nearest the feet (its height less the feet's, looked for from half a metre over them to 1.5 m under, at the
+    ///   centre and on two rings out to the body's radius: a body stands on a ledge's edge or a box top that a ray at
+    ///   its centre misses) and how far from the centre it was found; empty: none, the body was in the air or on
+    ///   something the map's walker collision does not have;
     /// - `near_dxz`, `near_dy`: with no floor, the nearest reached floor within 2 m and 1.5 m of height;
     /// - `under_m`: how far under the floor the nearest floor a storey or more under it lies (the bench's rule for an
     ///   upper level, `tests::upper::storey_under`); empty: it is the lowest there.
@@ -862,8 +864,17 @@ mod tests {
         let col = |name: &str| head.iter().position(|h| *h == name).unwrap_or_else(|| panic!("no column {name}"));
         let (c_project, cx, cy, cz) = (col("project"), col("x"), col("y"), col("z"));
         let mut out = String::from(
-            "project\tx\ty\tz\tfloor_dxz\tfloor_dy\tstand\treached\treturns\tshut\tzone\tfrom_0\tfrom_1\tgoal_0\tgoal_1\tsurface_dy\tnear_dxz\tnear_dy\tunder_m\n",
+            "project\tx\ty\tz\tfloor_dxz\tfloor_dy\tstand\treached\treturns\tshut\tzone\tfrom_0\tfrom_1\tgoal_0\tgoal_1\tsurface_dy\tnear_dxz\tnear_dy\tunder_m\tsurface_dxz\n",
         );
+        let radius = crate::v026g::bots::tuning::Tuning::default().grid_body().radius;
+        let footprint: Vec<(f32, f32)> = std::iter::once((0.0, 0.0))
+            .chain([(0.5, 8), (1.0, 12)].into_iter().flat_map(|(share, n)| {
+                (0..n).map(move |i| {
+                    let a = i as f32 * std::f32::consts::TAU / n as f32;
+                    (radius * share * a.cos(), radius * share * a.sin())
+                })
+            }))
+            .collect();
         let mut current: Option<(String, Map)> = None;
         let flag = |b: bool| if b { "1" } else { "0" };
         for line in lines.filter(|line| !line.is_empty()) {
@@ -907,7 +918,7 @@ mod tests {
                     let goal = |team: i32| flag(map.tactics.walkable(node) && map.tactics.allowed(node, 0, Some(team), false));
                     let under = crate::v026g::bots::tests::upper::storey_under(grid, node).map_or(String::new(), |m| format!("{m:.1}"));
                     out.push_str(&format!(
-                        "{:.2}\t{:.2}\t{}\t{}\t{}\t{}\t{zone}\t{}\t{}\t{}\t{}\t\t\t\t{under}\n",
+                        "{:.2}\t{:.2}\t{}\t{}\t{}\t{}\t{zone}\t{}\t{}\t{}\t{}\t\t\t\t{under}\t\n",
                         at.distance_xz(p),
                         at.y - p.y,
                         flag(grid.can_stand(node)),
@@ -921,13 +932,20 @@ mod tests {
                     ));
                 }
                 None => {
-                    let surface = map
-                        .surface
-                        .ray_cast(p + Vec3::new(0.0, 0.5, 0.0), Vec3::new(0.0, -1.0, 0.0), 2.0)
-                        .map_or(String::new(), |t| format!("{:.2}", 0.5 - t));
+                    // A body stands on what is under any part of its footprint (a ledge's edge, a box top beside the
+                    // centre): the surface nearest the feet over the centre and two rings out to the body's radius.
+                    let surface = footprint
+                        .iter()
+                        .filter_map(|&(dx, dz)| {
+                            let from = p + Vec3::new(dx, 0.5, dz);
+                            let t = map.surface.ray_cast(from, Vec3::new(0.0, -1.0, 0.0), 2.0)?;
+                            Some((0.5 - t, dx.hypot(dz)))
+                        })
+                        .min_by(|a, b| a.0.abs().total_cmp(&b.0.abs()).then(a.1.total_cmp(&b.1)));
+                    let (surface, off) = surface.map_or((String::new(), String::new()), |(dy, r)| (format!("{dy:.2}"), format!("{r:.2}")));
                     let near = nearest(2.0, 1.5, &|node| grid.reached(node))
                         .map_or(String::from("\t"), |(_, at)| format!("{:.2}\t{:.2}", at.distance_xz(p), at.y - p.y));
-                    out.push_str(&format!("\t\t\t\t\t\t\t\t\t\t\t{surface}\t{near}\t\n"));
+                    out.push_str(&format!("\t\t\t\t\t\t\t\t\t\t\t{surface}\t{near}\t\t{off}\n"));
                 }
             }
         }
