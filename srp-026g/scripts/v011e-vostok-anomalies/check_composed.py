@@ -156,7 +156,9 @@ def check(reference, composed, packs):
 
 
 def check_research(reference, composed):
-    day4 = pack.bcw.read((composed / pack.project('v011e_level_03', 'day_4')).read_bytes())
+    day4 = without_ffa_spawns(
+        pack.bcw.read((composed / pack.project('v011e_level_03', 'day_4')).read_bytes()),
+        'v011e_level_03/day_4')
     day5 = pack.bcw.read((composed / pack.project('v011e_level_03', 'day_5')).read_bytes())
     expected_map = day4
     crate = 'ported/v011e/props/box/half_cover_rect'
