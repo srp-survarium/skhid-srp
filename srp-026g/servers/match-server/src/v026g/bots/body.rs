@@ -30,6 +30,7 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
+use mapdata::controller::tick::{Controller, TickInput};
 use mapdata::{LinkKind, NodeId, RayTree, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
@@ -104,6 +105,51 @@ pub struct Estimate {
     /// [A318] What the grid's slide alone would have added over the last advance's steps where [`ClientStep::Client`] took the
     /// client's walk tick instead (zero where none did): the stuck watch's meaning of the keys stays the grid's ([`BodyTrack::last_meant`]).
     pub grid_extra: GridExtra,
+    /// [A364 P9] The controller kept across the reckoned steps ([`ClientStep::Kept`]); none with the other modes, before the first
+    /// ground step and where the feet were placed otherwise since.
+    pub kept: Option<KeptBody>,
+}
+
+/// [A364 P9] A body's controller kept across ticks ([`ClientStep::Kept`]) and the feet it last gave the reckoning.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct KeptBody {
+    controller: Controller,
+    feet: Vec3,
+}
+
+/// [A364 P9] Feet this far (flat, m) from where the kept controller left them were placed by something else (a world's fix, a jump,
+/// a fall, the grid stopping short): the controller is set anew there.
+pub const KEPT_SAME_M: f32 = 0.05;
+
+/// [A364 P9] One reckoned ground step of the kept controller ([`ClientStep::Kept`]) from `feet`, asked to move `by` (flat): where its
+/// feet end (flat; the grid gives the height). None without the grid's walker.
+pub(crate) fn kept_step(grid: &WalkGrid, kept: &mut Option<KeptBody>, feet: Vec3, by: Vec3, keys: u32, sprinting: bool) -> Option<Vec3> {
+    let mut body = match kept.take() {
+        Some(body) if body.feet.distance_xz(feet) <= KEPT_SAME_M => body,
+        _ => KeptBody { controller: grid.kept_controller_at(feet)?, feet },
+    };
+    #[cfg(test)]
+    let started = std::time::Instant::now();
+    let input = TickInput {
+        walk: Vec3::new(by.x, 0.0, by.z),
+        air_control: Vec3::ZERO,
+        // Both legs broken (the damage model's +388h == 2) is not in the worlds the reckoning reads: the key alone.
+        crouch: mapdata::controller::tick::CrouchInput::Tested { key: keys & crate::v026g::drive::key::CROUCH != 0, legs_broken: false },
+        sprinting,
+    };
+    let start = body.controller.feet();
+    if !grid.kept_tick(&mut body.controller, input) {
+        return None;
+    }
+    #[cfg(test)]
+    client_steps::kept(started.elapsed().as_nanos() as u64);
+    // The controller's own move, from the reckoned feet: a controller set anew stands where the walk start placed it (out of the
+    // faces it overlapped), which is no move of the body.
+    let end = body.controller.feet();
+    let to = Vec3::new(feet.x + end.x - start.x, feet.y, feet.z + end.z - start.z);
+    body.feet = to;
+    *kept = Some(body);
+    Some(to)
 }
 
 /// [A318] The grid's own step less the client tick's, for one reckoned step: its flat length (m, may be negative) and its flat net.
@@ -204,6 +250,7 @@ impl Estimate {
             fall: Fall::Ground,
             step: None,
             grid_extra: GridExtra::default(),
+            kept: None,
         }
     }
 }
@@ -886,6 +933,7 @@ impl BodyTrack {
             scale: kin.pitch_scale,
             fall: Fall::Ground,
             grid_extra: GridExtra::default(),
+            kept: None,
             // [A318] The world's keys are input W's (PROVEN): the step before them takes input W-50's keys and the world's yaw
             // less input W's turn. [A325f] Those keys as the client takes them (the legs' gate, [`Self::as_taken`]).
             step: (kin.step_input == StepInput::Previous)
@@ -1099,6 +1147,11 @@ fn advance(
                         grid.client_step(at.feet, by).filter(|_| by.x.hypot(by.z) > 1e-4).map(|(from, end)| {
                             Vec3::new(at.feet.x + end.x - from.x, at.feet.y, at.feet.z + end.z - from.z)
                         })
+                    }
+                    // [A364 P9] Every ground step by the body's kept controller.
+                    (ClientStep::Kept, Role::Reckoning, false, Fall::Ground) => {
+                        let by = Vec3::new(to.x - at.feet.x, 0.0, to.z - at.feet.z);
+                        kept_step(grid, &mut at.kept, at.feet, by, step_keys, Kinematics::sprint_state(at.keys))
                     }
                     _ => None,
                 };
@@ -1351,6 +1404,19 @@ pub(crate) mod client_steps {
     static GROUND: AtomicU64 = AtomicU64::new(0);
     static HARD: AtomicU64 = AtomicU64::new(0);
     static MOVED: AtomicU64 = AtomicU64::new(0);
+    static KEPT: AtomicU64 = AtomicU64::new(0);
+    static KEPT_NS: AtomicU64 = AtomicU64::new(0);
+
+    /// [A364 P9] A kept controller's step and its time, ns.
+    pub(crate) fn kept(ns: u64) {
+        KEPT.fetch_add(1, Relaxed);
+        KEPT_NS.fetch_add(ns, Relaxed);
+    }
+
+    /// [A364 P9] Kept steps so far and their time, ns.
+    pub(crate) fn kept_all() -> (u64, u64) {
+        (KEPT.load(Relaxed), KEPT_NS.load(Relaxed))
+    }
 
     pub(crate) fn count() {
         COUNT.fetch_add(1, Relaxed);
@@ -2701,6 +2767,12 @@ pub(super) mod tests {
         assert!((walk(&bare, ClientStep::Client, 9.0) - plain).abs() < 1e-4, "no walker: as the grid");
         // On the flat floor (from x 1, 1.5 s at 3.5 m/s ends short of the stair): alike.
         assert!((walk(&walker, ClientStep::Client, 1.0) - walk(&walker, ClientStep::Grid, 1.0)).abs() < 1e-4);
+        // [A364 P9] The kept controller: up the stair short of the grid as the client's tick, on the flat as the grid, and without
+        // the walker as the grid.
+        let kept = walk(&walker, ClientStep::Kept, 9.0);
+        assert!(kept < plain - 0.3, "up the stair: kept {kept}, grid {plain}");
+        assert!((walk(&bare, ClientStep::Kept, 9.0) - plain).abs() < 1e-4, "no walker: as the grid");
+        assert!((walk(&walker, ClientStep::Kept, 1.0) - walk(&walker, ClientStep::Grid, 1.0)).abs() < 1e-3);
     }
 
     /// [A318] [`StepInput::Previous`] (the client's): the step into the feet at N moves with input N-100's keys and its yaw after

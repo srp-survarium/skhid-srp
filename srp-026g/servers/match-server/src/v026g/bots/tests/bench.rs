@@ -2482,6 +2482,8 @@ pub(crate) fn real_bot_cost() {
             eprintln!(
                 "client_step so far: reckoned ground steps {ground}, hard {hard}, client steps {client}, moved otherwise {moved}"
             );
+            let (kept, kept_ns) = crate::v026g::bots::body::client_steps::kept_all();
+            eprintln!("kept_step so far: steps {kept}, ns {kept_ns}, ns a step {}", kept_ns.checked_div(kept).unwrap_or(0));
         }
     }
 }

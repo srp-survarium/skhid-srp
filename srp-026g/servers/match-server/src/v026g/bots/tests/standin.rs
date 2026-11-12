@@ -382,6 +382,9 @@ pub(crate) struct Body {
     /// The tick a sprint run came to the face of a jump link up and was held there ([`lift_to`]); the lift takes
     /// [`LIFT_HOLD_MS`] of it.
     pub(crate) lift_since: Option<(u32, Option<f32>)>,
+    /// [A364 P9] The client's controller kept across its ground steps (`SRP_BENCH_STAND_IN_CLIENT_STEP=kept`,
+    /// [`standin_jump::stand_in_kept`]).
+    pub(crate) kept: Option<super::body::KeptBody>,
     /// The tick its walk last went down past a ledge's edge with no drop link ahead ([`standin_jump::past_edge`]): the falls
     /// probe tells such a fall from one down a drop link.
     pub(crate) past_edge_down: Option<u32>,
@@ -924,6 +927,7 @@ impl Game {
             step_m: 0.0,
             step_vec: Vec3::ZERO,
             lift_since: None,
+            kept: None,
             past_edge_down: None,
             slide_mps: None,
             legs: [0.5; 2],
@@ -1517,7 +1521,14 @@ impl Game {
                     };
                     // [A318] A step the lattice has rising or blocked goes as far as the client's own walk tick takes the body
                     // (`WalkGrid::client_step`), the lattice walking to that point: the reckoning's rule (`kin.client_step`).
-                    if super::standin_jump::stand_in_client_step()
+                    // [A364 P9] With `kept`, every ground step is the client's own controller kept across the body's steps (the
+                    // reckoning's `ClientStep::Kept`): the lattice walks to where it ends.
+                    if super::standin_jump::stand_in_kept() {
+                        let by = Vec3::new(to.x - body.feet.x, 0.0, to.z - body.feet.z);
+                        if let Some(walked) = body::kept_step(grid, &mut body.kept, body.feet, by, keys, sprint_state) {
+                            (node, feet, _) = walk_slide(grid, body.node.unwrap_or(node), body.feet, walked);
+                        }
+                    } else if super::standin_jump::stand_in_client_step()
                         && (feet.y - body.feet.y > body::STEP_UP_RISE_M || feet.distance_xz(target) > body::CLIENT_BLOCKED_M)
                     {
                         let by = Vec3::new(target.x - body.feet.x, 0.0, target.z - body.feet.z);

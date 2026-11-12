@@ -444,7 +444,7 @@ impl Default for Kinematics {
             edge: Edge::Client,
             drop_fall: DropFall::Client,
             step_input: StepInput::Previous,
-            client_step: ClientStep::Grid,
+            client_step: ClientStep::Kept,
             fix_fall: FixFall::World,
             open_edge_cost: 0.0,
             walk_off_landing: WalkOffLanding::BySpeed,
@@ -569,10 +569,8 @@ pub enum StepInput {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ClientStep {
-    /// The grid's slide alone (and [`SlopeSpeed`]): as it was. The default: on the bench world of #1446 (the store's grid tables
-    /// in the bench), [`Self::Client`]'s harm was worse (16 TDM pairs: jumps failed +36 %, stuck s +26 %, routes stuck +17 %). ON
-    /// again only after a harm on the final world with fx-grid's pulled-leg check.
-    #[default]
+    /// The grid's slide alone (and [`SlopeSpeed`]): as it was until A364 P9. On the bench world of #1446 (the store's grid tables
+    /// in the bench), [`Self::Client`]'s harm was worse (16 TDM pairs: jumps failed +36 %, stuck s +26 %, routes stuck +17 %).
     Grid,
     /// A reckoned step the grid has rising (more than `body::STEP_UP_RISE_M`) or ending short of where it was asked to go (a wall, a
     /// corner: `body::CLIENT_BLOCKED_M`) goes where the client's own walk tick takes the body from the same feet
@@ -581,6 +579,17 @@ pub enum ClientStep {
     /// reckoning against the worlds keep the grid's step where the client's tick held it short (`body::GridExtra`: the stuck
     /// watch, #1444; the hop).
     Client,
+    /// [A364 P9] Every reckoned ground step is the client's walk tick of ONE controller kept per body across ticks
+    /// (`mapdata::controller::tick::Controller::tick`, #1663: carried so, a traced body is the game's to the bit in 42 of 50 chains
+    /// of up to 17 s, its origin within 1 cm in 96.9 % of 8,993 steps, never 10 cm off: `docs/notes/exactness_rig.md` 3f), handed
+    /// the blend's displacement, the crouch key of the input it moves by and the sprint state of the newest; the grid then walks
+    /// to its feet, as with [`Self::Client`]. Made at the feet when the reckoning starts and set anew wherever something else
+    /// placed the feet (a world's fix, a jump, a fall: `body::KEPT_SAME_M`). Needs the grid's walker, else as [`Self::Grid`].
+    /// The default (correctness, `tuning::KEPT_RIGHT`): on the owner's 14 recordings the reckoned worlds over 0.2 m off went
+    /// 6.13 % -> 3.54 %; the step costs 10-20 us on the grid's walker (about 65,000 steps for 8 matches of 180 s: under 1 ms a
+    /// second a match).
+    #[default]
+    Kept,
 }
 
 /// [A318] How the reckoned body (`BodyTrack`, not the lip guard's stop forecast) comes down when its floor drops more than a step
