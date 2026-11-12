@@ -421,6 +421,9 @@ pub fn on_jittered(ctx: &mut Context<'_>) -> Flow<NoExit> {
         owner.frames = step(owner.frames, event, owner.pace);
         let Frames::Running(run) = owner.frames else { return None };
         owner.targets = Some(ThreadBound::new(thread, seam.targets()));
+        if let (Some(reset), Some(_)) = (run.reset, owner.look_every) {
+            line(&[Text("frame inputs: frame "), Dec(run.count), Text(": reset, "), Text(reset.name())]);
+        }
         if owner.wanted.has(Pieces::JITTER) {
             Some(run.now.jitter.of_projection(&unjittered, run.now.render))
         } else {
