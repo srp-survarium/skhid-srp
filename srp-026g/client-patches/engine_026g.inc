@@ -768,3 +768,17 @@ extern engine_respawn_point_clear
 ; void engine_respawn_points_push(struct respawn_point_vector *vector, struct respawn_point_core *const *point)
 ; 0x3174c0 vostok::buffer_vector<survarium::respawn_point_core *>::push_back: vector ESI, point ESP+4; pops 4
 extern engine_respawn_points_push
+; void engine_replay_seek_to(struct game *game, unsigned int target, unsigned int playing)
+; 0x1ee2e0 survarium::game::replay_seek_to: game ESI, target ESP+4, playing ESP+8; pops 8
+extern engine_replay_seek_to
+; void engine_follow_first_person(struct network_client *client, struct game_world *world, unsigned int place)
+; 0x26df70 survarium::base_local_network_client::follow_place_first_person: client ECX, world ESP+4, place ESP+8; pops 8; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_follow_first_person
+; void engine_show_replay_player(struct game_world_ui *ui, unsigned int shown)
+; 0x23a9d0 survarium::game_world_ui::show_replay_player: ui EDI, shown ESP+4; pops 4
+extern engine_show_replay_player
+; void engine_game_exit(struct game *game, const char *arguments)
+; 0x1ec730 survarium::game::exit: game ECX, arguments ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_game_exit

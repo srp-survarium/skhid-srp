@@ -293,6 +293,10 @@ unsafe extern "C" {
     pub fn engine_respawn_point_clear(point: Option<RespawnPointCore>, team: u32, players: Option<PlayerVector>) -> u32;
     /// 0x3174c0 vostok::buffer_vector<survarium::respawn_point_core *>::push_back: vector ESI, point ESP+4; pops 4
     pub fn engine_respawn_points_push(vector: Option<RespawnPointVector>, point: *mut Option<RespawnPointCore>);
+    /// 0x1ee2e0 survarium::game::replay_seek_to: game ESI, target ESP+4, playing ESP+8; pops 8
+    pub fn engine_replay_seek_to(game: Option<Game>, target: u32, playing: u32);
+    /// 0x23a9d0 survarium::game_world_ui::show_replay_player: ui EDI, shown ESP+4; pops 4
+    pub fn engine_show_replay_player(ui: Option<GameWorldUi>, shown: u32);
 }
 
 #[allow(dead_code)]
@@ -393,6 +397,10 @@ unsafe extern "thiscall" {
     pub fn engine_mt_free(allocator: Option<Pthreads3Allocator>, block: *mut c_void, function: *const u8, file: *const u8, line: u32);
     /// 0xec830 vostok::console_commands::cc_delegate::execute: command ECX, arguments ESP+4; pops 4; thiscall, called directly
     pub fn engine_cc_delegate_execute(command: Option<CcDelegate>, arguments: *const u8);
+    /// 0x26df70 survarium::base_local_network_client::follow_place_first_person: client ECX, world ESP+4, place ESP+8; pops 8; thiscall, called directly
+    pub fn engine_follow_first_person(client: Option<NetworkClient>, world: Option<GameWorld>, place: u32);
+    /// 0x1ec730 survarium::game::exit: game ECX, arguments ESP+4; pops 4; thiscall, called directly
+    pub fn engine_game_exit(game: Option<Game>, arguments: *const u8);
 }
 
 /// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_create_instance(const void *info, const void *allocator, void **instance)
@@ -1144,6 +1152,33 @@ impl Game {
     #[inline(always)]
     pub unsafe fn map_name(self) -> BufferString {
         BufferString(unsafe { self.0.byte_add(0x55e0) })
+    }
+
+    /// +0x53c8 (ptr<survarium::replay_match_reader>): the .sur replay's reader: only -match_replay makes it (game::on_base_resources_created 0x1EB363); 0 in a live match, where game::tick reads no replay (0x1ECB7F..0x1ECB98) and the seek is never called (replay_seek_to 0x1EE2E0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn replay_reader(self) -> Option<ReplayMatchReader> {
+        unsafe { self.0.byte_add(0x53c8).cast::<Option<ReplayMatchReader>>().read_volatile() }
+    }
+
+    /// +0x53c8 (ptr<survarium::replay_match_reader>): the .sur replay's reader: only -match_replay makes it (game::on_base_resources_created 0x1EB363); 0 in a live match, where game::tick reads no replay (0x1ECB7F..0x1ECB98) and the seek is never called (replay_seek_to 0x1EE2E0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_replay_reader(self, value: Option<ReplayMatchReader>) {
+        unsafe { self.0.byte_add(0x53c8).cast::<Option<ReplayMatchReader>>().write_volatile(value) }
+    }
+
+    /// +0x5854 (u32): the game's clock, ms: game::tick sets it to the frame's time (0x1ECC47), set_time_in_ms to a seek's (0x1EE4F4); in a replay the match's time, which game::tick reads the replay to (0x1ECB93)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn clock(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x5854).cast::<u32>().as_ptr() }
     }
 }
 
@@ -21964,6 +21999,39 @@ impl KdEventFrame {
     #[inline(always)]
     pub unsafe fn time(self) -> *mut u32 {
         unsafe { self.0.byte_add(0xc).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::replay_match_reader (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ReplayMatchReader(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ReplayMatchReader {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x688 (u32): the replay's first time, the match's ms (its body's first record; 0x1F0D20 writes it and the end, called from the reader's constructor at 0x1F0779): replay_seek_to adds it to its target (0x1EE2EF), the movie's length is the end less it (0x219331)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn start(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x688).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x68c (u32): the replay's last time (its last record, 0x1F0D20 at 0x1F0779): once the frame's time reaches it game::tick seeks to the start and pauses (0x1ECB9E..0x1ECBB6)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn end(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x68c).cast::<u32>().as_ptr() }
     }
 }
 

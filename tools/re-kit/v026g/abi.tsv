@@ -2557,3 +2557,6 @@ va	name	source	ret_cleanup	result
 0x00233680	survarium::match_hud_state::match_hud_state	manual	0	EAX: the state (ESI)
 0x00013da0	vostok::engine::engine_world::command_line_editor	manual	0	AL the byte at 0x225FD56 (zero-initialised .data, no writer in the image)
 0x003cd310	vostok::render::render_cc_u32::is_changed	manual	0	AL 1 when the value differs from its previous copy, else 0
+0x0026df70	survarium::base_local_network_client::follow_place_first_person	manual	8	
+0x0023a9d0	survarium::game_world_ui::show_replay_player	manual	4	
+0x001ec730	survarium::game::exit	manual	4	

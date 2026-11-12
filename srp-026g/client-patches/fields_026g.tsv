@@ -1179,3 +1179,7 @@ survarium::kd_stats_rule	core	0x1B4	ptr<survarium::core_world>	the owning world,
 survarium::kd_event_frame	event	0x4	u32	on_event first argument: event 1 is a death, 0x3237E0
 survarium::kd_event_frame	time	0xC	u32	on_event third argument: completed world time, dispatched by 0x2D1EC0
 survarium::pvp_match	options	0x124	ptr<survarium::match_options>	borrowed match options (constructor 0x2D55B0 argument +10h); lj_native_install updates this roster, UI 0x23B42C..0x23B435 reads it
+survarium::game	replay_reader	0x53C8	ptr<survarium::replay_match_reader>	the .sur replay's reader: only -match_replay makes it (game::on_base_resources_created 0x1EB363); 0 in a live match, where game::tick reads no replay (0x1ECB7F..0x1ECB98) and the seek is never called (replay_seek_to 0x1EE2E0)
+survarium::game	clock	0x5854	u32	the game's clock, ms: game::tick sets it to the frame's time (0x1ECC47), set_time_in_ms to a seek's (0x1EE4F4); in a replay the match's time, which game::tick reads the replay to (0x1ECB93)
+survarium::replay_match_reader	start	0x688	u32	the replay's first time, the match's ms (its body's first record; 0x1F0D20 writes it and the end, called from the reader's constructor at 0x1F0779): replay_seek_to adds it to its target (0x1EE2EF), the movie's length is the end less it (0x219331)
+survarium::replay_match_reader	end	0x68C	u32	the replay's last time (its last record, 0x1F0D20 at 0x1F0779): once the frame's time reaches it game::tick seeks to the start and pauses (0x1ECB9E..0x1ECBB6)

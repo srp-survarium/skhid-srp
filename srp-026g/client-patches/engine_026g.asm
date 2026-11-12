@@ -230,6 +230,10 @@ global engine_message_box_a
 global engine_exit_process
 global engine_respawn_point_clear
 global engine_respawn_points_push
+global engine_replay_seek_to
+global engine_follow_first_person
+global engine_show_replay_player
+global engine_game_exit
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -318,6 +322,8 @@ engine_rand_bytes equ 0x46b6e0   ; 0x46b6e0 ssleay_rand_bytes: room ESP+4, lengt
 engine_cc_delegate_execute equ 0xec830   ; 0xec830 vostok::console_commands::cc_delegate::execute: command ECX, arguments ESP+4; pops 4; thiscall, called directly
 engine_message_box_a equ 0xaeff30   ; the IAT slot 0xaeff30 (an import, stdcall)
 engine_exit_process equ 0x87020c   ; the IAT slot 0x87020c (an import, stdcall)
+engine_follow_first_person equ 0x26df70   ; 0x26df70 survarium::base_local_network_client::follow_place_first_person: client ECX, world ESP+4, place ESP+8; pops 8; thiscall, called directly
+engine_game_exit equ 0x1ec730   ; 0x1ec730 survarium::game::exit: game ECX, arguments ESP+4; pops 4; thiscall, called directly
 
 engine_options_int:
     ; 0x261100 survarium::options_item_int::options_item_int: parent ECX, id EAX, receiver ESP+4, command ESP+8, values ESP+12, count ESP+16; pops 16; EAX
@@ -2703,6 +2709,39 @@ engine_respawn_points_push:
     push dword [esp + 24]   ; point -> 4
     mov esi, [esp + 24]   ; vector
     call 0x3174c0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_replay_seek_to:
+    ; 0x1ee2e0 survarium::game::replay_seek_to: game ESI, target ESP+4, playing ESP+8; pops 8
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; playing -> 8
+    push dword [esp + 28]   ; target -> 4
+    mov esi, [esp + 28]   ; game
+    call 0x1ee2e0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_show_replay_player:
+    ; 0x23a9d0 survarium::game_world_ui::show_replay_player: ui EDI, shown ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; shown -> 4
+    mov edi, [esp + 24]   ; ui
+    call 0x23a9d0
     pop edi
     pop esi
     pop ebx

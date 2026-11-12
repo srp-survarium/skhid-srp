@@ -2811,6 +2811,21 @@ pub extern "C" fn hook_voice_on_frame(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- replay_director (patch 143) ----
+
+/// The entry `replay_director_on_move` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_replay_director_on_move(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `replay_director_on_move` calls this, from the game's jump at 0x1f7c3c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::replay_director::on_move(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- subtick_hits (patch 103) ----
 
 /// The entry `subtick_hits_on_ray` (0x32d627, check_collision after the bullet's ray_test (movq of its result; EAX the result, EDI the bullet)) calls this with the saved machine.
@@ -4999,6 +5014,8 @@ pub extern "C" fn hook_ragdoll_on_step_chain(frame: &mut Frame) -> u32 {
     let flow = hook_replay_keys_on_move(frame);
     if flow != 0 { return flow; }
     let flow = hook_voice_on_frame(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_replay_director_on_move(frame);
     if flow != 0 { return flow; }
     0
 }

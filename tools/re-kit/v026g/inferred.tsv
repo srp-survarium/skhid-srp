@@ -3473,3 +3473,4 @@ va	status	ref_021d	name
 0x002f4580	inferred-medium		survarium::respawn_point_core::load
 0x00267b10	inferred-high		survarium::timelimit_rule::fill_match_hud_state
 0x00233680	inferred-medium		survarium::match_hud_state::match_hud_state
+0x0023a9d0	inferred-medium		survarium::game_world_ui::show_replay_player

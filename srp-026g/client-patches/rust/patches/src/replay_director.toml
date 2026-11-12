@@ -1,0 +1,14 @@
+# Patch 143: a replay plays one player's moment, unattended
+# (docs/notes/replay-director.md). Only the decisions: which site, and the
+# handler. The logic is replay_director.rs; nothing happens without
+# SKHID_REPLAY_DIRECTOR, and a live match has no replay.
+name = "replay_director"
+patch = 143
+
+# game_world::tick after the simulation's move: the seek, the follow and
+# the quit at the frame's end, after replay_keys' (a seek there is the
+# replay player's own, docs/notes/replay-keys.md).
+[[hook]]
+site = "game_world.after_move"
+handler = "on_move"
+order = 4

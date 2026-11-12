@@ -614,6 +614,12 @@ Patches:
   told to the replay player movie at the frame's end (game_world::tick after
   the move, 0x1F7C3C; root.srp_key), with the places in the match when they
   changed (root.srp_places). Nothing a match computes;
+- a replay plays one player's moment by itself (patch 143, replay_director;
+  docs/notes/replay-director.md): with SKHID_REPLAY_DIRECTOR=<place>,<from
+  ms>,<to ms>, at the frame's end (0x1F7C3C) the replay seeks to from
+  (0x1EE2E0), follows the place's player in the first person (0x26DF70),
+  hides its controls and cursor, and quits at to (game::exit 0x1EC730).
+  Nothing without the variable or in a live match, nothing a match computes;
 - a replay shows every enemy, spotted or not (patch 135, replay_map;
   docs/notes/replay-map.md): at update_minimap_players' spotted test
   (0x239505) a replay lists its dot (0x23951B); at render_name's (0x1F2B50)

@@ -258,3 +258,7 @@ engine_message_box_a	0xaeff30	-	unsigned int engine_message_box_a(void *window, 
 engine_exit_process	0x87020c	-	void engine_exit_process(unsigned int code)	import
 engine_respawn_point_clear	0x2f4800	ESI:point ESP+4:team ESP+8:players	unsigned int engine_respawn_point_clear(const struct respawn_point_core *point, unsigned int team, const struct player_vector *players)	thunk	
 engine_respawn_points_push	0x3174c0	ESI:vector ESP+4:point	void engine_respawn_points_push(struct respawn_point_vector *vector, struct respawn_point_core *const *point)	thunk	
+engine_replay_seek_to	0x1ee2e0	ESI:game ESP+4:target ESP+8:user	void engine_replay_seek_to(struct game *game, unsigned int target, unsigned int playing)	thunk	
+engine_follow_first_person	0x26df70	ECX:client ESP+4:world ESP+8:place	void engine_follow_first_person(struct network_client *client, struct game_world *world, unsigned int place)	thiscall	
+engine_show_replay_player	0x23a9d0	EDI:hud ESP+4:shown	void engine_show_replay_player(struct game_world_ui *ui, unsigned int shown)	thunk	
+engine_game_exit	0x1ec730	ECX:game ESP+4:arguments	void engine_game_exit(struct game *game, const char *arguments)	thiscall	

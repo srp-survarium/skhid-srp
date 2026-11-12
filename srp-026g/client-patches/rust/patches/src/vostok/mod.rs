@@ -163,5 +163,6 @@ pub mod match_close;
 mod world_context;
 
 pub mod replay_file;
+pub mod replay;
 pub mod respawn;
 pub use respawn::{Due, Point, PointIndex, RespawnSelect, ResupplySite, Side, TwoTeams};

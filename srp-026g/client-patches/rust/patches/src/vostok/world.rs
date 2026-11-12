@@ -77,6 +77,11 @@ impl<'t> GameWorld<'t> {
         Some(GameWorld { this, thread: ctx.thread() })
     }
 
+    /// The hook's thread it borrows.
+    pub(in crate::vostok) fn thread(&self) -> &'t Thread {
+        self.thread
+    }
+
     /// Its game's network client.
     pub fn network_client(&self) -> Option<NetworkClient<'t>> {
         // SAFETY: the world, its game and the game's client, alive for the hook.

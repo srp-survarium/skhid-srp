@@ -287,6 +287,10 @@ unsafe extern "C" {
     pub fn engine_respawn_point_clear(point: *const c_void, team: u32, players: *const c_void) -> u32;
     /// 0x3174c0 vostok::buffer_vector<survarium::respawn_point_core *>::push_back: vector ESI, point ESP+4; pops 4
     pub fn engine_respawn_points_push(vector: *mut c_void, point: *const *mut c_void);
+    /// 0x1ee2e0 survarium::game::replay_seek_to: game ESI, target ESP+4, playing ESP+8; pops 8
+    pub fn engine_replay_seek_to(game: *mut c_void, target: u32, playing: u32);
+    /// 0x23a9d0 survarium::game_world_ui::show_replay_player: ui EDI, shown ESP+4; pops 4
+    pub fn engine_show_replay_player(ui: *mut c_void, shown: u32);
 }
 
 #[allow(dead_code)]
@@ -387,6 +391,10 @@ unsafe extern "thiscall" {
     pub fn engine_mt_free(allocator: *mut c_void, block: *mut c_void, function: *const u8, file: *const u8, line: u32);
     /// 0xec830 vostok::console_commands::cc_delegate::execute: command ECX, arguments ESP+4; pops 4; thiscall, called directly
     pub fn engine_cc_delegate_execute(command: *mut c_void, arguments: *const u8);
+    /// 0x26df70 survarium::base_local_network_client::follow_place_first_person: client ECX, world ESP+4, place ESP+8; pops 8; thiscall, called directly
+    pub fn engine_follow_first_person(client: *mut c_void, world: *mut c_void, place: u32);
+    /// 0x1ec730 survarium::game::exit: game ECX, arguments ESP+4; pops 4; thiscall, called directly
+    pub fn engine_game_exit(game: *mut c_void, arguments: *const u8);
 }
 
 #[allow(dead_code, non_upper_case_globals)]

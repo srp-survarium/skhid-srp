@@ -153,6 +153,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/constant_upload.toml`, `constant_upload_026g.asm`, `check_constant_upload_026g.py` | Patch 134: shader constants cost the render thread less, the same bytes on the GPU: shader_constant_buffer::set_memory (0x11B5A0) copies 16 bytes at a time, not one, and update (0x3DDFD0) maps a buffer only when its bytes differ from the ones it last uploaded (four `code` hooks); its check runs set_memory on 4000 made-up cases in both exes (every register, XMM0..7 and the memory alike), the constructor, and 150 draws over four buffers with a model of the device context (the GPU's bytes after every update alike) (needs Unicorn) |
 | `rust/patches/src/replay_map.rs`, `src/replay_map.toml`, `src/vostok/ui.rs` (`GameWorldUi::at_enemy_ids`), `check_replay_map_026g.py` | Patch 135: a replay shows every enemy, spotted or not (`../docs/notes/replay-map.md`): its dot (update_minimap_players' spotted test, 0x239505), its marker and red name with Alt (render_name's, 0x1F2B50), the icons movie told `root.srp_show_enemies` before initialize_match's enemy list (0x235709); a replay known by the game's network client's class (`vostok::world::Playback`), no state of its own; its check runs the three sites in both exes (needs Unicorn) |
 | `rust/patches/src/replay_keys.rs`, `src/replay_keys.toml`, `src/vostok/world.rs` (`GameWorld::replay_player`, `places_in_match`), `src/vostok/keyboard.rs` (`GameWorldKey::replay_player`) | Patch 140: a replay's keys and the followed player's return (`../docs/notes/replay-keys.md`): at on_keyboard_action's start (0x25CD00) a key that goes down in a replay is kept, and at the frame's end (game_world::tick after the move, 0x1F7C3C) the replay player movie is told it (`root.srp_key`) and, when they changed, the places in the match (`root.srp_places`); a replay known by the game's network client's class, as patch 135 |
+| `rust/patches/src/replay_director.rs`, `src/replay_director.toml`, `src/vostok/replay.rs` (`GameWorld::replay`, `Replay`) | Patch 143: a replay plays one player's moment by itself (`../docs/notes/replay-director.md`): with `SKHID_REPLAY_DIRECTOR=<place>,<from ms>,<to ms>`, at game_world::tick after the move (0x1F7C3C) the replay seeks to `from` (0x1EE2E0), follows the place's player in the first person (0x26DF70, again whenever the camera is not on it), hides the replay's controls and cursor (0x23A9D0, 0x23A930) and quits at `to` (game::exit 0x1EC730); each step a line of `srp_patches.log`; a replay known by the game's network client's class and its replay reader |
 | `rust/patches/src/console_where.rs`, `src/console_where.toml`, `src/vostok/console.rs`, `check_console_where_026g.py` | Patch 133: the console command `where` (`~`, then `where`) prints the camera's character's place and look, one line to the console, to `Survarium_<user>.log` (the game's log, channel `game`) and to `srp_patches.log`: `where: map <project> (id <maps_dict id>) pos <x y z> [eye <x y z>] dir <x y z> yaw <deg> pitch <deg>` (`map` the loaded match's project as the data names it, e.g. `v021d_level_03/day_2`, and its maps_dict id, `map -` in the lobby or with no world; `pos` the player's simulated place, the map projects' coordinates; `eye` the camera's place when it is not `pos`; `dir` the view's forward, a unit vector; yaw from +Z towards +X, 0 to 360; pitch above the horizontal; "(N s ago)" for a view older than a second, "no camera yet" before any). The player is the one the camera is on (update_camera's: a spectated or replayed one too); always on. A cc_delegate of ours registered at on_configs_loaded's start, its vtable a generated copy of cc_delegate's with execute ours; the view kept by a lohook after update_camera's view update (0x1F3650); the line through the game's own log helper (0x111C90, 0x111D10). Its check runs the registration, update_camera and console_commands::execute in both exes (needs Unicorn; `../docs/notes/client_patch.md` section 3.81) |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
@@ -5565,6 +5566,36 @@ Nothing a match computes, and nothing in a live match: both hooks ask the game's
 its class (`vostok::world::Playback`) and do nothing without the replay client. Checked with the patch
 crate's tests (the key mapping) and in a game (2026-11-11, the owner's replay of match 0x1fe297e3:
 the keys, the merged list, 29 seeks without the history error). No Unicorn check.
+
+## A replay that plays one moment by itself (patch 143, unreleased)
+
+For a video of a moment of a match: the game plays a `.sur` replay from one time to another from
+one player's first person, unattended, and quits at the end (`../docs/notes/replay-director.md`).
+It is asked by the environment variable `SKHID_REPLAY_DIRECTOR=<place>,<from ms>,<to ms>` (the
+roster's place, the match's ms), read once at the first frame of a match; the engine refuses a
+command-line key it has not registered.
+
+- `game_world::tick` after the simulation's move (0x1F7C3C, the chain's order 4): at the replay's
+  first frame `game::replay_seek_to` (0x1EE2E0) to `from`, a user seek as the movie's
+  `update_position` makes it (0x233E2F); then every frame the place's player (or the player of a
+  place with the same roster name: a leave and a return) is followed in the first person with
+  `follow_place_first_person` (0x26DF70, what `select_player` with view 0 calls) whenever the
+  client's local player (+4, the camera's) is not it, and the replay player movie and the hud's
+  cursor are hidden (`show_replay_player` 0x23A9D0 and `show_cursor` 0x23A930 with 0, what F11
+  toggles in a replay).
+- At `to`, when `from` is past the replay's end, or when the clock goes back before `from` (the
+  game sends a replay at its end back to its start): `game::exit` (0x1EC730) with "quit", as
+  `replay_network_client::close_current_match` (0x2193D6).
+- The clock is the game's (`+5854h`), the replay's first and last times its reader's
+  (`[game+53C8h]+688h`, `+68Ch`). After the seek the clock steps back about 1.5 s; the window
+  begins when it is at `from` again (`watching from` in `srp_patches.log`).
+
+Nothing a match computes, and nothing without the variable or in a live match: the hook asks the
+game's network client for its class and the game for its replay reader, which only
+`-match_replay` makes. Checked with the patch crate's tests (the variable, the stages, the place
+followed) and in a game under Wine on a headless display (2026-11-12, a rev56 build with this
+patch: match 0x59bd5666, place 0, 57 000 to 122 000 ms, recorded to a video). No Unicorn check.
+Windows not run.
 
 
 ## Distance detail option
