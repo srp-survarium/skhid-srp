@@ -6332,3 +6332,9 @@ va	name	location	role	basis
 0x000b8010	btTriangleRaycastCallback::processTriangle	ECX	the callback: +10h from, +20h to, +30h flags, +34h m_hitFraction	observed
 0x00084040	vostok::physics::closest_ray_result_callback::addSingleResult	entry ESP+4	the LocalRayResult: +0 the object, +4 the shape info, +10h the normal, +20h the fraction	observed
 0x0007d2a0	vostok::physics::bullet_character_controller::step_forward_impl	ECX+204h	u8 sprinting: set, the move sweep is the simple tester 0x86490 whatever the console says (0x7D33D: cmp byte [+204h],0; jnz past the complex test 0x85A90); clear, the console's choice by +203h (crouched: [0x1F1D335], standing: [0xA72106])	observed
+0x00329710	survarium::player_stamina::spend_jump	EDI	stamina	observed
+0x002d6420	survarium::player_stamina::can_afford_jump	EDI	stamina	observed
+0x003296c0	survarium::player_stamina::subtract_clamped	ECX	stamina	observed
+0x003296c0	survarium::player_stamina::subtract_clamped	stack+4	amount	observed
+0x00329960	survarium::player_stamina::boost	EDI	stamina	observed
+0x00329960	survarium::player_stamina::boost	EAX	time_ms	observed
