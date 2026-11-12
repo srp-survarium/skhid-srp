@@ -22,13 +22,17 @@ The owner's rule and what it changes. Data: `gameplay/victory_items/default.opti
   animation follows it (the same lexeme; not traced to the mixer). The take state
   ends on the animation's end (`victory_item_core_animation_end_aware_state`,
   0.21d `victory_item_core_take_state::on_animation_end_impl`): the carry state
-  starts 0.1 s sooner. The battery itself is in hand at once, as before
-  (0x3007E0); the put state is made the same way with `put_time` (0x338F00).
+  starts 0.1 s sooner. The use's start (0x3007E0) only makes the battery the
+  PENDING held item: it is carried when the weapon's holster ends, `hide_time` /
+  (1 + the weapon-change modifier) after the press (`tick_active_object`
+  0x2D7650; `using_the_world.md`), and the take state runs from there. The put
+  state is made the same way with `put_time` (0x338F00).
 - **Who computes it:** the client, in the lockstep simulation (the item's state
   is serialized with the world, 0x344950): a match plays out otherwise. srp
   reads nothing of `states`.
 - **Bots:** no pick-up time in their code (they press use every 1.2 s until they
-  carry; `use_every_s`); nothing to change.
+  carry; `use_every_s`). The client's hold before carrying is the holster's, so
+  a press's outcome is known a holster later (`using_the_world.md`).
 - **Release:** the resources.db patch, made by `scripts/content-edit/content_edit.py`
   from `scripts/content-edit/battery.tsv` (with
   `gameplay/victory_items/` from the live server game data) and
