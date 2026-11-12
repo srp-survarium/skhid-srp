@@ -1,0 +1,32 @@
+[build]
+# 64-bit: NVIDIA ships DLSS (nvngx_dlss.dll) and NGX for x64 only. Its
+# standard library is built here (`build-std` below, from the toolchain's
+# `rust-src`), as the other Windows programs' is.
+target = "x86_64-pc-windows-msvc"
+target-dir = "target"
+
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld"
+# Microsoft's C runtime linked in (`+crt-static`: libcmt, as `cl /MT`, the
+# runtime NVIDIA's nvsdk_ngx_s.lib is built for), from SKHID_MSVC_LIB64
+# (build.rs), so the exe needs no runtime DLL beside it.
+#
+# Reproducible, as ../bugtrap: /Brepro stamps the exe with a hash of its
+# content, /DEBUG:NONE writes no PDB. No console window: the game starts it.
+rustflags = [
+    "-C", "target-feature=+crt-static",
+    "-C", "link-arg=/Brepro",
+    "-C", "link-arg=/DEBUG:NONE",
+    # Microsoft's and NVIDIA's libraries name PDBs of their own, which are not here.
+    "-C", "link-arg=/IGNORE:4099",
+    "-C", "link-arg=/SUBSYSTEM:WINDOWS,6.1",
+    "-C", "link-arg=/MANIFEST:EMBED",
+    "-C", "link-arg=/MANIFESTUAC:level='asInvoker' uiAccess='false'",
+]
+
+[profile.release]
+trim-paths = "all"
+
+[unstable]
+build-std = ["std", "panic_abort"]
+trim-paths = true
