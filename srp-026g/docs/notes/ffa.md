@@ -34,6 +34,17 @@ kills wins, no elimination phases (not 0.31's "The Last Stand"). His rules of th
   - No squads in the match: squad mates are opponents. The lobby squad itself stays.
   - Every other player is an enemy wherever the game compares teams: names, markers, minimap,
     kill feed, kills, assists, spotting.
+  - **Chat and voice** go by these sides, never by the seating:
+    - A team channel's line (6 or 7: the game picks it by the team of its lobby seat,
+      `social.md` §1.1) reaches the players on the sender's side of the match (the lobby's
+      `play::Side`, what `Core::side_played` answers): in a free-for-all the sender alone, whose
+      game shows it.
+    - The voice relay goes by the match's teams (`registry::voice_seat`): nobody hears anyone.
+    - The match's channel ("All") reaches every player of the match, as in any mode.
+    - The squad channel is the lobby squad's, whatever its members play: squad mates read each
+      other's squad lines while they are opponents here.
+    - The HUD is the game's own in this: its team tab is there, and a line typed in it reaches
+      nobody else.
   - The options a client is sent say so twice, and each check wants both or neither
     (`static_info::check_team`, `srp_validate::messages::options` in the client too): every
     place's team its own side, and srp's entry tag 3 with the kills that win (u16).

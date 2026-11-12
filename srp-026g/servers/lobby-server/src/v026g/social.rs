@@ -5,8 +5,9 @@
 //! - **Chat.** A line goes to the players it is for: the general channel
 //!   to everyone who subscribed to it, whatever their client's language
 //!   (as 0.21d's: the client shows a line by its channel byte alone);
-//!   private to the named player; match and team to the players the lobby
-//!   sent to the same match (and team); squad to the squad; srp's room
+//!   private to the named player; match to the players the lobby sent to
+//!   the same match, team to those of them on the sender's side of it
+//!   (`play::Side`: in a free-for-all nobody); squad to the squad; srp's room
 //!   channel (10) to the room's members (`room_chat`). Who that is
 //!   the server knows itself, so the channel id a client sends is not
 //!   trusted. Hidden senders produce no line; placeholder mutes receive
@@ -374,7 +375,7 @@ impl Core<'_> {
         let subscribed = |id: u32| id != 0 && id != u32::MAX;
         let squad = self.store.squads().of(who.account_id);
         let clan_mates = self.clan_chat_members(who.account_id, channel);
-        let team = in_match.and_then(|id| self.team_in_match(id, session_id));
+        let side = in_match.and_then(|id| self.side_played(id, session_id));
         let recipients: Vec<(SocketAddr, u32)> = self
             .players()
             .into_iter()
@@ -388,11 +389,13 @@ impl Core<'_> {
                     channel::PRIVATE => other.name.eq_ignore_ascii_case(receiver),
                     channel::GENERAL => subscribed(other.channel_ids[usize::from(channel)]),
                     channel::MATCH => same_match,
+                    // Who plays on the sender's side of the match: its
+                    // team; in a free-for-all nobody (`play::Side`).
                     channel::TEAM_1 | channel::TEAM_2 => {
                         same_match
-                            && team.is_some()
-                            && in_match.and_then(|id| self.team_in_match(id, other.session_id))
-                                == team
+                            && side.is_some()
+                            && in_match.and_then(|id| self.side_played(id, other.session_id))
+                                == side
                     }
                     channel::SQUAD => squad
                         .as_ref()
