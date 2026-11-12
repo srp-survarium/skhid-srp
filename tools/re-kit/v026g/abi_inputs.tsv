@@ -6317,3 +6317,6 @@ va	name	location	role	basis
 0x000d6cd0	btGjkPairDetector::getClosestPointsNonVirtual	entry ESP+4	the detector	observed
 0x000d6cd0	btGjkPairDetector::getClosestPointsNonVirtual	entry ESP+8	the input: transform A, transform B (+40h), the largest distance squared (+80h)	observed
 0x0008d680	btConvexShape::localGetSupportVertexWithoutMarginNonVirtual	ECX	the convex shape	observed
+0x000727b0	vostok::math::float4x4::set_scale	ECX	float4x4* the matrix, rows changed in place	observed
+0x000727b0	vostok::math::float4x4::set_scale	entry ESP+4	float3 const* the scale each row is given	observed
+0x00083600	vostok::physics::collision_shape_cook::create_primitives_shape	ESI	binary_config_value const* the primitives (rows of 18h bytes, count at +16h)	observed

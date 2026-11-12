@@ -37,6 +37,7 @@
 //! ```
 
 pub mod built;
+pub mod bullet;
 mod config;
 pub mod controller;
 pub mod digest;

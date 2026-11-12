@@ -28,6 +28,7 @@ use std::collections::HashMap;
 
 use binary_config_parser::ConfigValue;
 
+use crate::bullet::{object_transform, BulletWorld};
 use crate::config::{children, float3, float3_or, float3_req, i32_or, str_or};
 use crate::library::{Library, Materials, WalkerBehaviour};
 use crate::pierce::FaceArmor;
@@ -603,6 +604,9 @@ pub struct MapData {
     /// Each collision library a placement uses, once, in its own space.
     pub libraries: Vec<Library>,
     pub placements: Vec<Placement>,
+    /// The game's own Bullet shapes of the libraries and the placements' object transforms (`crate::bullet`);
+    /// `None` in a file older than version 6.
+    pub bullet: Option<BulletWorld>,
 }
 
 impl MapData {
@@ -617,6 +621,8 @@ impl MapData {
         let mut map = Self::from_config(project, &root)?;
         let mut names: HashMap<String, u32> = HashMap::new();
         let mut placements = Vec::new();
+        let mut shapes = Vec::new();
+        let mut objects = Vec::new();
         for object in children(&root, "collision_objects") {
             let filter_value = |key: &str| -> Result<u16, Error> {
                 u16::try_from(object.i32_at(key)?)
@@ -633,20 +639,28 @@ impl MapData {
                 Some(&index) => index,
                 None => {
                     let index = map.libraries.len() as u32;
-                    map.libraries
-                        .push(Library::load(resources, materials, lib_name)?);
+                    let (library, shape) = Library::load(resources, materials, lib_name)?;
+                    map.libraries.push(library);
+                    shapes.push(shape);
                     names.insert(lib_name.to_owned(), index);
                     index
                 }
             };
-            placements.push(Placement {
+            let placement = Placement {
                 library,
                 position: float3_req(object, "position")?,
                 rotation: float3_req(object, "rotation")?,
                 cgroup,
                 cmask,
-            });
+            };
+            objects.push(object_transform(placement.rotation, placement.position, float3_or(object, "scale", Vec3::ONE)));
+            placements.push(placement);
         }
+        let face_counts: Vec<u32> = map.libraries.iter().map(|l| l.faces.len() as u32).collect();
+        map.bullet = Some(
+            BulletWorld::new(shapes, objects, &face_counts, placements.len())
+                .map_err(|e| Error(format!("{project}: {e}")))?,
+        );
         map.placements = placements;
         Ok(map)
     }
