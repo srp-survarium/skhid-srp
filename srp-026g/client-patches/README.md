@@ -4921,9 +4921,11 @@ Resistance (502, 5 ranks): a hit of type 4..7 (toxic, radiation, fire, shock) on
 its summed armour + 0.05 a rank (+5 isolation points) at `artefact.isolation` (0x32A083, after
 `movss xmm0,[eax+8]`), before the piercing's subtraction and the clamp. Other types unchanged.
 Onyx II: `artefact.landing` (0x2D8220, the landing's start: all it does is the fall damage) exits at its
-`ret 4` (0x2D84AE) for a player with the skill and an Onyx of its containers in state 4. Larkspur II:
+`ret 4` (0x2D84AE) for a player with the skill and an Onyx of its containers in state 4, and for a
+teammate Cascade gives such a holder's active Onyx to. Larkspur II:
 at `medical.artefact` (0x313333, the actual activation; after Medic's handler) a Larkspur's holder
-with the skill gets its stamina's maximum (+6C0h, current +6Ch). Spring II: patch 54 gives each
+with the skill gets its stamina's maximum (+6C0h, current +6Ch), and so does each teammate that
+activation's Cascade reached. Spring II: patch 54 gives each
 Spring two reload nodes (list 13, +3D8h and +3E8h; the object 3F8h), the first linked with the
 passive (new hooks at 0x311AD0 / 0x311D10), the second with the active; patch 109's entry
 `artefact.spring_reload` sets their values at the passive's link (+0.05 / +0.10 with the skill, else 0).

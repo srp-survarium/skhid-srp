@@ -6,6 +6,7 @@ A single-page shooter-vs-target damage calculator for 0.26g, in English and Ukra
 - weapon and armour modifications (bonuses only)
 - a wall in front of the target (the game's materials)
 - Onyx (passive and active), and drugs (the anesthetic)
+- recovery: regeneration and medicines with the Larkspurs, the Rations, the gear's regeneration bonuses and the medical skills, in any mix
 
 The rules follow the client's hit code as the reverse-engineering notes record it (`tools/re-kit/v026g/damage/`, not part of this folder): `formula.txt` for the pipeline, the other `*.md` files for pain, limbs, drugs, artefacts, modifications and coverage, checked against the original exe in unicorn.
 
@@ -26,6 +27,8 @@ The rules follow the client's hit code as the reverse-engineering notes record i
 ## Build
 
 The page follows the game as Skhid's players have it: the stock `resources.db` with exactly the patches of `release/patches.tsv` over it, each checked by its sha256.
+
+The recovery skills' icons are the skills page's (`srp-026g/servers/web-server/skills/icons/`, built by `srp-026g/scripts/skills-tab/build.py`): `release/build-site` builds the skills before the calculator's last run.
 
 A live release builds it, with the Maps tab: when main's `built-from.tsv` names other patches than the release offers (a release with `--resources` always), `release/release.sh` rebuilds both pages in its preflight, before the go, with `release/build-site` (about 2 minutes, from `$SKHID_STOCK_DB` and the patches, cached in `~/.cache/skhid-release/patches/`). The server's source carries them, and the release's record commits them with the list. A failed rebuild stops the release before players see anything. For a local preview, `release/build-site --tree . [--with <resources.db.patch_<n>>]` runs the same steps on your checkout (it reads the owner's `private/release/release.env`).
 
