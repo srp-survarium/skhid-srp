@@ -356,9 +356,12 @@ fn sprint_press_to_leave_s(prepare: f32) -> f32 {
 /// falls (PROVEN, J0 g2a, 2026-10-26: 3.5-3.6 m/s through a 1.2 m fall,
 /// 7 of 7 onto the bridge where a jump at the edge overshot 7 of 7). A
 /// walk-off link is kept only where every one of these speeds, m/s, comes
-/// down on one level: a walk (3.0-3.6) and a sprint (5.1, J0), so the
+/// down on one level: a walk (3.0-3.5) and a sprint (5.0), so the
 /// bot walks it at whatever pace it has, no key.
-pub const WALK_OFF_SPEEDS: [f32; 3] = [3.0, 3.6, 5.1];
+///
+/// [A364 C2 row 28] The client's caps: walk 3.5, sprint 5.0 (`sprint_state.md`:50-51, PROVEN); 3.0 is `cc_min_walk_speed`
+/// (`startup.cfg`:24). Were 3.6 and 5.1 (J0's measured speeds, 0.1 over the caps).
+pub const WALK_OFF_SPEEDS: [f32; 3] = [3.0, 3.5, 5.0];
 /// Floor walked behind a walk-off's take-off, m: the walk's speed is
 /// reached in 0.25-0.5 s. GUESS.
 pub const WALK_OFF_RUN_UP_M: f32 = 1.0;

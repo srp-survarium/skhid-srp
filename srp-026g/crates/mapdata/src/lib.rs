@@ -116,7 +116,7 @@ pub const GRID_ALGO: u32 = 11;
 /// The same for the gap links' pass ([`grid::gap`]), in [`grid_key_with_links`]
 /// only when a build makes them ([`OffMeshLinks::Gaps`]): a grid without
 /// them keys, builds and writes as before they were made.
-pub const GAP_LINKS_ALGO: u32 = 3;
+pub const GAP_LINKS_ALGO: u32 = 4;
 /// The same for the walk-off lips ([`Body::walk_off_lips`]: a walk-off gap drop's take-off is a lip, so its floors and
 /// those near it carry the near-lip flag the file stores), in [`grid_key_with_links`] only for a body that asks for it.
 pub const WALK_OFF_LIPS_ALGO: u32 = 1;
@@ -144,7 +144,7 @@ pub const STEEP_WALK_BASE_ALGO: u32 = 1;
 pub const POCKET_EXITS_WALLED_ALGO: u32 = 0x5270_0001;
 /// The same for the walking jumps onto short tops kept by their press window ([`Body::press_window`], A347a), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
-pub const PRESS_WINDOW_ALGO: u32 = 0x5347_0a01;
+pub const PRESS_WINDOW_ALGO: u32 = 0x5347_0a02;
 /// The same for the pockets' exits capped at the sprint jump's lowest top and kept only where a body can take them
 /// ([`Body::exits_in_reach`], A347), in [`grid_key_with_links`] only for a body that asks for it. A value of its own (2: the
 /// walled exits).
@@ -187,7 +187,7 @@ pub const START_WITNESS_ALGO: u32 = 0x5329_0301;
 pub const GIVE_BACK_IN_CELL_ALGO: u32 = 0x5331_0101;
 /// The same for the falls that stop at any ground top under the body ([`Body::fall_stops_on_solids`], owner-14 row 2), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
-pub const FALL_STOPS_ON_SOLIDS_ALGO: u32 = 0x5402_0a01;
+pub const FALL_STOPS_ON_SOLIDS_ALGO: u32 = 0x5402_0a02;
 /// The same for the walk check over every link a body may meet trouble on ([`Body::walk_every_link`], owner-14 row 12), in
 /// [`grid_key_with_links`] only for a body that asks for it with [`Body::client_controller`]. A value of its own.
 pub const WALK_EVERY_LINK_ALGO: u32 = 0x5402_0c04;
