@@ -133,6 +133,12 @@ decimals) against the replaying game's own bodies at the same match time.
   first, 50650 ms in the second: other times in two runs of one replay), and bodies stand elsewhere after it
   (one by 90 m, at the place the recording has). GUESS: the replay player sets a world there instead of
   stepping. Not read.
+- **The machine was loaded.** All three traces were taken with the machine's CPU over 95 % busy (other work)
+  and the game at idle priority. A step's own values do not depend on that: a stop freezes the game while it is
+  read. How a replay plays as a whole may: the game fell behind real time in the second trace, the number of
+  look-ahead parts differs between the traces (452, 82 and 25), and so may the holes and how far the replay
+  drifts from the match. Nothing here is a statement about the game's speed, and the two points above want a
+  run on a quiet machine before they are read as the replay player's own behaviour.
 
 ## 5. What it is for, and what it does not cover
 
