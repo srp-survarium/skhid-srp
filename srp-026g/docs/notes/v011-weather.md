@@ -433,3 +433,51 @@ metadata were verified: 500 new frames plus 12 reused initial frames, covering
 `/tmp/v011-weather-reference/sweep/completion-receipt.json`. Initial originals
 remain unchanged. A final native sweep is still required after renderer fixes.
 Nothing was released.
+
+
+## Exact original skylight replay (2026-11-12)
+
+`replay_skylight.py` now prepares the unchanged original skylight VS/PS for the
+reusable D3D11 command list. The first diagnostic reconstructed the clip quad
+and omitted depth/stencil state. RGB on pixels changed by the captured draw
+agreed within one 10-bit step, but alpha and about 1,000 untouched pixels per
+view differed. This was not accepted as full equality.
+
+Additional isolated original captures established the missing contract:
+RGB-only write mask 7; depth disabled; stencil enabled with reference 0,
+read mask 255, write mask 0, NOT_EQUAL on both faces and KEEP for every stencil
+operation. The bound surface is R24G8_TYPELESS with a D24_UNORM_S8_UINT view.
+The original quad uses POSITION float4/TEXCOORD float2, stride 24, six R16
+indices and front-face culling. Its captured VS bytecode equals the catalog's
+`9dab4eced49b2980e4e70843a6f42e9f59a84bf6e696121bc0c931e685a9f6f4`;
+its VS constant equals the original PS's `skylight_parameters6` bytes.
+
+The default preparer now requires the captured geometry, VS constant,
+write mask and stencil state/surface. Reconstruction remains an explicitly
+labelled experiment. Eight complete GPU replays (two views × two frames ×
+two weather variants) match every target byte: zero differing bytes out of
+3,686,400 per draw. Both existing post/gamma regression paths also remain
+byte-identical after extending the shared command-list implementation.
+
+Evidence under `/tmp/v011-weather-reference`:
+
+- `skylight-state-replays/results.json`, SHA256
+  `857a012bb1745fb03a5a591f5ee6775e2f01bff3ed1f364bced4dccfd7644ede`.
+- `skylight-state-replays/restore.json`, SHA256
+  `be5ed04dc18f8f26c665ec70a2d99705cfe871f917556ff1bb9e98318ca5768a`:
+  additional GPU test verifies depth/stencil reference, blend factors/mask and
+  the previously checked context state after two executions; output is exact.
+- `skylight-state/completion.json`: frozen file hashes and actual camera
+  metadata verified. Frozen manifests: evening
+  `13c7a4ed39ff857dd1181b662c27d6f47a736f919842afe37feee0001d81e897`,
+  rain `1114c17ffd9430c4dbdd941a689279d4013b03f5ebab79411852aed52a102e2b`.
+  Earlier original references remain unchanged.
+
+The DLL and command-list harness compile with `-Wall -Wextra -Werror`.
+CPU preparation checks pass the valid captured draw and 14 rejection cases.
+This verifies an original pass in isolation, not native skylight integration.
+Next: provide its native depth/normal/AO inputs, preserve the original encoded
+light accumulation and probe ordering, then compare the live result. The
+post/gamma bridge remains the only live original-shader diagnostic added by
+this weather work; production integration, final native sweep and moving-rain
+parity are still outstanding. No release or weather PR was made.
