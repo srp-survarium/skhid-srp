@@ -86,7 +86,7 @@ enum Flag {
 }
 
 /// One bot's reckoned bar.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Reckoning {
     value: f32,
     flag: Flag,
@@ -97,11 +97,61 @@ pub struct Reckoning {
     keys: u32,
     /// The life's kit's ([`Reckoning::set_rates`]), else the light kit's.
     rates: Rates,
+    /// [F1] The ticks since the oldest world that may still come, with the bar after each: a world's saved record
+    /// ([`Reckoning::saved`]) is the bar at its time, and the ticks after it are played again from there.
+    steps: std::collections::VecDeque<Step>,
 }
+
+/// [F1] One tick as [`Reckoning::tick`] took it, and the bar after it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Step {
+    now: u32,
+    keys: u32,
+    carrying: bool,
+    refused: bool,
+    value: f32,
+}
+
+/// [F1] Ticks kept for a late world: a world reaches the bots at most its interval (1,000 ms: worlds come once a second) plus
+/// the bots' 300 ms lead after its time, 26 ticks of 50 ms; 64 keep 3.2 s, more than twice that.
+const STEPS_KEPT: usize = 64;
 
 impl Default for Reckoning {
     fn default() -> Self {
-        Self { value: MAX, flag: Flag::Fine, last_spend: None, last_tick: 0, keys: 0, rates: Rates::LIGHT }
+        Self {
+            value: MAX,
+            flag: Flag::Fine,
+            last_spend: None,
+            last_tick: 0,
+            keys: 0,
+            rates: Rates::LIGHT,
+            steps: std::collections::VecDeque::new(),
+        }
+    }
+}
+
+/// [F1] The bar as the bot's OWN saved record has it in a world (`player_stamina::serialize` 0x329310, read by
+/// `srp_validate::world::Stamina`), parsed once at the boundary: its value, its low flag and its last spending moved onto
+/// the world's clock. The client's bar is this; a hit's stamina damage, the take-off's spending and the weight's cost are in
+/// it, which the reckoning between worlds does not know (exactness S5: the reckoned bar was right in 85.6 % of worlds before
+/// a hit, 62 % after; 20 or more off in 23,553 of 112,013).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Saved {
+    /// The world's time, ms.
+    pub at: u32,
+    pub value: f32,
+    pub low: bool,
+    /// The last spending on the world's clock; none when the record has none (0).
+    pub last_spend: Option<u32>,
+}
+
+impl Saved {
+    /// The record of a world of `at`: `value` (`m_value`, held to 0..=[`MAX`]), the low flag, and the record's own clock
+    /// (`m_current_time_in_ms`) and last spending (`m_last_spending_time_in_ms`, 0 for none), the spending put on the
+    /// world's clock by its age on the record's.
+    pub fn of(at: u32, value: f32, low: bool, current_ms: u32, last_spending_ms: u32) -> Self {
+        let last_spend = (last_spending_ms != 0).then(|| at.saturating_sub(current_ms.saturating_sub(last_spending_ms)));
+        Self { at, value: value.clamp(0.0, MAX), low, last_spend }
     }
 }
 
@@ -117,6 +167,29 @@ impl Reckoning {
     /// A new life: a full bar, at the light kit's rates until [`Reckoning::set_rates`].
     pub fn spawn(&mut self, now: u32) {
         *self = Self { last_tick: now, ..Self::default() };
+    }
+
+    /// [F1] A world's saved record of the bar: the bar at its time is the record's, and the ticks the bot took since are
+    /// played again on it. A record older than every kept tick, or of a time before the life, sets the bar as it is now.
+    pub fn saved(&mut self, saved: Saved) {
+        let reckoned = self.steps.iter().rev().find(|step| step.now <= saved.at).map(|step| step.value);
+        if let Some(reckoned) = reckoned {
+            counts::saved_world((reckoned - saved.value).abs());
+        }
+        let keys = self.steps.iter().rev().find(|step| step.now <= saved.at).map_or(self.keys, |step| step.keys);
+        let after: Vec<Step> = self.steps.iter().filter(|step| step.now > saved.at).copied().collect();
+        if saved.at < self.last_tick && reckoned.is_none() {
+            return;
+        }
+        self.value = saved.value;
+        self.flag = if saved.low { Flag::Low } else { Flag::Fine };
+        self.last_spend = saved.last_spend;
+        self.last_tick = saved.at;
+        self.keys = keys;
+        self.steps.retain(|step| step.now <= saved.at);
+        for step in after {
+            self.tick(step.now, step.keys, step.carrying, step.refused);
+        }
     }
 
     /// The life's rates (its kit's, `think.stamina_rates`).
@@ -174,6 +247,10 @@ impl Reckoning {
         }
         self.keys = keys;
         self.last_tick = now;
+        self.steps.push_back(Step { now, keys, carrying, refused, value: self.value });
+        while self.steps.len() > STEPS_KEPT {
+            self.steps.pop_front();
+        }
         match self.flag {
             Flag::Fine if self.value <= 0.0 => {
                 self.flag = Flag::Low;
@@ -250,6 +327,19 @@ pub mod counts {
     pub fn saved_ms() -> u64 {
         SAVED_MS.load(Ordering::Relaxed)
     }
+
+    /// [F1] Worlds whose saved bar set the reckoning, and of them those the reckoning was 5 and 20 or more off.
+    static SAVED: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
+
+    pub fn saved_world(off: f32) {
+        SAVED[0].fetch_add(1, Ordering::Relaxed);
+        SAVED[1].fetch_add(u64::from(off >= 5.0), Ordering::Relaxed);
+        SAVED[2].fetch_add(u64::from(off >= 20.0), Ordering::Relaxed);
+    }
+
+    pub fn saved_worlds() -> [u64; 3] {
+        std::array::from_fn(|k| SAVED[k].load(Ordering::Relaxed))
+    }
 }
 
 #[cfg(test)]
@@ -265,6 +355,30 @@ mod tests {
         now
     }
 
+    /// [F1] A world's saved record sets the bar at its time and the ticks since are played again on it: a sprint of 1 s after
+    /// a world of 1,000 ms that saved 30 (a hit's drain the reckoning did not know) leaves 25, not the reckoned 95; the record's
+    /// last spending is put on the world's clock by its age on its own.
+    #[test]
+    fn a_saved_record_sets_the_bar_and_the_ticks_since_are_played_again() {
+        let sprint = key::FORWARD | key::SPRINT;
+        let mut r = Reckoning::default();
+        r.spawn(0);
+        let now = run(&mut r, 0, 1_000, 0);
+        let now = run(&mut r, now, 1_000, sprint);
+        assert!((r.value() - 95.0).abs() < 1e-3, "reckoned {}", r.value());
+        r.saved(Saved::of(1_000, 30.0, false, 51_000, 50_900));
+        assert!((r.value() - 25.0).abs() < 1e-3, "from the record: {}", r.value());
+        assert_eq!(now, 2_000);
+        assert_eq!(Saved::of(1_000, 30.0, false, 51_000, 50_900).last_spend, Some(900));
+        assert_eq!(Saved::of(1_000, 130.0, true, 51_000, 0), Saved { at: 1_000, value: MAX, low: true, last_spend: None });
+        // A record's low flag holds the sprint off until it clears.
+        let mut low = Reckoning::default();
+        low.spawn(0);
+        run(&mut low, 0, 500, 0);
+        low.saved(Saved::of(500, 0.0, true, 500, 450));
+        assert!(low.low() && !low.sprinting(sprint, false, false));
+    }
+
     /// The law: a sprint of 20 s empties the bar and sets the flag; the flag clears in about 3 s (one regenerating tick, the
     /// 1 s wait, then 2 s), the sprint keys held or not (A364 P10: the flag refuses the sprint state, nothing is spent); a jump
     /// needs the flag clear and 10 of the bar.
@@ -277,7 +391,7 @@ mod tests {
         let now = run(&mut r, now, 1_000, sprint);
         assert!(r.low() && r.value() <= 1e-3, "{} {}", r.value(), r.low());
         // Held on: it clears all the same, in about 3 s, and the sprint spends again.
-        let mut held = r;
+        let mut held = r.clone();
         let (mut t, mut seconds) = (now, 0.0);
         while held.low() && seconds < 10.0 {
             t += 50;

@@ -73,7 +73,7 @@ fn a_kept_controllers_step_costs_this_on_each_world() {
             }
         };
         built("triangles Bullet(face witness)", &|| Some(Collision::build(&triangles).with_caster(Caster::Bullet(StartOverlap::FaceWitness))));
-        built("triangles Exe(face witness)", &|| Some(Collision::build(&triangles).with_caster(Caster::Exe(StartOverlap::FaceWitness))));
-        built("shapes (build_exe)", &|| Collision::build_exe(&map, StartOverlap::FaceWitness));
+        built("triangles Exe", &|| Some(Collision::build(&triangles).with_caster(Caster::Exe)));
+        built("shapes (build_exe)", &|| Collision::build_exe(&map));
     }
 }

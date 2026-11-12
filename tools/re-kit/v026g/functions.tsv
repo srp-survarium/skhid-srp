@@ -2187,6 +2187,7 @@ va	status	ref_021d	name
 0x00313300	verified		survarium::artefact_base::action
 0x00313350	verified		survarium::artefact_base::effect
 0x0007f1a0	reviewed	0x0021fcf1	vostok::physics::bullet_character_controller::setup_crouch_state
+0x0007f5c0	reviewed		vostok::physics::bullet_character_controller::get_transform
 0x00337810	reviewed		survarium::player_logic_crouch_state::request_effective_crouch
 0x00337830	reviewed		survarium::player_logic_crouch_state::release_effective_crouch_if_clear
 0x00059080	observed		vostok::sound::sound_world::initialize_xaudio
@@ -2399,8 +2400,32 @@ va	status	ref_021d	name
 0x000d1ed0	verified		btVoronoiSimplexSolver::closestPtPointTriangle
 0x000d25b0	verified		btVoronoiSimplexSolver::pointOutsideOfPlane
 0x000d2700	verified		btVoronoiSimplexSolver::closestPtPointTetrahedron
+0x000d2b70	reviewed		gjkepa2_impl::MinkowskiDiff::Support1
+0x000d2cc0	reviewed		gjkepa2_impl::MinkowskiDiff::Support
+0x000d2d80	reviewed		gjkepa2_impl::GJK::Evaluate
+0x000d3770	reviewed		gjkepa2_impl::GJK::EncloseOrigin
+0x000d3d70	reviewed		gjkepa2_impl::GJK::getsupport
+0x000d3e30	reviewed		gjkepa2_impl::GJK::removevertice
+0x000d3e50	reviewed		gjkepa2_impl::GJK::appendvertice
+0x000d3e90	reviewed		gjkepa2_impl::GJK::projectorigin
+0x000d4020	reviewed		gjkepa2_impl::GJK::projectorigin
+0x000d44f0	reviewed		gjkepa2_impl::GJK::projectorigin
+0x000d4af0	reviewed		gjkepa2_impl::MinkowskiDiff::operator=
+0x000d4ba0	reviewed		gjkepa2_impl::EPA::append
+0x000d4bc0	reviewed		gjkepa2_impl::EPA::remove
+0x000d4bf0	reviewed		gjkepa2_impl::EPA::EPA
+0x000d4d30	reviewed		gjkepa2_impl::EPA::Evaluate
+0x000d5550	reviewed		gjkepa2_impl::EPA::newface
+0x000d59f0	reviewed		gjkepa2_impl::EPA::findbest
+0x000d5a40	reviewed		gjkepa2_impl::EPA::expand
+0x000d5b80	reviewed		gjkepa2_impl::Initialize
+0x000d6280	reviewed		btGjkEpaSolver2::Distance
+0x000d6810	reviewed		btGjkEpaSolver2::Penetration
+0x000d6c30	reviewed		btGjkPairDetector::btGjkPairDetector
+0x000d6ca0	reviewed		btGjkPairDetector::getClosestPoints
 0x000d6cd0	verified		btGjkPairDetector::getClosestPointsNonVirtual
 0x0008d680	verified		btConvexShape::localGetSupportVertexWithoutMarginNonVirtual
+0x0008dd40	reviewed		btConvexShape::localGetSupportVertexNonVirtual
 0x00072eb0	reviewed		btTransformUtil::calculateVelocity
 0x0008b2d0	reviewed		btTransformUtil::integrateTransform
 0x00074210	reviewed		btSphereShape::btSphereShape
@@ -2415,6 +2440,7 @@ va	status	ref_021d	name
 0x00072b90	verified		btMatrix3x3::getRotation
 0x00072a50	verified		btMatrix3x3::setRotation
 0x00072fb0	reviewed		btTransformUtil::calculateDiffAxisAngle
+0x00073d70	reviewed		btCollisionWorld::ConvexResultCallback::needsCollision
 0x00072d20	reviewed		btTransform::inverse
 0x000b88b0	reviewed		btPointCollector::addContactPoint
 0x0009fc20	reviewed		btCollisionWorld::LocalConvexResult::LocalConvexResult
@@ -2427,6 +2453,7 @@ va	status	ref_021d	name
 0x00084190	reviewed		vostok::physics::character_step_down_sweep_test_callback::hit_shape_rotation
 0x000a9bc0	reviewed		btCylinderShape::getRadius
 0x000b72a0	reviewed		btSubsimplexConvexCast::calcTimeOfImpact
+0x000b7ee0	reviewed		btGjkEpaPenetrationDepthSolver::calcPenDepth
 0x000b8010	reviewed		btTriangleRaycastCallback::processTriangle
 0x00084040	reviewed		vostok::physics::closest_ray_result_callback::addSingleResult
 0x00083fd0	reviewed		vostok::physics::closest_ray_result_callback::closest_ray_result_callback

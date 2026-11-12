@@ -42,7 +42,8 @@ matches ran revisions 40 to 50: their bots ran the code released then. See also
   Not refused: moving, crouching, a jump, the air, the weapon's state, any team for a battery on the ground.
 - Not ended: letting the key go, turning away, firing, reloading, a jump. A firing weapon only delays the holster.
 - No progress is kept: an ended use starts whole again at the next press.
-- S22 (`change_weapon_speed_modifier`) is read in the HOLSTER's clip (0x30DF7B, `weapon_core_hide_state_base`).
+- S22 (`change_weapon_speed_modifier`) is read in the HOLSTER's clip and in the DRAW's (0x30DF7B: the hide and the show
+  states share the reader, `stamina_and_modifiers.md` index 22).
 - Counted: the hold equals the rule in 1,188 of 1,198 and 770 of 775 takes by bots, 435 of 498 and 329 of 384 by
   the others (with S22 0.075 a hold of 750 ms, with 0.15 of 700 ms); the carry state 500 ms after it in 995 of 995.
 

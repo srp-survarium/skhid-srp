@@ -1776,6 +1776,11 @@ pub(crate) fn real_bot_cost() {
                     for (place, hits) in game.hits_at(world_tick).unwrap_or_default().into_iter().enumerate() {
                         bots.hits(place, &hits);
                     }
+                    for (place, saved) in game.staminas_at(world_tick).unwrap_or_default().into_iter().enumerate() {
+                        if let Some(saved) = saved {
+                            bots.stamina(place, saved);
+                        }
+                    }
                     standin_heal::tell(&mut game, &mut bots, world_tick);
                     standin_traps::tell(&mut game, &mut bots, world_tick);
                     if let Some((_, fixes, health, facts)) = game.world_at(world_tick) {
@@ -2505,6 +2510,10 @@ pub(crate) fn real_bot_cost() {
             eprintln!("walker_holds so far: {}", crate::v026g::bots::body::walker_holds::count());
             let gate = crate::v026g::bots::drive::press_gate::counts();
             eprintln!("jump press gate so far: let through {}, dropped in the air {}, held through a crouch {}", gate[0], gate[1], gate[2]);
+            let saved = crate::v026g::bots::stamina::counts::saved_worlds();
+            eprintln!("stamina saved worlds so far: {} (reckoned 5+ off {}, 20+ off {})", saved[0], saved[1], saved[2]);
+            let riser = crate::v026g::bots::drive::riser_counts::counts();
+            eprintln!("risers so far: sprinted ticks {}, jumps {}, neither ticks {}", riser[0], riser[1], riser[2]);
             let (ground, hard, client, moved) = crate::v026g::bots::body::client_steps::all();
             eprintln!(
                 "client_step so far: reckoned ground steps {ground}, hard {hard}, client steps {client}, moved otherwise {moved}"

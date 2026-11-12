@@ -148,7 +148,15 @@ impl Config {
             }),
             _ => Masks::TopPlayers,
         };
-        let enabled = session::v026g::pvb::enabled();
+        // [A372] The bots' skills, resolved against the players' tree once and logged; a build the tree refuses starts no bots.
+        let enabled = session::v026g::pvb::enabled()
+            && match survarium::v026g::bot_skills::BotBuilds::shared() {
+                Ok(_) => true,
+                Err(refused) => {
+                    log::error!("Player vs Bots is off: {refused}");
+                    false
+                }
+            };
         let dir = std::env::var("SRP_MAPDATA_DIR").ok();
         let dir = dir
             .as_deref()

@@ -227,7 +227,10 @@ Two branches: 101–113 (weapon handling) and 201–214 (body/stamina).
 | 213 | can_sprint 1 | 1 | 20 | 214 |
 | 214 | max_carried_weight_ultimate 1 | 1 | 20 | 213 |
 
-The table is the stock 0.26g tree. Skhid removes 206 (Sledgehammer) and 210 (Jump with a knife)
+The table is the stock 0.26g tree: never read a value a bot or a test needs from it, read the tree in the server's
+game data (`skills::SkillsTree::shared`). Skhid's live tree differs: seven skills take 3 ranks, each worth more
+(`scripts/content-edit/skill-ranks-1.json`, 2026-11-09: 102 +0.02, 106 and 107 -0.04, 110 -0.2, 201 -0.04, 204
++0.04, 211 -0.1 a rank); the medical and artefact tabs come from their own edit lists. Skhid removes 206 (Sledgehammer) and 210 (Jump with a knife)
 from the live tree (the owner, 2026-11-06; edit list `scripts/content-edit/physical-skills-1.json`),
 as the original developers did: both are in 0.31a2's `skills_tree`, neither is in 0.46c2's, and 0.69
 keeps only their strings (which stay here too). Nobody could learn them (`branch_points` 50, past the
@@ -794,9 +797,14 @@ simulation change.
   movie adds the equipped armour's prop 105 modifiers (HEAD..FOOT) as
   **bonuses**, the pockets' (QUICK_1..QUICK_6) as **boosters**, and the first
   weapon's own movement (prop 105, which
-  `WeaponMovement` puts in its built-in rows) as **equipment**: the weapon in
-  hand at spawn (LIKELY; switching to the second weapon changes this part in a
-  match). Shown: `max(0, 1 + weight + skills + bonuses + boosters + equipment)`, as a
+  `WeaponMovement` puts in its built-in rows) as **equipment**. In a match only
+  the weapon in hand is in S4 (PROVEN): at spawn slot 7, or slot 10 when 7 is
+  empty (`base_player::initialize` 0x2DADC6..0x2DAE44); `weapon_core::initialize`
+  links its node (0x2E2C9C) and `deactivate` unlinks it at a switch (0x2E2E9F),
+  `deserialize` links it only for the weapon with a user (0x2E35B1, 0x2E37E4);
+  so a switch replaces this part with the other weapon's. The movie reads slot 7
+  only (`LocalPlayerProfile.as:543`): a kit with slot 7 empty shows no weapon
+  term though the match starts with slot 10's. Shown: `max(0, 1 + weight + skills + bonuses + boosters + equipment)`, as a
   percentage of the base speed.
 - **Not shown:** the per-mode minimum (it only lifts a speed near zero) and
   aiming's lower speed.

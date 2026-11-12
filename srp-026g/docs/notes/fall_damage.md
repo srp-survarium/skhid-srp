@@ -87,16 +87,28 @@ Read from the 0.26g exe (no game run); the labels are in `tools/re-kit/v026g`.
   Lethal from full health (D 0.625, v 12.46 m/s) from about 8.0 m (7.8 m above is the
   smooth formula).
 - **What adds to v:**
-  - **a jump off a ledge (LIKELY):** in a jump (base_player::jump 0x2d7920)
+  - **a jump off a ledge (PROVEN):** in a jump (base_player::jump 0x2d7920)
     the height follows the jump animation, with no gravity, and a landing then
     never hurts (step_jump_down 0x7d0f0 has no callback). The jump ends when the
     animation does, not on the ground (jump_logic_state_landing::initialize
-    0x3440e0 -> end_jump 0x7f050), and end_jump keeps the downward speed. Off a
-    ledge the fall so starts with the animation's last speed v0: as a drop
-    v0²/2g higher (2 m/s +0.2 m, 3 m/s +0.46 m, 4 m/s +0.8 m). 5 m: walking 0,
-    jumping with v0 3 m/s 0.11. v0 is the animation's, not measured.
-  - **steep slopes (LIKELY):** a fall onto ground too steep to stand on (up to
-    about 78° for a straight fall) is a landing with the full vertical speed;
+    0x3440e0 -> end_jump 0x7f050), and end_jump keeps the downward speed. So the
+    fall after a jump's end starts at the take-off clip's last vertical speed,
+    5.15-6.24 m/s down (186 of 186 jump ends in three traced replays, median
+    5.545; the world's `m_fall_and_slide_velocity`), and, the contact normal
+    being -up after a miss, each air tick drops (|v| + 0.49) x 0.05 (the slide
+    acceleration of 0x7af00: 91 of 91 traced air steps), one tick's gravity
+    ahead of a walk-off fall. Below where the clip ends (DERIVED from v0 5.5453,
+    the drop rule, harmless 9.8995 and fatal 14.0): a drop over 3.60 m hurts
+    (D 0.01); 5 m: 10.94 m/s, D 0.25 (walking off: 0); lethal from full health
+    (D 0.625) from 7.10 m (walking off: 8.0 m). How high the clip ends above the
+    take-off is not counted here.
+  - **steep slopes (PROVEN):** a fall onto ground too steep to stand on (between
+    55° and 78.5°, acos 0.2 of `cc_already_sliding_on_slope_dp`, for a straight
+    fall) is a landing with the full vertical speed of the tick's start
+    (step_down 0x7e527..0x7e6d1, when -(n·v̂) >= 0.2; under 0.2 the slide 0x7fea0
+    and no callback; a steep hit after the feet rose with no slide taking the
+    body: the same speed and v := 0, 0x7e408..0x7e4f2; 21 of 24 traced steep
+    landings by the first rule, 3 by the slide);
     the velocity keeps its part along the slope, the slide goes on
     (update_slide_velocity 0x7fea0), and walkable ground at its bottom is a
     second landing with the slide's vertical speed. A long steep slide can hurt
@@ -113,8 +125,10 @@ Read from the 0.26g exe (no game run); the labels are in `tools/re-kit/v026g`.
   - stairs and small drops: every landing on walkable ground zeroes the
     velocity, nothing carries over;
   - explosions, pushes: nothing else writes the velocity; the physics tick
-    (0x757f1) zeroes it when two players overlap, so landing on a player's head
-    ends the fall without a hit;
+    (0x757ee..0x7584f) zeroes it and puts the body back to where the tick began
+    when an enemy's feet come within 0.76 m of its own (segments feet ± 0.12 m,
+    `collision_world.md` §3): a fall onto an enemy is held about 1 m above his
+    feet, each tick from rest; onto a teammate it goes through;
   - ladders, moving objects: not read.
 - **0.27 and later:** 0.27d0 and 0.28d0 `fall_params`, `jump_params`,
   `physics_controller`: the same keys and values, `fatal_damage` 1 the only
