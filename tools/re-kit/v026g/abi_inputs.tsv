@@ -6241,3 +6241,22 @@ va	name	location	role	basis
 0x0025cf60	survarium::game_world::on_mouse_key_action	entry ESP+4	the input world (its vtable+24h at 0x25CF6A, as on_keyboard_action's)	observed
 0x0025cf60	survarium::game_world::on_mouse_key_action	entry ESP+8	the key: 151h + the mouse button (0x3B9981), 151h the left (0x25CF95)	observed
 0x0025cf60	survarium::game_world::on_mouse_key_action	entry ESP+12	the kind (0 the press, 1 the release, 2 held), as the mouse's process 0x3B9D90 gives every listener	observed
+0x0007a1f0	vostok::physics::create_bt_primitive	EDX	collision::primitive_type: 0 sphere, 1 box, 2 cylinder, 3 capsule	observed
+0x0007a1f0	vostok::physics::create_bt_primitive	ECX	float3 const* dim (the primitive's `scale` of exported_primitives)	observed
+0x0007a1f0	vostok::physics::create_bt_primitive	ESI	the physics allocator (g_ph_allocator, [0x1F1D384])	observed
+0x0007a390	vostok::physics::create_primitive_shape	entry ESP+4	float3 const* local_scale (the library name's #[sx][sy][sz])	observed
+0x0007a390	vostok::physics::create_primitive_shape	entry ESP+8	u16 material word of the primitive	observed
+0x0007a460	vostok::physics::create_compound_shape	EAX	binary_config_value const* primitives (rows of 18h bytes, count at +16h)	observed
+0x0007a460	vostok::physics::create_compound_shape	entry ESP+4	float3 const* local_scale	observed
+0x0007a6e0	vostok::physics::create_btBvhTriangleMeshShape	EAX	float3 const* local_scale	observed
+0x0007a6e0	vostok::physics::create_btBvhTriangleMeshShape	ECX	u32 num_vertices	observed
+0x0007a6e0	vostok::physics::create_btBvhTriangleMeshShape	entry ESP+4	float3* vertices	observed
+0x0007a6e0	vostok::physics::create_btBvhTriangleMeshShape	entry ESP+8	u32* indices	observed
+0x0007a6e0	vostok::physics::create_btBvhTriangleMeshShape	entry ESP+12	u32 num_indices	observed
+0x0007a6e0	vostok::physics::create_btBvhTriangleMeshShape	entry ESP+16	u16* face_data (one word a triangle, kept at the shape's +60h)	observed
+0x003570a0	vostok::physics::bt_static_rigid_body::get_triangle_material	ECX	bt_static_rigid_body (+10h its bt_collision_shape)	observed
+0x003570a0	vostok::physics::bt_static_rigid_body::get_triangle_material	entry ESP+4	s32 triangle or child shape index	observed
+0x003570a0	vostok::physics::bt_static_rigid_body::get_triangle_material	entry ESP+8	bool is_shape_index	observed
+0x00356d00	vostok::physics::bt_static_rigid_body::get_walker_behaviour	ECX	bt_static_rigid_body (+10h its bt_collision_shape)	observed
+0x00356d00	vostok::physics::bt_static_rigid_body::get_walker_behaviour	entry ESP+4	s32 triangle or child shape index	observed
+0x00356d00	vostok::physics::bt_static_rigid_body::get_walker_behaviour	entry ESP+8	bool is_shape_index	observed
