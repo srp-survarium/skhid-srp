@@ -118,6 +118,14 @@ TYPES["QueryTag"] = {
     "binding": "let {n} = QueryTag::from_raw({a} as usize as u32);",
     "orig_type": "QueryTag", "orig_raw": "-", "pass": "{n}", "null": "{a}",
 }
+# A thread's start routine's argument (`callback` kind, handed to
+# CreateThread): patch 83's watch of the DLSS helper, its own copy of the
+# helper's process handle.
+TYPES["HelperWatch"] = {
+    "raw": "*mut c_void",
+    "binding": "let {n} = unsafe {{ HelperWatch::from_raw(&thread, {a}) }};",
+    "orig_type": "HelperWatch", "orig_raw": "-", "pass": "{n}", "null": "{a}",
+}
 # A float the game passes by value in a stack slot (vostok::math's x87
 # functions, `call` hooks).
 TYPES["f32"] = {
@@ -316,20 +324,23 @@ def call_hook(patch, row, sites, functions, exe=None):
 
 def convention_hook(patch, row, sites, functions, kind, exe=None):
     """A `[[pointer]]`, `[[vtable]]` or `[[callback]]`: the game calls our
-    entry in the callee's convention (thiscall or cdecl); the `Original` is
-    the callee (the function the slot or callback used to name)."""
+    entry in the callee's convention (thiscall or cdecl; a callback stdcall
+    too, as Windows calls a thread's start routine); the `Original` is the
+    callee (the function the slot or callback used to name)."""
     name = patch["name"]
     site = site_of(name, kind, row, sites)
     f = engine_row(site["callee"], functions)
     convention = f["call"]
-    if convention not in ("thiscall", "cdecl"):
-        raise Bad(f"{name}: {site['callee']} is {convention}; a {kind} hook needs thiscall or cdecl")
+    if convention not in (("thiscall", "cdecl", "stdcall") if kind == "callback" else ("thiscall", "cdecl")):
+        raise Bad(f"{name}: {site['callee']} is {convention}; a {kind} hook needs thiscall or cdecl "
+                  "(a callback: or stdcall)")
     args, h = _typed(name, patch["patch"], kind, site, row["handler"], f)
     nargs = len(args) - (1 if convention == "thiscall" else 0)
     if nargs < 0:
         raise Bad(f"{name}: a thiscall {kind} takes `this` as its first argument")
-    macro = "RUST_THISCALL" if convention == "thiscall" else "RUST_CDECL"
-    h.update(original=struct.pack("<I", f["va"]), convention=convention, entry_macro=(macro, nargs),
+    macro = {"thiscall": ("RUST_THISCALL", nargs), "cdecl": ("RUST_CDECL", nargs),
+             "stdcall": ("RUST_CALL", nargs, f["cleanup"])}[convention]
+    h.update(original=struct.pack("<I", f["va"]), convention=convention, entry_macro=macro,
              install=(kind, None), orig_kind="direct", this=convention == "thiscall", proof=row.get("proof"))
     return h
 

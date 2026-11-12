@@ -3483,3 +3483,4 @@ va	status	ref_021d	name
 0x00111d10	inferred-high		vostok::logging::helper::write
 0x001b1840	inferred-high		vostok::render::remove_model_skeletal_filter_predicate::operator()
 0x001b66b0	inferred-high		std::find_if<render_surface_instance**, remove_model_skeletal_filter_predicate>
+0x000e0910	inferred-high		vostok::threading::thread_entry

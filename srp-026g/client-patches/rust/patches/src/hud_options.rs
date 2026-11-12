@@ -10,7 +10,8 @@
 //!   `srp_map_names`, `srp_hide_crosshair` and `srp_dxvk`, saved in user.cfg, off by default,
 //!   and the Vulkan options' `srp_dxvk_frame_limit`, `srp_dxvk_low_latency`,
 //!   `srp_dxvk_tear_free`, `srp_dxvk_dedicated_gpu` (on by default), `srp_dxvk_dlss`
-//!   (docs/notes/dlss-option.md: offered only where it runs, [`DlssOffer`]) and `srp_dxvk_overlay`;
+//!   (docs/notes/dlss-option.md: offered only where it runs, [`dlss::DlssOffer`]; the link to
+//!   its helper is [`dlss`]) and `srp_dxvk_overlay`;
 //! - the Settings' call (`options.callback`, after patch 79): a setting's
 //!   name answers the main menu with `root.srp_check_option(name, label,
 //!   saved)`, and with "1" or "0" (a list: its index) saves that first
@@ -67,6 +68,9 @@
 
 use core::ffi::CStr;
 
+pub mod dlss;
+
+use crate::vostok::dlss::{HELPER_FILES, HelperWatch, SwapChain};
 use crate::vostok::language::ConsoleString;
 use crate::vostok::log::{Piece, Piece::*, line, line_of};
 use crate::vostok::renderer::{DelayedImport, Gpu, GpuKind, Gpus, Manifests, OutputWindow, ProbeDirectDraw, Vulkan,
@@ -141,7 +145,7 @@ pub static TEAR_FREE: Setting = Setting::new(c"srp_dxvk_tear_free", c"st_srp_vul
 /// On by default: a user.cfg without its line prefers the dedicated GPU.
 pub static DEDICATED_GPU: Setting = Setting::with(c"srp_dxvk_dedicated_gpu", c"st_srp_vulkan_dedicated_gpu", true);
 /// DLSS at Quality (docs/notes/dlss-option.md): offered only where it runs
-/// ([`DlssOffer`]).
+/// ([`dlss::DlssOffer`]).
 pub static DLSS: Setting = Setting::new(c"srp_dxvk_dlss", c"st_srp_vulkan_dlss");
 static FRAME_LIMIT_SAVED: ConsoleString<8> = ConsoleString::new();
 static OVERLAY_SAVED: ConsoleString<16> = ConsoleString::new();
@@ -248,51 +252,8 @@ impl ListChoice for Overlay {
     }
 }
 
-/// Whether this process offers DLSS, or why not: DLSS runs only in its
-/// 64-bit helper, on DXVK's GPU, an NVIDIA one (docs/notes/dlss-option.md,
-/// "The option"). Not offered, its checkbox is greyed in the Settings.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum DlssOffer {
-    Offered,
-    /// DirectX 11 runs: no Vulkan device to share the frame from.
-    NoDxvk,
-    /// DXVK's GPU is not NVIDIA's.
-    NotNvidia,
-    /// No helper answered at this start that DLSS runs.
-    NoHelper,
-}
-
-impl DlssOffer {
-    /// From this process's renderer, DXVK's GPU and whether the helper said
-    /// at this start that DLSS runs.
-    pub fn of(dxvk: bool, gpu: Option<Gpu>, helper_runs: bool) -> DlssOffer {
-        match (dxvk, gpu) {
-            (false, _) => DlssOffer::NoDxvk,
-            (true, Some(gpu)) if gpu.vendor == VENDOR_NVIDIA => {
-                if helper_runs { DlssOffer::Offered } else { DlssOffer::NoHelper }
-            }
-            (true, _) => DlssOffer::NotNvidia,
-        }
-    }
-
-    /// This process's: no helper is started yet (docs/notes/dlss-option.md,
-    /// "Status"), so DLSS is offered nowhere.
-    fn now(thread: &Thread) -> DlssOffer {
-        let gpu = DXVK_GPU.with(thread, |kept| *kept);
-        DlssOffer::of(matches!(renderer(thread), Renderer::Dxvk(_)), gpu, false)
-    }
-
-    fn why(self) -> &'static str {
-        match self {
-            DlssOffer::Offered => "offered",
-            DlssOffer::NoDxvk => "DirectX 11 runs",
-            DlssOffer::NotNvidia => "DXVK's GPU is not NVIDIA's",
-            DlssOffer::NoHelper => "no DLSS helper answered at this start",
-        }
-    }
-}
-
-/// The Settings' running value of an option this process does not offer.
+/// The Settings' running value of an option this process does not offer
+/// (DLSS: [`dlss::DlssOffer`]).
 const NOT_OFFERED: &CStr = c"-";
 
 /// The Vulkan options' two lists, kept in user.cfg as `<name> <word>`.
@@ -520,6 +481,15 @@ impl DxvkConfig {
             return self.left_out == before;
         }
         false
+    }
+
+    /// DLSS's mip bias ([`dlss::MIP_BIAS`]), when DLSS is to run at this
+    /// start: every texture a mip sharper, as a frame rendered smaller than
+    /// its output needs. Whether it was added.
+    pub fn for_dlss(&mut self) -> bool {
+        let before = self.left_out;
+        self.option("d3d11.samplerLodBias", dlss::MIP_BIAS);
+        self.left_out == before
     }
 }
 
@@ -986,6 +956,10 @@ fn drive(thread: &Thread, event: Event) {
                 let mut config = options.config();
                 let players = config.as_str().len();
                 let for_gpu = config.for_gpu(gpu);
+                // DLSS: whether its helper can be asked here; with the tick on, its mip bias is DXVK's from the start
+                let nvidia = gpu.is_some_and(|gpu| gpu.vendor == VENDOR_NVIDIA);
+                let helper = HELPER_FILES.iter().all(|file| exists_beside_exe(thread, file));
+                let for_dlss = options.dlss && dlss::NotRun::of(nvidia, helper).is_none() && config.for_dlss();
                 if set_environment(thread, c"DXVK_CONFIG", config.as_c_str()) {
                     // the player's options on the line (it holds them all), the GPU's own on the next
                     let options = &config.as_str()[..players];
@@ -998,6 +972,10 @@ fn drive(thread: &Thread, event: Event) {
                     if for_gpu {
                         line(&[Text("dxvk: DXVK_CONFIG adds \"dxvk.enableDescriptorHeap = False\": DXVK's GPU is AMD's, ")
                                , Text(gpu.as_ref().map_or("?", Gpu::name))]);
+                    }
+                    if for_dlss {
+                        line(&[Text("dlss: DXVK_CONFIG adds \"d3d11.samplerLodBias = "), Text(dlss::MIP_BIAS.to_str().unwrap_or("?")),
+                               Text("\": the tick is on, the mip bias of DLSS at Quality")]);
                     }
                 } else {
                     line(&[Text("dxvk: DXVK_CONFIG not set")]);
@@ -1013,10 +991,7 @@ fn drive(thread: &Thread, event: Event) {
                     Err(Called(i)) => line(&[Text("dxvk: the game had called DLL "), Dec(i as u32),
                                              Text(" of dxgi, d3d11, d3d10core, d3d9 (from 0) already: not bound")]),
                 }
-                let offer = DlssOffer::now(thread);
-                if options.dlss && offer != DlssOffer::Offered {
-                    line(&[Text("dlss: on, not run: "), Text(offer.why())]);
-                }
+                dlss::at_start(thread, nvidia, helper, options.dlss);
             }
             Action::TurnOff => {
                 DXVK.value.set(thread, false);
@@ -1183,7 +1158,7 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<HudOptionsOnOptionsCallExi
         // the renderer this process runs ("1": DXVK loaded at its start), or the option's value it runs
         let running = if core::ptr::eq(setting, &DXVK) {
             Some(DIGITS[usize::from(matches!(renderer(thread), Renderer::Dxvk(_)))])
-        } else if core::ptr::eq(setting, &DLSS) && DlssOffer::now(thread) != DlssOffer::Offered {
+        } else if core::ptr::eq(setting, &DLSS) && dlss::DlssOffer::now(thread) != dlss::DlssOffer::Offered {
             // not offered here (no helper answered, another vendor's GPU, DirectX 11): greyed
             Some(NOT_OFFERED)
         } else {
@@ -1222,7 +1197,22 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<HudOptionsOnOptionsCallExi
 /// the setting goes off (user.cfg has run by now).
 pub fn on_login(ctx: &mut Context<'_>) -> Flow<NoExit> {
     drive(ctx.thread(), Event::LoginShown);
+    dlss::on_login(ctx.thread());
     Flow::Continue
+}
+
+/// The game's exit (game::exit 0x1EC730): the DLSS helper told to quit, the
+/// link's own things ended while DXVK's device still lives.
+pub fn on_exit(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    dlss::on_exit(ctx.thread());
+    Flow::Continue
+}
+
+/// The DLSS helper's watch, on the thread the link started for it
+/// (`dlss.helper_watch`: CreateThread calls it, its argument the watch's
+/// handle of the helper's process).
+pub fn on_watch(watch: HelperWatch<'_>) -> u32 {
+    dlss::watch(watch)
 }
 
 /// res_render_output::present right before the game's IDXGISwapChain::Present
@@ -1235,11 +1225,15 @@ pub fn on_login(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// style 0 (Settings to fullscreen). So under DXVK such a window gets WS_POPUP
 /// first, once for each refused state (a style Windows does not take is not
 /// set and said again at every Present); any other window, and every window
-/// without DXVK, is left as it is.
+/// without DXVK, is left as it is. With DXVK the Present is also the DLSS
+/// link's step ([`dlss::on_present`]): the frame is whole in the back buffer.
 pub fn on_present(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     if !matches!(renderer(thread), Renderer::Dxvk(_)) {
         return Flow::Continue;
+    }
+    if let Some(chain) = SwapChain::at_present(ctx) {
+        dlss::on_present(thread, chain);
     }
     let Some(window) = OutputWindow::at_present(ctx) else { return Flow::Continue };
     let before = window.styles(thread);
@@ -1381,25 +1375,16 @@ mod tests {
         }
         let dlss = VulkanOptions { dlss: true, ..DEFAULTS };
         assert_eq!(Choice::of_user_cfg(b"srp_dxvk on\r\nsrp_dxvk_dlss on\r\n"), Choice::Vulkan(dlss));
-        // DLSS gives DXVK nothing of its own until it runs
+        // the tick alone gives DXVK nothing: the mip bias is added where DLSS is to run (an NVIDIA GPU, the helper's files)
         assert_eq!(dlss.config().as_str(), DEFAULTS.config().as_str());
+        let mut config = dlss.config();
+        assert!(config.for_dlss());
+        assert_eq!(config.as_str(), "dxvk.hideIntegratedGraphics = True; d3d11.samplerLodBias = -1.585");
         assert!(dlss.shown(c"srp_dxvk_dlss") == Some(c"1") && DEFAULTS.shown(c"srp_dxvk_dlss") == Some(c"0"));
     }
 
     #[test]
-    fn dlss_is_offered_with_dxvk_on_an_nvidia_gpu_whose_helper_runs_only() {
-        let gpu = |vendor| Some(Gpu { vendor, device: 0, driver: 0, kind: GpuKind::Discrete, version: Some(VULKAN_NEEDED),
-                                      name: [0; crate::vostok::renderer::GPU_NAME] });
-        assert_eq!(DlssOffer::of(true, gpu(VENDOR_NVIDIA), true), DlssOffer::Offered);
-        assert_eq!(DlssOffer::of(true, gpu(VENDOR_NVIDIA), false), DlssOffer::NoHelper);
-        for vendor in [VENDOR_AMD, VENDOR_INTEL] {
-            assert_eq!(DlssOffer::of(true, gpu(vendor), true), DlssOffer::NotNvidia);
-        }
-        // DXVK's GPU not known (every driver looked at and none picked): not offered
-        assert_eq!(DlssOffer::of(true, None, true), DlssOffer::NotNvidia);
-        for helper_runs in [false, true] {
-            assert_eq!(DlssOffer::of(false, gpu(VENDOR_NVIDIA), helper_runs), DlssOffer::NoDxvk);
-        }
+    fn the_dlss_tick_is_off_by_default_and_not_offered_is_no_checkbox_value() {
         // the Settings' running value of an option not offered is no checkbox value
         assert!(DIGITS.iter().all(|digit| *digit != NOT_OFFERED));
         assert!(!DLSS.of_user_cfg(b"") && !DLSS.value.initial(), "off by default");

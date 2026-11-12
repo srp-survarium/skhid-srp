@@ -223,6 +223,20 @@ global engine_cc_delegate
 global engine_cc_delegate_execute
 global engine_log_helper
 global engine_log_write
+global engine_create_process_a
+global engine_wait_for_single_object
+global engine_terminate_process
+global engine_get_last_error
+global engine_create_thread
+global engine_thread_entry
+global engine_swap_chain_get_device
+global engine_swap_chain_get_buffer
+global engine_interop_vulkan_handles
+global engine_interop_flush
+global engine_interop_lock_queue
+global engine_interop_release_queue
+global engine_interop_submission_queue
+global engine_interop_image_info
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -309,6 +323,12 @@ engine_bio_write equ 0x44c740   ; 0x44c740 BIO_write: bio ESP+4, bytes ESP+8, le
 engine_err_put_error equ 0x44a270   ; 0x44a270 ERR_put_error: library ESP+4, function ESP+8, reason ESP+12, file ESP+16, line ESP+20; pops 0; cdecl, called directly
 engine_rand_bytes equ 0x46b6e0   ; 0x46b6e0 ssleay_rand_bytes: room ESP+4, length ESP+8; pops 0; EAX; cdecl, called directly
 engine_cc_delegate_execute equ 0xec830   ; 0xec830 vostok::console_commands::cc_delegate::execute: command ECX, arguments ESP+4; pops 4; thiscall, called directly
+engine_create_process_a equ 0x8701bc   ; the IAT slot 0x8701bc (an import, stdcall)
+engine_wait_for_single_object equ 0x8700a8   ; the IAT slot 0x8700a8 (an import, stdcall)
+engine_terminate_process equ 0x870030   ; the IAT slot 0x870030 (an import, stdcall)
+engine_get_last_error equ 0x87005c   ; the IAT slot 0x87005c (an import, stdcall)
+engine_create_thread equ 0x870124   ; the IAT slot 0x870124 (an import, stdcall)
+engine_thread_entry equ 0xe0910   ; 0xe0910 vostok::threading::thread_entry: params ESP+4; pops 4; EAX; stdcall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -2603,6 +2623,156 @@ engine_log_write:
     push dword [esp + 28]   ; format -> 4
     mov esi, [esp + 28]   ; helper
     call 0x111d10
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_swap_chain_get_device:
+    ; COM IDXGISwapChain+0x1c (stdcall through the interface's vtable): chain ESP+4, iid ESP+8, device ESP+12; pops 12; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; device -> 12
+    push dword [esp + 28]   ; iid -> 8
+    push dword [esp + 28]   ; chain -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0x1c]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_swap_chain_get_buffer:
+    ; COM IDXGISwapChain+0x24 (stdcall through the interface's vtable): chain ESP+4, buffer ESP+8, iid ESP+12, surface ESP+16; pops 16; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; surface -> 16
+    push dword [esp + 32]   ; iid -> 12
+    push dword [esp + 32]   ; buffer -> 8
+    push dword [esp + 32]   ; chain -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0x24]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_interop_vulkan_handles:
+    ; COM IDXGIVkInteropDevice+0xc (stdcall through the interface's vtable): device ESP+4, instance ESP+8, physical_device ESP+12, vulkan_device ESP+16; pops 16
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; vulkan_device -> 16
+    push dword [esp + 32]   ; physical_device -> 12
+    push dword [esp + 32]   ; instance -> 8
+    push dword [esp + 32]   ; device -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0xc]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_interop_flush:
+    ; COM IDXGIVkInteropDevice+0x18 (stdcall through the interface's vtable): device ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 20]   ; device -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0x18]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_interop_lock_queue:
+    ; COM IDXGIVkInteropDevice+0x1c (stdcall through the interface's vtable): device ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 20]   ; device -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0x1c]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_interop_release_queue:
+    ; COM IDXGIVkInteropDevice+0x20 (stdcall through the interface's vtable): device ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 20]   ; device -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0x20]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_interop_submission_queue:
+    ; COM IDXGIVkInteropDevice1+0x24 (stdcall through the interface's vtable): device ESP+4, queue ESP+8, index ESP+12, family ESP+16; pops 16
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; family -> 16
+    push dword [esp + 32]   ; index -> 12
+    push dword [esp + 32]   ; queue -> 8
+    push dword [esp + 32]   ; device -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0x24]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_interop_image_info:
+    ; COM IDXGIVkInteropSurface+0x10 (stdcall through the interface's vtable): surface ESP+4, image ESP+8, layout ESP+12, info ESP+16; pops 16; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; info -> 16
+    push dword [esp + 32]   ; layout -> 12
+    push dword [esp + 32]   ; image -> 8
+    push dword [esp + 32]   ; surface -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0x10]
     pop edi
     pop esi
     pop ebx

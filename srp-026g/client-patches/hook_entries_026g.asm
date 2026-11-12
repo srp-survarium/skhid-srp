@@ -1989,7 +1989,7 @@ bake_async_on_frame_replay:
 
 ; 0x1ec730 game::exit's start (push ebp / mov ebp,esp / and esp,-8; thiscall, ECX the game): every exit passes here, before the branches that skip its delete of user_data/streamed_textures (0x1EC7AE when 0x1051E0 fails, 0x1EC801 when 0x40F10 does; the delete 0x1EC832 is patch 70's nop): lohook -> bake_async_on_exit
 global bake_async_on_exit
-extern hook_bake_async_on_exit
+extern hook_bake_async_on_exit_chain
 bake_async_on_exit:
     lea esp, [esp - 4]
     pushfd
@@ -2007,7 +2007,7 @@ bake_async_on_exit:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_bake_async_on_exit
+    call hook_bake_async_on_exit_chain
     mov edx, bake_async_on_exit_replay
     cmp eax, 0
     je bake_async_on_exit_go
@@ -3711,6 +3711,11 @@ hud_options_on_present_go:
 hud_options_on_present_replay:
     db 0x8b, 0xb6, 0xcc, 0x00, 0x00, 0x00
     jmp 0x3cf905
+
+; 0xe0910 a thread's start routine as CreateThread calls it (stdcall, lpParameter; the engine's own is 0xE0910, which names the convention): patch 83's watch of the DLSS helper's process, on a thread of its own, its argument the watch's copy of the helper's process handle (docs/notes/dlss-option.md, "Falling back"): callback -> hud_options_on_watch (wraps engine_thread_entry 0xe0910)
+global hud_options_on_watch
+hud_options_on_watch:
+    RUST_CALL hook_hud_options_on_watch, 1, 4
 
 ; 0x105e8e the engine's DirectDraw probe of the video memory (0x105DB0, the DirectX SDK's GetVideoMemoryViaDirectDraw, called by get_local_video_memory_size's 0x1060F0) after GetAvailableVidMem, before it releases the IDirectDraw7 (mov eax,[esp+14h] / mov edx,[eax]; then Release 0x105E98 and FreeLibrary(ddraw) 0x105E9A, which unloads the DirectDraw object's code): the DirectDraw object at [esp+18h], which the probe never releases: lohook -> hud_options_on_ddraw_probed
 global hud_options_on_ddraw_probed
