@@ -10,7 +10,7 @@ pub const WINDOW: u32 = 16 * CHUNK as u32;
 pub const MAX_FILE: u32 = 16 * 1024 * 1024;
 pub const MAX_PACKET: usize = 480;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Identity {
     size: u32,
     pub sha256: [u8; 32],
