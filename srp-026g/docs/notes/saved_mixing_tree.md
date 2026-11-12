@@ -23,14 +23,14 @@ each field MEANS. See also `outside_a_world.md`, `weapon_fire.md`, `walk_blend.m
 | 1 bit, 1 bit | state +5Ch, +60h | the clip's interval in play; the one before |
 | float | state **+64h** | **the clip time inside the interval at t, seconds** |
 | float | state +68h | the node's weight at t |
-| 1 bit | state +70h | a threshold: 0, else FLT_MAX after a load (a clip length in the running game: lossy) |
+| 1 bit | state +70h | a threshold: 0 or the clip's length; the bit alone is saved and the load puts the length back (`resolve_links` 0x39594F..0x395A67) |
 | 1 bit | state +75h | the clip is held at its end |
 | 6 bits, time, bit, float, 8 + 4 bits | state +78h..+87h | **the node's next animation event**: its type (4 an interval's end, 8 the clip's end, 20h a channel's knot, 40h a change of direction) and **its ms (+80h)**, the interval and clip time it starts |
 | 2 bits, time | state +8Ch..+97h | the next weight event (100h a weight transition ends; 102h the node ends at weight 0) and its ms (+90h) |
 | not saved | state +A0h | the event the tick takes next: the earlier of +80h and +90h, rebuilt at the load (0x3B17E0) |
 | 12 floats | | the body's transform |
 | 10 bits + 1 bit an interval | interval +8 | **the clip** (its id in the match's registry) and which of its intervals |
-| 5 bits | node +40h | **the time group**: 0 the gait, 1 the shake, 2 show and hide, 3 idle, 4 reload, 6 fire, 7 chamber, 11 melee, none the on-site clip and the recoil |
+| 5 bits | node +40h | **the time group**: 0 the gait, 1 the shake, 2 show and hide, 3 idle, 4 reload (and one round of a tube reload), 5 a tube reload's start and finish, 6 fire, 7 chamber, 8, 9, 10 a grenade's pull, hold and throw, 11 melee, none the on-site clip and the recoil |
 | 2 bits | node +44h | the weight group (legs, upper body) |
 | 1 bit | node +5Dh | the node animates the item's model, not the body |
 | expression 0 (2 floats, a time) | time-scale node +8h, +0Ch, +10h | **the play rate S, the clip time t0 at the base, the base's ms T0**: the clip time at any T is t0 + (T - T0) S / 1000 |
@@ -81,7 +81,7 @@ in 603, a weight transition's end in 125, the fire clip's in 82, none in 834. Th
 
 ## Not read
 
-A clip id's name (the match's registered set); the time groups 5, 8, 9, 10 (the grenade's and the shotguns'
-sub-states); whether anything simulated reads a node's lossy threshold after a load (26 nodes that are not held at
-their end); 98 fire nodes with another weapon's clip (LIKELY a picked-up gun); 32 magazine reloads due and not
-refilled (21 with an empty store); the sub-clips of double barrels and round-by-round reloads.
+A clip id's name (the match's registered set); 15 magazine reloads due and not refilled with rounds in the
+pockets (a magazine fills from the one stack the weapon is bound to, `load_magazine` 0x2E17D0; which one is not
+in the dumps). Settled since: 97 of the 98 fire nodes with another weapon's clip are guns picked up from the
+ground.
