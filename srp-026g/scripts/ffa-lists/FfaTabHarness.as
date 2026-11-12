@@ -18,6 +18,9 @@ package
     // including live moves across that boundary, ties, selection, disconnects and names-only mode.
     // FFA's top HUD keeps the match timer while all team counters stay hidden after callbacks;
     // leaving FFA lets the next mode own those controls again.
+    // FFA's chat (SrvGameChat.teamChannel off, HUD.set_game_type's other word) has no team tab: it
+    // opens on "All", sends on the match's channel and the tab key never reaches the team's; the
+    // next match of two teams has it back, first as before.
     public class FfaTabHarness extends Sprite
     {
         private var loader:Loader = new Loader();
@@ -27,6 +30,8 @@ package
         private var domain:ApplicationDomain;
         private var bar:*;
         private var kills:*;
+        private var talk:*;
+        private var sent:Array = [];
 
         public function FfaTabHarness()
         {
@@ -76,6 +81,7 @@ package
                     offline();
                     namesOnly();
                     teams();
+                    chat();
                     board.visible = false;
                     topBarShown();
                 }
@@ -248,6 +254,106 @@ package
             require(list.team1.visible && list.team2.visible, "teams: the team names shown");
             list.addPlayersList(players(4, 2));
             expect(["Me"], ["A", "B", "D"], "Team Deathmatch after it");
+        }
+
+        // A match's start as the hud's root has it: HUD.reset (the chat cleared), set_game_type
+        // (whether the mode has a team), then the tabs the exe gives (chat_handler::set_mode,
+        // 0x209430): the team's (id 4, sent on 6 or 7), the match's (id 3, on 5) and, in a squad,
+        // the squad's (id 0, on 8).
+        private function matchStarts(teamChannel:Boolean, squad:Boolean):void
+        {
+            talk.clear();
+            talk.teamChannel = teamChannel;
+            tabs(squad);
+        }
+
+        private function tabs(squad:Boolean):void
+        {
+            talk.addTab({id: 4, name: "Team", channels: [6, 5, 8, 2], channel_to_send: 6, closable: false,
+                save_history: false});
+            talk.addTab({id: 3, name: "All", channels: [6, 5, 8, 2], channel_to_send: 5, closable: false,
+                save_history: false});
+            if (squad)
+                talk.addTab({id: 0, name: "Squad", channels: [8, 5, 6], channel_to_send: 8, closable: false,
+                    save_history: true});
+        }
+
+        // The tab the chat opens on, by the name before its input, and the channel a line typed
+        // there goes out on.
+        private function typedOn(name:String, channel:uint, what:String):void
+        {
+            talk.startEnterMessage();
+            require(talk.textFieldName.text == name + ":", what + ": typed into " + talk.textFieldName.text
+                + ", wanted " + name);
+            talk.text_inpput.text = "gl";
+            talk.submitText();
+            require(sent.length == 1 && sent[0] == channel, what + ": sent on " + sent + ", wanted " + channel);
+            sent = [];
+            talk.stopEnterMessage();
+            trace("TAB chat, " + what + ": " + name + ", channel " + channel);
+        }
+
+        // The tabs the tab key goes through (next_tab), from the one open, once round.
+        private function round(count:int):String
+        {
+            var names:Array = [];
+            for (var i:int = 0; i < count; ++i)
+            {
+                talk.nextTab();
+                names.push(talk.textFieldName.text);
+            }
+            return names.join(" ");
+        }
+
+        private function chat():void
+        {
+            talk = new (domain.getDefinition("SrvGameChat") as Class)();
+            talk.x = 2000;                  // off the window
+            addChild(talk);
+            draw(talk);
+            talk.send_function = function(input:Object, channel:uint):Boolean { sent.push(channel); return true; };
+
+            // Team Deathmatch, as it always was: the team's tab first.
+            matchStarts(true, true);
+            typedOn("Team", 6, "two teams");
+            require(round(3) == "All: Squad: Team:", "two teams: the tab key goes All, Squad, Team");
+
+            // A free for all after it, the team's tab left open by the last match: "All".
+            matchStarts(false, true);
+            typedOn("All", 5, "free for all");
+            require(round(2) == "Squad: All:", "free for all: the tab key goes Squad, All, never Team");
+            talk.prevTab();
+            require(talk.textFieldName.text == "Squad:", "free for all: back to Squad, not Team");
+            talk.prevTab();
+            typedOn("All", 5, "free for all, round the tabs");
+            talk.got_message({type: 5, name: "A", text: "gl"});
+            talk.got_message({type: 2, text: "a system line"});
+            matchStarts(false, false);
+            typedOn("All", 5, "free for all, no squad");
+            require(round(2) == "All: All:", "free for all, no squad: the tab key has nowhere to go");
+            require(talk.hasTab(4), "free for all: the team's tab given, not offered");
+            // The exe takes its two tabs away and gives them again (set_mode).
+            talk.removeTab(4);
+            talk.removeTab(3);
+            tabs(false);
+            typedOn("All", 5, "free for all, the tabs given again");
+
+            // The mode told after the tabs: the team's tab open goes, "All" takes its place.
+            talk.clear();
+            talk.teamChannel = true;
+            tabs(true);
+            talk.teamChannel = false;
+            typedOn("All", 5, "free for all told after the tabs");
+            talk.nextTab();
+            talk.teamChannel = true;
+            typedOn("Squad", 8, "two teams told after the tabs: the tab open kept");
+            require(round(3) == "Team: All: Squad:", "two teams told after the tabs: Team is back");
+
+            // The next match of two teams: the team's tab is back, first.
+            matchStarts(true, false);
+            typedOn("Team", 6, "two teams after a free for all");
+            require(round(2) == "All: Team:", "two teams after a free for all: the tab key goes All, Team");
+            removeChild(talk);
         }
 
         private function kill(own:int, top:int, target:int, what:String):void

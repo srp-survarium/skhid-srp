@@ -283,7 +283,8 @@ pub(super) struct Running {
     pub fixed_teams: bool,
     pub ticket: MatchTicket,
     pub map: maps::MatchMap,
-    /// Its roster's sessions and teams, by place.
+    /// Its roster's sessions and teams, by place. The teams are the
+    /// lobby's seating; what a place plays on is its [`Running::side`].
     pub seats: Vec<(u32, u8)>,
     /// By place: what its player counted for when it was seated, beside
     /// being there ([`strength_in`]).
@@ -295,6 +296,30 @@ pub(super) struct Running {
     /// The server's bots play in it (against bots, or a room's with bots):
     /// one of `pvb::Config::max_matches`.
     pub server_bots: bool,
+}
+
+/// The side a place of a match plays on, as the match itself has it (the
+/// match server's `registry::own_side`): two places play together when
+/// their sides are equal.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Side {
+    /// A match of two teams: the team the lobby seated the place on.
+    Team(u8),
+    /// A free-for-all (`docs/notes/ffa.md`): the place alone. The team the
+    /// lobby seated it on is only its seating.
+    Alone(usize),
+}
+
+impl Running {
+    /// The side its roster place `place` plays on; none for a place it has
+    /// not.
+    pub(super) fn side(&self, place: usize) -> Option<Side> {
+        let &(_, team) = self.seats.get(place)?;
+        Some(match self.map.mode() {
+            maps::GameMode::FreeForAll => Side::Alone(place),
+            _ => Side::Team(team),
+        })
+    }
 }
 
 /// One player as the log's "sides" and "late join" lines have it: what it
@@ -1493,14 +1518,16 @@ impl Core<'_> {
         self.after_results(&who);
     }
 
-    /// The team of a player in the match it was sent to.
-    pub(super) fn team_in_match(&self, match_id: u32, session_id: u32) -> Option<u8> {
-        self.matches
-            .get(&match_id)?
+    /// The side a player plays on in the match it was sent to: who has the
+    /// same one plays with it (a team channel's line is theirs, `social`);
+    /// in a free-for-all, nobody.
+    pub(super) fn side_played(&self, match_id: u32, session_id: u32) -> Option<Side> {
+        let running = self.matches.get(&match_id)?;
+        let place = running
             .seats
             .iter()
-            .find(|(session, _)| *session == session_id)
-            .map(|(_, team)| *team)
+            .position(|(session, _)| *session == session_id)?;
+        running.side(place)
     }
 }
 

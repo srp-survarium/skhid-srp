@@ -293,3 +293,76 @@ fn the_members_a_free_for_all_had_no_place_for_play_its_rooms_next_match() {
         "the two who waited were left out again: {waited:?} of {again:?}"
     );
 }
+
+/// A free-for-all has no teams: each of its players is a side of his own
+/// (`Side::Alone`), as the match server has it. A line on a team channel
+/// reaches nobody but its sender, whose game has shown it, though the
+/// lobby's seating has another of the four on the sender's side; the
+/// match's channel reaches the three others.
+#[test]
+fn a_team_line_in_a_free_for_all_reaches_its_sender_only() {
+    let mut world = free_for_all_world();
+    let players: Vec<usize> = ["Alice", "Bob", "Carol", "Dave"]
+        .iter()
+        .map(|name| world.connect(name))
+        .collect();
+    let (alice, others) = (players[0], &players[1..]);
+    let key = create(&mut world, alice, spec(6), None);
+    for &other in others {
+        rows(&mut world, other, ROOM_JOIN_BASE + key, 1);
+    }
+    let ticket = room_match_starts(&mut world, &players, VOTE_AND_WAIT);
+    let seats = &world
+        .core
+        .matches
+        .values()
+        .find(|running| running.ticket.match_id == ticket)
+        .expect("the match")
+        .seats;
+    let seated_on = |team: u8| seats.iter().filter(|seat| seat.1 == team).count();
+    assert_eq!([seated_on(0), seated_on(1)], [2, 2], "{seats:?}");
+    let heard = |world: &mut World, player: usize| {
+        world
+            .take(player)
+            .iter()
+            .filter(|message| matches!(message, Decoded::ChatText { .. }))
+            .count()
+    };
+    // The game sends a team line on the channel of its lobby seat.
+    for team_channel in [channel::TEAM_1, channel::TEAM_2] {
+        world.ask(alice, request::chat(ticket, "", team_channel, "go left"));
+        for &other in others {
+            assert_eq!(heard(&mut world, other), 0, "channel {team_channel}");
+        }
+    }
+    world.ask(alice, request::chat(ticket, "", channel::MATCH, "gl"));
+    for &other in others {
+        assert_eq!(heard(&mut world, other), 1);
+    }
+    world.assert_clean();
+}
+
+/// The Rooms list shows a team modes' players by their sides
+/// (`a_member_list_says_the_side_of_each_player_in_the_match`); a
+/// free-for-all's are in the match and on no side, though the lobby seated
+/// them two a side.
+#[test]
+fn a_member_list_says_no_side_for_the_players_of_a_free_for_all() {
+    let mut world = free_for_all_world();
+    let players: Vec<usize> = ["Alice", "Bob", "Carol", "Dave"]
+        .iter()
+        .map(|name| world.connect(name))
+        .collect();
+    let key = create(&mut world, players[0], spec(6), None);
+    for &player in &players[1..] {
+        rows(&mut world, player, ROOM_JOIN_BASE + key, 1);
+    }
+    room_match_starts(&mut world, &players, VOTE_AND_WAIT);
+    let eve = world.connect("Eve");
+    let seen = members(&mut world, eve, key);
+    assert_eq!(seen[0][3], "4", "{seen:?}");
+    for row in &seen[1..] {
+        // In the match; its side.
+        assert_eq!((row[5].as_str(), row[8].as_str()), ("1", "0"), "{row:?}");
+    }
+}

@@ -8,7 +8,9 @@
 # - FfaTabHarness.as: the hud's Tab list, the same ranking from the exe's rows (the local player the
 #   ally, every other an enemy), through an update, a player gone, "Hide player scores" and Team
 #   Deathmatch after it; plain names, left-first overflow and reordering across columns; a timer-only
-#   top bar, including score updates, timeline initialization and transitions to another mode.
+#   top bar, including score updates, timeline initialization and transitions to another mode; the
+#   chat with no team tab ("All" first, the tab key among what is left), and a match of two teams
+#   after it with the team tab back.
 # Screenshots into the work dir: results-tdm.png, results-ffa.png, topbar-ffa.png, tab-ffa.png.
 # Exits 0 when both say pass; prints their lines. A work dir given is kept (the harnesses, Ruffle's
 # logs). Java and Flex from private/actionscript/tools.json (tools/actionscript/README.md), or
