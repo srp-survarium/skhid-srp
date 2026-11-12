@@ -727,7 +727,7 @@ pub fn edge_hold_m(radius: f32) -> f32 {
     radius * (1.0 - IDLE_SLOPE_COS_LIVE * IDLE_SLOPE_COS_LIVE).sqrt()
 }
 
-/// [A364 C2 rows 18, 24] `cc_idle_max_slope_angle_cos` (`startup.cfg`:14, the live `resources.db`): a body at rest slides from
+/// [A364 C2 row 18] `cc_idle_max_slope_angle_cos` (`startup.cfg`:14, the live `resources.db`): a body at rest slides from
 /// ground steeper than 45 deg (`need_slide` 0x7BC20; the exe's default is 40 deg).
 pub const IDLE_SLOPE_COS_LIVE: f32 = crate::controller::tick::Settings::LIVE.idle_max_slope_cos;
 

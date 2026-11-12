@@ -359,8 +359,9 @@ fn sprint_press_to_leave_s(prepare: f32) -> f32 {
 /// down on one level: a walk (3.0-3.5) and a sprint (5.0), so the
 /// bot walks it at whatever pace it has, no key.
 ///
-/// [A364 C2 row 28] The client's caps: walk 3.5, sprint 5.0 (`sprint_state.md`:50-51, PROVEN); 3.0 is `cc_min_walk_speed`
-/// (`startup.cfg`:24). Were 3.6 and 5.1 (J0's measured speeds, 0.1 over the caps).
+/// [A364 C2 row 28] The client's caps at the movement factor 1: walk 3.5, sprint 5.0 (`sprint_state.md`:50-51, PROVEN; the cap
+/// is the speed x the factor F the kit gives, so a body's own F is the exact bound: the exactness verdicts' row 10 asks the speed
+/// from the body); 3.0 is `cc_min_walk_speed` (`startup.cfg`:24). Were 3.6 and 5.1 (J0's measured speeds, over the caps at F 1).
 pub const WALK_OFF_SPEEDS: [f32; 3] = [3.0, 3.5, 5.0];
 /// Floor walked behind a walk-off's take-off, m: the walk's speed is
 /// reached in 0.25-0.5 s. GUESS.
