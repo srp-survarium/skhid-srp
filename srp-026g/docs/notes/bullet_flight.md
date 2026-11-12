@@ -94,8 +94,9 @@ turns (x 0x08088405 + 1, saved), gravity (0, -9.81, 0) and its time.
 
 The first box a bullet meets takes D x (1 - clamp(A - P, 0, 1)), D and P the bullet's at that step; **every later
 box, of that body or of the next, takes lo x (1 - clamp(A - plo, 0, 1))**; each pool keeps the largest routed share
-(`damage_model.md`). A box's armour is the worn items' sum with their modifications' adds (LIKELY only on the boxes
-the item covers: it explains 1,876 hits against 1,853 with every box). Counted: a hit foretold from a bullet an
+(`damage_model.md`). A box's armour is the worn items' sum with their modifications' adds, only on the boxes the
+item's own config names: a modification whose key the item lacks is skipped (`find_modifier_target` 0x2F1462, the
+cook 0x2F1ABF; it explains 1,876 hits against 1,853 with every box). Counted: a hit foretold from a bullet an
 earlier world held in flight agrees in every pool in **1,876 of 1,955** (683 of 717 between players; the rule
 without the fall-off and the later boxes: 610); of bullets with two or more box records on one body, every box
 but the largest is lo's in 75 of 76 (37 of 37); **1,000 of 33,014 bullets that hit left records on two or more
