@@ -141,7 +141,7 @@ edit	artefacts.tsv	-	the artefacts' stats (client patch 54 reads aim_time_mod an
 edit	character.tsv	-	the character's movement, stamina, fall, stealth, dispersion and breath numbers (gameplay/players/default.player)
 edit	battery.tsv	-	the battery's pick-up and put times and its movement penalty
 edit	modes.tsv	-	the game modes' rules, a row per mode config (battery modes respawn in 10 s)
-edit	maps.tsv	-	the maps' rules, a row per level over its projects: spawn protection, spawn zones, resupply, artefact search and cooldown
+edit	maps.tsv	-	the maps' rules, a row per level over its projects: spawn protection, spawn zones, artefact search and cooldown (resupply is the game's own 3000 ms)
 edit	rooms.tsv	-	the rooms' and Player vs Bots' settings (gameplay/srp/rooms.options): srp reads them from its game data; the lobby movie gets what it shows from srp's messages
 edit	armor.tsv	-	the armour: a row a piece (slot/name), its armour numbers (hit_params by the armour rule), weight, oxygen, levels, rollable kinds and built-in bonuses, and its card
 edit	medicines.tsv	-	the medicines: a row each, its delay and active seconds, the total health it gives each pool over its active time, weight and levels, and its card (the % it heals)
