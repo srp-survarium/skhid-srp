@@ -105,6 +105,7 @@
 /// batteries (the owner's rule against farming them).
 mod battery_cap;
 mod client_report;
+mod executable;
 /// The server's own bots (`MatchPlayer::driven`): their maps.
 pub mod bots;
 /// The upload check of a recorded match, for `examples/world_check_bench.rs`.

@@ -71,6 +71,7 @@ mod rt;
 pub mod sound;
 pub mod system;
 pub mod modules;
+pub mod executable;
 pub mod module_watch;
 pub mod voices;
 pub mod voice;

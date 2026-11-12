@@ -732,6 +732,28 @@ pub unsafe fn engine_map_virtual_key_a(function: NonNull<c_void>, code: u32, map
     unsafe { function(code, map) }
 }
 
+/// a function at the address GetProcAddress gives (stdcall): void *engine_create_file_w(const unsigned short *name, unsigned int access, unsigned int share, void *security, unsigned int disposition, unsigned int flags, void *template_file)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_create_file_w(function: NonNull<c_void>, name: *const u16, access: u32, share: u32, security: *mut c_void, disposition: u32, flags: u32, template_file: *mut c_void) -> *mut c_void {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*const u16, u32, u32, *mut c_void, u32, u32, *mut c_void) -> *mut c_void>(function.as_ptr()) };
+    unsafe { function(name, access, share, security, disposition, flags, template_file) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_set_file_pointer(void *file, unsigned int distance, void *high, unsigned int method)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_set_file_pointer(function: NonNull<c_void>, file: *mut c_void, distance: u32, high: *mut c_void, method: u32) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, u32, *mut c_void, u32) -> u32>(function.as_ptr()) };
+    unsafe { function(file, distance, high, method) }
+}
+
 #[allow(dead_code, non_upper_case_globals)]
 unsafe extern "C" {
     /// the IAT slot 0x870048 (an import, stdcall): void *engine_create_file_a(const char *name, unsigned int access, unsigned int share, void *security, unsigned int disposition, unsigned int flags, void *template_file)

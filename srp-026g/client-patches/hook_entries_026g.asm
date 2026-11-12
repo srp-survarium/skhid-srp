@@ -3265,6 +3265,84 @@ effect_presenters_on_particle_stop_replay:
     db 0x8d, 0x14, 0x40, 0x8b, 0x07
     jmp 0x2ac65f
 
+; 0x1ec8ec game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game: lohook -> music_on_frame
+global music_on_frame
+extern hook_music_on_frame_chain
+music_on_frame:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_music_on_frame_chain
+    mov edx, music_on_frame_replay
+    cmp eax, 0
+    je music_on_frame_go
+    mov edx, 0x1ec8f2
+    cmp eax, 1
+    je music_on_frame_go
+    ud2
+music_on_frame_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+music_on_frame_replay:
+    db 0x8d, 0xb3, 0x08, 0x53, 0x00, 0x00
+    jmp 0x1ec8f2
+
+; 0x27a790 close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown: lohook -> memory_report_on_close
+global memory_report_on_close
+extern hook_memory_report_on_close_chain
+memory_report_on_close:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_memory_report_on_close_chain
+    mov edx, memory_report_on_close_replay
+    cmp eax, 0
+    je memory_report_on_close_go
+    mov edx, 0x27a796
+    cmp eax, 1
+    je memory_report_on_close_go
+    ud2
+memory_report_on_close_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+memory_report_on_close_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x27a796
+
 ; 0x2a6485 player_equipment_sound_effect::on_player_sound_event's guard (mov edi,[esi+10h] / cmp edi,[ecx+18FC4h] / setbe cl / test cl,cl; the jne at 0x2A6493 skips an event at or before the newest played time): EAX the effect, ESI the event, ECX its player's world core (not 0: the je at 0x2A6483); play goes on to the object test and the switch, skip is the handler's return 0: lohook -> footsteps_on_step_guard
 global footsteps_on_step_guard
 extern hook_footsteps_on_step_guard
@@ -5521,45 +5599,6 @@ memory_profile_on_freeing_go:
     lea esp, [esp + 4]
     ret
 
-; 0x27a790 close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown: lohook -> memory_report_on_close
-global memory_report_on_close
-extern hook_memory_report_on_close_chain
-memory_report_on_close:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_memory_report_on_close_chain
-    mov edx, memory_report_on_close_replay
-    cmp eax, 0
-    je memory_report_on_close_go
-    mov edx, 0x27a796
-    cmp eax, 1
-    je memory_report_on_close_go
-    ud2
-memory_report_on_close_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-memory_report_on_close_replay:
-    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
-    jmp 0x27a796
-
 ; 0xe4d70 out_of_memory_with_crash's entry (push ebp / mov ebp,esp / and esp,-8; stdcall: the mspace, its doug_lea_allocator, first time), a fixed arena's heap callback: it logs "out of memory in arena", dumps the statistics and FATALs; EBP the bytes asked when it returns to mspace_malloc (heap_out_of_memory_return): lohook -> memory_profile_on_out_of_memory
 global memory_profile_on_out_of_memory
 extern hook_memory_profile_on_out_of_memory
@@ -5704,45 +5743,6 @@ module_report_on_dll_go:
     popfd
     lea esp, [esp + 4]
     ret
-
-; 0x1ec8ec game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game: lohook -> music_on_frame
-global music_on_frame
-extern hook_music_on_frame_chain
-music_on_frame:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_music_on_frame_chain
-    mov edx, music_on_frame_replay
-    cmp eax, 0
-    je music_on_frame_go
-    mov edx, 0x1ec8f2
-    cmp eax, 1
-    je music_on_frame_go
-    ud2
-music_on_frame_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-music_on_frame_replay:
-    db 0x8d, 0xb3, 0x08, 0x53, 0x00, 0x00
-    jmp 0x1ec8f2
 
 ; 0x2402e9 on_mouse_move's pitch step (patch 112), after the window's two size calls: movss xmm1,[edi] / divss xmm1,[eax] (h / w) / movss xmm2,[esp+28h] (the yaw's step s) / mulss xmm1,xmm2; 0x2402FB multiplies xmm1 by the invert and 3/pi, 0x240309 the journal's path joins; XMM1 the pitch's step before them, XMM2 s for the yaw (0x240349): lohook -> mouse_pitch_on_pitch_step
 global mouse_pitch_on_pitch_step

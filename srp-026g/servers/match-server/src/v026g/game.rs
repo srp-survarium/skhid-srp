@@ -707,6 +707,7 @@ struct Peer {
     /// The parts of its client reports logged so far (client patch 126,
     /// `Carrier::key`): each once, however often the client resends it.
     reports_heard: BTreeSet<(u8, u8, u8)>,
+    executable: super::executable::Receiver,
     /// The sync generation of the last 0xE5/0xE8 sent to it: 0xFF once it
     /// is ready, as the client's own.
     generation: Generation,
@@ -1382,6 +1383,7 @@ impl Game {
             upload_standing: UploadStanding::default(),
             world_receipts: WorldReceipts::default(),
             reports_heard: BTreeSet::new(),
+            executable: super::executable::Receiver::default(),
             generation: Generation::AT_READY,
             set_times: VecDeque::new(),
             time_confirmed: false,
@@ -1492,6 +1494,26 @@ impl Game {
         }
     }
 
+    fn accept_executable(&mut self, index: usize, message: u8, payload: &[u8], now: Instant) -> bool {
+        use srp_validate::executable::{Carrier, Reply, Upload, MAGIC};
+        if message != survarium::v026g::match_msgs::id::LEAVE || !payload.starts_with(&MAGIC) { return false; }
+        // A malformed transfer is consumed here, never interpreted as a leave/world.
+        let Some(carrier) = Carrier::parse(payload) else { return true };
+        if carrier.match_id != super::registry::static_id(self.id) { return true; }
+        let (Some(peer), Some(place)) = (self.peers.get_mut(index).and_then(Option::as_mut), self.formed.places.get(index)) else { return true };
+        if matches!(peer.stage, Stage::Gone | Stage::Connecting) { peer.executable.cancel(); return true; }
+        if peer.executable.identity().is_none() && let Upload::Offer(identity) = carrier.upload {
+            log::info!(target: super::client_report::MODULES, "{} (account {}), match {:#x}, executable sha256 {} size {}", place.name, place.account_id, self.id, identity, identity.size());
+        }
+        if let Some((sha256, answer)) = peer.executable.receive(carrier.upload, now) {
+            let reply = Reply { match_id: carrier.match_id, sha256, answer };
+            // Only a peer that offered this protocol ever receives its E4 reply.
+            // Lost application replies are retried by the client's next offer.
+            let _ = peer.transport.send(survarium::v026g::match_msgs::id::STATIC_INFO, &reply.encode());
+        }
+        true
+    }
+
     /// A part of a client report (an E0 carrier, client patch 126 on,
     /// `srp_validate::report`): only logged (`client_report`), each part
     /// once per connection, of this match only, whatever its stage (a game
@@ -1599,6 +1621,7 @@ impl Game {
 
     fn message(&mut self, index: usize, id: u8, payload: &[u8], now: Instant) {
         if self.accept_world_receipt(index, id, payload, now)
+            || self.accept_executable(index, id, payload, now)
             || self.accept_report(index, id, payload)
             || self.accept_prepared(index, id, payload)
         {
@@ -4946,6 +4969,7 @@ impl Game {
                     }
                 ));
         peer.stage = Stage::Gone;
+        peer.executable.cancel();
         peer.held.clear();
         peer.reassembler.clear();
         log::info!(
@@ -5408,6 +5432,9 @@ impl Game {
 
     /// Advance the match, and return the datagrams to send.
     pub fn poll(&mut self, now: Instant) -> Vec<(SocketAddr, Vec<u8>)> {
+        for peer in self.peers.iter_mut().flatten() {
+            if peer.stage == Stage::Gone { peer.executable.cancel(); } else { peer.executable.expire(now); }
+        }
         self.poll_roster(now);
         let clock = self.clock(now);
         let mono16 = self.mono(now) as u16;
