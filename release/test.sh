@@ -219,6 +219,8 @@ compose)
             cat "$state/refused"
         else
             echo "INFO game data: /srv/srp/download/server-game-data.db (2 gameplay files, 1 projects; made of resources.db; $(offered | grep -c .) patch(es) offered at /patches)"
+            # The match server, of the setting it read at its start.
+            sed -n "s/^SRP_RELEASED_EXE_SHA256=\(.*\)$/INFO Executables: the release's own is sha256 \1; a game that reports it is not asked for its file/p" "$TEST_DIR/live/.env"
         fi ;;
     *" up "*)
         cp "$state/latest" "$state/running"
@@ -547,6 +549,9 @@ check() { # <what> <test...>
     if "$@"; then ok "$what"; else fail "$what"; fi
 }
 has() { grep -q -- "$2" <<<"$1"; }
+# The sha256 of a ZIP's game exe, and the line of .env that names it.
+exe_sha() { python3 -c 'import hashlib, sys, zipfile; print(hashlib.sha256(zipfile.ZipFile(sys.argv[1]).read("game/binaries/x86/survarium_skhid.exe")).hexdigest())' "$1"; }
+exe_line() { echo "SRP_RELEASED_EXE_SHA256=$(exe_sha "$1")"; }
 quiet() { "$@" >/dev/null; }
 rows() { grep -v '^#' "$1" | cut -f1 | tr '\n' ' ' | sed 's/ $//'; }
 changed=0
@@ -1009,7 +1014,10 @@ check "deploy: the folder's state is released" grep -qx released "$F/state"
 check "deploy: the folder's release.log, without .env" bash -c "grep -q 'deployed revision 12' $F/release.log && ! grep -q very-secret $F/release.log"
 check "deploy tags the running image by its ID" test "$(cat "$T"/docker/tags/srp-026g_before-rev12-*-test)" = "$(cat "$T/docker/running")"
 check "deploy sets the revision" grep -qx "SRP_MIN_PATCH_REVISION=12" "$T/live/.env"
-check "deploy keeps the rest of .env" test "$(grep -v '^SRP_MIN_PATCH_REVISION=' "$T/live/.env")" = $'SRP_ADMIN_TOKEN=very-secret\nOTHER=1'
+check "deploy sets the sha256 of the ZIP's game exe" grep -qx "$(exe_line "$zip12")" "$T/live/.env"
+check "deploy: ... there was no such line before: the folder keeps none" test -e "$F/released-exe.old" -a ! -s "$F/released-exe.old"
+check "deploy: ... and says what srp's log tells of it" has "$out" "log: INFO Executables: the release's own is sha256 $(exe_sha "$zip12")"
+check "deploy keeps the rest of .env" test "$(grep -Ev '^SRP_(MIN_PATCH_REVISION|RELEASED_EXE_SHA256)=' "$T/live/.env")" = $'SRP_ADMIN_TOKEN=very-secret\nOTHER=1'
 check "deploy never prints .env" bash -c "! grep -q very-secret <<<\"\$1\"" _ "$out"
 check "deploy makes srp26 anew" grep -q "docker compose up -d --no-deps --force-recreate srp26" "$T/log"
 check "deploy: the ZIP goes in while srp26 is stopped, before its start" bash -c "s=\$(grep -n 'compose stop srp26' $T/args | head -n1 | cut -d: -f1); a=\$(grep -n 'up -d --no-deps' $T/args | head -n1 | cut -d: -f1); z=\$(grep -n 'mv -f download/.Survarium-0.26g-srp-files.zip.new' $T/args | head -n1 | cut -d: -f1); test -n \"\$s\" -a -n \"\$a\" -a -n \"\$z\" && ((s < z && z < a))"
@@ -1039,6 +1047,7 @@ check "deploy: ... shows srp's log" has "$out" "srp26's last log lines:"
 check "deploy: ... rolls back" has "$out" "ROLLING BACK"
 check "deploy: ... the old ZIP back in place" cmp -s "$zip12" "$T/live/download/Survarium-0.26g-srp-files.zip"
 check "deploy: ... the setting back" grep -qx "SRP_MIN_PATCH_REVISION=12" "$T/live/.env"
+check "deploy: ... the game exe's line back, once" test "$(grep '^SRP_RELEASED_EXE_SHA256=' "$T/live/.env")" = "$(exe_line "$zip12")"
 check "deploy: ... srp.db back from the new start's backup (its writes gone)" bash -c "! grep -q '^start $((starts + 1)) ' $T/volume/srp.db && grep -q '^start $((starts + 2)) ' $T/volume/srp.db"
 check "deploy: ... srp26 running again" test "$(cat "$T/docker/state")" = running
 check "deploy: ... the folder says rolled-back" grep -qx rolled-back "$F/state"
@@ -1046,6 +1055,8 @@ check "deploy: ... nothing half-done" bash -c "! ls $T/live/download/.*.new 2>/d
 # /api/client-files that is not the release's after the start (the ZIP in
 # place before it): the rollback puts the old ZIP back.
 echo 11 >"$T/state/client-files-min"
+# A server the release before gave no game exe's sha256.
+sed -i '/^SRP_RELEASED_EXE_SHA256=/d' "$T/live/.env"
 out=$(yes_to "$here/deploy" --zip "$T/work/r13.zip" --server-data "$T/work/sgd.db" --revision 13 --label notsaid || true)
 rm "$T/state/client-files-min"
 F=$(folder 13 notsaid)
@@ -1054,6 +1065,8 @@ check "deploy: ... srp started with the new ZIP, and again with the old one by t
 check "deploy: ... rolls back" has "$out" "ROLLING BACK"
 check "deploy: ... the old ZIP back in place" cmp -s "$zip12" "$T/live/download/Survarium-0.26g-srp-files.zip"
 check "deploy: ... the setting back" grep -qx "SRP_MIN_PATCH_REVISION=12" "$T/live/.env"
+check "deploy: ... no line of the game exe, as before" bash -c "! grep -q '^SRP_RELEASED_EXE_SHA256=' $T/live/.env"
+check "deploy: ... the rest of .env as it was" test "$(grep -v '^SRP_MIN_PATCH_REVISION=' "$T/live/.env")" = $'SRP_ADMIN_TOKEN=very-secret\nOTHER=1'
 check "deploy: ... srp26 running again" test "$(cat "$T/docker/state")" = running
 check "deploy: ... the folder says rolled-back" grep -qx rolled-back "$F/state"
 out=$(echo n | setsid -w "$here/deploy" --zip "$zip12" --server-data "$T/work/sgd.db" --revision 12 2>&1 || true)
@@ -1344,7 +1357,9 @@ check "release: the folder's release.log" grep -q "released revision 12" "$(fold
 check "release: no old data to keep (there was none)" test ! -e "$(folder 12 a)/old-server-game-data.db"
 check "release: the rollback removes the data (there was none)" grep -qx "HAVE_DATA=0" "$(folder 12 a)/rollback.env"
 check "release: SRP_MIN_PATCH_REVISION=12" grep -qx "SRP_MIN_PATCH_REVISION=12" "$T/live/.env"
-check "release: the rest of .env as it was" test "$(grep -vc '^SRP_MIN_PATCH_REVISION=' "$T/live/.env")" = 5
+check "release: SRP_RELEASED_EXE_SHA256 is the sha256 of the new ZIP's game exe" grep -qx "$(exe_line "$T/live/download/Survarium-0.26g-srp-files.zip")" "$T/live/.env"
+check "release: ... shown before the swap, and what srp's log tells of it after" bash -c "grep -q \"^  .env: SRP_RELEASED_EXE_SHA256 -> \$2 \" <<<\"\$1\" && grep -q \"^log: INFO Executables: the release's own is sha256 \$2\" <<<\"\$1\"" _ "$out" "$(exe_sha "$T/live/download/Survarium-0.26g-srp-files.zip")"
+check "release: the rest of .env as it was" test "$(grep -Evc '^SRP_(MIN_PATCH_REVISION|RELEASED_EXE_SHA256)=' "$T/live/.env")" = 5
 check "release: restarts srp26" grep -q "docker compose up -d --no-deps --force-recreate srp26" "$T/log"
 check "release: stops srp26 before it moves anything" bash -c "s=\$(grep -n 'compose stop srp26' $T/args | head -n1 | cut -d: -f1); b=\$(grep -n 'mv -f download/.server-game-data.db.new' $T/args | head -n1 | cut -d: -f1); test -n \"\$s\" -a -n \"\$b\" && ((s < b))"
 check "release: the ZIP goes in while srp26 is stopped, before its start" bash -c "s=\$(grep -n 'compose stop srp26' $T/args | head -n1 | cut -d: -f1); a=\$(grep -n 'up -d --no-deps' $T/args | head -n1 | cut -d: -f1); z=\$(grep -n 'mv -f download/.Survarium-0.26g-srp-files.zip.new' $T/args | head -n1 | cut -d: -f1); test -n \"\$s\" -a -n \"\$a\" -a -n \"\$z\" && ((s < z && z < a))"
@@ -2106,6 +2121,7 @@ out=$(yes_to "$here/rollback" --keep-db "$D_FOLDER") || fail "rollback --keep-db
 check "rollback --keep-db: the ZIP back" cmp -s "$T/work/r13.zip" "$T/live/download/Survarium-0.26g-srp-files.zip"
 check "rollback --keep-db: srp.db as it was" grep -q "^start $starts " "$T/volume/srp.db"
 check "rollback --keep-db: the setting back" grep -qx "SRP_MIN_PATCH_REVISION=13" "$T/live/.env"
+check "rollback --keep-db: the game exe's line back, once" test "$(grep '^SRP_RELEASED_EXE_SHA256=' "$T/live/.env")" = "$(exe_line "$T/work/r13.zip")"
 check "rollback --keep-db: the bots' data as it was (the old routes table back)" test "$(sha256sum <"$T/volume/mapdata/bot-routes.json")" = "$routes_before"
 check "rollback --keep-db: the folder says rolled-back" grep -qx rolled-back "$(folder 14 d)/state"
 # Revision 14 went out and came back: the next release is not 14 again.
@@ -2146,7 +2162,7 @@ check "rollback: ... srp26 stopped, not looping" test "$(cat "$T/docker/state")"
 check "rollback: ... the folder says rollback-refused" grep -qx rollback-refused "$(folder 14 d)/state"
 back=$(grep -A1 'To put the release back as it was:' <<<"$out" | tail -n 1)
 (bash -c "$back") >/dev/null 2>&1 || fail "the way back to the release: $back"
-check "rollback: ... its way back puts the release in place again" bash -c "cmp -s $T/work/r14.zip $T/live/download/Survarium-0.26g-srp-files.zip && grep -qx SRP_MIN_PATCH_REVISION=14 $T/live/.env && test \$(cat $T/docker/state) = running"
+check "rollback: ... its way back puts the release in place again" bash -c "cmp -s $T/work/r14.zip $T/live/download/Survarium-0.26g-srp-files.zip && grep -qx SRP_MIN_PATCH_REVISION=14 $T/live/.env && test \"\$(grep '^SRP_RELEASED_EXE_SHA256=' $T/live/.env)\" = $(exe_line "$T/work/r14.zip") && test \$(cat $T/docker/state) = running"
 
 # --test: the test environment's compose project and patches server, no copy
 # of srp.db to the jump host (it is there).

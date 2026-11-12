@@ -103,7 +103,12 @@
 //! - `SRP_ANTI_AFK` (default 180, at least 60; `off` or `0`): a player who gives
 //!   no input for that many seconds of play is removed from the match, as
 //!   one who leaves; never in a private room's match nor one against
-//!   bots ([`afk`], `docs/notes/anti-afk.md`).
+//!   bots ([`afk`], `docs/notes/anti-afk.md`);
+//! - `SRP_RELEASED_EXE_SHA256` (default none; the release sets it): the
+//!   SHA-256 of the game executable in the players' download. A game that
+//!   reports it is not asked for its file; every other executable the
+//!   server has not stored is collected ([`executable`],
+//!   `docs/notes/module-report.md`).
 
 /// Anti-AFK: a player without input for three minutes of play is removed.
 mod afk;
@@ -285,6 +290,9 @@ pub(crate) struct Settings {
     pub maps: Option<Arc<bots::maps::Maps>>,
     /// `SRP_ANTI_AFK`: when an idle player is removed, if ever.
     pub anti_afk: afk::Setting,
+    /// `SRP_RELEASED_EXE_SHA256`: the release's own game executable, which
+    /// no game is asked for; `None`: every unknown one is collected.
+    pub released_executable: Option<executable::Released>,
     pub timing: Timing,
 }
 
@@ -302,6 +310,7 @@ impl Default for Settings {
             pack: Config::for_table(Table::Match).gather,
             maps: None,
             anti_afk: afk::Setting::default(),
+            released_executable: None,
             timing: Timing::default(),
         }
     }
@@ -354,6 +363,9 @@ impl Settings {
                 var("SRP_MAPDATA_BUILT").as_deref(),
             ),
             anti_afk: afk::Setting::parse(var("SRP_ANTI_AFK").as_deref()),
+            released_executable: executable::Released::parse(
+                var("SRP_RELEASED_EXE_SHA256").as_deref(),
+            ),
             timing: {
                 let client_timeout = Duration::from_secs(u64::from(
                     parse_number(

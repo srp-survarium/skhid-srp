@@ -116,6 +116,10 @@ services:
       - SRP_BALANCE_BATTERY_LEAD
       - SRP_BALANCE_TICKET_LEAD
       - SRP_MIN_PATCH_REVISION
+      # The sha256 of the game exe in the players' download, which the
+      # release sets with the revision: no game that reports it is asked
+      # for its file (docs/notes/module-report.md).
+      - SRP_RELEASED_EXE_SHA256
       - SRP_MATCH_MODES
       - SRP_MATCH_MAPS
       - SRP_LOBBY_LINK_TIMEOUT_SECONDS
