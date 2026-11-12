@@ -11,7 +11,9 @@ game computes a bullet in the lockstep. See also `player_bots_weapons.md`, `dama
 ## What a bullet holds (`bullet::bullet` 0x32BA60; saved in every world)
 
 Its id, shooter and weapon slot; **the current segment's** start position, start velocity and born time (a change
-of course starts a new segment, `change_trajectory` 0x32EE20: born + floor(1000 t), life 0); the life time in the
+of course starts a new segment, `change_trajectory` 0x32EE20: born + floor(1000 t), life 0; in the tick of a
+change the saved life is under (now - born) / 1000 by the floors' loss, less than 1 ms a change: 8,556 of 8,559
+such records, and exact in 67,846 later ones); the life time in the
 segment, the flown distance (the steps' chords, all segments), the damage and pierce as they stand, the two damage
 speeds, the largest damage dealt, the pellet number, the count of changes of course and of ricochets, and **the
 ammunition's ordinal**: the index in the weapon's list of the kit's slots 8, 9, 11, 12, 19, 20, 21, 22 (in that
@@ -122,7 +124,6 @@ front-face rule for the map.
 ## Not read
 
 A mirrored placement's faces; whether a ray starting inside a hit box reports an exit hit (it could change no
-record); the clock of a bullet that changes course several times in one tick (2,805 of 76,405 records off the
-floored millisecond); 60 pairs off the simulated steps by more than 2 mm;
+record); 60 pairs off the simulated steps by more than 2 mm;
 the materials' ricochet and dispersion keys' values (in the players' resources.db only); the pose of the hit boxes
 at a hit (not ported); the parallel tick at 256 bullets or more (never reached: at most 105 in a world).
