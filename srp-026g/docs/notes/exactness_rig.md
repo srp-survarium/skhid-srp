@@ -230,8 +230,8 @@ apart by marking, in a run of the same 1,000 steps, each answer that is not the 
 
 These counts first read the 15 as the wall normal's ray: WRONG for the capture's triangles, where the same kind of
 step was settled as a tie of order (3j; answering the rays with the port's arithmetic or the exe's own triangle ray
-0xB8010 changes none of 15 steps there). For these 19 on the map's shapes the tie of order is the cause the rig of
-3j would show; it is not yet run on the shapes world (it needs the two callbacks hooked in the real memory's rig). The penetration fallback (the stand-in of that time; the exe's own solver since 3i) is in
+0xB8010 changes none of 15 steps there). For these 19 on the map's shapes the cause is not read yet: the rig of 3j
+has not been run on the shapes world (it needs the two callbacks hooked in the real memory's rig). The penetration fallback (the stand-in of that time; the exe's own solver since 3i) is in
 no step that is off.
 
 ### 3e. The second looks' ray, bit for bit (PROVEN)
