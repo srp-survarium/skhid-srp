@@ -11,6 +11,8 @@ use core::ffi::c_void;
 
 #[allow(dead_code)]
 unsafe extern "C" {
+    /// 0x261100 survarium::options_item_int::options_item_int: parent ECX, id EAX, receiver ESP+4, command ESP+8, values ESP+12, count ESP+16; pops 16; EAX
+    pub fn engine_options_int(parent: *mut c_void, id: u32, receiver: *mut c_void, command: *const u8, values: *const *const u8, count: u32) -> *mut c_void;
     /// 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
     pub fn engine_cfg_child(table: *const c_void, key: *const u8) -> *const c_void;
     /// 0xf6c00 vostok::configs::binary_config_value::value_exists: table EAX, key ESI; pops 0; AL
@@ -277,6 +279,10 @@ unsafe extern "C" {
     pub fn engine_log_helper(function: *const c_void, context: u32, helper: *mut c_void, template_helper: *const c_void, file: *const u8, line: u32, caller: *const u8, channel: *const u8, level: u32) -> *mut c_void;
     /// 0x111d10 vostok::logging::helper::write: helper ESI, format ESP+4, arguments ESP+8; pops 8
     pub fn engine_log_write(helper: *mut c_void, format: *const u8, arguments: *const c_void);
+    /// 0x1dcd0 vostok::console_commands::cc_u32::cc_u32: object EAX, name ESP+4, value ESP+8, minimum ESP+12, maximum ESP+16, saved ESP+20, kind ESP+24; pops 24
+    pub fn engine_cc_u32(object: *mut c_void, name: *const u8, value: *mut u32, minimum: u32, maximum: u32, saved: u32, kind: u32);
+    /// 0x3cd300 vostok::render::render_cc_u32::execute: object ECX, arguments ESP+4; pops 4
+    pub fn engine_render_u32_execute(object: *mut c_void, arguments: *const u8);
 }
 
 #[allow(dead_code)]

@@ -2526,11 +2526,14 @@ va	name	location	role	basis
 0x0025d130	survarium::game_world::set_cursor_position	entry ESP+4	x, then y (+8): the system's cursor and the hud's pointer	observed
 0x0025d160	survarium::game_world::set_pointer	ECX	the game world (vtable+30h; the pointer kept at +8Ch, +90h)	observed
 0x0025d160	survarium::game_world::set_pointer	entry ESP+4	x, then y (+8) and the wheel (+12)	observed
-0x00260e90	survarium::options_item_base::options_item_base	EDI	options item receiver	inferred
-0x00260e90	survarium::options_item_base::options_item_base	EAX	console command name	inferred
-0x00260e90	survarium::options_item_base::options_item_base	stack+4	parent tab	inferred
-0x00260e90	survarium::options_item_base::options_item_base	stack+8	option item id byte	inferred
-0x00260e90	survarium::options_item_base::options_item_base	stack+12	option item type	inferred
+0x00260e90	survarium::options_item_base::options_item_base	EAX	console command name, copied to ESI at 0x260ea2 for lookup	observed
+0x00260e90	survarium::options_item_base::options_item_base	EDI	options item receiver; ctor stores +4 callback and +8 command	observed
+0x00260e90	survarium::options_item_base::options_item_base	entry ESP+12	option item type, stored at receiver+0Ch by 0x260ee7	observed
+0x00260e90	survarium::options_item_base::options_item_base	entry ESP+4	parent tab, stored at receiver+10h by 0x260eea	observed
+0x00260e90	survarium::options_item_base::options_item_base	entry ESP+8	option item id byte, stored at receiver+14h by 0x260eed	observed
+0x002617c0	survarium::options_item_bool::initialize	ECX	receiver	observed
+0x00261820	survarium::options_item_bool::apply	ECX	receiver	observed
+0x00261880	survarium::options_item_bool::revert	ECX	receiver	observed
 0x002636b0	survarium::lobby_character::start_decal_edit	EAX	the host item id	observed
 0x002636b0	survarium::lobby_character::start_decal_edit	entry ESP+4	lobby_character	observed
 0x002636b0	survarium::lobby_character::start_decal_edit	entry ESP+8	the decal item id	observed
@@ -3939,6 +3942,8 @@ va	name	location	role	basis
 0x003cbec0	vostok::render::effect_manager::register_effect_desctiptor	entry ESP+4	owner	observed
 0x003cbec0	vostok::render::effect_manager::register_effect_desctiptor	entry ESP+8	name string	observed
 0x003cbec0	vostok::render::effect_manager::register_effect_desctiptor	entry ESP+12	descriptor	observed
+0x003cd180	vostok::render::render_cc_bool::execute	ECX	receiver	observed
+0x003cd180	vostok::render::render_cc_bool::execute	entry ESP+4	console argument string	observed
 0x003cd460	vostok::render::options::use_ssr	EAX	options owner	observed
 0x003cd4d0	vostok::render::options::set_default_values	EAX	options owner	observed
 0x003cd870	vostok::render::options::register_console_commands	EDI	options owner	observed
@@ -6077,3 +6082,22 @@ va	name	location	role	basis
 0x0025cf60	survarium::game_world::on_mouse_key_action	entry ESP+4	the input world (its vtable+24h at 0x25CF6A, as on_keyboard_action's)	observed
 0x0025cf60	survarium::game_world::on_mouse_key_action	entry ESP+8	the key: 151h + the mouse button (0x3B9981), 151h the left (0x25CF95)	observed
 0x0025cf60	survarium::game_world::on_mouse_key_action	entry ESP+12	the kind (0 the press, 1 the release, 2 held), as the mouse's process 0x3B9D90 gives every listener	observed
+0x00261100	survarium::options_item_int::options_item_int	ECX	parent tab	observed at 0x261100 and texture option caller 0x2629bf
+0x00261100	survarium::options_item_int::options_item_int	EAX	option id (low byte)	observed at 0x261100 and texture option caller 0x2629bf
+0x00261100	survarium::options_item_int::options_item_int	entry ESP+4	receiver	observed at 0x261100 and texture option caller 0x2629bf
+0x00261100	survarium::options_item_int::options_item_int	entry ESP+8	console command name	observed at 0x261100 and texture option caller 0x2629bf
+0x00261100	survarium::options_item_int::options_item_int	entry ESP+12	values (localized choice keys pointer)	observed at 0x261100 and texture option caller 0x2629bf
+0x00261100	survarium::options_item_int::options_item_int	entry ESP+16	choice count (low byte)	observed at 0x261100 and texture option caller 0x2629bf
+0x001cc470	grass_patch_select_model_lod	ESI	view-projection matrix	observed at grass_patch::render 0x1ccb3d..0x1ccb49 and selector body
+0x001cc470	grass_patch_select_model_lod	entry ESP+4	world transform matrix	observed at grass_patch::render 0x1ccb3d..0x1ccb49 and selector body
+0x001cc470	grass_patch_select_model_lod	entry ESP+8	viewer position float3	observed at grass_patch::render 0x1ccb3d..0x1ccb49 and selector body
+0x001cc470	grass_patch_select_model_lod	entry ESP+12	render model reference, released by the selector	observed at grass_patch::render 0x1ccb3d..0x1ccb49 and selector body
+0x0001dcd0	vostok::console_commands::cc_u32::cc_u32	EAX	object	observed
+0x0001dcd0	vostok::console_commands::cc_u32::cc_u32	entry ESP+4	name	observed
+0x0001dcd0	vostok::console_commands::cc_u32::cc_u32	entry ESP+8	value address	observed
+0x0001dcd0	vostok::console_commands::cc_u32::cc_u32	entry ESP+12	minimum	observed
+0x0001dcd0	vostok::console_commands::cc_u32::cc_u32	entry ESP+16	maximum	observed
+0x0001dcd0	vostok::console_commands::cc_u32::cc_u32	entry ESP+20	saved serializable	observed
+0x0001dcd0	vostok::console_commands::cc_u32::cc_u32	entry ESP+24	command kind	observed
+0x003cd300	vostok::render::render_cc_u32::execute	ECX	cc_u32 object receiver at render command +10h	observed
+0x003cd300	vostok::render::render_cc_u32::execute	entry ESP+4	arguments string	observed

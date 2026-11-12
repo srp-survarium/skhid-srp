@@ -2,6 +2,9 @@
 ; cdecl: push the arguments right to left, call, add esp, 4 x their count;
 ; EBX, ESI, EDI and EBP are kept, EAX, ECX and EDX are not. The link gives
 ; each its address.
+; void *engine_options_int(void *parent, unsigned int id, void *receiver, const char *command, const char *const *values, unsigned int count)
+; 0x261100 survarium::options_item_int::options_item_int: parent ECX, id EAX, receiver ESP+4, command ESP+8, values ESP+12, count ESP+16; pops 16; EAX
+extern engine_options_int
 ; const struct engine_cfg *engine_cfg_child(const struct engine_cfg *table, const char *key)
 ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
 extern engine_cfg_child
@@ -745,3 +748,9 @@ extern engine_log_helper
 ; void engine_log_write(struct log_helper *helper, const char *format, const void *arguments)
 ; 0x111d10 vostok::logging::helper::write: helper ESI, format ESP+4, arguments ESP+8; pops 8
 extern engine_log_write
+; void engine_cc_u32(void *object, const char *name, unsigned int *value, unsigned int minimum, unsigned int maximum, unsigned int saved, unsigned int kind)
+; 0x1dcd0 vostok::console_commands::cc_u32::cc_u32: object EAX, name ESP+4, value ESP+8, minimum ESP+12, maximum ESP+16, saved ESP+20, kind ESP+24; pops 24
+extern engine_cc_u32
+; void engine_render_u32_execute(void *object, const char *arguments)
+; 0x3cd300 vostok::render::render_cc_u32::execute: object ECX, arguments ESP+4; pops 4
+extern engine_render_u32_execute

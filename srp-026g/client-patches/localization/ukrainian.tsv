@@ -916,6 +916,10 @@ st_dispersion_from_hip_description	Влучність при стрільбі в
 st_dispersion_from_hip_name	Точність
 st_dispersion_movement_influence_description	Точність при пересуванні:
 st_dispersion_movement_influence_name	Тверда рука
+st_distance_detail_high	Висока
+st_distance_detail_maximum	Максимум
+st_distance_detail_normal	Звичайна
+st_distance_detail_option	Деталізація
 st_dont_have_permission	Недостатньо прав для виконання дії.
 st_drop	Зняти
 st_drop_action	Викинути

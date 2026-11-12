@@ -1049,6 +1049,9 @@ va	name	source	ret_cleanup	result
 0x0025d130	survarium::game_world::set_cursor_position	manual	8	
 0x0025d160	survarium::game_world::set_pointer	manual	12	
 0x00260e90	survarium::options_item_base::options_item_base	manual	12	
+0x002617c0	survarium::options_item_bool::initialize	manual	0	void
+0x00261820	survarium::options_item_bool::apply	manual	0	void
+0x00261880	survarium::options_item_bool::revert	manual	0	void
 0x002636b0	survarium::lobby_character::start_decal_edit	manual	8	
 0x00263950	survarium::lobby_character::accept_decal_edit	manual	8	
 0x00263a70	survarium::lobby_character::cancel_decal_edit	manual	4	
@@ -1672,6 +1675,7 @@ va	name	source	ret_cleanup	result
 0x003cb910	vostok::render::effect_manager::delete_effect_technique	manual	4	
 0x003cba30	vostok::render::effect_manager::recompile_shaders_async	manual	4	
 0x003cbec0	vostok::render::effect_manager::register_effect_desctiptor	manual	12	
+0x003cd180	vostok::render::render_cc_bool::execute	manual	4	void
 0x003cd460	vostok::render::options::use_ssr	manual	0	EAX: Boolean result0/1
 0x003cd4d0	vostok::render::options::set_default_values	manual	0	
 0x003cd870	vostok::render::options::register_console_commands	manual	0	
@@ -2539,3 +2543,7 @@ va	name	source	ret_cleanup	result
 0x00111d10	vostok::logging::helper::write	manual	8	none: under the critical section 0x1F1D8D0, vsnprintf_s of the format into 4000h bytes (0x420EF7), then each of its lines through the helper's function (0x1120D0, 0x111DB0); an empty function (manager 0) writes nothing (0x111E4D)
 0x00238530	survarium::game_world_ui::update_minimap_objects	manual	4	none: root.update_objects of the hud movie [ui+8] (0x239210), an array of {id, type, pos_x, pos_y}; type "base", "base_highlighted", "base_enemy", "artifact" (0x238AAD, 0x238AEF: the lying batteries the hud state holds for the local team), "battery_spawn" or "resupply"; the hud movie gives it to the corner minimap and the Tab map alike
 0x00236d30	survarium::game_world_ui::set_player_stats_info	manual	4	none: root.list_update_player of the hud movie (0x236FEB), the place's row (kills, deaths, ...); update_ui calls it for each place only while the Tab list is shown (+0BAh, 0x23B421..0x23B46E), a Blackout match's Tab too
+0x00261100	survarium::options_item_int::options_item_int	manual	16	EAX receiver
+0x001cc470	grass_patch_select_model_lod	manual	0	EAX LOD index, 0xAA when LOD0 is absent
+0x0001dcd0	vostok::console_commands::cc_u32::cc_u32	manual	24	
+0x003cd300	vostok::render::render_cc_u32::execute	manual	4	

@@ -916,6 +916,10 @@ st_dispersion_from_hip_description	Lonkkatulen tarkkuus:
 st_dispersion_from_hip_name	Tarkkuus
 st_dispersion_movement_influence_description	Tarkkuus liikkeessä:
 st_dispersion_movement_influence_name	Vakaa ote
+st_distance_detail_high	Korkea
+st_distance_detail_maximum	Maksimi
+st_distance_detail_normal	Normaali
+st_distance_detail_option	Etäisyysdetaljit
 st_dont_have_permission	Oikeutesi eivät riitä tähän toimintoon.
 st_drop	Riisu
 st_drop_action	Pudota

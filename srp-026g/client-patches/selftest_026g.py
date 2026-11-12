@@ -572,6 +572,22 @@ def version_field(image):
     return out
 
 
+def test_detail(original, image):
+    """Native detail hooks, option/label counts, relocations and entrances."""
+    stock = Image(original)
+    symbols = P.arena().symbols
+    for va, old, symbol, opcode in P.DETAIL_HOOKS:
+        wanted = bytes([opcode]) + struct.pack('<i', symbols[symbol] - va - 5) + b'\x90' * (len(old) - 5)
+        check(stock.read(va, len(old)) == old and image.read(va, len(old)) == wanted,
+              f"detail {symbol}: original bytes and symbolic jump at {va:#x}")
+        check(not [rva for kind, rva in stock.relocations().values()
+                   if kind == 3 and rva + 4 > va and rva < va + len(old)],
+              f"detail {symbol}: no relocation under hook")
+    for va, old, new in P.DETAIL_PATCHES:
+        check(stock.read(va, len(old)) == old and image.read(va, len(new)) == new,
+              f"detail: option/label count extended to twenty at {va:#x}")
+
+
 def test_revision(original, image, mode, revision, late_join=False):
     """The patch revision in the sign-in (client_patch.md section 6), worked
     out from the instructions that fill the version field. late_join: the
@@ -3078,6 +3094,7 @@ def test_late_join(original, without, server, source):
     test_hide_ui(original, image, before)
     test_voice(original, image, before)
     test_kill_feed(original, image, before)
+    test_detail(original, image)
     test_weapon_kit(original, image, before)
     test_weapon_flight(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
