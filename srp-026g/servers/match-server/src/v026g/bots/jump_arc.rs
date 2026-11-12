@@ -74,9 +74,13 @@ pub const CATCH_M: f32 = 0.1;
 /// The walk cap, m/s: the speed at a press for the sprint jump, and the fastest a body on the floor in a jump moves (the
 /// sprint-jump RE 1.2, 3.2).
 const WALK_CAP_MS: f32 = 3.5;
-/// The sprint jump's prepare phase, its mean (the run's step left at the press: 0-150 ms, 0-1.64 m, FINDINGS 3.2): LIKELY.
+/// The sprint jump's prepare phase, ms: it lasts 2AC / (A + BC) < 2C = 80 ms (C the startup.cfg's `jump_prepare_interval_length`
+/// 0.040, the prepare's time scale at 0x3375A0, PROVEN), counted 52-81 ms from the press to the take-off clip
+/// (`private/grid/rig/notes-jump-state.md` 0). 75 ms is our choice in that counted range: the reckoning takes one prepare length.
 pub(crate) const PREPARE_MS: f32 = 75.0;
-const PREPARE_M: f32 = 0.82;
+/// The ground the prepare covers, m: the sprint's speed (`kin` F5, 4.9587 m/s, PROVEN) over [`PREPARE_MS`] (0.372 m; under
+/// the 0.44 m the 80 ms bound gives at the config's 5.5). Was 0.82, past that bound.
+const PREPARE_M: f32 = 4.9587 * PREPARE_MS / 1000.0;
 /// The lowest and highest heights over the feet whose rays a wall holds a body in the air at, m (the stand-in's lowest and
 /// highest `AIR_RAYS`), and the spacing between them: 5 cm, so a thin horizontal bar cannot pass between two (the stand-in's three
 /// heights 0.1 / 0.9 / 1.7 let the arc through Vector Laboratory's railing: bars at 0.43 / 0.70 m, the top rail 7 cm thick at
@@ -356,7 +360,7 @@ impl JumpArc {
     }
 
     /// The clip's frame `ms` after the press and the root's travel by then (map frame, from the press's feet): the sprint jump's
-    /// prepare phase first (its mean, LIKELY: the client's is the run's step left at the press, 0-0.15 s and 0-1.64 m).
+    /// prepare phase first ([`PREPARE_MS`], [`PREPARE_M`]: under 80 ms, counted 52-81 ms).
     fn root(&self, ms: f32) -> (f32, [f32; 2]) {
         let (pm, pd) = match self.clip {
             Clip::Sprint(_) => (PREPARE_MS, PREPARE_M),

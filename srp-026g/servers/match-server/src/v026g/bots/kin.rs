@@ -155,7 +155,8 @@ pub enum SpeedCap {
     Off,
     /// Capped at the client's `max_speed` (`max(desired x F, minimal)`, the floor included) by the sprint state of the newest
     /// input ([`Kinematics::sprint_state`]: one input ahead of the walk vector, A364 P10) and the level; not in a jump (the cap is skipped while `+0x2C70C` is set, 0x2D915E, which
-    /// `end_jump` 0x7F050 clears: LIKELY the jump's flag).
+    /// `end_jump` 0x7F050 clears: the jump's flag, set by `base_player::jump` 0x2D7920 at the take-off event and cleared at the
+    /// landing, PROVEN, `private/grid/rig/notes-jump-state.md` 0).
     #[default]
     Client,
 }
