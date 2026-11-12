@@ -29,6 +29,24 @@ the weapon numbers from the rev56 game data. See also `player_bots_weapons.md` (
   rounds in the weapon); each pass of the fire clip's shot event fires and takes one; the state ends at a clip end
   with the queue spent or, for automatic fire, FIRE up. The fire-mode key works only in idle with FIRE up (0x2E0CA0).
 
+## An automatic burst
+
+- The weapon changes state inside a tick, at an animation event's own time: `tick_animations` 0x2D8EE0 walks the
+  animation player event by event and runs the selection (and with it `update_logic`) at each event that asks for
+  one.
+- The first shot is at the press's tick. A pass of the fire clip is 60 / rpm s by the clip's speed (rpm x
+  0.016666668 at 0x30B336, 0x30E5C0); measured on 106,728 bullets seen in flight, the shots are
+  **ceil(60,000 / rpm) - 1 whole ms apart** (99 at 600 rpm, 92 at 650, 74 at 800, 59 at 1000; LIKELY because the
+  factor is a hair over 1/60 and event times are whole milliseconds).
+- At each clip end (`on_animation_end` 0x30EA50) the FIRE in force decides: held, a shot and another pass; up, the
+  state ends. **A pass under way when FIRE is let go still fires** if its end comes at or before the release's
+  tick. FIRE pressed again before the next clip end goes on in the old rhythm; after it, a new run starts at the
+  press.
+- So a lone run of n held ticks fires floor(50 n / pass ms) + 1 shots. Counted against the shots the recoil's
+  draws give: this rule is exact on 23,436 of 23,904 windows of automatic fire by bots (98.0 %; the others are
+  presses while the weapon was busy); a shot at the press and one every 60,000 / rpm ms is exact on 15,394
+  (64.4 %).
+
 ## One shot (`instant_fire` 0x2E23A0)
 
 1. The cone (0x2E1D50): the weapon's base dispersion x the ammo's, plus the character part and the bloom unless the
@@ -65,9 +83,11 @@ last tick was all PID; a body's kicks over the draws from its saved seed are one
 ## Against the bots' model of their own weapon
 
 - **The shots of an automatic burst**: the bots count a shot at the press and one every 60,000 / rpm ms while FIRE
-  is held; in 23,405 of 43,460 windows with fire the client fired more (by 1 in 16,896, by 2 in 5,362); single
-  bursts agree in 6,226 of 6,977. One-round weapons agree in 94.6 %, bolt actions in 90.6 %. Why is not read (the
-  fire clip's loop).
+  is held. The client's pass is a millisecond shorter, a pass under way at the release still fires, and a quick
+  press again keeps the rhythm (the section above): the bots' count of rounds is exact on 64.4 % of the windows of
+  automatic fire and one off on most of the rest (one too few fired in 4,337, one too many in 3,228); the mirror
+  of the kicks misses the shot of the pass that ends after the last held tick (one kick short in 10,212 windows,
+  two in 3,319). One-round weapons and bolt actions agree with the client's rule and the bots' alike.
 - **The reload**: the bots count the rounds in at the key and reset the recoil there; the client at the clip's end.
   Of 10,932 timed reloads the client's refill held the bots' time within 50 ms in 7,503.
 - **The recoil's draws**: the bots take the middle of each range; the client draws from the saved seed.
@@ -78,7 +98,9 @@ last tick was all PID; a body's kicks over the draws from its saved seed are one
 
 ## Not read
 
-Why the client fires more shots than one every 60,000 / rpm ms when bursts follow each other; who seeds the weapon's
-own generator; a weapon tick that is not 50 ms (1.3 % of worlds); the names of the low-stamina and broken-hands
+The animation player's event list and how a clip loops (the pass length above is measured); the order of the inputs
+and the player's tick in the world's loop (measured); who seeds the weapon's own generator (only its constructor and
+`deserialize` write it); the names of the low-stamina and broken-hands
 terms; where the reload-speed modifier enters; the pistol's and the double barrel's reload clips; the shake axis's
-reader.
+reader. A weapon tick that is not 50 ms comes with an input at a time off the 50 ms grid inside the step (1,466 of
+1,472 such worlds).
