@@ -41,8 +41,13 @@ detail_options:
 
  ; Replace the old streaming-bool registration with a native render_cc_u32.
 ; The original static-init guard still owns registration. One command owns
-; detail and derives the renderer's streaming byte on every execution,
-; including user.cfg and console execution, not just menu Apply.
+; detail and writes the replaced command's byte (options+132h) on every
+; execution, including user.cfg and console execution, not just menu Apply.
+; That byte changes nothing in the game: each of its ten readers tests
+; device+1BCh first, engine_world::command_line_editor's answer (0x13DA0, the
+; byte at 0x225FD56, which the image never writes), and reads +132h only when
+; that is set. Textures stream in Maximum as in Normal (client_patch.md,
+; "Textures in Maximum"; read in the exe, not run).
 detail_register:
     pushad
     mov eax, [0x2260498]
@@ -60,7 +65,7 @@ detail_register:
     add esp, 28
     mov dword [detail_command+0x10], detail_command_vtable+4
     mov eax, [0x2260498]
-    mov byte [eax+0x132], 1        ; default Normal uses streaming
+    mov byte [eax+0x132], 1        ; the stock default (not read in the game)
     popad
     mov esi, 1                    ; original registration's outgoing value
     jmp 0x3ce2f7
@@ -229,9 +234,11 @@ detail_grass:
 .done:
     jmp 0x1605ea
 
-; The native non-streamed texture request asks for the complete mip chain
-; but normally drops the top levels according to texture quality. Full
-; detail keeps them. Explicit non-streamed assets in adaptive mode are intact.
+; set_texture comes here only for a texture record that is not streamed
+; (record+24h and +2Dh both 0, 0x3D9C14..0x3D9C30; +2Dh is 1 once the record
+; was requested with set_texture's [ebp+14h] set). Its request asks for the
+; whole mip chain less the resource manager's mip cut (+88194h). Maximum
+; cuts none. Streamed textures never pass here: they stream as in Normal.
 detail_texture:
     pushfd
     mov edx, [0x2260498]

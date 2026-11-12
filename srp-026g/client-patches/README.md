@@ -5530,11 +5530,11 @@ the keys, the merged list, 29 seeks without the history error). No Unicorn check
 
 Graphics now includes a **Distance detail** arrow picker: **Normal**, **High**,
 or **Maximum**. High extends model/material/grass LOD ranges by 1.5× and
-grass distance from 100 to 150 metres, retaining normal texture streaming. Maximum keeps full texture mip chains, static model LOD0, material
+grass distance from 100 to 150 metres. Maximum selects static model LOD0, material
 LOD0 and grass LOD0. Normal preserves the existing adaptive behavior, including
 the FOV correction. Apply, Cancel and persistence use the native integer
 option and bounded `r_distance_detail` command: 0 Normal (default), 1 High,
-2 Maximum. The command also derives the renderer’s texture-streaming mode.
+2 Maximum. Textures stream the same in all three (next paragraph).
 Hardware mip filtering, frustum and occlusion culling remain active. Maximum
 also removes grass's separate 100-metre cutoff and forces the draw-time grass
 model selector to LOD0; changing only the culling cache did not affect that
@@ -5544,6 +5544,19 @@ Minimum, Low and Medium select Normal. Changing this row away from the selected
 preset selects Custom through the native integer-option comparison. The
 option uses the same native integer option and preset loops as the other
 quality rows; Flash only places the stock arrow picker.
+
+Maximum does not turn texture streaming off and does not keep full texture mip
+chains, as this section said before (corrected 2026-11-12; found by reading the
+exe, not by a run; `docs/notes/client_patch.md`, "Textures in Maximum"). The
+command replaces `r_use_texture_streaming` and still writes that command's byte
+(options+132h: 0 in Maximum), but each of the byte's ten readers tests
+device+1BCh first and reads it only when that is set. device+1BCh is
+`engine_world::command_line_editor`'s answer (0x13DA0: the byte at 0x225FD56),
+and nothing in the image writes that byte: it is 0 in the game, so the switch is
+the editor's and in the game textures stream in Maximum exactly as in Normal.
+The one texture hook (`detail_texture`, 0x3D9C43) is reached only for a texture
+record that is not streamed, where it drops the resource manager's mip cut from
+the request; streamed textures never pass it.
 
 The screenshot's hospital model switches LOD1 → LOD0 when the view turns
 5.4° at the same player position. Executing the original selector with the
@@ -5560,8 +5573,11 @@ labels, both arrow buttons, Apply/Cancel state and tab revisits in CPU Ruffle,
 replaying callbacks captured by the native check (its third argument is the
 `native-check.json` report). The manifest
 content build contains only main_menu and the six localization tables.
-Implemented and tested in emulation; not played or released. Texture reload,
-save/restart and FPS/RAM/VRAM costs still need a running-client check.
+Implemented and tested in emulation. Played: the two-choice (Normal/Maximum)
+native menu and the grass correction, by the owner in the local game under Wine
+on map 247 (2026-11-12, before High was added). High has not been confirmed in
+a game; save/restart and FPS/RAM/VRAM costs still need a running-client check.
+Not released.
 
 Run the combined native and menu regression with `tools/check distance-detail`.
 

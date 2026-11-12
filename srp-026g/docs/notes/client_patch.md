@@ -3471,11 +3471,13 @@ The bounded, serialized `r_distance_detail` command owns the state. The whole
 integer-option vtable is now stock, including initialize and Apply. At the old
 streaming-command registration site (`0x3CE2BE`), the same static-init guard
 registers a render_cc_u32 instead: native constructor `0x1DCD0`, range 0..2,
-category 2, serializable, render change reason 4 (texture reload). Its header
+category 2, serializable, render change reason 4 (the replaced command's, and
+`r_texture_quality`'s at `0x3CE3F2`). Its header
 and previous-value pointer retain the native render-command layout. Native
 `render_cc_u32::execute` (`0x3CD300`) records the previous value and validates
-input; the command's execute override then derives active streaming +132
-(on for Normal/High, off for Maximum). Menu Apply, console, and user.cfg thus
+input; the command's execute override then writes the replaced command's byte,
+options+132h (1 for Normal/High, 0 for Maximum), which the game never reads
+(Textures in Maximum, below). Menu Apply, console, and user.cfg thus
 all use the same state transition. The original boolean command is replaced,
 not retained as a second owner. Unreleased two-choice test profiles need their
 old boolean translated to the new integer once; published profiles default
@@ -3483,14 +3485,15 @@ to Normal. The pending menu choice never changes rendering before Apply.
 After the native changed-command loop consumes this command, the hook at
 `0x3CF3D5` commits its previous value alongside the native options snapshot,
 preserving the save-flag comparison. Repeated Apply without an edit therefore
-requests no texture reload. The native loop and its settled state are tested.
+reports no change (the loop's mask stays 1). The native loop and its settled
+state are tested.
 
 High extends distance thresholds by 1.5: model selection scales its local
 measured distance by 2/3, or projected extent by 1.5. Grass draw selection
 uses the same two paths; culling thresholds 40/60 become 60/90 and the
 100-metre cutoff becomes 150. Material screen thresholds scale by 2/3.
-Shared asset descriptors are never mutated. High retains normal texture
-streaming and mip bias. Maximum retains the previously tested behavior.
+Shared asset descriptors are never mutated. High has no texture hook. Maximum's
+hooks are the table's below.
 
 The native preset selector (`0x2620A0`) and native integer option's Custom
 comparison (`0x261310`) each iterate eleven entries. The first ten retain the
@@ -3516,7 +3519,7 @@ When the command is Maximum (2), the renderer hooks select maximum detail:
 | `0x1605E0`, grass culling | Keep initialized LOD0, then execute the native available-LOD clamp. |
 | `0x1CC51B`, grass draw selector | Use the draw path's native LOD0 return, retaining model-reference release and missing-LOD0 behavior. |
 | `0x1605CA`, grass distance rejection | Maximum bypasses the 100-metre patch-center cutoff after the frustum query. Normal preserves the original comparison and flags. |
-| `0x3D9C43`, texture request | Native non-streamed request already asks for all mips; keep top levels by setting mip-cut to zero. |
+| `0x3D9C43`, texture request | Reached only for a texture record that is not streamed (below). Its native request asks for all mips less the resource manager's mip cut (+88194h); Maximum sets the cut to zero. Streamed textures do not pass here. |
 
 Grass has two independent decisions in 0.26g: culling sets patch+4098, but
 `grass_patch::render` calls the separate selector at `0x1CC470`, then fetches
@@ -3536,10 +3539,62 @@ Normal parity, Maximum LOD0, missing LOD0, distance and projected-size descripto
 and FOVs 50/65/90/100. More distant grass can increase draw cost; these native
 checks measure selection behavior, not a live FPS comparison.
 
-Normal replays the displaced instructions. Full detail keeps hardware mip
-filtering and the full mip chain. Explicit LOD requests, skeletal and terrain
+Normal replays the displaced instructions. Maximum keeps hardware mip
+filtering; it does not turn texture streaming off (next paragraphs). Explicit
+LOD requests, skeletal and terrain
 rendering are not rewritten. Hospital reproduction inputs and geometry counts
 remain in `scripts/distance-detail/reproduction.txt`; those are not FPS costs.
+
+**Textures in Maximum: streaming stays on** (2026-11-12, a correction; found by
+reading the exe, not by a run). This note and the README said that Maximum
+turns texture streaming off (the command "derives active streaming +132") and
+keeps full texture mip chains. In the game it does neither.
+
+- The byte. The replaced `r_use_texture_streaming` owned options+132h
+  (`[0x2260498]`+132h; `set_default_values` writes 1 at `0x3CD718`), and
+  `detail_execute` still writes it. The image reads it in ten places and
+  nowhere else: `renderer::render` before `scene::process_streaming`
+  (`0x13D40F`), the scene's streaming-instance functions (`0x155310`,
+  `0x1553D0`, `0x155BE0`, `0x155C91`, `0x155D00`), `0x3BD0C0`, and
+  `effect_compiler::set_texture` (`0x3D992B`, `0x3D9A39`, `0x3D9B52`). Each is
+  `cmp byte [device+1BCh],0` / `je` past the read of +132h, to what the code
+  does with streaming on: the byte counts only when device+1BCh is set.
+- device+1BCh (`[0x2260478]`, the static device at `0x1E1B7F8`) is the third
+  argument of `device::device`, stored at `0x3B9FBB`. No other store to the
+  device's byte was found: nothing addresses `0x1E1B9B4`, and the other byte
+  stores at +1BCh are on other objects (`res_texture`'s own field at
+  `0x3D0987`, `0x3D0A55`, `0x3D0DE1`, `0x3D10BB`; a zero at `0x3CFC96` in
+  `res_render_output::resize`; a game rule's at `0x3147E2`). The argument comes
+  down from the function at `0x14B80` (after `on_mounted_user_data`, where
+  0.21d has `engine_world::initialize`; not matched further): its local set at
+  `0x14C79`, passed at `0x15577` through `0x13C40`, `0x18800`, `0x1EF90`,
+  `engine::world::world` (`0x117820`) and `0x116590`.
+- The local is the answer of `engine_world::command_line_editor` (`0x13DA0`,
+  slot +0Ch of the vtable at engine_world+4, `0x9DB680`; the 0.21d PDB's name
+  for the same six bytes at `0x12C0B` there): `mov al,[0x225FD56]` / `ret`.
+  `0x225FD56` is zero-initialised `.data`, and its address occurs in the file
+  only in that function and in one compare (`0x13B95`): nothing writes it and
+  nothing takes its address. So it is 0, device+1BCh is 0, and the switch is
+  the editor's.
+- In the game, then, whatever `r_distance_detail` is: `process_streaming` runs
+  every frame, streaming instances are gathered and removed, and `set_texture`
+  sets a record's streamed flag (+2Dh) once it is requested with its argument
+  `[ebp+14h]` set (`0x3D9B43`..`0x3D9B7D`). Textures stream in Maximum exactly
+  as in Normal and High. Changing the value in a running game leaves no
+  streaming state behind either: the gather and remove functions never skip.
+- What Maximum does to textures: `detail_texture` (`0x3D9C43`) sits in
+  `set_texture`'s branch for a record with +24h and +2Dh both 0
+  (`0x3D9C14`..`0x3D9C30`), whose request is all mips (-1) with the resource
+  manager's mip cut (`[0x226047C]`+88194h, set in
+  `renderer_cook::create_resource` at `0x1167E4`); Maximum passes 0 for the
+  cut. Which textures are requested that way, and whether one already loaded
+  is requested again, was not read.
+- Reason 4. `engine::world::end_render_options_changing` (`0x118000`) branches
+  on the mask's bits 10h, 20h, 80h, 200h, 800h and 1C00h and on mask != 1; no
+  branch on bit 4 was found there. "Texture reload" was this note's word for
+  it, not something read in the exe.
+- `check_detail_026g.py` does not cover this: it sets options+132h and runs
+  `0x3D9C32`..`0x3D9C50`, inside the branch, without the device.
 
 Validation: `check_detail_026g.py` executes native constructor, all five preset
 callbacks, Custom matching/mismatch, Default, UInt selection and fill_value,
