@@ -588,7 +588,9 @@ impl<'a> Core<'a> {
             .or(still_in_match)
             .filter(|id| self.matches.contains_key(id));
 
-        let (game, made) = self.accounts.sign_up(account_id, &login_name);
+        let Some((game, made)) = self.store.sign_up_026g(self.accounts, account_id) else {
+            return;
+        };
         let unix = quests::now();
         // A test bot (`SRP_BOT_ACCOUNTS`) starts no run of bonus days.
         let bot = self.accounts.is_bot(account_id);
@@ -1021,6 +1023,7 @@ impl<'a> Core<'a> {
                 name,
             } => self.idle_removed(match_id, account_id, &name),
             Notice::AccountChanged { account_id } => {
+                self.refresh_nickname(account_id);
                 let Some(who) = self.who_is(account_id) else {
                     return;
                 };

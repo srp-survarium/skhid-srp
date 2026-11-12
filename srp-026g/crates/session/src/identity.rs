@@ -1,12 +1,24 @@
 //! One namespace for display names. The login lock serializes every claim.
 
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use crate::nickname_key::key;
 use crate::persist::PersistError;
 use crate::v026g::names::{Nickname, RenameError};
 use crate::v026g::{GameAccounts, names, premium};
-use crate::{LockExt, SessionStore};
+use crate::{LockExt, ResetWrite, SessionStore};
+
+/// An administrator's free rename, already applied in memory.
+pub struct AdminRename {
+    pub previous: String,
+    pub written: ResetWrite,
+}
+
+enum Charge<'a> {
+    Player(&'a premium::Settings),
+    Admin,
+}
 
 pub(crate) fn unique_names<'a>(
     names: impl IntoIterator<Item = (u32, &'a str)>,
@@ -26,6 +38,18 @@ pub(crate) fn unique_names<'a>(
 }
 
 impl SessionStore {
+    /// Initialize the lobby account from its authoritative name while no
+    /// administrator can rename it between reading that name and creating it.
+    pub fn sign_up_026g(
+        &self,
+        games: &GameAccounts,
+        account_id: u32,
+    ) -> Option<(Arc<Mutex<crate::v026g::Account>>, bool)> {
+        let _names = self.logins.locked();
+        let name = self.account(account_id)?.locked().name.clone();
+        Some(games.sign_up(account_id, &name))
+    }
+
     /// Restore the game's display-name copies from their owner before the
     /// lobby starts. A crash may have interrupted the two savers' passes.
     pub fn restore_026g_names(&self, games: &GameAccounts) {
@@ -81,20 +105,67 @@ impl SessionStore {
         nickname: &Nickname,
     ) -> Result<u32, RenameError> {
         let logins = self.logins.locked();
-        if self.nickname_taken_locked(&logins, nickname.as_str(), Some(account_id)) {
+        self.change_nickname_locked(
+            games,
+            &logins,
+            account_id,
+            nickname,
+            Charge::Player(settings),
+        )
+        .map(|(_, paid)| paid)
+    }
+
+    /// Rename by immutable account ID without charging or ending sessions.
+    /// The shared account is written immediately when the writer is available;
+    /// a refused/busy write stays dirty for the saver to retry. The caller writes
+    /// the game's copy with its admin audit row and notifies the lobby.
+    pub fn admin_rename_026g(
+        &self,
+        games: &GameAccounts,
+        account_id: u32,
+        nickname: &Nickname,
+    ) -> Result<AdminRename, RenameError> {
+        let logins = self.logins.locked();
+        let (previous, _) =
+            self.change_nickname_locked(games, &logins, account_id, nickname, Charge::Admin)?;
+        let written = self.write_now(account_id, &[]);
+        self.save_soon();
+        Ok(AdminRename { previous, written })
+    }
+
+    fn change_nickname_locked(
+        &self,
+        games: &GameAccounts,
+        logins: &HashMap<String, u32>,
+        account_id: u32,
+        nickname: &Nickname,
+        charge: Charge<'_>,
+    ) -> Result<(String, u32), RenameError> {
+        if self.nickname_taken_locked(logins, nickname.as_str(), Some(account_id)) {
             return Err(RenameError::Taken);
         }
         let account = self.account(account_id).ok_or(RenameError::NoAccount)?;
-        let game = games.get(account_id).ok_or(RenameError::NoAccount)?;
-        let paid = names::rename(&mut game.locked(), settings, nickname.as_str())?;
-        {
+        let game = games.get(account_id);
+        let paid = match charge {
+            Charge::Player(settings) => {
+                let game = game.ok_or(RenameError::NoAccount)?;
+                names::rename(&mut game.locked(), settings, nickname.as_str())?
+            }
+            Charge::Admin => {
+                if let Some(game) = game {
+                    game.locked().name = nickname.as_str().to_owned();
+                }
+                0
+            }
+        };
+        let previous = {
             let mut account = account.locked();
-            account.name = nickname.as_str().to_owned();
             account.game.name = nickname.as_str().to_owned();
-        }
+            std::mem::replace(&mut account.name, nickname.as_str().to_owned())
+        };
         self.mark_dirty(account_id);
         games.mark_dirty(account_id);
-        Ok(paid)
+        Ok((previous, paid))
     }
 }
 

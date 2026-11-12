@@ -228,3 +228,72 @@ fn lookalikes_are_refused_at_registration_and_before_charging_for_a_rename() {
     assert_eq!(games.get(other).unwrap().locked().generic_money, 100_000);
     assert_eq!(store.account(other).unwrap().locked().name(), "Other");
 }
+
+#[test]
+fn admin_rename_is_free_and_written_without_ending_sessions_or_changing_login() {
+    let repository = MemoryRepository::default();
+    let store =
+        SessionStore::with_repository(DEFAULT_GATHER_WINDOW, Box::new(repository.clone())).unwrap();
+    let games = GameAccounts::new();
+    let id = player(&store, &games, "Mamoru");
+    let session_id = store.create_session(id);
+    let before = games.get(id).unwrap().locked().clone();
+    let result = store
+        .admin_rename_026g(&games, id, &Nickname::parse("Mamoru_777").unwrap())
+        .unwrap();
+    assert_eq!(result.previous, "Mamoru");
+    assert_eq!(store.session_account(session_id).unwrap().locked().id, id);
+    assert!(matches!(result.written, ResetWrite::Written));
+    let mut expected = before;
+    expected.name = "Mamoru_777".into();
+    assert_eq!(*games.get(id).unwrap().locked(), expected);
+    let restored =
+        SessionStore::with_repository(DEFAULT_GATHER_WINDOW, Box::new(repository)).unwrap();
+    assert_eq!(restored.account(id).unwrap().locked().name(), "Mamoru_777");
+    assert_eq!(restored.account_id_by_name("Mamoru"), Some(id));
+}
+
+#[test]
+fn admin_rename_handles_accounts_without_a_game_and_retries_failed_writes() {
+    let repository = MemoryRepository::default();
+    let store =
+        SessionStore::with_repository(DEFAULT_GATHER_WINDOW, Box::new(repository.clone())).unwrap();
+    let games = GameAccounts::new();
+    let id = register(&store, "Original").unwrap();
+    repository.fail_account_saves(true);
+    let result = store
+        .admin_rename_026g(&games, id, &Nickname::parse("Renamed").unwrap())
+        .unwrap();
+    assert!(matches!(result.written, ResetWrite::Failed(_)));
+    assert_eq!(store.account(id).unwrap().locked().name(), "Renamed");
+    assert!(games.get(id).is_none());
+    repository.fail_account_saves(false);
+    store.flush();
+    let restored =
+        SessionStore::with_repository(DEFAULT_GATHER_WINDOW, Box::new(repository)).unwrap();
+    assert_eq!(restored.account(id).unwrap().locked().name(), "Renamed");
+}
+
+#[test]
+fn first_lobby_entry_cannot_restore_a_name_changed_by_an_admin() {
+    for _ in 0..16 {
+        let store = SessionStore::new();
+        let games = GameAccounts::new();
+        let id = register(&store, "Original").unwrap();
+        let barrier = Barrier::new(2);
+        std::thread::scope(|scope| {
+            scope.spawn(|| {
+                barrier.wait();
+                store.sign_up_026g(&games, id).unwrap();
+            });
+            scope.spawn(|| {
+                barrier.wait();
+                store
+                    .admin_rename_026g(&games, id, &Nickname::parse("Renamed").unwrap())
+                    .unwrap();
+            });
+        });
+        assert_eq!(store.account(id).unwrap().locked().name(), "Renamed");
+        assert_eq!(games.get(id).unwrap().locked().name, "Renamed");
+    }
+}

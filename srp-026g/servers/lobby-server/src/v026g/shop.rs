@@ -175,18 +175,29 @@ impl Core<'_> {
             }
         };
         let name = who.account.locked().name.clone();
-        if let Some(player) = self.player_mut(who.addr) {
-            player.name = name.clone();
-        }
         log::info!(
             "{} (account {}) is now named {name} ({silver} silver)",
             who.name,
             who.account_id,
         );
         self.send(who.addr, lobby::permitted_nickname_changed());
-        let ranked = self.accounts.ranking().len() as u32;
-        self.send(who.addr, lobby::base_info(ranked, &name));
+        self.refresh_nickname(who.account_id);
         self.push_account(who);
+    }
+
+    /// Refresh live names after either a paid rename or an administrator's
+    /// account change, including friends of an offline renamed account.
+    pub(super) fn refresh_nickname(&mut self, account_id: u32) {
+        if let Some(who) = self.who_is(account_id) {
+            let name = who.account.locked().name.clone();
+            if who.name != name {
+                if let Some(player) = self.player_mut(who.addr) {
+                    player.name = name.clone();
+                }
+                let ranked = self.accounts.ranking().len() as u32;
+                self.send(who.addr, lobby::base_info(ranked, &name));
+            }
+        }
         // Those who show the name: the squad, and the friends in the lobby.
         self.squads_dirty = true;
         for addr in self.players() {
@@ -196,7 +207,7 @@ impl Core<'_> {
             let is_friend = self
                 .store
                 .account(other.account_id)
-                .is_some_and(|account| account.locked().friends.contains(&who.account_id));
+                .is_some_and(|account| account.locked().friends.contains(&account_id));
             if is_friend {
                 self.push_friends(&other);
             }
