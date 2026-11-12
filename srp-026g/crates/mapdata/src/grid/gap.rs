@@ -321,6 +321,21 @@ pub const WALK_OFF_SPEEDS: [f32; 3] = [3.0, 3.6, 5.1];
 pub const WALK_OFF_RUN_UP_M: f32 = 1.0;
 /// `fall_params.gravity`, m/s² (PROVEN, `docs/notes/fall_damage.md`).
 const GRAVITY: f32 = 9.8;
+/// [2a] How far under the feet a ground top must be before a fall counts it as passed ([`crate::Body::fall_stops_on_solids`]):
+/// the take-off's own surface, which [`WalkGrid::walk_off_edge`] follows within this much, is not a top the body falls past.
+const TOP_PASSED_M: f32 = 0.06;
+
+/// [2a] What a falling body comes down on between two heights of its feet ([`WalkGrid::come_down`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Down {
+    /// Nothing: it falls on.
+    Air,
+    /// A floor.
+    On(u32),
+    /// A ground top with no floor at it (an eroded slab, a rail's top): the client's capsule rests there, so the flight ends
+    /// with no link ([`crate::Body::fall_stops_on_solids`]).
+    Held,
+}
 /// The heights over the feet at which a face holds a body in the air: its
 /// feet (a little over) and its head, m (the stand-in's rays, 0.1 and
 /// 1.7).
@@ -369,6 +384,28 @@ pub struct GapStats {
     /// … and of those, kept for the walk round they save.
     pub kept: usize,
 }
+
+impl GapStats {
+    /// Adds another's counts (a run of floors of [`WalkGrid::gap_links`]).
+    fn add(&mut self, o: &GapStats) {
+        self.tried += o.tried;
+        self.no_gap += o.no_gap;
+        self.no_run_up += o.no_run_up;
+        self.no_landing += o.no_landing;
+        self.adjacent += o.adjacent;
+        self.narrow_window += o.narrow_window;
+        self.no_room += o.no_room;
+        self.too_high += o.too_high;
+        self.made += o.made;
+        self.sprint += o.sprint;
+        self.one_way += o.one_way;
+        self.sampled += o.sampled;
+        self.kept += o.kept;
+    }
+}
+
+/// The floors one thread of [`WalkGrid::gap_links`] takes at a time.
+const GAP_RUN: usize = 2048;
 
 /// Which off-mesh links a build makes
 /// ([`WalkGrid::build_kept_with_links`]). Without them a grid is the one
@@ -447,6 +484,126 @@ impl WalkGrid {
         })
     }
 
+    /// [2a] Where under a body centred at (`x`, `z`) a top holds it: its centre and 8 points at each of [`Body::hold_radius`]
+    /// and half of it (a rail's 0.1 m top between the outer ones is under an inner one).
+    fn hold_points(&self, x: f32, z: f32) -> impl Iterator<Item = (f32, f32)> + use<> {
+        let r = self.body.hold_radius();
+        let ring = (0..16).map(move |i| {
+            let t = (i % 8) as f32 * std::f32::consts::FRAC_PI_4;
+            let r = if i < 8 { r } else { 0.5 * r };
+            (x + r * t.cos(), z + r * t.sin())
+        });
+        std::iter::once((x, z)).chain(ring)
+    }
+
+    /// [2a] The cells of [`Self::hold_points`] around (`x`, `z`), for the floors a held body is on.
+    fn hold_cells(&self, x: f32, z: f32) -> impl Iterator<Item = usize> + '_ {
+        self.hold_points(x, z).filter_map(|(px, pz)| self.cell_at(px, pz))
+    }
+
+    /// [2a] The highest ground top under [`Self::hold_points`] around (`x`, `z`) that feet going down from `high` to `low`
+    /// pass (at least [`TOP_PASSED_M`] under `high`, not under `low`): a ray down the ground faces from there, where the
+    /// point's cell has a piece of them in that band at all (the cells as a cheap first test: a ray's hit is on a piece of its
+    /// cell, so the test leaves no hit out).
+    fn ground_top_passed(&self, solids: &Solids, x: f32, z: f32, low: f32, high: f32) -> Option<f32> {
+        self.ground_tops(solids, x, z, low, high).into_iter().flatten().max_by(f32::total_cmp)
+    }
+
+    /// [2a] Per point of [`Self::hold_points`] (the centre, the outer ring, the inner ring, each ring in turn round), the
+    /// highest ground top under it at least [`TOP_PASSED_M`] under `high` and not under `low`.
+    fn ground_tops(&self, solids: &Solids, x: f32, z: f32, low: f32, high: f32) -> [Option<f32>; 17] {
+        let mut tops = [None; 17];
+        let (Some(ground), top) = (solids.ground.as_ref(), high - TOP_PASSED_M) else { return tops };
+        if top <= low {
+            return tops;
+        }
+        for (slot, (px, pz)) in tops.iter_mut().zip(self.hold_points(x, z)) {
+            let solid = self.cell_at(px, pz).is_some_and(|c| {
+                solids.ground_spans[solids.ground_start[c] as usize..solids.ground_start[c + 1] as usize]
+                    .iter()
+                    .any(|&(lo, hi)| lo <= top && hi >= low - 1e-4)
+            });
+            if solid {
+                *slot = ground.ray_cast(Vec3::new(px, top, pz), Vec3::new(0.0, -1.0, 0.0), top - low + 1e-4).map(|t| top - t);
+            }
+        }
+        tops
+    }
+
+    /// The highest floor in `cell` between `low` and `high` (and up to 0.05 m over it: a top just over the feet).
+    fn floor_between(&self, cell: usize, low: f32, high: f32) -> Option<u32> {
+        (self.start[cell]..self.start[cell + 1])
+            .filter(|&f| {
+                let fy = self.height[f as usize];
+                fy <= high + 0.05 && fy >= low - 1e-4
+            })
+            .max_by(|&p, &q| self.height[p as usize].total_cmp(&self.height[q as usize]))
+    }
+
+    /// What a body centred at (`x`, `z`) comes down on while its feet go from `high` to `low`: the highest floor in its cell
+    /// in that range; with [`Body::fall_stops_on_solids`], a ground top it passes more than a step over that floor holds it:
+    /// the highest floor in [`Self::hold_cells`] at most a step under that top (the body steps down off a crate's or a curb's
+    /// edge onto the ground beside it, as off a slope's higher cell), or none ([`Down::Held`]).
+    fn come_down(&self, solids: &Solids, (x, z): (f32, f32), low: f32, high: f32) -> Down {
+        let centre = self.cell_at(x, z).and_then(|c| self.floor_between(c, low, high));
+        let top = if self.body.fall_stops_on_solids { self.ground_top_passed(solids, x, z, low, high) } else { None };
+        let step = self.body.step;
+        match (top, centre) {
+            (Some(top), centre) if centre.is_none_or(|f| self.height[f as usize] < top - step) => self
+                .hold_cells(x, z)
+                .filter_map(|c| self.floor_between(c, top - step, top))
+                .max_by(|&p, &q| self.height[p as usize].total_cmp(&self.height[q as usize]))
+                .map_or(Down::Held, Down::On),
+            (_, Some(f)) => Down::On(f),
+            (_, None) => Down::Air,
+        }
+    }
+
+    /// [2a] The Drop links of `wide` whose landing a ground top holds the body over ([`Body::fall_stops_on_solids`]), within
+    /// [`Body::hold_radius`] of the landing's centre, so the body comes down there or never leaves the take-off's level, not
+    /// on the landing. As (take-off, direction, rank 0) for `cut_keeping_reach`:
+    /// - a top over the landing by more than a step (off a lower one the body steps down onto the landing) and under the
+    ///   take-off by more than a step (a step down the client walks) with no floor at it ([`Down::Held`]): a slab whose floors
+    ///   the erosion took, where the body stays with no way on. A top with a floor is a ledge partway down: the body did go
+    ///   down, walks on from there, and the link stays (`drop_check`'s rule, A313: asking for the landing itself made
+    ///   fx-bench's drift worse);
+    /// - tops at the take-off's level on opposite sides of the landing: a crack narrower than the body (School's one-cell pits
+    ///   2.3-3.9 m under the road). One side only is the take-off's own edge, which the body walks off and comes down past
+    ///   (the landing's centre is a cell or more from it, the capsule lands further out).
+    pub(super) fn drops_under_solids(&self, wide: &Wide, solids: &Solids) -> Vec<(u32, usize, f32)> {
+        let step = self.body.step;
+        let mut failing = Vec::new();
+        for a in 0..self.len() {
+            for d in 0..DIRS.len() {
+                let b = wide.links[a][d];
+                if b == NONE || wide.kinds[a][d] != LinkKind::Drop {
+                    continue;
+                }
+                let (ha, hb) = (self.height[a], self.height[b as usize]);
+                if ha - hb <= step + SAME_TOP {
+                    continue;
+                }
+                let p = self.position(b);
+                let slab = ha - hb > 2.0 * step + SAME_TOP
+                    && self.come_down(solids, (p.x, p.z), hb + step + SAME_TOP, ha - step + TOP_PASSED_M) == Down::Held;
+                let crack = || {
+                    let level = (ha - step).max(hb + step + SAME_TOP);
+                    let tops = self.ground_tops(solids, p.x, p.z, level, ha + SAME_TOP + TOP_PASSED_M);
+                    // The rings' points 4 apart are opposite.
+                    (1..17).any(|i| {
+                        let ring = (i - 1) / 8;
+                        let opposite = 1 + ring * 8 + ((i - 1) % 8 + 4) % 8;
+                        tops[i].is_some() && tops[opposite].is_some()
+                    })
+                };
+                if slab || crack() {
+                    failing.push((a as u32, d, 0.0));
+                }
+            }
+        }
+        failing
+    }
+
     /// Whether a face stands across the body's front edge at `front`
     /// (its centre; `u` the way it moves), between [`AIR_FEET_M`] and
     /// [`AIR_HEAD_M`] over its feet at `y`: the stand-in's rays ahead
@@ -477,19 +634,9 @@ impl WalkGrid {
         let (ux, uz) = (di as f32 / len, dk as f32 / len);
         let ds = 0.5 * self.cell;
         let end = SHORT_JUMP_AHEAD[SHORT_JUMP_AHEAD.len() - 1] - lead;
-        let floors = |cell: usize| self.start[cell]..self.start[cell + 1];
         let at = |s: f32| (from.x + ux * s, from.z + uz * s);
-        // The highest floor in the cell at `s` between `y` and `top`.
-        let landing = |s: f32, y: f32, top: f32| {
-            let (px, pz) = at(s);
-            let cell = self.cell_at(px, pz)?;
-            floors(cell)
-                .filter(|&f| {
-                    let fy = self.height[f as usize];
-                    fy <= top + 0.05 && fy >= y - 1e-4
-                })
-                .max_by(|&p, &q| self.height[p as usize].total_cmp(&self.height[q as usize]))
-        };
+        // What the body at `s` comes down on between `y` and `top`.
+        let landing = |s: f32, y: f32, top: f32| self.come_down(solids, at(s), y, top);
         let mut last = h;
         // Where the body is along the way (held behind the root by faces).
         let mut body = 0.0f32;
@@ -509,11 +656,12 @@ impl WalkGrid {
             // faces: its own top is under the feet), only while no face
             // holds the body back: the root runs on past a wall the body
             // stands at (a wall thinner than a cell is no landing beyond).
-            if ahead >= APEX_AHEAD_M
-                && body + ds + 1e-3 >= x
-                && let Some(f) = landing(x, y, last)
-            {
-                return Some((Flight::Landed(f, x, 0.0), over));
+            if ahead >= APEX_AHEAD_M && body + ds + 1e-3 >= x {
+                match landing(x, y, last) {
+                    Down::On(f) => return Some((Flight::Landed(f, x, 0.0), over)),
+                    Down::Held => return None,
+                    Down::Air => {}
+                }
             }
             // To the root, unless a face anywhere across the body's width
             // is in the way.
@@ -532,13 +680,13 @@ impl WalkGrid {
                     over = Over::Vaulted;
                 }
                 body = x;
-            } else if ahead >= APEX_AHEAD_M
-                && let Some(f) = landing(body, y, last)
-            {
-                // Held, coming down where it is.
-                return Some((Flight::Landed(f, body, 0.0), Over::Clear));
             } else {
-                was_held = true;
+                // Held, coming down where it is.
+                match if ahead >= APEX_AHEAD_M { landing(body, y, last) } else { Down::Air } {
+                    Down::On(f) => return Some((Flight::Landed(f, body, 0.0), Over::Clear)),
+                    Down::Held => return None,
+                    Down::Air => was_held = true,
+                }
             }
             last = y;
             x += ds;
@@ -570,31 +718,27 @@ impl WalkGrid {
         let (ux, uz) = (di as f32 / len, dk as f32 / len);
         let ds = 0.5 * self.cell;
         let at = |s: f32| (from.x + ux * s, from.z + uz * s);
-        let floor_between = |s: f32, low: f32, high: f32| {
-            let (px, pz) = at(s);
-            let cell = self.cell_at(px, pz)?;
-            (self.start[cell]..self.start[cell + 1])
-                .filter(|&f| {
-                    let fy = self.height[f as usize];
-                    fy <= high + 0.05 && fy >= low - 1e-4
-                })
-                .max_by(|&p, &q| self.height[p as usize].total_cmp(&self.height[q as usize]))
-        };
         let bottom = top - self.body.max_drop;
         let (mut x, mut last, mut t) = (body, last, 0.0f32);
         loop {
             // Where it is: a floor it is coming down onto.
             let fy = y - down * t - 0.5 * GRAVITY * t * t;
-            if let Some(f) = floor_between(x, fy.max(bottom), last) {
-                let fall = (last.max(y) - self.height[f as usize]).max(0.0);
-                return Some((f, x, (down * down + 2.0 * GRAVITY * fall).sqrt()));
+            match self.come_down(solids, at(x), fy.max(bottom), last) {
+                Down::On(f) => {
+                    let fall = (last.max(y) - self.height[f as usize]).max(0.0);
+                    return Some((f, x, (down * down + 2.0 * GRAVITY * fall).sqrt()));
+                }
+                Down::Held => return None,
+                Down::Air => {}
             }
             if fy < bottom {
                 return None;
             }
             // Held by a face ahead: straight down where it is.
             if speed <= 0.0 || self.face_ahead(solids, at(x + self.body.radius), (ux, uz), fy) {
-                let f = floor_between(x, bottom, fy)?;
+                let Down::On(f) = self.come_down(solids, at(x), bottom, fy) else {
+                    return None;
+                };
                 let fall = (y - self.height[f as usize]).max(0.0);
                 return Some((f, x, (down * down + 2.0 * GRAVITY * fall).sqrt()));
             }
@@ -662,16 +806,7 @@ impl WalkGrid {
         let ds = 0.5 * self.cell;
         let at = |s: f32| (from.x + ux * s, from.z + uz * s);
         let apex = clip.ahead[(0..13).max_by(|&i, &j| clip.rise[i].total_cmp(&clip.rise[j])).unwrap_or(0)];
-        let landing = |s: f32, y: f32, top: f32| {
-            let (px, pz) = at(s);
-            let cell = self.cell_at(px, pz)?;
-            (self.start[cell]..self.start[cell + 1])
-                .filter(|&f| {
-                    let fy = self.height[f as usize];
-                    fy <= top + 0.05 && fy >= y - 1e-4
-                })
-                .max_by(|&p, &q| self.height[p as usize].total_cmp(&self.height[q as usize]))
-        };
+        let landing = |s: f32, y: f32, top: f32| self.come_down(solids, at(s), y, top);
         let end = start + clip.ahead[12];
         let mut last = h;
         let mut body = pre;
@@ -687,11 +822,12 @@ impl WalkGrid {
             // Coming down at the root onto a floor (a riser's top under the
             // feet), only while no face holds the body back: the sprint
             // clip's root runs far past a wall the body stands at.
-            if ahead >= apex
-                && body + ds + 1e-3 >= x
-                && let Some(f) = landing(x, y, last)
-            {
-                return Some((Flight::Landed(f, x, fall(f)), over));
+            if ahead >= apex && body + ds + 1e-3 >= x {
+                match landing(x, y, last) {
+                    Down::On(f) => return Some((Flight::Landed(f, x, fall(f)), over)),
+                    Down::Held => return None,
+                    Down::Air => {}
+                }
             }
             let mut s = body + ds;
             let held = loop {
@@ -708,12 +844,12 @@ impl WalkGrid {
                     over = Over::Vaulted;
                 }
                 body = x;
-            } else if ahead >= apex
-                && let Some(f) = landing(body, y, last)
-            {
-                return Some((Flight::Landed(f, body, fall(f)), Over::Clear));
             } else {
-                was_held = true;
+                match if ahead >= apex { landing(body, y, last) } else { Down::Air } {
+                    Down::On(f) => return Some((Flight::Landed(f, body, fall(f)), Over::Clear)),
+                    Down::Held => return None,
+                    Down::Air => was_held = true,
+                }
             }
             last = y;
             x += ds;
@@ -1118,7 +1254,6 @@ impl WalkGrid {
         let len = ((di * di + dk * dk) as f32).sqrt();
         let (ux, uz) = (di as f32 / len, dk as f32 / len);
         let ds = 0.5 * self.cell;
-        let floors = |cell: usize| self.start[cell]..self.start[cell + 1];
         let at = |s: f32| (from.x + ux * s, from.z + uz * s);
         let edge = self.walk_off_edge(a, d, solids);
         let mut last = h;
@@ -1132,26 +1267,20 @@ impl WalkGrid {
             // Coming down onto a floor at `x` (before the faces: its own
             // top is under the feet).
             let (px, pz) = at(x);
-            let cell = self.cell_at(px, pz)?;
-            if let Some(f) = floors(cell)
-                .filter(|&f| {
-                    let fy = self.height[f as usize];
-                    fy <= last + 0.05 && fy >= y - 1e-4
-                })
-                .max_by(|&p, &q| self.height[p as usize].total_cmp(&self.height[q as usize]))
-            {
-                return Some(f);
+            self.cell_at(px, pz)?;
+            match self.come_down(solids, (px, pz), y, last) {
+                Down::On(f) => return Some(f),
+                Down::Held => return None,
+                Down::Air => {}
             }
             // Held by a face ahead: it falls where it is.
             if self.face_ahead(solids, at(x + self.body.radius), (ux, uz), y) {
                 let (px, pz) = at(x - ds);
-                let cell = self.cell_at(px, pz)?;
-                return floors(cell)
-                    .filter(|&f| {
-                        let fy = self.height[f as usize];
-                        fy <= y + 0.05 && fy >= h - self.body.max_drop
-                    })
-                    .max_by(|&p, &q| self.height[p as usize].total_cmp(&self.height[q as usize]));
+                self.cell_at(px, pz)?;
+                return match self.come_down(solids, (px, pz), h - self.body.max_drop, y) {
+                    Down::On(f) => Some(f),
+                    Down::Held | Down::Air => None,
+                };
             }
             last = y;
             x += ds;
@@ -1338,21 +1467,31 @@ impl WalkGrid {
         if self.body.max_jump <= 0.0 {
             return Vec::new();
         }
-        let mut found: Vec<(OffLink, usize)> = Vec::new();
-        let mut scratch: Vec<OffLink> = Vec::new();
-        for a in 0..n {
-            if self.ceiling[a] - self.height[a] < self.body.stand_height {
-                continue;
-            }
-            for d in 0..8 {
-                let b = wide.links[a][d];
-                if b != NONE && wide.kinds[a][d] != LinkKind::Drop {
+        // The floors in runs on the machine's threads, each run's links in floor order and the runs in order: the links and
+        // their order are the serial loop's (the flights read the grid only).
+        let runs: Vec<std::ops::Range<usize>> = (0..n).step_by(GAP_RUN).map(|a| a..(a + GAP_RUN).min(n)).collect();
+        let per_run = super::controlled::parallel(&runs, |run| {
+            let (mut found, mut stats, mut scratch) = (Vec::<(OffLink, usize)>::new(), GapStats::default(), Vec::<OffLink>::new());
+            for a in run.clone() {
+                if self.ceiling[a] - self.height[a] < self.body.stand_height {
                     continue;
                 }
-                let before = scratch.len();
-                self.gap_link(wide, a, d, solids, stats, &mut scratch);
-                found.extend(scratch.drain(before..).map(|link| (link, d)));
+                for d in 0..8 {
+                    let b = wide.links[a][d];
+                    if b != NONE && wide.kinds[a][d] != LinkKind::Drop {
+                        continue;
+                    }
+                    let before = scratch.len();
+                    self.gap_link(wide, a, d, solids, &mut stats, &mut scratch);
+                    found.extend(scratch.drain(before..).map(|link| (link, d)));
+                }
             }
+            (found, stats)
+        });
+        let mut found: Vec<(OffLink, usize)> = Vec::new();
+        for (run, run_stats) in per_run {
+            found.extend(run);
+            stats.add(&run_stats);
         }
         // One a metre of edge, direction and level (the first, in floor
         // order); a drop one a metre of edge and level whatever its way,
@@ -1746,6 +1885,86 @@ mod tests {
         let open = all_down(&build(false, true));
         assert!(!open.is_empty(), "the open edge is gone down");
         assert_eq!(open, all_down(&build(false, false)), "the switch leaves the open edge's links");
+    }
+
+    /// [2a] A slab 0.9 m under the near top, 0.9 m wide between the near block's face and a parapet, its floors all taken by
+    /// the erosion, over open ground 2.9 m down (Vector Laboratory's spawn platform: rail top 25.16, slab 24.26, ground
+    /// 20.76). A body walking off is held by the parapet and comes down on the slab, where the client keeps it; without
+    /// [`Body::fall_stops_on_solids`] the fall asks for floors only and links the near top to the ground under the slab. With
+    /// it no link goes under the slab, and the open edge (no slab) keeps every link it had.
+    #[test]
+    fn a_fall_stops_on_an_eroded_slab_with_fall_stops_on_solids() {
+        // With the slab: a deck at 2.9 m (no face down to the ground: the ground under it and under the slab is open), the
+        // ground at 0. Without: the near block's open edge over a 1.5 m gap to the far block at 0.5 m.
+        let world = |slab: bool| {
+            let (mut t, (back, area)) = if slab {
+                let mut t = quad(0.0, 0.0, 14.0, 10.0, 0.0).to_vec();
+                t.extend(quad(0.0, 0.0, 6.0, 10.0, 2.9));
+                t.extend(face_x(6.0, 0.0, 10.0, 2.0, 2.9));
+                t.extend(quad(6.0, 0.0, 6.9, 10.0, 2.0));
+                t.extend(face_x(6.9, 0.0, 10.0, 2.0, 4.0));
+                (t, way_back(2.9, 0.0, 1.0))
+            } else {
+                (world_triangles(2.0, 0.5, 1.5, -3.0), way_back(2.0, 0.5, 1.0))
+            };
+            t.extend(back);
+            (t, area)
+        };
+        let build = |slab: bool, fall_stops_on_solids: bool| {
+            let (t, area) = world(slab);
+            WalkGrid::build_with_links(&t, area, 0.25, Body { fall_stops_on_solids, ..Body::default() }, OffMeshLinks::Gaps)
+        };
+        let under_slab = |grid: &WalkGrid| {
+            grid.off_links()
+                .iter()
+                .filter(|l| {
+                    let (a, b) = (grid.position(l.from), grid.position(l.to));
+                    a.y > 2.8 && b.y < 0.1 && (6.0..6.9).contains(&b.x)
+                })
+                .count()
+        };
+        let off = build(true, false);
+        assert!((0..off.len() as NodeId).all(|f| (off.position(f).y - 2.0).abs() >= 0.05), "the slab has no floor");
+        assert!(under_slab(&off) > 0, "without the switch a fall goes through the slab");
+        assert_eq!(under_slab(&build(true, true)), 0, "with it no link lands under the slab");
+        let all = |grid: &WalkGrid| {
+            let mut v: Vec<(NodeId, NodeId, Takeoff)> = grid.off_links().iter().map(|l| (l.from, l.to, l.press)).collect();
+            v.sort_by_key(|&(a, b, _)| (a, b));
+            v
+        };
+        let open = all(&build(false, true));
+        assert!(!open.is_empty(), "the open edge is gone down");
+        assert_eq!(open, all(&build(false, false)), "the switch leaves the open edge's links");
+    }
+
+    /// [2a] A plain Drop into a crack a cell wide between two decks at 3 m (thin, the ground open under them): the capsule
+    /// rests on both edges, 0.125 m from the crack's centre each side, so with [`Body::fall_stops_on_solids`] the Drop to the
+    /// ground under the crack goes (the ground has another way in).
+    #[test]
+    fn a_drop_through_a_slot_narrower_than_the_body_goes_with_fall_stops_on_solids() {
+        let mut t = quad(0.0, 0.0, 14.0, 10.0, 0.0).to_vec();
+        t.extend(quad(0.0, 0.0, 6.0, 10.0, 3.0));
+        let (back, area) = way_back(3.0, 0.0, 1.0);
+        t.extend(back);
+        t.extend(quad(6.25, 0.0, 9.0, 10.0, 3.0));
+        let build = |fall_stops_on_solids: bool| {
+            let body = Body { fall_stops_on_solids, ..Body::default() };
+            let start = [Vec3::new(3.0, 3.0, 5.0)];
+            WalkGrid::build_kept_with_links(&t, area, 0.25, body, &start, &start, OffMeshLinks::None)
+        };
+        let into_slot = |grid: &WalkGrid| {
+            (0..grid.len() as NodeId)
+                .flat_map(|a| grid.links(a).map(move |(b, kind)| (a, b, kind)))
+                .filter(|&(a, b, kind)| {
+                    kind == LinkKind::Drop && grid.position(a).y > 2.9 && grid.position(b).y < 0.1 && grid.position(b).x < 6.25
+                })
+                .count()
+        };
+        let (off, _) = build(false);
+        assert!(into_slot(&off) > 0, "without the switch the block drops into the slot");
+        let (on, stats) = build(true);
+        assert_eq!(into_slot(&on), 0, "with it no drop goes through the deck: {stats:?}");
+        assert!(stats.drops_under_solid > 0);
     }
 
     /// [A304] With [`Body::ramp_faces`] the floors on a 40 deg ramp keep its slope, the flat ground and a stair's flat treads keep
