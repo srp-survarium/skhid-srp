@@ -69,6 +69,110 @@ fn world() -> World {
     world_with(GameAccounts::new())
 }
 
+#[test]
+fn admin_rename_targets_an_id_is_free_and_keeps_an_audit() {
+    let repository = session::v026g::persist::MemoryGameRepository::default();
+    let world = world_with(GameAccounts::with_repository(Box::new(repository.clone())).unwrap());
+    let id = world.player("Mamoru", "pw");
+    let other = world.player("Other", "pw");
+    let before = world.accounts.get(id).unwrap().locked().clone();
+    let response = world.admin(&[
+        ("tab", "rename"),
+        ("rename_id", &id.to_string()),
+        ("rename_name", "Mamoru_777"),
+        ("rename_reason", "duplicate name"),
+    ]);
+    assert!(response.contains(&format!("Account #{id} renamed: Mamoru → Mamoru_777.")));
+    let mut expected = before;
+    expected.name = "Mamoru_777".into();
+    assert_eq!(*world.accounts.get(id).unwrap().locked(), expected);
+    assert_eq!(
+        world.web.store.account(id).unwrap().locked().name(),
+        "Mamoru_777"
+    );
+    assert_eq!(
+        world.web.store.account(other).unwrap().locked().name(),
+        "Other"
+    );
+    assert_eq!(
+        world
+            .web
+            .store
+            .sign_in_with_digest_from(
+                "Mamoru",
+                &sha1_hex(b"pw"),
+                "127.0.0.1".parse().unwrap(),
+                Instant::now()
+            )
+            .unwrap()
+            .account_id(),
+        id
+    );
+    assert_eq!(*world.told.changed.locked(), vec![id]);
+    let actions = repository.all_admin_actions();
+    assert_eq!(actions.len(), 1);
+    assert_eq!(
+        (
+            actions[0].account_id,
+            actions[0].kind.as_str(),
+            actions[0].before.as_str(),
+            actions[0].after.as_str()
+        ),
+        (id, "nickname", "Mamoru", "Mamoru_777")
+    );
+}
+
+#[test]
+fn admin_rename_refuses_bad_auth_names_ids_and_lookalikes() {
+    let world = world();
+    let id = world.player("Alice", "pw");
+    world.player("sovspiranha", "pw");
+    for (target, name, reason, token) in [
+        (id.to_string(), "Alisa", "repair", "wrong"),
+        (id.to_string(), "sоvspiranha", "repair", "tok"),
+        (id.to_string(), "ab", "repair", "tok"),
+        (id.to_string(), "Alisa", "", "tok"),
+        ("Alice".into(), "Alisa", "repair", "tok"),
+        ("4294967295".into(), "Alisa", "repair", "tok"),
+    ] {
+        let response = world.web.route(
+            &post(
+                "/hidden",
+                &[
+                    ("tab", "rename"),
+                    ("rename_id", &target),
+                    ("rename_name", name),
+                    ("rename_reason", reason),
+                    ("token", token),
+                ],
+            ),
+            "t",
+        );
+        assert!(!response.body.contains(" renamed: "));
+        assert_eq!(
+            world.web.store.account(id).unwrap().locked().name(),
+            "Alice"
+        );
+    }
+    assert!(world.told.changed.locked().is_empty());
+    let mut request = post(
+        "/hidden",
+        &[
+            ("tab", "rename"),
+            ("rename_id", &id.to_string()),
+            ("rename_name", "Alisa"),
+            ("rename_reason", "repair"),
+            ("token", "tok"),
+        ],
+    );
+    request.client = Some("192.0.2.10".parse().unwrap());
+    assert_eq!(world.web.route(&request, "t").status, "404 Not Found");
+    assert_eq!(
+        world.web.store.account(id).unwrap().locked().name(),
+        "Alice"
+    );
+}
+
 /// The world with these 0.26g accounts (one kept in a repository: what is
 /// written, and the audit trail).
 fn world_with(accounts: GameAccounts) -> World {

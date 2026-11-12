@@ -30,6 +30,7 @@ use survarium::v021d;
 mod afk;
 pub mod bans;
 mod identity;
+pub use identity::AdminRename;
 mod nickname_key;
 pub mod chat_mutes;
 pub mod limits;

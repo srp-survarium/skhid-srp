@@ -15,6 +15,7 @@
   release/moderate unmute <name>
   release/moderate signups [open | closed]                          no argument: the current state
   release/moderate reset-password <name>                            its next sign-in sets the new one
+  release/moderate rename <account-id> <new-name> --reason R         live, free; use the exact ID, e.g. 777
   release/moderate give <name> <item name | id> [count]
   release/moderate money <name> --silver=+N|-N --reason R             silver only: gold is gone
 
@@ -950,6 +951,25 @@ def give(args):
     answered(args, admin(args, fields, "give"), r": given \d+ of ")
 
 
+def rename_id(text):
+    """An immutable ID, never a nickname lookup (duplicates are why we rename)."""
+    if not re.fullmatch(r"#?[0-9]+", text) or not 0 < int(text.lstrip("#")) <= 0xffffffff:
+        raise argparse.ArgumentTypeError("use a positive account ID, e.g. 777 or '#777'")
+    return int(text.lstrip("#"))
+
+
+def rename(args):
+    if not args.reason.strip():
+        sys.exit("moderate: rename needs --reason (kept in the account's history)")
+    fields = [("tab", "rename"), ("rename_id", str(args.account_id)),
+              ("rename_name", args.nickname), ("rename_reason", args.reason)]
+    row = admin(args, fields, "rename")
+    answered(args, row, r"^Account #%d renamed: " % args.account_id)
+    if row and (" Error: the change stands in memory only:" in row["answer"] or " The database was busy:" in row["answer"]):
+        # Applied in memory, but do not report durable success on a refused/busy write.
+        sys.exit(2)
+
+
 def money(args):
     """The page's two steps: a preview hands out a plan, the confirm applies
     it only if neither the account nor the fields changed since."""
@@ -1037,6 +1057,11 @@ def main():
     p = change("unmute", "lift a chat mute")
     p.add_argument("target")
     p.set_defaults(run=unmute)
+    p = change("rename", "rename an exact account ID live, without charging")
+    p.add_argument("account_id", type=rename_id)
+    p.add_argument("nickname")
+    p.add_argument("--reason", required=True, help="kept in the account's history")
+    p.set_defaults(run=rename)
     p = change("signups", "close or open the registration of new accounts")
     p.add_argument("state", nargs="?", choices=("open", "closed"))
     p.set_defaults(run=signups)

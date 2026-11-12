@@ -1580,22 +1580,24 @@ fn friend_requests_come_five_at_once_then_one_every_ten_seconds() {
 
 /// Alice invites Bob into her squad, as the clients do it.
 fn form_squad(world: &mut World, alice: usize, bob: usize) {
+    let alice_name = world.account(alice).name.clone();
+    let bob_name = world.account(bob).name.clone();
     world.take(alice);
     world.take(bob);
-    world.ask(alice, request::important("Bob", 2, "invite"));
+    world.ask(alice, request::important(&bob_name, 2, "invite"));
     let invite = find(&world.take(bob), |message| match message {
         Decoded::Important {
             kind: 2,
             message_id,
             sender_name,
             ..
-        } if sender_name == "Alice" => Some(*message_id),
+        } if sender_name == &alice_name => Some(*message_id),
         _ => None,
     })
     .expect("the invite");
     // Bob's client: "membership accepted" to the inviter, then the answer
     // (0x28C698, then 0x28C7E1).
-    world.ask(bob, request::important("Alice", 3, "membership accepted"));
+    world.ask(bob, request::important(&alice_name, 3, "membership accepted"));
     world.ask(bob, request::answer(invite, 0));
     let accepted = find(&world.take(alice), |message| match message {
         Decoded::Important {
@@ -1603,13 +1605,13 @@ fn form_squad(world: &mut World, alice: usize, bob: usize) {
             message_id,
             sender_name,
             ..
-        } if sender_name == "Bob" => Some(*message_id),
+        } if sender_name == &bob_name => Some(*message_id),
         _ => None,
     })
     .expect("the acceptance");
     // Alice's client answers it by itself and adds the player.
     world.ask(alice, request::answer(accepted, 0));
-    world.ask(alice, request::add_squad_member("Bob"));
+    world.ask(alice, request::add_squad_member(&bob_name));
 }
 
 /// The ids of the messages of `kind` from `sender` among `messages`.
