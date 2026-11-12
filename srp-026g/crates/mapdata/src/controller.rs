@@ -10,6 +10,8 @@
 //! from the capsule's segment to the triangle, less the radius, is how far the capsule can move with no contact, so the sweep
 //! steps that far along the move and measures again, until the gap is under [`CONTACT_M`] or the move ends. A capsule that only
 //! translates gets no closer than its speed allows, so no contact is stepped over.
+pub mod exe_cast;
+pub mod exe_gjk;
 pub mod gjk;
 pub mod speed;
 pub mod tick;
@@ -45,6 +47,10 @@ pub enum Shape {
     Cylinder { centre: Vec3, half: f32, radius: f32, margin: f32 },
     /// A sphere: its centre and radius.
     Sphere { centre: Vec3, radius: f32 },
+    /// An upright capsule as the exe's controller holds it (Bullet's `btCapsuleShape`, up axis y): the centre (the cast's
+    /// origin), the radius and the half height of the straight part, kept as given so [`Caster::Exe`] casts the exe's own
+    /// numbers. The other casters read it as the [`Shape::Capsule`] between its two sphere centres.
+    CapsuleAt { centre: Vec3, radius: f32, half_height: f32 },
 }
 
 impl Shape {
@@ -60,8 +66,15 @@ impl Shape {
         }
     }
 
+    /// A [`Shape::CapsuleAt`] as the segment between its sphere centres and its radius.
+    fn capsule_of(centre: Vec3, radius: f32, half_height: f32) -> Capsule {
+        let up = Vec3::new(0.0, half_height, 0.0);
+        Capsule { low: centre - up, high: centre + up, radius }
+    }
+
     pub fn moved(self, by: Vec3) -> Self {
         match self {
+            Shape::CapsuleAt { centre, radius, half_height } => Shape::CapsuleAt { centre: centre + by, radius, half_height },
             Shape::Capsule(c) => Shape::Capsule(c.moved(by)),
             Shape::Cylinder { centre, half, radius, margin } => Shape::Cylinder { centre: centre + by, half, radius, margin },
             Shape::Sphere { centre, radius } => Shape::Sphere { centre: centre + by, radius },
@@ -72,6 +85,9 @@ impl Shape {
     /// on the triangle, and the direction from the triangle to the shape.
     pub fn gap(&self, v: &[Vec3; 3], normal: Vec3) -> (f32, Vec3, Vec3, Vec3) {
         let (d, on_core, on_face, margin) = match *self {
+            Shape::CapsuleAt { centre, radius, half_height } => {
+                return Shape::Capsule(Self::capsule_of(centre, radius, half_height)).gap(v, normal);
+            }
             Shape::Capsule(c) => {
                 let (d, s, f) = segment_triangle(c.low, c.high, v);
                 (d, s, f, c.radius)
@@ -94,6 +110,7 @@ impl Shape {
     /// The shape's box.
     fn aabb(&self) -> (Vec3, Vec3) {
         match *self {
+            Shape::CapsuleAt { centre, radius, half_height } => Shape::Capsule(Self::capsule_of(centre, radius, half_height)).aabb(),
             Shape::Capsule(c) => {
                 let r = Vec3::new(c.radius, c.radius, c.radius);
                 (c.low.min(c.high) - r, c.low.max(c.high) + r)
@@ -132,6 +149,12 @@ pub enum Caster {
     /// [`ADVANCE_STEPS`] steps. A grazing approach (a sphere sliding toward a seam between two flat faces) converges here and
     /// meets the face as the exe does; [`Caster::Conservative`] runs out of steps and misses it.
     Bullet(StartOverlap),
+    /// The exe's own arithmetic ([`exe_cast`] over [`exe_gjk`]): Bullet's GJK with its Voronoi simplex solver and the
+    /// time-of-impact loop in the exe's order of operations, bit for bit on 57,617 recorded closest-point calls of the
+    /// game (`docs/notes/exactness_rig.md`). Where the exe goes on to its penetration-depth solver (not ported: the
+    /// shape's core in the face or within 0.01 m of it on a degenerate simplex) the contact is [`Caster::Bullet`]'s, with
+    /// this [`StartOverlap`].
+    Exe(StartOverlap),
 }
 
 /// Where [`Caster::Bullet`] puts a contact met already overlapping at the start (the cylinder's core inside the face, where
@@ -295,8 +318,13 @@ impl Collision {
     /// The first contact of `capsule` moved by `by`, against faces `keep` accepts. A face the capsule already overlaps at the
     /// start is met only when the move goes into it (against its normal at the start).
     pub fn sweep(&self, capsule: Capsule, by: Vec3, keep: impl Fn(&Face) -> bool) -> Option<Contact> {
+        self.sweep_shape(Shape::Capsule(capsule), by, keep)
+    }
+
+    /// [`Self::sweep`] for any shape.
+    pub fn sweep_shape(&self, shape: Shape, by: Vec3, keep: impl Fn(&Face) -> bool) -> Option<Contact> {
         let mut best: Option<Contact> = None;
-        self.sweep_each(Shape::Capsule(capsule), by, |c| {
+        self.sweep_each(shape, by, |c| {
             if keep(&self.faces[c.face]) && best.is_none_or(|b| c.t < b.t) {
                 best = Some(c);
             }
@@ -312,7 +340,7 @@ impl Collision {
         let (lo1, hi1) = shape.moved(by).aabb();
         let touch = match self.caster {
             Caster::Conservative => CONTACT_M,
-            Caster::Bullet(_) => BULLET_TOLERANCE_M,
+            Caster::Bullet(_) | Caster::Exe(_) => BULLET_TOLERANCE_M,
         };
         let pad = Vec3::new(touch, touch, touch);
         self.faces_in(lo0.min(lo1) - pad, hi0.max(hi1) + pad, |f| {
@@ -323,6 +351,7 @@ impl Collision {
             let contact = match self.caster {
                 Caster::Conservative => advance(shape, by, face),
                 Caster::Bullet(start) => advance_bullet(shape, by, face, start),
+                Caster::Exe(start) => advance_exe(shape, by, face, start),
             };
             if let Some(c) = contact {
                 each(Contact { face: f, ..c });
@@ -463,6 +492,43 @@ fn advance_bullet(shape: Shape, by: Vec3, face: &Face, start: StartOverlap) -> O
     }
     Some(Contact { t, point: f, normal: n, face: 0 })
 }
+
+/// [`Caster::Exe`] against one face: the exe's cast of its own shape ([`exe_cast::cast_triangle`]); `by` is the cast's
+/// way as the exe subtracts it (the end's origin minus the start's).
+fn advance_exe(shape: Shape, by: Vec3, face: &Face, start: StartOverlap) -> Option<Contact> {
+    use exe_gjk::{Axis, CastShape};
+    let capsule = |radius: f32, half_height: f32| CastShape::capsule([radius, half_height, radius], [1.0; 3], EXE_CAPSULE_MARGIN_M, Axis::Y);
+    let (cast_shape, margin, from) = match shape {
+        Shape::CapsuleAt { centre, radius, half_height } => (capsule(radius, half_height), EXE_CAPSULE_MARGIN_M, centre),
+        // A capsule given by its sphere centres: the centre and the half height are worked back (not the exe's bits).
+        Shape::Capsule(c) => (capsule(c.radius, (c.high.y - c.low.y) * 0.5), EXE_CAPSULE_MARGIN_M, (c.low + c.high) * 0.5),
+        Shape::Cylinder { centre, half, radius, margin } => (CastShape::cylinder([radius, half, radius], Axis::Y), margin, centre),
+        Shape::Sphere { centre, radius } => (CastShape::Sphere, radius, centre),
+    };
+    let cast = exe_cast::Cast { shape: cast_shape, margin, from: from.to_array(), by: by.to_array() };
+    let triangle = exe_gjk::Triangle([face.v[0].to_array(), face.v[1].to_array(), face.v[2].to_array()]);
+    match exe_cast::cast_triangle(&cast, &triangle, 1.0) {
+        exe_cast::CastEnd::Hit { fraction, normal, point } => {
+            Some(Contact { t: fraction, point: Vec3::from_array(point), normal: Vec3::from_array(normal), face: 0 })
+        }
+        exe_cast::CastEnd::Miss => None,
+        // The penetration solver's answer is not ported: the contact where the cast stood, by the exact distance.
+        exe_cast::CastEnd::NeedsPenetration { lambda } => {
+            let (gap, _, mut f, n) = shape.moved(by * lambda).gap(&face.v, face.normal);
+            if -by.dot(n) <= f32::EPSILON {
+                return None;
+            }
+            if start == StartOverlap::FaceWitness && lambda == 0.0 && gap <= 0.0 {
+                f = shape.witness_on(&face.v, f);
+            }
+            Some(Contact { t: lambda, point: f, normal: n, face: 0 })
+        }
+    }
+}
+
+/// The collision margin of the controller's capsule (+1E0h of its shape, 0.04: Bullet's default), which the exe's
+/// detector takes as the capsule's margin.
+const EXE_CAPSULE_MARGIN_M: f32 = 0.04;
 
 /// The closest points of point `p` on triangle `v` (Ericson, Real-Time Collision Detection 5.1.5).
 pub fn point_triangle(p: Vec3, v: &[Vec3; 3]) -> Vec3 {

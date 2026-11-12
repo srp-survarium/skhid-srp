@@ -5,14 +5,20 @@
 //! down onto the ground (`step_down` 0x7E1B0 with `step_down_sweep_test_impl` 0x7EA80), where ground steeper than the limit
 //! that lifted the feet is refused unless one of the two slides takes the body (0x7D9C0, 0x7DA50). The origin then moves by
 //! the step's share of the tick. Float operations keep the exe's order where the notes give it; the x87 square roots are
-//! taken in f32 (the precision control word of the game is not read yet). The air branch (jumps) is not ported here.
+//! taken in f32 (the game's x87 control word is 0x007F, 24-bit precision: `docs/notes/collision_world.md` section 6). The
+//! air branch (a body in a jump, `step_jump_up` / `forward` / `down`) and the low-ceiling slide 0x7DF20 are ported too.
+//!
+//! The sweeps cast [`Shape::CapsuleAt`] (the controller's own centre and dims) by the way from the start's origin to the
+//! end's, so that [`super::Caster::Exe`] (the exe's own GJK and time of impact, bit for bit) gets the exe's numbers: with
+//! it the step is the exe's bits in 991 of 1,000 traced steps of the game on equal triangles
+//! (`docs/notes/exactness_rig.md` section 3b). The crouch flags are the exe's four (section 3a).
 //!
 //! The via-ray wall normal (0x89B80) is read and ported ([`WallNormal::Rays`]); [`Settings::LIVE`] still takes the first
 //! stand-in ([`WallNormal::FaceMadeHorizontal`]) until the nav gate. What is LIKELY rather than read: the stand-up and slide
-//! sweeps (0x86BF0, 0x88CB0, read in outline: capsule sweeps). The exe's own Bullet cast is [`super::Caster::Bullet`].
+//! sweeps (0x86BF0, 0x88CB0, read in outline: capsule sweeps).
 // The exe's comparisons are ported as written: `!(a > b)` and `a > b` differ on NaN, as `comiss` branches do.
 #![allow(clippy::neg_cmp_op_on_partial_ord)]
-use super::{Capsule, Collision, Contact, Shape};
+use super::{Collision, Contact, Shape};
 use crate::WalkerBehaviour;
 use crate::math::Vec3;
 
@@ -274,9 +280,10 @@ impl Controller {
         self.dims.0 + self.dims.1
     }
 
-    fn capsule_at(&self, centre: Vec3) -> Capsule {
-        let (r, hh) = self.dims;
-        Capsule { low: centre - UP * hh, high: centre + UP * hh, radius: r }
+    /// The capsule at `centre` as the exe's sweeps cast it: its own dims (+0x1D0), the cast's origin.
+    fn capsule_at(&self, centre: Vec3) -> Shape {
+        let (radius, half_height) = self.dims;
+        Shape::CapsuleAt { centre, radius, half_height }
     }
 
     /// `need_slide_on_supporting_surface` 0x7BC20.
@@ -517,9 +524,11 @@ impl Controller {
     /// and down (0x885C0, callback 0x88380) skip a rim or wall-side hit (its point not inside the capsule's disc and its normal
     /// across the axis, as the down sweep's 0x846E0); across (0x87B60, callback 0x87B40) keeps every contact.
     fn air_sweep(&self, world: &Collision, from: Vec3, by: Vec3, axis: bool) -> Option<(f32, Vec3)> {
+        // The cast's way is the end's origin less the start's (0x72EB0), not the displacement the end was made with.
+        let by = (from + by) - from;
         let r = self.dims.0;
         let mut best: Option<Contact> = None;
-        world.sweep_each(Shape::Capsule(self.capsule_at(from)), by, |c| {
+        world.sweep_each(self.capsule_at(from), by, |c| {
             if axis {
                 let at = from + by * c.t;
                 let (hx, hz) = (c.point.x - at.x, c.point.z - at.z);
@@ -664,7 +673,7 @@ impl Controller {
         };
         let complex = if self.crouched { s.crouch_move_complex_test } else { s.stand_move_complex_test };
         if !complex {
-            return callback(Shape::Capsule(self.capsule_at(from)), from).map(|(t, n, _)| (t, n));
+            return callback(self.capsule_at(from), from).map(|(t, n, _)| (t, n));
         }
         let m = s.move_step_margin;
         let (fmain, nmain, pmain) = callback(Shape::Cylinder { centre: from, half: r + hh, radius: r, margin: m }, from)?;
@@ -735,10 +744,11 @@ impl Controller {
     /// The fraction, point and normal of the hit the callback keeps.
     fn down_sweep(&self, world: &Collision, from: Vec3, dist: f32, s: &Settings) -> Option<(f32, Vec3, Vec3)> {
         let (r, hh) = self.dims;
-        let by = UP * dist;
+        // The cast's way is the end's origin less the start's (0x72EB0), not `up * dist` itself.
+        let by = Vec3::new(UP.x * dist + from.x, UP.y * dist + from.y, UP.z * dist + from.z) - from;
         let floor = ((UP.y * from.y + UP.z * from.z) + UP.x * from.x) - hh;
         let mut hits: Vec<Contact> = Vec::new();
-        world.sweep_each(Shape::Capsule(self.capsule_at(from)), by, |c| hits.push(c));
+        world.sweep_each(self.capsule_at(from), by, |c| hits.push(c));
         hits.sort_by(|a, b| a.t.total_cmp(&b.t));
         for c in hits {
             let at = from + by * c.t;
@@ -856,9 +866,10 @@ impl Controller {
     /// `rise`; a hit counts only on the top half of the top sphere and strictly inside the radius from the axis. Its normal.
     fn up_sweep(&self, world: &Collision, from: Vec3, rise: f32) -> Option<Vec3> {
         let (r, hh) = self.dims;
-        let by = UP * rise;
+        // The cast's way is the end's origin less the start's (0x72EB0).
+        let by = (from + UP * rise) - from;
         let mut best: Option<Contact> = None;
-        world.sweep_each(Shape::Capsule(self.capsule_at(from)), by, |c| {
+        world.sweep_each(self.capsule_at(from), by, |c| {
             let top = from + by * c.t + UP * hh;
             let (hx, hz) = (c.point.x - top.x, c.point.z - top.z);
             if c.point.y < top.y || !(hx * hx + hz * hz < r * r) {
@@ -929,7 +940,7 @@ impl Controller {
         let e = (n.z * dn.z + n.y * dn.y) + n.x * dn.x;
         let g = normalized_safe(Vec3::new(dn.x - n.x * e, dn.y - n.y * e, dn.z - n.z * e), dn);
         let de = Vec3::new(g.x * l + bs.x, g.y * l + bs.y, g.z * l + bs.z);
-        let Some(c2) = world.sweep(self.capsule_at(bs), de - bs, |_| true) else { return false };
+        let Some(c2) = world.sweep_shape(self.capsule_at(bs), de - bs, |_| true) else { return false };
         let n2 = c2.normal;
         if self.impassable(n2, sb, s) {
             return false;
