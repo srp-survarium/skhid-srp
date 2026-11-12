@@ -139,6 +139,20 @@ pub struct Controller {
     pub air_control: Vec3,
 }
 
+/// What the game's logic hands a body's controller before a step, for a body kept across ticks ([`Controller::tick`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TickInput {
+    /// +0x20: the walk vector, the body's root motion over this step (a displacement, m).
+    pub walk: Vec3,
+    /// +0x30: the air control of a jump (a speed, m/s).
+    pub air_control: Vec3,
+    /// The crouch key (bit 8 of the input's actions, [`Controller::crouch_key`]).
+    pub crouch_key: bool,
+    /// +0x204: the body sprints. `step_forward_impl` then takes the simple move test whatever the console says
+    /// (0x7D33D: `cmp byte [+204h], 0; jnz` past the complex test 0x85A90).
+    pub sprinting: bool,
+}
+
 /// What one step did, for the reader.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct StepNotes {
@@ -434,6 +448,25 @@ impl Controller {
         } else if self.can_stand {
             self.want_crouch = false;
         }
+    }
+
+    /// One step of a body kept across ticks, as the game runs it: the key and the vectors its logic writes before the
+    /// step ([`TickInput`]), then [`Self::step`]. Everything else the step reads is what the last step left, so a
+    /// reckoning that keeps one `Controller` for a body and calls this each tick walks the game's body: over every traced
+    /// whole step of a match in order (8,993 steps in 50 chains of up to 17 s; only what the game's logic wrote between
+    /// two steps taken from the trace) the body is the game's to the bit in 42 chains from end to end and within 6 cm in
+    /// all (`docs/notes/exactness_rig.md` section 3f). A jump's start (`jumping`, the clip's walk vector) and a
+    /// correction of the place stay the caller's writes.
+    pub fn tick(&mut self, world: &Collision, dt: f32, s: &Settings, input: TickInput) -> StepNotes {
+        self.crouch_key(input.crouch_key);
+        self.walk = input.walk;
+        self.air_control = input.air_control;
+        let s = Settings {
+            stand_move_complex_test: s.stand_move_complex_test && !input.sprinting,
+            crouch_move_complex_test: s.crouch_move_complex_test && !input.sprinting,
+            ..*s
+        };
+        self.step(world, dt, &s)
     }
 
     /// 0x7BD10 (and the same test inline in `step_down`'s tail 0x7E88A and at the head of the push 0x7BAD0): a crouched
@@ -1242,6 +1275,33 @@ mod tests {
         c.crouch_key(false);
         assert!(!c.step(&world, 0.05, &Settings::LIVE).skipped);
         assert!(c.can_stand);
+    }
+
+    /// A body kept across ticks crouches with the key, walks on crouched, and stands on the second tick after the
+    /// release: `tick` is the key, the walk vector and the step.
+    #[test]
+    fn a_kept_body_ticks_with_its_keys() {
+        let mut tris = Vec::new();
+        ground(0.0, -10.0, 10.0, &mut tris);
+        let world = Collision::build(&tris);
+        let input = |crouch_key: bool| TickInput { walk: Vec3::new(0.1, 0.0, 0.0), air_control: Vec3::ZERO, crouch_key, sprinting: false };
+        let mut c = Controller::standing_at(Vec3::ZERO);
+        let standing = c.dims;
+        for _ in 0..4 {
+            c.tick(&world, 0.05, &Settings::LIVE, input(true));
+        }
+        assert!(c.crouched && c.dims.1 < standing.1, "{:?}", c.dims);
+        assert!((c.feet().x - 0.4).abs() < 1e-3, "{:?}", c.feet());
+        c.tick(&world, 0.05, &Settings::LIVE, input(false));
+        assert!(c.crouched, "the first tick after the release makes the stand test");
+        c.tick(&world, 0.05, &Settings::LIVE, input(false));
+        assert!(!c.crouched && c.dims == standing);
+        // A sprinting body takes the simple move test: on open ground the same step.
+        let mut a = Controller::standing_at(Vec3::ZERO);
+        let mut b = a;
+        a.tick(&world, 0.05, &Settings::LIVE, input(false));
+        b.tick(&world, 0.05, &Settings::LIVE, TickInput { sprinting: true, ..input(false) });
+        assert_eq!(a, b);
     }
 
     /// A wall stops the body with its side 0.42 m off it (the cylinder 0.38 m plus the 0.04 m margin): the exe's too (Unicorn).
