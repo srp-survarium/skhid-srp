@@ -112,6 +112,7 @@ va	name	source	ret_cleanup	result
 0x0003bba0	vostok::collision::triangle_mesh_geometry::indices	manual	0	
 0x0003bbb0	vostok::collision::triangle_mesh_geometry::indices	manual	4	
 0x0003bbd0	vostok::collision::triangle_mesh_geometry::index_count	manual	0	
+0x0003e300	vostok::math::segments_closer_than	manual	0	AL: two segments (the four ends: EAX, ECX, [esp+4], [esp+8]) come closer than xmm0 (squared, strict). Parallel (every cross component under 1e-5): the end tests; else the lines' closest points (0x3E0F0) farther than xmm0: 0; both parameters in (0, 1): 1; else four end-to-segment distances (two inline, two by 0x3E010) under xmm0 squared: 1, else 0
 0x0003f000		auto	4	
 0x0003f060		auto	24	
 0x0003ff50	vostok::fs_new::file_open_flags_to_string	manual	0	
@@ -184,7 +185,7 @@ va	name	source	ret_cleanup	result
 0x00075e20	vostok::physics::bullet_physics_world::ray_test	manual	32	the result at entry ESP+4: +0 the hit point, +1Ch the object (0: no hit)
 0x0007a1f0	vostok::physics::create_bt_primitive	manual	0	EAX the new Bullet shape, 0 when the type is above 3 or the allocation fails
 0x00073da0	btCollisionWorld::ClosestConvexResultCallback::addSingleResult	manual	8	ST0: the hit fraction; writes +4 fraction, +30h normal (Bullet frame), +40h point, +50h object
-0x00075550	vostok::physics::bullet_physics_world::tick	manual	8	none; stepSimulation(0, 0, 1/60) then stepSimulation(elapsed ms * 0.001, 3, 1/60) (dynamics world vtable+2Ch), then overlapping character controllers pushed apart, contacts notified (0x77E50)
+0x00075550	vostok::physics::bullet_physics_world::tick	manual	8	none; stepSimulation(0, 0, 1/60) then stepSimulation(elapsed ms * 0.001, 3, 1/60) (dynamics world vtable+2Ch); the controllers' feet are kept before stepping (0x755C2..0x7560B); after it, for every pair of the dynamics world's actions (+FCh count, +104h array: the character controllers) whose feet overlap now (0x75340) and did not before the tick, when the team bytes +2C781h differ: m_fall_and_slide_velocity +2C770h := 0, m_colliding_with_player +205h := 1, set_transform 0x7F6D0 back to the feet before the tick, for both (0x757EE..0x7584F); teammates pass through. Then contacts notified (0x77E50)
 0x00075b00	vostok::physics::bullet_physics_world::add	manual	4	none; the bt_constraint overload (world vtable 0x9E2EBC +24h): btDiscreteDynamicsWorld vtable+30h addConstraint([c+4], false). No caller in 0.26g: no constraint class exists
 0x00075b20	vostok::physics::bullet_physics_world::remove	manual		the bt_constraint overload (vtable +30h): tail jump to btDiscreteDynamicsWorld vtable+34h removeConstraint([c+4])
 0x00075e20	vostok::physics::bullet_physics_world::ray_test	manual	32	the result at entry ESP+4 (also EAX), 28h bytes, game frame: +0 the hit point, +0Ch the hit fraction of direction x length (0 on a miss), +10h the hit normal, +1Ch the object (the collision object's +0F8h; 0: no hit, +0..+0Bh and +10h..+1Bh then not written), +20h the triangle index (-1 none), +24h byte: a compound child's
@@ -1503,7 +1504,7 @@ va	name	source	ret_cleanup	result
 0x0033e2a0	survarium::oxygen_tank::`scalar deleting destructor'	manual	4	
 0x0033e2c0	survarium::oxygen_tank::~oxygen_tank	manual	0	
 0x0033e3a0	survarium::oxygen_tank::action	manual	8	
-0x0033e400	survarium::oxygen_tank::set_active	manual	0	
+0x0033e400	survarium::oxygen_tank::set_active	manual	0	none; AL 1 links each influence row into its body part's protector list (pool +0BCh), AL 0 unlinks them: the tank protects only while on (tick 0x33E5D0 turns it off at 0 ms left or when the wearer dies, 0x33E66F)
 0x0033e5d0	survarium::oxygen_tank::tick	manual	12	
 0x0033e6f0	survarium::oxygen_tank::reduce_damage	manual	12	the damage at stack+8 in place: 0 below the matching influence's threshold (+88h), else (damage - threshold) x hit_coeff (+84h); unchanged without a match (observed)
 0x0033e740	survarium::oxygen_tank::get_item_props	manual	4	
@@ -2088,8 +2089,7 @@ va	name	source	ret_cleanup	result
 0x00356b90	vostok::physics::bt_character_controller::set_air_control_vector	manual		stores the air control vector at controller +0x30; player_step adds it (0x7BFC5)
 0x00356b00	vostok::physics::bt_character_controller::set_desired_walk_vector	manual		stores the root-motion displacement at controller +0x20
 0x0007f1a0	vostok::physics::bullet_character_controller::setup_crouch_state	manual		called at the top of player_step (0x7BDDD) from the crouch flags +0x201/+0x202/+0x203; shortens the capsule and keeps its bottom point fixed (0x7F1FD..0x7F2B5): crouching in the air lifts nothing
-0x00075550	vostok::physics::bullet_physics_world::resolve_character_pairs	manual	8	the loop at 0x75730..0x7586C visits pairs of character controllers (an array of pointers at [ebp-0x34]); for a pair that overlaps (test 0x75340) it compares the byte at controller+0x2C781 (cmp 0x757E0..0x757EC): equal bytes = the pair passes through each other; different bytes = both controllers get the walk vectors at +0x2C770..+0x2C77C zeroed and m_colliding_with_player (+0x205) set to 1, and 0x7F6D0 is called for each. The byte is set by the constructor (0x7B5C4) from an argument of the create call at 0x2D6EEC; it is the player-team value ([[player+0x6B8]+0x45EC], 1 or 2) LIKELY (a place id would differ for every pair, and the owner saw teammates pass and enemies collide)
-0x0007b150	vostok::physics::bullet_character_controller::bullet_character_controller	manual		stores constructor arguments in two bytes: +0x2C780 (0x7B5D5) and +0x2C781 (0x7B5C4, the one resolve_character_pairs compares); +0x205 m_colliding_with_player is cleared here (0x7B29C) and written at 0x75811, 0x75848 (resolve_character_pairs) and 0x7FBDC (deserialize)
+0x0007b150	vostok::physics::bullet_character_controller::bullet_character_controller	manual		stack: this, the owner (+10h), byte [player+114h] (+2C780h, 0x7B5D5), the team [[player+6B8h]+45ECh] (+2C781h, 0x7B5C4: the byte tick 0x75550 compares), the stand {width, height}* (+60h), the crouch one (+68h), gravity (+2C708h); from 0x2D6EEC through 0x3569D0, 0x356A40. +205h m_colliding_with_player is cleared here (0x7B29C) and written at 0x75811, 0x75848 (tick) and 0x7FBDC (deserialize)
 0x002df780	survarium::weapon_core_cook::add_weapon_state_transitions	manual	36	builds the state graph: 38 append_transition calls; called from weapon_core_cook (0x30BDB8)
 0x002e3b00	survarium::weapon_core::state_ended_pred	manual	0	AL the source state's animation-ended flag (state+12Dh)
 0x002e3b10	survarium::weapon_core::switch_pending	manual	0	AL 1 when the current and target active object differ (player+128h != +12Ch) and the selector (weapon+278h) has +2Bh set
@@ -2219,6 +2219,7 @@ va	name	source	ret_cleanup	result
 0x00202500	survarium::player_cook::on_config_loaded	manual	4	Descriptive label: callback bound at202458 by class54 player cook202400; constructs 27Ch stage, extracts 18h creation data atstage+9C, builds inventory recipe20284C..2028A9, submits subresource query at202A38, ret4 at202AC7
 0x002058a0	survarium::player_cook::extract_creation_data	manual	0	Descriptive label: validates variant type via205BA0; copies exactly18h fromvariant+8 toEDI at205925..20593D; AL1 success, AL0 mismatch; no retained ownership
 0x00074950	vostok::physics::bullet_physics_world::bullet_physics_world	manual	4	EAX this/result, 60h object; vtable9E2EBC; map cook allocates at2CC2D2 then constructs at2CC2DE; pointer passed into player creation data and inventory recipe+0C; nearby diagnostics name bullet_physics_world.cpp
+0x00075340	vostok::physics::bullet_physics_world::characters_overlap	manual	0	AL: the bodies of two feet transforms ([esp+4] and EDI) overlap: segments feet +- (dims[up] - dims[(up+2)%3]) along their up, dims of the static capsule 0xA264460 (0.38, 0.26, 0.38: 0.12 m), closer than 2.0 (0x9CC87C) x 0.38 (0x3E300); the capsule is made once (guard 0xA264C80)
 0x002c6f90	survarium::inventory_cook::append_item_query	manual	0	Descriptive label: inventory recipe inEAX, slot plus request/user/variant vectors on stack; empty indexFFFF returns; config data.type2 ->class49 and physics/world pointers,5 ->class4D,9 ->class4B,other ->class48; caller cleans16 bytes
 0x002cbbe0	survarium::pvp_match_core_cook::destroy_resource	manual	4	Descriptive cook label: wrapper+19238 scene cleanup, wrapper virtual destructor, then physics at+130 virtual+0C finalize, virtual+0 destroy and allocator free; the order run under Unicorn with endpoint stubs (2026-10)
 0x002cbc60	survarium::pvp_match_core_cook::on_subresources_loaded	manual	44	Descriptive callback label: ECX cook; query result plus eight map words, physics pointer and config pointer; assembles19 constructor arguments; physics becomes constructor arg8, options arg4; run under Unicorn (2026-10)
@@ -2235,11 +2236,12 @@ va	name	source	ret_cleanup	result
 0x00329290	survarium::player_stamina::player_stamina	manual	4	EAX: stamina initialized from 40-byte base parameters, modifiers pointer +48h
 0x002dbf40	survarium::base_player::can_sprint	manual	4	EAX: boolean; rejects low stamina, weight >= modified maximum unless modifier 31, and Heavyweight modifier 32
 0x002221e0	survarium::lobby_menu::update_player_items_weight	manual	0	void; root.update_player_items_weight with profile weight and modified capacity; descriptive RE name
-0x002f7660	survarium::player_profile::apply_kit_parameter	manual	0	XMM0: base parameter with selected kit skills then equipped-item modifiers; descriptive RE name
+0x002f7660	survarium::player_profile::apply_kit_parameter	manual	0	XMM0: getter(B, k 1) of the kit's skills, plus 0x2F7470 over the slots of 0x92655C {13..18, 3, 0, 1, 2, 4, 5, 6}: each item's own parameter and its modifications' lobby_info value (rows of 0x2C9E10); the caller truncates and keeps the low byte
 0x00331840	survarium::weapon_recoil_parameters::load	manual	8	EAX: output block; descriptive name. Horizontal config ranges divided by 21.48, vertical by 63.735; not degrees.
 0x00330ee0	survarium::weapon_dispersion_parameters::load	manual	8	EAX: output block; descriptive name. speed_of_aiming at +0x0c, growth_speed at +0x10, direct scalar copies. Optional from_the_hip_multiplier (+0x18) and aim_multiplier (+0x1c) default to 1.0 at 0x330FE3/0x331034 (constant 0xA70884).
 0x002debc0	survarium::weapon_breath_vibration_parameters::load	manual	4	EAX: output block; descriptive name. Horizontal/vertical amplitudes and base_period copied directly.
 0x002f1430	survarium::item_config_cook::find_modifier_target	manual	0	EAX: matching config node or null; missing path at 0x2F1462 returns null, skipped by cook at 0x2F1ABF.
+0x002f14c0	survarium::make_item_config_request	manual		class 0x43 (item_config_cook 0x2F1750) for an item with a default or own modification or upgrade, else class 0x1F with the dictionary entry's +118h path
 0x00358010	vostok::configs::apply_multiplicative_modifiers	manual	0	Type-2 helper (dispatch 0x35869D): scalar *= max(0, 1 + sum(modifiers)); converts integers to float.
 0x0028cab0	survarium::lobby_menu::go_to_knowledge_base	manual	4	AL=1; original builds support URL from global language, calls ShellExecuteA through IAT 0xAEFE74; preserves ESI.
 0x00229400	survarium::lobby_menu::set_ui_element_lock_state	manual	16	

@@ -145,6 +145,7 @@ va	status	ref_021d	name
 0x0003c6f0	inferred-medium	0x0002c7c8	vostok::collision::colliders::cuboid_object::add_objects_by_callback
 0x0003c780	inferred-medium	0x0002c81c	vostok::collision::colliders::cuboid_object::add_triangles
 0x0003d460	inferred-medium	0x0002d2e8	vostok::buffer_vector<vostok::collision::ray_object_result>::push_back
+0x0003e300	inferred-medium		vostok::math::segments_closer_than
 0x0003e830	inferred-medium	0x0002daac	vostok::collision::colliders::ray_test_geometry::test_primitive
 0x0003e880	inferred-medium	0x0002daeb	vostok::collision::colliders::ray_test_geometry::query<vostok::collision::colliders::geometry::vertical_predicate<1> >
 0x0003e9c0	inferred-medium	0x0002dbc3	vostok::collision::colliders::ray_test_geometry::query<vostok::collision::colliders::geometry::vertical_predicate<0> >
@@ -316,7 +317,6 @@ va	status	ref_021d	name
 0x00072300	inferred-medium	0x000547e4	vostok::physics::bt_animated_rigid_body::get_surface_point_transform
 0x00072490	inferred-medium	0x000548a8	vostok::physics::bt_animated_rigid_body::get_random_surface
 0x000728f0	inferred-high	0x000549f1	vostok::physics::bullet_physics_world::get_world_aabb
-0x00073d70	inferred-medium		btCollisionWorld::ConvexResultCallback::needsCollision
 0x00073da0	inferred-medium	0x0005556f	btCollisionWorld::ClosestConvexResultCallback::addSingleResult
 0x000741b0	inferred-medium	0x0005575c	btConvexInternalShape::serialize
 0x00074270	inferred-medium	0x000557ce	btSphereShape::getName
@@ -333,6 +333,7 @@ va	status	ref_021d	name
 0x000750c0	inferred-high	0x000563e5	vostok::physics::bullet_physics_world::set_renderer
 0x000750d0	inferred-high	0x000563ed	vostok::physics::bullet_physics_world::draw_object
 0x000750f0	inferred-medium	0x00056404	vostok::physics::bullet_physics_world::update_single_aabb
+0x00075340	inferred-medium		vostok::physics::bullet_physics_world::characters_overlap
 0x00075550	inferred-high	0x00056439	vostok::physics::bullet_physics_world::tick
 0x000758b0	inferred-high	0x00056494	vostok::physics::bullet_physics_world::add
 0x00075a60	inferred-high	0x000565b5	vostok::physics::bullet_physics_world::remove
@@ -410,6 +411,8 @@ va	status	ref_021d	name
 0x00094c70	inferred-medium		btAxisSweep3Internal<unsigned short>::rayTest
 0x000a14c0	inferred-medium	0x00220975	vostok::physics::closest_ray_result_callback::`scalar deleting destructor'
 0x000a3e50	inferred-medium		vostok::physics::bullet_contact_pair_test
+0x000a6510	inferred-medium		btGhostObject::~btGhostObject
+0x000a66f0	inferred-medium		btPairCachingGhostObject::btPairCachingGhostObject
 0x000a14e0	inferred-medium		btCollisionWorld::objectQuerySingle
 0x000a2b30	inferred-medium		BridgeTriangleConvexcastCallback::reportHit
 0x000a33a0	inferred-high		btCollisionWorld::rayTest
@@ -1875,6 +1878,7 @@ va	status	ref_021d	name
 0x002c8120	inferred-medium	0x001c5c0a	vostok::detail::concrete_type_helper<survarium::weapon_cook_data>::copy_helper
 0x002c81b0	inferred-medium	0x001c5a58	stlp_std::priv::_STLP_alloc_proxy<enum survarium::profile_slot_enum *,enum survarium::profile_slot_enum,vostok::vectora_allocator<enum survarium::profile_slot_enum> >::allocate
 0x002c9ba0	inferred-medium		survarium::items_dictionary_cook::on_map_configs_loaded
+0x002c9e10	inferred-medium		survarium::items_dictionary_cook::load_modification_row
 0x002ca000	inferred-medium		survarium::items_dictionary_cook::build_item_modifications
 0x002cac10	inferred-medium		survarium::items_dictionary::bundle_item_by_id
 0x002cca90	inferred-medium	0x001c800f	vostok::detail::abstract_type_helper::`scalar deleting destructor'
@@ -1995,6 +1999,7 @@ va	status	ref_021d	name
 0x002f0b00	inferred-medium		survarium::player_params::load_movement_speed
 0x002f1430	inferred-high		survarium::item_config_cook::find_modifier_target
 0x002f14c0	inferred-high		survarium::make_item_config_request
+0x002f16e0	inferred-medium		survarium::item_config_cook::register
 0x002f4b00	inferred-medium	0x001dd83f	survarium::timelimit_rule_core_cook::create_resource
 0x002f5570	inferred-medium	0x001dded5	survarium::shared_statistics::on_victory_item_event
 0x002f59e0	inferred-medium	0x001de057	survarium::shared_statistics::kill_event_arg
@@ -3159,7 +3164,6 @@ va	status	ref_021d	name
 0x0086be20	inferred-medium	0x006a08aa	`survarium::game::on_base_resources_created'::`8'::`dynamic atexit destructor for 'g_input_handler''
 0x0086d0a0	inferred-medium	0x006a0dc0	survarium::`dynamic atexit destructor for 'g_file_opener''
 0x0086ec40	inferred-medium	0x00284b61	stlp_std::basic_istream<char,stlp_std::char_traits<char> >::`vbase destructor'
-0x0007f5c0	inferred-medium		vostok::physics::bullet_character_controller::get_transform
 0x002d1ea0	inferred-medium		survarium::game_world_core::rules_on_event
 0x002d2d70	inferred-high		survarium::game_object_tick_lists::push_back
 0x002d2db0	inferred-high		survarium::game_object_tick_lists::erase
@@ -3201,7 +3205,6 @@ va	status	ref_021d	name
 0x002d7990	inferred-high		survarium::base_player::get_air_control_vector
 0x002d6510	inferred-high		survarium::base_player::get_move_direction
 0x00337040	inferred-high		survarium::jump_state::initialize
-0x00075550	inferred-medium		vostok::physics::bullet_physics_world::resolve_character_pairs
 0x00329ff0	inferred-high		survarium::body_part_parameters::hit_by_type
 0x00332330	inferred-high		survarium::weapon_damage_params::weapon_damage_params
 0x00332440	inferred-high		survarium::weapon_ammunition_params::weapon_ammunition_params
@@ -3391,6 +3394,7 @@ va	status	ref_021d	name
 0x0030a350	inferred-medium		survarium::grenade_set_core::splash_hit_params
 0x00304a40	inferred-medium		survarium::booby_trap_core::hit_victim
 0x003055f0	inferred-medium		survarium::booby_trap_core::splash_hit_params
+0x003056d0	inferred-medium		survarium::booby_trap_core::explode
 0x002e1c80	inferred-medium		survarium::weapon::min_damage
 0x002e1cf0	inferred-medium		survarium::weapon::damage
 0x00012780	inferred-medium		vostok::buffer_string::buffer_string

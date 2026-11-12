@@ -83,6 +83,7 @@ vtable	slot	va	class	base	basis
 0x00a13e8c	0x44	0x00246ed0	survarium::victory_item_core	survarium::usable_object	observed: RTTI (the locator at -4 names survarium::victory_item_core, the survarium::usable_object at +14h); get_transform (patch 23)
 0x00a13eec	0x04	0x00300040	survarium::victory_item_core	vostok::collision::game_object	observed: RTTI (the locator at -4 names survarium::victory_item_core, the vostok::collision::game_object at +58h); cast_to_collision_geometry (0.10b collision::game_object slot 1)
 0x00a13ff8	0x04	0x00300040	survarium::grenade_core	vostok::collision::game_object	observed: RTTI (the locator at -4 names survarium::grenade_core, the vostok::collision::game_object at +1Ch); cast_to_collision_geometry (0.10b collision::game_object slot 1)
+0x00a14038	0x0	0x00300040	survarium::hit_inflictor		observed: RTTI; slot 0 returns 0 (as a bullet: none)
 0x00a141a4	0x04	0x00300040	survarium::booby_trap_core	vostok::collision::game_object	observed: RTTI (the locator at -4 names survarium::booby_trap_core); cast_to_collision_geometry (0.10b collision::game_object slot 1)
 0x00a141ec	0x20	0x00300040	survarium::booby_trap_core	survarium::collision_geometry_subscriber	observed: RTTI (the locator at -4 names survarium::booby_trap_core, the survarium::collision_geometry_subscriber at +10h); cast_to_usable (detect_usable_object 0x2D85B3 by the thunk 0x2DD730)
 0x00a14244	0x20	0x00246380	survarium::booby_trap_core	survarium::collision_geometry_subscriber	observed: RTTI (the locator at -4 names survarium::booby_trap_core, the survarium::collision_geometry_subscriber at +34h); cast_to_usable (detect_usable_object 0x2D85B3 by the thunk 0x2DD730)
@@ -99,6 +100,7 @@ vtable	slot	va	class	base	basis
 0x00a16d2c	0x20	0x00246380	survarium::victory_items_container_core	survarium::collision_geometry_subscriber	observed: RTTI (the locator at -4 names survarium::victory_items_container_core); cast_to_usable (detect_usable_object 0x2D85B3 by the thunk 0x2DD730)
 0x00a16d2c	0x30	0x0031cb10	survarium::victory_items_container_core	survarium::usable_object	observed: RTTI (the locator at -4 names survarium::victory_items_container_core); can_use (detect_usable_object 0x2D85CE)
 0x00a16d2c	0x44	0x002f8440	survarium::victory_items_container_core	survarium::usable_object	observed: RTTI (the locator at -4 names survarium::victory_items_container_core); get_transform (patch 23)
+0x00a19160	0x0	0x00246380	survarium::bullet		observed: RTTI; slot 0 returns this
 0x00a1c01c	0x04	0x00300040	survarium::hittable_object	vostok::collision::game_object	observed: RTTI (the locator at -4 names survarium::hittable_object); cast_to_collision_geometry (0.10b collision::game_object slot 1)
 0x00a1f258	0x00	0x00356d50	vostok::physics::bt_static_rigid_body	vostok::physics::base_physics_object	observed: RTTI (the locator at -4 names vostok::physics::bt_static_rigid_body); get_collision_group (0.10b base_physics_object slot 0)
 0x00a1f2f0	0x00	0x00356d50	vostok::physics::bt_dynamic_rigid_body	vostok::physics::base_physics_object	observed: RTTI (the locator at -4 names vostok::physics::bt_dynamic_rigid_body); get_collision_group (0.10b base_physics_object slot 0)

@@ -150,5 +150,9 @@ decimals) against the replaying game's own bodies at the same match time.
   any worker's test game the same way.
 - LEAD: `set_transform` takes the feet and adds (radius + half height) along the up axis; the player's place is
   the feet. The origin goes through that subtraction and addition every tick. In the traces it came back to
-  the same bits every time (heights 18 to 26 m); whether it does where the height crosses a power of two is
-  not checked (GUESS: it can differ by one unit in the last place).
+  the same bits every time (heights 18 to 26 m), and it must (DERIVED, every f32 height evaluated with the exe's
+  `subss` 0x7F67B..0x7F6A2 and `addss` 0x7F72D..0x7F750, h 0.9 / 0.55): above 0 the trip changes an origin only
+  for a capsule centre in [2, 4) m standing or [1, 2) m crouched (ties to even: 2,306,867 and 1,887,437 of
+  8,388,608 values there, one ulp), never where the height crosses 16, 32 or 64 m; below 0 it changes origins
+  whose |o| + h crosses a power of two, and the [0.5, 4) ties, by one ulp (two for 3 crouched values). One trip
+  is a fixed point: the second never changes anything.

@@ -2187,6 +2187,7 @@ va	status	ref_021d	name
 0x00313300	verified		survarium::artefact_base::action
 0x00313350	verified		survarium::artefact_base::effect
 0x0007f1a0	reviewed	0x0021fcf1	vostok::physics::bullet_character_controller::setup_crouch_state
+0x0007f5c0	reviewed		vostok::physics::bullet_character_controller::get_transform
 0x00337810	reviewed		survarium::player_logic_crouch_state::request_effective_crouch
 0x00337830	reviewed		survarium::player_logic_crouch_state::release_effective_crouch_if_clear
 0x00059080	observed		vostok::sound::sound_world::initialize_xaudio
@@ -2439,6 +2440,7 @@ va	status	ref_021d	name
 0x00072b90	verified		btMatrix3x3::getRotation
 0x00072a50	verified		btMatrix3x3::setRotation
 0x00072fb0	reviewed		btTransformUtil::calculateDiffAxisAngle
+0x00073d70	reviewed		btCollisionWorld::ConvexResultCallback::needsCollision
 0x00072d20	reviewed		btTransform::inverse
 0x000b88b0	reviewed		btPointCollector::addContactPoint
 0x0009fc20	reviewed		btCollisionWorld::LocalConvexResult::LocalConvexResult
