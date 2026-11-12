@@ -74,6 +74,9 @@ def read_shapes(path):
     return objects
 
 
+KINDS = {"empty": 0, "mesh": 1, "convex": 2, "compound": 3}
+
+
 class Count:
     def __init__(self):
         self.same = collections.Counter()
@@ -86,8 +89,12 @@ class Count:
             if a == b:
                 self.same[field] += 1
             elif len(self.examples[field]) < show:
-                fa, fb = (struct.unpack("<f", struct.pack("<I", x))[0] for x in (a, b))
-                self.examples[field].append(f"{where} [{i}] game {a:08x} ({fa!r}) export {b:08x} ({fb!r})")
+                if field.endswith("kind"):
+                    names = {v: k for k, v in KINDS.items()}
+                    self.examples[field].append(f"{where} game {names.get(a, a)} export {names.get(b, b)}")
+                else:
+                    fa, fb = (struct.unpack("<f", struct.pack("<I", x))[0] for x in (a, b))
+                    self.examples[field].append(f"{where} [{i}] game {a:08x} ({fa!r}) export {b:08x} ({fb!r})")
         if len(game) != len(export):
             self.total[field + " (count)"] += 1
 
@@ -174,10 +181,10 @@ def main():
         ours = e["shape"]
         words = game.shape_materials(obj)
         if shape is None:
-            count.add("shape kind", [1], [int(ours["kind"] == "empty")], where, args.show)
+            count.add("shape kind", [KINDS["empty"]], [KINDS[ours["kind"]]], where, args.show)
             continue
         gkind = {"triangle_mesh": "mesh", "compound": "compound"}.get(shape["kind"], "convex")
-        count.add("shape kind", [hash(gkind)], [hash(ours["kind"])], where, args.show)
+        count.add("shape kind", [KINDS[gkind]], [KINDS[ours["kind"]]], where, args.show)
         kinds[gkind] += 1
         if gkind != ours["kind"]:
             continue
@@ -193,7 +200,7 @@ def main():
                 count.add("child transform", transform_bits(gc["transform"]), oc["transform"], cw, args.show)
                 sub = walker.shapes.get(gc["shape"])
                 skind = "mesh" if sub["kind"] == "triangle_mesh" else "convex"
-                count.add("child kind", [hash(skind)], [hash(oc["part"]["kind"])], cw, args.show)
+                count.add("child kind", [KINDS[skind]], [KINDS[oc["part"]["kind"]]], cw, args.show)
                 if skind != oc["part"]["kind"]:
                     continue
                 if skind == "mesh":
