@@ -293,6 +293,10 @@ unsafe extern "C" {
     pub fn engine_interop_submission_queue(device: *mut c_void, queue: *mut *mut c_void, index: *mut u32, family: *mut u32);
     /// COM IDXGIVkInteropSurface+0x10 (stdcall through the interface's vtable): surface ESP+4, image ESP+8, layout ESP+12, info ESP+16; pops 16; EAX
     pub fn engine_interop_image_info(surface: *mut c_void, image: *mut u64, layout: *mut u32, info: *mut c_void) -> u32;
+    /// 0x119ab0 vostok::render::render_output_window::set_size: width EAX, window ESP+4, height ESP+8, fullscreen ESP+12, force ESP+16; pops 16
+    pub fn engine_render_window_set_size(width: u32, window: *mut c_void, height: u32, fullscreen: u32, force: u32);
+    /// 0x11c080 vostok::render::backend::set_viewports: viewport ESI, backend ESP+4; pops 4
+    pub fn engine_set_viewports(viewport: *const f32, backend: *mut c_void);
 }
 
 #[allow(dead_code)]
@@ -313,6 +317,10 @@ unsafe extern "stdcall" {
     pub fn engine_discard_playing_order(client: *mut c_void, left: u32);
     /// 0xe0910 vostok::threading::thread_entry: params ESP+4; pops 4; EAX; stdcall, called directly
     pub fn engine_thread_entry(params: *mut c_void) -> u32;
+    /// 0x3bf930 vostok::render::resource_manager::create_render_target: manager ESP+4, name ESP+8, width ESP+12, height ESP+16, format ESP+20, usage ESP+24, texture ESP+28, memory_usage ESP+32, slice ESP+36, pooled ESP+40; pops 40; EAX; stdcall, called directly
+    pub fn engine_create_render_target(manager: *mut c_void, name: *const u8, width: u32, height: u32, format: u32, usage: u32, texture: *mut c_void, memory_usage: u32, slice: u32, pooled: u32) -> *mut c_void;
+    /// 0x3bfbc0 vostok::render::resource_manager::release: manager ESP+4, target ESP+8; pops 8; stdcall, called directly
+    pub fn engine_release_render_target(manager: *mut c_void, target: *mut c_void);
 }
 
 #[allow(dead_code)]

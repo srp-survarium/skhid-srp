@@ -2540,3 +2540,5 @@ va	name	source	ret_cleanup	result
 0x00236d30	survarium::game_world_ui::set_player_stats_info	manual	4	none: root.list_update_player of the hud movie (0x236FEB), the place's row (kills, deaths, ...); update_ui calls it for each place only while the Tab list is shown (+0BAh, 0x23B421..0x23B46E), a Blackout match's Tab too
 0x001b1840	vostok::render::remove_model_skeletal_filter_predicate::operator()	manual	4	AL: 1 removes the model: no G-buffer effect, or its vertex type (+48h) skeletal (8, 10h, 20h, 40h) XOR the inverse flag
 0x000e0910	vostok::threading::thread_entry	manual	4	EAX: 0, the thread's exit code. The start routine spawn_internal hands CreateThread (push 0xE0910 at 0xE093F, the call 0xE094A): stdcall, its one argument CreateThread's lpParameter, handed on to 0x114580 with 0xE35F0 (the thread's body); ret 4 (0xE0924)
+0x00116550	vostok::render::backend::target_width	manual	0	EAX: the width
+0x00116570	vostok::render::backend::target_height	manual	0	EAX: the height

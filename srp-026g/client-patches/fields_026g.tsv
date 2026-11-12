@@ -1150,3 +1150,19 @@ vostok::render::res_render_output	swap_chain	0xCC	ptr<dxgi::swap_chain>	the IDXG
 dxgi::swap_chain	vtable	0x0	u32	an IDXGISwapChain's vtable (IDXGIDeviceSubObject::GetDevice +1Ch, Present +20h, GetBuffer +24h)
 dxvk::interop_device	vtable	0x0	u32	DXVK's IDXGIVkInteropDevice1 (DXVK 3.1.1's dxgi_interfaces.h): GetVulkanHandles +0Ch, FlushRenderingCommands +18h, LockSubmissionQueue +1Ch, ReleaseSubmissionQueue +20h, GetSubmissionQueue1 +24h
 dxvk::interop_surface	vtable	0x0	u32	DXVK's IDXGIVkInteropSurface of a D3D11 texture: GetVulkanImageInfo +10h
+vostok::render::backend	depth_stencil	0x299C	u32	m_zb, the depth-stencil view the next flush binds (an ID3D11DepthStencilView, 0 none): every inlined reset_depth_stencil_target writes m_base_zb here and ors the dirty byte (setup_render_output_window 0x13BAF8..0x13BB22)
+vostok::render::backend	base_depth_stencil	0x29D4	u32	m_base_zb: the render output's depth-stencil view (set_render_output 0x11B721, from the output's +D4h), what reset_depth_stencil_target binds beside the stages' colour targets and what render_flash_ui (0x13CF83) binds for Scaleform
+vostok::render::backend	depth_stencil_dirty	0x75	u8	set when m_zb changed, for the next flush's OMSetRenderTargets (or byte [eax+75h], 0x13BB15)
+vostok::render::backend	render_output	0x29A0	ptr<vostok::render::res_render_output>	m_render_output, the output the frame presents to (set_render_output 0x11B6E3)
+vostok::render::res_render_output	width	0x90	u32	the back buffer's width (resize 0x3CFC06; target_width 0x116566)
+vostok::render::res_render_output	height	0x94	u32	the back buffer's height (resize 0x3CFC0C; target_height 0x116586)
+vostok::render::res_render_output	depth_stencil_view	0xD4	u32	m_base_zb: its own depth-stencil's view at the back buffer's size (update_depth_stencil_buffer 0x3D0175, an ID3D11DepthStencilView)
+vostok::render::render_output_window	width	0x108	u32	m_current_size.x, the window's size set_size was given (0x119B04)
+vostok::render::render_output_window	height	0x10C	u32	m_current_size.y (0x119B18)
+vostok::render::render_output_window	windowed	0x114	u8	m_windowed: 1 when set_size's fullscreen argument was 0 (sete al, 0x119B0A)
+vostok::render::render_target	references	0x0	u32	its references, plain adds (new_rt's inc [eax] 0x162A3F / add [eax],-1 0x162A53, then resource_manager::release 0x3BFBC0 at 0)
+vostok::render::render_target	depth_stencil_view	0x18	u32	m_zrt: a depth-stencil target's view (render_target::create 0x3D23DD, CreateDepthStencilView), 0 for a colour target
+vostok::render::render_target	texture	0x1C	ptr<vostok::render::res_texture>	m_texture: the target as a texture (new_rt reads it at 0x162A78)
+vostok::render::render_frame	window	0x2C	ptr<vostok::render::render_output_window>	renderer::render's [esp+2Ch] between its set_scene_view (0x13D244) and its present stage (0x13DB16): the output window it was given (pushed to setup_render_output_window at 0x13D278 as [esp+34h] after two pushes)
+vostok::render::set_size_targets_frame	width	0x4	u32	render_output_window::set_size's create_targets arguments at 0x119B2B: the force at [esp], the width the targets are made at
+vostok::render::set_size_targets_frame	height	0x8	u32	the height the targets are made at

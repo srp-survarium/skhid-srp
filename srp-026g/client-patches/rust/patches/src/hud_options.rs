@@ -2,7 +2,8 @@
 //! four settings of the match hud kept in user.cfg, "Hide hit markers", "Hide
 //! player scores", "Names on map" and the crosshair list's "Hidden crosshair"; and the
 //! Graphics tab's Renderer list and its Vulkan options
-//! (docs/notes/dxvk-option.md), which the next start reads. The hooks are
+//! (docs/notes/dxvk-option.md), which the next start reads; and the render
+//! scale (`render_size`, docs/notes/dlss-option.md). The hooks are
 //! `hud_options.toml`'s, each a `lohook` after another patch's at the same site:
 //!
 //! - on_configs_loaded before user.cfg (`configs.start`, after patch 79):
@@ -80,6 +81,9 @@ use crate::vostok::renderer::{DelayedImport, Gpu, GpuKind, Gpus, Manifests, Outp
 use crate::vostok::settings::{ConsoleBool, FieldOfView, OptionsCall, SliderSteps, create_file, delete_file, file_exists,
                               save_user_config};
 use crate::vostok::{Context, Flow, GameCell, GameWorldUi, HudOptionsOnOptionsCallExit, Lock, NoExit, Thread};
+
+pub mod render_size;
+pub use render_size::{on_depth_texture, on_output_set, on_output_setup, on_present_stage, on_targets_size};
 
 /// A Settings checkbox kept in user.cfg as `<name> on|off`: the Settings ask
 /// for it by the same name; its label is a dictionary key. Off until the
@@ -1110,6 +1114,7 @@ pub fn on_process_start(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let files = DXVK_DLLS.iter().all(|dll| exists_beside_exe(thread, dll.file));
     let marker = file_exists(thread, DXVK_MARKER);
     drive(thread, Event::Started { choice, files, marker });
+    render_size::start(thread);
     Flow::Continue
 }
 

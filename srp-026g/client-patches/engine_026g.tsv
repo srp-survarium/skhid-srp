@@ -294,3 +294,7 @@ engine_vk_queue_submit	-	-	unsigned int engine_vk_queue_submit(void *queue, unsi
 engine_vk_queue_wait_idle	-	-	unsigned int engine_vk_queue_wait_idle(void *queue)	dynamic	
 engine_vk_signal_semaphore	-	-	unsigned int engine_vk_signal_semaphore(void *device, const void *info)	dynamic	
 engine_vk_get_semaphore_counter_value	-	-	unsigned int engine_vk_get_semaphore_counter_value(void *device, unsigned int semaphore_low, unsigned int semaphore_high, unsigned long long *value)	dynamic	
+engine_render_window_set_size	0x119ab0	EAX:width ESP+4:owner ESP+8:height ESP+12:mode ESP+16:force	void engine_render_window_set_size(unsigned int width, struct render_output_window *window, unsigned int height, unsigned int fullscreen, unsigned int force)	thunk	
+engine_set_viewports	0x11c080	ESI:viewport ESP+4:backend	void engine_set_viewports(const float *viewport, struct backend *backend)	thunk	
+engine_create_render_target	0x3bf930	ESP+4:manager ESP+8:name ESP+12:width ESP+16:height ESP+20:format ESP+24:option ESP+28:texture ESP+32:ordinary ESP+36:existing ESP+40:opaque	struct render_target *engine_create_render_target(struct resource_manager *manager, const char *name, unsigned int width, unsigned int height, unsigned int format, unsigned int usage, struct res_texture *texture, unsigned int memory_usage, unsigned int slice, unsigned int pooled)	stdcall	
+engine_release_render_target	0x3bfbc0	ESP+4:resource_manager ESP+8:render_target	void engine_release_render_target(struct resource_manager *manager, struct render_target *target)	stdcall	

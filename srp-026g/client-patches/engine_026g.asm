@@ -237,6 +237,10 @@ global engine_interop_lock_queue
 global engine_interop_release_queue
 global engine_interop_submission_queue
 global engine_interop_image_info
+global engine_render_window_set_size
+global engine_set_viewports
+global engine_create_render_target
+global engine_release_render_target
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -329,6 +333,8 @@ engine_terminate_process equ 0x870030   ; the IAT slot 0x870030 (an import, stdc
 engine_get_last_error equ 0x87005c   ; the IAT slot 0x87005c (an import, stdcall)
 engine_create_thread equ 0x870124   ; the IAT slot 0x870124 (an import, stdcall)
 engine_thread_entry equ 0xe0910   ; 0xe0910 vostok::threading::thread_entry: params ESP+4; pops 4; EAX; stdcall, called directly
+engine_create_render_target equ 0x3bf930   ; 0x3bf930 vostok::render::resource_manager::create_render_target: manager ESP+4, name ESP+8, width ESP+12, height ESP+16, format ESP+20, usage ESP+24, texture ESP+28, memory_usage ESP+32, slice ESP+36, pooled ESP+40; pops 40; EAX; stdcall, called directly
+engine_release_render_target equ 0x3bfbc0   ; 0x3bfbc0 vostok::render::resource_manager::release: manager ESP+4, target ESP+8; pops 8; stdcall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -2773,6 +2779,41 @@ engine_interop_image_info:
     mov eax, [esp]                   ; this
     mov eax, [eax]                   ; its vtable
     call [eax + 0x10]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_render_window_set_size:
+    ; 0x119ab0 vostok::render::render_output_window::set_size: width EAX, window ESP+4, height ESP+8, fullscreen ESP+12, force ESP+16; pops 16
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 36]   ; force -> 16
+    push dword [esp + 36]   ; fullscreen -> 12
+    push dword [esp + 36]   ; height -> 8
+    push dword [esp + 36]   ; window -> 4
+    mov eax, [esp + 36]   ; width
+    call 0x119ab0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_set_viewports:
+    ; 0x11c080 vostok::render::backend::set_viewports: viewport ESI, backend ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; backend -> 4
+    mov esi, [esp + 24]   ; viewport
+    call 0x11c080
     pop edi
     pop esi
     pop ebx

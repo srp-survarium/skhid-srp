@@ -3412,6 +3412,16 @@ What it is for and the owner's rules: [dxvk-option.md](dxvk-option.md). Here: wh
   no engine allocation; the login screen's turn-off), `check_music_026g.py` (the login screen's
   chain), `../scripts/dxvk-loader/run.sh` (the loader under Wine). **Not run** on Windows or in a
   game.
+- **The render scale** (2026-11-12, unreleased; [dlss-option.md](dlss-option.md), "The render size"): the 3D
+  frame at a share of the window's size (`hud_options/render_size.rs`, `vostok/render_size.rs`). Five
+  lohooks written on demand, at the process's start, only when a scale is asked (DLSS's link, or the
+  diagnostics switch `SKHID_DLSS_RENDER_SCALE=0.667`): `render_window.targets_size` 0x119B2B (set_size's
+  create_targets takes the render size, a depth-stencil of it is made), `render.output_setup` 0x13D273 (a
+  scale asked later: the forced set_size), `render.output_set` 0x13D29C (the base viewport and `m_base_zb`
+  the frame's), `gbuffer.depth_texture` 0x177CFA (`t_depth_render_target` the frame's),
+  `render.present_stage` 0x13DB16 (the window's viewport and the output's depth-stencil again). The library:
+  `engine_render_window_set_size` 0x119AB0, `engine_set_viewports` 0x11C080, `engine_create_render_target`
+  0x3BF930, `engine_release_render_target` 0x3BFBC0.
 
 ### 3.71 Voice chat in a match (written 2026-10-25, ported to the named sites 2026-11-06, README patch 66, not released; the rules: `voice-chat.md`) — PROVEN in the code; not run in a game
 

@@ -101,7 +101,9 @@ struct ray_hits;
 struct ray_result;
 struct render_model_instance;
 struct render_notify;
+struct render_output_window;
 struct render_surface_instance;
+struct render_target;
 struct render_visual;
 struct res_texture;
 struct resource_manager;
@@ -829,5 +831,17 @@ void engine_interop_submission_queue(struct interop_device *device, void **queue
 
 /* COM IDXGIVkInteropSurface+0x10 (stdcall through the interface's vtable): surface ESP+4, image ESP+8, layout ESP+12, info ESP+16; pops 16; EAX */
 unsigned int engine_interop_image_info(struct interop_surface *surface, unsigned long long *image, unsigned int *layout, void *info);
+
+/* 0x119ab0 vostok::render::render_output_window::set_size: width EAX, window ESP+4, height ESP+8, fullscreen ESP+12, force ESP+16; pops 16 */
+void engine_render_window_set_size(unsigned int width, struct render_output_window *window, unsigned int height, unsigned int fullscreen, unsigned int force);
+
+/* 0x11c080 vostok::render::backend::set_viewports: viewport ESI, backend ESP+4; pops 4 */
+void engine_set_viewports(const float *viewport, struct backend *backend);
+
+/* 0x3bf930 vostok::render::resource_manager::create_render_target: manager ESP+4, name ESP+8, width ESP+12, height ESP+16, format ESP+20, usage ESP+24, texture ESP+28, memory_usage ESP+32, slice ESP+36, pooled ESP+40; pops 40; EAX; stdcall, called directly */
+struct render_target *__attribute__((stdcall)) engine_create_render_target(struct resource_manager *manager, const char *name, unsigned int width, unsigned int height, unsigned int format, unsigned int usage, struct res_texture *texture, unsigned int memory_usage, unsigned int slice, unsigned int pooled);
+
+/* 0x3bfbc0 vostok::render::resource_manager::release: manager ESP+4, target ESP+8; pops 8; stdcall, called directly */
+void __attribute__((stdcall)) engine_release_render_target(struct resource_manager *manager, struct render_target *target);
 
 #endif
