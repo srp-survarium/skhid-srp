@@ -13,14 +13,16 @@ package {
   private var pendingPreset:int = 3;
   private var pendingDetail:int = 1;
   private var detailCalls:int = 0;
-  private var labels:Array = ["Distance detail|Normal|High|Maximum", "Detailgrad|Normal|Hoch|Maximal", "Szczegółowość|Normalna|Wysoka|Maksymalna", "Детализация|Обычная|Высокая|Максимум", "Детализация|Обычная|Высокая|Максимум", "Деталізація|Звичайна|Висока|Максимум"];
+  private var labels:Array;
   public function DistanceDetailHarness() {
    fixtureLoader.addEventListener(Event.COMPLETE,fixtureLoaded);
    fixtureLoader.addEventListener(IOErrorEvent.IO_ERROR,function(e:Event):void { finish("native fixture missing"); });
    fixtureLoader.load(new URLRequest("native-check.json"));
   }
   private function fixtureLoaded(e:Event):void {
-   nativeMenu=JSON.parse(String(fixtureLoader.data)).native_menu;
+   var fixture:Object=JSON.parse(String(fixtureLoader.data));
+   nativeMenu=fixture.native_menu;
+   labels=fixture.distance_detail_labels;
    loader.contentLoaderInfo.addEventListener(Event.INIT,loaded);
    loader.uncaughtErrorEvents.addEventListener(UncaughtErrorEvent.UNCAUGHT_ERROR,function(e:UncaughtErrorEvent):void { e.preventDefault(); });
    loader.load(new URLRequest("main_menu.swf"),new LoaderContext(false,new ApplicationDomain()));
@@ -114,16 +116,16 @@ package {
      check(expected,Math.max(0,expected-2));
      if(expected<4) click(preset.nextBtn);
     }
-    if(frame>=130 && frame<190 && frame%10==0) {
-     var texts:Array=labels[(frame-130)/10].split("|");
+    if(frame>=130 && frame<130+labels.length*10 && frame%10==0) {
+     var texts:Array=labels[(frame-130)/10];
      var DP:Class=loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.data.DataProvider") as Class;
      detail.label=texts[0]; detail.dataProvider=new DP([texts[1],texts[2],texts[3]]);
     }
-    if(frame>=135 && frame<195 && frame%10==5) {
+    if(frame>=135 && frame<135+labels.length*10 && frame%10==5) {
      if(detail.textField.textWidth>detail.textField.width-3 || detail.textField2.textWidth>detail.textField2.width-3) failures.push("translation clipped");
      if(detail.getBounds(DisplayObject(settings)).bottom>settings.btn_accept.y) failures.push("overlaps buttons");
     }
-    if(frame==195) {
+    if(frame==135+labels.length*10) {
      if(detailCalls<8) failures.push("arrows did not reach native setters");
      finish(null);
     }

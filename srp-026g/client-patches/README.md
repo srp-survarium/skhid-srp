@@ -5553,10 +5553,12 @@ See `../scripts/distance-detail/reproduction.txt` for inputs and assumptions.
 Validation: `check_detail_026g.py` executes native model/material/grass/texture
 paths and menu Apply/Cancel in Unicorn; `selftest_026g.py::test_detail` checks
 hook bytes, targets, relocations and counts. The engine-call library and FOV
-checks pass. `../scripts/distance-detail/check.sh` checks all six translated
+checks pass. `../scripts/distance-detail/check.sh` checks all ten translated
 labels, both arrow buttons, Apply/Cancel state and tab revisits in CPU Ruffle,
 replaying callbacks captured by the native check (its third argument is the
 `native-check.json` report). The manifest
 content build contains only main_menu and the six localization tables.
 Implemented and tested in emulation; not played or released. Texture reload,
 save/restart and FPS/RAM/VRAM costs still need a running-client check.
+
+Run the combined native and menu regression with `tools/check distance-detail`.

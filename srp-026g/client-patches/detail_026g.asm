@@ -6,7 +6,7 @@ BITS 32
 global detail_options, detail_label, detail_model, detail_shader, detail_texture, detail_grass
 global detail_command_vtable, detail_register, detail_execute, detail_state, detail_previous
 global detail_model_screen, detail_model_distance, detail_grass_screen, detail_grass_metric, detail_shader_threshold
-global detail_grass_model, detail_grass_distance
+global detail_grass_model, detail_grass_distance, detail_commit
 global detail_preset_compare, detail_preset_address, detail_default_next
 section .text
 
@@ -74,6 +74,16 @@ detail_execute:
     cmp dword [detail_state], 2
     setne byte [eax+0x132]
     ret 4
+
+ ; end_render_options_changing has consumed the changed-command list.
+; Join its previous=current checkpoint; preserve the pending save-flag ZF.
+detail_commit:
+    push eax
+    mov eax, [detail_state]
+    mov [detail_previous], eax
+    pop eax
+    mov ecx, 0x4b
+    jmp 0x3cf3da
 
 ; The game's first ten entries are populated from its graphics preset data.
 ; Keep those exact entries and append detail to the same native loops.

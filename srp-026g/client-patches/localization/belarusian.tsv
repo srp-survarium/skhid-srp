@@ -916,6 +916,10 @@ st_dispersion_from_hip_description	Дакладнасць пры стральб�
 st_dispersion_from_hip_name	Дакладнасць
 st_dispersion_movement_influence_description	Дакладнасць у руху:
 st_dispersion_movement_influence_name	Цвёрдая рука
+st_distance_detail_high	Высокая
+st_distance_detail_maximum	Максімум
+st_distance_detail_normal	Звычайная
+st_distance_detail_option	Дэталізацыя
 st_dont_have_permission	Недастаткова правоў для выканання дзеяння.
 st_drop	Зняць
 st_drop_action	Выкінуць

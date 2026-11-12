@@ -916,6 +916,10 @@ st_dispersion_from_hip_description	Preciznost pri paljbi sa boka:
 st_dispersion_from_hip_name	Preciznost
 st_dispersion_movement_influence_description	Preciznost u pokretu:
 st_dispersion_movement_influence_name	Čvrst stisak
+st_distance_detail_high	Visoko
+st_distance_detail_maximum	Maksimalno
+st_distance_detail_normal	Normalno
+st_distance_detail_option	Udaljeni detalji
 st_dont_have_permission	Nemate dovoljno ovlašćenja za ovu radnju.
 st_drop	Skini
 st_drop_action	Baci

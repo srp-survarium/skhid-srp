@@ -916,6 +916,10 @@ st_dispersion_from_hip_description	Accuracy when firing from the hip:
 st_dispersion_from_hip_name	Accuracy
 st_dispersion_movement_influence_description	Precision during motion:
 st_dispersion_movement_influence_name	Firm grip
+st_distance_detail_high	High
+st_distance_detail_maximum	Maximum
+st_distance_detail_normal	Normal
+st_distance_detail_option	Distance detail
 st_dont_have_permission	Insufficient rights to perform this action.
 st_drop	Take off
 st_drop_action	Drop

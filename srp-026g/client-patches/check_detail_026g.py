@@ -144,6 +144,12 @@ def menu(emu):
             assert all(u32(uc,argv+i*24+4)==4 for i in range(count))
             updates.append([u32(uc,argv+i*24+8) for i in range(count)])
             returned(uc,1,16)
+        elif address==0x1ea190: # resolution parser; render change handling stays native.
+            esp=uc.reg_read(UC_X86_REG_ESP)
+            uc.mem_write(u32(uc,esp+4),struct.pack('<2I',2560,1440))
+            returned(uc)
+        elif address==0x102860: # output define-vector allocation boundary.
+            returned(uc,cleanup=4)
         elif address==0x1161c0: # sprintf boundary used by native command status/save.
             esp=uc.reg_read(UC_X86_REG_ESP)
             uc.mem_write(uc.reg_read(UC_X86_REG_EDX),str(u32(uc,esp+8)).encode()+b'\0')
@@ -206,6 +212,12 @@ def menu(emu):
         assert u32(emu,previous)==before and u32(emu,state)==choice
         assert fov.call(emu,0x3cd310,[],{UC_X86_REG_ECX:command-0x10})==int(before!=choice)
         assert bytes(emu.mem_read(item+0x1d,2))==bytes([choice])*2
+        # Complete Apply through the native render-options change loop. The
+        # next Apply must see the committed baseline, even with no edit.
+        changes=fov.call(emu,0x3cf310,[0,0],{UC_X86_REG_EAX:OPTIONS})
+        assert changes==(5 if before!=choice else 1),(before,choice,changes)
+        assert u32(emu,previous)==choice
+        assert fov.call(emu,0x3cf310,[0,0],{UC_X86_REG_EAX:OPTIONS})==1
         # Native save_to dispatches through status and emits the integer,
         # not the derived texture-streaming byte.
         esp=fov.STACK+0x8000
@@ -402,6 +414,10 @@ def main():
     menu_calls=menu(patched)
     labels(patched)
     result={'high_model_grass_cases':high_cases,'high_distance_multiplier':1.5,'adaptive_model_cases_equal':compared,'full_detail_model_cases_lod0':forced,'shader_cases':shaders,'grass_cases':grass_cases,'grass_draw_cases':grass_draw_cases,'grass_draw_examples':grass_examples,'texture_bias_cases':3,'native_menu':menu_calls,'distance_lod_examples':examples,'live_performance_measured':False}
+    result['distance_detail_labels']=[]
+    for dictionary in sorted((Path(__file__).parent/'localization').glob('*.tsv')):
+        strings=dict(line.split('\t',1) for line in dictionary.read_text().splitlines()[1:])
+        result['distance_detail_labels'].append([strings['st_distance_detail_'+key] for key in ('option','normal','high','maximum')])
     if args.out:
         args.out.mkdir(parents=True,exist_ok=True)
         (args.out/'native-check.json').write_text(json.dumps(result,indent=2)+'\n')

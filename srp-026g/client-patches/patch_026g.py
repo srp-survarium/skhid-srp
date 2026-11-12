@@ -2801,6 +2801,7 @@ INSTALLS[0x3B3340] = (ENTRY, "time_channel::domain: animation_math_domain, the s
 # Distance detail: native bounded integer command owns Apply/Cancel/save.
 # Full detail also selects LOD0 and keeps the top texture levels.
 DETAIL_HOOKS = (
+    (0x3CF3D5, bytes.fromhex("b94b000000"), "detail_commit", 0xE9),
     (0x3CE2BE, bytes.fromhex("6a018d8f5e020000"), "detail_register", 0xE9),
     (0x16F2AC, bytes.fromhex("f30f104808"), "detail_model_screen", 0xE9),
     (0x16F2EB, bytes.fromhex("f30f10442410"), "detail_model_distance", 0xE9),

@@ -3480,6 +3480,10 @@ all use the same state transition. The original boolean command is replaced,
 not retained as a second owner. Unreleased two-choice test profiles need their
 old boolean translated to the new integer once; published profiles default
 to Normal. The pending menu choice never changes rendering before Apply.
+After the native changed-command loop consumes this command, the hook at
+`0x3CF3D5` commits its previous value alongside the native options snapshot,
+preserving the save-flag comparison. Repeated Apply without an edit therefore
+requests no texture reload. The native loop and its settled state are tested.
 
 High extends distance thresholds by 1.5: model selection scales its local
 measured distance by 2/3, or projected extent by 1.5. Grass draw selection
@@ -3500,8 +3504,8 @@ counts and default-loop continuation are the only other preset changes.
 The graphics allocation/count grows 19 -> 20 (`0x262753`); both constructor
 exits append the option. The label array/counts (`0x2007B6`, `0x200B10`) include
 `st_distance_detail_option`. Native integer `fill_data` translates the three
-choice keys. The content manifest provides title and choices in all six
-languages. Existing option ids stay fixed.
+choice keys. The shared localization dictionaries provide title and choices in all ten
+languages through the existing catalog entry in the content manifest. Existing option ids stay fixed.
 
 When the command is Maximum (2), the renderer hooks select maximum detail:
 
@@ -3573,3 +3577,16 @@ pass. The local test content was built through build-content (quick build),
 and the test executable launched fullscreen at 2560x1440 with frame/GPU/memory
 recorders. High has not yet been confirmed played or released; no controlled
 FPS comparison is claimed.
+
+Final merge review: labels now use all ten shared localization dictionaries;
+`original` remains the generated Russian alias. The native render-options
+checkpoint commits the command's previous value, verified through the complete
+changed-command loop and a second Apply with no changes. The menu harness reads
+its labels from those dictionaries. `tools/check distance-detail` runs the native
+checks and then the actual menu against their callback traces.
+
+The broader `hud-options` check has a pre-existing startup-list expectation:
+it omits the five voice commands already registered by main's unchanged
+`vostok/voice.rs` (`srp_voice_mutes`, `g_hide_spam`, `s_use_microphone`,
+`s_mic_sens`, `s_chat_volume`). Its failure is separate from Distance detail;
+the latter registers in the renderer's command setup, not configs.start.

@@ -916,6 +916,10 @@ st_dispersion_from_hip_description	Точность при стрельбе от
 st_dispersion_from_hip_name	Точность
 st_dispersion_movement_influence_description	Точность в движении:
 st_dispersion_movement_influence_name	Крепкий хват
+st_distance_detail_high	Высокая
+st_distance_detail_maximum	Максимум
+st_distance_detail_normal	Обычная
+st_distance_detail_option	Детализация
 st_dont_have_permission	Недостаточно прав для выполнения действия.
 st_drop	Снять
 st_drop_action	Выбросить
