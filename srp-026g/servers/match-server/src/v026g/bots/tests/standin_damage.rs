@@ -713,6 +713,43 @@ mod tests {
         }
     }
 
+    /// [G31] On the live game data: the boxes of the bots' kits (every tier, role and rusher kit, with the table's mask
+    /// and with the tier's top respirator) that two or more worn items armour, where the sum differs from the largest
+    /// (printed). Run alone as the test above, `--exact ..::the_live_kits_boxes_armoured_twice`.
+    #[test]
+    #[ignore = "needs SRP_GAME_DATA, the server's game data"]
+    fn the_live_kits_boxes_armoured_twice() {
+        use survarium::v026g::loadouts::BotRole;
+        survarium::v026g::game_data::init().expect("SRP_GAME_DATA reads and passes srp's checks");
+        const BOXES: [&str; 12] = [
+            "back", "front", "brain", "face", "right_hip", "left_hip", "right_foot", "left_foot", "right_arm", "left_arm",
+            "right_forearm", "left_forearm",
+        ];
+        let mut twice = 0;
+        for tier in BotTier::ALL {
+            for role in BotRole::ALL {
+                for rusher in RusherKit::ALL {
+                    let gear = tier.gear().of_kit(role, rusher);
+                    for mask in [None, tier.top_mask()] {
+                        for hit_box in BOXES {
+                            let on: Vec<(&str, f32)> = worn_names(Some(gear), mask)
+                                .into_iter()
+                                .filter_map(damage::armour_named)
+                                .map(|item| (item.name, item.of(hit_box)))
+                                .filter(|&(_, armour)| armour > 0.0)
+                                .collect();
+                            if on.len() >= 2 {
+                                twice += 1;
+                                eprintln!("{tier:?} {role:?} {rusher:?} mask {mask:?} {hit_box}: {on:?}");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        eprintln!("boxes armoured twice: {twice}");
+    }
+
     /// [G31] A box's armour is the sum of the worn items' on it (0x33F0C0).
     #[test]
     fn a_box_takes_the_sum_of_the_worn_items_armour() {
