@@ -227,11 +227,23 @@ impl GridCounts {
     }
 }
 
-/// The landings of the drops of `bot`'s route: the points that lie [`FALL_M`] or more under the one before. A fall that lands
-/// within [`PLANNED_LANDING_M`] of one is the route's own (this topic's falls; the fight topic's fire in the air).
-pub(super) fn route_drops_of(bot: &Bot) -> Vec<Vec3> {
+/// A drop of a bot's route: a point and the next, [`FALL_M`] or more under it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct RouteDrop {
+    pub(super) top: Vec3,
+    pub(super) landing: Vec3,
+}
+
+/// The drops of `bot`'s route. A fall that lands within [`PLANNED_LANDING_M`] of one's landing is the route's own (this
+/// topic's falls; the fight topic's fire in the air, which also takes a flight that left from one's top).
+pub(super) fn route_drops_of(bot: &Bot) -> Vec<RouteDrop> {
     bot.route.as_ref().map_or_else(Vec::new, |(route, _)| {
-        route.points().windows(2).filter(|w| w[0].at.y - w[1].at.y >= FALL_M).map(|w| w[1].at).collect()
+        route
+            .points()
+            .windows(2)
+            .filter(|w| w[0].at.y - w[1].at.y >= FALL_M)
+            .map(|w| RouteDrop { top: w[0].at, landing: w[1].at })
+            .collect()
     })
 }
 
@@ -244,7 +256,7 @@ impl Topic for GridCounts {
         let Some(bot) = bot else {
             return;
         };
-        self.route_drops[place] = route_drops_of(bot);
+        self.route_drops[place] = route_drops_of(bot).into_iter().map(|drop| drop.landing).collect();
         self.guard[place] = bot.bench_guard;
         self.walking_out[place] = bot.zone_walk.is_some();
         self.chosen[place] = bot.intent.zone_ok;
