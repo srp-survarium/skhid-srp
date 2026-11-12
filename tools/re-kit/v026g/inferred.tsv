@@ -2853,6 +2853,7 @@ va	status	ref_021d	name
 0x00395480	inferred-medium	0x0024ce85	vostok::animation::animation_player::set_resolvers
 0x00395690	inferred-medium	0x0024cf99	vostok::animation::animation_player::resolve_links
 0x00395a90	inferred-medium	0x0024d184	vostok::animation::animation_player::serialize_state
+0x00395af0	inferred-medium		vostok::animation::animation_player::history_tree [descriptive]
 0x00395b50	inferred-medium	0x0024d1f9	vostok::animation::animation_player::deserialize_state
 0x00395ca0	inferred-medium	0x0024d2bb	vostok::animation::animation_player::serialize_state_and_compress
 0x00395d00	inferred-medium	0x0024d316	vostok::animation::animation_player::deserialize_compressed_state
@@ -2864,6 +2865,9 @@ va	status	ref_021d	name
 0x00396100	inferred-high	0x0024d460	vostok::animation::instant_interpolator::visit
 0x00396180	inferred-medium		vostok::animation::mixing::n_ary_tree_serializer::append
 0x00396310	inferred-medium	0x0024d666	vostok::animation::mixing::n_ary_tree_serializer::interpolators_mask::visit
+0x00396410	inferred-high		vostok::animation::mixing::n_ary_tree_serializer::write_animation_state [descriptive]
+0x00396530	inferred-high		vostok::animation::mixing::n_ary_tree_serializer::write_animation_event [descriptive]
+0x003966b0	inferred-medium		vostok::animation::mixing::n_ary_tree_serializer::write_object_matrix [descriptive]
 0x003968c0	inferred-medium	0x0024da41	vostok::animation::mixing::n_ary_tree_serializer::visit
 0x00396b70	inferred-medium	0x0024dc31	vostok::animation::mixing::n_ary_tree_serializer::visit
 0x00396d40	inferred-medium	0x0024dd35	vostok::animation::mixing::n_ary_tree_serializer::save_times_in_ms
@@ -3318,6 +3322,7 @@ va	status	ref_021d	name
 0x0033aa40	inferred-medium		survarium::weapon_core_fire_state_base::finalize
 0x00391c40	inferred-medium		vostok::animation::animation_player::subscribe_event_channel
 0x003921a0	inferred-medium		vostok::animation::animation_player::unsubscribe_event_channel
+0x00392420	inferred-medium		vostok::animation::animation_player::clone_tree
 0x001f18b0	inferred-medium		survarium::game_world::animation_resolver
 0x002d6590	inferred-medium		survarium::animations_registry::animation_id
 0x002ef130	inferred-medium		survarium::animations_registry::register_animation
@@ -3517,6 +3522,7 @@ va	status	ref_021d	name
 0x00318d30	inferred-medium		survarium::game_project_core::resolve_links
 0x002ee930	inferred-medium		survarium::artefact_core_cook::create_resource
 0x002eea30	inferred-medium		survarium::artefact_cook::callback_offset
+0x002ef060	inferred-high		survarium::animations_registry::less [descriptive]
 0x002ffdd0	inferred-medium		survarium::inventory_item::count
 0x002ea440	inferred-medium		vostok::type_id<survarium::artefact_cook_data>
 0x0022fd70	inferred-medium		vostok::variant<32>::try_get<survarium::game_object_cook_data>
@@ -3638,6 +3644,7 @@ va	status	ref_021d	name
 0x003b0b00	inferred-high	0x0025f180	vostok::animation::mixing::n_ary_tree_weight_calculator::visit_animation_node
 0x003b0de0	inferred-high	0x0025f3cf	vostok::animation::mixing::n_ary_tree_weight_calculator::visit_weight_node
 0x003b1580	inferred-medium		vostok::animation::mixing::n_ary_tree_time_scale_calculator::visit_time_scale_node
+0x003b17e0	inferred-high		vostok::animation::mixing::n_ary_tree_event_iterator::select_state
 0x003b1b60	inferred-high	0x0025fec1	vostok::animation::mix_translations
 0x003b2d20	inferred-high	0x00260b7b	vostok::animation::bone_matrices_computer::get_object_transform
 0x00395370	inferred-high	0x0024cda0	vostok::animation::linear_interpolator::transition_time
