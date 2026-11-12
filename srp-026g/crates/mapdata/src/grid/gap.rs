@@ -1895,7 +1895,7 @@ mod tests {
                 .count()
         };
         let off = build(true, false);
-        assert!((0..off.len() as NodeId).all(|f| !((off.position(f).y - 2.0).abs() < 0.05)), "the slab has no floor");
+        assert!((0..off.len() as NodeId).all(|f| (off.position(f).y - 2.0).abs() >= 0.05), "the slab has no floor");
         assert!(under_slab(&off) > 0, "without the switch a fall goes through the slab");
         assert_eq!(under_slab(&build(true, true)), 0, "with it no link lands under the slab");
         let all = |grid: &WalkGrid| {
