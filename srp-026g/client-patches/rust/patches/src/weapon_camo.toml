@@ -4,8 +4,15 @@
 # is weapon_camo.rs; what is named, weapon_decals_026g.asm's fill.
 name = "weapon_camo"
 patch = 44
+uses = ["bake_cache"]
 
 # on_base_texture_loaded, a camouflage layer's texture with no name
 [[hook]]
 site = "bake.own_camouflage"
 handler = "on_own_camouflage"
+
+# Patch 44's bake_surface calls this generated entry for each surface, its
+# parameters filled: the handler names the baked files.
+[[hook]]
+site = "weapon_camo.bake_name"
+handler = "on_bake_name"

@@ -7647,6 +7647,38 @@ weapon_camo_on_own_camouflage_replay:
     db 0x8b, 0x54, 0x85, 0xb4, 0x8b, 0x7d, 0x10
     jmp 0x12e12b
 
+; weapon_camo.bake_name patch 44's bake_surface (weapon_camo_026g.asm), through its bake_name dword the build writes, once a surface's parameters are filled: cdecl, the parameters, the model's path; the caller keeps every register and pops the two: entry -> weapon_camo_on_bake_name
+global weapon_camo_on_bake_name
+extern hook_weapon_camo_on_bake_name
+weapon_camo_on_bake_name:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_camo_on_bake_name
+    cmp eax, 0
+    je weapon_camo_on_bake_name_go
+    ud2
+weapon_camo_on_bake_name_go:
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    lea esp, [esp + 4]
+    ret
+
 ; 0x2f1776 translate_query after 0x2F2060 copied the query (mov ecx,[ebp+38h] / mov eax,[ebp+44h]): ESP patch 68's room (weapon_kit.query_room), EBP the frame whose [ebp+40h] (the item's upgrades' buffer_vector) is read at 0x2F1799 (their count) and 0x2F18D0 (each record's dict id and value) and nowhere else; AL 0x2F2060's answer (0: the query not copied, as on another thread's query, 0x2F206F): lohook -> weapon_kit_on_query
 global weapon_kit_on_query
 extern hook_weapon_kit_on_query

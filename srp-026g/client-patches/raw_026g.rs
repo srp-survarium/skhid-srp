@@ -16891,6 +16891,211 @@ impl SaveDescriptor {
     }
 }
 
+/// A vostok::render::cook_parameters (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CookParameters(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CookParameters {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (obj<vostok::render::cook_layer>): a camouflage_decal_cook_parameters (8B8h bytes, its constructor 0x119760, the decal editor's and patch 44's): the first of its three layers, two decals' then the camouflage's (weapon_decals_026g.asm LAYER_SIZE)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn layers(self) -> CookLayer {
+        CookLayer(unsafe { self.0.byte_add(0x0) })
+    }
+
+    /// +0x794 (u32): the index of the model's surface it bakes (patch 44's bake_surface, the decal editor 0x2641A0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn surface(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x794).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x798 (f32): the camouflage's scale on the surface (patch 44: data/camo_scale, else 4.0 as every stock bake)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn scale(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x798).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x7a4 (obj<vostok::buffer_string>): its baked files' name, before the type's letter (patch 44 and the decal editor write it; user_data/streamed_textures/<name><letter>.dds)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn name(self) -> BufferString {
+        BufferString(unsafe { self.0.byte_add(0x7a4) })
+    }
+}
+
+/// A vostok::render::cook_layer (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CookLayer(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CookLayer {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (f32): the first of its float4x4's 16 f32: where its textures lie on the surface (a decal's of its u64, 0x263D00; the camouflage's the identity)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn matrix(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x0).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x40 (obj<vostok::buffer_string>): its colours' texture name (empty: no layer of that type)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn diffuse(self) -> BufferString {
+        BufferString(unsafe { self.0.byte_add(0x40) })
+    }
+
+    /// +0xcc (obj<vostok::buffer_string>): its relief's texture name (_nmap)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn normal(self) -> BufferString {
+        BufferString(unsafe { self.0.byte_add(0xcc) })
+    }
+
+    /// +0x158 (obj<vostok::buffer_string>): its fresnel's texture name (_fmap)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn fresnel(self) -> BufferString {
+        BufferString(unsafe { self.0.byte_add(0x158) })
+    }
+
+    /// +0x1e4 (obj<vostok::buffer_string>): its smoothness' texture name (_smap)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn smoothness(self) -> BufferString {
+        BufferString(unsafe { self.0.byte_add(0x1e4) })
+    }
+
+    /// 0x270 bytes: a layer is 270h bytes, the next one's after it (weapon_decals_026g.asm LAYER_SIZE)
+    pub const SIZE: usize = 0x270;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::render::cook_layers (0x270 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct CookLayerStorage([u8; 0x270]);
+
+#[allow(dead_code)]
+impl CookLayerStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x270])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> CookLayer {
+        CookLayer(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<CookLayer> {
+        (!rooms.is_empty()).then(|| CookLayer(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::weapon_bake_name_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WeaponBakeNameFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl WeaponBakeNameFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<vostok::render::cook_parameters>): weapon_camo.bake_name's first argument (by the site's ESP, the return address at +0): patch 44's parameters of one surface, every layer filled
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn parameters(self) -> Option<CookParameters> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<CookParameters>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::render::cook_parameters>): weapon_camo.bake_name's first argument (by the site's ESP, the return address at +0): patch 44's parameters of one surface, every layer filled
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_parameters(self, value: Option<CookParameters>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<CookParameters>>().write_volatile(value) }
+    }
+
+    /// +0x8 (ptr<u8>): its second: the weapon's model path (object/model of its merged config), a C string
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn model(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x8).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<u8>): its second: the weapon's model path (object/model of its merged config), a C string
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_model(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x8).cast::<*mut u8>().write_volatile(value) }
+    }
+}
+
 /// A vostok::input::key_event (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -24898,6 +25103,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<MedicalStoppingFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(MedicalStoppingFrame)
+        }
+    }
+
+    /// weapon_camo.bake_name (our entry): patch 44's bake_surface (weapon_camo_026g.asm), through its bake_name dword the build writes, once a surface's parameters are filled: cdecl, the parameters, the model's path; the caller keeps every register and pops the two
+    pub mod weapon_camo_bake_name {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::weapon_bake_name_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<WeaponBakeNameFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(WeaponBakeNameFrame)
         }
     }
 

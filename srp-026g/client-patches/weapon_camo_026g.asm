@@ -23,11 +23,11 @@
 ; from the game's allocator, the camouflage's diffuse and `_smap` names (not
 ; its `_nmap`) and the decals' layers (DECALS' fill), the render instance (one
 ; reference more), the surface's index, the scale (`data/camo_scale`, else
-; 4.0 as every stock bake), and a name of the baked files of its own:
-; `srpw1_<camouflage>_<object/model>_<surface>` (and the decals', by fill)
-; made `srpw1_<its FNV-1a 64, 16 hex digits>`. The whole name was longer
-; than a Windows path holds with a long Documents folder (a camouflage, a
-; model and two decals: the player's file open failed, an assertion).
+; 4.0 as every stock bake), and a name of the baked files of its own, which
+; the Rust patch weapon_camo writes (its entry weapon_camo.bake_name, through
+; the dword bake_name the build writes): `srpw1_` and 16 hex digits, a hash
+; of all the bake is made of. A surface it does not name is not baked; with
+; no entry (a build without the arena) no weapon is.
 ; The query runs on its own (no parent): the weapon is shown plain and
 ; takes the baked textures when they are ready, as a part in the decal
 ; editor does. Its callback `bake_done` lets go of the render instance and
@@ -46,7 +46,6 @@ FILL                equ DECALS + 5  ; edi = P, ebp = patch 44's frame: the camou
 
 has_key             equ 0x0F6C00    ; eax = table, esi = key: al = it is there
 child               equ 0x0F6B10    ; eax = table, edi = key: eax = the child (no end check)
-string_appendf      equ 0x0E45B0    ; eax = buffer_string, cdecl (format, ...)
 allocate            equ 0x0E4F90    ; esi = allocator, eax = size, [esp+4] = where: eax; `ret 4`
 allocation_name     equ 0x420789    ; ecx = 0AC1220h: eax (the editor's argument of allocate)
 deallocate          equ 0x1539D0    ; ecx = allocator, eax = memory, cdecl (&the pointer)
@@ -116,6 +115,8 @@ weapon_ready:
     ret
 
 bake_weapon:
+    cmp dword [bake_name], 0        ; no Rust patch weapon_camo (no arena): nothing baked
+    je .done
     mov eax, [ebp+SITE_CONFIG]
     test eax, eax
     jz .done
@@ -231,47 +232,7 @@ bake_surface:
     mov [edi+P_CAMO_MATRIX+14h], eax
     mov [edi+P_CAMO_MATRIX+28h], eax
     mov [edi+P_CAMO_MATRIX+3Ch], eax
-    push ebx
-    push dword [ebp+MODEL]
-    push dword [ebp+CAMO]
-    push name_format
-    lea eax, [edi+P_NAME]
-    call string_appendf
-    add esp, 16
-    call FILL                       ; the layers, and the decals' part of the name
-    push ebx                        ; the name becomes its FNV-1a 64: ecx:ebx
-    push edi
-    mov esi, [edi+P_NAME]
-    mov edi, [edi+P_NAME+4]
-    mov ebx, 0x84222325
-    mov ecx, 0xCBF29CE4
-.hash:
-    cmp esi, edi
-    jae .hashed
-    movzx eax, byte [esi]
-    xor ebx, eax
-    imul ecx, ecx, 0x1B3            ; times 100000001B3h: high*1B3h + (low << 8) + low*1B3h
-    mov eax, ebx
-    shl eax, 8
-    add ecx, eax
-    mov eax, 0x1B3
-    mul ebx
-    add ecx, edx
-    mov ebx, eax
-    inc esi
-    jmp .hash
-.hashed:
-    pop edi
-    mov eax, [edi+P_NAME]           ; the text emptied, then the hash's
-    mov [edi+P_NAME+4], eax
-    mov byte [eax], 0
-    push ebx
-    push ecx
-    push hashed_format
-    lea eax, [edi+P_NAME]
-    call string_appendf
-    add esp, 12
-    pop ebx
+    call FILL                       ; the camouflage's and the decals' layers
     mov eax, [ebp+RENDER]
     mov [edi+P_MODEL], eax
     lock inc dword [eax+REFERENCES]
@@ -280,6 +241,19 @@ bake_surface:
     mov [edi+P_SCALE], eax
     mov dword [edi+P_ONE], 1
     mov byte [edi+P_EDITOR], 0
+    push dword [ebp+MODEL]          ; the Rust patch weapon_camo names the baked files
+    push edi
+    call [bake_name]
+    add esp, 8
+    mov eax, [edi+P_NAME]
+    cmp eax, [edi+P_NAME+4]
+    jne .named
+    push edi                        ; not named: no bake, all given back as bake_done
+    push 0
+    call bake_done
+    add esp, 8
+    ret
+.named:
     call type_id
     mov edx, eax
     lea esi, [ebp+VARIANT]
@@ -335,5 +309,4 @@ bake_done:
     ret
 
 key_camo_scale: db "camo_scale", 0
-name_format: db "srpw1_%s_%s_%d", 0
-hashed_format: db "srpw1_%08x%08x", 0
+bake_name: dd 0                     ; weapon_camo.bake_name's entry, written by the build (0: none)

@@ -18,8 +18,8 @@ P's first two decal layers (P + i*270h) the decal's texture, `_nmap`,
 `_fmap` and `_smap` names and the editor's float4x4 of its u64 with the
 point 1.0 lower and the two sides halved (a u64 0 or a value that is no
 integer: the decal's default, the left or the right side of the receiver),
-the camouflage's layer as patch 44's, the name `srpw1_<camouflage>_<model>
-_<surface>` and `_<texture>_<high><low>` a decal, made `srpw1_<its FNV-1a 64>`; a
+the camouflage's layer as patch 44's, the name of them all (the Rust patch
+weapon_camo's, as check_weapon_camo_026g.py's); a
 third decal, an entry that is no table or has no texture: not painted;
 `data/decals` empty and no camouflage: no query.
 
@@ -195,8 +195,7 @@ def check_bake(original, build, say):
             want_camo = {"diffuse": camouflage, "normal": "", "fresnel": "",
                          "smoothness": camouflage + "_smap"} if camouflage else \
                 {"diffuse": "", "normal": "", "fresnel": "", "smoothness": ""}
-            want_name = camo.baked_name(f"srpw1_{camouflage or ''}_{camo.MODEL}_{i}" + "".join(
-                f"_{tex}_{high:08x}{low:08x}" for tex, (low, high) in (d for d in decals if d)))
+            want_name = camo.baked_name(camo.MODEL, i, 4.0, q[10])
             got_camo = {k: v for k, v in names.items() if k != "name"}
             say(got_camo == want_camo and names["name"] == want_name and p_model == render and surface == i
                 and one == 1 and editor == 0,

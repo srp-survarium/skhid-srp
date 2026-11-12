@@ -17,7 +17,7 @@
 //! look-up takes one for a query it keeps waiting), a texture while a
 //! reference to it is held. Only a site's view makes one.
 
-use core::ffi::c_void;
+use core::ffi::{CStr, c_void};
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicU32, Ordering};
 
@@ -304,6 +304,69 @@ impl Asker {
 
     fn of_name(name: &[u8]) -> Asker {
         if name.starts_with(Asker::WEAPON) { Asker::Weapon } else { Asker::Character }
+    }
+}
+
+/// A weapon's bake of one surface, its parameters filled by patch 44's
+/// bake_surface (weapon_camo_026g.asm) before it asks for the bake
+/// (`weapon_camo.bake_name`): what the baker will bake, read once.
+pub struct WeaponBake<'c> {
+    parameters: raw::CookParameters,
+    pub inputs: BakeInputs<'c>,
+}
+
+/// What a weapon's bake of one surface is made of.
+pub struct BakeInputs<'c> {
+    /// The weapon's model path (object/model of its merged config).
+    pub model: &'c CStr,
+    pub surface: u32,
+    /// The camouflage's scale on the surface.
+    pub scale: f32,
+    /// The two decals' layers, then the camouflage's.
+    pub layers: [BakeLayer<'c>; 3],
+}
+
+/// One layer of a bake: where its textures lie, and their names.
+pub struct BakeLayer<'c> {
+    pub matrix: [f32; 16],
+    /// Diffuse, normal, fresnel, smoothness; an empty name is no texture.
+    pub textures: [&'c CStr; 4],
+}
+
+impl<'c> WeaponBake<'c> {
+    /// `weapon_camo.bake_name`'s: the parameters and the model's path its
+    /// caller pushed; none when either is not there or a name is no C string
+    /// of a bake's (then nothing names the files, and patch 44 bakes none).
+    pub fn at(ctx: &'c Context<'_>) -> Option<WeaponBake<'c>> {
+        // SAFETY: the entry's frame: patch 44's call pushed the parameters it
+        // allocated and filled, and the model's path of the weapon's merged
+        // config, both alive until the call returns, which outlives `ctx`.
+        unsafe {
+            let frame = raw::site::weapon_camo_bake_name::frame(ctx)?;
+            let parameters = frame.parameters()?;
+            let model = c_string(frame.model(), RECORD_TEXT)?;
+            let first = parameters.layers();
+            let layer = |index| -> Option<BakeLayer<'c>> {
+                let layer = first.at(index);
+                let matrix = core::array::from_fn(|i| read(layer.matrix().add(i)));
+                let text = |string: raw::BufferString| c_string(string.begin(), RECORD_TEXT);
+                let textures =
+                    [text(layer.diffuse())?, text(layer.normal())?, text(layer.fresnel())?, text(layer.smoothness())?];
+                Some(BakeLayer { matrix, textures })
+            };
+            let layers = [layer(0)?, layer(1)?, layer(2)?];
+            let inputs =
+                BakeInputs { model, surface: read(parameters.surface()), scale: read(parameters.scale()), layers };
+            Some(WeaponBake { parameters, inputs })
+        }
+    }
+
+    /// Names its baked files (before the type's letter).
+    pub fn name(&self, name: &CStr) {
+        // SAFETY: buffer_string::assign on the parameters' own name, which
+        // patch 44 left empty; a weapon's name is far shorter than its
+        // buffer (104h with its NUL).
+        unsafe { raw::engine_string_assign(Some(self.parameters.name()), name.as_ptr().cast()) };
     }
 }
 
