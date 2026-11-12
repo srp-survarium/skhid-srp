@@ -254,7 +254,7 @@ exists the diagnostics switch `SKHID_DLSS_INPUTS` does (below).
   (for the scene's perspective: `e20`, `e21`, the two elements the engine's own jitter writes). Which
   sign DLSS wants of it is the link's to settle on a game frame.
 - **What the jittered projection reaches** (read in the exe; the re-kit's `abi_inputs.tsv` rows of
-  0x13D010, 0x172E30, 0x13E010, 0x14A6F0 repeat it). PROVEN unless tagged:
+  0x13D010, 0x172E30, 0x13E010 repeat it). PROVEN unless tagged:
   - between the push and the pop: the visibility stage (`frustum_culling` 0x1B74E6 culls with the
     context's `m_vp`: the frustum that is rasterized, so the culling is the frame's), `process_streaming`
     (0x13D462), the targets' clearing, `fill_opaque_models`, the 23 stages. After the pop (unjittered):
