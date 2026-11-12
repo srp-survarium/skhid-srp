@@ -1271,6 +1271,9 @@ impl Ragdoll {
                 }
                 let up = self.up;
                 let (a, b) = pair(&mut self.bodies, Part::ALL[i], Part::ALL[k]);
+                if apart(a, b) {
+                    continue;
+                }
                 let Some((pa, pb, distance)) = separation(a, b) else {
                     continue;
                 };
@@ -1464,6 +1467,16 @@ fn pair_bit(i: usize, k: usize) -> u64 {
 
 /// Where two capsules overlap: their segments' closest points and the
 /// distance between them; `None` when they do not touch.
+/// Whether two capsules are surely too far apart to touch: their centres
+/// farther than both halves and both radii (and a centimetre for the
+/// rounding of their ends), so [`separation`] would find no overlap. Its
+/// test alone, cheaper: most pairs of a body are not near each other.
+fn apart(a: &Body, b: &Body) -> bool {
+    let reach = a.shape.half + b.shape.half + a.shape.radius + b.shape.radius + 0.01;
+    let d = b.pose.position - a.pose.position;
+    d.dot(d) > reach * reach
+}
+
 fn separation(a: &Body, b: &Body) -> Option<(Vec3, Vec3, f32)> {
     let (a0, a1) = a.shape.ends(a.pose);
     let (b0, b1) = b.shape.ends(b.pose);

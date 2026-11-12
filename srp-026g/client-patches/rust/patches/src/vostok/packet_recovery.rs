@@ -14,10 +14,14 @@
 //! - A receipt the packet pool has no room for waits, the newest of its kind, and
 //!   goes on the next frame (`game.tick`) that has room. It goes with its
 //!   connection: a closed one tells the server by its silence.
+//!
+//! The client reports (`srp_validate::report`, patch 126 on) go the same
+//! way, all of a report's carriers at once or none ([`Connection::tell`]).
 use super::{Context, GameCell, Thread};
 use super::world::read;
 use crate::raw;
-use srp_validate::recovery::{Outcome, Receipt, SIZE};
+use srp_validate::recovery::{Outcome, Receipt};
+use srp_validate::report::Report;
 
 /// Receipts the pool had no room for, the newest of each kind: one kind
 /// never makes another moot (a handshake or unreadable refusal is no
@@ -64,13 +68,21 @@ pub struct Connection<'a> {
 }
 impl<'a> Connection<'a> {
     pub(super) fn of(client: raw::NetworkClient, thread: &'a Thread) -> Option<Self> {
+        Self::any(client, thread).filter(Self::live)
+    }
+    /// The client's connection, whatever its transport's state.
+    fn any(client: raw::NetworkClient, thread: &'a Thread) -> Option<Self> {
         // SAFETY: the synchronous dispatch/load boundary owns this client.
         unsafe {
-            if read(client.match_connection_state()) > 2 { return None; }
             let holder = client.options_holder()?;
             let (client_key, seed) = (client.address() as usize, read(holder.match_seed()));
             Some(Self { client, holder, client_key, seed, thread })
         }
+    }
+    /// Its transport is the live match's (2), so a packet can go.
+    fn live(&self) -> bool {
+        // SAFETY: as `any`: a plain word of the client.
+        unsafe { read(self.client.match_connection_state()) <= 2 }
     }
     pub(crate) fn at_loaded(ctx: &'a Context<'_>) -> Option<Self> {
         // SAFETY: generated site owns EDI until this hook returns.
@@ -84,7 +96,20 @@ impl<'a> Connection<'a> {
         let client = unsafe { raw::site::game_tick::game(ctx)?.network_client()? };
         Self::of(client, ctx.thread())
     }
+    /// The match closing on its game, at `match_recovery.close` (ECX the
+    /// client), whatever its transport's state: a report of the match's end
+    /// is kept in the log even when its link is gone.
+    pub(crate) fn at_close(ctx: &'a Context<'_>) -> Option<Self> {
+        // SAFETY: generated site owns ECX until this hook returns.
+        let client = unsafe { raw::site::match_recovery_close::client(ctx)? };
+        Self::any(client, ctx.thread())
+    }
     pub(crate) fn closing(ctx: &Context<'_>) { BUDGET.set(ctx.thread(), None); }
+    /// Which connection this is: its client and match seed (a new match is
+    /// a new seed, even on a client made anew at the same address).
+    pub(crate) fn key(&self) -> (usize, u32) { (self.client_key, self.seed) }
+    /// The match's id as reports name it (its seed).
+    pub(crate) fn match_id(&self) -> u32 { self.seed }
     fn budget(&self) -> Budget {
         BUDGET.get(self.thread).filter(|budget| budget.client == self.client_key)
             .unwrap_or(Budget { client: self.client_key, told: None, numbered: 0, waiting: Waiting::default() })
@@ -141,23 +166,7 @@ impl<'a> Connection<'a> {
         // already. A numbered refusal is an event of its own.
         let numbered = matches!(receipt.outcome, Outcome::OptionsRejected | Outcome::Unreadable);
         if !numbered && budget.told == Some(receipt) { return; }
-        // SAFETY: the connection and pool remain live during this synchronous
-        // hook. Check headroom BEFORE begin, which asserts on an exhausted pool.
-        let sent = unsafe {
-            let room = self.holder.packet_pool()
-                .is_some_and(|pool| read(pool.used()).checked_add(17).is_some_and(|used| used <= read(pool.capacity())));
-            match room.then(|| raw::engine_match_packet_begin(Some(self.holder), 0xe0)).flatten() {
-                Some(packet) => {
-                    let flags = read(packet.flags()) & !0x40;
-                    packet.flags().write_volatile(flags);
-                    let bytes = receipt.encode();
-                    raw::engine_append_packet_bytes(Some(packet.writer()), bytes.as_ptr(), SIZE as u32);
-                    raw::engine_match_packet_send(Some(self.holder), Some(packet));
-                    true
-                }
-                None => false,
-            }
-        };
+        let sent = self.room_for(1) && self.carry(&receipt.encode());
         if sent {
             // A newer receipt of its kind makes an older one that waited
             // moot: the server waits for the answer to its newest offer.
@@ -167,5 +176,54 @@ impl<'a> Connection<'a> {
             *budget.waiting.slot(receipt.outcome) = Some(receipt);
         }
         BUDGET.set(self.thread, Some(budget));
+    }
+
+    /// A client report's carriers, all at once: `false` when none went (the
+    /// transport is no longer the match's, or the pool has no room for
+    /// them all). Nothing waits: a report is of its moment, and its log
+    /// line keeps it.
+    pub(crate) fn tell(&self, report: &Report) -> bool {
+        let parts = report.parts();
+        self.live()
+            && self.room_for(u32::from(parts))
+            && (0..parts)
+                .filter_map(|part| report.part(self.seed, part))
+                .all(|(bytes, len)| self.carry(bytes.get(..len).unwrap_or_default()))
+    }
+
+    /// One bounded executable-transfer carrier, with the usual pool reserve.
+    pub(crate) fn executable(&self, carrier: srp_validate::executable::Carrier<'_>) -> bool {
+        self.live() && self.room_for(1) && carrier.encode().is_some_and(|(bytes, len)| self.carry(&bytes[..len]))
+    }
+
+    /// The pool has room for `packets` more 0xE0 carriers and the sixteen
+    /// entries late join's prepared send keeps free. Asked before begin,
+    /// which asserts on an exhausted pool.
+    fn room_for(&self, packets: u32) -> bool {
+        // SAFETY: the holder and its pool are live during this synchronous hook.
+        unsafe {
+            self.holder.packet_pool().is_some_and(|pool| {
+                read(pool.used()).checked_add(16 + packets).is_some_and(|used| used <= read(pool.capacity()))
+            })
+        }
+    }
+
+    /// One 0xE0 carrier of `bytes`, plain and resent until acked (flag
+    /// 0x40 cleared). `false`: begin gave no packet.
+    fn carry(&self, bytes: &[u8]) -> bool {
+        // SAFETY: the connection and pool remain live during this synchronous
+        // hook; the caller asked `room_for` first.
+        unsafe {
+            match raw::engine_match_packet_begin(Some(self.holder), 0xe0) {
+                Some(packet) => {
+                    let flags = read(packet.flags()) & !0x40;
+                    packet.flags().write_volatile(flags);
+                    raw::engine_append_packet_bytes(Some(packet.writer()), bytes.as_ptr(), bytes.len() as u32);
+                    raw::engine_match_packet_send(Some(self.holder), Some(packet));
+                    true
+                }
+                None => false,
+            }
+        }
     }
 }

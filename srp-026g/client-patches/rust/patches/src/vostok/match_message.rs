@@ -48,6 +48,20 @@ impl<'t> Message<'t> {
         Some(Self { id, client, reader, payload, _thread: ctx.thread() })
     }
 
+    /// Consume only our E4 reply prefix, including malformed replies, before
+    /// the native options handler. The server never supplies a file path.
+    pub fn executable_reply(&self) -> bool {
+        let Payload::Readable { bytes, end } = &self.payload else { return false };
+        if self.id != srp_validate::messages::id::STATIC_INFO || !bytes.starts_with(&srp_validate::executable::REPLY_MAGIC) { return false; }
+        if let Some(reply) = srp_validate::executable::Reply::parse(bytes)
+            && let Some(connection) = super::packet_recovery::Connection::of(self.client, self._thread) {
+            super::executable::reply(self._thread, connection.key(), reply);
+        }
+        // SAFETY: end is the checked reader boundary from at_dispatch.
+        unsafe { self.reader.set_cursor(*end); }
+        true
+    }
+
     pub fn id(&self) -> u8 { self.id }
     /// Its payload's length; none when the reader's bounds do not hold.
     pub fn payload_len(&self) -> Option<usize> {

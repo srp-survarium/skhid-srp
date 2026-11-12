@@ -20,10 +20,14 @@
 #[cfg(test)]
 extern crate std;
 
+pub mod memory;
 pub mod messages;
+pub mod modules;
 pub mod recovery;
 pub mod reader;
 pub mod refusal;
+pub mod report;
+pub mod executable;
 pub mod transport;
 pub mod world;
 

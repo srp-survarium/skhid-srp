@@ -2,14 +2,9 @@
 //! integers: 43 the tree's original ranks, 45 the combo skills' (Numb Legs,
 //! Take Cover, Unflinching or Concentration). Two more, 9 and 10, are summed
 //! from the kit's items like any modifier: their regeneration (the
-//! Regeneration booster). No new world state or snapshot side table:
-//! Concentration is the local player's hearing only.
+//! Regeneration booster). No new world state or snapshot side table.
 #![forbid(unsafe_code)]
 
-use core::sync::atomic::{AtomicU32, Ordering};
-
-use crate::vostok::sound::{self, OnceCaller, OncePoint, Source, VoiceVolume, WeaponSound, WeaponSoundKind};
-use crate::vostok::types::Place;
 use crate::vostok::effect;
 use crate::vostok::{Context, Flow, NoExit, medical};
 
@@ -34,11 +29,17 @@ impl Regeneration {
         })
     }
 
+    /// Whether a pool's tick at `rate` (a second) regenerates at all; one
+    /// that does not keeps its delay and limit whatever the modifiers.
+    pub fn regenerates(rate: f32) -> bool {
+        rate > 0.0
+    }
+
     /// The delay (ms) and limit one tick of a pool's regeneration uses. A
     /// pool that does not regenerate (rate 0) keeps its own: raising its
     /// limit would only make the native heal it by nothing.
     pub fn apply(self, rate: f32, delay_ms: u32, limit: f32) -> (u32, f32) {
-        if rate > 0.0 {
+        if Self::regenerates(rate) {
             (delay_ms.saturating_sub(self.sooner_ms), limit.max((limit + self.raise).min(1.0)))
         } else {
             (delay_ms, limit)
@@ -233,89 +234,23 @@ impl Skills {
             _ => native,
         }
     }
-}
 
-/// Concentration's ranks, 1..=4 (made only from a parsed set).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Rank(u8);
-
-/// What the local player hears: Concentration while its painkiller is
-/// active, else the game's volumes. The game's thread publishes it once a
-/// frame ([`publish`]); the sound thread reads it for each voice.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Hearing {
-    Plain,
-    Concentrated(Rank),
-}
-
-impl Hearing {
-    pub fn of(skills: Skills, painkiller: Painkiller) -> Hearing {
-        match (painkiller, skills.focus) {
-            (Painkiller::Active, Focus::Concentration(rank)) => Hearing::Concentrated(Rank(rank)),
-            _ => Hearing::Plain,
-        }
-    }
-
-    /// A voice's volume: the environment 10% quieter a rank, an opponent's
-    /// sounds (not his shots) 10% louder a rank. set_volume_impl still clamps
-    /// the result to [0, 1].
-    pub fn volume(self, source: Source, native: f32) -> f32 {
-        match (self, source) {
-            (Hearing::Concentrated(Rank(rank)), Source::Environment) => native * (1.0 - f32::from(rank) * 0.1),
-            (Hearing::Concentrated(Rank(rank)), Source::Opponent) => native * (1.0 + f32::from(rank) * 0.1),
-            (Hearing::Plain, _) | (_, Source::Untagged) => native,
-        }
-    }
-
-    fn code(self) -> u32 {
-        match self {
-            Hearing::Plain => 0,
-            Hearing::Concentrated(Rank(rank)) => u32::from(rank),
-        }
-    }
-
-    fn parse(code: u32) -> Hearing {
-        match code {
-            1..=4 => Hearing::Concentrated(Rank(code as u8)),
-            _ => Hearing::Plain,
+    /// Concentration: the aim's sway (breath_vibration_calculator::tick's
+    /// dispersion through modifier 61 breath_vibration). The game gave
+    /// `modified` = `base` x max(0, 1 + S), S the kit's sway bonuses (the
+    /// gear's -20 % among them); Concentration adds -0.05 a rank to S, so
+    /// base x max(0, 1 + S - 0.05 x rank) = max(0, modified - 0.05 x rank x base).
+    /// A base or a modified value of 0 (or anything else not above 0) stays.
+    pub fn sway(self, modified: f32, base: f32, painkiller: Painkiller) -> f32 {
+        match (painkiller, self.focus) {
+            (Painkiller::Active, Focus::Concentration(rank)) if modified > 0.0 && base > 0.0 => {
+                (modified - base * f32::from(rank) * 0.05).max(0.0)
+            }
+            _ => modified,
         }
     }
 }
 
-/// The places whose sounds are the local player's opponents': every other
-/// place not on its team (vostok::medical::listener).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Opponents(u32);
-
-impl Opponents {
-    pub const NONE: Opponents = Opponents(0);
-
-    pub fn insert(&mut self, place: Place) {
-        self.0 |= 1 << place.get();
-    }
-
-    pub fn has(self, place: Place) -> bool {
-        self.0 & 1 << place.get() != 0
-    }
-}
-
-/// The frame's [`Hearing`] (its code) for the sound thread, and the
-/// frame's [`Opponents`] for the sites that tag a sound as it is made.
-static HEARING: AtomicU32 = AtomicU32::new(0);
-static OPPONENTS: AtomicU32 = AtomicU32::new(0);
-
-fn publish(hearing: Hearing, opponents: Opponents) {
-    HEARING.store(hearing.code(), Ordering::Relaxed);
-    OPPONENTS.store(opponents.0, Ordering::Relaxed);
-}
-
-fn hearing() -> Hearing {
-    Hearing::parse(HEARING.load(Ordering::Relaxed))
-}
-
-fn opponent(place: Option<Place>) -> bool {
-    place.is_some_and(|place| Opponents(OPPONENTS.load(Ordering::Relaxed)).has(place))
-}
 pub fn on_duration_start(ctx: &mut Context<'_>) -> Flow<NoExit> {
     medical::duration_start(ctx);
     Flow::Continue
@@ -410,85 +345,9 @@ pub fn on_stopping(ctx: &mut Context<'_>) -> Flow<NoExit> {
     medical::stopping(ctx);
     Flow::Continue
 }
-
-/// Concentration, once a frame after the simulation's move: the local
-/// player's hearing and opponents (none without a local player).
-pub fn on_listener(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    match medical::listener(ctx) {
-        Some(local) => publish(Hearing::of(local.skills, local.painkiller), local.opponents),
-        None => publish(Hearing::Plain, Opponents::NONE),
-    }
-    Flow::Continue
-}
-/// The lobby again after a match: no painkiller, no opponents.
-pub fn on_lobby(_: &mut Context<'_>) -> Flow<NoExit> {
-    publish(Hearing::Plain, Opponents::NONE);
-    Flow::Continue
-}
-/// The sound thread at a voice's volume.
-pub fn on_voice_gain(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if let Some(voice) = VoiceVolume::at(ctx) {
-        let volume = hearing().volume(voice.source, voice.volume);
-        if volume != voice.volume {
-            VoiceVolume::set(ctx, volume);
-        }
-    }
-    Flow::Continue
-}
-pub fn on_proxy_allocated(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    sound::clear_allocated(ctx);
-    Flow::Continue
-}
-pub fn on_object_sound(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if let Some(proxy) = sound::object_sound(ctx) {
-        proxy.tag(Source::Environment);
-    }
-    Flow::Continue
-}
-pub fn on_zone_sound(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if let Some(proxy) = sound::zone_sound(ctx) {
-        proxy.tag(Source::Environment);
-    }
-    Flow::Continue
-}
-pub fn on_weapon_sound(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if let Some(sound) = WeaponSound::at(ctx)
-        && sound.kind == WeaponSoundKind::Other
-        && opponent(sound.place)
-    {
-        sound.proxy.tag(Source::Opponent);
-    }
-    Flow::Continue
-}
-pub fn on_foot_step(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if opponent(sound::foot_step_place(ctx)) {
-        sound::begin_opponent_step(ctx.thread());
-    }
-    Flow::Continue
-}
-pub fn on_landing_step(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if opponent(sound::landing_place(ctx)) {
-        sound::begin_opponent_step(ctx.thread());
-    }
-    Flow::Continue
-}
-/// After either step call, also when it played nothing.
-pub fn on_foot_stepped(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    sound::end_step(ctx.thread());
-    Flow::Continue
-}
-pub fn on_landing_stepped(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    sound::end_step(ctx.thread());
-    Flow::Continue
-}
-pub fn on_once_point(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if let Some(point) = OncePoint::at(ctx) {
-        match point.caller {
-            OnceCaller::OpponentStep => point.proxy.tag(Source::Opponent),
-            OnceCaller::DamageZone => point.proxy.tag(Source::Environment),
-            OnceCaller::Other => {}
-        }
-    }
+/// Concentration at the aimed weapon's breath tick, after its sway modifier.
+pub fn on_sway(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    medical::sway(ctx);
     Flow::Continue
 }
 
@@ -609,34 +468,29 @@ mod tests {
         let top = Skills { focus: Focus::Unflinching(4), ..Skills::default() };
         assert!((top.stopping_power(1.0, Painkiller::Active) - 0.6).abs() < 1e-6);
         // Concentration is no Unflinching.
-        let ears = Skills { focus: Focus::Concentration(4), ..Skills::default() };
-        assert_eq!(ears.stopping_power(0.4, Painkiller::Active), 0.4);
+        let focus = Skills { focus: Focus::Concentration(4), ..Skills::default() };
+        assert_eq!(focus.stopping_power(0.4, Painkiller::Active), 0.4);
     }
     #[test]
-    fn concentration_needs_the_painkiller_and_changes_only_tagged_sounds() {
-        for rank in 0..=4u8 {
-            let s = Skills { focus: Focus::parse(0, rank).unwrap(), ..Skills::default() };
-            let r = f32::from(rank);
-            assert_eq!(Hearing::of(s, Painkiller::Inactive), Hearing::Plain);
-            let hearing = Hearing::of(s, Painkiller::Active);
-            assert_eq!(hearing == Hearing::Plain, rank == 0);
-            assert_eq!(Hearing::parse(hearing.code()), hearing);
-            assert!((hearing.volume(Source::Environment, 0.5) - 0.5 * (1.0 - 0.1 * r)).abs() < 1e-6);
-            assert!((hearing.volume(Source::Opponent, 0.5) - 0.5 * (1.0 + 0.1 * r)).abs() < 1e-6);
-            assert_eq!(hearing.volume(Source::Untagged, 0.5), 0.5);
-            for painkiller in [Painkiller::Inactive, Painkiller::Active] {
-                let other = Skills { focus: Focus::parse(rank, 0).unwrap(), ..Skills::default() };
-                assert_eq!(Hearing::of(other, painkiller), Hearing::Plain);
+    fn concentration_adds_to_the_sway_bonuses_while_the_painkiller_is_active() {
+        // base 0.5; S 0 (no gear) and S -0.2 (the gear's -20 %): the game's
+        // modified value base x (1 + S), then -0.05 a rank added to S.
+        for (s, modified) in [(0.0, 0.5), (-0.2, 0.4)] {
+            for rank in 0..=4u8 {
+                let skills = Skills { focus: Focus::parse(0, rank).unwrap(), ..Skills::default() };
+                let want = 0.5 * (1.0 + s - 0.05 * f32::from(rank));
+                assert!((skills.sway(modified, 0.5, Painkiller::Active) - want).abs() < 1e-6, "{s} {rank}");
+                assert_eq!(skills.sway(modified, 0.5, Painkiller::Inactive), modified);
             }
         }
-        for code in [0, 5, 7, u32::MAX] {
-            assert_eq!(Hearing::parse(code), Hearing::Plain);
-        }
-        let mut opponents = Opponents::NONE;
-        let places: std::vec::Vec<Place> = Place::all().collect();
-        opponents.insert(places[3]);
-        opponents.insert(places[19]);
-        assert!(opponents.has(places[3]) && opponents.has(places[19]));
-        assert!(!opponents.has(places[0]) && !opponents.has(places[4]));
+        let top = Skills { focus: Focus::Concentration(4), ..Skills::default() };
+        // Never below no sway; no sway or no dispersion stays as it is.
+        assert_eq!(top.sway(0.05, 0.5, Painkiller::Active), 0.0);
+        assert_eq!(top.sway(0.0, 0.5, Painkiller::Active), 0.0);
+        assert_eq!(top.sway(0.0, 0.0, Painkiller::Active), 0.0);
+        assert!(top.sway(f32::NAN, 0.5, Painkiller::Active).is_nan());
+        // Unflinching is no Concentration.
+        let unflinching = Skills { focus: Focus::Unflinching(4), ..Skills::default() };
+        assert_eq!(unflinching.sway(0.5, 0.5, Painkiller::Active), 0.5);
     }
 }

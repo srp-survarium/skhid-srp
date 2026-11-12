@@ -22,6 +22,7 @@ def bits(value): return struct.unpack('<I',struct.pack('<f',value))[0]
 def close(a,b): assert abs(a-b)<0.0001,(a,b)
 
 LOG_OPEN_SLOT = 0x870048                  # CreateFileA's import slot (the patches' log)
+THREAD_ID_SLOT = 0x870118                 # GetCurrentThreadId's import slot (the log's one writer)
 
 class MedicalGame(Game):
     def __init__(self,data,padding=0):
@@ -38,6 +39,8 @@ class MedicalGame(Game):
         self.emu.hook_add(UC_HOOK_CODE,self.effect,begin=0x2de090,end=0x2de090)
         # The patches' log (srp_patches.log): CreateFileA fails (mov eax,-1; ret 1Ch), nothing written.
         self.emu.mem_write(STOP+0x2100,b'\xb8\xff\xff\xff\xff\xc2\x1c\x00');self.word(LOG_OPEN_SLOT,STOP+0x2100)
+        # The log's writer asks whose line it is: GetCurrentThreadId (mov eax,1; ret), one thread.
+        self.emu.mem_write(STOP+0x2110,b'\xb8\x01\x00\x00\x00\xc3');self.word(THREAD_ID_SLOT,STOP+0x2110)
         self.core=self.block(0x19000)
         self.places=self.block(20*0x30)
         self.word(self.core+0x18458,self.places)
@@ -407,176 +410,39 @@ def check_pressed_entry(data):
     assert g.read(ally+0xd0)==10
     print('Medic: real detoured action entry, multiple Larkspurs, key-up, active/ready mix and references: PASS')
 
-# Concentration (patch 94): the sites' addresses and the fixture's memory.
-GAIN, GAIN_CALLED = 0x5C73E, 0x5C748      # movss [esp],xmm1 .. after call set_volume_impl
-ALLOCATED = 0x65484                        # new_helper after its pop (eax the record)
-ONCE_POINT = 0x6587F                       # emit_and_play_once's point proxy (eax, ebp frame)
-FOOT_STEP, FOOT_STEPPED = 0x2A6563, 0x2A6577
-LANDING, LANDED, LANDED_END = 0x1F3B97, 0x1F3BBB, 0x1F3BC2
-OBJECT_SOUND, ZONE_SOUND, WEAPON_SOUND = 0x294A6F, 0x298CF8, 0x297F7E
-AFTER_MOVE = 0x1F7C3C
-CLIENT_VTABLE = 0x9FFB14
-THREAD_SLOT, QPC_SLOT, QPF_SLOT = 0x870118, 0x870158, 0x870150
-CORE_FIRE, PISTOL_FIRE, DOUBLE_FIRE = 0xA04F10, 0xA05274, 0xA0517C
-ZONE_CALLERS = (0x298DEE, 0x298F1E, 0x299269)
-CLIENT = 0x30000000                        # the network client (+1F1C48h: 2 MiB in), its options after
-DEEP = 0x34100000                          # a stack deep enough for the after_move chain (ragdoll's frames)
+# Concentration (patch 94): breath_vibration_calculator::tick from after its
+# profiler call to the store of apply_modifier's result (0x31D72D), the real
+# getter of modifier 61 between: the site 0x31D727 is inside.
+SWAY_FROM, SWAY_TO = 0x31D6F1, 0x31D72D
 
-class SoundGame(MedicalGame):
-    """The medical fixture with a match around the local player (PLAYER,
-    place 0): the world, the game, the network client (the game's vtable,
-    its options' places and teams, its world core the medical fixture's),
-    and the imports the after_move chain calls."""
-    def __init__(self,data,teams):
-        super().__init__(data)
-        emu=self.emu
-        emu.mem_map(CLIENT,0x400000,UC_PROT_ALL)
-        emu.mem_map(DEEP-0x100000,0x101000,UC_PROT_ALL)
-        stubs=self.block(0x100);self.thread_var=stubs+0xf0;self.word(self.thread_var,1)
-        emu.mem_write(stubs,b'\xa1'+struct.pack('<I',self.thread_var)+b'\xc3')   # mov eax,[thread]; ret
-        for slot,at,value in ((QPC_SLOT,stubs+0x20,0),(QPF_SLOT,stubs+0x40,6_000_000)):
-            # mov eax,[esp+4]; mov [eax],value; mov dword [eax+4],0; mov eax,1; ret 4
-            emu.mem_write(at,b'\x8b\x44\x24\x04\xc7\x00'+struct.pack('<I',value)+b'\xc7\x40\x04\0\0\0\0\xb8\1\0\0\0\xc2\x04\x00')
-            self.word(slot,at)
-        self.word(THREAD_SLOT,stubs)
-        self.world=self.block(0x5000);game=self.block(0x5400)
-        self.word(self.world+0x9c,game);self.word(game+0x53ac,CLIENT)
-        self.word(CLIENT,CLIENT_VTABLE);self.word(CLIENT+4,PLAYER)
-        self.word(CLIENT+0x1f1c40,self.core-0x1f8)
-        holder=CLIENT+0x1f2000;self.options=holder+0xc
-        self.word(CLIENT+0x1f1c48,holder)
-        self.emu.mem_write(self.options+0x577b5,bytes([len(teams)]))
-        for place,team in enumerate(teams):
-            self.word(self.options+place*0x45fc+0x45ec,team)
-        self.word(KITS+0x45ec,teams[0])           # the local player's profile
-        self.emu.mem_write(PLAYER+0x114,b'\0')
-    def thread(self,id):self.word(self.thread_var,id)
-    def run(self,site,stop,stack=(),xmm1=None,**regs):
-        self.emu.reg_write(UC_X86_REG_ESP,DEEP)
-        for i,v in enumerate(stack):self.word(DEEP+4*i,v)
-        if xmm1 is not None:self.emu.reg_write(UC_X86_REG_XMM1,bits(xmm1))
-        for name,value in regs.items():self.emu.reg_write(REGISTER[name],value)
-        self.emu.emu_start(site,stop,count=5_000_000)
-        assert self.emu.reg_read(UC_X86_REG_EIP)==stop,(hex(site),hex(self.emu.reg_read(UC_X86_REG_EIP)))
-    def publish(self):
-        # game_world::tick's join after the move ([esp+0Fh] 0: no transform to set)
-        self.run(AFTER_MOVE,AFTER_MOVE+5,stack=[0]*8,ebx=self.world)
-    def proxy(self,tag=0x55):
-        # a pool record (144 bytes): its +8Ch our tag, garbage until cleared
-        at=self.block(0x90);self.word(at,self.block(0x40));self.word(at+0x8c,tag);return at
-    def tag(self,proxy):return self.read(proxy+0x8c)
-    def allocate(self,record):
-        counter=self.block(4)
-        self.run(ALLOCATED,ALLOCATED+5,eax=record,edi=counter)
-    def volume(self,proxy,volume):
-        # notify_listener2's last steps for one propagator: the volume to the
-        # real set_volume_impl, which clamps it to [0, 1] and keeps it at the
-        # bridge's +2Ch while the voice is not started (+24h)
-        voice=self.block(0x30);bridge=self.block(0x30);propagator=self.block(0x50)
-        self.emu.mem_write(voice+0x24,b'\1');self.word(voice+0x14,bridge)
-        self.word(propagator+4,voice);self.word(propagator+8,proxy)
-        self.run(GAIN,GAIN_CALLED,stack=(0,),xmm1=volume,edi=propagator,eax=voice)
-        return self.float(bridge+0x2c)
-    def once(self,proxy,caller=0x248bfc):
-        frame=self.block(0x10);self.word(frame+4,caller)
-        self.run(ONCE_POINT,ONCE_POINT+5,eax=proxy,ebp=frame,ebx=0)
-    def effect_of(self,player):
-        effect=self.block(0x60);self.word(effect+0x3c,player);return effect
-    def foot_step(self,player):self.run(FOOT_STEP,FOOT_STEP+8,stack=[0]*8,esi=self.effect_of(player))
-    def foot_stepped(self):
-        back=self.block(4);self.emu.mem_write(back,b'\xc3')
-        self.run(FOOT_STEPPED,back,stack=(0,0,0,back,0,0))
-    def landing(self,player):self.run(LANDING,LANDING+6,stack=[0]*8,edi=player)
-    def landed(self):self.run(LANDED,LANDED_END,stack=[0]*8)
-    def weapon(self,state_vtable,offset,place):
-        # a handler state with its effect at +offset (fire states +168h/+170h,
-        # their +18h vtable the fire class's); the effect's weapon's user
-        state=self.block(0x200);self.word(state,0x00a0dead);self.word(state+0x18,state_vtable)
-        effect=state+offset;weapon=self.block(0x600);user=self.block(0x10)
-        self.word(effect+0x30,weapon);self.word(weapon+0x594,user);self.emu.mem_write(user+4,bytes([place]))
-        return effect
-    def weapon_sound(self,effect,proxy):
-        slot=self.block(4);self.word(slot,proxy)
-        stack=[0]*12;stack[9]=effect                # [esp+24h]
-        self.run(WEAPON_SOUND,WEAPON_SOUND+6,stack=stack,eax=slot)
-
-def check_concentration(data):
-    E,O,U=1,2,0
-    # Tag reset at allocation: every record a proxy is made in starts untagged.
-    g=SoundGame(data,[0,0,1,1])
-    for garbage in [1,2,0x55,0xffffffff]:
-        record=g.proxy(garbage);g.allocate(record);assert g.tag(record)==U
-    g.allocate(0)                                  # every proxy taken: nothing written
-    # Environment: a map object's looped sound, a damage zone's loop and one-shots.
-    for site,reg in [(OBJECT_SOUND,'esi'),(ZONE_SOUND,'eax')]:
-        p=g.proxy(0)
-        if reg=='esi':g.run(site,site+6,stack=(0,),esi=p)
-        else:
-            slot=g.block(4);g.word(slot,p);g.run(site,site+6,eax=slot)
-        assert g.tag(p)==E,hex(site)
-    empty=g.block(4);g.run(ZONE_SOUND,ZONE_SOUND+6,eax=empty)   # no proxy made: nothing tagged
-    for caller in ZONE_CALLERS:
-        p=g.proxy(0);g.once(p,caller);assert g.tag(p)==E
-    p=g.proxy(0);g.once(p,0x25b98f);assert g.tag(p)==U             # game_world::play_sound's: untagged
-    print('Concentration tags: cleared at allocation; map objects, damage zones (loop and one-shots) environment; other one-shots untagged: PASS')
-
-    # Teams by place: local 0 (team 0), 1 an ally, 2 and 3 the enemy, 4 a
-    # place of no team 0/1; the options say four or five places.
-    outcomes=[]
-    for teams,opponents in [([0,0,1,1],{2,3}),([1,0,1,0,7],{1,3,4}),([7,0,7,1],{1,2,3})]:
-        g=SoundGame(data,teams)
-        pain=g.carried(True,True)
-        g.publish()
-        players={place:g.player(place,team,(0,0,0)) for place,team in enumerate(teams) if place}
-        for place in range(1,6):
-            opponent=place in opponents
-            player=players.get(place) or g.player(place,0,(0,0,0))
-            if place not in players:g.emu.mem_write(player+0x114,bytes([place]))
-            # Weapon: its non-fire sounds an opponent's, its shots never.
-            for vtable,offset,shot in [(CORE_FIRE,0x168,True),(PISTOL_FIRE,0x170,True),(DOUBLE_FIRE,0x170,True),
-                                       (0x00a0beef,0x158,False),(0x00a0beef,0x168,False),(CORE_FIRE,0x170,False),
-                                       (PISTOL_FIRE,0x168,False)]:
-                p=g.proxy(0);g.weapon_sound(g.weapon(vtable,offset,place),p)
-                assert g.tag(p)==(O if opponent and not shot else U),(teams,place,hex(vtable),offset)
-            # Steps: the foot step's and the landing's point sounds between
-            # the pairs, on this thread; nothing after; another thread's not.
-            for begin,end in [(g.foot_step,g.foot_stepped),(g.landing,g.landed)]:
-                begin(player)
-                g.thread(2);p=g.proxy(0);g.once(p);assert g.tag(p)==U      # a bullet task's sound meanwhile
-                g.thread(1);p=g.proxy(0);g.once(p);assert g.tag(p)==(O if opponent else U),(teams,place)
-                end()
-                p=g.proxy(0);g.once(p);assert g.tag(p)==U
-                begin(player);end()                # on_step's early return: nothing played, the mark gone
-                p=g.proxy(0);g.once(p);assert g.tag(p)==U
-            outcomes.append((tuple(teams),place,opponent))
-        # the local player's own sounds are never an opponent's
-        p=g.proxy(0);g.weapon_sound(g.weapon(0x00a0beef,0x158,0),p);assert g.tag(p)==U
-        g.foot_step(PLAYER);p=g.proxy(0);g.once(p);assert g.tag(p)==U;g.foot_stepped()
-    print('Concentration tags: opponents by team (allies, self and places past the count untagged), weapon shots never, steps and landings only on their thread and only inside their call: PASS')
-
-    # The volume: ranks 0..4 (5..7 refused: no skill at all), painkiller
-    # on/off, Unflinching beside it refused, through set_volume_impl's clamp.
+def check_sway(data,kit=0):
+    # The dispersion B (the tick's first argument), the kit's sway sum S
+    # (modifier 61, the gear's -20 % among them), Concentration's ranks 0..7
+    # (5..7 refused: no skill at all) with or without Unflinching (refused
+    # beside it), painkiller on/off: B x max(0, 1 + S - 0.05 x rank).
+    outcome=[]
     for concentration in range(8):
         for unflinching in (0,1):
             for active in (False,True):
-                g=SoundGame(data,[0,1])
-                g.combo((concentration<<7)|(unflinching<<4)|2)
-                g.carried(False,True,3)            # an active bandage is no painkiller
+                g=MedicalGame(data)
+                g.emu.mem_write(PLAYER+0x115,bytes([kit]))
+                g.combo((concentration<<7)|(unflinching<<4))
+                g.carried(False,True,3)          # an active bandage is no painkiller
                 g.carried(True,active)
-                g.publish()
                 valid=concentration<=4 and not (unflinching and concentration)
                 rank=concentration if valid and active else 0
-                for tag,factor in [(U,1),(E,1-.1*rank),(O,1+.1*rank),(7,1)]:
-                    for volume in [0,.25,.5,.9,1,1.5,-.2]:
-                        p=g.proxy(tag)
-                        close(g.volume(p,volume),min(max(volume*factor,0),1))
-    # The lobby again: no painkiller, every volume the game's.
-    g=SoundGame(data,[0,1]);g.combo(4<<7);g.carried(True,True);g.publish()
-    p=g.proxy(E);close(g.volume(p,.5),.3)
-    g.run(0x21d2e0,0x21d2e6,stack=(0,)*4,ecx=g.block(0x400))
-    close(g.volume(p,.5),.5)
-    print('Concentration volume: environment -10%/opponents +10% a rank 0..4 (5..7 and with Unflinching refused), painkiller on/off, untagged unchanged, set_volume_impl clamp kept, lobby reset: PASS')
-    return outcomes
+                calculator=g.block(0x80);g.word(calculator+0x3c,PLAYER)
+                frame=g.block(0x20);g.word(frame+0xc,50)
+                for s in (0,-.2,-.9,-1.5):
+                    g.ranks(s,61)
+                    for base in (0,.3,2):
+                        g.word(frame+8,bits(base))
+                        sway=g.step(SWAY_FROM,SWAY_TO-SWAY_FROM,edi=calculator,ebp=frame)
+                        close(sway,base*max(0,1+s-.05*rank))
+                        assert g.read(frame+8)==bits(base)
+                        outcome.append((concentration,unflinching,active,s,base,sway))
+    print('Concentration sway: modifier 61 -5% a rank added to the kit\'s (0 and -20% gear, -90%, -150%), 0..4 (5..7 and with Unflinching refused), painkiller on/off (a bandage none), no dispersion none, never below 0: PASS')
+    return outcome
 
 def check_regeneration(data,kit=0):
     # The kit's regeneration modifiers (10 seconds off the delay, 9 the limit
@@ -621,7 +487,7 @@ def main():
     original=open(sys.argv[1],'rb').read()
     patched,_=base.build(original,'section',open(base.default_bin('section'),'rb').read(),None,open(base.late_join_bin(),'rb').read())
     check_pressed_entry(patched)
-    check_concentration(patched)
+    assert check_sway(patched)==check_sway(patched,2)
     check_particle_capacity(patched)
     check_regeneration(patched);check_regeneration(patched,2)
     assert check_combo(patched)==check_combo(patched,2)

@@ -936,7 +936,7 @@ impl Core<'_> {
         };
         let message = {
             let account = account.locked();
-            let mut body = wire::account_body(&account, quests::now());
+            let mut body = wire::account_body(&account);
             let index = account.kit_index(account.active_kit).unwrap_or(0);
             // The kit it plays, alone and under the id of 0xA1: the client
             // files the mate under its first kit's id.

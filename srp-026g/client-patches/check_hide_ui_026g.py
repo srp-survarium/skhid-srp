@@ -450,10 +450,15 @@ def main():
     b_rows, b_calls = p_opt.table()
     new = [{"action_id": 0x19, "group_id": 2, "type": 1, "label": "st_hide_interface_action"},
            {"action_id": 0x23, "group_id": 2, "type": 1, "label": "st_hold_artifact_action"}]
-    report(len(a_rows) == 40 and len(b_rows) == 42 and b_rows[:40] == a_rows and b_rows[40:] == new
+    # push-to-talk (47h): the original's row is the chat group's with its key button disabled (type 0);
+    # the build's is a game key that can be set
+    ptt = [row for row in a_rows if row["action_id"] == 0x47]
+    moved = [dict(row, group_id=2, type=1) if row["action_id"] == 0x47 else row for row in a_rows]
+    report(len(a_rows) == 40 and len(b_rows) == 42 and b_rows[:40] == moved and b_rows[40:] == new
+           and [(row["group_id"], row["type"]) for row in ptt] == [(1, 0)]
            and [c[2] for c in b_calls] == [b"root.set_keybindings"],
-           f"the list sent to the movie (root.set_keybindings): the original's {len(a_rows)} rows, then "
-           f"{b_rows[40:]}")
+           f"the list sent to the movie (root.set_keybindings): the original's {len(a_rows)} rows, "
+           f"push-to-talk's (47h) in the game group with type 1, then {b_rows[40:]}")
     s_opt.call(KEYS_FROM_BINDER, [OPTIONS, 1])
     p_opt.call(KEYS_FROM_BINDER, [OPTIONS, 1])
     a_keys, b_keys = s_opt.set_keybind_calls(), p_opt.set_keybind_calls()

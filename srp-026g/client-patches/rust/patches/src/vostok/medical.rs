@@ -1,11 +1,12 @@
 //! Medical hooks over generated typed native handles. A borrowed player lives
 //! for the paused hook; a core lookup owns one reference until its guard drops.
-use super::{Context, Reg, Thread, drug::DrugsInUse, types::Place};
+use super::{Context, Reg, Thread, drug::DrugsInUse};
 use crate::{
-    medical_skills::{Opponents, Painkiller, Regeneration, Skills, Stance},
+    medical_skills::{Painkiller, Regeneration, Skills, Stance},
     raw,
 };
 use super::effect::OwnedEffect;
+use srp_validate::Places;
 use core::{
     ffi::CStr,
     sync::atomic::{AtomicU32, Ordering},
@@ -69,12 +70,13 @@ impl<'t> Player<'t> {
         // SAFETY: the profile is owned by the live player.
         unsafe { Some(*self.at.profile()?.team()) }
     }
-    fn place(self) -> u8 {
-        // SAFETY: the live player's place byte.
-        unsafe { *self.at.place() }
-    }
     pub(super) fn ally(self, other: Self) -> bool {
-        self.at != other.at && matches!(self.team(), Some(0 | 1)) && self.team() == other.team()
+        self.allies()(other)
+    }
+    /// [`ally`](Self::ally) of this player, its team read once: the test of a whole roster.
+    pub(super) fn allies(self) -> impl Fn(Self) -> bool {
+        let team = self.team().filter(|team| matches!(team, 0 | 1));
+        move |other| team.is_some() && self.at != other.at && other.team() == team
     }
     pub(super) fn active(self) -> bool {
         // The core lookup already checked the synchronized active roster.
@@ -282,31 +284,25 @@ pub fn stopping(ctx: &mut Context<'_>) {
         *frame.sum() = player.skills().stopping_power(*frame.sum(), player.painkiller());
     }
 }
-/// The local player as Concentration hears, at `game_world.after_move`
-/// (the simulation's move done, its bullet tasks joined): its ranks, its
-/// painkiller (the same test as Numb Legs' and Unflinching's) and the
-/// places whose sounds are an opponent's.
-pub struct Listener {
-    pub skills: Skills,
-    pub painkiller: Painkiller,
-    pub opponents: Opponents,
+/// Concentration at breath_vibration_calculator::tick, after apply_modifier
+/// of breath_vibration (61): XMM0 the dispersion that drives the aim's sway,
+/// the tick's argument the dispersion before the modifier.
+pub fn sway(ctx: &mut Context<'_>) {
+    use raw::site::medical_sway as site;
+    // SAFETY: the aimed weapon's breath calculator and its holder are live for
+    // its tick; EBP is the tick's frame, its first argument unchanged.
+    let value = unsafe {
+        let (Some(calculator), Some(frame)) = (site::calculator(ctx), site::frame(ctx)) else {
+            return;
+        };
+        let Some(at) = calculator.player() else {
+            return;
+        };
+        let player = Player::new(ctx.thread(), at);
+        player.skills().sway(ctx.xmm_f32(0), *frame.dispersion(), player.painkiller())
+    };
+    ctx.set_xmm_f32(0, value);
 }
-
-pub fn listener(ctx: &Context<'_>) -> Option<Listener> {
-    let client = super::world::GameWorld::at_after_move(ctx)?.network_client()?;
-    let local = Player::new(ctx.thread(), client.local_player()?.this);
-    let team = local.team();
-    let mut opponents = Opponents::NONE;
-    for (place, other) in Place::all().zip(client.place_teams()) {
-        // ally()'s rule by place: teams 0 and 1 have allies, any other none.
-        let ally = matches!(team, Some(0 | 1)) && other == team;
-        if other.is_some() && !ally && place.index() != usize::from(local.place()) {
-            opponents.insert(place);
-        }
-    }
-    Some(Listener { skills: local.skills(), painkiller: local.painkiller(), opponents })
-}
-
 pub fn initialize(ctx: &mut Context<'_>) {
     // SAFETY: constructor bound the complete model, before first reset/load.
     unsafe {
@@ -358,6 +354,12 @@ pub fn regenerate(ctx: &mut Context<'_>) {
         let (Some(pool), Some(frame)) = (site::pool(ctx), site::frame(ctx)) else {
             return;
         };
+        // A pool that does not regenerate keeps its delay and limit: its
+        // owner's modifiers are not read (most parts, every tick).
+        let rate = *frame.rate();
+        if !Regeneration::regenerates(rate) {
+            return;
+        }
         let Some(at) = pool.model().and_then(|m| m.owner()) else {
             return;
         };
@@ -370,7 +372,7 @@ pub fn regenerate(ctx: &mut Context<'_>) {
             raw::engine_apply_modifier(modifiers, REGENERATION_LIMIT, 1.0, 1.0) - 1.0,
         )
         .unwrap_or_default();
-        let (delay, limit) = regeneration.apply(*frame.rate(), delay, *frame.limit());
+        let (delay, limit) = regeneration.apply(rate, delay, *frame.limit());
         *frame.limit() = limit;
         delay
     };
@@ -481,9 +483,10 @@ pub fn protect(ctx: &mut Context<'_>) {
 /// becomes active and its holder has the share (Medic's bit, which skill 542 sets), each living
 /// teammate within Cascade's reach plays the kind's own activation glow for the active's length (as
 /// its holder does: Spring blue, Lifebone green, Onyx orange), and a Lifebone's also does to it what
-/// its active does to its holder (the configured affects removed, body, head and pain full). What a
-/// Spring's or an Onyx's active gives is read where it is used (patch 109's aura); this is its
-/// activation's part.
+/// its active does to its holder (the configured affects removed, body, head and pain full). The
+/// places reached are the copy's for its whole active (patch 109's aura gives a Spring's and an
+/// Onyx's active to them where it is used, wherever they go, `artefact_skills::activate`); an
+/// activation without the share reaches none.
 pub fn share_active(ctx: &mut Context<'_>) {
     use raw::site::medical_artefact as site;
     // SAFETY: the actual activation owns this item and its inventory holder.
@@ -492,37 +495,32 @@ pub fn share_active(ctx: &mut Context<'_>) {
         let Some(item) = site::item(ctx) else {
             return;
         };
-        let Some(holder) = item.item().inventory().and_then(|v| v.holder()) else {
+        let artefact = item.item().artefact();
+        let Some((kind, length_ms)) = super::artefact_skills::activated(artefact) else {
             return;
         };
-        let at = holder.player();
-        let Some((kind, length_ms)) = super::artefact_skills::activated(item.item().artefact()) else {
-            return;
-        };
-        let source = Player::new(ctx.thread(), at);
-        if !source.skills().is_medic() {
-            return;
-        }
-        let time = ctx.reg(super::Reg::Edi);
-        let reach = crate::artefact_skills::CASCADE_REACH * crate::artefact_skills::CASCADE_REACH;
-        for place in 0..20 {
-            let Some(target) = source.at_place(ctx.thread(), place) else {
-                continue;
-            };
-            if !target.0.active()
-                || !source.ally(target.0)
-                || source.distance_squared(target.0) > reach
-            {
-                continue;
-            }
-            if kind == crate::artefact_skills::Kind::Lifebone {
-                heal_as_lifebone(item, target.0, time);
-            }
-            if let Some(resource) = item.active_resource() {
-                OwnedEffect::emit(ctx.thread(), resource, Some(length_ms))
-                    .play_timed(ctx.thread(), target.0.at, time);
+        let source = item.item().inventory().and_then(|v| v.holder()).map(|holder| Player::new(ctx.thread(), holder.player()));
+        let mut reached = Places::EMPTY;
+        if let Some(source) = source.filter(|source| source.skills().is_medic()) {
+            let time = ctx.reg(super::Reg::Edi);
+            let reach = crate::artefact_skills::CASCADE_REACH * crate::artefact_skills::CASCADE_REACH;
+            for place in 0..20 {
+                let Some(target) = source.at_place(ctx.thread(), place) else {
+                    continue;
+                };
+                if !target.0.active() || !source.ally(target.0) || source.distance_squared(target.0) > reach {
+                    continue;
+                }
+                reached = Places::new(reached.bits() | 1 << place).unwrap_or(reached);
+                if kind == crate::artefact_skills::Kind::Lifebone {
+                    heal_as_lifebone(item, target.0, time);
+                }
+                if let Some(resource) = item.active_resource() {
+                    OwnedEffect::emit(ctx.thread(), resource, Some(length_ms)).play_timed(ctx.thread(), target.0.at, time);
+                }
             }
         }
+        super::artefact_skills::activate(ctx.thread(), artefact, reached);
     }
 }
 

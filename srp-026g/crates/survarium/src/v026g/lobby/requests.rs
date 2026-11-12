@@ -270,22 +270,14 @@ pub enum ClientMessage {
     },
     /// `47 01`: sell `amount` steps of an item.
     Sell { item_id: u32, amount: u32 },
-    /// `47 02`: buy a shop offer; `x` is 0 except from the results screen.
-    BuyOffer { offer_id: u32, x: u32, factor: f32 },
+    /// `47 02 <offer> <u32> <f32>`: buy a shop offer (a bundle). The u32
+    /// was the results screen's match and the f32 a discount, both for
+    /// premium time, which is offered no more: read and dropped.
+    BuyOffer { offer_id: u32 },
     // `47 03`, a repair, is no request: srp has no repair (the owner,
     // 2026-11-08: "we don't have repair in the game at all"); it is not read.
-    /// `47 05`.
-    AcceptPremiumWithBonuses {
-        a0: u32,
-        a1: f32,
-        a2: u32,
-        a3: u32,
-        a4: u32,
-        faction: u8,
-    },
-    /// `47 06`.
-    AcceptPremiumWithDiscount { a0: u32, a1: f32 },
-
+    // Nor are `47 05` and `47 06`, the answers to a premium offer (`A8`,
+    // `A9`): there is no premium account (the owner, 2026-11-09).
     /// `48 00`: the account's whole set of skills, `(skill id, points)`.
     SetSkills { skills: Vec<(u16, u8)> },
     /// `48 01`: reset the skills of a branch (the window's tab: 0 for
@@ -296,10 +288,6 @@ pub enum ClientMessage {
 
     /// `49 00`.
     RenameKit { kit_id: u32, name: String },
-    /// `49 01`: the account's two boxes, as the lobby's number
-    /// (`LocalPlayerProfile.getAutoBuyState`; PROVEN): bit 0 is autobuy
-    /// (`on`); bit 1, the stock auto-repair, is not read (srp has no repair).
-    SetAutobuy { on: bool },
     /// `49 02`.
     SetActiveKit { kit_id: u32 },
     /// `49 03`.
@@ -706,23 +694,12 @@ fn parse_shop(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
             item_id: r.u32()?,
             amount: r.u32()?,
         },
-        0x02 => M::BuyOffer {
-            offer_id: r.u32()?,
-            x: r.u32()?,
-            factor: r.f32()?,
-        },
-        0x05 => M::AcceptPremiumWithBonuses {
-            a0: r.u32()?,
-            a1: r.f32()?,
-            a2: r.u32()?,
-            a3: r.u32()?,
-            a4: r.u32()?,
-            faction: r.u8()?,
-        },
-        0x06 => M::AcceptPremiumWithDiscount {
-            a0: r.u32()?,
-            a1: r.f32()?,
-        },
+        0x02 => {
+            let offer_id = r.u32()?;
+            r.u32()?;
+            r.f32()?;
+            M::BuyOffer { offer_id }
+        }
         sub => return Err(r.unknown_sub(sub)),
     })
 }
@@ -736,10 +713,6 @@ fn parse_profile(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
                 kit_id: r.u32()?,
                 name: r.str()?,
             });
-        }
-        0x01 => {
-            let state = r.u8()?;
-            return Ok(M::SetAutobuy { on: state & 1 != 0 });
         }
         0x02 => return Ok(M::SetActiveKit { kit_id: r.u32()? }),
         0x03 => {

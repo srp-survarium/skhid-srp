@@ -26,20 +26,19 @@
 use std::io;
 use std::net::{SocketAddr, TcpListener, UdpSocket};
 use std::panic::AssertUnwindSafe;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use lobby_server::v026g::{self as lobby, Inbox, Lobby, MatchFinished, MatchHost};
+use login_server::sealed::ServerKey;
 use login_server::v026g::{self as login, Endpoint, RevisionGate};
 use match_server::v026g::{self as matches, MatchRegistry};
-use session::LockExt;
 use session::SessionStore;
 use session::v026g::replays::{ReplaySettings, Replays};
 use session::v026g::rewards::{self, Results, Terms};
-use session::v026g::{GameAccounts, quests, wire};
+use session::v026g::{GameAccounts, quests};
 use survarium::v026g::drops::Rng;
 
 /// Delay before restarting a server that exited, to avoid a hot crash loop.
@@ -364,21 +363,14 @@ impl matches::ResultsSink for Settler {
 
 /// The web page's word to the lobby.
 pub struct WebLink {
-    accounts: Arc<GameAccounts>,
     inbox: Arc<Inbox>,
 }
 
 impl web_server::LobbyLink for WebLink {
     /// The client is sent its account again (`Inbox::account_changed`:
-    /// inventory, account, money, level and skills, reputations, quests),
-    /// then its services (0x90: the premium time), which that does not
-    /// carry and the admin page can change.
+    /// inventory, account, money, level and skills, reputations, quests).
     fn account_changed(&self, account_id: u32) {
         self.inbox.account_changed(account_id);
-        if let Some(account) = self.accounts.get(account_id) {
-            let services = wire::services(&account.locked(), quests::now());
-            self.inbox.push(account_id, vec![services]);
-        }
     }
 
     fn set_admin_text(&self, first: &str, second: &str) {
@@ -407,16 +399,20 @@ pub struct Options {
     /// clients are told.
     pub match_bind: String,
     pub match_public_host: String,
-    /// The folder with `survarium_login_server.key` and `.crt`.
-    pub certs: PathBuf,
+    /// The login server's key of the sign-in cipher, or why there is none
+    /// (`SRP_SIGN_IN_KEY`): without one the servers do not start.
+    pub sign_in_key: Result<ServerKey, String>,
     /// **Testing only** (`SRP_BOT_ACCOUNTS`, `session::v026g::bots`): the
     /// names of the accounts that are test bots (`srp-bot`). Empty, the
     /// default: nothing about bots is on.
     pub bots: Vec<String>,
-    /// "Watch replay" (`SRP_REPLAY_DIR`, `SRP_GAME_MODES_DIR`; `None`:
+    /// "Watch replay" (`SRP_REPLAY_DIR`; `None`:
     /// off): the folders the match server converts recordings into, the
     /// lobby gives tokens for and the web page serves from.
     pub replays: Option<ReplaySettings>,
+    /// Voice chat (`SRP_VOICE`, default on): the relay on the match port + 1
+    /// (`match_server::v026g::voice`).
+    pub voice: bool,
 }
 
 impl Options {
@@ -433,23 +429,25 @@ impl Options {
             lobby: lobby::Settings::from_env(),
             match_bind: config.match_server.bind_addr(),
             match_public_host: config.match_server.public_host.clone(),
-            certs: PathBuf::from("./certs"),
+            sign_in_key: login_server::sealed::key_from_env(),
             bots: session::v026g::bots::from_env(),
             replays: ReplaySettings::from_env(),
+            voice: matches::voice::enabled_from_env(),
         }
     }
 
     /// Everything on 127.0.0.1, on free ports: for the tests.
-    pub fn local(certs: &Path) -> Self {
+    pub fn local() -> Self {
         Self {
             login_bind: "127.0.0.1:0".to_owned(),
             login_public_host: "127.0.0.1".to_owned(),
             lobby: lobby::Settings::local("127.0.0.1:0"),
             match_bind: "127.0.0.1:0".to_owned(),
             match_public_host: "127.0.0.1".to_owned(),
-            certs: certs.to_owned(),
+            sign_in_key: Ok(login_server::sealed::test_key()),
             bots: Vec::new(),
             replays: None,
+            voice: false,
         }
     }
 }
@@ -468,6 +466,8 @@ pub struct Stack {
     pub login_addr: SocketAddr,
     pub lobby_addr: SocketAddr,
     pub match_addr: SocketAddr,
+    /// The voice relay's, when it runs: the match port + 1.
+    pub voice_addr: Option<SocketAddr>,
     /// `SRP_MIN_PATCH_REVISION`, which the web page says to the updater.
     pub min_patch_revision: u8,
     stop: Arc<AtomicBool>,
@@ -509,6 +509,25 @@ impl Stack {
             &options.match_public_host,
             match_addr.port(),
         ));
+        // Voice beside it, on the next port: the games send there.
+        let voice_socket = if options.voice {
+            let port = matches::voice::port_for(match_addr.port()).ok_or_else(|| {
+                io::Error::other("the match port is 65535: no port after it for voice")
+            })?;
+            Some(UdpSocket::bind(SocketAddr::new(match_addr.ip(), port)).map_err(|error| {
+                io::Error::new(
+                    error.kind(),
+                    format!("the voice relay's UDP port {port} (the match port + 1; SRP_VOICE=off for none): {error}"),
+                )
+            })?)
+        } else {
+            log::info!("Voice chat is off (SRP_VOICE)");
+            None
+        };
+        let voice_addr = voice_socket
+            .as_ref()
+            .map(UdpSocket::local_addr)
+            .transpose()?;
 
         // One for the process: the match server converts, the lobby gives
         // tokens, the web page takes them.
@@ -547,22 +566,13 @@ impl Stack {
         let login_addr = listener.local_addr()?;
         // Here, not on every sign-in: srp started from another folder
         // would refuse them all.
-        for file in ["survarium_login_server.key", "survarium_login_server.crt"] {
-            let path = options.certs.join(file);
-            if !path.is_file() {
-                return Err(io::Error::other(format!(
-                    "the login server's {} is missing (run srp from the repository's root)",
-                    path.display()
-                )));
-            }
-        }
+        let key = options.sign_in_key.clone().map_err(io::Error::other)?;
         let endpoint = Endpoint {
             public_host: options.login_public_host.clone(),
             lobby_host: options.lobby.public_host.clone(),
             lobby_port: lobby_addr.port(),
             local_peers: options.lobby.local_peers,
-            key: options.certs.join("survarium_login_server.key"),
-            certificate: options.certs.join("survarium_login_server.crt"),
+            key,
             // Older games are kept out from their sign-in on; the lobby
             // refuses the sessions they had before (`patch_check`).
             revision_gate: RevisionGate {
@@ -575,7 +585,7 @@ impl Stack {
         match matches::replay::start(replays.clone()) {
             Some(Ok(thread)) => threads.push(thread),
             Some(Err(error)) => log::error!("Replays: the conversion thread failed: {error}"),
-            None => log::info!("Replays are off (SRP_REPLAY_DIR, SRP_GAME_MODES_DIR)"),
+            None => log::info!("Replays are off (SRP_REPLAY_DIR)"),
         }
         {
             let (registry, store, accounts, results, inbox, stop, replays) = (
@@ -610,6 +620,31 @@ impl Stack {
                 )
             }));
         }
+        // Mutes are kept by the voice ids: the key outlives a restart, and
+        // without it there is no voice (never a key of the moment, which
+        // would lose every player's mutes).
+        let id_key = match voice_socket
+            .as_ref()
+            .map(|_| matches::voice::id_key_from_env())
+        {
+            Some(Err(error)) => {
+                log::error!("srp: voice chat is OFF: its voice ids' key: {error}");
+                None
+            }
+            Some(Ok(key)) => Some(key),
+            None => None,
+        };
+        if let (Some(socket), Some(voice_addr), Some(id_key)) = (voice_socket, voice_addr, id_key) {
+            let (registry, flag) = (registry.clone(), stop.clone());
+            let mut socket = Some(socket);
+            threads.push(supervise("voice", stop.clone(), move || {
+                let socket = match socket.take() {
+                    Some(socket) => socket,
+                    None => UdpSocket::bind(voice_addr)?,
+                };
+                matches::voice::run(&socket, registry.clone(), id_key, &flag)
+            }));
+        }
         {
             let mut first = Some(first_lobby);
             threads.push(supervise("lobby", stop.clone(), move || {
@@ -641,7 +676,8 @@ impl Stack {
         }
         log::info!(
             "srp: 0.26g servers started: login TCP {login_addr}, lobby UDP {lobby_addr}, match \
-             UDP {match_addr}"
+             UDP {match_addr}, voice {}",
+            voice_addr.map_or("off".to_owned(), |addr| format!("UDP {addr}"))
         );
         Ok(Self {
             store,
@@ -653,6 +689,7 @@ impl Stack {
             login_addr,
             lobby_addr,
             match_addr,
+            voice_addr,
             min_patch_revision: options.lobby.min_patch_revision,
             stop,
             threads,
@@ -666,7 +703,6 @@ impl Stack {
             accounts: self.accounts.clone(),
             matches: Arc::new(RegistryHost(self.registry.clone())),
             lobby: Arc::new(WebLink {
-                accounts: self.accounts.clone(),
                 inbox: self.inbox.clone(),
             }),
             downloads: Arc::new(web_server::Downloads::new(

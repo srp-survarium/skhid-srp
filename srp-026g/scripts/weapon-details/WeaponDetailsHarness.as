@@ -19,8 +19,9 @@ package {
    loader.load(new URLRequest("lobby_menu.swf"),new LoaderContext(false,new ApplicationDomain()));
   }
   private function require(ok:Boolean,message:String):void {if(!ok)throw new Error(message);}
-  // What the exe gives the movie in `language`: srp's texts (HarnessText, from the dictionaries) and the stock keys the card reads.
-  private function texts(language:String):Object {var t:Object={btn_friends:"Friends",clan_players_level_label:"Level",critical_damages:"Critical damage"};for(var k:String in HarnessText.DATA[language])t[k]=HarnessText.DATA[language][k];return t;}
+  // What the exe gives the movie in `language`: srp's texts (HarnessText, from the dictionaries) and the stock keys the card reads
+  // (equipment_weight names the property a card puts last, ItemCompare.weightLast).
+  private function texts(language:String):Object {var t:Object={btn_friends:"Friends",clan_players_level_label:"Level",critical_damages:"Critical damage"};for(var k:String in HarnessText.DATA[language])t[k]=HarnessText.DATA[language][k];t.equipment_weight=HarnessText.STOCK[language].equipment_weight;return t;}
   private function item(pkp:Boolean):Object {
    var Data:Class=domain.getDefinition("survarium.data.ItemData") as Class;
    var d:Object=new Data();d.dictId=pkp?2229:3;d.name=pkp?"PKP Pecheneg":"AK-74M";d.isWeapon=true;d.category=16;d.superCategory=2;d.itemLevel=15;d.modifiers=[];d.modifiersDefault=[];d.ammoText="7.62x54";d.properties=[];
@@ -461,12 +462,45 @@ package {
    for each(var p:Array in MEDICINES[name])d.properties.push({prop_id:p[0],prop_value:p[1]});
    return d;
   }
-  // Each line of a medicine's card: "label=value", in the card's order.
-  private function medicineLines(card:Object,d:Object):Array {
-   var out:Array=[];
-   for each(var p:Array in MEDICINES[d.name])out.push(MEDICINE_LABELS[p[0]]+"="+nativeText(card,MEDICINE_LABELS[p[0]]));
+  private function medicineUnit(id:int):String {return id==15?"kg":id==13?"":id==18||id==19?"s":"%";}
+  // The properties a medicine's card has rows of beside `other` (one-pocket-a-type.md, ItemCompare.cardRows):
+  // every one either has, those of the medicine with more of them first (the card's own of two
+  // with as many: neither has a dictionary id here), then the other's own, the weight last.
+  private function medicineRows(d:Object,other:Object):Array {
+   var own:Array=MEDICINES[d.name],theirs:Array=other==null?[]:MEDICINES[other.name],ids:Array=[],p:Array;
+   for each(p in theirs.length>own.length?theirs.concat(own):own.concat(theirs))if(p[0]!=15 && ids.indexOf(p[0])<0)ids.push(p[0]);
+   return ids.concat(15);
+  }
+  // A medicine's card as released beside `other`: "Pocket slots=1" first (one unit of a pocket), then
+  // medicineRows, a property the medicine has none of as 0.
+  private function medicineOwn(d:Object,other:Object):Array {
+   var out:Array=[POCKET+"=1"];
+   for each(var id:int in medicineRows(d,other)){
+    var value:Number=0;
+    for each(var p:Array in MEDICINES[d.name])if(p[0]==id)value=Number(p[1]);
+    out.push(MEDICINE_LABELS[id]+"="+value+medicineUnit(id));
+   }
    return out;
   }
+  // Each line of a medicine's card: "label=value", the pocket units and then medicineRows beside
+  // the item the card is compared with (cardLines is the card's own order).
+  // `skillLines`: the skill lines under them, which keep their rows on a card of nine
+  // (ItemCompare.fitted): the stats the item has none of go first, the last of them first, then
+  // the ones before the weight.
+  private function medicineLines(card:Object,d:Object,skillLines:int=0):Array {
+   var out:Array=[POCKET+"="+nativeText(card,POCKET)];
+   var rows:Array=medicineRows(d,card.itemCompare.getSecondaryData()),over:int=rows.length-(9-1-skillLines);
+   for(var at:int=rows.length-1;at>=0 && over>0;at--){
+    var has:Boolean=false;
+    for each(var p:Array in MEDICINES[d.name])if(p[0]==rows[at])has=true;
+    if(!has){rows.splice(at,1);over--;}
+   }
+   if(over>0)rows.splice(rows.length-1-over,over);
+   for each(var id:int in rows)out.push(MEDICINE_LABELS[id]+"="+nativeText(card,MEDICINE_LABELS[id]));
+   return out;
+  }
+  // The card's first row for an item that goes in a pocket (ItemCompare.pocketDepth).
+  private static const POCKET:String="Pocket slots";
   // Every bar line a card shows: "label=value", in its order.
   private function cardLines(card:Object):Array {
    var out:Array=[];
@@ -500,7 +534,9 @@ package {
    profile.setKitModifiers(kitFloats({}));
    for each(name in names){
     Scene.isAlt=false;d=medicine(name);shows(d,other);released[name]=medicineLines(cards[0],d).join();
-    require(released[name]==MEDICINES[name].map(function(p:Array,...rest):String{return MEDICINE_LABELS[p[0]]+"="+Number(p[1])+(p[0]==15?"kg":p[0]==13?"":p[0]==18||p[0]==19?"s":"%");}).join(),"released "+name+": "+released[name]);
+    require(released[name]==medicineOwn(d,other).join(),"released "+name+": "+released[name]+" (want "+medicineOwn(d,other).join()+")");
+    // Those rows and no other, in that order: the pocket units first, the weight last.
+    require(cardLines(cards[0]).join()==released[name],"the card's rows "+name+": "+cardLines(cards[0]).join()+" (want "+released[name]+")");
     Scene.isAlt=true;shows(d,other);
     require(medicineLines(cards[0],d).join()==released[name],"Alt, no medical skills: "+name+" "+medicineLines(cards[0],d).join());
    }
@@ -523,6 +559,14 @@ package {
     var lines:Array=released[name].split(",");
     for each(var change:String in changes){var label:String=change.split("=")[0];for(var i:int=0;i<lines.length;i++)if(lines[i].split("=")[0]==label)lines[i]=change;}
     return lines.join();
+   };
+   // Of an expected card's lines, those of the rows `shown` has (two skill lines under a
+   // painkiller's take the row of a stat it has none of: ItemCompare.fitted).
+   var kept:Function=function(expected:String,shown:Array):String{
+    var labels:Array=[],out:Array=[],line:String;
+    for each(line in shown)labels.push(line.split("=")[0]);
+    for each(line in expected.split(","))if(labels.indexOf(line.split("=")[0])>=0)out.push(line);
+    return out.join();
    };
    var cases:Array=[[3,0,0],[0,2,0],[0,0,3],[3,2,3]];
    for each(var ranks:Array in cases){
@@ -556,7 +600,7 @@ package {
    profile.setKitModifiers(kitFloats({43:3,45:5<<4}));d=medicine("painkiller");shows(d,other);
    require(medicineLines(cards[0],d).join()==released.painkiller,"Unflinching 5 refused");
    profile.setKitModifiers(kitFloats({43:3,45:74}));d=medicine("painkiller");shows(d,other);
-   require(medicineLines(cards[0],d).join()==expect("painkiller",painkiller.painkiller.split(",")),"full combo ranks valid: "+medicineLines(cards[0],d).join());
+   require(medicineLines(cards[0],d,2).join()==kept(expect("painkiller",painkiller.painkiller.split(",")),medicineLines(cards[0],d,2)),"full combo ranks valid: "+medicineLines(cards[0],d,2).join());
    // Concentration's three bits at 7: rank 5 of 4 is refused, and so is Concentration beside
    // Unflinching (they exclude each other); its full set (2 + 8 + 4 x 128 = 522) is valid.
    for each(var refused:int in [5<<7,(1<<4)|(1<<7),(4<<4)|(4<<7)]) {
@@ -564,28 +608,29 @@ package {
     require(medicineLines(cards[0],d).join()==released.painkiller,"combo "+refused+" refused");
    }
    profile.setKitModifiers(kitFloats({43:3,45:522}));d=medicine("painkiller");shows(d,other);
-   require(medicineLines(cards[0],d).join()==expect("painkiller",painkiller.painkiller.split(",")),"Concentration set valid: "+medicineLines(cards[0],d).join());
+   require(medicineLines(cards[0],d,2).join()==kept(expect("painkiller",painkiller.painkiller.split(",")),medicineLines(cards[0],d,2)),"Concentration set valid: "+medicineLines(cards[0],d,2).join());
    // The skills that act while a painkiller is active or as a medicine heals (float 45: Numb Legs,
    // Take Cover, Unflinching, Concentration): lines below the card's own, in % of the game's own,
    // each as medical_skills.rs applies it; none without a rank, none once Alt is let go.
    var E:Object=HarnessText.DATA.english;
-   var sprint:String=E.st_srp_medicine_sprint_stamina,slow:String=E.st_srp_medicine_hit_slow,ambient:String=E.st_srp_medicine_ambient_sounds;
-   var enemy:String=E.st_srp_medicine_enemy_sounds,crouched:String=E.st_srp_medicine_crouched_healing;
+   var sprint:String=E.st_srp_medicine_sprint_stamina,slow:String=E.st_srp_medicine_hit_slow,sway:String=E.st_srp_medicine_sight_sway;
+   var crouched:String=E.st_srp_medicine_crouched_healing;
    // [float 45, the painkiller's lines, every other medicine's (each heals)].
    var combos:Array=[
     [0,[],[]],
     [1,[sprint+"=100 -> 80%"],[]],[2,[sprint+"=100 -> 60%"],[]],
     [1<<2,[],[crouched+"=100 -> 110%"]],[2<<2,[],[crouched+"=100 -> 120%"]],
     [1<<4,[slow+"=100 -> 90%"],[]],[3<<4,[slow+"=100 -> 70%"],[]],[4<<4,[slow+"=100 -> 60%"],[]],
-    [1<<7,[ambient+"=100 -> 90%",enemy+"=100 -> 110%"],[]],[4<<7,[ambient+"=100 -> 60%",enemy+"=100 -> 140%"],[]],
+    [1<<7,[sway+"=100 -> 95%"],[]],[4<<7,[sway+"=100 -> 80%"],[]],
     [74,[sprint+"=100 -> 60%",slow+"=100 -> 60%"],[crouched+"=100 -> 120%"]],
-    [522,[sprint+"=100 -> 60%",ambient+"=100 -> 60%",enemy+"=100 -> 140%"],[crouched+"=100 -> 120%"]]
+    [522,[sprint+"=100 -> 60%",sway+"=100 -> 80%"],[crouched+"=100 -> 120%"]]
    ];
    for each(var combo:Array in combos){
     profile.setKitModifiers(kitFloats({43:3|2<<3,45:combo[0]}));
     for each(name in names){
      d=medicine(name);Scene.isAlt=true;shows(d,other);
-     var own:Array=medicineLines(cards[0],d),wanted:String=own.concat(name=="painkiller"?combo[1]:combo[2]).join();
+     var skills:Array=name=="painkiller"?combo[1]:combo[2];
+     var own:Array=medicineLines(cards[0],d,skills.length),wanted:String=own.concat(skills).join();
      require(cardLines(cards[0]).join()==wanted,"combo "+combo[0]+" "+name+": "+cardLines(cards[0]).join()+" (want "+wanted+")");
      Scene.isAlt=false;shows(d,other);
      require(cardLines(cards[0]).join()==released[name],"released with combo "+combo[0]+": "+name+" "+cardLines(cards[0]).join());
@@ -594,9 +639,9 @@ package {
    // Refused ranks (Unflinching beside Concentration) add no line, as in a match.
    profile.setKitModifiers(kitFloats({45:(4<<4)|(4<<7)}));d=medicine("painkiller");Scene.isAlt=true;shows(d,other);
    require(cardLines(cards[0]).join()==released.painkiller,"refused combo: no skill line");
-   // Better is green: less stamina and slow, quieter surroundings, louder enemies, more healing.
+   // Better is green: less stamina, slow and sway, more healing.
    profile.setKitModifiers(kitFloats({45:522}));shows(d,other);
-   for each(var label:String in [sprint,ambient,enemy])require(changeColours(nativeField(cards[0],label)).join()==[NEUTRAL,NEUTRAL,GREEN].join(),label+" is green");
+   for each(var label:String in [sprint,sway])require(changeColours(nativeField(cards[0],label)).join()==[NEUTRAL,NEUTRAL,GREEN].join(),label+" is green");
    profile.setKitModifiers(kitFloats({45:74}));shows(d,other);
    require(changeColours(nativeField(cards[0],slow)).join()==[NEUTRAL,NEUTRAL,GREEN].join(),slow+" is green");
    d=medicine("bandages");shows(d,other);
@@ -635,13 +680,23 @@ package {
    var Data:Class=domain.getDefinition("survarium.data.ItemData") as Class;
    var d:Object=new Data();d.name=name;d.category=THROWABLES[name][0];d.superCategory=domain.getDefinition("survarium.item.ItemFactory").getCategory(d.category);d.descriptor=100;d.modifiers=[];d.properties=[];
    for each(var p:Array in THROWABLES[name][1])d.properties.push({prop_id:p[0],prop_value:p[1]});
+   // As ItemFactory makes it: the RGD-5's two units from its property 166.
+   d.quickSlotItemSize=domain.getDefinition("survarium.constants.QuickSlotSize").of({item_properties:d.properties});
    return d;
   }
-  // Each bar of a grenade's or a trap's card: "label=value", in the card's order (166, the pocket
-  // units, is no bar).
+  // The properties a grenade's or a trap's card has rows of: its own and none of the compared
+  // item's (one-pocket-a-type.md), the weight last. 166, the pocket units, is no row of its own:
+  // the card's first row says them (ItemCompare.pocketDepth).
+  private function throwableRows(name:String):Array {
+   var ids:Array=[];
+   for each(var p:Array in THROWABLES[name][1])if(THROWABLE_LABELS[p[0]] && p[0]!=15)ids.push(p[0]);
+   return ids.concat(15);
+  }
+  // Each row of a grenade's or a trap's card: "label=value", the pocket units and then throwableRows
+  // (cardLines is the card's own order).
   private function throwableLines(card:Object,d:Object):Array {
-   var out:Array=[];
-   for each(var p:Array in THROWABLES[d.name][1])if(THROWABLE_LABELS[p[0]])out.push(THROWABLE_LABELS[p[0]]+"="+nativeText(card,THROWABLE_LABELS[p[0]]));
+   var out:Array=[POCKET+"="+nativeText(card,POCKET)];
+   for each(var id:int in throwableRows(d.name))out.push(THROWABLE_LABELS[id]+"="+nativeText(card,THROWABLE_LABELS[id]));
    return out;
   }
   private function throwableChecks():void {
@@ -650,10 +705,13 @@ package {
    profile.setKitModifiers(kitFloats({}));
    for each(name in names){
     Scene.isAlt=false;d=throwable(name);shows(d,other);released[name]=throwableLines(cards[0],d).join();
-    var want:Array=[];
-    for each(var p:Array in THROWABLES[name][1])if(THROWABLE_LABELS[p[0]])want.push(THROWABLE_LABELS[p[0]]+"="+Number(p[1])+(THROWABLE_UNITS[p[0]]||""));
-    require(released[name]==want.join(),"released "+name+": "+released[name]);
-    for(var i:int=1;i<=9;i++){var row:Object=cards[0].itemCompare.getChildByName("diff_"+i);require(!row || !row.visible || row.indicator.label!="Pocket slots","no pocket units bar: "+name);}
+    // The pocket units first: the RGD-5's 2, 1 of the smoke grenade and the trap.
+    var want:Array=[POCKET+"="+(name=="rgd5"?2:1)];
+    for each(var id:int in throwableRows(name))for each(var p:Array in THROWABLES[name][1])if(p[0]==id)want.push(THROWABLE_LABELS[id]+"="+Number(p[1])+(THROWABLE_UNITS[id]||""));
+    require(released[name]==want.join(),"released "+name+": "+released[name]+" (want "+want.join()+")");
+    // Those rows and no other, in that order: the weight last, and no row for a stat only the
+    // compared RGD-5 has (the smoke grenade's damage).
+    require(cardLines(cards[0]).join()==released[name],"the card's rows "+name+": "+cardLines(cards[0]).join()+" (want "+released[name]+")");
     Scene.isAlt=true;shows(d,other);
     require(throwableLines(cards[0],d).join()==released[name],"Alt, no skills: "+name+" "+throwableLines(cards[0],d).join());
    }
@@ -691,6 +749,44 @@ package {
    // An exe that sends no floats: the card's own numbers.
    profile.setKitModifiers(null);d=throwable("rgd5");shows(d,other);
    require(throwableLines(cards[0],d).join()==released.rgd5,"no floats: the grenade's own numbers");
+   Scene.isAlt=false;
+  }
+  // Held Alt over an armour piece: its isolation with Resistance (kit float 40, bits 0..2), +5 points a
+  // rank on the parts it covers (patch hook 0x32A083), no more than 100 (the clamp 0x32A07E); the
+  // armour line and a piece without an isolation line stay.
+  private function armour(isolation:String):Object {
+   var Data:Class=domain.getDefinition("survarium.data.ItemData") as Class;
+   var d:Object=new Data();d.name="vest";d.category=3;d.superCategory=domain.getDefinition("survarium.item.ItemFactory").getCategory(d.category);d.descriptor=100;d.modifiers=[];d.properties=[{prop_id:6,prop_value:"60"}];
+   if(isolation!=null)d.properties.push({prop_id:8,prop_value:isolation});
+   d.properties.push({prop_id:15,prop_value:"6"});
+   return d;
+  }
+  private function isolationChecks():void {
+   Scene.isShift=false;
+   var d:Object,other:Object=armour("10");
+   for each(var c:Array in [[0,"30"],[1,"30 -> 35"],[5,"30 -> 55"],[5|8|16|3<<9,"30 -> 55"],[6,"30"],[7<<9|3,"30"],[2.5,"30"],[16384+2,"30"]]){
+    profile.setKitModifiers(kitFloats({40:c[0]}));
+    Scene.isAlt=true;d=armour("30");shows(d,other);
+    require(nativeText(cards[0],"Isolation")==c[1] && nativeText(cards[0],"Armor")=="60" && nativeText(cards[0],"Weight")=="6kg","float 40 "+c[0]+": "+nativeText(cards[0],"Isolation"));
+    Scene.isAlt=false;shows(d,other);
+    require(nativeText(cards[0],"Isolation")=="30","released, float 40 "+c[0]);
+   }
+   profile.setKitModifiers(kitFloats({40:5}));Scene.isAlt=true;
+   // The compared card too; more is green.
+   d=armour("30");shows(d,other);
+   require(nativeText(cards[1],"Isolation")=="10 -> 35","the compared piece: "+nativeText(cards[1],"Isolation"));
+   require(changeColours(nativeField(cards[0],"Isolation")).join()==[NEUTRAL,NEUTRAL,GREEN].join(),"more isolation is green");
+   // Points past 100 stop nothing more; 100 already stays one value.
+   d=armour("90");shows(d,other);require(nativeText(cards[0],"Isolation")=="90 -> 100","no more than 100: "+nativeText(cards[0],"Isolation"));
+   d=armour("100");shows(d,other);require(nativeText(cards[0],"Isolation")=="100","100 stays");
+   // The piece's own roll (+5 points, added) first: base -> in a match.
+   d=armour("30");d.modifiers=[{icon:1,textValue:"Isolation: +5\n",props:[{prop_id:8,prop_value:"5"}]}];shows(d,other);
+   require(nativeText(cards[0],"Isolation")=="30 -> 60","own roll and the skill: "+nativeText(cards[0],"Isolation"));
+   // A piece without an isolation line: its own card.
+   d=armour(null);shows(d,armour(null));require(nativeText(cards[0],"Armor")=="60","no isolation line");
+   // An exe that sends no floats: the piece's own numbers.
+   profile.setKitModifiers(null);d=armour("30");shows(d,other);
+   require(nativeText(cards[0],"Isolation")=="30","no floats: the piece's own isolation");
    Scene.isAlt=false;
   }
   // Held Alt over a weapon whose own movement line is a penalty, with Bear Arms (kit float 62 above 0):
@@ -775,9 +871,12 @@ package {
     // A medicine card's lines, as static_game_parameters has them (13 has no unit there).
     for each(spec in [[13,"Intoxication",1,""],[17,"Pain protection",1,"%"],[18,"Duration",1,"s"],[19,"Activation",0,"s"],[135,"Healing: arms / legs",1,"%"],[136,"Healing: body / head",1,"%"],[137,"Pain relief",1,"%"]])list.push({prop_id:spec[0],prop_name:spec[1],direction:spec[2],postfix:spec[3],comparable:true,min_value:0,max_value:100});
     for(var id:int=138;id<=162;id++)list.push({prop_id:id,comparable:false});
-    // A grenade's and a trap's (throwable-cards-1); 166 the pocket units (pocket-units-1), no bar.
+    // A grenade's and a trap's (throwable-cards-1); 166 the pocket units (pocket-units-1), not
+    // comparable: no row of the property, the card's first row is ItemCompare's own (pocketDepth).
     for each(spec in [[23,"Explosion radius",1,"m"],[167,"Stamina damage",1,""],[168,"Fuse time",0,"s"],[169,"Throw speed",1,"m/s"],[170,"Defuse time",1,"s"]])list.push({prop_id:spec[0],prop_name:spec[1],direction:spec[2],postfix:spec[3],comparable:true,min_value:0,max_value:100});
     list.push({prop_id:166,prop_name:"Pocket slots",comparable:false});
+    // An armour piece's (the stock lines; added, mod_type 1).
+    for each(spec in [[6,"Armor",1,""],[8,"Isolation",1,""]])list.push({prop_id:spec[0],prop_name:spec[1],direction:spec[2],postfix:spec[3],comparable:true,min_value:0,max_value:100,modifier_type:0});
     // A round's lines (AmmoDetails labels them by these names), and Pierces (pierce-line-1), no bar.
     for each(spec in [[21,"Damage"],[22,"Armor penetration"],[163,"Bullet speed"],[16,"Rounds in a pack"],[174,"Pierces"]])list.push({prop_id:spec[0],prop_name:spec[1],comparable:false});
     // The rolls' own properties, multiplied (modifier_type 1) as the exe tells the movie (mod_type 2).
@@ -1008,6 +1107,7 @@ package {
      altChecks();
      throwableChecks();
      medicineChecks();
+     isolationChecks();
      bearArmsChecks();
     }
     if(frame==140){Scene.isAlt=true;}

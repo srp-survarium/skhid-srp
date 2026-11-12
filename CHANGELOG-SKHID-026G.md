@@ -9,6 +9,103 @@ release that made it what it is now.
 
 ---
 
+## 11 Nov, 21:59 — TODO: the owner's words (update required)
+
+<!-- Revision 56 (026g-rev56), released 2026-11-11 21:59 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1611 Replays: take the mode's config from the game data
+- TODO: #1612 Sign-in: srp's own cipher in place of TLS (patch 139)
+- TODO: #1614 Replays: a late place's install is looked for from its prepare
+- TODO: #1617 Module report (patch 125): loaded DLLs and overlay windows, logged by the match server
+- TODO: #1619 DXVK: one AMD driver when a stale one loads too (patch 83)
+- TODO: #1621 Lobby: Regeneration, Speed and Weight boxes evenly across the panel, equal side padding in each
+- TODO: #1616 Replays: one end record in the body, so a seek plays to its target
+- TODO: #1597 Patch 135: a replay shows the enemies: red dots, markers and names with Alt
+- TODO: #1620 Patch 140: a replay's keys, one row a player, a followed player followed again
+- TODO: #1613 PPSh-41 Drum: the drum straight in the magazine well (weapons-069@16)
+- TODO: #1622 Weapon camouflage: the gun keeps its own relief, not the cloth's weave
+- TODO: #1577 Patch 133: console command `where` prints the camera's place and look
+- TODO: #1624 SR-3M magazine 30
+- TODO: #1625 SR-3M magazine 30 in weapon-stats.tsv
+- TODO: #1623 Blackout: Tab shows the player list (names only, no scores); Tab no longer stops the player
+- TODO: #357 Team voice chat with shared Rust hooks and a versioned DLL ABI
+- TODO: #1626 Music: a map's theme starts with its loading, not with the loaded map
+- TODO: #1627 Patch 125: look at the windows over the game each minute of a match
+- TODO: #1629 Music: 0.5 s fade-out when another track follows
+- TODO: #1628 Cascade: teammates reached at activation keep the active to its end
+- TODO: #1632 srp's image: copy client-voice, a member of the workspace
+
+## 10 Nov, 15:43 — TODO: the owner's words (update required)
+
+<!-- Revision 55 (026g-rev55), released 2026-11-10 15:43 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1585 re-kit 0.26g: names of the hot functions in the rev54 FPS profiles
+- TODO: #1598 World frame: seal the animation times-table under-read (op-0 and duration pops)
+- TODO: #1336 Patch 121 (bake_async): the camouflage/decal bake does not wait for the GPU
+- TODO: #1595 Patch 70: baked textures kept across releases and starts, the CRC-32 folded
+- TODO: #1594 Hud: per-frame Scaleform work only on change
+- TODO: #1592 Cut per-frame work of patches 76, 78, 85 and 94
+- TODO: #1587 Make patch 109's artefact-skill hooks cheap
+- TODO: #1589 Patch 134: shader constants cost the render thread less, the same bytes on the GPU
+- TODO: #1593 Patch 137: texture streaming's per-frame bookkeeping in Rust
+- TODO: #1590 Patch 136: the animation's sin, cos, atan2 and knot search, faster and the same
+- TODO: #1591 Patch log: one kept handle, repeats counted, rotation; rollback lines once
+- TODO: #1582 Lobby top bar: lay it out over wide screens without stretching it
+- TODO: #1596 Patch 83: Vulkan drivers and layers of DXVK's GPU only, no AMD heap, the VRAM probe's driver let go
+- TODO: #1600 Login: the background picture covers wide screens
+- TODO: #1601 Lobby: a put fills the pocket, and a full pocket stays full
+- TODO: #1603 Lobby top bar: the level-100 star sits on the level badge's place, without its ring
+- TODO: #1604 Alt on armour: isolation with Resistance
+- TODO: #1605 Lobby: no Autobuy box (autobuy always on), the Regeneration box beside Speed and Weight
+- TODO: #1607 Profiler: the managed arena by resource class, Scaleform's heaps by name
+
+## 9 Nov, 16:06 — TODO: the owner's words (update required)
+
+<!-- Revision 54 (026g-rev54), released 2026-11-09 16:06 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1457 feat(client): macOS support
+- TODO: #1526 Wiki skills: levels, their formula and a graph
+- TODO: #1528 Wiki: no footer, the header is enough
+- TODO: #1527 Wiki: quests page
+- TODO: #1530 Content: ten more 0.69d decals (pack decals-069d@2)
+- TODO: #1536 Content: the "Alpha" Squad badge costs 10,000,000 silver
+- TODO: #1520 New accounts: the Keeper set in preset 2 (AK-12, Saiga-12); premium bonuses +20 % / +50 %
+- TODO: #1548 Patch 113: never take the hud's cursor movie off a scene twice (crash at exe+0x14EE8D)
+- TODO: #1542 Local launcher: refuse an exe older than the server takes
+- TODO: #1549 Lobby: Esc over the results after a match closes them, not the game's menu
+- TODO: #1523 Silver only: remove gold from the game
+- TODO: #1551 Patch 83: a DXVK fullscreen window DXGI refuses becomes a popup (Vulkan on AMD)
+- TODO: #1550 Patch 113: the main menu gives up an awaited key before it closes (a latent crash at exe+0x14EE8D)
+- TODO: #1472 fix(updater): report progress while extracting
+- TODO: #1539 Nerf the SCAR-H, vz.58 and VSK-94
+- TODO: #1517 SV-1367 Dusk: base rarity 0, so it can craft and roll modifications
+- TODO: #1502 Keeper of the Artifacts: Onyx rare (48/48/4)
+- TODO: #1518 Delta mask and NVD armour 5, NVD sway -10 %, Sniper vest pocket back
+- TODO: #1557 Dev shell: share one sccache across worktrees
+- TODO: #1519 Give the VKS Vychlop weight -15% instead of aiming speed
+- TODO: #1558 Hold every kit to its layout: pockets, pocket size, second weapon
+- TODO: #1556 Patch 124: resources helper arena 32 MiB, render arena 320 MiB by default
+- TODO: #1560 Artefact tree: Forest Protection and Keeper of the Artifacts go together
+- TODO: #1473 fix(client): Linux Calibri from a pinned mirror
+- TODO: #1562 Concentration: sway -5% a rank while the painkiller is active
+- TODO: #1563 Wiki skills: how many players took each skill
+- TODO: #1561 No premium account: its half again is everyone's pay
+- TODO: #1565 Skills: seven stock skills and Quick Hands take 3 ranks, each worth more
+- TODO: #1540 fix(harness): measure text with the movie's fonts
+- TODO: #1566 Wiki skills: plan a build by clicking skills
+- TODO: #1569 Patch 128: engine threads get 2 MiB stacks, not 8
+- TODO: #1567 Sides: strong players dealt evenly, at the start and on late joins
+- TODO: #1564 Patch 126: the game reports its memory headroom to the match server
+- TODO: #1570 Refuse a hit effect with a non-zero root-emitter registry index
+- TODO: #1571 Token backpack back at level 10
+- TODO: #1516 Token backpack: pocket capacity +1 beside its artefact container
+- TODO: #1491 Use: Rust detect_usable_object; a usable battery beats a dropped gun
+- TODO: #1568 Patch 127: a memory profiler of the engine's arenas (SKHID_MEMORY_PROFILE=on)
+- TODO: #1572 Make the 0.21d Radar's electric anomalies hit the legs only
+- TODO: #1574 Use scan: deep review follow-ups
+- TODO: #1573 Patch 129: the multithreaded arena is at least 1024 MiB
+- TODO: #1579 release: the swap check reads the new srp26's whole log
+
 ## 7 Nov, 23:16 — TODO: the owner's words (update required)
 
 <!-- Revision 53 (026g-rev53), released 2026-11-07 23:16 UTC. To be worded for players; what it shipped: -->

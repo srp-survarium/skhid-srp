@@ -6,7 +6,7 @@ package survarium.player
    import survarium.data.LocalizationData;
    import survarium.item.ModificationRolls;
 
-   // What a match adds to a weapon's, a medicine's, a grenade's or a trap's card stats in the selected kit, shown while Alt is held
+   // What a match adds to a weapon's, a medicine's, a grenade's, a trap's or an armour piece's card stats in the selected kit, shown while Alt is held
    // (docs/notes/alt-weapon-stats.md). A player modifier's sum S is the kit's own float (the
    // skills) plus the kit's armour's modifications of it (armor::add_modifiers 0x33F3A0): the sum
    // apply_modifier 0x2D5AE0 takes, B x max(0, 1 + k x S), k 1 at every site below.
@@ -58,10 +58,11 @@ package survarium.player
          return LocalizationData.getName(_kit != null ? "st_srp_weapon_with_kit_skills" : "st_srp_weapon_with_kit");
       }
 
-      // Whether Alt shows an item's card as a match has it: a weapon's, a medicine's, a grenade's or a trap's.
+      // Whether Alt shows an item's card as a match has it: a weapon's, a medicine's, a grenade's or
+      // a trap's, and that of a piece with an isolation line (armour).
       public static function covers(item:Object) : Boolean
       {
-         return item != null && (item.isWeapon || item.category == ItemCategory.MEDKITS || throwable(item));
+         return item != null && (item.isWeapon || item.category == ItemCategory.MEDKITS || throwable(item) || has(item,ISOLATION));
       }
 
       private static function throwable(item:Object) : Boolean
@@ -75,6 +76,7 @@ package survarium.player
       {
          if(item.category == ItemCategory.MEDKITS) return medicine(item,propId,value);
          if(throwable(item)) return thrown(propId,value);
+         if(!item.isWeapon) return propId == ISOLATION ? isolation(value) : value;
          switch(propId)
          {
             case 133:
@@ -159,12 +161,11 @@ package survarium.player
          {
             // While a painkiller is active (set_active's flag on a pain protector): Numb Legs, the
             // sprint's stamina x (1 - 0.2 x rank) (player_stamina::sprint 0x329AAD); Unflinching,
-            // the hits' stopping power x (1 - 0.1 x rank); Concentration, the environment's
-            // sounds x (1 - 0.1 x rank) and the opponents' (not their shots) x (1 + 0.1 x rank).
+            // the hits' stopping power x (1 - 0.1 x rank); Concentration, the sight's sway x (1 - 0.05
+            // x rank) (breath_vibration_calculator::tick 0x31D727, added to modifier 61's own).
             skillLine(lines,"st_srp_medicine_sprint_stamina",1 - _kit.numbLegsRank * 0.2,false);
             skillLine(lines,"st_srp_medicine_hit_slow",1 - _kit.unflinchingRank * 0.1,false);
-            skillLine(lines,"st_srp_medicine_ambient_sounds",1 - _kit.concentrationRank * 0.1,false);
-            skillLine(lines,"st_srp_medicine_enemy_sounds",1 + _kit.concentrationRank * 0.1,true);
+            skillLine(lines,"st_srp_medicine_sight_sway",1 - _kit.concentrationRank * 0.05,false);
          }
          // Take Cover: each heal tick's amount x (1 + 0.1 x rank) while crouched (medkit::tick
          // 0x33D948, after Medical Training's S57), on a medicine that heals.
@@ -200,6 +201,21 @@ package survarium.player
             default:
                return value;
          }
+      }
+
+      // An armour card's isolation: the armour, x100, of each body part the piece covers against
+      // the four anomalous hit types (hit_params/<part>/hit_types/<type>/armor).
+      private static const ISOLATION:int = 8;
+
+      // A piece's isolation as a match has it on the parts it covers (docs/notes/artefact-skills.md,
+      // Resistance): a part's armour A against an anomalous hit is + 0.05 a rank of Resistance
+      // (patch hook 0x32A083, artefact_skills.rs Resistance::ARMOUR; the card's points are x100),
+      // and the hit keeps 1 - clamp(A - P, 0, 1) (0x32A07E), so points past 100 stop nothing more.
+      // Once a part, on the sum of the pieces that cover it: not once a piece.
+      private function isolation(value:Number) : Number
+      {
+         var rank:int = _kit == null ? 0 : _kit.resistanceRank;
+         return Math.max(value,Math.min(100,value + rank * 5));
       }
 
       // A medicine card's pain protection (%), the painkiller's.

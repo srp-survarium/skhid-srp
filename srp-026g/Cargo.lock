@@ -487,6 +487,7 @@ dependencies = [
  "log",
  "openssl",
  "session",
+ "sign-in-cipher",
  "vostok",
 ]
 
@@ -520,6 +521,7 @@ dependencies = [
  "serde",
  "serde_json",
  "session",
+ "skhid-voice",
  "srp-validate",
  "survarium",
  "udp-transport",
@@ -814,6 +816,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
+name = "sign-in-cipher"
+version = "0.1.0"
+
+[[package]]
+name = "skhid-voice"
+version = "0.1.0"
+dependencies = [
+ "voice-abi",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "smallvec"
 version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -937,6 +951,7 @@ name = "udp-transport"
 version = "0.1.0"
 dependencies = [
  "log",
+ "srp-validate",
 ]
 
 [[package]]
@@ -962,6 +977,10 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+
+[[package]]
+name = "voice-abi"
+version = "0.1.0"
 
 [[package]]
 name = "vostok"

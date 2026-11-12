@@ -20,8 +20,8 @@
 ; With `data/camouflage` a non-empty text or decals in `data/decals`
 ; (DECALS' lookup), it asks, for each surface of the model's render instance
 ; (at most MAX_SURFACES), for the bake the lobby's editor asks for: one P
-; from the game's allocator, the camouflage's diffuse, `_nmap` and `_smap`
-; names and the decals' layers (DECALS' fill), the render instance (one
+; from the game's allocator, the camouflage's diffuse and `_smap` names (not
+; its `_nmap`) and the decals' layers (DECALS' fill), the render instance (one
 ; reference more), the surface's index, the scale (`data/camo_scale`, else
 ; 4.0 as every stock bake), and a name of the baked files of its own,
 ; `srpw1_<camouflage>_<object/model>_<surface>` (and the decals', by fill)

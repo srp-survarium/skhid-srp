@@ -244,23 +244,15 @@ pub fn starter_stash() -> &'static [(u16, u32)] {
 /// grenade (its table at 0x925FC0). PROVEN.
 pub const POCKET_SLOTS: [u8; 6] = [13, 14, 15, 16, 17, 18];
 
+/// The ammunition slots (the client's table 0x9C2578): two of each weapon
+/// and the four after the pockets.
+pub const AMMO_SLOTS: [u8; 8] = [8, 9, 11, 12, 19, 20, 21, 22];
+
 /// Supply pockets and artefacts share six quick positions.
 pub const MAX_POCKETS: usize = POCKET_SLOTS.len();
 
 /// Final units in one supply pocket, including medicine bonuses.
 pub const MAX_POCKET_UNITS: u32 = 5;
-
-/// Cap equipped supply stacks without limiting stored items or ammunition:
-/// a pocket holds what the largest pocket ([`MAX_POCKET_UNITS`]) holds of
-/// the item ([`item_params::PocketShare::units_in`]; the server does not
-/// know the kit's pocket size, the exe sets it).
-pub fn equipped_units(slot: u8, dict_id: u16, units: u32) -> u32 {
-    if POCKET_SLOTS.contains(&slot) {
-        units.min(pocket_share(dict_id).units_in(MAX_POCKET_UNITS))
-    } else {
-        units
-    }
-}
 
 /// What one unit of the item takes of a pocket (its config's,
 /// [`item_params::PocketShare`]); one unit for an item with no config.
@@ -670,13 +662,7 @@ pub fn pockets(loadout: &Loadout) -> (u32, u32) {
 /// [`pockets`], its items having `own` modifications besides their
 /// defaults, `(id, defect)`.
 pub fn pockets_with(loadout: &Loadout, own: &[(u32, bool)]) -> (u32, u32) {
-    let mut modifications: Vec<(u32, bool)> = loadout
-        .items
-        .iter()
-        .flat_map(|item| default_modifications(item.dict_id))
-        .collect();
-    modifications.extend_from_slice(own);
-    let layout = KitLayout::new(&modifications, &[0.0; skills::MODIFIERS]);
+    let layout = KitLayout::of_loadout(loadout, own);
     (layout.pockets, layout.pocket_size)
 }
 
@@ -716,8 +702,9 @@ const FIRST_WEAPON_SLOT: usize = 7;
 const SECOND_WEAPON_SLOT: u8 = 10;
 
 /// What a kit's worn items and its skills open of its slots, the lobby's
-/// rules for them (the server keeps them only when the skills change:
-/// [`narrowed`]).
+/// rules for them, which the server holds every kit to ([`KitLayout::kept`]:
+/// a skill or gear taken off takes back what it opened, and no later request
+/// puts it back).
 ///
 /// - Pockets: the player's `pocket_slots_count` and `pocket_slot_size` (1
 ///   and 1, `default.player`) plus what the worn items' modifications (their
@@ -736,10 +723,18 @@ const SECOND_WEAPON_SLOT: u8 = 10;
 ///   Pockets or Supply Pocket (`disable_second_weapon`), not a
 ///   double-handed one beside another without Terminator
 ///   (`use_two_double_handed_weapons`; `LocalPaperDoll`).
+/// - Ammo bags: the player's `ammo_bags_count` (3) plus what the worn
+///   items' modifications (`ammo_bags_modifier`) and the skills (modifier
+///   16) add, the lobby's `PlayerInfo.ammoBags`
+///   (process_default_relocate_item 0x288E4B..0x288E65). LIKELY, as the
+///   pockets: the same sum. The ammunition slots share them, a clip taking
+///   its item's `required_bags`; the layout only spreads ammunition over
+///   bags added ([`KitLayout::followed`]), it takes none off.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct KitLayout {
+pub struct KitLayout {
     pockets: u32,
     pocket_size: u32,
+    ammo_bags: u32,
     extra_medicine: bool,
     carry: CarryRule,
 }
@@ -747,7 +742,7 @@ struct KitLayout {
 impl KitLayout {
     /// The layout of a kit whose worn items have `modifications`, with the
     /// skills' `modifiers` ([`skills::SkillsTree::modifiers`]).
-    fn new(modifications: &[(u32, bool)], modifiers: &[f32; skills::MODIFIERS]) -> KitLayout {
+    pub fn new(modifications: &[(u32, bool)], modifiers: &[f32; skills::MODIFIERS]) -> KitLayout {
         use skills::slot_modifier::*;
         let total = |base: u32, parameter, skill: usize| {
             (base as f32 + added_by(modifications, parameter) + modifiers[skill]).max(0.0) as u32
@@ -769,6 +764,7 @@ impl KitLayout {
                 POCKET_SLOT_SIZE,
             )
             .min(MAX_POCKET_UNITS),
+            ammo_bags: total(player.ammo_bags_count, "ammo_bags_modifier", AMMO_BAGS),
             extra_medicine: ranks.is_some_and(|ranks| ranks >> ADDITIONAL_MEDICINE_BIT & 1 == 1),
             carry: CarryRule::from_modifiers(
                 modifiers[DISABLE_SECOND_WEAPON],
@@ -777,18 +773,142 @@ impl KitLayout {
         }
     }
 
+    /// The layout of a kit wearing `loadout`, its items having `own`
+    /// modifications besides their defaults, `(id, defect)`, with no skills.
+    pub fn of_loadout(loadout: &Loadout, own: &[(u32, bool)]) -> KitLayout {
+        let mut modifications: Vec<(u32, bool)> = loadout
+            .items
+            .iter()
+            .flat_map(|item| default_modifications(item.dict_id))
+            .collect();
+        modifications.extend_from_slice(own);
+        KitLayout::new(&modifications, &[0.0; skills::MODIFIERS])
+    }
+
+    /// `slots` (each slot's dict id and units) as a kit of this layout holds
+    /// them: a pocket at most what it holds of its item, nothing in a pocket
+    /// it does not open, no second weapon its carry rule forbids. A slot comes
+    /// back with the units it keeps, or empty.
+    pub fn kept<const SLOTS: usize>(
+        &self,
+        slots: &[Option<(u16, u32)>; SLOTS],
+    ) -> [Option<(u16, u32)>; SLOTS] {
+        self.followed(self, slots)
+    }
+
+    /// [`Self::kept`] for a kit whose layout was `before`: a full pocket
+    /// stays full. A pocket holding all `before` let it hold of its item
+    /// holds all this layout does (gear or a skill made the pocket larger);
+    /// one the player keeps below that keeps its units. Ammunition that took
+    /// every ammo bag of `before` is spread over the bags of this layout
+    /// ([`Self::spread_ammo`]). The units owned are the caller's to hold it to.
+    pub fn followed<const SLOTS: usize>(
+        &self,
+        before: &KitLayout,
+        slots: &[Option<(u16, u32)>; SLOTS],
+    ) -> [Option<(u16, u32)>; SLOTS] {
+        let first_weapon = slots
+            .get(FIRST_WEAPON_SLOT)
+            .copied()
+            .flatten()
+            .map(|(dict_id, _)| dict_id);
+        let mut kept = std::array::from_fn(|slot| {
+            let (dict_id, units) = slots[slot]?;
+            let was_full = before
+                .pocket_units(slot as u8, dict_id)
+                .is_some_and(|limit| limit > 0 && units >= limit);
+            let kept = match self.limit(slot as u8, dict_id, first_weapon) {
+                None => units,
+                Some(limit) if was_full => limit,
+                Some(limit) => units.min(limit),
+            };
+            (kept > 0).then_some((dict_id, kept))
+        });
+        self.spread_ammo(before, &mut kept);
+        kept
+    }
+
+    /// Full ammo bags stay full: when this layout has more ammo bags than
+    /// `before` and the ammunition of `slots` took all of those, each
+    /// ammunition slot's bags grow in proportion (the player's split between
+    /// them is kept), in whole clips; the bags the rounding leaves go to the
+    /// slots that lost most by it. Ammunition that left bags free is the
+    /// player's choice and stays; no slot's rounds are lowered.
+    fn spread_ammo<const SLOTS: usize>(
+        &self,
+        before: &KitLayout,
+        slots: &mut [Option<(u16, u32)>; SLOTS],
+    ) {
+        struct Held {
+            slot: usize,
+            clip: u64,
+            required: u64,
+            bags: u64,
+        }
+        if self.ammo_bags <= before.ammo_bags {
+            return;
+        }
+        let mut held: Vec<Held> = AMMO_SLOTS
+            .iter()
+            .filter_map(|&slot| {
+                let slot = usize::from(slot);
+                let (dict_id, rounds) = (*slots.get(slot)?)?;
+                let params = item_params::item_params(dict_id)?;
+                let (clip, required) =
+                    (u64::from(params.clip_size), u64::from(params.required_bags));
+                (clip > 0 && required > 0).then(|| Held {
+                    slot,
+                    clip,
+                    required,
+                    bags: u64::from(rounds).div_ceil(clip) * required,
+                })
+            })
+            .collect();
+        let used: u64 = held.iter().map(|held| held.bags).sum();
+        if used < u64::from(before.ammo_bags).max(1) {
+            return;
+        }
+        let bags = u64::from(self.ammo_bags);
+        let share = |held: &Held| held.bags * bags / used / held.required * held.required;
+        let mut free = bags.saturating_sub(held.iter().map(share).sum());
+        // Most lost by the rounding first.
+        held.sort_by_key(|held| std::cmp::Reverse(held.bags * bags - share(held) * used));
+        let mut shares: Vec<u64> = held.iter().map(share).collect();
+        while let Some(index) = held.iter().position(|held| held.required <= free) {
+            for (held, share) in held.iter().zip(&mut shares).skip(index) {
+                if held.required <= free {
+                    *share += held.required;
+                    free -= held.required;
+                }
+            }
+        }
+        for (held, share) in held.iter().zip(shares) {
+            let spread = u32::try_from(share / held.required * held.clip).unwrap_or(u32::MAX);
+            if let Some((_, rounds)) = slots[held.slot].as_mut() {
+                *rounds = (*rounds).max(spread);
+            }
+        }
+    }
+
+    /// The most units of `dict_id` the pocket `slot` holds (none for a
+    /// pocket the layout does not open); `None` for a slot that is no pocket.
+    fn pocket_units(&self, slot: u8, dict_id: u16) -> Option<u32> {
+        let pocket = POCKET_SLOTS.iter().position(|&each| each == slot)?;
+        if pocket as u32 >= self.pockets {
+            return Some(0);
+        }
+        let medicine = Dictionary::shared()
+            .item(dict_id)
+            .is_some_and(|item| item.category == MEDICINE_CATEGORY);
+        let size = self.pocket_size + u32::from(self.extra_medicine && medicine);
+        Some(pocket_share(dict_id).units_in(size.min(MAX_POCKET_UNITS)))
+    }
+
     /// The most units of `dict_id` slot `slot` may hold, beside
     /// `first_weapon`; `None` for a slot the layout does not limit.
     fn limit(&self, slot: u8, dict_id: u16, first_weapon: Option<u16>) -> Option<u32> {
-        if let Some(pocket) = POCKET_SLOTS.iter().position(|&each| each == slot) {
-            if pocket as u32 >= self.pockets {
-                return Some(0);
-            }
-            let medicine = Dictionary::shared()
-                .item(dict_id)
-                .is_some_and(|item| item.category == MEDICINE_CATEGORY);
-            let size = self.pocket_size + u32::from(self.extra_medicine && medicine);
-            return Some(pocket_share(dict_id).units_in(size.min(MAX_POCKET_UNITS)));
+        if let Some(units) = self.pocket_units(slot, dict_id) {
+            return Some(units);
         }
         if slot != SECOND_WEAPON_SLOT {
             return None;
@@ -805,42 +925,6 @@ impl KitLayout {
             CarryRule::OneDoubleHanded | CarryRule::TwoDoubleHanded => None,
         }
     }
-}
-
-/// A kit's slots after its skills' modifiers go from `before` to `after`
-/// ([`skills::SkillsTree::modifiers`]): what the layout of `after`
-/// ([`KitLayout`]) no longer allows and that of `before` did is taken off,
-/// the kit's other limits being the lobby's, which the server does not keep.
-/// `slots` holds each slot's dict id and units, `modifications` are its worn
-/// items' (their defaults and their own). A slot comes back with the units
-/// it keeps, or empty.
-pub fn narrowed<const SLOTS: usize>(
-    slots: &[Option<(u16, u32)>; SLOTS],
-    modifications: &[(u32, bool)],
-    before: &[f32; skills::MODIFIERS],
-    after: &[f32; skills::MODIFIERS],
-) -> [Option<(u16, u32)>; SLOTS] {
-    let (before, after) = (
-        KitLayout::new(modifications, before),
-        KitLayout::new(modifications, after),
-    );
-    let first_weapon = slots
-        .get(FIRST_WEAPON_SLOT)
-        .copied()
-        .flatten()
-        .map(|(dict_id, _)| dict_id);
-    std::array::from_fn(|slot| {
-        let (dict_id, units) = slots[slot]?;
-        let slot = slot as u8;
-        let kept = match (
-            before.limit(slot, dict_id, first_weapon),
-            after.limit(slot, dict_id, first_weapon),
-        ) {
-            (before, Some(limit)) if before.is_none_or(|before| limit < before) => units.min(limit),
-            _ => units,
-        };
-        (kept > 0).then_some((dict_id, kept))
-    })
 }
 
 #[cfg(test)]

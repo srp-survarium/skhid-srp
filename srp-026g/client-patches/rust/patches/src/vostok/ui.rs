@@ -81,6 +81,15 @@ impl<'t> GameWorldUi<'t> {
         Some(GameWorldUi { this, thread: PhantomData })
     }
 
+    /// At `player_icons.enemy_ids` (initialize_match, about to send its enemy
+    /// list to the icons movie).
+    pub fn at_enemy_ids(ctx: &'t Context<'_>) -> Option<GameWorldUi<'t>> {
+        // SAFETY: the context is this site's: initialize_match's ui in ESI,
+        // alive while it runs on the game's thread.
+        let this = unsafe { raw::site::player_icons_enemy_ids::ui(ctx) }?;
+        Some(GameWorldUi { this, thread: PhantomData })
+    }
+
     /// The hud movie (hud.swf), when the hud has it.
     pub fn hud_movie(&self) -> Option<Movie<'t>> {
         // SAFETY: the ui is alive for the hook, on its thread.

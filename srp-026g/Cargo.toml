@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "crates/ban-reason",
+  "crates/sign-in-cipher",
   "crates/binary-config-parser",
   "crates/mapdata",
   "crates/research-rule",
@@ -9,6 +10,8 @@ members = [
   "crates/artefact-carry",
   "crates/weapon-pickup",
   "crates/ragdoll",
+  "crates/voice-abi",
+  "client-voice",
   "crates/survarium",
   "crates/udp-transport",
   "crates/vostok",
@@ -73,6 +76,7 @@ resources-db = { path = "crates/resources-db" }
 # kept beside the in-tree crate above under its own name.
 vostok-resources-db = { package = "resources-db", git = "https://github.com/srp-survarium/vostok-resources-db", rev = "9498aca14014ef74460429f51eb41a6af333522c" }
 ban-reason = { path = "crates/ban-reason" }
+sign-in-cipher = { path = "crates/sign-in-cipher" }
 session = { path = "crates/session" }
 srp-validate = { path = "crates/srp-validate" }
 survarium = { path = "crates/survarium" }

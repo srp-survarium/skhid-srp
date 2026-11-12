@@ -69,8 +69,8 @@
 //!   (default 6 for PvP; one human for PvE, late joiners counted) have entered it; kept files over
 //!   `SRP_RECORD_MAX_MB` (default 5000) together go oldest first
 //!   ([`record`]);
-//! - `SRP_REPLAY_DIR=<dir>`, `SRP_GAME_MODES_DIR=<dir>` (default off; both
-//!   needed, with `SRP_RECORD_DIR`): a kept recording is made into the
+//! - `SRP_REPLAY_DIR=<dir>` (default off; needed, with
+//!   `SRP_RECORD_DIR`): a kept recording is made into the
 //!   game's replay file there when a player first asks for it in the
 //!   lobby's "Watch replay", and a replay goes with its recording
 //!   ([`replay`]). The replay folder must be a folder of its own (not
@@ -110,6 +110,8 @@ mod afk;
 /// A player's battery events pay at most N times per kind, N the map's
 /// batteries (the owner's rule against farming them).
 mod battery_cap;
+mod client_report;
+mod executable;
 /// The server's own bots (`MatchPlayer::driven`): their maps.
 pub mod bots;
 /// The upload check of a recorded match, for `examples/world_check_bench.rs`.
@@ -136,6 +138,9 @@ mod reward_caps;
 mod server;
 pub mod sur;
 pub mod sur_convert;
+/// Voice chat: the team push-to-talk relay beside the match server
+/// (`docs/notes/voice-chat.md`).
+pub mod voice;
 
 #[cfg(test)]
 mod tests;
@@ -156,7 +161,7 @@ use udp_transport::{Config, Table};
 pub use registry::{
     CreateError, DRAW, IdleRemoved, JoinError, LiveMatch, LivePhase, LiveStanding, MatchEnd,
     MatchPlayer, MatchRegistry, MatchResult, MatchSetup, MatchTicket, PlayerResult, ResultsSink,
-    Seat, static_id,
+    Seat, VoiceSeat, static_id,
 };
 pub use replay::{replays_from_env, replays_of};
 pub use server::{run, run_on, run_on_with_replays};

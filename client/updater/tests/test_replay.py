@@ -143,7 +143,7 @@ class QuietSource(unittest.TestCase):
         # One start of the game, after the check `ready` makes; its refusal
         # returns before it.
         self.assertEqual(body.count("win::start("), 1)
-        check = body.index("crate::patches::ready(&layout).is_err()")
+        check = body.index("crate::patches::ready(layout).is_err()")
         self.assertLess(check, body.index("win::start("))
         self.assertIn("return tell(quiet, language, &Problem::NotReady);", body[check:body.index("win::start(")])
 
@@ -244,8 +244,8 @@ class ReplayTest(unittest.TestCase):
         command, folder = started
         game = os.path.join(self.x86, "survarium_skhid.exe")
         # No -localization: the game keeps its own language (game patch 79).
-        self.assertEqual(command, f'"{game}" -mt_allocator=768 '
-                                  f'-minimum_resources_memory_size=768 -match_replay="{replay_path}"')
+        self.assertEqual(command, f'"{game}" '
+                                  f'-match_replay="{replay_path}"')
         self.assertEqual(os.path.normcase(folder.rstrip("\\")), os.path.normcase(self.x86))
 
     def assertNothingDone(self, requests=0):

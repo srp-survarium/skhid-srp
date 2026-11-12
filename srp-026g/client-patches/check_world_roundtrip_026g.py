@@ -133,7 +133,10 @@ OWN_CHECKS = {
     (0x2F5BE6, 6): "shared_statistics::deserialize: twenty records, as its serialize",
     (0x2F5C03, 6): "shared_statistics::deserialize: twenty records (its second loop)",
     (0x313735, 6): "carry.ground_save: a dropped artefact's 20 bytes in the objects section (no decoder locates "
-                   "them); check_artefact_carry_026g.py (state 6's 20 bytes saved, then loaded)",
+                   "them); check_artefact_carry_026g.py (state 6's 20 bytes saved, then loaded); and patch 109's "
+                   "4 bytes of an active one (state 4), the places Cascade's activation reached; "
+                   "check_artefact_skills_026g.py `check_cascade_activation` (saved, loaded by a late joiner, saved "
+                   "the same)",
     (0x3137EC, 5): "carry.ground_load: as carry.ground_save",
     (0x321C3B, 5): "bullet_history.saved: patch 75's lamp words after the bullets' history (the bullets section, "
                    "no decoder); check_lamps_026g.py (a rollback's and a late joiner's load: the lamps the words say)",

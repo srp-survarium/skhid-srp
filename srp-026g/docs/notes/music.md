@@ -13,12 +13,19 @@ The owner's (2026-10-28; 2026-10-31 the 15 s; 2026-10-31 one song at a time, the
 - **Loading a match:** the map's theme (its mode's `ui.loading_music`, as retail), from the loading
   screen into the match. It stops 15 s after the match-start announcement (the welcome message as
   the countdown ends), with a 2 s fade-out. Retail fades it at the announcement itself; the 15 s
-  are the owner's (2026-10-31). Waiting for players and the countdown do not count.
+  are the owner's (2026-10-31). Waiting for players and the countdown do not count. It starts
+  as the map starts to load (the owner, 2026-11-11: "It should start when the map starts to
+  load"): its sound is asked at `switch_to_level_loading`, before `game_world::load` asks the
+  map's, as retail asks it.
 - **A mode with no `ui.loading_music`:** no map theme; whatever played fades out.
-- **Fades:** a theme fades in over 2 s and fades out over 2 s (retail's 2000 ms, both ways).
+- **Fades:** a theme fades in over 2 s (retail's 2000 ms). It fades out over 0.5 s when another
+  theme follows (a handover: the owner, 2026-11-11, "music can start a bit earlier too", so a
+  map's theme starts 0.5 s into its loading), and over 2 s into silence (15 s past the
+  announcement, a mode with no theme, a replay).
 - **One song at a time:** at most one track is audible at any moment, and never two at once.
   - A change of track fades the playing one out completely (or it is stopped), and only then
-    does the next one start, with its fade-in. A crossfade never happens.
+    does the next one start, with its fade-in. A crossfade never happens. The next one's sound
+    is asked at once, during the fade; here before the fade ends, it waits for the silence.
   - A track that is still fading out when another is asked for (a quick lobby -> match ->
     lobby, a reconnect) is stopped at once, and the new one starts with its fade-in.
   - The track already playing, asked for again (the lobby theme in the lobby), plays on.
@@ -97,7 +104,7 @@ The owner's (2026-10-28; 2026-10-31 the 15 s; 2026-10-31 one song at a time, the
 
 - **The owner of the music** is one state machine (`music.rs`): no bus yet / silent / loading a
   track / sounding (fading in or full, with the 15 s deadline once announced) / fading out (with
-  the track asked for next). One transition function takes each event (a screen asked for a
+  what follows: silence, the next track's sound on the way, or its sound here). One transition function takes each event (a screen asked for a
   track, the announcement, a load done, a frame, the unload) and calls the engine.
 - **The slider's variable** is registered at `configs.start` (on_configs_loaded's start, after
   patch 79's and patch 83's) with the game's own cc_value constructor, as a cc_float.
@@ -110,7 +117,7 @@ The owner's (2026-10-28; 2026-10-31 the 15 s; 2026-10-31 one song at a time, the
 - **The bus** is a `sound_scene` (class 38, as the lobby's, creation params 8 proxies, 16
   propagators, 2 receivers) the game never makes current. The sound thread's tick
   (`sound_world::tick`, after its orders) keeps it among the active scenes and steps its volume
-  towards the target at 1/2000 a millisecond: the fades run on the sound thread, so a slow frame
+  towards the target at the fade's pace (1/2000 a millisecond; 1/500 for a handover): the fades run on the sound thread, so a slow frame
   never steps them. Its volume reaches the submix by the engine's own fade path (the scene's
   fade-in state, which writes `volume x general` to the submix every sound tick).
 - **A listener of its own:** a scene's sounds get voices only once its listener is set (its tick
@@ -119,8 +126,15 @@ The owner's (2026-10-28; 2026-10-31 the 15 s; 2026-10-31 one song at a time, the
   origin (set_listener_properties 0x587D0): a hud sound is heard the same wherever it is. (The
   first test build had none: the tracks loaded and played with no voice, silent, 2026-10-31.)
 - **No hitch:** a track is loaded asynchronously (the Vorbis file, 0.8 to 5.3 MB, streamed and
-  decoded by the sound thread as it plays); one track is in memory at a time (and the one fading
-  out). Nothing waits on the frame.
+  decoded by the sound thread as it plays); one track is in memory at a time (and, during a
+  fade-out, the next one's). Nothing waits on the frame.
+- **The next track's sound is asked as soon as it is wanted** (2026-11-11). Patch 88 at first
+  asked it only once the old track was silent, 2 s after the screen's ask: at a loading, after
+  `game_world::load` had asked the map's resources, so the map's theme started with the loaded
+  map, not with its loading (the owner's in-game report). Retail 0.69d asks it at the loading
+  (`0x20011b7c0`) and fades the old slot out alongside; patch 88's "one song at a time" holds the
+  play, not the load. The queue order of the resource manager's loads is LIKELY (the report fits
+  it, the manager's threads not read); the fix's effect is not yet heard in a game.
 
 ## Retail 0.69d (research, 2026-10-28)
 

@@ -90,12 +90,14 @@ vostok::buffer_reader	cursor	0x4	ptr<u8>	the next byte to read
 vostok::buffer_reader	size	0x8	u32	the bytes from begin
 survarium::game_world_ui	hud_movie	0x8	ptr<vostok::ui::movie_holder>	the hud movie's holder (initialize_match 0x234AE8: [[+8]+108h]+4 the movie)
 survarium::game_world_ui	icons_movie	0x10	ptr<vostok::ui::movie_holder>	the player icons movie's holder (update_player_icons 0x23ACC1: [[+10h]+108h]+4 the movie)
+survarium::game_world_ui	replay_movie	0x14	ptr<vostok::ui::movie_holder>	the replay player movie's holder (initialize_match 0x2356BC: mov eax,[esp+5E8h] the ui / mov ecx,[eax+14h] / mov edx,[ecx+108h] / mov ecx,[edx+4] the movie, for root.set_players_list 0x2356DD)
 vostok::ui::movie_holder	view	0x108	ptr<vostok::ui::movie_view>	the holder's movie view ([+108h]+4 the Scaleform movie, 0x2384EE)
 vostok::ui::movie_view	movie	0x4	ptr<scaleform::gfx_movie>	the Scaleform movie (GFx::Movie, Invoke 0x511600's this)
 survarium::static_info_frame	reader	-0x2C	obj<vostok::buffer_reader>	process_static_match_info's local reader {begin, cursor, size} (by EBP; filled 0x27B903..0x27B90B, deserialize's EAX at 0x27B925)
 survarium::replay_options_frame	options	0x40	ptr<survarium::match_options>	a replay's chunk 1 reader's first argument, the options (by the site's ESP at 0x1F0971; 0x1F095C)
 survarium::replay_options_frame	reader	0x14	obj<vostok::buffer_reader>	its local reader {begin, cursor, size} (esp+14h; made at 0x1F094C..0x1F0958)
 survarium::update_player_icons_frame	ui	0x4	ptr<survarium::game_world_ui>	update_player_icons' argument at its start: the ui (by the site's ESP at 0x23AA10)
+vostok::ddraw_probe_frame	ddraw	0x18	u32	the DirectDraw object DirectDrawCreate made (an IDirectDraw*; esp+18h, 0 from the probe's start, 0x105DC0, and when ddraw.dll has no DirectDrawCreate)
 scaleform::avm_text_field	as3_collectible	-0x20	u32	collectible AS3 object pointer; low bit is its GC tag
 scaleform::avm_text_field	as3_raw	-0x1C	u32	raw AS3 object pointer, preferred when nonzero
 survarium::image	medkit_vtable	0xA1C79C	u32	medkit's primary vtable, written by ctor 0x33CAE6 (all medical consumables)
@@ -125,6 +127,17 @@ scaleform::gfx_value	text	0x8	ptr<u8>	an unmanaged string's text, a C string
 scaleform::gfx_value	managed	0x8	ptr<scaleform::gfx_string_node>	a managed string's (40h) node (0x1FF611)
 scaleform::gfx_value	size	0x18	size	24 bytes (Scaleform::GFx::Value): the callback's arguments are an array of them
 scaleform::gfx_string_node	text	0x0	ptr<u8>	the managed string's text, a C string (0x1FF611: the value's pointer read again)
+scaleform::image	global_heap	0xAF30E0	obj<scaleform::heap_slot>	Scaleform::Memory::pGlobalHeap's slot (0x504787 sets it to the heap RootMH::CreateHeap 0x532490 made for System::Init 0x5057F0; 0 before the UI starts); patch 127
+scaleform::heap_slot	heap	0x0	ptr<scaleform::memory_heap>	the global heap, every other heap's ancestor
+scaleform::memory_heap	next	0x8	ptr<scaleform::memory_heap>	ListNode pNext: the next child of its parent, the parent's children_end after the last (MemoryHeapMH::CreateHeap 0x504C15: mov [esi+8],eax, the parent +40h)
+scaleform::memory_heap	flags	0x1C	u32	Info.Desc.Flags (the HeapDesc's 8 words are copied to +1Ch, 0x53250C); 1000h a debug heap, which the totals leave out (0x504C42)
+scaleform::memory_heap	name	0x40	ptr<u8>	Info.pName: its name, a C string kept in the heap's own block at +11Ch (0x532521..0x532527): "Global", MovieData "<file>", MovieDef "<file>", MovieView "<file>"
+scaleform::memory_heap	children_end	0x40	obj<scaleform::memory_heap>	where its children's list ends: the list's root (pPrev +44h, pNext +48h) as a heap (0x504C57..0x504C6B: lea eax,[esi-4] of the heap +44h)
+scaleform::memory_heap	first_child	0x48	ptr<scaleform::memory_heap>	its first child heap, children_end when it has none (GetTotalFootprint 0x504C54: mov edi,[esi+48h])
+scaleform::memory_heap	engine	0x68	ptr<scaleform::heap_engine>	MemoryHeapMH::pEngine: its allocation engine, in the heap's own block at +70h (0x532541)
+scaleform::memory_heap	size	0x70	size	MemoryHeapMH's bytes: its engine is made right after it in the same block (RootMH::CreateHeap 0x5324D7: lea ecx,[ebp+70h])
+scaleform::heap_engine	footprint	0x98	u32	the bytes the heap holds of the system allocator (GetTotalFootprint 0x504C30, vtable +54h: [[heap+68h]+98h] and each child's)
+scaleform::heap_engine	used	0x9C	u32	the bytes of them in use (GetTotalUsedSpace 0x504C90, vtable +5Ch: [[heap+68h]+9Ch])
 vostok::console_commands::cc_string	size	0x48	size	a cc_string console variable's object (cc_string::cc_string 0xEC860)
 survarium::lobby_query_frame	scene	-0x68	obj<vostok::resources::request>	lobby_menu::query_resources' request of the lobby's project: {"lobby_scene/day", class 40h} written at 0x21E5A2/0x21E5A9, the fourth of its eight
 survarium::lobby_query_frame	scene_data	-0x34	obj<vostok::resources::user_data_slot>	its user data pointer: the variant of the lobby menu as the project's base_game_scene (0x21E569)
@@ -334,6 +347,8 @@ vostok::console_commands::cc_bool	vtable	0x0	u32	its vtable: CC_BOOL_VTABLE, wri
 vostok::console_commands::image	cc_bool_vtable	0x9E7C4C	u32	cc_bool's vtable (the hud's show_quests_progress 0x2339E8; its execute 0xECA30)
 survarium::game_world_key_frame	key	0x8	u32	game_world::on_keyboard_action's second argument at its start (0x25CD00, by the site's ESP): the DirectInput key (0Fh Tab, 1Dh/9Dh the Ctrl keys)
 survarium::game_world_key_frame	state	0xC	u32	its third: the key's kind, 1 down, 2 up, 3 held (as keyboard_action_frame's state; match_keys_026g.asm)
+survarium::game_world_mouse_frame	key	0x14	u32	game_world::on_mouse_key_action's second argument at 0x25CF70 (by the site's ESP, after its three pushes; mov ebp,[esp+14h] at 0x25CF7F): 151h + the mouse button (0 the left, 1 the right, 2 the middle, 3 and 4 the side buttons; `add edi,151h` at 0x3B9981)
+survarium::game_world_mouse_frame	kind	0x18	u32	its third (cmp [esp+18h],0 at 0x25CF9D): 0 the press, 1 the release, 2 held (the mouse's process 0x3B9D90; as the character's mouse handler reads it, 0x265C20)
 survarium::game_world_input	ui	0x4	obj<survarium::game_world_ui>	the hud inside the game world's input handler (game_world+1F8h, on_keyboard_action's ECX): its +4 (lea esi,[edi+4] at 0x25CD30, show_player_list's ESI)
 survarium::game_world_ui	list_shown	0xBA	u8	the Tab list shown: show_player_list 0x2384C0 writes it (0x23850A), from on_keyboard_action's Tab test at every key (0x25CD34)
 survarium::game_world_ui	cursor_shown	0x2DC	u8	the hud's cursor shown: show_cursor 0x23A930 writes it (0x23A9BB); the game world's mouse handlers read it as handler+2E0h (0x25CFF3, 0x25D118): moves and buttons go to the hud's movies, not the player
@@ -489,6 +504,7 @@ survarium::image	inventory_request	0x9FD55C	u32	"inventory", the path of the pla
 survarium::image	inventory_variant_vtable	0x9FD808	u32	the inventory request's user data vtable (0x2028E0; destroy +4 a bare ret 4)
 vostok::query_callback	size	0x20	size	a boost::function<void (queries_result &)>: +0 its manager | 1, +8 the functor {member, adjustment, object, padding} (0x27D280); late join keeps 20h for one
 survarium::player	pending_item	0x12C	ptr<survarium::item>	the active object to switch to (m_next; tick_active_object 0x2D7655 switches when it differs from +128h; deserialize 0x2DB7BA)
+survarium::player	not_seen	0xF4E2	u8	mt_draw's cull flag: not 0 when the model was not seen the last frame (cmp byte [ebx+0F4E2h],0 at 0x24757C; with +12Ch not 0 the game culls, jne 0x24758C)
 survarium::player	animation	0x750	u32	its animation player (forget_active_object's EAX, the switch 0x2D76E5)
 survarium::core_world	objects	0x18B4C	ptr<survarium::inventory_slot>	the active objects by registry id (a buffer_vector's begin: bind_to_game_core 0x2E3102 appends; base_player::deserialize resolves held 0x2DB644)
 survarium::core_world	objects_end	0x18B50	ptr<survarium::inventory_slot>	the registry's end (a buffer_vector's: bind_to_game_core 0x2E3112 and the victory items' 0x313F90 append there; capacity +18B54h = begin+3FCh, 255 ids; the constructor 0x2CFFFA, the destructor's reset 0x2D0336)
@@ -499,6 +515,10 @@ survarium::core_place	kit0	0x0	ptr<survarium::player>	the place's kit 0 player (
 survarium::core_place	kit1	0x4	ptr<survarium::player>	the place's kit 1 player
 survarium::core_place	kit2	0x8	ptr<survarium::player>	the place's kit 2 player
 survarium::core_place	size	0x30	size	a place's entry: 30h bytes (core_active_player 0x2D0AE7)
+survarium::core_place	kit	0xC	u8	the place's kit, whose player core_active_player gives: [place + kit x 4] (0x2D0AF9 movzx ecx,byte [eax+0Ch])
+survarium::core_place	kits	0x0	obj<survarium::place_kit>	its kits' players as one array (kit0, kit1, kit2), indexed by its kit as core_active_player does (0x2D0AFD lea eax,[eax+ecx*4])
+survarium::place_kit	player	0x0	ptr<survarium::player>	the kit's player, 0 none (core_active_player 0x2D0B00)
+survarium::place_kit	size	0x4	size	a kit's player is its pointer: core_active_player steps 4 (0x2D0AFD)
 survarium::item	active_object	-0x10	obj<survarium::item>	a weapon's inventory item's active object (a weapon slot holds active+10h): only for an item known to be a weapon's
 survarium::weapon	core	0x4	ptr<survarium::core_world>	the bound world core (bind_to_game_core 0x2E3117); a cooked gun has none
 survarium::weapon	registry_id	0xC	u8	its index in core+18B4Ch (bind_to_game_core 0x2E311F; the held/pending ids serialized 0x2DB626)
@@ -625,6 +645,8 @@ vostok::physics::bt_character_controller	controller	0x0	ptr<vostok::physics::bul
 vostok::physics::bullet_character_controller	effective_crouch	0x201	u8	effective crouch: set by the crouch states (0x337810), cleared only when it can stand (+202h, 0x337830) or on jump (0x2D793E); serialized (0x7FBA0); player_step 0x7BDAE shapes the capsule from it
 survarium::medical_stopping_frame	player	0x4	ptr<survarium::player>	medical.stopping's first argument (by the site ESP, the return address at +0): the staggered player
 survarium::medical_stopping_frame	sum	0x8	f32	its second: the recent hits' stopping power after Spring's list 42, written back
+survarium::breath_vibration_calculator	player	0x3C	ptr<survarium::player>	its weapon's holder (weapon+2C4h): weapon_core::set_user writes it (0x2E29F3) and deactivate clears it (0x2E2EBE); tick reads its kit modifiers ([+115h] x 704h + [+6B8h] + 0F4h, 0x31D6F3) and its stamina (+6C0h, 0x31D768)
+survarium::breath_tick_frame	dispersion	0x8	f32	breath_vibration_calculator::tick's first argument (by its EBP, push ebp / mov ebp,esp at 0x31D6E0; read at 0x31D71C, never written): the weapon's dispersion now, weapon_core::tick's m_weapon_dispersion +418h plus m_character_dispersion +404h (0x2E0A23), what apply_modifier 61 then scales
 vostok::animation::registry_key	first	0x0	ptr<vostok::resources::managed_resource>	an animation pair's first resource, the registry's key (the 1st-view clip; animations_registry::register_animation 0x2EF130 keeps it at the entry's +0, the lookup 0x2D6590 compares it first)
 vostok::animation::registry_key	second	0x4	ptr<vostok::resources::managed_resource>	the pair's second resource (the 3rd-view clip, the one an id resolves to: 0x1F18B0 returns the entry's +4; the same resource as first for most pairs)
 survarium::animation_id_frame	registry	0x10	ptr<survarium::animations_registry>	ESP+10h at animations.id_missing: the lookup's registry argument (0x2D6590 pushed EBX, ESI, EDI after its return address)
@@ -699,21 +721,6 @@ vostok::physics::bullet_character_controller	last_position	0x50	f32	m_last_pos, 
 vostok::physics::bullet_character_controller	position	0xB0	f32	its position, a float3, Bullet frame (the translation of its matrix +80h: z the game's -z, set_transform 0x7F6D0 adds the capsule's offset along y (0xA7DC00), get_transform 0x7F5C0 takes it off for from_bullet 0x74620; player_step copies it to m_last_pos)
 vostok::physics::bt_broadphase_proxy	group	0x4	u16	m_collisionFilterGroup (needsCollision 0x75BD8; 40h a hit model)
 vostok::physics::bt_collision_shape	shape_type	0x4	u32	m_shapeType (8 a sphere, 31 a compound; rayTestSingle 0xA02EB)
-vostok::sound::sound_instance_proxy	source	0x8C	u32	patch 94's tag of what it plays (vostok::sound::Source: 0 untagged, 1 the environment, 2 an opponent's): the tail padding of its 144-byte pool record (new_*_sound_instance_proxy: the count x 90h; the constructors 0x5A6B0, 0x5A840, 0x5A9C0 write up to +88h; the sound code 0x55000..0x67000 has no +8Ch access of a proxy, its one +8Ch is world_user::initialize's own 0x56089), cleared at each allocation (sound_proxy.allocated, 0x65484)
-vostok::sound::proxy_slot	proxy	0x0	ptr<vostok::sound::sound_instance_proxy>	an intrusive_ptr<sound_instance_proxy> an emit fills: the new proxy with one reference, or 0 (emit_point_sound 0x65670, new_hud_sound_instance_proxy 0x65100)
-vostok::sound::emit_once_frame	caller	0x4	u32	emit_and_play_once's return address (push ebp / mov ebp,esp at 0x657C0: [ebp+4]): the call it plays for
-survarium::weapon_play_sound_frame	effect	0x24	ptr<survarium::weapon_sound_effect>	play_sound_callback's effect (its ECX, kept at [esp+24h] by 0x297E32; at 0x297F7E both paths' pushes are popped by their callees, the same ESP)
-survarium::weapon_sound_effect	weapon	0x30	ptr<survarium::weapon_core>	its weapon (on_sound_event 0x297C60, play_sound_callback 0x297E47: +594h its user's place)
-survarium::weapon_sound_effect	core_fire_handler	-0x150	u32	the word 150h before it: when the effect is weapon_sound_events_handler_state<weapon_core_fire_state>'s (its +168h, initialize 0x2517AE), that state's +18h vtable 0xA04F10 (its ctor 0x254FA7). Every effect is a handler state's member at +158h..+170h (initialize 0x25081E, 0x2513AE, 0x2537C3, 0x2522FE), so the word is inside its own state
-survarium::weapon_sound_effect	sidearm_fire_handler	-0x158	u32	the word 158h before it: for the pistol and double-barrelled fire states' effects (+170h, initialize 0x253423, 0x252A33), their state's +18h vtable 0xA05274 (ctor 0x255307) or 0xA0517C (0x255227); inside its own state, as above
-survarium::weapon_core	user	0x594	ptr<survarium::weapon_user>	its user: the holder's player + 110h (instant_fire calls its slot +4, 0x2E258D; on_sound_event and play_sound_callback read its place, 0x297C69, 0x297E50); deactivate leaves it (0x2E2EA4)
-survarium::weapon_user	place	0x4	u8	its player's place (player + 114h)
-survarium::image	core_fire_sound_handler	0xA04F10	u32	weapon_sound_events_handler_state<weapon_core_fire_state>'s +18h vtable (RTTI TD 0xAD2478; its ctor writes it at 0x254FA7, the primary 0xA04EE4 at 0x254FA1)
-survarium::image	pistol_fire_sound_handler	0xA05274	u32	weapon_sound_events_handler_state<pistol_weapon_core_fire_state>'s +18h vtable (TD 0xAD1498; ctor 0x255307)
-survarium::image	double_fire_sound_handler	0xA0517C	u32	weapon_sound_events_handler_state<double_barreled_weapon_core_fire_state>'s +18h vtable (TD 0xAD1920; ctor 0x255227)
-survarium::image	zone_sound_once_a	0x298DEE	u8	a code address (u8: a return address has no alignment), the return address of a damage_zone fx's one-shot sound (emit_and_play_once at 0x298DE9, in 0x298D80; 0.21d's emit_sound_once, inlined)
-survarium::image	zone_sound_once_b	0x298F1E	u8	the same, emit_and_play_once at 0x298F19 (in 0x298EB0)
-survarium::image	zone_sound_once_c	0x299269	u8	the same, emit_and_play_once at 0x299264 (in 0x2991A0)
 vostok::engine::message_frame	lparam	0x1C	u32	message_processor's lParam (0x181E0; by the site's ESP inside it, EBX ESI EDI pushed: mov ecx,[esp+1Ch] 0x183AC, mov esi,[esp+1Ch] 0x183F0); an HKL for WM_INPUTLANGCHANGEREQUEST and WM_INPUTLANGCHANGE
 survarium::player_input_handler	fov_factor	0x94	f32	the look's factor of the aimed weapon's zoom, on both axes (on_mouse_move 0x24025A, 0x24026C: x the option sensitivity x 0.1 is the yaw's step s)
 survarium::mouse_move_frame	handler	0x18	ptr<survarium::player_input_handler>	on_mouse_move's local [esp+18h] (0x24021C): the handler (by the site's ESP at mouse.pitch_step, the window-size calls popped)
@@ -748,6 +755,7 @@ survarium::image	baked_resource_name	0xAC3334	u32	the object whose +8 names a ba
 survarium::image	unmanaged_resource_allocator	0x21E76C8	u32	the allocator set_unmanaged_resource 0xF0080 gets with a baked texture resource (push 21E76C8h, 0x12F1B1 and 0x12DDD6)
 vostok::render::bake_parameters	kind	0x7A0	u32	a bake's camouflage_decal_texture_type_baker_cook_parameters: its texture type, 0 d, 1 n, 2 f, 3 s (0x12DD95 cmp dword [esi+7A0h],3)
 vostok::render::bake_parameters	model	0x790	ptr<vostok::render::render_model_instance>	the model instance whose surface it bakes (translate_query keeps a reference while it runs, EDI; its end 0x12D443 lets it go)
+vostok::render::bake_parameters	name	0x7A8	ptr<u8>	its baked files' name, a buffer_string's begin: a C string (translate_query 0x12D4A1 mov ecx,[eax+7A8h], the %s of user_data/streamed_textures/%s%s; camouflage_decal_baker_cook::translate_query 0x13420B writes it, the asker's name and the type's letter)
 vostok::render::render_model_instance	references	0xD0	u32	a render_model_instance's references (lock xadd; translate_query's end 0x12D443 lets one go, 0xE0210 at 0)
 vostok::render::render_surface_instance	textures	0x0	obj<vostok::render::texture_slot>	a model instance's surface a bake is for (render_surface_instance): its four textures by type, d n f s (process_compression 0x12F0E0 mov edx,[esp+610h] / mov [edx],ecx; on_baked_texture_loaded 0x12C6D0..0x12C760, +4 a type)
 vostok::render::texture_slot	texture	0x0	ptr<vostok::render::res_texture>	a surface's texture of one type (0 none)
@@ -771,9 +779,55 @@ vostok::resources::finish_query_frame	error	0x10	u32	its fourth: the error type
 vostok::checksum::crc32_value	value	0x0	u32	the CRC the CRC-32 step 0x42050 updates (its EAX points to it)
 vostok::checksum::crc32_bytes	first	0x0	u8	the first of the bytes the step goes over (its EDX)
 vostok::checksum::crc32_step_frame	count	0x4	u32	the step's [esp+4] at its start: how many bytes
+vostok::render::res_texture	hw_resource	0x1AC	ptr<d3d11::hw_resource>	its ID3D11Resource: the one map2D (0x3D0F95) maps and process_compression's Unmap (0x12EF6A) names
+vostok::render::res_texture	mappable	0x1BC	u8	set for a staging texture (create_texture2d usage 3): map2D maps only then (0x3D0F8C)
+vostok::render::device_slot	device	0x0	ptr<vostok::render::device>	the render device ([2260478h]; process_compression 0x12EEDA)
+vostok::render::device	context	0x180	ptr<d3d11::immediate_context>	the ID3D11DeviceContext: Flush +1BCh (0x12EEE9), Map +38h (map2D 0x3D0FBB), Unmap +3Ch (0x12EF79)
+vostok::render::system_renderer_slot	renderer	0x0	ptr<vostok::render::system_renderer>	the system renderer ([2260480h]): the compressor's (process_compression 0x12EFF6); its +64h the compression effect
+survarium::image	device_global	0x2260478	obj<vostok::render::device_slot>	the render device's global (process_compression 0x12EEDA, map2D 0x3D0FAD)
+survarium::image	system_renderer_global	0x2260480	obj<vostok::render::system_renderer_slot>	the system renderer's global (the compressor's first argument, 0x12EFF6)
+vostok::render::process_compression_frame	caller	0x8	ptr<vostok::render::on_textures_loaded_frame>	ESP+8 after the prologue: the saved EBP, on_textures_loaded's frame (its only caller, 0x12EA0D)
+vostok::render::process_compression_frame	dds	0x18	ptr<u8>	[esp+18h]: the DDS buffer (malloc 0x12EF4A of the size; the compressor writes it; the texture, CRC and save of the tail read it, freed 0x12F41B)
+vostok::render::process_compression_frame	source	0x1C	ptr<vostok::render::res_texture>	[esp+1Ch]: the bake's target of the type, one reference held (0x12ED02; released by the epilogue 0x12F57B)
+vostok::render::process_compression_frame	width	0x24	u32	[esp+24h]: the width (0x12ECA5; the staging, the compressor, the log)
+vostok::render::process_compression_frame	log_object	0x38	u32	[esp+38h]: 0 (0x12EC60); its low byte is BL at 0x12F52C when no log line is made, then nothing is destroyed
+vostok::render::process_compression_frame	height	0x3C	u32	[esp+3Ch]: the height (0x12ECA9)
+vostok::render::process_compression_frame	bake_ms	0x40	f32	[esp+40h]: the bake's ms (0x12EFB2), argument 10 added in the log (0x12F4E4)
+vostok::render::process_compression_frame	timer_base_low	0x50	u32	[esp+50h..5Ch]: the timer 0x106A00 reads (ESI): 0, 0, then its start (QueryPerformanceCounter), low and high (0x12EFC9..0x12EFD8)
+vostok::render::process_compression_frame	timer_base_high	0x54	u32	[esp+54h]: the timer's second word, 0
+vostok::render::process_compression_frame	timer_start_low	0x58	u32	[esp+58h]: the timer's start, QueryPerformanceCounter's low word
+vostok::render::process_compression_frame	timer_start_high	0x5C	u32	[esp+5Ch]: the timer's start, high word
+vostok::render::process_compression_frame	cook	0x600	ptr<vostok::render::camouflage_decal_texture_type_baker_cook>	argument 1: the cook (the baker static)
+vostok::render::process_compression_frame	size	0x60C	u32	argument 4: the DDS size
+vostok::render::process_compression_frame	parameters	0x614	ptr<vostok::render::bake_parameters_copy>	argument 6: on_textures_loaded's copy of the cook parameters
+vostok::render::process_compression_frame	pair	0x618	ptr<vostok::render::bake_pair>	argument 7: a pair the tail forwards to create_texture_from_memory
+vostok::render::process_compression_frame	value	0x61C	u32	argument 8: a value the tail forwards to create_texture_from_memory
+vostok::render::process_compression_frame	draw_ms	0x624	f32	argument 10: render_bake's ms
+vostok::render::on_textures_loaded_frame	parameters	0x18	ptr<vostok::render::bake_parameters>	[ebp+18h]: the bake's parameters (0x12E537; its +7A8h the name copied)
+vostok::render::bake_parameters_copy	name	0x13C	ptr<u8>	its name: a C string (the "%s/%s" of 0x12F052)
+vostok::render::bake_pair	first	0x0	u32	create_texture_from_memory's entry ESP+16 (0x12F09B)
+vostok::render::bake_pair	second	0x4	u32	create_texture_from_memory's entry ESP+20 (0x12F094)
+vostok::render::compress_mip_frame	cursor	0x30	ptr<vostok::render::dds_cursor>	ESP+30h at 0x11F754 (entry ESP+12): &the DDS cursor
+vostok::render::compress_mip_frame	high	0x38	u32	ESP+38h there (entry ESP+20): the level's blocks high (entry ESP+16, the blocks wide, has the BC3 flag in its low byte from 0x11F5D0: EBX keeps it)
+vostok::render::compress_mip_frame	format	0x40	u32	ESP+40h there (entry ESP+28): 46h BC1, 4Ch BC3
+vostok::render::dds_cursor	next	0x0	ptr<u8>	the next level's place in the DDS (compress_mip adds the level's bytes, 0x11F863)
+vostok::render::save_site_frame	bytes	0x0	ptr<vostok::resources::save_bytes>	ESP+0 at 0x12F2D8: the bytes make_save_descriptor saves (pushed at 0x12F2C9: &[esp+28h])
+vostok::render::save_site_frame	separator	0x5F8	u8	the '/' the site's instruction writes ([esp+5F8h])
+vostok::resources::save_bytes	data	0x0	ptr<u8>	the bytes (the DDS buffer, EBX, stored at 0x12F2E0)
+vostok::resources::save_bytes	size	0x4	u32	their count (0x12F2C5)
+vostok::resources::save_descriptor	data	0x0	ptr<u8>	the bytes the save writes (the writer reads data and size alone)
+vostok::resources::save_descriptor	size	0x4	u32	their count
+vostok::resources::save_descriptor	owns	0x8	u8	1: its destructor 0x10A050 frees the data (mt_free's 0x106FC0), as make_save_descriptor sets it; 0: the data is not its
+vostok::render::dds_cursor	size	0x4	size	a cursor: one pointer (compress's [ebp+0Ch], the output past the header)
+vostok::render::bake_parameters_copy	size	0x140	size	the part of on_textures_loaded's copy the tail reads (through +13Ch)
+vostok::render::bake_pair	size	0x8	size	two words
 vostok::input::keyboard	events	0x408	obj<vostok::input::key_event>	the events GetDeviceData buffers (execute 0x3B8D41/0x3B9080: DIDEVICEOBJECTDATA, at most 40h, their count to +404h at 0x3B914B), read by execute's loop (0x3B915E) and process (0x3B9B0E)
 vostok::input::key_event	key	0x0	u32	DIDEVICEOBJECTDATA.dwOfs: the key's DirectInput code, the index of the keys' states (execute 0x3B916A, 0x3B91EE; process 0x3B9B20)
 vostok::input::key_event	size	0x14	size	a DIDEVICEOBJECTDATA (GetDeviceData's push 14h 0x3B9081; execute's add ecx,14h 0x3B91F2)
+vostok::render::process_compression_frame	timer_scale	0x60	f32	[esp+60h]: the timer's scale (elapsed_ticks 0x1B7B0 multiplies by [esi+10h]): 1.0 from [0A70884h], written by the prologue (0x12EC73)
+vostok::render::process_compression_frame	prologue_scale	0x64	f32	[esp+64h]: the prologue's second 1.0 (0x12EC79)
+vostok::render::backend_slot	backend	0x0	ptr<vostok::render::backend>	the render backend ([2260490h]; the compressor's reset 0x11F4D7)
+survarium::image	backend_global	0x2260490	obj<vostok::render::backend_slot>	the render backend's global (mov edi,[2260490h] / call backend::reset, 0x11F4D7)
 survarium::image	d3d9_module	0xAF1194	u32	the delayed import d3d9.dll's module slot (its descriptor's hmod): __delayLoadHelper2 0xE48E0 binds the import to the module there, LoadLibrary only while it is 0 (0xE4995), then InterlockedExchange (0xE4B25); patch 83 puts DXVK's d3d9 there
 survarium::image	dxgi_module	0xAF30CC	u32	the delayed import dxgi.dll's module slot (as d3d9_module); patch 83 puts DXVK's dxgi there
 survarium::image	d3d11_module	0xAF30D0	u32	the delayed import d3d11.dll's module slot (as d3d9_module); patch 83 puts DXVK's d3d11 there
@@ -818,6 +872,10 @@ survarium::game_world	ui	0x1FC	obj<survarium::game_world_ui>	the hud (game_world
 survarium::game_world_ui	cursor_movie	0xC	obj<survarium::movie_slot>	the hud's cursor movie: show_cursor shows it (0x23A995) and hides it (0x23A9B3), the hud's +2DCh with it
 survarium::movie_slot	holder	0x0	ptr<vostok::ui::movie_holder>	a scene's movie: base_game_scene::show_movie reads it (0x23DC26), hide_movie does nothing while it is 0 (0x23DC71)
 survarium::initialize_match_frame	ui	0x4	ptr<survarium::game_world_ui>	initialize_match's first argument at its start (0x234880, by the site's ESP): the hud, called once a match from 0x1F855D (the late join's rebuild enters at 0x234E71)
+survarium::game	binder	0x5344	ptr<survarium::key_binder>	the key binder: chat_handler::on_keyboard_action asks it for the chat keys (0x208887: mov eax,[ecx+5344h], its handler+10h the game; key_binder::get_binded_action 0x207D50 with EDI 8)
+survarium::match_connect_frame	host	0x4	ptr<u8>	match_client::connect's first argument at its start (0x27A1B0, by the site's ESP): the match server's host, a C string
+survarium::match_connect_frame	port	0x8	u16	its second: the match server's UDP port, the dword's low 16 bits (the lobby's 0x82 handler stores only a word, 0x274A67, and pushes the whole dword, 0x274ACD: the high half is stack leftovers)
+survarium::match_connect_frame	session	0xC	u32	its third: the session the match server gave
 vostok::network::login_client_impl	answer	0x2AA	u8	the sign-in answer's first byte, its code: one async_read_some of at most 52h bytes lands here (0x38010D); on_sign_in_answer_received dispatches on it (0x37FB47) and reads 08h's and 25h's bodies after it (0x37FD26, 0x37FB7F)
 vostok::network::sign_in_answer_frame	transferred	0x10	u32	on_sign_in_answer_received's bytes read (EBP+10h; 0 returns at 0x37FB3D)
 survarium::login_menu	status	0xF4	u32	the status set_status shows (written at 0x21EEB0; its jump table 0x21F2A4): 0Ch..19h the bans (the answer's code - 6), whose text is st_login_menu_status_user_banned + st_ban_reason_* (0x21F310)
@@ -825,6 +883,36 @@ survarium::login_menu	game	0x9C	ptr<survarium::game>	the game (set_status 0x21EE
 survarium::login_status_frame	begin	0x18	ptr<u8>	set_status's status text {begin +18h, cursor +1Ch, end +20h} by ESP at 0x21F217: its first byte, from which 0x21F730 shows it (0x21F222)
 survarium::login_status_frame	cursor	0x1C	ptr<u8>	set_status's status text {begin +18h, cursor +1Ch, end +20h} by ESP at 0x21F217 (made at 0x21EECB..0x21EEED over the 200h bytes at +24h): the cursor, at the text's zero (0x21F3B4)
 survarium::login_status_frame	end	0x20	ptr<u8>	the text's end, its buffer's last byte + 1 (esp+224h, 0x21EECF)
+survarium::player	use_user	0x130	obj<survarium::usable_user>	its usable_object_user_data (0.10b collision_user +4): what a usable object's can_use and use get (detect_usable_object 0x2D85C6, apply_new_input 0x2D88B7)
+survarium::usable_user	player	0x0	ptr<survarium::player>	usable_object_user_data's owner: the player (0.10b +0; the can_use bodies read [ESP+4]'s +0)
+survarium::detect_frame	player	0x4	ptr<survarium::player>	detect_usable_object's player at its start (0x2D84C0, by the site's ESP): entry ESP+4
+survarium::detect_frame	point	0x8	ptr<f32>	its point: a float3 written with the hit point of the object found, or 0 (entry ESP+8)
+vostok::physics::hit_object	user	0xC	ptr<vostok::collision::game_object>	base_physics_object's user data, the game's object (0.10b +8; detect_usable_object reads +0Ch at 0x2D8587)
+vostok::collision::game_object	vtable	0x0	u32	its vtable (0.10b: cast_to_hit_receiver +0, cast_to_collision_geometry +4, cast_to_base_player +8)
+survarium::collision_geometry	subscribers	0xC	u32	its subscribers' begin (+10h the end): collision_geometry_subscriber pointers (damage and effect zones, sensors, players_checker, usable objects), not all usable; query_objects_by_type 0x2DC39A walks them through the cast it is given
+vostok::physics::ray_hits	begin	0x0	ptr<vostok::physics::ray_result>	a buffer_vector<closest_ray_result> {begin, end, allocator, capacity end} (detect_usable_object's at 0x2D850F..0x2D851F, ray_query appends 0x777DE): the first hit
+vostok::physics::ray_hits	end	0x4	ptr<vostok::physics::ray_result>	past the last hit (the count is (end - begin) / 28h, 0x2D852C)
+vostok::physics::ray_hits	allocator	0x8	ptr<vostok::memory::pthreads3_allocator>	what grows it (0x788C0) and frees it: detect_usable_object gives the multithreaded one (0xA8001C)
+vostok::physics::ray_hits	capacity	0xC	ptr<vostok::physics::ray_result>	its room's end
+vostok::physics::ray_hits	size	0x10	size	four words
+survarium::usable_list	begin	0x0	ptr<survarium::usable_slot>	a buffer_vector<usable_object*> {begin, end, allocator, capacity end}, query_objects_by_type's result (detect_usable_object's at 0x2D859F..0x2D85AF): the first
+survarium::usable_list	end	0x4	ptr<survarium::usable_slot>	past the last
+survarium::usable_list	allocator	0x8	ptr<vostok::memory::pthreads3_allocator>	what grows it (0x2DC429 by 0x1E1C0) and frees it: the multithreaded one (0xA8001C)
+survarium::usable_list	capacity	0xC	ptr<survarium::usable_slot>	its room's end
+survarium::usable_list	size	0x10	size	four words
+survarium::usable_slot	object	0x0	ptr<survarium::usable_object>	one usable object found (the cast's answer)
+survarium::usable_slot	size	0x4	size	a pointer
+survarium::usable_object	vtable	0x0	u32	its vtable as a usable object (the collision geometry subscriber's: +20h cast_to_usable, +30h can_use, +34h use_info, +44h get_transform)
+survarium::usable_distance	value	0x0	f32	usable_objects_detection_distance's value (2.0 in the image)
+survarium::image	usable_distance	0xA710D8	obj<survarium::usable_distance>	usable_objects_detection_distance: detect_usable_object's ray reaches this far (fld at 0x2D84E9), a use's tick allows this far (0x300830)
+survarium::image	mt_allocator	0xA8001C	obj<vostok::memory::pthreads3_allocator>	the global multithreaded allocator (vtable 0x9E6000: call_realloc +14h, call_free +18h), the allocator of detect_usable_object's two vectors
+survarium::image	usable_cast	0x2DD730	u32	the cast detect_usable_object hands query_objects_by_type (mov eax,[ecx] / jmp [eax+20h]: cast_to_usable)
+survarium::image	hits_deallocate	0x9E2E60	u32	"vostok::detail::std_allocator<struct vostok::physics::closest_ray_result>::deallocate": the function name detect_usable_object frees its hits with (0x2D8682)
+survarium::image	usables_deallocate	0x9DC2BC	u32	"vostok::detail::std_allocator<void *>::deallocate": the function name it frees a usable list with (0x2D860C)
+survarium::image	std_allocator_file	0x9DC1E0	u32	"d:\survarium.deploy\sources\vostok/std_allocator_inline.h": the file name of both frees (line 67h)
+survarium::image	victory_item_core_usable_vtable	0xA13E8C	u32	victory_item_core's usable_object vtable (RTTI, the usable_object at +14h): a battery's; +30h victory_item_core::can_use 0x300710, +44h its get_transform thunk 0x246ED0
+survarium::image	victory_item_usable_vtable	0xA0437C	u32	victory_item's usable_object vtable (RTTI): the client's battery; +30h 0x300710, +44h 0x246ED0 as victory_item_core's (the only two vtables holding 0x300710 at +30h)
+vostok::memory::pthreads3_allocator	vtable	0x0	u32	its vtable (0x9E6000: call_realloc +14h, call_free +18h)
 survarium::player_params_modifiers_container	artefact_ranks	0xA0	f32	modifier 40 artefact_power (no getter call, no code reference to its name, no config sets it): the artefact tree's packed skills; artefact-skills.md
 survarium::artefact	vtable	0x0	ptr<survarium::medical_vtable>	an inventory slot's artefact's (core) virtual table: its +80h enable_active names the kind (Onyx 0x3128C0, Lifebone 0x312250)
 survarium::image	onyx_active	0x3128C0	u32	artefact_onyx_core::enable_active_effects (vtable +80h; abi_inputs 0x3128C0)
@@ -913,3 +1001,150 @@ survarium::lobby_client	status	0x1E5790	u32	what the lobby says the client is: t
 survarium::close_match_frame	reason	0x8	u32	close_current_match's argument by EBP (mov ebx,[ebp+8] at 0x27A7F3): the reason, jump table 0x27A958
 survarium::match_ready_frame	client	0x18	ptr<survarium::network_client>	on_match_ready's network client by ESP (mov [esp+18h],ebx at 0x27AA39, ESP the body's to the epilogue at 0x27AEBF)
 vostok::render::res_render_output	window	0xE4	u32	the output window, an HWND (res_render_output::res_render_output 0x3CF4F0 writes it from EDX at 0x3CF540; set_size's SetWindowLongA 0x3CFA09/0x3CFA55 and SetWindowPos 0x3CFA20/0x3CFAD8, present's ShowWindow 0x3CF8C5 take it)
+vostok::memory::image	arena_list	0xA808FC	obj<vostok::memory::arena_list_slot>	the engine's registered arenas: the slot of a pointer to their fixed_vector of allocator_data (memory::preinitialize sets it, 0xE0F51; register_allocator 0xE21C0 appends with ESI it, dump_statistics 0xE1379 and allocate_region 0xE1128 walk it); patch 126
+vostok::memory::arena_list_slot	list	0x0	ptr<vostok::memory::arena_list>	the arenas' fixed_vector {begin, end, capacity end} (dump_statistics: mov eax,[0A808FCh] / mov esi,[eax] / mov edi,[eax+4], 0xE1379..0xE1385)
+vostok::memory::arena_list	begin	0x0	ptr<vostok::memory::arena_record>	the first allocator_data record
+vostok::memory::arena_list	end	0x4	ptr<vostok::memory::arena_record>	past the last record (register_allocator's push_back moves it)
+vostok::memory::arena_list	capacity_end	0x8	ptr<vostok::memory::arena_record>	past the room for records (a full list asserts, 0x113450)
+vostok::memory::arena_record	size	0x18	size	allocator_data: 18h bytes (dump_statistics steps 18h, 0xE13F1; 0.10b memory.cpp {allocator, u64 arena_size, arena_address, arena_id})
+vostok::memory::arena_record	allocator	0x0	ptr<vostok::memory::base_allocator>	the arena's allocator (dump_statistics calls its vtable +8h total_size and +0Ch allocated_size)
+vostok::memory::arena_record	arena_size_low	0x8	u32	the arena's bytes as registered (a u64: its low word)
+vostok::memory::arena_record	arena_size_high	0xC	u32	the arena's bytes as registered (a u64: its high word, 0 in a 32-bit process)
+vostok::memory::arena_record	arena_start	0x10	u32	the arena's start, written once it is reserved (0.10b allocate_region: arena_address from the region); 0 for the process heap
+vostok::memory::arena_record	name	0x14	ptr<u8>	the arena's name, a C string of the image ("render" 0x9DB590, "resources helper allocator" 0x9E5B9C)
+vostok::memory::base_allocator	vtable	0x0	u32	the allocator's vtable: its kind (doug_lea_vtable, managed_vtable, pthreads_vtable, others)
+vostok::memory::base_allocator	mspace	0x14	ptr<vostok::memory::mspace>	a doug_lea_allocator's m_arena: the mspace create_mspace_with_base 0x101280 made at the arena's start (initialize_impl 0xE4F70; total_size 0xE51F0 and allocated_size 0xE52C0 hand it to internal_mallinfo 0xFF200)
+vostok::memory::base_allocator	managed_free	0x28	u32	a managed_allocator's free bytes (allocated_size 0xE0E50: [ecx+30h] - [ecx+28h]; 0.10b resources_managed_allocator.h total_size() - get_free_size())
+vostok::memory::base_allocator	managed_total	0x30	u32	a managed_allocator's bytes (total_size 0xE0E40)
+vostok::memory::base_allocator	managed_arena	0x2C	ptr<vostok::memory::managed_node>	a managed_allocator's m_arena: its first node, past its defragmenter's temporary arena (its managed_allocator_base is at +14h: m_first_free +14h, m_granularity +24h (0x21E520C, allocate_managed_resource 0xFB640), m_free_size +28h, m_arena +2Ch, m_arena_size +30h; 0.10b managed_allocator_base.h); the nodes tile [m_arena, m_arena + m_arena_size); patch 127
+vostok::memory::managed_node	owner	0x0	ptr<vostok::memory::managed_node_owner>	m_owner: an allocated node's owner, the managed_node_owner inside its managed_resource (allocate_managed_resource 0xFB6C7: mov [edi],eax, the resource +D0h); 0 for a free node and for one not owned yet (0.10b managed_node.h, 34h bytes: allocate 0x10A245 adds 34h)
+vostok::memory::managed_node	next	0x4	ptr<vostok::memory::managed_node>	m_next: the node after it in the arena, at its own address + its bytes (allocate_in_node, 0.10b managed_allocator_base.cpp; 0x10A2CD); 0 for the last
+vostok::memory::managed_node	bytes	0x28	u32	m_size: the node's bytes, its 34h head with them, a multiple of the granularity (0x10A276 compares two free nodes' +28h; 0x10A2D0)
+vostok::memory::managed_node	kind	0x30	u8	m_type: 0 allocated, 1 free (0x10A2DA: cmp byte [esi+30h],1; 0x10A2FB writes 1 to the free tail)
+vostok::memory::managed_node	size	0x34	size	a node's head: 34h bytes before its resource's data (allocate 0x10A245: add ecx,34h; allocate_managed_resource 0xFB64C: lea esi,[ebx+34h])
+vostok::memory::managed_node_owner	class_id	-0x4C	u32	its managed_resource's class id: the owner is the resource's +D0h (its constructor 0x10A590 writes the owner's vtable 0x9E9F40 there), resource_base's class id its +84h (resource_base's constructor 0xF70F0: mov [esi+84h],ecx, the class managed_resource's constructor got in EAX); the resource is F0h bytes of the resources helper allocator (0xFB696)
+vostok::memory::image	doug_lea_vtable	0x9E68DC	u32	doug_lea_allocator's vtable (slots: +8h total_size 0xE51A0, +0Ch allocated_size 0xE5270; engine_world's constructor writes it at 0x136EC..0x1380C; shared strings, cook, resources helper in the image)
+vostok::memory::image	managed_vtable	0x9E602C	u32	managed_allocator's vtable (+8h total_size 0xE0E40, +0Ch allocated_size 0xE0E50; its constructor 0xE0E71; the resources (managed) allocator at 0x21E51E8, which allocate_region registers at 0xE1220, its initializer 0xFCF4A)
+vostok::memory::image	pthreads_vtable	0x9E6000	u32	the multithreaded allocator's vtable ("global multithreaded", 0xA8001C: +8h total_size 0xEB5F0 the region's size, +0Ch allocated_size 0xEB630 walks ptmalloc3's arenas from 0x1BFAC90 with 0xFF200)
+vostok::memory::image	mt_region	0xA2B5250	obj<vostok::memory::mt_region>	the multithreaded arena's region, the pages ptmalloc3 takes (0x10F8C0 under the spin lock 0x1BFAEBC, 0x106A90) and gives back (0x10F980); 0xEB437..0xEB453 set it
+vostok::memory::mt_region	base	0x0	u32	the region's start
+vostok::memory::mt_region	size	0x4	u32	the region's bytes (-mt_allocator, 768 MiB by patch 37)
+vostok::memory::mt_region	free	0x8	u32	the region's bytes not taken: a take subtracts (0x10F90B, 0x10F942), a give adds (0x10F985)
+vostok::memory::image	video_memory	0x1B3A1F0	obj<vostok::memory::video_memory>	the engine's video memory figures (platform::allocate_arenas 0xE9580 writes them, 0xE991D..0xE9CF9; dump_statistics' "video memory stats for engine", 0xE195D..0xE198D)
+vostok::memory::video_memory	detected_low	0x0	u32	the video memory detected (a u64: its low word; 0x106300's answer, 0xE9C52), the percentages' 100 %
+vostok::memory::video_memory	budget_low	0x8	u32	the engine's video memory budget (a u64: its low word; its "video memory stats for engine" size)
+vostok::memory::video_memory	budget_high	0xC	u32	the engine's video memory budget (a u64: its high word)
+vostok::memory::mspace	top_size	0xC	u32	dlmalloc 2.8 malloc_state.topsize: the top chunk's bytes (init_user_mstate 0x101254; internal_mallinfo 0xFF239 counts it free with the top's foot, 28h)
+vostok::memory::mspace	top	0x18	u32	malloc_state.top: the top chunk, where internal_mallinfo's walk ends (0xFF286; set at 0x101251)
+vostok::memory::mspace	footprint	0x1B0	u32	malloc_state.footprint: a fixed-base mspace's capacity from its start, as max_footprint +1B4h (0x1011E8, 0x1011EE): no high-water mark
+vostok::memory::mspace	segment	0x1BC	u32	malloc_state.seg.base: the arena's start (0x1011E2), where the walk begins (0xFF23C)
+vostok::memory::mspace	segment_size	0x1C0	u32	malloc_state.seg.size: the arena's bytes (0x1011F4)
+vostok::memory::mspace	next_segment	0x1C4	u32	malloc_state.seg.next: 0 in a fixed-base mspace (the memset of 1E0h, 0x1011B6), the walk's next segment (0xFF2B7)
+vostok::memory::mspace	size	0x1D8	size	malloc_state's bytes: its chunk is 1E0h (the head 1E3h, init_user_mstate 0x1011C6), the state 8 bytes in; its last word +1D4h/+1D8h the out-of-memory callback and its parameter (0x101201, create_mspace_with_base 0x1012D4)
+vostok::memory::image	dlmalloc_start	0xFF160	u32	the first function of dlmalloc 2.8's code (the mspace functions ptmalloc3 is built on): an mspace_malloc or mspace_free called from here to dlmalloc_end is dlmalloc's own (mspace_realloc's move 0x1006DF / 0x100733 and its cut tail 0x1006CB, mspace_memalign 0x100773 / 0x1007DC, internal_memalign's leader and trailer 0x1008D6 / 0x1008F7); patch 127
+vostok::memory::image	dlmalloc_end	0x101B40	u32	past mspace_free (0x1015E0), the last of dlmalloc's code: its usage-error tail jump 0x101B37, then int3 to 0x101B40
+vostok::memory::image	malloc_impl_heap_return	0xE4FB0	u8	doug_lea_allocator::malloc_impl's (0xE4F90; ESI the allocator, EAX the bytes) return from mspace_malloc (call 0xE4FAB)
+vostok::memory::image	realloc_impl_malloc_return	0xE50E4	u8	doug_lea_allocator::realloc_impl's (0xE5050) return from mspace_malloc (call 0xE50DF: no memory given)
+vostok::memory::image	realloc_impl_realloc_return	0xE5100	u8	doug_lea_allocator::realloc_impl's return from mspace_realloc (call 0xE50FB)
+vostok::memory::image	pt_malloc_heap_return	0x106F70	u8	ptmalloc3's malloc (0x106EF0; EAX the bytes) return from mspace_malloc (call 0x106F6B, its arena's mspace at +20h)
+vostok::memory::image	mt_malloc_return	0xEB550	u8	mt_allocator::call_malloc's (0xEB530, the "global multithreaded" vtable's slot 0x9E6010) return from ptmalloc3's malloc (call 0xEB54B)
+vostok::memory::image	heap_out_of_memory_return	0x1013F8	u8	mspace_malloc's return from its arena's out-of-memory callback (call eax 0x1013F6, the mspace's +1D4h; EBP the bytes asked, 0x101335)
+vostok::memory::image	call_malloc_return	0xE5131	u8	doug_lea_allocator::call_malloc's (0xE5120, the vtable's slot 0x9E68EC) return from malloc_impl (call 0xE512C)
+vostok::memory::image	call_realloc_return	0xE5156	u8	doug_lea_allocator::call_realloc's (0xE5140, slot 0x9E68F0) return from realloc_impl (call 0xE5151)
+vostok::memory::image	pt_realloc_heap_return	0x10710A	u8	pt3realloc's (0x107070) return from mspace_realloc (call 0x107105)
+vostok::memory::image	mt_realloc_return	0xEB4F8	u8	mt_allocator's realloc (0xEB470, ESI the memory) return from pt3realloc (call 0xEB4F3), and from pt3malloc when pt3realloc's no memory jumps there (0x107099)
+vostok::memory::image	mt_call_realloc_return	0xEB5A5	u8	mt_allocator::call_realloc's (0xEB590) return from its realloc 0xEB470 (call 0xEB5A0)
+vostok::memory::image	mt_malloc_impl_return	0x1C6B9	u8	mt_allocator's malloc_impl (0x1C6A0; ESI the bytes, [esp+4] the allocator, 0xA8001C) return from pt3malloc (call 0x1C6B4)
+vostok::memory::image	scaleform_malloc_return	0x1C409	u8	Scaleform's malloc (0x1C3E0, cdecl: [esp+4] the bytes; xrSysAllocMalloc's allocation function, 0x2AE573 stores it at 0x22613B8) return from mt_allocator's malloc_impl (call 0x1C404)
+vostok::memory::image	scaleform_alloc_return	0x2AE481	u8	survarium::scaleform_engine::xrSysAllocMalloc::Alloc's (0x2AE470, its vtable 0xA0D538 +0Ch; Scaleform's heaps take every block of theirs from it) return from its allocation function (call ecx 0x2AE47F: 0x1C3E0)
+vostok::memory::image	allocate_region_return	0x13BF5	u8	engine_world's constructor's return from allocate_region (call 0x13BF0, its one caller): the frame of memory.arenas_ready is the start's, while only the main thread runs
+vostok::memory::game_call	return_address	0x0	u32	where a call of the game returns: the word at its callee's entry ESP
+vostok::memory::game_call	malloc_impl_call	0x18	obj<vostok::memory::game_call>	at mspace_malloc's entry from malloc_impl (return malloc_impl_heap_return): malloc_impl's own call, 18h up (sub esp,8 / push ebx / push edi / push edi, 0xE4F90..0xE4FAA)
+vostok::memory::game_call	realloc_impl_malloc_call	0x18	obj<vostok::memory::game_call>	at mspace_malloc's entry from realloc_impl (return realloc_impl_malloc_return): realloc_impl's own call, 18h up (push ecx / push ebx / push esi / push edi / push ebx, 0xE5050..0xE50DA)
+vostok::memory::game_call	realloc_impl_realloc_call	0x1C	obj<vostok::memory::game_call>	at mspace_realloc's entry from realloc_impl (return realloc_impl_realloc_return): realloc_impl's own call, 1Ch up (its four pushes, then push ebx / push edx, 0xE50FA)
+vostok::memory::game_call	pt_malloc_call	0x1C	obj<vostok::memory::game_call>	at mspace_malloc's entry from ptmalloc3's malloc (return pt_malloc_heap_return): its own call, 1Ch up (sub esp,0Ch / push esi / push edi / push edi, 0x106EF0..0x106F67; the TlsGetValue and 0x106B10 calls between leave the stack as it was)
+vostok::memory::game_call	mt_malloc_call	0x10	obj<vostok::memory::game_call>	at ptmalloc3's malloc's entry from mt_allocator::call_malloc (return mt_malloc_return): call_malloc's own call, 10h up (push ecx / push edi / push esi, 0xEB530..0xEB544)
+vostok::memory::game_call	call_malloc_call	0xC	obj<vostok::memory::game_call>	at malloc_impl's entry from call_malloc (return call_malloc_return): call_malloc's own call, 0Ch up (push esi / push eax, 0xE5124..0xE5125)
+vostok::memory::game_call	call_realloc_call	0x10	obj<vostok::memory::game_call>	at realloc_impl's entry from call_realloc (return call_realloc_return): call_realloc's own call, 10h up (push ecx / push edx / push ecx, 0xE514A..0xE5150)
+vostok::memory::game_call	pt_realloc_call	0x1C	obj<vostok::memory::game_call>	at mspace_realloc's entry from pt3realloc (return pt_realloc_heap_return): its own call, 1Ch up (sub esp,8 / push ebp / push esi / push ebp / push edi, 0x107075..0x107104; TlsSetValue's two arguments popped by it)
+vostok::memory::game_call	mt_realloc_call	0x14	obj<vostok::memory::game_call>	at pt3realloc's (or pt3malloc's) entry from mt_allocator's realloc (return mt_realloc_return): its own call, 14h up (push ecx / push ebx / push edi / push esi, 0xEB470..0xEB4F2)
+vostok::memory::game_call	mt_call_realloc_call	0x14	obj<vostok::memory::game_call>	at mt_allocator's realloc's entry from call_realloc (return mt_call_realloc_return): call_realloc's own call, 14h up (push esi / push eax / push edx / push ecx, 0xEB598..0xEB59F)
+vostok::memory::game_call	mt_malloc_impl_call	0xC	obj<vostok::memory::game_call>	at pt3malloc's entry from mt_allocator's malloc_impl (return mt_malloc_impl_return): its own call, 0Ch up (sub esp,8, 0x1C6A0)
+vostok::memory::game_call	scaleform_malloc_call	0x10	obj<vostok::memory::game_call>	at mt_allocator's malloc_impl's entry from Scaleform's malloc (return scaleform_malloc_return): its own call, 10h up (push esi / push edi / push eax, 0x1C3E0..0x1C403)
+vostok::memory::game_call	scaleform_alloc_call	0xC	obj<vostok::memory::game_call>	at Scaleform's malloc's entry from xrSysAllocMalloc::Alloc (return scaleform_alloc_return): its own call, 0Ch up (push esi / push eax, 0x2AE477..0x2AE47E)
+vostok::memory::allocate_region_frame	return_address	0x4	u32	allocate_region's frame by its EBP (push ebp / mov ebp,esp, 0xE1120): its return address, allocate_region_return when engine_world's constructor called it
+vostok::memory::profile_frame	call	0x4	ptr<vostok::memory::game_call>	memory_profile.allocated's and .freeing's first argument (by the site ESP, the return address at +0): the ESP the game's call of mspace_malloc, mspace_realloc or mspace_free left, its return address there
+vostok::memory::profile_frame	memory	0x8	u32	their second: the memory mspace_malloc or mspace_realloc gave (0 for none), or the memory given back to mspace_free or mspace_realloc
+vostok::memory::out_of_memory_frame	return_address	0x0	u32	memory.out_of_memory's ESP: the callback's return (heap_out_of_memory_return from mspace_malloc)
+vostok::memory::out_of_memory_frame	space	0x4	u32	its first argument: the arena's mspace (create_mspace_with_base made it at the arena's start)
+vostok::memory::out_of_memory_frame	allocator	0x8	ptr<vostok::memory::base_allocator>	its second: the doug_lea_allocator the mspace was made with (initialize_impl 0xE4F60: push esi)
+vostok::modules::tls_callback_frame	notify	0x4	u32	module_watch.thread's own argument (by the site's ESP, the return address into module_watch_tls at +0): the address of module_watch_dll, our DLL notification's entry, which module_watch_tls pushes
+vostok::modules::tls_callback_frame	reason	0x10	u32	the TLS callback's second argument (PIMAGE_TLS_CALLBACK: DllHandle +0Ch, Reason +10h, Reserved +14h, after the loader's return address at +8): 1 the process starts, 2 a thread starts, 3 a thread ends, 0 the process ends
+vostok::modules::dll_notification_frame	reason	0x8	u32	the DLL notification's first argument (LDR_DLL_NOTIFICATION_FUNCTION, after module_watch_dll's and ntdll's return addresses): 1 loaded, 2 unloaded
+vostok::modules::dll_notification_frame	data	0xC	ptr<ntdll::dll_notification>	its second: the LDR_DLL_NOTIFICATION_DATA, alive for the call
+ntdll::dll_notification	full_name	0x4	ptr<ntdll::unicode_string>	LDR_DLL_LOADED_NOTIFICATION_DATA.FullDllName (Flags +0, BaseDllName +8; the unloaded one's is the same): the DLL's full path
+ntdll::dll_notification	base	0xC	u32	DllBase: where the image is mapped
+ntdll::dll_notification	image_size	0x10	u32	SizeOfImage
+ntdll::unicode_string	length	0x0	u16	UNICODE_STRING.Length: the string's bytes (two a unit), without a terminator
+ntdll::unicode_string	buffer	0x4	ptr<u8>	UNICODE_STRING.Buffer: its UTF-16 units (MaximumLength +2)
+vostok::render::scene	streamable	0x126158	ptr<vostok::render::streamable_texture>	the streamable textures' vector begin, 148h bytes each (update_streaming_data 0x15598C; process_pending_remove_texture_instances 0x155A32)
+vostok::render::scene	streamable_end	0x12615C	ptr<vostok::render::streamable_texture>	its end (update_streaming_data 0x155984)
+vostok::render::streamable_texture	instances	0x110	ptr<vostok::render::streaming_texture_instance>	the first of the list of what is drawn with the texture, 0 for none (0x155996)
+vostok::render::streamable_texture	size	0x148	size	one streamable texture: the vector steps 148h (0x1559EE)
+vostok::render::streaming_texture_instance	proxy	0x0	ptr<vostok::render::texture_instance_proxy>	the drawn object's proxy (0x1559A0; never 0 there)
+vostok::render::streaming_texture_instance	next	0x4	ptr<vostok::render::streaming_texture_instance>	the list's next, 0 at its end (0x1559E7)
+vostok::render::streaming_texture_instance	owner	0x8	u32	the proxy's owner (its +4), copied each frame (0x1559DD)
+vostok::render::streaming_texture_instance	sphere	0xC	f32	the proxy's bound sphere, 4 f32: centre x, y, z, radius (0x1559B3 / 0x1559BD; the async worker's update_wanted_mips reads it, 0x1C220F)
+vostok::render::streaming_texture_instance	last_render_time	0x1C	f32	the proxy's last_render_time (0x1559C9; update_wanted_mips 0x1C21E3)
+vostok::render::streaming_texture_instance	texel_factor	0x20	f32	the proxy's texel_factor (0x1559D5; update_wanted_mips 0x1C2231)
+vostok::render::texture_instance_proxy	vtable	0x0	u32	its class's vtable: the exe has three classes of streaming_texture_instance_proxy_base (RTTI), render surface 9F7060h, grass patch 9F7080h, decal 9F70A0h
+vostok::render::texture_instance_proxy	owner	0x4	u32	what it was added for: the key remove_streamable_texture_instance removes it by (process_pending_remove_texture_instances 0x155A86)
+vostok::render::texture_instance_proxy	render_surface	0x0	obj<vostok::render::render_surface_texture_instance_proxy>	the same object as a render surface's proxy (behind that vtable only)
+vostok::render::texture_instance_proxy	decal	0x0	obj<vostok::render::decal_texture_instance_proxy>	the same object as a decal's proxy (behind that vtable only)
+vostok::render::render_surface_texture_instance_proxy	instance	0xC	ptr<vostok::render::render_surface_instance>	its model's surface (bound_sphere 0x1C8CD0, last_render_time 0x1C8B80, texel_factor 0x1C8B95, slot 14h 0x1C8CB0)
+vostok::render::decal_texture_instance_proxy	decal	0xC	ptr<vostok::render::decal_instance>	its decal (bound_sphere 0x1C8E03, texel_factor 0x1C8D83)
+vostok::render::decal_instance	aabb	0x74	f32	its box, 6 f32: min x, y, z, max x, y, z (the decal proxy's bound_sphere 0x1C8E06 and texel_factor 0x1C8D86)
+vostok::render::render_surface_instance	sphere	0x10	f32	its bound sphere, 4 f32: centre x, y, z, radius (the proxy's bound_sphere 0x1C8CD7 copies it)
+vostok::render::render_surface_instance	surface	0x38	ptr<vostok::render::render_surface>	its model's render_surface (the proxy's texel_factor 0x1C8C85)
+vostok::render::render_surface_instance	last_render_time	0x48	f32	when it was last drawn (the proxy's last_render_time 0x1C8B83; the constructor 0x158C7E zeroes it)
+vostok::render::render_surface_instance	streaming_mark	0x4C	u8	set by the proxy's slot 10h (0x1C8CA3) and the constructor (0x158C83), cleared by slot 14h after each streaming update (0x1C8CB3), read by slot 18h (0x1C8CC3)
+vostok::render::render_surface_instance	transform	0x50	ptr<f32>	its world matrix, a row-vector 4x4 (the proxy's texel_factor 0x1C8B98 reads its first three rows; the constructor zeroes the pointer)
+vostok::render::render_surface	streaming_texture_factor	0x4C	f32	m_streaming_texture_factor (render_surface.h): the texel factor of its mapping at scale 1 (the proxy's texel_factor 0x1C8C88)
+vostok::render::image	render_surface_proxy_vtable	0x9F7060	u32	render_surface_texture_instance_proxy's vtable (RTTI .?AUrender_surface_texture_instance_proxy@render@vostok@@ at 0x9F705C): bound_sphere 0x1C8CD0, last_render_time 0x1C8B80, texel_factor 0x1C8B90, +14h 0x1C8CB0 (clears the surface's streaming_mark)
+vostok::render::image	grass_patch_proxy_vtable	0x9F7080	u32	grass_patch_texture_instance_proxy's vtable (RTTI at 0x9F707C): bound_sphere 0x1C8D40 (centre 0, radius the image's 3000.0 at 0xA2D8A0), last_render_time 0x1C8D20 (fldz), texel_factor 0x1C8D30 (fld1), +14h 0x1AF330 (ret)
+vostok::render::image	decal_proxy_vtable	0x9F70A0	u32	decal_texture_instance_proxy's vtable (RTTI at 0x9F709C): bound_sphere 0x1C8E00, last_render_time 0x1C8D20 (fldz), texel_factor 0x1C8D80, +14h 0x1AF330 (ret)
+vostok::render::resource_manager	textures	0x8809C	obj<vostok::render::texture_registry_node>	m_texture_registry's header node (an STLport map by name; get_texture_video_memory_size 0x3BE289): +4 the root, +8 the first (0x3BE282), +0Ch the last; the walk ends back at it
+vostok::render::texture_registry_node	parent	0x4	ptr<vostok::render::texture_registry_node>	the parent; the root's is the header (_Rb_global::_M_increment 0x4054AC)
+vostok::render::texture_registry_node	left	0x8	ptr<vostok::render::texture_registry_node>	the left child, 0 for none (0x40549B)
+vostok::render::texture_registry_node	right	0xC	ptr<vostok::render::texture_registry_node>	the right child, 0 for none (0x405494)
+vostok::render::texture_registry_node	name	0x10	ptr<u8>	the key's characters, NUL-terminated (a buffer string's begin; get_texture_video_memory_size's strstr 0x3BE295)
+vostok::render::texture_registry_node	texture	0x124	ptr<vostok::render::res_texture>	the value, the registered texture (0x3BE2AA)
+vostok::render::res_texture	memory	0x30	u32	m_mem_usage: the texture's video memory, bytes (get_texture_video_memory_size 0x3BE2B0 sums it)
+openssl::ssl_call_frame	ssl	0x8	ptr<openssl::ssl>	SSL_connect's, SSL_read's and SSL_write's first argument by EBP, after their prologue (push ebp / mov ebp,esp): the SSL of the login client's stream (asio's engine, SSL_new at 0x37BCE2: one for the game's whole run)
+openssl::ssl_call_frame	bytes	0xC	ptr<u8>	SSL_read's room and SSL_write's bytes (EBP+0Ch)
+openssl::ssl_call_frame	length	0x10	u32	their length (EBP+10h; asio's do_read 0x37FAB0 and do_write 0x37FAE0 cap it at 7FFFFFFFh)
+openssl::ssl	rbio	0xC	ptr<openssl::bio>	the BIO the SSL reads the peer's bytes from (SSL_get_rbio): asio's engine sets its half of a BIO pair, into whose other half it puts what the socket read (engine::put_input)
+openssl::ssl	wbio	0x10	ptr<openssl::bio>	the BIO the SSL writes to (the same half): asio's engine takes the bytes from the other half and sends them (engine::get_output)
+openssl::bio	flags	0x14	u32	the BIO's flags (BIO_FLAGS_READ 1, SHOULD_RETRY 8: BIO_read of an empty pair sets both)
+survarium::network_client	vtable	0x0	u32	its class: 0x9FFB14 a live match's network_client (its ctor writes it at 0x219E7C), REPLAY_CLIENT_VTABLE a .sur replay's replay_network_client (0x218A7C); every other field of this kind is the live client's
+survarium::image	replay_client_vtable	0x9FF344	u32	replay_network_client's vtable (its ctor 0x218A40 writes it at 0x218A7C, its destructor at 0x218BC3; slot +54h is_this_place_mine, patch 24): the game's network client (+53ACh) while a .sur replay plays
+vostok::console_commands::cc_delegate	size	0x60	size	a cc_delegate console command's object (cc_delegate::cc_delegate 0xEC780: the base fields as cc_value<bool>'s, +40h the delegate's copy, 20h bytes; attach_to_player's 0xA2AE350, its guard at +60h)
+vostok::console_commands::cc_delegate	vtable	0x0	u32	its vtable: cc_delegate's 0x9E7C0C as the constructor leaves it; patch 133's copy (console_where.toml) written after it
+vostok::console_commands::cc_delegate_methods	rtti	-4	u32	native complete object locator (0xA3E110)
+vostok::console_commands::cc_delegate_methods	size	0x1C	size	seven methods: the destructor 0xEC7E0, execute 0xEC830 (+4, console_commands::execute 0xEBB98), status, info, syntax, fill_command_args_list, save_to (0x15A4B0, ret 8: not saved)
+vostok::console_commands::image	cc_delegate_methods	0x9E7C0C	obj<vostok::console_commands::cc_delegate_methods>	cc_delegate's vtable including RTTI at -4 (cc_delegate::cc_delegate 0xEC7C6)
+vostok::logging::log_function	size	0x20	size	the boost::function a line is written through, as log_message's callers make it on their stack (console_commands::execute 0xEBA04..0xEBA38): empty (all 0), or the log's sink
+vostok::logging::log_function	manager	0x0	u32	its manager: LOG_FUNCTION_MANAGER | 1 (trivially copied, nothing to destroy) when [log_state+8] is set, else 0 (empty: the line goes nowhere, 0x111E4D)
+vostok::logging::log_function	sink	0x8	u32	the function itself: [log_state+8]
+vostok::logging::log_helper	size	0x248	size	a line's helper (log_message's [ebp-24Ch]): the template's 228h bytes, then the function, the context, the channel, the file, the caller, the line and the level (helper::helper 0x111C90)
+vostok::logging::log_state	filtered	0x0	u32	not 0: a line is written only when has_passed_filters (0x111860) passes its channel and level (every caller of log_message, 0xEB9E9)
+vostok::logging::log_state	context	0x4	u32	the word every caller passes as log_message's second argument (helper +230h; its meaning not established)
+vostok::logging::log_state	sink	0x8	u32	the function the game's lines go through (0 none: an empty log_function)
+vostok::logging::image	log_state	0x1F1D60C	obj<vostok::logging::log_state>	the logging globals log_message's callers read (console_commands::execute 0xEB9E9, 0xEBA09, 0xEBA3B)
+vostok::logging::image	log_template	0x21E73B8	obj<vostok::logging::log_helper>	the template helper every caller of log_message passes (its third argument, copied into the line's helper by 0x111C90)
+vostok::logging::image	log_function_manager	0x9DAF4C	u32	the log sink's boost::function manager (console_commands::execute 0xEBA28: or 1, its word +0)
+survarium::player	camera_handler	0xF470	ptr<survarium::player_input_handler>	the input handler whose camera is on this player (update_camera 0x1F348D: 0, not the camera's player, returns at once)
+survarium::player_input_handler	view	0x48	f32	the camera's transform, a row-vector 4x4 (16 f32: the rows right, up, forward and the place): update_inverted_view 0x2422B0 writes it (0x24243B), the eyes' transform in modes 0 and 4, else its third-person step
+survarium::game	map_name	0x55E0	obj<vostok::buffer_string>	the match's project, as its maps_dict id's game mode config names it (mode.match_making_params.map_name, e.g. level_01/day_2): network_client::query_players assigns it before game_world::load (0x27B085), the replay's query too (0x218F3C); a buffer_string over 200h bytes at +55ECh (game::game 0x1E9291); never cleared, so the last match's in the lobby
+vostok::file_open_options	assert_on_failure	0x8	u32	4179F passes to path normalization; 400D5 tests before file-open assertion
+vostok::replay_path	bytes	0x0	u8	Resolved ANSI replay path, caller-owned 260-byte buffer (1F02C0)
