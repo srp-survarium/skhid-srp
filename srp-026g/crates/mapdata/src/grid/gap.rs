@@ -48,6 +48,8 @@ pub const SHORT_JUMP_RISE: [f32; 13] = [
 ];
 /// The root's highest point, m ahead of the press (frame 16).
 const APEX_AHEAD_M: f32 = 1.78;
+/// [A364 P6] The short clip's apex frame.
+const SHORT_APEX_FRAME: f32 = 16.0;
 
 /// The presses looked at, m before the take-off floor's centre: from
 /// [`GAP_PRESS_MIN_M`] (the body leaves the floor 0.67 m on, at the clip's
@@ -655,18 +657,31 @@ impl WalkGrid {
     /// unless a face across its width is in the way, and then stays where
     /// it is while the clip lifts it, to go on once it is over the face.
     /// After the clip it falls on ([`Flight::Over`], [`Self::fall_on`]).
-    fn fly(&self, a: usize, d: usize, lead: f32, solids: &Solids) -> Option<(Flight, Over)> {
+    ///
+    /// [A364 P6] With [`crate::Body::jump_air_steps`] and the walk's `speed` at the press: the body travels at that speed, frozen
+    /// at the press (the game's walk vector holds its press value on every air step, 17 of 17 traced short jumps; the clip's
+    /// own travel is not the body's), the clip giving only the rise at each frame (30 a second), and the flight ends at the
+    /// game's last air step (frame 22.5) and falls from there.
+    fn fly(&self, a: usize, d: usize, lead: f32, speed: Option<f32>, solids: &Solids) -> Option<(Flight, Over)> {
         let from = self.position(a as NodeId);
         let h = self.height[a];
         let (di, dk) = DIRS[d];
         let len = ((di * di + dk * dk) as f32).sqrt();
         let (ux, uz) = (di as f32 / len, dk as f32 / len);
         let ds = 0.5 * self.cell;
-        // [A364 P6] With `jump_air_steps` the flight ends at the game's last air step, not at the clip's end.
-        let clip_end = if self.body.jump_air_steps {
-            air_end(&SHORT_JUMP_AHEAD, &SHORT_JUMP_RISE, 1.0).0
-        } else {
-            SHORT_JUMP_AHEAD[SHORT_JUMP_AHEAD.len() - 1]
+        // [A364 P6] With `jump_air_steps` the flight ends at the game's last air step, not at the clip's end, and with the
+        // press's speed the body travels at it (the clip's frame is the time at that speed).
+        let frozen = speed.filter(|_| self.body.jump_air_steps);
+        let frame_at = |ahead: f32| frozen.map(|v| ahead / v * CLIP_FPS);
+        let rise_at = |ahead: f32| match frame_at(ahead) {
+            Some(frame) => root_at(&SHORT_JUMP_AHEAD, &SHORT_JUMP_RISE, frame).1,
+            None => short_jump_rise(ahead).unwrap_or(0.0),
+        };
+        let past_apex = |ahead: f32| frame_at(ahead).map_or(ahead >= APEX_AHEAD_M, |frame| frame >= SHORT_APEX_FRAME);
+        let clip_end = match frozen {
+            Some(v) => v * (TAKEOFF_FRAME + (AIR_STEPS - 1.0) * 1.5) / CLIP_FPS,
+            None if self.body.jump_air_steps => air_end(&SHORT_JUMP_AHEAD, &SHORT_JUMP_RISE, 1.0).0,
+            None => SHORT_JUMP_AHEAD[SHORT_JUMP_AHEAD.len() - 1],
         };
         let end = clip_end - lead;
         let at = |s: f32| (from.x + ux * s, from.z + uz * s);
@@ -691,12 +706,12 @@ impl WalkGrid {
                 return Some((Flight::Over { body, y: h, last, down }, over));
             }
             let ahead = x + lead;
-            let y = h + short_jump_rise(ahead).unwrap_or(0.0);
+            let y = h + rise_at(ahead);
             // Coming down onto a floor at the root: landed (before the
             // faces: its own top is under the feet), only while no face
             // holds the body back: the root runs on past a wall the body
             // stands at (a wall thinner than a cell is no landing beyond).
-            if ahead >= APEX_AHEAD_M && body + ds + 1e-3 >= x {
+            if past_apex(ahead) && body + ds + 1e-3 >= x {
                 match landing(x, y, last) {
                     Down::On(f) => return Some((Flight::Landed(f, x, 0.0), over)),
                     Down::Held => return None,
@@ -722,7 +737,7 @@ impl WalkGrid {
                 body = x;
             } else {
                 // Held, coming down where it is.
-                match if ahead >= APEX_AHEAD_M { landing(body, y, last) } else { Down::Air } {
+                match if past_apex(ahead) { landing(body, y, last) } else { Down::Air } {
                     Down::On(f) => return Some((Flight::Landed(f, body, 0.0), Over::Clear)),
                     Down::Held => return None,
                     Down::Air => was_held = true,
@@ -1426,16 +1441,24 @@ impl WalkGrid {
                     return (None, false);
                 }
                 // One level whatever the body's speed after the clip.
-                let Some((flight, over)) = self.fly(a, d, lead, solids) else {
+                // [A364 P6] With `jump_air_steps` a flight for each walk speed at the press (the body keeps it in the air and
+                // after it), else one flight of the clip's own travel and the two speeds after it.
+                let [v0, v1] = WALK_JUMP_AFTER_CLIP_MS;
+                let ((f0, over), (f1, over2)) = if self.body.jump_air_steps {
+                    let (Some(f0), Some(f1)) = (self.fly(a, d, lead, Some(v0), solids), self.fly(a, d, lead, Some(v1), solids)) else {
+                        return (None, false);
+                    };
+                    (f0, f1)
+                } else {
+                    let Some(one) = self.fly(a, d, lead, None, solids) else {
+                        return (None, false);
+                    };
+                    (one, one)
+                };
+                let (Some((to, _, _)), Some((other, _, _))) = (self.land(a, d, f0, v0, solids), self.land(a, d, f1, v1, solids)) else {
                     return (None, false);
                 };
-                let (Some((to, _, _)), Some((other, _, _))) = (
-                    self.land(a, d, flight, WALK_JUMP_AFTER_CLIP_MS[0], solids),
-                    self.land(a, d, flight, WALK_JUMP_AFTER_CLIP_MS[1], solids),
-                ) else {
-                    return (None, false);
-                };
-                if self.vaults_down(a, to, over) || self.vaults_down(a, other, over) {
+                if self.vaults_down(a, to, over) || self.vaults_down(a, other, over2) {
                     return (None, true);
                 }
                 if (self.height[to as usize] - self.height[other as usize]).abs() > SAME_TOP {
