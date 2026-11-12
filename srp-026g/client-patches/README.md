@@ -5526,12 +5526,13 @@ the keys, the merged list, 29 seeks without the history error). No Unicorn check
 
 ## Distance detail option
 
-Graphics now includes a **Distance detail** arrow picker: **Normal** or
-**Maximum**. Maximum keeps full texture mip chains, static model LOD0, material
+Graphics now includes a **Distance detail** arrow picker: **Normal**, **High**,
+or **Maximum**. High extends model/material/grass LOD ranges by 1.5× and
+grass distance from 100 to 150 metres, retaining normal texture streaming. Maximum keeps full texture mip chains, static model LOD0, material
 LOD0 and grass LOD0. Normal preserves the existing adaptive behavior, including
-the FOV correction. Apply, Cancel and persistence use the existing native
-`r_use_texture_streaming` option; its default remains on. The same console
-command controls the setting (`off` for maximum, `on` for adaptive detail).
+the FOV correction. Apply, Cancel and persistence use the native integer
+option and bounded `r_distance_detail` command: 0 Normal (default), 1 High,
+2 Maximum. The command also derives the renderer’s texture-streaming mode.
 Hardware mip filtering, frustum and occlusion culling remain active. Maximum
 also removes grass's separate 100-metre cutoff and forces the draw-time grass
 model selector to LOD0; changing only the culling cache did not affect that

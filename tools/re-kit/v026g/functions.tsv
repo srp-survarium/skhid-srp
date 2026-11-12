@@ -2337,3 +2337,5 @@ va	status	ref_021d	name
 0x00262ff0	reviewed	0x00197c8c	survarium::options_tab::apply
 0x002630a0	reviewed	0x00197d24	survarium::options_tab::initialize_data
 0x001cc470	reviewed		grass_patch_select_model_lod
+0x0001dcd0	observed		vostok::console_commands::cc_u32::cc_u32
+0x003cd300	observed		vostok::render::render_cc_u32::execute

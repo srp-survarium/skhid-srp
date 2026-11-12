@@ -2544,3 +2544,5 @@ va	name	source	ret_cleanup	result
 0x00236d30	survarium::game_world_ui::set_player_stats_info	manual	4	none: root.list_update_player of the hud movie (0x236FEB), the place's row (kills, deaths, ...); update_ui calls it for each place only while the Tab list is shown (+0BAh, 0x23B421..0x23B46E), a Blackout match's Tab too
 0x00261100	survarium::options_item_int::options_item_int	manual	16	EAX receiver
 0x001cc470	grass_patch_select_model_lod	manual	0	EAX LOD index, 0xAA when LOD0 is absent
+0x0001dcd0	vostok::console_commands::cc_u32::cc_u32	manual	24	
+0x003cd300	vostok::render::render_cc_u32::execute	manual	4	

@@ -1,10 +1,11 @@
-; Distance-based detail, native r_use_texture_streaming owns the setting.
-; Its render-options command already handles Apply, Cancel, saving and reload.
+; Distance detail: bounded native r_distance_detail command (Normal/High/Maximum).
+; The stock integer item handles Apply, Cancel, saving and preset membership.
 ; A native integer option participates in the stock graphics preset system.
 BITS 32
 %include "engine_026g.inc"
 global detail_options, detail_label, detail_model, detail_shader, detail_texture, detail_grass
-global detail_option_vtable, detail_initialize, detail_apply
+global detail_command_vtable, detail_register, detail_execute, detail_state, detail_previous
+global detail_model_screen, detail_model_distance, detail_grass_screen, detail_grass_metric, detail_shader_threshold
 global detail_grass_model, detail_grass_distance
 global detail_preset_compare, detail_preset_address, detail_default_next
 section .text
@@ -20,15 +21,14 @@ detail_options:
     test eax, eax
     jz .store
     mov edi, eax
-    push 2
+    push 3
     push detail_values
-    push 0xa2844c                  ; existing r_use_texture_streaming command
+    push detail_command_name
     push edi
     push 19
     push ebx
     call engine_options_int
     add esp, 24
-    mov dword [edi], detail_option_vtable + 4
     mov eax, edi
 .store:
     mov edx, [ebx]
@@ -39,43 +39,41 @@ detail_options:
     pop ebx
     ret 8
 
-; Native integer lifecycle; only storage conversion differs. Normal (0)
-; maps to streaming on, Maximum (1) to off. No conversion in ActionScript.
-detail_initialize:
-    mov eax, [ecx+8]
-    test eax, eax
-    jz .normal
-    mov eax, [eax+0x40]
-    cmp byte [eax], 0
-    sete al
-    jmp .store
-.normal:
-    xor eax, eax
-.store:
-    mov [ecx+0x1d], al
-    mov [ecx+0x1e], al
-    ret
+ ; Replace the old streaming-bool registration with a native render_cc_u32.
+; The original static-init guard still owns registration. One command owns
+; detail and derives the renderer's streaming byte on every execution,
+; including user.cfg and console execution, not just menu Apply.
+detail_register:
+    pushad
+    mov eax, [0x2260498]
+    mov ecx, [eax]
+    mov [detail_command+4], ecx
+    mov dword [eax], detail_command
+    push 2                        ; user.cfg command category
+    push 1                        ; serializable
+    push 2                        ; maximum enum value
+    push 0                        ; minimum enum value
+    push detail_state
+    push detail_command_name
+    push detail_command+0x10
+    call engine_cc_u32
+    add esp, 28
+    mov dword [detail_command+0x10], detail_command_vtable+4
+    mov eax, [0x2260498]
+    mov byte [eax+0x132], 1        ; default Normal uses streaming
+    popad
+    mov esi, 1                    ; original registration's outgoing value
+    jmp 0x3ce2f7
 
-detail_apply:
-    push esi
-    push edi
-    movzx edx, byte [ecx+0x1d]
-    mov [ecx+0x1e], dl
-    xor edx, 1
-    ; A temporary native bool receiver uses the existing command's Apply,
-    ; including renderer reload tracking. It cannot escape this call.
-    sub esp, 0x1c
-    mov esi, ecx
-    mov edi, esp
-    mov ecx, 7
-    rep movsd
-    mov [esp+0x18], edx
-    push esp
-    call engine_options_bool_apply
-    add esp, 0x20
-    pop edi
-    pop esi
-    ret
+detail_execute:
+    push dword [esp+4]
+    push ecx
+    call engine_render_u32_execute
+    add esp, 8
+    mov eax, [0x2260498]
+    cmp dword [detail_state], 2
+    setne byte [eax+0x132]
+    ret 4
 
 ; The game's first ten entries are populated from its graphics preset data.
 ; Keep those exact entries and append detail to the same native loops.
@@ -141,7 +139,7 @@ detail_label:
 detail_model:
     push edx
     mov edx, [0x2260498]
-    cmp byte [edx+0x132], 0
+    cmp dword [detail_state], 2
     pop edx
     je 0x16eefd
     cmp byte [ecx+1], 0
@@ -150,7 +148,7 @@ detail_model:
 
 ; get_shader_lod_index: ECX already holds the renderer's active options.
 detail_shader:
-    cmp byte [ecx+0x132], 0
+    cmp dword [detail_state], 2
     je .full
     mov eax, [ecx+0xe8]
     jmp 0x158d2c
@@ -164,7 +162,7 @@ detail_shader:
 detail_grass_model:
     push ecx
     mov ecx, [0x2260498]
-    cmp byte [ecx+0x132], 0
+    cmp dword [detail_state], 2
     pop ecx
     je 0x1cc521
     cmp byte [edi+1], 0
@@ -178,9 +176,18 @@ detail_grass_distance:
     pushfd
     push ecx
     mov ecx, [0x2260498]
-    cmp byte [ecx+0x132], 0
+    cmp dword [detail_state], 2
     pop ecx
     je .full
+    popfd
+    pushfd
+    cmp dword [detail_state], 1
+    jne .normal
+    popfd
+    comiss xmm0, [detail_grass_limit]
+    ja 0x16064d
+    jmp 0x1605d0
+.normal:
     popfd
     ja 0x16064d
     jmp 0x1605d0
@@ -191,10 +198,16 @@ detail_grass_distance:
 ; process_culling already set the grass patch's LOD to zero. Keep native
 ; culling and the available-LOD clamp; skip only distance-based selection.
 detail_grass:
-    cmp byte [ecx+0x132], 0
+    cmp dword [detail_state], 2
     je 0x160615
     movss xmm2, [ecx+0x50]
-    jmp 0x1605e5
+    movss xmm1, [ecx+0x54]
+    cmp dword [detail_state], 1
+    jne .done
+    mulss xmm2, [detail_high_scale]
+    mulss xmm1, [detail_high_scale]
+.done:
+    jmp 0x1605ea
 
 ; The native non-streamed texture request asks for the complete mip chain
 ; but normally drops the top levels according to texture quality. Full
@@ -202,7 +215,7 @@ detail_grass:
 detail_texture:
     pushfd
     mov edx, [0x2260498]
-    cmp byte [edx+0x132], 0
+    cmp dword [detail_state], 2
     je .full
     mov edx, [ecx+0x88194]
     jmp .done
@@ -212,16 +225,74 @@ detail_texture:
     popfd
     jmp 0x3d9c49
 
+ ; Scale only local selection metrics, never shared model descriptors.
+detail_model_screen:
+    cmp dword [detail_state], 1
+    jne .done
+    mulss xmm0, [detail_high_scale]
+.done:
+    movss xmm1, [eax+8]
+    jmp 0x16f2b1
+
+detail_model_distance:
+    movss xmm0, [esp+0x10]
+    cmp dword [detail_state], 1
+    jne .done
+    mulss xmm0, [detail_high_inverse]
+.done:
+    jmp 0x16f2f1
+
+detail_grass_screen:
+    cmp dword [detail_state], 1
+    jne .done
+    mulss xmm0, [detail_high_scale]
+.done:
+    movss xmm1, [ebx+8]
+    jmp 0x1cc814
+
+detail_grass_metric:
+    cmp dword [detail_state], 1
+    jne .done
+    fmul dword [detail_high_inverse]
+.done:
+    fst dword [esp+0x10]
+    fld dword [ebx]
+    jmp 0x1cc922
+
+detail_shader_threshold:
+    mov eax, [esp+4]
+    cmp dword [detail_state], 1
+    jne .done
+    mulss xmm0, [detail_high_inverse]
+.done:
+    comiss xmm0, [eax+0x58]
+    jmp 0x158d66
+
 section .rodata
 align 4
-; RTTI locator followed by the six standard options_item_int slots.
-detail_option_vtable:
-    dd 0xa4c770
-    dd 0x261310, detail_initialize, 0x261150, 0x261260, detail_apply, 0x261300
-detail_values: dd detail_normal_key, detail_maximum_key
+; Native render_cc_u32 command methods; execute synchronizes the derived byte.
+detail_command_vtable:
+    dd 0xa589c4
+    dd 0x3cf4a0, detail_execute, 0xece00, 0xece20, 0xece40, 0x75af0, 0xec6e0
+detail_values: dd detail_normal_key, detail_high_key, detail_maximum_key
 detail_preset_normal: dd 19, 0
-detail_preset_maximum: dd 19, 1
+detail_preset_maximum: dd 19, 2
+detail_high_scale: dd 1.5
+detail_high_inverse: dd 0.6666666666666667
+detail_grass_limit: dd 22500.0
+detail_command_name: db "r_distance_detail", 0
 detail_normal_key: db "st_distance_detail_normal", 0
+detail_high_key: db "st_distance_detail_high", 0
 detail_maximum_key: db "st_distance_detail_maximum", 0
 detail_allocation: db "distance detail option", 0
 detail_label_key: db "st_distance_detail_option", 0
+
+section .data
+align 4
+; render_cc header + cc_u32 + previous-value pointer, same native layout.
+detail_command:
+    dd 0xa2864c, 0, 0, 4           ; no shader define; reload-textures change kind
+    times 0x50 db 0
+    dd detail_previous
+detail_state: dd 0
+detail_previous: dd 0

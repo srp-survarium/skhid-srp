@@ -5,7 +5,6 @@
 bits 32
 section .text
 global engine_options_int
-global engine_options_bool_apply
 global engine_cfg_child
 global engine_cfg_has
 global engine_malloc
@@ -225,6 +224,8 @@ global engine_cc_delegate
 global engine_cc_delegate_execute
 global engine_log_helper
 global engine_log_write
+global engine_cc_u32
+global engine_render_u32_execute
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -325,21 +326,6 @@ engine_options_int:
     mov ecx, [esp + 36]   ; parent
     mov eax, [esp + 40]   ; id
     call 0x261100
-    pop edi
-    pop esi
-    pop ebx
-    pop ebp
-    ret
-
-    align 16, db 0xCC
-engine_options_bool_apply:
-    ; 0x261820 survarium::options_item_bool::apply: receiver ECX; pops 0
-    push ebp
-    push ebx
-    push esi
-    push edi
-    mov ecx, [esp + 20]   ; receiver
-    call 0x261820
     pop edi
     pop esi
     pop ebx
@@ -2640,6 +2626,43 @@ engine_log_write:
     push dword [esp + 28]   ; format -> 4
     mov esi, [esp + 28]   ; helper
     call 0x111d10
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_cc_u32:
+    ; 0x1dcd0 vostok::console_commands::cc_u32::cc_u32: object EAX, name ESP+4, value ESP+8, minimum ESP+12, maximum ESP+16, saved ESP+20, kind ESP+24; pops 24
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 44]   ; kind -> 24
+    push dword [esp + 44]   ; saved -> 20
+    push dword [esp + 44]   ; maximum -> 16
+    push dword [esp + 44]   ; minimum -> 12
+    push dword [esp + 44]   ; value -> 8
+    push dword [esp + 44]   ; name -> 4
+    mov eax, [esp + 44]   ; object
+    call 0x1dcd0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_render_u32_execute:
+    ; 0x3cd300 vostok::render::render_cc_u32::execute: object ECX, arguments ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; arguments -> 4
+    mov ecx, [esp + 24]   ; object
+    call 0x3cd300
     pop edi
     pop esi
     pop ebx

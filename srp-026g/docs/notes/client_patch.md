@@ -3461,27 +3461,37 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eight lohooks; its boundary `
 
 `detail_026g.asm` lives in the linked `detail.code` arena block. Graphics item
 19 is an `options_item_int`, type `string_selector` (1), constructed by the
-same `0x261100` constructor as texture/geometry quality. It has two localized
-choices: Normal (0) and Maximum (1). Flash only places the stock arrow picker;
+same `0x261100` constructor as texture/geometry quality. Its localized choices
+are Normal (0), High (1), and Maximum (2). Flash only places the stock arrow picker;
 its value, data provider, setters, Apply/Cancel and preset notifications use
 the ordinary Settings path. There is no Flash value conversion or preset
 synchronization handler.
 
-The existing serialized `r_use_texture_streaming` command remains the storage
-owner. The integer option's vtable keeps native `call`, `fill_data`,
-`fill_value` and `revert`. Only initialize and Apply convert between choice
-index and streaming boolean: Normal -> on, Maximum -> off. Initialize reads
-the command's boolean once. Apply copies a temporary native bool receiver on
-the stack and calls native bool Apply (`0x261820`) through the engine library.
-That retains `render_cc_bool::execute` (`0x3CD180`), previous-value tracking
-and renderer texture reload. The integer saved/pending bytes are at +1E/+1D;
-the renderer reads its active options (`[0x2260498]`, streaming +132), never
-an unapplied menu choice. The temporary receiver cannot escape Apply.
+The bounded, serialized `r_distance_detail` command owns the state. The whole
+integer-option vtable is now stock, including initialize and Apply. At the old
+streaming-command registration site (`0x3CE2BE`), the same static-init guard
+registers a render_cc_u32 instead: native constructor `0x1DCD0`, range 0..2,
+category 2, serializable, render change reason 4 (texture reload). Its header
+and previous-value pointer retain the native render-command layout. Native
+`render_cc_u32::execute` (`0x3CD300`) records the previous value and validates
+input; the command's execute override then derives active streaming +132
+(on for Normal/High, off for Maximum). Menu Apply, console, and user.cfg thus
+all use the same state transition. The original boolean command is replaced,
+not retained as a second owner. Unreleased two-choice test profiles need their
+old boolean translated to the new integer once; published profiles default
+to Normal. The pending menu choice never changes rendering before Apply.
+
+High extends distance thresholds by 1.5: model selection scales its local
+measured distance by 2/3, or projected extent by 1.5. Grass draw selection
+uses the same two paths; culling thresholds 40/60 become 60/90 and the
+100-metre cutoff becomes 150. Material screen thresholds scale by 2/3.
+Shared asset descriptors are never mutated. High retains normal texture
+streaming and mip bias. Maximum retains the previously tested behavior.
 
 The native preset selector (`0x2620A0`) and native integer option's Custom
 comparison (`0x261310`) each iterate eleven entries. The first ten retain the
 engine's live, config-populated table at `0x1F1B188`; the extra entry is option
-19, value 1 for Ultra (preset 4), 0 for presets 0..3. Custom (5) changes no
+19, value 2 for Ultra (preset 4), 0 for presets 0..3. Custom (5) changes no
 individual values. The native Default graphics loop (`0x1FF460`) also appends
 option 19, Maximum, after its original ten rows. Hooks at `0x261350` and
 `0x2620DA` avoid overwriting the original table-address relocations. The loop
@@ -3489,11 +3499,11 @@ counts and default-loop continuation are the only other preset changes.
 
 The graphics allocation/count grows 19 -> 20 (`0x262753`); both constructor
 exits append the option. The label array/counts (`0x2007B6`, `0x200B10`) include
-`st_distance_detail_option`. Native integer `fill_data` translates the two
+`st_distance_detail_option`. Native integer `fill_data` translates the three
 choice keys. The content manifest provides title and choices in all six
 languages. Existing option ids stay fixed.
 
-When streaming is off, the renderer hooks select maximum detail:
+When the command is Maximum (2), the renderer hooks select maximum detail:
 
 | Hook | Native behavior retained or changed |
 | --- | --- |
@@ -3530,7 +3540,7 @@ remain in `scripts/distance-detail/reproduction.txt`; those are not FPS costs.
 Validation: `check_detail_026g.py` executes native constructor, all five preset
 callbacks, Custom matching/mismatch, Default, UInt selection and fill_value,
 Cancel, Apply and reinitialize. Initialize and Apply run through the real
-options_tab virtual call sites. Only allocation, CRT formatting and GFx
+options_tab virtual call sites. Only allocation, CRT formatting/parsing and GFx
 Movie::Invoke boundaries are mocked. Native renderer selection tests remain.
 The Ruffle harness consumes those native callback traces and clicks both arrow
 buttons repeatedly, checks Apply enabling/clearing, Cancel restoration,
@@ -3547,3 +3557,19 @@ synthetic identity-setter test did not model the native callbacks. That adapter
 and test have been replaced. Native/UI checks are separate from a played
 save/restart and FPS/VRAM comparison; the corrected version still needs that
 live validation before release.
+
+The owner confirmed the two-choice native menu and grass correction working
+in the local game on 2026-11-12, before adding High. High requires separate
+live confirmation; native selection checks are not an FPS comparison.
+
+High validation (2026-11-12): 28 native model/grass cases match the original
+selectors with thresholds extended 1.5x; nine grass culling boundary cases
+include 150/150.01 metres. Normal parity and Maximum checks still pass
+(120 model, 42 material, 96 grass culling, 128 grass draw cases). Eight native
+Apply/reopen/save-status cases cover all states and changed/unchanged reload
+tracking. The Ruffle harness passes both arrows, presets, Apply, Cancel, tab
+revisits and all six translations. Hook/ABI safety and engine-library checks
+pass. The local test content was built through build-content (quick build),
+and the test executable launched fullscreen at 2560x1440 with frame/GPU/memory
+recorders. High has not yet been confirmed played or released; no controlled
+FPS comparison is claimed.

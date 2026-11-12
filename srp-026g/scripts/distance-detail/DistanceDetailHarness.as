@@ -13,7 +13,7 @@ package {
   private var pendingPreset:int = 3;
   private var pendingDetail:int = 0;
   private var detailCalls:int = 0;
-  private var labels:Array = ["Distance detail|Normal|Maximum", "Detailgrad|Normal|Maximal", "Szczegółowość|Normalna|Maksymalna", "Детализация|Обычная|Максимум", "Детализация|Обычная|Максимум", "Деталізація|Звичайна|Максимум"];
+  private var labels:Array = ["Distance detail|Normal|High|Maximum", "Detailgrad|Normal|Hoch|Maximal", "Szczegółowość|Normalna|Wysoka|Maksymalna", "Детализация|Обычная|Высокая|Максимум", "Детализация|Обычная|Высокая|Максимум", "Деталізація|Звичайна|Висока|Максимум"];
   public function DistanceDetailHarness() {
    fixtureLoader.addEventListener(Event.COMPLETE,fixtureLoaded);
    fixtureLoader.addEventListener(IOErrorEvent.IO_ERROR,function(e:Event):void { finish("native fixture missing"); });
@@ -57,7 +57,7 @@ package {
     var option:Object={label:i==19?"Distance detail":"Option "+i,setter:setter(i)};
     if(i==8) option.dataProvider=["Minimum","Low","Medium","High","Ultra","Custom"];
     if(i>=9 && i<=18) option.dataProvider=["Minimum","Low","Medium","High","Ultra"];
-    if(i==19) option.dataProvider=["Normal","Maximum"];
+    if(i==19) option.dataProvider=["Normal","High","Maximum"];
     options.push(option);
    }
    settings.setSettings(2,options); settings.setSettings(0,[]); settings.selectIndex(2);
@@ -74,7 +74,7 @@ package {
    if(preset.selectedIndex!=expectedPreset || pendingPreset!=expectedPreset) failures.push("preset "+preset.selectedIndex+" native "+pendingPreset+" expected "+expectedPreset);
    if(detail.selectedIndex!=expectedDetail || pendingDetail!=expectedDetail) failures.push("detail "+detail.selectedIndex+" native "+pendingDetail+" expected "+expectedDetail);
    if(pending && !settings.btn_accept.enabled) failures.push("Apply did not enable");
-   if(detail.prevBtn.enabled!=(expectedDetail==1) || detail.nextBtn.enabled!=(expectedDetail==0)) failures.push("arrow enable states wrong");
+   if(detail.prevBtn.enabled!=(expectedDetail>0) || detail.nextBtn.enabled!=(expectedDetail<2)) failures.push("arrow enable states wrong");
    trace("DETAIL state preset="+preset.selectedIndex+" detail="+detail.selectedIndex+" apply="+settings.btn_accept.enabled+" left="+detail.prevBtn.enabled+" right="+detail.nextBtn.enabled);
   }
   private function tick(e:Event):void {
@@ -83,10 +83,10 @@ package {
     if(frame==10) setup();
     // Real arrow ButtonEvents, not assignments to selectedIndex.
     if(frame==20) click(preset.nextBtn); // High -> Ultra, native callback stages Maximum.
-    if(frame==25) { check(4,1); click(preset.prevBtn); }
+    if(frame==25) { check(4,2); click(preset.prevBtn); }
     if(frame==30) { check(3,0,false); click(detail.nextBtn); }
-    if(frame==35) { check(5,1); click(detail.prevBtn); }
-    if(frame==40) { check(5,0); click(detail.nextBtn); }
+    if(frame==35) { check(5,1); click(detail.nextBtn); }
+    if(frame==40) { check(5,2); click(detail.prevBtn); }
     if(frame==45) { check(5,1); click(detail.prevBtn); }
     if(frame==50) { check(5,0); click(detail.nextBtn); }
     if(frame==55) {
@@ -110,13 +110,13 @@ package {
     if(frame==80) { check(5,1,false); preset.selectedIndex=0; }
     if(frame>=85 && frame<=125 && frame%10==5) {
      var expected:int=(frame-85)/10;
-     check(expected,expected==4?1:0);
+     check(expected,expected==4?2:0);
      if(expected<4) click(preset.nextBtn);
     }
     if(frame>=130 && frame<190 && frame%10==0) {
      var texts:Array=labels[(frame-130)/10].split("|");
      var DP:Class=loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.data.DataProvider") as Class;
-     detail.label=texts[0]; detail.dataProvider=new DP([texts[1],texts[2]]);
+     detail.label=texts[0]; detail.dataProvider=new DP([texts[1],texts[2],texts[3]]);
     }
     if(frame>=135 && frame<195 && frame%10==5) {
      if(detail.textField.textWidth>detail.textField.width-3 || detail.textField2.textWidth>detail.textField2.width-3) failures.push("translation clipped");

@@ -6087,3 +6087,12 @@ va	name	location	role	basis
 0x001cc470	grass_patch_select_model_lod	entry ESP+4	world transform matrix	observed at grass_patch::render 0x1ccb3d..0x1ccb49 and selector body
 0x001cc470	grass_patch_select_model_lod	entry ESP+8	viewer position float3	observed at grass_patch::render 0x1ccb3d..0x1ccb49 and selector body
 0x001cc470	grass_patch_select_model_lod	entry ESP+12	render model reference, released by the selector	observed at grass_patch::render 0x1ccb3d..0x1ccb49 and selector body
+0x0001dcd0	vostok::console_commands::cc_u32::cc_u32	EAX	object	observed
+0x0001dcd0	vostok::console_commands::cc_u32::cc_u32	entry ESP+4	name	observed
+0x0001dcd0	vostok::console_commands::cc_u32::cc_u32	entry ESP+8	value address	observed
+0x0001dcd0	vostok::console_commands::cc_u32::cc_u32	entry ESP+12	minimum	observed
+0x0001dcd0	vostok::console_commands::cc_u32::cc_u32	entry ESP+16	maximum	observed
+0x0001dcd0	vostok::console_commands::cc_u32::cc_u32	entry ESP+20	saved serializable	observed
+0x0001dcd0	vostok::console_commands::cc_u32::cc_u32	entry ESP+24	command kind	observed
+0x003cd300	vostok::render::render_cc_u32::execute	ECX	cc_u32 object receiver at render command +10h	observed
+0x003cd300	vostok::render::render_cc_u32::execute	entry ESP+4	arguments string	observed

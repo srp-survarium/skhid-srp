@@ -131,9 +131,6 @@ struct world_user;
 /* 0x261100 survarium::options_item_int::options_item_int: parent ECX, id EAX, receiver ESP+4, command ESP+8, values ESP+12, count ESP+16; pops 16; EAX */
 void *engine_options_int(void *parent, unsigned int id, void *receiver, const char *command, const char *const *values, unsigned int count);
 
-/* 0x261820 survarium::options_item_bool::apply: receiver ECX; pops 0 */
-void engine_options_bool_apply(void *receiver);
-
 /* 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX */
 const struct engine_cfg *engine_cfg_child(const struct engine_cfg *table, const char *key);
 
@@ -790,5 +787,11 @@ struct log_helper *engine_log_helper(const struct log_function *function, unsign
 
 /* 0x111d10 vostok::logging::helper::write: helper ESI, format ESP+4, arguments ESP+8; pops 8 */
 void engine_log_write(struct log_helper *helper, const char *format, const void *arguments);
+
+/* 0x1dcd0 vostok::console_commands::cc_u32::cc_u32: object EAX, name ESP+4, value ESP+8, minimum ESP+12, maximum ESP+16, saved ESP+20, kind ESP+24; pops 24 */
+void engine_cc_u32(void *object, const char *name, unsigned int *value, unsigned int minimum, unsigned int maximum, unsigned int saved, unsigned int kind);
+
+/* 0x3cd300 vostok::render::render_cc_u32::execute: object ECX, arguments ESP+4; pops 4 */
+void engine_render_u32_execute(void *object, const char *arguments);
 
 #endif

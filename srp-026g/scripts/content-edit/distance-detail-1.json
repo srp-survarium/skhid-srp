@@ -1,5 +1,5 @@
 {
-  "_about": "Native integer graphics option 19. Choices and preset membership use the stock options system. Only its load/apply methods convert Normal/Maximum to the existing streaming command.",
+  "_about": "Native integer graphics option 19: Normal, High (1.5x distance), Maximum. The native r_distance_detail command owns saving and reload.",
   "add_key": [
     {
       "file": "localization/english/localization",
@@ -108,6 +108,42 @@
       "table": "strings",
       "key": "st_distance_detail_maximum",
       "text": "Максимум"
+    },
+    {
+      "file": "localization/english/localization",
+      "table": "strings",
+      "key": "st_distance_detail_high",
+      "text": "High"
+    },
+    {
+      "file": "localization/german/localization",
+      "table": "strings",
+      "key": "st_distance_detail_high",
+      "text": "Hoch"
+    },
+    {
+      "file": "localization/polish/localization",
+      "table": "strings",
+      "key": "st_distance_detail_high",
+      "text": "Wysoka"
+    },
+    {
+      "file": "localization/russian/localization",
+      "table": "strings",
+      "key": "st_distance_detail_high",
+      "text": "Высокая"
+    },
+    {
+      "file": "localization/original/localization",
+      "table": "strings",
+      "key": "st_distance_detail_high",
+      "text": "Высокая"
+    },
+    {
+      "file": "localization/ukrainian/localization",
+      "table": "strings",
+      "key": "st_distance_detail_high",
+      "text": "Висока"
     }
   ]
 }

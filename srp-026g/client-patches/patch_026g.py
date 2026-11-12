@@ -2798,9 +2798,15 @@ INSTALLS[0x743B2] = (CALLEE, "get_axis_and_angle's atan2: animation_math (Rust `
 INSTALLS[0x3B3340] = (ENTRY, "time_channel::domain: animation_math_domain, the same search without a division "
                              "per step", None, None)
 
-# Distance-based detail: native streaming command owns Apply/Cancel/save.
+# Distance detail: native bounded integer command owns Apply/Cancel/save.
 # Full detail also selects LOD0 and keeps the top texture levels.
 DETAIL_HOOKS = (
+    (0x3CE2BE, bytes.fromhex("6a018d8f5e020000"), "detail_register", 0xE9),
+    (0x16F2AC, bytes.fromhex("f30f104808"), "detail_model_screen", 0xE9),
+    (0x16F2EB, bytes.fromhex("f30f10442410"), "detail_model_distance", 0xE9),
+    (0x1CC80F, bytes.fromhex("f30f104b08"), "detail_grass_screen", 0xE9),
+    (0x1CC91C, bytes.fromhex("d9542410d903"), "detail_grass_metric", 0xE9),
+    (0x158D5E, bytes.fromhex("8b4424040f2f4058"), "detail_shader_threshold", 0xE9),
     (0x1CC51B, bytes.fromhex("807f0100752c"), "detail_grass_model", 0xE9),
     (0x1605CA, bytes.fromhex("0f877d000000"), "detail_grass_distance", 0xE9),
     (0x261350, bytes.fromhex("0fb6c103c7"), "detail_preset_compare", 0xE9),
@@ -2851,9 +2857,8 @@ BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
 # its script does not have (test_call_shapes).
 RESEARCH_CHECK = "check_research_026g.py"
 INSTALLED_VTABLES = (
-    ("Distance detail's integer option", "detail.code", "detail_option_vtable", 0xA0670C, 6, 2, {
-        1: ("check_detail_026g.py", "driven: initialize through options_tab::initialize_data at 0x263163"),
-        4: ("check_detail_026g.py", "driven: Apply through options_tab::apply at 0x263000"),
+    ("Distance detail's command", "detail.code", "detail_command_vtable", 0xA28658, 7, 1, {
+        1: ("check_detail_026g.py", "driven: command execute through native integer Apply at 0x2612ef"),
     }),
     ("Research's rule", "research.code", "rn_rule_vtable", 0xA15DA4, 20, 9, {
         7: (RESEARCH_CHECK, "driven: slot 7, on_event(type, data, time), through the dispatcher 0x2D1EA0"),
@@ -3060,6 +3065,7 @@ ARENA = (
     ArenaBlock("module_watch.code", "code", 0x10, ("module_watch_026g.asm",)),
     ArenaBlock("module_watch.data", "data", 0x10, ("module_watch_026g.asm",)),
     ArenaBlock("detail.code", "code", 0x1000, ("detail_026g.asm",)),
+    ArenaBlock("detail.data", "data", 0x10, ("detail_026g.asm",)),
 )
 
 
