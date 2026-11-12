@@ -2,9 +2,9 @@
 
 Read in the executable (virtual addresses, image base 0x10000; names in `tools/re-kit/v026g`) and the game data.
 PROVEN where an address is given, unless said otherwise. Counted on the saved worlds and relayed inputs of recorded
-matches read with the repository's own parser: 322 battery matches of one live set and 214 of a later one; a body
-with no client revision note is a bot (not marked in the recordings: the eye heights, presses and holds split
-cleanly by it). The matches ran revisions 40 to 50: their bots ran the code released then. See also
+matches read with the repository's own parser: 322 battery matches of one live set and 214 of a later one; a bot is a
+place whose account id is 0 (the server's own mark of a body it drives; every take counted as a bot's is one). The
+matches ran revisions 40 to 50: their bots ran the code released then. See also
 `battery_pickup.md`, `battery_taker.md`, `battery_respawn.md`, `battery_credit.md`, `weapon_pickup.md`,
 `held_artefact_transfer.md`, `bear_traps.md`, `client_patch.md` (patch 23: the take of a battery under the feet).
 
@@ -34,8 +34,8 @@ cleanly by it). The matches ran revisions 40 to 50: their bots ran the code rele
 | a battery on the ground | no hand broken and the start's eye, carried with the feet, within 1.80 m of the point (0x300830). **No key, no look, no stance test** | the weapon's holster ends and the battery becomes the held item (`tick_active_object` 0x2D7650) | the weapon's `hide_time` / (1 + S22), on a 50 ms tick; the carry state `take_time` (0.5 s) later |
 | a battery in the enemy's container | `can_use` each tick (below) and the same 1.80 m (0x31CCF0) | the same | the same |
 | the own container, carrying | the same | the put state's end: **put in only if the carrier still uses that container, else dropped** (0x30102D..0x301096) | `put_time` 0.6 s |
-| an ammo crate | the key HELD and the ray still on the crate (0x2F8120) | the time | `resupply_time_in_ms` (3,000 on the one map read) |
-| an anomaly's artefact | the key held and the ray on it (0x31C780) | the time | `artefacts_search_time_sec` x (1 + S7) (6 s on the one map read) |
+| an ammo crate | the key HELD and the ray still on the crate (0x2F8120) | the time | `resupply_time_in_ms` (3,000 on every crate of all 116 map projects) |
+| an anomaly's artefact | the key held and the ray on it (0x31C780) | the time | `artefacts_search_time_sec` x (1 + S7) (6 s; 5 s on 44 containers of two older maps) |
 | a trap, to disarm | the key held and the ray on it (0x304F30) | the time | the trap's `defuse_time` |
 
 - Refused at the press for a battery (`can_use` 0x300710): carrying one already, a broken hand, **sprinting**, dead.
@@ -58,7 +58,8 @@ cleanly by it). The matches ran revisions 40 to 50: their bots ran the code rele
 ## A dropped battery
 
 A drop (the carrier's death, firing, a weapon key, a hand broken) puts the battery at the hands' place with zero
-speed and starts its physics (0x300F40, 0x300E50): it falls as a rigid box. **Only under y = -128 m is it put back**
+speed and starts its physics (0x300F40, 0x300E50; for a living carrier after that tick's physics step, 0x2D954B, at
+once for a dead one): it falls as a rigid box. **Only under y = -128 m is it put back**
 to its spawn place (0x3011E1); a battery that comes to rest under a floor stays there. Counted: of 471 batteries
 dropped by a carrier who died, 82 lay over 1 m under his feet. Of the dropped batteries' rests of 30 s or more,
 127 (62,481 s together) had bodies within 3 m across and none ever within the client's reach.
@@ -76,9 +77,19 @@ dropped by a carrier who died, 82 lay over 1 m under his feet. Of the dropped ba
 
 The hold itself is the same for all and is the client's. The bots' excess (1.34 and 1.10 s a take) is two waits of
 their own code, neither forced by the client: the wait for the view to settle before the first press, and first
-presses that started no use, each followed by 1.2 s and a world before the next. Why a first press misses is not
-counted yet (the ray's miss at each press); two causes are measured: the eye's place ahead of the feet, which the
-bots' view model leaves out, and a press sent after the settle time without the view on the box.
+presses that started no use, each followed by 1.2 s and a world before the next.
+
+**Why a first press started no use.** The client's ray rebuilt at every press (the view of the world before plus
+the inputs up to the press; it passes the saved use point within 0.013 m, median): of 1,339 failed presses of the
+first set, the ray landed on the map before the box in 552, passed short of it in 253, beside it in 265, over it
+in 120 (129 met it by the rebuild: its own error; 20 other). **The bots pressed while the client's view was still
+turning onto the battery**: in 844 of 1,210 misses the view met the box later, a median 550 ms after the press. The
+bots' aim point itself was good (its ray from the counted eye meets the box in 952 of 1,191); the view the client
+had was within the bots' settle angle of it at 5 of those presses. Two causes on the bots' side are read: the bots
+released then took the pitch's unit for a radian (`MAX_PITCH 1.0`, "radians", at the tag `026g-rev46`; a unit is
+67.48 degrees down), which put the client's view about 6 degrees under the aim; and the press was sent on the bot's
+own belief of its view, which ran 0.3 to 1.2 s ahead of the client's. This branch has the client's pitch map
+(`kin.pitch_scale`); its presses are not counted this way yet.
 
 ## Against the bots (this branch's files)
 
@@ -90,9 +101,12 @@ bots' view model leaves out, and a press sent after the settle time without the 
   edge whose ray meets the box, and a use's outcome is known a holster later.
 - `tactics.rs` stands a bot for a battery on a shelf where the crouched eye is within 1.8 m in a line; the ray must
   meet the box before the shelf's edge (bots pressed 10 to 37 times from 0.5 to 2.0 m under such batteries).
+- `collect.rs`'s `PUT_MISS_M` is no number of the client's: a put needs the ray to meet the container's own box
+  within 1.80 m (the box is in the map's project: `container_collision`, its scale the half sizes, about 1 x 0.85 x
+  0.65 m) and the use still running at the put state's end.
 - The same as the client: the reach of 1.8 m, the put time, the crate's and the trap's hold with the view on it.
 
 ## Not read
 
-Why first presses miss (the ray at each press); when in the tick a living carrier's dropped battery starts to fall;
-the crate's and the artefact's times on the other maps' projects; the container's use shape.
+Why the bots' belief of their view ran ahead of the client's at a press (a trace of the bot's own view and input
+times at each press settles it); the eye's place between uses other than by count (the look clips).
