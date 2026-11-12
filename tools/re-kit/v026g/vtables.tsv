@@ -129,3 +129,9 @@ vtable	slot	va	class	base	basis
 0x00a1f258	0x14	0x00356d00	vostok::physics::bt_static_rigid_body	vostok::physics::base_physics_object	observed: the walker behaviour of a face (the face data word's top two bits), the vcall of the character controller's down-sweep callback 0x84420
 0x009e2af4	0x10	0x00070c00	vostok::physics::bt_animated_rigid_body	vostok::physics::base_physics_object	observed: get_triangle_material (the word at +38h)
 0x009e2af4	0x14	0x00070c10	vostok::physics::bt_animated_rigid_body	vostok::physics::base_physics_object	observed: the walker behaviour of a face: always 0
+0x009e48a4	0x5	0x000a9be0	btCapsuleShape	btConvexInternalShape	observed: setLocalScaling keeping the margin, (implicit + margin) / old scale x new scale - margin per axis (the box's code; 0xA5E20 stores this vtable)
+0x009e4afc	0x5	0x000a9be0	btBoxShape	btPolyhedralConvexShape	observed: setLocalScaling keeping the margin (stored by the box ctor 0xA96D0)
+0x009e4b9c	0x5	0x000a9be0	btCylinderShape	btConvexInternalShape	observed: setLocalScaling keeping the margin, as the box's (stored by the cylinder ctor 0xA9D40)
+0x009e4b9c	0xf	0x000a9fe0	btCylinderShape	btConvexInternalShape	observed: localGetSupportingVertexWithoutMargin, CylinderLocalSupportY 0xA9F10 on the implicit dims +20h: radius the x half extent, half height the y
+0x009e2fcc	0x5	0x0008def0	btSphereShape	btConvexInternalShape	observed: the base setLocalScaling (stores the scale's absolute value only); the radius is implicit x times scale x
+0x009e48a4	0xf	0x000a5e90	btCapsuleShape	btConvexInternalShape	observed: localGetSupportingVertexWithoutMargin, the radius from the implicit dim on axis (up + 2) % 3 (lea [up+2]; idiv 3), z for up = y

@@ -2360,3 +2360,9 @@ va	status	ref_021d	name
 0x000829e0	reviewed	0x00059aa0	vostok::physics::collision_shape_cook::on_collision_sources_loaded
 0x003570a0	reviewed		vostok::physics::bt_static_rigid_body::get_triangle_material
 0x00356d00	reviewed	0x0021bc68	vostok::physics::bt_static_rigid_body::get_walker_behaviour
+0x00074190	reviewed		btConvexInternalShape::getMargin
+0x0008def0	reviewed		btConvexInternalShape::setLocalScaling
+0x000a5e20	reviewed		btCapsuleShape::btCapsuleShape
+0x000a5e90	reviewed		btCapsuleShape::localGetSupportingVertexWithoutMargin
+0x000a9be0	reviewed		btBoxShape::setLocalScaling
+0x000a9f10	reviewed		CylinderLocalSupportY
