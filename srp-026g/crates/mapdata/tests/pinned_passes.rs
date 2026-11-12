@@ -107,7 +107,7 @@ fn the_client_body_pass_is_pinned() {
 /// The file key of the default build is the one there was before the passes had constants: a default grid stored earlier is found.
 #[test]
 fn the_default_file_key_is_the_one_there_was() {
-    assert_eq!(GRID_ALGO, 13);
+    assert_eq!(GRID_ALGO, 14);
     let (t, area) = world();
     let seeds = [Vec3::new(1.0, 0.0, 1.0)];
     let key = grid_key_with_links(&t, area, 0.25, Body::default(), &seeds, OffMeshLinks::None);
@@ -133,5 +133,5 @@ const PIN_GAP: u64 = 218_410_819_143_687_843;
 const PIN_EXACT: u64 = 5_559_966_362_604_391_412;
 const PIN_HONEST: u64 = 9_697_411_571_619_617_025;
 const PIN_CLIENT: u64 = 10_680_625_577_665_009_494;
-/// The default build's key (GRID_ALGO 13: the step for walks and walls again, A364 C2; before, the key of c48d5455 for this world).
-const PIN_DEFAULT_KEY: u64 = 2_420_862_053_435_007_788;
+/// The default build's key (GRID_ALGO 14: a floor's and a walk's room by the cell's centre, A364 C2).
+const PIN_DEFAULT_KEY: u64 = 15_276_254_774_493_930_907;
