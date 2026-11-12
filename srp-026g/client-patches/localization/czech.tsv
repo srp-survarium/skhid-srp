@@ -916,6 +916,10 @@ st_dispersion_from_hip_description	Přesnost střelby od boku:
 st_dispersion_from_hip_name	Přesnost
 st_dispersion_movement_influence_description	Přesnost za pohybu:
 st_dispersion_movement_influence_name	Pevný úchop
+st_distance_detail_high	Vysoké
+st_distance_detail_maximum	Maximální
+st_distance_detail_normal	Normální
+st_distance_detail_option	Vzdálené detaily
 st_dont_have_permission	Na tuto akci nemáš oprávnění.
 st_drop	Sundat
 st_drop_action	Zahodit

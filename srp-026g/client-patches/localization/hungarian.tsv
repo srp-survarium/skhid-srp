@@ -916,6 +916,10 @@ st_dispersion_from_hip_description	Csípőlövés pontossága:
 st_dispersion_from_hip_name	Pontosság
 st_dispersion_movement_influence_description	Pontosság mozgás közben:
 st_dispersion_movement_influence_name	Biztos fogás
+st_distance_detail_high	Magas
+st_distance_detail_maximum	Maximális
+st_distance_detail_normal	Normál
+st_distance_detail_option	Távoli részletek
 st_dont_have_permission	Nincs jogosultságod ehhez a művelethez.
 st_drop	Levétel
 st_drop_action	Eldobás

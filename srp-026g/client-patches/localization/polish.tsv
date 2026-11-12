@@ -916,6 +916,10 @@ st_dispersion_from_hip_description	Precyzja przy strzale z biodra:
 st_dispersion_from_hip_name	Celność
 st_dispersion_movement_influence_description	Precyzja w ruchu:
 st_dispersion_movement_influence_name	Twardy orzech
+st_distance_detail_high	Wysoka
+st_distance_detail_maximum	Maksymalna
+st_distance_detail_normal	Normalna
+st_distance_detail_option	Szczegółowość
 st_dont_have_permission	Niewystarczające uprawnienia do przeprowadzenia tej czynności.
 st_drop	Zdejmij
 st_drop_action	Wyrzuć

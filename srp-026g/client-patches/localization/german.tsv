@@ -916,6 +916,10 @@ st_dispersion_from_hip_description	Schießengenauigkeit aus der Hüfte:
 st_dispersion_from_hip_name	Genauigkeit
 st_dispersion_movement_influence_description	Genauigkeit in der Bewegung:
 st_dispersion_movement_influence_name	Stark Halten
+st_distance_detail_high	Hoch
+st_distance_detail_maximum	Maximal
+st_distance_detail_normal	Normal
+st_distance_detail_option	Detailgrad
 st_dont_have_permission	Ungenügend Rechte um diese Aktion durchzuführen.
 st_drop	Abziehen
 st_drop_action	Verwerfen

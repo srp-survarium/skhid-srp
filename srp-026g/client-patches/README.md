@@ -5523,3 +5523,42 @@ its class (`vostok::world::Playback`) and do nothing without the replay client. 
 crate's tests (the key mapping) and in a game (2026-11-11, the owner's replay of match 0x1fe297e3:
 the keys, the merged list, 29 seeks without the history error). No Unicorn check.
 
+
+## Distance detail option
+
+Graphics now includes a **Distance detail** arrow picker: **Normal**, **High**,
+or **Maximum**. High extends model/material/grass LOD ranges by 1.5× and
+grass distance from 100 to 150 metres, retaining normal texture streaming. Maximum keeps full texture mip chains, static model LOD0, material
+LOD0 and grass LOD0. Normal preserves the existing adaptive behavior, including
+the FOV correction. Apply, Cancel and persistence use the native integer
+option and bounded `r_distance_detail` command: 0 Normal (default), 1 High,
+2 Maximum. The command also derives the renderer’s texture-streaming mode.
+Hardware mip filtering, frustum and occlusion culling remain active. Maximum
+also removes grass's separate 100-metre cutoff and forces the draw-time grass
+model selector to LOD0; changing only the culling cache did not affect that
+selector. Native shadow-pass limits and its explicit LOD bias remain.
+The Graphics presets include this row: Ultra selects Maximum; High selects High;
+Minimum, Low and Medium select Normal. Changing this row away from the selected
+preset selects Custom through the native integer-option comparison. The
+option uses the same native integer option and preset loops as the other
+quality rows; Flash only places the stock arrow picker.
+
+The screenshot's hospital model switches LOD1 → LOD0 when the view turns
+5.4° at the same player position. Executing the original selector with the
+released hospital asset reproduces that switch; maximum detail selects LOD0
+at both views. The model has 20,194 triangles at LOD1 and 50,496 at LOD0.
+These mesh counts measure geometry cost, not FPS or GPU memory.
+See `../scripts/distance-detail/reproduction.txt` for inputs and assumptions.
+
+Validation: `check_detail_026g.py` executes native model/material/grass/texture
+paths and menu Apply/Cancel in Unicorn; `selftest_026g.py::test_detail` checks
+hook bytes, targets, relocations and counts. The engine-call library and FOV
+checks pass. `../scripts/distance-detail/check.sh` checks all ten translated
+labels, both arrow buttons, Apply/Cancel state and tab revisits in CPU Ruffle,
+replaying callbacks captured by the native check (its third argument is the
+`native-check.json` report). The manifest
+content build contains only main_menu and the six localization tables.
+Implemented and tested in emulation; not played or released. Texture reload,
+save/restart and FPS/RAM/VRAM costs still need a running-client check.
+
+Run the combined native and menu regression with `tools/check distance-detail`.

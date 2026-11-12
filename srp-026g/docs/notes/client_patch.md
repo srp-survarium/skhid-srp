@@ -3456,3 +3456,137 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eight lohooks; its boundary `
   `srp_voice_mute(place, "1"|"0")` `root.srp_voice_mute(place, done)`; the menu shows "Mute voice"
   or "Unmute voice" after the chat's entries.
 - **Checked**: `selftest_026g.py` check 66, `cargo test` (rust/: the mutes' text, the radio). **Not run**: a game.
+
+### Distance detail option
+
+`detail_026g.asm` lives in the linked `detail.code` arena block. Graphics item
+19 is an `options_item_int`, type `string_selector` (1), constructed by the
+same `0x261100` constructor as texture/geometry quality. Its localized choices
+are Normal (0), High (1), and Maximum (2). Flash only places the stock arrow picker;
+its value, data provider, setters, Apply/Cancel and preset notifications use
+the ordinary Settings path. There is no Flash value conversion or preset
+synchronization handler.
+
+The bounded, serialized `r_distance_detail` command owns the state. The whole
+integer-option vtable is now stock, including initialize and Apply. At the old
+streaming-command registration site (`0x3CE2BE`), the same static-init guard
+registers a render_cc_u32 instead: native constructor `0x1DCD0`, range 0..2,
+category 2, serializable, render change reason 4 (texture reload). Its header
+and previous-value pointer retain the native render-command layout. Native
+`render_cc_u32::execute` (`0x3CD300`) records the previous value and validates
+input; the command's execute override then derives active streaming +132
+(on for Normal/High, off for Maximum). Menu Apply, console, and user.cfg thus
+all use the same state transition. The original boolean command is replaced,
+not retained as a second owner. Unreleased two-choice test profiles need their
+old boolean translated to the new integer once; published profiles default
+to Normal. The pending menu choice never changes rendering before Apply.
+After the native changed-command loop consumes this command, the hook at
+`0x3CF3D5` commits its previous value alongside the native options snapshot,
+preserving the save-flag comparison. Repeated Apply without an edit therefore
+requests no texture reload. The native loop and its settled state are tested.
+
+High extends distance thresholds by 1.5: model selection scales its local
+measured distance by 2/3, or projected extent by 1.5. Grass draw selection
+uses the same two paths; culling thresholds 40/60 become 60/90 and the
+100-metre cutoff becomes 150. Material screen thresholds scale by 2/3.
+Shared asset descriptors are never mutated. High retains normal texture
+streaming and mip bias. Maximum retains the previously tested behavior.
+
+The native preset selector (`0x2620A0`) and native integer option's Custom
+comparison (`0x261310`) each iterate eleven entries. The first ten retain the
+engine's live, config-populated table at `0x1F1B188`; the extra entry is option
+19, value 2 for Ultra (preset 4), 1 for High (preset 3), 0 for presets 0..2. Custom (5) changes no
+individual values. The native Default graphics loop (`0x1FF460`) also appends
+option 19, Maximum, after its original ten rows. Hooks at `0x261350` and
+`0x2620DA` avoid overwriting the original table-address relocations. The loop
+counts and default-loop continuation are the only other preset changes.
+
+The graphics allocation/count grows 19 -> 20 (`0x262753`); both constructor
+exits append the option. The label array/counts (`0x2007B6`, `0x200B10`) include
+`st_distance_detail_option`. Native integer `fill_data` translates the three
+choice keys. The shared localization dictionaries provide title and choices in all ten
+languages through the existing catalog entry in the content manifest. Existing option ids stay fixed.
+
+When the command is Maximum (2), the renderer hooks select maximum detail:
+
+| Hook | Native behavior retained or changed |
+| --- | --- |
+| `0x16EEF7`, static model selector | Missing LOD0 still returns `0xAA`; otherwise use native LOD0 return, bypassing distance/projected-box thresholds. |
+| `0x158D26`, material selector | Return shader LOD0. Normal retains native shader LOD and shading-quality behavior. |
+| `0x1605E0`, grass culling | Keep initialized LOD0, then execute the native available-LOD clamp. |
+| `0x1CC51B`, grass draw selector | Use the draw path's native LOD0 return, retaining model-reference release and missing-LOD0 behavior. |
+| `0x1605CA`, grass distance rejection | Maximum bypasses the 100-metre patch-center cutoff after the frustum query. Normal preserves the original comparison and flags. |
+| `0x3D9C43`, texture request | Native non-streamed request already asks for all mips; keep top levels by setting mip-cut to zero. |
+
+Grass has two independent decisions in 0.26g: culling sets patch+4098, but
+`grass_patch::render` calls the separate selector at `0x1CC470`, then fetches
+its surface through `0x1CBC20`. The former is named `grass_patch_select_model_lod`
+in re-kit by observed behavior, not an original symbol. Only patch+4098 was
+covered initially; that did not force the mesh actually drawn. The draw selector
+uses either distance or projected bounds and releases its by-value model ref.
+The new hook follows its existing LOD0 return after the missing-LOD0 check.
+A separate 100-metre squared-distance check preceded the old culling hook.
+Maximum now keeps those frustum-query candidates too. Frustum and occlusion
+culling remain; per-pass draw limits and the shadow pass's explicit LOD bias
+remain native. The gbuffer pass supplies a 1,000,000-metre draw limit.
+
+Grass regression coverage now starts before the distance rejection and executes
+the complete draw-time selector and surface fetch, including reference counts,
+Normal parity, Maximum LOD0, missing LOD0, distance and projected-size descriptors,
+and FOVs 50/65/90/100. More distant grass can increase draw cost; these native
+checks measure selection behavior, not a live FPS comparison.
+
+Normal replays the displaced instructions. Full detail keeps hardware mip
+filtering and the full mip chain. Explicit LOD requests, skeletal and terrain
+rendering are not rewritten. Hospital reproduction inputs and geometry counts
+remain in `scripts/distance-detail/reproduction.txt`; those are not FPS costs.
+
+Validation: `check_detail_026g.py` executes native constructor, all five preset
+callbacks, Custom matching/mismatch, Default, UInt selection and fill_value,
+Cancel, Apply and reinitialize. Initialize and Apply run through the real
+options_tab virtual call sites. Only allocation, CRT formatting/parsing and GFx
+Movie::Invoke boundaries are mocked. Native renderer selection tests remain.
+The Ruffle harness consumes those native callback traces and clicks both arrow
+buttons repeatedly, checks Apply enabling/clearing, Cancel restoration,
+presets, tab revisits and translations. Run:
+
+```
+python check_detail_026g.py original.exe --out /tmp/detail-native
+../scripts/distance-detail/check.sh main_menu.swf /tmp/detail-ui /tmp/detail-native/native-check.json
+```
+
+The earlier checkbox-backed picker plus Flash conversion failed in the live
+game (Ultra kept Normal, arrow direction and Apply state were wrong). Its
+synthetic identity-setter test did not model the native callbacks. That adapter
+and test have been replaced. Native/UI checks are separate from a played
+save/restart and FPS/VRAM comparison; the corrected version still needs that
+live validation before release.
+
+The owner confirmed the two-choice native menu and grass correction working
+in the local game on 2026-11-12, before adding High. High requires separate
+live confirmation; native selection checks are not an FPS comparison.
+
+High validation (2026-11-12): 28 native model/grass cases match the original
+selectors with thresholds extended 1.5x; nine grass culling boundary cases
+include 150/150.01 metres. Normal parity and Maximum checks still pass
+(120 model, 42 material, 96 grass culling, 128 grass draw cases). Eight native
+Apply/reopen/save-status cases cover all states and changed/unchanged reload
+tracking. The Ruffle harness passes both arrows, presets, Apply, Cancel, tab
+revisits and all six translations. Hook/ABI safety and engine-library checks
+pass. The local test content was built through build-content (quick build),
+and the test executable launched fullscreen at 2560x1440 with frame/GPU/memory
+recorders. High has not yet been confirmed played or released; no controlled
+FPS comparison is claimed.
+
+Final merge review: labels now use all ten shared localization dictionaries;
+`original` remains the generated Russian alias. The native render-options
+checkpoint commits the command's previous value, verified through the complete
+changed-command loop and a second Apply with no changes. The menu harness reads
+its labels from those dictionaries. `tools/check distance-detail` runs the native
+checks and then the actual menu against their callback traces.
+
+The broader `hud-options` check has a pre-existing startup-list expectation:
+it omits the five voice commands already registered by main's unchanged
+`vostok/voice.rs` (`srp_voice_mutes`, `g_hide_spam`, `s_use_microphone`,
+`s_mic_sens`, `s_chat_volume`). Its failure is separate from Distance detail;
+the latter registers in the renderer's command setup, not configs.start.
