@@ -6328,3 +6328,6 @@ va	name	location	role	basis
 0x00084420	vostok::physics::character_step_down_sweep_test_callback::addSingleResult	entry ESP+4	the LocalConvexResult: +0 the object, +4 the shape info or null, +10h the normal, +20h the point, +30h the fraction	observed
 0x00084810	vostok::physics::character_step_down_sweep_test_callback::get_normal_via_ray_test	EAX	the callback	observed
 0x00084190	vostok::physics::character_step_down_sweep_test_callback::hit_shape_rotation	EDI	the quaternion out	observed
+0x000b72a0	btSubsimplexConvexCast::calcTimeOfImpact	ECX	the caster: +4 the simplex solver, +8 convexA, +0Ch convexB	observed
+0x000b8010	btTriangleRaycastCallback::processTriangle	ECX	the callback: +10h from, +20h to, +30h flags, +34h m_hitFraction	observed
+0x00084040	vostok::physics::closest_ray_result_callback::addSingleResult	entry ESP+4	the LocalRayResult: +0 the object, +4 the shape info, +10h the normal, +20h the fraction	observed

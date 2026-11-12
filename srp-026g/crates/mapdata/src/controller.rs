@@ -12,6 +12,7 @@
 //! translates gets no closer than its speed allows, so no contact is stepped over.
 pub mod exe_cast;
 pub mod exe_gjk;
+pub mod exe_ray;
 pub mod gjk;
 mod solids;
 pub mod speed;
@@ -202,7 +203,13 @@ pub struct Contact {
     pub normal: Vec3,
     /// What is met.
     pub on: Surface,
+    /// The game's object met, in a world that holds the game's objects ([`Collision::build_exe`]).
+    pub object: Option<SolidId>,
 }
+
+/// One of the game's collision objects in a [`Collision::build_exe`] world (a placement the walking body meets).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SolidId(u32);
 
 /// What a contact is on, as the walk tick's callbacks read it.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -423,9 +430,21 @@ impl Collision {
                 Caster::Exe(start) => advance_exe(shape, by, face, start),
             };
             if let Some(Touch { t, point, normal }) = touch {
-                each(Contact { t, point, normal, on: Surface::Face { walker: face.walker, normal: face.normal } });
+                each(Contact { t, point, normal, on: Surface::Face { walker: face.walker, normal: face.normal }, object: None });
             }
         });
+    }
+
+    /// The ray of the walk tick's second looks (`ray_pick` 0x898C0, the steep-ground look 0x849BB) from `a` to `b`: the
+    /// normal of what it meets. The exe casts it with `btCollisionWorld::rayTestSingle` 0xA02D0 against the one object
+    /// the sweep hit (its root shape under its transform), never the world: with `object` (a contact of a
+    /// [`Self::build_exe`] world) that is done here, by the exe's own arithmetic ([`exe_ray`]). Without one (the placed
+    /// triangles know no objects) the ray meets the nearest placed face of any object ([`Self::ray`]).
+    pub fn look_ray(&self, object: Option<SolidId>, a: Vec3, b: Vec3) -> Option<Vec3> {
+        match (&self.sweeps, object) {
+            (Sweeps::Solids(solids, _), Some(SolidId(id))) => solids.look_ray(id, a, b),
+            _ => self.ray(a, b).map(|(_, normal)| normal),
+        }
     }
 
     /// The nearest face a ray from `a` to `b` crosses: the share of the way and the face's normal turned toward `a` (Bullet's
