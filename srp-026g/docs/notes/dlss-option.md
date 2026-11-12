@@ -414,5 +414,46 @@ much of the motion is negative; a line at every reset). A jittered picture witho
 - Found on the way, not this work's: the first replay tried (`rec026g_20261109-180618`) ends the
   game in `inventory_item::deserialize` (exe+0x2EFF87, a read of 10Ch) some seconds into the
   match, natively as well as scaled (seven runs, the same address); the other replay plays.
-- Open, in the game: jitter, the motion compute pass, rt 18's format, AA off while DLSS runs, the
-  screen-image swap, the reset triggers, the mip bias's reach.
+- The frame's inputs: implemented (above). Tested: the crate's tests (the Halton offsets and their count,
+  a jittered projection moving a projected point by the jitter, each corner's eye ray, the frames' steps
+  and resets, the switch's text, a half float's value) and Clippy; `check_hud_options_026g.py` (every
+  start reads the two switches last; unset, nothing more); `engine_026g.py`, `hooks_026g.py --check`.
+  Seen in the game (2026-11-12, the same set-up: one replay whose camera stands still, no input, a
+  1920x1080 window, the frame 1280x720, 17 to 24 frames a second beside other workers' builds, with one
+  piece or all; the frame, its linear depth and rt 18 read back by the switch's `look`; pictures and
+  tables in `private/renders/dlss-inputs/`):
+  - **the jitter moves the frame by the offset asked, in the direction the convention says.** With
+    `corners20` two frames 10 apart have offsets a whole render pixel apart; the second's linear depth is
+    the first's moved by that pixel: bit-equal in 98.7 to 99.8 % of the pixels of five still parts at the
+    expected whole-pixel shift, as two frames of one offset are at no shift (98.8 to 100 %), against 5 to
+    41 % at no shift; least different at the expected shift in 80 of 80 pairs (two runs), the shifts
+    (1,0), (-1,1) and (-1,-1): both signs of both axes. The Halton offsets themselves were seen only by a
+    least-squares estimate of the shift (direction and order right, correlation 0.99; its size, 0.6 to
+    0.9 of the asked, differs by part and by blur: the estimator on point-sampled frames, no measure);
+  - **the lit frame of such a pair is not as alike as its depth.** `$user$present` is least different at
+    the expected shift too (every pair, the next-best shift 2 to 4 times worse), but 1.0 to 2.6 times as
+    different there as two frames of one offset are (1.7 to 3.7 of 255 against 1.2 to 1.9; with SSAO and
+    SSDO on 1.2 to 2.9). Not explained: not the SSAO (off and on alike); with the engine's mirrored eye
+    rays in place of each corner's own, the right-hand part read 2.3 against 1.75 and the others the same
+    (one run each, so the eye rays' effect in the game is small and not settled). Something of the
+    lighting or the post-process does not follow a one-pixel jitter exactly;
+  - **the engine's motion holds no jitter:** with the sequence running, still skinned models in rt 18 read
+    within 0.002 pixel;
+  - **no AA:** with the `aa` piece the frame under `r_antialiasing_method` 2 and under 1 is the same frame
+    (0.87 of 255 apart on the still parts, as two frames of one run are), and each differs from its stock
+    frame (2.4 from the temporal AA's, 3.2 from FXAA's with its sharpen); edges stepped where the stock
+    ones are smoothed;
+  - **the object motion pass, signed:** with the AA and the motion blur off in the options (the stock gate
+    shut: rt 18 empty in 26 of 26 looks), the `motion` piece fills rt 18 where a player runs through the
+    view (7 of 25 looks have something covered), at his place in the frame, with both signs of x and y (to
+    -16 and +72 pixels a frame);
+  - **the reset:** `first` at frame 0 and `cut` at frame 2 of every run (the replay's camera taking its
+    place), none after with the camera standing; after the fallback (`0.667,300`: native asked) no frame
+    is ours and the match goes on.
+  Not seen: a moving camera (the camera's motion in rt 18, a cut at a respawn, the death camera or
+  another player watched, a cut taken falsely in a fast turn), the first-person models (their jitter and
+  motion), the `Scene` and `Targets` resets, DLSS taking any of it (so the jitter's sign as DLSS wants
+  it), a played match, the lobby, Windows; the sites' install is not in the Unicorn check.
+- Open, in the game: the motion compute pass, the screen-image swap, the mip bias's reach (the link's,
+  after it); of the inputs: what in the lit frame does not follow the jitter, which passes take one eye
+  ray and mirror it, a cut under the thresholds.
