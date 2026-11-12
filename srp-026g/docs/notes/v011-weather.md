@@ -481,3 +481,73 @@ light accumulation and probe ordering, then compare the live result. The
 post/gamma bridge remains the only live original-shader diagnostic added by
 this weather work; production integration, final native sweep and moving-rain
 parity are still outstanding. No release or weather PR was made.
+
+
+## Original temporal SSAO and connected skylight (2026-11-12)
+
+The captured 0.11e weather profile uses temporal SSAO. The older diagnostic
+`legacy_ssao.c` runs accumulation/spatial upsample without temporal history;
+it is not a complete producer for this profile. The actual original draws are:
+
+| Stage | Pixel DXBC SHA256 | Targets |
+| --- | --- | --- |
+| Accumulation | `0420583bf092cbf6d2cda26fa446e58be777980f32c5bc7af40649317a562f85` | half-size R16G16_FLOAT |
+| History mask | `c8e117ebc6186d7184631beab59ca9981be8362452f5aa845348d19fede383c6` | half-size R8G8_UNORM |
+| Temporal resolve | `5a022edc69d5e2c3e9452dea90de45cd8c07fb45040b621daacb441ddf680326` | full-size R8G8_UNORM AO and R16_FLOAT depth |
+
+Accumulation retains a full-size viewport over its half-size target. Its
+original `post_process0.vs` is `3f081e9239ab97ad23d8f329e15703e398804b18e74a90c5c95de6062c1a7cb0`,
+using a 36-byte POSITIONT/eye-ray/UV quad. Mask/resolve use the 24-byte clip
+quad and `81ac78836039e3e79ee8e5fa150d9689ea18417b50b24453ba39325bc4c116af`.
+Temporal resolve retains LESS_EQUAL depth testing without depth writes and
+nonzero-stencil coverage. Both MRT outputs are required by the history loop.
+The shader fixture now extracts 82 unique original programs across 26 families.
+
+`replay_ssao_011e.py` prepares all three captured pass contracts;
+`replay_post_command.exe` supports their geometry, viewport and second target.
+All 24 independent GPU draws (three stages × two views × two frames × two
+weather variants) match the original bytes, including temporal depth output.
+The shared harness still passes the existing post, gamma and skylight cases.
+CPU preparation checks pass three valid paths and 31 rejection cases. Strict
+MinGW builds pass for the observer, command-list harness and new chain harness.
+
+`replay_ssao_chain.exe` connects GPU-produced accumulation and history mask
+to temporal resolve, then its GPU-produced AO to the unchanged skylight pass.
+All eight chains match original AO, saved depth and skylight output byte for
+byte. The executable runs each chain twice. Twenty-four same-frame captured
+producer/consumer links were also independently checked byte-for-byte.
+Previous-frame AO/depth remain captured inputs; these tests do not establish
+history initialization, camera motion, native integration or scene teardown.
+
+Evidence under `/tmp/v011-weather-reference`:
+
+- `ssao-replays/results.json`, SHA256
+  `cfc00eee2876d68de74d636dfb88d1bcad5b60e6712f32558b34770add970dac`.
+- `ssao-replays/lineage.json`, SHA256
+  `6073e0107d986e3fd86cf93d8d38703649653f91a452d2cd59541ffb510d6752`.
+- `ssao-chain/results.json`, SHA256
+  `4d3dab32fedddccbb1947ed9345f48eb0b86a6338ed90092ca84bccb3a9a712c`.
+- `ssao-state/completion.json`: actual cameras and all frozen files verified.
+  Frozen manifests: evening
+  `c4151dca0aab9c7fe480a663addf6879a34e0a5390d42b3f05e89d65b55a4920`,
+  rain `e1a44bf75cba4dcd758e0f51e0414df6082bfc29eb9aecd50d39430558815031`.
+  Earlier originals remain unchanged.
+
+Original build-884 PDB identifies `stage_ambient_occlusion::execute` at
+0x00704940, 1717 bytes, and `execute_disabled` at 0x00704530, 228 bytes;
+these identities were added to the 0.11e re-kit. The former's bounded original
+instruction listing is `/tmp/v011-weather-source/ssao-execute-original.asm`,
+SHA256 `0192dee57e9ea43c3a8ae7672cd00b455517e13b9a6654b062bc7b42ed3f34fa`.
+The original source catalogs have identical `effect_ssao_filter4x4.cpp` MD5
+`7ce10a018bfb83fb5e9316b846d8c43a` in 0.10b/0.11e, but different
+`stage_ambient_occlusion.cpp` hashes: `0a7590133c06b33627eff8e6cfb0eec9`
+versus `ba341fd40046ce631a055c31524b4542`. Do not infer the complete 0.11e
+runtime from the reconstructed 0.10b implementation.
+
+Next live integration needs one owner for current depth/normal/stencil,
+previous AO/depth/view, and the four original passes. Verify native G-buffer
+formats, stencil meaning and camera constant layout before feeding this owner;
+keep geometry coverage and the encoded accumulator/probe ordering intact.
+Initialization, camera discontinuities, resize and scene teardown remain
+unverified. Production integration, final native sweep and dynamic rain remain
+outstanding. The weather content remains version 5; no release or PR was made.
