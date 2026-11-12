@@ -303,6 +303,10 @@ unsafe extern "C" {
     pub fn engine_render_window_set_size(width: u32, window: Option<RenderOutputWindow>, height: u32, fullscreen: u32, force: u32);
     /// 0x11c080 vostok::render::backend::set_viewports: viewport ESI, backend ESP+4; pops 4
     pub fn engine_set_viewports(viewport: *const f32, backend: Option<Backend>);
+    /// 0x1392c0 vostok::render::renderer_context::push_set_p: context ESI, matrix ESP+4; pops 4
+    pub fn engine_context_push_set_p(context: Option<RendererContext>, matrix: *const f32);
+    /// 0x14a6f0 vostok::render::renderer_context::set_p: matrix EAX, context ESP+4; pops 4
+    pub fn engine_context_set_p(matrix: *const f32, context: Option<RendererContext>);
 }
 
 #[allow(dead_code)]
@@ -22030,6 +22034,24 @@ impl RenderTarget {
     pub unsafe fn set_texture(self, value: Option<ResTexture>) {
         unsafe { self.0.byte_add(0x1c).cast::<Option<ResTexture>>().write_volatile(value) }
     }
+
+    /// +0x20 (u32): its width (accumulate_motion_vectors' viewport 0x1B1C4B; render_target::create)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn width(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x20).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x24 (u32): its height (0x1B1C90)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn height(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x24).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A vostok::render::render_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -22062,6 +22084,33 @@ impl RenderFrame {
     #[inline(always)]
     pub unsafe fn set_window(self, value: Option<RenderOutputWindow>) {
         unsafe { self.0.byte_add(0x2c).cast::<Option<RenderOutputWindow>>().write_volatile(value) }
+    }
+
+    /// +0xc (u32): renderer::render's [esp+0Ch] from 0x13D2A7: the frame's view mode, the scene view's (+46Ch) or a debug override (0x13D2AB..0x13D2E0); 3 is lit (cmp [esp+0Ch],3 at 0x13D391, the temporal jitter's condition)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn view_mode(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xc).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x64 (obj<vostok::render::temporal_projection_matrix_modifier>): renderer::render's temporal_projection_matrix_modifier ([esp+64h], filled at 0x13D3BD..0x13D3DE: the context, the output's size, need_modify), handed to push_jittering at 0x13D3E3; render pops the projection at 0x13D47B when its need_modify ([esp+70h]) is set
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn jitterer(self) -> TemporalProjectionMatrixModifier {
+        TemporalProjectionMatrixModifier(unsafe { self.0.byte_add(0x64) })
+    }
+
+    /// +0xb0 (f32): renderer::render's [esp+0B0h], the first of 16 f32: the projection before the frame's jitter, what push_jittering (0x1BE4A0) answers (EAX, 0x13D3E8) and render copies to the renderer's +20h (0x13D3EA), the projection stage_shadow_direct::execute puts back for the sun's shadows (0x172EA3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn unjittered_projection(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xb0).cast::<f32>().as_ptr() }
     }
 }
 
@@ -22128,6 +22177,328 @@ impl PresentFrame {
     #[inline(always)]
     pub unsafe fn set_texture(self, value: Option<ResTexture>) {
         unsafe { self.0.byte_add(0x0).cast::<Option<ResTexture>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::temporal_projection_matrix_modifier (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TemporalProjectionMatrixModifier(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl TemporalProjectionMatrixModifier {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::render::renderer_context>): m_renderer_context (push_jittering 0x1BE4BC, 0x1BE4DC)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn context(self) -> Option<RendererContext> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<RendererContext>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::render::renderer_context>): m_renderer_context (push_jittering 0x1BE4BC, 0x1BE4DC)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_context(self, value: Option<RendererContext>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<RendererContext>>().write_volatile(value) }
+    }
+
+    /// +0xc (u8): m_need_modify: the frame's projection is jittered (render's al at 0x13D3C8: r_antialiasing_method 2, the lit view mode, the scene view's post-process); push_jittering pushes only when set (0x1BE4AE), render pops only when set (0x13D47B)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn need_modify(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0xc).cast::<u8>().as_ptr() }
+    }
+
+    /// +0xd (u8): m_jittered: push_jittering set the jittered projection (0x1BE66D, after its push of the old one 0x1BE657 and set_p 0x1BE661)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn jittered(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0xd).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A vostok::render::renderer_context (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RendererContext(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RendererContext {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x119c (ptr<vostok::render::target_family>): the frame's targets, the first of their descriptors (get_rt 0x11C1D0: index * 0A0h + 98h of [context+119Ch])
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn targets(self) -> Option<TargetFamily> {
+        unsafe { self.0.byte_add(0x119c).cast::<Option<TargetFamily>>().read_volatile() }
+    }
+
+    /// +0x119c (ptr<vostok::render::target_family>): the frame's targets, the first of their descriptors (get_rt 0x11C1D0: index * 0A0h + 98h of [context+119Ch])
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_targets(self, value: Option<TargetFamily>) {
+        unsafe { self.0.byte_add(0x119c).cast::<Option<TargetFamily>>().write_volatile(value) }
+    }
+
+    /// +0x416c (u32): the scene being rendered, as an identity (renderer::render stores it at 0x13D210)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn scene(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x416c).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x4170 (ptr<vostok::render::scene_view>): the scene view being rendered (set_scene_view 0x149AB8)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn scene_view(self) -> Option<SceneView> {
+        unsafe { self.0.byte_add(0x4170).cast::<Option<SceneView>>().read_volatile() }
+    }
+
+    /// +0x4170 (ptr<vostok::render::scene_view>): the scene view being rendered (set_scene_view 0x149AB8)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_scene_view(self, value: Option<SceneView>) {
+        unsafe { self.0.byte_add(0x4170).cast::<Option<SceneView>>().write_volatile(value) }
+    }
+
+    /// +0x4e18 (f32): m_v, the first of 16 f32: the view matrix, a row-vector 4x4 (set_v 0x14A257 copies it here)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn view(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x4e18).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x4f58 (f32): m_p, the first of 16 f32: the projection, a row-vector 4x4 (set_p 0x14A704 copies it here; clip = v * P, +20h and +24h its e20 and e21, the x and y the clip position gets per unit of view z)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn projection(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x4f58).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x4e98 (f32): m_v_inverted, the first of 16 f32 (set_v 0x14A27B..0x14A28F: try_invert into it); update_eye_rays turns the view's eye rays into the world's with its rows (0x14ABFC..)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn view_inverted(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x4e98).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x4fd8 (f32): m_p_inverted, the first of 16 f32 (set_p 0x14A73C..0x14A75A: invert4x4 of the projection); update_near_far and update_eye_rays read it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn projection_inverted(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x4fd8).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x53a8 (f32): m_eye_rays, the first of 24 f32: the view's rays through the frame's corners at the far plane, four float3 (+53A8h (-1,1), +53B4h (-1,-1), +53C0h (1,1), +53CCh (1,-1) of clip x,y), then the same four in the world (+53D8h..+5404h). update_eye_rays (0x14AA50, from set_p) unprojects the first and mirrors it for the other three: right only for a projection that is the same either side of its axis
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn eye_rays(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x53a8).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A vostok::render::scene_view (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SceneView(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SceneView {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x1de3c (u8): m_use_post_process: stage_postprocess::execute runs only when set (0x1B22D8); one of the temporal jitter's conditions (0x13D3A4)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn use_post_process(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x1de3c).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A vostok::render::target_family (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TargetFamily(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl TargetFamily {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x98 (ptr<vostok::render::render_target>): a target's render_target (get_rt 0x11C1D0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn target(self) -> Option<RenderTarget> {
+        unsafe { self.0.byte_add(0x98).cast::<Option<RenderTarget>>().read_volatile() }
+    }
+
+    /// +0x98 (ptr<vostok::render::render_target>): a target's render_target (get_rt 0x11C1D0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_target(self, value: Option<RenderTarget>) {
+        unsafe { self.0.byte_add(0x98).cast::<Option<RenderTarget>>().write_volatile(value) }
+    }
+
+    /// +0x9c (ptr<vostok::render::res_texture>): the target as a texture (get_t 0x1392E0: index * 0A0h + 9Ch)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn texture(self) -> Option<ResTexture> {
+        unsafe { self.0.byte_add(0x9c).cast::<Option<ResTexture>>().read_volatile() }
+    }
+
+    /// +0x9c (ptr<vostok::render::res_texture>): the target as a texture (get_t 0x1392E0: index * 0A0h + 9Ch)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_texture(self, value: Option<ResTexture>) {
+        unsafe { self.0.byte_add(0x9c).cast::<Option<ResTexture>>().write_volatile(value) }
+    }
+
+    /// 0xa0 bytes: a target's descriptor: 0A0h bytes, by rt index (lea ecx,[ecx+ecx*4] / shl ecx,5, 0x1392EA)
+    pub const SIZE: usize = 0xa0;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::render::target_familys (0xa0 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct TargetFamilyStorage([u8; 0xa0]);
+
+#[allow(dead_code)]
+impl TargetFamilyStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0xa0])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> TargetFamily {
+        TargetFamily(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<TargetFamily> {
+        (!rooms.is_empty()).then(|| TargetFamily(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::render::new_rt_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NewRtFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl NewRtFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): create_targets' pushed format of the target it is about to make with new_rt (0x1629A0: EDX the rt index, EAX the targets, the size's two words above): at 0x163433 rt 18's, the HDR format (push ebp, 0x163432)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn format(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::render::postprocess_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PostprocessFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PostprocessFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x14 (u8): stage_postprocess::execute's [esp+14h]: the frame's motion blur runs (1 at 0x1B234C: r_motion_blur_quality and not the image's 0x1F1DA3C; 0 at 0x1B235A), read at 0x1B2FAE
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn motion_blur(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x14).cast::<u8>().as_ptr() }
     }
 }
 
@@ -26499,6 +26870,66 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<PresentFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(PresentFrame)
+        }
+    }
+
+    /// render.jittered (0x13d3e8): renderer::render after push_jittering (0x1BE4A0, the call at 0x13D3E3) answered the frame's projection before its jitter (mov esi,eax / lea edi,[ebx+20h]: the copy to the renderer's +20h): once a rendered frame, after set_scene_view and the output's setup, before the visibility stage, the targets' clearing and the stages; the engine's own temporal jitter (r_antialiasing_method 2) is pushed by then, and render pops it at 0x13D47B after the stages
+    pub mod render_jittered {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::render::render_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<RenderFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(RenderFrame)
+        }
+    }
+
+    /// postprocess.motion_gate (0x1b235a): stage_postprocess::execute's gate of the object motion pass without motion blur (mov byte [esp+14h],0 after cmp byte [edx+133h],0: r_use_motion_vectors_in_taa; then je, test bl,bl the temporal AA, je): accumulate is push ebp / call accumulate_motion_vectors (0x1B1B50), past r_post_process_quality's test
+    pub mod postprocess_motion_gate {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::render::postprocess_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<PostprocessFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(PostprocessFrame)
+        }
+    }
+
+    /// targets.motion_format (0x163433): create_targets about to make rt 18, $user$object_motion_vectors (mov edx,12h after push ebp, the HDR format; new_rt 0x1629A0 at 0x16343A): [esp] the format the target is made with
+    pub mod targets_motion_format {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::render::new_rt_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<NewRtFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(NewRtFrame)
+        }
+    }
+
+    /// context.eye_rays (0x14ad23): renderer_context::update_eye_rays (0x14AA50, from every set_p) at its last store (mov [eax+5404h],edx, the fourth world ray's z; add esp,24h / ret after it): the eight rays written but that word, EAX the context
+    pub mod context_eye_rays {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a vostok::render::renderer_context (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn context(machine: &impl Machine) -> Option<RendererContext> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(RendererContext)
         }
     }
 }

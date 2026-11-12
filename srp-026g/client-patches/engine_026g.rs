@@ -297,6 +297,10 @@ unsafe extern "C" {
     pub fn engine_render_window_set_size(width: u32, window: *mut c_void, height: u32, fullscreen: u32, force: u32);
     /// 0x11c080 vostok::render::backend::set_viewports: viewport ESI, backend ESP+4; pops 4
     pub fn engine_set_viewports(viewport: *const f32, backend: *mut c_void);
+    /// 0x1392c0 vostok::render::renderer_context::push_set_p: context ESI, matrix ESP+4; pops 4
+    pub fn engine_context_push_set_p(context: *mut c_void, matrix: *const f32);
+    /// 0x14a6f0 vostok::render::renderer_context::set_p: matrix EAX, context ESP+4; pops 4
+    pub fn engine_context_set_p(matrix: *const f32, context: *mut c_void);
 }
 
 #[allow(dead_code)]

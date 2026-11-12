@@ -807,3 +807,9 @@ extern engine_create_render_target
 ; 0x3bfbc0 vostok::render::resource_manager::release: manager ESP+4, target ESP+8; pops 8; stdcall, called directly
 ; stdcall: push (and ECX for thiscall) as that convention says
 extern engine_release_render_target
+; void engine_context_push_set_p(struct renderer_context *context, const float *matrix)
+; 0x1392c0 vostok::render::renderer_context::push_set_p: context ESI, matrix ESP+4; pops 4
+extern engine_context_push_set_p
+; void engine_context_set_p(const float *matrix, struct renderer_context *context)
+; 0x14a6f0 vostok::render::renderer_context::set_p: matrix EAX, context ESP+4; pops 4
+extern engine_context_set_p

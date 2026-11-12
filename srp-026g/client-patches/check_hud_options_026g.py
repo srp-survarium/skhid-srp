@@ -987,9 +987,10 @@ def renderer(original, patched, expect):
          opened + files + marker + nvidia + config + loads[:2] + log,
          True, b"had called DLL 0"),
     ]
-    # the last thing every start does: the render scale's diagnostics switch read (unset here: nothing asked,
-    # no site written; docs/notes/dlss-option.md, "The render size")
-    scale = [("GetEnvironmentVariableA", "SKHID_DLSS_RENDER_SCALE")]
+    # the last things every start does: the render scale's diagnostics switch read, then the frame inputs'
+    # (unset here: nothing asked, no site written; docs/notes/dlss-option.md, "The render size" and "The
+    # frame's inputs")
+    scale = [("GetEnvironmentVariableA", "SKHID_DLSS_RENDER_SCALE"), ("GetEnvironmentVariableA", "SKHID_DLSS_INPUTS")]
     for what, world, wanted, marked, words in cases:
         wanted = wanted + scale
         r = Run(patched)

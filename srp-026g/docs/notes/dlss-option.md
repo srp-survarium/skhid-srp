@@ -60,8 +60,9 @@ The owner (2026-11-12): "let's do it as DXVK option". Off by default; only with 
   shader from depth. Evidence below.
 - **Motion vectors** (`stage_postprocess::accumulate_motion_vectors` 0x1B1B50, run first in the
   post-process when `r_use_motion_vectors_in_taa` opt+133h and `r_post_process_quality` opt+DCh):
-  - target `$user$object_motion_vectors` (rt 18), cleared to 0 (PROVEN, 0x1B1B5F: descriptor
-    `18 * A0h + 98h` = BD8h);
+  - target `$user$object_motion_vectors` (rt 18; 0x1B1B5F: descriptor `18 * A0h + 98h` = BD8h), cleared to 0
+    at the frame's start by the stage's `clear_surfaces` (0x1B1E70, its vtable+10h, from
+    `perform_surfaces_clearing`) under the same gate; the pass itself clears nothing. PROVEN;
   - drawn: every visible opaque **skinned** model (scene_view+84ACh, the predicate 0x1B1840 keeps
     vertex types 8/10h/20h/40h: 4..1-bone skeletal) and every visible opaque **moved** rigid model
     (scene_view+494h, the same predicate inverted), with the G-buffer effect's motion technique
@@ -83,9 +84,19 @@ The owner (2026-11-12): "let's do it as DXVK option". Off by default; only with 
   reprojects every pixel from its linear depth (`$user$position`, rt 9), the eye-ray corner and the
   previous view matrix; where the object target's `z > 0` (here or at the reprojected place) it
   uses `-object.xy` instead. Blend weight 0.5 scaled down with motion length (x100), no
-  neighbourhood clamp, **no jitter** (`frame_index & 1` is set, unused). It runs on the LDR
-  `$user$present` (rt 52) after the tone curve and sharpen (0x1B2E52..0x1B2F99: present copied to
+  neighbourhood clamp; the shader reads no jitter (`frame_index & 1` is set, unused). It runs on the LDR
+  `$user$present` (rt 52) after the tone curve (0x1B2E52..0x1B2F99: present copied to
   albedo, TAA into present, albedo copied to `previous_present` rt 54). PROVEN.
+- **The engine does jitter** (an earlier reading here said it did not): with the temporal AA
+  (`r_antialiasing_method` 2), the lit view mode and the scene view's post-process, `renderer::render`
+  pushes a jittered projection (`temporal_projection_matrix_modifier::push_jittering` 0x1BE4A0, the call
+  at 0x13D3E3: +-0.25 pixel of the window, alternating by the frame index, `e20 = 2x/width`,
+  `e21 = 2y/height`) before the visibility stage and pops it after the stages (0x13D47B). The temporal AA's
+  half blend of two such frames is its 2x. PROVEN ("The frame's inputs" below: this seam is the jitter's).
+- **The AA choice** (`stage_postprocess::execute` 0x1B22EB): method 1 is FXAA followed by the 2 % sharpen
+  (0x1B2C95, 0x1B2D2E), method 2 the temporal AA, anything else neither: the last pass is then
+  `copy_rewrite` (0x1B2D96), which holds the gamma encode. MLAA and SRAA effects are loaded and never
+  chosen. PROVEN (the three readers of opt+F0h found: render 0x13D388, clear_surfaces 0x1B1E75, execute).
 - **Stock fault:** rt 18 is made with the HDR format (`create_targets` 0x163432 pushes EBP, 26
   R11G11B10_FLOAT at feature level 10+, as DXVK runs): an unsigned float format, so negative
   object motion is stored as 0 (D3D's float conversion clamps a format without sign to 0). PROVEN
@@ -195,16 +206,18 @@ projection and the movie's stage: no reader of the targets' size exists outside
   (no HDR flag). The cost: bloom and the tone curve at the render size (both are blurs or per pixel).
 - **The HUD and menus** (Scaleform, `render_flash_ui`) draw after the screen image, on the back
   buffer: always at full size, never upscaled.
-- **AA:** with DLSS running the game's TAA, FXAA, MLAA and SRAA are off (DLSS is the AA); motion blur
-  stays the player's (it runs before DLSS). DLSS sharpening 0 (the game's own 2 % sharpen stays: it
-  holds the gamma encode).
+- **AA:** with DLSS running the game's AA is off (DLSS is the AA): the post-process reads
+  `r_antialiasing_method` as 0, so no FXAA, no temporal AA, and no sharpen (the engine's 2 % sharpen comes
+  only with FXAA; the gamma encode is in the copy that runs instead). Motion blur stays the player's (it
+  runs before DLSS). DLSS sharpening 0.
 - **Jitter:** a Halton(2,3) sequence, `8 * (output / render)^2` phases (NVIDIA's guide: 18 at
-  Quality), offsets in render pixels in [-0.5, 0.5], added to the scene's
-  projection as a clip-space translation at `set_scene_view`'s `set_p` and at `foreground_begin`'s;
-  never to shadow, light or rain projections. The same offsets go to DLSS (`Jitter_Offset_X/Y`). The
-  engine's motion shaders project current and previous with the same (jittered) `m_P`, so their
-  motion holds no jitter. The sign DLSS is given: the probe scored the negated sample offset better
-  at Quality (21.9 against 19.2 dB PSNR); to be checked on a game frame.
+  Quality), offsets in render pixels in [-0.5, 0.5), in the frame's projection at the engine's own
+  jitter seam ("The frame's inputs": one place, not the two `set_p` sites first planned; the
+  first-person projection is made from the frame's). The same offsets go to DLSS
+  (`Jitter_Offset_X/Y`). The engine's motion pass projects current and previous with the same
+  (jittered) projection, so its motion holds no jitter. The sign DLSS is given: the probe scored the
+  negated sample offset better at Quality (21.9 against 19.2 dB PSNR); to be checked on a game frame
+  (the convention of the value the link reads is below).
 - **Mip bias:** `log2(render / output) - 1` (-1.585 at Quality, the render size 1 / 1.5 of the
   output's each way), DXVK's `d3d11.samplerLodBias` in `DXVK_CONFIG`. DXVK reads its options at
   its first device, before any frame, and the helper is asked at the first frame (below), so the
@@ -226,12 +239,124 @@ projection and the movie's stage: no reader of the targets' size exists outside
   foreground's own depth range; DLSS uses depth for disocclusion only.
 - **Not covered by motion** (particles, smoke, transparent and forward surfaces): the depth behind
   them; DLSS may smear them a little. A reactive/transparency mask is a later step.
-- **Reset** (DLSS's history thrown away): the first frame of a size, a map load, a camera cut
-  (spawn, death camera, spectator switch: the previous view matrix far from the current one).
+- **Reset** (DLSS's history thrown away): the first frame, the first frame after the targets were
+  made (a size, a mode), another scene or scene view (a map load), a camera cut (spawn, death camera,
+  spectator switch: the view not where a frame's motion leaves it). "The frame's inputs" says how each
+  is taken.
 - **Depth:** the frame's own D24S8 depth-stencil (`render_size`'s `DepthTarget`, the render
   size), its depth aspect, not inverted (the engine's projection is 0 near, 1 far). The probe shared a D32 image; a D24S8 one is copied into a shared image of its own
   format (depth aspect only), or written by the same compute pass as the motion (R32_SFLOAT): to be
   settled with the helper.
+
+## The frame's inputs (implemented: `hud_options/frame_inputs.rs`, `vostok/frame_inputs.rs`)
+
+Seven lohooks, written with the render scale's sites (only when a scale is asked), each doing nothing
+unless its piece is asked and the frame is one of ours: rendered at a render scale, the lit view mode, the
+scene view's post-process on (the frames the engine jitters for its own AA). One owner holds the pieces
+asked (`Pieces`: jitter, no AA, motion, signed motion) and the frames as rendered. The link asks with
+`frame_inputs::ask(thread, Pieces::ALL)` at the process's start, beside `render_size::ask`; until it
+exists the diagnostics switch `SKHID_DLSS_INPUTS` does (below).
+
+**The jitter** (`render.jittered` 0x13D3E8, after `push_jittering` answered):
+
+- Where: the frame's projection is pushed on the context's projection stack where the engine pushes its
+  own (`push_set_p` 0x1392C0, the jitterer's `need_modify` set so `render` pops it at 0x13D47B); the
+  engine's own +-0.25, when the player's AA is the temporal one, is replaced (`set_p`), since nothing
+  resolves it with the AA off.
+- The value: `Jitter { x, y }` in render pixels, **the picture moved x to the right and y down** from its
+  unjittered place (so a pixel's sample point is at its centre minus (x, y) in the unjittered picture,
+  y down). In the projection: each row's x gets `+2x/width` of its w and its y `-2y/height` of its w
+  (for the scene's perspective: `e20`, `e21`, the two elements the engine's own jitter writes). Which
+  sign DLSS wants of it is the link's to settle on a game frame.
+- **What the jittered projection reaches** (read in the exe; the re-kit's `abi_inputs.tsv` rows of
+  0x13D010, 0x172E30, 0x13E010 repeat it). PROVEN unless tagged:
+  - between the push and the pop: the visibility stage (`frustum_culling` 0x1B74E6 culls with the
+    context's `m_vp`: the frustum that is rasterized, so the culling is the frame's), `process_streaming`
+    (0x13D462), the targets' clearing, `fill_opaque_models`, the 23 stages. After the pop (unjittered):
+    the scene's flush, the debug drawing, the present stage, Scaleform;
+  - **the sun's shadows do not get it**: `stage_shadow_direct::execute` pushes the renderer's +20h, the
+    projection before the jitter (`push_jittering`'s answer, copied there at 0x13D3EA), for its whole run
+    (0x172EA3, popped at 0x173E98). The local lights' and the rain's shadow maps have projections of their
+    own (`push_set_p` of a matrix they build); the sky's and the fog's are made from the frame's current one
+    (they read +4F58h, 0x1A4635 and 0x1AEDAE) and draw into the frame: LIKELY with its jitter, not traced;
+  - **the first-person models get it without a second site**: `foreground_begin` (0x13E09B) copies the
+    context's current projection and replaces only its depth range (e22, e32);
+  - **nothing of the game reads it**: every reader in the exe of the context's projection and what `set_p`
+    derives from it (+4F58h, +4F98h, +4FD8h, +5098h, +50D8h, +5118h, +5158h, the near/far +4144h, the eye
+    rays +53A8h) is a `vostok::render` function: no HUD, aim or hit code is among them. The scene view's own
+    matrices (+3ACh, +42Ch: what `set_scene_view` copies from) are never written: the jittered matrix is a
+    copy on the render thread's stack, gone at the pop;
+  - **the previous view the motion pass uses holds none**: the post-process keeps the previous view matrix
+    only (stage +10h, the context's `m_v` copied at the end of every `execute`, 0x1B34E3), no projection;
+    `render_models` (0x1B1A15) gives the shader `previous world * previous view` and the shader projects it
+    with the context's projection, the current one, as the current position;
+  - no stage keeps a view-projection from frame to frame (the readers of `m_vp` +5098h: culling, grass,
+    the lights' and the composition's draws, the forward stage, Hi-Z). LIKELY for the SSAO's temporal filter
+    (its `execute` reads the eye rays and near/far only; its shaders not re-read).
+- **The eye rays** (`context.eye_rays` 0x14AD23): `update_eye_rays` (0x14AA50, from every `set_p`)
+  unprojects one corner and mirrors it for the other three, which a jittered projection is not (off by up
+  to twice the jitter at the far corner: a position rebuilt from depth a render pixel off at the right and
+  bottom; the engine's own temporal jitter has the same fault at half the size). In a jittered frame of
+  ours each corner is unprojected by itself (the view's four and the world's four), so a pass that
+  interpolates the four rays (the full-screen quads of `fill_surface`, 0x176940 and 0x17D260, put one ray
+  in each vertex) rebuilds the position the jittered frame drew. A pass that takes the first ray alone and
+  mirrors it in its shader keeps the engine's fault: which do was not read.
+
+**No AA** (`postprocess.aa_method` 0x1B22F1): `r_antialiasing_method` is read as 0 by the post-process of a
+frame of ours. The player's option is not written.
+
+**The object motion pass every frame** (`postprocess.motion_gate` 0x1B235A, `postprocess.motion_quality`
+0x1B2365, `postprocess.motion_clear` 0x1B1E75): in a frame of ours the pass runs and its target is cleared
+at the frame's start whatever `r_use_motion_vectors_in_taa`, the AA method, the motion blur and
+`r_post_process_quality` say (the sites' exits into `accumulate_motion_vectors`' call and the clear's
+body). The motion blur's own flag is left as the options make it.
+
+**rt 18 signed** (`targets.motion_format` 0x163433): targets made at a render scale have
+`$user$object_motion_vectors` as RGBA16_FLOAT (10) in place of the HDR format.
+
+**What the link reads** (`frame_inputs::frame(thread) -> Option<FrameInputs>`, on the render thread, valid
+from a frame's `render.jittered` to the next one's; none while the frame is not ours):
+
+| field | what |
+|---|---|
+| `render` | the size the frame is rendered at |
+| `jitter`, `jitter_before` | this frame's jitter and the last frame's (the convention above) |
+| `camera`, `camera_before` | the view (`m_v`) and the projection before any jitter, this frame's and the last frame's: row-vector 4x4, `clip = position * view * projection` |
+| `reset` | why DLSS's history is thrown away at this frame, or none |
+| `colour` | `$user$present` (rt 52) |
+| `depth` | the frame's own depth-stencil (the render scale's `DepthTarget`) |
+| `linear_depth` | `$user$position` (rt 9, R16_FLOAT: the view z) |
+| `motion`, `motion_signed` | `$user$object_motion_vectors` (rt 18: xy = current uv - previous uv, y down; z = 1 where a model was drawn), and whether it is the signed format |
+
+Each target is its `res_texture`'s ID3D11Resource (+1ACh), what DXVK's interop names a VkImage by
+(`Target::resource`, the vostok layer's). `camera_before.view` is the view of the last frame of ours; the
+motion pass's previous view is the post-process stage's own copy, the same matrix whenever the post-process
+ran in that frame.
+
+**The reset**, and the engine event behind each cause:
+
+| cause | taken from | covers |
+|---|---|---|
+| `First` | the first frame of ours after any that was not (native, no post-process) | the start, the lobby and menus between matches when they are not ours |
+| `Targets` | `render_window.targets_size`, the engine making the frame's targets (`set_size` 0x119B2B) since the last frame; or another render size | a resolution or mode change, an options apply, the fallback and back |
+| `Scene` | the context's scene (+416Ch) or scene view (+4170h) is another than the last frame's, at `render.jittered` | a map load, the lobby and a match |
+| `Cut` | the frame's view is more than 3 m, or turned more than 60 degrees, from the last frame's, at `render.jittered` | a respawn, the death camera, another player watched, a replay's jump |
+
+The camera's events are the logic thread's (`player::update_camera` 0x1F3480 writes the handler's view;
+`game_world::switch_to_spectator_camera` 0x1F8360, `base_network_client::spectate_next_player` 0x242D50,
+`base_player::on_player_respawn_end` 0x2D9810: the last three inferred names, not reviewed) and reach the
+renderer as the scene view's matrix a frame or more later, with nothing to say which frame; the frame that
+shows a cut is the one whose view jumps, so that is where it is taken, on the render thread. A cut smaller
+than the thresholds (a player watched who stands beside the last one, looking the same way) is not taken.
+
+**The diagnostics switch** `SKHID_DLSS_INPUTS`, read at the process's start after
+`SKHID_DLSS_RENDER_SCALE` (which it needs: the sites are the render scale's), for a game without a helper:
+`all`, or of `jitter`, `aa`, `motion`, `signed` between commas; and beside them `hold<frames>` (each offset
+of the sequence that many frames), `corners<frames>` (in place of the sequence the four offsets a half pixel
+out, each that many frames: two of them are a whole render pixel apart) and `look<frames>` (that often: a
+log line of the frame's jitter and reset, the frame, its linear depth and its object motion read back and
+written beside the game as `dlss-inputs-<frame>-present.bin`, `-depth.bin`, `-motion.bin`, and a line of how
+much of the motion is negative; a line at every reset). A jittered picture without DLSS shimmers: expected.
 
 ## Falling back
 
@@ -406,6 +531,46 @@ projection and the movie's stage: no reader of the targets' size exists outside
 - Found on the way, not this work's: the first replay tried (`rec026g_20261109-180618`) ends the
   game in `inventory_item::deserialize` (exe+0x2EFF87, a read of 10Ch) some seconds into the
   match, natively as well as scaled (seven runs, the same address); the other replay plays.
-- Open, in the game: joining the render size (above), jitter, the motion compute pass, rt 18's
-  format, AA off while DLSS runs, the screen-image swap (the copy of the output, in the wait's
-  command buffer), the reset triggers, the mip bias's reach.
+- The frame's inputs: implemented (above). Tested: the crate's tests (the Halton offsets and their count,
+  a jittered projection moving a projected point by the jitter, each corner's eye ray, the frames' steps
+  and resets, the switch's text, a half float's value) and Clippy; `check_hud_options_026g.py` (every
+  start reads the two switches last; unset, nothing more); `engine_026g.py`, `hooks_026g.py --check`.
+  Seen in the game (2026-11-12, the same set-up: one replay whose camera stands still, no input, a
+  1920x1080 window, the frame 1280x720, 17 to 24 frames a second beside other workers' builds, with one
+  piece or all; the frame, its linear depth and rt 18 read back by the switch's `look`; pictures and
+  tables in `private/renders/dlss-inputs/`):
+  - **the jitter moves the frame by the offset asked, in the direction the convention says.** With
+    `corners20` two frames 10 apart have offsets a whole render pixel apart; the second's linear depth is
+    the first's moved by that pixel: bit-equal in 98.7 to 99.8 % of the pixels of five still parts at the
+    expected whole-pixel shift, as two frames of one offset are at no shift (98.8 to 100 %), against 5 to
+    41 % at no shift; least different at the expected shift in 80 of 80 pairs (two runs), the shifts
+    (1,0), (-1,1) and (-1,-1): both signs of both axes. The Halton offsets themselves were seen only by a
+    least-squares estimate of the shift (direction and order right, correlation 0.99; its size, 0.6 to
+    0.9 of the asked, differs by part and by blur: the estimator on point-sampled frames, no measure);
+  - **the lit frame of such a pair is not as alike as its depth.** `$user$present` is least different at
+    the expected shift too (every pair, the next-best shift 2 to 4 times worse), but 1.0 to 2.6 times as
+    different there as two frames of one offset are (1.7 to 3.7 of 255 against 1.2 to 1.9; with SSAO and
+    SSDO on 1.2 to 2.9). Not explained: not the SSAO (off and on alike); with the engine's mirrored eye
+    rays in place of each corner's own, the right-hand part read 2.3 against 1.75 and the others the same
+    (one run each, so the eye rays' effect in the game is small and not settled). Something of the
+    lighting or the post-process does not follow a one-pixel jitter exactly;
+  - **the engine's motion holds no jitter:** with the sequence running, still skinned models in rt 18 read
+    within 0.002 pixel;
+  - **no AA:** with the `aa` piece the frame under `r_antialiasing_method` 2 and under 1 is the same frame
+    (0.87 of 255 apart on the still parts, as two frames of one run are), and each differs from its stock
+    frame (2.4 from the temporal AA's, 3.2 from FXAA's with its sharpen); edges stepped where the stock
+    ones are smoothed;
+  - **the object motion pass, signed:** with the AA and the motion blur off in the options (the stock gate
+    shut: rt 18 empty in 26 of 26 looks), the `motion` piece fills rt 18 where a player runs through the
+    view (7 of 25 looks have something covered), at his place in the frame, with both signs of x and y (to
+    -16 and +72 pixels a frame);
+  - **the reset:** `first` at frame 0 and `cut` at frame 2 of every run (the replay's camera taking its
+    place), none after with the camera standing; after the fallback (`0.667,300`: native asked) no frame
+    is ours and the match goes on.
+  Not seen: a moving camera (the camera's motion in rt 18, a cut at a respawn, the death camera or
+  another player watched, a cut taken falsely in a fast turn), the first-person models (their jitter and
+  motion), the `Scene` and `Targets` resets, DLSS taking any of it (so the jitter's sign as DLSS wants
+  it), a played match, the lobby, Windows; the sites' install is not in the Unicorn check.
+- Open, in the game: the motion compute pass, the screen-image swap, the mip bias's reach (the link's,
+  after it); of the inputs: what in the lit frame does not follow the jitter, which passes take one eye
+  ray and mirror it, a cut under the thresholds.

@@ -2542,3 +2542,4 @@ va	name	source	ret_cleanup	result
 0x000e0910	vostok::threading::thread_entry	manual	4	EAX: 0, the thread's exit code. The start routine spawn_internal hands CreateThread (push 0xE0910 at 0xE093F, the call 0xE094A): stdcall, its one argument CreateThread's lpParameter, handed on to 0x114580 with 0xE35F0 (the thread's body); ret 4 (0xE0924)
 0x00116550	vostok::render::backend::target_width	manual	0	EAX: the width
 0x00116570	vostok::render::backend::target_height	manual	0	EAX: the height
+0x001be4a0	vostok::render::temporal_projection_matrix_modifier::push_jittering	manual	8	EAX: the out matrix, the context's projection before the jitter (copied whether it jitters or not)
