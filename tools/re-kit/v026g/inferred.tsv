@@ -1324,6 +1324,7 @@ va	status	ref_021d	name
 0x0023ddb0	inferred-medium	0x0017e5ad	survarium::base_game_scene::on_deactivate
 0x0023dec0	inferred-medium	0x0017e630	survarium::base_game_scene::point_to_screen
 0x0023f500	inferred-medium	0x00180641	survarium::damage_sound_effect::on_toxic_damage
+0x0023f610	inferred-high		survarium::damage_sound_effect::on_concussion
 0x0023f980	inferred-medium	0x00180a73	boost::detail::function::functor_manager<boost::_bi::bind_t<void,void (__cdecl*)(vostok::intrusive_ptr<vostok::sound::sound_instance_proxy,vostok::sound::sound_instance_proxy,vostok::threading::single_threading_policy> &),boost::_bi::list1<boost::reference_wrapper<vostok::intrusive_ptr<vostok::sound::sound_instance_proxy,vostok::sound::sound_instance_proxy,vostok::threading::single_threading_policy> > > > >::manager
 0x0023f9d0	inferred-medium	0x00180abc	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf0<void,survarium::damage_sound_effect>,boost::_bi::list1<boost::_bi::value<survarium::damage_sound_effect *> > > >::manager
 0x0023fb40	inferred-medium	0x00180b98	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf3<void,survarium::damage_sound_effect,char const *,enum survarium::hit_affects_type_enum,enum survarium::affect_event_type_enum>,boost::_bi::list4<boost::_bi::value<survarium::damage_sound_effect *>,boost::arg<1>,boost::arg<2>,boost::arg<3> > > >::manager
@@ -1881,6 +1882,7 @@ va	status	ref_021d	name
 0x002d0a60	inferred-high	0x001ca996	survarium::game_world_core::commit_game_statistic_event_history_item
 0x002d0b30	inferred-high	0x001cab13	survarium::game_world_core::event_horizon_history_item
 0x002d1340	inferred-high	0x001cb043	survarium::game_world_core::erase_impl
+0x002d1d00	inferred-high		survarium::game_world_core::tick_physics
 0x002d55b0	inferred-high	0x001dc824	survarium::pvp_match_core::pvp_match_core
 0x002d5750	inferred-high	0x001dca6c	survarium::pvp_match_core::~pvp_match_core
 0x002d5bc0	inferred-medium		survarium::player_params_modifiers_container::apply_modifiers
@@ -1930,6 +1932,7 @@ va	status	ref_021d	name
 0x002dbb50	inferred-medium		survarium::base_player::movement_speed
 0x002dbca0	inferred-high	0x001d6606	survarium::base_player::on_pain_regenerated
 0x002dbe90	inferred-medium	0x001d6638	survarium::base_player::unsubscribe_from_actions
+0x002dc4b0	inferred-high		survarium::base_player::next_input_after
 0x002dd110	inferred-medium	0x001d6d38	boost::detail::function::functor_manager<boost::_bi::bind_t<unsigned short,unsigned short (__cdecl*)(survarium::animations_registry &,vostok::resources::resource_ptr<vostok::resources::managed_resource,vostok::resources::managed_intrusive_base> const &,vostok::resources::resource_ptr<vostok::resources::managed_resource,vostok::resources::managed_intrusive_base> const &),boost::_bi::list3<boost::reference_wrapper<survarium::animations_registry>,boost::arg<1>,boost::arg<2> > > >::manager
 0x002dd280	inferred-medium	0x001d6e1f	boost::detail::function::functor_manager<boost::_bi::bind_t<vostok::resources::resource_ptr<vostok::resources::managed_resource,vostok::resources::managed_intrusive_base>,vostok::resources::resource_ptr<vostok::resources::managed_resource,vostok::resources::managed_intrusive_base> (__cdecl*)(survarium::animations_registry &,unsigned short),boost::_bi::list2<boost::reference_wrapper<survarium::animations_registry>,boost::arg<1> > > >::manager
 0x002dec90	inferred-medium		survarium::weapon_core::select_recoil_clips
@@ -2257,7 +2260,11 @@ va	status	ref_021d	name
 0x0031d0a0	inferred-medium	0x001f7e12	survarium::breath_state_shortbreathing::tick
 0x0031d0d0	inferred-medium	0x001f7e41	survarium::breath_state_shortbreathing::is_ready_for_transition
 0x0031d140	inferred-medium	0x001f7e5c	survarium::breath_state_holding::initialize
+0x0031d190	inferred-high		survarium::breath_state_holding::finalize
+0x0031d200	inferred-high		survarium::breath_state_holding::tick
 0x0031d3b0	inferred-medium	0x001f7fdb	survarium::breath_vibration_calculator::can_hold_breath
+0x0031d400	inferred-high		survarium::breath_vibration_calculator::hold_released_pred
+0x0031d430	inferred-high		survarium::breath_vibration_calculator::reserve_spent_pred
 0x0031d450	inferred-medium	0x001f8053	survarium::breath_vibration_calculator::initialize_logic
 0x0031d6e0	inferred-medium		survarium::breath_vibration_calculator::tick
 0x0031d970	inferred-medium		survarium::breath_vibration_calculator::restart_on_aim
@@ -2345,6 +2352,7 @@ va	status	ref_021d	name
 0x00339ee0	inferred-high		survarium::weapon_core_shotgun_reload_state::round_and_aim_held_pred
 0x0033a770	inferred-high		survarium::weapon_core_throw_grenade_state::throw_grenade
 0x0033a900	inferred-medium	0x00209520	boost::detail::function::function_obj_invoker0<boost::_bi::bind_t<bool,boost::_mfi::cmf1<bool,survarium::weapon_core_throw_grenade_state,bool>,boost::_bi::list2<boost::_bi::value<survarium::weapon_core_throw_grenade_state *>,boost::_bi::value<bool> > >,bool>::invoke
+0x0033a990	inferred-high		survarium::weapon_core_melee_state_base::initialize
 0x0033acf0	inferred-medium		survarium::artefact_spring_core::config::config
 0x0033b780	inferred-medium		survarium::artefact_onyx_core::config::config
 0x0033f3a0	inferred-medium		survarium::armor::add_modifiers
@@ -3162,6 +3170,7 @@ va	status	ref_021d	name
 0x002d43b0	inferred-medium		survarium::game_world_core::new_world_event
 0x002d0a60	inferred-medium		survarium::game_world_core::push_world_event
 0x002e58b0	inferred-medium		survarium::damage_model::find_body_part
+0x002e5900	inferred-high		survarium::damage_model::dispatch_affect
 0x00131ed0	inferred-high		vostok::render::camouflage_decal_texture_type_baker_cook::find_baked_texture
 0x00132e40	inferred-high		vostok::buffer_vector<vostok::render::baked_texture_data>::erase
 0x00133120	inferred-high		vostok::render::baked_texture_data::baked_texture_data
@@ -3349,6 +3358,7 @@ va	status	ref_021d	name
 0x003198d0	inferred-high		survarium::damage_zone_core::on_objects_entered
 0x00332810	inferred-high		survarium::body_part_parameters::apply_hit_modifiers
 0x00332890	inferred-high		survarium::body_part_parameters::apply_anomaly_damage_modifier
+0x003328f0	inferred-medium		survarium::damage_model::toxic_damage_listener
 0x0030a250	inferred-medium		survarium::grenade_set_core::throw_grenade
 0x0030a350	inferred-medium		survarium::grenade_set_core::splash_hit_params
 0x00304a40	inferred-medium		survarium::booby_trap_core::hit_victim
@@ -3392,6 +3402,7 @@ va	status	ref_021d	name
 0x0030dfb0	inferred-high		survarium::weapon_core_hide_state::deserialize
 0x003105c0	inferred-medium		survarium::weapon_core_throw_grenade_throw_substate::deserialize
 0x0033aa90	inferred-medium		survarium::weapon_core_melee_state_base::deserialize [descriptive]
+0x0033ab50	inferred-high		survarium::weapon_core_melee_state_base::on_shoot_event
 0x002988a0	inferred-high		survarium::portable_interactive_object_with_finger_correction::deserialize
 0x00295b80	inferred-high		survarium::portable_interactive_object::deserialize
 0x00301660	inferred-high	0x001e7bad	survarium::victory_item_core::deserialize

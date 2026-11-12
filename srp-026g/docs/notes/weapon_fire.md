@@ -98,8 +98,14 @@ last tick was all PID; a body's kicks over the draws from its saved seed are one
 ## The cone's two moving parts
 
 - The character part (0x331330): a target by the body's state (idle, walk, sprint, jump, crouch, crouch walk; hip
-  or aim), at least a floor while the stamina is low, plus a penalty for broken hands (LIKELY, by the uses), times
-  the skill's factor; it moves linearly, up at `growth_speed`, down at `speed_of_aiming`.
+  or aim), at least `low_stamina_dispersion` x (20 - the bar) / 20 while the stamina's low flag is set, plus
+  `injury_penalty_for_double_handed` or `_one_handed` x max(0, 1 + modifier 65) for broken hands (the keys by the
+  loader 0x2F0FC4..0x2F1036), times max(0, 1 + the state's skill influence x modifier 0); it moves linearly, up at
+  `growth_speed`, down at `speed_of_aiming`. The bot's own target and current value are saved in every world.
+- **A frame**: the player's tick to T (the weapon's tick first: the cone, the recoil, the breath when aimed; then
+  the selector and the animations' events, the stamina, the damage model, the use), the input stamped T, the walk
+  vector, the controller's step ending at T, then the bullets (`update_to` 0x2DA9A0; the world's tick lists 2 to 5,
+  0x2D1E20). So the weapon's tick sees the stance, the keys and the wounds of the frame before.
 - The bloom (0x331150): each shot adds `one_shoot` up to `max_dispersion`; it falls to 0 linearly at
   `speed_of_aiming`. A weapon just taken in hand starts with `reload_dispersion_amount` of bloom.
 - Counted: every saved transition of the three (character, bloom, aim; 372,764 rows each) is on its line.
@@ -114,10 +120,10 @@ last tick was all PID; a body's kicks over the draws from its saved seed are one
   two in 3,319). One-round weapons and bolt actions agree with the client's rule and the bots' alike.
 - **The reload**: the bots count the rounds in at the key and reset the recoil there; the client at the clip's end.
   Of 2,104 reloads pressed with rounds left (weapons whose time no patch changed) none refilled sooner than
-  `reload_time` / 1.12 and 1,988 held `reload_time` itself (the bots' reload speed is 0, or 0.12 with the ammo
-  pouch's skill). The bots take a pistol's empty-reload share from the item's clips: for two pistols they differ from
-  the hands' (1,621 and 1,447 ms against the client's 2,692 and 2,403). (An earlier count here, 7,503 of 10,932
-  within 50 ms, laid one table's times on matches of two tables.)
+  `reload_time` / 1.12 and 1,988 held `reload_time` itself (a bot's reload speed is 0, or 0.12 with gloves whose
+  default modification gives it: 51 of 51 such bodies). The bots take a pistol's empty-reload share from the item's
+  clips: for two pistols they differ from the hands' (1,621 and 1,447 ms against the client's 2,692 and 2,403). (An
+  earlier count here, 7,503 of 10,932 within 50 ms, laid one table's times on matches of two tables.)
 - **The recoil's draws**: the bots take the middle of each range; the client draws from the saved seed.
 - **The cone**: the bots take no bloom, the character part settled, no skill, low-stamina or broken-hands term; the
   pellet cone lacks the weapon's base as a factor (bases 0.8 to 2.0).
@@ -127,9 +133,8 @@ last tick was all PID; a body's kicks over the draws from its saved seed are one
 ## Not read
 
 Why a fifth of the passes are 1 to 3 ms off (the clip's own clock is not in a world: a traced run at the
-next-event routine 0x3B42F0 settles it); the order of the inputs and the player's tick in the world's loop
-(measured); who seeds the weapon's own generator (only its constructor and `deserialize` write it); the names of the
-low-stamina and broken-hands terms; whether the recoil's shake clip (its weight is the shake axis, read only at
-0x2E39B0, for any living body) and the side kick's clip (`recoil_horiz`, index 1, 0x2E12B6) turn the eye bone, and to
-which side: both are in the clips' data. A weapon tick that is not 50 ms comes with an input at a time off the 50 ms
+next-event routine 0x3B42F0 settles it); who seeds the weapon's own generator (only its constructor and
+`deserialize` write it); what state gates the shake clip's play (0x2E13DB); the cone of a weapon with a scope (some
+played bodies' cones are 2 or 4 times the weapon's table value: the scopes' modifications are not read). A weapon
+tick that is not 50 ms comes with an input at a time off the 50 ms
 grid inside the step (1,466 of 1,472 such worlds).
