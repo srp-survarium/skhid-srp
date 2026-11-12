@@ -30,6 +30,34 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     from a level-15 room to an available level-10 room the player can enter.
   - No member and no queue: the room disappears. An empty public room with
     waiters survives to admit them, including when everyone leaves after a match.
+- **The Blackout room** (the owner's of 2026-11-05: "let's have the third room, it is always
+  open and can be entered only through lobby (never through PLAY)", "it is BLACKOUT ONLY",
+  "ANY LEVEL"): the server's own room, beside the two brackets' and the players' private ones.
+  - **Always open:** made as the lobby starts, kept when empty (in the list with 0 players),
+    never removed. Nobody owns it: no "(owner)", no kick, no PIN, no Start; it counts down as
+    any open room. A maintenance takes its members out (code 9) and it stays, empty.
+  - **Blackout only:** its pool is every Blackout map of the match pool (the game data's
+    `srp_variant` "blackout", maps_dict 219 to 248, `blackout-mode-1.json`), so its three cards
+    are Blackout maps. With none (`SRP_MATCH_MODES` without 6, or game data without them) there
+    is no such room (logged at start).
+  - **Any level:** no max level; every equipment comes in and plays (the list's "Any").
+  - **Only from the Rooms list:** Join (double-click, Enter), its Queue when full (a chosen
+    queue), a friend's "Join room". Play never puts anyone in it, nor queues for it, nor makes
+    it: not by its brackets, not beside a squad mate who is in it.
+  - **8 v 8 from 1 v 1, 30 s:** the rooms' defaults of `gameplay/srp/rooms.options`
+    (`default_size`, `default_min_side`, `default_wait`), as Play's rooms; sides drawn as in
+    any open room. It pays as any open room.
+  - **Its name in the list:** "BLACKOUT", the same in every language (as "PIN" and "BOT"); the
+    list's other columns as any room's.
+  - In code: `rooms::Made::ByServer` (a player-made room is `Made::ByPlayer`, its maker and
+    owner), `Rooms::open_server_room`, `Room::takes_play`; the lobby's `room_open_server`.
+- **No Blackout in other rooms** (the owner's of 2026-11-05: "and no blackout in other rooms"):
+  Blackout maps are played only in the Blackout room. The pool the create window is offered
+  (the server's `room_entries`, experimental maps too) has none, so its Modes list has no
+  Blackout tick, its defaults none, and a create (open, private or "With bots") cannot name
+  one; Play's rooms' pool is the same pool. Clan matches' random map never was Blackout. This
+  replaces the rules of 2026-10-25 (Blackout part of the standard pool) and 2026-11-02 (the
+  vote's third card always Blackout): every vote draws its three cards alike.
 - **Making one:** players may create private rooms only, with a required 4-digit
   PIN and a chosen map/mode pool. No team-size, minimum, max-level or countdown
   controls. The server refuses a public CREATE request (code 16), including from
@@ -121,10 +149,6 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   on the card with most votes then, a tie or none drawn at random. Fewer members than the
   minimum stop it; a member changing kit stops nothing. A match that could not be made
   gives the room its wait again, the vote open, its votes kept.
-  - **The third card is Blackout** (the owner's of 2026-11-02: "offers blackout in voting
-    always as a third choice"): cards 1 and 2 drawn from the rest of the pool, card 3 one of
-    its Blackout maps, on another map than theirs while there is one; a pool without
-    Blackout or of Blackout alone draws its three as before (`blackout.md`).
 - **The match starts at the room's minimum** (the owner's of 2026-10-20: "threshold is 2
   players though, not 4"; "just let people play, since rules are in rooms"; live, room 5209
   sat in "Awaiting other players" with 2 of 5): the game itself waits for 80 % of the
@@ -301,7 +325,7 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     with no second Leave queue button.
 - **Maintenance:** within 30 min of one, no vote or match starts and no room is made; a room
   not playing is disbanded at once, one playing after its match (code 9 to its members and
-  queue).
+  queue); the Blackout room is emptied the same way and stays.
 - **Browsing rooms from a room** (the owner's of 2026-10-22: "it should be possible to browse
   rooms while being in the rooms yourself ... you still stay in the room, but you can look at
   other rooms, if you exit rooms and enter them again you end up in your room, you cannot join

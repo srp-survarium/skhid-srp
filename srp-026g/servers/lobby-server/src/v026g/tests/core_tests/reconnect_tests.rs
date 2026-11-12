@@ -24,7 +24,7 @@ impl World {
             self.results,
             self.host,
             self.inbox,
-            Settings::local("127.0.0.1:0"),
+            settings(),
             self.now,
         );
     }

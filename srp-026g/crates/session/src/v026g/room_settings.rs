@@ -110,7 +110,7 @@ impl RoomSettings {
 }
 
 /// The window's defaults for the pool offered now: the rules' (`RoomRules::default`), the
-/// match pool without the experimental maps, every mode (Blackout too, when the server offers it).
+/// match pool without the experimental maps, every mode.
 pub fn defaults(entries: &[PoolEntry]) -> RoomForm {
     let tiles = tiles(entries);
     let default = rules().default;
@@ -234,13 +234,13 @@ mod tests {
     }
 
     #[test]
-    fn blackout_is_in_the_defaults_and_its_maker_may_leave_it_out() {
+    fn a_mode_offered_later_is_in_and_its_maker_may_leave_it_out() {
         let mut entries = pool();
         entries.push(entry(
             255,
             1,
             1,
-            survarium::v026g::maps::GameMode::Blackout.lobby_number(),
+            survarium::v026g::maps::GameMode::Research.lobby_number(),
             false,
         ));
         let form = form(None, &entries, 4);
@@ -250,11 +250,11 @@ mod tests {
         let kept = RoomSettings::of_room(8, 1, 0, 30, &[10, 11, 12, 20, 21], &entries);
         assert_eq!(
             kept.modes_off,
-            vec![survarium::v026g::maps::GameMode::Blackout.lobby_number()]
+            vec![survarium::v026g::maps::GameMode::Research.lobby_number()]
         );
         let again = super::form(Some(&kept), &entries, 4);
         assert!(!chosen(&again, &entries).contains(&255));
-        // Settings kept before Blackout was offered: it is in, as any mode
+        // Settings kept before the mode was offered: it is in, as any mode
         // added later (no schema step needed).
         let before = RoomSettings::of_room(8, 1, 0, 30, &[10, 11, 12, 20, 21], &pool());
         let now = super::form(Some(&before), &entries, 4);

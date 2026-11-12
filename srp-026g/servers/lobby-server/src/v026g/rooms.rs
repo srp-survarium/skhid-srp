@@ -46,6 +46,13 @@
 //!   Full rooms queue newcomers; four ready Play waiters in the same bracket
 //!   open another room. Explicit room queues stay chosen.
 //!   Only private rooms may be created by a client.
+//! - **The server's room** (the owner's of 2026-11-05: "the third room, it
+//!   is always open and can be entered only through lobby (never through
+//!   PLAY)", "BLACKOUT ONLY", "ANY LEVEL"): opened at the lobby's start
+//!   ([`Core::room_open_server`]), never gone, owned by nobody, joined from
+//!   the list (a friend's room and its queue too), never by Play. Its pool is
+//!   the match pool's Blackout maps; no other room's pool has them (the
+//!   owner's: "and no blackout in other rooms", [`Core::room_entries`]).
 //! - **Squads** (two at most; the owner's of 2026-10-31,
 //!   `docs/notes/squads.md`): Play, Join and a queue take the mate along
 //!   when it is free in the lobby ([`Core::room_mate`]), into the same room
@@ -88,7 +95,9 @@ use std::time::Instant;
 use session::matchmaking_policy::{self as policy, Closed, Worth};
 use session::v026g::presets::{self, Offer};
 use session::v026g::room_settings::{self, RoomSettings};
-use session::v026g::rooms::{self as model, Door, Due, QueueChoice, Refused, Spec, Stage, Waiting};
+use session::v026g::rooms::{
+    self as model, Door, Due, Made, QueueChoice, Refused, Spec, Stage, Waiting,
+};
 use session::v026g::{matchmaking, quests, rules};
 use session::{LockExt, QueuePool, Strength};
 use survarium::v026g::lobby::presets::PresetDone;
@@ -134,7 +143,7 @@ impl PublicBracket {
     }
 
     fn contains(self, room: &model::Room) -> bool {
-        room.is_open() && room.max_level() == self.max_level()
+        room.takes_play() && room.max_level() == self.max_level()
     }
 }
 /// The rooms' settings in the lobby.
@@ -220,6 +229,16 @@ pub(super) struct RoomLaunch {
     pub kind: RoomKind,
 }
 
+/// The server's room's name in the list, the same in every language (as
+/// the list's "PIN" and "BOT"): its mode, which no other room has.
+const SERVER_ROOM_NAME: &str = "BLACKOUT";
+
+/// Whether a `maps_dict` id is a Blackout map (the game data's
+/// `srp_variant`): the server's room's alone.
+fn is_blackout(map_id: u8) -> bool {
+    maps::map_mode(map_id).is_some_and(|map| map.mode == maps::GameMode::Blackout)
+}
+
 /// What a room's match is, for its bots and its pay.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum RoomKind {
@@ -242,8 +261,11 @@ struct Ready {
 }
 
 impl Core<'_> {
-    /// The maps a pool may hold, in the order their bits name them: the
-    /// match pool (Blackout's maps too, mode 6), then the experimental maps.
+    /// The maps a player-made room's pool may hold, in the order their bits
+    /// name them: the match pool, then the experimental maps; never a
+    /// Blackout map, the server's room's alone (the owner's of 2026-11-05:
+    /// "no blackout in other rooms"). The create window offers these, and a
+    /// create's bits name nothing else.
     pub(super) fn room_entries(&self) -> Vec<PoolEntry> {
         let pool = &self.settings.maps;
         let extra = self
@@ -256,6 +278,7 @@ impl Core<'_> {
             .iter()
             .map(|id| (*id, false))
             .chain(extra.map(|id| (*id, true)))
+            .filter(|&(id, _)| !is_blackout(id))
             .filter_map(|(id, extra)| {
                 let map = maps::map_mode(id)?;
                 Some(PoolEntry {
@@ -858,9 +881,8 @@ impl Core<'_> {
             .iter()
             .map(|entry| entry.map_id)
             .collect();
-        // The whole pool but the experimental maps: the match pool,
-        // Blackout's maps with it (the owner's of 2026-10-25: Blackout
-        // is part of the standard pool).
+        // The whole pool but the experimental maps (and Blackout's, the
+        // server's room's alone).
         let default: Vec<u8> = self
             .room_entries()
             .iter()
@@ -965,6 +987,46 @@ impl Core<'_> {
         }
     }
 
+    /// The server's room, opened as the lobby starts: the rooms' defaults'
+    /// size, players to start and wait (`RoomRules::default`, 8 v 8 from
+    /// 1 v 1, 30 s), any equipment, its pool the match pool's Blackout maps
+    /// (the game data's). None while the match pool has none
+    /// (`SRP_MATCH_MODES` without 6, or game data without Blackout).
+    pub(super) fn room_open_server(&mut self) {
+        let pool: Vec<u8> = self
+            .settings
+            .maps
+            .iter()
+            .copied()
+            .filter(|&id| is_blackout(id))
+            .collect();
+        let default = wire::rules().default;
+        let spec = Spec {
+            size: default.size,
+            wait: default.wait,
+            door: Door::Open { max_level: 0 },
+            min_players: 2 * default.min_side,
+        };
+        let maps = pool.len();
+        let rng = &mut self.rng;
+        match self
+            .rooms
+            .open_server_room(spec, pool, &mut |bound| rng.below(bound as u32) as usize)
+        {
+            Ok(key) => log::info!(
+                "Room {key}: the server's, {} v {}, from {} v {}, any equipment, {maps} Blackout \
+                 maps",
+                default.size,
+                default.size,
+                default.min_side,
+                default.min_side,
+            ),
+            Err(refused) => {
+                log::warn!("No server room ({refused:?}): the match pool has no Blackout map")
+            }
+        }
+    }
+
     /// Play for a game whose movie has rooms: into an open room, or a
     /// new one; the lobby state, so the movie shows it. Its own room if it
     /// has one.
@@ -1023,7 +1085,13 @@ impl Core<'_> {
         let Some(mate) = self.store.squads().mate_of(who.account_id) else {
             return false;
         };
-        let Some(key) = self.rooms.key_of(mate) else {
+        // Play never goes into the server's room, the mate's too.
+        let Some(key) = self
+            .rooms
+            .of(mate)
+            .filter(|room| room.made != Made::ByServer)
+            .map(|room| room.key)
+        else {
             return false;
         };
         match self
@@ -1238,7 +1306,7 @@ impl Core<'_> {
         });
         Member {
             gear,
-            owner: account_id == room.owner,
+            owner: room.owner() == Some(account_id),
             me: account_id == who.account_id,
             in_match: room.in_match.contains(&account_id),
             fit: self.member_fit(account_id),
@@ -1350,7 +1418,7 @@ impl Core<'_> {
             wait: room.spec.wait,
             phase,
             secs,
-            owner: room.owner == who.account_id,
+            owner: room.owner() == Some(who.account_id),
             pool: room.pool.len() as u16,
             serial: room.serial,
             pin: !room.is_open(),
@@ -1527,7 +1595,7 @@ impl Core<'_> {
             max_level: best.max_level(),
             players: best.members.len() as u8,
             size: best.spec.size,
-            name: self.name_of(best.maker).unwrap_or_default(),
+            name: self.room_name(best),
         })
     }
 
@@ -1570,6 +1638,14 @@ impl Core<'_> {
             .collect()
     }
 
+    /// A room's name in the list: its maker's, or the server room's.
+    fn room_name(&self, room: &model::Room) -> String {
+        match room.made {
+            Made::ByPlayer { maker, .. } => self.name_of(maker).unwrap_or_default(),
+            Made::ByServer => SERVER_ROOM_NAME.to_owned(),
+        }
+    }
+
     fn room_list(
         &self,
         who: &Who,
@@ -1602,7 +1678,7 @@ impl Core<'_> {
                         (false, false) => wire::ListDoor::Pin,
                         (false, true) => wire::ListDoor::PinWithBots,
                     },
-                    name: self.name_of(room.maker).unwrap_or_default(),
+                    name: self.room_name(room),
                 }
             })
             .collect();

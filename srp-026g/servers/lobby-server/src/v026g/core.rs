@@ -260,7 +260,7 @@ impl<'a> Core<'a> {
         // (it ignores one it still holds, `social.md` §1.4), also after a
         // restart of srp: the ids start at the time.
         let next_message_id = (quests::now() as u32 & 0x0FFF_FFFF) << 3 | 1;
-        Self {
+        let mut core = Self {
             store,
             accounts,
             results,
@@ -295,7 +295,10 @@ impl<'a> Core<'a> {
             room_join_at: HashMap::new(),
             room_seen: HashMap::new(),
             room_unseen: HashMap::new(),
-        }
+        };
+        // The server's room is there from the start (`rooms`).
+        core.room_open_server();
+        core
     }
 
     // ------------------------------------------------------------ lookups
