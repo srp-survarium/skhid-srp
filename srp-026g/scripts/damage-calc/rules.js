@@ -128,7 +128,60 @@ const RULES = (() => {
     return out;
   }
 
+  // Recovery: the healing section's picks (DATA.recovery).
+  const REC = DATA.recovery || {};
+  const LARK = Object.fromEntries((((ART.lifebone || {}).passive || {}).regeneration_modifiers || []).map(m => [m.body_part, m]));
+
   return {
+    // An item's built-in bonuses as its lobby card lists them: its name, then
+    // a row each (icon, "<prop>:", the value with its unit).
+    bonusCard(name, bonuses) {
+      const card = el("div", { class: "gamemods" }, el("span", { class: "gname", text: name }));
+      for (const b of bonuses) {
+        const unit = b.mod_type === 1 && ((LANG === "uk" && b.postfix_uk) || b.postfix);
+        card.append(el("div", { class: "gmrow fixed" }, icon(b), el("span", { class: "glabel", text: `${label(b)}:` }),
+          el("span", { class: good(b, b.value) ? "gv good" : "gv bad", text: propText(b, b.value) + (unit ? ` ${unit}` : "") })));
+      }
+      return card;
+    },
+    // What the picks add up to: the kit's regeneration bonuses (each slot's
+    // grade and the boosters carried: speed in one sum, seconds on the delay,
+    // a share on the limit) and each skill's ranks times its step.
+    recoveryKit(pick = {}) {
+      const kit = { speed: 0, delay_s: 0, limit: 0 };
+      for (const id of Object.values(pick.gear || {})) kit.speed += (((REC.gear || {}).grades || []).find(g => g.id === id) || { value: 0 }).value;
+      for (const [key, b] of Object.entries(REC.boosters || {}))
+        if ((pick.boosters || {})[key]) for (const k of ["speed", "delay_s", "limit"]) kit[k] += b[k] || 0;
+      for (const key of ["metabolism", "strong_bones", "medical_training", "take_cover", "fast_bandaging"]) {
+        const s = (REC.skills || {})[key];
+        kit[key] = s ? clamp((pick.skills || {})[key] || 0, 0, s.ranks) * s.step : 0;
+      }
+      return kit;
+    },
+    // One pool's regeneration, as body_part::regenerate (0x32A4B0) runs it:
+    // the delay less Metabolism's seconds (set at the spawn); the speed
+    // x max(0, 1 + the kit's bonuses); each Larkspur's callback (0x312590:
+    // add, then multiply); then, for a pool that regenerates, the kit's
+    // seconds off the delay and its share onto the limit (exe patch 94).
+    // Strong Bones raises a leg's or hand's maximum.
+    regeneration(row, kit, larkspurs) {
+      const m = LARK[row.name];
+      let speed = row.regeneration_speed * Math.max(0, 1 + kit.speed);
+      let wait = Math.max(0, row.regeneration_timeout - kit.metabolism), cap = row.regeneration_threshold;
+      for (let i = 0; m && i < larkspurs; i++) {
+        speed = (speed + m.regen_add) * m.regen_mul;
+        wait = (wait + m.timeout_add) * m.timeout_mul;
+        cap = (cap + m.threshold_add) * m.threshold_mul;
+      }
+      if (speed > 0) { wait = Math.max(0, wait + kit.delay_s); cap += Math.max(0, 1 + kit.limit) - 1; }
+      return { max: row.health * (/_(leg|hand)$/.test(row.name) ? 1 + kit.strong_bones : 1), speed, wait, cap: Math.min(1, cap) };
+    },
+    // A medicine that heals: Fast Bandaging on the wait before it works,
+    // Medical Training (x max(0, 1 + S57), medkit::tick 0x33D790) and Take
+    // Cover (while crouched) on what it heals.
+    medicine(d, kit) {
+      return { delay_s: d.activation_delay_s * (1 - kit.fast_bandaging), heals: Math.max(0, 1 + kit.medical_training) * (1 + kit.take_cover) };
+    },
     applyWeaponMods(w, chosen) {
       const s = sums(idsOf(w, chosen));
       for (const [path, v] of Object.entries(s)) {
