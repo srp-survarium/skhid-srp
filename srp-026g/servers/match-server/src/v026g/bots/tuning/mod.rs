@@ -222,6 +222,7 @@ pub use traps::Stayer;
 pub use traps::TrapLanes;
 pub use traps::TrapRelease;
 pub use traps::TrapTuning;
+pub use unstick::DeadLinksTuning;
 pub use unstick::DropShut;
 pub use unstick::SUICIDE_AFTER_OWNER_MS;
 pub use unstick::StuckWindow;
