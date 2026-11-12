@@ -745,6 +745,7 @@ va	status	ref_021d	name
 0x001c7660	reviewed	0x00138cae	vostok::render::culling::portal_sector_system::calculate_portal_rects_in_screen_space
 0x001c7dd0	reviewed	0x0013939f	vostok::render::culling::portal_sector_system::sort_portals_and_calculate_rects_in_screen_space
 0x001c7e60	reviewed	0x00139413	vostok::render::culling::portal_sector_system::make_frustum_images
+0x001c83b0	observed		vostok::render::calculate_streaming_texture_factor
 0x001c9370	reviewed	0x00139834	vostok::render::light::light
 0x001c9710	reviewed	0x00139a30	vostok::render::light::on_render_options_changed
 0x001c97d0	reviewed	0x00139a71	vostok::render::light::try_create_static_shadow_buffers
