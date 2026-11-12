@@ -186,6 +186,9 @@
           # shell's own, and NASM 2.16 (above).
           pkgs.python3
           nasm216
+          # glslangValidator: the DLSS link's motion pass, GLSL to the SPIR-V words
+          # the patch crate includes (client-patches/dlss_motion_026g.py).
+          pkgs.glslang
           # The compile cache shared by every worktree (RUSTC_WRAPPER below);
           # `sccache --show-stats` shows its hits.
           pkgs.sccache
