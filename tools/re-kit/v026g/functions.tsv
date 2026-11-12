@@ -2433,3 +2433,8 @@ va	status	ref_021d	name
 0x000a0f60	reviewed		BridgeTriangleRaycastCallback::reportHit
 0x000a10b0	reviewed		RayTester::Process
 0x000898c0	reviewed		vostok::physics::character_move_sweep_callback::get_wall_normal_via_ray
+0x002fbc90	reviewed		survarium::weapon_user_animations_selector::sprint_predicate
+0x00336a10	reviewed		survarium::player_logic_stand_sprint_state::initialize
+0x00336a50	reviewed		survarium::player_logic_stand_sprint_state::finalize
+0x00336a90	reviewed		survarium::player_logic_stand_sprint_state::is_ready_for_transition
+0x002dc010	reviewed		survarium::base_player::max_speed
