@@ -557,9 +557,10 @@ at a time. A player who waits in the queue does not see JOIN on.
 
 ### 9.8 A match against the server's bots ("Player vs Bots", 2026-10-16)
 
-The owner's decisions of 2026-10-16 (and of 2026-10-26: every equipment
+The owner's decisions of 2026-10-16 (and of 2026-10-23: every equipment
 level). A player of any equipment level (at most `pvb/max_gear` of `rooms.tsv`, 15;
-5 until 2026-10-26), alone (no squad), not searching, not in a
+5 until 2026-10-23; the bots wear the equipment of the player's tier, `pvb-tiers.md`),
+alone (no squad), not searching, not in a
 match, chooses a size (6, 8 or 10 a side) and a map in the changed lobby
 movie (`lobby.md` §2.16.2); its Play then makes the match at once:
 
@@ -567,21 +568,21 @@ movie (`lobby.md` §2.16.2); its Play then makes the match at once:
   `Matchmaking::seat_solo` seats it alone on team 0, the teams fixed;
 - the lobby adds 2N − 1 of the server's bots after it
   (`play::server_bot_teams`, each to the side with fewer places: N − 1 on
-  the player's side, N on the other), wearing kits of the player's
-  equipment level (`player_bots.md` §8), on the map chosen (not
+  the player's side, N on the other), on the map chosen (not
   `choose_map`); the play is no map play of the player's (the rotation
   of §5 is the PvP queue's);
-- the match's level is the player's own (§4, a match of one level); in
-  the sides' counts (§9.2's predictions) a bot counts for its gear
-  level, as a player of level 0 with no rating;
+- the match's level is the player's own (§4, a match of one level);
 - fixed teams: it takes no late joiner (§9.2's `late_admission` is
   `None`, the list says code 7), and nobody of the queue goes into it;
 - at most `SRP_PVB_MAX_MATCHES` (5) run at once, counting the choices held
   for players who have not pressed Play yet: the sixth is refused (code
   7), and each map's `free` in the status says how many more may start;
-- its rewards: half the silver and experience (`SRP_PVB_PAY`), no quest,
-  no daily bonus, no rating and no balance rating (`results.md`;
-  `session::v026g::rewards`).
+- its rewards: a quarter of the silver, experience and drop chance (`SRP_PVB_PAY`),
+  no quest, no daily bonus, no rating and no balance rating, and only for
+  a match that came to its own end (the mode's rule or the time limit)
+  with its player in it: one left, lost or stalled pays nothing, not even
+  a drop or a drop card (`results.md`; `session::v026g::rewards`,
+  `Reward::forfeited`).
 
 The log: one line for the choice (`<name>: vs bots, 8 v 8 on map 61: ok,
 held for 10 s`, or `no, code n (why)` with the numbers), one for the Play

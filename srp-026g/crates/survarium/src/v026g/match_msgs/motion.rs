@@ -96,10 +96,26 @@ pub struct Damage {
     /// `m_linear_horizontal_speed` [LIKELY m/s: 3.1–3.6 walking, 5.2–5.3
     /// sprinting].
     pub linear_horizontal_speed: f32,
+    /// `m_last_hit_time_ms`: the world's time of the last hit that took
+    /// health, of any type (a bullet, a zone, a fall, a blast):
+    /// `damage_model::hit_body_part` 0x2E5080, the one damage step of every
+    /// hit (`base_player::hit_impl` 0x2D9B90), writes the hit's time at
+    /// 0x2E5134 when the damage the armour left is above 0.0 (PROVEN)
+    /// [LIKELY 0 before the first].
+    pub last_hit_time_ms: u32,
     /// `m_health` of each body part (20 in every world seen); [LIKELY]
     /// part 0 is the body's, 1.0 unhurt.
     pub part_health: Vec<f32>,
+    /// The end times (the world's ms) of the `leg_damage` affects (type 4 of `hit_affects_type_enum`), one per part holding
+    /// one, in part order: `body_part_parameters::serialize` 0x32AE00 writes each part's affects as {u8 type, u32 end}
+    /// (0x32B720); an affect ends at its hit's time + `affect_duration_sec` x 1000 of its type (0x32AC54..0x32AC61);
+    /// `damage_model` +0x388 counts the parts holding one (0x2E537E / 0x2E5387, recount 0x2E5990), and the movement
+    /// state machine stops every move at 2 (fx-review A325f, PROVEN).
+    pub leg_damage_ends: Vec<u32>,
 }
+
+/// `hit_affects_type_enum`'s `leg_damage` (fx-review A325f; `human_hit_params.options` `affect_duration_sec/leg_damage`).
+pub const AFFECT_LEG_DAMAGE: u8 = 4;
 
 /// The controller block's length.
 const CONTROLLER_LEN: usize = 67;
@@ -287,6 +303,7 @@ fn damage_model(s: &[u8], head: usize, inserted_at: usize, now: u32) -> Option<D
         }
         let mut at = start + 22;
         let mut parts = Vec::new();
+        let mut leg_damage_ends = Vec::new();
         let ends = loop {
             // The usable-object flag: clear right before the time, or set
             // with its 32 bytes.
@@ -300,12 +317,24 @@ fn damage_model(s: &[u8], head: usize, inserted_at: usize, now: u32) -> Option<D
             if !(health.is_finite() && (0.0..=1000.0).contains(&health)) {
                 break false;
             }
-            at += 9 + 5 * usize::from(s[at + 8]);
+            let affects = usize::from(s[at + 8]);
+            if at + 9 + 5 * affects > inserted_at {
+                break false;
+            }
+            let mut leg_end = None;
+            for k in 0..affects {
+                let e = at + 9 + 5 * k;
+                if s[e] == AFFECT_LEG_DAMAGE {
+                    leg_end = leg_end.max(Some(u32_at(s, e + 1)?));
+                }
+            }
+            at += 9 + 5 * affects;
             if at >= inserted_at {
                 break false;
             }
             at += 1 + 8 * usize::from(s[at]) + 4;
             parts.push(health);
+            leg_damage_ends.extend(leg_end);
         };
         if !ends || parts.is_empty() {
             continue;
@@ -316,7 +345,9 @@ fn damage_model(s: &[u8], head: usize, inserted_at: usize, now: u32) -> Option<D
         found = Some(Damage {
             jump_type: s[start],
             linear_horizontal_speed: f32_at(s, start + 1)?,
+            last_hit_time_ms: u32_at(s, start + 6)?,
             part_health: parts,
+            leg_damage_ends,
         });
     }
     found
@@ -344,6 +375,8 @@ pub struct Tail {
     pub crouching: bool,
     pub sprinting: bool,
     pub recent_hits: Vec<(u32, f32)>,
+    /// The legs' (parts 6 and 7) `leg_damage` affect's end, if any (written as the affect {4, end}).
+    pub leg_damage_ends: [Option<u32>; 2],
 }
 
 /// A whole player state for tests and tools: the head (its time set to the
@@ -358,14 +391,21 @@ pub fn state_bytes(head: &PlayerState, inventory: &[u8], tail: &Tail) -> Vec<u8>
     out.push(2); // jump_type
     out.extend(tail.speed.to_le_bytes());
     out.push(0); // second chance
-    out.extend(0u32.to_le_bytes()); // last hit
+    let last_hit = tail.recent_hits.iter().map(|&(time, _)| time).max();
+    out.extend(last_hit.unwrap_or(0).to_le_bytes()); // last hit
     out.extend(now.to_le_bytes()); // last tick
     out.extend([0; 8]); // invulnerability
-    for part in 0..20 {
+    for part in 0..20usize {
         out.extend(if part == 0 { tail.health } else { 1.0f32 }.to_le_bytes());
         out.extend(0u32.to_le_bytes());
         out.push(1); // one {u8, u32}
-        out.extend([3, 0, 0, 0, 0]);
+        match part.checked_sub(6).and_then(|leg| tail.leg_damage_ends.get(leg).copied().flatten()) {
+            Some(end) => {
+                out.push(AFFECT_LEG_DAMAGE);
+                out.extend(end.to_le_bytes());
+            }
+            None => out.extend([3, 0, 0, 0, 0]),
+        }
         out.push(0); // no hits
         out.extend(1.0f32.to_le_bytes());
     }
@@ -432,8 +472,30 @@ mod tests {
                 crouching: true,
                 sprinting: false,
                 recent_hits: hits.to_vec(),
+                leg_damage_ends: [None, None],
             },
         )
+    }
+
+    #[test]
+    fn the_legs_leg_damage_ends_are_read() {
+        let mut tail = Tail {
+            time_ms: NOW,
+            speed: 0.0,
+            health: 1.0,
+            inserted_time_ms: 90_000,
+            physics_position: Some([10.0, 1.9, -20.0]),
+            crouching: false,
+            sprinting: false,
+            recent_hits: Vec::new(),
+            leg_damage_ends: [Some(110_000), Some(111_500)],
+        };
+        let read = |tail: &Tail| Motion::read(&state_bytes(&head(true, 5), &[7; 40], tail), 5).unwrap().damage.unwrap().leg_damage_ends;
+        assert_eq!(read(&tail), vec![110_000, 111_500]);
+        tail.leg_damage_ends = [None, Some(111_500)];
+        assert_eq!(read(&tail), vec![111_500]);
+        tail.leg_damage_ends = [None, None];
+        assert!(read(&tail).is_empty(), "the other affects (type 3) are not leg damage");
     }
 
     #[test]
@@ -453,6 +515,7 @@ mod tests {
         let damage = motion.damage.unwrap();
         assert_eq!(damage.jump_type, 2);
         assert_eq!(damage.linear_horizontal_speed, 3.4);
+        assert_eq!(damage.last_hit_time_ms, 104_000);
         assert_eq!(damage.part_health.len(), 20);
         assert_eq!(damage.part_health[0], 0.5);
     }

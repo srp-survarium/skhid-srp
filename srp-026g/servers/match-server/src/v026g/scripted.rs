@@ -86,6 +86,10 @@ pub struct Sim {
     /// has it, `motion::Tail`), at the world's time; with none the state
     /// ends at the head and an opaque inventory.
     pub player_tails: Vec<Option<motion::Tail>>,
+    /// By place: a player's whole state as a real client wrote it (a
+    /// recorded one, with its inventory), used as it is for a place whose
+    /// head is in `player_states`.
+    pub player_raw: Vec<Option<Vec<u8>>>,
     /// No world was loaded yet: the next is this game's first.
     first_world: bool,
     /// From a tick on the statistics have the tickets of the match's
@@ -119,6 +123,7 @@ impl Sim {
             kits: Vec::new(),
             stray_objects_from: None,
             player_states: vec![None; players],
+            player_raw: Vec::new(),
             player_tails: vec![None; players],
             first_world: true,
             stale_tickets_from: None,
@@ -376,42 +381,50 @@ impl Sim {
             let entered = rule.mask & 1u32.checked_shl(place as u32).unwrap_or(0) != 0;
             if let Some(head) = head.as_ref().filter(|_| entered) {
                 mask |= 1 << place;
-                let mut inventory = header.clone();
-                if let Some(items) = self
-                    .kits
-                    .get(place)
-                    .and_then(|kits| kits.get(usize::from(head.current_index)))
-                {
-                    inventory.extend(players::untouched_items(place as u8, head.current_index, items));
-                }
                 // The smallest tree a client decodes (`world_frame::
                 // animation_validate`): no node, so its 11 header bits, at
                 // least one time (the duration the native always pops), and
                 // the first matrix's 12 floats.
                 let animation =
                     players::animation_bytes(&[false; 11], &[time, time + 7], &[0.5; 12]);
-                // A state is whole: with no tail of its own, a player who
-                // stands where it entered.
-                let tail = self.player_tails.get(place).and_then(Option::as_ref).cloned().unwrap_or(
-                    motion::Tail {
-                        time_ms: time,
-                        speed: 0.0,
-                        health: 1.0,
-                        inserted_time_ms: 0,
-                        physics_position: head.alive.then_some([0.0; 3]),
-                        crouching: false,
-                        sprinting: false,
-                        recent_hits: Vec::new(),
-                    },
-                );
-                let state = motion::state_bytes(
-                    head,
-                    &inventory,
-                    &motion::Tail {
-                        time_ms: time,
-                        ..tail
-                    },
-                );
+                // A recorded client's whole state, as it wrote it (`player_raw`);
+                // else one made from the head and the tail.
+                let state = match self.player_raw.get(place).and_then(Option::as_ref) {
+                    Some(raw) => raw.clone(),
+                    None => {
+                        let mut inventory = header.clone();
+                        if let Some(items) = self
+                            .kits
+                            .get(place)
+                            .and_then(|kits| kits.get(usize::from(head.current_index)))
+                        {
+                            inventory.extend(players::untouched_items(place as u8, head.current_index, items));
+                        }
+                        // A state is whole: with no tail of its own, a player who
+                        // stands where it entered.
+                        let tail = self.player_tails.get(place).and_then(Option::as_ref).cloned().unwrap_or(
+                            motion::Tail {
+                                time_ms: time,
+                                speed: 0.0,
+                                health: 1.0,
+                                inserted_time_ms: 0,
+                                physics_position: head.alive.then_some([0.0; 3]),
+                                crouching: false,
+                                sprinting: false,
+                                recent_hits: Vec::new(),
+                                leg_damage_ends: [None; 2],
+                            },
+                        );
+                        motion::state_bytes(
+                            head,
+                            &inventory,
+                            &motion::Tail {
+                                time_ms: time,
+                                ..tail
+                            },
+                        )
+                    }
+                };
                 blocks.extend(players::block_bytes(&state, Some(&animation)));
             }
         }

@@ -16,7 +16,7 @@
 use std::collections::VecDeque;
 
 use super::curve::Input;
-use super::tuning::{ModTuning, SkillTuning};
+use super::tuning::{BotTier, ModTuning, SkillTuning};
 use super::view::{MatchView, Mode};
 
 /// What the commander of `team` reads of the match.
@@ -49,7 +49,7 @@ impl MatchSignals {
         Self {
             team,
             mode: Some(view.mode),
-            score_gap: view.score_gap(team),
+            score_gap: view.objective().score_gap(view, team),
             time_left_s: view.time_left_s,
             progress: if view.total_s > 0.0 {
                 (1.0 - view.time_left_s / view.total_s).clamp(0.0, 1.0)
@@ -91,12 +91,32 @@ impl MatchSignals {
         self.behind() * (self.progress / LATE_FULL).clamp(0.0, 1.0)
     }
 
+    /// Where the team stands on points (`dead_band`: a gap this small or smaller is level). The one score state every team-level
+    /// rule reads (A296's team plan, A297's TDM tactics), from the HUD's points like the rest of the signals.
+    pub fn standing(&self, dead_band: f32) -> Standing {
+        if self.score_gap > dead_band {
+            Standing::Ahead(self.score_gap)
+        } else if self.score_gap < -dead_band {
+            Standing::Behind(-self.score_gap)
+        } else {
+            Standing::Level
+        }
+    }
+
     /// Seconds left, fewer the farther behind: down to half at
     /// [`BEHIND_FULL`] points behind, so a team far behind starts the
     /// endgame (play 16, late denial) earlier.
     pub fn time_left_behind(&self) -> f32 {
         self.time_left_s * (1.0 - 0.5 * self.behind())
     }
+}
+
+/// A team's standing on points ([`MatchSignals::standing`]): ahead or behind by how many points (positive), or level.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Standing {
+    Ahead(f32),
+    Level,
+    Behind(f32),
 }
 
 /// [`MatchSignals::behind`] is full this many points behind.
@@ -177,12 +197,19 @@ pub struct Skill {
     steps_up: u32,
     duels: VecDeque<Duel>,
     last_look: u32,
+    /// The floor and the ceiling of its tier's bracket ([`SkillTuning::of_tier`], A244).
+    floor: f32,
+    ceiling: f32,
 }
 
 impl Skill {
-    pub fn new(tuning: &SkillTuning) -> Self {
+    /// A team of bots of `tier`: its tier's start, floor and ceiling.
+    pub fn new(tuning: &SkillTuning, tier: BotTier) -> Self {
+        let row = tuning.of_tier(tier);
         Self {
-            skill: tuning.start,
+            skill: row.start,
+            floor: row.min,
+            ceiling: row.max,
             steps_down: 0,
             steps_up: 0,
             duels: VecDeque::new(),
@@ -203,8 +230,8 @@ impl Skill {
         (won as f32 / lost.max(1) as f32, won + lost)
     }
 
-    /// Every `every_s`: a step outside the dead band. Returns the change
-    /// made, if one was (for the log).
+    /// Every `every_s`: a step outside the dead band, kept inside the tier's
+    /// bracket. Returns the change made, if one was (for the log).
     pub fn balance(&mut self, now: u32, tuning: &SkillTuning) -> Option<(f32, f32, f32)> {
         if now < self.last_look + tuning.every_s * 1000 {
             return None;
@@ -226,7 +253,7 @@ impl Skill {
         } else {
             return None;
         }
-        self.skill = self.skill.clamp(tuning.min, tuning.max);
+        self.skill = self.skill.clamp(self.floor, self.ceiling);
         Some((before, self.skill, kd))
     }
 }
@@ -274,7 +301,7 @@ mod tests {
     #[test]
     fn skill_steps_outside_the_dead_band_in_damped_steps() {
         let tuning = SkillTuning::default();
-        let mut skill = Skill::new(&tuning);
+        let mut skill = Skill::new(&tuning, BotTier::default());
         // Bots win 8 of 10: too strong, a step down.
         for k in 0..10 {
             skill.duel(Duel {
@@ -286,7 +313,7 @@ mod tests {
         assert!(after < before && kd > tuning.kd_high);
         // Not again before `every_s` (30 s); in the band nothing changes.
         assert!(skill.balance(75_000, &tuning).is_none());
-        let mut even = Skill::new(&tuning);
+        let mut even = Skill::new(&tuning, BotTier::default());
         for k in 0..10 {
             even.duel(Duel {
                 time: k * 1_000,
@@ -304,5 +331,70 @@ mod tests {
         }
         let (b2, a2, _) = skill.balance(120_000, &tuning).unwrap();
         assert!(((b2 - a2) - first / 2.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn each_tier_starts_at_its_skill_and_stays_in_its_bracket() {
+        let tuning = SkillTuning::default();
+        // The owner's brackets (A244, 2026-11-01): 0-5 0.0-0.6 from 0.3, 6-10 0.2-0.8 from 0.5, 11-15 0.3-0.9 from 0.6.
+        for (tier, start, floor, ceiling) in [
+            (BotTier::Low, 0.3, 0.0, 0.6),
+            (BotTier::Mid, 0.5, 0.2, 0.8),
+            (BotTier::High, 0.6, 0.3, 0.9),
+        ] {
+            let mut skill = Skill::new(&tuning, tier);
+            assert_eq!(skill.skill, start, "{tier:?}");
+            // The bots win every duel for ten minutes: down to the floor,
+            // never under it.
+            for minute in 0..10u32 {
+                for k in 0..10 {
+                    skill.duel(Duel {
+                        time: minute * 60_000 + k * 1_000,
+                        bot_won: true,
+                    });
+                }
+                skill.balance(minute * 60_000 + 30_000, &tuning);
+            }
+            assert!(
+                skill.skill >= floor - 1e-6 && skill.skill < start,
+                "{tier:?} {}",
+                skill.skill
+            );
+            // They lose every duel for an hour: up to the tier's ceiling, never over it.
+            for minute in 10..70u32 {
+                for k in 0..10 {
+                    skill.duel(Duel {
+                        time: minute * 60_000 + k * 1_000,
+                        bot_won: false,
+                    });
+                }
+                skill.balance(minute * 60_000 + 30_000, &tuning);
+            }
+            assert!(
+                (skill.skill - ceiling).abs() < 1e-6,
+                "{tier:?} {}",
+                skill.skill
+            );
+        }
+        // A tier with no row: the old `start`, `min` and `max`.
+        let old = SkillTuning {
+            tiers: Default::default(),
+            ..SkillTuning::default()
+        };
+        assert_eq!(Skill::new(&old, BotTier::High).skill, old.start);
+        assert_eq!(old.of_tier(BotTier::High).max, old.max);
+        // The JSON names a tier by its band.
+        let json = r#"{"tiers":{"9-10":{"start":0.8,"min":0.4,"max":0.9}}}"#;
+        let file: SkillTuning = serde_json::from_str(json).unwrap();
+        assert_eq!(file.of_tier(BotTier::Mid).start, 0.8);
+        assert_eq!(file.of_tier(BotTier::Low).start, file.start);
+        // A ceiling over the scale's top is held to it, a start over its ceiling to the ceiling.
+        use super::super::tuning::TierSkill;
+        let wide = SkillTuning {
+            max: 0.7,
+            tiers: [(BotTier::High, TierSkill { start: 0.85, min: 0.3, max: 0.9 })].into_iter().collect(),
+            ..SkillTuning::default()
+        };
+        assert_eq!(wide.of_tier(BotTier::High), TierSkill { start: 0.7, min: 0.3, max: 0.7 });
     }
 }

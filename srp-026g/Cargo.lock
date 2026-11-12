@@ -460,14 +460,11 @@ dependencies = [
 name = "lobby-server"
 version = "0.1.0"
 dependencies = [
- "bytemuck",
  "env_logger",
  "log",
  "mapdata",
- "openssl",
  "session",
  "survarium",
- "thiserror",
  "udp-transport",
  "vostok",
 ]
@@ -504,7 +501,7 @@ dependencies = [
  "artefact-carry",
  "binary-config-parser",
  "clap",
- "resources-db 0.1.0 (git+https://github.com/srp-survarium/vostok-resources-db?rev=9498aca14014ef74460429f51eb41a6af333522c)",
+ "resources-db",
  "serde_json",
  "survarium",
 ]
@@ -723,16 +720,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "resources-db"
-version = "0.1.0"
-source = "git+https://github.com/srp-survarium/vostok-resources-db?rev=9498aca14014ef74460429f51eb41a6af333522c#9498aca14014ef74460429f51eb41a6af333522c"
-dependencies = [
- "bitflags",
- "bytemuck",
- "clap",
-]
-
-[[package]]
 name = "rusqlite"
 version = "0.37.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -891,7 +878,7 @@ dependencies = [
  "encoding_rs",
  "log",
  "lzma-rust2",
- "resources-db 0.1.0",
+ "resources-db",
  "serde",
  "serde_json",
  "srp-validate",
@@ -1011,7 +998,7 @@ version = "0.1.0"
 dependencies = [
  "log",
  "openssl",
- "resources-db 0.1.0",
+ "resources-db",
  "session",
  "survarium",
  "vostok",

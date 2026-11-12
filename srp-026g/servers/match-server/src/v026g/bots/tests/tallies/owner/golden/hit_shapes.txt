@@ -1,0 +1,478 @@
+owner-test hit shapes: 343 shots, 784 bullets or pellets fired, 513 landed on an enemy; parts torso 51.3% head 25.6% arm 10.3% leg 12.7%; 0-10 m: 38/53 71.7%; 10-20 m: 55/81 67.9%; 20-35 m: 80/126 63.5%; 35-50 m: 82/135 60.7%; 50-80 m: 162/235 68.9%; 80+ m: 96/154 62.3%
+{
+  "hit_all": {
+    "fired": 784,
+    "landed": 513,
+    "parts": [
+      342,
+      171,
+      69,
+      85
+    ],
+    "shots": 343
+  },
+  "hit_cells": {
+    "0-10:bolt": {
+      "fired": 4,
+      "landed": 6,
+      "parts": [
+        4,
+        2,
+        2,
+        0
+      ],
+      "shots": 4
+    },
+    "0-10:marksman": {
+      "fired": 3,
+      "landed": 3,
+      "parts": [
+        4,
+        1,
+        1,
+        1
+      ],
+      "shots": 3
+    },
+    "0-10:mg": {
+      "fired": 4,
+      "landed": 2,
+      "parts": [
+        6,
+        2,
+        1,
+        0
+      ],
+      "shots": 4
+    },
+    "0-10:pistol": {
+      "fired": 4,
+      "landed": 6,
+      "parts": [
+        2,
+        2,
+        1,
+        2
+      ],
+      "shots": 4
+    },
+    "0-10:rifle": {
+      "fired": 4,
+      "landed": 4,
+      "parts": [
+        5,
+        2,
+        1,
+        0
+      ],
+      "shots": 4
+    },
+    "0-10:shotgun": {
+      "fired": 30,
+      "landed": 7,
+      "parts": [
+        2,
+        1,
+        0,
+        1
+      ],
+      "shots": 3
+    },
+    "0-10:smg": {
+      "fired": 4,
+      "landed": 10,
+      "parts": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "shots": 4
+    },
+    "10-20:bolt": {
+      "fired": 5,
+      "landed": 7,
+      "parts": [
+        4,
+        3,
+        0,
+        2
+      ],
+      "shots": 5
+    },
+    "10-20:marksman": {
+      "fired": 6,
+      "landed": 12,
+      "parts": [
+        6,
+        4,
+        1,
+        2
+      ],
+      "shots": 6
+    },
+    "10-20:mg": {
+      "fired": 4,
+      "landed": 10,
+      "parts": [
+        4,
+        2,
+        1,
+        2
+      ],
+      "shots": 4
+    },
+    "10-20:pistol": {
+      "fired": 4,
+      "landed": 6,
+      "parts": [
+        6,
+        2,
+        1,
+        0
+      ],
+      "shots": 4
+    },
+    "10-20:rifle": {
+      "fired": 5,
+      "landed": 8,
+      "parts": [
+        5,
+        2,
+        2,
+        2
+      ],
+      "shots": 5
+    },
+    "10-20:shotgun": {
+      "fired": 50,
+      "landed": 5,
+      "parts": [
+        4,
+        3,
+        2,
+        1
+      ],
+      "shots": 5
+    },
+    "10-20:smg": {
+      "fired": 7,
+      "landed": 7,
+      "parts": [
+        7,
+        3,
+        1,
+        0
+      ],
+      "shots": 7
+    },
+    "20-35:bolt": {
+      "fired": 7,
+      "landed": 11,
+      "parts": [
+        8,
+        3,
+        2,
+        2
+      ],
+      "shots": 7
+    },
+    "20-35:marksman": {
+      "fired": 7,
+      "landed": 9,
+      "parts": [
+        6,
+        3,
+        1,
+        1
+      ],
+      "shots": 7
+    },
+    "20-35:mg": {
+      "fired": 9,
+      "landed": 14,
+      "parts": [
+        10,
+        4,
+        1,
+        2
+      ],
+      "shots": 9
+    },
+    "20-35:pistol": {
+      "fired": 8,
+      "landed": 12,
+      "parts": [
+        6,
+        4,
+        2,
+        2
+      ],
+      "shots": 8
+    },
+    "20-35:rifle": {
+      "fired": 8,
+      "landed": 12,
+      "parts": [
+        8,
+        4,
+        1,
+        2
+      ],
+      "shots": 8
+    },
+    "20-35:shotgun": {
+      "fired": 80,
+      "landed": 12,
+      "parts": [
+        10,
+        4,
+        1,
+        2
+      ],
+      "shots": 8
+    },
+    "20-35:smg": {
+      "fired": 7,
+      "landed": 10,
+      "parts": [
+        8,
+        4,
+        1,
+        2
+      ],
+      "shots": 7
+    },
+    "35-50:bolt": {
+      "fired": 8,
+      "landed": 12,
+      "parts": [
+        8,
+        4,
+        2,
+        2
+      ],
+      "shots": 8
+    },
+    "35-50:marksman": {
+      "fired": 7,
+      "landed": 9,
+      "parts": [
+        6,
+        3,
+        2,
+        1
+      ],
+      "shots": 7
+    },
+    "35-50:mg": {
+      "fired": 8,
+      "landed": 12,
+      "parts": [
+        6,
+        4,
+        2,
+        2
+      ],
+      "shots": 8
+    },
+    "35-50:pistol": {
+      "fired": 8,
+      "landed": 12,
+      "parts": [
+        10,
+        4,
+        1,
+        2
+      ],
+      "shots": 8
+    },
+    "35-50:rifle": {
+      "fired": 7,
+      "landed": 12,
+      "parts": [
+        6,
+        4,
+        1,
+        2
+      ],
+      "shots": 7
+    },
+    "35-50:shotgun": {
+      "fired": 90,
+      "landed": 15,
+      "parts": [
+        8,
+        5,
+        2,
+        3
+      ],
+      "shots": 9
+    },
+    "35-50:smg": {
+      "fired": 7,
+      "landed": 10,
+      "parts": [
+        8,
+        4,
+        2,
+        2
+      ],
+      "shots": 7
+    },
+    "50-80:bolt": {
+      "fired": 17,
+      "landed": 25,
+      "parts": [
+        18,
+        9,
+        3,
+        4
+      ],
+      "shots": 17
+    },
+    "50-80:marksman": {
+      "fired": 17,
+      "landed": 24,
+      "parts": [
+        19,
+        8,
+        4,
+        4
+      ],
+      "shots": 17
+    },
+    "50-80:mg": {
+      "fired": 15,
+      "landed": 21,
+      "parts": [
+        17,
+        7,
+        2,
+        3
+      ],
+      "shots": 15
+    },
+    "50-80:pistol": {
+      "fired": 15,
+      "landed": 22,
+      "parts": [
+        14,
+        8,
+        3,
+        4
+      ],
+      "shots": 15
+    },
+    "50-80:rifle": {
+      "fired": 15,
+      "landed": 24,
+      "parts": [
+        16,
+        8,
+        4,
+        4
+      ],
+      "shots": 15
+    },
+    "50-80:shotgun": {
+      "fired": 140,
+      "landed": 22,
+      "parts": [
+        12,
+        6,
+        3,
+        4
+      ],
+      "shots": 14
+    },
+    "50-80:smg": {
+      "fired": 16,
+      "landed": 24,
+      "parts": [
+        14,
+        8,
+        3,
+        4
+      ],
+      "shots": 16
+    },
+    "80+:bolt": {
+      "fired": 8,
+      "landed": 12,
+      "parts": [
+        8,
+        4,
+        1,
+        2
+      ],
+      "shots": 8
+    },
+    "80+:marksman": {
+      "fired": 9,
+      "landed": 15,
+      "parts": [
+        8,
+        5,
+        1,
+        3
+      ],
+      "shots": 9
+    },
+    "80+:mg": {
+      "fired": 9,
+      "landed": 15,
+      "parts": [
+        7,
+        5,
+        2,
+        3
+      ],
+      "shots": 9
+    },
+    "80+:pistol": {
+      "fired": 10,
+      "landed": 16,
+      "parts": [
+        10,
+        4,
+        2,
+        2
+      ],
+      "shots": 10
+    },
+    "80+:rifle": {
+      "fired": 10,
+      "landed": 12,
+      "parts": [
+        8,
+        4,
+        1,
+        2
+      ],
+      "shots": 10
+    },
+    "80+:shotgun": {
+      "fired": 100,
+      "landed": 14,
+      "parts": [
+        12,
+        6,
+        2,
+        2
+      ],
+      "shots": 10
+    },
+    "80+:smg": {
+      "fired": 8,
+      "landed": 12,
+      "parts": [
+        10,
+        4,
+        1,
+        2
+      ],
+      "shots": 8
+    }
+  }
+}

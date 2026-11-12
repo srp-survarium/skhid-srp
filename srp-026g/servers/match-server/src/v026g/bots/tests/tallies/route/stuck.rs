@@ -1,0 +1,362 @@
+//! The bots' "is stuck" notes, and those of them by the walk keys alone; and what each note's reckoning-against-body gap was.
+//!
+//! A note is judged by the body 3 s on: it moved [`MOVED_M`] or more (a false alarm: the body was not stuck) or not (stuck). At the note
+//! the gap between the bot's reckoned feet (its view at the last decision) and the real body is classed as `vertical` (the two on
+//! floors [`VERTICAL_M`] or more apart in height), `horizontal` (across by [`HORIZONTAL_M`] or more, the body on a lip's floors or
+//! not) or `none`.
+//!
+//! And what the body did over the stuck watch's window before the note (A196 recheck, the level tail: 72 % of the level notes on the
+//! tip came on a route's first leg, 44 % within 2 s of a play switch or a replan), tick by tick ([`Window`]): out and back, held,
+//! crept, or moved; whether the view turned [`TURNED_DEG`] or more in it; how old the route it walked was at the note ([`Age`]: the
+//! recovery ends the route in the note's own tick, so the route seen up to the tick before); and the route's leg the note names. By
+//! the same judgement (which counts the recovery's own step back: a back-off moves the body about a metre).
+//!
+//! And the watch's own two worlds (A240b): how long before the note the first world of the watch's window was ([`Span`]: two of the
+//! bench's worlds, as a walk's window is, or longer, as when the watch was not asked at a world between); whether the bot's keys
+//! meant a net move of the watch's own [`MEANT`] over the window (the reckoning's net, world by world: a way out and back nets
+//! nothing while its length is a walk's); and whether a new route began inside the window. With the baseline the route's age needs:
+//! the worlds of a body walking a route (a walk key held), by the route's age.
+
+use std::collections::{BTreeMap, VecDeque};
+
+use super::*;
+
+/// The body moved this far in the 3 s after the note: not stuck.
+const MOVED_M: f32 = 1.0;
+const AFTER_MS: u32 = 3_000;
+/// The reckoning and the body this far apart in height: another floor.
+const VERTICAL_M: f32 = 0.5;
+/// This far apart across.
+const HORIZONTAL_M: f32 = 0.3;
+/// The window before a note: the stuck watch's (`stuck::STUCK_AFTER_MS`).
+const WINDOW_MS: u32 = crate::v026g::bots::stuck::STUCK_AFTER_MS;
+/// A window's walk this long or more that ends within [`NET_M`] of its start is out and back, metres.
+const WALKED_M: f32 = 0.8;
+/// A window's walk this long or more (1 m/s over it) is a walk, not a creep, metres.
+const MOVED_M_WINDOW: f32 = 1.5;
+/// The watch's own "still" (`stuck::STUCK_MOVED_M`).
+const NET_M: f32 = crate::v026g::bots::stuck::STUCK_MOVED_M;
+/// The view turned this far in the window: the body turned (back) on its way, degrees.
+const TURNED_DEG: f32 = 90.0;
+/// A route that began this recently before the note is new, ms.
+const NEW_ROUTE_MS: u32 = 2_000;
+/// The bench's worlds come this often, ms (`bench.rs`): the watch's window of a walk is two of them.
+const WORLD_MS: u32 = 1_000;
+/// The watch's own "meant" (`stuck::MEANT_M`).
+const MEANT: f32 = crate::v026g::bots::stuck::MEANT_M;
+/// The reckoning's nets are kept this long, ms.
+const NETS_KEPT_MS: u32 = 30_000;
+
+/// What the body did over the window before a note, tick by tick.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Window {
+    /// It walked [`WALKED_M`] or more and ended within [`NET_M`] of where it began: out and back.
+    OutAndBack,
+    /// It walked under [`NET_M`] in all.
+    Held,
+    /// It walked under [`MOVED_M_WINDOW`] (under 1 m/s), not out and back: it crept.
+    Crept,
+    /// It walked [`MOVED_M_WINDOW`] or more, not out and back: it walked (the watch's worlds, 1-2 s apart, saw it still).
+    Moved,
+}
+
+impl Window {
+    /// The window of the body's ticks (feet, view's yaw), oldest first, and whether the view turned [`TURNED_DEG`] or more from its
+    /// first yaw at any tick.
+    fn of(ticks: &[(Vec3, f32)]) -> (Self, bool) {
+        let (Some(first), Some(last)) = (ticks.first(), ticks.last()) else {
+            return (Self::Held, false);
+        };
+        let walked: f32 = ticks.windows(2).map(|w| w[0].0.distance_xz(w[1].0)).sum();
+        let net = first.0.distance_xz(last.0);
+        let turned = ticks.iter().any(|t| crate::v026g::bots::kin::wrap(t.1 - first.1).abs() >= TURNED_DEG.to_radians());
+        let window = if walked < NET_M {
+            Self::Held
+        } else if walked >= WALKED_M && net < NET_M {
+            Self::OutAndBack
+        } else if walked < MOVED_M_WINDOW {
+            Self::Crept
+        } else {
+            Self::Moved
+        };
+        (window, turned)
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::OutAndBack => "out_back",
+            Self::Held => "held",
+            Self::Crept => "crept",
+            Self::Moved => "moved",
+        }
+    }
+}
+
+/// How old the route the bot walked was at the note.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Age {
+    /// Begun under [`NEW_ROUTE_MS`] before.
+    New,
+    Old,
+    /// No route.
+    None,
+}
+
+impl Age {
+    fn name(self) -> &'static str {
+        match self {
+            Self::New => "new",
+            Self::Old => "old",
+            Self::None => "none",
+        }
+    }
+}
+
+/// How long before a note the first world of the watch's window was.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Span {
+    /// Two of the bench's worlds or less: the window of a walk the watch was asked at every world of.
+    TwoWorlds,
+    /// Longer: the watch was not asked at a world between (no route at it).
+    Longer,
+    /// The watch told no window (the held-keys watch alone).
+    Unknown,
+}
+
+impl Span {
+    fn name(self) -> &'static str {
+        match self {
+            Self::TwoWorlds => "two_worlds",
+            Self::Longer => "longer",
+            Self::Unknown => "unknown",
+        }
+    }
+}
+
+/// What a note's first tick read, judged [`AFTER_MS`] on.
+struct Read {
+    feet: Vec3,
+    /// `vertical_up` (the reckoning above the body), `vertical_down`, `horizontal_lip`, `horizontal`, `none`.
+    gap: &'static str,
+    window: Window,
+    turned: bool,
+    age: Age,
+    span: Span,
+    /// The keys' net move over the watch's window: `net_walk` ([`MEANT`] or more), `net_none` (less), `net_unknown` (a world of it
+    /// had no reckoning).
+    keys_net: &'static str,
+    /// A route began inside the watch's window.
+    new_in_window: bool,
+}
+
+struct Pending {
+    place: usize,
+    time: u32,
+    /// The route leg the note names: `first`, `later`, `none`.
+    leg: &'static str,
+    read: Option<Read>,
+}
+
+/// A route by what tells two apart (its length and its goal, bit for bit), the time it was first seen and the last.
+#[derive(Clone, Copy)]
+struct Seen {
+    key: (u32, [u32; 3]),
+    since: u32,
+    last: u32,
+}
+
+#[derive(Default)]
+pub(super) struct Stuck {
+    stuck: (u32, u32),
+    pending: Vec<Pending>,
+    /// Notes by `<stuck|false_alarm>_<gap>`.
+    gaps: BTreeMap<String, u32>,
+    /// Notes by `<stuck|false_alarm>_<window>_<turned|straight>_<route age>`, and by `<stuck|false_alarm>_<leg>`.
+    windows: BTreeMap<String, u32>,
+    legs: BTreeMap<String, u32>,
+    /// By place: the body's last ticks (time, feet, yaw), [`WINDOW_MS`] and a tick back; the route seen and since when.
+    ticks: Vec<VecDeque<(u32, Vec3, f32)>>,
+    routes: Vec<Option<Seen>>,
+    /// By place: the reckoning's net move of each world (the world's tick, the net; none: no reckoning), [`NETS_KEPT_MS`] back.
+    nets: Vec<VecDeque<(u32, Option<Vec3>)>>,
+    /// Notes by `<window>_<span>`, `<window>_<keys' net>`, `<window>_<route: new_in_window|same>`.
+    spans: BTreeMap<String, u32>,
+    keys_nets: BTreeMap<String, u32>,
+    route_changes: BTreeMap<String, u32>,
+    /// The baseline: the worlds of a body walking a route (a walk key held) on a route under [`NEW_ROUTE_MS`] old, and older.
+    walk_worlds: [u32; 2],
+}
+
+impl RouteTopic for Stuck {
+    fn note(&mut self, _run: &RouteRun, note: &Note) {
+        if note.text.starts_with("is stuck at") {
+            self.stuck.0 += 1;
+            self.stuck.1 += u32::from(note.text.contains("(walk keys held"));
+            let leg = match note.text.split_once("[route leg ").and_then(|(_, rest)| rest.split_once('/')) {
+                Some(("0", _)) => "first",
+                Some(_) => "later",
+                None => "none",
+            };
+            self.pending.push(Pending { place: note.place, time: note.time, leg, read: None });
+        }
+    }
+
+    fn tick(&mut self, _run: &RouteRun, at: &TickAt<'_>) {
+        if self.ticks.len() <= at.place {
+            self.ticks.resize_with(at.place + 1, VecDeque::new);
+            self.routes.resize(at.place + 1, None);
+        }
+        let ring = &mut self.ticks[at.place];
+        ring.push_back((at.time, at.body.feet, at.body.yaw));
+        while ring.front().is_some_and(|t| t.0 + WINDOW_MS + TICK_MS < at.time) {
+            ring.pop_front();
+        }
+        // The route as seen up to the tick before: the recovery may put a new one in this tick.
+        let seen_before = self.routes[at.place];
+        let bot = at.bots.bots[at.place].as_ref();
+        let route = bot.and_then(|bot| bot.route.as_ref()).map(|(route, goal)| (route.length().to_bits(), goal.to_array().map(f32::to_bits)));
+        // A route gone keeps its record: the note's tick ends it.
+        if let Some(key) = route {
+            self.routes[at.place] = Some(match self.routes[at.place] {
+                Some(seen) if seen.key == key => Seen { last: at.time, ..seen },
+                _ => Seen { key, since: at.time, last: at.time },
+            });
+        }
+        let mut done = Vec::new();
+        for (i, p) in self.pending.iter_mut().enumerate().filter(|(_, p)| p.place == at.place) {
+            if p.read.is_none() && at.time >= p.time {
+                let Some(bot) = bot else {
+                    continue;
+                };
+                let (est, real) = (bot.bench_guard_at.1, at.body.feet);
+                let dy = est.y - real.y;
+                let lip = at.grid.locate(real, 1.0).is_some_and(|n| at.grid.near_lip(n) || at.grid.is_lip(n));
+                let gap = if dy >= VERTICAL_M {
+                    "vertical_up"
+                } else if dy <= -VERTICAL_M {
+                    "vertical_down"
+                } else if est.distance_xz(real) >= HORIZONTAL_M {
+                    if lip { "horizontal_lip" } else { "horizontal" }
+                } else {
+                    "none"
+                };
+                let window: Vec<(Vec3, f32)> =
+                    self.ticks[at.place].iter().filter(|t| t.0 + WINDOW_MS >= p.time && t.0 <= p.time).map(|t| (t.1, t.2)).collect();
+                let (window, turned) = Window::of(&window);
+                let age = match self.routes[at.place] {
+                    Some(seen) if seen.last + 2 * TICK_MS < p.time => Age::None,
+                    Some(seen) if p.time.saturating_sub(seen.since) < NEW_ROUTE_MS => Age::New,
+                    Some(_) => Age::Old,
+                    None => Age::None,
+                };
+                let checked = bot.stuck.checked_from().filter(|&(from, _)| from <= p.time && from + NETS_KEPT_MS > p.time);
+                let span = match checked {
+                    Some((from, _)) if p.time - from <= 2 * WORLD_MS => Span::TwoWorlds,
+                    Some(_) => Span::Longer,
+                    None => Span::Unknown,
+                };
+                let keys_net = match checked {
+                    Some((from, _)) => {
+                        let nets: Vec<Option<Vec3>> = self
+                            .nets
+                            .get(at.place)
+                            .map(|ring| ring.iter().filter(|n| n.0 > from && n.0 <= p.time).map(|n| n.1).collect())
+                            .unwrap_or_default();
+                        match nets.iter().try_fold(Vec3::ZERO, |sum, net| net.map(|net| sum + net)) {
+                            Some(net) if !nets.is_empty() => {
+                                if net.x.hypot(net.z) >= MEANT { "net_walk" } else { "net_none" }
+                            }
+                            _ => "net_unknown",
+                        }
+                    }
+                    None => "net_unknown",
+                };
+                let new_in_window = checked.zip(seen_before).is_some_and(|((from, _), seen)| seen.since > from);
+                p.read = Some(Read { feet: real, gap, window, turned, age, span, keys_net, new_in_window });
+            }
+            if let Some(read) = &p.read
+                && at.time >= p.time + AFTER_MS
+            {
+                let judged = if at.body.feet.distance_xz(read.feet) >= MOVED_M { "false_alarm" } else { "stuck" };
+                *self.gaps.entry(format!("{judged}_{}", read.gap)).or_default() += 1;
+                let turn = if read.turned { "turned" } else { "straight" };
+                *self.windows.entry(format!("{judged}_{}_{turn}_{}", read.window.name(), read.age.name())).or_default() += 1;
+                *self.legs.entry(format!("{judged}_{}", p.leg)).or_default() += 1;
+                let window = read.window.name();
+                *self.spans.entry(format!("{window}_{}", read.span.name())).or_default() += 1;
+                *self.keys_nets.entry(format!("{window}_{}", read.keys_net)).or_default() += 1;
+                let route = if read.new_in_window { "new_in_window" } else { "same" };
+                *self.route_changes.entry(format!("{window}_{route}")).or_default() += 1;
+                done.push(i);
+            }
+        }
+        for i in done.into_iter().rev() {
+            self.pending.swap_remove(i);
+        }
+    }
+
+    fn world(&mut self, _run: &RouteRun, game: &Game, bots: &Bots) {
+        if self.nets.len() < game.bodies.len() {
+            self.nets.resize_with(game.bodies.len(), VecDeque::new);
+        }
+        for (place, body) in game.bodies.iter().enumerate() {
+            let Some(bot) = bots.bots[place].as_ref() else {
+                continue;
+            };
+            if let Some(track) = bots.tracker.body(place)
+                && let Some(time) = track.fix().map(|fix| fix.time)
+                && self.nets[place].back().is_none_or(|n| n.0 < time)
+            {
+                let ring = &mut self.nets[place];
+                ring.push_back((time, track.last_meant_net()));
+                while ring.front().is_some_and(|n| n.0 + NETS_KEPT_MS < time) {
+                    ring.pop_front();
+                }
+            }
+            if body.alive
+                && bot.route.is_some()
+                && body.keys & crate::v026g::bots::stuck::HELD_KEYS != 0
+                && let Some(seen) = self.routes.get(place).copied().flatten()
+            {
+                self.walk_worlds[usize::from(game.tick.saturating_sub(seen.since) >= NEW_ROUTE_MS)] += 1;
+            }
+        }
+    }
+
+    fn line(&mut self, _run: &RouteRun, line: &mut Line) {
+        line.main.push(format!("stuck {} stuck_keys {}", self.stuck.0, self.stuck.1));
+        let joined = |map: &mut BTreeMap<String, u32>| {
+            let all: Vec<String> = std::mem::take(map).into_iter().map(|(k, n)| format!("{k}={n}")).collect();
+            if all.is_empty() { "-".to_owned() } else { all.join(",") }
+        };
+        line.tail.push(format!("stuck_note_gaps {}", joined(&mut self.gaps)));
+        line.tail.push(format!("stuck_note_windows {}", joined(&mut self.windows)));
+        line.tail.push(format!("stuck_note_legs {}", joined(&mut self.legs)));
+        line.tail.push(format!("stuck_note_spans {}", joined(&mut self.spans)));
+        line.tail.push(format!("stuck_note_keys_nets {}", joined(&mut self.keys_nets)));
+        line.tail.push(format!("stuck_note_routes {}", joined(&mut self.route_changes)));
+        line.tail.push(format!("route_age_walk_worlds new={},old={}", self.walk_worlds[0], self.walk_worlds[1]));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A window walked 1 m out and 1 m back is out and back; one that stayed is held; one that went 0.6 m on crept, 3 m on moved. A view
+    /// that turned round in it turned.
+    #[test]
+    fn a_window_is_out_and_back_held_or_crept() {
+        let at = |x: f32, yaw: f32| (Vec3::new(x, 0.0, 0.0), yaw);
+        let mut out_back: Vec<(Vec3, f32)> = (0..=10).map(|k| at(0.1 * k as f32, 0.0)).collect();
+        out_back.extend((0..=10).map(|k| at(1.0 - 0.1 * k as f32, std::f32::consts::PI)));
+        assert_eq!(Window::of(&out_back), (Window::OutAndBack, true));
+        let held: Vec<(Vec3, f32)> = (0..30).map(|k| at(0.01 * (k % 3) as f32, 0.0)).collect();
+        assert_eq!(Window::of(&held), (Window::Held, false));
+        let crept: Vec<(Vec3, f32)> = (0..=12).map(|k| at(0.05 * k as f32, 0.0)).collect();
+        assert_eq!(Window::of(&crept), (Window::Crept, false));
+        let moved: Vec<(Vec3, f32)> = (0..=30).map(|k| at(0.1 * k as f32, 0.0)).collect();
+        assert_eq!(Window::of(&moved), (Window::Moved, false));
+        assert_eq!(Window::of(&[]), (Window::Held, false));
+    }
+}

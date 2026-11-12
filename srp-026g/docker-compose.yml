@@ -136,10 +136,35 @@ services:
       # switch it off; the code's own default is off). Each match against
       # bots may hold a bots' map of its own in memory (35-150 MB, up to
       # SRP_PVB_MAX_MATCHES maps): raise SRP26_MEMORY with it.
+      # SRP_PVB_MAX_GEAR: the highest equipment level let in, 15 (every
+      # level) when unset; the bots wear the player's tier's equipment
+      # (docs/notes/pvb-tiers.md). SRP_PVB_PAY (default 0.25): the share of
+      # silver, experience and drop chance such a match gives, and only one
+      # played to its own end (time or score) pays at all.
       - SRP_PVB=${SRP_PVB:-on}
       - SRP_PVB_MAX_MATCHES
       - SRP_PVB_PAY
       - SRP_PVB_STALL_S
+      # SRP_PVB_RUSHER_KIT: the kit of the rusher bots of the tiers 9-10 and
+      # 13-15, the owner's 9-10=alt,13-15=smg when unset; `control` is the
+      # old SPAS-12 kit (docs/notes/pvb-tiers.md).
+      - SRP_PVB_RUSHER_KIT
+      # SRP_PVB_MASKS: the respirator the top players of the tier wear on
+      # every bot (ren_mask_3 at 9-10, edge_resp_3 at 13-15), `top` when
+      # unset; `off` for the tables' pieces (docs/notes/pvb-tiers.md).
+      - SRP_PVB_MASKS
+      # The bots' decision traces (off unless set; e.g.
+      # /srv/srp/data/bot-traces), cut to SRP_BOT_TRACE_MAX_MB (default
+      # 2000) together, the oldest first.
+      - SRP_BOT_TRACE_DIR
+      - SRP_BOT_TRACE_MAX_MB
+      # The bots' tuning (docs/SRP-026G.md): a JSON merge patch over the
+      # shipped defaults, read at the start and again before each match;
+      # unset: the defaults. The admin page's Bots tab keeps its changes
+      # over it in SRP_BOT_ADMIN_TUNING (from the next match), with their
+      # audit beside it (bot-admin-tuning.audit.jsonl); empty: in memory.
+      - SRP_BOT_TUNING
+      - SRP_BOT_ADMIN_TUNING=${SRP_BOT_ADMIN_TUNING-/srv/srp/data/bot-admin-tuning.json}
       # Rooms, the players' "servers" (servers/lobby-server/src/v026g/rooms.rs):
       # every PvP match is a room's; they need the lobby movie that has them.
       - SRP_ROOMS_EXTRA_MAPS
@@ -152,6 +177,19 @@ services:
       - SRP_MAPDATA_BUILT
       - SRP_MAPDATA_KEEP
       - SRP_MAPDATA_AT_ONCE
+      # The routes humans took, for the bots' play 17 (bots/routes.rs):
+      # private data made from the players' worlds, copied by hand into the
+      # mapdata folder as bot-routes.json, read from there when this is
+      # unset. A path reads that file instead; empty or `off`: none. Without
+      # it the bots roam to the exits.
+      - SRP_BOT_ROUTES
+      # The bots' kit of 2026-10-26 (docs/notes/pvb-tiers.md): bandages,
+      # traps and their placing, frags, a fourth pocket and skill 109's ammo
+      # bag. On unless `0`, `off` or `false`; the lobby reads it once.
+      - SRP_BOT_KIT
+      # The upgrades on the bots' armour (loadouts::BOT_UPGRADES): on unless
+      # `0`, `off` or `false`.
+      - SRP_BOT_UPGRADES
     ports:
       # Login: TLS over TCP.
       - "${SRP26_LOGIN_PORT:-2234}:${SRP26_LOGIN_PORT:-2234}/tcp"

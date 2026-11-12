@@ -1,0 +1,18 @@
+owner-test trades within 5 s, team-wide (by the dead's team; the avenger is a teammate): deaths [7, 16] traded [0, 0] rate [0.0, 0.0]
+{
+  "trades_team": {
+    "deaths": [
+      7,
+      16
+    ],
+    "rate": [
+      0.0,
+      0.0
+    ],
+    "traded": [
+      0,
+      0
+    ],
+    "window_s": 5
+  }
+}

@@ -19,8 +19,11 @@
 //!    the rule is checked again and the match made at once with this player
 //!    alone, on team 0 against the server's bots, the teams fixed
 //!    (`Matchmaking::seat_solo`): N − 1 bots on its side and N on the
-//!    other (`play::server_bot_teams`), on the map chosen. No rule of two
-//!    parties, of levels or of a gather window; the play counts towards no
+//!    other (`play::server_bot_teams`), on the map chosen. The bots wear
+//!    the equipment of the player's tier (`loadouts::BotTier::of_gear` of
+//!    its equipment level, `matchmaking::gear_level`: 0-5 → bots of level
+//!    4-5, 6-10 → 9-10, 11-15 → 13-15; `docs/notes/pvb-tiers.md`). No rule
+//!    of two parties, of levels or of a gather window; the play counts towards no
 //!    map rotation. A Play whose hold ran out within [`EXPIRED_REFUSED`]
 //!    is refused (`st_cant_change_ready_state`) and never goes into a
 //!    room: the player meant bots.
@@ -28,7 +31,10 @@
 //! A match against bots takes no late joiner (its teams are fixed:
 //! `play::late_admission`). Its rewards are
 //! `session::v026g::rewards`' for `vs_bots`: [`SRP_PVB_PAY`] of the silver
-//! and experience, no quest, no daily bonus, no rating. The match server
+//! and experience, no quest, no daily bonus, no rating; and nothing at all
+//! unless the match came to its own end (the mode's rule or the time limit)
+//! with its player in it: left, lost or stalled, it pays nothing
+//! (`rewards::Reward::forfeited`). The match server
 //! ends it when its player stops uploading the worlds it is asked for
 //! (`SRP_PVB_STALL_S`), and keeps one bots' map in memory for each match
 //! that may run (`SRP_PVB_MAX_MATCHES`).
@@ -40,7 +46,8 @@
 //! it is in a match, sent to one, or has a place in one (4); it waits with
 //! its clan team (3); it is in a squad with others (2); it is in
 //! its clan's team (9); its equipment level (the client's, of the kits it
-//! can play: `matchmaking::gear_level`) is over [`Config::max_gear`] (1);
+//! can play: `matchmaking::gear_level`) is over [`Config::max_gear`] (1:
+//! never by default, the highest level there is);
 //! a planned maintenance is 30 minutes away or less (8); as many matches
 //! against bots run, or are held for players who chose one, as
 //! [`Config::max_matches`] (7).
@@ -49,10 +56,12 @@
 //!
 //! | Setting | Default | What | Read by |
 //! |---|---|---|---|
-//! | `SRP_PVB` | off | the mode is offered (`on`) | the lobby, the match server |
+//! | `SRP_PVB` | on | `off`: the mode is not offered | the lobby, the match server |
 //! | `SRP_PVB_MAX_MATCHES` | 5 | the most matches against bots at once (private rooms' with bots too, `rooms`), 1 to 20; the match server keeps up to that many bots' maps in memory | the lobby, the match server |
-//! | `SRP_PVB_PAY` | 0.5 | the share of a match's silver and experience it pays, 0 to 1 | the rewards (`session::v026g::pvb`) |
+//! | `SRP_PVB_RUSHER_KIT` | `9-10=alt,13-15=smg` | what the rusher bots of tiers 9-10 and 13-15 wear: the owner's `9-10=alt,13-15=smg` when unset; `control` (the old kit: the SPAS-12 with buckshot), `smg` (the tier's SMG: `sr2m`, `fn_p90`), `alt` (`ump45`, `kriss_vector`), `slug` / `helmet` (the SPAS-12 with slugs / buckshot and the SMG kit's helmet); one word for both tiers or `9-10=alt,13-15=smg`; a kit whose items the game data lacks is the old kit (`loadouts::RusherKit`) | the lobby |
+//! | `SRP_PVB_PAY` | 0.25 | the share of a match's silver and experience it pays, 0 to 1; only a match played to its own end pays | the rewards (`session::v026g::pvb`) |
 //! | `SRP_PVB_STALL_S` | 60 | a match whose only player uploads no world it is asked for this long is over, 10 to 3600 | the match server |
+//! | `SRP_PVB_WORLD_MS` | 2000 | while the bots play, a world is asked for this often, ms, 250 to 2000 (client-test plays: denser worlds in the recording) | the match server |
 //!
 //! [`SRP_PVB_PAY`]: session::v026g::pvb::pay
 
@@ -60,6 +69,7 @@ use std::time::{Duration, Instant};
 
 use session::v026g::{matchmaking, quests};
 use session::{LockExt, QueuePool};
+use survarium::v026g::loadouts::{Masks, RusherKits};
 use survarium::v026g::lobby::requests::id;
 use survarium::v026g::lobby::rooms::rules;
 use survarium::v026g::lobby::{self, PvbCode, PvbMap, PvbNumbers, PvbStatus};
@@ -92,24 +102,29 @@ pub const EXPIRED_REFUSED: Duration = Duration::from_secs(30);
 /// The mode's settings in the lobby.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
-    /// `SRP_PVB` (default off).
+    /// `SRP_PVB` (default on).
     pub enabled: bool,
     /// The highest equipment level let in (`PvbRules::max_gear`).
     pub max_gear: u8,
     /// `SRP_PVB_MAX_MATCHES` (default 5).
     pub max_matches: usize,
+    /// `SRP_PVB_RUSHER_KIT` (default `9-10=alt,13-15=smg`, the owner's; `control` is the old table): the kit the
+    /// rusher bots of each tier wear; `SRP_PVB_MASKS` (default `top`; `off`): whether every bot wears the respirator
+    /// the top players of its tier wear.
+    pub rusher_kits: RusherKits,
     /// The maps a private room with bots may hold ([`bot_maps`]); none with
     /// the mode off.
     pub bot_maps: Vec<u8>,
 }
 
 impl Default for Config {
-    /// Off; the owner's numbers.
+    /// On; the owner's numbers.
     fn default() -> Self {
         Self {
-            enabled: false,
+            enabled: session::v026g::pvb::DEFAULT_ENABLED,
             max_gear: rules().pvb.max_gear,
             max_matches: session::v026g::pvb::DEFAULT_MAX_MATCHES,
+            rusher_kits: RusherKits::owners(),
             bot_maps: Vec::new(),
         }
     }
@@ -118,6 +133,21 @@ impl Default for Config {
 impl Config {
     /// The environment's.
     pub fn from_env() -> Self {
+        let mut rusher_kits = match std::env::var("SRP_PVB_RUSHER_KIT") {
+            Ok(value) => parse_rusher_kits(&value).unwrap_or_else(|why| {
+                log::error!("SRP_PVB_RUSHER_KIT is `{value}` ({why}). Using the owner's kits");
+                RusherKits::owners()
+            }),
+            Err(_) => RusherKits::owners(),
+        };
+        // The respirator is the owner's unless the environment says `off`: a kit set alone does not take it away.
+        rusher_kits.masks = match std::env::var("SRP_PVB_MASKS") {
+            Ok(value) if !value.trim().is_empty() => Masks::parse(&value).unwrap_or_else(|why| {
+                log::error!("SRP_PVB_MASKS is `{value}` ({why}). Using the top players'");
+                Masks::TopPlayers
+            }),
+            _ => Masks::TopPlayers,
+        };
         let enabled = session::v026g::pvb::enabled();
         let dir = std::env::var("SRP_MAPDATA_DIR").ok();
         let dir = dir
@@ -128,6 +158,7 @@ impl Config {
             enabled,
             max_gear: rules().pvb.max_gear,
             max_matches: session::v026g::pvb::max_matches(),
+            rusher_kits,
             bot_maps: match (enabled, dir) {
                 (true, Some(dir)) => bot_maps(maps::playable(), std::path::Path::new(dir)),
                 _ => Vec::new(),
@@ -136,14 +167,30 @@ impl Config {
         if config.enabled {
             log::info!(
                 "Player vs Bots is on: equipment level {} at most, {} matches at once, pay {} of \
-                 silver and experience; {} maps for rooms with bots",
+                 silver and experience, rusher kits {:?}; {} maps for rooms with bots",
                 config.max_gear,
                 config.max_matches,
                 session::v026g::pvb::pay(),
+                config.rusher_kits,
                 config.bot_maps.len()
             );
         }
         config
+    }
+}
+
+/// `SRP_PVB_RUSHER_KIT`: empty is the default (the owner's kits); else one kit
+/// for both tiers (`alt`, or `control` for the old table) or a kit a tier
+/// (`9-10=alt,13-15=smg`; a tier left out keeps the old table's).
+fn parse_rusher_kits(value: &str) -> Result<RusherKits, String> {
+    if value.trim().is_empty() {
+        return Ok(RusherKits::owners());
+    }
+    let kits = RusherKits::parse(value)?;
+    // [A267] The bench's calibration kits are not the players' opponents'.
+    match [kits.mid, kits.high].into_iter().find(|kit| kit.bench_only()) {
+        Some(kit) => Err(format!("`{}` is a bench-only kit", kit.name())),
+        None => Ok(kits),
     }
 }
 
@@ -491,7 +538,7 @@ mod tests {
     #[test]
     fn the_settings_read_as_documented() {
         let config = Config::default();
-        assert!(!config.enabled);
+        assert!(config.enabled, "on unless SRP_PVB says off");
         assert_eq!(
             (config.max_gear, config.max_matches),
             (rules().pvb.max_gear, 5)
@@ -526,5 +573,35 @@ mod tests {
             .collect();
         assert!(!found.is_empty());
         assert_eq!(found, expected);
+    }
+
+    /// The rusher kit setting: the owner's kits (`alt` at 9-10, `smg` at 13-15, the top players' respirator) unless set, `control`
+    /// for the old table, one word for both tiers, or the per-tier form the RK sweep's pick is given in.
+    #[test]
+    fn the_rusher_kit_setting_is_the_owners_unless_set_and_reads_a_kit_a_tier() {
+        use survarium::v026g::loadouts::{BotTier, Masks, RusherKit};
+        let owners = RusherKits::owners();
+        assert_eq!((owners.of(BotTier::Mid), owners.of(BotTier::High), owners.masks), (RusherKit::Alt, RusherKit::Smg, Masks::TopPlayers));
+        assert_eq!(Config::default().rusher_kits, owners);
+        assert_eq!(parse_rusher_kits(""), Ok(owners));
+        assert_eq!(parse_rusher_kits("  "), Ok(owners));
+        let off = RusherKits::both(RusherKit::Control);
+        assert_eq!(parse_rusher_kits("control"), Ok(off));
+        let picked = parse_rusher_kits("9-10=alt,13-15=smg").unwrap();
+        assert_eq!(picked.of(BotTier::Mid), RusherKit::Alt);
+        assert_eq!(picked.of(BotTier::High), RusherKit::Smg);
+        assert_eq!(picked.of(BotTier::Low), RusherKit::Control);
+        assert_eq!(
+            parse_rusher_kits(" 9-10 = alt , 13-15 = smg "),
+            Ok(picked),
+            "spaces around the words are let"
+        );
+        let one_tier = parse_rusher_kits("13-15=smg").unwrap();
+        assert_eq!(one_tier.of(BotTier::Mid), RusherKit::Control);
+        assert_eq!(one_tier.of(BotTier::High), RusherKit::Smg);
+        assert!(parse_rusher_kits("9-10=nope").is_err());
+        // [A267] The bench's calibration kits are refused.
+        assert!(parse_rusher_kits("mg").is_err());
+        assert!(parse_rusher_kits("13-15=pistol").is_err());
     }
 }

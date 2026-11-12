@@ -58,8 +58,15 @@ impl Vec3 {
     }
 
     /// The distance on the ground plane (x, z).
+    ///
+    /// The same value as `(self.x - other.x).hypot(self.z - other.z)` on glibc 2.35 and later, whose `hypotf` is
+    /// this formula (the squares of two floats are exact in a double, the sum and the root are one rounding each,
+    /// the result one more); done here so the search's heuristic (a call for every floor it pushes) is not a call
+    /// into the libm, and so the result is the same whichever libm the build runs on.
     pub fn distance_xz(self, other: Self) -> f32 {
-        (self.x - other.x).hypot(self.z - other.z)
+        let dx = f64::from(self.x - other.x);
+        let dz = f64::from(self.z - other.z);
+        (dx * dx + dz * dz).sqrt() as f32
     }
 
     pub fn min(self, other: Self) -> Self {
@@ -236,6 +243,55 @@ mod tests {
 
     fn close(a: Vec3, b: Vec3) -> bool {
         (a - b).length() < 1e-5
+    }
+
+    #[test]
+    fn the_distance_on_the_ground_plane_is_the_root_of_the_squares() {
+        let d = |a: (f32, f32), b: (f32, f32)| {
+            Vec3::new(a.0, 7.0, a.1).distance_xz(Vec3::new(b.0, -3.0, b.1))
+        };
+        assert_eq!(d((0.0, 0.0), (3.0, 4.0)), 5.0);
+        assert_eq!(d((3.0, 4.0), (0.0, 0.0)), 5.0);
+        assert_eq!(d((-3.0, -4.0), (3.0, 4.0)), 10.0);
+        assert_eq!(d((1.5, 2.5), (1.5, 2.5)), 0.0);
+        assert_eq!(d((0.0, 0.0), (-0.0, 0.0)), 0.0);
+        // Beyond a float's range squared, and below it: a double does not overflow or flush them.
+        for scale in [2f32.powi(100), 2f32.powi(-100)] {
+            assert_eq!(d((3.0 * scale, 0.0), (0.0, 4.0 * scale)), 5.0 * scale);
+        }
+        assert!(d((f32::NAN, 0.0), (0.0, 0.0)).is_nan());
+    }
+
+    /// `distance_xz` is `f32::hypot` to the last bit where `hypotf` is glibc's (2.35 and later): the saving of
+    /// the call must not move a cost the search compares. Random, wide-range and grid-like inputs.
+    #[test]
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
+    fn the_distance_on_the_ground_plane_is_hypot_to_the_last_bit() {
+        let mut s = 88172645463325252u64;
+        let mut unit = move || {
+            s ^= s << 13;
+            s ^= s >> 7;
+            s ^= s << 17;
+            (s >> 11) as f64 * (1.0 / 9007199254740992.0)
+        };
+        let check = |x: f32, z: f32| {
+            let new = Vec3::new(x, 0.0, z).distance_xz(Vec3::ZERO);
+            let old = x.hypot(z);
+            assert_eq!(new.to_bits(), old.to_bits(), "{x:?} {z:?}: {new:?} {old:?}");
+        };
+        for _ in 0..2_000_000 {
+            check((unit() * 600.0 - 300.0) as f32, (unit() * 600.0 - 300.0) as f32);
+        }
+        for _ in 0..1_000_000 {
+            let wide = |u: f64, v: f64| ((u * 2.0 - 1.0) * 10f64.powf(v * 9.0 - 6.0)) as f32;
+            check(wide(unit(), unit()), wide(unit(), unit()));
+        }
+        for _ in 0..1_000_000 {
+            // Cell centres of a 0.25 m grid against a goal anywhere.
+            let (gx, gz) = ((unit() * 400.0 - 200.0) as f32, (unit() * 400.0 - 200.0) as f32);
+            let (a, b) = ((unit() * 1600.0) as i32 - 800, (unit() * 1600.0) as i32 - 800);
+            check(-200.0 + (a as f32 + 0.5) * 0.25 - gx, -200.0 + (b as f32 + 0.5) * 0.25 - gz);
+        }
     }
 
     fn rotation_x(a: f32) -> Rotation {

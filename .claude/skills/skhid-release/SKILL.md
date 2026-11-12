@@ -260,16 +260,16 @@ volume by the release but is **not read** until `feat/bots-tiers-combined` lands
 `.mapdata` files take effect at once.
 
 A new data file (the foliage) is one row; whoever lands its behaviour adds it
-with the PR that benched it. **The maps' built grids and trees** are not
-shipped: `mapdata/built/` is srp's own cache, written by the first match that
-needs a map, keyed by the map file's content and `SIGHT_ALGO`/`GRID_ALGO`
-(`crates/mapdata/src/lib.rs`). srp has no command that builds them before a
-match asks (`bots/maps.rs` `Maps::get`; the build is a test), so the release
-cannot pre-build: the preflight says whether the constants differ between main
-and the live tree, or map files change (then the first match on each map builds
-it again, on the host's one core, 0.3-0.8 s off the match thread on a PC and
-seconds there: watch CPU and RAM at the first matches, the container is capped
-at 1600 MB).
+with the PR that benched it. **The maps' built grids, sight trees and tactics**
+(`mapdata/built/`, srp's cache, keyed by this checkout's grid, sight and tactics
+rules and the map file) ship as rows of the list: `release/build-bot-maps` builds
+every offered map with `srp-build-maps` (minutes) and lists its files; commit the
+list. The preflight asks `srp-build-maps --files` for each offered map's three
+file names and **stops the release** when the list lacks one: a map without them
+is built by the first match on it, on the host's one core, longer than the
+countdown (the owner's 14 matches: 18-47 s on a PC against 20 s), while its bots
+stand. The server holds the countdown up to a minute for the bots' map
+(`game/driven.rs` `MAP_HOLD_CAP`) as a safety net, not as the plan.
 
 ## release/release.sh
 

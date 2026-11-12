@@ -1,0 +1,1514 @@
+use super::*;
+
+/// How long a jump keeps a stand-in body in the air, ms: walking into a
+/// floor its floor jumps to ([`jumped_to`]) meanwhile, it gets up on it.
+/// GUESS: a bot jumps up its route's ledge 0.8 m short of it
+/// (`motor.rs` `jump_key`), 0.25 s at a run; the game's jump is up for
+/// about half a second. The stand-in had no jumps: a route up a jump link
+/// stood at its foot, and 100 of the 118 held-keys stuck notes of a bench
+/// were within a metre of a jump floor (`player_bots_stuck.md` §8.6).
+pub(crate) const STAND_IN_AIR_MS: u32 = 600;
+
+/// A jump of the stand-in: how high the feet get over the floor jumped
+/// from, and how far ahead a jump with no grid link lands, m.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct StandInJump {
+    pub(crate) rise_m: f32,
+    pub(crate) ahead_m: f32,
+}
+
+/// The client's jump standing or walking: the `on_site*` clips' root tops
+/// at 0.998 m (PROVEN, the jump study). How far it carries was never
+/// measured: GUESS 0.6 m ahead, kept short on purpose.
+pub(crate) const STANDING_JUMP: StandInJump = StandInJump {
+    rise_m: mapdata::grid::STANDING_JUMP_M,
+    ahead_m: 0.6,
+};
+
+/// [`STANDING_JUMP`] as the stand-in game jumps it: `SRP_BENCH_JUMP_AHEAD_M`
+/// sets how far ahead a jump with no grid link lands (a sensitivity row;
+/// the grid lists pocket exits up to 1.0 m across), else the GUESS 0.6 m.
+pub(crate) fn standing_jump() -> StandInJump {
+    static AHEAD: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
+    let ahead_m = *AHEAD.get_or_init(|| {
+        bench_settings().number("SRP_BENCH_JUMP_AHEAD_M")
+            .unwrap_or(STANDING_JUMP.ahead_m)
+    });
+    StandInJump {
+        ahead_m,
+        ..STANDING_JUMP
+    }
+}
+
+/// The client's sprint jump: 1.282-1.350 m by clip (PROVEN, the jump
+/// study), played at a press with forward and sprint held at walk speed or
+/// more, any weapon, no battery carried (PROVEN,
+/// `player_logic_jump_state::initialize` 0x337040). No bot's jump picks it
+/// yet. The distance is [`STANDING_JUMP`]'s (GUESS).
+pub(crate) const SPRINT_JUMP: StandInJump = StandInJump {
+    rise_m: 1.30,
+    ahead_m: 0.6,
+};
+
+/// Where a stand-in body in the air, walking from `feet` (on `node`) into
+/// `to` and stopped, gets up with `jump`:
+/// - by the grid's jump link ([`jumped_to`]) when its rise is within the
+///   jump: a higher link is not made, as in the client;
+/// - else, with no link, on the highest floor (then the nearest) within
+///   `ahead_m` ahead on the walk's line and up to the jump's rise: a jump
+///   the grid does not plan (out of a pocket, up a ledge a stuck bot hops
+///   at).
+pub(crate) fn stand_in_jump(
+    grid: &mapdata::WalkGrid,
+    node: NodeId,
+    feet: Vec3,
+    to: Vec3,
+    jump: StandInJump,
+) -> Option<NodeId> {
+    let base = grid.position(node).y;
+    if let Some(up) = jumped_to(grid, node, feet, to)
+        && grid.position(up).y - base <= jump.rise_m
+    {
+        return Some(up);
+    }
+    let (dx, dz) = (to.x - feet.x, to.z - feet.z);
+    let len = (dx * dx + dz * dz).sqrt();
+    if len <= 1e-6 {
+        return None;
+    }
+    let (ux, uz) = (dx / len, dz / len);
+    let side = grid.cell_size() * 0.5 + 1e-4;
+    let reach = jump.ahead_m;
+    let area = [
+        feet.x - reach,
+        feet.z - reach,
+        feet.x + reach,
+        feet.z + reach,
+    ];
+    grid.floors_in(area)
+        .filter(|&n| n != node && grid.can_stand(n))
+        .filter_map(|n| {
+            let at = grid.position(n);
+            let (ex, ez) = (at.x - feet.x, at.z - feet.z);
+            let ahead = ex * ux + ez * uz;
+            let across = (ex * uz - ez * ux).abs();
+            let rise = at.y - base;
+            (ahead > 0.0 && ahead <= reach && across <= side && rise > 0.0 && rise <= jump.rise_m)
+                .then_some((n, at.y, ahead))
+        })
+        .max_by(|a, b| a.1.total_cmp(&b.1).then(b.2.total_cmp(&a.2)))
+        .map(|(n, _, _)| n)
+}
+
+/// The client's sprint lift (A55, J0 8e rows, PROVEN): a body that runs into the face of a top at a sprint (it came to it at
+/// [`LIFT_MIN_SPEED_MS`] or more, never from a stand) and is held there with sprint and forward is carried up it after the
+/// client's own hold at the face, 0.15-0.3 s.
+pub(crate) const LIFT_HOLD_MS: u32 = 300;
+/// The speed a body comes to the face at for the lift, m/s: a sprint is 5 m/s; the walk cap is 3.5.
+pub(crate) const LIFT_MIN_SPEED_MS: f32 = 3.5;
+
+/// [T3] Whether the stand-in flies a jump as the client does (`SRP_BENCH_STAND_IN_JUMP`, `client` unless `old`): the clip of the
+/// keys' direction from the stock clips (`jump_arc::Clip`, 24 frames, PROVEN data), the body moved each tick by the tick's root
+/// delta turned by its yaw now (the root re-based on the body every tick on all axes, fx-review A325g: no catch-up), and the fall
+/// after the clip from the root's last descent (`end_jump` 0x7F050 keeps the downward speed; fx-gear-2's read). `old`: the
+/// forward clip's 13 samples along the press's way, chased from the press, and a fall from rest.
+pub(crate) fn stand_in_client_jump() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_JUMP").map_or(true, |v| v != "old"))
+}
+
+/// [T3] The client's clip for a press ([`stand_in_client_jump`]): `jump_arc::Clip::of` by the keys and the body's speed (a body that
+/// may not sprint takes the short jump), none with the old flight.
+pub(crate) fn client_clip(keys: u32, speed: f32, may_sprint: bool) -> Option<crate::v026g::bots::jump_arc::Clip> {
+    stand_in_client_jump().then(|| crate::v026g::bots::jump_arc::Clip::of(keys, if may_sprint { speed } else { 0.0 }))
+}
+
+/// Whether the stand-in lifts (`SRP_BENCH_STAND_IN_LIFT`, on unless `off`).
+pub(crate) fn stand_in_lift() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_LIFT").map_or(true, |v| v != "off"))
+}
+
+/// [A313] How the stand-in body takes a walk-off bridge (`SRP_BENCH_STAND_IN_BRIDGES`, walked unless `off`): the client's capsule
+/// crosses its one cell no floor covers in a stride, as the controller (the exe's walk tick, proven in Unicorn) walks every bridge the
+/// grid keeps; the lattice stopped the body in that cell and held it at the face of each bridge up (the pass's 324-pair bench:
+/// missed jumps 11 -> 29). A grid with no bridges (`grid.client_controller` off) moves as before.
+pub(crate) fn stand_in_bridges() -> body::Bridges {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    if *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_BRIDGES").map_or(true, |v| v != "off")) {
+        body::Bridges::Walked
+    } else {
+        body::Bridges::Leap
+    }
+}
+
+/// [A318] Along what the stand-in body's step the grid stops goes on (`SRP_BENCH_STAND_IN_WALLS`, `round` unless `axes` or
+/// `diagonal`): the client's capsule slides along walls, corners and thin posts too ([`crate::v026g::bots::kin::WallSlide`]).
+pub(crate) fn stand_in_walls() -> crate::v026g::bots::kin::WallSlide {
+    use crate::v026g::bots::kin::WallSlide;
+    static WALLS: std::sync::OnceLock<WallSlide> = std::sync::OnceLock::new();
+    if OLD_WALLS.get() {
+        return WallSlide::Diagonal;
+    }
+    *WALLS.get_or_init(|| match bench_settings().var("SRP_BENCH_STAND_IN_WALLS").as_deref() {
+        Ok("axes") => WallSlide::Axes,
+        Ok("diagonal") => WallSlide::Diagonal,
+        _ => WallSlide::Round,
+    })
+}
+
+/// [A318] How the stand-in body's blend goes on when its keys change again before it is over (`SRP_BENCH_STAND_IN_MIXER`,
+/// `layers` unless `frozen`): the client's lexeme stack ([`kin::Mixer::Layers`], fitted on the client's speed at the worlds of 15
+/// client-test recordings); `frozen` moves it as before.
+pub(crate) fn stand_in_mixer() -> crate::v026g::bots::kin::Mixer {
+    static FROZEN: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    if OLD_MIXER.get() || *FROZEN.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_MIXER").is_ok_and(|v| v == "frozen")) {
+        crate::v026g::bots::kin::Mixer::Frozen
+    } else {
+        crate::v026g::bots::kin::Mixer::Layers
+    }
+}
+
+thread_local! {
+    static OLD_MIXER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static OLD_WALLS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static OLD_STEP_INPUT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// [A318] The stand-in's step order: the bench tuning's ([`crate::v026g::bots::kin::StepInput`], `SRP_BENCH_TUNING`, so an
+/// identity run's OFF arm is the old game on both sides), or the old same-tick one under [`OldStepInput`].
+pub(crate) fn stand_in_step_input() -> crate::v026g::bots::kin::StepInput {
+    static TUNED: std::sync::OnceLock<crate::v026g::bots::kin::StepInput> = std::sync::OnceLock::new();
+    if OLD_STEP_INPUT.get() {
+        crate::v026g::bots::kin::StepInput::Same
+    } else {
+        *TUNED.get_or_init(|| super::bench::bench_tuning().kin.step_input)
+    }
+}
+
+/// [A318] Whether the stand-in's walk takes the client's walk tick where the lattice has a step rising or blocked
+/// (`SRP_BENCH_STAND_IN_CLIENT_STEP`): on by default, so the bench's humans walk as the client's body does (the owner: benches on
+/// the client's code); `off` the lattice alone; `tuning` as the bench tuning's `kin.client_step` (the reckoning's rule).
+pub(crate) fn stand_in_client_step() -> bool {
+    static TUNED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *TUNED.get_or_init(|| match super::bench_settings().var("SRP_BENCH_STAND_IN_CLIENT_STEP").as_deref() {
+        Ok("off") => false,
+        Ok("tuning") => super::bench::bench_tuning().kin.client_step == crate::v026g::bots::kin::ClientStep::Client,
+        _ => true,
+    })
+}
+
+/// The stand-in's old step order ([`crate::v026g::bots::kin::StepInput::Same`]: a tick moves with its own input) for this thread
+/// while it lives (tests whose pinned numbers predate it).
+pub(crate) struct OldStepInput(());
+
+impl OldStepInput {
+    pub(crate) fn scope() -> Self {
+        OLD_STEP_INPUT.set(true);
+        Self(())
+    }
+}
+
+impl Drop for OldStepInput {
+    fn drop(&mut self) {
+        OLD_STEP_INPUT.set(false);
+    }
+}
+
+/// The stand-in's slide before the round one ([`crate::v026g::bots::kin::WallSlide::Diagonal`]) for this thread while it lives
+/// (tests whose pinned numbers predate it).
+pub(crate) struct OldWalls(());
+
+impl OldWalls {
+    pub(crate) fn scope() -> Self {
+        OLD_WALLS.set(true);
+        Self(())
+    }
+}
+
+impl Drop for OldWalls {
+    fn drop(&mut self) {
+        OLD_WALLS.set(false);
+    }
+}
+
+/// The stand-in's old blend ([`crate::v026g::bots::kin::Mixer::Frozen`]) for this thread while it lives (tests whose pinned
+/// numbers predate A318).
+pub(crate) struct OldMixer(());
+
+impl OldMixer {
+    pub(crate) fn scope() -> Self {
+        OLD_MIXER.set(true);
+        Self(())
+    }
+}
+
+impl Drop for OldMixer {
+    fn drop(&mut self) {
+        OLD_MIXER.set(false);
+    }
+}
+
+/// Whether the stand-in body is held at a ledge's edge as the client's capsule is (`SRP_BENCH_STAND_IN_EDGE`, on unless `off`): it falls
+/// [`body::SUPPORT_M`] past the last floor's centre, not at the lattice's cell boundary.
+pub(crate) fn stand_in_edge() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_EDGE").map_or(true, |v| v != "off"))
+}
+
+/// Whether the stand-in body past a ledge's edge goes on as the client's capsule does whatever the grid's links say
+/// (`SRP_BENCH_STAND_IN_FALL`, on unless `off`; it acts only with [`stand_in_edge`]): [`body::slide_supported`] moves a body
+/// past its floor's boundary only toward a drop link of that floor or along a lip's floor, so a body held 0.2-0.4 m past a
+/// floor with neither stood there pushing, where the client's capsule walks on while its hemisphere still touches the edge and
+/// falls once it does not (`step_down` 0x7E1B0: no contact in the sweep, airborne; PROVEN; the landing straight below the
+/// capsule, LIKELY).
+pub(crate) fn stand_in_fall() -> bool {
+    if let Some(on) = FALL_FORCED.with(std::cell::Cell::get) {
+        return on;
+    }
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_FALL").map_or(true, |v| v != "off"))
+}
+
+thread_local! {
+    /// A test's word on [`stand_in_fall`], for its own thread (the tests run one to a thread).
+    static FALL_FORCED: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
+}
+
+/// A test puts [`stand_in_fall`] on or off for its own thread (`None`: as the run says): the pinned soaks predate it.
+pub(crate) fn force_fall(on: Option<bool>) {
+    FALL_FORCED.with(|f| f.set(on));
+}
+
+/// [A318] Whether a stand-in body falling (after a jump's clip, a walk off an edge) falls as the client's capsule does
+/// (`SRP_BENCH_STAND_IN_SLOW_FALL`, on unless `off`; [`super::body::client_fall_tick`]: `step_down` 0x7E1B0's slow start,
+/// 0.05 m a tick while the speed at the tick's start is under 2.0 m/s, then the speed at the tick's start, `g` 9.8 after the move,
+/// PROVEN). Off: as before (the speed after the tick's `g` from the first tick; benches before A318's fall start).
+pub(crate) fn stand_in_slow_fall() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_SLOW_FALL").map_or(true, |v| v != "off"))
+}
+
+/// Whether a stand-in body that walks off an edge falls from it keeping the walk's speed across (`SRP_BENCH_STAND_IN_WALKOFF`, on
+/// unless `off`): the client's capsule leaves the edge at its walk speed and comes down along a ballistic arc, so a walk off a 1.2 m ledge
+/// lands on a walkway 1.5 m ahead of it (J0 g2a at Chemical Plant's pedestrian bridge: 7 of 7 walk-offs on the walkway, PROVEN), where the
+/// stand-in puts the body on the floor straight below the edge in one tick ([`past_edge`], or a walk along a Drop link). Off: as before
+/// (the benches before it became the default, 2026-11-02, before A93, are comparable only with it off).
+pub(crate) fn stand_in_walk_off() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_WALKOFF").map_or(true, |v| v != "off"))
+}
+
+/// What [`stand_in_walk_off`] did: walk-offs that fell from the edge, those that came down, and the metres across they carried in all
+/// (tenths).
+static WALK_OFFS: [std::sync::atomic::AtomicU64; 3] = [const { std::sync::atomic::AtomicU64::new(0) }; 3];
+
+pub(crate) fn walk_off_stats() -> Vec<u64> {
+    WALK_OFFS.iter().map(|c| c.load(std::sync::atomic::Ordering::Relaxed)).collect()
+}
+
+/// A walk off an edge starts its fall ([`stand_in_walk_off`]).
+pub(crate) fn walk_off_started() {
+    WALK_OFFS[0].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// What [`past_edge`] did: walked on past the boundary, fell to the floor below, found no floor below.
+static EDGE_FALLS: [std::sync::atomic::AtomicU64; 3] = [const { std::sync::atomic::AtomicU64::new(0) }; 3];
+
+pub(crate) fn edge_fall_stats() -> Vec<u64> {
+    EDGE_FALLS.iter().map(|c| c.load(std::sync::atomic::Ordering::Relaxed)).collect()
+}
+
+/// A stand-in body (on `node`) that the slide stopped short of `to` with no wall in the way (`walls`, the walker's triangles, met
+/// above a step: a wall stops the capsule, an edge does not): on to `to` while a floor of its level within [`body::SUPPORT_M`] still
+/// holds it, else down on the highest floor under `to` (straight below, within the capsule's width). None at a wall, or with no
+/// floor below.
+pub(crate) fn past_edge(grid: &mapdata::WalkGrid, walls: &mapdata::RayTree, node: NodeId, feet: Vec3, to: Vec3) -> Option<(NodeId, Vec3)> {
+    use std::sync::atomic::Ordering::Relaxed;
+    let ahead = feet.distance_xz(to);
+    if ahead <= 1e-3 {
+        return None;
+    }
+    let (base, step) = (grid.position(node).y, grid.body().step);
+    let dir = Vec3::new((to.x - feet.x) / ahead, 0.0, (to.z - feet.z) / ahead);
+    if walls.ray_cast(Vec3::new(feet.x, base + step + 0.1, feet.z), dir, ahead + grid.body().radius).is_some() {
+        return None;
+    }
+    let level = |n: NodeId| (grid.position(n).y - base).abs() <= step;
+    let held = std::iter::once(node)
+        .chain(grid.links(node).filter(|(_, kind)| !kind.is_leap()).map(|(next, _)| next))
+        .filter(|&n| level(n) && grid.position(n).distance_xz(to) <= body::SUPPORT_M)
+        .min_by(|&a, &b| grid.position(a).distance_xz(to).total_cmp(&grid.position(b).distance_xz(to)));
+    if let Some(n) = held {
+        EDGE_FALLS[0].fetch_add(1, Relaxed);
+        return Some((n, Vec3::new(to.x, grid.position(n).y, to.z)));
+    }
+    // Down: the first floor under `to` lower than a step, probing in overlapping height windows (`locate` looks 2.5 m down),
+    // within the capsule's width across: the floor at a wall's foot is eroded, and the falling capsule comes down off the face.
+    let mut y = base - step - 1.0;
+    while y > base - 60.0 {
+        if let Some(n) = grid.locate(Vec3::new(to.x, y, to.z), 2.0 * grid.body().radius)
+            && grid.position(n).y < base - step
+        {
+            EDGE_FALLS[1].fetch_add(1, Relaxed);
+            return Some((n, grid.position(n)));
+        }
+        y -= 3.0;
+    }
+    EDGE_FALLS[2].fetch_add(1, Relaxed);
+    None
+}
+
+/// Whether the stand-in's jump is steered in the air by the keys held (`SRP_BENCH_STAND_IN_AIR`, on unless `off`): the client's
+/// controller adds its air control ([`air_control`]) to each airborne tick's move; off, the jump goes only the way of the keys at
+/// the press, as the benches before #966 had it (with it on, A211's arms got up 46 % of their route jumps against 53 % off,
+/// toward the live 45 % at Vostok Radar Station).
+pub(crate) fn stand_in_air_control() -> bool {
+    if let Some(on) = AIR_FORCED.with(std::cell::Cell::get) {
+        return on;
+    }
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_AIR").map_or(true, |v| v != "off"))
+}
+
+thread_local! {
+    /// A test's word on [`stand_in_air_control`], for its own thread.
+    static AIR_FORCED: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
+}
+
+/// A test puts [`stand_in_air_control`] on or off for its own thread (`None`: as the run says).
+pub(crate) fn force_air_control(on: Option<bool>) {
+    AIR_FORCED.with(|f| f.set(on));
+}
+
+/// The client's air control, m/s: `air_control_speed` (player +0x304, 1.0 in `default.player`), the length of
+/// [`air_control`]'s vector.
+pub(crate) const AIR_CONTROL_MS: f32 = 1.0;
+
+/// The air control of a body in a jump with `keys` held now, facing `yaw`: m/s on the ground's axes. The client's
+/// `get_air_control_vector` 0x2D7990 (a switch over the move direction, table 0x2D7B68; its constants read from the exe: 0xA70884
+/// 1.0, 0xA0D984 0.0, 0xA2D778 -1.0; PROVEN) gives [`AIR_CONTROL_MS`] along the keys' way, the diagonals normalised, and none with
+/// no key or with forward alone in a sprint jump (its forward case is 0 for the jump codes 2-4; the diagonals have no such case).
+/// `player_step` 0x7BFC5 adds it to the root motion's speed (the walk vector times 1 / dt, 0x7BF36) each tick of a jump (LIKELY).
+pub(crate) fn air_control(keys: u32, yaw: f32, sprint: bool) -> [f32; 2] {
+    let held = |bit| f32::from(u8::from(keys & bit != 0));
+    let ahead = held(key::FORWARD) - held(key::BACK);
+    let left = held(key::LEFT) - held(key::RIGHT);
+    if (ahead == 0.0 && left == 0.0) || (sprint && ahead > 0.0 && left == 0.0) {
+        return [0.0, 0.0];
+    }
+    let len = ahead.hypot(left);
+    let dir = to_world([ahead / len, left / len], yaw);
+    [dir[0] * AIR_CONTROL_MS, dir[1] * AIR_CONTROL_MS]
+}
+
+/// What [`stand_in_air_control`] did: airborne ticks steered, airborne ticks with no air control (no key, or forward alone in a
+/// sprint jump), jumps come down, and of them those the air control moved 0.25 m or more.
+static AIR_STEERS: [std::sync::atomic::AtomicU64; 4] = [const { std::sync::atomic::AtomicU64::new(0) }; 4];
+
+pub(crate) fn air_steer_stats() -> Vec<u64> {
+    AIR_STEERS.iter().map(|c| c.load(std::sync::atomic::Ordering::Relaxed)).collect()
+}
+
+/// Whether a jump's walk before it leaves the floor is held by the walls and the ledge as the walking body is (`SRP_BENCH_STAND_IN_JUMP_WALL`,
+/// off unless `on`, and only with `SRP_BENCH_STAND_IN_CORNER=on`): the client's capsule is held at a wall whatever the keys, so a body
+/// that presses jump at the wall it is held by does not walk through it in the jump's first moments (A199).
+pub(crate) fn stand_in_jump_wall() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_JUMP_WALL").is_ok_and(|v| v == "on"))
+}
+
+/// What a jump's walk on the floor needs of the capsule rule ([`stand_in_jump_wall`], [`super::standin_capsule`]): the walls' sections, whether
+/// the rule holds the body (else it only counts the moves it would hold), and the counts of walk ticks and held ones.
+pub(crate) struct JumpWall<'a> {
+    pub(crate) sections: &'a super::standin_capsule::Sections,
+    pub(crate) hold: bool,
+    pub(crate) ticks: &'a mut u32,
+    pub(crate) held: &'a mut u32,
+}
+
+/// The floor a body held at a face (on `node`, at `feet`, walking toward `to`) is lifted up: the jump link ahead
+/// ([`jumped_to`]) when its rise is the lift's at most ([`LIFT_MAX_RISE_M`]) and its top deep enough ([`LIFT_TOP_M`]).
+pub(crate) fn lift_to(grid: &mapdata::WalkGrid, node: NodeId, feet: Vec3, to: Vec3) -> Option<NodeId> {
+    lift_check(grid, node, feet, to).ok()
+}
+
+/// What [`lift_check`] found against a lift.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum NoLift {
+    /// No jump link ahead of the body toward the point it pushes at.
+    NoLink,
+    /// The link's rise is over the lift's ([`LIFT_MAX_RISE_M`]).
+    TooHigh,
+    /// The top is shallower than [`LIFT_TOP_M`].
+    TopShort,
+}
+
+/// [`lift_to`] with what was against it.
+pub(crate) fn lift_check(grid: &mapdata::WalkGrid, node: NodeId, feet: Vec3, to: Vec3) -> Result<NodeId, NoLift> {
+    use crate::v026g::bots::motor::{LIFT_MAX_RISE_M, LIFT_TOP_M};
+    let up = jumped_to(grid, node, feet, to).ok_or(NoLift::NoLink)?;
+    let rise = grid.position(up).y - grid.position(node).y;
+    if rise > LIFT_MAX_RISE_M {
+        Err(NoLift::TooHigh)
+    } else if crate::v026g::bots::path::top_depth(grid, node, up) < LIFT_TOP_M {
+        Err(NoLift::TopShort)
+    } else {
+        Ok(up)
+    }
+}
+
+/// The rise of the jump link ahead of a body at a face, if there is one.
+pub(crate) fn lift_probe(grid: &mapdata::WalkGrid, node: NodeId, feet: Vec3, to: Vec3) -> Option<f32> {
+    jumped_to(grid, node, feet, to).map(|up| grid.position(up).y - grid.position(node).y)
+}
+
+/// How the stand-in's lifts came out, by the band of the link's rise (up to 0.80, 0.80-0.95, 0.95-1.05, 1.05-1.11, over 1.11,
+/// none known) and the outcome ([`LiftOutcome`]).
+static LIFT_STATS: [[std::sync::atomic::AtomicU64; 6]; 6] = [const { [const { std::sync::atomic::AtomicU64::new(0) }; 6] }; 6];
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum LiftOutcome {
+    /// Held at the face the client's hold and carried up.
+    Made,
+    /// The sprint or forward key was let go before the hold was up.
+    Released,
+    /// Held the hold, and the link's rise is over the lift's.
+    TooHigh,
+    /// Held the hold, and the top is too shallow.
+    TopShort,
+    /// Held the hold, and no jump link lay ahead of the point it pushed at.
+    NoLink,
+    /// Came to the face of a jump link under the sprint speed the client asks.
+    SlowContact,
+}
+
+pub(crate) fn lift_count(rise: Option<f32>, outcome: LiftOutcome) {
+    let band = match rise {
+        None => 5,
+        Some(r) if r <= 0.8 => 0,
+        Some(r) if r <= 0.95 => 1,
+        Some(r) if r <= 1.05 => 2,
+        Some(r) if r <= 1.11 => 3,
+        Some(_) => 4,
+    };
+    LIFT_STATS[band][outcome as usize].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// The stand-in lift outcomes: `[band][outcome]`, flattened.
+pub(crate) fn lift_stats() -> Vec<u64> {
+    LIFT_STATS.iter().flatten().map(|c| c.load(std::sync::atomic::Ordering::Relaxed)).collect()
+}
+
+/// A stand-in world: a floor at 0 and a ledge `rise` m high from x 10 on,
+/// its grid built for `body`.
+pub(crate) fn ledge_grid(rise: f32, body: mapdata::Body) -> mapdata::WalkGrid {
+    use super::body::tests::{floor, wall_x};
+    let mut triangles: Vec<mapdata::Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+    triangles.extend(floor(10.0, 0.0, 20.0, 10.0, rise));
+    triangles.extend(wall_x(10.0, 0.0, 10.0).map(|mut t| {
+        t.v.iter_mut().for_each(|v| v.y = v.y.min(rise));
+        t
+    }));
+    mapdata::WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, body)
+}
+
+/// Where a stand-in body walking east from x 8 at 0.2 m a tick ends after
+/// 40 ticks: in the air all the way with `jump` (one jump), or never.
+pub(crate) fn walk_into_ledge(grid: &mapdata::WalkGrid, jump: Option<StandInJump>) -> Vec3 {
+    let mut node = grid.locate(Vec3::new(8.0, 0.0, 5.0), 0.5).unwrap();
+    let mut feet = grid.position(node);
+    let mut jumped = false;
+    for _ in 0..40 {
+        let to = feet + Vec3::new(0.2, 0.0, 0.0);
+        (node, feet, _) = slide(grid, node, feet, to);
+        if let Some(jump) = jump
+            && !jumped
+            && feet.distance_xz(to) > 1e-3
+            && let Some(up) = stand_in_jump(grid, node, feet, to, jump)
+        {
+            node = up;
+            feet = grid.position(up);
+            jumped = true;
+        }
+    }
+    feet
+}
+
+/// A stand-in body walking into a 0.9 m ledge stops at its foot; in the
+/// air it gets up on it, by the grid's jump link.
+#[test]
+pub(crate) fn a_stand_in_body_in_the_air_gets_up_a_ledge() {
+    let grid = ledge_grid(0.9, mapdata::Body::default());
+    let stopped = walk_into_ledge(&grid, None);
+    assert!(stopped.x < 10.0 && stopped.y.abs() < 0.1, "{stopped:?}");
+    let up = walk_into_ledge(&grid, Some(STANDING_JUMP));
+    assert!(up.x > 12.0 && (up.y - 0.9).abs() < 0.1, "{up:?}");
+}
+
+/// A body held at the face of a 0.9 m top with a deep floor on it is lifted up it by the client's sprint lift; a top
+/// above the lift's ceiling (1.2 m) is not lifted.
+#[test]
+pub(crate) fn a_stand_in_lift_takes_a_held_body_up_a_low_top_only() {
+    let at_face = |grid: &mapdata::WalkGrid| {
+        let node = grid.locate(Vec3::new(9.75, 0.0, 5.0), 0.3).unwrap();
+        let feet = grid.position(node);
+        (node, feet, feet + Vec3::new(0.25, 0.0, 0.0))
+    };
+    let low = ledge_grid(0.9, mapdata::Body::default());
+    let (node, feet, to) = at_face(&low);
+    let up = lift_to(&low, node, feet, to).expect("a 0.9 m top is lifted");
+    assert!((low.position(up).y - 0.9).abs() < 0.05, "{:?}", low.position(up));
+    let high = ledge_grid(1.2, mapdata::Body::client());
+    let (node, feet, to) = at_face(&high);
+    assert!(lift_to(&high, node, feet, to).is_none(), "a 1.2 m top is not");
+}
+
+/// A grid jump link higher than the client's jump (1.03 m, linked under
+/// the grid's 1.05 m) is not made: the body stays at the ledge's foot.
+#[test]
+pub(crate) fn a_stand_in_jump_does_not_make_a_link_over_the_clients_height() {
+    let grid = ledge_grid(1.03, mapdata::Body::default());
+    let stayed = walk_into_ledge(&grid, Some(STANDING_JUMP));
+    assert!(stayed.x < 10.0 && stayed.y.abs() < 0.1, "{stayed:?}");
+}
+
+/// With no grid link (a grid built for a 0.5 m jump), the jump still gets
+/// up a 0.9 m ledge; not up a 1.2 m one, which only a sprint jump clears.
+#[test]
+pub(crate) fn a_stand_in_jump_gets_up_a_ledge_with_no_link_within_its_height() {
+    let low = mapdata::Body {
+        max_jump: 0.5,
+        ..mapdata::Body::default()
+    };
+    let grid = ledge_grid(0.9, low);
+    let up = walk_into_ledge(&grid, Some(STANDING_JUMP));
+    assert!(up.x > 10.0 && (up.y - 0.9).abs() < 0.1, "{up:?}");
+    let grid = ledge_grid(1.2, low);
+    let stayed = walk_into_ledge(&grid, Some(STANDING_JUMP));
+    assert!(stayed.x < 10.0 && stayed.y.abs() < 0.1, "{stayed:?}");
+    let sprint = walk_into_ledge(&grid, Some(SPRINT_JUMP));
+    assert!(
+        sprint.x > 10.0 && (sprint.y - 1.2).abs() < 0.1,
+        "{sprint:?}"
+    );
+}
+
+/// Whether the stand-in moves bodies as the client does (the default): no
+/// step up over the client's ([`super::standin::client_step`]: the grid body's
+/// `step`, 0.80 m on the clients' body, `startup.cfg` `cc_step_height 0.80` in the
+/// game's `resources.db`; the exe's own default, `s_step_height` 0.6, is replaced
+/// by that cvar), and a jump that follows the keys held
+/// at its press along the game's jump clip ([`Flight`]).
+/// `SRP_BENCH_STAND_IN=old` brings back the old stand-in (any step the
+/// grid walks, a jump that lifts the body up any floor in reach,
+/// [`stand_in_jump`]), only to compare with benches of older bases.
+pub(crate) fn honest_stand_in() -> bool {
+    static HONEST: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *HONEST.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN").map_or(true, |v| v != "old"))
+}
+
+/// A jump clip's root over the floor it leaves, every 2 of its 24 frames
+/// (PROVEN: the stock clips' root curves, private sprint-jump-re
+/// `work/jumpcurves.txt` and FINDINGS §3-5): its length, when the body
+/// leaves the floor (the clip's `jump` event, frame 6), its rise and how
+/// far ahead it has gone, m.
+#[derive(Debug)]
+pub(crate) struct Clip {
+    pub(crate) ms: f32,
+    pub(crate) flag_ms: f32,
+    pub(crate) rise: [f32; 13],
+    pub(crate) ahead: [f32; 13],
+}
+
+impl Clip {
+    /// How far ahead and how high the root is `ms` into the clip (linear
+    /// between the samples).
+    pub(crate) fn at(&self, ms: f32) -> (f32, f32) {
+        let f = (ms / self.ms).clamp(0.0, 1.0) * 12.0;
+        let i = (f.floor() as usize).min(11);
+        let t = f - i as f32;
+        let lerp = |c: &[f32; 13]| c[i] + (c[i + 1] - c[i]) * t;
+        (lerp(&self.ahead), lerp(&self.rise))
+    }
+
+    /// When the root is at its highest, ms into the clip.
+    pub(crate) fn apex_ms(&self) -> f32 {
+        let top = (0..13)
+            .max_by(|&a, &b| self.rise[a].total_cmp(&self.rise[b]))
+            .unwrap_or(0);
+        self.ms * top as f32 / 12.0
+    }
+}
+
+/// The short jump (`on_site_fwd`, codes 5-12): 0.80 s, 1.0 m up at 1.78 m,
+/// 2.67 m forward, even from a standstill. With no movement key the
+/// body jumps in place (`on_site`, the same rise). The back and side clips
+/// were not measured: GUESS, the forward clip's travel along their way.
+pub(crate) static SHORT_CLIP: Clip = Clip {
+    ms: 800.0,
+    flag_ms: 200.0,
+    rise: [
+        0.0, 0.0, 0.0, 0.0, 0.36, 0.64, 0.84, 0.96, 1.00, 0.94, 0.77, 0.46, 0.0,
+    ],
+    ahead: [
+        0.0, 0.22, 0.44, 0.67, 0.89, 1.11, 1.33, 1.56, 1.78, 2.00, 2.22, 2.44, 2.67,
+    ],
+};
+
+/// The sprint jump (`sprint_from_left_leg`, codes 2-4), played at the
+/// sprint time scale (0.88 s): 1.28 m up, 4.42 m forward; the right leg's
+/// tops at 1.35 m (the left one taken: the bot cannot see the leg). Its
+/// diagonals carry 3.12 m on each axis, 4.41 m along the way.
+pub(crate) static SPRINT_CLIP: Clip = Clip {
+    ms: 880.0,
+    flag_ms: 220.0,
+    rise: [
+        0.0, 0.0, 0.0, 0.0, 0.57, 1.08, 1.24, 1.28, 1.23, 1.01, 0.70, 0.35, 0.0,
+    ],
+    ahead: [
+        0.0, 0.38, 0.76, 1.15, 1.54, 1.92, 2.29, 2.65, 3.01, 3.36, 3.71, 4.06, 4.42,
+    ],
+};
+
+/// The grid builds its gap links (`mapdata::grid::gap`) by flying the same
+/// clip: the numbers must be the same.
+#[test]
+pub(crate) fn the_grids_gap_links_fly_this_short_clip() {
+    assert_eq!(SHORT_CLIP.ahead, mapdata::grid::gap::SHORT_JUMP_AHEAD);
+    assert_eq!(SHORT_CLIP.rise, mapdata::grid::gap::SHORT_JUMP_RISE);
+}
+
+/// Before the sprint clip, the prepare phase finishes the run's step: 0 to
+/// 0.15 s and 0 to 1.64 m, by the gait's phase at the press (EXE + clip data, PROVEN: `jump_logic_state_prepare::initialize`
+/// 0x342540 waits for the run clip's next `anim_intervals` mark, `on_interval_end` 0x342A50 starts the jump; the rate
+/// `get_prepare_time_factor` 0x3375A0 makes the wait 0-0.15 s; the sprint clips' root runs 5.455 m/s of clip time over the
+/// 0.30 s step, 0-1.636 m; sprint-jump RE `FINDINGS.md` §3.2, `re-sprint-prepare.md`. The phase is drawn uniform, LIKELY).
+pub(crate) const SPRINT_PREPARE_MS: f32 = 150.0;
+
+pub(crate) const SPRINT_PREPARE_M: f32 = 1.64;
+
+/// The walk cap, m/s: the body's speed at the press must be at least this
+/// for a sprint jump, and a body on the ground in a jump moves at most
+/// this fast (the root runs ahead; the body takes the difference when it
+/// leaves the floor), PROVEN (FINDINGS §1.2, §3.2).
+pub(crate) const WALK_CAP: f32 = 3.5;
+
+/// A body falling after its clip, m/s²: the client's `fall_params.gravity` (PROVEN, `docs/notes/fall_damage.md`: `step_down` 0x7E1B0
+/// adds 0.49 m/s a 0.05 s tick), the reckoning's own (`body.rs` `GRAVITY`). Was 9.81 with no source.
+pub(crate) const GRAVITY: f32 = 9.8;
+
+/// The heights over the feet at which a face holds a body in the air
+/// (rays on the walker mesh), m: its feet (a little over, so a floor's
+/// own bumps do not), its middle and its head; a body clears an edge once
+/// its feet are over it (FINDINGS §5, the capsule rule). The body's
+/// radius is the grid's.
+pub(crate) const AIR_RAYS: [f32; 3] = [0.1, 0.9, 1.7];
+
+/// A jump under way in the honest stand-in ([`honest_stand_in`]): the
+/// body follows the clip's root from where it pressed, along the way of
+/// the keys held at the press; on the floor before the clip's jump event
+/// (at the walk cap), in the air after it, held by any face in its way
+/// (it rises with the clip and catches up once clear: the chase rule,
+/// FINDINGS §5). It lands on the highest floor under it once on the way
+/// down, or falls after the clip. No stamina; the air control with
+/// [`stand_in_air_control`] (on the clip, not in the fall after it).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Flight {
+    /// The press, ms; the feet then; the ground way (unit, or none).
+    pub(crate) at: u32,
+    pub(crate) from: Vec3,
+    pub(crate) dir: [f32; 2],
+    pub(crate) clip: &'static Clip,
+    /// The sprint jump's prepare phase: its length (ms) and travel (m).
+    pub(crate) prepare: (f32, f32),
+    /// The floor's height when the body left it.
+    pub(crate) base: Option<f32>,
+    /// After the clip, falling at this speed, m/s.
+    pub(crate) fall: Option<f32>,
+    /// How far the air control has moved the body off the clip's way so far, m ([`stand_in_air_control`]).
+    pub(crate) air: [f32; 2],
+    /// The speed across kept while it falls, m/s: a walk off an edge's ([`stand_in_walk_off`]); none for a jump (its fall after the
+    /// clip is straight down).
+    pub(crate) carry: [f32; 2],
+    /// [T3] The client's clip ([`stand_in_client_jump`]): the tick's root delta moves the body; none: the old flight ([`Self::root`]).
+    pub(crate) arc: Option<crate::v026g::bots::jump_arc::Clip>,
+    /// [A364] The body's last horizontal move at the press, m/s (the game's player +0x334): a short client jump travels its direction
+    /// clip x `jump_arc::Clip::carry` of it.
+    pub(crate) speed: f32,
+}
+
+impl Flight {
+    /// The root `ms` after the press: how far ahead, how high, whether
+    /// the body has left the floor, and whether the clip is over.
+    pub(crate) fn root(&self, ms: f32) -> (f32, f32, bool, bool) {
+        let (pm, pd) = self.prepare;
+        if ms < pm {
+            return (pd * ms / pm, 0.0, false, false);
+        }
+        let c = ms - pm;
+        let (ahead, rise) = self.clip.at(c);
+        (pd + ahead, rise, c >= self.clip.flag_ms, c >= self.clip.ms)
+    }
+
+    pub(crate) fn descending(&self, ms: f32) -> bool {
+        ms - self.prepare.0 >= self.clip.apex_ms()
+    }
+
+    pub(crate) fn sprint(&self) -> bool {
+        std::ptr::eq(self.clip, &SPRINT_CLIP)
+    }
+}
+
+/// The jump the keys held at a press make (FINDINGS §4, the codes): none,
+/// in place; forward, forward-right or forward-left the sprint jump when
+/// sprint is held with none of back, fire, crouch or aim, the body moves
+/// at the walk cap or more and may sprint (`can_sprint`: no battery, no
+/// stagger), else the short jump; any other way the short jump that way.
+/// The clip and the ground way, from the body's yaw.
+pub(crate) fn jump_of(keys: u32, yaw: f32, speed: f32, may_sprint: bool) -> (&'static Clip, [f32; 2]) {
+    let held = |bit| f32::from(u8::from(keys & bit != 0));
+    let ahead = held(key::FORWARD) - held(key::BACK);
+    let left = held(key::LEFT) - held(key::RIGHT);
+    if ahead == 0.0 && left == 0.0 {
+        return (&SHORT_CLIP, [0.0, 0.0]);
+    }
+    let len = ahead.hypot(left);
+    let dir = to_world([ahead / len, left / len], yaw);
+    let sprint = ahead > 0.0
+        && keys & key::SPRINT != 0
+        && keys & (key::BACK | key::FIRE | key::CROUCH | key::AIM) == 0
+        && speed >= WALK_CAP
+        && may_sprint;
+    (if sprint { &SPRINT_CLIP } else { &SHORT_CLIP }, dir)
+}
+
+/// The floor a body in the air at `at` comes down on: the highest whose
+/// cell holds it at or below `top`; else (its middle over the ground a
+/// wall's or an edge's erosion leaves out of the grid) the highest within
+/// the body's radius, the nearest of them. Its floor, and where the feet
+/// stand on it.
+pub(crate) fn air_floor(grid: &mapdata::WalkGrid, at: Vec3, top: f32) -> Option<(NodeId, Vec3)> {
+    let half = grid.cell_size() * 0.5 + 1e-4;
+    let box_of = |r: f32| [at.x - r, at.z - r, at.x + r, at.z + r];
+    let under = grid
+        .floors_in(box_of(half))
+        .filter(|&n| {
+            let p = grid.position(n);
+            (p.x - at.x).abs() <= half && (p.z - at.z).abs() <= half && p.y <= top
+        })
+        .max_by(|&a, &b| grid.position(a).y.total_cmp(&grid.position(b).y));
+    if let Some(n) = under {
+        return Some((n, Vec3::new(at.x, grid.position(n).y, at.z)));
+    }
+    let r = grid.body().radius;
+    grid.floors_in(box_of(r))
+        .filter(|&n| {
+            let p = grid.position(n);
+            p.distance_xz(at) <= r && p.y <= top
+        })
+        .max_by(|&a, &b| {
+            let (pa, pb) = (grid.position(a), grid.position(b));
+            pa.y.total_cmp(&pb.y)
+                .then(pb.distance_xz(at).total_cmp(&pa.distance_xz(at)))
+        })
+        .map(|n| (n, grid.position(n)))
+}
+
+/// Where a body in the air at `feet` (its feet at `y`) gets moving toward
+/// `(x, z)`: all the way, else along one axis (along a face), else
+/// nowhere; a move is held when a ray at one of [`AIR_RAYS`] meets the
+/// walker mesh within the move and the body's radius.
+pub(crate) fn air_move(walls: &mapdata::RayTree, radius: f32, feet: Vec3, to: (f32, f32), y: f32) -> (f32, f32) {
+    let held = |from: (f32, f32), to: (f32, f32)| {
+        let (dx, dz) = (to.0 - from.0, to.1 - from.1);
+        let len = dx.hypot(dz);
+        if len < 1e-6 {
+            return false;
+        }
+        let dir = Vec3::new(dx / len, 0.0, dz / len);
+        AIR_RAYS.iter().any(|&h| {
+            walls
+                .ray_cast(Vec3::new(from.0, y + h, from.1), dir, len + radius)
+                .is_some()
+        })
+    };
+    let from = (feet.x, feet.z);
+    [to, (to.0, from.1), (from.0, to.1)]
+        .into_iter()
+        .find(|&t| t != from && !held(from, t))
+        .unwrap_or(from)
+}
+
+/// How a jump ended: who pressed it and when, where the body came down,
+/// and whether it was a sprint jump.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Landing {
+    pub(crate) place: Place,
+    pub(crate) at: u32,
+    pub(crate) to: Vec3,
+    pub(crate) sprint: bool,
+    /// The vertical speed of the free fall at the landing tick, m/s (`Flight::fall`; none: the clip ended on the floor). The client's fall damage
+    /// is a function of it alone (`docs/notes/fall_damage.md`); the bench does not apply it ([`fall_damage`] only counts).
+    pub(crate) fall_v: Option<f32>,
+}
+
+/// The client's fall damage at a landing speed `v` m/s with `fatal_damage` 1.0 (the resources.db patch): none up to `harmless_height` 5 m
+/// (9.9 m/s), `(v - 9.9) / (14 - 9.9)` up to `fatal_height` 10 m (14 m/s), 1.0 beyond (EXE + DATA, PROVEN, `docs/notes/fall_damage.md`:
+/// the law 0x2d8220, its loader 0x2d6600 reading `gameplay/players/default.player` `fall_params`).
+pub(crate) fn fall_damage(v: f32) -> f32 {
+    ((v - HARMLESS_V) / (FATAL_V - HARMLESS_V)).clamp(0.0, 1.0)
+}
+
+/// `sqrt(2 g h)` for `harmless_height` 5 m and `fatal_height` 10 m at the client's gravity 9.8.
+const HARMLESS_V: f32 = 9.899_495;
+const FATAL_V: f32 = 14.0;
+/// A fall of this damage or more kills a body at full health (about 0.6, `fall_damage.md`).
+pub(crate) const LETHAL_FALL_DAMAGE: f32 = 0.6;
+
+/// One tick of `body`'s jump ([`Flight`]) at `tick`; the landing when it
+/// came down.
+///
+/// `wall` is the capsule rule for the walk before the jump's first airborne moment ([`stand_in_jump_wall`]).
+pub(crate) fn fly(
+    grid: &mapdata::WalkGrid,
+    walls: &mapdata::RayTree,
+    mut wall: Option<JumpWall>,
+    body: &mut Body,
+    place: Place,
+    tick: u32,
+) -> Option<Landing> {
+    let mut f = body.flight?;
+    let Some(node) = body.node else {
+        body.flight = None;
+        return None;
+    };
+    let ms = tick.saturating_sub(f.at) as f32;
+    let landed = |body: &mut Body, f: &Flight, n: NodeId, feet: Vec3, fall_v: Option<f32>| {
+        if stand_in_air_control() {
+            use std::sync::atomic::Ordering::Relaxed;
+            AIR_STEERS[2].fetch_add(1, Relaxed);
+            if f.air[0].hypot(f.air[1]) >= 0.25 {
+                AIR_STEERS[3].fetch_add(1, Relaxed);
+            }
+        }
+        body.node = Some(n);
+        body.feet = feet;
+        body.flight = None;
+        Some(Landing {
+            place,
+            at: f.at,
+            to: feet,
+            sprint: f.sprint(),
+            fall_v,
+        })
+    };
+    if let Some(v) = f.fall {
+        // [A318] The client's fall ([`stand_in_slow_fall`]): the slow start, then the speed at the tick's start; else as before.
+        let (v, down) = if stand_in_slow_fall() {
+            super::body::client_fall_tick(v)
+        } else {
+            let v = v + GRAVITY * TICK_S;
+            (v, v * TICK_S)
+        };
+        let y = body.feet.y - down;
+        // A walk off an edge goes on across at its speed, held by the walls as a jump is ([`air_move`]).
+        let (x, z) = if f.carry == [0.0, 0.0] {
+            (body.feet.x, body.feet.z)
+        } else {
+            let to = (body.feet.x + f.carry[0] * TICK_S, body.feet.z + f.carry[1] * TICK_S);
+            air_move(walls, grid.body().radius, body.feet, to, y)
+        };
+        let at = Vec3::new(x, body.feet.y, z);
+        match air_floor(grid, at, body.feet.y + 0.05) {
+            Some((n, feet)) if feet.y >= y => {
+                if f.carry != [0.0, 0.0] {
+                    use std::sync::atomic::Ordering::Relaxed;
+                    WALK_OFFS[1].fetch_add(1, Relaxed);
+                    WALK_OFFS[2].fetch_add((feet.distance_xz(f.from) * 10.0) as u64, Relaxed);
+                }
+                return landed(body, &f, n, feet, Some(v));
+            }
+            Some(_) => {
+                body.feet = Vec3::new(x, y, z);
+                f.fall = Some(v);
+                body.flight = Some(f);
+                return None;
+            }
+            // Nothing under it at all: back on the floor it left (not seen
+            // on a bench; kept from falling for ever).
+            None => {
+                let feet = grid.position(node);
+                return landed(body, &f, node, feet, Some(v));
+            }
+        }
+    }
+    // [T3] The client's flight: this tick's root delta from where the body is (no target kept), the vertical with it.
+    let step = f.arc.map(|arc| client_step(&f, arc, ms, body.yaw));
+    let (airborne, over, mut target) = match step {
+        Some(c) => (c.airborne, c.over, (body.feet.x + c.ahead[0], body.feet.z + c.ahead[1])),
+        None => {
+            let (ahead, _, airborne, over) = f.root(ms);
+            (airborne, over, (f.from.x + f.dir[0] * ahead, f.from.z + f.dir[1] * ahead))
+        }
+    };
+    // Off the floor, the keys held now steer it ([`air_control`]).
+    if airborne && stand_in_air_control() {
+        let steer = air_control(body.keys, body.yaw, f.sprint());
+        AIR_STEERS[usize::from(steer == [0.0, 0.0])].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        f.air = [f.air[0] + steer[0] * TICK_S, f.air[1] + steer[1] * TICK_S];
+        target = match step {
+            // Re-based: this tick's steer alone.
+            Some(_) => (target.0 + steer[0] * TICK_S, target.1 + steer[1] * TICK_S),
+            None => (target.0 + f.air[0], target.1 + f.air[1]),
+        };
+    }
+    if !airborne {
+        // On the floor before the jump event: toward the root at the walk
+        // cap at most, no step over the client's.
+        let (dx, dz) = (target.0 - body.feet.x, target.1 - body.feet.z);
+        let len = dx.hypot(dz);
+        if len > 1e-6 {
+            let k = (WALK_CAP * TICK_S / len).min(1.0);
+            let to = Vec3::new(body.feet.x + dx * k, body.feet.y, body.feet.z + dz * k);
+            let mut target = to;
+            if let Some(wall) = wall.as_mut() {
+                let mut segs = Vec::new();
+                let mv = (to.x - body.feet.x, to.z - body.feet.z);
+                let reach = mv.0.hypot(mv.1) + super::standin_capsule::RADIUS_M + 0.6;
+                wall.sections.near((body.feet.x, body.feet.z), body.feet.y, body.keys & key::CROUCH != 0, reach, &mut segs);
+                let held = super::standin_capsule::client_move(&segs, (body.feet.x, body.feet.z), mv, super::standin_capsule::RADIUS_M);
+                *wall.ticks += 1;
+                if (held.to.0 - to.x).hypot(held.to.1 - to.z) > 0.01 {
+                    *wall.held += 1;
+                    if wall.hold {
+                        target = Vec3::new(held.to.0, to.y, held.to.1);
+                    }
+                }
+            }
+            // The walk before the take-off keeps its own (older) slide: moving it onto the stand-in's walk raised jumps failed 62 -> 87 on
+            // the bench (2026-11-06, 16 pairs); that change is judged in T3 against the recordings (where the client took off and landed),
+            // not by bench counts.
+            let (n, feet, _) = if wall.as_ref().is_some_and(|w| w.hold) && stand_in_edge() {
+                super::body::slide_supported(grid, node, body.feet, target, super::standin::client_step(grid), super::body::SUPPORT_M)
+            } else {
+                super::body::slide_capped(grid, node, body.feet, target, super::standin::client_step(grid))
+            };
+            body.node = Some(n);
+            body.feet = feet;
+        }
+        body.flight = Some(f);
+        return None;
+    }
+    let base = *f.base.get_or_insert(body.feet.y);
+    let y = match step {
+        Some(c) => body.feet.y + c.rise,
+        None => base + f.root(ms).1,
+    };
+    let was = body.feet.y;
+    let (mut x, mut z) = air_move(walls, grid.body().radius, body.feet, target, y);
+    // The capsule rule in the air too (A199): the root's step of the first airborne tick is 0.75 m, which the three rays above can pass
+    // through a thin wall; the client's capsule is swept along it.
+    if let Some(w) = wall.as_ref().filter(|w| w.hold) {
+        let mut segs = Vec::new();
+        let mv = (x - body.feet.x, z - body.feet.z);
+        let reach = mv.0.hypot(mv.1) + super::standin_capsule::RADIUS_M + 0.6;
+        // Cut at the floor it left: the sections' heights are above a body standing, and the capsule has the whole of its length in the air.
+        w.sections.near((body.feet.x, body.feet.z), base.min(y), false, reach, &mut segs);
+        let held = super::standin_capsule::client_move(&segs, (body.feet.x, body.feet.z), mv, super::standin_capsule::RADIUS_M);
+        (x, z) = held.to;
+    }
+    body.feet = Vec3::new(x, y, z);
+    let descending = step.map_or_else(|| f.descending(ms), |c| c.rise < 0.0);
+    if (descending || over)
+        && let Some((n, feet)) = air_floor(grid, body.feet, was.max(y) + 0.05)
+        && feet.y >= y - 1e-4
+    {
+        return landed(body, &f, n, feet, None);
+    }
+    if over {
+        // [T3] The client's fall starts at the root's last descent; the old one from rest.
+        f.fall = Some(f.arc.map_or(0.0, |arc| arc.end_descent()));
+    }
+    body.flight = Some(f);
+    None
+}
+
+/// [T3] One tick of the client's flight ([`stand_in_client_jump`]): the root's delta over the tick, from the clip's frame `ms - 50`
+/// to `ms` after the press (the sprint jump's prepare first: its travel along the press's way), turned by the body's yaw now.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ClientStep {
+    /// The flat move, map frame, m.
+    pub(crate) ahead: [f32; 2],
+    /// The rise over the tick, m (down negative).
+    pub(crate) rise: f32,
+    /// The clip's `jump` event has passed (frame 6): in the air.
+    pub(crate) airborne: bool,
+    /// The air phase's end (its twelfth step, `jump_arc::Clip::air_end_frame`): `end_jump`.
+    pub(crate) over: bool,
+}
+
+pub(crate) fn client_step(f: &Flight, arc: crate::v026g::bots::jump_arc::Clip, ms: f32, yaw: f32) -> ClientStep {
+    use crate::v026g::bots::jump_arc::TAKEOFF_FRAME;
+    let (pm, pd) = f.prepare;
+    let prev = (ms - TICK_S * 1_000.0).max(0.0);
+    // [A364 P6] The air phase ends at its twelfth step, the clip short of its end (`jump_arc::AIR_STEPS`).
+    let end = arc.air_end_frame();
+    let frame = |m: f32| arc.frame_after(m - pm).min(end);
+    let prep = |m: f32| if pm > 0.0 { pd * m.min(pm) / pm } else { 0.0 };
+    let (f0, f1) = (frame(prev), frame(ms));
+    let (a, b) = (arc.root(f0), arc.root(f1));
+    // [A364] A short jump travels its direction clip x the carry of the press's speed (0x337280: 100 of 100 traced short jumps), a
+    // sprint jump its clip whole.
+    let k = arc.carry(f.speed);
+    let d = to_world([(b[1] - a[1]) * k, -(b[2] - a[2]) * k], yaw);
+    let p = prep(ms) - prep(prev);
+    ClientStep {
+        ahead: [d[0] + f.dir[0] * p, d[1] + f.dir[1] * p],
+        rise: b[0] - a[0],
+        airborne: f1 >= TAKEOFF_FRAME - 1e-3,
+        over: f1 >= end - 1e-3,
+    }
+}
+
+/// A press's draw in [0, 1) (the sprint jump's prepare phase): a hash, so
+/// the game's draws are not moved.
+pub(crate) fn press_draw(tick: u32, place: Place) -> f32 {
+    let h = (tick ^ (place as u32).wrapping_mul(0x9E37_79B9)).wrapping_mul(0x85EB_CA6B);
+    let h = h ^ (h >> 15);
+    (h >> 8) as f32 / (1u32 << 24) as f32
+}
+
+/// The triangles of [`ledge_grid`]'s world (with `walker` on the ledge's
+/// top), for the walker mesh's rays.
+pub(crate) fn ledge_triangles(rise: f32, walker: mapdata::WalkerBehaviour) -> Vec<mapdata::Triangle> {
+    use super::body::tests::{floor, wall_x};
+    let mut triangles: Vec<mapdata::Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+    triangles.extend(floor(10.0, 0.0, 20.0, 10.0, rise).map(|mut t| {
+        t.walker = walker;
+        t
+    }));
+    triangles.extend(wall_x(10.0, 0.0, 10.0).map(|mut t| {
+        t.v.iter_mut().for_each(|v| v.y = v.y.min(rise));
+        t.walker = walker;
+        t
+    }));
+    triangles
+}
+
+/// A stand-in body of the honest stand-in at `at` on `grid`, facing east.
+pub(crate) fn honest_body(grid: &mapdata::WalkGrid, at: Vec3) -> Body {
+    let game = Game::new(soak_world(), &[0], 1, None, None);
+    let mut body = game.bodies[0].clone();
+    let node = grid.locate(at, 0.5).expect("a floor there");
+    body.node = Some(node);
+    body.feet = Vec3::new(at.x, grid.position(node).y, at.z);
+    body.yaw = -std::f32::consts::FRAC_PI_2;
+    body
+}
+
+/// `body` jumps with `keys` held at `speed` (m/s, the last tick's): where
+/// it comes down, and the highest its feet got over the floor it left.
+pub(crate) fn honest_jump(
+    grid: &mapdata::WalkGrid,
+    walls: &mapdata::RayTree,
+    body: Body,
+    keys: u32,
+    speed: f32,
+) -> (Vec3, f32) {
+    honest_jump_in(grid, walls, None, body, keys, speed)
+}
+
+/// [`honest_jump`] with the walk before the jump held by the capsule rule (`wall`: its sections).
+pub(crate) fn honest_jump_in(
+    grid: &mapdata::WalkGrid,
+    walls: &mapdata::RayTree,
+    wall: Option<&super::standin_capsule::Sections>,
+    mut body: Body,
+    keys: u32,
+    speed: f32,
+) -> (Vec3, f32) {
+    let start = 1_000;
+    let (clip, dir) = jump_of(keys, body.yaw, speed, true);
+    let u = press_draw(start, 0);
+    let prepare = if std::ptr::eq(clip, &SPRINT_CLIP) {
+        (SPRINT_PREPARE_MS * u, SPRINT_PREPARE_M * u)
+    } else {
+        (0.0, 0.0)
+    };
+    let base = body.feet.y;
+    // The keys of the press stay held through the jump (a player's, a bot's carry: the air control acts on them), unless the caller set
+    // the keys held in the air.
+    if body.keys == 0 {
+        body.keys = keys & !key::JUMP;
+    }
+    body.flight = Some(Flight {
+        at: start,
+        from: body.feet,
+        dir,
+        clip,
+        prepare,
+        base: None,
+        fall: None,
+        air: [0.0; 2],
+        carry: [0.0; 2],
+        arc: client_clip(keys, speed, true),
+        speed,
+    });
+    let mut top = 0.0f32;
+    for k in 1..=80 {
+        let (mut ticks, mut held) = (0, 0);
+        let wall = wall.map(|sections| JumpWall { sections, hold: true, ticks: &mut ticks, held: &mut held });
+        let landing = fly(grid, walls, wall, &mut body, 0, start + k * TICK_MS);
+        top = top.max(body.feet.y - base);
+        if let Some(landing) = landing {
+            assert_eq!(landing.to, body.feet);
+            return (body.feet, top);
+        }
+    }
+    panic!("no landing: {:?}", body.feet);
+}
+
+/// The honest stand-in's jumps against the game's: [A364] a short jump moves its direction clip x the carry of the press's speed
+/// (`jump_arc::Clip::carry`: 1/4 of the clip from a standstill with a direction key) plus the air control (1 m/s along the keys,
+/// `stand_in_air_control`) over its twelve air steps, and rises as its clip (1.0 m); in place 1.0 m up where it stood; a sprint jump at a run goes its clip's travel to the last air step (3.89 m, and the prepare phase's 0-1.64 m) and 1.28 m up;
+/// forward with sprint too slow (under the walk cap) is the short jump. The old flight (`stand_in_client_jump` off) played the clip's
+/// travel to its end.
+#[test]
+pub(crate) fn an_honest_jump_follows_the_games_clips() {
+    let triangles = ledge_triangles(0.9, mapdata::WalkerBehaviour::BySlope);
+    let grid = mapdata::WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, mapdata::Body::default());
+    let walls = mapdata::RayTree::build(&triangles);
+    let from = Vec3::new(2.0, 0.0, 5.0);
+    let body = honest_body(&grid, from);
+    use crate::v026g::bots::jump_arc::{AIR_STEPS, Clip, Direction};
+    let client = stand_in_client_jump();
+    let control = if stand_in_air_control() { AIR_STEPS as f32 * TICK_S } else { 0.0 };
+    // A short jump pressed walking at `speed` along its way: the clip's travel to the last air step x the carry, the control on top.
+    let short = |speed: f32| {
+        let clip = Clip::Short(Direction::Forward);
+        if client { clip.root(clip.air_end_frame())[1] * clip.carry(speed) + control } else { clip.root(24.0)[1] }
+    };
+    let (to, top) = honest_jump(&grid, &walls, body.clone(), key::FORWARD | key::JUMP, 0.0);
+    assert!((to.x - from.x - short(0.0)).abs() < 0.15 && to.y.abs() < 0.05, "{to:?} {}", short(0.0));
+    assert!((top - 1.0).abs() < 0.03, "{top}");
+    let (to, top) = honest_jump(&grid, &walls, body.clone(), key::JUMP, 0.0);
+    assert!(to.distance_xz(from) < 0.05 && (top - 1.0).abs() < 0.03, "{to:?} {top}");
+    let run = key::FORWARD | key::SPRINT | key::JUMP;
+    let (to, top) = honest_jump(&grid, &walls, body.clone(), run, 5.0);
+    let ahead = to.x - from.x;
+    // [T3] The client's: before the take-off the walk cap (3.5 m/s, `max_speed` 0x2DC010; skipped only under the jump flag, A328)
+    // holds the body behind the sprint clip's 5 m/s root, and with the root re-based every tick (A325g) it does not catch up: about
+    // 0.4 m short of the clip's travel. The old flight chased it back.
+    let sprint_clip = Clip::Sprint(Direction::Forward);
+    let sprint = if client { sprint_clip.root(sprint_clip.air_end_frame())[1] } else { sprint_clip.root(24.0)[1] };
+    let least = if client { sprint - 0.52 } else { 4.3 };
+    assert!((least..=sprint + 1.64 + 0.15).contains(&ahead), "{to:?} {sprint}");
+    assert!((top - 1.28).abs() < 0.03, "{top}");
+    let (to, top) = honest_jump(&grid, &walls, body.clone(), run, 3.0);
+    assert!((to.x - from.x - short(3.0)).abs() < 0.15 && (top - 1.0).abs() < 0.03, "{to:?} {top} {}", short(3.0));
+    // To the side from a standstill: that way by a quarter of its clip's travel and the air control ([A364]; the old flight took
+    // that way's whole clip travel).
+    let (to, _) = honest_jump(&grid, &walls, body, key::LEFT | key::JUMP, 0.0);
+    let left = Clip::of(key::LEFT, 0.0);
+    let side = if client { left.root(left.air_end_frame())[2].abs() * left.carry(0.0) + control } else { left.root(24.0)[2].abs() };
+    assert!(((to.z - from.z).abs() - side).abs() < 0.15 && to.distance_xz(from) < side + 0.15, "{to:?} {side}");
+}
+
+/// The air control ([`air_control`], the client's `get_air_control_vector`): 1.0 m/s along the keys, the diagonals normalised,
+/// none with no key or with forward alone in a sprint jump (back still steers). With [`stand_in_air_control`] on, a short jump
+/// pressed forward and steered to the side in the air comes down its airborne time (0.2-0.8 s of the clip) x 1.0 m/s to that
+/// side and as far ahead; off, on its way.
+#[test]
+fn the_air_control_steers_a_jump_by_the_keys_held_in_the_air() {
+    let yaw = 0.3;
+    let forward = air_control(key::FORWARD, yaw, false);
+    assert!((forward[0].hypot(forward[1]) - AIR_CONTROL_MS).abs() < 1e-5, "{forward:?}");
+    assert_eq!(air_control(key::FORWARD, yaw, true), [0.0, 0.0]);
+    assert_eq!(air_control(key::FORWARD | key::BACK, yaw, false), [0.0, 0.0]);
+    let back = air_control(key::BACK, yaw, true);
+    assert!((back[0] + forward[0]).abs() < 1e-5 && (back[1] + forward[1]).abs() < 1e-5, "{back:?}");
+    let diagonal = air_control(key::FORWARD | key::LEFT, yaw, true);
+    assert!((diagonal[0].hypot(diagonal[1]) - AIR_CONTROL_MS).abs() < 1e-5, "{diagonal:?}");
+
+    let triangles = ledge_triangles(0.9, mapdata::WalkerBehaviour::BySlope);
+    let grid = mapdata::WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, mapdata::Body::default());
+    let walls = mapdata::RayTree::build(&triangles);
+    let from = Vec3::new(2.0, 0.0, 5.0);
+    let mut body = honest_body(&grid, from);
+    body.keys = key::LEFT;
+    let land = |on| {
+        force_air_control(Some(on));
+        let (to, _) = honest_jump(&grid, &walls, body.clone(), key::FORWARD | key::JUMP, 0.0);
+        force_air_control(None);
+        to
+    };
+    let (off, on) = (land(false), land(true));
+    assert!((off.z - from.z).abs() < 0.05, "{off:?}");
+    let aside = (on.z - from.z).abs();
+    assert!((0.5..0.8).contains(&aside) && (on.x - off.x).abs() < 0.05, "{on:?} {off:?}");
+}
+
+/// From a standstill at its face, a forward jump gets up a 0.9 m ledge
+/// (held by the face, it rises with the clip and goes on once its feet are
+/// over the edge); not up a 1.2 m one, which the sprint jump at a run
+/// makes; never up one a press with no movement key meets.
+#[test]
+pub(crate) fn an_honest_jump_gets_up_what_its_clip_clears() {
+    for (rise, standing, sprint) in [(0.9, true, true), (1.2, false, true), (1.45, false, false)] {
+        let triangles = ledge_triangles(rise, mapdata::WalkerBehaviour::BySlope);
+        let grid = mapdata::WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, mapdata::Body::default());
+        let walls = mapdata::RayTree::build(&triangles);
+        let at_face = honest_body(&grid, Vec3::new(9.5, 0.0, 5.0));
+        let (to, _) = honest_jump(&grid, &walls, at_face.clone(), key::FORWARD | key::JUMP, 0.0);
+        assert_eq!((to.y - rise).abs() < 0.05, standing, "{rise}: {to:?}");
+        assert!(standing || (to.y.abs() < 0.05 && to.x < 10.0), "{rise}: {to:?}");
+        let run_up = honest_body(&grid, Vec3::new(7.5, 0.0, 5.0));
+        let keys = key::FORWARD | key::SPRINT | key::JUMP;
+        let (to, _) = honest_jump(&grid, &walls, run_up, keys, 5.0);
+        assert_eq!((to.y - rise).abs() < 0.05, sprint, "{rise} sprint: {to:?}");
+        let (to, _) = honest_jump(&grid, &walls, at_face, key::JUMP, 0.0);
+        assert!(to.y.abs() < 0.05, "{rise} in place: {to:?}");
+    }
+}
+
+/// A jump off a ledge's edge comes down on the floor below (it falls
+/// after its clip). [A364 P6] Pressed walking: a short jump goes as the press's walk.
+#[test]
+pub(crate) fn an_honest_jump_off_an_edge_falls_to_the_floor_below() {
+    let triangles = ledge_triangles(3.0, mapdata::WalkerBehaviour::BySlope);
+    let grid = mapdata::WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, mapdata::Body::default());
+    let walls = mapdata::RayTree::build(&triangles);
+    let mut body = honest_body(&grid, Vec3::new(10.6, 3.0, 5.0));
+    body.yaw = std::f32::consts::FRAC_PI_2;
+    let (to, _) = honest_jump(&grid, &walls, body, key::FORWARD | key::JUMP, 3.5);
+    assert!(to.y.abs() < 0.05 && to.x < 9.0, "{to:?}");
+}
+
+/// The client's fall damage by landing speed (`docs/notes/fall_damage.md`, `fatal_damage` 1.0): none up to 9.9 m/s, linear to 14 m/s, 1 beyond; a
+/// fall of 8 m (v = 12.5 m/s) is about 0.64 and kills from full health (0.6), one of 5 m (9.9 m/s) hurts no one.
+#[test]
+pub(crate) fn the_fall_damage_follows_the_clients_rule_by_landing_speed() {
+    assert_eq!(fall_damage(0.0), 0.0);
+    assert!(fall_damage(9.89) == 0.0);
+    assert!((fall_damage(10.8) - 0.22).abs() < 0.01, "{}", fall_damage(10.8));
+    let eight_m = (2.0f32 * 9.8 * 8.0).sqrt();
+    assert!((fall_damage(eight_m) - 0.64).abs() < 0.02, "{}", fall_damage(eight_m));
+    assert!(fall_damage(eight_m) >= LETHAL_FALL_DAMAGE);
+    assert_eq!(fall_damage(14.0), 1.0);
+    assert_eq!(fall_damage(30.0), 1.0);
+}
+
+/// The honest walk steps up to the grid body's step (0.6 m on this test's default body, the exe's `s_step_height`), and not up the grid's
+/// "forced" stair links of up to 0.75 m (`walk` faces) that the old
+/// walk took.
+#[test]
+pub(crate) fn the_honest_walk_steps_no_higher_than_the_client() {
+    let walk_east = |grid: &mapdata::WalkGrid, capped: bool| {
+        let mut node = grid.locate(Vec3::new(8.0, 0.0, 5.0), 0.5).unwrap();
+        let mut feet = grid.position(node);
+        for _ in 0..40 {
+            let to = feet + Vec3::new(0.2, 0.0, 0.0);
+            (node, feet, _) = if capped {
+                slide_capped(grid, node, feet, to, grid.body().step)
+            } else {
+                slide(grid, node, feet, to)
+            };
+        }
+        feet
+    };
+    let forced = |rise: f32| {
+        let triangles = ledge_triangles(rise, mapdata::WalkerBehaviour::Walk);
+        let mut triangles = triangles;
+        // The floor before the step forced too: the grid's stair rule
+        // links two forced floors.
+        for t in triangles.iter_mut().take(2) {
+            t.walker = mapdata::WalkerBehaviour::Walk;
+        }
+        mapdata::WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, mapdata::Body::default())
+    };
+    let low = forced(0.5);
+    assert!((walk_east(&low, true).y - 0.5).abs() < 0.05);
+    let high = forced(0.7);
+    let old = walk_east(&high, false);
+    assert!((old.y - 0.7).abs() < 0.05, "the grid links a 0.7 m forced step: {old:?}");
+    let honest = walk_east(&high, true);
+    assert!(honest.y.abs() < 0.05 && honest.x < 10.0, "{honest:?}");
+}
+
+/// Two blocks (z 0-10) with tops `a` and `b` high, the gap between them
+/// from x 6 to `6 + gap`, over ground at `ground`: the triangles.
+pub(crate) fn gap_triangles(a: f32, b: f32, gap: f32, ground: f32) -> Vec<mapdata::Triangle> {
+    let walker = mapdata::WalkerBehaviour::BySlope;
+    let quad = |p: [Vec3; 4]| {
+        [
+            mapdata::Triangle { v: [p[0], p[1], p[2]], walker },
+            mapdata::Triangle { v: [p[0], p[2], p[3]], walker },
+        ]
+    };
+    let top = |x0: f32, x1: f32, y: f32| {
+        quad([
+            Vec3::new(x0, y, 0.0),
+            Vec3::new(x1, y, 0.0),
+            Vec3::new(x1, y, 10.0),
+            Vec3::new(x0, y, 10.0),
+        ])
+    };
+    let face = |x: f32, y0: f32, y1: f32| {
+        quad([
+            Vec3::new(x, y0, 0.0),
+            Vec3::new(x, y0, 10.0),
+            Vec3::new(x, y1, 10.0),
+            Vec3::new(x, y1, 0.0),
+        ])
+    };
+    let mut t = top(0.0, 14.0, ground).to_vec();
+    t.extend(top(0.0, 6.0, a));
+    t.extend(face(6.0, ground, a));
+    t.extend(top(6.0 + gap, 14.0, b));
+    t.extend(face(6.0 + gap, ground, b));
+    t
+}
+
+/// The grid's gap links (`mapdata::grid::gap`) east across a gap are
+/// made by the honest stand-in's jump: walking at the walk cap, pressed
+/// at the link's own point (and the spread earlier or later), with
+/// forward held, it comes down on the link's landing level.
+#[test]
+pub(crate) fn the_grids_gap_links_are_made_by_the_honest_jump() {
+    use mapdata::grid::gap::GAP_PRESS_SPREAD_M;
+    for (a, b, gap, ground) in [(2.0, 2.0, 1.0, 0.0), (2.0, 2.6, 0.75, 0.0), (2.0, 0.5, 1.5, -3.0)] {
+        let mut triangles = gap_triangles(a, b, gap, ground);
+        let mut area = [0.0, 0.0, 14.0, 10.0];
+        if b < a - 0.5 {
+            // A drop is a link only with a way back up (a one-way drop would keep the yard as reached), and a long
+            // one, or the links save no walk round: out of the near top north, 20 m on, east, and down a 45 degree
+            // ramp onto the far block's north edge.
+            let walker = mapdata::WalkerBehaviour::BySlope;
+            let plate = |p: [Vec3; 4]| {
+                [
+                    mapdata::Triangle { v: [p[0], p[1], p[2]], walker },
+                    mapdata::Triangle { v: [p[0], p[2], p[3]], walker },
+                ]
+            };
+            let flat = |x0: f32, z0: f32, x1: f32, z1: f32| {
+                plate([Vec3::new(x0, a, z0), Vec3::new(x1, a, z0), Vec3::new(x1, a, z1), Vec3::new(x0, a, z1)])
+            };
+            triangles.extend(flat(1.0, 10.0, 3.0, 30.0));
+            triangles.extend(flat(1.0, 28.0, 13.0, 30.0));
+            triangles.extend(flat(11.0, 11.5, 13.0, 30.0));
+            triangles.extend(plate([
+                Vec3::new(11.0, b, 10.0),
+                Vec3::new(13.0, b, 10.0),
+                Vec3::new(13.0, a, 11.5),
+                Vec3::new(11.0, a, 11.5),
+            ]));
+            area = [0.0, 0.0, 14.0, 32.0];
+        }
+        let grid = mapdata::WalkGrid::build_with_links(
+            &triangles,
+            area,
+            0.25,
+            mapdata::Body::default(),
+            mapdata::OffMeshLinks::Gaps,
+        );
+        let walls = mapdata::RayTree::build(&triangles);
+        let east: Vec<_> = grid
+            .off_links()
+            .iter()
+            .filter(|l| {
+                let (p, q) = (grid.position(l.from), grid.position(l.to));
+                p.x < 6.0 && (q.z - p.z).abs() < 0.01 && (3.0..7.0).contains(&p.z)
+            })
+            .copied()
+            .collect();
+        assert!(!east.is_empty(), "{a} {b} {gap}: no gap link east");
+        for l in east {
+            let (from, to) = (grid.position(l.from), grid.position(l.to));
+            // A walk-off has no press to fly (its own test: `gap.rs`).
+            let mapdata::grid::gap::Takeoff::Press(press) = l.press else {
+                continue;
+            };
+            let press = press.metres();
+            for lead in [press - GAP_PRESS_SPREAD_M, press, press + GAP_PRESS_SPREAD_M] {
+                let body = honest_body(&grid, Vec3::new(from.x - lead, from.y, from.z));
+                let (down, _) = honest_jump(&grid, &walls, body, key::FORWARD | key::JUMP, WALK_CAP);
+                assert!((down.y - to.y).abs() < 0.1, "{a} {b} {gap} lead {lead}: {from:?} -> {to:?} came down at {down:?}");
+            }
+        }
+    }
+}
+
+/// [`stand_in_walk_off`]'s fall: a body that leaves a 2 m top's edge at a walk (3.5 m/s) keeps it across while it falls and comes down
+/// on a walkway 1.1 m lower that starts 0.9 m out (J0 g2a's bridge: the walk-off lands on it); with no speed kept it comes down at the
+/// foot of the face, on the ground.
+#[test]
+fn a_walk_off_falls_on_at_its_walk_speed() {
+    use super::body::tests::{floor, wall_x};
+    let mut triangles: Vec<mapdata::Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+    triangles.extend(floor(10.0, 0.0, 20.0, 10.0, 2.0));
+    triangles.extend(wall_x(10.0, 0.0, 10.0).map(|mut t| {
+        t.v.iter_mut().for_each(|v| v.y = v.y.min(2.0));
+        t
+    }));
+    triangles.extend(floor(6.0, 0.0, 8.6, 10.0, 0.9));
+    let grid = mapdata::WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, mapdata::Body::default());
+    let walls = mapdata::RayTree::build(&triangles);
+    let fall = |carry: [f32; 2]| {
+        let mut body = honest_body(&grid, Vec3::new(10.2, 2.0, 5.0));
+        // Past the top's floors by more than the body's radius: it is falling.
+        body.feet = Vec3::new(9.5, 2.0, 5.0);
+        body.flight = Some(Flight {
+            at: 1_000,
+            from: body.feet,
+            dir: [0.0, 0.0],
+            clip: &SHORT_CLIP,
+            prepare: (0.0, 0.0),
+            base: Some(2.0),
+            fall: Some(0.0),
+            air: [0.0; 2],
+            carry,
+            arc: None,
+            speed: 0.0,
+        });
+        (1..=100).find_map(|k| fly(&grid, &walls, None, &mut body, 0, 1_000 + k * TICK_MS)).map(|landing| landing.to)
+    };
+    let carried = fall([-3.5, 0.0]).expect("it comes down");
+    assert!((carried.y - 0.9).abs() < 0.05 && carried.x < 8.6, "kept its walk: on the walkway: {carried:?}");
+    let straight = fall([0.0, 0.0]).expect("it comes down");
+    assert!(straight.y.abs() < 0.05, "no speed kept: on the ground: {straight:?}");
+}
+
+/// [`past_edge`]: a body past the top's last floor at a ledge walks on while that floor is within [`body::SUPPORT_M`] of where it
+/// steps, and comes down on the floor below once it is not, with no drop link asked; at the foot of the face (a wall) nothing changes.
+#[test]
+fn a_body_past_a_ledges_edge_walks_on_within_the_support_and_falls_past_it() {
+    use super::body::tests::{floor, wall_x};
+    // The ground at 0, a top 2 m high from x 10 on, its face at x 10.
+    let mut triangles: Vec<mapdata::Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+    triangles.extend(floor(10.0, 0.0, 20.0, 10.0, 2.0));
+    triangles.extend(wall_x(10.0, 0.0, 10.0).map(|mut t| {
+        t.v.iter_mut().for_each(|v| v.y = v.y.min(2.0));
+        t
+    }));
+    let grid = mapdata::WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, mapdata::Body::default());
+    let walls = mapdata::RayTree::build(&triangles);
+    // The top's last floor toward the face along z 5.
+    let last = (0..grid.len() as NodeId)
+        .filter(|&n| grid.position(n).y > 1.9 && (grid.position(n).z - 5.0).abs() < 0.2)
+        .min_by(|&a, &b| grid.position(a).x.total_cmp(&grid.position(b).x))
+        .unwrap();
+    let edge = grid.position(last);
+    let feet = Vec3::new(edge.x - 0.3, edge.y, edge.z);
+    let on = past_edge(&grid, &walls, last, feet, Vec3::new(edge.x - 0.4, edge.y, edge.z));
+    assert!(on.is_some_and(|(n, f)| n == last && (f.y - edge.y).abs() < 1e-3), "within the support it walks on: {on:?}");
+    let down = past_edge(&grid, &walls, last, feet, Vec3::new(edge.x - 0.6, edge.y, edge.z));
+    assert!(down.is_some_and(|(_, f)| f.y < 0.5), "past the support it comes down: {down:?}");
+    // At the face's foot, walking into it: the wall stops it.
+    let foot = (0..grid.len() as NodeId)
+        .filter(|&n| grid.position(n).y < 0.1 && (grid.position(n).z - 5.0).abs() < 0.2 && grid.position(n).x < 10.0)
+        .max_by(|&a, &b| grid.position(a).x.total_cmp(&grid.position(b).x))
+        .unwrap();
+    let at = grid.position(foot);
+    assert_eq!(past_edge(&grid, &walls, foot, at, at + Vec3::new(0.2, 0.0, 0.0)), None);
+}

@@ -276,6 +276,18 @@ pub struct Supplies {
     pub inventory_read: bool,
     /// By profile item, in the static info's order.
     pub items: Vec<ItemLeft>,
+    /// [A334] The kit slot whose weapon is in hands: `inventory::serialize`'s `m_active_slot` (inventory+0x170), 2 bytes before the
+    /// first slot item's record (fx-review A334b from the exe's write order; PROVEN on live worlds, A334c: 7 in 7,575 blocks, 10 in
+    /// 646, swaps 46). Set at the
+    /// selection (0x2FCB18), so in a swap it already names the new slot. `None` unless the inventory was read and the byte names a
+    /// slot of the kit in use that holds a weapon.
+    pub hands_slot: Option<u8>,
+    /// [A334] The client's own carried weight `w` (`m_carried_weight`), kg, read before the artefact slots when nothing is carried
+    /// (PROVEN, fx-review A334c: equal to `bot_skills`' kit weight, median 0.000, 94-95 % within 1.5 kg). `None` otherwise.
+    pub carried_weight: Option<f32>,
+    /// [A334] Whether the player carries an item (a battery): no layout without a carried object fits before the first record while
+    /// a weapon slot is in hands (fx-review A334c: 0 of 420 such blocks sprint). `None` when that cannot be told.
+    pub carrying: Option<bool>,
 }
 
 impl Supplies {
@@ -303,6 +315,8 @@ impl Supplies {
             })
             .collect();
         let mut inventory_read = false;
+        // [A334] The first slot item's record: the inventory's own fields just before it.
+        let mut first: Option<usize> = None;
         let kit = profile.kits.get(usize::from(head.current_index));
         if let Some(kit) = kit {
             let state = block.state;
@@ -337,6 +351,7 @@ impl Supplies {
                     continue;
                 };
                 inventory_read = true;
+                first.get_or_insert(start);
                 at = start + value + 3;
                 item.slot = Some(slot as u8);
                 if item.stack {
@@ -374,11 +389,44 @@ impl Supplies {
                 }
             }
         }
+        let state = block.state;
+        let byte = |back: usize| first.and_then(|at| at.checked_sub(back)).and_then(|at| state.get(at).copied());
+        let hands_slot = byte(2).filter(|&slot| {
+            kit.and_then(|kit| kit.slots.get(usize::from(slot)).copied().flatten())
+                .and_then(|(index, _)| profile.items.get(usize::from(index)))
+                .is_some_and(|item| item_params(item.dict_id).is_some_and(|params| params.kind.starts_with("wpn")))
+        });
+        // [A334c] Back from the first record: grenade slot (-1), active slot (-2), then the artefact slots (k, each a byte and a
+        // begin byte when k > 0), k, the carried object's id (0xFF none), the weight's recalculation flag (0 or 0xFF) and `w`. A
+        // layout fits for one k in 0..=8 with nothing carried; none fitting with a weapon slot in hands is a carrier; none fitting
+        // otherwise is a first record read wrong (fx-review A334c on 8,438 live blocks: the fitting ones sprint 37 %, the carriers
+        // 0 of 420).
+        let weight_at = |back: usize| {
+            first
+                .and_then(|at| at.checked_sub(back))
+                .and_then(|at| state.get(at..at + 4))
+                .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+                .filter(|w| w.is_finite() && (0.0..200.0).contains(w))
+        };
+        let fitted = (0u8..=8).find_map(|k| {
+            let n = 2 + if k > 0 { usize::from(k) + 1 } else { 0 };
+            (byte(n + 1) == Some(k) && byte(n + 2) == Some(0xFF) && matches!(byte(n + 3), Some(0 | 0xFF)))
+                .then(|| weight_at(n + 7))
+                .flatten()
+        });
+        let (carrying, carried_weight) = match (fitted, byte(2)) {
+            (Some(w), _) => (Some(false), Some(w)),
+            (None, Some(7 | 10)) => (Some(true), None),
+            (None, _) => (None, None),
+        };
         Some(Self {
             alive: head.alive,
             kit: head.current_index,
             inventory_read,
             items,
+            hands_slot,
+            carried_weight,
+            carrying,
         })
     }
 
@@ -728,6 +776,49 @@ mod tests {
         assert_eq!(PlayerState::read(&wrong, 3), None);
     }
 
+    /// [A334] The inventory's own fields before the first slot item's record: the active slot 2 bytes before it, the carried
+    /// object's id 4 before (0xFF none), the artefacts 3 before, and the carried weight 9 before when neither is held.
+    #[test]
+    fn the_hands_slot_the_carrier_and_the_carried_weight_are_read() {
+        let dictionary = Dictionary::shared();
+        let mut inventory = inventory();
+        inventory[40 - 2] = 7;
+        inventory[40 - 4] = 0xFF;
+        inventory[40 - 3] = 0;
+        inventory[40 - 5] = 0; // the recalculation flag
+        inventory[40 - 9..40 - 5].copy_from_slice(&23.5f32.to_le_bytes());
+        let state = state_bytes(&head(true), &inventory);
+        let block = PlayerBlock { place: 4, state: &state, animation: None };
+        let supplies = Supplies::read(&block, &profile(), dictionary).unwrap();
+        assert_eq!(supplies.hands_slot, Some(7), "the weapon in slot 7");
+        assert_eq!(supplies.carrying, Some(false));
+        assert_eq!(supplies.carried_weight, Some(23.5));
+        // One artefact slot (k 1: its byte, its begin byte): the carried id and the weight sit two bytes further back.
+        let mut art = inventory.clone();
+        art[40 - 3] = 0xFF; // the artefact
+        art[40 - 4] = 15; // its begin
+        art[40 - 5] = 1; // k
+        art[40 - 6] = 0xFF; // nothing carried
+        art[40 - 7] = 0; // the recalculation flag
+        art[40 - 11..40 - 7].copy_from_slice(&31.25f32.to_le_bytes());
+        let state = state_bytes(&head(true), &art);
+        let block = PlayerBlock { place: 4, state: &state, animation: None };
+        let supplies = Supplies::read(&block, &profile(), dictionary).unwrap();
+        assert_eq!((supplies.hands_slot, supplies.carrying, supplies.carried_weight), (Some(7), Some(false), Some(31.25)));
+        // A carried item: no layout fits; with a weapon in hands, carrying.
+        inventory[40 - 4] = 3;
+        let state = state_bytes(&head(true), &inventory);
+        let block = PlayerBlock { place: 4, state: &state, animation: None };
+        let supplies = Supplies::read(&block, &profile(), dictionary).unwrap();
+        assert_eq!((supplies.hands_slot, supplies.carrying, supplies.carried_weight), (Some(7), Some(true), None));
+        // Neither fitting nor a weapon slot in hands: not told.
+        inventory[40 - 2] = 8;
+        let state = state_bytes(&head(true), &inventory);
+        let block = PlayerBlock { place: 4, state: &state, animation: None };
+        let supplies = Supplies::read(&block, &profile(), dictionary).unwrap();
+        assert_eq!((supplies.hands_slot, supplies.carrying, supplies.carried_weight), (None, None, None));
+    }
+
     #[test]
     fn what_a_player_has_left_is_its_store_its_slots_and_its_magazine() {
         let dictionary = Dictionary::shared();
@@ -887,5 +978,148 @@ mod tests {
         let supplies = Supplies::read(&block, &profile(), dictionary).unwrap();
         assert_eq!(supplies.items[1].in_hand, Some(60));
         assert_eq!(supplies.items[0].magazine, None);
+    }
+}
+
+/// The client patch revision from which a state ends with client patch 78's
+/// carry snapshot (`motion`'s `native_state`).
+pub const CARRY_REVISION: u16 = 38;
+/// The client patch revision from which a state has client patch 85's pickup
+/// record after the two kit indices: version 4 (48 bytes) in revision 41.
+pub const PICKUP_REVISION: u16 = 41;
+/// The client patch revision from which the pickup record is today's
+/// (`weapon_pickup::Record`, version 8, 29 bytes).
+pub const PICKUP_V8_REVISION: u16 = 42;
+/// The bytes of revision 41's pickup record (version 4: 20 bytes and two
+/// parked kits of 2 + 3 x 4).
+const PICKUP_V4_BYTES: usize = 48;
+
+/// A state that a client of patch revision `revision` wrote, in the layout
+/// this server reads ([`PlayerState::read`], `Motion::read`): for recordings,
+/// saved worlds and fixtures made before (A218, the owner's of 2026-11-01:
+/// read them too).
+/// - Before revision 41 the state has no pickup record: the empty one goes
+///   after the two kit indices.
+/// - Revision 41's record (version 4) is replaced by the empty one: its
+///   picks are not read.
+/// - Before revision 38 there is no carry snapshot either: a new carry's
+///   goes at the end.
+///
+/// From revision 42 on the state is as it is. `None`: a state too short for
+/// its kit indices, or for revision 41's record.
+pub fn state_at_revision(state: &[u8], revision: u16) -> Option<std::borrow::Cow<'_, [u8]>> {
+    use artefact_carry::carry::Carry;
+    use std::borrow::Cow;
+    if revision >= PICKUP_V8_REVISION {
+        return Some(Cow::Borrowed(state));
+    }
+    let skip = if revision >= PICKUP_REVISION { PICKUP_V4_BYTES } else { 0 };
+    let rest = state.get(2 + skip..)?;
+    let mut out = Vec::with_capacity(state.len() + weapon_pickup::Record::BYTES + Carry::SNAPSHOT_SIZE);
+    out.extend_from_slice(&state[..2]);
+    out.extend(weapon_pickup::Record::EMPTY.encode());
+    out.extend_from_slice(rest);
+    if revision < CARRY_REVISION {
+        out.extend(Carry::NEW.snapshot());
+    }
+    Some(Cow::Owned(out))
+}
+
+#[cfg(test)]
+mod revision_tests {
+    use super::super::motion::Motion;
+    use super::*;
+
+    fn today() -> Vec<u8> {
+        let head = PlayerState {
+            current_index: 1,
+            target_index: 1,
+            pickup: weapon_pickup::Record::EMPTY,
+            items: vec![990_000, 180, 4],
+            alive: true,
+            has_to_die: false,
+            look_pitch: 0.25,
+            rotation_y: -2.0,
+            actions_mask: 0xa,
+            effects: 0,
+        };
+        state_bytes(&head, &[0xA5; 40])
+    }
+
+    #[test]
+    fn a_state_of_revision_42_or_later_is_read_as_it_is() {
+        let state = today();
+        for revision in [42, 48, 60] {
+            assert_eq!(state_at_revision(&state, revision).unwrap().as_ref(), &state[..]);
+        }
+    }
+
+    #[test]
+    fn a_state_before_revision_41_gets_the_empty_pickup_record() {
+        let state = today();
+        let mut old = state[..2].to_vec();
+        old.extend_from_slice(&state[FIELDS_AT..]);
+        for revision in [38, 40] {
+            let now = state_at_revision(&old, revision).unwrap();
+            assert_eq!(now.as_ref(), &state[..], "{revision}");
+            assert_eq!(PlayerState::read(&now, 3).unwrap().items, vec![990_000, 180, 4]);
+        }
+        assert_eq!(PlayerState::read(&old, 3), None, "main's reader refuses it as it is");
+    }
+
+    #[test]
+    fn revision_41s_record_is_replaced_by_the_empty_one() {
+        let state = today();
+        let mut old = state[..2].to_vec();
+        let mut v4 = [0u8; PICKUP_V4_BYTES];
+        v4[0] = 4;
+        old.extend_from_slice(&v4);
+        old.extend_from_slice(&state[FIELDS_AT..]);
+        assert_eq!(state_at_revision(&old, 41).unwrap().as_ref(), &state[..]);
+        assert_eq!(state_at_revision(&[1, 1, 4], 41), None, "too short for its record");
+    }
+
+    #[test]
+    fn a_state_before_revision_38_gets_a_carry_snapshot_too() {
+        use artefact_carry::carry::Carry;
+        let state = today();
+        let mut old = state[..2].to_vec();
+        old.extend_from_slice(&state[FIELDS_AT..]);
+        let now = state_at_revision(&old, 34).unwrap();
+        assert_eq!(&now[..state.len()], &state[..]);
+        assert_eq!(&now[state.len()..], &Carry::NEW.snapshot()[..]);
+    }
+
+    /// A world a live client uploaded with client patch 78 (rev 38): School,
+    /// day 4, match 4758f64b at 203,850 ms, 20 places, 1 human and 19 server
+    /// bots, all alive (A154, e28746ead). Read through [`state_at_revision`],
+    /// every body of it reads under today's layout, as it did then.
+    #[test]
+    fn every_body_of_a_live_rev_38_world_reads_at_its_revision() {
+        const WORLD: &[u8] =
+            include_bytes!("../../../../../resources/worlds-026g/school_rev38_4758f64b_203850.bin");
+        const TIME_MS: u32 = 203_850;
+        let (blocks, _) = walk(WORLD).expect("the world's player blocks");
+        assert_eq!(blocks.len(), 20);
+        let bodies: Vec<(u8, Motion)> = blocks
+            .iter()
+            .filter_map(|block| {
+                let state = state_at_revision(block.state, 38)?;
+                Motion::find(&state, TIME_MS).map(|(_, motion)| (block.place, motion))
+            })
+            .filter(|(_, motion)| motion.body.is_some())
+            .collect();
+        assert!(bodies.len() * 100 >= blocks.len() * 99, "{} of {} blocks read with a body", bodies.len(), blocks.len());
+        // Without it, today's reader finds none.
+        assert!(blocks.iter().all(|block| Motion::find(block.state, TIME_MS).is_none()));
+        // Place 1, as the recording and the snapshot table read it: feet
+        // (48.022, 15.606, 117.538), yaw -2.1051, keys 0xa.
+        let (_, one) = bodies.iter().find(|(place, _)| *place == 1).expect("place 1");
+        let feet = one.body.as_ref().unwrap().feet();
+        assert!(
+            (feet[0] - 48.022).abs() < 0.01 && (feet[1] - 15.606).abs() < 0.01 && (feet[2] - 117.538).abs() < 0.01,
+            "{feet:?}"
+        );
+        assert!((one.rotation_y + 2.1051).abs() < 1e-3 && one.actions_mask == 0xa && one.alive);
     }
 }

@@ -1,0 +1,8 @@
+owner-test world stamina: lockouts 0 (0.0 s low, sprint keys held through 0.0 s), sprint keys held by a body that could not sprint 0.0 s, jumps refused for the bar 0
+{
+  "stamina_jump_low": 0,
+  "stamina_lockout_held_s": 0.0,
+  "stamina_lockouts": 0,
+  "stamina_low_s": 0.0,
+  "stamina_sprint_refused_s": 0.0
+}

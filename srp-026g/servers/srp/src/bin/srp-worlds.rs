@@ -10,13 +10,16 @@
 //!
 //! - `positions.csv`: every player block: alive, position in the map's
 //!   frame, facing, keys, crouch and sprint, speed, health, recent hits;
-//! - `statistics.csv`: each roster place's event totals;
+//! - `statistics.csv`: each roster place's event totals and its score by
+//!   the scoreboard's weights of modes 2-4 (`static_info::SCORE_WEIGHTS`);
 //! - `batteries.csv`: each battery's owner team, finder, the distances
 //!   the statistics keep, and how far each player has carried it;
 //! - `hits.csv`: for each match, each pair of places where one hit the
 //!   other (a receiver's damage from an inflictor, or an inflictor's last
 //!   hit time on a receiver), with the number of worlds that show it: who
-//!   fought whom, so the two sides. The damage is kept for a life only.
+//!   fought whom, so the two sides. The damage is kept for a life only;
+//! - `shapes.csv`: each match's roster places and battery count (none in
+//!   Team Deathmatch).
 //!
 //! The roster size and the battery count are not in the file names: the
 //! ones whose statistics fill their section exactly are taken.
@@ -30,7 +33,8 @@ use std::process::ExitCode;
 use survarium::v026g::match_msgs::MAX_PLAYERS;
 use survarium::v026g::match_msgs::motion::Motion;
 use survarium::v026g::match_msgs::players;
-use survarium::v026g::match_msgs::snapshot::{Sections, Statistics, event};
+use survarium::v026g::match_msgs::snapshot::{self, Sections, Statistics, event};
+use survarium::v026g::match_msgs::static_info::SCORE_WEIGHTS;
 
 /// What a file's name says.
 struct Saved {
@@ -118,7 +122,7 @@ fn run(dir: &Path, out: &Path) -> std::io::Result<()> {
     for (name, _) in EVENTS {
         write!(statistics, ",{name}")?;
     }
-    writeln!(statistics)?;
+    writeln!(statistics, ",score")?;
     let mut batteries = BufWriter::new(File::create(out.join("batteries.csv"))?);
     writeln!(
         batteries,
@@ -127,6 +131,8 @@ fn run(dir: &Path, out: &Path) -> std::io::Result<()> {
 
     let mut hits = BufWriter::new(File::create(out.join("hits.csv"))?);
     writeln!(hits, "match,inflictor,receiver,worlds")?;
+    let mut shapes = BufWriter::new(File::create(out.join("shapes.csv"))?);
+    writeln!(shapes, "match,places,batteries")?;
 
     let (mut worlds, mut unread, mut players_read, mut players_unread) = (0, 0, 0, 0);
     for (id, saved) in &matches {
@@ -182,7 +188,7 @@ fn run(dir: &Path, out: &Path) -> std::io::Result<()> {
                 for (_, number) in EVENTS {
                     write!(statistics, ",{}", player.total(number))?;
                 }
-                writeln!(statistics)?;
+                writeln!(statistics, ",{}", snapshot::score(player, &SCORE_WEIGHTS))?;
             }
             for (index, battery) in decoded.victory_items.iter().enumerate() {
                 // Each carrier's distance over the kits: `place:metres` with `;`.
@@ -223,8 +229,12 @@ fn run(dir: &Path, out: &Path) -> std::io::Result<()> {
         for ((inflictor, receiver), count) in pairs {
             writeln!(hits, "{id},{inflictor},{receiver},{count}")?;
         }
+        if let Some((places, batteries)) = shape {
+            writeln!(shapes, "{id},{places},{batteries}")?;
+        }
     }
     hits.flush()?;
+    shapes.flush()?;
     positions.flush()?;
     statistics.flush()?;
     batteries.flush()?;

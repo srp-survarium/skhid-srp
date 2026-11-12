@@ -6,21 +6,19 @@
 use session::v026g::account::KitSlot;
 use session::v026g::{matchmaking, quests};
 use survarium::v026g::item_params::item_params;
+use survarium::v026g::loadouts::{BotRole, BotTier, RusherKit, RusherKits, bot_of};
 use survarium::v026g::lobby::{PVB_CHOOSE_BASE, PVB_STATUS_START, pvb_choice_start};
 use survarium::v026g::match_msgs::late_join::FIRST_REVISION;
 
 use super::*;
 use crate::v026g::pvb::{self, Config, MAPS, PLAY_REFUSED};
 
-/// A lobby with the mode on, at most `max_matches` matches against bots,
-/// equipment level 5 at most (the default before 2026-10-26, which the
-/// refusals below are told by).
+/// A lobby with the mode on, at most `max_matches` matches against bots.
 fn world_with(max_matches: usize) -> World {
     let mut settings = Settings::local("127.0.0.1:0");
     settings.pvb = Config {
         enabled: true,
         max_matches,
-        max_gear: 5,
         ..Config::default()
     };
     World::with_settings(settings)
@@ -110,7 +108,7 @@ fn gear_5_gets_an_8_v_8_with_15_bots_on_the_map_chosen() {
     let alice = world.connect("Alice");
     with_gear(&mut world, alice, 5);
     let (header, maps) = status(&mut world, alice);
-    assert_eq!(header, "B1;0;5;5;6.8.10;8;61;0;5");
+    assert_eq!(header, "B1;0;5;15;6.8.10;8;61;0;5");
     // The owner's maps, each free for five matches.
     let listed: Vec<u8> = maps
         .iter()
@@ -160,7 +158,7 @@ fn gear_5_gets_an_8_v_8_with_15_bots_on_the_map_chosen() {
     assert!(world.core.rooms.of(world.ids[alice].0).is_none());
     // It is one of the five now.
     let (header, maps) = status(&mut world, alice);
-    assert_eq!(header, "B1;4;5;5;6.8.10;8;61;1;5");
+    assert_eq!(header, "B1;4;5;15;6.8.10;8;61;1;5");
     assert!(maps.iter().all(|row| row.ends_with(";4")), "{maps:?}");
     world.assert_clean();
 }
@@ -192,11 +190,177 @@ fn every_size_has_its_bots_on_both_sides() {
     }
 }
 
-/// Equipment level 6 is over the most (5): refused with code 1 and both
-/// levels, in the status and the choice; the Play then goes into a room.
-#[test]
-fn gear_6_is_refused_with_code_1_and_its_level() {
+/// The bots' equipment level of a match against bots made for a player
+/// of equipment level `gear`: the highest `match_making_level` of each
+/// bot's first kit.
+fn bots_gear(gear: u8) -> (Vec<u8>, Vec<BotTier>) {
     let mut world = world_with(5);
+    let player = world.connect("Alice");
+    with_gear(&mut world, player, gear);
+    let (header, _) = status(&mut world, player);
+    assert!(header.starts_with(&format!("B1;0;{gear};15;")), "{header}");
+    let (ticket, _) = play_vs_bots(&mut world, player, 6, 61);
+    let made = world.host.made.locked();
+    let (_, setup) = made.iter().find(|(id, _)| *id == ticket).unwrap();
+    let bots: Vec<_> = setup
+        .players
+        .iter()
+        .filter(|player| player.driven)
+        .collect();
+    assert_eq!(bots.len(), 11);
+    let levels = bots
+        .iter()
+        .map(|bot| {
+            let kit = &bot.profile.kits[0];
+            kit.slots
+                .iter()
+                .flatten()
+                .map(|&(index, _)| {
+                    let item = &bot.profile.items[usize::from(index)];
+                    item_params(item.dict_id).unwrap().match_making_level
+                })
+                .max()
+                .unwrap()
+        })
+        .collect();
+    let tiers = bots
+        .iter()
+        .map(|bot| bot_of(&bot.profile).expect("a bot of a tier").0)
+        .collect();
+    (levels, tiers)
+}
+
+/// The weapon in slot 7 of the first kit of each rusher bot of a match
+/// against bots made for a player of equipment level `gear`, with the
+/// lobby's rusher setting `kits` (`SRP_PVB_RUSHER_KIT`).
+fn rusher_weapons(gear: u8, kits: RusherKits) -> Vec<String> {
+    let mut world = world_with(5);
+    world.core.settings.pvb.rusher_kits = kits;
+    let player = world.connect("Alice");
+    with_gear(&mut world, player, gear);
+    let (ticket, _) = play_vs_bots(&mut world, player, 8, 61);
+    let made = world.host.made.locked();
+    let (_, setup) = made.iter().find(|(id, _)| *id == ticket).unwrap();
+    let dictionary = Dictionary::shared();
+    setup
+        .players
+        .iter()
+        .filter(|player| player.driven)
+        .filter(|bot| bot_of(&bot.profile).is_some_and(|(_, role)| role == BotRole::Rusher))
+        .map(|bot| {
+            let (index, _) = bot.profile.kits[0].slots[7].expect("a weapon");
+            let item = &bot.profile.items[usize::from(index)];
+            dictionary.item(item.dict_id).unwrap().name.clone()
+        })
+        .collect()
+}
+
+/// The rusher bots wear the kit the lobby's setting says: the old SPAS-12
+/// kit by default (the switch is off until a bench train turns it on) and
+/// when it says `control`; `sr2m` / `fn_p90` (where the game data has it,
+/// else the old kit) for `smg`, `ump45` for `alt`, a kit a tier in the
+/// per-tier form; the lowest tier's rusher is the same whatever it says.
+#[test]
+fn the_rusher_bots_wear_the_kit_the_lobby_says() {
+    let all = |weapon: &str, count: usize| vec![weapon.to_owned(); count];
+    let rushers = rusher_weapons(8, RusherKits::default()).len();
+    assert!(rushers >= 3, "{rushers} rushers");
+    assert_eq!(
+        rusher_weapons(8, RusherKits::default()),
+        all("spas_12", rushers),
+        "off by default"
+    );
+    assert_eq!(
+        rusher_weapons(8, RusherKits::both(RusherKit::Control)),
+        all("spas_12", rushers)
+    );
+    assert_eq!(
+        rusher_weapons(8, RusherKits::both(RusherKit::Smg)),
+        all("sr2m", rushers)
+    );
+    assert_eq!(
+        rusher_weapons(8, RusherKits::both(RusherKit::Alt)),
+        all("ump45", rushers)
+    );
+    // A kit per tier: the other tier's is not touched.
+    let high_only = RusherKits {
+        mid: RusherKit::Control,
+        high: RusherKit::Smg,
+        ..RusherKits::default()
+    };
+    assert_eq!(rusher_weapons(8, high_only), all("spas_12", rushers));
+    let smg_at_13_15 = if Dictionary::shared().item_named("fn_p90").is_some() {
+        "fn_p90"
+    } else {
+        "spas_12"
+    };
+    assert_eq!(
+        rusher_weapons(12, RusherKits::both(RusherKit::Smg)),
+        all(smg_at_13_15, rushers)
+    );
+    assert_eq!(
+        rusher_weapons(12, RusherKits::default()),
+        all("spas_12", rushers)
+    );
+    // The bench's pick, in the setting's per-tier form.
+    let picked = RusherKits::parse("9-10=alt,13-15=smg").unwrap();
+    assert_eq!(rusher_weapons(8, picked), all("ump45", rushers));
+    assert_eq!(rusher_weapons(12, picked), all(smg_at_13_15, rushers));
+    for kits in [RusherKits::default(), RusherKits::both(RusherKit::Control), picked] {
+        assert_eq!(rusher_weapons(3, kits), all("mp_153", rushers));
+    }
+}
+
+/// On the live game data (`SRP_GAME_DATA`, the server's file: the repo's test
+/// data lacks `fn_p90` and `kriss_vector`) the rusher bots of 13-15 wear the
+/// P90 or the Kriss, and the bots keep the equipment of the player's tier.
+/// Run alone:
+/// `SRP_GAME_DATA=<server-game-data.db> cargo test -p lobby-server --lib
+/// -- --ignored on_the_live_data_the_rusher_bots`
+#[test]
+#[ignore = "needs SRP_GAME_DATA, the server's game data"]
+fn on_the_live_data_the_rusher_bots_wear_the_smg_kits() {
+    survarium::v026g::game_data::init().expect("SRP_GAME_DATA reads and passes srp's checks");
+    the_rusher_bots_wear_the_kit_the_lobby_says();
+    the_bots_wear_the_equipment_of_the_players_tier();
+    let rushers = rusher_weapons(12, RusherKits::both(RusherKit::Smg));
+    assert!(rushers.len() >= 3);
+    assert!(
+        rushers.iter().all(|weapon| weapon == "fn_p90"),
+        "{rushers:?}"
+    );
+    let alt = rusher_weapons(15, RusherKits::both(RusherKit::Alt));
+    assert!(alt.iter().all(|weapon| weapon == "kriss_vector"), "{alt:?}");
+}
+
+/// The owner's of 2026-10-23: every level plays against bots, and the
+/// bots wear the equipment of the player's tier: level 3 → 4-5, level 8 →
+/// 9-10, level 12 → 13-15; level 15, over the old most (5), is let in.
+#[test]
+fn the_bots_wear_the_equipment_of_the_players_tier() {
+    for (gear, tier) in [
+        (3, BotTier::Low),
+        (5, BotTier::Low),
+        (8, BotTier::Mid),
+        (12, BotTier::High),
+        (15, BotTier::High),
+    ] {
+        let (levels, tiers) = bots_gear(gear);
+        assert!(tiers.iter().all(|&each| each == tier), "{gear}: {tiers:?}");
+        assert!(
+            levels.iter().all(|level| tier.levels().contains(level)),
+            "{gear}: {levels:?}"
+        );
+    }
+}
+
+/// An operator's most (`SRP_PVB_MAX_GEAR` 5): equipment level 6 is over
+/// it, refused with code 1 and both levels, in the status and the choice;
+/// the Play then goes into a room.
+#[test]
+fn gear_6_is_refused_with_code_1_and_its_level_over_an_operators_most() {
+    let mut world = world_with(5);
+    world.core.settings.pvb.max_gear = 5;
     let bob = world.connect("Bob");
     with_gear(&mut world, bob, 6);
     let (header, maps) = status(&mut world, bob);
@@ -218,14 +382,14 @@ fn every_refusal_says_its_code() {
     let alice = world.connect("Alice");
     let bob = world.connect("Bob");
     form_squad(&mut world, alice, bob);
-    assert!(status(&mut world, alice).0.starts_with("B1;2;0;5;"));
-    assert_eq!(choose(&mut world, alice, 8, 61), "B2;no;2;0;5;0;5");
+    assert!(status(&mut world, alice).0.starts_with("B1;2;0;15;"));
+    assert_eq!(choose(&mut world, alice, 8, 61), "B2;no;2;0;15;0;5");
 
     let carol = world.connect("Carol");
     for (size, map_id) in [(8, 181), (8, 62), (7, 61), (12, 61)] {
         assert_eq!(
             choose(&mut world, carol, size, map_id),
-            "B2;no;10;0;5;0;5",
+            "B2;no;10;0;15;0;5",
             "{size} on {map_id}"
         );
     }
@@ -235,9 +399,9 @@ fn every_refusal_says_its_code() {
     world.core.settings.pvb.enabled = false;
     let dave = world.connect("Dave");
     let (header, maps) = status(&mut world, dave);
-    assert_eq!(header, "B1;6;0;5;6.8.10;8;61;0;5");
+    assert_eq!(header, "B1;6;0;15;6.8.10;8;61;0;5");
     assert!(maps.iter().all(|row| row.ends_with(";0")));
-    assert_eq!(choose(&mut world, dave, 8, 61), "B2;no;6;0;5;0;5");
+    assert_eq!(choose(&mut world, dave, 8, 61), "B2;no;6;0;15;0;5");
     // A start past the choices is no choice of these.
     assert_eq!(pvb_choice_start(255, 255), PVB_CHOOSE_BASE + 255_255);
 }
@@ -254,9 +418,9 @@ fn the_sixth_bot_match_is_refused_with_code_7() {
     }
     let sixth = world.connect("Sixth");
     let (header, maps) = status(&mut world, sixth);
-    assert_eq!(header, "B1;7;0;5;6.8.10;8;61;5;5");
+    assert_eq!(header, "B1;7;0;15;6.8.10;8;61;5;5");
     assert!(maps.iter().all(|row| row.ends_with(";0")), "{maps:?}");
-    assert_eq!(choose(&mut world, sixth, 6, 61), "B2;no;7;0;5;5;5");
+    assert_eq!(choose(&mut world, sixth, 6, 61), "B2;no;7;0;15;5;5");
     assert_eq!(world.host.made.locked().len(), 5);
 
     // A choice held counts too: with four running, one held leaves none.
@@ -267,7 +431,7 @@ fn the_sixth_bot_match_is_refused_with_code_7() {
     assert!(
         status(&mut world, sixth)
             .0
-            .starts_with("B1;7;0;5;6.8.10;8;61;5;5")
+            .starts_with("B1;7;0;15;6.8.10;8;61;5;5")
     );
     // Its choice given up (a choice not granted replaces it), the sixth
     // gets in.
@@ -330,142 +494,4 @@ fn a_bot_match_is_settled_as_one() {
     assert!(player.reward.won && !player.reward.daily_bonus);
     assert_eq!(player.reward.quest_money, 0);
     assert_eq!(player.reward.rating_after, player.reward.rating_before);
-}
-
-/// The owner's of 2026-10-26: Player vs Bots at every equipment level, the
-/// bots in kits of the player's level, the top players'. A player of level
-/// 15 is let in with the default settings and plays against bots of level
-/// 15, each in a kit of a player of level 15 of its role (the made-up
-/// accounts' Renaissance level 15 torso), its weapon of its role and its
-/// ammo for it; each bot counts for its gear in the sides' predictions.
-#[test]
-fn a_level_15_player_plays_level_15_bots_in_the_top_players_kits() {
-    use session::v026g::bot_kits::{ACTIVE_MATCHES, KitSource};
-    use survarium::v026g::dictionary::Dictionary;
-    use survarium::v026g::loadouts::{BOT_AMMO_SLOTS, BotRole, Loadout, SlotItem, bot_role_of};
-
-    let mut settings = Settings::local("127.0.0.1:0");
-    settings.pvb = Config {
-        enabled: true,
-        ..Config::default()
-    };
-    assert_eq!(settings.pvb.max_gear, 15);
-    let mut world = World::with_settings(settings);
-    let dictionary = Dictionary::shared();
-    let dict = |name: &str| dictionary.item_named(name).unwrap().dict_id;
-    let torso = dict("ren_torso_6");
-    assert_eq!(item_params(torso).unwrap().match_making_level, 15);
-    // A top player of each role, the torso over its weapon.
-    for (n, (weapon, ammo)) in [
-        ("uzi", "ammo_9x19p_para"),
-        ("ak_12", "ammo_6.5x39"),
-        ("toz_34", "ammo_12mm_buck"),
-        ("svd", "ammo_7.62x54_7n1"),
-    ]
-    .into_iter()
-    .enumerate()
-    {
-        let kit = Loadout {
-            items: vec![
-                SlotItem {
-                    slot: 7,
-                    dict_id: dict(weapon),
-                    count: 1,
-                },
-                SlotItem {
-                    slot: 8,
-                    dict_id: dict(ammo),
-                    count: 120,
-                },
-                SlotItem {
-                    slot: 2,
-                    dict_id: torso,
-                    count: 1,
-                },
-            ],
-        };
-        let name = format!("Top{n}");
-        let mut account = Account::with_loadout(&name, &kit);
-        account.rating = 150;
-        account.map_plays = vec![(1, ACTIVE_MATCHES)];
-        *world
-            .accounts
-            .get_or_create(9_000 + n as u32, &name)
-            .locked() = account;
-    }
-    let alice = world.connect("Alice");
-    with_gear(&mut world, alice, 15);
-    let (header, _) = status(&mut world, alice);
-    assert!(header.starts_with("B1;0;15;15;"), "{header}");
-
-    let (ticket, _) = play_vs_bots(&mut world, alice, 6, 117);
-    let made = world.host.made.locked();
-    let (_, setup) = made.iter().find(|(id, _)| *id == ticket).unwrap();
-    let bots: Vec<_> = setup
-        .players
-        .iter()
-        .filter(|player| player.driven)
-        .collect();
-    assert_eq!(bots.len(), 11);
-    for bot in &bots {
-        let profile = &bot.profile;
-        let role = bot_role_of(profile).expect("a bot's role");
-        // Its kits as loadouts.
-        let kits: Vec<Loadout> = profile
-            .kits
-            .iter()
-            .map(|kit| Loadout {
-                items: kit
-                    .slots
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(slot, held)| {
-                        let (index, count) = (*held)?;
-                        Some(SlotItem {
-                            slot: slot as u8,
-                            dict_id: profile.items[usize::from(index)].dict_id,
-                            count: u32::from(count),
-                        })
-                    })
-                    .collect(),
-            })
-            .collect();
-        let first = &kits[0];
-        assert_eq!(first.gear_level(), 15, "{}", profile.name);
-        assert!(kits.iter().all(|kit| kit.gear_level() <= 15));
-        assert_eq!(first.slot(2).unwrap().dict_id, torso);
-        let weapon = first.slot(7).unwrap().dict_id;
-        assert_eq!(BotRole::of_weapon(weapon), Some(role));
-        for kit in &kits {
-            let weapon = kit.slot(7).unwrap().dict_id;
-            for slot in BOT_AMMO_SLOTS {
-                assert!(dictionary.compatible(weapon, kit.slot(slot).unwrap().dict_id));
-            }
-        }
-    }
-    drop(made);
-    // The table the lobby gathered: the four top players, level 15.
-    let table = world.core.bot_kits.as_ref().unwrap().1.clone();
-    for role in BotRole::ALL {
-        assert_eq!(
-            table.bot_kit(15, role, 0).source,
-            KitSource::Players {
-                level: 15,
-                players: 1,
-                kits: 1
-            }
-        );
-    }
-    // Each bot counts for an average player.
-    let running = world
-        .core
-        .matches
-        .values()
-        .find(|running| running.ticket.match_id == ticket)
-        .unwrap();
-    assert!(
-        running.strengths[1..]
-            .iter()
-            .all(|&each| each == session::v026g::level_stats::BOT_STRENGTH)
-    );
 }

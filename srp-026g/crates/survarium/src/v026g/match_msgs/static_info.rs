@@ -342,7 +342,10 @@ impl MatchProfile {
     /// A player with a usable kit for each of `loadouts` (ids 1 on, at
     /// most [`MAX_KITS`]), each with items of its own (no item is in two
     /// kits, so each kit's ammo is its own), whole and with no
-    /// modifications; the items' ids count up from `first_instance_id`.
+    /// modifications; the items' ids count up from `first_instance_id`. A
+    /// stack's item holds its `stored` units (`amount_in_storage`: the
+    /// client refills the slot from it at each spawn, 0x2FCB70), at least
+    /// the slot's.
     pub fn from_loadouts(
         name: &str,
         team: u8,
@@ -365,7 +368,12 @@ impl MatchProfile {
                 items.push(MatchItem {
                     instance_id: first_instance_id.wrapping_add(items.len() as u32),
                     dict_id: item.dict_id,
-                    condition_or_stack: if is_stack { item.count } else { FULL_CONDITION },
+                    condition_or_stack: if is_stack {
+                        item.stored.max(item.count)
+                    } else {
+                        FULL_CONDITION
+                    },
+                    modifications: item.mods.iter().map(|&id| (id, false)).collect(),
                     ..MatchItem::default()
                 });
             }

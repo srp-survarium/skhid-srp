@@ -99,7 +99,10 @@
 //! - `SRP_PVB_STALL_S` (default 60, 10 to 3600): a match against the
 //!   server's bots whose only player has been asked for its world this
 //!   long and uploaded none is over (as deserted): its bots see the world
-//!   only through that player's uploads.
+//!   only through that player's uploads;
+//! - `SRP_PVB_WORLD_MS` (default 2000, 250 to 2000): while the server's
+//!   bots play, a world is asked for this often (a client-test play sets
+//!   it lower so its recording carries denser worlds for the drift lab).
 
 /// A player's battery events pay at most N times per kind, N the map's
 /// batteries (the owner's rule against farming them).
@@ -157,7 +160,9 @@ pub use registry::{
     VoiceSeat, static_id,
 };
 pub use replay::{replays_from_env, replays_of};
-pub use server::{run, run_on, run_on_with_replays};
+pub use bots::tuning::LiveTuning;
+pub use bots::tuning::LoadedTuning;
+pub use server::{bot_tuning_from_env, run, run_on, run_on_with_replays};
 pub use survarium::v026g::match_msgs::static_info::MatchProfile;
 
 /// What becomes of an input that comes after its tick is final for the
@@ -229,6 +234,9 @@ pub(crate) struct Timing {
     /// is over (`SRP_PVB_STALL_S`): its bots see the world through that
     /// player's uploads alone.
     pub pvb_stall: Duration,
+    /// While the server's bots play, a world is asked for this often (`SRP_PVB_WORLD_MS`, 250 to 2000 ms;
+    /// `game/driven.rs`). A client-test play sets it lower so its recording carries denser worlds for the drift lab.
+    pub pvb_world: Duration,
 }
 
 impl Default for Timing {
@@ -248,12 +256,15 @@ impl Default for Timing {
             final_wait: Duration::from_secs(7),
             entry_state: Duration::from_secs(4),
             pvb_stall: Duration::from_secs(DEFAULT_PVB_STALL_S),
+            pvb_world: Duration::from_millis(u64::from(DEFAULT_PVB_WORLD_MS)),
         }
     }
 }
 
 /// `SRP_PVB_STALL_S` when unset.
 pub(crate) const DEFAULT_PVB_STALL_S: u64 = 60;
+/// `SRP_PVB_WORLD_MS` when unset: the bots' world every 2 s, as before the setting.
+pub(crate) const DEFAULT_PVB_WORLD_MS: u32 = 2_000;
 
 /// How the match server behaves.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -276,6 +287,9 @@ pub(crate) struct Settings {
     pub pack: Duration,
     /// `SRP_MAPDATA_DIR`: the bots' maps, shared by every match.
     pub maps: Option<Arc<bots::maps::Maps>>,
+    /// `SRP_BOT_TUNING` and the admin page's changes: what each match's bots run on, taken when the match starts
+    /// ([`bots::tuning::LiveTuning::for_match`]); the maps are made with the tuning the server started on.
+    pub bot_tuning: Arc<bots::tuning::LiveTuning>,
     pub timing: Timing,
 }
 
@@ -292,6 +306,7 @@ impl Default for Settings {
             record: None,
             pack: Config::for_table(Table::Match).gather,
             maps: None,
+            bot_tuning: Arc::default(),
             timing: Timing::default(),
         }
     }
@@ -302,7 +317,9 @@ impl Default for Settings {
 const SNAPSHOT_DIR: &str = "logs/snapshots";
 
 impl Settings {
-    pub fn from_env() -> Self {
+    /// The environment's settings, with the bots' tuning parsed by the caller at the start
+    /// ([`bots::tuning::LiveTuning::from_env`]).
+    pub fn from_env(bot_tuning: Arc<bots::tuning::LiveTuning>) -> Self {
         let var = |name: &str| std::env::var(name).ok();
         Self {
             late_inputs: parse_late_inputs(var("SRP_LATE_INPUTS").as_deref()),
@@ -342,7 +359,9 @@ impl Settings {
                     session::v026g::pvb::max_matches(),
                 ) as u32,
                 var("SRP_MAPDATA_BUILT").as_deref(),
+                bot_tuning.at_start(),
             ),
+            bot_tuning,
             timing: {
                 let client_timeout = Duration::from_secs(u64::from(
                     parse_number(
@@ -388,6 +407,15 @@ impl Settings {
                             DEFAULT_PVB_STALL_S as u32,
                         )
                         .clamp(10, 3600),
+                    )),
+                    // Never under 250 ms (a world is 30 to 60 KB from the client) nor over the 2 s it was.
+                    pvb_world: Duration::from_millis(u64::from(
+                        parse_number(
+                            "SRP_PVB_WORLD_MS",
+                            var("SRP_PVB_WORLD_MS").as_deref(),
+                            DEFAULT_PVB_WORLD_MS,
+                        )
+                        .clamp(250, DEFAULT_PVB_WORLD_MS),
                     )),
                     ..Timing::default()
                 }
@@ -435,12 +463,14 @@ fn parse_snapshot_dir(value: Option<&str>) -> Option<PathBuf> {
 /// `SRP_MAPDATA_DIR`: unset, empty or `off` for none; `keep` built worlds
 /// kept (`SRP_MAPDATA_KEEP`), `at_once` in memory at most
 /// (`SRP_MAPDATA_AT_ONCE`); the built files in `built`
-/// (`SRP_MAPDATA_BUILT`: unset or empty for `<dir>/built`, `off` for none).
-fn parse_mapdata_dir(
+/// (`SRP_MAPDATA_BUILT`: unset or empty for `<dir>/built`, `off` for none); the grids as the server's `tuning` says
+/// ([`bot_maps`]).
+pub(crate) fn parse_mapdata_dir(
     value: Option<&str>,
     keep: u32,
     at_once: u32,
     built: Option<&str>,
+    tuning: &bots::tuning::Tuning,
 ) -> Option<Arc<bots::maps::Maps>> {
     let dir = value
         .map(str::trim)
@@ -463,10 +493,19 @@ fn parse_mapdata_dir(
     } else {
         log::warn!("SRP_MAPDATA_DIR is `{dir}`, which is no directory; bots will have no maps");
     }
-    Some(bots::maps::Maps::configured(
-        Some(dir.into()),
-        keep as usize,
-        at_once as usize,
-        built,
-    ))
+    Some(bot_maps(dir.into(), keep as usize, at_once as usize, built, tuning))
+}
+
+/// The bots' map store of a server whose tuning is `tuning` (`SRP_BOT_TUNING`, loaded once at its start): its grids'
+/// body and off-mesh links, and their table of wall clearances when the tuning needs it. The one way a store is made for
+/// the server ([`parse_mapdata_dir`]) and for the maps built ahead of a release (`srp-build-maps`), so the files the one
+/// writes have the keys the other looks for.
+pub fn bot_maps(
+    dir: std::path::PathBuf,
+    keep: usize,
+    at_once: usize,
+    built: Option<std::path::PathBuf>,
+    tuning: &bots::tuning::Tuning,
+) -> Arc<bots::maps::Maps> {
+    bots::maps::Maps::configured_for(Some(dir), keep, at_once, built, tuning.grid.clone(), tuning.needs_wall_clearance(), tuning.needs_open_sides())
 }

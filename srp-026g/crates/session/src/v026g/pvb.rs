@@ -2,12 +2,14 @@
 //! reads (the lobby, the match server, the rewards). The mode itself is the
 //! lobby's (`lobby_server::v026g::pvb`, which documents every setting).
 //!
-//! - `SRP_PVB` (default off): whether the mode is offered at all;
+//! - `SRP_PVB` (default on): whether the mode is offered at all;
 //! - `SRP_PVB_MAX_MATCHES` (default 5, 1 to 20): the most matches against
 //!   the server's bots at once; the match server keeps that many bots'
 //!   maps in memory at most when the mode is on;
-//! - `SRP_PVB_PAY` (default 0.5, 0 to 1): what a match against bots pays of
-//!   a match's silver and experience;
+//! - `SRP_PVB_PAY` (default 0.25, 0 to 1): what a match against bots pays
+//!   of a match's silver and experience; and only a match that came to its
+//!   own end with its player in it pays at all
+//!   (`super::rewards::Reward::forfeited`);
 //! - PvE reward multipliers and silver rates use at most tier 7, and its
 //!   end-of-match drop at most match level 7.
 
@@ -30,11 +32,33 @@ pub fn drop_level(match_level: u16, vs_bots: bool) -> u16 {
         match_level
     }
 }
-/// `SRP_PVB_PAY` when unset: half.
-pub const DEFAULT_PAY: f64 = 0.5;
+/// `SRP_PVB_PAY` when unset: a quarter (the owner's of 2026-10-23: half
+/// paid a won match against bots about what a match of players of its
+/// level pays, for a match nearly always won).
+pub const DEFAULT_PAY: f64 = 0.25;
 /// The most `SRP_PVB_MAX_MATCHES` may be.
 pub const MOST_MATCHES: usize = 20;
 
+/// `SRP_PVB` when unset or empty: on, so that a deployment that loses the
+/// variable keeps the mode the release was benched with.
+pub const DEFAULT_ENABLED: bool = true;
+
+/// `SRP_PVB`: `on`/`off` (and 1/0, true/false, yes/no); unset or empty is
+/// [`DEFAULT_ENABLED`]; anything else is an error in the log and off.
+pub fn enabled_from(value: Option<&str>) -> bool {
+    match value
+        .map(|value| value.trim().to_ascii_lowercase())
+        .as_deref()
+    {
+        None | Some("") => DEFAULT_ENABLED,
+        Some("on" | "1" | "true" | "yes") => true,
+        Some("off" | "0" | "false" | "no") => false,
+        Some(other) => {
+            log::error!("SRP_PVB is `{other}`; it must be on or off. Using off");
+            false
+        }
+    }
+}
 /// `SRP_PVB_MAX_MATCHES`: 1 to [`MOST_MATCHES`].
 pub fn max_matches_from(value: Option<&str>) -> usize {
     let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
@@ -70,9 +94,9 @@ fn var(name: &str) -> Option<String> {
     std::env::var(name).ok()
 }
 
-/// `SRP_PVB`: off unless `on`.
+/// [`enabled_from`] of the environment (on when unset: [`DEFAULT_ENABLED`]).
 pub fn enabled() -> bool {
-    crate::switch("SRP_PVB", false)
+    enabled_from(var("SRP_PVB").as_deref())
 }
 
 /// [`max_matches_from`] of the environment.
@@ -103,15 +127,19 @@ mod tests {
 
     #[test]
     fn the_settings_read_as_documented() {
+        assert!(enabled_from(None) && enabled_from(Some("")) && enabled_from(Some("  ")));
+        assert!(!enabled_from(Some("off")) && !enabled_from(Some("0")) && !enabled_from(Some(" No ")));
+        assert!(enabled_from(Some(" ON ")));
+        assert!(!enabled_from(Some("maybe")));
         assert_eq!(max_matches_from(None), 5);
         assert_eq!(max_matches_from(Some("3")), 3);
         assert_eq!(max_matches_from(Some("0")), 5);
         assert_eq!(max_matches_from(Some("21")), 5);
-        assert_eq!(pay_from(None), 0.5);
-        assert_eq!(pay_from(Some("0.25")), 0.25);
+        assert_eq!(pay_from(None), 0.25);
+        assert_eq!(pay_from(Some("0.5")), 0.5);
         assert_eq!(pay_from(Some("0")), 0.0);
-        assert_eq!(pay_from(Some("2")), 0.5);
-        assert_eq!(pay_from(Some("NaN")), 0.5);
+        assert_eq!(pay_from(Some("2")), 0.25);
+        assert_eq!(pay_from(Some("NaN")), 0.25);
         // The maps follow the cap only with the mode on.
         assert_eq!(maps_at_once(1, true, 5), 5);
         assert_eq!(maps_at_once(1, false, 5), 1);

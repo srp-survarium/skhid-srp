@@ -131,7 +131,7 @@ impl Ctx<'_> {
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
-    if !cx.view.mode.has_batteries() || cx.me.carrying.is_some() {
+    if !cx.view.objective().has_homes() || cx.view.objective().is_actor(cx.me) {
         return;
     }
     for (battery, state) in cx.view.batteries.iter().enumerate() {
@@ -181,7 +181,7 @@ pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
     let enemy = cx.ambush_enemy(pickup);
     let query = SpotQuery {
         sight_to: Some(pickup),
-        hidden_from: enemy.map(|t| t.at),
+        unseen_by: enemy.map(|t| t.at),
         side: cx.bot.side,
         samples: num("spot_samples") as usize,
         ..SpotQuery::ring(pickup, num("hide_min_m"), num("hide_max_m"))
@@ -289,7 +289,7 @@ mod tests {
     use super::*;
     use crate::v026g::bots::know::Source;
     use crate::v026g::bots::team::{Asking, assign};
-    use crate::v026g::bots::view::{EYE_STANDING, Mode};
+    use crate::v026g::bots::view::{Mode, still_eye};
 
     const BATTERY: Vec3 = Vec3::new(30.0, 0.0, 10.0);
 
@@ -348,8 +348,8 @@ mod tests {
         let spot = s.view.places[0].feet;
         let d = spot.distance_xz(BATTERY);
         assert!((9.0..=26.0).contains(&d), "{spot:?} {d}");
-        let up = Vec3::new(0.0, EYE_STANDING, 0.0);
-        assert!(!s.tactics.sees(Vec3::new(60.0, 0.0, 10.0) + up, spot + up));
+        let eye = |feet| still_eye(feet, false);
+        assert!(!s.tactics.sees(eye(Vec3::new(60.0, 0.0, 10.0)), eye(spot)));
         // Held crouched, still, looking at the pickup point.
         assert!(steps.iter().any(|step| matches!(
             step,
@@ -447,11 +447,13 @@ mod tests {
                 place: 0,
                 candidates: ambushes(&s, 0),
                 current: None,
+                committed: false,
             },
             Asking {
                 place: 2,
                 candidates: ambushes(&s, 2),
                 current: None,
+                committed: false,
             },
         ];
         assert_eq!(asking[0].candidates.len(), 1);

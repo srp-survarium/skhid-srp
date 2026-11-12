@@ -57,7 +57,7 @@ pub fn tuning() -> PlayTuning {
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
-    if !cx.view.mode.has_batteries() || cx.me.carrying.is_some() {
+    if !cx.view.objective().has_homes() || cx.view.objective().is_actor(cx.me) {
         return;
     }
     let Some(theirs) = cx.view.containers.iter().find(|c| c.team != cx.me.team) else {
@@ -66,10 +66,20 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     if theirs.batteries == 0 {
         return;
     }
-    out.extend(cx.candidate(
+    // [A296 item 4, `mods.behind_open`] A team behind reads the time left shorter (`BehindOpen::time_left`).
+    let given: Vec<(Input, f32)> = cx
+        .tuning
+        .mods
+        .behind_open
+        .filter(|open| open.behind(cx.sig.score_gap))
+        .map(|open| (Input::TimeLeftBehind, open.time_left(cx.sig.time_left_s, cx.sig.score_gap)))
+        .into_iter()
+        .collect();
+    out.extend(cx.candidate_given(
         PlayKind::LateDenial,
         TargetRef::Container(theirs.id),
         Some(u32::from(theirs.id)),
+        &given,
     ));
 }
 
@@ -106,7 +116,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                     tries: 0,
                     last_use: 0,
                 };
-                return Step::Continue(Intent::stay().crouched().looking(Look::At(at)));
+                return Step::Continue(Intent::stay().crouched().looking(Look::use_box(at)));
             }
             let pace = if d < num("sneak_m") {
                 Pace::Sneak
@@ -128,7 +138,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             if *tries >= num("tries") as u8 {
                 return Step::Failed("took nothing: empty or blocked");
             }
-            let mut intent = Intent::stay().crouched().looking(Look::At(at));
+            let mut intent = Intent::stay().crouched().looking(Look::use_box(at));
             if cx.now >= *last_use + (num("use_every_s") * 1000.0) as u32 {
                 *tries += 1;
                 *last_use = cx.now;
@@ -144,7 +154,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                 tries: 0,
                 last_use: 0,
             };
-            Step::Continue(Intent::stay().crouched().looking(Look::At(at)))
+            Step::Continue(Intent::stay().crouched().looking(Look::use_box(at)))
         }
     }
 }

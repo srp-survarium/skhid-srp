@@ -148,7 +148,64 @@ fn a_match_against_bots_whose_player_stops_uploading_is_over() {
     let result = result.expect("the match is over");
     assert_eq!(result.end, MatchEnd::Deserted);
     assert!(result.vs_bots);
+    // Its player is still in it: only the end says it was not played to
+    // its end (the rewards pay such a match nothing).
+    assert!(result.players[0].entered && result.players[0].present_at_end);
     assert!(bench.until(10_000, |bench| bench.clients[0].told_to_leave));
+}
+
+/// A match against bots its player leaves is over at once, as one
+/// everyone left (`MatchEnd::Deserted`), with its player gone: what the
+/// rewards pay nothing for (`session::v026g::rewards::Reward::forfeited`).
+#[test]
+fn a_match_against_bots_its_player_leaves_is_over_at_once() {
+    let mut bench = Bench::vs_bots(4, MAP_TDM, Settings::default(), &[1, 2, 3]);
+    bench.join(0);
+    assert!(bench.until(3_000, |bench| bench.clients[0].entered().len() == 4));
+    bench.run_long(10_000);
+    assert!(bench.results.try_recv().is_err());
+
+    bench.clients[0].leave();
+    let mut result = None;
+    for _ in 0..20 {
+        bench.run(250);
+        if let Ok(over) = bench.results.try_recv() {
+            result = Some(over);
+            break;
+        }
+    }
+    let result = result.expect("the match is over within 5 s");
+    assert_eq!(result.end, MatchEnd::Deserted);
+    assert!(result.vs_bots);
+    let player = &result.players[0];
+    assert!(player.entered && player.left && !player.present_at_end);
+    assert!(result.players[1..].iter().all(|bot| bot.driven));
+}
+
+/// While the server's bots play on their map, its player is asked for a world
+/// every `Timing::pvb_world` (`SRP_PVB_WORLD_MS`): 2 s unless set (1 s while a
+/// bot waits to see its body), more often when a client-test play sets it lower.
+/// Without a map the bots run the stage 0 script and the match's own refresh holds.
+#[test]
+fn the_servers_bots_ask_for_worlds_as_often_as_set() {
+    let uploads_in_20_s = |pvb_world_ms: u64| {
+        let mut settings = Settings {
+            maps: Some(walking_map()),
+            ..Settings::default()
+        };
+        settings.timing.pvb_world = std::time::Duration::from_millis(pvb_world_ms);
+        let mut bench = Bench::with_driven(2, MAP_TDM, settings, &[1]);
+        bench.join(0);
+        bench.run_long(5_000);
+        let before = bench.clients[0].uploads;
+        bench.run_long(20_000);
+        bench.clients[0].uploads - before
+    };
+    let default = uploads_in_20_s(u64::from(crate::v026g::DEFAULT_PVB_WORLD_MS));
+    let dense = uploads_in_20_s(500);
+    // Every 2 s (or 1 s while a bot waits for its body): 10 to 20 in 20 s; every 0.5 s: about 40.
+    assert!((8..=21).contains(&default), "{default} uploads at the default");
+    assert!(dense >= 30 && dense > default + 15, "{dense} uploads at 500 ms against {default} at the default");
 }
 
 /// The stall rule is only for a match against bots: a match with the
@@ -195,6 +252,40 @@ fn the_servers_bots_have_no_seats_and_share_session_zero() {
     assert!(registry.join_running(1, late).is_err());
 }
 
+/// The bots' pocket stacks are made with the store of the bots' tuning (`kit.pocket_store`): the lobby builds the default and a
+/// registry on the old store has its bots' kits made again with the stack's count in storage; a human's profile is not touched.
+#[test]
+fn a_registry_makes_the_bots_kits_with_the_store_of_the_bot_tuning() {
+    use crate::v026g::bots::pockets::ProfilePockets;
+    use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, PocketStore, RusherKits, bot_profile};
+    let equipment = BotEquipment::of(BotTier::Low, RusherKits::default());
+    for (store, stored) in [(PocketStore::PerMatch, None), (PocketStore::PerLife, Some(100))] {
+        let registry = MatchRegistry::new("127.0.0.1", 1236)
+            .with_bot_pockets(survarium::v026g::loadouts::BotPocketKit::stored(store));
+        let mut setup = setup(4, MAP_TDM);
+        let human = setup.players[0].profile.clone();
+        let team = setup.players[2].profile.team;
+        for place in [2, 3] {
+            let player = &mut setup.players[place];
+            (player.driven, player.session_id, player.account_id) = (true, 0, 0);
+            player.profile = bot_profile(place, team, BotRole::ALL[0], equipment);
+        }
+        let ticket = registry.create(setup).expect("a match with two bots");
+        let formed = registry.formed(ticket.match_id).expect("it is formed");
+        // As it came but for the match's Keeper draw, which every profile gets (main's patch 109).
+        let mut human = human.clone();
+        survarium::v026g::keeper::give(&mut human, formed.keeper);
+        assert_eq!(formed.profiles[0], human, "a human's profile is as it came");
+        for place in [2, 3] {
+            let pockets = ProfilePockets::of_profile(&formed.profiles[place], true).expect("a bot has kits");
+            for pocket in pockets.kits()[0].iter().flatten() {
+                assert_eq!(pocket.stored, Some(stored.unwrap_or_else(|| u32::from(pocket.units))), "{store:?} {pocket:?}");
+            }
+            assert_eq!(formed.profiles[place].name, bot_profile(place, team, BotRole::ALL[0], equipment).name);
+        }
+    }
+}
+
 /// A 60 x 60 m floor for the map of [`MAP_TDM`] with two stations to walk
 /// to, written where `SRP_MAPDATA_DIR` would point; the store with its
 /// walk grid built.
@@ -211,8 +302,10 @@ fn walking_map() -> std::sync::Arc<crate::v026g::bots::maps::Maps> {
             Vec3::new(30.0, 0.0, 30.0),
             Vec3::new(-30.0, 0.0, 30.0),
         ],
-        triangles: vec![[0, 2, 1], [0, 3, 2]],
-        walker: vec![WalkerBehaviour::Walk; 2],
+        faces: vec![
+            mapdata::library::Face::unknown([0, 2, 1], WalkerBehaviour::Walk),
+            mapdata::library::Face::unknown([0, 3, 2], WalkerBehaviour::Walk),
+        ],
         primitives: 0,
     };
     let map = MapData {
@@ -230,7 +323,11 @@ fn walking_map() -> std::sync::Arc<crate::v026g::bots::maps::Maps> {
         }],
         ..MapData::default()
     };
-    let dir = std::env::temp_dir().join(format!("srp-walking-map-{}", std::process::id()));
+    // A folder of its own for each call: the tests that call this run in parallel threads of one process,
+    // and one must not read the file while the other writes it.
+    static CALLS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    let call = CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let dir = std::env::temp_dir().join(format!("srp-walking-map-{}-{call}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     map.write(&dir.join(mapdata::format::file_name(project)))
         .unwrap();
@@ -277,6 +374,7 @@ fn with_the_map_the_servers_bot_sees_its_body_in_the_worlds_and_walks_smoothly()
         crouching: false,
         sprinting: false,
         recent_hits: Vec::new(),
+        leg_damage_ends: [None, None],
     });
     bench.join(0);
     assert!(bench.until(2_000, |bench| bench.clients[0].entered() == [0, 1]));
@@ -336,6 +434,142 @@ fn with_the_map_the_servers_bot_sees_its_body_in_the_worlds_and_walks_smoothly()
     let during = asked(&bench) - before;
     assert!((4..=7).contains(&during), "{during} requests in 10 s");
     assert_eq!(bench.game().resyncs(0), 0);
+    bench.assert_no_faults();
+}
+
+/// The game-level intake (`Game::observe_stock`) on bytes a live client wrote:
+/// the roster place 2 is a real player's profile, and the worlds the client
+/// uploads hold that player's state as recorded in a match of 20 places
+/// (`bots/stock.rs` `live_kit`): a medkit and bandages, two of each in the
+/// slots. The server's bot at that place counts them, with the key of the
+/// kit's own slot order, though its standard kit knew no bandages.
+#[test]
+fn the_servers_bot_counts_the_drugs_a_live_clients_world_shows() {
+    use crate::v026g::bots::stock::{Drug, live_kit::live_kit};
+    use survarium::v026g::match_msgs::players::PlayerState;
+    use survarium::v026g::match_msgs::static_info::MatchProfile;
+
+    let live = live_kit();
+    let mut setup = super::setup(3, MAP_TDM);
+    let team = setup.players[2].profile.team;
+    setup.players[2].profile = MatchProfile {
+        team,
+        ..live.profile.clone()
+    };
+    let settings = Settings {
+        maps: Some(walking_map()),
+        ..Settings::default()
+    };
+    let mut bench = Bench::with_setup(setup, settings, &[], &[2], false);
+    let head = PlayerState::read(&live.state, live.profile.items.len()).expect("a state");
+    for client in &mut bench.clients {
+        client.sim.player_states = vec![None, None, Some(head.clone())];
+        client.sim.player_raw = vec![None, None, Some(live.state.clone())];
+    }
+    bench.join(0);
+    assert!(bench.until(2_000, |bench| bench.clients[0].entered() == [0, 2]));
+    // Its standard kit knew two medkits and no bandages: the bandages and the
+    // store are the world's.
+    let standard = |bench: &Bench| {
+        let pantry = bench.game().driven_pantry(2).expect("the bot");
+        (pantry.in_hand(Drug::Medkit), pantry.in_hand(Drug::Bandages))
+    };
+    assert!(
+        bench.until(30_000, |bench| standard(bench) == (2, 2)),
+        "{:?}",
+        standard(&bench)
+    );
+    let pantry = bench.game().driven_pantry(2).expect("the bot");
+    assert_eq!(
+        (pantry.total(Drug::Medkit), pantry.total(Drug::Bandages)),
+        (22, 20),
+        "the slots and the store"
+    );
+    assert_eq!(pantry.first(Drug::Bandages).map(|held| held.quick), Some(1));
+    assert_eq!(pantry.first(Drug::Medkit).map(|held| held.quick), Some(0));
+}
+
+/// Two real clients and the server's bot (place 2) on a map the bots have
+/// built tactics for, in the simulation: so the match has its bots' view.
+/// `one_way`: the clients' one-way delays.
+fn mapped_bench(one_way: Vec<u64>) -> Bench {
+    let settings = Settings {
+        maps: Some(walking_map()),
+        ..Settings::default()
+    };
+    let mut bench = Bench::with_driven(3, MAP_TDM, settings, &[2]);
+    bench.one_way = one_way;
+    bench.join(0);
+    bench.join(1);
+    let started = std::time::Instant::now();
+    while !bench.game().bots_have_map() {
+        assert!(started.elapsed().as_secs() < 20, "no tactics");
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        bench.step(5);
+    }
+    bench.run_long(8_000);
+    bench
+}
+
+/// How late a player's inputs come, as the bots have it, is what the server
+/// measures at the intake (`Game::input`: the match clock less the input's
+/// tick), not the age of the last world: a player whose inputs come 110 ms
+/// late is in the ping band 150 and over (lateness about 0.45 of the ping:
+/// 68 ms and over), one whose inputs come on time is not, with the same old
+/// world behind both.
+#[test]
+fn a_players_lateness_and_ping_band_come_from_the_intake_not_the_worlds_age() {
+    let mut bench = mapped_bench(vec![]);
+    let walk = |bench: &mut Bench, ahead: i32, inputs: usize| {
+        for _ in 0..inputs {
+            bench.clients[0].input(ahead, key::FORWARD);
+            bench.run(50);
+        }
+        let clock = bench.clock();
+        bench.game().driven_bots().unwrap().player_view(0, clock).unwrap()
+    };
+    let (late, _, band) = walk(&mut bench, -110, 60);
+    assert!((110..170).contains(&late.late_ms), "{}", late.late_ms);
+    assert_eq!(band, 3);
+    let (prompt, _, band) = walk(&mut bench, 0, 120);
+    assert!(prompt.late_ms < 60, "{}", prompt.late_ms);
+    assert!(band < 3, "band {band}");
+    // The last world is no younger for either.
+    assert!(prompt.seen_at < bench.clock());
+    bench.assert_no_faults();
+}
+
+/// An input later than the relay's reach (425 ms less the largest round
+/// trip of the other players) is discarded at the intake before the bots
+/// hear of it: their view of the player is as it was, its lateness
+/// unmoved; one that is late but inside the reach is taken.
+#[test]
+fn an_input_later_than_the_relays_reach_never_reaches_the_bots() {
+    // The other human: 150 ms each way, a 300 ms round trip, so the reach
+    // of player 0 is 125 ms: a later input than that and the horizon
+    // (250 ms) is dropped.
+    let mut bench = mapped_bench(vec![0, 150, 0]);
+    for _ in 0..40 {
+        bench.clients[0].input(-10, key::FORWARD);
+        bench.run(50);
+    }
+    let seen = |bench: &Bench| {
+        let clock = bench.clock();
+        let (body, last, _) = bench.game().driven_bots().unwrap().player_view(0, clock).unwrap();
+        (body.late_ms, last)
+    };
+    let (late, last) = seen(&bench);
+    assert!(late < 80 && last.is_some(), "{late} {last:?}");
+    // 300 ms late: past the horizon and the reach.
+    bench.clients[0].input(-300, key::BACK);
+    bench.run(300);
+    assert_eq!(seen(&bench), (late, last), "discarded: the bots never heard it");
+    // 200 ms late: inside the horizon, taken (moved or relayed).
+    let taken = bench.clients[0].input(-200, key::FORWARD);
+    bench.run(300);
+    let (later, last_now) = seen(&bench);
+    assert!(later > late, "{later} against {late}");
+    assert!(last_now.is_some_and(|tick| Some(tick) > last), "{last_now:?} {taken:?}");
     bench.assert_no_faults();
 }
 

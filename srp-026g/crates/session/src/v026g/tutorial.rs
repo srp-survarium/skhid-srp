@@ -505,6 +505,8 @@ mod tests {
                                 slot,
                                 dict_id,
                                 count: 1,
+                                stored: 1,
+                                mods: &[],
                             })
                         })
                         .collect(),

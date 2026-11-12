@@ -77,7 +77,7 @@ pub fn tuning() -> PlayTuning {
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
-    if !cx.view.mode.has_batteries() {
+    if !cx.view.objective().has_homes() {
         return;
     }
     let Some(theirs) = cx.view.containers.iter().find(|c| c.team != cx.me.team) else {
@@ -226,7 +226,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
     let me = cx.me.feet;
     if cx
         .memory
-        .all_seen(cx.now)
+        .all_seen(cx.now, cx.view.clock)
         .iter()
         .any(|t| t.at().distance_xz(me) < num("contact_m"))
     {
@@ -277,7 +277,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
                 return Step::Continue(
                     Intent::stay()
                         .crouched()
-                        .looking(Look::At(goal))
+                        .looking(Look::use_box(goal))
                         .hold_fire()
                         .into_base(),
                 );
@@ -302,7 +302,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
             }
             let mut intent = Intent::stay()
                 .crouched()
-                .looking(Look::At(goal))
+                .looking(Look::use_box(goal))
                 .hold_fire()
                 .into_base();
             if cx.now >= *last_use + (num("use_every_s") * 1000.0) as u32 {
@@ -404,6 +404,7 @@ mod tests {
                 place,
                 candidates: sneaks(&s, place),
                 current: None,
+                committed: false,
             })
             .collect();
         assert_eq!(assign(asking, s.view.clock).len(), 1);

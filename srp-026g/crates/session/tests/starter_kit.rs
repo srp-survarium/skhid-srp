@@ -43,6 +43,8 @@ fn pockets(account: &Account, kit: &Kit) -> (u32, u32) {
                 slot: slot as u8,
                 dict_id,
                 count,
+                stored: count,
+                mods: &[],
             })
             .collect(),
     };

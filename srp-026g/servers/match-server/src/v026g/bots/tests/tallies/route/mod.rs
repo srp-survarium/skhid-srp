@@ -1,0 +1,295 @@
+//! The bench's count of how the bots got about (`player_bots_stuck.md` §8), as the audit's `wallpush.py` and
+//! `movement.py` count it from a match's worlds: sampled once a world (1 s), and the carriers each tick.
+//!
+//! The tally is a list of topics ([`RouteTopic`], [`topics`]), each a type in its own file that owns its counts and
+//! gives its part of the `routes:` line: a new count is a file, its `mod` line and one line of the list. What every
+//! topic reads of the bodies is read once a tick into [`RouteRun`] and [`TickAt`] (a fall, a carry). The line is the
+//! topics' pieces in the order of the list, in the three places the line has always had: the main run of keys, the
+//! route endings after it, and the tail (a new count goes to the tail, so the key it adds is the last on the line).
+
+use super::*;
+
+mod carries;
+mod counters;
+mod exact;
+mod falls;
+mod fields;
+mod flights;
+mod passes;
+mod pockets;
+mod probe;
+mod reversal_roles;
+mod stuck;
+mod turns;
+mod walking;
+mod zones;
+
+use counters::*;
+pub(crate) use flights::StairFloors;
+
+/// What the topics share of the run: each body's feet at the last tick and its team.
+pub(super) struct RouteRun {
+    pub(super) feet: Vec<Option<Vec3>>,
+    pub(super) teams: Vec<Option<u8>>,
+    /// Each body's walk at the last tick to an exact spot (`Motor::exact_end`).
+    exact_was: Vec<bool>,
+    /// Each body's pickup (the tick, the battery) while it carries.
+    carry_from: Vec<Option<(u32, usize)>>,
+    /// Each body's feet at the edge it walked off, while it falls on at its walk speed (the stand-in's walk-off,
+    /// `SRP_BENCH_STAND_IN_WALKOFF`), and whether its route dropped there: such a fall takes many ticks, so it is told where
+    /// it lands.
+    walk_off_from: Vec<Option<(Vec3, bool)>>,
+}
+
+/// A fall of a metre or more in a tick: where it began, and whether the bot's route drops there (a corner over
+/// a metre under the one before, within a metre of where it landed) and was walked to an exact spot.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Fall {
+    pub(super) from: Vec3,
+    pub(super) planned: bool,
+    pub(super) exact: bool,
+}
+
+/// What a body's carry did this tick: began, or ended (`home`: delivered; else lost) after `ms`.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum CarryEvent {
+    Began,
+    Ended { ms: u32, home: bool },
+}
+
+/// One body at one tick, for the topics' [`RouteTopic::tick`].
+pub(super) struct TickAt<'a> {
+    pub(super) bots: &'a Bots,
+    pub(super) time: u32,
+    pub(super) place: usize,
+    pub(super) body: &'a Body,
+    /// The body's feet at the tick before, if it was alive.
+    pub(super) before: Option<Vec3>,
+    pub(super) fall: Option<Fall>,
+    pub(super) carry: Option<CarryEvent>,
+    /// The anomaly field on the body's floor, and whether it hurts (`standin_fields`).
+    pub(super) field: Option<(crate::v026g::bots::live_zones::FieldId, bool)>,
+    pub(super) grid: &'a mapdata::grid::WalkGrid,
+}
+
+/// The `routes:` line in its three places ([`RouteTally::line`]); a piece is `key value` pairs.
+#[derive(Default)]
+pub(super) struct Line {
+    pub(super) main: Vec<String>,
+    pub(super) ends: Vec<String>,
+    pub(super) tail: Vec<String>,
+}
+
+/// A topic of the route tally: its counts, what it reads each tick, each world and each note, and its pieces of
+/// the line.
+pub(super) trait RouteTopic {
+    /// One body at one tick.
+    fn tick(&mut self, _run: &RouteRun, _at: &TickAt<'_>) {}
+
+    /// The worlds of the match, once a second: every body.
+    fn world(&mut self, _run: &RouteRun, _game: &Game, _bots: &Bots) {}
+
+    /// A bot's note.
+    fn note(&mut self, _run: &RouteRun, _note: &Note) {}
+
+    /// The match is over: what the topic reads of the game's end.
+    fn finish(&mut self, _game: &Game) {}
+
+    /// The topic's pieces of the line at the end, and any lines of its own it prints.
+    fn line(&mut self, run: &RouteRun, line: &mut Line);
+}
+
+/// The topics, in the order of the line's keys (a new one goes where its keys should come; most go last).
+fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
+    vec![
+        Box::new(walking::Walking::new(bodies)),
+        Box::new(stuck::Stuck::default()),
+        Box::new(carries::Carries::default()),
+        no_route(),
+        Box::new(falls::Falls::default()),
+        Box::new(zones::Zones::new(bodies)),
+        escapes(),
+        Box::new(pockets::Pockets::new(bodies)),
+        Box::new(exact::ExactFalls::new(bodies)),
+        motor(),
+        side_slides(),
+        lip_gaps(),
+        edge_falls(),
+        walk_offs(),
+        air_steers(),
+        request_gaps(),
+        shots_heard(),
+        holder_stand_sight(),
+        zone_pool_asks(),
+        route_crossings(),
+        take_fixes(),
+        team_plans(),
+        raid_switches(),
+        Box::new(reversal_roles::ReversalRoles::new(bodies)),
+        below_walk(),
+        past_drop(),
+        fix_floors(),
+        rests(),
+        rest_stops(),
+        contacts(),
+        capsule_walls(),
+        sprint_jumps(),
+        lifts(),
+        link_times(),
+        band_jumps(),
+        drop_walks(),
+        sprint_gaps(),
+        straight_jumps(),
+        low_presses(),
+        walk_reach(),
+        landings(),
+        stranded(),
+        off_floor_goals(),
+        stamina(),
+        foliage(),
+        grass(),
+        self_kills(),
+        drop_shuts(),
+        dead_links(),
+        keep_off(),
+        progress_watch(),
+        blind_stops(),
+        fix_gaps(),
+        fall_locks(),
+        drop_aim(),
+        unknown_meant(),
+        asks(),
+        route_ends(),
+        Box::new(probe::Probe::new(bodies)),
+        Box::new(fields::Fields::new(bodies)),
+        Box::new(passes::Passes::new(bodies)),
+        wall_clear(),
+        wall_clear_kept(),
+        sprint_turns(),
+        Box::new(turns::Turns::new(bodies)),
+        Box::new(flights::Flights::new(bodies)),
+        escape_floors(),
+        open_walks(),
+    ]
+}
+
+/// The tally of the bench's run.
+pub(crate) struct RouteTally {
+    run: RouteRun,
+    topics: Vec<Box<dyn RouteTopic>>,
+}
+
+impl RouteTally {
+    pub(crate) fn start(bodies: usize) -> Self {
+        Self {
+            run: RouteRun {
+                feet: vec![None; bodies],
+                teams: vec![None; bodies],
+                exact_was: vec![false; bodies],
+                carry_from: vec![None; bodies],
+                walk_off_from: vec![None; bodies],
+            },
+            topics: topics(bodies),
+        }
+    }
+
+    /// A tick: the falls, the carries begun and ended.
+    pub(crate) fn tick(&mut self, game: &Game, bots: &Bots, time: u32) {
+        for (place, body) in game.bodies.iter().enumerate() {
+            let run = &mut self.run;
+            let bot = bots.bots[place].as_ref();
+            if let Some(bot) = bot {
+                run.teams[place] = Some(bot.team);
+            }
+            let before = std::mem::replace(&mut run.feet[place], body.alive.then_some(body.feet));
+            let exact_now = bot.is_some_and(|bot| bot.motor.exact_end.is_some());
+            let exact = std::mem::replace(&mut run.exact_was[place], exact_now) || exact_now;
+            // Its route drops at `at`: a corner over a metre under the one before, within a metre of it (with `top`, the
+            // corner before it too), or a drop the planner recorded (a drop link under a metre, onto a shelf above the
+            // floor the body lands on: Mamayev Kurgan's spawn deck).
+            let drops_at = |at: Vec3, top: bool| {
+                bot.and_then(|bot| bot.route.as_ref()).is_some_and(|(route, _)| {
+                    route.points().windows(2).any(|w| {
+                        w[0].at.y - w[1].at.y >= 1.0
+                            && (w[1].at.distance_xz(at) <= 1.0 || top && w[0].at.distance_xz(at) <= 1.0)
+                    }) || route.drops_near(at, 1.0)
+                })
+            };
+            // A walk-off's fall is told where it lands, from the edge; any other in the tick it drops a metre or more. Whether
+            // the route dropped there is asked at the edge, of the route it walked off by (A271: the route is planned again in
+            // the air, and 186 of the 196 falls the walk-off turned unplanned were drops the one-tick arm counted planned there).
+            let walk_off = body.flight.as_ref().filter(|f| body.alive && f.carry != [0.0; 2]).map(|f| f.from);
+            let (from, planned_at_edge) = match (walk_off, run.walk_off_from[place]) {
+                (Some(edge), None) => {
+                    run.walk_off_from[place] = Some((edge, drops_at(edge, true)));
+                    (None, false)
+                }
+                (Some(_), Some(_)) => (None, false),
+                (None, Some((edge, planned))) => {
+                    run.walk_off_from[place] = None;
+                    (body.alive.then_some(edge), planned)
+                }
+                (None, None) => (before, false),
+            };
+            let fall = from
+                .filter(|from| body.alive && from.y - body.feet.y >= 1.0)
+                .map(|from| Fall { from, planned: planned_at_edge || drops_at(body.feet, false), exact });
+            let carry = match (run.carry_from[place], body.carrying) {
+                (None, Some(battery)) => {
+                    run.carry_from[place] = Some((time, battery));
+                    Some(CarryEvent::Began)
+                }
+                (Some((from, battery)), None) => {
+                    run.carry_from[place] = None;
+                    Some(CarryEvent::Ended {
+                        ms: time - from,
+                        home: matches!(game.batteries.get(battery), Some(Lying::Home(_))),
+                    })
+                }
+                _ => None,
+            };
+            let field = (game.fields.on() && body.alive)
+                .then(|| game.world.grid.locate(body.feet, 1.0))
+                .flatten()
+                .and_then(|node| game.fields.here(node));
+            let at = TickAt { bots, time, place, body, before, fall, carry, field, grid: &game.world.grid };
+            for topic in &mut self.topics {
+                topic.tick(&self.run, &at);
+            }
+        }
+    }
+
+    /// A world: the runs of pushing and standing, the reversals, and the bots on zones' floors.
+    pub(crate) fn world(&mut self, game: &Game, bots: &Bots) {
+        for topic in &mut self.topics {
+            topic.world(&self.run, game, bots);
+        }
+    }
+
+    pub(crate) fn note(&mut self, note: &Note) {
+        for topic in &mut self.topics {
+            topic.note(&self.run, note);
+        }
+    }
+
+    /// The match is over.
+    pub(crate) fn finish(&mut self, game: &Game) {
+        for topic in &mut self.topics {
+            topic.finish(game);
+        }
+    }
+
+    /// The line the bench prints (one `routes:` line, `key value` pairs).
+    pub(crate) fn line(mut self) -> String {
+        let mut line = Line::default();
+        for topic in &mut self.topics {
+            topic.line(&self.run, &mut line);
+        }
+        let mut out = line.main.join(" ");
+        for piece in line.ends.iter().chain(&line.tail) {
+            out.push(' ');
+            out += piece;
+        }
+        out
+    }
+}

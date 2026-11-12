@@ -167,6 +167,11 @@ va	status	ref_021d	name
 0x0006f109	verified	0x00051a73	render_line0
 0x0006f181	verified	0x00051aeb	accumulate_fit
 0x0006f561	verified	0x00051ecb	inspect_error
+0x00070f40	observed		vostok::physics::new_bt_element_joint
+0x00071080	observed		vostok::physics::new_compound_shape_from_hit_targets_config
+0x000714f0	observed		vostok::physics::new_animated_rigid_body
+0x00071600	observed		vostok::physics::new_animated_bt_hit_model
+0x0007a1f0	observed		vostok::physics::create_bt_primitive
 0x000716c0	reviewed	0x00053e64	vostok::physics::bt_animated_rigid_body::get_collision_group
 0x00077560	reviewed	0x00057966	vostok::physics::bullet_physics_world::ray_query
 0x0007ab10	reviewed	0x0021c787	vostok::physics::bullet_character_controller::get_collision_group
@@ -175,6 +180,7 @@ va	status	ref_021d	name
 0x0007ac10	reviewed	0x00155ebe	vostok::network_core::buffer_writer::w
 0x000804e0	reviewed	0x00158d51	vostok::network_core::buffer_writer::w<float>
 0x00080fa0	reviewed	0x00159507	vostok::network_core::buffer_writer::w<bool>
+0x000b9320	verified		btContinuousConvexCollision::calcTimeOfImpact
 0x000e0420	reviewed	0x000ae01f	vostok::resources::resource_children::link_parent_resource
 0x000e0500	reviewed	0x000ae0ce	vostok::resources::resource_children::link_child_resource
 0x000e05f0	reviewed	0x000ae195	vostok::resources::resource_children::unlink_parent_resource
@@ -891,6 +897,7 @@ va	status	ref_021d	name
 0x002079d0	reviewed	0x00155919	survarium::key_binder::id_to_action_name
 0x00207ad0	reviewed	0x001559ce	survarium::key_binder::action_name_to_ptr
 0x00207c30	reviewed	0x00155ae0	survarium::key_binder::keyname_to_ptr
+0x00208ad0	reviewed		survarium::chat_handler::add_message
 0x002093a0	reviewed	0x0016381b	survarium::chat_handler::initialize_tabs
 0x00209430	reviewed	0x00163895	survarium::chat_handler::set_mode
 0x00209710	reviewed	0x00163a97	survarium::chat_handler::add_new_tab
@@ -989,6 +996,7 @@ va	status	ref_021d	name
 0x00260e90	reviewed	0x0019685a	survarium::options_item_base::options_item_base
 0x00267a40	observed		survarium::timelimit_rule::timelimit_rule
 0x0026b1b0	reviewed	0x0019b33b	survarium::messaging_client::read_important_message
+0x0026b6f0	reviewed	0x0019b858	survarium::messaging_client::process_incoming_text_message
 0x0026cff0	reviewed	0x001a55c0	survarium::lobby_menu::on_mouse_key_action
 0x0026d090	reviewed	0x001a5606	survarium::lobby_menu::on_mouse_move
 0x0026daa0	reviewed	0x0019c24e	survarium::base_game_statistics_handler::on_victory_item_event
@@ -1086,6 +1094,7 @@ va	status	ref_021d	name
 0x002da850	observed	0x001d5a25	survarium::base_player::insert
 0x002daf60	reviewed	0x001d5e96	survarium::base_player::serialize
 0x002db490	reviewed	0x001d61a3	survarium::base_player::deserialize
+0x002dbf40	reviewed	0x001d6747	survarium::base_player::can_sprint
 0x002dc0b0	reviewed	0x001d6811	survarium::base_player::set_spotted
 0x002dc0c0	reviewed	0x001d681e	survarium::base_player::can_be_spotted_by
 0x002df0d0	reviewed	0x001e1421	survarium::weapon_core::weapon_core
@@ -1121,8 +1130,8 @@ va	status	ref_021d	name
 0x002e3390	reviewed	0x001e44ef	survarium::weapon_core::on_player_death
 0x002e3490	reviewed	0x001e4573	survarium::weapon_core::deserialize
 0x002e3800	reviewed	0x001e4825	survarium::weapon_core::could_be_used
-0x002e3840	reviewed	0x001e484f	survarium::weapon_core::computed_backward_recoil_time
-0x002e3900	reviewed	0x001e48b1	survarium::weapon_core::computed_horizontal_recoil_time
+0x002e3840	reviewed	0x001e484f	survarium::weapon_core::computed_horizontal_recoil_time
+0x002e3900	reviewed	0x001e48b1	survarium::weapon_core::computed_vertical_recoil_time
 0x002e3a10	reviewed	0x001e4911	survarium::weapon_core::can_sprint
 0x002e3a70	reviewed	0x001e4944	survarium::weapon_core::can_jump
 0x002e3aa0	reviewed	0x001e4964	survarium::weapon_core::can_aim
@@ -1158,6 +1167,7 @@ va	status	ref_021d	name
 0x002f8510	reviewed	0x001e8c2c	survarium::usable_object::post_deserialize_resolve
 0x002f8c30	reviewed	0x001deff5	survarium::collision_geometry::load
 0x002fa050	reviewed	0x001dffde	survarium::victory_item_core_cook::process_loading_victory_item_core
+0x002fbf90	verified	0x001e0de8	survarium::base_player::look_time_factor_calculator
 0x002fc4b0	reviewed	0x001faa61	survarium::inventory::inventory
 0x002fc560	reviewed	0x001faacf	survarium::inventory::`scalar deleting destructor'
 0x002fc620	reviewed	0x001fab02	survarium::inventory::set_item
@@ -1168,9 +1178,12 @@ va	status	ref_021d	name
 0x002fcaa0	reviewed	0x001fad25	survarium::inventory::action
 0x002fcb70	reviewed	0x001fadb6	survarium::inventory::setup_from_profile
 0x002fd2d0	reviewed	0x001faf4c	survarium::inventory::unload_to_profile
+0x002fdc10	observed		survarium::inventory::resupply
+0x002fdf50	observed		survarium::inventory::resupply_check
 0x002fe360	reviewed	0x001fb09e	survarium::inventory::serialize
 0x002fe550	reviewed	0x001fb246	survarium::inventory::deserialize
 0x002ffb80	reviewed	0x001e6ee8	survarium::inventory_item::inventory_item
+0x002ffce0	observed		survarium::inventory_item::restock
 0x002ffdf0	reviewed	0x001e6f9f	survarium::inventory_item::serialize
 0x002fff10	reviewed	0x001e703d	survarium::inventory_item::deserialize
 0x00300710	reviewed	0x001e739d	survarium::victory_item_core::can_use
@@ -1851,6 +1864,18 @@ va	status	ref_021d	name
 0x00511600	observed		Scaleform::GFx::Movie::Invoke
 0x000725e0	observed		vostok::math::create_rotation
 0x00054e10	observed		survarium::replay_network_client::is_this_place_mine
+0x00300770	reviewed	0x001e73be	survarium::victory_item_core::use_info
+0x003007e0	reviewed	0x001e73d8	survarium::victory_item_core::use_initialize
+0x00330ee0	reviewed	0x00208041	survarium::weapon_dispersion_params::weapon_dispersion_params
+0x00331050	reviewed	0x00207813	survarium::dispersion_calculator::initialize
+0x00331330	reviewed	0x00207954	survarium::dispersion_calculator::calculate_character_dispersion
+0x00331480	reviewed	0x00207aaa	survarium::dispersion_calculator::get_character_skill_influence
+0x0032fe40	reviewed	0x002075a9	survarium::transition_helper::tick
+0x0007bda0	reviewed	0x0021d4a9	vostok::physics::bullet_character_controller::player_step
+0x0007c900	reviewed	0x0021dbe5	vostok::physics::bullet_character_controller::step_up
+0x0007de10	reviewed	0x0021eebb	vostok::physics::bullet_character_controller::impassable_slope
+0x0007e1b0	reviewed	0x0021f2f1	vostok::physics::bullet_character_controller::step_down
+0x0007f100	reviewed	0x0021fc66	vostok::physics::bullet_character_controller::setup_shape_dim
 0x0027a1b0	observed		survarium::match_client::connect
 0x002384c0	observed		survarium::game_world_ui::show_player_list
 0x0001dd40	observed		vostok::console_commands::cc_value<float>::cc_value
@@ -1869,6 +1894,12 @@ va	status	ref_021d	name
 0x00131b40	observed		vostok::render::camouflage_decal_texture_type_baker_cook::check_loaded_baked_texture
 0x00131f90	observed		vostok::render::camouflage_decal_texture_type_baker_cook::remove_unwanted_files
 0x00132640	observed		vostok::buffer_vector<vostok::render::baked_texture_data>::push_back
+0x002fe7f0	reviewed		survarium::inventory::quick_use_slot
+0x002fe8b0	reviewed		survarium::inventory::first_grenade_pocket
+0x00309dc0	reviewed		survarium::grenade_set_core::want_throw
+0x00357f10	reviewed		vostok::configs::apply_set_modifiers
+0x00357f80	reviewed		vostok::configs::apply_add_modifiers
+0x00358010	reviewed		vostok::configs::apply_multiply_modifiers
 0x00316c20	observed		survarium::player_respawn_rule_base::fill_match_hud_state
 0x0074a800	verified		Scaleform::GFx::AS3::Instances::fl_events::EventDispatcher::HasEventHandler
 0x0074a860	verified		Scaleform::GFx::AS3::Instances::fl_events::EventDispatcher::WillTrigger
@@ -2157,7 +2188,6 @@ va	status	ref_021d	name
 0x00313300	verified		survarium::artefact_base::action
 0x00313350	verified		survarium::artefact_base::effect
 0x0007f1a0	reviewed	0x0021fcf1	vostok::physics::bullet_character_controller::setup_crouch_state
-0x0007bda0	reviewed	0x0021d4a9	vostok::physics::bullet_character_controller::player_step
 0x00337810	reviewed		survarium::player_logic_crouch_state::request_effective_crouch
 0x00337830	reviewed		survarium::player_logic_crouch_state::release_effective_crouch_if_clear
 0x00059080	observed		vostok::sound::sound_world::initialize_xaudio
@@ -2320,3 +2350,101 @@ va	status	ref_021d	name
 0x000f70f0	reviewed		vostok::resources::resource_base::resource_base
 0x0010a590	reviewed		vostok::resources::managed_resource::managed_resource
 0x001ee3c0	observed		survarium::game::enqueue_replay_seek_to
+0x0007a1f0	reviewed		vostok::physics::create_bt_primitive
+0x0007a000	reviewed		vostok::physics::bt_collision_shape::bt_collision_shape
+0x00079ee0	reviewed		vostok::physics::btBvhTriangleMeshShapeResource::btBvhTriangleMeshShapeResource
+0x0007a390	reviewed	0x000591ca	vostok::physics::create_primitive_shape
+0x0007a460	reviewed	0x0005927d	vostok::physics::create_compound_shape
+0x0007a6e0	reviewed	0x000594c4	vostok::physics::create_btBvhTriangleMeshShape
+0x000758b0	reviewed	0x00056494	vostok::physics::bullet_physics_world::add
+0x00074b20	reviewed	0x00055e67	vostok::physics::bullet_physics_world::initialize
+0x000829e0	reviewed	0x00059aa0	vostok::physics::collision_shape_cook::on_collision_sources_loaded
+0x003570a0	reviewed		vostok::physics::bt_static_rigid_body::get_triangle_material
+0x00356d00	reviewed	0x0021bc68	vostok::physics::bt_static_rigid_body::get_walker_behaviour
+0x00074190	reviewed		btConvexInternalShape::getMargin
+0x0008def0	reviewed		btConvexInternalShape::setLocalScaling
+0x000a5e20	reviewed		btCapsuleShape::btCapsuleShape
+0x000a5e90	reviewed		btCapsuleShape::localGetSupportingVertexWithoutMargin
+0x000a9be0	reviewed		btBoxShape::setLocalScaling
+0x000a9f10	reviewed		CylinderLocalSupportY
+0x000a36e0	reviewed		btCollisionWorld::convexSweepTest
+0x000a3420	reviewed		btSingleSweepCallback::btSingleSweepCallback
+0x000a14e0	reviewed		btCollisionWorld::objectQuerySingle
+0x000a29f0	reviewed		BridgeTriangleConvexcastCallback::BridgeTriangleConvexcastCallback
+0x000a2a40	reviewed		BridgeTriangleConvexcastCallback::reportHit
+0x000b8510	reviewed		btTriangleConvexcastCallback::btTriangleConvexcastCallback
+0x000b8670	reviewed		btTriangleConvexcastCallback::processTriangle
+0x000b8900	reviewed		btContinuousConvexCollision::computeClosestPoints
+0x000fe5e0	reviewed		vostok::setup_floating_point_control
+0x0007b730	reviewed	0x0021d189	vostok::physics::bullet_character_controller::updateAction
+0x0007f6d0	reviewed	0x0021ff5d	vostok::physics::bullet_character_controller::set_transform
+0x0007f7f0	observed		vostok::physics::bullet_character_controller::serialize
+0x0009b260	reviewed		btDiscreteDynamicsWorld::stepSimulation
+0x0009b810	reviewed		btDiscreteDynamicsWorld::updateActions
+0x000a58f0	reviewed		btDbvt::collideTV
+0x0008a130	reviewed		btAlignedAllocDefault
+0x0008a170	reviewed		btAlignedFreeDefault
+0x000a8380	reviewed		btBvhTriangleMeshShape::performConvexcast
+0x00087b60	reviewed	0x002232a0	vostok::physics::character_controller_jump_tester::convex_sweep_test
+0x0007f7b0	reviewed		vostok::physics::bullet_character_controller::can_stand_up
+0x0007bd10	reviewed		vostok::physics::bullet_character_controller::need_push_from_low_ceiling
+0x0007bad0	reviewed		vostok::physics::bullet_character_controller::get_push_from_low_ceiling
+0x0007c7e0	reviewed	0x0021db35	vostok::physics::bullet_character_controller::can_skeep_player_step
+0x000d1170	verified		btVoronoiSimplexSolver::reset
+0x000d1200	verified		btVoronoiSimplexSolver::addVertex
+0x000d1280	verified		btVoronoiSimplexSolver::updateClosestVectorAndPoints
+0x000d1c70	verified		btVoronoiSimplexSolver::inSimplex
+0x000d1120	verified		btVoronoiSimplexSolver::reduceVertices
+0x000d10a0	verified		btVoronoiSimplexSolver::removeVertex
+0x000d1e80	reviewed		btVoronoiSimplexSolver::compute_points
+0x000d1ed0	verified		btVoronoiSimplexSolver::closestPtPointTriangle
+0x000d25b0	verified		btVoronoiSimplexSolver::pointOutsideOfPlane
+0x000d2700	verified		btVoronoiSimplexSolver::closestPtPointTetrahedron
+0x000d6cd0	verified		btGjkPairDetector::getClosestPointsNonVirtual
+0x0008d680	verified		btConvexShape::localGetSupportVertexWithoutMarginNonVirtual
+0x00072eb0	reviewed		btTransformUtil::calculateVelocity
+0x0008b2d0	reviewed		btTransformUtil::integrateTransform
+0x00074210	reviewed		btSphereShape::btSphereShape
+0x000a96d0	reviewed		btBoxShape::btBoxShape
+0x000a9d40	reviewed		btCylinderShape::btCylinderShape
+0x000a8ca0	reviewed		btConvexInternalShape::setSafeMargin
+0x00070c20	reviewed		btCollisionObject::setWorldTransform
+0x00070c80	reviewed		btCollisionObject::setInterpolationWorldTransform
+0x002f8770	reviewed		survarium::collision_object_matrix
+0x000727b0	reviewed		vostok::math::float4x4::set_scale
+0x00083600	reviewed		vostok::physics::collision_shape_cook::create_primitives_shape
+0x00072b90	verified		btMatrix3x3::getRotation
+0x00072a50	verified		btMatrix3x3::setRotation
+0x00072fb0	reviewed		btTransformUtil::calculateDiffAxisAngle
+0x00072d20	reviewed		btTransform::inverse
+0x000b88b0	reviewed		btPointCollector::addContactPoint
+0x0009fc20	reviewed		btCollisionWorld::LocalConvexResult::LocalConvexResult
+0x000a2c30	reviewed		btCompoundLeafCallback::Process
+0x000a2be0	reviewed		LocalInfoAdder::addSingleResult
+0x0008d4c0	reviewed		convexHullSupport
+0x00084420	reviewed		vostok::physics::character_step_down_sweep_test_callback::addSingleResult
+0x00084810	reviewed	0x00220f3c	vostok::physics::character_step_down_sweep_test_callback::get_normal_via_ray_test
+0x000842e0	reviewed		vostok::physics::character_step_down_sweep_test_callback::character_step_down_sweep_test_callback
+0x00084190	reviewed		vostok::physics::character_step_down_sweep_test_callback::hit_shape_rotation
+0x000a9bc0	reviewed		btCylinderShape::getRadius
+0x000b72a0	reviewed		btSubsimplexConvexCast::calcTimeOfImpact
+0x000b8010	reviewed		btTriangleRaycastCallback::processTriangle
+0x00084040	reviewed		vostok::physics::closest_ray_result_callback::addSingleResult
+0x00083fd0	reviewed		vostok::physics::closest_ray_result_callback::closest_ray_result_callback
+0x000a0f60	reviewed		BridgeTriangleRaycastCallback::reportHit
+0x000a10b0	reviewed		RayTester::Process
+0x000898c0	reviewed		vostok::physics::character_move_sweep_callback::get_wall_normal_via_ray
+0x002fbc90	reviewed		survarium::weapon_user_animations_selector::sprint_predicate
+0x00336a10	reviewed		survarium::player_logic_stand_sprint_state::initialize
+0x00336a50	reviewed		survarium::player_logic_stand_sprint_state::finalize
+0x00336a90	reviewed		survarium::player_logic_stand_sprint_state::is_ready_for_transition
+0x002dc010	reviewed		survarium::base_player::max_speed
+0x002dbcd0	reviewed		survarium::base_player::update_stagger
+0x002d8ad0	reviewed		survarium::base_player::apply_rotation
+0x00337040	reviewed		survarium::player_logic_stand_jump_state::initialize
+0x00337330	reviewed		survarium::player_logic_stand_jump_state::is_ready_for_transition
+0x003434a0	reviewed		survarium::jump_logic_state_start::on_jump_event
+0x002d7920	reviewed		survarium::base_player::jump
+0x002fbea0	reviewed		survarium::weapon_user_animations_selector::crouch_to_on_site_predicate
+0x002fbf00	reviewed		survarium::weapon_user_animations_selector::crouch_to_run_predicate
+0x0007cb90	reviewed	0x0021ddbd	vostok::physics::bullet_character_controller::step_jump_forward

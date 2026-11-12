@@ -1,0 +1,38 @@
+owner-test pin from cover: walk need: 0 walks, need median 0.0 s (0 over the 6.9 s job), 0.0 m, job 0.0 s old; dropped moving 0 of which 0 short of time; 0 peek-spot searches, 0 found one, 0 pins from cover (0.0 m away), 0 arrived, 0 polls past the walk cap; walks 0 arrived (0.0 s) 0 dropped (0.0 s); 0 s at a peek spot, 0 peeks (0.0 a minute); kills up 0 hidden 0, deaths up 0 hidden 0
+{
+  "pin_cover": {
+    "arrived": 0,
+    "deaths_up_hidden": [
+      0,
+      0
+    ],
+    "found": 0,
+    "kills_up_hidden": [
+      0,
+      0
+    ],
+    "past_reach": 0,
+    "peek_s": 0.0,
+    "peeks": 0,
+    "searched": 0,
+    "start_m": 0.0,
+    "started": 0,
+    "walk_s_arrived_dropped": [
+      0.0,
+      0.0
+    ],
+    "walks_arrived_dropped": [
+      0,
+      0
+    ],
+    "walks_need": {
+      "dropped_moving": 0,
+      "dropped_short_of_time": 0,
+      "job_age_s": 0.0,
+      "need_over_job": 0,
+      "need_s": 0.0,
+      "start_m": 0.0,
+      "walks": 0
+    }
+  }
+}

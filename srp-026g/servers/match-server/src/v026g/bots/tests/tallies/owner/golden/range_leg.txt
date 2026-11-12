@@ -1,0 +1,19 @@
+owner-test range leg: 0 whole runs (0 ticks), by length 1: 0, 2-4: 0, 5-9: 0, 10-20: 0, 21+: 0; short (1 s or less) 0 (0 %), one tick 0, restarted within a second of the last run 0 (0 %)
+{
+  "range_leg": {
+    "by_length": {
+      "1": 0,
+      "10-20": 0,
+      "2-4": 0,
+      "21+": 0,
+      "5-9": 0
+    },
+    "one_tick": 0,
+    "restart_share_pct": 0.0,
+    "restarts": 0,
+    "runs": 0,
+    "short": 0,
+    "short_share_pct": 0.0,
+    "ticks": 0
+  }
+}
