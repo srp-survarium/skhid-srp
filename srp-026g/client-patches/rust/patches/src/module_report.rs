@@ -102,6 +102,8 @@ static REPORTED: GameCell<Reported> = GameCell::new(Reported::Nothing);
 
 pub fn on_loaded(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(connection) = Connection::at_loaded(ctx) {
+        // the windows-over episodes count from the match's first world
+        module_watch::match_started(ctx.thread(), tick_count());
         report(ctx.thread(), &connection, Event::WorldLoaded(connection.key()));
     }
     Flow::Continue
@@ -134,15 +136,23 @@ pub fn on_dll(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// Each Present: which window the game presents to.
+/// user32's window event callback: a window came over the game or went.
+pub fn on_win_event(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    module_watch::win_event(ctx);
+    Flow::Continue
+}
+
+/// Each Present: which window the game presents to, and (once) the window
+/// event watch registered on this, the game's main thread.
 pub fn on_present(ctx: &mut Context<'_>) -> Flow<NoExit> {
     presenting(ctx);
+    module_watch::ensure_window_watch(ctx.thread());
     Flow::Continue
 }
 
 fn report(thread: &Thread, connection: &Connection<'_>, event: Event) {
     let advance = |event| {
-        let (next, tell) = step(REPORTED.get(thread), event, tick_count(), Windows::look);
+        let (next, tell) = step(REPORTED.get(thread), event, tick_count(), || Windows::look(thread));
         REPORTED.set(thread, next);
         tell
     };

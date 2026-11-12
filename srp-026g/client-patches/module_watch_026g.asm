@@ -23,18 +23,31 @@ section .text
 
 extern module_report_on_thread
 extern module_report_on_dll
+extern module_report_on_win_event
 
 global module_watch_tls
 module_watch_tls:
-    push module_watch_dll
+    push module_watch_win_event ; our window event callback, handed to Rust
+    push module_watch_dll       ; our DLL notification, handed to Rust
     call module_report_on_thread
-    lea esp, [esp + 4]          ; the flags as they were
+    lea esp, [esp + 8]          ; drop both; the flags as they were
     ret 12
 
 global module_watch_dll
 module_watch_dll:
     call module_report_on_dll
     ret 12
+
+; - module_watch_win_event: user32's event callback (WINEVENTPROC: the hook,
+;   the event, the window, idObject, idChild, idEventThread, dwmsEventTime),
+;   handed to SetWinEventHook out of context. Windows calls it stdcall on the
+;   thread that registered the hook (the game's main thread, which pumps
+;   messages); the generated entry returns with a bare ret, so this caller
+;   pops the seven arguments.
+global module_watch_win_event
+module_watch_win_event:
+    call module_report_on_win_event
+    ret 28
 
 ; The TLS directory's callback list (the block module_watch.data): ours, then
 ; the terminator.

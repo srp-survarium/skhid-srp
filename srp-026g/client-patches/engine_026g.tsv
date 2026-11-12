@@ -69,8 +69,13 @@ engine_is_window_visible	-	-	unsigned int engine_is_window_visible(void *window)
 engine_get_window_thread_process_id	-	-	unsigned int engine_get_window_thread_process_id(void *window, unsigned int *process)	dynamic	
 engine_get_window_rect	-	-	unsigned int engine_get_window_rect(void *window, void *rect)	dynamic	
 engine_get_class_name_w	-	-	unsigned int engine_get_class_name_w(void *window, unsigned short *name, unsigned int size)	dynamic	
-engine_get_module_file_name_w	-	-	unsigned int engine_get_module_file_name_w(void *module, unsigned short *path, unsigned int size)	dynamic	
-engine_com_release	-	-	unsigned int engine_com_release(void *object)	dynamic	
+engine_get_module_file_name_w	-	-	unsigned int engine_get_module_file_name_w(void *module, unsigned short *path, unsigned int size)	dynamic
+engine_get_window_display_affinity	-	-	unsigned int engine_get_window_display_affinity(void *window, unsigned int *affinity)	dynamic
+engine_set_win_event_hook	-	-	void *engine_set_win_event_hook(unsigned int event_min, unsigned int event_max, void *module, void *callback, unsigned int process, unsigned int thread, unsigned int flags)	dynamic
+engine_nt_query_system_information	-	-	unsigned int engine_nt_query_system_information(unsigned int class, void *buffer, unsigned int size, unsigned int *needed)	dynamic
+engine_duplicate_handle	-	-	unsigned int engine_duplicate_handle(void *source_process, void *source_handle, void *target_process, void **target, unsigned int access, unsigned int inherit, unsigned int options)	dynamic
+engine_get_process_id	-	-	unsigned int engine_get_process_id(void *process)	dynamic
+engine_com_release	-	-	unsigned int engine_com_release(void *object)	dynamic
 engine_enum_process_modules	-	-	unsigned int engine_enum_process_modules(void *process, void **modules, unsigned int size, unsigned int *needed)	dynamic	
 engine_ray_test	0x075e20	ECX:world ESP+4:result ESP+8:origin ESP+12:direction ESP+16:length ESP+20:group ESP+24:mask ESP+28:delegate ESP+32:unflipped	void engine_ray_test(struct bullet_physics_world *world, struct ray_result *result, const float *origin, const float *direction, float length, unsigned int group, unsigned int mask, const void *delegate, unsigned int unflipped)	thunk	
 engine_release_object	0x0e0210	ECX:instance EAX:count	void engine_release_object(struct player *object, unsigned int *count)	thunk	

@@ -23,6 +23,12 @@ handler = "on_thread"
 site = "module_watch.dll"
 handler = "on_dll"
 
+# user32's window event callback (SetWinEventHook out of context): a window
+# came over the game or went, told when it happens, not only at the minute look
+[[hook]]
+site = "module_watch.win_event"
+handler = "on_win_event"
+
 # each Present, after patch 83's (order 1): which window the game presents to
 [[hook]]
 site = "render_output.present"

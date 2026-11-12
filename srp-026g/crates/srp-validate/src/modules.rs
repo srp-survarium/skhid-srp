@@ -19,11 +19,20 @@
 //!   lists it: one loaded and taken out of the list again stays on record;
 //! - an [`Over`]: a window of another process that is always on top, above
 //!   the game's window and over some of it (an overlay), by its exe's file
-//!   name and folder ([`Home`]), its class, its extended styles and how
-//!   much of the game it is over; or [`Unseen`], why that could not be told.
+//!   name and folder ([`Home`]), its class, its extended styles, how much of
+//!   the game it is over, whether a screen capture leaves it out
+//!   ([`Affinity`]) and the seconds of the match it was over the game for; or
+//!   [`Unseen`], why that could not be told;
+//! - a [`Holder`]: another process that holds a handle to the game's own
+//!   process object with memory access (`PROCESS_VM_READ`, and
+//!   `VM_WRITE`/`VM_OPERATION` where granted), by its exe and the access it
+//!   was given; or an [`Unchecked`] count of such handles in holders the game
+//!   could not check (an address the kernel zeroed, an elevated or protected
+//!   holder), by holder exe where it has one.
 //!
 //! An overlay (Discord, Steam, RTSS, OBS) puts DLLs into the game and a
-//! window over it: the entries are read against every other game's.
+//! window over it, and a recorder or an overlay reads the game's memory: the
+//! entries are read against every other game's.
 //!
 //! The body of a [`crate::report`] carrier of kind modules: up to
 //! [`PER_PART`] entries a part and as many as its room holds (an entry is
@@ -35,11 +44,15 @@
 //!   kind 1 code:   u8 memory  u8 protect  u32 exec_size  u32 size  u8 has_start  u32 start  pe[9]
 //!   kind 2 load:   name[32]  u32 image_size  u32 at  u8 listed  pe[9]  place
 //!   kind 3 over:   name[32]  class[32] (zeros: none)  u32 style  u16 width  u16 height
+//!                  u8 affinity  u32 since  u8 has_until  u32 until
 //!                  u8 home (0 unknown, 1 the Windows folder, 2 a place)  place (with 2)
 //!   kind 4 unseen: u8 why
+//!   kind 5 holder: name[32] (zeros: none)  u32 access  u8 home  place (with 2)
+//!   kind 6 unchecked: name[32] (zeros: none)  u32 count  u8 home  place (with 2)
 //!   place: u8 folder  u8 len  dir[len] (UTF-8, at most 64 bytes)
-//!   at: seconds since the game started
+//!   at, since, until: seconds since the game started (at) or into the match
 //!   pe: u8 has  u32 stamp  u32 checksum (all zero without)
+//!   affinity: 0 shown, 1 monitor-only, 2 hidden from capture
 //!   moment: 0 loaded, 1 ended, from 2 a minute (the minute + 1)
 //! ```
 
@@ -120,8 +133,9 @@ pub const NAME: usize = 32;
 pub const DIR: usize = 64;
 const PE: usize = 9;
 const HEAD: usize = 3;
-/// The longest entry (a load in a folder of [`DIR`] bytes): its kind and its body.
-const LONGEST: usize = 1 + NAME + NAME + 4 + 4 + 1 + 2 + DIR;
+/// The longest entry (an `over` whose exe is in a folder of [`DIR`] bytes):
+/// its kind, its two names, style, size, affinity, since, until and home.
+const LONGEST: usize = 1 + NAME + NAME + 4 + 4 + 1 + 4 + 5 + 3 + DIR;
 /// A part's body at most: with the carrier's header it stays in one 0xE0
 /// chunk ([`crate::report::MAX_SIZE`]).
 pub const MAX_BODY: usize = 465;
@@ -655,7 +669,9 @@ pub struct Load {
 
 /// A window of another process over the game's: visible, always on top
 /// ([`Over::TOPMOST`]), above the game's window in the windows' order and
-/// over some of it. An overlay (Discord, Steam, a recorder) is one too.
+/// over some of it. An overlay (Discord, Steam, a recorder) is one too. It
+/// is watched by events, so one that came over the game and went between two
+/// minute looks is still told, with the match seconds it was over for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Over {
     /// Its process's exe file name; `None`: the process list has none for it.
@@ -667,7 +683,97 @@ pub struct Over {
     /// How much of the game's window it is over, in pixels.
     pub width: u16,
     pub height: u16,
+    /// Whether a screen capture leaves the window out.
+    pub affinity: Affinity,
     /// Where its process's exe file is.
+    pub home: Home,
+    /// Seconds into the match when it first came over the game.
+    pub since: u32,
+    /// Seconds into the match when it went; `None`: still over at the report.
+    pub until: Option<u32>,
+}
+
+/// Whether a window is left out of a screen capture (`GetWindowDisplayAffinity`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Affinity {
+    /// `WDA_NONE` (0), or the question could not be asked.
+    None,
+    /// `WDA_MONITOR` (1): shows on the monitor, black in a capture.
+    Monitor,
+    /// `WDA_EXCLUDEFROMCAPTURE` (0x11): the window is absent from a capture.
+    ExcludeFromCapture,
+}
+
+impl Affinity {
+    /// `GetWindowDisplayAffinity`'s value; anything else is [`Affinity::None`].
+    pub fn of(affinity: u32) -> Affinity {
+        match affinity {
+            1 => Affinity::Monitor,
+            0x11 => Affinity::ExcludeFromCapture,
+            _ => Affinity::None,
+        }
+    }
+
+    pub fn word(self) -> &'static str {
+        match self {
+            Affinity::None => "shown",
+            Affinity::Monitor => "monitor-only",
+            Affinity::ExcludeFromCapture => "hidden-from-capture",
+        }
+    }
+
+    fn byte(self) -> u8 {
+        match self {
+            Affinity::None => 0,
+            Affinity::Monitor => 1,
+            Affinity::ExcludeFromCapture => 2,
+        }
+    }
+
+    fn of_byte(byte: u8) -> Option<Affinity> {
+        match byte {
+            0 => Some(Affinity::None),
+            1 => Some(Affinity::Monitor),
+            2 => Some(Affinity::ExcludeFromCapture),
+            _ => None,
+        }
+    }
+}
+
+/// Another process that holds a handle to the game's own process object with
+/// memory access: it can read (and where granted write) the game's memory
+/// from outside. Told only when the granted access includes
+/// [`Holder::VM_READ`]; a recorder, an overlay or a debugger is one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Holder {
+    /// The holder's exe file name; `None`: the process list has none for it.
+    pub name: Option<Name>,
+    /// The access the handle was granted (a `PROCESS_*` mask).
+    pub access: u32,
+    /// Where the holder's exe file is.
+    pub home: Home,
+}
+
+impl Holder {
+    /// `PROCESS_VM_READ`: the handle can read the game's memory.
+    pub const VM_READ: u32 = 0x10;
+    /// `PROCESS_VM_WRITE`: it can write the game's memory.
+    pub const VM_WRITE: u32 = 0x20;
+    /// `PROCESS_VM_OPERATION`: it can change the game's memory's protection.
+    pub const VM_OPERATION: u32 = 0x8;
+}
+
+/// Process-object handles in holders the game could not check (the kernel
+/// zeroed the object address for a caller without the debug right, or the
+/// holder is elevated or protected and cannot be opened): a count, by holder
+/// exe where the process list names it. Never a silent gap.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Unchecked {
+    /// The holder's exe file name; `None`: the process list has none for it.
+    pub name: Option<Name>,
+    /// How many of its process-object handles could not be checked.
+    pub count: u32,
+    /// Where the holder's exe file is.
     pub home: Home,
 }
 
@@ -686,6 +792,38 @@ impl Home {
     /// Of the exe at `path`, the folders as [`Place::of`] takes them.
     pub fn of(path: &[u16], game: &[u16], temp: &[u16], windows: &[u16]) -> Home {
         Place::of(path, game, temp, windows).map_or(Home::Windows, Home::At)
+    }
+
+    /// Its bytes as told: a tag, and a place where it has one.
+    fn told(self) -> usize {
+        1 + match self {
+            Home::At(place) => place.told(),
+            Home::Unknown | Home::Windows => 0,
+        }
+    }
+
+    /// Its tag and, with [`Home::At`], its place, into `body`.
+    fn put(self, body: &mut &mut [u8]) {
+        let tag = take(body, 1);
+        match self {
+            Home::Unknown => {}
+            Home::Windows => tag.copy_from_slice(&[1]),
+            Home::At(place) => {
+                tag.copy_from_slice(&[2]);
+                place.put(body);
+            }
+        }
+    }
+
+    /// The home that starts `bytes`, and what follows it.
+    fn parse(bytes: &[u8]) -> Option<(Home, &[u8])> {
+        let (&tag, rest) = bytes.split_first()?;
+        match tag {
+            0 => Some((Home::Unknown, rest)),
+            1 => Some((Home::Windows, rest)),
+            2 => Place::parse(rest).map(|(place, rest)| (Home::At(place), rest)),
+            _ => None,
+        }
     }
 }
 
@@ -742,6 +880,8 @@ pub enum Entry {
     Load(Load),
     Over(Over),
     Unseen(Unseen),
+    Holder(Holder),
+    Unchecked(Unchecked),
 }
 
 fn folder_byte(folder: Folder) -> u8 {
@@ -772,20 +912,16 @@ fn take<'a>(out: &mut &'a mut [u8], n: usize) -> &'a mut [u8] {
 impl Entry {
     /// Its bytes as told: its kind and its body.
     fn told(&self) -> usize {
-        let (fixed, place) = match self {
-            Entry::Module(module) => (NAME + 4 + PE, Some(module.place)),
-            Entry::Code(_) => (2 + 8 + 5 + PE, None),
-            Entry::Load(load) => (NAME + 4 + 4 + 1 + PE, Some(load.place)),
-            Entry::Unseen(_) => (1, None),
-            Entry::Over(over) => (
-                NAME + NAME + 4 + 4 + 1,
-                match over.home {
-                    Home::At(place) => Some(place),
-                    Home::Unknown | Home::Windows => None,
-                },
-            ),
+        let body = match self {
+            Entry::Module(module) => NAME + 4 + PE + module.place.told(),
+            Entry::Code(_) => 2 + 8 + 5 + PE,
+            Entry::Load(load) => NAME + 4 + 4 + 1 + PE + load.place.told(),
+            Entry::Unseen(_) => 1,
+            Entry::Over(over) => NAME + NAME + 4 + 4 + 1 + 4 + 5 + over.home.told(),
+            Entry::Holder(holder) => NAME + 4 + holder.home.told(),
+            Entry::Unchecked(unchecked) => NAME + 4 + unchecked.home.told(),
         };
-        place.map_or(0, |place| place.told()).saturating_add(fixed).saturating_add(1)
+        body.saturating_add(1)
     }
 
     /// Into `record`, which is [`Entry::told`] bytes of zeros.
@@ -835,19 +971,29 @@ impl Entry {
                 Name::put(over.name, take(body, NAME));
                 Name::put(over.class, take(body, NAME));
                 put_words(take(body, 8), &[over.style, u32::from(over.width) | u32::from(over.height) << 16]);
-                let home = take(body, 1);
-                match over.home {
-                    Home::Unknown => {}
-                    Home::Windows => home.copy_from_slice(&[1]),
-                    Home::At(place) => {
-                        home.copy_from_slice(&[2]);
-                        place.put(body);
-                    }
+                take(body, 1).copy_from_slice(&[over.affinity.byte()]);
+                put_words(take(body, 4), &[over.since]);
+                if let (Some(value), Some((has, word))) = (over.until, take(body, 5).split_first_mut()) {
+                    *has = 1;
+                    put_words(word, &[value]);
                 }
+                over.home.put(body);
             }
             Entry::Unseen(unseen) => {
                 *kind = 4;
                 body.copy_from_slice(&[Unseen::ALL.iter().position(|why| why == unseen).unwrap_or_default() as u8]);
+            }
+            Entry::Holder(holder) => {
+                *kind = 5;
+                Name::put(holder.name, take(body, NAME));
+                put_words(take(body, 4), &[holder.access]);
+                holder.home.put(body);
+            }
+            Entry::Unchecked(unchecked) => {
+                *kind = 6;
+                Name::put(unchecked.name, take(body, NAME));
+                put_words(take(body, 4), &[unchecked.count]);
+                unchecked.home.put(body);
             }
         }
     }
@@ -922,26 +1068,46 @@ impl Entry {
                 let (class, rest) = rest.split_at_checked(NAME)?;
                 let (words, rest) = rest.split_at_checked(8)?;
                 let size = word(words.get(4..)?)?;
-                let (&home, rest) = rest.split_first()?;
-                let (home, rest) = match home {
-                    0 => (Home::Unknown, rest),
-                    1 => (Home::Windows, rest),
-                    2 => Place::parse(rest).map(|(place, rest)| (Home::At(place), rest))?,
+                let (&affinity, rest) = rest.split_first()?;
+                let (since, rest) = rest.split_at_checked(4)?;
+                let (until, rest) = rest.split_at_checked(5)?;
+                let (&has_until, until) = until.split_first()?;
+                let until = match (has_until, word(until)?) {
+                    (0, 0) => None,
+                    (1, value) => Some(value),
                     _ => return None,
                 };
+                let (home, rest) = Home::parse(rest)?;
                 let over = Over {
                     name: Name::parse_told(name)?,
                     class: Name::parse_told(class)?,
                     style: word(words.get(..4)?)?,
                     width: size as u16,
                     height: (size >> 16) as u16,
+                    affinity: Affinity::of_byte(affinity)?,
                     home,
+                    since: word(since)?,
+                    until,
                 };
                 Some((Entry::Over(over), rest))
             }
             4 => {
                 let (&why, rest) = body.split_first()?;
                 Some((Entry::Unseen(*Unseen::ALL.get(usize::from(why))?), rest))
+            }
+            5 => {
+                let (name, rest) = body.split_at_checked(NAME)?;
+                let (access, rest) = rest.split_at_checked(4)?;
+                let (home, rest) = Home::parse(rest)?;
+                let holder = Holder { name: Name::parse_told(name)?, access: word(access)?, home };
+                Some((Entry::Holder(holder), rest))
+            }
+            6 => {
+                let (name, rest) = body.split_at_checked(NAME)?;
+                let (count, rest) = rest.split_at_checked(4)?;
+                let (home, rest) = Home::parse(rest)?;
+                let unchecked = Unchecked { name: Name::parse_told(name)?, count: word(count)?, home };
+                Some((Entry::Unchecked(unchecked), rest))
             }
             _ => None,
         }
@@ -1225,10 +1391,24 @@ mod tests {
         let name = Name::of_path(&wide(&std::format!("w{n}.dll"))).unwrap();
         let pe = n.is_multiple_of(2).then_some(PeMarks { stamp: n, checksum: 7 });
         let place = deep(Folder::Other, n as usize * 3 % (DIR + 1));
-        match n % 3 {
+        let home = [Home::Unknown, Home::Windows, Home::At(place)][n as usize / 5 % 3];
+        let affinity = [Affinity::None, Affinity::Monitor, Affinity::ExcludeFromCapture][n as usize % 3];
+        match n % 5 {
             0 => Entry::Load(Load { name, place, image_size: 0x9000, pe, at: n, listed: n.is_multiple_of(10) }),
-            1 => Entry::Over(Over { name: (n % 2 == 1).then_some(name), class: (n % 4 < 2).then_some(name), style: n, width: n as u16, height: 9, home: [Home::Unknown, Home::Windows, Home::At(place)][n as usize / 3 % 3] }),
-            _ => Entry::Unseen(Unseen::ALL[n as usize % 2]),
+            1 => Entry::Over(Over {
+                name: (n % 2 == 1).then_some(name),
+                class: (n % 4 < 2).then_some(name),
+                style: n,
+                width: n as u16,
+                height: 9,
+                affinity,
+                home,
+                since: n,
+                until: (n % 2 == 0).then_some(n + 5),
+            }),
+            2 => Entry::Unseen(Unseen::ALL[n as usize % 2]),
+            3 => Entry::Holder(Holder { name: (n % 2 == 1).then_some(name), access: n | Holder::VM_READ, home }),
+            _ => Entry::Unchecked(Unchecked { name: (n % 3 == 0).then_some(name), count: n, home }),
         }
     }
 
@@ -1248,7 +1428,9 @@ mod tests {
         let (bytes, _) = carried(&report, 0);
         let load = FIRST;
         let over = load + 1 + NAME + 9 + PE + 2;
-        let unseen = over + 1 + NAME + NAME + 8 + 1;
+        // over body: name, class, style+size (8), affinity (1), since (4),
+        // until (5), then its home (Unknown here, one byte)
+        let unseen = over + 1 + NAME + NAME + 8 + 1 + 4 + 5 + 1;
         let bad = |at: usize, value: u8| {
             let mut bytes = bytes.clone();
             bytes[at] = value;
@@ -1260,7 +1442,9 @@ mod tests {
         assert_eq!((bytes[over], bytes[unseen]), (3, 4));
         assert_eq!(bad(over + 2, 1), None, "a window's exe name after its end");
         assert_eq!(bad(over + 1 + NAME + 2, 1), None, "a window's class after its end");
-        assert_eq!(bad(over + 1 + NAME + NAME + 8, 3), None, "where a window's exe is");
+        assert_eq!(bad(over + 1 + NAME + NAME + 8, 3), None, "a window's display affinity");
+        assert_eq!(bad(over + 1 + NAME + NAME + 8 + 1 + 4, 2), None, "a window's until flag");
+        assert_eq!(bad(over + 1 + NAME + NAME + 8 + 1 + 4 + 5, 3), None, "where a window's exe is");
         assert_eq!(bad(unseen + 1, 2), None, "why nothing is told");
     }
 
@@ -1284,7 +1468,17 @@ mod tests {
         let all: Vec<Entry> = (0..MAX_ENTRIES as u32 + 3)
             .map(|at| {
                 let home = Home::At(deep(Folder::Other, DIR));
-                Entry::Over(Over { name: Some(name), class: None, style: at, width: 1, height: 1, home })
+                Entry::Over(Over {
+                    name: Some(name),
+                    class: None,
+                    style: at,
+                    width: 1,
+                    height: 1,
+                    affinity: Affinity::None,
+                    home,
+                    since: at,
+                    until: Some(at),
+                })
             })
             .collect();
         all.iter().for_each(|&entry| report.add(entry));

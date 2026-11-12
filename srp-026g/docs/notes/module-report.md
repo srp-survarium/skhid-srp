@@ -1,8 +1,9 @@
 # Module reports (client patch 125)
 
 Each game tells the match server what is loaded into it besides Windows' own DLLs, which DLLs
-were loaded since its first instruction, and which other programs' always-on-top windows
-(overlays) are over it. The server writes it to a log; `release/moderate modules` reads the
+were loaded since its first instruction, which other programs' always-on-top windows
+(overlays) are over it, and which other processes hold a handle to the game's own process with
+access to its memory. The server writes it to a log; `release/moderate modules` reads the
 log across all games.
 
 ## The rules
@@ -25,20 +26,37 @@ log across all games.
   (`srp_validate::report`, kind 2; `memory-report.md` describes the channel).
 - **Each minute in between** (the owner, 2026-11-11: a window opened and closed again mid-match
   was never seen): a minute after the last look, a frame of the match (`game.tick`) looks at the
-  windows over the game again. When it saw otherwise than the last look, a report of moment
-  `minute <n>` (minutes since the first world, up to 254) tells those windows alone, so an
+  windows over the game and the handle holders again. When it saw otherwise than the last look, a
+  report of moment `minute <n>` (minutes since the first world, up to 254) tells those alone, so an
   overlay that stays the whole match is told once and an empty one says the windows are gone.
-  The modules, loads and code are told only at the first world and the end. Nothing is
-  taken from the process list when no window is over the game, the usual look.
+  The modules, loads and code are told only at the first world and the end.
+- **Windows told as they happen, not only at the minute** (the owner's next step, 2026-11-12: the
+  once-a-minute look leaves gaps). Besides the look, the watch asks Windows to tell it of the
+  window events out of context (`SetWinEventHook`, `WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS`,
+  for show / hide / destroy / reorder and foreground); the callbacks arrive on the game's main
+  thread, which pumps messages. A window that comes over the game opens an episode, one that goes
+  closes it, and the next look drains the closed episodes as `over` entries with the match seconds
+  they were over for (`<since>-<until>s`), so a window over the game only between two looks is still
+  told, with its times. A window still over at the look is told by the look (`<since>s+`, start not
+  pinned). Event-driven: bounded room (16 episodes), counts not elapsed time.
 - **What is told** (`srp_validate::modules`), the rare kinds first so a long module list cannot
   crowd them out; up to 144 entries a report, more are only counted:
+  - **holds game memory** (handle holder): each other process that holds a handle to the game's own
+    process object with memory access (`PROCESS_VM_READ`, and `VM_WRITE`/`VM_OPERATION` where
+    granted): the exe's file name and folder (as a module's, a user's name left out), and the
+    granted access. A recorder, an overlay or a debugger reads the game's memory this way;
+  - **holds game memory unchecked**: a count, by holder exe, of the game's process-object handles
+    the game could not check — the kernel zeroed the object address (Windows 11 24H2, a caller
+    without the debug right) and the holder could not be opened to duplicate the handle, or it is
+    elevated or protected. Never a silent gap;
   - **over**: each other process's window that is visible, always on top (`WS_EX_TOPMOST`), above
     the game's window in the windows' order and over some of it: the exe's file name and where
     its folder is (as a module's, a user's name left out; `windows` for the Windows folder, `?`
-    where Windows does not tell), the window's class, its extended styles and how much of
-    the game's window it covers. Needs no right. Discord's,
-    Steam's and a recorder's overlays, the taskbar and a volume pop-up are such windows too:
-    read rarest first. The first 16 from the top. Where it cannot be told, one entry says why:
+    where Windows does not tell), the window's class, its extended styles, how much of the game's
+    window it covers, whether a screen capture leaves it out (`GetWindowDisplayAffinity`: shown,
+    monitor-only, or hidden from capture), and the match seconds it was over for. Needs no right.
+    Discord's, Steam's and a recorder's overlays, the taskbar and a volume pop-up are such windows
+    too: read rarest first. The first 16 from the top. Where it cannot be told, one entry says why:
     the game has no window yet, or its window is not in the order;
   - **module**: each module of the loader's list: name, place, image size, the PE header's
     link time and checksum (a build of a DLL, not just its name);
@@ -65,15 +83,39 @@ log across all games.
 - **Windows over the game.** The game's window is the one its swap chain last presented to
   (`render_output.present`), or the top-level window that one is in. From the top of the
   windows' order (`GetTopWindow`, `GetWindow` next) down to the game's own, each window is asked
-  its process, whether it is visible, its extended styles, its rectangle and its class
-  (user32's own questions; no message is sent to it). The exe's path of each one found is asked
-  with `QueryFullProcessImageNameW`. A window that is not always on top cannot
-  stay above the game while it is played, so only those are told: what the player has open
-  beside the game is not.
+  its process, whether it is visible, its extended styles, its rectangle, its class and whether a
+  screen capture leaves it out (`GetWindowDisplayAffinity`, user32's own questions; no message is
+  sent to it). The exe's path of each one found is asked with `QueryFullProcessImageNameW`. A
+  window that is not always on top cannot stay above the game while it is played, so only those
+  are told: what the player has open beside the game is not.
+- **The window event watch** (`vostok::module_watch`). Besides the once-a-minute look, the watch
+  registers `SetWinEventHook` out of context (`WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS`)
+  for show / hide / destroy / reorder and foreground, from the game's main thread, which pumps
+  messages — so the callbacks arrive there. Each event's window is tested as the look tests one
+  (`over_now`); a window that comes over the game opens an episode (its description captured then),
+  one that goes closes it (`EVENT_OBJECT_DESTROY`, a hide, or it is no longer over), and a look
+  drains the closed episodes with the match seconds they were over for. The callback's address is
+  our own entry (`module_watch_win_event`), handed up to Rust at the process's start the way the
+  DLL notification's is, since the arena's symbols are not named from the safe layer.
+- **Handle holders.** The system handle list is asked
+  (`NtQuerySystemInformation(SystemExtendedHandleInformation)`, the buffer grown on
+  `STATUS_INFO_LENGTH_MISMATCH`). The game's process-object type index and its own object address
+  are learnt from a handle the game opens to itself; another process's entry of that type is the
+  game's by its object address where the kernel gives one, else by duplicating the handle into the
+  game (`OpenProcess(PROCESS_DUP_HANDLE)`, `DuplicateHandle`, `GetProcessId == own pid`, close).
+  Windows 11 24H2 zeroes the object address for a caller without the debug right, and an elevated or
+  protected holder cannot be opened, so those are told `unchecked` by holder exe, never dropped
+  silently; the duplicate path is bounded (a budget of 512 a scan). The scan reads the system-wide
+  handle table and may duplicate handles, so it is **not cheap and never runs on an ordinary
+  frame** — only at a report (a match's load, its end, a minute), where the full module walk
+  already runs. Its own parse is cheap (a test times it on a realistic handle count); the
+  `NtQuerySystemInformation` call and the duplicate-and-compare on 24H2 are the OS-bound cost.
 - **Memory is read with `ReadProcessMemory`**, which fails instead of faulting on a page made
-  unreadable or freed meanwhile.
+  unreadable or freed meanwhile. The handle-scan buffer is the game's own `VirtualAlloc`'d
+  memory, read within the length `NtQuerySystemInformation` filled.
 - **Windows' functions** are called through their own exports (dynamic rows of the engine
-  library). A Windows without one (`LdrRegisterDllNotification` is Vista's) leaves that part off.
+  library). A Windows without one (`LdrRegisterDllNotification` is Vista's,
+  `GetWindowDisplayAffinity` is 7's) leaves that part off.
 
 ## The server and the tool
 
@@ -106,3 +148,16 @@ log across all games.
   in the first live reports.
 - Unseen so far: the report at a match's close; a minute's report in a game (only the state machine's tests
   and the server's line); Windows; what overlays look like in the log.
+- The later look (client patch 125, the owner's step 2026-11-12): the handle holders, the
+  window event watch and the display affinity. Checked: the shared format for the new entries
+  (`holder`, `unchecked`, the `over` entry's affinity and its match seconds), the server's line
+  and `release/moderate`'s parse and lines for them (`srp-validate` and match-server tests, a
+  parse check of the exact log lines); the patch crate builds and lints clean (i686), the arena
+  relinks (`arena_026g.lock.json`), and the watch as Windows calls the TLS and DLL callbacks
+  still passes Unicorn (`check_module_report_026g.py`), now with the window event callback's
+  address handed up beside the DLL notification's. **Not run on Windows or in a game**, as the
+  rest of patch 125 has not been: the `NtQuerySystemInformation` scan, the duplicate-and-compare,
+  24H2's zeroed object addresses, elevated holders, `SetWinEventHook`'s delivery on the message
+  pump and `GetWindowDisplayAffinity`'s values are unseen live. The handle scan's syscall cost on
+  a real machine and the event callback's behaviour under the game's pump are to be watched in the
+  first live reports.

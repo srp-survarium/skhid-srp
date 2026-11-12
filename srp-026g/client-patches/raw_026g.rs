@@ -649,6 +649,61 @@ pub unsafe fn engine_get_module_file_name_w(function: NonNull<c_void>, module: *
     unsafe { function(module, path, size) }
 }
 
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_get_window_display_affinity(void *window, unsigned int *affinity)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_get_window_display_affinity(function: NonNull<c_void>, window: *mut c_void, affinity: *mut u32) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *mut u32) -> u32>(function.as_ptr()) };
+    unsafe { function(window, affinity) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): void *engine_set_win_event_hook(unsigned int event_min, unsigned int event_max, void *module, void *callback, unsigned int process, unsigned int thread, unsigned int flags)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_set_win_event_hook(function: NonNull<c_void>, event_min: u32, event_max: u32, module: *mut c_void, callback: *mut c_void, process: u32, thread: u32, flags: u32) -> *mut c_void {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(u32, u32, *mut c_void, *mut c_void, u32, u32, u32) -> *mut c_void>(function.as_ptr()) };
+    unsafe { function(event_min, event_max, module, callback, process, thread, flags) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_nt_query_system_information(unsigned int class, void *buffer, unsigned int size, unsigned int *needed)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_nt_query_system_information(function: NonNull<c_void>, class: u32, buffer: *mut c_void, size: u32, needed: *mut u32) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(u32, *mut c_void, u32, *mut u32) -> u32>(function.as_ptr()) };
+    unsafe { function(class, buffer, size, needed) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_duplicate_handle(void *source_process, void *source_handle, void *target_process, void **target, unsigned int access, unsigned int inherit, unsigned int options)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_duplicate_handle(function: NonNull<c_void>, source_process: *mut c_void, source_handle: *mut c_void, target_process: *mut c_void, target: *mut *mut c_void, access: u32, inherit: u32, options: u32) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void, *mut c_void, *mut c_void, *mut *mut c_void, u32, u32, u32) -> u32>(function.as_ptr()) };
+    unsafe { function(source_process, source_handle, target_process, target, access, inherit, options) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_get_process_id(void *process)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_get_process_id(function: NonNull<c_void>, process: *mut c_void) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*mut c_void) -> u32>(function.as_ptr()) };
+    unsafe { function(process) }
+}
+
 /// a function at the address GetProcAddress gives (stdcall): unsigned int engine_com_release(void *object)
 ///
 /// # Safety
@@ -20179,7 +20234,7 @@ impl TlsCallbackFrame {
         self.0.as_ptr() as usize as u32
     }
 
-    /// +0x4 (u32): module_watch.thread's own argument (by the site's ESP, the return address into module_watch_tls at +0): the address of module_watch_dll, our DLL notification's entry, which module_watch_tls pushes
+    /// +0x4 (u32): module_watch.thread's first pushed argument (by the site's ESP, the return address into module_watch_tls at +0): the address of module_watch_dll, our DLL notification's entry, which module_watch_tls pushes last
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -20188,13 +20243,22 @@ impl TlsCallbackFrame {
         unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
     }
 
-    /// +0x10 (u32): the TLS callback's second argument (PIMAGE_TLS_CALLBACK: DllHandle +0Ch, Reason +10h, Reserved +14h, after the loader's return address at +8): 1 the process starts, 2 a thread starts, 3 a thread ends, 0 the process ends
+    /// +0x8 (u32): module_watch.thread's second pushed argument: the address of module_watch_win_event, our window event callback's entry, which module_watch_tls pushes first
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn win_event(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x14 (u32): the TLS callback's second argument (PIMAGE_TLS_CALLBACK: DllHandle +10h, Reason +14h, Reserved +18h, after module_watch_tls's two pushes and the loader's return address at +0Ch): 1 the process starts, 2 a thread starts, 3 a thread ends, 0 the process ends
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
     pub unsafe fn reason(self) -> *mut u32 {
-        unsafe { self.0.byte_add(0x10).cast::<u32>().as_ptr() }
+        unsafe { self.0.byte_add(0x14).cast::<u32>().as_ptr() }
     }
 }
 
@@ -20237,6 +20301,48 @@ impl DllNotificationFrame {
     #[inline(always)]
     pub unsafe fn set_data(self, value: Option<DllNotification>) {
         unsafe { self.0.byte_add(0xc).cast::<Option<DllNotification>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::modules::win_event_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WinEventFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl WinEventFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xc (u32): WINEVENTPROC's hwnd (after module_watch_win_event's return address at +0, the hook at +4 and the event at +8): the window the event is about
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn window(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xc).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x10 (u32): its idObject: OBJID_WINDOW (0) for the window itself, else a child object the watch ignores
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn object(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x10).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x14 (u32): its idChild: INDEXID_SELF (0) for the window itself
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn child(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x14).cast::<u32>().as_ptr() }
     }
 }
 
@@ -25489,6 +25595,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<DllNotificationFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(DllNotificationFrame)
+        }
+    }
+
+    /// module_watch.win_event (our entry): patch 125's window event callback (module_watch_026g.asm module_watch_win_event, handed to user32's SetWinEventHook out of context): Windows calls it on the thread that registered the hook (the game's main thread, which pumps messages), WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS; stdcall WINEVENTPROC (the hook, the event, the window, idObject, idChild, idEventThread, dwmsEventTime), our code returns with ret 1Ch
+    pub mod module_watch_win_event {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::modules::win_event_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<WinEventFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(WinEventFrame)
         }
     }
 

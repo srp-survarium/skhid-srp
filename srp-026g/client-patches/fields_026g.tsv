@@ -1078,10 +1078,14 @@ vostok::memory::profile_frame	memory	0x8	u32	their second: the memory mspace_mal
 vostok::memory::out_of_memory_frame	return_address	0x0	u32	memory.out_of_memory's ESP: the callback's return (heap_out_of_memory_return from mspace_malloc)
 vostok::memory::out_of_memory_frame	space	0x4	u32	its first argument: the arena's mspace (create_mspace_with_base made it at the arena's start)
 vostok::memory::out_of_memory_frame	allocator	0x8	ptr<vostok::memory::base_allocator>	its second: the doug_lea_allocator the mspace was made with (initialize_impl 0xE4F60: push esi)
-vostok::modules::tls_callback_frame	notify	0x4	u32	module_watch.thread's own argument (by the site's ESP, the return address into module_watch_tls at +0): the address of module_watch_dll, our DLL notification's entry, which module_watch_tls pushes
-vostok::modules::tls_callback_frame	reason	0x10	u32	the TLS callback's second argument (PIMAGE_TLS_CALLBACK: DllHandle +0Ch, Reason +10h, Reserved +14h, after the loader's return address at +8): 1 the process starts, 2 a thread starts, 3 a thread ends, 0 the process ends
+vostok::modules::tls_callback_frame	notify	0x4	u32	module_watch.thread's first pushed argument (by the site's ESP, the return address into module_watch_tls at +0): the address of module_watch_dll, our DLL notification's entry, which module_watch_tls pushes last
+vostok::modules::tls_callback_frame	win_event	0x8	u32	module_watch.thread's second pushed argument: the address of module_watch_win_event, our window event callback's entry, which module_watch_tls pushes first
+vostok::modules::tls_callback_frame	reason	0x14	u32	the TLS callback's second argument (PIMAGE_TLS_CALLBACK: DllHandle +10h, Reason +14h, Reserved +18h, after module_watch_tls's two pushes and the loader's return address at +0Ch): 1 the process starts, 2 a thread starts, 3 a thread ends, 0 the process ends
 vostok::modules::dll_notification_frame	reason	0x8	u32	the DLL notification's first argument (LDR_DLL_NOTIFICATION_FUNCTION, after module_watch_dll's and ntdll's return addresses): 1 loaded, 2 unloaded
 vostok::modules::dll_notification_frame	data	0xC	ptr<ntdll::dll_notification>	its second: the LDR_DLL_NOTIFICATION_DATA, alive for the call
+vostok::modules::win_event_frame	window	0xC	u32	WINEVENTPROC's hwnd (after module_watch_win_event's return address at +0, the hook at +4 and the event at +8): the window the event is about
+vostok::modules::win_event_frame	object	0x10	u32	its idObject: OBJID_WINDOW (0) for the window itself, else a child object the watch ignores
+vostok::modules::win_event_frame	child	0x14	u32	its idChild: INDEXID_SELF (0) for the window itself
 ntdll::dll_notification	full_name	0x4	ptr<ntdll::unicode_string>	LDR_DLL_LOADED_NOTIFICATION_DATA.FullDllName (Flags +0, BaseDllName +8; the unloaded one's is the same): the DLL's full path
 ntdll::dll_notification	base	0xC	u32	DllBase: where the image is mapped
 ntdll::dll_notification	image_size	0x10	u32	SizeOfImage
