@@ -169,17 +169,25 @@ The owner (2026-11-12): "let's do it as DXVK option". Off by default; only with 
   nobody signals, and the game's own thread may already wait for that queue (DXVK's Present waits
   for an earlier frame when the GPU is the slower side), so the game's thread cannot be the one
   to notice. The link starts a **watch** with the helper, a thread of its own that waits for the
-  helper's process to end: then it signals the timeline itself, from the host, to the value the
-  queue waits for (a timeline semaphore takes a host signal), and DXVK's queue goes on; that frame
-  shows what the shared output last held (a repeated frame, once the output is shown at all).
+  helper's process to end: then it plays the helper's part of the timeline itself, from the host
+  (a timeline semaphore takes a host signal), and DXVK's queue goes on; those frames show what
+  the shared output last held (a repeated frame, once the output is shown at all). The helper's
+  values are signalled **one at a time**, each right after the game's copy before it: the game's
+  own copies of later frames are still on DXVK's queue and signal the values in between, so a
+  signal straight to the last wait's value was undone by the next of them (the timeline went
+  back, that copy's wait was never met: seen, below). A stop of the link on the game's thread
+  does the same before it retires what was shared.
+- **The GPU's driver gives up on a queue that waits about 11 s** (seen, NVIDIA 615.78 under
+  Wine: Xid 31 on the game's channel, the device lost, the game's own "device removed" end): the
+  reason the watch's timer is short.
 - **Timers**, each because a helper that hangs gives no event (its end and a broken pipe are
   events, and are acted on at once):
   - 30 s for the helper to open the pipe, to answer the Hello (NGX's start, about 1 s measured)
     and to answer the Setup: counted at the game's Presents;
-  - 5 s (ten looks of the watch, 500 ms apart) in which the helper's turn on the timeline (the
-    game's copy of the frame done, the helper's output not) does not move: the watch ends the
-    helper (TerminateProcess), which is then the case above. A wait behind the game's own copy
-    (DXVK's queue is the slow one) is not the helper's turn and is not counted.
+  - 3 s (six looks of the watch, 500 ms apart) in which the helper's turn on the timeline (an
+    odd value: the game's copy of a frame done, the helper's output of it not) does not move: the
+    watch ends the helper (TerminateProcess), which is then the case above. An even value behind
+    a wait is the game's own copy not run yet (DXVK's queue is the slow one): not counted.
 
 ## The helper interface (the game's side, one module)
 
@@ -219,9 +227,12 @@ The owner (2026-11-12): "let's do it as DXVK option". Off by default; only with 
   with its reason. The Settings' gate (`DlssOffer`) is read from that state.
 - **Hooks:** the process's start (`memory.allocate_arenas`: whether anything starts, the mip
   bias), each Present (`render_output.present`: the link's step), the login screen
-  (`login_menu.activated`: a refused tick goes off), the game's exit (`game.exit_start`: the
-  helper told to quit, given 3 s, everything of the link ended while DXVK's device lives), and
-  the watch's thread (`dlss.helper_watch`, a thread start routine).
+  (`login_menu.activated`: a refused tick goes off), the game's exit from its menus
+  (`game.exit_start`, game::exit 0x1EC730, which the Exit buttons call: the helper told to quit,
+  given 3 s, everything of the link ended while DXVK's device lives), and the watch's thread
+  (`dlss.helper_watch`, a thread start routine). An exit that does not pass game::exit (the
+  window closed, a crash) closes the pipe with the process: the helper ends by itself then, and
+  the watch releases the timeline if DXVK's queue still waits.
 - **DXVK's device:** from the game's swap chain (`res_render_output` +0CCh):
   `IDXGISwapChain::GetDevice(IDXGIVkInteropDevice1)` gives the interop device (the VkDevice, the
   queue and its family, Flush/Lock/ReleaseSubmissionQueue), `GetBuffer(0, IDXGIVkInteropSurface)`
@@ -233,29 +244,68 @@ The owner (2026-11-12): "let's do it as DXVK option". Off by default; only with 
   Setup's first frame), then, with DXVK's queue locked, two submits: the copy-in (the back buffer,
   the frame as the window gets it, scaled into the shared colour image; a Setup's first frame
   also clears the shared depth to far and motion to none, which nothing fills yet) that signals
-  2N+1, and a wait for 2N+2 with no commands of ours yet (the copy of the output goes there). The
-  shared colour and output take the back buffer's format; depth is D32_SFLOAT, motion
-  R16G16_SFLOAT. Four copy-in command buffers in turn: a frame whose buffer is still on the GPU
-  (the timeline has not passed the copy of the frame four before) is no frame of the link.
+  2N+1, and a wait for 2N+2 in a command buffer of its own, empty yet (the copy of the output
+  goes there), so the wait is a batch of its own on the queue, which the queue's idle covers
+  before the semaphore is retired (a submit that only waits may be left by a driver for the
+  queue's next submit). The shared colour and output take the back buffer's format; depth is D32_SFLOAT, motion
+  R16G16_SFLOAT. Four pairs of command buffers in turn: a frame whose pair is still on the GPU
+  (the timeline has not passed the copy of the frame three before) is no frame of the link.
   The scene at the render size, the real depth and motion, and the output's way to the screen
   are the next pieces.
 - **A new size** makes a new timeline semaphore with the new images (the helper imports the
   Setup's semaphore each time); its frames count from 0 again.
 - **The helper's frame reports** (`FrameStat`) are read off the pipe at each Present and dropped.
+- **Seeing it run:** a game started with `SKHID_DLSS_LOG` set says every 300th frame and the
+  timeline's value in `srp_patches.log` (a local diagnostic; unset, nothing).
+- **With the render size** (PR #1717, `hud_options::render_size`; not joined here):
+  - the start asks the ratio (`render_size::ask`, 1 / 1.5) where it sets the mip bias (the tick
+    on, an NVIDIA GPU, the helper's files), since a ratio is taken only then; every stop of the
+    link (a failure, a refusal) asks native;
+  - the Setup's images take the frame's own render size, not the Hello's answer: NGX's optimal
+    size may be odd (853x480 for 1280x720, seen) where the engine's is even (854x480), and the
+    helper makes DLSS's feature from the Setup's image sizes, so the two need not be compared;
+  - the copy-in reads `$user$present` and the frame's own depth-stencil (both at the render
+    size) in place of the back buffer, and the link then runs before the screen image, not at
+    the Present.
 
 ## Status
 
-- Implemented: this spec; the option (a checkbox, user.cfg, Settings answers, greyed when not
-  offered, ten languages); the start's gate (DXVK, an NVIDIA GPU, the helper's answer). Since no
-  helper ships yet, the checkbox is greyed on every PC.
-- Tested: the patch's Rust tests (the gate, user.cfg's word, the answer) and Clippy; patch 83 in
-  Unicorn (`check_hud_options_026g.py`: the checkbox registered and answered, running "-", the
-  start's `dlss:` line on an RTX and on an RX); the Settings movie in Ruffle
-  (`scripts/hud-options/check.sh`: six rows on one step, about 40 px now, the panel ending under the
-  gamma slider; DLSS greyed when not offered, a tick pending until Apply when offered, every
-  dictionary's texts inside). Not played, not released.
-- Open, on the helper (the probe's protocol, final): starting it from the game, Hello and Setup,
-  the per-frame submit and sync, the helper's folder and its Wine packaging (nvapi), Windows.
-- Open, in the game: the render size seam (targets, the output's depth, viewports), jitter, the
-  motion compute pass, rt 18's format, AA off while DLSS runs, the screen-image swap, the reset
-  triggers, the mip bias's reach.
+- Implemented: this spec; the option (a checkbox, user.cfg, Settings answers, greyed and empty
+  when not offered and unticked, ten languages); the link to the helper (its start at the first
+  Present, Hello, Setup, each frame's submit and timeline sync, a new size, every failure's stop,
+  the watch, the exit) and the gate from the helper's answer; the mip bias at the start. The
+  helper itself is `client/dlss-helper` (PR #1709); the render size PR #1717.
+- Tested, 2026-11-12, Wine 11.8 staging, RTX 3060 Ti (driver 615.78.08), the game on a headless
+  display with no input, the helper PR #1709's build:
+  - the patch's Rust tests (the link's transition over every state, the gate, the watch's count,
+    the frame's values) and Clippy; patch 83 in Unicorn (`check_hud_options_026g.py`: the start's
+    look for the helper's files, the mip bias with the tick on, the `dlss:` lines);
+    `check_hooks_026g.py` and `check_engine_026g.py` (the new rows, the stdcall callback entry);
+    the Settings movie in Ruffle (`scripts/hud-options/check.sh`: a greyed unticked DLSS box on
+    its resting frame, empty);
+  - **the game, at its login screen (1280x720):** the helper started, its yes logged (853x480 for
+    1280x720, about 1 s; 6 s with two other games on the GPU), the Setup taken (8 MiB shared), and
+    frames submitted for as long as the run (1800 in 40 s), the timeline one frame behind the
+    game's count at each 300th (the helper's signals arrive); the picture as without the link;
+  - **in a replay's match** the same (300 frames and more, five runs) until the replay's own
+    crash 18 s in (exe+0x2EFF87: the same with the tick off and no helper, and in the render
+    size's builds). Once, a crash in the arena's code 0.8 s into a replay's start, before the
+    first Present (exe+0xA489291): not seen again in three more runs, not explained;
+  - the tick off: `offered`, the helper gone after its answer; no `dlss\`: `on, not run: the
+    helper's files are not in dlss\`;
+  - the helper without NvAPI (its refusal): the reason logged from its answer, the saved tick off
+    in user.cfg; a program that ends at once: `the helper ended, exit code 1`; one that never
+    opens the pipe: `it did not open the pipe in 30 s`, ended;
+  - the helper ended from outside while frames ran (taskkill): `on, not run: the helper ended,
+    exit code 1`, the game went on; the helper stopped where it was (SIGSTOP: it runs, signals
+    nothing) with two frames queued: the watch ended it after 3 s (`did not signal 1652 (the
+    timeline at 1649) in 3 s: ended`), the timeline was signalled up to 1652 from the game, and
+    the game went on drawing. Before (the timeline signalled straight to the last value; a turn
+    with frames queued behind it not counted by the watch), both cases lost the device 11 s later.
+- Not tested: Windows; a new output size in the game (it takes the Settings: input); the exit
+  through game::exit (the Exit button: input; a close message ends the game without it, and the
+  helper went with the pipe); a helper that hangs before its answer other than by never opening
+  the pipe; an output of another format than the login screen's. Not played, not released.
+- Open, in the game: joining the render size (above), jitter, the motion compute pass, rt 18's
+  format, AA off while DLSS runs, the screen-image swap (the copy of the output, in the wait's
+  command buffer), the reset triggers, the mip bias's reach.

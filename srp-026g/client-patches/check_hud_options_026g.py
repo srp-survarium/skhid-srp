@@ -914,7 +914,7 @@ def renderer(original, patched, expect):
          b"dlss: on, not run: the helper's files are not in dlss\\"),
         ("DLSS on, an RTX, the helper's files there: DXVK is given the mip bias of DLSS at Quality, said",
          dict(user_cfg=on + b"srp_dxvk_dlss on\r\n", vulkan=good, helper=DLSS),
-         opened + files + marker + nvidia + dlss_config + loads + log, True,
+         opened + files + marker + nvidia + dlss_config + loads + log + [("GetEnvironmentVariableA", "SKHID_DLSS_LOG")], True,
          b'dlss: DXVK_CONFIG adds "d3d11.samplerLodBias = -1.585": the tick is on, the mip bias of DLSS at Quality'),
         ("DLSS off, an RTX, the helper's files there (it is asked at the first frame): nothing more given to DXVK",
          dict(user_cfg=on, vulkan=good, helper=DLSS),
