@@ -14,7 +14,8 @@
 #![forbid(unsafe_code)]
 
 use crate::vostok::log::{Piece::*, line};
-use crate::vostok::render_size::{self, DepthTarget, Size, TargetsSize};
+use super::frame_inputs;
+use crate::vostok::render_size::{self, DepthTarget, DepthTexture, Size, TargetsSize};
 use crate::vostok::renderer::get_environment;
 use crate::vostok::{Context, Flow, Lock, NoExit, Thread, ThreadBound};
 
@@ -58,6 +59,12 @@ impl Ratio {
         let side =
             |pixels: u32| (((pixels as f32 * self.0 * 0.5 + 0.5) as u32) * 2).max(Ratio::LEAST_SIDE).min(pixels);
         Size { width: side(output.width), height: side(output.height) }
+    }
+
+    /// How many offsets DLSS's jitter sequence has at this ratio:
+    /// 8 * (output / render)^2 (NVIDIA's guide; 18 at Quality).
+    pub fn jitter_phases(self) -> u32 {
+        (8.0 / (self.0 * self.0) + 0.5) as u32
     }
 
     /// Thousandths, for a log line.
@@ -178,6 +185,25 @@ pub fn ask(thread: &Thread, scale: RenderScale) -> bool {
     true
 }
 
+/// The scaled frame being rendered: its ratio and its size. None while the
+/// frame is native.
+pub fn scaled(thread: &Thread) -> Option<(Ratio, Size)> {
+    OWNER.with(thread, |owner| match &owner.frame {
+        Frame::Native => None,
+        Frame::Scaled { ratio, depth } => depth.get(thread).map(|depth| (*ratio, depth.size())),
+    })
+}
+
+/// The scaled frame's depth-stencil as a texture, on its thread.
+pub fn depth_texture(thread: &Thread) -> Option<DepthTexture> {
+    OWNER.with(thread, |owner| owner.depth(thread).and_then(DepthTarget::texture))
+}
+
+/// Whether the frame's sites are written (a scale was asked at the start).
+pub fn installed() -> bool {
+    render_size::installed()
+}
+
 /// The diagnostics switch's fallback: the frames left until native is asked
 /// (None: never), so the return to native can be tried without a helper.
 static NATIVE_IN: Lock<Option<u32>> = Lock::new(None);
@@ -240,6 +266,7 @@ pub fn on_targets_size(ctx: &mut Context<'_>) -> Flow<NoExit> {
         Action::MakeNative => owner.made(thread, Frame::Native),
         Action::Nothing | Action::Remake => {}
     });
+    frame_inputs::targets_made(thread);
     Flow::Continue
 }
 
@@ -296,6 +323,8 @@ pub fn on_depth_texture(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// Scaleform draw on the back buffer at the window's size.
 pub fn on_present_stage(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
+    // the frame's targets hold it whole: what the frame inputs' look reads
+    frame_inputs::frame_done(thread);
     OWNER.with(thread, |owner| {
         if owner.depth(thread).is_some() {
             render_size::leave(thread);

@@ -204,6 +204,19 @@ pub fn leave(_: &Thread) {
 #[derive(Clone, Copy)]
 pub struct DepthTexture(raw::ResTexture);
 
+impl DepthTexture {
+    /// Its ID3D11Resource, what DXVK's interop names its VkImage by.
+    pub(in crate::vostok) fn resource(&self) -> Option<raw::HwResource> {
+        // SAFETY: a texture of a target its owner holds for the hook.
+        unsafe { self.0.hw_resource() }
+    }
+
+    /// The resource's address, for a log line.
+    pub fn resource_address(&self) -> u32 {
+        self.resource().map_or(0, |resource| resource.address())
+    }
+}
+
 /// At `gbuffer.depth_texture`: the linear depth (rt 9) is copied from
 /// `texture` (as `t_depth_render_target`), not from the render output's.
 pub fn copy_depth_from(ctx: &mut Context<'_>, texture: DepthTexture) {
