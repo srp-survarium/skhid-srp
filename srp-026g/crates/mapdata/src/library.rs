@@ -285,6 +285,7 @@ impl Library {
             let Some(shape) = PrimitiveShape::from_engine(
                 primitive.i32_at("type")?,
                 float3_req(primitive, "scale")?,
+                scale,
             ) else {
                 continue;
             };
@@ -304,12 +305,14 @@ impl Library {
                 .unwrap_or("");
             let surface = surface_of(shading_group);
             let (points, triangles) = shape.tessellate();
+            // Bullet's scaling of a primitive (2.78, `create_compound_shape` 0x7A460 /
+            // `create_primitive_shape` 0x7A390 call `setLocalScaling(scale)`): the child keeps its
+            // rotation, its origin is multiplied by the scale and its own dims by the scale in its
+            // own axes (in `from_engine`), so a rotated child is not sheared.
+            let offset = position.scaled(scale);
             let base = self.vertices.len() as u32;
-            self.vertices.extend(
-                points
-                    .iter()
-                    .map(|&p| (rotation.apply(p) + position).scaled(scale)),
-            );
+            self.vertices
+                .extend(points.iter().map(|&p| rotation.apply(p) + offset));
             for t in triangles {
                 self.faces.push(Face { corners: t.map(|i| i + base), surface });
             }
@@ -381,7 +384,8 @@ fn face_surfaces(bytes: &[u8], surface_of: &dyn Fn(&str) -> Surface) -> Vec<Surf
         .collect()
 }
 
-/// An exported primitive's shape (Bullet's, all along local y).
+/// An exported primitive's shape as Bullet casts against it (all along local y), the
+/// library's scale applied.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PrimitiveShape {
     Sphere {
@@ -401,28 +405,53 @@ pub enum PrimitiveShape {
     },
 }
 
+/// Bullet's collision margin of a box, cylinder and capsule: `m_collisionMargin` (+30h, read by
+/// `getMargin` 0x74190), 0.04 (0xA2D7DC, stored by the capsule's ctor 0xA5E20). PROVEN.
+const BULLET_MARGIN: f32 = 0.04;
+
 impl PrimitiveShape {
-    /// `type` and `scale` of an exported primitive.
-    pub fn from_engine(kind: i32, dim: Vec3) -> Option<Self> {
+    /// `type` and `scale` (its dims) of an exported primitive under the library's `scale`, as
+    /// 0.26g's Bullet (2.78) leaves the shape after `setLocalScaling(scale)` (`create_primitive_shape`
+    /// 0x7A390 on a lone primitive; `create_compound_shape` 0x7A460 on the compound, which passes
+    /// the scale to every child in the child's own axes). All PROVEN in the exe:
+    /// - a box's, cylinder's and capsule's `setLocalScaling` (vtable slot 5, 0xA9BE0) keeps the
+    ///   margin: each implicit dim becomes `(dim + margin) × scale - margin`. A box and a cylinder
+    ///   hold their dims less the margin and their support adds it back, so their outer size is
+    ///   `dim × scale`; a capsule holds its radius and half height as they are;
+    /// - a cylinder's radius is its x half extent (`CylinderLocalSupportY` 0xA9F10): the z scale
+    ///   is not used;
+    /// - a capsule's radius is its implicit dim on axis (up + 2) % 3 = z (support 0xA5E90);
+    /// - a sphere's `setLocalScaling` (0x8DEF0) only stores the scale; its radius is
+    ///   `dim.x × scale.x`.
+    pub fn from_engine(kind: i32, dim: Vec3, scale: Vec3) -> Option<Self> {
+        // `btConvexInternalShape::setLocalScaling` takes the scale's absolute value.
+        let scale = Vec3::new(scale.x.abs(), scale.y.abs(), scale.z.abs());
+        let kept = |dim: f32, scale: f32| ((dim + BULLET_MARGIN) * scale - BULLET_MARGIN).max(0.0);
         match kind {
-            0 => Some(Self::Sphere { radius: dim.x }),
-            1 => Some(Self::Box { half: dim }),
+            0 => Some(Self::Sphere {
+                radius: dim.x * scale.x,
+            }),
+            1 => Some(Self::Box {
+                half: dim.scaled(scale),
+            }),
             2 => Some(Self::Cylinder {
-                radius: dim.x,
-                half_height: dim.y,
+                radius: dim.x * scale.x,
+                half_height: dim.y * scale.y,
             }),
             3 => Some(Self::Capsule {
-                radius: dim.x,
-                half_height: dim.y * 0.5,
+                radius: kept(dim.x, scale.z),
+                half_height: kept(dim.y * 0.5, scale.y),
             }),
             _ => None,
         }
     }
 
-    /// Triangles that stand in for the shape: exact for a box, a 12-sided
-    /// prism for a cylinder, 12 × 6 facets for the round parts.
+    /// Triangles that stand in for the shape, never inside it (the walk casts meet the game's
+    /// exact shape, so a facet inside it would leave a gap the game does not have): exact for a
+    /// box; a cylinder a prism drawn around its circle; a sphere and a capsule's caps a UV
+    /// sphere drawn around the ball. A round shape gets as many sides as it needs for its
+    /// facets to stand at most [`ROUND_OUT`] past the game's shape (12 to 96).
     pub fn tessellate(&self) -> (Vec<Vec3>, Vec<[u32; 3]>) {
-        const SIDES: u32 = 12;
         match *self {
             Self::Box { half } => {
                 let points = (0..8)
@@ -453,23 +482,25 @@ impl PrimitiveShape {
                 radius,
                 half_height,
             } => {
+                let sides = round_sides(radius, prism_inner);
+                let outer = around(radius, prism_inner(sides));
                 let mut points = Vec::new();
                 for &y in &[-half_height, half_height] {
-                    for s in 0..SIDES {
-                        let a = s as f32 * std::f32::consts::TAU / SIDES as f32;
-                        points.push(Vec3::new(radius * a.cos(), y, radius * a.sin()));
+                    for s in 0..sides {
+                        let a = s as f32 * std::f32::consts::TAU / sides as f32;
+                        points.push(Vec3::new(outer * a.cos(), y, outer * a.sin()));
                     }
                 }
                 points.push(Vec3::new(0.0, -half_height, 0.0));
                 points.push(Vec3::new(0.0, half_height, 0.0));
-                let (bottom, top) = (2 * SIDES, 2 * SIDES + 1);
+                let (bottom, top) = (2 * sides, 2 * sides + 1);
                 let mut triangles = Vec::new();
-                for s in 0..SIDES {
-                    let n = (s + 1) % SIDES;
-                    triangles.push([s, n, SIDES + n]);
-                    triangles.push([s, SIDES + n, SIDES + s]);
+                for s in 0..sides {
+                    let n = (s + 1) % sides;
+                    triangles.push([s, n, sides + n]);
+                    triangles.push([s, sides + n, sides + s]);
                     triangles.push([bottom, n, s]);
-                    triangles.push([top, SIDES + s, SIDES + n]);
+                    triangles.push([top, sides + s, sides + n]);
                 }
                 (points, triangles)
             }
@@ -482,48 +513,107 @@ impl PrimitiveShape {
     }
 }
 
-/// A sphere of `radius` cut at its equator and pulled apart by
+/// How far at most a round primitive's facets stand past the game's shape, m, while 96 sides
+/// are enough (a sphere to about 9 m, a cylinder to about 18 m). An export precision, not a game value.
+pub const ROUND_OUT: f32 = 0.01;
+const SIDES_MIN: u32 = 12;
+const SIDES_MAX: u32 = 96;
+/// Sides go up by 4: a UV sphere has `sides / 2` rings, an even number, so the equator is a ring.
+const SIDES_STEP: u32 = 4;
+
+/// The fewest sides (12 to 96) for which a shape of `radius` drawn around its circle stands at
+/// most [`ROUND_OUT`] out; `inner` is the distance from the centre to the nearest facet of the
+/// unit shape with that many sides drawn through the circle.
+fn round_sides(radius: f32, inner: fn(u32) -> f32) -> u32 {
+    (SIDES_MIN..=SIDES_MAX)
+        .step_by(SIDES_STEP as usize)
+        .find(|&sides| radius * (1.0 / inner(sides) - 1.0) <= ROUND_OUT)
+        .unwrap_or(SIDES_MAX)
+}
+
+/// The radius that puts the nearest facet at `radius` (and a hair more, for the float rounding
+/// of the corners' sines and cosines).
+fn around(radius: f32, inner: f32) -> f32 {
+    radius / inner * (1.0 + 1e-5)
+}
+
+/// A regular polygon's inradius over its circumradius.
+fn prism_inner(sides: u32) -> f32 {
+    (std::f32::consts::PI / sides as f32).cos()
+}
+
+/// The nearest facet of a unit [`uv_sphere`] of `sides`, from its centre.
+fn sphere_inner(sides: u32) -> f32 {
+    static INNER: std::sync::OnceLock<Vec<f32>> = std::sync::OnceLock::new();
+    let table = INNER.get_or_init(|| {
+        (SIDES_MIN..=SIDES_MAX)
+            .step_by(SIDES_STEP as usize)
+            .map(|sides| {
+                let (points, triangles) = uv_sphere(sides, 1.0, 0.0);
+                triangles
+                    .iter()
+                    .filter_map(|t| {
+                        let [a, b, c] = t.map(|i| points[i as usize]);
+                        let normal = (b - a).cross(c - a);
+                        let area = normal.length();
+                        // The sphere's equator is two rows at the same place: no facet there.
+                        (area > 1e-9).then(|| a.dot(normal).abs() / area)
+                    })
+                    .fold(f32::INFINITY, f32::min)
+            })
+            .collect()
+    });
+    table[((sides - SIDES_MIN) / SIDES_STEP) as usize]
+}
+
+/// A sphere of `radius` drawn around (never inside), cut at its equator and pulled apart by
 /// `2 × half_height` along y (a capsule; a sphere when 0).
 fn rounded(radius: f32, half_height: f32) -> (Vec<Vec3>, Vec<[u32; 3]>) {
-    const SIDES: u32 = 12;
-    const RINGS: u32 = 6; // even: the equator is a ring
+    let sides = round_sides(radius, sphere_inner);
+    uv_sphere(sides, around(radius, sphere_inner(sides)), half_height)
+}
+
+/// A UV sphere through `radius` (`sides` around, `sides / 2` rings), cut at its equator and
+/// pulled apart by `2 × half_height` along y.
+fn uv_sphere(sides: u32, radius: f32, half_height: f32) -> (Vec<Vec3>, Vec<[u32; 3]>) {
+    let rings = sides / 2; // even: the equator is a ring
     let mut points = vec![Vec3::new(0.0, -radius - half_height, 0.0)];
-    for r in 1..RINGS {
-        let polar = r as f32 * std::f32::consts::PI / RINGS as f32;
+    for r in 1..rings {
+        let polar = r as f32 * std::f32::consts::PI / rings as f32;
         let (y, ring) = (-polar.cos() * radius, polar.sin() * radius);
-        let shift = if r * 2 < RINGS {
+        let shift = if r * 2 < rings {
             -half_height
-        } else if r * 2 > RINGS {
+        } else if r * 2 > rings {
             half_height
         } else {
             0.0
         };
-        let rows: &[f32] = if r * 2 == RINGS {
+        let rows: &[f32] = if r * 2 == rings {
             &[-half_height, half_height]
         } else {
             &[shift]
         };
         for &dy in rows {
-            for s in 0..SIDES {
-                let a = s as f32 * std::f32::consts::TAU / SIDES as f32;
+            for s in 0..sides {
+                let a = s as f32 * std::f32::consts::TAU / sides as f32;
                 points.push(Vec3::new(ring * a.cos(), y + dy, ring * a.sin()));
             }
         }
     }
     let top = points.len() as u32;
     points.push(Vec3::new(0.0, radius + half_height, 0.0));
-    let rings = (top - 1) / SIDES;
+    let rows = (top - 1) / sides;
     let mut triangles = Vec::new();
-    for s in 0..SIDES {
-        let n = (s + 1) % SIDES;
+    for s in 0..sides {
+        let n = (s + 1) % sides;
         triangles.push([0, 1 + n, 1 + s]);
-        let last = 1 + (rings - 1) * SIDES;
+        let last = 1 + (rows - 1) * sides;
         triangles.push([top, last + s, last + n]);
     }
-    for r in 0..rings - 1 {
-        let (a, b) = (1 + r * SIDES, 1 + (r + 1) * SIDES);
-        for s in 0..SIDES {
-            let n = (s + 1) % SIDES;
+    for r in 0..rows - 1 {
+        let (a, b) = (1 + r * sides, 1 + (r + 1) * sides);
+        for s in 0..sides {
+            let n = (s + 1) % sides;
             triangles.push([a + s, a + n, b + n]);
             triangles.push([a + s, b + n, b + s]);
         }
@@ -704,5 +794,118 @@ mod tests {
             .map(|v| v.x)
             .fold(f32::MIN, f32::max);
         assert_eq!(max_x, 12.0); // (5 + 1) × 2
+    }
+
+    fn bounds(points: &[Vec3]) -> (Vec3, Vec3) {
+        points.iter().fold(
+            (Vec3::new(f32::MAX, f32::MAX, f32::MAX), Vec3::new(f32::MIN, f32::MIN, f32::MIN)),
+            |(lo, hi), &p| (lo.min(p), hi.max(p)),
+        )
+    }
+
+    #[test]
+    fn a_compound_child_is_scaled_in_its_own_axes() {
+        // A box of half (1, 2, 1) turned a quarter about z (its x along -y, its y along x), at
+        // (0, 3, 0), under the library scale (2, 1, 1): Bullet scales its dims in its own axes,
+        // (2, 2, 1), and its origin, (0, 3, 0); scaling the turned points would make it 4 × 1.
+        let json = serde_json::json!({
+            "primitives": [
+                { "type": 1, "position": [0.0, 3.0, 0.0], "rotation": [0.0, 0.0, std::f32::consts::FRAC_PI_2], "scale": [1.0, 2.0, 1.0] },
+                { "type": 1, "position": [9.0, 0.0, 0.0], "rotation": [0.0, 0.0, 0.0], "scale": [1.0, 1.0, 1.0] },
+            ],
+        });
+        let config = binary_config_parser::BinaryConfig::parse_json(&json);
+        let config = ConfigValue::parse(config.as_bytes()).unwrap();
+        let mut library = Library::default();
+        library
+            .add_primitives(&config, Vec3::new(2.0, 1.0, 1.0), &|_| Surface::default())
+            .unwrap();
+        let (lo, hi) = bounds(&library.vertices[..8]);
+        let close = |a: Vec3, b: Vec3| (a - b).length() < 1e-5;
+        assert!(close(lo, Vec3::new(-2.0, 1.0, -1.0)), "{lo:?}");
+        assert!(close(hi, Vec3::new(2.0, 5.0, 1.0)), "{hi:?}");
+        let (lo, hi) = bounds(&library.vertices[8..]);
+        assert!(close(lo, Vec3::new(16.0, -1.0, -1.0)), "{lo:?}");
+        assert!(close(hi, Vec3::new(20.0, 1.0, 1.0)), "{hi:?}");
+    }
+
+    #[test]
+    fn scaled_round_primitives_follow_bullet() {
+        let scale = Vec3::new(2.0, 3.0, 0.5);
+        assert_eq!(
+            PrimitiveShape::from_engine(0, Vec3::new(1.5, 9.0, 9.0), scale),
+            Some(PrimitiveShape::Sphere { radius: 3.0 })
+        );
+        // A cylinder's radius by its x scale only.
+        assert_eq!(
+            PrimitiveShape::from_engine(2, Vec3::new(0.5, 1.0, 0.5), scale),
+            Some(PrimitiveShape::Cylinder {
+                radius: 1.0,
+                half_height: 3.0
+            })
+        );
+        // A capsule keeps its margin: (0.4 + 0.04) × 0.5 - 0.04 and (1 + 0.04) × 3 - 0.04.
+        let Some(PrimitiveShape::Capsule {
+            radius,
+            half_height,
+        }) = PrimitiveShape::from_engine(3, Vec3::new(0.4, 2.0, 0.4), scale)
+        else {
+            panic!()
+        };
+        assert!((radius - 0.18).abs() < 1e-6 && (half_height - 3.08).abs() < 1e-5);
+        assert_eq!(
+            PrimitiveShape::from_engine(1, Vec3::new(1.0, 1.0, 1.0), -scale),
+            Some(PrimitiveShape::Box { half: scale })
+        );
+    }
+
+    #[test]
+    fn round_primitives_are_never_inside_the_game_shape() {
+        // Directions spread over the sphere.
+        let count = 4000;
+        let directions: Vec<Vec3> = (0..count)
+            .map(|i| {
+                let y = 1.0 - 2.0 * (i as f32 + 0.5) / count as f32;
+                let ring = (1.0 - y * y).sqrt();
+                let a = i as f32 * 2.399_963;
+                Vec3::new(ring * a.cos(), y, ring * a.sin())
+            })
+            .collect();
+        for radius in [0.05, 0.3, 1.0, 2.5, 5.0, 8.0] {
+            for shape in [
+                PrimitiveShape::Sphere { radius },
+                PrimitiveShape::Cylinder {
+                    radius,
+                    half_height: 1.5,
+                },
+                PrimitiveShape::Capsule {
+                    radius,
+                    half_height: 0.7,
+                },
+            ] {
+                let (points, _) = shape.tessellate();
+                for &d in &directions {
+                    let across = (d.x * d.x + d.z * d.z).sqrt();
+                    let game = match shape {
+                        PrimitiveShape::Sphere { radius } => radius,
+                        PrimitiveShape::Cylinder {
+                            radius,
+                            half_height,
+                        } => half_height * d.y.abs() + radius * across,
+                        PrimitiveShape::Capsule {
+                            radius,
+                            half_height,
+                        } => half_height * d.y.abs() + radius,
+                        PrimitiveShape::Box { .. } => unreachable!(),
+                    };
+                    let export = points.iter().map(|p| p.dot(d)).fold(f32::MIN, f32::max);
+                    assert!(export >= game - 1e-6, "{shape:?} inside along {d:?}: {export} < {game}");
+                    assert!(
+                        export <= game + ROUND_OUT + 1e-4,
+                        "{shape:?} out along {d:?}: {export} > {game}"
+                    );
+                }
+            }
+        }
     }
 }
