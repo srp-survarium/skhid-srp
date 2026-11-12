@@ -373,6 +373,9 @@ fn pre_eye_pin_tuning() -> Tuning {
         old.kin.step_input = kin::StepInput::Same;
         old.kin.client_step = kin::ClientStep::Grid;
         old.kin.leg_damage = kin::LegDamageGate::Ignored;
+        // And the reckoning before 2e: the keys alone sprint, no stagger term.
+        old.kin.speed_terms = kin::SpeedTerms::Legs;
+        old.kin.sprint_gates = kin::SprintGates::Keys;
         old.sense.ranges = tuning::HearingRanges::Flat;
         old.sense.shots = tuning::ShotRanges::Flat;
         old.sense.sprint_body_mps = None;

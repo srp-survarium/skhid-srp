@@ -45,6 +45,11 @@ impl Stagger {
             .min(MAX)
     }
 
+    /// [2e] The hits kept, as a world's `m_recent_hits` gives them to the bots.
+    pub(crate) fn hits(&self) -> &[(u32, f32)] {
+        &self.hits
+    }
+
     pub(crate) fn reset(&mut self) {
         self.hits.clear();
     }

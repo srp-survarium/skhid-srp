@@ -35,7 +35,9 @@ use survarium::v026g::match_msgs::TICK_MS;
 
 use super::jump_arc::{ArcStep, JumpArc};
 use super::kin::{Blend, DropFall, Edge, StepInput, ClientStep, FIX_ABOVE_M, FixBlend, FixFall, FixFloor, LEVEL_REACH, LEVEL_SNAP, LevelRead, LevelSource, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
+use super::kin::{SpeedTerms, SprintGates};
 use super::legs::LegDamage;
+use super::sprint_gates::{OwnGates, Stagger};
 use super::pitch::{Pitch, PitchScale};
 use crate::v026g::drive::key;
 
@@ -409,6 +411,10 @@ pub struct BodyTrack {
     jump_gate: JumpGate,
     /// [A325f] The legs' `leg_damage` gate ([`Self::set_leg_damage`]): each tick's keys lose what the legs refuse then.
     leg_damage: LegDamage,
+    /// [2e] A bot's own sprint gates ([`Self::note_reload`], [`Self::set_aim_out_ms`]); none for other bodies.
+    own: OwnGates,
+    /// [2e] The body's hits as the last world showed them ([`Self::set_hits`]): the stagger's sprint gate and speed term.
+    stagger: Stagger,
     /// [A318] The map's walls a jump in the air is held by ([`Self::set_walls`]; none: the grid's floors alone).
     walls: Option<Walls>,
     /// The lives the worlds showed, the present one counted.
@@ -523,9 +529,51 @@ impl BodyTrack {
         self.leg_damage = legs;
     }
 
-    /// [A325f] The tick as the client takes it: its keys without what the legs refuse at its time ([`super::legs`]).
-    fn as_taken(&self, tick: Tick) -> Tick {
-        Tick { keys: self.leg_damage.at(tick.time).keys(tick.keys), ..tick }
+    /// [2e] A world's `m_recent_hits` for this body (the world's ms, each hit's stopping speed).
+    pub fn set_hits(&mut self, hits: &[(u32, f32)]) {
+        self.stagger.seen(hits);
+    }
+
+    /// [2e] The bot's own reload from `from` until `until`, ms (its reflex's note).
+    pub fn note_reload(&mut self, from: u32, until: u32) {
+        self.own.reload(from, until);
+    }
+
+    /// [2e] The bot's gun in hands' `aim_time`, ms.
+    pub fn set_aim_out_ms(&mut self, ms: u32) {
+        self.own.set_aim_out_ms(ms);
+    }
+
+    /// [A325f] The tick as the client takes it: its keys without what the legs refuse at its time ([`super::legs`]). [2e] With
+    /// [`SprintGates::Client`] also without what `can_sprint` refuses: no sights and no sprint in a reload, no sprint in a stagger
+    /// or for the gun's `aim_time` after AIM went up ([`super::sprint_gates`]).
+    fn as_taken(&self, tick: Tick, kin: &Kinematics) -> Tick {
+        let mut keys = self.leg_damage.at(tick.time).keys(tick.keys);
+        if kin.sprint_gates == SprintGates::Client {
+            keys = self.own.taken(tick.time, keys);
+        }
+        if kin.sprint_gates == SprintGates::Client && keys & key::SPRINT != 0 {
+            let aim_out = self.own.aim_out_ms();
+            let aiming_out = aim_out > 0
+                && keys & key::AIM == 0
+                && self
+                    .ticks
+                    .iter()
+                    .rev()
+                    .filter(|t| t.time < tick.time)
+                    .take_while(|t| tick.time - t.time <= aim_out)
+                    .any(|t| t.keys & key::AIM != 0);
+            if aiming_out || self.stagger.on(tick.time) {
+                keys &= !key::SPRINT;
+            }
+        }
+        Tick { keys, ..tick }
+    }
+
+    /// The speed level the body moves by at `time`: [`Self::level`], less a hit's stagger with [`SpeedTerms::LegsStagger`].
+    fn level_at(&self, time: u32, kin: &Kinematics) -> f32 {
+        let level = self.level();
+        if kin.speed_terms == SpeedTerms::LegsStagger { (level - self.stagger.share(time)).max(0.0) } else { level }
     }
 
     /// [A318] Whether a jump the body presses next would go ([`JumpGate`]): a bot's own reckoning sets it before each tick.
@@ -589,7 +637,7 @@ impl BodyTrack {
             kick: estimate.kick,
             jump: JumpGate::Open,
         };
-        Some(advance(estimate, self.as_taken(tick), kin, self.level(), grid, self.walls.as_ref().map(|w| &*w.0), Role::Reckoning))
+        Some(advance(estimate, self.as_taken(tick, kin), kin, self.level_at(tick.time, kin), grid, self.walls.as_ref().map(|w| &*w.0), Role::Reckoning))
     }
 
     /// Where the body is, or was last reckoned alive, and in which of its
@@ -635,8 +683,8 @@ impl BodyTrack {
         {
             self.ticks.pop_front();
         }
-        let level = self.level();
-        let tick = self.as_taken(tick);
+        let level = self.level_at(time, kin);
+        let tick = self.as_taken(tick, kin);
         if let Some(estimate) = self.estimate.as_mut() {
             let held;
             (*estimate, held) = advance_held(*estimate, tick, kin, level, grid, self.walls.as_ref().map(|w| &*w.0));
@@ -698,10 +746,20 @@ impl BodyTrack {
             LevelRead::Any => Some(fix.keys),
             LevelRead::Settled => {
                 let n = kin.blend_ticks as usize;
-                let last: Vec<u32> = self.ticks.iter().rev().filter(|tick| tick.time < fix.time).take(n).map(|tick| tick.keys & LEVEL_KEYS).collect();
+                // [2e] The keys as the client took them (a refused sprint walks).
+                let last: Vec<u32> = self
+                    .ticks
+                    .iter()
+                    .rev()
+                    .filter(|tick| tick.time < fix.time)
+                    .take(n)
+                    .map(|tick| self.as_taken(*tick, kin).keys & LEVEL_KEYS)
+                    .collect();
                 (last.len() == n && last.iter().all(|&k| k == last[0])).then(|| last[0])
             }
         };
+        // [2e] A staggered world's speed is not the life's level ([`SpeedTerms::LegsStagger`]).
+        let read_keys = read_keys.filter(|_| kin.speed_terms != SpeedTerms::LegsStagger || !self.stagger.on(fix.time));
         if let Some(level) = read_keys.zip(fix.speed).and_then(|(keys, speed)| self.read_level(kin, keys, speed / self.legs.unwrap_or(1.0))) {
             self.level = Some(level);
             // [A331] A reading that picked one of the kit's values: the place's prior for its next lives (the weapon it keeps in
@@ -710,7 +768,7 @@ impl BodyTrack {
                 self.prior_level = Some(level);
             }
         }
-        let level = self.level();
+        let level = self.level_at(fix.time, kin);
         let reckoned = (!new_life)
             .then(|| {
                 self.trail
@@ -785,7 +843,7 @@ impl BodyTrack {
             .iter()
             .rev()
             .find(|tick| tick.time < fix.time)
-            .map_or(fix.keys, |tick| tick.keys);
+            .map_or(fix.keys, |tick| self.as_taken(*tick, kin).keys);
         let mut local = kin.target_local(before, level);
         if let Some(speed) = fix.speed.filter(|speed| speed.is_finite()) {
             let now = local[0].hypot(local[1]);
@@ -827,7 +885,7 @@ impl BodyTrack {
             // less input W's turn. [A325f] Those keys as the client takes them (the legs' gate, [`Self::as_taken`]).
             step: (kin.step_input == StepInput::Previous)
                 .then(|| {
-                    let keys = self.as_taken(*self.ticks.iter().find(|tick| tick.time + TICK_MS == fix.time)?).keys;
+                    let keys = self.as_taken(*self.ticks.iter().find(|tick| tick.time + TICK_MS == fix.time)?, kin).keys;
                     let turn = self.ticks.iter().find(|tick| tick.time == fix.time)?.turn.0;
                     Some((keys, wrap(fix.yaw - turn)))
                 })
@@ -855,7 +913,8 @@ impl BodyTrack {
         // The ticks after the world's, again from where the world has it.
         for tick in self.ticks.iter().filter(|tick| tick.time > fix.time) {
             let held;
-            (estimate, held) = advance_held(estimate, self.as_taken(*tick), kin, level, grid, self.walls.as_ref().map(|w| &*w.0));
+            (estimate, held) =
+                advance_held(estimate, self.as_taken(*tick, kin), kin, self.level_at(tick.time, kin), grid, self.walls.as_ref().map(|w| &*w.0));
             self.trail.push_back(Reckoned { time: tick.time, feet: estimate.feet, held, grid_extra: estimate.grid_extra });
         }
         // A world newer than every decided tick: the body is as it shows.
@@ -876,9 +935,10 @@ impl BodyTrack {
             return None;
         }
         let mut ticks = before.into_iter().rev();
-        let mut blend = Blend::at(kin.target_local(ticks.next()?.keys, level));
+        // [2e] Each tick's keys as the client took them ([`Self::as_taken`]: a refused sprint blends as a walk).
+        let mut blend = Blend::at(kin.target_local(self.as_taken(*ticks.next()?, kin).keys, level));
         for tick in ticks {
-            blend.tick_mixed(kin.target_local(tick.keys, level), kin.blend_ticks, kin.mixer);
+            blend.tick_mixed(kin.target_local(self.as_taken(*tick, kin).keys, level), kin.blend_ticks, kin.mixer);
         }
         Some(blend)
     }

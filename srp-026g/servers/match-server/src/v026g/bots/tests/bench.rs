@@ -1757,6 +1757,9 @@ pub(crate) fn real_bot_cost() {
                     for (place, hurt) in hurts.into_iter().enumerate() {
                         bots.hurt(place, hurt);
                     }
+                    for (place, hits) in game.hits_at(world_tick).unwrap_or_default().into_iter().enumerate() {
+                        bots.hits(place, &hits);
+                    }
                     standin_heal::tell(&mut game, &mut bots, world_tick);
                     standin_traps::tell(&mut game, &mut bots, world_tick);
                     if let Some((_, fixes, health, facts)) = game.world_at(world_tick) {

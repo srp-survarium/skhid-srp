@@ -17,6 +17,10 @@
 //! which needs the walker triangles) builds the old test world that keeps the meshes instead: not the live world.
 //! `SRP_A304_LEVELS=<rec_levels.csv>` [A332]: each place's speed level from its match profile (`srp-rec-table`'s table), the body's
 //! prior until a world shows the life's own, as the server sets it; without it the prior is 1.
+//! `SRP_A304_EXT=<wplayers.csv>` [2e]: the decoder's player table of the same worlds (`recent_hits`, `mags`): each world's recent
+//! hits for the stagger ([`BodyTrack::set_hits`], as `game/driven.rs` hands them), and each bot's reloads, from its RELOAD press to
+//! halfway between the last world before its magazines filled and the first after (the server has the reflex's own note); the
+//! sights' time after AIM goes up `SRP_A304_AIM_MS` (default 300: the rifles' `aim_time` 0.2-0.35 s; the server has its gun's).
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -30,6 +34,10 @@ use super::bench::bench_tuning;
 
 /// A world reaches the bots this long after its tick, ms (the bench's own delay; the live one is 200-400).
 const WORLD_LATE_MS: u32 = 300;
+
+/// [2e] Each (place, world time)'s recent hits, and each place's reloads (from, until) ms (`SRP_A304_EXT`).
+type ExtHits = HashMap<(usize, u32), Vec<(u32, f32)>>;
+type Reloads = HashMap<usize, Vec<(u32, u32)>>;
 
 struct WorldRow {
     time: u32,
@@ -208,6 +216,60 @@ fn drift_on_a_real_match() {
             HashMap::new()
         }
     };
+    // [2e] `SRP_A304_EXT`: each (place, time) world's recent hits and the rounds in its magazines.
+    let (ext_hits, reloads): (ExtHits, Reloads) = match var("SRP_A304_EXT") {
+        None => Default::default(),
+        Some(path) => {
+            let mut hits = HashMap::new();
+            let mut rounds: HashMap<usize, Vec<(u32, u32)>> = HashMap::new();
+            for r in read_csv(&path) {
+                let (Some(place), Some(time)) =
+                    (r.get("place").and_then(|v| v.parse::<usize>().ok()), r.get("time").and_then(|v| v.parse::<u32>().ok()))
+                else {
+                    continue;
+                };
+                let list: Vec<(u32, f32)> = r
+                    .get("recent_hits")
+                    .map_or("", String::as_str)
+                    .split(';')
+                    .filter_map(|h| {
+                        let (at, power) = h.split_once(':')?;
+                        Some((at.parse().ok()?, power.parse().ok()?))
+                    })
+                    .collect();
+                hits.insert((place, time), list);
+                let loaded: u32 =
+                    r.get("mags").map_or("", String::as_str).split(';').filter_map(|m| m.rsplit(':').next()?.parse::<u32>().ok()).sum();
+                rounds.entry(place).or_default().push((time, loaded));
+            }
+            let mut presses: HashMap<usize, Vec<u32>> = HashMap::new();
+            let mut held: HashMap<usize, bool> = HashMap::new();
+            for &(time, place, keys, _) in &ticks {
+                let down = keys & crate::v026g::drive::key::RELOAD != 0;
+                if down && !held.get(&place).copied().unwrap_or(false) {
+                    presses.entry(place).or_default().push(time);
+                }
+                held.insert(place, down);
+            }
+            let mut windows: HashMap<usize, Vec<(u32, u32)>> = HashMap::new();
+            for (place, times) in presses {
+                let Some(seen) = rounds.get_mut(&place) else { continue };
+                seen.sort_unstable();
+                for at in times {
+                    let Some(k) = seen.iter().rposition(|&(t, _)| t <= at) else { continue };
+                    let before = seen[k].1;
+                    if let Some(j) = (k + 1..seen.len()).take_while(|&j| seen[j].0 <= at + 6_000).find(|&j| seen[j].1 > before) {
+                        let until = (seen[j - 1].0.max(at) + seen[j].0) / 2;
+                        windows.entry(place).or_default().push((at, until));
+                    }
+                }
+            }
+            let n: usize = windows.values().map(Vec::len).sum();
+            eprintln!("2e ext: {} worlds' hits, {n} reloads from {path}", hits.len());
+            (hits, windows)
+        }
+    };
+    let aim_out_ms: u32 = var("SRP_A304_AIM_MS").and_then(|v| v.parse().ok()).unwrap_or(300);
     let mut rows: Vec<WorldRow> = read_csv(&worlds)
         .iter()
         .filter_map(|r| {
@@ -308,6 +370,13 @@ fn drift_on_a_real_match() {
             let (time, place, keys, turn) = ticks[k];
             let track = tracks.entry(place).or_default();
             track.set_walls(arc_walls.clone());
+            // [2e] The bot's own gates as the driver hands them (`think.rs`): its reloads begun by now, its sights' time.
+            if let Some(windows) = reloads.get(&place) {
+                for &(from, until) in windows.iter().filter(|&&(from, _)| from <= time) {
+                    track.note_reload(from, until);
+                }
+                track.set_aim_out_ms(aim_out_ms);
+            }
             let rays_before = super::super::jump_arc::RAYS.load(std::sync::atomic::Ordering::Relaxed);
             let started = std::time::Instant::now();
             track.decided(time, keys, turn, 0.0, &kin, grid);
@@ -374,6 +443,10 @@ fn drift_on_a_real_match() {
             && let Some(ends) = leg_ends.get(&(w.place, w.time))
         {
             track.set_leg_damage(LegDamage::of(ends, w.time));
+        }
+        // [2e] The world's recent hits on the body, as `game/driven.rs` hands them (`Bots::hits`).
+        if let Some(hits) = ext_hits.get(&(w.place, w.time)) {
+            track.set_hits(hits);
         }
         let feet = w.fix.feet;
         let speed = w.fix.speed;
