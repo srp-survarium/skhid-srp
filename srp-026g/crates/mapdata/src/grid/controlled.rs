@@ -255,6 +255,7 @@ pub fn walk_share(world: &Collision, s: &Settings, start: WalkStart, from: Vec3,
         // A low ceiling: the client slides under it or crouches: not a stall the pass knows.
         Walked::Ceiling => (1.0, false),
         Walked::At => (1.0, true),
+        Walked::AtEnd(share) => (share, true),
         Walked::Short(share) => (share, false),
     }
 }
@@ -262,8 +263,11 @@ pub fn walk_share(world: &Collision, s: &Settings, start: WalkStart, from: Vec3,
 /// [2c] How a walk of one leg ended ([`walk_on`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Walked {
-    /// At the leg's end.
+    /// At the leg's end, met at a tick.
     At,
+    /// At the leg's end when its ticks ran out, this share of the flat way along ([`walk_share`]'s old answer keeps the
+    /// share, which a leg shorter than the arrival radius can end under half of).
+    AtEnd(f32),
     /// Short of it, this share of the flat way along.
     Short(f32),
     /// Refused under a low ceiling (a standing body that cannot straighten).
@@ -337,11 +341,8 @@ pub fn walk_on(world: &Collision, s: &Settings, c: &mut Controller, from: Vec3, 
     }
     let feet = c.feet();
     let left = Vec3::new(to.x - feet.x, 0.0, to.z - feet.z);
-    if left.length() <= AT_FLAT_M && (feet.y - to.y).abs() <= AT_HEIGHT_M {
-        Walked::At
-    } else {
-        Walked::Short(best.max(Vec3::new(feet.x - from.x, 0.0, feet.z - from.z).dot(dir) / length))
-    }
+    let share = best.max(Vec3::new(feet.x - from.x, 0.0, feet.z - from.z).dot(dir) / length);
+    if left.length() <= AT_FLAT_M && (feet.y - to.y).abs() <= AT_HEIGHT_M { Walked::AtEnd(share) } else { Walked::Short(share) }
 }
 
 /// [A318] One tick of the client's walk for a standing body at `feet` asked to move `by` (flat): the feet it starts from
@@ -651,7 +652,7 @@ impl WalkGrid {
         let flat = Vec3::new(pb.x - pa.x, 0.0, pb.z - pa.z);
         let l = flat.length();
         let side = if l > 1e-4 { Vec3::new(-flat.z / l, 0.0, flat.x / l) } else { Vec3::ZERO };
-        let arrives = |w: Walked| matches!(w, Walked::At | Walked::Ceiling);
+        let arrives = |w: Walked| matches!(w, Walked::At | Walked::AtEnd(_) | Walked::Ceiling);
         let (mut lines, mut share, mut chain_failed) = (0, 0.0f32, false);
         for off in STARTS {
             let (from, to) = (pa + side * off, pb + side * off);
@@ -665,17 +666,24 @@ impl WalkGrid {
                 Walked::Short(x) => x,
                 _ => 1.0,
             });
+            if !arrives(centre) {
+                continue;
+            }
             let chained = before.is_none_or(|q| {
                 let from_q = self.position(q as NodeId) + side * off;
                 let mut c = body_at(world, start, stance, from_q);
                 // The link before failing is its own check's; from where it leaves the body this one says nothing.
-                walk_on(world, s, &mut c, from_q, from, SPARE_TICKS) != Walked::At || arrives(walk_on(world, s, &mut c, from, to, SPARE_TICKS))
+                !matches!(walk_on(world, s, &mut c, from_q, from, SPARE_TICKS), Walked::At | Walked::AtEnd(_))
+                    || arrives(walk_on(world, s, &mut c, from, to, SPARE_TICKS))
             });
-            if arrives(centre) && !chained {
-                chain_failed = true;
-            }
-            if arrives(centre) && chained {
+            if chained {
                 lines += 1;
+                // Two lines pass: the link passes whatever the third does (its share counts only for a failing link).
+                if lines >= 2 {
+                    break;
+                }
+            } else {
+                chain_failed = true;
             }
         }
         LinkWalk { passes: lines >= 2, share, chain_failed: chain_failed && lines < 2 }
