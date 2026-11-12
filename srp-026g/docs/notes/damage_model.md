@@ -59,12 +59,17 @@ players.
 | both legs | the crouch forced | 0x2FBE05 | crouched in 931 of 939 |
 | a hand | no battery use | 0x300739 | |
 | both hands | no aim; no grenade; a two-handed weapon neither fires nor reloads | 0x2FC2DE, 0x2E40EC, 0x2E381A | aim refused in 734 of 751 (the others within 1 s of the hit) |
-| hands | the cone wider by 10 x a modifier | 0x3317C0 | 2,761 of 3,061 bot worlds as read |
+| hands | the cone wider by 10 x a modifier | 0x3317C0 | 3,062 of 3,062 bot worlds by the whole expression (a glove's default modification on modifier 0 gives the factor 0.92 of some) |
 
 - Nothing reads a wound for the reload's time, the recoil, the sway or carrying.
 - Regeneration at the table's rates after exactly 8 s: the body 2,297 of 2,700 rising pools (the others 1.12 or
-  1.15 times faster, or with an artefact).
-- Death: a lethal pool at 0 (0x2DA480).
+  1.15 times faster: a worn item's default modification on the regeneration modifier, 2,199 of 2,275 such bot rows;
+  or with an artefact).
+- Death: the death affect a lethal pool starts at 0 (`on_affect(kind, action, time)` 0x2DA480, its only setter). A
+  drug in use can lift the pool over 0 again in the same step, after the bullet (23 dead bodies show a pool over 0).
+- Concussion, poisoning and the pain's thresholds gate nothing: their only readers are the damage sounds (0x23EFD0,
+  0x23F610) and the screen's effects (0x32A7A0). A painkiller in use takes a tenth of the pain's damage
+  (`damage_protection`, 0x33DB30).
 
 ## Against the bots
 
@@ -78,5 +83,5 @@ players.
 
 ## Not read
 
-The armour of a bullet that meets several boxes; any effect of concussion, poisoning and the pain's thresholds
-beyond the screen and the statistics; some modifiers' names; fall damage's entry (cited from `fall_damage.md`).
+The armour of a bullet that meets several boxes; fall damage's entry (cited from `fall_damage.md`); a pain factor
+of 0.875 on some played bodies' hits (in none of the stock data: the live client's own patches are to be read).
