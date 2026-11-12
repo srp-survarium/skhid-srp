@@ -48,6 +48,8 @@ pub const SHORT_JUMP_RISE: [f32; 13] = [
 ];
 /// The root's highest point, m ahead of the press (frame 16).
 const APEX_AHEAD_M: f32 = 1.78;
+/// [A364 P6] The short clip's apex frame.
+const SHORT_APEX_FRAME: f32 = 16.0;
 
 /// The presses looked at, m before the take-off floor's centre: from
 /// [`GAP_PRESS_MIN_M`] (the body leaves the floor 0.67 m on, at the clip's
@@ -236,6 +238,35 @@ struct Clip<'a> {
     leaves: f32,
     /// Seconds between two samples (2 frames at the clip's rate).
     sample_s: f32,
+    /// The clip's time scale (1 for the short jump, [`SPRINT_CLIP_RATE`] for the sprint jumps): [`Self::air_end_frame`].
+    scale: f32,
+}
+
+/// [A364 P6] The clip's `jump` event: the first of the game's air steps, frame.
+const TAKEOFF_FRAME: f32 = 6.0;
+/// [A364 P6] The game's air phase: this many steps of 50 ms from [`TAKEOFF_FRAME`], 1.5 frames a step at the clip's time scale
+/// (PROVEN, 20 of 20 traced jumps of the game's own bodies, `private/grid/rig/jump-census.txt`; the bots' `jump_arc::AIR_STEPS`).
+const AIR_STEPS: f32 = 12.0;
+const AIR_STEP_S: f32 = 0.05;
+
+/// [A364 P6] A clip's root (ahead, rise) at `frame`, linear between its samples (every 2 frames).
+fn root_at(ahead: &[f32; 13], rise: &[f32; 13], frame: f32) -> (f32, f32) {
+    let f = (frame / 2.0).clamp(0.0, 12.0);
+    let i = (f.floor() as usize).min(11);
+    let t = f - i as f32;
+    (ahead[i] + (ahead[i + 1] - ahead[i]) * t, rise[i] + (rise[i + 1] - rise[i]) * t)
+}
+
+/// [A364 P6] Where the game's air phase ends on a clip of time scale `scale` ([`crate::Body::jump_air_steps`]): the root's
+/// (ahead, rise) at its last air step, frame 6 + 11 x 1.5 x scale (22.5 for the short jump: 2.50 m on, 0.35 m up; the clip's
+/// frame 24 is never played in the air), and the speed it falls at from there, m/s down: the root's descent over that last
+/// step (`end_jump` 0x7F050 keeps the downward part of the air branch's root speed, as `jump_arc::Clip::end_descent`).
+fn air_end(ahead: &[f32; 13], rise: &[f32; 13], scale: f32) -> (f32, f32, f32) {
+    let step = 1.5 * scale;
+    let end = TAKEOFF_FRAME + (AIR_STEPS - 1.0) * step;
+    let (on, up) = root_at(ahead, rise, end);
+    let (_, before) = root_at(ahead, rise, end - step);
+    (on, up, ((before - up) / AIR_STEP_S).max(0.0))
 }
 
 impl Clip<'_> {
@@ -626,14 +657,33 @@ impl WalkGrid {
     /// unless a face across its width is in the way, and then stays where
     /// it is while the clip lifts it, to go on once it is over the face.
     /// After the clip it falls on ([`Flight::Over`], [`Self::fall_on`]).
-    fn fly(&self, a: usize, d: usize, lead: f32, solids: &Solids) -> Option<(Flight, Over)> {
+    ///
+    /// [A364 P6] With [`crate::Body::jump_air_steps`] and the walk's `speed` at the press: the body travels at that speed, frozen
+    /// at the press (the game's walk vector holds its press value on every air step, 17 of 17 traced short jumps; the clip's
+    /// own travel is not the body's), the clip giving only the rise at each frame (30 a second), and the flight ends at the
+    /// game's last air step (frame 22.5) and falls from there.
+    fn fly(&self, a: usize, d: usize, lead: f32, speed: Option<f32>, solids: &Solids) -> Option<(Flight, Over)> {
         let from = self.position(a as NodeId);
         let h = self.height[a];
         let (di, dk) = DIRS[d];
         let len = ((di * di + dk * dk) as f32).sqrt();
         let (ux, uz) = (di as f32 / len, dk as f32 / len);
         let ds = 0.5 * self.cell;
-        let end = SHORT_JUMP_AHEAD[SHORT_JUMP_AHEAD.len() - 1] - lead;
+        // [A364 P6] With `jump_air_steps` the flight ends at the game's last air step, not at the clip's end, and with the
+        // press's speed the body travels at it (the clip's frame is the time at that speed).
+        let frozen = speed.filter(|_| self.body.jump_air_steps);
+        let frame_at = |ahead: f32| frozen.map(|v| ahead / v * CLIP_FPS);
+        let rise_at = |ahead: f32| match frame_at(ahead) {
+            Some(frame) => root_at(&SHORT_JUMP_AHEAD, &SHORT_JUMP_RISE, frame).1,
+            None => short_jump_rise(ahead).unwrap_or(0.0),
+        };
+        let past_apex = |ahead: f32| frame_at(ahead).map_or(ahead >= APEX_AHEAD_M, |frame| frame >= SHORT_APEX_FRAME);
+        let clip_end = match frozen {
+            Some(v) => v * (TAKEOFF_FRAME + (AIR_STEPS - 1.0) * 1.5) / CLIP_FPS,
+            None if self.body.jump_air_steps => air_end(&SHORT_JUMP_AHEAD, &SHORT_JUMP_RISE, 1.0).0,
+            None => SHORT_JUMP_AHEAD[SHORT_JUMP_AHEAD.len() - 1],
+        };
+        let end = clip_end - lead;
         let at = |s: f32| (from.x + ux * s, from.z + uz * s);
         // What the body at `s` comes down on between `y` and `top`.
         let landing = |s: f32, y: f32, top: f32| self.come_down(solids, at(s), y, top);
@@ -645,18 +695,23 @@ impl WalkGrid {
         loop {
             if x > end {
                 // After the clip: on at `after` while it falls, from the
-                // clip's last downward speed (J0 g2b).
+                // clip's last downward speed (J0 g2b). [A364 P6] With
+                // `jump_air_steps`, from the air phase's end.
+                if self.body.jump_air_steps {
+                    let (_, up, down) = air_end(&SHORT_JUMP_AHEAD, &SHORT_JUMP_RISE, 1.0);
+                    return Some((Flight::Over { body, y: h + up, last, down }, over));
+                }
                 let n = SHORT_JUMP_RISE.len();
                 let down = (SHORT_JUMP_RISE[n - 2] - SHORT_JUMP_RISE[n - 1]) * CLIP_FPS / 2.0;
                 return Some((Flight::Over { body, y: h, last, down }, over));
             }
             let ahead = x + lead;
-            let y = h + short_jump_rise(ahead).unwrap_or(0.0);
+            let y = h + rise_at(ahead);
             // Coming down onto a floor at the root: landed (before the
             // faces: its own top is under the feet), only while no face
             // holds the body back: the root runs on past a wall the body
             // stands at (a wall thinner than a cell is no landing beyond).
-            if ahead >= APEX_AHEAD_M && body + ds + 1e-3 >= x {
+            if past_apex(ahead) && body + ds + 1e-3 >= x {
                 match landing(x, y, last) {
                     Down::On(f) => return Some((Flight::Landed(f, x, 0.0), over)),
                     Down::Held => return None,
@@ -682,7 +737,7 @@ impl WalkGrid {
                 body = x;
             } else {
                 // Held, coming down where it is.
-                match if ahead >= APEX_AHEAD_M { landing(body, y, last) } else { Down::Air } {
+                match if past_apex(ahead) { landing(body, y, last) } else { Down::Air } {
                     Down::On(f) => return Some((Flight::Landed(f, body, 0.0), Over::Clear)),
                     Down::Held => return None,
                     Down::Air => was_held = true,
@@ -807,14 +862,19 @@ impl WalkGrid {
         let at = |s: f32| (from.x + ux * s, from.z + uz * s);
         let apex = clip.ahead[(0..13).max_by(|&i, &j| clip.rise[i].total_cmp(&clip.rise[j])).unwrap_or(0)];
         let landing = |s: f32, y: f32, top: f32| self.come_down(solids, at(s), y, top);
-        let end = start + clip.ahead[12];
+        // [A364 P6] With `jump_air_steps` the flight ends at the game's last air step.
+        let air = self.body.jump_air_steps.then(|| air_end(clip.ahead, clip.rise, clip.scale));
+        let end = start + air.map_or(clip.ahead[12], |(on, _, _)| on);
         let mut last = h;
         let mut body = pre;
         let (mut was_held, mut over) = (false, Over::Clear);
         let mut x = start + clip.leaves;
         loop {
             if x > end {
-                return Some((Flight::Over { body, y: h, last, down: clip.end_fall_ms() }, over));
+                return Some(match air {
+                    Some((_, up, down)) => (Flight::Over { body, y: h + up, last, down }, over),
+                    None => (Flight::Over { body, y: h, last, down: clip.end_fall_ms() }, over),
+                });
             }
             let ahead = x - start;
             let y = h + clip.rise_at(ahead).unwrap_or(0.0);
@@ -882,7 +942,7 @@ impl WalkGrid {
                 return SprintLanding::Misses;
             }
             for rise in &SPRINT_JUMP_RISE {
-                let clip = Clip { ahead: &SPRINT_JUMP_AHEAD, rise, leaves: SPRINT_LEAVES_M, sample_s };
+                let clip = Clip { ahead: &SPRINT_JUMP_AHEAD, rise, leaves: SPRINT_LEAVES_M, sample_s, scale: SPRINT_CLIP_RATE };
                 let Some((flight, over)) = self.fly_clip(a, d, &clip, start, pre, sunk, solids) else {
                     return SprintLanding::Misses;
                 };
@@ -1381,16 +1441,24 @@ impl WalkGrid {
                     return (None, false);
                 }
                 // One level whatever the body's speed after the clip.
-                let Some((flight, over)) = self.fly(a, d, lead, solids) else {
+                // [A364 P6] With `jump_air_steps` a flight for each walk speed at the press (the body keeps it in the air and
+                // after it), else one flight of the clip's own travel and the two speeds after it.
+                let [v0, v1] = WALK_JUMP_AFTER_CLIP_MS;
+                let ((f0, over), (f1, over2)) = if self.body.jump_air_steps {
+                    let (Some(f0), Some(f1)) = (self.fly(a, d, lead, Some(v0), solids), self.fly(a, d, lead, Some(v1), solids)) else {
+                        return (None, false);
+                    };
+                    (f0, f1)
+                } else {
+                    let Some(one) = self.fly(a, d, lead, None, solids) else {
+                        return (None, false);
+                    };
+                    (one, one)
+                };
+                let (Some((to, _, _)), Some((other, _, _))) = (self.land(a, d, f0, v0, solids), self.land(a, d, f1, v1, solids)) else {
                     return (None, false);
                 };
-                let (Some((to, _, _)), Some((other, _, _))) = (
-                    self.land(a, d, flight, WALK_JUMP_AFTER_CLIP_MS[0], solids),
-                    self.land(a, d, flight, WALK_JUMP_AFTER_CLIP_MS[1], solids),
-                ) else {
-                    return (None, false);
-                };
-                if self.vaults_down(a, to, over) || self.vaults_down(a, other, over) {
+                if self.vaults_down(a, to, over) || self.vaults_down(a, other, over2) {
                     return (None, true);
                 }
                 if (self.height[to as usize] - self.height[other as usize]).abs() > SAME_TOP {
@@ -2024,6 +2092,18 @@ mod tests {
                 .map(|w| grid.links(w[0]).find(|&(n, _)| n == w[1]).expect("a link").1)
                 .collect(),
         )
+    }
+
+    /// [A364 P6] The short jump's air phase ends at frame 22.5, 2.50 m on and 0.35 m up (the game's traced jumps, 17 of 17), and
+    /// falls from there; the sprint jump's at frame 6 + 11 x 1.5 x 0.909 = 21.0 (the bots' `jump_arc::Clip::air_end_frame`).
+    #[test]
+    fn a_jump_flight_ends_at_the_games_twelfth_air_step() {
+        let (on, up, down) = air_end(&SHORT_JUMP_AHEAD, &SHORT_JUMP_RISE, 1.0);
+        assert!((on - 2.50).abs() < 0.01 && (up - 0.35).abs() < 0.01, "{on} {up}");
+        assert!(down > 3.0 && down < 8.0, "{down}");
+        let (on, up, _) = air_end(&SPRINT_JUMP_AHEAD, &SPRINT_JUMP_RISE[0], SPRINT_CLIP_RATE);
+        let (want_on, want_up) = root_at(&SPRINT_JUMP_AHEAD, &SPRINT_JUMP_RISE[0], 21.0);
+        assert!((on - want_on).abs() < 1e-3 && (up - want_up).abs() < 1e-3 && on < SPRINT_JUMP_AHEAD[12]);
     }
 
     #[test]

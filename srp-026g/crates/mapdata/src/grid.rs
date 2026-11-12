@@ -317,6 +317,12 @@ pub struct Body {
     /// at half the way (owner-14 report row 12: the client's tick stalls on chains of links that each passed alone; 924
     /// blocked worlds within 0.5 m of a stall). A build input: in the key when set.
     pub walk_every_link: bool,
+    /// [A364 P6] Whether a gap link's jump flies the game's air phase, not the whole clip: twelve steps from the clip's `jump`
+    /// event, so the short jump ends at frame 22.5 (2.50 m on, 0.35 m up) and the body falls from there at the root's last
+    /// descent (`gap`'s `fly`, `fly_clip`). Off: the flight follows the clip to its frame 24 (2.67 m on, back at the take-off's
+    /// height), farther than any jump of the game (A364's traces: 20 of 20 jumps end at their twelfth air step). A build input:
+    /// in the key when set.
+    pub jump_air_steps: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -401,6 +407,7 @@ impl Body {
             give_back_in_cell: false,
             fall_stops_on_solids: false,
             walk_every_link: false,
+            jump_air_steps: false,
         }
     }
 }
@@ -491,6 +498,7 @@ impl Default for Body {
             give_back_in_cell: false,
             fall_stops_on_solids: false,
             walk_every_link: false,
+            jump_air_steps: false,
         }
     }
 }

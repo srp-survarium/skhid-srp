@@ -18,7 +18,7 @@
 //! sweeps (0x86BF0, 0x88CB0, read in outline: capsule sweeps).
 // The exe's comparisons are ported as written: `!(a > b)` and `a > b` differ on NaN, as `comiss` branches do.
 #![allow(clippy::neg_cmp_op_on_partial_ord)]
-use super::{Collision, Contact, Shape, SmallRound, Surface};
+use super::{Collision, Contact, Shape, SmallRound, SolidId, Surface};
 use crate::WalkerBehaviour;
 use crate::math::Vec3;
 
@@ -139,6 +139,20 @@ pub struct Controller {
     pub air_control: Vec3,
 }
 
+/// What the game's logic hands a body's controller before a step, for a body kept across ticks ([`Controller::tick`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TickInput {
+    /// +0x20: the walk vector, the body's root motion over this step (a displacement, m).
+    pub walk: Vec3,
+    /// +0x30: the air control of a jump (a speed, m/s).
+    pub air_control: Vec3,
+    /// The crouch key (bit 8 of the input's actions, [`Controller::crouch_key`]).
+    pub crouch_key: bool,
+    /// +0x204: the body sprints. `step_forward_impl` then takes the simple move test whatever the console says
+    /// (0x7D33D: `cmp byte [+204h], 0; jnz` past the complex test 0x85A90).
+    pub sprinting: bool,
+}
+
 /// What one step did, for the reader.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct StepNotes {
@@ -178,7 +192,7 @@ const WALL_RAY_OFFSET: f32 = 0.03;
 /// move's unit direction, `from` the sweep's start, `hp` the hit point. Not head-on: one ray shifted 0.03 toward where the move
 /// meets the hit point's height; head-on: two rays shifted 0.03 either way along the wall, the second against the first's
 /// result. Each ray starts 0.5 `dir` before its point and is `dir` long.
-fn wall_normal_via_ray(world: &Collision, n2: Vec3, dir: Vec3, from: Vec3, hp: Vec3) -> Vec3 {
+fn wall_normal_via_ray(world: &Collision, object: Option<SolidId>, n2: Vec3, dir: Vec3, from: Vec3, hp: Vec3) -> Vec3 {
     let off = WALL_RAY_OFFSET;
     let c = (dir.z * -n2.z + dir.y * -n2.y) + dir.x * -n2.x;
     let start = |u: Vec3, sign: f32| {
@@ -194,20 +208,20 @@ fn wall_normal_via_ray(world: &Collision, n2: Vec3, dir: Vec3, from: Vec3, hp: V
         let si = 1.0 / c;
         let v = Vec3::new(((l * dir.x) * si + p.x) - hp.x, ((dir.y * l) * si + p.y) - hp.y, ((dir.z * l) * si + p.z) - hp.z);
         let s = start(normalized_safe(v, Vec3::ZERO), 1.0);
-        ray_pick(world, s, end(s), n2, dir)
+        ray_pick(world, object, s, end(s), n2, dir)
     } else {
         let w = Vec3::new(n2.z * UP.y - n2.y * UP.z, UP.z * n2.x - UP.x * n2.z, UP.x * n2.y - UP.y * n2.x);
         let u = normalized_safe(w, Vec3::ZERO);
         let s1 = start(u, 1.0);
-        let r1 = ray_pick(world, s1, end(s1), n2, dir);
+        let r1 = ray_pick(world, object, s1, end(s1), n2, dir);
         let s2 = start(u, -1.0);
-        ray_pick(world, s2, end(s2), r1, dir)
+        ray_pick(world, object, s2, end(s2), r1, dir)
     }
 }
 
 /// `ray_pick` 0x898C0: the ray's face normal made horizontal when it is less head-on than `prev`; a miss keeps `prev`.
-fn ray_pick(world: &Collision, a: Vec3, b: Vec3, prev: Vec3, dir: Vec3) -> Vec3 {
-    let Some((_, rn)) = world.ray(a, b) else { return prev };
+fn ray_pick(world: &Collision, object: Option<SolidId>, a: Vec3, b: Vec3, prev: Vec3, dir: Vec3) -> Vec3 {
+    let Some(rn) = world.look_ray(object, a, b) else { return prev };
     let k = (UP.z * rn.z + UP.y * rn.y) + UP.x * rn.x;
     let m = normalized_safe(Vec3::new(rn.x - UP.x * k, rn.y - UP.y * k, rn.z - UP.z * k), -dir);
     let before = (dir.z * prev.z + dir.y * prev.y) + prev.x * dir.x;
@@ -434,6 +448,25 @@ impl Controller {
         } else if self.can_stand {
             self.want_crouch = false;
         }
+    }
+
+    /// One step of a body kept across ticks, as the game runs it: the key and the vectors its logic writes before the
+    /// step ([`TickInput`]), then [`Self::step`]. Everything else the step reads is what the last step left, so a
+    /// reckoning that keeps one `Controller` for a body and calls this each tick walks the game's body: over every traced
+    /// whole step of a match in order (8,993 steps in 50 chains of up to 17 s; only what the game's logic wrote between
+    /// two steps taken from the trace) the body is the game's to the bit in 42 chains from end to end and within 6 cm in
+    /// all (`docs/notes/exactness_rig.md` section 3f). A jump's start (`jumping`, the clip's walk vector) and a
+    /// correction of the place stay the caller's writes.
+    pub fn tick(&mut self, world: &Collision, dt: f32, s: &Settings, input: TickInput) -> StepNotes {
+        self.crouch_key(input.crouch_key);
+        self.walk = input.walk;
+        self.air_control = input.air_control;
+        let s = Settings {
+            stand_move_complex_test: s.stand_move_complex_test && !input.sprinting,
+            crouch_move_complex_test: s.crouch_move_complex_test && !input.sprinting,
+            ..*s
+        };
+        self.step(world, dt, &s)
     }
 
     /// 0x7BD10 (and the same test inline in `step_down`'s tail 0x7E88A and at the head of the push 0x7BAD0): a crouched
@@ -669,7 +702,7 @@ impl Controller {
                         // A primitive has no face: the contact's own normal stays.
                         Surface::Primitive { .. } => n2,
                     },
-                    WallNormal::Rays => wall_normal_via_ray(world, n2, dir, from, c.point),
+                    WallNormal::Rays => wall_normal_via_ray(world, c.object, n2, dir, from, c.point),
                 };
             }
             Some((c.t, n2, c.point))
@@ -799,18 +832,18 @@ impl Controller {
                 SmallRound::Sphere => limit_walkable(n, s),
                 SmallRound::Capsule { upright } | SmallRound::Cylinder { upright } if 1.0 - upright > s.max_slope_cos => limit_walkable(n, s),
                 SmallRound::Capsule { .. } => n,
-                SmallRound::Cylinder { .. } => self.ground_relook(world, c.point, n, s),
+                SmallRound::Cylinder { .. } => self.ground_relook(world, c.object, c.point, n, s),
             },
-            Surface::Face { .. } | Surface::Primitive { round: None, .. } => self.ground_relook(world, c.point, n, s),
+            Surface::Face { .. } | Surface::Primitive { round: None, .. } => self.ground_relook(world, c.object, c.point, n, s),
         }
     }
 
     /// 0x849BB (0x84810's ray look): a steep hit looked at again by a ray along `-n`, from 0.5 m out along
     /// `n` and the ground offset over the hit point, 1 m long. No face met: the ground counts as flat (up). A face flatter than
     /// `n` and walkable: `n` tilted to just walkable (0x84E20). Else `n` as it is (steep).
-    fn ground_relook(&self, world: &Collision, hp: Vec3, n: Vec3, s: &Settings) -> Vec3 {
+    fn ground_relook(&self, world: &Collision, object: Option<SolidId>, hp: Vec3, n: Vec3, s: &Settings) -> Vec3 {
         let start = (hp + UP * s.ground_normal_via_ray_offset) + n * 0.5;
-        let Some((_, rn)) = world.ray(start, start - n) else { return UP };
+        let Some(rn) = world.look_ray(object, start, start - n) else { return UP };
         let (ry, ny) = (rn.dot(UP), n.dot(UP));
         if ry > ny && ry > s.max_slope_cos { limit_walkable(n, s) } else { n }
     }
@@ -1242,6 +1275,33 @@ mod tests {
         c.crouch_key(false);
         assert!(!c.step(&world, 0.05, &Settings::LIVE).skipped);
         assert!(c.can_stand);
+    }
+
+    /// A body kept across ticks crouches with the key, walks on crouched, and stands on the second tick after the
+    /// release: `tick` is the key, the walk vector and the step.
+    #[test]
+    fn a_kept_body_ticks_with_its_keys() {
+        let mut tris = Vec::new();
+        ground(0.0, -10.0, 10.0, &mut tris);
+        let world = Collision::build(&tris);
+        let input = |crouch_key: bool| TickInput { walk: Vec3::new(0.1, 0.0, 0.0), air_control: Vec3::ZERO, crouch_key, sprinting: false };
+        let mut c = Controller::standing_at(Vec3::ZERO);
+        let standing = c.dims;
+        for _ in 0..4 {
+            c.tick(&world, 0.05, &Settings::LIVE, input(true));
+        }
+        assert!(c.crouched && c.dims.1 < standing.1, "{:?}", c.dims);
+        assert!((c.feet().x - 0.4).abs() < 1e-3, "{:?}", c.feet());
+        c.tick(&world, 0.05, &Settings::LIVE, input(false));
+        assert!(c.crouched, "the first tick after the release makes the stand test");
+        c.tick(&world, 0.05, &Settings::LIVE, input(false));
+        assert!(!c.crouched && c.dims == standing);
+        // A sprinting body takes the simple move test: on open ground the same step.
+        let mut a = Controller::standing_at(Vec3::ZERO);
+        let mut b = a;
+        a.tick(&world, 0.05, &Settings::LIVE, input(false));
+        b.tick(&world, 0.05, &Settings::LIVE, TickInput { sprinting: true, ..input(false) });
+        assert_eq!(a, b);
     }
 
     /// A wall stops the body with its side 0.42 m off it (the cylinder 0.38 m plus the 0.04 m margin): the exe's too (Unicorn).

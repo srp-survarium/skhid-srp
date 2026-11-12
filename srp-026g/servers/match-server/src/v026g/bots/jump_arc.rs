@@ -18,8 +18,8 @@
 //! casts; the bullet mesh misses walls the body bumps into) at heights every 5 cm ([`rays_blocked`]) within the move and the
 //! body's radius, or a floor within the radius above the arc's feet by more than [`CATCH_M`] and under its head; the arc lands on
 //! the highest floor or walker-mesh top under its feet on the way down.
-//! LIKELY: the sprint jump's leg (the right leg's clip rises 1.350 m, the left's 1.282 m: the left's is taken), the short jump's
-//! time scale 1, and the 0.1 m catch (the capsule's lower sphere on a lip). Also LIKELY: the clip's root alone from the press;
+//! PROVEN as a count: the sprint jump's leg is the left in 13 of 16 traced sprint jumps (`private/grid/rig/jump-fit-jumps2.tsv`; peaks
+//! 1.273-1.281 m, the right leg's 1.340-1.346 m in 3): the left's clip is taken. LIKELY: the short jump's time scale 1, and the 0.1 m catch (the capsule's lower sphere on a lip). Also LIKELY: the clip's root alone from the press;
 //! the jump's animation lexeme is blended in over 0.3 s (the builder at 0x343CCF), so the client's first ~6 ticks mix the clip's
 //! root with the walk it leaves, and the landing blends back.
 //!
@@ -48,8 +48,13 @@ pub const TAKEOFF_FRAME: f32 = 6.0;
 pub const AIR_STEPS: u32 = 12;
 /// [A364 P6] In the air every clip advances this many frames a step: time scale 1, the sprint jump's too (PROVEN: 20 of 20 traced jumps,
 /// 3 sprint jumps among them, each fit to the stock clips' roots to 0.0000 m, `private/grid/rig/jump-fit-first.tsv`): the sprint clip's
-/// [`SPRINT_TIME_SCALE`] slows its floor part only. LEAD (3 jumps): a sprint jump's first air step is 0.6 of a frame past the take-off.
+/// [`SPRINT_TIME_SCALE`] slows its floor part only (116 of 116 in the whole recording's trace, `private/grid/rig/jump-fit-jumps2.tsv`).
 pub const AIR_FRAMES_PER_STEP: f32 = FPS * TICK_S;
+/// [A364 P6] A sprint jump's first air step reads its clip this many frames past [`TAKEOFF_FRAME`] (a short jump's at it: 100 of 100).
+/// PROVEN per jump (16 sprint jumps, each fit to the clip's root to 0.0000 m, `private/grid/rig/jump-fit-jumps2.tsv`): 6.57-6.63 in 9 of
+/// 16 (6.60 in 5), the rest 6.93-7.44 once each; the median 6.615. LIKELY: the spread (0.87 frame, under one step) is where in the step
+/// the press or the prepare's end fell (6.57 and 7.44 both at 3.64 m/s: no tie to the walk speed); the model takes the common 0.6.
+pub const SPRINT_FIRST_AIR_PAST: f32 = 0.6;
 /// The sprint jump clip's time scale (FINDINGS 3.3).
 const SPRINT_TIME_SCALE: f32 = 0.909;
 /// `air_control_speed` (player +0x304, `default.player`), m/s.
@@ -202,10 +207,18 @@ impl Clip {
         ((self.root(end - df)[0] - self.root(end)[0]) / TICK_S).max(0.0)
     }
 
-    /// [A364 P6] The frame of the last air step ([`AIR_STEPS`] from [`TAKEOFF_FRAME`], [`AIR_FRAMES_PER_STEP`] apart): 22.5 for every
-    /// clip (PROVEN: 20 of 20 traced jumps, the sprint jumps included).
+    /// [A364 P6] The frame of the last air step ([`AIR_STEPS`] from [`Clip::first_air_frame`], [`AIR_FRAMES_PER_STEP`] apart): 22.5 for
+    /// the short jumps, 23.1 for the sprint jumps (PROVEN: 116 of 116 traced jumps).
     pub fn air_end_frame(self) -> f32 {
-        TAKEOFF_FRAME + (AIR_STEPS - 1) as f32 * AIR_FRAMES_PER_STEP
+        self.first_air_frame() + (AIR_STEPS - 1) as f32 * AIR_FRAMES_PER_STEP
+    }
+
+    /// [A364 P6] The frame the first air step reads: [`TAKEOFF_FRAME`], a sprint jump's [`SPRINT_FIRST_AIR_PAST`] later.
+    pub fn first_air_frame(self) -> f32 {
+        match self {
+            Self::Short(_) => TAKEOFF_FRAME,
+            Self::Sprint(_) => TAKEOFF_FRAME + SPRINT_FIRST_AIR_PAST,
+        }
     }
 
     /// [A364 P6] The clip's frame `t` ms after it starts (after a sprint jump's prepare): at the clip's time scale on the floor up to
@@ -216,7 +229,7 @@ impl Clip {
         if floor < TAKEOFF_FRAME {
             return floor;
         }
-        TAKEOFF_FRAME + (t - self.takeoff_ms()) / 1000.0 * FPS
+        self.first_air_frame() + (t - self.takeoff_ms()) / 1000.0 * FPS
     }
 
     /// When the clip reaches its take-off frame, ms after it starts.
@@ -919,6 +932,21 @@ mod tests {
 
     /// A railing's top rail (3 cm wide, 1.05 m up) under one side of the feet on the way down is landed on; with the rail out of
     /// reach, or the feet still above the catch over it, nothing is.
+    /// [A364 P6] The sprint jump's air steps read its clip from frame 6.6: the peak the steps reach is the traced left-leg jumps'
+    /// (`private/grid/rig/jump-fit-jumps2.tsv`: 1.2809 m at 6.60 in 5 of 5; from frame 6.0 it would be 1.2746, which no jump shows).
+    #[test]
+    fn a_sprint_jumps_air_steps_start_past_the_take_off() {
+        let clip = Clip::Sprint(Direction::Forward);
+        assert!((clip.first_air_frame() - 6.6).abs() < 1e-5);
+        assert!((clip.air_end_frame() - 23.1).abs() < 1e-4);
+        // The step at the take-off reads 6.6; the last air step (11 steps on) the air end.
+        assert!((clip.frame_after(clip.takeoff_ms()) - 6.6).abs() < 1e-4);
+        assert!((clip.frame_after(clip.air_end_ms()) - clip.air_end_frame()).abs() < 1e-3);
+        let at = |first: f32| (0..AIR_STEPS).map(|k| clip.root(first + k as f32 * AIR_FRAMES_PER_STEP)[0]).fold(0.0f32, f32::max);
+        assert!((at(6.6) - 1.2809).abs() < 2e-4 && (at(7.44) - 1.2737).abs() < 2e-4, "{} {}", at(6.6), at(7.44));
+        assert_eq!(Clip::Short(Direction::Forward).first_air_frame(), TAKEOFF_FRAME);
+    }
+
     #[test]
     fn the_feet_come_down_on_a_rail_the_grid_has_no_floor_for() {
         let rail = |y: f32| {
@@ -995,13 +1023,13 @@ mod tests {
         let sprint = Clip::Sprint(Direction::Forward);
         assert!((sprint.root(14.0)[0] - 1.282).abs() < 1e-3);
         assert!((sprint.root(24.0)[1] - 4.42).abs() < 0.01);
-        // [A364 P6] The sprint clip at its time scale up to the take-off (220 ms), 1.5 frames a step in the air: the last air step at
-        // frame 22.5, 550 ms later.
+        // [A364 P6] The sprint clip at its time scale up to the take-off (220 ms), its first air step at frame 6.6, 1.5 frames a step in
+        // the air: the last air step at frame 23.1, 550 ms later (`jump-fit-jumps2.tsv`).
         let arc = JumpArc::pressed(0, key::FORWARD | key::SPRINT, [0.0, 5.0], Vec3::ZERO, 0.0);
-        assert!((sprint.frame_after(220.0) - 6.0).abs() < 0.01 && (sprint.air_end_ms() - 770.0).abs() < 0.5, "{}", sprint.air_end_ms());
+        assert!((sprint.frame_after(sprint.takeoff_ms()) - 6.6).abs() < 0.01 && (sprint.takeoff_ms() - 220.0).abs() < 0.1 && (sprint.air_end_ms() - 770.0).abs() < 0.5, "{}", sprint.air_end_ms());
         let (frame, travel) = arc.root(sprint.air_end_ms() + PREPARE_MS);
-        assert!((frame - 22.5).abs() < 0.01, "{frame}");
-        assert!((travel[1] - (sprint.root(22.5)[1] + PREPARE_M)).abs() < 0.02, "{travel:?}");
+        assert!((frame - 23.1).abs() < 0.01, "{frame}");
+        assert!((travel[1] - (sprint.root(23.1)[1] + PREPARE_M)).abs() < 0.02, "{travel:?}");
         assert_eq!((short.apex_frame(), sprint.apex_frame()), (16.0, 14.0));
         assert!(Clip::Short(Direction::Right).root(24.0)[2] > 1.9, "right is +x");
     }
