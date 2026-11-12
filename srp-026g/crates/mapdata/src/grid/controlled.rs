@@ -344,7 +344,41 @@ pub fn walk_on(world: &Collision, s: &Settings, c: &mut Controller, from: Vec3, 
     let feet = c.feet();
     let left = Vec3::new(to.x - feet.x, 0.0, to.z - feet.z);
     let share = best.max(Vec3::new(feet.x - from.x, 0.0, feet.z - from.z).dot(dir) / length);
-    if left.length() <= AT_FLAT_M && feet.y - to.y >= -AT_HEIGHT_M && feet.y - to.y <= above { Walked::AtEnd(share) } else { Walked::Short(share) }
+    if left.length() <= AT_FLAT_M && feet.y - to.y >= -AT_HEIGHT_M && feet.y - to.y <= above {
+        Walked::AtEnd(share)
+    } else if spare > 0 && walks_on_to_level(world, s, c, to, dir) {
+        Walked::At
+    } else {
+        Walked::Short(share)
+    }
+}
+
+/// [2c] How far past a link's end a walk check walks on ([`walks_on_to_level`]), m.
+const ON_PAST_M: f32 = 1.5;
+
+/// [2c] Whether a body that did not arrive at `to` comes onto its floor's level when walked on toward a point [`ON_PAST_M`]
+/// past it along the link's way `dir` (its ticks and [`SPARE_TICKS`] more): its feet within [`AT_HEIGHT_M`] of `to`'s height
+/// and no more than [`AT_FLAT_M`] short of `to` along the way. A body walking a route walks on, so the client crosses such a
+/// link a little further on. The exactness session's walk of 6,701 of v3's cut links on the game's shapes world
+/// (FINDINGS-FEED-exactness 2026-11-12T05:24Z, `private/grid/rig/cut-walk/`): the classes whose walk went the full way but
+/// did not arrive come onto the level so in 53-73 % (flat 66 %, rise 58 %, down 63 %), while the links that stall under a riser
+/// do in 12 % (the body stays under it: those cuts stand). The same recipe as that walk's.
+fn walks_on_to_level(world: &Collision, s: &Settings, c: &mut Controller, to: Vec3, dir: Vec3) -> bool {
+    let aim = Vec3::new(to.x + dir.x * ON_PAST_M, to.y, to.z + dir.z * ON_PAST_M);
+    let step = WALK_MPS * 0.05;
+    let ticks = (ON_PAST_M / step).ceil() as usize + SPARE_TICKS;
+    let level_at = |f: Vec3| (f.y - to.y).abs() <= AT_HEIGHT_M && Vec3::new(f.x - to.x, 0.0, f.z - to.z).dot(dir) >= -AT_FLAT_M;
+    for _ in 0..ticks {
+        if level_at(c.feet()) {
+            return true;
+        }
+        let feet = c.feet();
+        let left = Vec3::new(aim.x - feet.x, 0.0, aim.z - feet.z);
+        let go = left.length().min(step);
+        c.walk = if left.length() > 1e-6 { left * (go / left.length()) } else { Vec3::ZERO };
+        c.step(world, 0.05, s);
+    }
+    level_at(c.feet())
 }
 
 /// [A318] One tick of the client's walk for a standing body at `feet` asked to move `by` (flat): the feet it starts from

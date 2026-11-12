@@ -190,7 +190,7 @@ pub const GIVE_BACK_IN_CELL_ALGO: u32 = 0x5331_0101;
 pub const FALL_STOPS_ON_SOLIDS_ALGO: u32 = 0x5402_0a01;
 /// The same for the walk check over every link a body may meet trouble on ([`Body::walk_every_link`], owner-14 row 12), in
 /// [`grid_key_with_links`] only for a body that asks for it with [`Body::client_controller`]. A value of its own.
-pub const WALK_EVERY_LINK_ALGO: u32 = 0x5402_0c01;
+pub const WALK_EVERY_LINK_ALGO: u32 = 0x5402_0c02;
 /// The same for the exact erosion pass ([`Erosion::Exact`], `grid::exact`), in [`grid_key_with_links`] only for a body
 /// that asks for it: the grids of the cells' erosion key, build and write as before. 2: floors keep a quarter cell of
 /// slack (the nearer-than-the-radius-less-a-quarter rule; 1 was the full radius). 3: the capsule's round top (a wall above the
