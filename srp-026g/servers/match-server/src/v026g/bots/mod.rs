@@ -57,6 +57,7 @@ pub mod group;
 pub mod guns;
 pub mod hazards;
 pub mod jump_arc;
+pub mod jump_carry;
 #[cfg(feature = "jump-test")]
 pub mod jump_test;
 pub mod kin;
@@ -88,6 +89,7 @@ pub mod sense;
 pub mod shot_reach;
 pub mod signals;
 pub mod smoke;
+pub mod sprint_gates;
 pub mod squad;
 pub mod stamina;
 pub mod stock;
@@ -398,6 +400,8 @@ pub struct Bot {
     /// Ticks left of a jump held with the trigger let go ([`JUMP_HOLD_MS`]),
     /// and the last tick the trigger was down.
     jump_hold: u32,
+    /// [2d] The route jump carried through its clip ([`jump_carry`], `feel.carry_jumps`).
+    carry: jump_carry::JumpCarry,
     fired_at: Option<u32>,
     /// Its hurts as the last trusted world showed them ([`Bots::hurt`]).
     hurt: Hurt,
@@ -600,6 +604,7 @@ impl Bot {
             held_short_m: 0.0,
             blind_since: None,
             jump_hold: 0,
+            carry: jump_carry::JumpCarry::Free,
             fired_at: None,
             hurt: Hurt::default(),
             jump_watch: None,
@@ -1394,7 +1399,8 @@ impl Bots {
     /// [`Self::fixed`]): what its jumps may do ([`Hurt::may_jump`]).
     pub fn hurt(&mut self, place: Place, hurt: Hurt) {
         // [A313] The legs' term of the speed factor for the body's reckoning, with `kin.speed_terms` legs.
-        let legs = (self.tunings.match_wide().kin.speed_terms == kin::SpeedTerms::Legs).then(|| hurt.legs_factor());
+        let legs = matches!(self.tunings.match_wide().kin.speed_terms, kin::SpeedTerms::Legs | kin::SpeedTerms::LegsStagger)
+            .then(|| hurt.legs_factor());
         self.tracker.set_legs(place, legs);
         // [A325f] The legs' `leg_damage` gate on the moves of the place's reckoned body and of a bot's own keys.
         let hurt = if self.tunings.match_wide().kin.leg_damage == kin::LegDamageGate::Client {
@@ -1410,6 +1416,12 @@ impl Bots {
                 bot.features.stock.pantry.hit(hit);
             }
         }
+    }
+
+    /// [2e] A trusted world's recent hits on one place (`m_recent_hits`: the world's ms, each hit's stopping speed): the
+    /// stagger of its reckoned body ([`kin::SprintGates`], [`kin::SpeedTerms::LegsStagger`]).
+    pub fn hits(&mut self, place: Place, hits: &[(u32, f32)]) {
+        self.tracker.set_hits(place, hits);
     }
 
     /// What the bot at `place` counts of its drugs, for the tests.

@@ -660,6 +660,8 @@ impl Game {
                 let hurt = Hurt::of(legs, damage.last_hit_time_ms, snapshot.time)
                     .with_leg_damage(LegDamage::of(&damage.leg_damage_ends, snapshot.time));
                 walkers.bots.hurt(place, hurt);
+                // [2e] The body's recent hits (`m_recent_hits`): its stagger in the reckoning.
+                walkers.bots.hits(place, &motion.recent_hits);
                 if let Some(pools) = Pools::of_world(&damage.part_health) {
                     walkers.bots.pools(place, pools);
                 }

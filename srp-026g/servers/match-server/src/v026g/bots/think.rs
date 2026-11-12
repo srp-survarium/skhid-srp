@@ -224,6 +224,12 @@ impl Bots {
                 bot.bench_mirror.push_back((time, bot.reflex.seen()));
             }
             self.tracker.set_may_jump(bot.place, may_jump);
+            // [2e] The bot's own sprint gates for its reckoned body: its reload and its gun's aim time (`kin.sprint_gates`).
+            self.tracker.set_own_gates(
+                bot.place,
+                bot.reflex.reload_note().map(|reload| (reload.at, reload.until)),
+                bot.reflex.held_gun().aim_ms,
+            );
             self.tracker.input(
                 bot.place,
                 time,
