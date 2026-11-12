@@ -2734,3 +2734,8 @@ va	name	source	ret_cleanup	result
 0x003296c0	survarium::player_stamina::subtract_clamped	manual	4	none; the bar (+6Ch) less the amount, held to 0 and the maximum [+0]
 0x00310450	survarium::weapon_core_throw_grenade_idle_substate::is_ready_for_transition	manual	0	AL = 1 when the inventory's grenade slot (+17Ch) is no longer this set's (+254h): the key's release
 0x003393f0	survarium::bullet_manager::explosion_trace	manual	16	XMM0 = the power kept: each front face of a material with armour v (+4Ch) cuts s to s x (1 - (1 - c)^2), c = clamp(s / v - 1, 0, 1) (0x339577..0x339598)
+0x002d86a0	survarium::base_player::update_use	manual	4	none; scans, asks the used object's +38h, ends the use (+40h) on 0; its one caller 0x2DAB0D
+0x00300830	survarium::victory_item_core::update_use	manual	12	EAX = 1 to go on, 0 to end: no hand broken and the start's eye offset carried with the feet within the use distance of the point
+0x0031ccf0	survarium::victory_items_container_core::update_use	manual	12	EAX = 1 to go on: can_use again and the same distance test
+0x002f8570	survarium::usable_object::use_initialize	manual	8	none; links the user
+0x002f85b0	survarium::usable_object::finish_use	manual	4	none; clears the user's data and unlinks the user
