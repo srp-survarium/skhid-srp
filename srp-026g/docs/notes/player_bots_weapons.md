@@ -172,7 +172,8 @@ Two barrels: press to press 300 / 350 / 540 ms, against a 250 ms cycle.
   - Remington 700: 2.95 s (cycle 1.83).
   - Mosin: 2.95 s (cycle 2.18).
   - TOZ-122: 2.4 s (cycle 1.5).
-- **The bolt's time, LIKELY:** no player presses sooner than 0.4 s past the
+- **The bolt's time, PROVEN:** the chamber clip lasts `chamber_a_round_time /
+  (1 + S21)` (0x30E2B0, 0x30E58D); no player presses sooner than 0.4 s past the
   config's cycle.
   - The card's rate of fire is `60 / (60 / rpm + chamber_a_round_time)`,
     floored, for all eleven bolt and pump weapons.
@@ -386,7 +387,8 @@ D = base_dispersion × ammo.dispersion  +  (C + W) × (aim progress == 1 ? 0 : 1
   : from_the_hip_multiplier) × state value`. It rises at `growth_speed` and
   falls at `speed_of_aiming` (degrees a second). The state values are
   `player.character_dispersion_params` in `default.player` (bots use the same
-  file, LIKELY):
+  file, PROVEN: the match cook asks `gameplay/players/default.player` for every
+  kit of state 0, 0x2CC684..0x2CC7C7, `static_info.md`):
 
   | state | idle | walk | run | jump | crouch | crouch walk |
   |---|---|---|---|---|---|---|
@@ -436,8 +438,9 @@ target at that distance (`hip_cone_share` × the half cone against
 `body_half_m`). Results: `player_bots_behaviour.md` §2.5.
 
 **Not traced:** how the client poses the weapon bone that the shot starts from;
-recoil (look pitch + weapon+0x478) climbs bursts on top of the cone, LIKELY for
-bots too. The bench models the cone but not the recoil.
+recoil (look pitch + weapon+0x478) climbs bursts on top of the cone, for bots too
+(PROVEN: the kick lifts the view and the bullet together for any living body,
+0x2E0F60, 0x2E23A0; `player_bots_behaviour.md`). The bench models the cone but not the recoil.
 
 ## Bots check teammates against a grenade's blast at the press and the hold
 
@@ -949,10 +952,9 @@ rifles; the drop (0.2-0.8 m at 60-80 m) is the other half for the slow ammunitio
 are at that tick: no flight time, no drop. The lead and the pings are modelled (`SRP_BENCH_PING`), the bullet's
 travel is not.
 
-**6. Open (UNKNOWN).** The unit of the view's pitch: the bots take 1 as a radian, the client's is LIKELY
-63.735 degrees (the only reader of that console variable, 0xA707C8, converts the config's kick degrees to
-pitch units: 0x33190F, 0x331938), an 11 % scale on the elevation of a target above or below the eye. Not traced to
-the matrix that builds the view.
+**6. Settled.** The unit of the view's pitch is 67.48 degrees (the look clip's; the clamp at 0x2E1012), not the
+63.735 degrees this note read before from the console variable at 0xA707C8 (that reader, 0x33190F and 0x331938,
+converts the config's kick degrees, not the view's pitch).
 
 ## The view's pitch unit (2026-10-30)
 

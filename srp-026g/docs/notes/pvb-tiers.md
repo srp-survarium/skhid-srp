@@ -137,7 +137,8 @@ Why these:
   (type 7, `2061`); at 13-15 reload 12 % faster (`2043`) plus gloves with +10 % reload speed (type 26, `1142`),
   and 10 % lighter (`2062`). `Gun` follows them (`guns::gun_with`, `Gun::of_kit`): the weapon's mods by the
   client's rule (`modifications::apply`: the values of a key add, then one multiplication, floor 0; PROVEN),
-  the reload speed of the skills and worn gear as `reload_time / (1 + sum)` (LIKELY), and the aim time of the
+  the reload speed of the skills and worn gear as `reload_time / max(0, 1 + sum)` (PROVEN: the reload clip plays
+  at speed x `max(0, 1 + S13)`, 0x30E25A; 2,104 recorded reloads, none early), and the aim time of the
   bots' skill 101 (-10 %, PROVEN) so the sights come up when the client's do. Off, every `Gun` is the table's.
   Worn gear that carries reload speed of its own counts too: `edge_gloves_2` (the 9-10 rusher and flanker) has
   +8 % by default. The weapon's own `movement_speed_modifier` (+0.05 / -0.05) is in the speed prior.
@@ -205,7 +206,9 @@ Why these:
 From each `wpn_<name>.options` (magazine, rate, first fire mode, reload time, show and hide, its
 states) and the clips its states name (`animations/single/weapons/<folder>/item/stand/3rd_view/`,
 lengths read as `srp-0100b`'s `combat/pose.rs` does; the Mosin's read back as `guns.rs` had them).
-PROVEN (read); the timing rules are `guns.rs`' (LIKELY).
+PROVEN (read). The client's timing rules are PROVEN (`weapon_fire.md`): a fire pass floor(1000 L / S); the
+reload `reload_time / max(0, 1 + S13)`; the chamber `/ (1 + S21)`; the show and hide `/ (1 + S22)`; the load
+min(carried, capacity). `guns.rs` follows them, save the show and hide's `1 + S22` (F68).
 
 | Weapon | Rounds | A minute | First mode | Reload | Other |
 |---|---|---|---|---|---|

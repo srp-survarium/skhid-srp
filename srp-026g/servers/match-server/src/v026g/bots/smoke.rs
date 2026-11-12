@@ -43,7 +43,8 @@ impl MatchMs {
 /// particle effect `fx/explosions/smoke_grenade`: 50 puffs of about 5 m (3.6-6.6) placed at once 0.2 s after the
 /// blast, their centres in a cylinder of radius 8 m and height 2 m raised 1.5 m over the rest point, still, no
 /// wind and no growth (PROVEN as read); each fades in over 1.9 s, holds to 17.5 s and fades out by 29 s (PROVEN,
-/// the alpha keys; seconds LIKELY). The model: a vertical cylinder of the puffs' centres' radius, hiding once
+/// the alpha keys; seconds PROVEN: the particle world steps by the frame's time capped at 1/15 s,
+/// 0x13D1CD..0x13D21D). The model: a vertical cylinder of the puffs' centres' radius, hiding once
 /// the overlapping puffs are dense enough, its radius shrinking as they fade (the rim, with fewer puffs on a
 /// line, clears first).
 ///

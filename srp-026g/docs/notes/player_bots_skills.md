@@ -256,4 +256,5 @@ match server's bots (`servers/match-server/src/v026g/bots/`) follow it.
   the lobby's sum (`Loadout::weight`). LIKELY.
 - What 214 does to the sprint: the text says it stops it. Where the exe
   reads modifier 32 besides 0x329B20 was not traced.
-- 102's reading (§5): one function, LIKELY.
+- 102's reading (§5): PROVEN, modifier 20 (`movement_speed_when_aiming`) above 0 has no effect in the
+  client (0x2DBC1D..0x2DBC4C): skill 102 gives no speed.

@@ -44,8 +44,9 @@
 //! - An automatic weapon fires at the tick its trigger goes down and every
 //!   shot interval after while it is held, each shot in the tick its time
 //!   falls in; a one-round weapon at the tick of the press ([`Cadence`];
-//!   LIKELY: the fire state reads `rounds_per_minute` at 0x30B336, the shot
-//!   is the fire clip's own event).
+//!   PROVEN: a fire pass is floor(1000 x L / S) ms in f32, the factor read
+//!   at 0x30B336 and truncated at 0x3B6C5F, and the shot is the fire clip's
+//!   own event; `docs/notes/weapon_fire.md`).
 //! - Within a tick: the weapon's update, then the input's turn, then the
 //!   tick's shots. The update before the shots is PROVEN; where the turn
 //!   falls against them is not traced.
@@ -67,10 +68,10 @@
 //!   of `get_recoil_expression`; the breath sway adds to it), which turns
 //!   `Item` −2.22° at its start (x = +1) and +2.44° at its end (x = −1):
 //!   about 2.3° of view a unit, 0.108° a config "degree" of side kick
-//!   (21.48 a unit). LIKELY: the lexeme's index taken as the place in the
-//!   weapon's `recoil_animations` (`recoil_vert`, `recoil_horiz`,
-//!   `camerashake_v2` for every weapon); which way on screen is not
-//!   traced. Its middle is 0 for every bot weapon. `recoil_vert` takes the
+//!   (21.48 a unit). PROVEN: index 1 is `recoil_horiz`, read at
+//!   0.5 - 0.5 x (0x2E12B6, 0x2DEC90), in the weapon's `recoil_animations`
+//!   (`recoil_vert`, `recoil_horiz`, `camerashake_v2` for every weapon);
+//!   x = +1 turns the head 2.22 degrees right, x = -1 2.44 left (0x2DA4B0). Its middle is 0 for every bot weapon. `recoil_vert` takes the
 //!   sway only (0x2E3900), no kick. The shake (`camerashake`) is not kept.
 
 use survarium::v026g::match_msgs::TICK_MS;
