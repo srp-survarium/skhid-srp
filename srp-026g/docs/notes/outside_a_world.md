@@ -83,6 +83,7 @@ also FOLLOWS a split, so that share alone does not tell cause from effect.
 
 ## Not read
 
-Whether the physics object the core holds is `bullet_physics_world` (LIKELY: its section is empty in every kept
-world); which effects are of mode 2 and whether the simulation reads one; the cause of the loaded games' splits (the
-candidates are the rows of the table); the in-game console's typed commands.
+The cause of the loaded games' splits (the candidates are the rows of the table). Settled since: the core's
+physics object is `bullet_physics_world`; the effects of mode 2 are the artefacts', the zones', the hits' and the
+affects' (the match HUD's are mode 1), and the simulation reads none; the in-game console cannot set a
+simulation variable mid-match (it runs with mask 2, and its config loader is itself of kind 1).
