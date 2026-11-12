@@ -1022,6 +1022,21 @@ pub extern "C" fn hook_module_report_on_loaded(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- executable_report (patch 125) ----
+
+/// The entry `executable_report_on_loaded` (0x27c116, process_dynamic_match_info after either core deserialize returns, before mov eax,[edi+4] / test eax,eax; a load receipt is emitted only here) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_executable_report_on_loaded(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `executable_report_on_loaded` calls this, from the game's jump at 0x27c116,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::executable_report::on_loaded(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- bake_async (patch 121) ----
 
 /// The named exits of bake_async::on_issue (the order the shim's Flow code
@@ -1912,6 +1927,141 @@ pub extern "C" fn hook_effect_presenters_on_particle_stop(frame: &mut Frame) -> 
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- music (patch 88) ----
+
+/// The entry `music_on_frame` (0x1ec8ec, game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_music_on_frame(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `music_on_frame` calls this, from the game's jump at 0x1ec8ec,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::music::on_frame(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- packet_recovery (patch 97) ----
+
+/// The entry `packet_recovery_on_frame` (0x1ec8ec, game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_packet_recovery_on_frame(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `packet_recovery_on_frame` calls this, from the game's jump at 0x1ec8ec,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::packet_recovery::on_frame(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- module_report (patch 125) ----
+
+/// The entry `module_report_on_frame` (0x1ec8ec, game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_module_report_on_frame(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `module_report_on_frame` calls this, from the game's jump at 0x1ec8ec,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::module_report::on_frame(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- executable_report (patch 125) ----
+
+/// The entry `executable_report_on_frame` (0x1ec8ec, game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_executable_report_on_frame(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `executable_report_on_frame` calls this, from the game's jump at 0x1ec8ec,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::executable_report::on_frame(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- memory_report (patch 126) ----
+
+/// The entry `memory_report_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_memory_report_on_close(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `memory_report_on_close` calls this, from the game's jump at 0x27a790,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::memory_report::on_close(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- module_report (patch 125) ----
+
+/// The entry `module_report_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_module_report_on_close(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `module_report_on_close` calls this, from the game's jump at 0x27a790,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::module_report::on_close(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- packet_recovery (patch 97) ----
+
+/// The entry `packet_recovery_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_packet_recovery_on_close(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `packet_recovery_on_close` calls this, from the game's jump at 0x27a790,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::packet_recovery::on_close(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- memory_profile (patch 127) ----
+
+/// The entry `memory_profile_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_memory_profile_on_close(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `memory_profile_on_close` calls this, from the game's jump at 0x27a790,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::memory_profile::on_close(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- executable_report (patch 125) ----
+
+/// The entry `executable_report_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_executable_report_on_close(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `executable_report_on_close` calls this, from the game's jump at 0x27a790,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::executable_report::on_close(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
     }
 }
 
@@ -3197,66 +3347,6 @@ pub extern "C" fn hook_memory_profile_on_freeing(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- memory_report (patch 126) ----
-
-/// The entry `memory_report_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_memory_report_on_close(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `memory_report_on_close` calls this, from the game's jump at 0x27a790,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::memory_report::on_close(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- module_report (patch 125) ----
-
-/// The entry `module_report_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_module_report_on_close(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `module_report_on_close` calls this, from the game's jump at 0x27a790,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::module_report::on_close(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- packet_recovery (patch 97) ----
-
-/// The entry `packet_recovery_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_packet_recovery_on_close(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `packet_recovery_on_close` calls this, from the game's jump at 0x27a790,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::packet_recovery::on_close(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- memory_profile (patch 127) ----
-
-/// The entry `memory_profile_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_memory_profile_on_close(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `memory_profile_on_close` calls this, from the game's jump at 0x27a790,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::memory_profile::on_close(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
 // ---- memory_profile (patch 127) ----
 
 /// The entry `memory_profile_on_out_of_memory` (0xe4d70, out_of_memory_with_crash's entry (push ebp / mov ebp,esp / and esp,-8; stdcall: the mspace, its doug_lea_allocator, first time), a fixed arena's heap callback: it logs "out of memory in arena", dumps the statistics and FATALs; EBP the bytes asked when it returns to mspace_malloc (heap_out_of_memory_return)) calls this with the saved machine.
@@ -3316,51 +3406,6 @@ pub extern "C" fn hook_module_report_on_dll(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::module_report::on_dll(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- music (patch 88) ----
-
-/// The entry `music_on_frame` (0x1ec8ec, game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_music_on_frame(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `music_on_frame` calls this, from the game's jump at 0x1ec8ec,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::music::on_frame(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- packet_recovery (patch 97) ----
-
-/// The entry `packet_recovery_on_frame` (0x1ec8ec, game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_packet_recovery_on_frame(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `packet_recovery_on_frame` calls this, from the game's jump at 0x1ec8ec,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::packet_recovery::on_frame(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- module_report (patch 125) ----
-
-/// The entry `module_report_on_frame` (0x1ec8ec, game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_module_report_on_frame(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `module_report_on_frame` calls this, from the game's jump at 0x1ec8ec,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::module_report::on_frame(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -4569,6 +4614,8 @@ pub extern "C" fn hook_packet_recovery_on_loaded_chain(frame: &mut Frame) -> u32
     if flow != 0 { return flow; }
     let flow = hook_module_report_on_loaded(frame);
     if flow != 0 { return flow; }
+    let flow = hook_executable_report_on_loaded(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -4631,6 +4678,34 @@ pub extern "C" fn hook_language_on_configs_start_chain(frame: &mut Frame) -> u32
     let flow = hook_console_where_on_configs(frame);
     if flow != 0 { return flow; }
     let flow = hook_voice_on_configs(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_music_on_frame_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_music_on_frame(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_packet_recovery_on_frame(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_module_report_on_frame(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_executable_report_on_frame(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_memory_report_on_close_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_memory_report_on_close(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_module_report_on_close(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_packet_recovery_on_close(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_memory_profile_on_close(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_executable_report_on_close(frame);
     if flow != 0 { return flow; }
     0
 }
@@ -4720,30 +4795,6 @@ pub extern "C" fn hook_music_on_unload_chain(frame: &mut Frame) -> u32 {
     let flow = hook_music_on_unload(frame);
     if flow != 0 { return flow; }
     let flow = hook_lobby_scene_on_game_closing(frame);
-    if flow != 0 { return flow; }
-    0
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_memory_report_on_close_chain(frame: &mut Frame) -> u32 {
-    let flow = hook_memory_report_on_close(frame);
-    if flow != 0 { return flow; }
-    let flow = hook_module_report_on_close(frame);
-    if flow != 0 { return flow; }
-    let flow = hook_packet_recovery_on_close(frame);
-    if flow != 0 { return flow; }
-    let flow = hook_memory_profile_on_close(frame);
-    if flow != 0 { return flow; }
-    0
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_music_on_frame_chain(frame: &mut Frame) -> u32 {
-    let flow = hook_music_on_frame(frame);
-    if flow != 0 { return flow; }
-    let flow = hook_packet_recovery_on_frame(frame);
-    if flow != 0 { return flow; }
-    let flow = hook_module_report_on_frame(frame);
     if flow != 0 { return flow; }
     0
 }

@@ -631,6 +631,9 @@ def who(args):
 MODULE_REPORT = re.compile(
     r"^(?P<at>\d{4}-\d\d-\d\dT\S+Z) \[\w+\] (?P<name>.+) \(account (?P<id>\d+)\), match (?P<match>0x[0-9a-f]+), "
     r"(?P<moment>loaded|ended|minute \d+), part \d+/\d+ of \d+ entries: (?P<list>.*)$", re.M)
+EXECUTABLE_REPORT = re.compile(
+    r"^(?P<at>\d{4}-\d\d-\d\dT\S+Z) \[\w+\] (?P<name>.+) \(account (?P<id>\d+)\), match 0x[0-9a-f]+, "
+    r"executable sha256 (?P<sha256>[0-9a-f]{64}) size (?P<size>\d+)$", re.M)
 PE = r"pe (-|[0-9a-f]{8}/[0-9a-f]+)"
 QUOTED = r'"((?:[^"\\]|\\.)*)"'
 PLACE = r"(game|temp|other)(?: in %s)?" % QUOTED
@@ -660,6 +663,9 @@ def module_reports(text):
     not be told.
     Returns (held, starts, dirs)."""
     held, starts, dirs = {}, {}, {}
+    for report in EXECUTABLE_REPORT.finditer(text):
+        key = ("exe", report["sha256"], int(report["size"]))
+        held.setdefault(key, {})[int(report["id"])] = (report["name"], report["at"])
     for report in MODULE_REPORT.finditer(text):
         for entry in report["list"].split(" | "):
             module, code = MODULE.match(entry), CODE.match(entry)
@@ -700,7 +706,9 @@ def built(pe):
 def module_line(key, accounts, starts, dirs=()):
     names = ", ".join("%s (%d)" % (who, n) for n, (who, _) in sorted(accounts.items())[:6])
     more = " +%d" % (len(accounts) - 6) if len(accounts) > 6 else ""
-    if key[0] == "code":
+    if key[0] == "exe":
+        what = "exe    sha256 %s  size %d bytes" % (key[1], key[2])
+    elif key[0] == "code":
         _, memory, protect, exec_size, size, pe = key
         what = "code   %-7s %-3s exec %x of %x  %d start(s)  %s" % (memory, protect, exec_size, size, len(starts), built(pe))
     elif key[0] == "load":
@@ -733,7 +741,7 @@ def modules(args):
         held = mine
     for key, accounts in sorted(held.items(), key=lambda item: (len(item[1]), str(item[0]).casefold())):
         if args.account or len(accounts) <= args.at_most:
-            fields = {"code": ("kind", "memory", "protect", "exec_size", "size", "pe"),
+            fields = {"exe": ("kind", "sha256", "file_size"), "code": ("kind", "memory", "protect", "exec_size", "size", "pe"),
                       "load": ("kind", "folder", "name", "image_size", "pe", "listed"),
                       "over": ("kind", "name", "class", "styles", "home"),
                       "unseen": ("kind", "why")}.get(key[0], ("folder", "name", "image_size", "pe"))

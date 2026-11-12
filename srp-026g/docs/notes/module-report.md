@@ -106,3 +106,92 @@ log across all games.
   in the first live reports.
 - Unseen so far: the report at a match's close; a minute's report in a game (only the state machine's tests
   and the server's line); Windows; what overlays look like in the log.
+
+## Executable identity and collection
+
+The client now hashes the **file of the running executable**, located with
+`GetModuleFileNameW(NULL)`, using SHA-256. It opens that one Unicode path
+read-only, denying concurrent writes/deletes, and keeps that same handle through
+hashing and any upload. It does not select files by a server-provided path, scan
+folders, read DLL files, or upload process memory. A renamed executable is still
+identified. The file includes all its bytes, including appended data; the hash
+is of the disk file, not of relocated/mutated process memory. A modified client
+can lie: this is a client report, not remote attestation.
+
+After the first world, hashing reads at most 8 KiB per frame. An offer carries
+only size and SHA-256, logged in `modules.log` as `executable sha256 <hex> size
+<bytes>` and included by `release/moderate modules` (also `--account` and
+`--json`). Files over 16 MiB, empty files, or read/open failures produce no offer.
+
+The match server replies with `Stored`, `Refused`, or the next window offset.
+Only `Need` starts an upload. E0 carriers have the separate impossible prefix
+`ff ff ff ff ff ff 04 00`, an explicit length, match id, kind, hash, and size or
+offset. Data chunks are at most 400 bytes. E4 replies start `ff 45 58 01` and are
+consumed by the Rust message guard before native options handling; only clients
+that offered the protocol receive them. The shared codec is
+`srp_validate::executable`. Existing report formats remain unchanged.
+
+There is at most one 16-chunk (6,400-byte) window outstanding and four new chunks
+per 25 ms (64,000 file bytes/s maximum, less on a slower link/frame rate).
+Transport ACK/resend handles packet loss; an unanswered offer is repeated at
+most once per second. Chunks within a window may arrive out of order; exact
+duplicates are harmless and conflicting duplicates abort. Match and hash must
+match. Closing the connection drops the file handle; a later match opens and
+hashes again. Known hashes need no file transfer, including after server restart.
+Older clients continue reporting normally; an old server sends no upload request.
+Deploy the updated server with/before the client.
+
+The server stores verified files as `client-executables/<sha256>.exe` under
+`SRP_DATA_DIR` (the working directory when unset), mode 0600 inside a directory created mode 0700.
+It computes SHA-256 itself as complete windows arrive, checks the `MZ` header,
+and publishes only when size and hash match. Nothing executes these files.
+There is no automatic ban or match simulation change. At most 16 uploads are
+active, a transfer times out after ten minutes, and stored bytes plus reservations
+are capped at 256 MiB (1,024 completed/active files maximum). Partial files are
+removed on failure/disconnect/timeout; leftovers after a process crash count
+against the capacity on restart. A full/unavailable store refuses new uploads
+but still logs hashes. Operators may archive/remove files and restart to rebuild
+the in-memory catalog. Raw match recordings can also contain these protocol
+packets; playable replays select gameplay records, not executable payloads.
+
+Implementation and validation are recorded below; this source change is not a
+release and has not collected a live player's executable.
+
+2026-11-12, branch `feat/executable-hash`, based on `6952d835e`:
+
+- Implemented: shared wire codec, safe Rust client owner and pacing, generated
+  Win32 ABI/hooks, bounded server store, moderation output and replay filtering.
+- Host-tested under `nix develop` through `tools/check`: client (302 passed,
+  two existing ignored tests), `srp-validate`, `udp-transport`, `sign-in-cipher`
+  and match server tests and Clippy. The receiver test transfers 4 MiB + 17 bytes
+  with reordered/duplicate chunks and verifies the stored bytes, restart dedup,
+  corruption rejection, interruption cleanup, capacity and timeout handling.
+  A scripted three-player match checks wrong-match/malformed traffic without
+  disrupting the match. Moderation grouping tests pass.
+- Native-tested: generated engine bindings, hook entries and arena lock agree;
+  engine ABI, hooks and existing module-watch callbacks pass in Unicorn
+  (`executable-report-native`, input key `3043657a1902`). Arena size `0x11b0a8`,
+  SHA-256 `c299bf62d999e3481a14d345225049286a5c742a13357386576cfab316b82ca5`.
+- Broader corpus check: **failed** (`world-check`, input key `5f6178a2ea77`):
+  250,760 worlds checked, 9,606 accepted, 241,154 refused, none unread or skipped.
+  Failures include older revision-50 object layouts, owner IDs and weapon-pickup
+  records. The refusal summary is byte-for-byte identical to cached check
+  `45d112cb5e2f`, completed at 09:36 CET before this feature's sources were
+  created (13:12 CET). This change does not modify the world parser or game data.
+  These existing failures remain unresolved, so the full suite is not clean.
+  Detailed output remains in
+  `/tmp/check-world-check-ss5mqt7q/world-check.log`.
+- Client/server world drift: **failed before comparing worlds** (input key
+  `aeede6693482`), all 20 chunks stop with Unicorn `UC_ERR_READ_UNMAPPED` at
+  `0xa4ccfd`. The same fault exists in earlier logs `b7c1d21bd976` (09:42 CET)
+  and `c4955b14d2b8` (09:41 CET). This run therefore establishes no corpus-wide
+  client/server agreement. Per-chunk traces: `/tmp/check-world-drift-_7e3zf5z`.
+- HUD options: existing `configs.start` registers/stack/settings assertion
+  fails (`0e2841881d8d`), matching the earlier 13:08 CET run `bd3e019c3746`.
+  No HUD configuration code is changed here. The automatic `tools/check` run
+  therefore fails these three broader checks; affected Rust and the new
+  executable-report checks pass.
+- Played: not yet exercised in a real Windows/Wine match. These tests do not
+  establish the real disk-read/frame-time cost or full native upload lifecycle.
+- Released: no; no revision bump, deployment, restart or live collection.
+  Existing installed clients cannot send files until they receive this feature.
