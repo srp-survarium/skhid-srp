@@ -2349,3 +2349,14 @@ va	status	ref_021d	name
 0x000f70f0	reviewed		vostok::resources::resource_base::resource_base
 0x0010a590	reviewed		vostok::resources::managed_resource::managed_resource
 0x001ee3c0	observed		survarium::game::enqueue_replay_seek_to
+0x0007a1f0	reviewed		vostok::physics::create_bt_primitive
+0x0007a000	reviewed		vostok::physics::bt_collision_shape::bt_collision_shape
+0x00079ee0	reviewed		vostok::physics::btBvhTriangleMeshShapeResource::btBvhTriangleMeshShapeResource
+0x0007a390	reviewed	0x000591ca	vostok::physics::create_primitive_shape
+0x0007a460	reviewed	0x0005927d	vostok::physics::create_compound_shape
+0x0007a6e0	reviewed	0x000594c4	vostok::physics::create_btBvhTriangleMeshShape
+0x000758b0	reviewed	0x00056494	vostok::physics::bullet_physics_world::add
+0x00074b20	reviewed	0x00055e67	vostok::physics::bullet_physics_world::initialize
+0x000829e0	reviewed	0x00059aa0	vostok::physics::collision_shape_cook::on_collision_sources_loaded
+0x003570a0	reviewed		vostok::physics::bt_static_rigid_body::get_triangle_material
+0x00356d00	reviewed	0x0021bc68	vostok::physics::bt_static_rigid_body::get_walker_behaviour
