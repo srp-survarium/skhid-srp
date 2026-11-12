@@ -83,12 +83,9 @@ fn every_recorded_cast_gives_the_exes_bits() {
         let transform_b = transform_at(r, 0x160);
         let allowed = f32_at(r, 0x1E0 + 0xB8);
         let toi = time_of_impact(&cast, &other, margin_b, &transform_b, allowed);
-        // The exe went to its penetration solver inside this call: the port must stop there too, and nowhere else.
-        if r[0x2D2] != 0 {
-            assert!(matches!(toi, Toi::NeedsPenetration { .. }), "record {index}: {toi:?}");
-            penetration += 1;
-            continue;
-        }
+        // The exe went to its penetration solver inside this call: the port's cast holds that solver, so it is compared
+        // like any other.
+        penetration += usize::from(r[0x2D2] != 0);
         compared += 1;
         rotated += usize::from(transform_b.basis != [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]);
         let exit = EXITS[usize::from(r[0x2D3])];
@@ -100,7 +97,6 @@ fn every_recorded_cast_gives_the_exes_bits() {
                 assert_eq!(bits(point), bits_at(r, 0x2B0), "record {index}: the hit point");
             }
             Toi::Miss(why) => assert_eq!((r[0x2D0], exit), (0, why.exit()), "record {index}: {why:?}"),
-            Toi::NeedsPenetration { .. } => panic!("record {index}: the exe made no penetration call"),
         }
         // `processTriangle`'s report on top of the cast.
         if let (0xB8772, WorldShape::Triangle(triangle)) = (u32_at(r, 0x2D4), other) {
@@ -113,13 +109,12 @@ fn every_recorded_cast_gives_the_exes_bits() {
                     assert_eq!(bits(point), bits_at(r, 0x3E4), "record {index}: the report's point");
                 }
                 CastEnd::Miss => assert_eq!(u32_at(r, 0x3D4), 0, "record {index}: the exe reported a hit"),
-                CastEnd::NeedsPenetration { .. } => panic!("record {index}: the exe made no penetration call"),
             }
             reports += 1;
         }
     }
     eprintln!(
         "{compared} recorded casts give the exe's bits ({rotated} against a rotated shape, {reports} with processTriangle's report); \
-         {penetration} go on to the penetration solver in both"
+         {penetration} of them through the penetration solver"
     );
 }
