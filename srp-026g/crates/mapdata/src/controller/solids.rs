@@ -327,8 +327,10 @@ impl Primitive {
     }
 }
 
-/// What 0x84810 reads of a round primitive under `basis` (its world rotation): [`SmallRound`].
-fn small_round(convex: &bullet::Convex, basis: &[[f32; 3]; 3]) -> Option<SmallRound> {
+/// What 0x84810 reads of a round primitive under `rotation`, the matrix 0x84190 and `setRotation` 0x72A50 make of the
+/// hit (for a whole shape [`exe_cast::through_quaternion`] of the object's basis, for a compound's child
+/// [`exe_cast::child_hit_rotation`]): [`SmallRound`].
+fn small_round(convex: &bullet::Convex, rotation: &[[f32; 3]; 3]) -> Option<SmallRound> {
     let radius = match convex.kind {
         ConvexKind::Box => return None,
         // 0x84875: the radius (+20h) times the scaling's x (+10h).
@@ -343,10 +345,10 @@ fn small_round(convex: &bullet::Convex, basis: &[[f32; 3]; 3]) -> Option<SmallRo
     if !small {
         return None;
     }
-    // 0x848C7..0x8496C with the tick's up (0, 1, 0): up . (M up) is M's middle element. For a compound's child the exe
-    // multiplies the object's and the child's quaternions (0x841B3..0x842B9); here the composed basis goes through
-    // one (LIKELY the same within a rounding: it only decides at the edge of the limit).
-    let upright = || exe_cast::through_quaternion(basis)[1][1].abs();
+    // 0x848C7..0x8496C with the tick's up (0, 1, 0): up . (M up) is M's middle element. For a compound's child M is
+    // `R_child R_object` (0x84190), not the child's world rotation: on the eight maps the two decide a lying or
+    // standing child differently for 317 of the 4,933 small round children the walker meets (312 on Mamayev Kurgan).
+    let upright = || rotation[1][1].abs();
     Some(match convex.kind {
         ConvexKind::Box => return None,
         ConvexKind::Sphere => SmallRound::Sphere,
@@ -458,7 +460,7 @@ impl Solids {
                 // An object's whole shape: the callback gets no shape info and takes the walker behaviour 0.
                 bullet::Shape::Convex(convex) => {
                     let id = primitive_of(&mut builder, 0, convex);
-                    let on = Surface::Primitive { walker: WalkerBehaviour::BySlope, round: small_round(convex, &object.basis) };
+                    let on = Surface::Primitive { walker: WalkerBehaviour::BySlope, round: small_round(convex, &exe_cast::through_quaternion(&object.basis)) };
                     builder.place_primitive(object, object, id, on);
                 }
                 bullet::Shape::Compound { children, .. } => {
@@ -472,7 +474,7 @@ impl Solids {
                             }
                             bullet::Part::Convex(convex) => {
                                 let id = primitive_of(&mut builder, part, convex);
-                                let on = Surface::Primitive { walker: convex.walker, round: small_round(convex, &transform.basis) };
+                                let on = Surface::Primitive { walker: convex.walker, round: small_round(convex, &exe_cast::child_hit_rotation(&object.basis, &child.transform.basis)) };
                                 builder.place_primitive(transform, ray_transform, id, on);
                             }
                         }
