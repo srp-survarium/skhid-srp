@@ -2403,3 +2403,12 @@ va	status	ref_021d	name
 0x0008d680	verified		btConvexShape::localGetSupportVertexWithoutMarginNonVirtual
 0x00072eb0	reviewed		btTransformUtil::calculateVelocity
 0x0008b2d0	reviewed		btTransformUtil::integrateTransform
+0x00072b90	verified		btMatrix3x3::getRotation
+0x00072a50	verified		btMatrix3x3::setRotation
+0x00072fb0	reviewed		btTransformUtil::calculateDiffAxisAngle
+0x00072d20	reviewed		btTransform::inverse
+0x000b88b0	reviewed		btPointCollector::addContactPoint
+0x0009fc20	reviewed		btCollisionWorld::LocalConvexResult::LocalConvexResult
+0x000a2c30	reviewed		btCompoundLeafCallback::Process
+0x000a2be0	reviewed		LocalInfoAdder::addSingleResult
+0x0008d4c0	reviewed		convexHullSupport

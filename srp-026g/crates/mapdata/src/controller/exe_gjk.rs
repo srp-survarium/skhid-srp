@@ -1,6 +1,7 @@
-//! The closest points of a cast shape and a triangle, as Survarium 0.26g's executable computes them: a port
-//! of its statically linked Bullet `btGjkPairDetector::getClosestPointsNonVirtual` (0xD6CD0) with its Voronoi
-//! simplex solver and its support function, bit for bit.
+//! The closest points of a cast shape and a world shape (a mesh's triangle, a box, a sphere or a cylinder), as
+//! Survarium 0.26g's executable computes them: a port of its statically linked Bullet
+//! `btGjkPairDetector::getClosestPointsNonVirtual` (0xD6CD0) with its Voronoi simplex solver and its support
+//! function, bit for bit.
 //!
 //! Derived from Bullet Continuous Collision Detection and Physics Library,
 //! Copyright (c) 2003-2006 Erwin Coumans http://continuousphysics.com/Bullet/
@@ -153,6 +154,70 @@ impl CastShape {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Triangle(pub [Vec3; 3]);
 
+/// A collision object's convex shape as `objectQuerySingle` hands it to the cast (shape B): a triangle of a
+/// mesh (`btTriangleShape` made by `processTriangle`), or a convex primitive (the object's own shape, or a
+/// compound's child with the child's transform composed into transform B), holding exactly what 0x8D680
+/// `btConvexShape::localGetSupportVertexWithoutMarginNonVirtual` reads for its type. Each primitive's margin is
+/// the detector's `margin_b` and is not read here.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum WorldShape {
+    /// Type 1 (`TRIANGLE_SHAPE_PROXYTYPE`), case 0x8D72C: the corners.
+    Triangle(Triangle),
+    /// Type 0 (`BOX_SHAPE_PROXYTYPE`), case 0x8D6CA: the implicit dimensions (+20h, +24h, +28h: the half extents
+    /// without the margin). Neither the scaling nor the margin is read.
+    Box { half_extents: Vec3 },
+    /// Type 8 (`SPHERE_SHAPE_PROXYTYPE`), case 0x8D6A8: the support without margin is the centre; the sphere's
+    /// radius is all margin. Nothing of the shape is read.
+    Sphere,
+    /// Type 13 (`CYLINDER_SHAPE_PROXYTYPE`), case 0x8D816: as [`CastShape::Cylinder`] (the implicit dimensions on
+    /// the radial axis and on `up`, the up axis +40h; neither the margin nor the scaling is read).
+    Cylinder { radius: f32, half_height: f32, up: Axis },
+}
+
+impl WorldShape {
+    /// A cylinder from its implicit dimensions (+20h) and up axis (+40h), as [`CastShape::cylinder`].
+    pub fn cylinder(implicit_dimensions: Vec3, up: Axis) -> WorldShape {
+        let axes = CylinderAxes::of(up);
+        WorldShape::Cylinder {
+            radius: implicit_dimensions[axes.radial_1],
+            half_height: implicit_dimensions[up.index()],
+            up,
+        }
+    }
+}
+
+impl From<Triangle> for WorldShape {
+    fn from(triangle: Triangle) -> WorldShape {
+        WorldShape::Triangle(triangle)
+    }
+}
+
+mod sealed {
+    pub trait Sealed {}
+    impl Sealed for super::Triangle {}
+    impl Sealed for super::WorldShape {}
+}
+
+/// A shape B [`get_closest_points`] takes: a [`Triangle`] or a [`WorldShape`]. Sealed: its support is the
+/// executable's 0x8D680 for the shape's type, nothing else.
+pub trait ShapeB: sealed::Sealed {
+    /// 0x8D680 `localGetSupportVertexWithoutMarginNonVirtual` for this shape: its point without margin farthest
+    /// along `dir`, in its own frame.
+    fn support(&self, dir: Vec3) -> Vec3;
+}
+
+impl ShapeB for Triangle {
+    fn support(&self, dir: Vec3) -> Vec3 {
+        support_triangle(self, dir)
+    }
+}
+
+impl ShapeB for WorldShape {
+    fn support(&self, dir: Vec3) -> Vec3 {
+        support_world_shape(self, dir)
+    }
+}
+
 /// A rigid transform: `basis` rows and the origin, as `btTransform` keeps them.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Transform {
@@ -165,8 +230,9 @@ impl Transform {
     fn apply(&self, p: Vec3) -> Vec3 {
         let m = &self.basis;
         let o = &self.origin;
-        // ORDER (asm 0xD70E0..0xD725B): each row is ((m[r][1]*y + m[r][2]*z) + m[r][0]*x) + origin, where the
-        // source's dot product is (m[r][0]*x + m[r][1]*y) + m[r][2]*z.
+        // ORDER (asm 0xD70E0..0xD71C6 for A, 0xD71C0..0xD725B for B, the same grouping): each row is
+        // ((m[r][1]*y + m[r][2]*z) + m[r][0]*x) + origin, where the source's dot product is
+        // (m[r][0]*x + m[r][1]*y) + m[r][2]*z.
         [
             ((m[0][1] * p[1] + m[0][2] * p[2]) + m[0][0] * p[0]) + o[0],
             ((m[1][1] * p[1] + m[1][2] * p[2]) + m[1][0] * p[0]) + o[1],
@@ -989,6 +1055,27 @@ fn support_cylinder(radius: f32, half_height: f32, up: Axis, v: Vec3) -> Vec3 {
     tmp
 }
 
+/// 0x8D680 `btConvexShape::localGetSupportVertexWithoutMarginNonVirtual` (ECX the shape; stack: the out
+/// vector, the direction), for the world shapes: the point of the shape without its margin farthest along
+/// `dir`.
+pub fn support_world_shape(shape: &WorldShape, dir: Vec3) -> Vec3 {
+    match *shape {
+        WorldShape::Triangle(ref triangle) => support_triangle(triangle, dir),
+        WorldShape::Box { half_extents } => support_box(half_extents, dir),
+        // Case 0x8D6A8: zero.
+        WorldShape::Sphere => ORIGIN,
+        WorldShape::Cylinder { radius, half_height, up } => support_cylinder(radius, half_height, up, dir),
+    }
+}
+
+/// Case 0x8D6CA (type 0, `btBoxShape`): each half extent with the sign of the direction's component
+/// (`btFsels(dir, h, -h)`). `comiss dir, 0; jnc` keeps `+h` unless `dir < 0` or NaN; `-h` is a sign flip
+/// (`xorps` with the sign mask 0xA2D7C0). The components are done z, y, x, which nothing observes.
+fn support_box(half_extents: Vec3, dir: Vec3) -> Vec3 {
+    let pick = |d: f32, h: f32| if d >= 0.0 { h } else { -h };
+    [pick(dir[0], half_extents[0]), pick(dir[1], half_extents[1]), pick(dir[2], half_extents[2])]
+}
+
 /// 0x8D680, case 0x8D72C (type 1, `btTriangleShape::localGetSupportingVertexWithoutMargin`): the corner with
 /// the largest dot product with `dir` (`dots.maxAxis()`).
 pub fn support_triangle(triangle: &Triangle, dir: Vec3) -> Vec3 {
@@ -1019,11 +1106,13 @@ enum LoopEnd {
 }
 
 /// 0xD6CD0 `btGjkPairDetector::getClosestPointsNonVirtual` (stack: the detector, the input, the result, the
-/// debug drawer) for a cast shape A and a triangle B, up to the penetration-depth solver.
-pub fn get_closest_points(
+/// debug drawer) for a cast shape A and a shape B (a [`Triangle`] or a [`WorldShape`]), up to the
+/// penetration-depth solver. Both supports are the one function 0x8D680 (calls at 0xD70C6 for A, 0xD70DB for
+/// B).
+pub fn get_closest_points<B: ShapeB>(
     detector: &Detector,
     shape_a: &CastShape,
-    shape_b: &Triangle,
+    shape_b: &B,
     input: &ClosestPointInput,
 ) -> ClosestPoints {
     let mut state = DetectorState {
@@ -1040,8 +1129,8 @@ pub fn get_closest_points(
     let offset = [(ob[0] + oa[0]) * HALF, (ob[1] + oa[1]) * HALF, (ob[2] + oa[2]) * HALF];
     let local_a = Transform { basis: input.transform_a.basis, origin: sub(oa, offset) };
     let local_b = Transform { basis: input.transform_b.basis, origin: sub(ob, offset) };
-    // Neither the sphere, the capsule, the cylinder nor the triangle is a 2D shape (types 17, 18), so the
-    // `check2d` flattening at 0xD728B never applies.
+    // `check2d` (0xD6EC8..0xD6EE9, applied at 0xD728B) needs both shapes 2D (types 17, 18); no cast shape is,
+    // so it never applies.
 
     let (margin_a, margin_b) = detector.margins.values();
     let margin_sum = margin_b + margin_a;
@@ -1070,7 +1159,7 @@ pub fn get_closest_points(
             (mb[1][2] * axis[1] + mb[2][2] * axis[2]) + axis[0] * mb[0][2],
         ];
         let p_in_a = support_cast_shape(shape_a, axis_in_a);
-        let q_in_b = support_triangle(shape_b, axis_in_b);
+        let q_in_b = shape_b.support(axis_in_b);
         let p_world = local_a.apply(p_in_a);
         let q_world = local_b.apply(q_in_b);
         let w = sub(p_world, q_world);
@@ -1226,6 +1315,54 @@ mod tests {
         assert_eq!(
             shape,
             CastShape::Capsule { radius: 0.38, half_height: 0.12, scaling: [1.0; 3], margin: 0.04, up: Axis::Y }
+        );
+    }
+
+    #[test]
+    fn box_support_keeps_the_plus_sign_on_zero_and_takes_the_minus_on_nan() {
+        let half = [1.0, 2.0, 3.0];
+        assert_eq!(support_box(half, [-0.0, 0.5, -0.5]), [1.0, 2.0, -3.0]);
+        assert_eq!(support_box(half, [f32::NAN, 0.0, 1.0]), [-1.0, 2.0, 3.0]);
+    }
+
+    #[test]
+    fn sphere_above_a_box_is_its_height_minus_the_half_extent_and_radius() {
+        let detector = Detector {
+            margins: Margins::Applied { a: 0.5, b: 0.0 },
+            penetration: Penetration::Solver { catch_degeneracies: true },
+        };
+        let input = ClosestPointInput {
+            transform_a: Transform { basis: IDENTITY, origin: [0.0, 2.0, 0.0] },
+            transform_b: Transform { basis: IDENTITY, origin: ORIGIN },
+            maximum_distance_squared: BT_LARGE_FLOAT,
+        };
+        let shape_b = WorldShape::Box { half_extents: [1.0, 0.5, 1.0] };
+        let answer = get_closest_points(&detector, &CastShape::Sphere, &shape_b, &input);
+        match answer.outcome {
+            Outcome::Contact { normal_on_b, distance, .. } => {
+                assert_eq!(normal_on_b, [0.0, 1.0, 0.0]);
+                assert_eq!(distance, 1.0);
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_triangle_gives_the_same_answer_alone_or_as_a_world_shape() {
+        let detector = Detector {
+            margins: Margins::Applied { a: 0.04, b: 0.0 },
+            penetration: Penetration::Solver { catch_degeneracies: true },
+        };
+        let triangle = Triangle([[-1.0, 0.1, -1.0], [1.0, -0.2, -1.0], [0.0, 0.0, 1.0]]);
+        let input = ClosestPointInput {
+            transform_a: Transform { basis: IDENTITY, origin: [0.1, 1.0, 0.2] },
+            transform_b: Transform { basis: IDENTITY, origin: ORIGIN },
+            maximum_distance_squared: BT_LARGE_FLOAT,
+        };
+        let shape_a = CastShape::capsule([0.38, 0.52, 0.38], [1.0; 3], 0.04, Axis::Y);
+        assert_eq!(
+            get_closest_points(&detector, &shape_a, &triangle, &input),
+            get_closest_points(&detector, &shape_a, &WorldShape::from(triangle), &input)
         );
     }
 
