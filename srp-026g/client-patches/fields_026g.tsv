@@ -820,6 +820,18 @@ vostok::resources::save_descriptor	size	0x4	u32	their count
 vostok::resources::save_descriptor	owns	0x8	u8	1: its destructor 0x10A050 frees the data (mt_free's 0x106FC0), as make_save_descriptor sets it; 0: the data is not its
 vostok::render::dds_cursor	size	0x4	size	a cursor: one pointer (compress's [ebp+0Ch], the output past the header)
 vostok::render::bake_parameters_copy	size	0x140	size	the part of on_textures_loaded's copy the tail reads (through +13Ch)
+vostok::render::cook_parameters	layers	0x0	obj<vostok::render::cook_layer>	a camouflage_decal_cook_parameters (8B8h bytes, its constructor 0x119760, the decal editor's and patch 44's): the first of its three layers, two decals' then the camouflage's (weapon_decals_026g.asm LAYER_SIZE)
+vostok::render::cook_parameters	surface	0x794	u32	the index of the model's surface it bakes (patch 44's bake_surface, the decal editor 0x2641A0)
+vostok::render::cook_parameters	scale	0x798	f32	the camouflage's scale on the surface (patch 44: data/camo_scale, else 4.0 as every stock bake)
+vostok::render::cook_parameters	name	0x7A4	obj<vostok::buffer_string>	its baked files' name, before the type's letter (patch 44 and the decal editor write it; user_data/streamed_textures/<name><letter>.dds)
+vostok::render::cook_layer	matrix	0x0	f32	the first of its float4x4's 16 f32: where its textures lie on the surface (a decal's of its u64, 0x263D00; the camouflage's the identity)
+vostok::render::cook_layer	diffuse	0x40	obj<vostok::buffer_string>	its colours' texture name (empty: no layer of that type)
+vostok::render::cook_layer	normal	0xCC	obj<vostok::buffer_string>	its relief's texture name (_nmap)
+vostok::render::cook_layer	fresnel	0x158	obj<vostok::buffer_string>	its fresnel's texture name (_fmap)
+vostok::render::cook_layer	smoothness	0x1E4	obj<vostok::buffer_string>	its smoothness' texture name (_smap)
+vostok::render::cook_layer	size	0x270	size	a layer is 270h bytes, the next one's after it (weapon_decals_026g.asm LAYER_SIZE)
+survarium::weapon_bake_name_frame	parameters	0x4	ptr<vostok::render::cook_parameters>	weapon_camo.bake_name's first argument (by the site's ESP, the return address at +0): patch 44's parameters of one surface, every layer filled
+survarium::weapon_bake_name_frame	model	0x8	ptr<u8>	its second: the weapon's model path (object/model of its merged config), a C string
 vostok::render::bake_pair	size	0x8	size	two words
 vostok::input::keyboard	events	0x408	obj<vostok::input::key_event>	the events GetDeviceData buffers (execute 0x3B8D41/0x3B9080: DIDEVICEOBJECTDATA, at most 40h, their count to +404h at 0x3B914B), read by execute's loop (0x3B915E) and process (0x3B9B0E)
 vostok::input::key_event	key	0x0	u32	DIDEVICEOBJECTDATA.dwOfs: the key's DirectInput code, the index of the keys' states (execute 0x3B916A, 0x3B91EE; process 0x3B9B20)

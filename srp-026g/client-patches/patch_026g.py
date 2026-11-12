@@ -2178,7 +2178,7 @@ WEAPON_CAMO_NAME = b".srpw\0\0\0"
 WEAPON_CAMO_CHARACTERISTICS = 0x60000020      # code, execute, read (as .srp)
 WEAPON_CAMO_HOOK = (0x24B0D2, bytes.fromhex("8d44242050"), 0, 0xE8)
 WEAPON_CAMO_ENTRY = bytes.fromhex("609c89e5") # pushad; pushfd; mov ebp,esp
-WEAPON_CAMO_NAME_FORMAT = b"srpw1_%s_%s_%d\0"
+WEAPON_CAMO_BAKE_NAME = "weapon_camo_on_bake_name"   # the generated entry of weapon_camo.bake_name: the last dword
 # Patch 32 grown (client_patch.md section 3.30): weapon_stash_026g.asm at
 # WEAPON_STASH_OFFSET of `.srpw`, after the camouflage's code. An upgrade
 # window's item the lobby character does not show is shown on it from a
@@ -3983,11 +3983,12 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 sys.exit(f"{va:#x}: a base relocation under a hook of the shared upgrades")
         weapon_camo = open(weapon_camo_bin(), "rb").read()
         camo_va = weapon_camo_va(late_join)
-        name_at = weapon_camo.find(WEAPON_CAMO_NAME_FORMAT)
-        if not weapon_camo.startswith(WEAPON_CAMO_ENTRY) or name_at < 0 \
-                or struct.pack("<I", camo_va + name_at) not in weapon_camo[:name_at]:
-            sys.exit(f"weapon_camo_026g.section.bin: its entry is not where patch_026g.py calls it, or it was "
-                     f"assembled for another address (-DCAVE={camo_va:#x})")
+        bake_name_at = len(weapon_camo) - 4
+        if not weapon_camo.startswith(WEAPON_CAMO_ENTRY) or weapon_camo[bake_name_at:] != bytes(4) \
+                or b"\xFF\x15" + struct.pack("<I", camo_va + bake_name_at) not in weapon_camo:
+            sys.exit(f"weapon_camo_026g.section.bin: its entry is not where patch_026g.py calls it, its last dword "
+                     f"is not the bake_name its code calls through, or it was assembled for another address "
+                     f"(-DCAVE={camo_va:#x})")
         weapon_stash = open(weapon_stash_bin(), "rb").read()
         if len(weapon_camo) > WEAPON_STASH_OFFSET or WEAPON_STASH_OFFSET + len(weapon_stash) > 0x1000:
             sys.exit("the weapon camouflage's code and the weapon stash's do not fit in .srpw's page")
@@ -4064,6 +4065,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         # 68's weapon_kit_preview_apply (UPGRADE_PREVIEW_KIT_APPLY; 0 without it).
         linked = arena(arena_blocks) if arena_blocks != () else None
         upgrade_preview = with_kit_apply(upgrade_preview, linked)
+        weapon_camo = with_bake_name(weapon_camo, bake_name_at, linked)
         upgrade_preview_state = late_join_state_va(late_join) + UPGRADE_PREVIEW_STATE_OFFSET
         if WEAPON_DECALS_OFFSET + len(weapon_decals) > UPGRADE_PREVIEW_OFFSET \
                 or len(upgrade_preview) > 0x1000:
@@ -4409,6 +4411,15 @@ def with_death_pitch(code, linked):
         return code
     target = struct.pack("<I", arena_target(linked, DEATH_PITCH_ENTRY))
     return code[:DEATH_CAMERA_PITCH] + target + code[DEATH_CAMERA_PITCH + 4:]
+
+
+def with_bake_name(code, at, linked):
+    """`.srpw`'s code (`code`, patch 44's first) with patch 44's bake_name
+    dword (`at`, zeros in the file) holding the Rust patch weapon_camo's
+    entry of the arena `linked`; as it is without one (no weapon is baked)."""
+    if linked is None or WEAPON_CAMO_BAKE_NAME not in linked.symbols:
+        return code
+    return code[:at] + struct.pack("<I", arena_target(linked, WEAPON_CAMO_BAKE_NAME)) + code[at + 4:]
 
 
 def with_kit_apply(code, linked):

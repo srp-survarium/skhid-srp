@@ -4438,6 +4438,21 @@ pub extern "C" fn hook_weapon_camo_on_own_camouflage(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- weapon_camo (patch 44) ----
+
+/// The entry `weapon_camo_on_bake_name` (weapon_camo.bake_name, patch 44's bake_surface (weapon_camo_026g.asm), through its bake_name dword the build writes, once a surface's parameters are filled: cdecl, the parameters, the model's path; the caller keeps every register and pops the two) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_camo_on_bake_name(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_camo_on_bake_name` calls this, from our own code's call (weapon_camo.bake_name),
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_camo::on_bake_name(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- weapon_kit (patch 68) ----
 
 /// The entry `weapon_kit_on_query` (0x2f1776, translate_query after 0x2F2060 copied the query (mov ecx,[ebp+38h] / mov eax,[ebp+44h]): ESP patch 68's room (weapon_kit.query_room), EBP the frame whose [ebp+40h] (the item's upgrades' buffer_vector) is read at 0x2F1799 (their count) and 0x2F18D0 (each record's dict id and value) and nowhere else; AL 0x2F2060's answer (0: the query not copied, as on another thread's query, 0x2F206F)) calls this with the saved machine.
