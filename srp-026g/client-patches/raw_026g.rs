@@ -273,7 +273,7 @@ unsafe extern "C" {
     pub fn engine_collision_geometry(object: Option<GameObject>) -> Option<CollisionGeometry>;
     /// 0x2dc390 survarium::collision_geometry::query_objects_by_type<survarium::usable_object>: result ESI, geometry ESP+4, cast ESP+8, offset ESP+12; pops 12
     pub fn engine_query_usables(result: Option<UsableList>, geometry: Option<CollisionGeometry>, cast: *const c_void, offset: u32);
-    /// virtual survarium::usable_object+0x30 (10 vtables of vtables.tsv: 0x2f8080, 0x300710, 0x305070, 0x31c6b0, 0x31cb10): usable ECX, user ESP+4; pops 4; AL
+    /// virtual survarium::usable_object+0x30 (11 vtables of vtables.tsv: 0x2f8080, 0x300710, 0x305070, 0x31c6b0, 0x31cb10): usable ECX, user ESP+4; pops 4; AL
     pub fn engine_can_use(usable: Option<UsableObject>, user: Option<UsableUser>) -> u8;
     /// virtual survarium::usable_object+0x44 (12 vtables of vtables.tsv: 0x246ed0, 0x2f8440): usable ECX, matrix ESP+4; pops 4
     pub fn engine_usable_transform(usable: Option<UsableObject>, matrix: *mut f32);
@@ -26621,7 +26621,7 @@ pub mod site {
         }
     }
 
-    /// resupply.can_use (0x2f8086): resupply_zone_core::can_use before the team test (mov edx,[eax+6B8h]); allowed takes EDX the player's profile
+    /// resupply.can_use (0x2f8086): resupply_zone_core::can_use before the team test (mov edx,[eax+6B8h]); refused is its own no (xor eax,eax / ret 4), which reads no register
     pub mod resupply_can_use {
         #[allow(unused_imports)]
         use super::*;
@@ -26636,7 +26636,7 @@ pub mod site {
         }
     }
 
-    /// resupply.use_info (0x2f80c6): resupply_zone_core::use_info before the team test (mov edx,[eax+6B8h]); allowed takes EDX the player's profile
+    /// resupply.use_info (0x2f80c6): resupply_zone_core::use_info before the team test (mov edx,[eax+6B8h]); refused is its own no hint (mov eax,9DB708h, the empty string / ret 4), which reads no register
     pub mod resupply_use_info {
         #[allow(unused_imports)]
         use super::*;
