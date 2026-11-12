@@ -217,7 +217,7 @@ default_ammo = {w: s[0] for w, s in compat.items()}
 # name them (st_<artefact>_pickup_hint: "Onyx artifact. ...", "Артефакт
 # Онікс. ..."): the Lifebone config is the Larkspur, Живокіст.
 def pickup_name(key, strings, pattern):
-    m =re.match(pattern, strings.get(f"st_{key}_pickup_hint", ""))
+    m = re.match(pattern, strings.get(f"st_{key}_pickup_hint", ""))
     return m.group(1) if m else None
 
 
@@ -236,13 +236,19 @@ for file in files("gameplay__items__artefacts__"):
         "active": {k: r(v) if not isinstance(v, (dict, list)) else v for k, v in (d.get("active") or {}).items()},
         "hit_type": d.get("hit_type"),
         "protected_locations": d.get("protected_body_parts", []),
+        # What the game says of it: at the pickup (its passive) and at the
+        # activation ("%s": the active's seconds).
+        "pickup_hint": text(d["pickup_hint"]) if d.get("pickup_hint") in strings else None,
+        "pickup_hint_uk": text_uk(d.get("pickup_hint", "")),
+        "activation_hint": text(d["activation_hint"]) if d.get("activation_hint") in strings else None,
+        "activation_hint_uk": text_uk(d.get("activation_hint", "")),
     }
     if artefacts[key]["active"].get("duration") is not None:
         artefacts[key]["active"]["duration_s"] = artefacts[key]["active"]["duration"]
 
 # Drugs: protection while active (0x33db30: D = 0 below threshold, else
 # (D - threshold) * hit_coeff on that pool and type), healing, injuries cleared.
-drugs = {}
+drugs, drug_props = {}, {}
 # The medicines are made whole at gameplay/items/medicines/ (docs/notes/medicines.md).
 for file in files("gameplay__items__drugs__") + files("gameplay__items__medicines__"):
     cfg = load(file)
@@ -261,6 +267,7 @@ for file in files("gameplay__items__drugs__") + files("gameplay__items__medicine
                        for p in rows(d.get("influences") or []) if p["amount"]},
         "remove_affects": [[p["body_part"], p["affect"]] for p in rows(d.get("remove_affects") or [])],
     }
+    drug_props[key_of(file)] = rows(cfg.get("ui_desc", {}).get("props_list") or [])
 
 # Modifications and defects that change a gunshot or how fast they come:
 # weapon damage, pierce, ranges and rate of fire, and gunshot armour. item_config_cook (0x2f1750) sums the values on
@@ -278,6 +285,31 @@ for q in rows(load("gameplay__static_game_parameters.options.json").get("ui_prop
     ui_props[q["prop_id"]] = {"label": text(q.get("prop_name", "")), "label_uk": text_uk(q.get("prop_name", "")), "mod_type": q.get("mod_type", 2),
                               "direction": q.get("direction", 1), "postfix": text(q["postfix"]) if q.get("postfix") else "",
                               "postfix_uk": text_uk(q["postfix"]) if q.get("postfix") else None}
+
+
+def card_line(prop_id, value, icon=None, bonus=False):
+    """One line of an item's lobby card, "<prop name>: <value><postfix>". A
+    bonus (a modification's) is signed, a share as a percentage, and good or not."""
+    p, v = ui_props.get(prop_id, {}), float(value)
+
+    def said(postfix):
+        if bonus and p.get("mod_type", 2) != 1:
+            return f"{'+' if v >= 0 else '−'}{round(abs(v) * 100)}%"
+        number = f"{'+' if v >= 0 else '−'}{abs(v):g}" if bonus else f"{v:g}"
+        return number + ("" if not postfix else postfix if postfix == "%" else " " + postfix)
+
+    line = {"label": p.get("label"), "label_uk": p.get("label_uk"),
+            "value": said(p.get("postfix")), "value_uk": said(p.get("postfix_uk") or p.get("postfix"))}
+    if icon is not None:
+        line["icon"] = icon
+    if bonus:
+        line["good"] = (p.get("direction", 1) == 1) == (v > 0)
+    return line
+
+
+# A drug's card as the lobby lists it, without its weight (UI property 15).
+for key, props in drug_props.items():
+    drugs[key]["card"] = [card_line(q["prop_id"], q["prop_value"]) for q in props if q["prop_id"] != 15]
 mods_cfg = load("gameplay__items__modifications__modifications.options.json")
 mods = {}
 for kind, table in (("mod", mods_cfg["modifications"]), ("defect", mods_cfg["defects"])):
@@ -352,35 +384,36 @@ if rolled:
 boosters = {}
 for file in files("gameplay__items__boosters__"):
     cfg = load(file)
-    total, bonuses = {}, []
+    total, card = {}, []
     for d in cfg.get("default_modifications", []):
         desc = every_mod.get(d, {}).get("ui_desc", {})
-        # What its card lists: "<prop name>: <value>", per ui_properties.
-        bonuses += [{**ui_props.get(q["prop_id"], {}), "value": float(q["prop_value"]), "icon": desc.get("icon")}
-                    for q in rows(desc.get("props_list") or [])]
+        card += [card_line(q["prop_id"], q["prop_value"], desc.get("icon"), bonus=True) for q in rows(desc.get("props_list") or [])]
         for k, v in regeneration_of(every_mod.get(d, {})).items():
             total[k] = r(total.get(k, 0) + v)
     if total:
-        boosters[key_of(file)] = {"name": ui(cfg)["name"], "name_uk": ui(cfg)["name_uk"], **total, "bonuses": bonuses}
-# The medical skills that change recovery, by their ids in the tree
-# (docs/notes/medical-skills.md; rules.js has what each does): its ranks and
+        boosters[key_of(file)] = {"name": ui(cfg)["name"], "name_uk": ui(cfg)["name_uk"], **total, "card": card}
+# The skills the page counts, by their ids in the tree: the medical ones that
+# change recovery (docs/notes/medical-skills.md) and Forest Protection, which
+# changes a hit (docs/notes/artefact-skills.md); rules.js has what each does.
+# Of each: its ranks and
 # what one rank gives, the number the lobby prints for it (" <green>+0.5"),
 # and its tooltip's line for a rank as the lobby writes it: the description,
 # then that number with the postfix.
-RECOVERY_SKILLS = {311: "metabolism", 332: "strong_bones", 312: "medical_training", 313: "take_cover", 302: "fast_bandaging"}
+SKILLS = {311: "metabolism", 332: "strong_bones", 312: "medical_training", 313: "take_cover", 302: "fast_bandaging",
+          523: "forest_protection"}
 skills = {}
 for s in rows(load("gameplay__skills__skills_tree.options.json")["skills_tree"]):
-    if s["id"] in RECOVERY_SKILLS:
+    if s["id"] in SKILLS:
         printed = re.sub(r"<[^>]*>", "", s["ui"]["skill_descriptions"][0][0]).strip()
         step = float(re.search(r"\d+(?:\.\d+)?", printed).group(0))
         postfix = s["ui"].get("postfix", "")
-        skills[RECOVERY_SKILLS[s["id"]]] = {
+        skills[SKILLS[s["id"]]] = {
             "id": s["id"], "name": text(s["ui"]["name"]), "name_uk": text_uk(s["ui"]["name"]), "ranks": s["levels_amount"],
             "step": r(step / 100 if postfix == "st_percent_postfix" else step),
             "description": text(s["ui"]["description"]), "description_uk": text_uk(s["ui"]["description"]),
             # The postfix as the game has it (" s", "%"): its own space or none.
             "rank": printed + strings.get(postfix, "").rstrip(), "rank_uk": printed + strings_uk.get(postfix, "").rstrip() if strings_uk.get(postfix) else None}
-recovery = {"gear": gear, "boosters": boosters, "skills": skills}
+recovery = {"gear": gear, "boosters": boosters}
 
 for table in (weapons, armour):
     for item in table.values():
@@ -435,6 +468,7 @@ out = {
     "armour": armour,
     "body": body,
     "recovery": recovery,
+    "skills": skills,
 }
 with open(target, "w", encoding="utf-8") as f:
     json.dump(out, f, ensure_ascii=False, indent=1)
