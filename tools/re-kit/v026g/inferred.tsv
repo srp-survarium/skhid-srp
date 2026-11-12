@@ -2225,16 +2225,20 @@ va	status	ref_021d	name
 0x00313dd0	inferred-medium	0x001fbb49	survarium::gather_victory_items_rule::deserialize
 0x00313ea0	inferred-medium	0x001fbc14	survarium::gather_victory_items_rule::resolve_links
 0x003149b0	inferred-medium		survarium::match_time_vi_spawn_rule_core::serialize
+0x00315250	inferred-high		survarium::match_time_vi_spawn_rule_core::select_spawn_points
 0x00316340	inferred-medium		survarium::tdm_rule_core::serialize
+0x00316700	inferred-high		survarium::player_respawn_rule_base::player_respawn_rule_base
 0x00316820	inferred-medium		survarium::player_respawn_rule_base::tick
 0x00316aa0	inferred-medium		survarium::player_respawn_rule_base::on_event
 0x00316bc0	inferred-medium		survarium::player_respawn_rule_base::on_player_entered_match
 0x00316be0	inferred-medium		survarium::player_respawn_rule_base::on_player_left_match
 0x00316c90	inferred-medium		survarium::player_respawn_rule_base::serialize
 0x00316da0	inferred-medium		survarium::player_respawn_rule_base::spawn_player
+0x00316ec0	inferred-high		survarium::player_respawn_rule_core::player_respawn_rule_core
 0x00316f10	inferred-medium		survarium::player_respawn_rule_core::serialize
 0x003171d0	inferred-medium		survarium::player_respawn_rule_base::select_respawn_points
 0x00317540	inferred-medium	0x001fd304	vostok::buffer_vector<survarium::respawn_point_core *>::push_back
+0x003175c0	inferred-high		stlp_std::random_shuffle<survarium::respawn_point_core**>
 0x00317f10	inferred-medium	0x001f554f	survarium::timelimit_rule_core::tick
 0x003187e0	inferred-medium	0x001f5f48	survarium::server_game_project::`scalar deleting destructor'
 0x00318800	inferred-high	0x001f5f64	survarium::server_game_project::insert
@@ -2244,6 +2248,7 @@ va	status	ref_021d	name
 0x0031a410	inferred-medium		survarium::damage_zone_core::damage_of_body
 0x0031a620	inferred-medium	0x001f70d8	vostok::buffer_vector<vostok::physics::loose_ptr<vostok::physics::base_physics_object,vostok::physics::loose_ptr_data,vostok::threading::multi_threading_policy> >::resize
 0x0031ac10	inferred-medium	0x001f7489	survarium::effect_zone_core::load
+0x0031aca0	inferred-high		survarium::effect_zone_core::apply_invulnerability
 0x0031b4b0	inferred-medium	0x001edb0f	survarium::generic_anomaly_core::activate
 0x0031b530	inferred-medium	0x001edb84	survarium::generic_anomaly_core::deactivate
 0x0031b5b0	inferred-medium	0x001edc0b	survarium::generic_anomaly_core::tick
@@ -3273,6 +3278,10 @@ va	status	ref_021d	name
 0x002de560	inferred-medium		survarium::game_effect_player::represent
 0x0026dac0	inferred-medium		survarium::base_game_statistics_handler::on_artefact_taken
 0x002f55f0	inferred-medium		survarium::shared_statistics::on_artefact_taken
+0x002f5660	inferred-high		survarium::shared_statistics::clear_received_damage
+0x002f56a0	inferred-high		survarium::shared_statistics::count_assists
+0x002f58e0	inferred-high		survarium::shared_statistics::add_received_damage
+0x002f5940	inferred-high		survarium::shared_statistics::on_trap_hit
 0x0026d9c0	inferred-high		survarium::base_game_statistics_handler::finish_match
 0x002f4cf0	inferred-high		survarium::shared_statistics::finish_match
 0x0026c320	inferred-medium		survarium::messaging_client::send_channel_subscription
@@ -3280,6 +3289,8 @@ va	status	ref_021d	name
 0x0021bd80	inferred-medium		survarium::network_client::messaging_client
 0x002f1750	inferred-high		survarium::item_config_cook::translate_query
 0x002f2060	inferred-medium		survarium::item_config_query::get_item
+0x002f43a0	inferred-high		survarium::players_checker::update
+0x002f4800	inferred-high		survarium::respawn_point_core::is_free
 0x001f13d0	inferred-medium		survarium::inventory_item_descr::deserialize_body
 0x001f1610	inferred-medium		vostok::buffer_vector<survarium::upgrade>::resize
 0x003584e0	inferred-medium		survarium::item_config_cook::substitute_upgrade_params
@@ -3371,6 +3382,7 @@ va	status	ref_021d	name
 0x00332810	inferred-medium		survarium::damage_model::modify_incoming_damage
 0x00332940	inferred-medium		survarium::damage_model::second_chance
 0x00332a30	inferred-medium		survarium::damage_model::friendly_anomaly
+0x00332b70	inferred-high		survarium::player_damage_protector::scale_hit
 0x00332cb0	inferred-medium		survarium::damage_model::pain_after_hit_listener
 0x0033fa80	inferred-medium		survarium::body_part_parameters::route_damage
 0x003183a0	inferred-high		survarium::match_options::match_options
