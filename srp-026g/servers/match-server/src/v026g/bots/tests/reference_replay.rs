@@ -41,7 +41,7 @@ use mapdata::controller::tick::{Controller, Settings};
 use mapdata::{Vec3, World};
 
 use super::super::body::{BodyTrack, Fix};
-use super::super::jump_arc::{Clip, END_FRAME, FPS as JUMP_FPS, PREPARE_MS, TAKEOFF_FRAME};
+use super::super::jump_arc::{Clip, FPS as JUMP_FPS, PREPARE_MS, TAKEOFF_FRAME};
 use super::super::kin::Local;
 use super::bench::bench_tuning;
 use crate::v026g::drive::key;
@@ -375,7 +375,7 @@ fn reference_replay() {
         let mut jump: Option<RefJump> = None;
         if jump_mode && let Some(&p) = presses.iter().rev().find(|&&p| p < t0) {
             let mut j = RefJump::new(p, keys_in(p), walk_speed(p.saturating_sub(TICK_MS)), from);
-            if j.frame(t0) < END_FRAME {
+            if j.frame(t0) < j.clip.air_end_frame() - 1e-3 {
                 if j.frame(t0) >= TAKEOFF_FRAME {
                     j.phase = RefPhase::Air;
                     body.jumping = true;
@@ -554,13 +554,13 @@ impl RefJump {
         Self { clip: Clip::of(keys, speed), press, target: feet, phase: RefPhase::Floor }
     }
 
-    /// The clip's frame at `time` (ms), clamped to its end.
+    /// The clip's frame at `time` (ms), clamped to the air phase's last step ([A364 P6] `Clip::air_end_frame`).
     fn frame(&self, time: u32) -> f32 {
         let prepare = match self.clip {
             Clip::Sprint(_) => PREPARE_MS,
             Clip::Short(_) => 0.0,
         };
-        ((time.saturating_sub(self.press) as f32 - prepare).max(0.0) / 1000.0 * JUMP_FPS * self.clip.time_scale()).min(END_FRAME)
+        ((time.saturating_sub(self.press) as f32 - prepare).max(0.0) / 1000.0 * JUMP_FPS * self.clip.time_scale()).min(self.clip.air_end_frame())
     }
 
     /// Sets the body's walk for input tick `k` (yaw `yaw`, keys `keys`); true when the clip ends with this tick (`end_jump` done).
@@ -578,7 +578,8 @@ impl RefJump {
             self.phase = RefPhase::Air;
             body.jumping = true;
         }
-        let ended = f1 >= END_FRAME;
+        // [A364 P6] The air phase ends with its twelfth step, short of the clip's end.
+        let ended = f1 >= self.clip.air_end_frame() - 1e-3;
         if ended {
             body.end_jump();
         }

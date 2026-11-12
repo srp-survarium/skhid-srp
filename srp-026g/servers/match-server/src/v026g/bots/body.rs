@@ -2394,8 +2394,8 @@ pub(super) mod tests {
         assert!(at.feet.x < 19.8 && at.feet.z > 13.0, "{at:?}");
     }
 
-    /// [A318] The jump arc and drop_fall's fall do not overlap (fx-zones' review): a world 900 ms into a sprint jump (past the old
-    /// 800 ms air window) with the body 1 m over its floor keeps the arc and no fall, and its feet follow the arc, not the floor; a
+    /// [A318] The jump arc and drop_fall's fall do not overlap (fx-zones' review): a world 820 ms into a sprint jump (past the old
+    /// 800 ms air window, inside its air phase: 845 ms, [A364 P6]) with the body 1 m over its floor keeps the arc and no fall, and its feet follow the arc, not the floor; a
     /// press while the body falls starts no jump (`on_ground`).
     #[test]
     fn a_jump_arc_and_a_fall_do_not_overlap() {
@@ -2409,13 +2409,13 @@ pub(super) mod tests {
             track.decided(time, run, (0.0, 0.0), 0.0, &kin, Some(&grid));
         }
         track.decided(350, run | key::JUMP, (0.0, 0.0), 0.0, &kin, Some(&grid));
-        for time in (400..=1_250).step_by(50) {
+        for time in (400..=1_150).step_by(50) {
             track.decided(time, run, (0.0, 0.0), 0.0, &kin, Some(&grid));
         }
-        track.fixed(fix(1_250, Vec3::new(5.0, 1.0, 9.0), 0.0), &kin, Some(&grid));
+        track.fixed(fix(1_170, Vec3::new(5.0, 1.0, 9.0), 0.0), &kin, Some(&grid));
         let at = *track.estimate().unwrap();
         assert!(at.arc.is_some() && at.fall == Fall::Ground, "the arc's, not a fall: {at:?}");
-        track.decided(1_300, run, (0.0, 0.0), 0.0, &kin, Some(&grid));
+        track.decided(1_200, run, (0.0, 0.0), 0.0, &kin, Some(&grid));
         let next = *track.estimate().unwrap();
         assert!(next.feet.y > 0.5, "the feet follow the arc, not the floor: {next:?}");
         // A press while falling starts nothing.

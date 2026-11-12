@@ -6320,3 +6320,7 @@ va	name	location	role	basis
 0x000727b0	vostok::math::float4x4::set_scale	ECX	float4x4* the matrix, rows changed in place	observed
 0x000727b0	vostok::math::float4x4::set_scale	entry ESP+4	float3 const* the scale each row is given	observed
 0x00083600	vostok::physics::collision_shape_cook::create_primitives_shape	ESI	binary_config_value const* the primitives (rows of 18h bytes, count at +16h)	observed
+0x00072b90	btMatrix3x3::getRotation	ESI	the matrix	observed
+0x00072a50	btMatrix3x3::setRotation	ECX	the quaternion	observed
+0x00072eb0	btTransformUtil::calculateVelocity	ESI	the angular velocity out	observed
+0x00072eb0	btTransformUtil::calculateVelocity	EDX	the linear velocity out	observed

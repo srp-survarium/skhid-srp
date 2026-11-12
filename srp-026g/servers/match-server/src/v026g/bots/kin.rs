@@ -538,7 +538,9 @@ pub enum WallSlide {
 /// `docs/notes/body_trace.md` section 4: 617 of 628 rows of a moving body are the trace's origin one grid step before the world's
 /// time). So the step into the feet at N moves with input N-100's keys and its yaw after
 /// N-100's turn: one input behind what the reckoning had (on turning walk ticks its step matched the client-walk reference's
-/// NEXT tick in 2,360 of 2,487).
+/// NEXT tick in 2,360 of 2,487). On the game's own steps (A364 P7, `private/grid/rig/walk-truth-*.tsv`): a step that ends at t
+/// answers the input stamped t-50 in 141 of 141 walk starts of three traces, and a world W's yaw is the body's before the step
+/// ending at W: PROVEN.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StepInput {
