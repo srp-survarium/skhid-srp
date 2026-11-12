@@ -813,6 +813,17 @@ pub(super) fn drop_shuts() -> Box<dyn RouteTopic> {
     )
 }
 
+/// [unstick.dead_links] The links the bots failed, told to the match, and the links shut for the match (failed twice,
+/// whichever bots; `dead_links::tally`).
+pub(super) fn dead_links() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::dead_links::tally::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!("dead_link_failures {} dead_links_shut {}", d[0], d[1]));
+        },
+    )
+}
+
 /// The worlds that came 3 s or more after the one before: all, the stuck notes and the off-reckoning notes that
 /// came with one, the stuck checks a tuned gap ended, and the stuck notes with an enemy, and with a friend, within 1.2 m (`stuck::fix_gaps`).
 pub(super) fn fix_gaps() -> Box<dyn RouteTopic> {

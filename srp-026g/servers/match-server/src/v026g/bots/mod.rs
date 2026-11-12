@@ -44,6 +44,7 @@ pub mod contact;
 pub mod control;
 pub mod crossing;
 pub mod curve;
+pub mod dead_links;
 pub mod doors;
 pub mod encode;
 pub mod escape;
@@ -1713,7 +1714,13 @@ impl Bots {
             {
                 let landings = stuck::drops_off(&tactics.world.grid, feet, shut.near_m.get());
                 if !landings.is_empty() {
-                    bot.stuck.failed_drop(time, feet, &landings, shut.kept_ms);
+                    // The drop its route went down: its take-off and landing waypoints, for the match's dead links.
+                    let taken = bot.route.as_ref().and_then(|(route, _)| {
+                        let points = route.points();
+                        let k = route.segment();
+                        Some((points.get(k)?.at, points.get(k + 1)?.at))
+                    });
+                    bot.stuck.failed_drop(time, feet, &landings, shut.kept_ms, taken);
                     bot.note(
                         &mut notes,
                         time,

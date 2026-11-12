@@ -99,6 +99,14 @@ pub struct UnstickTuning {
     /// (z -2.8), kills and deliveries level; by side, 8 maps x 6/8/10, 288 pairs: every outcome level); the all-off arm keeps
     /// it (its old value is the proven trap). Off: a shut drop is kept off for its whole time, whatever is left.
     pub drop_shut_last_resort: bool,
+    /// [owner-14 row 3] A jump or drop the bodies of this match failed [`DeadLinksTuning::after`] times, whichever bots (a
+    /// jump the motor gave up, `stuck::Stuck::failed_jump`; a drop held at its top, [`Self::drop_shut`]), is shut to every
+    /// search of every bot of the team for the rest of the match, and the map's dead-link list is written to the log
+    /// (`dead_links.rs`). PROVEN need (the owner's 14 matches, 2026-11-11): one drop off Vector Laboratory's raised spawn
+    /// platform failed 95 times out of 95, by 18 bots, each learning it alone for 45 s. Its safety is
+    /// [`Self::drop_shut_last_resort`]: a search with no way while dead links are shut searches again without them. None:
+    /// each bot remembers only its own failures, for their own time (as before).
+    pub dead_links: Option<DeadLinksTuning>,
     /// What the reckoned stuck watch (`stuck::Stuck::walking_in`: two worlds 1.5 s+ apart, the body moved under 0.4 m while the keys
     /// meant 1.2 m) judges a window by (A240b).
     pub window: StuckWindow,
@@ -145,6 +153,20 @@ impl Default for SuicideLoud {
     }
 }
 
+/// The match's dead links ([`UnstickTuning::dead_links`]).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct DeadLinksTuning {
+    /// A link is dead for the match after this many failures, of any bots. The owner's rule (2026-11-12 brief): twice.
+    pub after: u8,
+}
+
+impl Default for DeadLinksTuning {
+    fn default() -> Self {
+        Self { after: 2 }
+    }
+}
+
 /// How a drop the body was held at the top of is shut ([`UnstickTuning::drop_shut`]).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -185,6 +207,7 @@ impl Default for UnstickTuning {
             drop_shut: Some(DropShut::default()),
             drop_shut_from_top: true,
             drop_shut_last_resort: true,
+            dead_links: Some(DeadLinksTuning::default()),
             window: StuckWindow::SinceAsked,
             escape_floor: true,
         }
@@ -201,7 +224,8 @@ impl Check for UnstickTuning {
             self.suicide_after_ms.is_none_or(|after| after >= self.suicide_quiet_ms),
             "unstick.suicide_after_ms",
         )?;
-        check(self.suicide_loud.is_none_or(|loud| loud.hit_quiet_ms >= 1_000), "unstick.suicide_loud.hit_quiet_ms")
+        check(self.suicide_loud.is_none_or(|loud| loud.hit_quiet_ms >= 1_000), "unstick.suicide_loud.hit_quiet_ms")?;
+        check(self.dead_links.is_none_or(|dead| dead.after >= 1), "unstick.dead_links.after")
     }
 }
 

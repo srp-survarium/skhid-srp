@@ -37,6 +37,14 @@ owner-test: dry 25.0 s (deaths 0), reloading 14.0 s (deaths 7), reloads 281 in a
   "fire_far_close_class_pct": 0.0,
   "fire_held_by_class_range": {},
   "fire_hidden": 195,
+  "fire_hidden_by_play": {
+    "Collect": 40,
+    "Crossfire": 28,
+    "Cut": 45,
+    "Heal": 20,
+    "Roam": 43,
+    "Trade": 19
+  },
   "fire_hidden_pct": 35.6,
   "fire_no_target": 151,
   "fire_on_target": 547,

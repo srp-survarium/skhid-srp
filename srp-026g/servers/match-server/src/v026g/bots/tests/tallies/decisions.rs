@@ -26,6 +26,10 @@ impl Decisions {
         if note.text.starts_with(crate::v026g::bots::traps::tally::PREFIX) {
             return;
         }
+        // nav-team 2b's dead-link list is the log's too (written with `unstick.dead_links` off as well).
+        if note.text.starts_with(crate::v026g::bots::dead_links::PREFIX) {
+            return;
+        }
         // A302's "; placed by <rule>" in a smoke plan's note is the log's too (the rule that already chose the landing).
         let text = without_placed_by(&note.text);
         self.text(&format!("{} {} {}", note.place, note.time, crate::v026g::bots::stuck::without_evidence(&text)));
