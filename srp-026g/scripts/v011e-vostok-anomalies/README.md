@@ -217,3 +217,9 @@ The final full-corpus run checked 250,861 worlds: 9,707 passed and the same
 lines match the released-data baseline exactly; all 101 worlds added by
 these three local playtests pass. The full-corpus check therefore remains
 red for the documented pre-existing failures.
+
+Before merge, current main's anti-AFK change (`43ec78031`) was integrated
+as `50964d90b`. The combined server tests and Clippy are recorded in
+`checks-merged-main.log`. This integration changes no content: the owner
+played the exact content above with the server built before that anti-AFK
+merge. Nothing has been released or deployed.
