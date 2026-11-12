@@ -6,6 +6,7 @@ package survarium.chat
    import flash.external.ExternalInterface;
    import flash.text.TextField;
    import scaleform.clik.events.ComponentEvent;
+   import survarium.constants.ChatChannel;
    
    public class GameChat extends Chat
    {
@@ -15,6 +16,11 @@ package survarium.chat
       public var messageContainer:MessageLogList;
       
       public var textFieldName:TextField;
+      
+      // Whether the match has a team to talk to: HUD.set_game_type says so at each match. A free
+      // for all has none (docs/notes/ffa.md), so its chat offers no tab that sends on a team
+      // channel: it opens on the match's ("All"), and the tab key switches among what is left.
+      protected var _teamChannel:Boolean = true;
       
       public function GameChat()
       {
@@ -31,6 +37,22 @@ package survarium.chat
       {
          text_inpput.y = value - 476;
          super.height = value;
+      }
+      
+      public function set teamChannel(value:Boolean) : void
+      {
+         if(_teamChannel == value)
+         {
+            return;
+         }
+         _teamChannel = value;
+         offerTabs();
+         this.updateChatData();
+      }
+      
+      override protected function offers(tab:Object) : Boolean
+      {
+         return _teamChannel || tab.channel_to_send != ChatChannel.TEAM_1 && tab.channel_to_send != ChatChannel.TEAM_2;
       }
       
       override public function focusTab(id:uint) : void
@@ -90,6 +112,7 @@ package survarium.chat
          this.messageContainer.clear(true);
          _data = new Object();
          _data.tabs = [];
+         _given = [];
          _activeTab = 0;
          _messages = [];
          _channels = [];

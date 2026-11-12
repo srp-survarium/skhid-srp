@@ -34,17 +34,17 @@ kills wins, no elimination phases (not 0.31's "The Last Stand"). His rules of th
   - No squads in the match: squad mates are opponents. The lobby squad itself stays.
   - Every other player is an enemy wherever the game compares teams: names, markers, minimap,
     kill feed, kills, assists, spotting.
-  - **Chat and voice** go by these sides, never by the seating:
-    - A team channel's line (6 or 7: the game picks it by the team of its lobby seat,
-      `social.md` §1.1) reaches the players on the sender's side of the match (the lobby's
-      `play::Side`, what `Core::side_played` answers): in a free-for-all the sender alone, whose
-      game shows it.
+  - **No team chat** (the owner, 2026-11-12: "i'd rather it didn't have team chat"), and voice
+    goes by these sides too, never by the seating:
+    - The HUD offers no team tab ("The player's screens", below).
+    - The server delivers none. A team channel's line (6 or 7; a changed game can still send
+      one) reaches the players on the sender's side of the match (the lobby's `play::Side`, what
+      `Core::side_played` answers): in a free-for-all the sender alone.
     - The voice relay goes by the match's teams (`registry::voice_seat`): nobody hears anyone.
     - The match's channel ("All") reaches every player of the match, as in any mode.
     - The squad channel is the lobby squad's, whatever its members play: squad mates read each
-      other's squad lines while they are opponents here.
-    - The HUD is the game's own in this: its team tab is there, and a line typed in it reaches
-      nobody else.
+      other's squad lines while they are opponents here, and the HUD keeps a squad's tab. Not
+      decided otherwise.
   - The options a client is sent say so twice, and each check wants both or neither
     (`static_info::check_team`, `srp_validate::messages::options` in the client too): every
     place's team its own side, and srp's entry tag 3 with the kills that win (u16).
@@ -244,6 +244,28 @@ and spatial review; they still need multiplayer playtesting for balance.
   the reader's win/defeat (`rewards::ffa_screen`); Flash ignores those transport
   groups when laying out the FFA list.
 
+- **Chat (hud):** no team tab. It opens on "All" (the match's channel), and the tab key goes
+  among what is left: "All", and a squad's tab for a squad's member.
+  - Where the channel is chosen (PROVEN, 0.26g exe): the movie's open tab alone.
+    - At each match's start the game gives the hud movie the same tabs in every mode
+      (`chat_handler::set_mode` 0x209430, from `game_world::on_activate` 0x1F93C5): the team's
+      (id 4, sent on 6, or 7 when the lobby seat's team is not 0: `lobby_client+1E57ACh`,
+      0x209593), then the match's (id 3, sent on 5), then a squad's (id 0, sent on 8).
+    - The chat key and Enter open it with no channel named (`game_world::on_keyboard_action`
+      0x25CD6B..0x25CD83, `chat_handler::focus` 0x209B30, `root.focus_chat`). There is no
+      team-chat key.
+    - The tab key asks the movie for its next tab (`root.next_tab`, with Shift
+      `root.previous_tab`, 0x2088BB..0x208911).
+    - A line goes out on the channel the movie's `send_function` names: its open tab's
+      `channel_to_send` (`chat_handler::on_message_typed` 0x2089D0).
+  - So the movie decides, and the exe is not changed. `HUD.set_game_type` tells the chat at each
+    match whether its mode has a team (`GameChat.teamChannel`, beside the Tab list's `ranked`).
+    Without one the chat keeps a tab that sends on a team channel out of the tabs it offers
+    (`Chat.offers`, `_given` the game's tabs and `_data.tabs` the offered ones), whichever of
+    the mode and the tabs is told first. The first tab offered is the open one: the team's in a
+    match of two teams, as before; here "All".
+  - A match of two teams after it has the team's tab back, first: the chat is cleared at each
+    match (`HUD.reset`), and the mode is told again.
 - **Rooms list (lobby):** the members of a room playing a free-for-all are shown in the match
   (gold) with no side: no bar and no column of a team (`rooms.md`; the server tells no side,
   the movie is unchanged).
