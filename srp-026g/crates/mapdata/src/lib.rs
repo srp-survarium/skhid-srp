@@ -168,8 +168,8 @@ pub const NARROW_DOORS_ALGO: u32 = 0x5313_0101;
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const DROP_CHECK_ALGO: u32 = 0x5313_0201;
 /// The same for the floors given back beside walls the body clears ([`Body::wall_give_back`], A318), in [`grid_key_with_links`]
-/// only for a body that asks for it. A value of its own.
-pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0102;
+/// only for a body that asks for it. A value of its own. 0103: the stand test runs the client's steps (A364 C2 row 45).
+pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0103;
 /// The same for the walk-tick passes with the exe's collision rules ([`Body::exe_collision`], A325), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const EXE_COLLISION_ALGO: u32 = 0x5325_0101;
