@@ -152,6 +152,6 @@ every step, which plain `f32` arithmetic reproduces.
 - Weather variants, mode 3 and 5 projects and the ported maps: not captured (recordings exist for them).
 - A world later in a match (after the first two minutes); doors and breakable things, if any act on the
   walking body.
-- Bullet's own cast against these shapes (which caster, the rule for a contact at the start): the next step.
+- Bullet's own cast against these shapes: `bullet_cast.md`.
 - `hq_collision` (7 folder links): nothing here uses it.
 - A capsule under a library scale: none met in these projects.
