@@ -188,6 +188,9 @@ pub const GIVE_BACK_IN_CELL_ALGO: u32 = 0x5331_0101;
 /// The same for the falls that stop at any ground top under the body ([`Body::fall_stops_on_solids`], owner-14 row 2), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const FALL_STOPS_ON_SOLIDS_ALGO: u32 = 0x5402_0a01;
+/// The same for the walk check over every link a body may meet trouble on ([`Body::walk_every_link`], owner-14 row 12), in
+/// [`grid_key_with_links`] only for a body that asks for it with [`Body::client_controller`]. A value of its own.
+pub const WALK_EVERY_LINK_ALGO: u32 = 0x5402_0c04;
 /// The same for the gap links' flights ending at the game's last air step ([`Body::jump_air_steps`], A364 P6), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const JUMP_AIR_STEPS_ALGO: u32 = 0x5364_0601;
@@ -445,6 +448,10 @@ pub fn grid_key_with_links(
     // And the falls that stop at ground tops.
     if body.fall_stops_on_solids {
         digest.u32(FALL_STOPS_ON_SOLIDS_ALGO);
+    }
+    // And the walk check over every link.
+    if body.client_controller && body.walk_every_link {
+        digest.u32(WALK_EVERY_LINK_ALGO);
     }
     // And the jumps' flights ending at the game's last air step.
     if body.jump_air_steps {

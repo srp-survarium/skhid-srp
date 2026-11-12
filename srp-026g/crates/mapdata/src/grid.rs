@@ -308,6 +308,18 @@ pub struct Body {
     /// rail top 25.16 over the slab 24.26 to the ground 20.76, 0 of 95 presses got down; 116 of 148 walked-off gap drops of
     /// 1.5 m+ landed under a solid). A build input: in the key when set.
     pub fall_stops_on_solids: bool,
+    /// [2c] With [`Self::client_controller`]: whether its walk check walks every Walk link a body may meet trouble on (a face
+    /// no body walks on near either floor, a rise, a floor with no standing room), not only those beside a face over the
+    /// body's slope: in the stance the route takes there (crouched where either floor has no standing room, as the bots'
+    /// routes crouch), from the floor and from where the link before it along the same way left the body, and keeps it only
+    /// where the body arrives on two of the three lines, or comes onto the far floor's level walked on up to 1.5 m past it
+    /// (`grid::controlled`). Of the links that fail, only a riser the body stalls under is cut (a rise over 0.2 m walked under
+    /// half the way, `controlled::CUT_RISE_M`), and only where a walking way round it leads from its foot to its top; a cut
+    /// that would leave a floor without its only way in or back, or its only walking one, is not made. The risers kept so
+    /// stay, marked ([`WalkGrid::walk_marked`]). Off: one link at a time, from a start pushed out of the faces, kept
+    /// at half the way (owner-14 report row 12: the client's tick stalls on chains of links that each passed alone; 924
+    /// blocked worlds within 0.5 m of a stall). A build input: in the key when set.
+    pub walk_every_link: bool,
     /// [A364 P6] Whether a gap link's jump flies the game's air phase, not the whole clip: twelve steps from the clip's `jump`
     /// event, so the short jump ends at frame 22.5 (2.50 m on, 0.35 m up) and the body falls from there at the root's last
     /// descent (`gap`'s `fly`, `fly_clip`). Off: the flight follows the clip to its frame 24 (2.67 m on, back at the take-off's
@@ -397,6 +409,7 @@ impl Body {
             start_witness: false,
             give_back_in_cell: false,
             fall_stops_on_solids: false,
+            walk_every_link: false,
             jump_air_steps: false,
         }
     }
@@ -487,6 +500,7 @@ impl Default for Body {
             start_witness: false,
             give_back_in_cell: false,
             fall_stops_on_solids: false,
+            walk_every_link: false,
             jump_air_steps: false,
         }
     }
@@ -941,6 +955,10 @@ pub struct WalkGrid {
     /// [`ExitReach::Walled`] by [`Self::pocket_exits`] with [`Body::exits_in_reach`] where the build had the walls ([`Erosion::Exact`]). In the file (after
     /// the ramp slopes) and the digest. Empty without the switch.
     walled_exits: Vec<(NodeId, NodeId)>,
+    /// [2c] The Walk links the client's tick does not walk but kept as a floor's only way in or back ([`Body::walk_every_link`]),
+    /// as (from, to), sorted ([`Self::walk_marked`]). In the file (after the walled exits) and the digest. Empty without the
+    /// switch.
+    walk_marked: Vec<(NodeId, NodeId)>,
     /// Per node, its distance to the nearest wall the capsule meets, in [`clearance::CLEARANCE_STEP_M`] steps ([`Self::wall_clearance`]):
     /// made by [`Self::with_wall_clearance`] after the grid is built or read, from the map's triangles. In neither the file nor the
     /// digest. Empty without it.
@@ -995,6 +1013,9 @@ struct Wide {
     /// [`Body::wall_give_back`]: the floors the erosion would give back, put aside while the grid is built as without them
     /// ([`WalkGrid::erode`]); they come back after the reach ([`WalkGrid::give_back_aside`]).
     aside: Vec<Aside>,
+    /// [2c] [`Body::walk_every_link`]: the Walk links that failed the walk check and were kept as a floor's only way, as
+    /// (from, to).
+    marked: Vec<(u32, u32)>,
 }
 
 /// A floor put aside by [`Body::wall_give_back`] ([`Wide::aside`]): where it is and its room.
@@ -1035,6 +1056,28 @@ impl Wide {
         first.push(to.len() as u32);
         (first, to)
     }
+
+    /// [2c] [`Self::adjacency`] of the Walk links alone.
+    fn walk_adjacency(&self) -> (Vec<u32>, Vec<u32>) {
+        let n = self.links.len();
+        let mut first = Vec::with_capacity(n + 1);
+        let mut to = Vec::new();
+        for a in 0..n {
+            first.push(to.len() as u32);
+            to.extend((0..8).filter(|&d| self.links[a][d] != NONE && self.kinds[a][d] == LinkKind::Walk).map(|d| self.links[a][d]));
+        }
+        first.push(to.len() as u32);
+        (first, to)
+    }
+}
+
+/// [2c] A link list for [`WalkGrid::cut_keeping_reach`]'s floods: each floor's links out (`first`, `to`) and in (`back_first`,
+/// `from`).
+struct Adjacency {
+    first: Vec<u32>,
+    to: Vec<u32>,
+    back_first: Vec<u32>,
+    from: Vec<u32>,
 }
 
 /// Counts of a build, for logs and the docs.
@@ -1267,6 +1310,7 @@ impl WalkGrid {
             lip: Vec::new(),
             ramp: Vec::new(),
             walled_exits: Vec::new(),
+            walk_marked: Vec::new(),
             clearance: Vec::new(),
             open: Vec::new(),
             walker: None,
@@ -1299,7 +1343,7 @@ impl WalkGrid {
             // The faces' own geometry, not a walk test that may miss: a floor no body gets down to is let go as the carried
             // landings' are ([`Body::keep_last_resorts`]); the only way back out of a floor a body walks to stays.
             let failing = grid.drops_under_solids(&wide, &solids);
-            (stats.drops_under_solid, stats.drops_under_solid_kept) = grid.cut_keeping_reach(&mut wide, failing, seeds, spawns, body.keep_last_resorts);
+            (stats.drops_under_solid, stats.drops_under_solid_kept) = grid.cut_keeping_reach(&mut wide, failing, seeds, spawns, body.keep_last_resorts, false);
         }
         if body.slip_landings {
             wide.slips = grid.slip_landings(&wide, &solids);
@@ -1309,7 +1353,19 @@ impl WalkGrid {
             stats.controlled = controlled;
             // The walk links the client's body does not walk go, but none that is a floor's only way in from the seeds and spawns
             // or its only way back (a 39 deg log on Cologne humans jump onto and stand on: ~70 floors lost with its two ends).
-            (stats.controlled.checks_dropped, stats.controlled.checks_kept) = grid.cut_keeping_reach(&mut wide, failing, seeds, spawns, true);
+            let tried: Vec<(u32, u32)> = failing.iter().map(|&(a, d, _)| (a, wide.links[a as usize][d])).collect();
+            (stats.controlled.checks_dropped, stats.controlled.checks_kept) =
+                grid.cut_keeping_reach(&mut wide, failing, seeds, spawns, true, body.walk_every_link);
+            // [2c] The kept ones are marked: a route may need them, and they are where a body is likely held.
+            if body.walk_every_link {
+                let kept: Vec<(u32, u32)> = tried
+                    .into_iter()
+                    .filter(|&(a, b)| (0..DIRS.len()).any(|d| wide.links[a as usize][d] == b && wide.kinds[a as usize][d] == LinkKind::Walk))
+                    .collect();
+                wide.marked.extend(kept);
+                wide.marked.sort_unstable();
+                wide.marked.dedup();
+            }
         }
         drop(solids);
         if body.drop_room && body.drop_room_walk_faces {
@@ -1324,7 +1380,7 @@ impl WalkGrid {
         }
         if body.drop_check {
             let failing = grid.unfollowed_drops(&wide, triangles, seeds, spawns);
-            (stats.drops_unfollowed, stats.drops_unfollowed_kept) = grid.cut_keeping_reach(&mut wide, failing, seeds, spawns, true);
+            (stats.drops_unfollowed, stats.drops_unfollowed_kept) = grid.cut_keeping_reach(&mut wide, failing, seeds, spawns, true, false);
         }
         stats.floors_after_erosion = grid.len();
         grid.keep_reached(&mut wide, seeds);
@@ -1404,6 +1460,7 @@ impl WalkGrid {
             slips: Vec::new(),
             given: Vec::new(),
             aside: Vec::new(),
+            marked: Vec::new(),
         }
     }
 
@@ -1550,13 +1607,16 @@ impl WalkGrid {
                 }
             }
         }
-        self.cut_keeping_reach(wide, failing, seeds, spawns, self.body.keep_last_resorts)
+        self.cut_keeping_reach(wide, failing, seeds, spawns, self.body.keep_last_resorts, false)
     }
 
     /// Takes away the links `failing` names (a floor and a direction, with a score: the higher kept first), except one that is
     /// the only way to a floor from the seeds and spawns (with `keep_last_resorts`), or the only way back from it: the cut
     /// disconnects nothing. Returns the links taken away and those kept for that. [`Self::drop_overshot_landings`]'s guard, and
-    /// the controller pass's ([`Body::client_controller`]).
+    /// the controller pass's ([`Body::client_controller`]). With `walk_ways` the same holds over the Walk links alone too: a
+    /// Walk link that is the only walking way to a floor or back stays though a jump or a drop still gets there (a route that
+    /// may not jump or drop has no other). [2c] School's 10-a-side TDM in the bench of the riser cuts alone: a riser cut left
+    /// a floor no walking way, a jump link the only one (x 31, z 130), and the searches there failed (no_way 6 -> 276).
     fn cut_keeping_reach(
         &self,
         wide: &mut Wide,
@@ -1564,6 +1624,7 @@ impl WalkGrid {
         seeds: &[Vec3],
         spawns: &[Vec3],
         keep_last_resorts: bool,
+        walk_ways: bool,
     ) -> (usize, usize) {
         if failing.is_empty() {
             return (0, 0);
@@ -1576,29 +1637,47 @@ impl WalkGrid {
         groups.sort_unstable();
         groups.dedup();
         groups.push(locate_all(seeds, SEED_M));
-        let (first, to) = wide.adjacency();
-        let mut back_first = vec![0u32; n + 1];
-        for &b in &to {
-            back_first[b as usize + 1] += 1;
-        }
-        for a in 0..n {
-            back_first[a + 1] += back_first[a];
-        }
-        let mut from = vec![NONE; to.len()];
-        let mut filled = back_first.clone();
-        for a in 0..n {
-            for &b in &to[first[a] as usize..first[a + 1] as usize] {
-                from[filled[b as usize] as usize] = a as u32;
-                filled[b as usize] += 1;
-            }
-        }
         type Cut = std::collections::HashSet<(u32, u32)>;
-        let flood = |reach: &mut Vec<bool>, queue: &mut Vec<u32>, forward: bool, cut: &Cut| {
+        // Each way reach is counted over (all links; with `walk_ways` the Walk links alone too): its forward and back lists.
+        let reverse = |first: &[u32], to: &[u32]| {
+            let mut back_first = vec![0u32; n + 1];
+            for &b in to {
+                back_first[b as usize + 1] += 1;
+            }
+            for a in 0..n {
+                back_first[a + 1] += back_first[a];
+            }
+            let mut from = vec![NONE; to.len()];
+            let mut filled = back_first.clone();
+            for a in 0..n {
+                for &b in &to[first[a] as usize..first[a + 1] as usize] {
+                    from[filled[b as usize] as usize] = a as u32;
+                    filled[b as usize] += 1;
+                }
+            }
+            (back_first, from)
+        };
+        let mut lists = vec![wide.adjacency()];
+        if walk_ways {
+            lists.push(wide.walk_adjacency());
+        }
+        let adjs: Vec<Adjacency> = lists
+            .into_iter()
+            .map(|(first, to)| {
+                let (back_first, from) = reverse(&first, &to);
+                Adjacency { first, to, back_first, from }
+            })
+            .collect();
+        let flood = |adj: &Adjacency, reach: &mut Vec<bool>, queue: &mut Vec<u32>, forward: bool, cut: &Cut| {
             while let Some(x) = queue.pop() {
                 let x = x as usize;
-                let range = if forward { first[x] as usize..first[x + 1] as usize } else { back_first[x] as usize..back_first[x + 1] as usize };
+                let range = if forward {
+                    adj.first[x] as usize..adj.first[x + 1] as usize
+                } else {
+                    adj.back_first[x] as usize..adj.back_first[x + 1] as usize
+                };
                 for i in range {
-                    let (y, edge) = if forward { (to[i], (x as u32, to[i])) } else { (from[i], (from[i], x as u32)) };
+                    let (y, edge) = if forward { (adj.to[i], (x as u32, adj.to[i])) } else { (adj.from[i], (adj.from[i], x as u32)) };
                     if !reach[y as usize] && !cut.contains(&edge) {
                         reach[y as usize] = true;
                         queue.push(y);
@@ -1606,7 +1685,7 @@ impl WalkGrid {
                 }
             }
         };
-        let reach_from = |group: &[u32], cut: &Cut, forward: bool| {
+        let reach_from = |adj: &Adjacency, group: &[u32], cut: &Cut, forward: bool| {
             let mut reach = vec![false; n];
             let mut queue = Vec::new();
             for &s in group {
@@ -1615,13 +1694,17 @@ impl WalkGrid {
                     queue.push(s);
                 }
             }
-            flood(&mut reach, &mut queue, forward, cut);
+            flood(adj, &mut reach, &mut queue, forward, cut);
             reach
         };
         let mut cut: Cut = failing.iter().map(|&(a, d, _)| (a, wide.links[a as usize][d])).collect();
         let none = Cut::new();
-        let before: Vec<(Vec<bool>, Vec<bool>)> = groups.iter().map(|g| (reach_from(g, &none, true), reach_from(g, &none, false))).collect();
-        let mut after: Vec<(Vec<bool>, Vec<bool>)> = groups.iter().map(|g| (reach_from(g, &cut, true), reach_from(g, &cut, false))).collect();
+        // Per way and group, way after way.
+        let reaches = |cut: &Cut| -> Vec<(Vec<bool>, Vec<bool>)> {
+            adjs.iter().flat_map(|adj| groups.iter().map(move |g| (reach_from(adj, g, cut, true), reach_from(adj, g, cut, false)))).collect()
+        };
+        let before = reaches(&none);
+        let mut after = reaches(&cut);
         failing.sort_by(|p, q| q.2.total_cmp(&p.2).then(p.0.cmp(&q.0)).then(p.1.cmp(&q.1)));
         let mut kept = 0;
         for _ in 0..4 {
@@ -1634,7 +1717,7 @@ impl WalkGrid {
                 let (au, bu) = (a as usize, b as usize);
                 // Without the last resorts kept, only the way back out of a floor a body can walk to counts (a pit it fell into);
                 // the floors only those links led to are out of reach.
-                let needed = (0..groups.len()).any(|g| {
+                let needed = (0..after.len()).any(|g| {
                     (keep_last_resorts && after[g].0[au] && !after[g].0[bu] && before[g].0[bu])
                         || (after[g].1[bu] && !after[g].1[au] && before[g].1[au])
                 });
@@ -1644,14 +1727,15 @@ impl WalkGrid {
                 cut.remove(&(a, b));
                 kept += 1;
                 changed = true;
-                for (forward, back) in after.iter_mut() {
+                for (i, (forward, back)) in after.iter_mut().enumerate() {
+                    let adj = &adjs[i / groups.len()];
                     if forward[au] && !forward[bu] {
                         forward[bu] = true;
-                        flood(forward, &mut vec![b], true, &cut);
+                        flood(adj, forward, &mut vec![b], true, &cut);
                     }
                     if back[bu] && !back[au] {
                         back[au] = true;
-                        flood(back, &mut vec![a], false, &cut);
+                        flood(adj, back, &mut vec![a], false, &cut);
                     }
                 }
             }
@@ -2428,6 +2512,11 @@ impl WalkGrid {
                 alive[k - 1]
             });
         }
+        wide.marked.retain(|&(a, b)| alive[a as usize] && alive[b as usize]);
+        for (a, b) in &mut wide.marked {
+            *a = new_id[*a as usize];
+            *b = new_id[*b as usize];
+        }
         let mut start = Vec::with_capacity(self.start.len());
         let mut node = 0usize;
         for c in 0..self.nx * self.nz {
@@ -2588,6 +2677,14 @@ impl WalkGrid {
             digest.u32(a);
             digest.u32(b);
         }
+        // [2c] A grid with no marked walks digests as before there were any.
+        if !self.walk_marked.is_empty() {
+            digest.len(self.walk_marked.len());
+        }
+        for &(a, b) in &self.walk_marked {
+            digest.u32(a);
+            digest.u32(b);
+        }
         digest.finish()
     }
 
@@ -2619,7 +2716,7 @@ impl WalkGrid {
             })?;
             // Only a grid with off-mesh links has their table: one without
             // writes as before there were any (read back as none).
-            if self.off.is_empty() && self.ramp.is_empty() && self.walled_exits.is_empty() {
+            if self.off.is_empty() && self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() {
                 return Ok(());
             }
             out.plain(&self.off, |l| {
@@ -2631,20 +2728,26 @@ impl WalkGrid {
                 bytes
             })?;
             // [A304] The ramp slopes, when the grid has them (an empty table before the walled exits).
-            if self.ramp.is_empty() && self.walled_exits.is_empty() {
+            if self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() {
                 return Ok(());
             }
             out.plain(&self.ramp, |&v| [v])?;
-            // [A347] The walled exits, when the grid has them.
-            if self.walled_exits.is_empty() {
+            // [A347] The walled exits, when the grid has them (an empty table before the marked walks).
+            if self.walled_exits.is_empty() && self.walk_marked.is_empty() {
                 return Ok(());
             }
-            out.plain(&self.walled_exits, |&(a, b)| {
+            let pair = |&(a, b): &(NodeId, NodeId)| {
                 let mut bytes = [0u8; 8];
                 bytes[..4].copy_from_slice(&a.to_le_bytes());
                 bytes[4..].copy_from_slice(&b.to_le_bytes());
                 bytes
-            })
+            };
+            out.plain(&self.walled_exits, pair)?;
+            // [2c] The marked walks, when the grid has them.
+            if self.walk_marked.is_empty() {
+                return Ok(());
+            }
+            out.plain(&self.walk_marked, pair)
         })
     }
 
@@ -2716,6 +2819,14 @@ impl WalkGrid {
                             (word(0), word(4))
                         })?
                     },
+                    walk_marked: if input.ends() {
+                        Vec::new()
+                    } else {
+                        input.plain(|bytes: [u8; 8]| {
+                            let word = |i: usize| u32::from_le_bytes([bytes[i], bytes[i + 1], bytes[i + 2], bytes[i + 3]]);
+                            (word(0), word(4))
+                        })?
+                    },
                     clearance: Vec::new(),
                     open: Vec::new(),
                     walker: None,
@@ -2751,6 +2862,9 @@ impl WalkGrid {
         }
         if self.walled_exits.iter().any(|&(a, b)| a as usize >= n || b as usize >= n) || self.walled_exits.windows(2).any(|w| w[0] >= w[1]) {
             return Err("bad walled exits".into());
+        }
+        if self.walk_marked.iter().any(|&(a, b)| a as usize >= n || b as usize >= n) || self.walk_marked.windows(2).any(|w| w[0] >= w[1]) {
+            return Err("bad marked walks".into());
         }
         if self.start.len() != cells + 1
             || self.start[0] != 0
@@ -3371,6 +3485,16 @@ impl WalkGrid {
         }
         self.to = to;
         self.how = how;
+        // [2c] The marked Walk links still there.
+        let mut marked: Vec<(NodeId, NodeId)> = wide
+            .marked
+            .iter()
+            .copied()
+            .filter(|&(a, b)| (0..DIRS.len()).any(|d| wide.links[a as usize][d] == b && wide.kinds[a as usize][d] == LinkKind::Walk))
+            .collect();
+        marked.sort_unstable();
+        marked.dedup();
+        self.walk_marked = marked;
         self.off = wide.off;
         for l in &self.off {
             self.flags[l.from as usize] |= OFF_OUT;
@@ -3435,6 +3559,17 @@ impl WalkGrid {
     /// Whether a standing body fits (else only a crouched one).
     pub fn can_stand(&self, node: NodeId) -> bool {
         self.headroom(node) >= self.body.stand_height
+    }
+
+    /// [2c] Whether the Walk link `a` -> `b` is one the client's walk tick does not walk, kept as a floor's only way in or
+    /// back ([`Body::walk_every_link`]): a body is likely held on it.
+    pub fn walk_marked(&self, a: NodeId, b: NodeId) -> bool {
+        self.walk_marked.binary_search(&(a, b)).is_ok()
+    }
+
+    /// [2c] How many Walk links are marked ([`Self::walk_marked`]).
+    pub fn walk_marked_count(&self) -> usize {
+        self.walk_marked.len()
     }
 
     /// The links out of a floor.

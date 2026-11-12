@@ -222,6 +222,17 @@ pub struct GridTuning {
     /// (1,058 s). Exe- and recording-proven, so ON and kept by `all_off` (a link the client cannot take is wrong by the game).
     /// A grid is the map's.
     pub fall_stops_on_solids: bool,
+    /// [2c] With `client_controller`: whether its walk check walks every Walk link a body may meet trouble on (a face no body
+    /// walks on near either floor, a rise of 0.15 m or more, a floor with no standing room), crouched where the route
+    /// crouches, from the floor and on from where the link before along the same way left the body, kept only where the
+    /// body arrives on two lines of three or comes onto the far floor's level walked on (`mapdata::Body::walk_every_link`);
+    /// of the failing links only a riser the body stalls under is cut, where a walking way round it exists and no floor
+    /// loses its only way (or only walking way) in or back; the risers kept so stay, marked (`WalkGrid::walk_marked`). Off: links beside a face over 55 deg only, one at a time from a start
+    /// pushed out of the faces, kept at half the way: owner-14 report row 12 (the client's own tick stalls within 0.5 m of
+    /// the body in 924 blocked worlds, 1.1 % of calm ones; Mamayev Kurgan's rock step passes its check from the pushed start
+    /// at 1.00 and gets 0.00 from where a body stands; the exe's tick stalls there as recorded, VERIFY-3 §3). Client-proven
+    /// (the ported tick, Unicorn), so ON and kept by `all_off`. A grid is the map's.
+    pub walk_every_link: bool,
     /// [A364 P6] Whether the maps' gap links fly a jump's game air phase (`mapdata::Body::jump_air_steps`): twelve steps from
     /// the clip's take-off, the short jump ending at frame 22.5 (2.50 m on, 0.35 m up) and falling from there, as the bots'
     /// reckoning flies it since #1655 (`jump_arc::AIR_STEPS`). Off, the builder flew the clip to frame 24 (2.67 m, landing at
@@ -289,6 +300,7 @@ impl Default for GridTuning {
             start_witness: true,
             give_back_in_cell: false,
             fall_stops_on_solids: true,
+            walk_every_link: true,
             jump_air_steps: true,
             wall_clear_pull: false,
             pull_walk: false,
@@ -336,6 +348,7 @@ impl GridTuning {
             start_witness: self.start_witness,
             give_back_in_cell: self.give_back_in_cell,
             fall_stops_on_solids: self.fall_stops_on_solids,
+            walk_every_link: self.walk_every_link,
             jump_air_steps: self.jump_air_steps,
             ..body
         }

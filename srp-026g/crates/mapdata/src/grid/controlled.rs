@@ -57,7 +57,34 @@ pub struct ControlledStats {
     pub checks_dropped: usize,
     /// Failed checks kept as a floor's only way in or back (`WalkGrid::cut_keeping_reach`).
     pub checks_kept: usize,
+    /// [2c] Of the checks, those walked crouched ([`Body::walk_every_link`]).
+    pub checks_crouched: usize,
+    /// [2c] Of the failed checks, those the body walks from the floor but not on from the link before ([`Body::walk_every_link`]).
+    pub checks_chain_failed: usize,
+    /// [2c] Of the failed checks, those walked crouched.
+    pub checks_failed_crouched: usize,
+    /// [2c] Risers cut by the walk but kept, marked, for no walking way round them ([`ROUND_HOPS`]).
+    pub checks_no_way_round: usize,
 }
+
+/// [2c] The risers [`WalkGrid::walk_every_link`] keeps for no walking way round them (floor, floor).
+type Held = Vec<(NodeId, NodeId)>;
+
+/// [2c] One walk check's answer ([`WalkGrid::walk_link`]).
+#[derive(Clone, Copy, Debug, Default)]
+struct LinkWalk {
+    passes: bool,
+    /// The best share of the way the body got from the floor.
+    share: f32,
+    /// It fails only on from the link before.
+    chain_failed: bool,
+}
+
+/// [2c] A face no body walks on within this of a floor's capsule makes its links walked ([`Body::walk_every_link`]), m: the
+/// client's move test holds a body 0.42 m off a wall (the cylinder and its margin, Unicorn), 0.04 m past the capsule's 0.38.
+pub const CHECK_WIDE_REACH_M: f32 = 0.42 - 0.38 + 0.15;
+/// [2c] A Walk link that rises or falls this much or more is walked ([`Body::walk_every_link`]), m.
+pub const CHECK_RISE_M: f32 = 0.15;
 
 /// Where a walk starts a standing body on a floor ([`Body::walk_start_clear`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -195,11 +222,20 @@ const STAND_RADIUS_M: f32 = 0.38;
 /// overlaps (`bullet_physics_world::recover_from_penetrations` 0x763D0), so it never stands inside a ledge lower than the step,
 /// which [`out_of_walls`] does not look at (its cylinder starts at the step). [A329]
 pub(super) fn out_of_faces(world: &Collision, feet: Vec3) -> Vec3 {
+    out_of_faces_of(world, feet, STAND_HEIGHT_M)
+}
+
+/// [2c] The client's crouched capsule's height (`Controller::standing_at`'s crouching size, startup.cfg 0.76 x 1.1).
+const CROUCH_HEIGHT_M: f32 = 1.1;
+
+/// [`out_of_faces`] for a capsule `height` tall (a crouched body's is [`CROUCH_HEIGHT_M`]: a low roof's steep faces over it
+/// are none of its business).
+fn out_of_faces_of(world: &Collision, feet: Vec3, height: f32) -> Vec3 {
     let mut at = feet;
     let mut moved = 0.0f32;
     for _ in 0..6 {
         // A hair over the feet, so the floor's own edge is not a face the capsule overlaps.
-        let cap = Capsule::standing(at + Vec3::new(0.0, 0.02, 0.0), STAND_HEIGHT_M, STAND_RADIUS_M);
+        let cap = Capsule::standing(at + Vec3::new(0.0, 0.02, 0.0), height, STAND_RADIUS_M);
         let Some((gap, _, dir)) = world.nearest_to(Shape::Capsule(cap), 0.0, |f| f.normal.y.abs() < 0.5) else { break };
         let flat = Vec3::new(dir.x, 0.0, dir.z);
         let l = flat.length();
@@ -219,43 +255,149 @@ pub(super) fn out_of_faces(world: &Collision, feet: Vec3) -> Vec3 {
 /// How far the controller takes a standing body from `from` toward `to` (feet), as a share of the flat way, and whether it
 /// ended at `to`.
 pub fn walk_share(world: &Collision, s: &Settings, start: WalkStart, from: Vec3, to: Vec3) -> (f32, bool) {
+    let mut c = Controller::standing_at(start.place(world, from));
+    match walk_on(world, s, &mut c, from, to, 0, AT_HEIGHT_M) {
+        // A low ceiling: the client slides under it or crouches: not a stall the pass knows.
+        Walked::Ceiling => (1.0, false),
+        Walked::At => (1.0, true),
+        Walked::AtEnd(share) => (share, true),
+        Walked::Short(share) => (share, false),
+    }
+}
+
+/// [2c] How a walk of one leg ended ([`walk_on`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Walked {
+    /// At the leg's end, met at a tick.
+    At,
+    /// At the leg's end when its ticks ran out, this share of the flat way along ([`walk_share`]'s old answer keeps the
+    /// share, which a leg shorter than the arrival radius can end under half of).
+    AtEnd(f32),
+    /// Short of it, this share of the flat way along.
+    Short(f32),
+    /// Refused under a low ceiling (a standing body that cannot straighten).
+    Ceiling,
+}
+
+/// [2c] The stance a walk check walks a link in: standing, or crouched where either floor has no standing room (the bots'
+/// routes crouch over such floors, `bots::path`'s low legs).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Stance {
+    Standing,
+    Crouched,
+}
+
+/// [2c] The client's 0.26g body at `feet` in `stance`, set where a body in that stance can be ([`WalkStart`], out of the
+/// faces its capsule overlaps).
+pub fn body_at(world: &Collision, start: WalkStart, stance: Stance, feet: Vec3) -> Controller {
+    match stance {
+        Stance::Standing => Controller::standing_at(start.place(world, feet)),
+        Stance::Crouched => {
+            let at = match start {
+                WalkStart::AboveStep => out_of_walls(world, feet),
+                WalkStart::Clear => out_of_faces_of(world, feet, CROUCH_HEIGHT_M),
+            };
+            // The crouch key held, as the game's input has it before every step (`Controller::crouch_key`, A364).
+            let mut c = Controller::standing_at(at);
+            c.crouch_key(true);
+            c
+        }
+    }
+}
+
+/// [2c] A failing Walk link is cut only when it rises more than this, m, and its walk got under [`CUT_SHARE`] of the way:
+/// a riser the body stalls under. The exactness session's walk of 6,701 of v3's cuts on the game's shapes world
+/// (FINDINGS-FEED-exactness 2026-11-12T05:24Z): that class is crossed in 6 % (12 % walked on past the end); the classes whose
+/// walk went the full way but did not arrive are crossed a little further on in 53-73 %. The bench split the same way
+/// (`nav-builder-20261112/bench-2c-exp-risers.txt` against `bench-2c-v4.txt`): with every class cut, falls free +5.5 % (z 6.6)
+/// and hurt +29 %; with the risers alone, falls as the tip's (hurt 92 -> 90) and routes stuck -7 % (z -3.7), stuck again
+/// -36 % (z -5.9).
+pub const CUT_RISE_M: f32 = 0.2;
+/// [2c] See [`CUT_RISE_M`].
+pub const CUT_SHARE: f32 = 0.5;
+/// [2c] How far a walking way round a cut riser is looked for, links (cells of 0.25 m: about 20 m of a straight way). School's
+/// batteries in the v5 bench: two risers cut with no walking way round (x -17 z 71, x 66 z 55), searches failed 13 -> 465.
+pub const ROUND_HOPS: usize = 80;
+
+/// [2c] The walk check's spare ticks ([`walk_on`]): [`Body::walk_every_link`] asks for arrival, which a body slowed by a
+/// wall's slide reaches later; [`walk_share`] has none (half the way needs none). A body held where it is ends a walk at
+/// once, so spare ticks cost only a body still moving.
+pub const SPARE_TICKS: usize = 8;
+
+/// The controller `c` walked from where it is toward `to` (feet) at [`WALK_MPS`] for the ticks the leg from `from` takes, two
+/// more and `spare` more: how it ended, the share counted along `from` -> `to`. At `to` is within [`AT_FLAT_M`] across and
+/// from [`AT_HEIGHT_M`] under its height to `above` over it. `c` is left where the walk left it, so a next leg goes on from
+/// there.
+pub fn walk_on(world: &Collision, s: &Settings, c: &mut Controller, from: Vec3, to: Vec3, spare: usize, above: f32) -> Walked {
     let flat = Vec3::new(to.x - from.x, 0.0, to.z - from.z);
     let length = flat.length();
     if length < 1e-4 {
-        return (1.0, true);
+        return Walked::At;
     }
     let dir = flat * (1.0 / length);
     let step = WALK_MPS * 0.05;
-    let ticks = (length / step).ceil() as usize + 2;
-    let mut c = Controller::standing_at(start.place(world, from));
+    let ticks = (length / step).ceil() as usize + 2 + spare;
     let mut best = 0.0f32;
     for _ in 0..ticks {
         let feet = c.feet();
         let left = Vec3::new(to.x - feet.x, 0.0, to.z - feet.z);
-        if left.length() <= AT_FLAT_M && (feet.y - to.y).abs() <= AT_HEIGHT_M {
-            return (1.0, true);
+        if left.length() <= AT_FLAT_M && feet.y - to.y >= -AT_HEIGHT_M && feet.y - to.y <= above {
+            return Walked::At;
         }
         let along = Vec3::new(feet.x - from.x, 0.0, feet.z - from.z).dot(dir) / length;
         best = best.max(along);
         // Toward the target, at most what is left.
         let go = left.length().min(step);
         c.walk = if left.length() > 1e-6 { left * (go / left.length()) } else { Vec3::ZERO };
-        let before = c;
+        let before = *c;
         if c.step(world, 0.05, s).ceiling {
-            // A low ceiling: the client slides under it or crouches (neither ported): not a stall the pass knows.
-            return (1.0, false);
+            return Walked::Ceiling;
         }
         // A step is a function of the controller alone (the world and the settings are fixed), and the next walk of the
         // feet alone: a step that changed nothing is a body held where it is for every tick left, so they change no
         // answer (CPU: a stall at a wall or a riser would walk out all the leg's ticks).
-        if c == before {
+        if *c == before {
             break;
         }
     }
     let feet = c.feet();
     let left = Vec3::new(to.x - feet.x, 0.0, to.z - feet.z);
-    let at = left.length() <= AT_FLAT_M && (feet.y - to.y).abs() <= AT_HEIGHT_M;
-    (best.max(Vec3::new(feet.x - from.x, 0.0, feet.z - from.z).dot(dir) / length), at)
+    let share = best.max(Vec3::new(feet.x - from.x, 0.0, feet.z - from.z).dot(dir) / length);
+    if left.length() <= AT_FLAT_M && feet.y - to.y >= -AT_HEIGHT_M && feet.y - to.y <= above {
+        Walked::AtEnd(share)
+    } else if spare > 0 && walks_on_to_level(world, s, c, to, dir) {
+        Walked::At
+    } else {
+        Walked::Short(share)
+    }
+}
+
+/// [2c] How far past a link's end a walk check walks on ([`walks_on_to_level`]), m.
+const ON_PAST_M: f32 = 1.5;
+
+/// [2c] Whether a body that did not arrive at `to` comes onto its floor's level when walked on toward a point [`ON_PAST_M`]
+/// past it along the link's way `dir` (its ticks and [`SPARE_TICKS`] more): its feet within [`AT_HEIGHT_M`] of `to`'s height
+/// and no more than [`AT_FLAT_M`] short of `to` along the way. A body walking a route walks on, so the client crosses such a
+/// link a little further on. The exactness session's walk of 6,701 of v3's cut links on the game's shapes world
+/// (FINDINGS-FEED-exactness 2026-11-12T05:24Z, `private/grid/rig/cut-walk/`): the classes whose walk went the full way but
+/// did not arrive come onto the level so in 53-73 % (flat 66 %, rise 58 %, down 63 %), while the links that stall under a riser
+/// do in 12 % (the body stays under it: those cuts stand). The same recipe as that walk's.
+fn walks_on_to_level(world: &Collision, s: &Settings, c: &mut Controller, to: Vec3, dir: Vec3) -> bool {
+    let aim = Vec3::new(to.x + dir.x * ON_PAST_M, to.y, to.z + dir.z * ON_PAST_M);
+    let step = WALK_MPS * 0.05;
+    let ticks = (ON_PAST_M / step).ceil() as usize + SPARE_TICKS;
+    let level_at = |f: Vec3| (f.y - to.y).abs() <= AT_HEIGHT_M && Vec3::new(f.x - to.x, 0.0, f.z - to.z).dot(dir) >= -AT_FLAT_M;
+    for _ in 0..ticks {
+        if level_at(c.feet()) {
+            return true;
+        }
+        let feet = c.feet();
+        let left = Vec3::new(aim.x - feet.x, 0.0, aim.z - feet.z);
+        let go = left.length().min(step);
+        c.walk = if left.length() > 1e-6 { left * (go / left.length()) } else { Vec3::ZERO };
+        c.step(world, 0.05, s);
+    }
+    level_at(c.feet())
 }
 
 /// [A318] One tick of the client's walk for a standing body at `feet` asked to move `by` (flat): the feet it starts from
@@ -446,6 +588,12 @@ impl WalkGrid {
             }
         }
         wide.off.sort_by_key(|l| (l.from, l.to));
+        if body.walk_every_link {
+            let (stats, failing, held) = self.walk_every_link(wide, &world, s, start, stats);
+            // The risers with no walking way round stay, marked (the caller marks the cut's kept ones beside them).
+            wide.marked = held;
+            return (stats, failing);
+        }
         // Checks: the floors with a face no body walks on near their capsule.
         let n = self.height.len();
         let floors: Vec<usize> = (0..n).collect();
@@ -478,6 +626,166 @@ impl WalkGrid {
             .map(|(&(a, d), share)| (a as u32, d, share))
             .collect();
         (stats, failing)
+    }
+
+    /// [2c] The checks of [`Body::walk_every_link`] (module documentation): the Walk links a body may meet trouble on
+    /// ([`Self::walk_checked`]), each walked by [`Self::walk_link`]; the failing ones handed back as the old checks are.
+    fn walk_every_link(
+        &self,
+        wide: &Wide,
+        world: &Collision,
+        s: &Settings,
+        start: WalkStart,
+        mut stats: ControlledStats,
+    ) -> (ControlledStats, Vec<(u32, usize, f32)>, Held) {
+        let n = self.height.len();
+        let floors: Vec<usize> = (0..n).collect();
+        let near = parallel(&floors, |&a| {
+            let feet = self.position(a as NodeId);
+            let height = if self.ceiling[a] - self.height[a] >= STANDING_ROOM_M { STAND_HEIGHT_M } else { CROUCH_HEIGHT_M };
+            let cap = Capsule::standing(feet, height, STAND_RADIUS_M);
+            world
+                .nearest(cap, CHECK_WIDE_REACH_M, |f| f.walker == WalkerBehaviour::DontWalk || f.normal.y.abs() < s.idle_max_slope_cos)
+                .is_some()
+        });
+        let mut checks: Vec<(usize, usize)> = Vec::new();
+        for a in 0..n {
+            for d in 0..8 {
+                let b = wide.links[a][d];
+                if b != NONE && wide.kinds[a][d] == LinkKind::Walk && self.walk_checked(a, b as usize, &near) {
+                    checks.push((a, d));
+                }
+            }
+        }
+        stats.checks = checks.len();
+        stats.checks_crouched = checks.iter().filter(|&&(a, d)| self.stance(a, wide.links[a][d] as usize) == Stance::Crouched).count();
+        let walked = parallel(&checks, |&(a, d)| self.walk_link(wide, world, s, start, a, d));
+        stats.checks_chain_failed = walked.iter().filter(|w| w.chain_failed).count();
+        stats.checks_failed_crouched = checks
+            .iter()
+            .zip(&walked)
+            .filter(|&(&(a, d), w)| !w.passes && self.stance(a, wide.links[a][d] as usize) == Stance::Crouched)
+            .count();
+        let failing = checks
+            .iter()
+            .zip(walked)
+            .filter(|(_, w)| !w.passes)
+            // Only a riser the body stalls under is cut ([`CUT_RISE_M`], [`CUT_SHARE`]): the walk of the others ends at the far
+            // floor's place, not under it, and the split bench put the falls 2c added on those cuts.
+            .filter(|(ad, w)| self.height[wide.links[ad.0][ad.1] as usize] - self.height[ad.0] > CUT_RISE_M && w.share < CUT_SHARE)
+            .map(|(&(a, d), w)| (a as u32, d, w.share))
+            .collect::<Vec<_>>();
+        // A riser is cut only where the body has another walking way from its foot to its top close by: else the riser is the
+        // way the routes there walk (a floor a drop or a jump led to, whose walking way out it is, which the reach guard of
+        // [`WalkGrid::cut_keeping_reach`] does not see from the spawns), and a route that may not jump or drop is left none.
+        let cut: std::collections::HashSet<(u32, u32)> = failing.iter().map(|&(a, d, _)| (a, wide.links[a as usize][d])).collect();
+        let other_way = parallel(&failing, |&(a, d, _)| self.walk_way_round(wide, a, wide.links[a as usize][d], &cut));
+        let (round, held): (Vec<_>, Vec<_>) = failing.into_iter().zip(other_way).partition(|&(_, round)| round);
+        stats.checks_no_way_round = held.len();
+        let held = held.into_iter().map(|((a, d, _), _)| (a, wide.links[a as usize][d])).collect();
+        (stats, round.into_iter().map(|(f, _)| f).collect(), held)
+    }
+
+    /// [2c] Whether a walking way leads from `a` to `b` within [`ROUND_HOPS`] links without the links `cut` (Walk links only).
+    fn walk_way_round(&self, wide: &Wide, a: u32, b: u32, cut: &std::collections::HashSet<(u32, u32)>) -> bool {
+        let mut seen = std::collections::HashSet::from([a]);
+        let mut ring = vec![a];
+        for _ in 0..ROUND_HOPS {
+            let mut next = Vec::new();
+            for &x in &ring {
+                for d in 0..8 {
+                    let y = wide.links[x as usize][d];
+                    if y == NONE || wide.kinds[x as usize][d] != LinkKind::Walk || cut.contains(&(x, y)) || !seen.insert(y) {
+                        continue;
+                    }
+                    if y == b {
+                        return true;
+                    }
+                    next.push(y);
+                }
+            }
+            if next.is_empty() {
+                return false;
+            }
+            ring = next;
+        }
+        false
+    }
+
+    /// [2c] Whether [`Body::walk_every_link`] walks the Walk link `a` -> `b`: a face no body walks on (a `dont_walk` one, or
+    /// one steeper than the still body's slope, 45 deg) within [`CHECK_WIDE_REACH_M`] of either floor's capsule (`near`), a
+    /// rise of [`CHECK_RISE_M`] or more, or a floor with no standing room. A link with none of these is flat open ground,
+    /// which the tick walks at once.
+    fn walk_checked(&self, a: usize, b: usize, near: &[bool]) -> bool {
+        near[a] || near[b] || (self.height[b] - self.height[a]).abs() >= CHECK_RISE_M || self.stance(a, b) == Stance::Crouched
+    }
+
+    /// [2c] The stance a route takes over the link `a` -> `b`: crouched where either floor has no standing room.
+    fn stance(&self, a: usize, b: usize) -> Stance {
+        let room = |n: usize| self.ceiling[n] - self.height[n] >= STANDING_ROOM_M;
+        if room(a) && room(b) { Stance::Standing } else { Stance::Crouched }
+    }
+
+    /// [2c] One walk check of [`Body::walk_every_link`]: the link out of `a` along `d` walked by the client's tick in its
+    /// [`Stance`], on each of [`STARTS`]: from `a` (the body set where it can be), and, where a Walk link leads into `a` along
+    /// the same way, on from where walking that link left the body (a body walks a route's links one after another, it is
+    /// not set back on each floor's centre). A line passes when the body arrives both ways (a refusal under a low ceiling
+    /// says nothing: it passes); the link passes on two lines of three. Arriving is being over the far floor up to a step
+    /// over its height: the client's tick steps a body up onto a top the cells keep no floor for (a prop, a curb, the cell's
+    /// lower floor beside it) and its step down takes it off again (`cc_step_height` 0.80, startup.cfg). Chemical Plant: of
+    /// the walks that got 90 % of the way and did not arrive within 0.2 m, 178,181 of 182,878 stood 0.2-0.8 m over the far
+    /// floor, a few hundred higher; asking for 0.2 m cut 52,383 links, 17 times the old check's 3,031.
+    fn walk_link(&self, wide: &Wide, world: &Collision, s: &Settings, start: WalkStart, a: usize, d: usize) -> LinkWalk {
+        let b = wide.links[a][d] as usize;
+        let back = wide.links[a][d ^ 1];
+        let before = (back != NONE
+            && wide.kinds[a][d ^ 1] == LinkKind::Walk
+            && wide.links[back as usize][d] == a as u32
+            && wide.kinds[back as usize][d] == LinkKind::Walk)
+            .then_some(back as usize);
+        let stance = match before {
+            Some(q) if self.stance(q, a) == Stance::Crouched => Stance::Crouched,
+            _ => self.stance(a, b),
+        };
+        let (pa, pb) = (self.position(a as NodeId), self.position(b as NodeId));
+        let flat = Vec3::new(pb.x - pa.x, 0.0, pb.z - pa.z);
+        let l = flat.length();
+        let side = if l > 1e-4 { Vec3::new(-flat.z / l, 0.0, flat.x / l) } else { Vec3::ZERO };
+        let arrives = |w: Walked| matches!(w, Walked::At | Walked::AtEnd(_) | Walked::Ceiling);
+        let (mut lines, mut share, mut chain_failed) = (0, 0.0f32, false);
+        for off in STARTS {
+            let (from, to) = (pa + side * off, pb + side * off);
+            let mut c = body_at(world, start, stance, from);
+            let mut centre = walk_on(world, s, &mut c, from, to, SPARE_TICKS, self.body.step);
+            if centre == Walked::Ceiling && stance == Stance::Standing {
+                let mut c = body_at(world, start, Stance::Crouched, from);
+                centre = walk_on(world, s, &mut c, from, to, SPARE_TICKS, self.body.step);
+            }
+            share = share.max(match centre {
+                Walked::Short(x) => x,
+                _ => 1.0,
+            });
+            if !arrives(centre) {
+                continue;
+            }
+            let chained = before.is_none_or(|q| {
+                let from_q = self.position(q as NodeId) + side * off;
+                let mut c = body_at(world, start, stance, from_q);
+                // The link before failing is its own check's; from where it leaves the body this one says nothing.
+                !matches!(walk_on(world, s, &mut c, from_q, from, SPARE_TICKS, self.body.step), Walked::At | Walked::AtEnd(_))
+                    || arrives(walk_on(world, s, &mut c, from, to, SPARE_TICKS, self.body.step))
+            });
+            if chained {
+                lines += 1;
+                // Two lines pass: the link passes whatever the third does (its share counts only for a failing link).
+                if lines >= 2 {
+                    break;
+                }
+            } else {
+                chain_failed = true;
+            }
+        }
+        LinkWalk { passes: lines >= 2, share, chain_failed: chain_failed && lines < 2 }
     }
 
     /// How many bridges of `all` are side by side with the bridge `a` -> `b`, it included, counted out to [`BRIDGE_MIN_RUN`]
@@ -598,6 +906,58 @@ mod tests {
     fn a_crack_the_grid_crossed_by_a_drop_gets_the_walked_bridge() {
         assert_eq!(crack_bridges(false), 0, "without the switch the dip has no bridge");
         assert!(crack_bridges(true) >= 1, "with it: {} bridges", crack_bridges(true));
+    }
+
+    /// [2c] A passage 1.4 m high (a roof plate over x 4-6): its floors have no standing room. Without
+    /// [`Body::walk_every_link`] no link into it is walked (a standing body cannot go there); with it they are walked
+    /// crouched, as the route takes them, and kept.
+    #[test]
+    fn a_low_passage_is_walked_crouched_with_walk_every_link() {
+        let mut tris = Vec::new();
+        floor(&mut tris, 0.0, 0.0, 10.0, 6.0, 0.0);
+        floor(&mut tris, 4.0, 0.0, 6.0, 6.0, 1.4);
+        let build = |walk_every_link: bool| {
+            let body = Body { client_controller: true, walk_start_clear: true, walk_every_link, ..Body::client() };
+            let start = [Vec3::new(1.0, 0.0, 3.0)];
+            WalkGrid::build_kept_with_links(&tris, [0.0, 0.0, 10.0, 6.0], 0.25, body, &start, &start, OffMeshLinks::Gaps)
+        };
+        let (_, off) = build(false);
+        assert_eq!(off.controlled.checks_crouched, 0);
+        let (grid, on) = build(true);
+        assert!(on.controlled.checks_crouched > 0, "{:?}", on.controlled);
+        assert_eq!(on.controlled.checks_dropped + on.controlled.checks_kept, 0, "a crouched body walks it: {:?}", on.controlled);
+        let under = grid.locate(Vec3::new(5.0, 0.0, 3.0), 0.3).expect("a floor under the roof");
+        assert!(!grid.can_stand(under) && grid.reached(under));
+    }
+
+    /// [2c] A platform whose only way up is a 0.785 m vertical step (a Walk link with the clients' 0.8 m step, which the
+    /// client's tick does not climb: the exe climbs a vertical face up to 0.75 m, Unicorn): with [`Body::walk_every_link`] its
+    /// failing links up are kept as the platform's only way and marked; without, none is marked.
+    #[test]
+    fn a_failing_only_way_up_is_marked_with_walk_every_link() {
+        let mut tris = Vec::new();
+        floor(&mut tris, 0.0, 0.0, 5.0, 6.0, 0.0);
+        floor(&mut tris, 5.0, 0.0, 10.0, 6.0, 0.785);
+        quad(&mut tris, Vec3::new(5.0, 0.0, 0.0), Vec3::new(5.0, 0.785, 0.0), Vec3::new(5.0, 0.785, 6.0), Vec3::new(5.0, 0.0, 6.0));
+        let build = |walk_every_link: bool| {
+            let body = Body { client_controller: true, walk_start_clear: true, walk_every_link, ..Body::client() };
+            let start = [Vec3::new(1.0, 0.0, 3.0)];
+            WalkGrid::build_kept_with_links(&tris, [0.0, 0.0, 10.0, 6.0], 0.25, body, &start, &start, OffMeshLinks::None)
+        };
+        let (off, _) = build(false);
+        assert_eq!(off.walk_marked_count(), 0);
+        let (on, stats) = build(true);
+        // Kept: no walking way round the riser (the step is the platform's whole edge).
+        assert!(stats.controlled.checks_no_way_round > 0 && stats.controlled.checks_dropped == 0, "{:?}", stats.controlled);
+        assert!(on.walk_marked_count() > 0, "{:?}", stats.controlled);
+        let top = on.locate(Vec3::new(8.0, 0.785, 3.0), 0.3).expect("the platform");
+        assert!(on.reached(top), "kept as the only way up");
+        // A marked link is a Walk link of the grid.
+        let marked = (0..on.len() as NodeId)
+            .flat_map(|a| on.links(a).map(move |(b, kind)| (a, b, kind)))
+            .filter(|&(a, b, _)| on.walk_marked(a, b))
+            .collect::<Vec<_>>();
+        assert!(!marked.is_empty() && marked.iter().all(|&(_, _, kind)| kind == LinkKind::Walk));
     }
 
     /// [A313] A riser bare its whole width is bridged; bare over a 0.5 m strip only (two columns of the grid, the rest
