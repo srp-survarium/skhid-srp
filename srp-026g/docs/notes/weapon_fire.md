@@ -63,6 +63,13 @@ number of shots between two worlds of a body is known exactly. Counted: 364,910 
 draw count that is a multiple of 4 (130 were seeded again); 286,917 of 286,945 pairs of bullet weapons have 3 steps
 a shot; the magazine fell by exactly the shots in 56,617 pairs and by more in none.
 
+**What the kick turns.** The side kick x plays the hands' clip `recoil_horiz` at the fraction 0.5 - 0.5 x of its
+length (0x2E12B6, 0x2E165A); the clip turns the eye bone `Item`, and with it the head matrix (0x2DA4B0), **2.22
+degrees to the right at x = +1 and 2.44 to the left at x = -1**. The shake axis is the weight of the hands' clip
+`camerashake_v2` (0x2E39B0, for any living body), which turns `Item` 0.17 to 0.90 degrees off the aim at weight 1
+(mean 0.59; mean yaw 0.52 to the left) and moves only while the state at [[weapon+330h]+124h] is 5 (0x2E13DB: not
+named).
+
 ## The recoil
 
 A shot adds to each axis a draw between its least and most, less as the axis nears 1 (`recoil_power`), times

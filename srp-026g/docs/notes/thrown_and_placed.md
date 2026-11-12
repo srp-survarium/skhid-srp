@@ -29,7 +29,10 @@ position and velocity while it is in the physics world, its explode time and its
   0x310680 -> `launch_grenade` 0x30A250).
 - So the launch is at **max(press + 400 ms, release) + 500 ms** (measured: a tap launches 900 ms after the press, 88
   throws, P10 to P90 900 to 950; a key held 600 ms or more launches 500 ms after the release, 140 throws, the
-  median 500.00; the two clip times are not read in the clips).
+  median 500.00). The pull-pin clip `grenade_swing` is 12 frames at rate 1.0: 400 ms by the mixer's clock. The
+  throw clip's `shoot` knot is at frame 16, 533 ms, not 500: the launch solved from the flight falls on the 50 ms
+  grid at + 500 (the event comes inside the frame that runs from + 500 to + 550; that the grenade is then carried
+  that whole frame by its first physics step is not read).
 - The velocity is `throw_power` 17 m/s x max(0, 1 + S27) along the head's forward (0x30A2D5).
 - The release point, measured on 147 throwers standing still: 1.73 m over the feet standing (1.29 m crouched),
   0.13 m behind the throw line and 0.21 m to its right (the right hand's bone at the event, `hand_transform`
@@ -102,6 +105,7 @@ the body pool (57 of 57). A fired or disarmed trap stays 8 s.
 
 ## Not read
 
-What the two unnamed throw tests name; the two clip times behind 400 and 500 ms; the roll after the first contact;
+What the two unnamed throw tests name; the grenade's first physics step after its launch; the roll after the first
+contact;
 the particle life's unit and whether each client draws its own cloud; whether an armed trap is drawn for the other
 team; which bones the six points are.

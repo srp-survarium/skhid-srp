@@ -33,7 +33,9 @@ or over 30 + S5 unless S31 (0x329C60): no sprint. Index 32 refuses the sprint ou
 
 F = max(0, 1 + S4) with nodes for the weight, each leg, the stagger, the weapon in hand, a carried battery and an
 artefact; a walk moves at its gait's speed x F (`walk_blend.md`). Counted on the traced steps: every sprinting body
-moves at 0.9918 x 5 x F (LIKELY the sprint clip's own root speed).
+moves at 0.9917 x 5 x F: the sprint clip's root moves 3.2727 m in its 0.6 s (5.4545 m/s, not the config's `default`
+5.5) and plays at desired / default = 5 / 5.5, so the body goes 4.9587 x F, under the cap 5 x F (10,909 of 11,214
+steady sprint steps within 0.005 m/s). The other gaits' speeds from their clips are in `walk_blend.md`.
 
 ## Counted
 
