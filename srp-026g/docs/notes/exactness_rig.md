@@ -216,11 +216,20 @@ level_07_day_4.mapdata`, `port_vs_game.py`):
 | the capture's triangles, the exe's cast (§3b) | | 637 | 31 |
 | the map file's shapes (`build_exe`) | 981 | 985 | 0 |
 
-The 19 steps left: the origin in 15 (12 under 0.1 mm, the worst 1.8 mm), the surface normal alone in 4. 15 of
-them meet something on the move, all beside a primitive. LIKELY causes, none ported: hits at equal fractions are
-taken in another order than the exe's broadphase and mesh trees hand them; Bullet's penetration solver (the
-contact is read from the drawn triangles there); the rays of the second looks meet a primitive's drawn
-triangles, not the shape.
+The 19 steps left: the origin in 15 (12 under 0.1 mm, the worst 1.8 mm), the surface normal alone in 4. Told
+apart by marking, in a run of the same 1,000 steps, each answer that is not the exe's own arithmetic:
+
+| in the step | the 15 with the origin off | the 4 with only the normal off | the 981 equal |
+|---|---|---|---|
+| a wall-normal ray met something (`ray_pick` 0x898C0) | 15 | 0 | 26 |
+| a hit on a primitive | 15 | 0 | 509 |
+| two hits with the same fraction | 4 | 4 | 161 |
+| the penetration fallback | 0 | 0 | 3 |
+
+So (LIKELY, by these counts): the 15 are the wall normal's ray, which here meets a primitive's drawn triangles
+where the exe's ray meets the convex shape (Bullet's ray against a convex shape is not ported); the 4 are which
+of two faces met at the same fraction the down sweep keeps (the exe's order through its broadphase and mesh
+trees is not ported). The penetration fallback is in no step that is off.
 
 ## 4. What was read on the way (PROVEN)
 
