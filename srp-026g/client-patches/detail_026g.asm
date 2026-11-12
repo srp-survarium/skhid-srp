@@ -86,6 +86,11 @@ detail_preset_compare:
     jmp .compare
 .detail:
     mov eax, detail_preset_normal
+    cmp edi, 30                    ; High row index 3 * original stride 10
+    jne .ultra
+    mov eax, detail_preset_high
+    jmp .compare
+.ultra:
     cmp edi, 40                    ; Ultra row index 4 * original stride 10
     jne .compare
     mov eax, detail_preset_maximum
@@ -102,6 +107,11 @@ detail_preset_address:
     jmp 0x2620e7
 .detail:
     mov edi, detail_preset_normal
+    cmp eax, 3
+    jne .ultra
+    mov edi, detail_preset_high
+    jmp .done
+.ultra:
     cmp eax, 4
     jne .done
     mov edi, detail_preset_maximum
@@ -276,6 +286,7 @@ detail_command_vtable:
     dd 0x3cf4a0, detail_execute, 0xece00, 0xece20, 0xece40, 0x75af0, 0xec6e0
 detail_values: dd detail_normal_key, detail_high_key, detail_maximum_key
 detail_preset_normal: dd 19, 0
+detail_preset_high: dd 19, 1
 detail_preset_maximum: dd 19, 2
 detail_high_scale: dd 1.5
 detail_high_inverse: dd 0.6666666666666667

@@ -11,7 +11,7 @@ package {
   private var failures:Array = [];
   private var frame:int = 0;
   private var pendingPreset:int = 3;
-  private var pendingDetail:int = 0;
+  private var pendingDetail:int = 1;
   private var detailCalls:int = 0;
   private var labels:Array = ["Distance detail|Normal|High|Maximum", "Detailgrad|Normal|Hoch|Maximal", "Szczegółowość|Normalna|Wysoka|Maksymalna", "Детализация|Обычная|Высокая|Максимум", "Детализация|Обычная|Высокая|Максимум", "Деталізація|Звичайна|Висока|Максимум"];
   public function DistanceDetailHarness() {
@@ -61,7 +61,7 @@ package {
     options.push(option);
    }
    settings.setSettings(2,options); settings.setSettings(0,[]); settings.selectIndex(2);
-   settings.setValues(2,[{id:8,value:3},{id:19,value:0}]);
+   settings.setValues(2,[{id:8,value:3},{id:19,value:1}]);
   }
   private function get detail():Object { return settings.settings_content["_distance_detail"]; }
   private function get preset():Object { return settings.settings_content["_overall_graphics"]; }
@@ -84,11 +84,12 @@ package {
     // Real arrow ButtonEvents, not assignments to selectedIndex.
     if(frame==20) click(preset.nextBtn); // High -> Ultra, native callback stages Maximum.
     if(frame==25) { check(4,2); click(preset.prevBtn); }
-    if(frame==30) { check(3,0,false); click(detail.nextBtn); }
-    if(frame==35) { check(5,1); click(detail.nextBtn); }
-    if(frame==40) { check(5,2); click(detail.prevBtn); }
-    if(frame==45) { check(5,1); click(detail.prevBtn); }
-    if(frame==50) { check(5,0); click(detail.nextBtn); }
+    if(frame==30) { check(3,1,false); click(detail.prevBtn); }
+    if(frame==35) { check(5,0); click(detail.nextBtn); }
+    if(frame==40) { check(5,1); click(detail.nextBtn); }
+    if(frame==45) { check(5,2); click(detail.prevBtn); }
+    if(frame==50) { check(5,1); click(detail.prevBtn); }
+    if(frame==52) { check(5,0); click(detail.nextBtn); }
     if(frame==55) {
      check(5,1); click(settings.btn_accept);
      // Native Apply/reinitialize is covered in the fixture producer; replay
@@ -110,7 +111,7 @@ package {
     if(frame==80) { check(5,1,false); preset.selectedIndex=0; }
     if(frame>=85 && frame<=125 && frame%10==5) {
      var expected:int=(frame-85)/10;
-     check(expected,expected==4?2:0);
+     check(expected,Math.max(0,expected-2));
      if(expected<4) click(preset.nextBtn);
     }
     if(frame>=130 && frame<190 && frame%10==0) {

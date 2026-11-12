@@ -158,4 +158,4 @@ edit	artefact-keeper-1.json	-	Keeper of the Artifacts' hidden anomaly on every m
 edit	vouchers-removed-1.json	-	the repair kit, rename voucher and one-day premium voucher drop no more, generic_drop rescaled so every other rate stays
 edit	skill-ranks-1.json	-	Battle stance, Accuracy, Firm grip, Equanimity, Breath and Unstoppable take 3 ranks, not 5, each worth more (the owner, 2026-11-09)
 edit	v021d-radar-electric-1.json	-	the 0.21d Radar's electric anomalies hit the legs only, as 0.26g's Vostok ones (the owner, 2026-11-09): six corridor zones drop body, the central zone 0.6 a second on both feet (was 0.9 every 2 s on body, head, feet and arms)
-edit	distance-detail-1.json	-	Graphics: reduce detail with distance; off keeps highest texture, model and material detail (native saved option and texture reload).
+edit	distance-detail-1.json	-	Graphics: Normal/High/Maximum distance detail, native preset integration, saved selection and texture reload.

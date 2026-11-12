@@ -5537,8 +5537,8 @@ Hardware mip filtering, frustum and occlusion culling remain active. Maximum
 also removes grass's separate 100-metre cutoff and forces the draw-time grass
 model selector to LOD0; changing only the culling cache did not affect that
 selector. Native shadow-pass limits and its explicit LOD bias remain.
-The Graphics presets include this row: Ultra selects Maximum; Minimum, Low,
-Medium and High select Normal. Changing this row away from the selected
+The Graphics presets include this row: Ultra selects Maximum; High selects High;
+Minimum, Low and Medium select Normal. Changing this row away from the selected
 preset selects Custom through the native integer-option comparison. The
 option uses the same native integer option and preset loops as the other
 quality rows; Flash only places the stock arrow picker.

@@ -3491,7 +3491,7 @@ streaming and mip bias. Maximum retains the previously tested behavior.
 The native preset selector (`0x2620A0`) and native integer option's Custom
 comparison (`0x261310`) each iterate eleven entries. The first ten retain the
 engine's live, config-populated table at `0x1F1B188`; the extra entry is option
-19, value 2 for Ultra (preset 4), 0 for presets 0..3. Custom (5) changes no
+19, value 2 for Ultra (preset 4), 1 for High (preset 3), 0 for presets 0..2. Custom (5) changes no
 individual values. The native Default graphics loop (`0x1FF460`) also appends
 option 19, Maximum, after its original ten rows. Hooks at `0x261350` and
 `0x2620DA` avoid overwriting the original table-address relocations. The loop

@@ -166,15 +166,15 @@ def menu(emu):
     traces=[]; manual=[]
     for quality in range(5):
         updates.clear(); choose(preset,quality,0x2620a0)
-        expected=[[2,9+i,quality,0] for i in range(10)]+[[2,19,(2 if quality==4 else 0),0]]
+        expected=[[2,9+i,quality,0] for i in range(10)]+[[2,19,max(0,quality-2),0]]
         assert updates==expected,(quality,updates)
         traces.append(list(updates))
-        updates.clear(); choose(item,(2 if quality==4 else 0))
-        assert not updates, 'matching preset must stay named'
-        manual.append({'preset':quality,'choice':(2 if quality==4 else 0),'updates':list(updates)})
-        updates.clear(); choose(item,1)
-        assert updates==[[2,8,5,0]], 'manual mismatch must invoke the stock Custom update'
-        manual.append({'preset':quality,'choice':1,'updates':list(updates)})
+        for choice in range(3):
+            choose(preset,quality,0x2620a0)
+            updates.clear(); choose(item,choice)
+            expected_updates=[] if choice==max(0,quality-2) else [[2,8,5,0]]
+            assert updates==expected_updates,(quality,choice,updates)
+            manual.append({'preset':quality,'choice':choice,'updates':list(updates)})
     updates.clear(); choose(preset,5,0x2620a0)
     assert not updates, 'Custom must not overwrite any individual option'
     updates.clear()
@@ -223,7 +223,7 @@ def menu(emu):
     print("driven: Apply through options_tab::apply at 0x263000")
     print("driven: command execute through native integer Apply at 0x2612ef")
     emu.hook_del(handle)
-    return {'presets':traces,'manual':manual,'manual_custom_cases':5,'arrow_directions':7,'apply_reopen_cases':8,'cancel_cases':1,'default_entries':11}
+    return {'presets':traces,'manual':manual,'manual_custom_cases':10,'arrow_directions':7,'apply_reopen_cases':8,'cancel_cases':1,'default_entries':11}
 
 def grass(emu, distance, thresholds, available):
     """Culling from its distance test, not from after the rejection gate."""
