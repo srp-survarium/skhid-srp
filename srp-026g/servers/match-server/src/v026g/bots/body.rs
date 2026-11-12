@@ -1072,6 +1072,8 @@ fn advance(
     let steps = (tick.time.saturating_sub(at.time) / TICK_MS).max(1);
     let falls = role == Role::Reckoning && kin.drop_fall != DropFall::Snap;
     at.grid_extra = GridExtra::default();
+    // [A364] The body's last horizontal move, the client's player+334h: what a jump pressed now reads for its kind and its carry.
+    let started = at.feet;
     for step in 1..=steps {
         // [A318] [`StepInput::Previous`]: the held-back input moves the first step only; a stall's further steps (no input
         // decided between) move with the newest input, as the client holds it.
@@ -1247,7 +1249,13 @@ fn advance(
             && at.fall == Fall::Ground
             && at.node.is_some()
         {
-            at.arc = Some(JumpArc::pressed(tick.time, tick.keys, at.velocity, at.feet, at.yaw));
+            // [A364] The kind (a sprint jump from the walk cap up) and a short jump's carry read the body's last MOVE (player+334h,
+            // `docs/notes/turning_and_jumps.md`), not the speed its keys asked for: a body pushing into a face moves short of its
+            // keys, and the client then gives it the short jump (a 1.2 m pit wall pressed at the face: the sprint clip would clear
+            // it, the short one does not).
+            let span = (steps * TICK_MS) as f32 / 1000.0;
+            let moved = [(at.feet.x - started.x) / span, (at.feet.z - started.z) / span];
+            at.arc = Some(JumpArc::pressed(tick.time, tick.keys, moved, at.feet, at.yaw));
         }
     } else if tick.keys & key::JUMP != 0 && at.keys & key::JUMP == 0 {
         at.air_until = tick.time + JUMP_AIR_MS;
@@ -2595,7 +2603,7 @@ pub(super) mod tests {
         assert!(at.feet.distance_xz(Vec3::new(10.0, 0.0, 10.0)) < 0.05, "no keys: no travel, {at:?}");
         let (top, at) = run(&on, false);
         assert!(top.abs() < 1e-3 && at.arc.is_none(), "shut gate: {top} {at:?}");
-        let (top, _) = run(&Kinematics::default(), true);
+        let (top, _) = run(&Kinematics { jump_arc: false, ..Kinematics::default() }, true);
         assert!(top.abs() < 1e-3, "switch off: {top}");
     }
 
@@ -3096,7 +3104,8 @@ pub(super) mod tests {
         let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::client());
         let yaw = -std::f32::consts::FRAC_PI_2;
         let reckoned = |snap: JumpSnap, keys: u32| {
-            let kin = Kinematics { blend_ticks: 1, jump_snap: snap, ..Kinematics::default() };
+            // `JumpSnap` is the old jump's rule (`kin.jump_arc` off).
+            let kin = Kinematics { blend_ticks: 1, jump_snap: snap, jump_arc: false, ..Kinematics::default() };
             let mut track = BodyTrack::default();
             track.fixed(fix(0, Vec3::new(4.0, 0.0, 5.0), yaw), &kin, Some(&grid));
             for time in (50..=2_000).step_by(50) {

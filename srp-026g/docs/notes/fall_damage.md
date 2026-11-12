@@ -38,7 +38,8 @@ The owner's rule and what it changes. Data: `gameplay/players/default.player`
 
   - damage starts just above 5 m in both (the formula: any v over 9.9 m/s);
   - lethal from full health: about 6.8 m stock, so about 7.8 m new (a fall kills
-    at the same D, about 0.6, whatever `fatal_damage` is).
+    a whole body at the same D, 0.625, whatever `fatal_damage` is: each foot's blunt hit routes 0.8 of D to the pain
+    pool of 1, and the two hits are not merged).
 - **Bots:** their map data takes a drop of at most `harmless_height` (5 m),
   unchanged.
 - **Release:** the resources.db patch, made by `scripts/content-edit/content_edit.py`
@@ -83,7 +84,7 @@ Read from the 0.26g exe (no game run); the labels are in `tools/re-kit/v026g`.
   | 9 m | 13.2 | 0.81 |
   | 10 m and more | 14.2 | 1.0 |
 
-  Lethal from full health (D about 0.6) from about 8.0 m (7.8 m above is the
+  Lethal from full health (D 0.625, v 12.46 m/s) from about 8.0 m (7.8 m above is the
   smooth formula).
 - **What adds to v:**
   - **a jump off a ledge (LIKELY):** in a jump (base_player::jump 0x2d7920)

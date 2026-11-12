@@ -40,17 +40,28 @@ players.
 - the shares routed to the pools (the table) go in with no penetration (0x33FA80).
 - Counted: each pool's loss is its new hit records (the body 7,019 of 7,034; the pain 10,197 of 10,371, the others
   falls, which leave no record). A whole hit foretold from a bullet a world held in flight agrees to the number in
-  604 of 2,019: the bullet's loss of damage after the save, and the armour of a bullet that meets several boxes,
-  are not settled.
+  604 of 2,019 by this rule alone, and in 1,876 of 1,955 with the bullet's own losses (`bullet_flight.md`): the
+  fall-off goes on to the hit, and a bullet goes through every body: the first box takes the bullet's damage, every
+  later box the weapon's least damage and pierce.
 
 ## Wounds and what they gate
 
 - Affects come only from thresholds (one call site, 0x32AB90): `leg_damage` and `hand_damage` last 8 s from the hit
   that empties the pool, concussion and poisoning 10 s. **No threshold starts a bleeding**: 0.26g has none.
 - **A wound's end waits for the part's regeneration to begin**: the tick returns before it expires a wound while
-  the time is within 8 s of the part's last damaging hit (0x32A551). So a wound ends at the later of its saved end
-  and the last hit + 8 s. Counted: 77 leg, 62 hand and 17 head wounds seen past their saved end, all within 8 s of
-  the last hit, none beyond.
+  the time is within the part's regeneration delay of its last damaging hit (0x32A547..0x32A551: time at most the
+  part's +B0h plus the delay; a delay of 0 skips the test). So a wound ends at the later of its saved end and the
+  last hit + that delay. **The delay is not a fixed 8 s**: it is the part's own (+ACh: the config's
+  `regeneration_timeout`, 8 s for every pool) after its regeneration listeners and the medical patch: Metabolism
+  takes 0.5 s a rank off the seven pools' delay at the player's start (both legs and both hands among them), the
+  Regeneration booster 2 s more at the tick (`medical-skills.md`, `regeneration-booster.md`); a Lifebone's passive
+  may change it (0 in today's data). The last hit's time (+B0h) is the second field of a part's saved record, after
+  its health (`serialize` 0x32AE25, 0x32AE45); only a hit that takes health writes it (0x32A29E), a hit on a hip
+  or a foot for its leg's pool too. Counted: 77 leg, 62 hand and 17 head rows of a body's world with a
+  wound past its saved end (21 leg and 13 hand wounds of bots), all within 8 s of the last hit, none beyond; every
+  one on a body with no Metabolism rank (the recordings are older than the bots' medical ranks), the latest world
+  still wounded at the last hit + 8,000 ms exactly. A wound on a
+  body with a rank is in no recording read: its shorter hold is read in the patch's source, not seen.
 - The readers of the two wound counts (the damage model's +388h legs, +389h hands), all of them:
 
 | count | gate | where | counted |
@@ -59,12 +70,20 @@ players.
 | both legs | the crouch forced | 0x2FBE05 | crouched in 931 of 939 |
 | a hand | no battery use | 0x300739 | |
 | both hands | no aim; no grenade; a two-handed weapon neither fires nor reloads | 0x2FC2DE, 0x2E40EC, 0x2E381A | aim refused in 734 of 751 (the others within 1 s of the hit) |
-| hands | the cone wider by 10 x a modifier | 0x3317C0 | 2,761 of 3,061 bot worlds as read |
+| hands | the cone wider by 10 x a modifier | 0x3317C0 | 3,062 of 3,062 bot worlds by the whole expression (a glove's default modification on modifier 0 gives the factor 0.92 of some) |
 
 - Nothing reads a wound for the reload's time, the recoil, the sway or carrying.
 - Regeneration at the table's rates after exactly 8 s: the body 2,297 of 2,700 rising pools (the others 1.12 or
-  1.15 times faster, or with an artefact).
-- Death: a lethal pool at 0 (0x2DA480).
+  1.15 times faster: a worn item's default modification on the regeneration modifier, 2,199 of 2,275 such bot rows;
+  or with an artefact).
+- Death: the death affect a lethal pool starts at 0 (`on_affect(kind, action, time)` 0x2DA480, its only setter). A
+  drug in use can lift the pool over 0 again in the same step, after the bullet (23 dead bodies show a pool over 0).
+- Concussion, poisoning and the pain's thresholds gate nothing: their only readers are the damage sounds (0x23EFD0,
+  0x23F610) and the screen's effects (0x32A7A0). A painkiller in use takes a tenth of the pain's damage
+  (`damage_protection`, 0x33DB30). The live game's medical tab (client patch 94, `medical_skills.rs`
+  `pain_coefficient`) lowers that coefficient by the victim's rank of Potent Painkiller (skill 301): 0.9 - 0.01 a rank
+  from revision 50 (0.87 at rank 3: 26 of 26 bullets), 0.9 - 0.005 a rank at revisions 47 to 49 (0.875 at rank 5: 39
+  of 39).
 
 ## Against the bots
 
@@ -78,5 +97,5 @@ players.
 
 ## Not read
 
-The armour of a bullet that meets several boxes; any effect of concussion, poisoning and the pain's thresholds
-beyond the screen and the statistics; some modifiers' names; fall damage's entry (cited from `fall_damage.md`).
+Fall damage's entry (cited from `fall_damage.md`); 24 + 19 bullets on bodies under a painkiller at other pain
+ratios (0.74 to 0.97): their boxes' records had left the part's list before the world.

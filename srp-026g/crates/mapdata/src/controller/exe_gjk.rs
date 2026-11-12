@@ -423,8 +423,9 @@ pub enum Outcome {
     /// No call of the result: GJK found no valid answer and there is no penetration solver, or the answer is
     /// farther than the maximum distance.
     NoContact,
-    /// The executable would call the penetration-depth solver, which is not ported: the state to go on from.
-    /// The branch starts by zeroing `m_cachedSeparatingAxis` (0xD762B), which `DetectorState` does not yet show.
+    /// The executable calls its penetration-depth solver: the state [`super::exe_epa::detector_tail`] goes on from.
+    /// The branch starts by zeroing `m_cachedSeparatingAxis` (0xD762B); what it leaves in the detector is in that
+    /// function's answer, not in `DetectorState`.
     NeedsPenetration(Box<PenetrationStart>),
 }
 

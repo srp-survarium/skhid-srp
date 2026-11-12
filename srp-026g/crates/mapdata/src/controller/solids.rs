@@ -24,7 +24,7 @@ use std::collections::HashMap;
 use super::exe_cast::{self, CastEnd};
 use super::exe_gjk::{self, Axis, Transform, WorldShape};
 use super::exe_ray::{self, ClosestRayCallback, ConvexRay, ConvexShape, NormalSpace, RayFlags, TriangleRay};
-use super::{BULLET_TOLERANCE_M, Contact, Face, Shape, SmallRound, SolidId, StartOverlap, Surface, exe_cast_of, overlapping_at};
+use super::{BULLET_TOLERANCE_M, Contact, Face, Shape, SmallRound, SolidId, Surface, exe_cast_of};
 use crate::bullet::{self, ConvexKind};
 use crate::math::Vec3;
 use crate::{CollisionFilter, MapData, WalkerBehaviour};
@@ -209,9 +209,6 @@ struct Primitive {
     /// The shape as the ray's cast reads it (its class's own support and box); none for a cylinder that is not y-up
     /// (the game makes none: `create_bt_primitive` 0x7A1F0), which a ray does not meet here.
     ray: Option<ConvexShape>,
-    /// Its drawn triangles in the library's frame (the map's): what the contact is read from where the exe's cast
-    /// goes on to its penetration solver.
-    stand_in: Vec<[Vec3; 3]>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -221,8 +218,6 @@ enum Part {
         shape: u32,
         /// What a contact with it is on ([`Surface::Primitive`]).
         on: Surface,
-        /// The placement in the map frame, for the stand-in triangles.
-        place: crate::math::Transform,
     },
 }
 
@@ -302,7 +297,7 @@ fn face_of(v: [Vec3; 3], walker: WalkerBehaviour) -> Face {
 }
 
 impl Primitive {
-    fn new(convex: &bullet::Convex, stand_in: Vec<[Vec3; 3]>) -> Primitive {
+    fn new(convex: &bullet::Convex) -> Primitive {
         let (dims, m) = (convex.dims, convex.margin);
         let (shape, margin, half, ray) = match convex.kind {
             ConvexKind::Box => {
@@ -328,7 +323,7 @@ impl Primitive {
                 (WorldShape::capsule(dims, convex.scaling, m, up), m, half, Some(ray))
             }
         };
-        Primitive { shape, margin, half, ray, stand_in }
+        Primitive { shape, margin, half, ray }
     }
 }
 
@@ -380,8 +375,8 @@ impl Builder {
         (self.solids.meshes.len() - 1) as u32
     }
 
-    fn primitive(&mut self, convex: &bullet::Convex, stand_in: Vec<[Vec3; 3]>) -> u32 {
-        self.solids.primitives.push(Primitive::new(convex, stand_in));
+    fn primitive(&mut self, convex: &bullet::Convex) -> u32 {
+        self.solids.primitives.push(Primitive::new(convex));
         (self.solids.primitives.len() - 1) as u32
     }
 
@@ -409,9 +404,9 @@ impl Builder {
         self.leaf(world_box(&transform, centre, half), transform, ray_transform, Part::Mesh(mesh));
     }
 
-    fn place_primitive(&mut self, transform: Transform, ray_transform: Transform, shape: u32, on: Surface, place: crate::math::Transform) {
+    fn place_primitive(&mut self, transform: Transform, ray_transform: Transform, shape: u32, on: Surface) {
         let half = self.solids.primitives[shape as usize].half;
-        self.leaf(world_box(&transform, [0.0; 3], half), transform, ray_transform, Part::Primitive { shape, on, place });
+        self.leaf(world_box(&transform, [0.0; 3], half), transform, ray_transform, Part::Primitive { shape, on });
     }
 
     fn finish(mut self) -> Solids {
@@ -449,15 +444,10 @@ impl Solids {
             };
             let mut primitive_of = |builder: &mut Builder, part: usize, convex: &bullet::Convex| {
                 *primitives.entry((library_index, part)).or_insert_with(|| {
-                    let stand_in = library.faces[convex.faces.start as usize..convex.faces.end as usize]
-                        .iter()
-                        .map(|face| face.corners.map(corner))
-                        .collect();
-                    builder.primitive(convex, stand_in)
+                    builder.primitive(convex)
                 })
             };
             let object = *world.object(index);
-            let place = placement.transform();
             builder.object();
             match world.shape(library_index) {
                 bullet::Shape::Empty => {}
@@ -469,7 +459,7 @@ impl Solids {
                 bullet::Shape::Convex(convex) => {
                     let id = primitive_of(&mut builder, 0, convex);
                     let on = Surface::Primitive { walker: WalkerBehaviour::BySlope, round: small_round(convex, &object.basis) };
-                    builder.place_primitive(object, object, id, on, place);
+                    builder.place_primitive(object, object, id, on);
                 }
                 bullet::Shape::Compound { children, .. } => {
                     for (part, child) in children.iter().enumerate() {
@@ -483,7 +473,7 @@ impl Solids {
                             bullet::Part::Convex(convex) => {
                                 let id = primitive_of(&mut builder, part, convex);
                                 let on = Surface::Primitive { walker: convex.walker, round: small_round(convex, &transform.basis) };
-                                builder.place_primitive(transform, ray_transform, id, on, place);
+                                builder.place_primitive(transform, ray_transform, id, on);
                             }
                         }
                     }
@@ -498,12 +488,12 @@ impl Solids {
             + self.boxes.capacity() * std::mem::size_of::<Box3>()
             + self.tree.bytes()
             + self.meshes.iter().map(|m| m.triangles.capacity() * std::mem::size_of::<MeshTriangle>() + m.tree.bytes()).sum::<usize>()
-            + self.primitives.iter().map(|p| std::mem::size_of::<Primitive>() + p.stand_in.capacity() * std::mem::size_of::<[Vec3; 3]>()).sum::<usize>()
+            + self.primitives.len() * std::mem::size_of::<Primitive>()
     }
 
     /// Every part's first contact with `shape` moved by `by` (both in the map frame), as `objectQuerySingle` 0xA14E0
     /// reports it to a callback that takes every hit (the sweep's allowed penetration 0, `convexSweepTest` 0xA34E8).
-    pub(super) fn sweep_each(&self, shape: Shape, by: Vec3, start: StartOverlap, mut each: impl FnMut(Contact)) {
+    pub(super) fn sweep_each(&self, shape: Shape, by: Vec3, mut each: impl FnMut(Contact)) {
         let mut cast = exe_cast_of(shape, by);
         cast.from = flip(cast.from);
         cast.by = flip(cast.by);
@@ -527,24 +517,11 @@ impl Solids {
                 object,
             };
             match leaf.part {
-                Part::Primitive { shape: id, on, place } => {
+                Part::Primitive { shape: id, on } => {
                     let primitive = &self.primitives[id as usize];
                     match exe_cast::cast_convex(&cast, &primitive.shape, primitive.margin, &leaf.transform, 0.0, 1.0) {
                         CastEnd::Hit { fraction, normal, point } => each(out(fraction, normal, point, on)),
                         CastEnd::Miss => {}
-                        // The penetration solver's answer is not ported: the deepest of the drawn triangles the
-                        // shape overlaps where the cast stood.
-                        CastEnd::NeedsPenetration { lambda } => {
-                            let deepest = primitive
-                                .stand_in
-                                .iter()
-                                .filter_map(|v| overlapping_at(shape, by, lambda, &face_of(v.map(|p| place.apply(p)), on.walker()), start))
-                                .filter(|(gap, _)| *gap <= BULLET_TOLERANCE_M)
-                                .min_by(|a, b| a.0.total_cmp(&b.0));
-                            if let Some((_, touch)) = deepest {
-                                each(Contact { t: touch.t, point: touch.point, normal: touch.normal, on, object });
-                            }
-                        }
                     }
                 }
                 Part::Mesh(id) => {
@@ -563,16 +540,6 @@ impl Solids {
                                 each(out(fraction, normal, point, Surface::Face { walker: face.walker, normal: face.normal }));
                             }
                             CastEnd::Miss => {}
-                            CastEnd::NeedsPenetration { lambda } => {
-                                let face = placed(&leaf.transform, triangle);
-                                if face.normal == Vec3::ZERO {
-                                    return;
-                                }
-                                if let Some((_, touch)) = overlapping_at(shape, by, lambda, &face, start) {
-                                    let on = Surface::Face { walker: face.walker, normal: face.normal };
-                                    each(Contact { t: touch.t, point: touch.point, normal: touch.normal, on, object });
-                                }
-                            }
                         }
                     });
                 }
@@ -638,11 +605,10 @@ mod tests {
     use super::*;
     use crate::controller::exe_cast::IDENTITY;
     use crate::controller::{Caster, Collision, Sweeps};
-    use crate::math::Transform as Placed;
     use crate::project::Triangle;
 
     fn world(solids: Solids) -> Collision {
-        Collision { sweeps: Sweeps::Solids(Box::new(solids), StartOverlap::FaceWitness), ..Collision::build(&[]) }
+        Collision { sweeps: Sweeps::Solids(Box::new(solids)), ..Collision::build(&[]) }
     }
 
     fn capsule(x: f32, y: f32, z: f32) -> Shape {
@@ -680,7 +646,7 @@ mod tests {
         builder.object();
         builder.place_mesh(IDENTITY, IDENTITY, mesh);
         let shapes = world(builder.finish());
-        let soup = Collision::build(&floor()).with_caster(Caster::Exe(StartOverlap::FaceWitness));
+        let soup = Collision::build(&floor()).with_caster(Caster::Exe);
         for (shape, by) in [
             (capsule(1.0, 3.0, 4.0), Vec3::new(0.25, -3.0, 0.5)),
             (capsule(5.5, 2.0, 8.5), Vec3::new(0.0, -2.0, 0.0)),
@@ -714,7 +680,7 @@ mod tests {
         builder.object();
         builder.place_mesh(quarter, quarter, mesh);
         let shapes = world(builder.finish());
-        let soup = Collision::build(&floor()).with_caster(Caster::Exe(StartOverlap::FaceWitness));
+        let soup = Collision::build(&floor()).with_caster(Caster::Exe);
         let (shape, by) = (capsule(1.0, 3.0, 4.0), Vec3::new(0.25, -3.0, 0.5));
         let (a, b) = (hits(&shapes, shape, by), hits(&soup, shape, by));
         assert!(!a.is_empty() && a.len() == b.len(), "{a:?} {b:?}");
@@ -734,11 +700,11 @@ mod tests {
     #[test]
     fn a_box_is_met_as_a_rounded_box() {
         let mut builder = Builder::default();
-        let id = builder.primitive(&block(), Vec::new());
+        let id = builder.primitive(&block());
         let on = Surface::Primitive { walker: WalkerBehaviour::BySlope, round: None };
         // The box's centre at map (2, 0.5, 3): Bullet's z is -3.
         builder.object();
-        builder.place_primitive(at(2.0, 0.5, -3.0), at(2.0, 0.5, -3.0), id, on, Placed::new(Vec3::ZERO, Vec3::new(2.0, 0.5, 3.0)));
+        builder.place_primitive(at(2.0, 0.5, -3.0), at(2.0, 0.5, -3.0), id, on);
         let shapes = world(builder.finish());
         let top = hits(&shapes, capsule(2.0, 3.0, 3.0), Vec3::new(0.0, -3.0, 0.0));
         assert_eq!(top.len(), 1);
@@ -880,10 +846,6 @@ mod tests {
             cast.by = flip(cast.by);
             let ends: Vec<CastEnd> =
                 triangles.iter().map(|t| exe_cast::cast_triangle(&cast, &exe_gjk::Triangle(t.v), 0.0, &transform, 0.0, 1.0)).collect();
-            // A cast that starts in a face goes to the stand-in for the penetration solver: not this test's matter.
-            if ends.iter().any(|end| matches!(end, CastEnd::NeedsPenetration { .. })) {
-                continue;
-            }
             let mut every: Vec<_> = ends
                 .iter()
                 .filter_map(|end| match *end {

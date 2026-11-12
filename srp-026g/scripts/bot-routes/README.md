@@ -20,3 +20,25 @@ python perches.py matches.json positions.csv --routes routes.json --out routes-p
 SRP_MAPDATA_DIR=... SRP_BOT_ROUTES=routes.json SRP_ROUTES_HUMAN_DIR=... SRP_ROUTES_WALKED_OUT=verdicts.tsv   cargo test --release -p match-server route_points_stand_where_the_players_stood -- --ignored --nocapture
 python walked_floors.py routes.json verdicts.tsv routes-walked.json changes.txt
 ```
+
+## The checks on the real maps (ignored tests, `bots/routes.rs`)
+
+They build each map's grid as a match has it (the default tuning's body, off-mesh links and extras), so they speak of
+the grid the bots walk. Run them in release with the private map files.
+
+- `how_walkable_the_real_routes_are`: every route of a table from its side's spawns through its points (legs with no
+  way, jumps, the way's length against the straight one, the leg out of the base apart, every leg's way over its
+  straight line, points lost); `SRP_ROUTES_POINTS_OUT` adds each point's floor.
+- `real_routes_and_the_damage_zones`: the table against the zones a match has; `SRP_ZONE_FLOORS_DIR` gets each map's
+  zone floors.
+- `how_reachable_the_real_positions_are`: a corpus of places players stood at (`SRP_POSITIONS`, a TSV with `project`,
+  `x`, `y`, `z`: the feet) against the grid: the floor there, whether a walk from each side's spawns gets to it, zones,
+  pockets, the walker's surface where the grid has no floor, and how far under it the next floor lies (`under_m`: an
+  upper level). A place players use that no bot can reach is a builder bug to look at.
+
+```
+SRP_MAPDATA_DIR=... SRP_POSITIONS=positions.tsv SRP_POSITIONS_OUT=reach.tsv   cargo test --release -p match-server how_reachable_the_real_positions_are -- --ignored --nocapture
+```
+
+The bench (`real_bot_cost`) prints the bots' own seconds on upper levels by the same rule (its `upper:` line), to set
+beside the players' share from that check.

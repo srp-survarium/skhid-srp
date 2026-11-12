@@ -43,6 +43,10 @@ use mapdata::{ExitJump, ExitReach, NodeId, PocketExit, PocketId, Vec3, WalkGrid}
 use super::path::{self, Route};
 use super::view::Place;
 
+/// How far a floor may be over the feet and still be theirs, m: a body stands on its floor (the reckoning's feet are the grid's
+/// height; a world's within centimetres of it).
+const FEET_UNDER_FLOOR_M: f32 = 0.1;
+
 /// A standing-jump exit is tried this many times (the motor presses up to
 /// `motor::JUMP_TRIES` times in each). GUESS: the client's standing jump
 /// tops at 0.998 m (PROVEN); a second try from a fresh run-up covers a bad
@@ -414,7 +418,10 @@ fn step(
     may_jump: bool,
 ) -> Out {
     let mut events = Vec::new();
-    let node = grid.locate(feet, 1.5);
+    // The floor the feet are on or over, never one over them: the reckoned body in a jump's air (`kin.jump_arc`) has its feet over
+    // the pit's floor and under the rim's, and the nearest floor (`locate` looks 1 m up) was the rim's: the jump counted as out,
+    // and the escape began again at every try.
+    let node = grid.locate_within(feet, 1.5, FEET_UNDER_FLOOR_M);
     let pocket = node.and_then(|node| grid.pocket_of(node));
     // Its goal is in the same pocket: nothing to get out of.
     let goal_in =

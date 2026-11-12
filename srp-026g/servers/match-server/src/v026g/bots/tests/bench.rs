@@ -1236,6 +1236,11 @@ pub(crate) fn real_bot_cost() {
             // ticks of a need with none (a theft this match, a battery home,
             // no holder alive).
             let mut holder_ticks = [0u64; 2];
+            // The bots' seconds alive on a floor, and those on an upper level (`upper::storey_under`: a floor a storey or more
+            // under it), by team, looked at once a second: the `upper:` line, read beside the players' own share (the routes
+            // study's positions).
+            let mut on_floor_s = [0u32; 2];
+            let mut upper_s = [0u32; 2];
             let mut pair_apart = 0u64;
             // The same ticks split by the pair's younger life: under `leader_settle_s` (20 s, `plays::buddy`) into it, which is where the
             // respawn rule (`buddy.respawn_rule`) leaves a follower forward on purpose, and later (the real separation).
@@ -1563,6 +1568,17 @@ pub(crate) fn real_bot_cost() {
                             let apart = a.alive && b.alive && a.feet.distance_xz(b.feet) > 60.0;
                             pair_apart += u64::from(apart);
                             pair_apart_settling += u64::from(apart && game.tick.saturating_sub(a.spawned.max(b.spawned)) < 20_000);
+                        }
+                    }
+                    if game.tick % 1000 < TICK_MS {
+                        let grid = &game.world.grid;
+                        for bot in bots.bots.iter().flatten() {
+                            let body = &game.bodies[bot.place];
+                            if let Some(node) = body.alive.then(|| grid.locate(body.feet, 0.6)).flatten() {
+                                let team = usize::from(bot.team).min(1);
+                                on_floor_s[team] += 1;
+                                upper_s[team] += u32::from(super::upper::storey_under(grid, node).is_some());
+                            }
                         }
                     }
                     for bot in bots.bots.iter().flatten() {
@@ -2194,6 +2210,14 @@ pub(crate) fn real_bot_cost() {
                 super::pair_counts::line(),
                 pair_apart - pair_apart_settling
             );
+            eprintln!(
+                "  upper: on_floor_s {} {} upper_s {} {} (the bots' seconds alive on a floor, by team, and those on a floor with another {} m or more under it)",
+                on_floor_s[0],
+                on_floor_s[1],
+                upper_s[0],
+                upper_s[1],
+                super::upper::STOREY_M
+            );
             eprintln!("  route twins: {}", super::route_twins::line());
             eprintln!("  {}", game.climbs.line());
             eprintln!("  {}", game.climbs.still.line());
@@ -2479,6 +2503,8 @@ pub(crate) fn real_bot_cost() {
             // [A318] Whether the reckoning takes the client's walk tick in the bench's matches (it did not before the world's walker).
             eprintln!("route hash: camper {:016x} bots {:016x}", bots.bench_route_hash[0], bots.bench_route_hash[1]);
             eprintln!("walker_holds so far: {}", crate::v026g::bots::body::walker_holds::count());
+            let riser = crate::v026g::bots::drive::riser_counts::counts();
+            eprintln!("risers so far: sprinted ticks {}, jumps {}, neither ticks {}", riser[0], riser[1], riser[2]);
             let (ground, hard, client, moved) = crate::v026g::bots::body::client_steps::all();
             eprintln!(
                 "client_step so far: reckoned ground steps {ground}, hard {hard}, client steps {client}, moved otherwise {moved}"
