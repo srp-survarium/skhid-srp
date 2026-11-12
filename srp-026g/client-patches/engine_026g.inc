@@ -754,3 +754,11 @@ extern engine_cc_u32
 ; void engine_render_u32_execute(void *object, const char *arguments)
 ; 0x3cd300 vostok::render::render_cc_u32::execute: object ECX, arguments ESP+4; pops 4
 extern engine_render_u32_execute
+; unsigned int engine_message_box_a(void *window, const char *text, const char *title, unsigned int flags)
+; the IAT slot 0xaeff30 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_message_box_a
+; void engine_exit_process(unsigned int code)
+; the IAT slot 0x87020c (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_exit_process

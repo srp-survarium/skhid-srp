@@ -258,6 +258,14 @@ fn main() {
         let arguments = updater_logic::args::split(&line);
         let argument = |at: usize| arguments.get(at).map_or("", String::as_str);
         match argument(1) {
+            "open-replay-file" => {
+                // Exercise Explorer's association without cmd/start quoting.
+                let result = windows_sys::Win32::UI::Shell::ShellExecuteW(
+                    null_mut(), wide("open").as_ptr(), wide(argument(2)).as_ptr(),
+                    null(), null(), 1,
+                ) as usize;
+                ExitProcess(if result > 32 { 0 } else { result as u32 });
+            }
             "hold" => ExitProcess(hold(
                 argument(2),
                 argument(3),

@@ -3594,6 +3594,36 @@ pub extern "C" fn hook_ragdoll_on_killed(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- replay_file (patch 141) ----
+
+/// The entry `replay_file_before_open` (0x1f0245, open_file_impl: EDI local open options, ESI resolved path; replay separator initialization before native open) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_replay_file_before_open(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `replay_file_before_open` calls this, from the game's jump at 0x1f0245,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::replay_file::before_open(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- replay_file (patch 141) ----
+
+/// The entry `replay_file_open_result` (0x1f02a3, open_file_impl epilogue: AL native open result, ESI resolved path; REPLAY_OPEN_RESULT routes failures here too) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_replay_file_open_result(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `replay_file_open_result` calls this, from the game's jump at 0x1f02a3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::replay_file::open_result(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- voice (patch 66) ----
 
 /// The named exits of voice::on_key (the order the shim's Flow code

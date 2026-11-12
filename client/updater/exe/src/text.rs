@@ -46,7 +46,9 @@ fn megabytes(bytes: u64) -> u64 {
 pub fn usage() -> String {
     "The Skhid updater is started by launcher_skhid.exe. To update by hand, every patch file \
      hashed again, start it as: updater_skhid.exe check (to see whether the game's files are \
-     updated: updater_skhid.exe ready)"
+     updated: updater_skhid.exe ready). To watch a local replay: \
+     updater_skhid.exe open-replay \"C:\\path\\match.sur\". \
+     To register Skhid Replay in Windows: updater_skhid.exe register-replays"
         .into()
 }
 

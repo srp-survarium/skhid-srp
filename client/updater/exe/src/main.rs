@@ -17,7 +17,8 @@
 //!
 //! It asks its configured server for Skhid updates. Missing original game
 //! files come from a separate HTTPS mirror with compiled-in SHA-256 pins. No torrent, no listening
-//! port, no registry, no crash upload, no administrator rights.
+//! port, no crash upload, no administrator rights. Successful launcher updates
+//! register Skhid Replay for .sur files in this user's Open With choices.
 #![windows_subsystem = "windows"]
 
 extern crate alloc;
@@ -30,6 +31,7 @@ mod log;
 mod patches;
 mod pipe;
 mod replay;
+mod replay_association;
 mod resources;
 mod text;
 mod win;
@@ -912,8 +914,14 @@ fn run() -> u32 {
     // "Watch replay": started by the patched game with a replay link
     // (`replay.rs`). Exactly this word, as the game's patch sends it.
     let arguments = arguments();
+    if let Some((file_arguments, quiet)) = updater_logic::local_replay::command(&arguments) {
+        return replay::run_local(file_arguments, quiet);
+    }
     if let Some((replay_arguments, quiet)) = updater_logic::replay::command(&arguments) {
         return replay::run(replay_arguments, quiet);
+    }
+    if arguments.get(1).is_some_and(|a| a == "register-replays") {
+        return register_replays(&arguments[2..]);
     }
     let options = options();
     let layout = match Layout::find() {
@@ -1145,6 +1153,10 @@ fn run() -> u32 {
             (exit::FAILED, false)
         }
     };
+    if code == exit::OK && watch && session.pipe.is_some()
+        && let Err(code) = replay_association::register(&layout) {
+        log!("replay: file registration failed: {} (error {code})", win::error_text(code));
+    }
     match (product, session.seen.take()) {
         (Some(product), Some(seen)) if watch && session.pipe.is_some() => {
             gate::watch(&mut session, &layout, product, &seen);
@@ -1153,6 +1165,25 @@ fn run() -> u32 {
     }
     log!("exit {code}");
     code
+}
+
+/// Optional repair for a portable installation; normal launcher updates do this.
+fn register_replays(arguments: &[String]) -> u32 {
+    let quiet = arguments == ["quiet"];
+    let result = (|| {
+        if !arguments.is_empty() && !quiet { return Err(text::usage()); }
+        let layout = Layout::find().map_err(|path| text::wrong_folder(&path))?;
+        log::start(format!("{}\\{LOG_FILE}", layout.exe_dir));
+        replay_association::register(&layout).map_err(win::error_text)
+    })();
+    match result {
+        Ok(()) => exit::OK,
+        Err(message) => {
+            log!("replay: registration failed: {message}");
+            if !quiet { message_box(&message); }
+            exit::FAILED
+        }
+    }
 }
 
 /// `check` by hand (no launcher) replaced this updater: the new one is run,
