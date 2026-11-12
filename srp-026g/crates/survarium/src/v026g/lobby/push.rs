@@ -1382,3 +1382,8 @@ pub fn permitted_nickname_check(nickname: &str, refusal: Option<NameRefusal>) ->
 pub fn permitted_nickname_changed() -> ServerMessage {
     permitted_event(PROFILE, 4).u32(0).done(ServerId::Permitted)
 }
+
+/// `83 49 05`: the comment was stored. The stock client reads no body.
+pub fn permitted_player_comment() -> ServerMessage {
+    permitted_event(PROFILE, 5).done(ServerId::Permitted)
+}
