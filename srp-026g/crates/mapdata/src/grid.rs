@@ -659,10 +659,11 @@ pub const POCKET_EXIT_LOW_M: f32 = 0.2;
 /// study); its standing jump tops at 0.998 m.
 pub const POCKET_EXIT_HIGH_M: f32 = 1.35;
 pub const POCKET_EXIT_FLOORS: usize = 2_000;
-/// The client's step up (the live `cc_step_height` 0.80, `startup.cfg`:33; A364 C2 row 2: was the exe's default step 0.6; a
-/// sprinting body climbs every vertical face measured to 0.85, a walking one to 0.755, [`Body::walked_step`]), and its standing jump's top
-/// (the `on_site*` clips' root, PROVEN, the jump study), metres.
-pub const STEP_UP_M: f32 = 0.8;
+/// The client's step up, WALKING (the live `cc_step_height` 0.80 less the move test's margin, [`Body::walked_step`]: a walk
+/// climbs a vertical face to 0.755 m, refused from 0.760, measured with the exact tick, A364 C2 row 2; was the exe's default
+/// step 0.6; a sprint climbs higher, every face measured to at least 0.85), and its standing jump's top (the `on_site*` clips'
+/// root, PROVEN, the jump study), metres. A stuck body's ledge to jump (`tactics::ledge_ahead`) starts here.
+pub const STEP_UP_M: f32 = 0.8 - MOVE_STEP_MARGIN_M;
 /// [A364 C2] `cc_move_step_margin` (`startup.cfg`, 0.040): the margin under the walking move test's cylinder ([`Body::walked_step`]).
 pub const MOVE_STEP_MARGIN_M: f32 = 0.04;
 pub const STANDING_JUMP_M: f32 = 0.998;
