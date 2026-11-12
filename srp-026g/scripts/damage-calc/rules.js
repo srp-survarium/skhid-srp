@@ -52,6 +52,18 @@ const RULES = (() => {
     return out;
   }
 
+  // Forest Protection (523), modifier 41: a player's hit on someone inside an
+  // anomaly's damage zone is x max(0, 1 - 0.05 a rank), before armour
+  // (0x332810). On the hit's location only, not again on the pools.
+  function forestCallbacks(rank) {
+    const s = (DATA.skills || {}).forest_protection; if (!s || !rank) return [];
+    const k = +Math.max(0, 1 - clamp(rank, 0, s.ranks) * s.step).toFixed(2);
+    return [{
+      name: nm(s), parts: Object.keys(PARTS),
+      fn(D, P) { return { D: D * k, P, note: T(`Inside an anomaly: damage ×${k}, before armour.`, `В аномалії: пошкодження ×${k}, до броні.`) }; },
+    }];
+  }
+
   // Modifications (item_config_cook 0x2f1750): values on one path are summed,
   // then applied once: "mul" as v*max(0,1+sum), "add" as v+sum.
   const MODS = DATA.mods || {};
@@ -128,22 +140,71 @@ const RULES = (() => {
     return out;
   }
 
+  // What an item does, shown over its tile on hover or focus.
+  // An item's card as the lobby lists it: its name, then a line each (its
+  // icon when the lines have one, "<prop>:", the value; a bonus in its colour).
+  function card(name, lines) {
+    const icons = lines.some(l => l.icon != null);
+    const box = el("div", { class: icons ? "gamemods" : "gamemods plain" }, el("span", { class: "gname", text: name }));
+    for (const l of lines)
+      box.append(el("div", { class: "gmrow fixed" }, icons ? icon(l) : null, el("span", { class: "glabel", text: `${label(l)}:` }),
+        el("span", { class: l.good == null ? "gv" : l.good ? "gv good" : "gv bad", text: (LANG === "uk" && l.value_uk) || l.value })));
+    return box;
+  }
+  // An artefact's: the game's own words at its pickup (the passive) and at
+  // its activation, with the active's seconds.
+  function artefactCard(a, seconds = (a.active || {}).duration_s) {
+    const box = el("div", { class: "gamemods" });
+    for (const k of ["pickup_hint", "activation_hint"]) {
+      const said = (LANG === "uk" && a[k + "_uk"]) || a[k];
+      if (said) box.append(el("span", { class: "gtext", text: said.replace("%s", seconds) }));
+    }
+    return box;
+  }
+  // A tile with its card; a card with nothing to say leaves the tile as it is.
+  // A click puts the card away until the pointer comes back, as a tooltip goes.
+  function hinted(tile, box) {
+    if (!box.children.length) return tile;
+    tile.removeAttribute("title");
+    const wrap = el("span", { class: "fxhint" }, tile, box);
+    tile.addEventListener("click", () => wrap.classList.add("quiet"));
+    wrap.addEventListener("mouseleave", () => wrap.classList.remove("quiet"));
+    return wrap;
+  }
+  // A bonus row as the lobby draws it: icon, "<label>:", a button per option
+  // [value, text] of picks[key], the picked one again clears it. With a card,
+  // its icon and name show it on hover.
+  function stepsRow(icon, label, options, picks, key, onChange, box) {
+    const group = el("span", { class: "gsteps", role: "group", "aria-label": label });
+    const paint = () => { for (const b of group.children) b.setAttribute("aria-pressed", String(b.dataset.v === String(picks[key] || ""))); };
+    for (const [v, text] of options) {
+      const b = el("button", { type: "button", class: "gstep", text });
+      b.dataset.v = v;
+      b.addEventListener("click", () => { picks[key] = String(picks[key] || "") === String(v) ? "" : v; paint(); onChange(); });
+      group.append(b);
+    }
+    paint();
+    return el("div", { class: "gmrow" }, icon, el("span", { class: box ? "glabel fxhint" : "glabel" }, `${label}:`, box), group);
+  }
+  // A skill's row (null when the game has no such skill): its lobby icon, its
+  // name with its card (the lobby tooltip's line for a rank), a button per
+  // rank saying what that many give.
+  function skillRow(key, sign, unit, picks, onChange) {
+    const s = (DATA.skills || {})[key]; if (!s) return null;
+    const src = DATA.skill_icons && DATA.skill_icons[s.id];
+    const box = el("div", { class: "gamemods" }, el("span", { class: "gname", text: nm(s) }),
+      el("span", { class: "gtext" }, `${(LANG === "uk" && s.description_uk) || s.description} `, el("span", { class: "gv good", text: (LANG === "uk" && s.rank_uk) || s.rank })));
+    const given = n => sign + (unit ? +(n * s.step).toFixed(2) + unit : `${Math.round(n * s.step * 100)}%`);
+    return stepsRow(src ? el("img", { class: "gico", src, alt: "" }) : el("span", { class: "gico" }), nm(s),
+      Array.from({ length: s.ranks }, (_, i) => [i + 1, given(i + 1)]), picks, key, onChange, box);
+  }
+
   // Recovery: the healing section's picks (DATA.recovery).
   const REC = DATA.recovery || {};
   const LARK = Object.fromEntries((((ART.lifebone || {}).passive || {}).regeneration_modifiers || []).map(m => [m.body_part, m]));
 
   return {
-    // An item's built-in bonuses as its lobby card lists them: its name, then
-    // a row each (icon, "<prop>:", the value with its unit).
-    bonusCard(name, bonuses) {
-      const card = el("div", { class: "gamemods" }, el("span", { class: "gname", text: name }));
-      for (const b of bonuses) {
-        const unit = b.mod_type === 1 && ((LANG === "uk" && b.postfix_uk) || b.postfix);
-        card.append(el("div", { class: "gmrow fixed" }, icon(b), el("span", { class: "glabel", text: `${label(b)}:` }),
-          el("span", { class: good(b, b.value) ? "gv good" : "gv bad", text: propText(b, b.value) + (unit ? ` ${unit}` : "") })));
-      }
-      return card;
-    },
+    card, artefactCard, hinted, stepsRow, skillRow,
     // What the picks add up to: the kit's regeneration bonuses (each slot's
     // grade and the boosters carried: speed in one sum, seconds on the delay,
     // a share on the limit) and each skill's ranks times its step.
@@ -153,7 +214,7 @@ const RULES = (() => {
       for (const [key, b] of Object.entries(REC.boosters || {}))
         if ((pick.boosters || {})[key]) for (const k of ["speed", "delay_s", "limit"]) kit[k] += b[k] || 0;
       for (const key of ["metabolism", "strong_bones", "medical_training", "take_cover", "fast_bandaging"]) {
-        const s = (REC.skills || {})[key];
+        const s = (DATA.skills || {})[key];
         kit[key] = s ? clamp((pick.skills || {})[key] || 0, 0, s.ranks) * s.step : 0;
       }
       return kit;
@@ -239,7 +300,8 @@ const RULES = (() => {
     targetEffects(state) {
       const fx = state.fx || {};
       return {
-        incoming: [...onyxCallbacks(fx.onyx || 0, fx.onyxMode === "active"), ...drugCallbacks(fx.drugs || {})],
+        incoming: [...onyxCallbacks(fx.onyx || 0, fx.onyxMode === "active"), ...forestCallbacks((fx.skills || {}).forest_protection),
+          ...drugCallbacks(fx.drugs || {})],
         final: [], hmax: {}, secondChance: null,
       };
     },
@@ -278,15 +340,19 @@ const RULES = (() => {
         const activeText = () => `${T("active", "активний")} ×${ART.onyx.active.damage_mul}, `
           + `${ART.onyx.active.duration_s + Math.max(0, (state.fx.onyx || 1) - 1) * ONYX_EXTRA_S} ${T("s", "с")}`;
         const act = chip("active", activeText());
-        row(nm(ART.onyx), ...slots, el("span", { class: "chips" },
+        // Each tile's card: the Onyx's words, the active's seconds for that many.
+        row(nm(ART.onyx), ...slots.map((s, i) => hinted(s, artefactCard(ART.onyx, ART.onyx.active.duration_s + i * ONYX_EXTRA_S))), el("span", { class: "chips" },
           chip("passive", `${T("passive", "пасивний")} ×${ART.onyx.passive.damage_mul}`), act));
       }
       const shielding = Object.entries(DATA.drugs || {}).filter(([, d]) => d.damage_protection.some(p => p.hit_type === "ranged"));
       if (shielding.length) {
         state.fx.drugs = state.fx.drugs || {};
-        row(T("Drugs", "Препарати"), ...shielding.map(([key, d]) => tile(key, nm(d), !!state.fx.drugs[key],
-          function () { state.fx.drugs[key] = !state.fx.drugs[key]; this.setAttribute("aria-pressed", String(state.fx.drugs[key])); update(); })));
+        row(T("Drugs", "Препарати"), ...shielding.map(([key, d]) => hinted(tile(key, nm(d), !!state.fx.drugs[key],
+          function () { state.fx.drugs[key] = !state.fx.drugs[key]; this.setAttribute("aria-pressed", String(state.fx.drugs[key])); update(); }), card(nm(d), d.card || []))));
       }
+      state.fx.skills = state.fx.skills || {};
+      const forest = skillRow("forest_protection", "−", null, state.fx.skills, update);
+      if (forest) box.append(el("div", { class: "field" }, el("span", { class: "lbl", text: T("Skills", "Навички") }), el("div", { class: "gamemods" }, forest)));
     },
   };
 })();

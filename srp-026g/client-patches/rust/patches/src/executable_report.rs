@@ -1,6 +1,8 @@
 //! Hash and, when requested, send only the running executable. File ownership
 //! lasts one match connection; close/error/completion all drop it. Hashing and
 //! transfer are bounded per frame, with no catch-up burst after a stall.
+//! [`Hashing`] alone also reads the exe files of the windows over the game's
+//! (`vostok::modules`): those are never offered or sent.
 #![forbid(unsafe_code)]
 use sign_in_cipher::Sha256;
 use srp_validate::executable::{Answer, Carrier, Identity, Reply, Upload, CHUNK, MAX_FILE};
@@ -24,15 +26,47 @@ pub trait Source {
     fn seek(&mut self, offset: u32) -> bool;
 }
 
+/// A file being hashed from its start, at most 8 KiB a step (a frame).
+pub struct Hashing<F> { file: F, hash: Sha256, size: u32 }
+/// What a step of [`Hashing`] gave.
+pub enum Hashed<F> {
+    /// The file is not at its end yet.
+    More(Hashing<F>),
+    /// The whole file's size and SHA-256, and the file.
+    Whole(F, Identity),
+    /// Larger than [`MAX_FILE`]: not read on.
+    TooBig,
+    /// A read failed, or the file is empty.
+    Unread,
+}
+impl<F: Source> Hashing<F> {
+    pub fn new(file: F) -> Self { Self { file, hash: Sha256::new(), size: 0 } }
+    pub fn step(mut self) -> Hashed<F> {
+        let mut bytes = [0; 8192];
+        match self.file.read(&mut bytes).filter(|&n| n <= bytes.len()) {
+            Some(0) => match Identity::new(self.size, self.hash.finish()) {
+                Some(identity) => Hashed::Whole(self.file, identity),
+                None => Hashed::Unread,
+            },
+            Some(n) if self.size <= MAX_FILE.saturating_sub(n as u32) => {
+                self.hash.update(&bytes[..n]); self.size += n as u32;
+                Hashed::More(self)
+            }
+            Some(_) => Hashed::TooBig,
+            None => Hashed::Unread,
+        }
+    }
+}
+
 enum State<F> {
-    Hashing { file: F, hash: Sha256, size: u32 },
+    Hashing(Hashing<F>),
     Offering { file: F, identity: Identity, last: Option<u32> },
     Sending { file: F, identity: Identity, offset: u32, end: u32, last: Option<u32> },
     Done,
 }
 pub struct Client<F> { state: State<F> }
 impl<F: Source> Client<F> {
-    pub fn new(file: F) -> Self { Self { state: State::Hashing { file, hash: Sha256::new(), size: 0 } } }
+    pub fn new(file: F) -> Self { Self { state: State::Hashing(Hashing::new(file)) } }
     pub fn reply(&mut self, reply: Reply) {
         let old = core::mem::replace(&mut self.state, State::Done);
         self.state = match old {
@@ -52,20 +86,11 @@ impl<F: Source> Client<F> {
     pub fn tick(&mut self, now: u32, match_id: u32, mut send: impl FnMut(Carrier<'_>) -> bool) {
         let old = core::mem::replace(&mut self.state, State::Done);
         self.state = match old {
-            State::Hashing { mut file, mut hash, mut size } => {
-                let mut bytes = [0; 8192];
-                match file.read(&mut bytes).filter(|&n| n <= bytes.len()) {
-                    Some(0) => match Identity::new(size, hash.finish()) {
-                        Some(identity) => State::Offering { file, identity, last: None },
-                        None => State::Done,
-                    },
-                    Some(n) if size <= MAX_FILE.saturating_sub(n as u32) => {
-                        hash.update(&bytes[..n]); size += n as u32;
-                        State::Hashing { file, hash, size }
-                    }
-                    _ => State::Done,
-                }
-            }
+            State::Hashing(hashing) => match hashing.step() {
+                Hashed::More(hashing) => State::Hashing(hashing),
+                Hashed::Whole(file, identity) => State::Offering { file, identity, last: None },
+                Hashed::TooBig | Hashed::Unread => State::Done,
+            },
             State::Offering { file, identity, last } => {
                 if last.is_none_or(|last| now.wrapping_sub(last) >= 1000)
                     && send(Carrier { match_id, upload: Upload::Offer(identity) }) {
