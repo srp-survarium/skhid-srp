@@ -112,7 +112,7 @@ pub const CELL: f32 = 0.25;
 /// with any change to the build that changes a grid (the pinned digest
 /// test in `grid.rs` fails until then), so a stored or shared grid of the
 /// old build is never taken for the new.
-pub const GRID_ALGO: u32 = 11;
+pub const GRID_ALGO: u32 = 12;
 /// The same for the gap links' pass ([`grid::gap`]), in [`grid_key_with_links`]
 /// only when a build makes them ([`OffMeshLinks::Gaps`]): a grid without
 /// them keys, builds and writes as before they were made.
@@ -128,7 +128,7 @@ pub const LANDING_CARRY_ALGO: u32 = 3;
 pub const CAPSULE_STEPS_ALGO: u32 = 1;
 /// The same for the walk-offs kept only where the capsule has room to walk off the edge ([`Body::drop_room`],
 /// `WalkGrid::cut_blocked_walk_offs`), in [`grid_key_with_links`] only for a body that asks for it.
-pub const DROP_ROOM_ALGO: u32 = 1;
+pub const DROP_ROOM_ALGO: u32 = 2;
 /// The same for the floors reached by a slip off a walk-off's take-off ([`Body::slip_landings`], `WalkGrid::slip_landings`), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own: a key with only this flag is not one with only
 /// another flag whose value is 1. 2: a slip comes down only on a floor open above the take-off (A247).
@@ -168,8 +168,8 @@ pub const NARROW_DOORS_ALGO: u32 = 0x5313_0101;
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const DROP_CHECK_ALGO: u32 = 0x5313_0201;
 /// The same for the floors given back beside walls the body clears ([`Body::wall_give_back`], A318), in [`grid_key_with_links`]
-/// only for a body that asks for it. A value of its own.
-pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0102;
+/// only for a body that asks for it. A value of its own. 0103: the stand test runs the client's steps (A364 C2 row 45).
+pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0103;
 /// The same for the walk-tick passes with the exe's collision rules ([`Body::exe_collision`], A325), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const EXE_COLLISION_ALGO: u32 = 0x5325_0101;
@@ -198,7 +198,7 @@ pub const JUMP_AIR_STEPS_ALGO: u32 = 0x5364_0603;
 /// that asks for it: the grids of the cells' erosion key, build and write as before. 2: floors keep a quarter cell of
 /// slack (the nearer-than-the-radius-less-a-quarter rule; 1 was the full radius). 3: the capsule's round top (a wall above the
 /// cylinder is met at a smaller reach) and the floors only a crouched capsule fits by the walls kept, crouch-only.
-pub const EXACT_EROSION_ALGO: u32 = 3;
+pub const EXACT_EROSION_ALGO: u32 = 4;
 /// The same for the honest drops pass (`Body::drop_flight_mps` over 0: a Drop is kept only if the body that walks off comes
 /// down within the harmless fall, `WalkGrid::drop_deep_flights`), in [`grid_key_with_links`] only for a body that asks for it.
 /// Raised with any change to which Drops that pass keeps; the pinned digest of `tests/pinned_passes.rs` fails until then.

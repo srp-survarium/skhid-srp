@@ -17,8 +17,6 @@ use super::*;
 const NEAR_OPEN: u16 = 1 << 8;
 /// How near the way out a wall must come to stop the capsule there, metres: the stand-in's ray, a wall across the way.
 const ACROSS_M: f32 = 0.05;
-/// A wall this far over a step above the floor stops the capsule (the stand-in's ray height); lower, the body steps over it.
-const OVER_STEP_M: f32 = 0.1;
 
 impl WalkGrid {
     /// This grid with its table of open sides made from `triangles` (the triangles it was built from): a wall within `support_m` and
@@ -79,7 +77,9 @@ impl WalkGrid {
         let (i, k) = self.cell_xz(self.cell_of[a] as usize);
         let feet = self.height[a];
         let centre = Vec3::new(self.x0 + (i as f32 + 0.5) * self.cell, feet, self.z0 + (k as f32 + 0.5) * self.cell);
-        let (low, high) = (feet + self.body.step + OVER_STEP_M, feet + self.body.stand_height);
+        // [A364 C2 row 50] A wall from the walked step up stops the capsule ([`Body::walked_step`]: 0.76 m; was the step + 0.1 m,
+        // the stand-in's ray height); lower, the body steps over it.
+        let (low, high) = (feet + self.body.walked_step(), feet + self.body.stand_height);
         let mut bits = 0u16;
         for (d, &(di, dk)) in DIRS.iter().enumerate() {
             if self.to[a][d] != NO_LINK {

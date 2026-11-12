@@ -22,7 +22,7 @@
 //! The controller runs whole ticks at [`WALK_MPS`] toward the target floor for the ticks the leg takes and two more.
 use super::gap::{OffLink, Takeoff};
 use super::*;
-use crate::controller::tick::{Controller, Settings};
+use crate::controller::tick::{Controller, Settings, TickInput};
 use crate::controller::{Capsule, Collision, Shape};
 
 /// The walk speed the controller is driven at, m/s (a run's root motion; over the client's 3 m/s floor).
@@ -494,6 +494,34 @@ impl WalkGrid {
         Some(client_step(world, &s, self.body.walk_start(), feet, by))
     }
 
+    /// [A364 P9] A body the reckoning keeps across ticks ([`Controller::tick`]) starts here: a standing controller at `feet`, placed
+    /// as the walk starts ([`Body::walk_start`]). None without [`Self::with_client_walker`].
+    pub fn kept_controller_at(&self, feet: Vec3) -> Option<Controller> {
+        let world = self.walker.as_deref()?;
+        Some(Controller::standing_at(self.body.walk_start().place(world, feet)))
+    }
+
+    /// [A364 P9] One tick of a kept body (`player_step` with what the game's logic hands it: `Controller::tick`) on the grid's
+    /// walker with its body's settings; false (and nothing moved) without [`Self::with_client_walker`].
+    pub fn kept_tick(&self, body: &mut Controller, input: TickInput) -> bool {
+        let Some(world) = self.walker.as_deref() else { return false };
+        let (_, s) = self.body.controller();
+        body.tick(world, 0.05, &s, input);
+        true
+    }
+
+    /// [A366] The walkable top of the client's walker (the map's walker triangles) under `at` (flat) from `from_y` down to `reach`
+    /// below it: a ray straight down, the first face met whose normal stands within the body's walkable slope
+    /// ([`Body::min_ground_normal_y`]). None without [`Self::with_client_walker`] or with no such face: the grid's floors are all
+    /// there is to read then.
+    pub fn walker_ground_below(&self, at: Vec3, from_y: f32, reach: f32) -> Option<f32> {
+        let world = self.walker.as_deref()?;
+        let a = Vec3::new(at.x, from_y, at.z);
+        let b = Vec3::new(at.x, from_y - reach, at.z);
+        let (share, normal) = world.ray(a, b)?;
+        (normal.y >= self.body.min_ground_normal_y).then_some(from_y - share * reach)
+    }
+
     /// The controller pass ([`Body::client_controller`], module documentation).
     /// The bridges are made here; the walk links that fail their check are returned (a floor, a direction and the share the body
     /// got), for the build to take away with `cut_keeping_reach`.
@@ -940,7 +968,8 @@ mod tests {
         floor(&mut tris, 5.0, 0.0, 10.0, 6.0, 0.785);
         quad(&mut tris, Vec3::new(5.0, 0.0, 0.0), Vec3::new(5.0, 0.785, 0.0), Vec3::new(5.0, 0.785, 6.0), Vec3::new(5.0, 0.0, 6.0));
         let build = |walk_every_link: bool| {
-            let body = Body { client_controller: true, walk_start_clear: true, walk_every_link, ..Body::client() };
+            // The grid's step 0.85 (walked to 0.81, [`Body::walked_step`]) links the riser; the tick, with the live 0.80, refuses it.
+            let body = Body { client_controller: true, walk_start_clear: true, walk_every_link, step: 0.85, ..Body::client() };
             let start = [Vec3::new(1.0, 0.0, 3.0)];
             WalkGrid::build_kept_with_links(&tris, [0.0, 0.0, 10.0, 6.0], 0.25, body, &start, &start, OffMeshLinks::None)
         };

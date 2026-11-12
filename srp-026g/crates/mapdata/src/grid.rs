@@ -448,7 +448,7 @@ impl Body {
     /// clients' numbers (r 0.38, 55 deg, `startup.cfg` `cc_max_slope_angle_cos 0.57358`) 0.311 m.
     ///
     /// [A364 C2 row 24, kept] The exactness rig measured 0.25-0.265 m for a body falling straight down onto a top's edge and
-    /// left still there: a body at rest slides from the idle slope (45 deg, [`Self::idle_slope_cos`]). The flights this hold
+    /// left still there: a body at rest slides from the idle slope (45 deg, [`IDLE_SLOPE_COS_LIVE`]). The flights this hold
     /// stops are bodies moving through the air, which land through `step_down` 0x7E1B0 on ground within the walk slope; the idle
     /// rule is for a body at rest ([`edge_hold_m`]). Benched with the idle hold (0.2687 m): the gap flights no longer stopped on
     /// those tops made 12-15 % more GapJump links on Rudnya and School, routes stuck +6.7 % (z 2.2), stuck again +35 % (z 4.1),
@@ -458,15 +458,20 @@ impl Body {
         self.radius * (1.0 - self.min_ground_normal_y * self.min_ground_normal_y).max(0.0).sqrt()
     }
 
-    /// The cosine of the steepest ground a body at rest holds on: the live `cc_idle_max_slope_angle_cos` (45 deg,
-    /// [`IDLE_SLOPE_COS_LIVE`]) with the clients' numbers ([`Self::client_slope`]), else the exe's default 40 deg (0x21E51DC).
-    pub fn idle_slope_cos(&self) -> f32 {
-        if self.client_slope() { IDLE_SLOPE_COS_LIVE } else { 40.0f32.to_radians().cos() }
+    /// The highest rise a Walk link up climbs: [`Self::walked_step`], or with [`Self::capsule_steps`] the [`Self::edge_step`].
+    pub fn walk_climb(&self) -> f32 {
+        if self.capsule_steps { self.edge_step() } else { self.walked_step() }
     }
 
-    /// The highest rise a Walk link up climbs: the step, or with [`Self::capsule_steps`] the [`Self::edge_step`].
-    pub fn walk_climb(&self) -> f32 {
-        if self.capsule_steps { self.edge_step() } else { self.step }
+    /// [A364 C2 rows 1, 36, 38] The height over the feet from which a face stops a walking body, m: the step less the move test's
+    /// margin ([`MOVE_STEP_MARGIN_M`]). The walking body's move test is the complex one: a cylinder lifted by `step_up` 0x7C900 by
+    /// the step, with the margin under it, so its flat bottom is 0.80 - 0.04 = 0.76 over the feet with the live numbers
+    /// (`startup.cfg` `cc_step_height 0.80`, `cc_move_step_margin 0.040`). Measured with the exact tick (the exactness rig,
+    /// `grid-rules` S1): a walk climbs a vertical face up to 0.755 m and is refused from 0.760, square on and at 45 degrees alike;
+    /// a bar whose top is 0.75 over the feet is walked over, one at 0.76 holds the body. A rise under it is walked up; a face from
+    /// it up is a wall. The step itself stays what a body steps down without leaving the ground (`step_down`).
+    pub fn walked_step(&self) -> f32 {
+        self.step - MOVE_STEP_MARGIN_M
     }
 
     /// Whether the body walks ground as steep as the clients do (55°, not the exe's 50°): a jump then does not land
@@ -640,10 +645,12 @@ pub const POCKET_EXIT_LOW_M: f32 = 0.2;
 /// study); its standing jump tops at 0.998 m.
 pub const POCKET_EXIT_HIGH_M: f32 = 1.35;
 pub const POCKET_EXIT_FLOORS: usize = 2_000;
-/// The client's step up, walking (`s_step_height`, `step_up` 0x7C900:
-/// PROVEN, no slope test), and its standing jump's top (the `on_site*`
-/// clips' root, PROVEN, the jump study), metres.
-pub const STEP_UP_M: f32 = 0.6;
+/// The client's step up, walking (the live `cc_step_height` 0.80 less the move test's margin, [`Body::walked_step`]: a walk
+/// climbs a vertical face to 0.755 m, refused from 0.760, measured with the exact tick, A364 C2 row 2; was the exe's default
+/// step 0.6), and its standing jump's top (the `on_site*` clips' root, PROVEN, the jump study), metres.
+pub const STEP_UP_M: f32 = 0.8 - MOVE_STEP_MARGIN_M;
+/// [A364 C2] `cc_move_step_margin` (`startup.cfg`, 0.040): the margin under the walking move test's cylinder ([`Body::walked_step`]).
+pub const MOVE_STEP_MARGIN_M: f32 = 0.04;
 pub const STANDING_JUMP_M: f32 = 0.998;
 /// The lowest top of the client's sprint jump (1.282-1.350 m by clip, PROVEN, the jump study): the highest rise a
 /// sprint-jump link is made for with the clients' numbers ([`Body::client`]), metres. The owner's Vector chain
@@ -1454,14 +1461,17 @@ impl WalkGrid {
                     let (hb, cb) = (self.height[b], self.ceiling[b]);
                     let rise = (hb - ha).abs();
                     let gap = ca.min(cb) - ha.max(hb);
-                    let limit = if forced[a] && forced[b] {
-                        stair_rise
+                    // [A364 C2 rows 1, 38] Up, under the walked step ([`Body::walked_step`]); down, the step.
+                    let walks = if forced[a] && forced[b] {
+                        rise <= stair_rise
+                    } else if hb > ha {
+                        rise < body.walked_step()
                     } else {
-                        body.step
+                        rise <= body.step
                     };
                     // Up a ledge's edge the capsule rides (`Body::capsule_steps`); down it stays a drop.
                     let edge = body.capsule_steps && hb > ha && hb - ha <= body.edge_step();
-                    if (rise <= limit || edge) && gap >= body.crouch_height && rise < best.1 {
+                    if (walks || edge) && gap >= body.crouch_height && rise < best.1 {
                         best = (b as u32, rise, LinkKind::Walk);
                     }
                 }
@@ -2287,7 +2297,8 @@ impl WalkGrid {
                 for b in self.start[c2]..self.start[c2 + 1] {
                     let (hb, cb) = (self.height[b as usize], self.ceiling[b as usize]);
                     let rise = (hb - ha).abs();
-                    if rise <= self.body.step && ca.min(cb) - ha.max(hb) >= self.body.crouch_height && rise < best.1 {
+                    let walks = if hb > ha { rise < self.body.walked_step() } else { rise <= self.body.step };
+                    if walks && ca.min(cb) - ha.max(hb) >= self.body.crouch_height && rise < best.1 {
                         best = (b, rise);
                     }
                 }
@@ -5779,6 +5790,24 @@ pub(crate) mod tests {
         let mut ledge = floor(0.0, 0.0, 10.0, 10.0, 3.0).to_vec();
         ledge.extend(floor(10.0, 0.0, 24.0, 10.0, 0.0));
         assert_eq!(edge_drop(&ledge, 3.0), (true, true));
+    }
+
+    /// [A364 C2 rows 1, 38] With the clients' numbers a vertical riser of 0.75 m is a Walk link both ways; one of 0.78 m is walked
+    /// down (under the 0.80 step) but not up (the walked step 0.76, [`Body::walked_step`]).
+    #[test]
+    fn a_riser_is_walked_up_under_the_walked_step_only() {
+        let client = Body::client();
+        assert!((client.walked_step() - 0.76).abs() < 1e-6);
+        for (height, up) in [(0.75, true), (0.78, false)] {
+            let mut tris = floor(0.0, 0.0, 5.0, 10.0, 0.0).to_vec();
+            tris.extend(floor(5.0, 0.0, 10.0, 10.0, height));
+            tris.extend(wall_x(5.0, 0.0, 10.0, height));
+            let grid = WalkGrid::build(&tris, AREA, 0.25, client);
+            let (low, top) = (grid.locate(Vec3::new(4.875, 0.0, 5.125), 0.05).unwrap(), grid.locate(Vec3::new(5.125, height, 5.125), 0.05).unwrap());
+            let walk = |a: NodeId, b: NodeId| grid.links(a).any(|(c, kind)| c == b && kind == LinkKind::Walk);
+            assert_eq!(walk(low, top), up, "up {height}");
+            assert!(walk(top, low), "down {height}");
+        }
     }
 
     /// `Body::capsule_steps`: a ledge whose edge is within the capsule's edge step (0.96 m with the clients' numbers) is walked up

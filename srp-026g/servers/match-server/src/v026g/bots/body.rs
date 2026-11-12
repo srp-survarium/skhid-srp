@@ -30,6 +30,7 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
+use mapdata::controller::tick::{Controller, TickInput};
 use mapdata::{LinkKind, NodeId, RayTree, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
@@ -104,6 +105,51 @@ pub struct Estimate {
     /// [A318] What the grid's slide alone would have added over the last advance's steps where [`ClientStep::Client`] took the
     /// client's walk tick instead (zero where none did): the stuck watch's meaning of the keys stays the grid's ([`BodyTrack::last_meant`]).
     pub grid_extra: GridExtra,
+    /// [A364 P9] The controller kept across the reckoned steps ([`ClientStep::Kept`]); none with the other modes, before the first
+    /// ground step and where the feet were placed otherwise since.
+    pub kept: Option<KeptBody>,
+}
+
+/// [A364 P9] A body's controller kept across ticks ([`ClientStep::Kept`]) and the feet it last gave the reckoning.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct KeptBody {
+    controller: Controller,
+    feet: Vec3,
+}
+
+/// [A364 P9] Feet this far (flat, m) from where the kept controller left them were placed by something else (a world's fix, a jump,
+/// a fall, the grid stopping short): the controller is set anew there.
+pub const KEPT_SAME_M: f32 = 0.05;
+
+/// [A364 P9] One reckoned ground step of the kept controller ([`ClientStep::Kept`]) from `feet`, asked to move `by` (flat): where its
+/// feet end (flat; the grid gives the height). None without the grid's walker.
+pub(crate) fn kept_step(grid: &WalkGrid, kept: &mut Option<KeptBody>, feet: Vec3, by: Vec3, keys: u32, sprinting: bool) -> Option<Vec3> {
+    let mut body = match kept.take() {
+        Some(body) if body.feet.distance_xz(feet) <= KEPT_SAME_M => body,
+        _ => KeptBody { controller: grid.kept_controller_at(feet)?, feet },
+    };
+    #[cfg(test)]
+    let started = std::time::Instant::now();
+    let input = TickInput {
+        walk: Vec3::new(by.x, 0.0, by.z),
+        air_control: Vec3::ZERO,
+        // Both legs broken (the damage model's +388h == 2) is not in the worlds the reckoning reads: the key alone.
+        crouch: mapdata::controller::tick::CrouchInput::Tested { key: keys & crate::v026g::drive::key::CROUCH != 0, legs_broken: false },
+        sprinting,
+    };
+    let start = body.controller.feet();
+    if !grid.kept_tick(&mut body.controller, input) {
+        return None;
+    }
+    #[cfg(test)]
+    client_steps::kept(started.elapsed().as_nanos() as u64);
+    // The controller's own move, from the reckoned feet: a controller set anew stands where the walk start placed it (out of the
+    // faces it overlapped), which is no move of the body.
+    let end = body.controller.feet();
+    let to = Vec3::new(feet.x + end.x - start.x, feet.y, feet.z + end.z - start.z);
+    body.feet = to;
+    *kept = Some(body);
+    Some(to)
 }
 
 /// [A318] The grid's own step less the client tick's, for one reckoned step: its flat length (m, may be negative) and its flat net.
@@ -204,6 +250,7 @@ impl Estimate {
             fall: Fall::Ground,
             step: None,
             grid_extra: GridExtra::default(),
+            kept: None,
         }
     }
 }
@@ -886,6 +933,7 @@ impl BodyTrack {
             scale: kin.pitch_scale,
             fall: Fall::Ground,
             grid_extra: GridExtra::default(),
+            kept: None,
             // [A318] The world's keys are input W's (PROVEN): the step before them takes input W-50's keys and the world's yaw
             // less input W's turn. [A325f] Those keys as the client takes them (the legs' gate, [`Self::as_taken`]).
             step: (kin.step_input == StepInput::Previous)
@@ -1100,6 +1148,11 @@ fn advance(
                             Vec3::new(at.feet.x + end.x - from.x, at.feet.y, at.feet.z + end.z - from.z)
                         })
                     }
+                    // [A364 P9] Every ground step by the body's kept controller.
+                    (ClientStep::Kept, Role::Reckoning, false, Fall::Ground) => {
+                        let by = Vec3::new(to.x - at.feet.x, 0.0, to.z - at.feet.z);
+                        kept_step(grid, &mut at.kept, at.feet, by, step_keys, Kinematics::sprint_state(at.keys))
+                    }
                     _ => None,
                 };
                 #[cfg(test)]
@@ -1155,6 +1208,23 @@ fn advance(
                     feet = grid.position(up);
                     stopped = false;
                     at.air_until = 0;
+                }
+                // [A366] A step the grid takes onto a floor more than a step under the body, where the client's walker (the map's
+                // walker triangles) still has ground within a step under its feet, is no fall: the grid has no floor in that cell
+                // (eroded by a beam or a rail over it) and the next one down is under the ground (School's sealed void 6 m below,
+                // `nav-builder-20261112/A366-root-cause.md`). The body stays on the walker's ground with its last floor.
+                if role == Role::Reckoning
+                    && !in_air
+                    && matches!(at.fall, Fall::Ground)
+                    && top - feet.y > grid.body().step
+                    && let Some(ground) = grid.walker_ground_below(to, top + WALKER_GROUND_OVER_M, WALKER_GROUND_OVER_M + grid.body().step)
+                {
+                    #[cfg(test)]
+                    walker_holds::held();
+                    // Where the walk asked to go, on the ground (the grid's slide put it on the lower floor's cell).
+                    feet = Vec3::new(to.x, ground, to.z);
+                    node = at.node.unwrap_or(node);
+                    stopped = false;
                 }
                 at.node = Some(node);
                 at.feet = feet;
@@ -1338,6 +1408,25 @@ pub fn slide_capped(
     slide_up_to(grid, node, from, to, max_rise, Bridges::Leap)
 }
 
+/// [A366] How far over the body's height the walker's ground is looked for (a lip the capsule steps on).
+const WALKER_GROUND_OVER_M: f32 = 0.1;
+
+/// [A366] The reckoned steps the walker's ground held where the grid had the body fall (the bench's count).
+#[cfg(test)]
+pub(crate) mod walker_holds {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+    static HELD: AtomicU64 = AtomicU64::new(0);
+
+    pub(crate) fn held() {
+        HELD.fetch_add(1, Relaxed);
+    }
+
+    pub(crate) fn count() -> u64 {
+        HELD.load(Relaxed)
+    }
+}
+
 /// [A318] The rise (m) over which a reckoned step is a step up for [`ClientStep::Client`]: the grid's floors are level to the
 /// centimetre, so any rise above it is a climb.
 pub const STEP_UP_RISE_M: f32 = 0.02;
@@ -1351,6 +1440,19 @@ pub(crate) mod client_steps {
     static GROUND: AtomicU64 = AtomicU64::new(0);
     static HARD: AtomicU64 = AtomicU64::new(0);
     static MOVED: AtomicU64 = AtomicU64::new(0);
+    static KEPT: AtomicU64 = AtomicU64::new(0);
+    static KEPT_NS: AtomicU64 = AtomicU64::new(0);
+
+    /// [A364 P9] A kept controller's step and its time, ns.
+    pub(crate) fn kept(ns: u64) {
+        KEPT.fetch_add(1, Relaxed);
+        KEPT_NS.fetch_add(ns, Relaxed);
+    }
+
+    /// [A364 P9] Kept steps so far and their time, ns.
+    pub(crate) fn kept_all() -> (u64, u64) {
+        (KEPT.load(Relaxed), KEPT_NS.load(Relaxed))
+    }
 
     pub(crate) fn count() {
         COUNT.fetch_add(1, Relaxed);
@@ -2668,6 +2770,37 @@ pub(super) mod tests {
         assert!(on.iter().all(|v| *v <= 5.0 + 1e-3));
     }
 
+    /// [A366] A body walking into cells the grid has no floor in, where the client's walker still has the ground (a beam eroded the
+    /// cells; a floor 5 m down under them), stays on the ground: no fall through it. Without the walker it falls (the grid alone).
+    #[test]
+    fn a_body_walks_over_a_grid_hole_on_the_walkers_ground() {
+        let mut grid_tris: Vec<Triangle> = floor(0.0, 0.0, 4.0, 10.0, 5.0).to_vec();
+        grid_tris.extend(floor(6.0, 0.0, 12.0, 10.0, 5.0));
+        grid_tris.extend(floor(0.0, 0.0, 12.0, 10.0, 0.0));
+        let ground: Vec<Triangle> = floor(0.0, 0.0, 12.0, 10.0, 5.0).to_vec();
+        let bare = WalkGrid::build(&grid_tris, [0.0, 0.0, 12.0, 10.0], 0.25, Body::default());
+        let walker = WalkGrid::build(&grid_tris, [0.0, 0.0, 12.0, 10.0], 0.25, Body::default()).with_client_walker(&ground);
+        let yaw = -std::f32::consts::FRAC_PI_2;
+        // Walking +x from x 2 for 1.5 s (into the hole's cells): the lowest height the feet had.
+        let lowest = |grid: &WalkGrid| {
+            let kin = Kinematics { blend_ticks: 1, ..Kinematics::default() };
+            let mut track = BodyTrack::default();
+            track.fixed(fix(0, Vec3::new(2.0, 5.0, 5.0), yaw), &kin, Some(grid));
+            let mut low = f32::INFINITY;
+            for time in (50..=1_500).step_by(50) {
+                track.decided(time, key::FORWARD, (0.0, 0.0), 0.0, &kin, Some(grid));
+                low = low.min(track.estimate().unwrap().feet.y);
+            }
+            (low, track.estimate().unwrap().feet.x)
+        };
+        let (held, x) = lowest(&walker);
+        // On the ground over the hole's edge cells (the grid's slide holds the walk short of the cells it has no floor in, as at a
+        // wall: across it the client's own step carries it, `ClientStep::Kept`).
+        assert!(held > 4.9 && x > 4.5, "on the ground over the hole: {held} at x {x}");
+        let (fell, _) = lowest(&bare);
+        assert!(fell < 4.8, "the grid alone falls: {fell}");
+    }
+
     /// [A318] [`ClientStep::Client`]: up a stair of 0.3 m risers the reckoned body covers the flat share the client's walk tick makes
     /// (`WalkGrid::client_step`), less than the grid's slide alone ([`ClientStep::Grid`]); on a flat floor the two go alike, and a grid
     /// without the walker ([`WalkGrid::with_client_walker`]) goes as [`ClientStep::Grid`].
@@ -2701,6 +2834,12 @@ pub(super) mod tests {
         assert!((walk(&bare, ClientStep::Client, 9.0) - plain).abs() < 1e-4, "no walker: as the grid");
         // On the flat floor (from x 1, 1.5 s at 3.5 m/s ends short of the stair): alike.
         assert!((walk(&walker, ClientStep::Client, 1.0) - walk(&walker, ClientStep::Grid, 1.0)).abs() < 1e-4);
+        // [A364 P9] The kept controller: up the stair short of the grid as the client's tick, on the flat as the grid, and without
+        // the walker as the grid.
+        let kept = walk(&walker, ClientStep::Kept, 9.0);
+        assert!(kept < plain - 0.3, "up the stair: kept {kept}, grid {plain}");
+        assert!((walk(&bare, ClientStep::Kept, 9.0) - plain).abs() < 1e-4, "no walker: as the grid");
+        assert!((walk(&walker, ClientStep::Kept, 1.0) - walk(&walker, ClientStep::Grid, 1.0)).abs() < 1e-3);
     }
 
     /// [A318] [`StepInput::Previous`] (the client's): the step into the feet at N moves with input N-100's keys and its yaw after
