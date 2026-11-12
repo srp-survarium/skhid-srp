@@ -222,6 +222,16 @@ pub struct GridTuning {
     /// (1,058 s). Exe- and recording-proven, so ON and kept by `all_off` (a link the client cannot take is wrong by the game).
     /// A grid is the map's.
     pub fall_stops_on_solids: bool,
+    /// [2c] With `client_controller`: whether its walk check walks every Walk link a body may meet trouble on (a face no body
+    /// walks on near either floor, a rise of 0.15 m or more, a floor with no standing room), crouched where the route
+    /// crouches, from the floor and on from where the link before along the same way left the body, kept only where the
+    /// body arrives on two lines of three (`mapdata::Body::walk_every_link`); a failing link that is a floor's only way in or
+    /// back stays, marked (`WalkGrid::walk_marked`). Off: links beside a face over 55 deg only, one at a time from a start
+    /// pushed out of the faces, kept at half the way: owner-14 report row 12 (the client's own tick stalls within 0.5 m of
+    /// the body in 924 blocked worlds, 1.1 % of calm ones; Mamayev Kurgan's rock step passes its check from the pushed start
+    /// at 1.00 and gets 0.00 from where a body stands; the exe's tick stalls there as recorded, VERIFY-3 §3). Client-proven
+    /// (the ported tick, Unicorn), so ON and kept by `all_off`. A grid is the map's.
+    pub walk_every_link: bool,
     /// [A333] Whether a route's straight legs (the pull, `path.rs`) cross a floor nearer a wall than the client's body holds
     /// ([`PULL_HOLD_M`], the grid's table of wall clearances) only as a floor of the route's own path
     /// (`mapdata::WalkGrid::with_pull_hold`): a leg pulled past a wall's corner or along a wall keeps to the cells the search
@@ -283,6 +293,7 @@ impl Default for GridTuning {
             start_witness: true,
             give_back_in_cell: false,
             fall_stops_on_solids: true,
+            walk_every_link: true,
             wall_clear_pull: false,
             pull_walk: false,
         }
@@ -329,6 +340,7 @@ impl GridTuning {
             start_witness: self.start_witness,
             give_back_in_cell: self.give_back_in_cell,
             fall_stops_on_solids: self.fall_stops_on_solids,
+            walk_every_link: self.walk_every_link,
             ..body
         }
     }

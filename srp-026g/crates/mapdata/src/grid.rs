@@ -308,6 +308,15 @@ pub struct Body {
     /// rail top 25.16 over the slab 24.26 to the ground 20.76, 0 of 95 presses got down; 116 of 148 walked-off gap drops of
     /// 1.5 m+ landed under a solid). A build input: in the key when set.
     pub fall_stops_on_solids: bool,
+    /// [2c] With [`Self::client_controller`]: whether its walk check walks every Walk link a body may meet trouble on (a face
+    /// no body walks on near either floor, a rise, a floor with no standing room), not only those beside a face over the
+    /// body's slope: in the stance the route takes there (crouched where either floor has no standing room, as the bots'
+    /// routes crouch), from the floor and from where the link before it along the same way left the body, and keeps it only
+    /// where the body arrives on two of the three lines (`grid::controlled`). A failing link that is a floor's only way in or
+    /// back stays, marked ([`WalkGrid::walk_marked`]). Off: one link at a time, from a start pushed out of the faces, kept
+    /// at half the way (owner-14 report row 12: the client's tick stalls on chains of links that each passed alone; 924
+    /// blocked worlds within 0.5 m of a stall). A build input: in the key when set.
+    pub walk_every_link: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -391,6 +400,7 @@ impl Body {
             start_witness: false,
             give_back_in_cell: false,
             fall_stops_on_solids: false,
+            walk_every_link: false,
         }
     }
 }
@@ -480,6 +490,7 @@ impl Default for Body {
             start_witness: false,
             give_back_in_cell: false,
             fall_stops_on_solids: false,
+            walk_every_link: false,
         }
     }
 }
@@ -933,6 +944,10 @@ pub struct WalkGrid {
     /// [`ExitReach::Walled`] by [`Self::pocket_exits`] with [`Body::exits_in_reach`] where the build had the walls ([`Erosion::Exact`]). In the file (after
     /// the ramp slopes) and the digest. Empty without the switch.
     walled_exits: Vec<(NodeId, NodeId)>,
+    /// [2c] The Walk links the client's tick does not walk but kept as a floor's only way in or back ([`Body::walk_every_link`]),
+    /// as (from, to), sorted ([`Self::walk_marked`]). In the file (after the walled exits) and the digest. Empty without the
+    /// switch.
+    walk_marked: Vec<(NodeId, NodeId)>,
     /// Per node, its distance to the nearest wall the capsule meets, in [`clearance::CLEARANCE_STEP_M`] steps ([`Self::wall_clearance`]):
     /// made by [`Self::with_wall_clearance`] after the grid is built or read, from the map's triangles. In neither the file nor the
     /// digest. Empty without it.
@@ -987,6 +1002,9 @@ struct Wide {
     /// [`Body::wall_give_back`]: the floors the erosion would give back, put aside while the grid is built as without them
     /// ([`WalkGrid::erode`]); they come back after the reach ([`WalkGrid::give_back_aside`]).
     aside: Vec<Aside>,
+    /// [2c] [`Body::walk_every_link`]: the Walk links that failed the walk check and were kept as a floor's only way, as
+    /// (from, to).
+    marked: Vec<(u32, u32)>,
 }
 
 /// A floor put aside by [`Body::wall_give_back`] ([`Wide::aside`]): where it is and its room.
@@ -1259,6 +1277,7 @@ impl WalkGrid {
             lip: Vec::new(),
             ramp: Vec::new(),
             walled_exits: Vec::new(),
+            walk_marked: Vec::new(),
             clearance: Vec::new(),
             open: Vec::new(),
             walker: None,
@@ -1301,7 +1320,15 @@ impl WalkGrid {
             stats.controlled = controlled;
             // The walk links the client's body does not walk go, but none that is a floor's only way in from the seeds and spawns
             // or its only way back (a 39 deg log on Cologne humans jump onto and stand on: ~70 floors lost with its two ends).
+            let tried: Vec<(u32, u32)> = failing.iter().map(|&(a, d, _)| (a, wide.links[a as usize][d])).collect();
             (stats.controlled.checks_dropped, stats.controlled.checks_kept) = grid.cut_keeping_reach(&mut wide, failing, seeds, spawns, true);
+            // [2c] The kept ones are marked: a route may need them, and they are where a body is likely held.
+            if body.walk_every_link {
+                wide.marked = tried
+                    .into_iter()
+                    .filter(|&(a, b)| (0..DIRS.len()).any(|d| wide.links[a as usize][d] == b && wide.kinds[a as usize][d] == LinkKind::Walk))
+                    .collect();
+            }
         }
         drop(solids);
         if body.drop_room && body.drop_room_walk_faces {
@@ -1396,6 +1423,7 @@ impl WalkGrid {
             slips: Vec::new(),
             given: Vec::new(),
             aside: Vec::new(),
+            marked: Vec::new(),
         }
     }
 
@@ -2420,6 +2448,11 @@ impl WalkGrid {
                 alive[k - 1]
             });
         }
+        wide.marked.retain(|&(a, b)| alive[a as usize] && alive[b as usize]);
+        for (a, b) in &mut wide.marked {
+            *a = new_id[*a as usize];
+            *b = new_id[*b as usize];
+        }
         let mut start = Vec::with_capacity(self.start.len());
         let mut node = 0usize;
         for c in 0..self.nx * self.nz {
@@ -2580,6 +2613,14 @@ impl WalkGrid {
             digest.u32(a);
             digest.u32(b);
         }
+        // [2c] A grid with no marked walks digests as before there were any.
+        if !self.walk_marked.is_empty() {
+            digest.len(self.walk_marked.len());
+        }
+        for &(a, b) in &self.walk_marked {
+            digest.u32(a);
+            digest.u32(b);
+        }
         digest.finish()
     }
 
@@ -2611,7 +2652,7 @@ impl WalkGrid {
             })?;
             // Only a grid with off-mesh links has their table: one without
             // writes as before there were any (read back as none).
-            if self.off.is_empty() && self.ramp.is_empty() && self.walled_exits.is_empty() {
+            if self.off.is_empty() && self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() {
                 return Ok(());
             }
             out.plain(&self.off, |l| {
@@ -2623,20 +2664,26 @@ impl WalkGrid {
                 bytes
             })?;
             // [A304] The ramp slopes, when the grid has them (an empty table before the walled exits).
-            if self.ramp.is_empty() && self.walled_exits.is_empty() {
+            if self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() {
                 return Ok(());
             }
             out.plain(&self.ramp, |&v| [v])?;
-            // [A347] The walled exits, when the grid has them.
-            if self.walled_exits.is_empty() {
+            // [A347] The walled exits, when the grid has them (an empty table before the marked walks).
+            if self.walled_exits.is_empty() && self.walk_marked.is_empty() {
                 return Ok(());
             }
-            out.plain(&self.walled_exits, |&(a, b)| {
+            let pair = |&(a, b): &(NodeId, NodeId)| {
                 let mut bytes = [0u8; 8];
                 bytes[..4].copy_from_slice(&a.to_le_bytes());
                 bytes[4..].copy_from_slice(&b.to_le_bytes());
                 bytes
-            })
+            };
+            out.plain(&self.walled_exits, pair)?;
+            // [2c] The marked walks, when the grid has them.
+            if self.walk_marked.is_empty() {
+                return Ok(());
+            }
+            out.plain(&self.walk_marked, pair)
         })
     }
 
@@ -2708,6 +2755,14 @@ impl WalkGrid {
                             (word(0), word(4))
                         })?
                     },
+                    walk_marked: if input.ends() {
+                        Vec::new()
+                    } else {
+                        input.plain(|bytes: [u8; 8]| {
+                            let word = |i: usize| u32::from_le_bytes([bytes[i], bytes[i + 1], bytes[i + 2], bytes[i + 3]]);
+                            (word(0), word(4))
+                        })?
+                    },
                     clearance: Vec::new(),
                     open: Vec::new(),
                     walker: None,
@@ -2743,6 +2798,9 @@ impl WalkGrid {
         }
         if self.walled_exits.iter().any(|&(a, b)| a as usize >= n || b as usize >= n) || self.walled_exits.windows(2).any(|w| w[0] >= w[1]) {
             return Err("bad walled exits".into());
+        }
+        if self.walk_marked.iter().any(|&(a, b)| a as usize >= n || b as usize >= n) || self.walk_marked.windows(2).any(|w| w[0] >= w[1]) {
+            return Err("bad marked walks".into());
         }
         if self.start.len() != cells + 1
             || self.start[0] != 0
@@ -3363,6 +3421,16 @@ impl WalkGrid {
         }
         self.to = to;
         self.how = how;
+        // [2c] The marked Walk links still there.
+        let mut marked: Vec<(NodeId, NodeId)> = wide
+            .marked
+            .iter()
+            .copied()
+            .filter(|&(a, b)| (0..DIRS.len()).any(|d| wide.links[a as usize][d] == b && wide.kinds[a as usize][d] == LinkKind::Walk))
+            .collect();
+        marked.sort_unstable();
+        marked.dedup();
+        self.walk_marked = marked;
         self.off = wide.off;
         for l in &self.off {
             self.flags[l.from as usize] |= OFF_OUT;
@@ -3427,6 +3495,17 @@ impl WalkGrid {
     /// Whether a standing body fits (else only a crouched one).
     pub fn can_stand(&self, node: NodeId) -> bool {
         self.headroom(node) >= self.body.stand_height
+    }
+
+    /// [2c] Whether the Walk link `a` -> `b` is one the client's walk tick does not walk, kept as a floor's only way in or
+    /// back ([`Body::walk_every_link`]): a body is likely held on it.
+    pub fn walk_marked(&self, a: NodeId, b: NodeId) -> bool {
+        self.walk_marked.binary_search(&(a, b)).is_ok()
+    }
+
+    /// [2c] How many Walk links are marked ([`Self::walk_marked`]).
+    pub fn walk_marked_count(&self) -> usize {
+        self.walk_marked.len()
     }
 
     /// The links out of a floor.
