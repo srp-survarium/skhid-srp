@@ -9,7 +9,7 @@
 #      build's revision is that + 1 (or --revision <n>, which must be above
 #      it; --test: any, from patch_026g.py's REVISION). Nothing is edited:
 #      the revision is passed to the build;
-#   3. bugtrap.dll and updater_skhid.exe (nix develop ./srp-026g,
+#   3. bugtrap.dll, updater_skhid.exe and dlss_helper.exe (nix develop ./srp-026g,
 #      SKHID_REVISION=<n>: their version resource says it;
 #      SKHID_BUILTIN_PATCHES and SKHID_BUILTIN_GAME: the list's /patches and
 #      /game, which the updater uses when the server cannot be reached),
@@ -126,12 +126,12 @@ elif ((revision <= live_revision)); then
 fi
 
 # 3. The build.
-say "building bugtrap.dll and updater_skhid.exe (log: $work/build.log) ..."
+say "building bugtrap.dll, updater_skhid.exe and dlss_helper.exe (log: $work/build.log) ..."
 # SKHID_REVISION: their version resource says this release's revision
 # (FileVersion <n>.0.0.0, ProductVersion "revision <n>"; client/windows_build.rs).
 if ! (cd "$work/src" && SKHID_REVISION=$revision SKHID_BUILTIN_PATCHES=$builtin_patches \
     SKHID_BUILTIN_GAME=$builtin_game nix develop ./srp-026g -c bash -c \
-    'client/bugtrap/build.sh && bash client/updater/build.sh') >"$work/build.log" 2>&1; then
+    'client/bugtrap/build.sh && bash client/updater/build.sh && bash client/dlss-helper/build.sh') >"$work/build.log" 2>&1; then
     tail -n 30 "$work/build.log" >&2
     die "the build failed (log: $work/build.log)"
 fi
@@ -141,7 +141,8 @@ if ! (cd "$work/src" && nix develop ./srp-026g -c bash srp-026g/client-voice/bui
     die "the voice DLL's build failed (log: $work/voice.log)"
 fi
 for built in client/bugtrap/target/i686-win7-windows-msvc/release/BugTrap.dll \
-    client/updater/exe/target/i686-win7-windows-msvc/release/updater_skhid.exe; do
+    client/updater/exe/target/i686-win7-windows-msvc/release/updater_skhid.exe \
+    client/dlss-helper/target/x86_64-pc-windows-msvc/release/dlss_helper.exe; do
     python - "$work/src/$built" "revision $revision" <<'PY' || die "$built does not say revision $revision in its version resource"
 import sys
 sys.exit(sys.argv[2].encode("utf-16-le") + b"\0\0" not in open(sys.argv[1], "rb").read())

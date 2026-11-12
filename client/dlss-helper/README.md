@@ -17,7 +17,7 @@ VkDevice on the same GPU.
 | `LICENSES.txt` | the notices below | `LICENSES.txt` here |
 | `NVIDIA-DLSS-SDK-LICENSE.txt` | NVIDIA's licence | NVIDIA/DLSS v310.9.16 `LICENSE.txt` |
 
-About 67 MB on disk (nvngx_dlss.dll is 59 MB), about 31 MB more in the players' ZIP.
+About 64 MB on disk (nvngx_dlss.dll is 59 MB), about 34 MB more in the players' ZIP.
 `dlss_helper.log` appears beside the exe (the temporary folder when that one cannot be written).
 
 ## Build
