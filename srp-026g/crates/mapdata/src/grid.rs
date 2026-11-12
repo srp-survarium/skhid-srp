@@ -299,6 +299,15 @@ pub struct Body {
     /// client walks its far half (A331: 184 of the 201 rounds-taken floors under fx-zones' grid edge cuts). A build input: in
     /// the key when set.
     pub give_back_in_cell: bool,
+    /// [2a] Whether a fall stops at any ground top under the body, not only at a kept floor: the gap links' flights and
+    /// walk-offs (`gap`'s `fall_on`, `walk_off`, `fly`, `fly_clip`) and the plain Drop links ([`WalkGrid::drops_under_solids`]).
+    /// A ground span whose top the body's feet pass, within [`Body::hold_radius`] of its centre, holds the capsule there (the
+    /// client sweeps the capsule down, `step_down_sweep_test_impl` 0x7EA80); with no floor at that top (the erosion took the
+    /// strip a radius wide beside every rail and wall) the flight ends with no link. Off: a fall asks for floors only, so it
+    /// goes on through an eroded slab to the storey under it (owner-14 report row 2: Vector Laboratory's spawn platform, the
+    /// rail top 25.16 over the slab 24.26 to the ground 20.76, 0 of 95 presses got down; 116 of 148 walked-off gap drops of
+    /// 1.5 m+ landed under a solid). A build input: in the key when set.
+    pub fall_stops_on_solids: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -381,6 +390,7 @@ impl Body {
             crack_bridges: false,
             start_witness: false,
             give_back_in_cell: false,
+            fall_stops_on_solids: false,
         }
     }
 }
@@ -411,6 +421,13 @@ impl Body {
     /// numbers 0.80 + 0.38 * (1 - 0.574) = 0.96 m.
     pub fn edge_step(&self) -> f32 {
         self.step + self.radius * (1.0 - self.min_ground_normal_y)
+    }
+
+    /// How far from its centre a ground top holds the falling or walking capsule ([`Self::fall_stops_on_solids`]): its round
+    /// bottom meets an edge at a normal within the slope it stands on, `radius * sin(acos(min_ground_normal_y))`. With the
+    /// clients' numbers (r 0.38, 55 deg, `startup.cfg` `cc_max_slope_angle_cos 0.57358`) 0.311 m.
+    pub fn hold_radius(&self) -> f32 {
+        self.radius * (1.0 - self.min_ground_normal_y * self.min_ground_normal_y).max(0.0).sqrt()
     }
 
     /// The highest rise a Walk link up climbs: the step, or with [`Self::capsule_steps`] the [`Self::edge_step`].
@@ -462,6 +479,7 @@ impl Default for Body {
             crack_bridges: false,
             start_witness: false,
             give_back_in_cell: false,
+            fall_stops_on_solids: false,
         }
     }
 }
@@ -941,6 +959,9 @@ struct Solids {
     /// Per cell, its first span; `nx * nz + 1` entries.
     start: Vec<u32>,
     spans: Vec<(f32, f32)>,
+    /// Per span, whether its top is ground a body stands on (a `walk` face, or within the body's slope): what a fall stops at
+    /// ([`Body::fall_stops_on_solids`]).
+    ground: Vec<bool>,
 }
 
 /// The links while the grid is built, a whole floor id a direction; packed
@@ -1038,6 +1059,10 @@ pub struct BuildStats {
     /// kept because they are the only way to a floor or back from it.
     pub drops_unfollowed: usize,
     pub drops_unfollowed_kept: usize,
+    /// The Drop links taken away because a ground top with no floor holds the body over their landing
+    /// ([`Body::fall_stops_on_solids`]), and those kept because they are the only way to a floor or back from it.
+    pub drops_under_solid: usize,
+    pub drops_under_solid_kept: usize,
     /// The floors given back beside walls the body clears ([`Body::wall_give_back`]).
     pub wall_given_back: usize,
     /// The gap pass ([`gap`]).
@@ -1128,6 +1153,7 @@ impl WalkGrid {
         let mut solids = Solids {
             start: Vec::with_capacity(nx * nz + 1),
             spans: Vec::new(),
+            ground: Vec::new(),
         };
         for (index, mut column) in columns.into_iter().enumerate() {
             start.push(height.len() as u32);
@@ -1155,6 +1181,7 @@ impl WalkGrid {
             solids
                 .spans
                 .extend(merged.iter().map(|span| (span.low, span.high)));
+            solids.ground.extend(merged.iter().map(|span| span.walk >= 2));
             for (k, span) in merged.iter().enumerate() {
                 if span.walk == 0 {
                     continue;
@@ -1223,6 +1250,10 @@ impl WalkGrid {
             OffMeshLinks::None => Vec::new(),
             OffMeshLinks::Gaps => grid.gap_links(&wide, &solids, &mut stats.gaps),
         };
+        if body.fall_stops_on_solids {
+            let failing = grid.drops_under_solids(&wide, &solids);
+            (stats.drops_under_solid, stats.drops_under_solid_kept) = grid.cut_keeping_reach(&mut wide, failing, seeds, spawns, true);
+        }
         if body.slip_landings {
             wide.slips = grid.slip_landings(&wide, &solids);
         }

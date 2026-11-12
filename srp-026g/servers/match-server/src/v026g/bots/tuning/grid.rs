@@ -213,6 +213,15 @@ pub struct GridTuning {
     /// +0.05 (client-test level_05 +0.06, live level_06 +0.07: a given-back walk up 0.55 m in one cell, live level_07 +0.07).
     /// A grid is the map's.
     pub give_back_in_cell: bool,
+    /// [2a] Whether a fall in the maps' walk grids stops at any ground top under the body, not only at a kept floor
+    /// (`mapdata::Body::fall_stops_on_solids`): the gap links' flights and walk-offs, and the plain Drop links (a floor's only
+    /// way in or back is kept). The erosion takes the strip a radius wide beside every rail and wall, and the fall test asked
+    /// for floors only, so it went on through the slab: owner-14 report row 2, Vector Laboratory's spawn platform (rail top
+    /// 25.16, slab 24.26, "landing" 20.76): 0 of 95 presses by 18 bots got down, the exe's own tick rests the body on the slab
+    /// at 24.258 (VERIFY-3 §1); 113 of 124 pressed drops of 2 m+ in the 14 matches were on such links, 139 stuck episodes
+    /// (1,058 s). Exe- and recording-proven, so ON and kept by `all_off` (a link the client cannot take is wrong by the game).
+    /// A grid is the map's.
+    pub fall_stops_on_solids: bool,
     /// [A333] Whether a route's straight legs (the pull, `path.rs`) cross a floor nearer a wall than the client's body holds
     /// ([`PULL_HOLD_M`], the grid's table of wall clearances) only as a floor of the route's own path
     /// (`mapdata::WalkGrid::with_pull_hold`): a leg pulled past a wall's corner or along a wall keeps to the cells the search
@@ -273,6 +282,7 @@ impl Default for GridTuning {
             crack_bridges: true,
             start_witness: true,
             give_back_in_cell: false,
+            fall_stops_on_solids: true,
             wall_clear_pull: false,
             pull_walk: false,
         }
@@ -318,6 +328,7 @@ impl GridTuning {
             crack_bridges: self.crack_bridges,
             start_witness: self.start_witness,
             give_back_in_cell: self.give_back_in_cell,
+            fall_stops_on_solids: self.fall_stops_on_solids,
             ..body
         }
     }
