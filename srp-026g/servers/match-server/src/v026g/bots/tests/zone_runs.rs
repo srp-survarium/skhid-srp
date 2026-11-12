@@ -341,6 +341,8 @@ fn a_bot_pushed_into_a_zone_stands_there_with_zone_lines_off() {
     let _mixer = super::standin_jump::OldMixer::scope();
     // [A318] And the stand-in's step order before the client's (its pinned timing is the old one's).
     let _step = super::standin_jump::OldStepInput::scope();
+    // And the speeds before F5.
+    let _speeds = crate::v026g::bots::kin::PreF5Speeds::scope();
     let small = zone("small", Vec3::new(30.0, 1.0, 20.0), Vec3::new(2.0, 1.0, 2.0));
     let pushed = |zone_lines: bool| {
         let mut pushed = run(field(&[], vec![small.clone()]), None);
