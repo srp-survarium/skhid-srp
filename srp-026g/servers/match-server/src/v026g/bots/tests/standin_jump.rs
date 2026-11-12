@@ -1041,15 +1041,17 @@ pub(crate) struct ClientStep {
     pub(crate) rise: f32,
     /// The clip's `jump` event has passed (frame 6): in the air.
     pub(crate) airborne: bool,
-    /// The clip's end (frame 24): `end_jump`.
+    /// The air phase's end (its twelfth step, `jump_arc::Clip::air_end_frame`): `end_jump`.
     pub(crate) over: bool,
 }
 
 pub(crate) fn client_step(f: &Flight, arc: crate::v026g::bots::jump_arc::Clip, ms: f32, yaw: f32) -> ClientStep {
-    use crate::v026g::bots::jump_arc::{END_FRAME, FPS, TAKEOFF_FRAME};
+    use crate::v026g::bots::jump_arc::{FPS, TAKEOFF_FRAME};
     let (pm, pd) = f.prepare;
     let prev = (ms - TICK_S * 1_000.0).max(0.0);
-    let frame = |m: f32| ((m - pm).max(0.0) / 1_000.0 * FPS * arc.time_scale()).min(END_FRAME);
+    // [A364 P6] The air phase ends at its twelfth step, the clip short of its end (`jump_arc::AIR_STEPS`).
+    let end = arc.air_end_frame();
+    let frame = |m: f32| ((m - pm).max(0.0) / 1_000.0 * FPS * arc.time_scale()).min(end);
     let prep = |m: f32| if pm > 0.0 { pd * m.min(pm) / pm } else { 0.0 };
     let (f0, f1) = (frame(prev), frame(ms));
     let (a, b) = (arc.root(f0), arc.root(f1));
@@ -1058,8 +1060,8 @@ pub(crate) fn client_step(f: &Flight, arc: crate::v026g::bots::jump_arc::Clip, m
     ClientStep {
         ahead: [d[0] + f.dir[0] * p, d[1] + f.dir[1] * p],
         rise: b[0] - a[0],
-        airborne: f1 >= TAKEOFF_FRAME,
-        over: f1 >= END_FRAME,
+        airborne: f1 >= TAKEOFF_FRAME - 1e-3,
+        over: f1 >= end - 1e-3,
     }
 }
 
@@ -1167,8 +1169,13 @@ pub(crate) fn an_honest_jump_follows_the_games_clips() {
     let walls = mapdata::RayTree::build(&triangles);
     let from = Vec3::new(2.0, 0.0, 5.0);
     let body = honest_body(&grid, from);
+    // [A364 P6] The air phase ends at its twelfth step, short of the clip's end: the short forward clip's root is 2.50 m on there
+    // (2.67 at frame 24), the sprint clip's 3.89 m (4.42); the old flight played the clip to its end.
+    use crate::v026g::bots::jump_arc::{Clip, Direction};
+    let air_ahead = |clip: Clip| if stand_in_client_jump() { clip.root(clip.air_end_frame())[1] } else { clip.root(24.0)[1] };
+    let short = air_ahead(Clip::Short(Direction::Forward));
     let (to, top) = honest_jump(&grid, &walls, body.clone(), key::FORWARD | key::JUMP, 0.0);
-    assert!((to.x - from.x - 2.67).abs() < 0.15 && to.y.abs() < 0.05, "{to:?}");
+    assert!((to.x - from.x - short).abs() < 0.15 && to.y.abs() < 0.05, "{to:?} {short}");
     assert!((top - 1.0).abs() < 0.03, "{top}");
     let (to, top) = honest_jump(&grid, &walls, body.clone(), key::JUMP, 0.0);
     assert!(to.distance_xz(from) < 0.05 && (top - 1.0).abs() < 0.03, "{to:?} {top}");
@@ -1178,16 +1185,18 @@ pub(crate) fn an_honest_jump_follows_the_games_clips() {
     // [T3] The client's: before the take-off the walk cap (3.5 m/s, `max_speed` 0x2DC010; skipped only under the jump flag, A328)
     // holds the body behind the sprint clip's 5 m/s root, and with the root re-based every tick (A325g) it does not catch up: about
     // 0.4 m short of the clip's 4.42 m. The old flight chased it back.
-    let least = if stand_in_client_jump() { 3.9 } else { 4.3 };
-    assert!((least..=4.42 + 1.64 + 0.15).contains(&ahead), "{to:?}");
+    let sprint = air_ahead(Clip::Sprint(Direction::Forward));
+    let least = if stand_in_client_jump() { sprint - 0.52 } else { 4.3 };
+    assert!((least..=sprint + 1.64 + 0.15).contains(&ahead), "{to:?} {sprint}");
     assert!((top - 1.28).abs() < 0.03, "{top}");
     let (to, top) = honest_jump(&grid, &walls, body.clone(), run, 3.0);
-    assert!((to.x - from.x - 2.67).abs() < 0.15 && (top - 1.0).abs() < 0.03, "{to:?} {top}");
+    assert!((to.x - from.x - short).abs() < 0.15 && (top - 1.0).abs() < 0.03, "{to:?} {top}");
     // Back and to the side: that way, as far as that way's own clip carries ([T3] the stock `on_site_left` root; the old flight
     // took the forward clip's 2.67 m).
     let (to, _) = honest_jump(&grid, &walls, body, key::LEFT | key::JUMP, 0.0);
     let side = if stand_in_client_jump() {
-        crate::v026g::bots::jump_arc::Clip::of(key::LEFT, 0.0).root(crate::v026g::bots::jump_arc::END_FRAME)[2].abs()
+        let clip = crate::v026g::bots::jump_arc::Clip::of(key::LEFT, 0.0);
+        clip.root(clip.air_end_frame())[2].abs()
     } else {
         2.67
     };

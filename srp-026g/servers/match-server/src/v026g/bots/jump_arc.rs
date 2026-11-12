@@ -41,6 +41,11 @@ pub(crate) const FPS: f32 = 30.0;
 pub const END_FRAME: f32 = 24.0;
 /// The clip's `jump` event: the body leaves the ground (rifles; pistols at frame 3, whose root does not rise before frame 6 either).
 pub const TAKEOFF_FRAME: f32 = 6.0;
+/// [A364 P6] The game's air phase is this many steps, the first at the take-off frame (PROVEN: 20 of 20 traced jumps of the game's own
+/// bodies, `private/grid/rig/jump-census.txt`): the short jump reads its clip at frame 6 + 1.5 x (step - 1), so its twelfth and last air
+/// step is at frame 22.5, the root 0.35 m over the start (17 short jumps, the same 12 heights to four decimals). The clip's end (frame
+/// 24) is not played in the air ([`Clip::air_end_frame`]).
+pub const AIR_STEPS: u32 = 12;
 /// The sprint jump clip's time scale (FINDINGS 3.3).
 const SPRINT_TIME_SCALE: f32 = 0.909;
 /// `air_control_speed` (player +0x304, `default.player`), m/s.
@@ -189,7 +194,15 @@ impl Clip {
     /// speed (up * walk.y / dt), so the fall starts at the root's descent over the clip's last tick (fx-gear-2's read).
     pub(crate) fn end_descent(self) -> f32 {
         let df = TICK_S * FPS * self.time_scale();
-        ((self.root(END_FRAME - df)[0] - self.root(END_FRAME)[0]) / TICK_S).max(0.0)
+        let end = self.air_end_frame();
+        ((self.root(end - df)[0] - self.root(end)[0]) / TICK_S).max(0.0)
+    }
+
+    /// [A364 P6] The frame of the last air step ([`AIR_STEPS`] from [`TAKEOFF_FRAME`], 1.5 frames a step at the clip's time scale):
+    /// 22.5 for the short jumps (PROVEN); for the sprint jumps the model's time scale gives 21.0 (the twelve steps PROVEN, the scale a
+    /// LEAD: one traced sprint jump advanced 1.5 frames a step, kept until more are traced).
+    pub fn air_end_frame(self) -> f32 {
+        TAKEOFF_FRAME + (AIR_STEPS - 1) as f32 * FPS * TICK_S * self.time_scale()
     }
 
     /// The air control in the body's frame, m/s: the keys' direction at 1 m/s, none for forward alone in a sprint jump.
@@ -254,12 +267,12 @@ impl JumpArc {
         let mut arc = Self::pressed(pressed, keys, speed, feet, yaw);
         let ms = time.saturating_sub(pressed) as f32;
         let (frame, travel) = arc.root(ms);
-        if frame >= END_FRAME {
+        if frame >= arc.clip.air_end_frame() + AIR_END_EPS {
             return None;
         }
         let rise = arc.clip.root(frame)[0];
         arc.from = Vec3::new(feet.x - travel[0], feet.y, feet.z - travel[1]);
-        if frame > TAKEOFF_FRAME {
+        if frame >= TAKEOFF_FRAME - AIR_END_EPS {
             arc.phase = Phase::Air { base: feet.y - rise };
         }
         Some(arc)
@@ -312,8 +325,10 @@ impl JumpArc {
         }
         let ms = t1.saturating_sub(self.pressed) as f32;
         let (frame, travel) = self.root(ms);
+        let air_end = self.clip.air_end_frame();
         let mut target = (self.from.x + travel[0], self.from.z + travel[1]);
-        if frame <= TAKEOFF_FRAME {
+        // [A364 P6] The step at the take-off frame is the first of the air phase.
+        if frame < TAKEOFF_FRAME - AIR_END_EPS {
             // On the floor: toward the root at the walk cap at most.
             let (dx, dz) = (target.0 - feet.x, target.1 - feet.z);
             let len = dx.hypot(dz);
@@ -330,7 +345,7 @@ impl JumpArc {
         let steer = to_world([ca * dt, cl * dt], yaw);
         self.air = [self.air[0] + steer[0], self.air[1] + steer[1]];
         target = (target.0 + self.air[0], target.1 + self.air[1]);
-        let r = self.clip.root(frame);
+        let r = self.clip.root(frame.min(air_end));
         let y = base + r[0];
         // A wall: a ray at one of the heights meets the map within the move and the radius, or a floor top within the radius above
         // the feet by more than the catch and under the head.
@@ -357,7 +372,8 @@ impl JumpArc {
             .find(|&(x, z)| (x, z) != (feet.x, feet.z) && !blocked(x, z))
             .unwrap_or((feet.x, feet.z));
         let at = Vec3::new(x, y, z);
-        let over = frame >= END_FRAME;
+        // [A364 P6] The air phase ends with its twelfth step ([`AIR_STEPS`]), the root short of the clip's end.
+        let over = frame >= air_end - AIR_END_EPS;
         if frame >= self.clip.apex_frame() || over {
             // Down on a top of the walker mesh the grid has no floor for (the client stands on a railing's top rail), else on the
             // grid's floor.
@@ -380,6 +396,9 @@ impl JumpArc {
         ArcStep::Air(at)
     }
 }
+
+/// Frames: a step's frame is a sum of floats, within this of a step boundary it is that step.
+const AIR_END_EPS: f32 = 1e-3;
 
 /// The bench only: rays the arc has cast on the walker mesh (its cost per jumping tick, `tests/drift_replay.rs`).
 #[cfg(test)]
@@ -950,12 +969,30 @@ mod tests {
         assert!(Clip::Short(Direction::Right).root(24.0)[2] > 1.9, "right is +x");
     }
 
-    /// A clip that ends in the air hands the fall its root's last descent speed, not a fall from rest: the short forward jump's root
-    /// comes down 0.458 -> 0.249 -> 0 m over its last two frames, about 7 m/s over its last tick (over the 2 m/s slow-fall line).
+    /// [A364 P6] The game's air phase: twelve steps from the take-off frame, 1.5 frames apart for the short jump, the last at frame
+    /// 22.5 with the root 0.35 m up (the traced jumps' heights), short of the clip's end.
+    #[test]
+    fn the_air_phase_is_twelve_steps_and_ends_short_of_the_clip() {
+        let short = Clip::Short(Direction::Forward);
+        assert!((short.air_end_frame() - 22.5).abs() < 1e-4);
+        let rise = short.root(short.air_end_frame())[0];
+        assert!((rise - 0.35).abs() < 0.02, "{rise}");
+        // The steps 50 ms apart from the press whose frame is in the air phase: twelve.
+        let arc = JumpArc::pressed(0, key::FORWARD, 3.0, Vec3::ZERO, 0.0);
+        let frame = |k: u32| arc.root(k as f32 * 50.0).0;
+        let air: Vec<u32> = (1..=20)
+            .filter(|&k| frame(k) >= TAKEOFF_FRAME - AIR_END_EPS)
+            .take_while(|&k| frame(k) <= short.air_end_frame() + AIR_END_EPS)
+            .collect();
+        assert_eq!(air.len() as u32, AIR_STEPS, "{air:?}");
+    }
+
+    /// A jump that ends in the air hands the fall its root's last descent speed, not a fall from rest: the short forward jump's root
+    /// comes down 0.631 -> 0.353 m over its last air step (frames 21 -> 22.5, [A364 P6]), 5.5 m/s (over the 2 m/s slow-fall line).
     #[test]
     fn a_clip_ends_falling_at_its_roots_last_descent() {
         let v = Clip::Short(Direction::Forward).end_descent();
-        assert!((6.0..8.0).contains(&v), "{v}");
+        assert!((5.0..6.0).contains(&v), "{v}");
         assert!(v > super::super::body::CLIENT.on_ground_max_vertical_speed);
     }
 
@@ -980,16 +1017,18 @@ mod tests {
         }
     }
 
-    /// On flat ground the short forward jump goes 2.67 m and the 1 m/s control on top over its 0.6 s in the air, and lands at 0.8 s.
+    /// On flat ground the short forward jump goes its root's 2.50 m to the last air step (frame 22.5, [A364 P6]) and the 1 m/s control
+    /// on top over its twelve air steps, then falls the last 0.35 m and lands about 0.8 s after the press.
     #[test]
     fn a_short_jump_on_flat_ground_lands_ahead_at_the_clips_end() {
         let grid = WalkGrid::build(&crate::v026g::bots::body::tests::floor(-10.0, -10.0, 10.0, 10.0, 0.0), [-10.0, -10.0, 10.0, 10.0], 0.25, mapdata::Body::client());
         let arc = JumpArc::pressed(0, key::FORWARD, 3.0, Vec3::ZERO, 0.0);
         let (at, node, t) = step_all(arc, &grid, Vec3::ZERO, key::FORWARD);
         assert!(node.is_some() && at.y.abs() < 1e-3, "{at:?}");
-        assert!((800..=850).contains(&t), "{t}");
+        assert!((750..=900).contains(&t), "{t}");
         let ahead = at.x.hypot(at.z);
-        assert!((ahead - (2.67 + 0.6)).abs() < 0.15, "{ahead}");
+        let clip = Clip::Short(Direction::Forward);
+        assert!((ahead - (clip.root(clip.air_end_frame())[1] + 0.6)).abs() < 0.15, "{ahead}");
     }
 
     /// A ledge 0.9 m up 1.5 m ahead takes the short jump's body (its root is 0.9 m+ up from 1.17 m to 2.2 m); one 1.3 m up stops it.
