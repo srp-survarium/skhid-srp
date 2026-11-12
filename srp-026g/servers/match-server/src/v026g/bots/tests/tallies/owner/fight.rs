@@ -37,6 +37,12 @@ pub(super) struct FightCounts {
     pub(super) fire_move: [u32; 5],
     /// Fire ticks in the air by the play the shooter runs (its index in `Run::plays`).
     pub(super) fire_air_play: BTreeMap<usize, u32>,
+    /// [A377] Fire ticks in the air by the flight they were in ([`AirClass`], its index), counted when the flight ends.
+    pub(super) fire_air_by: [u32; AirClass::ALL.len()],
+    /// [A377] By place: the landings of the bot's route's drops at this tick's reading ([`super::grid::route_drops_of`]), and the
+    /// flight its body is in.
+    pub(super) route_drops: Vec<Vec<Vec3>>,
+    pub(super) flight: Vec<Option<AirFlight>>,
     /// Fire ticks at a target out of sight ([`Self::fire_hidden`]) by the play the shooter runs (nav-team 2b's bench read).
     pub(super) fire_hidden_play: BTreeMap<usize, u32>,
     pub(super) hits_move: [u32; 5],
@@ -72,7 +78,65 @@ impl FightCounts {
             held_at: vec![0; n],
             hurt_by: vec![Vec::new(); n],
             team_of: vec![0; n],
+            route_drops: vec![Vec::new(); n],
+            flight: vec![None; n],
             ..Self::default()
+        }
+    }
+}
+
+/// [A377] What a flight was: the guard "fire ticks in the air" counted all of them, but a walk off the route's own drop is
+/// legal in the client (it keeps the sights and the shot open in a walk-off fall, and a fall under 5 m does no harm:
+/// A364, `fall_damage.md`), so only an unplanned fall measures harm.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum AirClass {
+    /// A walk off a drop of the bot's route: it lands within [`super::grid::PLANNED_LANDING_M`] of one of its landings.
+    PlannedDrop,
+    /// A fall of [`super::grid::FALL_M`] or more the route has no drop for.
+    UnplannedFall,
+    /// Down less than [`super::grid::FALL_M`]: a step off a curb or a stair the route walks.
+    ShortStep,
+    /// A jump: the jump key held as the body left the ground.
+    Jump,
+    /// Still in the air when the match ended.
+    NotLanded,
+}
+
+impl AirClass {
+    pub(super) const ALL: [Self; 5] = [Self::PlannedDrop, Self::UnplannedFall, Self::ShortStep, Self::Jump, Self::NotLanded];
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::PlannedDrop => "planned_drop",
+            Self::UnplannedFall => "unplanned_fall",
+            Self::ShortStep => "short_step",
+            Self::Jump => "jump",
+            Self::NotLanded => "not_landed",
+        }
+    }
+}
+
+/// [A377] A flight under way: whether it is a jump, where the body left the ground, the route's drop landings then, and the
+/// fire ticks so far.
+#[derive(Clone, Debug)]
+pub(super) struct AirFlight {
+    jump: bool,
+    from: Vec3,
+    drops: Vec<Vec3>,
+    fire: u32,
+}
+
+impl AirFlight {
+    /// The flight's class, the body down at `landed`.
+    fn class(&self, landed: Vec3) -> AirClass {
+        if self.jump {
+            AirClass::Jump
+        } else if self.from.y - landed.y < super::grid::FALL_M {
+            AirClass::ShortStep
+        } else if self.drops.iter().any(|landing| landing.distance_xz(landed) <= super::grid::PLANNED_LANDING_M) {
+            AirClass::PlannedDrop
+        } else {
+            AirClass::UnplannedFall
         }
     }
 }
@@ -227,6 +291,9 @@ impl Topic for FightCounts {
     }
 
     fn read(&mut self, place: Place, bot: Option<&Bot>, tick: u32) {
+        if let Some(drops) = self.route_drops.get_mut(place) {
+            *drops = bot.map_or_else(Vec::new, super::grid::route_drops_of);
+        }
         self.now[place] = bot.map(|bot| {
             let gates = bot.reflex.gates();
             FightNow {
@@ -271,6 +338,7 @@ impl Topic for FightCounts {
             return;
         };
         self.fight_ammo(place, tick, body, &now);
+        self.fight_flight(place, at.rec, at.prev);
         self.fight_fire(game, place, body, at.rec, at.sight, rays);
         self.fight_range_held(place, body, &now);
         self.fight_switch(game, place, body, at.sight, rays);
@@ -364,6 +432,50 @@ pub(crate) fn fire_and_hits_count_by_the_shooters_movement_and_range() {
     assert_eq!(json["hits_by_move"]["still"], 1);
     assert_eq!(json["hits_by_move"]["sprint"], 0);
     assert_eq!(json["hits_by_class"][class][1], 1);
+}
+
+#[test]
+pub(crate) fn fire_in_the_air_is_counted_by_the_flight_it_was_in() {
+    // Bot 0 walks off its route's drop (3 m down, landing at the route's landing) firing 4 ticks; bot 2 falls 3 m where its
+    // route has no drop, firing 3 ticks; bot 4 jumps (the key held as it leaves) firing 2 ticks; bot 6 steps 0.5 m down
+    // firing 1 tick. Every fire tick in the air is in one class; the classes add up to the air count.
+    let (mut game, mut tally) = made_up(&[0, 1, 0, 1, 0, 1, 0, 1]);
+    tally.topic::<FightCounts>().route_drops[0] = vec![Vec3::new(10.0, -3.0, 10.0)];
+    play(&mut game, &mut tally, 12, |k, game| {
+        for p in 0..8 {
+            put(game, p, 10.0 * p as f32 + 10.0, 10.0, 0);
+        }
+        let air = (3..3 + 4).contains(&k);
+        for p in [0, 2, 4, 6] {
+            let body = &mut game.bodies[p];
+            body.air_until = if air { game.tick + TICK_MS } else { 0 };
+            // Down at the end: 3 m for 0 and 2, back to its height for 4 (a jump), 0.5 m for 6.
+            let down = match p {
+                0 | 2 if k >= 7 => 3.0,
+                6 if k >= 7 => 0.5,
+                _ => 0.0,
+            };
+            body.feet.y = -down;
+            let fires = match p {
+                0 => air,
+                2 => (3..6).contains(&k),
+                4 => (3..5).contains(&k),
+                _ => k == 3,
+            };
+            body.keys = if fires { key::FIRE } else { 0 } | if p == 4 && k == 3 { key::JUMP } else { 0 };
+        }
+        // Bot 0 lands at its route's landing; bot 2 a good way from any.
+        game.bodies[0].feet.x = 10.0;
+        vec![bot_now(); 8]
+    });
+    let (_, json) = tally.finish(&game);
+    let by = &json["fire_air_by_flight"];
+    assert_eq!(by["planned_drop"], 4, "{json}");
+    assert_eq!(by["unplanned_fall"], 3, "{json}");
+    assert_eq!(by["jump"], 2, "{json}");
+    assert_eq!(by["short_step"], 1, "{json}");
+    assert_eq!(by["not_landed"], 0, "{json}");
+    assert_eq!(json["fire_by_move"]["air"], 10, "{json}");
 }
 
 #[test]
@@ -613,12 +725,34 @@ impl FightCounts {
         }
     }
 
+    /// [A377] The flight the body is in: opened on the tick it is in the air and was not, closed with its class on the tick it
+    /// is down (or dead: classed where it was last).
+    fn fight_flight(&mut self, place: Place, rec: &Rec, prev: &Rec) {
+        let up = rec.alive && rec.air;
+        if up && self.flight[place].is_none() {
+            self.flight[place] = Some(AirFlight {
+                jump: (rec.keys | prev.keys) & key::JUMP != 0,
+                from: prev.feet,
+                drops: self.route_drops[place].clone(),
+                fire: 0,
+            });
+        } else if !up && let Some(flight) = self.flight[place].take() {
+            let landed = if rec.alive { rec.feet } else { prev.feet };
+            self.fire_air_by[flight.class(landed) as usize] += flight.fire;
+        }
+    }
+
     /// Fire this tick: by movement, at a target in line or not, by range.
     pub(super) fn fight_fire(&mut self, game: &Game, place: Place, body: &super::super::Body, rec: &Rec, sight: &mapdata::RayTree, rays: &mut u64) {
         if body.alive && body.keys & key::FIRE != 0 {
             self.fire_move[move_of(rec)] += 1;
             if MOVES[move_of(rec)] == "air" {
                 *self.fire_air_play.entry(usize::from(rec.play)).or_default() += 1;
+                match self.flight[place].as_mut() {
+                    Some(flight) => flight.fire += 1,
+                    // A body the record has in the air while dead: none opened (not seen in a run).
+                    None => self.fire_air_by[AirClass::NotLanded as usize] += 1,
+                }
                 // `SRP_BENCH_AIR_ROWS` (A368, local): one row a fire tick in the air: who, when, where, the play's index (the
                 // `airfire-plays` line names them), the keys, in a hold or walking to a goal, and the flight: a walk off an
                 // edge (it carries speed across) or a jump, where and when it began.
@@ -984,6 +1118,13 @@ impl FightCounts {
                 m
             });
         json["fire_air_by_play"] = serde_json::json!(air);
+        // [A377] The flights still open count as not landed.
+        let mut by = self.fire_air_by;
+        for flight in self.flight.iter().flatten() {
+            by[AirClass::NotLanded as usize] += flight.fire;
+        }
+        let by_flight: BTreeMap<&str, u32> = AirClass::ALL.iter().map(|&c| (c.name(), by[c as usize])).collect();
+        json["fire_air_by_flight"] = serde_json::json!(by_flight);
         let hidden: BTreeMap<String, u32> = self
             .fire_hidden_play
             .iter()
@@ -993,7 +1134,11 @@ impl FightCounts {
                 m
             });
         json["fire_hidden_by_play"] = serde_json::json!(hidden);
-        let text = format!("{text}; fire ticks in the air by play {}", air.iter().map(|(k, n)| format!("{k} {n}")).collect::<Vec<_>>().join(", "));
+        let text = format!(
+            "{text}; fire ticks in the air by play {}; by flight {}",
+            air.iter().map(|(k, n)| format!("{k} {n}")).collect::<Vec<_>>().join(", "),
+            AirClass::ALL.iter().map(|&c| format!("{} {}", c.name(), by[c as usize])).collect::<Vec<_>>().join(", ")
+        );
         Part::new(json, text)
     }
 }
