@@ -133,6 +133,9 @@ pub struct Kinematics {
     /// snap onto a leap link the step crosses within [`crate::v026g::bots::body::JUMP_AIR_MS`] (`body::jumped_to`). Why: the
     /// drift lab's jump-key worlds (f1d92378, 605 = 0.451 points of the 4.03 %) are 59 % a floor apart after the jump (the model
     /// up a ledge the client missed, or the reverse) and the rest a distance in the air (the model walked on at the keys' speed).
+    /// ON and KEPT_RIGHT (A364: the arc is the client's: its air steps #1655 / #1673, the short jump's carry #1657 / #1674, the sprint
+    /// clip's frames #1662; the OFF window walks the grid's floors with no height of its own and drops a body off a narrow top to
+    /// the floor under it, the drift lab's falls the client did not make, #1676).
     pub jump_arc: bool,
 }
 
@@ -454,7 +457,7 @@ impl Default for Kinematics {
             slope_speed: SlopeSpeed::RampsGrade,
             ramp_min_deg: 35.0,
             walk_bridges: true,
-            jump_arc: false,
+            jump_arc: true,
             speed_terms: SpeedTerms::LegsStagger,
             speed_cap: SpeedCap::Client,
             level_read: LevelRead::Settled,
