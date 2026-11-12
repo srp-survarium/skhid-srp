@@ -20,7 +20,7 @@ The owner's rule and what it changes. Data: `gameplay/game_modes/<config>.option
 - **Modifiers:** at a death (0x316AA0) the delay is `respawn_time × max(0, 1 + modifier 60)`
   (the getter 0x2D5AE0 sums the kit's and the player's lists), then rounded up to the 50 ms grid.
   10 s is the base: with the radio (`respawn_booster`, -20 %; one pocket a type,
-  one-pocket-a-type.md) 8 s.
+  one-pocket-a-type.md) 8 s. Two backpacks carry the same kind of built-in bonus: `scavenger_back_7` -25 % (modification 1221) and `bm_back_9` -20 % (1220); the terms add (the radio and `scavenger_back_7`: -45 %). Counted: 102,149 of 102,159 and 49,156 of 49,164 recorded deaths fit the kit's items' sum.
 - **HUD:** the respawn countdown (`root.set_respawn_time`, 0x236C30) shows the respawn rule's own
   time to the local player's respawn, so it shows 10 s by itself. No text names the seconds.
 - **Who computes it:** every game, in the lockstep simulation (`m_player_respawn_times` is in the

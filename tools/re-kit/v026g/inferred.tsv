@@ -498,6 +498,7 @@ va	status	ref_021d	name
 0x000ebda0	inferred-medium	0x000b5907	vostok::console_commands::save_impl
 0x000ebe60	inferred-medium	0x000b5982	vostok::console_commands::save
 0x000ebea0	inferred-medium	0x000b59e2	vostok::console_commands::r_string
+0x000ebf00	inferred-medium		vostok::console_commands::execute_lines [descriptive]
 0x000ec410	inferred-medium	0x000b5e85	stlp_std::priv::__unguarded_linear_insert<char const * *,char const *,bool (__cdecl*)(char const *,char const *)>
 0x000ec4b0	inferred-medium	0x000b5f74	vostok::console_commands::console_command::status
 0x000ec4d0	inferred-medium	0x000b5f87	vostok::console_commands::console_command::info
@@ -1071,6 +1072,7 @@ va	status	ref_021d	name
 0x001f24c0	inferred-high	0x001568f6	survarium::player::remove_models_from_scene
 0x001f2540	inferred-high	0x0015694b	survarium::player::initialize
 0x001f2640	inferred-high	0x00156a6b	survarium::player::first_third_person_animations_resolver
+0x001f2990	inferred-medium		survarium::player::set_respawn_disabled [descriptive]
 0x001f29d0	inferred-high	0x00156cbf	survarium::player::initialize_player_icon
 0x001f2ad0	inferred-high	0x00156d37	survarium::player::render_name
 0x001f3070	inferred-medium	0x001570a0	survarium::player::render_model
@@ -3287,6 +3289,7 @@ va	status	ref_021d	name
 0x002f8970	inferred-high		survarium::static_collision::remove
 0x002de7f0	inferred-medium		survarium::game_effect_player::stop
 0x002de090	inferred-medium		survarium::game_effect_player::play
+0x002de100	inferred-medium		survarium::game_effect_player::play_impl [descriptive]
 0x002de350	inferred-medium		survarium::game_effect_player::remove
 0x002de560	inferred-medium		survarium::game_effect_player::represent
 0x0026dac0	inferred-medium		survarium::base_game_statistics_handler::on_artefact_taken
