@@ -51,10 +51,12 @@ impl Ratio {
         Ratio::new(value as f32 / scale as f32)
     }
 
-    /// The render size of an output: each side's share, rounded, never
-    /// under the engine's least.
+    /// The render size of an output: each side's share, rounded to an even
+    /// number (the half-size targets are shifts of it), never under the
+    /// engine's least.
     pub fn of(self, output: Size) -> Size {
-        let side = |pixels: u32| ((pixels as f32 * self.0 + 0.5) as u32).max(Ratio::LEAST_SIDE).min(pixels);
+        let side =
+            |pixels: u32| (((pixels as f32 * self.0 * 0.5 + 0.5) as u32) * 2).max(Ratio::LEAST_SIDE).min(pixels);
         Size { width: side(output.width), height: side(output.height) }
     }
 
@@ -176,22 +178,41 @@ pub fn ask(thread: &Thread, scale: RenderScale) -> bool {
     true
 }
 
+/// The diagnostics switch's fallback: the frames left until native is asked
+/// (None: never), so the return to native can be tried without a helper.
+static NATIVE_IN: Lock<Option<u32>> = Lock::new(None);
+
+/// The switch's text: a ratio, and after a comma the frames until native is
+/// asked again (`0.667` or `0.667,300`).
+fn switch_of_text(text: &[u8]) -> Option<(Ratio, Option<u32>)> {
+    let mut parts = text.splitn(2, |&byte| byte == b',');
+    let ratio = Ratio::of_text(parts.next()?)?;
+    let frames = match parts.next() {
+        None => None,
+        Some(digits) if digits.is_empty() || digits.len() > 6 || !digits.iter().all(u8::is_ascii_digit) => return None,
+        Some(digits) => Some(digits.iter().fold(0u32, |frames, digit| frames * 10 + u32::from(digit - b'0'))),
+    };
+    Some((ratio, frames))
+}
+
 /// The process's start: the diagnostics switch `SKHID_DLSS_RENDER_SCALE`,
-/// a ratio as `0.667`. Unset, nothing is asked and nothing written.
+/// a ratio as `0.667` (`0.667,300`: native again after 300 frames, the
+/// fallback tried). Unset, nothing is asked and nothing written.
 pub fn start(thread: &Thread) {
-    let mut room = [0u8; 16];
+    let mut room = [0u8; 24];
     let len = get_environment(thread, c"SKHID_DLSS_RENDER_SCALE", &mut room);
     if len == 0 {
         return;
     }
-    match Ratio::of_text(&room[..len]) {
-        Some(ratio) => {
+    match switch_of_text(&room[..len]) {
+        Some((ratio, frames)) => {
             if ask(thread, RenderScale::Ratio(ratio)) {
+                NATIVE_IN.with(thread, |left| *left = frames);
                 line(&[Text("render size: SKHID_DLSS_RENDER_SCALE, the 3D frame at "), Dec(ratio.thousandths()),
                        Text("/1000 of the window")]);
             }
         }
-        None => line(&[Text("render size: SKHID_DLSS_RENDER_SCALE is not a ratio as 0.667 (0.25 to 0.95): native")]),
+        None => line(&[Text("render size: SKHID_DLSS_RENDER_SCALE is not a ratio as 0.667 (0.25 to 0.95; 0.667,300 for 300 frames): native")]),
     }
 }
 
@@ -227,6 +248,20 @@ pub fn on_targets_size(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// [`on_targets_size`] inside it).
 pub fn on_output_setup(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
+    let fallback_due = NATIVE_IN.with(thread, |left| match left {
+        Some(0) => {
+            *left = None;
+            true
+        }
+        Some(frames) => {
+            *frames -= 1;
+            false
+        }
+        None => false,
+    });
+    if fallback_due && ask(thread, RenderScale::Native) {
+        line(&[Text("render size: SKHID_DLSS_RENDER_SCALE's frames are over: native asked")]);
+    }
     // the lock is let go before set_size: on_targets_size takes it
     if OWNER.with(thread, |owner| owner.step(Event::FrameStarts)) == Action::Remake {
         render_size::remake_targets(ctx);
@@ -285,12 +320,19 @@ mod tests {
             assert_eq!(Ratio::of_text(refused), None, "{:?}", core::str::from_utf8(refused));
         }
         assert_eq!(Ratio::new(f32::NAN), None);
+        // the switch: a ratio, and the frames until native
+        assert_eq!(switch_of_text(b"0.667"), Some((ratio(0.667), None)));
+        assert_eq!(switch_of_text(b"0.5,300"), Some((ratio(0.5), Some(300))));
+        for refused in [&b"0.5,"[..], b"0.5,3x", b"0.5,1234567", b",300", b"2,300"] {
+            assert_eq!(switch_of_text(refused), None, "{:?}", core::str::from_utf8(refused));
+        }
     }
 
     #[test]
-    fn a_render_size_is_each_side_rounded() {
+    fn a_render_size_is_each_side_rounded_to_even() {
         let quality = ratio(0.667);
-        assert_eq!(quality.of(Size { width: 1920, height: 1080 }), Size { width: 1281, height: 720 });
+        assert_eq!(quality.of(Size { width: 1920, height: 1080 }), Size { width: 1280, height: 720 });
+        assert_eq!(quality.of(Size { width: 1366, height: 768 }), Size { width: 912, height: 512 });
         assert_eq!(quality.of(Size { width: 2560, height: 1440 }), Size { width: 1708, height: 960 });
         // never under the engine's least side, never over the output
         assert_eq!(ratio(0.25).of(Size { width: 40, height: 20 }), Size { width: 16, height: 16 });
