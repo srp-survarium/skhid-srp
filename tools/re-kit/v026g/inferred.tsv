@@ -2339,7 +2339,6 @@ va	status	ref_021d	name
 0x0034d160	inferred-medium	0x00214b93	vostok::buffer_vector<vostok::render::culling::portal>::push_back
 0x0034d280	inferred-medium	0x00214cf0	vostok::buffer_vector<vostok::math::float3>::insert<vostok::math::float3 const *>
 0x0034d440	inferred-medium	0x00214c81	stlp_std::find_if<vostok::collision::triangle_result *,stlp_std::unary_negate<vostok::render::culling::collision_result_user_data_equalls_to> >
-0x0034e1e0	inferred-medium	0x002157f7	vostok::render::load_environment_properties_impl<vostok::configs::binary_config_value const >
 0x00350080	inferred-medium	0x002176f8	vostok::math::curve_line_points<vostok::math::float4_pod,1>::load<vostok::configs::binary_config_value>
 0x003502b0	inferred-medium	0x002178ba	vostok::network_core::udp_match_cumulative_value_stats::append
 0x00350310	inferred-medium	0x002178f3	vostok::network_core::udp_match_max_value_stats::append

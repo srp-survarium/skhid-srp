@@ -251,3 +251,59 @@ The current queue is `/tmp/v011-weather-reference/complete_queue.py`, log
 `complete-queue.log`: native baseline plus shader-state captures, image
 comparison, then the original 128-position sweep. Native renderer integration
 and walking-rain verification remain outstanding; nothing was released.
+
+## Native baseline and pre-post deficit (2026-11-12)
+
+Both native baseline batches completed: 32 matched poses × two frames for
+both weather variants. These use the version-1 content baseline, not the
+version-4 atlas/shader asset pack. Camera validation and comparison completed;
+`/tmp/v011-weather-reference/baseline-report/{evening,rain}.json` contain all
+64 per-weather results, with `*-worst.png` contact sheets. Mean display RGB
+RMSE on the fixed comparison mask is 0.2033916655 for evening and 0.1366797850
+for rain. These are baseline measurements, not acceptance thresholds.
+
+The deficit is present before post-processing. Matching captured
+`t_frame_color` inputs are both R11G11B10_FLOAT; the fixed comparison mask has
+no nonfinite pixels. Mean linear luminance:
+
+| Weather / view | Original | Native baseline | Native/original |
+| --- | ---: | ---: | ---: |
+| Evening / factory interior | 0.0164660024 | 0.0051916427 | 0.315295 |
+| Evening / north yard | 0.0246467974 | 0.0090967289 | 0.369084 |
+| Rain / factory interior | 0.0123134693 | 0.0036365242 | 0.295329 |
+
+Receipts are `evening-post-frame-comparison.json`,
+`evening-yard-post-frame-comparison.json` and `rain-post-frame-comparison.json`
+in `/tmp/v011-weather-reference`. This localizes a significant difference
+upstream of post; it does not identify one lighting producer as the sole cause.
+Original composition consumes encoded R10G10B10A2 light accumulators, whereas
+native composition consumes linear R11G11B10 accumulators and adds sun lighting
+there. Their raw accumulator bytes cannot be compared as equivalent radiance.
+
+Native evening grain is 0.06 at this resolution although the imported project
+correctly retains the authored intensity 0.09. The stock environment loader
+`0x34e1e0` reads `image_grain_intensity` at `0x34f36f` and stores it at
+record+0x20c (`0x34f399`); record and config are entry stack+4/+8. The native
+post stage at `0x1b24da..0x1b251c` multiplies authored intensity by a selected
+integer rendering option and the stock float 1/1920. For selected value 1280,
+this explains 0.09 becoming 0.06. The option's identity is not established by
+this bounded check. `check_post_constants.py` passes 30 real-instruction grain
+cases in addition to the existing 64 scene and 64 DOF cases. Loader and input
+findings are recorded in the 0.26g re-kit.
+
+The post replay preparer now supports explicit named texture substitutions
+from another captured draw. It preserves the original shaders, geometry,
+constants and all other textures, requires identical storage/view contracts,
+hashes every input, and labels the result as an input sensitivity experiment.
+CPU checks pass unchanged-input identity, changed-input propagation and 11
+rejection cases. Eight native-frame/native-frame-plus-luminance experiments
+(two views × two weather variants) are prepared at
+`/tmp/v011-weather-reference/input-substitution`, queued after the original
+sweep. They have **not yet executed on the GPU** at this checkpoint and do not
+constitute a runtime adapter.
+
+The current native stage captures lack vertex geometry/full-mip/rain-count
+flags. The private runner now sets those for subsequent launches; the existing
+stage buffers remain useful for the measurements above. Production renderer
+integration, a final native sweep and moving-camera rain verification remain
+outstanding. Nothing was released.

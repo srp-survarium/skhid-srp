@@ -180,6 +180,26 @@ def audit(executable):
             (DOF_HOSTS[12], (radius, density, 0.0, 0.0)),
         ], uploads
 
+    # stage_postprocess::execute scales authored grain by its selected integer
+    # rendering option and the stock 1/1920 constant, before the setter call.
+    # The option's identity is not inferred by this bounded arithmetic check.
+    grain_cases = 0
+    for option in (640, 960, 1280, 1920, 2560, 3840):
+        for intensity in (0.0, 0.02, 0.08, 0.09, 0.2):
+            intensity = struct.unpack('<f', struct.pack('<f', intensity))[0]
+            emu.reg_write(UC_X86_REG_ESP, sp)
+            emu.reg_write(UC_X86_REG_ESI, option)
+            emu.mem_write(sp + 0x31c, struct.pack('<f', intensity))
+            emu.mem_write(sp + 0x30c, struct.pack('<f', 1.0))
+            emu.emu_start(0x1b24da, 0x1b251c, count=100)
+            assert emu.reg_read(UC_X86_REG_EIP) == 0x1b251c
+            assert emu.reg_read(UC_X86_REG_ESP) == sp - 8
+            actual, = struct.unpack('<f', emu.mem_read(sp + 0x70, 4))
+            scale, = struct.unpack('<f', emu.mem_read(0xa2dc94, 4))
+            expected = struct.unpack('<f', struct.pack('<f', option * scale * intensity))[0]
+            assert abs(actual - expected) <= 1e-7, (option, intensity, actual, expected)
+            grain_cases += 1
+
     return dict(executable_sha256=digest, cases=64,
                 constructor='0x001af7c0', setter='0x001afb10',
                 host_offsets={f'0x{k:02x}': v for k, v in HOSTS.items()},
@@ -188,6 +208,9 @@ def audit(executable):
                 dof=dict(cases=64, constructor='0x001af590', setter='0x001af6d0',
                          host_offsets={f'0x{k:02x}': v for k, v in DOF_HOSTS.items()},
                          uploaded=[name for name, _ in uploads], focus_power=1.0),
+                grain=dict(cases=grain_cases, begin='0x001b24da', end='0x001b251c',
+                           formula='authored intensity * selected integer rendering option / 1920',
+                           option_identity='not established by this arithmetic test'),
                 scope='Real stock x86; backend uploads intercepted, no GPU or scene lifecycle test.')
 
 

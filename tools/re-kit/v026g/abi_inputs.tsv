@@ -6100,3 +6100,6 @@ va	name	location	role	basis
 0x001af6d0	vostok::render::dof_shader_constants::set	entry ESP+16	far blur amount, float; focus power is fixed to 1.0	observed
 0x001af6d0	vostok::render::dof_shader_constants::set	entry ESP+20	bokeh radius, float; focus power is fixed to 1.0	observed
 0x001af6d0	vostok::render::dof_shader_constants::set	entry ESP+24	bokeh density, float; focus power is fixed to 1.0	observed
+0x0034e1e0	vostok::render::load_environment_properties_impl<vostok::configs::binary_config_value const >	entry ESP+4	environment destination, kept in EBX; image_grain_intensity float/int config written to +20Ch at 0x34F399; use_image_grain +208h, update_frequency +210h	observed
+0x0034e1e0	vostok::render::load_environment_properties_impl<vostok::configs::binary_config_value const >	entry ESP+8	binary_config_value table, kept in EBP; has_key 0xF6C00 and child 0xF6B10 read named environment fields	observed
+0x001b2270	vostok::render::stage_postprocess::execute	ESI at 0x1B24DA	selected integer rendering option; x87 multiplies it by float 1/1920 at 0xA2DC94 and authored grain at original ESP+31Ch, writes intensity original ESP+70h at 0x1B2518; 30 Unicorn arithmetic cases	observed

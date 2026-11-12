@@ -2326,3 +2326,4 @@ va	status	ref_021d	name
 0x00132a90	verified	0x000da127	vostok::render::backend::set_ps_constant
 0x001af590	verified	0x001256f9	vostok::render::dof_shader_constants::dof_shader_constants
 0x001af6d0	verified	0x001257e3	vostok::render::dof_shader_constants::set
+0x0034e1e0	observed	0x002157f7	vostok::render::load_environment_properties_impl<vostok::configs::binary_config_value const >

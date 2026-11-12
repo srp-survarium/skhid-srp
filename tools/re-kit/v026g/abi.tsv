@@ -2545,3 +2545,4 @@ va	name	source	ret_cleanup	result
 0x00132a90	vostok::render::backend::set_ps_constant	manual	4	void
 0x001af590	vostok::render::dof_shader_constants::dof_shader_constants	manual	0	EAX=this
 0x001af6d0	vostok::render::dof_shader_constants::set	manual	24	void
+0x0034e1e0	vostok::render::load_environment_properties_impl<vostok::configs::binary_config_value const >	manual	0	void; updates the supplied environment record
