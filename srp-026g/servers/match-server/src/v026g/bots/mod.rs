@@ -57,6 +57,7 @@ pub mod group;
 pub mod guns;
 pub mod hazards;
 pub mod jump_arc;
+pub mod jump_carry;
 #[cfg(feature = "jump-test")]
 pub mod jump_test;
 pub mod kin;
@@ -398,6 +399,8 @@ pub struct Bot {
     /// Ticks left of a jump held with the trigger let go ([`JUMP_HOLD_MS`]),
     /// and the last tick the trigger was down.
     jump_hold: u32,
+    /// [2d] The route jump carried through its clip ([`jump_carry`], `feel.carry_jumps`).
+    carry: jump_carry::JumpCarry,
     fired_at: Option<u32>,
     /// Its hurts as the last trusted world showed them ([`Bots::hurt`]).
     hurt: Hurt,
@@ -600,6 +603,7 @@ impl Bot {
             held_short_m: 0.0,
             blind_since: None,
             jump_hold: 0,
+            carry: jump_carry::JumpCarry::Free,
             fired_at: None,
             hurt: Hurt::default(),
             jump_watch: None,
