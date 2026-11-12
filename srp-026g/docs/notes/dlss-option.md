@@ -372,7 +372,9 @@ projection and the movie's stage: no reader of the targets' size exists outside
   - **in a replay's match** the same (300 frames and more, five runs) until the replay's own
     crash 18 s in (exe+0x2EFF87: the same with the tick off and no helper, and in the render
     size's builds). Once, a crash in the arena's code 0.8 s into a replay's start, before the
-    first Present (exe+0xA489291): not seen again in three more runs, not explained;
+    first Present (exe+0xA489291): not the link's, but patch 97's `game.tick` handler
+    (`packet_recovery::on_frame`), which reads a replay's network client as a live one (its
+    +1F1C48h, past the replay client's 5AB18h bytes: whatever the heap holds there, mostly 0);
   - the tick off: `offered`, the helper gone after its answer; no `dlss\`: `on, not run: the
     helper's files are not in dlss\`;
   - the helper without NvAPI (its refusal): the reason logged from its answer, the saved tick off
