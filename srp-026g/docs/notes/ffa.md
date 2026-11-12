@@ -575,3 +575,21 @@ these rule bytes as mode 2 with 47 points. This diagnostic uses the match's
 actual FFA context instead. These recorded worlds predate the final selection
 and UI corrections; they establish format compatibility, not a fresh playtest
 of those corrections. No running client was changed or stopped.
+
+The complete native/host drift run passes all 1,029 sampled worlds (928 live
+samples plus all 101 local worlds), including mutated copies, with zero failed
+chunks. Main's subsequent executable-reporting and calculator changes through
+`e2ac60362` are also integrated. The resulting arena SHA256 is
+`5ade738f2b827b71d2ea27f727777b586138308514187fa5f160ebe94b976b34`;
+the content archive and server-data hashes above are unchanged.
+
+The final registered FFA map and Ruffle UI checks pass. On the latest combined
+main, match-server and srp-validate tests/Clippy pass, and client Rust passes
+319 tests (two ignored) with clean Clippy. The registered Vostok layout check
+passed archive preservation but its bare Cargo geometry stage lacked `cc`;
+rerunning that exact stage under `nix develop` against the same archive passes
+all 45 battery support/pickup checks and access to all three Research stations.
+The full runner therefore reports four nonzero checks: the two reproduced
+baseline harness failures, the documented historical-content corpus mismatch,
+and that resolved Vostok environment failure. None was hidden by relaxing a
+validator, altering the archive, or deleting a test.
