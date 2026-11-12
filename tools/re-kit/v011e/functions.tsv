@@ -20,3 +20,6 @@ va	status	size	name
 0x006285e0	verified-pdb	569	vostok::render::stage_pre_rain::stage_pre_rain(vostok::render::renderer*, vostok::render::renderer_context*)
 0x00704530	verified-pdb	228	void vostok::render::stage_ambient_occlusion::execute_disabled()
 0x00704940	verified-pdb	1717	void vostok::render::stage_ambient_occlusion::execute()
+0x00625ca0	verified-pdb	3677	void vostok::render::stage_ambient_lighting::execute()
+0x00625860	verified-pdb	1080	void vostok::render::stage_ambient_lighting::make_probe_indices_map(vostok::render::vector<vostok::render::environment_probe *>&)
+0x006257e0	verified-pdb	26	bool `vostok::render::stage_ambient_lighting::execute'::`5'::sort_by_size_predicate::operator()(vostok::render::environment_probe const*, vostok::render::environment_probe const*) const

@@ -650,3 +650,79 @@ these captures verify initialization and discrete camera-ID resets only.
 Resource-porter checkpoint: `f9fea35` (`feat/v011-vostok-weather`). This game
 worktree checkpoint changes documentation only; content version 5 and the
 unreleased production integration status remain unchanged.
+
+## Original probe draws and connected replay (2026-11-12)
+
+The observer now captures all original probe draws when `--stages --probes` is
+requested: full cubemap faces/mips, original sphere/box geometry, constants,
+samplers, blend state, both lighting accumulators and pre/post depth-stencil.
+The original probe family (kind 13) is normalized to the existing probe capture
+path. Draw counts and first/last Present IDs detect truncation or mixed frames.
+
+`replay_probe_011e.py` prepares strict `PRB011E1` packets with unchanged original
+pixel and vertex bytecode. `post_replay.h` owns cube resources, two lighting
+outputs and captured blend/stencil state. Probe command lists execute once:
+repeating an alpha-blended draw would change its input. The packet checker tests
+three supported paths (sphere front/back and box with an unbound index input),
+including 42 rejection cases for malformed geometry, resources and state.
+
+Additional source captures are frozen under
+`/tmp/v011-weather-reference/probe-state/{evening,rain}/capture-radar/`.
+They add probe diagnostics; earlier reference images remain unchanged. At
+factory-interior and yard-north, evening has 18/8 draws and rain has 16/8.
+All 50 draws independently reproduce **100 lighting MRTs byte-identically** and
+all 50 stencil byte surfaces exactly. Source and replay depth remain unchanged
+during each draw. Upload/readback of D24 rounds some values upward by one unit;
+this was measured before execution. The full packed depth/stencil surface is
+therefore not byte-identical, and the comparison reports that explicitly.
+
+`replay_ssao_chain.exe ... OUTPUT --probes PACKET...` additionally connects
+GPU-produced temporal AO to every probe and GPU-produced skylight/probe colour
+outputs to each following draw. Four weather/view chains reproduce all six
+colour/AO/history-depth outputs and the final stencil bytes exactly. Lineage
+checks cover 100 colour links and 50 AO links; the initial specular targets are
+zero. Twenty-one intervening stencil changes remain **captured volume-mask
+inputs**, as does the probe-index map and previous temporal history. This is
+not a complete replay of their producers or native probe integration.
+
+Evidence under `/tmp/v011-weather-reference/`:
+
+- `probe-replays-v3/results.json`: 50 successful independent draws.
+- `probe-replays-v3/regressions.json`: original post, gamma, skylight and all
+  three SSAO passes still match, including temporal depth and context restoration.
+- `probe-chain/results.json`, `probe-chain/lineage.json`: four connected chains.
+- `probe-cpu-checks.json`: three valid preparations and 42 rejected mutations.
+- `probe-completion.json`: frozen capture/source-build hashes, actual camera
+  requests and replay build pins. The capture-build source snapshot is retained
+  because shared replay code changed after the reference DLL was built.
+
+Observer, command replay and chain compile with `-Wall -Wextra -Werror`.
+Earlier failed replay attempts are retained: first the D24 upload difference,
+then an overly restrictive expectation that both probe passes enabled depth.
+The second pass actually disables depth and tests/inverts stencil. Many draws
+have no covered pixels; 14 draws change diffuse, 12 change specular and 25 change
+stencil across these four views, so exact matches include nontrivial work.
+
+Original PDB/code identifies `stage_ambient_lighting::make_probe_indices_map`
+at VA `0x00625860` (1,080 bytes), `execute` at `0x00625ca0` (3,677 bytes), and
+`sort_by_size_predicate::operator()` at `0x006257e0`. Verified PDB names were
+added to the 0.11e re-kit without inventing ABI contracts. The original archive
+contains `environment_probe_index.ps`; the reconstructed 0.100b ambient source
+and native probe shader do not provide this input. Original probe slot 5 is an
+R8_UNORM index map when bound, but intentionally unbound in 38/50 captured draws.
+Do not substitute native AO or a zero texture for it. Captured cube residency is
+6/7 mips while the original integer `num_mips` constant is 8/9; do not derive
+that authored constant from the currently resident resource.
+
+Next: capture/replay the original probe-index and volume-mask producers, then
+map native material inputs and connect original probes to live ambient output.
+Native `t_parameters` is not established as original `t_diffuse`. Production
+ownership, full light composition, moving rain, local play and the final native
+128-camera sweep per weather remain outstanding. No content/revision change,
+weather PR, merge or release is claimed by this diagnostic checkpoint.
+
+Resource-porter checkpoint: `630b5ff`. Completion receipt SHA256:
+`48811c5400810be3e9625c4adda2b259fd1691b6e91b0b86fbb1dd09bf2b010b`.
+All 8,194 frozen diagnostic files and four camera requests were verified;
+requested/actual coordinates agree at float32 precision. Status polling is
+one to four Presents later than the recorded probe draws.
