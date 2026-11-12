@@ -67,6 +67,9 @@ pub struct ControlledStats {
     pub checks_no_way_round: usize,
 }
 
+/// [2c] The risers [`WalkGrid::walk_every_link`] keeps for no walking way round them (floor, floor).
+type Held = Vec<(NodeId, NodeId)>;
+
 /// [2c] One walk check's answer ([`WalkGrid::walk_link`]).
 #[derive(Clone, Copy, Debug, Default)]
 struct LinkWalk {
@@ -634,7 +637,7 @@ impl WalkGrid {
         s: &Settings,
         start: WalkStart,
         mut stats: ControlledStats,
-    ) -> (ControlledStats, Vec<(u32, usize, f32)>, Vec<(NodeId, NodeId)>) {
+    ) -> (ControlledStats, Vec<(u32, usize, f32)>, Held) {
         let n = self.height.len();
         let floors: Vec<usize> = (0..n).collect();
         let near = parallel(&floors, |&a| {
