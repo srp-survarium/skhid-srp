@@ -379,9 +379,6 @@ pub(crate) struct Body {
     pub(crate) step_m: f32,
     /// The ground displacement of the last tick, m (`SRP_BENCH_HIT_FLIGHT`: where a bullet in the air will find it).
     pub(crate) step_vec: Vec3,
-    /// [A364 P6] The walk velocity of the last tick (the blend's, map frame, m/s): what a press freezes (a body held at a face
-    /// still has it).
-    pub(crate) walk_v: [f32; 2],
     /// The tick a sprint run came to the face of a jump link up and was held there ([`lift_to`]); the lift takes
     /// [`LIFT_HOLD_MS`] of it.
     pub(crate) lift_since: Option<(u32, Option<f32>)>,
@@ -926,7 +923,6 @@ impl Game {
             flight: None,
             step_m: 0.0,
             step_vec: Vec3::ZERO,
-            walk_v: [0.0; 2],
             lift_since: None,
             past_edge_down: None,
             slide_mps: None,
@@ -1128,7 +1124,6 @@ impl Game {
         body.flight = None;
         body.step_m = 0.0;
         body.step_vec = Vec3::ZERO;
-        body.walk_v = [0.0; 2];
         body.zone_spell = None;
         body.zone_prev_off = false;
         body.zone_ys = [f32::NEG_INFINITY; 20];
@@ -1273,7 +1268,7 @@ impl Game {
                         air: [0.0; 2],
                         carry: [0.0; 2],
                         arc: client_clip(keys, body.step_m / TICK_S, may_sprint),
-                        walk: body.walk_v,
+                        speed: body.step_m / TICK_S,
                     });
                 }
             }
@@ -1300,8 +1295,8 @@ impl Game {
                 air: [0.0; 2],
                 carry: [0.0; 2],
                 arc: client_clip(keys, speed, may_sprint),
-                // [A364 P6] The press tick's walk velocity, frozen.
-                walk: body.walk_v,
+                // [A364] The press tick's last move (player +0x334): the short jump's carry.
+                speed,
             });
         }
         // A death, a ticket, the battery dropped, and the respawn of the mode: as the game's, no one's kill.
@@ -1418,7 +1413,6 @@ impl Game {
                 .blend
                 .tick_mixed(self.kin.target_local(keys, level), self.kin.blend_ticks, super::standin_jump::stand_in_mixer());
             let v = to_world(local, moving_yaw);
-            body.walk_v = v;
             let to = Vec3::new(
                 body.feet.x + v[0] * TICK_S,
                 body.feet.y,
@@ -1576,7 +1570,7 @@ impl Game {
                             air: [0.0; 2],
                             carry,
                             arc: None,
-                            walk: [0.0; 2],
+                            speed: 0.0,
                         });
                         body.feet = Vec3::new(target.x, body.feet.y, target.z);
                         if let Some(stood) = standing.get_mut(place) {

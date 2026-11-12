@@ -733,8 +733,9 @@ pub(crate) struct Flight {
     pub(crate) carry: [f32; 2],
     /// [T3] The client's clip ([`stand_in_client_jump`]): the tick's root delta moves the body; none: the old flight ([`Self::root`]).
     pub(crate) arc: Option<crate::v026g::bots::jump_arc::Clip>,
-    /// [A364 P6] The walk velocity at the press (map frame, m/s), frozen: a short client jump's ground move (`jump_arc::JumpArc`).
-    pub(crate) walk: [f32; 2],
+    /// [A364] The body's last horizontal move at the press, m/s (the game's player +0x334): a short client jump travels its direction
+    /// clip x `jump_arc::Clip::carry` of it.
+    pub(crate) speed: f32,
 }
 
 impl Flight {
@@ -1057,11 +1058,10 @@ pub(crate) fn client_step(f: &Flight, arc: crate::v026g::bots::jump_arc::Clip, m
     let prep = |m: f32| if pm > 0.0 { pd * m.min(pm) / pm } else { 0.0 };
     let (f0, f1) = (frame(prev), frame(ms));
     let (a, b) = (arc.root(f0), arc.root(f1));
-    // [A364 P6] A short jump's ground move is the press's walk, frozen (17 of 17 traced short jumps), not the clip's travel.
-    let d = match arc {
-        crate::v026g::bots::jump_arc::Clip::Short(_) => [f.walk[0] * TICK_S, f.walk[1] * TICK_S],
-        crate::v026g::bots::jump_arc::Clip::Sprint(_) => to_world([b[1] - a[1], -(b[2] - a[2])], yaw),
-    };
+    // [A364] A short jump travels its direction clip x the carry of the press's speed (0x337280: 100 of 100 traced short jumps), a
+    // sprint jump its clip whole.
+    let k = arc.carry(f.speed);
+    let d = to_world([(b[1] - a[1]) * k, -(b[2] - a[2]) * k], yaw);
     let p = prep(ms) - prep(prev);
     ClientStep {
         ahead: [d[0] + f.dir[0] * p, d[1] + f.dir[1] * p],
@@ -1153,7 +1153,7 @@ pub(crate) fn honest_jump_in(
         air: [0.0; 2],
         carry: [0.0; 2],
         arc: client_clip(keys, speed, true),
-        walk: [dir[0] * speed, dir[1] * speed],
+        speed,
     });
     let mut top = 0.0f32;
     for k in 1..=80 {
@@ -1169,9 +1169,9 @@ pub(crate) fn honest_jump_in(
     panic!("no landing: {:?}", body.feet);
 }
 
-/// The honest stand-in's jumps against the game's: [A364 P6] a short jump moves as the press's walk, frozen, plus the air control
-/// (1 m/s along the keys, `stand_in_air_control`) over its twelve air steps, and rises as its clip (1.0 m); in place 1.0 m up where it
-/// stood; a sprint jump at a run goes its clip's travel to the last air step (3.89 m, and the prepare phase's 0-1.64 m) and 1.28 m up;
+/// The honest stand-in's jumps against the game's: [A364] a short jump moves its direction clip x the carry of the press's speed
+/// (`jump_arc::Clip::carry`: 1/4 of the clip from a standstill with a direction key) plus the air control (1 m/s along the keys,
+/// `stand_in_air_control`) over its twelve air steps, and rises as its clip (1.0 m); in place 1.0 m up where it stood; a sprint jump at a run goes its clip's travel to the last air step (3.89 m, and the prepare phase's 0-1.64 m) and 1.28 m up;
 /// forward with sprint too slow (under the walk cap) is the short jump. The old flight (`stand_in_client_jump` off) played the clip's
 /// travel to its end.
 #[test]
@@ -1184,10 +1184,10 @@ pub(crate) fn an_honest_jump_follows_the_games_clips() {
     use crate::v026g::bots::jump_arc::{AIR_STEPS, Clip, Direction};
     let client = stand_in_client_jump();
     let control = if stand_in_air_control() { AIR_STEPS as f32 * TICK_S } else { 0.0 };
-    // A short jump pressed walking at `speed` along its way: the walk to the last air step and the control on top.
+    // A short jump pressed walking at `speed` along its way: the clip's travel to the last air step x the carry, the control on top.
     let short = |speed: f32| {
         let clip = Clip::Short(Direction::Forward);
-        if client { speed * clip.air_end_ms() / 1000.0 + control } else { clip.root(24.0)[1] }
+        if client { clip.root(clip.air_end_frame())[1] * clip.carry(speed) + control } else { clip.root(24.0)[1] }
     };
     let (to, top) = honest_jump(&grid, &walls, body.clone(), key::FORWARD | key::JUMP, 0.0);
     assert!((to.x - from.x - short(0.0)).abs() < 0.15 && to.y.abs() < 0.05, "{to:?} {}", short(0.0));
@@ -1207,9 +1207,11 @@ pub(crate) fn an_honest_jump_follows_the_games_clips() {
     assert!((top - 1.28).abs() < 0.03, "{top}");
     let (to, top) = honest_jump(&grid, &walls, body.clone(), run, 3.0);
     assert!((to.x - from.x - short(3.0)).abs() < 0.15 && (top - 1.0).abs() < 0.03, "{to:?} {top} {}", short(3.0));
-    // To the side from a standstill: that way by the air control alone ([A364 P6]; the old flight took that way's clip travel).
+    // To the side from a standstill: that way by a quarter of its clip's travel and the air control ([A364]; the old flight took
+    // that way's whole clip travel).
     let (to, _) = honest_jump(&grid, &walls, body, key::LEFT | key::JUMP, 0.0);
-    let side = if client { control } else { Clip::of(key::LEFT, 0.0).root(24.0)[2].abs() };
+    let left = Clip::of(key::LEFT, 0.0);
+    let side = if client { left.root(left.air_end_frame())[2].abs() * left.carry(0.0) + control } else { left.root(24.0)[2].abs() };
     assert!(((to.z - from.z).abs() - side).abs() < 0.15 && to.distance_xz(from) < side + 0.15, "{to:?} {side}");
 }
 
@@ -1467,7 +1469,7 @@ fn a_walk_off_falls_on_at_its_walk_speed() {
             air: [0.0; 2],
             carry,
             arc: None,
-            walk: [0.0; 2],
+            speed: 0.0,
         });
         (1..=100).find_map(|k| fly(&grid, &walls, None, &mut body, 0, 1_000 + k * TICK_MS)).map(|landing| landing.to)
     };

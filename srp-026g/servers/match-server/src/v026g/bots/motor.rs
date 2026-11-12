@@ -253,9 +253,10 @@ pub struct Feel {
     /// (as before).
     pub carry_jumps: bool,
     /// [A364 P6] A walking (short-clip) ledge or gap jump is pressed only with a walk that carries the body to the landing: the
-    /// client's short jump moves as the walk velocity of the press, frozen, plus the air control (PROVEN, 17 of 17 traced short
-    /// jumps, `jump_arc::JumpArc`), so it reaches the walk along the jump's way x the time to its last air step (0.75 s,
-    /// `jump_arc::Clip::air_end_ms`) + the control's 12 steps x 0.05 m, held at the face while under the top ([`walk_jump_lands`]).
+    /// client's short jump moves its forward clip's travel x min(max(1, v) / 4, 0.99) of the press's speed v ([A364]
+    /// `jump_arc::Clip::carry`, 0x337280, PROVEN on 100 of 100 short jumps: 0.833 x v) plus the air control, so it reaches the clip's
+    /// 2.50 m to its last air step (frame 22.5, 0.75 s) x that + the control's 12 steps x 0.05 m, held at the face while under the
+    /// top ([`walk_jump_lands`]).
     /// Short of the landing's near side (the landing less the body's radius) the body backs off to its run-up once (no try spent)
     /// and walks in at speed; with no run-up
     /// clear, or the second time, it presses as before (counted, [`walk_reach`]). Replaces 2d's "no press at rest at the face",
@@ -2489,8 +2490,9 @@ impl Motor {
         // building comes down short of the top (the bench with the client-true stand-in: batteries' failed jumps 18 -> 34).
         let short_clip = !(ahead.approach.sprints() && sprinted && block.is_none());
         if self.feel.walk_jump_reach && short_clip && !ahead.approach.runs_through() {
-            let along = (pose.velocity[0] * ahead.way[0] + pose.velocity[1] * ahead.way[1]).max(0.0);
-            if walk_jump_lands(along, ahead.before.max(0.0), ahead.span, ahead.rise) {
+            // [A364] The carry counts the body's last move whatever its heading (player +0x334); the jump goes the way it faces.
+            let speed = pose.velocity[0].hypot(pose.velocity[1]);
+            if walk_jump_lands(speed, ahead.before.max(0.0), ahead.span, ahead.rise) {
                 walk_reach::reached();
             } else {
                 if ahead.run_up > 0.0 && !jump.faced {
@@ -3226,12 +3228,14 @@ pub mod low_presses {
 }
 
 /// [A347a] The walking jumps onto a short top backed off from: the press would have come later than the window's latest.
-/// [A364 P6] Whether a walking (short-clip) jump pressed `before` metres short of its take-off with the walk `along` m/s on its way
-/// gets the body to its landing `span` metres past the take-off and `rise` up: the game's steps from the press to the last air step
-/// (`jump_arc::Clip::frame_after`, the twelve air steps: PROVEN) each move the body by the walk of the press, frozen, and in the air
-/// by the air control too (`air_control_speed` 1.0 m/s, `default.player`, PROVEN), and the face at the take-off holds it while the
-/// clip's rise (`SHORT_F`'s root) is under the top. Reached: the feet within [`LANDING_SLACK_M`] of the landing.
-pub fn walk_jump_lands(along: f32, before: f32, span: f32, rise: f32) -> bool {
+/// [A364 P6] Whether a walking (short-clip) jump pressed `before` metres short of its take-off, facing its way, by a body whose last
+/// move was `speed` m/s gets the body to its landing `span` metres past the take-off and `rise` up: the game's steps from the press to
+/// the last air step (`jump_arc::Clip::frame_after`, the twelve air steps: PROVEN) each move the body by the forward clip's travel x
+/// its carry of the press's speed ([A364] `jump_arc::Clip::carry`, 0x337280: 0.833 x the speed, at least 0.833 m/s, PROVEN on 100 of
+/// 100 short jumps), and in the air by the air control too (`air_control_speed` 1.0 m/s, `default.player`, PROVEN), and the face at
+/// the take-off holds it while the clip's rise (`SHORT_F`'s root) is under the top. Reached: the feet within [`LANDING_SLACK_M`] of
+/// the landing.
+pub fn walk_jump_lands(speed: f32, before: f32, span: f32, rise: f32) -> bool {
     use super::jump_arc::{AIR_CONTROL_MS, Clip, Direction, TAKEOFF_FRAME};
     let clip = Clip::Short(Direction::Forward);
     let step_ms = TICK_S * 1000.0;
@@ -3241,11 +3245,12 @@ pub fn walk_jump_lands(along: f32, before: f32, span: f32, rise: f32) -> bool {
     // a walk (the 8f woodbox rows: PROVEN, [`WALK_JUMP_TOP_M`]'s note). Which tops a walking jump gets up at all is the grid's label.
     let root_at = |k: u32| clip.root(clip.frame_after(k as f32 * step_ms))[0];
     let clears = rise.min((1..=steps).map(root_at).fold(0.0f32, f32::max));
+    let carry = clip.carry(speed);
     let (mut x, mut over) = (0.0f32, false);
     for k in 1..=steps {
-        let frame = clip.frame_after(k as f32 * step_ms);
+        let (from, frame) = (clip.frame_after((k - 1) as f32 * step_ms), clip.frame_after(k as f32 * step_ms));
         let air = frame >= TAKEOFF_FRAME - 1e-3;
-        x += along * TICK_S + if air { AIR_CONTROL_MS * TICK_S } else { 0.0 };
+        x += (clip.root(frame)[1] - clip.root(from)[1]) * carry + if air { AIR_CONTROL_MS * TICK_S } else { 0.0 };
         // At the face: held while the feet are under the top; once over it, on it.
         if !over && x > before {
             if clip.root(frame)[0] >= clears - 1e-4 {
@@ -5049,9 +5054,10 @@ mod tests {
         assert!(walk_jump_lands(3.5, 0.3, 1.2, 0.9));
         assert!(!walk_jump_lands(1.0, 0.0, 2.0, 0.0));
         assert!(walk_jump_lands(3.0, 0.0, 2.0, 0.0));
-        // A +1.00 box from a stand (mounted 12 of 12 in the game): over at the steps' highest root, then the air control alone.
+        // A +1.00 box from a stand (mounted 12 of 12 in the game): over at the steps' highest root, then a quarter of the clip's travel
+        // ([A364] the carry of a standstill) and the air control: 0.46 m on.
         assert!(walk_jump_lands(0.0, 0.0, 0.4, 1.0));
-        assert!(!walk_jump_lands(0.0, 0.0, 0.8, 1.0));
+        assert!(!walk_jump_lands(0.0, 0.0, 1.0, 1.0));
     }
 
     /// [A364 P6] A walking ledge jump whose landing its walk would not reach is not pressed at rest: the body backs off to its run-up

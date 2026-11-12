@@ -544,6 +544,8 @@ enum RefPhase {
 #[derive(Clone, Copy)]
 struct RefJump {
     clip: Clip,
+    /// [A364] The share of the clip's travel the jump moves by (`Clip::carry` of the press's speed).
+    carry: f32,
     press: u32,
     target: Vec3,
     phase: RefPhase,
@@ -551,7 +553,8 @@ struct RefJump {
 
 impl RefJump {
     fn new(press: u32, keys: u32, speed: f32, feet: Vec3) -> Self {
-        Self { clip: Clip::of(keys, speed), press, target: feet, phase: RefPhase::Floor }
+        let clip = Clip::of(keys, speed);
+        Self { clip, carry: clip.carry(speed), press, target: feet, phase: RefPhase::Floor }
     }
 
     /// The clip's frame at `time` (ms), clamped to the air phase's last step ([A364 P6] `Clip::air_end_frame`).
@@ -573,7 +576,9 @@ impl RefJump {
         }
         self.target = body.feet();
         let (a, b) = (self.clip.root(f0), self.clip.root(f1));
-        let d = super::super::kin::to_world([b[1] - a[1], -(b[2] - a[2])], yaw);
+        // [A364] A short jump travels its direction clip x the carry (0x337280), a sprint jump its clip whole.
+        let k = self.carry;
+        let d = super::super::kin::to_world([(b[1] - a[1]) * k, -(b[2] - a[2]) * k], yaw);
         self.target = self.target + Vec3::new(d[0], b[0] - a[0], d[1]);
         if f1 >= TAKEOFF_FRAME && self.phase == RefPhase::Floor {
             self.phase = RefPhase::Air;

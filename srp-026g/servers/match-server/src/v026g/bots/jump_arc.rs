@@ -8,6 +8,8 @@
 //! - The clip (24 frames, 30 a second; the sprint jumps at the sprint time scale 0.909) moves the body by its root: before the
 //!   clip's `jump` event (frame 6) on the ground, after it in the air (`base_player::jump` 0x2D7920 sets the jump mode;
 //!   `player_step`'s AIR branch 0x7BF2C: no gravity, the root's rise and travel plus the air control).
+//! - [A364] A short jump's ground travel is its direction clip's x [`Clip::carry`] (min(max(1, v) / S, 0.99), v the body's last
+//!   horizontal move at the press: 0x337280, 100 of 100 traced short jumps); a sprint jump's is its clip's whole.
 //! - The air control (`get_air_control_vector` 0x2D7990, re-kit inferred-high): the keys' direction times `air_control_speed`
 //!   (1.0 m/s in `default.player`); none for forward alone in a sprint jump.
 //! - The capsule sweeps stop the travel at a wall (`step_jump_forward` 0x7CB90) and set the body down on what it meets coming down
@@ -57,6 +59,12 @@ pub const AIR_FRAMES_PER_STEP: f32 = FPS * TICK_S;
 pub const SPRINT_FIRST_AIR_PAST: f32 = 0.6;
 /// The sprint jump clip's time scale (FINDINGS 3.3).
 const SPRINT_TIME_SCALE: f32 = 0.909;
+/// [A364] `jump_from_site_speed` (`jump_params`, player +0x308, 1 m/s): the least speed a short jump's carry counts, so a standing
+/// press with a direction key travels 1/S of its clip ([`Clip::carry`]). PROVEN (code 0x337280; standing jumps with a direction key
+/// move 0.8333 m/s forward, `private/grid/rig/notes-jump-state.md` 8.4).
+pub const JUMP_FROM_SITE_SPEED: f32 = 1.0;
+/// [A364] The direction clip's weight is at most this (0xA2D9D4), so the on-site clip always keeps 1 %.
+const CARRY_MAX: f32 = 0.99;
 /// `air_control_speed` (player +0x304, `default.player`), m/s.
 pub(crate) const AIR_CONTROL_MS: f32 = 1.0;
 /// How far over the arc's feet a floor's top may be and neither hold the body as a wall nor be missed coming down (the capsule's
@@ -118,6 +126,18 @@ impl Direction {
             (0, -1) => Self::Left,
             (1, -1) => Self::ForwardLeft,
             _ => Self::None,
+        }
+    }
+
+    /// [A364] The `jump_on_site_landing` row a short jump of this direction divides its speed by (`initialize_weight_for_on_site_animation`
+    /// 0x337280: player[+1B4h + 4 type], the row at index type - 4 of the table fwd 4, fwd_left 4, fwd_right 4, left 2.75, right 3,
+    /// back 4, back_left 4, back_right 4; the type from `get_move_direction`'s code by the jump table 0x337250). PROVEN (code; by index
+    /// 100 of 100 traced short jumps within 5 mm/s, by name 97: the names' mismatch is the game's).
+    fn on_site_landing(self) -> f32 {
+        match self {
+            Self::BackRight => 2.75,
+            Self::Back => 3.0,
+            _ => 4.0,
         }
     }
 
@@ -207,6 +227,19 @@ impl Clip {
         ((self.root(end - df)[0] - self.root(end)[0]) / TICK_S).max(0.0)
     }
 
+    /// [A364] The share of the direction clip's travel a jump moves by, for a body whose last horizontal move at the press was `speed`
+    /// m/s (player +0x334). A short jump blends its direction clip with the on-site one (`initialize_weight_for_on_site_animation`
+    /// 0x337280: the on-site weight 1 - min(max(1, v) / S, 0.99)), so it travels the direction clip's root x min(max(1, v) / S, 0.99):
+    /// forward 0.833 x v, at least 0.833 m/s with a direction key held, at most 3.30 m/s (PROVEN: 100 of 100 traced short jumps within
+    /// 5 mm/s, `private/grid/rig/notes-jump-state.md` 2.5 and 8.4; the "press's walk, frozen" of #1657 was the same number only while
+    /// the blend's speed is constant). A sprint jump moves its clip whole.
+    pub fn carry(self, speed: f32) -> f32 {
+        match self {
+            Self::Short(direction) => (speed.max(JUMP_FROM_SITE_SPEED) / direction.on_site_landing()).min(CARRY_MAX),
+            Self::Sprint(_) => 1.0,
+        }
+    }
+
     /// [A364 P6] The frame of the last air step ([`AIR_STEPS`] from [`Clip::first_air_frame`], [`AIR_FRAMES_PER_STEP`] apart): 22.5 for
     /// the short jumps, 23.1 for the sprint jumps (PROVEN: 116 of 116 traced jumps).
     pub fn air_end_frame(self) -> f32 {
@@ -264,10 +297,8 @@ pub struct JumpArc {
     /// The feet and the yaw at the press: the clip's root is counted from them.
     from: Vec3,
     yaw: f32,
-    /// [A364 P6] The walk velocity at the press (map frame, m/s), frozen: a short jump's ground travel (PROVEN, 17 of 17 short jumps:
-    /// the game's walk vector holds the press's on the floor steps before the take-off, all twelve air steps and the step after; the
-    /// clip's travel columns are not used; the rise is the clip's).
-    walk: [f32; 2],
+    /// [A364] The body's last horizontal move at the press, m/s: a short jump travels its direction clip x [`Clip::carry`] of it.
+    speed: f32,
     /// The phase: on the floor, in the air over the floor it left, or falling after the clip.
     phase: Phase,
     /// How far the air control has moved the body off the clip's way so far (map frame, m).
@@ -300,7 +331,7 @@ impl JumpArc {
     /// A jump pressed at `pressed` with `keys`, the body walking at `walk` (map frame, m/s), its feet at `from` and its yaw `yaw`.
     pub fn pressed(pressed: u32, keys: u32, walk: [f32; 2], from: Vec3, yaw: f32) -> Self {
         let speed = walk[0].hypot(walk[1]);
-        Self { pressed, clip: Clip::of(keys, speed), from, yaw, walk, phase: Phase::Floor, air: [0.0, 0.0] }
+        Self { pressed, clip: Clip::of(keys, speed), from, yaw, speed, phase: Phase::Floor, air: [0.0, 0.0] }
     }
 
     /// The jump a world at `time` finds under way, its feet at `feet` and its yaw `yaw`: the press's feet are the clip's root
@@ -340,9 +371,9 @@ impl JumpArc {
         }
         let frame = self.clip.frame_after(ms - pm);
         if let Clip::Short(_) = self.clip {
-            // [A364 P6] The press's walk, frozen, not the clip's travel.
-            let s = ms / 1000.0;
-            return (frame, [self.walk[0] * s, self.walk[1] * s]);
+            // [A364] The direction clip's travel x the carry of the press's speed (0x337280).
+            let (r, k) = (self.clip.root(frame), self.clip.carry(self.speed));
+            return (frame, to_world([r[1] * k, -r[2] * k], self.yaw));
         }
         let r = self.clip.root(frame);
         (frame, to_world([r[1] + unit[0] * pd, -r[2] + unit[1] * pd], self.yaw))
@@ -1082,8 +1113,25 @@ mod tests {
         }
     }
 
-    /// On flat ground the short forward jump goes as the press's walk (frozen, [A364 P6]) to the last air step (frame 22.5) and the
-    /// 1 m/s control on top over its twelve air steps, then falls the last 0.35 m and lands about 0.8 s after the press.
+    /// [A364] A short jump's carry (0x337280): forward 0.833 x the press's speed (3.79 -> 3.16 m/s, 3.5 -> 2.92, 2.0 -> 1.67), at
+    /// least 1/4 (a standing press: 0.833 m/s), at most 0.99 of the clip (3.30 m/s); back-right by 2.75, back by 3; a sprint jump
+    /// whole (`private/grid/rig/notes-jump-state.md` 8.4).
+    #[test]
+    fn a_short_jumps_carry_is_its_speed_over_the_on_site_row() {
+        let forward = Clip::Short(Direction::Forward);
+        let clip_speed = forward.root(END_FRAME)[1] / (END_FRAME / FPS);
+        for (v, out) in [(3.79, 3.158), (3.5, 2.917), (2.0, 1.667), (0.0, 0.833), (0.5, 0.833), (9.0, 3.30)] {
+            assert!((clip_speed * forward.carry(v) - out).abs() < 0.005, "{v}: {}", clip_speed * forward.carry(v));
+        }
+        assert!((Clip::Short(Direction::BackRight).carry(2.0) - 2.0 / 2.75).abs() < 1e-6);
+        assert!((Clip::Short(Direction::Back).carry(2.0) - 2.0 / 3.0).abs() < 1e-6);
+        assert!((Clip::Short(Direction::Right).carry(2.0) - 0.5).abs() < 1e-6);
+        assert_eq!(Clip::Sprint(Direction::Forward).carry(2.0), 1.0);
+    }
+
+    /// On flat ground the short forward jump goes its clip's travel x the carry of the press's speed ([A364]: 3 m/s / 4) to the last
+    /// air step (frame 22.5) and the 1 m/s control on top over its twelve air steps, then falls the last 0.35 m and lands about 0.8 s
+    /// after the press.
     #[test]
     fn a_short_jump_on_flat_ground_lands_ahead_at_the_clips_end() {
         let grid = WalkGrid::build(&crate::v026g::bots::body::tests::floor(-10.0, -10.0, 10.0, 10.0, 0.0), [-10.0, -10.0, 10.0, 10.0], 0.25, mapdata::Body::client());
@@ -1093,8 +1141,9 @@ mod tests {
         assert!((750..=900).contains(&t), "{t}");
         let ahead = at.x.hypot(at.z);
         let clip = Clip::Short(Direction::Forward);
-        // [A364 P6] The press's 3 m/s walk, frozen, to the last air step (750 ms), and the 1 m/s control over the twelve air steps.
-        assert!((ahead - (3.0 * clip.air_end_ms() / 1000.0 + 0.6)).abs() < 0.15, "{ahead}");
+        // [A364] The clip's 2.50 m to the last air step x 0.75 (3 m/s / 4), and the 1 m/s control over the twelve air steps.
+        assert!((clip.carry(3.0) - 0.75).abs() < 1e-6);
+        assert!((ahead - (clip.root(clip.air_end_frame())[1] * 0.75 + 0.6)).abs() < 0.15, "{ahead}");
     }
 
     /// A ledge 0.9 m up 1.5 m ahead takes the short jump's body (its root is 0.9 m+ up from 1.17 m to 2.2 m); one 1.3 m up stops it.
