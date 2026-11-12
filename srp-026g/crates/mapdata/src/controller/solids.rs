@@ -13,10 +13,12 @@
 //! Everything is kept in **Bullet's frame** (the map frame with z negated), as the game has it; a sweep comes in and
 //! its contacts go out in the map frame (a sign flip of z, exact).
 //!
-//! What a sweep is cast against is every part whose box the swept shape's box meets. The exe narrows by Bullet's
-//! broadphase and each mesh's tree with the cast shape's box (a capsule's is wider than the capsule by its margin,
-//! 0.04 m); a hit needs the shapes within 0.001 m, so both give the same hits. Their ORDER is not the exe's (its
-//! broadphase's and its quantized tree's order is not ported): hits at equal fractions can be taken in another order.
+//! What a sweep is cast against is every part whose box the swept shape's box meets; of a mesh, the triangles of the
+//! tree's leaves that box meets, but for those wholly outside it by [`CLEAR_M`] (their casts are misses). The exe
+//! narrows by Bullet's broadphase and each mesh's tree with the cast shape's box (a capsule's is wider than the
+//! capsule by its margin, 0.04 m); a hit needs the shapes within 0.001 m, so both give the same hits. Their ORDER is
+//! not the exe's (its broadphase's and its quantized tree's order is not ported): hits at equal fractions can be
+//! taken in another order.
 use std::collections::HashMap;
 
 use super::exe_cast::{self, CastEnd};
@@ -33,6 +35,15 @@ const SMALL_ROUND_M: f32 = f32::from_bits(0x3F4C_CCCD);
 const LEAF: usize = 4;
 /// What a box worked out in `f32` is widened by, m.
 const BOX_PAD_M: f32 = 1e-3;
+/// A mesh's triangle wholly outside the swept shape's box grown by this much (m) is not cast: its cast is a miss.
+///
+/// The exe's cast ([`exe_cast::time_of_impact`]) reports a hit only where its detector's distance is at most 0.001 m,
+/// and goes on to the penetration solver only where the shapes' cores are under 0.01 m apart. The detector's distance
+/// is never under the true one but by rounding: its closest vector is a point of its simplex, so of the difference of
+/// the two shapes. The shape is inside the swept box at every point of the way, so a triangle outside the grown box
+/// is over 0.02 m from it there, and every round of the cast leaves by a miss. (Rounding in the test and in the
+/// transform the cast steps the mesh by is under a millimetre for a map's coordinates.)
+const CLEAR_M: f32 = 0.02;
 
 type V3 = [f32; 3];
 type Box3 = (V3, V3);
@@ -48,6 +59,45 @@ fn overlaps(a: &Box3, b: &Box3) -> bool {
 
 fn union(a: &Box3, b: &Box3) -> Box3 {
     ([0, 1, 2].map(|i| a.0[i].min(b.0[i])), [0, 1, 2].map(|i| a.1[i].max(b.1[i])))
+}
+
+/// A box grown by `by` on every side.
+fn grown(b: &Box3, by: f32) -> Box3 {
+    ([0, 1, 2].map(|i| b.0[i] - by), [0, 1, 2].map(|i| b.1[i] + by))
+}
+
+/// Whether a triangle of finite corners is wholly outside a box (both in one frame): one of the box's three axes, the
+/// triangle's normal or the nine cross products of a box axis and an edge separates them (Akenine-Moller's
+/// triangle-box test).
+fn clear_of(v: &[V3; 3], b: &Box3) -> bool {
+    let centre = [0, 1, 2].map(|i| (b.0[i] + b.1[i]) * 0.5);
+    let half = [0, 1, 2].map(|i| (b.1[i] - b.0[i]) * 0.5);
+    let p = v.map(|p| [p[0] - centre[0], p[1] - centre[1], p[2] - centre[2]]);
+    for i in 0..3 {
+        if p[0][i].min(p[1][i]).min(p[2][i]) > half[i] || p[0][i].max(p[1][i]).max(p[2][i]) < -half[i] {
+            return true;
+        }
+    }
+    let edge = |a: usize, b: usize| [p[b][0] - p[a][0], p[b][1] - p[a][1], p[b][2] - p[a][2]];
+    let edges = [edge(0, 1), edge(1, 2), edge(2, 0)];
+    let dot = |a: &V3, b: &V3| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    let reach = |a: &V3| half[0] * a[0].abs() + half[1] * a[1].abs() + half[2] * a[2].abs();
+    let (e, f) = (&edges[0], &edges[1]);
+    let normal = [e[1] * f[2] - e[2] * f[1], e[2] * f[0] - e[0] * f[2], e[0] * f[1] - e[1] * f[0]];
+    if dot(&normal, &p[0]).abs() > reach(&normal) {
+        return true;
+    }
+    for f in &edges {
+        // The box's x, y and z axis crossed with the edge.
+        for axis in [[0.0, -f[2], f[1]], [f[2], 0.0, -f[0]], [-f[1], f[0], 0.0]] {
+            let along = [dot(&axis, &p[0]), dot(&axis, &p[1]), dot(&axis, &p[2])];
+            let r = reach(&axis);
+            if along[0].min(along[1]).min(along[2]) > r || along[0].max(along[1]).max(along[2]) < -r {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -98,9 +148,14 @@ impl Tree {
         if self.nodes.is_empty() {
             return;
         }
-        let mut stack = vec![0usize];
-        while let Some(i) = stack.pop() {
-            let node = self.nodes[i];
+        // A node's two halves differ by one item at most, so the tree of 2^32 items is under 40 deep, and the walk
+        // holds one node a level and one more.
+        let mut stack = [0u32; 64];
+        let mut held = 1;
+        while held > 0 {
+            held -= 1;
+            let i = stack[held] as usize;
+            let node = &self.nodes[i];
             if !overlaps(&node.bounds, query) {
                 continue;
             }
@@ -109,8 +164,9 @@ impl Tree {
                     each(item as usize);
                 }
             } else {
-                stack.push(i + 1);
-                stack.push(node.first as usize);
+                stack[held] = i as u32 + 1;
+                stack[held + 1] = node.first;
+                held += 2;
             }
         }
     }
@@ -121,11 +177,18 @@ impl Tree {
 }
 
 /// A mesh's triangle in the mesh's own frame (Bullet's: the library's corner with z negated, the bits the game's
-/// cast takes, [`crate::bullet`]).
+/// cast takes, [`crate::bullet`]). Its corners are finite numbers ([`MeshTriangle::new`]).
 #[derive(Clone, Copy, Debug)]
 struct MeshTriangle {
     v: [V3; 3],
     walker: WalkerBehaviour,
+}
+
+impl MeshTriangle {
+    /// The triangle of these corners; none with a corner that is not a finite number.
+    fn new(v: [V3; 3], walker: WalkerBehaviour) -> Option<MeshTriangle> {
+        v.iter().flatten().all(|c| c.is_finite()).then_some(MeshTriangle { v, walker })
+    }
 }
 
 /// A library's mesh, shared by its placements.
@@ -206,6 +269,20 @@ fn local_box(transform: &Transform, world: &Box3) -> Box3 {
     let c = [0, 1, 2].map(|k| (b[0][k] * centre[0] + b[1][k] * centre[1]) + b[2][k] * centre[2]);
     let e = [0, 1, 2].map(|k| (b[0][k].abs() * half[0] + b[1][k].abs() * half[1]) + b[2][k].abs() * half[2] + BOX_PAD_M);
     ([0, 1, 2].map(|i| c[i] - e[i]), [0, 1, 2].map(|i| c[i] + e[i]))
+}
+
+/// Whether a mesh's triangle (`v`, in the mesh's frame) under `transform` is wholly outside the box `near` of the
+/// world; `near_local` is a box of the mesh's frame that holds `near`.
+fn out_of_reach(transform: &Transform, triangle: &MeshTriangle, near: &Box3, near_local: &Box3) -> bool {
+    let v = &triangle.v;
+    if (0..3).any(|i| {
+        v[0][i].min(v[1][i]).min(v[2][i]) > near_local.1[i] || v[0][i].max(v[1][i]).max(v[2][i]) < near_local.0[i]
+    }) {
+        return true;
+    }
+    let b = &transform.basis;
+    let placed = v.map(|p| [0, 1, 2].map(|r| (b[r][0] * p[0] + b[r][1] * p[1]) + b[r][2] * p[2] + transform.origin[r]));
+    clear_of(&placed, near)
 }
 
 /// A triangle of a mesh placed in the map frame, as a face (its normal zero for a degenerate one).
@@ -365,8 +442,7 @@ impl Solids {
                 *meshes.entry((library_index, part)).or_insert_with(|| {
                     let triangles = library.faces[mesh.faces.start as usize..mesh.faces.end as usize]
                         .iter()
-                        .map(|face| MeshTriangle { v: face.corners.map(|i| flip(corner(i).to_array())), walker: face.surface.walker })
-                        .filter(|t| t.v.iter().flatten().all(|c| c.is_finite()))
+                        .filter_map(|face| MeshTriangle::new(face.corners.map(|i| flip(corner(i).to_array())), face.surface.walker))
                         .collect();
                     builder.mesh(triangles)
                 })
@@ -436,6 +512,7 @@ impl Solids {
         let pad = Vec3::new(BULLET_TOLERANCE_M, BULLET_TOLERANCE_M, BULLET_TOLERANCE_M);
         let (lo, hi) = (lo0.min(lo1) - pad, hi0.max(hi1) + pad);
         let swept: Box3 = ([lo.x, lo.y, -hi.z], [hi.x, hi.y, -lo.z]);
+        let near = grown(&swept, CLEAR_M);
         self.tree.each_in(&swept, |i| {
             if !overlaps(&self.boxes[i], &swept) {
                 return;
@@ -472,8 +549,13 @@ impl Solids {
                 }
                 Part::Mesh(id) => {
                     let mesh = &self.meshes[id as usize];
-                    mesh.tree.each_in(&local_box(&leaf.transform, &swept), |k| {
+                    let query = local_box(&leaf.transform, &swept);
+                    let near_local = grown(&query, CLEAR_M);
+                    mesh.tree.each_in(&query, |k| {
                         let triangle = &mesh.triangles[k];
+                        if out_of_reach(&leaf.transform, triangle, &near, &near_local) {
+                            return;
+                        }
                         // A mesh's margin is 0 (the game's `btBvhTriangleMeshShape`), the callback's fraction 1.
                         match exe_cast::cast_triangle(&cast, &exe_gjk::Triangle(triangle.v), 0.0, &leaf.transform, 0.0, 1.0) {
                             CastEnd::Hit { fraction, normal, point } => {
@@ -586,7 +668,7 @@ mod tests {
     }
 
     fn mesh_of(triangles: &[Triangle]) -> Vec<MeshTriangle> {
-        triangles.iter().map(|t| MeshTriangle { v: t.v.map(|p| flip(p.to_array())), walker: t.walker }).collect()
+        triangles.iter().map(|t| MeshTriangle::new(t.v.map(|p| flip(p.to_array())), t.walker).expect("finite corners")).collect()
     }
 
     /// A mesh under the identity is met with the numbers the same triangles get as placed faces by the exe's caster:
@@ -625,7 +707,7 @@ mod tests {
         let quarter = Transform { basis: [[0.0, 0.0, 1.0], [0.0, 1.0, 0.0], [-1.0, 0.0, 0.0]], origin: [1.0, 0.0, -5.0] };
         let local: Vec<MeshTriangle> = mesh_of(&floor())
             .iter()
-            .map(|t| MeshTriangle { v: t.v.map(|w| [-(w[2] + 5.0), w[1], w[0] - 1.0]), walker: t.walker })
+            .map(|t| MeshTriangle::new(t.v.map(|w| [-(w[2] + 5.0), w[1], w[0] - 1.0]), t.walker).expect("finite corners"))
             .collect();
         let mut builder = Builder::default();
         let mesh = builder.mesh(local);
@@ -691,5 +773,132 @@ mod tests {
         assert_eq!(small_round(&make(2, Vec3::new(0.85, 1.0, 0.85)), &IDENTITY.basis), None);
         let Some(SmallRound::Capsule { upright }) = small_round(&make(3, Vec3::new(0.2, 1.0, 0.2)), &lying) else { panic!() };
         assert!(upright < 1e-6, "{upright}");
+    }
+
+    /// Numbers in [0, 1) that are the same every run.
+    struct Dice(u64);
+
+    impl Dice {
+        fn roll(&mut self) -> f32 {
+            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            (self.0 >> 40) as f32 / (1u64 << 24) as f32
+        }
+
+        fn within(&mut self, lo: f32, hi: f32) -> f32 {
+            lo + (hi - lo) * self.roll()
+        }
+
+        fn point(&mut self, reach: f32) -> V3 {
+            [self.within(-reach, reach), self.within(-reach, reach), self.within(-reach, reach)]
+        }
+    }
+
+    /// A triangle the test calls clear of a box has no point in it; and the test tells a triangle that passes a
+    /// corner of the box from one that cuts it, though the boxes of both meet the box.
+    #[test]
+    fn a_triangle_clear_of_a_box_has_no_point_in_it() {
+        let mut dice = Dice(7);
+        let (mut clear, mut near) = (0, 0);
+        for round in 0..4000 {
+            let centre = dice.point(1.0);
+            let half = [dice.within(0.05, 1.0), dice.within(0.05, 1.0), dice.within(0.05, 1.0)];
+            let b: Box3 = ([0, 1, 2].map(|i| centre[i] - half[i]), [0, 1, 2].map(|i| centre[i] + half[i]));
+            // Small triangles about the box, and large ones that pass it.
+            let size = if round % 2 == 0 { 0.8 } else { 6.0 };
+            let about = dice.point(1.2);
+            let v = [0, 1, 2].map(|_| {
+                let p = dice.point(size);
+                [about[0] + p[0], about[1] + p[1], about[2] + p[2]]
+            });
+            if !clear_of(&v, &b) {
+                near += 1;
+                continue;
+            }
+            clear += 1;
+            const N: usize = 48;
+            for i in 0..=N {
+                for j in 0..=N - i {
+                    let (s, t) = (i as f32 / N as f32, j as f32 / N as f32);
+                    let p = [0, 1, 2].map(|k| v[0][k] + (v[1][k] - v[0][k]) * s + (v[2][k] - v[0][k]) * t);
+                    assert!(!(0..3).all(|k| p[k] >= b.0[k] && p[k] <= b.1[k]), "{v:?} is called clear of {b:?}, and {p:?} is in it");
+                }
+            }
+        }
+        assert!(clear > 500 && near > 500, "{clear} clear, {near} near");
+
+        let cube: Box3 = ([-1.0; 3], [1.0; 3]);
+        // The plane x + y + z = d cut to a triangle: the cube's corner (1, 1, 1) is at 3.
+        let across = |d: f32| [[d, 0.0, 0.0], [0.0, d, 0.0], [0.0, 0.0, d]];
+        assert!(clear_of(&across(3.5), &cube));
+        assert!(!clear_of(&across(2.5), &cube));
+        let far = [[5.0, 0.0, 0.0], [6.0, 0.0, 0.0], [5.0, 1.0, 0.0]];
+        assert!(clear_of(&far, &cube));
+        // A mesh holds no triangle with a corner that is not a finite number (the test would drop a NaN).
+        assert!(MeshTriangle::new(far, WalkerBehaviour::Walk).is_some());
+        for bad in [f32::NAN, f32::INFINITY] {
+            assert!(MeshTriangle::new([[bad, 0.0, 0.0], far[1], far[2]], WalkerBehaviour::Walk).is_none());
+            assert!(MeshTriangle::new([far[0], far[1], [5.0, 1.0, bad]], WalkerBehaviour::Walk).is_none());
+        }
+    }
+
+    /// A sweep over a turned and moved mesh reports the hits that casting every one of its triangles gives, to the
+    /// bit: the triangles left out of a sweep's casts are misses.
+    #[test]
+    fn a_sweep_reports_the_hits_of_casting_every_triangle() {
+        let mut dice = Dice(11);
+        let triangles: Vec<MeshTriangle> = (0..400)
+            .map(|k| {
+                // Mostly small faces, every tenth a large one.
+                let (about, size) = (dice.point(6.0), if k % 10 == 0 { 8.0 } else { 1.2 });
+                let v = [0, 1, 2].map(|_| {
+                    let p = dice.point(size);
+                    [about[0] + p[0], about[1] + p[1], about[2] + p[2]]
+                });
+                MeshTriangle::new(v, WalkerBehaviour::Walk).expect("finite corners")
+            })
+            .collect();
+        let (sin, cos) = 0.6f32.sin_cos();
+        let transform = Transform { basis: [[cos, 0.0, sin], [0.0, 1.0, 0.0], [-sin, 0.0, cos]], origin: [1.5, -0.5, 2.0] };
+        let mut builder = Builder::default();
+        let mesh = builder.mesh(triangles.clone());
+        builder.object();
+        builder.place_mesh(transform, transform, mesh);
+        let shapes = world(builder.finish());
+
+        let key = |t: f32, p: [f32; 3], n: [f32; 3]| (t.to_bits(), p.map(f32::to_bits), n.map(f32::to_bits));
+        let (mut sweeps, mut found) = (0, 0);
+        for round in 0..1500 {
+            let centre = Vec3::from_array(dice.point(7.0));
+            let by = Vec3::from_array(dice.point(if round % 3 == 0 { 2.5 } else { 0.4 }));
+            let shape = match round % 4 {
+                0 => Shape::Sphere { centre, radius: 0.3 },
+                1 => Shape::Cylinder { centre, half: 0.5, radius: 0.3, margin: 0.04 },
+                _ => Shape::CapsuleAt { centre, radius: 0.38, half_height: 0.52 },
+            };
+            let mut cast = exe_cast_of(shape, by);
+            cast.from = flip(cast.from);
+            cast.by = flip(cast.by);
+            let ends: Vec<CastEnd> =
+                triangles.iter().map(|t| exe_cast::cast_triangle(&cast, &exe_gjk::Triangle(t.v), 0.0, &transform, 0.0, 1.0)).collect();
+            // A cast that starts in a face goes to the stand-in for the penetration solver: not this test's matter.
+            if ends.iter().any(|end| matches!(end, CastEnd::NeedsPenetration { .. })) {
+                continue;
+            }
+            let mut every: Vec<_> = ends
+                .iter()
+                .filter_map(|end| match *end {
+                    CastEnd::Hit { fraction, normal, point } => Some(key(fraction, flip(point), flip(normal))),
+                    _ => None,
+                })
+                .collect();
+            let mut swept = Vec::new();
+            shapes.sweep_each(shape, by, |c| swept.push(key(c.t, c.point.to_array(), c.normal.to_array())));
+            every.sort();
+            swept.sort();
+            assert_eq!(swept, every, "{shape:?} by {by:?}");
+            sweeps += 1;
+            found += every.len();
+        }
+        assert!(sweeps > 200 && found > 200, "{sweeps} sweeps, {found} hits");
     }
 }
