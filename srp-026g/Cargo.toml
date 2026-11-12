@@ -70,9 +70,6 @@ log = "0.4"
 
 binary-config-parser = { path = "crates/binary-config-parser" }
 resources-db = { path = "crates/resources-db" }
-# The mapdata dump's reader of the shipped archive (hard links resolved);
-# kept beside the in-tree crate above under its own name.
-vostok-resources-db = { package = "resources-db", git = "https://github.com/srp-survarium/vostok-resources-db", rev = "9498aca14014ef74460429f51eb41a6af333522c" }
 ban-reason = { path = "crates/ban-reason" }
 sign-in-cipher = { path = "crates/sign-in-cipher" }
 session = { path = "crates/session" }

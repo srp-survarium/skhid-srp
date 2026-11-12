@@ -82,12 +82,6 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
     let mut layers = vec![cli.db.clone()];
     layers.extend(cli.patches.iter().cloned());
     let mut resources = Resources::open_layers(&layers)?;
-    if resources.unresolved_links > 0 {
-        eprintln!(
-            "warning: {} hard links in the index point at no file",
-            resources.unresolved_links
-        );
-    }
     let materials = Materials::load(&mut resources)?;
     eprintln!(
         "opened {} in {:.2} s",
