@@ -227,7 +227,10 @@ Two branches: 101–113 (weapon handling) and 201–214 (body/stamina).
 | 213 | can_sprint 1 | 1 | 20 | 214 |
 | 214 | max_carried_weight_ultimate 1 | 1 | 20 | 213 |
 
-The table is the stock 0.26g tree. Skhid removes 206 (Sledgehammer) and 210 (Jump with a knife)
+The table is the stock 0.26g tree: never read a value a bot or a test needs from it, read the tree in the server's
+game data (`skills::SkillsTree::shared`). Skhid's live tree differs: seven skills take 3 ranks, each worth more
+(`scripts/content-edit/skill-ranks-1.json`, 2026-11-09: 102 +0.02, 106 and 107 -0.04, 110 -0.2, 201 -0.04, 204
++0.04, 211 -0.1 a rank); the medical and artefact tabs come from their own edit lists. Skhid removes 206 (Sledgehammer) and 210 (Jump with a knife)
 from the live tree (the owner, 2026-11-06; edit list `scripts/content-edit/physical-skills-1.json`),
 as the original developers did: both are in 0.31a2's `skills_tree`, neither is in 0.46c2's, and 0.69
 keeps only their strings (which stay here too). Nobody could learn them (`branch_points` 50, past the
