@@ -56,14 +56,15 @@ fn accounts(world: &World, members: &[usize]) -> HashSet<u32> {
     members.iter().map(|&member| world.ids[member].0).collect()
 }
 
-/// The room's vote has a Team Deathmatch card and a free-for-all one; the
-/// members vote for the free-for-all, and the match is that map's with each
-/// of them in it, in no squad. One who comes while it is played, its places
-/// not all given, goes into it.
+/// The room's pool has two maps of two teams and a free-for-all: its vote's
+/// third card is the free-for-all (the owner's of 2026-11-12), the first two
+/// the others. The members vote for it, and the match is that map's with
+/// each of them in it, in no squad. One who comes while it is played, its
+/// places not all given, goes into it.
 #[test]
 fn a_room_whose_vote_wins_a_free_for_all_card_plays_it_with_each_ready_member() {
     let free_for_all = free_for_alls()[0];
-    let mut world = world_of(vec![117, free_for_all]);
+    let mut world = world_of(vec![61, 117, free_for_all]);
     let alice = world.connect("Alice");
     let bob = world.connect("Bob");
     let carol = world.connect("Carol");
@@ -76,13 +77,10 @@ fn a_room_whose_vote_wins_a_free_for_all_card_plays_it_with_each_ready_member() 
     let voting = state(&mut world, alice);
     assert_eq!(header(&voting)[PHASE], "3", "the vote");
     let offered = cards(&voting);
-    assert!(offered.contains(&117), "{offered:?}");
-    let card = offered
-        .iter()
-        .position(|&map| map == free_for_all)
-        .expect("the free-for-all's card") as u32;
+    assert!(offered[..2].contains(&61) && offered[..2].contains(&117), "{offered:?}");
+    assert_eq!(offered[2..], [free_for_all], "{offered:?}");
     for index in [alice, bob, carol] {
-        rows(&mut world, index, ROOM_VOTE_BASE + card, 1);
+        rows(&mut world, index, ROOM_VOTE_BASE + 2, 1);
     }
     let ticket = room_match_starts(&mut world, &[alice, bob, carol], VOTE_AND_WAIT);
     assert_eq!(world.host.made.locked().len(), 1);
