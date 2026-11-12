@@ -47,7 +47,12 @@ number from the game data, the rules as the client's hit code applies them. Buil
     icon (the skills page's, as its build draws them) and, hovering its icon or name, a card:
     its name and the lobby tooltip's line for a rank (the owner: "same for skills and maybe they
     should have skill icons too").
-  The grades, the slots, the booster's bonuses and each skill's ranks and step come from the game
+- Every item tile says what it does on hover (or focus; on a phone, a tap), from the game's own
+  texts (owner 2026-11-12: "anesthetic should show bonuses on hover too", "onyxes too"): a
+  booster and a drug their lobby card's lines (the Anesthetic: pain threshold, activation,
+  duration; no weight), an artefact (Onyx, Larkspur) its pickup and activation hints, the
+  Onyx's with the active's seconds for that many Onyx.
+- The grades, the slots, the booster's bonuses and each skill's ranks and step come from the game
   data (`recovery` of `calc-data.json`; a skill's step is the number the lobby prints for a rank);
   the rules are the exe's (`rules.js`: `regeneration`, `medicine`; regeneration-booster.md,
   medical-skills.md). The picks are kept with the page's other choices.

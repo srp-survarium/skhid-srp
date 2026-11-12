@@ -705,8 +705,8 @@ function drawExplain(target, b, sim) {
 }
 
 // The healing section's picks, each on or off in any mix: the Larkspurs
-// carried (none to four) and each booster as item tiles (a booster's with
-// its card on hover); then, as the lobby's
+// carried (none to four) and each booster as item tiles (each with its card
+// on hover); then, as the lobby's
 // bonus rows, the regeneration bonus of each slot that takes one (a button
 // per grade) and the medical skills (a button per rank). The picked button
 // again clears it.
@@ -729,7 +729,7 @@ function fillHealPick() {
       tiles.forEach((t, j) => t.setAttribute("aria-pressed", String(j < state.larkspur)));
       redraw();
     }));
-    items.append(el("span", { class: "lbl", text: nm(lark) }), ...tiles);
+    items.append(el("span", { class: "lbl", text: nm(lark) }), ...tiles.map(t => RULES.hinted(t, RULES.artefactCard(lark))));
   }
   pick.boosters = pick.boosters || {};
   // A booster's tile shows its card (what it gives) on hover or focus.
@@ -737,8 +737,7 @@ function fillHealPick() {
     const t = tile(key, nm(b), !!pick.boosters[key], function () {
       pick.boosters[key] = !pick.boosters[key]; this.setAttribute("aria-pressed", String(pick.boosters[key])); redraw();
     });
-    t.removeAttribute("title");
-    items.append(el("span", { class: "lbl", text: nm(b) }), el("span", { class: "fxhint" }, t, RULES.bonusCard(nm(b), b.bonuses || [])));
+    items.append(el("span", { class: "lbl", text: nm(b) }), RULES.hinted(t, RULES.card(nm(b), b.card || [])));
   }
   const panel = el("div", { class: "gamemods" });
   // One bonus row: a button per option [value, text] of picks[key]; with a
