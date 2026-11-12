@@ -47,6 +47,5 @@ vostok-layout	release/content.tsv release/patches.tsv release/build-content rele
 
 world-corpus-refresh	release/world-corpus release/test_world_corpus.py release/lib.sh	nix shell nixpkgs#shellcheck -c bash -c 'cd release && shellcheck -x world-corpus && python3 test_world_corpus.py'	Corpus refresh preserves the old set and refuses incomplete replacements
 world-check-runner	tools/checks/worlds.sh tools/test_world_chunks.py release/lib.sh	python3 tools/test_world_chunks.py	Cold native-cache ordering and drift chunk failure propagation
-nickname-repair	srp-026g/scripts/repair-nicknames.py srp-026g/scripts/test_repair_nicknames.py srp-026g/scripts/nickname-lookalikes.tsv	python3 -W error::ResourceWarning srp-026g/scripts/test_repair_nicknames.py	Nickname repair plans, backups, lookalike rules and transaction rollback
 cargo:session	srp-026g/scripts/nickname-lookalikes.tsv	-	The shared Cyrillic/Latin nickname equivalence table
 moderation-script	release/moderate release/test_moderate.py	python3 release/test_moderate.py	Live nickname rename CLI, exact IDs, dry runs and write failures

@@ -19,7 +19,7 @@ use super::account::{Account, Item, KIT_SLOTS, Kit, KitSlot, QuestInstance, Upgr
 use super::clans::Clan;
 use super::moderation::AdminAction;
 use crate::LockExt;
-use crate::persist::{DB_FILE, DB_VAR, PersistError};
+use crate::persist::{DB_FILE, DB_VAR, PersistError, connect};
 
 mod admin_actions;
 mod balance;
@@ -449,14 +449,7 @@ impl SqliteGameRepository {
     /// Open (or create) the database at `path` and bring the 0.26g tables
     /// to the newest schema. Refuses tables newer than this code.
     pub fn open(path: &Path) -> Result<Self, PersistError> {
-        let connection = Connection::open(path)?;
-        let _mode: String =
-            connection.query_row("PRAGMA journal_mode = WAL", [], |row| row.get(0))?;
-        connection.execute_batch(
-            "PRAGMA foreign_keys = ON;
-             PRAGMA synchronous = NORMAL;
-             PRAGMA busy_timeout = 5000;",
-        )?;
+        let connection = connect(path)?;
         migrate(&connection)?;
         Ok(Self {
             connection,

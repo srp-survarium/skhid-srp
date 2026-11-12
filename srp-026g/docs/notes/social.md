@@ -237,14 +237,14 @@ account. Paid renames parse a `Nickname` and recheck availability under the same
 lock as registration before charging. Account IDs, logins and passwords do not
 change. Availability uses Unicode lowercase followed by the explicit Cyrillic/
 Latin pairs in `scripts/nickname-lookalikes.tsv`: for example Cyrillic `о` and
-Latin `o` share a key. The same table is used by Rust, SQLite's `skhid_nickname`
-collation and the repair tool. Display names retain their original spelling.
+Latin `o` share a key. The same table is used by Rust and SQLite's
+`skhid_nickname` collation. Display names retain their original spelling.
 There is no edit-distance, digit/letter or punctuation matching. A conflicting
 registration or rename returns an error; a refused rename is not charged.
 
 The live audit under these rules found 23 collision groups, including account
 649 (`sovspiranha`) and 741 (`sоvspiranha`, Cyrillic `о`), and 576 (`TECTEP`)
-and 594 (`ТЕСТЕР`). The default oldest-account rule keeps 649 and 576.
+and 594 (`ТЕСТЕР`). Schema 8's rule (below) keeps 649 and 576.
 
 Persistence schema 8 adds `accounts_unique_nickname`. A saver takes a coherent
 namespace snapshot and writes the dirty accounts in one transaction, allowing
@@ -254,30 +254,31 @@ also refused, including with a non-SQLite repository. The shared account name is
 authoritative; startup restores the 0.26g display-name copies from it before the
 lobby starts, recovering a crash between the two savers' passes.
 
-Existing duplicates and lookalikes must be repaired **before deploying schema 8**. Use
-`scripts/repair-nicknames.py <srp.db> --keep 778` to print a JSON plan: by default
-the lowest account id keeps each name, except explicit `--keep` overrides.
-The owner's 2026-11-12 choice is that 778 keeps `Mamoru`, and 777 becomes
-`Mamoru_777`. `--only 777` prepares just that repair. Suffixes avoid all existing
-nicknames and logins, and fit the wire limit. The plan includes a hash of the
-namespace so a stale or edited plan cannot be applied silently.
+Schema 8 repairs existing duplicates and lookalikes itself, in the step's
+transaction and before the index is made (`rename_shared_nicknames`,
+`crates/session/src/persist/sqlite.rs`): of the accounts whose names share a
+key the one that plays keeps its name, that is the one with the most 0.26g
+experience (`g26_accounts.exp_total`; 0 for an account without a row there,
+or in a file without that table), the lowest account id among equals. Each
+other becomes `<name>_<id>`, cut to the wire limit, with a counter after it
+while that is another account's nickname or login. The reason for the rule is
+the owner's 2026-11-12 choice that 778, the account in use, keeps `Mamoru`
+and 777 becomes `Mamoru_777`: the step makes it. The new name is written to `accounts.name`,
+`accounts.game_name` and the 0.26g copy `g26_accounts.name`; ids, logins,
+passwords and everything an account owns are not touched. Each rename is one
+warning in srp's log (account id, old name, new name). No release, test
+environment or older local database needs a step by hand, and srp's copy of
+srp.db from the start of that run (`backups/`) holds the names as they were.
 
-With the owner's go, stop srp and verify it is stopped, then run
-`scripts/repair-nicknames.py <srp.db> --apply-plan <reviewed.json> --backup <new-backup.db> --server-stopped`.
-This makes a complete SQLite backup (including WAL contents), changes only
-the selected accounts' display-name fields in `accounts` and `g26_accounts`, and
-checks the result in one transaction. The new server installs its unique index
-at migration; the repair tool does not install a custom collation index into
-an older server's database. A targeted repair leaves other pairs unchanged.
-Keep `nickname-lookalikes.tsv` beside the repair script when copying it to a host.
-Start the server and
-verify the names afterward. Never edit this database with srp running: its
-in-memory names would stay stale and the saver could overwrite the edit.
+Every connection to srp.db is opened by `persist::connect`, which registers
+the `skhid_nickname` collation: without it SQLite refuses a write to
+`accounts` and a `VACUUM` of the file (the 0.26g tables' connection lacked it,
+and a new database could not start).
 
-Validation: session identity races and persistence round trips, lobby squad and
-paid-rename tests, and `python3 scripts/test_repair_nicknames.py` (targeted/full
-repair, preserved data and backup, stale plans, rollback). These are automated
-checks; they do not constitute an in-game test or a live deployment.
+Validation: session identity races and persistence round trips (a database
+with shared names through schema 8; a new database through srp's start), lobby
+squad and paid-rename tests. These are automated checks; they do not
+constitute an in-game test or a live deployment.
 
 ### 2.4 How a squad mate's 0x88 is filed (added 2026-10-12) — PROVEN
 

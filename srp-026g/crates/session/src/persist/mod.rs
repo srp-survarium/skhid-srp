@@ -25,6 +25,7 @@ use crate::{Account, Ban, IpBan, LockExt};
 
 mod sqlite;
 pub use sqlite::SqliteRepository;
+pub(crate) use sqlite::connect;
 
 /// Where srp keeps its database: `SRP_DATA_DIR`, by default `./data`.
 pub const DATA_DIR_VAR: &str = "SRP_DATA_DIR";
