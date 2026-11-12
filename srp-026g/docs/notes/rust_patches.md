@@ -272,7 +272,9 @@ exercised by `check_hooks_026g.py`.
 A **runtime callback** is a `callback` site whose callee is a game function of
 the convention the game calls it in (`resources.query_done`: 0x14730, the cdecl
 `f(queries_result&, value)` a boost function of 0x176D0 calls). No site is
-rewritten: the generator writes the entry (`RUST_CDECL`/`RUST_THISCALL`), a
+rewritten: the generator writes the entry (`RUST_CDECL`/`RUST_THISCALL`; for a
+stdcall callee `RUST_CALL` with its cleanup: `dlss.helper_watch`, a thread's
+start routine as CreateThread calls it, named by the engine's own 0xE0910), a
 marker type for the convention (no `Original`: the callee only names it, so the
 handler gets the typed arguments alone, each a binding, never a fallible one),
 and `<patch>_<handler>_entry() -> CallbackEntry<Marker>`, which vostok hands the

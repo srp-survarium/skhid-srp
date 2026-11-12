@@ -31,14 +31,24 @@ The owner (2026-11-12): "let's do it as DXVK option". Off by default; only with 
   other Vulkan options (`VulkanOptions`). Pending until Apply, Cancel puts the saved one back,
   "Applies after restart." as the other options.
 - **Offered only where it can run:** the exe answers the checkbox's running value `-` when this
-  process does not offer it; it is then greyed (its saved tick shown, not changeable, no restart
-  note for it), the reason in `srp_patches.log` (`dlss: on, not run: <why>`):
+  process does not offer it; it is then greyed and dimmed (its saved tick shown, an unticked box
+  empty; not changeable, no restart note for it). It is offered once the helper said, at this
+  start, that DLSS runs here; so the helper is asked at every start with DXVK on an NVIDIA GPU, with
+  the tick on or off (with it off the helper is told to quit after its answer). Not offered:
   - DirectX 11 running or picked: the whole panel is greyed already;
-  - DXVK's GPU (the start's Vulkan look, `DXVK_GPU`) is not NVIDIA's (vendor 0x10DE);
+  - DXVK's GPU is not NVIDIA's (vendor 0x10DE): the start's Vulkan look's `vendorID` (`DXVK_GPU`),
+    never DXGI's adapter (DXVK reports an NVIDIA card to the game as AMD's);
   - the helper's files are not there (`binaries\x86\dlss\dlss_helper.exe`, `nvngx_dlss.dll`);
-  - the helper's answer at this start said no (a GPU without DLSS: GTX, no driver NGX, 32-bit
-    Windows): the reason in `srp_patches.log`, the saved tick off (as a failed DXVK start turns
-    the Renderer off), so the next start does not try again.
+  - the helper has not answered yet (about a second from the first frame), did not start, or ended
+    before it answered;
+  - the helper's answer said no (a GPU without DLSS: GTX, no driver NGX): its reason in
+    `srp_patches.log`, and a saved tick goes off (as a failed DXVK start turns the Renderer off;
+    at the login screen or after: user.cfg has run by then), so the next start sets no mip bias.
+  A link that fails after the helper's yes (the helper crashed in a match) leaves the checkbox
+  offered: the PC runs DLSS, the next start tries again.
+- **`srp_patches.log`** says what the link did: `dlss: the helper is started`, `dlss: offered: ...`
+  (the render size for the output), `dlss: running: ...`, and when it does not run, why:
+  `dlss: on, not run: <why>` (the tick on), `dlss: not offered: <why>` (the tick off).
 - NGX's quality: MaxQuality (2). Render size: the helper's answer (NGX's optimal size for the
   output at Quality, about 0.667 of each side).
 
@@ -118,10 +128,15 @@ The owner (2026-11-12): "let's do it as DXVK option". Off by default; only with 
   engine's motion shaders project current and previous with the same (jittered) `m_P`, so their
   motion holds no jitter. The sign DLSS is given: the probe scored the negated sample offset better
   at Quality (21.9 against 19.2 dB PSNR); to be checked on a game frame.
-- **Mip bias:** `log2(render / output) - 1` (-1.58 at Quality), DXVK's
-  `d3d11.samplerLodBias` in `DXVK_CONFIG`, set at the start only when the helper said DLSS runs
-  (DXVK reads its config at its first device, before any frame). LIKELY: DXVK applies it to every
-  sampler it may bias (not to point-mip or LOD-clamped ones); to be checked in a capture.
+- **Mip bias:** `log2(render / output) - 1` (-1.585 at Quality, the render size 1 / 1.5 of the
+  output's each way), DXVK's `d3d11.samplerLodBias` in `DXVK_CONFIG`. DXVK reads its options at
+  its first device, before any frame, and the helper is asked at the first frame (below), so the
+  start sets it without the helper's answer (the owner, 2026-11-12): when the tick is on, DXVK's
+  GPU is NVIDIA's and the helper's files are there; its value depends on the mode alone. If the
+  helper then fails, that is logged and the game goes on with the bias (sharper mips at the
+  native size) until the next start; a helper that says no turns the tick off, so only that one
+  start has it. LIKELY: DXVK applies it to every sampler it may bias (not to point-mip or
+  LOD-clamped ones); to be checked in a capture.
 - **Motion vectors for DLSS** (every pixel, render pixels, `previous = current + mv`): built by the
   game in its copy-in command buffer on DXVK's device, a small compute pass (SPIR-V in the patch)
   instead of a copy: where rt 18's `z > 0`, `-xy * render size`; elsewhere the camera's motion from
@@ -145,12 +160,34 @@ The owner (2026-11-12): "let's do it as DXVK option". Off by default; only with 
 
 - No broken frame: a frame that DLSS did not finish shows `$user$present` through the stock screen
   image quad (a plain bilinear stretch of the render size), the same draw as today.
-- Any helper failure (no answer at the start, a setup refused, the pipe broken, the helper process
-  gone, its timeline value late): DLSS stops for the process, the line in `srp_patches.log` says
-  why, and the next frame's `set_size` (forced) makes every target native again.
-- A helper that dies after the game queued its wait: the game signals that timeline value itself
-  from the host (a timeline semaphore takes a host signal), so DXVK's queue never waits forever;
-  that frame shows the last good output (the shared output keeps it), one repeated frame.
+- Any helper failure (it does not start, no answer, a setup refused, the pipe broken, the helper
+  process gone, its timeline value late): DLSS stops for the process, the line in
+  `srp_patches.log` says why (`dlss: on, not run: <why>`), and the next frame's `set_size`
+  (forced) makes every target native again. The link's part of this is done (below, "The link");
+  the targets' part comes with the render size.
+- **A helper that is gone after the game queued its wait:** DXVK's queue then waits for a value
+  nobody signals, and the game's own thread may already wait for that queue (DXVK's Present waits
+  for an earlier frame when the GPU is the slower side), so the game's thread cannot be the one
+  to notice. The link starts a **watch** with the helper, a thread of its own that waits for the
+  helper's process to end: then it plays the helper's part of the timeline itself, from the host
+  (a timeline semaphore takes a host signal), and DXVK's queue goes on; those frames show what
+  the shared output last held (a repeated frame, once the output is shown at all). The helper's
+  values are signalled **one at a time**, each right after the game's copy before it: the game's
+  own copies of later frames are still on DXVK's queue and signal the values in between, so a
+  signal straight to the last wait's value was undone by the next of them (the timeline went
+  back, that copy's wait was never met: seen, below). A stop of the link on the game's thread
+  does the same before it retires what was shared.
+- **The GPU's driver gives up on a queue that waits about 11 s** (seen, NVIDIA 615.78 under
+  Wine: Xid 31 on the game's channel, the device lost, the game's own "device removed" end): the
+  reason the watch's timer is short.
+- **Timers**, each because a helper that hangs gives no event (its end and a broken pipe are
+  events, and are acted on at once):
+  - 30 s for the helper to open the pipe, to answer the Hello (NGX's start, about 1 s measured)
+    and to answer the Setup: counted at the game's Presents;
+  - 3 s (six looks of the watch, 500 ms apart) in which the helper's turn on the timeline (an
+    odd value: the game's copy of a frame done, the helper's output of it not) does not move: the
+    watch ends the helper (TerminateProcess), which is then the case above. An even value behind
+    a wait is the game's own copy not run yet (DXVK's queue is the slow one): not counted.
 
 ## The helper interface (the game's side, one module)
 
@@ -160,35 +197,117 @@ The owner (2026-11-12): "let's do it as DXVK option". Off by default; only with 
   scale and reset.
 - What it gets: whether DLSS runs and the render size; whether the setup took; each frame's done
   value on the timeline.
-- Where: the helper is started at the process's start (patch 83's start, after the Vulkan look,
-  before `DXVK_CONFIG`): its Hello is the "can it run" answer above and gives the render ratio; the
-  images and the frames come at the first frame of each size. Files: `binaries\x86\dlss\`
-  (`dlss_helper.exe`, x64, and NVIDIA's `nvngx_dlss.dll` beside it), in the Skhid ZIP as DXVK's
-  `dxvk\`.
+- Where and when (the owner, 2026-11-12): the helper is started at **the first Present**, when the
+  output window and its swap chain exist, so its Hello carries the output's real size; the Hello's
+  answer is the "can it run" answer above and gives the render size. With the tick on, the images
+  are made for that answer and the Setup sent; the frames follow the Setup's answer. A Present of
+  **another output size** tells the helper a new size (`FrameMsg.quit = 2`, the helper keeps its
+  device and NGX), retires what was shared and says Hello and Setup again. Nothing waits: each step
+  is taken at a Present when the helper's answer has come (the pipe is only read when a whole
+  record is there). Files: `binaries\x86\dlss\` (`dlss_helper.exe`, x64, and NVIDIA's
+  `nvngx_dlss.dll` beside it; `client/dlss-helper/README.md`), in the Skhid ZIP as DXVK's `dxvk\`.
+  The helper is started in that folder with the game's own environment and no window; what it
+  needs of Wine it sets up itself.
 - The game's Vulkan entry points: from `winevulkan.dll` when it is loaded (Wine: DXVK takes them
   there), else `vulkan-1.dll`. DXVK's device and queue from `IDXGIVkInteropDevice`
   (GetVulkanHandles, GetSubmissionQueue1, LockSubmissionQueue/ReleaseSubmissionQueue), each texture's
   VkImage and layout from GetVulkanImageInfo.
-- **What "can it run" checks** (the helper's Hello is the final word): Windows needs the driver's
-  own `nvapi64.dll` and NGX; Wine needs, beside the helper, dxvk-nvapi x64 (0.9.2) and DXVK's x64
-  `dxgi.dll` loaded before NGX (`DXVK_ENABLE_NVAPI=1`, `WINEDLLOVERRIDES dxgi=n,b;nvapi64=n` for the
-  helper only: without nvapi64 NGX's init fails with 0xBAD00002), and the prefix the driver's
-  `nvngx.dll`, `_nvngx.dll` and the `NGXCore` key (`play_skhid.sh`'s prefix set-up). Any of them
-  missing: the Hello fails, the checkbox is greyed, the reason logged.
+- **What "can it run" checks** (the helper's Hello is the final word; `client/dlss-helper/README.md`,
+  "What it needs at run time"): Windows needs the driver's own `nvapi64.dll` and NGX; under Wine the
+  helper loads dxvk-nvapi and DXVK's x64 `dxgi.dll` from `dlss\wine\` itself and finds the driver's
+  NGX core. Any of them missing: the Hello's answer is no with its reason, the checkbox is greyed,
+  the reason logged.
+
+## The link (patch 83, `hud_options::dlss` over `vostok::dlss`)
+
+- **One owner, one state** (`Link`, one transition `Link::step`): not started (nothing will
+  start: `Off`; or waiting for the first Present), the helper starting, asked (the Hello sent),
+  offered (the helper said yes, the tick off: nothing runs), sharing and set up (the Setup sent),
+  running (each Present a frame), failed (before the helper's yes) or stopped (after it), each
+  with its reason. The Settings' gate (`DlssOffer`) is read from that state.
+- **Hooks:** the process's start (`memory.allocate_arenas`: whether anything starts, the mip
+  bias), each Present (`render_output.present`: the link's step), the login screen
+  (`login_menu.activated`: a refused tick goes off), the game's exit from its menus
+  (`game.exit_start`, game::exit 0x1EC730, which the Exit buttons call: the helper told to quit,
+  given 3 s, everything of the link ended while DXVK's device lives), and the watch's thread
+  (`dlss.helper_watch`, a thread start routine). An exit that does not pass game::exit (the
+  window closed, a crash) closes the pipe with the process: the helper ends by itself then, and
+  the watch releases the timeline if DXVK's queue still waits.
+- **DXVK's device:** from the game's swap chain (`res_render_output` +0CCh):
+  `IDXGISwapChain::GetDevice(IDXGIVkInteropDevice1)` gives the interop device (the VkDevice, the
+  queue and its family, Flush/Lock/ReleaseSubmissionQueue), `GetBuffer(0, IDXGIVkInteropSurface)`
+  the back buffer's VkImage, layout, format and size. The Vulkan functions come from
+  `winevulkan.dll` when it is loaded, else `vulkan-1.dll` (vkGetInstanceProcAddr, then
+  vkGetDeviceProcAddr on DXVK's device: a missing `vkGetMemoryWin32HandleKHR` is a DXVK device
+  without the extension, a failure with that name).
+- **What a frame does now:** the helper is told the frame (`FrameMsg`, jitter 0, reset on a
+  Setup's first frame), then, with DXVK's queue locked, two submits: the copy-in (the back buffer,
+  the frame as the window gets it, scaled into the shared colour image; a Setup's first frame
+  also clears the shared depth to far and motion to none, which nothing fills yet) that signals
+  2N+1, and a wait for 2N+2 in a command buffer of its own, empty yet (the copy of the output
+  goes there), so the wait is a batch of its own on the queue, which the queue's idle covers
+  before the semaphore is retired (a submit that only waits may be left by a driver for the
+  queue's next submit). The shared colour and output take the back buffer's format; depth is D32_SFLOAT, motion
+  R16G16_SFLOAT. Four pairs of command buffers in turn: a frame whose pair is still on the GPU
+  (the timeline has not passed the copy of the frame three before) is no frame of the link.
+  The scene at the render size, the real depth and motion, and the output's way to the screen
+  are the next pieces.
+- **A new size** makes a new timeline semaphore with the new images (the helper imports the
+  Setup's semaphore each time); its frames count from 0 again.
+- **The helper's frame reports** (`FrameStat`) are read off the pipe at each Present and dropped.
+- **Seeing it run:** a game started with `SKHID_DLSS_LOG` set says every 300th frame and the
+  timeline's value in `srp_patches.log` (a local diagnostic; unset, nothing).
+- **With the render size** (PR #1717, `hud_options::render_size`; not joined here):
+  - the start asks the ratio (`render_size::ask`, 1 / 1.5) where it sets the mip bias (the tick
+    on, an NVIDIA GPU, the helper's files), since a ratio is taken only then; every stop of the
+    link (a failure, a refusal) asks native;
+  - the Setup's images take the frame's own render size, not the Hello's answer: NGX's optimal
+    size may be odd (853x480 for 1280x720, seen) where the engine's is even (854x480), and the
+    helper makes DLSS's feature from the Setup's image sizes, so the two need not be compared;
+  - the copy-in reads `$user$present` and the frame's own depth-stencil (both at the render
+    size) in place of the back buffer, and the link then runs before the screen image, not at
+    the Present.
 
 ## Status
 
-- Implemented: this spec; the option (a checkbox, user.cfg, Settings answers, greyed when not
-  offered, ten languages); the start's gate (DXVK, an NVIDIA GPU, the helper's answer). Since no
-  helper ships yet, the checkbox is greyed on every PC.
-- Tested: the patch's Rust tests (the gate, user.cfg's word, the answer) and Clippy; patch 83 in
-  Unicorn (`check_hud_options_026g.py`: the checkbox registered and answered, running "-", the
-  start's `dlss:` line on an RTX and on an RX); the Settings movie in Ruffle
-  (`scripts/hud-options/check.sh`: six rows on one step, about 40 px now, the panel ending under the
-  gamma slider; DLSS greyed when not offered, a tick pending until Apply when offered, every
-  dictionary's texts inside). Not played, not released.
-- Open, on the helper (the probe's protocol, final): starting it from the game, Hello and Setup,
-  the per-frame submit and sync, the helper's folder and its Wine packaging (nvapi), Windows.
-- Open, in the game: the render size seam (targets, the output's depth, viewports), jitter, the
-  motion compute pass, rt 18's format, AA off while DLSS runs, the screen-image swap, the reset
-  triggers, the mip bias's reach.
+- Implemented: this spec; the option (a checkbox, user.cfg, Settings answers, greyed and empty
+  when not offered and unticked, ten languages); the link to the helper (its start at the first
+  Present, Hello, Setup, each frame's submit and timeline sync, a new size, every failure's stop,
+  the watch, the exit) and the gate from the helper's answer; the mip bias at the start. The
+  helper itself is `client/dlss-helper` (PR #1709); the render size PR #1717.
+- Tested, 2026-11-12, Wine 11.8 staging, RTX 3060 Ti (driver 615.78.08), the game on a headless
+  display with no input, the helper PR #1709's build:
+  - the patch's Rust tests (the link's transition over every state, the gate, the watch's count,
+    the frame's values) and Clippy; patch 83 in Unicorn (`check_hud_options_026g.py`: the start's
+    look for the helper's files, the mip bias with the tick on, the `dlss:` lines);
+    `check_hooks_026g.py` and `check_engine_026g.py` (the new rows, the stdcall callback entry);
+    the Settings movie in Ruffle (`scripts/hud-options/check.sh`: a greyed unticked DLSS box on
+    its resting frame, empty);
+  - **the game, at its login screen (1280x720):** the helper started, its yes logged (853x480 for
+    1280x720, about 1 s; 6 s with two other games on the GPU), the Setup taken (8 MiB shared), and
+    frames submitted for as long as the run (1800 in 40 s), the timeline one frame behind the
+    game's count at each 300th (the helper's signals arrive); the picture as without the link;
+  - **in a replay's match** the same (300 frames and more, five runs) until the replay's own
+    crash 18 s in (exe+0x2EFF87: the same with the tick off and no helper, and in the render
+    size's builds). Once, a crash in the arena's code 0.8 s into a replay's start, before the
+    first Present (exe+0xA489291): not the link's, but patch 97's `game.tick` handler
+    (`packet_recovery::on_frame`), which reads a replay's network client as a live one (its
+    +1F1C48h, past the replay client's 5AB18h bytes: whatever the heap holds there, mostly 0);
+  - the tick off: `offered`, the helper gone after its answer; no `dlss\`: `on, not run: the
+    helper's files are not in dlss\`;
+  - the helper without NvAPI (its refusal): the reason logged from its answer, the saved tick off
+    in user.cfg; a program that ends at once: `the helper ended, exit code 1`; one that never
+    opens the pipe: `it did not open the pipe in 30 s`, ended;
+  - the helper ended from outside while frames ran (taskkill): `on, not run: the helper ended,
+    exit code 1`, the game went on; the helper stopped where it was (SIGSTOP: it runs, signals
+    nothing) with two frames queued: the watch ended it after 3 s (`did not signal 1652 (the
+    timeline at 1649) in 3 s: ended`), the timeline was signalled up to 1652 from the game, and
+    the game went on drawing. Before (the timeline signalled straight to the last value; a turn
+    with frames queued behind it not counted by the watch), both cases lost the device 11 s later.
+- Not tested: Windows; a new output size in the game (it takes the Settings: input); the exit
+  through game::exit (the Exit button: input; a close message ends the game without it, and the
+  helper went with the pipe); a helper that hangs before its answer other than by never opening
+  the pipe; an output of another format than the login screen's. Not played, not released.
+- Open, in the game: joining the render size (above), jitter, the motion compute pass, rt 18's
+  format, AA off while DLSS runs, the screen-image swap (the copy of the output, in the wait's
+  command buffer), the reset triggers, the mip bias's reach.

@@ -57,6 +57,8 @@ struct gfx_value;
 struct hit_object;
 struct hw_resource;
 struct immediate_context;
+struct interop_device;
+struct interop_surface;
 struct inventory;
 struct inventory_recipe;
 struct item;
@@ -120,6 +122,7 @@ struct sound_world;
 struct static_collision;
 struct static_model_instance;
 struct statistics_listener;
+struct swap_chain;
 struct system_renderer;
 struct text_translator;
 struct usable_list;
@@ -784,5 +787,47 @@ struct log_helper *engine_log_helper(const struct log_function *function, unsign
 
 /* 0x111d10 vostok::logging::helper::write: helper ESI, format ESP+4, arguments ESP+8; pops 8 */
 void engine_log_write(struct log_helper *helper, const char *format, const void *arguments);
+
+/* the IAT slot 0x8701bc (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_create_process_a)(const char * application, char * command, void * process_security, void * thread_security, unsigned int inherit, unsigned int flags, void * environment, const char * directory, void * startup, void * information);
+
+/* the IAT slot 0x8700a8 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_wait_for_single_object)(void * handle, unsigned int milliseconds);
+
+/* the IAT slot 0x870030 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_terminate_process)(void * process, unsigned int code);
+
+/* the IAT slot 0x87005c (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_get_last_error)(void);
+
+/* the IAT slot 0x870124 (an import, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_create_thread)(void * security, unsigned int stack, const void * start, void * parameter, unsigned int flags, unsigned int * id);
+
+/* 0xe0910 vostok::threading::thread_entry: params ESP+4; pops 4; EAX; stdcall, called directly */
+unsigned int __attribute__((stdcall)) engine_thread_entry(void *params);
+
+/* COM IDXGISwapChain+0x1c (stdcall through the interface's vtable): chain ESP+4, iid ESP+8, device ESP+12; pops 12; EAX */
+unsigned int engine_swap_chain_get_device(struct swap_chain *chain, const void *iid, struct interop_device **device);
+
+/* COM IDXGISwapChain+0x24 (stdcall through the interface's vtable): chain ESP+4, buffer ESP+8, iid ESP+12, surface ESP+16; pops 16; EAX */
+unsigned int engine_swap_chain_get_buffer(struct swap_chain *chain, unsigned int buffer, const void *iid, struct interop_surface **surface);
+
+/* COM IDXGIVkInteropDevice+0xc (stdcall through the interface's vtable): device ESP+4, instance ESP+8, physical_device ESP+12, vulkan_device ESP+16; pops 16 */
+void engine_interop_vulkan_handles(struct interop_device *device, void **instance, void **physical_device, void **vulkan_device);
+
+/* COM IDXGIVkInteropDevice+0x18 (stdcall through the interface's vtable): device ESP+4; pops 4 */
+void engine_interop_flush(struct interop_device *device);
+
+/* COM IDXGIVkInteropDevice+0x1c (stdcall through the interface's vtable): device ESP+4; pops 4 */
+void engine_interop_lock_queue(struct interop_device *device);
+
+/* COM IDXGIVkInteropDevice+0x20 (stdcall through the interface's vtable): device ESP+4; pops 4 */
+void engine_interop_release_queue(struct interop_device *device);
+
+/* COM IDXGIVkInteropDevice1+0x24 (stdcall through the interface's vtable): device ESP+4, queue ESP+8, index ESP+12, family ESP+16; pops 16 */
+void engine_interop_submission_queue(struct interop_device *device, void **queue, unsigned int *index, unsigned int *family);
+
+/* COM IDXGIVkInteropSurface+0x10 (stdcall through the interface's vtable): surface ESP+4, image ESP+8, layout ESP+12, info ESP+16; pops 16; EAX */
+unsigned int engine_interop_image_info(struct interop_surface *surface, unsigned long long *image, unsigned int *layout, void *info);
 
 #endif

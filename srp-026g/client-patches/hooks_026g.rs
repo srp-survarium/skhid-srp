@@ -1162,6 +1162,21 @@ pub extern "C" fn hook_bake_async_on_exit(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- hud_options (patch 83) ----
+
+/// The entry `hud_options_on_exit` (0x1ec730, game::exit's start (push ebp / mov ebp,esp / and esp,-8; thiscall, ECX the game): every exit passes here, before the branches that skip its delete of user_data/streamed_textures (0x1EC7AE when 0x1051E0 fails, 0x1EC801 when 0x40F10 does; the delete 0x1EC832 is patch 70's nop)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_options_on_exit(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hud_options_on_exit` calls this, from the game's jump at 0x1ec730,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hud_options::on_exit(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- bake_async (patch 121) ----
 
 /// The entry `bake_async_on_save_freed` (0x10a050, save_descriptor::~save_descriptor's start (sub esp,8 / cmp byte [esi+8],0; ESI the descriptor; its one caller ~query_result 0xF1135 with [query+0E0h]): when +8 is set it frees +0 (mt_free 0x106FC0 at 0x10A083), so a save's bytes live until its query is destroyed) calls this with the saved machine.
@@ -2184,6 +2199,26 @@ pub extern "C" fn hook_module_report_on_present(frame: &mut Frame) -> u32 {
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
     }
+}
+
+// ---- hud_options (patch 83) ----
+
+/// The convention of engine_thread_entry (0xe0910), a callback's: a marker for
+/// the callback entries made in it (no function of the game is called through it).
+pub struct OrigThreadEntry;
+
+/// The entry `hud_options_on_watch` (a callback in engine_thread_entry's convention, a thread's start routine as CreateThread calls it (stdcall, lpParameter; the engine's own is 0xE0910, which names the convention): patch 83's watch of the DLSS helper's process, on a thread of its own, its argument the watch's copy of the helper's process handle (docs/notes/dlss-option.md, "Falling back"))
+/// calls this with its 1 arguments, typed by the row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `hud_options_on_watch`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_hud_options_on_watch(a0: *mut c_void) -> u32 {
+    // SAFETY: only the entry `hud_options_on_watch` calls this, when the game calls the callback
+    // a patch handed it, on the thread that asked; a0.. are the callback's arguments.
+    let thread = unsafe { Thread::new() };
+    let watch = unsafe { HelperWatch::from_raw(&thread, a0) };
+    crate::hud_options::on_watch(watch)
 }
 
 // ---- hud_options (patch 83) ----
@@ -4573,6 +4608,15 @@ pub extern "C" fn hook_packet_recovery_on_loaded_chain(frame: &mut Frame) -> u32
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_async_on_exit_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_bake_async_on_exit(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_hud_options_on_exit(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn hook_blackout_on_static_info_chain(frame: &mut Frame) -> u32 {
     let flow = hook_blackout_on_static_info(frame);
     if flow != 0 { return flow; }
@@ -4775,6 +4819,15 @@ pub fn forest_glow_on_loaded_entry() -> super::hook::CallbackEntry<OrigStoreFirs
     // SAFETY: the generated entry lives for the executable's lifetime and takes the
     // arguments of engine_store_first_resource, whose `Original` names the entry's type.
     unsafe { super::hook::CallbackEntry::from_entry(forest_glow_on_loaded as *const () as *const c_void) }
+}
+
+unsafe extern "C" { fn hud_options_on_watch(); }
+/// The entry `hud_options_on_watch`, in engine_thread_entry's convention (a thread's start routine as CreateThread calls it (stdcall, lpParameter; the engine's own is 0xE0910, which names the convention): patch 83's watch of the DLSS helper's process, on a thread of its own, its argument the watch's copy of the helper's process handle (docs/notes/dlss-option.md, "Falling back")): a
+/// callback the patch hands the game (no site is rewritten).
+pub fn hud_options_on_watch_entry() -> super::hook::CallbackEntry<OrigThreadEntry> {
+    // SAFETY: the generated entry lives for the executable's lifetime and takes the
+    // arguments of engine_thread_entry, whose `Original` names the entry's type.
+    unsafe { super::hook::CallbackEntry::from_entry(hud_options_on_watch as *const () as *const c_void) }
 }
 
 unsafe extern "C" { fn music_on_query_done(); }

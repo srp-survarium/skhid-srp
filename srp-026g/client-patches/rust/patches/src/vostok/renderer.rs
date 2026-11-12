@@ -28,13 +28,27 @@ unsafe impl Sync for Buffer {}
 static USER_CFG: Buffer = Buffer(UnsafeCell::new([0; USER_CFG_ROOM]));
 
 /// A path built in place, NUL-terminated.
-struct Path {
+pub(super) struct Path {
     bytes: [u8; PATH_ROOM],
     len: usize,
 }
 
 impl Path {
-    fn push(&mut self, part: &[u8]) -> Option<()> {
+    pub(super) fn empty() -> Path {
+        Path { bytes: [0; PATH_ROOM], len: 0 }
+    }
+
+    /// Its text, for a part of another path.
+    pub(super) fn text(&self) -> &[u8] {
+        &self.bytes[..self.len]
+    }
+
+    /// Its text where Windows may write in it (CreateProcessA's command).
+    pub(super) fn c_mut(&mut self) -> *mut u8 {
+        self.bytes.as_mut_ptr()
+    }
+
+    pub(super) fn push(&mut self, part: &[u8]) -> Option<()> {
         let end = self.len.checked_add(part.len())?;
         // the NUL after it
         if end >= PATH_ROOM {
@@ -46,7 +60,7 @@ impl Path {
         Some(())
     }
 
-    fn c(&self) -> *const u8 {
+    pub(super) fn c(&self) -> *const u8 {
         self.bytes.as_ptr()
     }
 }
@@ -103,7 +117,7 @@ pub fn with_user_cfg<R>(_: &Thread, f: impl FnOnce(&[u8]) -> R) -> Option<R> {
 
 /// The game's folder (`binaries\x86`, the exe's own: GetModuleFileNameA)
 /// joined with `name`.
-fn beside_exe(name: &CStr) -> Option<Path> {
+pub(super) fn beside_exe(name: &CStr) -> Option<Path> {
     let mut path = Path { bytes: [0; PATH_ROOM], len: 0 };
     // SAFETY: GetModuleFileNameA writes at most the size given, NUL included.
     let len = unsafe { (raw::engine_get_module_file_name_a)(null_mut(), path.bytes.as_mut_ptr(), PATH_ROOM as u32) } as usize;

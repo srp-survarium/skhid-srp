@@ -153,6 +153,9 @@ EXE_PATH = b"C:\\Game\\game\\binaries\\x86\\survarium_skhid.exe"
 USER_CFG = "C:\\Users\\p\\Documents\\survarium\\user.cfg"
 DXVK_DIR = "C:\\Game\\game\\binaries\\x86\\dxvk\\"
 DXVK = ("dxgi.dll", "d3d11.dll", "d3d10core.dll", "d3d9.dll")   # the load order (d3d8.dll shipped, never loaded)
+# the DLSS helper's folder and the two files the start looks for (docs/notes/dlss-option.md)
+DLSS_DIR = "C:\\Game\\game\\binaries\\x86\\dlss\\"
+DLSS = ("dlss_helper.exe", "nvngx_dlss.dll")
 VULKAN, INSTANCE, DEVICES = 0x71000000, 0x73000000, 0x74000000
 # kernel32's and shell32's import slots patch 83 calls at the process's start and the login screen
 SLOTS = {"CreateFileA": (0x870048, 7), "ReadFile": (0x870064, 5), "WriteFile": (0x870108, 5), "CloseHandle": (0x870040, 1),
@@ -249,7 +252,7 @@ class Run(language.Run):
 
     def windows_world(self, user_cfg=None, present=DXVK, marker=False, vulkan=None, fails=None, windows_dxgi=False,
                       called=None, gpus=None, env=None, ignores=False, ignores_files=None, hidden=(), last_fails=False,
-                      strays=(), leftovers=()):
+                      strays=(), leftovers=(), helper=()):
         """What the stubs answer: user.cfg's text (None: no file), the dxvk\\ files there, a marker left,
         an NVIDIA device's (apiVersion, type) (None: no vulkan-1.dll) or the GPUs, each (vendor, apiVersion, type,
         name[, its driver's manifest, its driverVersion]), a DLL whose load fails, whether Windows' dxgi.dll is
@@ -258,7 +261,8 @@ class Run(language.Run):
         and VK_DRIVER_FILES (as SELECT, unless given), manifests FindFirstFileA does not list, whether an instance
         of one driver with every layer off fails (the last look), the manifests of drivers that load and give no
         device (a stale package's), the folders of driver DLLs mapped before any look and never let go (another
-        vendor's driver an earlier instance left)."""
+        vendor's driver an earlier instance left), the DLSS helper's files there."""
+        self.helper = set(helper)
         if gpus is None and vulkan is not None:
             gpus = [(NVIDIA, vulkan[0], vulkan[1], "NVIDIA GeForce RTX 4080")]
         self.user_cfg, self.present, self.marker, self.vulkan, self.fails = user_cfg, set(present), marker, gpus, fails
@@ -299,6 +303,8 @@ class Run(language.Run):
                 self.marker |= disposition == 2
             elif path.startswith(DXVK_DIR):
                 result = 0x62 if path[len(DXVK_DIR):] in self.present else 0xFFFFFFFF
+            elif path.startswith(DLSS_DIR):
+                result = 0x63 if path[len(DLSS_DIR):] in self.helper else 0xFFFFFFFF
             else:
                 result = 0xFFFFFFFF
         elif name == "ReadFile":
@@ -878,11 +884,16 @@ def renderer(original, patched, expect):
     reads = reads + layer_reads
     # AMD's look first (its driver goes with its instance, NVIDIA's stays): no AMD driver, no instance
     nvidia = mark + reads + alone("amd*", no_instance) + alone("nv*") + kept("nv*")
+    # on an NVIDIA GPU the DLSS helper's files are looked for first (none here: the first is not there)
+    asked = [("CreateFileA", DLSS_DIR + DLSS[0], 3)]
+    helper = [("CreateFileA", DLSS_DIR + name, 3) for name in DLSS]
     # DXVK's options before its DLLs: user.cfg without their lines prefers the dedicated GPU alone
-    config = [("SetEnvironmentVariableA", "DXVK_CONFIG", "dxvk.hideIntegratedGraphics = True")] + log
+    config = asked + [("SetEnvironmentVariableA", "DXVK_CONFIG", "dxvk.hideIntegratedGraphics = True")] + log
+    dlss_config = helper + [("SetEnvironmentVariableA", "DXVK_CONFIG",
+                             "dxvk.hideIntegratedGraphics = True; d3d11.samplerLodBias = -1.585")] + log + log
     every = on + (b"srp_dxvk_frame_limit 144\r\nsrp_dxvk_low_latency on\r\nsrp_dxvk_tear_free on\r\n"
                   b"srp_dxvk_dedicated_gpu off\r\nsrp_dxvk_overlay full\r\n")
-    every_config = [("SetEnvironmentVariableA", "DXVK_CONFIG", "dxvk.maxFrameRate = 144; dxvk.latencySleep = True; "
+    every_config = asked + [("SetEnvironmentVariableA", "DXVK_CONFIG", "dxvk.maxFrameRate = 144; dxvk.latencySleep = True; "
                      "dxvk.tearFree = True; dxvk.hud = fps,frametimes,gpuload,compiler,memory")] + log
     amd_config = [("SetEnvironmentVariableA", "DXVK_CONFIG",
                    "dxvk.hideIntegratedGraphics = True; dxvk.enableDescriptorHeap = False")] + log + log
@@ -897,10 +908,17 @@ def renderer(original, patched, expect):
          dict(user_cfg=every, vulkan=good), opened + files + marker + nvidia + every_config + loads + log, True,
          b'dxvk: DXVK_CONFIG "dxvk.maxFrameRate = 144; dxvk.latencySleep = True; dxvk.tearFree = True; '
          b'dxvk.hud = fps,frametimes,gpuload,compiler,memory"'),
-        ("DLSS on, an RTX: nothing more given to DXVK, the log says it is not run (no helper answers yet)",
+        ("DLSS on, an RTX, no helper in dlss\\: nothing more given to DXVK, the log says it is not run",
          dict(user_cfg=on + b"srp_dxvk_dlss on\r\n", vulkan=good),
          opened + files + marker + nvidia + config + loads + log + log, True,
-         b"dlss: on, not run: no DLSS helper answered at this start"),
+         b"dlss: on, not run: the helper's files are not in dlss\\"),
+        ("DLSS on, an RTX, the helper's files there: DXVK is given the mip bias of DLSS at Quality, said",
+         dict(user_cfg=on + b"srp_dxvk_dlss on\r\n", vulkan=good, helper=DLSS),
+         opened + files + marker + nvidia + dlss_config + loads + log + [("GetEnvironmentVariableA", "SKHID_DLSS_LOG")], True,
+         b'dlss: DXVK_CONFIG adds "d3d11.samplerLodBias = -1.585": the tick is on, the mip bias of DLSS at Quality'),
+        ("DLSS off, an RTX, the helper's files there (it is asked at the first frame): nothing more given to DXVK",
+         dict(user_cfg=on, vulkan=good, helper=DLSS),
+         opened + files + marker + nvidia + helper + config[1:] + loads + log, True, b'dxvk: DXVK_CONFIG "dxvk.hideIntegratedGraphics = True"'),
         ("DLSS on, an RX: not run, DXVK's GPU not NVIDIA's",
          dict(user_cfg=on + b"srp_dxvk_dlss on\r\n", gpus=[rx]),
          opened + files + marker + mark + reads + alone("amd*") + kept("amd*") + amd_config + loads + log + log,
@@ -1015,7 +1033,7 @@ def renderer(original, patched, expect):
     for name, argument, want in [("srp_dxvk_frame_limit", "5", ("5", "3")), ("srp_dxvk_overlay", "1", ("1", "3")),
                                  ("srp_dxvk_low_latency", "0", ("0", "1")), ("srp_dxvk_dedicated_gpu", "1", ("1", "0")),
                                  ("srp_dxvk_overlay", "3", ("3", "3")),
-                                 # DXVK on an RTX, but no DLSS helper answered at the start: not offered
+                                 # DXVK on an RTX, but no DLSS helper in dlss\\: not offered
                                  ("srp_dxvk_dlss", "1", ("1", "-"))]:
         invokes, _ = r.callback(name, argument)
         answer = [v[2:4] for _, m, v in invokes if m == "root.srp_check_option"]

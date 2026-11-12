@@ -821,7 +821,7 @@ mod tests {
                                    include_bytes!("../../../weapon_decals_026g.asm"),
                                    include_bytes!("weapon_camo.rs"), include_bytes!("weapon_camo.toml")];
     /// BAKE_CODE's hash (its bytes but '\r') as BAKE_FORMAT was set.
-    const BAKE_CODE_HASH: u64 = 0xc895_cd16_fc9e_db1a;
+    const BAKE_CODE_HASH: u64 = 0xad19_3667_ac65_a7c4;
 
     #[test]
     fn the_bake_code_is_this_format() {
