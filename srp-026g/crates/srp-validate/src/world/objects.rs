@@ -89,12 +89,13 @@
 //!                        serialize 0x313670 / deserialize 0x313760
 //!   u16  m_amount        (an f32 m_condition for an item whose params'
 //!                        +0x22A is clear; an artefact's is set: every
-//!                        world reads so)
+//!                        world reads so), at most its item's ([`Uses`])
 //!   u8   player_id       0xFF none, else a place, then
 //!   u8   player_profile_id   its kit: [[core+0x18458] + place*0x30 +
 //!                        kit*4] with no bound, the place table of 20,
 //!                        three kits with a player object
-//!   when that kit has a player: u8 m_slot_id (its profile slot)
+//!   when that kit has a player: u8 m_slot_id, its inventory slot, an
+//!                        artefact slot 13..18 ([`ArtefactSlot`])
 //!   u8   m_state         0 free, 1 spawning in a container, 2 ready in
 //!                        it, 3 taken, 4 active, 5 (below); no other
 //!   1, 2: u8 m_container_id; 1: u32 m_time_left_to_spawn
@@ -130,11 +131,27 @@
 //! past the roster or on two objects, an artefact id past the map's, an
 //! owner whose kit has no player.
 //!
+//! An artefact's slot and amount reach its holder's inventory (PROVEN,
+//! the clean exe): `inventory_item::deserialize` stores the slot byte at
+//! +254h with no bound (0x2FFFB0), and when an activation ends
+//! (`artefact_base::end_active` 0x313530) with the amount at 0, it calls
+//! `inventory::remove_item` with that slot (0x31359D..0x3135A9), which
+//! makes two virtual calls through `[inventory + slot*4 + 10Ch]` and writes
+//! 0 there (0x2FC683..0x2FC6AA): past the 23 slots, a call through
+//! whatever is there. The game puts an artefact only in its kit's artefact
+//! slots (`inventory::take_artefact` 0x2FC850, the one way in, through
+//! `set_item` 0x2FC620 or its eviction's shift; the setter `set_owner`
+//! 0x243590 writes +250h and +254h together, `remove_item` 0 and 23), a
+//! range `setup_from_profile` starts at a quick slot 13..18 and ends by
+//! the quick slots' end, 19 (0x2FD1C3..0x2FD2A5, [`ArtefactSlot`]). Its
+//! amount is set to its item's uses (`on_spawned` 0x3134C0, client patch
+//! 109's Keeper gift the same) and only lowered after (`end_active`): [`Uses`].
+//!
 //! Left open (any value the field holds is taken): the u32 times, ids and
-//! seeds; an artefact's amount, its slot and its container id (the writer
-//! copies them from the live objects, and nothing here shows the set it
-//! keeps them in).
+//! seeds; an artefact's container id (the writer copies it from the live
+//! objects, and nothing here shows the set it keeps it in).
 
+use super::player_tail::QUICK_SLOTS;
 use super::{Context, Profile, Section};
 use crate::reader::{Reader, Short};
 use crate::{Finite, KITS, MAX_PLAYERS, Part, Place, Places, Reason, Refusal};
@@ -192,7 +209,42 @@ pub struct Artefacts<'a> {
     /// `artefact_containers`.
     pub containers: usize,
     /// In the world's order: each of `artefacts[]` its `count` times.
-    pub artefacts: &'a [Artefact],
+    pub artefacts: &'a [ArtefactItem],
+}
+
+/// The item of one of an anomaly's artefacts, by its config.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ArtefactItem {
+    /// Its core, by `data.type`.
+    pub core: Artefact,
+    /// By `data.amount`.
+    pub uses: Uses,
+}
+
+/// An artefact item's `data.amount` as `artefact_base::artefact_base`
+/// keeps it: its low 16 bits at +27Ch (0x3130B9..0x3130CD; -1 is 0xFFFF).
+/// It bounds the artefact's `m_amount`, which nothing raises past it:
+/// `on_spawned` 0x3134C0 sets it to the uses, 1 for 0xFFFF; `end_active`
+/// 0x313530 takes one off each activation's end, none for 0xFFFF, and
+/// below 0 it wraps to 0xFFFF (so an item of 0 uses holds any amount).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Uses(u16);
+
+impl Uses {
+    /// The uses of an item whose `data.amount` is `amount` (an absent key:
+    /// 0).
+    pub const fn of_amount(amount: i32) -> Self {
+        Self(amount as u16)
+    }
+
+    /// The most `m_amount` an artefact of the item holds.
+    pub const fn most(self) -> u16 {
+        match self.0 {
+            0xFFFF => 1,
+            0 => u16::MAX,
+            uses => uses,
+        }
+    }
 }
 
 /// An artefact's core, by its item's `data.type` (the artefact cook's
@@ -238,6 +290,12 @@ pub enum ObjectFault {
         at: usize,
         field: &'static str,
     },
+    /// An artefact's `m_amount` past its item's uses ([`Uses::most`]).
+    Amount {
+        at: usize,
+        amount: u16,
+        most: u16,
+    },
 }
 
 impl ObjectFault {
@@ -245,7 +303,9 @@ impl ObjectFault {
     pub fn at(self) -> usize {
         match self {
             ObjectFault::Short(short) => short.at,
-            ObjectFault::Value { at, .. } | ObjectFault::NotNumber { at, .. } => at,
+            ObjectFault::Value { at, .. }
+            | ObjectFault::NotNumber { at, .. }
+            | ObjectFault::Amount { at, .. } => at,
         }
     }
 }
@@ -267,6 +327,10 @@ impl core::fmt::Display for ObjectFault {
                 )
             }
             ObjectFault::NotNumber { at, field } => write!(f, "its {field} at {at} is no number"),
+            ObjectFault::Amount { at, amount, most } => write!(
+                f,
+                "its m_amount at {at} is {amount}, past the {most} its item holds"
+            ),
         }
     }
 }
@@ -911,7 +975,24 @@ pub struct Owner {
     at: usize,
     place: Place,
     kit: Kit,
-    slot: u8,
+    slot: ArtefactSlot,
+}
+
+/// An owned artefact's `m_slot_id`: one of the inventory slots a kit's
+/// artefacts take, 13..18 (the module doc; the player state's inventory
+/// header holds its own range to the same, `QUICK_SLOTS`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ArtefactSlot(u8);
+
+impl ArtefactSlot {
+    fn new(slot: u8) -> Option<Self> {
+        QUICK_SLOTS.contains(&slot).then_some(Self(slot))
+    }
+
+    /// The inventory slot, 13..18.
+    pub fn get(self) -> u8 {
+        self.0
+    }
 }
 
 impl Owner {
@@ -930,8 +1011,8 @@ impl Owner {
         self.kit
     }
 
-    /// `m_slot_id`, the profile slot it is in (left open).
-    pub fn slot(self) -> u8 {
+    /// `m_slot_id`, the inventory slot it is in.
+    pub fn slot(self) -> ArtefactSlot {
         self.slot
     }
 }
@@ -1047,8 +1128,13 @@ pub struct ArtefactBase {
 }
 
 impl ArtefactBase {
-    fn read(reader: &mut Reader, core: Artefact) -> Result<Self, ObjectFault> {
+    fn read(reader: &mut Reader, item: ArtefactItem) -> Result<Self, ObjectFault> {
+        let at = reader.at();
         let amount = reader.u16()?;
+        let most = item.uses.most();
+        if amount > most {
+            return Err(ObjectFault::Amount { at, amount, most });
+        }
         let at = reader.at();
         let place = byte(reader, "player_id", |place| match place {
             0xFF => Some(None),
@@ -1062,7 +1148,7 @@ impl ArtefactBase {
                 })?;
                 // The slot follows when the kit has a player: a world names
                 // no other owner ([`objects`] holds it to one).
-                let slot = reader.u8()?;
+                let slot = byte(reader, "m_slot_id", ArtefactSlot::new)?;
                 Some(Owner {
                     at,
                     place,
@@ -1103,7 +1189,7 @@ impl ArtefactBase {
                     let time_left_to_cool = reader.u32()?;
                     let reached = reached(reader)?;
                     let last = reader.u32()?;
-                    let core = ActiveCore::read(reader, core)?;
+                    let core = ActiveCore::read(reader, item.core)?;
                     let state = ArtefactState::Active {
                         time_left_to_cool,
                         reached,
@@ -1146,7 +1232,7 @@ impl ArtefactBase {
 
 /// An anomaly's artefacts, in the world's order.
 #[derive(Clone, Copy, Debug)]
-pub struct ArtefactBases<'a>(Run<'a, &'a [Artefact]>);
+pub struct ArtefactBases<'a>(Run<'a, &'a [ArtefactItem]>);
 
 impl Iterator for ArtefactBases<'_> {
     type Item = ArtefactBase;
@@ -1570,7 +1656,16 @@ mod tests {
     const ANOMALIES: [Anomaly; 1] = [Anomaly {
         artefacts: Some(Artefacts {
             containers: 2,
-            artefacts: &[Artefact::Onyx, Artefact::Spring],
+            artefacts: &[
+                ArtefactItem {
+                    core: Artefact::Onyx,
+                    uses: Uses::of_amount(3),
+                },
+                ArtefactItem {
+                    core: Artefact::Spring,
+                    uses: Uses::of_amount(-1),
+                },
+            ],
         }),
         states: &STATES,
     }];
@@ -1583,8 +1678,8 @@ mod tests {
         held: &[Held::Grenade, Held::Trap],
         map: &MAP,
     };
-    /// An artefact owned by place 2's kit 0, in slot 4, spawning (state 1).
-    const OWNED: [u8; 6] = [1, 0, 2, 0, 4, 1];
+    /// An artefact owned by place 2's kit 0, in slot 14, spawning (state 1).
+    const OWNED: [u8; 6] = [1, 0, 2, 0, 14, 1];
     /// A container used by place 1, holding artefact 1.
     const USED: [u8; 7] = [1, 1, 1, 0, 0, 0, 0];
 
@@ -1696,9 +1791,9 @@ mod tests {
                 own[0].amount(),
                 owner.place().get(),
                 owner.kit().get(),
-                owner.slot()
+                owner.slot().get()
             ),
-            (1, 2, 0, 4)
+            (1, 2, 0, 14)
         );
         assert_eq!(
             own[0].state(),
@@ -1831,14 +1926,12 @@ mod tests {
             bad[artefacts + 4 + 4 + nth] = byte;
             assert_eq!(field(&LIST, &bad), Some("reached"), "{nth} {byte:#x}");
         }
-        // An onyx read as a spring's.
+        // An onyx read as a spring's: the spring after it is misread, its
+        // owner's slot from a zero byte, no artefact slot.
         bytes.truncate(artefacts);
         bytes.extend(active(4));
         bytes.extend(active(4));
-        assert!(matches!(
-            reason(&LIST, &bytes),
-            Some(Reason::ObjectsUnread { .. })
-        ));
+        assert_eq!(field(&LIST, &bytes), Some("m_slot_id"));
     }
 
     #[test]
@@ -1861,6 +1954,9 @@ mod tests {
             (state + 5 + 4 + 2 + 15 + 5, 4, "events_mask"),
             (artefact + 2, 20, "player_id"),
             (artefact + 3, 3, "player_profile_id"),
+            (artefact + 4, 12, "m_slot_id"),
+            (artefact + 4, 19, "m_slot_id"),
+            (artefact + 4, 200, "m_slot_id"),
             (artefact + 5, 6, "artefact m_state"),
         ] {
             assert_eq!(field(&LIST, &mutate(offset, byte)), Some(name), "{name}");
@@ -1922,5 +2018,55 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn an_items_uses_bound_its_artefacts_amount() {
+        assert_eq!(Uses::of_amount(-1).most(), 1);
+        assert_eq!(Uses::of_amount(0xFFFF).most(), 1);
+        assert_eq!(Uses::of_amount(3).most(), 3);
+        assert_eq!(Uses::of_amount(0).most(), u16::MAX);
+        assert_eq!(Uses::of_amount(0x1_0000).most(), u16::MAX);
+        // The onyx holds 3 uses, the spring endless ones: one.
+        let good = good();
+        let onyx = find(&good, &OWNED);
+        let spring = onyx + OWNED.len() + 9;
+        for (at, amount, most) in [(onyx, 0, 3), (onyx, 3, 3), (spring, 0, 1), (spring, 1, 1)] {
+            let mut bytes = good.clone();
+            bytes[at..at + 2].copy_from_slice(&u16::to_le_bytes(amount));
+            assert_eq!(reason(&LIST, &bytes), None, "{amount} of {most}");
+        }
+        for (at, amount, most) in [(onyx, 4, 3), (spring, 2, 1), (onyx, 0xFFFF, 3)] {
+            let mut bytes = good.clone();
+            bytes[at..at + 2].copy_from_slice(&u16::to_le_bytes(amount));
+            assert_eq!(
+                reason(&LIST, &bytes),
+                Some(Reason::ObjectsField {
+                    object: 4,
+                    fault: ObjectFault::Amount {
+                        at: 0x100 + at,
+                        amount,
+                        most
+                    },
+                }),
+            );
+        }
+    }
+
+    #[test]
+    fn an_active_artefact_past_the_artefact_slots_is_refused() {
+        // What would reach `inventory::remove_item` with slot 200 once its
+        // activation ends: an onyx active in place 2's kit 0, its last use.
+        let mut bytes = good();
+        let onyx = find(&bytes, &OWNED);
+        bytes.truncate(onyx);
+        bytes.extend([1, 0, 2, 0, 200, 4]);
+        bytes.extend([0; 4 + 4 + 4]);
+        bytes.extend(1u32.to_le_bytes());
+        bytes.extend(0f32.to_le_bytes());
+        bytes.extend([1, 0, 0xFF, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(field(&LIST, &bytes), Some("m_slot_id"));
+        bytes[onyx + 4] = 18;
+        assert_eq!(reason(&LIST, &bytes), None);
     }
 }

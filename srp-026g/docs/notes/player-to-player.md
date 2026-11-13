@@ -279,7 +279,9 @@ The parts, and what they hold:
 - **Statistics, rules**: the scores, the batteries and their carriers, the time limit and the
   mode's rule; each field in its domain.
 - **Game objects**: the grenades and traps of every place's kits, then the map's damage zones,
-  resupply zones and anomalies with their artefacts, in the map's order.
+  resupply zones and anomalies with their artefacts, in the map's order. A held artefact's
+  inventory slot must be an artefact slot (13 to 18) and its amount at most its item's uses: the
+  game removes it from that slot with no bound when its last activation ends.
 - **Effects**: the effects playing, in the one form a game writes (an emitter by index, never by
   address).
 
