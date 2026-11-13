@@ -1100,7 +1100,10 @@ def test_weapon_camo(original, image, before):
     check_weapon_camo_026g.py runs the site and the code on made-up configs
     and models."""
     camo_va = P.weapon_camo_va(open(P.late_join_bin(), "rb").read())
-    check_piece(original, image, "weapon_camo_026g.section.bin", camo_va, open(P.weapon_camo_bin(), "rb").read())
+    camo = open(P.weapon_camo_bin(), "rb").read()
+    # its last dword, bake_name, is the build's: the arena's entry of weapon_camo.bake_name
+    check_piece(original, image, "weapon_camo_026g.section.bin", camo_va,
+                P.with_bake_name(camo, len(camo) - 4, P.arena()))
 
 
 def test_weapon_table(original, image, before):
@@ -3012,6 +3015,7 @@ def test_late_join(original, without, server, source):
           "dword patch 112's entry of the arena) and int3 padding, code | execute | read, on the page after .srpd, its "
           "file bytes right after .srp's")
     camo = open(P.weapon_camo_bin(), "rb").read()
+    camo = P.with_bake_name(camo, len(camo) - 4, P.arena())
     camo = camo + b"\xCC" * (P.WEAPON_STASH_OFFSET - len(camo)) + open(P.weapon_stash_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_TABLE_OFFSET - len(camo)) + open(P.weapon_table_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_DECALS_OFFSET - len(camo)) + open(P.weapon_decals_bin(), "rb").read()
