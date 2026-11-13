@@ -14,6 +14,7 @@
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::sync::atomic::AtomicU32;
 
 use session::v026g::persist::match_events::{self, MatchEvent, Player, Timing};
@@ -22,9 +23,10 @@ use session::v026g::replay_watch::{
 };
 use session::v026g::replays::{Refusal, Replays, Status};
 use survarium::v026g::maps::MatchMap;
+use survarium::v026g::match_msgs::client_model::decode_server;
 use survarium::v026g::match_msgs::static_info::NO_LOCAL_PLACE;
 use survarium::v026g::match_msgs::static_info::{MatchOptions, SCORE_WEIGHTS, StaticInfo};
-use survarium::v026g::match_msgs::{PlayerInput, ServerMessage, TICK_MS, WireTime, id};
+use survarium::v026g::match_msgs::{PlayerInput, ServerMessage, TICK_MS, WireTime, id, mask_bytes};
 
 use super::*;
 use crate::v026g::game::ReplayRecording;
@@ -64,8 +66,16 @@ fn temp(name: &str) -> PathBuf {
 /// The recording with the tests' 0xE4 (two places of level_01's Team
 /// Deathmatch).
 fn playable() -> ReplayRecording {
+    playable_of(2)
+}
+
+/// As [`playable`], with an 0xE4 of `places` places (its worlds are still
+/// the recording's).
+fn playable_of(places: u8) -> ReplayRecording {
     let options = MatchOptions {
-        players: vec![profile("a", 0), profile("b", 1)],
+        players: (0..places)
+            .map(|place| profile(&format!("p{place}"), place % 2))
+            .collect(),
         map: MatchMap::of(MAP_TDM).unwrap(),
         match_id: 0x1234,
         match_level: 3,
@@ -204,11 +214,22 @@ fn prepared(
     request: WatchRequest,
     events: Vec<MatchEvent>,
 ) -> WatchRequest {
+    prepared_of(bench, replays, request, events, playable())
+}
+
+/// `request`, read as `recording` and sent.
+fn prepared_of(
+    bench: &mut Bench,
+    replays: &Replays,
+    request: WatchRequest,
+    events: Vec<MatchEvent>,
+    recording: ReplayRecording,
+) -> WatchRequest {
     let now = bench.now();
     assert_eq!(replays.watches().start(request, now), Status::Preparing);
     assert_eq!(replays.watches().next_job(now), Some(request));
     let watch = bench.server.replay_watch.as_mut().unwrap();
-    watch.prepare_for_test(request, playable(), &events, now);
+    watch.prepare_for_test(request, recording, &events, now);
     replays.watches().sent(WATCHER_ACCOUNT, now);
     request
 }
@@ -1068,11 +1089,11 @@ fn a_viewer_that_acks_nothing_is_let_go() {
     bench.run(500);
     bench.clients[at].mute_acks = true;
     let watch = bench.server.replay_watch.as_mut().unwrap();
-    watch.note_for_test(WATCHER, 2_000);
+    watch.note_for_test(WATCHER, 4_000);
     bench.run(500);
     assert!(replays.watches().holds(WATCHER_ACCOUNT), "within the cap");
     let watch = bench.server.replay_watch.as_mut().unwrap();
-    watch.note_for_test(WATCHER, 100);
+    watch.note_for_test(WATCHER, 200);
     bench.run_long(8_000);
     assert!(
         !replays.watches().holds(WATCHER_ACCOUNT),
@@ -1610,5 +1631,178 @@ fn a_play_asked_while_a_paused_games_world_loads_starts_from_its_world() {
         (0..=100).contains(&ahead),
         "the playback is {ahead} ms ahead"
     );
+    bench.assert_no_faults();
+}
+
+/// The recording made a busy match of 20 places, all moving the mouse from
+/// its first key frame on: 15 make an input every tick, 5 two a tick
+/// (precise inputs).
+fn busy() -> ReplayRecording {
+    const PLACES: u8 = 20;
+    let mut recording = playable_of(PLACES);
+    let mut inputs = Vec::new();
+    for tick in (FIRST_VIEW / TICK_MS)..(114_000 / TICK_MS) {
+        let at = tick * TICK_MS;
+        for place in 0..PLACES {
+            let input = |time: u32, precise: bool| PlayerInput {
+                time: if precise {
+                    WireTime::precise(time)
+                } else {
+                    WireTime::tick(time)
+                },
+                rotation: [place, tick as u8, (tick >> 8) as u8, (time % TICK_MS) as u8],
+                actions: 0,
+            };
+            if place < 15 {
+                inputs.push((at, usize::from(place), input(at, false)));
+            } else {
+                inputs.push((at + 10, usize::from(place), input(at + 10, true)));
+                inputs.push((at + 35, usize::from(place), input(at + 35, true)));
+            }
+        }
+    }
+    inputs.sort_by_key(|(at, _, _)| *at);
+    recording.replace_inputs(inputs);
+    recording
+}
+
+/// Relays tapped off a client's datagrams ([`tap_relays`]): place and input.
+type Tapped = Arc<Mutex<Vec<(u8, PlayerInput)>>>;
+
+/// Every input relayed to a client as its datagrams come (taken by its
+/// game's model or not: the bench's game does not scale its clock), place
+/// and input, gathered until taken out.
+fn tap_relays(client: &mut Client) -> Tapped {
+    let tapped = Arc::new(Mutex::new(Vec::new()));
+    let into = Arc::clone(&tapped);
+    client.lose = Some(Box::new(move |datagram| {
+        let parsed = udp_transport::wire::parse(
+            udp_transport::Table::Match,
+            udp_transport::Direction::ToClient,
+            datagram,
+            mask_bytes(20),
+        );
+        for message in parsed.map(|parsed| parsed.messages).unwrap_or_default() {
+            if let Ok(ServerMessage::InputRelay { player, input }) =
+                decode_server(message.id, message.payload, 20)
+            {
+                into.lock().unwrap().push((player, input));
+            }
+        }
+        false
+    }));
+    tapped
+}
+
+/// The busy match's session watched at `speed` on a line of `way` ms each
+/// way, settled: the bench, the watcher's client and its relays
+/// ([`tap_relays`]).
+fn busy_at(speed: Speed, way: u64) -> (Bench, Arc<Replays>, usize, Tapped) {
+    let (mut bench, replays) = bench();
+    let request = request(WATCHER_ACCOUNT, 0x1234, 0, None);
+    prepared_of(&mut bench, &replays, request, Vec::new(), busy());
+    let at = watching(&mut bench, WATCHER);
+    let tapped = tap_relays(&mut bench.clients[at]);
+    bench.one_way = vec![0; at + 1];
+    bench.one_way[at] = way;
+    bench.run(1_000);
+    control(&mut bench, at, 1, Op::Speed(speed));
+    bench.run(500);
+    (bench, replays, at, tapped)
+}
+
+/// Review of 2026-11-13: at 8x what was due went 1.5 s of match ahead of the
+/// playback (its time lead), and the game's clock is behind it by the way
+/// of its speed's note: some 2 s of each player's inputs it had not played,
+/// 40 of one moving the mouse, more of one with precise inputs, while its
+/// rings keep 27 a player, the oldest dropped (`match.md` section 30). The
+/// earliest were dropped unplayed and its world went wrong, unseen by the
+/// drift (which compares times); at 4x a player with precise inputs passed
+/// the rings too. While it plays, no player's inputs go further past its
+/// clock than its rings hold: by the bench's model of its clock (behind the
+/// playback by the way of its speed's note, at the speed), no player ever
+/// has more than `INPUT_RING_SAFE` (26) inputs it has not played, and every
+/// input comes, before its tick.
+#[test]
+fn at_a_higher_speed_no_player_has_more_inputs_ahead_of_the_game_than_its_rings_hold() {
+    const WAY_MS: u32 = 25;
+    const RING_SAFE: usize = 26;
+    for speed in [Speed::Quadruple, Speed::Octuple] {
+        let (mut bench, _replays, at, tapped) = busy_at(speed, WAY_MS.into());
+        let behind = WAY_MS * u32::from(speed.percent()) / 100;
+        let worlds = bench.clients[at].snapshots().len();
+        let mut taken: Vec<HashSet<u32>> = vec![HashSet::new(); 20];
+        let from = position(&bench) - behind;
+        let mut game = from;
+        // What came before.
+        for (player, input) in tapped.lock().unwrap().drain(..) {
+            taken[usize::from(player)].insert(input.time.resolve(from).unwrap());
+        }
+        for _ in 0..600 {
+            let now = position(&bench);
+            for (player, input) in tapped.lock().unwrap().drain(..) {
+                let time = input.time.resolve(now).unwrap();
+                assert!(
+                    !taken[usize::from(player)].insert(time) || time > game,
+                    "{speed:?}: player {player}'s input at {time} ms came with the game at {game} ms"
+                );
+            }
+            for (player, times) in taken.iter().enumerate() {
+                let ahead = times.iter().filter(|&&time| time > game).count();
+                assert!(
+                    ahead <= RING_SAFE,
+                    "{speed:?}: player {player} has {ahead} inputs unplayed at {game} ms"
+                );
+            }
+            bench.step(5);
+            game = position(&bench) - behind;
+        }
+        assert!(
+            game - from > 2_000 * u32::from(speed.percent()) / 100,
+            "{speed:?}"
+        );
+        for (player, times) in taken.iter().enumerate() {
+            let missing = (from / TICK_MS + 1..game / TICK_MS)
+                .flat_map(|tick| match player {
+                    0..15 => vec![tick * TICK_MS],
+                    _ => vec![tick * TICK_MS + 10, tick * TICK_MS + 35],
+                })
+                .filter(|time| !times.contains(time))
+                .count();
+            assert_eq!(missing, 0, "{speed:?}: player {player}");
+        }
+        assert_eq!(
+            bench.clients[at].snapshots().len(),
+            worlds,
+            "{speed:?}: started again"
+        );
+        bench.assert_no_faults();
+    }
+}
+
+/// The busy match at 8x: its game acks nothing for 0.6 s (more than a live
+/// spectator's cap piles up meanwhile) and is not taken for one that acks
+/// too little.
+#[test]
+fn at_8x_a_busy_matchs_viewer_that_stalls_its_acks_is_kept() {
+    let (mut bench, replays, at, _) = busy_at(Speed::Octuple, 25);
+    let mut most = 0;
+    bench.clients[at].mute_acks = true;
+    for _ in 0..120 {
+        bench.step(5);
+        most = most.max(backlog(&bench).unwrap_or(0));
+    }
+    bench.clients[at].mute_acks = false;
+    bench.run(1_000);
+    // Past a live spectator's cap (`BACKLOG_MOST`, 2 048).
+    assert!(most > 2_048, "{most} messages not acked at most");
+    let addr = SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16));
+    let watch = bench.server.replay_watch.as_ref().unwrap();
+    assert!(watch.owns(addr));
+    assert!(
+        !watch.is_let_go(addr),
+        "let go at {most} messages not acked"
+    );
+    assert!(replays.watches().holds(WATCHER_ACCOUNT));
     bench.assert_no_faults();
 }

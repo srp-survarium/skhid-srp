@@ -120,6 +120,11 @@ What the server does:
 - `speed` scales the clock while the game plays, and the relays' lead with it; the patch sets the
   game's time scale. A world, its 0xE5 and its load go at 1x (a game told another speed is first
   told 1x), the asked speed told again once the world is in.
+- **The fast speeds' limit** (the game keeps 27 inputs a player): while playing, relays go ahead
+  at most 22 inputs a player past the game's estimated clock (`RELAYED_AHEAD_MOST`). At 8x a
+  player who inputs more than once a tick then has only ~550 ms of match ahead: on a round trip
+  over ~137 ms his relays arrive after their tick (the game rolls back), over ~260 ms the game
+  moves them and the replay plays wrong until a seek. 4x has twice the margin; 1x and 2x none of it.
 - `seek t` starts the game again from the key frame K at or before t, its clock put at the
   furthest point <= t it can be: no more than 5 s past K (a tick byte reaches 6.35 s back) and no
   player with more than 26 inputs in between (`INPUT_RING_SAFE`; the game keeps 27). The inputs

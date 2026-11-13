@@ -14,9 +14,10 @@
 //!
 //! A playback clock says how far the match has gone. What is due by it
 //! ([`relay_lead`] ahead, as a live game gets an input a little before
-//! its tick) goes to the game as from a live match. It opens at the end of
-//! the match's countdown, where the action is (the first key frame after an
-//! entry when that is later: the game has someone to follow from its first
+//! its tick; while it plays, no more of a player's than its rings hold,
+//! [`RELAYED_AHEAD_MOST`]) goes to the game as from a live match. It opens
+//! at the end of the match's countdown, where the action is (the first
+//! key frame after an entry when that is later: the game has someone to follow from its first
 //! world), at the asked place's first view when that entered later, or later
 //! when asked ([`Recording::start`]). It waits there until the world goes
 //! with its 0xE5, then runs from that time as the game's clock does, through
@@ -59,7 +60,7 @@ use udp_transport::table::{Direction, Table};
 use udp_transport::wire;
 
 use super::kit_view::all_kits;
-use super::spectate::{Heard, Spectator, Starts, Watched};
+use super::spectate::{BACKLOG_MOST, Heard, Spectator, Starts, Watched};
 use super::*;
 use crate::v026g::sur::{self, record_type};
 use crate::v026g::{record, replay, sur_convert};
@@ -75,6 +76,16 @@ const RELAY_LEAD_MS: u32 = HORIZON_MS;
 /// than the 0xE5 its clock was set by did (1 s of that limit to spare, 125 ms
 /// of the way at 8x).
 const RELAY_LEAD_MOST_MS: u32 = TOO_NEW_MS - 1_000;
+/// ... and, while its game plays, no player has more of its inputs past the
+/// game's clock than this (counted from the clock it has as one goes,
+/// [`Playback::game_clock`]; it plays on while the relay is on its way, so
+/// it has fewer then). A game keeps [`INPUT_RING`] of a player's inputs,
+/// the oldest dropped, played or not (`match.md` section 30): at 8x the
+/// time lead alone put 1.5 s of match ahead, 30 inputs of a player moving
+/// the mouse and more of one with precise inputs, and the earliest it had
+/// not played yet were dropped. [`INPUT_RING_SAFE`] less a margin for a
+/// line whose way shortens (at 8x 10 ms of it is some 3 precise inputs).
+const RELAYED_AHEAD_MOST: usize = INPUT_RING_SAFE - 4;
 /// The playback clock runs from the 0xE5 a world goes with, through the
 /// load, as the game's does (at 1x): what comes due in a load this long goes
 /// to the game's rings too, and [`Recording::reach`] leaves room for it.
@@ -92,6 +103,12 @@ const PAUSED_PING_EVERY: Duration = Duration::from_secs(1);
 ///
 /// [`DEFAULT_MAX_SESSIONS`]: session::v026g::replay_watch::DEFAULT_MAX_SESSIONS
 pub(crate) const PAUSED_MOST: Duration = Duration::from_secs(5 * 60);
+/// A game with more than this many messages not acked is let go, as a live
+/// spectator past [`BACKLOG_MOST`]: at 8x it is sent 8x the relays a second,
+/// and 20 busy places (some with precise inputs) pile some 2 600 up in an
+/// ack stall of 0.6 s. What a game that acks nothing piles up for ever is
+/// still let go.
+const VIEWER_BACKLOG_MOST: usize = 2 * BACKLOG_MOST;
 /// A game whose reported world is this far from where the playback has it
 /// ([`DRIFT_REPORTS`] in a row) is started again from a world: the
 /// fallback for a game that did not freeze or scale its clock as told. No
@@ -348,6 +365,34 @@ impl Recording {
         (length + SESSION_SPARE).max(length * 2)
     }
 
+    /// How many of its first `due` inputs may have gone to a game whose
+    /// clock is at `clock`, `sent` of them gone already: up to the first
+    /// that would put more than [`RELAYED_AHEAD_MOST`] of its player's past
+    /// that clock (never fewer than have gone).
+    fn within_rings(&self, sent: usize, clock: u32, due: usize) -> usize {
+        let first = self.inputs.partition_point(|(at, _, _)| *at <= clock);
+        let mut counts = [0usize; sur::MAX_PLAYERS];
+        for (index, &(_, player, what)) in self.inputs.iter().enumerate().take(due).skip(first) {
+            if let (Relayed::Input(_), Some(count)) = (what, counts.get_mut(player)) {
+                *count += 1;
+                if *count > RELAYED_AHEAD_MOST && index >= sent {
+                    return index;
+                }
+            }
+        }
+        due.max(sent)
+    }
+
+    /// Its inputs replaced by `inputs` (time, place and input, in time
+    /// order): a busier match.
+    #[cfg(test)]
+    pub(crate) fn replace_inputs(&mut self, inputs: Vec<(u32, usize, PlayerInput)>) {
+        self.inputs = inputs
+            .into_iter()
+            .map(|(at, place, input)| (at, place, Relayed::Input(input)))
+            .collect();
+    }
+
     /// How many of its inputs and roster changes are due by `time`, `lead`
     /// ahead ([`relay_lead`]).
     fn due(&self, time: u32, lead: u32) -> (usize, usize) {
@@ -587,6 +632,14 @@ impl Playback {
             | Clock::Paused { .. }
             | Clock::Resuming { .. } => Speed::Normal,
         }
+    }
+
+    /// Where its game's clock is, the playback at `at`, while the clock
+    /// plays: behind by the way of the note its speed came in (it took the
+    /// speed half a round trip after the playback did, [`Self::judge_drift`]).
+    fn game_clock(&self, at: u32) -> u32 {
+        let way = self.spectator.round_trip().unwrap_or(0) / 2;
+        at.saturating_sub(played(self.speed, Duration::from_millis(way.into())))
     }
 
     fn watched<'a>(&self, recording: &'a Recording, clock: u32) -> Watched<'a> {
@@ -941,7 +994,7 @@ impl Playback {
             self.recall_at = Some(now + Duration::from_secs(replay_control::RECALL_SECONDS.into()));
         }
         let recall_due = self.recall_at.is_some_and(|due| now >= due);
-        let flooded = self.spectator.flooded();
+        let flooded = self.spectator.flooded(VIEWER_BACKLOG_MOST);
         let too_long = now.saturating_duration_since(self.created) >= self.recording.session_most();
         if (at >= self.recording.end || paused_out || too_long || recall_due || flooded)
             && !self.spectator.is_leaving()
@@ -965,8 +1018,18 @@ impl Playback {
         }
         let recording = Arc::clone(&self.recording);
         // Never fewer than have gone: the lead shrinks with the speed. At
-        // 1x until its world is in: what goes then fills its rings.
+        // 1x until its world is in: what goes then fills its rings. While
+        // it plays, no further than its rings hold.
         let (inputs, events) = recording.due(at, relay_lead(self.pace()));
+        let inputs = match self.clock {
+            Clock::Playing { .. } => {
+                recording.within_rings(self.inputs, self.game_clock(at), inputs)
+            }
+            Clock::Starting { .. }
+            | Clock::Loading { .. }
+            | Clock::Paused { .. }
+            | Clock::Resuming { .. } => inputs,
+        };
         let (inputs, events) = (inputs.max(self.inputs), events.max(self.events));
         for &(time, index, entered) in &recording.events[self.events..events] {
             let message = if entered {

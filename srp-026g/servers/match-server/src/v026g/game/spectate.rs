@@ -86,7 +86,7 @@ const DRIFT_REPORTS: u32 = 2;
 /// controls, a place's install) would grow its queue for ever, and every
 /// poll of the match thread, which follows every datagram the server takes,
 /// walks it.
-const BACKLOG_MOST: usize = 2048;
+pub(super) const BACKLOG_MOST: usize = 2048;
 
 /// A spectator is this far behind the match at least, whatever delay it was
 /// given: a relay it can be fed comes this far before the time the match's
@@ -648,7 +648,7 @@ impl Game {
         }
         let id = self.id;
         for spectator in &mut self.spectators {
-            if spectator.flooded() {
+            if spectator.flooded(BACKLOG_MOST) {
                 log::warn!(
                     "Match {id:#x}: spectator {:#x} has {} messages not acked; it is let go",
                     spectator.session_id,
@@ -1390,10 +1390,10 @@ impl Spectator {
         self.transport.last_round_trip()
     }
 
-    /// Its game, not let go, has more than [`BACKLOG_MOST`] messages not
-    /// acked: it is let go.
-    pub(super) fn flooded(&self) -> bool {
-        !self.is_leaving() && self.transport.backlog() > BACKLOG_MOST
+    /// Its game, not let go, has more than `most` messages not acked (a
+    /// live spectator's [`BACKLOG_MOST`]): it is let go.
+    pub(super) fn flooded(&self, most: usize) -> bool {
+        !self.is_leaving() && self.transport.backlog() > most
     }
 
     #[cfg(test)]
