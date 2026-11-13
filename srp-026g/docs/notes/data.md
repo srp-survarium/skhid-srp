@@ -434,8 +434,9 @@ Removed keys:
   - Mode 2 "Protective device" (gather batteries): `victory_items_count 10`, rules 93,91,88,94.
   - Mode 3 (VI spawn): `spawn_points_count 3` (2 on level_08), `vi_spawn_time 60`,
     `vi_spawn_variation 10`; rules 93,91,89,94.
-  - **Mode 4 "Team Deathmatch"** (new): `tickets_count 100`, or 150 on levels 05/08;
-    rules 93,91,90,94.
+  - **Mode 4 "Team Deathmatch"** (new): `tickets_count 100`, or 150 on levels 05/08, in the
+    stock data; Skhid's is the `tickets` column of `scripts/content-edit/modes.tsv` (125 on every
+    played map since the owner's retune of 2026-11-13); rules 93,91,90,94.
   - All three: `match_time 900`, `respawn_time 8`, `countdown 20`, `wait_time 5`,
     `wait_player_percent 0.8`.
   - Weather ids: 1 day, 2 rain, 3 evening, 4 night, 5 prerain.

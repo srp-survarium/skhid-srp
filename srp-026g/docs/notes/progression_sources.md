@@ -363,7 +363,7 @@ list):
 |---|---|---|---|---|---|---|
 | Team size, match time | "two teams of up to 8 players", "rounds last up to 15 minutes"; SHOT is 8 against 8 | W-2015-02-08 `Teamplay`; data `match_time 900` | wiki + data | wiki of the time | 8 a side (`SRP_MATCH_TEAM_SIZE`), 900 s | done |
 | Modes | batteries scattered, batteries from charging stations ("both variations ... available on all the maps", 0.25a), Team Deathmatch from 0.26a | PN 0.25a, 0.26a | official | official | modes 2, 3, 4 | keep |
-| TDM | 100 tickets, 150 on Tarakanovsky Fort and Cologne Bridge (0.26c); base spawns (0.26d) | PN 0.26c, 0.26d | official | equals the data | data | keep |
+| TDM | 100 tickets, 150 on Tarakanovsky Fort and Cologne Bridge (0.26c); base spawns (0.26d) | PN 0.26c, 0.26d | official | equals the data | 125 tickets on every played map (`modes.tsv`; the owner, 2026-11-13) | done |
 | Mode choice | none in 0.26 (added in 0.27a) | PN 0.27a | official | official | - | random mode |
 | Map choice | "the history of players' matches is taken into account now. The system selects the less played map" | PN 0.25a | official | official | the map the match's players played least (`g26_map_plays`; `matchmaking.md` §5) | done |
 | Level of a player | by gear; "если вы создадите профили с разным уровнем экипировки, то противники будут искаться по максимальному уровню экипировки"; ammo level counts (0.23g); ELO modifies it (0.22a) | N `prevyu-obnovleniya-026`; PN 0.23g, 0.22a | official | official, and the client computes it the same way (0x2CA9B0; `matchmaking.md` §1) | the client's own level; the match's level is the mean of its players' | done |
