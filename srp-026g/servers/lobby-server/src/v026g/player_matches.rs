@@ -65,23 +65,25 @@ impl HistoryList {
 /// The answer a session was last made for a kind of list, and when.
 struct Made {
     at: Instant,
+    /// The account the list is of, for another player's matches (the
+    /// player shown last): a list of another is made anew.
+    about: Option<u32>,
     /// `None`: its writer refused it (a bug, logged): nothing to send again.
     answer: Option<ServerMessage>,
 }
 
 /// A session's last answer of each kind of list ([`HistoryList`]): an ask
-/// sooner than its kind's interval ([`HistoryList::every`]) after it gets it again as it was made
-/// (another player's matches too, whoever the ask is about now: the movie
-/// takes them by the name in them, and asks again).
+/// sooner than its kind's interval ([`HistoryList::every`]) after it, about
+/// the same player, gets it again as it was made.
 #[derive(Default)]
 pub struct HistoryAnswers([Option<Made>; HistoryList::COUNT]);
 
 impl HistoryAnswers {
     /// The answer of `list` made less than its interval before `now`.
-    fn fresh(&self, list: HistoryList, now: Instant) -> Option<&Made> {
-        self.0[list.slot()]
-            .as_ref()
-            .filter(|made| now.saturating_duration_since(made.at) < list.every())
+    fn fresh(&self, list: HistoryList, about: Option<u32>, now: Instant) -> Option<&Made> {
+        self.0[list.slot()].as_ref().filter(|made| {
+            made.about == about && now.saturating_duration_since(made.at) < list.every()
+        })
     }
 
     fn keep(&mut self, list: HistoryList, made: Made) {
@@ -102,7 +104,11 @@ impl Core<'_> {
         let Some(player) = self.player(who.addr) else {
             return;
         };
-        if let Some(made) = player.history_answers.fresh(list, now) {
+        let about = match list {
+            HistoryList::Matches(Whose::Shown) => player.shown_kits_of,
+            HistoryList::Matches(Whose::Own) | HistoryList::Recent(_) => None,
+        };
+        if let Some(made) = player.history_answers.fresh(list, about, now) {
             if let Some(answer) = made.answer.clone() {
                 self.send(who.addr, answer);
             }
@@ -113,7 +119,9 @@ impl Core<'_> {
             .ok();
         if let Some(player) = self.player_mut(who.addr) {
             let answer = answer.clone();
-            player.history_answers.keep(list, Made { at: now, answer });
+            player
+                .history_answers
+                .keep(list, Made { at: now, about, answer });
         }
         if let Some(answer) = answer {
             self.send(who.addr, answer);

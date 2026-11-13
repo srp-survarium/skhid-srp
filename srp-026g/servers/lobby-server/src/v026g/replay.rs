@@ -73,6 +73,14 @@ impl Core<'_> {
         let in_lobby = self.player(who.addr).is_some_and(|player| {
             player.in_match.is_none() && player.connect.is_none() && player.queued_since.is_none()
         });
+        // A seat kept for the account (its game dropped out of its match) is
+        // its to go back to: no session meanwhile, as no live watch
+        // (`Matchmaking::watch`).
+        let seat_kept = self
+            .store
+            .matchmaking()
+            .pool_of_account(who.account_id)
+            .is_some();
         let room_keeps = self.room_keeps(who.account_id, now);
         let free = in_lobby && !room_keeps;
         // Past the limit of lookups of unknown matches: `busy`, before
@@ -93,7 +101,7 @@ impl Core<'_> {
         let status = match (live, self.replays) {
             (Some(status), _) => status,
             (None, None) => Status::Off,
-            (None, Some(_)) if !in_lobby || limited => Status::Busy,
+            (None, Some(_)) if !in_lobby || limited || seat_kept => Status::Busy,
             (None, Some(_)) if room_keeps => Status::InRoom,
             // Over in the lobby, its recording not closed yet (the match
             // server keeps its game a while): `busy`, no session and no
