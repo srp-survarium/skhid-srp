@@ -340,16 +340,24 @@ fn with_blackout_maps(files: &mut BTreeMap<String, Vec<u8>>) {
 
 /// Free for all's maps as the content patch makes them of the live files
 /// (`docs/notes/ffa.md`): the test data's are this edit list laid over its
-/// own Team Deathmatch configs and projects.
+/// own Team Deathmatch configs and its maps' own projects ([`FREE_FOR_ALL_PROJECTS`]).
 const FREE_FOR_ALL_EDITS: &str = include_str!("../../../../scripts/content-edit/ffa-1.json");
+/// Each free-for-all's own project, a copy of its Team Deathmatch map's
+/// (`<weather>_4` -> `<weather>_8`), made before [`FREE_FOR_ALL_EDITS`].
+const FREE_FOR_ALL_PROJECTS: &str = include_str!("../../../../scripts/content-edit/ffa-projects-1.json");
+/// The free-for-all configs pointed at their own projects: this list's
+/// `replace_string` of `match_making_params.map_name`, after
+/// [`FREE_FOR_ALL_EDITS`] (its crates' removal is not the test data's).
+const FREE_FOR_ALL_REPOINT: &str = include_str!("../../../../scripts/content-edit/no-ammo-crates-1.json");
 
-/// `files` and `projects` with [`FREE_FOR_ALL_EDITS`], for each map of the
-/// list whose Team Deathmatch config and project the data has: the list's
-/// `copy`, `set`, `replace_string`, `remove_item`, `add_value` and
-/// `add_entry`, done on the configs' values as `content_edit.py` does them
-/// on their bytes. An edit of a file the data lacks is left out, and so is
-/// the `maps_dict` row of a config not made; any other edit of the list's
-/// that this does not know stops the tests.
+/// `files` and `projects` with [`FREE_FOR_ALL_PROJECTS`]' copies, then
+/// [`FREE_FOR_ALL_EDITS`], then [`FREE_FOR_ALL_REPOINT`]'s `replace_string`,
+/// for each map of the list whose Team Deathmatch config and project the
+/// data has: the list's `copy`, `set`, `replace_string`, `remove_item`,
+/// `add_value` and `add_entry`, done on the configs' values as
+/// `content_edit.py` does them on their bytes. An edit of a file the data
+/// lacks is left out, and so is the `maps_dict` row of a config not made;
+/// any other edit of the list's that this does not know stops the tests.
 fn with_free_for_all_maps(
     files: &mut BTreeMap<String, Vec<u8>>,
     projects: &mut BTreeMap<String, Vec<u8>>,
@@ -440,6 +448,24 @@ fn with_free_for_all_maps(
         }
     }
 
+    // Each map's own project first: the list's edits are of the copies.
+    let copies: Value = serde_json::from_str(FREE_FOR_ALL_PROJECTS).expect("the copy list reads");
+    for copy in copies["copy"].as_array().expect("its copies") {
+        // A project's folder from and to, as Research's own project of Vostok v0.11.
+        let (from, to) = (text(&copy["from"]), text(&copy["to"]));
+        let project = |path: &str| {
+            path.strip_prefix(PROJECTS)
+                .and_then(|path| path.strip_suffix(PROJECT_MARKER))
+                .expect("a project")
+                .to_owned()
+        };
+        for path in paths(&copy["files"]) {
+            let rest = path.strip_prefix(from).expect("the copy's folder");
+            if let Some(bytes) = projects.get(&project(path)).cloned() {
+                projects.insert(project(&format!("{to}{rest}")), bytes);
+            }
+        }
+    }
     let edits: Value = serde_json::from_str(FREE_FOR_ALL_EDITS).expect("the edit list reads");
     let unknown: Vec<&String> = edits
         .as_object()
@@ -491,6 +517,13 @@ fn with_free_for_all_maps(
         });
     }
     for each in list("replace_string") {
+        for path in paths(&each["files"]) {
+            edit(path, &mut |value| replace(value, text(&each["from"]), text(&each["to"])));
+        }
+    }
+    // The configs' projects, their maps' own (`no-ammo-crates-1.json`).
+    let repoint: Value = serde_json::from_str(FREE_FOR_ALL_REPOINT).expect("the repoint list reads");
+    for each in repoint["replace_string"].as_array().expect("its repoints") {
         for path in paths(&each["files"]) {
             edit(path, &mut |value| replace(value, text(&each["from"]), text(&each["to"])));
         }

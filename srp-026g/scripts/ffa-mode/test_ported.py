@@ -24,7 +24,7 @@ class PortedMaps(unittest.TestCase):
         by_name = {(row['files'], row['values']['name']): row['values'] for row in recipe['add_entry']}
         for project, points in authored.items():
             for point in points:
-                emitted = by_name[('projects/' + project + '/client_project', 'ffa_' + point['point'])]
+                emitted = by_name[(m.base.copy_of('projects/' + project + '/client_project'), 'ffa_' + point['point'])]
                 self.assertEqual(emitted['position'], [float(point[k]) for k in ('x', 'y', 'z')])
                 self.assertEqual(emitted['rotation'], [float(point[k]) for k in ('rx', 'ry', 'rz')])
                 self.assertEqual((emitted['team'], emitted['invulnerability_time']), (2, 2))
@@ -85,7 +85,7 @@ class PortedMaps(unittest.TestCase):
                 self.assertEqual(mode['rules'], [93, 91, 94])
                 self.assertEqual(mode['parameters']['kills_to_win'], 30)
                 self.assertEqual(mode['match_making_params']['max_players'], 10)
-                path = f'projects/{name}/day_4/client_project'
+                path = f'projects/{name}/day_8/client_project'
                 old = m.base.tree((live/path).read_bytes())['server_objects']['respawn_points']
                 blob = (out/path).read_bytes()
                 spawns = m.base.tree(blob)['server_objects']['respawn_points']

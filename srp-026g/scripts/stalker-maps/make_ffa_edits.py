@@ -40,6 +40,14 @@ def project(key):
     return f'v010b_{key}/day_4'
 
 
+def ffa_copy(path):
+    """The free-for-all's own copy of a TDM project (`day_4` -> `day_8`, ffa-projects-1.json, before
+    the FFA lists): the points go there, TDM's project stays as it is."""
+    if not path.endswith('/day_4/client_project'):
+        raise ValueError(f'{path}: not a TDM project')
+    return path.removesuffix('/day_4/client_project') + '/day_8/client_project'
+
+
 def points():
     by = {project(key): [] for key, _, _ in MAPS}
     with (HERE / 'ffa-spawns.tsv').open() as f:
@@ -106,8 +114,9 @@ def edits(pack, dictionary):
         out['add_entry'].append({'files': DICTIONARY, 'list': 'maps_dict', 'after': {'id': tdm_id},
                                  'like': {'id': tdm_id}, 'values': {'id': ffa_id,
                                  'cfg_mode_name': ffa.removeprefix('gameplay/game_modes/')}})
-        path = f'projects/{project(key)}/client_project'
-        buf = (pack / 'files' / path).read_bytes()
+        source = f'projects/{project(key)}/client_project'
+        path = ffa_copy(source)
+        buf = (pack / 'files' / source).read_bytes()
         existing = tree(buf)['server_objects']['respawn_points']
         if [(r['team'], r['point_id']) for r in existing] != [(team, i) for team in (0, 1) for i in range(12)]:
             raise ValueError(f'{path}: changed TDM spawn layout; recheck before regenerating')

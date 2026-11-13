@@ -17,7 +17,7 @@ OUTPUT = base.HERE.parent / 'content-edit/ffa-radius-1.json'
 
 def projects():
     return [base.project(level, weather) for level, _, weather, _ in base.MAPS] + [
-        f'projects/{name}/day_4/client_project' for name, _ in ports.MAPS]
+        base.copy_of(f'projects/{name}/day_4/client_project') for name, _ in ports.MAPS]
 
 
 def edits(live):

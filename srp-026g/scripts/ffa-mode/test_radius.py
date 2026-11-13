@@ -19,7 +19,7 @@ class RadiusRetune(unittest.TestCase):
         self.assertEqual(len(rows), 696)
         self.assertEqual(sum(row['from']['enemy_check_radius'] == 50 for row in rows), 3)
         expected = set(m.projects()) - {
-            f'projects/level_08/{weather}_4/client_project' for weather in ('day', 'evening', 'prerain')}
+            f'projects/level_08/{weather}_8/client_project' for weather in ('day', 'evening', 'prerain')}
         self.assertEqual({row['file'] for row in rows}, expected)
         self.assertEqual(len({(row['file'], row['where']['point_id']) for row in rows}), len(rows))
         for row in rows:

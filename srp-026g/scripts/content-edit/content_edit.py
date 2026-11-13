@@ -1294,12 +1294,11 @@ STATS = {
             'spawn_protection_s': 'server_objects/respawn_points[team=0|1]/invulnerability_time',
             'spawn_zone_ms': 'client_objects[game_object_type=effect_zone]/invulnerability_duration',
             'spawn_zone_fade_ms': 'client_objects[game_object_type=effect_zone]/invulnerability_attenuation',
+            'resupply_ms': 'client_objects[game_object_type=resupply_zone]/resupply_time_in_ms',
             'artefact_search_s': 'client_objects[game_object_type=artefact_container]/artefacts_search_time_sec',
             'artefact_cooldown_s': 'client_objects[game_object_type=artefact_container]/artefacts_cooldown_time_sec',
         },
-        # no resupply time: the game's own 3000 ms, never retuned, and no-ammo-crates-1 takes every crate
-        # of some levels after this table
-        'match': {'spawn_protection_s', 'spawn_zone_ms', 'spawn_zone_fade_ms', 'artefact_search_s',
+        'match': {'spawn_protection_s', 'spawn_zone_ms', 'spawn_zone_fade_ms', 'resupply_ms', 'artefact_search_s',
                   'artefact_cooldown_s'},
     },
     'armor': {
