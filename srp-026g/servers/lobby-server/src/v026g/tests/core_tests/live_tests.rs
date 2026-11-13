@@ -16,7 +16,7 @@ const ROOM_TO_MATCH: Duration = Duration::from_secs(32);
 
 /// Alice and Bob in a room's match, which the match server has in play:
 /// its ticket, the world's indexes `[alice, bob]`.
-fn a_match_in_play(world: &mut World) -> (u32, [usize; 2]) {
+pub(super) fn a_match_in_play(world: &mut World) -> (u32, [usize; 2]) {
     let alice = world.connect("Alice");
     let bob = world.connect("Bob");
     let key = create(world, alice, spec(6), None);
@@ -41,7 +41,7 @@ fn a_match_in_play(world: &mut World) -> (u32, [usize; 2]) {
 }
 
 /// The movie's ask to watch `match_id` (a replay session's): its `R1` row.
-fn ask_to_watch(world: &mut World, index: usize, match_id: u32) -> String {
+pub(super) fn ask_to_watch(world: &mut World, index: usize, match_id: u32) -> String {
     world.take(index);
     let ask = ReplayWatchAsk {
         seconds: 0,

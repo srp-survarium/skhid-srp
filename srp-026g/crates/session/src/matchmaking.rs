@@ -496,8 +496,9 @@ impl Matchmaking {
     /// Seat two given teams in a new match at once, each on its own side
     /// (a clan match: who waits for it is the lobby's to keep). `None`,
     /// and nothing changed, when a team is empty, the two do not fit a
-    /// match, or one of the players has a seat in a match being played.
-    /// The players leave the queue.
+    /// match, or one of the players has a seat in a match being played or
+    /// watches one (as in [`Self::append_players`]). The players leave the
+    /// queue.
     pub fn seat_teams(&self, teams: [&[Player]; 2], now: Instant) -> Option<u32> {
         self.seat_teams_in_pool(teams, now, QueuePool::Standard)
     }
@@ -542,7 +543,10 @@ impl Matchmaking {
         if (fixed && teams.iter().any(|team| team.is_empty()))
             || players().next().is_none()
             || players().count() > MAX_PLAYERS_PER_MATCH
-            || players().any(|player| inner.seat_of_account_mut(player.account_id).is_some())
+            || players().any(|player| {
+                inner.seat_of_account_mut(player.account_id).is_some()
+                    || inner.watchers.contains_key(&player.session_id)
+            })
         {
             return None;
         }
@@ -587,7 +591,8 @@ impl Matchmaking {
     /// No rule of two parties, of levels or of a gather window; and as a
     /// match of fixed teams it never takes a late joiner (`late_seats`).
     /// `None`, and nothing changed, when the player has a seat in a match
-    /// being played or `team` is over 1. The player leaves the queue.
+    /// being played, watches one (as in [`Self::append_players`]), or
+    /// `team` is over 1. The player leaves the queue.
     pub fn seat_solo(
         &self,
         player: Player,
@@ -596,7 +601,10 @@ impl Matchmaking {
         pool: QueuePool,
     ) -> Option<u32> {
         let mut inner = self.inner.locked();
-        if team > 1 || inner.seat_of_account_mut(player.account_id).is_some() {
+        if team > 1
+            || inner.seat_of_account_mut(player.account_id).is_some()
+            || inner.watchers.contains_key(&player.session_id)
+        {
             return None;
         }
         inner.queue.retain(|group| {
@@ -1209,6 +1217,18 @@ mod tests {
         assert_eq!(mm.watchers_of(id), [(3, watcher(1003))]);
         assert_eq!(mm.poll(3, now), None, "no place");
         assert!(!mm.append_player(id, player(3), 0, |_, _| true));
+        // Nor in a new match: a clan's, a room's, or one against the bots.
+        assert_eq!(
+            mm.seat_teams_in_pool([&[player(3)], &[player(6)]], now, pool),
+            None
+        );
+        assert_eq!(
+            mm.seat_sides_in_pool([&[player(6)], &[player(3)]], now, pool, &|_| 0),
+            None
+        );
+        assert_eq!(mm.seat_solo(player(3), 0, now, pool), None);
+        assert_eq!(mm.seat(3), None);
+        assert_eq!(mm.seat(6), None, "nobody of a refused match is seated");
         assert_eq!(mm.stop_watching(3), Some(watcher(1003)));
         assert!(mm.append_player(id, player(3), 0, |first, _| first == 2));
         // Another one leaves by itself: told once, by the lobby's id.

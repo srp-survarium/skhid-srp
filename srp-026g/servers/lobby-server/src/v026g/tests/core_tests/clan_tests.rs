@@ -1412,6 +1412,78 @@ fn two_clan_teams_meet_in_a_match_and_one_alone_waits() {
     world.assert_clean();
 }
 
+/// A clan match seats nobody who watches something meanwhile: its seat would
+/// never be sent (`docs/notes/queue-spectate.md`). A player with a replay
+/// session on keeps its commander from being ready; one who watches a match
+/// being played while its team waits takes the team out of the queue, and the
+/// other clan's team waits alone.
+#[test]
+fn a_clan_team_with_a_player_watching_is_not_ready() {
+    use session::v026g::replay_watch::WatchSettings;
+    use session::v026g::replays::Replays;
+    use session::{LiveDelay, WatchKind, Watcher};
+
+    use super::live_tests::{a_match_in_play, ask_to_watch};
+
+    const REPLAY: u32 = 0x1F07_C8FB;
+    let mut world = World::with_clans(test_config());
+    let (ticket, [alice, _]) = a_match_in_play(&mut world);
+    let (match_id, _) = world
+        .store
+        .matchmaking()
+        .seat(world.ids[alice].1)
+        .expect("a match being played");
+    let carol = world.connect("Carol");
+    let eve = world.connect("Eve");
+    let stalkers = world.register("Stalkers", "STK", carol, &[]);
+    let bandits = world.register("Bandits", "BND", eve, &[]);
+    for index in [carol, eve] {
+        world.ask(index, clan(0x17, &[]));
+        world.take(index);
+    }
+    let desk: &'static Replays = Box::leak(Box::new(
+        Replays::new(None).with_watch(WatchSettings::default()),
+    ));
+    world.core.replays = Some(desk);
+    let (account, session) = world.ids[carol];
+
+    // A replay session of hers on (its recording not read yet).
+    assert!(ask_to_watch(&mut world, carol, REPLAY).starts_with("R1;preparing;"));
+    world.clan_ready(carol, true, true);
+    assert_eq!(
+        denial(&world.take(carol), 0x49).as_deref(),
+        Some("st_cant_change_ready_state")
+    );
+    assert!(world.core.clan_teams_waiting().is_empty());
+    // Over: her team waits.
+    assert!(desk.watches().withdraw(account, REPLAY));
+    world.clan_ready(carol, true, true);
+    assert_eq!(world.core.clan_teams_waiting(), [stalkers]);
+
+    // She watches the match being played (the lobby's own asks refuse a
+    // waiting player; matchmaking's word is what counts).
+    let live = Watcher {
+        match_id,
+        ticket,
+        account_id: account,
+        kind: WatchKind::Live {
+            delay: LiveDelay::DEFAULT,
+            view: None,
+        },
+    };
+    assert!(world.store.matchmaking().watch(session, live));
+    world.clan_ready(eve, true, true);
+    assert_eq!(world.core.clan_teams_waiting(), [bandits]);
+    world.advance(Duration::from_secs(1));
+    assert_eq!(world.store.matchmaking().seat(session), None);
+    assert_eq!(
+        world.host.made.lock().unwrap().len(),
+        1,
+        "only the match being played"
+    );
+    assert_eq!(world.core.clan_teams_waiting(), [bandits]);
+}
+
 /// A clan match (a Play with no room and no bots: the lobby draws its map)
 /// is of two teams, so its map is never a free-for-all's, nor Blackout's,
 /// however many of them the match pool has: from a pool of them and one Team

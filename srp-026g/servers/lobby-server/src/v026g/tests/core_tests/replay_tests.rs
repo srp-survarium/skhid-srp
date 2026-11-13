@@ -141,6 +141,47 @@ fn a_replay_session_of_a_member_ends_when_its_room_can_play() {
     }
 }
 
+/// A session read (its game about to be sent) when its room becomes able to play with it in the
+/// same tick: the room calls it back before the game is sent, so it is never sent to the replay;
+/// its player plays its room's match.
+#[test]
+fn a_ready_replay_session_is_not_sent_when_its_room_can_play() {
+    use super::rooms_tests::{create, rows, spec};
+    use survarium::v026g::lobby::rooms::ROOM_JOIN_BASE;
+    let desk = sessions();
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let carol = player(&mut world, "Carol", current());
+    let dave = player(&mut world, "Dave", current());
+    let key = create(&mut world, carol, spec(6), None);
+    assert_eq!(
+        ask_to_watch(&mut world, carol, 75, Some(3)),
+        "R1;preparing;1f07c8fb;2"
+    );
+    let (account, _) = world.ids[carol];
+    let watches = desk.watches();
+    let request = watches.next_job(world.now).expect("a session to read");
+    // Read between two ticks; Dave's join comes before the next one.
+    assert!(watches.loaded(&request, 74_500, world.now));
+    world.take(carol);
+    rows(&mut world, dave, ROOM_JOIN_BASE + key, 1);
+    world.advance(Duration::from_secs(1));
+    assert_eq!(
+        sent_to_match(&world.take(carol)),
+        None,
+        "not sent to the replay"
+    );
+    assert!(
+        !watches.holds(account),
+        "called back before its game was sent"
+    );
+    world.advance(ROOM_TO_MATCH);
+    for (index, name) in [(carol, "Carol"), (dave, "Dave")] {
+        let (match_id, _) = sent_to_match(&world.take(index)).expect("its room's match");
+        assert_ne!(match_id, MATCH, "{name} plays its room's match");
+    }
+}
+
 /// A member alone in its room (below the room's minimum) watches a replay to its end: `preparing`
 /// while the match server reads the recording, then the game is sent to it as a spectator is (to
 /// the match server, under the recorded match, no team) and the polls say `watching` and where it
