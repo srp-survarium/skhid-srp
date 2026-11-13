@@ -833,7 +833,8 @@ package
          this.holdSpectatorHighlight();
       }
 
-      // Told once a change, and its plates can be rebuilt or reselected after: kept on it each frame.
+      // Told once a change, and its plates can be rebuilt or reselected after: set again at each
+      // change (the kits, the kit in view, the mode, the Tab list).
       // What shows is the plate's frame, so that is what is checked, not only the bar's index.
       private function holdSpectatorHighlight() : void
       {

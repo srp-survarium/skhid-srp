@@ -4789,6 +4789,13 @@ package
          removeChild(this._back_back);
          FocusManager.setModalClip(null);
          MainScene.activeWindow = null;
+         // the messages' layer: a load the results stayed up through (a replay watched from them,
+         // closeForLoad) hid it, and the return left it so under the results; shown again now,
+         // unless a load is under way
+         if(WatchWindow.inLobby)
+         {
+            this._top_container.visible = true;
+         }
          // the asker's matches again (History's rows of the match just played), and the Watch view
          // of a watch the results came back over: once the results left the modals
          WatchWindow.resultsClosed(this.vsClosedByTab);

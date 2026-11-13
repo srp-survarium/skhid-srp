@@ -319,6 +319,12 @@ package survarium.watch
          }
       }
 
+      // The game is in the lobby (no match loading or played since the last return).
+      public static function get inLobby() : Boolean
+      {
+         return WatchWindow.me == null || WatchWindow.me._inLobby;
+      }
+
       // A past match's report opened (LobbyMenu.showFullReaport): a return held now is dropped.
       public static function reportOpened() : void
       {
