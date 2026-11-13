@@ -261,11 +261,26 @@ pub(crate) struct Spectator {
     view: Option<u8>,
     /// The mask of kits it has been told of each place (a live match's chooser).
     kits_told: Vec<u8>,
-    /// Its room called it back: when it is let go (`Game::recall_spectator`).
-    recall_at: Option<Instant>,
+    /// Its room called it back ([`Self::recall`]).
+    recall: Option<Recall>,
     /// How often [`Self::feed`] walked the match's lists.
     #[cfg(test)]
     list_walks: u32,
+}
+
+/// Its room called a spectator back ([`Spectator::recall`]): let go at
+/// `due`, [`replay_control::RECALL_SECONDS`] after, and its game told so in
+/// a note (`ServerNote::Recall`), which goes only while it is live.
+#[derive(Clone, Copy, Debug)]
+enum Recall {
+    /// Its game was not live yet (its world on its way): the note is still
+    /// to go, with the seconds left then.
+    Untold {
+        due: Instant,
+    },
+    Told {
+        due: Instant,
+    },
 }
 
 /// What a session's game has had of starts from a world. Each packs a world
@@ -494,9 +509,9 @@ impl Game {
 
     /// The server lets go of the spectator of `session_id` (its watch
     /// ended): its farewell, then its link closes. Not reported as left.
-    /// The spectator's room calls it back: its game is told once
-    /// (`ServerNote::Recall`); whether the seconds it was told are over (a
-    /// spectator not here any more: at once).
+    /// The spectator's room calls it back: its game is told once, when it is
+    /// live (`Spectator::recall`); whether the seconds since the first call
+    /// are over (a spectator not here any more: at once).
     pub(crate) fn recall_spectator(&mut self, session_id: u32, now: Instant) -> bool {
         let Some(spectator) = self
             .spectators
@@ -505,15 +520,13 @@ impl Game {
         else {
             return true;
         };
-        match spectator.recall_at {
-            Some(due) => now >= due,
-            None => {
-                log::info!("Match {:#x}: spectator {session_id:#x} is called back by its room", self.id);
-                spectator.note(&replay_control::ServerNote::recall(replay_control::RECALL_SECONDS));
-                spectator.recall_at = Some(now + Duration::from_secs(replay_control::RECALL_SECONDS.into()));
-                false
-            }
+        if !spectator.is_recalled() {
+            log::info!(
+                "Match {:#x}: spectator {session_id:#x} is called back by its room",
+                self.id
+            );
         }
+        spectator.recall(now)
     }
 
     pub(crate) fn let_spectator_go(&mut self, session_id: u32, now: Instant) {
@@ -871,7 +884,7 @@ impl Spectator {
             starts,
             view,
             kits_told: Vec::new(),
-            recall_at: None,
+            recall: None,
             #[cfg(test)]
             list_walks: 0,
         }
@@ -1363,6 +1376,40 @@ impl Spectator {
     /// section 27).
     pub(super) fn world_sent(&self) -> bool {
         matches!(self.stage, Watch::Syncing { .. } | Watch::Live { .. })
+    }
+
+    /// Whether its room called it back ([`Self::recall`]).
+    pub(super) fn is_recalled(&self) -> bool {
+        self.recall.is_some()
+    }
+
+    /// Its room calls it back: asked each turn while it does. Let go
+    /// [`replay_control::RECALL_SECONDS`] after the first call, and its game
+    /// told the seconds left (`ServerNote::Recall`) once, as soon as it is
+    /// live: one called back while its world is on its way hears it when the
+    /// world is in. Whether those seconds are over.
+    pub(super) fn recall(&mut self, now: Instant) -> bool {
+        let due = match self.recall {
+            Some(Recall::Told { due }) => return now >= due,
+            Some(Recall::Untold { due }) => due,
+            None => now + Duration::from_secs(replay_control::RECALL_SECONDS.into()),
+        };
+        // Whole seconds, rounded up: never told less than is left.
+        let left = due
+            .saturating_duration_since(now)
+            .as_millis()
+            .div_ceil(1_000);
+        let seconds = u8::try_from(left).unwrap_or(u8::MAX);
+        let told = seconds > 0
+            && self
+                .note(&replay_control::ServerNote::recall(seconds))
+                .is_some();
+        self.recall = Some(if told {
+            Recall::Told { due }
+        } else {
+            Recall::Untold { due }
+        });
+        now >= due
     }
 
     /// A replay viewer's note (`replay_control::ServerNote`), in an 0xF6:

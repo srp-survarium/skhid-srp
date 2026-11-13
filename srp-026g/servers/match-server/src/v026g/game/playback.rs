@@ -535,9 +535,9 @@ struct Playback {
     spectator: Spectator,
     clock: Clock,
     /// The lobby called its player back (`Watches::recall`): its game is
-    /// told (`ServerNote::Recall`) and let go at `recall_at`.
+    /// told once it is live and let go a few seconds after
+    /// (`Spectator::recall`).
     recalled: bool,
-    recall_at: Option<Instant>,
     /// The speed asked: the clock's once its game has its world.
     speed: Speed,
     game_speed: GameSpeed,
@@ -592,7 +592,6 @@ impl Playback {
             },
             sought: None,
             recalled: false,
-            recall_at: None,
             speed: Speed::Normal,
             game_speed: GameSpeed::Told(Speed::Normal),
             last_request: None,
@@ -987,13 +986,12 @@ impl Playback {
             self.clock,
             Clock::Paused { since, .. } if now.saturating_duration_since(since) >= PAUSED_MOST
         );
-        // Called back: told once, and let go `RECALL_SECONDS` later.
-        if self.recalled && self.recall_at.is_none() {
+        // Called back: told once its game is live, and let go `RECALL_SECONDS`
+        // after the call.
+        if self.recalled && !self.spectator.is_recalled() {
             log::info!("Replay {session_id:#x}: its player's room calls it back");
-            self.spectator.note(&replay_control::ServerNote::recall(replay_control::RECALL_SECONDS));
-            self.recall_at = Some(now + Duration::from_secs(replay_control::RECALL_SECONDS.into()));
         }
-        let recall_due = self.recall_at.is_some_and(|due| now >= due);
+        let recall_due = self.recalled && self.spectator.recall(now);
         let flooded = self.spectator.flooded(VIEWER_BACKLOG_MOST);
         let too_long = now.saturating_duration_since(self.created) >= self.recording.session_most();
         if (at >= self.recording.end || paused_out || too_long || recall_due || flooded)
@@ -1251,6 +1249,29 @@ pub(crate) struct ReplayWatch {
     /// Read, their games not here yet: by session.
     ready: HashMap<u32, Prepared>,
     playbacks: HashMap<SocketAddr, Playback>,
+}
+
+/// The match server ends (it returns, or `srp` starts it again after a
+/// panic): the sessions it plays or has read are over, as their games are
+/// gone with it. The process's replays outlive it, and a session that plays
+/// has no time limit there: one left would hold its player out of its
+/// room's matches, and its place among the sessions, until srp restarts.
+/// The one being read is refused (its reader's answer has nowhere to go).
+impl Drop for ReplayWatch {
+    fn drop(&mut self) {
+        let watches = self.replays.watches();
+        for request in self
+            .playbacks
+            .drain()
+            .map(|(_, playback)| playback.request)
+            .chain(self.ready.drain().map(|(_, prepared)| prepared.request))
+        {
+            watches.ended(&request);
+        }
+        if let Some(reading) = self.reading.take() {
+            watches.refuse(&reading.request, WatchRefusal::Failed, Instant::now());
+        }
+    }
 }
 
 impl ReplayWatch {

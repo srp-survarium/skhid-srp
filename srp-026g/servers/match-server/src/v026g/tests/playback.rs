@@ -655,6 +655,90 @@ fn a_leave_request_lets_the_game_go() {
     bench.assert_no_faults();
 }
 
+/// Review of 2026-11-13: the match server ended (srp starts it again in the same process, whose
+/// replays outlive it) with a session playing and another read: both are over, or the one playing
+/// (no time limit at the desk) would hold its player out of its room's matches until srp
+/// restarted.
+#[test]
+fn a_match_server_that_ends_ends_its_sessions() {
+    const READ_ACCOUNT: u32 = WATCHER_ACCOUNT + 2;
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 0);
+    watching(&mut bench, WATCHER);
+    let read = request(READ_ACCOUNT, 0x1234, 0, None);
+    let now = bench.now();
+    assert_eq!(replays.watches().start(read, now), Status::Preparing);
+    assert_eq!(replays.watches().next_job(now), Some(read));
+    let watch = bench.server.replay_watch.as_mut().unwrap();
+    watch.prepare_for_test(read, playable(), &[], now);
+    assert!(matches!(
+        replays.watches().stage(WATCHER_ACCOUNT),
+        Some(Stage::Playing { .. })
+    ));
+    assert!(matches!(
+        replays.watches().stage(READ_ACCOUNT),
+        Some(Stage::Ready { .. })
+    ));
+    drop(bench);
+    assert_eq!(replays.watches().stage(WATCHER_ACCOUNT), None);
+    assert_eq!(replays.watches().stage(READ_ACCOUNT), None);
+    assert!(!replays.watches().holds(WATCHER_ACCOUNT));
+    assert!(!replays.watches().holds(READ_ACCOUNT));
+}
+
+/// The recall notes a game took: the seconds each told.
+fn recalls(client: &Client) -> Vec<u8> {
+    client
+        .replay_notes
+        .iter()
+        .filter_map(|payload| match ServerNote::parse(payload)? {
+            ServerNote::Recall(seconds) => Some(seconds),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Review of 2026-11-13: a note goes only to a game that watches, so one called back while its
+/// world was on its way was let go with no countdown. It is told once its world is in, the
+/// seconds left of the [`replay_control::RECALL_SECONDS`] from the call, and let go when they are
+/// over, as one told at once.
+#[test]
+fn a_viewer_called_back_while_its_world_loads_is_told_once_it_watches() {
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 0);
+    let at = bench.clients.len();
+    bench.clients.push(Client::idle_growing(WATCHER));
+    bench
+        .addrs
+        .push(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16)));
+    bench.clients[at].connect();
+    assert!(bench.until(1_000, |b| b.clients[at].model.options.is_some()));
+    assert!(replays.watches().recall(WATCHER_ACCOUNT));
+    let called = bench.ms;
+    bench.run(1_000);
+    assert!(
+        recalls(&bench.clients[at]).is_empty(),
+        "its game does not watch yet"
+    );
+    bench.clients[at].ready();
+    assert!(bench.until(3_000, |b| !recalls(&b.clients[at]).is_empty()));
+    let told = recalls(&bench.clients[at]);
+    assert_eq!(told.len(), 1);
+    assert!(
+        (1..replay_control::RECALL_SECONDS).contains(&told[0]),
+        "the seconds left: {told:?}"
+    );
+    assert!(bench.until(5_000, |b| b.clients[at].told_to_leave));
+    let let_go = bench.ms - called;
+    let recall_ms = u64::from(replay_control::RECALL_SECONDS) * 1_000;
+    assert!(
+        (recall_ms..recall_ms + 200).contains(&let_go),
+        "let go {let_go} ms after the call"
+    );
+    bench.run(500);
+    assert_eq!(recalls(&bench.clients[at]).len(), 1, "told once");
+}
+
 fn recorded_live(dir: &Path) -> (u32, PathBuf) {
     let settings = Settings {
         record: Some(RecordSettings {

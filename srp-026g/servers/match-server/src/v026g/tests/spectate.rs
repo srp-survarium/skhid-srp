@@ -265,6 +265,63 @@ fn a_watch_that_ends_lets_the_spectator_go_and_its_own_leave_is_told() {
     assert_eq!(bench.stages(), "LL");
 }
 
+/// Review of 2026-11-13: a note goes only to a game that watches, so a spectator called back by
+/// its room while its world was on its way was let go with no countdown. It is told once it
+/// watches, the seconds left of the [`replay_control::RECALL_SECONDS`] from the call, and let go
+/// when they are over.
+#[test]
+fn a_spectator_called_back_while_its_world_loads_is_told_once_it_watches() {
+    let recalls = |client: &Client| -> Vec<u8> {
+        client
+            .replay_notes
+            .iter()
+            .filter_map(
+                |payload| match replay_control::ServerNote::parse(payload)? {
+                    replay_control::ServerNote::Recall(seconds) => Some(seconds),
+                    _ => None,
+                },
+            )
+            .collect()
+    };
+    let mut bench = running();
+    watch_as(&bench, SPECTATOR, WatchKind::Queued { delay: no_delay() });
+    let at = bench.clients.len();
+    let players = bench.game().roster_size();
+    bench
+        .clients
+        .push(Client::growing(SPECTATOR, players, MAP_BATTERIES));
+    bench
+        .addrs
+        .push(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16)));
+    bench.clients[at].connect();
+    assert!(bench.until(1_000, |b| b.clients[at].model.options.is_some()));
+    assert!(bench.server.store().matchmaking().recall_watcher(SPECTATOR));
+    let called = bench.ms;
+    bench.run(1_000);
+    assert!(!bench.game().spectator_watches(SPECTATOR));
+    assert!(
+        recalls(&bench.clients[at]).is_empty(),
+        "its game does not watch yet"
+    );
+    bench.clients[at].ready();
+    assert!(bench.until(3_000, |b| !recalls(&b.clients[at]).is_empty()));
+    let told = recalls(&bench.clients[at]);
+    assert_eq!(told.len(), 1);
+    assert!(
+        (1..replay_control::RECALL_SECONDS).contains(&told[0]),
+        "the seconds left: {told:?}"
+    );
+    assert!(bench.until(5_000, |b| b.clients[at].told_to_leave));
+    let let_go = bench.ms - called;
+    let recall_ms = u64::from(replay_control::RECALL_SECONDS) * 1_000;
+    assert!(
+        (recall_ms..recall_ms + 200).contains(&let_go),
+        "let go {let_go} ms after the call"
+    );
+    bench.run(500);
+    assert_eq!(recalls(&bench.clients[at]).len(), 1, "told once");
+}
+
 #[test]
 fn the_end_of_the_match_lets_its_spectators_go_and_counts_none_of_them() {
     let mut bench = running();
