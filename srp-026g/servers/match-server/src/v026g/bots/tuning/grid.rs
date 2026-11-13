@@ -168,6 +168,11 @@ pub struct GridTuning {
     /// score on all maps: drift 4.02 -> 4.01 %, level_04 -0.11, no map worse; coverage, path and raised stalls the same. A grid is
     /// the map's (see `gap_links`).
     pub drop_check: bool,
+    /// [A364 stall census] With `walk_every_link`: whether the walk check counts a refusal under a low ceiling as the client's
+    /// stall and cuts a link two of whose lines are so refused (`mapdata::Body::walk_ceiling_stalls`; the slide 0x7DF20 is
+    /// ported, the refusal is the exe's own verdict). Off: such links pass and bots stall crouched on them (Rudnya, 11 stalls
+    /// in the owner's 14 recordings). Client-proven, so ON and kept by `all_off`. A grid is the map's (see `gap_links`).
+    pub walk_ceiling_stalls: bool,
     /// [routes corpus] Whether a jump onto a top too narrow to walk on along the jump lands where a wall beyond the top stops
     /// the body (`mapdata::Body::wall_held_tops`: a window's sill, a ledge along a wall; a fence's top with a drop beyond stays no
     /// landing). Off: no jump reaches such a top, and places real players stand on many times are out of the bots' reach
@@ -299,6 +304,7 @@ impl Default for GridTuning {
             drop_room_walk_faces: true,
             narrow_doors: true,
             drop_check: true,
+            walk_ceiling_stalls: true,
             wall_held_tops: true,
             wall_give_back: true,
             exe_collision: true,
@@ -348,6 +354,7 @@ impl GridTuning {
             drop_room_walk_faces: self.drop_room_walk_faces,
             narrow_doors: self.narrow_doors,
             drop_check: self.drop_check,
+            walk_ceiling_stalls: self.walk_ceiling_stalls,
             wall_held_tops: self.wall_held_tops,
             wall_give_back: self.wall_give_back,
             exe_collision: self.exe_collision,

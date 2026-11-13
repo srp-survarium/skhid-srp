@@ -167,6 +167,9 @@ pub const NARROW_DOORS_ALGO: u32 = 0x5313_0101;
 /// The same for the Drop links the client's walk tick does not take a body down ([`Body::drop_check`], A313), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const DROP_CHECK_ALGO: u32 = 0x5313_0201;
+/// The same for the walk check's refusals under a low ceiling as failures ([`Body::walk_ceiling_stalls`]), in
+/// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
+pub const WALK_CEILING_STALLS_ALGO: u32 = 0x5364_0c01;
 /// The same for the jumps onto a narrow top a wall beyond holds the body on ([`Body::wall_held_tops`], the routes corpus), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
@@ -423,6 +426,10 @@ pub fn grid_key_with_links(
     // And the walk tick's check of the Drop links.
     if body.drop_check {
         digest.u32(DROP_CHECK_ALGO);
+    }
+    // And the walk check's ceiling refusals.
+    if body.walk_ceiling_stalls {
+        digest.u32(WALK_CEILING_STALLS_ALGO);
     }
     // And the jumps onto a top a wall holds the body on.
     if body.wall_held_tops {
