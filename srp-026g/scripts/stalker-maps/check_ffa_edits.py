@@ -76,7 +76,7 @@ def check(pack, dictionary):
             old_mode = m.tree((live / tdm).read_bytes())['mode']
             assert mode['mode'] == 8 and mode['rules'] == [93, 91, 94]
             assert mode['parameters']['kills_to_win'] == 30
-            assert mode['match_making_params']['max_players'] == 10
+            assert 'max_players' not in mode['match_making_params']
             assert mode['match_making_params']['map_name'] == m.project(key)
             assert mode['ui']['mode_name'] == 'st_mode_08_name'
             assert mode['ui']['description'] == 'st_mode_08_description'

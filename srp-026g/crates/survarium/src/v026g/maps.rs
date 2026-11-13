@@ -299,9 +299,6 @@ pub struct MapMode {
     pub resources_count: u32,
     /// A free-for-all: the kills that win (`kills_to_win`, 30).
     pub kills_to_win: u32,
-    /// `match_making_params.max_players`: the most a match of it takes. Only
-    /// a free-for-all's is kept to (10; `docs/notes/ffa.md`).
-    pub max_players: u32,
     /// How many respawn points the project has: every entry of its
     /// `server_objects.respawn_points`, whatever its team or layer, is
     /// loaded (`player_respawn_rule_cook` 0x2C6910), so this is how many
@@ -751,7 +748,6 @@ impl MapMode {
             tickets_count: int(p, "tickets_count")?,
             resources_count: int(p, "resources_count")?,
             kills_to_win: int(p, "kills_to_win")?,
-            max_players: int(making, "max_players")?,
             respawn_points: objects.respawn_points,
             solo_respawn_points: objects.solo_respawn_points,
             container_teams: objects
@@ -778,13 +774,11 @@ impl MapMode {
                 ));
             }
             if rule_mode == RuleMode::FreeForAll
-                && (row.kills_to_win == 0 || row.solo_respawn_points == 0 || row.max_players == 0)
+                && (row.kills_to_win == 0 || row.solo_respawn_points == 0)
             {
                 return Err(ConfigError(format!(
-                    "it is a free-for-all with {} kills to win, {} players at most and {} team-2 \
-                     respawn points in {}",
+                    "it is a free-for-all with {} kills to win and {} team-2 respawn points in {}",
                     row.kills_to_win,
-                    row.max_players,
                     row.solo_respawn_points,
                     row.project
                 )));
@@ -877,13 +871,6 @@ pub fn playable_in(mode: GameMode) -> impl Iterator<Item = &'static MapMode> {
 /// and resupply.
 pub fn free_for_all_team(place: usize) -> u8 {
     srp_validate::own_side(place)
-}
-
-/// The most players a match on `map` takes, the server's bots among them: a
-/// free-for-all's config's `max_players` (10); any other mode's none of its
-/// own.
-pub fn player_cap(map: &MapMode) -> Option<usize> {
-    (map.mode == GameMode::FreeForAll).then_some(map.max_players as usize)
 }
 
 /// The id for a level, weather and mode, if it can be played.
@@ -1376,7 +1363,6 @@ mod tests {
             assert!(tdm.solo_respawn_points < map.solo_respawn_points, "{}", tdm.project);
             assert!(map.solo_respawn_points >= 20, "{} {}", map.config, map.solo_respawn_points);
             assert_eq!((map.kills_to_win, map.match_time), (30, tdm.match_time));
-            assert_eq!(player_cap(map), Some(10));
             assert_eq!(map.rules, &[93, 91, 94]);
             assert_eq!(map.mode_name_key, "st_mode_08_name");
         }

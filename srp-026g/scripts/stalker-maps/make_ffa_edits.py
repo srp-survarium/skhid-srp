@@ -106,8 +106,7 @@ def edits(pack, dictionary):
                          ('st_mode_04_description', 'st_mode_08_description')]:
             out['replace_string'].append({'files': ffa, 'from': old, 'to': new})
         out['remove_item'].append({'file': ffa, 'path': 'mode/rules', 'value': 90})
-        for table, name, value in [('parameters', 'kills_to_win', 30),
-                                   ('match_making_params', 'max_players', 10)]:
+        for table, name, value in [('parameters', 'kills_to_win', 30)]:
             if name in mode[table]:
                 raise ValueError(f'{tdm}: {name} already exists')
             out['add_value'].append({'files': [ffa], 'table': 'mode/' + table, 'key': name, 'value': value})

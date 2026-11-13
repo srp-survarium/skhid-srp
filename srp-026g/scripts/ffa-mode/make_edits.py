@@ -9,7 +9,7 @@ London (level_09, day; base patch 14):
   (the loading screen's text; TDM's speaks of tickets), ui.icon 2 (TDM's skull, set where a TDM
   config had another), the rules without TDM's 90 (93 time, 91 respawn, 94 kd), and the new ints
   the server reads (ADDED): mode.parameters.kills_to_win (the kill target, as TDM's tickets_count,
-  which stays) and mode.match_making_params.max_players (0.31's mode 6's); the same project,
+  which stays); no player count of its own (a match takes its room's, docs/notes/ffa.md); the same project,
   timings, music and texts otherwise. In a folder of their own, as Blackout's copies are: modes.tsv
   has a row for every config of gameplay/game_modes/ itself and is applied before a later list's
   copies exist;
@@ -96,8 +96,8 @@ ALLY_CHECK_RADIUS = 1.0
 PROTECTION = 2
 assert isinstance(PROTECTION, int)
 # New ints of the configs, for the server, by table: the kills that win a match (the server ends it
-# there) and the most players it takes (0.31a2's mode 6's). No fewest: two play a duel.
-ADDED = [('mode/parameters', 'kills_to_win', 30), ('mode/match_making_params', 'max_players', 10)]
+# there). No most players of its own (its room's, as any mode's) and no fewest: two play a duel.
+ADDED = [('mode/parameters', 'kills_to_win', 30)]
 DICTIONARY = 'gameplay/db_static_dictionaries'
 POINTS = 'server_objects/respawn_points'
 RADII = ('enemy_check_radius', 'ally_check_radius')

@@ -28,11 +28,8 @@
  ],
  "add_value": [
   {"files": ["gameplay/game_modes/ffa/v010b_cs_mp_bath_day_8.options"], "table": "mode/parameters", "key": "kills_to_win", "value": 30},
-  {"files": ["gameplay/game_modes/ffa/v010b_cs_mp_bath_day_8.options"], "table": "mode/match_making_params", "key": "max_players", "value": 10},
   {"files": ["gameplay/game_modes/ffa/v010b_cs_mp_military_1_day_8.options"], "table": "mode/parameters", "key": "kills_to_win", "value": 30},
-  {"files": ["gameplay/game_modes/ffa/v010b_cs_mp_military_1_day_8.options"], "table": "mode/match_making_params", "key": "max_players", "value": 10},
-  {"files": ["gameplay/game_modes/ffa/v010b_cs_training_camp_day_8.options"], "table": "mode/parameters", "key": "kills_to_win", "value": 30},
-  {"files": ["gameplay/game_modes/ffa/v010b_cs_training_camp_day_8.options"], "table": "mode/match_making_params", "key": "max_players", "value": 10}
+  {"files": ["gameplay/game_modes/ffa/v010b_cs_training_camp_day_8.options"], "table": "mode/parameters", "key": "kills_to_win", "value": 30}
  ],
  "add_entry": [
   {"files": "gameplay/db_static_dictionaries", "list": "maps_dict", "after": {"id": 210}, "like": {"id": 210}, "values": {"id": 42, "cfg_mode_name": "ffa/v010b_cs_mp_bath_day_8.options"}},

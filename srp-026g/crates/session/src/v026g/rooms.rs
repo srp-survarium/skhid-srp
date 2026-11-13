@@ -224,10 +224,6 @@ pub struct Room {
     /// newcomers, whose late join goes to the side with fewer (their team in
     /// the arrangement is not the owner's choice yet). Cleared with the match.
     pub came_in_match: HashSet<u32>,
-    /// The members who could play its last match and had no place in it (a
-    /// free-for-all takes ten, `docs/notes/ffa.md`): the first to be seated
-    /// in its next one ([`Rooms::left_out`]).
-    pub left_out: HashSet<u32>,
 }
 
 /// A line of a room's chat: a member's, or the room's own (a member came
@@ -699,7 +695,6 @@ impl Rooms {
             chat: VecDeque::new(),
             sides: HashMap::new(),
             came_in_match: HashSet::new(),
-            left_out: HashSet::new(),
         };
         room.add_member(owner, None);
         self.rooms.insert(key, room);
@@ -1440,15 +1435,6 @@ impl Rooms {
             room.in_match = seated.iter().copied().collect();
             room.cards.clear();
             room.votes.clear();
-            room.left_out.clear();
-        }
-    }
-
-    /// The match just made ([`Rooms::started`]) had no place for `members`,
-    /// who could play it: the room's next match seats them first.
-    pub fn left_out(&mut self, key: u32, members: impl IntoIterator<Item = u32>) {
-        if let Some(room) = self.rooms.get_mut(&key) {
-            room.left_out = members.into_iter().collect();
         }
     }
 
