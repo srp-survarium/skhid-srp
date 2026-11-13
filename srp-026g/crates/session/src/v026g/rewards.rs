@@ -31,8 +31,10 @@
 //!   amount times the match level's multiplier (`match_levels_dict`:
 //!   `money_k`, `experience_k`, `reputation_k`), rounded down after
 //!   multiplying (PROVEN by the second screen):
-//!   - *Enemies killed*: [`pay::KILL`] a kill (25 silver, 3 experience,
-//!     1 reputation). A team kill is in the row and pays nothing.
+//!   - *Enemies killed*: [`pay::SRP_KILL`] a kill (50 silver, 6
+//!     experience, 1 reputation: twice the original's [`pay::KILL`] silver
+//!     and experience, the owner's of 2026-11-13). A team kill is in the
+//!     row and pays nothing.
 //!   - *Help ally*: [`pay::HELP`] (10 / 1 / 1) an assist, a teammate
 //!     cured or a teammate rescued.
 //!   - *Match Activity Rewards*: a fixed part for a match played to the
@@ -44,6 +46,10 @@
 //!     ([`Terms::score_weights`], the ones the scoreboard used; a Research
 //!     match's weigh its captures and its "kill invader": `static_info::
 //!     RESEARCH_WEIGHTS`).
+//! - **30,000 silver for staying to the end** ([`pay::FINISH_SILVER`], the
+//!   owner's of 2026-11-13): flat, to every player who finished a paid
+//!   match, in its main kit's activity cell; no rate, level, share or
+//!   factor touches it, and the floor and the items' bonus do not count it.
 //! - **The rates** (the owner's choices): the three rows' silver times the
 //!   percent of the match's level ([`pay::MONEY_RATES`]: 225 to level 5,
 //!   rising to 330 from level 12; or `SRP_MONEY_RATE` at every level);
@@ -110,11 +116,11 @@
 //! | the player | gets |
 //! |---|---|
 //! | stayed to the end | everything above |
-//! | left early | what its counters earned (kills, help, other score), a loss in the rating whatever its team did, quests; nothing of the activity row's fixed part, no daily bonus and no drop |
+//! | left early | what its counters earned (kills, help, other score), a loss in the rating whatever its team did, quests; nothing of the activity row's fixed part, no floor, no 30,000 for staying, no daily bonus and no drop |
 //! | never got into the match | nothing; its rating stays (0.21d) |
 //! | left by its own word and came into the match again (a new place) | its latest place's as above; the place it left counts for nothing ([`MatchResult::latest_places`]) |
 //! | any, when play never began (`played_ms` is `None`) | nothing |
-//! | any, when no snapshot was trusted (`trusted_by` 0) | no counters and no winner: the fixed part of a match not won, a drop; the rating stays (0.21d's unknown result) |
+//! | any, when no snapshot was trusted (`trusted_by` 0) | no counters and no winner: the fixed part of a match not won, the 30,000 for staying, a drop; the rating stays (0.21d's unknown result) |
 //! | any, when one client alone vouched (`trusted_by` 1) | in full, as 0.21d paid a match one client was alone in (its numbers passed the match server's checks) |
 //!
 //! A match no client ever reached ([`MatchEnd::NoShow`]) has no report, nor
@@ -410,6 +416,12 @@ pub struct Terms {
     /// pays of the silver and the experience of its rows, 0 to 1
     /// (`SRP_PVB_PAY`, default 0.5; [`super::pvb::pay`]).
     pub pvb_pay: f64,
+    /// What a kill pays before the rates and the match level: srp's
+    /// [`pay::SRP_KILL`], or the original's [`pay::KILL`].
+    pub kill: Pay,
+    /// The flat silver a player who stays to the end of a paid match gets
+    /// on top of its rows ([`pay::FINISH_SILVER`]; 0, the original's: none).
+    pub finish_silver: u32,
 }
 
 impl Terms {
@@ -417,7 +429,9 @@ impl Terms {
     /// `SRP_MONEY_RATE` (default: by the match's level),
     /// `SRP_REPUTATION_RATE` (default 180),
     /// `SRP_BALANCE_RATED_PLAYERS` (default 4), `SRP_PVB_PAY` (default
-    /// 0.5) and the weights srp's matches are made with.
+    /// 0.5), the weights srp's matches are made with, srp's kill
+    /// ([`pay::SRP_KILL`]) and the flat silver for staying to the end
+    /// ([`pay::FINISH_SILVER`]).
     pub fn at(now: u64) -> Self {
         Self {
             now,
@@ -427,6 +441,8 @@ impl Terms {
             score_weights: SCORE_WEIGHTS,
             rated_players: balance::rated_players(),
             pvb_pay: super::pvb::pay(),
+            kill: pay::SRP_KILL,
+            finish_silver: pay::FINISH_SILVER,
         }
     }
 }
@@ -1821,7 +1837,7 @@ impl<'a> Shared<'a> {
             // kills' line and is no enemy killed); the two end-of-match
             // events are the fixed part, added below.
             let each = match event {
-                event::KILL => pay::KILL,
+                event::KILL => self.terms.kill,
                 event::ASSIST | event::TEAMMATE_CURE | event::TEAMMATE_RESCUE => pay::HELP,
                 event::PARTICIPATING | event::WON => continue,
                 _ if line == ACTIVITY_LINE && weights[event] > 0.0 => {
@@ -1988,6 +2004,13 @@ impl<'a> Shared<'a> {
             } else {
                 0
             };
+        // The flat silver for staying to the end (`pay::FINISH_SILVER`):
+        // in the same cell, but no item's bonus counts it.
+        let finish_silver = if standing == Standing::Finished && !bot {
+            self.terms.finish_silver
+        } else {
+            0
+        };
         let (mut money, mut experience, mut reputation) = (0_u32, 0_u32, 0_u32);
         // The daily bonus: the account is seen today, and a victory it
         // stayed for may be one of the day's first three. A match against
@@ -2009,7 +2032,9 @@ impl<'a> Shared<'a> {
                 let mut cell_money =
                     pay::cell(base.money, cell_money_k).min(f64::from(u32::MAX)) as u32;
                 if kit == main && line == ACTIVITY_LINE {
-                    cell_money = cell_money.saturating_add(top_up);
+                    cell_money = cell_money
+                        .saturating_add(top_up)
+                        .saturating_add(finish_silver);
                 }
                 // What the wire's s16 holds.
                 let cell = |plain: f64, k: f64| pay::cell(plain, k).min(f64::from(i16::MAX)) as i16;
@@ -2051,8 +2076,9 @@ impl<'a> Shared<'a> {
             };
             let share = |value: u32, bonus: f32| (f64::from(value) * f64::from(bonus)) as u32;
             let percent = |bonus: f32| (bonus * 100.0).round().clamp(0.0, 255.0) as u8;
+            let flat = if kit == main { finish_silver } else { 0 };
             let items = BonusColumn {
-                money: share(column.0, gear.money),
+                money: share(column.0.saturating_sub(flat), gear.money),
                 experience: clamp_u16(share(column.1, gear.experience)),
                 reputation: clamp_u16(share(column.2, gear_reputation)),
                 bonus_money: percent(gear.money),
