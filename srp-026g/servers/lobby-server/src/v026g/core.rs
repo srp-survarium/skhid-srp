@@ -972,6 +972,7 @@ impl<'a> Core<'a> {
         self.check_matches(now);
         self.log_predictions(now);
         self.collect_away(now);
+        self.expire_watches(now);
         self.clan_matches(now);
         self.room_tick(now);
         // After the rooms: a session read meanwhile whose room can play with

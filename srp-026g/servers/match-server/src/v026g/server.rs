@@ -578,6 +578,11 @@ impl Server {
             Ok(()) => {
                 self.spectator_routes.insert(addr, ticket);
                 self.store.seen_in_match(session_id);
+                // The lobby ends a watch whose game does not come
+                // (`Matchmaking::expire_watches`): this one came.
+                self.store
+                    .matchmaking()
+                    .watcher_connected(session_id, ticket);
             }
             Err(transport) => {
                 let mut transport = *transport;

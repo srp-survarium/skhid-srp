@@ -353,6 +353,12 @@ fn a_queue_spectator_whose_game_connects_again_watches_on() {
     world.advance(Duration::from_secs(1));
     assert_eq!(sent_to_match(&world.take(carol)), Some((ticket, 0)));
     let session = session_of(&world, carol);
+    // Its game is there: the match server took it as a spectator.
+    world
+        .core
+        .store
+        .matchmaking()
+        .watcher_connected(session, ticket);
     let account = world.ids[carol].0;
     // Its link dropped on the game's side: it connects again at once.
     world.game_connects_again(carol, 41_000);
@@ -384,4 +390,26 @@ fn a_queue_spectator_whose_game_connects_again_watches_on() {
     assert!(world.store.has_ended(session));
     assert_eq!(watched(&world, carol), None);
     assert_eq!(world.core.rooms.queue_place(account), None);
+}
+
+/// A Queue and spectate watcher whose game never reaches the match server:
+/// its watch ends after [`session::WATCH_CONNECT_WITHIN`], it stays in its
+/// queue, and it watches again only after [`session::WATCH_COOLDOWN`].
+#[test]
+fn a_queue_spectator_whose_game_never_comes_stays_queued_and_cools_down() {
+    let mut world = World::new();
+    let (key, ticket, _) = full_room_playing(&mut world);
+    let carol = world.connect("Carol");
+    rows(&mut world, carol, ROOM_WATCH_BASE + key, 1);
+    world.advance(Duration::from_secs(1));
+    assert_eq!(sent_to_match(&world.take(carol)), Some((ticket, 0)));
+    let account = world.ids[carol].0;
+    world.advance(session::WATCH_CONNECT_WITHIN);
+    assert_eq!(watched(&world, carol), None);
+    assert_eq!(world.core.rooms.queue_place(account), Some((key, 1)));
+    world.advance(session::WATCH_COOLDOWN - Duration::from_secs(5));
+    assert_eq!(watched(&world, carol), None, "queued, not watching");
+    assert_eq!(world.core.rooms.queue_place(account), Some((key, 1)));
+    world.advance(Duration::from_secs(10));
+    assert_eq!(watched(&world, carol), Some(ticket));
 }

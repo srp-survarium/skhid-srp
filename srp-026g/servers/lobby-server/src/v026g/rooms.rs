@@ -1960,7 +1960,7 @@ impl Core<'_> {
                     delay: self.settings.live.delay,
                 },
             };
-            if matchmaking.watch(session_id, watcher) {
+            if matchmaking.watch(session_id, watcher, now) {
                 log::info!(
                     "{}: watches its queue's room's match {ticket:#x}",
                     self.name_of(account_id).unwrap_or_default()

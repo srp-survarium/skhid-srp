@@ -40,6 +40,7 @@ fn watch_as(bench: &Bench, session: u32, kind: WatchKind) {
             account_id: SPECTATOR_ACCOUNT,
             kind,
         },
+        bench.now(),
     ));
 }
 
@@ -77,6 +78,10 @@ fn a_spectator_gets_the_roster_with_no_place_its_world_and_every_relay() {
     let syncs = [bench.clients[0].model.syncs, bench.clients[1].model.syncs];
     let at = spectate(&mut bench, SPECTATOR);
     assert_eq!(bench.clients[at].model.local_index, None);
+    // Its game came: the lobby's connect deadline does not end its watch.
+    let late = bench.now() + session::WATCH_CONNECT_WITHIN;
+    let expired = bench.server.store().matchmaking().expire_watches(late);
+    assert!(expired.is_empty());
     assert_eq!(
         bench.clients[at]
             .model
@@ -375,6 +380,7 @@ fn a_spectator_of_no_match_here_is_turned_away() {
             account_id: SPECTATOR_ACCOUNT,
             kind: WatchKind::Queued { delay: no_delay() },
         },
+        bench.now(),
     ));
     let at = bench.clients.len();
     bench
@@ -386,6 +392,10 @@ fn a_spectator_of_no_match_here_is_turned_away() {
     bench.clients[at].connect();
     assert!(bench.until(2_000, |b| b.clients[at].disconnected));
     assert!(bench.clients[at].model.options.is_none());
+    // Its game never came to its match: the lobby ends the watch in time.
+    let late = bench.now() + session::WATCH_CONNECT_WITHIN;
+    let expired = bench.server.store().matchmaking().expire_watches(late);
+    assert_eq!(expired.len(), 1);
 }
 
 #[test]
@@ -894,7 +904,8 @@ fn a_spectator_let_go_that_connects_again_is_heard_at_once() {
     assert!(bench.until(1_000, |b| b.clients[at].told_to_leave));
     bench.run(300);
     // Its game watches again, from the same address.
-    assert!(bench.server.store().matchmaking().watch(SPECTATOR, watcher));
+    let now = bench.now();
+    assert!(bench.server.store().matchmaking().watch(SPECTATOR, watcher, now));
     let players = bench.game().roster_size();
     bench.clients[at] = Client::growing(SPECTATOR, players, MAP_BATTERIES);
     bench.clients[at].connect();

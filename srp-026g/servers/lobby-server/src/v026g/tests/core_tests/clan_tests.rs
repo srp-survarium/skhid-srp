@@ -1471,7 +1471,7 @@ fn a_clan_team_with_a_player_watching_is_not_ready() {
             view: None,
         },
     };
-    assert!(world.store.matchmaking().watch(session, live));
+    assert!(world.store.matchmaking().watch(session, live, world.now));
     world.clan_ready(eve, true, true);
     assert_eq!(world.core.clan_teams_waiting(), [bandits]);
     world.advance(Duration::from_secs(1));

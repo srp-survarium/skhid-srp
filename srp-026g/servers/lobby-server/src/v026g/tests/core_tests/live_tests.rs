@@ -65,10 +65,18 @@ pub(super) fn ask_to_watch(world: &mut World, index: usize, match_id: u32) -> St
 /// A Live spectator whose game never reaches the match server gives its
 /// place back when its session goes, its link silent for the session's
 /// wait: not only when the match ends. Until then the same game connecting
-/// again watches on.
+/// again watches on. (Timeouts short enough for the session to end before
+/// [`session::WATCH_CONNECT_WITHIN`], which ends such a watch too.)
 #[test]
 fn a_live_watcher_gives_its_place_back_when_its_link_goes() {
-    let mut world = World::new();
+    let mut settings = Settings::local("127.0.0.1:0");
+    settings.match_link_timeout = settings.link_timeout;
+    settings.session_grace = Duration::from_secs(20);
+    assert!(
+        settings.link_timeout + settings.session_grace + Duration::from_secs(3)
+            < session::WATCH_CONNECT_WITHIN
+    );
+    let mut world = World::with_settings(settings);
     let (ticket, _) = a_match_in_play(&mut world);
     let carol = world.connect("Carol");
     assert!(ask_to_watch(&mut world, carol, ticket).starts_with("R1;watching;"));
@@ -94,6 +102,8 @@ fn a_live_watcher_whose_game_connects_again_watches_on() {
     let carol = world.connect("Carol");
     assert!(ask_to_watch(&mut world, carol, ticket).starts_with("R1;watching;"));
     let session = world.ids[carol].1;
+    // Its game is there: the match server took it as a spectator.
+    world.store.matchmaking().watcher_connected(session, ticket);
     let watched = |world: &World| world.store.matchmaking().watched(session);
     let before = watched(&world);
     assert!(before.is_some());
@@ -292,6 +302,45 @@ fn a_full_match_is_busy_and_one_not_begun_is_not_watched() {
         ask_to_watch(&mut world, erin, ticket),
         format!("R1;busy;{ticket:08x};0")
     );
+}
+
+/// A Live watch whose game never reaches the match server, its lobby link
+/// alive, ends after [`session::WATCH_CONNECT_WITHIN`] and frees its place
+/// for another; one whose game the match server took watches on. Its
+/// account is `busy` for [`session::WATCH_COOLDOWN`], taking no place.
+#[test]
+fn a_live_watch_whose_game_never_comes_frees_its_place() {
+    let mut settings = Settings::local("127.0.0.1:0");
+    settings.live.per_match = 1;
+    let mut world = World::with_settings(settings);
+    let (ticket, _) = a_match_in_play(&mut world);
+    let carol = world.connect("Carol");
+    let dave = world.connect("Dave");
+    assert!(ask_to_watch(&mut world, carol, ticket).starts_with("R1;watching;"));
+    let carols = world.ids[carol].1;
+    world.advance(session::WATCH_CONNECT_WITHIN - Duration::from_secs(2));
+    assert!(world.store.matchmaking().watched(carols).is_some());
+    assert_eq!(
+        ask_to_watch(&mut world, dave, ticket),
+        format!("R1;busy;{ticket:08x};0")
+    );
+    world.advance(Duration::from_secs(3));
+    assert_eq!(world.store.matchmaking().watched(carols), None);
+    // Carol asks again at once: busy, and the place stays free.
+    let busy = format!("R1;busy;{ticket:08x};0");
+    assert_eq!(ask_to_watch(&mut world, carol, ticket), busy);
+    assert_eq!(world.store.matchmaking().watched(carols), None);
+    assert!(ask_to_watch(&mut world, dave, ticket).starts_with("R1;watching;"));
+    // Dave's game comes (the match server says so): its watch goes on.
+    let daves = world.ids[dave].1;
+    world.store.matchmaking().watcher_connected(daves, ticket);
+    world.advance(session::WATCH_CONNECT_WITHIN + Duration::from_secs(1));
+    assert!(world.store.matchmaking().watched(daves).is_some());
+    // Its game leaves; Carol is still cooling down, then watches.
+    world.store.matchmaking().watcher_left(daves, ticket);
+    assert_eq!(ask_to_watch(&mut world, carol, ticket), busy);
+    world.advance(session::WATCH_COOLDOWN);
+    assert!(ask_to_watch(&mut world, carol, ticket).starts_with("R1;watching;"));
 }
 
 /// A room's member who watches a live match meanwhile is called back when its room could play

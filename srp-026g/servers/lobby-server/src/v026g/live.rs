@@ -133,6 +133,23 @@ impl Core<'_> {
             || all >= self.settings.live.most
     }
 
+    /// Every watch, the Live window's and Queue and spectate's, whose game
+    /// did not reach the match server in [`session::WATCH_CONNECT_WITHIN`]
+    /// ends: its spectator's place is free for another. `queue_status` puts
+    /// its game back in the lobby; one in a room's queue keeps its place
+    /// there (`room_watchers` may send it again).
+    pub(super) fn expire_watches(&mut self, now: Instant) {
+        for (session_id, watcher) in self.store.matchmaking().expire_watches(now) {
+            log::info!(
+                "{}: its game did not come to match {:#x} (session {session_id:#x}) in {} s; it \
+                 watches no more",
+                self.name_of(watcher.account_id).unwrap_or_default(),
+                watcher.ticket,
+                session::WATCH_CONNECT_WITHIN.as_secs()
+            );
+        }
+    }
+
     /// Whether the match (the lobby's id), in `phase`, takes a Live window
     /// spectator. One that is over takes none: its end waits for its
     /// spectators, and its recording is not readable before that.
@@ -307,7 +324,7 @@ impl Core<'_> {
                         view,
                     },
                 };
-                if self.store.matchmaking().watch(who.session_id, watcher) {
+                if self.store.matchmaking().watch(who.session_id, watcher, now) {
                     log::info!(
                         "{} watches match {match_id:#x} from the Live window, {} s behind",
                         who.name,
