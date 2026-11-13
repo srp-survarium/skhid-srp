@@ -1369,19 +1369,26 @@ impl ReplayWatch {
             .iter()
             .find(|(_, playback)| playback.request == request)
             .map(|(addr, _)| *addr);
-        // Its length counts from its first connection, and its starts from a
-        // world go on from its last (each packs one).
-        let (prepared, created, starts) = match again.and_then(|old| self.playbacks.remove(&old)) {
-            Some(old) => (
-                Prepared {
-                    request,
-                    recording: old.recording,
-                },
-                old.created,
-                old.spectator.into_starts(),
-            ),
+        // Its length counts from its first connection, its starts from a
+        // world go on from its last (each packs one), and it plays on from
+        // where the last connection was.
+        let (prepared, created, starts, start) = match again
+            .and_then(|old| self.playbacks.remove(&old))
+        {
+            Some(old) => {
+                let at = old.position(now);
+                (
+                    Prepared {
+                        request,
+                        recording: old.recording,
+                    },
+                    old.created,
+                    old.spectator.into_starts(),
+                    at,
+                )
+            }
             None => match self.ready.remove(&session_id) {
-                Some(prepared) => (prepared, now, Starts::default()),
+                Some(prepared) => (prepared, now, Starts::default(), start),
                 None => {
                     // Read by a match server before a restart.
                     self.replays.watches().ended(&request);
