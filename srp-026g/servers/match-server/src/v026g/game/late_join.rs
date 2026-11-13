@@ -225,11 +225,7 @@ impl Game {
         if self.mode_end_at.is_some() || self.ending.is_some() || self.finished_at.is_some() {
             return Some(Closed::Ending);
         }
-        // A free-for-all's most players are fewer (`maps::player_cap`).
-        let most = survarium::v026g::maps::player_cap(self.formed.played.map())
-            .unwrap_or(MAX_PLAYERS)
-            .min(MAX_PLAYERS);
-        if self.players() >= most {
+        if self.players() >= MAX_PLAYERS {
             return Some(Closed::Full);
         }
         // One pending reservation at a time; a newcomer that failed by

@@ -528,8 +528,7 @@ impl Core<'_> {
     /// rule a late joiner is put into it by ([`policy::place_joiner`]):
     /// sides of at most `capacity` each (the caller's, a room's size), and
     /// no more places than the match has left (places are never used
-    /// twice; a free-for-all has its map's most players,
-    /// `maps::player_cap`). A side's size counts its players in the match and the
+    /// twice). A side's size counts its players in the match and the
     /// places kept for players not in it now (`Matchmaking::held_places`:
     /// a game that broke comes back to its place with Play), or one would
     /// come back to a side a late joiner had filled, past its size.
@@ -540,12 +539,9 @@ impl Core<'_> {
         live: Option<&LiveView>,
         capacity: usize,
     ) -> ([Worth; 2], LateRule) {
-        let places = maps::player_cap(running.map.map())
-            .unwrap_or(MAX_PLAYERS_PER_MATCH)
-            .min(MAX_PLAYERS_PER_MATCH);
         let rule = LateRule {
             capacity: capacity.min(MAX_PLAYERS_PER_MATCH / 2),
-            room: places.saturating_sub(running.seats.len()),
+            room: MAX_PLAYERS_PER_MATCH.saturating_sub(running.seats.len()),
             player_value: self.settings.balance.player_value(),
             lead: self.lead_now(running, live),
             kept: self.kept_places(match_id, running, live),
@@ -1105,20 +1101,9 @@ impl Core<'_> {
         // 2N - 1 of them; a room's with bots, as many on each team as it
         // says; none in any other match.
         let seat_teams: Vec<u8> = formed.seats.iter().map(|seat| seat.team).collect();
-        // A free-for-all takes no more than its most players, the bots among
-        // them (`maps::player_cap`).
-        let most = pvb
-            .map(|choice| choice.map_id)
-            .or(room.map(|room| room.map_id))
-            .and_then(maps::map_mode)
-            .and_then(maps::player_cap)
-            .unwrap_or(session::MAX_PLAYERS_PER_MATCH)
-            .min(session::MAX_PLAYERS_PER_MATCH);
         let bot_teams: Vec<u8> = match (pvb, room) {
             (Some(choice), _) => {
-                let bots = (2 * usize::from(choice.size))
-                    .min(most)
-                    .saturating_sub(formed.seats.len());
+                let bots = (2 * usize::from(choice.size)).saturating_sub(formed.seats.len());
                 server_bot_teams(&seat_teams, [sides[0].0, sides[1].0], bots)
             }
             (
@@ -1129,7 +1114,7 @@ impl Core<'_> {
                 }),
             ) => std::iter::repeat_n(0, first)
                 .chain(std::iter::repeat_n(1, second))
-                .take(most.saturating_sub(seat_teams.len()))
+                .take(session::MAX_PLAYERS_PER_MATCH.saturating_sub(seat_teams.len()))
                 .collect(),
             (None, _) => Vec::new(),
         };

@@ -426,9 +426,6 @@ impl MatchRegistry {
         if map.mode.rules() == maps::RuleMode::Research && setup.players.iter().any(|player| player.driven) {
             return Err(CreateError::Map(map.id));
         }
-        if maps::player_cap(map).is_some_and(|cap| setup.players.len() > cap) {
-            return Err(CreateError::Roster(setup.players.len()));
-        }
         let mut setup = setup;
         for (place, player) in setup.players.iter_mut().enumerate() {
             own_side(map, place, &mut player.profile);
@@ -604,10 +601,7 @@ impl MatchRegistry {
         if !formed.growing_roster {
             return Err(JoinError::Unavailable);
         }
-        let cap = maps::player_cap(formed.played.map())
-            .unwrap_or(MAX_PLAYERS)
-            .min(MAX_PLAYERS);
-        if players.len() > cap.saturating_sub(formed.places.len()) {
+        if players.len() > MAX_PLAYERS.saturating_sub(formed.places.len()) {
             return Err(JoinError::Full);
         }
         let Some(admitting) = inner

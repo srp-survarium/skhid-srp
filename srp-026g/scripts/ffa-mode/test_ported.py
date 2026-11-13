@@ -84,7 +84,7 @@ class PortedMaps(unittest.TestCase):
                 self.assertEqual(mode['mode'], 8)
                 self.assertEqual(mode['rules'], [93, 91, 94])
                 self.assertEqual(mode['parameters']['kills_to_win'], 30)
-                self.assertEqual(mode['match_making_params']['max_players'], 10)
+                self.assertNotIn('max_players', mode['match_making_params'])
                 path = f'projects/{name}/day_8/client_project'
                 old = m.base.tree((live/path).read_bytes())['server_objects']['respawn_points']
                 blob = (out/path).read_bytes()
