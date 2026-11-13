@@ -424,9 +424,9 @@ pub enum FixFloor {
     /// bench could not reach the case (47 such fixes in 256 matches: the stand-in's bodies stay on the grid's floors) and showed no
     /// cost (score +0.3 %, z +0.6, no guard flagged; #944).
     UnderInJump,
-    /// [`Self::UnderInJump`], and a body the world has in the air out of its own jump (no floor under its footprint within a step
+    /// [`Self::UnderInJump`], and a body the world has in the air out of its own jump (no floor under its hold points within a step
     /// under its feet) is put on the floor under its feet (`body::column_floor`: the highest floor under
-    /// the capsule's footprint at most [`FIX_ABOVE_M`] over the feet), not the nearest. The nearest is then often the ledge it
+    /// the points where a top holds the capsule, at most [`FIX_ABOVE_M`] over the feet), not the nearest. The nearest is then often the ledge it
     /// walked off or was pushed from, to the side and over the floor it falls to: nav-team's measure (tip 8d9d1f606, the live
     /// 1 s worlds of the owner-14 tables), 285 worlds of 1 m+ drift after a world with the client airborne, 91 with that
     /// nearest floor aside and 0.8 m+ over the floor under the body, 16 with the reckoning held at that floor's height

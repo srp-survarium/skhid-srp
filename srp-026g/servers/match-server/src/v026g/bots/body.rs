@@ -1906,11 +1906,22 @@ fn floor_under(grid: &WalkGrid, node: NodeId, point: Vec3, max_rise: f32) -> Opt
         .find(|&next| holds(next) && grid.position(next).y - base <= max_rise)
 }
 
-/// [`FixFloor::UnderInAir`] The floor under a body's feet: the highest floor whose cell overlaps the capsule's footprint (the
-/// square of its radius, half of `stand_capsule_width`, PROVEN) at most [`FIX_ABOVE_M`] over the feet, however far under them.
+/// [`FixFloor::UnderInAir`] The floor under a body's feet: the highest floor at most [`FIX_ABOVE_M`] over the feet, however far
+/// under them, in the cells of the points where a top holds the capsule: its centre and rings at `Body::hold_radius` (its round
+/// bottom meets an edge at a normal within the walkable slope, `r sin(acos(cc_max_slope_angle_cos))`, 0.311 m with the clients'
+/// numbers) and half of it, the points the grid's own walk-off reads (`grid/gap.rs` `hold_points`). A top farther out does not
+/// hold the falling body, which falls past it (nav-team on #1759: with the whole 0.38 m square, 4 of 34 side ledges under 0.4 m
+/// off were fixed).
 fn column_floor(grid: &WalkGrid, feet: Vec3) -> Option<NodeId> {
-    let r = grid.body().radius;
-    grid.floors_in([feet.x - r, feet.z - r, feet.x + r, feet.z + r])
+    let r = grid.body().hold_radius();
+    let ring = (0..16).map(|i| {
+        let t = (i % 8) as f32 * std::f32::consts::FRAC_PI_4;
+        let r = if i < 8 { r } else { 0.5 * r };
+        (feet.x + r * t.cos(), feet.z + r * t.sin())
+    });
+    std::iter::once((feet.x, feet.z))
+        .chain(ring)
+        .flat_map(|(x, z)| grid.floors_in([x, z, x, z]))
         .filter(|&node| grid.position(node).y <= feet.y + FIX_ABOVE_M)
         .max_by(|&a, &b| grid.position(a).y.total_cmp(&grid.position(b).y))
 }
@@ -3128,7 +3139,7 @@ pub(super) mod tests {
         let aside = Vec3::new(9.4, 1.0, 5.0);
         assert!(floor_of(FixFloor::UnderInJump, aside, None) > 1.2, "the old rule: the nearest, the top aside");
         assert!(floor_of(FixFloor::UnderInAir, aside, None) < 0.1, "in the air: the floor under its feet");
-        // Going down 0.5 m over its floor at the face, the top's cells under its footprint but over its feet.
+        // Going down 0.5 m over its floor at the face, the top's cells under its hold points but over its feet.
         assert!(floor_of(FixFloor::UnderInAir, Vec3::new(9.8, 0.5, 5.0), Some(3.0)) < 0.1);
         // On the top at its edge, not going down: the top.
         assert!(floor_of(FixFloor::UnderInAir, Vec3::new(10.1, 1.3, 5.0), Some(0.0)) > 1.2);
