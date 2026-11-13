@@ -286,7 +286,7 @@ fn the_recent_tab_lists_public_matches_all_or_the_friends() {
     // Bob's 12 public matches, newest first; the private one and the one
     // against bots never.
     assert_eq!(rows.len(), 13);
-    assert_eq!(rows[0], "M0;12");
+    assert_eq!(rows[0], "M0;12;0");
     let now = session::v026g::quests::now();
     let minutes = |n: u64| (now - (86_400 + n * 3_600)) / 60;
     assert_eq!(
@@ -307,7 +307,7 @@ fn the_recent_tab_lists_public_matches_all_or_the_friends() {
     assert!(recent(&mut world, alice, 0, 1)[1].starts_with("M1;0000010e;3;2;-;-;1;600;"));
 
     // Friends only: none until Bob is Alice's friend.
-    assert_eq!(recent(&mut world, alice, 1, 20), ["M0;0"]);
+    assert_eq!(recent(&mut world, alice, 1, 20), ["M0;0;1"]);
     let alice_id = world.ids[alice].0;
     world
         .store
@@ -318,7 +318,7 @@ fn the_recent_tab_lists_public_matches_all_or_the_friends() {
         .push(BOB);
     let _ = world.accounts.sign_up(BOB, "Bob");
     let friends = recent(&mut world, alice, 1, 20);
-    assert_eq!(friends[0], "M0;13");
+    assert_eq!(friends[0], "M0;13;1");
     assert!(friends[1].starts_with("M1;0000010e;"));
     // After the M1 rows, Bob in each (of the history: no roster place),
     // in the matches' order.

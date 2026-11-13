@@ -31,7 +31,7 @@ package
 
       // Recent: each replay state once (0 not recorded .. 4 old version), the friend Petro in the
       // second (a recorded match: no place); a broken row
-      public static const RECENT:Array = ["M0;5",
+      public static const RECENT:Array = ["M0;5;0",
          "M1;00000011;117;4;100;87;20;720;12;1",
          "M1;69f8c4bc;61;5;3;1;16;1080;25;1",
          "M1;00000013;99;2;12;9;15;840;70;0",
@@ -40,8 +40,8 @@ package
          "M1;broken",
          "F1;69f8c4bc;255;1;Petro"];
 
-      // Recent with a friend: the friend's match only.
-      public static const FRIENDS:Array = ["M0;1",
+      // Recent with a friend: the friend's match only (its head names Friends: `;1`).
+      public static const FRIENDS:Array = ["M0;1;1",
          "M1;69f8c4bc;61;5;3;1;16;1080;25;1",
          "F1;69f8c4bc;255;1;Petro"];
 

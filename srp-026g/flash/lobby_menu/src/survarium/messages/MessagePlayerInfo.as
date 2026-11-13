@@ -25,7 +25,9 @@ package survarium.messages
       
       public var textFieldNickname:TextField;
 
-      // srp's Matches: the button left of Close, the player's matches in the Watch window (Replays)
+      // srp's Matches: the button left of Close, the player's matches in the Watch window (Replays);
+      // none over the results screen: opening Watch changes the top menu's tab, which closes the
+      // results (LobbyMenu.closeVS) and a drop card or reward still to take on them
       protected var _matchesButton:Button;
       
       public function MessagePlayerInfo()
@@ -50,6 +52,10 @@ package survarium.messages
          this.textFieldLabel.text = LocalizationData.getName("player_info_label");
          this.btnAccept.addEventListener(ButtonEvent.CLICK,onMessageAccept,false,0,true);
          this.textFieldNickname.text = _data.nickname;
+         if(LobbyMenu.id != null && LobbyMenu.id.resultsUp)
+         {
+            return;
+         }
          this._matchesButton = new (Object(this.btnAccept).constructor as Class)() as Button;
          this._matchesButton.name = "srpPlayerMatches";
          this._matchesButton.label = LocalizationData.getName("st_srp_player_matches");

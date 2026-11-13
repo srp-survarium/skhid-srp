@@ -7,7 +7,8 @@ package survarium.watch
    // - Live: `L0;<n>[;<delay s>]`, then n `L1` rows, then `F1` rows;
    //   `L1;<match 8 hex>;<map id>;<mode>;<phase>;<players a>;<players b>;<score a|->;<score b|->;<played s>;<spectators>;<watch>`
    //   (phase 0 made, 1 countdown, 2 in play, 3 over; watch 1 may, 0 full, 2 not watchable live).
-   // - Recent: `M0;<n>`, then n `M1` rows, then `F1` rows;
+   // - Recent: `M0;<n>;<f>` (f the list it answers: 0 everyone's, 1 friends'), then n `M1` rows,
+   //   then `F1` rows;
    //   `M1;<match 8 hex>;<map id>;<mode>;<score a|->;<score b|->;<players>;<length s>;<minutes since its end>;<replay>`.
    // - A player's matches: `P1;<n>;<nickname>`, then n of
    //   `P2;<match 8 hex>;<place>;<map id>;<mode>;<result 0 defeat|1 victory|2 draw>;<kills>;<deaths>;<minutes since its end>;<replay>`.

@@ -6,7 +6,6 @@ package survarium.friends
    import flash.events.FocusEvent;
    import flash.events.KeyboardEvent;
    import flash.events.MouseEvent;
-   import flash.external.ExternalInterface;
    import flash.text.TextField;
    import flash.text.TextFormat;
    import flash.ui.Keyboard;
@@ -642,7 +641,8 @@ package survarium.friends
             return;
          }
          dispatchEvent(new Event(Event.CONNECT,true));
-         ExternalInterface.call("find_players",searchText);
+         // its answer, told apart from the Watch window's by the order asked
+         LobbyMenu.findPlayers(searchText,this.fillFoundPlayers);
          this.loadingIndicator.gotoAndPlay(1);
          this.showSearch(false);
       }

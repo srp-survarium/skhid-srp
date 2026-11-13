@@ -215,6 +215,13 @@ package
          return lobby.W;
       }
 
+      // fill_players_search's players, to the search by name they answer (LobbyMenu.playersFound):
+      // true when one waited for them.
+      private function found(players:Array) : Boolean
+      {
+         return domain.getDefinition("LobbyMenu").playersFound(players);
+      }
+
       private function cards() : Array
       {
          var list:Array = [];
@@ -387,6 +394,15 @@ package
          // plus when the list is at its most; under the tab what they mean, while the arrow is on it
          // (the movie's own root, which fails outside the game, makes a top menu of its own)
          W.topMenu = top;
+         // the eye, each frame as bright as the tab makes its icon now (hover, chosen, disabled)
+         var art:* = watch.icon;
+         art.alpha = 0.37;
+         win.dispatchEvent(new Event(Event.ENTER_FRAME));
+         var eye:DisplayObject = find(top,"srpWatchEye");
+         expect(language + ": the Watch tab's eye does not follow its art: " + (eye ? eye.alpha : null),eye != null && eye.visible
+            && Math.abs(eye.alpha - art.alpha) < 0.01 && !art.visible);
+         art.alpha = 1;
+         win.dispatchEvent(new Event(Event.ENTER_FRAME));
          lobby.take(WatchFake.LIVE);
          var badge:DisplayObjectContainer = find(top,"srpWatchBadge") as DisplayObjectContainer;
          var badgeText:TextField = badge != null ? badge.getChildAt(0) as TextField : null;
@@ -478,7 +494,7 @@ package
          expect(language + ": Replays is not on Mine",shownTab() == "replays" && shownChip() == "mine");
          toolbar(language,[["mine","st_srp_watch_chip_mine"],["friends","st_srp_watch_chip_friends"],["everyone","st_srp_watch_chip_everyone"]]);
          // a ranking page whose first player is named as a header is the ranking's
-         for each(var named:String in ["L0;5","M0;5","P1;5;x","R1;watching;" + hex(MATCH) + ";0","R2;ready;" + hex(MATCH) + ";1"])
+         for each(var named:String in ["L0;5","M0;5;0","P1;5;x","R1;watching;" + hex(MATCH) + ";0","R2;ready;" + hex(MATCH) + ";1"])
          {
             expect(language + ": a ranking row named " + named + " taken",!lobby.take([named,"Bob"],5));
          }
@@ -513,7 +529,14 @@ package
          list = cards();
          expect(language + ": Friends is not the friend's match",shownChip() == "friends" && list.length == 1
             && String(textOf(list[0],"srpWatchFriends")).indexOf("Petro") >= 0);
-         lobby.take(["M0;0"]);
+         // an answer is filed by the list its head names: Everyone's refresh, in flight when Friends
+         // was chosen, is not Friends'; a head naming no list, or another, is nobody's
+         for each(var other:String in ["M0;0;0","M0;0","M0;0;2","M0;0;1;0"])
+         {
+            lobby.take([other]);
+            expect(language + ": Friends took " + other,cards().length == 1);
+         }
+         lobby.take(["M0;0;1"]);
          expect(language + ": an empty Friends says '" + textOf(win,"srpWatchEmpty") + "'",textOf(win,"srpWatchEmpty") == words.getName("st_srp_watch_none_friends"));
          press(win,"srpWatchChip_everyone");
          lobby.take(WatchFake.RECENT);
@@ -577,7 +600,7 @@ package
          Info.nickname = "PocketTest1";
          typeIn("ada");
          expect(language + ": a name did not search",shownTab() == "replays" && shownChip() == "player" && textOf(win,"srpWatchEmpty") == "…");
-         expect(language + ": the search took find_players' answer",W.found([{"id":6,"name":"Adam_K"},{"id":5,"name":"Ada"}]));
+         expect(language + ": the search took find_players' answer",found([{"id":6,"name":"Adam_K"},{"id":5,"name":"Ada"}]));
          expect(language + ": the search box does not say Ada",(find(win,"srpWatchSearch") as TextField).text == "Ada");
          lobby.take(WatchFake.played("Bob"));
          expect(language + ": another player's rows shown",cards().length == 0);
@@ -595,7 +618,28 @@ package
             click(list[1],"srpWatchWatch");
             expect(language + ": Ada's Watch asked " + asked(),asked()[0] == OTHER && asked()[1] == 0xC0020000);
          }
-         expect(language + ": a players' answer nobody asked for taken",!W.found([]));
+         expect(language + ": a players' answer nobody asked for taken",!found([]));
+         // a friends' search asked while Watch's waits, and the other way round: each answer goes
+         // to its own ask, in the order asked
+         var Menu:* = domain.getDefinition("LobbyMenu");
+         var friendsGot:Array = null;
+         var friendsAsk:Function = function(players:Array):void
+         {
+            friendsGot = players;
+         };
+         typeIn("ada");
+         Menu.findPlayers("bob",friendsAsk);
+         found([{"id":5,"name":"Ada"}]);
+         found([{"id":7,"name":"Bob"}]);
+         expect(language + ": Watch's search, then a friends' search: not each its own answer",(find(win,"srpWatchSearch") as TextField).text == "Ada"
+            && friendsGot != null && friendsGot.length == 1 && friendsGot[0].name == "Bob");
+         friendsGot = null;
+         Menu.findPlayers("bob",friendsAsk);
+         typeIn("adm");
+         found([{"id":7,"name":"Bob"}]);
+         found([{"id":6,"name":"Adam_K"}]);
+         expect(language + ": a friends' search, then Watch's: not each its own answer",(find(win,"srpWatchSearch") as TextField).text == "Adam_K"
+            && friendsGot != null && friendsGot.length == 1 && friendsGot[0].name == "Bob");
          // the asker's own match of a private room or against bots: a field more, which a card says
          var Rows:* = domain.getDefinition("survarium.watch.WatchRows");
          var privateRow:Object = Rows.played("P2;00000031;1;61;5;1;9;2;180;1;1");
@@ -609,19 +653,19 @@ package
             && words.getName("st_srp_watch_private") != "st_srp_watch_private");
          // a name typed loosely: the first found (srp's best match), none the name itself
          typeIn("adm");
-         W.found([{"id":6,"name":"Adam_K"},{"id":5,"name":"Ada"}]);
+         found([{"id":6,"name":"Adam_K"},{"id":5,"name":"Ada"}]);
          expect(language + ": a loose name did not take the first found: " + (find(win,"srpWatchSearch") as TextField).text,
             (find(win,"srpWatchSearch") as TextField).text == "Adam_K" && shownChip() == "player");
          // two letters and several found: nobody's
          typeIn("ad");
-         W.found([{"id":6,"name":"Adam_K"},{"id":5,"name":"Ada"}]);
+         found([{"id":6,"name":"Adam_K"},{"id":5,"name":"Ada"}]);
          expect(language + ": two letters took one of several players",textOf(win,"srpWatchEmpty") == words.getName("st_srp_watch_no_player").split("%1$s").join("ad"));
          typeIn("ad");
-         W.found([{"id":6,"name":"Adam_K"}]);
+         found([{"id":6,"name":"Adam_K"}]);
          expect(language + ": two letters did not take the one player found",(find(win,"srpWatchSearch") as TextField).text == "Adam_K");
          // a name nobody has
          typeIn("Nobody_Here");
-         W.found([]);
+         found([]);
          expect(language + ": a name not found says '" + textOf(win,"srpWatchEmpty") + "'",textOf(win,"srpWatchEmpty") == words.getName("st_srp_watch_no_player").split("%1$s").join("Nobody_Here"));
          // the asker's own name: Mine
          typeIn("pockettest1");
@@ -631,7 +675,7 @@ package
          W.openPlayer("Ada");
          expect(language + ": the pop-up's Matches did not search Ada",win.visible && shownTab() == "replays" && shownChip() == "player"
             && (find(win,"srpWatchSearch") as TextField).text == "Ada");
-         W.found([{"id":5,"name":"Ada"}]);
+         found([{"id":5,"name":"Ada"}]);
          lobby.take(WatchFake.played("Ada"));
          expect(language + ": the pop-up's search lists no matches",cards().length == 4);
          press(win,"srpWatchChip_mine");
@@ -724,8 +768,9 @@ package
          watch.dispatchEvent(new Click(Click.CLICK));
          expect(language + ": the click under a refresh did not ask: " + asked(),asked()[0] == OTHER && asked()[1] == 0xC0FF0000);
          idle();
-         // the friend's match is card 1 of RECENT, and alone in FRIENDS: the same object, moved up
-         lobby.take(WatchFake.FRIENDS);
+         // the friend's match is card 1 of RECENT, and alone in Everyone's next answer: the same
+         // object, moved up
+         lobby.take(["M0;1;0"].concat(WatchFake.FRIENDS.slice(1)));
          var after:Array = cards();
          expect(language + ": the kept match is not the same card " + after.length,after.length == 1 && after[0] === before[1] && after[0].y == 0 && find(after[0],"srpWatchWatch") === watch);
          expect(language + ": a match no longer listed kept its card",before[0].parent == null && before[2].parent == null);
@@ -956,6 +1001,11 @@ package
          saveAnswer("gone",OTHER);
          var said:Array = told();
          expect(language + ": a refusal told " + said,said.length == 1 && said[0] == words.getName("st_srp_replay_gone") && saveState(cards()[1]) == null);
+         // `gone` says the replay is not kept: the card says so, no Save or Watch to press again
+         expect(language + ": a save's gone left the card's Save or Watch",find(cards()[1],"srpWatchSave") == null && find(cards()[1],"srpWatchWatch") == null
+            && textOf(cards()[1],"srpWatchReason") == words.getName("st_srp_watch_reason_gone"));
+         // a list saying it is kept again
+         lobby.take(WatchFake.played("PocketTest1"));
          click(cards()[1],"srpWatchSave");
          for(var p:int = 0; p <= 30; p++)
             second();
@@ -1096,6 +1146,13 @@ package
          expect(language + ": the results' row is not centred while saving",Math.abs((button.x + close.x + close.width) / 2 - middle) <= 1);
          saveAnswer("busy",OTHER);
          expect(language + ": Save replay not back after busy",save.label == words.getName("st_srp_replay_save") && told()[0] == words.getName("st_srp_replay_busy"));
+         // a save's refusal that says the replay is not kept: Watch replay and Save go at once (each
+         // press would count against the server's lookups)
+         save.dispatchEvent(new Click(Click.CLICK));
+         saveAnswer("gone",OTHER);
+         told();
+         expect(language + ": Watch or Save replay still offered after a save's gone",!button.visible && !save.visible);
+         Prompt.noteReplay(hex(OTHER),null);
          show(screen,MATCH);
          expect(language + ": a Watch my deaths",find(screen,"srpWatchDeaths") == null);
          expect(language + ": the results' number is '" + (number ? number.text : null) + "'",number != null && number.visible && number.text == "#1ce45cbe"
@@ -1111,6 +1168,7 @@ package
          button.dispatchEvent(new Click(Click.CLICK));
          expect(language + ": Watch replay did not ask",asked()[0] == MATCH && asked()[1] == 0xC0FF0000);
          lobby.answer("gone",MATCH);
+         expect(language + ": Watch or Save replay still offered after a watch's gone",!button.visible && !save.visible);
          show(screen,MATCH);
          var why:TextField = find(screen,"srpWatchReason") as TextField;
          expect(language + ": a replay not kept shows '" + (why && why.visible ? why.text : null) + "' and Watch or Save replay",!button.visible && !save.visible && why != null && why.visible

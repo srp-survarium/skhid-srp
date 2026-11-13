@@ -109,7 +109,7 @@ package
                else if(view == "search")
                {
                   W.openPlayer("ada");
-                  W.found([{"id":5,"name":"Ada"},{"id":6,"name":"Adam_K"}]);
+                  domain.getDefinition("LobbyMenu").playersFound([{"id":5,"name":"Ada"},{"id":6,"name":"Adam_K"}]);
                   lobby.take(WatchFake.played("Ada"));
                }
             }

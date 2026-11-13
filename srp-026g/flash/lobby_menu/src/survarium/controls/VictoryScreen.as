@@ -330,11 +330,12 @@ package survarium.controls
          {
             ReplayAsks.save(_match_id);
          });
-         // its label anew at each change of the save, while it shows: prepare hides it until the
-         // screen's data come (the row then would be the last match's)
+         // the row anew at each change of the save or of what is known of the replay (a refusal
+         // drops Watch replay and Save), once the screen's data came: prepare hides the match's
+         // number until then (the row then would be the last match's)
          ReplayAsks.listen(function():void
          {
-            if(parent != null && button.visible)
+            if(parent != null && _matchNumber != null && _matchNumber.visible)
             {
                placeReplayButtons();
             }

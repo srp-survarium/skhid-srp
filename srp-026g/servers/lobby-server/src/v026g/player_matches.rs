@@ -118,7 +118,7 @@ impl Core<'_> {
             .map(|summary| recent_row(summary, unix, self.replay_state(who, summary, now)))
             .collect();
         let friend_rows = self.friends_in(who, &matches, &friends);
-        self.send_made(who.addr, recent_matches(&rows, &friend_rows));
+        self.send_made(who.addr, recent_matches(filter, &rows, &friend_rows));
     }
 
     /// The `F1` rows of `friends` in `matches`, in the matches' order.

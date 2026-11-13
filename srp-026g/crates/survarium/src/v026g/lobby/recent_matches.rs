@@ -9,7 +9,8 @@
 //!   are never listed.
 //! - The answer, one `91`. Row `i` is at place `RECENT_MATCHES_START + i`,
 //!   rating and change 0, and its name is ASCII fields with `;` between them:
-//!   - row 0: `M0;<n>`;
+//!   - row 0: `M0;<n>;<f>`, `f` the ask's (the movie files the answer by it:
+//!     a refresh of one list may come after the other is chosen);
 //!   - then `n` rows, newest first:
 //!     `M1;<match 8 hex>;<map id>;<mode>;<score a|->;<score b|->;<players>;<length s>;<minutes since end>;<replay>`.
 //!     `mode` is the mode's lobby number. The scores are the teams' points,
@@ -40,10 +41,18 @@ pub enum RecentFilter {
 impl RecentFilter {
     /// The ask at ranking start `start`, if it is one.
     pub fn of_start(start: u32) -> Option<Self> {
-        match start.checked_sub(RECENT_MATCHES_START)? {
-            0 => Some(Self::All),
-            1 => Some(Self::Friends),
-            _ => None,
+        let offset = start.checked_sub(RECENT_MATCHES_START)?;
+        [Self::All, Self::Friends]
+            .into_iter()
+            .find(|filter| filter.offset() == offset)
+    }
+
+    /// Its offset from [`RECENT_MATCHES_START`]: the ask's `f`, which the
+    /// answer repeats.
+    pub fn offset(self) -> u32 {
+        match self {
+            Self::All => 0,
+            Self::Friends => 1,
         }
     }
 }
@@ -69,13 +78,14 @@ pub struct RecentMatchRow {
 /// `91` with recent matches, at most [`RECENT_MATCHES_ROWS`], then the
 /// `friends` rows ([`super::push::friend_row`]) that fit in the one `91`
 /// (255 rows): a big friends' group in many matches loses its last rows,
-/// never the answer.
+/// never the answer. The answer names `filter`, the list it is.
 pub fn recent_matches(
+    filter: RecentFilter,
     matches: &[RecentMatchRow],
     friends: &[String],
 ) -> Result<ServerMessage, WireError> {
     let matches = &matches[..matches.len().min(RECENT_MATCHES_ROWS)];
-    let mut names = vec![format!("M0;{}", matches.len())];
+    let mut names = vec![format!("M0;{};{}", matches.len(), filter.offset())];
     names.extend(matches.iter().map(|row| {
         let (a, b) = row.score.map_or_else(
             || ("-".to_owned(), "-".to_owned()),
@@ -129,7 +139,7 @@ mod tests {
         };
         let longest = "M1;ffffffff;255;255;65535;65535;255;4294968;4294967295;4";
         assert!(longest.len() <= limits::NAME);
-        let message = recent_matches(&[row; 22], &[]).unwrap();
+        let message = recent_matches(RecentFilter::All, &[row; 22], &[]).unwrap();
         assert_eq!(message.body()[0], 1 + RECENT_MATCHES_ROWS as u8);
         assert_eq!(
             RecentFilter::of_start(RECENT_MATCHES_START + 1),
@@ -153,7 +163,28 @@ mod tests {
             replay: ReplayState::Kept,
         };
         let friends = vec!["F1;00000001;255;0;Friend".to_owned(); RECENT_MATCHES_ROWS * 13];
-        let message = recent_matches(&[row; RECENT_MATCHES_ROWS], &friends).unwrap();
+        let message =
+            recent_matches(RecentFilter::Friends, &[row; RECENT_MATCHES_ROWS], &friends).unwrap();
         assert_eq!(message.body()[0], u8::MAX);
+    }
+
+    /// The head names the list the answer is: an answer to an ask made
+    /// before the player chose the other list is filed as what it is.
+    #[test]
+    fn the_head_names_the_list() {
+        let has = |message: &ServerMessage, text: &str| {
+            message
+                .body()
+                .windows(text.len())
+                .any(|bytes| bytes == text.as_bytes())
+        };
+        for filter in [RecentFilter::All, RecentFilter::Friends] {
+            let message = recent_matches(filter, &[], &[]).unwrap();
+            assert!(has(&message, &format!("M0;0;{}", filter.offset())));
+            assert_eq!(
+                RecentFilter::of_start(RECENT_MATCHES_START + filter.offset()),
+                Some(filter)
+            );
+        }
     }
 }

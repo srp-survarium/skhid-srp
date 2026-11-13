@@ -37,7 +37,7 @@ Watch button wherever a match is mentioned.
   Everyone (the default) or Friends (the matches with a friend in them); Replays Mine (the default:
   the asker's own `P1` rows, its private rooms' matches and those against bots among them, marked: no other list has those), Friends (`M1` with `f` 1) or Everyone (`M1`). A search box: a match's code
   (8 hex digits, `#` optional) watches it; anything else is a player's name: the game's own player
-  search (`find_players`, answered in `LobbyMenu.fill_players_search`, taken by `WatchWindow.found`)
+  search (`find_players`, answered in `LobbyMenu.fill_players_search`, handed by `LobbyMenu.playersFound` to the oldest waiting search, the Watch window's among them)
   finds the account: srp answers the players whose name the text matches loosely, the best first
   (`session::name_search`, the item search's rules: a part of the name, its letters in order, a typo
   or two), and the window takes the name itself (any case), else the first found when three letters
@@ -75,7 +75,7 @@ Watch button wherever a match is mentioned.
     `L1;<match 8 hex>;<map id>;<mode>;<phase>;<players a>;<players b>;<score a|->;<score b|->;<played s>;<spectators>;<watch 1 may|0 full|2 not public>`,
     then the asker's friends in them, `F1;<match 8 hex>;<place>;<team 0|1>;<name>` (their matches first);
   - Recent, `3B 00 <2 250 000 000 + f> <20>` (`f` 0 all, 1 with a friend of the asker; no bot-only
-    matches), asked on showing and every 30 s: `M0;<n>`, then n of
+    matches), asked on showing and every 30 s: `M0;<n>;<f>` (`f` the list it answers), then n of
     `M1;<match 8 hex>;<map id>;<mode>;<score a|->;<score b|->;<players>;<length s>;<minutes since its end>;<replay>`,
     then `F1` rows as Live's (place 255: a recorded match keeps none);
   - a player's matches, `3B 00 <2 230 000 000> <10>` about the player of the asker's last `93` or

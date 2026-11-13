@@ -220,6 +220,14 @@ package
       private static var _playerInfoNext:Array;
 
       private static var _playerInfoWait:Timer;
+
+      // The searches by name asked (findPlayers), oldest first ({answered, at}): the lobby server
+      // answers each, in order, and the answer (fill_players_search) says nothing of its ask, so it
+      // is the oldest's. One unanswered for PLAYER_SEARCH_WAIT_MS lost its answer (the lobby's
+      // connection made anew) and is dropped.
+      private static var _playerSearches:Array = [];
+
+      private static const PLAYER_SEARCH_WAIT_MS:int = 15000;
       
       public var item_control:SrvSelectedItemControl;
       
@@ -364,8 +372,6 @@ package
       private var craftWindow:MessageCraftItem;
       
       protected var _invitesTemp:uint = 0;
-      
-      protected var _playerRequestTarget:MovieClip;
       
       protected var lastClick:Number = 0;
       
@@ -563,6 +569,12 @@ package
       public static function getInstance() : LobbyMenu
       {
          return id;
+      }
+
+      // The results screen is up (after a match, modal till it closes).
+      public function get resultsUp() : Boolean
+      {
+         return this.victory_screen != null && this.victory_screen.parent != null && this.victory_screen.visible;
       }
       
       // The tutorial's notes link: the exe hides it at each match's loading (0x220400).
@@ -1094,10 +1106,6 @@ package
          addChild(this.notificationListTemp);
          addChild(this.bottom_panel);
          this.questWindow.visible = false;
-         this.friendsMenu.addEventListener(Event.CONNECT,this.onRequestPlayers);
-         this.squadList.addEventListener(Event.CONNECT,this.onRequestPlayers);
-         this.clanWindow.addEventListener(Event.CONNECT,this.onRequestPlayers);
-         this._tournament.addEventListener(Event.CONNECT,this.onRequestPlayers);
          this._tournament.addEventListener(Event.CLOSE,this.onTournamentClose);
          this._tournament.addEventListener(TournamentWindow.TOGGLE_FOLD,this.onTournamentFold);
          this.player_profile.profileItems.addEventListener(ListEvent.ITEM_ROLL_OVER,this.onPaperDollItemRollOver);
@@ -1191,7 +1199,6 @@ package
          this.statusPanel.addEventListener(StatusPanel.LOBBY_WINDOW,this.onLobbyWindow);
          this.statusPanel.matchSettings.addEventListener(MatchMakingSettings.TOURNAMENT_SELECTED,this.openTournamentWindow2);
          this.statusPanel.matchSettings.addEventListener(MatchMakingSettings.TOURNAMENT_DESELECTED,this.openTournamentWindow2);
-         this.statusPanel.matchSettings.addEventListener(Event.CONNECT,this.onRequestPlayers);
          addChild(this.statusPanel);
          addChild(this.player_profile);
          addChild(this.squadList);
@@ -2253,12 +2260,6 @@ package
       {
          trace("add_squad_invite");
          this.bottom_panel.addIvite(value);
-      }
-      
-      private function onRequestPlayers(e:Event) : void
-      {
-         trace("onRequstPlayers",e.target);
-         _playerRequestTarget = e.target as MovieClip;
       }
       
       // No premium account (the owner, 2026-11-09: "no premium state anywhere should exist"; what it
@@ -3851,13 +3852,39 @@ package
       
       public function fill_players_search(value:Array) : void
       {
-         trace("fill_players_search::",value.length,this._playerRequestTarget);
-         // the Watch window's search by name asked for it
-         if(WatchWindow.found(value))
+         trace("fill_players_search::",value.length);
+         LobbyMenu.playersFound(value);
+      }
+
+      // A search by name (find_players) for `answered` (a function of the players found): the
+      // Watch window's, a friends' or a squad's search list's.
+      public static function findPlayers(name:String, answered:Function) : void
+      {
+         _playerSearches.push({"answered":answered,"at":getTimer()});
+         try
          {
-            return;
+            ExternalInterface.call("find_players",name);
          }
-         this._playerRequestTarget.fillFoundPlayers(value);
+         catch(e:Error)
+         {
+         }
+      }
+
+      // fill_players_search's players, to the ask they answer: true when one waited for them.
+      public static function playersFound(players:Array) : Boolean
+      {
+         var now:int = getTimer();
+         while(_playerSearches.length > 0 && now - int(_playerSearches[0].at) >= PLAYER_SEARCH_WAIT_MS)
+         {
+            _playerSearches.shift();
+         }
+         if(_playerSearches.length == 0)
+         {
+            return false;
+         }
+         var answered:Function = _playerSearches.shift().answered;
+         answered(players != null ? players : []);
+         return true;
       }
       
       public function set_ignored_list(value:Array) : void
@@ -4195,12 +4222,13 @@ package
          }
          if(!bool)
          {
-            if(!this.victory_screen.parent || !this.victory_screen.visible)
+            if(!this.resultsUp)
             {
                trace("_top_container::stage");
                this._top_container.visible = true;
-               WatchWindow.back();
             }
+            // the results up or not: Watch asks again, its view only without them
+            WatchWindow.back();
             this.dragRegion.mouseEnabled = true;
             this.topMenu.lockInventory(false);
          }
@@ -4626,6 +4654,8 @@ package
          {
             RoomsWindow.me.resultsClosed();
          }
+         // the asker's matches again (History's rows of the match just played)
+         WatchWindow.resultsClosed();
          removeChild(this._back_back);
          FocusManager.setModalClip(null);
          MainScene.activeWindow = null;

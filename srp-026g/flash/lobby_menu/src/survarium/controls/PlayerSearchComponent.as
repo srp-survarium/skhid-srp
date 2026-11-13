@@ -5,7 +5,6 @@ package survarium.controls
    import flash.events.Event;
    import flash.events.FocusEvent;
    import flash.events.MouseEvent;
-   import flash.external.ExternalInterface;
    import flash.ui.Keyboard;
    import scaleform.clik.constants.InputValue;
    import scaleform.clik.controls.Button;
@@ -256,7 +255,8 @@ package survarium.controls
             return;
          }
          dispatchEvent(new Event(Event.CONNECT,true));
-         ExternalInterface.call("find_players",query);
+         // its answer, told apart from the Watch window's by the order asked
+         LobbyMenu.findPlayers(query,this.fillFoundPlayers);
          this.loadingIndicator.gotoAndPlay(1);
          this.showSearch(false);
          this.btnCancelSearch.visible = false;

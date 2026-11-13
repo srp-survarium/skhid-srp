@@ -78,6 +78,11 @@ package survarium.controls
       // the friend's mark on the badge
       private var _watchFriendMark:Shape;
 
+      // the badge of the last live list (setWatchBadge): its text, and whether a friend plays
+      private var _badgeSays:String = "";
+
+      private var _badgeFriend:Boolean = false;
+
       // the badge as last drawn: its text, and whether a friend plays
       private var _watchSaid:String = null;
 
@@ -479,11 +484,20 @@ package survarium.controls
          this._roomsSyncing = false;
       }
       
-      // On each live list (WatchWindow): the Watch tab's eye, as the rooms' tab has its own icon,
-      // and `live` (the live matches that can be watched now) on a badge at its top right, none
-      // for 0: `more` adds a plus (the list is at its most), `friend` (one plays in them) makes
-      // it yellow.
-      public function paintWatchTab(live:int, more:Boolean = false, friend:Boolean = false) : void
+      // On each live list (WatchWindow): `live` (the live matches that can be watched now) for the
+      // badge on the Watch tab, none for 0: `more` adds a plus (the list is at its most), `friend`
+      // (one plays in them) a yellow person; drawn now, and each frame after (paintWatchTab).
+      public function setWatchBadge(live:int, more:Boolean, friend:Boolean) : void
+      {
+         this._badgeSays = live > 0 ? String(live) + (more ? "+" : "") : "";
+         this._badgeFriend = friend;
+         this.paintWatchTab();
+      }
+
+      // Each frame (WatchWindow), as the rooms' tab (paintRoomsTab): the Watch tab's eye in place of
+      // its art, as bright as the tab makes its icon now (hover, chosen, disabled), and the badge of
+      // the last live list (setWatchBadge) at its top right.
+      public function paintWatchTab() : void
       {
          try
          {
@@ -496,6 +510,7 @@ package survarium.controls
             if(this._watchIcon == null || this._watchIcon.parent != tab)
             {
                this._watchIcon = new Shape();
+               this._watchIcon.name = "srpWatchEye";
                var g:* = this._watchIcon.graphics;
                // one tone, as the other tabs' art: an eye
                g.lineStyle(3,0x4E5457);
@@ -536,11 +551,10 @@ package survarium.controls
             art.visible = false;
             this._watchIcon.alpha = art.alpha;
             this._watchIcon.transform.colorTransform = art.transform.colorTransform;
-            var said:String = live > 0 ? String(live) + (more ? "+" : "") : "";
-            if(said != this._watchSaid || friend != this._watchFriend)
+            if(this._badgeSays != this._watchSaid || this._badgeFriend != this._watchFriend)
             {
-               this._watchSaid = said;
-               this._watchFriend = friend;
+               this._watchSaid = this._badgeSays;
+               this._watchFriend = this._badgeFriend;
                this.drawWatchBadge();
                if(this._watchTip != null && this._watchTip.visible)
                {

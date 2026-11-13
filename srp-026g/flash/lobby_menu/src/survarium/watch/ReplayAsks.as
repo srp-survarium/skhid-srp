@@ -223,6 +223,10 @@ package survarium.watch
          {
             return;
          }
+         if(status in REASONS)
+         {
+            noteOne(_save.hex,REASONS[status] as String);
+         }
          if(status == "preparing")
          {
             _save.preparing = true;
@@ -309,12 +313,41 @@ package survarium.watch
       {
          if(status in REASONS)
          {
-            NotificationListScrollContent.noteReplay(h,REASONS[status] as String);
+            noteOne(h,REASONS[status] as String);
          }
          if(told != null)
          {
             told(h,status);
          }
+      }
+
+      // What an answer or a list says of the replays of matches (8 hex -> a reason, null: it may be
+      // watched): noted for the History's rows, and the listeners told when one changed (the results
+      // screen drops its Watch replay and Save on a refusal: each press would count against the
+      // server's lookups).
+      public static function note(reasons:Object) : void
+      {
+         var changes:Boolean = false;
+         for(var h:String in reasons)
+         {
+            var reason:String = reasons[h] as String;
+            if(NotificationListScrollContent.replayReason(h) != reason)
+            {
+               NotificationListScrollContent.noteReplay(h,reason);
+               changes = true;
+            }
+         }
+         if(changes)
+         {
+            changed();
+         }
+      }
+
+      private static function noteOne(h:String, reason:String) : void
+      {
+         var reasons:Object = {};
+         reasons[h] = reason;
+         note(reasons);
       }
 
       private static function exe(name:String, ... args) : void

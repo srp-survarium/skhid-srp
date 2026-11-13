@@ -154,10 +154,8 @@ package survarium.watch
       // when each list was asked last
       private var _askedAt:Object = {};
 
-      // the recent list (FRIENDS, EVERYONE) and the player's (MINE, PLAYER) asked last: the one an
-      // M0 or P1 answer is
-      private var _recentAsked:String = EVERYONE;
-
+      // the player's list (MINE, PLAYER) asked last: the one a P1 answer is when its name says
+      // nothing (an M0 answer names its own: `M0;<n>;<RECENT_START offset>`)
       private var _playedAsked:String = MINE;
 
       private var _delay:int = -1;
@@ -172,6 +170,10 @@ package survarium.watch
       private var _gotAnswer:Boolean = false;
 
       private var _openedAt:int = 0;
+
+      // the lobby is up: from its first showing (this window is made with it) and each return
+      // (back) to the next match's load (away); nothing is asked while it is down
+      private var _inLobby:Boolean = true;
 
       private var _mineDue:int = 0;
 
@@ -247,6 +249,8 @@ package survarium.watch
          this._timer.start();
          // a dispatch of its own (the second) reaches the same work
          addEventListener(TimerEvent.TIMER,this.onTimer);
+         // the top menu's Watch tab follows its state each frame (TopMenu.paintWatchTab)
+         addEventListener(Event.ENTER_FRAME,this.onFrame,false,0,true);
          if(panel.parent != null)
          {
             panel.parent.addChild(this);
@@ -319,18 +323,6 @@ package survarium.watch
          win.showTab(LIVE);
       }
 
-      // LobbyMenu.fill_players_search: the players a search by name found, when it asked (true).
-      public static function found(players:Array) : Boolean
-      {
-         var win:WatchWindow = WatchWindow.me;
-         if(win == null || win._search == null || win._search.state != FINDING)
-         {
-            return false;
-         }
-         win.foundPlayers(players != null ? players : []);
-         return true;
-      }
-
       // The game loads a match (LobbyMenu.set_loading_level): a watch asked from here playing?
       // Its `watching` comes only once the game is in it, after the load began.
       public static function away() : void
@@ -345,10 +337,14 @@ package survarium.watch
             win._resume = win._pendingView;
          }
          win._pendingView = null;
+         win._inLobby = false;
+         win._mineDue = 0;
       }
 
-      // Back in the lobby (LobbyMenu.show_match_making(false)): the asker's matches asked again
-      // (History's rows of the match just played); from a watch, its view again.
+      // Back in the lobby (each LobbyMenu.show_match_making(false), the results up or not): the
+      // asks run again, and the asker's matches are asked again soon (History's rows of the match
+      // just played); from a watch, its view again, unless the results are up (Watch opening
+      // would close them).
       public static function back() : void
       {
          var win:WatchWindow = WatchWindow.me;
@@ -356,9 +352,10 @@ package survarium.watch
          {
             return;
          }
+         win._inLobby = true;
          win._mineDue = getTimer() + BACK_ASK_MS;
          var view:Object = win._resume;
-         if(view != null)
+         if(view != null && (LobbyMenu.id == null || !LobbyMenu.id.resultsUp))
          {
             win._resume = null;
             // In a room, or a room's queue: the room says first whether it has a use for us now
@@ -372,6 +369,25 @@ package survarium.watch
             {
                resume();
             }
+         }
+      }
+
+      // The results closed (LobbyMenu.onVsRemoved): the asker's matches asked again soon, as at a
+      // return. Not while a match loads (its Esc may close them).
+      public static function resultsClosed() : void
+      {
+         var win:WatchWindow = WatchWindow.me;
+         if(win != null && win._inLobby)
+         {
+            win._mineDue = getTimer() + BACK_ASK_MS;
+         }
+      }
+
+      private function onFrame(e:Event) : void
+      {
+         if(topMenu != null)
+         {
+            topMenu.paintWatchTab();
          }
       }
 
@@ -428,7 +444,7 @@ package survarium.watch
                friend = friend || row.friends.length > 0;
             }
          }
-         topMenu.paintWatchTab(may,rows.length >= LIVE_COUNT,friend);
+         topMenu.setWatchBadge(may,rows.length >= LIVE_COUNT,friend);
       }
 
       // The matches being played, as last listed (the Live tab's count).
@@ -613,7 +629,6 @@ package survarium.watch
          }
          else
          {
-            this._recentAsked = list;
             this.call("request_players_range",RECENT_START + (list == FRIENDS ? 1 : 0),RECENT_COUNT);
          }
       }
@@ -634,7 +649,7 @@ package survarium.watch
             this.tell(LocalizationData.format("st_srp_watch_spectate_lost",lost));
          }
          // nothing asked in a match (the lobby is not shown then)
-         var free:Boolean = !MainScene.activeMatchMaking;
+         var free:Boolean = this._inLobby;
          if(free && this._mineDue != 0 && now >= this._mineDue)
          {
             this._mineDue = 0;
@@ -703,7 +718,15 @@ package survarium.watch
          }
          else if(tag == "M0")
          {
-            list = this._recentAsked;
+            // the list it answers (the ask's offset), filed by it: a refresh of one may come after
+            // the other is chosen
+            var recent:Array = WatchRows.head(names[0],"M0");
+            var filter:Array = recent != null ? recent[2] : [];
+            if(filter.length != 1 || (filter[0] != "0" && filter[0] != "1"))
+            {
+               return;
+            }
+            list = filter[0] == "1" ? FRIENDS : EVERYONE;
             this._lists[list] = {"rows":this.listed(names,WatchRows.recent),"at":getTimer()};
          }
          else
@@ -733,7 +756,7 @@ package survarium.watch
          }
          if(list == LIVE)
          {
-            // the top menu's badge: on each live list (TopMenu.paintWatchTab)
+            // the top menu's badge: on each live list (TopMenu.setWatchBadge)
             if(topMenu != null)
             {
                this.paintBadge();
@@ -747,12 +770,13 @@ package survarium.watch
       }
 
       // The page's rows parsed by `parse` (its head and the friends' rows left), each with the
-      // friends the page names in its match; what each recorded one says of its replay told to
-      // the History's rows.
+      // friends the page names in its match; what each recorded one says of its replay noted
+      // (ReplayAsks.note: the History's rows and the results screen follow).
       private function listed(names:Array, parse:Function) : Array
       {
          var list:Array = [];
          var byMatch:Object = {};
+         var reasons:Object = {};
          for(var i:int = 1; i < names.length; i++)
          {
             var row:Object = parse(names[i]);
@@ -762,7 +786,7 @@ package survarium.watch
                byMatch[String(row.match)] = row;
                if(row.kind != "live")
                {
-                  NotificationListScrollContent.noteReplay(WatchWindow.hex(uint(row.match)),WatchWindow.stateReason(int(row.replay)));
+                  reasons[WatchWindow.hex(uint(row.match))] = WatchWindow.stateReason(int(row.replay));
                }
                continue;
             }
@@ -772,6 +796,7 @@ package survarium.watch
                byMatch[String(friend.match)].friends.push(friend);
             }
          }
+         ReplayAsks.note(reasons);
          return list;
       }
 
@@ -880,7 +905,7 @@ package survarium.watch
       }
 
       // Replays, `name`'s matches: the asker's own are Mine; another's account is found first
-      // (find_players, answered in `found`).
+      // (LobbyMenu.findPlayers, answered in foundPlayers).
       private function searchPlayer(name:String) : void
       {
          this._tab = REPLAYS;
@@ -896,15 +921,18 @@ package survarium.watch
             return;
          }
          this.setBox(name);
-         this._search = {"name":name,"state":FINDING,"at":getTimer(),"asks":1};
+         var search:Object = {"name":name,"state":FINDING,"at":getTimer(),"asks":1};
+         this._search = search;
          this._lists[PLAYER] = null;
-         try
+         // the answer to this ask only (LobbyMenu: in the order asked; a friends' search may ask
+         // meanwhile), while it still waits for it: a name typed anew or a chip ends it
+         LobbyMenu.findPlayers(name,function(players:Array):void
          {
-            ExternalInterface.call("find_players",name);
-         }
-         catch(e:Error)
-         {
-         }
+            if(_search === search && search.state == FINDING)
+            {
+               foundPlayers(players);
+            }
+         });
          this.render();
       }
 
