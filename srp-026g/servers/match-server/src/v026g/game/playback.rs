@@ -1376,7 +1376,8 @@ impl ReplayWatch {
             .and_then(|old| self.playbacks.remove(&old))
         {
             Some(old) => {
-                let at = old.position(now);
+                // As a seek there: from a key frame its rings hold (`seek_to`).
+                let at = old.recording.seek_to(old.position(now));
                 (
                     Prepared {
                         request,
