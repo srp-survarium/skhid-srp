@@ -1049,8 +1049,15 @@ package survarium.watch
          }
          if(pick == null && code != 0)
          {
-            this._search = null;
-            this.watch(code,NotificationListScrollContent.REPLAY_WATCH_ALL);
+            // under another ask: searched again when its list is shown
+            if(this.watch(code,NotificationListScrollContent.REPLAY_WATCH_ALL))
+            {
+               this._search = null;
+            }
+            else
+            {
+               this._search.state = NO_ANSWER;
+            }
          }
          else if(pick == null)
          {
