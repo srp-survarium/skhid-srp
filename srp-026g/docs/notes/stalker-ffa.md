@@ -10,6 +10,10 @@ Military Warehouses' perimeter FFA spawns (7 each) are moved to their centre
 afterwards, ids kept, by `ffa-center-1` with the other maps (`ffa.md`), so
 their day_8 positions are not all ffa-spawns.tsv's.
 
+Military Warehouses is not played since `military-warehouses-off-1.json` (the
+owner, 2026-11-13; `stalker-maps.md`): its row 43 is out of the dictionary, its
+config, project and points below stay as they are.
+
 This integrates the previously unmerged `stalker-maps@6` pack, which supplies
 six TDM ports. The other three are Repair Depot, Station and Depository. Only
 the three requested maps receive FFA configurations. Team Deathmatch on all

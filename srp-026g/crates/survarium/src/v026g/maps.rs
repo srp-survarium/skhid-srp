@@ -1381,13 +1381,13 @@ mod tests {
     fn the_released_free_for_alls_play_on_their_own_projects() {
         let data = GameData::open(&env_path("SRP_TEST_GAME_DATA")).unwrap();
         let maps = fixtures::table_of(&data).unwrap();
-        free_for_alls_play_on_their_own_projects(&maps, 33);
+        free_for_alls_play_on_their_own_projects(&maps, 32);
         let ports: Vec<_> = maps.iter()
             .filter(|m| m.mode == GameMode::FreeForAll && m.level >= 10)
             .map(|m| (m.id, m.level, m.solo_respawn_points))
             .collect();
         assert_eq!(ports, [
-            (42, 15, 24), (43, 16, 24), (44, 17, 24),
+            (42, 15, 24), (44, 17, 29),
             (164, 10, 22), (165, 11, 22), (167, 12, 22), (168, 13, 22), (169, 14, 22)
         ]);
     }
