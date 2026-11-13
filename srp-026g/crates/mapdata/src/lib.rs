@@ -167,6 +167,9 @@ pub const NARROW_DOORS_ALGO: u32 = 0x5313_0101;
 /// The same for the Drop links the client's walk tick does not take a body down ([`Body::drop_check`], A313), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const DROP_CHECK_ALGO: u32 = 0x5313_0201;
+/// The same for the walk check's refusals under a low ceiling as failures ([`Body::walk_ceiling_stalls`]), in
+/// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
+pub const WALK_CEILING_STALLS_ALGO: u32 = 0x5364_0c01;
 /// The same for the floors given back beside walls the body clears ([`Body::wall_give_back`], A318), in [`grid_key_with_links`]
 /// only for a body that asks for it. A value of its own. 0103: the stand test runs the client's steps (A364 C2 row 45).
 pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0103;
@@ -420,6 +423,10 @@ pub fn grid_key_with_links(
     // And the walk tick's check of the Drop links.
     if body.drop_check {
         digest.u32(DROP_CHECK_ALGO);
+    }
+    // And the walk check's ceiling refusals.
+    if body.walk_ceiling_stalls {
+        digest.u32(WALK_CEILING_STALLS_ALGO);
     }
     // And the floors given back beside walls.
     if body.wall_give_back {

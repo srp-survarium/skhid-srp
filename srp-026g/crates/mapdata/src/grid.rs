@@ -260,6 +260,15 @@ pub struct Body {
     /// landing (the drops census, A313). A link that is the only way to a floor or back from it is kept. A build input: in the key when
     /// set.
     pub drop_check: bool,
+    /// [A364 stall census] With [`Self::walk_every_link`]: whether a line of the walk check that the client's tick refuses under
+    /// a low ceiling (a standing body that cannot straighten, walked again crouched and refused again) is a failure, and a link
+    /// two lines of which are so refused is cut (the reach guard keeps a floor's only way). Off: such a refusal passes, as when
+    /// the client's low-ceiling slide (0x7DF20) was not ported. PROVEN: the slide is ported and on (tick.rs `low_ceiling_slide`,
+    /// #1742); a refusal is the exe's own verdict, the step refused and the body stalled (the long replay: the port gives every
+    /// field the game's value in 219,906 of 220,994 recorded steps, ceiling refusals among them; the exactness session,
+    /// 2026-11-13). nav-team's stall census of the owner's 14 recordings: bots stalled crouched on such links (Rudnya
+    /// (-41.57 27.50 17.85) -> (-41.82 27.60 17.60), 11 stalls). A build input: in the key when set.
+    pub walk_ceiling_stalls: bool,
     /// [A318] Whether the floors the erosion rounds took beside a wall the body clears are given back (`grid::wall_give_back`):
     /// the exact pass keeps them, a wall face (not a rise of the ground) stands within 0.6 m, and the client's walk tick stands a
     /// body there. Needs [`Erosion::Exact`]. A build input: in the key when set.
@@ -402,6 +411,7 @@ impl Body {
             drop_room_walk_faces: false,
             narrow_doors: false,
             drop_check: false,
+            walk_ceiling_stalls: false,
             wall_give_back: false,
             exe_collision: false,
             walk_start_clear: false,
@@ -511,6 +521,7 @@ impl Default for Body {
             drop_room_walk_faces: false,
             narrow_doors: false,
             drop_check: false,
+            walk_ceiling_stalls: false,
             wall_give_back: false,
             exe_collision: false,
             walk_start_clear: false,

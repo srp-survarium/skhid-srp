@@ -78,6 +78,8 @@ struct LinkWalk {
     share: f32,
     /// It fails only on from the link before.
     chain_failed: bool,
+    /// [`Body::walk_ceiling_stalls`]: how many of the lines the client's tick refused under a low ceiling (crouched too).
+    refused: usize,
 }
 
 /// [2c] A face no body walks on within this of a floor's capsule makes its links walked ([`Body::walk_every_link`]), m: the
@@ -700,7 +702,11 @@ impl WalkGrid {
             .filter(|(_, w)| !w.passes)
             // Only a riser the body stalls under is cut ([`CUT_RISE_M`], [`CUT_SHARE`]): the walk of the others ends at the far
             // floor's place, not under it, and the split bench put the falls 2c added on those cuts.
-            .filter(|(ad, w)| self.height[wide.links[ad.0][ad.1] as usize] - self.height[ad.0] > CUT_RISE_M && w.share < CUT_SHARE)
+            .filter(|(ad, w)| {
+                (self.height[wide.links[ad.0][ad.1] as usize] - self.height[ad.0] > CUT_RISE_M && w.share < CUT_SHARE)
+                    // [`Body::walk_ceiling_stalls`]: two lines refused under a low ceiling: the client stalls there too.
+                    || w.refused >= 2
+            })
             .map(|(&(a, d), w)| (a as u32, d, w.share))
             .collect::<Vec<_>>();
         // A riser is cut only where the body has another walking way from its foot to its top close by: else the riser is the
@@ -758,7 +764,8 @@ impl WalkGrid {
     /// [`Stance`], on each of [`STARTS`]: from `a` (the body set where it can be), and, where a Walk link leads into `a` along
     /// the same way, on from where walking that link left the body (a body walks a route's links one after another, it is
     /// not set back on each floor's centre). A line passes when the body arrives both ways (a refusal under a low ceiling
-    /// says nothing: it passes); the link passes on two lines of three. Arriving is being over the far floor up to a step
+    /// says nothing: it passes, unless [`Body::walk_ceiling_stalls`]: then it is the client's own stall, a failure); the link
+    /// passes on two lines of three. Arriving is being over the far floor up to a step
     /// over its height: the client's tick steps a body up onto a top the cells keep no floor for (a prop, a curb, the cell's
     /// lower floor beside it) and its step down takes it off again (`cc_step_height` 0.80, startup.cfg). Chemical Plant: of
     /// the walks that got 90 % of the way and did not arrive within 0.2 m, 178,181 of 182,878 stood 0.2-0.8 m over the far
@@ -779,8 +786,10 @@ impl WalkGrid {
         let flat = Vec3::new(pb.x - pa.x, 0.0, pb.z - pa.z);
         let l = flat.length();
         let side = if l > 1e-4 { Vec3::new(-flat.z / l, 0.0, flat.x / l) } else { Vec3::ZERO };
-        let arrives = |w: Walked| matches!(w, Walked::At | Walked::AtEnd(_) | Walked::Ceiling);
-        let (mut lines, mut share, mut chain_failed) = (0, 0.0f32, false);
+        // [`Body::walk_ceiling_stalls`]: a refusal under a low ceiling is the client's own stall, not a pass.
+        let stalls = self.body.walk_ceiling_stalls;
+        let arrives = |w: Walked| matches!(w, Walked::At | Walked::AtEnd(_)) || (w == Walked::Ceiling && !stalls);
+        let (mut lines, mut share, mut chain_failed, mut refused) = (0, 0.0f32, false, 0);
         for off in STARTS {
             let (from, to) = (pa + side * off, pb + side * off);
             let mut c = body_at(world, start, stance, from);
@@ -791,9 +800,11 @@ impl WalkGrid {
             }
             share = share.max(match centre {
                 Walked::Short(x) => x,
+                Walked::Ceiling if stalls => 0.0,
                 _ => 1.0,
             });
             if !arrives(centre) {
+                refused += (centre == Walked::Ceiling) as usize;
                 continue;
             }
             let chained = before.is_none_or(|q| {
@@ -813,7 +824,7 @@ impl WalkGrid {
                 chain_failed = true;
             }
         }
-        LinkWalk { passes: lines >= 2, share, chain_failed: chain_failed && lines < 2 }
+        LinkWalk { passes: lines >= 2, share, chain_failed: chain_failed && lines < 2, refused }
     }
 
     /// How many bridges of `all` are side by side with the bridge `a` -> `b`, it included, counted out to [`BRIDGE_MIN_RUN`]
