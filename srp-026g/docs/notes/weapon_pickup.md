@@ -313,7 +313,13 @@ local: nothing synced, no `simulation_changes` row.
   was not installed there. The cook now takes the recipe's place's player
   of its kit from the core's place table (core+18458h, 30h a place, the kit
   players at +0/+4/+8; `Player::kit_player`), which keeps them
-  (`a_departed_donors_gun_is_cooked`). Only the profile's changing part differs: the world carries it for
+  (`a_departed_donors_gun_is_cooked`). The table is read in the record's
+  player's world, before the load as at the reader (one `donor`): rev57
+  read it through the local player, which a late joiner does not have
+  before its install, so its first world cooked nothing, the reader's cook
+  inside the load was not made in 2 s, and the native reader read the
+  picked gun's bytes into the own gun, 2 bytes short: the next slot's item
+  read garbage and crashed (2026-11-13, 0x2FFF87). Only the profile's changing part differs: the world carries it for
   the places in it, so a joiner has a departed place's from the static info
   (its items' wear 1.0). A held gun's wear comes with the world; a pickup
   waiting for its switch is not in the world, so at the swap the picked gun

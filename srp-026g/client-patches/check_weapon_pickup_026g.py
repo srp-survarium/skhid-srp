@@ -1486,19 +1486,21 @@ def a_departed_donors_gun_is_cooked(patched):
     """A record names the gun of a place whose player left (its bit of core+18FD8h clear: the lookup by place,
     core_active_player 0x2D0AB0, refuses it in every game). The place keeps its players and its profile (a
     returning player gets them again: the static info is fixed per match), so a game that has no copy cooks the
-    recipe from the place's kit player in the core's place table (core+18458h, 30h a place): a late joiner's world
-    load (before the load) and a resync's record (at its reader) both install it."""
+    recipe from the place's kit player in the core's place table (core+18458h, 30h a place), read in the record's
+    player's world: a late joiner's world load (before the load, the joiner without a local player before its
+    install: rev57's crash 2026-11-13, the pick not installed and the inventory misread) and a resync's record (at
+    its reader) both install it."""
     pick = (DIED + 900, 6, KIT, 1)
     loaded = record(slot10=pick)
 
     def departed(g):
-        """Place 6 departed: not in the world (the lookup gives none), its kit players in the place table."""
+        """Place 6 departed: not in the world (the lookup gives none), its kit players in the place table; no
+        local player (the client's +4 left 0)."""
         places = g.blk(0x30 * 8)
         g.word(CORE + 0x18458, places)
         g.word(CORE + 0x1845C, places + 0x30 * 8)
         g.word(places + 0x30 * 6 + 4 * KIT, PLAYER)
         g.roster.pop(6, None)
-        g.word(CLIENT + 4, g.picker)            # the local player, whose world the table is read in
 
     # A late joiner's first world.
     j = Pick(patched)
