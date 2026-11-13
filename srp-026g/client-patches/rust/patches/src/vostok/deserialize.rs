@@ -53,6 +53,72 @@ fn kept_death_animation(index: u32, count: u32) -> Option<u32> {
     (index != 0 && index >= count).then_some(0)
 }
 
+/// A double-barrel's or a pistol's fire state holds exactly two fire
+/// animations, in the object at +164h (both constructors, 0x30F660 and
+/// 0x30FF40, make an array of 2 there): a layout, not content.
+const FIRE_ANIMATIONS: u8 = 2;
+
+/// At `deserialize.fire_animation`: CL is the fire state's
+/// `m_weapon_animation_index` as the world brought it, about to be stored.
+/// A byte past the two fire animations is stored as 0, the first.
+pub fn keep_fire_animation_in_state(ctx: &mut Context<'_>) {
+    let index = (ctx.reg(Reg::Ecx) & 0xff) as u8;
+    if let Some(kept) = kept_fire_animation(index) {
+        ctx.set_reg8(Reg::Ecx, kept);
+    }
+}
+
+/// The index to store instead of `index`: `None` keeps it.
+fn kept_fire_animation(index: u8) -> Option<u8> {
+    (index >= FIRE_ANIMATIONS).then_some(0)
+}
+
+/// What a throw grenade state's `m_grenade_index` names in its set.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Grenade {
+    /// 0FFh: no grenade pulled.
+    None,
+    /// One of the set's grenades.
+    InSet,
+    /// Past the set's grenades, or a state with no set.
+    Outside,
+}
+
+/// At `deserialize.grenade_ready`: the grenade the throw state in ESI names.
+pub fn grenade_when_ready(ctx: &Context<'_>) -> Grenade {
+    // SAFETY: the context is this site's, ESI its live throw grenade state.
+    unsafe { grenade_of(raw::site::deserialize_grenade_ready::state(ctx)) }
+}
+
+/// At `deserialize.grenade_throw`: the grenade the throw state in ESI names.
+pub fn grenade_to_throw(ctx: &Context<'_>) -> Grenade {
+    // SAFETY: the context is this site's, ESI its live throw grenade state.
+    unsafe { grenade_of(raw::site::deserialize_grenade_throw::state(ctx)) }
+}
+
+/// # Safety
+/// `state` is a live throw grenade state on the game's thread, whose set
+/// (if any) the native reads next. Only the index and the set's vector
+/// bounds are read, never a grenade.
+unsafe fn grenade_of(state: Option<raw::ThrowGrenadeState>) -> Grenade {
+    let Some(state) = state else { return Grenade::Outside };
+    // SAFETY: as the caller promises.
+    unsafe {
+        let set = state.grenade_set()
+            .map(|set| (read(set.grenades_begin()) as usize, read(set.grenades_end()) as usize));
+        grenade(read(state.grenade_index()), set)
+    }
+}
+
+/// `index` against a set's grenades (its vector's begin and end), if any.
+fn grenade(index: u8, set: Option<(usize, usize)>) -> Grenade {
+    match (index, set) {
+        (0xff, _) => Grenade::None,
+        (index, Some((begin, end))) if contains(begin, end, index.into()) => Grenade::InSet,
+        _ => Grenade::Outside,
+    }
+}
+
 fn contains(begin: usize, end: usize, index: u32) -> bool {
     begin != 0 && end.checked_sub(begin)
         .is_some_and(|bytes| bytes.is_multiple_of(4) && (index as usize) < bytes / 4)
@@ -68,6 +134,27 @@ mod tests {
         for (begin, end, index) in [(100,112,3), (0,12,0), (100,100,0),
             (100,99,0), (100,111,0), (100,112,u32::MAX)] {
             assert!(!contains(begin, end, index));
+        }
+    }
+
+    #[test]
+    fn a_fire_animation_past_the_two_is_the_first() {
+        assert_eq!(kept_fire_animation(0), None);
+        assert_eq!(kept_fire_animation(1), None);
+        for index in [2, 100, 254, 255] {
+            assert_eq!(kept_fire_animation(index), Some(0));
+        }
+    }
+
+    #[test]
+    fn a_grenade_is_one_of_the_set() {
+        let set = Some((100, 116));
+        assert_eq!(grenade(0, set), Grenade::InSet);
+        assert_eq!(grenade(3, set), Grenade::InSet);
+        assert_eq!(grenade(0xff, set), Grenade::None);
+        assert_eq!(grenade(0xff, None), Grenade::None);
+        for (index, set) in [(4, set), (254, set), (0, None), (0, Some((100, 100))), (0, Some((0, 4)))] {
+            assert_eq!(grenade(index, set), Grenade::Outside);
         }
     }
 

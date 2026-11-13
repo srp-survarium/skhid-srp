@@ -17,3 +17,15 @@ handler = "on_artefact"
 [[hook]]
 site = "deserialize.death_animation"
 handler = "on_death_animation"
+
+[[hook]]
+site = "deserialize.fire_animation"
+handler = "on_fire_animation"
+
+[[hook]]
+site = "deserialize.grenade_ready"
+handler = "on_grenade_ready"
+
+[[hook]]
+site = "deserialize.grenade_throw"
+handler = "on_grenade_throw"

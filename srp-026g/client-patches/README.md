@@ -4755,9 +4755,37 @@ the lists and write through what it found. The guard at its entry
 The lengths are the set's own (rifles 2, pistols 1, the battery carrier 1;
 death-poses.md), so the bound follows the content and no world is refused for it.
 
+A double-barrel's or pistol's fire animation (F7): their fire states (one
+`weapon_and_hands_expression` 0x30F830, one deserialize 0x310200) save
+`m_weapon_animation_index` (+16Ch), the world brings any byte, and the
+presentation, run every frame for every player in view, takes a reference through
+`[state+164h+index*4]` (0x31ECF0, `lock xadd [slot+0DCh]`). The state holds two
+fire animations there (both constructors make an array of 2): a layout, not
+content. The guard at the load's store (`deserialize.fire_animation`, 0x310224)
+stores a byte past them as 0, the first, so the game also never uploads it again;
+0 and 1 are stored as read. The world check refuses any other byte as well
+(`FireAnimation` in srp-validate): in 44,117 worlds of 100 rev56 recordings the
+3,340 such states hold 0 or 1 only.
+
+A throw's grenade (F8): the throw grenade state saves `m_grenade_index` (+180h,
+0FFh none), the world brings any byte, and two readers index the set's grenades
+(`[set+268h]` to `[set+26Ch]`) with it with no bound: `is_ready_for_transition`
+0x33A650 reads `[grenade+154h]` (0FFh is its only test), and the throw 0x33A770
+hands it to `grenade_set_core::throw_grenade` 0x30A250, which takes a reference
+through the slot (0x2E9040, `lock xadd [grenade+0F0h]`), 0FFh included. The
+set's size is content. At is_ready (`deserialize.grenade_ready`, 0x33A66D) an
+index past the set's grenades, or a state with no set, takes the native 0FFh path
+(not ready); at the throw's entry (`deserialize.grenade_throw`) only an index of
+one of the set's grenades throws, anything else returns (0x33A7DD). The rev56
+corpus holds 0..3 only.
+
 `check_deserialize_guards_026g.py <stock exe>` compares valid reads with stock and
-checks invalid/empty tables at all four stack alignments (120 cases; the death
-animation's: the stock faults past the lists, ours plays the first). The i686
+checks invalid/empty tables at all four stack alignments (216 cases; the death
+animation's: the stock faults past the lists, ours plays the first; the fire
+animation's: the stock stores the byte, ours stores 0 as the stock does with 0;
+the grenade's: the stock faults in is_ready and in throw_grenade's reference past
+the set, ours is not ready and returns from the throw with the registers as they
+were, and a grenade of the set runs as the stock to throw_grenade). The i686
 patch crate's i686 tests and Clippy pass. No release revision is reserved.
 
 ## A presenter ignores an effect it does not hold (patch 117, unreleased)

@@ -1196,3 +1196,7 @@ survarium::kd_event_frame	event	0x4	u32	on_event first argument: event 1 is a de
 survarium::kd_event_frame	time	0xC	u32	on_event third argument: completed world time, dispatched by 0x2D1EC0
 survarium::pvp_match	options	0x124	ptr<survarium::match_options>	borrowed match options (constructor 0x2D55B0 argument +10h); lj_native_install updates this roster, UI 0x23B42C..0x23B435 reads it
 survarium::respawn_point_core	protection_ms	0x20	u32	invulnerability duration in milliseconds, load 0x2F4628..0x2F4630 multiplies legacy seconds by 1000
+survarium::throw_grenade_state	grenade_set	0x17C	ptr<survarium::grenade_set_core>	the grenade set being thrown: its deserialize 0x33A5AB..0x33A5F7 takes it from the profile slot the world names; is_ready_for_transition 0x33A677 and the throw 0x33A7BB read it
+survarium::throw_grenade_state	grenade_index	0x180	u8	m_grenade_index: the set's grenade being thrown, 0FFh none (initialize 0x33A45C); the world's byte as read (deserialize 0x33A640); grenade_set_core::pull_pin 0x30A120 gives the game's own (0x3103DD)
+survarium::grenade_set_core	grenades_begin	0x268	u32	its grenades' vector begin (the constructor 0x309AFF; each entry a grenade object, walked to the end by 0x309E70): (end - begin) / 4 grenades
+survarium::grenade_set_core	grenades_end	0x26C	u32	its grenades' vector end (0x309E71); pull_pin 0x30A1C2 and throw_grenade 0x30A268 index from begin with no bound

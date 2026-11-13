@@ -3139,6 +3139,129 @@ deserialize_guards_on_death_animation_replay:
     db 0x53, 0x8b, 0x5c, 0x24, 0x10
     jmp 0x338285
 
+; 0x310224 the double-barrel's and pistol's fire deserialize 0x310200 storing m_weapon_animation_index (mov [esi+16Ch],cl; ESI the state, CL the byte as read): weapon_and_hands_expression 0x30F830 takes a reference through [state+164h+index*4], the state's two fire animations, with no bound (0x30F854..0x30F884, 0x31ED1A): lohook -> deserialize_guards_on_fire_animation
+global deserialize_guards_on_fire_animation
+extern hook_deserialize_guards_on_fire_animation
+deserialize_guards_on_fire_animation:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_fire_animation
+    mov edx, deserialize_guards_on_fire_animation_replay
+    cmp eax, 0
+    je deserialize_guards_on_fire_animation_go
+    mov edx, 0x31022a
+    cmp eax, 1
+    je deserialize_guards_on_fire_animation_go
+    ud2
+deserialize_guards_on_fire_animation_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_fire_animation_replay:
+    db 0x88, 0x8e, 0x6c, 0x01, 0x00, 0x00
+    jmp 0x31022a
+
+; 0x33a66d weapon_core_throw_grenade_state::is_ready_for_transition loading m_grenade_index (mov al,[esi+180h]); past the 0FFh test it reads [[set+268h]+index*4] and [grenade+154h] with no bound (0x33A677..0x33A689); not_ready is the native 0FFh path (xor eax,eax; pop esi; ret): lohook -> deserialize_guards_on_grenade_ready
+global deserialize_guards_on_grenade_ready
+extern hook_deserialize_guards_on_grenade_ready
+deserialize_guards_on_grenade_ready:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_grenade_ready
+    mov edx, deserialize_guards_on_grenade_ready_replay
+    cmp eax, 0
+    je deserialize_guards_on_grenade_ready_go
+    mov edx, 0x33a673
+    cmp eax, 1
+    je deserialize_guards_on_grenade_ready_go
+    mov edx, 0x33a692
+    cmp eax, 2
+    je deserialize_guards_on_grenade_ready_go
+    ud2
+deserialize_guards_on_grenade_ready_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_grenade_ready_replay:
+    db 0x8a, 0x86, 0x80, 0x01, 0x00, 0x00
+    jmp 0x33a673
+
+; 0x33a770 the throw state's throw_grenade entry (push ebp; mov ebp,esp; and esp,-8; ESI the state, called by the throw substate's on_animation_end 0x3106AD): it hands m_grenade_index to grenade_set_core::throw_grenade 0x30A250, which takes a reference through [[set+268h]+index*4] (0x30A268, 0x30A277) with no bound, 0FFh included; done is its ret, the stack as at the entry: lohook -> deserialize_guards_on_grenade_throw
+global deserialize_guards_on_grenade_throw
+extern hook_deserialize_guards_on_grenade_throw
+deserialize_guards_on_grenade_throw:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_grenade_throw
+    mov edx, deserialize_guards_on_grenade_throw_replay
+    cmp eax, 0
+    je deserialize_guards_on_grenade_throw_go
+    mov edx, 0x33a776
+    cmp eax, 1
+    je deserialize_guards_on_grenade_throw_go
+    mov edx, 0x33a7dd
+    cmp eax, 2
+    je deserialize_guards_on_grenade_throw_go
+    ud2
+deserialize_guards_on_grenade_throw_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_grenade_throw_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
+    jmp 0x33a776
+
 ; 0x2d9cb1 base_player::hit_impl once damage_model::hit_body_part (0x2E5080, at 0x2D9CA4) said 1: the hit took health past armour and protectors (more than 0.0 left, 0x2E5128); before the slow, the listeners and the death (mov edi,esi / cmp dword [edi+40h],0; the je at 0x2D9CB7 reads its flags): EBX the victim, ESI the hit; every hit of every player, in every game's simulation: lohook -> drug_interrupt_on_hit_applied
 global drug_interrupt_on_hit_applied
 extern hook_drug_interrupt_on_hit_applied

@@ -3473,3 +3473,8 @@ va	status	ref_021d	name
 0x002f4580	inferred-medium		survarium::respawn_point_core::load
 0x00267b10	inferred-high		survarium::timelimit_rule::fill_match_hud_state
 0x00233680	inferred-medium		survarium::match_hud_state::match_hud_state
+0x00310480	inferred-medium		survarium::weapon_core_throw_grenade_throw_substate::initialize
+0x00310680	inferred-medium		survarium::weapon_core_throw_grenade_throw_substate::on_animation_end
+0x0033a770	inferred-medium		survarium::weapon_core_throw_grenade_state::throw_grenade
+0x0031ecf0	inferred-medium		survarium::weapon_core_base_state::animation_lexeme [descriptive]
+0x002e9040	inferred-medium		vostok::intrusive_ptr<grenade_core>::assign [descriptive]

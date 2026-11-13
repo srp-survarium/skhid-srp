@@ -26,13 +26,40 @@ DEATH, DEATH_RETURN = 0x338280, STUBS + 0x200
 PAST = 0x7F000000
 # Each in-list slot names a resource of its own, its reference count at +0DCh.
 REFS = 100
+# The fire deserialize's store of m_weapon_animation_index (mov [esi+16Ch],cl)
+# and the instruction after it.
+FIRE, FIRE_END = 0x310224, 0x31022A
+# is_ready_for_transition (ECX the throw state) and the throw state's throw
+# (ESI); grenade_set_core::throw_grenade, where the throw hands the index on;
+# the two calls before it, stubbed (each ret 4: the fixture has no player).
+READY, THROW, SET_THROW = 0x33A650, 0x33A770, 0x30A250
+# throw_grenade past its first reference: the slot's grenade taken
+# (0x2E9040: *esi = *edi, lock xadd [grenade+0F0h]).
+SET_THROW_TAKEN = 0x30A27C
+THROW_STUBS = (0x309F00, 0x727B0)
+GRENADE_RETURN = STUBS + 0x210
 
 class GuardRun(Run):
     def __init__(self, data):
         super().__init__(data)
-        for at in (FSM_END, ANOMALY_END, ARTEFACT_END, DEATH_RETURN):
+        for at in (FSM_END, ANOMALY_END, ARTEFACT_END, DEATH_RETURN, FIRE_END, GRENADE_RETURN, SET_THROW_TAKEN):
             self.emu.hook_add(UC_HOOK_CODE, self.stop, begin=at, end=at)
+        for at in THROW_STUBS:
+            self.emu.hook_add(UC_HOOK_CODE, self.ret4, begin=at, end=at)
         self.emu.hook_add(UC_HOOK_CODE, self.state_reader, begin=STUBS + 0x90, end=STUBS + 0x90)
+        self.at_set_throw = False
+        self.emu.hook_add(UC_HOOK_CODE, self.set_throw, begin=SET_THROW, end=SET_THROW)
+
+    def ret4(self, emu, address, size, _):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        emu.reg_write(UC_X86_REG_ESP, sp + 8)
+        emu.reg_write(UC_X86_REG_EIP, self.read(sp))
+
+    def set_throw(self, emu, address, size, _):
+        """grenade_set_core::throw_grenade's entry: the throw stops there,
+        a run of throw_grenade itself goes on."""
+        if self.at_set_throw:
+            self.stop(emu, address, size, _)
 
     def state_reader(self, emu, address, size, _):
         sp = emu.reg_read(UC_X86_REG_ESP)
@@ -110,6 +137,88 @@ class GuardRun(Run):
         counts = tuple(self.read(r + 0xDC) for r in resources)
         return self.stopped, tuple(self.emu.reg_read(r) for r in REGS), self.read(out), self.read(out+4), counts
 
+    def fresh(self, align):
+        self.emu.mem_write(WORLD, bytes(0x20000))
+        self.emu.mem_write(STACK, bytes(0x10000))
+        self.fsm_calls = []
+        self.emu.reg_write(UC_X86_REG_EFLAGS, 0x202)
+        self.emu.reg_write(UC_X86_REG_XMM0, 0x123456789abcdef)
+        self.emu.reg_write(UC_X86_REG_XMM7, 0xfedcba987654321)
+        return {r: 0x11111111*(i+1) for i,r in enumerate(REGS[:7])}, FRAME - 0x100 + align
+
+    def fire(self, index, align):
+        """The fire deserialize's store with `index` in CL: the registers and
+        the byte stored at +16Ch."""
+        regs, sp = self.fresh(align)
+        state = WORLD
+        self.emu.mem_write(state + 0x16C, b'\xEE')
+        regs.update({UC_X86_REG_ESI: state, UC_X86_REG_ECX: 0x33333300 | index})
+        self.start(FIRE, regs, sp)
+        return self.stopped, tuple(self.emu.reg_read(r) for r in REGS), self.emu.mem_read(state + 0x16C, 1)[0]
+
+    def throw_state(self, index, grenades):
+        """A throw grenade state at WORLD: its set holds `grenades` grenades
+        (None: no set), each its own object, every slot past them PAST."""
+        state, sub, set_, table = WORLD, WORLD + 0x1000, WORLD + 0x2000, WORLD + 0x3000
+        self.word(state + 0x150, sub)            # the substate: +13Ch clear
+        self.emu.mem_write(state + 0x180, bytes([index]))
+        if grenades is not None:
+            self.word(state + 0x17C, set_)
+            self.word(set_ + 0x268, table)
+            self.word(set_ + 0x26C, table + grenades*4)
+            for n in range(256):
+                grenade = WORLD + 0x4000 + n*0x200
+                self.word(table + n*4, grenade if n < grenades else PAST)
+                if n < grenades:
+                    self.emu.mem_write(grenade + 0x154, bytes([n & 1]))  # ready or not, by slot
+        # Its weapon (the throw reads [[state+120h]+8] for the player).
+        self.word(state + 0x120, WORLD + 0x7000)
+        self.word(WORLD + 0x7008, WORLD + 0x8000)
+        return state
+
+    def ready(self, index, align, grenades):
+        """is_ready_for_transition of a throw state with `index`: its result."""
+        regs, sp = self.fresh(align)
+        regs[UC_X86_REG_ECX] = self.throw_state(index, grenades)
+        self.word(sp, GRENADE_RETURN)
+        try:
+            self.start(READY, regs, sp)
+        except RuntimeError:
+            return None
+        return self.stopped, tuple(self.emu.reg_read(r) for r in REGS)
+
+    def throw(self, index, align, grenades):
+        """The throw state's throw with `index`: where it stops (the set's
+        throw_grenade, or its return), the registers and, at the set's
+        throw, the index and the arguments it hands on."""
+        regs, sp = self.fresh(align)
+        regs[UC_X86_REG_ESI] = self.throw_state(index, grenades)
+        self.word(sp, GRENADE_RETURN)
+        self.at_set_throw = True
+        self.start(THROW, regs, sp)
+        at = self.stopped
+        handed = None
+        if at == SET_THROW:
+            esp = self.emu.reg_read(UC_X86_REG_ESP)
+            handed = (self.emu.reg_read(UC_X86_REG_EAX) & 0xff, tuple(self.read(esp + 4*n) for n in range(1, 4)))
+        return at, tuple(self.emu.reg_read(r) for r in REGS), handed
+
+    def set_throw_runs(self, index, align, grenades):
+        """grenade_set_core::throw_grenade itself with `index`, to its first
+        reference: False when it faults (the live write through a slot past
+        the set)."""
+        regs, sp = self.fresh(align)
+        self.throw_state(index, grenades)
+        for n, value in enumerate((GRENADE_RETURN, WORLD + 0x2000, WORLD + 0x5000, WORLD + 0x6000)):
+            self.word(sp + 4*n, value)
+        regs[UC_X86_REG_EAX] = index
+        self.at_set_throw = False
+        try:
+            self.start(SET_THROW, regs, sp)
+        except RuntimeError:
+            return False
+        return self.stopped == SET_THROW_TAKEN
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -149,6 +258,53 @@ def main():
                 # Past the lists: what the game does with the first death animation.
                 assert ours.death(index, align, count) == stock.death(0, align, count), (index, count, align)
                 checks += 1
+        # A fire state's two fire animations: 0 and 1 are stored as read,
+        # any other byte as 0 (the stock stores it, and the presentation then
+        # takes a reference through [state+164h+index*4]).
+        for index in (0, 1):
+            expected = stock.fire(index, align)
+            assert expected[0] == FIRE_END and expected[2] == index, expected
+            assert ours.fire(index, align) == expected, (index, align)
+            checks += 1
+        for index in (2, 100, 254, 255):
+            assert stock.fire(index, align)[2] == index  # the live store
+            assert ours.fire(index, align) == stock.fire(0, align), (index, align)
+            checks += 1
+        # A throw's grenade: one of the set's runs as the stock; none (0FFh)
+        # is not ready and, at the throw, throws nothing; past the set (or
+        # with no set) the stock reads (is_ready) or writes (throw_grenade's
+        # reference) through the slot past it, ours is not ready and throws
+        # nothing.
+        for grenades in (1, 4):
+            for index in range(grenades):
+                expected = stock.ready(index, align, grenades)
+                assert expected is not None and expected[0] == GRENADE_RETURN, (index, grenades)
+                assert ours.ready(index, align, grenades) == expected, (index, grenades, align)
+                expected = stock.throw(index, align, grenades)
+                assert expected[0] == SET_THROW and expected[2][0] == index, expected
+                assert ours.throw(index, align, grenades) == expected, (index, grenades, align)
+                assert stock.set_throw_runs(index, align, grenades)
+                checks += 1
+            not_ready = stock.ready(0xFF, align, grenades)
+            assert not_ready is not None and not_ready[1][0] == 0, not_ready
+            assert ours.ready(0xFF, align, grenades) == not_ready
+            for index in (grenades, grenades + 1, 254):
+                assert stock.ready(index, align, grenades) is None, (index, grenades)  # the live read
+                assert not stock.set_throw_runs(index, align, grenades), (index, grenades)  # the live write
+                assert stock.throw(index, align, grenades)[0] == SET_THROW  # handed on unbounded
+                assert ours.ready(index, align, grenades) == not_ready, (index, grenades, align)
+                checks += 1
+            for index in (grenades, 254, 0xFF):
+                at, regs, handed = ours.throw(index, align, grenades)
+                assert at == GRENADE_RETURN and handed is None, (index, grenades, hex(at))
+                assert regs[REGS.index(UC_X86_REG_ESP)] == FRAME - 0x100 + align + 4
+                for r, value in zip(REGS[1:7], (0x22222222, 0x33333333, 0x44444444, WORLD, 0x66666666, 0x77777777)):
+                    assert regs[REGS.index(r)] == value, (index, r, hex(regs[REGS.index(r)]))
+                checks += 1
+        assert stock.ready(0, align, None) is None  # no set: the stock reads [0+268h]
+        assert ours.ready(0, align, None) == stock.ready(0xFF, align, None)
+        assert ours.throw(0, align, None)[0] == GRENADE_RETURN
+        checks += 1
     print(f'{checks} native guard cases passed (stock equivalence and invalid indices)')
 
 if __name__ == '__main__':

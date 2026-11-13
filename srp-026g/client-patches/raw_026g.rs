@@ -22256,6 +22256,81 @@ impl KdEventFrame {
     }
 }
 
+/// A survarium::throw_grenade_state (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ThrowGrenadeState(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ThrowGrenadeState {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x17c (ptr<survarium::grenade_set_core>): the grenade set being thrown: its deserialize 0x33A5AB..0x33A5F7 takes it from the profile slot the world names; is_ready_for_transition 0x33A677 and the throw 0x33A7BB read it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn grenade_set(self) -> Option<GrenadeSetCore> {
+        unsafe { self.0.byte_add(0x17c).cast::<Option<GrenadeSetCore>>().read_volatile() }
+    }
+
+    /// +0x17c (ptr<survarium::grenade_set_core>): the grenade set being thrown: its deserialize 0x33A5AB..0x33A5F7 takes it from the profile slot the world names; is_ready_for_transition 0x33A677 and the throw 0x33A7BB read it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_grenade_set(self, value: Option<GrenadeSetCore>) {
+        unsafe { self.0.byte_add(0x17c).cast::<Option<GrenadeSetCore>>().write_volatile(value) }
+    }
+
+    /// +0x180 (u8): m_grenade_index: the set's grenade being thrown, 0FFh none (initialize 0x33A45C); the world's byte as read (deserialize 0x33A640); grenade_set_core::pull_pin 0x30A120 gives the game's own (0x3103DD)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn grenade_index(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x180).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A survarium::grenade_set_core (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GrenadeSetCore(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl GrenadeSetCore {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x268 (u32): its grenades' vector begin (the constructor 0x309AFF; each entry a grenade object, walked to the end by 0x309E70): (end - begin) / 4 grenades
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn grenades_begin(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x268).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x26c (u32): its grenades' vector end (0x309E71); pull_pin 0x30A1C2 and throw_grenade 0x30A268 index from begin with no bound
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn grenades_end(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x26c).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -25778,6 +25853,36 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<DeathAnimationsFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(DeathAnimationsFrame)
+        }
+    }
+
+    /// deserialize.grenade_ready (0x33a66d): weapon_core_throw_grenade_state::is_ready_for_transition loading m_grenade_index (mov al,[esi+180h]); past the 0FFh test it reads [[set+268h]+index*4] and [grenade+154h] with no bound (0x33A677..0x33A689); not_ready is the native 0FFh path (xor eax,eax; pop esi; ret)
+    pub mod deserialize_grenade_ready {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::throw_grenade_state (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn state(machine: &impl Machine) -> Option<ThrowGrenadeState> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(ThrowGrenadeState)
+        }
+    }
+
+    /// deserialize.grenade_throw (0x33a770): the throw state's throw_grenade entry (push ebp; mov ebp,esp; and esp,-8; ESI the state, called by the throw substate's on_animation_end 0x3106AD): it hands m_grenade_index to grenade_set_core::throw_grenade 0x30A250, which takes a reference through [[set+268h]+index*4] (0x30A268, 0x30A277) with no bound, 0FFh included; done is its ret, the stack as at the entry
+    pub mod deserialize_grenade_throw {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::throw_grenade_state (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn state(machine: &impl Machine) -> Option<ThrowGrenadeState> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(ThrowGrenadeState)
         }
     }
 

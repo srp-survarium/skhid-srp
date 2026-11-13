@@ -57,7 +57,8 @@
 //! 300 301 303 304  show, hide, reload, chamber; 311 314 the double-barrel's and
 //! 311 314          pistol's reload: + u8 m_index_of_animation_to_wait (+0x134, 0xFF none)
 //! 305              fire: + u8 m_bullets_in_queue (+0x13C), bool m_can_reset_fire_queue
-//! 312 315          double-barrel and pistol fire: + u8 m_weapon_animation_index (+0x16C)
+//! 312 315          double-barrel and pistol fire: + u8 m_weapon_animation_index (+0x16C):
+//!                  0 or 1, a slot of the state's own two fire animations (+0x164)
 //! 321              melee: + bool m_melee_animation_ended (+0x158)
 //! 306              shotgun reload: the flag, its sub-state (start, one round, finish;
 //!                  order LIKELY) and that sub-state's flag and index
@@ -627,6 +628,38 @@ impl Fire {
     }
 }
 
+/// Which of a double-barrel's or a pistol's two fire animations its fire
+/// state plays (`m_weapon_animation_index`). The state holds exactly two, in
+/// the object (+0x164, +0x168: both constructors 0x30F660 and 0x30FF40 make
+/// an array of 2 there), and `weapon_and_hands_expression` 0x30F830 takes a
+/// reference through `[state+0x164+index*4]` with no bound, so any other
+/// byte made every receiving game write through what lies past them. The
+/// game's own stores give 0 or 1 (initialize 0x30F7F0, 0x3100F0;
+/// pistol on_animation_end_impl 0x310170);
+/// the constructor's 0xFF is replaced on activation and was never seen in a
+/// world (44,117 worlds of 100 rev56 recordings: 3,340 such states, all 0
+/// or 1). Patch 115 maps any other byte to the first at the load too.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FireAnimation {
+    First,
+    Second,
+}
+
+impl FireAnimation {
+    fn read(reader: &mut Reader) -> Result<Self, Fault> {
+        let at = reader.at();
+        match u8(reader)? {
+            0 => Ok(Self::First),
+            1 => Ok(Self::Second),
+            value => Err(outside(
+                at,
+                "a fire state's m_weapon_animation_index",
+                value.into(),
+            )),
+        }
+    }
+}
+
 /// A shotgun reload's sub-states (`weapon_core_shotgun_reload_state::
 /// m_logic`; order LIKELY).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -653,9 +686,11 @@ pub enum StateData {
     /// Show, hide, reload, chamber.
     AnimationEnd(AnimationWait),
     Fire(Fire),
-    /// A double-barrel's or a pistol's fire: + `m_weapon_animation_index`
-    /// (0 or 1 in every world; the constructor's 0xFF LIKELY never saved).
-    FireTwice { fire: Fire, weapon_animation_index: u8 },
+    /// A double-barrel's or a pistol's fire: + `m_weapon_animation_index`.
+    FireTwice {
+        fire: Fire,
+        weapon_animation: FireAnimation,
+    },
     Melee {
         wait: AnimationWait,
         melee_animation_ended: bool,
@@ -700,7 +735,7 @@ impl StateData {
             GunState::Fire => StateData::Fire(Fire::read(reader)?),
             GunState::FireTwice => StateData::FireTwice {
                 fire: Fire::read(reader)?,
-                weapon_animation_index: u8(reader)?,
+                weapon_animation: FireAnimation::read(reader)?,
             },
             GunState::Melee => StateData::Melee {
                 wait: AnimationWait::read(reader)?,
