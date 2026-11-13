@@ -27,7 +27,8 @@
 //!   clips (`WeaponParams::reload_share`, from the clip lengths in the game
 //!   data), the TT-33's and the TOZ-34's ([`EMPTY_RELOAD_SHARE`],
 //!   [`BARRELS_RELOAD_SHARE`]) when the data was made without them.
-//! - The bolt: `chamber_a_round_time`. LIKELY: the card's rate of fire is
+//! - The bolt: `chamber_a_round_time`, PROVEN: the chamber clip lasts
+//!   `chamber_a_round_time / (1 + S21)` (0x30E2B0, 0x30E58D). The card's rate of fire is
 //!   `60 / (60 / rpm + chamber_a_round_time)` floored for all eleven
 //!   weapons that have one (the Mosin 27, the SV-98 21, the Remington 700
 //!   32); 0.100b played the chamber clip at its own length (the Mosin's
@@ -120,8 +121,10 @@ pub struct Gun {
     /// `chamber_a_round` state), ms; 0: none.
     pub chamber_ms: u32,
     pub reload: Reload,
-    /// Taken out and put away, ms (`show_time`, `hide_time`; that these are
-    /// the states' times is LIKELY: 0.100b timed them by the clips).
+    /// Taken out and put away, ms (`show_time`, `hide_time`; PROVEN: the
+    /// clips are stretched to them over `max(0, 1 + S22)`, 0x30D9C0 ->
+    /// 0x30DF10, index 22 at 0x30DF7B, 54 of 54 clips with S22 over 0 fit;
+    /// the bots do not divide by `1 + S22` yet, F68).
     pub show_ms: u32,
     pub hide_ms: u32,
     /// How the bots fire it ([`Handling`]).
@@ -474,9 +477,9 @@ fn kit_flight(weapon: &str) -> Option<Flight> {
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Factors {
     /// `reload_speed_modifier` (13: skill 108, gloves 1140..1144): a reload
-    /// takes `reload_time / (1 + this)` [LIKELY: the speed given to the reload
-    /// state's animation, 0x30F61D; the form is not traced to the state's
-    /// clock].
+    /// takes `reload_time / max(0, 1 + this)` [PROVEN: the reload clip plays at
+    /// speed x `max(0, 1 + S13)`, 0x30E25A; 2,104 recorded reloads, none
+    /// early].
     pub reload_speed: f32,
     /// `aim_time_modifier` (49: skill 101, gloves 1080..1084): the sights
     /// take `aim_time * max(0, 1 + this)` [PROVEN, 0x2E1B9A / 0x2E1C3B].
@@ -860,8 +863,9 @@ pub struct Load {
 
 impl Load {
     /// At a spawn with `carried` rounds of its ammo: the weapon loaded from
-    /// them (LIKELY: 0.100b fills the magazine from the ammo at the first
-    /// activation, `load_ammo`, and a spawn gives the kit afresh).
+    /// them (PROVEN: `+5F4h` is set by `setup_from_profile` 0x2FCBEC and read
+    /// once in `weapon_core::initialize` 0x2E2B71 -> 0x2E27C0: the magazine
+    /// holds min(carried, capacity)).
     pub fn of(gun: &'static Gun, carried: u32) -> Self {
         let rounds = carried.min(gun.magazine);
         Self {
@@ -1154,7 +1158,8 @@ pub struct Hands {
 }
 
 impl Hands {
-    /// At a spawn: weapon 1 in hand (LIKELY: a spawn takes weapon 1).
+    /// At a spawn: weapon 1 in hand (PROVEN: at a spawn kit slot 7 is in
+    /// hand, else slot 10, 0x2DADC6).
     pub fn of(arms: &Arms) -> Self {
         Self {
             primary: Load::of(arms.primary.0, arms.primary.1),
