@@ -44,11 +44,23 @@ impl Map {
         materials: &Materials,
         project: &str,
     ) -> Result<Self, String> {
+        Self::load_in(resources, materials, project, None)
+    }
+
+    /// [`Map::load`] with the walk grid built over `bounds` (`[x0, z0, x1,
+    /// z1]`) instead of the project's play area: the STALKER ports' levelmap
+    /// is a dummy (scripts/stalker-maps/ffa-points).
+    pub fn load_in(
+        resources: &mut Resources,
+        materials: &Materials,
+        project: &str,
+        bounds: Option<[f32; 4]>,
+    ) -> Result<Self, String> {
         let map = MapData::load(resources, materials, project).map_err(|e| e.to_string())?;
         let walker = map.walker_triangles();
         let grid = WalkGrid::build_kept(
             &walker,
-            map.play_area(mapdata::AREA_MARGIN),
+            bounds.unwrap_or_else(|| map.play_area(mapdata::AREA_MARGIN)),
             mapdata::CELL,
             Body::default(),
             &map.grid_seeds(),

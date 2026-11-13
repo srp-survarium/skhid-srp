@@ -112,6 +112,32 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
 - **Checked against 0.26g's collision** (`scripts/ffa-mode/check-points`,
   `scripts/ffa-mode/checked.tsv`): each 0.31 point is kept, nudged to the ground (under 0.43 m) or
   dropped (ground over 0.5 m off, body blocked, or no reachable floor).
+- **Half the perimeter spawns in the centre** (the owner, 2026-11-13: "I would remove half spawns
+  on perimeter", "almost on all maps", "and put them in the center"; he approved the reviewed
+  proposal for all 16 maps below; Training Camp has its own, `stalker-ffa.md`). Content edit
+  `ffa-center-1`, from `scripts/ffa-mode/center.tsv`, made by check-points' `to_center` (its doc
+  is the rule) and `make_center_edits.py`:
+  - The walkable area: the reachable standing floor of the map's walk grid, on a 2 m raster,
+    closed by a cell and its holes filled. A point's depth is its distance from that outline.
+  - Perimeter: a solo spawn within 30 % of the deepest point's depth. Taken in angle order round
+    the area's centroid, every other one moves (the phase leaving the smaller largest gap).
+  - Centre: at least 50 % of that depth, joined to the deepest point. Where it cannot take them
+    all at 12 m, 5 % wider at a time: Tarakanovsky Fort 45 %, Vector Laboratory 40 %, Experimental
+    Pool 35 % (its middle already had 9 spawns).
+  - Each moved spawn keeps its point id, name, radius and protection; only its position and
+    rotation (`[0, yaw, 0]`) change, to a place with the same checks as London's central points:
+    reachable standing floor, clear body, harmful zones 2 m away, a walkable 6 m facing, 12 m from
+    every other solo spawn (the nearest new one is 12.2 m away, on the Pool). Spawn counts are
+    unchanged.
+  - Moved (of the perimeter's): Rudnya 14/28, School 11/23, Vostok 9/18, Chemical Plant 14/28,
+    Fort 9/19, Mamayev 11/22, Vector Laboratory 11/22, Cologne 7/15, London 8/16, Vostok v0.21 8/16,
+    Mamayev v0.21 6/12, Vostok v0.11 7/15, Chemical Plant v0.11 9/18, Rudnya v0.69 10/20,
+    Experimental Pool 7/15, Military Warehouses 7/14: 148 a map's worth; levels 1-8 the same in
+    their three weathers (same points and geometry), 320 moved entries.
+  - Cologne is a bridge: its centre is the bridge's middle lanes, not the middle of its length.
+  - The free for all's own `<weather>_8` projects only; Team Deathmatch's are not named.
+  - Review renders (before/after per map): `private/renders/ffa-spawns-to-center/` of the main
+    checkout.
 - **Crowding** (2026-11-13, an offline model of the built projects, not play): one player respawns
   while the N - 1 others live, standing either on random solo points (A) or anywhere in the box
   around them (B); the share of respawns with no safe point (the fallback), N = 16 / 20:

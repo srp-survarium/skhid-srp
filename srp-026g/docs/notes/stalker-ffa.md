@@ -5,7 +5,10 @@ Training Camp 29. Training Camp keeps players inside the crater, mostly inside
 its base's fence and on its raised islands, and gives its FFA spawns 500 ms of
 protection. Pool and
 Military Warehouses have in-game panorama pictures in room tiles and loading
-screens. All original TDM spawn positions are preserved.
+screens. All original TDM spawn positions are preserved. Half of Pool's and
+Military Warehouses' perimeter FFA spawns (7 each) are moved to their centre
+afterwards, ids kept, by `ffa-center-1` with the other maps (`ffa.md`), so
+their day_8 positions are not all ffa-spawns.tsv's.
 
 This integrates the previously unmerged `stalker-maps@6` pack, which supplies
 six TDM ports. The other three are Repair Depot, Station and Depository. Only
