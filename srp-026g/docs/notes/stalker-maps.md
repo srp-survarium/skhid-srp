@@ -232,10 +232,16 @@ The spawns do not come from the level: they are the planner's.
   tables, their room tiles (`RENDER_ONE`), their loading pictures
   (`LobbyMenu._load_images` 30-35, classes `Level_<project>`).
 - `srp-026g/flash/hud`: their minimaps (`Minimap._levels`, `_minimapProps`,
-  classes `minimap_<project>`).
-- `tools/actionscript`: a tree's `movie.json` may add bitmaps the original movie
-  lacks (`"images"`: a DefineBitsJPEG3 per class, premultiplied JPEG and zlib
-  alpha, bound by a new SymbolClass); `srp-026g/scripts/stalker-maps/ui_images.py`
+  classes `minimap_<project>`). Training Camp's ground runs to the level's
+  edge (400 x 400 m), so the renderer's default cut it 45 m around the TDM
+  spawns (a figure-8). Its minimap is framed on the crater wall + 15 m and
+  shows all the ground there, fading out inside the Tab map's 460 px
+  (the owner's pick, 2026-11-13): `render_minimap.py --map 212
+  --frame-outline srp-026g/scripts/stalker-maps/training-arena.tsv`
+  (resource-porter `fix/training-camp-minimap`). Repair Depot's south edge has
+  the same 45 m circles; it is not played.
+- `tools/actionscript` adds a bitmap the original movie lacks from the tree's
+  `bitmaps/<class>.png` (lossless) or `.jpg`; `srp-026g/scripts/stalker-maps/ui_images.py`
   writes them from the porter's minimap render and a loading picture.
 - Loading pictures and room tiles: Training Camp and Repair Depot use the
   earlier package's in-game shots. Experimental Pool uses the `poolside-se`
