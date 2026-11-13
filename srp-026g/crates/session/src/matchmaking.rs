@@ -843,11 +843,22 @@ impl Matchmaking {
     /// match server's id of it).
     pub fn watcher_left(&self, session_id: u32, ticket: u32) {
         let mut inner = self.inner.locked();
-        if let Some(watcher) = inner.watchers.get(&session_id).map(|watch| watch.watcher)
+        if let Some((watcher, game)) = inner
+            .watchers
+            .get(&session_id)
+            .map(|watch| (watch.watcher, watch.game))
             && watcher.ticket == ticket
         {
             inner.watchers.remove(&session_id);
             inner.recalled.remove(&session_id);
+            // Its game never reached the match: as at the deadline
+            // ([`Self::expire_watches`]), or a word just before it would ask
+            // anew and keep a spectator's place for good.
+            if matches!(game, WatchingGame::Coming { .. }) {
+                inner
+                    .watch_cooldowns
+                    .insert(watcher.account_id, Instant::now() + WATCH_COOLDOWN);
+            }
             if matches!(watcher.kind, WatchKind::Queued { .. }) {
                 inner
                     .watchers_left

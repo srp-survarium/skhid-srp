@@ -819,6 +819,14 @@ impl Watches {
                  its session is over",
                 session.request.match_id
             );
+            // Its game never reached the match server: as at the deadline
+            // ([`Self::expire`]), or a word just before it would ask anew and
+            // keep a session's place for good.
+            if matches!(session.stage, Stage::Sent { .. }) {
+                self.cooldowns
+                    .locked()
+                    .insert(account, Instant::now() + WATCH_COOLDOWN);
+            }
         }
         true
     }
@@ -1045,11 +1053,14 @@ mod tests {
         assert!(watches.holds(ALICE));
         watches.sent(ALICE, now);
         assert!(watches.is_open(&alice));
-        // Sent: over, and the account may ask again, as soon as asks may follow.
+        // Sent: over; its game never reached the match server, so the account
+        // waits as after the deadline (or a word just before it would keep a
+        // place for good).
         assert!(watches.game_back(alice.session_id));
         assert!(!watches.holds(ALICE));
         assert!(!watches.is_open(&alice));
-        now += START_EVERY;
+        assert_eq!(watches.start(alice, now + START_EVERY), Status::Busy);
+        now += WATCH_COOLDOWN + START_EVERY;
         assert_eq!(watches.start(alice, now), Status::Preparing);
         assert_eq!(watches.next_job(now), Some(alice));
         assert!(watches.loaded(&alice, 14_500, now));
