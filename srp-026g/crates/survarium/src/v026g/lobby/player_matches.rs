@@ -17,7 +17,9 @@
 //!   - row 0: `P1;<n>;<nickname>`;
 //!   - then `n` rows, newest first:
 //!     `P2;<match id 8 hex>;<place>;<map id>;<mode>;<result>;<kills>;<deaths>;<minutes since its end>;<replay>`.
-//!     `place` is the player's place in its team by score, from 1.
+//!     `place` is the player's roster seat, 0xFF when unknown.
+//!     On the asker's own list a last field `;1` (private room) or `;2`
+//!     (against bots) follows.
 //!     `mode` is the mode's lobby number. `result` is [`Outcome`].
 //!     `replay` is [`ReplayState`] for the asker's game; no row is left out
 //!     by who may watch it (anyone may watch any replay).

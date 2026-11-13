@@ -18,8 +18,9 @@ The spike (branch `spike/replay-stream`) proved it on a real game on 2026-11-07:
    Only `0xC000_0000..=0xC0FF_FFFF` is a watch ask (`REPLAY_WATCH_BASE..=REPLAY_WATCH_LAST`);
    "Watch my deaths" (`0xC100_0000`) is gone from the movie and the server.
 2. The lobby answers at once with one `R1` row (`91`, `replay_watch.md` section 2): `R1;preparing;<id 8 hex>;2`, or why not: `off` (no recordings),
-   `old_game` (revision below 14), `busy` (the player is in a match or queued, has a session
-   already, or `SRP_REPLAY_WATCH_MAX` sessions run).
+   `old_game` (revision below 14), `in_room` (the room has a use for the player now: its vote or a place in its
+   match), `busy` (the player is in a match or queued, has a session already, has missed
+   `MISSES_ALLOWED` match ids lately, or `SRP_REPLAY_WATCH_MAX` sessions run).
 3. The match server reads the match's newest `.srprec` from `SRP_RECORD_DIR` on a thread of its own
    (nice 19, one at a time; a recording already loaded for another session of that match is
    shared), and judges the asker before converting it: anyone (`SRP_REPLAY_WATCH=all`, the

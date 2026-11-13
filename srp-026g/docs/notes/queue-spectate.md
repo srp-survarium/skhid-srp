@@ -114,7 +114,7 @@ but with nice non-disruptive ux/ui".
   end). The game comes back to the lobby by
   itself; its room takes it as any member (the vote, a late join).
 - **Not begun then:** a watch asked while the asker's room would call back at once is answered
-  `busy` (`room_keeps`).
+  `in_room` (`st_srp_replay_in_room`; `room_keeps`).
 - **In the game** (`WatchWindow.back`, `RoomsWindow.holdWatchReturn`): back from a watch in a
   room or a queue, the next room state decides: a room that called back says so once, with its
   state (the room code 18, `RoomCode::CalledBack`, kept until the game asks: a room that waited

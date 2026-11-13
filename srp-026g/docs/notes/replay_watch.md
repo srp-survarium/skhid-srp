@@ -81,7 +81,8 @@ Watch button wherever a match is mentioned.
     then `F1` rows as Live's (place 255: a recorded match keeps none);
   - a player's matches, `3B 00 <2 230 000 000> <10>` about the player of the asker's last `93` or
     `PLAYER_MATCHES_ASK` (`+ 1`: the asker's own, Mine): `P1;<n>;<nickname>` then n of
-    `P2;<match 8 hex>;<place>;<map id>;<mode>;<result 0 defeat|1 victory|2 draw>;<kills>;<deaths>;<minutes since its end>;<replay>`;
+    `P2;<match 8 hex>;<place>;<map id>;<mode>;<result 0 defeat|1 victory|2 draw>;<kills>;<deaths>;<minutes since its end>;<replay>[;<1 private|2 with bots>]`
+    (the last field on the asker's own list only);
     rows for another nickname than the one searched are left;
   - `<replay>`: 0 not recorded, 1 kept, 3 gone, 4 old version (the asker's game is below the
     replays' minimum revision). 2 (a replay file made for the download) is no longer sent.

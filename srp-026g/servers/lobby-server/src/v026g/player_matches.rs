@@ -4,7 +4,7 @@
 //! the asker itself; and the Watch hub's Recent tab
 //! (`survarium::v026g::lobby::recent_matches`), the latest public matches,
 //! or those of the asker's friends. Private rooms' matches and matches
-//! against bots are never listed. Each list is made at most once a
+//! against bots are listed on the asker's own Matches list only. Each list is made at most once a
 //! [`HISTORY_EVERY`] for a session ([`HistoryAnswers`]).
 
 use std::time::{Duration, Instant};
