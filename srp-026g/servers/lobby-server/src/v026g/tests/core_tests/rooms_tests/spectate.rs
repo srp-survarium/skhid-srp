@@ -117,10 +117,15 @@ fn queue_and_spectate_watches_the_match_and_plays_when_a_place_frees() {
     assert_eq!(world.core.rooms.key_of(world.ids[carol].0), Some(key));
     assert_eq!(watched(&world, carol), None);
     assert!(spectators(&state(&mut world, members[2])).is_empty());
-    // ... and into it as a player as soon as her game, in the lobby again,
-    // asks for its room: no 15 s.
+    // ... and into it as a player as soon as her game, back in the lobby
+    // (its word), asks for its room: no 15 s. Asked before her game is
+    // back, it waits for it.
     world.host.admitting.locked().insert(ticket);
     world.take(carol);
+    state(&mut world, carol);
+    world.advance(Duration::from_secs(1));
+    assert!(sent_to_match(&world.take(carol)).is_none(), "her game is away");
+    world.ask(carol, request::leave(1, true));
     state(&mut world, carol);
     world.advance(Duration::from_secs(1));
     let (sent, _) = sent_to_match(&world.take(carol)).expect("Carol plays");

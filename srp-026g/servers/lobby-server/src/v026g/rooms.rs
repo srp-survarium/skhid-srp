@@ -454,7 +454,7 @@ impl Core<'_> {
                 | RoomRequest::Friends
                 | RoomRequest::Offer { .. }
         ) {
-            self.room_shown(who.account_id, now);
+            self.room_shown(who, now);
         }
         match request {
             RoomRequest::List { count } => {
@@ -987,7 +987,7 @@ impl Core<'_> {
     /// new one; the lobby state, so the movie shows it. Its own room if it
     /// has one.
     pub(super) fn room_play(&mut self, who: &Who, now: Instant) {
-        self.room_shown(who.account_id, now);
+        self.room_shown(who, now);
         self.room_quick(who, now);
         self.send(who.addr, lobby::client_state(&ClientState::Lobby, None));
     }
@@ -1815,10 +1815,19 @@ impl Core<'_> {
     /// The account's game was told its room (a request answered with its
     /// state, or Play): the room plays with it again. One that comes while
     /// its room's match is played sees the room first (`RoomRules::late_join_wait`).
-    fn room_shown(&mut self, account_id: u32, now: Instant) {
+    fn room_shown(&mut self, who: &Who, now: Instant) {
+        let account_id = who.account_id;
         // A spectator given a place: its game is back in the lobby and goes
-        // into the match at once, with no room shown first.
-        if self.room_join_at.get(&account_id) == Some(&JoinAt::Shown) {
+        // into the match at once, with no room shown first. Not while the
+        // match it watched is still its game's (the movie asks for its room
+        // meanwhile): its word that it is back comes first (`leave` takes
+        // `freed_at`), or `FREED_WORD` passes.
+        let away = self.player(who.addr).is_some_and(|player| {
+            player
+                .freed_at
+                .is_some_and(|at| now.saturating_duration_since(at) < super::play::FREED_WORD)
+        });
+        if !away && self.room_join_at.get(&account_id) == Some(&JoinAt::Shown) {
             self.room_join_at.insert(account_id, JoinAt::At(now));
         }
         if self.room_unseen.remove(&account_id).is_some() {

@@ -160,7 +160,7 @@ is a `91` row at the request's start plus its index.
   `L1;<match 8 hex>;<map id>;<mode>;<phase>;<players a>;<players b>;<score a|->;<score b|->;
   <played s>;<spectators>;<watch>`; `phase` 0 made, 1 countdown, 2 in play, 3 over; `watch` 1 may,
   0 full, 2 not watchable (fixed rosters, which take no spectator, or over). A private room's match is not
-  listed. The match id is the match server's (the replay's). After the `L1` rows,
+  listed, nor one against the server's bots (the player's own, as its history). The match id is the match server's (the replay's). After the `L1` rows,
   `F1;<match 8 hex>;<place>;<team 0|1>;<name>` for each friend of the asker present in a listed
   match (the Watch hub's pinned cards, the friends list's Spectate).
 - **Roster**: `3D 00 <LIVE_ROSTER_ASK = 0xFFFF_FF06> <match>` chooses the match, then

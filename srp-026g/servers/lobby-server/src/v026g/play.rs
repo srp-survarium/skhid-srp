@@ -323,7 +323,8 @@ pub(super) struct Running {
     /// The server's bots play in it (against bots, or a room's with bots):
     /// one of `pvb::Config::max_matches`.
     pub server_bots: bool,
-    /// A private room's: not in the Live window (`live`).
+    /// A private room's, or one against the server's bots: not in the Live
+    /// window (`live`).
     pub private: bool,
 }
 
@@ -1369,7 +1370,8 @@ impl Core<'_> {
         let compatible = self
             .pool_for_sessions(formed.seats.iter().map(|seat| seat.player.session_id))
             == Some(formed.pool);
-        let private = room.is_some_and(|room| room.kind == RoomKind::Private);
+        // Against the server's bots: the player's own, as its history is.
+        let private = pvb.is_some() || room.is_some_and(|room| room.kind == RoomKind::Private);
         let made = match (players.filter(|_| compatible), maps::MatchMap::of(chosen)) {
             (Some(players), Some(map)) => self
                 .host

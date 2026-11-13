@@ -53,8 +53,8 @@ dynamic game". Rooms: [rooms.md](rooms.md) (Queue, Late joins). Wire: `lobby.md`
   players' majority contradicts and it starts again from a fresh world, no more often than a
   player is resynced. They never count for the match (`match.md` section 37).
 - **A PIN room's match** can be watched this way by anyone who may queue for it (queuing takes
-  the PIN), while the Live window does not list a private room's match and opens it to no
-  spectator.
+  the PIN), while the Live window does not list a private room's match (nor one against the server's
+  bots) and opens it to no spectator.
 - **Spectators share the Live window's caps** (`SRP_LIVE_WATCH_PER_MATCH`, 4, and
   `SRP_LIVE_WATCH_MAX`, 8): each costs about one more player (its relays and worlds). A queue
   waiter past the cap stays in the queue without watching and starts when a place frees, the
