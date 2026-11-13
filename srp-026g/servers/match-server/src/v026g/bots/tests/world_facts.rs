@@ -134,7 +134,7 @@ pub(crate) fn a_partners_death_the_world_shows_without_feet_is_traded_by_both_te
         Vec3::new(72.0, 0.0, 34.0),
         Vec3::new(70.0, 0.0, 38.0),
     ];
-    let body = |time: u32, place: usize, alive: bool| Fix { fall: None,
+    let body = |time: u32, place: usize, alive: bool| Fix { fall: None, controller: None,
         time,
         alive,
         inserted: 100,

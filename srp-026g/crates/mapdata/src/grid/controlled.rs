@@ -501,6 +501,14 @@ impl WalkGrid {
         Some(Controller::standing_at(self.body.walk_start().place(world, feet)))
     }
 
+    /// A body the reckoning keeps across ticks starts here at a world that saved its controller (`serialize` 0x7F7F0): the
+    /// client's own, crouched where the client's is ([`Controller::deserialized`]), not a standing body placed as the walk starts.
+    /// None without [`Self::with_client_walker`].
+    pub fn kept_controller_saved(&self, saved: &crate::controller::tick::Saved) -> Option<Controller> {
+        self.walker.as_deref()?;
+        Some(Controller::deserialized(saved))
+    }
+
     /// [A364 P9] One tick of a kept body (`player_step` with what the game's logic hands it: `Controller::tick`) on the grid's
     /// walker with its body's settings; false (and nothing moved) without [`Self::with_client_walker`].
     pub fn kept_tick(&self, body: &mut Controller, input: TickInput) -> bool {

@@ -71,6 +71,10 @@ pub struct Body {
     /// Already in the map's frame (`from_bullet`).
     pub fall_and_slide_velocity: [f32; 3],
     pub supporting_surface_normal: [f32; 3],
+    /// `m_blocking_ceiling_normal`, map frame.
+    pub blocking_ceiling_normal: [f32; 3],
+    /// `m_blocking_ceiling_slide_velocity`, map frame.
+    pub blocking_ceiling_slide_velocity: [f32; 3],
 }
 
 impl Body {
@@ -196,6 +200,8 @@ fn body_at(s: &[u8], at: usize) -> Option<Body> {
         sprinting: flag(s, at + 66)?,
         fall_and_slide_velocity: fall,
         supporting_surface_normal: ground,
+        blocking_ceiling_normal: ceiling,
+        blocking_ceiling_slide_velocity: slide,
     })
 }
 

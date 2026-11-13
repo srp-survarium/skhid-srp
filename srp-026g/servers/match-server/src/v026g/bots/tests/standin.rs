@@ -2949,7 +2949,7 @@ impl Game {
         let fixes = self
             .bodies
             .iter()
-            .map(|body| Fix { fall: None,
+            .map(|body| Fix { fall: None, controller: None,
                 time: self.tick,
                 alive: body.alive,
                 inserted: body.spawned,

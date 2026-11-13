@@ -145,6 +145,34 @@ pub struct Controller {
     pub air_control: Vec3,
 }
 
+/// A controller as a world saves it (`serialize` 0x7F7F0, 67 bytes) with the player's feet, in the map's frame:
+/// [`Controller::deserialized`]. The block's sprint flag (+204h) is not here: the port takes it each tick ([`TickInput::sprinting`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Saved {
+    /// The player's feet (its transform, +40Ch), which `set_transform` 0x7F6D0 puts the capsule on.
+    pub feet: Vec3,
+    /// +2C70Ch `m_jumping`.
+    pub jumping: bool,
+    /// +200h `m_input_is_in_crouch`.
+    pub input_crouch: bool,
+    /// +201h `m_logic_is_in_crouch`.
+    pub logic_crouch: bool,
+    /// +203h `m_capsule_is_in_crouch`.
+    pub capsule_crouch: bool,
+    /// +202h `m_can_stand`.
+    pub can_stand: bool,
+    /// +205h `m_colliding_with_player`.
+    pub colliding_with_player: bool,
+    /// +2C770h `m_fall_and_slide_velocity`.
+    pub velocity: Vec3,
+    /// +2C710h `m_supporting_surface_normal`.
+    pub support_normal: Vec3,
+    /// +2C720h `m_blocking_ceiling_normal`.
+    pub ceiling_normal: Vec3,
+    /// +2C730h `m_blocking_ceiling_slide_velocity`.
+    pub ceiling_slide: Vec3,
+}
+
 /// What the game's logic does with the crouch between two steps: the key (bit 8 of the input's actions, either of
 /// the client's `crouch` and `crouch_toggle` keys), and whether the held item's animation selector tests its crouch
 /// transitions this frame (PROVEN, `docs/notes/crouch_logic.md`).
@@ -332,6 +360,30 @@ impl Controller {
             ceiling_normal: Vec3::new(0.0, -1.0, 0.0),
             air_control: Vec3::ZERO,
         }
+    }
+
+    /// `deserialize` 0x7FB10 and its caller's `set_transform` 0x7F6D0 (base_player's deserialize 0x2DB901..0x2DB934; read whole by
+    /// exactness 2026-11-13, `rig/dis/deser-7FB10.txt`): the block's six flags (+2C70Ch, +200h, +201h, +203h, +202h, +205h) and four
+    /// vectors (+2C770h, +2C710h, +2C720h, +2C730h, each zero component +0), the capsule's dims by +203h (`setup_shape_dim` 0x7F100,
+    /// not `setup_crouch_state`), then the origin on the player's feet with those dims. Nothing else is reset (dt, gravity, the walk
+    /// and air-control vectors keep the constructor's); the working position is the origin, as `player_step` sets it at its start.
+    pub fn deserialized(saved: &Saved) -> Self {
+        let plus_zero = |v: Vec3| Vec3::new(v.x + 0.0, v.y + 0.0, v.z + 0.0);
+        let mut body = Self::standing_at(Vec3::ZERO);
+        body.crouched = saved.capsule_crouch;
+        body.dims = dims_of(if body.crouched { body.crouching } else { body.standing });
+        body.origin = saved.feet + UP * body.d();
+        body.pos = body.origin;
+        body.jumping = saved.jumping;
+        body.input_crouch = saved.input_crouch;
+        body.want_crouch = saved.logic_crouch;
+        body.can_stand = saved.can_stand;
+        body.colliding_with_player = saved.colliding_with_player;
+        body.velocity = plus_zero(saved.velocity);
+        body.contact_normal = plus_zero(saved.support_normal);
+        body.ceiling_normal = plus_zero(saved.ceiling_normal);
+        body.slide = plus_zero(saved.ceiling_slide);
+        body
     }
 
     /// The feet (the capsule's bottom) at the origin.
