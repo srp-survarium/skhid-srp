@@ -1536,11 +1536,13 @@ impl Spectator {
     /// due after its own world, as its first did. As a player's resync
     /// forgets its roster changes (`clear_gate`).
     fn forget_timeline(&mut self, now: Instant) {
-        for serial in std::mem::take(&mut self.timeline) {
-            if in_flight(&self.transport, serial) {
-                self.transport.forget(serial, now);
-            }
-        }
+        // In one pass: a game may keep thousands in flight, and start again
+        // each second.
+        let serials: std::collections::BTreeSet<u64> = std::mem::take(&mut self.timeline)
+            .into_iter()
+            .filter(|&serial| in_flight(&self.transport, serial))
+            .collect();
+        self.transport.forget_all(&serials, now);
     }
 
     /// One step of its game's machine: the only place its stage is set.

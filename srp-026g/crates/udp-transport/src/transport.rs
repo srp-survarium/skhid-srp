@@ -896,16 +896,32 @@ impl Transport {
     /// on its way may still arrive. It counts as delivered from then on,
     /// never as lost.
     pub fn forget(&mut self, serial: u64, now: Instant) {
+        self.forget_where(|each| each == serial, now);
+        self.outstanding.remove(&serial);
+    }
+
+    /// [`Self::forget`] for each of `serials`, in one pass over what waits.
+    pub fn forget_all(&mut self, serials: &BTreeSet<u64>, now: Instant) {
+        if serials.is_empty() {
+            return;
+        }
+        self.forget_where(|each| serials.contains(&each), now);
+        for serial in serials {
+            self.outstanding.remove(serial);
+        }
+    }
+
+    fn forget_where(&mut self, gone: impl Fn(u64) -> bool, now: Instant) {
         let mut channels = Vec::new();
         self.pending.retain(|message| {
-            let keep = message.serial != serial;
+            let keep = !gone(message.serial);
             if !keep {
                 channels.push(message.channel);
             }
             keep
         });
         self.unacked.retain(|(message, _)| {
-            let keep = message.serial != serial;
+            let keep = !gone(message.serial);
             if !keep {
                 channels.push(message.channel);
             }
@@ -917,7 +933,6 @@ impl Transport {
                 self.retired.push_back((channel, now));
             }
         }
-        self.outstanding.remove(&serial);
     }
 
     /// Two whole messages that go in one datagram, `first` ahead of
