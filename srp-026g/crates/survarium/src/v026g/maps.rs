@@ -533,8 +533,15 @@ pub fn world_objects(
                     )));
                 };
                 // Its uses, which bound an artefact's amount (`Uses`): the game
-                // reads `data.amount` as a 32-bit int; none is taken as 0, no bound.
-                let uses = Uses::of_amount(int(config.get("data"), "amount")?);
+                // reads `data.amount` as a 32-bit int (0x3130B9). An item without
+                // the key has no defined uses: the config's `operator[]` 0xF6B10
+                // has no end check, so the game reads past the table. Such an
+                // item is held to one use, as every live artefact (-1) is.
+                let data = config.get("data");
+                let uses = match data.and_then(|data| data.get("amount")) {
+                    None => Uses::of_amount(-1),
+                    Some(_) => Uses::of_amount(int(data, "amount")?),
+                };
                 let count = int::<usize>(Some(artefact), "count")?;
                 artefacts.extend(std::iter::repeat_n(ArtefactItem { core, uses }, count));
             }

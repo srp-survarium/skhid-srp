@@ -147,9 +147,26 @@
 //! amount is set to its item's uses (`on_spawned` 0x3134C0, client patch
 //! 109's Keeper gift the same) and only lowered after (`end_active`): [`Uses`].
 //!
-//! Left open (any value the field holds is taken): the u32 times, ids and
-//! seeds; an artefact's container id (the writer copies it from the live
-//! objects, and nothing here shows the set it keeps it in).
+//! Left open (any value the field holds is taken), each because no reader
+//! of the game indexes or dereferences with it (the clean exe):
+//!
+//! - an artefact's `m_container_id` (+284h): written by its constructor
+//!   (0x31300B), `on_spawned` (0x313506), `deserialize` (0x313779,
+//!   0x3137D3) and a container's take (0x31C8A4); read only by `serialize`
+//!   (0x3136EC). No other byte access to +284h in the exe reads it (the two
+//!   at 0x17D54E and 0x17D8CD are the renderer's own objects).
+//! - a grenade's `m_id`: `deserialize` hands it to the grenade's start
+//!   (vtable 0xA13FB8 +10h, 0x303B90), which stores it at +4 (0x303B9E;
+//!   0x303FF4 when already thrown); only `serialize` reads it (0x303E37).
+//!   None of the grenade's virtuals (0x303A60 tick, 0x303B20, 0x303B60
+//!   explode, 0x303C10, 0x303D10, 0x303D50, 0x3041B0) reads +4.
+//! - an anomaly's `m_random.seed()` (+1B8h of the anomaly): each use steps
+//!   it (`x * 0x8088405 + 1`) and takes the high half of `x * n`, always
+//!   below `n` (0x31B6CB, 0x31B7C8, 0x31B847, 0x31BA03).
+//! - the u32 times (an artefact's spawn, cooldown and activation times, a
+//!   grenade's explode time, a trap's, a zone's and an anomaly's): the
+//!   clock's arithmetic and comparisons (e.g. the artefact's tick 0x313213,
+//!   0x313238, the grenade's 0x303AEA, 0x3041DB), never an index.
 
 use super::player_tail::QUICK_SLOTS;
 use super::{Context, Profile, Section};
@@ -231,8 +248,7 @@ pub struct ArtefactItem {
 pub struct Uses(u16);
 
 impl Uses {
-    /// The uses of an item whose `data.amount` is `amount` (an absent key:
-    /// 0).
+    /// The uses of an item whose `data.amount` is `amount`.
     pub const fn of_amount(amount: i32) -> Self {
         Self(amount as u16)
     }
@@ -1168,6 +1184,9 @@ impl ArtefactBase {
                     let (time_left_to_cool, last) = cooling(reader)?;
                     (ArtefactState::Free { time_left_to_cool }, last)
                 }
+                // The container id is any byte: the game only stores it and
+                // writes it back (read only by serialize 0x3136EC; the
+                // module doc lists its writers).
                 StateByte::Spawning => {
                     let state = ArtefactState::Spawning {
                         container_id: reader.u8()?,
