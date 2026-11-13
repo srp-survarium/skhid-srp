@@ -329,8 +329,9 @@ package survarium.watch
       // Its `watching` comes only once the game is in it, after the load began. The view to come
       // back to is this load's alone: a view still kept from the last return (the results were up,
       // and the game left the lobby before they closed) is dropped. The watch and save asked end
-      // (ReplayAsks.away), unsaid: the view is kept by the load's rule alone. A room's call back
-      // from now on is the next return's (RoomsWindow.away).
+      // (ReplayAsks.away), unsaid: the view is kept by the load's rule alone. A friend's Spectate
+      // waiting ends too (the window may outlive the load): the player's own match is not followed
+      // by the friend's. A room's call back from now on is the next return's (RoomsWindow.away).
       public static function away() : void
       {
          ReplayAsks.away();
@@ -350,6 +351,7 @@ package survarium.watch
          win._pendingView = null;
          win._inLobby = false;
          win._mineDue = 0;
+         win._spectate = null;
       }
 
       // Back in the lobby (each LobbyMenu.show_match_making(false), the results up or not): the

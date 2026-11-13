@@ -2732,7 +2732,7 @@ st_srp_replay_saved	Uloženo
 st_srp_replay_saving	Ukládám...
 st_srp_replay_size	%1$s,%2$s MB
 st_srp_replay_starting	Spouštím záznam: otevře se druhé okno hry, lobby zůstane otevřené. Pokud se něco pokazí, aktualizační program ukáže příčinu.\n\nV záznamu stiskni F11 pro ovládání.
-st_srp_replay_still_preparing	Záznam se ještě připravuje na serveru. Za minutu znovu otevři Přehrát záznam.
+st_srp_replay_still_preparing	Záznam se ještě připravuje na serveru. Zkus to znovu za minutu.
 st_srp_replay_title	Přehrát záznam
 st_srp_replay_waiting	Čekání: %1$s s.
 st_srp_replay_watch	Sledovat

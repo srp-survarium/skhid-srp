@@ -2732,7 +2732,7 @@ st_srp_replay_saved	Mentve
 st_srp_replay_saving	Mentés...
 st_srp_replay_size	%1$s,%2$s MB
 st_srp_replay_starting	A visszajátszás indul: egy második játékablak nyílik meg, a lobby nyitva marad. Ha hiba történik, a frissítőprogram jelzi az okát.\n\nLejátszás közben az F11 nyitja meg a vezérlőket.
-st_srp_replay_still_preparing	A szerver még készíti a felvételt. Egy perc múlva nyisd meg újra a Visszajátszás ablakot.
+st_srp_replay_still_preparing	A szerver még készíti a felvételt. Próbáld újra egy perc múlva.
 st_srp_replay_title	Visszajátszás
 st_srp_replay_waiting	Várakozás: %1$s mp.
 st_srp_replay_watch	Nézd meg

@@ -4294,23 +4294,33 @@ package
          stage.focus = null;
          var image:Class = this._load_images[level];
          this.lobbyGameLoad.backgroundImage(image);
-         // a watch asked from the Watch window loads: its tab again after (WatchWindow.back)
+         closeForLoad();
+         dispatchEvent(new MouseEvent(MouseEvent.MOUSE_UP,true));
+      }
+
+      // The match loads (set_loading_level): the transient windows close (the loading screen is
+      // under their layer), the message up as the load came goes (closed, not answered as Esc
+      // would), else the top modal closes. The Watch window's asks end first (WatchWindow.away; a
+      // watch asked from it loads: its tab again after, WatchWindow.back) and take their prompt
+      // with them: the modal under that prompt (the results whose Watch replay asked, a window
+      // under a History row's) stays. Not through close_active_window: that is an Esc press, and
+      // its _escapeHandled would outlive the match (the exe asks has_active_window only in the
+      // lobby) and answer the first Esc back in the lobby with false, opening the game's menu
+      // over the results.
+      public static function closeForLoad() : void
+      {
+         var messageUp:int = Message.isAnyMessage();
          WatchWindow.away();
-         // the match loads: the transient windows close (the loading screen is under their layer),
-         // the message up goes (closed, not answered as Esc would), else the top modal closes. Not
-         // through close_active_window: that is an Esc press, and its _escapeHandled would outlive
-         // the match (the exe asks has_active_window only in the lobby) and answer the first Esc
-         // back in the lobby with false, opening the game's menu over the results.
          Transient.closeAll();
-         if(Message.isAnyMessage() != -1)
+         if(messageUp != -1)
          {
-            Message.close(Message.isAnyMessage());
+            // nothing more when it was the Watch prompt, gone with its ask
+            Message.close(messageUp);
          }
          else
          {
             Modals.escape();
          }
-         dispatchEvent(new MouseEvent(MouseEvent.MOUSE_UP,true));
       }
       
       public function switch_mm_to_loading() : void

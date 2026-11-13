@@ -2732,7 +2732,7 @@ st_srp_replay_saved	Sačuvano
 st_srp_replay_saving	Čuvanje...
 st_srp_replay_size	%1$s,%2$s MB
 st_srp_replay_starting	Pokretanje snimka: otvoriće se drugi prozor igre; ovaj lobi ostaje otvoren. Ako nešto pođe po zlu, program za ažuriranje će prikazati šta se desilo.\n\nU snimku pritisni F11 za kontrole.
-st_srp_replay_still_preparing	Snimak se još priprema. Server nastavlja izradu; ponovo otvori Gledaj snimak za minut.
+st_srp_replay_still_preparing	Snimak se još priprema. Server nastavlja izradu; pokušaj ponovo za minut.
 st_srp_replay_title	Gledaj snimak
 st_srp_replay_waiting	Čekanje: %1$s s.
 st_srp_replay_watch	Gledaj

@@ -64,7 +64,9 @@ package
    //   in its own words; a `none` after its own `preparing` ends it, prompt gone, nothing withdrawn;
    //   a live match's `watching` to the ask itself closes the asking prompt, nothing withdrawn;
    //   a match loading ends a watch asked, unsaid: its prompt gone, nothing polled, withdrawn or
-   //   said after, in the match or back in the lobby;
+   //   said after, in the match or back in the lobby; the results under their Watch replay's
+   //   prompt stay through that load (LobbyMenu.closeForLoad: the message up as it came goes,
+   //   else the top modal), and a friend's Spectate still waiting ends with it;
    //   Mine not asked at once back in the lobby (BACK_ASK_MS: the history row is not written yet);
    // - a lobby window opening (MainScene.activeWindow) or the rooms window closes Watch; back from a
    //   watch in a room, one playing without the player gives the Watch view back, its vote shows it;
@@ -170,6 +172,8 @@ package
                history(language);
                results(language);
                lobby.win.show(false);
+               if(language == HarnessText.LANGUAGES[0])
+                  loads();
             }
          }
          catch(err:Error)
@@ -1747,6 +1751,67 @@ package
          Prompt.noteReplay(hex(MATCH),null);
          screen.parent.removeChild(screen);
          trace("REPLAYBUTTONS " + language + ": results: Watch replay, why not, the number");
+      }
+
+      // The match loads (LobbyMenu.closeForLoad, set_loading_level's): the message up as it came
+      // goes, else the top modal. The results' Watch replay prompt up: the load ends the ask and
+      // its prompt, and the results under it stay; no message up: the results close. A friend's
+      // Spectate waiting on a gathering match, the window outliving the load (a box was up):
+      // the match the friend then plays is not watched after the player's own.
+      private function loads() : void
+      {
+         var Scene:* = domain.getDefinition("MainScene");
+         var closes:Function = function():int
+         {
+            var n:int = 0;
+            for each(var c:Array in ExternalInterface.calls)
+               n += c[0] == "close_victory_screen" ? 1 : 0;
+            return n;
+         };
+         Message.registerMessage("apply",domain.getDefinition("survarium.messages.MessageApply"));
+         fresh();
+         told();
+         var screen:* = lobby.make("SrvVictoryScreenReskin");
+         lobby.holder.addChild(screen);
+         show(screen,MATCH);
+         // as the screen's setData makes it in the game: the lobby's modal (MainScene.activeWindow)
+         Scene.activeWindow = screen;
+         idle();
+         ExternalInterface.calls.length = 0;
+         find(screen,"srpWatchReplay").dispatchEvent(new Click(Click.CLICK));
+         lobby.answer("preparing",MATCH,1);
+         expect("load: no Watch replay prompt over the results",promptShown());
+         Menu.closeForLoad();
+         expect("load: the results' Watch prompt outlived the load",!promptShown());
+         expect("load: the load the results' Watch prompt answered closed the results (" + closes() + " closes)",
+            closes() == 0 && screen.parent != null && Scene.activeWindow == screen);
+         W.back();
+         // no message up: the load closes the top modal, the results
+         Menu.closeForLoad();
+         expect("load: the results not closed by a load with no message up (" + closes() + " closes)",closes() == 1);
+         W.back();
+         Scene.activeWindow = null;
+         if(screen.parent != null)
+            screen.parent.removeChild(screen);
+         Message.registerMessage("apply",null);
+         fresh();
+         // a friend's Spectate waiting while the friend's match gathers
+         W.open("live");
+         ExternalInterface.calls.length = 0;
+         W.spectate("Petro");
+         lobby.take(["L0;1","L1;00000006;64;5;0;4;4;0;1;0;0;1","F1;00000006;3;0;Petro"]);
+         expect("load: Spectate didn't wait out a gathering match: " + asked(),asked()[0] == 0);
+         Message.showMessage("ok","a box");
+         Menu.closeForLoad();
+         told();
+         expect("load: the Watch window did not outlive a load that closed a box",win.visible);
+         W.back();
+         lobby.take(["L0;1","L1;00000006;64;5;2;4;4;0;1;20;0;1","F1;00000006;3;0;Petro"]);
+         expect("load: a Spectate from before the player's match watched after it: " + asked(),asked()[0] == 0);
+         idle();
+         told();
+         win.show(false);
+         trace("REPLAYBUTTONS load: the results under their Watch prompt stay, a Spectate waiting ends");
       }
 
       private function finish(result:String) : void

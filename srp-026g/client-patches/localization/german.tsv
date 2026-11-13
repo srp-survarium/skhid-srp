@@ -2732,7 +2732,7 @@ st_srp_replay_saved	Gespeichert
 st_srp_replay_saving	Wird gespeichert...
 st_srp_replay_size	%1$s.%2$s MB
 st_srp_replay_starting	Starting the replay: a second game window will open; this lobby stays open. If something goes wrong, the updater shows what happened.\n\nIn the replay press F11 for the controls.
-st_srp_replay_still_preparing	Wird noch vorbereitet. Der Server arbeitet weiter daran; öffne "Wiederholung ansehen" in einer Minute erneut.
+st_srp_replay_still_preparing	Wird noch vorbereitet. Der Server arbeitet weiter daran; versuche es in einer Minute erneut.
 st_srp_replay_title	Wiederholung ansehen
 st_srp_replay_waiting	Wartezeit: %1$s s.
 st_srp_replay_watch	Ansehen
