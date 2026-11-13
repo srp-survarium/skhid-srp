@@ -36,8 +36,8 @@ The 0.26g exe has a replay player the 0.21d exe only began (0.21d: `replay_match
     (it was over it). The same check covers them;
     `scripts/replay-markers/shot.sh <replay_player.swf> <out.png>` takes a screenshot.
   - a replay viewer's own controls (`survarium.replay.ViewerControls`, `KeyHint`), made once by the exe's
-    `start_viewer(back, moments, all, mine, followed, cursor, pause, filter, hide, ctrl, space)` (the
-    dictionaries' texts): a Back button (`back_clicked`), the Moments switch right of the bottom panel
+    `start_viewer(back, moments, all, mine, followed, cursor, pause, filter, hide, ctrl, space, kill, objective, death, event)` (15 texts of the dictionaries; the last four are the marker kind words,
+    MarkerTicks.setKindWords): a Back button (`back_clicked`), the Moments switch right of the bottom panel
     (`moments_clicked(0|1|2)`, shown by `set_moments(choice, mine)`; Mine only when `mine` is not 0) and the
     key hint above the bar (key caps and their actions on a panel, the arrows drawn, wrapped onto more rows
     rather than leave the stage), shown its first 10 s and while `set_cursor_shown(true)`, fading in and out.
