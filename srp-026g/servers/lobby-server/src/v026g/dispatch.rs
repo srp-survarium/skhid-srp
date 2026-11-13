@@ -51,7 +51,7 @@ impl Core<'_> {
             M::Leave {
                 order_id,
                 left_match,
-            } => self.leave(who, order_id, left_match),
+            } => self.leave(who, order_id, left_match, now),
 
             // ---- queries ----
             M::QuerySquadMember { account_id, .. } => self.squad_member(who, account_id),

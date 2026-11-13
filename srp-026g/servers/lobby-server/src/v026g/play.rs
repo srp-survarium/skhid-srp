@@ -50,6 +50,11 @@ const UNMADE_MATCH: Duration = Duration::from_secs(10);
 /// How often the log has what the sides of a match being played count for.
 const PREDICTION_EVERY: Duration = Duration::from_secs(60);
 
+/// How long the game of a player the lobby freed (`queue_status`) has to
+/// say it is back from that match (`31 .. FF`, sent as it handles the
+/// match server's 0xEA): a later word is taken as any other.
+pub(super) const FREED_WORD: Duration = Duration::from_secs(10);
+
 /// The seconds a step of the client's search screen takes (0x85 "in the
 /// queue"; the game draws nothing of it with 0). Only a clan team's wait
 /// shows that screen now.
@@ -874,8 +879,14 @@ impl Core<'_> {
     /// team's wait), or is back from a match it closed. Either way its
     /// client is in the lobby. A word for a match before the watch the
     /// game is sent to now changes nothing ([`Self::left_another`]).
-    pub(super) fn leave(&mut self, who: &Who, order_id: u32, left_match: bool) {
-        if left_match && self.left_another(who, order_id) {
+    pub(super) fn leave(&mut self, who: &Who, order_id: u32, left_match: bool, now: Instant) {
+        // The word the lobby waited for since it freed the player, if any.
+        let freed = left_match
+            && self
+                .player_mut(who.addr)
+                .and_then(|player| player.freed_at.take())
+                .is_some_and(|at| now.saturating_duration_since(at) < FREED_WORD);
+        if left_match && self.left_another(who, order_id, freed) {
             log::info!(
                 "{} is back from a match it was out of already (order {order_id:#x}); it is sent \
                  to watch another",
@@ -932,10 +943,11 @@ impl Core<'_> {
     /// yet is none it can have left; one it was sent to, it left only under
     /// the order it was sent with (`send_to_watch`, `send_to_replay`): the
     /// game names the order of its last `85`, and an older one, or the
-    /// "not queued" of `85 00`, is the match before's. The same holds for a
-    /// match it was sent to after a watch the lobby ended (its room seated
-    /// it, `send_found`) before the game was back from that watch.
-    fn left_another(&self, who: &Who, order_id: u32) -> bool {
+    /// "not queued" of `85 00`, is the match before's. With no watch, the
+    /// first such word after the lobby `freed` the player (`queue_status`)
+    /// is the freed match's, whatever order it names: a match its room
+    /// seated it in meanwhile is not left by it.
+    fn left_another(&self, who: &Who, order_id: u32, freed: bool) -> bool {
         let Some(player) = self.player(who.addr) else {
             return false;
         };
@@ -945,7 +957,9 @@ impl Core<'_> {
         match self.store.matchmaking().watched(who.session_id) {
             Some(watcher) if player.in_match != Some(watcher.match_id) => true,
             Some(_) => order_id != player.order_id,
-            None => (replay || player.connect.is_some()) && order_id != player.order_id,
+            None => {
+                (replay && order_id != player.order_id) || (freed && player.in_match.is_some())
+            }
         }
     }
 
@@ -1052,6 +1066,7 @@ impl Core<'_> {
                 if let Some(player) = self.player_mut(addr) {
                     player.in_match = None;
                     player.connect = None;
+                    player.freed_at = Some(now);
                 }
                 self.send(addr, lobby::client_state(&ClientState::Lobby, None));
                 self.show_results(addr, false);

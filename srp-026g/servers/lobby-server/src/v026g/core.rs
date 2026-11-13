@@ -123,6 +123,11 @@ pub(super) struct Player<'a> {
     /// The room whose chat it hears: the room it was in when its movie put
     /// up its "Room Chat" tab, while it is in that room (`room_chat`).
     pub room_chat: Option<u32>,
+    /// When the lobby took it out of its match or watch before its game
+    /// said it was back (`queue_status`): that game's `31 .. FF` is still to
+    /// come (for `play::FREED_WORD` at most), and a match it is sent to
+    /// meanwhile is not the one it leaves (`left_another`).
+    pub freed_at: Option<Instant>,
 }
 
 pub(super) enum Stage<'a> {
@@ -715,6 +720,7 @@ impl<'a> Core<'a> {
             searches: super::social::Allowance::searches(now),
             history_answers: Default::default(),
             room_chat: None,
+            freed_at: None,
         };
         let mut link = Link {
             transport,
