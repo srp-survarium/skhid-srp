@@ -4176,3 +4176,21 @@ fn ffa_rating_does_not_reward_leavers_absentees_solo_private_or_bot_matches() {
         assert!(report.players.iter().all(|p| p.full.elo_before == p.full.elo_after));
     }
 }
+
+/// A free-for-all's history names who won as the pay does: everyone with
+/// the most kills, whatever the column its screen put it in.
+#[test]
+fn a_free_for_alls_history_keeps_its_winners_by_kills() {
+    let players = ffa_players(&[("Carol", 7, 9), ("Bob", 12, 5), ("Dave", 0, 14), ("Alice", 12, 3)]);
+    let store = accounts(&players);
+    let results = Results::new();
+    let report = results
+        .settle(&ffa_result(players), &store, &terms(), &mut Rng::new(1))
+        .unwrap();
+    let record = &history_of(&results)[0];
+    assert_eq!(record.info.winner, history::Winner::MostKills(12));
+    for (line, paid) in record.players.iter().zip(&report.players) {
+        assert_eq!(line.account_id, paid.account_id);
+        assert_eq!(record.info.winner.won(&line.line), paid.reward.won, "{}", line.account_id);
+    }
+}

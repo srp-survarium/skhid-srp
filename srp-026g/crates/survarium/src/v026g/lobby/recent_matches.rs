@@ -67,7 +67,9 @@ pub struct RecentMatchRow {
 }
 
 /// `91` with recent matches, at most [`RECENT_MATCHES_ROWS`], then the
-/// `friends` rows ([`super::push::friend_row`]).
+/// `friends` rows ([`super::push::friend_row`]) that fit in the one `91`
+/// (255 rows): a big friends' group in many matches loses its last rows,
+/// never the answer.
 pub fn recent_matches(
     matches: &[RecentMatchRow],
     friends: &[String],
@@ -90,7 +92,8 @@ pub fn recent_matches(
             row.replay as u8
         )
     }));
-    names.extend(friends.iter().cloned());
+    let room = usize::from(u8::MAX) - names.len();
+    names.extend(friends.iter().take(room).cloned());
     let rows: Vec<Ranked> = names
         .into_iter()
         .map(|name| Ranked {
@@ -133,5 +136,24 @@ mod tests {
             Some(RecentFilter::Friends)
         );
         assert_eq!(RecentFilter::of_start(RECENT_MATCHES_START + 2), None);
+    }
+
+    /// Twenty matches of a friends' group of thirteen: more rows than a `91`
+    /// holds. The last friends' rows are left out; the answer goes.
+    #[test]
+    fn friends_rows_past_one_answer_are_left_out() {
+        let row = RecentMatchRow {
+            match_id: 1,
+            map_id: 1,
+            mode: 1,
+            score: None,
+            players: 20,
+            length_ms: 1000,
+            minutes_since_end: 1,
+            replay: ReplayState::Kept,
+        };
+        let friends = vec!["F1;00000001;255;0;Friend".to_owned(); RECENT_MATCHES_ROWS * 13];
+        let message = recent_matches(&[row; RECENT_MATCHES_ROWS], &friends).unwrap();
+        assert_eq!(message.body()[0], u8::MAX);
     }
 }

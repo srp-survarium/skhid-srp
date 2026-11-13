@@ -41,8 +41,8 @@ use super::play::{LivePhase, LiveView, Running};
 pub struct Config {
     /// How far behind the match a Live window's spectator watches.
     pub delay: LiveDelay,
-    /// Live window spectators of one match at most (each costs about a
-    /// player's traffic).
+    /// Spectators of one match at most, the Live window's and Queue and
+    /// spectate's together (each costs about a player's traffic).
     pub per_match: usize,
     /// And of all matches.
     pub most: usize,
@@ -118,19 +118,24 @@ fn phase_code(phase: LivePhase) -> u8 {
 }
 
 impl Core<'_> {
-    /// The Live window's spectators of the match (the lobby's id).
-    fn live_watchers(&self, match_id: u32) -> usize {
-        self.store.matchmaking().live_watchers_of(match_id).len()
+    /// Whether the match (the lobby's id) takes no more spectators: its own,
+    /// or all matches', at [`Config`]'s caps. Every spectator counts, the
+    /// Live window's and Queue and spectate's (`rooms`' `room_watchers`).
+    pub(super) fn watchers_full(&self, match_id: u32) -> bool {
+        let matchmaking = self.store.matchmaking();
+        let all: usize = self
+            .matches
+            .keys()
+            .map(|&id| matchmaking.watchers_of(id).len())
+            .sum();
+        matchmaking.watchers_of(match_id).len() >= self.settings.live.per_match
+            || all >= self.settings.live.most
     }
 
     fn watchable(&self, match_id: u32, running: &Running) -> Watchable {
         if running.private || running.pool != QueuePool::GrowingRoster {
-            return Watchable::Not;
-        }
-        let all: usize = self.matches.keys().map(|&id| self.live_watchers(id)).sum();
-        if self.live_watchers(match_id) >= self.settings.live.per_match
-            || all >= self.settings.live.most
-        {
+            Watchable::Not
+        } else if self.watchers_full(match_id) {
             Watchable::Full
         } else {
             Watchable::May
@@ -212,7 +217,10 @@ impl Core<'_> {
             0,
             format!("L0;{};{}", rows.len(), self.settings.live.delay.as_secs()),
         );
-        rows.extend(friend_rows);
+        // As many friends' rows as one `91` holds (255 rows): a big friends'
+        // group in many matches loses its last rows, never the answer.
+        let room = usize::from(u8::MAX) - rows.len();
+        rows.extend(friend_rows.into_iter().take(room));
         debug_assert!(rows.iter().all(|row| row.len() <= limits::NAME));
         self.send_made(who.addr, lobby::live_rows(lobby::LIVE_START, &rows));
     }

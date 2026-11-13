@@ -9,7 +9,9 @@
 use std::time::Instant;
 
 use session::LockExt;
-use session::v026g::persist::history::{MatchSummary, OwnKind, PlayerMatch, Presence, Winner};
+use session::v026g::persist::history::{
+    MatchSummary, OwnKind, PlayerLine, PlayerMatch, Presence, Winner,
+};
 use session::v026g::replays;
 use survarium::v026g::lobby::friend_row;
 use survarium::v026g::lobby::player_matches::{
@@ -175,8 +177,9 @@ fn recent_row(summary: &MatchSummary, unix: u64, replay: ReplayState) -> RecentM
         match_id: summary.replay_id.match_id(),
         map_id: info.map_id,
         mode: info.game_mode.lobby_number(),
-        // No trusted world said the standing: no points either.
-        score: (info.winner != Winner::Unknown).then_some(info.team_points),
+        // No trusted world said the standing: no points either; a free-for-all has no teams'.
+        score: (!matches!(info.winner, Winner::Unknown | Winner::MostKills(_)))
+            .then_some(info.team_points),
         players: u8::try_from(summary.players).unwrap_or(u8::MAX),
         length_ms: info.duration_ms,
         minutes_since_end: minutes_since(info.ended_at, unix),
@@ -187,9 +190,9 @@ fn recent_row(summary: &MatchSummary, unix: u64, replay: ReplayState) -> RecentM
 /// What a player's row says of its match, as the results screen does (`rewards::won`): the screen
 /// has only a victory and a defeat, so one who walked out of a match nobody won lost it there, as
 /// in the rating; a draw is for those still in the match at its end.
-fn outcome_of(winner: Winner, team: u8, presence: Presence) -> Outcome {
-    match (winner, presence) {
-        (winner, _) if winner.team() == Some(team) => Outcome::Victory,
+fn outcome_of(winner: Winner, line: &PlayerLine) -> Outcome {
+    match (winner, line.presence) {
+        (winner, _) if winner.won(line) => Outcome::Victory,
         (Winner::Draw | Winner::Unknown, Presence::Finished) => Outcome::Draw,
         _ => Outcome::Defeat,
     }
@@ -199,7 +202,7 @@ fn outcome_of(winner: Winner, team: u8, presence: Presence) -> Outcome {
 fn player_row(played: &PlayerMatch, unix: u64, replay: ReplayState) -> PlayerMatchRow {
     let info = &played.summary.info;
     let line = &played.line;
-    let outcome = outcome_of(info.winner, line.team, line.presence);
+    let outcome = outcome_of(info.winner, line);
     PlayerMatchRow {
         match_id: played.summary.replay_id.match_id(),
         // the movie asks by it: 0xFF, none, is anyone's view
@@ -218,27 +221,52 @@ fn player_row(played: &PlayerMatch, unix: u64, replay: ReplayState) -> PlayerMat
 #[cfg(test)]
 mod outcome_tests {
     use super::*;
+    use session::v026g::persist::history::Counters;
+
+    fn outcome(winner: Winner, team: u8, kills: u64, presence: Presence) -> Outcome {
+        let line = PlayerLine {
+            team,
+            place: 1,
+            seat: Some(0),
+            presence,
+            rating: 1000,
+            score: 0,
+            kills,
+            deaths: 0,
+            counters: Counters::default(),
+        };
+        outcome_of(winner, &line)
+    }
 
     #[test]
     fn a_winners_team_won_even_for_one_who_left() {
-        assert!(matches!(outcome_of(Winner::FirstTeam, 0, Presence::Finished), Outcome::Victory));
-        assert!(matches!(outcome_of(Winner::FirstTeam, 0, Presence::Left), Outcome::Victory));
+        assert!(matches!(outcome(Winner::FirstTeam, 0, 0, Presence::Finished), Outcome::Victory));
+        assert!(matches!(outcome(Winner::FirstTeam, 0, 0, Presence::Left), Outcome::Victory));
     }
 
     #[test]
     fn the_other_team_lost() {
-        assert!(matches!(outcome_of(Winner::SecondTeam, 0, Presence::Finished), Outcome::Defeat));
+        assert!(matches!(outcome(Winner::SecondTeam, 0, 0, Presence::Finished), Outcome::Defeat));
     }
 
     #[test]
     fn nobody_won_a_draw_for_those_who_stayed() {
-        assert!(matches!(outcome_of(Winner::Draw, 0, Presence::Finished), Outcome::Draw));
-        assert!(matches!(outcome_of(Winner::Unknown, 1, Presence::Finished), Outcome::Draw));
+        assert!(matches!(outcome(Winner::Draw, 0, 0, Presence::Finished), Outcome::Draw));
+        assert!(matches!(outcome(Winner::Unknown, 1, 0, Presence::Finished), Outcome::Draw));
     }
 
     #[test]
     fn nobody_won_a_defeat_for_one_who_left_as_on_the_results_screen() {
-        assert!(matches!(outcome_of(Winner::Draw, 0, Presence::Left), Outcome::Defeat));
-        assert!(matches!(outcome_of(Winner::Unknown, 1, Presence::Left), Outcome::Defeat));
+        assert!(matches!(outcome(Winner::Draw, 0, 0, Presence::Left), Outcome::Defeat));
+        assert!(matches!(outcome(Winner::Unknown, 1, 0, Presence::Left), Outcome::Defeat));
+    }
+
+    /// A free-for-all: whoever has the most kills won, whatever its team; the others lost.
+    #[test]
+    fn a_free_for_all_is_won_by_the_most_kills() {
+        let ffa = Winner::MostKills(7);
+        assert!(matches!(outcome(ffa, 1, 7, Presence::Finished), Outcome::Victory));
+        assert!(matches!(outcome(ffa, 0, 7, Presence::Left), Outcome::Victory));
+        assert!(matches!(outcome(ffa, 0, 6, Presence::Finished), Outcome::Defeat));
     }
 }

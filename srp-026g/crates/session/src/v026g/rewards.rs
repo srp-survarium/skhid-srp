@@ -1834,8 +1834,13 @@ impl<'a> Shared<'a> {
                 map_id: result.map_id,
                 game_mode: result.mode,
                 match_level: result.match_level,
-                // A free-for-all has no winning team: its winners are by kills.
-                winner: history::Winner::of(self.winners.team(), DRAW),
+                // Who won as `Self::won` has it: a free-for-all's winners
+                // are by kills.
+                winner: match self.winners {
+                    Winners::Team(team) => history::Winner::of(team, DRAW),
+                    Winners::MostKills(Some(top)) => history::Winner::MostKills(top.into()),
+                    Winners::MostKills(None) => history::Winner::Unknown,
+                },
                 team_points: result.team_points,
             },
             players,

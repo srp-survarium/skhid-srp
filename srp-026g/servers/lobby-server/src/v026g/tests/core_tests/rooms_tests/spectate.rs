@@ -58,7 +58,10 @@ fn spectators(state: &[String]) -> Vec<&str> {
 /// and the room's state still goes.
 #[test]
 fn a_room_names_its_first_twenty_spectators() {
-    let mut world = World::new();
+    let mut settings = two_team_settings();
+    settings.live.per_match = 21;
+    settings.live.most = 21;
+    let mut world = World::with_settings(settings);
     let (key, _, members) = full_room_playing(&mut world);
     for n in 0..21 {
         let watcher = world.connect(&format!("Watcher{n}"));
@@ -254,4 +257,43 @@ fn a_spectator_stays_queued_past_the_match_and_watches_the_next() {
     world.advance(Duration::from_secs(1));
     assert_eq!(watched(&world, carol), Some(next));
     assert_eq!(sent_to_match(&world.take(carol)), Some((next, 0)));
+}
+
+/// Spectators are capped (the Live window's caps count them too): one
+/// queued past them waits in the queue without watching, and watches when
+/// a spectator's slot frees.
+#[test]
+fn queue_and_spectate_past_the_cap_waits_without_watching() {
+    let mut world = World::new();
+    let (key, ticket, _) = full_room_playing(&mut world);
+    let cap = world.core.settings.live.per_match;
+    let waiters: Vec<usize> = (0..=cap)
+        .map(|n| {
+            let waiter = world.connect(&format!("Watcher{n}"));
+            rows(&mut world, waiter, ROOM_WATCH_BASE + key, 1);
+            waiter
+        })
+        .collect();
+    world.advance(Duration::from_secs(1));
+    let watching = |world: &World| {
+        waiters
+            .iter()
+            .filter(|&&waiter| watched(world, waiter) == Some(ticket))
+            .count()
+    };
+    assert_eq!(watching(&world), cap);
+    // The newest account waits, still queued.
+    let last = waiters[cap];
+    assert_eq!(watched(&world, last), None);
+    assert!(sent_to_match(&world.take(last)).is_none());
+    assert_eq!(
+        world.core.rooms.queue_place(world.ids[last].0),
+        Some((key, cap + 1))
+    );
+    // One watching leaves the match, and with it the queue: its slot frees.
+    let session = session_of(&world, waiters[0]);
+    world.core.store.matchmaking().watcher_left(session, ticket);
+    world.advance(Duration::from_secs(1));
+    assert_eq!(watching(&world), cap);
+    assert_eq!(watched(&world, last), Some(ticket));
 }

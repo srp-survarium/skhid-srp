@@ -599,7 +599,8 @@ fn winner(winner: Winner) -> Value {
         Winner::FirstTeam => json!(0),
         Winner::SecondTeam => json!(1),
         Winner::Draw => json!("draw"),
-        Winner::Unknown => Value::Null,
+        // A free-for-all has no winning team: its winners are the lines' `won`.
+        Winner::Unknown | Winner::MostKills(_) => Value::Null,
     }
 }
 
@@ -639,7 +640,7 @@ fn line_fields(line: &PlayerLine, match_winner: Winner) -> Value {
     let mut value = json!({
         "team": line.team,
         "place": line.place,
-        "won": match_winner.team() == Some(line.team),
+        "won": match_winner.won(line),
         "left": line.presence == Presence::Left,
         "rating": line.rating,
         "score": line.score,

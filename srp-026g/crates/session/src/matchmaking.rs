@@ -676,6 +676,8 @@ impl Matchmaking {
         {
             return false;
         }
+        // A new watch: a call back of one before it is over with that one.
+        inner.recalled.remove(&session_id);
         inner.watchers.insert(session_id, watcher);
         true
     }
@@ -705,13 +707,6 @@ impl Matchmaking {
         watchers
     }
 
-    /// The sessions watching the match from the Live window.
-    pub fn live_watchers_of(&self, match_id: u32) -> Vec<(u32, Watcher)> {
-        let mut watchers = self.watchers_of(match_id);
-        watchers.retain(|(_, watcher)| matches!(watcher.kind, WatchKind::Live { .. }));
-        watchers
-    }
-
     /// The lobby: the session watches no more (it got a place, left the
     /// queue, or the match is over). The match server closes its link.
     pub fn stop_watching(&self, session_id: u32) -> Option<Watcher> {
@@ -737,7 +732,9 @@ impl Matchmaking {
 
     /// The match server: the watcher's game left the match by itself (its
     /// menu's Leave match, 0xE0, or its link went): it watches no more, and
-    /// the lobby takes it out of the queue ([`Self::take_watchers_left`]).
+    /// one that watched from its room's queue (Queue and spectate) leaves
+    /// that queue ([`Self::take_watchers_left`]). A Live window's watcher
+    /// keeps any queue it waits in: that queue is not of the match it left.
     /// Nothing for a session that does not watch that match (`ticket`: the
     /// match server's id of it).
     pub fn watcher_left(&self, session_id: u32, ticket: u32) {
@@ -747,9 +744,11 @@ impl Matchmaking {
         {
             inner.watchers.remove(&session_id);
             inner.recalled.remove(&session_id);
-            inner
-                .watchers_left
-                .push((watcher.match_id, watcher.account_id));
+            if matches!(watcher.kind, WatchKind::Queued { .. }) {
+                inner
+                    .watchers_left
+                    .push((watcher.match_id, watcher.account_id));
+            }
         }
     }
 
@@ -836,10 +835,18 @@ impl Matchmaking {
         }
         inner.given_up.retain(|(id, _)| *id != match_id);
         inner.left.retain(|(id, _)| *id != match_id);
-        // Its spectators watch nothing now; they are still in their queue.
-        inner
-            .watchers
-            .retain(|_, watcher| watcher.match_id != match_id);
+        // Its spectators watch nothing now; they are still in their queue,
+        // and no call back outlives their watch.
+        let Inner {
+            watchers, recalled, ..
+        } = &mut *inner;
+        watchers.retain(|session_id, watcher| {
+            let other = watcher.match_id != match_id;
+            if !other {
+                recalled.remove(session_id);
+            }
+            other
+        });
         inner.watchers_left.retain(|(id, _)| *id != match_id);
         inner.formed_at.remove(&match_id);
         inner.match_pools.remove(&match_id);
@@ -1217,6 +1224,47 @@ mod tests {
         mm.end_match(id);
         assert_eq!(mm.watched(5), None);
         assert!(mm.take_watchers_left().is_empty());
+    }
+
+    /// A Live window's watcher that leaves is in no queue of that match: the
+    /// lobby is not told (it would take it out of an unrelated room's queue).
+    /// A call back lasts as long as the watch it was for, however that ends.
+    #[test]
+    fn a_live_watcher_leaves_no_queue_and_no_call_back_outlives_its_watch() {
+        let mm = Matchmaking::new(Duration::ZERO);
+        let now = Instant::now();
+        let pool = QueuePool::GrowingRoster;
+        let first = mm
+            .seat_sides_in_pool([&[player(1)], &[player(2)]], now, pool, &|_| 0)
+            .expect("1 v 1");
+        let live = |match_id, account_id| Watcher {
+            match_id,
+            ticket: match_id,
+            account_id,
+            kind: WatchKind::Live {
+                delay: LiveDelay::DEFAULT,
+                view: None,
+            },
+        };
+        assert!(mm.watch(3, live(first, 1003)));
+        mm.watcher_left(3, first);
+        assert_eq!(mm.watched(3), None);
+        assert!(mm.take_watchers_left().is_empty());
+
+        // Called back, then the match ends before the match server stops it.
+        assert!(mm.watch(4, live(first, 1004)));
+        assert!(mm.recall_watcher(4));
+        mm.end_match(first);
+        assert!(!mm.is_recalled(4));
+        let second = mm
+            .seat_sides_in_pool([&[player(5)], &[player(6)]], now, pool, &|_| 0)
+            .expect("1 v 1");
+        assert!(mm.watch(4, live(second, 1004)));
+        assert!(!mm.is_recalled(4), "a later watch is not cut");
+        assert!(mm.recall_watcher(4), "and a later call back is made");
+        // A watch begun anew over a called back one is not called back.
+        assert!(mm.watch(4, live(second, 1004)));
+        assert!(!mm.is_recalled(4));
     }
 
     #[test]

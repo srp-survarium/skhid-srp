@@ -44,10 +44,14 @@ pub(super) const MIGRATION: &str = "
         -- A public match's: whether it counts in the totals and top lists
         -- (`Eligibility`); none for another kind.
         eligibility   TEXT CHECK (eligibility IN ('counted', 'with_bots', 'few_players', 'short')),
-        winner        TEXT NOT NULL CHECK (winner IN ('team0', 'team1', 'draw', 'unknown')),
+        -- `most_kills`: a free-for-all, won by everyone with `top_kills`.
+        winner        TEXT NOT NULL
+            CHECK (winner IN ('team0', 'team1', 'draw', 'unknown', 'most_kills')),
+        top_kills     INTEGER,
         team0_points  INTEGER NOT NULL,
         team1_points  INTEGER NOT NULL,
-        CHECK ((kind = 'public') = (eligibility IS NOT NULL))
+        CHECK ((kind = 'public') = (eligibility IS NOT NULL)),
+        CHECK ((winner = 'most_kills') = (top_kills IS NOT NULL))
     );
     CREATE INDEX g26_matches_public ON g26_matches (id) WHERE kind = 'public';
     CREATE INDEX g26_matches_by_end ON g26_matches (ended_at);
@@ -270,8 +274,10 @@ pub enum Winner {
     /// Team 1 won.
     SecondTeam,
     Draw,
-    /// No trusted snapshot said.
+    /// No trusted snapshot said (or, in a free-for-all, nobody killed).
     Unknown,
+    /// A free-for-all: everyone with this many kills, the most, won.
+    MostKills(u64),
 }
 
 impl Winner {
@@ -285,12 +291,14 @@ impl Winner {
         }
     }
 
-    /// The team that won, if one did.
-    pub fn team(self) -> Option<u8> {
+    /// Whether the player of `line` won the match: its team, or in a
+    /// free-for-all its kills (as `rewards` decides it).
+    pub fn won(self, line: &PlayerLine) -> bool {
         match self {
-            Self::FirstTeam => Some(0),
-            Self::SecondTeam => Some(1),
-            Self::Draw | Self::Unknown => None,
+            Self::FirstTeam => line.team == 0,
+            Self::SecondTeam => line.team == 1,
+            Self::MostKills(top) => line.kills == top,
+            Self::Draw | Self::Unknown => false,
         }
     }
 
@@ -300,15 +308,26 @@ impl Winner {
             Self::SecondTeam => "team1",
             Self::Draw => "draw",
             Self::Unknown => "unknown",
+            Self::MostKills(_) => "most_kills",
         }
     }
 
-    fn parse(text: &str) -> Option<Self> {
-        Some(match text {
-            "team0" => Self::FirstTeam,
-            "team1" => Self::SecondTeam,
-            "draw" => Self::Draw,
-            "unknown" => Self::Unknown,
+    /// `g26_matches.top_kills` of it.
+    fn top_kills(self) -> Option<i64> {
+        match self {
+            Self::MostKills(top) => Some(top.min(i64::MAX as u64) as i64),
+            _ => None,
+        }
+    }
+
+    /// From `g26_matches.winner` and `top_kills`.
+    fn parse(text: &str, top_kills: Option<i64>) -> Option<Self> {
+        Some(match (text, top_kills) {
+            ("team0", None) => Self::FirstTeam,
+            ("team1", None) => Self::SecondTeam,
+            ("draw", None) => Self::Draw,
+            ("unknown", None) => Self::Unknown,
+            ("most_kills", Some(top)) => Self::MostKills(u64::try_from(top).ok()?),
             _ => return None,
         })
     }
@@ -714,8 +733,9 @@ pub(super) fn record(
     let info = &record.info;
     transaction.execute(
         "INSERT INTO g26_matches (game_match_id, replay_id, ended_at, duration_ms, map_id,
-             game_mode, match_level, kind, eligibility, winner, team0_points, team1_points)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+             game_mode, match_level, kind, eligibility, winner, team0_points, team1_points,
+             top_kills)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
         params![
             record.replay_id.match_id(),
             record.replay_id.as_str(),
@@ -729,6 +749,7 @@ pub(super) fn record(
             info.winner.as_str(),
             info.team_points[0],
             info.team_points[1],
+            info.winner.top_kills(),
         ],
     )?;
     let match_id = transaction.last_insert_rowid();
@@ -773,7 +794,7 @@ pub(super) fn record(
         match counted {
             None => {}
             Some(Eligibility::Counted) => {
-                let own = Totals::of_match(line, info.winner.team() == Some(line.team));
+                let own = Totals::of_match(line, info.winner.won(line));
                 add_totals(
                     &transaction,
                     "g26_player_totals",
@@ -989,8 +1010,8 @@ const CLAN_JOIN: &str = "LEFT JOIN g26_clan_members cm
 const SUMMARY: &str = "m.id, m.ended_at, m.duration_ms, m.map_id, m.game_mode, m.match_level,
      m.winner, m.team0_points, m.team1_points,
      (SELECT COUNT(*) FROM g26_match_players n WHERE n.match_id = m.id), m.eligibility,
-     m.replay_id";
-const SUMMARY_COLUMNS: usize = 12;
+     m.replay_id, m.top_kills";
+const SUMMARY_COLUMNS: usize = 13;
 /// The columns of [`LINE`].
 const LINE_COLUMNS: usize = 17;
 /// The columns of a [`PlayerLine`] of `p` (seventeen).
@@ -1101,7 +1122,8 @@ fn summary_at(row: &Row, at: usize) -> rusqlite::Result<MatchSummary> {
             game_mode: GameMode::of_lobby_number(mode)
                 .ok_or_else(|| bad("game mode", &mode.to_string()))?,
             match_level: row.get(at + 5)?,
-            winner: Winner::parse(&winner).ok_or_else(|| bad("winner", &winner))?,
+            winner: Winner::parse(&winner, row.get(at + 12)?)
+                .ok_or_else(|| bad("winner", &winner))?,
             team_points: [row.get(at + 7)?, row.get(at + 8)?],
         },
         players: row.get(at + 9)?,
@@ -1375,7 +1397,8 @@ impl MatchHistory {
         let mut statement = connection.prepare_cached(
             "SELECT date(m.ended_at, 'unixepoch') AS day, COUNT(*),
                  SUM(CASE WHEN (m.winner = 'team0' AND p.team = 0)
-                           OR (m.winner = 'team1' AND p.team = 1) THEN 1 ELSE 0 END),
+                           OR (m.winner = 'team1' AND p.team = 1)
+                           OR (m.winner = 'most_kills' AND p.kills = m.top_kills) THEN 1 ELSE 0 END),
                  SUM(p.score), SUM(p.kills), SUM(p.deaths), SUM(p.assists), SUM(p.headshots),
                  SUM(p.grenade_kills), SUM(p.melee_kills), SUM(p.batteries), SUM(p.captures),
                  SUM(p.artefacts), SUM(p.shots), SUM(p.hits)
@@ -2348,6 +2371,37 @@ mod tests {
         let since = history.player_days(10, 2 * DAY).unwrap();
         assert_eq!(since.len(), 1);
         assert_eq!(history.player_days(11, 0).unwrap()[0].1.wins, 0);
+    }
+
+    /// A free-for-all is won by everyone with its most kills, whatever its
+    /// team: in the totals, the days, a clan's and as read back.
+    #[test]
+    fn a_free_for_all_is_won_by_its_most_kills() {
+        let dir = TempDir::new("ffa");
+        let (mut repository, history) = repository(&dir);
+        let mut ffa = record(PUBLIC, 1000);
+        ffa.info.game_mode = GameMode::FreeForAll;
+        ffa.info.winner = Winner::MostKills(6);
+        ffa.info.team_points = [0, 0];
+        repository.record_match(&ffa).unwrap();
+        // Bob, of team 1, had the 6 kills; Alice's 14 is more than the most
+        // only in this made-up record: it is the stored number that decides.
+        let alice = history.player(10).unwrap().unwrap();
+        let bob = history.player(11).unwrap().unwrap();
+        assert_eq!((alice.totals.wins, bob.totals.wins), (0, 1));
+        assert_eq!(history.player_days(11, 0).unwrap()[0].1.wins, 1);
+        assert_eq!(history.player_days(10, 0).unwrap()[0].1.wins, 0);
+        let (summary, _) = history.game_match(1).unwrap().unwrap();
+        assert_eq!(summary.info.winner, Winner::MostKills(6));
+        // A winner with no top kills, or top kills with a team's win, is no row.
+        let connection = Connection::open(dir.db()).unwrap();
+        for (winner, top) in [("most_kills", None), ("team0", Some(6))] {
+            let wrong = connection.execute(
+                "UPDATE g26_matches SET winner = ?1, top_kills = ?2 WHERE id = 1",
+                params![winner, top],
+            );
+            assert!(wrong.is_err(), "{winner} {top:?}");
+        }
     }
 
     #[test]

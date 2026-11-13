@@ -1131,16 +1131,21 @@ impl SessionStore {
         found
     }
 
-    /// The accounts whose name `typed` matches loosely ([`name_search::score`]: a part of the
-    /// name, its letters in order, a typo or two), the best match first, then by name: at most
-    /// `limit`, `except` left out.
-    pub fn find_accounts_like(&self, typed: &str, except: u32, limit: usize) -> Vec<(u32, String)> {
+    /// The accounts whose name `typed` matches loosely ([`name_search::Typed::score`]: a part of
+    /// the name, its letters in order, a typo or two), the best match first, then by name: at
+    /// most `limit`, `except` left out.
+    pub fn find_accounts_like(
+        &self,
+        typed: &name_search::Typed,
+        except: u32,
+        limit: usize,
+    ) -> Vec<(u32, String)> {
         let accounts: Vec<_> = self.accounts.locked().values().cloned().collect();
         let mut found: Vec<(u32, u32, String)> = accounts
             .iter()
             .filter_map(|account| {
                 let account = account.locked();
-                let score = name_search::score(typed, &account.name);
+                let score = typed.score(&account.name);
                 (account.id != except && score != 0).then(|| (score, account.id, account.name.clone()))
             })
             .collect();
@@ -2704,13 +2709,18 @@ mod tests {
         );
         assert!(store.find_accounts(b"", 0, 10).is_empty());
         // loosely: the best match first (a name's start, then a typo), no other
+        let like = |typed: &str, except, limit| {
+            store.find_accounts_like(&name_search::Typed::parse(typed).expect("letters"), except, limit)
+        };
         assert_eq!(
-            store.find_accounts_like("ivo", 0, 10),
+            like("ivo", 0, 10),
             [(ivo, "ivo".to_string()), (ivan, "Ivanov".to_string())]
         );
-        assert_eq!(store.find_accounts_like("petovich", 0, 10), [(petr, "petrovich".to_string())]);
-        assert_eq!(store.find_accounts_like("iv", ivo, 10), [(ivan, "Ivanov".to_string())]);
-        assert!(store.find_accounts_like("", 0, 10).is_empty());
+        assert_eq!(like("petovich", 0, 10), [(petr, "petrovich".to_string())]);
+        assert_eq!(like("iv", ivo, 10), [(ivan, "Ivanov".to_string())]);
+        // a name of letters of another script, found as the substring search found it
+        let vasya = store.get_or_create_account(ip(127, 0, 0, 3), "Вася");
+        assert_eq!(like("вас", 0, 10), [(vasya, "Вася".to_string())]);
         assert!(store.account(petr).is_some());
         assert!(store.account(0xBAD).is_none());
     }

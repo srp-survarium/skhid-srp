@@ -277,3 +277,87 @@ fn a_watcher_in_no_room_is_not_called_back() {
     assert!(world.store.matchmaking().watched(session).is_some());
     assert!(!world.store.matchmaking().is_recalled(session));
 }
+
+/// A squad alone in an open room is no match (`room_tick`): one of it
+/// watching live is not called back for its mate alone.
+#[test]
+fn a_member_waiting_with_only_its_squad_mate_is_not_called_back() {
+    use survarium::v026g::lobby::rooms::ROOM_LEAVE;
+    let mut world = World::new();
+    let (ticket, _) = a_match_in_play(&mut world);
+    let dave = world.connect("Dave");
+    let erin = world.connect("Erin");
+    let frank = world.connect("Frank");
+    form_squad(&mut world, dave, erin);
+    let key = create(&mut world, frank, spec(6), None);
+    rows(&mut world, dave, ROOM_JOIN_BASE + key, 1);
+    rows(&mut world, frank, ROOM_LEAVE, 1);
+    assert_eq!(world.core.rooms.get(key).map(|room| room.members.len()), Some(2));
+    assert!(ask_to_watch(&mut world, erin, ticket).starts_with("R1;watching;"));
+    let session = world.ids[erin].1;
+    world.advance(Duration::from_secs(5));
+    assert!(world.store.matchmaking().watched(session).is_some());
+    assert!(!world.store.matchmaking().is_recalled(session));
+}
+
+/// A Live spectator that leaves its match keeps its place in a room's
+/// queue: that queue is not of the match it left (Queue and spectate's is).
+#[test]
+fn a_live_watcher_leaving_its_match_keeps_its_room_queue() {
+    use survarium::v026g::lobby::rooms::ROOM_QUEUE_BASE;
+    let mut world = World::new();
+    let (ticket, _) = a_match_in_play(&mut world);
+    let dave = world.connect("Dave");
+    let erin = world.connect("Erin");
+    let carol = world.connect("Carol");
+    let key = create(&mut world, dave, spec(1), None);
+    rows(&mut world, erin, ROOM_JOIN_BASE + key, 1);
+    rows(&mut world, carol, ROOM_QUEUE_BASE + key, 1);
+    let account = world.ids[carol].0;
+    assert_eq!(world.core.rooms.queue_place(account), Some((key, 1)));
+    assert!(ask_to_watch(&mut world, carol, ticket).starts_with("R1;watching;"));
+    // Its game's Leave match, as the match server passes it on.
+    let session = world.ids[carol].1;
+    world.store.matchmaking().watcher_left(session, ticket);
+    world.advance(Duration::from_secs(1));
+    assert_eq!(world.store.matchmaking().watched(session), None);
+    assert_eq!(world.core.rooms.queue_place(account), Some((key, 1)));
+}
+
+/// Queue and spectate's spectators count toward the Live window's caps:
+/// a match they fill is busy for the Live window.
+#[test]
+fn queue_spectators_fill_a_match_for_the_live_window() {
+    use survarium::v026g::lobby::rooms::ROOM_WATCH_BASE;
+    let mut settings = Settings::local("127.0.0.1:0");
+    settings.live.per_match = 1;
+    let mut world = World::with_settings(settings);
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let key = create(&mut world, alice, spec(1), None);
+    rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
+    world.advance(ROOM_TO_MATCH);
+    let (ticket, _) = sent_to_match(&world.take(alice)).expect("Alice plays");
+    world.host.live.locked().insert(
+        ticket,
+        LiveView {
+            present: 0b11,
+            phase: LivePhase::Playing,
+            ..LiveView::default()
+        },
+    );
+    world
+        .host
+        .closed
+        .locked()
+        .insert(ticket, session::matchmaking_policy::Closed::Joining);
+    let carol = world.connect("Carol");
+    rows(&mut world, carol, ROOM_WATCH_BASE + key, 1);
+    world.advance(Duration::from_secs(1));
+    assert!(world.store.matchmaking().watched(world.ids[carol].1).is_some());
+    let dave = world.connect("Dave");
+    assert_eq!(
+        ask_to_watch(&mut world, dave, ticket),
+        format!("R1;busy;{ticket:08x};0")
+    );
+}

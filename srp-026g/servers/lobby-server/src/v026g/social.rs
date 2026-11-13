@@ -68,6 +68,7 @@ use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
 use session::v026g::{Account, quests, wire};
+use session::name_search::Typed;
 use session::{LockExt, Squad, SquadError};
 use survarium::v026g::lobby::requests::{ClientMessage, FriendshipAction, id};
 use survarium::v026g::lobby::{
@@ -157,6 +158,12 @@ const NOT_FOUND_REPEAT: Duration = Duration::from_secs(10);
 const MAX_LISTED: usize = 200;
 /// The most players a search finds (0.21d's limit).
 const MAX_FOUND: usize = 50;
+/// One search of players by name a session at most this often: each goes
+/// through every account on the lobby's one thread. The movies ask on a
+/// press (Enter, the search icon), never as a name is typed.
+const SEARCH_EVERY: Duration = Duration::from_secs(1);
+/// The letters of a searched text the log keeps.
+const SEARCH_LOGGED: usize = 32;
 /// The most requests kept waiting for an answer; past it the oldest goes.
 const MAX_REQUESTS: usize = 10_000;
 /// `messaging_client_type_enum::lobby_server_client_type`: the sender of
@@ -886,21 +893,38 @@ impl Core<'_> {
                 self.push_ignored(who);
             }
             FriendshipAction::FindPlayers { name } => {
-                let found: Vec<(u32, String, String)> = self
-                    .store
-                    .find_accounts_like(name, me, MAX_FOUND)
+                // A search sooner than `SEARCH_EVERY` after the last finds
+                // nobody: the movie has no word for a refusal, and an empty
+                // answer ends its wait as "not found" does.
+                let due = self.player_mut(who.addr).is_some_and(|player| {
+                    let due = player
+                        .searched_at
+                        .is_none_or(|at| now.saturating_duration_since(at) >= SEARCH_EVERY);
+                    if due {
+                        player.searched_at = Some(now);
+                    }
+                    due
+                });
+                let typed = due.then(|| Typed::parse(name)).flatten();
+                let found: Vec<(u32, String, String)> = typed
+                    .map(|typed| self.store.find_accounts_like(&typed, me, MAX_FOUND))
+                    .unwrap_or_default()
                     .into_iter()
                     .map(|(account_id, login_name)| {
                         let name = self.name_of(account_id).unwrap_or(login_name);
                         (account_id, name, self.clan_tag_of(account_id))
                     })
                     .collect();
-                log::info!(
-                    "{} searched players for `{name}`: {} found{}",
-                    who.name,
-                    found.len(),
-                    found.first().map_or_else(String::new, |(_, first, _)| format!(", the best {first}"))
-                );
+                if due {
+                    // As typed, escaped (no line of its own in the log) and cut.
+                    let typed: String = name.chars().take(SEARCH_LOGGED).collect();
+                    log::info!(
+                        "{} searched players for {typed:?}: {} found{}",
+                        who.name,
+                        found.len(),
+                        found.first().map_or_else(String::new, |(_, first, _)| format!(", the best {first}"))
+                    );
+                }
                 self.send_made(who.addr, lobby::found_players(&found));
             }
         }

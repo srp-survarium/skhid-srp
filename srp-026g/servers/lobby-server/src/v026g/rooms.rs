@@ -81,7 +81,7 @@
 //! |---|---|---|
 //! | `SRP_ROOMS_EXTRA_MAPS` | (none) | playable `maps_dict` ids a creator may add to a pool besides the match pool (`SRP_MATCH_MAPS`): the experimental maps |
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::net::SocketAddr;
 use std::time::Instant;
 
@@ -1861,8 +1861,9 @@ impl Core<'_> {
     ///   (it then goes into the match as soon as its game asks for its room,
     ///   `room_shown`), Leave queue, a join or a room made, the match over.
     /// - A waiter free in the lobby, its game of the growing roster, starts
-    ///   watching unless its room's match is ending; `queue_status` sends
-    ///   it (`send_to_watch`).
+    ///   watching unless its room's match is ending or has its spectators
+    ///   (`watchers_full`: the Live window's caps, every spectator counted);
+    ///   `queue_status` sends it (`send_to_watch`).
     fn room_watchers(&mut self, now: Instant) {
         for (match_id, account_id) in self.store.matchmaking().take_watchers_left() {
             if let Some(key) = self.rooms.dequeue(account_id) {
@@ -1874,7 +1875,9 @@ impl Core<'_> {
             }
         }
         // Who should watch: by account, the room's match (the lobby's id).
-        let wanted: HashMap<u32, u32> = self
+        // Past the spectators' caps (`watchers_full`) the oldest accounts
+        // start first; one that watches keeps its watch.
+        let wanted: BTreeMap<u32, u32> = self
             .rooms
             .watching_queue()
             .into_iter()
@@ -1925,9 +1928,12 @@ impl Core<'_> {
             // a spectator's game would be turned away. Not one ending.
             let closed = self.host.closed(ticket, now);
             let running = closed.is_some() || self.host.admits(ticket, now);
+            // Past the caps it waits in the lobby, as a plain Queue does, and
+            // starts watching when a spectator's slot frees.
             if self.pool_for_sessions([session_id]) != Some(QueuePool::GrowingRoster)
                 || !running
                 || closed == Some(Closed::Ending)
+                || self.watchers_full(match_id)
             {
                 continue;
             }
@@ -2122,6 +2128,14 @@ impl Core<'_> {
         })
     }
 
+    /// Whether `players`, those of the open room who would play, are only a
+    /// squad: a squad alone is no match (the owner's of 2026-10-31: a pair
+    /// is never played against itself), and its room waits for a third.
+    fn squad_alone(&self, room: &model::Room, players: &[u32]) -> bool {
+        room.is_open()
+            && matches!(players, &[first, second] if self.store.squads().mate_of(first) == Some(second))
+    }
+
     /// Whether the room has a use for a member right now: its vote runs, or
     /// its match being played takes a member now (`late_hold`) or will in a
     /// moment (another is on its way in, a game loads). A member is not left
@@ -2204,16 +2218,18 @@ impl Core<'_> {
             let wanted = match room.stage {
                 Stage::Waiting => {
                     room.is_open() && {
-                        let ready = room
+                        let would: Vec<u32> = room
                             .members
                             .iter()
-                            .filter(|&&member| self.room_ready(member).is_some())
-                            .count();
-                        let could = away
-                            .iter()
-                            .filter(|(member, _)| self.member_fit(*member) == Fit::Yes)
-                            .count();
-                        ready + could >= room.needs()
+                            .copied()
+                            .filter(|&member| self.room_ready(member).is_some())
+                            .chain(
+                                away.iter()
+                                    .map(|&(member, _)| member)
+                                    .filter(|&member| self.member_fit(member) == Fit::Yes),
+                            )
+                            .collect();
+                        would.len() >= room.needs() && !self.squad_alone(room, &would)
                     }
                 }
                 Stage::Vote { .. } | Stage::InMatch { .. } => self.room_takes_now(room, now),
@@ -2296,7 +2312,6 @@ impl Core<'_> {
         let counted: HashSet<u32> = if self.maintenance_is_near() {
             HashSet::new()
         } else {
-            let squads = self.store.squads();
             self.rooms
                 .all()
                 .filter(|room| !matches!(room.stage, Stage::InMatch { .. }))
@@ -2307,13 +2322,7 @@ impl Core<'_> {
                         .copied()
                         .filter(|&member| self.room_ready(member).is_some())
                         .collect();
-                    // A squad alone is no match (the owner's of 2026-10-31:
-                    // a pair is never played against itself): its room
-                    // waits for a third.
-                    let pair_alone = room.is_open()
-                        && ready.len() == 2
-                        && squads.mate_of(ready[0]) == Some(ready[1]);
-                    if pair_alone { Vec::new() } else { ready }
+                    if self.squad_alone(room, &ready) { Vec::new() } else { ready }
                 })
                 .collect()
         };

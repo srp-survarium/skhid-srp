@@ -115,6 +115,9 @@ pub(super) struct Player<'a> {
     pub not_found: Option<(String, Instant)>,
     /// The friend requests it may still send (`social`).
     pub friend_requests: super::social::FriendRequestAllowance,
+    /// When it last searched players by name (`social`: one search a
+    /// `SEARCH_EVERY`).
+    pub searched_at: Option<Instant>,
     /// The room whose chat it hears: the room it was in when its movie put
     /// up its "Room Chat" tab, while it is in that room (`room_chat`).
     pub room_chat: Option<u32>,
@@ -707,6 +710,7 @@ impl<'a> Core<'a> {
             chat_at: now,
             not_found: None,
             friend_requests: super::social::FriendRequestAllowance::new(now),
+            searched_at: None,
             room_chat: None,
         };
         let mut link = Link {

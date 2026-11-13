@@ -1420,6 +1420,32 @@ fn players_in_a_match_talk_on_its_channels() {
     world.assert_clean();
 }
 
+/// A search of players by name: one a second a session; one sooner finds
+/// nobody (the movie's wait ends as for "not found"). A Cyrillic name is
+/// found as a Latin one.
+#[test]
+fn a_search_of_players_is_one_a_second_and_finds_any_script() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let vasya = world.connect("Вася");
+    let vasya_id = world.ids[vasya].0;
+    world.take(alice);
+    let found = |world: &mut World, typed: &str| -> Vec<u32> {
+        world.ask(alice, request::find_players(typed));
+        match &world.take(alice)[..] {
+            [Decoded::Friendship(FriendshipPush::Found { players, .. })] => {
+                players.iter().map(|player| player.0).collect()
+            }
+            other => panic!("{other:?}"),
+        }
+    };
+    assert_eq!(found(&mut world, "вас"), [vasya_id]);
+    assert!(found(&mut world, "вас").is_empty(), "too soon");
+    world.advance(Duration::from_secs(1));
+    world.take(alice);
+    assert_eq!(found(&mut world, "ВАСЯ"), [vasya_id]);
+}
+
 #[test]
 fn a_friend_request_makes_friends_and_their_statuses_follow() {
     let mut world = World::new();

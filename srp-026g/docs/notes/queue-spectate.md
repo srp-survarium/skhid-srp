@@ -52,8 +52,10 @@ dynamic game". Rooms: [rooms.md](rooms.md) (Queue, Late joins). Wire: `lobby.md`
 - **Out of step:** a spectator's hash reports are heard only to judge it: two in a row that the
   players' majority contradicts and it starts again from a fresh world, no more often than a
   player is resynced. They never count for the match (`match.md` section 37).
-- **No cap on spectators:** each costs about one more player (its relays and worlds); add one if
-  the host struggles.
+- **Spectators share the Live window's caps** (`SRP_LIVE_WATCH_PER_MATCH`, 4, and
+  `SRP_LIVE_WATCH_MAX`, 8): each costs about one more player (its relays and worlds). A queue
+  waiter past the cap stays in the queue without watching and starts when a place frees, the
+  oldest account first.
 
 ## How
 
