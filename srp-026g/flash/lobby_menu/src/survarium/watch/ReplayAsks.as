@@ -16,7 +16,8 @@ package survarium.watch
    //   the ask's own `preparing` says its session is over at the server: the ask ends. A watch ended
    //   here without one (the prompt closed, or no answer in time) is withdrawn, `3D 00 FFFFFF05
    //   <match>` (the lobby server's REPLAY_WITHDRAW, not answered): a session whose game the lobby
-   //   has not sent yet is over there, so the game never loads into it later.
+   //   has not sent yet is over there, so the game never loads into it later. A match loading
+   //   ends it, unsaid (away).
    // - a save (research/local-replays-design.md 1.1): `R2;<status>;<match 8 hex>;<n>`, polled at
    //   SAVE_START. `ready` comes just after the `9E` with the hidden link `replay <id> <token>
    //   <sha256> <size>`: video_tutorial_link_clicked with no argument hands it to the exe (patch
@@ -277,12 +278,21 @@ package survarium.watch
          }
       }
 
-      // The game left the lobby (WatchWindow.away): a save under way ends, unsaid, its later
-      // answers dropped (in the match its `ready` would start the updater, a refusal or no answer
-      // show a box); its Save may be pressed again back in the lobby. A watch goes on: its
-      // `watching` comes once the game is in it.
+      // The game left the lobby for a match's load (WatchWindow.away): the asks under way end,
+      // unsaid, their later answers dropped. A watch: the load is its own, or the ask is moot; its
+      // prompt goes, and nothing polls for it (else the first lobby second after a replay watched
+      // over PREPARE_MS would withdraw it and say it is still preparing). Not withdrawn: a session
+      // whose game was sent is not ended by it, and the lobby server refuses one whose player is in
+      // a match. The window is told nothing: it keeps the view it comes back to. A save: in the
+      // match its `ready` would start the updater, a refusal or no answer show a box; its Save may
+      // be pressed again back in the lobby.
       public static function away() : void
       {
+         if(_watch != null)
+         {
+            _watch = null;
+            WatchPrompt.close();
+         }
          if(_save != null)
          {
             _save = null;

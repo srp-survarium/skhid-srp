@@ -867,7 +867,8 @@ package
          }
       }
 
-      // srp's: 0 hidden, 1 the game's own place (live), 2 above a replay viewer's controls.
+      // srp's: 0 hidden, 1 the game's own place (live), 2 above a replay viewer's controls. 0 gives
+      // the chooser back to a player's own (reset too: the movie is the last match's).
       public function srp_spectator_kits_show(mode:int) : void
       {
          this._spectatorMode = mode;
@@ -875,6 +876,7 @@ package
          {
             this._profilePanel.profileSelector.local = true;
             this._hudPlayerProfile.visible = false;
+            this._spectatorHover = -1;
             this._spectatorKit = -1;
          }
          this.applySpectatorKits();
@@ -1877,10 +1879,10 @@ package
          this.show_player_list(false);
          // the kits too: the exe's patch 113 puts its own kits state away at the same start, so
          // the match's first showing of them tells the movie its kit
-         // srp's: the movie is the last match's, which may have been a spectator's
-         this._spectatorMode = 0;
-         this._spectatorKit = -1;
-         this._profilePanel.profileSelector.local = true;
+         // srp's: the movie is the last match's, which may have been a spectator's: its chooser
+         // given back as the exe's own 0 does (its place, its hover list), whatever the exe did
+         // at the spectator's end
+         this.srp_spectator_kits_show(0);
          this.show_profiles_selector(false);
          this.show_oxygen(false);
          this.show_stamina(false);

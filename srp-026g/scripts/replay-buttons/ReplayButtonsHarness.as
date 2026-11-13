@@ -61,6 +61,8 @@ package
    //   prompt is closed withdrawn once (`3D 00 FFFFFF05 <match>`), not one refused; `in_room` said
    //   in its own words; a `none` after its own `preparing` ends it, prompt gone, nothing withdrawn;
    //   a live match's `watching` to the ask itself closes the asking prompt, nothing withdrawn;
+   //   a match loading ends a watch asked, unsaid: its prompt gone, nothing polled, withdrawn or
+   //   said after, in the match or back in the lobby;
    //   Mine not asked at once back in the lobby (BACK_ASK_MS: the history row is not written yet);
    // - a lobby window opening (MainScene.activeWindow) or the rooms window closes Watch; back from a
    //   watch in a room, one playing without the player gives the Watch view back, its vote shows it;
@@ -1183,6 +1185,24 @@ package
          expect(language + ": a live watching withdrawn: " + withdrawn(),withdrawn().length == 0);
          idle();
          told();
+         // a replay that said `preparing`, then loaded and watched for 4 min (the lobby's seconds
+         // ticking in the match or not): the load ended the ask, its prompt with it; nothing polled,
+         // withdrawn or said then, nor back in the lobby (no "still preparing")
+         ExternalInterface.calls.length = 0;
+         click(cards()[1],"srpWatchWatch");
+         second();
+         lobby.answer("preparing",OTHER,1);
+         expect(language + ": no preparing prompt before the load",promptShown());
+         W.away();
+         expect(language + ": the preparing prompt outlived the load",!promptShown());
+         for(p = 0; p < 240; p++)
+            second();
+         W.back();
+         second();
+         var past:Array = told();
+         expect(language + ": a watch past its load polled " + polls(2200000000) + ", withdrawn " + withdrawn() + ", said " + past,
+            polls(2200000000) == 1 && withdrawn().length == 0 && past.length == 0);
+         win.show(false);
          Message.registerMessage("apply",null);
          win.show(false);
          // the second ask goes after the first ended

@@ -208,11 +208,18 @@ package {
    hud.srp_spectator_kits_show(0);
    expect("mode 0 hides it",!panel.visible);
    expect("mode 0: the selector its own again",selector.local == true);
+   var ownAt:Point = new Point(panel.x,panel.y);
    hud.show_profiles_selector(true);
    expect("mode 0: the game's own show is honoured",panel.visible);
-   // A player's match after a spectator's, the movie being the last match's.
+   // A player's match after a spectator's, the movie being the last match's, the exe's mode 0 at
+   // the replay's end missed: a kit hovered at a replay's place, then the reset.
    hud.srp_spectator_kits_show(2);
+   hud.srp_spectator_pointer(uint(plate.x + plate.width / 6),uint(plate.y + 10));
+   expect("reset: no replay's hover list at " + panel.x + "," + panel.y + " to undo (a player's at " + ownAt + ")",
+    list.visible && (panel.x != ownAt.x || panel.y != ownAt.y));
    try { hud.reset(); } catch(rest:Error) { trace("KITS reset outside the game: " + rest.message); }
+   expect("reset: the replay's hover list still shown",!list.visible);
+   expect("reset: the chooser left at " + panel.x + "," + panel.y + ", not a player's " + ownAt,panel.x == ownAt.x && panel.y == ownAt.y);
    hud.show_profiles_selector(true);
    expect("reset: the game's own show honoured after a spectator's match",panel.visible);
    expect("reset: the selector its own again",selector.local == true);

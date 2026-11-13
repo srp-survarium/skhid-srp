@@ -327,8 +327,8 @@ package survarium.watch
       // The game loads a match (LobbyMenu.set_loading_level): a watch asked from here playing?
       // Its `watching` comes only once the game is in it, after the load began. The view to come
       // back to is this load's alone: a view still kept from the last return (the results were up,
-      // and the game left the lobby before they closed) is dropped. A save under way ends
-      // (ReplayAsks.away).
+      // and the game left the lobby before they closed) is dropped. The watch and save asked end
+      // (ReplayAsks.away), unsaid: the view is kept by the load's rule alone.
       public static function away() : void
       {
          ReplayAsks.away();
