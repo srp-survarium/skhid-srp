@@ -266,6 +266,12 @@ pub fn stop_at_drop(world: &Collision, s: &Settings, start: WalkStart, from: Vec
     (!c.jumping && c.on_ground(s)).then(|| c.feet())
 }
 
+/// [feed 67] [`WalkGrid::landing_drops`]'s links to cut (take-off, direction, rank 0), re-aims (take-off, direction, new
+/// landing) and [A377] lips by where the body stops (take-off, landing).
+type Cuts = Vec<(u32, usize, f32)>;
+type Reaims = Vec<(u32, usize, u32)>;
+type Lips = Vec<(u32, u32)>;
+
 /// [feed 67] What [`super::Body::drop_lands`] does with one Drop link.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 enum Verdict {
@@ -324,7 +330,7 @@ impl WalkGrid {
         triangles: &[Triangle],
         seeds: &[Vec3],
         spawns: &[Vec3],
-    ) -> (Vec<(u32, usize, f32)>, Vec<(u32, usize, u32)>, Vec<(u32, u32)>) {
+    ) -> (Cuts, Reaims, Lips) {
         let links = self.reached_drops(wide, seeds, spawns);
         if links.is_empty() {
             return (Vec::new(), Vec::new(), Vec::new());
