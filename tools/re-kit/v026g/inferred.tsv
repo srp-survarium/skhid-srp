@@ -407,7 +407,7 @@ va	status	ref_021d	name
 0x00083c40	inferred-medium	0x0005a65d	vostok::physics::animated_model_instance_cook::on_subresources_loaded
 0x00083e50	inferred-medium	0x0005a77d	vostok::physics::animated_model_instance_cook::delete_resource
 0x00083f30	inferred-medium	0x0005a83d	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf1<void,vostok::physics::animated_model_instance_cook,vostok::resources::queries_result &>,boost::_bi::list2<boost::_bi::value<vostok::physics::animated_model_instance_cook *>,boost::arg<1> > > >::manager
-0x000869d0	inferred-medium	0x002227e9	vostok::physics::character_up_sweep_test_callback::addSingleResult
+0x00083f80	inferred-high		btQuaternion::getIdentity
 0x00094c70	inferred-medium		btAxisSweep3Internal<unsigned short>::rayTest
 0x000a14c0	inferred-medium	0x00220975	vostok::physics::closest_ray_result_callback::`scalar deleting destructor'
 0x000a3e50	inferred-medium		vostok::physics::bullet_contact_pair_test
@@ -3216,10 +3216,14 @@ va	status	ref_021d	name
 0x0033fa80	inferred-high		survarium::hit_type_parameters::apply_damage
 0x00087b60	inferred-high	0x002232a0	vostok::physics::character_controller_jump_tester::convex_sweep_test
 0x000885c0	inferred-high	0x0022392a	vostok::physics::character_controller_jump_vertical_tester::convex_sweep_test
+0x00088f20	inferred-medium		vostok::physics::slide_sweep_cache::find
 0x0039f360	inferred-medium	0x0025386b	vostok::animation::mixing::n_ary_tree::get_object_transform
 0x0039f690	inferred-medium	0x00253a73	vostok::animation::mixing::n_ary_tree::set_object_transform
 0x00085a90	inferred-high	0x00221ae8	vostok::physics::character_controller_move_step_tester::convex_sweep_test
 0x00086490	inferred-high		vostok::physics::character_controller_capsule_move_step_tester::convex_sweep_test
+0x00086e80	inferred-medium		vostok::physics::up_sweep_cache::find
+0x00086ed0	inferred-medium		vostok::physics::up_sweep_cache::insert
+0x00087640	inferred-medium		vostok::physics::stand_up_sweep_cache::find
 0x000895f0	inferred-high		vostok::physics::character_move_sweep_callback::addSingleResult
 0x00084420	inferred-high		vostok::physics::character_step_down_sweep_test_callback::addSingleResult
 0x0084d4a0	inferred-high		`dynamic initializer for 'cc_step_height''
@@ -3623,7 +3627,6 @@ va	status	ref_021d	name
 0x003d63f0	inferred-medium		vostok::render::constants_handler<>::update_buffers
 0x003d6640	inferred-medium		vostok::render::constants_handler<2>::assign
 0x003d6830	inferred-medium		vostok::render::constants_handler<1>::assign
-0x00038960	inferred-medium		vostok::math::sqrt
 0x00038ff0	inferred-medium		vostok::math::sin
 0x00039000	inferred-medium		vostok::math::cos
 0x0003a890	inferred-medium	0x0002b197	vostok::collision::loose_oct_tree::for_each_iterate<void (__cdecl*)(vostok::collision::object const *)>

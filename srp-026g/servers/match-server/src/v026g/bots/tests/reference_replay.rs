@@ -223,6 +223,7 @@ fn reference_replay() {
                     keys: hex(r.get("keys")?),
                     speed: num("speed"),
                     fall: None,
+                    controller: None,
                 },
             })
         })

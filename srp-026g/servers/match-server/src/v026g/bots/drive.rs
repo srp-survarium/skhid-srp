@@ -2014,7 +2014,9 @@ fn drive_tick_inner(
         }
     }
     // [A331] A battery carrier does not sprint (the owner: "battery cariers cant sprint"; `can_sprint` 0x2DBF40 refuses while the
-    // hands' item byte +0x388 != 0, fx-review A332, LIKELY by the exe): the bot does not ask for it while it carries.
+    // hands' item byte +0x388 != 0, fx-review A332; PROVEN: the battery item's `can_sprint` returns false, vtable 0xA13DBC,
+    // and carrying rows sprinting 0 of 56,753 and 0 of 44,093, grid/aim-gates/FINDINGS.md, exactness 2026-11-12T16:20Z): the
+    // bot does not ask for it while it carries.
     decision.keys = carrier_keys(decision.keys, me.carrying.is_some() && tuning.kin.carrier_sprint == kin::CarrierSprint::Refused);
     let lift_paced = decision.keys & lift_wants == lift_wants;
     // The pull is the kick's part taken back, in the game's pitch unit: as a rise of the elevation at this pitch (`pitch.rs`).

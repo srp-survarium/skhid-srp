@@ -6315,6 +6315,8 @@ va	name	location	role	basis
 0x000a8380	btBvhTriangleMeshShape::performConvexcast	ESI	the cast shape's box min (btVector3*)	observed
 0x000a8380	btBvhTriangleMeshShape::performConvexcast	EDX	the cast shape's box max (btVector3*)	observed
 0x00087b60	vostok::physics::character_controller_jump_tester::convex_sweep_test	ESI	the tester (inside the controller): +5058h the cast shape, +5060h the btCollisionWorld it sweeps (0x87C44, 0x87C4F)	observed
+0x00088cb0	vostok::physics::bullet_character_controller::slide_sweep_test	EAX	the sweeper	observed
+0x00088cb0	vostok::physics::bullet_character_controller::slide_sweep_test	EDI	&to	observed
 0x0007f7b0	vostok::physics::bullet_character_controller::can_stand_up	EAX	the Bullet controller	observed
 0x0007bd10	vostok::physics::bullet_character_controller::need_push_from_low_ceiling	EAX	the Bullet controller	observed
 0x0007bad0	vostok::physics::bullet_character_controller::get_push_from_low_ceiling	ECX	the Bullet controller	observed
@@ -6337,6 +6339,10 @@ va	name	location	role	basis
 0x00084420	vostok::physics::character_step_down_sweep_test_callback::addSingleResult	ECX	the callback	observed
 0x00084420	vostok::physics::character_step_down_sweep_test_callback::addSingleResult	entry ESP+4	the LocalConvexResult: +0 the object, +4 the shape info or null, +10h the normal, +20h the point, +30h the fraction	observed
 0x00084810	vostok::physics::character_step_down_sweep_test_callback::get_normal_via_ray_test	EAX	the callback	observed
+0x000868d0	vostok::physics::character_up_sweep_test_callback::character_up_sweep_test_callback	ECX	&from	observed
+0x000868d0	vostok::physics::character_up_sweep_test_callback::character_up_sweep_test_callback	EDX	&dir	observed
+0x00086bf0	vostok::physics::bullet_character_controller::up_sweep_test	EDI	&from	observed
+0x000873c0	vostok::physics::bullet_character_controller::stand_up_sweep_test	EDI	&from	observed
 0x00084190	vostok::physics::character_step_down_sweep_test_callback::hit_shape_rotation	EDI	the quaternion out	observed
 0x000b72a0	btSubsimplexConvexCast::calcTimeOfImpact	ECX	the caster: +4 the simplex solver, +8 convexA, +0Ch convexB	observed
 0x000b8010	btTriangleRaycastCallback::processTriangle	ECX	the callback: +10h from, +20h to, +30h flags, +34h m_hitFraction	observed

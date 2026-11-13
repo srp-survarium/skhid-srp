@@ -30,7 +30,7 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use mapdata::controller::tick::{Controller, TickInput};
+use mapdata::controller::tick::{Controller, Saved, TickInput};
 use mapdata::{LinkKind, NodeId, RayTree, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
@@ -62,6 +62,9 @@ pub struct Fix {
     /// [A318] The body's speed down, m/s (the world's `fall_and_slide_velocity` y, negated: the controller's own velocity), if it
     /// was read.
     pub fall: Option<f32>,
+    /// The world's controller block (`serialize` 0x7F7F0), if it was read: the kept controller ([`ClientStep::Kept`]) starts from
+    /// it at this world, crouched where the client is crouched ([`WalkGrid::kept_controller_saved`]).
+    pub controller: Option<Saved>,
 }
 
 /// The body as the bot reckons it at a tick.
@@ -344,8 +347,9 @@ pub fn walker_walls(world: &mapdata::World) -> Arc<RayTree> {
 }
 
 /// [A318] The client's jump gate for a press, past what the reckoned body itself knows (standing, uncrouched, no jump under
-/// way): `player_logic_jump_state` starts only with the bar at the jump's cost and not low (`player_stamina`, 0x2FC230), no
-/// battery carried (`can_sprint`'s item test, LIKELY) and legs that may jump (`motor::Hurt::may_jump`). A bot's is its own
+/// way): `player_logic_jump_state` starts only with the bar at the jump's cost and not low (`player_stamina`, 0x2FC230) and legs
+/// that may jump (`motor::Hurt::may_jump`); it has no held-item test (0x2FC230..0x2FC293, PROVEN: a carrier jumps, 668 of 56,753
+/// carrying rows in a jump, exactness 2026-11-12T16:20Z; only the sprint's `can_sprint` refuses a carrier). A bot's is its own
 /// reckoning's ([`super::stamina::Reckoning::may_jump`]); a human's is not known: open.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum JumpGate {
@@ -367,7 +371,8 @@ const KEPT_MS: u32 = 20_000;
 const LOCATE_M: f32 = 1.5;
 /// A body is reckoned on this far past its last known tick at most, ms.
 const PROJECT_MS: u32 = 3_000;
-/// The pitch's limit, radians (LIKELY, `kin`).
+/// The pitch's limit in the game's own unit: +-1 at the clamp 0x2E1012 (PROVEN, exactness FIXES F27 / F29 amended; the unit is
+/// 67.48 degrees, not a radian: `pitch::PitchScale`).
 const MAX_PITCH: f32 = 1.0;
 /// A jump pressed keeps the reckoned body in the air this long, ms
 /// ([`jumped_to`]). The worlds of the owner's matches of 2026-10-23 show a
@@ -873,7 +878,7 @@ impl BodyTrack {
             match kin.fix_floor {
                 FixFloor::Nearest => nearest(),
                 FixFloor::Under => under(),
-                FixFloor::UnderInJump => {
+                FixFloor::UnderInJump | FixFloor::UnderInAir => {
                     // Its own jump in the air at the world's tick: a decided tick within the jump's air time with the key held.
                     let jumping = self
                         .ticks
@@ -883,7 +888,19 @@ impl BodyTrack {
                     if nearest() != under() {
                         counts::fix_floor(jumping);
                     }
-                    if jumping { under() } else { nearest() }
+                    if jumping {
+                        under()
+                    } else if kin.fix_floor == FixFloor::UnderInAir
+                        && let column = column_floor(grid, feet)
+                        && column.is_none_or(|node| feet.y - grid.position(node).y > grid.body().step)
+                    {
+                        // [FixFloor::UnderInAir] In the air out of its own jump: the floor it comes down on.
+                        #[cfg(test)]
+                        counts::fix_floor_in_air(column.is_some() && column != nearest());
+                        column.or_else(nearest)
+                    } else {
+                        nearest()
+                    }
                 }
             }
         });
@@ -933,7 +950,15 @@ impl BodyTrack {
             scale: kin.pitch_scale,
             fall: Fall::Ground,
             grid_extra: GridExtra::default(),
-            kept: None,
+            // The client's own controller at the world (exactness, Mamayev Kurgan cases 12 and 14: a body crouched under a beam with
+            // the key released and no room to stand stays down; a standing controller pushed out of the beam walks on).
+            kept: (kin.client_step == ClientStep::Kept)
+                .then(|| {
+                    let saved = fix.controller.as_ref()?;
+                    let controller = grid?.kept_controller_saved(saved)?;
+                    Some(KeptBody { feet: controller.feet(), controller })
+                })
+                .flatten(),
             // [A318] The world's keys are input W's (PROVEN): the step before them takes input W-50's keys and the world's yaw
             // less input W's turn. [A325f] Those keys as the client takes them (the legs' gate, [`Self::as_taken`]).
             step: (kin.step_input == StepInput::Previous)
@@ -1892,6 +1917,26 @@ fn floor_under(grid: &WalkGrid, node: NodeId, point: Vec3, max_rise: f32) -> Opt
         .find(|&next| holds(next) && grid.position(next).y - base <= max_rise)
 }
 
+/// [`FixFloor::UnderInAir`] The floor under a body's feet: the highest floor at most [`FIX_ABOVE_M`] over the feet, however far
+/// under them, in the cells of the points where a top holds the capsule: its centre and rings at `Body::hold_radius` (its round
+/// bottom meets an edge at a normal within the walkable slope, `r sin(acos(cc_max_slope_angle_cos))`, 0.311 m with the clients'
+/// numbers) and half of it, the points the grid's own walk-off reads (`grid/gap.rs` `hold_points`). A top farther out does not
+/// hold the falling body, which falls past it (nav-team on #1759: with the whole 0.38 m square, 4 of 34 side ledges under 0.4 m
+/// off were fixed).
+fn column_floor(grid: &WalkGrid, feet: Vec3) -> Option<NodeId> {
+    let r = grid.body().hold_radius();
+    let ring = (0..16).map(|i| {
+        let t = (i % 8) as f32 * std::f32::consts::FRAC_PI_4;
+        let r = if i < 8 { r } else { 0.5 * r };
+        (feet.x + r * t.cos(), feet.z + r * t.sin())
+    });
+    std::iter::once((feet.x, feet.z))
+        .chain(ring)
+        .flat_map(|(x, z)| grid.floors_in([x, z, x, z]))
+        .filter(|&node| grid.position(node).y <= feet.y + FIX_ABOVE_M)
+        .max_by(|&a, &b| grid.position(a).y.total_cmp(&grid.position(b).y))
+}
+
 /// The bench's counts of [`FixFloor::UnderInJump`] (all matches of the run): the worlds whose nearest floor and floor under the
 /// feet differ, put on the nearest (no jump of its own in the air) and on the floor under the feet (its jump in the air).
 #[cfg(test)]
@@ -1906,6 +1951,18 @@ pub mod counts {
 
     pub fn fix_floors() -> [u64; 2] {
         std::array::from_fn(|k| FIX_FLOORS[k].load(Ordering::Relaxed))
+    }
+
+    static IN_AIR: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
+
+    /// [`super::FixFloor::UnderInAir`] A world with the body in the air out of its own jump: put on the floor under its feet
+    /// where that differs from the nearest (`moved`), or on the same floor.
+    pub fn fix_floor_in_air(moved: bool) {
+        IN_AIR[usize::from(moved)].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn fix_floors_in_air() -> [u64; 2] {
+        std::array::from_fn(|k| IN_AIR[k].load(Ordering::Relaxed))
     }
 }
 
@@ -2151,7 +2208,7 @@ pub(super) mod tests {
     }
 
     fn fix(time: u32, feet: Vec3, yaw: f32) -> Fix {
-        Fix { fall: None,
+        Fix { fall: None, controller: None,
             time,
             alive: true,
             inserted: 100,
@@ -2301,7 +2358,7 @@ pub(super) mod tests {
         // kept.
         track.decided(2_050, key::FORWARD, (0.0, 0.0), 0.0, &kin, None);
         // The world has its tick's keys: forward.
-        let walking = Fix { fall: None,
+        let walking = Fix { fall: None, controller: None,
             keys: key::FORWARD,
             ..fix(1_500, Vec3::new(5.0, 0.0, 6.0), 0.0)
         };
@@ -2341,7 +2398,7 @@ pub(super) mod tests {
         // Dead: nothing reckoned; alive again with a new spawn time is a
         // new life.
         track.fixed(
-            Fix { fall: None,
+            Fix { fall: None, controller: None,
                 alive: false,
                 feet: None,
                 ..fix(2_000, Vec3::ZERO, 0.0)
@@ -2351,7 +2408,7 @@ pub(super) mod tests {
         );
         assert!(track.dead() && track.estimate().is_none());
         assert!(track.fixed(
-            Fix { fall: None,
+            Fix { fall: None, controller: None,
                 inserted: 3_000,
                 ..fix(3_200, Vec3::new(1.0, 0.0, 1.0), 0.0)
             },
@@ -2387,7 +2444,7 @@ pub(super) mod tests {
         let z = track.estimate().unwrap().feet.z;
         assert!((z - kin.walk[0] * 0.9 * 0.95).abs() < 1e-3, "{z}");
         // A world shows it walking at 1.1: that is the life's level.
-        let walking = Fix { fall: None,
+        let walking = Fix { fall: None, controller: None,
             keys: key::FORWARD,
             speed: Some(kin.walk[0] * 1.1),
             ..fix(1_000, Vec3::ZERO, 0.0)
@@ -2396,7 +2453,7 @@ pub(super) mod tests {
         assert!((track.level() - 1.1).abs() < 1e-5);
         // A new life: the profile's again.
         track.fixed(
-            Fix { fall: None,
+            Fix { fall: None, controller: None,
                 inserted: 5_000,
                 ..fix(5_000, Vec3::ZERO, 0.0)
             },
@@ -2418,7 +2475,7 @@ pub(super) mod tests {
         let mut track = BodyTrack::default();
         track.set_legs(Some(0.9));
         assert!((track.level() - 0.9).abs() < 1e-6);
-        let walking = |speed: f32, time: u32| Fix { fall: None, keys: key::FORWARD, speed: Some(speed), ..fix(time, Vec3::ZERO, 0.0) };
+        let walking = |speed: f32, time: u32| Fix { fall: None, controller: None, keys: key::FORWARD, speed: Some(speed), ..fix(time, Vec3::ZERO, 0.0) };
         track.fixed(walking(kin.walk[0] * 0.9, 0), &kin, None);
         assert!((track.level() - 0.9).abs() < 1e-5, "the level is 1, the legs 0.9: {}", track.level());
         track.fixed(walking(kin.walk[0] * 0.81, 1_000), &kin, None);
@@ -2439,7 +2496,7 @@ pub(super) mod tests {
             for k in 1..=7u32 {
                 track.decided(at + k * 50, key::FORWARD, (0.0, 0.0), 0.0, &kin, None);
             }
-            track.fixed(Fix { fall: None, keys: key::FORWARD, speed: Some(speed), ..fix(at + 400, Vec3::ZERO, 0.0) }, &kin, None);
+            track.fixed(Fix { fall: None, controller: None, keys: key::FORWARD, speed: Some(speed), ..fix(at + 400, Vec3::ZERO, 0.0) }, &kin, None);
             track.level()
         };
         let mut track = BodyTrack::default();
@@ -2456,7 +2513,7 @@ pub(super) mod tests {
         for k in 1..=7u32 {
             old.decided(k * 50, key::FORWARD, (0.0, 0.0), 0.0, &measured, None);
         }
-        old.fixed(Fix { fall: None, keys: key::FORWARD, speed: Some(3.5 * 0.8), ..fix(400, Vec3::ZERO, 0.0) }, &measured, None);
+        old.fixed(Fix { fall: None, controller: None, keys: key::FORWARD, speed: Some(3.5 * 0.8), ..fix(400, Vec3::ZERO, 0.0) }, &measured, None);
         assert!((old.level() - 1.0).abs() < 1e-6, "the old band drops 0.8");
     }
 
@@ -2467,7 +2524,7 @@ pub(super) mod tests {
         let kin = Kinematics::default();
         let mut track = BodyTrack::default();
         track.fixed(fix(0, Vec3::ZERO, 0.0), &kin, None);
-        let world = |time: u32, speed: f32| Fix { fall: None, keys: key::FORWARD, speed: Some(speed), ..fix(time, Vec3::ZERO, 0.0) };
+        let world = |time: u32, speed: f32| Fix { fall: None, controller: None, keys: key::FORWARD, speed: Some(speed), ..fix(time, Vec3::ZERO, 0.0) };
         // Two ticks into a walk from rest: in the fade (3.0 m/s of 3.5 would read 0.857).
         for k in 1..=2u32 {
             track.decided(k * 50, key::FORWARD, (0.0, 0.0), 0.0, &kin, None);
@@ -2850,6 +2907,48 @@ pub(super) mod tests {
         assert!((walk(&walker, ClientStep::Kept, 1.0) - walk(&walker, ClientStep::Grid, 1.0)).abs() < 1e-3);
     }
 
+    /// The kept controller starts at a world from the client's own saved block (exactness, Mamayev Kurgan cases 12 and 14): a body
+    /// crouched under a beam with the key released and no room to stand starts crouched at the world's feet and stays down while it
+    /// walks under it; a world without the block starts it standing, as before.
+    #[test]
+    fn a_world_that_saved_a_crouched_controller_keeps_the_body_crouched() {
+        let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+        // A beam 1.3 m up over x 2-8: room for the crouched capsule (1.1 m), none for the standing one (1.8 m).
+        triangles.extend(floor(2.0, 0.0, 8.0, 10.0, 1.3));
+        let walker = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default()).with_client_walker(&triangles);
+        let kin = Kinematics { blend_ticks: 1, client_step: ClientStep::Kept, ..Kinematics::default() };
+        let feet = Vec3::new(4.0, 0.0, 5.0);
+        let saved = Saved {
+            feet,
+            jumping: false,
+            input_crouch: false,
+            logic_crouch: true,
+            capsule_crouch: true,
+            can_stand: false,
+            colliding_with_player: false,
+            velocity: Vec3::ZERO,
+            support_normal: Vec3::new(0.0, 1.0, 0.0),
+            ceiling_normal: Vec3::new(0.0, -1.0, 0.0),
+            ceiling_slide: Vec3::ZERO,
+        };
+        let yaw = -std::f32::consts::FRAC_PI_2;
+        let mut track = BodyTrack::default();
+        track.fixed(Fix { controller: Some(saved), ..fix(0, feet, yaw) }, &kin, Some(&walker));
+        let kept = track.estimate().unwrap().kept.unwrap();
+        assert!(kept.controller.crouched && !kept.controller.can_stand);
+        assert!((kept.feet - feet).length() < 1e-4, "at the world's feet: {:?}", kept.feet);
+        for time in (50..=500).step_by(50) {
+            track.decided(time, key::FORWARD, (0.0, 0.0), 0.0, &kin, Some(&walker));
+        }
+        let at = track.estimate().unwrap();
+        assert!(at.kept.is_some_and(|kept| kept.controller.crouched), "still crouched under the beam");
+        assert!(at.feet.x > feet.x + 0.3, "it walks on: {:?}", at.feet);
+        // No block: the standing start, as before.
+        let mut plain = BodyTrack::default();
+        plain.fixed(fix(0, feet, yaw), &kin, Some(&walker));
+        assert!(plain.estimate().unwrap().kept.is_none());
+    }
+
     /// [A318] [`StepInput::Previous`] (the client's): the step into the feet at N moves with input N-100's keys and its yaw after
     /// that input's turn; [`StepInput::Same`] (the old reckoning) one tick early.
     #[test]
@@ -3067,6 +3166,38 @@ pub(super) mod tests {
         assert!(floor_with(Some(100)) > 1.2, "a jump 900 ms before is over");
     }
 
+    /// [`FixFloor::UnderInAir`]: a world with the body in the air beside a top it left (no jump of its own) puts it on the floor
+    /// under its feet, which [`FixFloor::UnderInJump`] took for the nearest, the top 0.7 m aside; a world a step or less over its
+    /// floor, going down or not, and a body standing at the face keep the nearest.
+    #[test]
+    fn a_world_in_the_air_out_of_its_own_jump_takes_the_floor_under_its_feet() {
+        let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+        triangles.extend(floor(10.0, 0.0, 20.0, 10.0, 1.3));
+        triangles.extend(wall_x(10.0, 0.0, 10.0).map(|mut t| {
+            t.v.iter_mut().for_each(|v| v.y = v.y.min(1.3));
+            t
+        }));
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default());
+        let yaw = -std::f32::consts::FRAC_PI_2;
+        let floor_of = |rule: FixFloor, feet: Vec3, fall: Option<f32>| {
+            let kin = Kinematics { blend_ticks: 1, fix_floor: rule, ..Kinematics::default() };
+            let mut track = BodyTrack::default();
+            for time in (0..=1_000).step_by(50) {
+                track.decided(time, key::FORWARD, (0.0, 0.0), 0.0, &kin, Some(&grid));
+            }
+            track.fixed(Fix { fall, ..fix(1_000, feet, yaw) }, &kin, Some(&grid));
+            grid.position(track.estimate().unwrap().node.unwrap()).y
+        };
+        // 1 m over the floor, 0.6 m from the face: more than a step over the floor under it.
+        let aside = Vec3::new(9.4, 1.0, 5.0);
+        assert!(floor_of(FixFloor::UnderInJump, aside, None) > 1.2, "the old rule: the nearest, the top aside");
+        assert!(floor_of(FixFloor::UnderInAir, aside, None) < 0.1, "in the air: the floor under its feet");
+        // Going down 0.5 m over its floor at the face, the top's cells under its hold points but over its feet.
+        assert!(floor_of(FixFloor::UnderInAir, Vec3::new(9.8, 0.5, 5.0), Some(3.0)) < 0.1);
+        // On the top at its edge, not going down: the top.
+        assert!(floor_of(FixFloor::UnderInAir, Vec3::new(10.1, 1.3, 5.0), Some(0.0)) > 1.2);
+    }
+
     /// A held body walking out over the edge at any slant comes down: it neither freezes past the support (the drop-link line of
     /// [`dropped_to`] ends at the landing, short of where a held body is) nor stays up.
     #[test]
@@ -3173,7 +3304,7 @@ pub(super) mod tests {
         );
         assert_eq!(at.air_until, 0);
         // A world after the jump: it did not get up.
-        let below = Fix { fall: None,
+        let below = Fix { fall: None, controller: None,
             keys: key::FORWARD,
             ..fix(2_000, Vec3::new(9.6, 0.0, 5.0), yaw)
         };
@@ -3188,7 +3319,7 @@ pub(super) mod tests {
         let mut track = BodyTrack::default();
         start(&mut track);
         walk(&mut track, 50, 1_000, Some(450));
-        let foot = Fix { fall: None,
+        let foot = Fix { fall: None, controller: None,
             keys: key::FORWARD,
             ..fix(600, Vec3::new(9.4, 0.0, 5.0), yaw)
         };
@@ -3211,7 +3342,7 @@ pub(super) mod tests {
         assert!((at.pitch - 0.02).abs() < 1e-6 && (at.view_pitch() - 0.04).abs() < 1e-6);
         // A world of tick 100: its base pitch, the bot's kick of that tick,
         // the ticks after played again.
-        let world = Fix { fall: None,
+        let world = Fix { fall: None, controller: None,
             pitch: 0.025,
             ..fix(100, Vec3::ZERO, 0.0)
         };

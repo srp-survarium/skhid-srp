@@ -356,9 +356,15 @@ fn sprint_press_to_leave_s(prepare: f32) -> f32 {
 /// falls (PROVEN, J0 g2a, 2026-10-26: 3.5-3.6 m/s through a 1.2 m fall,
 /// 7 of 7 onto the bridge where a jump at the edge overshot 7 of 7). A
 /// walk-off link is kept only where every one of these speeds, m/s, comes
-/// down on one level: a walk (3.0-3.6) and a sprint (5.1, J0), so the
+/// down on one level: a walk (3.0-3.5) and a sprint (4.9587), so the
 /// bot walks it at whatever pace it has, no key.
-pub const WALK_OFF_SPEEDS: [f32; 3] = [3.0, 3.6, 5.1];
+///
+/// [A364 C2 row 28] The body's own steady speeds at the movement factor 1: walk 3.5, sprint 4.9587 (the config's desired speed
+/// x the clip's root speed / its default, PROVEN on 10,909 of 11,214 traced steady sprint steps, exactness F5 2026-11-12T14:24Z,
+/// `bots::kin` since #1749; the walk forward is exact); 3.0 is `cc_min_walk_speed` (`startup.cfg`:24). A body moves at these x
+/// its kit's factor F (`kin.rs`): taking each body's F is the exactness verdicts' row 10. Were 3.6 and 5.1 (J0's measured
+/// speeds, over the body's at F 1).
+pub const WALK_OFF_SPEEDS: [f32; 3] = [3.0, 3.5, 4.9587];
 /// Floor walked behind a walk-off's take-off, m: the walk's speed is
 /// reached in 0.25-0.5 s. GUESS.
 pub const WALK_OFF_RUN_UP_M: f32 = 1.0;

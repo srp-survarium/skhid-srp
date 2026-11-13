@@ -142,9 +142,8 @@ impl Bots {
             bot.held_short_m = self.tracker.body(bot.place).map_or(0.0, |body| body.held_short_since_fix());
             let me = view.place(bot.place).filter(|p| p.alive);
             // [A318] Whether a jump this tick would go, before the drive spends the bar: the client's gate (`kin.jump_arc`).
-            let may_jump = bot.stamina.may_jump()
-                && me.is_some_and(|me| me.carrying.is_none())
-                && bot.hurt.may_jump(time);
+            // The client's jump gate has no held-item test (0x2FC230..0x2FC293, PROVEN: a carrier jumps): the bar and the legs.
+            let may_jump = bot.stamina.may_jump() && bot.hurt.may_jump(time);
             // TEST ONLY: the jump test's keys while it stands, runs and records.
             #[cfg(feature = "jump-test")]
             let scripted = self

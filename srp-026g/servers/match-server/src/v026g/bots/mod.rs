@@ -1517,7 +1517,7 @@ impl Bots {
         let rows = self.jump_test.as_mut().map(jump_test::JumpTest::take_fresh).unwrap_or_default();
         let mut notes = Vec::new();
         for row in rows {
-            let fix = Fix { fall: None,
+            let fix = Fix { fall: None, controller: None,
                 time: row.time,
                 alive: row.alive,
                 inserted: row.inserted,

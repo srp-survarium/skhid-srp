@@ -714,6 +714,19 @@ impl Game {
                     .damage
                     .as_ref()
                     .map(|damage| damage.linear_horizontal_speed),
+                controller: motion.body.as_ref().map(|body| mapdata::controller::tick::Saved {
+                    feet: Vec3::from_array(body.feet()),
+                    jumping: body.jumping,
+                    input_crouch: body.input_crouch,
+                    logic_crouch: body.logic_crouch,
+                    capsule_crouch: body.capsule_crouch,
+                    can_stand: body.can_stand,
+                    colliding_with_player: body.colliding_with_player,
+                    velocity: Vec3::from_array(body.fall_and_slide_velocity),
+                    support_normal: Vec3::from_array(body.supporting_surface_normal),
+                    ceiling_normal: Vec3::from_array(body.blocking_ceiling_normal),
+                    ceiling_slide: Vec3::from_array(body.blocking_ceiling_slide_velocity),
+                }),
             };
             let health = motion
                 .damage
@@ -748,6 +761,7 @@ impl Game {
                         saved.is_low_stamina(),
                         saved.current_time_ms(),
                         saved.last_spending_time_ms(),
+                        saved.spending_speed_modifier().get(),
                     ),
                 );
             }

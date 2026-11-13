@@ -155,7 +155,8 @@ pub enum SpeedCap {
     Off,
     /// Capped at the client's `max_speed` (`max(desired x F, minimal)`, the floor included) by the sprint state of the newest
     /// input ([`Kinematics::sprint_state`]: one input ahead of the walk vector, A364 P10) and the level; not in a jump (the cap is skipped while `+0x2C70C` is set, 0x2D915E, which
-    /// `end_jump` 0x7F050 clears: LIKELY the jump's flag).
+    /// `end_jump` 0x7F050 clears: the jump's flag, set by `base_player::jump` 0x2D7920 at the take-off event and cleared at the
+    /// landing, PROVEN, `private/grid/rig/notes-jump-state.md` 0).
     #[default]
     Client,
 }
@@ -422,8 +423,17 @@ pub enum FixFloor {
     /// than with [`Self::Nearest`] (Under alone was worse on four: Tarakanovsky Fort 1.644 against 0.691). The default: its by-side
     /// bench could not reach the case (47 such fixes in 256 matches: the stand-in's bodies stay on the grid's floors) and showed no
     /// cost (score +0.3 %, z +0.6, no guard flagged; #944).
-    #[default]
     UnderInJump,
+    /// [`Self::UnderInJump`], and a body the world has in the air out of its own jump (no floor under its hold points within a
+    /// step under its feet) is put on the floor under its feet (`body::column_floor`: the highest floor under the points where a
+    /// top holds the capsule, at most [`FIX_ABOVE_M`] over the feet), not the nearest. The nearest is then often the ledge it
+    /// walked off or was pushed from, to the side and over the floor it falls to: nav-team's measure (tip 8d9d1f606, the live
+    /// 1 s worlds of the owner-14 tables), 285 worlds of 1 m+ drift after a world with the client airborne, 91 with that
+    /// nearest floor aside and 0.8 m+ over the floor under the body, 16 with the reckoning held at that floor's height
+    /// (Vector Laboratory, match 4b1389dd place 4 at 908,600 ms: the client falling at 5.97 m/s from y 23.14 to its floor
+    /// 20.91, the reckoning held a second at the ledge 1.17 m aside, y 22.40); none of 840 calm worlds 0.3 m+ over its floor.
+    #[default]
+    UnderInAir,
 }
 
 /// How far over a world's feet [`FixFloor::Under`] takes a floor, metres: a floor's height is its cell centre's, which on the
@@ -495,7 +505,7 @@ impl Default for Kinematics {
             open_edge_cost: 0.0,
             walk_off_landing: WalkOffLanding::BySpeed,
             margin_edge: MarginEdge::Body,
-            fix_floor: FixFloor::UnderInJump,
+            fix_floor: FixFloor::UnderInAir,
             pitch_scale: PitchScale::Client,
             slope_speed: SlopeSpeed::RampsGrade,
             ramp_min_deg: 35.0,
