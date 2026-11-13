@@ -721,9 +721,7 @@ const NAMED: usize = 3 * PLACES as usize;
 /// installed, between simulation updates, as at any frame's dispatch.
 /// A named pick is one the reader keeps (the place's player holds it, or has
 /// it pending, as the record says) or takes from the idle copies of its recipe
-/// (in a drop or let go); the rest of each recipe is cooked, from the
-/// [`donor`] the reader would take, seen from the record's player (a late
-/// joiner has no local player before its install).
+/// (in a drop or let go); the rest of each recipe is cooked.
 pub fn before_world_load(load: &WorldLoad<'_>, frame: &Frame<'_>) {
     let thread = load.thread();
     let client = load.network_client();
@@ -747,7 +745,8 @@ pub fn before_world_load(load: &WorldLoad<'_>, frame: &Frame<'_>) {
         if let Some(recipe) = record.drop.available().map(|gun| gun.recipe)
             && body_drop(thread, place, recipe).is_none()
             && let Some(body) = client.player(u32::from(place.get()))
-            && let Some(cook_from) = donor(&body, recipe) {
+            && let Some(cook_from) = client.kit_player(recipe.place, recipe.kit)
+                .or_else(|| client.player(u32::from(recipe.place.get()))) {
             let from = DropOf { place, body: body.id(), life: None, lies: Lies::Current };
             log_recipe("a world to load has the open drop", recipe, &[Text(" (of place "), Dec(u32::from(place.get())),
                                                                       Text("), which this client has no copy of: cooked \
@@ -768,19 +767,20 @@ pub fn before_world_load(load: &WorldLoad<'_>, frame: &Frame<'_>) {
             .map(|pending| pending.pick.recipe);
         for recipe in needs.iter_mut().map(Option::take).chain([pending]).flatten() {
             if let Some(room) = named.get_mut(count) {
-                *room = Some((recipe, place));
+                *room = Some(recipe);
                 count += 1;
             }
         }
     }
     let mut asked = [None; NAMED];
     let mut n = 0;
-    for (k, &(recipe, by)) in named.iter().flatten().enumerate() {
+    for (k, recipe) in named.iter().enumerate() {
+        let Some(recipe) = *recipe else { continue };
         // Each recipe once, at its first: how many it is named, how many idle copies there are.
-        if named[..k].iter().flatten().any(|&(r, _)| r == recipe) {
+        if named[..k].contains(&Some(recipe)) {
             continue;
         }
-        let wanted = named.iter().flatten().filter(|&&(r, _)| r == recipe).count();
+        let wanted = named.iter().filter(|&&r| r == Some(recipe)).count();
         // An open drop's copy is not idle: it stays its drop's (the dead
         // holder of a picked gun names the same recipe).
         let idle = CACHE.with(thread, |cache| cache.iter().flatten()
@@ -792,17 +792,17 @@ pub fn before_world_load(load: &WorldLoad<'_>, frame: &Frame<'_>) {
         if wanted <= idle {
             continue;
         }
-        let picker = client.player(u32::from(by.get()));
-        let Some(cook_from) = picker.as_ref().and_then(|p| donor(p, recipe)) else {
+        let Some(donor) = client.kit_player(recipe.place, recipe.kit)
+            .or_else(|| client.player(u32::from(recipe.place.get()))) else {
             log_recipe("a world to load names", recipe, &[Text(": its place has no player to cook it from (the reader \
                                                                  will not install it)")]);
             continue;
         };
         for _ in idle..wanted {
-            let from = DropOf { place: recipe.place, body: cook_from.id(), life: None, lies: Lies::Ended { at: Ms(0) } };
+            let from = DropOf { place: recipe.place, body: donor.id(), life: None, lies: Lies::Ended { at: Ms(0) } };
             log_recipe("a world to load names", recipe, &[Text(", which this client has no idle copy of: cooked before \
                                                                  the load")]);
-            if let (Some(id), Some(room)) = (ask(&cook_from, thread, recipe, At::Drop(from)), asked.get_mut(n)) {
+            if let (Some(id), Some(room)) = (ask(&donor, thread, recipe, At::Drop(from)), asked.get_mut(n)) {
                 *room = Some((id, recipe));
                 n += 1;
             }

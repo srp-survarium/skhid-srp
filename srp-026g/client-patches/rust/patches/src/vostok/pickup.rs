@@ -41,7 +41,7 @@ pub use weapon_pickup::{Ammo, AmmoBags, CarryRule, Handedness, Hands, Place, Ref
 use super::config::{ConfigError, ConfigValue};
 
 use super::gun_cook::{self, CookId};
-use super::world::{floats, read, ItemId, Player, WorldKey};
+use super::world::{floats, read, ItemId, NetworkClient, Player, WorldKey};
 use super::{Context, Lock, Thread};
 use crate::raw;
 
@@ -361,29 +361,43 @@ pub fn hand_view(ctx: &mut Context<'_>, site: Site, view: View) {
     ctx.set_reg(reg, view.0.address());
 }
 
-impl Player<'_> {
-    /// `place`'s player of `kit` in this player's world, whether its place
-    /// is in the world or not (core_active_player 0x2D0AB0 refuses a place
-    /// whose bit core+18FD8h is clear: a departed place, in every game). The
-    /// place keeps its players and its profile when its player leaves, and a
-    /// returning player gets them again: what a pick's recipe is cooked from.
-    pub fn kit_player(&self, place: Place, kit: weapon_pickup::Kit) -> Option<Player<'_>> {
-        // SAFETY: the live player's world core and its places' vector, the
-        // place bounded by the vector's end before its entry is read.
-        unsafe {
-            let core = self.this.world_core()?;
-            let (begin, end) = (core.places()?, core.places_end()?);
-            if end.index_from(begin)? <= usize::from(place.get()) {
-                return None;
-            }
-            let entry = begin.at(usize::from(place.get()));
-            let this = match kit.get() {
-                0 => entry.kit0(),
-                1 => entry.kit1(),
-                _ => entry.kit2(),
-            }?;
-            Some(Player { this, thread: self.thread })
+/// `place`'s player of `kit` in `core`'s place table (core+18458h), whether
+/// its place is in the world or not (core_active_player 0x2D0AB0 refuses a
+/// place whose bit core+18FD8h is clear: a departed place in every game, and
+/// every place before a late joiner's first world, whose load sets the bits).
+/// The place keeps its players and its profile when its player leaves, and a
+/// returning player gets them again: what a pick's recipe is cooked from.
+fn kit_player_in(core: raw::CoreWorld, thread: &Thread, place: Place, kit: weapon_pickup::Kit) -> Option<Player<'_>> {
+    // SAFETY: a live world core and its places' vector, the place bounded by
+    // the vector's end before its entry is read.
+    unsafe {
+        let (begin, end) = (core.places()?, core.places_end()?);
+        if end.index_from(begin)? <= usize::from(place.get()) {
+            return None;
         }
+        let entry = begin.at(usize::from(place.get()));
+        let this = match kit.get() {
+            0 => entry.kit0(),
+            1 => entry.kit1(),
+            _ => entry.kit2(),
+        }?;
+        Some(Player { this, thread })
+    }
+}
+
+impl NetworkClient<'_> {
+    /// `place`'s player of `kit` in the client's match ([`kit_player_in`]).
+    pub fn kit_player(&self, place: Place, kit: weapon_pickup::Kit) -> Option<Player<'_>> {
+        // SAFETY: the client's live match and its world core.
+        kit_player_in(unsafe { self.this.pvp_match()?.core() }, self.thread, place, kit)
+    }
+}
+
+impl Player<'_> {
+    /// `place`'s player of `kit` in this player's world ([`kit_player_in`]).
+    pub fn kit_player(&self, place: Place, kit: weapon_pickup::Kit) -> Option<Player<'_>> {
+        // SAFETY: the live player's world core.
+        kit_player_in(unsafe { self.this.world_core()? }, self.thread, place, kit)
     }
 
     /// The world core: the match the records are of.

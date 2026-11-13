@@ -1486,23 +1486,23 @@ def a_departed_donors_gun_is_cooked(patched):
     """A record names the gun of a place whose player left (its bit of core+18FD8h clear: the lookup by place,
     core_active_player 0x2D0AB0, refuses it in every game). The place keeps its players and its profile (a
     returning player gets them again: the static info is fixed per match), so a game that has no copy cooks the
-    recipe from the place's kit player in the core's place table (core+18458h, 30h a place), read in the record's
-    player's world: a late joiner's world load (before the load, the joiner without a local player before its
-    install: rev57's crash 2026-11-13, the pick not installed and the inventory misread) and a resync's record (at
-    its reader) both install it."""
+    recipe from the place's kit player in the core's place table (core+18458h, 30h a place): a late joiner's world
+    load (before the load) and a resync's record (at its reader) both install it. A late joiner's first world comes
+    before its local player and before any place's bit (the core's constructor clears them, 0x2D00D7; the load sets
+    them, 0x2D2862): the table is read in the client's match (rev57 read it through the local player, cooked nothing,
+    and the pick was not installed: the next slot's item misread and crashed, report of 2026-11-13)."""
     pick = (DIED + 900, 6, KIT, 1)
     loaded = record(slot10=pick)
 
     def departed(g):
-        """Place 6 departed: not in the world (the lookup gives none), its kit players in the place table; no
-        local player (the client's +4 left 0)."""
+        """Place 6 departed: not in the world (the lookup gives none), its kit players in the place table."""
         places = g.blk(0x30 * 8)
         g.word(CORE + 0x18458, places)
         g.word(CORE + 0x1845C, places + 0x30 * 8)
         g.word(places + 0x30 * 6 + 4 * KIT, PLAYER)
         g.roster.pop(6, None)
 
-    # A late joiner's first world.
+    # A late joiner's first world: no local player (the client's +4), no place in the world.
     j = Pick(patched)
     j.setup()
     departed(j)
@@ -1518,7 +1518,9 @@ def a_departed_donors_gun_is_cooked(patched):
     j.emu.hook_add(UC_HOOK_CODE, active_player, begin=GET_ACTIVE_PLAYER, end=GET_ACTIVE_PLAYER)
     cooked, gun, _ = j.cooked_gun()
     j.on_dispatch, j.queries = cooked, []
+    in_world, j.roster = j.roster, {}
     load_world(j, world_with({3: b"\0\0" + loaded}))
+    j.roster = in_world
     assert len(j.queries) == 1, ("the departed place's gun cooked before the load", j.log)
     j.load(j.picker, loaded)
     assert j.slot(j.inventory, 10) == gun + 0x10 and not any("NOT installed" in l for l in j.log), j.log
