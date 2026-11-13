@@ -69,27 +69,32 @@ impl WalkGrid {
             .min_by(|&p, &q| (self.height[p as usize] - feet.y).abs().total_cmp(&(self.height[q as usize] - feet.y).abs()))
     }
 
-    /// The floor a flight's `steps` ([`jump::fly`]) landed on, of the top at `top` m: after the jump (its first step in the air),
-    /// the first step out of the jump on which the client has the body on the ground (`on_ground` 0x7EF90, the game's "can jump",
-    /// [`jump::FlightStep::on_ground`]) over a floor ([`Self::floor_under`]) within [`LAND_HEIGHT_M`] of `top`. The client's own
-    /// landing, on any step: not where the flight's straight walk on ends, since a bot that has landed follows its route over the
-    /// top (Vector Laboratory's ledge by the shelf, (23.76, 25.39, -28.8), is landed on, then walked off its far end by a straight
-    /// walk).
-    fn landed_on(&self, steps: &[jump::FlightStep], top: f32) -> Option<NodeId> {
+    /// The floor a flight's `steps` ([`jump::fly`]) landed on, higher than `over` m (the take-off's height and what its Jump and
+    /// gap links reach, [`MARGINAL_JUMP_M`] at most: the rim jumps' own range): after the jump (its first step in the air), the
+    /// first step out of the jump on which the client has the body on the ground (`on_ground` 0x7EF90, the game's "can jump",
+    /// [`jump::FlightStep::on_ground`]) over such a floor ([`Self::floor_under`]: the feet's own cell). The client's own landing,
+    /// on any step: not where the flight's straight walk on ends, since a bot that has landed follows its route (Vector
+    /// Laboratory's ledge by the shelf, (23.76, 25.39, -28.8), is landed on, then walked off its far end by a straight walk); and on
+    /// the floor the body is on, whichever of the top it is (Vector Laboratory's (-23.72, 23.18, -22.0): a jump meant for the floor
+    /// at 23.49 stops on the one at 23.18 beside it, part of the same top).
+    fn landed_on(&self, steps: &[jump::FlightStep], over: f32) -> Option<NodeId> {
         let first_air = steps.iter().position(|f| f.in_jump)?;
-        steps[first_air..].iter().filter(|f| !f.in_jump && f.on_ground).find_map(|f| {
-            self.floor_under(f.feet).filter(|&g| (self.height[g as usize] - top).abs() <= LAND_HEIGHT_M)
-        })
+        steps[first_air..]
+            .iter()
+            .filter(|f| !f.in_jump && f.on_ground)
+            .find_map(|f| self.floor_under(f.feet).filter(|&g| self.height[g as usize] > over))
     }
 
-    /// The press that gets a body from the take-off floor `a` onto the top of the floor `b` along `way`, among the leads `leads`
-    /// (metres before the take-off), and the floor of that top it lands on: on `b` itself when a press does (a walking jump at the
+    /// The press that gets a body from the take-off floor `a` up toward the floor `b` along `way`, among the leads `leads` (metres
+    /// before the take-off), and the floor it lands on ([`Self::landed_on`]: a floor over what `a`'s links reach): on `b` itself
+    /// when a press does (a walking jump at the
     /// middle of the leads it lands there from, else the sprint jump at the lead where the most of its four variants do, the
-    /// nearest the middle on a tie); else on the floor of the top the presses land on the most (re-targeted: the link goes where
-    /// the body lands); None when no press lands on the top. And the flights flown (a lead where every sprint variant lands on
+    /// nearest the middle on a tie); else on the floor the presses land on the most (re-targeted: the link goes where the body
+    /// lands); None when no press lands on such a floor. And the flights flown (a lead where every sprint variant lands on
     /// `b` ends the search).
     fn best_press(&self, world: &Collision, s: &Settings, a: NodeId, b: NodeId, way: (f32, f32), leads: &[f32]) -> (Option<(NodeId, Takeoff)>, usize) {
-        let (from, top) = (self.position(a), self.height[b as usize]);
+        let from = self.position(a);
+        let top = from.y + self.body.max_jump.min(MARGINAL_JUMP_M);
         let mut flights = 0;
         // Each press's landing floor: (lead, walking, floor).
         let mut landings: Vec<(f32, bool, NodeId)> = Vec::new();
