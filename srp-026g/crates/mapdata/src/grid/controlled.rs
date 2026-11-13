@@ -44,6 +44,13 @@ const AT_HEIGHT_M: f32 = 0.2;
 /// two bridges up a 0.6 m riser beside a leaning board, where the walks were dropped; bots cut the corner to them one column
 /// off and stalled at the board (bench3: 14 presses that freed nothing there, 1 without the pass).
 pub const BRIDGE_MIN_RUN: usize = 3;
+/// [A364 C2 row 52] The widest level gap a walked bridge is tried over, m: the client walks over a gap between two level floors up
+/// to 1.79 m wide at a 3.5 m/s walk (the feet dip 0.15-0.26 m and the step takes the far side; measured with the exact tick,
+/// exactness rig `grid-rules` S9, `out/gapwalk.tsv`; crouched 1.34, sprinting 2.6). Each bridge is still walked by the controller
+/// before it is kept ([`walk_lines`]); this only bounds the search.
+pub const BRIDGE_GAP_M: f32 = 1.79;
+/// [A364 C2 row 52] The most cells of no floor a bridge is tried across: [`BRIDGE_GAP_M`] over the cell (0.25 m), along a side.
+pub const BRIDGE_MAX_CELLS: usize = 7;
 
 /// What the controller pass did ([`BuildStats`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -554,7 +561,7 @@ impl WalkGrid {
                 l.kind == LinkKind::GapJump
                     && !matches!(l.press, Takeoff::WalkOff)
                     && (self.height[l.from as usize] - self.height[l.to as usize]).abs() <= body.step
-                    && cells_apart(l.from as usize, l.to as usize) == 2
+                    && (2..=BRIDGE_MAX_CELLS as i32 + 1).contains(&cells_apart(l.from as usize, l.to as usize))
             })
             .map(|(i, _)| i)
             .collect();
@@ -575,26 +582,43 @@ impl WalkGrid {
             let (i, k) = self.cell_xz(self.cell_of[a] as usize);
             let ha = self.height[a];
             for (d, &(di, dk)) in DIRS.iter().enumerate() {
-                let (Some(c2), Some(c3)) = (self.cell_index(i + di, k + dk), self.cell_index(i + 2 * di, k + 2 * dk)) else { continue };
-                // A side with a link is tried only when it is a drop into the cell between ([A329] a crack: the drop is the way the
-                // grid had across it, and the client walks over it; `drop_check` takes such a drop away when the body never
+                // A side with a link is tried only when it is a drop into the cells between ([A329] a crack: the drop is the way
+                // the grid had across it, and the client walks over it; `drop_check` takes such a drop away when the body never
                 // drops there).
-                let into_crack = body.crack_bridges
-                    && wide.links[a][d] != NONE
-                    && wide.kinds[a][d] == LinkKind::Drop
-                    && self.cell_of[wide.links[a][d] as usize] as usize == c2;
-                if wide.links[a][d] != NONE && !into_crack {
+                let link = wide.links[a][d];
+                let drop_at = (link != NONE && wide.kinds[a][d] == LinkKind::Drop).then(|| self.cell_of[link as usize] as usize);
+                if link != NONE && !(body.crack_bridges && drop_at.is_some()) {
                     continue;
                 }
-                if (self.start[c2]..self.start[c2 + 1]).any(|m| (self.height[m as usize] - ha).abs() <= body.step) {
-                    continue;
-                }
-                for b in self.start[c3]..self.start[c3 + 1] {
-                    if (self.height[b as usize] - ha).abs() <= body.step && wide.off.binary_search_by_key(&(a as u32, b), |l| (l.from, l.to)).is_err() {
-                        new.push((a as u32, b));
-                        if into_crack {
-                            over_drop.insert((a as u32, b));
+                // [A364 C2 row 52] Across 1 to [`BRIDGE_MAX_CELLS`] cells with no floor within a step of the take-off's (a level
+                // gap the client walks over), to the first cell beyond with one.
+                let stride = self.cell * ((di * di + dk * dk) as f32).sqrt();
+                for g in 1..=BRIDGE_MAX_CELLS as i32 {
+                    let Some(cg) = self.cell_index(i + g * di, k + g * dk) else { break };
+                    if (self.start[cg]..self.start[cg + 1]).any(|m| (self.height[m as usize] - ha).abs() <= body.step) {
+                        break;
+                    }
+                    let Some(c3) = self.cell_index(i + (g + 1) * di, k + (g + 1) * dk) else { break };
+                    // The gap's span between the two floors' cells, at most: `g` cells of no floor.
+                    if g as f32 * stride > BRIDGE_GAP_M + 1e-4 {
+                        break;
+                    }
+                    let into_crack = drop_at.is_some_and(|c| (1..=g).any(|j| self.cell_index(i + j * di, k + j * dk) == Some(c)));
+                    if link != NONE && !into_crack {
+                        continue;
+                    }
+                    let mut found = false;
+                    for b in self.start[c3]..self.start[c3 + 1] {
+                        if (self.height[b as usize] - ha).abs() <= body.step && wide.off.binary_search_by_key(&(a as u32, b), |l| (l.from, l.to)).is_err() {
+                            new.push((a as u32, b));
+                            found = true;
+                            if into_crack {
+                                over_drop.insert((a as u32, b));
+                            }
                         }
+                    }
+                    if found || (self.start[c3]..self.start[c3 + 1]).any(|m| (self.height[m as usize] - ha).abs() <= body.step) {
+                        break;
                     }
                 }
             }
@@ -860,6 +884,30 @@ mod tests {
 
     fn floor(tris: &mut Vec<Triangle>, x0: f32, z0: f32, x1: f32, z1: f32, y: f32) {
         quad(tris, Vec3::new(x0, y, z0), Vec3::new(x0, y, z1), Vec3::new(x1, y, z1), Vec3::new(x1, y, z0));
+    }
+
+    /// [A364 C2 row 52] Two level floors across a pit 3 m deep: a gap of 1.0 m is walked over by the controller and bridged (the
+    /// client walks level gaps to 1.79 m); one of 2.5 m is not tried. Before, only a gap of one cell was.
+    #[test]
+    fn a_level_gap_the_client_walks_over_is_bridged() {
+        let bridges = |gap: f32| {
+            let mut tris = Vec::new();
+            floor(&mut tris, 0.0, 0.0, 5.0, 6.0, 0.0);
+            floor(&mut tris, 5.0 + gap, 0.0, 12.0, 6.0, 0.0);
+            floor(&mut tris, 5.0, 0.0, 5.0 + gap, 6.0, -3.0);
+            quad(&mut tris, Vec3::new(5.0, -3.0, 0.0), Vec3::new(5.0, 0.0, 0.0), Vec3::new(5.0, 0.0, 6.0), Vec3::new(5.0, -3.0, 6.0));
+            let x1 = 5.0 + gap;
+            quad(&mut tris, Vec3::new(x1, -3.0, 0.0), Vec3::new(x1, -3.0, 6.0), Vec3::new(x1, 0.0, 6.0), Vec3::new(x1, 0.0, 0.0));
+            let body = Body { client_controller: true, walk_start_clear: true, crack_bridges: true, exe_collision: true, start_witness: true, ..Body::client() };
+            let start = [Vec3::new(1.0, 0.0, 3.0)];
+            let (grid, stats) =
+                WalkGrid::build_kept_with_links(&tris, [0.0, 0.0, 12.0, 6.0], 0.25, body, &start, &start, OffMeshLinks::Gaps);
+            let far = grid.locate(Vec3::new(10.0, 0.0, 3.0), 0.3).is_some_and(|n| grid.reached(n));
+            (stats.controlled.bridges_added, far)
+        };
+        let (added, far) = bridges(1.0);
+        assert!(added > 0 && far, "1.0 m: {added} bridges");
+        assert_eq!(bridges(2.5).0, 0, "2.5 m is past the walked gap");
     }
 
     /// [A329] A floor beside a 0.785 m ledge (the level_04 day_4 case): its centre 0.12 m from the ledge's face, the walk up
