@@ -159,8 +159,8 @@ pub enum Playback {
 
 /// The network client: the match's places and the local player.
 pub struct NetworkClient<'t> {
-    this: raw::NetworkClient,
-    thread: &'t Thread,
+    pub(in crate::vostok) this: raw::NetworkClient,
+    pub(in crate::vostok) thread: &'t Thread,
 }
 
 impl<'t> NetworkClient<'t> {

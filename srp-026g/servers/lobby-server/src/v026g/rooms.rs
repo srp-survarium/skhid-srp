@@ -102,7 +102,7 @@ use survarium::v026g::maps;
 
 use super::MAINTENANCE_WINDOW;
 use super::core::{Core, Who};
-use super::play::{MatchPlayer, Running, Side, match_profile};
+use super::play::{MatchPlayer, Running, match_profile};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PublicBracket {
@@ -1288,49 +1288,21 @@ impl Core<'_> {
     }
 
     /// Who is in the room of that key, for anyone looking at the list (the
-    /// owner's of 2026-10-20), each with its side while it plays the room's
-    /// match: the team of its latest place in the match's roster; none in a
-    /// free-for-all, whose players are on no team ([`Side::Alone`]). Nobody:
-    /// the room is gone.
+    /// owner's of 2026-10-20), never by side: in every mode and state the
+    /// room's players as at its vote, those in its match marked (the owner's
+    /// of 2026-11-13: "always like at voting", "just what players are in the
+    /// game"). Nobody: the room is gone.
     fn room_members(&self, who: &Who, key: u32) -> Vec<ListMember> {
         let Some(room) = self.rooms.get(key) else {
             return Vec::new();
-        };
-        // The roster of its match being played, and the match.
-        let playing = match room.stage {
-            Stage::InMatch { match_id, .. } => self
-                .store
-                .matchmaking()
-                .formed_match(match_id)
-                .map(|formed| (formed, self.matches.get(&match_id))),
-            _ => None,
         };
         let unix = quests::now();
         let marks = self.room_squad_marks(room);
         room.members
             .iter()
-            .map(|&account_id| {
-                let member = self.room_member(who, room, account_id, &marks, unix);
-                let side = match &playing {
-                    Some((formed, running)) if member.in_match => formed
-                        .seats
-                        .iter()
-                        .rposition(|seat| seat.player.account_id == account_id)
-                        .and_then(|place| {
-                            let plays = running.and_then(|running| running.side(place));
-                            match plays {
-                                // Its seat's team is only the seating.
-                                Some(Side::Alone(_)) => None,
-                                _ => Some(formed.seats[place].team),
-                            }
-                        }),
-                    _ => None,
-                };
-                ListMember {
-                    member,
-                    side,
-                    account_id,
-                }
+            .map(|&account_id| ListMember {
+                member: self.room_member(who, room, account_id, &marks, unix),
+                account_id,
             })
             .collect()
     }

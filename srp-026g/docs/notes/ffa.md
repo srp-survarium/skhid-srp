@@ -321,8 +321,7 @@ and spatial review; they still need multiplayer playtesting for balance.
   - A match of two teams after it has the team's tab back, first: the chat is cleared at each
     match (`HUD.reset`), and the mode is told again.
 - **Rooms list (lobby):** the members of a room playing a free-for-all are shown in the match
-  (gold) with no side: no bar and no column of a team (`rooms.md`; the server tells no side,
-  the movie is unchanged).
+  (gold) with no side, as those of every mode since 2026-11-13 (`rooms.md`).
 
 ## Why two sides are the limit (PROVEN, 2026-11-01, 0.26g exe)
 
