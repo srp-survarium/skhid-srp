@@ -64,11 +64,13 @@ package
    //   Mine not asked at once back in the lobby (BACK_ASK_MS: the history row is not written yet);
    // - a lobby window opening (MainScene.activeWindow) or the rooms window closes Watch; back from a
    //   watch in a room, one playing without the player gives the Watch view back, its vote shows it;
+   //   the room's word coming with the results up keeps the view till they close;
    // - Save replay (ReplayAsks): a save icon right of the code on the cards that may be watched
    //   (none on live cards or ones that cannot be watched); a press asks `3D 00 FFFFFF01 <match>`
    //   and polls 2210000000; `R2;preparing` keeps it saving, `R2;ready` hands the link to the exe once
    //   (video_tutorial_link_clicked, no argument) and shows it saved, and it may be saved again (the
-   //   updater's download may fail); a refusal, or no answer, says why and it may be saved again;
+   //   updater's download may fail); a refusal (`off` naming no match too), or no answer, says why
+   //   and it may be saved again; a match loading ends it unsaid (no poll, link or box in the match);
    //   one save at a time: every other Save not pressable meanwhile;
    //   the saving and saved words fit the card; a ranking row named as a header is not taken;
    // - the results screen: a red Watch replay, then Save replay (Save replay, Saving..., Saved),
@@ -1282,7 +1284,7 @@ package
 
       // Back from a watch in a room (RoomsWindow.holdWatchReturn): a room playing a match the
       // player is not in gives the Watch view back (one with a place for it calls it back); its
-      // vote shows the room.
+      // vote shows the room; its word with the results up keeps the view till they close.
       private function watchReturn(Rooms:*) : void
       {
          var state:int = domain.getDefinition("survarium.rooms.RoomsWire").STATE;
@@ -1310,6 +1312,31 @@ package
          room(3);
          expect("watch return: a voting room did not show itself (" + resumed + ", rooms shown " + Rooms.me.shown + ")",resumed == 1 && Rooms.me.shown);
          Rooms.me.show(false);
+         // the room's word after the results came up (the lobby back, the return held, the
+         // results, then the state): the Watch view waits for their close (its tab would close
+         // them), then the room is asked again
+         W.open("live");
+         press(win,"srpWatchChip_everyone");
+         lobby.take(WatchFake.LIVE);
+         click(cards()[1],"srpWatchWatch");
+         lobby.answer("watching",OTHER);
+         win.show(false);
+         W.away();
+         W.back();
+         expect("watch return: Watch back before the room's word",!win.visible);
+         var screen:* = lobby.make("SrvVictoryScreenReskin");
+         lobby.holder.addChild(screen);
+         var had:* = Menu.id.victory_screen;
+         Menu.id.victory_screen = screen;
+         room(2);
+         expect("watch return: Watch opened over the results",!win.visible && Menu.id.resultsUp);
+         lobby.holder.removeChild(screen);
+         Menu.id.victory_screen = had;
+         W.resultsClosed();
+         expect("watch return: Watch back before the room's word after the results",!win.visible);
+         room(2);
+         expect("watch return: Watch not back on Live once the results closed",win.visible && shownTab() == "live");
+         win.show(false);
          Rooms.take([{"place":state - 1,"nickname":"S1;N;0;0;0"}]);
          expect("watch return: still in a room",!Rooms.me.holdWatchReturn(resume));
       }
@@ -1409,7 +1436,30 @@ package
             second();
          said = told();
          expect(language + ": no answer told " + said,said.length == 1 && said[0] == words.getName("st_srp_replay_no_answer") && Asks.stateOf(OTHER) == "save");
-         trace("REPLAYBUTTONS " + language + ": Save: the icon, asked, polled, the link once, saved, refused, no answer");
+         // replays off at the server: its `off` names no match, and says so
+         click(cards()[1],"srpWatchSave");
+         saveAnswer("off",0);
+         said = told();
+         expect(language + ": off told " + said,said.length == 1 && said[0] == words.getName("st_srp_replay_off") && Asks.stateOf(OTHER) == "save");
+         // a match loading ends a save under way, unsaid: no poll, no link to the exe, no box in
+         // the match; its Save pressable again back in the lobby
+         click(cards()[1],"srpWatchSave");
+         W.away();
+         expect(language + ": a save still under way in a match",Asks.canSave && Asks.stateOf(OTHER) == "save");
+         ExternalInterface.calls.length = 0;
+         for(p = 0; p <= 30; p++)
+            second();
+         saveAnswer("ready",OTHER,1000);
+         saveAnswer("failed",OTHER);
+         said = told();
+         expect(language + ": a save in a match polled " + polls(2210000000) + ", handed " + saveCalls("video_tutorial_link_clicked").length + ", told " + said,
+            polls(2210000000) == 0 && saveCalls("video_tutorial_link_clicked").length == 0 && said.length == 0);
+         W.back();
+         click(cards()[1],"srpWatchSave");
+         expect(language + ": Save not asked again after a match",saveCalls("victory_screen_request_player_data").length == 1 && Asks.stateOf(OTHER) == "saving");
+         saveAnswer("failed",OTHER);
+         told();
+         trace("REPLAYBUTTONS " + language + ": Save: the icon, asked, polled, the link once, saved, refused, off, no answer, ended by a match");
       }
 
       // ---- History and the results screen ----

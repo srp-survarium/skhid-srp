@@ -24,7 +24,7 @@ package survarium.watch
    //   silently when it succeeds, a message box of its own when it fails. The lobby hears nothing
    //   of that: SAVED says only that the link went to the updater, and Save may be pressed again
    //   (a failed download retried). One save at a time: every Save is not pressable meanwhile
-   //   (canSave).
+   //   (canSave). A match loading ends it, unsaid (away).
    // The rows reach take through WatchWindow.take.
    public class ReplayAsks
    {
@@ -252,7 +252,8 @@ package survarium.watch
       private static function saveAnswer(f:Array) : void
       {
          var status:String = f.length > 1 ? String(f[1]) : "";
-         if(_save == null || f.length != 4 || f[2] != _save.hex)
+         // `off` (the server keeps no replays) may name no match (00000000): it ends the save as is
+         if(_save == null || f.length != 4 || f[2] != _save.hex && status != "off")
          {
             return;
          }
@@ -273,6 +274,19 @@ package survarium.watch
          else if(status in REFUSALS)
          {
             endSave(REFUSALS[status] as String);
+         }
+      }
+
+      // The game left the lobby (WatchWindow.away): a save under way ends, unsaid, its later
+      // answers dropped (in the match its `ready` would start the updater, a refusal or no answer
+      // show a box); its Save may be pressed again back in the lobby. A watch goes on: its
+      // `watching` comes once the game is in it.
+      public static function away() : void
+      {
+         if(_save != null)
+         {
+            _save = null;
+            changed();
          }
       }
 

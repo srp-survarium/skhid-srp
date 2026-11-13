@@ -327,9 +327,11 @@ package survarium.watch
       // The game loads a match (LobbyMenu.set_loading_level): a watch asked from here playing?
       // Its `watching` comes only once the game is in it, after the load began. The view to come
       // back to is this load's alone: a view still kept from the last return (the results were up,
-      // and the game left the lobby before they closed) is dropped.
+      // and the game left the lobby before they closed) is dropped. A save under way ends
+      // (ReplayAsks.away).
       public static function away() : void
       {
+         ReplayAsks.away();
          var win:WatchWindow = WatchWindow.me;
          if(win == null)
          {
@@ -378,7 +380,10 @@ package survarium.watch
 
       // From a watch, its view again, once. In a room, or a room's queue: the room says first
       // whether it has a use for us now (srp calls a member back from a watch for its vote or its
-      // match); it shows itself then, and this window comes back only when it has none.
+      // match); it shows itself then, and this window comes back only when it has none. The room's
+      // word may come once the results are up: the view is kept for their close then (Watch opening
+      // would close them, resultsClosed); once a match loads, it is dropped (the load chose its own
+      // view, away).
       private function resume() : void
       {
          var view:Object = this._resume;
@@ -390,6 +395,15 @@ package survarium.watch
          var win:WatchWindow = this;
          var back:Function = function():void
          {
+            if(!win._inLobby)
+            {
+               return;
+            }
+            if(LobbyMenu.id != null && LobbyMenu.id.resultsUp)
+            {
+               win._resume = view;
+               return;
+            }
             win.restore(view);
          };
          if(RoomsWindow.me == null || !RoomsWindow.me.holdWatchReturn(back))
