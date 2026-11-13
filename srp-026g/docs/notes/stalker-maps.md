@@ -139,7 +139,7 @@ listed under `cs-mp_bath` in resource-porter's `ports/stalker-tdm/maps.json`
   - no spot in the room or on its roof is a dead end;
   - the room's doors stay clear.
 
-## The old builds' post-process (the owner, 2026-11-13)
+## The old builds' post-process (the owner, 2026-11-13/14)
 
 The environments of the maps ported from v0.10b and v0.11e (these six, Vostok
 v0.11, Chemical Plant v0.11) keep their source build's post-process values,
