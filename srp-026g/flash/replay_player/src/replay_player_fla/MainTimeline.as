@@ -597,8 +597,10 @@ package replay_player_fla
       public function start_viewer(back:String, moments:String, all:String, mine:String, followed:String, cursor:String, pause:String, filter:String, hide:String, ctrl:String, space:String, kill:String, objective:String, death:String, event:String) : void
       {
          MarkerTicks.setKindWords([kill,objective,death,event]);
+         // the movie outlives a replay: a viewer's next replay shows the hint its first seconds again
          if(this.viewer != null)
          {
+            this.viewer.restart();
             return;
          }
          this.viewer = new ViewerControls(this.bottomPanel,this.freeViewButton.textField.getTextFormat().font,[back,moments,all,mine,followed,cursor,pause,filter,hide,ctrl,space]);

@@ -658,21 +658,25 @@ package survarium.watch
       {
          var now:int = getTimer();
          ReplayAsks.second();
+         // nothing asked in a match (the lobby is not shown then), whatever the window was showing
+         // when the match loaded; a friend's Spectate waits for the lists, so its wait waits too
+         if(!this._inLobby)
+         {
+            return;
+         }
          if(this._spectate != null && --this._spectate.left <= 0)
          {
             var lost:String = this._spectate.shown;
             this._spectate = null;
             this.tell(LocalizationData.format("st_srp_watch_spectate_lost",lost));
          }
-         // nothing asked in a match (the lobby is not shown then)
-         var free:Boolean = this._inLobby;
-         if(free && this._mineDue != 0 && now >= this._mineDue)
+         if(this._mineDue != 0 && now >= this._mineDue)
          {
             this._mineDue = 0;
             this.ask(MINE);
          }
          var liveEvery:int = this._shown && this._tab == LIVE ? LIVE_EVERY : BADGE_EVERY;
-         if(free && this.since(LIVE,now) >= liveEvery - 100)
+         if(this.since(LIVE,now) >= liveEvery - 100)
          {
             this.ask(LIVE);
          }

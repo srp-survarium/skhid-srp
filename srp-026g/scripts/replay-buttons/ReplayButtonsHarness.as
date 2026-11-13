@@ -652,6 +652,20 @@ package
             win.show(false);
             W.back();
             expect(language + ": not back on Replays, Everyone after the replay",win.visible && shownTab() == "replays" && shownChip() == "everyone");
+            // a match loaded with the window up (the load closes the prompt, not the window): the
+            // window asks the lobby for no list until the lobby is back (its refresh is 30 s)
+            W.away();
+            ExternalInterface.calls.length = 0;
+            for(var s:int = 0; s < 70; s++)
+               second();
+            var inMatch:int = 0;
+            for each(var made:Array in ExternalInterface.calls)
+            {
+               if(made[0] == "request_players_range" && [W.LIVE_START,W.MATCHES_START,W.MATCHES_START + 1,W.RECENT_START,W.RECENT_START + 1].indexOf(made[1]) >= 0)
+                  inMatch++;
+            }
+            expect(language + ": the window asked the lobby for " + inMatch + " lists in a match",inMatch == 0);
+            W.back();
          }
          trace("REPLAYBUTTONS " + language + ": Replays: Mine, Friends, Everyone, the reasons, Watch, back after a replay");
       }

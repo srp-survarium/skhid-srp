@@ -87,6 +87,15 @@ package {
    // Live: kits 0 and 2 used so far, kit 1 not: only their plates.
    hud.srp_spectator_kits("0|0|7||77:0:1,78:1:3;");
    expect("a kit's items (" + selector.getProfileData(0).items.length + ")",selector.getProfileData(0).items.length == 2 && selector.getProfileData(0).items[1].dictId == 78 && selector.getProfileData(0).items[1].condition_or_stack == 3);
+   // A kit's name is its player's words, which every spectator sees: words on the plate, never markup
+   // (the plate's field has the style sheet; the exe keeps only `|;,:` out of it).
+   var hostile:String = "<font size='90' color='#ff0000'>X</font><img src='x'> & <b>Co</b>";
+   hud.srp_spectator_kits("0|0|7|" + hostile + "|;");
+   var hostilePlate:* = selector.tabPage.getButtonAt(0);
+   hostilePlate.validateNow();
+   expect("a hostile kit name escaped in the plate's label (" + selector.getProfileData(0).label + ")",
+          selector.getProfileData(0).label.indexOf("<") == -1 && selector.getProfileData(0).label.indexOf("&lt;font") > 0);
+   expect("a hostile kit name shown as its words (" + hostilePlate.textField.text + ")",hostilePlate.textField.text == "«" + hostile + "»");
    hud.srp_spectator_kits("0|0|7|Alpha|;2|0|5|Bravo|;");   // no items: the item table the hover list reads is the exe's
    hud.srp_spectator_kits_show(1);
    expect("two kits given, shown",panel.visible);
@@ -208,6 +217,21 @@ package {
    expect("reset: the game's own show honoured after a spectator's match",panel.visible);
    expect("reset: the selector its own again",selector.local == true);
    hud.show_profiles_selector(false);
+   // A watcher's room calling it back: its line shows with the interface hidden (F11) too.
+   hud.srp_called_back_words("Returning in %1$s s");
+   hud.hide_interface(true);
+   hud.srp_called_back(10);
+   var notice:DisplayObject = null;
+   for(var at:int = 0; notice == null && at < stage.numChildren; at++) {
+    var layer:DisplayObjectContainer = stage.getChildAt(at) as DisplayObjectContainer;
+    if(layer != null) notice = layer.getChildByName("srpCalledBack");
+   }
+   var noticeShown:Boolean = notice != null;
+   for(var up:DisplayObject = notice; up != null && up != stage; up = up.parent) noticeShown = noticeShown && up.visible;
+   expect("the call back's line shown with the interface hidden (" + (notice ? notice.parent : null) + ")",noticeShown);
+   hud.srp_called_back(0);
+   hud.hide_interface(false);
+   expect("the call back's line gone at 0",notice == null || !notice.visible);
    everySize(hud,player,panel,selector);
   }
   // Every size: where each layout's pieces are, on the worst kit (every row of the list, six quick slots)

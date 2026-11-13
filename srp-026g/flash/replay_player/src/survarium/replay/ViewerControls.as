@@ -116,6 +116,12 @@ package survarium.replay
          this._cursor = shown;
       }
 
+      // Another replay in the same movie (start_viewer again): the hint's first HINT_MS from now.
+      public function restart() : void
+      {
+         this._started = getTimer();
+      }
+
       // The hint is to be shown: its first HINT_MS, and while the cursor is.
       private function get hintShown() : Boolean
       {

@@ -421,8 +421,10 @@ package
          this.pregameInfo.premiumMembers.parent.removeChild(this.pregameInfo.premiumMembers);
          this._modeNotice = new ModeNotice(this.pregameInfo.contextText);
          addChild(this._modeNotice);
+         // In the kept layer (placed as the root is), never the root: it shows while the interface
+         // is hidden, by the key or forced.
          this._calledBack = new CalledBackNotice(this.pregameInfo.contextText);
-         addChild(this._calledBack);
+         this._keptLayer.addChild(this._calledBack);
          damageDebug = new SrvDebugDamage();
          addChild(this.damageDebug);
          this.damageDebug.visible = false;
@@ -631,7 +633,8 @@ package
       private var _forcedView:ForcedView;
       private var _modeNotice:ModeNotice;
 
-      // srp's: a watcher's room calls it back (CalledBackNotice)
+      // srp's: a watcher's room calls it back (CalledBackNotice); always in _keptLayer, so it shows
+      // with the interface hidden (the replay's F11) as well
       private var _calledBack:CalledBackNotice;
 
       // srp's (exe patch 144, replay_control's Recall note): the words of the call back, the
@@ -694,7 +697,7 @@ package
 
       private function keptWhenForced() : Array
       {
-         return [this.pregameInfo,this.contextInfo,this._modeNotice,this._calledBack];
+         return [this.pregameInfo,this.contextInfo,this._modeNotice];
       }
 
       // The Tab list with either view, in the root's order: the chat under it, the kits over it; who
@@ -809,7 +812,9 @@ package
                }
             }
             var kit:int = int(fields[0]);
-            var name:String = String(fields[3]);
+            // a player's own words, shown to everyone: the plate's field has the style sheet, so
+            // its text is markup
+            var name:String = escapeMarkup(String(fields[3]));
             this._spectatorKitIndex[kit] = kits.length;
             kits.push({item_slots:this.spectatorQuickRows(items),artifact_slots:0,name:name,state:int(fields[1]),level:int(fields[2]),items:items});
          }
@@ -819,6 +824,13 @@ package
          this._spectatorHover = -1;
          this._hudPlayerProfile.visible = false;
          this.applySpectatorKits();
+      }
+
+      // Text as the words it says in a field with a style sheet (its text read as HTML), never
+      // inside a tag's attribute (so its quotes stay).
+      private static function escapeMarkup(text:String) : String
+      {
+         return text.split("&").join("&amp;").split("<").join("&lt;").split(">").join("&gt;");
       }
 
       // srp's: the kit the player in view has now.

@@ -299,7 +299,17 @@ package
                expect("the hint not shown with the cursor",v.hint.visible && v.hint.alpha == 1);
                root.set_cursor_shown(false);
             }],
-            [11600,function():void { expect("the hint shown with the cursor hidden",!v.hint.visible); }]];
+            [11600,function():void
+            {
+               expect("the hint shown with the cursor hidden",!v.hint.visible);
+               // the next replay in the same movie: the exe's start_viewer again
+               root.start_viewer.apply(null,texts(0));
+            }],
+            [12100,function():void
+            {
+               expect("the next replay made other controls",root.viewer == v);
+               expect("the next replay's hint not shown its first seconds (" + v.hint.alpha + ")",v.hint.visible && v.hint.alpha == 1);
+            }]];
          var from:int = getTimer();
          addEventListener(Event.ENTER_FRAME,function waited(f:Event):void
          {
