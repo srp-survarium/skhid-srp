@@ -222,6 +222,14 @@ What the receiving game checks before it loads a world it was sent (0xE8):
 A refused world is not loaded: the game tells the server (a "Rejected" receipt) and gets a fresh
 one (patch 97), without leaving the match.
 
+**Replays.** A replay's key frames are worlds too, and the game loads them on its seek path with
+none of C3-C5 (patch 87 hooks the match's world loads only). So the server records each world it
+takes as the match's (the initial world, or an upload past S5-S7): its time and SHA-256. The
+replay converter (`sur_convert`) makes key frames of those uploads only; in a recording from
+before those records, of the uploads that pass S6 against the recording's own roster. An upload
+the live server ignored or refused never becomes a key frame, and a recording with none left
+is no replay.
+
 ## 6. What a world contains, and how each part is read
 
 ```
