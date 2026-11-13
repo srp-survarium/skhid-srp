@@ -327,6 +327,18 @@ package survarium.watch
          win._spectate = {"name":name.toLowerCase(),"shown":name,"left":SPECTATE_S};
          win._liveChip = FRIENDS;
          win.showTab(LIVE);
+         // the player's own move in the window after this ends it (spectating)
+         win._spectate.moves = win._moves;
+      }
+
+      // The friend's Spectate still asked: none once the player moved in the window since.
+      private function spectating() : Object
+      {
+         if(this._spectate != null && this._spectate.moves != this._moves)
+         {
+            this._spectate = null;
+         }
+         return this._spectate;
       }
 
       // The game loads a match (LobbyMenu.set_loading_level): a watch asked from here playing?
@@ -717,7 +729,7 @@ package survarium.watch
          {
             return;
          }
-         if(this._spectate != null && --this._spectate.left <= 0)
+         if(this.spectating() != null && --this._spectate.left <= 0)
          {
             var lost:String = this._spectate.shown;
             this._spectate = null;
@@ -878,7 +890,7 @@ package survarium.watch
       // match found that cannot be watched says why; onTimer ends a wait that finds none.
       private function findSpectated() : void
       {
-         var spectate:Object = this._spectate;
+         var spectate:Object = this.spectating();
          if(spectate == null)
          {
             return;
