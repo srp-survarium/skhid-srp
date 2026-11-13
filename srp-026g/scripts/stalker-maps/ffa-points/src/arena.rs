@@ -1,44 +1,33 @@
-//! Training Camp's crater rim, shared with the content collision generator.
-//! The forest outside it is scenery, not part of the FFA arena.
-pub const OUTLINE: &str = include_str!("../../training-arena.tsv");
+//! Training Camp's Free for All ground: inside its base's fence, with its
+//! raised islands. The meadow and the crater round the base are scenery.
 
-/// The base's octagonal fence in the crater's middle (its east side lies past
-/// the crater wall), reviewed from the walk grid's crater floor.
+/// The fence round the base: its posts in order, read off the level's
+/// collision, gateways post to post. At the south gateway the line runs
+/// along the open west leaf, across the nose of the truck the level has
+/// there and through the truck beside it. The walker wall stands just behind
+/// the line (`make_training_arena.py`, which shares the file).
 pub const FENCE: &str = include_str!("../../training-fence.tsv");
-/// The centre keeps this far from the crater wall where the wall cuts the fence.
-const WALL_MARGIN: f32 = 5.0;
-
-fn parse(text: &str) -> Vec<[f32; 2]> {
-    text.lines().skip(1).map(|line| {
-        let (x, z) = line.split_once('\t').expect("outline vertex");
-        [x.parse().expect("outline x"), z.parse().expect("outline z")]
-    }).collect()
-}
-
-pub fn vertices() -> &'static [[f32; 2]] {
-    static VERTICES: std::sync::OnceLock<Vec<[f32; 2]>> = std::sync::OnceLock::new();
-    VERTICES.get_or_init(|| parse(OUTLINE))
-}
 
 fn fence() -> &'static [[f32; 2]] {
-    static FENCE_: std::sync::OnceLock<Vec<[f32; 2]>> = std::sync::OnceLock::new();
-    FENCE_.get_or_init(|| parse(FENCE))
+    static POSTS: std::sync::OnceLock<Vec<[f32; 2]>> = std::sync::OnceLock::new();
+    POSTS.get_or_init(|| {
+        FENCE
+            .lines()
+            .skip(1)
+            .map(|line| {
+                let (x, z) = line.split_once('\t').expect("fence post");
+                [x.parse().expect("post x"), z.parse().expect("post z")]
+            })
+            .collect()
+    })
 }
 
-/// The crater's middle: the mean of its rim's vertices.
-pub fn crater_centre() -> [f32; 2] {
-    let v = vertices();
-    let n = v.len() as f32;
-    [v.iter().map(|p| p[0]).sum::<f32>() / n, v.iter().map(|p| p[1]).sum::<f32>() / n]
+/// Inside the fence and at least `margin` from it.
+pub fn fenced(x: f32, z: f32, margin: f32) -> bool {
+    within(fence(), x, z, margin)
 }
 
-/// The centre: inside the base's fence, and not against the crater wall.
-/// Outside it is the perimeter, along the crater wall.
-pub fn in_centre(x: f32, z: f32) -> bool {
-    within(fence(), x, z, 0.0) && contains(x, z, WALL_MARGIN)
-}
-
-/// The reviewed raised islands inside the crater: a box around each flat
+/// The reviewed raised islands inside the fence: a box around each flat
 /// platform of the elevated walkways, with its floor's height range.
 pub const ISLANDS: &str = include_str!("../../training-islands.tsv");
 
@@ -77,11 +66,6 @@ pub fn islands() -> &'static [Island] {
     })
 }
 
-/// The point must be inside the rim and clear of its walker barrier.
-pub fn contains(x: f32, z: f32, margin: f32) -> bool {
-    within(vertices(), x, z, margin)
-}
-
 /// Inside the outline and at least `margin` from its edges.
 fn within(vertices: &[[f32; 2]], x: f32, z: f32, margin: f32) -> bool {
     let mut inside = false;
@@ -103,41 +87,49 @@ fn within(vertices: &[[f32; 2]], x: f32, z: f32, margin: f32) -> bool {
 mod tests {
     use super::*;
     #[test]
-    fn crater_is_playable_but_the_forest_and_rim_are_not() {
-        assert!(contains(20.0, 0.0, 2.0));
-        for p in [[-45.0, 0.0], [20.0, 80.0], [20.0, -80.0], [80.0, 0.0]] {
-            assert!(!contains(p[0], p[1], 2.0));
+    fn the_base_is_fenced_and_the_crater_round_it_is_not() {
+        assert!(fenced(20.0, 0.0, 2.0));
+        // The crater's floor outside the fence, where points stood before, and the forest.
+        for p in [[-24.0, 7.0], [9.2, 57.2], [24.2, -44.6], [60.2, -32.6], [20.0, 80.0]] {
+            assert!(!fenced(p[0], p[1], 0.0), "{p:?}");
         }
-        for &[x, z] in vertices() {
-            assert!(!contains(x, z, 2.0));
+        // The east side, which the crater's wall cut off, is the fence's.
+        assert!(fenced(57.2, 6.2, 2.0) && !fenced(66.0, 6.2, 0.0));
+        // A post is on the fence, and a place beside it is inside only without a margin.
+        for &[x, z] in fence() {
+            assert!(!fenced(x, z, 0.0));
+        }
+        assert!(fenced(-8.0, 0.0, 0.0) && !fenced(-8.0, 0.0, 2.0));
+    }
+
+    #[test]
+    fn a_gateway_is_fence_between_its_posts() {
+        // The north and north-east gateways' middles: the outline runs post
+        // to post, so a step out of one is outside. The south one's runs
+        // across its trucks' noses, inside the posts' line.
+        for (inside, outside) in [
+            ([9.2, 36.5], [9.2, 37.8]),
+            ([47.2, 31.1], [48.2, 32.1]),
+            ([27.5, -26.0], [27.0, -29.0]),
+            ([22.5, -25.5], [22.5, -28.0]),
+        ] {
+            assert!(fenced(inside[0], inside[1], 0.0) && !fenced(outside[0], outside[1], 0.0));
         }
     }
 
     #[test]
-    fn islands_are_raised_and_inside_the_crater() {
+    fn islands_are_raised_and_inside_the_fence() {
         assert_eq!(islands().len(), 5);
         for island in islands() {
             assert!(island.min.iter().zip(&island.max).all(|(lo, hi)| lo < hi), "{}", island.name);
             assert!(island.min[1] > 15.0, "{} is not raised", island.name);
             for x in [island.min[0], island.max[0]] {
                 for z in [island.min[2], island.max[2]] {
-                    assert!(contains(x, z, 2.0), "{} reaches the rim", island.name);
+                    assert!(fenced(x, z, 0.0), "{} reaches the fence", island.name);
                 }
             }
         }
         // Point 8, the original south-east island spawn, is on its island.
         assert!(islands().iter().any(|i| i.holds(30.435, 21.321, -23.845)));
-    }
-
-    #[test]
-    fn the_centre_is_inside_the_fence_and_off_the_crater_wall() {
-        assert!(in_centre(20.0, 0.0) && in_centre(15.2, 36.2));
-        // Outside the fence (west), and against the wall where it cuts the fence.
-        assert!(!in_centre(-24.0, 7.0) && !in_centre(57.2, 6.2));
-        for island in islands() {
-            assert!(in_centre(island.min[0], island.min[2]) && in_centre(island.max[0], island.max[2]));
-        }
-        let [x, z] = crater_centre();
-        assert!(in_centre(x, z));
     }
 }

@@ -3,47 +3,62 @@
 //! Candidates come from reachable standing floors, pass the same collision
 //! checks as imported points, stay clear of harmful zones, and have a six-metre
 //! walkable facing. Greedy farthest-point selection distributes 24 points.
-//! Training Camp then adds every point its raised islands
-//! (training-islands.tsv) take at the same spacing from all of them, in 3D,
-//! and every other perimeter point moves to the centre (training-fence.tsv).
+//! Training Camp's points are not planned again: those of the committed table
+//! (--points) that are still fit on Free for All's own project keep their
+//! place and id, and the others' ids take new places inside its base's fence
+//! (training-fence.tsv), spaced in 3D from its raised islands
+//! (training-islands.tsv).
 mod collision;
 mod arena;
 use collision::{Map, Verdict};
 use mapdata::{Materials, Resources, Vec3};
-use std::{collections::BTreeSet, fs::File, io::Write, path::PathBuf, process::ExitCode};
+use std::{
+    collections::BTreeSet,
+    fs::File,
+    io::Write,
+    path::{Path, PathBuf},
+    process::ExitCode,
+};
 
 const COUNT: usize = 24;
 const MIN_SPACING: f32 = 12.0;
 const HAZARD_MARGIN: f32 = 2.0;
 const FACING_REACH: f32 = 6.0;
+/// Training Camp as the table and the edit generator name it: its Team
+/// Deathmatch project, which is never loaded or edited here.
 const TRAINING: &str = "v010b_cs_training_camp/day_4";
 /// Free for All's own copy of Training Camp (ffa-projects-1.json): no ammo
-/// crates, the crater wall. Its points after the 24 are planned on it, and all
-/// its points checked on it, so the layers must give it.
+/// crates, the walker wall behind its base's fence, a truck in each gateway.
+/// Its points are checked and placed on it, so the layers must give it.
 const TRAINING_FFA: &str = "v010b_cs_training_camp/day_8";
 /// The islands are small: their floors are sampled finer than the 3 m lattice.
 const ISLAND_LATTICE: f32 = 0.75;
+/// A new Training Camp place and its facing's end stay this far inside the fence.
+const FENCE_MARGIN: f32 = 2.0;
+/// What every row's reason starts with: the checks every point passes.
+const REASON: &str = "reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m";
 
 /// Bounds of the reviewed port's minimaps (stalker-maps@6). The imported
 /// projects have a dummy 2 m levelmap; mapdata's native-map fallback truncates
-/// Military Warehouses. Training Camp has open scenery beyond its play area.
+/// Military Warehouses. Training Camp has open scenery beyond its fence.
 fn area(project: &str) -> Result<([f32; 4], Option<f32>), String> {
     match project {
         "v010b_cs_mp_bath/day_4" => Ok(([-48.13, -22.87, 34.12, 53.13], None)),
         "v010b_cs_mp_military_1/day_4" => Ok(([-127.47, -71.12, 115.78, 95.38], None)),
-        TRAINING | TRAINING_FFA => Ok(([-47.19, -83.47, 82.81, 91.53], None)),
+        TRAINING_FFA => Ok(([-47.19, -83.47, 82.81, 91.53], None)),
         _ => Err(format!("no reviewed play area for {project}")),
     }
 }
 
-fn in_play_area(map: &Map, p: Vec3) -> bool {
+/// Whether a point is on the map's playable ground: Training Camp's is inside
+/// its base's fence, `fence_margin` from it.
+fn in_play_area(map: &Map, p: Vec3, fence_margin: f32) -> bool {
     let (bounds, radius) = area(&map.data.project).expect("checked project");
     p.x >= bounds[0]
         && p.z >= bounds[1]
         && p.x <= bounds[2]
         && p.z <= bounds[3]
-        && (![TRAINING, TRAINING_FFA].contains(&map.data.project.as_str())
-            || arena::contains(p.x, p.z, 2.0))
+        && (map.data.project != TRAINING_FFA || arena::fenced(p.x, p.z, fence_margin))
         && radius.is_none_or(|r| {
             map.data
                 .spawns
@@ -85,7 +100,7 @@ fn facing(map: &Map, node: u32, center: Vec3) -> Option<f32> {
             if !map.grid.can_stand(end)
                 || (at.y - p.y).abs() > 0.6
                 || harmful(map, at)
-                || !in_play_area(map, at)
+                || !in_play_area(map, at, FENCE_MARGIN)
                 || !map
                     .grid
                     .walks_straight(node, end, FACING_REACH + 0.5, |n| map.grid.can_stand(n))
@@ -147,9 +162,9 @@ fn choose(points: &[Candidate], count: usize, spacing: f32) -> Result<Vec<usize>
     Ok(chosen)
 }
 
-/// Training Camp's spacing after its 24: in 3D when either point stands on an
-/// island (the owner, 2026-11-13: a crater-floor spawn under an island does
-/// not take it), horizontal otherwise, as for every point.
+/// Training Camp's spacing: in 3D when either point stands on an island (the
+/// owner, 2026-11-13: a spawn on the ground under an island does not take
+/// it), horizontal otherwise, as for every point.
 fn training_distance(a: Vec3, b: Vec3) -> f32 {
     let on_island = |p: Vec3| arena::islands().iter().any(|i| i.holds(p.x, p.y, p.z));
     if on_island(a) || on_island(b) {
@@ -192,38 +207,65 @@ fn extend(
     added
 }
 
-/// Which of Training Camp's distributed points move to the centre (the owner,
-/// 2026-11-13: "remove half spawns on perimeter", "put them in the center"):
-/// of those on the perimeter, outside the base's fence or against the crater
-/// wall, every other one round the crater. With an odd count, the two kept
-/// side by side are where the gap would be largest: of the rotations, the one
-/// whose longest stretch between kept points is shortest.
-fn perimeter_moves(points: &[Vec3]) -> Vec<usize> {
-    let mut ring: Vec<usize> = (0..points.len())
-        .filter(|&i| !arena::in_centre(points[i].x, points[i].z))
-        .collect();
-    let [cx, cz] = arena::crater_centre();
-    let angle = |i: usize| (points[i].z - cz).atan2(points[i].x - cx);
-    ring.sort_by(|&a, &b| angle(a).total_cmp(&angle(b)));
-    let n = ring.len();
-    // Rotation r keeps r, r + 2, ... round the ring, in order.
-    let kept = |r: usize| -> Vec<usize> {
-        (0..n.div_ceil(2)).map(|k| ring[(r + 2 * k) % n]).collect()
-    };
-    let longest = |r: usize| {
-        let k = kept(r);
-        (0..k.len())
-            .map(|j| points[k[j]].distance_xz(points[k[(j + 1) % k.len()]]))
-            .fold(0.0, f32::max)
-    };
-    let Some(best) = (0..n).min_by(|&a, &b| longest(a).total_cmp(&longest(b)).then(a.cmp(&b)))
-    else {
-        return Vec::new();
-    };
-    let keep: BTreeSet<_> = kept(best).into_iter().collect();
-    let mut moved: Vec<_> = ring.iter().copied().filter(|i| !keep.contains(i)).collect();
-    moved.sort();
-    moved
+/// Fills the empty slots, lowest first, from `fresh`. When it runs out, the
+/// last slot moves down into the lowest empty one until none is empty, so the
+/// ids stay 0..n without a gap and as few change as can. Returns the slots and,
+/// for each that moved down, its (new, old) id.
+fn refill<T>(
+    mut slots: Vec<Option<T>>,
+    fresh: impl IntoIterator<Item = T>,
+) -> (Vec<T>, Vec<(usize, usize)>) {
+    let mut fresh = fresh.into_iter();
+    for slot in slots.iter_mut().filter(|slot| slot.is_none()) {
+        match fresh.next() {
+            Some(value) => *slot = Some(value),
+            None => break,
+        }
+    }
+    let mut moved_down = Vec::new();
+    loop {
+        while slots.last().is_some_and(Option::is_none) {
+            slots.pop();
+        }
+        let Some(empty) = slots.iter().position(Option::is_none) else {
+            break;
+        };
+        // The last slot is filled and comes after the empty one.
+        moved_down.push((empty, slots.len() - 1));
+        slots[empty] = slots.pop().flatten();
+    }
+    (slots.into_iter().flatten().collect(), moved_down)
+}
+
+/// Whether a point is fit on the map as it is: on safe playable ground, a
+/// body standing clear on a reachable floor, its stored facing walkable.
+fn fit(map: &Map, c: &Candidate) -> Result<(), String> {
+    let p = c.position;
+    if harmful(map, p) || !in_play_area(map, p, 0.0) {
+        return Err("is outside safe play".into());
+    }
+    if let Verdict::Dropped(why) = map.check(p) {
+        return Err(format!("failed the body check: {why}"));
+    }
+    // Verify the stored engine rotation, independently of the angle sampled
+    // for it. A mirrored yaw can otherwise face a wall even though the
+    // candidate's originally tested direction was clear.
+    let dir = mapdata::math::forward(Vec3::new(0.0, c.yaw, 0.0));
+    let start = map.grid.locate(p, 0.6).ok_or("lost its floor")?;
+    let end = map
+        .grid
+        .locate(p + dir * FACING_REACH, 0.6)
+        .ok_or("has no floor at its stored facing's end")?;
+    if !map.grid.can_stand(end)
+        || !in_play_area(map, map.grid.position(end), 0.0)
+        || harmful(map, map.grid.position(end))
+        || !map
+            .grid
+            .walks_straight(start, end, FACING_REACH + 0.5, |n| map.grid.can_stand(n))
+    {
+        return Err("has its stored facing blocked".into());
+    }
+    Ok(())
 }
 
 /// A safe spawn on the floor at `node`, if it is one.
@@ -248,22 +290,13 @@ fn cell(p: Vec3, size: f32) -> (i32, i32, i32) {
     )
 }
 
-/// Where a point comes from.
-#[derive(Clone, Copy)]
-enum Origin {
-    Distributed,
-    /// A Training Camp perimeter point's id, placed in the centre.
-    Moved,
-    Island(&'static str),
-}
-
-/// The distributed points (Training Camp's moved ones in their place), then
-/// the islands'.
-type Spawns = Vec<(Candidate, Origin)>;
+/// A map's points in id order, each with what its row's reason says after
+/// [`REASON`].
+type Spawns = Vec<(Candidate, String)>;
 
 /// A map's safe candidates: on the 3 m lattice, and (Training Camp) on its
 /// islands' finer one. `plot` samples the standing floors.
-type Found = (Vec<Candidate>, Vec<(Candidate, &'static str)>);
+type Found = (Vec<Candidate>, Vec<Candidate>);
 
 fn candidates(map: &Map, mut plot: Option<&mut File>) -> Result<Found, String> {
     let seeds: Vec<_> = map
@@ -283,7 +316,7 @@ fn candidates(map: &Map, mut plot: Option<&mut File>) -> Result<Found, String> {
             continue;
         }
         let p = map.grid.position(node);
-        if !in_play_area(map, p) {
+        if !in_play_area(map, p, FENCE_MARGIN) {
             continue;
         }
         if node % 16 == 0
@@ -291,11 +324,11 @@ fn candidates(map: &Map, mut plot: Option<&mut File>) -> Result<Found, String> {
         {
             writeln!(plot, "{},{},{}", p.x, p.y, p.z).map_err(|e| e.to_string())?;
         }
-        if let Some(island) = islands.iter().find(|i| i.holds(p.x, p.y, p.z))
+        if islands.iter().any(|i| i.holds(p.x, p.y, p.z))
             && island_cells.insert(cell(p, ISLAND_LATTICE))
             && let Some(c) = candidate(map, node, center)
         {
-            on_islands.push((c, island.name));
+            on_islands.push(c);
         }
         // A 3 m lattice is dense enough to find cover without doing expensive
         // collision queries for every quarter-metre grid node. Keep floors apart.
@@ -319,57 +352,98 @@ fn generate(map: &Map, plot: &mut File) -> Result<Spawns, String> {
     let (candidates, _) = candidates(map, Some(plot))?;
     Ok(choose(&candidates, COUNT, MIN_SPACING)?
         .into_iter()
-        .map(|i| (candidates[i], Origin::Distributed))
+        .map(|i| (candidates[i], String::new()))
         .collect())
 }
 
-/// Training Camp after its 24, on Free for All's own project: half its
-/// perimeter points leave, its islands take what they can, then the leavers'
-/// ids go to the centre.
-fn training(ffa: &Map, mut spawns: Spawns) -> Result<Spawns, String> {
-    let (candidates, on_islands) = candidates(ffa, None)?;
-    let positions: Vec<_> = spawns.iter().map(|(c, _)| c.position).collect();
-    let moved = perimeter_moves(&positions);
-    let mut kept: Vec<_> = (0..positions.len())
-        .filter(|i| !moved.contains(i))
-        .map(|i| positions[i])
+/// Training Camp's rows of the committed table, in id order.
+fn read_table(path: &Path) -> Result<Spawns, String> {
+    let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    text.lines()
+        .filter(|line| line.split('\t').next() == Some(TRAINING))
+        .enumerate()
+        .map(|(id, line)| {
+            let cells: Vec<&str> = line.split('\t').collect();
+            let [_, point, x, y, z, _, yaw, _, _, _, _, _, reason] = cells[..] else {
+                return Err(format!("{TRAINING} row {id}: 13 cells expected"));
+            };
+            let number = |cell: &str| {
+                cell.parse::<f32>()
+                    .map_err(|e| format!("{TRAINING} row {id}: {cell}: {e}"))
+            };
+            if point != format!("ported_{id:02}") {
+                return Err(format!("{TRAINING} row {id} is {point}: rows are in id order"));
+            }
+            let note = reason
+                .strip_prefix(REASON)
+                .ok_or_else(|| format!("{TRAINING} row {id}: its reason lacks the checks"))?;
+            let position = Vec3::new(number(x)?, number(y)?, number(z)?);
+            Ok((Candidate { position, yaw: number(yaw)? }, note.to_owned()))
+        })
+        .collect()
+}
+
+/// What the row of a point placed anew says: where it went.
+fn moved_note(p: Vec3) -> String {
+    match arena::islands().iter().find(|i| i.holds(p.x, p.y, p.z)) {
+        Some(island) => format!(
+            "; moved inside the fence, onto raised island {}, spacing in 3D",
+            island.name
+        ),
+        None => "; moved inside the fence, spacing in 3D from islands".to_owned(),
+    }
+}
+
+/// Training Camp on Free for All's own project as the layers give it: the
+/// table's points that are still fit keep their place and id. The others'
+/// ids take new places inside the fence (the ground, the towers, the
+/// islands): the candidate farthest from every point so far, while one keeps
+/// the spacing. Ids no place is left for go ([`refill`]): spacing before count.
+fn training(ffa: &Map, table: Spawns, plot: &mut File) -> Result<Spawns, String> {
+    let (candidates, on_islands) = candidates(ffa, Some(plot))?;
+    let slots: Vec<Option<(Candidate, String)>> = table
+        .into_iter()
+        .enumerate()
+        .map(|(id, row)| match fit(ffa, &row.0) {
+            Ok(()) => Some(row),
+            Err(why) => {
+                eprintln!("{TRAINING_FFA}: point {id} {why}: its id moves");
+                None
+            }
+        })
         .collect();
-    let island_points: Vec<_> = on_islands.iter().map(|(c, _)| *c).collect();
-    let mut islands_taken = Vec::new();
-    for i in extend(&island_points, &kept, MIN_SPACING, usize::MAX, training_distance) {
-        kept.push(island_points[i].position);
-        islands_taken.push((on_islands[i].0, Origin::Island(on_islands[i].1)));
+    let kept: Vec<Vec3> = slots.iter().flatten().map(|(c, _)| c.position).collect();
+    for (j, a) in kept.iter().enumerate() {
+        if kept[..j].iter().any(|b| training_distance(*a, *b) < MIN_SPACING) {
+            return Err(format!("{TRAINING_FFA}: the table's points are under {MIN_SPACING} m apart"));
+        }
     }
-    let centre: Vec<_> = candidates
-        .iter()
-        .chain(&island_points)
-        .copied()
-        .filter(|c| arena::in_centre(c.position.x, c.position.z))
-        .collect();
-    let placed = extend(&centre, &kept, MIN_SPACING, moved.len(), training_distance);
-    if placed.len() < moved.len() {
-        return Err(format!(
-            "only {} of {} perimeter points fit in the centre",
-            placed.len(),
-            moved.len()
-        ));
+    let free = slots.len() - kept.len();
+    let pool: Vec<Candidate> = candidates.into_iter().chain(on_islands).collect();
+    let placed = extend(&pool, &kept, MIN_SPACING, free, training_distance);
+    eprintln!(
+        "{TRAINING_FFA}: {} points keep their place, {} of {free} ids take a new one",
+        kept.len(),
+        placed.len()
+    );
+    let fresh = placed.into_iter().map(|i| (pool[i], moved_note(pool[i].position)));
+    let (points, moved_down) = refill(slots, fresh);
+    for (id, from) in moved_down {
+        eprintln!("{TRAINING_FFA}: no place is left for id {id}: point {from} takes it, where it stands");
     }
-    for (&id, &i) in moved.iter().zip(&placed) {
-        spawns[id] = (centre[i], Origin::Moved);
-    }
-    spawns.extend(islands_taken);
-    Ok(spawns)
+    Ok(points)
 }
 
 fn run() -> Result<(), String> {
     let mut args = std::env::args().skip(1);
-    let (mut layers, mut projects, mut plot_dir) = (Vec::new(), Vec::new(), None);
+    let (mut layers, mut projects, mut plot_dir, mut table) = (Vec::new(), Vec::new(), None, None);
     while let Some(flag) = args.next() {
         let value = args.next().ok_or_else(|| format!("{flag} needs a value"))?;
         match flag.as_str() {
             "--db" | "--patch" => layers.push(PathBuf::from(value)),
             "--project" => projects.push(value),
             "--plots" => plot_dir = Some(PathBuf::from(value)),
+            "--points" => table = Some(PathBuf::from(value)),
             _ => return Err(format!("unknown flag {flag}")),
         }
     }
@@ -385,67 +459,28 @@ fn run() -> Result<(), String> {
     );
     for project in projects {
         eprintln!("loading {project}");
-        let (bounds, _) = area(&project)?;
-        let map = Map::load(&mut resources, &materials, &project, bounds)?;
         let mut plot = File::create(plots.join(project.replace('/', "_") + ".csv"))
             .map_err(|e| e.to_string())?;
-        let mut points = generate(&map, &mut plot)?;
-        // Training Camp's points are Free for All's own project's: planned
-        // after the 24 and checked there.
-        let map = if project == TRAINING {
-            let ffa = Map::load(&mut resources, &materials, TRAINING_FFA, bounds)?;
-            points = training(&ffa, points)?;
-            ffa
+        // Training Camp's points are Free for All's own project's: kept or
+        // placed on it, and checked there.
+        let on = if project == TRAINING { TRAINING_FFA } else { &project };
+        let (bounds, _) = area(on)?;
+        let map = Map::load(&mut resources, &materials, on, bounds)?;
+        let points = if project == TRAINING {
+            let table = table.as_deref().ok_or("--points is required for Training Camp")?;
+            training(&map, read_table(table)?, &mut plot)?
         } else {
-            map
+            generate(&map, &mut plot)?
         };
-        for (i, (c, origin)) in points.iter().enumerate() {
+        for (i, (c, note)) in points.iter().enumerate() {
+            fit(&map, c).map_err(|why| format!("{project}: point {i} {why}"))?;
             let p = c.position;
-            if harmful(&map, p) || !in_play_area(&map, p) {
-                return Err(format!(
-                    "{project}: selected point {i} is outside safe play"
-                ));
-            }
-            if let Verdict::Dropped(why) = map.check(p) {
-                return Err(format!(
-                    "{project}: selected point {i} failed final check: {why}"
-                ));
-            }
-            // Verify the stored engine rotation, independently of the angle
-            // sampled above. A mirrored yaw can otherwise face a wall even
-            // though the candidate's originally tested direction was clear.
-            let dir = mapdata::math::forward(Vec3::new(0.0, c.yaw, 0.0));
-            let start = map.grid.locate(p, 0.6).ok_or("spawn lost its floor")?;
-            let end = map
-                .grid
-                .locate(p + dir * FACING_REACH, 0.6)
-                .ok_or("spawn's stored facing has no destination")?;
-            if !map.grid.can_stand(end)
-                || !in_play_area(&map, map.grid.position(end))
-                || harmful(&map, map.grid.position(end))
-                || !map
-                    .grid
-                    .walks_straight(start, end, FACING_REACH + 0.5, |n| map.grid.can_stand(n))
-            {
-                return Err(format!("{project}: point {i}'s stored facing is blocked"));
-            }
-            let on = match origin {
-                Origin::Distributed => String::new(),
-                Origin::Moved => "; moved from the perimeter to the centre, spacing in 3D from islands".into(),
-                Origin::Island(name) => format!("; raised island {name}, spacing in 3D"),
-            };
             println!(
-                "{project}\tported_{i:02}\t{}\t{}\t{}\t0\t{}\t0\t30\t2\tkept\t\treachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m{on}",
+                "{project}\tported_{i:02}\t{}\t{}\t{}\t0\t{}\t0\t30\t2\tkept\t\t{REASON}{note}",
                 p.x, p.y, p.z, c.yaw
             );
         }
-        let count = |of: fn(&Origin) -> bool| points.iter().filter(|(_, o)| of(o)).count();
-        eprintln!(
-            "{project}: {} checked FFA points, {} moved to the centre, {} added on raised islands",
-            points.len(),
-            count(|o| matches!(o, Origin::Moved)),
-            count(|o| matches!(o, Origin::Island(_)))
-        );
+        eprintln!("{project}: {} checked FFA points", points.len());
     }
     Ok(())
 }
@@ -500,24 +535,23 @@ mod tests {
         assert!(extend(&points, &below, 12.0, all, Vec3::distance_xz).is_empty());
     }
     #[test]
-    fn every_other_perimeter_point_moves_and_the_extra_one_stays_in_the_widest_gap() {
-        // Fifteen points round the crater, beyond its wall, one of them (the
-        // last) far from its neighbours.
-        let [cx, cz] = arena::crater_centre();
-        let points: Vec<_> = (0..15)
-            .map(|i| {
-                let a = if i == 14 { 340.0f32 } else { i as f32 * 22.0 }.to_radians();
-                Vec3::new(cx + 90.0 * a.cos(), 0.0, cz + 90.0 * a.sin())
-            })
-            .collect();
-        let moved = perimeter_moves(&points);
-        assert_eq!(moved.len(), 7);
-        // Two neighbours kept side by side, around the widest gap (13 to 14).
-        assert_eq!(moved, vec![0, 2, 4, 6, 8, 10, 12]);
-        // A centre point never moves.
-        let mut with_centre = points.clone();
-        with_centre.push(Vec3::new(20.0, 0.0, 0.0));
-        assert!(!perimeter_moves(&with_centre).contains(&15));
+    fn empty_ids_take_the_new_places_and_then_the_last_points() {
+        // Every empty id gets a new place, lowest id first.
+        let slots = vec![Some('a'), None, Some('c'), None];
+        assert_eq!(refill(slots.clone(), ['x', 'y', 'z']), (vec!['a', 'x', 'c', 'y'], vec![]));
+        // One place for two ids: the last point moves down into the id left.
+        let slots = vec![Some('a'), None, None, Some('d'), Some('e')];
+        assert_eq!(refill(slots, ['x']), (vec!['a', 'x', 'e', 'd'], vec![(2, 4)]));
+        // No place at all: empty ids at the end just go, the others are taken from the end.
+        let slots = vec![None, Some('b'), Some('c'), None, Some('e'), None];
+        assert_eq!(refill(slots, []), (vec!['e', 'b', 'c'], vec![(0, 4)]));
+        assert_eq!(refill(vec![None::<char>, None], []), (vec![], vec![]));
+        assert_eq!(refill(vec![Some('a')], ['x']), (vec!['a'], vec![]));
+    }
+    #[test]
+    fn a_new_place_says_where_it_went() {
+        assert!(moved_note(Vec3::new(51.0, -0.75, 18.0)).ends_with("fence, spacing in 3D from islands"));
+        assert!(moved_note(Vec3::new(0.0, 23.0, 3.0)).contains("raised island west"));
     }
     #[test]
     fn a_map_too_small_for_safe_spacing_is_refused() {
@@ -530,12 +564,11 @@ mod tests {
     }
 
     #[test]
-    fn reviewed_bounds_include_the_warehouses_west_and_limit_the_training_scenery() {
+    fn reviewed_bounds_include_the_warehouses_west_and_training_camp_is_its_own_project() {
         let (warehouse, clip) = area("v010b_cs_mp_military_1/day_4").unwrap();
         assert!(warehouse[0] < -120.0 && warehouse[2] > 110.0);
         assert!(clip.is_none());
-        assert!(arena::contains(20.0, 0.0, 2.0));
-        assert!(!arena::contains(20.0, 80.0, 2.0));
+        assert!(area(TRAINING_FFA).is_ok() && area(TRAINING).is_err());
         assert!(area("level_03/day_4").is_err());
     }
 }

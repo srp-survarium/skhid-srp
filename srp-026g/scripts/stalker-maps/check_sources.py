@@ -10,8 +10,11 @@ from pathlib import Path
 import tempfile
 
 import make_ffa_edits as m
+import make_truck_pack as truck
 import check_ffa_edits
 import check_training_arena
+
+MANIFEST = m.HERE.parents[2] / 'release/content.tsv'
 
 
 def main():
@@ -30,19 +33,22 @@ def main():
         check_ffa_edits.check(a.pack, dictionary)
         check_training_arena.check(a.pack, dictionary, a.native, m.EDIT)
     authored = m.points()[m.project('cs_training_camp')]
-    # The raised-island spawns are intentional, not scenery candidates: 8 and
-    # 19 of the distributed 24, then those added on the islands (24 and up).
+    fence = check_training_arena.arena.outline()
+    # Every point is inside the base's fence. The raised ones are intentional, not scenery
+    # candidates: 8 and 19 of the first plan, and those of the islands.
+    assert all(check_training_arena.inside_of(fence, p['x'], p['z']) for p in authored)
     assert authored[8]['y'] > 20 and authored[19]['y'] > 15
-    added = authored[24:]
-    assert added and all(m.on_island(p) and '; raised island ' in p['reason'] for p in added)
-    # Every other perimeter point moved inside the base's fence, keeping its id.
-    moved = [p for p in authored[:24] if '; moved from the perimeter' in p['reason']]
-    fence = [(float(x), float(z)) for x, z in
-             (line.split('\t') for line in (m.HERE / 'training-fence.tsv').read_text().splitlines()[1:])]
-    assert len(moved) == 7 and all(check_training_arena.inside_of(fence, p['x'], p['z']) for p in moved)
-    print(f'PASS: raised-island spawns 8 and 19 are preserved; {len(added)} added on the islands; '
-          f'{len(moved)} perimeter points moved inside the fence')
-
+    raised = [p for p in authored if '; raised island ' in p['reason']]
+    assert raised and all(m.on_island(p) for p in raised)
+    moved = [p for p in authored if '; moved inside the fence' in p['reason']]
+    # The truck's pack as the manifest pins it: made again from stalker-maps@6, the same pack.json.
+    made, report = truck.build(truck.sources(a.pack))
+    pinned = [line.split('\t')[2] for line in MANIFEST.read_text().splitlines()
+              if line.startswith(f'pack\t{truck.PACK_ID}@{truck.VERSION}\t')]
+    assert pinned == [truck.sha256(truck.manifest(made).encode())], 'release/content.tsv does not pin the truck this makes'
+    print(f'PASS: {len(authored)} Training Camp points inside the fence; raised spawns 8 and 19 are preserved, '
+          f'{len(raised)} more on the islands; {len(moved)} at a new place inside the fence; the truck pack '
+          f'is the manifest\'s ({report})')
 
 if __name__ == '__main__':
     main()
