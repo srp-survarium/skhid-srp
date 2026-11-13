@@ -2154,6 +2154,7 @@ va	name	source	ret_cleanup	result
 0x002d8bb0	survarium::base_player::process_quick_slots	manual	12	no result used
 0x00313470	survarium::artefact_base::on_taken	manual	0	no result used
 0x00313490	survarium::artefact_base::on_removed	manual	0	no result used
+0x00313530	survarium::artefact_base::end_active	manual	0	no result used; takes one off the amount (+260h) unless the item's uses (+27Ch) are FFFFh; at 0 calls inventory::remove_item (ESI [+250h], EAX [+254h], the world's slot byte, unbounded: 0x31359D..0x3135A9), else +88h, the cooldown and state 3
 0x002e30f0	survarium::weapon_core::register_in_game_world	manual	4	no result used
 0x002d4540	survarium::active_objects::append	manual	4	no result used
 0x00299830	survarium::empty_hands::empty_hands	manual	8	EAX: constructed object

@@ -82,7 +82,7 @@ use weapon_pickup::{Kit, Place, WeaponSlot};
 const INVENTORY_SLOTS: usize = 23;
 /// The quick slots artefacts take (setup_from_profile 0x2FD1C3..0x2FD2A5):
 /// `slots_begin` is one of them, `slots_begin + A` at most their end.
-const QUICK_SLOTS: core::ops::Range<u8> = 13..19;
+pub(super) const QUICK_SLOTS: core::ops::Range<u8> = 13..19;
 /// The most player effects a view holds: as many as a state has room for
 /// (the writer has no cap; each is 67 bytes).
 pub const MAX_PLAYER_EFFECTS: usize = PLAYER_STATE_CAP / Effect::LEN;
