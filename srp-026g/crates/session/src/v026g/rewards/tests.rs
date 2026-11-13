@@ -2164,7 +2164,7 @@ fn a_kit_change_before_play_is_a_life_more_for_the_supplies_used() {
 }
 
 #[test]
-fn the_supplies_used_are_taken_and_the_boxes_put_them_right() {
+fn the_supplies_used_are_taken_and_autobuy_puts_them_right() {
     use survarium::v026g::match_msgs::players::{ItemLeft, Supplies};
     let dictionary = Dictionary::shared();
     let rounds = dictionary.item_named("ammo_7.62x25").unwrap().dict_id;
@@ -2188,7 +2188,7 @@ fn the_supplies_used_are_taken_and_the_boxes_put_them_right() {
         inventory_read: false,
         items: vec![stack(rounds, 30), stack(medkit, 3)],
     });
-    let prepare = |store: &GameAccounts, boxes: bool| {
+    let prepare = |store: &GameAccounts| {
         let alice = store.get(10).unwrap();
         let mut alice = alice.locked();
         let kits = alice.add_item(medkit, 5);
@@ -2196,7 +2196,6 @@ fn the_supplies_used_are_taken_and_the_boxes_put_them_right() {
             item_id: kits,
             count: 2,
         });
-        alice.autobuy = boxes;
         alice.generic_money = 10_000;
         // The rank the factions sell their consumables at.
         for faction in 1..=4 {
@@ -2205,26 +2204,10 @@ fn the_supplies_used_are_taken_and_the_boxes_put_them_right() {
         (alice.kits[0].slots[8].unwrap().item_id, kits)
     };
 
-    // With neither box: the stacks shrink and nothing is spent.
+    // Autobuy, always on: the medkits are bought back (the pistol's ammo is
+    // free), and the screen is told. (Too little silver: `autobuy`'s tests.)
     let store = accounts(&players);
-    let (ammo, kits) = prepare(&store, false);
-    let report = Results::new()
-        .settle(&result(players.clone()), &store, &terms(), &mut Rng::new(1))
-        .unwrap();
-    let reward = &report.players[0].reward;
-    assert_eq!(reward.supplies_used, [(rounds, 20), (medkit, 2)]);
-    assert_eq!(reward.spent, lobby::SpentMoney::default());
-    let alice = account(&store, 10);
-    assert_eq!(alice.item(ammo).unwrap().condition_or_stack, 30);
-    assert_eq!(alice.item(kits).unwrap().condition_or_stack, 3);
-    assert!(report.spent_inventory(10, &alice).is_none());
-    // Bob's block is not known and he fired nothing: nothing is taken.
-    assert!(report.players[1].reward.supplies_used.is_empty());
-
-    // With autobuy: the medkits are bought back (the pistol's ammo is free),
-    // and the screen is told.
-    let store = accounts(&players);
-    let (ammo, kits) = prepare(&store, true);
+    let (ammo, kits) = prepare(&store);
     let report = Results::new()
         .settle(&result(players), &store, &terms(), &mut Rng::new(1))
         .unwrap();
@@ -2237,6 +2220,8 @@ fn the_supplies_used_are_taken_and_the_boxes_put_them_right() {
     assert_eq!(alice.item(kits).unwrap().condition_or_stack, 5);
     // The free ammo comes back by the clip.
     assert!(alice.item(ammo).unwrap().condition_or_stack >= 50);
+    // Bob's block is not known and he fired nothing: nothing is taken.
+    assert!(report.players[1].reward.supplies_used.is_empty());
 
     // The pushes: the inventory first, with the lists the client reads.
     let push = report
@@ -3499,4 +3484,291 @@ fn a_drop_card_on_a_pve_match_rolls_at_level_seven() {
         pvp_above += u32::from(level_of(pvp).is_some_and(|level| level > top));
     }
     assert!(pvp_above > 10, "{pvp_above} PvP cards above {top}");
+}
+
+fn ffa_row(player_id: u32, score: u16, kills: u16, deaths: u16) -> ResultRow {
+    ResultRow {
+        name: format!("p{player_id}"),
+        clan_tag: String::new(),
+        player_id,
+        score,
+        kills,
+        deaths,
+        team: 9,
+        level: 1,
+    }
+}
+
+#[test]
+fn a_free_for_all_screen_is_one_ranking_in_two_columns() {
+    // Five players: by kills, then score, fewer deaths, the place; the left
+    // column takes the odd one.
+    let mut rows = vec![
+        ffa_row(1, 50, 5, 2),
+        ffa_row(2, 120, 12, 3),
+        ffa_row(3, 50, 5, 1),
+        ffa_row(4, 300, 30, 0),
+        // More score than players 1 and 3 (assists), fewer kills: below them.
+        ffa_row(5, 60, 4, 9),
+    ];
+    ffa_columns(&mut rows);
+    let order: Vec<(u32, u8)> = rows.iter().map(|row| (row.player_id, row.team)).collect();
+    assert_eq!(order, [(4, 0), (2, 0), (3, 0), (1, 1), (5, 1)]);
+    let mut even: Vec<ResultRow> = (1..=10).map(|id| ffa_row(id, 10 * id as u16, id as u16, 0)).collect();
+    ffa_columns(&mut even);
+    assert_eq!(even.iter().filter(|row| row.team == 0).count(), 5);
+    assert!(even.iter().all(|row| row.team < 2));
+    assert_eq!(even[0].player_id, 10);
+    let mut one = vec![ffa_row(1, 0, 0, 0)];
+    ffa_columns(&mut one);
+    assert_eq!(one[0].team, 0);
+}
+
+#[test]
+fn a_free_for_all_is_won_by_the_most_kills_ties_sharing() {
+    assert_eq!(ffa_top_kills([3, 30, 12, 30]), Some(30));
+    assert_eq!(ffa_top_kills([0, 0]), None);
+    assert_eq!(ffa_top_kills([]), None);
+    let mut rows = vec![ffa_row(1, 300, 30, 1), ffa_row(2, 300, 30, 4), ffa_row(3, 100, 10, 9)];
+    ffa_columns(&mut rows);
+    let stats = lobby::MatchStats {
+        match_id: MATCH,
+        unknown: 0,
+        winner_team: NO_WINNER,
+        team_scores: [0, 0],
+        team_params: [0, 0],
+        game_mode: RuleMode::FreeForAll.number(),
+        best_player: TitleHolder::default(),
+        best_player_score: 0,
+        best_shooter: TitleHolder::default(),
+        shooter_accuracy_percent: 0,
+        shooter_shots: 0,
+        best_support: TitleHolder::default(),
+        support_value: 0,
+        best_explorer: TitleHolder::default(),
+        explorer_artefacts: 0,
+        explorer_items: 0,
+        rows,
+    };
+    // 1 and 2 on the left (team 0), 3 on the right: both winners see their
+    // column win, 3 sees the other column win.
+    assert_eq!(ffa_screen(&stats, 1).winner_team, 0);
+    assert_eq!(ffa_screen(&stats, 2).winner_team, 0);
+    assert_eq!(ffa_screen(&stats, 3).winner_team, 0);
+    assert_eq!(ffa_screen(&stats, 3).rows.iter().find(|row| row.player_id == 3).unwrap().team, 1);
+    assert_eq!(ffa_screen(&stats, 99).winner_team, NO_WINNER);
+}
+
+/// A free-for-all's result as the match server gives it: no team that won
+/// and no team points (`MatchResult::winner` is `None`).
+fn ffa_result(players: Vec<PlayerResult>) -> MatchResult {
+    let map = survarium::v026g::maps::playable_in(GameMode::FreeForAll)
+        .next()
+        .expect("the game data has a free-for-all");
+    MatchResult {
+        map_id: map.id,
+        mode: GameMode::FreeForAll,
+        winner: None,
+        team_points: [0, 0],
+        ..result(players)
+    }
+}
+
+/// A free-for-all's players by place, each on its own side (4 + the place):
+/// `(name, kills, deaths)`.
+fn ffa_players(of: &[(&str, u16, u16)]) -> Vec<PlayerResult> {
+    of.iter()
+        .enumerate()
+        .map(|(place, &(name, kills, deaths))| {
+            player(
+                place as u8,
+                survarium::v026g::maps::free_for_all_team(place),
+                name,
+                counters_of(0, &[(event::KILL, kills), (event::DEATH, deaths)]),
+            )
+        })
+        .collect()
+}
+
+/// The results screen of the account's player as its game reads it, and
+/// whether the screen calls its match won: its own row's team is the winner
+/// team.
+fn ffa_screen_read(report: &MatchReport, account_id: u32) -> (lobby::MatchStats, bool) {
+    let screen = report.screen_for(account_id).unwrap().unwrap();
+    let Decoded::MatchStats { stats, own } = Client::signed_in().receive(&screen).unwrap() else {
+        panic!("not the screen");
+    };
+    let row = stats
+        .rows
+        .iter()
+        .find(|row| row.player_id == own.player_id)
+        .expect("its own row");
+    assert!(row.team < 2, "{row:?}");
+    let won = row.team == stats.winner_team;
+    (stats, won)
+}
+
+/// The ratings a match may move: the ranking's and the balance's.
+fn ratings(store: &GameAccounts, players: &[PlayerResult]) -> Vec<(u16, balance::Balance)> {
+    players
+        .iter()
+        .map(|player| {
+            let account = account(store, player.account_id);
+            (account.rating, account.balance)
+        })
+        .collect()
+}
+
+/// A whole free-for-all settled (`docs/notes/ffa.md`): Alice and Bob have
+/// the most kills, 12 each, and both are paid the match won; Carol and Dave
+/// the match lost. Winners gain rating; other ratings and all balance ratings stay. Each one's
+/// screen calls its own match won or lost; its rows are the ranking by
+/// kills in two columns, with no team totals.
+#[test]
+fn a_free_for_all_pays_the_win_to_everyone_with_the_most_kills() {
+    let players = ffa_players(&[("Carol", 7, 9), ("Bob", 12, 5), ("Dave", 0, 14), ("Alice", 12, 3)]);
+    let store = accounts(&players);
+    let before = ratings(&store, &players);
+    let report = Results::new()
+        .settle(&ffa_result(players.clone()), &store, &terms(), &mut Rng::new(1))
+        .unwrap();
+
+    let won: Vec<bool> = report.players.iter().map(|player| player.reward.won).collect();
+    assert_eq!(won, [false, true, false, true]);
+    // The fixed part of a match, as for a team's (82.73 / 122.69 won, half
+    // of it lost: `the_winner_and_the_loser_are_paid_by_the_score`).
+    for (player, &won) in report.players.iter().zip(&won) {
+        assert_eq!(player.reward.standing, Standing::Finished);
+        let fixed = if won { (2.0, 82, 122, 0) } else { (1.0, 41, 61, 0) };
+        assert_eq!(columns(&player.full, 2), fixed, "account {}", player.account_id);
+        let gain = if won { 2 } else { 0 };
+        assert_eq!(player.reward.rating_after, player.reward.rating_before + gain);
+        assert_eq!(player.full.elo_after, player.full.elo_before + gain);
+    }
+    // Twelve kills each: the two winners are paid alike, and more than
+    // Carol, who is paid more than Dave.
+    let paid = |index: usize| {
+        let reward = &report.players[index].reward;
+        (reward.experience, reward.money)
+    };
+    assert_eq!(paid(1), paid(3));
+    assert!(paid(1) > paid(0) && paid(0) > paid(2), "{:?}", [paid(0), paid(1), paid(2)]);
+    assert!(paid(2) > (0, 0), "a match lost and played to its end is paid");
+    for (index, player) in players.iter().enumerate() {
+        let account = account(&store, player.account_id);
+        assert_eq!(account.balance, before[index].1);
+        let gain = if won[index] { 2 } else { 0 };
+        assert_eq!((account.rating, account.rating_before), (pay::START_RATING + gain, pay::START_RATING));
+    }
+
+    // The screen all are sent has no team that won; each one's own says
+    // whether he did.
+    assert_eq!(report.stats.winner_team, NO_WINNER);
+    assert_eq!(report.stats.game_mode, RuleMode::FreeForAll.number());
+    for (player, &won) in players.iter().zip(&won) {
+        let (stats, screen_won) = ffa_screen_read(&report, player.account_id);
+        assert_eq!(screen_won, won, "{}", player.name);
+        // One ranking by kills (then fewer deaths), the upper half the left
+        // column (team 0), the rest the right; no team totals.
+        let rows: Vec<(&str, u16, u16, u8)> = stats
+            .rows
+            .iter()
+            .map(|row| (row.name.as_str(), row.kills, row.deaths, row.team))
+            .collect();
+        assert_eq!(
+            rows,
+            [("Alice", 12, 3, 0), ("Bob", 12, 5, 0), ("Carol", 7, 9, 1), ("Dave", 0, 14, 1)]
+        );
+        assert_eq!((stats.team_scores, stats.team_params), ([0, 0], [0, 0]));
+        assert_eq!(stats.game_mode, RuleMode::FreeForAll.number());
+    }
+    assert!(report.screen_for(99).is_none());
+}
+
+/// Two alone with as many kills both win, the one in the right column too:
+/// each one's screen names its own column the winner.
+#[test]
+fn a_free_for_all_tied_by_two_alone_is_won_by_both() {
+    let players = ffa_players(&[("Alice", 5, 5), ("Bob", 5, 5)]);
+    let store = accounts(&players);
+    let report = Results::new()
+        .settle(&ffa_result(players.clone()), &store, &terms(), &mut Rng::new(1))
+        .unwrap();
+    assert!(report.players.iter().all(|player| player.reward.won));
+    let screens: Vec<(u8, bool)> = players
+        .iter()
+        .map(|player| {
+            let (stats, won) = ffa_screen_read(&report, player.account_id);
+            (stats.winner_team, won)
+        })
+        .collect();
+    assert_eq!(screens, [(0, true), (1, true)]);
+}
+
+/// Nobody killed, or the result is nobody's word (no trusted snapshot):
+/// nobody won, everyone is told the match was lost, and no rating moves.
+#[test]
+fn a_free_for_all_nobody_killed_in_or_not_trusted_has_no_winner() {
+    let nobody = ffa_result(ffa_players(&[("Alice", 0, 0), ("Bob", 0, 0), ("Carol", 0, 0)]));
+    let mut untrusted = ffa_result(ffa_players(&[("Alice", 30, 2), ("Bob", 3, 20), ("Carol", 1, 12)]));
+    untrusted.trusted_by = 0;
+    untrusted.trusted_snapshot_ms = None;
+    for result in [nobody, untrusted] {
+        let store = accounts(&result.players);
+        let before = ratings(&store, &result.players);
+        let report = Results::new()
+            .settle(&result, &store, &terms(), &mut Rng::new(1))
+            .unwrap();
+        for (player, report_of) in result.players.iter().zip(&report.players) {
+            assert!(!report_of.reward.won, "{}", player.name);
+            assert_eq!(report_of.reward.rating_after, report_of.reward.rating_before);
+            let (stats, won) = ffa_screen_read(&report, player.account_id);
+            assert!(!won, "{}: {stats:?}", player.name);
+            assert!(stats.rows.iter().all(|row| row.kills == 0 && row.team < 2));
+            assert_eq!(stats.rows.len(), 3);
+            assert_eq!((stats.team_scores, stats.team_params), ([0, 0], [0, 0]));
+        }
+        assert_eq!(report.stats.winner_team, NO_WINNER);
+        assert_eq!(ratings(&store, &result.players), before);
+    }
+}
+
+
+#[test]
+fn ffa_rating_is_a_normal_win_against_opponents_with_no_losses() {
+    for (own, other, expected) in [(100, 100, 2), (60, 100, 4), (140, 100, 0)] {
+        let players = ffa_players(&[("Alice", 12, 2), ("Bob", 4, 9), ("Carol", 3, 7)]);
+        let store = accounts(&players);
+        for (index, player) in players.iter().enumerate() {
+            store.get(player.account_id).unwrap().locked().rating = if index == 0 { own } else { other };
+        }
+        let result = ffa_result(players);
+        let report = Results::new().settle(&result, &store, &terms(), &mut Rng::new(1)).unwrap();
+        assert_eq!(i32::from(report.players[0].reward.rating_after) - i32::from(own), expected);
+        for loser in &report.players[1..] {
+            assert_eq!((loser.reward.rating_before, loser.reward.rating_after), (other, other));
+        }
+    }
+}
+
+#[test]
+fn ffa_rating_does_not_reward_leavers_absentees_solo_private_or_bot_matches() {
+    let base = ffa_result(ffa_players(&[("Alice", 12, 2), ("Bob", 4, 9)]));
+    let mut left = base.clone();
+    left.players[0].present_at_end = false;
+    let mut absent = base.clone();
+    absent.players[0].entered = false;
+    let mut solo = base.clone();
+    solo.players.truncate(1);
+    let mut private = base.clone();
+    private.private = true;
+    let mut bots = base.clone();
+    bots.players[1].driven = true;
+    for result in [left, absent, solo, private, bots] {
+        let store = accounts(&result.players);
+        let before = ratings(&store, &result.players);
+        let report = Results::new().settle(&result, &store, &terms(), &mut Rng::new(1)).unwrap();
+        assert_eq!(ratings(&store, &result.players), before);
+        assert!(report.players.iter().all(|p| p.full.elo_before == p.full.elo_after));
+    }
 }

@@ -572,6 +572,22 @@ def version_field(image):
     return out
 
 
+def test_detail(original, image):
+    """Native detail hooks, option/label counts, relocations and entrances."""
+    stock = Image(original)
+    symbols = P.arena().symbols
+    for va, old, symbol, opcode in P.DETAIL_HOOKS:
+        wanted = bytes([opcode]) + struct.pack('<i', symbols[symbol] - va - 5) + b'\x90' * (len(old) - 5)
+        check(stock.read(va, len(old)) == old and image.read(va, len(old)) == wanted,
+              f"detail {symbol}: original bytes and symbolic jump at {va:#x}")
+        check(not [rva for kind, rva in stock.relocations().values()
+                   if kind == 3 and rva + 4 > va and rva < va + len(old)],
+              f"detail {symbol}: no relocation under hook")
+    for va, old, new in P.DETAIL_PATCHES:
+        check(stock.read(va, len(old)) == old and image.read(va, len(new)) == new,
+              f"detail: option/label count extended to twenty at {va:#x}")
+
+
 def test_revision(original, image, mode, revision, late_join=False):
     """The patch revision in the sign-in (client_patch.md section 6), worked
     out from the instructions that fill the version field. late_join: the
@@ -988,7 +1004,15 @@ def test_rust_hooks(original, image, before):
     for h in hooks_026g.hooks(exe=hooks_026g.original_reader(original)):
         if h["kind"] == "lohook":
             entry = linked.symbols[h["entry"]]
-            texts = [text for _, _, text in ndisasm(image.read(entry, 0x60), entry)]
+            texts = [text for _, _, text in ndisasm(image.read(entry, 0x80), entry)]
+            if h.get("only"):
+                # `only`: the register tested against its bit set, nothing saved, before the prologue
+                _, reg, _ = h["only"]
+                only = linked.symbols[h["entry"] + "_only"]
+                head, texts = texts[:8], texts[8:]
+                if (head[0] != "pushf" or head[1] != f"cmp {reg},0x100" or head[3] != f"bt [dword {only:#x}],{reg}"
+                        or [head[5], head[7]] != ["popf", "popf"] or not head[6].startswith("jmp ")):
+                    bad.append(f"{h['site_name']}: {h['entry']} does not test {reg} against {h['entry']}_only first")
             if texts[:5] != prologue or f"call {linked.symbols[h['shim']]:#x}" not in texts:
                 bad.append(f"{h['site_name']}: {h['entry']} is no lohook entry calling {h['shim']}")
     on_demand = [h for h in hooks_026g.hooks(exe=hooks_026g.original_reader(original)) if h.get("on_demand")]
@@ -1665,8 +1689,8 @@ def test_match_keys(original, image, before):
     check("public function select_kit_key(index:uint)" in here("flash", "hud", "src", "HUD.as")
           and "public function pickByKey(index:uint)" in here("flash", "hud", "src", "survarium", "player",
                                                                "ProfileSelector.as")
-          and 'this.settings_content["_no_in_batle"]' in here("flash", "main_menu", "src", "survarium", "menu",
-                                                                "Settings.as")
+          and 'var live:Array = ["_no_in_batle",' in here("flash", "main_menu", "src", "survarium", "menu",
+                                                            "Settings.as")
           and "this._no_in_batle.enabled = true;" in here("flash", "main_menu", "src", "main_menu_fla",
                                                           "settingsTabs_15.as")
           and "\nedit\tlocalization-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
@@ -1675,6 +1699,62 @@ def test_match_keys(original, image, before):
           "timeline and create_content), "
           "release/content.tsv labels it (localization-1.json)")
 
+
+def test_voice(original, image, before):
+    """Check 66: voice chat (patch 66: voice.toml's eight lohooks; its key the
+    game's ptt, a key or a mouse button, the action table the game's), the movies' side."""
+    print("voice chat (patch 66)")
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    cstr = lambda va: stock.read(va, 40).split(b"\0")[0]
+    check(rows(stock, 0x27A1B0, 5) == ["push ebx", "push ebp", "push esi", "mov esi,ecx"]
+          and stock.read(0x122350, 3) == bytes.fromhex("c21400")
+          and rows(stock, 0x1F96F0, 9) == ["push edi", "mov edi,eax", "mov eax,[edi+0x9c]"]
+          and rows(stock, 0x1F9520, 5) == ["push ebx", "push esi", "push edi", "mov edi,ecx"]
+          and rows(stock, 0x208870 + 0x17, 0x10) == ["mov eax,[ecx+0x5344]", "mov edi,0x8", "call 0x207d50"]
+          and rows(stock, 0x25CF70, 6) == ["mov edi,eax", "mov eax,[edi]", "mov edx,[eax]"]
+          and rows(stock, 0x25CF7F, 4) == ["mov ebp,[esp+0x14]"] and rows(stock, 0x25CF9D, 5) == ["cmp dword [esp+0x18],byte +0x0"],
+          "the sites: match_client::connect's start (0x27A1B0; a replay's connect 0x122350 is another, `ret 14h`), "
+          "on_finish_match (0x1F96F0) and on_deactivate (0x1F9520) at their starts; the chat handler asks the "
+          "game's binder (+5344h) for kind 8 (0x208887); on_mouse_key_action past its keyboard ask (0x25CF70), the "
+          "button's key at ESP+14h (0x25CF7F) and its kind at +18h (0x25CF9D)")
+    ptt = struct.unpack("<5I", stock.read(0xA74F8C, 20))
+    check(cstr(ptt[0]) == b"ptt" and ptt[1:4] == (0x47, 8, 0) and cstr(ptt[4]) == b"kP"
+          and image.read(0xA74F8C, 20) == stock.read(0xA74F8C, 20),
+          "the action table's entry 0xA74F8C is the game's ptt (47h, kind 8, kP), unchanged in the build")
+    linked = P.arena()
+    block = linked.blocks["patches.code"]
+    declarations = {h["entry"]: h for h in P.hooks_026g.hooks(exe=P.hooks_026g.original_reader(original))
+                    if any(m["patch"] == "voice" for m in h.get("chain", [h]))}
+    hooks = [h for h in P.rust_hooks(original) if h[2] in declarations]
+    check(len(hooks) == 8 and {h[0] for h in hooks} == {0x1EA210, 0x27A1B0, 0x1F96F0, 0x1F9520, 0x1F7C3C, 0x25CD00,
+                                                       0x25CF70, 0x233D30},
+          "voice.toml's eight lohooks: configs.start, match_client.connect, game_world.finish and .deactivate, "
+          "game_world.after_move, tab_cursor.key, game_world.mouse_key (0x25CF70, past patch 31's jump; the key at "
+          "ESP+14h, its kind at +18h), hud.callback")
+    for va, old, symbol, opcode in hooks:
+        target = linked.symbols[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(opcode == 0xE9 and stock.read(va, len(old)) == old == before.read(va, len(old))
+              and image.read(va, len(hook)) == hook and block.va <= target < block.va + block.size,
+              f"{va:#x}: {old.hex()} in the original, `jmp {target:#x}` ({symbol}, patches.code) in the build")
+    here = lambda *path: open(os.path.join(HERE, "..", *path), encoding="utf-8").read()
+    hud = here("flash", "hud", "src", "HUD.as")
+    menu = here("flash", "hud", "src", "survarium", "controls", "PlayerRowMenu.as")
+    timeline = here("flash", "main_menu", "src", "main_menu_fla", "settingsTabs_15.as")
+    check("public function srp_voice_talking(... names)" in hud
+          and "public function srp_voice_menu(place:uint, offered:uint, muted:uint)" in hud
+          and "public function srp_voice_mute(place:uint, done:uint)" in hud
+          and 'this.call("srp_voice_menu",String(row.id));' in menu
+          and 'method:"srp_voice_mute"' in menu
+          and 'var live:Array = ["_no_in_batle","_hide_spam","_use_mik"];'
+          in here("flash", "main_menu", "src", "survarium", "menu", "Settings.as")
+          and "this._hide_spam.enabled = true;" in timeline and "this._use_mik.enabled = true;" in timeline
+          and "this._sound_сhat.slider.enabled = false;" not in timeline
+          and "this._mic_sens.slider.enabled = false;" not in timeline,
+          "the hud has root.srp_voice_talking and the Tab menu's root.srp_voice_menu and "
+          "root.srp_voice_mute, its row menu asks srp_voice_menu and sends srp_voice_mute; the options enable "
+          "Disable voice chat (_hide_spam), Use microphone, the voice volume and the microphone's sensitivity")
 
 def test_hide_ui(original, image, before):
     """Check 62: the key that hides the interface (patch 62,
@@ -1708,15 +1788,20 @@ def test_hide_ui(original, image, before):
     arena_rows = [image.read(controls + 0x68 * i, 0x68) for i in range(count + added)]
     new_rows = arena_rows[count:]
     labels = [struct.unpack_from("<I", row, 4)[0] for row in new_rows]
-    check(data_block.va <= controls and controls + 0x68 * (count + added) <= data_block.va + data_block.size
-          and all(arena_rows[i][:16] == original_rows[i][:16] and arena_rows[i][16:] == empty(controls + 0x68 * i)
+    # push-to-talk (47h): the game's row is the chat group's (1) with its key button disabled (type 0);
+    # patch 66's key is a game key that can be set (group 2, type 1)
+    moved = lambda head: struct.pack("<4I", *struct.unpack("<2I", head[:8]), 2, 1) \
+        if head == struct.pack("<4I", 0x47, 0x9FC900, 1, 0) else head
+    check(sum(moved(row[:16]) != row[:16] for row in original_rows) == 1 and data_block.va <= controls and controls + 0x68 * (count + added) <= data_block.va + data_block.size
+          and all(arena_rows[i][:16] == moved(original_rows[i][:16]) and arena_rows[i][16:] == empty(controls + 0x68 * i)
                   for i in range(count))
           and [struct.unpack_from("<4I", row) for row in new_rows]
           == [(action, label, 2, 1) for (action, _), label in zip(P.CONTROLS_ADDED, labels)]
           and all(row[16:] == empty(controls + 0x68 * (count + n)) for n, row in enumerate(new_rows))
           and [image.read(label, len(key) + 1) for (_, key), label in zip(P.CONTROLS_ADDED, labels)]
           == [key.encode() + b"\0" for _, key in P.CONTROLS_ADDED],
-          f"`controls` ({controls:#x}, hide_ui.data) is the game's 40 rows, each pointing into itself, a 41st: "
+          f"`controls` ({controls:#x}, hide_ui.data) is the game's 40 rows (push-to-talk's in the game group, "
+          "its key settable), each pointing into itself, a 41st: "
           "19h, st_hide_interface_action, and a 42nd: 23h, st_hold_artifact_action, group 2, type 1")
     check("\nedit\tlocalization-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
                                                        encoding="utf-8").read(),
@@ -3007,7 +3092,9 @@ def test_late_join(original, without, server, source):
     test_artefacts(original, image, before)
     test_match_keys(original, image, before)
     test_hide_ui(original, image, before)
+    test_voice(original, image, before)
     test_kill_feed(original, image, before)
+    test_detail(original, image)
     test_weapon_kit(original, image, before)
     test_weapon_flight(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)

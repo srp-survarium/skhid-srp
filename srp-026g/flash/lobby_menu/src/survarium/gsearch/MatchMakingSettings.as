@@ -82,7 +82,7 @@ package survarium.gsearch
       // the rows of the size, mode and map menus (the server offers 16 bot maps)
       public static const PVB_SIZE_ROWS:int = 3;
       
-      public static const PVB_MODE_ROWS:int = 2;
+      public static const PVB_MODE_ROWS:int = 3;
       
       public static const PVB_MAP_ROWS:int = 16;
       
@@ -565,9 +565,13 @@ package survarium.gsearch
          return key != null ? LocalizationData.getName(key) : "";
       }
       
-      // The game's own name of a mode, without its trailing spaces.
+      // The game's own name of a mode, without its trailing spaces; free for all's is srp's.
       protected function pvbModeName(mode:int) : String
       {
+         if(mode == GameMode.FREE_FOR_ALL)
+         {
+            return RoomsText.modeName(mode);
+         }
          var key:String = mode == GameMode.TEAM_DEATHMATCH ? "match_settings_checkbox_team_match" : "match_settings_checkbox_battery_charge";
          var word:String = LocalizationData.getName(key);
          while(word.length > 0 && word.charAt(word.length - 1) == " ")
@@ -761,9 +765,10 @@ package survarium.gsearch
          }
       }
       
+      // The mode menu's kinds: team deathmatch, free for all, the protective device (every other mode).
       protected function pvbKind(mode:int) : int
       {
-         return mode == GameMode.TEAM_DEATHMATCH ? GameMode.TEAM_DEATHMATCH : GameMode.GATHER_VICTORY_ITEMS;
+         return mode == GameMode.TEAM_DEATHMATCH || mode == GameMode.FREE_FOR_ALL ? mode : GameMode.GATHER_VICTORY_ITEMS;
       }
       
       protected function pvbMapRow(id:int) : Object

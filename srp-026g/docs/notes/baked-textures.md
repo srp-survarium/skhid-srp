@@ -23,10 +23,11 @@ fixes them; the RE is in `client_patch.md` section 3.57.
 - **Revision 32 made it worse for new players** (#400, server only): a new account has three kits
   wearing the same seven items, so a newcomer who joins costs three times the same bakes. The delete
   and the per-object bakes are stock. Our weapon camouflage and decals (patches 44, 47) bake up to
-  20 textures for each painted weapon (5 surfaces × d, n, f, s) the first time it is seen. They are
+  20 textures for each painted weapon (5 surfaces × d, n, f, s; with a camouflage and no decal,
+  d and s only since 2026-11-11, 10) the first time it is seen. They are
   not new in revision 32.
 - **Not the cause:** "cook of '' [class 107] failed" is the fresnel query of a surface that has no
-  fresnel layer. "new id = N" is a texture loaded from the folder (a cache hit), not a bake.
+  fresnel layer (and, since 2026-11-11, a painted weapon's normal query: the weapon keeps its own). "new id = N" is a texture loaded from the folder (a cache hit), not a bake.
   remove_unwanted_files deletes only past 1 GiB, or past 350/50 MB when the disk has less than 50 MB
   free.
 
@@ -35,7 +36,8 @@ fixes them; the RE is in `client_patch.md` section 3.57.
 - The folder is kept from game to game, and from release to release. It is deleted (the stock delete)
   only when its stamp `srp_baked_textures.txt` ("Skhid baked textures, format F, inputs H") names
   another bake format or other game data, or when it has no stamp:
-  - **The format** (`BAKE_FORMAT`, 1) is what the bake code makes. A change of that code that makes
+  - **The format** (`BAKE_FORMAT`, 2 since 2026-11-11: a weapon's bake without the camouflage's
+    weave, `weapon-camo.md`; 1 was revision 54's) is what the bake code makes. A change of that code that makes
     other bytes bumps it (every player bakes once more). The test `the_bake_code_is_this_format`
     fails at any change of the files it names (patch 121's bake, `vostok::baker`, the weapons'
     camouflage and decals) until its hash is set again, so each such change is weighed. An exe patch
@@ -54,8 +56,8 @@ fixes them; the RE is in `client_patch.md` section 3.57.
     and a patch that cannot be read counts as one: either only deletes the folder too often. With no
     `resources.db` where the game mounts it from (`..\..\` of its working folder) nothing is known:
     deleted and not stamped.
-  - Revision 54's stamp ("Skhid baked textures, revision 54", before formats) is format 1's: its
-    folder is kept and stamped again when no patch past 54 has a file in those folders.
+  - Revision 54's stamp ("Skhid baked textures, revision 54", before formats) was format 1's and
+    was kept while the format was 1; since format 2 it is no stamp, and its folder is deleted.
   - `srp_patches.log` gets a line at the start: kept or deleted, and the stamp.
 - At the start, every whole DDS file in the folder goes back into the baker's list. A file cut short
   is deleted. So are the files past 512 or past 896 MB (the stock 1 GiB limit less 128 MB for the

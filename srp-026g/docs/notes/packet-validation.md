@@ -615,6 +615,14 @@ alone does not select them, `tools/check world-check world-drift` runs them.
   the local recordings and every dump, in parallel chunks
   (`WORLD_DRIFT_JOBS`, default the cores less 4). Needs the original exe. Inputs:
   the arena's sources and lock, the exe build, the host check and the corpus.
+  The first chunk runs alone to populate this checkout's native build caches;
+  the remaining chunks then run in parallel. Cold parallel builds previously
+  raced over the same sysroot `.building` directory and lost object files.
+  The standalone native fixture stops at 0x27C116, after deserialize and
+  before unrelated successful-load reporting (which needs Windows APIs).
+  Shared fixture consumers retain their later endpoint for receipt lifecycle
+  checks. Refusal tests require the first log message and the current logger's
+  exact summary of consecutive repeats, rather than a write per duplicate.
 
 On 2026-11-07 (main 1287a0f61 with this tooling; the machine shared with
 another drift run) the corpus held 481 revision-50 live recordings (2.4 GB)
@@ -626,6 +634,53 @@ the mutated copies) in 20 chunks in 1,214 s.
 A release that changes the world format refuses the older recordings: move them
 out of `live/` and refresh, with recordings of the new revision's games, before
 the next change is checked.
+
+`release/world-corpus` is additive by default: it does **not** retire the
+recordings it already has. After a format change, replace the active live
+set with an archive outside `private/world-corpus/`:
+
+```sh
+release/world-corpus --newest 100 \
+  --archive /absolute/path/to/private/world-corpus-archive/<date>-old/live
+```
+
+This fetches into staging, requires every requested file to arrive through
+a successful tar stream, then preserves the previous set in the new archive
+and installs the replacement. An empty listing, missing file, transfer error
+or existing archive stops replacement. Archive and active set must share a
+filesystem, so the moves are renames. A lock prevents concurrent refreshes.
+It changes nothing on the host. Also preserve incompatible `local/` recordings
+and `dumps/` in the archive: the live refresh cannot establish their provenance.
+Run `tools/check world-check world-drift` afterwards. Never move files merely
+because they fail: establish their recorded revision and the relevant format
+and data changes first, retaining current failures for diagnosis.
+
+On 2026-11-12 the old corpus caused 241,154 refusals against current data:
+241,149 worlds from 480 revision-50 live recordings dated November 5–7,
+and five worlds from the obsolete revision-37 Vostok prototype on November
+12. The documented November 7 import had never been retired. The game-objects
+stream has no per-object lengths and needs its map's exact object list;
+revision 51 added the Keeper pool (60 artefacts plus its core), and revision
+56 added four bytes to active artefacts for Cascade. Current data and the
+current reader cannot interpret those historical layouts. The old live set
+passed with its contemporary code/data, as recorded above.
+
+The repair preserves 528 pre-revision-56 recordings (including older local
+tests that happened to pass without exercising the changed state) and the
+14,748 pre-November-7 dumps in
+`private/world-corpus-archive/20261112-pre-rev56/`. Its `manifest.json` records
+every original path, size and SHA-256, with recorded revisions and prior
+verdicts. No parser rule or validation threshold changed. The active corpus
+now contains 100 completed revision-56 live recordings and the three
+revision-57 Vostok playtests. The standard `world-check` passed all 44,218
+worlds, with none refused, unchecked or unread and no recordings skipped.
+Evidence: `private/world-corpus-fix/incoming-full-check.log` and
+`checks-final.log`.
+The repaired native `world-drift` runner also passed all 1,029 sampled/local
+worlds and their mutated copies (18,522 native comparisons), with zero
+differences across 20 chunks. The refresh tests, runner tests, executable-report
+native check, distance-detail check and replay check passed too. This changes
+the validation tooling and corpus maintenance, not the game or its parser.
 
 ## Performance evidence and limits
 

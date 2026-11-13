@@ -844,7 +844,10 @@ impl fmt::Display for Reason {
                 write!(f, "map {map}, which the client does not have")
             }
             Reason::OptionsTeam { place, team } => {
-                write!(f, "place {place} has team {team}, not 0 or 1")
+                write!(
+                    f,
+                    "place {place} has team {team}, not 0 or 1 nor, with the roster's others, its own side"
+                )
             }
             Reason::OptionsNoKit { place } => {
                 write!(f, "place {place}, in the roster, has no kit")

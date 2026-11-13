@@ -191,8 +191,13 @@ package survarium.controls
       // The list this row is in shows names only (PlayerList.namesOnly: the Settings' "Hide player scores").
       protected function get namesOnly() : Boolean
       {
-         var board:PlayerList = owner != null ? owner.parent as PlayerList : null;
-         return board != null && board.namesOnly;
+         return this.board != null && this.board.namesOnly;
+      }
+
+      // The Tab list this row is in, null for another list.
+      protected function get board() : PlayerList
+      {
+         return owner != null ? owner.parent as PlayerList : null;
       }
       
       protected function showStats(shown:Boolean) : void

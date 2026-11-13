@@ -362,17 +362,27 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   (0x2D8220) does only the fall damage (modifier 30), and it is skipped for a player with the
   skill and one of its containers' Onyx in state 4 (its enable_active 0x3128C0). No timer: the
   Onyx's end ends it.
+- Cascade shares it (the owner, 2026-11-12: the II skills were not passed): a teammate that an
+  Onyx's activation reached lands unhurt while that Onyx is active, when its holder has Onyx II
+  (the aura's shared actives of the landing player, `shared`, each copy's holder's skills). The
+  recipient's own Onyx II is for its own copies only (my pick: the skill goes with the copy, as
+  Spring II's nodes do).
 
 ## Larkspur II (533)
 
 - The activation (artefact_base's action, 0x313333, never a restore or a visual) sets the
   holder's stamina to its maximum. Repeat presses during a cooldown and key-up do nothing.
+- Cascade shares it (the owner, 2026-11-12): the teammates that activation reached (the places
+  Medic's share just healed, the copy's `ACTIVATIONS`) get their stamina's maximum too, when the
+  holder has Larkspur II.
 
 ## Resonance (541) or Cascade (542): one mechanism, two triggers
 
 - A carrier's artefacts share their effect with living teammates near the carrier:
   - Resonance: each carried artefact's passive, within 9 m;
-  - Cascade: each active artefact's active, within 6 m ("They glow, you shine").
+  - Cascade: each active artefact's active, to the teammates within 6 m at its activation, for
+    the whole active ("They glow, you shine"; the owner, 2026-11-11: "they should get full
+    effect", below).
 - The radii (the owner, 2026-11-07, after the rev51 games): 9 m and 6 m, were 8 m and 5 m;
   Larkspur's heal (Medic) is Cascade's 6 m too. One constant each, `RESONANCE_REACH` and
   `CASCADE_REACH` (`artefact_skills.rs`), which patch 94's Medic reads.
@@ -380,25 +390,55 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   `antiskills`, as the other trees' last rows). A carrier shares by its own skill only; a
   recipient can still take passives from one teammate's Resonance and actives from another's
   Cascade.
+- The II skills go with the copy, by its holder's skill (the owner, 2026-11-12): Spring II's
+  reload nodes are the Spring's own, shared as its others (Resonance the passive's, Cascade the
+  active's); Onyx II and Larkspur II act at the active, so Cascade shares them (their sections
+  above) and Resonance has nothing of them to share. Knowledge of Artifacts' longer active is the
+  copy's own length, shared whole.
 - A recipient: another player of the carrier's team, alive, in the active roster (never the
   insertion flag +33Fh), within the radius of the carrier (positions as the game has them at
-  that moment). Not the carrier, never an enemy.
+  that moment: Resonance's at each use, Cascade's at the copy's activation). Not the carrier,
+  never an enemy.
 - "Up to 4 effects for the same artifact" (the owner, 2026-11-05: own copies count): a
   recipient has at most 4 copies of one kind in all, its own carried ones and the shared ones;
   shared copies fill what its own leave, max(0, 4 - own), from all carriers together in place
   order. Two own Springs take at most two shared; four own or more, none shared.
-- Read where the effect is used, never stored (my pick: an aura): Spring's modifiers at
-  `apply_modifier`, Onyx's at the hit's protection, Larkspur's regeneration at its tick. A
-  recipient walking out of the radius loses it; nothing is serialized.
+- Read where the effect is used (my pick: an aura): Spring's modifiers at `apply_modifier`,
+  Onyx's at the hit's protection, Larkspur's regeneration at its tick. Resonance's recipient
+  walking out of the 9 m loses the passives there and then.
 - The activation (Medic's path, medical-skills.md "Medic", every kind since the owner's rev51
   games): when a copy becomes active, each recipient within 6 m plays the kind's own activation
   glow (Spring blue, Lifebone green, Onyx orange) for the active's length, as its holder does; a
   Lifebone's also heals it at once as its active heals its holder (Larkspur's active is that
-  heal). The glow is the activation's: a recipient that walks out of the 6 m keeps it to the
-  active's end, one that walks in later gets the active's effect (read where it is used) but no
-  glow. An Onyx fired with others is active 1 s longer for each (patch 54 adds it after every
+  heal). An Onyx fired with others is active 1 s longer for each (patch 54 adds it after every
   activation of the press): the recipients' glow ends at its own 3 s (my pick: a gap of the
   press, not of the share). The shared passives show in the leg quarters.
+- The effect is the activation's, as the glow is (the owner, 2026-11-11, after a player's
+  report that the effect stopped out of the radius while the glow went on: "they should get
+  full effect"): the places that activation reached (the glow's recipients) keep the copy's
+  active to its end, wherever the carrier or they go; a teammate out of reach at the activation
+  gets neither the glow nor the active, however near it comes. Before, the glow was the
+  activation's and the active was read within 6 m at each use (rev51 to rev55).
+  - Kept as the copy's own: `vostok::artefact_skills::ACTIVATIONS`, by registry id (with its world
+    and item, so another match's copy under that id has none), set at every activation of a
+    Spring, Lifebone or Onyx (none reached without the share, so an earlier activation's places
+    never carry over), read only while the copy is active (state 4). The aura reads it in place of
+    the distance; the room and the copies that count are as before.
+  - Saved with the world: artefact_base::serialize writes the places (u32, bits 0..19) after the
+    cooldown of an active copy (0x313735, `artefact_skills::on_save`, patch 78's dropped copy's site,
+    order 2; none in another state) and deserialize reads them back (0x3137EC, `on_load`), so a
+    rollback and a late joiner have the activation's own. `srp-validate` reads them
+    (`ArtefactState::Active::reached`, a place past the 20 refused).
+  - Checked: `check_artefact_skills_026g.py` `check_cascade_activation` (a Spring's active kept at
+    30 m, none for one activated at 7 m and walked to 1 m, an Onyx's active protection at 30 m;
+    the record of place 0 alone with a teammate at 30 m and an enemy at 1 m, none without
+    Cascade, none for a passive copy; a late joiner loads it, shares, saves the same 4 bytes; a
+    load of none shares none); the rest of the check with every active copy activated through
+    0x313333; srp-validate's object test. Not played.
+  - Onyx II and Larkspur II with it: `check_cascade_seconds` (the landing of a teammate reached by
+    an Onyx's activation, the carrier then 30 m away; the stamina of one reached by a Larkspur's;
+    none without the carrier's skill, without Cascade, for a passive copy, another kind, a teammate
+    out of reach then, an enemy). Not played.
 - The cap per phase (my pick): at most 4 copies' passives and 4 copies' actives of a kind,
   each 4 less the recipient's own copies of the kind that count (in their passive or active, at
   most 4: "At most 4 copies of a kind" below).
@@ -518,10 +558,20 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 
 - One aura, `vostok::artefact_skills::shared`: the recipient's world's roster (core_active_player,
   places 0..19), each other living player of its team (teams 0 and 1) whose skill reaches it
-  (Resonance its passives within 9 m, Cascade its actives within 6 m, between the feet +43Ch), its
-  containers' Springs, Lifebones and Onyx (the vtable's enable_active) in container order. A
-  copy gives its passive in state 3 or 4 (Onyx 3 only: its protect's passive branch), its
-  active in 4. Nothing is kept between two reads (but the movement's re-selection, below).
+  (Resonance its passives within 9 m, between the feet +43Ch; Cascade its actives to the places
+  each copy's activation reached), its containers' Springs, Lifebones and Onyx (the vtable's
+  enable_active) in container order. A copy gives its passive in state 3 or 4 (Onyx 3 only: its
+  protect's passive branch), its active in 4. Nothing else is kept between two reads (but the
+  movement's re-selection, below).
+- Its cost: the getters' sites run at every modifier read of every player, so their entries call
+  the handler for a Spring list only (`only = { index = "SPRING_LISTS" }`, rust_patches.md): any
+  other index costs a compare and a bit test, no machine save. For a Spring list the roster is read
+  where it lies, as core_active_player reads it (the places' vector +18458h, the bits +18FD8h, the
+  place's kit +0Ch and that kit's player), without its reference (the hook runs no game code), and
+  the walk stops when nothing more can change the result (no room, both rooms full; a carrier's
+  skills before its distance). Not cached across calls: a carrier moves, dies or changes an
+  artefact's state between two getter calls of one tick, and each call must see the world as the
+  game has it then.
 - Spring: the getters' sites `artefact.shared_modifier` (0x2D5AE6, apply_modifier after it reads
   the kit's own float) and `artefact.shared_modifiers` (0x2D5C18, apply_modifiers' loop) add, for
   an index of Spring's lists (4, 49, 3, 19, 42, 13), the shared copies' node values of that

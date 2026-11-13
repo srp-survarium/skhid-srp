@@ -327,6 +327,7 @@ fn carrier_len(bytes: &[u8]) -> Option<usize> {
     if matches!(head, [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0 | 1, 0]) {
         return (bytes.len() >= 20).then_some(20);
     }
+    if let Some(len) = srp_validate::executable::carrier_len(bytes) { return Some(len); }
     if let Some(len) = srp_validate::report::carrier_len(bytes) {
         return Some(len);
     }
@@ -721,5 +722,28 @@ mod tests {
         assert_eq!(parsed.messages[1].id, 0x9F);
         assert_eq!(parsed.messages[1].x, None);
         assert_eq!(parsed.messages[1].payload, [0x05]);
+    }
+}
+
+#[cfg(test)]
+mod executable_tests {
+    use super::*;
+    #[test]
+    fn executable_data_preserves_adjacent_messages_and_reply_framing() {
+        use srp_validate::executable::{Answer, Carrier, Identity, Reply, Upload, CHUNK};
+        let identity = Identity::new(4096, [5; 32]).unwrap();
+        for upload in [Upload::Offer(identity), Upload::Data { sha256: identity.sha256, offset: 400, bytes: &[0x55; CHUNK] }] {
+            let (bytes, len) = Carrier { match_id: 7, upload }.encode().unwrap();
+            let mut datagram = vec![7, 3, 0x81, 0xe1, 0xe0];
+            datagram.extend_from_slice(&bytes[..len]); datagram.extend([0xe1, 1]);
+            let parsed = parse(Table::Match, Direction::ToServer, &datagram, 3).unwrap();
+            assert_eq!(parsed.messages.len(), 3);
+            assert_eq!(Carrier::parse(parsed.messages[1].payload).unwrap().upload, upload);
+        }
+        let reply = Reply { match_id: 7, sha256: identity.sha256, answer: Answer::Need(0) };
+        // E4's unique id precedes its payload, just as for ordinary options.
+        let mut datagram = vec![7, 3, 0, 0xe4, 1]; datagram.extend(reply.encode());
+        let parsed = parse(Table::Match, Direction::ToClient, &datagram, 3).unwrap();
+        assert_eq!(Reply::parse(parsed.messages[0].payload), Some(reply));
     }
 }

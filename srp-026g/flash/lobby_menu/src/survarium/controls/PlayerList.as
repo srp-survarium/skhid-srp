@@ -28,7 +28,11 @@ package survarium.controls
       private var _smallTeamRow:int = -1;
       
       private var _bigTeamRow:int = -1;
-      
+
+      // One kill ranking: fill the left column's ten rows, then overflow right.
+      private static const COLUMN_ROWS:int = 10;
+      private var _ranked:Boolean = false;
+
       public var team1:TextField;
       
       public var team2:TextField;
@@ -64,7 +68,49 @@ package survarium.controls
          _smallTeamRow = smallRow;
          _bigTeamRow = bigRow;
       }
-      
+
+      public function get ranked() : Boolean
+      {
+         return this._ranked;
+      }
+
+      // A change lays the players out again; ranked, the sides' names are not shown.
+      public function set ranked(value:Boolean) : void
+      {
+         _ranked = value;
+         if(this.team1 && this.team2)
+         {
+            this.team1.visible = this.team2.visible = !value;
+         }
+         if(this._players)
+         {
+            this.splitTeams();
+            this.populateTeams();
+         }
+      }
+
+      // The ranking's order, the server's (docs/notes/ffa.md; the halves it sends as teams 0 and 1):
+      // kills, then the score, highest first; then deaths, fewest first; then the place in the
+      // match, which is the order the server's rows come in (`order`, addPlayersList).
+      public static function byStanding(a:Object, b:Object) : int
+      {
+         var order:int = compare(Number(b.kills),Number(a.kills));
+         if(order == 0)
+         {
+            order = compare(Number(b.score),Number(a.score));
+         }
+         if(order == 0)
+         {
+            order = compare(Number(a.deaths),Number(b.deaths));
+         }
+         return order != 0 ? order : compare(Number(a.order),Number(b.order));
+      }
+
+      private static function compare(a:*, b:*) : int
+      {
+         return a < b ? -1 : (a > b ? 1 : 0);
+      }
+
       protected function onListIndexChange(e:Event) : void
       {
          trace("HUD_PL::onListIndexChange::",e.target.name,(e.target as ScrollingList).selectedIndex);
@@ -130,6 +176,8 @@ package survarium.controls
                this._players[i].score = 0;
             }
             trace("_players[t].score",this._players[i].score,this._players[i].rank);
+            // the row's place among the rows as given (byStanding's last word)
+            this._players[i].order = i;
             if(this._players[i].name == this._playerName)
             {
                this._players[i].isLocal = true;
@@ -150,101 +198,104 @@ package survarium.controls
          this.populateTeams();
       }
       
-      public function set_online_player(playerName:String, isOnline:Boolean) : void
+      private function columnOf(field:String, value:*) : DataProvider
       {
-         var teamDP:DataProvider;
-         var team:uint;
-         var i:uint;
-         while(i < this._players.length)
+         for each(var column:DataProvider in [this._team1DP,this._team2DP])
          {
-            if(this._players[i].name == playerName)
+            if(column)
             {
-               if(this._players[i].online == isOnline)
+               for(var i:uint = 0; i < column.length; i++)
+               {
+                  if(column[i][field] == value)
+                  {
+                     return column;
+                  }
+               }
+            }
+         }
+         return null;
+      }
+
+      public function set_online_player(name:String, bool:Boolean) : void
+      {
+         for(var t:uint = 0; t < this._players.length; t++)
+         {
+            if(this._players[t].name == name)
+            {
+               if(this._players[t].online == bool)
                {
                   return;
                }
-               team = (this._players[i].team);
                break;
             }
-            i++;
          }
-         if(team == TeamSide.ALLY)
+         var teamDP:DataProvider = this.columnOf("name",name);
+         if(teamDP == null)
          {
-            teamDP = this._team1DP;
+            return;
          }
-         else
+         for(var i:uint = 0; i < teamDP.length; i++)
          {
-            teamDP = this._team2DP;
-         }
-         var j:uint = 0;
-         while(j < teamDP.length)
-         {
-            if(teamDP[j].name == playerName)
+            if(teamDP[i].name == name)
             {
-               teamDP[j].online = isOnline;
+               teamDP[i].online = bool;
                teamDP.invalidate();
                return;
             }
-            j++;
          }
       }
       
       public function updatePlayer(player:Object) : void
       {
-         var teamDP:DataProvider;
-         var team:uint;
-         var i:uint = 0;
-         while(i < this._players.length)
+         for(var t:uint = 0; t < this._players.length; t++)
          {
-            if(this._players[i].id == player.id)
+            if(this._players[t].id == player.id)
             {
-               oldPlayer = this._players[i];
-               if(player.kills == oldPlayer.kills && player.deaths == oldPlayer.deaths && player.ping == oldPlayer.ping && player.artifacts == oldPlayer.artifacts && player.rank == oldPlayer.rank)
+               origin = this._players[t];
+               if(player.kills == origin.kills && player.deaths == origin.deaths && player.ping == origin.ping && player.artifacts == origin.artifacts && player.rank == origin.rank && (player.score == undefined ? 0 : player.score) == origin.score)
                {
                   return;
                }
-               team = (this._players[i].team);
                break;
             }
-            i++;
          }
-         if(team == TeamSide.ALLY)
+         var teamDP:DataProvider = this.columnOf("id",player.id);
+         if(teamDP == null)
          {
-            teamDP = this._team1DP;
+            return;
          }
-         else
+         for(var i:uint = 0; i < teamDP.length; i++)
          {
-            teamDP = this._team2DP;
-         }
-         var j:uint = 0;
-         var oldPlayer:Object;
-         var k:uint;
-         while(j < teamDP.length)
-         {
-            if(teamDP[j].id == player.id)
+            var origin:Object;
+            var j:uint;
+            if(teamDP[i].id == player.id)
             {
                if(player.score == undefined)
                {
                   player.score = 0;
                }
-               teamDP[j].kills = player.kills;
-               teamDP[j].deaths = player.deaths;
-               teamDP[j].ping = player.ping;
-               teamDP[j].artifacts = player.artifacts;
-               teamDP[j].rank = player.rank;
-               teamDP[j].score = player.score;
+               teamDP[i].kills = player.kills;
+               teamDP[i].deaths = player.deaths;
+               teamDP[i].ping = player.ping;
+               teamDP[i].artifacts = player.artifacts;
+               teamDP[i].rank = player.rank;
+               teamDP[i].score = player.score;
                trace("sortAfterUpdate::");
-               this.sortTeam(teamDP);
-               k = 0;
-               while(k < teamDP.length)
+               if(this._ranked)
                {
-                  trace("teamDPS",k,teamDP[j].name,teamDP[k].score,teamDP[k].rank,teamDP[k].kills,teamDP[k].deaths);
-                  k++;
+                  // new kills may move the player into the other column
+                  this.splitTeams();
+                  this.populateTeams();
+                  return;
+               }
+               this.sortTeam(teamDP);
+               for(j = 0; j < teamDP.length; j++)
+               {
+                  trace("teamDPS",j,teamDP[i].name,teamDP[j].score,teamDP[j].rank,teamDP[j].kills,teamDP[j].deaths);
                }
                teamDP.invalidate();
                return;
             }
-            j++;
          }
       }
       
@@ -266,7 +317,14 @@ package survarium.controls
             i++;
          }
          trace("HUD_PL::sort",teamDP);
-         teamDP.sortOn(["score","rank","kills","deaths"],Array.NUMERIC | Array.DESCENDING);
+         if(this._ranked)
+         {
+            teamDP.sort(PlayerList.byStanding);
+         }
+         else
+         {
+            teamDP.sortOn(["score","rank","kills","deaths"],Array.NUMERIC | Array.DESCENDING);
+         }
          i = 0;
          while(i < teamDP.length)
          {
@@ -294,15 +352,18 @@ package survarium.controls
             {
                this._players[i].score = 0;
             }
-            if(this._players[i].team == TeamSide.ALLY)
+            if(!this._ranked)
             {
-               this._team1.push(this._players[i]);
-            }
-            else
-            {
-               this._team2.push(this._players[i]);
+               (this._players[i].team == TeamSide.ALLY ? this._team1 : this._team2).push(this._players[i]);
             }
             i++;
+         }
+         if(this._ranked)
+         {
+            var ranking:Array = this._players.concat();
+            ranking.sort(PlayerList.byStanding);
+            _team1 = ranking.slice(0,COLUMN_ROWS);
+            _team2 = ranking.slice(COLUMN_ROWS);
          }
       }
       
@@ -329,6 +390,8 @@ package survarium.controls
          this.team1list.dataProvider = this._team1DP;
          this.team2list.dataProvider = this._team2DP;
          this.sizeLists();
+         this.team1list.selectedIndex = -1;
+         this.team2list.selectedIndex = -1;
          var count:uint = 0;
          var maxTeamSize:int;
          var rowSize:int;

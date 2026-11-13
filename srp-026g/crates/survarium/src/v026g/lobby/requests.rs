@@ -288,10 +288,6 @@ pub enum ClientMessage {
 
     /// `49 00`.
     RenameKit { kit_id: u32, name: String },
-    /// `49 01`: the account's two boxes, as the lobby's number
-    /// (`LocalPlayerProfile.getAutoBuyState`; PROVEN): bit 0 is autobuy
-    /// (`on`); bit 1, the stock auto-repair, is not read (srp has no repair).
-    SetAutobuy { on: bool },
     /// `49 02`.
     SetActiveKit { kit_id: u32 },
     /// `49 03`.
@@ -300,8 +296,11 @@ pub enum ClientMessage {
     /// voucher's item id (0 for money: `MessageEnterName`), is read and not
     /// kept: the vouchers are gone (the owner, 2026-11-08).
     ChangeNickname { nickname: String },
-    /// `49 05`: GUESS a report or praise of a player.
-    CommentAboutUser { nickname: String, a: u8, b: u8 },
+    /// `49 05`: a report or compliment, as named by the Flash menu.
+    CommentAboutUser {
+        nickname: String,
+        comment: PlayerComment,
+    },
     SetChatMute {
         nickname: String,
         mode: Option<super::ChatMuteMode>,
@@ -355,6 +354,46 @@ pub enum ClientMessage {
     ImportantRead { message_id: u32, answer: u8 },
 }
 
+/// The seven choices in Flash's CommentKind, ClaimReason and Compliment.
+/// Each variant names one valid (kind, reason) pair.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PlayerComment {
+    BotOrCheater,
+    Swearing,
+    UnsportingBehavior,
+    AccountTrading,
+    Friendly,
+    GoodPlayer,
+    BornLeader,
+}
+
+impl PlayerComment {
+    pub const fn from_wire(kind: u8, reason: u8) -> Option<Self> {
+        match (kind, reason) {
+            (1, 1) => Some(Self::BotOrCheater),
+            (1, 2) => Some(Self::Swearing),
+            (1, 3) => Some(Self::UnsportingBehavior),
+            (1, 4) => Some(Self::AccountTrading),
+            (2, 1) => Some(Self::Friendly),
+            (2, 2) => Some(Self::GoodPlayer),
+            (2, 3) => Some(Self::BornLeader),
+            _ => None,
+        }
+    }
+
+    pub const fn wire(self) -> (u8, u8) {
+        match self {
+            Self::BotOrCheater => (1, 1),
+            Self::Swearing => (1, 2),
+            Self::UnsportingBehavior => (1, 3),
+            Self::AccountTrading => (1, 4),
+            Self::Friendly => (2, 1),
+            Self::GoodPlayer => (2, 2),
+            Self::BornLeader => (2, 3),
+        }
+    }
+}
+
 /// Why a client message was not read.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParseError {
@@ -362,6 +401,8 @@ pub enum ParseError {
     UnknownId(u8),
     /// A sub-type the id does not have.
     UnknownSubType { id: u8, sub: u8 },
+    /// Neither a report reason nor a compliment from the menu.
+    InvalidComment { kind: u8, reason: u8 },
     /// The body ends inside a field.
     Truncated { id: u8 },
     /// The message was read whole and bytes are left. Nothing in the notes
@@ -379,6 +420,9 @@ impl fmt::Display for ParseError {
             Self::UnknownId(id) => write!(f, "unknown lobby message {id:#04X}"),
             Self::UnknownSubType { id, sub } => {
                 write!(f, "lobby message {id:#04X}: unknown sub-type {sub:#04X}")
+            }
+            Self::InvalidComment { kind, reason } => {
+                write!(f, "invalid player comment {kind}/{reason}")
             }
             Self::Truncated { id } => write!(f, "lobby message {id:#04X} is cut short"),
             Self::Trailing { extra, .. } => write!(f, "{extra} bytes after a lobby message"),
@@ -718,10 +762,6 @@ fn parse_profile(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
                 name: r.str()?,
             });
         }
-        0x01 => {
-            let state = r.u8()?;
-            return Ok(M::SetAutobuy { on: state & 1 != 0 });
-        }
         0x02 => return Ok(M::SetActiveKit { kit_id: r.u32()? }),
         0x03 => {
             return Ok(M::CheckNickname { nickname: r.str()? });
@@ -744,7 +784,9 @@ fn parse_profile(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
                 };
                 return Ok(M::SetChatMute { nickname, mode });
             }
-            return Ok(M::CommentAboutUser { nickname, a, b });
+            let comment = PlayerComment::from_wire(a, b)
+                .ok_or(ParseError::InvalidComment { kind: a, reason: b })?;
+            return Ok(M::CommentAboutUser { nickname, comment });
         }
         0x24 => {
             // Always 0.

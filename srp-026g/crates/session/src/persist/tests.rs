@@ -66,6 +66,7 @@ fn full_account(id: u32) -> Account {
         until: Some(1_900_000_000),
         reason: "spam, Ш".into(),
     });
+    account.afk_kicks = crate::afk::DailyKicks::parse(20_000, 2);
     let game = &mut account.game;
     game.generic_money = 12_345;
     game.premium_money = 77;
@@ -545,6 +546,96 @@ fn unix_now() -> u64 {
         .as_secs()
 }
 
+#[test]
+fn afk_kicks_and_bans_survive_restarts_and_end_sessions() {
+    let dir = TempDir::new("afk");
+    let open = || {
+        SessionStore::with_repository(GATHER, Box::new(SqliteRepository::open(&dir.db()).unwrap()))
+            .unwrap()
+    };
+    let now = unix_now();
+    let store = open();
+    let id = store.sign_in("idle", b"pw").unwrap();
+    let other = store.sign_in("other", b"pw").unwrap();
+    let other_session = store.create_session(other);
+    assert!(store.record_afk_kick_at(id, now).is_none());
+    drop(store);
+    let store = open();
+    assert!(store.record_afk_kick_at(id, now).is_none());
+    let session = store.create_session(id);
+    store.flush();
+    let ban = store.record_afk_kick_at(id, now).unwrap();
+    assert_eq!(ban.until, Some(now + 1800));
+    assert!(store.account_for_session(session).is_none());
+    assert!(store.account_for_session(other_session).is_some());
+    assert_eq!(store.sign_in("idle", b"pw"), Err(SignInError::Banned));
+    let account = store.account(id).unwrap();
+    assert!(account.locked().ban_at(now + 1799).is_some());
+    assert!(account.locked().ban_at(now + 1800).is_none());
+    drop(account);
+    drop(store);
+
+    let store = open();
+    assert_eq!(store.account_ban(id), Some(ban));
+    assert!(store.account_for_session(session).is_none());
+    // Lifting a ban does not wipe the day's offences.
+    assert!(store.unban_account(id));
+    assert!(store.record_afk_kick_at(id, now).is_none());
+    drop(store);
+    let store = open();
+    assert!(store.record_afk_kick_at(id, now).is_none());
+    let session = store.create_session(id);
+    let ban = store.record_afk_kick_at(id, now).unwrap();
+    assert_eq!(ban.until, Some(now + 21_600));
+    assert!(store.account_for_session(session).is_none());
+    drop(store);
+    let store = open();
+    assert_eq!(store.account_ban(id), Some(ban));
+    assert_eq!(
+        store
+            .account(id)
+            .unwrap()
+            .locked()
+            .afk_kicks
+            .unwrap()
+            .stored(),
+        (now / 86_400, 6)
+    );
+    let next_day = (now / 86_400 + 1) * 86_400;
+    assert!(store.record_afk_kick_at(id, next_day).is_none());
+    assert_eq!(
+        store
+            .account(id)
+            .unwrap()
+            .locked()
+            .afk_kicks
+            .unwrap()
+            .stored(),
+        (next_day / 86_400, 1)
+    );
+}
+
+#[test]
+fn afk_migration_preserves_existing_accounts_and_starts_without_kicks() {
+    let dir = TempDir::new("afk-migration");
+    let mut repository = SqliteRepository::open(&dir.db()).unwrap();
+    let mut account = full_account(4);
+    account.afk_kicks = None;
+    let record = AccountRecord::of(&account);
+    repository.save_account(&record).unwrap();
+    drop(repository);
+    // Version 6 has all the existing fields but no AFK table.
+    let connection = Connection::open(dir.db()).unwrap();
+    connection
+        .execute_batch(
+            "DROP INDEX accounts_unique_nickname; DROP TABLE afk_kicks; PRAGMA user_version = 6;",
+        )
+        .unwrap();
+    drop(connection);
+    let mut repository = SqliteRepository::open(&dir.db()).unwrap();
+    assert_eq!(repository.load_all().unwrap().accounts, vec![record]);
+}
+
 /// A store over `repository` holding one account, written.
 fn store_with_account(repository: &MemoryRepository, user_name: &str) -> (SessionStore, u32) {
     let store = SessionStore::with_repository(GATHER, Box::new(repository.clone())).unwrap();
@@ -899,4 +990,173 @@ fn a_chat_mute_survives_a_restart_and_a_version_5_database_gains_it() {
     assert!(store.unmute_chat(4));
     drop(store);
     assert_eq!(open().account(4).unwrap().locked().chat_ban, None);
+}
+
+#[test]
+fn nickname_constraint_rejects_duplicates_and_batch_rename_can_exchange_names() {
+    let dir = TempDir::new("nicknames");
+    let repository = SqliteRepository::open(&dir.db()).unwrap();
+    let store = SessionStore::with_repository(GATHER, Box::new(repository)).unwrap();
+    let games = crate::v026g::GameAccounts::new();
+    let settings = crate::v026g::premium::Settings {
+        rename_cost: 0,
+        ..crate::v026g::premium::Settings::default()
+    };
+    let alice = store.get_or_create_account([127, 0, 0, 1].into(), "alice-login");
+    let bob = store.get_or_create_account([127, 0, 0, 1].into(), "bob-login");
+    games.get_or_create(alice, "alice-login");
+    games.get_or_create(bob, "bob-login");
+    let rename = |id, name| {
+        store
+            .rename_026g(
+                &games,
+                &settings,
+                id,
+                &crate::v026g::names::Nickname::parse(name).unwrap(),
+            )
+            .unwrap()
+    };
+    rename(alice, "Alice");
+    rename(bob, "Bob");
+    store.flush();
+    let con = Connection::open(dir.db()).unwrap();
+    crate::nickname_key::sqlite_collation(&con).unwrap();
+    assert!(
+        con.execute("UPDATE accounts SET name = 'аLiCe' WHERE id = ?1", [bob])
+            .is_err()
+    );
+    rename(alice, "Temporary");
+    rename(bob, "Alice");
+    rename(alice, "Bob");
+    assert_eq!(store.flush(), 2);
+    let restored =
+        SessionStore::with_repository(GATHER, Box::new(SqliteRepository::open(&dir.db()).unwrap()))
+            .unwrap();
+    assert_eq!(restored.account(alice).unwrap().locked().name(), "Bob");
+    assert_eq!(restored.account(bob).unwrap().locked().name(), "Alice");
+}
+
+#[test]
+fn duplicate_nicknames_on_load_are_refused_even_without_the_database_index() {
+    let dir = TempDir::new("duplicate-nicknames");
+    let mut repository = SqliteRepository::open(&dir.db()).unwrap();
+    let mut first = Account::new(1, "Mamoru".into());
+    first.login = "old-login".into();
+    let mut second = Account::new(2, "mAMORU".into());
+    second.login = "mamoru".into();
+    Connection::open(dir.db())
+        .unwrap()
+        .execute("DROP INDEX accounts_unique_nickname", [])
+        .unwrap();
+    repository.save_account(&AccountRecord::of(&first)).unwrap();
+    repository
+        .save_account(&AccountRecord::of(&second))
+        .unwrap();
+    assert!(matches!(
+        SessionStore::with_repository(GATHER, Box::new(repository)),
+        Err(PersistError::BadRow(..))
+    ));
+}
+
+#[test]
+fn a_failed_nickname_batch_rolls_back_all_names_and_account_changes() {
+    let dir = TempDir::new("nickname-rollback");
+    let mut repository = SqliteRepository::open(&dir.db()).unwrap();
+    let mut alice = Account::new(1, "Alice".into());
+    alice.login = "alice".into();
+    let mut bob = Account::new(2, "Bob".into());
+    bob.login = "bob".into();
+    repository
+        .save_accounts(&[AccountRecord::of(&alice), AccountRecord::of(&bob)])
+        .unwrap();
+    alice.name = "Bob".into();
+    alice.game.generic_money = 1;
+    assert!(repository.save_account(&AccountRecord::of(&alice)).is_err());
+    let restored = repository.load_all().unwrap();
+    assert_eq!(restored.accounts[0].name, "Alice");
+    assert_ne!(restored.accounts[0].game.generic_money, 1);
+    assert_eq!(restored.accounts[1].name, "Bob");
+}
+
+/// Schema 8 on a database whose accounts share names: the account with the
+/// most 0.26g experience keeps the name (the lowest id among equals), the
+/// others become `<name>_<id>` in every copy of it, their logins stay, and
+/// the store and the 0.26g accounts start on the result.
+#[test]
+fn a_database_with_shared_nicknames_upgrades_with_all_but_the_most_played_renamed() {
+    use crate::v026g::{GameAccounts, GameRepository, SqliteGameRepository};
+    let dir = TempDir::new("shared-nicknames");
+    let long = "я".repeat(31);
+    // (id, login, experience, name before, name after)
+    let accounts = [
+        (1, "one@test.invalid", 10, "Stalker", "Stalker_1"),
+        // Another case, and the one that plays.
+        (2, "two@test.invalid", 500, "STALKER", "STALKER"),
+        // A Cyrillic `а`.
+        (3, "three@test.invalid", 10, "Stаlker", "Stаlker_3"),
+        // `stalker_5` is this account's login: 5 takes the next free name.
+        (4, "Stalker_5", 0, "Bob", "Bob"),
+        (5, "five@test.invalid", 0, "stalker", "stalker_5_1"),
+        // Played alike: the lower id keeps it. Cut to the 63 bytes of a
+        // name, at a character.
+        (6, "six@test.invalid", 7, &long, &long),
+        (
+            7,
+            "seven@test.invalid",
+            7,
+            &long,
+            &format!("{}_7", "я".repeat(30)),
+        ),
+    ];
+    let connection = Connection::open(dir.db()).unwrap();
+    migrate(&connection, 7).unwrap();
+    let mut games = SqliteGameRepository::open(&dir.db()).unwrap();
+    for (id, login, experience, name, _) in accounts {
+        connection
+            .execute(
+                "INSERT INTO accounts (id, login, name, game_name, generic_money, premium_money,
+                                       premium_until, rating, rating_before, next_item_id,
+                                       next_quest_instance)
+                 VALUES (?1, ?2, ?3, ?3, 0, 0, 0, 0, 0, 1, 1)",
+                rusqlite::params![id, login, name],
+            )
+            .unwrap();
+        let mut game = crate::v026g::Account::new(name);
+        game.exp_total = experience;
+        games.save(id, &game).unwrap();
+    }
+
+    let repository = SqliteRepository::open(&dir.db()).unwrap();
+    assert_eq!(repository.version().unwrap(), MIGRATIONS.len() as i64);
+    // The name's copies agree and the logins are as they were.
+    let found: Vec<(u32, String, String)> = connection
+        .prepare(
+            "SELECT a.id, a.login, a.name FROM accounts a
+             JOIN g26_accounts g ON g.account_id = a.id
+             WHERE a.game_name = a.name AND g.name = a.name ORDER BY a.id",
+        )
+        .unwrap()
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    let expected: Vec<_> = accounts
+        .iter()
+        .map(|(id, login, _, _, name)| (*id, login.to_string(), name.to_string()))
+        .collect();
+    assert_eq!(found, expected);
+    // The index is made.
+    assert!(
+        connection
+            .execute("UPDATE accounts SET name = 'sTALKER' WHERE id = 4", [])
+            .is_err()
+    );
+
+    let store = SessionStore::with_repository(GATHER, Box::new(repository)).unwrap();
+    let games = GameAccounts::with_repository(Box::new(games)).unwrap();
+    store.restore_026g_names(&games);
+    for (id, _, _, _, name) in accounts {
+        assert_eq!(store.account(id).unwrap().locked().name(), name);
+        assert_eq!(games.get(id).unwrap().locked().name, name);
+    }
 }

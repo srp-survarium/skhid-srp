@@ -1,6 +1,7 @@
-//! What a match took of an account's supplies, and the two boxes of the
-//! kit window that put it right: autobuy and auto-repair (`49 01`, the
-//! lobby's number: bit 0 and bit 1).
+//! What a match took of an account's supplies, and autobuy, which buys it
+//! back: always on, for every account, with no setting (the owner,
+//! 2026-11-10: "internally autobuy is always on"; the kit window's box and
+//! its `49 01` are gone, the stored flag is not read).
 //!
 //! The money the server spends this way is shown on the results screen:
 //! the three lists that end `89` (`lobby.md` §2.9), "Ammunition", "Special
@@ -37,12 +38,14 @@
 //!
 //! `SRP_AMMO_USE=off` takes nothing at all (ammo and the rest).
 //!
-//! # The boxes ([`settle`])
+//! # Autobuy ([`settle`])
 //!
 //! - **Autobuy** buys back what was taken, in whole steps of the shop (a
 //!   clip of ammo, one of anything else), as many as the silver pays for
 //!   [0.21d's rule, `survarium::v021d::supplies`], at the shop's price for
-//!   an account that may buy the item there; ammo the game prices at
+//!   an account that may buy the item there. With too little silver it buys
+//!   the whole steps the silver pays for and the rest stays used up; with
+//!   none, nothing. Ammo the game prices at
 //!   nothing (the starting pistol's) is refilled for nothing [as
 //!   `rules::buy`'s refill]. What the account may not buy is not bought.
 //! - **No auto-repair**: srp has no repair (the owner, 2026-11-08).
@@ -195,15 +198,13 @@ fn step_cost(account: &Account, dict_id: u16) -> Option<u32> {
 }
 
 /// After a match: take what it used ([`used`]) off the stacks and buy it
-/// back if the account's autobuy is on. Call it before the kits are
+/// back (autobuy: always, for every account). Call it before the kits are
 /// brought up to the inventory ([`Account::sync_kits`]).
 pub fn settle(account: &mut Account, used: &[(u16, u32)]) -> Settled {
     let mut settled = Settled::default();
     for &(dict_id, units) in used {
         let mut bought = 0;
-        if account.autobuy
-            && let Some(cost) = step_cost(account, dict_id)
-        {
+        if let Some(cost) = step_cost(account, dict_id) {
             let unit = shop_unit(dict_id);
             let wanted = units.div_ceil(unit);
             let steps = match cost {
@@ -421,11 +422,10 @@ mod tests {
     }
 
     #[test]
-    fn without_the_boxes_what_was_used_is_gone_and_nothing_is_spent() {
+    fn without_silver_what_was_used_is_gone_and_nothing_is_spent() {
         let (mut account, rifle, ammo) = rifleman(300);
-        // Autobuy is on for a new account: the player turned it off.
-        account.autobuy = false;
         account.item_mut(rifle).unwrap().condition_or_stack = 900_000;
+        account.generic_money = 0;
         let money = account.generic_money;
         let rounds = dict("ammo_5.45x39_7n6m");
         let settled = settle(&mut account, &[(rounds, 45)]);
@@ -443,7 +443,6 @@ mod tests {
     #[test]
     fn autobuy_buys_back_whole_clips_within_the_money() {
         let (mut account, _, ammo) = rifleman(300);
-        account.autobuy = true;
         account.generic_money = 1_000;
         let rounds = dict("ammo_5.45x39_7n6m");
         // 45 used: two clips of 30 at 30 silver (its `base_cost`).
@@ -470,7 +469,6 @@ mod tests {
     #[test]
     fn ammo_is_bought_back_at_no_reputation_and_a_drug_is_not() {
         let (mut account, _, ammo) = rifleman(300);
-        account.autobuy = true;
         account.generic_money = 1_000;
         // Known to no seller.
         for (_, points) in &mut account.reputations {
@@ -490,7 +488,6 @@ mod tests {
     #[test]
     fn consumables_are_bought_back_one_by_one_in_their_own_list() {
         let (mut account, _, _) = rifleman(300);
-        account.autobuy = true;
         account.generic_money = 1_000;
         let medkit = dict("medkit");
         let kits = account.add_item(medkit, 5);
@@ -506,7 +503,6 @@ mod tests {
     #[test]
     fn the_starting_ammo_is_refilled_for_nothing() {
         let mut account = Account::new("Alice");
-        account.autobuy = true;
         let money = account.generic_money;
         let ammo = account.kits[0].slots[8].unwrap().item_id;
         let rounds = dict("ammo_7.62x25");
@@ -525,7 +521,6 @@ mod tests {
     #[test]
     fn the_spent_lists_go_out_with_the_inventory() {
         let (mut account, _, _) = rifleman(300);
-        account.autobuy = true;
         account.generic_money = 100_000;
         let rounds = dict("ammo_5.45x39_7n6m");
         let settled = settle(&mut account, &[(rounds, 45)]);

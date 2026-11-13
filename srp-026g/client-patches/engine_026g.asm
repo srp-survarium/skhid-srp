@@ -4,6 +4,7 @@
 ; A function called directly (or an import) is its address alone.
 bits 32
 section .text
+global engine_options_int
 global engine_cfg_child
 global engine_cfg_has
 global engine_malloc
@@ -212,6 +213,23 @@ global engine_usable_transform
 global engine_mt_free
 global engine_discard_playing_order
 global engine_finish_key_binding
+global engine_sin
+global engine_cos
+global engine_atan2
+global engine_bio_read
+global engine_bio_write
+global engine_err_put_error
+global engine_rand_bytes
+global engine_cc_delegate
+global engine_cc_delegate_execute
+global engine_log_helper
+global engine_log_write
+global engine_cc_u32
+global engine_render_u32_execute
+global engine_message_box_a
+global engine_exit_process
+global engine_respawn_point_clear
+global engine_respawn_points_push
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -290,7 +308,37 @@ engine_file_time_to_local_file_time equ 0x870230   ; the IAT slot 0x870230 (an i
 engine_file_time_to_system_time equ 0x87022c   ; the IAT slot 0x87022c (an import, stdcall)
 engine_mt_free equ 0xeb5b0   ; 0xeb5b0 vostok::memory::mt_allocator::call_free: allocator ECX, block ESP+4, function ESP+8, file ESP+12, line ESP+16; pops 16; thiscall, called directly
 engine_discard_playing_order equ 0x2717e0   ; 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly
+engine_sin equ 0x38ff0   ; 0x38ff0 vostok::math::sin: angle ESP+4; pops 0; ST0; cdecl, called directly
+engine_cos equ 0x39000   ; 0x39000 vostok::math::cos: angle ESP+4; pops 0; ST0; cdecl, called directly
+engine_atan2 equ 0x79c40   ; 0x79c40 vostok::math::atan2: y ESP+4, x ESP+8; pops 0; ST0; cdecl, called directly
+engine_bio_read equ 0x44c630   ; 0x44c630 BIO_read: bio ESP+4, room ESP+8, length ESP+12; pops 0; EAX; cdecl, called directly
+engine_bio_write equ 0x44c740   ; 0x44c740 BIO_write: bio ESP+4, bytes ESP+8, length ESP+12; pops 0; EAX; cdecl, called directly
+engine_err_put_error equ 0x44a270   ; 0x44a270 ERR_put_error: library ESP+4, function ESP+8, reason ESP+12, file ESP+16, line ESP+20; pops 0; cdecl, called directly
+engine_rand_bytes equ 0x46b6e0   ; 0x46b6e0 ssleay_rand_bytes: room ESP+4, length ESP+8; pops 0; EAX; cdecl, called directly
+engine_cc_delegate_execute equ 0xec830   ; 0xec830 vostok::console_commands::cc_delegate::execute: command ECX, arguments ESP+4; pops 4; thiscall, called directly
+engine_message_box_a equ 0xaeff30   ; the IAT slot 0xaeff30 (an import, stdcall)
+engine_exit_process equ 0x87020c   ; the IAT slot 0x87020c (an import, stdcall)
 
+engine_options_int:
+    ; 0x261100 survarium::options_item_int::options_item_int: parent ECX, id EAX, receiver ESP+4, command ESP+8, values ESP+12, count ESP+16; pops 16; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 40]   ; count -> 16
+    push dword [esp + 40]   ; values -> 12
+    push dword [esp + 40]   ; command -> 8
+    push dword [esp + 40]   ; receiver -> 4
+    mov ecx, [esp + 36]   ; parent
+    mov eax, [esp + 40]   ; id
+    call 0x261100
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
     push ebp
@@ -2483,7 +2531,7 @@ engine_query_usables:
 
     align 16, db 0xCC
 engine_can_use:
-    ; virtual survarium::usable_object+0x30 (10 vtables of vtables.tsv: 0x2f8080, 0x300710, 0x305070, 0x31c6b0, 0x31cb10): usable ECX, user ESP+4; pops 4; AL
+    ; virtual survarium::usable_object+0x30 (11 vtables of vtables.tsv: 0x2f8080, 0x300710, 0x305070, 0x31c6b0, 0x31cb10): usable ECX, user ESP+4; pops 4; AL
     push ebp
     push ebx
     push esi
@@ -2525,6 +2573,136 @@ engine_finish_key_binding:
     push edi
     mov edi, [esp + 20]   ; options
     call 0x2015a0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_cc_delegate:
+    ; 0xec780 vostok::console_commands::cc_delegate::cc_delegate: object EDI, name EDX, delegate ESP+4, status ESP+8, kind ESP+12; pops 12
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 36]   ; kind -> 12
+    push dword [esp + 36]   ; status -> 8
+    push dword [esp + 36]   ; delegate -> 4
+    mov edi, [esp + 32]   ; object
+    mov edx, [esp + 36]   ; name
+    call 0xec780
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_log_helper:
+    ; 0x111c90 vostok::logging::helper::helper: function EAX, context ECX, helper ESP+4, template_helper ESP+8, file ESP+12, line ESP+16, caller ESP+20, channel ESP+24, level ESP+28; pops 28; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 52]   ; level -> 28
+    push dword [esp + 52]   ; channel -> 24
+    push dword [esp + 52]   ; caller -> 20
+    push dword [esp + 52]   ; line -> 16
+    push dword [esp + 52]   ; file -> 12
+    push dword [esp + 52]   ; template_helper -> 8
+    push dword [esp + 52]   ; helper -> 4
+    mov eax, [esp + 48]   ; function
+    mov ecx, [esp + 52]   ; context
+    call 0x111c90
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_log_write:
+    ; 0x111d10 vostok::logging::helper::write: helper ESI, format ESP+4, arguments ESP+8; pops 8
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; arguments -> 8
+    push dword [esp + 28]   ; format -> 4
+    mov esi, [esp + 28]   ; helper
+    call 0x111d10
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_cc_u32:
+    ; 0x1dcd0 vostok::console_commands::cc_u32::cc_u32: object EAX, name ESP+4, value ESP+8, minimum ESP+12, maximum ESP+16, saved ESP+20, kind ESP+24; pops 24
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 44]   ; kind -> 24
+    push dword [esp + 44]   ; saved -> 20
+    push dword [esp + 44]   ; maximum -> 16
+    push dword [esp + 44]   ; minimum -> 12
+    push dword [esp + 44]   ; value -> 8
+    push dword [esp + 44]   ; name -> 4
+    mov eax, [esp + 44]   ; object
+    call 0x1dcd0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_render_u32_execute:
+    ; 0x3cd300 vostok::render::render_cc_u32::execute: object ECX, arguments ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; arguments -> 4
+    mov ecx, [esp + 24]   ; object
+    call 0x3cd300
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_respawn_point_clear:
+    ; 0x2f4800 survarium::respawn_point_core::is_clear_for_team: point ESI, team ESP+4, players ESP+8; pops 8; AL
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; players -> 8
+    push dword [esp + 28]   ; team -> 4
+    mov esi, [esp + 28]   ; point
+    call 0x2f4800
+    movzx eax, al
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_respawn_points_push:
+    ; 0x3174c0 vostok::buffer_vector<survarium::respawn_point_core *>::push_back: vector ESI, point ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; point -> 4
+    mov esi, [esp + 24]   ; vector
+    call 0x3174c0
     pop edi
     pop esi
     pop ebx

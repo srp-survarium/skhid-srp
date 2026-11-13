@@ -23,10 +23,9 @@ nicknames on top of the player icons".
   without Alt, and Alt hides them. Off by default. The Tab map only: the corner minimap and the
   names over heads in the world are unchanged. Saved as patch 83's `srp_map_names`
   (`hide-hit-markers-scores.md`).
-- **Blackout:** no names. Blackout's Tab never shows the Tab list or its map (`HUD.show_player_list`,
-  forced: only ammo, quick slots, the timer and the chat, or the kits when dead), so there is no
-  map to put names on. Its own Tab rule for names (teammates' names over their heads in the world
-  while Tab is held, patch 65) is unchanged.
+- **Blackout:** as in any match since 2026-11-09: its Tab view has the Tab list and its map
+  (`blackout.md`), so Alt and "Names on map" show the names there too. Its own Tab rule for names
+  (teammates' names over their heads in the world while Tab is held, patch 65) is unchanged.
 - **The minimap** (the corner one): never names.
 - **How:** the hud movie (`HUD.show_map_names`, `Minimap.namesShown`, `MinimapObjectPlayer.showName`)
   and exe patch 82 (Rust `map_names`): at each key the game world handles (`on_keyboard_action`

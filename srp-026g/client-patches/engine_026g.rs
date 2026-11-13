@@ -11,6 +11,8 @@ use core::ffi::c_void;
 
 #[allow(dead_code)]
 unsafe extern "C" {
+    /// 0x261100 survarium::options_item_int::options_item_int: parent ECX, id EAX, receiver ESP+4, command ESP+8, values ESP+12, count ESP+16; pops 16; EAX
+    pub fn engine_options_int(parent: *mut c_void, id: u32, receiver: *mut c_void, command: *const u8, values: *const *const u8, count: u32) -> *mut c_void;
     /// 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
     pub fn engine_cfg_child(table: *const c_void, key: *const u8) -> *const c_void;
     /// 0xf6c00 vostok::configs::binary_config_value::value_exists: table EAX, key ESI; pops 0; AL
@@ -265,12 +267,26 @@ unsafe extern "C" {
     pub fn engine_collision_geometry(object: *mut c_void) -> *mut c_void;
     /// 0x2dc390 survarium::collision_geometry::query_objects_by_type<survarium::usable_object>: result ESI, geometry ESP+4, cast ESP+8, offset ESP+12; pops 12
     pub fn engine_query_usables(result: *mut c_void, geometry: *mut c_void, cast: *const c_void, offset: u32);
-    /// virtual survarium::usable_object+0x30 (10 vtables of vtables.tsv: 0x2f8080, 0x300710, 0x305070, 0x31c6b0, 0x31cb10): usable ECX, user ESP+4; pops 4; AL
+    /// virtual survarium::usable_object+0x30 (11 vtables of vtables.tsv: 0x2f8080, 0x300710, 0x305070, 0x31c6b0, 0x31cb10): usable ECX, user ESP+4; pops 4; AL
     pub fn engine_can_use(usable: *mut c_void, user: *mut c_void) -> u8;
     /// virtual survarium::usable_object+0x44 (12 vtables of vtables.tsv: 0x246ed0, 0x2f8440): usable ECX, matrix ESP+4; pops 4
     pub fn engine_usable_transform(usable: *mut c_void, matrix: *mut f32);
     /// 0x2015a0 survarium::game_options::finish_binding: options EDI; pops 0
     pub fn engine_finish_key_binding(options: *mut c_void);
+    /// 0xec780 vostok::console_commands::cc_delegate::cc_delegate: object EDI, name EDX, delegate ESP+4, status ESP+8, kind ESP+12; pops 12
+    pub fn engine_cc_delegate(object: *mut c_void, name: *const u8, delegate: *const c_void, status: u32, kind: u32);
+    /// 0x111c90 vostok::logging::helper::helper: function EAX, context ECX, helper ESP+4, template_helper ESP+8, file ESP+12, line ESP+16, caller ESP+20, channel ESP+24, level ESP+28; pops 28; EAX
+    pub fn engine_log_helper(function: *const c_void, context: u32, helper: *mut c_void, template_helper: *const c_void, file: *const u8, line: u32, caller: *const u8, channel: *const u8, level: u32) -> *mut c_void;
+    /// 0x111d10 vostok::logging::helper::write: helper ESI, format ESP+4, arguments ESP+8; pops 8
+    pub fn engine_log_write(helper: *mut c_void, format: *const u8, arguments: *const c_void);
+    /// 0x1dcd0 vostok::console_commands::cc_u32::cc_u32: object EAX, name ESP+4, value ESP+8, minimum ESP+12, maximum ESP+16, saved ESP+20, kind ESP+24; pops 24
+    pub fn engine_cc_u32(object: *mut c_void, name: *const u8, value: *mut u32, minimum: u32, maximum: u32, saved: u32, kind: u32);
+    /// 0x3cd300 vostok::render::render_cc_u32::execute: object ECX, arguments ESP+4; pops 4
+    pub fn engine_render_u32_execute(object: *mut c_void, arguments: *const u8);
+    /// 0x2f4800 survarium::respawn_point_core::is_clear_for_team: point ESI, team ESP+4, players ESP+8; pops 8; AL
+    pub fn engine_respawn_point_clear(point: *const c_void, team: u32, players: *const c_void) -> u32;
+    /// 0x3174c0 vostok::buffer_vector<survarium::respawn_point_core *>::push_back: vector ESI, point ESP+4; pops 4
+    pub fn engine_respawn_points_push(vector: *mut c_void, point: *const *mut c_void);
 }
 
 #[allow(dead_code)]
@@ -307,6 +323,20 @@ unsafe extern "cdecl" {
     pub fn engine_allocate_save_descriptor(physical: *const c_void, virtual_path: *const c_void) -> *mut c_void;
     /// 0xa02d0 btCollisionWorld::rayTestSingle: from ESP+4, to ESP+8, object ESP+12, shape ESP+16, transform ESP+20, callback ESP+24; pops 0; cdecl, called directly
     pub fn engine_ray_test_single(from: *mut c_void, to: *mut c_void, object: *mut c_void, shape: *mut c_void, transform: *mut c_void, callback: *mut c_void);
+    /// 0x38ff0 vostok::math::sin: angle ESP+4; pops 0; ST0; cdecl, called directly
+    pub fn engine_sin(angle: f32) -> f32;
+    /// 0x39000 vostok::math::cos: angle ESP+4; pops 0; ST0; cdecl, called directly
+    pub fn engine_cos(angle: f32) -> f32;
+    /// 0x79c40 vostok::math::atan2: y ESP+4, x ESP+8; pops 0; ST0; cdecl, called directly
+    pub fn engine_atan2(y: f32, x: f32) -> f32;
+    /// 0x44c630 BIO_read: bio ESP+4, room ESP+8, length ESP+12; pops 0; EAX; cdecl, called directly
+    pub fn engine_bio_read(bio: *mut c_void, room: *mut u8, length: u32) -> u32;
+    /// 0x44c740 BIO_write: bio ESP+4, bytes ESP+8, length ESP+12; pops 0; EAX; cdecl, called directly
+    pub fn engine_bio_write(bio: *mut c_void, bytes: *const u8, length: u32) -> u32;
+    /// 0x44a270 ERR_put_error: library ESP+4, function ESP+8, reason ESP+12, file ESP+16, line ESP+20; pops 0; cdecl, called directly
+    pub fn engine_err_put_error(library: u32, function: u32, reason: u32, file: *const u8, line: u32);
+    /// 0x46b6e0 ssleay_rand_bytes: room ESP+4, length ESP+8; pops 0; EAX; cdecl, called directly
+    pub fn engine_rand_bytes(room: *mut u8, length: u32) -> u32;
 }
 
 #[allow(dead_code)]
@@ -355,6 +385,8 @@ unsafe extern "thiscall" {
     pub fn engine_key_name(keyboard: *mut c_void, key: u32, name: *mut u8, size: u32) -> u8;
     /// 0xeb5b0 vostok::memory::mt_allocator::call_free: allocator ECX, block ESP+4, function ESP+8, file ESP+12, line ESP+16; pops 16; thiscall, called directly
     pub fn engine_mt_free(allocator: *mut c_void, block: *mut c_void, function: *const u8, file: *const u8, line: u32);
+    /// 0xec830 vostok::console_commands::cc_delegate::execute: command ECX, arguments ESP+4; pops 4; thiscall, called directly
+    pub fn engine_cc_delegate_execute(command: *mut c_void, arguments: *const u8);
 }
 
 #[allow(dead_code, non_upper_case_globals)]
@@ -443,4 +475,8 @@ unsafe extern "C" {
     pub static engine_file_time_to_local_file_time: unsafe extern "stdcall" fn(*const u32, *mut u32) -> u32;
     /// the IAT slot 0x87022c (an import, stdcall): unsigned int engine_file_time_to_system_time(const unsigned int *file_time, unsigned int *system_time)
     pub static engine_file_time_to_system_time: unsafe extern "stdcall" fn(*const u32, *mut u32) -> u32;
+    /// the IAT slot 0xaeff30 (an import, stdcall): unsigned int engine_message_box_a(void *window, const char *text, const char *title, unsigned int flags)
+    pub static engine_message_box_a: unsafe extern "stdcall" fn(*mut c_void, *const u8, *const u8, u32) -> u32;
+    /// the IAT slot 0x87020c (an import, stdcall): void engine_exit_process(unsigned int code)
+    pub static engine_exit_process: unsafe extern "stdcall" fn(u32);
 }

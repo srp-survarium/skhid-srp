@@ -344,7 +344,7 @@ impl<'a> Core<'a> {
         if let Some(account) = self.accounts.get(account_id) {
             return Some(account.locked().name.clone());
         }
-        Some(self.store.account(account_id)?.locked().name.clone())
+        Some(self.store.account(account_id)?.locked().name().to_owned())
     }
 
     /// The account's clan tag (none: srp has no clans yet).
@@ -425,6 +425,7 @@ impl<'a> Core<'a> {
                     }
                     match requests::parse(id, &payload) {
                         Ok(message) => self.handle(from, message, now),
+                        Err(ParseError::InvalidComment { .. }) => self.refuse_comment(from),
                         Err(ParseError::Trailing { message, extra }) => {
                             log::warn!("Lobby message {id:#04X} has {extra} bytes too many");
                             self.handle(from, *message, now);
@@ -550,7 +551,7 @@ impl<'a> Core<'a> {
         };
         let (account_id, login_name) = {
             let account = account.locked();
-            (account.id, account.name.clone())
+            (account.id, account.name().to_owned())
         };
 
         // The account's other link: another game signed in with it (the
@@ -588,7 +589,9 @@ impl<'a> Core<'a> {
             .or(still_in_match)
             .filter(|id| self.matches.contains_key(id));
 
-        let (game, made) = self.accounts.sign_up(account_id, &login_name);
+        let Some((game, made)) = self.store.sign_up_026g(self.accounts, account_id) else {
+            return;
+        };
         let unix = quests::now();
         // A test bot (`SRP_BOT_ACCOUNTS`) starts no run of bonus days.
         let bot = self.accounts.is_bot(account_id);
@@ -1015,7 +1018,13 @@ impl<'a> Core<'a> {
                     self.send_all(addr, messages.clone());
                 }
             }
+            Notice::IdleRemoved {
+                match_id,
+                account_id,
+                name,
+            } => self.idle_removed(match_id, account_id, &name),
             Notice::AccountChanged { account_id } => {
+                self.refresh_nickname(account_id);
                 let Some(who) = self.who_is(account_id) else {
                     return;
                 };

@@ -74,7 +74,8 @@ its location, and no two arguments' words may each fit the other's location:
 two parameters given each other's locations are refused (a swap the thunk
 would follow faithfully, which no entry check can see). A result is read
 from abi.tsv's `result` (EAX, AL or AX widened to EAX, EDX:EAX for a 64-bit
-return, XMM0 moved to ST0 for a float).
+return, XMM0 moved to ST0 for a float, ST0 as it is: a float a function called
+directly in its own convention returns as C does).
 Anything else (an XMM or byte-register argument, varargs, a range) is
 refused: add the row to the re-kit, or call that function by hand.
 
@@ -154,7 +155,7 @@ def location(text):
 
 
 def result_of(text):
-    match = re.match(r"\s*(EDX:EAX|EAX|AX|AL|XMM0)\b", text or "")
+    match = re.match(r"\s*(EDX:EAX|EAX|AX|AL|XMM0|ST0)\b", text or "")
     return match.group(1) if match else None
 
 
@@ -336,13 +337,16 @@ def function(row, abi=None, inputs=None, vtables=None):
         if len(rows["results"]) != 1:
             raise Refused(f"{name}: returns {ret}, abi.tsv gives {sorted(rows['results']) or 'no'} result")
         result = rows["results"].pop()
-        fits = {"word": ("EAX", "AX", "AL"), "u64": ("EDX:EAX",), "float": ("XMM0",)}[kind]
+        fits = {"word": ("EAX", "AX", "AL"), "u64": ("EDX:EAX",), "float": ("XMM0", "ST0")}[kind]
         if result not in fits:
             raise Refused(f"{name}: returns {ret}, but {va:#x}'s result is {result}")
+        if result == "ST0" and call in THUNKED:
+            raise Refused(f"{name}: returns {ret} in ST0; call it directly (cdecl or stdcall), not through a thunk")
     if call != "thunk":
         stack = [f"ESP+{4 * i + 4}" for i in range(len(args) - (call == "thiscall"))]
         if args != (["ECX"] if call == "thiscall" else []) + stack \
-                or cleanup != (0 if call == "cdecl" else 4 * len(stack)) or result not in (None, "EAX", "AX", "AL"):
+                or cleanup != (0 if call == "cdecl" else 4 * len(stack)) \
+                or result not in (None, "EAX", "AX", "AL", "ST0"):
             raise Refused(f"{name}: not {call} ({describe_args(params, args)}; pops {cleanup}; {result})")
         if result == "AL" and not re.fullmatch(r"(unsigned )?char", ret.strip()):
             raise Refused(f"{name}: called directly, its result is AL only: the prototype returns unsigned char")
@@ -676,7 +680,9 @@ def rust_functions(fs, tags=()):
         names = ", ".join(f"{'r#' if name in RUST_KEYWORDS else ''}{name}" for _, name in f["params"])
         lines += ["", f"/// {describe(f)}: {f['prototype']}", "///", "/// # Safety",
                   "/// `function` is that function (a GetProcAddress result of its name).",
-                  "#[allow(dead_code)]", "#[inline(always)]",
+                  # the arguments are the Windows function's own (CreateFileW has seven), and the function
+                  "#[allow(dead_code, clippy::too_many_arguments)]" if len(f["params"]) >= 7 else "#[allow(dead_code)]",
+                  "#[inline(always)]",
                   f"pub unsafe fn {f['symbol']}(function: NonNull<c_void>{', ' if params else ''}{params}){ret} {{",
                   f'    let function = unsafe {{ core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn({types}){ret}>(function.as_ptr()) }};',
                   f"    unsafe {{ function({names}) }}", "}"]

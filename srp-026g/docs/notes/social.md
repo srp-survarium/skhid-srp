@@ -218,6 +218,78 @@ Invite flow is the 0.21d one on new ids: `invite_to_squad` → `4D` type 2 text 
 
 No operation_permitted (0x83) case exists for op 0x4A (byte table 0x2751FC handles only 0x30/0x46/0x47/0x49/0x4B), so the server answers squad actions only with 0xA1.
 
+Squad name resolution must select a unique connected player, ignoring ASCII case,
+for both `4D` types 2/3 and `4A 02`. Display names are not unique in existing
+accounts: the 2026-11-12 report had offline account 777 and connected account 778
+both named `Mamoru`; player 760 (`dizkodancerskeleton`) was friends with 778.
+The global account search selected 777 before checking whether it was connected.
+At 14:12:54 UTC the live log recorded both "squad message 3 not sent: Mamoru is
+not in the lobby" and acceptance of Mamoru's invite; reverse invites failed the
+same lookup. An offline namesake must not hide the connected player. If multiple
+connected players match, refuse the ambiguous request rather than pick an account
+by its id. Adding a member still requires that account's accepted invite.
+
+The underlying namespace is owned by `SessionStore` (`crates/session/src/identity.rs`).
+Registration checks the display name **after** splitting an email login and
+cutting it to the wire's 63-byte limit. A new account did not choose that name,
+so a taken one is not a refusal (the owner, 2026-11-12; until then it was the
+invalid-user-name response, which the game shows as a wrong password, and about
+1 % of sign-ups could never register): the account is made with `<name>_<id>`,
+schema 8's replacement below, from the same function
+(`nickname_key::replacement`), and the player renames it later. `adam@yahoo.com`
+signing up as account 1650 while an `Adam` exists is `adam_1650`. The name is
+picked and the account made under the login lock, the one every rename holds,
+so it is free when it is taken; the registrant is never signed into the name
+owner's account. Only the name a new account shows is checked: its login is
+what the player typed, and may read like another account's name. Sign-up still
+refuses an empty or over-long user name and one with control characters.
+Paid renames parse a `Nickname` and recheck availability under the same
+lock as registration before charging. Account IDs, logins and passwords do not
+change. Availability uses Unicode lowercase followed by the explicit Cyrillic/
+Latin pairs in `scripts/nickname-lookalikes.tsv`: for example Cyrillic `о` and
+Latin `o` share a key. The same table is used by Rust and SQLite's
+`skhid_nickname` collation. Display names retain their original spelling.
+There is no edit-distance, digit/letter or punctuation matching. A conflicting
+rename, paid or the admin's, returns an error; a refused rename is not charged.
+
+The live audit under these rules found 23 collision groups, including account
+649 (`sovspiranha`) and 741 (`sоvspiranha`, Cyrillic `о`), and 576 (`TECTEP`)
+and 594 (`ТЕСТЕР`). Schema 8's rule (below) keeps 649 and 576.
+
+Persistence schema 8 adds `accounts_unique_nickname`. A saver takes a coherent
+namespace snapshot and writes the dirty accounts in one transaction, allowing
+two accounts to exchange names through intermediate renames between saves.
+Failure rolls back the whole batch and retries it. Duplicate names at load are
+also refused, including with a non-SQLite repository. The shared account name is
+authoritative; startup restores the 0.26g display-name copies from it before the
+lobby starts, recovering a crash between the two savers' passes.
+
+Schema 8 repairs existing duplicates and lookalikes itself, in the step's
+transaction and before the index is made (`rename_shared_nicknames`,
+`crates/session/src/persist/sqlite.rs`): of the accounts whose names share a
+key the one that plays keeps its name, that is the one with the most 0.26g
+experience (`g26_accounts.exp_total`; 0 for an account without a row there,
+or in a file without that table), the lowest account id among equals. Each
+other becomes `<name>_<id>`, cut to the wire limit, with a counter after it
+while that is another account's nickname or login. The reason for the rule is
+the owner's 2026-11-12 choice that 778, the account in use, keeps `Mamoru`
+and 777 becomes `Mamoru_777`: the step makes it. The new name is written to `accounts.name`,
+`accounts.game_name` and the 0.26g copy `g26_accounts.name`; ids, logins,
+passwords and everything an account owns are not touched. Each rename is one
+warning in srp's log (account id, old name, new name). No release, test
+environment or older local database needs a step by hand, and srp's copy of
+srp.db from the start of that run (`backups/`) holds the names as they were.
+
+Every connection to srp.db is opened by `persist::connect`, which registers
+the `skhid_nickname` collation: without it SQLite refuses a write to
+`accounts` and a `VACUUM` of the file (the 0.26g tables' connection lacked it,
+and a new database could not start).
+
+Validation: session identity races and persistence round trips (a database
+with shared names through schema 8; a new database through srp's start), lobby
+squad and paid-rename tests. These are automated checks; they do not
+constitute an in-game test or a live deployment.
+
 ### 2.4 How a squad mate's 0x88 is filed (added 2026-10-12) — PROVEN
 
 The squad window keeps a panel per mate (lobby_menu+0x698, +0x69C). A panel holds copies of the mate's account body (0x4634 bytes each, from panel+0x18; the current one's index is the byte at panel+0xD2B4) and at **panel+4 the kit id it asked for**.

@@ -8,6 +8,7 @@
 //! it depends on no lobby code.
 
 use std::collections::{HashMap, HashSet};
+use std::net::IpAddr;
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
@@ -293,6 +294,21 @@ struct Inner {
     /// A growing roster's admission as the match last said it.
     admitting: HashMap<u32, Admitting>,
     live: HashMap<u32, Live>,
+    /// The IP each place's game connected to the match from (its latest
+    /// 0xD8): what the voice relay checks a talker's datagrams against
+    /// (`super::voice`).
+    connections: HashMap<(u32, u8), IpAddr>,
+}
+
+/// A session's place as the voice relay needs it (`super::voice`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VoiceSeat {
+    pub match_id: u32,
+    /// The roster place: the speaker's slot on the voice wire.
+    pub place: u8,
+    pub team: u8,
+    /// The IP of the place's match connection; `None` before its 0xD8.
+    pub ip: Option<IpAddr>,
 }
 
 /// A growing roster's admission as the match loop last said it
@@ -409,6 +425,13 @@ impl MatchRegistry {
         // The server's bots play modes 2 to 4 (`bots`): none in Research.
         if map.mode.rules() == maps::RuleMode::Research && setup.players.iter().any(|player| player.driven) {
             return Err(CreateError::Map(map.id));
+        }
+        if maps::player_cap(map).is_some_and(|cap| setup.players.len() > cap) {
+            return Err(CreateError::Roster(setup.players.len()));
+        }
+        let mut setup = setup;
+        for (place, player) in setup.players.iter_mut().enumerate() {
+            own_side(map, place, &mut player.profile);
         }
         let mut inner = self.inner();
         for (place, player) in setup.players.iter().enumerate() {
@@ -581,7 +604,10 @@ impl MatchRegistry {
         if !formed.growing_roster {
             return Err(JoinError::Unavailable);
         }
-        if players.len() > MAX_PLAYERS - formed.places.len() {
+        let cap = maps::player_cap(formed.played.map())
+            .unwrap_or(MAX_PLAYERS)
+            .min(MAX_PLAYERS);
+        if players.len() > cap.saturating_sub(formed.places.len()) {
             return Err(JoinError::Full);
         }
         let Some(admitting) = inner
@@ -622,6 +648,10 @@ impl MatchRegistry {
         };
         let mut next = (**formed).clone();
         let first = next.places.len();
+        let mut players = players;
+        for (offset, player) in players.iter_mut().enumerate() {
+            own_side(next.played.map(), first + offset, &mut player.profile);
+        }
         next.profiles.extend(players.iter().map(|player| {
             let mut profile = player.profile.clone();
             gift(&mut profile, next.keeper);
@@ -713,6 +743,54 @@ impl MatchRegistry {
     /// The place a session has in a match that is not over.
     pub fn seat(&self, session_id: u32) -> Option<Seat> {
         self.inner().seats.get(&session_id).copied()
+    }
+
+    /// The place's game connected to its match from `ip` (its 0xD8).
+    pub(crate) fn set_connection(&self, seat: Seat, ip: IpAddr) {
+        let mut inner = self.inner();
+        if inner.matches.contains_key(&seat.match_id) {
+            inner
+                .connections
+                .insert((seat.match_id, seat.place), ip.to_canonical());
+        }
+    }
+
+    /// The places of a match's team that a game plays (not a bot's): each
+    /// place and its account, for the voice relay's ROSTER.
+    pub fn voice_roster(&self, match_id: u32, team: u8) -> Vec<(u8, u32)> {
+        let inner = self.inner();
+        let Some(formed) = inner.matches.get(&match_id) else {
+            return Vec::new();
+        };
+        formed
+            .places
+            .iter()
+            .enumerate()
+            .filter(|(_, place)| place.team == team && !place.bot && !place.driven)
+            .map(|(index, place)| (index as u8, place.account_id))
+            .collect()
+    }
+
+    /// The seat of a session with its team and its match connection's IP,
+    /// for the voice relay. `None` for a session with no place, and for a
+    /// bot's place (no game talks for it).
+    pub fn voice_seat(&self, session_id: u32) -> Option<VoiceSeat> {
+        let inner = self.inner();
+        let seat = *inner.seats.get(&session_id)?;
+        let place = inner
+            .matches
+            .get(&seat.match_id)?
+            .places
+            .get(usize::from(seat.place))?;
+        if place.bot || place.driven {
+            return None;
+        }
+        Some(VoiceSeat {
+            match_id: seat.match_id,
+            place: seat.place,
+            team: place.team,
+            ip: inner.connections.get(&(seat.match_id, seat.place)).copied(),
+        })
     }
 
     /// Gives up a session's place (the player will not come, or left for
@@ -864,6 +942,7 @@ impl MatchRegistry {
         inner.admitting.remove(&match_id);
         inner.live.remove(&match_id);
         inner.seats.retain(|_, seat| seat.match_id != match_id);
+        inner.connections.retain(|(id, _), _| *id != match_id);
         inner.matches.remove(&match_id)
     }
 }
@@ -906,6 +985,16 @@ pub enum MatchEnd {
     /// room's minimum can play it ([`MatchSetup::room_minimum`]). Nothing
     /// of it counts, and its room makes another.
     NotMade,
+}
+
+/// A free-for-all's place plays on a side of its own and in no squad
+/// (`maps::free_for_all_team`); in any other mode the lobby's team and squad
+/// stand.
+fn own_side(map: &maps::MapMode, place: usize, profile: &mut MatchProfile) {
+    if map.mode == GameMode::FreeForAll {
+        profile.team = maps::free_for_all_team(place);
+        profile.squad = 0;
+    }
 }
 
 /// The standing value for "no team": a draw.
@@ -1010,6 +1099,22 @@ pub struct MatchResult {
 /// to another thread: a `std::sync::mpsc::Sender<MatchResult>` is a sink.
 pub trait ResultsSink: Send {
     fn match_ended(&mut self, result: MatchResult);
+
+    /// A player was removed from a match in play for being idle (anti-AFK,
+    /// `docs/notes/anti-afk.md`): srp has the lobby say so in the match's
+    /// chat and the general chat. Called once a removal, on the match
+    /// server's thread. A sink of results alone takes no notice.
+    fn idle_removed(&mut self, _removed: IdleRemoved) {}
+}
+
+/// A player the anti-AFK rule removed from a match in play.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct IdleRemoved {
+    /// The match's id ([`MatchTicket::match_id`]).
+    pub match_id: u32,
+    pub account_id: u32,
+    /// Its character's name, as the match shows it.
+    pub name: String,
 }
 
 impl ResultsSink for std::sync::mpsc::Sender<MatchResult> {

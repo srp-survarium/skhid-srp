@@ -17,7 +17,7 @@
 //! look-up takes one for a query it keeps waiting), a texture while a
 //! reference to it is held. Only a site's view makes one.
 
-use core::ffi::c_void;
+use core::ffi::{CStr, c_void};
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicU32, Ordering};
 
@@ -266,6 +266,123 @@ impl Parameters {
     pub fn model(self) -> Option<Model> {
         // SAFETY: as kind.
         unsafe { self.0.model() }.map(Model)
+    }
+
+    /// Whose bake it is, by its files' name.
+    pub fn asker(self) -> Asker {
+        // SAFETY: as kind; the name is a buffer_string's text, NUL-ended
+        // within a record's path, alive while the bake's query is.
+        let name = unsafe { c_string(self.0.name(), RECORD_TEXT) };
+        Asker::of_name(name.map_or(&[], |name| name.to_bytes()))
+    }
+
+    /// `bake.own_camouflage`'s: on_base_texture_loaded where the camouflage
+    /// layer's texture of the bake's type has no name, before the game names
+    /// the surface's own (`<diffuse>_camo`, `_camo_nmap`, `_camo_smap`).
+    pub fn at_own_camouflage(ctx: &Context<'_>) -> Option<Parameters> {
+        // SAFETY: the site's ESI: the bake's parameters, on_base_texture_
+        // loaded's second argument (0x12E0DB mov esi,[ebp+0Ch]).
+        unsafe { raw::site::bake_own_camouflage::parameters(ctx) }.map(Parameters)
+    }
+}
+
+/// Who asked for a bake. Its files' name says: patch 44 names a weapon's
+/// `srpw<n>_...` (the Rust patch weapon_camo's BakedName); the game's own bakes
+/// (a character's part, the decal editor's) are named of the part and never
+/// begin so.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Asker {
+    /// The game: a character's part.
+    Character,
+    /// Patch 44: a weapon's surface.
+    Weapon,
+}
+
+impl Asker {
+    /// A weapon's bake names begin so (before the number).
+    const WEAPON: &'static [u8] = b"srpw";
+
+    fn of_name(name: &[u8]) -> Asker {
+        if name.starts_with(Asker::WEAPON) { Asker::Weapon } else { Asker::Character }
+    }
+}
+
+/// A weapon's bake of one surface, its parameters filled by patch 44's
+/// bake_surface (weapon_camo_026g.asm) before it asks for the bake
+/// (`weapon_camo.bake_name`): what the baker will bake, read once.
+pub struct WeaponBake<'c> {
+    parameters: raw::CookParameters,
+    pub inputs: BakeInputs<'c>,
+}
+
+/// What a weapon's bake of one surface is made of.
+pub struct BakeInputs<'c> {
+    /// The weapon's model path (object/model of its merged config).
+    pub model: &'c CStr,
+    pub surface: u32,
+    /// The camouflage's scale on the surface.
+    pub scale: f32,
+    /// The two decals' layers, then the camouflage's; none for a layer with
+    /// no texture (no decal there, no camouflage).
+    pub layers: [Option<BakeLayer<'c>>; 3],
+}
+
+/// One layer of a bake, which has a texture: where its textures lie, and
+/// their names.
+pub struct BakeLayer<'c> {
+    pub matrix: [f32; 16],
+    /// Diffuse, normal, fresnel, smoothness; an empty name is no texture
+    /// (one of them at least has a name).
+    pub textures: [&'c CStr; 4],
+}
+
+impl<'c> BakeLayer<'c> {
+    /// The layer of these texture names: none when it has no texture. Only
+    /// a layer with a texture has a matrix: the parameters' constructor
+    /// (0x119760) writes none, patch 44 writes the camouflage's and a
+    /// decal's with its names (weapon_decals_026g.asm's fill), and the
+    /// baker reads a layer's only for a texture it names. So an empty
+    /// layer's is what the allocation held before, and `matrix` is not
+    /// asked for it.
+    fn of(textures: [&'c CStr; 4], matrix: impl FnOnce() -> [f32; 16]) -> Option<BakeLayer<'c>> {
+        textures.iter().any(|name| !name.is_empty()).then(|| BakeLayer { matrix: matrix(), textures })
+    }
+}
+
+impl<'c> WeaponBake<'c> {
+    /// `weapon_camo.bake_name`'s: the parameters and the model's path its
+    /// caller pushed; none when either is not there or a name is no C string
+    /// of a bake's (then nothing names the files, and patch 44 bakes none).
+    pub fn at(ctx: &'c Context<'_>) -> Option<WeaponBake<'c>> {
+        // SAFETY: the entry's frame: patch 44's call pushed the parameters it
+        // allocated and filled, and the model's path of the weapon's merged
+        // config, both alive until the call returns, which outlives `ctx`.
+        unsafe {
+            let frame = raw::site::weapon_camo_bake_name::frame(ctx)?;
+            let parameters = frame.parameters()?;
+            let model = c_string(frame.model(), RECORD_TEXT)?;
+            let first = parameters.layers();
+            // the outer none: a name that is no C string; the inner: no texture
+            let layer = |index| -> Option<Option<BakeLayer<'c>>> {
+                let layer = first.at(index);
+                let text = |string: raw::BufferString| c_string(string.begin(), RECORD_TEXT);
+                let textures =
+                    [text(layer.diffuse())?, text(layer.normal())?, text(layer.fresnel())?, text(layer.smoothness())?];
+                Some(BakeLayer::of(textures, || core::array::from_fn(|i| read(layer.matrix().add(i)))))
+            };
+            let layers = [layer(0)?, layer(1)?, layer(2)?];
+            let inputs =
+                BakeInputs { model, surface: read(parameters.surface()), scale: read(parameters.scale()), layers };
+            Some(WeaponBake { parameters, inputs })
+        }
+    }
+
+    /// Names its baked files (before the type's letter).
+    pub fn name(&self, name: &CStr) {
+        // SAFETY: buffer_string::assign on the parameters' own name, which
+        // patch 44 left empty; a weapon's name is far shorter than its
+        // buffer (104h with its NUL).
+        unsafe { raw::engine_string_assign(Some(self.parameters.name()), name.as_ptr().cast()) };
     }
 }
 
@@ -519,5 +636,30 @@ impl FreeRecord {
             baker.set_list_end(Some(record.at(1)));
             baker.list_bytes().write_volatile(read(baker.list_bytes()).wrapping_add(size));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Asker, BakeLayer};
+
+    #[test]
+    fn a_layer_with_no_texture_has_no_matrix_and_its_is_never_read() {
+        assert!(BakeLayer::of([c""; 4], || panic!("an empty layer's matrix was read")).is_none());
+        for named in 0..4 {
+            let mut textures = [c""; 4];
+            textures[named] = c"character/human/decal_3";
+            let layer = BakeLayer::of(textures, || [0.5; 16]).expect("a layer with a texture");
+            assert_eq!((layer.matrix, layer.textures), ([0.5; 16], textures));
+        }
+    }
+
+    #[test]
+    fn a_bake_is_a_weapon_s_by_its_name() {
+        assert_eq!(Asker::of_name(b"srpw1_character_human_camo_premium_city_camo_weapons_ak_12_ak_12_0d"), Asker::Weapon);
+        assert_eq!(Asker::of_name(b"srpw1__weapons_sks_sks_1_decal_1_1_8a30ce0020080000n"), Asker::Weapon);
+        assert_eq!(Asker::of_name(b"edge_researcher_03_legs_s3d"), Asker::Character);
+        assert_eq!(Asker::of_name(b"srp"), Asker::Character);
+        assert_eq!(Asker::of_name(b""), Asker::Character);
     }
 }

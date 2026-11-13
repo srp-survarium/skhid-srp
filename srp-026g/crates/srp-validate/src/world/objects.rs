@@ -99,6 +99,9 @@
 //!                        it, 3 taken, 4 active, 5 (below); no other
 //!   1, 2: u8 m_container_id; 1: u32 m_time_left_to_spawn
 //!   else: u32 m_time_left_to_cool
+//!   4: u32 reached       client patch 109's, written at 0x313735 and read
+//!                        at 0x3137EC: the places Cascade's activation of
+//!                        the copy reached ([`Places`]: no bit past the 20)
 //!   u32  m_last_activation_time_ms
 //!   4: what its core saves of its own, by its item's data.type (the
 //!   artefact cook's switch 0x2EE95F):
@@ -134,7 +137,7 @@
 
 use super::{Context, Profile, Section};
 use crate::reader::{Reader, Short};
-use crate::{Finite, KITS, MAX_PLAYERS, Part, Place, Reason, Refusal};
+use crate::{Finite, KITS, MAX_PLAYERS, Part, Place, Places, Reason, Refusal};
 
 /// The list of objects a world's section holds, in its order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -294,6 +297,16 @@ fn bits(reader: &mut Reader, field: &'static str, known: u8) -> Result<u8, Objec
     byte(reader, field, |value| {
         (value & !known == 0).then_some(value)
     })
+}
+
+/// An active artefact's places Cascade reached: the 20 places' bits of a little-endian u32, its
+/// third byte's high half and its fourth byte none (a fault names the byte).
+fn reached(reader: &mut Reader) -> Result<Places, ObjectFault> {
+    let (first, second) = (reader.u8()?, reader.u8()?);
+    let third = byte(reader, "reached", |value| (value < 0x10).then_some(value))?;
+    let fourth = byte(reader, "reached", |value| (value == 0).then_some(value))?;
+    let mask = u32::from_le_bytes([first, second, third, fourth]);
+    Places::new(mask).ok_or(ObjectFault::Value { at: reader.at(), field: "reached", value: third })
 }
 
 fn number(reader: &mut Reader, field: &'static str) -> Result<Finite, ObjectFault> {
@@ -986,9 +999,12 @@ pub enum ArtefactState {
     Ready { container_id: u8 },
     /// 3: in a kit.
     Taken { time_left_to_cool: u32 },
-    /// 4: in a kit, its active effect on.
+    /// 4: in a kit, its active effect on; `reached`: the teammates its
+    /// activation shared it with (client patch 109, Cascade), who keep it
+    /// to its end.
     Active {
         time_left_to_cool: u32,
+        reached: Places,
         core: ActiveCore,
     },
     /// 5: its holder's player down (LIKELY, the module doc).
@@ -1084,10 +1100,13 @@ impl ArtefactBase {
                     (ArtefactState::Taken { time_left_to_cool }, last)
                 }
                 StateByte::Active => {
-                    let (time_left_to_cool, last) = cooling(reader)?;
+                    let time_left_to_cool = reader.u32()?;
+                    let reached = reached(reader)?;
+                    let last = reader.u32()?;
                     let core = ActiveCore::read(reader, core)?;
                     let state = ArtefactState::Active {
                         time_left_to_cool,
+                        reached,
                         core,
                     };
                     (state, last)
@@ -1763,10 +1782,13 @@ mod tests {
     #[test]
     fn an_active_artefact_reads_what_its_core_saves() {
         // The anomaly's artefacts active (state 4): the onyx's u32 and f32,
-        // the spring's u32, after the base's two u32.
+        // the spring's u32, after the base's two u32 and Cascade's places
+        // between them (places 0 and 19 for the onyx).
         let active = |own: usize| {
             let mut bytes = std::vec![1, 0, 0xFF, 4];
-            bytes.extend([0; 4 + 4]);
+            bytes.extend([0; 4]);
+            bytes.extend(if own == 8 { (1u32 | 1 << 19).to_le_bytes() } else { [0; 4] });
+            bytes.extend([0; 4]);
             bytes.extend(std::iter::repeat_n(0, own));
             bytes
         };
@@ -1797,9 +1819,18 @@ mod tests {
             cores[1],
             ArtefactState::Active {
                 core: ActiveCore::Spring { .. },
+                reached: Places::EMPTY,
                 ..
             }
         ));
+        let ArtefactState::Active { reached, .. } = cores[0] else { panic!("active") };
+        assert_eq!(reached.iter().map(Place::get).collect::<Vec<_>>(), [0, 19]);
+        // A place past the 20: its byte named.
+        for (nth, byte) in [(2, 0x10), (3, 0x01)] {
+            let mut bad = bytes.clone();
+            bad[artefacts + 4 + 4 + nth] = byte;
+            assert_eq!(field(&LIST, &bad), Some("reached"), "{nth} {byte:#x}");
+        }
         // An onyx read as a spring's.
         bytes.truncate(artefacts);
         bytes.extend(active(4));

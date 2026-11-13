@@ -33,6 +33,8 @@
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream, UdpSocket};
 use std::path::{Path, PathBuf};
+
+use login_server::sealed::test_key;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -130,8 +132,7 @@ fn start_with(dir: &Path, bots: &[&str], change: impl FnOnce(&mut Options)) -> S
         SqliteGameRepository::open_in(dir).expect("the 0.26g tables"),
     ))
     .expect("the 0.26g accounts");
-    let certs = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../certs");
-    let mut options = Options::local(&certs);
+    let mut options = Options::local();
     // One map, so the scripted simulation knows its mode
     // (`SRP_MATCH_MAPS`).
     options.lobby.maps = vec![MAP];
@@ -146,7 +147,7 @@ fn start_with(dir: &Path, bots: &[&str], change: impl FnOnce(&mut Options)) -> S
 /// bot's sign-in, `srp::bot::sign_in`): the sign-in in the clear, the TLS
 /// handshake, the digest and the password.
 fn sign_in(login: SocketAddr, user_name: &str, password: &str) -> SignIn {
-    srp::bot::sign_in(login, user_name, password).expect("the login server")
+    srp::bot::sign_in(login, test_key().public(), user_name, password).expect("the login server")
 }
 
 /// The session and the lobby's address of a `08` reply.
@@ -192,8 +193,14 @@ impl Game {
     /// started.
     fn signed_in(stack: &Stack, name: &'static str, password: &str) -> Self {
         let revision = survarium::v026g::match_msgs::late_join::PATCH_REVISION;
-        let reply =
-            srp::bot::sign_in_with_revision(stack.login_addr, name, password, revision).unwrap();
+        let reply = srp::bot::sign_in_with_revision(
+            stack.login_addr,
+            test_key().public(),
+            name,
+            password,
+            revision,
+        )
+        .unwrap();
         let (session, lobby_addr) = accepted(&reply);
         assert_eq!(
             lobby_addr, stack.lobby_addr,
@@ -910,10 +917,7 @@ fn two_new_players_sign_in_shop_play_a_match_and_are_paid() {
     for (id, paid) in [(alice_id, alice_paid), (bob_id, bob_paid)] {
         let account = kept.get(id).expect("the account in the file");
         let account = account.locked();
-        assert_eq!(
-            (account.generic_money, 0, account.exp_total),
-            paid
-        );
+        assert_eq!((account.generic_money, 0, account.exp_total), paid);
     }
     assert!(
         kept.get(alice_id)
@@ -1238,6 +1242,7 @@ impl BotRun {
             server: stack.login_addr.to_string(),
             name: name.to_owned(),
             password: "the-bots-password".to_owned(),
+            server_key: test_key().public(),
             once,
             kit: None,
             drive,
@@ -1739,8 +1744,11 @@ fn a_player_against_the_servers_bots_plays_a_match_to_the_results() {
     };
     assert_eq!(gear, 7);
     assert_eq!(rows[0].0, format!("B1;0;{gear};15;6.8.10;8;61;0;5"));
-    assert_eq!(rows.len(), 17);
+    // The header, the owner's 16 maps (`pvb::MAPS`) and the free-for-all of
+    // each of their 8 levels by day.
+    assert_eq!(rows.len(), 1 + 16 + 8);
     assert!(rows.iter().any(|row| row.0 == "117;1;4;5"), "{rows:?}");
+    assert_eq!(rows.iter().filter(|row| row.0.ends_with(";8;5")).count(), 8, "{rows:?}");
 
     let start = pvb_choice_start(6, MAP);
     solo.ask(request::ranking(start, 1));

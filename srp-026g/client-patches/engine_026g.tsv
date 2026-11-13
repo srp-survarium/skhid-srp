@@ -1,4 +1,5 @@
 symbol	va	arguments	prototype	call	vostok
+engine_options_int	0x261100	ECX:parent EAX:id ESP+4:receiver ESP+8:command ESP+12:values ESP+16:count	void *engine_options_int(void *parent, unsigned int id, void *receiver, const char *command, const char *const *values, unsigned int count)	thunk
 engine_cfg_child	0x0f6b10	EAX:table EDI:key	const struct engine_cfg *engine_cfg_child(const struct engine_cfg *table, const char *key)	thunk	
 engine_cfg_has	0x0f6c00	EAX:table ESI:key	unsigned int engine_cfg_has(const struct engine_cfg *table, const char *key)	thunk	
 engine_malloc	0x0e4f90	ESI:allocator EAX:size ESP+4:description	void *engine_malloc(void *allocator, unsigned int size, const void *where)	thunk	
@@ -35,7 +36,7 @@ engine_decal_value	0x264a10	ESI:lobby_character	unsigned long long engine_decal_
 engine_mouse_ray	0x26d130	ESI:menu EDI:direction ESP+4:eye	void engine_mouse_ray(void *menu, float *direction, float *eye)	thunk	
 engine_accept_decal_edit	0x263950	ESI:lobby_character ESP+4:host ESP+8:decal	void engine_accept_decal_edit(void *character, unsigned int host, unsigned int decal)	thunk	
 engine_cc_bool	0x01ddb0	EAX:object ESP+4:name ESP+8:value ESP+12:saved ESP+16:kind	void engine_cc_bool(struct cc_bool *object, const char *name, unsigned char *value, unsigned int saved, unsigned int kind)	thunk	
-engine_binded_action	0x207d50	EAX:binder EDI:kinds ESI:key ESP+4:toggle	unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsigned int key, unsigned int *toggle)	thunk	
+engine_binded_action	0x207d50	EAX:binder EDI:kinds ESI:key ESP+4:toggle	unsigned int engine_binded_action(const struct key_binder *binder, unsigned int kinds, unsigned int key, unsigned int *toggle)	thunk	
 engine_action_present	0x242460	ESP+4:receiver ESP+8:identifier ESP+12:state	unsigned char engine_action_present(struct player_input_handler *handler, unsigned int action, unsigned int *state)	stdcall	handler: InputHandler, action: Action, state: Out<u32> -> bool
 engine_create_file_a	0x870048	-	void *engine_create_file_a(const char *name, unsigned int access, unsigned int share, void *security, unsigned int disposition, unsigned int flags, void *template_file)	import	
 engine_write_file	0x870108	-	unsigned int engine_write_file(void *file, const void *bytes, unsigned int size, unsigned int *written, void *overlapped)	import	
@@ -50,6 +51,28 @@ engine_vk_create_instance	-	-	unsigned int engine_vk_create_instance(const void 
 engine_vk_destroy_instance	-	-	void engine_vk_destroy_instance(void *instance, const void *allocator)	dynamic	
 engine_vk_enumerate_physical_devices	-	-	unsigned int engine_vk_enumerate_physical_devices(void *instance, unsigned int *count, void **devices)	dynamic	
 engine_vk_get_physical_device_properties	-	-	void engine_vk_get_physical_device_properties(void *device, void *properties)	dynamic	
+engine_create_toolhelp32_snapshot	-	-	void *engine_create_toolhelp32_snapshot(unsigned int flags, unsigned int process)	dynamic	
+engine_module32_first_w	-	-	unsigned int engine_module32_first_w(void *snapshot, void *entry)	dynamic	
+engine_module32_next_w	-	-	unsigned int engine_module32_next_w(void *snapshot, void *entry)	dynamic	
+engine_get_temp_path_w	-	-	unsigned int engine_get_temp_path_w(unsigned int size, unsigned short *path)	dynamic	
+engine_get_windows_directory_w	-	-	unsigned int engine_get_windows_directory_w(unsigned short *path, unsigned int size)	dynamic	
+engine_get_current_process	-	-	void *engine_get_current_process(void)	dynamic	
+engine_read_process_memory	-	-	unsigned int engine_read_process_memory(void *process, const void *address, void *buffer, unsigned int size, unsigned int *read)	dynamic	
+engine_ldr_register_dll_notification	-	-	unsigned int engine_ldr_register_dll_notification(unsigned int flags, const void *callback, void *context, void **cookie)	dynamic	
+engine_process32_first_w	-	-	unsigned int engine_process32_first_w(void *snapshot, void *entry)	dynamic	
+engine_process32_next_w	-	-	unsigned int engine_process32_next_w(void *snapshot, void *entry)	dynamic	
+engine_open_process	-	-	void *engine_open_process(unsigned int access, unsigned int inherit, unsigned int process)	dynamic	
+engine_query_full_process_image_name_w	-	-	unsigned int engine_query_full_process_image_name_w(void *process, unsigned int flags, unsigned short *name, unsigned int *size)	dynamic	
+engine_get_top_window	-	-	void *engine_get_top_window(void *window)	dynamic	
+engine_get_window	-	-	void *engine_get_window(void *window, unsigned int which)	dynamic	
+engine_get_ancestor	-	-	void *engine_get_ancestor(void *window, unsigned int which)	dynamic	
+engine_is_window_visible	-	-	unsigned int engine_is_window_visible(void *window)	dynamic	
+engine_get_window_thread_process_id	-	-	unsigned int engine_get_window_thread_process_id(void *window, unsigned int *process)	dynamic	
+engine_get_window_rect	-	-	unsigned int engine_get_window_rect(void *window, void *rect)	dynamic	
+engine_get_class_name_w	-	-	unsigned int engine_get_class_name_w(void *window, unsigned short *name, unsigned int size)	dynamic	
+engine_get_module_file_name_w	-	-	unsigned int engine_get_module_file_name_w(void *module, unsigned short *path, unsigned int size)	dynamic	
+engine_com_release	-	-	unsigned int engine_com_release(void *object)	dynamic	
+engine_enum_process_modules	-	-	unsigned int engine_enum_process_modules(void *process, void **modules, unsigned int size, unsigned int *needed)	dynamic	
 engine_ray_test	0x075e20	ECX:world ESP+4:result ESP+8:origin ESP+12:direction ESP+16:length ESP+20:group ESP+24:mask ESP+28:delegate ESP+32:unflipped	void engine_ray_test(struct bullet_physics_world *world, struct ray_result *result, const float *origin, const float *direction, float length, unsigned int group, unsigned int mask, const void *delegate, unsigned int unflipped)	thunk	
 engine_release_object	0x0e0210	ECX:instance EAX:count	void engine_release_object(struct player *object, unsigned int *count)	thunk	
 engine_material_pair	0x306d50	ECX:manager EDX:first EDI:second	const struct material_pair *engine_material_pair(const struct game_material_manager *manager, unsigned int first, unsigned int second)	thunk	
@@ -131,6 +154,7 @@ engine_switch_to_thread	0x870120	-	unsigned int engine_switch_to_thread(void)	im
 engine_sleep	0x87011c	-	void engine_sleep(unsigned int milliseconds)	import	
 engine_flush_instruction_cache	-	-	unsigned int engine_flush_instruction_cache(void *process, const void *address, unsigned int size)	dynamic	
 engine_get_async_key_state	-	-	unsigned int engine_get_async_key_state(unsigned int key)	dynamic	
+engine_move_file_ex_a	-	-	unsigned int engine_move_file_ex_a(const char *from, const char *to, unsigned int flags)	dynamic	
 engine_allocate_recipe	0x0e4f90	ESI:allocator EAX:size ESP+4:description	struct inventory_recipe *engine_allocate_recipe(void *allocator, unsigned int size, const void *where)	thunk	
 engine_get_current_process_id	0x8701b8	-	unsigned int engine_get_current_process_id(void)	import	
 engine_bind_member_callback	0x27d280	EDI:callback ESP+4:member ESP+8:adjustment ESP+12:object ESP+16:padding	struct query_callback *engine_bind_member_callback(struct query_callback *callback, const void *member, unsigned int adjustment, unsigned int object, unsigned int padding)	thunk	
@@ -201,6 +225,8 @@ engine_append_packet_bytes	0x7ac10	ESP+4:buffer_writer ESP+8:source_bytes EDI:by
 engine_set_environment_variable_a	0x87029c	-	unsigned int engine_set_environment_variable_a(const char *name, const char *value)	import	
 engine_show_scene_movie	0x23dc00	EAX:scene ESI:movie	void engine_show_scene_movie(struct game_world *scene, struct movie_slot *movie)	thunk	
 engine_hide_scene_movie	0x23dc70	EAX:movie EDX:scene	void engine_hide_scene_movie(struct movie_slot *movie, struct game_world *scene)	thunk	
+engine_get_foreground_window	-	-	void *engine_get_foreground_window(void)	dynamic	
+engine_map_virtual_key_a	-	-	unsigned int engine_map_virtual_key_a(unsigned int code, unsigned int map)	dynamic	
 engine_get_system_time_as_file_time	0x870244	-	void engine_get_system_time_as_file_time(unsigned int *file_time)	import	
 engine_file_time_to_local_file_time	0x870230	-	unsigned int engine_file_time_to_local_file_time(const unsigned int *file_time, unsigned int *local)	import	
 engine_file_time_to_system_time	0x87022c	-	unsigned int engine_file_time_to_system_time(const unsigned int *file_time, unsigned int *system_time)	import	
@@ -213,3 +239,22 @@ engine_usable_transform	survarium::usable_object+0x44	ECX:usable ESP+4:matrix	vo
 engine_mt_free	0x0eb5b0	ECX:allocator ESP+4:block ESP+8:function ESP+12:file ESP+16:line	void engine_mt_free(struct pthreads3_allocator *allocator, void *block, const char *function, const char *file, unsigned int line)	thiscall	
 engine_discard_playing_order	0x2717e0	ESP+4:lobby ESP+8:left	void engine_discard_playing_order(struct lobby_client *client, unsigned int left)	stdcall	
 engine_finish_key_binding	0x2015a0	EDI:options	void engine_finish_key_binding(struct game_options *options)	thunk	
+engine_sin	0x038ff0	ESP+4:angle	float engine_sin(float angle)	cdecl	angle: f32 -> f32
+engine_cos	0x039000	ESP+4:angle	float engine_cos(float angle)	cdecl	angle: f32 -> f32
+engine_atan2	0x079c40	ESP+4:y ESP+8:x	float engine_atan2(float y, float x)	cdecl	y: f32, x: f32 -> f32
+engine_bio_read	0x44c630	ESP+4:bio ESP+8:room ESP+12:length	unsigned int engine_bio_read(struct bio *bio, unsigned char *room, unsigned int length)	cdecl	
+engine_bio_write	0x44c740	ESP+4:bio ESP+8:bytes ESP+12:length	unsigned int engine_bio_write(struct bio *bio, const unsigned char *bytes, unsigned int length)	cdecl	
+engine_err_put_error	0x44a270	ESP+4:library ESP+8:function ESP+12:reason ESP+16:file ESP+20:line	void engine_err_put_error(unsigned int library, unsigned int function, unsigned int reason, const char *file, unsigned int line)	cdecl	
+engine_rand_bytes	0x46b6e0	ESP+4:room ESP+8:length	unsigned int engine_rand_bytes(unsigned char *room, unsigned int length)	cdecl	
+engine_cc_delegate	0x0ec780	EDI:object EDX:name ESP+4:delegate ESP+8:status ESP+12:kind	void engine_cc_delegate(struct cc_delegate *object, const char *name, const void *delegate, unsigned int status, unsigned int kind)	thunk	
+engine_cc_delegate_execute	0x0ec830	ECX:command ESP+4:arguments	void engine_cc_delegate_execute(struct cc_delegate *command, const char *arguments)	thiscall	command: ConsoleCommand, arguments: ConsoleArguments ->
+engine_log_helper	0x111c90	EAX:function ECX:context ESP+4:helper ESP+8:template ESP+12:file ESP+16:line ESP+20:caller ESP+24:channel ESP+28:level	struct log_helper *engine_log_helper(const struct log_function *function, unsigned int context, struct log_helper *helper, const struct log_helper *template_helper, const char *file, unsigned int line, const char *caller, const char *channel, unsigned int level)	thunk	
+engine_log_write	0x111d10	ESI:helper ESP+4:format ESP+8:arguments	void engine_log_write(struct log_helper *helper, const char *format, const void *arguments)	thunk	
+engine_create_file_w	-	-	void *engine_create_file_w(const unsigned short *name, unsigned int access, unsigned int share, void *security, unsigned int disposition, unsigned int flags, void *template_file)	dynamic
+engine_set_file_pointer	-	-	unsigned int engine_set_file_pointer(void *file, unsigned int distance, void *high, unsigned int method)	dynamic
+engine_cc_u32	0x01dcd0	EAX:object ESP+4:name ESP+8:value ESP+12:minimum ESP+16:maximum ESP+20:saved ESP+24:kind	void engine_cc_u32(void *object, const char *name, unsigned int *value, unsigned int minimum, unsigned int maximum, unsigned int saved, unsigned int kind)	thunk	
+engine_render_u32_execute	0x3cd300	ECX:object ESP+4:arguments	void engine_render_u32_execute(void *object, const char *arguments)	thunk
+engine_message_box_a	0xaeff30	-	unsigned int engine_message_box_a(void *window, const char *text, const char *title, unsigned int flags)	import
+engine_exit_process	0x87020c	-	void engine_exit_process(unsigned int code)	import
+engine_respawn_point_clear	0x2f4800	ESI:point ESP+4:team ESP+8:players	unsigned int engine_respawn_point_clear(const struct respawn_point_core *point, unsigned int team, const struct player_vector *players)	thunk	
+engine_respawn_points_push	0x3174c0	ESI:vector ESP+4:point	void engine_respawn_points_push(struct respawn_point_vector *vector, struct respawn_point_core *const *point)	thunk	

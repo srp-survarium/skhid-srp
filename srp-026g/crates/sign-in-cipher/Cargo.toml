@@ -1,0 +1,9 @@
+[package]
+name = "sign-in-cipher"
+version.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]

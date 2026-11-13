@@ -69,8 +69,8 @@
 //!   (default 6 for PvP; one human for PvE, late joiners counted) have entered it; kept files over
 //!   `SRP_RECORD_MAX_MB` (default 5000) together go oldest first
 //!   ([`record`]);
-//! - `SRP_REPLAY_DIR=<dir>`, `SRP_GAME_MODES_DIR=<dir>` (default off; both
-//!   needed, with `SRP_RECORD_DIR`): a kept recording is made into the
+//! - `SRP_REPLAY_DIR=<dir>` (default off; needed, with
+//!   `SRP_RECORD_DIR`): a kept recording is made into the
 //!   game's replay file there when a player first asks for it in the
 //!   lobby's "Watch replay", and a replay goes with its recording
 //!   ([`replay`]). The replay folder must be a folder of its own (not
@@ -99,12 +99,24 @@
 //! - `SRP_PVB_STALL_S` (default 60, 10 to 3600): a match against the
 //!   server's bots whose only player has been asked for its world this
 //!   long and uploaded none is over (as deserted): its bots see the world
-//!   only through that player's uploads.
+//!   only through that player's uploads;
+//! - `SRP_ANTI_AFK` (default 180, at least 60; `off` or `0`): a player who gives
+//!   no input for that many seconds of play is removed from the match, as
+//!   one who leaves; never in a private room's match nor one against
+//!   bots ([`afk`], `docs/notes/anti-afk.md`);
+//! - `SRP_RELEASED_EXE_SHA256` (default none; the release sets it): the
+//!   SHA-256 of the game executable in the players' download. A game that
+//!   reports it is not asked for its file; every other executable the
+//!   server has not stored is collected ([`executable`],
+//!   `docs/notes/module-report.md`).
 
+/// Anti-AFK: a player without input for three minutes of play is removed.
+mod afk;
 /// A player's battery events pay at most N times per kind, N the map's
 /// batteries (the owner's rule against farming them).
 mod battery_cap;
 mod client_report;
+mod executable;
 /// The server's own bots (`MatchPlayer::driven`): their maps.
 pub mod bots;
 /// The upload check of a recorded match, for `examples/world_check_bench.rs`.
@@ -131,6 +143,9 @@ mod reward_caps;
 mod server;
 pub mod sur;
 pub mod sur_convert;
+/// Voice chat: the team push-to-talk relay beside the match server
+/// (`docs/notes/voice-chat.md`).
+pub mod voice;
 
 #[cfg(test)]
 mod tests;
@@ -149,9 +164,9 @@ use std::time::Duration;
 use udp_transport::{Config, Table};
 
 pub use registry::{
-    CreateError, DRAW, JoinError, LiveMatch, LivePhase, LiveStanding, MatchEnd, MatchPlayer,
-    MatchRegistry, MatchResult, MatchSetup, MatchTicket, PlayerResult, ResultsSink, Seat,
-    static_id,
+    CreateError, DRAW, IdleRemoved, JoinError, LiveMatch, LivePhase, LiveStanding, MatchEnd,
+    MatchPlayer, MatchRegistry, MatchResult, MatchSetup, MatchTicket, PlayerResult, ResultsSink,
+    Seat, VoiceSeat, static_id,
 };
 pub use replay::{replays_from_env, replays_of};
 pub use server::{run, run_on, run_on_with_replays};
@@ -273,6 +288,11 @@ pub(crate) struct Settings {
     pub pack: Duration,
     /// `SRP_MAPDATA_DIR`: the bots' maps, shared by every match.
     pub maps: Option<Arc<bots::maps::Maps>>,
+    /// `SRP_ANTI_AFK`: when an idle player is removed, if ever.
+    pub anti_afk: afk::Setting,
+    /// `SRP_RELEASED_EXE_SHA256`: the release's own game executable, which
+    /// no game is asked for; `None`: every unknown one is collected.
+    pub released_executable: Option<executable::Released>,
     pub timing: Timing,
 }
 
@@ -289,6 +309,8 @@ impl Default for Settings {
             record: None,
             pack: Config::for_table(Table::Match).gather,
             maps: None,
+            anti_afk: afk::Setting::default(),
+            released_executable: None,
             timing: Timing::default(),
         }
     }
@@ -339,6 +361,10 @@ impl Settings {
                     session::v026g::pvb::max_matches(),
                 ) as u32,
                 var("SRP_MAPDATA_BUILT").as_deref(),
+            ),
+            anti_afk: afk::Setting::parse(var("SRP_ANTI_AFK").as_deref()),
+            released_executable: executable::Released::parse(
+                var("SRP_RELEASED_EXE_SHA256").as_deref(),
             ),
             timing: {
                 let client_timeout = Duration::from_secs(u64::from(

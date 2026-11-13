@@ -135,6 +135,17 @@ corner minimap none; the names following their icons over 100 updates with the s
 Alt let go and held again; a player lost from sight, one spotted, an ally taking the battery, the
 rows made again; and Blackout (the list kept hidden): none on screen.
 
+### Enemies in a replay
+
+`tests/ReplayEnemiesHarness.as` checks the player icons movie's part of exe patch 135
+(`srp-026g/docs/notes/replay-map.md`) with the movie's own root, fed as the game feeds it. Put the
+newly built `player_icons.swf` beside its output, compile and run it as above. It traces
+`ENEMIES ... ok` lines and `ENEMIES RESULT pass` or `ENEMIES RESULT fail: ...`: in a live match
+(`srp_show_enemies(false)`) an ally's marker shows and an enemy's never; in a replay
+(`srp_show_enemies(true)`, before the enemy list, and the list sent again) the enemy's marker shows,
+its name red and shown after the marker's delay; told before the root's frame 1 made its layer, the
+layer takes it. `TabMapNamesHarness.as` checks the Tab map's enemy names red, allies' white.
+
 ### Weapon upgrade window
 
 `srp-026g/scripts/weapon-kit/check.sh <lobby_menu.swf> [work dir]` checks the lobby's weapon upgrade window with the weapon kit (two decal slots, the kit's records, a drop shown at once, every language's texts fitting) and prints `WEAPONKIT RESULT pass` or `WEAPONKIT RESULT fail: ...`.

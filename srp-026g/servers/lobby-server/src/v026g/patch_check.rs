@@ -86,8 +86,8 @@ impl Core<'_> {
             .store
             .account_for_session(session_id)?
             .locked()
-            .name
-            .clone();
+            .name()
+            .to_owned();
         (!self.accounts.is_bot_name(&name)).then_some((name, revision))
     }
 }

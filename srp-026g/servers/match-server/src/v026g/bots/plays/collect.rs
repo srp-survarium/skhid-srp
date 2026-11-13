@@ -960,7 +960,7 @@ mod tests {
     use super::*;
     use crate::v026g::bots::plays::tests::Scenario;
     use crate::v026g::bots::tactics::Tactics;
-    use crate::v026g::bots::view::{BatteryState, Mode};
+    use crate::v026g::bots::view::{BatteryState, Mode, Team};
 
     /// The field with a toxic zone (always on) of radius `r` round
     /// (25, 0, 32).
@@ -1364,7 +1364,7 @@ mod tests {
                 hud: false,
             }),
         );
-        s.team.settle_looks(0, &s.view);
+        s.team.settle_looks(Team::Zero, &s.view);
         assert!(s.team.looks.is_empty());
         assert_eq!(
             step(&mut state, target, &s.cx(0), &mut rng),

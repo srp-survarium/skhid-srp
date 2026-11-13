@@ -383,13 +383,13 @@ mod tests {
     use crate::v026g::bots::reflex::{CombatTuning, Reflex};
     use crate::v026g::bots::rng::Rng;
     use crate::v026g::bots::tuning::AimTuning;
-    use crate::v026g::bots::view::Mode;
+    use crate::v026g::bots::view::{Mode, Side};
     use crate::v026g::drive::key;
 
     fn body(place: Place, team: u8, feet: Vec3, crouched: bool) -> PlaceView {
         PlaceView {
             place,
-            team,
+            team: Side::team(team),
             bot: true,
             present: true,
             alive: true,

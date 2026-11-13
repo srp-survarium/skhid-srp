@@ -629,7 +629,7 @@ package survarium.menu
          this._element_map[1] = ["_setter_inverse_mouse","_slider_mouse_sens","_default_button","keysLobby","keysChat","keysGame"];
          // index 7, the video options' "FOV" (the original's dead "fov" again): no control; the field of
          // view is the gameplay tab's (SrpFieldOfView, patch 83's uro_fov)
-         this._element_map[2] = ["_select_monitor","_fscr_resolution","_fullscreen","_vsync","_antialias","_filtering","gamma_option","","_overall_graphics","_texture_q","_geometry_q","_shadow_q","_lighting_q","_water_q","_decorations","_post_process","_ao_q","_particples_q","_motion_blur"];
+         this._element_map[2] = ["_select_monitor","_fscr_resolution","_fullscreen","_vsync","_antialias","_filtering","gamma_option","","_overall_graphics","_texture_q","_geometry_q","_shadow_q","_lighting_q","_water_q","_decorations","_post_process","_ao_q","_particples_q","_motion_blur","_distance_detail"];
          this._element_map[3] = ["_total_volume","_game_volume","_sound_volume","_sound_сhat","_use_mik","_mic_sens","_ptt"];
          this._hudGroup = new SrpCheckGroup(this.settings_content,this.settings_content.s_friends,HUD_OPTIONS);
          for each(var option:SrpCheckOption in this._hudGroup.options)
@@ -663,6 +663,7 @@ package survarium.menu
          this._mouse.place();
          this._fov.place();
          this._renderer.place();
+         SrpDistanceDetail.apply(this);
          this._language.place();
          var key:Object;
          var tabIndex:uint;
@@ -695,22 +696,22 @@ package survarium.menu
                {
                   control.label = setting.label;
                }
-               if(settings[i].dataProvider && ((!(settings[i].dataProvider is Array)) || settings[i].dataProvider is Array && settings[i].dataProvider.length))
+               if(setting.dataProvider && ((!(setting.dataProvider is Array)) || setting.dataProvider is Array && setting.dataProvider.length))
                {
                   if(control is OptionSlider)
                   {
-                     control.dataProvider = settings[i].dataProvider;
+                     control.dataProvider = setting.dataProvider;
                   }
                   else
                   {
                      items = new Array();
                      j = 0;
-                     while(j < settings[i].dataProvider.length)
+                     while(j < setting.dataProvider.length)
                      {
-                        if(!(settings[i].dataProvider[j] is String))
+                        if(!(setting.dataProvider[j] is String))
                         {
                            items[j] = new Object();
-                           source = settings[i].dataProvider[j];
+                           source = setting.dataProvider[j];
                            for(field in source)
                            {
                               items[j][field] = source[field];
@@ -718,7 +719,7 @@ package survarium.menu
                         }
                         else
                         {
-                           items[j] = settings[i].dataProvider[j];
+                           items[j] = setting.dataProvider[j];
                         }
                         j++;
                      }
@@ -756,15 +757,24 @@ package survarium.menu
             }
             i++;
          }
-         // "Hide chat in match" (option 4 of the gameplay tab; exe patch 58 gives it its
-         // variable, docs/notes/match-hud-options.md): the timeline enables it where it makes
-         // the checkbox (settingsTabs_15); again here, after the tab's settings are bound.
-         var hideChat:UIComponent = this.settings_content["_no_in_batle"] as UIComponent;
-         if(hideChat)
+         // The options the exe patches give a variable: "Hide chat in match" (option 4 of the
+         // gameplay tab, patch 58, docs/notes/match-hud-options.md), "Disable voice chat" (its
+         // option 5) and "Use microphone" (the sound tab's 4; patch 66, docs/notes/voice-chat.md).
+         // The timeline enables them where it makes the checkboxes (settingsTabs_15); again here,
+         // after the tab's settings are bound.
+         var live:Array = ["_no_in_batle","_hide_spam","_use_mik"];
+         var optionName:String;
+         var option:UIComponent;
+         for each(optionName in live)
          {
-            hideChat.enabled = true;
+            option = this.settings_content[optionName] as UIComponent;
+            if(option)
+            {
+               option.enabled = true;
+            }
          }
          SrpVideoTab.finish(this,this._renderer);
+         SrpDistanceDetail.finish(this);
          // the HUD group, after the tab's settings are bound (their labels set)
          this._crosshair.place();
          this.applyHudTexts();
@@ -1001,6 +1011,8 @@ package survarium.menu
       // "Lock vertical sensitivity" and "Vertical sensitivity" under it, then Invert mouse and the
       // lobby's keys, at the tab's own spacing (the timeline's, read once). The chat's keys go to the
       // right column under the game's, whose list (it scrolls) ends where they begin.
+      protected static const GAME_LIST_GAP:Number = 4;
+
       protected function layoutControls() : void
       {
          var c:MovieClip = this.settings_content;
@@ -1013,7 +1025,7 @@ package survarium.menu
          {
             space = {"slider":c._slider_mouse_sens.y,"box":c._setter_inverse_mouse.y - c._slider_mouse_sens.y,
                "boxX":c._setter_inverse_mouse.x,"heading":c.s_lobby.y - c._setter_inverse_mouse.y,
-               "list":c.keysLobby.y - c.s_lobby.y,"listGap":c.s_chat_keys.y - (c.keysLobby.y + c.keysLobby.height),
+               "list":c.keysLobby.y - c.s_lobby.y,
                "chatList":c.keysChat.y - c.s_chat_keys.y,"headingX":c.s_chat_keys.x - c.keysChat.x,
                "bottom":c.keysGame.y + c.keysGame.height,
                "sliderTop":c._slider_mouse_sens.y - c._slider_mouse_sens.getBounds(c).top,
@@ -1038,7 +1050,10 @@ package survarium.menu
          c.keysChat.y = space.bottom - chatRows * c.keysChat.rowHeight;
          c.s_chat_keys.x = c.keysGame.x + space.headingX;
          c.s_chat_keys.y = c.keysChat.y - space.chatList;
-         c.keysGame.height = c.s_chat_keys.y - space.listGap - c.keysGame.y;
+         // the game's list is whole rows (its scroll bar is as tall as the list: a part of a row
+         // left under the last one showed as room for one more; the owner, 2026-11-11): as many as
+         // fit over the chat's heading, the gap to it the tab's own at most, GAME_LIST_GAP at least
+         c.keysGame.height = Math.floor((c.s_chat_keys.y - GAME_LIST_GAP - c.keysGame.y) / c.keysGame.rowHeight) * c.keysGame.rowHeight;
       }
       
       // The option of the HUD group whose checkbox `control` is, or null.

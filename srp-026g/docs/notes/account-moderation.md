@@ -7,6 +7,48 @@ The rules the code and the tests follow. Code: `session::v026g::moderation`
 content change, `REVISION` unchanged, no `simulation_changes` row. Needs a
 server release before use.
 
+## Live nickname changes (2026-11-12)
+
+The **Rename** tab takes an exact decimal account ID (optionally prefixed with
+`#`), the new nickname and an admin-only reason. It applies immediately without
+charging, ending sessions or restarting the server. Account IDs, logins,
+passwords, friends and progress stay unchanged. It also works for an account
+that has not entered the 0.26g lobby yet.
+
+The same action is available through the existing authenticated script transport:
+
+```sh
+release/moderate rename 777 Mamoru_777 --reason "duplicate nickname"
+release/moderate rename 777 Mamoru_777 --reason "duplicate nickname" --dry-run
+```
+
+This command never resolves a nickname to an account and never edits SQLite.
+Use `release/moderate who Mamoru` to inspect IDs first. `--dry-run` makes no
+network request and displays no credentials. A rejected rename exits 1; a rename
+applied in memory whose write failed or is pending exits 2 and reports that state.
+An older server without this action is refused, not reported as success.
+
+`SessionStore::admin_rename_026g` shares the paid-rename/registration namespace
+lock and the same `Nickname` parsing and Cyrillic/Latin lookalike rules. It
+also serializes first lobby entry through `SessionStore::sign_up_026g`, so
+creating the game account cannot restore a name read before an admin rename. It
+updates the shared account and its game copies, then attempts an immediate shared
+account write. The panel writes the 0.26g copy with a `nickname` audit row (old
+name, new name, reason and admin address). These are separate writes: each result
+is reported, and the savers retry a busy/refused write. Startup reconciles the
+game name from the shared account. `AccountChanged` updates the connected
+player's cached name and base-info packet, refreshes friends (including friends
+of offline accounts), and marks the squad display for refresh.
+
+This capability needs a server deployment once. The existing collision cleanup
+required before schema 8 still uses the stopped-server repair tool described in
+`social.md`; subsequent admin renames run live. Automated tests cover auth,
+exact-ID targeting, collisions, unchanged balances/credentials, persistence
+failure/retry, live squad lookup, offline friend refresh and script outcomes.
+No live deployment or in-game validation is implied by these tests.
+
+## Money and items
+
 - **Why (the owner, 2026-10-20):** "we need the ability to take away items
   in the admin panel"; for farmed money, "we need to calculate how much
   money pain and Fasojib farmed and take this silver out", and "the same

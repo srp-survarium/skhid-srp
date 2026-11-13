@@ -18,7 +18,7 @@ use std::time::Instant;
 use session::LockExt;
 use session::v026g::{quests, rules, tutorial, wire};
 use survarium::v026g::lobby::requests::{ClientMessage, id};
-use survarium::v026g::lobby::{self, NameRefusal, Ranked, important};
+use survarium::v026g::lobby::{self, Ranked, important};
 
 use super::core::{Core, Who};
 
@@ -27,35 +27,6 @@ mod text {
     pub const DROP_CARD: &str = "st_cannot_use_drop_card";
     pub const RENAME: &str = "st_change_name_error";
     pub const COMMENT: &str = "st_error_during_storing_user_comment";
-}
-
-/// What is wrong with a name a client asks about (`49 03`, `49 08`,
-/// `49 09`), in the client's own reasons. [choice] The original server's
-/// rules are not known; these are the ones srp can keep: three characters
-/// or more, no blanks, nothing that does not print, and within the 63
-/// bytes the client's buffers hold.
-pub(super) fn name_refusal(name: &str, nickname: bool) -> Option<NameRefusal> {
-    if name.chars().count() < 3 {
-        return Some(NameRefusal::Short);
-    }
-    if name.chars().any(char::is_whitespace) {
-        return Some(NameRefusal::Space);
-    }
-    if name
-        .chars()
-        .any(|c| c.is_control() || c == char::REPLACEMENT_CHARACTER)
-    {
-        return Some(NameRefusal::WrongSymbol);
-    }
-    if name.len() > lobby::limits::NAME {
-        // A clan check has no pattern reason.
-        return Some(if nickname {
-            NameRefusal::Pattern
-        } else {
-            NameRefusal::WrongSymbol
-        });
-    }
-    None
 }
 
 impl Core<'_> {
@@ -354,12 +325,6 @@ impl Core<'_> {
                 }
                 self.push_account(who);
             }
-            // The kit window's autobuy box (`session::v026g::autobuy`).
-            M::SetAutobuy { on } => {
-                rules::set_autobuy(&mut who.account.locked(), on);
-                self.accounts.mark_dirty(who.account_id);
-                self.send(addr, lobby::permitted_autobuy(on));
-            }
             M::SetActiveKit { kit_id } => {
                 let set = rules::set_active_kit(&mut who.account.locked(), kit_id, unix);
                 match set {
@@ -381,8 +346,9 @@ impl Core<'_> {
                 self.send(addr, lobby::permitted_nickname_check(&nickname, refusal));
             }
             M::ChangeNickname { nickname } => self.change_nickname(who, &nickname),
-            // Not kept, and the player is told so.
-            M::CommentAboutUser { .. } => self.deny(addr, id::PROFILE, text::COMMENT),
+            M::CommentAboutUser { nickname, comment } => {
+                self.comment_about_user(who, &nickname, comment, unix);
+            }
             M::SetChatMute { nickname, mode } => self.set_chat_mute(who, &nickname, mode, now),
             M::HideVideoLink => {}
             M::Clan(request) => self.clan_request(who, &request, now),
@@ -449,6 +415,45 @@ impl Core<'_> {
                 }
             }
             M::ImportantRead { message_id, answer } => self.important_read(who, message_id, answer),
+        }
+    }
+
+    pub(super) fn refuse_comment(&mut self, addr: SocketAddr) {
+        self.deny(addr, id::PROFILE, text::COMMENT);
+    }
+
+    fn comment_about_user(
+        &mut self,
+        who: &Who,
+        nickname: &str,
+        comment: survarium::v026g::lobby::requests::PlayerComment,
+        at: u64,
+    ) {
+        // Resolve the displayed nickname, including offline players; the
+        // authenticated session supplies the sender. Self-comments are excluded.
+        let target = self
+            .account_named(nickname, who.account_id)
+            .and_then(|id| self.name_of(id).map(|name| (id, name)));
+        let Some((target_id, target_name)) = target else {
+            self.deny(who.addr, id::PROFILE, "st_player_not_found");
+            return;
+        };
+        let record = session::v026g::comments::StoredComment {
+            at,
+            sender_id: who.account_id,
+            sender_name: who.name.clone(),
+            target_id,
+            target_name,
+            comment,
+        };
+        match self.accounts.save_player_comment(&record) {
+            Ok(()) => {
+                self.send(who.addr, lobby::permitted_player_comment());
+            }
+            Err(error) => {
+                log::warn!("{}: player comment was not stored: {error}", who.name);
+                self.refuse_comment(who.addr);
+            }
         }
     }
 
@@ -625,31 +630,5 @@ impl Core<'_> {
             "{} asked for the reserved ranking start {start}: not answered",
             who.name
         );
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_name_is_checked_by_the_clients_reasons() {
-        assert_eq!(name_refusal("ab", true), Some(NameRefusal::Short));
-        assert_eq!(name_refusal("a b c", true), Some(NameRefusal::Space));
-        assert_eq!(
-            name_refusal("abc\u{7}", true),
-            Some(NameRefusal::WrongSymbol)
-        );
-        assert_eq!(
-            name_refusal(&"x".repeat(64), true),
-            Some(NameRefusal::Pattern)
-        );
-        // A clan check has no pattern reason.
-        assert_eq!(
-            name_refusal(&"x".repeat(64), false),
-            Some(NameRefusal::WrongSymbol)
-        );
-        assert_eq!(name_refusal("Сталкер", true), None);
-        assert_eq!(name_refusal("abc", false), None);
     }
 }

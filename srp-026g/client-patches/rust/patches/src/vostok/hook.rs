@@ -156,6 +156,46 @@ mod tests {
         out.set(2);
         assert_eq!(slot, 2);
     }
+
+    #[test]
+    fn only_holds_its_values_and_none_past_the_limit() {
+        let only = Only::of(&[0, 4, 31, 32, 49, 255]);
+        let held: [u32; 6] = core::array::from_fn(|i| [0, 4, 31, 32, 49, 255][i]);
+        for value in 0..300 {
+            assert_eq!(only.holds(value), held.contains(&value), "{value}");
+        }
+        assert!(!Only::of(&[]).holds(0));
+    }
+}
+
+/// The values a filtered lohook's entry calls its handler for (`only` in its TOML,
+/// hooks_026g.py): a bit each, below [`Only::LIMIT`]. The entry tests the site's register
+/// against it (`bt`) before it saves anything and replays the site's bytes for any other value.
+/// Only the generated glue makes one, from a constant of the patch.
+#[repr(C)]
+pub struct Only([u32; 8]);
+
+impl Only {
+    /// The entry's compare: a value at or past it is not one.
+    pub const LIMIT: u32 = 256;
+
+    /// The set of `values`; a value past the limit stops the build.
+    pub const fn of(values: &[u32]) -> Self {
+        let mut words = [0u32; 8];
+        let mut i = 0;
+        while i < values.len() {
+            let value = values[i];
+            assert!(value < Self::LIMIT, "an `only` value is below Only::LIMIT");
+            words[(value / 32) as usize] |= 1 << (value % 32);
+            i += 1;
+        }
+        Self(words)
+    }
+
+    /// Whether the entry calls its handler for `value` (its `cmp`, then its `bt`).
+    pub fn holds(&self, value: u32) -> bool {
+        value < Self::LIMIT && self.0[(value / 32) as usize] & (1 << (value % 32)) != 0
+    }
 }
 
 /// A hook its patch installs at run time (`install = "on_demand"`,

@@ -764,9 +764,11 @@ over `vostok/pickup.rs` (`drawn_gun`, `gun_name`) and `vostok/ui.rs`
   all (when any drop is seen) the game's use scan (`use_scan::detect`, the
   Rust detect_usable_object): an object Use takes now there means no prompt
   and no target (`use_scan::rule::use_owner`).
-  Each kept pose's verdict is logged once per drop body and change of
-  reason (never per frame): `pickup: place P sees the gun of place T:
-  offered`, or `out of reach (2.2 m)` (the box's centre farther than the
+  Each kept pose's verdict is logged once per drop body and kind of
+  verdict (a refusal by its reason; never per frame, and a viewer turning
+  to and from a drop says each once; the last 4 bodies of a place are
+  remembered, with the box line at a body's first verdict):
+  `pickup: place P sees the gun of place T: offered`, or `out of reach (2.2 m)` (the box's centre farther than the
   reach and its padded half diagonal), `in reach, not aimed at its box`,
   `not offered, no line of sight`, `already taken`, `no drop in its
   record`, `the body drawn is not its drop's`, `its gun not made on this
@@ -954,6 +956,10 @@ policy, the cache, the log) over `vostok/gun_cook.rs` (the cook).
   MiB`; at the next frame `cook of ...: made, inventory 0x..., N ms after it
   was asked for (the death), address space A -> B MiB` or `FAILED`; a wait:
   `pickup: waited W ms for the gun of place P kit K slot S: made` or why not.
+  `death hook: place P life L at T ms` and `its body left the world: ...` are
+  said once for each death and removal: a rollback runs both hooks again at
+  each tick it simulates again (the owner's log of 2026-11-09: 13 064 and
+  7 977 such lines in its last 3 MB).
 - **Checked:** `check_weapon_pickup_026g.py` (Unicorn) runs the death, the
   frame's step and the destruction of the built exe with the game's own
   profile code, match_options, boost binder and invoker: the query and its

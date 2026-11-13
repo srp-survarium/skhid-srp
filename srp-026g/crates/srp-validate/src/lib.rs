@@ -22,10 +22,12 @@ extern crate std;
 
 pub mod memory;
 pub mod messages;
+pub mod modules;
 pub mod recovery;
 pub mod reader;
 pub mod refusal;
 pub mod report;
+pub mod executable;
 pub mod transport;
 pub mod world;
 
@@ -48,6 +50,9 @@ pub mod mode {
     pub const TEAM_DEATHMATCH: u8 = 4;
     /// Research (exe patch 53, `research_mode.md`).
     pub const RESEARCH: u8 = 5;
+    /// Free for all (`ffa.md`): no rule of its own, each place its own side
+    /// ([`super::own_side`]).
+    pub const FREE_FOR_ALL: u8 = 8;
     /// The modes whose statistics and gather rule hold the map's batteries.
     pub const WITH_BATTERIES: [u8; 2] = [BATTERIES, TIMED_BATTERIES];
 }
@@ -209,6 +214,15 @@ impl Places {
             .filter(move |&place| bit(self.0, u32::from(place)))
             .map(Place)
     }
+}
+
+/// The team of roster place `place` in a free-for-all: a side of its own,
+/// 4 + the place (`ffa.md`). The game reads team 2 as "neutral" and 3 as
+/// "none", so those are never a player's.
+pub const fn own_side(place: usize) -> u8 {
+    // A roster has at most MAX_PLAYERS places.
+    let place = if place < MAX_PLAYERS { place } else { MAX_PLAYERS };
+    (place as u8).saturating_add(4)
 }
 
 /// One of a match's two teams: 0 and 1.

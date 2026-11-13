@@ -202,10 +202,6 @@ package
       // as an admin text; the exe never calls it.
       private static const ADMIN_MESSAGE_WARNING:int = 0;
 
-      // set_autobuy's value: bit 0 the autobuy box; bit 1, the stock auto-repair box, is never set (srp
-      // has no repair).
-      private static const AUTO_BUY:int = 1;
-
       // meaning unknown: the progress show_daily_reward_window takes a day's reward to need.
       private static const DAILY_REWARD_PROGRESS_REQUIRED:int = 3;
 
@@ -332,7 +328,7 @@ package
       
       protected var _superWidth:uint = 1920;
       
-      protected var _load_images:Array = [Level1_day,Level2_day,Level3_day,Level3_evn,Level3_rain,Level4_day,Level1_rain,Level1_evn,Level2_rain,Level2_evn,Level4_rain,Level4_evn,Level5_day,Level5_rain,Level5_evn,Level6_day,Level6_rain,Level6_evn,Level7_day,Level7_rain,Level7_evn,Level8_day,Level8_rain,Level8_evn,Level8_night,Level8_prerain,Level9_day,Level9_evn,Level9_rain,Level_v011e,Level_v069d_rudnya];
+      protected var _load_images:Array = [Level1_day,Level2_day,Level3_day,Level3_evn,Level3_rain,Level4_day,Level1_rain,Level1_evn,Level2_rain,Level2_evn,Level4_rain,Level4_evn,Level5_day,Level5_rain,Level5_evn,Level6_day,Level6_rain,Level6_evn,Level7_day,Level7_rain,Level7_evn,Level8_day,Level8_rain,Level8_evn,Level8_night,Level8_prerain,Level9_day,Level9_evn,Level9_rain,Level_v011e,Level_v069d_rudnya,Level_cs_mp_bath,Level_cs_mp_military_1,Level_cs_training_camp,Level_cs_mp_rembasa,Level_soc_ug_station,Level_soc_ug_depository];
       
       private var spriteHighlightContainer:MovieClip = new MovieClip();
       
@@ -1047,6 +1043,7 @@ package
          this.inventory_list.bundleList.list.addEventListener(ListEvent.ITEM_ROLL_OUT,this.hideItemHint);
          this.inventory_list.addEventListener(Event.CLOSE,this.hideItemHint);
          this.inventory_list.addEventListener(Events.OPEN_MODIFIERS,this.openModifierWindow);
+         this.inventory_list.addEventListener(MouseEvent.MOUSE_DOWN,this.onInventoryPress);
          this.inventory_list.addEventListener(Events.CRAFFT_ITEM,this.openCraftWindow);
          this.inventory_list.itemControlPanel.addEventListener(Events.CRAFFT_ITEM,this.openCraftWindow);
          trace("ROOT:player_profile",this.player_profile);
@@ -2490,10 +2487,11 @@ package
          this.charWindow.set_char_stats(array);
       }
       
+      // The exe's call (0x227760) with the account's byte for the kit window's Autobuy and
+      // auto-repair boxes. The lobby has neither: autobuy is always on (the owner, 2026-11-10),
+      // and there is no repair.
       public function set_autobuy(value:uint) : void
       {
-         trace("set_auto_buy::",value);
-         this.player_profile.checkbox_autobuy.selected = (value & AUTO_BUY) != 0;
       }
       
       public function try_buy_item(profile:uint, uid:uint, dict_uid:uint, sourceSlot:uint, targetSlot:uint, count:int, price:uint, origin:BuyOrigin, seller:int = -1, onComplete:Function = null) : Boolean
@@ -2629,7 +2627,6 @@ package
          relocate_object.faction_id = faction_id;
          var new_data:ItemData;
          var _relocateArray:Array;
-         var relocate:Function;
          if((value.is_stack))
          {
             relocate_object.condition_or_stack = this.inventory_list.getItemCount(dict_id);
@@ -2659,10 +2656,7 @@ package
          else
          {
             _relocateArray = [relocate_object];
-            // Read first, then called: Scaleform throws "is not a function" when the
-            // class's getter is called in place (as DragRegion does it).
-            relocate = this.player_profile._relocateFunction;
-            relocate(_relocateArray);
+            this.player_profile.relocate(_relocateArray);
          }
       }
       
@@ -2808,14 +2802,6 @@ package
       {
          PlayerInfo.pocketSize = Math.min(PlayerInfo.MAX_POCKET_UNITS,value);
          this.player_profile.updatePocketSize(value);
-      }
-      
-      public function fill_auto_buy_items(value:Array) : void
-      {
-         trace("fill_auto_buy_items::",value);
-         this.player_profile.fillAutoBuyItems(value);
-         // The account setting comes from set_autobuy. An empty refill
-         // list must not untick it after the player enables autobuy again.
       }
       
       public function set_account_name(value:String) : void
@@ -4789,6 +4775,14 @@ package
          {
             return window.parent != null;
          });
+      }
+
+      // A press in the inventory puts it over the chat windows (the owner's
+      // of 2026-11-12: the chat should go behind the inventory); a chat's
+      // bottom tab brings its window up again.
+      private function onInventoryPress(e:MouseEvent) : void
+      {
+         this.chat.under(this.inventory_list);
       }
 
       private function closeLobbyWindow() : void

@@ -17,7 +17,7 @@ standard library and Microsoft's C runtime, linked in (`+crt-static`, as
 `cl /MT`; no runtime DLL beside it), the game's icon, a version resource
 (Skhid, "Skhid updater", the release revision) and its `asInvoker` manifest.
 Windows 7 and later. It imports `kernel32.dll`, `user32.dll` (its message
-box), `winhttp.dll`, `shell32.dll` (the Documents folder, where the game's
+box), `winhttp.dll`, `advapi32.dll` (per-user replay registration), `shell32.dll` (file associations and the Documents folder, where the game's
 user.cfg says the language its messages are in) and `ntdll.dll` (two
 functions of the standard library's).
 
@@ -73,8 +73,7 @@ functions of the standard library's).
   does hold the game folder's path) beside itself. `updater_skhid.lock`
   prevents simultaneous installs in the same folder. The patch step writes
   its own files beside it too (listed under "Patches").
-- No BitTorrent, no listening port, no UPnP, no registry read or write, no
-  service, no crash upload, no administrator rights (its manifest says `asInvoker`;
+- No BitTorrent, no listening port, no UPnP, no service, no crash upload, no administrator rights (its manifest says `asInvoker`;
   without one Windows takes a program named "updater" for an installer and
   asks for elevation).
 
@@ -301,7 +300,7 @@ nothing else with it. The updater (`exe/src/replay.rs`, the rules in
    `ready: NOT READY: ...` line and `replay: FAILED (NotReady)`, the exit
    code is 1. The replay stays in the folder, checked, for the next ask.
 7. Starts the game as the launcher's PLAY does, from `game\binaries\x86`:
-   `"<x86>\survarium_skhid.exe" -minimum_resources_memory_size=768
+   `"<x86>\survarium_skhid.exe"
    -match_replay="<the file>"`, no
    `-localization=`: the game plays it in its own language (the one chosen
    in its Settings, game patch 79). The game reads its command line as ANSI
@@ -920,3 +919,42 @@ skipped as before). Not run on Windows: Windows Security's errors 225 and
 - Texts in other languages than English (the launcher shows them in an
   ANSI message box), but the stop's box of "A file that cannot be read",
   which is the updater's own.
+
+
+## Opening local .sur files (unreleased)
+
+Double-click a `.sur` file and choose **Skhid Replay** if Windows asks which
+app to use; select the option to remember the choice. Successful launcher
+updates register this handler for the current user. A portable installation
+can register it with `updater_skhid.exe register-replays`. The registration
+uses `Software\Classes\Skhid.Replay.1`, `.sur\OpenWithProgids`, the updater's
+Applications entry, and `Software\RegisteredApplications` / Skhid capabilities
+under HKCU. Existing extension defaults and Explorer's UserChoice are untouched.
+Windows controls the default-app chooser; registration does not force a choice.
+
+The handler is `"<x86>\updater_skhid.exe" open-replay "%1"`. It locates the
+game beside itself and starts it from `game\binaries\x86` with:
+
+```text
+survarium_skhid.exe -match_replay="<selected absolute path>"
+```
+
+Memory budgets come from the game executable, including future changes to its defaults.
+
+Opening a file through Open With's executable picker or dropping it onto the
+updater works too. One absolute `.sur` path is accepted, including spaces and
+UNC paths. The existing ANSI/short-path conversion and installed-patch gate
+are shared with Watch replay. Unreadable/missing files show their path and
+Windows' reason in the game language. This does not validate replay contents
+or guarantee compatibility with the installed simulation revision.
+
+Local files are never downloaded, copied, pruned or deleted, and opening them
+makes no network request. `ready` and `check` do not register file handlers;
+registration happens after a successful launcher-driven update or the explicit
+registration command. A registration failure is logged without blocking Play.
+`open-replay <path> quiet` and `register-replays quiet` suppress error dialogs.
+
+`tests/check_local_replay.py --wine <wine>` builds its own temporary game folder
+with the test stand-in, creates a fresh Wine prefix, exercises local/drop/Shell
+launch and the remote replay regression, and retains its evidence under `/tmp`.
+Run it under a virtual display for shell activation. It does not run a real game.

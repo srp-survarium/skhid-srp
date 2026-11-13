@@ -33,9 +33,12 @@ thread). Checked:
   taken and played as a looping hud sound in the bus (emit_hud_sound's
   emitter, the bus's scene, the logic world user; play mode 1); the bus's
   volume 0 at the start, 0.5 a second in, 1 at two;
-- a change of track (login -> lobby): the next asked only once the first is
-  silent (its voice and sound let go then); a mode's `ui.loading_music`
-  (a config table made here) is its theme; one without plays nothing;
+- a change of track (login -> lobby): the next asked at once, as retail
+  0.69d asks it (a loading's theme so ahead of the map's own loads), and
+  played only once the first is silent, 0.5 s on (its voice and sound let go then),
+  whether it arrived during the fade or after it; a mode's
+  `ui.loading_music` (a config table made here) is its theme; one without
+  plays nothing;
 - the announcement: the map's theme full until 15 s, then a 2 s fade-out, let
   go when silent, nothing asked after;
 - a callback whose tag nobody waits for: its sound taken and let go at once;
@@ -450,40 +453,45 @@ def main():
           "(General is the engine's, +2E8h)")
 
     calls = run("lobby", EDI=HEAP + 0x300)
-    check(calls == [], "the lobby: nothing asked while the main theme fades out")
+    check([c[0] for c in calls] == ["query"] and calls[0][1:4] == ("music/lobby_theme", 256, 1),
+          "the lobby: its theme asked at once, while the main theme fades out")
     check(game.deleted == ["dxvk.pending"], f"the lobby: nothing more deleted ({game.deleted})")
-    frames(1000)
-    check(abs(volume() - 0.5) < 0.02 and not any(c[0] == "query" for c in game.calls),
-          f"half way out a second later ({volume():.3f})")
-    asked = []
+    lobby_q = calls[0]
+    lobby = sound_at(2)
+    calls = arrive(lobby_q, lobby)
+    check(calls == [] and game.read(lobby + 0xD0) == 2,
+          "the lobby theme arrives during the fade: its sound taken, not played")
+    frames(240)
+    check(abs(volume() - 0.52) < 0.02 and not any(c[0] in ("query", "emit", "play") for c in game.calls),
+          f"a handover: half way out a quarter of a second later ({volume():.3f})")
+    started = []
     for _ in range(60):
         sound(20)
         calls = run("frame", EBX=GAME)
         if calls:
-            asked = calls
+            started = calls
             break
-    check([c[0] for c in asked] == ["release voice", "release", "query"] and asked[0][1:] == (main_voice, 0)
-          and asked[1][1] == main and asked[2][1:4] == ("music/lobby_theme", 256, 1) and volume() == 0.0,
-          "silent: the main theme's voice and sound let go, only then the lobby theme asked")
-    lobby_q = asked[2]
-    lobby = sound_at(2)
-    calls = arrive(lobby_q, lobby)
-    check([c[0] for c in calls] == ["emit", "play"], "the lobby theme plays")
+    check([c[0] for c in started] == ["release voice", "release", "emit", "play"] and started[0][1:] == (main_voice, 0)
+          and started[1][1] == main and started[2][1] == lobby and volume() == 0.0,
+          "silent: the main theme's voice and sound let go, only then the lobby theme played")
     sound(2000)
 
     level = cfg_table(game, {"loading_music": "music/level_04_loading", "mode_name": "st_mode_02_name"})
-    check(run("loading", ESI=level) == [], "a loading: the lobby theme fades out first")
-    asked = []
+    asked = run("loading", ESI=level)
+    check([c[0] for c in asked] == ["query"] and asked[0][1:4] == ("music/level_04_loading", 256, 1),
+          "a loading: the mode's ui.loading_music asked at once, at switch_to_level_loading")
+    released = []
     for _ in range(150):
         sound(20)
         calls = run("frame", EBX=GAME)
         if calls:
-            asked = calls
+            released = calls
             break
-    check(asked and asked[-1][1:4] == ("music/level_04_loading", 256, 1), "then the mode's ui.loading_music asked")
+    check([c[0] for c in released] == ["release voice", "release"] and released[1][1] == lobby,
+          "the lobby theme let go once silent; the map's theme, not here yet, waits")
     map_sound = sound_at(3)
-    calls = arrive(asked[-1], map_sound)
-    check([c[0] for c in calls] == ["emit", "play"], "the map's theme plays")
+    calls = arrive(asked[0], map_sound)
+    check([c[0] for c in calls] == ["emit", "play"], "the map's theme plays when it arrives")
     frames(30_000)
     check(volume() == 1.0, "through the loading and the countdown")
     run("announced", EDI=HEAP + 0x400)

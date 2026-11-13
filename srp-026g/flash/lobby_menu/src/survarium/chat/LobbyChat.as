@@ -1,9 +1,12 @@
 package survarium.chat
 {
+   import flash.display.DisplayObject;
+   import flash.display.DisplayObjectContainer;
    import flash.events.Event;
    import flash.events.FocusEvent;
    import flash.events.MouseEvent;
    import flash.events.TextEvent;
+   import flash.geom.Rectangle;
    import flash.external.ExternalInterface;
    import flash.text.TextFormat;
    import flash.utils.Dictionary;
@@ -52,6 +55,18 @@ package survarium.chat
       protected const _fontScale:Number = 1.207;
       
       protected var _tapPageRenderer:ButtonBarBottom;
+
+      // Where a chat window is, for its bottom tab's press.
+      private static const HIDDEN:int = 0;
+
+      private static const BEHIND:int = 1;
+
+      private static const ON_TOP:int = 2;
+
+      // The bottom tab pressed and where its window was then, until the
+      // click: the selection the press makes shows and raises the window
+      // first (onTabIndexChange). Null between presses.
+      private var _press:Object = null;
       
       protected var _friends:Array;
       
@@ -134,6 +149,7 @@ package survarium.chat
       public function set tapPageRenderer(value:ButtonBarBottom) : void
       {
          _tapPageRenderer = value;
+         this._tapPageRenderer.addEventListener(ButtonEvent.PRESS,this.onTabPress,false);
          this._tapPageRenderer.addEventListener(ButtonEvent.CLICK,this.onTabIndexClick,false);
          this._tapPageRenderer.addEventListener(IndexEvent.INDEX_CHANGE,this.onTabIndexChange,false);
       }
@@ -281,50 +297,138 @@ package survarium.chat
          }
       }
       
+      // A bottom tab pressed: its window hidden or under another one comes
+      // up on top, one on top already goes away (the owner's of 2026-11-12:
+      // "if it is not top most, it should first bring it top most", "then
+      // second click would hide it"). The press's place is taken as the
+      // button goes down: by the click, a press that selects the tab has
+      // shown and raised its window already (onTabIndexChange).
+      protected function onTabPress(event:ButtonEvent) : void
+      {
+         var button:Button = event.target as Button;
+         if(button == null || !button.data)
+         {
+            _press = null;
+            return;
+         }
+         var id:int = int(button.data.id);
+         _press = {
+            "id":id,
+            "place":this.placeOf(this._tabs[id])
+         };
+      }
+
+      // The chat windows over `window` go under it, in their order.
+      public function under(window:DisplayObject) : void
+      {
+         var layer:DisplayObjectContainer = window.parent;
+         if(layer == null)
+         {
+            return;
+         }
+         var over:Array = [];
+         for each(var tab:LobbyChatTab in this._tabs)
+         {
+            if(tab != null && tab.parent == layer && layer.getChildIndex(tab) > layer.getChildIndex(window))
+            {
+               over.push(tab);
+            }
+         }
+         over.sort(function(a:DisplayObject, b:DisplayObject):int
+         {
+            return layer.getChildIndex(a) - layer.getChildIndex(b);
+         });
+         for each(tab in over)
+         {
+            layer.setChildIndex(tab,layer.getChildIndex(window));
+         }
+      }
+
+      // On top: nothing shown over the window that raising it would put
+      // under it. The lobby's stage layer (LobbyMenu._stageLayer: messages,
+      // transient windows, cards) stays over every window.
+      protected function placeOf(tab:LobbyChatTab) : int
+      {
+         if(tab == null || !tab.visible || tab.parent == null)
+         {
+            return HIDDEN;
+         }
+         var layer:DisplayObjectContainer = tab.parent;
+         var area:Rectangle = tab.getBounds(stage);
+         var i:int = layer.getChildIndex(tab) + 1;
+         while(i < layer.numChildren)
+         {
+            var over:DisplayObject = layer.getChildAt(i);
+            if(over.name != "stageLayer" && this.shownOver(over,area))
+            {
+               return BEHIND;
+            }
+            i++;
+         }
+         return ON_TOP;
+      }
+
+      // Whether a shown part of `thing` is in `area` (stage coordinates).
+      // A panel's bounds take its hidden parts in too (the side panels the
+      // lobby adds again over the chat): a container counts by its shown
+      // children only, entered where its bounds meet the area.
+      protected function shownOver(thing:DisplayObject, area:Rectangle) : Boolean
+      {
+         if(!thing.visible || thing.alpha <= 0 || !thing.getBounds(stage).intersects(area))
+         {
+            return false;
+         }
+         var box:DisplayObjectContainer = thing as DisplayObjectContainer;
+         if(box == null || box.numChildren == 0)
+         {
+            return true;
+         }
+         var i:int = 0;
+         while(i < box.numChildren)
+         {
+            if(this.shownOver(box.getChildAt(i),area))
+            {
+               return true;
+            }
+            i++;
+         }
+         return false;
+      }
+
       protected function onTabIndexClick(event:ButtonEvent) : void
       {
-         if(!event.target.data)
+         var press:Object = this._press;
+         _press = null;
+         if(!event.target.data || press == null || press.id != event.target.data.id)
          {
             return;
          }
-         var tab:LobbyChatTab = this._tabs[event.target.data.id];
-         var hasFocus:Boolean;
-         trace("onTabIndex:ClickSt, changed:",this._changed,"_wasSelected:",this._wasSelected);
-         if(this._changed)
+         var tab:LobbyChatTab = this._tabs[press.id];
+         if(!tab)
          {
-            _changed = false;
-            trace("onTabIndex:Click_end");
             return;
          }
-         if(this._tapPageRenderer.selectedIndex != -1 && this._tapPageRenderer.getButtonAt(this._tapPageRenderer.selectedIndex) != event.target as Button)
+         if(press.place == ON_TOP)
          {
-            trace("onTabIndex:Click_end");
-            return;
+            tab.visible = false;
+            stage.focus = null;
+            this.unfocusTab();
          }
-         trace("onTabIndexClick",this._tapPageRenderer.selectedIndex);
-         trace("setTabRendererToVisible::",!tab.visible,"cl");
-         if(tab)
+         else
          {
-            tab.visible = !tab.visible;
-            if(!tab.visible)
+            if(press.place == HIDDEN)
             {
-               stage.focus = null;
-               this.unfocusTab();
+               tab.scrollToBottom();
             }
-            else
+            tab.visible = true;
+            parent.addChild(tab);
+            if(stage.focus == null)
             {
-               parent.addChild(tab);
-               hasFocus = stage.focus != null;
-               if(!hasFocus)
-               {
-                  trace("ff:textField");
-                  stage.focus = tab.text_inpput.textField;
-               }
-               tab.text_inpput.text = "";
+               stage.focus = tab.text_inpput.textField;
             }
-            this.clearIngnore(null,true);
+            tab.text_inpput.text = "";
          }
-         trace("onTabIndex:Click_end");
+         this.clearIngnore(null,true);
       }
       
       protected function getTabIndex(tabId:int) : int
