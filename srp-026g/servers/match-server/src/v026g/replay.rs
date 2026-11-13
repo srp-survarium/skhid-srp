@@ -225,8 +225,15 @@ pub fn make(settings: &ReplaySettings, match_id: u32) -> Result<Sidecar, MakeErr
     let config = sur_convert::config(&name)
         .ok_or_else(|| MakeError::lasting(format!("the game data has no mode config {name}")))?;
     let notes = record::read_notes(&recording).map_err(MakeError::read)?;
-    let (file, _) = sur_convert::convert_file(&recording, &notes, config, Settings::default())
+    let (file, report) = sur_convert::convert_file(&recording, &notes, config, Settings::default())
         .map_err(|error| MakeError::lasting(error.to_string()))?;
+    if let Some((time, why)) = report.refusals.first() {
+        log::warn!(
+            "Replays: match {match_id:#x}: {} uploaded worlds of its recording are no key \
+             frames, the world check refused the first at {time} ms: {why}",
+            report.worlds_untaken
+        );
+    }
     let (account_ids, revisions) = places(&notes);
     let sidecar = Sidecar {
         match_id,

@@ -126,7 +126,7 @@ const _: () = assert!(
 use super::afk::{self, Watch};
 use super::battery_cap;
 use super::kill_cap;
-use super::record::{Recorder, Recording};
+use super::record::{AcceptedWorld, Recorder, Recording};
 use super::registry::{Formed, IdleRemoved, MatchEnd, MatchResult, PlayerResult};
 use super::{LateInputs, Settings};
 
@@ -1179,6 +1179,14 @@ impl Game {
     fn record_note(&mut self, note: serde_json::Value, now: Instant) {
         if let Some(recording) = self.recording.as_mut() {
             recording.note(&note, now);
+        }
+    }
+
+    /// The match's world is now `snapshot`, as uploaded: the one kind of
+    /// world a replay makes its key frames of (`sur_convert`).
+    fn record_accepted_world(&mut self, snapshot: &Snapshot, now: Instant) {
+        if let Some(recording) = self.recording.as_mut() {
+            recording.accepted_world(AcceptedWorld::of(snapshot.time, &snapshot.body), now);
         }
     }
 
@@ -4175,6 +4183,8 @@ impl Game {
             }
             return Verdict::Refused;
         }
+        // At its time as uploaded, the one a replay knows it by.
+        self.record_accepted_world(&snapshot, now);
         // The clock runs on the tick grid [LIKELY the initial world is on
         // it: 0.21d's was at 50 ms].
         if !snapshot.time.is_multiple_of(TICK_MS) {
@@ -4557,6 +4567,7 @@ impl Game {
                             candidate.snapshot.time
                         );
                     }
+                    self.record_accepted_world(&candidate.snapshot, now);
                     self.snapshot = Some(candidate.snapshot);
                     self.requested_at = None;
                 }

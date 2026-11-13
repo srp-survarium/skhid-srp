@@ -12,7 +12,7 @@ use survarium::v026g::match_msgs::static_info::{
 use survarium::v026g::match_msgs::upload;
 
 use super::*;
-use crate::v026g::record::{IN, MAGIC, OUT};
+use crate::v026g::record::{ACCEPTED_WORLD, AcceptedWorld, IN, MAGIC, NO_PLACE, OUT};
 use crate::v026g::sur;
 
 const MATCH: u32 = 0x1F07_C8FB;
@@ -105,7 +105,7 @@ fn write_recording(path: &Path, secrets: &[&str]) -> String {
         0,
         serde_json::json!({
             "note": "header", "map": map.name, "map_id": map.id, "mode": map.mode.rules().number(),
-            "match_id": format!("{MATCH:#x}"),
+            "match_id": format!("{MATCH:#x}"), "accepted_worlds": true,
             "places": [
                 {"place": 0, "account_id": 1001, "name": "a"},
                 {"place": 1, "account_id": 1002, "name": "b"},
@@ -148,10 +148,14 @@ fn write_recording(path: &Path, secrets: &[&str]) -> String {
         2500,
         serde_json::json!({"note": "places", "places": [{"place": 2, "account_id": 1003}]}),
     ));
+    // Worlds the server took.
     for (time, fill) in [(50u32, 1u8), (1050, 2)] {
-        for chunk in upload::split(time, &vec![fill; 700]).unwrap() {
+        let body = vec![fill; 700];
+        for chunk in upload::split(time, &body).unwrap() {
             raw.extend(record(IN, 0, 3000 + time, &datagram(0xE0, None, &chunk)));
         }
+        let taken = AcceptedWorld::of(time, &body).to_bytes();
+        raw.extend(record(ACCEPTED_WORLD, NO_PLACE, 3000 + time, &taken));
     }
     let packed = lzma2::packed(&raw);
     let mut file = fs::File::create(path).unwrap();
