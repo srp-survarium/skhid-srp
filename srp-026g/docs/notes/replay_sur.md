@@ -82,7 +82,7 @@ Every apply carries its time, and the replay skips the "too far in the future" c
 | chunk 1 | the stored LZMA2 stream of the 0xE4 of the place that got the **largest roster** (with late joins, the roster grows: 6 to 20 seen), without its first byte |
 | chunk 4 | the mode config file |
 | body | the relays the server sent to the places: 0xEB, 0xEC, 0xED, 0xEE (inputs), 0xF3 (kit choice), 0xE9, 0xEA (enter, leave), every message of every place put together and a copy of one dropped (one input at one time of one player is one input: 1.5 to 4.3 million copies in a match, **0 conflicts**) |
-| key frames | the uploaded worlds (0xE0 chunks of patched clients, `Reassembler`), one body for each item time (the most common one when clients disagree: 1 to 2 times in a match), the first world, one at least every 10 s, and **one soon after each late joiner enters**, at most 128 |
+| key frames | the uploaded worlds (0xE0 chunks of patched clients, `Reassembler`) the match server took as the match's (a recording's `ACCEPTED_WORLD` records, time and SHA-256; in a recording from before them, the uploads that pass the server's world check against its own roster), one body for each item time (the most common one when clients disagree: 1 to 2 times in a match), the first world, one at least every 10 s, and **one soon after each late joiner enters**, at most 128 |
 
 Choices, each one in the summary:
 

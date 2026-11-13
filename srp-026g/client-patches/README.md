@@ -4743,8 +4743,21 @@ vector takes the native no-state path; an artefact id outside the world registry
 takes the native null-object path. Valid ids execute the original instructions.
 These guards also cover item bodies whose format cannot be walked statically.
 
+A dead selector's death animation (F5 of the packet-fuzz campaign): a carried
+weapon's or battery's `player_logic_dead_state` saves `m_animation_index`, and the
+world brings it as any byte. `get_death_animations` 0x338280 (called by
+`on_animation_end` 0x3384E0 and `selected_animations` 0x338540) indexes the set's
+`death` (+590h) and `death_hud` (+A20h) lists with it and takes a reference through
+each slot, with no bound: a crafted world made every receiving client read past
+the lists and write through what it found. The guard at its entry
+(`deserialize.death_animation`) turns an index past either list's length (+594h,
++A24h) into 0, the first death animation; an index in the lists runs unchanged.
+The lengths are the set's own (rifles 2, pistols 1, the battery carrier 1;
+death-poses.md), so the bound follows the content and no world is refused for it.
+
 `check_deserialize_guards_026g.py <stock exe>` compares valid reads with stock and
-checks invalid/empty tables at all four stack alignments (84 cases). The i686
+checks invalid/empty tables at all four stack alignments (120 cases; the death
+animation's: the stock faults past the lists, ours plays the first). The i686
 patch crate's i686 tests and Clippy pass. No release revision is reserved.
 
 ## A presenter ignores an effect it does not hold (patch 117, unreleased)

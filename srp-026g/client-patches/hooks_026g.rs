@@ -1900,6 +1900,21 @@ pub extern "C" fn hook_deserialize_guards_on_artefact(frame: &mut Frame) -> u32 
     }
 }
 
+// ---- deserialize_guards (patch 115) ----
+
+/// The entry `deserialize_guards_on_death_animation` (0x338280, get_death_animations' entry (push ebx; mov ebx,[esp+10h]), called by on_animation_end 0x3384FF and selected_animations 0x338566 with the dead state's m_animation_index as read from the world: it reads [[set+0A20h]+index*4] and [[set+590h]+index*4] and takes a reference through each (lock xadd [slot+0DCh]) with no bound) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_deserialize_guards_on_death_animation(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `deserialize_guards_on_death_animation` calls this, from the game's jump at 0x338280,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::deserialize_guards::on_death_animation(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- drug_interrupt (patch 84) ----
 
 /// The entry `drug_interrupt_on_hit_applied` (0x2d9cb1, base_player::hit_impl once damage_model::hit_body_part (0x2E5080, at 0x2D9CA4) said 1: the hit took health past armour and protectors (more than 0.0 left, 0x2E5128); before the slow, the listeners and the death (mov edi,esi / cmp dword [edi+40h],0; the je at 0x2D9CB7 reads its flags): EBX the victim, ESI the hit; every hit of every player, in every game's simulation) calls this with the saved machine.

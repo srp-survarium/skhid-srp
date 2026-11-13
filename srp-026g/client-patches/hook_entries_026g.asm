@@ -3100,6 +3100,45 @@ deserialize_guards_on_artefact_replay:
     db 0x8d, 0x04, 0x82, 0x8b, 0x00
     jmp 0x2fe663
 
+; 0x338280 get_death_animations' entry (push ebx; mov ebx,[esp+10h]), called by on_animation_end 0x3384FF and selected_animations 0x338566 with the dead state's m_animation_index as read from the world: it reads [[set+0A20h]+index*4] and [[set+590h]+index*4] and takes a reference through each (lock xadd [slot+0DCh]) with no bound: lohook -> deserialize_guards_on_death_animation
+global deserialize_guards_on_death_animation
+extern hook_deserialize_guards_on_death_animation
+deserialize_guards_on_death_animation:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_death_animation
+    mov edx, deserialize_guards_on_death_animation_replay
+    cmp eax, 0
+    je deserialize_guards_on_death_animation_go
+    mov edx, 0x338285
+    cmp eax, 1
+    je deserialize_guards_on_death_animation_go
+    ud2
+deserialize_guards_on_death_animation_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_death_animation_replay:
+    db 0x53, 0x8b, 0x5c, 0x24, 0x10
+    jmp 0x338285
+
 ; 0x2d9cb1 base_player::hit_impl once damage_model::hit_body_part (0x2E5080, at 0x2D9CA4) said 1: the hit took health past armour and protectors (more than 0.0 left, 0x2E5128); before the slow, the listeners and the death (mov edi,esi / cmp dword [edi+40h],0; the je at 0x2D9CB7 reads its flags): EBX the victim, ESI the hit; every hit of every player, in every game's simulation: lohook -> drug_interrupt_on_hit_applied
 global drug_interrupt_on_hit_applied
 extern hook_drug_interrupt_on_hit_applied

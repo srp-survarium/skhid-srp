@@ -123,8 +123,9 @@ impl Encoder {
         Ok(enc)
     }
     pub fn encode(&mut self, pcm: &[i16; FRAME]) -> Result<Vec<u8>, String> {
-        // Two encoded frames and their headers must fit the relay's 400-byte cap.
-        let mut out = vec![0; 192];
+        // No more room than the relay and the games take: the encoder keeps
+        // a frame within it (its own measured at most 93 bytes).
+        let mut out = vec![0; crate::wire::MAX_FRAME_BYTES];
         let n = unsafe {
             opus_encode(
                 self.0.as_ptr(),

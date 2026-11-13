@@ -12,10 +12,11 @@
 //! replay or recording has voice.
 //!
 //! A datagram is read once into a typed value ([`parse`]); one that is
-//! malformed (an AUDIO's frames included: [`opus_20ms`]), not a seat's, or
-//! over its talker's rate is dropped, never forwarded, and counted in the
-//! drop log: a line a source IP with its count, at most every
-//! [`DROP_LOG_EVERY`], so a flood cannot fill the log.
+//! malformed (an AUDIO's frames included: only what the games' encoder
+//! makes, [`our_frame`]), not a seat's, or over its source's or its
+//! talker's rate is dropped, never forwarded, and counted in the drop log:
+//! a line a source IP with its count, at most every [`DROP_LOG_EVERY`], so a
+//! flood cannot fill the log.
 //!
 //! Every utterance goes past an [`UtteranceTap`] ([`NoTap`] by default): the
 //! seam for subtitles and translation later. What a tap says goes back to the
@@ -87,12 +88,47 @@ pub mod kind {
 pub const MAX_DATAGRAM: usize = 400;
 /// A talker's datagrams in a second past this are dropped.
 pub const MAX_PER_SECOND: u32 = 60;
+/// A talker's AUDIO: the games send one each 40 ms (25 a second); past 30 a
+/// second, beyond a burst of 20 (more than a receiver's ring of 16 AUDIO:
+/// what a network hold or a stall of the relay releases at once), they are
+/// dropped.
+const AUDIO_RATE: Rate = Rate {
+    per_second: 30.,
+    burst: 20.,
+};
+/// What one source IP may send at all, checked before anything else: a
+/// flood's cap only. Many players share an exit (Cloudflare WARP, carrier
+/// NAT): 40 of them, all talking (29 a second) and saying HELLO (4 a second
+/// before WELCOME), send under 1400.
+const SOURCE_RATE: Rate = Rate {
+    per_second: 2000.,
+    burst: 2000.,
+};
+/// The seat lookups of one source IP that may fail (a session with no
+/// seat, or of another IP). A session not known yet from this IP is looked
+/// up only when there is room for a failure: guessing sessions, or a refused
+/// game, costs the registry's lock (which the match threads share) 20
+/// lookups a second at most. A session that said HELLO from this IP is
+/// looked up whatever this says, so a refused game never stops the others.
+const FAILED_LOOKUPS: Rate = Rate {
+    per_second: 20.,
+    burst: 20.,
+};
+/// A session refused from an IP is not looked up again from it for this
+/// long (a refused game keeps sending: it costs a lookup a second).
+const REFUSED_FOR: Duration = Duration::from_secs(1);
+/// The sources limited apart at once, and the refusals remembered; past it
+/// (a spoofed flood) the other sources share one limit, and no more
+/// refusals are remembered, so memory stays bounded.
+const SOURCES: usize = 4096;
 /// A listener heard from this long ago gets nothing more.
 pub const HELLO_FRESH: Duration = Duration::from_secs(6);
 /// An utterance with no AUDIO this long is closed (END reason 1).
 pub const SILENCE: Duration = Duration::from_secs(1);
-/// An utterance this long is cut (END reason 2).
-pub const LONGEST: Duration = Duration::from_secs(30);
+/// An utterance this long is cut (END reason 2): a second past the games'
+/// own cap of a press (30 s), so their END comes first. A talker that
+/// presses again and again is left to its teammates' mutes.
+pub const LONGEST: Duration = Duration::from_secs(31);
 const HOUSEKEEPING: Duration = Duration::from_secs(1);
 const RECEIVE_WAIT: Duration = Duration::from_millis(10);
 
@@ -282,9 +318,21 @@ enum Datagram<'a> {
     },
 }
 
-/// The most frames an AUDIO may carry: the games drop a datagram with more
-/// (`client-voice/src/wire.rs`), so the relay never forwards one.
-pub const MAX_FRAMES: usize = 8;
+/// The most frames an AUDIO may carry: the games' sender sends two (40 ms),
+/// one when an utterance ends on an odd frame, and their receivers play two
+/// (`client-voice/src/wire.rs` drops a datagram with more).
+pub const MAX_FRAMES: usize = 2;
+/// The longest frame: the games' encoder (`client-voice/src/codec.rs`) runs
+/// at 16 kbit/s, 40 bytes a 20 ms frame on average and 93 at most measured
+/// (full-scale square waves and noise, no automatic gain), and is given no
+/// more room than this (3 times its rate).
+pub const MAX_FRAME_BYTES: usize = 120;
+/// The TOC bytes (RFC 6716 3.1) of the frames the games' encoder makes:
+/// SILK, 20 ms, mono, one frame (code 0), of narrow, medium or wide band
+/// (configurations 1, 5 and 9). It encodes 16 kHz (no wider band) speech
+/// (`OPUS_SIGNAL_VOICE`) at 16 kbit/s, where Opus stays in SILK; its own
+/// frames are all 0x48, the others are margin.
+pub const FRAME_TOCS: [u8; 3] = [0x08, 0x28, 0x48];
 
 /// Why the relay dropped a datagram: the drop log's words.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -303,14 +351,21 @@ pub enum Dropped {
     Length,
     /// AUDIO not of 1 to [`MAX_FRAMES`] frames that fill it exactly.
     Frames,
-    /// A frame that is not one 20 ms Opus packet ([`opus_20ms`]).
+    /// A frame the games' encoder does not make ([`our_frame`]).
     NotOpus,
+    /// A source IP over [`SOURCE_RATE`].
+    SourceRate,
+    /// A session not known from its source, with no room for another of its
+    /// source's [`FAILED_LOOKUPS`].
+    Lookups,
     /// A session with no seat.
     NoSeat,
     /// From another IP than its seat's match connection.
     WrongIp,
     /// A talker over [`MAX_PER_SECOND`].
     RateLimit,
+    /// A talker's AUDIO over [`AUDIO_RATE`].
+    AudioRate,
 }
 
 impl std::fmt::Display for Dropped {
@@ -323,38 +378,102 @@ impl std::fmt::Display for Dropped {
             Self::Kind(kind) => write!(f, "type {kind:#04x}"),
             Self::Length => write!(f, "wrong length"),
             Self::Frames => write!(f, "malformed frames"),
-            Self::NotOpus => write!(f, "a frame not 20 ms of Opus"),
+            Self::NotOpus => write!(f, "a frame the games' encoder does not make"),
+            Self::SourceRate => write!(f, "its IP over {} a second", SOURCE_RATE.per_second),
+            Self::Lookups => write!(
+                f,
+                "its IP's failed lookups over {} a second",
+                FAILED_LOOKUPS.per_second
+            ),
             Self::NoSeat => write!(f, "no seat"),
             Self::WrongIp => write!(f, "not its seat's IP"),
             Self::RateLimit => write!(f, "over {MAX_PER_SECOND} a second"),
+            Self::AudioRate => write!(f, "audio over {} a second", AUDIO_RATE.per_second),
         }
     }
 }
 
-/// Whether `frame` is one 20 ms Opus packet, what the games play in each
-/// frame's place: its TOC byte's configuration and frame count (RFC 6716
-/// 3.1) say 20 ms. The rest of it is the decoder's to check.
-pub fn opus_20ms(frame: &[u8]) -> bool {
-    let Some((&toc, rest)) = frame.split_first() else {
-        return false;
-    };
-    let config = toc >> 3;
-    // A frame's length in 2.5 ms.
-    let length: u32 = match config {
-        // SILK: 10, 20, 40 and 60 ms.
-        0..=11 => [4, 8, 16, 24][usize::from(config & 3)],
-        // Hybrid: 10 and 20 ms.
-        12..=15 => [4, 8][usize::from(config & 1)],
-        // CELT: 2.5, 5, 10 and 20 ms.
-        _ => [1, 2, 4, 8][usize::from(config & 3)],
-    };
-    let count = match toc & 3 {
-        0 => 1,
-        1 | 2 => 2,
-        // Code 3: the count is in the next byte.
-        _ => rest.first().map_or(0, |&count| u32::from(count & 0x3F)),
-    };
-    length * count == 8
+/// Whether `frame` is one the games' encoder makes: of one of
+/// [`FRAME_TOCS`] and at most [`MAX_FRAME_BYTES`]. Nothing else reaches the
+/// teammates' decoders (`client-voice/src/wire.rs` checks the same).
+pub fn our_frame(frame: &[u8]) -> bool {
+    frame.len() <= MAX_FRAME_BYTES && frame.first().is_some_and(|toc| FRAME_TOCS.contains(toc))
+}
+
+/// A rate of datagrams: [`Rate::per_second`] over time, [`Rate::burst`] at
+/// once.
+#[derive(Clone, Copy, Debug)]
+struct Rate {
+    per_second: f32,
+    burst: f32,
+}
+
+/// One source IP's rates.
+#[derive(Clone, Copy, Debug)]
+struct Source {
+    /// All its datagrams ([`SOURCE_RATE`]).
+    all: Bucket,
+    /// Its failed seat lookups ([`FAILED_LOOKUPS`]).
+    failed: Bucket,
+}
+
+impl Source {
+    fn new(now: Instant) -> Self {
+        Self {
+            all: Bucket::full(SOURCE_RATE, now),
+            failed: Bucket::full(FAILED_LOOKUPS, now),
+        }
+    }
+
+    fn is_full(&mut self, now: Instant) -> bool {
+        self.all.is_full(now) && self.failed.is_full(now)
+    }
+}
+
+/// A token bucket of a [`Rate`].
+#[derive(Clone, Copy, Debug)]
+struct Bucket {
+    rate: Rate,
+    tokens: f32,
+    at: Instant,
+}
+
+impl Bucket {
+    fn full(rate: Rate, now: Instant) -> Self {
+        Self {
+            rate,
+            tokens: rate.burst,
+            at: now,
+        }
+    }
+
+    fn refill(&mut self, now: Instant) {
+        let elapsed = now.saturating_duration_since(self.at).as_secs_f32();
+        self.tokens = (self.tokens + elapsed * self.rate.per_second).min(self.rate.burst);
+        self.at = self.at.max(now);
+    }
+
+    /// Whether the rate has room for one more.
+    fn has_room(&mut self, now: Instant) -> bool {
+        self.refill(now);
+        self.tokens >= 1.
+    }
+
+    /// One datagram, when the rate has room for it.
+    fn take(&mut self, now: Instant) -> bool {
+        self.refill(now);
+        if self.tokens >= 1. {
+            self.tokens -= 1.;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn is_full(&mut self, now: Instant) -> bool {
+        self.refill(now);
+        self.tokens >= self.rate.burst
+    }
 }
 
 /// Anything malformed, of another version, or of a type a client does not
@@ -415,7 +534,7 @@ fn parse(datagram: &[u8]) -> Result<Datagram<'_>, Dropped> {
                 let Some((frame, after)) = after.split_at_checked(usize::from(len)) else {
                     return Err(Dropped::Frames);
                 };
-                if !opus_20ms(frame) {
+                if !our_frame(frame) {
                     return Err(Dropped::NotOpus);
                 }
                 frames.push(frame);
@@ -554,6 +673,8 @@ struct Talker {
     /// The rate limit's second and its count.
     window: Instant,
     in_window: u32,
+    /// The AUDIO's own rate ([`AUDIO_RATE`]).
+    audio: Bucket,
 }
 
 /// What a match's voice came to, for the log.
@@ -579,6 +700,13 @@ pub struct Relay<S: Seats> {
     /// Datagrams dropped before a session was known (too large, malformed).
     pub dropped_unknown: u64,
     drops: DropLog,
+    /// Each source IP's rates, [`SOURCES`] at most.
+    sources: HashMap<IpAddr, Source>,
+    /// The one rate of the sources past [`SOURCES`].
+    other_sources: Source,
+    /// Sessions refused from a source IP lately ([`REFUSED_FOR`]): when,
+    /// why, and the match of the seat (when there was one).
+    refused: HashMap<(IpAddr, u32), (Instant, Dropped, Option<u32>)>,
     /// The voice ids' key ([`voice_id`]).
     id_key: [u8; 32],
     next_housekeeping: Instant,
@@ -601,6 +729,9 @@ impl<S: Seats> Relay<S> {
             counts: HashMap::new(),
             dropped_unknown: 0,
             drops: DropLog::default(),
+            sources: HashMap::new(),
+            other_sources: Source::new(now),
+            refused: HashMap::new(),
             id_key: [0; 32],
             next_housekeeping: now + HOUSEKEEPING,
             next_drop_log: now,
@@ -639,6 +770,34 @@ impl<S: Seats> Relay<S> {
         self.drops.record(source, reason);
     }
 
+    /// The rates of `source`.
+    fn source(&mut self, source: IpAddr, now: Instant) -> &mut Source {
+        if !self.sources.contains_key(&source) && self.sources.len() >= SOURCES {
+            return &mut self.other_sources;
+        }
+        self.sources
+            .entry(source)
+            .or_insert_with(|| Source::new(now))
+    }
+
+    /// `session` from `source` failed its seat lookup for `reason`: dropped
+    /// and counted (for the seat's match, when it has one).
+    fn refuse(
+        &mut self,
+        source: IpAddr,
+        session: u32,
+        reason: Dropped,
+        match_id: Option<u32>,
+        now: Instant,
+    ) {
+        self.source(source, now).failed.take(now);
+        if self.refused.len() < SOURCES {
+            self.refused
+                .insert((source, session), (now, reason, match_id));
+        }
+        self.reject(source, match_id, reason);
+    }
+
     /// The drop log's lines when they are due (every [`DROP_LOG_EVERY`]):
     /// what [`Relay::poll`] writes to the log.
     fn drop_lines(&mut self, now: Instant) -> Vec<String> {
@@ -661,6 +820,12 @@ impl<S: Seats> Relay<S> {
     ) -> Vec<(SocketAddr, Vec<u8>)> {
         let mut out = Vec::new();
         let source = addr.ip().to_canonical();
+        // Before anything else (the registry's lock above all): the source's
+        // rate.
+        if !self.source(source, now).all.take(now) {
+            self.reject(source, None, Dropped::SourceRate);
+            return out;
+        }
         let parsed = match parse(datagram) {
             Ok(parsed) => parsed,
             Err(reason) => {
@@ -674,12 +839,29 @@ impl<S: Seats> Relay<S> {
             | Datagram::Audio { session, .. }
             | Datagram::End { session, .. } => *session,
         };
+        // A session refused from this source lately is not looked up again.
+        if let Some(&(at, reason, match_id)) = self.refused.get(&(source, session))
+            && now.saturating_duration_since(at) < REFUSED_FOR
+        {
+            self.reject(source, match_id, reason);
+            return out;
+        }
+        // One not known from this source is looked up only when the
+        // source's failed lookups have room.
+        let known = self
+            .listeners
+            .get(&session)
+            .is_some_and(|listener| listener.seat.ip == Some(source));
+        if !known && !self.source(source, now).failed.has_room(now) {
+            self.reject(source, None, Dropped::Lookups);
+            return out;
+        }
         // The session holds a seat, and the datagram comes from the IP its
         // game connected to the match from. Anything else: dropped (and in
         // the drop log, by its source).
         let Some(seat) = self.seats.voice_seat(session) else {
             self.listeners.remove(&session);
-            self.reject(source, None, Dropped::NoSeat);
+            self.refuse(source, session, Dropped::NoSeat, None, now);
             return out;
         };
         match seat.ip {
@@ -689,7 +871,7 @@ impl<S: Seats> Relay<S> {
             // counted nor logged; the game says HELLO again until WELCOME.
             None => return out,
             Some(_) => {
-                self.reject(source, Some(seat.match_id), Dropped::WrongIp);
+                self.refuse(source, session, Dropped::WrongIp, Some(seat.match_id), now);
                 return out;
             }
         }
@@ -713,6 +895,7 @@ impl<S: Seats> Relay<S> {
             closed: None,
             window: now,
             in_window: 0,
+            audio: Bucket::full(AUDIO_RATE, now),
         });
         if now.saturating_duration_since(talker.window) >= Duration::from_secs(1) {
             talker.window = now;
@@ -755,9 +938,13 @@ impl<S: Seats> Relay<S> {
                 frames,
                 ..
             } => {
-                let Some(talker) = self.talkers.get(&session) else {
+                let Some(talker) = self.talkers.get_mut(&session) else {
                     return out;
                 };
+                if !talker.audio.take(now) {
+                    self.reject(source, Some(seat.match_id), Dropped::AudioRate);
+                    return out;
+                }
                 let fresh = match &talker.open {
                     Some(open) => open.client_utt != utt,
                     None => true,
@@ -982,6 +1169,10 @@ impl<S: Seats> Relay<S> {
     }
 
     fn housekeeping(&mut self, now: Instant, out: &mut Vec<(SocketAddr, Vec<u8>)>) {
+        // A source back to its whole rate is forgotten.
+        self.sources.retain(|_, rates| !rates.is_full(now));
+        self.refused
+            .retain(|_, (at, _, _)| now.saturating_duration_since(*at) < REFUSED_FOR);
         // A listener whose place is gone or changed hears no more.
         let seats = &self.seats;
         self.listeners.retain(|session, listener| {

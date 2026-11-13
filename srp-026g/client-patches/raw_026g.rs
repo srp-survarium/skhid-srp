@@ -20487,6 +20487,81 @@ impl OutOfMemoryFrame {
     }
 }
 
+/// A survarium::user_animations (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UserAnimations(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl UserAnimations {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x594 (u32): the death list's length (its entries at +590h): the set's load (0x2CF370, 0x2CF3E3) sizes it from the config (rifles 2, pistols_new 1, the battery carrier 1; death-poses.md); activate 0x338330 picks m_animation_index below it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn death_count(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x594).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xa24 (u32): the death_hud list's length (its entries at +A20h, right after the death list's in one allocation, 0x2CF414); the same files as death, so the same length in every config
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn death_hud_count(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xa24).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::death_animations_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DeathAnimationsFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl DeathAnimationsFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<survarium::user_animations>): get_death_animations' first argument at its entry (by the site's ESP at 0x338280): the selector's set, [selector+40h]
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set(self) -> Option<UserAnimations> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<UserAnimations>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::user_animations>): get_death_animations' first argument at its entry (by the site's ESP at 0x338280): the selector's set, [selector+40h]
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_set(self, value: Option<UserAnimations>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<UserAnimations>>().write_volatile(value) }
+    }
+
+    /// +0xc (u32): its third: the dead state's m_animation_index (movzx of state+30h at 0x3384ED and 0x338550), which it indexes both lists with, unbounded (ebx = index*4, 0x338281..0x338294)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn index(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xc).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::modules::tls_callback_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -25688,6 +25763,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn core(machine: &impl Machine) -> Option<CoreWorld> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(CoreWorld)
+        }
+    }
+
+    /// deserialize.death_animation (0x338280): get_death_animations' entry (push ebx; mov ebx,[esp+10h]), called by on_animation_end 0x3384FF and selected_animations 0x338566 with the dead state's m_animation_index as read from the world: it reads [[set+0A20h]+index*4] and [[set+590h]+index*4] and takes a reference through each (lock xadd [slot+0DCh]) with no bound
+    pub mod deserialize_death_animation {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::death_animations_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<DeathAnimationsFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(DeathAnimationsFrame)
         }
     }
 

@@ -13,3 +13,7 @@ handler = "on_anomaly"
 [[hook]]
 site = "deserialize.artefact"
 handler = "on_artefact"
+
+[[hook]]
+site = "deserialize.death_animation"
+handler = "on_death_animation"
