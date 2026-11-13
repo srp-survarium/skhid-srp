@@ -18,7 +18,7 @@
 //! on, and before the reach, so a top only a rim jump gets to is kept.
 use super::gap::{self, OffLink, PressLead, Takeoff};
 use super::{LinkKind, NodeId, WalkGrid, Wide, DIRS, MARGINAL_JUMP_M, NONE, RIM_REACH_M};
-use crate::controller::jump::{self, Gait, Leg};
+use crate::controller::jump::{self, Gait, Keys, Leg, Press};
 use crate::controller::tick::Settings;
 use crate::controller::Collision;
 use crate::math::Vec3;
@@ -88,12 +88,23 @@ fn best_press(world: &Collision, s: &Settings, from: Vec3, to: Vec3, way: (f32, 
         return (Some(Takeoff::Press(PressLead::from_metres(walking[walking.len() / 2]))), flights);
     }
     let mut counts: Vec<(f32, usize)> = Vec::new();
+    let across = (to.x - from.x) * way.0 + (to.z - from.z) * way.1;
     for &lead in leads {
+        // One run-up for the four variants: it is the same for each ([`jump::run_and_fly`] runs it from the same start at the
+        // same speed), and only the jump differs.
+        let at = Vec3::new(from.x - way.0 * lead, from.y, from.z - way.1 * lead);
+        let run = jump::run_up(world, s, at, way, jump::SPRINT_MS, true);
         let n = sprint_gaits()
             .into_iter()
             .filter(|&gait| {
                 flights += 1;
-                lands(world, s, from, to, way, cell, lead, gait)
+                let (Some(run), Gait::Sprint { leg, first_air_frame }) = (run.as_ref(), gait) else { return false };
+                let press =
+                    if run.speed >= jump::WALK_CAP_MS { Press::Sprint { speed: run.speed, leg, first_air_frame } } else { Press::Walk { speed: run.speed } };
+                let mut body = run.body;
+                let end = jump::fly(world, s, &mut body, way, press, Keys::BOT, GROUND_STEPS).last().map_or(at, |f| f.feet);
+                let ahead = (end.x - from.x) * way.0 + (end.z - from.z) * way.1;
+                (end.y - to.y).abs() <= LAND_HEIGHT_M && ahead >= across - 0.5 * cell
             })
             .count();
         counts.push((lead, n));

@@ -1446,7 +1446,10 @@ mod tests {
     #[test]
     fn a_real_map_loads() {
         let Some(dir) = real_dir() else { return };
-        let maps = Maps::new(Some(dir));
+        // [A364 C2 rows 11/12] With the rim jumps off: their flights are the pre-build's (the grids ship built, the 2f package), a
+        // map's live build with them is many minutes; the rim pass has its own tests (`mapdata::grid::rim`).
+        let built = dir.join(BUILT_DIR);
+        let maps = Maps::configured(Some(dir), KEEP, AT_ONCE, Some(built), GridTuning { rim_jumps: false, ..GridTuning::default() });
         let world = wait_ready(&maps, "level_01/day_4", Duration::from_secs(300))
             .world
             .clone();
