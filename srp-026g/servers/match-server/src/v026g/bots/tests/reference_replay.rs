@@ -13,7 +13,8 @@
 //!     the old yaw; fx-grid, PROVEN);
 //!   - the flat step capped at `max_speed` 0x2DC010 by the sprint state (`set_physics_controller_walk_vector` 0x2D9060; the
 //!     sprint state's 0x336A10 / 0x336A50 set and clear the controller's +0x204 on the input's own tick); the same byte takes
-//!     the capsule branch 0x86490 (the port's `stand_move_complex_test` off);
+//!     the forward step's capsule branch 0x86490 (`Controller::step_as` with the sprint; the impassable slide keeps the
+//!     console's test);
 //!   - the speed factor F: each world's own (the table's `speeds` = `KitSpeeds::in_hands`, the exe's formula on the kit in use and
 //!     the weapon in hands; minus 0.05 carrying a battery, which also refuses the sprint) plus the body parts' modifiers; else the
 //!     median of the player's last 5 steady-world reads of its recorded speed;
@@ -442,8 +443,7 @@ fn reference_replay() {
                 }
             }
             let sprinting = sprint_input(keys) && keys & key::AIM == 0;
-            let tick_settings = if sprinting { Settings { stand_move_complex_test: false, ..s } } else { s };
-            let notes = body.step(&collision, TICK_S, &tick_settings);
+            let notes = body.step_as(&collision, TICK_S, &s, sprinting);
             if ended {
                 jump = None;
             }
