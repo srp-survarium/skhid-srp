@@ -904,18 +904,17 @@ package survarium.chat
                trace("clickLinkHandler::text",lineText);
             }
          }
-         // "<kind>:<the name URL-encoded>" (Chat.linked): the name is all after the first
-         // colon, a colon of its own included.
+         // "<kind>:<the sender's number>" (Chat.linked); null for a sender the chat let go.
          var colon:int = event.text.indexOf(":");
          var linkKind:String = colon < 0 ? event.text : event.text.substring(0,colon);
-         var linkName:String = colon < 0 ? "" : unescape(event.text.substring(colon + 1));
+         var linkName:String = colon < 0 ? null : linkedName(event.text.substring(colon + 1));
          var lineIndex:int;
          var lineText:String;
          var isFriend:Boolean;
          var claimOptions:Array;
          var menuItems:Array;
          var i:int;
-         if(linkKind == "name" && _data.name != linkName)
+         if(linkKind == "name" && linkName != null && _data.name != linkName)
          {
             _lastName = linkName;
             isFriend = false;

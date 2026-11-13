@@ -24,11 +24,13 @@ package
       private var failures:Array = [];
 
       // Names a player could take: markup that would end the link's attribute and add its own, a tag
-      // left open (as the cut to 63 bytes can leave one), a colon, an entity, a Cyrillic name.
+      // left open (as the cut to 63 bytes can leave one), a colon, an emoji, an entity, a Cyrillic name.
       private static const NAMES:Array = [
          "Bob",
          "Вася_99",
          "a:b",
+         "X😀",
+         "constructor",
          "O'Neil",
          "Bob \"the\" Builder",
          "Eve' href='event:name:Bob'><font color='#FF0000'>[admin] Bob",
@@ -110,7 +112,7 @@ package
             // The link: the characters of "<name>: ", and no other.
             var at:int = field.text.lastIndexOf(name + ": ");
             var url:String = at < 0 ? "" : String(field.getTextFormat(at,at + 1).url);
-            expect(url.indexOf("event:name:") == 0 && String(field.getTextFormat(at + name.length + 1,at + name.length + 2).url) == url,
+            expect(/^event:name:[0-9]+$/.test(url) && String(field.getTextFormat(at + name.length + 1,at + name.length + 2).url) == url,
                "lobby: " + name + "'s link over its name (" + url + ")");
             expect(String(field.getTextFormat(at - 2,at - 1).url) != url && String(field.getTextFormat(at + name.length + 3,at + name.length + 4).url) != url,
                "lobby: " + name + "'s link only over its name");
@@ -119,6 +121,9 @@ package
             clicked = tab.text_inpput.text;
             expect(clicked == name + ", ","lobby: a click on " + name + " names it (" + clicked + ")");
          }
+         // A link to no sender the chat holds names nobody.
+         field.dispatchEvent(new TextEvent(TextEvent.LINK,false,false,"name:99999"));
+         expect(tab.text_inpput.text == clicked,"lobby: a link to no sender does nothing (" + tab.text_inpput.text + ")");
          // A line after them all is as a plain name's: nothing a name opened reaches it.
          chat.got_message({type:5,name:"Bob",text:"after"});
          var bob:int = field.text.indexOf("Bob: ");
@@ -129,6 +134,17 @@ package
          // A line with no sender (a room's notice, the clan's lines) holds names too.
          chat.got_message({type:5,text:"<font size='40'>Eve joined"});
          expect(lastLine(field).indexOf("<font size='40'>Eve joined") > 0,"lobby: a line without a sender as given (" + lastLine(field) + ")");
+         // The chat keeps the last 512 senders: Bob's first number, let go after 600 others, names
+         // nobody, and Bob speaking again gets a new one that names him.
+         for(var n:int = 0; n < 600; n++) chat.got_message({type:5,name:"p" + n,text:"x"});
+         field.dispatchEvent(new TextEvent(TextEvent.LINK,false,false,"name:" + (NAMES.length + 599)));
+         expect(tab.text_inpput.text == "p599, ","lobby: the last sender kept (" + tab.text_inpput.text + ")");
+         field.dispatchEvent(new TextEvent(TextEvent.LINK,false,false,"name:0"));
+         expect(tab.text_inpput.text == "p599, ","lobby: a sender let go names nobody (" + tab.text_inpput.text + ")");
+         chat.got_message({type:5,name:"Bob",text:"back"});
+         at = field.text.lastIndexOf("Bob: ");
+         field.dispatchEvent(new TextEvent(TextEvent.LINK,false,false,String(field.getTextFormat(at,at + 1).url).substr("event:".length)));
+         expect(tab.text_inpput.text == "Bob, ","lobby: a sender back is named again (" + tab.text_inpput.text + ")");
       }
 
       private function checkHud() : void

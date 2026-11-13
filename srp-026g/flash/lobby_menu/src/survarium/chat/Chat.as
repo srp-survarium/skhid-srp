@@ -4,6 +4,7 @@ package survarium.chat
    import flash.events.KeyboardEvent;
    import flash.external.ExternalInterface;
    import flash.text.StyleSheet;
+   import flash.utils.Dictionary;
    import scaleform.clik.controls.TextInput;
    import scaleform.clik.core.UIComponent;
    import scaleform.clik.layout.LayoutData;
@@ -439,12 +440,44 @@ package survarium.chat
          return false;
       }
       
-      // A sender's name as the link "<name>: ", which LobbyChat.clickLinkHandler reads
-      // back from "event:<subName>:<the name URL-encoded>": whatever the name holds, it
-      // neither leaves the attribute nor reads as markup, and comes back whole.
+      // The senders the chat's name links stand for: a link carries a number, never the
+      // name, so a name's characters cannot leave the attribute or come back changed.
+      // The game's escape and encodeURIComponent do not round-trip every name (escape
+      // keeps 16 bits of a character, 0x571700; encodeURIComponent writes U+0080..U+00FF as
+      // one %XX, 0x571996, the others as their UTF-8 bytes, 0x571934, which no decoding,
+      // 0x571A10, gives both back). The last LINKED_NAMES senders, each its number while kept;
+      // a link to one let go reads as no name, never another one.
+      private static const LINKED_NAMES:int = 512;
+      private var _linkIds:Dictionary = new Dictionary();
+      private var _linkNames:Dictionary = new Dictionary();
+      private var _nextLinkId:int = 0;
+
+      // A sender's name as the link "<name>: " ("event:<subName>:<its number>"), which
+      // LobbyChat.clickLinkHandler reads back with linkedName.
       protected function linked(name:String, subName:String) : String
       {
-         return "<a href=\'event:" + subName + ":" + escape(name) + "\'>" + Util.escapeHtml(name) + ": </a>";
+         // Keyed "@<name>": a name such as "constructor" never finds what every object has.
+         var id:* = this._linkIds["@" + name];
+         if(id === undefined)
+         {
+            id = this._nextLinkId++;
+            this._linkIds["@" + name] = id;
+            this._linkNames[id] = name;
+            var gone:int = id - LINKED_NAMES;
+            if(gone >= 0)
+            {
+               delete this._linkIds["@" + this._linkNames[gone]];
+               delete this._linkNames[gone];
+            }
+         }
+         return "<a href=\'event:" + subName + ":" + id + "\'>" + Util.escapeHtml(name) + ": </a>";
+      }
+
+      // The name a link's number stands for, null for one the chat has let go.
+      protected function linkedName(id:String) : String
+      {
+         var name:* = /^[0-9]+$/.test(id) ? this._linkNames[int(id)] : undefined;
+         return name === undefined ? null : String(name);
       }
       
       protected function clearTabs() : void

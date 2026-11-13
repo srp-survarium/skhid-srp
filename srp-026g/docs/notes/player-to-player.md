@@ -349,8 +349,10 @@ and a line without a sender, which carries names: a room's "joined", the clan's 
 referral notice's name, a kit's name on the profile tabs (another player's too, in their profile)
 and the daily reward's greeting. Each movie escapes such text (`survarium.Util.escapeHtml`: `&`,
 `<`, `>`, `"`, `'`) wherever it meets HTML, so it is shown as typed and never read as markup. The lobby
-chat's name link carries the name URL-encoded (`Chat.linked`), and its click reads it back whole
-(`LobbyChat.clickLinkHandler`), a colon in it too. `scripts/chat-names/check.sh` checks the two
+chat's name link carries a number, not the name: the chat keeps its last 512 senders by number
+(`Chat.linked`), and a click reads the name back (`LobbyChat.clickLinkHandler`); a number let go names
+nobody. The game's `escape` and `encodeURIComponent` do not round-trip every name (an emoji,
+`é`). `scripts/chat-names/check.sh` checks the two
 chats in Ruffle.
 
 ## 9. What is not checked yet
