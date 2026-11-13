@@ -914,6 +914,55 @@ const SAME_TOP: f32 = 0.1;
 /// objective's goal is found as far).
 const SEED_M: f32 = 3.0;
 
+/// [A364 C2] The steepest ground ([`CENTRE_GROUND_DEG`]) and ceiling ([`CENTRE_CEILING_DEG`]) at a cell's centre for which
+/// [`centre_room`] stands for the cell: the exact tick's crouched walks were measured over that range.
+const CENTRE_GROUND_DEG: f32 = 5.0;
+/// See [`CENTRE_GROUND_DEG`].
+const CENTRE_CEILING_DEG: f32 = 10.0;
+
+/// [A364 C2] The room a walk between floors `a` and `b` (heights `ha`, `hb`, ceilings `ca`, `cb`, centres `run` m apart) gives the
+/// crouched body, to compare with its height: the lowest ceiling over the highest floor (a step's: the capsule rises to the
+/// higher floor under the lower ceiling), or, where that is short, the room over each floor (`c - h`, the smaller) scaled by the
+/// cosine of the grade between them, `atan(rise / run)`: a walk up a slope under a parallel ceiling. Walked with the exact tick
+/// (nav-builder2's `headroom` harness, made scenes), the crouched body goes up a slope under a parallel ceiling from a vertical
+/// room of 1.105 m at 3 and 5 deg, 1.115 at 10, 1.13 at 15, 1.15 at 20, 1.22 at 30 and not at 35 or 40 deg (to 1.22 m); the
+/// rule's need, the crouch height over the cosine (1.117, 1.139, 1.171, 1.270, 1.343, 1.436 m), is at or over each of those from
+/// 10 deg, and within the flat rule's 5 mm (1.1 against 1.1025, `grid-rules` S3) under it. A step is not taken by it: a riser of
+/// 0.3 m over a cell is a grade of 50 deg, needing 1.71 m.
+fn crouch_gap(ha: f32, ca: f32, hb: f32, cb: f32, run: f32) -> f32 {
+    let step = ca.min(cb) - ha.max(hb);
+    let slope = (ca - ha).min(cb - hb) * run / run.hypot(hb - ha);
+    step.max(slope)
+}
+
+/// [A364 C2] The room over the ground at a cell's centre (`cx`, `cz`), the ground found within a span's top `high` and 0.5 m under
+/// it, the ceiling the first face over that ground: `None` where either is not there or is steeper than [`CENTRE_GROUND_DEG`] /
+/// [`CENTRE_CEILING_DEG`].
+///
+/// A span's own room is the lowest ceiling over the highest ground anywhere in its cell: under a sloping ceiling or over
+/// sloping ground that is short of the room at the centre by up to the slope over half a cell. The client's crouched capsule
+/// (1.1 m) passes by the room along its axis: walked with the exact tick (`Controller::tick`, the Bullet caster and the rays,
+/// made scenes; nav-builder2's `headroom` harness, 2026-11-13) under a ceiling over flat ground it passes from 1.1025 m; over
+/// ground tilted 3 or 5 deg under a ceiling tilted 0, 5 or -5 deg, and over flat ground under ceilings tilted 5 or 10 deg, it
+/// passes at every axis room from 1.105 m (from 1.090 m where the ceiling tilts against the ground). Vostok Radar Station's
+/// crawl way at (9.5, 2.15, -20.0) (5 several-times spots of the routes corpus) has 1.107-1.115 m at the axis, under a 5 deg
+/// ceiling over 3 deg ground, and had no floor. Steeper ground is not taken: walked UP a slope under a parallel ceiling the
+/// crouched body needs more (from 1.15 m at 20 deg, 1.22 m at 30 deg, none to 1.22 m at 35 deg).
+fn centre_room(tree: &RayTree, cx: f32, cz: f32, high: f32) -> Option<f32> {
+    let down = tree.ray_hit(Vec3::new(cx, high + 0.01, cz), Vec3::new(0.0, -1.0, 0.0), 0.51)?;
+    // In degrees with 0.01 deg to spare, so the measured bounds themselves are in (a face built at 5 deg reads a hair over it).
+    let deg = |n: Vec3| n.y.abs().min(1.0).acos().to_degrees();
+    if deg(down.normal) > CENTRE_GROUND_DEG + 0.01 {
+        return None;
+    }
+    let ground = high + 0.01 - down.t;
+    let up = tree.ray_hit(Vec3::new(cx, ground + 0.01, cz), Vec3::new(0.0, 1.0, 0.0), 3.0)?;
+    if deg(up.normal) > CENTRE_CEILING_DEG + 0.01 {
+        return None;
+    }
+    Some(ground + 0.01 + up.t - ground)
+}
+
 #[derive(Clone, Copy, Debug)]
 struct Span {
     low: f32,
@@ -1265,6 +1314,8 @@ impl WalkGrid {
                 )
             }),
         };
+        // [A364 C2] Built on the first span whose cell-wide room is under the crouched body ([`centre_room`]).
+        let mut centre_tree: Option<RayTree> = None;
         for (index, mut column) in columns.into_iter().enumerate() {
             start.push(height.len() as u32);
             solids.start.push(solids.spans.len() as u32);
@@ -1308,10 +1359,19 @@ impl WalkGrid {
                     continue;
                 }
                 let above = merged.get(k + 1).map_or(f32::MAX, |next| next.low);
-                if above - span.high >= body.crouch_height {
+                // [A364 C2] The span's room is its cell's worst (the lowest ceiling over the highest ground anywhere in the cell);
+                // where that is under the crouched body, the room at the cell's centre decides ([`centre_room`]).
+                let room = if above - span.high >= body.crouch_height {
+                    above - span.high
+                } else {
+                    let (cx, cz) = (x0 + ((index % nx) as f32 + 0.5) * cell, z0 + ((index / nx) as f32 + 0.5) * cell);
+                    let tree = centre_tree.get_or_insert_with(|| RayTree::from_corners(triangles.iter().map(|t| t.v)));
+                    centre_room(tree, cx, cz, span.high).unwrap_or(above - span.high)
+                };
+                if room >= body.crouch_height {
                     cell_of.push(index as u32);
                     height.push(span.high);
-                    ceiling.push(above);
+                    ceiling.push(above.max(span.high + room));
                     forced.push(span.walk == 3);
                     steep_face.push(span.walk == STEEP);
                 }
@@ -1466,7 +1526,8 @@ impl WalkGrid {
                     let b = b as usize;
                     let (hb, cb) = (self.height[b], self.ceiling[b]);
                     let rise = (hb - ha).abs();
-                    let gap = ca.min(cb) - ha.max(hb);
+                    let run = self.cell * ((di * di + dk * dk) as f32).sqrt();
+                    let gap = crouch_gap(ha, ca, hb, cb, run);
                     // Up or down, the step ([`Body::walked_step`]: a sprinting body climbs it, a walking one only under 0.76 m).
                     let walks = if forced[a] && forced[b] { rise <= stair_rise } else { rise <= body.step };
                     // Up a ledge's edge the capsule rides (`Body::capsule_steps`); down it stays a drop.
@@ -2298,7 +2359,8 @@ impl WalkGrid {
                     let (hb, cb) = (self.height[b as usize], self.ceiling[b as usize]);
                     let rise = (hb - ha).abs();
                     let walks = rise <= self.body.step;
-                    if walks && ca.min(cb) - ha.max(hb) >= self.body.crouch_height && rise < best.1 {
+                    let run = self.cell * ((di * di + dk * dk) as f32).sqrt();
+                    if walks && crouch_gap(ha, ca, hb, cb, run) >= self.body.crouch_height && rise < best.1 {
                         best = (b, rise);
                     }
                 }
@@ -5831,6 +5893,32 @@ pub(crate) mod tests {
             assert!(matches!(carrier(low, top), Search::Found(_)), "carrier up {height}");
             assert!(matches!(carrier(top, low), Search::Found(_)), "carrier down {height}");
         }
+    }
+
+    /// [A364 C2] A crawl way over ground tilted 5 deg under a parallel ceiling (measured: the crouched body passes from 1.105 m):
+    /// with 1.107 m over the ground at every point, each cell's worst room is under 1.1 m (the highest ground and the lowest
+    /// ceiling are 0.25 x tan 5 deg = 0.022 m apart at its edges); by the room at the centre ([`centre_room`]) it has crouch-only
+    /// floors. With 1.09 m it has none.
+    #[test]
+    fn a_crawl_way_under_a_sloping_ceiling_has_floors_by_the_room_at_the_centre() {
+        let k = 5.0f32.to_radians().tan();
+        let crawl = |room: f32| {
+            let plane = |x0: f32, x1: f32, y: f32| {
+                let (a, b) = (Vec3::new(x0, y + k * x0, 0.0), Vec3::new(x1, y + k * x1, 0.0));
+                let (c, d) = (Vec3::new(x1, y + k * x1, 10.0), Vec3::new(x0, y + k * x0, 10.0));
+                [Triangle { v: [a, b, c], walker: WalkerBehaviour::BySlope }, Triangle { v: [a, c, d], walker: WalkerBehaviour::BySlope }]
+            };
+            let mut tris = plane(0.0, 10.0, 0.0).to_vec();
+            tris.extend(plane(2.0, 8.0, room));
+            WalkGrid::build(&tris, AREA, 0.25, Body { erosion: Erosion::Exact, crouch_only_floors: true, ..Body::client() })
+        };
+        let under = |g: &WalkGrid| {
+            g.floors_in([5.0, 5.0, 5.25, 5.25]).find(|&n| (g.position(n).y - 5.125 * k).abs() < 0.05)
+        };
+        let ok = crawl(1.107);
+        let n = under(&ok).expect("a floor at 1.107 m");
+        assert!(!ok.can_stand(n) && ok.headroom(n) >= 1.1, "{}", ok.headroom(n));
+        assert!(under(&crawl(1.09)).is_none(), "no floor at 1.09 m");
     }
 
     /// `Body::capsule_steps`: a ledge whose edge is within the capsule's edge step (0.96 m with the clients' numbers) is walked up
