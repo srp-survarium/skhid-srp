@@ -524,6 +524,7 @@ pub(super) const KEPT_RIGHT: &[&str] = &[
     "/grid/narrow_doors",
     "/grid/pocket_exits_walled",
     "/grid/press_window",
+    "/grid/rim_jumps",
     "/grid/run_ups_after_erosion",
     "/grid/slip_landings",
     "/grid/start_witness",

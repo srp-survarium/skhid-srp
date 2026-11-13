@@ -605,7 +605,11 @@ fn build(
                     built,
                     mapdata::built::grid_file_name(grid_key),
                     |path| WalkGrid::read(path, grid_key, body),
-                    || WalkGrid::build_kept_with_links(&walker, area, cell, body, &seeds, &spawns, links).0,
+                    || {
+                        // [A364 C2 rows 11/12] The rim jumps fly on the game's shapes (a format 6 map), built for the grid only.
+                        let shapes = body.rim_jumps.then(|| mapdata::controller::Collision::build_exe(&map)).flatten();
+                        WalkGrid::build_kept_with_shapes(&walker, shapes.as_ref(), area, cell, body, &seeds, &spawns, links).0
+                    },
                     |grid, path| grid.write(path, grid_key),
                 );
                 // [A346] The tables the tuning in force needs ([`Tuning::needs_wall_clearance`], [`Tuning::needs_open_sides`]) and
@@ -1442,7 +1446,10 @@ mod tests {
     #[test]
     fn a_real_map_loads() {
         let Some(dir) = real_dir() else { return };
-        let maps = Maps::new(Some(dir));
+        // [A364 C2 rows 11/12] With the rim jumps off: their flights are the pre-build's (the grids ship built, the 2f package), a
+        // map's live build with them is many minutes; the rim pass has its own tests (`mapdata::grid::rim`).
+        let built = dir.join(BUILT_DIR);
+        let maps = Maps::configured(Some(dir), KEEP, AT_ONCE, Some(built), GridTuning { rim_jumps: false, ..GridTuning::default() });
         let world = wait_ready(&maps, "level_01/day_4", Duration::from_secs(300))
             .world
             .clone();

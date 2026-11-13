@@ -24,6 +24,7 @@
   "narrow_doors": true,
   "drop_check": true,
   "walk_ceiling_stalls": true,
+  "rim_jumps": true,
   "wall_held_tops": true,
   "wall_give_back": true,
   "exe_collision": true,
