@@ -83,6 +83,7 @@ mod doors;
 mod drop_check;
 mod exact;
 mod open;
+mod rim;
 mod wall_give_back;
 /// g, m/s^2 (`fall_params.gravity` 9.8, PROVEN).
 const GRAVITY: f32 = 9.8;
@@ -269,6 +270,13 @@ pub struct Body {
     /// 2026-11-13). nav-team's stall census of the owner's 14 recordings: bots stalled crouched on such links (Rudnya
     /// (-41.57 27.50 17.85) -> (-41.82 27.60 17.60), 11 stalls). A build input: in the key when set.
     pub walk_ceiling_stalls: bool,
+    /// [A364 C2 rows 11/12] Whether Jump links rise above the sprint jump's lowest top ([`SPRINT_JUMP_LOW_M`]) up to the rim
+    /// reach ([`RIM_REACH_M`]), each flown on the exact tick as the bots' motor presses it ([`WalkGrid::fly_rim_jumps`]) and kept
+    /// only where every such press lands: the client's air branch never steps up (0x7BF26), but a run-up jump's capsule comes to
+    /// rest on a top's edge as the clip comes down and the ground steps after `end_jump` climb the rest (exactness
+    /// `notes-mapflights.md` §2 C: 44 of 396 walking and 143 of 424 sprint presses onto Chemical Plant's deck 1.20-1.67 m up, 0 of
+    /// 396 from a stand). A build input: in the key when set.
+    pub rim_jumps: bool,
     /// [routes corpus] Whether a jump onto a top too narrow to walk on along the jump (`WalkGrid::lands`: two more floors) is a
     /// landing all the same where a wall stands beyond the top along the jump within [`WALL_HELD_CELLS`] cells and before any
     /// drop: the wall stops the body on the top (a window's sill, a ledge along a wall), while a fence's top with a drop beyond
@@ -424,6 +432,7 @@ impl Body {
             narrow_doors: false,
             drop_check: false,
             walk_ceiling_stalls: false,
+            rim_jumps: false,
             wall_held_tops: false,
             wall_give_back: false,
             exe_collision: false,
@@ -456,7 +465,11 @@ impl Body {
     /// jump's [`SPRINT_JUMP_LOW_M`] (a link above `max_jump` is a sprint jump: a run-up with sprint held, not for a
     /// body that cannot sprint, `with_max_jump_rise`).
     pub fn jump_cap(&self) -> f32 {
-        if self.client_slope() { SPRINT_JUMP_LOW_M.max(self.max_jump) } else { self.max_jump }
+        if self.client_slope() {
+            (if self.rim_jumps { RIM_REACH_M } else { SPRINT_JUMP_LOW_M }).max(self.max_jump)
+        } else {
+            self.max_jump
+        }
     }
 
     /// The highest edge the capsule steps up onto ([`Self::capsule_steps`]): the step, and the part of the radius over which its
@@ -535,6 +548,7 @@ impl Default for Body {
             narrow_doors: false,
             drop_check: false,
             walk_ceiling_stalls: false,
+            rim_jumps: false,
             wall_held_tops: false,
             wall_give_back: false,
             exe_collision: false,
@@ -699,6 +713,11 @@ pub const STANDING_JUMP_M: f32 = 0.998;
 /// sprint-jump link is made for with the clients' numbers ([`Body::client`]), metres. The owner's Vector chain
 /// (1.26-1.35, F+J+S at 4.8 m/s) and the 8f rows (+1.36 mounted 4 of 6, at the limit) bound it.
 pub const SPRINT_JUMP_LOW_M: f32 = 1.28;
+/// [A364 C2 rows 11/12] The highest rise a rim jump is searched for ([`Body::rim_jumps`]), metres: the sprint clip's highest
+/// apex (1.350, `sprint/sprint_from_right_leg`'s root, PROVEN: the clip file) and the walk branch's highest climb, a sprinting
+/// body's 0.85 (every face measured to at least 0.85, exactness's epa scenes, MEASURED): a top higher than that is out of any
+/// landing's reach, so the bound loses none. Each link under it is flown before it is kept; the bound only limits the search.
+pub const RIM_REACH_M: f32 = 1.350 + 0.85;
 /// How far before the take-off floor's centre the bots' motor presses a walking jump up a ledge, metres: `JUMP_LEAD_S` (0.2 s)
 /// at the walk's 3.5 m/s and `PRESS_M` (0.15) of `motor.rs` (the probe's presses read 0.3-0.9 m before it).
 pub const JUMP_PRESS_LEAD_M: f32 = 0.85;
@@ -1092,6 +1111,9 @@ pub struct WalkGrid {
     /// [`Body::walk_ceiling_stalls`] The Walk links only a crouching body walks ([`WalkGait::Crouch`], [`Self::walk_crouched`]), as
     /// (from, to), sorted. In the file (after the marked walks) and the digest. Empty without the switch.
     walk_crouched: Vec<(NodeId, NodeId)>,
+    /// [`Body::rim_jumps`] The rim Jump links a walking press lands too ([`Self::jump_walks`]), as (from, to), sorted. In the file
+    /// (after the crouched walks) and the digest. Empty without the switch.
+    jump_walks: Vec<(NodeId, NodeId)>,
     /// Per node, its distance to the nearest wall the capsule meets, in [`clearance::CLEARANCE_STEP_M`] steps ([`Self::wall_clearance`]):
     /// made by [`Self::with_wall_clearance`] after the grid is built or read, from the map's triangles. In neither the file nor the
     /// digest. Empty without it.
@@ -1151,6 +1173,11 @@ struct Wide {
     marked: Vec<(u32, u32)>,
     /// [`Body::walk_ceiling_stalls`]: the Walk links the walk check passes only crouched, as (from, to), sorted.
     crouch: Vec<(u32, u32)>,
+    /// [`Body::rim_jumps`]: the rim Jump links flown and kept ([`WalkGrid::fly_rim_jumps`]), as (from, to), sorted: the flight
+    /// is their landing's proof ([`WalkGrid::drop_overshot_landings`] leaves them).
+    flown: Vec<(u32, u32)>,
+    /// [`Body::rim_jumps`]: of them, those a walking press lands too, as (from, to), sorted.
+    jump_walks: Vec<(u32, u32)>,
     /// [routes corpus] [`Body::wall_held_tops`]: the Jump links kept for a wall that holds the body on their narrow top
     /// ([`WalkGrid::held_by_wall`]), as (from, to), sorted: the jump's carry past the top does not apply to them
     /// ([`WalkGrid::drop_overshot_landings`]).
@@ -1233,6 +1260,8 @@ pub struct BuildStats {
     pub ramp_floors: usize,
     /// [A313] The controller pass ([`Body::client_controller`]).
     pub controlled: controlled::ControlledStats,
+    /// [A364 C2 rows 11/12] The rim jumps' flights ([`Body::rim_jumps`]).
+    pub rim: rim::RimStats,
     /// The floors the exact pass took after the rounds ([`Erosion::Exact`]).
     pub exact_eroded: usize,
     /// The Drop links the honest drops took away ([`Body::drop_flight_mps`]): for a fall deeper than the harmless one
@@ -1316,6 +1345,25 @@ impl WalkGrid {
     /// [`Self::build_kept_with_stats`] with the off-mesh links `links`.
     pub fn build_kept_with_links(
         triangles: &[Triangle],
+        area: [f32; 4],
+        cell: f32,
+        body: Body,
+        seeds: &[Vec3],
+        spawns: &[Vec3],
+        links: OffMeshLinks,
+    ) -> (Self, BuildStats) {
+        Self::build_kept_with_shapes(triangles, None, area, cell, body, seeds, spawns, links)
+    }
+
+    /// [`Self::build_kept_with_links`] with the game's shapes for the walking body's collision (`shapes`:
+    /// [`crate::controller::Collision::build_exe`] of a format 6 map), which [`Body::rim_jumps`] flies its jumps on: the client
+    /// meets the game's objects (a box, a cylinder, a placed mesh) as Bullet does, and a jump's landing on a top's edge depends on
+    /// them (exactness's Chemical Plant flights: on the shapes 144 of 144 sprint landings as the game's rig flies them, on the walker
+    /// triangles 126 with 13 the rig does not land). None: the flights are on the walker triangles with the body's caster.
+    #[allow(clippy::too_many_arguments)]
+    pub fn build_kept_with_shapes(
+        triangles: &[Triangle],
+        shapes: Option<&crate::controller::Collision>,
         area: [f32; 4],
         cell: f32,
         body: Body,
@@ -1462,6 +1510,7 @@ impl WalkGrid {
             walled_exits: Vec::new(),
             walk_marked: Vec::new(),
             walk_crouched: Vec::new(),
+            jump_walks: Vec::new(),
             clearance: Vec::new(),
             open: Vec::new(),
             walker: None,
@@ -1469,6 +1518,20 @@ impl WalkGrid {
             pull_walk: None,
         };
         let mut wide = grid.link(&forced);
+        if body.rim_jumps {
+            // [A364 C2 rows 11/12] Before the other passes: a rim jump whose presses do not all land gives its side back to what the
+            // old cap made of it, and every pass after sees that as before.
+            let (caster, s) = body.controller();
+            let own;
+            let world = match shapes {
+                Some(world) => world,
+                None => {
+                    own = crate::controller::Collision::build(triangles).with_caster(caster);
+                    &own
+                }
+            };
+            stats.rim = grid.fly_rim_jumps(&mut wide, world, &s);
+        }
         grid.drop_narrow_landings(&mut wide, &solids);
         (stats.drops_deep, stats.drops_crossable) = grid.drop_deep_flights(&mut wide);
         if !body.run_ups_after_erosion {
@@ -1613,6 +1676,8 @@ impl WalkGrid {
             aside: Vec::new(),
             marked: Vec::new(),
             crouch: Vec::new(),
+            flown: Vec::new(),
+            jump_walks: Vec::new(),
             held: Vec::new(),
         }
     }
@@ -1620,6 +1685,12 @@ impl WalkGrid {
     /// The floor in `cell` nearest in height that `a` drops or jumps to,
     /// among the `alive` ones.
     fn ledge(&self, a: usize, cell: usize, alive: Option<&[bool]>) -> Option<(u32, LinkKind)> {
+        self.ledge_capped(a, cell, alive, self.body.jump_cap())
+    }
+
+    /// [`Self::ledge`] with jumps up to `cap` ([`Body::jump_cap`] there; [`Self::fly_rim_jumps`] gives a failed rim jump's side
+    /// back to what a body without rim jumps makes of it).
+    fn ledge_capped(&self, a: usize, cell: usize, alive: Option<&[bool]>, cap: f32) -> Option<(u32, LinkKind)> {
         let body = &self.body;
         let (ha, ca) = (self.height[a], self.ceiling[a]);
         let mut best: Option<(u32, f32, LinkKind)> = None;
@@ -1632,7 +1703,7 @@ impl WalkGrid {
             let kind = if rise < 0.0 && -rise <= body.max_drop && cb - ha >= body.crouch_height {
                 LinkKind::Drop
             } else if rise > 0.0
-                && rise <= body.jump_cap()
+                && rise <= cap
                 // A jump lands a standing body: room to stand over the
                 // floor it lands on, under both ceilings (no crouch-jump
                 // into a window or under a low roof: the client's is not
@@ -1770,7 +1841,8 @@ impl WalkGrid {
                     continue;
                 }
                 // A wall holds the body on the top: the jump's carry past it does not apply ([`Body::wall_held_tops`]).
-                if wide.held.binary_search(&(a as u32, b)).is_ok() {
+                // [`Body::rim_jumps`] A flown rim jump's landing is its flight's: the flight ran on past it.
+                if wide.held.binary_search(&(a as u32, b)).is_ok() || wide.flown.binary_search(&(a as u32, b)).is_ok() {
                     continue;
                 }
                 let rise = self.height[b as usize] - self.height[a];
@@ -2725,6 +2797,13 @@ impl WalkGrid {
             *a = new_id[*a as usize];
             *b = new_id[*b as usize];
         }
+        for list in [&mut wide.flown, &mut wide.jump_walks] {
+            list.retain(|&(a, b)| alive[a as usize] && alive[b as usize]);
+            for (a, b) in list.iter_mut() {
+                *a = new_id[*a as usize];
+                *b = new_id[*b as usize];
+            }
+        }
         wide.held.retain(|&(a, b)| alive[a as usize] && alive[b as usize]);
         for (a, b) in &mut wide.held {
             *a = new_id[*a as usize];
@@ -2906,6 +2985,14 @@ impl WalkGrid {
                 digest.u32(b);
             }
         }
+        // [`Body::rim_jumps`] A grid with no walked rim jumps digests as before there were any.
+        if !self.jump_walks.is_empty() {
+            digest.len(self.jump_walks.len());
+            for &(a, b) in &self.jump_walks {
+                digest.u32(a);
+                digest.u32(b);
+            }
+        }
         digest.finish()
     }
 
@@ -2937,7 +3024,7 @@ impl WalkGrid {
             })?;
             // Only a grid with off-mesh links has their table: one without
             // writes as before there were any (read back as none).
-            if self.off.is_empty() && self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() {
+            if self.off.is_empty() && self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.jump_walks.is_empty() {
                 return Ok(());
             }
             out.plain(&self.off, |l| {
@@ -2949,12 +3036,12 @@ impl WalkGrid {
                 bytes
             })?;
             // [A304] The ramp slopes, when the grid has them (an empty table before the walled exits).
-            if self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() {
+            if self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.jump_walks.is_empty() {
                 return Ok(());
             }
             out.plain(&self.ramp, |&v| [v])?;
             // [A347] The walled exits, when the grid has them (an empty table before the marked walks).
-            if self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() {
+            if self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.jump_walks.is_empty() {
                 return Ok(());
             }
             let pair = |&(a, b): &(NodeId, NodeId)| {
@@ -2965,15 +3052,20 @@ impl WalkGrid {
             };
             out.plain(&self.walled_exits, pair)?;
             // [2c] The marked walks, when the grid has them (an empty table before the crouched walks).
-            if self.walk_marked.is_empty() && self.walk_crouched.is_empty() {
+            if self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.jump_walks.is_empty() {
                 return Ok(());
             }
             out.plain(&self.walk_marked, pair)?;
-            // [`Body::walk_ceiling_stalls`] The crouched walks, when the grid has them.
-            if self.walk_crouched.is_empty() {
+            // [`Body::walk_ceiling_stalls`] The crouched walks, when the grid has them (an empty table before the walked rim jumps).
+            if self.walk_crouched.is_empty() && self.jump_walks.is_empty() {
                 return Ok(());
             }
-            out.plain(&self.walk_crouched, pair)
+            out.plain(&self.walk_crouched, pair)?;
+            // [`Body::rim_jumps`] The walked rim jumps, when the grid has them.
+            if self.jump_walks.is_empty() {
+                return Ok(());
+            }
+            out.plain(&self.jump_walks, pair)
         })
     }
 
@@ -3061,6 +3153,14 @@ impl WalkGrid {
                             (word(0), word(4))
                         })?
                     },
+                    jump_walks: if input.ends() {
+                        Vec::new()
+                    } else {
+                        input.plain(|bytes: [u8; 8]| {
+                            let word = |i: usize| u32::from_le_bytes([bytes[i], bytes[i + 1], bytes[i + 2], bytes[i + 3]]);
+                            (word(0), word(4))
+                        })?
+                    },
                     clearance: Vec::new(),
                     open: Vec::new(),
                     walker: None,
@@ -3102,6 +3202,9 @@ impl WalkGrid {
         }
         if self.walk_crouched.iter().any(|&(a, b)| a as usize >= n || b as usize >= n) || self.walk_crouched.windows(2).any(|w| w[0] >= w[1]) {
             return Err("bad crouched walks".into());
+        }
+        if self.jump_walks.iter().any(|&(a, b)| a as usize >= n || b as usize >= n) || self.jump_walks.windows(2).any(|w| w[0] >= w[1]) {
+            return Err("bad walked rim jumps".into());
         }
         if self.start.len() != cells + 1
             || self.start[0] != 0
@@ -3742,6 +3845,16 @@ impl WalkGrid {
         crouched.sort_unstable();
         crouched.dedup();
         self.walk_crouched = crouched;
+        // [`Body::rim_jumps`] The walked rim Jump links still there.
+        let mut walks: Vec<(NodeId, NodeId)> = wide
+            .jump_walks
+            .iter()
+            .copied()
+            .filter(|&(a, b)| (0..DIRS.len()).any(|d| wide.links[a as usize][d] == b && wide.kinds[a as usize][d] == LinkKind::Jump))
+            .collect();
+        walks.sort_unstable();
+        walks.dedup();
+        self.jump_walks = walks;
         self.off = wide.off;
         for l in &self.off {
             self.flags[l.from as usize] |= OFF_OUT;
@@ -3822,6 +3935,17 @@ impl WalkGrid {
     /// [`Body::walk_ceiling_stalls`] How many Walk links only a crouching body walks ([`Self::walk_crouched`]).
     pub fn walk_crouched_count(&self) -> usize {
         self.walk_crouched.len()
+    }
+
+    /// [`Body::rim_jumps`] Whether the rim Jump link `a` -> `b` (a rise above [`SPRINT_JUMP_LOW_M`], flown) lands from a walking
+    /// press too, every press the motor makes at the walk ([`rim`]): else only the sprint jump the link was kept for does.
+    pub fn jump_walks(&self, a: NodeId, b: NodeId) -> bool {
+        self.jump_walks.binary_search(&(a, b)).is_ok()
+    }
+
+    /// [`Body::rim_jumps`] How many rim Jump links a walking press lands too ([`Self::jump_walks`]).
+    pub fn jump_walks_count(&self) -> usize {
+        self.jump_walks.len()
     }
 
     /// [2c] How many Walk links are marked ([`Self::walk_marked`]).

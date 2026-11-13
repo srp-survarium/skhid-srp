@@ -459,7 +459,13 @@ mod tests {
         use crate::grid::controlled::{body_at, Stance, WalkStart};
         let var = |k: &str| std::env::var(k).unwrap_or_else(|_| panic!("set {k}"));
         let map = crate::MapData::from_bytes(&std::fs::read(var("RIG_MAP")).unwrap()).unwrap();
-        let world = Collision::build_exe(&map).expect("a format 6 map");
+        // `RIG_WORLD=walker`: the map's walker triangles with the grid's caster (the world the grid's checks run on).
+        let world = if std::env::var("RIG_WORLD").as_deref() == Ok("walker") {
+            let (caster, _) = crate::Body { exe_collision: true, start_witness: true, ..crate::Body::client() }.controller();
+            Collision::build(&map.walker_triangles()).with_caster(caster)
+        } else {
+            Collision::build_exe(&map).expect("a format 6 map")
+        };
         let s = Settings { wall_normal: crate::controller::tick::WallNormal::Rays, ..Settings::LIVE };
         let top: Vec<f32> = var("RIG_TOP").split(',').map(|v| v.parse().unwrap()).collect();
         let tsv = std::fs::read_to_string(var("RIG_TSV")).unwrap();

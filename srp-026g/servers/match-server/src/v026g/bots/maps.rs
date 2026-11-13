@@ -605,7 +605,11 @@ fn build(
                     built,
                     mapdata::built::grid_file_name(grid_key),
                     |path| WalkGrid::read(path, grid_key, body),
-                    || WalkGrid::build_kept_with_links(&walker, area, cell, body, &seeds, &spawns, links).0,
+                    || {
+                        // [A364 C2 rows 11/12] The rim jumps fly on the game's shapes (a format 6 map), built for the grid only.
+                        let shapes = body.rim_jumps.then(|| mapdata::controller::Collision::build_exe(&map)).flatten();
+                        WalkGrid::build_kept_with_shapes(&walker, shapes.as_ref(), area, cell, body, &seeds, &spawns, links).0
+                    },
                     |grid, path| grid.write(path, grid_key),
                 );
                 // [A346] The tables the tuning in force needs ([`Tuning::needs_wall_clearance`], [`Tuning::needs_open_sides`]) and
