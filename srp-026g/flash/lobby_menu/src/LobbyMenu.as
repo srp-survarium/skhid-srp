@@ -5134,7 +5134,7 @@ package
          }
          // not in a room or a room's queue (Play is the rooms' Leave then), and with no window, the
          // friends list, the squad search or the tournament open
-         if(RoomsWindow.me.shown || RoomsWindow.me.marked() || MainScene.activeWindow != null || MainScene.activeComponent != null || this.friendsMenu.visible || this.craftWindow && this.craftWindow.parent || this._tournament && this._tournament.parent && this._tournament.visible && !this._tournament.isFold())
+         if(RoomsWindow.me.shown || WatchWindow.me != null && WatchWindow.me.shown || RoomsWindow.me.marked() || MainScene.activeWindow != null || MainScene.activeComponent != null || this.friendsMenu.visible || this.craftWindow && this.craftWindow.parent || this._tournament && this._tournament.parent && this._tournament.visible && !this._tournament.isFold())
          {
             return;
          }
