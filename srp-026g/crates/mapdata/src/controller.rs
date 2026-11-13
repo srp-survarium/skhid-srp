@@ -15,6 +15,8 @@ pub mod exe_epa;
 pub mod exe_gjk;
 pub mod exe_ray;
 pub mod gjk;
+pub mod jump;
+mod jump_clips;
 mod solids;
 pub mod speed;
 pub mod tick;
