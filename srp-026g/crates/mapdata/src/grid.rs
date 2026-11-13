@@ -260,6 +260,18 @@ pub struct Body {
     /// landing (the drops census, A313). A link that is the only way to a floor or back from it is kept. A build input: in the key when
     /// set.
     pub drop_check: bool,
+    /// [routes corpus] Whether a jump onto a top too narrow to walk on along the jump (`WalkGrid::lands`: two more floors) is a
+    /// landing all the same where a wall stands beyond the top along the jump within [`WALL_HELD_CELLS`] cells and before any
+    /// drop: the wall stops the body on the top (a window's sill, a ledge along a wall), while a fence's top with a drop beyond
+    /// stays no landing. The exactness session's jumps through the exact tick (FINDINGS-FEED-exactness, 2026-11-12,
+    /// `private/grid/rig/grid-rules-walltop`): with a wall 0.30-0.65 m past a one-cell top's far edge, 45-53 of the 48-54
+    /// walking presses that reach a 0.6-0.9 m top stay, without it 17-22; a sprint jump (the builder's jumps above
+    /// [`Body::max_jump`]) keeps its carry at every rise: 60-81 of 75-82 presses stay with the wall, 11-25 without it, so no top
+    /// lands without a wall whatever its rise; School's sill: 39 of 39, 17 of 17 and 40 of 40 walking presses arrive. Off:
+    /// such a top is reached by no jump
+    /// (School's sill at 41.9 21.7 142.9: 144 visits by 89 players in the routes corpus, no link from a spawn). A build input:
+    /// in the key when set.
+    pub wall_held_tops: bool,
     /// [A318] Whether the floors the erosion rounds took beside a wall the body clears are given back (`grid::wall_give_back`):
     /// the exact pass keeps them, a wall face (not a rise of the ground) stands within 0.6 m, and the client's walk tick stands a
     /// body there. Needs [`Erosion::Exact`]. A build input: in the key when set.
@@ -402,6 +414,7 @@ impl Body {
             drop_room_walk_faces: false,
             narrow_doors: false,
             drop_check: false,
+            wall_held_tops: false,
             wall_give_back: false,
             exe_collision: false,
             walk_start_clear: false,
@@ -511,6 +524,7 @@ impl Default for Body {
             drop_room_walk_faces: false,
             narrow_doors: false,
             drop_check: false,
+            wall_held_tops: false,
             wall_give_back: false,
             exe_collision: false,
             walk_start_clear: false,
@@ -782,6 +796,14 @@ impl RunUp {
         }
     }
 }
+/// [`Body::wall_held_tops`]: how many cells past a narrow top's floor a wall is looked for: 0.75 m from its centre, a gap of
+/// 0.625 m from a one-cell top's far edge, inside the 0.65 m to which the exactness session's sweep keeps the body cleanly on
+/// the top (a wider gap wedges the capsule, 0.70-0.75 m, or does nothing, 0.80 m and more: the capsule is 0.76 m wide).
+/// MEASURED: the exact tick on made scenes, walls 0.30-2.00 m past one- to two-cell tops 0.6-1.25 m high, walking and sprint
+/// jumps (`private/grid/rig/grid-rules-walltop/out/walltop-table.txt`, `walltop-h*.tsv`, `walltop-sprint.tsv`;
+/// FINDINGS-FEED-exactness 2026-11-12).
+pub const WALL_HELD_CELLS: usize = 3;
+
 /// The extra cost of a sprint-jump link (rise above [`Body::max_jump`]): the run-up and the lower success, metres of walk.
 /// GUESS, benched.
 pub const SPRINT_JUMP_PENALTY: f32 = 3.0;
@@ -1110,6 +1132,10 @@ struct Wide {
     /// [2c] [`Body::walk_every_link`]: the Walk links that failed the walk check and were kept as a floor's only way, as
     /// (from, to).
     marked: Vec<(u32, u32)>,
+    /// [routes corpus] [`Body::wall_held_tops`]: the Jump links kept for a wall that holds the body on their narrow top
+    /// ([`WalkGrid::held_by_wall`]), as (from, to), sorted: the jump's carry past the top does not apply to them
+    /// ([`WalkGrid::drop_overshot_landings`]).
+    held: Vec<(u32, u32)>,
 }
 
 /// A floor put aside by [`Body::wall_give_back`] ([`Wide::aside`]): where it is and its room.
@@ -1423,7 +1449,7 @@ impl WalkGrid {
             pull_walk: None,
         };
         let mut wide = grid.link(&forced);
-        grid.drop_narrow_landings(&mut wide);
+        grid.drop_narrow_landings(&mut wide, &solids);
         (stats.drops_deep, stats.drops_crossable) = grid.drop_deep_flights(&mut wide);
         if !body.run_ups_after_erosion {
             let run = RunUp::Cells(((SPRINT_RUN_UP_M + body.radius) / cell).ceil() as usize);
@@ -1437,6 +1463,8 @@ impl WalkGrid {
         let walls = (body.erosion == Erosion::Exact || body.drop_room).then(|| exact::Walls::new(triangles, x0, z0, cell, nx, nz));
         (stats.exact_eroded, stats.wall_given_back) =
             grid.erode(&mut wide, &cut, &solids, walls.as_ref().filter(|_| body.erosion == Erosion::Exact), triangles);
+        wide.held.sort_unstable();
+        wide.held.dedup();
         if body.run_ups_after_erosion {
             (stats.sprint_cut, stats.capped_no_run_up) = grid.drop_short_run_ups(&mut wide, RunUp::Metres(SPRINT_RUN_UP_M));
         }
@@ -1564,6 +1592,7 @@ impl WalkGrid {
             given: Vec::new(),
             aside: Vec::new(),
             marked: Vec::new(),
+            held: Vec::new(),
         }
     }
 
@@ -1613,6 +1642,43 @@ impl WalkGrid {
             (next != NONE && wide.kinds[a][d] == LinkKind::Walk).then_some(next as usize)
         };
         walk(b).and_then(walk).is_some()
+    }
+
+    /// Whether a jump in direction `d` that lands on `b` stays there: [`Self::lands`], or with [`Body::wall_held_tops`] a wall
+    /// beyond the top ([`Self::held_by_wall`]).
+    fn lands_on(&self, wide: &Wide, b: usize, d: usize, solids: &Solids) -> bool {
+        Self::lands(wide, b, d) || (self.body.wall_held_tops && self.held_by_wall(b, d, solids))
+    }
+
+    /// [`Body::wall_held_tops`]: whether a body that lands on `b` moving along `d` meets a wall within [`WALL_HELD_CELLS`]
+    /// cells on before any drop: the first cell along `d` that holds solid between a step over `b`'s floor and the standing
+    /// height ([`Self::wall_beside`]'s wall) holds the body, the map area's edge too; a cell that holds no surface within a step
+    /// of `b`'s floor (the top ends there) and a floor more than a step under it is a drop past the top (a fence's far side), and
+    /// the body is not held. A cell the top's own surface reaches is no drop whatever lies beside it in the cell: the body
+    /// (radius 0.38 m, the client's capsule) does not fit a crack narrower than a cell (School's sill: an 18 cm top, a 12 cm crack
+    /// at z 143.23-143.35, then the wall; the map's walker triangles).
+    fn held_by_wall(&self, b: usize, d: usize, solids: &Solids) -> bool {
+        let (i, k) = self.cell_xz(self.cell_of[b] as usize);
+        let (di, dk) = DIRS[d];
+        let feet = self.height[b];
+        let (low, high) = (feet + self.body.step, feet + self.body.stand_height);
+        for reach in 1..=WALL_HELD_CELLS as i32 {
+            let Some(cell) = self.cell_index(i + di * reach, k + dk * reach) else {
+                return true;
+            };
+            let spans = &solids.spans[solids.start[cell] as usize..solids.start[cell + 1] as usize];
+            if spans.iter().any(|&(l, h)| l < high && h > low) {
+                return true;
+            }
+            // The top's own surface goes on into this cell (a crack behind it too narrow for the body, School's sill): no drop.
+            if spans.iter().any(|&(_, h)| (h - feet).abs() <= self.body.step) {
+                continue;
+            }
+            if (self.start[cell]..self.start[cell + 1]).any(|f| self.height[f as usize] < feet - self.body.step) {
+                return false;
+            }
+        }
+        false
     }
 
     /// How far before `a`'s centre the walking jump up to `b` is pressed so that the clip ends on the top ([`walking_press_lead`]), when
@@ -1680,6 +1746,10 @@ impl WalkGrid {
             for (d, &(di, dk)) in DIRS.iter().enumerate() {
                 let b = wide.links[a][d];
                 if b == NONE || wide.kinds[a][d] != LinkKind::Jump {
+                    continue;
+                }
+                // A wall holds the body on the top: the jump's carry past it does not apply ([`Body::wall_held_tops`]).
+                if wide.held.binary_search(&(a as u32, b)).is_ok() {
                     continue;
                 }
                 let rise = self.height[b as usize] - self.height[a];
@@ -1908,19 +1978,23 @@ impl WalkGrid {
         (deep, crossable)
     }
 
-    /// Takes away the jumps that land on no room ([`Self::lands`]).
-    fn drop_narrow_landings(&self, wide: &mut Wide) {
+    /// Takes away the jumps that land on no room ([`Self::lands_on`]).
+    fn drop_narrow_landings(&self, wide: &mut Wide, solids: &Solids) {
         for a in 0..self.height.len() {
             for d in 0..8 {
                 let b = wide.links[a][d];
-                if b != NONE
-                    && wide.kinds[a][d] == LinkKind::Jump
-                    && !Self::lands(wide, b as usize, d)
-                {
+                if b == NONE || wide.kinds[a][d] != LinkKind::Jump || Self::lands(wide, b as usize, d) {
+                    continue;
+                }
+                if self.lands_on(wide, b as usize, d, solids) {
+                    wide.held.push((a as u32, b));
+                } else {
                     wide.links[a][d] = NONE;
                 }
             }
         }
+        wide.held.sort_unstable();
+        wide.held.dedup();
     }
 
     /// Takes away the sprint jumps (a Jump link above [`Body::max_jump`]) with no straight run of
@@ -2210,8 +2284,11 @@ impl WalkGrid {
                     };
                     if let Some((b, kind)) = self.ledge(a, cell, Some(&standing))
                         && (!walked || kind == LinkKind::Jump)
-                        && (kind != LinkKind::Jump || Self::lands(wide, b as usize, d))
+                        && (kind != LinkKind::Jump || self.lands_on(wide, b as usize, d, solids))
                     {
+                        if kind == LinkKind::Jump && !Self::lands(wide, b as usize, d) {
+                            wide.held.push((a as u32, b));
+                        }
                         wide.links[a][d] = b;
                         wide.kinds[a][d] = kind;
                         break;
@@ -2619,6 +2696,11 @@ impl WalkGrid {
         }
         wide.marked.retain(|&(a, b)| alive[a as usize] && alive[b as usize]);
         for (a, b) in &mut wide.marked {
+            *a = new_id[*a as usize];
+            *b = new_id[*b as usize];
+        }
+        wide.held.retain(|&(a, b)| alive[a as usize] && alive[b as usize]);
+        for (a, b) in &mut wide.held {
             *a = new_id[*a as usize];
             *b = new_id[*b as usize];
         }
@@ -6345,6 +6427,62 @@ pub(crate) mod tests {
         let b = grid.locate(Vec3::new(9.5, 0.0, 5.0), 1.0);
         // x 9..10 is cut off by the low roof (and eroded at the edge).
         assert!(b.is_none_or(|b| !grid.distances_from(&[a]).reaches(b)));
+    }
+
+    /// [routes corpus] A top 0.8 m up and too shallow to walk on along the jump (0.55 m deep) is reached by a jump when a wall
+    /// stands right beyond it (a sill: the wall stops the body), with `wall_held_tops`; the same top with the ground beyond it
+    /// (a fence's top, 0.3 m deep) is reached by none either way, nor at 1.0 m up (a sprint jump in the builder: it keeps its
+    /// carry), where a wall holds it again. Jumps straight at the wall only: along the top it is long.
+    #[test]
+    fn a_jump_lands_on_a_sill_a_wall_holds_and_not_on_a_fence_top() {
+        let face_z = |z: f32, x0: f32, x1: f32, y0: f32, y1: f32| {
+            let walker = WalkerBehaviour::BySlope;
+            let (a, b, c, d) = (Vec3::new(x0, y0, z), Vec3::new(x1, y0, z), Vec3::new(x1, y1, z), Vec3::new(x0, y1, z));
+            [Triangle { v: [a, b, c], walker }, Triangle { v: [a, c, d], walker }]
+        };
+        let top_crack = |wall: bool, back: f32, h: f32, crack: f32| {
+            let mut tris = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
+            tris.extend(floor(1.0, 4.0, 9.0, back, h));
+            tris.extend(face_z(4.0, 1.0, 9.0, 0.0, h));
+            tris.extend(face_z(back, 1.0, 9.0, 0.0, h));
+            if wall {
+                let w = back + crack;
+                tris.extend(floor(1.0, w, 9.0, w + 1.0, 4.0));
+                tris.extend(face_z(w, 1.0, 9.0, if crack > 0.0 { 0.0 } else { h }, 4.0));
+                tris.extend(face_z(w + 1.0, 1.0, 9.0, 0.0, 4.0));
+            }
+            tris
+        };
+        let top = |wall: bool, back: f32, h: f32| top_crack(wall, back, h, 0.0);
+        let jumps_onto_top = |tris: &[Triangle], h: f32, on: bool| {
+            let grid = WalkGrid::build(tris, AREA, 0.25, Body { wall_held_tops: on, ..Body::default() });
+            (0..grid.len() as NodeId).any(|a| {
+                let pa = grid.position(a);
+                pa.y < 0.1
+                    && grid.links(a).any(|(b, k)| {
+                        let pb = grid.position(b);
+                        // Straight at the wall (the top's ends are long ways along it).
+                        k == LinkKind::Jump && (pb.y - h).abs() < 0.05 && (pb.x - pa.x).abs() < 0.01 && pb.z > pa.z
+                    })
+            })
+        };
+        let sill = top(true, 4.55, 0.8);
+        assert!(!jumps_onto_top(&sill, 0.8, false));
+        assert!(jumps_onto_top(&sill, 0.8, true));
+        let fence = top(false, 4.3, 0.8);
+        assert!(WalkGrid::build(&fence, AREA, 0.25, Body::default()).locate(Vec3::new(5.0, 0.8, 4.15), 0.2).is_some());
+        assert!(!jumps_onto_top(&fence, 0.8, false));
+        assert!(!jumps_onto_top(&fence, 0.8, true));
+        // At 1.0 m (above the walking jump's cap: a sprint jump, which keeps its carry) no wall, no landing; with a wall, one.
+        let high = top(false, 4.3, 1.0);
+        assert!(!jumps_onto_top(&high, 1.0, false));
+        assert!(!jumps_onto_top(&high, 1.0, true));
+        let high_sill = top(true, 4.55, 1.0);
+        assert!(jumps_onto_top(&high_sill, 1.0, true));
+        // A crack of 0.12 m between the top and the wall (School's sill): the wall holds the body all the same.
+        let cracked = top_crack(true, 4.55, 0.8, 0.12);
+        assert!(!jumps_onto_top(&cracked, 0.8, false));
+        assert!(jumps_onto_top(&cracked, 0.8, true));
     }
 
     #[test]

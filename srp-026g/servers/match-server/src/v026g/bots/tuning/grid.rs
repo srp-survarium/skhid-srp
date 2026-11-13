@@ -168,6 +168,12 @@ pub struct GridTuning {
     /// score on all maps: drift 4.02 -> 4.01 %, level_04 -0.11, no map worse; coverage, path and raised stalls the same. A grid is
     /// the map's (see `gap_links`).
     pub drop_check: bool,
+    /// [routes corpus] Whether a jump onto a top too narrow to walk on along the jump lands where a wall beyond the top stops
+    /// the body (`mapdata::Body::wall_held_tops`: a window's sill, a ledge along a wall; a fence's top with a drop beyond stays no
+    /// landing). Off: no jump reaches such a top, and places real players stand on many times are out of the bots' reach
+    /// (School's sill at 41.9 21.7 142.9: 144 visits, 89 players). The map's geometry, so ON and kept by `all_off`. A grid is
+    /// the map's (see `gap_links`).
+    pub wall_held_tops: bool,
     /// [A318] Whether the floors the erosion rounds took beside a wall the body clears are given back in the maps' walk grids
     /// (`mapdata::Body::wall_give_back`): the exact pass keeps them, a wall face stands within 0.6 m, and the client's walk tick
     /// stands a body there (A318: the rounds took the floor under the client in 376 of the drift lab's grid holds, the exact
@@ -293,6 +299,7 @@ impl Default for GridTuning {
             drop_room_walk_faces: true,
             narrow_doors: true,
             drop_check: true,
+            wall_held_tops: true,
             wall_give_back: true,
             exe_collision: true,
             walk_start_clear: true,
@@ -341,6 +348,7 @@ impl GridTuning {
             drop_room_walk_faces: self.drop_room_walk_faces,
             narrow_doors: self.narrow_doors,
             drop_check: self.drop_check,
+            wall_held_tops: self.wall_held_tops,
             wall_give_back: self.wall_give_back,
             exe_collision: self.exe_collision,
             walk_start_clear: self.walk_start_clear,
