@@ -4757,13 +4757,16 @@ The lengths are the set's own (rifles 2, pistols 1, the battery carrier 1;
 death-poses.md), so the bound follows the content and no world is refused for it.
 
 A double-barrel's or pistol's fire animation (F7): their fire states (one
-`weapon_and_hands_expression` 0x30F830, one deserialize 0x310200) save
+`weapon_and_hands_expression` 0x30F830; the deserialize the game runs is the
+sound wrappers' 0x252B20, vtables 0xA05150 and 0xA05248 +14h, the bare
+classes' 0x310200 is never called) save
 `m_weapon_animation_index` (+16Ch), the world brings any byte, and the
 presentation, run every frame for every player in view, takes a reference through
 `[state+164h+index*4]` (0x31ECF0, `lock xadd [slot+0DCh]`). The state holds two
 fire animations there (both constructors make an array of 2): a layout, not
-content. The guard at the load's store (`deserialize.fire_animation`, 0x310224)
-stores a byte past them as 0, the first, so the game also never uploads it again;
+content. The guards at the load's store (`deserialize.fire_animation_sound`,
+0x252B48, the live one; `deserialize.fire_animation`, 0x310224, the bare
+class's) store a byte past them as 0, the first, so the game also never uploads it again;
 0 and 1 are stored as read. The world check refuses any other byte as well
 (`FireAnimation` in srp-validate): in 44,117 worlds of 100 rev56 recordings the
 3,340 such states hold 0 or 1 only.
@@ -4820,14 +4823,16 @@ take an index past the state's handles (or a state of no known layout) as no
 match, the compare's own failed path. An index in them runs as before.
 
 `check_deserialize_guards_026g.py <stock exe>` compares valid reads with stock and
-checks invalid/empty tables at all four stack alignments (1,268 cases; the death
+checks invalid/empty tables at all four stack alignments (1,340 cases; the death
 animation's: the stock faults past the lists, ours plays the first; the fire
-animation's: the stock stores the byte, ours stores 0 as the stock does with 0;
+animation's, entered through each of the four vtables' deserialize: the stock
+stores the byte, ours stores 0 as the stock does with 0;
 the grenade's: the stock faults in is_ready and in throw_grenade's reference past
 the set, ours is not ready and returns from the throw with the registers as they
 were, and a grenade of the set runs as the stock to throw_grenade; a weapon in
 the grenade slot: the stock reads it as a set, ours does not; each other
-reader of the set and of the selected slot, a grenade set as the stock, a
+reader of the set and of the selected slot, entered through the real caller
+(the sound wrappers' and the throw state's vtables, can-throw's entry), a grenade set as the stock, a
 weapon, an empty slot and 17h as no set where the stock faults, calls the
 item or counts a reference into the inventory; the animation to
 wait for: every one of the 30 classes, its table ending at a page's end, at each

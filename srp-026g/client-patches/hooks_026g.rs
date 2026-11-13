@@ -1917,13 +1917,28 @@ pub extern "C" fn hook_deserialize_guards_on_death_animation(frame: &mut Frame) 
 
 // ---- deserialize_guards (patch 115) ----
 
-/// The entry `deserialize_guards_on_fire_animation` (0x310224, the double-barrel's and pistol's fire deserialize 0x310200 storing m_weapon_animation_index (mov [esi+16Ch],cl; ESI the state, CL the byte as read): weapon_and_hands_expression 0x30F830 takes a reference through [state+164h+index*4], the state's two fire animations, with no bound (0x30F854..0x30F884, 0x31ED1A)) calls this with the saved machine.
+/// The entry `deserialize_guards_on_fire_animation` (0x310224, the bare double-barrel's and pistol's fire deserialize 0x310200 (vtables 0A15160h, 0A152A0h +14h; the game builds the sound wrappers, deserialize.fire_animation_sound) storing m_weapon_animation_index (mov [esi+16Ch],cl; ESI the state, CL the byte as read): weapon_and_hands_expression 0x30F830 takes a reference through [state+164h+index*4], the state's two fire animations, with no bound (0x30F854..0x30F884, 0x31ED1A)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_deserialize_guards_on_fire_animation(frame: &mut Frame) -> u32 {
     // SAFETY: only the entry `deserialize_guards_on_fire_animation` calls this, from the game's jump at 0x310224,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::deserialize_guards::on_fire_animation(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- deserialize_guards (patch 115) ----
+
+/// The entry `deserialize_guards_on_fire_animation_sound` (0x252b48, the live double-barrel's and pistol's fire deserialize: weapon_sound_events_handler_state<...fire_state>::deserialize 0x252B20 (the cooks' wrappers, vtables 0A05150h and 0A05248h +14h; the bare classes' 0x310200 is never called) storing m_weapon_animation_index (mov [edi+16Ch],cl; EDI the state, CL the byte as read)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_deserialize_guards_on_fire_animation_sound(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `deserialize_guards_on_fire_animation_sound` calls this, from the game's jump at 0x252b48,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::deserialize_guards::on_fire_animation_sound(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},

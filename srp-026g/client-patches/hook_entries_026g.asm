@@ -3139,7 +3139,7 @@ deserialize_guards_on_death_animation_replay:
     db 0x53, 0x8b, 0x5c, 0x24, 0x10
     jmp 0x338285
 
-; 0x310224 the double-barrel's and pistol's fire deserialize 0x310200 storing m_weapon_animation_index (mov [esi+16Ch],cl; ESI the state, CL the byte as read): weapon_and_hands_expression 0x30F830 takes a reference through [state+164h+index*4], the state's two fire animations, with no bound (0x30F854..0x30F884, 0x31ED1A): lohook -> deserialize_guards_on_fire_animation
+; 0x310224 the bare double-barrel's and pistol's fire deserialize 0x310200 (vtables 0A15160h, 0A152A0h +14h; the game builds the sound wrappers, deserialize.fire_animation_sound) storing m_weapon_animation_index (mov [esi+16Ch],cl; ESI the state, CL the byte as read): weapon_and_hands_expression 0x30F830 takes a reference through [state+164h+index*4], the state's two fire animations, with no bound (0x30F854..0x30F884, 0x31ED1A): lohook -> deserialize_guards_on_fire_animation
 global deserialize_guards_on_fire_animation
 extern hook_deserialize_guards_on_fire_animation
 deserialize_guards_on_fire_animation:
@@ -3177,6 +3177,45 @@ deserialize_guards_on_fire_animation_go:
 deserialize_guards_on_fire_animation_replay:
     db 0x88, 0x8e, 0x6c, 0x01, 0x00, 0x00
     jmp 0x31022a
+
+; 0x252b48 the live double-barrel's and pistol's fire deserialize: weapon_sound_events_handler_state<...fire_state>::deserialize 0x252B20 (the cooks' wrappers, vtables 0A05150h and 0A05248h +14h; the bare classes' 0x310200 is never called) storing m_weapon_animation_index (mov [edi+16Ch],cl; EDI the state, CL the byte as read): lohook -> deserialize_guards_on_fire_animation_sound
+global deserialize_guards_on_fire_animation_sound
+extern hook_deserialize_guards_on_fire_animation_sound
+deserialize_guards_on_fire_animation_sound:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_fire_animation_sound
+    mov edx, deserialize_guards_on_fire_animation_sound_replay
+    cmp eax, 0
+    je deserialize_guards_on_fire_animation_sound_go
+    mov edx, 0x252b4e
+    cmp eax, 1
+    je deserialize_guards_on_fire_animation_sound_go
+    ud2
+deserialize_guards_on_fire_animation_sound_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_fire_animation_sound_replay:
+    db 0x88, 0x8f, 0x6c, 0x01, 0x00, 0x00
+    jmp 0x252b4e
 
 ; 0x33a66d weapon_core_throw_grenade_state::is_ready_for_transition loading m_grenade_index (mov al,[esi+180h]); past the 0FFh test it reads [[set+268h]+index*4] and [grenade+154h] with no bound (0x33A677..0x33A689); not_ready is the native 0FFh path (xor eax,eax; pop esi; ret): lohook -> deserialize_guards_on_grenade_ready
 global deserialize_guards_on_grenade_ready

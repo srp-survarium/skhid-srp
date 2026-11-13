@@ -334,7 +334,8 @@ Patch 115 ports the FSM, anomaly and artefact guards to generated lohooks, typed
 fields and the current `vostok` boundary, and bounds a dead selector's death
 animation by its set's own lists (get_death_animations 0x338280's entry), a
 double-barrel's or pistol's fire animation by the state's two (at the load,
-0x310224; the world check refuses any other byte too), and a throw's grenade
+0x252B48 in the sound wrappers' deserialize the game runs, and 0x310224 in the
+bare classes'; the world check refuses any other byte too), and a throw's grenade
 by its set's grenades (is_ready_for_transition 0x33A66D, the throw 0x33A770; a
 set whose vtable is not a grenade set's has none, as at every other reader of
 the throw's set and of the selected grenade slot: the pull 0x3103CF, the

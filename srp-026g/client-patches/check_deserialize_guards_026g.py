@@ -27,9 +27,12 @@ DEATH, DEATH_RETURN = 0x338280, STUBS + 0x200
 PAST = 0x7F000000
 # Each in-list slot names a resource of its own, its reference count at +0DCh.
 REFS = 100
-# The fire deserialize's store of m_weapon_animation_index (mov [esi+16Ch],cl)
-# and the instruction after it.
-FIRE, FIRE_END = 0x310224, 0x31022A
+# A double-barrel's or pistol's fire state, entered through its vtable's
+# deserialize (+14h): the sound wrappers the game builds (0x252B20, its
+# store at 0x252B48) and the bare classes (0x310200, never called: 0x310224);
+# where each stops, past its store of m_weapon_animation_index.
+FIRE_VTABLES = {0xA05150: 0x252B4E, 0xA05248: 0x252B4E, 0xA15160: 0x31022A, 0xA152A0: 0x31022A}
+FIRE_END = 0x31022A
 # is_ready_for_transition (ECX the throw state) and the throw state's throw
 # (ESI); grenade_set_core::throw_grenade, where the throw hands the index on;
 # the two calls before it, stubbed (each ret 4: the fixture has no player).
@@ -37,7 +40,15 @@ READY, THROW, SET_THROW = 0x33A650, 0x33A770, 0x30A250
 # throw_grenade past its first reference: the slot's grenade taken
 # (0x2E9040: *esi = *edi, lock xadd [grenade+0F0h]).
 SET_THROW_TAKEN = 0x30A27C
-THROW_STUBS = (0x309F00, 0x727B0)
+# Calls stubbed, with the bytes each pops after its return address: the two
+# before the throw's hand-on, the fire base's deserialize (0x30EB10), the
+# pull substate's base initialize and its sound helper (0x30DA60, 0x254930),
+# the throw state's serialize's bool writer and FSM serialize (0x80FA0,
+# 0x38CC90): the fixture has no player, stream or animation.
+STUBBED = {0x309F00: 4, 0x727B0: 4, 0x30EB10: 12, 0x30DA60: 0, 0x254930: 0, 0x80FA0: 0, 0x38CC90: 4}
+# The throw state's vtable (+4 initialize, +10h serialize), the pull and idle
+# substates' sound wrappers (+4 initialize, +18h is_ready_for_transition).
+THROW_VTABLE, PULL_VTABLE, IDLE_VTABLE = 0xA1C1B0, 0xA052C4, 0xA05340
 GRENADE_RETURN = STUBS + 0x210
 # The two grenade set vtables (grenade_set, grenade_set_core) and another
 # item's (a weapon's), which a world can name in the grenade slot.
@@ -62,25 +73,26 @@ EDGE = 0x45000000
 # result), pull_pin itself to its first reference (0x30A1DA, after
 # 0x2E9040), the idle substate's check 0x310450, the throw state's check
 # 0x33A730, its serialize from the set's load to the byte's write (0x33A541).
-PULL_SITE, PULL_STORED, PULL_PIN, PULL_TAKEN = 0x3103CF, 0x3103E3, 0x30A120, 0x30A1DA
+PULL_STORED, PULL_PIN, PULL_TAKEN = 0x3103E3, 0x30A120, 0x30A1DA
 IDLE_CHECK, CHOICE_CHECK = 0x310450, 0x33A730
-SERIALIZE_SITE, SERIALIZE_WRITE = 0x33A51B, 0x33A541
+SERIALIZE_WRITE = 0x33A541
 NO_GRENADE_SLOT = 0x17
 # Where the selected grenade slot's item is taken: can-throw (0x2E40BF, on to
 # the item's vtable +64h at 0x2E40C6) and the throw's attach_grenade
 # (0x33A7F5, its set stored and the old released by 0x33A851).
-CAN_SITE, CAN_ITEM = 0x2E40BF, 0x2E40C6
-ATTACH_SITE, ATTACH_DONE = 0x33A7F5, 0x33A851
+CAN_THROW, CAN_ITEM = 0x2E4090, 0x2E40C6
+ATTACH_DONE = 0x33A851
 INVENTORY, WEAPON_ITEM = WORLD + 0xE000, WORLD + 0x12000
 
 class GuardRun(Run):
     def __init__(self, data):
         super().__init__(data)
-        for at in (FSM_END, ANOMALY_END, ARTEFACT_END, DEATH_RETURN, FIRE_END, GRENADE_RETURN, SET_THROW_TAKEN,
+        for at in (FSM_END, ANOMALY_END, ARTEFACT_END, DEATH_RETURN, GRENADE_RETURN, SET_THROW_TAKEN,
+                   *set(FIRE_VTABLES.values()),
                    PULL_STORED, PULL_TAKEN, SERIALIZE_WRITE, CAN_ITEM, ATTACH_DONE):
             self.emu.hook_add(UC_HOOK_CODE, self.stop, begin=at, end=at)
-        for at in THROW_STUBS:
-            self.emu.hook_add(UC_HOOK_CODE, self.ret4, begin=at, end=at)
+        for at in STUBBED:
+            self.emu.hook_add(UC_HOOK_CODE, self.stubbed, begin=at, end=at)
         self.emu.hook_add(UC_HOOK_CODE, self.state_reader, begin=STUBS + 0x90, end=STUBS + 0x90)
         self.at_set_throw = False
         self.emu.hook_add(UC_HOOK_CODE, self.set_throw, begin=SET_THROW, end=SET_THROW)
@@ -101,9 +113,9 @@ class GuardRun(Run):
         if self.at_pull_pin:
             self.stop(emu, address, size, _)
 
-    def ret4(self, emu, address, size, _):
+    def stubbed(self, emu, address, size, _):
         sp = emu.reg_read(UC_X86_REG_ESP)
-        emu.reg_write(UC_X86_REG_ESP, sp + 8)
+        emu.reg_write(UC_X86_REG_ESP, sp + 4 + STUBBED[address])
         emu.reg_write(UC_X86_REG_EIP, self.read(sp))
 
     def set_throw(self, emu, address, size, _):
@@ -197,14 +209,19 @@ class GuardRun(Run):
         self.emu.reg_write(UC_X86_REG_XMM7, 0xfedcba987654321)
         return {r: 0x11111111*(i+1) for i,r in enumerate(REGS[:7])}, FRAME - 0x100 + align
 
-    def fire(self, index, align):
-        """The fire deserialize's store with `index` in CL: the registers and
-        the byte stored at +16Ch."""
+    def fire(self, index, align, vtable):
+        """A fire state of `vtable` deserialized through its vtable (+14h),
+        the stream's byte `index`: where it stops, the registers and the byte
+        stored at +16Ch."""
         regs, sp = self.fresh(align)
-        state = WORLD
+        state, reader = WORLD, WORLD + 0x13000
         self.emu.mem_write(state + 0x16C, b'\xEE')
-        regs.update({UC_X86_REG_ESI: state, UC_X86_REG_ECX: 0x33333300 | index})
-        self.start(FIRE, regs, sp)
+        self.word(reader + 4, reader + 0x20)
+        self.emu.mem_write(reader + 0x20, bytes([index]))
+        for n, value in enumerate((GRENADE_RETURN, reader, 0, 0)):
+            self.word(sp + 4*n, value)
+        regs[UC_X86_REG_ECX] = state
+        self.start(self.read(vtable + 0x14), regs, sp)
         return self.stopped, tuple(self.emu.reg_read(r) for r in REGS), self.emu.mem_read(state + 0x16C, 1)[0]
 
     def throw_state(self, index, grenades, vtable=GRENADE_SETS[1]):
@@ -347,14 +364,18 @@ class GuardRun(Run):
         state = self.throw_state(0xFF, grenades, vtable)
         if grenades is not None:
             self.emu.mem_write(WORLD + 0x2000 + 0x260, struct.pack('<H', amount))
-        self.word(sp, 0x66666666)                # the saved EDI the pull pops
-        self.word(sp + 4, 0x55555555)            # the saved ESI
-        regs.update({UC_X86_REG_ESI: state, UC_X86_REG_EAX: 0x1234, UC_X86_REG_EBP: sp + 0x10})
-        self.word(sp + 0x10, 0x77777777)
-        self.word(sp + 0x14, GRENADE_RETURN)
+        # The pull substate (the sound wrapper's initialize, through its
+        # vtable +4, into 0x3103A0): its weapon's user's +324h is pull_pin's
+        # second argument, +138h its throw state.
+        sub = WORLD + 0x11000
+        self.word(sub + 0x120, WORLD + 0x7000)
+        self.word(sub + 0x138, state)
+        self.word(WORLD + 0x8324, 0x1234)
+        self.word(sp, GRENADE_RETURN)
+        regs[UC_X86_REG_ECX] = sub
         self.at_pull_pin = True
         try:
-            self.start(PULL_SITE, regs, sp)
+            self.start(self.read(PULL_VTABLE + 4), regs, sp)
         finally:
             self.at_pull_pin = False
         if self.stopped == PULL_PIN:
@@ -389,8 +410,11 @@ class GuardRun(Run):
         regs[UC_X86_REG_ECX] = sub if at == IDLE_CHECK else state
         self.word(sp, GRENADE_RETURN)
         self.word(sp + 4, wanted)
+        # The idle substate's check through its sound wrapper's vtable
+        # (+18h); the throw state's is called directly (0x33A11D..).
+        entry = self.read(IDLE_VTABLE + 0x18) if at == IDLE_CHECK else at
         try:
-            self.start(at, regs, sp)
+            self.start(entry, regs, sp)
         except RuntimeError:
             return None
         return self.stopped, self.emu.reg_read(UC_X86_REG_EAX) & 0xff, self.emu.reg_read(UC_X86_REG_ESP)
@@ -399,9 +423,11 @@ class GuardRun(Run):
         """The throw state's serialize from its set's load to the slot
         byte's write: DL, ECX and the other registers; None on a fault."""
         regs, sp = self.fresh(align)
-        regs[UC_X86_REG_EBX] = self.throw_state(0xFF, grenades, vtable)
+        regs[UC_X86_REG_ECX] = self.throw_state(0xFF, grenades, vtable)
+        for n, value in enumerate((GRENADE_RETURN, WORLD + 0x13000, 0)):
+            self.word(sp + 4*n, value)
         try:
-            self.start(SERIALIZE_SITE, regs, sp)
+            self.start(self.read(THROW_VTABLE + 0x10), regs, sp)
         except RuntimeError:
             return None
         values = tuple(self.emu.reg_read(r) for r in REGS)
@@ -422,10 +448,17 @@ class GuardRun(Run):
         to the item's call, or its return), ECX, EAX, ESI and ESP."""
         regs, sp = self.fresh(align)
         self.selected_slots()
-        self.word(sp, 0x55555555)                # the saved ESI it pops
-        self.word(sp + 4, GRENADE_RETURN)
-        regs.update({UC_X86_REG_EAX: INVENTORY, UC_X86_REG_ECX: slot})
-        self.start(CAN_SITE, regs, sp)
+        self.word(INVENTORY + 0x17C, slot)
+        # Its weapon: a state that may throw ([[+278h]+20h]+24h not 4, +5ECh
+        # 6), its user the throw state's (inventory +10Ch).
+        weapon = WORLD + 0x14000
+        self.word(weapon + 0x278, weapon + 0x400)
+        self.word(weapon + 0x420, weapon + 0x500)
+        self.word(weapon + 0x5EC, 6)
+        self.word(weapon + 8, WORLD + 0x8000)
+        self.word(sp, GRENADE_RETURN)
+        regs[UC_X86_REG_ECX] = weapon
+        self.start(CAN_THROW, regs, sp)
         return self.stopped, tuple(self.emu.reg_read(r) for r in
                                    (UC_X86_REG_ECX, UC_X86_REG_EAX, UC_X86_REG_ESI, UC_X86_REG_ESP))
 
@@ -435,12 +468,13 @@ class GuardRun(Run):
         object it could touch."""
         regs, sp = self.fresh(align)
         self.selected_slots()
+        self.word(INVENTORY + 0x17C, slot)
         state = WORLD
         self.word(state + 0x17C, 0)
-        self.word(sp, 0x66666666)                # the saved EDI and ESI
-        self.word(sp + 4, 0x55555555)
-        regs.update({UC_X86_REG_EAX: INVENTORY, UC_X86_REG_ECX: slot, UC_X86_REG_EDX: state})
-        self.start(ATTACH_SITE, regs, sp)
+        self.word(sp, GRENADE_RETURN)
+        regs[UC_X86_REG_ECX] = state
+        # The throw state's initialize, through its vtable (+4): attach first.
+        self.start(self.read(THROW_VTABLE + 4), regs, sp)
         touched = tuple(self.read(at + 0xD0) for at in (WORLD + 0x2000, WEAPON_ITEM, INVENTORY + 0x10C + 19*4))
         return self.stopped, self.read(state + 0x17C), touched
 
@@ -490,15 +524,16 @@ def main():
         # A fire state's two fire animations: 0 and 1 are stored as read,
         # any other byte as 0 (the stock stores it, and the presentation then
         # takes a reference through [state+164h+index*4]).
-        for index in (0, 1):
-            expected = stock.fire(index, align)
-            assert expected[0] == FIRE_END and expected[2] == index, expected
-            assert ours.fire(index, align) == expected, (index, align)
-            checks += 1
-        for index in (2, 100, 254, 255):
-            assert stock.fire(index, align)[2] == index  # the live store
-            assert ours.fire(index, align) == stock.fire(0, align), (index, align)
-            checks += 1
+        for vtable, end in FIRE_VTABLES.items():
+            for index in (0, 1):
+                expected = stock.fire(index, align, vtable)
+                assert expected[0] == end and expected[2] == index, expected
+                assert ours.fire(index, align, vtable) == expected, (hex(vtable), index, align)
+                checks += 1
+            for index in (2, 100, 254, 255):
+                assert stock.fire(index, align, vtable)[2] == index  # the live store
+                assert ours.fire(index, align, vtable) == stock.fire(0, align, vtable), (hex(vtable), index, align)
+                checks += 1
         # A throw's grenade: one of the set's runs as the stock; none (0FFh)
         # is not ready and, at the throw, throws nothing; past the set (or
         # with no set) the stock reads (is_ready) or writes (throw_grenade's
@@ -609,7 +644,7 @@ def main():
             assert stock.can_throw(slot, align)[:2][0] == CAN_ITEM
             assert stock.can_throw(slot, align)[1][0] == item  # its vtable +64h called next
             at, (ecx, eax, esi, esp) = ours.can_throw(slot, align)
-            assert (at, eax & 0xff, esi, esp) == (GRENADE_RETURN, 0, 0x55555555, FRAME - 0x100 + align + 8)
+            assert (at, eax & 0xff, esi, esp) == (GRENADE_RETURN, 0, 0x55555555, FRAME - 0x100 + align + 4)
             assert stock.attach(slot, align)[1] == item
             assert ours.attach(slot, align)[:2] == (ATTACH_DONE, 0)
             checks += 1

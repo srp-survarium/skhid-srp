@@ -47,6 +47,13 @@ pub fn on_fire_animation(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// As [`on_fire_animation`], at the deserialize the game runs: the sound
+/// wrapper's (every double-barrel's and pistol's fire state is one).
+pub fn on_fire_animation_sound(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    deserialize::keep_fire_animation_in_state(ctx);
+    Flow::Continue
+}
+
 /// A throw's `m_grenade_index` past its set's grenades, or a set that is not
 /// a grenade set, is not ready, as with none (the native 0FFh path).
 pub fn on_grenade_ready(ctx: &mut Context<'_>) -> Flow<DeserializeGuardsOnGrenadeReadyExit> {

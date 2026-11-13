@@ -58,7 +58,8 @@ fn kept_death_animation(index: u32, count: u32) -> Option<u32> {
 /// 0x30FF40, make an array of 2 there): a layout, not content.
 const FIRE_ANIMATIONS: u8 = 2;
 
-/// At `deserialize.fire_animation`: CL is the fire state's
+/// At `deserialize.fire_animation` and `deserialize.fire_animation_sound`
+/// (the live one): CL is the fire state's
 /// `m_weapon_animation_index` as the world brought it, about to be stored.
 /// A byte past the two fire animations is stored as 0, the first.
 pub fn keep_fire_animation_in_state(ctx: &mut Context<'_>) {

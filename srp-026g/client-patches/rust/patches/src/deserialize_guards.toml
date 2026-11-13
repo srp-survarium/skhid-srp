@@ -23,6 +23,10 @@ site = "deserialize.fire_animation"
 handler = "on_fire_animation"
 
 [[hook]]
+site = "deserialize.fire_animation_sound"
+handler = "on_fire_animation_sound"
+
+[[hook]]
 site = "deserialize.grenade_ready"
 handler = "on_grenade_ready"
 
