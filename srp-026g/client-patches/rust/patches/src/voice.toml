@@ -2,7 +2,7 @@
 # which sites, and the handlers; the logic is voice.rs. configs.start after
 # patches 79, 83, 81, 88, 112 and console_where (orders 1 to 6), game_world.after_move
 # after patches 76, 87 and the medical skills (0 to 2); the game world's keys
-# first of three (before patch 86's, which may take a key, and 140's), the hud's calls after patch 86's;
+# first of four (before patch 86's, which may take a key, 144's and 140's), the hud's calls after patches 86's and 144's;
 # the game world's mouse buttons (push-to-talk on a button), taking none.
 name = "voice"
 patch = 66

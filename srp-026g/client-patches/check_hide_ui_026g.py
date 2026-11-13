@@ -12,10 +12,13 @@ answers root.interface_hidden with a bool:
 
 - the match: on_keyboard_action's case of action 19h (0x25CED1) runs with a
   made-up input handler at [esp+10h] (+18h the replay's movie; the hud at +4:
-  its movie [[+8]+108h]+4, the player icons' [[+10h]+108h]+4) until
-  0x25CEDB (the replay's toggle) or 0x25CF0D (the key not taken). With the
-  replay's movie both builds reach 0x25CEDB with esi the handler and invoke
-  nothing. Without it the original reaches 0x25CF0D and invokes nothing; the
+  its movie [[+8]+108h]+4, the player icons' [[+10h]+108h]+4), the game
+  world's +1F8h (its +9Ch a made-up game, +53C8h its replay reader) until
+  0x25CEDB (the replay's toggle) or 0x25CF0D (the key not taken). A replay
+  (the movie and a reader) reaches 0x25CEDB in both builds with esi the
+  handler and invokes nothing. Any other game, the movie there or not (a
+  network game's hud loads it too, patch 144), is the original's without the
+  movie: it reaches 0x25CF0D and invokes nothing; the
   patch asks the hud movie root.interface_hidden and gives the hud movie and
   the icons' root.hide_interface(not that), whatever the cursor (the kits
   before the start too), and nothing without the hud movie; esp, ebp and the
@@ -64,7 +67,8 @@ RESET_SITE, RESET_BACK, RESET_NAME = 0x234AE8, 0x234AED, 0xA03348
 LOBBY_SITE, LOBBY_BACK, LOBBY_TAKEN, LOBBY_TO_MOVIE = 0x26CCD2, 0x26CCD7, 0x26CCAE, 0x26CDD2
 SHOW_MOVIE, HIDE_MOVIE, INVOKE = 0x23DC00, 0x23DC70, 0x511600
 ACTIONS = 0xA74AF0                     # the action table: 20-byte {name, id, kinds, toggle, key name}
-HANDLER, WORLD, HUD, LOBBY = 0x20000000, 0x20010000, 0x20020000, 0x20030000
+MATCH_GAME, WORLD, HUD, LOBBY = 0x20000000, 0x20010000, 0x20020000, 0x20030000
+HANDLER = WORLD + 0x1F8                # the game world's input handler (its +9Ch the game)
 HOLDER, UI, MOVIE, BINDER, KEYS = 0x20040000, 0x20041000, 0x20042000, 0x20050000, 0x20060000
 STACK, SENTINEL = 0x21000000, 0x22000000
 # kernel32's imports the patches' shared code reaches at a hook (the Lock's
@@ -122,7 +126,7 @@ class Run:
             start = base.IMAGE_BASE + rva
             emu.mem_map(start, (max(vsize, rsize) + 0xFFF) & ~0xFFF, UC_PROT_ALL)
             emu.mem_write(start, bytes(data[raw:raw + min(rsize, vsize or rsize)]))
-        for at in (HANDLER, WORLD, HUD, LOBBY, HOLDER, BINDER, KEYS, HUD_HOLDER, STACK, SENTINEL):
+        for at in (MATCH_GAME, WORLD, HUD, LOBBY, HOLDER, BINDER, KEYS, HUD_HOLDER, STACK, SENTINEL):
             emu.mem_map(at, 0x10000, UC_PROT_ALL)
         emu.mem_map(IMPORTS, 0x1000, UC_PROT_ALL)
         for i, (slot, code) in enumerate(IMPORT_STUBS):
@@ -205,10 +209,13 @@ class Run:
         return [(call[1], call[2].decode(), values) for call, values in zip(calls, self.invoked)]
 
     # The match: the case 19h, [esp+10h] the handler.
-    def match(self, replay, movie, icons, hidden):
+    def match(self, controls, reader, movie, icons, hidden):
         emu = self.emu
-        emu.mem_write(HANDLER, bytes(0x400))
-        self.word(HANDLER + 0x18, 0x30303030 if replay else 0)
+        emu.mem_write(WORLD, bytes(0x1000))
+        emu.mem_write(MATCH_GAME, bytes(0x6000))
+        self.word(WORLD + 0x9C, MATCH_GAME)
+        self.word(MATCH_GAME + 0x53C8, 0x40404040 if reader else 0)
+        self.word(HANDLER + 0x18, 0x30303030 if controls else 0)
         self.movies(HANDLER + 4, movie, icons)
         self.hidden = hidden
         sp = STACK + 0x8000
@@ -381,12 +388,16 @@ def main():
     hides = lambda flag, icons: [(HUD_MOVIE, "root.hide_interface", (flag,))] + \
         ([(ICONS_MOVIE, "root.hide_interface", (flag,))] if icons else [])
     print("the match (on_keyboard_action's case 19h, 0x25CED1, to 0x25CEDB or 0x25CF0D)")
-    for replay in (0, 1):
+    # (the replay's controls, the game's replay reader): a replay; a network game, whose hud
+    # has the controls too (patch 144); a match before; a reader with no controls
+    for controls, reader in ((1, 1), (1, 0), (0, 0), (0, 1)):
+        replay = controls and reader
         for movie in (0, 1):
             for icons in (0, 1):
                 for hidden in (0, 1):
-                    a = stock.match(replay, movie, icons, hidden)
-                    b = patched.match(replay, movie, icons, hidden)
+                    # any other game than a replay as the original without the controls
+                    a = stock.match(controls if replay else 0, reader, movie, icons, hidden)
+                    b = patched.match(controls, reader, movie, icons, hidden)
                     same = a[:5] == b[:5] and a[4] and not a[5]
                     if replay:
                         want = []
@@ -395,7 +406,7 @@ def main():
                         want = [asked] + hides(1 - hidden, icons) if movie else []
                         ok = same and b[0] == KEY_OTHER
                     ok = ok and b[5] == want
-                    report(ok, f"replay {replay} hud movie {movie} icons {icons}, the interface "
+                    report(ok, f"controls {controls} reader {reader} hud movie {movie} icons {icons}, the interface "
                                f"{'hidden' if hidden else 'shown'}: "
                                + (f"root.hide_interface({1 - hidden}) to the hud" + (" and the icons" if icons else "")
                                   if want else "nothing") + f", at {b[0]:#x} as the original")

@@ -123,11 +123,14 @@ class Game:
                         (SPECTATE_NEXT, self.spectate_next)):
             emu.hook_add(UC_HOOK_CODE, how, begin=va, end=va)
 
-    def without_memory_report(self, linked):
-        """Patch 126's handler in world_load.loaded's chain goes on at once (Flow::Continue): it
-        walks the address space and reports through the match's link and the log, which this
-        made-up world does not have, and it is not what is checked here."""
-        self.emu.mem_write(linked.symbols["hook_memory_report_on_loaded"], bytes.fromhex("31c0c3"))
+    def without_reports(self, linked):
+        """The reports' handlers before the spectator's in world_load.loaded's chain go on at once
+        (Flow::Continue): patch 126's walks the address space, patch 125's module and executable
+        reports read the windows and open the exe (their frames alone are deeper than this
+        made-up stack), and all report through the match's link and the log, which this made-up
+        world does not have; none is what is checked here."""
+        for report in ("memory_report", "module_report", "executable_report"):
+            self.emu.mem_write(linked.symbols[f"hook_{report}_on_loaded"], bytes.fromhex("31c0c3"))
 
     def word(self, at, value, size=4):
         self.emu.mem_write(at, (value & (1 << 8 * size) - 1).to_bytes(size, "little"))
@@ -364,7 +367,7 @@ def main():
           "0x25CEAE is on_keyboard_action's `xor al,al` and epilogue (its next/prev player's return)")
 
     stock, ours = Game(original), Game(built)
-    ours.without_memory_report(linked)
+    ours.without_reports(linked)
     # A player's game, and a replay's client, run the game's code at each site.
     for vtable, local, name in ((NC_VTABLE, 2, "a player (local place 2)"),
                                 (REPLAY_VTABLE, 0xFF, "a replay's client")):

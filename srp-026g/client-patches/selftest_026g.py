@@ -715,7 +715,11 @@ def function_pops(image, entry, limit=20000):
             target = branch_target(text)
             if op == "jmp":
                 if target is None:
-                    lost.append(f"{va:#x}: {text}")
+                    cases = jump_table(image, text)
+                    if cases:
+                        todo.extend(cases)
+                    else:
+                        lost.append(f"{va:#x}: {text}")
                     break
                 ways = lohook_dispatch(image, target)
                 if ways is not None:                       # a generated lohook entry: its `ret` is a jump
@@ -729,6 +733,28 @@ def function_pops(image, entry, limit=20000):
     if todo or len(seen) >= limit:
         lost.append(f"{entry:#x}: more than {limit} instructions, not all followed")
     return found, lost
+
+
+JUMP_TABLE = re.compile(r"^jmp \[(?:e[a-z]{2}\*4\+(0x[0-9a-f]+)|(0x[0-9a-f]+)\+e[a-z]{2}\*4)\]$")
+
+
+def jump_table(image, text):
+    """The cases of a switch's `jmp [reg*4+table]`: the table's dwords from its
+    start while each is a relocated address (the image's HIGHLOW fixups, as the
+    compiler emits for a table of code addresses), so neither a bound found in
+    the code before it nor a guess at the table's size; [] for any other
+    indirect jump, or an image without relocations."""
+    match = JUMP_TABLE.match(text)
+    relocations = getattr(image, "relocations", None)
+    if match is None or relocations is None:
+        return []
+    fixed = image.__dict__.get("highlow")
+    if fixed is None:
+        fixed = image.__dict__["highlow"] = {va for kind, va in relocations().values() if kind == 3}
+    table, cases = int(match.group(1) or match.group(2), 16), []
+    while table + 4 * len(cases) in fixed:
+        cases.append(struct.unpack("<I", image.read(table + 4 * len(cases), 4))[0])
+    return cases
 
 
 def lohook_dispatch(image, va):

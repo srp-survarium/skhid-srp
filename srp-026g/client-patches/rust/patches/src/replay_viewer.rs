@@ -34,7 +34,8 @@ use core::ffi::CStr;
 
 use crate::spectator;
 use crate::vostok::log::{line, Piece};
-use crate::vostok::replay_view::{button_client, pointer_at, pointer_client, query_network, take_network, ChooserMode, CoreLoad, GameClock, HudFrame, KitChooser, KitData, KitFeed, MatchClose, Moments, Names, Overlay, ServerNoteSite};
+use crate::vostok::spectate::MatchStart;
+use crate::vostok::replay_view::{button_hud, pointer_at, pointer_hud, query_network, take_network, ChooserMode, CoreLoad, GameClock, HudFrame, KitChooser, KitData, KitFeed, HudMouse, MatchClose, Moments, Names, Overlay, ServerNoteSite};
 use crate::vostok::types::Place;
 use crate::vostok::world::NetworkClient;
 use crate::vostok::{
@@ -567,10 +568,12 @@ pub fn on_server_note(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnServerNoteExi
 pub fn on_key(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnKeyExit> {
     let Some(key) = GameWorldKey::at_start(ctx) else { return Flow::Continue };
     let thread = key.thread();
+    // Only a spectator's keys: a session left over (its match's close skipped) never takes a
+    // player's, nor those of the game's own replay client.
+    let Some(client) = key.hud().client(thread).filter(|client| client.is_spectator()) else { return Flow::Continue };
     // A spectator has no kits: its 1 to 3 pick nothing (before patch 58's key, further in this
     // function; the key would reach the kit chooser the game shows it).
-    if is_kit_key(key.key()) && key.kind() == KeyKind::Down
-        && key.hud().client(thread).is_some_and(|client| client.is_spectator()) {
+    if is_kit_key(key.key()) && key.kind() == KeyKind::Down {
         key.take();
         return Flow::Exit(ReplayViewerOnKeyExit::Taken);
     }
@@ -585,16 +588,13 @@ pub fn on_key(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnKeyExit> {
         key.take();
         return Flow::Exit(ReplayViewerOnKeyExit::Taken);
     }
-    let client = key.hud().client(thread);
-    let now = client.as_ref().and_then(|client| client.clock());
-    let watched = client.as_ref().and_then(|client| client.local_place());
+    let now = client.clock();
+    let watched = client.local_place();
     let (next, act) = VIEWING.with(thread, |viewing| step(viewing_session, Input::Command { command: replay_key, now, watched }, &viewing.events));
     set_session(thread, next);
     match act {
         Act::Ask(request) => {
-            if let Some(client) = &client {
-                client.send_request(request);
-            }
+            client.send_request(request);
         }
         Act::ShowUi(shown) => {
             let hud = key.hud();
@@ -602,11 +602,7 @@ pub fn on_key(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnKeyExit> {
                 movie.invoke_bool(c"root.hide_interface", !shown);
             }
         }
-        Act::Leave => {
-            if let Some(client) = &client {
-                client.leave();
-            }
-        }
+        Act::Leave => client.leave(),
         Act::Pass | Act::Nothing | Act::Play { .. } | Act::Restore => {}
     }
     key.take();
@@ -624,26 +620,36 @@ pub fn on_close(ctx: &mut Context<'_>) -> Flow<NoExit> {
     {
         chooser.show(ChooserMode::Hidden);
     }
-    if let (Act::Restore, Some(clock)) = (act, GameClock::of(&close.client)) {
-        clock.restore();
-    }
-    if act == Act::Restore {
-        // The movie outlives the match: a viewer left by Back, whose world the server's farewell
-        // ends, would otherwise keep its controls and cursor over the next real match.
-        if let Some(overlay) = Overlay::of(&close.client) {
-            overlay.release_held_buttons();
-            overlay.set_cursor_shown(false);
-            overlay.keep_cursor(false);
-            overlay.show(false);
-        }
-    }
+    restore(&close.client, act);
     Flow::Continue
 }
 
-/// `static_info.options_read` (after patches 65, 86, 83 and 103's): a new
-/// match starts as no replay, with no events.
+/// A viewing's end ([`Act::Restore`], at the match's close or else at the next match's options):
+/// the game's clock back to running at 1, the replay controls and their cursor gone.
+fn restore(client: &NetworkClient<'_>, act: Act) {
+    if act != Act::Restore {
+        return;
+    }
+    GameClock::restore(client);
+    // The movie outlives the match: a viewer left by Back, whose world the server's farewell
+    // ends, would otherwise keep its controls and cursor over the next real match.
+    if let Some(overlay) = Overlay::of(client) {
+        overlay.release_held_buttons();
+        overlay.set_cursor_shown(false);
+        overlay.keep_cursor(false);
+        overlay.show(false);
+    }
+}
+
+/// `static_info.options_read` (after patches 65, 86, 83 and 103's): a new match starts as no
+/// replay, with no events. A viewing still on (close_current_match's guard skips the close before
+/// the first tick after the first world, docs/notes/match.md) ends here, whatever the new match
+/// makes the game: its clock would otherwise stay paused or fast in the next real match.
 pub fn on_static_info(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    VIEWING.with(ctx.thread(), |viewing| viewing.reset(Reset::NewMatch));
+    let act = VIEWING.with(ctx.thread(), |viewing| viewing.reset(Reset::NewMatch));
+    if let Some(start) = MatchStart::at(ctx) {
+        restore(&start.client, act);
+    }
     Flow::Continue
 }
 
@@ -983,29 +989,30 @@ pub fn on_movie_take(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnMovieTakeExit>
 
 /// A hud with the replay controls gives them the mouse (its buttons and
 /// pointer) instead of the hud movie: a network game's only while it is a
-/// viewer's, so a player's kits and a live spectator's hud keep it. The
-/// game's own replay client goes on as the game's.
-fn mouse_to_hud(client: Option<NetworkClient<'_>>, thread: &crate::vostok::Thread) -> bool {
-    client.is_some() && !matches!(session(thread), Session::Replay(_))
+/// viewer's, so a player's kits and a live spectator's hud keep it, and not
+/// while the Tab list is up, whose player menu (a friend request, a mute)
+/// is the hud movie's. The game's own replay client goes on as the game's.
+fn mouse_to_hud(hud: Option<&HudMouse<'_>>, thread: &crate::vostok::Thread) -> bool {
+    hud.is_some_and(|hud| hud.tab_list || !matches!(session(thread), Session::Replay(_)))
 }
 
 /// `hud_mouse.replay_button`.
 pub fn on_mouse_button(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnMouseButtonExit> {
-    if mouse_to_hud(button_client(ctx), ctx.thread()) { Flow::Exit(ReplayViewerOnMouseButtonExit::Hud) } else { Flow::Continue }
+    if mouse_to_hud(button_hud(ctx).as_ref(), ctx.thread()) { Flow::Exit(ReplayViewerOnMouseButtonExit::Hud) } else { Flow::Continue }
 }
 
 /// `hud_mouse.replay_pointer`.
 pub fn on_mouse_pointer(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnMousePointerExit> {
     let thread = ctx.thread();
-    let client = pointer_client(ctx);
+    let hud = pointer_hud(ctx);
     // A viewer's pointer goes to the controls; while the Ctrl cursor is up, the hud's chooser is
     // told where it is too, for its hover list.
-    if let (Some(client), Session::Replay(Viewer { cursor: Ui::Shown, .. }), Some((x, y))) = (&client, session(thread), pointer_at(ctx))
-        && let Some(chooser) = KitChooser::of(client)
+    if let (Some(hud), Session::Replay(Viewer { cursor: Ui::Shown, .. }), Some((x, y))) = (&hud, session(thread), pointer_at(ctx))
+        && let Some(chooser) = KitChooser::of(&hud.client)
     {
         chooser.pointer(x, y);
     }
-    if mouse_to_hud(client, thread) { Flow::Exit(ReplayViewerOnMousePointerExit::Hud) } else { Flow::Continue }
+    if mouse_to_hud(hud.as_ref(), thread) { Flow::Exit(ReplayViewerOnMousePointerExit::Hud) } else { Flow::Continue }
 }
 
 /// The replay controls' calls a network game takes from its hud's

@@ -143,10 +143,18 @@ impl<'t> GameClock<'t> {
         unsafe { raw::image::time_scale().value().write_volatile(factor) }
     }
 
-    /// The clock as every other match has it: running, at 1.
-    pub fn restore(&self) {
-        self.set_paused(false);
-        self.set_speed(1.0);
+    /// The clock of a viewer's game as every other match has it: running, at 1. Whatever the
+    /// game's role now: a viewing whose close_current_match was skipped ends at the next match's
+    /// options, its role already the new match's. None of the game's own replay client.
+    pub fn restore(client: &NetworkClient<'t>) {
+        if !client.is_match_client() {
+            return;
+        }
+        // SAFETY: the client's game, alive as long as the client, on its thread.
+        let Some(game) = (unsafe { client.raw().game() }) else { return };
+        let clock = GameClock { game, thread: PhantomData };
+        clock.set_paused(false);
+        clock.set_speed(1.0);
     }
 }
 
@@ -241,29 +249,41 @@ pub fn take_network(ctx: &Context<'_>) -> bool {
     network_load(unsafe { raw::site::replay_movie_take::game(ctx) }, ctx.thread())
 }
 
-/// The network client of the game whose hud's mouse is at
-/// `hud_mouse.replay_button` or `hud_mouse.replay_pointer` (its hud has
-/// the replay controls); none for the game's own replay client.
-fn mouse_client<'t>(world: Option<raw::GameWorld>, thread: &'t Thread) -> Option<NetworkClient<'t>> {
-    // SAFETY: the game world of the site's register, its game and client,
-    // alive while the input world dispatches the mouse on the game's thread.
-    let client = unsafe { world?.game()?.network_client() }?;
-    let client = NetworkClient::of(client, thread);
-    client.is_match_client().then_some(client)
+/// The hud whose mouse is at `hud_mouse.replay_button` or
+/// `hud_mouse.replay_pointer` (it has the replay controls), of a network
+/// game; none of the game's own replay client.
+pub struct HudMouse<'t> {
+    pub client: NetworkClient<'t>,
+    /// The Tab list shown: its player menu (patch 86's) is the hud movie's.
+    pub tab_list: bool,
+}
+
+fn hud_mouse<'t>(world: Option<raw::GameWorld>, thread: &'t Thread) -> Option<HudMouse<'t>> {
+    // SAFETY: the game world of the site's register, its hud inside it, its
+    // game and client, alive while the input world dispatches the mouse on
+    // the game's thread.
+    unsafe {
+        let world = world?;
+        let client = NetworkClient::of(world.game()?.network_client()?, thread);
+        if !client.is_match_client() {
+            return None;
+        }
+        Some(HudMouse { client, tab_list: read(world.ui().list_shown()) != 0 })
+    }
 }
 
 /// At `hud_mouse.replay_button`.
-pub fn button_client<'t>(ctx: &'t Context<'_>) -> Option<NetworkClient<'t>> {
+pub fn button_hud<'t>(ctx: &'t Context<'_>) -> Option<HudMouse<'t>> {
     // SAFETY: the context is this site's: ESI the game world's input
     // handler, the hud inside it, the hud's game world.
     let world = unsafe { raw::site::hud_mouse_replay_button::input(ctx).and_then(|input| input.ui().world()) };
-    mouse_client(world, ctx.thread())
+    hud_mouse(world, ctx.thread())
 }
 
 /// At `hud_mouse.replay_pointer`.
-pub fn pointer_client<'t>(ctx: &'t Context<'_>) -> Option<NetworkClient<'t>> {
+pub fn pointer_hud<'t>(ctx: &'t Context<'_>) -> Option<HudMouse<'t>> {
     // SAFETY: the context is this site's: EDI the game world.
-    mouse_client(unsafe { raw::site::hud_mouse_replay_pointer::world(ctx) }, ctx.thread())
+    hud_mouse(unsafe { raw::site::hud_mouse_replay_pointer::world(ctx) }, ctx.thread())
 }
 
 /// `ui`'s quick slots hidden (root.show_slots(false)): a spectator uses no slot, and the game
