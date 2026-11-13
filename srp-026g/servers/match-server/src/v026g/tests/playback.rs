@@ -385,7 +385,8 @@ fn the_games_pause_and_play_and_a_resent_request_is_taken_once() {
 
 /// Its game is told the playback once live, after each change and after
 /// each start again, each note newer than the last; the events (none kept
-/// yet) once live.
+/// yet) once live. One told another speed than 1x is told 1x before it starts
+/// again (a world's load is at 1x), and the speed asked once its world is in.
 #[test]
 fn the_game_is_told_the_playback_after_its_world_each_change_and_each_seek() {
     let (mut bench, replays) = bench();
@@ -417,7 +418,8 @@ fn the_game_is_told_the_playback_after_its_world_each_change_and_each_seek() {
             (1, false, Speed::Normal),
             (2, true, Speed::Normal),
             (3, true, Speed::Octuple),
-            (4, true, Speed::Octuple),
+            (4, true, Speed::Normal),
+            (5, true, Speed::Octuple),
         ]
     );
     bench.assert_no_faults();
@@ -1354,5 +1356,144 @@ fn a_game_connecting_again_and_again_starts_from_a_world_once_a_second() {
         bench.clients[last].snapshots().last().unwrap().1,
         FIRST_VIEW
     );
+    bench.assert_no_faults();
+}
+
+/// The generations of the 0xE5s a game took.
+fn generations(client: &Client) -> HashSet<u8> {
+    client
+        .got(|message| match message {
+            ServerMessage::SetTime { generation, .. } => Some(*generation),
+            _ => None,
+        })
+        .into_iter()
+        .collect()
+}
+
+/// Review of 2026-11-13: what went with a world and came due in its load
+/// went at the playback's speed, and at 8x that is 1.5 s past the clock
+/// and 5.5 s of load: a game's rings hold 26 of a player's inputs (some
+/// 1.3 s of a player moving the mouse), so a seek at 8x was put at its key
+/// frame, and a busier recording's start was done again three times, then
+/// loaded wrong. A world goes at 1x, to a game told 1x, whatever the speed:
+/// put where a seek at 1x puts it, started once, its clock with the game's
+/// through the load; the speed asked from when its world is in.
+#[test]
+fn at_8x_a_world_goes_and_loads_at_1x_and_the_speed_comes_after() {
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 0);
+    let at = watching(&mut bench, WATCHER);
+    control(&mut bench, at, 1, Op::Speed(Speed::Octuple));
+    bench.run(200);
+    let (told, _, speed) = *notes(&bench.clients[at]).last().unwrap();
+    assert_eq!(speed, Speed::Octuple);
+    let worlds = bench.clients[at].snapshots().len();
+    let started = generations(&bench.clients[at]);
+    control(&mut bench, at, 2, Op::Seek(MatchMs(65_000)));
+    assert!(bench.until(2_000, |b| b.clients[at].snapshots().len() > worlds));
+    // Where a seek at 1x puts it, from the same key frame.
+    let resumed = position(&bench);
+    assert!(
+        (PUT_FOR_65_S..PUT_FOR_65_S + 200).contains(&resumed),
+        "{resumed}"
+    );
+    assert_eq!(bench.clients[at].snapshots().last().unwrap().1, 59_550);
+    // Told 1x before its world, and started once.
+    assert_eq!(
+        notes(&bench.clients[at]).last(),
+        Some(&(told + 1, false, Speed::Normal))
+    );
+    let new: Vec<u8> = generations(&bench.clients[at])
+        .difference(&started)
+        .copied()
+        .collect();
+    assert_eq!(new.len(), 1, "{new:?}");
+    // The playback at 1x through the load, as the game's clock (the tests'
+    // runs at 1x).
+    assert!(bench.until(3_000, |b| b.clients[at].model.is_synced()));
+    let off = i64::from(bench.clients[at].clock()) - i64::from(position(&bench));
+    assert!(off.abs() <= 100, "the game is {off} ms off the playback");
+    // Its world in: 8x, and the game told it.
+    bench.run(100);
+    assert_eq!(
+        notes(&bench.clients[at]).last(),
+        Some(&(told + 2, false, Speed::Octuple))
+    );
+    let from = position(&bench);
+    bench.run(500);
+    let went = position(&bench) - from;
+    assert!((3_900..=4_100).contains(&went), "{went} ms in 500 ms");
+    bench.assert_no_faults();
+}
+
+/// A game told 8x is sent no world before the note that tells it 1x is in:
+/// its clock would run through the load at 8x.
+#[test]
+fn a_world_waits_for_its_games_note_of_1x() {
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 0);
+    let at = watching(&mut bench, WATCHER);
+    control(&mut bench, at, 1, Op::Speed(Speed::Octuple));
+    bench.run(200);
+    let (told, _, _) = *notes(&bench.clients[at]).last().unwrap();
+    let held = Arc::new(AtomicBool::new(true));
+    let holds = Arc::clone(&held);
+    bench.clients[at].lose = Some(Box::new(move |datagram| {
+        holds.load(Ordering::Relaxed) && carries(datagram, id::UPLOAD_REQUEST)
+    }));
+    let worlds = bench.clients[at].snapshots().len();
+    let started = generations(&bench.clients[at]);
+    control(&mut bench, at, 2, Op::Seek(MatchMs(65_000)));
+    bench.run(1_500);
+    assert_eq!(bench.clients[at].snapshots().len(), worlds);
+    assert_eq!(generations(&bench.clients[at]), started, "an 0xE5 went");
+    held.store(false, Ordering::Relaxed);
+    assert!(bench.until(3_000, |b| b.clients[at].snapshots().len() > worlds));
+    assert!(
+        notes(&bench.clients[at]).contains(&(told + 1, false, Speed::Normal)),
+        "{:?}",
+        notes(&bench.clients[at])
+    );
+    bench.assert_no_faults();
+}
+
+/// Review of 2026-11-13: a report was judged against the playback as if
+/// it came at once, and at 8x a 500 ms round trip is 4 s of match time: a
+/// game in step was taken for one off and started again and again. Judged
+/// past the round trip at the speed: an in-step game's reports pass, a game
+/// off by as much as before is started again.
+#[test]
+fn at_8x_a_long_round_trip_is_no_drift() {
+    use survarium::v026g::match_msgs::client_model::EVENT_HORIZON_MS;
+    const WAY_MS: u64 = 250;
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 0);
+    let at = watching(&mut bench, WATCHER);
+    bench.one_way = vec![0; at + 1];
+    bench.one_way[at] = WAY_MS;
+    let request = Request {
+        seq: 1,
+        op: Op::Speed(Speed::Octuple),
+    };
+    bench.clients[at].send(id::LEAVE, &request.encode(), true);
+    bench.run_long(2_000);
+    // A game in step: behind the playback by the way of the speed's note
+    // (7x the way at 8x); its report comes a way later, at 8x.
+    let in_step = |bench: &Bench| position(bench) - 7 * WAY_MS as u32 - EVENT_HORIZON_MS;
+    let worlds = bench.clients[at].snapshots().len();
+    for _ in 0..6 {
+        let time = in_step(&bench);
+        bench.clients[at].report(time, 1);
+        bench.run(50);
+    }
+    bench.run_long(2_000);
+    assert_eq!(bench.clients[at].snapshots().len(), worlds, "started again");
+    // 4 s ahead of that: off.
+    for _ in 0..3 {
+        let time = in_step(&bench) + 4_000;
+        bench.clients[at].report(time, 1);
+        bench.run(50);
+    }
+    assert!(bench.until(3_000, |b| b.clients[at].snapshots().len() > worlds));
     bench.assert_no_faults();
 }

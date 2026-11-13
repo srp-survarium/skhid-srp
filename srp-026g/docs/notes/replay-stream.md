@@ -113,13 +113,15 @@ What the server does:
 - `pause` stops the clock (nothing more is sent but a 0xE6 ping each second, so the game's 5 s
   silence check never ends the link); the viewer's patch freezes the game's clock.
 - `play` goes on from where it stopped, with no new world.
-- `speed` scales the clock, so the relays and 0xE5 times; the patch sets the game's time scale.
+- `speed` scales the clock while the game plays, and the relays' lead with it; the patch sets the
+  game's time scale. A world, its 0xE5 and its load go at 1x (a game told another speed is first
+  told 1x), the asked speed told again once the world is in.
 - `seek t` starts the game again from the key frame K at or before t, its clock put at the
   furthest point <= t it can be: no more than 5 s past K (a tick byte reaches 6.35 s back) and no
   player with more than 26 inputs in between (`INPUT_RING_SAFE`; the game keeps 27). The inputs
   since K go with the world: the game plays K..clock at once on load.
 - **Drift, the fallback**: three hash reports in a row whose world is 2 s or more off the
-  playback (a game that did not freeze or scale its clock as told) start the game again from
+  playback (less the report's expected lag, a round trip at the playback's speed) (a game that did not freeze or scale its clock as told) start the game again from
   where the playback is.
 
 Following a player (F5/F6, F2, a player list click) is the exe's own: no request.

@@ -1391,6 +1391,18 @@ impl Game {
             .map(|peer| peer.session_id)
     }
 
+    /// The link of the gone client at place `index` is done with: its game
+    /// connects anew from its address (to watch, or to come again). Kept, it
+    /// would go on sending to that address, as long as the new link's
+    /// datagrams reached it.
+    pub fn forget_gone(&mut self, index: usize) {
+        if let Some(slot) = self.peers.get_mut(index)
+            && slot.as_ref().is_some_and(|peer| peer.stage == Stage::Gone)
+        {
+            *slot = None;
+        }
+    }
+
     /// The sessions of the clients connected.
     pub fn sessions(&self) -> Vec<u32> {
         self.peers
@@ -6193,12 +6205,18 @@ impl Game {
 
     /// The match is done: it ended and the clients had time to hear it,
     /// everyone in it left, or nobody has been in it for a while.
+    ///
+    /// Its spectators, let go at its end (`spectate`), are waited for until
+    /// they are forgotten, their silence over (`spectate::SILENCE`; none
+    /// comes after the end, so no longer than that): closed before, the
+    /// match drops their routes, and a game whose farewell was lost is
+    /// answered by a stray connection, its link never silent enough to end.
     pub fn is_over(&self, now: Instant) -> bool {
-        self.finished_at
+        let ended = self
+            .finished_at
             .is_some_and(|at| now.saturating_duration_since(at) >= self.settings.timing.linger)
-            // Its spectators, let go first (`spectate`), are not waited for
-            // past their farewell.
-            || (self.over_unfinished(now) && self.spectators.is_empty())
+            || self.over_unfinished(now);
+        ended && self.spectators.is_empty()
     }
 
     /// Everyone in it left, or nobody has been in it for a while: over

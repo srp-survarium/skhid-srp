@@ -355,22 +355,31 @@ impl Server {
             self.spectator_routes.remove(&addr);
         }
         if let Some(&(match_id, index)) = self.routes.get(&addr) {
-            // A game that left its place and was given a new one (it left
-            // by its own word and came again, the owner's of 2026-10-19)
-            // may connect from the address it had: its new 0xD8 is no
-            // datagram of the place it left.
+            // A game that left its place may connect anew from the address
+            // it had, its link to the place still kept (gone): to watch (the
+            // Live window, a replay), or as the new place it was given (it
+            // left by its own word and came again, the owner's of
+            // 2026-10-19). Its new 0xD8, and anything of a place it is
+            // seated in elsewhere, is no datagram of the place it left: given
+            // to that place, it would be ignored there, and keep the gone
+            // link alive past its timeout, the new connection never made.
             if let Some(game) = self.games.get_mut(&match_id)
                 && game.peer_index(addr) == Some(index)
-                && !game
-                    .gone_session(index)
+            {
+                let gone = game.gone_session(index);
+                let anew = gone.is_some() && carries_connect(datagram);
+                let seated_elsewhere = gone
                     .and_then(|session_id| self.registry.seat(session_id))
                     .is_some_and(|seat| {
                         (seat.match_id, usize::from(seat.place)) != (match_id, index)
-                    })
-            {
-                game.receive(index, datagram, now);
-                release_quits(game, &self.registry, &self.store);
-                return;
+                    });
+                if anew {
+                    game.forget_gone(index);
+                } else if !seated_elsewhere {
+                    game.receive(index, datagram, now);
+                    release_quits(game, &self.registry, &self.store);
+                    return;
+                }
             }
             self.routes.remove(&addr);
         }

@@ -1002,3 +1002,81 @@ fn a_spectator_connecting_again_and_again_starts_from_a_world_once_a_second() {
     assert!(bench.until(3_000, |b| b.game().spectator_watches(SPECTATOR)));
     bench.assert_no_faults();
 }
+
+/// Review of 2026-11-13: a player that left by its own word (0xE0) has no
+/// seat, and its place's link is kept, gone, with the route of its address.
+/// Its game, watching the match from that address within the link's timeout,
+/// had its 0xD8 given to the place it left: ignored there, and the gone link
+/// kept alive by it, so the game was never connected while the match ran.
+/// Its new 0xD8 connects it anew.
+#[test]
+fn a_player_that_left_watches_the_match_from_the_address_it_played_from() {
+    let mut bench = running();
+    bench.clients[1].leave();
+    assert!(bench.until(2_000, |b| b.clients[0].left().contains(&1)));
+    assert!(bench.registry.seat(session_of(1)).is_none());
+    assert_eq!(bench.game().gone_session(1), Some(session_of(1)));
+    watch_as(
+        &bench,
+        session_of(1),
+        WatchKind::Queued { delay: no_delay() },
+    );
+    let players = bench.game().roster_size();
+    bench.clients[1] = Client::growing(session_of(1), players, MAP_BATTERIES);
+    bench.clients[1].connect();
+    assert!(bench.until(1_000, |b| b.clients[1].model.options.is_some()));
+    assert_eq!(bench.clients[1].model.local_index, None);
+    bench.clients[1].ready();
+    assert!(bench.until(10_000, |b| b.game().spectator_watches(session_of(1))));
+    assert_eq!(bench.game().gone_session(1), None);
+    bench.assert_no_faults();
+}
+
+/// Review of 2026-11-13: a match that ended by its own rule closed after its
+/// linger (5 s) whatever its spectators did, while they were let go with 7 s
+/// of silence. One whose farewell was lost, its game sending on, was answered
+/// by a stray connection from then on, and its game's link, meant to end by
+/// 5 s of silence, never did. The match closes once its spectators are
+/// forgotten.
+#[test]
+fn a_match_that_ended_keeps_its_spectators_silence() {
+    use survarium::v026g::match_msgs::snapshot::Tdm;
+    let mut bench = Bench::growing(2, MAP_TDM, Settings::default());
+    bench.join_all();
+    bench.run_long(25_000);
+    assert_eq!(bench.game().rule_state(), state::IN_PROCESS);
+    watch_as(&bench, SPECTATOR, WatchKind::Queued { delay: no_delay() });
+    let at = bench.clients.len();
+    bench.clients.push(Client::growing(SPECTATOR, 2, MAP_TDM));
+    bench
+        .addrs
+        .push(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16)));
+    bench.clients[at].connect();
+    assert!(bench.until(1_000, |b| b.clients[at].model.options.is_some()));
+    bench.clients[at].ready();
+    assert!(bench.until(10_000, |b| b.game().spectator_watches(SPECTATOR)));
+    // Its farewell is lost, with all that goes to it until the end.
+    bench.clients[at].lose = Some(Box::new(|_| true));
+    let from = bench.clock() / 50 * 50 + 100;
+    for client in &mut bench.clients[..2] {
+        client.sim.tdm_from = Some((
+            from,
+            Tdm {
+                tickets: [37, 0],
+                alive_players_mask: 0b01,
+                active_players_mask: 0b11,
+            },
+        ));
+    }
+    assert!(bench.until(12_000, |b| b.results.try_recv().is_ok()));
+    bench.run(300);
+    // Its game, never told, sends on: nothing answers it for longer than
+    // the 5 s that end its link.
+    bench.clients[at].lose = None;
+    let heard = bench.clients[at].datagrams_received;
+    bench.run_long(6_000);
+    assert_eq!(bench.clients[at].datagrams_received, heard);
+    assert!(!bench.clients[at].told_to_leave);
+    // Then the match is closed.
+    assert!(bench.until(2_000, |b| !b.server.games.contains_key(&b.match_id)));
+}

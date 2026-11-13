@@ -1378,6 +1378,18 @@ impl Spectator {
         self.transport.forget(serial, now);
     }
 
+    /// Whether a note sent ([`Self::note`]) is in: its game acked it (or it
+    /// was unsent).
+    pub(super) fn is_delivered(&self, serial: u64) -> bool {
+        self.transport.is_delivered(serial)
+    }
+
+    /// The latest round trip of its link, in ms (its game's delay in acking
+    /// included).
+    pub(super) fn round_trip(&self) -> Option<u32> {
+        self.transport.last_round_trip()
+    }
+
     /// Its game, not let go, has more than [`BACKLOG_MOST`] messages not
     /// acked: it is let go.
     pub(super) fn flooded(&self) -> bool {

@@ -84,6 +84,12 @@ impl Game {
             }
         }
         let clock = self.clock(now);
+        // The teams' kills and the standing are of the newest trusted world,
+        // live, on purpose: the rooms
+        // and the launcher's page showed them live before the Live window
+        // and Queue and spectate came, and they are team level only. The
+        // places' kills and deaths, which say who died, are held back by the
+        // longest Live delay (`DelayedRecords`).
         let mut kills = [0_u16; 2];
         if let Some(rules) = self.state.as_ref().and_then(|state| state.rules.as_ref()) {
             for (place, record) in self.formed.places.iter().zip(&rules.kills_deaths) {
