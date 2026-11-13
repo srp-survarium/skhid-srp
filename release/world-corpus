@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# usage: release/world-corpus [--newest <n>] [--batch <n>] [--pause <s>] [--out <folder>]
+# usage: release/world-corpus [--newest <n>] [--batch <n>] [--pause <s>] [--out <folder>] [--archive <folder>]
 #
 # Copies the live host's newest kept match recordings (srp's SRP_RECORD_DIR:
 # recordings/ in srp26's volume) into the world corpus, the recordings
@@ -15,13 +15,20 @@
 #      run on it; each file lands under .part and is renamed once whole.
 #
 #   --out <folder>   default private/world-corpus/live of the main checkout
+#   --archive <folder>  replace the active set, preserving it in this new
+#      folder outside private/world-corpus. Fetch every requested file into
+#      staging first; a missing file leaves the active set untouched. Use
+#      after a world-format change, then run world-check and world-drift.
+#      Without this option the refresh is additive, never retiring old files.
+#      Older local recordings and dumps need separate archival too.
+#      The archive must be on the same filesystem as the active set.
 #
 # Reads only: nothing on the host is written or deleted (the release copies
 # its newest 3 the same way, release.sh step 2). The recordings carry players'
 # names and accounts: they stay in private/, never committed.
 . "$(dirname "$0")/lib.sh"
 
-newest=100 batch=10 pause=30 out=''
+newest=100 batch=10 pause=30 out='' archive=''
 number() { [[ $2 =~ ^[1-9][0-9]{0,4}$ ]] || die "$1 takes a number above 0"; }
 while (($#)); do
     case $1 in
@@ -30,14 +37,24 @@ while (($#)); do
     --batch) (($# >= 2)) || usage 1; number "$1" "$2"; batch=$2; shift 2 ;;
     --pause) (($# >= 2)) || usage 1; [[ $2 =~ ^[0-9]{1,4}$ ]] || die "--pause takes seconds"; pause=$2; shift 2 ;;
     --out) (($# >= 2)) || usage 1; out=$2; shift 2 ;;
+    --archive) (($# >= 2)) || usage 1; archive=$2; shift 2 ;;
     *) die "unknown argument $1 (--help)" ;;
     esac
 done
-need_cmds ssh tar
+need_cmds ssh tar realpath flock stat
 if [[ -z $out ]]; then
     out=$(dirname "$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)")/private/world-corpus/live
 fi
 mkdir -p "$out"
+out=$(realpath "$out")
+active=$out
+exec {refresh_lock}>"${out}.lock"
+flock -n "$refresh_lock" || die "another refresh is using $out"
+if [[ -n $archive ]]; then
+    archive=$(realpath -m "$archive")
+    [[ ! -e $archive && ! -L $archive ]] || die "$archive already exists"
+    [[ $archive != "$active"/* && $active != "$archive"/* ]] || die "archive and active folders must be separate"
+fi
 use_target live
 inspect_target || die "srp26 on the live host: its container or volume not found"
 rec_dir=$RUN_VOLUME_DIR/recordings
@@ -46,15 +63,25 @@ NAME='^rec026g_[0-9-]+_[0-9a-f]{8}\.srprec$'
 list=$(on_target "cd $(q "$rec_dir") && nice -n 19 ionice -c 3 find . -maxdepth 1 -name 'rec026g_*.srprec' -size +0 -mmin +5 -printf '%T@ %f\n' | sort -rn | head -n $newest | cut -d' ' -f2") ||
     die "the recordings on the live host ($rec_dir) could not be listed"
 mapfile -t listed < <(grep . <<<"$list" || true)
+work=$(mktemp -d)
+stage=''
+cleanup() {
+    rm -rf "$work"
+    [[ -z $stage ]] || rm -rf "$stage"
+}
+trap cleanup EXIT
+if [[ -n $archive ]]; then
+    ((${#listed[@]})) || die "no finished recordings: the active corpus was not changed"
+    stage=$(mktemp -d "${out}.incoming.XXXXXX")
+    out=$stage
+fi
 todo=()
 for name in "${listed[@]}"; do
-    [[ $name =~ $NAME ]] || continue
+    [[ $name =~ $NAME ]] || die "invalid recording name: $name"
     [[ -s $out/$name ]] || todo+=("$name")
 done
 say "the live host's newest ${#listed[@]} recording(s): $((${#listed[@]} - ${#todo[@]})) in $out already, ${#todo[@]} to copy"
 
-work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT
 copied=0 missed=0
 for ((at = 0; at < ${#todo[@]}; at += batch)); do
     if ((at > 0)); then sleep "$pause"; fi
@@ -62,8 +89,10 @@ for ((at = 0; at < ${#todo[@]}; at += batch)); do
     rm -rf "${work:?}/batch" && mkdir "$work/batch"
     # A file the host's cap deleted since the listing is missing from the
     # stream (tar says so); the others come.
-    on_target "cd $(q "$rec_dir") && nice -n 19 ionice -c 3 tar -cf - -- ${part[*]}" | tar -xf - -C "$work/batch" ||
+    if ! on_target "cd $(q "$rec_dir") && nice -n 19 ionice -c 3 tar -cf - -- ${part[*]}" | tar -xf - -C "$work/batch"; then
         say "batch $((at / batch + 1)): the copy was not whole (tar's message above); the files that came are kept"
+        [[ -z $archive ]] || die "incomplete transfer: the active corpus was not changed"
+    fi
     for name in "${part[@]}"; do
         if [[ -s $work/batch/$name ]]; then
             mv "$work/batch/$name" "$out/.$name.part" && mv "$out/.$name.part" "$out/$name"
@@ -74,4 +103,20 @@ for ((at = 0; at < ${#todo[@]}; at += batch)); do
     done
     say "batch $((at / batch + 1)): $copied copied so far"
 done
+if [[ -n $archive ]]; then
+    ((missed == 0 && copied == ${#listed[@]})) || die "incomplete refresh: the active corpus was not changed"
+    [[ ! -e $archive && ! -L $archive ]] || die "$archive appeared during the refresh; the active corpus was not changed"
+    mkdir -p "$(dirname "$archive")"
+    [[ $(stat -c %d "$active") == "$(stat -c %d "$(dirname "$archive")")" ]] ||
+        die "archive must share the active set's filesystem; the active corpus was not changed"
+    mv -T "$active" "$archive"
+    if ! mv -T "$stage" "$active"; then
+        mv -T "$archive" "$active"
+        die "could not install the refreshed corpus; restored the active set"
+    fi
+    stage=''
+    out=$active
+    say "previous active recordings preserved in $archive"
+fi
 say "copied $copied recording(s) into $out ($missed not); it holds $(find "$out" -maxdepth 1 -name '*.srprec' | wc -l), $(du -sm "$out" | cut -f1) MB"
+[[ -n $archive ]] || say "additive refresh: older recordings remain; after a format change use --archive <folder> and retire incompatible local recordings/dumps too"

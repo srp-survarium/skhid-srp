@@ -851,7 +851,7 @@ impl Connection<'_> {
             Some(account) => {
                 let account = account.locked();
                 let profile = shown_profile(&account).map(|profile| (profile.id, profile.revision));
-                (account.name.clone(), profile)
+                (account.name().to_owned(), profile)
             }
             None => (String::new(), None),
         };
@@ -1121,7 +1121,7 @@ mod tests {
         store
             .squads()
             .invite_accepted(alice.account_id, bob.account_id);
-        let name = bob.account.locked().name.clone();
+        let name = bob.account.locked().name().to_owned();
         alice.answer(&add_to_squad(&name));
         let mut play = vec![op::PLAY];
         play.extend(first_profile(&bob).0.to_le_bytes());

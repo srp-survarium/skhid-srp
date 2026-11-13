@@ -2,7 +2,7 @@
 //! spectated match (path A, `docs/notes/replay-stream.md`). One encoding,
 //! shared by two builds:
 //! - the match server, which plays the recording and decides the playback;
-//! - the game, in the exe's arena (patch 130,
+//! - the game, in the exe's arena (patch 144,
 //!   `client-patches/rust/patches/src/replay_viewer.rs`), which asks for a
 //!   change from its keys and applies what the server tells it.
 //!

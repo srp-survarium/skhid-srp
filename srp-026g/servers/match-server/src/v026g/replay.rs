@@ -37,7 +37,6 @@ use session::v026g::replay_watch::{Access, DEFAULT_MAX_RECORDING_MB, WatchSettin
 use session::v026g::replays::{
     self, FILE_EXTENSION, Failure, ReplayId, Replays, SaveSettings, Sidecar, file_stem,
 };
-use sha2::{Digest, Sha256};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::localization::{self, Language};
 use survarium::v026g::match_msgs::static_info::{self, NO_LOCAL_PLACE};
@@ -247,7 +246,7 @@ pub fn make(
     let sidecar = Sidecar {
         match_id,
         size: file.len() as u64,
-        sha256: Sha256::digest(&file)
+        sha256: openssl::sha::sha256(&file)
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect(),

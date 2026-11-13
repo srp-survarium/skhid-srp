@@ -25,7 +25,6 @@ use survarium::v026g::lobby::requests::{INVENTORY_SLOT, id};
 use survarium::v026g::lobby::{self, NameRefusal};
 
 use super::core::{Core, Who};
-use super::dispatch::name_refusal;
 
 impl Core<'_> {
     // ---------------------------------------------------------- a sign-in
@@ -145,29 +144,28 @@ impl Core<'_> {
     /// reasons: the name's own rules, then whether another account is
     /// shown by it or signs in with it.
     pub(super) fn nickname_refusal(&self, nickname: &str, account_id: u32) -> Option<NameRefusal> {
-        if let Some(refusal) = name_refusal(nickname, true) {
+        if let Err(refusal) = names::Nickname::parse(nickname) {
             return Some(refusal);
         }
-        let shown = self.account_named(nickname, account_id).is_some();
-        let login = self
-            .store
-            .account_id_by_name(nickname)
-            .is_some_and(|owner| owner != account_id);
-        (shown || login).then_some(NameRefusal::Taken)
+        self.store
+            .nickname_taken(nickname, account_id)
+            .then_some(NameRefusal::Taken)
     }
 
     /// `49 04 <name> <u32>`: a new nickname, paid in silver.
     pub(super) fn change_nickname(&mut self, who: &Who, nickname: &str) {
         let nickname = nickname.trim();
-        if let Some(refusal) = self.nickname_refusal(nickname, who.account_id) {
-            log::info!(
-                "{}: the nickname `{nickname}` is refused: {refusal:?}",
-                who.name
-            );
-            self.deny(who.addr, id::PROFILE, "st_change_name_error");
-            return;
-        }
-        let renamed = names::rename(&mut who.account.locked(), &self.shop, nickname);
+        let nickname = match names::Nickname::parse(nickname) {
+            Ok(nickname) => nickname,
+            Err(refusal) => {
+                log::info!("{}: nickname {nickname:?} refused: {refusal:?}", who.name);
+                self.deny(who.addr, id::PROFILE, "st_change_name_error");
+                return;
+            }
+        };
+        let renamed = self
+            .store
+            .rename_026g(self.accounts, &self.shop, who.account_id, &nickname);
         let silver = match renamed {
             Ok(silver) => silver,
             Err(error) => {
@@ -177,23 +175,29 @@ impl Core<'_> {
             }
         };
         let name = who.account.locked().name.clone();
-        // The name others find the account by: the store's.
-        if let Some(account) = self.store.account(who.account_id) {
-            account.locked().name = name.clone();
-            self.store.mark_dirty(who.account_id);
-        }
-        if let Some(player) = self.player_mut(who.addr) {
-            player.name = name.clone();
-        }
         log::info!(
             "{} (account {}) is now named {name} ({silver} silver)",
             who.name,
             who.account_id,
         );
         self.send(who.addr, lobby::permitted_nickname_changed());
-        let ranked = self.accounts.ranking().len() as u32;
-        self.send(who.addr, lobby::base_info(ranked, &name));
+        self.refresh_nickname(who.account_id);
         self.push_account(who);
+    }
+
+    /// Refresh live names after either a paid rename or an administrator's
+    /// account change, including friends of an offline renamed account.
+    pub(super) fn refresh_nickname(&mut self, account_id: u32) {
+        if let Some(who) = self.who_is(account_id) {
+            let name = who.account.locked().name.clone();
+            if who.name != name {
+                if let Some(player) = self.player_mut(who.addr) {
+                    player.name = name.clone();
+                }
+                let ranked = self.accounts.ranking().len() as u32;
+                self.send(who.addr, lobby::base_info(ranked, &name));
+            }
+        }
         // Those who show the name: the squad, and the friends in the lobby.
         self.squads_dirty = true;
         for addr in self.players() {
@@ -203,7 +207,7 @@ impl Core<'_> {
             let is_friend = self
                 .store
                 .account(other.account_id)
-                .is_some_and(|account| account.locked().friends.contains(&who.account_id));
+                .is_some_and(|account| account.locked().friends.contains(&account_id));
             if is_friend {
                 self.push_friends(&other);
             }

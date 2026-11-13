@@ -33,6 +33,11 @@ pub const MAX_HEADER: usize = 8192;
 const MAX_SLUG: usize = 32;
 /// The most names tried for one replay (`_2` ... `_99`).
 pub const MAX_COPIES: u32 = 99;
+/// What the launcher's PLAY starts, beside the updater.
+pub const GAME_EXE: &str = "survarium_skhid.exe";
+/// The game cuts a replay's name at 259 bytes (0x1F02EC: a 0x104-byte
+/// buffer) and reads its command line as ANSI text.
+pub const MAX_GAME_PATH: usize = 259;
 
 /// The languages the messages are written in, by their number. The language
 /// is the game's: user.cfg's `localization <name>` line, which the game's
@@ -278,10 +283,32 @@ pub fn saved_name(header: &Header, start: Stamp, copy: u32) -> String {
     format!("{year:04}-{month:02}-{day:02}_{hour:02}{minute:02}_{}_{}{copy}{EXTENSION}", slug(header), header.match_id)
 }
 
+/// The game's command line: the launcher's PLAY (no `-localization=`: the
+/// game's own language) with `-match_replay=` after it. The game reads a value in double quotes up to the next quote (its
+/// command-line parser, 0xDF1E3), so a path with spaces is one value. `None`
+/// for a path the game would read otherwise: one with a quote or a control
+/// character, one that ends with a backslash, one too long, one that is
+/// not a full path (the game takes a name without `:` or `\\` for a name in
+/// its own replays folder).
+pub fn game_command(game: &str, replay: &str) -> Option<String> {
+    let bad = |text: &str| text.chars().any(|c| c == '"' || c.is_control());
+    if bad(game)
+        || bad(replay)
+        || replay.ends_with('\\')
+        || replay.len() > MAX_GAME_PATH
+        || !(replay.starts_with("\\\\") || replay.get(1..3) == Some(":\\"))
+    {
+        return None;
+    }
+    Some(format!("\"{game}\" -match_replay=\"{replay}\""))
+}
+
 /// What went wrong, for the player.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Problem {
     BadLink,
+    BadFile,
+    Open { path: String, detail: String },
     AlreadyRunning,
     /// The site could not be reached (its host).
     Network(String),
@@ -295,6 +322,16 @@ pub enum Problem {
     Damaged,
     /// The replays folder or the file could not be written (Windows' words).
     Disk(String),
+    NoGame,
+    /// The game could not be started (Windows' words).
+    Start(String),
+    /// The replay's path has characters the game's ANSI command line loses.
+    Path,
+    /// The game's files are not in place (`updater_skhid.exe ready` says
+    /// no: the last patch step did not end `ready`, or the
+    /// `resources.db.patch_<n>` files are not what its list says), so the
+    /// game is not started, as `play_skhid.bat` does not start it.
+    NotReady,
 }
 
 /// The message for a player in the game's language (`LANGUAGES` order);
@@ -303,6 +340,16 @@ pub fn message(language: Option<u32>, problem: &Problem) -> String {
     use Problem::*;
     let language = language.filter(|&n| n < 5).unwrap_or(0);
     match (language, problem) {
+        (1, BadFile) => "Выберите один файл повтора .sur. Откройте его двойным щелчком или перетащите на updater_skhid.exe.".into(),
+        (2, BadFile) => "Виберіть один файл повтору .sur. Відкрийте його подвійним клацанням або перетягніть на updater_skhid.exe.".into(),
+        (3, BadFile) => "Wähle eine .sur-Wiederholung. Öffne sie per Doppelklick oder ziehe sie auf updater_skhid.exe.".into(),
+        (4, BadFile) => "Wybierz jeden plik powtórki .sur. Kliknij go dwukrotnie lub przeciągnij na updater_skhid.exe.".into(),
+        (_, BadFile) => "Select one .sur replay file. Double-click it or drag it onto updater_skhid.exe.".into(),
+        (1, Open { path, detail }) => format!("Не удалось открыть повтор:\n{path}\n\n{detail}\n\nПроверьте, что файл существует и доступен для чтения."),
+        (2, Open { path, detail }) => format!("Не вдалося відкрити повтор:\n{path}\n\n{detail}\n\nПеревірте, що файл існує і доступний для читання."),
+        (3, Open { path, detail }) => format!("Wiederholung konnte nicht geöffnet werden:\n{path}\n\n{detail}\n\nPrüfe, ob die Datei vorhanden und lesbar ist."),
+        (4, Open { path, detail }) => format!("Nie można otworzyć powtórki:\n{path}\n\n{detail}\n\nSprawdź, czy plik istnieje i można go odczytać."),
+        (_, Open { path, detail }) => format!("Couldn't open replay:\n{path}\n\n{detail}\n\nCheck that the file exists and you have permission to read it."),
         (1, BadLink) => "Ссылка на повтор недействительна. Сохраните повтор снова в лобби.".into(),
         (2, BadLink) => "Посилання на повтор недійсне. Збережіть повтор знову в лобі.".into(),
         (3, BadLink) => "Dieser Wiederholungslink ist ungültig. Speichere die Wiederholung erneut in der Lobby.".into(),
@@ -343,6 +390,26 @@ pub fn message(language: Option<u32>, problem: &Problem) -> String {
         (3, Disk(detail)) => format!("Die Wiederholung kann nicht im Ordner replays des Spiels gespeichert werden: {detail}."),
         (4, Disk(detail)) => format!("Nie można zapisać powtórki w folderze replays gry: {detail}."),
         (_, Disk(detail)) => format!("Cannot save the replay in the game's replays folder: {detail}."),
+        (1, NoGame) => "survarium_skhid.exe не найден рядом с программой обновления. Запустите игру один раз через лаунчер, он его установит.".into(),
+        (2, NoGame) => "survarium_skhid.exe не знайдено поруч з оновлювачем. Запустіть гру один раз через лаунчер, він його встановить.".into(),
+        (3, NoGame) => "survarium_skhid.exe wurde neben dem Updater nicht gefunden. Starte das Spiel einmal mit dem Launcher, der es installiert.".into(),
+        (4, NoGame) => "Nie znaleziono survarium_skhid.exe obok aktualizatora. Uruchom grę raz przez launcher, który go zainstaluje.".into(),
+        (_, NoGame) => "survarium_skhid.exe was not found beside the updater. Start the game once with the launcher, which installs it.".into(),
+        (1, Start(detail)) => format!("Не удалось запустить повтор: {detail}."),
+        (2, Start(detail)) => format!("Не вдалося запустити повтор: {detail}."),
+        (3, Start(detail)) => format!("Die Wiederholung konnte nicht gestartet werden: {detail}."),
+        (4, Start(detail)) => format!("Nie udało się uruchomić powtórki: {detail}."),
+        (_, Start(detail)) => format!("The replay could not be started: {detail}."),
+        (1, Path) => "Путь к повтору слишком длинный или содержит символы, которые игра не читает. Переместите файл .sur в папку с коротким путём из латинских букв.".into(),
+        (2, Path) => "Шлях до повтору задовгий або містить символи, яких гра не читає. Перемістіть файл .sur у теку з коротким шляхом, що містить лише латинські літери.".into(),
+        (3, Path) => "Der Pfad der Wiederholung ist zu lang oder enthält Zeichen, die das Spiel nicht lesen kann. Verschiebe die .sur-Datei in einen Ordner mit einem kurzen Pfad, der nur lateinische Buchstaben hat.".into(),
+        (4, Path) => "Ścieżka powtórki jest za długa lub zawiera znaki, których gra nie odczyta. Przenieś plik .sur do folderu z krótką ścieżką zawierającą tylko litery łacińskie.".into(),
+        (_, Path) => "The replay path is too long or has characters the game cannot read. Move the .sur file to a folder with a shorter path using Latin letters.".into(),
+        (1, NotReady) => "Skhid ещё не закончил обновлять файлы игры (game\\resources.db.patch_*), поэтому повтор не запущен. Запустите Skhid.bat (лаунчер): он закончит обновление или скажет, что мешает. Затем откройте повтор снова. Подробности: game\\binaries\\x86\\updater_skhid.log.".into(),
+        (2, NotReady) => "Skhid ще не завершив оновлення файлів гри (game\\resources.db.patch_*), тому повтор не запущено. Запустіть Skhid.bat (лаунчер): він завершить оновлення або скаже, що заважає. Потім відкрийте повтор знову. Подробиці: game\\binaries\\x86\\updater_skhid.log.".into(),
+        (3, NotReady) => "Skhid hat die Dateien des Spiels (game\\resources.db.patch_*) noch nicht fertig aktualisiert, daher wird die Wiederholung nicht gestartet. Starte Skhid.bat (den Launcher): Er schließt die Aktualisierung ab oder sagt, was im Weg ist. Öffne danach die Wiederholung erneut. Details: game\\binaries\\x86\\updater_skhid.log.".into(),
+        (4, NotReady) => "Skhid nie zakończył jeszcze aktualizacji plików gry (game\\resources.db.patch_*), więc powtórka nie została uruchomiona. Uruchom Skhid.bat (launcher): dokończy aktualizację albo powie, co przeszkadza. Potem otwórz powtórkę ponownie. Szczegóły: game\\binaries\\x86\\updater_skhid.log.".into(),
+        (_, NotReady) => "Skhid has not finished updating the game's files (game\\resources.db.patch_*), so the replay is not started. Start Skhid.bat (the launcher): it finishes the update, or says what is in the way. Then open the replay again. Details: game\\binaries\\x86\\updater_skhid.log.".into(),
     }
 }
 
@@ -542,11 +609,35 @@ mod tests {
     }
 
     #[test]
+    fn the_game_is_started_as_play_does_with_the_replay_after() {
+        let game = r"D:\My Games\Survarium\game\binaries\x86\survarium_skhid.exe";
+        let replay = r"D:\My Games\Survarium\game\replays\srp_0a1b2c3d.sur";
+        assert_eq!(
+            game_command(game, replay).unwrap(),
+            format!("\"{game}\" -match_replay=\"{replay}\"")
+        );
+        assert!(game_command(game, r"\\server\share\game\replays\srp_0a1b2c3d.sur").is_some());
+        assert!(game_command(game, r"D:\GAMES~1\SURVAR~1\game\replays\SRP_0A~1.SUR").is_some());
+        for replay in [
+            "D:\\a\"b\\srp_0a1b2c3d.sur", "D:\\a\\b\\", "srp_0a1b2c3d", "replays\\srp_0a1b2c3d.sur",
+            "D:\\a\tb\\x.sur", "D:\\a\nb\\x.sur",
+        ] {
+            assert_eq!(game_command(game, replay), None, "{replay}");
+        }
+        let long = format!("C:\\{}", "d".repeat(MAX_GAME_PATH - 3));
+        assert!(game_command(game, &long).is_some());
+        assert!(game_command(game, &(long + "d")).is_none());
+        assert!(game_command("C:\\a\"b.exe", replay).is_none());
+    }
+
+    #[test]
     fn the_language_is_the_launchers() {
         let problems = [
             Problem::BadLink, Problem::AlreadyRunning, Problem::Network("h.example".into()), Problem::Expired,
             Problem::Busy("h.example".into()), Problem::Status("h.example".into(), 302), Problem::Damaged,
-            Problem::Disk("Access is denied".into()),
+            Problem::Disk("Access is denied".into()), Problem::BadFile, Problem::NoGame, Problem::Path,
+            Problem::NotReady, Problem::Start("Access is denied".into()),
+            Problem::Open { path: "h.example".into(), detail: "Access is denied".into() },
         ];
         let path = r"D:\Games\Skhid\game\replays\x.srpreplay";
         for problem in &problems {

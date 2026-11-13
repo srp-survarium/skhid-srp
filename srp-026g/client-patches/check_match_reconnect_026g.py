@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Patch 132: a receive aborted by the connect that replaced the match link's
-socket is no lost link (client_patch.md section 3.80).
+"""Patch 145: a receive aborted by the connect that replaced the match link's
+socket is no lost link (client_patch.md section 3.84).
 
     python check_match_reconnect_026g.py <original survarium.exe>
 
@@ -232,7 +232,7 @@ def main():
     assert patched.calls == [("close",)], patched.calls
     patched.send_done(BAD_DESCRIPTOR)
     connected_once(patched, patched.calls)
-    print("patch 132: the failure's order (close, a send on the closed socket, the read's 995, the send's WSAEBADF) "
+    print("patch 145: the failure's order (close, a send on the closed socket, the read's 995, the send's WSAEBADF) "
           "disconnects the original (instant_disconnect(1)) and not the build, whose send completion connects once; "
           "good cycles, a send completed first, live links (995, 10061, another error) and dead links are the "
           "original's in both")

@@ -13,7 +13,7 @@ use survarium::v026g::match_msgs::static_info::{
 use survarium::v026g::match_msgs::upload;
 
 use super::*;
-use crate::v026g::record::{IN, MAGIC, OUT};
+use crate::v026g::record::{ACCEPTED_WORLD, AcceptedWorld, IN, MAGIC, NO_PLACE, OUT};
 use crate::v026g::sur;
 use crate::v026g::sur_convert::{self, Settings};
 
@@ -81,7 +81,11 @@ fn datagram(id: u8, x: Option<u8>, payload: &[u8]) -> Vec<u8> {
 /// and the server's folders, where the writer would never put them, to
 /// show that none reaches the replay. Returns the mode config's name.
 fn write_recording(path: &Path, secrets: &[&str]) -> String {
-    let map = survarium::v026g::maps::playable().next().unwrap();
+    // A match of two teams (its places are on teams 0 and 1): the first
+    // battery map.
+    let map = survarium::v026g::maps::playable_in(survarium::v026g::maps::GameMode::Batteries)
+        .next()
+        .expect("the game has battery maps");
     let options = MatchOptions {
         players: vec![profile("a", 0), profile("b", 1)],
         map: survarium::v026g::maps::MatchMap::of(map.id).unwrap(),
@@ -97,7 +101,7 @@ fn write_recording(path: &Path, secrets: &[&str]) -> String {
         0,
         serde_json::json!({
             "note": "header", "map": map.name, "map_id": map.id, "mode": map.mode.rules().number(),
-            "match_id": format!("{MATCH:#x}"),
+            "match_id": format!("{MATCH:#x}"), "accepted_worlds": true,
             "places": [
                 {"place": 0, "account_id": 1001, "name": "a"},
                 {"place": 1, "account_id": 1002, "name": "b"},
@@ -140,10 +144,14 @@ fn write_recording(path: &Path, secrets: &[&str]) -> String {
         2500,
         serde_json::json!({"note": "places", "places": [{"place": 2, "account_id": 1003}]}),
     ));
+    // Worlds the server took.
     for (time, fill) in [(50u32, 1u8), (1050, 2)] {
-        for chunk in upload::split(time, &vec![fill; 700]).unwrap() {
+        let body = vec![fill; 700];
+        for chunk in upload::split(time, &body).unwrap() {
             raw.extend(record(IN, 0, 3000 + time, &datagram(0xE0, None, &chunk)));
         }
+        let taken = AcceptedWorld::of(time, &body).to_bytes();
+        raw.extend(record(ACCEPTED_WORLD, NO_PLACE, 3000 + time, &taken));
     }
     let packed = lzma2::packed(&raw);
     let mut file = fs::File::create(path).unwrap();
@@ -249,7 +257,7 @@ fn a_kept_recording_becomes_a_save_file_that_holds_nothing_private() {
     assert_eq!(names(&replay_dir), ["1f07c8fb.json", "1f07c8fb.srpreplay"]);
     let bytes = fs::read(replay_dir.join("1f07c8fb.srpreplay")).unwrap();
     assert_eq!(sidecar.size, bytes.len() as u64);
-    let sha: String = Sha256::digest(&bytes)
+    let sha: String = openssl::sha::sha256(&bytes)
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect();

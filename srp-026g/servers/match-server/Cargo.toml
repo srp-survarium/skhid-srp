@@ -13,8 +13,10 @@ serde = { workspace = true }
 # The maps the server's bots path on (`v026g::bots::maps`).
 mapdata = { path = "../../crates/mapdata" }
 serde_json = { workspace = true }
-# SHA-256 of Save's file (`v026g::replay`): its sidecar, the updater's check.
-sha2 = { workspace = true }
+# SHA-256 of a recording, of Save's file (its sidecar, the updater's check)
+# and of the executable reports (`v026g::record`, `v026g::replay`,
+# `v026g::executable`), and the voice relay's keys (`v026g::voice`).
+openssl = { workspace = true }
 
 # The replay viewer's notes and requests (`v026g::game::playback`), one
 # encoding with the game's arena.
@@ -37,3 +39,6 @@ libc = { workspace = true }
 [dev-dependencies]
 # Sessions without a sign-in, for the tests (`SessionStore::create_session`).
 session = { workspace = true, features = ["test-support"] }
+
+# Exercise the shipped codec/jitter implementation through the real voice relay.
+skhid-voice = { path = "../../client-voice" }

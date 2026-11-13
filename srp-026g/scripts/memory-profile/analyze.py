@@ -3,10 +3,12 @@
 started with SKHID_MEMORY_PROFILE=on; docs/notes/memory-profile.md) and print,
 for a snapshot: the address-space budget (fixed arenas, thread stacks, images,
 mapped files, the profiler's own tables, the rest, and what is left free for
-the video driver), then each arena: its heap's use and largest hole, the free
-blocks by size, and its top call sites by live and by peak bytes, named from
-the re-kit (tools/re-kit/v026g: the nearest function label at or below the
-return address; an `?` marks an unreviewed name).
+the video driver), Scaleform's heaps by name (the Flash UI: what each holds
+and uses), then each arena: its heap's use and largest hole, the free
+blocks by size, a managed arena's nodes by resource class, and its top call
+sites by live and by peak bytes, named from the re-kit (tools/re-kit/v026g:
+the nearest function label at or below the return address; an `?` marks an
+unreviewed name).
 
     python3 analyze.py PROFILE [--run N] [--snapshot N] [--top N] [--arena NAME]
 
@@ -29,6 +31,7 @@ KIT = Path(__file__).resolve().parents[3] / "tools" / "re-kit" / "v026g"
 MEM_COMMIT, MEM_RESERVE, MEM_FREE = 0x1000, 0x2000, 0x10000
 MEM_PRIVATE, MEM_MAPPED, MEM_IMAGE = 0x20000, 0x40000, 0x1000000
 PAGE_GUARD = 0x100
+HEAP_DEBUG = 0x1000     # a Scaleform heap's flag: a debug heap, which Scaleform's own totals leave out
 MIB = 1 << 20
 
 
@@ -57,6 +60,8 @@ class Arena:
     unseen: int = 0
     other: Counts | None = None
     sites: list = field(default_factory=list)       # (return address, Counts)
+    managed: dict = field(default_factory=dict)     # a managed arena's nodes: class id, "more" or "unowned" -> (nodes, bytes)
+    managed_torn: bool = False                      # its walk did not reach the end: no sums
 
 
 @dataclass
@@ -72,6 +77,8 @@ class Snapshot:
     sites_count: int = 0
     arenas: dict = field(default_factory=dict)      # index -> Arena
     regions: list = field(default_factory=list)     # (base, size, state, protect, kind, allocation)
+    scaleform: list = field(default_factory=list)   # Scaleform's heaps, a parent before its children: (depth, flags, footprint, used, name)
+    scaleform_torn: bool = False                    # the heaps' walk stopped early: the list is a part
     complete: bool = False
 
 
@@ -140,6 +147,18 @@ def parse(text):
                 arena.other = counts(rest[1:6])
             else:
                 arena.sites.append((number(rest[1]), counts(rest[2:7])))
+        elif tag == "managed":
+            arena = snapshot.arenas[number(rest[0])]
+            if rest[1] == "torn":
+                arena.managed_torn = True
+            else:
+                key, figures = (number(rest[2]), rest[3:5]) if rest[1] == "class" else (rest[1], rest[2:4])
+                arena.managed[key] = tuple(number(w) for w in figures)
+        elif tag == "scaleform":
+            if rest[0] == "torn":
+                snapshot.scaleform_torn = True
+            else:
+                snapshot.scaleform.append((*(number(w) for w in rest[:4]), rest[4] if len(rest) > 4 else ""))
         elif tag == "region":
             snapshot.regions.append(tuple(number(w) for w in rest[:6]))
         elif tag == "end":
@@ -263,6 +282,14 @@ def print_snapshot(snapshot, run, names, top, only):
     print(f"    {'free (what the video driver can still get)':<44} {size(sum(free)):>12}  largest "
           f"{size(big[0] if big else 0)}, then {', '.join(size(b) for b in big[1:4]) or '-'}; "
           f"{sum(1 for b in free if b >= 64 * MIB)} regions of 64 MiB or more")
+    if (snapshot.scaleform or snapshot.scaleform_torn) and (not only or only.lower() in "scaleform"):
+        own = [heap for heap in snapshot.scaleform if not heap[1] & HEAP_DEBUG]
+        print(f"\n  Scaleform's heaps (the Flash UI; their blocks are the \"global multithreaded\" arena's): "
+              f"{size(sum(h[2] for h in own))} held, {size(sum(h[3] for h in own))} of it in use"
+              + (" (the walk stopped early: a part)" if snapshot.scaleform_torn else ""))
+        for depth, flags, footprint, used, name in snapshot.scaleform:
+            print(f"    {size(footprint):>10} held, {size(used):>10} in use  {'  ' * depth}{name}"
+                  + (" (a debug heap, not in the sum)" if flags & HEAP_DEBUG else ""))
     for arena in sorted(snapshot.arenas.values(), key=lambda a: a.index):
         if only and only.lower() not in arena.name.lower():
             continue
@@ -285,6 +312,15 @@ def print_snapshot(snapshot, run, names, top, only):
                   (f"; {arena.unseen} frees of blocks not tracked" if arena.unseen else ""))
         if arena.other:
             print(f"    sites past the table: {size(arena.other.live)} live, peak {size(arena.other.peak)}")
+        if arena.managed_torn:
+            print("    its nodes: changing under the walk, not told this snapshot")
+        if arena.managed:
+            nodes = sum(n for n, _ in arena.managed.values())
+            print(f"    its nodes by resource class: {nodes} allocated, {size(sum(b for _, b in arena.managed.values()))} "
+                  "(each with its 52-byte head)")
+            names_of = {"more": "classes past the table", "unowned": "no owner (being made)"}
+            for key, (count, bytes_) in sorted(arena.managed.items(), key=lambda item: -item[1][1])[:top]:
+                print(f"      {size(bytes_):>10} in {count:>6}  {names_of.get(key) or f'class {key}'}")
         for title, key in (("live", lambda s: s[1].live), ("peak", lambda s: s[1].peak)):
             sites = sorted(arena.sites, key=key, reverse=True)[:top]
             if not sites or key(sites[0]) == 0:

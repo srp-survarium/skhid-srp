@@ -102,7 +102,7 @@ use survarium::v026g::maps;
 
 use super::MAINTENANCE_WINDOW;
 use super::core::{Core, JoinAt, Who};
-use super::play::{MatchPlayer, Running, match_profile};
+use super::play::{MatchPlayer, Running, Side, match_profile};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PublicBracket {
@@ -1307,14 +1307,20 @@ impl Core<'_> {
 
     /// Who is in the room of that key, for anyone looking at the list (the
     /// owner's of 2026-10-20), each with its side while it plays the room's
-    /// match: the team of its latest place in the match's roster. Nobody: the
-    /// room is gone.
+    /// match: the team of its latest place in the match's roster; none in a
+    /// free-for-all, whose players are on no team ([`Side::Alone`]). Nobody:
+    /// the room is gone.
     fn room_members(&self, who: &Who, key: u32) -> Vec<ListMember> {
         let Some(room) = self.rooms.get(key) else {
             return Vec::new();
         };
-        let formed = match room.stage {
-            Stage::InMatch { match_id, .. } => self.store.matchmaking().formed_match(match_id),
+        // The roster of its match being played, and the match.
+        let playing = match room.stage {
+            Stage::InMatch { match_id, .. } => self
+                .store
+                .matchmaking()
+                .formed_match(match_id)
+                .map(|formed| (formed, self.matches.get(&match_id))),
             _ => None,
         };
         let unix = quests::now();
@@ -1323,17 +1329,21 @@ impl Core<'_> {
             .iter()
             .map(|&account_id| {
                 let member = self.room_member(who, room, account_id, &marks, unix);
-                let side = formed
-                    .as_ref()
-                    .filter(|_| member.in_match)
-                    .and_then(|formed| {
-                        formed
-                            .seats
-                            .iter()
-                            .rev()
-                            .find(|seat| seat.player.account_id == account_id)
-                    })
-                    .map(|seat| seat.team);
+                let side = match &playing {
+                    Some((formed, running)) if member.in_match => formed
+                        .seats
+                        .iter()
+                        .rposition(|seat| seat.player.account_id == account_id)
+                        .and_then(|place| {
+                            let plays = running.and_then(|running| running.side(place));
+                            match plays {
+                                // Its seat's team is only the seating.
+                                Some(Side::Alone(_)) => None,
+                                _ => Some(formed.seats[place].team),
+                            }
+                        }),
+                    _ => None,
+                };
                 ListMember {
                     member,
                     side,
@@ -2408,10 +2418,30 @@ impl Core<'_> {
             self.rooms.not_started(key, now);
             return;
         }
-        let ready: Vec<Ready> = members
+        // A free-for-all (`docs/notes/ffa.md`) takes the members of the
+        // room up to its most players: who had no place in its last match
+        // first, then in the order they came. The others wait for the next
+        // match, where they are the first. Each plays on his own, squads
+        // too: the two sides made below are only its seating (the match
+        // server gives each place a team of its own and no squad).
+        let free_for_all = maps::map_mode(map_id).and_then(maps::player_cap);
+        let waited = room.left_out.clone();
+        let mut ready: Vec<Ready> = members
             .iter()
             .filter_map(|&account_id| self.room_ready(account_id))
             .collect();
+        let left_out: Vec<u32> = match free_for_all {
+            Some(most) => {
+                // Stable: `false` (he waited) sorts before `true`.
+                ready.sort_by_key(|each| !waited.contains(&each.player.account_id));
+                ready
+                    .split_off(most.min(ready.len()))
+                    .iter()
+                    .map(|each| each.player.account_id)
+                    .collect()
+            }
+            None => Vec::new(),
+        };
         // The match's equipment level: the highest gear level of the
         // players placed (the owner's of 2026-11-01); each counts for its
         // K/D there.
@@ -2432,7 +2462,8 @@ impl Core<'_> {
                 .unwrap_or_default()
                 .into_iter()
                 .filter(|mate| {
-                    *mate != each.player.account_id
+                    free_for_all.is_none()
+                        && *mate != each.player.account_id
                         && ready.iter().any(|other| other.player.account_id == *mate)
                 })
                 .collect();
@@ -2572,6 +2603,7 @@ impl Core<'_> {
         }
         // `launch` made the match (it is in `matches` from here on).
         self.rooms.started(key, match_id, map_id, &seated, now);
+        self.rooms.left_out(key, left_out);
         // The match started without who could not play it: out of the room,
         // told why (they may come back with a kit that can).
         for (member, fit) in unfit {

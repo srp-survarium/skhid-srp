@@ -217,7 +217,7 @@ impl Settings {
         let modes = match var("SRP_MATCH_MODES") {
             Some(value) => parse_modes(&value).unwrap_or_else(|| {
                 log::error!(
-                    "SRP_MATCH_MODES is `{value}`; it must list modes of 2 to 6 (6 Blackout). Using \
+                    "SRP_MATCH_MODES is `{value}`; it must list modes of 2 to 8 (6 Blackout, 8 free for all). Using \
                      2,3,4,5,6"
                 );
                 DEFAULT_MODES.to_vec()
@@ -352,7 +352,7 @@ fn parse_weight(value: &str) -> Option<f64> {
         .filter(|weight| weight.is_finite() && (0.0..=1000.0).contains(weight))
 }
 
-/// `SRP_MATCH_MODES`: modes by their lobby numbers, 2 to 6 (6 Blackout;
+/// `SRP_MATCH_MODES`: modes by their lobby numbers, 2 to 8 (6 Blackout, 8 free for all;
 /// `maps::GameMode::lobby_number`), at least one.
 fn parse_modes(value: &str) -> Option<Vec<maps::GameMode>> {
     let modes: Option<Vec<maps::GameMode>> = value
@@ -415,6 +415,12 @@ pub(crate) enum Notice {
     Broadcast {
         messages: Vec<ServerMessage>,
     },
+    /// [`Inbox::idle_removed`].
+    IdleRemoved {
+        match_id: u32,
+        account_id: u32,
+        name: String,
+    },
 }
 
 /// What the other servers tell the lobby. The lobby's thread takes the
@@ -454,6 +460,18 @@ impl Inbox {
         self.notices
             .locked()
             .push(Notice::AccountChanged { account_id });
+    }
+
+    /// The match server removed the player of `account_id` (`name` in the
+    /// match) from its match `match_id` (the id the clients were told) for
+    /// being idle (anti-AFK): the match's chat and the general chat say so,
+    /// once.
+    pub fn idle_removed(&self, match_id: u32, account_id: u32, name: &str) {
+        self.notices.locked().push(Notice::IdleRemoved {
+            match_id,
+            account_id,
+            name: name.to_owned(),
+        });
     }
 
     /// Send messages to every client in the lobby now, in order. A client

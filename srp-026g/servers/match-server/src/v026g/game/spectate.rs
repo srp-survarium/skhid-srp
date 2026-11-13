@@ -39,7 +39,7 @@
 //! server ends nothing in the game (0xFD reaches `close_current_match` as
 //! reason 4, its return, `match.md` section 24), and an 0xEA ends a game's
 //! match only for its own place (0x27C72C: with no local place the handler
-//! returns), so the spectator patch (121, `player_left.local`) takes an 0xEA
+//! returns), so the spectator patch (143, `player_left.local`) takes an 0xEA
 //! naming 0xFF as its game's end: `close_current_match(0)`, the world
 //! ended, no results screen. The silence after it is for a game whose 0xEA
 //! was lost: its match link ends after 5 s of it, the same way (`match.md`
@@ -1152,7 +1152,7 @@ impl Spectator {
                         watched.id,
                         self.session_id
                     );
-                    // Its camera is on someone now (patch 121, the world's
+                    // Its camera is on someone now (patch 143, the world's
                     // load): the asked place instead, once.
                     if let Some(place) = self.view.take() {
                         self.note(&replay_control::ServerNote::view(place));

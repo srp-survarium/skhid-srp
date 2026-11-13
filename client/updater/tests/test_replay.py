@@ -160,8 +160,17 @@ class QuietSource(unittest.TestCase):
     def test_no_game_is_started(self):
         with open(os.path.join(SOURCE, "replay.rs"), encoding="utf-8") as file:
             replay = file.read()
-        for start in ("win::start(", "match_replay", "CreateProcess"):
-            self.assertNotIn(start, replay)
+        # A save starts no game: only a local file (`run_local`) does.
+        save = replay[replay.index("pub fn run("):replay.index("pub fn run_local(")]
+        for start in ("win::start(", "match_replay", "CreateProcess", "launch("):
+            self.assertNotIn(start, save)
+        body = replay[replay.index("fn launch("):]
+        # One start of the game, after the check `ready` makes; its refusal
+        # returns before it.
+        self.assertEqual(replay.count("win::start("), 1)
+        check = body.index("crate::patches::ready(layout).is_err()")
+        self.assertLess(check, body.index("win::start("))
+        self.assertIn("return tell(quiet, language, &Problem::NotReady);", body[check:body.index("win::start(")])
 
 
 class ReplayTest(unittest.TestCase):

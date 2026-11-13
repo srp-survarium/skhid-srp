@@ -8,7 +8,7 @@ package survarium.modes
    import flash.text.TextFormat;
    import flash.utils.Timer;
 
-   // srp's: a watcher's room calls it back (the server's Recall note, exe patch 130): one line
+   // srp's: a watcher's room calls it back (the server's Recall note, exe patch 144): one line
    // under the top of the screen, the running language's words with the seconds left, counted
    // down each second until the server lets the game go. It takes no press and moves nothing.
    public class CalledBackNotice extends Sprite

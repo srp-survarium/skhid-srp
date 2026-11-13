@@ -19,11 +19,18 @@ REGS = (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDX,
         UC_X86_REG_EFLAGS, UC_X86_REG_XMM0, UC_X86_REG_XMM7)
 FSM, ANOMALY, ARTEFACT = 0x38CCF0, 0x31B0FF, 0x2FE65E
 FSM_END, ANOMALY_END, ARTEFACT_END = 0x38CD37, 0x31B108, 0x2FE663
+# get_death_animations(set, out, index): both death lists indexed by index.
+DEATH, DEATH_RETURN = 0x338280, STUBS + 0x200
+# A slot past a list: a pointer to nothing, which the stock takes a reference
+# through (lock xadd [slot+0DCh]) and faults on.
+PAST = 0x7F000000
+# Each in-list slot names a resource of its own, its reference count at +0DCh.
+REFS = 100
 
 class GuardRun(Run):
     def __init__(self, data):
         super().__init__(data)
-        for at in (FSM_END, ANOMALY_END, ARTEFACT_END):
+        for at in (FSM_END, ANOMALY_END, ARTEFACT_END, DEATH_RETURN):
             self.emu.hook_add(UC_HOOK_CODE, self.stop, begin=at, end=at)
         self.emu.hook_add(UC_HOOK_CODE, self.state_reader, begin=STUBS + 0x90, end=STUBS + 0x90)
 
@@ -69,6 +76,40 @@ class GuardRun(Run):
         self.start(kind, regs, sp)
         return self.stopped, tuple(self.emu.reg_read(r) for r in REGS), self.fsm_calls
 
+    def death(self, index, align, count=2):
+        """get_death_animations from a call with `index`, the set's two lists
+        `count` long, each slot a resource of its own and every slot past them
+        PAST: the result is the out pair and every resource's count, so which
+        slot was read shows."""
+        self.emu.mem_write(WORLD, bytes(0x20000))
+        self.emu.mem_write(STACK, bytes(0x10000))
+        self.fsm_calls = []
+        sets, death, hud, out = WORLD, WORLD + 0x1a000, WORLD + 0x1b000, WORLD + 0x1c000
+        resources = [WORLD + 0x1d000 + 0x100*(t*4 + n) for t in range(2) for n in range(count)]
+        for t, table in enumerate((death, hud)):
+            for n in range(count):
+                self.word(resources[t*count + n] + 0xDC, REFS)
+                self.word(table + n*4, resources[t*count + n])
+            for n in range(count, 256):
+                self.word(table + n*4, PAST)
+        self.word(sets + 0x590, death)
+        self.word(sets + 0x594, count)
+        self.word(sets + 0xA20, hud)
+        self.word(sets + 0xA24, count)
+        regs = {r: 0x11111111*(i+1) for i,r in enumerate(REGS[:7])}
+        sp = FRAME - 0x100 + align
+        for n, value in enumerate((DEATH_RETURN, sets, out, index)):
+            self.word(sp + 4*n, value)
+        self.emu.reg_write(UC_X86_REG_EFLAGS, 0x202)
+        self.emu.reg_write(UC_X86_REG_XMM0, 0x123456789abcdef)
+        self.emu.reg_write(UC_X86_REG_XMM7, 0xfedcba987654321)
+        try:
+            self.start(DEATH, regs, sp)
+        except RuntimeError:
+            return None
+        counts = tuple(self.read(r + 0xDC) for r in resources)
+        return self.stopped, tuple(self.emu.reg_read(r) for r in REGS), self.read(out), self.read(out+4), counts
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -95,6 +136,18 @@ def main():
                 assert regs[REGS.index(UC_X86_REG_ESP)] == FRAME-0x100+align
                 assert regs[REGS.index(UC_X86_REG_XMM0)] == 0x123456789abcdef
                 assert regs[REGS.index(UC_X86_REG_XMM7)] == 0xfedcba987654321
+                checks += 1
+        for count in (1, 2):
+            for index in range(count):
+                expected = stock.death(index, align, count)
+                assert expected is not None and expected[0] == DEATH_RETURN, (index, count, expected)
+                assert expected[-1] != (REFS,)*(2*count), expected  # a reference was taken
+                assert ours.death(index, align, count) == expected, (index, count, align)
+                checks += 1
+            for index in (count, count + 1, 255):
+                assert stock.death(index, align, count) is None, (index, count)  # the live fault
+                # Past the lists: what the game does with the first death animation.
+                assert ours.death(index, align, count) == stock.death(0, align, count), (index, count, align)
                 checks += 1
     print(f'{checks} native guard cases passed (stock equivalence and invalid indices)')
 

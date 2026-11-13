@@ -1,4 +1,4 @@
-//! Patch 132: a receive that failed on the socket a new connect has already
+//! Patch 145: a receive that failed on the socket a new connect has already
 //! closed is that connect's own doing, never the link's loss.
 //!
 //! udp_match_client::connect (0x3F2990) closes the old socket and, while a
@@ -7,7 +7,7 @@
 //! is outstanding; with one (issued on the closed socket, so it completes with
 //! WSAEBADF) it took the aborted receive (995) for a lost link: the game was
 //! told the match ended (reason 1) as the new connection was being made.
-//! client_patch.md section 3.80.
+//! client_patch.md section 3.84.
 
 #![forbid(unsafe_code)]
 

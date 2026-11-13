@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run patch 130 (the Rust patch `replay_viewer`: a replay played in the
+"""Run patch 144 (the Rust patch `replay_viewer`: a replay played in the
 running game as a spectated match) in the default build beside the original,
 at its three sites of its own and its key handler, on made-up objects.
 
@@ -591,7 +591,7 @@ def main():
     check(mode == 1 and not calls and world_load(stock, "raw")[0] == state,
           "raw, a player's game: its world loads as a network one (mode 1), as the original")
 
-    # The replay controls (patch 130's second part): every network game's first world loads
+    # The replay controls (patch 144's second part): every network game's first world loads
     # them, and their hud gives them the mouse only in a viewer's game.
     for local, who in ((2, "a player's"), (0xFF, "a spectator's (no place local)")):
         for site, name in (("query", "the query"), ("take", "the callback's take")):
@@ -701,7 +701,7 @@ def main():
     check(sent(calls, request(2, 1, 1)), "call, a viewer, button_play_clicked: a pause request")
     state, _, calls = control(ours, "select_free_view")
     check(state[UC_X86_REG_EIP] == SITES["call"][3] and calls == [("detach_from_player", NC)],
-          "call, a viewer, select_free_view: patch 121's free view (detach_from_player), no vtable slot past the client's")
+          "call, a viewer, select_free_view: patch 143's free view (detach_from_player), no vtable slot past the client's")
     ours.run("note", note_regs(ours, events(0, 1, [(70_000, 1, 1, 2)])))
     state, _, calls = frame(ours)
     names = [(c[2], c[4]) for c in calls if c[0] == "invoke"]

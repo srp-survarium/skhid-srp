@@ -12,7 +12,8 @@
 # download/server-game-data.db (old-*, hard links in the folder, renamed into
 # place), the bots' data files the release put in the volume's folder (the
 # old ones back from old-bot-data/, the new ones it created removed:
-# bot-data.log says which), SRP_MIN_PATCH_REVISION (that line only), the server source
+# bot-data.log says which), SRP_MIN_PATCH_REVISION and SRP_RELEASED_EXE_SHA256
+# (those lines only; released-exe.old is the second as it was), the server source
 # (old-src.tgz, when the release built one), the image that ran before
 # (image.old) as srp-026g:latest, and srp.db, unless --keep-db, as it was
 # before the release: the copy the new srp made with VACUUM INTO at its start
@@ -40,7 +41,7 @@ if test -z "$dir" || test ! -f "$dir/rollback.env"; then
 fi
 dir=$(cd "$dir" && pwd)
 # TARGET_DIR COMPOSE IMAGE OLD_IMAGE VOLUME_DIR BACKUP_BEFORE OLD_MIN NEW_MIN
-# HAVE_ZIP HAVE_DATA SRC BOT_DATA ZIP_NAME DATA_NAME
+# NEW_EXE_SHA HAVE_ZIP HAVE_DATA SRC BOT_DATA ZIP_NAME DATA_NAME
 # shellcheck disable=SC1091 # written by the release
 . "$dir/rollback.env"
 cd "$TARGET_DIR"
@@ -49,7 +50,8 @@ put() { # <file in the folder> <name in download/>
     if test "$1" -ef "download/$2"; then return 0; fi
     ln -f "$1" "download/.$2.new" && mv -f "download/.$2.new" "download/$2"
 }
-number() { n=${1##*/}; n=${n#srp-}; n=${n%.db}; echo "${n:-0}"; }
+# srp-<unix>.db only; another name (srp-<unix>-before-pay-back.db) is 0, never taken.
+number() { n=${1##*/}; n=${n#srp-}; n=${n%.db}; case $n in ""|*[!0-9]*) n=0 ;; esac; echo "$n"; }
 
 # The srp.db to put back: the folder's copy, else srp's own newer than
 # BACKUP_BEFORE, else none (the new srp never opened srp.db).
@@ -107,6 +109,12 @@ if test "$OLD_MIN" = none; then
 else
     sed -i "s/^SRP_MIN_PATCH_REVISION=.*/SRP_MIN_PATCH_REVISION=$OLD_MIN/" .env
 fi
+# The exe the release before shipped: its line as it was, or none.
+sed -i '/^SRP_RELEASED_EXE_SHA256=/d' .env
+if test -s "$dir/released-exe.old"; then
+    if test -n "$(tail -c 1 .env)"; then echo >>.env; fi
+    cat "$dir/released-exe.old" >>.env
+fi
 if test "$SRC" = 1; then tar -xzf "$dir/old-src.tgz"; fi
 docker tag "$OLD_IMAGE" "$IMAGE"
 if test "$keep_db" = 1; then
@@ -155,5 +163,5 @@ else
     echo "srp refuses the files from before: see its log above." >&2
 fi
 echo "srp26 is stopped (it would only refuse again). To put the release back as it was:" >&2
-echo "  cd $TARGET_DIR && ln -f $dir/$DATA_NAME download/.$DATA_NAME.new && mv -f download/.$DATA_NAME.new download/$DATA_NAME && ln -f $dir/$ZIP_NAME download/.$ZIP_NAME.new && mv -f download/.$ZIP_NAME.new download/$ZIP_NAME && sed -i 's/^SRP_MIN_PATCH_REVISION=.*/SRP_MIN_PATCH_REVISION=$NEW_MIN/' .env && docker tag \$(cat $dir/image.new) $IMAGE && $COMPOSE up -d --no-deps --force-recreate srp26" >&2
+echo "  cd $TARGET_DIR && ln -f $dir/$DATA_NAME download/.$DATA_NAME.new && mv -f download/.$DATA_NAME.new download/$DATA_NAME && ln -f $dir/$ZIP_NAME download/.$ZIP_NAME.new && mv -f download/.$ZIP_NAME.new download/$ZIP_NAME && sed -i 's/^SRP_MIN_PATCH_REVISION=.*/SRP_MIN_PATCH_REVISION=$NEW_MIN/' .env && sed -i '/^SRP_RELEASED_EXE_SHA256=/d' .env && echo SRP_RELEASED_EXE_SHA256=$NEW_EXE_SHA >> .env && docker tag \$(cat $dir/image.new) $IMAGE && $COMPOSE up -d --no-deps --force-recreate srp26" >&2
 exit 1

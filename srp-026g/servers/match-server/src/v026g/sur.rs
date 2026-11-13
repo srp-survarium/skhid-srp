@@ -28,11 +28,15 @@
 //! input, 1 a u32 (the rotation only), 2 a u64 (rotation, then the actions
 //! mask): [`Writer`] writes only u64s.
 //!
-//! The game applies a record the moment it reads it, as soon as the reader's
-//! cursor (the last record's time) is behind the end of the 50 ms tick being
-//! played; so a record must never be read before its own tick. [`Writer`]
-//! puts a type 0 record, timed at the start of the next tick that has
-//! records, after every tick's records: it stops the reading there.
+//! The game reads on (0x1EDEF0) while the reader's cursor (the last record's
+//! time) is behind the end of the 50 ms tick being played, and applies a
+//! record the moment it reads it, at the record's own time: the one read
+//! past that tick waits in the world for its time. A type 0 record ends
+//! that reading, whatever is left to the time asked for. A seek reads once,
+//! from its key frame to its target (0x1EE392), so [`Writer`] puts only one
+//! type 0, the body's last: with one after every tick a seek took the first
+//! tick after its key frame alone and the frames after it took the others a
+//! tick each, every input applied seconds late.
 //!
 //! Limits the client does not check (past them it writes over memory):
 //! at most [`MAX_KEY_FRAMES`] key frames, and the decoded chunks together
@@ -68,7 +72,7 @@ pub mod chunk {
 
 /// Record types.
 pub mod record_type {
-    pub const END_OF_TICK: u8 = 0;
+    pub const END: u8 = 0;
     pub const MARKER: u8 = 4;
     /// Type of the record with the flag set `f`: `FIRST_EVENT + f`.
     pub const FIRST_EVENT: u8 = 5;
@@ -157,11 +161,8 @@ pub fn tick_start(time: u32) -> u32 {
 #[derive(Default)]
 pub struct Writer {
     bytes: Vec<u8>,
-    /// Where the last record written starts, and its time.
+    /// The last record's time.
     last_time: Option<u32>,
-    /// Whether the last record was the end-of-tick marker of the previous
-    /// events.
-    open_tick: Option<u32>,
 }
 
 impl Writer {
@@ -180,16 +181,9 @@ impl Writer {
         self.bytes.len()
     }
 
-    /// Appends the records of one time. Times must not go back. A tick's
-    /// records are closed by [`Writer::finish`] or by the first event of a
-    /// later tick (a type 0 record timed at that tick's start).
+    /// Appends the record of one time. Times must not go back.
     pub fn push(&mut self, event: &Event) -> Result<(), SurError> {
         debug_assert!(self.last_time.is_none_or(|t| event.time >= t));
-        let tick = tick_start(event.time);
-        if self.open_tick.is_some_and(|open| open != tick) {
-            self.close(tick);
-        }
-        self.open_tick = Some(tick);
         self.last_time = Some(event.time);
         let f = event.flags();
         self.bytes.push(record_type::FIRST_EVENT + f);
@@ -238,25 +232,13 @@ impl Writer {
         Ok(())
     }
 
-    /// Stops the reading of the tick being played: a type 0 record with the
-    /// time `next_start` (the start of the next tick with records, or the
-    /// end of the replay).
-    fn close(&mut self, next_start: u32) {
-        self.bytes.push(record_type::END_OF_TICK);
-        self.bytes.extend(next_start.to_le_bytes());
-        self.last_time = Some(next_start);
-        self.open_tick = None;
-    }
-
-    /// Ends the body at `end` (raised to the end of the tick being played):
-    /// a last type 0 record with that time, which the game takes as the
-    /// replay's end time.
+    /// Ends the body at `end` (raised to the end of the last record's
+    /// tick): the body's one type 0 record, with that time, which the game
+    /// takes as the replay's end time.
     pub fn finish(mut self, end: u32) -> Vec<u8> {
-        let floor = self
-            .open_tick
-            .map_or(0, |tick| tick + TICK_MS)
-            .max(self.last_time.unwrap_or(0));
-        self.close(end.max(floor));
+        let floor = self.last_time.map_or(0, |time| tick_start(time) + TICK_MS);
+        self.bytes.push(record_type::END);
+        self.bytes.extend(end.max(floor).to_le_bytes());
         self.bytes
     }
 }
@@ -285,7 +267,7 @@ pub fn read_body(body: &[u8]) -> Option<Vec<ReadRecord>> {
         at += 1;
         let time = u32_at(&mut at)?;
         let mut event = Event::at(time);
-        if kind == record_type::END_OF_TICK || kind == record_type::MARKER {
+        if kind == record_type::END || kind == record_type::MARKER {
             records.push(ReadRecord {
                 offset,
                 kind,
@@ -579,7 +561,7 @@ pub fn verify(file: &[u8]) -> Result<Verified, String> {
         return Err("the body does not start with a marker".into());
     }
     let last = records.last().expect("one");
-    if last.kind != record_type::END_OF_TICK {
+    if last.kind != record_type::END {
         return Err("the body does not end with a type 0 record".into());
     }
     let boundaries: std::collections::HashSet<usize> = records
@@ -669,8 +651,6 @@ mod tests {
                 (4, 50),
                 (5 + 4, 100),
                 (5 + 8 + 1, 120),
-                // closes the tick of 100 and 120 at the next tick with records
-                (0, 300),
                 (5 + 2, 300),
                 (0, 400),
             ]
@@ -680,7 +660,7 @@ mod tests {
         let players: Vec<u8> = records[2].event.inputs.iter().map(|i| i.0).collect();
         assert_eq!(players, [0, 7, 19]);
         assert_eq!(records[2].event.inputs[1].1, input(7));
-        assert_eq!(records[4].event.leave, 1 << 5);
+        assert_eq!(records[3].event.leave, 1 << 5);
     }
 
     #[test]
@@ -736,7 +716,7 @@ mod tests {
     }
 
     #[test]
-    fn a_tick_is_closed_before_the_next_ticks_records() {
+    fn only_the_bodys_last_record_stops_the_reading() {
         let mut writer = Writer::new(0);
         writer.push(&Event::at(10)).unwrap();
         writer.push(&Event::at(40)).unwrap();
@@ -750,15 +730,7 @@ mod tests {
             .collect();
         assert_eq!(
             kinds,
-            [
-                (4, 0),
-                (5, 10),
-                (5, 40),
-                (5, 45),
-                (0, 1000),
-                (5, 1000),
-                (0, 1050)
-            ]
+            [(4, 0), (5, 10), (5, 40), (5, 45), (5, 1000), (0, 1050)]
         );
     }
 

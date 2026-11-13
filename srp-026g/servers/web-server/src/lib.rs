@@ -52,6 +52,7 @@ mod modifiers;
 mod password_reset;
 mod patches;
 mod quests;
+mod rename;
 mod skills;
 mod stats;
 mod v026g;
@@ -1084,7 +1085,7 @@ impl Web {
         let g26 = self.game.is_some();
         let tab = match request.field("tab") {
             tab @ ("money" | "ban" | "unban" | "bans" | "maint" | "signups" | "password") => tab,
-            tab @ ("account" | "item" | "items" | "text" | "mute") if g26 => tab,
+            tab @ ("account" | "item" | "items" | "text" | "mute" | "rename") if g26 => tab,
             _ => "money",
         };
         let refused = |message: String| {
@@ -1131,6 +1132,7 @@ impl Web {
             "item" => self.admin_item_026g(request, peer),
             "text" => self.admin_text_026g(request, peer),
             "mute" => self.admin_chat_mute(request, peer),
+            "rename" => self.admin_rename(request, peer),
             _ if g26 => {
                 let (message, view) = self.admin_moderate_money(request, peer);
                 money = view;
@@ -1820,7 +1822,7 @@ label.check{display:flex;gap:.5rem;align-items:center;font:inherit;font-size:.85
 .tabs>label{display:inline-block;margin:0 .25rem 0 0;padding:.45rem .9rem;border:1px solid var(--rule);border-bottom:0;border-radius:2px 2px 0 0;cursor:pointer;color:var(--ink-2);background:var(--bg)}\
 .tabs>input:checked+label{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}.tabs>input:focus-visible+label{outline:2px solid var(--accent)}\
 .panel{display:none;border:1px solid var(--rule);border-top:2px solid var(--accent);padding:.2rem 1rem 1rem;background:var(--panel)}\
-#tab-money:checked~.p-money,#tab-ban:checked~.p-ban,#tab-unban:checked~.p-unban,#tab-bans:checked~.p-bans,#tab-maint:checked~.p-maint,#tab-signups:checked~.p-signups,#tab-account:checked~.p-account,#tab-item:checked~.p-item,#tab-text:checked~.p-text,#tab-password:checked~.p-password,#tab-items:checked~.p-items,#tab-mute:checked~.p-mute{display:block}.scroll{overflow-x:auto}.p-items td input{width:auto}.p-items td input.units{width:6.5rem;padding:.2rem .3rem}\
+#tab-money:checked~.p-money,#tab-ban:checked~.p-ban,#tab-unban:checked~.p-unban,#tab-bans:checked~.p-bans,#tab-maint:checked~.p-maint,#tab-signups:checked~.p-signups,#tab-account:checked~.p-account,#tab-item:checked~.p-item,#tab-text:checked~.p-text,#tab-password:checked~.p-password,#tab-items:checked~.p-items,#tab-mute:checked~.p-mute,#tab-rename:checked~.p-rename{display:block}.scroll{overflow-x:auto}.p-items td input{width:auto}.p-items td input.units{width:6.5rem;padding:.2rem .3rem}\
 button.quiet{background:0;color:var(--accent);border:1px solid var(--accent)}button.quiet:hover{background:color-mix(in srgb,var(--accent) 12%,transparent)}\
 table{width:100%;border-collapse:collapse;font-size:.85rem}th,td{text-align:left;padding:.35rem .4rem;border-bottom:1px solid var(--rule);vertical-align:top;word-break:break-word}\
 th{font:700 .72rem var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}\
@@ -2241,12 +2243,13 @@ fn admin_extras_026g(
     tab: &dyn Fn(&str, String) -> String,
 ) -> (String, String) {
     let tabs = format!(
-        "{}{}{}{}{}",
+        "{}{}{}{}{}{}",
         tab("account", lang.tr("Account", "Акаунт")),
         tab("item", lang.tr("Give item", "Видати предмет")),
         tab("items", lang.tr("Take items", "Забрати предмети")),
         tab("text", lang.tr("Text", "Текст")),
         tab("mute", lang.tr("Mute chat", "Вимкнути чат")),
+        tab("rename", lang.tr("Rename", "Перейменувати")),
     );
     let standing = match &view.admin_text {
         Some((first, second)) => format!(
@@ -2314,7 +2317,7 @@ fn admin_extras_026g(
         moderation::items_panel(lang, view),
         moderation::mute_panel(lang),
     );
-    (tabs, panels)
+    (tabs, panels + &rename::panel(lang))
 }
 
 /// What is planned, as a line for the admin and the home page.

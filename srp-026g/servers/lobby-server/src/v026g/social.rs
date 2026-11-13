@@ -5,8 +5,9 @@
 //! - **Chat.** A line goes to the players it is for: the general channel
 //!   to everyone who subscribed to it, whatever their client's language
 //!   (as 0.21d's: the client shows a line by its channel byte alone);
-//!   private to the named player; match and team to the players the lobby
-//!   sent to the same match (and team); squad to the squad; srp's room
+//!   private to the named player; match to the players the lobby sent to
+//!   the same match, team to those of them on the sender's side of it
+//!   (`play::Side`: in a free-for-all nobody); squad to the squad; srp's room
 //!   channel (10) to the room's members (`room_chat`). Who that is
 //!   the server knows itself, so the channel id a client sends is not
 //!   trusted. Hidden senders produce no line; placeholder mutes receive
@@ -96,6 +97,25 @@ const CHAT_PER_SECOND: f32 = 1.0;
 /// the Tab list's menu) keeps the same allowance on the client.
 pub(super) const FRIEND_REQUEST_BURST: u32 = 5;
 pub(super) const FRIEND_REQUEST_EVERY: Duration = Duration::from_secs(10);
+
+/// The sender's name of the server's own chat lines (anti-AFK's): "System"
+/// in every language (the owner's of 2026-11-02: "System can stay system
+/// everywhere").
+pub(super) const SYSTEM_NAME: &str = "System";
+
+/// The chat line of a player removed for being idle (anti-AFK), in the
+/// game's language (`4F`'s byte: 0 English, 1 Russian, 2 Ukrainian, 3
+/// German, 4 Polish; English for any other, or none yet), as
+/// `replay::refusal_text` does.
+pub(super) fn idle_removed_text(name: &str, language: Option<u8>) -> String {
+    match language {
+        Some(1) => format!("{name} исключён из матча за AFK"),
+        Some(2) => format!("{name} виключений з матчу за AFK"),
+        Some(3) => format!("{name} wurde wegen AFK aus dem Match entfernt"),
+        Some(4) => format!("{name} został wyrzucony z meczu za AFK"),
+        _ => format!("{name} was kicked for being AFK"),
+    }
+}
 
 /// What a player may still send of friend requests, and when that was
 /// counted: [`FRIEND_REQUEST_BURST`] at first, one more each
@@ -189,6 +209,21 @@ impl Core<'_> {
             .into_iter()
             .find(|(_, found)| found.eq_ignore_ascii_case(name))
             .map(|(id, _)| id)
+    }
+
+    /// Squad messages name a connected player. Older accounts can share
+    /// display names: finding an offline namesake first must not hide the
+    /// player in the lobby. An ambiguous name cannot identify a recipient.
+    fn squad_player_named(&self, name: &str, except: u32) -> Option<u32> {
+        let mut matching = self
+            .by_account
+            .values()
+            .filter_map(|addr| self.player(*addr))
+            .filter(|player| {
+                player.account_id != except && player.name.eq_ignore_ascii_case(name)
+            });
+        let account_id = matching.next()?.account_id;
+        matching.next().is_none().then_some(account_id)
     }
 
     pub(super) fn ignores(&self, account_id: u32, sender: u32) -> bool {
@@ -340,7 +375,7 @@ impl Core<'_> {
         let subscribed = |id: u32| id != 0 && id != u32::MAX;
         let squad = self.store.squads().of(who.account_id);
         let clan_mates = self.clan_chat_members(who.account_id, channel);
-        let team = in_match.and_then(|id| self.team_in_match(id, session_id));
+        let side = in_match.and_then(|id| self.side_played(id, session_id));
         let recipients: Vec<(SocketAddr, u32)> = self
             .players()
             .into_iter()
@@ -354,11 +389,13 @@ impl Core<'_> {
                     channel::PRIVATE => other.name.eq_ignore_ascii_case(receiver),
                     channel::GENERAL => subscribed(other.channel_ids[usize::from(channel)]),
                     channel::MATCH => same_match,
+                    // Who plays on the sender's side of the match: its
+                    // team; in a free-for-all nobody (`play::Side`).
                     channel::TEAM_1 | channel::TEAM_2 => {
                         same_match
-                            && team.is_some()
-                            && in_match.and_then(|id| self.team_in_match(id, other.session_id))
-                                == team
+                            && side.is_some()
+                            && in_match.and_then(|id| self.side_played(id, other.session_id))
+                                == side
                     }
                     channel::SQUAD => squad
                         .as_ref()
@@ -403,6 +440,43 @@ impl Core<'_> {
             "Chat from {} on channel {channel} reached {reached} player(s)",
             who.name
         );
+    }
+
+    /// The player of `account_id`, `name` in the match, was removed from
+    /// the match server's match `match_id` for being idle (anti-AFK,
+    /// `docs/notes/anti-afk.md`; the owner's of 2026-11-02: "both in general
+    /// chat and in a match"). One line on the match's channel to everyone
+    /// the lobby sent to that match but the removed player, and one on the
+    /// general channel to everyone who subscribed to it, the removed player
+    /// too (its lobby has it when it is back). A server's line: an account
+    /// line of id 0 named "System" (the owner's of 2026-11-02: "it can be
+    /// System name"; [`SYSTEM_NAME`], the same in every language), its
+    /// text in each receiver's language ([`idle_removed_text`]).
+    pub(super) fn idle_removed(&mut self, match_id: u32, account_id: u32, name: &str) {
+        let running = self.running_id(match_id);
+        let subscribed = |id: u32| id != 0 && id != u32::MAX;
+        let mut lines = Vec::new();
+        for addr in self.players() {
+            let Some(player) = self.player(addr) else {
+                continue;
+            };
+            let language = player.language;
+            if running.is_some() && player.in_match == running && player.account_id != account_id {
+                lines.push((addr, channel::MATCH, language));
+            }
+            if subscribed(player.channel_ids[usize::from(channel::GENERAL)]) {
+                lines.push((addr, channel::GENERAL, language));
+            }
+        }
+        log::info!(
+            "{name} was removed from match {match_id:#x} as idle; {} chat line(s) say so",
+            lines.len()
+        );
+        for (addr, channel, language) in lines {
+            let text = idle_removed_text(name, language);
+            let line = lobby::chat_text(sender::ACCOUNT, 0, SYSTEM_NAME, "", channel, &text);
+            self.send(addr, line);
+        }
     }
 
     // ------------------------------------------------- important messages
@@ -501,7 +575,6 @@ impl Core<'_> {
         text: &str,
         now: Instant,
     ) {
-        let target = self.account_named(target_name, who.account_id);
         let request = |to| Request {
             from: who.account_id,
             from_name: who.name.clone(),
@@ -520,7 +593,7 @@ impl Core<'_> {
                     return;
                 }
                 let in_match = player.in_match.is_some();
-                let Some(target) = target else {
+                let Some(target) = self.account_named(target_name, who.account_id) else {
                     log::info!("{}: no player {target_name} to befriend", who.name);
                     // From a match (the Tab list's menu: a bot's place has no
                     // account) the lobby's message box would come up only
@@ -540,10 +613,9 @@ impl Core<'_> {
                 self.request(request(target));
             }
             important::SQUAD_INVITE | important::SQUAD_INVITE_ACCEPTED => {
-                let target = target.filter(|target| self.by_account.contains_key(target));
-                let Some(target) = target else {
+                let Some(target) = self.squad_player_named(target_name, who.account_id) else {
                     log::info!(
-                        "{}: squad message {kind} not sent: {target_name} is not in the lobby",
+                        "{}: squad message {kind} not sent: {target_name} is not a unique player in the lobby",
                         who.name
                     );
                     // The invite is the player's own act; the acceptance
@@ -852,7 +924,7 @@ impl Core<'_> {
         let me = who.account_id;
         let result = match message {
             ClientMessage::DisbandSquad => squads.disband(me),
-            ClientMessage::AddSquadMember { name } => match self.account_named(name, me) {
+            ClientMessage::AddSquadMember { name } => match self.squad_player_named(name, me) {
                 Some(member) => squads.add(me, member).map(drop),
                 None => Err(SquadError::NotInvited),
             },

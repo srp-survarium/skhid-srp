@@ -34,7 +34,11 @@ package
    //   is not waiting, changes nothing; "not sent" shows its own line; a press elsewhere and the list
    //   hidden (close, HUD.show_player_list(false)) close the menu;
    // - the match's chat (the hud's SrvGameChat) shows a line the lobby masked for this player as
-   //   "Name: <muted>", the brackets as text (match and team channels).
+   //   "Name: <muted>", the brackets as text (match and team channels);
+   // - voice (exe patch 66, voice-chat.md): every ask sends srp_voice_menu with the place first (its
+   //   answer, root.srp_voice_menu, as patch 66 gives it: a teammate whose voice id is known); such a
+   //   row gets "Mute voice" or "Unmute voice" after the chat's entries, which sends srp_voice_mute with
+   //   the place and 1 or 0 and shows "Voice muted", "Voice unmuted" or "Voice chat unavailable".
    // Prints "MENU ..." lines (trace) and ends with "MENU RESULT pass" or "MENU RESULT fail: ...".
    public class RowMenuHarness extends Sprite
    {
@@ -58,6 +62,14 @@ package
       private var mutes:Object = {};
 
       private var sent:Boolean = true;
+
+      // each place's voice mute as patch 66 answers it (none: not offered), and whether a change is done
+      private var voice:Object = {};
+
+      private var voiceDone:Boolean = true;
+
+      // the place the last srp_voice_menu asked for (each srp_player_menu must follow one for its place)
+      private var voiceAsked:String = null;
 
       // the exe answers inside its call (as patch 86 does); off: the answer comes later, by hand
       private var answering:Boolean = true;
@@ -111,7 +123,12 @@ package
             st_srp_hud_unmute:"Unmute chat",
             st_srp_hud_muted:"Chat muted",
             st_srp_hud_unmuted:"Chat unmuted",
-            st_srp_hud_mute_not_sent:"Not sent"
+            st_srp_hud_mute_not_sent:"Not sent",
+            st_srp_hud_voice_mute:"Mute voice",
+            st_srp_hud_voice_unmute:"Unmute voice",
+            st_srp_hud_voice_muted:"Voice muted",
+            st_srp_hud_voice_unmuted:"Voice unmuted",
+            st_srp_hud_voice_not_muted:"Voice chat unavailable"
          });
          Ex = domain.getDefinition("scaleform.gfx.MouseEventEx") as Class;
          var List:Class = domain.getDefinition("SrvPlayerList") as Class;
@@ -125,6 +142,21 @@ package
          // patch 86's answers, as the exe gives them inside the call
          menu.call = function(method:String, place:String, ... choice):void
          {
+            // patch 66's ask comes before every srp_player_menu: checked here, not listed
+            if(method == "srp_voice_menu")
+            {
+               voiceAsked = place;
+               if(voice[place] != undefined)
+               {
+                  menu.voiceOffered(uint(place),true,voice[place]);
+               }
+               return;
+            }
+            if(method == "srp_player_menu" && voiceAsked != place)
+            {
+               failures.push("srp_player_menu " + place + " without srp_voice_menu first");
+            }
+            voiceAsked = null;
             calls.push([method,place].concat(choice).join(" "));
             if(!answering)
             {
@@ -137,6 +169,14 @@ package
             else if(method == "srp_add_friend")
             {
                menu.requested(uint(place),sent);
+            }
+            else if(method == "srp_voice_mute")
+            {
+               if(voiceDone)
+               {
+                  voice[place] = choice[0] == "1";
+               }
+               menu.voiceMuted(uint(place),voiceDone);
             }
             else if(method == "srp_chat_mute")
             {
@@ -271,6 +311,27 @@ package
             menu.close();
             click(friend,1);
             expect("not sent: the state as it was",'open',"Hide chat|Unmute chat",["srp_player_menu 2"]);
+            menu.close();
+            voice[2] = false;
+            click(friend,1);
+            expect("a teammate with voice",'open',"Hide chat|Unmute chat|Mute voice",["srp_player_menu 2"]);
+            click(entryAt(2),0);
+            expect("Mute voice",'told',"Voice muted",["srp_voice_mute 2 1"]);
+            menu.close();
+            click(friend,1);
+            expect("a muted voice",'open',"Hide chat|Unmute chat|Unmute voice",["srp_player_menu 2"]);
+            voiceDone = false;
+            click(entryAt(2),0);
+            expect("a voice change not done",'told',"Voice chat unavailable",["srp_voice_mute 2 0"]);
+            voiceDone = true;
+            menu.close();
+            click(friend,1);
+            click(entryAt(2),0);
+            expect("Unmute voice",'told',"Voice unmuted",["srp_player_menu 2","srp_voice_mute 2 0"]);
+            menu.close();
+            delete voice[2];
+            click(friend,1);
+            expect("no voice answer: no voice entry",'open',"Hide chat|Unmute chat",["srp_player_menu 2"]);
             checkMutedChat();
             menu.close();
             click(enemy,1);

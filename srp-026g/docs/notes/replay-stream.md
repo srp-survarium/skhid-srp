@@ -2,13 +2,13 @@
 
 **Version scope:** 0.26g, on top of Queue and spectate (#1285, `queue-spectate.md`). Written
 2026-11-07. **Status: server side built and tested with scripted clients; the lobby movie (the
-request, the `watching` answer) is not built yet, the exe's viewer is track B's patch 130.** Path A of `research/replay-plan.md`: the server streams a match's recording as a
+request, the `watching` answer) is not built yet, the exe's viewer is track B's patch 144.** Path A of `research/replay-plan.md`: the server streams a match's recording as a
 spectated match, so a replay plays in the running game (lobby -> replay -> lobby, no second
 process, no `.sur` download).
 
 The spike (branch `spike/replay-stream`) proved it on a real game on 2026-11-07: lobby -> replay
 -> lobby, a seek resynced with 0 mismatches, the end returned the game to the lobby. It needs
-#1285's patch 121 (no place of its own, the 0xEA naming 0xFF).
+#1285's patch 143 (no place of its own, the 0xEA naming 0xFF).
 
 ## Flow
 
@@ -46,7 +46,7 @@ The spike (branch `spike/replay-stream`) proved it on a real game on 2026-11-07:
    recording, the key frame, then the relays and roster changes at their recorded times.
 6. It ends when the game leaves (0xE0, Esc), its link goes, the recording ends, or it has been
    paused for 5 minutes (`playback::PAUSED_MOST`; the sessions are few). The last two go the same
-   way: 0xEA naming 0xFF, then 7 s of silence, and patch 121 takes the game back to the lobby. The
+   way: 0xEA naming 0xFF, then 7 s of silence, and patch 143 takes the game back to the lobby. The
    session is over once the match server forgets the game.
 
 **The start** (`Recording::start`): the replay opens where the action is, at the end of the
@@ -62,15 +62,15 @@ since allow (as a seek, below).
 **The place to follow: the asked one, then the client's.** The server tells the game the place
 asked for (a replay's `place`, a live watch's `place`: the same ask) once,
 in a view note (`52 03 place`, `ServerNote::View`) as soon as the game watches (its first world is
-in, so patch 121's camera has picked someone); patch 130 then follows that place, as a player list
-click does. None asked (0xFF): no note, patch 121 follows the player it followed last, else the
+in, so patch 143's camera has picked someone); patch 144 then follows that place, as a player list
+click does. None asked (0xFF): no note, patch 143 follows the player it followed last, else the
 first living one. A later start (a seek) sends none: the camera keeps whom it follows. The place
 also moves a replay's start (the first view after that place entered). Following later (F5/F6, F2,
 a player list click) is the exe's own: no control message.
 
 ## Controls and notes (`crates/replay-control`)
 
-One encoding for the server and the exe's arena (track B's patch 130), the crate
+One encoding for the server and the exe's arena (track B's patch 144), the crate
 `replay-control`; times are the match clock (ms, the 0xE5
 clock):
 
@@ -84,7 +84,7 @@ clock):
   - op 2 speed: percent, 25, 50, 100, 200, 400, 800;
   - op 3 seek: the match time (never before the opening, the end of the countdown: the playback's start).
   - op 4 leave (value 0): the viewer's Back; the server lets the game go as at the recording's end
-    (the farewell, an 0xEA naming no place), and patch 121 ends its world in the match's message
+    (the farewell, an 0xEA naming no place), and patch 143 ends its world in the match's message
     handling. Esc keeps the game's own leave (an empty 0xE0).
 - **Server -> game**, notes in an 0xF6 (an 0xF6 `00` stays the upload request, never sent to a
   spectator):
@@ -174,9 +174,9 @@ is a `91` row at the request's start plus its index.
 Save's `.srpreplay` (`replay_file.rs`) is for a later, offline path. It is to play through the same
 machine as a kept recording: the file's `.sur` made into a [`Recording`] (`Recording::from_sur`) and
 played by a match server on the player's own machine (the launcher starting it, the game connecting
-to it as it connects to a replay session), so patch 130's viewer, its Moments and the kit view carry
+to it as it connects to a replay session), so patch 144's viewer, its Moments and the kit view carry
 over. The `.sur` inside is not meant for the native player (`-match_replay`, `replay_sur.md`): it
-has no mode config (chunk 4), and there patch 130 stays out (`role()` is `None` when the client is
+has no mode config (chunk 4), and there patch 144 stays out (`role()` is `None` when the client is
 not `network_client`), so none of the viewer would. The header's `epoch` (the last simulation change
 at or before the file's oldest game) is what that path's "recorded before a game update" is decided
 by: the game can compare it with its own epoch, which the exe does not hold yet (`simulation_changes.tsv`

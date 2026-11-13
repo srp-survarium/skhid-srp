@@ -16,18 +16,25 @@
 //!   event the clock still puts in the future is dropped;
 //! - the key frames (chunk 3): the worlds the clients uploaded (0xE0
 //!   chunks), the same upload of several clients as one when they agree,
-//!   thinned to what the client can hold;
+//!   thinned to what the client can hold. Only a world the match server
+//!   took as the match's ([`record::AcceptedWorld`]); in a recording from
+//!   before those records, only an upload that passes the server's world
+//!   check against the recording's own roster ([`WorldsFrom`]). Every
+//!   watcher's game loads its key frames with no check of its own: an
+//!   upload the server ignored or refused (one sent unasked, of a forged
+//!   time) is never one;
 //! - the config (chunk 4): given by the caller.
 //!
 //! Every choice is listed in [`Report`].
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
 
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::item_params::item_params;
 use survarium::v026g::lzma2;
 use survarium::v026g::maps;
+use survarium::v026g::match_msgs::late_join;
 use survarium::v026g::match_msgs::snapshot;
 use survarium::v026g::match_msgs::static_info;
 use survarium::v026g::match_msgs::upload::{Chunk, Pushed, Reassembler};
@@ -35,10 +42,14 @@ use survarium::v026g::match_msgs::{mask_bytes, tick_time};
 use udp_transport::table::{Direction, Table};
 use udp_transport::wire;
 
-use super::record::{self, ACCEPTED_INPUT, ACCEPTED_PROFILE, IN, NOTE, OUT, Record, RecordRef};
+use super::record::{
+    self, ACCEPTED_INPUT, ACCEPTED_PROFILE, ACCEPTED_WORLD, AcceptedWorld, IN, NOTE, OUT, Record,
+    RecordRef,
+};
 use super::sur::{
     self, Coding, Event, InputValue, KeyFrame, MAX_KEY_FRAMES, MAX_PLAYERS, Parts, Writer,
 };
+use super::world_validation::{self, Roster};
 
 /// An event the clock puts this far ahead of the recording is dropped: the
 /// server itself refuses inputs more than 2.5 s ahead.
@@ -73,7 +84,8 @@ const LATE_JOINER_WORLD_AFTER_MS: u32 = 300;
 /// no 0xE4 with its place was seen.
 const INSTALL_WINDOW_MS: u32 = 60_000;
 /// A late joiner's install is looked for from this long before the first
-/// 0xE4 that had its place (the recording's clock less the offset).
+/// 0xE4 that had its place, the one that prepared it in the other games or
+/// one with its roster (the recording's clock less the offset).
 const OFFER_SLACK_MS: u32 = 1_000;
 /// A world is the one before it with zero bytes put in front when, past
 /// those bytes, at least this many bytes (or the whole of the world before)
@@ -159,6 +171,14 @@ pub struct Report {
     pub worlds_complete: usize,
     pub world_times: usize,
     pub worlds_disagreeing: usize,
+    /// Where the key frames' worlds come from.
+    pub worlds_from: WorldsSource,
+    /// Complete uploads no key frame is made of: not a world the server
+    /// took, or (an older recording) refused by the world check.
+    pub worlds_untaken: usize,
+    /// The first [`MAX_REFUSALS`] uploads the world check refused: their
+    /// time and why.
+    pub refusals: Vec<(u32, String)>,
     pub first_world_ms: Option<u32>,
     pub start_ms: u32,
     pub end_ms: u32,
@@ -174,6 +194,20 @@ pub struct Report {
     pub decoded_bytes: usize,
     pub notes: Vec<String>,
 }
+
+/// Where a replay's key frames come from ([`WorldsFrom`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum WorldsSource {
+    /// The worlds the server took as the match's.
+    #[default]
+    Accepted,
+    /// A recording from before those records: the uploads that pass the
+    /// world check against its own roster.
+    Checked,
+}
+
+/// The refusals a [`Report`] lists; the others are counted.
+pub const MAX_REFUSALS: usize = 8;
 
 /// Why a recording cannot be converted.
 #[derive(Debug)]
@@ -194,7 +228,11 @@ impl std::fmt::Display for ConvertError {
             Self::Read(error) => write!(f, "the recording: {error}"),
             Self::NoHeader => write!(f, "no header note"),
             Self::NoOptions => write!(f, "no 0xE4 (static info) in the recording"),
-            Self::NoWorlds => write!(f, "no complete uploaded world in the recording"),
+            Self::NoWorlds => write!(
+                f,
+                "no uploaded world in the recording the match server took (or, in an older \
+                 recording, that passes its world check)"
+            ),
             Self::Sur(error) => write!(f, "{error}"),
             Self::Verify(why) => write!(f, "the file made does not check out: {why}"),
         }
@@ -214,6 +252,12 @@ impl From<sur::SurError> for ConvertError {
 pub fn config_name(records: &[Record]) -> Option<String> {
     let id = u8::try_from(header(records)?.get("map_id")?.as_u64()?).ok()?;
     maps::map_mode(id).map(|row| row.config.to_string())
+}
+
+/// The mode config `name` ([`config_name`]) of the game data: the file the
+/// map's row was made of (`maps::derive`), so a known map has it.
+pub fn config(name: &str) -> Option<&'static [u8]> {
+    survarium::v026g::game_data::shared().file(&format!("{}{name}", maps::GAME_MODES_DIR))
 }
 
 fn header(records: &[Record]) -> Option<serde_json::Value> {
@@ -239,7 +283,7 @@ fn clock_offset(records: &[Record]) -> Option<i64> {
 }
 
 /// The world of an item time that most uploads agree on.
-fn majority(bodies: &[Vec<u8>]) -> (usize, usize) {
+fn majority(bodies: &[&[u8]]) -> (usize, usize) {
     let mut counts: Vec<(usize, usize)> = Vec::new();
     for (i, body) in bodies.iter().enumerate() {
         match counts.iter_mut().find(|(first, _)| bodies[*first] == *body) {
@@ -253,6 +297,143 @@ fn majority(bodies: &[Vec<u8>]) -> (usize, usize) {
         .copied()
         .unwrap_or((0, 0));
     (best.0, counts.len())
+}
+
+/// Which uploads a key frame may be made of. A recording's header says
+/// which: one with `accepted_worlds` has a record of each world the server
+/// took ([`AcceptedWorld`]).
+enum WorldsFrom {
+    /// The worlds the server took, by time and hash, as recorded.
+    Accepted(HashSet<AcceptedWorld>),
+    /// A recording from before those records: an upload that passes the
+    /// match server's world check (S6) against the recording's own roster
+    /// ([`world_validation::check`]); the header's first roster, if it has
+    /// one.
+    Checked { initial_players: Option<usize> },
+}
+
+impl WorldsFrom {
+    fn of_header(head: &serde_json::Value) -> Self {
+        if head["accepted_worlds"].as_bool() == Some(true) {
+            Self::Accepted(HashSet::new())
+        } else {
+            Self::Checked {
+                initial_players: head["initial_players"]
+                    .as_u64()
+                    .and_then(|n| usize::try_from(n).ok()),
+            }
+        }
+    }
+}
+
+/// How an upload is judged ([`WorldsFrom`]).
+enum Judge<'a> {
+    Accepted(&'a HashSet<AcceptedWorld>),
+    /// Against the recording's largest roster, as `world_check::Recording`
+    /// checks it.
+    Checked { roster: Roster<'a>, places: usize },
+    /// An older recording with no roster to check against: nothing is
+    /// known of any upload.
+    Unchecked,
+}
+
+impl<'a> Judge<'a> {
+    fn of(
+        from: &'a WorldsFrom,
+        rosters: &'a BTreeMap<u8, (u32, static_info::MatchOptions)>,
+        growing_roster: bool,
+    ) -> Self {
+        let initial_players = match from {
+            WorldsFrom::Accepted(taken) => return Self::Accepted(taken),
+            WorldsFrom::Checked { initial_players } => *initial_players,
+        };
+        let (Some((&first, _)), Some((_, (_, options)))) =
+            (rosters.first_key_value(), rosters.last_key_value())
+        else {
+            return Self::Unchecked;
+        };
+        Self::Checked {
+            roster: Roster {
+                map: options.map,
+                profiles: &options.players,
+                initial_players: initial_players.unwrap_or(usize::from(first)),
+            },
+            places: if growing_roster {
+                srp_validate::MAX_PLAYERS
+            } else {
+                options.players.len()
+            },
+        }
+    }
+
+    fn source(&self) -> WorldsSource {
+        match self {
+            Self::Accepted(_) => WorldsSource::Accepted,
+            Self::Checked { .. } | Self::Unchecked => WorldsSource::Checked,
+        }
+    }
+
+    /// Whether a key frame may be made of `body`, an upload of `time`; a
+    /// refusal of the check goes into the report.
+    fn passes(&self, time: u32, body: &[u8], report: &mut Report) -> bool {
+        match self {
+            Self::Accepted(taken) => taken.contains(&AcceptedWorld::of(time, body)),
+            Self::Checked { roster, places } => {
+                match world_validation::check(body, time, *places, *roster) {
+                    Ok(()) => true,
+                    Err(refused) => {
+                        if report.refusals.len() < MAX_REFUSALS {
+                            report.refusals.push((time, refused.to_string()));
+                        }
+                        false
+                    }
+                }
+            }
+            Self::Unchecked => false,
+        }
+    }
+}
+
+/// One world for each time that has one a key frame may be made of
+/// ([`WorldsFrom`]): of those, the one most uploads agree on.
+fn choose_worlds(
+    worlds: BTreeMap<u32, Vec<Vec<u8>>>,
+    from: &WorldsFrom,
+    rosters: &BTreeMap<u8, (u32, static_info::MatchOptions)>,
+    report: &mut Report,
+) -> BTreeMap<u32, Vec<u8>> {
+    let judge = Judge::of(from, rosters, report.growing_roster);
+    report.worlds_from = judge.source();
+    let mut chosen = BTreeMap::new();
+    for (time, bodies) in worlds {
+        // Each different body judged once.
+        let mut judged: Vec<(&[u8], bool)> = Vec::new();
+        let mut usable: Vec<&[u8]> = Vec::new();
+        for body in &bodies {
+            let passes = match judged.iter().find(|(seen, _)| *seen == body.as_slice()) {
+                Some(&(_, passes)) => passes,
+                None => {
+                    let passes = judge.passes(time, body, report);
+                    judged.push((body, passes));
+                    passes
+                }
+            };
+            if passes {
+                usable.push(body);
+            } else {
+                report.worlds_untaken += 1;
+            }
+        }
+        if usable.is_empty() {
+            continue;
+        }
+        let (best, kinds) = majority(&usable);
+        if kinds > 1 {
+            report.worlds_disagreeing += 1;
+        }
+        chosen.insert(time, usable[best].to_vec());
+    }
+    chosen
 }
 
 #[derive(Default)]
@@ -391,6 +572,13 @@ struct Gather {
     options: BTreeMap<u8, Vec<u8>>,
     /// The options of each roster, and when a 0xE4 of it first went out.
     rosters: BTreeMap<u8, (u32, static_info::MatchOptions)>,
+    /// When each late place's profile first went to the games of the match
+    /// (the 0xE4 that prepares it, [`late_join::Prepare`]): they install it
+    /// then, however long its own game takes to come for its 0xE4.
+    prepared: BTreeMap<u8, u32>,
+    /// Which uploads a key frame may be made of; the worlds the server
+    /// took, as they come.
+    worlds_from: WorldsFrom,
 }
 
 impl Gather {
@@ -419,11 +607,22 @@ impl Gather {
             accepted_profiles: BTreeMap::new(),
             options: BTreeMap::new(),
             rosters: BTreeMap::new(),
+            prepared: BTreeMap::new(),
+            worlds_from: WorldsFrom::of_header(&head),
         })
     }
 
     /// One record of the recording, in order.
     fn push(&mut self, record: RecordRef<'_>) {
+        if record.kind == ACCEPTED_WORLD {
+            match (&mut self.worlds_from, AcceptedWorld::parse(record.bytes)) {
+                (WorldsFrom::Accepted(taken), Some(world)) => {
+                    taken.insert(world);
+                }
+                _ => self.report.unparsed += 1,
+            }
+            return;
+        }
         if matches!(record.kind, ACCEPTED_INPUT | ACCEPTED_PROFILE) {
             if record.place >= MAX_PLAYERS as u8 {
                 self.report.unparsed += 1;
@@ -497,13 +696,17 @@ impl Gather {
                     let Some(whole) = place.options.push(message) else {
                         continue;
                     };
-                    if let Ok((_, parsed)) = static_info::parse_payload(&whole, dictionary) {
+                    if whole.starts_with(&srp_validate::executable::REPLY_MAGIC) { continue; }
+                    let clock = (i64::from(record.at_ms) - self.offset).max(0) as u32;
+                    if let Ok(prepare) = late_join::Prepare::decode(&whole, dictionary) {
+                        let first = self.prepared.entry(prepare.proposal.place).or_insert(clock);
+                        *first = (*first).min(clock);
+                    } else if let Ok((_, parsed)) = static_info::parse_payload(&whole, dictionary) {
                         let roster = parsed.players.len() as u8;
                         place.roster = roster;
                         self.options
                             .entry(roster)
                             .or_insert_with(|| whole[1..].to_vec());
-                        let clock = (i64::from(record.at_ms) - self.offset).max(0) as u32;
                         let first = self.rosters.entry(roster).or_insert((clock, parsed));
                         first.0 = first.0.min(clock);
                     }
@@ -559,6 +762,8 @@ fn finish(
         accepted_profiles,
         options,
         rosters,
+        prepared,
+        worlds_from,
     } = gathered;
     // The places' half-read uploads and options are of no use now.
     drop(places);
@@ -734,15 +939,9 @@ fn finish(
         ));
     }
 
-    // One world for each time.
-    let mut chosen: BTreeMap<u32, Vec<u8>> = BTreeMap::new();
-    for (time, bodies) in &worlds {
-        let (best, kinds) = majority(bodies);
-        if kinds > 1 {
-            report.worlds_disagreeing += 1;
-        }
-        chosen.insert(*time, bodies[best].clone());
-    }
+    // One world for each time, of those a key frame may be made of; none
+    // is no replay, never one of worlds nobody vouched for.
+    let chosen = choose_worlds(worlds, &worlds_from, &rosters, &mut report);
     let first_world = *chosen.keys().next().ok_or(ConvertError::NoWorlds)?;
     report.first_world_ms = Some(first_world);
 
@@ -835,7 +1034,7 @@ fn finish(
     // bytes put in front of the saved objects (client_patch.md 3.14). A
     // world from before an install is given those bytes here, or every
     // object of the viewer reads out of step (docs/notes/replay_sur.md).
-    let joiners = late_places(&rosters, &entered, initial, &mut report);
+    let joiners = late_places(&rosters, &prepared, &entered, initial, &mut report);
     let (installs, unsure) = find_installs(&chosen, &joiners, &mut report);
     // A key frame from while a joiner's install is not known may lack its
     // objects' bytes or have them: it is left out.
@@ -939,6 +1138,7 @@ struct LatePlace {
 /// so the largest roster's is the one the recorded games installed.
 fn late_places(
     rosters: &BTreeMap<u8, (u32, static_info::MatchOptions)>,
+    prepared: &BTreeMap<u8, u32>,
     entered: &BTreeMap<(u32, u8), ()>,
     initial: u8,
     report: &mut Report,
@@ -973,8 +1173,10 @@ fn late_places(
         let offered = rosters
             .iter()
             .filter(|&(&roster, _)| roster > place)
-            .map(|(_, (time, _))| time.saturating_sub(OFFER_SLACK_MS))
-            .min();
+            .map(|(_, (time, _))| *time)
+            .chain(prepared.get(&place).copied())
+            .min()
+            .map(|time| time.saturating_sub(OFFER_SLACK_MS));
         let from = match (offered, entry) {
             (Some(offered), Some(entry)) => offered.min(entry),
             (Some(offered), None) => offered,
@@ -1259,9 +1461,17 @@ mod tests {
         payload
     }
 
+    /// The map of the recordings here: a match of two teams (places on
+    /// teams 0 and 1), the first battery map.
+    fn battery_map() -> &'static survarium::v026g::maps::MapMode {
+        survarium::v026g::maps::playable_in(survarium::v026g::maps::GameMode::Batteries)
+            .next()
+            .expect("the game has battery maps")
+    }
+
     /// Two places, a match clock 1300 ms behind the recording.
     fn recording() -> Vec<Record> {
-        let map = survarium::v026g::maps::playable().next().unwrap();
+        let map = battery_map();
         let options = MatchOptions {
             players: vec![profile("a", 0), profile("b", 1)],
             map: survarium::v026g::maps::MatchMap::of(map.id).unwrap(),
@@ -1274,7 +1484,7 @@ mod tests {
             note(
                 0,
                 &format!(
-                    r#"{{"note":"header","map":"{}","map_id":{},"mode":{},"match_id":"0x1","places":[{{"place":0}},{{"place":1}}]}}"#,
+                    r#"{{"note":"header","map":"{}","map_id":{},"mode":{},"match_id":"0x1","accepted_worlds":true,"places":[{{"place":0}},{{"place":1}}]}}"#,
                     map.name, map.id, map.mode.rules()
                 ),
             ),
@@ -1330,13 +1540,33 @@ mod tests {
         records.push(datagram(OUT, 0, 2500, 0xF3, None, &[22, 1, 3]));
         records.push(datagram(OUT, 0, 2600, 0xEA, None, &[40, 1]));
         records.push(datagram(OUT, 1, 2600, 0xEA, None, &[0, 1]));
-        // Worlds at 50 ms and 1050 ms, uploaded by place 0.
+        // Worlds at 50 ms and 1050 ms, uploaded by place 0 and taken.
         for (time, fill) in [(50u32, 1u8), (1050, 2)] {
-            for chunk in upload::split(time, &vec![fill; 700]).unwrap() {
-                records.push(datagram(IN, 0, 3000 + time, 0xE0, None, &chunk));
-            }
+            records.extend(taken_upload(0, 3000 + time, time, &vec![fill; 700]));
         }
         records
+    }
+
+    /// The chunks of `place`'s upload of `body`, a world at `time`, and the
+    /// server's record that it took it as the match's world.
+    fn taken_upload(place: u8, at_ms: u32, time: u32, body: &[u8]) -> Vec<Record> {
+        let mut records = upload_chunks(place, at_ms, time, body);
+        records.push(Record {
+            kind: ACCEPTED_WORLD,
+            place: record::NO_PLACE,
+            at_ms,
+            bytes: AcceptedWorld::of(time, body).to_bytes().to_vec(),
+        });
+        records
+    }
+
+    /// The chunks of `place`'s upload of `body`, a world at `time`.
+    fn upload_chunks(place: u8, at_ms: u32, time: u32, body: &[u8]) -> Vec<Record> {
+        upload::split(time, body)
+            .unwrap()
+            .iter()
+            .map(|chunk| datagram(IN, place, at_ms, 0xE0, None, chunk))
+            .collect()
     }
 
     #[test]
@@ -1666,11 +1896,14 @@ mod tests {
     /// get `zeros` zero bytes in front of their objects at 20 050 ms, and a
     /// grenade of the map thrown at once unless `exact`.
     fn late_recording(zeros: usize, exact: bool) -> Vec<Record> {
-        let mut records: Vec<Record> = recording().into_iter().filter(|r| r.kind != IN).collect();
+        let mut records: Vec<Record> = recording()
+            .into_iter()
+            .filter(|r| r.kind != IN && r.kind != ACCEPTED_WORLD)
+            .collect();
         let mut header: serde_json::Value = serde_json::from_slice(&records[0].bytes).unwrap();
         header["growing_roster"] = true.into();
         records[0].bytes = serde_json::to_vec(&header).unwrap();
-        let map = survarium::v026g::maps::playable().next().unwrap();
+        let map = battery_map();
         let options = MatchOptions {
             players: vec![profile("a", 0), profile("b", 1), armed("c", 0)],
             map: survarium::v026g::maps::MatchMap::of(map.id).unwrap(),
@@ -1702,15 +1935,13 @@ mod tests {
         }
         for time in (50..=30_050u32).step_by(5_000) {
             let objects = if time < 20_050 { &before } else { &after };
-            for chunk in upload::split(time, &world(objects)).unwrap() {
-                records.push(datagram(IN, 0, 1_300 + time + 500, 0xE0, None, &chunk));
-            }
+            records.extend(taken_upload(0, 1_300 + time + 500, time, &world(objects)));
         }
         records
     }
 
-    /// `(time, game objects)` of every key frame of a file.
-    fn key_frame_objects(file: &[u8]) -> Vec<(u32, Vec<u8>)> {
+    /// `(time, world)` of every key frame of a file.
+    fn key_frame_worlds(file: &[u8]) -> Vec<(u32, Vec<u8>)> {
         let chunks = sur::chunks(file).unwrap();
         let frames = chunks
             .iter()
@@ -1724,16 +1955,136 @@ mod tests {
             let len = usize::from(u16::from_le_bytes([table[at], table[at + 1]]));
             let data = &table[at + 6..at + 6 + len];
             let time = u32::from_le_bytes(data[..4].try_into().unwrap());
-            out.push((
-                time,
-                snapshot::Sections::walk(&data[4..])
-                    .unwrap()
-                    .objects
-                    .to_vec(),
-            ));
+            out.push((time, data[4..].to_vec()));
             at += 6 + len;
         }
         out
+    }
+
+    /// `(time, game objects)` of every key frame of a file.
+    fn key_frame_objects(file: &[u8]) -> Vec<(u32, Vec<u8>)> {
+        key_frame_worlds(file)
+            .into_iter()
+            .map(|(time, world)| {
+                let objects = snapshot::Sections::walk(&world).unwrap().objects.to_vec();
+                (time, objects)
+            })
+            .collect()
+    }
+
+    /// A key frame wherever there is a world.
+    fn every_world() -> Settings {
+        Settings {
+            key_frame_every_ms: 0,
+            ..Settings::default()
+        }
+    }
+
+    /// What a modified game uploads to put a world into the replay: one of
+    /// a time no game is at, sent unasked (before the match's first, so it
+    /// would be key frame 0), and three of a time the others uploaded, to
+    /// outnumber their world; each upload of a time again after 16 others
+    /// (a place's reassembler takes a time again once it forgot it). The
+    /// live server ignores all of them (S5, S7). `FORGED` in all.
+    fn forged_uploads(records: &mut Vec<Record>) {
+        records.extend(upload_chunks(1, 2_000, 0, &[0xFF; 900]));
+        let mut others = (0..).map(|n| 100_000 + 50 * n);
+        for copy in 0..3 {
+            if copy > 0 {
+                for time in others.by_ref().take(16) {
+                    records.extend(upload_chunks(1, 4_000, time, &[0xDD; 900]));
+                }
+            }
+            records.extend(upload_chunks(1, 4_000, 1050, &[0xEE; 900]));
+        }
+    }
+
+    /// The uploads [`forged_uploads`] adds.
+    const FORGED: usize = 1 + 3 + 2 * 16;
+
+    #[test]
+    fn an_upload_the_server_did_not_take_is_no_key_frame() {
+        let clean = recording();
+        let mut forged = clean.clone();
+        forged_uploads(&mut forged);
+        let (clean_file, _) = convert(&clean, b"config", every_world()).unwrap();
+        let (file, report) = convert(&forged, b"config", every_world()).unwrap();
+        assert_eq!(report.worlds_from, WorldsSource::Accepted);
+        assert_eq!(report.worlds_complete, 2 + FORGED);
+        assert_eq!(report.worlds_untaken, FORGED);
+        assert_eq!(report.first_world_ms, Some(50));
+        assert_eq!(
+            key_frame_worlds(&file),
+            [(50, vec![1; 700]), (1050, vec![2; 700])]
+        );
+        assert_eq!(file, clean_file, "the forged uploads change nothing");
+    }
+
+    #[test]
+    fn a_recording_with_no_world_the_server_took_is_no_replay() {
+        let mut records = recording();
+        records.retain(|r| r.kind != ACCEPTED_WORLD);
+        forged_uploads(&mut records);
+        assert!(matches!(
+            convert(&records, b"config", Settings::default()),
+            Err(ConvertError::NoWorlds)
+        ));
+    }
+
+    /// [`recording`] as the server recorded before [`AcceptedWorld`]: no
+    /// such records, a header without `accepted_worlds`, and worlds of the
+    /// scripted games, which pass the world check.
+    fn older_recording() -> (Vec<Record>, [Vec<u8>; 2]) {
+        let mut records: Vec<Record> = recording()
+            .into_iter()
+            .filter(|r| r.kind != IN && r.kind != ACCEPTED_WORLD)
+            .collect();
+        let mut header: serde_json::Value = serde_json::from_slice(&records[0].bytes).unwrap();
+        header.as_object_mut().unwrap().remove("accepted_worlds");
+        records[0].bytes = serde_json::to_vec(&header).unwrap();
+        let sim = super::super::scripted::Sim::new(2, battery_map().id);
+        let worlds = [sim.world(50), sim.world(1050)];
+        for (time, world) in [50, 1050].into_iter().zip(&worlds) {
+            records.extend(upload_chunks(0, 3000 + time, time, world));
+        }
+        (records, worlds)
+    }
+
+    #[test]
+    fn an_older_recordings_uploads_are_key_frames_only_past_the_world_check() {
+        let (clean, [first, second]) = older_recording();
+        let mut forged = clean.clone();
+        forged_uploads(&mut forged);
+        let (clean_file, clean_report) = convert(&clean, b"config", every_world()).unwrap();
+        assert_eq!(clean_report.worlds_untaken, 0, "{:?}", clean_report.refusals);
+        let (file, report) = convert(&forged, b"config", every_world()).unwrap();
+        assert_eq!(report.worlds_from, WorldsSource::Checked);
+        assert_eq!(report.worlds_untaken, FORGED);
+        // Each different body of a time is checked once; the first few
+        // refusals are listed.
+        let refused: Vec<u32> = report.refusals.iter().map(|(time, _)| *time).collect();
+        assert_eq!(refused[..3], [0, 1050, 100_000]);
+        assert_eq!(refused.len(), MAX_REFUSALS);
+        assert_eq!(key_frame_worlds(&file), [(50, first), (1050, second)]);
+        assert_eq!(file, clean_file, "the forged uploads change nothing");
+    }
+
+    #[test]
+    fn an_older_recording_with_no_world_past_the_check_is_no_replay() {
+        let (mut records, _) = older_recording();
+        records.retain(|r| r.kind != IN);
+        forged_uploads(&mut records);
+        assert!(matches!(
+            convert(&records, b"config", Settings::default()),
+            Err(ConvertError::NoWorlds)
+        ));
+    }
+
+    #[test]
+    fn an_accepted_world_record_reads_back() {
+        let world = AcceptedWorld::of(1050, &[2; 700]);
+        assert_eq!(AcceptedWorld::parse(&world.to_bytes()), Some(world));
+        assert_eq!(AcceptedWorld::parse(&world.to_bytes()[1..]), None);
     }
 
     #[test]
@@ -1779,5 +2130,45 @@ mod tests {
         // entry the world is as the games had it.
         assert_eq!(frames[0].1, [vec![0; 5], map_objects()].concat());
         assert_eq!(frames[2].1, [vec![0; 4], map_objects()].concat());
+    }
+
+    /// The games of the match are told of a late place when it is taken
+    /// (the 0xE4 that prepares it) and install it then; its own game got
+    /// its 0xE4 here 4.5 s later, after the worlds had its objects.
+    #[test]
+    fn an_install_is_looked_for_from_the_places_prepare_not_its_own_games_options() {
+        let mut records = late_recording(5, false);
+        let options: Vec<usize> = (0..records.len())
+            .filter(|&i| records[i].kind == OUT && records[i].at_ms == 20_000)
+            .collect();
+        assert_eq!(options.len(), 3);
+        let own = records[options[2]].clone();
+        let prepare = late_join::Prepare {
+            proposal: late_join::Proposal {
+                match_id: 1,
+                serial: 1,
+                place: 2,
+            },
+            profile: armed("c", 0),
+        }
+        .encode(Dictionary::shared())
+        .unwrap();
+        for (place, &at) in options[..2].iter().enumerate() {
+            records[at] = datagram(OUT, place as u8, 20_000, 0xE4, Some(1), &prepare);
+        }
+        records[options[2]] = Record {
+            at_ms: 24_500,
+            ..own
+        };
+        let (file, report) = convert(&records, b"config", Settings::default()).unwrap();
+        assert_eq!(report.installs, [(2, 20_050, 5)]);
+        assert!(report.installs_unsure.is_empty());
+        assert_eq!(report.dropped_unsure_key_frames, 0);
+        let frames = key_frame_objects(&file);
+        let times: Vec<u32> = frames.iter().map(|f| f.0).collect();
+        assert_eq!(times, [50, 10_050, 20_050, 30_050]);
+        for (time, objects) in &frames {
+            assert_eq!(objects.len(), map_objects().len() + 5, "{time}");
+        }
     }
 }

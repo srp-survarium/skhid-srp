@@ -1,0 +1,117 @@
+Hospital LOD popping: native reproduction and measurement (2026-11-12)
+
+RESULT
+The reported camera poses cross the hospital model's native LOD0/LOD1
+threshold. The original executable and the patched adaptive setting select
+LOD1 at the first pose and LOD0 at the second. The patched full-detail setting
+selects LOD0 at both poses. This is an execution of the actual x86 selection
+function with released map/model data, not a new rendered gameplay capture.
+
+SOURCE EVIDENCE
+The owner's /home/sheep/2026-11-12-01-12-00.png contains both console samples.
+/home/sheep/screenshots/2026-11-12-01-11-52.png shows the first view.
+Map: v011e_level_03/day_2, id 247.
+Player position in both: (-55.918, 9.977, -15.154).
+
+First:  eye (-55.869, 11.447, -15.181), yaw 358.5, pitch -3.7 degrees.
+Second: eye (-55.871, 11.448, -15.186), yaw   3.9, pitch -3.5 degrees.
+Yaw changes by 5.4 degrees; eye moves approximately 5.5 millimetres.
+
+The released patch_23 client_project places
+ported/v011e/level/03/hospital at render_visuals[38], with identity transform.
+Its model, surfaces and materials come from resources.db.patch_22.
+The model's native box (union of authored model/surface export bounds) is:
+min (-65.321, 5.644, -38.445), max (-45.166, 15.419, 9.781).
+Both eyes are inside this box.
+
+MEASUREMENTS
+0.26g static_render_model_instance::select_lod is at 0x16EEC0.
+Content sets lod_switching.type=1 and default_params=true. The harness uses
+that default flag and reads the real native thresholds at 0xA7A814:
+0.4000000059604645, 0.20000000298023224, 0.0010000000474974513.
+The observed projected size at 0x16F2AC crosses the first threshold:
+
+                         First pose           Second pose
+Projected size           0.3984338641166687    0.40160730481147766
+Original model LOD       1                    0
+Patched adaptive LOD     1                    0
+Patched full-detail LOD  0                    0
+
+The native selector projects the model box corners and compares half the
+larger projected extent with these thresholds. At this interior viewpoint,
+a small camera rotation changes that estimate enough to select a different
+mesh for the whole building. The setting's model hook removes that change.
+
+                Surfaces      Vertices       Triangles
+LOD1            21            28,450         20,194
+LOD0            29            71,284         50,496
+
+At the first pose, forcing LOD0 selects 30,302 more triangles (2.50 times the
+model's LOD1 triangle count) and eight more surfaces. These are authored mesh
+counts, not measured GPU draw calls or post-culling triangle counts. They do
+not establish a whole-frame FPS, frame-time or memory cost.
+
+SECONDARY CHECKS
+All 29 LOD0 surfaces selected shader LOD0 at both poses, at shading qualities
+0 and 1. The native shader selector is 0x158D20; surface screen factor is
+computed by 0x158D80. Surface screen factors can change sharply as the camera
+turns, but this particular fixture has no shader-LOD transition.
+
+The actual texture mip calculator at 0x1C8640 was run with each surface's
+exported sphere and both eye positions. Across six texel factors (.001, .01,
+.1, 1, 10, 100), every tested pair selected the same mip count. These are
+PARTIAL texture fixtures: 1024x1024 dimensions, texture scalar 1, mip bias 0,
+and swept texel factors. They are not captured runtime texture descriptors.
+The calculator has no camera-direction input. Do not interpret these checks
+as a replay of all asynchronous texture-streaming state.
+
+The close wall's stucco_07_7 material has normal mapping enabled and parallax,
+detail normal mapping and detail diffuse disabled. Those flags are included
+in the JSON output. The older source portal path selects whole models and
+calls get_surfaces with automatic LOD (-1), not a separate fixed LOD. A portal
+visibility or material-fade explanation is not needed for the native model
+transition reproduced above. Runtime occlusion has not been captured.
+
+An earlier provisional investigation message incorrectly said that the model
+stayed at LOD0: the model result lines had not been inspected before reporting.
+Inspection and repeated execution corrected that statement to LOD1 -> LOD0.
+The shader/mip no-transition findings were unchanged. The reproducible output
+and the original-versus-patched comparison above supersede that early note.
+
+REPRODUCE
+Requires Python with Unicorn, this checkout's client-patches helpers, and the
+vostok-port tool supporting dump-db-config --leaves and extract. Supply the
+original 0.26g executable, a built patched executable, and the released content
+archives explicitly. No local game, network, credentials or running session
+is needed. Run from a suitable Nix development shell, for example:
+
+python srp-026g/scripts/distance-detail/reproduce_hospital.py \
+  --exe /path/to/original/survarium.exe \
+  --patched-exe /path/to/patched/survarium.exe \
+  --porter /path/to/vostok-port \
+  --resources /path/to/resources.db.patch_22 \
+  --project-db /path/to/resources.db.patch_23 \
+  --cache /tmp/hospital-detail-repro-assets \
+  --output /tmp/hospital-detail-repro.json
+
+The script verifies the identity placement and native default LOD configuration,
+extracts real mesh counts and properties, executes native functions, records
+original-exe SHA256 and assumptions in JSON, and checks patched adaptive output
+against the original and patched full detail against [0,0]. The extraction
+cache is keyed by archive path; use an empty cache after replacing an archive
+at the same path. --patched-exe is optional for an original-only measurement.
+
+Recorded validation artifact: /tmp/hospital-detail-repro.json.
+The verified patched image was artifacts/distance-detail/survarium.detail.exe
+in the feature worktree. No owner client/configuration was modified.
+
+LIMITS
+Camera angles and positions are rounded console values. Projection uses 65
+vertical degrees and 2560x1440, matching the current local49 configuration;
+that configuration has not been proven to belong to the screenshot's session.
+The reproduced crossing is evidence of the screenshot mechanism under those
+settings, not a pixel comparison. The test does not execute texture reload,
+GPU rendering, asynchronous streaming, portal traversal or occlusion history.
+Original native projected-size decisions are tested; the patched projection
+initializes its existing FOV compensation before testing patched decisions.
+No FPS, frame-time, RAM or VRAM measurements were obtained.

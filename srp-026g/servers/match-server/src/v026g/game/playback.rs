@@ -529,7 +529,7 @@ impl Playback {
             }
             Op::Seek(time) => self.seek(time.0, now),
             // As at the recording's end: its game goes back to the lobby
-            // on the farewell (patch 121), then the session is over.
+            // on the farewell (patch 143), then the session is over.
             Op::Leave => self.spectator.farewell(at, now),
         }
     }

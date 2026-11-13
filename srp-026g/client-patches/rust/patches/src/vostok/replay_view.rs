@@ -1,6 +1,6 @@
 //! A replay played to a spectator's game as a spectated match (path A,
-//! docs/notes/replay-stream.md; patch 130). The match server streams the
-//! recording to a game with no place of its own (patch 121) and runs its
+//! docs/notes/replay-stream.md; patch 144). The match server streams the
+//! recording to a game with no place of its own (patch 143) and runs its
 //! playback; the game asks for a change with an 0xE0 and applies the
 //! playback the server tells it in an 0xF6 (the messages: the
 //! `replay-control` crate). Here, what the game is for that:
@@ -105,7 +105,7 @@ pub struct GameClock<'t> {
 }
 
 impl<'t> GameClock<'t> {
-    /// The clock of a spectator's game (patch 121's role); none for a
+    /// The clock of a spectator's game (patch 143's role); none for a
     /// player's or a replay's own client.
     pub fn of(client: &NetworkClient<'t>) -> Option<GameClock<'t>> {
         if !client.is_spectator() {

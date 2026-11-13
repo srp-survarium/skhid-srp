@@ -23,6 +23,8 @@ impl Action {
     /// gives it the default key H and a controls row (patch 62's table), and
     /// holding it makes a quick-use key offer that slot's artefact.
     pub const ARTEFACT: Action = Action(0x23);
+    /// ptt (entry 0xA74F8C, kind 8, default P): patch 66's push-to-talk.
+    pub const PTT: Action = Action(0x47);
 }
 
 /// What the input handler holds of an action: its last key event, as

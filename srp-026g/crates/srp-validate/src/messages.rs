@@ -131,7 +131,7 @@ pub fn check(message: u8, payload: &[u8]) -> Result<(), Refusal> {
         return Err(refuse(0, Reason::NeverSent));
     }
     // The other 0xF6: a replay's playback or events note to a spectator
-    // (patch 130, `replay-control`), taken whole by the patch's own parse.
+    // (patch 144, `replay-control`), taken whole by the patch's own parse.
     if message == id::UPLOAD_REQUEST && replay_control::ServerNote::parse(payload).is_some() {
         return Ok(());
     }
@@ -156,7 +156,7 @@ pub fn check(message: u8, payload: &[u8]) -> Result<(), Refusal> {
         // tests only the time (0x27C652..0x27C67C, 0x2D1489).
         id::PLAYER_ENTERED => place(1),
         // An 0xEA naming no place is the server's farewell to a spectator
-        // (patch 121 ends its match); a player's game passes it to
+        // (patch 143 ends its match); a player's game passes it to
         // `leave_match`, which returns 1 with nothing written
         // (`check_spectator_026g.py`).
         id::PLAYER_LEFT => match payload.get(1).copied().map(LeftPlace::of) {
@@ -416,9 +416,19 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
     if !dictionary.map(map) {
         return Err(refuse(at, Reason::OptionsMap { map }));
     }
+    // The roster's teams: the match's two (0 and 1), or in a free-for-all
+    // each place a side of its own ([`crate::own_side`]); never a mix of
+    // the two, and never 2 or 3, which the game reads as "neutral" and
+    // "none".
+    let own_sides = teams.first().is_some_and(|&team| team > 1);
     for (place, (held, team)) in places.iter().zip(teams).enumerate() {
         if place < usize::from(roster) {
-            if team > 1 {
+            let fits = if own_sides {
+                team == crate::own_side(place)
+            } else {
+                team <= 1
+            };
+            if !fits {
                 return Err(refuse(held.at, Reason::OptionsTeam { place, team }));
             }
             if held.kits == 0 {
@@ -438,7 +448,8 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
     }
     // The squad bytes.
     reader.skip(MAX_PLAYERS).map_err(short)?;
-    // Shipped patch 65 appends an SRPX block for Blackout matches.
+    // srp appends an SRPX block for a Blackout match (shipped patch 65) and
+    // for a free-for-all (its kill target).
     // Keep this in sync with static_info::read_srp_block on the server.
     if !reader.is_done() {
         let at = reader.at();
@@ -454,18 +465,26 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
             return Err(invalid());
         }
         reader.skip(4).map_err(short)?;
-        while !reader.is_done() {
-            let at = reader.at();
-            let entry = reader.array::<3>().map_err(short)?;
-            if entry != [2, 1, 1] {
-                return Err(refuse(
-                    at,
-                    Reason::OptionsTrailing {
-                        len: reader.rest().len().saturating_add(3),
-                    },
-                ));
-            }
+        // One entry, `{tag, len, bytes}`: Blackout's `{2, 1, 1}`, or a
+        // free-for-all's `{3, 2, kills to win}` (a u16, never 0), which only
+        // a roster of own sides has.
+        let at = reader.at();
+        let fits = match reader.rest() {
+            [2, 1, 1] => !own_sides,
+            [3, 2, low, high] => own_sides && (*low, *high) != (0, 0),
+            _ => false,
+        };
+        if !fits {
+            return Err(refuse(
+                at,
+                Reason::OptionsTrailing {
+                    len: reader.rest().len(),
+                },
+            ));
         }
+    } else if own_sides {
+        // A free-for-all's options always carry its entry.
+        return Err(refuse(reader.at(), Reason::OptionsTrailing { len: 0 }));
     }
     Ok(roster)
 }

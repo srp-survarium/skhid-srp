@@ -544,6 +544,10 @@ pub struct MatchOptions {
 pub const SRPX_MAGIC: &[u8; 4] = b"SRPX";
 /// The entry of a Blackout map's options ([`maps::GameMode::Blackout`]): one byte, 1.
 pub const SRPX_BLACKOUT: u8 = 2;
+/// The entry of a free-for-all's options ([`maps::GameMode::FreeForAll`]):
+/// the kills that win (`kills_to_win`), a u16, never 0. The client's
+/// free-for-all patch shows it on the hud.
+pub const SRPX_FREE_FOR_ALL: u8 = 3;
 
 /// Why options cannot go to a client, or why bytes are no options.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -552,7 +556,8 @@ pub enum StaticInfoError {
     Roster(usize),
     /// Not a map and mode the client can load.
     Map(u8),
-    /// A player's team is not 0 or 1.
+    /// A player's team is not its mode's: not 0 or 1, or in a free-for-all
+    /// not the place's own side.
     Team { player: usize, team: u8 },
     /// A player's name, clan tag or kit name is too long for its buffer.
     Text {
@@ -667,12 +672,6 @@ fn check_profile(
     profile: &MatchProfile,
     dictionary: &Dictionary,
 ) -> Result<(), StaticInfoError> {
-    if profile.team > 1 {
-        return Err(StaticInfoError::Team {
-            player,
-            team: profile.team,
-        });
-    }
     check_text(player, &profile.name, MAX_NAME)?;
     check_text(player, &profile.clan_tag, MAX_CLAN)?;
     if profile.kits.len() > MAX_KITS {
@@ -829,6 +828,7 @@ pub(super) fn parse_profile(
         return Err(StaticInfoError::Trailing(reader.bytes.len()));
     }
     check_profile(player, &profile, dictionary)?;
+    check_team(player, profile.team, None)?;
     Ok(profile)
 }
 
@@ -845,6 +845,7 @@ pub fn options_bytes(
     let mut out = Vec::new();
     for (player, profile) in options.players.iter().enumerate() {
         check_sent(player, profile, dictionary)?;
+        check_team(player, profile.team, Some(options.map.mode()))?;
         write_profile(profile, dictionary, &mut out);
     }
     for _ in roster..MAX_PLAYERS {
@@ -862,13 +863,17 @@ pub fn options_bytes(
         *squad = profile.squad;
     }
     out.extend(squads);
-    let mut block = Vec::new();
-    if options.map.mode() == maps::GameMode::Blackout {
-        block.extend([SRPX_BLACKOUT, 1, 1]);
-    }
-    if !block.is_empty() {
-        out.extend(SRPX_MAGIC);
-        out.extend(block);
+    match SrpBlock::of(options.map) {
+        SrpBlock::Plain => {}
+        SrpBlock::Blackout => {
+            out.extend(SRPX_MAGIC);
+            out.extend([SRPX_BLACKOUT, 1, 1]);
+        }
+        SrpBlock::FreeForAll { kills_to_win } => {
+            out.extend(SRPX_MAGIC);
+            out.extend([SRPX_FREE_FOR_ALL, 2]);
+            out.extend(kills_to_win.to_le_bytes());
+        }
     }
     if out.len() > OPTIONS_BUFFER {
         return Err(StaticInfoError::TooLarge(out.len()));
@@ -1113,22 +1118,24 @@ pub fn parse_options(
         *weight = reader.f32()?;
     }
     let squads = reader.take(MAX_PLAYERS)?;
-    let blackout = read_srp_block(&mut reader)?;
+    let block = read_srp_block(&mut reader)?;
     if !reader.bytes.is_empty() {
         return Err(StaticInfoError::Trailing(reader.bytes.len()));
     }
     if roster == 0 || roster > MAX_PLAYERS {
         return Err(StaticInfoError::Roster(roster));
     }
-    // The Blackout entry on a map of another mode, or none on a Blackout
-    // map: no map and mode the client plays.
+    // A block that is not the map's mode's (the Blackout entry on a map of
+    // another mode, none on a Blackout map, another kill target than a
+    // free-for-all's): no map and mode the client plays.
     let map = maps::MatchMap::of(map_id)
-        .filter(|map| (map.mode() == maps::GameMode::Blackout) == blackout)
+        .filter(|&map| SrpBlock::of(map) == block)
         .ok_or(StaticInfoError::Map(map_id))?;
     players.truncate(roster);
     for (player, (profile, &squad)) in players.iter_mut().zip(squads).enumerate() {
         profile.squad = squad;
         check_profile(player, profile, dictionary)?;
+        check_team(player, profile.team, Some(map.mode()))?;
     }
     Ok(MatchOptions {
         players,
@@ -1141,28 +1148,79 @@ pub fn parse_options(
 
 /// srp's block after the options, if any: as patch 65's reader reads it, but
 /// strict (an unknown tag or a short entry is refused, so a test sees it).
-fn read_srp_block(reader: &mut Reader) -> Result<bool, StaticInfoError> {
+fn read_srp_block(reader: &mut Reader) -> Result<SrpBlock, StaticInfoError> {
     if reader.bytes.is_empty() {
-        return Ok(false);
+        return Ok(SrpBlock::Plain);
     }
     if reader.take(4).map_err(|_| StaticInfoError::SrpBlock)? != SRPX_MAGIC {
         return Err(StaticInfoError::SrpBlock);
     }
-    let mut blackout = false;
-    while !reader.bytes.is_empty() {
-        let tag = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
-        let len = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
-        let mut entry = Reader {
-            bytes: reader
-                .take(usize::from(len))
-                .map_err(|_| StaticInfoError::SrpBlock)?,
-        };
-        match (tag, len) {
-            (SRPX_BLACKOUT, 1) if entry.u8()? == 1 => blackout = true,
-            _ => return Err(StaticInfoError::SrpBlock),
+    // One entry: a match is of one mode.
+    let tag = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
+    let len = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
+    let entry = reader
+        .take(usize::from(len))
+        .map_err(|_| StaticInfoError::SrpBlock)?;
+    let block = match (tag, entry) {
+        (SRPX_BLACKOUT, [1]) => SrpBlock::Blackout,
+        (SRPX_FREE_FOR_ALL, &[low, high]) if (low, high) != (0, 0) => SrpBlock::FreeForAll {
+            kills_to_win: u16::from_le_bytes([low, high]),
+        },
+        _ => return Err(StaticInfoError::SrpBlock),
+    };
+    if !reader.bytes.is_empty() {
+        return Err(StaticInfoError::SrpBlock);
+    }
+    Ok(block)
+}
+
+/// What srp's block after the options says of the match: nothing, or the
+/// entry of the map's mode.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SrpBlock {
+    /// No block.
+    Plain,
+    /// [`SRPX_BLACKOUT`].
+    Blackout,
+    /// [`SRPX_FREE_FOR_ALL`].
+    FreeForAll { kills_to_win: u16 },
+}
+
+impl SrpBlock {
+    /// The block of a match on `map`.
+    fn of(map: maps::MatchMap) -> Self {
+        match map.mode() {
+            maps::GameMode::Blackout => Self::Blackout,
+            maps::GameMode::FreeForAll => Self::FreeForAll {
+                kills_to_win: u16::try_from(map.map().kills_to_win).unwrap_or(u16::MAX),
+            },
+            maps::GameMode::Batteries
+            | maps::GameMode::TimedBatteries
+            | maps::GameMode::TeamDeathmatch
+            | maps::GameMode::Research => Self::Plain,
         }
     }
-    Ok(blackout)
+}
+
+/// A place's team as its match's mode has it: one of the two teams, or in a
+/// free-for-all the place's own side ([`maps::free_for_all_team`]). With no
+/// mode known (a profile read alone), either.
+fn check_team(
+    player: usize,
+    team: u8,
+    mode: Option<maps::GameMode>,
+) -> Result<(), StaticInfoError> {
+    let own = team == maps::free_for_all_team(player);
+    let fits = match mode {
+        Some(maps::GameMode::FreeForAll) => own,
+        Some(_) => team <= 1,
+        None => team <= 1 || own,
+    };
+    if fits {
+        Ok(())
+    } else {
+        Err(StaticInfoError::Team { player, team })
+    }
 }
 
 /// Reads a 0xE4 payload as the client at its local index would: the

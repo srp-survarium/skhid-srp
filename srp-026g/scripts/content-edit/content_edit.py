@@ -455,7 +455,10 @@ def add_entry(buf, path, after, like, values):
 
 def copied_table(buf, table, values, path):
     """A new array of the records of the table at `table`, the keys of `values` set; a key `a/b` (or
-    `a[0]/b`) sets b in a copy of the table a. Returns the array's offset."""
+    `a[0]/b`) sets b in a copy of the table a. Every nested table gets its own records:
+    the native loader (0xF6D00) relocates each reachable record in place, so sharing
+    an unchanged subtree would relocate it twice. Strings/vector payloads may be
+    shared: only their owning records are mutated. Returns the array's offset."""
     recs = []
     named = rec(buf, table)[3] == T_NAMED
     for k, c in enumerate(children(buf, table)):
@@ -495,6 +498,8 @@ def copied_table(buf, table, values, path):
                 d = (d & ~0xffffffff) | struct.unpack('<I', struct.pack('<f', v))[0]
             else:
                 d = (d & ~0xffffffff) | (1 if v else 0)
+        elif t in (T_NAMED, T_INDEXED):
+            d = copied_table(buf, c, {}, path)
         recs.append(REC.pack(d, i, crc, t, cnt))
     return append_array(buf, recs)
 
@@ -1285,7 +1290,8 @@ STATS = {
     'maps': {
         'configs': 'projects/*/*/client_project',
         'columns': {
-            'spawn_protection_s': 'server_objects/respawn_points[*]/invulnerability_time',
+            # the two teams' points; team 2's are Free for all's, with its own protection (ffa-1.json)
+            'spawn_protection_s': 'server_objects/respawn_points[team=0|1]/invulnerability_time',
             'spawn_zone_ms': 'client_objects[game_object_type=effect_zone]/invulnerability_duration',
             'spawn_zone_fade_ms': 'client_objects[game_object_type=effect_zone]/invulnerability_attenuation',
             'resupply_ms': 'client_objects[game_object_type=resupply_zone]/resupply_time_in_ms',

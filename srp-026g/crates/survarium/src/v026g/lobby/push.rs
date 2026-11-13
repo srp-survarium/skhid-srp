@@ -282,10 +282,6 @@ pub struct OwnAccount {
     /// The id of the kit the player plays; the client selects the kit with
     /// this id.
     pub active_kit: u32,
-    /// The kit window's autobuy box: bit 0 of one byte on the wire (the
-    /// client hands the byte to `root.set_autobuy` as a number, 0x227760;
-    /// PROVEN). Bit 1, the stock auto-repair, is 0: srp has no repair.
-    pub autobuy: bool,
     /// The account's level: also the skill points it has unlocked.
     pub level: u8,
     pub exp_total: u32,
@@ -446,7 +442,11 @@ pub fn own_account(account: &OwnAccount) -> Result<ServerMessage, WireError> {
     }
     writer
         .u32(account.active_kit)
-        .u8(auto_state(account.autobuy))
+        // The kit window's boxes, autobuy (bit 0) and auto-repair (bit 1),
+        // which the client stores and hands to `root.set_autobuy` (0x227760;
+        // PROVEN; nothing else in the exe reads it). Autobuy is always on
+        // and srp has no repair: 1. The lobby shows neither box.
+        .u8(AUTOBUY_ON)
         .u8(account.level)
         .u32(account.exp_total)
         .u32(account.exp_level_start)
@@ -1455,19 +1455,9 @@ pub fn permitted_shop_event(event: u8) -> Result<ServerMessage, WireError> {
 
 // ---- 83 49: kits and the account (`process_profiles_action`) ----
 
-/// The lobby's number for the kit window's boxes (`LobbyMenu.set_autobuy`):
-/// bit 0 autobuy; bit 1, the stock auto-repair, 0 (srp has no repair).
-pub(crate) fn auto_state(autobuy: bool) -> u8 {
-    u8::from(autobuy)
-}
-
-/// `83 49 01`: the account's autobuy box, one byte the client stores and
-/// shows (0x275CC5 → `root.set_autobuy`).
-pub fn permitted_autobuy(on: bool) -> ServerMessage {
-    permitted_event(PROFILE, 1)
-        .u8(auto_state(on))
-        .done(ServerId::Permitted)
-}
+/// The lobby's number for the kit window's boxes in `87`: bit 0 autobuy,
+/// always on; bit 1, the stock auto-repair, 0 (srp has no repair).
+pub(crate) const AUTOBUY_ON: u8 = 1;
 
 /// `83 49 02`: the active kit. The client stores the id and selects the kit
 /// with it.
@@ -1514,4 +1504,9 @@ pub fn permitted_nickname_check(nickname: &str, refusal: Option<NameRefusal>) ->
 /// are gone (the owner, 2026-11-08) and a rename is paid in silver.
 pub fn permitted_nickname_changed() -> ServerMessage {
     permitted_event(PROFILE, 4).u32(0).done(ServerId::Permitted)
+}
+
+/// `83 49 05`: the comment was stored. The stock client reads no body.
+pub fn permitted_player_comment() -> ServerMessage {
+    permitted_event(PROFILE, 5).done(ServerId::Permitted)
 }

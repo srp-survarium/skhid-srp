@@ -18,7 +18,9 @@ dependencies = [
  "ban-reason",
  "ragdoll",
  "replay-control",
+ "sign-in-cipher",
  "srp-validate",
+ "voice-abi",
  "weapon-kit",
  "weapon-pickup",
  "world-frame",
@@ -33,6 +35,10 @@ name = "replay-control"
 version = "0.1.0"
 
 [[package]]
+name = "sign-in-cipher"
+version = "0.1.0"
+
+[[package]]
 name = "srp-validate"
 version = "0.1.0"
 dependencies = [
@@ -41,6 +47,10 @@ dependencies = [
  "weapon-pickup",
  "world-frame",
 ]
+
+[[package]]
+name = "voice-abi"
+version = "0.1.0"
 
 [[package]]
 name = "weapon-kit"

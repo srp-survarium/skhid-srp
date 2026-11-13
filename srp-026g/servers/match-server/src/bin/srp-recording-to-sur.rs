@@ -2,13 +2,13 @@
 //! from a match recording (`SRP_RECORD_DIR`, `match_server::v026g::record`).
 //!
 //! ```text
-//! srp-recording-to-sur <file.srprec> --game-modes <dir> [--out <dir>] [--stored] [--every <ms>]
+//! srp-recording-to-sur <file.srprec> [--out <dir>] [--stored] [--every <ms>]
 //! ```
 //!
-//! `--game-modes` is a folder holding the game's `gameplay/game_modes/*.options`
-//! files as they are in `resources.db` (the file the recording's map id names in
-//! `maps_dict` is used). The result is `<out>/<name>.sur`, `<name>` the recording's
-//! own file name; a summary is printed.
+//! The mode's config is the game data's (`SRP_GAME_DATA`): the
+//! `gameplay/game_modes/` file the recording's map id names in `maps_dict`,
+//! as the server's own conversion takes it. The result is `<out>/<name>.sur`,
+//! `<name>` the recording's own file name; a summary is printed.
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -29,12 +29,8 @@ fn main() -> ExitCode {
         !arg.starts_with("--") && Path::new(arg).extension().is_some_and(|e| e == "srprec")
     }) else {
         eprintln!(
-            "usage: srp-recording-to-sur <file.srprec> --game-modes <dir> [--out <dir>] [--stored] [--every <ms>]"
+            "usage: srp-recording-to-sur <file.srprec> [--out <dir>] [--stored] [--every <ms>]"
         );
-        return ExitCode::from(2);
-    };
-    let Some(modes) = value("--game-modes") else {
-        eprintln!("--game-modes <dir> is needed: the game's gameplay/game_modes/*.options files");
         return ExitCode::from(2);
     };
     // The players' dictionary of the recording's revision: without it the
@@ -78,15 +74,11 @@ fn main() -> ExitCode {
         eprintln!("{input}: no header note");
         return ExitCode::FAILURE;
     };
-    let config_path = PathBuf::from(&modes).join(config_name);
-    let config = match std::fs::read(&config_path) {
-        Ok(config) => config,
-        Err(error) => {
-            eprintln!("{}: {error}", config_path.display());
-            return ExitCode::FAILURE;
-        }
+    let Some(config) = sur_convert::config(&config_name) else {
+        eprintln!("{input}: the game data has no mode config {config_name}");
+        return ExitCode::FAILURE;
     };
-    let converted = sur_convert::convert_file(Path::new(input), &notes, &config, settings);
+    let converted = sur_convert::convert_file(Path::new(input), &notes, config, settings);
     let (file, report) = match converted {
         Ok(done) => done,
         Err(error) => {
@@ -140,6 +132,19 @@ fn main() -> ExitCode {
         report.worlds_disagreeing,
         report.first_world_ms
     );
+    println!(
+        "key frame worlds: {}; {} uploads are not ones",
+        match report.worlds_from {
+            sur_convert::WorldsSource::Accepted => "the ones the server took",
+            sur_convert::WorldsSource::Checked => {
+                "an older recording: the uploads that pass the world check"
+            }
+        },
+        report.worlds_untaken
+    );
+    for (time, why) in &report.refusals {
+        println!("world check refused the upload at {time} ms: {why}");
+    }
     println!(
         "replay: {} ms to {} ms, {} key frames ({:?} ...), body {} bytes, decoded {} bytes",
         report.start_ms,

@@ -797,7 +797,8 @@ lock_drop() {
 # Checks a release's two files here, before anything goes anywhere: the
 # ZIP's exe says patch revision <n>, the server data reads (srp-game-data
 # info), offers no patch above <n>, and offers patch_12 (the menus) from
-# revision 12 on. Sets ZIP_SHA ZIP_SIZE DATA_SHA, OFFERED (`patch_<n>
+# revision 12 on. Sets ZIP_SHA ZIP_SIZE DATA_SHA, EXE_SHA (the sha256 of
+# the ZIP's game exe, the file its players run), OFFERED (`patch_<n>
 # <sha256> <urls>` lines), OFFERED_GAME (the game's archive the data names,
 # as GAME_ROW is, or nothing), EXPECTED (/patches as JSON) and
 # EXPECTED_GAME (/game as JSON, or nothing). <scratch> is a folder for the
@@ -819,6 +820,7 @@ check_release_files() {
     fi
     # shellcheck disable=SC2034 # the callers use them
     ZIP_SHA=$(sha256_of "$zip") ZIP_SIZE=$(size_of "$zip") DATA_SHA=$(sha256_of "$data")
+    EXE_SHA=$(sha256_of "$scratch/exe")
     EXPECTED=$(patches_json "$OFFERED")
     EXPECTED_GAME=''
     if [[ -n $OFFERED_GAME ]]; then EXPECTED_GAME=$(GAME_ROW=$OFFERED_GAME list_game_json | jq -cS .); fi
@@ -878,6 +880,8 @@ served_patches() {
 #                    srp made at its start (srp-db.name names it)
 #   image.old image.new  the image ID that ran before the swap, and after
 #   min.old          SRP_MIN_PATCH_REVISION before (`none`: no line)
+#   released-exe.old the SRP_RELEASED_EXE_SHA256 line of .env before (empty:
+#                    no line)
 #   changed.txt      the server source files that changed, the ZIP's changed
 #                    entries (release.sh)
 #   src.tar image.tar.zst old-src.tgz  with server code: main's source and
@@ -1004,10 +1008,10 @@ current_min_revision() {
     if [[ -z $lines ]]; then say none; else say "${lines#*=}"; fi
 }
 
-# The command that sets SRP_MIN_PATCH_REVISION=<n> in .env: that line only
-# (added on a line of its own when missing); prints the line.
-min_revision_command() {
-    printf '%s' "cd $D && if grep -q '^SRP_MIN_PATCH_REVISION=' .env; then sed -i 's/^SRP_MIN_PATCH_REVISION=.*/SRP_MIN_PATCH_REVISION=$1/' .env; else { test -z \"\$(tail -c 1 .env)\" || echo; echo SRP_MIN_PATCH_REVISION=$1; } >> .env; fi && grep -E '^SRP_MIN_PATCH_REVISION=' .env"
+# The command that sets <NAME>=<value> in .env: that line only (added on a
+# line of its own when missing); prints the line.
+setting_command() {
+    printf '%s' "cd $D && if grep -q '^$1=' .env; then sed -i 's/^$1=.*/$1=$2/' .env; else { test -z \"\$(tail -c 1 .env)\" || echo; echo $1=$2; } >> .env; fi && grep -E '^$1=' .env"
 }
 
 # The restart: srp26 made anew on what is in place now (--force-recreate:
@@ -1031,7 +1035,8 @@ restart_command() {
 #   swap_prepare <revision>  srp26 stopped; srp.db, the old files, the image
 #                            ID, the setting kept in the folder; the image
 #                            tagged; the rollback written
-#   swap_server <revision>   the server data, the ZIP and the setting (and
+#   swap_server <revision>   the server data, the ZIP and the settings
+#                            (the revision; the ZIP's exe, EXE_SHA) (and
 #                            source) in place while srp26 is stopped, srp26
 #                            made anew on them, checked: running, its game
 #                            data line, /patches, /api/client-files
@@ -1047,6 +1052,8 @@ restart_command() {
 # rollback runs), finished.
 SWAP_STATE='' SWAP_SRC=0 SWAP_SRC_INPUTS='' SWAP_BEFORE_STOP=''
 OLD_MIN=none HAVE_ZIP=0 HAVE_DATA=0 OLD_PATCHES=''
+# Until check_release_files reads a ZIP (release.sh's dry run builds none).
+EXE_SHA='<the sha256 of the game exe in the ZIP>'
 RUN_CONTAINER='' RUN_IMAGE='' RUN_VOLUME='' RUN_VOLUME_DIR='' LATEST_IMAGE=''
 
 # The bots' data files (the switch ledger's F2, F3 and F7): private files the
@@ -1170,11 +1177,11 @@ stage_bot_data() {
 }
 
 # The command that keeps the old files in the folder: their sha256sum,
-# hard links (same file system as download/), the image ID, the setting (and
+# hard links (same file system as download/), the image ID, the settings (and
 # the source the release replaces).
 archive_command() {
     local c
-    c="cd $D && echo $(q "$RUN_IMAGE") > $REL/image.old && echo $OLD_MIN > $REL/min.old && : > $REL/old.sha"
+    c="cd $D && echo $(q "$RUN_IMAGE") > $REL/image.old && echo $OLD_MIN > $REL/min.old && { grep '^SRP_RELEASED_EXE_SHA256=' .env > $REL/released-exe.old || true; } && : > $REL/old.sha"
     ((HAVE_ZIP)) && c+=" && sha256sum download/$ZIP_NAME >> $REL/old.sha && ln download/$ZIP_NAME $REL/old-$ZIP_NAME"
     ((HAVE_DATA)) && c+=" && sha256sum download/$DATA_NAME >> $REL/old.sha && ln download/$DATA_NAME $REL/old-$DATA_NAME"
     if ((SWAP_SRC)); then
@@ -1187,6 +1194,7 @@ archive_command() {
 rollback_env() {
     printf '%s=%q\n' TARGET_DIR "$TARGET_DIR" COMPOSE "$TARGET_COMPOSE" IMAGE "$IMAGE" \
         OLD_IMAGE "$RUN_IMAGE" VOLUME_DIR "$RUN_VOLUME_DIR" BACKUP_BEFORE "$BACKUP_BEFORE" OLD_MIN "$OLD_MIN" NEW_MIN "$1" \
+        NEW_EXE_SHA "$EXE_SHA" \
         HAVE_ZIP "$HAVE_ZIP" HAVE_DATA "$HAVE_DATA" SRC "$SWAP_SRC" BOT_DATA "$BOT_DATA" ZIP_NAME "$ZIP_NAME" DATA_NAME "$DATA_NAME"
 }
 
@@ -1301,7 +1309,8 @@ show_srp_log() {
 
 # After a restart: the container up, its log's game data line of the new
 # server data, $TARGET_SITE/patches exactly EXPECTED (retried while srp
-# starts). Prints what failed and returns 1.
+# starts); and what its log says of the release's exe (EXE_SHA). Prints what
+# failed and returns 1.
 check_server() {
     local state line count patches='' status=000 _
     state=$(wait_container)
@@ -1310,7 +1319,9 @@ check_server() {
         return 1
     fi
     say "srp26: ${state#ok }"
-    line=$(on_target "cd $D && $TARGET_COMPOSE logs --no-log-prefix --tail=500 srp26 2>&1 | grep 'game data:' | tail -n 1" || true)
+    # The whole log of the container just made: a first start can log hundreds of
+    # lines after the game data line (rev54: the silver pay-back, a line an account).
+    line=$(on_target "cd $D && $TARGET_COMPOSE logs --no-log-prefix srp26 2>&1 | grep 'game data:' | tail -n 1" || true)
     count=$(grep -c . <<<"$OFFERED" || true)
     if [[ $line != *"; $count patch(es) offered at /patches"* ]]; then
         say "srp26's log has no game data line of the new server data ($count patch(es)): ${line:-none}"
@@ -1334,6 +1345,9 @@ check_server() {
         return 1
     fi
     say "/patches: $patches, as the server data says"
+    # Said only: an srp from before the setting says nothing of it.
+    line=$(on_target "cd $D && $TARGET_COMPOSE logs --no-log-prefix srp26 2>&1 | grep -F \"Executables: the release's own is sha256 $EXE_SHA\" | tail -n 1" || true)
+    say "log: ${line:-nothing of SRP_RELEASED_EXE_SHA256=$EXE_SHA (an srp from before it: the first games of this exe are asked for their file)}"
     if [[ -n ${EXPECTED_GAME:-} ]]; then
         status=$(HTTP_TIMEOUT=20 http_get "$TARGET_SITE/game" "$SWAP_WORK/game")
         patches=$(jq -cS . "$SWAP_WORK/game" 2>/dev/null || true)
@@ -1392,8 +1406,12 @@ swap_server() {
     SWAP_DONE+=("in place: download/$DATA_NAME")
     write_on live "$(put_command "$ZIP_NAME")"
     SWAP_DONE+=("in place: download/$ZIP_NAME")
-    write_on live "$(min_revision_command "$1")"
+    write_on live "$(setting_command SRP_MIN_PATCH_REVISION "$1")"
     SWAP_DONE+=("SRP_MIN_PATCH_REVISION=$1 in .env (was $OLD_MIN)")
+    # The exe this release ships: the match server reads it at its start and
+    # asks no game that reports it for its file (docs/notes/module-report.md).
+    write_on live "$(setting_command SRP_RELEASED_EXE_SHA256 "$EXE_SHA")"
+    SWAP_DONE+=("SRP_RELEASED_EXE_SHA256=$EXE_SHA in .env (the line before: $REL/released-exe.old)")
     if ((SWAP_SRC)); then
         write_on live "cd $D && tar -xf $REL/src.tar && rm -rf $REL/src"
         SWAP_DONE+=("main's source unpacked into $TARGET_DIR")

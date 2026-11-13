@@ -10,6 +10,7 @@ use survarium::dictionary::PROFILE_SLOTS;
 use survarium::v021d::account::{Account as GameAccount, Item, Profile};
 use survarium::v021d::quests::QuestInstance;
 
+use crate::nickname_key::{Named, Rename, renames};
 use crate::{Ban, IpBan, Net};
 
 use super::{
@@ -186,6 +187,17 @@ pub(super) const MIGRATIONS: &[&str] = &[
     ALTER TABLE accounts ADD COLUMN chat_ban_reason TEXT;
     ALTER TABLE accounts ADD COLUMN chat_ban_until  INTEGER;
     ",
+    // 7: nonempty daily AFK history, saved with the account and its ban.
+    "
+    CREATE TABLE afk_kicks (
+        account_id INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+        utc_day INTEGER NOT NULL CHECK (utc_day >= 0),
+        kicks INTEGER NOT NULL CHECK (kicks BETWEEN 1 AND 4294967295)
+    );
+    ",
+    // 8: one nickname per Unicode-case/Cyrillic-lookalike key. The accounts
+    // that share one are renamed first ([`rename_shared_nicknames`]).
+    "CREATE UNIQUE INDEX accounts_unique_nickname ON accounts(name COLLATE skhid_nickname);",
 ];
 
 /// The child tables of an account, children of children first.
@@ -202,6 +214,7 @@ const CHILD_TABLES: &[&str] = &[
     "friends",
     "ignored",
     "notices",
+    "afk_kicks",
 ];
 
 pub struct SqliteRepository {
@@ -240,8 +253,12 @@ impl SqliteRepository {
     }
 }
 
-fn connect(path: &Path) -> Result<Connection, PersistError> {
+/// A connection to srp.db, for the account store and the 0.26g tables alike.
+/// Every one knows the collation of the nickname index: without it SQLite
+/// refuses a write to `accounts` and a `VACUUM`.
+pub(crate) fn connect(path: &Path) -> Result<Connection, PersistError> {
     let connection = Connection::open(path)?;
+    crate::nickname_key::sqlite_collation(&connection)?;
     let _mode: String = connection.query_row("PRAGMA journal_mode = WAL", [], |row| row.get(0))?;
     connection.execute_batch(
         "PRAGMA foreign_keys = ON;
@@ -267,13 +284,65 @@ fn check_version(connection: &Connection) -> Result<i64, PersistError> {
 /// Apply the steps the file lacks, up to `target`, each in its own
 /// transaction with its version.
 pub(super) fn migrate(connection: &Connection, target: usize) -> Result<(), PersistError> {
+    crate::nickname_key::sqlite_collation(connection)?;
     let found = check_version(connection)? as usize;
     for (index, step) in MIGRATIONS.iter().enumerate().take(target).skip(found) {
         let transaction = connection.unchecked_transaction()?;
+        // Step 8's index needs the rows unique first.
+        if index + 1 == 8 {
+            rename_shared_nicknames(&transaction)?;
+        }
         transaction.execute_batch(step)?;
         transaction.pragma_update(None, "user_version", index as i64 + 1)?;
         transaction.commit()?;
         log::info!("Database schema upgraded to version {}", index + 1);
+    }
+    Ok(())
+}
+
+/// Before step 8's index, in its transaction: of the accounts whose names
+/// have one key the one with the most 0.26g experience keeps its name (the
+/// lowest id among equals) and the others are renamed
+/// ([`crate::nickname_key::renames`]), in every column that holds the name.
+/// Logins, passwords and everything an account owns stay as they are.
+fn rename_shared_nicknames(transaction: &Transaction) -> Result<(), PersistError> {
+    // The 0.26g accounts, in a file that has their tables: the experience,
+    // and their copy of the name.
+    let game: bool = transaction.query_row(
+        "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'g26_accounts')",
+        [],
+        |row| row.get(0),
+    )?;
+    let experience = if game {
+        "COALESCE((SELECT exp_total FROM g26_accounts WHERE account_id = accounts.id), 0)"
+    } else {
+        "0"
+    };
+    let accounts = transaction
+        .prepare(&format!(
+            "SELECT id, login, name, {experience} FROM accounts ORDER BY id"
+        ))?
+        .query_map([], |row| {
+            Ok(Named {
+                id: row.get(0)?,
+                login: row.get(1)?,
+                name: row.get(2)?,
+                experience: row.get(3)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    for Rename { id, from, to } in renames(&accounts) {
+        transaction.execute(
+            "UPDATE accounts SET name = ?2, game_name = ?2 WHERE id = ?1",
+            params![id, to],
+        )?;
+        if game {
+            transaction.execute(
+                "UPDATE g26_accounts SET name = ?2 WHERE account_id = ?1",
+                params![id, to],
+            )?;
+        }
+        log::warn!("Account {id}: the nickname {from:?} was another account's; it is now {to:?}");
     }
     Ok(())
 }
@@ -373,6 +442,7 @@ impl AccountRepository for SqliteRepository {
                         .get::<_, Option<String>>(16)?
                         .and_then(|ip| ip.parse().ok()),
                     chat_ban: chat_ban(row.get(17)?, row.get(18)?),
+                    afk_kicks: None,
                 })
             })?;
             for row in rows {
@@ -395,9 +465,26 @@ impl AccountRepository for SqliteRepository {
         })
     }
 
-    fn save_account(&mut self, record: &AccountRecord) -> Result<(), PersistError> {
+    fn save_accounts(&mut self, records: &[AccountRecord]) -> Result<(), PersistError> {
+        crate::identity::unique_names(
+            records
+                .iter()
+                .map(|record| (record.id, record.name.as_str())),
+        )?;
         let transaction = self.connection.transaction()?;
-        write_account(&transaction, record)?;
+        // Release just this batch's old names inside the transaction. This
+        // permits A->B, B->A after intermediate renames between saver passes.
+        // Control characters cannot be claimed through registration/rename;
+        // these temporary values are never visible outside the transaction.
+        for record in records {
+            transaction.execute(
+                "UPDATE accounts SET name = char(1) || id WHERE id = ?1",
+                [record.id],
+            )?;
+        }
+        for record in records {
+            write_account(&transaction, record)?;
+        }
         transaction.commit()?;
         Ok(())
     }
@@ -499,6 +586,19 @@ fn load_children(
     record: &mut AccountRecord,
 ) -> Result<(), PersistError> {
     let id = record.id;
+    let kicks: Option<(u64, u32)> = transaction
+        .query_row(
+            "SELECT utc_day, kicks FROM afk_kicks WHERE account_id = ?1",
+            [id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()?;
+    record.afk_kicks = kicks
+        .map(|(day, count)| {
+            crate::afk::DailyKicks::parse(day, count)
+                .ok_or_else(|| PersistError::BadRow(id, "zero AFK kick count".into()))
+        })
+        .transpose()?;
     let game = &mut record.game;
 
     let mut statement =
@@ -696,6 +796,7 @@ fn write_account(transaction: &Transaction, record: &AccountRecord) -> Result<()
         notices,
         ban,
         chat_ban,
+        afk_kicks,
         last_ip,
     } = record;
     let GameAccount {
@@ -764,6 +865,13 @@ fn write_account(transaction: &Transaction, record: &AccountRecord) -> Result<()
     )?;
     for table in CHILD_TABLES {
         transaction.execute(&format!("DELETE FROM {table} WHERE account_id = ?1"), [id])?;
+    }
+    if let Some(kicks) = afk_kicks {
+        let (day, count) = kicks.stored();
+        transaction.execute(
+            "INSERT INTO afk_kicks (account_id, utc_day, kicks) VALUES (?1, ?2, ?3)",
+            params![id, day, count],
+        )?;
     }
 
     let mut statement = transaction

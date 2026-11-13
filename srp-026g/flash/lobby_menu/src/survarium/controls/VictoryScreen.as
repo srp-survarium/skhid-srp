@@ -1495,8 +1495,10 @@ package survarium.controls
          this.droppedItem.visible = true;
          this.treasureTextfield.visible = true;
          this.buyTreasureMaps.visible = true;
-         this.txAlly.visible = true;
-         this.txEnemy.visible = true;
+         // A free for all: one ranking over both columns (PlayerList.ranked), no team's name or score.
+         var ranked:Boolean = value.game_mode == GameMode.FREE_FOR_ALL;
+         this.txAlly.visible = !ranked;
+         this.txEnemy.visible = !ranked;
          this.iconsTeam1.visible = true;
          this.iconsTeam2.visible = true;
          this.treasureCount.visible = true;
@@ -1606,7 +1608,7 @@ package survarium.controls
          this.best_players_container.visible = true;
          trace("victoryPlate");
          this.victoryPlate.visible = true;
-         var showScore:Boolean = value.show_score == true || value.show_score == undefined;
+         var showScore:Boolean = !ranked && (value.show_score == true || value.show_score == undefined);
          value.result = value.team1_score + ":" + value.team2_score;
          if(showScore)
          {
@@ -1631,6 +1633,7 @@ package survarium.controls
             this.victoryPlate.team2LastPlayers.value = value.team_2_players_count;
          }
          this.animateLayout();
+         this.players_list.ranked = ranked;
          if(value.players)
          {
             this.players_list.addPlayersList(value.players);

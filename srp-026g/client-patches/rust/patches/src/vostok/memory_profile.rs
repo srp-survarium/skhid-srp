@@ -162,6 +162,13 @@ impl<T> Room<T> {
         (self.items.as_ptr() as usize as u32, self.bytes)
     }
 
+    /// The items, while the room is had (dropped, the pages go back).
+    pub fn items(&mut self) -> &mut [T] {
+        // SAFETY: the pages are this Room's alone, every item written by
+        // reserve; the borrow is the Room's, so it ends before its Drop.
+        unsafe { core::slice::from_raw_parts_mut(self.items.as_ptr(), self.count) }
+    }
+
     /// The items, kept for good: the pages are never given back.
     pub fn keep(self) -> &'static mut [T] {
         let room = core::mem::ManuallyDrop::new(self);
@@ -254,8 +261,9 @@ fn heap_call(frame: Option<raw::ProfileFrame>) -> HeapCall {
     }
 }
 
-/// Wrappers unwound at most (the deepest known: mt_allocator::call_realloc,
-/// its realloc, pt3realloc over mspace_realloc: three).
+/// Wrappers unwound at most (the deepest known: xrSysAllocMalloc::Alloc,
+/// Scaleform's malloc, mt_allocator's malloc_impl, pt3malloc over
+/// mspace_malloc: four).
 const UNWOUND: usize = 6;
 
 /// The first return address out of the allocator layers the game's call
@@ -280,6 +288,9 @@ unsafe fn caller(mut call: raw::GameCall) -> u32 {
                 raw::image::MT_REALLOC_RETURN => call.mt_realloc_call(),
                 raw::image::MT_CALL_REALLOC_RETURN => call.mt_call_realloc_call(),
                 raw::image::MT_MALLOC_IMPL_RETURN => call.mt_malloc_impl_call(),
+                // Scaleform's every block: its heaps' own callers are the sites
+                raw::image::SCALEFORM_MALLOC_RETURN => call.scaleform_malloc_call(),
+                raw::image::SCALEFORM_ALLOC_RETURN => call.scaleform_alloc_call(),
                 site => return site,
             }
         };

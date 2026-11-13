@@ -883,6 +883,10 @@ st_crosshair_static_option	Статический прицел
 st_crosshair_type_option	Выбор прицела
 st_crouch_action	Присесть (удерж.)
 st_crouch_toggle_action	Присесть
+st_cs_mp_bath_name	Бассейн
+st_cs_mp_military_1_name	Армейские склады
+st_cs_mp_rembasa_name	Ремонтная база
+st_cs_training_camp_name	Тренировочный лагерь
 st_ct_max_members_count_error	Ошибка добавления. В клановой команде уже находится максимальное количество игроков.
 st_current_value	\nТекущее значение:
 st_cz_75_description	Чешский самозарядный пистолет, патрон: 9x19. Один из самых копируемых пистолетов холодной войны.
@@ -916,6 +920,10 @@ st_dispersion_from_hip_description	Точность при стрельбе от
 st_dispersion_from_hip_name	Точность
 st_dispersion_movement_influence_description	Точность в движении:
 st_dispersion_movement_influence_name	Крепкий хват
+st_distance_detail_high	Высокая
+st_distance_detail_maximum	Максимум
+st_distance_detail_normal	Обычная
+st_distance_detail_option	Детализация
 st_dont_have_permission	Недостаточно прав для выполнения действия.
 st_drop	Снять
 st_drop_action	Выбросить
@@ -1189,6 +1197,8 @@ st_finish_match_mode_04_winner_message	Победа! Все противники
 st_finish_match_mode_05_draw_message	Ничья. Команды исследовали поровну
 st_finish_match_mode_05_loser_message	Поражение. Команда противника завершила исследование аномальной активности
 st_finish_match_mode_05_winner_message	Победа! Ваша команда завершила исследование аномальной активности
+st_finish_match_mode_08_loser_message	Поражение. Больше всех убийств не у вас
+st_finish_match_mode_08_winner_message	Победа! У вас больше всех убийств
 st_first_weapon_action	Оружие 1
 st_fix	Починить
 st_fn_fnc_description	Бельгийская штурмовая винтовка под боеприпас 5.56х45. Разработана FN Herstal в 70-х годах для бельгийской армии; лицензионные версии служат в Швеции и Индонезии. Магазин на 30 патронов. Огонь: одиночный и автоматический.
@@ -1238,7 +1248,7 @@ st_health_regen_correction_perc_name	Регенерация
 st_hide_ammo	Спрятать аммуницию
 st_hide_interface_action	Скрыть интерфейс
 st_hide_quest_list	Скрыть окно заданий
-st_hide_spam_option	Скрывать спам
+st_hide_spam_option	Отключить голосовой чат
 st_hide_squad_list	Скрыть окно отряда
 st_hk416_description	Немецкая штурмовая винтовка под боеприпас 5.56х45. Развитие AR-15 от Heckler & Koch с газовым поршнем короткого хода, появилась в середине 2000-х; служит в спецназе и армиях НАТО. Прицел EOTech 552. Магазин на 30 патронов. Огонь: одиночный и автоматический.
 st_hk416_name	H&K 416А5
@@ -1513,6 +1523,8 @@ st_mode_04_description	Закрепите позиции вашей группы
 st_mode_04_name	Командный бой
 st_mode_05_description	Ваша задача - захватить контроль над мобильными исследовательскими установками. Каждая установка, захваченная вашей командой, производит очки исследования аномальной активности. Побеждает команда, набравшая больше очков в конце матча.
 st_mode_05_name	Исследование
+st_mode_08_description	Каждый сам за себя. Матч заканчивается, когда кто-то наберёт нужное число убийств или истечёт время. Побеждает боец с наибольшим числом убийств.
+st_mode_08_name	Все против всех
 st_modification_screen_edit_decal_hint	Чтобы изменить размер и положение нашивки, кликните на ее слот
 st_modification_screen_hint	Перетяните камуфляж или нашивку из вашего инвентаря в соответствующий слот модификации предмета
 st_modified	Модифицировано
@@ -1765,7 +1777,7 @@ st_profile_selection_warning	+20 секунд времени возрожден�
 st_profile_warning_weapon	Профиль не активен: нет оружия
 st_profile_warning_weapon_ammo	Профиль не активен: недостаточно патронов в рюкзаке
 st_profile_warning_weapon_ammo_in_inv	Профиль не активен: недостаточно патронов на складе
-st_ptt_action	PTT
+st_ptt_action	Говорить (удерживать)
 st_ptt_button_option	PTT
 st_put_item	Положить ({USE})
 st_quest_change_warning	Внимание! При смене задания лояльность группировки к вам понизится!
@@ -2162,6 +2174,8 @@ st_snp_steady_breath_desc	Вы быстрее восстанавливаетес
 st_snp_steady_breath_name	Ровный выдох
 st_snp_steady_grip_desc	Повышает точность при стрельбе в движении.
 st_snp_steady_grip_name	Верный хват
+st_soc_ug_depository_name	Хранилище
+st_soc_ug_station_name	Станция
 st_soc_vepr_description	Российский самозарядный карабин семейства «Вепрь» под боеприпас 7.62х39. Выпускается заводом «Молот» в Вятских Полянах на усиленной ствольной коробке пулемета РПК как охотничье и спортивное оружие. Оснащен магазином на 10 патронов. Только одиночный огонь.
 st_soc_vepr_name	СОК-94
 st_socom16_description	ОПИСАНИЕ НЕ ГОТОВО!!!
@@ -2244,6 +2258,7 @@ st_srp_ban_reason_threats	Угрозы в реальной жизни.
 st_srp_crosshair_dynamic	Динамический прицел
 st_srp_crosshair_hidden	Скрытый прицел
 st_srp_crosshair_static	Статический прицел
+st_srp_deep_pockets_name	Хабарщик
 st_srp_equipment029_bm_back_6_desc	Описание пока недоступно.
 st_srp_equipment029_bm_back_6_name	Рюкзак часового
 st_srp_equipment029_bm_back_8_desc	Описание пока недоступно.
@@ -2511,6 +2526,11 @@ st_srp_hud_mute_not_sent	Не отправлено
 st_srp_hud_muted	Чат заглушён
 st_srp_hud_unmute	Включить чат
 st_srp_hud_unmuted	Чат включён
+st_srp_hud_voice_mute	Заглушить голос
+st_srp_hud_voice_muted	Голос заглушён
+st_srp_hud_voice_not_muted	Голосовой чат недоступен
+st_srp_hud_voice_unmute	Включить голос
+st_srp_hud_voice_unmuted	Голос включён
 st_srp_inv_ammo_range	Дальность
 st_srp_inv_bullet_speed	Скорость пули
 st_srp_inv_defuse_time	Время обезвреживания
@@ -2518,6 +2538,7 @@ st_srp_inv_fuse_time	Время запала
 st_srp_inv_material_pierce	Пробивает
 st_srp_inv_pellets	Дробин
 st_srp_inv_pocket_units	Место в кармане
+st_srp_inv_pocket_units_whole	∞
 st_srp_inv_stamina_damage	Урон выносливости
 st_srp_inv_throw_speed	Скорость броска
 st_srp_inventory_search	Поиск
@@ -2559,6 +2580,10 @@ st_srp_login_ban_forever	Бан бессрочный.
 st_srp_map_chemical_plant	Химзавод
 st_srp_map_chemical_plant_v011	Химзавод (v0.11)
 st_srp_map_cologne	Кельн
+st_srp_map_cs_mp_bath	Бассейн
+st_srp_map_cs_mp_military_1	Армейские склады
+st_srp_map_cs_mp_rembasa	Ремонтная база
+st_srp_map_cs_training_camp	Тренировочный лагерь
 st_srp_map_london	Лондон
 st_srp_map_mamayev_kurgan	Мамаев курган
 st_srp_map_mamayev_kurgan_v021	Мамаев курган (v0.21)
@@ -2566,6 +2591,8 @@ st_srp_map_names_option	Имена на карте
 st_srp_map_rudnya	Рудня
 st_srp_map_rudnya_v069	Рудня (v0.69)
 st_srp_map_school	Школа
+st_srp_map_soc_ug_depository	Хранилище
+st_srp_map_soc_ug_station	Станция
 st_srp_map_tarakanovsky_fort	Таракановский форт
 st_srp_map_vector	Лаборатория "Вектор"
 st_srp_map_vostok	РЛС "Восток"
@@ -2627,6 +2654,7 @@ st_srp_medicine_sprint_stamina	Энергия на спринт
 st_srp_melee_knockback	Отбрасывание прикладом
 st_srp_mode_blackout	Защитное устройство: блэкаут
 st_srp_mode_chargers	Защитное устройство: зарядники
+st_srp_mode_free_for_all	Все против всех
 st_srp_mode_protective_device	Защитное устройство
 st_srp_mode_research	Исследование
 st_srp_mode_team_deathmatch	Командный бой
@@ -2671,6 +2699,9 @@ st_srp_pvb_searching	Сначала отмените поиск
 st_srp_pvb_team_size	%1$s на %2$s
 st_srp_pvb_title	Игрок против ботов
 st_srp_pvb_unknown_choice	Эта карта или размер команд сейчас недоступны
+st_srp_regeneration_health	Регенерация здоровья
+st_srp_regeneration_label	Регенерация
+st_srp_regeneration_stamina	Восстановление энергии
 st_srp_renderer_dx11	DirectX 11
 st_srp_renderer_dxvk	Vulkan/DXVK
 st_srp_renderer_option	Рендер
@@ -2912,6 +2943,7 @@ st_srp_weapon_reload	Перезарядка
 st_srp_weapon_reload_empty	Перезарядка (пустой)
 st_srp_weapon_reload_tactical	Тактическая перезарядка
 st_srp_weapon_shift_hint	Shift: детали · Alt: в бою
+st_srp_weapon_slot_closed	%1$s: нет второго оружия
 st_srp_weapon_spread_growth	Скорость роста разброса
 st_srp_weapon_spread_max	Предел роста разброса
 st_srp_weapon_spread_per_shot	Разброс от выстрела
@@ -2949,6 +2981,7 @@ st_start_match_welcome_message	Найдите батареи и доставьт
 st_start_match_welcome_message_2	Найдите и защитите места зарядки батарей!
 st_start_match_welcome_message_3	Уничтожьте как можно больше противников!
 st_start_match_welcome_message_5	Найдите и захватите исследовательские установки!
+st_start_match_welcome_message_8	Все против всех. Побеждает первый, кто наберёт %1$s убийств
 st_statistic_sync_text	Получение статистики матча
 st_statistics_daily_bonus	Ежедневный бонус
 st_statistics_equipment_bonus	Бонус экипировки

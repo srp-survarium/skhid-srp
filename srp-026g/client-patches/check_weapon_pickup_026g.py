@@ -322,7 +322,8 @@ def main():
 
     r.death()
     assert r.queries == [], "a replayed death asks again"
-    print("ok the same life's death again (a rollback replaying it): no second cook")
+    assert sum("pickup: death hook: place 5 " in l for l in r.log) == 1, r.log
+    print("ok the same life's death again (a rollback replaying it): no second cook, its line said once")
 
     r.complete(q, COOKED)
     assert r.read(COOKED + 0xD0) == 2 and recipe in r.frees and copy in r.live
@@ -336,6 +337,8 @@ def main():
     r.remove(PLAYER, respawn)
     assert any("its body left the world: the drop stays, alone, the gun of place 5 kit 1 slot 10 of place 5 at %d ms"
                % respawn in l for l in r.log), r.log
+    r.remove(PLAYER, respawn)
+    assert sum("its body left the world" in l for l in r.log) == 1, "a replayed removal's line said again"
     r.step(respawn + 600_000)
     assert r.read(COOKED + 0xD0) == 2, "freed after the respawn (the drop stays until the player dies again)"
     gone = respawn + 600_000                            # its next death, holding nothing: no drop now
@@ -2649,6 +2652,13 @@ def stage2b(patched):
     assert r.hud() == [("st_weapon_pick_up", NAME)], r.invokes()
     assert r.hud() == [("st_weapon_pick_up", NAME)]
     assert sights(r) == ["offered"], "once per drop and reason"
+    # The picker turning away and back, again and again: each sight once a body.
+    for _ in range(3):
+        r.eye([1., 0., 0.], [0., 1.0, 0.])
+        r.hud()
+        r.eye([0., 0., 1.], [0., 1.0, 0.])
+        assert r.hud() == [("st_weapon_pick_up", NAME)]
+    assert sights(r) == ["offered", "in reach, not aimed at its box"], sights(r)
     boxes = [l for l in r.log if "the gun box of place 5" in l]
     assert len(boxes) == 1 and boxes[0].endswith(
         "place 3: the gun box of place 5 at (0, 1000, 1000), half sizes (50, 50, 500) mm"), boxes

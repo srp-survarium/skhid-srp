@@ -31,6 +31,8 @@
 //!   side, are in or can still come, the match ends before its countdown
 //!   as not made ([`MatchEnd::NotMade`]): nothing of it counts, and the
 //!   lobby gives its room the vote and the wait again.
+//! - **A free-for-all** (`docs/notes/ffa.md`) has no two sides: its room's
+//!   minimum alone starts it or calls it off.
 //! - **A minimum of one** (a private room, started by its owner with whoever
 //!   is in; the owner's of 2026-10-26): no side needs a player, so a match of one starts 1 v 0
 //!   (its one place is the clients' whole number, `floor(0.8 × 1)` = 0:
@@ -180,8 +182,10 @@ impl Game {
         }
         let minimum = usize::from(minimum);
         // A player a side, except in a match of one's minimum (a private
-        // room's 1 v 0): one side may be empty there.
-        let both_sides = minimum > 1;
+        // room's 1 v 0): one side may be empty there. A free-for-all has no
+        // two sides to fill: each place is a side of its own
+        // (`maps::free_for_all_team`), all counted as one here.
+        let both_sides = minimum > 1 && self.game_mode() != RuleMode::FreeForAll;
         let (now_in, could) = (humans_in[0] + humans_in[1], humans_able[0] + humans_able[1]);
         if could < minimum || (both_sides && humans_able.contains(&0)) {
             log::warn!(

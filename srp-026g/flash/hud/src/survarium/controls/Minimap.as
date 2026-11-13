@@ -79,7 +79,13 @@ package survarium.controls
          "level_08":new Map_08(),
          "level_09":new Map_09(),
          "v011e_level_04":new minimap_zv11e(),
-         "v011e_level_03":new minimap_bv11()
+         "v011e_level_03":new minimap_bv11(),
+         "cs_mp_bath":new minimap_cs_mp_bath(),
+         "cs_mp_military_1":new minimap_cs_mp_military_1(),
+         "cs_training_camp":new minimap_cs_training_camp(),
+         "cs_mp_rembasa":new minimap_cs_mp_rembasa(),
+         "soc_ug_station":new minimap_soc_ug_station(),
+         "soc_ug_depository":new minimap_soc_ug_depository()
       };
       
       protected var _objects:Dictionary = new Dictionary(true);
@@ -116,6 +122,11 @@ package survarium.controls
       protected var _names:Object = {};
 
       protected var _namesShown:Boolean = false;
+
+      // A map not shown (the Tab map while its list is closed) is held: it draws no update, it keeps
+      // the last players' (setPlayersData) and the local player's (updatePlayerPos) and draws them
+      // when it shows again. Null while the map follows every update.
+      private var _held:HeldUpdates = null;
       
       public function Minimap()
       {
@@ -159,6 +170,38 @@ package survarium.controls
             "posX":14.23,
             "posY":-42.196
          };
+         // The STALKER maps (srp-026g/scripts/stalker-maps/ui_images.py; the frame of
+         // resource-porter's render_minimap.py, docs/notes/stalker-maps.md).
+         this._minimapProps.cs_mp_bath = {
+            "size":73.143,
+            "posX":-7.02,
+            "posY":15.03
+         };
+         this._minimapProps.cs_mp_military_1 = {
+            "size":141.527,
+            "posX":-5.845,
+            "posY":12.13
+         };
+         this._minimapProps.cs_training_camp = {
+            "size":101.818,
+            "posX":17.81,
+            "posY":4.03
+         };
+         this._minimapProps.cs_mp_rembasa = {
+            "size":89.164,
+            "posX":2.285,
+            "posY":-7.7
+         };
+         this._minimapProps.soc_ug_station = {
+            "size":139.055,
+            "posX":170.25,
+            "posY":-53.8
+         };
+         this._minimapProps.soc_ug_depository = {
+            "size":73.143,
+            "posX":30.285,
+            "posY":6.97
+         };
          this._minimapProps.level_05 = {
             "size":90,
             "posX":-1.096,
@@ -200,7 +243,43 @@ package survarium.controls
       
       public function setPlayersData(value:Object) : void
       {
+         if(this._held)
+         {
+            this._held.players = value;
+            return;
+         }
          this.setData(value);
+      }
+
+      public function get held() : Boolean
+      {
+         return this._held != null;
+      }
+
+      // Held, updates wait (the last of each kind); released, the last ones are drawn at once, the
+      // local player's first (the players' icons are told apart against its team), as if it had
+      // followed them.
+      public function set held(value:Boolean) : void
+      {
+         if(value == this.held)
+         {
+            return;
+         }
+         if(value)
+         {
+            _held = new HeldUpdates();
+            return;
+         }
+         var updates:HeldUpdates = this._held;
+         _held = null;
+         if(updates.local)
+         {
+            this.updatePlayerPos(updates.local[0],updates.local[1],updates.local[2],updates.local[3]);
+         }
+         if(updates.players)
+         {
+            this.setData(updates.players);
+         }
       }
 
       // The Tab list's rows ({id, name}, root.list_set_players): a name for each place listed.
@@ -323,6 +402,10 @@ package survarium.controls
       public function clear_minimap() : void
       {
          var _inst:MinimapObject = null;
+         if(this._held)
+         {
+            _held = new HeldUpdates();
+         }
          this._objects = new Dictionary(true);
          this._objects_static = new Dictionary(true);
          this._researchUnits = [];
@@ -371,7 +454,10 @@ package survarium.controls
             i++;
          }
          this.clear_objects(this._objects);
-         this.showNames();
+         if(this._namesShown)
+         {
+            this.showNames();
+         }
          this.update_objects();
       }
 
@@ -583,6 +669,11 @@ package survarium.controls
       
       public function updatePlayerPos(posX:Number, posY:Number, rot:Number, team:uint = 23) : void
       {
+         if(this._held)
+         {
+            this._held.local = [posX,posY,rot,team];
+            return;
+         }
          this._my_team = team;
          if(this._centerPlayer)
          {
@@ -761,3 +852,11 @@ package survarium.controls
    }
 }
 
+// What a held Minimap keeps: the last players' update (setPlayersData) and the local player's
+// (updatePlayerPos: x, y, rotation, team), each null until one comes.
+class HeldUpdates
+{
+   public var players:Object = null;
+
+   public var local:Array = null;
+}

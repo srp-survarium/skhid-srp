@@ -114,7 +114,13 @@
     "projects/v069d_level_01/day_2/client_project",
     "projects/v069d_level_01/day_3/client_project",
     "projects/v069d_level_01/day_4/client_project",
-    "projects/v069d_level_01/day_5/client_project"
+    "projects/v069d_level_01/day_5/client_project",
+    "projects/v010b_cs_mp_bath/day_4/client_project",
+    "projects/v010b_cs_mp_military_1/day_4/client_project",
+    "projects/v010b_cs_mp_rembasa/day_4/client_project",
+    "projects/v010b_cs_training_camp/day_4/client_project",
+    "projects/v010b_soc_ug_depository/day_4/client_project",
+    "projects/v010b_soc_ug_station/day_4/client_project"
    ],
    "expected_counts": [
     263,
@@ -217,8 +223,8 @@
     538,
     488,
     502,
-    282,
-    280,
+    352,
+    350,
     330,
     328,
     423,
@@ -228,7 +234,13 @@
     463,
     526,
     442,
-    459
+    459,
+    10,
+    28,
+    33,
+    43,
+    15,
+    15
    ],
    "list": "client_objects",
    "unique_key": "full_name",

@@ -208,6 +208,7 @@ that rule is mended when the accounts load, and never plays.
 | `SRP_BALANCE_BATTERY_LEAD` | 0.55 | In a match being played (modes 2, 3): what a battery of lead counts for, in players, for the side that leads. Used where a player who comes into a room while its match is played goes, and in the log's prediction (`matchmaking.md` §9) |
 | `SRP_BALANCE_TICKET_LEAD` | 0.2 | The same for a ticket of lead in a Team Deathmatch, or a point in Research |
 | `SRP_MIN_PATCH_REVISION` | none | A game whose exe says a patch revision under this one is refused at its sign-in with the game's own "You're using an outdated version of the game." (login answer 0x22), and a lobby sign-in with a session it had before the restart is refused and the session ended, so a game that reconnects goes to its login screen within about half a minute and is refused there. It never gets the lobby's sign-in, which names items (the price list) its game may lack (`patch_check.rs`). The test bots are never refused. Left out or 0: every game is let in; not a number from 0 to 255 stops srp at start, and so does a number under the newest patch of the server's game data (`resources.db.patch_<n>` is released with revision n: an older game lacks its items), with a line that says what to set. The web page says it to the players' updater (`/api/client-files`, `min-revision`), which keeps PLAY off for an older game exe |
+| `SRP_RELEASED_EXE_SHA256` | none | The sha256 (64 hex digits) of the game exe in the players' download, which the release writes with `SRP_MIN_PATCH_REVISION` (`release/lib.sh`, `swap_server`) and the match server reads once, at its start. A game that reports this exe is answered as one whose file is stored: it is not asked for the file and nothing is written. Every other exe the server has not stored is collected (`notes/module-report.md`, "Executable identity and collection"). Unset: every unknown exe is collected, the release's own too. A value that is not 64 hex digits is said in the log and taken as unset |
 | `SRP_MATCH_MODES` | `2,3,4,5,6` | The modes played, by their lobby numbers (5: Research, 6: Blackout; each on data with its maps) |
 | `SRP_MATCH_MAPS` | every playable map of those modes | `maps_dict` ids, e.g. `117` (Team Deathmatch on level_01) for a first test: a room's pool by default, and what a clan team's match is drawn from |
 | `SRP_ROOMS_EXTRA_MAPS` | none | Playable `maps_dict` ids a room's maker may add to its pool besides `SRP_MATCH_MAPS` (the experimental maps) |
@@ -239,6 +240,7 @@ Each is an escape hatch for one thing not proven against a live client.
 | `SRP_RESYNC_WORLD_ONLY` | off | `on`: a playing client is resynced with 0xE8 alone |
 | `SRP_RESTORE_LIMIT` | 0 | Resyncs in a row without agreement after which a client is disconnected; 0: no limit |
 | `SRP_COMPRESS_STATE` | on | `off`: the world (0xE8) goes to the clients as it is, not as LZMA2 (since 2026-10-13; `docs/notes/match.md` section 27) |
+| `SRP_ANTI_AFK` | 180 | A player without input for this many seconds of play (at least 60) is removed from the match as one who leaves; never in a private room's match nor one against bots; `off` or `0`: never (`docs/notes/anti-afk.md`) |
 | `SRP_MAPDATA_DIR` | unset (off; the compose file sets `/srv/srp/data/mapdata`) | The bots' maps: the `<project>.mapdata` files (`docs/notes/player_bots_mapdata.md` section 6; game data, copied into the data volume by hand). A folder that is not there, or a project with no file: bots without maps (a warning) |
 | `SRP_MAPDATA_BUILT` | `<SRP_MAPDATA_DIR>/built` | Where the server writes the grids and trees it builds of the maps and reads them the next time; `off`: built at each load |
 | `SRP_MAPDATA_KEEP` | 1 | Built maps kept that no match holds |
@@ -327,7 +329,7 @@ read by the 0.21d browser server and by the compose file's caddy, not by the
 
 - `/`: what the server is; step one, where the original game is had
   (`SRP_GAME_URL`); step two, the download of the few files that go over it;
-  the launch line (`-localization=… -server=<host>:<port> -mt_allocator=768
+  the launch line (`-localization=… -server=<host>:<port>
   -minimum_resources_memory_size=768`); players online; how matches start.
 - `/exchange` (`GET`): a short page saying that silver and gold are
   exchanged in the game now (the lobby's exchange window,
@@ -430,7 +432,7 @@ Implemented (coded and tested):
 | Area | State |
 |---|---|
 | Login | Sign-in, registration on first sign-in, wrong password, bans with the game's ban reasons, limits, closed registration, wrong build |
-| Lobby account | The sign-in push in the order the client needs; inventory with its three "spent" lists; kits (three, every one usable without premium), move, autobuy flag, active kit, kit names |
+| Lobby account | The sign-in push in the order the client needs; inventory with its three "spent" lists; kits (three, every one usable without premium), move, the autobuy byte (always on), active kit, kit names |
 | Shop | Buy, sell, repair, gold for silver and (srp's lobby exchange) silver for gold (`47 04`); sellers by reputation level |
 | Skills | Set, reset for silver or gold |
 | Quests | Choosing a faction, daily quests, progress and pay after a match |
@@ -452,9 +454,11 @@ yet (`WORK.md` has each one's entry):
 | Silent lobby clients and their return | `transport.md` §6.1 |
 | Match server: sync order, paired uploads, hash phases | MATCH-SYNC-026G.md |
 
+Reports and praise (`49 05`) are stored in the database; see
+[`player-comments.md`](notes/player-comments.md) for reasons and review queries.
+
 Refused or absent, and nobody is on it:
 
-- Comments about a user (`49 05`): refused.
 - A browser server and presence pings: 0.26g has none.
 - The mode 3 battery patch of 0.21d: not needed (0.26g serializes the
   next-battery time).
@@ -496,7 +500,7 @@ cargo run --release -p resources-db --bin srp-game-data -- build --dir <the game
 set SRP_GAME_DATA=game-data.db
 set SRP_MIN_PATCH_REVISION=<the newest patch's n; leave it out without patches>
 cargo run -p srp
-survarium_srp.exe -localization=ukrainian -splash_screen=0 -server=127.0.0.1:1234 -mt_allocator=768 -minimum_resources_memory_size=768
+survarium_srp.exe -localization=ukrainian -splash_screen=0 -server=127.0.0.1:1234 -minimum_resources_memory_size=768
 ```
 
 `--dir` takes `resources.db` and every `resources.db.patch_<n>` of that
@@ -511,8 +515,11 @@ with it `value << 20`), and `-minimum_resources_memory_size=<MiB>` is the
 floor of the resources arenas (option object 0xA83080, a float read at
 0xE9966, default 0x150 = 336 MiB). Neither covers the other. Upstream
 (`origin/feature/server-026g`, live under Wine) ran out of the 376 MiB arena
-while loading a map and fixed it with `-mt_allocator=768`. Both keys together are what the players' start
-file and the shortcuts use, and maps load with them (live since 2026-10-12).
+while loading a map and fixed it with `-mt_allocator=768`, which our launch lines passed from
+2026-10-12. The exe now owns that number: patch 37 made 768 MiB its default, and patch 129 makes the
+arena at least 1024 MiB with or without the key (a larger value is still taken), so no launch line
+names it any more. The launch lines pass `-minimum_resources_memory_size=768`, which patch 37 also
+made the exe's default.
 
 Start the game from its `game\binaries\x86` folder (the client finds its
 login certificate by a path relative to the working directory). The game

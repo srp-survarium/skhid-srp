@@ -1,5 +1,5 @@
-//! Patch 121: a game sent to a match with no place of its own watches it
-//! (the rooms' queue, docs/notes/queue-spectate.md; client_patch.md 3.78).
+//! Patch 143: a game sent to a match with no place of its own watches it
+//! (the rooms' queue, docs/notes/queue-spectate.md; client_patch.md 3.82).
 //! The match server's 0xE4 names no place local; the game has no player and
 //! sends no input. Its camera follows a player of any team, as the game's
 //! spectate_next_player does (mode 4, the player's eyes), F6 and F5 (the
@@ -82,7 +82,7 @@ fn camera(client: &NetworkClient<'_>, thread: &Thread, event: Event) {
     }
 }
 
-/// The replay controls' player list (patch 130): the camera follows the
+/// The replay controls' player list (patch 144): the camera follows the
 /// player of `place`, as F6/F5 would reach it.
 pub fn view_player(client: &NetworkClient<'_>, thread: &Thread, place: Place) {
     if client.follow_place(place) {
@@ -90,7 +90,7 @@ pub fn view_player(client: &NetworkClient<'_>, thread: &Thread, place: Place) {
     }
 }
 
-/// The replay controls' free view (patch 130): as F2.
+/// The replay controls' free view (patch 144): as F2.
 pub fn view_free(client: &NetworkClient<'_>, thread: &Thread) {
     camera(client, thread, Event::Key(CameraKey::FlyFree));
 }
@@ -106,7 +106,7 @@ pub fn on_static_info(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// `close_match.reason`, after patch 130's (which reads the role): the match is
+/// `close_match.reason`, after patch 144's (which reads the role): the match is
 /// over, its role with it and a spectator's input off for the next match.
 pub fn on_close(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(close) = MatchClose::at(ctx) {

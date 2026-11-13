@@ -24,13 +24,16 @@
 //! 0x8000}])`). Unpacked, a block is records:
 //!
 //! ```text
-//! u8 kind (1 in, 2 out, 3 note, 4 accepted input, 5 accepted kit),
+//! u8 kind (1 in, 2 out, 3 note, 4 accepted input, 5 accepted kit,
+//!         6 accepted world),
 //! u8 place (0xFF: none),
 //! u32 LE ms since the recording began, u32 LE length, the bytes
 //! ```
 //!
 //! A note is one JSON object: the first is the header (the match, the map,
-//! the places with their accounts), then `places` when late joiners get
+//! the places with their accounts; `accepted_worlds` in a file that has a
+//! record of each world the server took, [`AcceptedWorld`]), then `places`
+//! when late joiners get
 //! places, `entered` / `left` for roster changes, `clock` when the match
 //! clock starts, `result` at the end, and `closed`. A block is written at
 //! least every [`BLOCK_EVERY`], so a server that stops loses that much at
@@ -67,6 +70,8 @@ pub const NOTE: u8 = 3;
 pub const ACCEPTED_INPUT: u8 = 4;
 /// Accepted human kit choice in PvE: full match time (u32 LE), kit (u8).
 pub const ACCEPTED_PROFILE: u8 = 5;
+/// A world the server took as the match's ([`AcceptedWorld`]).
+pub const ACCEPTED_WORLD: u8 = 6;
 /// The place of a record that is no player's.
 pub const NO_PLACE: u8 = 0xFF;
 /// A block is packed and written once it holds this much ...
@@ -110,6 +115,47 @@ impl PartialEq for Desk {
 }
 
 impl Eq for Desk {}
+
+/// A world the match server took as the match's own: the initial world, or
+/// an upload the other games' hashes agree with (`Game::check_candidates`;
+/// S5-S7 of `docs/notes/player-to-player.md`). Its record is the world's
+/// time as uploaded (u32 LE, the chunks' item time) and the SHA-256 of its
+/// body. A replay's key frames are made of these worlds only
+/// (`sur_convert`), never of an upload the server ignored or refused. A
+/// hash, not the games' CRC: one game can make a forged world of any CRC.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct AcceptedWorld {
+    pub time: u32,
+    pub sha256: [u8; 32],
+}
+
+impl AcceptedWorld {
+    const BYTES: usize = 4 + 32;
+
+    pub fn of(time: u32, body: &[u8]) -> Self {
+        Self {
+            time,
+            sha256: openssl::sha::sha256(body),
+        }
+    }
+
+    pub fn to_bytes(self) -> [u8; Self::BYTES] {
+        let mut bytes = [0; Self::BYTES];
+        bytes[..4].copy_from_slice(&self.time.to_le_bytes());
+        bytes[4..].copy_from_slice(&self.sha256);
+        bytes
+    }
+
+    /// An [`ACCEPTED_WORLD`] record's bytes; `None` for any other length.
+    pub fn parse(bytes: &[u8]) -> Option<Self> {
+        let bytes: &[u8; Self::BYTES] = bytes.try_into().ok()?;
+        let (time, sha256) = bytes.split_first_chunk::<4>()?;
+        Some(Self {
+            time: u32::from_le_bytes(*time),
+            sha256: sha256.try_into().ok()?,
+        })
+    }
+}
 
 /// The match of a kept recording's file name, `rec026g_<UTC
 /// start>_<id:08x>.srprec`.
@@ -218,6 +264,7 @@ impl Recorder {
         if let Some(object) = header.as_object_mut() {
             object.insert("note".into(), "header".into());
             object.insert("format".into(), 1.into());
+            object.insert("accepted_worlds".into(), true.into());
             object.insert("began_unix_ms".into(), unix_ms(started).into());
             object.insert("min_players".into(), recording.min_players.into());
             object.insert("srp".into(), env!("CARGO_PKG_VERSION").into());
@@ -299,6 +346,11 @@ impl Recording {
         bytes[..4].copy_from_slice(&time.to_le_bytes());
         bytes[4] = kit;
         self.record(ACCEPTED_PROFILE, place_byte(place), &bytes, now);
+    }
+
+    /// A world the server took as the match's.
+    pub fn accepted_world(&mut self, world: AcceptedWorld, now: Instant) {
+        self.record(ACCEPTED_WORLD, NO_PLACE, &world.to_bytes(), now);
     }
 
     /// A JSON note.

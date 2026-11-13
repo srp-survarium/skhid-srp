@@ -215,12 +215,22 @@ What the receiving game checks before it loads a world it was sent (0xE8):
 - **[C4] the same world check** (patch 87), with the context the game has: the map's rules, the
   batteries, the respawn points. It has no profiles, kits or map object list, so it reads the frame
   and every section but cannot read inventories and objects against the match.
-- **[C5] the game's own guards** (patch 115): at the three native readers that would index with a
+- **[C5] the game's own guards** (patch 115): at the native readers that would index with a
   value from the world (a weapon's state machine, an anomaly's state, an artefact's id), an index
-  outside its table takes the reader's own "none" path instead.
+  outside its table takes the reader's own "none" path instead; a dead selector's death animation
+  past its set's lists is read as the first (the lists' lengths are content, so no check before
+  can know them).
 
 A refused world is not loaded: the game tells the server (a "Rejected" receipt) and gets a fresh
 one (patch 97), without leaving the match.
+
+**Replays.** A replay's key frames are worlds too, and the game loads them on its seek path with
+none of C3-C5 (patch 87 hooks the match's world loads only). So the server records each world it
+takes as the match's (the initial world, or an upload past S5-S7): its time and SHA-256. The
+replay converter (`sur_convert`) makes key frames of those uploads only; in a recording from
+before those records, of the uploads that pass S6 against the recording's own roster. An upload
+the live server ignored or refused never becomes a key frame, and a recording with none left
+is no replay.
 
 ## 6. What a world contains, and how each part is read
 

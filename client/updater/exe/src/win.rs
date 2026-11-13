@@ -633,6 +633,54 @@ pub fn local_stamp(unix: u64) -> Option<updater_logic::replay::Stamp> {
     })
 }
 
+/// Whether the game, which reads its command line as ANSI text
+/// (`GetCommandLineA`), gets `text` back as it is, and in how many bytes.
+fn ansi_length(text: &str) -> Option<usize> {
+    use windows_sys::Win32::Globalization::{CP_ACP, CP_UTF8, GetACP, WC_NO_BEST_FIT_CHARS, WideCharToMultiByte};
+    let units: Vec<u16> = text.encode_utf16().collect();
+    if units.is_empty() {
+        return Some(0);
+    }
+    if unsafe { GetACP() } == CP_UTF8 {
+        // The system's ANSI code page is UTF-8: every character is kept.
+        return Some(text.len());
+    }
+    let mut lost = 0;
+    let length = unsafe {
+        WideCharToMultiByte(
+            CP_ACP,
+            WC_NO_BEST_FIT_CHARS,
+            units.as_ptr(),
+            units.len() as i32,
+            null_mut(),
+            0,
+            null(),
+            &mut lost,
+        )
+    };
+    (length > 0 && lost == 0).then_some(length as usize)
+}
+
+/// The path of a file as the game can be given it on its command line: the
+/// path itself when the ANSI code page holds every character of it and it
+/// is at most `limit` bytes so, else its short (8.3) form when that is.
+pub fn game_path(path: &str, limit: usize) -> Option<String> {
+    use windows_sys::Win32::Storage::FileSystem::GetShortPathNameW;
+    if ansi_length(path).is_some_and(|length| length <= limit) {
+        return Some(path.into());
+    }
+    let mut buffer = alloc::vec![0_u16; 1024];
+    let length = unsafe { GetShortPathNameW(wide(path).as_ptr(), buffer.as_mut_ptr(), buffer.len() as u32) }
+        as usize;
+    if length == 0 || length >= buffer.len() {
+        return None;
+    }
+    let short = from_wide(&buffer[..length]);
+    ansi_length(&short)
+        .is_some_and(|length| length <= limit)
+        .then_some(short)
+}
+
 pub fn file_size(path: &str) -> Result<u64, Code> {
     let file = open_read(path)?;
     let mut size = 0_i64;

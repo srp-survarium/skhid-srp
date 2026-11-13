@@ -22,7 +22,9 @@ use crate::v026g::bots::know::{Percept, Source, TeamKnowledge};
 use crate::v026g::bots::signals::{MatchSignals, Mods};
 use crate::v026g::bots::tactics::Tactics;
 use crate::v026g::bots::tuning::Tuning;
-use crate::v026g::bots::view::{BatteryState, ContainerView, MatchView, Mode, PlaceView};
+use crate::v026g::bots::view::{
+    BatteryState, ContainerView, MatchView, Mode, PlaceView, Side, Team,
+};
 
 /// A match in miniature for one play's test.
 pub struct Scenario {
@@ -68,13 +70,13 @@ impl Scenario {
             containers: vec![
                 ContainerView {
                     id: 0,
-                    team: 0,
+                    team: Team::Zero,
                     at: Vec3::new(12.0, 0.0, 30.0),
                     batteries: 0,
                 },
                 ContainerView {
                     id: 1,
-                    team: 1,
+                    team: Team::One,
                     at: Vec3::new(68.0, 0.0, 30.0),
                     batteries: 0,
                 },
@@ -115,7 +117,7 @@ impl Scenario {
             let n = self.view.places.len();
             self.view.places.push(PlaceView {
                 place: n,
-                team: 0,
+                team: Side::team(0),
                 bot: false,
                 present: false,
                 alive: false,
@@ -134,7 +136,7 @@ impl Scenario {
             });
         }
         let p = &mut self.view.places[place];
-        p.team = team;
+        p.team = Side::team(team);
         p.bot = bot;
         p.present = true;
         p.alive = true;
@@ -224,7 +226,7 @@ impl Scenario {
     /// The signals of team 0 as the view now has them, and the modifiers
     /// settled to them.
     pub fn signals(&mut self) {
-        self.sig = MatchSignals::read(&self.view, 0, 1e6);
+        self.sig = MatchSignals::read(&self.view, Side::team(0), 1e6);
         for _ in 0..40 {
             self.mods.update(&self.sig, &self.tuning.mods);
         }
@@ -409,4 +411,53 @@ fn collect_fetches_a_known_battery_and_roam_heads_for_an_exit() {
         ),
         "{steps:?}"
     );
+}
+
+/// A free-for-all's bot is a side of its own with no base: it roams, and
+/// takes no play that needs a teammate, a base or an enemy team, even next
+/// to the scoreboard's leader and with no team's respawns left. Its score
+/// is its kills against the leader's.
+#[test]
+fn a_free_for_alls_bot_takes_no_play_of_a_team() {
+    let mut s = Scenario::field(Mode::TeamDeathmatch);
+    s.view.containers.clear();
+    s.side = None;
+    s.paired = false;
+    s.bot(0, 0, Vec3::new(20.0, 0.0, 35.0));
+    s.bot(2, 0, Vec3::new(32.0, 0.0, 33.0));
+    s.enemy(1, 1, Vec3::new(50.0, 0.0, 32.0), Some(Source::Seen));
+    s.view.places[1].kills = 12;
+    s.view.places[1].streak = 4;
+    s.view.can_respawn = [false, false];
+    let kinds =
+        |s: &Scenario| -> Vec<PlayKind> { s.candidates(0).iter().map(|c| c.kind).collect() };
+    // As two teams the bot pairs up against the leader and hunts.
+    s.signals();
+    let of_a_team = kinds(&s);
+    assert!(
+        of_a_team.contains(&PlayKind::PairUp) && of_a_team.contains(&PlayKind::Hunt),
+        "{of_a_team:?}"
+    );
+    // Each for himself.
+    for place in 0..3 {
+        s.view.places[place].team = Side::Solo(place);
+    }
+    s.sig = MatchSignals::read(&s.view, Side::Solo(0), 1e6);
+    assert_eq!((s.sig.alive_ours, s.sig.alive_theirs), (1, 2));
+    assert!((s.sig.score_gap + 1.2).abs() < 1e-6, "{}", s.sig.score_gap);
+    assert_eq!(s.cx(0).friends_near(Vec3::new(32.0, 0.0, 33.0), 25.0), 0);
+    let alone = kinds(&s);
+    assert!(alone.contains(&PlayKind::Roam), "{alone:?}");
+    for kind in [
+        PlayKind::PairUp,
+        PlayKind::Crossfire,
+        PlayKind::CoverHuman,
+        PlayKind::Trade,
+        PlayKind::Buddy,
+        PlayKind::HoldExit,
+        PlayKind::Cut,
+        PlayKind::Hunt,
+    ] {
+        assert!(!alone.contains(&kind), "{kind:?} in {alone:?}");
+    }
 }

@@ -90,7 +90,7 @@ struct KeyEvent {
     /// The key when it is a Ctrl key.
     ctrl: Option<CtrlKeys>,
     kind: KeyKind,
-    /// The Tab list is up after this key (never in Blackout: no list).
+    /// The Tab list is up after this key (Blackout's too: its Tab view has the list).
     list: bool,
 }
 
@@ -190,12 +190,11 @@ pub fn on_replay_options(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 /// on_keyboard_action's start (0x25CD00): every key the game world gets.
 pub fn on_key(ctx: &mut Context<'_>) -> Flow<TabCursorOnKeyExit> {
-    let blackout = crate::blackout::forced(ctx.thread());
     let Some(key) = GameWorldKey::at_start(ctx) else { return Flow::Continue };
     let view = key.hud().view();
     // The list after this key: Tab's own event says; any other key leaves it
     // as the key before it made it (on_keyboard_action asks for Tab at every key).
-    let list = !blackout && if key.key() == Dik::TAB { key.kind() != KeyKind::Up } else { view.list };
+    let list = if key.key() == Dik::TAB { key.kind() != KeyKind::Up } else { view.list };
     let event = KeyEvent { ctrl: CtrlKeys::of(key.key()), kind: key.kind(), list };
     let thread = key.thread();
     let step = CURSOR.get(thread).step(event);

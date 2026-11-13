@@ -1,4 +1,4 @@
-//! A spectator's game (patch 121, docs/notes/queue-spectate.md): a game in a
+//! A spectator's game (patch 143, docs/notes/queue-spectate.md): a game in a
 //! match whose 0xE4 named no place its own. process_static_match_info sets
 //! each place's is_local (+45F0h) by the message's first byte (0x27BE5F); the
 //! server sends 0xFF, so on_match_ready never sets the client's local place

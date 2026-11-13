@@ -16,6 +16,8 @@ use core::marker::PhantomData;
 use super::context::{Context, Reg};
 use super::hook::Thread;
 use super::hud_input::Hud;
+use super::ui::Movie;
+use super::world::GameWorld;
 use crate::raw;
 
 /// The key being handled, after the game's ask of Tab.
@@ -67,6 +69,25 @@ impl Dik {
     pub const F11: Dik = Dik(0x57);
     pub const LEFT: Dik = Dik(0xCB);
     pub const RIGHT: Dik = Dik(0xCD);
+    pub const A: Dik = Dik(0x1E);
+    pub const D: Dik = Dik(0x20);
+    pub const COMMA: Dik = Dik(0x33);
+    pub const PERIOD: Dik = Dik(0x34);
+    pub const F1: Dik = Dik(0x3B);
+    pub const F2: Dik = Dik(0x3C);
+    pub const F3: Dik = Dik(0x3D);
+    pub const F5: Dik = Dik(0x3F);
+    pub const F6: Dik = Dik(0x40);
+
+    /// Its code.
+    pub fn code(self) -> u8 {
+        self.0
+    }
+
+    #[cfg(test)]
+    pub fn new(code: u8) -> Dik {
+        Dik(code)
+    }
 
     /// A key code as the game passes one (a u32): None past the 256 codes.
     fn of(raw: u32) -> Option<Dik> {
@@ -158,10 +179,130 @@ impl<'c, 'm> GameWorldKey<'c, 'm> {
         }
     }
 
+    /// The chat keys' action the key is bound to (the binder's kind 8, as
+    /// chat_handler::on_keyboard_action asks it, 0x208887), if any.
+    pub fn chat_action(&self) -> Option<super::input::Action> {
+        chat_action(&self.hud, u32::from(self.key.0))
+    }
+
+    /// The replay player movie (replay_player.swf) of this key's game world,
+    /// when its game plays a replay (its network client's class) and the hud
+    /// has the movie. A live match's keys get none.
+    pub fn replay_player(&self) -> Option<Movie<'_>> {
+        // SAFETY: the hud of the hook's site and its world, alive while
+        // on_keyboard_action runs on the game's thread.
+        GameWorld::of(unsafe { self.hud.raw().world() }?, self.ctx.thread()).replay_player()
+    }
+
     /// The key is taken here: no later handler (the player's) gets it. The
     /// caller then leaves by the site's `taken` exit (its `ret 0Ch`).
     pub fn take(self) {
         self.ctx.set_reg8(Reg::Eax, 1);
+    }
+}
+
+/// The chat keys' action a key code (a DirectInput key, or 151h + a mouse
+/// button) is bound to in the hud's game's binder (kind 8), if any.
+fn chat_action(hud: &Hud<'_>, code: u32) -> Option<super::input::Action> {
+    let binder = hud.game().and_then(|game| {
+        // SAFETY: the hud's game, alive for the hook.
+        unsafe { game.binder() }
+    })?;
+    let mut toggle = 0;
+    // SAFETY: the game's live binder, on its thread; the code one the input
+    // world gives its listeners (get_binded_action compares it, 0x207D50).
+    let action = unsafe { raw::engine_binded_action(Some(binder), 8, code, &mut toggle) };
+    Some(super::input::Action(action))
+}
+
+/// A mouse button by its number: 0 the left, 1 the right, 2 the middle, 3 and
+/// 4 the side buttons, up to 7 (the input world's key 151h + it, 0x3B9981).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MouseButton(u8);
+
+impl MouseButton {
+    const FIRST_KEY: u32 = 0x151;
+
+    /// A key code as the game passes one: None for one not a button's.
+    fn of_key(raw: u32) -> Option<MouseButton> {
+        let n = raw.checked_sub(Self::FIRST_KEY)?;
+        (n < 8).then_some(MouseButton(n as u8))
+    }
+
+    /// Its number.
+    pub fn number(self) -> u8 {
+        self.0
+    }
+
+    fn key(self) -> u32 {
+        Self::FIRST_KEY + u32::from(self.0)
+    }
+
+    #[cfg(test)]
+    pub fn new(number: u8) -> MouseButton {
+        MouseButton(number)
+    }
+}
+
+/// A mouse button's event (the mouse's process 0x3B9D90).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ButtonKind {
+    Press,
+    Release,
+    Held,
+}
+
+impl ButtonKind {
+    fn of(raw: u32) -> Option<ButtonKind> {
+        match raw {
+            0 => Some(ButtonKind::Press),
+            1 => Some(ButtonKind::Release),
+            2 => Some(ButtonKind::Held),
+            _ => None,
+        }
+    }
+}
+
+/// A mouse button in the game world's on_mouse_key_action
+/// (`game_world.mouse_key`, past patch 31's jump): every button of a match
+/// comes here before the player's handler, but those patch 31 takes (a
+/// button held from a shown cursor: its held states and its release). Nothing
+/// here takes it.
+pub struct GameWorldButton<'c> {
+    hud: Hud<'c>,
+    button: MouseButton,
+    kind: ButtonKind,
+}
+
+impl<'c> GameWorldButton<'c> {
+    /// None for a code or a kind the mouse does not give.
+    pub fn at_start(ctx: &'c Context<'_>) -> Option<GameWorldButton<'c>> {
+        use raw::site::game_world_mouse_key as site;
+        // SAFETY: the context is this site's: the game world's input handler
+        // (ESI, the keyboard's: its hud inside it) and the function's
+        // arguments past its three pushes, alive while it runs on the game's
+        // thread.
+        let (ui, key, kind) = unsafe {
+            let (input, frame) = (site::input(ctx)?, site::frame(ctx)?);
+            (input.ui(), *frame.key(), *frame.kind())
+        };
+        let (button, kind) = (MouseButton::of_key(key)?, ButtonKind::of(kind)?);
+        // SAFETY: the hud inside the game world, alive for the hook, on its thread.
+        let hud = unsafe { Hud::of(ui) };
+        Some(GameWorldButton { hud, button, kind })
+    }
+
+    pub fn button(&self) -> MouseButton {
+        self.button
+    }
+
+    pub fn kind(&self) -> ButtonKind {
+        self.kind
+    }
+
+    /// The chat keys' action the button is bound to (kind 8), if any.
+    pub fn chat_action(&self) -> Option<super::input::Action> {
+        chat_action(&self.hud, self.button.key())
     }
 }
 

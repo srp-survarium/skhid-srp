@@ -510,10 +510,17 @@ fn matches(lang: Lang, live: &[LiveMatch]) -> String {
             escape(&format!("{map} · {mode}")),
             escape(&map),
             escape(&mode),
-            lang.tr(
-                &format!("{} v {}", each.players[0], each.players[1]),
-                &format!("{} на {}", each.players[0], each.players[1]),
-            ),
+            // A free-for-all has no two sides: its players in all.
+            if maps::map_mode(each.map_id)
+                .is_some_and(|map| map.mode == maps::GameMode::FreeForAll)
+            {
+                (each.players[0] + each.players[1]).to_string()
+            } else {
+                lang.tr(
+                    &format!("{} v {}", each.players[0], each.players[1]),
+                    &format!("{} на {}", each.players[0], each.players[1]),
+                )
+            },
         );
     }
     if listed < open.len() {
@@ -947,11 +954,12 @@ mod tests {
         assert_eq!(map_name(Lang::En, &twelve), "level_12");
         assert_eq!(map_name(Lang::Uk, &twelve), "level_12");
         assert_eq!(mode_name(Lang::Uk, &twelve), "режим 5");
-        // Every playable map and mode has a name of the game's (Blackout's is
-        // srp's own, `client-patches/localization`, which the test data's
-        // stock localizations lack).
-        let blackout = maps::GameMode::Blackout;
-        for map in maps::playable().filter(|map| map.mode != blackout) {
+        // Every playable map and mode has a name of the game's (Blackout's and
+        // the free-for-all's are srp's own, `client-patches/localization`,
+        // which the test data's stock localizations lack).
+        for map in maps::playable().filter(|map| {
+            !matches!(map.mode, maps::GameMode::Blackout | maps::GameMode::FreeForAll)
+        }) {
             for lang in [Lang::En, Lang::Uk] {
                 let game = |key| localization::text(game_language(lang), key).map(str::to_owned);
                 assert_eq!(Some(map_name(lang, map)), game(map.map_name_key));

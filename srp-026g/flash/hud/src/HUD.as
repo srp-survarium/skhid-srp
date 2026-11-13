@@ -46,6 +46,7 @@ package
    import survarium.controls.PlayerProfileBase;
    import survarium.controls.PlayerRowMenu;
    import survarium.controls.ForcedView;
+   import survarium.modes.FfaProgress;
    import survarium.modes.ModeNotice;
    import survarium.modes.CalledBackNotice;
    import survarium.modes.ModeIntroText;
@@ -54,6 +55,7 @@ package
    import survarium.controls.QuickSlots;
    import survarium.controls.ResearchUnits;
    import survarium.controls.ResearchCountdownLayout;
+   import survarium.controls.VoiceSpeakers;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
    import survarium.data.ItemDescriptor;
@@ -254,10 +256,19 @@ package
       // Research (mode 5): the teams' points in Team Deathmatch's bars
       // (progress_indicator's frame 5) and the units under them.
       protected const GAME_MODE_RESEARCH:uint = 5;
+
+      // Free for all (mode 8, docs/notes/ffa.md): the Tab list one ranking (PlayerList.ranked); in the
+      // top bar, the match timer without Team Deathmatch's counters (FfaProgress).
+      protected const GAME_MODE_FREE_FOR_ALL:uint = 8;
+
+      private var _ffaProgress:FfaProgress = new FfaProgress();
       
       public var researchUnits:ResearchUnits;
 
       private var _researchCountdowns:ResearchCountdownLayout;
+
+      // Voice chat: the teammates talking now (srp_voice_talking).
+      public var voiceSpeakers:VoiceSpeakers;
 
       // The units' place in the indicator's own space (placeResearchUnits).
       protected var _researchX:Number = 0;
@@ -360,7 +371,6 @@ package
          _keptLayer = new KeptLayer(this,this.keepLaidOut);
          _forcedView = new ForcedView(this._keptLayer,this.keptWhenForced,this.keptOnTab,this.keptWhileTyping,
                                       this.holdChatHistory);
-         this.addEventListener(Event.ENTER_FRAME,this.onIntroductionFrame);
          stage.addChildAt(this._keptLayer,stage.getChildIndex(this) + 1);
          _stageLayer = new Sprite();
          this._stageLayer.name = "stageLayer";
@@ -399,11 +409,12 @@ package
          progress_indicator = new SrvMatchProgress();
          addChild(this.progress_indicator);
          // Beside the indicator, not in it (the layout centres the indicator by
-         // its whole width), following it every frame (followIndicator).
+         // its whole width), following it every frame of a Research match (followIndicator).
          researchUnits = new ResearchUnits();
          this.researchUnits.visible = false;
          addChild(this.researchUnits);
-         this.researchUnits.addEventListener(Event.ENTER_FRAME,this.onResearchFrame);
+         voiceSpeakers = new VoiceSpeakers();
+         addChild(this.voiceSpeakers);
          pregameInfo = new SrvContextInfoPregame();
          addChild(this.pregameInfo);
          // The stock "premium players in the match" box: srp has no premium (the owner, 2026-11-09)
@@ -605,10 +616,13 @@ package
       // countdown (keptWhenForced: the game shows it while it runs and hides it when play starts) and
       // the use prompt with its progress (contextInfo, root.set_context: the game shows it at what the
       // player can use, an artefact container or an ammo stash, and fills it while used); while
-      // the Tab list is asked for (show_player_list) the match's time left, the chat with its history and,
-      // alive, the intact player-info panel (ammo and body state) and quick-use slots;
+      // the Tab list is asked for (show_player_list) the list itself with its map and row menu (names
+      // only: no score, showScores; the map's marked batteries as in a plain match, while the icons
+      // movie keeps their markers in the world hidden), the match's time left, the chat with its
+      // history, who is talking (voice chat) and, alive, the intact player-info panel (ammo and body
+      // state) and quick-use slots;
       // while the game shows the kits (the death screen, before the start), the
-      // kits to pick from (keptOnTab), never the list; while the player types in the chat (focus_chat),
+      // kits to pick from (keptOnTab); while the player types in the chat (focus_chat),
       // the chat (keptWhileTyping). A kept part is in _keptLayer (KeptLayer: on the stage over the root,
       // placed as the root is), so the hidden root leaves it, and works there as in the root; back at its
       // place in the root when not.
@@ -620,7 +634,7 @@ package
       // srp's: a watcher's room calls it back (CalledBackNotice)
       private var _calledBack:CalledBackNotice;
 
-      // srp's (exe patch 130, replay_control's Recall note): the words of the call back, the
+      // srp's (exe patch 144, replay_control's Recall note): the words of the call back, the
       // running language's, with CalledBackNotice.SECONDS where the seconds go.
       public function srp_called_back_words(words:String) : void
       {
@@ -634,26 +648,42 @@ package
       }
       private var _pregameText:String = "";
 
+      // Each frame the mode notice shows (its countdown, then its reading time): its end, and its place
+      // under the countdown or the match timer. The rest of the match, no frame runs anything for it.
       private function onIntroductionFrame(event:Event) : void
       {
          this._modeNotice.update(getTimer(),false,
             this.pregameInfo != null && this.pregameInfo.visible);
+         this.followModeNotice();
+      }
+
+      // After each change of the notice: shown, it is placed now and every frame until it ends.
+      private function followModeNotice() : void
+      {
+         if(!this._modeNotice.shown)
+         {
+            removeEventListener(Event.ENTER_FRAME,this.onIntroductionFrame);
+            return;
+         }
          var bottom:Number = this.pregameInfo != null && this.pregameInfo.visible ?
             this.pregameInfo.getBounds(this).bottom : 0;
          var timer:DisplayObject = this.matchTime() as DisplayObject;
          if(timer != null)
             bottom = Math.max(bottom,timer.getBounds(this).bottom);
          this._modeNotice.place(this.stageWidth,bottom);
+         addEventListener(Event.ENTER_FRAME,this.onIntroductionFrame);
       }
 
       public function force_interface_hidden(forced:Boolean) : void
       {
          this._forcedView.forced = forced;
+         this.showScores();
          this.setInterfaceHidden(forced);
          if(forced)
             this._modeNotice.begin("blackout");
          else
             this._modeNotice.reset();
+         this.followModeNotice();
          this.set_pregame(this._pregameText);
       }
 
@@ -667,16 +697,19 @@ package
          return [this.pregameInfo,this.contextInfo,this._modeNotice,this._calledBack];
       }
 
+      // The Tab list with either view, in the root's order: the chat under it, the kits over it; who
+      // is talking (voice chat) only here in a forced match (the owner, 2026-11-11: "we need to also
+      // show in blackout only when tabbed that someone is speaking").
       private function keptOnTab() : Array
       {
          if(this._profilePanel.visible)
          {
-            return [this._profilePanel,this.matchTime(),this.chat];
+            return [this.matchTime(),this.chat,this.voiceSpeakers,this.player_list,this._profilePanel];
          }
          // Ammo and the body doll share a size-dependent, bottom-right layout.
          // Keep their owner intact: removing either child changes its bounds
          // and a reflow can push the other child beyond the viewport.
-         return [this.playerInfo,this.quick_slots,this.matchTime(),this.chat];
+         return [this.playerInfo,this.quick_slots,this.matchTime(),this.chat,this.voiceSpeakers,this.player_list];
       }
 
       private function keptWhileTyping() : Array
@@ -1188,6 +1221,14 @@ package
          this.contextInfo3.layoutData.alignH = "center";
          this.contextInfo3.layoutData.offsetV = this.stageHeight / 3;
          this.contextInfo3.layoutData.offsetH = 0;
+         // At the right edge, under mid-height (the owner, 2026-11-11: "usually you want those on
+         // the right"; 0.69's were on the left): under the kill feed and the container's icon, over
+         // the player's info. Its rows end at its x and it has no width of its own.
+         this.voiceSpeakers.layoutData = new LayoutData();
+         this.voiceSpeakers.layoutData.alignV = "center";
+         this.voiceSpeakers.layoutData.alignH = "right";
+         this.voiceSpeakers.layoutData.offsetV = 50;
+         this.voiceSpeakers.layoutData.offsetH = -borderOffset;
          this.chat.layoutData = new LayoutData();
          this.chat.layoutData.alignV = "bottom";
          this.chat.layoutData.alignH = "center";
@@ -1551,10 +1592,20 @@ package
       public function srp_hud_options(hideHitMarkers:Boolean, hideScores:Boolean, hideCrosshair:Boolean, mapNames:Boolean) : void
       {
          this.crosshair.hitMarkersHidden = hideHitMarkers;
-         this.player_list.players.namesOnly = hideScores;
+         this._scoresHidden = hideScores;
+         this.showScores();
          this.crosshair.crosshairHidden = hideCrosshair;
          this._mapNamesAlways = mapNames;
          this.showMapNames();
+      }
+
+      // "Hide player scores" (patch 83), as last told.
+      private var _scoresHidden:Boolean = false;
+
+      // The Tab list's names only: by the setting, and always in a forced match (Blackout shows no score).
+      private function showScores() : void
+      {
+         this.player_list.players.namesOnly = this._scoresHidden || this._forcedView != null && this._forcedView.forced;
       }
       
       public function show_oxygen(bool:Boolean) : void
@@ -1581,8 +1632,7 @@ package
 
       // The Tab map's names over the player icons, shown while Alt is held (the exe's patch 82 tells
       // the movie each change; docs/notes/tab-map-names.md), or with "Names on map" shown unless it is.
-      // The map is the Tab list's, so they show only with it: never in Blackout, whose Tab keeps the
-      // list hidden.
+      // The map is the Tab list's, so they show only with it (in Blackout too, in its Tab view).
       public function show_map_names(altHeld:Boolean) : void
       {
          this._mapNamesAlt = altHeld;
@@ -1609,14 +1659,12 @@ package
          {
             this._rowMenu.close();
          }
-         // Forced (Blackout): Tab shows its view (keptOnTab), never the list.
-         this._forcedView.tab = bool;
-         if(this._forcedView.forced)
-         {
-            return;
-         }
+         // Forced (Blackout): the list in Tab's view (keptOnTab), the quests' tasks not.
          this.player_list.visible = bool;
-         this.questTaskList.visible = bool && this.questList.visible;
+         // its map draws the players only while it shows (Minimap.held)
+         this.tabMinimap.held = !bool;
+         this._forcedView.tab = bool;
+         this.questTaskList.visible = bool && this.questList.visible && !this._forcedView.forced;
          if(this._spectatorMode == 2)
          {
             this.applySpectatorKits();
@@ -1670,6 +1718,7 @@ package
       {
          this.pregameInfo.visible = bool;
          this._modeNotice.update(getTimer(),true,bool);
+         this.followModeNotice();
          this.placeResearchCountdowns();
       }
       
@@ -1798,6 +1847,7 @@ package
          this._artefactOfferValue = "";
          this._nativeContext = {text:"",value:0,visible:true};
          this._modeNotice.reset();
+         this.followModeNotice();
          this._pregameText = "";
          // a new match starts with the interface shown (the movie is the last match's; the exe's
          // patch 62 shows the player icons' with it); a forced one stays forced until patch 65
@@ -1805,6 +1855,7 @@ package
          this.hide_interface(false);
          this.clear_minimap();
          this.chat.clear();
+         this.voiceSpeakers.clear();
          this.show_ammo(false);
          this.show_slots(false);
          this.show_game_info(false);
@@ -1836,6 +1887,25 @@ package
          }
       }
       
+      // Voice chat (exe patch 66, docs/notes/voice-chat.md): the names of the teammates talking now
+      // (none: nobody). Called on a change only.
+      public function srp_voice_talking(... names) : void
+      {
+         this.voiceSpeakers.update(names);
+      }
+
+      // The exe's answers to the Tab list's player menu's voice entries (exe patch 66): whether a
+      // place's voice can be muted and is, and a voice mute done or not.
+      public function srp_voice_menu(place:uint, offered:uint, muted:uint) : void
+      {
+         this._rowMenu.voiceOffered(place,offered != 0,muted != 0);
+      }
+
+      public function srp_voice_mute(place:uint, done:uint) : void
+      {
+         this._rowMenu.voiceMuted(place,done != 0);
+      }
+
       public function clear_minimap() : void
       {
          this.minimap.clear_minimap();
@@ -1904,8 +1974,21 @@ package
          }
          _gameType = type;
          this.researchUnits.visible = type == this.GAME_MODE_RESEARCH;
+         this.researchUnits.removeEventListener(Event.ENTER_FRAME,this.onResearchFrame);
+         this.player_list.players.ranked = type == this.GAME_MODE_FREE_FOR_ALL;
+         // a free for all has no team: its chat has no team tab (GameChat.teamChannel)
+         this.chat.teamChannel = type != this.GAME_MODE_FREE_FOR_ALL;
+         this._ffaProgress.hide();
+         if(type == this.GAME_MODE_FREE_FOR_ALL)
+         {
+            // Reuse the timer's frame, hiding every team counter.
+            this.progress_indicator.gotoAndStop(this.GAME_MODE_TEAMDEATHMATCH + 1);
+            this._ffaProgress.show(this.progress_indicator);
+            return;
+         }
          if(type == this.GAME_MODE_RESEARCH)
          {
+            this.researchUnits.addEventListener(Event.ENTER_FRAME,this.onResearchFrame);
             // Research centres the visible score bars on the actual viewport.
             // Timeline labels can change width after generic layout offsets
             // were measured; Research must not wait for a resize to settle.
@@ -1923,7 +2006,15 @@ package
          }
          this.progress_indicator.gotoAndStop(this._gameType + 1);
       }
-      
+
+      // Free for all (the exe, at each change and once after set_game_type): the kills of the game's
+      // own player, or of the one it watches; the most kills anyone has; the kills that win.
+      // Retained for native callback compatibility; FFA shows those kills in the player list.
+      public function set_ffa_progress(own:int, top:int, target:int) : void
+      {
+         this._ffaProgress.tell(own,top,target);
+      }
+
       public function set_match_time_progress(time_left:uint, time_total:uint) : void
       {
          this.progress_indicator.radialTime.setTime(time_left,time_total);
@@ -1933,13 +2024,15 @@ package
       {
          this.matchTime().text = time;
          this._modeNotice.update(getTimer(),true,this.pregameInfo.visible);
+         this.followModeNotice();
       }
 
-      // The match's time left as the mode shows it: Team Deathmatch's and Research's label, or the
-      // other modes' (progress_indicator's frames).
+      // The match's time left as the mode shows it: Team Deathmatch's, Research's and free for all's
+      // label, or the other modes' (progress_indicator's frames).
       private function matchTime() : Object
       {
-         if(this._gameType == this.GAME_MODE_TEAMDEATHMATCH || this._gameType == this.GAME_MODE_RESEARCH)
+         if(this._gameType == this.GAME_MODE_TEAMDEATHMATCH || this._gameType == this.GAME_MODE_RESEARCH
+            || this._gameType == this.GAME_MODE_FREE_FOR_ALL)
          {
             return this.progress_indicator.match_time_2_tdm;
          }
@@ -2180,6 +2273,11 @@ package
             this.progress_indicator.team1Progress.text = String(team1);
             this.progress_indicator.team2Progress.text = String(team2);
          }
+         else if(this._gameType == this.GAME_MODE_FREE_FOR_ALL)
+         {
+            // Native progress refreshes must keep the team counters hidden.
+            this._ffaProgress.draw();
+         }
          else
          {
             this.set_artifacts_progress(Team.FIRST,team1);
@@ -2274,15 +2372,12 @@ package
          this.researchUnits.followIndicator(this.progress_indicator,this._researchX,this._researchY);
       }
 
-      // Every frame of a Research match: the layout moves the indicator at
+      // Every frame of a Research match (set_game_type): the layout moves the indicator at
       // many calls (scores, messages, resizes), the units follow it.
       private function onResearchFrame(e:Event) : void
       {
-         if(this.researchUnits.visible)
-         {
-            this.followIndicator();
-            this.placeResearchCountdowns();
-         }
+         this.followIndicator();
+         this.placeResearchCountdowns();
       }
 
       private function placeResearchCountdowns() : void

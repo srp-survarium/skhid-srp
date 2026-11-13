@@ -1,7 +1,7 @@
 //! The match link's UDP client (`vostok::network_core::udp_match_client`) at
 //! `match_link.receive_failed`, on the network thread that runs its socket's
-//! completions and every order of the match client (patch 132,
-//! client_patch.md section 3.80).
+//! completions and every order of the match client (patch 145,
+//! client_patch.md section 3.84).
 
 use super::context::Context;
 use super::world::read;

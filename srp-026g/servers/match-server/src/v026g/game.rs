@@ -123,13 +123,15 @@ const _: () = assert!(
             == world_frame::MAX_BODY
 );
 
+use super::afk::{self, Watch};
 use super::battery_cap;
 use super::events::{self, Seat};
 use super::kill_cap;
-use super::record::{Recorder, Recording};
-use super::registry::{Formed, MatchEnd, MatchResult, PlayerResult};
+use super::record::{AcceptedWorld, Recorder, Recording};
+use super::registry::{Formed, IdleRemoved, MatchEnd, MatchResult, PlayerResult};
 use super::{LateInputs, Settings};
 
+mod afk_watch;
 mod driven;
 mod kit_view;
 mod late_join;
@@ -717,6 +719,7 @@ struct Peer {
     /// The parts of its client reports logged so far (client patch 126,
     /// `Carrier::key`): each once, however often the client resends it.
     reports_heard: BTreeSet<(u8, u8, u8)>,
+    executable: super::executable::Receiver,
     /// The sync generation of the last 0xE5/0xE8 sent to it: 0xFF once it
     /// is ready, as the client's own.
     generation: Generation,
@@ -1054,6 +1057,9 @@ pub(crate) struct Game {
     /// The players who left by their own word (0xE0) and were not asked
     /// about yet ([`Game::take_quits`]): session and account.
     quits: Vec<(u32, u32)>,
+    /// The players removed as idle (anti-AFK) and not told of yet
+    /// ([`Game::take_idle_removed`]): the chat says so.
+    idle_removed: Vec<IdleRemoved>,
     /// By place: its player left by its own word (0xE0); the place never
     /// comes back ([`start`]).
     given_up: Vec<bool>,
@@ -1068,6 +1074,9 @@ pub(crate) struct Game {
     /// The spectators whose games left by themselves, not yet told
     /// ([`Game::take_spectators_left`]): their sessions.
     spectators_left: Vec<u32>,
+    /// Anti-AFK: whether this match removes idle players, decided when it
+    /// is made, and each player's time without input ([`afk_watch`]).
+    afk: Watch,
 }
 
 impl Game {
@@ -1076,6 +1085,14 @@ impl Game {
         let players = formed.places.len();
         let rule = TimelimitRule::new(TimelimitParams::of(formed.played.map(), players as u8));
         let walkers = driven::Walkers::new(&formed, &settings);
+        // Once for the match: a private room's (a PIN) and one against bots
+        // remove nobody.
+        let kind = match (formed.private, formed.vs_bots) {
+            (true, _) => afk::MatchKind::PrivateRoom,
+            (false, true) => afk::MatchKind::VsBots,
+            (false, false) => afk::MatchKind::Public,
+        };
+        let afk = Watch::new(settings.anti_afk, kind);
         log_unread_kits(&formed, 0);
         Self {
             id: formed.match_id,
@@ -1124,11 +1141,13 @@ impl Game {
             result: None,
             result_made: false,
             quits: Vec::new(),
+            idle_removed: Vec::new(),
             given_up: vec![false; players],
             stand_ins: Vec::new(),
             recording: None,
             spectators: Vec::new(),
             spectators_left: Vec::new(),
+            afk,
             drives: Self::new_drives(&formed),
             walkers,
             formed,
@@ -1192,6 +1211,14 @@ impl Game {
     fn record_note(&mut self, note: serde_json::Value, now: Instant) {
         if let Some(recording) = self.recording.as_mut() {
             recording.note(&note, now);
+        }
+    }
+
+    /// The match's world is now `snapshot`, as uploaded: the one kind of
+    /// world a replay makes its key frames of (`sur_convert`).
+    fn record_accepted_world(&mut self, snapshot: &Snapshot, now: Instant) {
+        if let Some(recording) = self.recording.as_mut() {
+            recording.accepted_world(AcceptedWorld::of(snapshot.time, &snapshot.body), now);
         }
     }
 
@@ -1389,6 +1416,7 @@ impl Game {
             }
         }
         self.reset_catchup(index, true);
+        self.afk.restart(index);
         self.clear_refuser(index);
         log::info!(
             "Match {:#x}: player {index} (session {session_id:#x}) connected from {addr}",
@@ -1414,6 +1442,7 @@ impl Game {
             upload_standing: UploadStanding::default(),
             world_receipts: WorldReceipts::default(),
             reports_heard: BTreeSet::new(),
+            executable: super::executable::Receiver::default(),
             generation: Generation::AT_READY,
             set_times: VecDeque::new(),
             time_confirmed: false,
@@ -1524,6 +1553,26 @@ impl Game {
         }
     }
 
+    fn accept_executable(&mut self, index: usize, message: u8, payload: &[u8], now: Instant) -> bool {
+        use srp_validate::executable::{Carrier, Reply, Upload, MAGIC};
+        if message != survarium::v026g::match_msgs::id::LEAVE || !payload.starts_with(&MAGIC) { return false; }
+        // A malformed transfer is consumed here, never interpreted as a leave/world.
+        let Some(carrier) = Carrier::parse(payload) else { return true };
+        if carrier.match_id != super::registry::static_id(self.id) { return true; }
+        let (Some(peer), Some(place)) = (self.peers.get_mut(index).and_then(Option::as_mut), self.formed.places.get(index)) else { return true };
+        if matches!(peer.stage, Stage::Gone | Stage::Connecting) { peer.executable.cancel(); return true; }
+        if peer.executable.identity().is_none() && let Upload::Offer(identity) = carrier.upload {
+            log::info!(target: super::client_report::MODULES, "{} (account {}), match {:#x}, executable sha256 {} size {}", place.name, place.account_id, self.id, identity, identity.size());
+        }
+        if let Some((sha256, answer)) = peer.executable.receive(carrier.upload, now, self.settings.released_executable) {
+            let reply = Reply { match_id: carrier.match_id, sha256, answer };
+            // Only a peer that offered this protocol ever receives its E4 reply.
+            // Lost application replies are retried by the client's next offer.
+            let _ = peer.transport.send(survarium::v026g::match_msgs::id::STATIC_INFO, &reply.encode());
+        }
+        true
+    }
+
     /// A part of a client report (an E0 carrier, client patch 126 on,
     /// `srp_validate::report`): only logged (`client_report`), each part
     /// once per connection, of this match only, whatever its stage (a game
@@ -1631,6 +1680,7 @@ impl Game {
 
     fn message(&mut self, index: usize, id: u8, payload: &[u8], now: Instant) {
         if self.accept_world_receipt(index, id, payload, now)
+            || self.accept_executable(index, id, payload, now)
             || self.accept_report(index, id, payload)
             || self.accept_prepared(index, id, payload)
         {
@@ -3743,6 +3793,8 @@ impl Game {
             return;
         }
         peer.inputs_received += 1;
+        // Anti-AFK: late or not, its player is at its keys.
+        self.afk.input(index, &input, now);
         // Made by its game for a tick of the present: it simulates.
         peer.simulating_at = Some(now);
         let late = clock.saturating_sub(time);
@@ -4163,6 +4215,8 @@ impl Game {
             }
             return Verdict::Refused;
         }
+        // At its time as uploaded, the one a replay knows it by.
+        self.record_accepted_world(&snapshot, now);
         // The clock runs on the tick grid [LIKELY the initial world is on
         // it: 0.21d's was at 50 ms].
         if !snapshot.time.is_multiple_of(TICK_MS) {
@@ -4239,6 +4293,12 @@ impl Game {
     /// Read a trusted snapshot's statistics and rules: the standing, the
     /// phase, and whether the mode's rule has its end.
     fn observe(&mut self, snapshot: &Snapshot, vouchers: usize) {
+        // FFA's first terminal trusted world owns the results throughout
+        // the closing delay. Later uploads still serve synchronization,
+        // but cannot replace its standings, statistics or kill streaks.
+        if self.game_mode() == RuleMode::FreeForAll && self.mode_end_at.is_some() {
+            return;
+        }
         let Some(decoded) = snapshot::decode(
             snapshot.time,
             &snapshot.body,
@@ -4365,7 +4425,13 @@ impl Game {
                         )
                     }),
                 RuleMode::Research => research_end.is_some(),
-                _ => standing.is_some_and(|standing| {
+                RuleMode::FreeForAll => decoded.rules.as_ref().is_some_and(|read| {
+                    rules::ffa_finished(
+                        read.kills_deaths.iter().map(|record| record.kills),
+                        self.formed.played.map().kills_to_win,
+                    )
+                }),
+                RuleMode::Batteries | RuleMode::TimedBatteries => standing.is_some_and(|standing| {
                     rules::gather_finished(standing.points, self.batteries() as u32)
                 }),
             };
@@ -4553,6 +4619,7 @@ impl Game {
                         );
                     }
                     self.keep_past(&candidate.snapshot);
+                    self.record_accepted_world(&candidate.snapshot, now);
                     self.snapshot = Some(candidate.snapshot);
                     self.requested_at = None;
                 }
@@ -4998,6 +5065,7 @@ impl Game {
                     }
                 ));
         peer.stage = Stage::Gone;
+        peer.executable.cancel();
         peer.held.clear();
         peer.reassembler.clear();
         log::info!(
@@ -5464,6 +5532,9 @@ impl Game {
 
     /// Advance the match, and return the datagrams to send.
     pub fn poll(&mut self, now: Instant) -> Vec<(SocketAddr, Vec<u8>)> {
+        for peer in self.peers.iter_mut().flatten() {
+            if peer.stage == Stage::Gone { peer.executable.cancel(); } else { peer.executable.expire(now); }
+        }
         self.poll_roster(now);
         let clock = self.clock(now);
         let mono16 = self.mono(now) as u16;
@@ -5788,10 +5859,9 @@ impl Game {
                     }
                 }
                 Stage::Gone => {
-                    // The end, again, if the first was never acked.
-                    if self.finished_at.is_some()
-                        && let Some((serial, message)) = peer.farewell.take()
-                    {
+                    // The end, again, if the first was never acked: the
+                    // match's, or a player's removed as idle (`afk_watch`).
+                    if let Some((serial, message)) = peer.farewell.take() {
                         if peer.transport.is_lost(serial) {
                             // With the tick of now: the client's
                             // `leave_match` refuses a tick too far back
@@ -5817,6 +5887,7 @@ impl Game {
         self.check_world_lost(now);
         self.check_bots_alone(now);
         self.check_pvb_stall(now);
+        self.check_idle(now);
 
         if self.clock_start.is_some()
             && self.finished_at.is_none()

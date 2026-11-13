@@ -1,6 +1,6 @@
-//! Patch 130: a replay played in the running game (path A,
-//! docs/notes/replay-stream.md; client_patch.md 3.79). The match server
-//! streams a recording to a game with no place of its own (patch 121) and
+//! Patch 144: a replay played in the running game (path A,
+//! docs/notes/replay-stream.md; client_patch.md 3.83). The match server
+//! streams a recording to a game with no place of its own (patch 143) and
 //! runs its playback; its first playback note (an 0xF6, the
 //! `replay-control` crate) makes the spectator's game a replay's viewer:
 //!
@@ -16,7 +16,7 @@
 //!   the camera stands); Esc leaves, as the game's own leave does (an empty
 //!   0xE0, back to the lobby); the controls' Back asks the server to let the
 //!   game go (its farewell, as at the recording's end). F5, F6 and F2 stay
-//!   patch 121's.
+//!   patch 143's.
 //!
 //! A spectator's game, a live match's too, follows the place its watcher asked
 //! for when the server names it (a view note), and picks no kit: its 1 to 3 and a pick of the
@@ -1045,7 +1045,7 @@ impl ControlCall {
 
 /// `hud.callback` (after patch 86's): the replay controls in a network
 /// game. A viewer's become requests to the server (play, the bar, the
-/// speed, Back's leave), patch 121's camera (a player, the free view) or the
+/// speed, Back's leave), patch 143's camera (a player, the free view) or the
 /// Moments switch; any other game's are taken with nothing done.
 /// A replay client's, and every other call, go on as the game's.
 pub fn on_hud_call(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnHudCallExit> {

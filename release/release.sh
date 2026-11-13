@@ -143,15 +143,19 @@
 #      links), their sha256, the image ID, the setting (and the source) kept
 #      in the folder with its rollback, srp.db copied to the jump host too
 #      (live only); the server data (and source) and the ZIP in place,
-#      SRP_MIN_PATCH_REVISION=<rev>, srp26 made anew: the ZIP goes in while
+#      SRP_MIN_PATCH_REVISION=<rev> and SRP_RELEASED_EXE_SHA256=<the sha256
+#      of the ZIP's game exe> (the match server reads it at its start and
+#      asks no game that reports this exe for its file; any other exe it
+#      has not stored is collected), srp26 made anew: the ZIP goes in while
 #      srp26 is stopped, so the site never offers the old ZIP beside the new
 #      /patches and revision (an updater would enable PLAY for a game the
 #      login server refuses);
 #   6. checks the container, the log's game data line, /patches and /game
 #      (the list's files; any rows of srp's mirrors.tsv after each one's
 #      URLs, release/add-mirror) and /api/client-files (the new ZIP and, from an
-#      srp that says it, min-revision <rev>). A failed check prints srp's log and runs the
-#      folder's rollback (srp.db, image, data, ZIP, setting, source: as
+#      srp that says it, min-revision <rev>), and says what srp's log tells
+#      of the release's exe. A failed check prints srp's log and runs the
+#      folder's rollback (srp.db, image, data, ZIP, settings, source: as
 #      before), with --now too. The run's output is the folder's release.log;
 #   7. live only, once it all went out (never after a stop or a rollback):
 #      the record. An annotated tag 026g-rev<n> on the commit that was built
@@ -1254,6 +1258,20 @@ if ((target_ok)); then
     compose_text=$(if [[ -n $main_commit ]]; then git -C "$REPO" show "$main_commit:srp-026g/docker-compose.yml" 2>/dev/null; fi || true)
     set_now=$(env_settings_set "$compose_text" || echo "(not readable)")
     if [[ -n $set_now ]]; then say "  note     main's compose file now passes on $set_now, which the $TARGET .env sets (names only): those values take effect at the recreate"; fi
+    # Voice chat: srp binds the match port + 1 and the games send there; the
+    # compose file publishes SRP26_VOICE_PORT, which cannot be worked out
+    # from the match port there. A mismatch would leave voice silent.
+    ports=$(on_target "cd $D && grep -E '^SRP26_(MATCH|VOICE)_PORT=' .env" || true)
+    match_port=$(sed -n 's/^SRP26_MATCH_PORT=//p' <<<"$ports" | tail -n 1)
+    voice_port=$(sed -n 's/^SRP26_VOICE_PORT=//p' <<<"$ports" | tail -n 1)
+    match_port=${match_port:-2236} voice_port=${voice_port:-2237}
+    if [[ $match_port =~ ^[0-9]+$ && $voice_port =~ ^[0-9]+$ ]] && ((voice_port == match_port + 1)); then
+        okay "the voice port: SRP26_VOICE_PORT $voice_port is SRP26_MATCH_PORT + 1 (UDP $voice_port must be open in the host's firewall)"
+    else
+        want='the match port + 1'
+        if [[ $match_port =~ ^[0-9]+$ ]]; then want=$((match_port + 1)); fi
+        problem "the voice port: SRP26_VOICE_PORT is ${voice_port}, SRP26_MATCH_PORT ${match_port}: srp binds the match port + 1: set SRP26_VOICE_PORT=$want in the $TARGET .env and open that UDP port in the host's firewall"
+    fi
     # The admin page plans the maintenance: --no-maintenance never asks it.
     if ((no_maint)); then
         okay "the admin page: not needed ($( ((now)) && printf -- '--now' || printf -- '--no-maintenance'))"
@@ -1846,6 +1864,7 @@ if ((!DRY_RUN)); then
     say "  download/$ZIP_NAME: $ZIP_SIZE bytes, sha256 $ZIP_SHA (revision $live_rev -> $rev)"
     say "  download/$DATA_NAME: sha256 $DATA_SHA"
     say "  .env: SRP_MIN_PATCH_REVISION $OLD_MIN -> $rev"
+    say "  .env: SRP_RELEASED_EXE_SHA256 -> $EXE_SHA (the ZIP's game exe: no game that reports it is asked for its file)"
     if ((${#BD_TODO[@]})); then
         say "  the bots' data in the volume ($RUN_VOLUME_DIR), ${#BD_TODO[@]} file(s) (the old ones kept in $TARGET_DIR/$REL/old-bot-data):"
         printf '    %s\n' "${BD_REPORT[@]:-put in as listed}"

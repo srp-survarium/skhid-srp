@@ -69,17 +69,45 @@ package survarium.rooms
         // size, level, wait or minimum of its own: the window sends none.
         public static const CREATE_PIN:int = 1941;
         // The pool in CHUNKS pieces of BITS_PER_CHUNK entries (POOL_BITS in
-        // all), each sent at BITS + chunk * CHUNK_STEP + its bits.
-        public static const BITS_PER_CHUNK:int = 20;
-        public static const CHUNKS:int = 8;
-        public static const POOL_BITS:int = 160;
-        public static const CHUNK_STEP:int = 1048576;
+        // all), each sent at BITS + chunk * CHUNK_STEP + its bits. 256 entries: every playable
+        // map (167 in the live data with the free-for-alls, 142 before them; 160 until then).
+        public static const BITS_PER_CHUNK:int = 16;
+        public static const CHUNKS:int = 16;
+        public static const POOL_BITS:int = 256;
+        public static const CHUNK_STEP:int = 65536;
         // A PIN's digits (PIN_MAX 9999).
         public static const PIN_DIGITS:int = 4;
         // The vote's cards: 0 to LAST_CARD (the server's CARDS, 3).
         public static const LAST_CARD:int = 2;
         // A kick: KICK + place + MEMBERS_MAX * (the room's serial % KICK_CHECKS).
         public static const KICK_CHECKS:int = 495;
+
+        // A create's bits requests for the pool entries `picked` (their indexes) of a pool of
+        // `count`: one a chunk of BITS_PER_CHUNK entries the pool has (one at least, CHUNKS at
+        // most), each BITS + chunk * CHUNK_STEP + its bits (entry chunk * BITS_PER_CHUNK + b by bit b).
+        public static function poolSteps(picked:Array, count:int):Array
+        {
+            var used:int = Math.max(1, Math.min(CHUNKS, int((count + BITS_PER_CHUNK - 1) / BITS_PER_CHUNK)));
+            var chunks:Array = [];
+            var c:int;
+            for (c = 0; c < used; c++)
+                chunks.push(0);
+            for each (var index:int in picked)
+            {
+                if (index >= 0 && index < used * BITS_PER_CHUNK)
+                    chunks[int(index / BITS_PER_CHUNK)] |= 1 << (index % BITS_PER_CHUNK);
+            }
+            var steps:Array = [];
+            for (c = 0; c < used; c++)
+                steps.push(BITS + c * CHUNK_STEP + chunks[c]);
+            return steps;
+        }
+
+        // Whether pool entry `index` is in by a form's `bits` (chunk n's bits at bits[n]).
+        public static function bitIn(bits:Array, index:int):Boolean
+        {
+            return (uint(bits[int(index / BITS_PER_CHUNK)]) & (1 << (index % BITS_PER_CHUNK))) != 0;
+        }
 
         public static function send(start:int, count:int):void
         {

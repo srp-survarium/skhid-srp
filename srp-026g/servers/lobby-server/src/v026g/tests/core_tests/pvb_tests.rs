@@ -111,7 +111,7 @@ fn gear_5_gets_an_8_v_8_with_15_bots_on_the_map_chosen() {
     with_gear(&mut world, alice, 5);
     let (header, maps) = status(&mut world, alice);
     assert_eq!(header, "B1;0;5;5;6.8.10;8;61;0;5");
-    // The owner's maps, each free for five matches.
+    // The owner's maps, each free for five matches; no free-for-all.
     let listed: Vec<u8> = maps
         .iter()
         .map(|row| row.split(';').next().unwrap().parse().unwrap())
@@ -192,6 +192,19 @@ fn every_size_has_its_bots_on_both_sides() {
     }
 }
 
+/// No free-for-all against bots (the owner, 2026-11-13): its maps are
+/// projects of their own with no bots' map file (`ffa.md`), so none is
+/// offered, and a choice of one is refused as a map not offered.
+#[test]
+fn a_free_for_all_is_not_offered_against_bots() {
+    let mut world = world_with(5);
+    let player = world.connect("P");
+    for map in maps::playable_in(maps::GameMode::FreeForAll) {
+        assert_eq!(choose(&mut world, player, 8, map.id), "B2;no;10;0;5;0;5", "{}", map.id);
+    }
+    world.assert_clean();
+}
+
 /// Equipment level 6 is over the most (5): refused with code 1 and both
 /// levels, in the status and the choice; the Play then goes into a room.
 #[test]
@@ -201,6 +214,7 @@ fn gear_6_is_refused_with_code_1_and_its_level() {
     with_gear(&mut world, bob, 6);
     let (header, maps) = status(&mut world, bob);
     assert_eq!(header, "B1;1;6;5;6.8.10;8;61;0;5");
+    // The owner's 16 maps.
     assert_eq!(maps.len(), MAPS.len());
     assert_eq!(choose(&mut world, bob, 8, 61), "B2;no;1;6;5;0;5");
     assert!(world.core.pvb_holds.is_empty());

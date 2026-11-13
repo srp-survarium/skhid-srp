@@ -22,6 +22,9 @@ USAGE
         [--check]                    every check, nothing written
         [--pack-zip]                 write the output as a ZIP instead of a folder
         [--bugtrap=<BugTrap.dll>]     defaults to the Rust release build in this repo
+        [--voice=<skhid_voice.dll>]  defaults to the Rust release build in this repo
+                                     (`nix develop ./srp-026g -c bash
+                                     srp-026g/client-voice/build.sh`)
         [--updater=<updater_skhid.exe>]  defaults to the release build in this repo
         [--extractor=<7zr.exe>]      defaults to the copy in this repo; it must be
                                      the file the updater is built to run
@@ -55,15 +58,18 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
     <output>/game/binaries/x86/play_skhid.bat
         starts it from that folder (the client finds its certificate by a
         path relative to the working directory) with the launch line:
-        survarium_skhid.exe -mt_allocator=768 -minimum_resources_memory_size=768
+        survarium_skhid.exe -minimum_resources_memory_size=768
         Full builds use the embedded server; -server=host:port can still
         override it. Cert-only passes -server= at launch as before.
-        (-mt_allocator: the global multithreaded arena, 376 MiB by
-        default, which map loading ran out of in upstream's live runs;
-        -minimum_resources_memory_size: the resources arenas' floor.
-        Two different arenas: docs/SRP-026G.md.)
+        (-minimum_resources_memory_size: the resources arenas' floor. The
+        global multithreaded arena is the exe's own, at least 1024 MiB
+        (patch 129), and no launch line names it: docs/SRP-026G.md.)
     <output>/game/binaries/x86/bugtrap.dll
         the Rust SRP crash reporter; saves zipped dumps locally; Submit Bug opens SRP Discord in the browser.
+    <output>/game/binaries/x86/skhid_voice.dll
+        voice chat (../client-voice, exe patch 66): the exe loads it at the
+        first match; without it voice is off. Built by client-voice/build.sh
+        in the pinned Nix shell; its exports are checked here.
     <output>/game/binaries/x86/play_skhid.sh
         the Linux launcher: creates a local Wine prefix, installs DXVK through
         Winetricks and launches with the same server and language as the batch file.
@@ -260,6 +266,31 @@ def read_bugtrap(path):
     return data
 
 
+VOICE_DLL = os.path.abspath(os.path.join(HERE, "..", "target-voice", "i686-win7-windows-msvc", "release", "skhid_voice.dll"))
+# What patch 66 asks of the DLL by name (the shared voice-abi crate).
+VOICE_EXPORTS = (b"sv_version", b"sv_start", b"sv_stop", b"sv_ptt", b"sv_settings", b"sv_radio", b"sv_mute",
+                 b"sv_talking", b"sv_slot", b"sv_voice_id")
+
+
+def read_voice(path):
+    """skhid_voice.dll: a 32-bit x86 DLL that exports every function patch 66 asks for."""
+    try:
+        with open(path, "rb") as dll:
+            data = dll.read()
+    except OSError as e:
+        sys.exit(f"{path}: cannot read skhid_voice.dll ({e}). Build it with `nix develop ./srp-026g -c bash "
+                 "srp-026g/client-voice/build.sh`, or pass --voice=<path>.")
+    pe = int.from_bytes(data[0x3c:0x40], "little")
+    if (len(data) < 64 or data[:2] != b"MZ" or pe + 26 > len(data) or data[pe:pe + 4] != b"PE\0\0"
+            or int.from_bytes(data[pe + 4:pe + 6], "little") != 0x14c
+            or not int.from_bytes(data[pe + 22:pe + 24], "little") & 0x2000):
+        sys.exit(f"{path}: expected a 32-bit x86 Windows DLL")
+    missing = [name.decode() for name in VOICE_EXPORTS if name + b"\0" not in data]
+    if missing:
+        sys.exit(f"{path}: not skhid_voice.dll: no {', '.join(missing)}")
+    return data
+
+
 def read_updater(path):
     try:
         with open(path, "rb") as exe:
@@ -346,7 +377,7 @@ def parse_server(text):
 def game_arguments(server, embedded=False):
     """What the game is started with after its language."""
     return (("" if embedded else f"-server={server} ")
-            + "-mt_allocator=768 -minimum_resources_memory_size=768")
+            + "-minimum_resources_memory_size=768")
 
 
 def launch_line(server, embedded=False):
@@ -601,7 +632,7 @@ def readme(server, description, files, embedded=False, site=None):
         (f"  Default server: {server} (embedded in survarium_skhid.exe)" if embedded
          else f"  Server: {server} (SERVER in play_skhid.bat)"),
         "  -server=         override the login server (host:port)",
-        "  -mt_allocator=768, -minimum_resources_memory_size=768",
+        "  -minimum_resources_memory_size=768",
         "                   memory for the game, MB (maps need more than the default)",
         "",
         "The rules of the server are on its page:",
@@ -626,6 +657,7 @@ def main():
     options = [a for a in sys.argv[1:] if a.startswith("--")]
     mode, check, server = "section", False, None
     bugtrap_path = BUGTRAP_DLL
+    voice_path = VOICE_DLL
     archive = False
     launcher, updater_path, site = True, UPDATER_EXE, None
     extractor_path = EXTRACTOR_EXE
@@ -653,6 +685,8 @@ def main():
             server = parse_server(option[9:])
         elif option.startswith("--bugtrap="):
             bugtrap_path = option[len("--bugtrap="):]
+        elif option.startswith("--voice="):
+            voice_path = option[len("--voice="):]
         elif option.startswith("--updater="):
             updater_path = option[len("--updater="):]
         elif option.startswith("--extractor="):
@@ -675,6 +709,7 @@ def main():
         if archive or not os.path.isdir(output) or os.listdir(output):
             sys.exit(f"{output}: output already exists; use a new ZIP or an empty folder")
     bugtrap = read_bugtrap(bugtrap_path)
+    voice = read_voice(voice_path)
 
     # The exe: patch_026g.py refuses anything but the original.
     original = Path(source, EXE_DIR, "survarium.exe").read_bytes()
@@ -702,6 +737,7 @@ def main():
     files = [
         (os.path.join("game", EXE_DIR, "survarium_skhid.exe"), exe),
         (os.path.join("game", EXE_DIR, "bugtrap.dll"), bugtrap),
+        (os.path.join("game", EXE_DIR, "skhid_voice.dll"), voice),
         (os.path.join("game", EXE_DIR, "play_skhid.bat"), bat(server, embedded)),
         (LINUX_LAUNCHER, sh(server, embedded)),
         (MAC_LAUNCHER, sh(server, embedded, "play_skhid_mac.sh")),

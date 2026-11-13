@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run patch 121 (the Rust patch `spectator`: a game with no place of its own
+"""Run patch 143 (the Rust patch `spectator`: a game with no place of its own
 watches its match) in the default build beside the original, at its four
 sites, on made-up objects.
 

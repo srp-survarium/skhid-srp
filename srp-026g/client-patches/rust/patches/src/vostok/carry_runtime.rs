@@ -423,9 +423,20 @@ impl ArtefactDraw {
         }
         true
     }
+    /// Whether its model is presented by us: held in a hand (the cached
+    /// state 5) or lying on the ground (6). Else the callback is the native's
+    /// unless a hand asks to present it ([`DrawCommand::Present`]).
+    pub fn ours(&self) -> bool {
+        // SAFETY: the original callback's cached state byte.
+        matches!(unsafe { read(self.callback.cached_state()) }, 5 | 6)
+    }
     /// True: this callback was fully handled. False: native ground/active
     /// presentation must run. Its state transitions still own particles.
     pub fn update(&self, ctx: &Context<'_>, command: DrawCommand) -> bool {
+        // Nothing of ours to take back or keep (most artefacts, each frame).
+        if !self.ours() && !matches!(command, DrawCommand::Present(_)) {
+            return false;
+        }
         // SAFETY: the original callback owns its item/model/world throughout.
         unsafe {
             let cached = self.callback.cached_state();

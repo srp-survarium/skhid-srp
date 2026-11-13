@@ -8,6 +8,12 @@ harness_work "$2"
 harness=$(readlink -f "${3:-$here/WeightHarness.as}")
 harness_name=$(basename "$harness" .as)
 result_tag=${4:-WEIGHT}
+# The game's Scaleform does not join the arrays of an Array.concat with several arguments (each
+# further one becomes one element; Ruffle joins them): no lobby source may call it so
+# (docs/notes/lobby-source.md, "Scaleform pitfalls").
+if grep -rnP --include='*.as' '\.concat\((?:[^(),]|\((?:[^()]|\([^()]*\))*\))*,' "$here/../../flash/lobby_menu/src/survarium/player"; then
+    echo "WEIGHT RESULT fail: Array.concat with several arguments (see above)"; exit 1
+fi
 # The texts the exe gives the movie (set_localization_data), from the dictionaries.
 "${PYTHON:-python3}" "$here/../localization-check/harness_text.py" "$work"
 # The lobby's kill feed weapon icons are the hud's own images (make_lobby_weapon_icons.py --check).

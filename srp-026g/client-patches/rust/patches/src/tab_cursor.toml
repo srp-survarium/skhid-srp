@@ -7,12 +7,12 @@ patch = 86
 [[hook]]
 site = "tab_cursor.key"
 handler = "on_key"
-order = 0
+order = 1                           # after patch 66's keys (voice.toml, order 0), which never take one
 
 [[hook]]
 site = "hud.callback"
 handler = "on_hud_call"
-order = 0
+order = 1                           # before patch 66's voice calls (srp_voice_*)
 
 # A match's (or a replay's) options read, after Blackout's: the cursor of the
 # match before is forgotten.

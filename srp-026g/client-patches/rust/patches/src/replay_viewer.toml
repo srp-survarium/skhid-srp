@@ -1,8 +1,8 @@
-# Patch 130: a replay played in the running game as a spectated match
+# Patch 144: a replay played in the running game as a spectated match
 # (replay_viewer.rs; docs/notes/replay-stream.md). Only the decisions: the
 # sites are sites_026g.tsv's, the logic replay_viewer.rs.
 name = "replay_viewer"
-patch = 130
+patch = 144
 uses = ["spectator"]
 
 # An 0xF6: the server's playback and events notes (payload 'R'); the
@@ -15,7 +15,7 @@ handler = "on_server_note"
 [[hook]]
 site = "tab_cursor.key"
 handler = "on_key"
-order = 1
+order = 2
 
 # close_current_match: the clock back to running at 1 before the world ends.
 [[hook]]
@@ -27,7 +27,7 @@ order = 0
 [[hook]]
 site = "static_info.options_read"
 handler = "on_static_info"
-order = 4
+order = 5
 
 # Every network game's first world loads the replay controls' movie too (the
 # game asks for it only with a replay reader), hidden until a viewer shows it.
@@ -53,7 +53,7 @@ handler = "on_mouse_pointer"
 [[hook]]
 site = "hud.callback"
 handler = "on_hud_call"
-order = 1
+order = 2
 
 # initialize_match's feed of the local place's kits (place 0 in a spectator's game): never sent
 # to a spectator, whose chooser the server's kits notes and the place followed fill.
