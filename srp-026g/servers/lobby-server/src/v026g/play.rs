@@ -936,7 +936,9 @@ impl Core<'_> {
     /// yet is none it can have left; one it was sent to, it left only under
     /// the order it was sent with (`send_to_watch`, `send_to_replay`): the
     /// game names the order of its last `85`, and an older one, or the
-    /// "not queued" of `85 00`, is the match before's.
+    /// "not queued" of `85 00`, is the match before's. The same holds for a
+    /// match it was sent to after a watch the lobby ended (its room seated
+    /// it, `send_found`) before the game was back from that watch.
     fn left_another(&self, who: &Who, order_id: u32) -> bool {
         let Some(player) = self.player(who.addr) else {
             return false;
@@ -947,7 +949,7 @@ impl Core<'_> {
         match self.store.matchmaking().watched(who.session_id) {
             Some(watcher) if player.in_match != Some(watcher.match_id) => true,
             Some(_) => order_id != player.order_id,
-            None => replay && order_id != player.order_id,
+            None => (replay || player.connect.is_some()) && order_id != player.order_id,
         }
     }
 
