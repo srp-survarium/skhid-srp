@@ -2714,7 +2714,7 @@ st_srp_replay_demo_rank	«%1$s»: достигнут ранг 3. В магази
 st_srp_replay_demo_seller	Бродяги
 st_srp_replay_download	СКАЧАТЬ И СМОТРЕТЬ
 st_srp_replay_failed	Серверу не удалось подготовить повтор этого матча.
-st_srp_replay_gone	Повтор этого матча больше не хранится на сервере.
+st_srp_replay_gone	На сервере нет повтора этого матча: он не записывался или больше не хранится.
 st_srp_replay_in_room	Ваша комната сейчас ждёт вас в матче.
 st_srp_replay_incompatible	Этот повтор записан версией игры, которую ваша игра не может воспроизвести.
 st_srp_replay_made_now	Создаётся сейчас. Ожидание: %1$s с.

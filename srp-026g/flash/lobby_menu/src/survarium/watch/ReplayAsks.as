@@ -418,6 +418,12 @@ package survarium.watch
 
       private static function noteOne(h:String, reason:String) : void
       {
+         // `gone` is the server's word for a match with no recording, never recorded too: a
+         // reason a list told already (not recorded, an old version) stays
+         if(reason == NotificationListScrollContent.REASON_GONE && NotificationListScrollContent.replayReason(h) != null)
+         {
+            return;
+         }
          var reasons:Object = {};
          reasons[h] = reason;
          note(reasons);

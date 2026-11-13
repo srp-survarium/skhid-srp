@@ -2714,7 +2714,7 @@ st_srp_replay_demo_rank	«%1$s»: arvo 3 saavutettu. Kaupassa on uusia esineitä
 st_srp_replay_demo_seller	Haaskaajat
 st_srp_replay_download	LATAA JA KATSO
 st_srp_replay_failed	Palvelin ei saanut ottelun tallennetta valmiiksi.
-st_srp_replay_gone	Ottelun tallenne ei ole enää palvelimella.
+st_srp_replay_gone	Palvelimella ei ole tämän ottelun tallennetta: sitä ei tallennettu tai sitä ei enää säilytetä.
 st_srp_replay_in_room	Huoneesi tarvitsee sinua nyt otteluunsa.
 st_srp_replay_incompatible	Tallenne tehtiin peliversiolla, jota oma versiosi ei tue.
 st_srp_replay_made_now	Valmistellaan. Odotettu: %1$s s.

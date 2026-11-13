@@ -2714,7 +2714,7 @@ st_srp_replay_demo_rank	«%1$s»: rank 3 reached. New items are available in the
 st_srp_replay_demo_seller	Scavengers
 st_srp_replay_download	DOWNLOAD AND WATCH
 st_srp_replay_failed	Der Server konnte die Wiederholung dieses Matches nicht vorbereiten.
-st_srp_replay_gone	Die Wiederholung dieses Matches ist auf dem Server nicht mehr gespeichert.
+st_srp_replay_gone	Der Server hat keine Wiederholung dieses Matches: Sie wurde nicht aufgezeichnet oder ist nicht mehr gespeichert.
 st_srp_replay_in_room	Dein Raum braucht dich jetzt für sein Match.
 st_srp_replay_incompatible	Diese Wiederholung wurde mit einer Spielversion aufgezeichnet, die deine nicht abspielen kann.
 st_srp_replay_made_now	Being made now. Waiting: %1$s s.

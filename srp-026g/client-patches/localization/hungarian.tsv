@@ -2714,7 +2714,7 @@ st_srp_replay_demo_rank	«%1$s»: elérted a 3. rangot. Új tárgyak kaphatók a
 st_srp_replay_demo_seller	Guberálók
 st_srp_replay_download	LETÖLTÉS ÉS LEJÁTSZÁS
 st_srp_replay_failed	A szerver nem tudta előkészíteni a meccs felvételét.
-st_srp_replay_gone	A szerver már nem tárolja ennek a meccsnek a felvételét.
+st_srp_replay_gone	A szerveren nincs felvétel erről a meccsről: nem rögzítették, vagy már nem tárolja.
 st_srp_replay_in_room	A szobádnak most szüksége van rád a meccshez.
 st_srp_replay_incompatible	Ez a felvétel a játék egy nem kompatibilis verziójával készült.
 st_srp_replay_made_now	Most készül. Várakozás: %1$s mp.

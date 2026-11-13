@@ -2714,7 +2714,7 @@ st_srp_replay_demo_rank	«%1$s»: дасягнуты ранг 3. У краме �
 st_srp_replay_demo_seller	Бадзягі
 st_srp_replay_download	СПАМПАВАЦЬ І ГЛЯДЗЕЦЬ
 st_srp_replay_failed	Серверу не ўдалося падрыхтаваць паўтор гэтага матча.
-st_srp_replay_gone	Паўтор гэтага матча больш не захоўваецца на серверы.
+st_srp_replay_gone	На серверы няма паўтору гэтага матча: яго не запісвалі або ён больш не захоўваецца.
 st_srp_replay_in_room	Ваш пакой зараз чакае вас у матчы.
 st_srp_replay_incompatible	Гэты паўтор запісаны версіяй гульні, якую ваша гульня не можа прайграць.
 st_srp_replay_made_now	Ствараецца зараз. Чаканне: %1$s с.
