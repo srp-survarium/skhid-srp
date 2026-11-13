@@ -213,8 +213,9 @@ fn a_spectator_back_in_the_lobby_by_its_own_word_leaves_the_queue() {
     let carol = world.connect("Carol");
     rows(&mut world, carol, ROOM_WATCH_BASE + key, 1);
     world.advance(Duration::from_secs(1));
-    assert!(sent_to_match(&world.take(carol)).is_some());
-    world.ask(carol, request::leave(1, true));
+    let sent = world.take(carol);
+    assert!(sent_to_match(&sent).is_some());
+    world.ask(carol, request::leave(order_sent(&sent).unwrap(), true));
     world.advance(Duration::from_secs(2));
     assert!(sent_to_match(&world.take(carol)).is_none());
     assert_eq!(watched(&world, carol), None);
@@ -257,6 +258,45 @@ fn a_spectator_stays_queued_past_the_match_and_watches_the_next() {
     world.advance(Duration::from_secs(1));
     assert_eq!(watched(&world, carol), Some(next));
     assert_eq!(sent_to_match(&world.take(carol)), Some((next, 0)));
+}
+
+/// The game's word that it left the match before (`31 <order> FF`) can come
+/// after its room's next match was given to it to watch: it names that
+/// match's order, or the "not queued" its end's `85 00` left, and ends
+/// nothing of the next. Its word under the next's order does.
+#[test]
+fn a_late_word_for_the_match_before_keeps_the_next_watch() {
+    let mut world = World::new();
+    let (key, ticket, members) = full_room_playing(&mut world);
+    let carol = world.connect("Carol");
+    rows(&mut world, carol, ROOM_WATCH_BASE + key, 1);
+    world.advance(Duration::from_secs(1));
+    let first = order_sent(&world.take(carol)).expect("sent to watch");
+    world.end_match(ticket, 0);
+    world.advance(Duration::from_secs(2));
+    world.advance(NEXT_MATCH);
+    let (next, _) = sent_to_match(&world.take(members[0])).expect("the next match");
+    running(&mut world, next);
+    world.advance(Duration::from_secs(1));
+    assert_eq!(watched(&world, carol), Some(next));
+    let sent = world.take(carol);
+    assert_eq!(sent_to_match(&sent), Some((next, 0)));
+    let second = order_sent(&sent).expect("sent to watch the next");
+    assert_ne!(second, first);
+    for late in [first, u32::MAX] {
+        world.ask(carol, request::leave(late, true));
+        world.advance(Duration::from_secs(1));
+        assert_eq!(watched(&world, carol), Some(next));
+        assert_eq!(
+            world.core.rooms.queue_place(world.ids[carol].0),
+            Some((key, 1))
+        );
+        assert_eq!(queue_state(&world.take(carol)), None, "nothing told");
+    }
+    world.ask(carol, request::leave(second, true));
+    world.advance(Duration::from_secs(1));
+    assert_eq!(watched(&world, carol), None);
+    assert_eq!(world.core.rooms.queue_place(world.ids[carol].0), None);
 }
 
 /// Spectators are capped (the Live window's caps count them too): one

@@ -197,6 +197,15 @@ fn queue_state(decoded: &[Decoded]) -> Option<ClientState> {
     })
 }
 
+/// The order of the last "match found" or wait in `decoded`: what the
+/// game names in its `31` (lobby client +0x1E57A8).
+fn order_sent(decoded: &[Decoded]) -> Option<u32> {
+    match queue_state(decoded)? {
+        ClientState::InQueue { order_id, .. } => Some(order_id),
+        _ => None,
+    }
+}
+
 /// The `91`s the lobby answers a `3B` with `start` at once, as the client
 /// reads them: the rows of each, as `(name, place)`.
 fn answered(world: &mut World, index: usize, start: u32, count: u8) -> Vec<Vec<(String, u32)>> {

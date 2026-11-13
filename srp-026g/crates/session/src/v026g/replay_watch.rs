@@ -294,7 +294,8 @@ pub struct WatchAnswer {
     pub status: Status,
     pub match_id: u32,
     /// With [`Status::Watching`], the match time it starts at; with
-    /// [`Status::Preparing`], 1 being read now, 2 waiting; else 0.
+    /// [`Status::Preparing`], 1 being read now, 2 waiting, 0 read and its
+    /// game about to be sent; else 0.
     pub figure: u32,
 }
 
@@ -432,9 +433,10 @@ impl Watches {
         let (status, figure) = match session.stage {
             Stage::Queued => (Status::Preparing, 2),
             Stage::Loading => (Status::Preparing, 1),
-            Stage::Ready { start_ms } | Stage::Sent { start_ms } | Stage::Playing { start_ms } => {
-                (Status::Watching, start_ms)
-            }
+            // Its game is sent on the lobby's next turn, or turned down
+            // (`busy`): the movie stops polling at `watching`, so not yet.
+            Stage::Ready { .. } => (Status::Preparing, 0),
+            Stage::Sent { start_ms } | Stage::Playing { start_ms } => (Status::Watching, start_ms),
             Stage::Refused(refusal) => (refusal.status(), 0),
         };
         if step(session.stage, Event::Told) == Some(Step::Over) {
@@ -853,8 +855,14 @@ mod tests {
         assert!(watches.loaded(&alice, 14_500, now));
         assert_eq!(watches.to_send(), [(alice, 14_500)]);
         assert!(!watches.in_replay(alice.session_id));
+        // Read, its game not sent yet (the lobby may still turn it down):
+        // the movie polls on.
+        let answer = watches.answer(ALICE).unwrap();
+        assert_eq!((answer.status, answer.figure), (Status::Preparing, 0));
         watches.sent(ALICE, now);
         assert!(watches.in_replay(alice.session_id));
+        let answer = watches.answer(ALICE).unwrap();
+        assert_eq!((answer.status, answer.figure), (Status::Watching, 14_500));
         assert_eq!(
             watches.connected(alice.session_id, now),
             Some((alice, 14_500))

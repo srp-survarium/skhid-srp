@@ -35,9 +35,10 @@ impl Core<'_> {
                 .and_then(|player| player.shown_kits_of),
             Whose::Own => Some(who.account_id),
         };
+        // The name the search shows (`name_of`), which the movie takes the
+        // answer by: also an account with no 0.26g state.
         let nickname = subject
-            .and_then(|account_id| self.accounts.get(account_id))
-            .map(|account| account.locked().name.clone())
+            .and_then(|account_id| self.name_of(account_id))
             .unwrap_or_default();
         let limit = usize::from(count).min(PLAYER_MATCHES_ROWS);
         // The asker's own list has its private rooms' matches and those

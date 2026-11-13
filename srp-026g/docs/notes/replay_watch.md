@@ -4,7 +4,7 @@
 
 ## 1. Flow
 
-1. The movie asks to watch a match's replay in this game: `3D 00 <REPLAY_WATCH_BASE | place << 16 | seconds> <match id>` (`victory_screen_request_player_data`), or `0xC1000000` for the asker's deaths (no longer sent by the movie). The lobby answers at once with one `91` row (`lobby-server/src/v026g/replay.rs`).
+1. The movie asks to watch a match's replay in this game: `3D 00 <REPLAY_WATCH_BASE | place << 16 | seconds> <match id>` (`victory_screen_request_player_data`). The lobby answers at once with one `91` row (`lobby-server/src/v026g/replay.rs`).
 2. The movie polls with `3B 00 <REPLAY_START> 01` (`REPLAY_START = 2_200_000_000`) every second (30 times at most, up to 180 s while the answer is `preparing`). Each poll is answered with one `91` row: the asker's own session's answer, never anyone else's (`none` with match 0 when it has none, `off` with replays off).
 
 ### In the movie, since 2026-11-08 (watching in the running game)
@@ -66,8 +66,9 @@ Watch button wherever a match is mentioned.
   (`survarium/watch/ReplayAsks.as`, the prompt `WatchPrompt.as`, `replay-stream.md`): `3D 00 <0xC0000000 | place << 16> <match id>`,
   place 0xFF (anyone) for a recent match, the player's own place for a player's match, the place of
   a friend in a live match (`F1`), else 0xFF. The live path (`live.rs`, `live_watch`) does not follow a
-  place yet: the spectator starts on the server's pick. "Watch my deaths" is gone from the movie;
-  the server still takes `0xC1000000`.
+  place yet: the spectator starts on the server's pick. "Watch my deaths" (`0xC1000000`) is gone
+  from the movie and the server: a watch ask is `0xC0000000..=0xC0FFFFFF` only
+  (`REPLAY_WATCH_BASE..=REPLAY_WATCH_LAST`).
 - **The rows** (`survarium/watch/WatchRows.as`; `91` rows at the request's start plus their index):
   - Live, `3B 00 <2 240 000 000> <20>`, every 5 s while shown (30 s otherwise, for the badge):
     `L0;<n>;<delay s>`, then n of
@@ -90,9 +91,9 @@ Watch button wherever a match is mentioned.
 
 | message | bytes |
 |---|---|
-| ask (C->S) | `3D 00 <u32 0xC0000000 \| place << 16 \| seconds> <u32 match id>`, or `<u32 0xC1000000>` (`lobby::ReplayWatchAsk`) |
+| ask (C->S) | `3D 00 <u32 0xC0000000 \| place << 16 \| seconds> <u32 match id>` (`lobby::ReplayWatchAsk`) |
 | poll (C->S) | `3B 00 <u32 2200000000> <u8 count>` |
-| answer (S->C) | `91 01 <str "R1;<status>;<match id 8 lower hex>;<n>"> <u32 2200000000> <u16 0> <u16 0>` (`lobby::replay_answer`); `<n>` is the match time it starts at (ms) with `watching`, 1 being read or 2 waiting with `preparing`, else 0 |
+| answer (S->C) | `91 01 <str "R1;<status>;<match id 8 lower hex>;<n>"> <u32 2200000000> <u16 0> <u16 0>` (`lobby::replay_answer`); `<n>` is the match time it starts at (ms) with `watching` (its game sent), 1 being read, 2 waiting or 0 read and its game not sent yet with `preparing`, else 0 |
 
 The row's name is 45 bytes at the most (63 is the client's limit).
 

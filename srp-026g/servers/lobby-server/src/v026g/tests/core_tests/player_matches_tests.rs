@@ -212,6 +212,12 @@ fn the_search_chooses_whose_matches_are_listed() {
     // An account there is not chooses nobody new: still Bob's.
     world.ask(alice, request::player_details(PLAYER_MATCHES_ASK, 777_777));
     assert_eq!(matches(&mut world, alice, 10), rows);
+    // An account the search finds that has no 0.26g state yet: none, under
+    // the name the search showed (the movie takes the answer by it).
+    let (carol, _) = signed_in(world.store, "Carol");
+    assert!(world.accounts.get(carol).is_none());
+    world.ask(alice, request::player_details(PLAYER_MATCHES_ASK, carol));
+    assert_eq!(matches(&mut world, alice, 10), ["P1;0;Carol"]);
     let _ = std::fs::remove_dir_all(&dir);
 }
 

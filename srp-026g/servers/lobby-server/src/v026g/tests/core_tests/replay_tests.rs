@@ -212,11 +212,51 @@ fn a_game_back_by_its_own_word_is_free_to_watch_again_at_once() {
     let request = watches.next_job(world.now).expect("a session to read");
     assert!(watches.loaded(&request, 74_500, world.now));
     world.advance(Duration::from_secs(1));
-    assert_eq!(sent_to_match(&world.take(carol)), Some((MATCH, 0)));
+    let sent = world.take(carol);
+    assert_eq!(sent_to_match(&sent), Some((MATCH, 0)));
     assert_eq!(watches.connected(session, world.now), Some((request, 74_500)));
-    world.ask(carol, request::leave(1, true));
+    world.ask(carol, request::leave(order_sent(&sent).unwrap(), true));
     assert!(!watches.holds(account));
     assert_eq!(ask_to_watch(&mut world, carol, 75, Some(3)), "R1;preparing;1f07c8fb;2");
+}
+
+/// A session over by the match server's word (its game left by its menu), then the next one's game
+/// sent: the game's own word for the first (`31 <its order> FF`, or the "not queued" of the
+/// lobby's `85 00`) comes late and ends nothing of the next. Its word under the next's order does.
+#[test]
+fn a_late_word_for_the_session_before_keeps_the_next() {
+    let desk = sessions();
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let carol = player(&mut world, "Carol", current());
+    let (account, session) = world.ids[carol];
+    let watches = desk.watches();
+    let sent_session = |world: &mut World| {
+        assert_eq!(
+            ask_to_watch(world, carol, 75, Some(3)),
+            "R1;preparing;1f07c8fb;2"
+        );
+        let request = watches.next_job(world.now).expect("a session to read");
+        assert!(watches.loaded(&request, 74_500, world.now));
+        world.advance(Duration::from_secs(1));
+        let sent = world.take(carol);
+        assert_eq!(sent_to_match(&sent), Some((MATCH, 0)));
+        (request, order_sent(&sent).expect("sent to watch"))
+    };
+    let (first, first_order) = sent_session(&mut world);
+    assert!(watches.connected(session, world.now).is_some());
+    watches.ended(&first);
+    world.advance(Duration::from_secs(1));
+    let (second, second_order) = sent_session(&mut world);
+    assert_ne!(second_order, first_order);
+    for late in [first_order, u32::MAX] {
+        world.ask(carol, request::leave(late, true));
+        assert!(watches.in_replay(session), "still on its way to the next");
+        assert!(watches.is_open(&second));
+        assert_eq!(queue_state(&world.take(carol)), None, "nothing told");
+    }
+    world.ask(carol, request::leave(second_order, true));
+    assert!(!watches.holds(account));
 }
 
 /// Refused by the match server: the poll says why; a player not free in

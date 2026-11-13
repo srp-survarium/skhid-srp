@@ -876,8 +876,17 @@ impl Core<'_> {
 
     /// `31 <order> <left match>`: the player stopped waiting (a clan
     /// team's wait), or is back from a match it closed. Either way its
-    /// client is in the lobby.
-    pub(super) fn leave(&mut self, who: &Who, left_match: bool) {
+    /// client is in the lobby. A word for a match before the watch the
+    /// game is sent to now changes nothing ([`Self::left_another`]).
+    pub(super) fn leave(&mut self, who: &Who, order_id: u32, left_match: bool) {
+        if left_match && self.left_another(who, order_id) {
+            log::info!(
+                "{} is back from a match it was out of already (order {order_id:#x}); it is sent \
+                 to watch another",
+                who.name
+            );
+            return;
+        }
         if !left_match && let Some(account) = self.store.account(who.account_id) {
             account.locked().play = None;
         }
@@ -917,6 +926,29 @@ impl Core<'_> {
             self.show_results(who.addr, false);
         }
         self.squads_dirty = true;
+    }
+
+    /// Whether a game's `31 <order> FF` is about a match before the watch
+    /// its player has now (Queue and spectate, a Live window, a replay
+    /// session): one the lobby took it out of already (its end's `85 00`,
+    /// `end_running`; a replay session the match server ended), whose word
+    /// came after the next watch began. A watch its game was not sent to
+    /// yet is none it can have left; one it was sent to, it left only under
+    /// the order it was sent with (`send_to_watch`, `send_to_replay`): the
+    /// game names the order of its last `85`, and an older one, or the
+    /// "not queued" of `85 00`, is the match before's.
+    fn left_another(&self, who: &Who, order_id: u32) -> bool {
+        let Some(player) = self.player(who.addr) else {
+            return false;
+        };
+        let replay = self
+            .replays
+            .is_some_and(|replays| replays.watches().in_replay(who.session_id));
+        match self.store.matchmaking().watched(who.session_id) {
+            Some(watcher) if player.in_match != Some(watcher.match_id) => true,
+            Some(_) => order_id != player.order_id,
+            None => replay && order_id != player.order_id,
+        }
     }
 
     /// What the client is told of where it is:

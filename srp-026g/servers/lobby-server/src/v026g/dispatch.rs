@@ -48,7 +48,10 @@ impl Core<'_> {
 
             M::Play { kit_id } => self.play(who, kit_id, now),
             M::ClanPlay { kit_id } => self.clan_play(who, kit_id),
-            M::Leave { left_match, .. } => self.leave(who, left_match),
+            M::Leave {
+                order_id,
+                left_match,
+            } => self.leave(who, order_id, left_match),
 
             // ---- queries ----
             M::QuerySquadMember { account_id, .. } => self.squad_member(who, account_id),
@@ -135,7 +138,9 @@ impl Core<'_> {
                 player_id: lobby::player_matches::PLAYER_MATCHES_ASK,
                 match_id: account_id,
             } => {
-                let known = self.accounts.get(account_id).is_some();
+                // Any account the search finds (`name_of`), with 0.26g
+                // state or not.
+                let known = self.name_of(account_id).is_some();
                 if let Some(player) = self.player_mut(addr).filter(|_| known) {
                     player.shown_kits_of = Some(account_id);
                 }
