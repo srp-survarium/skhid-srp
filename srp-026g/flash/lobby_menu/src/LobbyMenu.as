@@ -1648,6 +1648,7 @@ package
       {
          ExternalInterface.call("show_match_result",e.match_id);
          var reportData:Object = e;
+         WatchWindow.reportOpened();
          this.show_victory_screen();
          this.victory_screen.setData(reportData);
          if((reportData) && (reportData.statistics_money))

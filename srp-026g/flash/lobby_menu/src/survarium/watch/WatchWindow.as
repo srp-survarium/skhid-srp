@@ -141,6 +141,10 @@ package survarium.watch
       // return does not undo one made meanwhile (resume)
       private var _moves:uint = 0;
 
+      // past matches' reports the player opened (History's rows, LobbyMenu.showFullReaport): one
+      // opened while a return is held is a window of its own, not the results it waits for
+      private var _reports:uint = 0;
+
       private var _tab:String = LIVE;
 
       private var _liveChip:String = EVERYONE;
@@ -315,6 +319,15 @@ package survarium.watch
          }
       }
 
+      // A past match's report opened (LobbyMenu.showFullReaport): a return held now is dropped.
+      public static function reportOpened() : void
+      {
+         if(WatchWindow.me != null)
+         {
+            WatchWindow.me._reports += 1;
+         }
+      }
+
       // A friend's Spectate (the friends list): Live, its friends' matches, and that friend's match
       // watched from the friend's place once the list says where it plays.
       public static function spectate(name:String) : void
@@ -327,7 +340,9 @@ package survarium.watch
          win._spectate = {"name":name.toLowerCase(),"shown":name,"left":SPECTATE_S};
          win._liveChip = FRIENDS;
          win.showTab(LIVE);
-         // the player's own move in the window after this ends it (spectating)
+         // a move of its own (a held return does not undo it); the player's next one ends it
+         // (spectating)
+         win._moves += 1;
          win._spectate.moves = win._moves;
       }
 
@@ -433,9 +448,10 @@ package survarium.watch
          var opened:Object = MainScene.activeWindow;
          var roomsShown:Boolean = RoomsWindow.me != null && RoomsWindow.me.shown;
          var moves:uint = this._moves;
+         var reports:uint = this._reports;
          var back:Function = function():void
          {
-            if(!win._inLobby)
+            if(!win._inLobby || win._reports != reports)
             {
                return;
             }
