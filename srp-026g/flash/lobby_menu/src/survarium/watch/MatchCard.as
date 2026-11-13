@@ -329,17 +329,19 @@ package survarium.watch
       }
 
       // An arrow into a tray: a press saves the replay (ReplayAsks), again once saved. Saving: dim,
-      // with its word; saved: gold, filled, with its word. Its x end.
+      // with its word; saved: gold, filled, with its word. While another match's save is under way
+      // (ReplayAsks.canSave) it cannot be pressed: dim as saving, a saved one faded. Its x end.
       private function saveIcon(match:uint, x:Number, y:Number, right:Number) : Number
       {
          this.showSave(true);
          var state:String = ReplayAsks.stateOf(match);
+         var pressable:Boolean = ReplayAsks.canSave;
          var icon:Sprite = this._saveIcon;
          icon.x = x;
          icon.y = y;
-         if(state != this._saveDrawn)
+         if(state + pressable != this._saveDrawn)
          {
-            this.paintSave(state);
+            this.paintSave(state,pressable);
          }
          if(state == ReplayAsks.SAVE)
          {
@@ -378,11 +380,12 @@ package survarium.watch
          }
       }
 
-      private function paintSave(state:String) : void
+      private function paintSave(state:String, pressable:Boolean) : void
       {
-         this._saveDrawn = state;
+         this._saveDrawn = state + pressable;
          var icon:Sprite = this._saveIcon;
-         var colour:uint = state == ReplayAsks.SAVING ? RoomsLook.DIM : state == ReplayAsks.SAVED ? 0x17130A : RoomsLook.GREY;
+         var colour:uint = state == ReplayAsks.SAVED ? 0x17130A : pressable ? RoomsLook.GREY : RoomsLook.DIM;
+         icon.alpha = state == ReplayAsks.SAVED && !pressable ? 0.5 : 1;
          icon.graphics.clear();
          icon.graphics.beginFill(0x000000,0.01);
          icon.graphics.drawRect(-3,-3,18,18);
@@ -403,7 +406,7 @@ package survarium.watch
          icon.graphics.lineTo(1,11);
          icon.graphics.lineTo(11,11);
          icon.graphics.lineTo(11,8);
-         icon.buttonMode = state != ReplayAsks.SAVING;
+         icon.buttonMode = pressable;
       }
 
       private function onSavePress(e:Event) : void

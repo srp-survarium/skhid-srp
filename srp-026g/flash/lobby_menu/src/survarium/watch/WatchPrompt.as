@@ -3,6 +3,7 @@ package survarium.watch
    import flash.text.TextFormat;
    import flash.utils.getTimer;
    import survarium.controls.Message;
+   import survarium.controls.VictoryScreen;
    import survarium.data.LocalizationData;
 
    // The prompt over the lobby while a watch is asked for (ReplayAsks): the game's message box with
@@ -56,6 +57,12 @@ package survarium.watch
          _shownKey = key;
          try
          {
+            // Over the results (their Watch replay), the message layer they hide.
+            var results:VictoryScreen = LobbyMenu.id != null ? LobbyMenu.id.victory_screen : null;
+            if(results != null)
+            {
+               results.showOver();
+            }
             var message:Object = Message.showMessage("apply",_data,true);
             _dialog = message;
             if(message)

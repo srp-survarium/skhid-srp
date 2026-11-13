@@ -54,6 +54,8 @@ package survarium.controls
          _dropDown = value;
       }
       
+      // The players found, or null when the answer was lost (LobbyMenu.findPlayers): an empty
+      // list, the spinner stopped.
       public function fillFoundPlayers(players:Array) : void
       {
          this.playersList.dataProvider = new DataProvider(players);
@@ -256,7 +258,7 @@ package survarium.controls
          }
          dispatchEvent(new Event(Event.CONNECT,true));
          // its answer, told apart from the Watch window's by the order asked
-         LobbyMenu.findPlayers(query,this.fillFoundPlayers);
+         LobbyMenu.findPlayers(this,query,this.fillFoundPlayers);
          this.loadingIndicator.gotoAndPlay(1);
          this.showSearch(false);
          this.btnCancelSearch.visible = false;

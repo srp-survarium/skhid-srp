@@ -371,7 +371,8 @@ package survarium.controls
          this._save.visible = this._watchAll.visible;
          this.sizeButton(this._save,LocalizationData.getName(state == ReplayAsks.SAVING ? "st_srp_replay_saving"
             : state == ReplayAsks.SAVED ? "st_srp_replay_saved" : "st_srp_replay_save"),font);
-         this._save.enabled = state != ReplayAsks.SAVING;
+         // one save at a time: greyed while any is under way, another match's too
+         this._save.enabled = ReplayAsks.canSave;
          this.sizeButton(this._watchAll,LocalizationData.getName("st_srp_replay_title"),font);
          if(isNaN(this._rowCentre))
          {
@@ -818,7 +819,17 @@ package survarium.controls
          this.showTop();
          return true;
       }
-      
+
+      // A box of srp's own drawn over this screen at once (ReplayAsks: a save's refusal): the
+      // message layer shown while the screen is up. Not a card's refusal.
+      public function showOver() : void
+      {
+         if(parent && visible)
+         {
+            this.showTop();
+         }
+      }
+
       override public function set x(value:Number) : void
       {
          super.x = int(value * MainScene.scaleFactor) / MainScene.scaleFactor;

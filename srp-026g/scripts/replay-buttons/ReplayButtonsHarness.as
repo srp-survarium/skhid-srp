@@ -35,6 +35,11 @@ package
    //   letters or more or when one is found; then the P1 rows; another's rows left; a name not
    //   found says so; the asker's own is Mine); the player pop-up's Matches (WatchWindow.openPlayer)
    //   searches the name; every label and hint whole, the chips clear of the box;
+   // - the searches by name (LobbyMenu.findPlayers): each answer to its own ask, Watch's or a
+   //   friends' list's; one sent a second at most (the next waits its turn, an asker's newer one
+   //   replacing its unsent one), the same name again while its search goes keeps it; at a
+   //   reconnect (playerSearchesLost) or after 15 s unanswered, the asker is told null (Watch: no
+   //   answer) and a later answer is nobody's;
    // - the cards: one Watch, or why not (not kept, old version; live: counting down, full, closed,
    //   over; an answer's word), the texts apart and clear of it; the code selectable (no copy icon);
    //   updated in place keyed by match: a refresh under a press keeps the card and its Watch, and
@@ -53,15 +58,18 @@ package
    //   and polls 2210000000; `R2;preparing` keeps it saving, `R2;ready` hands the link to the exe once
    //   (video_tutorial_link_clicked, no argument) and shows it saved, and it may be saved again (the
    //   updater's download may fail); a refusal, or no answer, says why and it may be saved again;
+   //   one save at a time: every other Save not pressable meanwhile;
    //   the saving and saved words fit the card; a ranking row named as a header is not taken;
    // - the results screen: a red Watch replay, then Save replay (Save replay, Saving..., Saved),
    //   left of the close button, their labels whole, the three as a row centred where the close
    //   button alone is; the match's number left of them, selected whole by a press and not changed
    //   by typing; why not in their place once known; no Watch my deaths; the movie's own Share and
-   //   Save buttons hidden;
+   //   Save buttons hidden; a save's refusal said at once over them (they hold messages back);
+   //   Save replay greyed while another match's save is under way;
    // - a History row: Watch, or why not, and the match's number under it, inside the row.
    // Ruffle has no exe: its calls land in the stand-in (scripts/exe-stand-in, ruffle_movie.py --exe),
-   // and the server's answers are told to the movie as the exe would. The movie has no test hooks.
+   // and the server's answers are told to the movie as the exe would. The movie has no test hooks but
+   // the clock of the searches by name (LobbyMenu.searchClock: one sent a second at most).
    // Prints "REPLAYBUTTONS ..." lines and ends with "REPLAYBUTTONS RESULT pass" or "... fail: ...".
    public class ReplayButtonsHarness extends Sprite
    {
@@ -84,6 +92,11 @@ package
       private var Asks:*;
 
       private var Message:*;
+
+      // LobbyMenu, and the clock of its searches by name (LobbyMenu.searchClock)
+      private var Menu:*;
+
+      private var clock:int = 0;
 
 
       private var failures:Array = [];
@@ -115,6 +128,11 @@ package
             Click = domain.getDefinition("scaleform.clik.events.ButtonEvent");
             Asks = domain.getDefinition("survarium.watch.ReplayAsks");
             Message = domain.getDefinition("survarium.controls.Message");
+            Menu = domain.getDefinition("LobbyMenu");
+            Menu.searchClock = function():int
+            {
+               return clock;
+            };
             lobby = new WatchLobby(domain,this,WatchLobby.texts("english"));
             for each(var language:String in HarnessText.LANGUAGES)
             {
@@ -215,11 +233,29 @@ package
          return lobby.W;
       }
 
-      // fill_players_search's players, to the search by name they answer (LobbyMenu.playersFound):
-      // true when one waited for them.
+      // fill_players_search's players, a second later (a search held meanwhile sent first), to the
+      // search by name they answer (LobbyMenu.playersFound): true when one waited for them.
       private function found(players:Array) : Boolean
       {
-         return domain.getDefinition("LobbyMenu").playersFound(players);
+         later(1100);
+         return Menu.playersFound(players);
+      }
+
+      // The searches' clock `ms` on, and their tick (a held search sent in its turn, one that waited
+      // too long for its answer dropped).
+      private function later(ms:int) : void
+      {
+         clock += ms;
+         Menu.playerSearchTick();
+      }
+
+      // The searches by name sent to the exe: their names.
+      private function searchesSent() : Array
+      {
+         return saveCalls("find_players").map(function(c:Array, i:int, all:Array):String
+         {
+            return String(c[1]);
+         });
       }
 
       private function cards() : Array
@@ -621,25 +657,92 @@ package
          expect(language + ": a players' answer nobody asked for taken",!found([]));
          // a friends' search asked while Watch's waits, and the other way round: each answer goes
          // to its own ask, in the order asked
-         var Menu:* = domain.getDefinition("LobbyMenu");
+         var friends:Object = {};
          var friendsGot:Array = null;
+         var friendsTold:int = 0;
          var friendsAsk:Function = function(players:Array):void
          {
             friendsGot = players;
+            friendsTold++;
          };
          typeIn("ada");
-         Menu.findPlayers("bob",friendsAsk);
+         Menu.findPlayers(friends,"bob",friendsAsk);
          found([{"id":5,"name":"Ada"}]);
          found([{"id":7,"name":"Bob"}]);
          expect(language + ": Watch's search, then a friends' search: not each its own answer",(find(win,"srpWatchSearch") as TextField).text == "Ada"
             && friendsGot != null && friendsGot.length == 1 && friendsGot[0].name == "Bob");
          friendsGot = null;
-         Menu.findPlayers("bob",friendsAsk);
+         Menu.findPlayers(friends,"bob",friendsAsk);
          typeIn("adm");
          found([{"id":7,"name":"Bob"}]);
          found([{"id":6,"name":"Adam_K"}]);
          expect(language + ": a friends' search, then Watch's: not each its own answer",(find(win,"srpWatchSearch") as TextField).text == "Adam_K"
             && friendsGot != null && friendsGot.length == 1 && friendsGot[0].name == "Bob");
+         // two searches within a second: the second waits its turn (the lobby server finds nobody
+         // for one sooner), and the first's answer is not taken for it
+         idle();
+         later(2000);
+         ExternalInterface.calls.length = 0;
+         typeIn("Bob_X");
+         typeIn("ada");
+         later(500);
+         expect(language + ": two searches sent within a second: " + searchesSent(),searchesSent().join(",") == "Bob_X");
+         found([{"id":7,"name":"Bob_X"}]);
+         expect(language + ": the second search not sent in its turn: " + searchesSent(),searchesSent().join(",") == "Bob_X,ada");
+         expect(language + ": the first search's answer taken for the second",(find(win,"srpWatchSearch") as TextField).text == "ada"
+            && textOf(win,"srpWatchEmpty") == "…");
+         found([{"id":5,"name":"Ada"}]);
+         expect(language + ": the second search's answer not taken",(find(win,"srpWatchSearch") as TextField).text == "Ada");
+         // the same name again while its search finds the player (Enter twice, Enter and the
+         // magnifier), or asks for its matches: that search kept, nothing sent again
+         later(2000);
+         ExternalInterface.calls.length = 0;
+         typeIn("Adm");
+         typeIn("adm");
+         later(2000);
+         expect(language + ": a repeated name searched again: " + searchesSent(),searchesSent().join(",") == "Adm");
+         found([{"id":6,"name":"Adam_K"}]);
+         typeIn("Adam_K");
+         later(2000);
+         expect(language + ": a repeated name kept its search: " + searchesSent(),searchesSent().join(",") == "Adm"
+            && (find(win,"srpWatchSearch") as TextField).text == "Adam_K");
+         // an asker's newer search takes the place of its unsent one, which is never answered
+         later(2000);
+         ExternalInterface.calls.length = 0;
+         var firstGot:Array = null;
+         friendsGot = null;
+         var unsentTold:Boolean = false;
+         Menu.findPlayers(friends,"one",function(players:Array):void
+         {
+            firstGot = players;
+         });
+         Menu.findPlayers(friends,"two",function(players:Array):void
+         {
+            unsentTold = true;
+         });
+         Menu.findPlayers(friends,"three",friendsAsk);
+         found([{"id":1,"name":"One"}]);
+         found([{"id":3,"name":"Three"}]);
+         expect(language + ": an asker's unsent search not replaced: " + searchesSent(),searchesSent().join(",") == "one,three"
+            && firstGot != null && firstGot[0].name == "One" && friendsGot != null && friendsGot[0].name == "Three" && !unsentTold);
+         // the lobby's connection made anew (close_sync): the searches sent have no answer coming;
+         // their askers told so (null: a friends' list's spinner stops), Watch says no answer, and a
+         // later answer is nobody's
+         later(2000);
+         friendsTold = 0;
+         Menu.findPlayers(friends,"bob",friendsAsk);
+         typeIn("ada");
+         later(1100);
+         Menu.playerSearchesLost();
+         expect(language + ": a search lost at a reconnect not told so",friendsTold == 1 && friendsGot == null
+            && textOf(win,"srpWatchEmpty") == words.getName("st_srp_matches_no_answer"));
+         expect(language + ": an answer after a reconnect taken",!found([{"id":5,"name":"Ada"}]));
+         // one unanswered for 15 s: dropped, its asker told so
+         friendsTold = 0;
+         friendsGot = [];
+         Menu.findPlayers(friends,"bob",friendsAsk);
+         later(15000);
+         expect(language + ": a search unanswered for 15 s not told so",friendsTold == 1 && friendsGot == null);
          // the asker's own match of a private room or against bots: a field more, which a card says
          var Rows:* = domain.getDefinition("survarium.watch.WatchRows");
          var privateRow:Object = Rows.played("P2;00000031;1;61;5;1;9;2;180;1;1");
@@ -971,6 +1074,8 @@ package
             cardFits(language + ": the saving card",cards()[0],cards()[0].width);
             click(cards()[1],"srpWatchSave");
             expect(language + ": a second save while one is under way",saveCalls("victory_screen_request_player_data").length == 1);
+            // one save at a time: the other cards' Save shows itself not pressable meanwhile
+            expect(language + ": another card's Save pressable while one is under way",!Asks.canSave && !Object(find(cards()[1],"srpWatchSave")).buttonMode);
             second();
             expect(language + ": the save did not poll",polls(2210000000) == 1);
             saveAnswer("preparing",MATCH,2);
@@ -981,6 +1086,8 @@ package
             var links:Array = saveCalls("video_tutorial_link_clicked");
             expect(language + ": the link not handed to the exe once with no argument " + links,links.length == 1 && links[0].length == 1);
             expect(language + ": the card does not say saved",saveState(cards()[0]) == savedWord && told().length == 0);
+            expect(language + ": the cards' Save not pressable again after the save",Asks.canSave && Object(find(cards()[0],"srpWatchSave")).buttonMode
+               && Object(find(cards()[1],"srpWatchSave")).buttonMode);
             var before:int = polls(2210000000);
             second();
             expect(language + ": polled after the save",polls(2210000000) == before);
@@ -997,6 +1104,8 @@ package
          // refused: why, and it may be saved again; no answer: the same
          click(cards()[1],"srpWatchSave");
          expect(language + ": the other card does not say saving",saveState(cards()[1]) == savingWord);
+         expect(language + ": the saved card's Save pressable while another's is under way",!Object(find(cards()[0],"srpWatchSave")).buttonMode
+            && saveState(cards()[0]) == savedWord);
          cardFits(language + ": the saving card",cards()[1],cards()[1].width);
          saveAnswer("gone",OTHER);
          var said:Array = told();
@@ -1144,8 +1253,21 @@ package
          fits(language + ": results Saving",save);
          expect(language + ": Watch replay is not just left of Saving",button.x + button.width <= save.x);
          expect(language + ": the results' row is not centred while saving",Math.abs((button.x + close.x + close.width) / 2 - middle) <= 1);
+         // why it failed shows at once, over the results that hold the lobby's messages back
+         // (LobbyMenu.show_victory_screen: Message.hideMessages)
+         Message.hideMessages();
          saveAnswer("busy",OTHER);
-         expect(language + ": Save replay not back after busy",save.label == words.getName("st_srp_replay_save") && told()[0] == words.getName("st_srp_replay_busy"));
+         var busy:Array = told();
+         Message.showMessages();
+         expect(language + ": Save replay not back after busy, or busy not said over the results: " + busy,save.label == words.getName("st_srp_replay_save")
+            && busy.length == 1 && busy[0] == words.getName("st_srp_replay_busy"));
+         // another match's save under way: Save replay greyed till it ends
+         expect(language + ": Save replay greyed with no save under way",save.enabled);
+         Asks.save(MATCH);
+         expect(language + ": Save replay pressable while another match's save is under way",!save.enabled && save.label == words.getName("st_srp_replay_save"));
+         saveAnswer("failed",MATCH);
+         told();
+         expect(language + ": Save replay not back after another match's save",save.enabled);
          // a save's refusal that says the replay is not kept: Watch replay and Save go at once (each
          // press would count against the server's lookups)
          save.dispatchEvent(new Click(Click.CLICK));

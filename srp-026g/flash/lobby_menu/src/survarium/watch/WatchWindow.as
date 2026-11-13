@@ -324,7 +324,9 @@ package survarium.watch
       }
 
       // The game loads a match (LobbyMenu.set_loading_level): a watch asked from here playing?
-      // Its `watching` comes only once the game is in it, after the load began.
+      // Its `watching` comes only once the game is in it, after the load began. The view to come
+      // back to is this load's alone: a view still kept from the last return (the results were up,
+      // and the game left the lobby before they closed) is dropped.
       public static function away() : void
       {
          var win:WatchWindow = WatchWindow.me;
@@ -332,9 +334,9 @@ package survarium.watch
          {
             return;
          }
-         if(win._pendingView != null && getTimer() - win._pendingAt < RESUME_MS)
+         if(win._inLobby)
          {
-            win._resume = win._pendingView;
+            win._resume = win._pendingView != null && getTimer() - win._pendingAt < RESUME_MS ? win._pendingView : null;
          }
          win._pendingView = null;
          win._inLobby = false;
@@ -344,7 +346,7 @@ package survarium.watch
       // Back in the lobby (each LobbyMenu.show_match_making(false), the results up or not): the
       // asks run again, and the asker's matches are asked again soon (History's rows of the match
       // just played); from a watch, its view again, unless the results are up (Watch opening
-      // would close them).
+      // would close them): then once they close (resultsClosed).
       public static function back() : void
       {
          var win:WatchWindow = WatchWindow.me;
@@ -354,32 +356,44 @@ package survarium.watch
          }
          win._inLobby = true;
          win._mineDue = getTimer() + BACK_ASK_MS;
-         var view:Object = win._resume;
-         if(view != null && (LobbyMenu.id == null || !LobbyMenu.id.resultsUp))
+         if(LobbyMenu.id == null || !LobbyMenu.id.resultsUp)
          {
-            win._resume = null;
-            // In a room, or a room's queue: the room says first whether it has a use for us now
-            // (srp calls a member back from a watch for its vote or its match); it shows itself
-            // then, and this window comes back only when it has none.
-            var resume:Function = function():void
-            {
-               win.restore(view);
-            };
-            if(RoomsWindow.me == null || !RoomsWindow.me.holdWatchReturn(resume))
-            {
-               resume();
-            }
+            win.resume();
          }
       }
 
       // The results closed (LobbyMenu.onVsRemoved): the asker's matches asked again soon, as at a
-      // return. Not while a match loads (its Esc may close them).
+      // return, and the view of the watch the results came back over. Not while a match loads
+      // (its Esc may close them; the load chose its own view to come back to, WatchWindow.away).
       public static function resultsClosed() : void
       {
          var win:WatchWindow = WatchWindow.me;
          if(win != null && win._inLobby)
          {
             win._mineDue = getTimer() + BACK_ASK_MS;
+            win.resume();
+         }
+      }
+
+      // From a watch, its view again, once. In a room, or a room's queue: the room says first
+      // whether it has a use for us now (srp calls a member back from a watch for its vote or its
+      // match); it shows itself then, and this window comes back only when it has none.
+      private function resume() : void
+      {
+         var view:Object = this._resume;
+         if(view == null)
+         {
+            return;
+         }
+         this._resume = null;
+         var win:WatchWindow = this;
+         var back:Function = function():void
+         {
+            win.restore(view);
+         };
+         if(RoomsWindow.me == null || !RoomsWindow.me.holdWatchReturn(back))
+         {
+            back();
          }
       }
 
@@ -404,11 +418,12 @@ package survarium.watch
       {
          this._liveChip = view.liveChip;
          this._replaysChip = view.replaysChip;
-         this._search = view.search;
+         // a searched player's list searched anew (the view's search is long over)
+         this._search = null;
          this.setBox(view.search != null ? view.search.name : "");
-         if(this._search != null)
+         if(view.search != null)
          {
-            this.searchPlayer(this._search.name);
+            this.searchPlayer(view.search.name);
          }
          this.showTab(view.tab);
       }
@@ -905,7 +920,9 @@ package survarium.watch
       }
 
       // Replays, `name`'s matches: the asker's own are Mine; another's account is found first
-      // (LobbyMenu.findPlayers, answered in foundPlayers).
+      // (LobbyMenu.findPlayers, answered in foundPlayers). The same name again while its search
+      // finds the player or asks for its matches (Enter twice, Enter and the magnifier) keeps that
+      // search: a new one would drop the answer on its way.
       private function searchPlayer(name:String) : void
       {
          this._tab = REPLAYS;
@@ -920,18 +937,32 @@ package survarium.watch
             this.render();
             return;
          }
+         var going:Object = this._search;
+         if(going != null && (going.state == FINDING || going.state == ASKED) && String(going.name).toLowerCase() == name.toLowerCase())
+         {
+            this.render();
+            return;
+         }
          this.setBox(name);
          var search:Object = {"name":name,"state":FINDING,"at":getTimer(),"asks":1};
          this._search = search;
          this._lists[PLAYER] = null;
          // the answer to this ask only (LobbyMenu: in the order asked; a friends' search may ask
-         // meanwhile), while it still waits for it: a name typed anew or a chip ends it
-         LobbyMenu.findPlayers(name,function(players:Array):void
+         // meanwhile), while it still waits for it: a name typed anew or a chip ends it. None
+         // (null): its answer was lost (the lobby's connection made anew)
+         LobbyMenu.findPlayers(this,name,function(players:Array):void
          {
-            if(_search === search && search.state == FINDING)
+            if(_search !== search || search.state != FINDING)
             {
-               foundPlayers(players);
+               return;
             }
+            if(players == null)
+            {
+               search.state = NO_ANSWER;
+               render();
+               return;
+            }
+            foundPlayers(players);
          });
          this.render();
       }

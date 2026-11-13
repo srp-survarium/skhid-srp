@@ -221,14 +221,31 @@ package
 
       private static var _playerInfoWait:Timer;
 
-      // The searches by name asked (findPlayers), oldest first ({answered, at}): the lobby server
+      // The searches by name sent (findPlayers), oldest first ({answered, at}): the lobby server
       // answers each, in order, and the answer (fill_players_search) says nothing of its ask, so it
-      // is the oldest's. One unanswered for PLAYER_SEARCH_WAIT_MS lost its answer (the lobby's
-      // connection made anew) and is dropped.
+      // is the oldest's. One unanswered for PLAYER_SEARCH_WAIT_MS lost its answer, and every one
+      // sent lost it when the lobby's connection is made anew (close_sync): each is dropped, its
+      // asker told null (no answer).
       private static var _playerSearches:Array = [];
 
+      // The searches by name not sent yet, oldest first ({asker, name, answered}), one an asker:
+      // the lobby server finds nobody for a search sooner than a second after the last (its
+      // SEARCH_EVERY), so one is sent at most every PLAYER_SEARCH_EVERY_MS, the next from
+      // _playerSearchNext on.
+      private static var _playerSearchesHeld:Array = [];
+
+      private static var _playerSearchNext:int = 0;
+
+      // ticks while a search waits to be sent or for its answer
+      private static var _playerSearchTimer:Timer;
+
+      // The searches' clock (getTimer; a harness's own).
+      public static var searchClock:Function = getTimer;
+
       private static const PLAYER_SEARCH_WAIT_MS:int = 15000;
-      
+
+      private static const PLAYER_SEARCH_EVERY_MS:int = 1100;
+
       public var item_control:SrvSelectedItemControl;
       
       public var bottom_panel:BottomPanel;
@@ -2957,6 +2974,9 @@ package
          this._top_container.removeChild(sync);
          sync.clean();
          stage.removeEventListener(Event.RESIZE,this.updateSyncScreen);
+         // the lobby's connection made anew: the searches by name sent before have no answer
+         // coming (each would go to the wrong ask)
+         LobbyMenu.playerSearchesLost();
       }
       
       public function set_player_level(value:uint) : void
@@ -3856,35 +3876,103 @@ package
          LobbyMenu.playersFound(value);
       }
 
-      // A search by name (find_players) for `answered` (a function of the players found): the
-      // Watch window's, a friends' or a squad's search list's.
-      public static function findPlayers(name:String, answered:Function) : void
+      // A search by name (find_players) of `asker` (the Watch window, a friends', a squad's or a
+      // clan's search list) for `answered`, a function of the players found, or of null when the
+      // answer was lost. Sent now, or in its turn (_playerSearchesHeld): an unsent search of the
+      // same asker is replaced by this one, and is never answered.
+      public static function findPlayers(asker:Object, name:String, answered:Function) : void
       {
-         _playerSearches.push({"answered":answered,"at":getTimer()});
-         try
+         for(var i:int = 0; i < _playerSearchesHeld.length; i++)
          {
-            ExternalInterface.call("find_players",name);
+            if(_playerSearchesHeld[i].asker === asker)
+            {
+               _playerSearchesHeld.splice(i,1);
+               break;
+            }
          }
-         catch(e:Error)
-         {
-         }
+         _playerSearchesHeld.push({"asker":asker,"name":name,"answered":answered});
+         playerSearchTick();
       }
 
       // fill_players_search's players, to the ask they answer: true when one waited for them.
+      // Taken before any held search is sent (a search sent now is not this answer's).
       public static function playersFound(players:Array) : Boolean
       {
-         var now:int = getTimer();
-         while(_playerSearches.length > 0 && now - int(_playerSearches[0].at) >= PLAYER_SEARCH_WAIT_MS)
+         var lost:Array = playerSearchesExpired();
+         var search:Object = _playerSearches.length > 0 ? _playerSearches.shift() : null;
+         playerSearchTick();
+         for each(var dropped:Object in lost)
          {
-            _playerSearches.shift();
+            dropped.answered(null);
          }
-         if(_playerSearches.length == 0)
+         if(search == null)
          {
             return false;
          }
-         var answered:Function = _playerSearches.shift().answered;
-         answered(players != null ? players : []);
+         search.answered(players != null ? players : []);
          return true;
+      }
+
+      // The searches sent that waited too long for their answers, dropped.
+      private static function playerSearchesExpired() : Array
+      {
+         var now:int = int(searchClock());
+         var lost:Array = [];
+         while(_playerSearches.length > 0 && now - int(_playerSearches[0].at) >= PLAYER_SEARCH_WAIT_MS)
+         {
+            lost.push(_playerSearches.shift());
+         }
+         return lost;
+      }
+
+      // The lobby's connection made anew (close_sync): the searches sent lost their answers.
+      public static function playerSearchesLost() : void
+      {
+         var lost:Array = _playerSearches;
+         _playerSearches = [];
+         playerSearchTick();
+         for each(var search:Object in lost)
+         {
+            search.answered(null);
+         }
+      }
+
+      // The searches' tick: the ones that waited too long for their answers dropped (told null),
+      // the next held one sent in its turn; the timer runs while any search is held or sent.
+      public static function playerSearchTick(e:TimerEvent = null) : void
+      {
+         var lost:Array = playerSearchesExpired();
+         var now:int = int(searchClock());
+         if(_playerSearchesHeld.length > 0 && now - _playerSearchNext >= 0)
+         {
+            var search:Object = _playerSearchesHeld.shift();
+            _playerSearchNext = now + PLAYER_SEARCH_EVERY_MS;
+            _playerSearches.push({"answered":search.answered,"at":now});
+            try
+            {
+               ExternalInterface.call("find_players",search.name);
+            }
+            catch(err:Error)
+            {
+            }
+         }
+         var busy:Boolean = _playerSearchesHeld.length > 0 || _playerSearches.length > 0;
+         if(busy && _playerSearchTimer == null)
+         {
+            _playerSearchTimer = new Timer(100);
+            _playerSearchTimer.addEventListener(TimerEvent.TIMER,playerSearchTick);
+            _playerSearchTimer.start();
+         }
+         else if(!busy && _playerSearchTimer != null)
+         {
+            _playerSearchTimer.stop();
+            _playerSearchTimer.removeEventListener(TimerEvent.TIMER,playerSearchTick);
+            _playerSearchTimer = null;
+         }
+         for each(var dropped:Object in lost)
+         {
+            dropped.answered(null);
+         }
       }
       
       public function set_ignored_list(value:Array) : void
@@ -4654,11 +4742,12 @@ package
          {
             RoomsWindow.me.resultsClosed();
          }
-         // the asker's matches again (History's rows of the match just played)
-         WatchWindow.resultsClosed();
          removeChild(this._back_back);
          FocusManager.setModalClip(null);
          MainScene.activeWindow = null;
+         // the asker's matches again (History's rows of the match just played), and the Watch view
+         // of a watch the results came back over: once the results left the modals
+         WatchWindow.resultsClosed();
          this.notificationListTemp.startTimer();
          Message.showMessages();
       }

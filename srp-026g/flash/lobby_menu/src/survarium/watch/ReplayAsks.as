@@ -4,6 +4,7 @@ package survarium.watch
    import flash.utils.getTimer;
    import survarium.controls.Message;
    import survarium.controls.NotificationListScrollContent;
+   import survarium.controls.VictoryScreen;
    import survarium.data.LocalizationData;
 
    // The one ask-and-poll loop for a match's replay, ticked by the Watch window's second
@@ -18,7 +19,8 @@ package survarium.watch
    //   revision 14's replay_link), which starts updater_skhid.exe; the updater downloads the file,
    //   silently when it succeeds, a message box of its own when it fails. The lobby hears nothing
    //   of that: SAVED says only that the link went to the updater, and Save may be pressed again
-   //   (a failed download retried). One save at a time.
+   //   (a failed download retried). One save at a time: every Save is not pressable meanwhile
+   //   (canSave).
    // The rows reach take through WatchWindow.take.
    public class ReplayAsks
    {
@@ -106,7 +108,14 @@ package survarium.watch
          return _saved[h] === true ? SAVED : SAVE;
       }
 
-      // Told (no argument) of every change of a match's state.
+      // Whether Save may be pressed now: not while a save is under way, this match's or another's
+      // (one save at a time), so every other Save shows itself not pressable meanwhile.
+      public static function get canSave() : Boolean
+      {
+         return _save == null;
+      }
+
+      // Told (no argument) of every change of a match's state, and of canSave.
       public static function listen(listener:Function) : void
       {
          if(_listeners.indexOf(listener) < 0)
@@ -292,7 +301,9 @@ package survarium.watch
          }
       }
 
-      // The save over: saved (no text), or why not, in the game's message box.
+      // The save over: saved (no text), or why not, in the game's message box at once, over the
+      // results too (they hold the lobby's messages back till they close: a Save pressed there
+      // would say nothing till then).
       private static function endSave(key:String) : void
       {
          _save = null;
@@ -301,7 +312,12 @@ package survarium.watch
          {
             try
             {
-               Message.showMessage("ok",LocalizationData.getName(key));
+               var results:VictoryScreen = LobbyMenu.id != null ? LobbyMenu.id.victory_screen : null;
+               if(results != null)
+               {
+                  results.showOver();
+               }
+               Message.showMessage("ok",LocalizationData.getName(key),true);
             }
             catch(e:Error)
             {
