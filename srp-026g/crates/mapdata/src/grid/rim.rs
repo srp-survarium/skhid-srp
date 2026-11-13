@@ -55,18 +55,31 @@ fn sprint_gaits() -> [Gait; 4] {
     ]
 }
 
+/// The steps a body stands on a top for a jump to have landed on it ([`stood_on`]): two in a row, a body that settles, not one
+/// that grazes the edge and slides back.
+const STOOD_STEPS: usize = 2;
+
+/// Whether a flight's `steps` ([`jump::fly`]) from the take-off floor at `from` stood on the floor at `to` (along `way`, flat,
+/// unit): after the jump (its first step in the air), [`STOOD_STEPS`] ground steps in a row with the feet within
+/// [`LAND_HEIGHT_M`] of `to`'s height and no more than half a cell short of it along the way. Not where the walk on ends: a bot
+/// that has landed follows its route over the top's floors, and the flight walks straight on, off a top narrower along the way
+/// than its walk (Vector Laboratory's ledge by the shelf, (23.76, 25.39, -28.8): stood on from step 18, walked off at step 26).
+fn stood_on(steps: &[jump::FlightStep], from: Vec3, to: Vec3, way: (f32, f32), cell: f32) -> bool {
+    let across = (to.x - from.x) * way.0 + (to.z - from.z) * way.1;
+    let Some(first_air) = steps.iter().position(|f| f.in_jump) else { return false };
+    let on = |f: &jump::FlightStep| {
+        let ahead = (f.feet.x - from.x) * way.0 + (f.feet.z - from.z) * way.1;
+        !f.in_jump && (f.feet.y - to.y).abs() <= LAND_HEIGHT_M && ahead >= across - 0.5 * cell
+    };
+    steps[first_air..].windows(STOOD_STEPS).any(|w| w.iter().all(on))
+}
+
 /// Whether a jump of `gait` pressed `lead` m before the take-off floor's centre at `from`, toward the floor at `to` along `way`
-/// (flat, unit), lands: the feet end within [`LAND_HEIGHT_M`] of `to`'s height and no more than half a cell short of it along
-/// the way.
+/// (flat, unit), lands ([`stood_on`]).
 #[allow(clippy::too_many_arguments)]
 fn lands(world: &Collision, s: &Settings, from: Vec3, to: Vec3, way: (f32, f32), cell: f32, lead: f32, gait: Gait) -> bool {
-    let across = (to.x - from.x) * way.0 + (to.z - from.z) * way.1;
     let at = Vec3::new(from.x - way.0 * lead, from.y, from.z - way.1 * lead);
-    jump::run_and_fly(world, s, at, way, gait, GROUND_STEPS).is_some_and(|steps| {
-        let end = steps.last().map_or(at, |f| f.feet);
-        let ahead = (end.x - from.x) * way.0 + (end.z - from.z) * way.1;
-        (end.y - to.y).abs() <= LAND_HEIGHT_M && ahead >= across - 0.5 * cell
-    })
+    jump::run_and_fly(world, s, at, way, gait, GROUND_STEPS).is_some_and(|steps| stood_on(&steps, from, to, way, cell))
 }
 
 /// The press that gets a body from `from` to `to` along `way`, among the leads `leads` (metres before the take-off): a walking
@@ -88,7 +101,6 @@ fn best_press(world: &Collision, s: &Settings, from: Vec3, to: Vec3, way: (f32, 
         return (Some(Takeoff::Press(PressLead::from_metres(walking[walking.len() / 2]))), flights);
     }
     let mut counts: Vec<(f32, usize)> = Vec::new();
-    let across = (to.x - from.x) * way.0 + (to.z - from.z) * way.1;
     for &lead in leads {
         // One run-up for the four variants: it is the same for each ([`jump::run_and_fly`] runs it from the same start at the
         // same speed), and only the jump differs.
@@ -102,9 +114,7 @@ fn best_press(world: &Collision, s: &Settings, from: Vec3, to: Vec3, way: (f32, 
                 let press =
                     if run.speed >= jump::WALK_CAP_MS { Press::Sprint { speed: run.speed, leg, first_air_frame } } else { Press::Walk { speed: run.speed } };
                 let mut body = run.body;
-                let end = jump::fly(world, s, &mut body, way, press, Keys::BOT, GROUND_STEPS).last().map_or(at, |f| f.feet);
-                let ahead = (end.x - from.x) * way.0 + (end.z - from.z) * way.1;
-                (end.y - to.y).abs() <= LAND_HEIGHT_M && ahead >= across - 0.5 * cell
+                stood_on(&jump::fly(world, s, &mut body, way, press, Keys::BOT, GROUND_STEPS), from, to, way, cell)
             })
             .count();
         counts.push((lead, n));
