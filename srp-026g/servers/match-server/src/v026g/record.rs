@@ -48,14 +48,17 @@
 //! `SRP_RECORD_MAX_MB` together
 //! are deleted oldest first. The writing and the packing are done on a
 //! thread of their own; the match loop only hands the bytes over, and drops
-//! them (counted) if that thread is behind by [`QUEUE`] items.
+//! them (counted) if that thread is behind by [`QUEUE`] records. The other
+//! jobs (open, keep, close) are never dropped: a close lost would leave a
+//! kept recording under `.part`, with no replay.
 
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::{self, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender, TrySendError};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, SyncSender};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use session::v026g::replays::{ReplayId, Replays};
@@ -81,7 +84,8 @@ pub const NO_PLACE: u8 = 0xFF;
 const BLOCK_BYTES: usize = 1 << 20;
 /// ... or is this old.
 const BLOCK_EVERY: Duration = Duration::from_secs(20);
-/// Items the writing thread may be behind before new ones are dropped.
+/// Records the writing thread may be behind before new ones are dropped.
+/// Only records: its other jobs are always queued.
 const QUEUE: usize = 200_000;
 const PART: &str = "part";
 const EXTENSION: &str = "srprec";
@@ -217,7 +221,12 @@ enum Job {
 /// matches.
 #[derive(Clone)]
 pub(crate) struct Recorder {
-    jobs: SyncSender<Job>,
+    /// Unbounded: the match loop never waits for the writer, and drops no
+    /// job but a record ([`Self::records`]).
+    jobs: Sender<Job>,
+    /// [`Job::Record`]s queued and not yet taken by the writer, at most
+    /// [`QUEUE`]: the queue's bound.
+    records: Arc<AtomicUsize>,
     min_players: usize,
 }
 
@@ -252,12 +261,18 @@ impl Recorder {
                 let _ = fs::remove_file(&path);
             }
         }
-        let (jobs, queue) = mpsc::sync_channel(QUEUE);
+        let (jobs, queue) = mpsc::channel();
+        let records = Arc::new(AtomicUsize::new(0));
         let min_players = settings.min_players;
+        let taken = records.clone();
         std::thread::Builder::new()
             .name("srp-record".into())
-            .spawn(move || Writer::new(settings).run(queue))?;
-        Ok(Self { jobs, min_players })
+            .spawn(move || Writer::new(settings, taken).run(queue))?;
+        Ok(Self {
+            jobs,
+            records,
+            min_players,
+        })
     }
 
     /// Waits until the writing thread has written and closed (named or
@@ -329,33 +344,45 @@ impl Recording {
         now.saturating_duration_since(self.began).as_millis() as u32
     }
 
-    fn send(&mut self, job: Job) {
-        match self.recorder.jobs.try_send(job) {
-            Ok(()) => {}
-            Err(TrySendError::Full(_)) => {
-                if self.dropped == 0 {
-                    log::warn!(
-                        "Match {:#x}: the recording's writer is behind; records are dropped",
-                        self.match_id
-                    );
-                }
-                self.dropped += 1;
-            }
-            Err(TrySendError::Disconnected(_)) => self.dropped += 1,
-        }
+    /// A job that is not a record: always queued. It fails only with the
+    /// writing thread gone, which has nothing of this match open then.
+    fn send(&self, job: Job) {
+        let _ = self.recorder.jobs.send(job);
     }
 
+    /// Queued unless the writer is [`QUEUE`] records behind: then dropped
+    /// (counted).
     fn record(&mut self, kind: u8, place: u8, bytes: &[u8], now: Instant) {
+        let records = &self.recorder.records;
+        let room = records
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |queued| {
+                (queued < QUEUE).then_some(queued + 1)
+            })
+            .is_ok();
+        if !room {
+            if self.dropped == 0 {
+                log::warn!(
+                    "Match {:#x}: the recording's writer is behind; records are dropped",
+                    self.match_id
+                );
+            }
+            self.dropped += 1;
+            return;
+        }
         let mut record = Vec::with_capacity(10 + bytes.len());
         record.push(kind);
         record.push(place);
         record.extend_from_slice(&self.at(now).to_le_bytes());
         record.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
         record.extend_from_slice(bytes);
-        self.send(Job::Record {
+        let job = Job::Record {
             match_id: self.match_id,
             bytes: record,
-        });
+        };
+        if self.recorder.jobs.send(job).is_err() {
+            records.fetch_sub(1, Ordering::AcqRel);
+            self.dropped += 1;
+        }
     }
 
     /// A datagram the client at `place` sent.
@@ -462,13 +489,16 @@ struct Open {
 struct Writer {
     settings: RecordSettings,
     open: HashMap<u32, Open>,
+    /// [`Recorder::records`]: one less for each record taken.
+    records: Arc<AtomicUsize>,
 }
 
 impl Writer {
-    fn new(settings: RecordSettings) -> Self {
+    fn new(settings: RecordSettings, records: Arc<AtomicUsize>) -> Self {
         Self {
             settings,
             open: HashMap::new(),
+            records,
         }
     }
 
@@ -521,6 +551,7 @@ impl Writer {
                 );
             }
             Job::Record { match_id, bytes } => {
+                self.records.fetch_sub(1, Ordering::AcqRel);
                 if let Some(open) = self.open.get_mut(&match_id) {
                     if open.block.is_empty() {
                         open.block_since = Instant::now();
@@ -1000,6 +1031,38 @@ mod tests {
         assert!(names[0].ends_with("_000000ef.srprec"), "{names:?}");
         assert!(super::super::replay::recording_in(&dir, 0xEF).is_some());
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// Review of 2026-11-13: every job was dropped like a record with the
+    /// writer behind, a close too: the kept recording stayed a `.part`, with
+    /// no replay. Records alone are dropped; its keep and close get through.
+    #[test]
+    fn a_writer_behind_drops_records_but_never_a_keep_or_a_close() {
+        use session::v026g::replays::ReplayState;
+        let root = temp_dir("behind");
+        let dir = root.join("recordings");
+        let replays = Arc::new(Replays::new(Some(dir.clone())));
+        let mut settings = settings(&dir, 2);
+        settings.replays = Some(Desk(replays.clone()));
+        let recorder = Recorder::start(settings).unwrap();
+        let now = Instant::now();
+        let mut recording = recorder.open(&id(0xAB), false, serde_json::json!({}), now);
+        settle(&dir, |names| names.len() == 1);
+        // The writer as a disk stall leaves it: [`QUEUE`] records behind.
+        recorder.records.fetch_add(QUEUE, Ordering::AcqRel);
+        recording.datagram_in(0, &[1], now);
+        recording.entered(0);
+        recording.entered(1);
+        assert_eq!(recording.dropped, 2, "the datagram and the kept note");
+        drop(recording);
+        let names = settle(&dir, |names| {
+            names.len() == 1 && names[0].ends_with("_000000ab.srprec")
+        });
+        assert!(names[0].ends_with("_000000ab.srprec"), "{names:?}");
+        recorder.finish();
+        let later = now + Duration::from_secs(10);
+        assert_eq!(replays.state(0xAB, Some(14), later), ReplayState::Kept);
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]

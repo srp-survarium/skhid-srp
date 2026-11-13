@@ -153,7 +153,7 @@ package survarium.watch
          }
       }
 
-      private static function closedByPlayer() : void
+      private static function closedByPlayer(data:Object = null) : void
       {
          _dialog = null;
          _data = null;

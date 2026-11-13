@@ -59,7 +59,8 @@ package
    //   2210000000, both from the same tick; after a watch asked from the window, its view again at
    //   the return after its load (a show_match_making(false) before the load brings nothing back),
    //   not after a refusal, nor for an ask under another's; a watch given up (no answer) or whose
-   //   prompt is closed withdrawn once (`3D 00 FFFFFF05 <match>`), not one refused; `in_room` said
+   //   prompt is closed (Close or Enter) withdrawn once (`3D 00 FFFFFF05 <match>`), Watch asking
+   //   again after, not one refused; `in_room` said
    //   in its own words; a `none` after its own `preparing` ends it, prompt gone, nothing withdrawn;
    //   a live match's `watching` to the ask itself closes the asking prompt, nothing withdrawn;
    //   a match loading ends a watch asked, unsaid: its prompt gone, nothing polled, withdrawn or
@@ -330,6 +331,27 @@ package
             return null;
          var text:String = String(box.textField.text);
          box.btnCancel.dispatchEvent(new Click(Click.CLICK));
+         return text;
+      }
+
+      // The player's Enter on the watch prompt on top (MessageAcceptBase.handleInput: the box's
+      // accept, onMessageAccept): what it said (null: no prompt).
+      private function enterPrompt() : String
+      {
+         var box:* = promptBox();
+         if(box == null)
+            return null;
+         var text:String = String(box.textField.text);
+         var Input:Class = domain.getDefinition("scaleform.clik.events.InputEvent") as Class;
+         var Details:Class = domain.getDefinition("scaleform.clik.ui.InputDetails") as Class;
+         try
+         {
+            box.handleInput(new Input("input",new Details("key",Keyboard.ENTER,"keyUp")));
+         }
+         catch(err:Error)
+         {
+            failures.push("Enter on the watch prompt: " + err);
+         }
          return text;
       }
 
@@ -1159,6 +1181,23 @@ package
          expect(language + ": Close did not withdraw the watch once: " + withdrawn(),withdrawn().join(",") == String(OTHER));
          second();
          expect(language + ": polled after Close: " + polls(2200000000),polls(2200000000) == 1);
+         // Enter on the prompt (MessageApply.onMessageAccept, which calls it with its data) does
+         // the same: withdrawn once, polled no more, and Watch asks again
+         ExternalInterface.calls.length = 0;
+         click(cards()[1],"srpWatchWatch");
+         second();
+         lobby.answer("preparing",OTHER,1);
+         shown = enterPrompt();
+         expect(language + ": no preparing prompt to accept: " + shown,shown != null && shown.length > 0);
+         told();
+         expect(language + ": Enter did not withdraw the watch once: " + withdrawn(),withdrawn().join(",") == String(OTHER));
+         second();
+         expect(language + ": polled after Enter: " + polls(2200000000),polls(2200000000) == 1);
+         ExternalInterface.calls.length = 0;
+         click(cards()[1],"srpWatchWatch");
+         expect(language + ": no Watch asked after Enter: " + asked(),asked()[0] == OTHER);
+         closePrompt();
+         told();
          // a refusal ends the watch at the server: nothing to withdraw; the room's own word says why
          ExternalInterface.calls.length = 0;
          click(cards()[1],"srpWatchWatch");
