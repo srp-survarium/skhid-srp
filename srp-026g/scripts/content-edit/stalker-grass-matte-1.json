@@ -1,0 +1,7 @@
+{
+ "_about": "The grass of Military Warehouses and Experimental Pool, matte (the owner, 2026-11-14, with two places on Military Warehouses: \"grass which is too glossy\"). Their X-Ray detail grass has one material each, a copy of stock flora/grass_l03_alt with the grass's colour texture (build_details) in the roughness slot and constant_roughness_min 0.3. 0.26g's G-buffer shader for it (gbuffer_pass.ps) writes smoothness = 1 - (min + range x the roughness texture's green): the stock grass's own map is near black (green 0.04 on average, roughness 0.04: a highlight too narrow to see), this colour texture is 0.23 on the blades, roughness 0.46, a broad sheen, and the tufts' X-Ray normals all point up, so a whole patch turns the sun's colour when the player looks toward the sun. constant_roughness_min 1.0 (the max is 1) makes the grass fully rough: no highlight, its colour, translucency and shadows as they were. Visual only. Training Camp's meadow grass (ported/v010b/flora/grass_l03_alt, the same 0.3) is another material and is not changed here.",
+ "set": [
+  {"file": "material_instances/ported/v010b/ported/cs/military_1/details.material", "path": "material/g_stage/effect/constant_roughness_min/value", "from": 0.3, "to": 1.0},
+  {"file": "material_instances/ported/v010b/ported/cs/bath/details.material", "path": "material/g_stage/effect/constant_roughness_min/value", "from": 0.3, "to": 1.0}
+ ]
+}
