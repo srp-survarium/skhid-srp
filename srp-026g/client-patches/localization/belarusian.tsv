@@ -2715,6 +2715,7 @@ st_srp_replay_demo_seller	Бадзягі
 st_srp_replay_download	СПАМПАВАЦЬ І ГЛЯДЗЕЦЬ
 st_srp_replay_failed	Серверу не ўдалося падрыхтаваць паўтор гэтага матча.
 st_srp_replay_gone	Паўтор гэтага матча больш не захоўваецца на серверы.
+st_srp_replay_in_room	Ваш пакой зараз чакае вас у матчы. Паглядзіце паўтор пасля яго.
 st_srp_replay_incompatible	Гэты паўтор запісаны версіяй гульні, якую ваша гульня не можа прайграць.
 st_srp_replay_made_now	Ствараецца зараз. Чаканне: %1$s с.
 st_srp_replay_no_answer	Сервер не адказаў. Паспрабуйце пазней.

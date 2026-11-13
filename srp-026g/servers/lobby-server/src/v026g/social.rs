@@ -118,29 +118,44 @@ pub(super) fn idle_removed_text(name: &str, language: Option<u8>) -> String {
     }
 }
 
-/// What a player may still send of friend requests, and when that was
-/// counted: [`FRIEND_REQUEST_BURST`] at first, one more each
-/// [`FRIEND_REQUEST_EVERY`], never more than the burst.
+/// What a player may still do of something limited, and when that was
+/// counted: `burst` at first, one more each `every`, never more than the
+/// burst. Its rates: [`Allowance::friend_requests`],
+/// [`Allowance::searches`].
 #[derive(Clone, Copy, Debug)]
-pub(super) struct FriendRequestAllowance {
+pub(super) struct Allowance {
+    every: Duration,
+    burst: u32,
     saved: Duration,
     at: Instant,
 }
 
-impl FriendRequestAllowance {
-    pub(super) fn new(now: Instant) -> Self {
-        Self { saved: FRIEND_REQUEST_EVERY * FRIEND_REQUEST_BURST, at: now }
+impl Allowance {
+    fn full(every: Duration, burst: u32, now: Instant) -> Self {
+        Self { every, burst, saved: every * burst, at: now }
     }
 
-    /// One request now, if the allowance has one.
+    /// Friend requests: [`FRIEND_REQUEST_BURST`], one more each
+    /// [`FRIEND_REQUEST_EVERY`].
+    pub(super) fn friend_requests(now: Instant) -> Self {
+        Self::full(FRIEND_REQUEST_EVERY, FRIEND_REQUEST_BURST, now)
+    }
+
+    /// Searches of players by name: [`SEARCH_BURST`], one more each
+    /// [`SEARCH_EVERY`].
+    pub(super) fn searches(now: Instant) -> Self {
+        Self::full(SEARCH_EVERY, SEARCH_BURST, now)
+    }
+
+    /// One now, if the allowance has one.
     pub(super) fn take(&mut self, now: Instant) -> bool {
         let earned = now.saturating_duration_since(self.at);
-        self.saved = (self.saved + earned).min(FRIEND_REQUEST_EVERY * FRIEND_REQUEST_BURST);
+        self.saved = (self.saved + earned).min(self.every * self.burst);
         self.at = now;
-        if self.saved < FRIEND_REQUEST_EVERY {
+        if self.saved < self.every {
             return false;
         }
-        self.saved -= FRIEND_REQUEST_EVERY;
+        self.saved -= self.every;
         true
     }
 }
@@ -158,9 +173,14 @@ const NOT_FOUND_REPEAT: Duration = Duration::from_secs(10);
 const MAX_LISTED: usize = 200;
 /// The most players a search finds (0.21d's limit).
 const MAX_FOUND: usize = 50;
-/// One search of players by name a session at most this often: each goes
-/// through every account on the lobby's one thread. The movies ask on a
-/// press (Enter, the search icon), never as a name is typed.
+/// Searches of players by name a session may make at once, and the time
+/// that earns one more: each goes through every account on the lobby's one
+/// thread. The movies ask on a press (Enter, the search icon), never as a
+/// name is typed, and send one at most every 1.1 s (`LobbyMenu`'s
+/// `PLAYER_SEARCH_EVERY_MS`): the second of the burst takes the jitter of
+/// their arrival, so the movie's spacing never finds nobody, and the cost
+/// stays one a second.
+const SEARCH_BURST: u32 = 2;
 const SEARCH_EVERY: Duration = Duration::from_secs(1);
 /// The letters of a searched text the log keeps.
 const SEARCH_LOGGED: usize = 32;
@@ -562,7 +582,7 @@ impl Core<'_> {
     /// `4D`: an important message for another player.
     /// - A friend request goes to the named player, who answers it with
     ///   `50` (now, or when it signs in), within the sender's
-    ///   [`FriendRequestAllowance`] (one over it is dropped). A name that
+    ///   [`Allowance::friend_requests`] (one over it is dropped). A name that
     ///   is no account is answered with "Player not found."
     ///   ([`Core::player_not_found`]), except to a player in a match.
     ///   One to a friend, or to a player who ignores the sender, is
@@ -893,18 +913,13 @@ impl Core<'_> {
                 self.push_ignored(who);
             }
             FriendshipAction::FindPlayers { name } => {
-                // A search sooner than `SEARCH_EVERY` after the last finds
-                // nobody: the movie has no word for a refusal, and an empty
-                // answer ends its wait as "not found" does.
-                let due = self.player_mut(who.addr).is_some_and(|player| {
-                    let due = player
-                        .searched_at
-                        .is_none_or(|at| now.saturating_duration_since(at) >= SEARCH_EVERY);
-                    if due {
-                        player.searched_at = Some(now);
-                    }
-                    due
-                });
+                // A search past the allowance (`SEARCH_BURST`, one more each
+                // `SEARCH_EVERY`) finds nobody: the movie has no word for a
+                // refusal, and an empty answer ends its wait as "not found"
+                // does.
+                let due = self
+                    .player_mut(who.addr)
+                    .is_some_and(|player| player.searches.take(now));
                 let typed = due.then(|| Typed::parse(name)).flatten();
                 let found: Vec<(u32, String, String)> = typed
                     .map(|typed| self.store.find_accounts_like(&typed, me, MAX_FOUND))

@@ -125,6 +125,12 @@ impl Core<'_> {
                     self.replay_watch(who, match_id, ask, now);
                 }
             }
+            // `3D 00 <REPLAY_WITHDRAW> <match>`: the movie no longer asks
+            // to watch that match's replay (`replay`).
+            M::QueryPlayerDetails {
+                player_id: lobby::REPLAY_WITHDRAW,
+                match_id,
+            } => self.replay_withdraw(who, match_id),
             // `3D 00 <LIVE_ROSTER_ASK> <match>`: the Live window's roster
             // of that match comes next (`live`).
             M::QueryPlayerDetails {

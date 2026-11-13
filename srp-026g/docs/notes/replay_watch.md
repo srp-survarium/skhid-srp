@@ -6,6 +6,7 @@
 
 1. The movie asks to watch a match's replay in this game: `3D 00 <REPLAY_WATCH_BASE | place << 16 | seconds> <match id>` (`victory_screen_request_player_data`). The lobby answers at once with one `91` row (`lobby-server/src/v026g/replay.rs`).
 2. The movie polls with `3B 00 <REPLAY_START> 01` (`REPLAY_START = 2_200_000_000`) every second (30 times at most, up to 180 s while the answer is `preparing`). Each poll is answered with one `91` row: the asker's own session's answer, never anyone else's (`none` with match 0 when it has none, `off` with replays off).
+3. A watch the movie ends without an answer that ends it (the prompt's Close, or no answer in time) is withdrawn: `3D 00 <REPLAY_WITHDRAW = 0xFFFFFF05> <match id>`, not answered. The asker's session of that match is over unless its game was sent already (`Watches::withdraw`): otherwise the lobby would send the game into that replay when it is read, up to 2 minutes later, and every other Watch would get `busy` meanwhile.
 
 ### In the movie, since 2026-11-08 (watching in the running game)
 
@@ -37,7 +38,7 @@ Watch button wherever a match is mentioned.
   Everyone (the default) or Friends (the matches with a friend in them); Replays Mine (the default:
   the asker's own `P1` rows, its private rooms' matches and those against bots among them, marked: no other list has those), Friends (`M1` with `f` 1) or Everyone (`M1`). A search box: a match's code
   (8 hex digits, `#` optional) watches it; anything else is a player's name: the game's own player
-  search (`find_players`, answered in `LobbyMenu.fill_players_search`, handed by `LobbyMenu.playersFound` to the oldest waiting search, the Watch window's among them)
+  search (`find_players`, answered in `LobbyMenu.fill_players_search`, handed by `LobbyMenu.playersFound` to the search waiting for it: one is sent at a time, a second at most, none for 3 s after one dropped unanswered after 15 s or a stray answer, so a late answer is never taken for the next search; srp answers two at once, then one a second, `social.rs` `SEARCH_BURST`)
   finds the account: srp answers the players whose name the text matches loosely, the best first
   (`session::name_search`, the item search's rules: a part of the name, its letters in order, a typo
   or two), and the window takes the name itself (any case), else the first found when three letters
@@ -93,11 +94,12 @@ Watch button wherever a match is mentioned.
 |---|---|
 | ask (C->S) | `3D 00 <u32 0xC0000000 \| place << 16 \| seconds> <u32 match id>` (`lobby::ReplayWatchAsk`) |
 | poll (C->S) | `3B 00 <u32 2200000000> <u8 count>` |
+| withdraw (C->S) | `3D 00 <u32 0xFFFFFF05> <u32 match id>` (`lobby::REPLAY_WITHDRAW`), no answer |
 | answer (S->C) | `91 01 <str "R1;<status>;<match id 8 lower hex>;<n>"> <u32 2200000000> <u16 0> <u16 0>` (`lobby::replay_answer`); `<n>` is the match time it starts at (ms) with `watching` (its game sent), 1 being read, 2 waiting or 0 read and its game not sent yet with `preparing`, else 0 |
 
 The row's name is 45 bytes at the most (63 is the client's limit).
 
-Status words (`session::v026g::replays::Status`): `preparing`, `watching`, `none` (no session; match id 0), `gone` (no kept recording), `not_yours` (`SRP_REPLAY_WATCH=match` and the asker is neither a player of the match nor a moderator), `old_game` (the asker's patch revision is below 14, or unknown), `incompatible` (the recording's games are of revisions this game does not play, or of none known, below), `busy` (the player is in a match or queued, has a session already, or `SRP_REPLAY_WATCH_MAX` sessions run), `failed` (unreadable, over `SRP_REPLAY_MAX_RECORDING_MB`, not read within 2 minutes), `off` (no recordings).
+Status words (`session::v026g::replays::Status`): `preparing`, `watching`, `none` (no session; match id 0), `gone` (no kept recording), `not_yours` (`SRP_REPLAY_WATCH=match` and the asker is neither a player of the match nor a moderator), `old_game` (the asker's patch revision is below 14, or unknown), `incompatible` (the recording's games are of revisions this game does not play, or of none known, below), `busy` (the player is in a match or queued, has a session already, or `SRP_REPLAY_WATCH_MAX` sessions run), `in_room` (the player's room has a use for it now: its vote, a place in its match; `st_srp_replay_in_room`), `failed` (unreadable, over `SRP_REPLAY_MAX_RECORDING_MB`, not read within 2 minutes), `off` (no recordings).
 
 **Compatibility rule.** A recording made from 2026-10-15 on has each place's patch revision (a `revision` note at every connection, the highest kept). A game of revision R plays it when every known revision (0 and places that never connected are not counted) is from the oldest replayable revision to R: a newer game's match may play out otherwise in an older one, and an older game's in a newer one once what a match computes changed. The oldest replayable revision is the last row of `crates/session/src/v026g/simulation_changes.tsv` (11 now: the TDM end and the battery under the floor; so a game of 13 plays recordings of 11, 12 and 13: 12 changed nothing a match computes). Recordings made before 2026-10-15 have no revision and are refused (the owner, 2026-10-17: not guessed).
 

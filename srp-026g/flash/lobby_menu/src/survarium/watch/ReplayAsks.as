@@ -12,7 +12,10 @@ package survarium.watch
    // `3B 00 <start> 1` once a second until the lobby server's `91` row answers it, 30 polls at most,
    // or 180 s once it says `preparing`:
    // - a watch: `R1;<status>;<match 8 hex>;<n>`, polled at WATCH_START. `watching` means the game is
-   //   in the match; WatchPrompt shows what happens meanwhile. One watch at a time.
+   //   in the match; WatchPrompt shows what happens meanwhile. One watch at a time. A watch ended
+   //   here without one (the prompt closed, or no answer in time) is withdrawn, `3D 00 FFFFFF05
+   //   <match>` (the lobby server's REPLAY_WITHDRAW, not answered): a session whose game the lobby
+   //   has not sent yet is over there, so the game never loads into it later.
    // - a save (research/local-replays-design.md 1.1): `R2;<status>;<match 8 hex>;<n>`, polled at
    //   SAVE_START. `ready` comes just after the `9E` with the hidden link `replay <id> <token>
    //   <sha256> <size>`: video_tutorial_link_clicked with no argument hands it to the exe (patch
@@ -24,8 +27,10 @@ package survarium.watch
    // The rows reach take through WatchWindow.take.
    public class ReplayAsks
    {
-      // the lobby server's REPLAY_START, SAVE_ASK and SAVE_START
+      // the lobby server's REPLAY_START, REPLAY_WITHDRAW, SAVE_ASK and SAVE_START
       public static const WATCH_START:uint = 2200000000;
+
+      public static const WITHDRAW_ASK:uint = 0xFFFFFF05;
 
       public static const SAVE_ASK:uint = 0xFFFFFF01;
 
@@ -48,6 +53,7 @@ package survarium.watch
          "old_game":"st_srp_replay_old_game",
          "incompatible":"st_srp_replay_incompatible",
          "busy":"st_srp_replay_busy",
+         "in_room":"st_srp_replay_in_room",
          "failed":"st_srp_replay_failed",
          "off":"st_srp_replay_off"
       };
@@ -268,8 +274,7 @@ package survarium.watch
             else
             {
                var ended:Object = _watch;
-               _watch = null;
-               tell(ended.hex,ENDED);
+               withdraw();
                WatchPrompt.show(ended.preparing ? STILL_PREPARING : NO_ANSWER);
             }
          }
@@ -295,10 +300,20 @@ package survarium.watch
       {
          if(_watch != null)
          {
-            var ended:Object = _watch;
-            _watch = null;
-            tell(ended.hex,ENDED);
+            withdraw();
          }
+      }
+
+      // The watch under way ended here without an answer that ends it (the prompt closed, or no
+      // answer in time): withdrawn at the lobby server too, so that a session it has not sent the
+      // game to yet is over there (else the game would load into it later, and every other Watch
+      // be `busy` meanwhile), and the window told.
+      private static function withdraw() : void
+      {
+         var ended:Object = _watch;
+         _watch = null;
+         exe("victory_screen_request_player_data",WITHDRAW_ASK,ended.match);
+         tell(ended.hex,ENDED);
       }
 
       // The save over: saved (no text), or why not, in the game's message box at once, over the

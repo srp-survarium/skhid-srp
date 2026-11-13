@@ -2715,6 +2715,7 @@ st_srp_replay_demo_seller	Scavengers
 st_srp_replay_download	DOWNLOAD AND WATCH
 st_srp_replay_failed	Serwer nie mógł przygotować powtórki tej rozgrywki.
 st_srp_replay_gone	Powtórka tej rozgrywki nie jest już przechowywana na serwerze.
+st_srp_replay_in_room	Twój pokój potrzebuje cię teraz do meczu. Obejrzyj powtórkę po nim.
 st_srp_replay_incompatible	Ta powtórka została nagrana wersją gry, której twoja nie potrafi odtworzyć.
 st_srp_replay_made_now	Being made now. Waiting: %1$s s.
 st_srp_replay_no_answer	Serwer nie odpowiedział. Spróbuj ponownie później.

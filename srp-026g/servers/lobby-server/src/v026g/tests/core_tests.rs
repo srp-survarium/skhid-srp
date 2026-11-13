@@ -1429,9 +1429,10 @@ fn players_in_a_match_talk_on_its_channels() {
     world.assert_clean();
 }
 
-/// A search of players by name: one a second a session; one sooner finds
-/// nobody (the movie's wait ends as for "not found"). A Cyrillic name is
-/// found as a Latin one.
+/// A search of players by name: two at once a session, then one a second;
+/// one past that finds nobody (the movie's wait ends as for "not found").
+/// The movie's searches 1.1 s apart are all answered however their arrival
+/// jitters. A Cyrillic name is found as a Latin one.
 #[test]
 fn a_search_of_players_is_one_a_second_and_finds_any_script() {
     let mut world = World::new();
@@ -1449,10 +1450,19 @@ fn a_search_of_players_is_one_a_second_and_finds_any_script() {
         }
     };
     assert_eq!(found(&mut world, "вас"), [vasya_id]);
+    assert_eq!(found(&mut world, "ВАСЯ"), [vasya_id], "the burst's second");
     assert!(found(&mut world, "вас").is_empty(), "too soon");
     world.advance(Duration::from_secs(1));
     world.take(alice);
     assert_eq!(found(&mut world, "ВАСЯ"), [vasya_id]);
+    // The movie's 1.1 s, arriving 0.95 s and 1.25 s apart by turns.
+    world.advance(Duration::from_secs(3));
+    world.take(alice);
+    for (n, gap) in [950, 1250, 950, 1250, 950, 1250].into_iter().enumerate() {
+        world.advance(Duration::from_millis(gap));
+        world.take(alice);
+        assert_eq!(found(&mut world, "вася"), [vasya_id], "search {n}");
+    }
 }
 
 #[test]

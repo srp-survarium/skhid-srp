@@ -782,6 +782,11 @@ pub const GEAR_IN_ROOM: u32 = 0xFFFF_FF04;
 pub const REPLAY_WATCH_BASE: u32 = 0xC000_0000;
 /// The last `player` of a replay session's ask.
 pub const REPLAY_WATCH_LAST: u32 = REPLAY_WATCH_BASE | 0x00FF_FFFF;
+/// The `player` of a `3D 00 <player> <match>` that withdraws the asker's
+/// ask to watch that match's replay (a replay session): the movie's prompt
+/// closed, or the movie gave up waiting. A session whose game is not sent
+/// yet is over; one sent or watching is not touched. Not answered.
+pub const REPLAY_WITHDRAW: u32 = 0xFFFF_FF05;
 
 /// What a `3D` with a replay session's `player` asks for, besides the
 /// match.

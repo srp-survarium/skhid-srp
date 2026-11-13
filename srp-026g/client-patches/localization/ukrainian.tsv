@@ -2715,6 +2715,7 @@ st_srp_replay_demo_seller	Бродяги
 st_srp_replay_download	ЗАВАНТАЖИТИ Й ДИВИТИСЯ
 st_srp_replay_failed	Серверу не вдалося підготувати повтор цього матчу.
 st_srp_replay_gone	Повтор цього матчу більше не зберігається на сервері.
+st_srp_replay_in_room	Ваша кімната зараз чекає на вас у матчі. Перегляньте повтор після нього.
 st_srp_replay_incompatible	Цей повтор записала версія гри, яку ваша гра не може відтворити.
 st_srp_replay_made_now	Створюється зараз. Очікування: %1$s с.
 st_srp_replay_no_answer	Сервер не відповів. Спробуйте пізніше.

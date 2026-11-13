@@ -2715,6 +2715,7 @@ st_srp_replay_demo_seller	Mrchožrouti
 st_srp_replay_download	STÁHNOUT A PŘEHRÁT
 st_srp_replay_failed	Server nedokázal připravit záznam tohoto zápasu.
 st_srp_replay_gone	Záznam tohoto zápasu už na serveru není.
+st_srp_replay_in_room	Tvoje místnost tě teď potřebuje do zápasu. Záznam si pusť po něm.
 st_srp_replay_incompatible	Záznam pochází z verze hry, se kterou tvoje verze není kompatibilní.
 st_srp_replay_made_now	Právě se vytváří. Čekání: %1$s s.
 st_srp_replay_no_answer	Server neodpověděl. Zkus to později.

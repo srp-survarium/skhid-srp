@@ -106,7 +106,7 @@ fn poll_in_room(world: &mut World, index: usize) -> String {
 
 /// A replay session asked by a member whose room can play with it: the room's vote begins and
 /// calls it back (`room_recalls`); its game was not sent yet, so its session is over at once, and
-/// it plays its room's match. A watch asked during the vote is not begun (`busy`).
+/// it plays its room's match. A watch asked during the vote is not begun (`in_room`).
 #[test]
 fn a_replay_session_of_a_member_ends_when_its_room_can_play() {
     use super::rooms_tests::{create, rows, spec};
@@ -130,7 +130,11 @@ fn a_replay_session_of_a_member_ends_when_its_room_can_play() {
     assert!(watches.holds(account));
     world.advance(Duration::from_secs(1));
     assert!(!watches.holds(account), "its room's vote began: called back");
-    assert_eq!(ask_to_watch(&mut world, carol, 75, Some(3)), "R1;busy;1f07c8fb;0", "not during the vote");
+    assert_eq!(
+        ask_to_watch(&mut world, carol, 75, Some(3)),
+        "R1;in_room;1f07c8fb;0",
+        "not during the vote, and told why"
+    );
     world.advance(ROOM_TO_MATCH);
     for (index, name) in [(alice, "Alice"), (bob, "Bob"), (carol, "Carol")] {
         assert!(sent_to_match(&world.take(index)).is_some(), "{name} plays");
@@ -328,6 +332,52 @@ fn guessing_match_ids_is_cut_off_after_a_few_misses() {
         ask_to_watch(&mut world, taras, 0, None),
         "R1;preparing;1f07c8fb;2"
     );
+}
+
+/// The movie's prompt closed (or it gave up waiting) withdraws the ask: a session whose recording
+/// is being read, or read with its game not sent yet, is over, and its game is never sent; the
+/// account may watch another at once. Another match's withdrawal touches nothing, and one whose
+/// game was sent is the match server's.
+#[test]
+fn a_withdrawn_watch_is_never_sent_and_frees_its_player() {
+    use survarium::v026g::lobby::REPLAY_WITHDRAW;
+    let desk = sessions();
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let carol = player(&mut world, "Carol", current());
+    let (account, session) = world.ids[carol];
+    let watches = desk.watches();
+    let withdraw = |world: &mut World, match_id: u32| {
+        world.ask(carol, request::player_details(REPLAY_WITHDRAW, match_id));
+        assert!(world.take(carol).is_empty(), "not answered");
+    };
+    // Being read.
+    assert_eq!(ask_to_watch(&mut world, carol, 75, Some(3)), "R1;preparing;1f07c8fb;2");
+    let request = watches.next_job(world.now).expect("a session to read");
+    withdraw(&mut world, MATCH ^ 1);
+    assert!(watches.holds(account), "another match's withdrawal");
+    withdraw(&mut world, MATCH);
+    assert!(!watches.holds(account));
+    assert!(!watches.loaded(&request, 74_500, world.now));
+    world.advance(Duration::from_secs(1));
+    assert_eq!(sent_to_match(&world.take(carol)), None);
+    // Read, its game not sent yet.
+    assert_eq!(ask_to_watch(&mut world, carol, 75, Some(3)), "R1;preparing;1f07c8fb;2");
+    let request = watches.next_job(world.now).expect("a session to read");
+    assert!(watches.loaded(&request, 74_500, world.now));
+    withdraw(&mut world, MATCH);
+    world.advance(Duration::from_secs(1));
+    assert_eq!(sent_to_match(&world.take(carol)), None, "never sent");
+    assert!(!watches.in_replay(session));
+    assert_eq!(poll_in_room(&mut world, carol), "R1;none;00000000;0");
+    // Sent: the match server's to end.
+    assert_eq!(ask_to_watch(&mut world, carol, 75, Some(3)), "R1;preparing;1f07c8fb;2");
+    let request = watches.next_job(world.now).expect("a session to read");
+    assert!(watches.loaded(&request, 74_500, world.now));
+    world.advance(Duration::from_secs(1));
+    assert_eq!(sent_to_match(&world.take(carol)), Some((MATCH, 0)));
+    world.ask(carol, request::player_details(REPLAY_WITHDRAW, MATCH));
+    assert!(watches.in_replay(session) && watches.is_open(&request));
 }
 
 // ------------------------------------------------------- Save

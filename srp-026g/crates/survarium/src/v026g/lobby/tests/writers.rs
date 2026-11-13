@@ -629,8 +629,22 @@ fn a_replay_watch_ask_carries_the_time_and_the_place() {
             place: None
         })
     );
-    for other in [SAVE_ASK, GEAR_BY_PLACE, GEAR_IN_ROOM, 0x7FFF_FFFF, 1, 0xC100_0000, 0xC100_0001] {
+    for other in [
+        SAVE_ASK,
+        GEAR_BY_PLACE,
+        GEAR_IN_ROOM,
+        REPLAY_WITHDRAW,
+        0x7FFF_FFFF,
+        1,
+        0xC100_0000,
+        0xC100_0001,
+    ] {
         assert_eq!(ReplayWatchAsk::of(other), None);
+    }
+    // The withdrawal is srp's own `player`, no other's.
+    assert_eq!(REPLAY_WITHDRAW, 0xFFFF_FF05);
+    for other in [SAVE_ASK, GEAR_BY_PLACE, GEAR_BY_ACCOUNT, GEAR_IN_ROOM, LIVE_ROSTER_ASK] {
+        assert_ne!(other, REPLAY_WITHDRAW);
     }
 }
 

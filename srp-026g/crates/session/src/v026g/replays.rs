@@ -199,6 +199,9 @@ pub enum Status {
     /// The player is in a match or queued, or too many sessions run; a
     /// save: too many files to make or tokens now, or asked too fast.
     Busy,
+    /// A watch: the player's room has a use for it now (its vote, a place
+    /// in its match); it may watch once the room no longer needs it.
+    InRoom,
     /// The recording could not be read.
     Failed,
     /// Replays are switched off on this server.
@@ -220,6 +223,7 @@ impl Status {
             Self::OldGame => "old_game",
             Self::Incompatible => "incompatible",
             Self::Busy => "busy",
+            Self::InRoom => "in_room",
             Self::Failed => "failed",
             Self::Off => "off",
             Self::Watching => "watching",
@@ -1494,6 +1498,7 @@ mod tests {
             (Status::OldGame, "old_game"),
             (Status::Incompatible, "incompatible"),
             (Status::Busy, "busy"),
+            (Status::InRoom, "in_room"),
             (Status::Failed, "failed"),
             (Status::Off, "off"),
             (Status::Watching, "watching"),

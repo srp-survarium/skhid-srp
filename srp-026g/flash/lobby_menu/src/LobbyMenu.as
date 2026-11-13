@@ -221,17 +221,19 @@ package
 
       private static var _playerInfoWait:Timer;
 
-      // The searches by name sent (findPlayers), oldest first ({answered, at}): the lobby server
-      // answers each, in order, and the answer (fill_players_search) says nothing of its ask, so it
-      // is the oldest's. One unanswered for PLAYER_SEARCH_WAIT_MS lost its answer, and every one
-      // sent lost it when the lobby's connection is made anew (close_sync): each is dropped, its
-      // asker told null (no answer).
-      private static var _playerSearches:Array = [];
+      // The search by name sent (findPlayers) and not answered yet ({answered, at}), null none: the
+      // answer (fill_players_search) says nothing of its ask, so one is sent at a time and an
+      // answer is the one sent's. One unanswered for PLAYER_SEARCH_WAIT_MS lost its answer, and the
+      // one sent lost it when the lobby's connection is made anew (close_sync): it is dropped, its
+      // asker told null (no answer). An answer that comes while none is sent is a dropped one's,
+      // late: nobody's.
+      private static var _playerSearchSent:Object = null;
 
       // The searches by name not sent yet, oldest first ({asker, name, answered}), one an asker:
-      // the lobby server finds nobody for a search sooner than a second after the last (its
-      // SEARCH_EVERY), so one is sent at most every PLAYER_SEARCH_EVERY_MS, the next from
-      // _playerSearchNext on.
+      // the lobby server finds nobody for searches faster than one a second (its SEARCH_EVERY), so
+      // one is sent at most every PLAYER_SEARCH_EVERY_MS, the next from _playerSearchNext on; and
+      // none for PLAYER_SEARCH_GRACE_MS after one was dropped unanswered or a late answer came
+      // (a dropped one's late answer would be taken for the next).
       private static var _playerSearchesHeld:Array = [];
 
       private static var _playerSearchNext:int = 0;
@@ -245,6 +247,8 @@ package
       private static const PLAYER_SEARCH_WAIT_MS:int = 15000;
 
       private static const PLAYER_SEARCH_EVERY_MS:int = 1100;
+
+      private static const PLAYER_SEARCH_GRACE_MS:int = 3000;
 
       public var item_control:SrvSelectedItemControl;
       
@@ -3895,15 +3899,22 @@ package
       }
 
       // fill_players_search's players, to the ask they answer: true when one waited for them.
-      // Taken before any held search is sent (a search sent now is not this answer's).
+      // Taken before any held search is sent (a search sent now is not this answer's). One that
+      // comes while none waits (a dropped search's, late) is nobody's, and holds the next send
+      // for PLAYER_SEARCH_GRACE_MS (another may follow it).
       public static function playersFound(players:Array) : Boolean
       {
-         var lost:Array = playerSearchesExpired();
-         var search:Object = _playerSearches.length > 0 ? _playerSearches.shift() : null;
-         playerSearchTick();
-         for each(var dropped:Object in lost)
+         var lost:Object = playerSearchExpired();
+         var search:Object = _playerSearchSent;
+         _playerSearchSent = null;
+         if(search == null)
          {
-            dropped.answered(null);
+            playerSearchGrace();
+         }
+         playerSearchTick();
+         if(lost != null)
+         {
+            lost.answered(null);
          }
          if(search == null)
          {
@@ -3913,41 +3924,54 @@ package
          return true;
       }
 
-      // The searches sent that waited too long for their answers, dropped.
-      private static function playerSearchesExpired() : Array
+      // The search sent, dropped when it waited too long for its answer (else null): that answer
+      // may still come, so the next is not sent for PLAYER_SEARCH_GRACE_MS.
+      private static function playerSearchExpired() : Object
       {
-         var now:int = int(searchClock());
-         var lost:Array = [];
-         while(_playerSearches.length > 0 && now - int(_playerSearches[0].at) >= PLAYER_SEARCH_WAIT_MS)
+         var lost:Object = _playerSearchSent;
+         if(lost == null || int(searchClock()) - int(lost.at) < PLAYER_SEARCH_WAIT_MS)
          {
-            lost.push(_playerSearches.shift());
+            return null;
          }
+         _playerSearchSent = null;
+         playerSearchGrace();
          return lost;
       }
 
-      // The lobby's connection made anew (close_sync): the searches sent lost their answers.
-      public static function playerSearchesLost() : void
+      // No search sent for PLAYER_SEARCH_GRACE_MS from now: a late answer may be on its way.
+      private static function playerSearchGrace() : void
       {
-         var lost:Array = _playerSearches;
-         _playerSearches = [];
-         playerSearchTick();
-         for each(var search:Object in lost)
+         var until:int = int(searchClock()) + PLAYER_SEARCH_GRACE_MS;
+         if(until - _playerSearchNext > 0)
          {
-            search.answered(null);
+            _playerSearchNext = until;
          }
       }
 
-      // The searches' tick: the ones that waited too long for their answers dropped (told null),
-      // the next held one sent in its turn; the timer runs while any search is held or sent.
+      // The lobby's connection made anew (close_sync): the search sent lost its answer.
+      public static function playerSearchesLost() : void
+      {
+         var lost:Object = _playerSearchSent;
+         _playerSearchSent = null;
+         playerSearchTick();
+         if(lost != null)
+         {
+            lost.answered(null);
+         }
+      }
+
+      // The searches' tick: the one sent dropped (told null) when it waited too long for its
+      // answer, the next held one sent in its turn once none waits; the timer runs while any
+      // search is held or sent.
       public static function playerSearchTick(e:TimerEvent = null) : void
       {
-         var lost:Array = playerSearchesExpired();
+         var lost:Object = playerSearchExpired();
          var now:int = int(searchClock());
-         if(_playerSearchesHeld.length > 0 && now - _playerSearchNext >= 0)
+         if(_playerSearchSent == null && _playerSearchesHeld.length > 0 && now - _playerSearchNext >= 0)
          {
             var search:Object = _playerSearchesHeld.shift();
             _playerSearchNext = now + PLAYER_SEARCH_EVERY_MS;
-            _playerSearches.push({"answered":search.answered,"at":now});
+            _playerSearchSent = {"answered":search.answered,"at":now};
             try
             {
                ExternalInterface.call("find_players",search.name);
@@ -3956,7 +3980,7 @@ package
             {
             }
          }
-         var busy:Boolean = _playerSearchesHeld.length > 0 || _playerSearches.length > 0;
+         var busy:Boolean = _playerSearchesHeld.length > 0 || _playerSearchSent != null;
          if(busy && _playerSearchTimer == null)
          {
             _playerSearchTimer = new Timer(100);
@@ -3969,9 +3993,9 @@ package
             _playerSearchTimer.removeEventListener(TimerEvent.TIMER,playerSearchTick);
             _playerSearchTimer = null;
          }
-         for each(var dropped:Object in lost)
+         if(lost != null)
          {
-            dropped.answered(null);
+            lost.answered(null);
          }
       }
       

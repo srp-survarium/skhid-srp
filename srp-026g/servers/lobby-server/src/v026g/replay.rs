@@ -13,10 +13,17 @@
 //!   `preparing` while the match server reads the recording, `watching`
 //!   with the match time it starts at (ms) once its game is sent, or why
 //!   not (`not_yours` under `SRP_REPLAY_WATCH=match`, `incompatible`,
-//!   `gone`, `failed`, `busy`, `old_game`, `off`). An account that looked up
-//!   too many matches with no recording gets `busy` for every match for a
-//!   while (`replay_watch::MISSES_ALLOWED`, shared with Save): a match's id
-//!   is all that keeps a private room's replay to those who were given it.
+//!   `gone`, `failed`, `busy`, `in_room`, `old_game`, `off`). An account
+//!   that looked up too many matches with no recording gets `busy` for
+//!   every match for a while (`replay_watch::MISSES_ALLOWED`, shared with
+//!   Save): a match's id is all that keeps a private room's replay to those
+//!   who were given it. `in_room`: the asker's room has a use for it now
+//!   (its vote, a place in its match: `rooms`' `room_keeps`).
+//! - The withdrawal: `3D 00 <REPLAY_WITHDRAW> <match>`, when the movie's
+//!   prompt is closed or the movie gives up waiting. Not answered: the
+//!   asker's session of that match is over unless its game was sent
+//!   already (`Watches::withdraw`), so it is never sent later, and the
+//!   asker may ask for another at once.
 //! - A replay refused for its recording's games (`incompatible`) is said by
 //!   the movie, in the game's language, from the localization tables: the
 //!   prompt's `st_srp_replay_incompatible`, the card's
@@ -59,9 +66,11 @@ impl Core<'_> {
         ask: ReplayWatchAsk,
         now: Instant,
     ) {
-        let free = self.player(who.addr).is_some_and(|player| {
+        let in_lobby = self.player(who.addr).is_some_and(|player| {
             player.in_match.is_none() && player.connect.is_none() && player.queued_since.is_none()
-        }) && !self.room_keeps(who.account_id, now);
+        });
+        let room_keeps = self.room_keeps(who.account_id, now);
+        let free = in_lobby && !room_keeps;
         // Past the limit of lookups of unknown matches: `busy`, before
         // anything says whether this match exists or is being played.
         let limited = self
@@ -80,7 +89,8 @@ impl Core<'_> {
         let status = match (live, self.replays) {
             (Some(status), _) => status,
             (None, None) => Status::Off,
-            (None, Some(_)) if !free || limited => Status::Busy,
+            (None, Some(_)) if !in_lobby || limited => Status::Busy,
+            (None, Some(_)) if room_keeps => Status::InRoom,
             (None, Some(replays)) => replays.watches().start(
                 WatchRequest {
                     account_id: who.account_id,
@@ -105,6 +115,17 @@ impl Core<'_> {
             who.addr,
             lobby::replay_answer(status.word(), match_id, figure),
         );
+    }
+
+    /// `3D 00 <REPLAY_WITHDRAW> <match_id>`: the asker's movie no longer
+    /// asks to watch that match's replay (its prompt closed, or it gave up
+    /// waiting). Its session is over unless its game was sent already: it
+    /// would otherwise load into the replay later, and hold the account
+    /// (`busy`) meanwhile. Not answered.
+    pub(super) fn replay_withdraw(&self, who: &Who, match_id: u32) {
+        if let Some(replays) = self.replays {
+            replays.watches().withdraw(who.account_id, match_id);
+        }
     }
 
     /// The replay sessions' turn: those waiting too long end, and the games

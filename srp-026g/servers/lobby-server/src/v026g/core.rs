@@ -114,10 +114,9 @@ pub(super) struct Player<'a> {
     /// and when: not said again for each line (`social`).
     pub not_found: Option<(String, Instant)>,
     /// The friend requests it may still send (`social`).
-    pub friend_requests: super::social::FriendRequestAllowance,
-    /// When it last searched players by name (`social`: one search a
-    /// `SEARCH_EVERY`).
-    pub searched_at: Option<Instant>,
+    pub friend_requests: super::social::Allowance,
+    /// The searches of players by name it may still make (`social`).
+    pub searches: super::social::Allowance,
     /// Its last answer of each list of the history (`player_matches`: one
     /// made a `HISTORY_EVERY`).
     pub history_answers: super::player_matches::HistoryAnswers,
@@ -712,8 +711,8 @@ impl<'a> Core<'a> {
             chat_allowance: super::social::CHAT_BURST,
             chat_at: now,
             not_found: None,
-            friend_requests: super::social::FriendRequestAllowance::new(now),
-            searched_at: None,
+            friend_requests: super::social::Allowance::friend_requests(now),
+            searches: super::social::Allowance::searches(now),
             history_answers: Default::default(),
             room_chat: None,
         };

@@ -11,6 +11,9 @@
 //!   ([`Watches::judge`]: the players of the match and the moderators, or
 //!   anyone, `SRP_REPLAY_WATCH`; and the simulation epoch) and says where
 //!   it starts ([`Watches::loaded`]) or why not ([`Watches::refuse`]).
+//! - The movie withdraws its ask when its prompt is closed or it gives up
+//!   waiting (`3D 00 <REPLAY_WITHDRAW> <match>`, [`Watches::withdraw`]): a
+//!   session whose game is not sent yet is over.
 //! - The lobby sends the game to the match server as it sends a spectator
 //!   ([`Watches::to_send`], [`Watches::sent`]); the match server plays the
 //!   recording to it ([`Watches::connected`]) until it leaves or the
@@ -255,6 +258,10 @@ enum Event {
     TimedOut,
     /// The movie's poll was told its refusal.
     Told,
+    /// The movie no longer asks for it (its prompt closed, or it gave up
+    /// waiting): over while its game is in the lobby, whatever the match
+    /// server's reader does with it meanwhile.
+    Withdrawn,
 }
 
 /// Where an [`Event`] takes a session.
@@ -280,6 +287,7 @@ fn step(stage: Stage, event: Event) -> Option<Step> {
         (Queued | Loading, Event::TimedOut) => Step::To(Refused(WatchRefusal::Failed)),
         (Ready { .. } | Sent { .. } | Refused(_), Event::TimedOut) => Step::Over,
         (Refused(_), Event::Told) => Step::Over,
+        (Queued | Loading | Ready { .. } | Refused(_), Event::Withdrawn) => Step::Over,
         (Sent { .. } | Playing { .. }, Event::GameBack) => Step::Over,
         (Queued | Loading | Ready { .. } | Sent { .. } | Playing { .. }, Event::Ended) => {
             Step::Over
@@ -488,6 +496,30 @@ impl Watches {
             }
             _ => false,
         }
+    }
+
+    /// The account's movie withdraws its ask to watch `match_id` (its
+    /// prompt closed, or it gave up waiting): the session is over unless
+    /// its game was sent already or watches (the match server's to end).
+    /// Whether it ended one.
+    pub fn withdraw(&self, account_id: u32, match_id: u32) -> bool {
+        let mut sessions = self.sessions.locked();
+        let Some(stage) = sessions
+            .get(&account_id)
+            .filter(|session| session.request.match_id == match_id)
+            .map(|session| session.stage)
+        else {
+            return false;
+        };
+        if step(stage, Event::Withdrawn) != Some(Step::Over) {
+            return false;
+        }
+        sessions.remove(&account_id);
+        log::info!(
+            "Replay sessions: account {account_id} withdrew its ask to watch match \
+             {match_id:#x} ({stage:?})"
+        );
+        true
     }
 
     /// Whether the request's session was called back ([`Watches::recall`])
@@ -907,6 +939,57 @@ mod tests {
         assert!(!watches.holds(ALICE));
         // Another's word touches nothing, and there is nothing left to end.
         assert!(!watches.game_back(alice.session_id));
+    }
+
+    /// Withdrawn by its movie (the prompt closed, or it gave up): over while its game is in the
+    /// lobby, whatever its stage there, so it is never sent and holds nothing; a session sent or
+    /// watching is the match server's, and another match's withdrawal touches nothing.
+    #[test]
+    fn a_withdrawn_ask_ends_its_session_until_its_game_is_sent() {
+        let now = Instant::now();
+        let watches = watches(Access::All, 1);
+        let alice = request(ALICE);
+        assert!(!watches.withdraw(ALICE, alice.match_id), "no session");
+        // Queued.
+        assert_eq!(watches.start(alice, now), Status::Preparing);
+        assert!(
+            !watches.withdraw(ALICE, alice.match_id + 1),
+            "another match"
+        );
+        assert!(watches.withdraw(ALICE, alice.match_id));
+        assert!(!watches.holds(ALICE));
+        assert_eq!(watches.next_job(now), None, "nothing to read");
+        // Loading: the reader's word comes to nothing.
+        assert_eq!(watches.start(alice, now), Status::Preparing);
+        assert_eq!(watches.next_job(now), Some(alice));
+        assert!(watches.withdraw(ALICE, alice.match_id));
+        assert!(!watches.loaded(&alice, 50, now));
+        assert!(watches.to_send().is_empty());
+        // Ready: never sent, and the cap is free for another.
+        assert_eq!(watches.start(alice, now), Status::Preparing);
+        watches.next_job(now);
+        assert!(watches.loaded(&alice, 50, now));
+        assert!(watches.withdraw(ALICE, alice.match_id));
+        assert!(watches.to_send().is_empty());
+        assert_eq!(watches.answer(ALICE), None);
+        assert_eq!(watches.start(request(MOD), now), Status::Preparing);
+        assert!(watches.withdraw(MOD, alice.match_id));
+        // Refused, not told yet: forgotten.
+        assert_eq!(watches.start(alice, now), Status::Preparing);
+        watches.next_job(now);
+        watches.refuse(&alice, WatchRefusal::Failed, now);
+        assert!(watches.withdraw(ALICE, alice.match_id));
+        assert_eq!(watches.answer(ALICE), None);
+        // Sent, then watching: untouched.
+        assert_eq!(watches.start(alice, now), Status::Preparing);
+        watches.next_job(now);
+        assert!(watches.loaded(&alice, 50, now));
+        watches.sent(ALICE, now);
+        assert!(!watches.withdraw(ALICE, alice.match_id));
+        assert_eq!(watches.stage(ALICE), Some(Stage::Sent { start_ms: 50 }));
+        assert_eq!(watches.connected(alice.session_id, now), Some((alice, 50)));
+        assert!(!watches.withdraw(ALICE, alice.match_id));
+        assert_eq!(watches.stage(ALICE), Some(Stage::Playing { start_ms: 50 }));
     }
 
     #[test]
