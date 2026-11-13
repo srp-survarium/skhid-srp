@@ -1,35 +1,28 @@
-//! [A364 C2 rows 11/12] The rim jumps ([`Body::rim_jumps`]): Jump links up a ledge higher than the sprint jump's lowest top
-//! ([`SPRINT_JUMP_LOW_M`]), each flown on the exact tick ([`crate::controller::jump`]) as the bots' motor presses it, and kept
-//! only where every such press lands.
+//! [A364 C2 rows 11/12] The rim jumps ([`Body::rim_jumps`]): jumps up a ledge, or across a gap, to a top higher than the Jump
+//! and gap links reach, each flown on the exact tick ([`crate::controller::jump`]) over the presses a client can make, made a
+//! GapJump link carrying the press that lands, and not made where none does.
 //!
 //! The client's air branch never steps up (`player_step` 0x7BF26: the jump branch has no `step_up`; 0.0000 m over the clip in
 //! 2,245 flights): a top over the clip's apex is got onto when the capsule's round bottom comes to rest on its edge as the clip
 //! comes down and the ground steps after `end_jump` climb the rest, and only from a run-up (exactness `notes-mapflights.md` §2 C,
 //! Chemical Plant's deck: walking 44 of 396, sprint 143 of 424, standing 0 of 396). Whether it does depends on the edge's
-//! shape, so no rule of heights says it: each link is flown.
+//! shape and where the jump is pressed, so no rule of heights says it: each link is flown.
 //!
-//! As the motor presses it (`servers/match-server/src/v026g/bots/motor.rs`): a link above the grid body's standing jump is a
-//! sprint jump (`Leap::SprintLedge`), run up from 2 m behind the take-off (`motor.rs` `SPRINT_RUN_UP_M`; flown with the
-//! exactness rig's run-up, [`jump::run_up`]: up to speed over the 0.3 s blend, then 4 steady steps) and pressed on the first tick
-//! the take-off is `JUMP_LEAD_S x speed + PRESS_M` or nearer ([`PRESS_LEAD_S`], [`PRESS_EXTRA_M`]): a tick moves the body a
-//! step of its speed, so the press falls anywhere in the last step before that lead ([`PRESSES`] presses across it). The
-//! sprint jump's leg and the prepare's phase are the run cycle's, not the bot's to choose: both legs and both ends of the
-//! phase (6.57 and 7.44 frames, [`SPRINT_PHASES`]) are flown. A link is kept when every flight lands. A walking press (the
-//! short jump at the walk, pressed the same way) is flown too and recorded ([`WalkGrid::jump_walks`]) for the motor.
+//! The presses ([`best_press`]): the short jump from a walk (3.5 m/s) and the sprint jump (4.9587 m/s, both legs and both ends
+//! of the prepare's phase, which the run cycle picks, [`SPRINT_PHASES`]), each from the exactness rig's run-up
+//! ([`jump::run_up`]: up to speed over the 0.3 s blend then 4 steady steps, else shorter) and pressed at each of the gap links'
+//! leads ([`gap_leads`], the built file's range) before the take-off floor's centre. A link is made when some press lands (the
+//! owner, 2026-11-13: the bots are taught the press, the path is not taken away), with the press that lands the most of its
+//! gait's variants: a walking jump where one lands, else a sprint jump. Its press is the link's own ([`Takeoff`]), as every
+//! gap link's: the motor presses there (`Leap::Gap`, `Leap::SprintGap`). Made after the erosion, from the floors a body stands
+//! on, and before the reach, so a top only a rim jump gets to is kept.
 use super::gap::{self, OffLink, PressLead, Takeoff};
-use super::{Body, LinkKind, NodeId, WalkGrid, Wide, DIRS, MARGINAL_JUMP_M, NONE, RIM_REACH_M, SPRINT_JUMP_LOW_M};
+use super::{LinkKind, NodeId, WalkGrid, Wide, DIRS, MARGINAL_JUMP_M, NONE, RIM_REACH_M};
 use crate::controller::jump::{self, Gait, Leg};
 use crate::controller::tick::Settings;
 use crate::controller::Collision;
 use crate::math::Vec3;
 
-/// The motor's press lead, seconds of the body's speed (`motor.rs` `JUMP_LEAD_S`: the game's jump rises from about 0.2 s
-/// after the press) …
-pub const PRESS_LEAD_S: f32 = 0.2;
-/// … and this much more, metres (`motor.rs` `PRESS_M`).
-pub const PRESS_EXTRA_M: f32 = 0.15;
-/// Presses flown across the last step before the lead.
-pub const PRESSES: usize = 4;
 /// The sprint jump's prepare phase at its first air step, clip frames: its least and its most (exactness's driver, counted
 /// 6.57-7.44 over the traced sprint jumps).
 pub const SPRINT_PHASES: [f32; 2] = [6.57, 7.44];
@@ -42,25 +35,17 @@ const LAND_HEIGHT_M: f32 = 0.2;
 /// What the rim pass did ([`super::BuildStats`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RimStats {
-    /// Jump links above [`SPRINT_JUMP_LOW_M`] flown.
+    /// Rim jumps flown …
     pub tried: usize,
-    /// Of them, kept: every sprint press landed.
-    pub kept: usize,
-    /// Of the kept, those every walking press lands too ([`WalkGrid::jump_walks`]).
-    pub walks: usize,
-    /// Of them, given back to what the old cap made of the side (a lower jump, a drop or none).
-    pub cut: usize,
+    /// … made as a short jump's (a walking press lands) …
+    pub walked: usize,
+    /// … and as a sprint jump's; the rest no press made.
+    pub sprinted: usize,
     /// Flights flown.
     pub flights: usize,
-    /// Rim gap links tried ([`WalkGrid::fly_rim_gaps`]) …
-    pub gaps_tried: usize,
-    /// … made as a short jump's (a walking press lands) …
-    pub gaps_walked: usize,
-    /// … and as a sprint jump's.
-    pub gaps_sprinted: usize,
 }
 
-/// The sprint jump's gaits a bot's press may play: both legs, both ends of the prepare's phase.
+/// The sprint jump's gaits a press may play: both legs, both ends of the prepare's phase.
 fn sprint_gaits() -> [Gait; 4] {
     [
         Gait::Sprint { leg: Leg::Left, first_air_frame: SPRINT_PHASES[0] },
@@ -70,123 +55,89 @@ fn sprint_gaits() -> [Gait; 4] {
     ]
 }
 
-/// Whether every press a bot makes for a jump from the floor at `from` to the one at `to` along `way` (flat, unit) lands: pressed
-/// on the first tick the take-off is `lead` m or nearer, so anywhere in the last step of `speed` before it ([`PRESSES`] presses),
-/// each with each of `gaits`; and the flights flown (it stops at the first that does not land). A flight lands when the feet end
-/// within [`LAND_HEIGHT_M`] of `to`'s height and no more than half a cell short of it along the way.
+/// Whether a jump of `gait` pressed `lead` m before the take-off floor's centre at `from`, toward the floor at `to` along `way`
+/// (flat, unit), lands: the feet end within [`LAND_HEIGHT_M`] of `to`'s height and no more than half a cell short of it along
+/// the way.
 #[allow(clippy::too_many_arguments)]
-fn all_land(world: &Collision, s: &Settings, from: Vec3, to: Vec3, way: (f32, f32), cell: f32, speed: f32, lead: f32, gaits: &[Gait]) -> (bool, usize) {
-    let step = speed * jump::DT;
+fn lands(world: &Collision, s: &Settings, from: Vec3, to: Vec3, way: (f32, f32), cell: f32, lead: f32, gait: Gait) -> bool {
     let across = (to.x - from.x) * way.0 + (to.z - from.z) * way.1;
+    let at = Vec3::new(from.x - way.0 * lead, from.y, from.z - way.1 * lead);
+    jump::run_and_fly(world, s, at, way, gait, GROUND_STEPS).is_some_and(|steps| {
+        let end = steps.last().map_or(at, |f| f.feet);
+        let ahead = (end.x - from.x) * way.0 + (end.z - from.z) * way.1;
+        (end.y - to.y).abs() <= LAND_HEIGHT_M && ahead >= across - 0.5 * cell
+    })
+}
+
+/// The press that gets a body from `from` to `to` along `way`, among the leads `leads` (metres before the take-off): a walking
+/// jump at the lead it lands from, else the sprint jump at the lead where the most of its four variants land (the nearest to
+/// the middle of the leads that do on a tie); None when no press lands. And the flights flown (a lead where every variant
+/// lands ends the search: no press is better).
+#[allow(clippy::too_many_arguments)]
+fn best_press(world: &Collision, s: &Settings, from: Vec3, to: Vec3, way: (f32, f32), cell: f32, leads: &[f32]) -> (Option<Takeoff>, usize) {
     let mut flights = 0;
-    for k in 0..PRESSES {
-        let before = lead - step * k as f32 / PRESSES as f32;
-        let at = Vec3::new(from.x - way.0 * before, from.y, from.z - way.1 * before);
-        for &gait in gaits {
+    let walking: Vec<f32> = leads
+        .iter()
+        .copied()
+        .filter(|&lead| {
             flights += 1;
-            let landed = jump::run_and_fly(world, s, at, way, gait, GROUND_STEPS).is_some_and(|steps| {
-                let end = steps.last().map_or(at, |f| f.feet);
-                let ahead = (end.x - from.x) * way.0 + (end.z - from.z) * way.1;
-                (end.y - to.y).abs() <= LAND_HEIGHT_M && ahead >= across - 0.5 * cell
-            });
-            if !landed {
-                return (false, flights);
-            }
+            lands(world, s, from, to, way, cell, lead, Gait::Walk)
+        })
+        .collect();
+    if !walking.is_empty() {
+        return (Some(Takeoff::Press(PressLead::from_metres(walking[walking.len() / 2]))), flights);
+    }
+    let mut counts: Vec<(f32, usize)> = Vec::new();
+    for &lead in leads {
+        let n = sprint_gaits()
+            .into_iter()
+            .filter(|&gait| {
+                flights += 1;
+                lands(world, s, from, to, way, cell, lead, gait)
+            })
+            .count();
+        counts.push((lead, n));
+        if n == sprint_gaits().len() {
+            return (Some(Takeoff::Sprint(PressLead::from_metres(lead))), flights);
         }
     }
-    (true, flights)
+    let most = counts.iter().map(|&(_, n)| n).max().unwrap_or(0);
+    if most == 0 {
+        return (None, flights);
+    }
+    // Among the leads with the most landings, the one nearest the middle of the leads that land at all.
+    let landing: Vec<f32> = counts.iter().filter(|&&(_, n)| n > 0).map(|&(lead, _)| lead).collect();
+    let mid = landing.iter().sum::<f32>() / landing.len() as f32;
+    let lead = counts
+        .iter()
+        .filter(|&&(_, n)| n == most)
+        .map(|&(lead, _)| lead)
+        .min_by(|a, b| (a - mid).abs().total_cmp(&(b - mid).abs()))
+        .unwrap_or(mid);
+    (Some(Takeoff::Sprint(PressLead::from_metres(lead))), flights)
 }
 
-/// The motor's press lead for a ledge jump at `speed`, metres ([`PRESS_LEAD_S`], [`PRESS_EXTRA_M`]).
-fn ledge_lead(speed: f32) -> f32 {
-    PRESS_LEAD_S * speed + PRESS_EXTRA_M
-}
-
-/// One rim ledge link's flights ([`WalkGrid::fly_rim_jumps`]): whether every sprint press lands, whether every walking press
-/// does, and the flights flown.
-fn fly_link(world: &Collision, s: &Settings, from: Vec3, to: Vec3, way: (f32, f32), cell: f32) -> (bool, bool, usize) {
-    let (sprint, f1) = all_land(world, s, from, to, way, cell, jump::SPRINT_MS, ledge_lead(jump::SPRINT_MS), &sprint_gaits());
-    let (walk, f2) = all_land(world, s, from, to, way, cell, jump::WALK_CAP_MS, ledge_lead(jump::WALK_CAP_MS), &[Gait::Walk]);
-    (sprint, walk, f1 + f2)
+/// The leads a gap link may carry: [`gap::GAP_PRESS_MIN_M`] to [`gap::GAP_PRESS_MAX_M`] by [`gap::GAP_PRESS_STEP_M`] (the built
+/// file's range, `PressLead::is_valid`).
+fn gap_leads() -> Vec<f32> {
+    let n = ((gap::GAP_PRESS_MAX_M - gap::GAP_PRESS_MIN_M) / gap::GAP_PRESS_STEP_M).round() as usize;
+    (0..=n).map(|i| gap::GAP_PRESS_MIN_M + gap::GAP_PRESS_STEP_M * i as f32).collect()
 }
 
 /// The farthest a rim gap's landing face is searched from the take-off floor's centre, metres: the sprint clip's travel to its
-/// apex (frame 14: [`gap::SPRINT_JUMP_AHEAD`]'s 2.65 at frame 14, PROVEN, the clip) from the nearest press a gap link makes
-/// ([`gap::GAP_PRESS_MIN_M`] 0.6), and the capsule's radius (0.38, it meets the face with its side): a face farther is passed
-/// while the clip still rises or never met before it comes down. Only bounds the search; each link is flown.
+/// apex (2.65 m, frame 14, PROVEN, the clip) from the nearest press a gap link makes ([`gap::GAP_PRESS_MIN_M`] 0.6), and the
+/// capsule's radius (0.38, it meets the face with its side): a face farther is not met before the clip comes down. Only bounds
+/// the search; each link is flown.
 pub const RIM_GAP_ACROSS_M: f32 = 2.65 - gap::GAP_PRESS_MIN_M + 0.38;
 
-/// A rim gap link's press ([`WalkGrid::fly_rim_gaps`]): the first lead (from [`gap::GAP_PRESS_MIN_M`] by [`gap::GAP_PRESS_STEP_M`]
-/// to [`gap::GAP_PRESS_MAX_M`]) at which every walking press lands, as a short jump's press; else every sprint press, as a sprint
-/// jump's; and the flights flown.
-fn fly_gap(world: &Collision, s: &Settings, from: Vec3, to: Vec3, way: (f32, f32), cell: f32) -> (Option<Takeoff>, usize) {
-    let leads = ((gap::GAP_PRESS_MAX_M - gap::GAP_PRESS_MIN_M) / gap::GAP_PRESS_STEP_M).round() as usize;
-    let mut flights = 0;
-    for (speed, gaits, walk) in [(jump::WALK_CAP_MS, &[Gait::Walk][..], true), (jump::SPRINT_MS, &sprint_gaits()[..], false)] {
-        for i in 0..=leads {
-            let lead = gap::GAP_PRESS_MIN_M + gap::GAP_PRESS_STEP_M * i as f32;
-            let (ok, n) = all_land(world, s, from, to, way, cell, speed, lead, gaits);
-            flights += n;
-            if ok {
-                let press = PressLead::from_metres(lead);
-                return (Some(if walk { Takeoff::Press(press) } else { Takeoff::Sprint(press) }), flights);
-            }
-        }
-    }
-    (None, flights)
-}
-
 impl WalkGrid {
-    /// [`Body::rim_jumps`]: flies every Jump link of `wide` that rises above [`SPRINT_JUMP_LOW_M`] on `world` and gives a link
-    /// whose sprint presses do not all land back to what the old cap made of its side ([`Self::ledge_capped`] at the cap of a
-    /// body without rim jumps). The kept are recorded as flown (`wide.flown`: the flight is their landing's proof) and, where
-    /// the walking presses land too, as walked (`wide.jump_walks`).
-    pub(super) fn fly_rim_jumps(&self, wide: &mut Wide, world: &Collision, s: &Settings) -> RimStats {
-        let mut todo: Vec<(usize, usize, u32)> = Vec::new();
-        for a in 0..self.height.len() {
-            for d in 0..DIRS.len() {
-                let b = wide.links[a][d];
-                if b != NONE && wide.kinds[a][d] == LinkKind::Jump && self.height[b as usize] - self.height[a] > SPRINT_JUMP_LOW_M {
-                    todo.push((a, d, b));
-                }
-            }
-        }
-        let flown = super::controlled::parallel(&todo, |&(a, d, b)| {
-            let (pa, pb) = (self.position(a as NodeId), self.position(b));
-            let (di, dk) = DIRS[d];
-            let l = ((di * di + dk * dk) as f32).sqrt();
-            fly_link(world, s, pa, pb, (di as f32 / l, dk as f32 / l), self.cell)
-        });
-        let mut stats = RimStats { tried: todo.len(), ..RimStats::default() };
-        let old = Body { rim_jumps: false, ..self.body };
-        for (&(a, d, b), &(sprint, walk, flights)) in todo.iter().zip(&flown) {
-            stats.flights += flights;
-            if sprint {
-                stats.kept += 1;
-                wide.flown.push((a as u32, b));
-                if walk {
-                    stats.walks += 1;
-                    wide.jump_walks.push((a as u32, b));
-                }
-                continue;
-            }
-            stats.cut += 1;
-            let (i, k) = self.cell_xz(self.cell_of[a] as usize);
-            let (di, dk) = DIRS[d];
-            let back = self.cell_index(i + di, k + dk).and_then(|cell| self.ledge_capped(a, cell, None, old.jump_cap()));
-            (wide.links[a][d], wide.kinds[a][d]) = back.map_or((NONE, LinkKind::Walk), |(to, kind)| (to, kind));
-        }
-        wide.flown.sort_unstable();
-        wide.jump_walks.sort_unstable();
-        stats
-    }
-
-    /// [`Body::rim_jumps`] over a gap: from each floor along each way, across cells with no floor within a step of it, to the
-    /// first cell no farther than [`RIM_GAP_ACROSS_M`] with a floor higher than the gap links reach (the body's standing jump,
-    /// [`MARGINAL_JUMP_M`] at most) and no higher than [`RIM_REACH_M`]; flown at the gap links' presses ([`fly_gap`]) and made a
-    /// GapJump with the first press that lands every time. After the gap links (`wide.off`, kept sorted); the flight is its
-    /// landing's proof (`wide.flown`).
-    pub(super) fn fly_rim_gaps(&self, wide: &mut Wide, world: &Collision, s: &Settings, stats: &mut RimStats) {
+    /// [`Body::rim_jumps`]: from each floor along each way whose side has no link up (none, or a drop), across cells with no
+    /// floor within a step of it, to the first cell no farther than [`RIM_GAP_ACROSS_M`] with a floor higher than a gap link
+    /// reaches (the body's standing jump, [`MARGINAL_JUMP_M`] at most) and no higher than [`RIM_REACH_M`] (a Jump link up a
+    /// ledge goes to [`super::SPRINT_JUMP_LOW_M`]; one there takes the side, so a rim jump is above it); flown over the presses
+    /// ([`best_press`]) and made a GapJump with the press that lands. After the gap links (`wide.off`, kept sorted). Returns
+    /// the stats and the jumps no press made, as (take-off, landing) (none was a link before).
+    pub(super) fn fly_rim_jumps(&self, wide: &mut Wide, world: &Collision, s: &Settings) -> (RimStats, Vec<(NodeId, NodeId)>) {
         let body = &self.body;
         let low = body.max_jump.min(MARGINAL_JUMP_M);
         let mut todo: Vec<(u32, u32, usize)> = Vec::new();
@@ -195,17 +146,17 @@ impl WalkGrid {
             let (i, k) = self.cell_xz(self.cell_of[a] as usize);
             for (d, &(di, dk)) in DIRS.iter().enumerate() {
                 let stride = self.cell * ((di * di + dk * dk) as f32).sqrt();
-                // A side the floor walks on (or jumps onto, a cell away) is not a gap.
                 if wide.links[a][d] != NONE && wide.kinds[a][d] != LinkKind::Drop {
                     continue;
                 }
                 let mut g = 1;
                 while g as f32 * stride <= RIM_GAP_ACROSS_M + 1e-4 {
-                    let Some(cell) = self.cell_index(i + g * di, k + dk * g) else { break };
+                    let Some(cell) = self.cell_index(i + g * di, k + g * dk) else { break };
                     let floors = self.start[cell]..self.start[cell + 1];
-                    if g >= 2
-                        && let Some(b) = floors.clone().find(|&f| (low..=RIM_REACH_M).contains(&(self.height[f as usize] - ha)) && self.height[f as usize] - ha > low)
-                    {
+                    if let Some(b) = floors.clone().find(|&f| {
+                        let rise = self.height[f as usize] - ha;
+                        rise > low && rise <= RIM_REACH_M
+                    }) {
                         if wide.off.binary_search_by_key(&(a as u32, b), |l| (l.from, l.to)).is_err() {
                             todo.push((a as u32, b, d));
                         }
@@ -222,31 +173,35 @@ impl WalkGrid {
                 }
             }
         }
+        let leads = gap_leads();
         let flown = super::controlled::parallel(&todo, |&(a, b, d)| {
             let (di, dk) = DIRS[d];
             let l = ((di * di + dk * dk) as f32).sqrt();
-            fly_gap(world, s, self.position(a), self.position(b), (di as f32 / l, dk as f32 / l), self.cell)
+            best_press(world, s, self.position(a), self.position(b), (di as f32 / l, dk as f32 / l), self.cell, &leads)
         });
-        stats.gaps_tried += todo.len();
+        let mut stats = RimStats { tried: todo.len(), ..RimStats::default() };
+        let mut none = Vec::new();
         for (&(a, b, _), &(press, flights)) in todo.iter().zip(&flown) {
             stats.flights += flights;
-            let Some(press) = press else { continue };
+            let Some(press) = press else {
+                none.push((a, b));
+                continue;
+            };
             match press {
-                Takeoff::Press(_) => stats.gaps_walked += 1,
-                _ => stats.gaps_sprinted += 1,
+                Takeoff::Press(_) => stats.walked += 1,
+                _ => stats.sprinted += 1,
             }
             wide.off.push(OffLink { from: a, to: b, kind: LinkKind::GapJump, press });
-            wide.flown.push((a, b));
         }
         wide.off.sort_unstable_by_key(|l| (l.from, l.to));
-        wide.flown.sort_unstable();
+        (stats, none)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::grid::{OffMeshLinks, STANDING_JUMP_M};
+    use crate::grid::{Body, OffMeshLinks, STANDING_JUMP_M};
     use crate::{Triangle, WalkerBehaviour};
 
     fn quad(tris: &mut Vec<Triangle>, a: Vec3, b: Vec3, c: Vec3, d: Vec3) {
@@ -254,37 +209,47 @@ mod tests {
         tris.push(Triangle { v: [a, c, d], walker: WalkerBehaviour::BySlope });
     }
 
-    /// Ground at 0 for x < 5 and a block from x 5 to 12 whose top is `top` high, 6 m wide; a body starts at x 1. With rim jumps
-    /// on: the rim pass's stats and whether the top is reached.
-    fn onto(top: f32, rim_jumps: bool) -> (RimStats, bool) {
+    fn body(rim_jumps: bool) -> Body {
+        Body { rim_jumps, exe_collision: true, start_witness: true, max_jump: STANDING_JUMP_M, ..Body::client() }
+    }
+
+    /// Ground at 0 for x < 5 and a block from x 5 to 12 whose top is `top` high, 6 m wide; a body starts at x 1: the grid, its
+    /// rim stats and whether the top is reached.
+    fn onto(top: f32, rim_jumps: bool) -> (WalkGrid, RimStats, bool) {
         let mut tris = Vec::new();
         quad(&mut tris, Vec3::new(-2.0, 0.0, 0.0), Vec3::new(-2.0, 0.0, 6.0), Vec3::new(5.0, 0.0, 6.0), Vec3::new(5.0, 0.0, 0.0));
         quad(&mut tris, Vec3::new(5.0, top, 0.0), Vec3::new(5.0, top, 6.0), Vec3::new(12.0, top, 6.0), Vec3::new(12.0, top, 0.0));
         quad(&mut tris, Vec3::new(5.0, 0.0, 0.0), Vec3::new(5.0, top, 0.0), Vec3::new(5.0, top, 6.0), Vec3::new(5.0, 0.0, 6.0));
-        let body = Body { rim_jumps, exe_collision: true, start_witness: true, max_jump: STANDING_JUMP_M, ..Body::client() };
         let start = [Vec3::new(1.0, 0.0, 3.0)];
-        let (grid, stats) = WalkGrid::build_kept_with_links(&tris, [-2.0, 0.0, 12.0, 6.0], 0.25, body, &start, &start, OffMeshLinks::None);
+        let (grid, stats) = WalkGrid::build_kept_with_links(&tris, [-2.0, 0.0, 12.0, 6.0], 0.25, body(rim_jumps), &start, &start, OffMeshLinks::Gaps);
         let up = grid.locate(Vec3::new(9.0, top, 3.0), 0.3).is_some_and(|n| grid.reached(n));
-        (stats.rim, up)
+        (grid, stats.rim, up)
     }
 
-    /// A 1.30 m top (over the sprint jump's lowest top, 1.28) is got onto head-on by every sprint press the motor makes: the
-    /// 24 straight links along the 6 m face are kept (the diagonal ones, flown across the face at 45 degrees, are not) and the
-    /// top is reached; without rim jumps no link is made. A 1.40 m top is landed only from presses 1.55 m and more before the
-    /// face (the jump module's table), never from the motor's 0.89-1.14 m: every link is cut.
+    /// A 1.30 m top (over the sprint jump's lowest top, 1.28) and a 1.40 m one are got onto by some client press: rim jumps are
+    /// made with the press that lands (a gap link's, in the built file too) and the tops are reached; without rim jumps they are
+    /// not. A 2.10 m top no press gets onto: no rim jump is made, and the build reports every one it flew.
     #[test]
-    fn a_rim_jump_is_kept_where_every_motor_press_lands() {
-        let (low, up) = onto(1.30, true);
-        assert!(low.kept == 24 && low.cut == low.tried - 24 && up, "1.30: {low:?}");
-        let (_, up_off) = onto(1.30, false);
-        assert!(!up_off, "no rim jumps: 1.30 is over the old cap");
-        let (high, up_high) = onto(1.40, true);
-        assert!(high.tried > 0 && high.kept == 0 && high.cut == high.tried && !up_high, "1.40: {high:?}");
+    fn a_rim_jump_is_made_with_a_press_that_lands_and_not_where_none_does() {
+        for top in [1.30, 1.40] {
+            let (grid, rim, up) = onto(top, true);
+            assert!(rim.walked + rim.sprinted > 0 && up, "{top}: {rim:?}");
+            assert_eq!(grid.rim_unmade().len(), rim.tried - rim.walked - rim.sprinted, "{top}");
+            let path = std::env::temp_dir().join(format!("srp-rim-{}-{top}.bin", std::process::id()));
+            grid.write(&path, 11).unwrap();
+            let back = WalkGrid::read(&path, 11, body(true)).unwrap();
+            std::fs::remove_file(&path).ok();
+            assert_eq!(back.digest(), grid.digest());
+            let (_, _, up_off) = onto(top, false);
+            assert!(!up_off, "{top}: no rim jumps, over the old cap");
+        }
+        let (grid, rim, up) = onto(2.10, true);
+        assert!(rim.tried > 0 && rim.walked + rim.sprinted == 0 && !up, "2.10: {rim:?}");
+        assert_eq!(grid.rim_unmade().len(), rim.tried);
     }
 
     /// Vector Laboratory's shelf, made: ground at 0 for x < 5, a pit 3 m deep across `gap` m, then a top 1.10 m up (over the
-    /// standing jump, so no gap link reaches it). With rim jumps and the gap links: the rim gap pass's stats and whether the top
-    /// is reached.
+    /// standing jump, so no gap link reaches it). With rim jumps and the gap links: the rim stats and whether the top is reached.
     fn over_a_gap(gap: f32, rim_jumps: bool) -> (RimStats, bool) {
         let (x1, top) = (5.0 + gap, 1.10);
         let mut tris = Vec::new();
@@ -293,19 +258,18 @@ mod tests {
         quad(&mut tris, Vec3::new(5.0, -3.0, 0.0), Vec3::new(5.0, 0.0, 0.0), Vec3::new(5.0, 0.0, 6.0), Vec3::new(5.0, -3.0, 6.0));
         quad(&mut tris, Vec3::new(x1, top, 0.0), Vec3::new(x1, top, 6.0), Vec3::new(12.0, top, 6.0), Vec3::new(12.0, top, 0.0));
         quad(&mut tris, Vec3::new(x1, -3.0, 0.0), Vec3::new(x1, top, 0.0), Vec3::new(x1, top, 6.0), Vec3::new(x1, -3.0, 6.0));
-        let body = Body { rim_jumps, exe_collision: true, start_witness: true, max_jump: STANDING_JUMP_M, ..Body::client() };
         let start = [Vec3::new(1.0, 0.0, 3.0)];
-        let (grid, stats) = WalkGrid::build_kept_with_links(&tris, [-2.0, 0.0, 12.0, 6.0], 0.25, body, &start, &start, OffMeshLinks::Gaps);
+        let (grid, stats) = WalkGrid::build_kept_with_links(&tris, [-2.0, 0.0, 12.0, 6.0], 0.25, body(rim_jumps), &start, &start, OffMeshLinks::Gaps);
         let up = grid.locate(Vec3::new(9.0, top, 3.0), 0.3).is_some_and(|n| grid.reached(n));
         (stats.rim, up)
     }
 
-    /// A 1.10 m top across a 1.25 m pit (the shelf's, 1.26 m and 1.1 m) is got onto: the rim gap pass makes links whose every
-    /// press lands, and the top is reached; without rim jumps it is not.
+    /// A 1.10 m top across a 1.25 m pit (the shelf's, 1.26 m and 1.1 m) is got onto: the rim gap pass makes links with a press
+    /// that lands, and the top is reached; without rim jumps it is not.
     #[test]
     fn a_top_over_a_gap_higher_than_the_standing_jump_is_reached_by_its_flown_press() {
         let (rim, up) = over_a_gap(1.25, true);
-        assert!(rim.gaps_walked + rim.gaps_sprinted > 0 && up, "{rim:?}");
+        assert!(rim.walked + rim.sprinted > 0 && up, "{rim:?}");
         let (_, up_off) = over_a_gap(1.25, false);
         assert!(!up_off, "no rim jumps: no gap link reaches 1.10 m");
     }
