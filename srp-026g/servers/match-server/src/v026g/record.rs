@@ -49,8 +49,9 @@
 //! are deleted oldest first. The writing and the packing are done on a
 //! thread of their own; the match loop only hands the bytes over, and drops
 //! them (counted) if that thread is behind by [`QUEUE`] records. The other
-//! jobs (open, keep, close) are never dropped: a close lost would leave a
-//! kept recording under `.part`, with no replay.
+//! jobs (open, the header, kept and closed notes, keep, close) are never
+//! dropped: a close lost would leave a kept recording under `.part`, with no
+//! replay, and a `kept` note lost would get it deleted after a stop.
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs::{self, File};
@@ -107,9 +108,11 @@ impl Writing {
         WRITING.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn claim(path: &Path) -> Self {
-        Self::all().insert(path.to_owned());
-        Self(path.to_owned())
+    /// `None` while another writer of this process has it open.
+    fn claim(path: &Path) -> Option<Self> {
+        Self::all()
+            .insert(path.to_owned())
+            .then(|| Self(path.to_owned()))
     }
 }
 
@@ -237,6 +240,9 @@ impl RecordSettings {
 enum Job {
     Open { match_id: u32, name: String },
     Record { match_id: u32, bytes: Vec<u8> },
+    /// A note the file must have (its header, `kept`, `closed`): outside
+    /// the records' bound.
+    Note { match_id: u32, bytes: Vec<u8> },
     Keep { match_id: u32 },
     Close { match_id: u32 },
     /// Every recording still open is closed, then `done` is told
@@ -362,7 +368,7 @@ impl Recorder {
         let started = SystemTime::now();
         let match_id = replay.match_id();
         let name = replay.as_str().to_owned();
-        let mut recording = Recording {
+        let recording = Recording {
             recorder: self.clone(),
             min_players: if vs_bots { 1 } else { self.min_players },
             match_id,
@@ -381,7 +387,7 @@ impl Recorder {
             object.insert("min_players".into(), recording.min_players.into());
             object.insert("srp".into(), env!("CARGO_PKG_VERSION").into());
         }
-        recording.note(&header, now);
+        recording.mark(&header, now);
         recording
     }
 }
@@ -410,6 +416,24 @@ impl Recording {
         let _ = self.recorder.jobs.send(job);
     }
 
+    fn encode(&self, kind: u8, place: u8, bytes: &[u8], now: Instant) -> Vec<u8> {
+        let mut record = Vec::with_capacity(10 + bytes.len());
+        record.push(kind);
+        record.push(place);
+        record.extend_from_slice(&self.at(now).to_le_bytes());
+        record.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
+        record.extend_from_slice(bytes);
+        record
+    }
+
+    /// A note the file must have, however far behind its writer is.
+    fn mark(&self, note: &serde_json::Value, now: Instant) {
+        self.send(Job::Note {
+            match_id: self.match_id,
+            bytes: self.encode(NOTE, NO_PLACE, note.to_string().as_bytes(), now),
+        });
+    }
+
     /// Queued unless the writer is [`QUEUE`] records behind: then dropped
     /// (counted).
     fn record(&mut self, kind: u8, place: u8, bytes: &[u8], now: Instant) {
@@ -429,15 +453,9 @@ impl Recording {
             self.dropped += 1;
             return;
         }
-        let mut record = Vec::with_capacity(10 + bytes.len());
-        record.push(kind);
-        record.push(place);
-        record.extend_from_slice(&self.at(now).to_le_bytes());
-        record.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
-        record.extend_from_slice(bytes);
         let job = Job::Record {
             match_id: self.match_id,
-            bytes: record,
+            bytes: self.encode(kind, place, bytes, now),
         };
         if self.recorder.jobs.send(job).is_err() {
             records.fetch_sub(1, Ordering::AcqRel);
@@ -496,7 +514,7 @@ impl Recording {
             // In the file at once ([`Job::Keep`]): a `.part` with it is kept
             // after a stop ([`Recorder::start`]).
             let note = serde_json::json!({ "note": KEPT_NOTE, "players": self.entered.len() });
-            self.note(&note, Instant::now());
+            self.mark(&note, Instant::now());
             self.send(Job::Keep {
                 match_id: self.match_id,
             });
@@ -525,7 +543,7 @@ impl Drop for Recording {
             "kept": self.kept,
             "dropped": dropped,
         });
-        self.note(&note, Instant::now());
+        self.mark(&note, Instant::now());
         self.send(Job::Close {
             match_id: self.match_id,
         });
@@ -590,7 +608,22 @@ impl Writer {
         match job {
             Job::Open { match_id, name } => {
                 let path = self.settings.dir.join(format!("{name}.{EXTENSION}.{PART}"));
-                let claim = Writing::claim(&path);
+                // A match its server took up again after a restart in this
+                // process (its replay id is the same): the first recording
+                // stays its own, still written or named already; this one
+                // is not made.
+                let named = self.settings.dir.join(format!("{name}.{EXTENSION}"));
+                let claim = match Writing::claim(&path) {
+                    Some(claim) if !named.exists() => claim,
+                    _ => {
+                        log::warn!(
+                            "Match {match_id:#x}: {} was recorded before a restart; not \
+                             recorded again",
+                            path.display()
+                        );
+                        return;
+                    }
+                };
                 let file = File::create(&path)
                     .and_then(|file| {
                         let mut file = BufWriter::new(file);
@@ -616,16 +649,9 @@ impl Writer {
             }
             Job::Record { match_id, bytes } => {
                 self.records.fetch_sub(1, Ordering::AcqRel);
-                if let Some(open) = self.open.get_mut(&match_id) {
-                    if open.block.is_empty() {
-                        open.block_since = Instant::now();
-                    }
-                    open.block.extend_from_slice(&bytes);
-                    if open.block.len() >= BLOCK_BYTES {
-                        write_block(open);
-                    }
-                }
+                self.add(match_id, &bytes);
             }
+            Job::Note { match_id, bytes } => self.add(match_id, &bytes),
             // Named when its match closes ([`Self::close`]), not now; its
             // `kept` note goes to the file now.
             Job::Keep { match_id } => {
@@ -642,6 +668,19 @@ impl Writer {
                 }
                 let _ = done.send(());
             }
+        }
+    }
+
+    fn add(&mut self, match_id: u32, bytes: &[u8]) {
+        let Some(open) = self.open.get_mut(&match_id) else {
+            return;
+        };
+        if open.block.is_empty() {
+            open.block_since = Instant::now();
+        }
+        open.block.extend_from_slice(bytes);
+        if open.block.len() >= BLOCK_BYTES {
+            write_block(open);
         }
     }
 
@@ -1111,7 +1150,7 @@ mod tests {
         recording.datagram_in(0, &[1], now);
         recording.entered(0);
         recording.entered(1);
-        assert_eq!(recording.dropped, 2, "the datagram and the kept note");
+        assert_eq!(recording.dropped, 1, "the datagram, not the kept note");
         drop(recording);
         let names = settle(&dir, |names| {
             names.len() == 1 && names[0].ends_with("_000000ab.srprec")
