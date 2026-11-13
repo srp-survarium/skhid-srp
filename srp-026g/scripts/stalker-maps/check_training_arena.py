@@ -14,7 +14,10 @@ import make_training_arena as arena
 
 
 def inside(x, z):
-    points = arena.outline()
+    return inside_of(arena.outline(), x, z)
+
+
+def inside_of(points, x, z):
     crossed = False
     for a, b in zip(points, points[1:] + points[:1]):
         if (a[1] > z) != (b[1] > z) and x < a[0] + (z - a[1]) * (b[0] - a[0]) / (b[1] - a[1]):
@@ -30,7 +33,7 @@ def check(pack, dictionary, native, editor):
         live, first, final = (Path(tmp) / s for s in ('live', 'ffa', 'crater'))
         paths = {m.DICTIONARY} | {e['from'] for e in ffa['copy']} | {e['files'] for e in ffa['add_entry']}
         for path in paths:
-            src = dictionary if path == m.DICTIONARY else pack / 'files' / path
+            src = dictionary if path == m.DICTIONARY else m.in_pack(pack, path)
             dst = live / path
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(src, dst)
@@ -45,7 +48,8 @@ def check(pack, dictionary, native, editor):
         project = m.tree(blob)
         old = m.tree((pack / 'files' / arena.TDM_PROJECT).read_bytes())
         points = project['server_objects']['respawn_points']
-        assert len(points) == 48 and points[:24] == old['server_objects']['respawn_points']
+        count = m.COUNTS['cs_training_camp']
+        assert len(points) == 24 + count and points[:24] == old['server_objects']['respawn_points']
         for point in points:
             x, _, z = point['position']
             assert inside(x, z), ('spawn outside crater', point['team'], point['point_id'], x, z)
@@ -76,7 +80,8 @@ def check(pack, dictionary, native, editor):
         project['server_objects']['respawn_points'] = points[:24]
         assert project == old, 'unrelated project content changed'
         assert len(m.c.value_offsets(blob)) == len(set(m.c.value_offsets(blob)))
-    print('PASS: 24 FFA + 24 unchanged TDM spawns inside crater; closed 24-wall walker boundary; 500 ms native integer override')
+    print(f'PASS: {count} FFA + 24 unchanged TDM spawns inside crater; closed 24-wall walker boundary; '
+          '500 ms native integer override')
 
 
 if __name__ == '__main__':

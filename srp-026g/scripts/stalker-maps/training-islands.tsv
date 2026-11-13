@@ -1,0 +1,6 @@
+island	x_min	z_min	x_max	z_max	y_min	y_max
+west	-7.25	-3.75	6.5	10.25	22	25.5
+north_east_upper	29.75	25.5	40.25	35.75	21.5	23.25
+north_east_lower	27.75	15	37.5	23.25	17.5	19
+south_east	27.75	-27.5	41.25	-14.25	19.75	22.25
+east	42.75	-18.25	51.25	-1.5	20.5	22.5

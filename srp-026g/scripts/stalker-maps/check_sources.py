@@ -30,9 +30,18 @@ def main():
         check_ffa_edits.check(a.pack, dictionary)
         check_training_arena.check(a.pack, dictionary, a.native, m.EDIT)
     authored = m.points()[m.project('cs_training_camp')]
-    # The two raised-island spawns are intentional, not scenery candidates.
+    # The raised-island spawns are intentional, not scenery candidates: 8 and
+    # 19 of the distributed 24, then those added on the islands (24 and up).
     assert authored[8]['y'] > 20 and authored[19]['y'] > 15
-    print('PASS: raised-island spawns 8 and 19 are preserved')
+    added = authored[24:]
+    assert added and all(m.on_island(p) and '; raised island ' in p['reason'] for p in added)
+    # Every other perimeter point moved inside the base's fence, keeping its id.
+    moved = [p for p in authored[:24] if '; moved from the perimeter' in p['reason']]
+    fence = [(float(x), float(z)) for x, z in
+             (line.split('\t') for line in (m.HERE / 'training-fence.tsv').read_text().splitlines()[1:])]
+    assert len(moved) == 7 and all(check_training_arena.inside_of(fence, p['x'], p['z']) for p in moved)
+    print(f'PASS: raised-island spawns 8 and 19 are preserved; {len(added)} added on the islands; '
+          f'{len(moved)} perimeter points moved inside the fence')
 
 
 if __name__ == '__main__':

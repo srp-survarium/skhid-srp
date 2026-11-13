@@ -1008,6 +1008,76 @@
       "to": {
         "enemy_check_radius": 20.0
       }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 24,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 25,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 26,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 27,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 28,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
     }
   ]
 }
