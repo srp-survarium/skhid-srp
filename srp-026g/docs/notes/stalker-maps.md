@@ -149,24 +149,25 @@ of the projects:
 | value | the ports | stock day maps | now | list |
 | --- | --- | --- | --- | --- |
 | `image_grain_intensity`, `image_grain_update_frequency` | 0.08, 2 | 0.02, 1 | 0.02, 1 on all 16 projects | `ported-maps-grain-1.json` |
-| `god_rays_intensity`, `god_rays_attenuation` | 1.0, 1.0 (the six STALKER maps) | 0.65, 2.6 (level_03) | 0.2, 3.0 on Military Warehouses | `military-warehouses-sun-1.json` |
-| `lens_flares_multiplier` | 2 (the six) | 1 | 0.7 on Military Warehouses | the same |
+| `god_rays_intensity`, `god_rays_attenuation` | 1.0, 1.0 (the six STALKER maps) | 0.65, 2.6 (level_03) | 0.2, 3.0 on Military Warehouses, Experimental Pool and Training Camp | `stalker-maps-sun-1.json` |
+| `lens_flares_multiplier` | 2 (the six) | 1 | 0.7 on the same three | the same |
 
 - Grain ("always noisy in the distance", "on almost all ported maps"): 0.26g
   adds it last, noise x colour^0.6 x intensity (`aberration.ps`), so it shows on
   the sky and the haze. The v0.21d and v0.69d ports have stock grain.
-- Military Warehouses' sun ("you cannot look at that direction at all"): a
-  ray's strength is intensity x (1 - screen distance to the sun)^attenuation x
-  the far pixels (`t_position.x` of 300 or more: the sky) between the pixel and
-  the sun (`god_rays.ps`, `god_rays_mask.ps`); times the ray colour, it is added
-  before the tone curve. Half a screen height above or below an open sun that
-  is 0.23 with the port's values, 0.05 on stock level_03 and 0.01 on Vostok
-  v0.11, which has this same day weather (sun 38.0 degrees up, azimuth 219.7,
-  intensity 1.29) with rays 0.2 at 3.0 and flares x0.7. Military Warehouses
-  has Vostok v0.11's three values. Not seen in a game yet.
-- Not changed: Experimental Pool, Training Camp and the three maps not played
-  keep rays 1.0 at 1.0 and flares x2 (the same weather: the same three values
-  would do it). All eight maps keep the old builds' vignette
+- The sun (on Military Warehouses: "you cannot look at that direction at
+  all"; on Experimental Pool and Training Camp, the same weather: "fix them
+  too"): a ray's strength is intensity x (1 - screen distance to the
+  sun)^attenuation x the far pixels (`t_position.x` of 300 or more: the sky)
+  between the pixel and the sun (`god_rays.ps`, `god_rays_mask.ps`); times the
+  ray colour, it is added before the tone curve. Half a screen height above or
+  below an open sun that is 0.23 with the ports' values, 0.05 on stock
+  level_03 and 0.01 on Vostok v0.11, which has this same day weather (sun 38.0
+  degrees up, azimuth 219.7, intensity 1.29) with rays 0.2 at 3.0 and flares
+  x0.7. The three maps have Vostok v0.11's three values, each in its Team
+  Deathmatch project and Free for All's copy. Not seen in a game yet.
+- Not changed: Repair Depot, Station and Depository, not played, keep rays 1.0
+  at 1.0 and flares x2. All eight maps keep the old builds' vignette
   (`vignette_effect_power` 1, stock 0) and far depth of field
   (`use_bokeh_dof`, focus 100 m, region 50 m; stock day maps do not use it).
 
