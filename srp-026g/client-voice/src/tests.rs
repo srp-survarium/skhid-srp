@@ -784,3 +784,74 @@ fn a_stream_that_skipped_the_automatic_gain_is_held_at_the_ceiling() {
         assert!((a - b).abs() < 0.5, "{a} {b}");
     }
 }
+#[test]
+fn a_new_utterance_starts_at_unity() {
+    // A loud utterance held at the ceiling, then a quiet one: the quiet one
+    // plays as it would alone from its first frame, not at the gain the
+    // loud one left.
+    let mut encoder = Encoder::new().unwrap();
+    let loud: Vec<Vec<u8>> = (0..20)
+        .map(|f| {
+            let pcm = std::array::from_fn(|i| {
+                if ((f * FRAME + i) / 8).is_multiple_of(2) {
+                    i16::MAX
+                } else {
+                    i16::MIN
+                }
+            });
+            encoder.encode(&pcm).unwrap()
+        })
+        .collect();
+    let mut encoder = Encoder::new().unwrap();
+    let quiet: Vec<Vec<u8>> = (0..20)
+        .map(|f| encoder.encode(&tone(f, 300., 6000.)).unwrap())
+        .collect();
+    let (alone, _) = played(&quiet);
+    let mut core = Core::new().unwrap();
+    let mut now = 0;
+    for (utt, frames) in [(1, &loud), (2, &quiet)] {
+        let mut levels = Vec::new();
+        for (seq, pair) in frames.chunks(2).enumerate() {
+            core.receive(
+                &Message::RelayAudio {
+                    slot: 3,
+                    utt,
+                    seq: seq as u16,
+                    frames: pair.to_vec(),
+                },
+                now,
+            );
+            for _ in 0..2 {
+                let pcm = core.mix(1., 0, now);
+                let power = pcm
+                    .iter()
+                    .map(|&x| (f32::from(x) / 32768.).powi(2))
+                    .sum::<f32>();
+                levels.push(10. * (power / FRAME as f32).max(1e-12).log10());
+                now += 20;
+            }
+        }
+        core.receive(
+            &Message::RelayEnd {
+                slot: 3,
+                utt,
+                reason: 0,
+            },
+            now,
+        );
+        for _ in 0..10 {
+            core.mix(1., 0, now);
+            now += 20;
+        }
+        if utt == 1 {
+            assert!(core.stats().limited >= 15);
+        } else {
+            let played: Vec<f32> = levels.into_iter().filter(|&db| db > -100.).collect();
+            let alone: Vec<f32> = alone.iter().copied().filter(|&db| db > -100.).collect();
+            assert!(played.len() >= 10);
+            for (a, b) in alone.iter().zip(&played) {
+                assert!((a - b).abs() < 0.1, "{a} {b}");
+            }
+        }
+    }
+}

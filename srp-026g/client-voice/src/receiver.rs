@@ -32,11 +32,13 @@ const CEILING: f32 = 0.25;
 const RELEASE: f32 = 1.059_3;
 /// A speaker's level held at [`CEILING`]: a frame over it is brought down at
 /// once (the whole frame: none of it plays louder), then the gain comes back
-/// at [`RELEASE`], ramped within each frame. Under it, untouched.
+/// at [`RELEASE`], ramped within each frame. Under it, untouched. A new
+/// utterance (or the speaker's reset) starts it again at unity.
 struct Limiter {
     gain: f32,
 }
 impl Limiter {
+    const UNITY: Self = Self { gain: 1. };
     /// Whether the frame was over [`CEILING`].
     fn apply(&mut self, pcm: &mut [f32; FRAME]) -> bool {
         let rms = (pcm.iter().map(|x| x * x).sum::<f32>() / FRAME as f32).sqrt();
@@ -101,7 +103,7 @@ impl Speaker {
             heard: None,
             effect: None,
             closing_effect: false,
-            limiter: Limiter { gain: 1. },
+            limiter: Limiter::UNITY,
         })
     }
     fn take(&mut self, id: u16, slot: u8, stats: &mut Stats) -> bool {
@@ -113,6 +115,7 @@ impl Speaker {
         }
         self.close(stats);
         self.decoder.reset();
+        self.limiter = Limiter::UNITY;
         self.radio = Radio::new(
             0x9e3779b9u32
                 .wrapping_mul(u32::from(slot) + 1)
@@ -285,6 +288,7 @@ impl Core {
         for s in &mut self.speakers {
             s.state = State::Closed(None);
             s.decoder.reset();
+            s.limiter = Limiter::UNITY;
             s.heard = None;
             s.effect = None;
             s.closing_effect = false;
@@ -299,6 +303,7 @@ impl Core {
         s.close(&mut self.stats);
         s.state = State::Closed(None);
         s.decoder.reset();
+        s.limiter = Limiter::UNITY;
         s.heard = None;
         s.effect = None;
         s.closing_effect = false;

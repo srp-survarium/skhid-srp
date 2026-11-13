@@ -381,14 +381,14 @@ fn silence_closes_an_utterance_and_its_late_audio_reopens_nothing() {
 }
 
 #[test]
-fn an_utterance_is_cut_at_thirty_seconds() {
+fn an_utterance_is_cut_a_second_past_the_games_own_cap() {
     let mut bench = Bench::new();
     bench.send(2, &hello(2, true));
     bench.send(1, &start(1, 1));
     let mut ms = 0;
     let mut seq = 0;
     let mut ended = None;
-    while ms <= 31_000 {
+    while ms <= 32_000 {
         bench.at(ms);
         if ms % 2_000 == 0 {
             // HELLOs keep the listener (and the talker under the rate).
@@ -403,55 +403,36 @@ fn an_utterance_is_cut_at_thirty_seconds() {
         seq += 1;
         ms += 40;
     }
-    assert_eq!(ended, Some((30_000, EndReason::TooLong as u8)));
-    // Its audio after the cut opens nothing, nor does a new utterance until
-    // the talker has rested.
-    bench.at(30_040);
+    assert_eq!(ended, Some((31_000, EndReason::TooLong as u8)));
+    // Its audio after the cut opens nothing; a new START does, at once.
+    bench.at(31_040);
     assert!(bench.send(1, &audio(1, 1, seq + 1)).is_empty());
-    assert!(bench.send(1, &start(1, 2)).is_empty());
-    bench.at(31_999);
-    bench.send(2, &hello(2, true));
-    assert!(bench.send(1, &audio(1, 2, 0)).is_empty());
-    // Rested: its audio opens it (its START dropped).
-    bench.at(32_000);
-    assert_eq!(
-        sent_to(&bench.send(1, &audio(1, 2, 1))),
-        vec![(2, 0x82), (2, 0x83)]
-    );
+    assert_eq!(sent_to(&bench.send(1, &start(1, 2))), vec![(2, 0x82)]);
     let counts = bench.relay.counts(MATCH).unwrap();
     assert_eq!(counts.utterances, 2);
-    assert!(counts.talked >= Duration::from_secs(29));
-    assert_eq!(counts.dropped, 3);
+    assert!(counts.talked >= Duration::from_secs(30));
 }
 
 #[test]
-fn only_a_cut_makes_the_talker_rest() {
+fn the_games_end_at_thirty_seconds_comes_before_the_cut() {
     let mut bench = Bench::new();
     bench.send(2, &hello(2, true));
-    // Utterances of 29 s, ended and restarted at once: none is cut, and no
-    // rest follows (a talker that re-presses for ever is left to mutes).
-    let mut ms = 0;
-    for utt in 1..=3u16 {
-        bench.at(ms);
-        bench.send(2, &hello(2, true));
-        assert_eq!(
-            sent_to(&bench.send(1, &start(1, utt))),
-            vec![(2, 0x82)],
-            "{utt}"
-        );
-        for seq in 0..725 {
-            bench.at(ms);
-            if seq % 50 == 0 {
-                bench.send(2, &hello(2, true));
-            }
-            let mut out = bench.send(1, &audio(1, utt, seq));
-            out.extend(bench.poll());
-            assert_eq!(sent_to(&out), vec![(2, 0x83)], "{utt} {seq}");
-            ms += 40;
+    bench.send(1, &start(1, 1));
+    for seq in 0..750u16 {
+        bench.at(u64::from(seq) * 40);
+        if seq % 50 == 0 {
+            bench.send(2, &hello(2, true));
         }
-        assert_eq!(sent_to(&bench.send(1, &end(1, utt))), vec![(2, 0x84)]);
+        let mut out = bench.send(1, &audio(1, 1, seq));
+        out.extend(bench.poll());
+        assert_eq!(sent_to(&out), vec![(2, 0x83)], "{seq}");
     }
-    assert_eq!(bench.relay.counts(MATCH).unwrap().dropped, 0);
+    // The game's cap of 30 s, its END a little late: released, not cut.
+    bench.at(30_300);
+    assert!(bench.poll().is_empty());
+    let out = bench.send(1, &end(1, 1));
+    assert_eq!(sent_to(&out), vec![(2, 0x84)]);
+    assert_eq!(out[0].1[6], EndReason::Released as u8);
 }
 
 #[test]
@@ -504,27 +485,29 @@ fn a_talkers_audio_over_thirty_a_second_is_dropped() {
         }
     }
     assert_eq!(bench.relay.counts(MATCH).unwrap().dropped, 0);
-    // A burst of 10 at once is taken, then 30 a second.
-    bench.at(10_000);
+    // A network hold of 0.8 s, then its 20 AUDIO at once: all taken (more
+    // than a receiver's ring of 16); past them, nothing until the rate
+    // refills.
+    bench.at(10_800);
     bench.send(2, &hello(2, true));
     let mut relayed = 0;
-    for _ in 0..20 {
+    for _ in 0..25 {
         relayed += bench.send(1, &audio(1, 1, seq)).len();
         seq += 1;
     }
-    assert_eq!(relayed, 10);
-    // Another talker at twice the games' rate for a second: its burst and
-    // 30 a second (29.4 in the 0.98 s from its first to its last).
+    assert_eq!(relayed, 20);
+    // Another talker at twice the games' rate for 2 s: its burst and 30 a
+    // second (59.4 in the 1.98 s from its first to its last).
     relayed = 0;
-    for (seq, ms) in (20..=1_000).step_by(20).enumerate() {
-        bench.at(11_000 + ms);
+    for (seq, ms) in (20..=2_000).step_by(20).enumerate() {
+        bench.at(12_000 + ms);
         relayed += bench
             .send(3, &audio(3, 1, seq as u16))
             .iter()
             .filter(|(_, datagram)| datagram[2] == kind::RELAYED_AUDIO)
             .count();
     }
-    assert_eq!(relayed, 39);
+    assert_eq!(relayed, 79);
 }
 
 #[test]
@@ -1117,7 +1100,7 @@ fn a_source_is_limited_before_its_session_is_looked_up() {
         assert!(bench.send_from(guesser, &hello(session, true)).is_empty());
     }
     assert_eq!(bench.table.1.get() - lookups, 20);
-    // Malformed datagrams spend its rate too, one each: 400 a second.
+    // Malformed datagrams spend its flood cap, one each.
     bench.at(1_000);
     let mut parsed = 0;
     for _ in 0..1_000 {
@@ -1137,17 +1120,87 @@ fn a_source_is_limited_before_its_session_is_looked_up() {
     );
     // A spoofed flood from more addresses than it keeps apart: its memory
     // is bounded, and those past it share one rate.
+    bench.at(2_000);
     let before = bench.table.1.get();
     for n in 0..(SOURCES as u32 + 1_000) {
         let from = SocketAddr::new(std::net::Ipv4Addr::from(0x0B00_0000 + n).into(), 4000);
         bench.send_from(from, &hello(n + 100, true));
     }
     assert_eq!(bench.relay.sources.len(), SOURCES);
+    assert_eq!(bench.relay.refused.len(), SOURCES);
     assert!(bench.table.1.get() - before <= SOURCES as u32 + 20);
     // Once back to their whole rate, sources are forgotten.
     bench.at(10_000);
     bench.poll();
     assert!(bench.relay.sources.is_empty());
+    assert!(bench.relay.refused.is_empty());
+}
+
+#[test]
+fn a_refused_game_does_not_stop_the_others_on_its_ip() {
+    let mut bench = Bench::new();
+    bench.all_hello();
+    // Session 5 plays from session 1's IP (a shared exit), not seen yet.
+    bench.table.seat(5, MATCH, 6, 0);
+    bench.table.0.borrow_mut().get_mut(&5).unwrap().ip = Some(addr(1).ip());
+    let shared = |port: u16| SocketAddr::new(addr(1).ip(), port);
+    let lookups = bench.table.1.get();
+    // A game of the same exit refused: its match over (no seat) while it
+    // holds push-to-talk, and another whose voice left by another exit
+    // than its match connection (session 4's, from session 1's IP).
+    for seq in 0..1_000u16 {
+        bench.at(u64::from(seq));
+        assert!(bench.send_from(shared(7000), &audio(77, 1, seq)).is_empty());
+        assert!(bench.send_from(shared(7001), &audio(4, 1, seq)).is_empty());
+    }
+    // Each was looked up once a second.
+    assert_eq!(bench.table.1.get() - lookups, 2);
+    // The others of that exit go on: session 1, known, and session 5, new.
+    bench.at(1_000);
+    assert_eq!(
+        sent_to(&bench.send(1, &start(1, 1))),
+        vec![(2, 0x82), (3, 0x82)]
+    );
+    assert_eq!(
+        welcomes(bench.send_from(shared(7002), &hello(5, true))).len(),
+        1
+    );
+    // A guessing flood from the exit: 20 failed lookups a second, and the
+    // known games still looked up.
+    for session in 1_000..2_000 {
+        bench.send_from(shared(7003), &hello(session, true));
+    }
+    assert_eq!(
+        sent_to(&bench.send(1, &audio(1, 1, 0))),
+        vec![(2, 0x83), (3, 0x83), (2002, 0x83)]
+    );
+}
+
+#[test]
+fn forty_players_behind_one_exit_are_not_limited() {
+    let mut bench = Bench::new();
+    let exit = ip("10.7.7.7");
+    for session in 100..140u32 {
+        bench
+            .table
+            .seat(session, 0x30, (session - 100) as u8, (session % 2) as u8);
+        bench.table.0.borrow_mut().get_mut(&session).unwrap().ip = Some(exit);
+    }
+    let from = |session: u32| SocketAddr::new(exit, session as u16);
+    // Each says HELLO 4 times a second and talks (25 AUDIO a second), for
+    // 2 s.
+    for tick in 0..50u16 {
+        bench.at(u64::from(tick) * 40);
+        for session in 100..140u32 {
+            if tick % 6 == 0 {
+                bench.send_from(from(session), &hello(session, true));
+            }
+            bench.send_from(from(session), &audio(session, 1, tick));
+        }
+    }
+    let dropped = bench.relay.counts(0x30).map_or(0, |counts| counts.dropped);
+    assert_eq!(dropped, 0);
+    assert_eq!(bench.relay.dropped_unknown, 0);
 }
 
 #[test]
