@@ -3,8 +3,10 @@
 The owner (2026-11-10): "add feature to replays to see dots of red players (opponents) too"; "not
 just dots, also names if I press alt"; "yes in red for enemies".
 
-- **When:** watching a `.sur` replay ("Watch replay" in History, `-match_replay`), first or third
-  person on a player.
+- **When:** watching a local `.sur` replay (the game started with `-match_replay` by the updater's
+  `open-replay`, `client/updater/README.md` "Opening local .sur files"), first or third person on
+  a player. Not in a replay session (Watch in the lobby, `replay-stream.md`): its game is a live
+  spectator's (`Playback::Match`).
 - **Dots:** the minimap (the corner one) and the Tab map show every enemy that is alive and in the
   world as a red dot, spotted or not. Teammates as before.
 - **Over their heads:** every enemy alive, in the world and on the screen gets the marker

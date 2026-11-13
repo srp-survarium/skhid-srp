@@ -2,7 +2,7 @@
 
 **Version scope:** client **0.26g** (build 2777, patch revisions 7 to 10 on the players' server). Every address is a VA in the original 0.26g exe, read with `tools/re-kit/common/scripts/dis.py 026g` and `xref.py`. Written 2026-10-15.
 
-**Status: the format was read from the exe; no file made here has been played by a client yet.** The server makes these files itself for the lobby's "Watch replay" (`replay_watch.md`). The code (`servers/match-server/src/v026g/sur.rs`, `sur_convert.rs`, the binary `srp-recording-to-sur`) makes files that pass their own checks and parse back with a reader written from the client's. Whether the game plays them is the first thing to find out (section 6).
+**Status: the format was read from the exe; no file made here has been played by a client yet.** The server makes these files itself (`game::playback::sur_of`): a replay session plays one in the running game (`replay-stream.md`), and Save's `.srpreplay` holds one. The game plays a local `.sur` with `-match_replay`, started by the updater's `open-replay` (`client/updater/README.md`, "Opening local .sur files"). The code (`servers/match-server/src/v026g/sur.rs`, `sur_convert.rs`, the binary `srp-recording-to-sur`) makes files that pass their own checks and parse back with a reader written from the client's. Whether the game plays them is the first thing to find out (section 6).
 
 Tags: **PROVEN** = read in the 0.26g code at the address given. **LIKELY** = strong inference. **GUESS** = weak.
 
