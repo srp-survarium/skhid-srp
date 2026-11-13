@@ -76,6 +76,8 @@ pub struct ControlledStats {
 
 /// [2c] The risers [`WalkGrid::walk_every_link`] keeps for no walking way round them (floor, floor).
 type Held = Vec<(NodeId, NodeId)>;
+/// [`Body::walk_ceiling_stalls`] The Walk links the walk check passes only crouched, as (from, to).
+type Crouched = Vec<(u32, u32)>;
 
 /// [2c] One walk check's answer ([`WalkGrid::walk_link`]).
 #[derive(Clone, Copy, Debug, Default)]
@@ -704,7 +706,7 @@ impl WalkGrid {
         s: &Settings,
         start: WalkStart,
         mut stats: ControlledStats,
-    ) -> (ControlledStats, Vec<(u32, usize, f32)>, Held, Vec<(u32, u32)>) {
+    ) -> (ControlledStats, Vec<(u32, usize, f32)>, Held, Crouched) {
         let n = self.height.len();
         let floors: Vec<usize> = (0..n).collect();
         let near = parallel(&floors, |&a| {
