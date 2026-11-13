@@ -752,7 +752,8 @@ package survarium.watch
          var list:String = this.shownList();
          if(list == LIVE)
          {
-            if(this.answeredAt(LIVE) == 0 && now - this._openedAt >= 6000 && now - this._openedAt < 7000)
+            // no answer yet: its "no answer" text once 6 s are past (each second, so none is missed)
+            if(this.answeredAt(LIVE) == 0 && now - this._openedAt >= 6000)
             {
                this.render();
             }
@@ -1321,6 +1322,11 @@ package survarium.watch
          if(replay == WatchRows.REPLAY_KEPT || replay == WatchRows.REPLAY_READY)
          {
             return null;
+         }
+         // never recorded (too few players, recording off), else recorded and gone
+         if(replay == WatchRows.REPLAY_NOT_RECORDED)
+         {
+            return NotificationListScrollContent.REASON_NOT_RECORDED;
          }
          return NotificationListScrollContent.REASON_GONE;
       }

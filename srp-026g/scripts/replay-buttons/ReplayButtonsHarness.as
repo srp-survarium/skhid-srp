@@ -668,7 +668,7 @@ package
          expect(language + ": Everyone is not the 5 good matches",shownChip() == "everyone" && list.length == 5);
          if(list.length == 5)
          {
-            var states:Array = [null,null,"st_srp_watch_reason_gone","st_srp_watch_reason_gone","st_srp_watch_reason_old"];
+            var states:Array = [null,null,"st_srp_watch_reason_not_recorded","st_srp_watch_reason_gone","st_srp_watch_reason_old"];
             for(var j:int = 0; j < 5; j++)
             {
                var want:String = states[j] == null ? null : words.getName(states[j]);

@@ -2906,6 +2906,7 @@ st_srp_watch_players	%1$s játékos
 st_srp_watch_private	Privát szoba
 st_srp_watch_reason_full	Nincs több hely nézőknek
 st_srp_watch_reason_gone	A visszajátszás nincs meg
+st_srp_watch_reason_not_recorded	Nem rögzítették
 st_srp_watch_reason_old	Egy játékfrissítés előtt rögzítve
 st_srp_watch_reason_over	A meccs épp véget ért
 st_srp_watch_reason_private	Nézők számára zárva

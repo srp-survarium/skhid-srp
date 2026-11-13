@@ -2906,6 +2906,7 @@ st_srp_watch_players	graczy: %1$s
 st_srp_watch_private	Pokój prywatny
 st_srp_watch_reason_full	Brak miejsc dla widzów
 st_srp_watch_reason_gone	Powtórka nie została zachowana
+st_srp_watch_reason_not_recorded	Nie nagrano
 st_srp_watch_reason_old	Nagrane przed aktualizacją gry
 st_srp_watch_reason_over	Rozgrywka właśnie się skończyła
 st_srp_watch_reason_private	Niedostępne dla widzów

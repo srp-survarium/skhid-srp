@@ -39,6 +39,8 @@ package survarium.controls
       public static const REASON_OLD:String = "st_srp_watch_reason_old";
 
       public static const REASON_GONE:String = "st_srp_watch_reason_gone";
+
+      public static const REASON_NOT_RECORDED:String = "st_srp_watch_reason_not_recorded";
       
       // the prompt's word for a row's Watch (rpText)
       private static const RP_KEY_WATCH:String = "st_srp_replay_watch";

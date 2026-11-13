@@ -2906,6 +2906,7 @@ st_srp_watch_players	гульцоў: %1$s
 st_srp_watch_private	Прыватны пакой
 st_srp_watch_reason_full	Няма месцаў для гледачоў
 st_srp_watch_reason_gone	Паўтор не захаваны
+st_srp_watch_reason_not_recorded	Не запісаны
 st_srp_watch_reason_old	Запісаны да абнаўлення гульні
 st_srp_watch_reason_over	Матч толькі што скончыўся
 st_srp_watch_reason_private	Закрыты для гледачоў

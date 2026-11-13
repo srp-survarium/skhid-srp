@@ -2906,6 +2906,7 @@ st_srp_watch_players	Players: %1$s
 st_srp_watch_private	Private room
 st_srp_watch_reason_full	No spectator places left
 st_srp_watch_reason_gone	Replay not kept
+st_srp_watch_reason_not_recorded	Not recorded
 st_srp_watch_reason_old	Recorded before a game update
 st_srp_watch_reason_over	Match just ended
 st_srp_watch_reason_private	Not open to spectators

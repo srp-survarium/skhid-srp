@@ -2906,6 +2906,7 @@ st_srp_watch_players	игроков: %1$s
 st_srp_watch_private	Приватная комната
 st_srp_watch_reason_full	Нет мест для зрителей
 st_srp_watch_reason_gone	Повтор не сохранён
+st_srp_watch_reason_not_recorded	Не записан
 st_srp_watch_reason_old	Записан до обновления игры
 st_srp_watch_reason_over	Матч только что закончился
 st_srp_watch_reason_private	Закрыт для зрителей

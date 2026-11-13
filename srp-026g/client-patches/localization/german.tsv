@@ -2906,6 +2906,7 @@ st_srp_watch_players	%1$s Spieler
 st_srp_watch_private	Privater Raum
 st_srp_watch_reason_full	Keine Zuschauerplätze frei
 st_srp_watch_reason_gone	Wiederholung nicht gespeichert
+st_srp_watch_reason_not_recorded	Nicht aufgezeichnet
 st_srp_watch_reason_old	Vor einem Spielupdate aufgezeichnet
 st_srp_watch_reason_over	Match gerade beendet
 st_srp_watch_reason_private	Nicht für Zuschauer offen
