@@ -3,7 +3,8 @@
 //! and clans from the match history srp keeps
 //! ([`session::v026g::persist::history`]). A request is parsed once into an
 //! [`Endpoint`]; every answer is one indexed query of at most
-//! [`MatchHistory::MAX_ROWS`] rows.
+//! [`MatchHistory::MAX_ROWS`] rows (a clan card's members: up to
+//! `clans::MAX_MEMBERS`).
 
 use serde_json::{Value, json};
 use session::SessionStore;

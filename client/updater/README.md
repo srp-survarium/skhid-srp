@@ -962,7 +962,8 @@ compatibility with the installed simulation revision. Before the start:
    (8.3) form when that does; else the player is told to move the file to a
    folder with a shorter path of Latin letters. A path with a quote or a
    control character, one ending in `\`, or one that is not a full path is
-   refused the same way.
+   refused earlier, as a bad file (the "select one .sur replay file"
+   message), not with this one.
 
 Local files are never downloaded, copied, pruned or deleted, and opening them
 makes no network request. `ready` and `check` do not register file handlers;

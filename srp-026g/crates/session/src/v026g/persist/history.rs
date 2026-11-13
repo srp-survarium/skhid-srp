@@ -1188,7 +1188,7 @@ fn level_of(experience: u32) -> u8 {
 /// in WAL mode ([`super::SqliteGameRepository::open`]), so a read never
 /// waits for the writer nor the writer for a read, and a slow request
 /// holds one reader, not the others. Every query is an indexed lookup of
-/// at most [`MatchHistory::MAX_ROWS`] rows.
+/// at most [`MatchHistory::MAX_ROWS`] rows (a clan card's members: up to `clans::MAX_MEMBERS`).
 pub struct MatchHistory {
     readers: Vec<Mutex<Connection>>,
     /// The reader a request waits for when all are busy, in turn.

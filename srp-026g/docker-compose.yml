@@ -85,8 +85,8 @@ services:
       - SRP_RECORD_DIR=${SRP_RECORD_DIR:-/srv/srp/data/recordings}
       - SRP_RECORD_MIN_PLAYERS
       - SRP_RECORD_MAX_MB
-      # Replay sessions (docs/notes/replay-stream.md) read the recordings;
-      # a larger one than this many MB is not read (default 24).
+      # A replay session (docs/notes/replay-stream.md) or a Save reads a
+      # recording; a larger one than this many MB is not read (default 24).
       - SRP_REPLAY_MAX_RECORDING_MB
       # Who may watch one: `all` (default), or `match` (its players and
       # SRP_REPLAY_MODERATORS, account ids, comma-separated). How many at

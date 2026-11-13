@@ -23,7 +23,7 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   login (`v026g/names.rs`), so an account that never played one is answered as no account (`404`
   for its card by id or name, left out of its clan's members), and counting ids lists no logins.
 - Banned accounts are left out of the top lists and the best scores.
-- Every request is cheap (one vCPU runs the game too): indexed lookups, results of at most 50 rows,
+- Every request is cheap (one vCPU runs the game too): indexed lookups, results of at most 50 rows (a clan card's members: up to 105),
   totals kept up to date when a match is recorded, never added up per request.
 
 ## What is kept
@@ -33,7 +33,7 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   UTC second the match was made, `rec026g_20261014-023456_000000ab`: its recording's file stem
   whether it was recorded or not, so a match stays told apart across restarts), when it ended
   (Unix seconds), how long it lasted, map, mode, match level, the kind (`public`, `private`,
-  `vs_bots`), the winner (`team0`, `team1`, `draw`, `unknown`) and the two teams' points.
+  `vs_bots`), the winner (`team0`, `team1`, `draw`, `unknown`, or `most_kills` for a free-for-all, with `top_kills`) and the two teams' points.
 - A public match's eligibility, set when it is written (`history::Eligibility`): `counted`, or why
   not: `with_bots` (a bot played; it moved no rating either), `few_players` (fewer than 6 accounts
   in it, leavers and late joiners counted: `SRP_RECORD_MIN_PLAYERS`' default and a default room's
@@ -66,8 +66,8 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   the kit its account plays, the one the match took. What a kit held is the account's kit as the
   match ended, read before the match is settled. The snapshot's kit in use (`Supplies::kit`) is
   not read: its place is LIKELY only, and a kit that fired, killed or died shows in the counters.
-- `g26_player_items`: the public matches added up by player and item, at record time: `matches`
-  (public matches in which a kit the player used held the item; once a match however many kits
+- `g26_player_items`: the counted public matches added up by player and item, at record time: `matches`
+  (counted public matches in which a kit the player used held the item; once a match however many kits
   held it) and the kills, headshots, shots and hits of every used kit that held it, with its kind
   (`weapon` or `armour`, by its slot). These are a kit's counts given to every item of the kit:
   a kit holding two firearms gives both all its kills and shots, and its armour too. They are
@@ -138,7 +138,7 @@ Common objects:
   three decimals.
 - A match: `{"id":5531,"replay_id":"rec026g_20261103-115320_5e1a09c3","ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok",
   "mode":"Batteries","level":12,"winner":0,"team_points":[5,3],"players":12,
-  "eligibility":"counted"}`. `winner` is 0 or 1, `"draw"`, or `null` when not known. `map` and `mode` are `null` for a map the game data no longer
+  "eligibility":"counted"}`. `winner` is 0 or 1, `"draw"`, or `null` when not known and for every free-for-all. `map` and `mode` are `null` for a map the game data no longer
   has.
 - A player's line of a match: `"team":0,"place":1,"won":true,"left":false,"rating":1180,
   "score":310,"kills":14,"deaths":6,"kd":2.33,"assists":4,"headshots":3,"grenade_kills":1,
@@ -152,7 +152,7 @@ Common objects:
   the game data's in `lang` (`null` for an item it no longer has). A match with no trusted
   snapshot has its kit with counters 0.
 - An item's totals (`player/equipment`): `{"id":155,"name":"AK-74M","matches":40,"kills":380,
-  "headshots":70,"shots":12000,"hits":3500,"accuracy":0.292}`: the public matches in which a kit
+  "headshots":70,"shots":12000,"hits":3500,"accuracy":0.292}`: the counted public matches in which a kit
   the player used held it, and those kits' counters added up (the kit's kills with whatever
   else it held, not the item's own).
 
@@ -175,9 +175,9 @@ account without a public match, as for no account.
 A player's public matches, newest first: the match, the player's line and its kits.
 
 ```json
-{"matches":[{"id":5531,"ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok",
+{"matches":[{"id":5531,"replay_id":"rec026g_20261103-115320_5e1a09c3","ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok",
              "mode":"Batteries","level":12,"winner":0,"team_points":[5,3],"players":12,
-             "team":0,"place":1,"won":true,"left":false,"rating":1180,"score":310,"kills":14,
+             "eligibility":"counted","team":0,"place":1,"won":true,"left":false,"rating":1180,"score":310,"kills":14,
              "deaths":6,"kd":2.33,"assists":4,"headshots":3,"grenade_kills":1,"melee_kills":0,
              "batteries":2,"captures":0,"artefacts":1,"shots":420,"hits":130,"accuracy":0.31,
              "kits":[{"kit":0,"kills":12,"headshots":3,"shots":380,"hits":120,"accuracy":0.316,
@@ -190,7 +190,7 @@ A player's public matches, newest first: the match, the player's line and its ki
 
 ### `GET /api/history/player/equipment?id=<id>&limit=<n>`
 
-A player's favourite equipment: its most used weapons and armour of its public matches, each list
+A player's favourite equipment: its most used weapons and armour of its counted public matches, each list
 by matches, most first (ties: the higher id first), at most `limit` (1..50, default 10). Kept up
 to date when a match is recorded (`g26_player_items`). An account without a public match has
 both lists empty, as an unknown one. The counters are kit-level (see "What is kept"): with two
@@ -220,8 +220,9 @@ A player's counted public matches added up by day (UTC), oldest first, days with
 The latest public matches, newest first; with `clan`, those a member of that clan played in.
 
 ```json
-{"matches":[{"id":5531,"ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok",
-             "mode":"Batteries","level":12,"winner":0,"team_points":[5,3],"players":12}],
+{"matches":[{"id":5531,"replay_id":"rec026g_20261103-115320_5e1a09c3","ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok",
+             "mode":"Batteries","level":12,"winner":0,"team_points":[5,3],"players":12,
+             "eligibility":"counted"}],
  "next":5530}
 ```
 
@@ -230,8 +231,9 @@ The latest public matches, newest first; with `clan`, those a member of that cla
 A public match and every player's line with its kits, by team, then place.
 
 ```json
-{"match":{"id":5531,"ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok",
-          "mode":"Batteries","level":12,"winner":0,"team_points":[5,3],"players":12},
+{"match":{"id":5531,"replay_id":"rec026g_20261103-115320_5e1a09c3","ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok",
+          "mode":"Batteries","level":12,"winner":0,"team_points":[5,3],"players":12,
+          "eligibility":"counted"},
  "players":[{"player":{"id":1042,"name":"Sheep","clan":null},"level":34,
              "team":0,"place":1,"won":true,"left":false,"rating":1180,"score":310,"kills":14,
              "deaths":6,"kd":2.33,"assists":4,"headshots":3,"grenade_kills":1,"melee_kills":0,
@@ -245,7 +247,7 @@ A public match and every player's line with its kits, by team, then place.
 
 The top players by their totals. `by`: `rating`, `matches`, `wins`, `kills`, `score`, `headshots`,
 `batteries`, `artefacts`, `accuracy` (default `rating`); `limit` 1..50 (default 50). Players with
-a counted public match only. `accuracy` lists only the players with at least 1000 shots in their public
+a counted public match only. `accuracy` lists only the players with at least 1000 shots in their counted public
 matches (`ACCURACY_MIN_SHOTS`; a few lucky shots do not top it), best first; ties by account.
 
 ```json
@@ -285,7 +287,7 @@ Registered clans by their totals. `by`: `matches`, `wins`, `kills`, `score`, `he
 ### `GET /api/history/clan?id=<clan>` or `?tag=<tag>`
 
 A registered clan: its totals and its members with a public match, each with their own totals (all
-their public matches), commander first, then by score. `members` counts every member, listed or
+their counted public matches), commander first, then by score. `members` counts every member, listed or
 not; `leader` is `null` when the commander has no public match.
 
 ```json
