@@ -846,13 +846,24 @@ impl Playback {
             }
         };
         // (One being told 1x already keeps that note.)
-        if let GameSpeed::Told(speed) = self.game_speed
-            && speed != Speed::Normal
-        {
-            self.send_playback(paused, Speed::Normal, now);
-            if let Some(serial) = self.playback_note {
-                self.game_speed = GameSpeed::Slowing(serial);
+        match self.game_speed {
+            GameSpeed::Told(speed) if speed != Speed::Normal => {
+                self.send_playback(paused, Speed::Normal, now);
+                if let Some(serial) = self.playback_note {
+                    self.game_speed = GameSpeed::Slowing(serial);
+                }
             }
+            // Told 1x in a note not acked yet (it may be lost, and sent
+            // again): the world waits for it as for a new one.
+            GameSpeed::Told(_) => {
+                if let Some(serial) = self
+                    .playback_note
+                    .filter(|&serial| !self.spectator.is_delivered(serial))
+                {
+                    self.game_speed = GameSpeed::Slowing(serial);
+                }
+            }
+            GameSpeed::Slowing(_) => {}
         }
         (self.inputs, self.events) = self.recording.due(at, relay_lead(Speed::Normal));
         self.spectator.wait_again();
