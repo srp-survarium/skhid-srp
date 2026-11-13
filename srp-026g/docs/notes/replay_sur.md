@@ -17,8 +17,11 @@ The 0.26g exe has a replay player the 0.21d exe only began (0.21d: `replay_match
 - a replay UI, `resources/flash_movies/replay_player.swf`: play/pause, speed 0.01 to 10, a seek bar over the match's length, one-frame steps, a player list (`select_player(id, 0|1)`, first or third person), a free view, `smooth_replay_camera`, `toggle_replay_ui`;
   - since 2026-11-08 its root also takes the markers and the players as one string each, which GFx's
     Invoke passes more easily than an Array of objects (`survarium.replay.ReplayText`):
-    `set_markers_text("time_ms:kind:label;...")` (kind 1 a kill, 2 an objective; sorted by time, into
-    `set_markers_list`, whose previous/next buttons then step from one to the next) and
+    `set_markers_text("time_ms:kind:whose:actor:victim;...")` (kind 1 a kill, 2 an objective, 3 a death
+    of the player in view; actor and victim place numbers, either may be empty; sorted by time, into
+    `set_markers_list`, whose previous/next buttons then step from one to the next), their names by
+    `set_marker_names("place:name;...")`, sent first (the movie makes each label `actor > victim`, or
+    the one there is), and
     `set_players_text("place:team:name;...")` (place 0..19, team the match's 0 or 1 shown as ally or
     enemy, into `set_players_list`). The last field may hold `:`, no field `;`; a malformed entry is
     left out; an empty string empties the bar. Since 2026-11-08 the markers are ticks on the seek
@@ -41,8 +44,8 @@ The 0.26g exe has a replay player the 0.21d exe only began (0.21d: `replay_match
     (`moments_clicked(0|1|2)`, shown by `set_moments(choice, mine)`; Mine only when `mine` is not 0) and the
     key hint above the bar (key caps and their actions on a panel, the arrows drawn, wrapped onto more rows
     rather than leave the stage), shown its first 10 s and while `set_cursor_shown(true)`, fading in and out.
-    The markers text is `time_ms:kind:whose:label` since then: `whose` 1 the viewer's own, 2 the player in
-    view's; the ticks the switch does not light are drawn at 30 %. A `.sur` played by the replay client gets
+    A marker's `whose` is the switch's: a mask, 1 the viewer's own, 2 the player in view's, 3 both,
+    0 neither; the ticks the switch does not light are drawn at 30 %. A `.sur` played by the replay client gets
     none of it.
 - no lobby list of replays, and **no writer**: the strings "replays" and ".sur" each have one reader, nothing in the exe opens a `.sur` for writing, and `key_frame_type::push_back` is called only by the reader (LIKELY: no writer path found). The game's own recorder is the journal (`-record_journal`), which is off since patch revision 4 and is another thing (it holds the packets one client got and its device input, and plays only with `-replay_journal`).
 

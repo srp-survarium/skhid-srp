@@ -3,7 +3,9 @@
 //! [`crate::v026g::rewards::Results::settle`]) and its players, with the
 //! public matches' totals by player and by clan added up as each is
 //! written. [`MatchHistory`] reads them for the site and the lobby, on read-only
-//! connections of its own: only public matches are ever read back.
+//! connections of its own: only public matches are served to the site,
+//! counted or listed, but a player's own list and a match's events read
+//! every kind.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -452,7 +454,7 @@ pub struct KitItem {
 }
 
 /// A kit a player used in a match: its own counters and what it held
-/// (`docs/notes/match_history.md`, "Kits": which kits count as used).
+/// (`docs/notes/match_history.md`, "What is kept": which kits count as used).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KitLine {
     /// Its place among the account's kits, 0..=2: the counters' kit.

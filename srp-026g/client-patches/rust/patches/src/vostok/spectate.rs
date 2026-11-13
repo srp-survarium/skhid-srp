@@ -17,8 +17,9 @@
 //! - `hud.followed_alive` (0x23B7B9): the hud's change of the followed
 //!   player's life (the kits and the cursor at a death), and patch 31's
 //!   ui_start after it (the kits and the cursor before play);
-//! - `player_left.local` (0x27C72C): an 0xEA, which the game takes as its
-//!   own end only for its local place: a game with none returns at once.
+//! - `player_left.entry` (0x27C690): an 0xEA, process_player_left_match
+//!   replaced whole (the game takes it as its own end only for its local
+//!   place: a game with none returned at once).
 
 use super::context::{Context, Reg};
 use super::input::Action;

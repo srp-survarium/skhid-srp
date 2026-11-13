@@ -10,7 +10,7 @@
 
 ### In the movie, since 2026-11-08 (watching in the running game)
 
-The Watch redesign (`research/watch-redesign.html`): one home for watching, in the top menu, and a
+The Watch redesign: one home for watching, in the top menu, and a
 Watch button wherever a match is mentioned.
 
 - **Where.** The top menu's **Watch** tab, between Rooms and Ranking (`TopMenu.WATCH_INDEX`; the bar's
@@ -83,8 +83,8 @@ Watch button wherever a match is mentioned.
     `P2;<match 8 hex>;<place>;<map id>;<mode>;<result 0 defeat|1 victory|2 draw>;<kills>;<deaths>;<minutes since its end>;<replay>[;<1 private|2 with bots>]`
     (the last field on the asker's own list only);
     rows for another nickname than the one searched are left;
-  - `<replay>`: 0 not recorded, 1 kept, 3 gone, 4 old version (the asker's game is below the
-    replays' minimum revision). 2 (a replay file made for the download) is no longer sent.
+  - `<replay>`: 0 not recorded, 1 kept, 3 gone, 4 old version (the asker's game is below
+    patch revision 14, `MIN_REVISION`). 2 (a replay file made for the download) is no longer sent.
 - `srp-026g/scripts/replay-buttons/check.sh <lobby_menu.swf>` checks all of it in Ruffle, every
   language, at 1280x720 and 1920x1080; `shots.sh <lobby_menu.swf> <out>` takes the screenshots.
 
@@ -95,21 +95,21 @@ Watch button wherever a match is mentioned.
 | ask (C->S) | `3D 00 <u32 0xC0000000 \| place << 16 \| seconds> <u32 match id>` (`lobby::ReplayWatchAsk`) |
 | poll (C->S) | `3B 00 <u32 2200000000> <u8 count>` |
 | withdraw (C->S) | `3D 00 <u32 0xFFFFFF05> <u32 match id>` (`lobby::REPLAY_WITHDRAW`), no answer |
-| answer (S->C) | `91 01 <str "R1;<status>;<match id 8 lower hex>;<n>"> <u32 2200000000> <u16 0> <u16 0>` (`lobby::replay_answer`); `<n>` is the match time it starts at (ms) with `watching` (its game sent), 1 being read, 2 waiting or 0 read and its game not sent yet with `preparing`, else 0 |
+| answer (S->C) | `91 01 <str "R1;<status>;<match id 8 lower hex>;<n>"> <u32 2200000000> <u16 0> <u16 0>` (`lobby::replay_answer`); `<n>` is the match time it starts at (ms) with `watching` (its game sent; 0 for a live match), 1 being read, 2 waiting or 0 read and its game not sent yet with `preparing`, else 0 |
 
 The row's name is 45 bytes at the most (63 is the client's limit).
 
-Status words (`session::v026g::replays::Status`): `preparing`, `watching`, `none` (no session; match id 0), `gone` (no kept recording), `not_yours` (`SRP_REPLAY_WATCH=match` and the asker is neither a player of the match nor a moderator), `old_game` (the asker's patch revision is below 14, or unknown), `incompatible` (the recording's games are of revisions this game does not play, or of none known, below), `busy` (the player is in a match or queued, has a session already, asked again within 2 s of its last start (`START_EVERY`), has looked up 12 matches with no recording in an hour (`MISSES_ALLOWED`), or `SRP_REPLAY_WATCH_MAX` sessions run; a live match: full, not begun, or over), `in_room` (the player's room has a use for it now: its vote, a place in its match; also the answer to the next poll of a session its room called back before its game was sent, `Watches::recall`; `st_srp_replay_in_room`), `failed` (unreadable, over `SRP_REPLAY_MAX_RECORDING_MB`, not read within 2 minutes), `off` (no recordings).
+Status words (`session::v026g::replays::Status`): `preparing`, `watching`, `none` (no session; match id 0), `gone` (no kept recording), `not_yours` (`SRP_REPLAY_WATCH=match` and the asker is neither a player of the match nor a moderator; a live match that cannot be watched: a private room's, fixed rosters), `old_game` (the asker's patch revision is below 14, or unknown), `incompatible` (the recording's games are of revisions this game does not play, or of none known, below), `busy` (the player is in a match or queued, has a session already, asked again within 2 s of its last start (`START_EVERY`), has looked up 12 matches with no recording in an hour (`MISSES_ALLOWED`), or `SRP_REPLAY_WATCH_MAX` sessions run; a live match: full, not begun, or over; a match just ended whose recording is still being written, `Replays::writing`), `in_room` (the player's room has a use for it now: its vote, a place in its match; also the answer to the next poll of a session its room called back before its game was sent, `Watches::recall`; `st_srp_replay_in_room`), `failed` (unreadable, over `SRP_REPLAY_MAX_RECORDING_MB`, not read within 2 minutes), `off` (no recordings).
 
 **Compatibility rule.** A recording made from 2026-10-15 on has each place's patch revision (a `revision` note at every connection, the highest kept). A game of revision R plays it when every known revision (0 and places that never connected are not counted) is from the oldest replayable revision to R: a newer game's match may play out otherwise in an older one, and an older game's in a newer one once what a match computes changed. The oldest replayable revision is the last row of `crates/session/src/v026g/simulation_changes.tsv` (a game of revision R plays the recordings from that revision to R, revisions that changed nothing a match computes included). Recordings made before 2026-10-15 have no revision and are refused (the owner, 2026-10-17: not guessed).
 
 **A change of what a match computes.** A PR that makes a match play out otherwise cannot know its revision (the release sets it): it adds the row `next<TAB><what>` at the end of that list. The server takes `next` for its `SRP_MIN_PATCH_REVISION`, which the release sets to its own revision at its swap, so from that release on the recordings of older games are refused; `release/release.sh` writes the number in place of `next` in its record (`.claude/skills/skhid-release/SKILL.md`). The match server logs the oldest revision it gives at start.
 
-**What the player sees of a refusal** (`incompatible`): nothing starts; the movie's own "This replay was recorded by a game version that yours cannot play." (English, Ukrainian, Russian), and with the first answer of each ask the game's message box (`84 49 00 <text>`, `social.md` §9.1: the box and nothing else) in the game's language (`4F`'s byte: English, Russian, Ukrainian, German, Polish): recorded before a game update, and replays from older versions can't be played yet (also for a recording with no revision; no revision or release is named: nothing installs an older game, and the server knows no date of the update to name); for a newer one, its revisions and to update the game (`lobby-server/src/v026g/replay.rs`, `refusal_text`). Not seen in a game yet: a sentence (rather than a key) in that box, with Cyrillic letters.
+**What the player sees of a refusal** (`incompatible`): nothing starts; the movie says it in the game's language, from the localization tables (`client-patches/localization/`, 10 languages): the prompt's `st_srp_replay_incompatible` ("This replay was recorded by a game version that yours cannot play."), the card's `st_srp_watch_reason_old` ("Recorded before a game update"). The server only logs why (`lobby-server/src/v026g/replay.rs`).
 
 ### 2.1 Save
 
-The save icon of the Watch window's cards and the results screen's Save replay save a match's replay to a file in the player's `<game>\replays` (`research/local-replays-design.md` section 1; the movie: `survarium/watch/ReplayAsks.as`, the same loop as a watch's).
+The save icon of the Watch window's cards and the results screen's Save replay save a match's replay to a file in the player's `<game>\replays` (the movie: `survarium/watch/ReplayAsks.as`, the same loop as a watch's).
 
 | message | bytes |
 |---|---|
@@ -124,7 +124,7 @@ The match server makes the file on a thread of its own (`match_server::v026g::re
 
 ## 3. What a replay holds
 
-A replay session plays what `sur_convert` makes of the recording, in memory (`replay-stream.md`); `srp-recording-to-sur` writes the same as a `.sur` file for the game's own player (`-match_replay=`, `replay_sur.md`). It holds what every player of the match was sent (`sur_convert`'s chunks): chunk 0 the engine version; chunk 1 the 0xE4 options of the largest roster (names, clan tags, kits, items, the map, the match's static id, the squad numbers); chunk 2 the relayed inputs, roster changes and kit choices; chunk 3 worlds the clients uploaded; chunk 4 the mode's config, which every game has. No address (the recording has none), no session id (the clients' 0xD8, which the recording holds, is not read into it), no token, no server path. `match_server::v026g::replay::tests::a_recordings_places_read_and_its_sur_holds_nothing_private` plants a session id, a token, an address and the server's folders in a recording and finds none in the file or in any chunk unpacked.
+A replay session plays what `sur_convert` makes of the recording, in memory (`replay-stream.md`); `srp-recording-to-sur` writes the same as a `.sur` file for the game's own player (`-match_replay=`, `replay_sur.md`). It holds what every player of the match was sent (`sur_convert`'s chunks): chunk 0 the engine version; chunk 1 the 0xE4 options of the largest roster (names, clan tags, kits, items, the map, the match's static id, the squad numbers); chunk 2 the relayed inputs, roster changes and kit choices; chunk 3 worlds the clients uploaded; chunk 4 the mode's config, filled only by `srp-recording-to-sur` (a replay session's `.sur` and a saved file's carry an empty one). No address (the recording has none), no session id (the clients' 0xD8, which the recording holds, is not read into it), no token, no server path. `match_server::v026g::replay::tests::a_recordings_places_read_and_its_sur_holds_nothing_private` plants a session id, a token, an address and the server's folders in a recording and finds none in the file or in any chunk unpacked.
 
 ## 4. Routes of the web page, and why nothing private is reachable
 

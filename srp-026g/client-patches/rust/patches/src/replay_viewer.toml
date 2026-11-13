@@ -23,7 +23,7 @@ site = "close_match.reason"
 handler = "on_close"
 order = 0
 
-# A new match's options (after patches 65, 86, 83 and 103): no replay yet.
+# A new match's options (after patches 65, 86, 83, 143 and 142): no replay yet.
 [[hook]]
 site = "static_info.options_read"
 handler = "on_static_info"

@@ -1,11 +1,11 @@
 //! Replay sessions: a recorded match played to its watcher's own game, in
-//! the running client, as a spectated match (path A of
-//! `research/replay-plan.md`; `docs/notes/replay-stream.md`). What the lobby
+//! the running client, as a spectated match (path A,
+//! `docs/notes/replay-stream.md`). What the lobby
 //! and the match server share of them, in memory: one [`Watches`] for the
 //! srp process, in its [`super::replays::Replays`].
 //!
 //! - The lobby starts a session on the movie's request (`3D 00
-//!   <REPLAY_WATCH | place << 16 | seconds> <match>`, [`Watches::start`]).
+//!   <REPLAY_WATCH_BASE | place << 16 | seconds> <match>`, [`Watches::start`]).
 //! - The match server reads the match's recording on a thread of its own
 //!   ([`Watches::next_job`]), judges the watcher against it
 //!   ([`Watches::judge`]: the players of the match and the moderators, or
@@ -16,8 +16,10 @@
 //!   session whose game is not sent yet is over.
 //! - The lobby sends the game to the match server as it sends a spectator
 //!   ([`Watches::to_send`], [`Watches::sent`]); the match server plays the
-//!   recording to it ([`Watches::connected`]) until it leaves or the
-//!   recording ends ([`Watches::ended`]).
+//!   recording to it ([`Watches::connected`]) until it leaves, the
+//!   recording ends, the viewer asks Back, its room calls it back, it stays
+//!   paused 5 minutes, it runs its longest or it acks too little of what it
+//!   is sent ([`Watches::ended`]).
 //!
 //! A session never has a seat, a match of the queue, a result or a reward.
 //! While it is not over its player is in none of its room's matches

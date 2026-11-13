@@ -76,7 +76,8 @@ dynamic game". Rooms: [rooms.md](rooms.md) (Queue, Late joins). Wire: `lobby.md`
   session gets no seat until it watches no more.
 - **The match server** (`game/spectate.rs`, `match.md` §37): a spectator is no `Peer` and no
   place; it gets 0xE4 with 0xFF, a trusted world as a newcomer gets one, then every relay and
-  roster change. It is sent nothing else (never 0xE9/0xEA of itself, never an answer to an input,
+  roster change, and its viewer notes in an 0xF6 (`52 03` the view, `52 04` the kits, `52 05` the
+  recall, `replay-stream.md`). It is sent nothing else (never 0xE9/0xEA of itself, never an answer to an input,
   0xEF..0xF5: its game would index its player table at 0xFF) and nothing of it is taken (inputs,
   kit choices, uploads; its hash reports judge it alone), so it changes nothing a match
   computes: no row in `simulation_changes.tsv`. It is let go by one 0xEA naming place 0xFF (a
@@ -128,9 +129,9 @@ but with nice non-disruptive ux/ui".
 - **Said first, in what is watched** (the owner's of 2026-11-10: "match found nice ui/ux
   indication with micro-countdown is still nice vs abruptly loading back into menu"): the match
   server tells the game once (`replay_control::ServerNote::Recall`, `52 05 <seconds>`) and lets it
-  go `RECALL_SECONDS` (5) later: a replay's playback by its own clock (`Playback::recall_at`), a
-  live spectator when the lobby's mark is seen (`Matchmaking::recall_watcher`, the match server's
-  `Game::recall_spectator`, then `stop_watching`). The exe (patch 144, `on_server_note`) hands it
+  go `RECALL_SECONDS` (5) after the first call, a replay and a live spectator alike
+  (`Spectator::recall`; a live one from the lobby's mark, `Matchmaking::recall_watcher`, through
+  the match server's `Game::recall_spectator`, then `stop_watching`). The exe (patch 144, `on_server_note`) hands it
   to the hud (`root.srp_called_back_words`, the running language's `st_srp_rooms_called_back_in`,
   and `root.srp_called_back(seconds)`), which shows one line under the top of the screen, "Your
   room is ready. Returning in 5 s", counted down each second (`CalledBackNotice`); it takes no

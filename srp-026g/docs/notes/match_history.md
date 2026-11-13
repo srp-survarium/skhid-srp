@@ -12,7 +12,7 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   - One list is the player's own (the owner's of 2026-11-10: "do how you think is appropriate and
     should be genre best practice"; the rule above was the site's, and the game's lists had taken
     it over, so a player could not find its own private match again once its results were closed):
-    the game's Watch, Replays, Mine (`3B 00 <OWN_MATCHES_START>`, `MatchHistory::own_matches`)
+    the game's Watch, Replays, Mine (`3B 00 <OWN_MATCHES_START>`, `MatchHistory::lobby().own_matches`)
     lists the asker's matches of every kind, a private room's marked "Private room" and one
     against bots "With bots" (`P2`'s last field, there only for those). Another player's list,
     Friends, Everyone, the site and every total stay public only.
@@ -41,8 +41,9 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   served; only counted ones go into totals, favourites, days, top lists and best scores. A player
   whose public matches all did not count is still named, with totals of zeros.
 - `g26_match_players`: one row a player who was in the match (finished or left): team, place in
-  its team by score (from 1), rating after the match, clan at the time, score, kills, deaths and
-  the counters below.
+  its team by score (from 1), its roster place (`seat`, which a replay is watched from; empty in
+  rows written before it was kept), rating after the match, clan at the time, score, kills,
+  deaths and the counters below.
 - `g26_player_totals`, `g26_clan_totals`: the counted public matches added up, at record time. A public
   match counts once for a clan if at least one member played in it (its clan at the time), and is a
   win if at least one of them was on the winning team (members on both teams: a win). Score,
@@ -109,7 +110,7 @@ worlds' shared statistics and rules.
   kill, who took a battery out of a container, who captured a unit, Team Deathmatch's tickets
   (they follow the deaths) and Research's points (they grow all the time).
 - Places are the roster's (0 to 19) with their accounts (0: the server's bot).
-- **The lobby** reads them with `MatchHistory::events(<match server's id>)` (the newest match of
+- **The lobby** reads them with `MatchHistory::lobby().events(<match server's id>)` (the newest match of
   that id, of any kind: the caller says who may see them), and the side channel's rows are
   `lobby-server/src/v026g/match_events.rs` (`match_events_page`): a head
   `E1;<ok|none|error>;<match id 8 hex>;<events>;<page>`, then 254 events a page, one a row,
@@ -120,7 +121,7 @@ worlds' shared statistics and rules.
 - `GET` only, JSON, no sign-in; on the 0.26g site only. `lang=en|uk` names maps and modes.
 - `400 {"error":"bad request"}` for a bad parameter, `404 {"error":"not found"}` for an unknown or
   non-public one (a list of an unknown player is `200` with no matches), `503 {"error":"no history"}`
-  when srp keeps no database (`SRP_DB=off`).
+  when srp keeps no database (`SRP_DB=off`), `500 {"error":"failed"}` when its read fails (logged).
 - No settings of its own: it reads the `srp.db` srp writes.
 - Paging is by match number: `before=<id>` gives the matches older than `id`; `next` is the value
   for the next page after a full one, `null` after a shorter one (a full last page is followed by

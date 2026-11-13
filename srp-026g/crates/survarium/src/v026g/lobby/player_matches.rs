@@ -1,8 +1,9 @@
 //! The player pop-up's Matches tab in srp's changed lobby movie: a player's
-//! latest public matches from the match history, on the ranking page's
-//! request (`3B`) at a reserved start and its reply (`91`), the same side
-//! channel the rooms use ([`super::rooms`]). Only srp's changed movie asks;
-//! a stock game never does.
+//! latest matches (public only, except on the asker's own list) from the
+//! match history, on the ranking page's request (`3B`) at a reserved start
+//! and its reply (`91`), the same side channel the rooms use
+//! ([`super::rooms`]). Only srp's changed movie asks; a stock game never
+//! does.
 //!
 //! - The ask: `3B 00 <PLAYER_MATCHES_START> <count>`. It is about the
 //!   player the asker was last shown the kits of (its last `93`): the

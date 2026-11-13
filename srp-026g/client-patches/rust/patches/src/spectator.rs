@@ -119,7 +119,7 @@ pub fn view_free(client: &NetworkClient<'_>, thread: &Thread) {
     camera(client, thread, Event::Key(CameraKey::FlyFree));
 }
 
-/// `static_info.options_read` (after patches 65, 86 and 58's): a new match.
+/// `static_info.options_read` (after patches 65, 86 and 83's): a new match.
 pub fn on_static_info(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(start) = MatchStart::at(ctx) {
         start.client.begin_match(start.local_place, start.places);

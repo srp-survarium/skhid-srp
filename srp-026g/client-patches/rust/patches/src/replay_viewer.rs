@@ -645,8 +645,8 @@ fn restore(client: &NetworkClient<'_>, act: Act) {
     }
 }
 
-/// `static_info.options_read` (after patches 65, 86, 83 and 103's): a new match starts as no
-/// replay, with no events. A viewing still on (close_current_match's guard skips the close before
+/// `static_info.options_read` (after patches 65, 86, 83, 143 and 142's): a new match starts as
+/// no replay, with no events. A viewing still on (close_current_match's guard skips the close before
 /// the first tick after the first world, docs/notes/match.md) ends here, whatever the new match
 /// makes the game: its clock would otherwise stay paused or fast in the next real match.
 pub fn on_static_info(ctx: &mut Context<'_>) -> Flow<NoExit> {

@@ -1,8 +1,8 @@
 //! Replay sessions (`docs/notes/replay-stream.md`): a recorded match played
 //! to a player's own game in the running client, through the spectators'
-//! machine ([`spectate`]): the "replay match" of path A in
-//! `research/replay-plan.md`. The lobby starts a session and sends the game
-//! here; what the two share of it is `session::v026g::replay_watch`.
+//! machine ([`spectate`]): the "replay match" of path A. The lobby starts a
+//! session and sends the game here; what the two share of it is
+//! `session::v026g::replay_watch`.
 //!
 //! The recording is the match's `.srprec`, made in memory into what the
 //! converter makes of it (`sur_convert`, no mode config): its 0xE4 (every

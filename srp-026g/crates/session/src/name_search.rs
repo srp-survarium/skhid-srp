@@ -1,9 +1,10 @@
 //! How well a typed text matches an account's name: the rules of the lobby movie's item search
 //! (`InventoryList.wordScore`, `docs/notes/item-search.md`), for the search of players by name.
 //!
-//! The typed text and the name are compared as small letters and digits of any script (a
-//! Cyrillic name is found as a Latin one); anything else parts words, and so does a capital after
-//! a small letter (`SecondTester` is `second tester`). Each typed word must match, best first:
+//! The typed text and the name are compared as small letters and digits of any script, as
+//! typed (no transliteration: a Cyrillic name is not found by Latin letters); anything else
+//! parts words, and so does a capital after a small letter (`SecondTester` is `second tester`).
+//! Each typed word must match, best first:
 //!
 //! - at the name's start ([`START`]), at a word's start ([`WORD`]), inside a word ([`PART`]);
 //! - from [`SPREAD_FROM`] letters on, its letters in order with others between, at most

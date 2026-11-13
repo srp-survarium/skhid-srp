@@ -1,5 +1,5 @@
-//! Save's file, `.srpreplay` (`research/local-replays-design.md` section
-//! 1.3): a small header and the `.sur` a replay session plays
+//! Save's file, `.srpreplay` (`docs/notes/replay_watch.md` section
+//! 2.1): a small header and the `.sur` a replay session plays
 //! (`game::playback::sur_of`), with the history's events of its timeline.
 //! Not the `.srprec`: that holds every datagram in and out, sessions
 //! among them; nothing here names an account, a session, an address or a
@@ -12,7 +12,7 @@
 //! u32 LE events_len   <= MAX_EVENTS, a multiple of EVENT_LEN
 //! events              replay_control::Event, EVENT_LEN bytes each
 //! u32 LE sur_len
-//! sur                 the .sur (sur.rs), no chunk 4 (mode config)
+//! sur                 the .sur (sur.rs), its chunk 4 empty (length 0, no mode config)
 //! ```
 //!
 //! The whole file is at most [`MAX_FILE`]. The header is read alone (the

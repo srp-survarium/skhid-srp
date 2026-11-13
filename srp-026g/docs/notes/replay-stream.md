@@ -2,7 +2,7 @@
 
 **Version scope:** 0.26g, on top of Queue and spectate (#1285, `queue-spectate.md`). Written
 2026-11-07. **Status: server side built and tested with scripted clients; the lobby movie asks and
-answers `watching` since 2026-11-08 (`replay_watch.md`); the exe's viewer is track B's patch 144.** Path A of `research/replay-plan.md`: the server streams a match's recording as a
+answers `watching` since 2026-11-08 (`replay_watch.md`); the exe's viewer is track B's patch 144.** Path A: the server streams a match's recording as a
 spectated match, so a replay plays in the running game (lobby -> replay -> lobby, no second
 process, no `.sur` download).
 
@@ -21,7 +21,8 @@ The spike (branch `spike/replay-stream`) proved it on a real game on 2026-11-07:
    `old_game` (revision below 14), `in_room` (the room has a use for the player now: its vote or a place in its
    match), `busy` (the player is in a match or queued, has a session already, has missed
    `MISSES_ALLOWED` match ids lately, asked again within `START_EVERY` (2 s) of its last start, or
-   `SRP_REPLAY_WATCH_MAX` sessions run; a live match: full, not begun, or over).
+   `SRP_REPLAY_WATCH_MAX` sessions run; a live match: full, not begun, or over; a match just ended
+   whose recording is still being written, `Replays::writing`).
 3. The match server reads the match's newest `.srprec` from `SRP_RECORD_DIR` on a thread of its own
    (nice 19, one at a time; a recording already loaded for another session of that match is
    shared), and judges the asker before converting it: anyone (`SRP_REPLAY_WATCH=all`, the
@@ -44,14 +45,17 @@ The spike (branch `spike/replay-stream`) proved it on a real game on 2026-11-07:
    recording through #1285's spectator machine: 0xE3, 0xE4 naming 0xFF with every place of the
    recording, the key frame, then the relays and roster changes at their recorded times.
 6. It ends when the game leaves (0xE0, Esc), its link goes, the recording ends, its room calls it
-   back (`52 05`), the viewer asks Back (op 4), or it has been
-   paused for 5 minutes (`playback::PAUSED_MOST`; the sessions are few). The recording's end and the pause go the same
+   back (`52 05`), the viewer asks Back (op 4), it has been
+   paused for 5 minutes (`playback::PAUSED_MOST`; the sessions are few), it has run its longest
+   (the recording's length and 15 minutes, or twice the length when that is more: `SESSION_SPARE`,
+   `Recording::session_most`), or its game leaves more than 4096 messages unacked
+   (`VIEWER_BACKLOG_MOST`). All but the game's own leave and its link go the same
    way: 0xEA naming 0xFF, then 7 s of silence, and patch 143 takes the game back to the lobby. The
    session is over once the match server forgets the game.
 
 **The start** (`Recording::start`): the replay opens where the action is, at the end of the
 match's countdown (`Recording::opening`: the start of the time rule's "in process" in the first key
-frame that has it), put there as a seek puts a game (below); the playback note's `start`, the
+frame that has it), or at the first view when that is later, put there as a seek puts a game (below); the playback note's `start`, the
 viewer's bar, starts there too and no seek goes before it. A recording with no countdown's end (no
 key frame in process: a bot's or a solo test's edge cases) opens at the first view, the first key
 frame after anyone's first entry: a world before any entry has nobody in it. A place asked for
@@ -99,7 +103,8 @@ clock):
     gets it too, from the Live window's or a friend's ask), only when one was asked.
   - the kits, `52 04 place mask`: which of a place's kits a spectator's chooser may show (a mask below
     `1 << KIT_NUMBERS`): each place's playable kits, used or not. A replay's once, after the events
-    note; a live match's once the spectator watches (the owner's of 2026-11-10: a live spectator was
+    note; a live match's once the spectator watches, and again for a place whose kits change (a late
+    joiner's) (the owner's of 2026-11-10: a live spectator was
     told only the kits a place had played by its delayed clock; that rule is gone).
   - the recall, `52 05 seconds` (`ServerNote::Recall`, `RECALL_SECONDS` 5): the watcher's room calls it
     back; the server lets the game go that many seconds after the note.
@@ -110,8 +115,8 @@ the replay id; srp hands the match server its accounts): a kill (kind 1, killer 
 death no kill was paired with (kind 1, no actor), a battery found or delivered (kind 2, its
 player); captures, scores and the end are not shown. A match is in the history a moment after its
 result; there is no backfill (the owner's decision): matches played before the history shipped
-have no events, so their replays get an empty events note and a watch starts where the asker's
-place is first in view. The session plays the newest recording of the match id.
+have no events, so their replays get an empty events note and start as any replay does (the
+events never move the start). The session plays the newest recording of the match id.
 
 What the server does:
 - `pause` stops the clock (nothing more is sent but a 0xE6 ping each second, so the game's 5 s
@@ -130,7 +135,8 @@ What the server does:
   player with more than 26 inputs in between (`INPUT_RING_SAFE`; the game keeps 27). The inputs
   since K go with the world: the game plays K..clock at once on load.
 - **Drift, the fallback**: three hash reports in a row whose world is 2 s or more off the
-  playback (less the report's expected lag, a round trip at the playback's speed) (a game that did not freeze or scale its clock as told) start the game again from
+  playback (less the report's expected lag, a round trip at the playback's speed less half of one
+  at 1x) (a game that did not freeze or scale its clock as told) start the game again from
   where the playback is.
 
 Following a player (F5/F6, F2, a player list click) is the exe's own: no request.
@@ -156,11 +162,11 @@ is a `91` row at the request's start plus its index.
   0 full, 2 not watchable (fixed rosters, which take no spectator, or over). A private room's match is not
   listed. The match id is the match server's (the replay's). After the `L1` rows,
   `F1;<match 8 hex>;<place>;<team 0|1>;<name>` for each friend of the asker present in a listed
-  match (the Watch hub's pinned cards, the friends list's Spectate; `research/watch-hub-proposal.md`).
+  match (the Watch hub's pinned cards, the friends list's Spectate).
 - **Roster**: `3D 00 <LIVE_ROSTER_ASK = 0xFFFF_FF06> <match>` chooses the match, then
   `3B 00 <LIVE_ROSTER_START = 2 241 000 000> <count <= 24>`: `L2;<match 8 hex>;<place>;<team>;
-  <kills>;<deaths>;<name>` for each place in the match (kills and deaths of its newest trusted
-  world).
+  <kills>;<deaths>;<name>` for each place present now (kills and deaths of a trusted world at least
+  58 s behind, the longest Live delay, so they never say who died before the picture does).
 - **Watch**: the replay session's ask (`0xC0000000 | place << 16 | seconds`) for a match still
   being played (countdown or in play) sends the game to it as #1285's spectators are sent, but
   `SRP_LIVE_WATCH_DELAY_S` (default 30, at most 58: a match keeps 60 s to start from) behind, so nobody calls a friend the positions: answered

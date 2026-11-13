@@ -88,7 +88,7 @@ services:
       # A replay session (docs/notes/replay-stream.md) or a Save reads a
       # recording; a larger one than this many MB is not read (default 24).
       - SRP_REPLAY_MAX_RECORDING_MB
-      # Who may watch one: `all` (default), or `match` (its players and
+      # Who may watch one or save it: `all` (default), or `match` (its players and
       # SRP_REPLAY_MODERATORS, account ids, comma-separated). How many at
       # once (default 4).
       - SRP_REPLAY_WATCH

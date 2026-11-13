@@ -33,7 +33,7 @@ handler = "on_followed_alive"
 site = "player_left.entry"
 handler = "on_player_left"
 
-# A match's options read (after patches 65, 86 and 58): a new match: its role
+# A match's options read (after patches 65, 86 and 83): a new match: its role
 # and the camera following nobody yet.
 [[hook]]
 site = "static_info.options_read"

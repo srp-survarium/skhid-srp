@@ -12,7 +12,8 @@
 //!   prompt waits, each answered with the asker's own session's `R1` row:
 //!   `preparing` while the match server reads the recording, `watching`
 //!   with the match time it starts at (ms) once its game is sent, or why
-//!   not (`not_yours` under `SRP_REPLAY_WATCH=match`, `incompatible`,
+//!   not (`not_yours` under `SRP_REPLAY_WATCH=match` or for a live match
+//!   that cannot be watched, `incompatible`,
 //!   `gone`, `failed`, `busy`, `in_room`, `old_game`, `off`). An account
 //!   that looked up too many matches with no recording gets `busy` for
 //!   every match for a while (`replay_watch::MISSES_ALLOWED`, shared with
@@ -36,7 +37,7 @@
 //! asker's own answer is ever sent (a poll names no account).
 //!
 //! Save (the Watch window's save icon, the results screen's Save replay;
-//! `research/local-replays-design.md` section 1): `3D 00 <SAVE_ASK>
+//! `docs/notes/replay_watch.md` section 2.1): `3D 00 <SAVE_ASK>
 //! <match>` asks for the match's file, `3B 00 <SAVE_START> <count>` polls,
 //! each answered with one `R2` row (`lobby::save_answer`): `preparing`
 //! (its place in the line) while the match server makes it, `ready` (its

@@ -3,7 +3,7 @@
 //! of the recordings ([`super::record`]): a match's kept recording, and its
 //! places' accounts and game revisions.
 //!
-//! Save (`research/local-replays-design.md` section 1): one thread
+//! Save (`docs/notes/replay_watch.md` section 2.1): one thread
 //! ([`start`]) makes the files the desk queues (`Replays::save_ask`), one
 //! at a time, at the lowest priority ([`lowest_priority`]): a kept
 //! recording a player asked to save, the first time anyone does. For each

@@ -106,8 +106,7 @@ pub(super) const SYSTEM_NAME: &str = "System";
 
 /// The chat line of a player removed for being idle (anti-AFK), in the
 /// game's language (`4F`'s byte: 0 English, 1 Russian, 2 Ukrainian, 3
-/// German, 4 Polish; English for any other, or none yet), as
-/// `replay::refusal_text` does.
+/// German, 4 Polish; English for any other, or none yet).
 pub(super) fn idle_removed_text(name: &str, language: Option<u8>) -> String {
     match language {
         Some(1) => format!("{name} исключён из матча за AFK"),

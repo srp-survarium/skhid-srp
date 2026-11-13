@@ -63,8 +63,9 @@ SRP_WEB_TRUST_PROXY=off
 # larger recording (it is kept in memory while watched; 24 MB fits the
 # 512 MB container).
 # SRP_REPLAY_MAX_RECORDING_MB=24
-# Who may watch a replay in the game: `all` (default) or `match` (the
-# match's players and SRP_REPLAY_MODERATORS, account ids, comma-separated).
+# Who may watch a match's replay in the game or save it: `all` (default)
+# or `match` (the match's players and SRP_REPLAY_MODERATORS, account ids,
+# comma-separated).
 # Replay sessions at once (default 4).
 # SRP_REPLAY_WATCH=all
 # SRP_REPLAY_MODERATORS=

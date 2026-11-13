@@ -7,7 +7,7 @@
 //!   storage cap ([`Replays::recording_kept`], ...).
 //! - Which games may play a recording: the simulation changes
 //!   ([`SIMULATION_CHANGES`], [`oldest_replayable`]) and [`refusal_of`].
-//! - Save (`research/local-replays-design.md` section 1): a player asks to
+//! - Save (`docs/notes/replay_watch.md` section 2.1): a player asks to
 //!   save a match's replay to a file ([`Replays::save_ask`], the lobby's
 //!   `R2` answers, [`Replays::save_answer`]). The match server makes the
 //!   file from the kept recording on a thread of its own, one at a time

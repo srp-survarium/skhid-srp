@@ -22,7 +22,8 @@
 //!     see, once its game has its first world (a replay's or a live match's
 //!     spectator); the game follows it;
 //!   - `52 04 place mask`, [`KitsNote`]: which of a place's kits (bits 0..2) the game may show
-//!     in the spectator's read-only kit chooser. A live match's mask grows as the place plays them;
+//!     in the spectator's read-only kit chooser: every playable kit of the place, for a replay
+//!     and a live match alike;
 //!   - `52 05 seconds`, [`ServerNote::Recall`]: the watcher's room calls the game back; the
 //!     server lets it go that many seconds later.
 //! - Game -> server, an 0xE0 (reliable and plain: it is resent every 500 ms
