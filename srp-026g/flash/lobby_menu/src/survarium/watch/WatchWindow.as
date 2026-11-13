@@ -381,12 +381,17 @@ package survarium.watch
       // The results closed (LobbyMenu.onVsRemoved): the asker's matches asked again soon, as at a
       // return, and the view of the watch the results came back over. Not while a match loads
       // (its Esc may close them; the load chose its own view to come back to, WatchWindow.away).
-      public static function resultsClosed() : void
+      // Closed by a top menu tab: the window it chose stays, the view is dropped.
+      public static function resultsClosed(byTab:Boolean = false) : void
       {
          var win:WatchWindow = WatchWindow.me;
          if(win != null && win._inLobby)
          {
             win._mineDue = getTimer() + BACK_ASK_MS;
+            if(byTab)
+            {
+               win._resume = null;
+            }
             win.resume();
          }
       }
@@ -994,9 +999,9 @@ package survarium.watch
             {
                return;
             }
-            // answered after a match's load: nothing is asked during a match (no player's
-            // matches, no watch of a code)
-            if(players == null || !_inLobby)
+            // answered after a match's load, or the window closed meanwhile: nothing is asked
+            // (no player's matches, no watch of a code)
+            if(players == null || !_inLobby || !_shown)
             {
                search.state = NO_ANSWER;
                render();

@@ -592,6 +592,9 @@ package
          return id;
       }
 
+      // The results were closed by a top menu tab (closeVS): the window it chose stays.
+      private var vsClosedByTab:Boolean = false;
+
       // The results screen is up (after a match, modal till it closes).
       public function get resultsUp() : Boolean
       {
@@ -3456,6 +3459,7 @@ package
          stage.focus = this.victory_screen;
          FocusManager.setModalClip(this.victory_screen);
          this.victory_screen.visible = true;
+         this.vsClosedByTab = false;
          this.victory_screen.addEventListener(Event.REMOVED_FROM_STAGE,this.onVsRemoved);
          this.victory_screen["prepare"]();
          MainScene.layout.reflow();
@@ -3465,6 +3469,8 @@ package
       
       private function closeVS(e:IndexEvent) : void
       {
+         // the player chose a window to go to: no view comes back over it (onVsRemoved)
+         this.vsClosedByTab = true;
          this.victory_screen.closeWindow();
       }
       
@@ -4784,7 +4790,8 @@ package
          MainScene.activeWindow = null;
          // the asker's matches again (History's rows of the match just played), and the Watch view
          // of a watch the results came back over: once the results left the modals
-         WatchWindow.resultsClosed();
+         WatchWindow.resultsClosed(this.vsClosedByTab);
+         this.vsClosedByTab = false;
          this.notificationListTemp.startTimer();
          Message.showMessages();
       }
