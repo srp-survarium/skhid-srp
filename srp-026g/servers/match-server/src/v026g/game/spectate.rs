@@ -53,7 +53,9 @@
 //! It starts again from a world (back to wait for one) when its reports say
 //! it is out of step, as rarely as a player is resynced; when a relay or
 //! roster change of a place it has not installed comes; when a world is not
-//! loaded in [`WORLD_WAIT`] or an 0xE5 not answered in [`TIMING_WAIT`].
+//! loaded in [`WORLD_WAIT`] or an 0xE5 not answered in [`TIMING_WAIT`]
+//! (a replay's also when its viewer seeks). What went for its last start
+//! goes no more once the new 0xE5 does ([`Spectator::forget_timeline`]).
 
 use survarium::v026g::match_msgs::static_info::{MatchProfile, StaticInfo};
 
@@ -261,6 +263,10 @@ pub(crate) struct Spectator {
     view: Option<u8>,
     /// The mask of kits it has been told of each place (a live match's chooser).
     kits_told: Vec<u8>,
+    /// The relays and roster changes sent for its current start (since its
+    /// last 0xE5 of a new generation) that may still go again: its next
+    /// start forgets them ([`Self::forget_timeline`]).
+    timeline: Vec<u64>,
     /// Its room called it back ([`Self::recall`]).
     recall: Option<Recall>,
     /// How often [`Self::feed`] walked the match's lists.
@@ -298,6 +304,16 @@ pub(super) struct Starts {
     /// Its starts done again in a row since it last watched, its world's
     /// inputs past its game's ring ([`Spectator::ring_overrun`]).
     ring_redos: u32,
+}
+
+/// A spectator's list of what went for its current start
+/// ([`Spectator::track`]) is cleared of what is in once it is longer than
+/// twice what its game has not acked and this.
+const TIMELINE_SLACK: usize = 64;
+
+/// A message sent may still go again: neither acked nor given up.
+fn in_flight(transport: &Transport, serial: u64) -> bool {
+    !transport.is_delivered(serial) && !transport.is_lost(serial)
 }
 
 /// One more input of `place` in a world's ring count: its count now.
@@ -884,6 +900,7 @@ impl Spectator {
             starts,
             view,
             kits_told: Vec::new(),
+            timeline: Vec::new(),
             recall: None,
             #[cfg(test)]
             list_walks: 0,
@@ -1199,9 +1216,10 @@ impl Spectator {
             }
             Watch::Live { .. } => {
                 let until = relay_deadline(0, clock, time, now);
-                let _ = self
+                let sent = self
                     .transport
                     .send_until(message.id(), &message.payload(), until);
+                self.track(sent);
             }
             Watch::Syncing {
                 time: from_time, ..
@@ -1236,7 +1254,8 @@ impl Spectator {
                 self.wait_again();
             }
             Watch::Live { .. } => {
-                let _ = self.transport.send(message.id(), &message.payload());
+                let sent = self.transport.send(message.id(), &message.payload());
+                self.track(sent);
             }
             Watch::Syncing { time, .. } if entered && at > time => {
                 self.send_waiting(message, now);
@@ -1279,6 +1298,7 @@ impl Spectator {
                 {
                     self.starts.last = Some(now);
                     self.generation = self.generation.next();
+                    self.forget_timeline(now);
                     self.send_time(self.generation.0, echo, clock);
                     self.go(Step::TimeAsked { time, echo, now });
                 }
@@ -1311,7 +1331,8 @@ impl Spectator {
                             tick: tick_byte(at),
                             player: who as u8,
                         };
-                        let _ = self.transport.send(leave.id(), &leave.payload());
+                        let sent = self.transport.send(leave.id(), &leave.payload());
+                        self.track(sent);
                     }
                     self.go(Step::WorldIn);
                     self.starts.ring_redos = 0;
@@ -1469,12 +1490,43 @@ impl Spectator {
     /// longer than a world is waited for: a game that never acks must not
     /// pile them up, and every poll of the match thread walks the queue.
     fn send_waiting(&mut self, message: &ServerMessage, now: Instant) {
-        let _ = self.transport.send_kept_until(
+        let sent = self.transport.send_kept_until(
             message.id(),
             &message.payload(),
             WAITING_RELAY_RESEND,
             now + WORLD_WAIT,
         );
+        self.track(sent);
+    }
+
+    /// A relay or roster change of its current start went: kept until its
+    /// next start ([`Self::forget_timeline`]). Those in or given up are
+    /// dropped from the list as more go, so it stays about as long as what
+    /// its game has not acked.
+    fn track(&mut self, sent: Result<u64, SendError>) {
+        let Ok(serial) = sent else {
+            return;
+        };
+        if self.timeline.len() > 2 * self.transport.backlog() + TIMELINE_SLACK {
+            let transport = &self.transport;
+            self.timeline.retain(|&serial| in_flight(transport, serial));
+        }
+        self.timeline.push(serial);
+    }
+
+    /// Its game starts from a world again: what went for its last start
+    /// goes no more. A copy of a relay or roster change carries a tick byte
+    /// and no generation, so one that came after the new 0xE5 would be read
+    /// against the new clock (a leave of then taking a place out of the new
+    /// world, an input of then played in it); the new start sends what is
+    /// due after its own world, as its first did. As a player's resync
+    /// forgets its roster changes (`clear_gate`).
+    fn forget_timeline(&mut self, now: Instant) {
+        for serial in std::mem::take(&mut self.timeline) {
+            if in_flight(&self.transport, serial) {
+                self.transport.forget(serial, now);
+            }
+        }
     }
 
     /// One step of its game's machine: the only place its stage is set.

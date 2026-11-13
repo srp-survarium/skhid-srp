@@ -393,6 +393,13 @@ impl Recording {
             .collect();
     }
 
+    /// A roster change added: `place` entered (else left) at `at`.
+    #[cfg(test)]
+    pub(crate) fn add_event(&mut self, at: u32, place: usize, entered: bool) {
+        let index = self.events.partition_point(|(time, _, _)| *time <= at);
+        self.events.insert(index, (at, place, entered));
+    }
+
     /// How many of its inputs and roster changes are due by `time`, `lead`
     /// ahead ([`relay_lead`]).
     fn due(&self, time: u32, lead: u32) -> (usize, usize) {

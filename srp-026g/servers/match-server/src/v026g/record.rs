@@ -52,13 +52,13 @@
 //! jobs (open, keep, close) are never dropped: a close lost would leave a
 //! kept recording under `.part`, with no replay.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::{self, BufWriter, Write};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, SyncSender};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use session::v026g::replays::{ReplayId, Replays};
@@ -91,6 +91,33 @@ const PART: &str = "part";
 const EXTENSION: &str = "srprec";
 /// The note a recording gets once it is kept ([`Recording::entered`]).
 const KEPT_NOTE: &str = "kept";
+/// A server that ends waits this long at most for its writer to close its
+/// recordings ([`Recorder::finish`]).
+const FINISH_WAIT: Duration = Duration::from_secs(15);
+
+/// The `.part` files a writer of this process has open: each [`Open`]'s,
+/// claimed before the file is made and given back once it is named or
+/// deleted (or its writer is gone). [`Recorder::start`] leaves these alone.
+struct Writing(PathBuf);
+
+static WRITING: Mutex<BTreeSet<PathBuf>> = Mutex::new(BTreeSet::new());
+
+impl Writing {
+    fn all() -> MutexGuard<'static, BTreeSet<PathBuf>> {
+        WRITING.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn claim(path: &Path) -> Self {
+        Self::all().insert(path.to_owned());
+        Self(path.to_owned())
+    }
+}
+
+impl Drop for Writing {
+    fn drop(&mut self) {
+        Self::all().remove(&self.0);
+    }
+}
 
 /// `SRP_RECORD_*`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -233,12 +260,25 @@ pub(crate) struct Recorder {
 impl Recorder {
     /// Starts the writing thread, after naming what a stopped server left
     /// under `.part` (its matches run no more) if it was kept, and deleting
-    /// the rest.
+    /// the rest. A `.part` a writer of this process still has open (the
+    /// last server's, given up on by its [`Self::finish`]) is left to it: it
+    /// names or deletes it at its close, with every record and its `kept`
+    /// note in (which may still be in its queue).
     pub fn start(settings: RecordSettings) -> io::Result<Self> {
         fs::create_dir_all(&settings.dir)?;
+        // Held over the walk: a `.part` listed is open or not for all of it.
+        let writing = Writing::all();
         for entry in fs::read_dir(&settings.dir)?.flatten() {
             let path = entry.path();
             if !path.extension().is_some_and(|ext| ext == PART) {
+                continue;
+            }
+            if writing.contains(&path) {
+                log::warn!(
+                    "Recordings: {} is still being written by the last server's writer; left \
+                     to it",
+                    path.display()
+                );
                 continue;
             }
             // `<name>.srprec.part` -> `<name>.srprec`.
@@ -261,6 +301,7 @@ impl Recorder {
                 let _ = fs::remove_file(&path);
             }
         }
+        drop(writing);
         let (jobs, queue) = mpsc::channel();
         let records = Arc::new(AtomicUsize::new(0));
         let min_players = settings.min_players;
@@ -279,14 +320,33 @@ impl Recorder {
     /// deleted) every recording it was given, those whose close it has not
     /// reached yet too: the server's last act, once its matches' recordings
     /// are dropped. `srp` starts a match server that panicked again in the
-    /// same process (`supervise`), and the new one's [`Self::start`] takes
-    /// every `.part` it finds for a stopped server's: one this thread still
-    /// had open would be named or deleted under it.
+    /// same process (`supervise`), and the new one serves no match before
+    /// this returns: no longer than [`FINISH_WAIT`] (a stalled disk, a
+    /// backlog of [`QUEUE`] records). Given up on, the thread goes on
+    /// writing and closing; the new [`Self::start`] leaves what it has
+    /// open to it.
     pub fn finish(&self) {
+        self.finish_within(FINISH_WAIT);
+    }
+
+    /// [`Self::finish`], waiting no longer than `wait`: whether the thread
+    /// was done (or gone).
+    fn finish_within(&self, wait: Duration) -> bool {
         let (done, finished) = mpsc::sync_channel(1);
         // Either fails only with the thread gone: nothing of it is open.
-        if self.jobs.send(Job::Finish { done }).is_ok() {
-            let _ = finished.recv();
+        if self.jobs.send(Job::Finish { done }).is_err() {
+            return true;
+        }
+        match finished.recv_timeout(wait) {
+            Ok(()) | Err(RecvTimeoutError::Disconnected) => true,
+            Err(RecvTimeoutError::Timeout) => {
+                log::warn!(
+                    "Recordings: the writer has not closed every recording in {} s; it goes on \
+                     alone, and what it has open is left to it",
+                    wait.as_secs()
+                );
+                false
+            }
         }
     }
 
@@ -478,6 +538,8 @@ fn place_byte(place: usize) -> u8 {
 
 /// One open file.
 struct Open {
+    /// Its `.part`, claimed while it is open.
+    _claim: Writing,
     name: String,
     path: PathBuf,
     file: Option<BufWriter<File>>,
@@ -528,6 +590,7 @@ impl Writer {
         match job {
             Job::Open { match_id, name } => {
                 let path = self.settings.dir.join(format!("{name}.{EXTENSION}.{PART}"));
+                let claim = Writing::claim(&path);
                 let file = File::create(&path)
                     .and_then(|file| {
                         let mut file = BufWriter::new(file);
@@ -541,6 +604,7 @@ impl Writer {
                 self.open.insert(
                     match_id,
                     Open {
+                        _claim: claim,
                         name,
                         path,
                         file,
@@ -606,16 +670,10 @@ impl Writer {
         };
         // Its name only now: a replay is made of a closed match alone (one
         // of a running match would get past the live delay).
+        // A writer started meanwhile in the same folder left its `.part`
+        // alone (`Recorder::start`): it is open here.
         let kept = self.settings.dir.join(format!("{}.{EXTENSION}", open.name));
-        // Named already: a writer started meanwhile in the same folder took
-        // the `.part` for a stopped server's and kept it (`Recorder::start`);
-        // every record went in above, through the file still open.
-        let named_meanwhile = |error: &io::Error| {
-            error.kind() == io::ErrorKind::NotFound && !open.path.exists() && kept.exists()
-        };
-        if let Err(error) = fs::rename(&open.path, &kept)
-            && !named_meanwhile(&error)
-        {
+        if let Err(error) = fs::rename(&open.path, &kept) {
             log::warn!("Recordings: can't keep {}: {error}", open.path.display());
             self.settings
                 .tell(|replays| replays.recording_not_kept(match_id));
@@ -1155,13 +1213,32 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
-    /// The same race seen from the old writer: the new one's start named its
-    /// kept `.part` meanwhile. Its close takes that for kept, never "not
-    /// kept" (which the desk would answer a save of the match with: gone).
+    /// Review of 2026-11-13: the server that ended waited for its writer
+    /// with no end, and `srp`'s restart with it: on a stalled disk no match
+    /// was served until the writer caught up, or ever. It waits
+    /// [`FINISH_WAIT`] at most; a writer that never answers is given up on.
     #[test]
-    fn a_kept_part_named_by_a_new_writer_meanwhile_is_kept() {
+    fn a_writer_that_never_answers_is_given_up_on() {
+        let (jobs, _queue) = mpsc::channel();
+        let recorder = Recorder {
+            jobs,
+            records: Arc::new(AtomicUsize::new(0)),
+            min_players: 2,
+        };
+        let started = Instant::now();
+        assert!(!recorder.finish_within(Duration::from_millis(50)));
+        assert!(started.elapsed() < Duration::from_secs(5));
+    }
+
+    /// The same race once the last writer is given up on: it still writes
+    /// and closes while the new one starts. Its `.part`s are left to it, the
+    /// kept one and one whose `kept` note is still in its queue alike (the
+    /// new start named the first under it and deleted the second, a kept
+    /// recording lost); its closes name both, kept once.
+    #[test]
+    fn a_part_the_last_writer_still_writes_is_left_to_it() {
         use session::v026g::replays::{MIN_REVISION, ReplayState, SaveSettings, Status};
-        let root = temp_dir("named-meanwhile");
+        let root = temp_dir("still-writing");
         let dir = root.join("recordings");
         fs::create_dir_all(&dir).unwrap();
         let replays = Arc::new(Replays::new(Some(dir.clone())).with_save(SaveSettings {
@@ -1175,17 +1252,23 @@ mod tests {
         let mut kept = recorder.open(&id(0xAB), false, serde_json::json!({}), now);
         kept.entered(0);
         kept.entered(1);
-        settle(&dir, |names| {
-            names.len() == 1 && was_kept(&dir.join(&names[0]))
+        let mut late = recorder.open(&id(0xCD), false, serde_json::json!({}), now);
+        late.entered(0);
+        let parts = settle(&dir, |names| {
+            names.len() == 2 && names.iter().any(|name| was_kept(&dir.join(name)))
         });
         let _new = Recorder::start(settings).unwrap();
+        assert_eq!(files(&dir), parts, "left to the last writer");
+        late.entered(1);
+        drop((kept, late));
+        assert!(recorder.finish_within(Duration::from_secs(10)));
         let names = files(&dir);
+        assert_eq!(names.len(), 2, "{names:?}");
         assert!(names[0].ends_with("_000000ab.srprec"), "{names:?}");
-        drop(kept);
-        recorder.finish();
-        assert_eq!(files(&dir), names);
+        assert!(names[1].ends_with("_000000cd.srprec"), "{names:?}");
         let later = now + Duration::from_secs(10);
         assert_eq!(replays.state(0xAB, Some(14), later), ReplayState::Kept);
+        assert_eq!(replays.state(0xCD, Some(14), later), ReplayState::Kept);
         assert_eq!(
             replays.save_ask(1, 0xAB, Some(MIN_REVISION), Some(true), later),
             Status::Preparing

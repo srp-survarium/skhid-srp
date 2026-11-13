@@ -246,8 +246,8 @@ pub(crate) struct Server {
 
 /// The server ends (it returns, or unwinds from a panic and `srp` starts it
 /// again in the same process): its matches' recordings are closed, and the
-/// writing thread has written them all before it is gone
-/// ([`Recorder::finish`]).
+/// writing thread has written them all before it is gone, or is given up on
+/// after a while ([`Recorder::finish`]).
 impl Drop for Server {
     fn drop(&mut self) {
         self.games.clear();

@@ -1890,3 +1890,105 @@ fn at_8x_a_busy_matchs_viewer_that_stalls_its_acks_is_kept() {
     assert!(replays.watches().holds(WATCHER_ACCOUNT));
     bench.assert_no_faults();
 }
+
+/// What went to a viewer of the busy match ([`tap_timeline`]).
+#[derive(Debug, PartialEq, Eq)]
+enum Went {
+    /// An 0xE5 of this generation.
+    Time(u8),
+    /// A relay of the input at this time (the busy match's inputs carry it).
+    Relay(u32),
+    /// An 0xEA of this place.
+    Left(u8),
+}
+
+/// Every 0xE5, relay and 0xEA a client of the busy match is sent, in order
+/// as its datagrams come; while `losing`, a datagram that carries one
+/// `lost` picks is lost (it goes again until its deadline, or acked).
+fn tap_timeline(
+    client: &mut Client,
+    losing: Arc<AtomicBool>,
+    lost: fn(&Went) -> bool,
+) -> Arc<Mutex<Vec<Went>>> {
+    let tapped = Arc::new(Mutex::new(Vec::new()));
+    let into = Arc::clone(&tapped);
+    client.lose = Some(Box::new(move |datagram| {
+        let parsed = udp_transport::wire::parse(
+            udp_transport::Table::Match,
+            udp_transport::Direction::ToClient,
+            datagram,
+            mask_bytes(20),
+        );
+        let mut lose = false;
+        for message in parsed.map(|parsed| parsed.messages).unwrap_or_default() {
+            let went = match decode_server(message.id, message.payload, 20) {
+                Ok(ServerMessage::SetTime { generation, .. }) => Went::Time(generation),
+                Ok(ServerMessage::InputRelay { input, .. }) => {
+                    let [_, low, high, ms] = input.rotation;
+                    let tick = u32::from(low) | u32::from(high) << 8;
+                    Went::Relay(tick * TICK_MS + u32::from(ms))
+                }
+                Ok(ServerMessage::PlayerLeft { player, .. }) => Went::Left(player),
+                _ => continue,
+            };
+            lose |= losing.load(Ordering::Relaxed) && lost(&went);
+            into.lock().unwrap().push(went);
+        }
+        lose
+    }));
+    tapped
+}
+
+/// Review of 2026-11-13: a seek started the game again (0xE5 of its next
+/// generation) and left what went for its last start in flight: its relays
+/// (sent until their tick's history is past) and its roster changes (for
+/// 250 ms). A copy of one after the new 0xE5 carries only a tick byte, read
+/// against the new clock: a leave of the old time took a place out of the
+/// new world, a relay put an input of then in it. What went for a start is
+/// forgotten when the next one's 0xE5 goes.
+#[test]
+fn a_seek_sends_nothing_of_the_last_start_after_its_new_0xe5() {
+    const LEFT_AT: u32 = 16_000;
+    const SOUGHT: u32 = 94_550;
+    fn old(went: &Went) -> bool {
+        match went {
+            Went::Relay(time) => *time < SOUGHT - 5_000,
+            Went::Left(_) => true,
+            Went::Time(_) => false,
+        }
+    }
+    let mut recording = busy();
+    recording.add_event(LEFT_AT, 19, false);
+    let (mut bench, replays) = bench();
+    let request = request(WATCHER_ACCOUNT, 0x1234, 0, None);
+    prepared_of(&mut bench, &replays, request, Vec::new(), recording);
+    let at = watching(&mut bench, WATCHER);
+    let losing = Arc::new(AtomicBool::new(false));
+    let tapped = tap_timeline(&mut bench.clients[at], Arc::clone(&losing), old);
+    bench.run(1_000);
+    assert!(position(&bench) < LEFT_AT, "{}", position(&bench));
+    // From here the relays and the leave are lost: in flight still. The
+    // seek comes as the leave first goes (it goes again for 250 ms).
+    losing.store(true, Ordering::Relaxed);
+    assert!(bench.until(2_000, |_| tapped.lock().unwrap().contains(&Went::Left(19))));
+    let starts = generations(&bench.clients[at]);
+    let request = Request {
+        seq: 1,
+        op: Op::Seek(MatchMs(SOUGHT)),
+    };
+    bench.clients[at].send(id::LEAVE, &request.encode(), true);
+    bench.run(1_000);
+    let tapped = tapped.lock().unwrap();
+    let new = tapped
+        .iter()
+        .position(|went| matches!(went, Went::Time(generation) if !starts.contains(generation)))
+        .expect("the seek's 0xE5");
+    let stale: Vec<&Went> = tapped[new..].iter().filter(|went| old(went)).collect();
+    assert!(stale.is_empty(), "after the new 0xE5: {stale:?}");
+    assert!(
+        tapped[new..]
+            .iter()
+            .any(|went| matches!(went, Went::Relay(time) if *time > SOUGHT)),
+        "the new start's relays went"
+    );
+}
