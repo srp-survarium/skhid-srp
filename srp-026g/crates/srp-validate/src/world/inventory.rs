@@ -69,8 +69,11 @@ pub enum Measure {
 /// What an item saves after its header, by its class.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Body<'a> {
-    /// Armour, ammunition, a booster, a grenade or trap set.
+    /// Armour, ammunition, a booster, a trap set.
     None,
+    /// A grenade set (`grenade_set_core`): nothing after its header, as
+    /// [`Body::None`]; the only item a throw grenade state may name.
+    GrenadeSet,
     /// `influences`: the floats an active one saves.
     Medkit { influences: u8 },
     OxygenTank,
@@ -495,7 +498,7 @@ impl<'a> ItemState<'a> {
         owned: bool,
     ) -> Result<ItemBody<'a>, Fault> {
         Ok(match body {
-            Body::None => ItemBody::None,
+            Body::None | Body::GrenadeSet => ItemBody::None,
             Body::Medkit { influences } => {
                 let active = if active(reader, owned)? {
                     let activity_time_ms = u32(reader)?;

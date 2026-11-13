@@ -1915,6 +1915,246 @@ pub extern "C" fn hook_deserialize_guards_on_death_animation(frame: &mut Frame) 
     }
 }
 
+// ---- deserialize_guards (patch 115) ----
+
+/// The entry `deserialize_guards_on_fire_animation` (0x310224, the bare double-barrel's and pistol's fire deserialize 0x310200 (vtables 0A15160h, 0A152A0h +14h; the game builds the sound wrappers, deserialize.fire_animation_sound) storing m_weapon_animation_index (mov [esi+16Ch],cl; ESI the state, CL the byte as read): weapon_and_hands_expression 0x30F830 takes a reference through [state+164h+index*4], the state's two fire animations, with no bound (0x30F854..0x30F884, 0x31ED1A)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_deserialize_guards_on_fire_animation(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `deserialize_guards_on_fire_animation` calls this, from the game's jump at 0x310224,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::deserialize_guards::on_fire_animation(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- deserialize_guards (patch 115) ----
+
+/// The entry `deserialize_guards_on_fire_animation_sound` (0x252b48, the live double-barrel's and pistol's fire deserialize: weapon_sound_events_handler_state<...fire_state>::deserialize 0x252B20 (the cooks' wrappers, vtables 0A05150h and 0A05248h +14h; the bare classes' 0x310200 is never called) storing m_weapon_animation_index (mov [edi+16Ch],cl; EDI the state, CL the byte as read)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_deserialize_guards_on_fire_animation_sound(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `deserialize_guards_on_fire_animation_sound` calls this, from the game's jump at 0x252b48,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::deserialize_guards::on_fire_animation_sound(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- deserialize_guards (patch 115) ----
+
+/// The named exits of deserialize_guards::on_grenade_ready (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum DeserializeGuardsOnGrenadeReadyExit { NotReady }
+/// The entry `deserialize_guards_on_grenade_ready` (0x33a66d, weapon_core_throw_grenade_state::is_ready_for_transition loading m_grenade_index (mov al,[esi+180h]); past the 0FFh test it reads [[set+268h]+index*4] and [grenade+154h] with no bound (0x33A677..0x33A689); not_ready is the native 0FFh path (xor eax,eax; pop esi; ret)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_deserialize_guards_on_grenade_ready(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `deserialize_guards_on_grenade_ready` calls this, from the game's jump at 0x33a66d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::deserialize_guards::on_grenade_ready(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- deserialize_guards (patch 115) ----
+
+/// The named exits of deserialize_guards::on_grenade_throw (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum DeserializeGuardsOnGrenadeThrowExit { Done }
+/// The entry `deserialize_guards_on_grenade_throw` (0x33a770, the throw state's throw_grenade entry (push ebp; mov ebp,esp; and esp,-8; ESI the state, called by the throw substate's on_animation_end 0x3106AD): it hands m_grenade_index to grenade_set_core::throw_grenade 0x30A250, which takes a reference through [[set+268h]+index*4] (0x30A268, 0x30A277) with no bound, 0FFh included; done is its ret, the stack as at the entry) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_deserialize_guards_on_grenade_throw(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `deserialize_guards_on_grenade_throw` calls this, from the game's jump at 0x33a770,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::deserialize_guards::on_grenade_throw(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- deserialize_guards (patch 115) ----
+
+/// The named exits of deserialize_guards::on_wait_end (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum DeserializeGuardsOnWaitEndExit { NoMatch }
+/// The entry `deserialize_guards_on_wait_end` (0x30db7d, weapon_core_animation_end_aware_state::on_animation_end (an animation-end callback, for every player) loading m_index_of_animation_to_wait (movzx edx,byte [ecx+134h]) before cmp ebx,[[ecx+130h]+edx*4] with no bound (0x30DB8E); no_match is the compare's failed path (pop edi; xor eax,eax; pop esi; ret 4)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_deserialize_guards_on_wait_end(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `deserialize_guards_on_wait_end` calls this, from the game's jump at 0x30db7d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::deserialize_guards::on_wait_end(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- deserialize_guards (patch 115) ----
+
+/// The named exits of deserialize_guards::on_wait_throw (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum DeserializeGuardsOnWaitThrowExit { NoMatch }
+/// The entry `deserialize_guards_on_wait_throw` (0x310692, the throw substate's on_animation_end 0x310680 loading m_index_of_animation_to_wait before cmp eax,[[ecx+130h]+edx*4] (0x3106A2); no_match is its failed path (xor eax,eax; pop esi; ret 4)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_deserialize_guards_on_wait_throw(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `deserialize_guards_on_wait_throw` calls this, from the game's jump at 0x310692,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::deserialize_guards::on_wait_throw(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- deserialize_guards (patch 115) ----
+
+/// The named exits of deserialize_guards::on_wait_melee (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum DeserializeGuardsOnWaitMeleeExit { NoMatch }
+/// The entry `deserialize_guards_on_wait_melee` (0x310cf0, the melee state's animation callback 0x310CF0 at its entry (movzx edx,byte [ecx+134h]) before cmp edi,[[ecx+130h]+edx*4] (0x310D06); no_match is its ret 4 with the stack as at the entry (the handler sets EAX 0, the failed path's)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_deserialize_guards_on_wait_melee(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `deserialize_guards_on_wait_melee` calls this, from the game's jump at 0x310cf0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::deserialize_guards::on_wait_melee(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- deserialize_guards (patch 115) ----
+
+/// The named exits of deserialize_guards::on_grenade_pull (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum DeserializeGuardsOnGrenadePullExit { NoPull }
+/// The entry `deserialize_guards_on_grenade_pull` (0x3103cf, the pull substate's initialize 0x3103A0 loading the throw state's set (mov ecx,[esi+17Ch]) for grenade_set_core::pull_pin 0x30A120, which indexes the set's grenades with the new amount's low byte (0x30A1C2) and takes a reference through the slot, with no bound, and calls through [[set+250h]+174h]'s vtable; no_pull stores AL as m_grenade_index (pop edi; mov [esi+180h],al), the stack as after the call (pull_pin pops 8)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_deserialize_guards_on_grenade_pull(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `deserialize_guards_on_grenade_pull` calls this, from the game's jump at 0x3103cf,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::deserialize_guards::on_grenade_pull(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- deserialize_guards (patch 115) ----
+
+/// The named exits of deserialize_guards::on_grenade_idle (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum DeserializeGuardsOnGrenadeIdleExit { Done }
+/// The entry `deserialize_guards_on_grenade_idle` (0x310465, the idle substate's 0x310450 loading the throw state's set (mov edx,[eax+17Ch]) to compare the inventory's grenade slot with [set+254h] (0x310473); done is its ret, AL the result) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_deserialize_guards_on_grenade_idle(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `deserialize_guards_on_grenade_idle` calls this, from the game's jump at 0x310465,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::deserialize_guards::on_grenade_idle(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- deserialize_guards (patch 115) ----
+
+/// The named exits of deserialize_guards::on_grenade_choice (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum DeserializeGuardsOnGrenadeChoiceExit { Done }
+/// The entry `deserialize_guards_on_grenade_choice` (0x33a73f, 0x33A730 (called by the throw state at 0x33A11D, 0x33A195, 0x33A209) loading its set (mov ecx,[ecx+17Ch]) to compare the inventory's grenade slot with [set+254h] (0x33A74B); done is its ret 4, AL the result) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_deserialize_guards_on_grenade_choice(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `deserialize_guards_on_grenade_choice` calls this, from the game's jump at 0x33a73f,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::deserialize_guards::on_grenade_choice(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- deserialize_guards (patch 115) ----
+
+/// The entry `deserialize_guards_on_grenade_serialize` (0x33a51b, the throw state's serialize 0x33A4E0 loading its set and the set's slot (mov ecx,[ebx+17Ch]; mov dl,[ecx+254h]) for the byte it writes (0x33A53D); skipping with DL the byte and ECX the set takes the native write) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_deserialize_guards_on_grenade_serialize(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `deserialize_guards_on_grenade_serialize` calls this, from the game's jump at 0x33a51b,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::deserialize_guards::on_grenade_serialize(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- deserialize_guards (patch 115) ----
+
+/// The named exits of deserialize_guards::on_grenade_can_throw (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum DeserializeGuardsOnGrenadeCanThrowExit { Cannot }
+/// The entry `deserialize_guards_on_grenade_can_throw` (0x2e40bf, weapon_core's can-throw 0x2E4090 taking the item of the inventory's grenade slot (ECX, not 17h: mov ecx,[eax+ecx*4+10Ch]) and calling its vtable +64h, then 0x30A090 on the result as a grenade set; cannot is its 0 (xor eax,eax; pop esi; ret)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_deserialize_guards_on_grenade_can_throw(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `deserialize_guards_on_grenade_can_throw` calls this, from the game's jump at 0x2e40bf,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::deserialize_guards::on_grenade_can_throw(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- deserialize_guards (patch 115) ----
+
+/// The entry `deserialize_guards_on_grenade_attach` (0x33a7f5, the throw state's attach_grenade 0x33A7E0 (its initialize 0x33A463) taking the item of the inventory's grenade slot (ECX, 0..17h: [eax+ecx*4+10Ch], 17h reading +168h, the artefact slots' pointer) as its set and taking a reference through it (lock xadd [item+0D0h]); skipping with EAX 0 takes the native no-item path (the state holds no set)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_deserialize_guards_on_grenade_attach(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `deserialize_guards_on_grenade_attach` calls this, from the game's jump at 0x33a7f5,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::deserialize_guards::on_grenade_attach(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- drug_interrupt (patch 84) ----
 
 /// The entry `drug_interrupt_on_hit_applied` (0x2d9cb1, base_player::hit_impl once damage_model::hit_body_part (0x2E5080, at 0x2D9CA4) said 1: the hit took health past armour and protectors (more than 0.0 left, 0x2E5128); before the slow, the listeners and the death (mov edi,esi / cmp dword [edi+40h],0; the je at 0x2D9CB7 reads its flags): EBX the victim, ESI the hit; every hit of every player, in every game's simulation) calls this with the saved machine.

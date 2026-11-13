@@ -507,7 +507,7 @@ pub fn untouched_items(place: u8, kit: u8, items: &[Item]) -> Vec<u8> {
         }
         out.extend([place, kit, item.slot]);
         match item.body {
-            Body::None => {}
+            Body::None | Body::GrenadeSet => {}
             Body::Medkit { .. } => out.push(0),
             Body::OxygenTank => out.extend([0; 5]),
             Body::Weapon(gun) => {

@@ -4756,9 +4756,88 @@ the lists and write through what it found. The guard at its entry
 The lengths are the set's own (rifles 2, pistols 1, the battery carrier 1;
 death-poses.md), so the bound follows the content and no world is refused for it.
 
+A double-barrel's or pistol's fire animation (F7): their fire states (one
+`weapon_and_hands_expression` 0x30F830; the deserialize the game runs is the
+sound wrappers' 0x252B20, vtables 0xA05150 and 0xA05248 +14h, the bare
+classes' 0x310200 is never called) save
+`m_weapon_animation_index` (+16Ch), the world brings any byte, and the
+presentation, run every frame for every player in view, takes a reference through
+`[state+164h+index*4]` (0x31ECF0, `lock xadd [slot+0DCh]`). The state holds two
+fire animations there (both constructors make an array of 2): a layout, not
+content. The guards at the load's store (`deserialize.fire_animation_sound`,
+0x252B48, the live one; `deserialize.fire_animation`, 0x310224, the bare
+class's) store a byte past them as 0, the first, so the game also never uploads it again;
+0 and 1 are stored as read. The world check refuses any other byte as well
+(`FireAnimation` in srp-validate): in 44,117 worlds of 100 rev56 recordings the
+3,340 such states hold 0 or 1 only.
+
+A throw's grenade (F8): the throw grenade state saves `m_grenade_index` (+180h,
+0FFh none), the world brings any byte, and two readers index the set's grenades
+(`[set+268h]` to `[set+26Ch]`) with it with no bound: `is_ready_for_transition`
+0x33A650 reads `[grenade+154h]` (0FFh is its only test), and the throw 0x33A770
+hands it to `grenade_set_core::throw_grenade` 0x30A250, which takes a reference
+through the slot (0x2E9040, `lock xadd [grenade+0F0h]`), 0FFh included. The
+set's size is content. At is_ready (`deserialize.grenade_ready`, 0x33A66D) an
+index past the set's grenades, or a state with no set, takes the native 0FFh path
+(not ready); at the throw's entry (`deserialize.grenade_throw`) only an index of
+one of the set's grenades throws, anything else returns (0x33A7DD). The rev56
+corpus holds 0..3 only. The set is whatever item the profile slot the world
+names holds (deserialize 0x33A5AB, no type test), so both guards first check
+its vtable is a grenade set's (`grenade_set` 0xA0B56C, `grenade_set_core`
+0xA14824); any other item has no grenades. So does every other reader of the
+throw's set and of the inventory's selected grenade slot (`m_grenade_slot`,
+the world's too), each taking an item that is no grenade set (or none) as no
+set:
+- the pull substate's initialize (`deserialize.grenade_pull` 0x3103CF): no
+  pull (the index 0FFh) unless a grenade set's own pull_pin index (a stacked
+  set's amount-1, the world's amount; 1 otherwise) is one of its grenades;
+  pull_pin 0x30A120 would take a reference through the slot past them and call
+  through `[[set+250h]+174h]`;
+- the idle substate's check 0x310450 and the throw state's 0x33A730
+  (`grenade_idle` 0x310465, `grenade_choice` 0x33A73F): the set's slot as none
+  (17h) instead of `[set+254h]`;
+- the serialize (`grenade_serialize` 0x33A51B): the slot byte 17h;
+- can-throw 0x2E4090 (`grenade_can_throw` 0x2E40BF): cannot, instead of
+  calling the slot item's vtable +64h (null not tested) and 0x30A090 on it;
+- attach_grenade 0x33A7E0 (`grenade_attach` 0x33A7F5), the throw's
+  initialize: no set, instead of the slot's item (17h read the artefact slots'
+  pointer at +168h as an item and counted a reference into the inventory).
+The server refuses both at the source: a throw's grenade slot and the
+selected grenade slot must hold a grenade set of the player's kit
+(`TailGrenadeSet`, `TailSelectedGrenade`).
+
+An animation to wait for (F6): every animation-end-aware weapon state saves
+`m_index_of_animation_to_wait` (+134h, 0FFh none), the world brings any byte,
+and the callbacks (`on_animation_end` 0x30DB60, the throw substate's 0x310680,
+the melee state's 0x310CF0) compare the ending clip with
+`[[state+130h]+index*4]` with no bound. `[state+130h]` is the state's own
+animation handles, in the object, which its class's `register_animations`
+(vtable +1Ch, kept by every derived class) walks: 4, 5, 9 or 10 of them (seven
+registrators, 30 classes by RTTI). The game's own picks stay in them (0..9).
+But real worlds carry indices past them: the show state saves 63, 205, 220 and
+others (7,570 of 68,366 rev56 show states; LIKELY never set, as no constructor
+stores +134h). Past the handles, the native compare reads what lies after the
+object, different in every game, and faults at a page's end. The guards
+(`deserialize.wait_end` 0x30DB7D, `wait_throw` 0x310692, `wait_melee` 0x310CF0)
+take an index past the state's handles (or a state of no known layout) as no
+match, the compare's own failed path. An index in them runs as before.
+
 `check_deserialize_guards_026g.py <stock exe>` compares valid reads with stock and
-checks invalid/empty tables at all four stack alignments (120 cases; the death
-animation's: the stock faults past the lists, ours plays the first). The i686
+checks invalid/empty tables at all four stack alignments (1,340 cases; the death
+animation's: the stock faults past the lists, ours plays the first; the fire
+animation's, entered through each of the four vtables' deserialize: the stock
+stores the byte, ours stores 0 as the stock does with 0;
+the grenade's: the stock faults in is_ready and in throw_grenade's reference past
+the set, ours is not ready and returns from the throw with the registers as they
+were, and a grenade of the set runs as the stock to throw_grenade; a weapon in
+the grenade slot: the stock reads it as a set, ours does not; each other
+reader of the set and of the selected slot, entered through the real caller
+(the sound wrappers' and the throw state's vtables, can-throw's entry), a grenade set as the stock, a
+weapon, an empty slot and 17h as no set where the stock faults, calls the
+item or counts a reference into the inventory; the animation to
+wait for: every one of the 30 classes, its table ending at a page's end, at each
+callback that serves it: in its handles the stock's match and no match, past
+them the stock faults and ours is no match). The i686
 patch crate's i686 tests and Clippy pass. No release revision is reserved.
 
 ## A presenter ignores an effect it does not hold (patch 117, unreleased)
