@@ -4760,6 +4760,7 @@ va	name	location	role	basis
 0x0007f100	vostok::physics::bullet_character_controller::setup_shape_dim	EAX	float[2]* {capsule diameter, total height}	observed
 0x0007d590	vostok::physics::bullet_character_controller::step_forward	ESI	float[3]* the move this tick	observed
 0x0007d590	vostok::physics::bullet_character_controller::step_forward	entry ESP+4	bullet_character_controller (passed on in ECX)	observed
+0x0007d660	vostok::physics::bullet_character_controller::slide_in_impassable_case_impl	[entry ESP+4]+203h	u8 capsule crouched: picks the move sweep with the console alone, crouched [0x1F1D335], standing [0xA72106]: set, the complex tester 0x85A90, clear, the simple 0x86490 (0x7D864..0x7D8C9); +204h (sprinting) is not read, unlike step_forward_impl 0x7D33D	observed
 0x0007ea80	vostok::physics::bullet_character_controller::step_down_sweep_test_impl	ESI	bullet_character_controller	observed
 0x0007ea80	vostok::physics::bullet_character_controller::step_down_sweep_test_impl	entry ESP+4	float signed down distance (negative = down)	observed
 0x00207d50	survarium::key_binder::get_binded_action	EAX	the key binder (the game's +5344h): 48h bindings of 0Ch bytes indexed by the action id, each its description (+4 the id, +8 a mask, +0Ch a flag) and two bound keys (+4 the DIK code)	observed

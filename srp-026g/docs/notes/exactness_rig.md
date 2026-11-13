@@ -484,6 +484,34 @@ are 3h's contacts at one fraction. Only `Caster::Exe` changes: the bots' grids a
 
   Each step put right is a step refused under a ceiling (`ceiling` set): the up sweep's case.
 
+### 3l. The sprint picks the forward step's move test only (PROVEN)
+
+- The drift lab's case 15 (Chemical Plant, match 19cc6fe5, a body sprinting into a post that the client held 3.3 s with
+  its sprint key down). The replay of that revision-49 recording on a locally built revision-49 exe (the rev-56 exe
+  crashes at the recording's key frame 538,150 ms: the replay needs the recording's own revision), traced 562-574 s: the
+  game hands the body a full sprint walk (5.287 m/s) every tick and `player_step` leaves it in place. The exe in Unicorn
+  from the traced bytes on the capture's triangles holds it too (0.008 m a tick: the triangles' 12-sided post); the
+  port slid it 0.25 m a tick. The exe's own calls in that step: the forward step's simple test (the sprint) meets the
+  post's mesh, the step down lands on the post's rim (normal y 0.705, steep), and the side slide
+  `slide_in_impassable_case_impl` 0x7D660 sweeps with the COMPLEX test (the cylinder, 0.38 m plus the 0.04 m margin),
+  which meets the post's mesh at fraction 0, so the slide goes nowhere.
+- The rule (read): `step_forward_impl` 0x7D2A0 tests +204h first (0x7D33D) and takes the simple test 0x86490 while the
+  body sprints; `slide_in_impassable_case_impl` picks by +203h and the two cvars only (0x7D864..0x7D88A). The port's
+  `Controller::tick` turned the complex test off for every move sweep of a sprinting body; now only the forward step's
+  (`Controller::step_as`).
+- What it changes (the port before and after, one build each, against the game's bytes):
+
+| run | before | after |
+|---|---|---|
+| 1,000 steps on the capture's triangles (3b) and on the map's shapes (3d) | | outputs identical |
+| the long replay (3h): every field the game's | 219,906 | **220,096** (190 put right, none made wrong) |
+| the long replay: chains the game's bits end to end | 2,274 of 2,421 | **2,277**; chain steps 10 cm+ off 2,312 -> 2,048 |
+| case 15's trace (Chemical Plant, 562-574 s, every body): every field the game's | 3,904 of 3,984 | **3,975** (71 put right, none made wrong) |
+| case 15's trace: chain steps 10 cm+ off | 86 | **0** |
+
+  On the shapes world the port now holds case 15's body at the game's origin and support normal, to the bit, every
+  tick of the stop.
+
 ## 4. What was read on the way (PROVEN)
 
 - `objectQuerySingle` 0xA14E0, a compound (type 31, 0xA22EE): the cast shape's box in the compound's frame,

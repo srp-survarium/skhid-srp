@@ -198,8 +198,20 @@ pub struct TickInput {
     /// The crouch key and what the logic's state does with it ([`Controller::crouch`]).
     pub crouch: CrouchInput,
     /// +0x204: the body sprints. `step_forward_impl` then takes the simple move test whatever the console says
-    /// (0x7D33D: `cmp byte [+204h], 0; jnz` past the complex test 0x85A90).
+    /// (0x7D33D: `cmp byte [+204h], 0; jnz` past the complex test 0x85A90); the impassable slope's side slide does not
+    /// read the byte ([`MoveTest`]).
     pub sprinting: bool,
+}
+
+/// The move sweep a step runs: the complex test 0x85A90 (a cylinder, then the top check) or the simple one 0x86490 (the
+/// capsule). The console picks it per stance (`cc_stand_move_complex_test` [0xA72106], `cc_crouch_move_complex_test`
+/// [0x1F1D335], by +203h). `step_forward_impl` 0x7D2A0 takes the simple test while the body sprints (0x7D33D: +204h
+/// first); `slide_in_impassable_case_impl` 0x7D660 takes the console's choice whatever the sprint (0x7D864..0x7D88A: +203h
+/// and the two cvars only).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum MoveTest {
+    Simple,
+    Complex,
 }
 
 /// What one step did, for the reader.
@@ -440,8 +452,14 @@ impl Controller {
         if 0.0 > ((w.z * hn.z) + (w.y * hn.y)) + (hn.x * w.x) { wall_slide(w, hn, s) } else { w }
     }
 
-    /// One `player_step` of `dt` seconds (the walk branch; a body in a jump is not handled). Returns what it did.
+    /// One `player_step` of `dt` seconds of a body that does not sprint (the walk branch; a body in a jump is not
+    /// handled). Returns what it did. A sprinting body: [`Self::step_as`].
     pub fn step(&mut self, world: &Collision, dt: f32, s: &Settings) -> StepNotes {
+        self.step_as(world, dt, s, false)
+    }
+
+    /// One `player_step` of `dt` seconds with the controller's sprint byte (+204h, [`TickInput::sprinting`]) as given.
+    pub fn step_as(&mut self, world: &Collision, dt: f32, s: &Settings, sprinting: bool) -> StepNotes {
         let mut notes = StepNotes::default();
         if self.want_crouch {
             if !self.crouched {
@@ -502,7 +520,7 @@ impl Controller {
         );
         let rise = self.step_up(s);
         let p0 = self.pos;
-        notes.forward_hit = self.step_forward(world, m, s);
+        notes.forward_hit = self.step_forward(world, m, self.forward_move_test(s, sprinting), s);
         self.step_down(world, rise, slow, foot, m, p0, a1, dt, s, &mut notes);
         // The origin from the step's share of the tick.
         let al = dt / tick;
@@ -582,12 +600,7 @@ impl Controller {
         self.crouch(input.crouch);
         self.walk = input.walk;
         self.air_control = input.air_control;
-        let s = Settings {
-            stand_move_complex_test: s.stand_move_complex_test && !input.sprinting,
-            crouch_move_complex_test: s.crouch_move_complex_test && !input.sprinting,
-            ..*s
-        };
-        self.step(world, dt, &s)
+        self.step_as(world, dt, s, input.sprinting)
     }
 
     /// 0x7BD10 (and the same test inline in `step_down`'s tail 0x7E88A and at the head of the push 0x7BAD0): a crouched
@@ -786,9 +799,20 @@ impl Controller {
         (b.y * UP.y + b.z * UP.z) + b.x * UP.x
     }
 
-    /// The move sweep (the complex test 0x85A90 standing, the simple one 0x86490 crouched) from `from` to `to`, through the
-    /// callback 0x895F0: contacts behind the move at 0 are ignored, the normal is made horizontal. The fraction and normal.
-    fn move_sweep(&self, world: &Collision, from: Vec3, to: Vec3, s: &Settings) -> Option<(f32, Vec3)> {
+    /// The console's move test for the body's stance (+203h): [`MoveTest`].
+    fn console_move_test(&self, s: &Settings) -> MoveTest {
+        let complex = if self.crouched { s.crouch_move_complex_test } else { s.stand_move_complex_test };
+        if complex { MoveTest::Complex } else { MoveTest::Simple }
+    }
+
+    /// `step_forward_impl`'s move test (0x7D33D): the simple one while the body sprints, else the console's.
+    fn forward_move_test(&self, s: &Settings, sprinting: bool) -> MoveTest {
+        if sprinting { MoveTest::Simple } else { self.console_move_test(s) }
+    }
+
+    /// The move sweep `test` from `from` to `to`, through the callback 0x895F0: contacts behind the move at 0 are ignored,
+    /// the normal is made horizontal. The fraction and normal.
+    fn move_sweep(&self, world: &Collision, from: Vec3, to: Vec3, test: MoveTest, s: &Settings) -> Option<(f32, Vec3)> {
         let d = to - from;
         let l2 = (d.z * d.z + d.x * d.x) + d.y * d.y;
         let inv = 1.0 / l2.sqrt();
@@ -828,8 +852,7 @@ impl Controller {
             }
             Some((c.t, n2, c.point))
         };
-        let complex = if self.crouched { s.crouch_move_complex_test } else { s.stand_move_complex_test };
-        if !complex {
+        if test == MoveTest::Simple {
             return callback(self.capsule_at(from), from).map(|(t, n, _)| (t, n));
         }
         let m = s.move_step_margin;
@@ -860,7 +883,7 @@ impl Controller {
     }
 
     /// `step_forward` 0x7D590 and `step_forward_impl` 0x7D2A0. Whether anything was met.
-    fn step_forward(&mut self, world: &Collision, m: Vec3, s: &Settings) -> bool {
+    fn step_forward(&mut self, world: &Collision, m: Vec3, test: MoveTest, s: &Settings) -> bool {
         let l2 = (m.y * m.y + m.z * m.z) + m.x * m.x;
         if l2.abs() < TINY {
             return false;
@@ -876,7 +899,7 @@ impl Controller {
             if ((d.z * d.z + d.y * d.y) + d.x * d.x).abs() < TINY {
                 return met;
             }
-            let Some((f, n)) = self.move_sweep(world, pos, t, s) else {
+            let Some((f, n)) = self.move_sweep(world, pos, t, test, s) else {
                 self.pos = t;
                 return met;
             };
@@ -1093,7 +1116,8 @@ impl Controller {
             self.pos = p1;
             return false;
         }
-        match self.move_sweep(world, p1, q, s) {
+        // 0x7D864..0x7D88A: the console's test whatever the sprint byte.
+        match self.move_sweep(world, p1, q, self.console_move_test(s), s) {
             Some((f, _)) => self.pos = Vec3::new(p1.x * (1.0 - f) + q.x * f, p1.y * (1.0 - f) + q.y * f, p1.z * (1.0 - f) + q.z * f),
             None => self.pos = q,
         }
@@ -1289,6 +1313,30 @@ mod tests {
             c.step(world, 0.05, &Settings::LIVE);
         }
         c
+    }
+
+    /// The sprint byte picks the forward step's move test only (0x7D33D); the impassable slope's side slide takes the
+    /// console's (0x7D864..0x7D88A). The two differ by the cylinder's margin: a wall 0.40 m from the body's axis is met at
+    /// once by the complex test (0.38 + 0.04 m) and only after 2 cm by the simple one (the capsule's 0.38 m). Case 15 of the
+    /// drift lab (Chemical Plant, a body sprinting into a post): the exe's side slide met the post's mesh at 0 and the body
+    /// stayed 3.3 s; with the sprint's simple test the port slid 0.25 m a tick (Unicorn on the traced steps).
+    #[test]
+    fn the_sprint_picks_the_forward_test_only() {
+        let mut tris = Vec::new();
+        ground(0.0, -10.0, 10.0, &mut tris);
+        quad(Vec3::new(-5.0, -1.0, 0.40), Vec3::new(5.0, -1.0, 0.40), Vec3::new(5.0, 3.0, 0.40), Vec3::new(-5.0, 3.0, 0.40), &mut tris);
+        let world = Collision::build(&tris);
+        let c = Controller::standing_at(Vec3::ZERO);
+        let s = Settings::LIVE;
+        assert_eq!(c.forward_move_test(&s, true), MoveTest::Simple);
+        assert_eq!(c.forward_move_test(&s, false), MoveTest::Complex);
+        assert_eq!(c.console_move_test(&s), MoveTest::Complex);
+        let from = c.origin + UP * 0.05;
+        let to = from + Vec3::new(0.0, 0.0, 0.25);
+        let (complex, _) = c.move_sweep(&world, from, to, MoveTest::Complex, &s).expect("the complex test meets the wall");
+        let (simple, _) = c.move_sweep(&world, from, to, MoveTest::Simple, &s).expect("the simple test meets the wall");
+        assert_eq!(complex, 0.0);
+        assert!((simple * 0.25 - 0.02).abs() < 1e-3, "{simple}");
     }
 
     /// On flat ground the body walks at its speed and stays on the ground.
