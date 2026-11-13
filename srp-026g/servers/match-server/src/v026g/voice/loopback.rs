@@ -79,10 +79,11 @@ fn two_clients_pass_opus_audio_through_the_udp_relay() {
         games[index].send(&senders[index].start(0)).unwrap();
         cores[1 - index].receive(&receive(&games[1 - index]), 0);
     }
-    // 0.8s, 20 audio datagrams each: comfortably inside the relay's 60/s cap,
-    // even when this deterministic test runs faster than the real audio clock.
+    // 0.8s, 20 audio datagrams each, at the real audio clock: the relay takes
+    // 30 a second of a talker's audio past a burst of 10.
     let frequencies = [600.0, 900.0];
     for frame in 0..40 {
+        std::thread::sleep(Duration::from_millis(20));
         let now = frame as u32 * 20;
         for index in 0..2 {
             let samples = std::array::from_fn(|i| {
