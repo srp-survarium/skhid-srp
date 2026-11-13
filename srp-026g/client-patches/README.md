@@ -3598,7 +3598,8 @@ without it, or of another version (unloaded), voice is off.
 - `game_world.finish` (on_finish_match 0x1F96F0, EAX the world) and `game_world.deactivate`
   (on_deactivate 0x1F9520, ECX the world): push-to-talk let go, `sv_stop`, the hud's list emptied;
 - `game_world.after_move` (every frame of a match): the options to the DLL on a change, the muted
-  places, the far ones (a teammate beyond 25 m, or either of the two dead: the radio filter) and the
+  places, the far ones (a teammate beyond 15 m, or either of the two dead: the radio filter), the
+  near ones' pans (`sv_direction`: the sine of the bearing, heard from that side) and the
   hud's `root.srp_voice_talking(name, ...)` on a change; a push-to-talk whose key or button is up
   (user32's GetAsyncKeyState: the numpad's keys by either key NumLock gives, NumLock and Pause by
   their own, a button by its VK_*BUTTON) or with the game out of focus is let go;
@@ -3631,7 +3632,7 @@ out and logged.
 Checked: `selftest_026g.py` check 66 (the sites in the original, the eight hooks in the build, the
 game's ptt entry unchanged) and check 62 (the Controls rows: push-to-talk's in the game group, its
 key settable), `check_hide_ui_026g.py` (the list sent to the movie), `cargo test` in `rust/` (the
-mutes' text, malformed records, the radio's 25 m and the dead, the keys a held input is polled by).
+mutes' text, malformed records, direct to 15 m and its pan, the radio past it and for the dead, the keys a held input is polled by).
 Played locally 2026-11-11 (two games under Wine, one microphone): talking and hearing in a team.
 
 ### 67. The kill feed shows a kill through a wall, by a ricochet and by pain (the next release's revision)

@@ -66,6 +66,14 @@ impl Biquad {
         y
     }
 }
+/// The radio's words this much louder (+3 dB) than its fit's makeup gives
+/// them: as loud as a near voice (the owner, 2026-11-13: "the general sound
+/// is a bit quiet"). Band-limited, a voice of the same energy is heard
+/// quieter (its loudness summed over fewer critical bands): summed so
+/// (Zwicker's exponent 0.23 over third-octave bands), speech through the
+/// automatic gain needed 1.7 to 3.9 dB, 3.1 on average, to match its near
+/// level (`a_radio_voice_is_as_loud_as_a_direct_one`).
+const VOICE: f32 = std::f32::consts::SQRT_2;
 /// Fitted to retail's plain/_radio quick-command pairs. The clipping's
 /// high-pass removes difference tones; the makeup preserves voice loudness.
 pub struct Radio {
@@ -109,7 +117,7 @@ impl Radio {
                 let v2 = drive * drive;
                 drive * (27. + v2) / (27. + 9. * v2)
             };
-            v = self.post.run(sat / 5. * 2.5);
+            v = self.post.run(sat / 5. * 2.5) * VOICE;
             if bed > 0. {
                 v += bed * f32::from(STATIC_BED[self.bed_at]) / 32768.;
                 self.bed_at = (self.bed_at + 1) % STATIC_BED.len();

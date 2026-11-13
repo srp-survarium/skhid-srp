@@ -268,8 +268,8 @@ def read_bugtrap(path):
 
 VOICE_DLL = os.path.abspath(os.path.join(HERE, "..", "target-voice", "i686-win7-windows-msvc", "release", "skhid_voice.dll"))
 # What patch 66 asks of the DLL by name (the shared voice-abi crate).
-VOICE_EXPORTS = (b"sv_version", b"sv_start", b"sv_stop", b"sv_ptt", b"sv_settings", b"sv_radio", b"sv_mute",
-                 b"sv_talking", b"sv_slot", b"sv_voice_id")
+VOICE_EXPORTS = (b"sv_version", b"sv_start", b"sv_stop", b"sv_ptt", b"sv_settings", b"sv_radio", b"sv_direction",
+                 b"sv_mute", b"sv_talking", b"sv_slot", b"sv_voice_id")
 
 
 def read_voice(path):

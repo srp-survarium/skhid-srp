@@ -1,6 +1,6 @@
 //! Owned WinMM devices. A header and its PCM storage stay at stable heap
 //! addresses until the driver returns them and unprepares the header.
-use crate::{FRAME, RATE, runtime::BufferOrder};
+use crate::{FRAME, RATE, Stereo, runtime::BufferOrder};
 use std::{cell::UnsafeCell, mem::size_of, ptr};
 use windows_sys::Win32::Media::Audio::*;
 
@@ -10,25 +10,25 @@ const HEADER_BYTES: u32 = size_of::<WAVEHDR>() as u32;
 // windows-sys models WAVEHDR as packed. Put it first at an explicitly
 // aligned address so its u32 completion flag is safe to read volatile.
 #[repr(C, align(8))]
-struct Buffer {
+struct Buffer<S> {
     header: UnsafeCell<WAVEHDR>,
-    samples: UnsafeCell<[i16; FRAME]>,
+    samples: UnsafeCell<S>,
     prepared: bool,
     queued: bool,
 }
-impl Buffer {
-    fn new() -> Box<Self> {
+impl<S: Copy> Buffer<S> {
+    fn new(silence: S) -> Box<Self> {
         let buffer = Box::new(Self {
             // SAFETY: all-zero WAVEHDR is the documented initial state.
             header: UnsafeCell::new(unsafe { std::mem::zeroed() }),
-            samples: UnsafeCell::new([0; FRAME]),
+            samples: UnsafeCell::new(silence),
             prepared: false,
             queued: false,
         });
         // SAFETY: the allocation is stable and not yet given to a driver.
         unsafe {
             (*buffer.header.get()).lpData = buffer.samples.get().cast();
-            (*buffer.header.get()).dwBufferLength = (FRAME * size_of::<i16>()) as u32;
+            (*buffer.header.get()).dwBufferLength = size_of::<S>() as u32;
         }
         buffer
     }
@@ -41,13 +41,14 @@ impl Buffer {
         !self.queued || self.done()
     }
 }
-fn format() -> WAVEFORMATEX {
+/// 16-bit PCM at [`RATE`]: the microphone mono, the mix stereo.
+fn format(channels: u16) -> WAVEFORMATEX {
     WAVEFORMATEX {
         wFormatTag: 1,
-        nChannels: 1,
+        nChannels: channels,
         nSamplesPerSec: RATE as u32,
-        nAvgBytesPerSec: RATE as u32 * 2,
-        nBlockAlign: 2,
+        nAvgBytesPerSec: RATE as u32 * 2 * u32::from(channels),
+        nBlockAlign: 2 * channels,
         wBitsPerSample: 16,
         cbSize: 0,
     }
@@ -55,7 +56,7 @@ fn format() -> WAVEFORMATEX {
 
 pub struct Output {
     handle: HWAVEOUT,
-    buffers: [Option<Box<Buffer>>; BUFFERS],
+    buffers: [Option<Box<Buffer<Stereo>>>; BUFFERS],
     order: BufferOrder,
 }
 impl Output {
@@ -63,7 +64,7 @@ impl Output {
         let mut handle = ptr::null_mut();
         // SAFETY: output and format are valid for the call; no callback is used.
         let error =
-            unsafe { waveOutOpen(&mut handle, WAVE_MAPPER, &format(), 0, 0, CALLBACK_NULL) };
+            unsafe { waveOutOpen(&mut handle, WAVE_MAPPER, &format(2), 0, 0, CALLBACK_NULL) };
         if error != 0 {
             return Err(error);
         }
@@ -73,7 +74,7 @@ impl Output {
             order: BufferOrder::new(0),
         };
         for index in 0..BUFFERS {
-            let mut buffer = Buffer::new();
+            let mut buffer = Buffer::new([[0; 2]; FRAME]);
             // SAFETY: the boxed header and PCM outlive the device preparation.
             let error = unsafe { waveOutPrepareHeader(handle, buffer.header.get(), HEADER_BYTES) };
             if error != 0 {
@@ -94,7 +95,7 @@ impl Output {
         device.order = BufferOrder::new(3);
         Ok(device)
     }
-    pub fn pump(&mut self, mut mix: impl FnMut() -> [i16; FRAME]) -> Result<(), u32> {
+    pub fn pump(&mut self, mut mix: impl FnMut() -> Stereo) -> Result<(), u32> {
         for _ in 0..BUFFERS {
             let Some(index) = self.order.next_ready(BUFFERS, |index| {
                 self.buffers[index]
@@ -146,14 +147,15 @@ impl Drop for Output {
 
 pub struct Input {
     handle: HWAVEIN,
-    buffers: [Option<Box<Buffer>>; BUFFERS],
+    buffers: [Option<Box<Buffer<[i16; FRAME]>>>; BUFFERS],
     order: BufferOrder,
 }
 impl Input {
     pub fn open() -> Result<Self, u32> {
         let mut handle = ptr::null_mut();
         // SAFETY: valid output pointer and PCM format, no callback.
-        let error = unsafe { waveInOpen(&mut handle, WAVE_MAPPER, &format(), 0, 0, CALLBACK_NULL) };
+        let error =
+            unsafe { waveInOpen(&mut handle, WAVE_MAPPER, &format(1), 0, 0, CALLBACK_NULL) };
         if error != 0 {
             return Err(error);
         }
@@ -163,7 +165,7 @@ impl Input {
             order: BufferOrder::new(0),
         };
         for index in 0..BUFFERS {
-            let mut buffer = Buffer::new();
+            let mut buffer = Buffer::new([0; FRAME]);
             // SAFETY: headers and PCM are at stable addresses until Drop.
             let error = unsafe { waveInPrepareHeader(handle, buffer.header.get(), HEADER_BYTES) };
             if error != 0 {

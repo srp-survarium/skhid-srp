@@ -92,8 +92,9 @@ All of it is the unused front end of a feature the 0.26g engine never had. PROVE
   voice in the lobby, no squad channel, no "common" channel (0.69 had that only as a room
   option; a later rooms feature).
 - **The radio effect** (an owner decision, default on):
-  - A teammate within `VOICE_NEAR` (placeholder 25 m) is heard plain. One farther away is heard
-    through a radio filter: band-pass 300-3400 Hz, light clipping and a little noise.
+  - A teammate within `VOICE_NEAR` (25 m; 15 m since 2026-11-13) is heard plain (since
+    2026-11-13 from its side: "As built", the radio). One farther away is heard through a radio
+    filter: band-pass 300-3400 Hz, light clipping and a little noise.
   - This is the quick commands' idea applied to voice. 0.69's voice had no such effect.
   - Each client decides it from its own simulation (it knows every player's position). The
     server does not take part.
@@ -317,12 +318,40 @@ Where the build differs from or adds to the design above:
   (the interface forced hidden) it shows only while Tab is held, with the Tab list (the owner,
   2026-11-11: "we need to also show in blackout only when tabbed that someone is speaking";
   HUD.keptOnTab). 0.69's speaker over heads was not picked.
-- **The radio** (the DLL): a teammate farther than 25 m, or either player dead, through a filter
+- **The radio** (the DLL): a teammate farther than 15 m (25 m until 2026-11-13), or either player
+  dead (a spectator too: no body in the world), through a filter
   fitted to 0.69's `_radio` quick-command recordings (high-pass 405 Hz, peaks and dips up to 6.3
-  kHz), retail static under it (`tutorial_interference_02`, -44 dBFS), and retail's squelch at the
+  kHz), retail static under it (`tutorial_interference_02`, -44 dBFS; half of it in the mix since
+  #1635), and retail's squelch at the
   start and end of a far utterance (the static lead-in and tail of 0.69's `_radio` phrases: 0.69 has
   no separate squelch file). Near: plain, no squelch. The sounds are compiled into the DLL
-  (`client-voice/make_radio_sounds.py`).
+  (`client-voice/make_radio_sounds.py`). The switch at 15 m is as it was at 25 m: the filter on or
+  off from the next 20 ms frame, no crossfade (the ears' gains ramp over that frame).
+  **Loudness** (2026-11-13): #1635's +6 dB on speech is undone for near voices, which play as
+  decoded, as on revision 58 (the owner, after playing revision 58: "sound close by right now was
+  very good in game"). The radio's words are raised 3 dB (`radio::VOICE`; the owner: "static is
+  mostly fine, it is just that the general sound is a bit quiet"), its static kept where #1635
+  put it in the mix (half of retail's; `RADIO_BED` 0.5 now that the mix adds no gain). Measured
+  with a voice through the automatic gain at the default sensitivity, a narrow one (to 1.3 kHz)
+  and a wide one (to 7.6 kHz): by ITU-R BS.1770's K weighting the radio's fitted makeup already
+  gave its words the near level (narrow -28.6 near, -29.4 far; wide -27.7, -26.8 dB of full
+  scale), but a band-limited voice of the same energy is heard quieter: its loudness summed over
+  critical bands as Zwicker sums it (third-octave bands to the 0.23) needed 2.9 and 1.7 dB more
+  (3.9 and 3.1 at the highest sensitivity), so +3 dB. With it the far words are within 0.1 and
+  1.3 dB of the near (`a_radio_voice_is_as_loud_as_a_direct_one` holds 2). The static alone
+  -47.7 (K), about 21 dB under the far words. Near speech peaks at 0.15-0.22 of full scale at the
+  default sensitivity, 0.3-0.45 at the highest, under the soft limit's knee (0.5); full to one side
+  (+3 dB in that ear) only the highest sensitivity's loudest reaches into the knee (0.63).
+- **Directional near** (the owner, 2026-11-13: "I would also make the voice directional in first 15
+  meters before radio"): a teammate heard plain comes from its side. The exe tells the DLL each
+  near teammate's pan (`sv_direction(place, sine)`, ABI 2): the sine of its bearing from where the
+  local player faces, on the ground (from its feet to theirs, against its eyes' right: the eye
+  transform's first row). The DLL pans equal-power, scaled so the centre is unity in both ears (as
+  the mono mix was, and as the radio is): left √2·cos θ, right √2·sin θ, θ = (sine + 1)·π/4. The
+  same power at every bearing, no fall-off with distance (not proximity chat); full to one side
+  +3 dB in that ear. Behind is centred as ahead (no HRTF). The mix is stereo since (waveOut 16 kHz
+  16-bit stereo, 64 kB/s to the driver instead of 32; the microphone stays mono); the radio and
+  the squelch are centred.
 - **Automatic gain** (the owner, 2026-11-07: as 0.69): before Opus, the microphone goes through
   speexdsp's preprocessor, noise suppression and automatic gain on, as 0.69d0's voice_recorder
   turns them on (0x2006281CA; its level `voice_chat_preprocess_gain`, 12000 of 1..32768, set
@@ -336,7 +365,7 @@ Where the build differs from or adds to the design above:
   the gain coming back 0.5 dB a frame (and at unity for each new utterance). Speech through the gain never reaches it (measured -13.6
   dBFS at most, at the highest sensitivity and a full-scale voice; -19 at the default); only the
   gain's first fifth of a second after a sudden shout at the highest sensitivity (up to -8 dBFS)
-  is held. The mix's soft limit is #1635's.
+  is held. The mix's soft limit is #1635's (its +6 dB undone for near voices 2026-11-13: the radio, above).
 - **The DLL is Rust** (`client-voice/src`), with static libopus for the codec and static speexdsp
   (its own FFT, not FFTW) for the preprocessor. A worker owns
   its socket, codec, jitter buffers and WinMM capture/playback devices. The game communicates
@@ -403,7 +432,7 @@ Where the build differs from or adds to the design above:
 
 ## Open for the owner (decided 2026-10-25)
 
-- **Radio effect: on.** A teammate within 25 m (`VOICE_NEAR`) is heard plain; farther, through
+- **Radio effect: on.** A teammate within 25 m (`VOICE_NEAR`; 15 m and directional since 2026-11-13) is heard plain; farther, through
   the radio filter (band-pass 300-3400 Hz, light clipping, a little noise). Same volume near and
   far: not proximity chat. Each client decides from its own simulation.
 - **Push-to-talk: P**, the stock `ptt` action, rebindable in Controls.
@@ -431,7 +460,9 @@ Where the build differs from or adds to the design above:
 - The DLL's Rust tests cover protocol bounds, Opus round trips, jitter and packet loss/reorder,
   the fitted radio response, retail squelch, muting, timeouts and the press/release lifecycle,
   and the automatic gain: speech-like input from -50 to -13 dB of full scale comes out within
-  2 dB of one level (-29 dB), the sensitivity's ends 12 dB apart.
+  2 dB of one level (-29 dB), the sensitivity's ends 12 dB apart; the panning law at a few
+  bearings (equal power, centre at unity), a voice to the right mixed into the right ear, and a
+  radio voice's words within 2 dB of a direct one's (loudness summed over critical bands).
 - The match server's headless loopback test runs its actual UDP relay with two Rust client cores.
   Each sends a different synthetic tone through Opus, the wire, routing and jitter playback.
   The received audio's energy and frequency must match the other client. No microphone or fake
@@ -440,15 +471,17 @@ Where the build differs from or adds to the design above:
   while the listener misses the new START packet.
 - `scripts/tab-row-menu/check.sh` (Ruffle) runs the Tab menu with the voice entries: offered,
   muted, unmuted, not done, none without the exe's answer.
-- `cargo test` in `client-patches/rust/`: the saved mutes' text (malformed records), the radio's
-  25 m and the dead. The old `check_voice_026g.py` (Unicorn over the 2026-10-25 hooks) went with
+- `cargo test` in `client-patches/rust/`: the saved mutes' text (malformed records), direct to
+  15 m (14.9 m direct, 15.1 m radio), radio for the dead, a near teammate's pan by its side
+  (right, left, ahead, behind). The old `check_voice_026g.py` (Unicorn over the 2026-10-25 hooks) went with
   those hooks; the lohooks' handlers are not run in Unicorn.
 - The Windows/Wine DLL smoke test covers loading, the ABI, relay handshake, mute/volume updates,
   and stopping/restarting with PTT held. It uses a fake relay; the Rust integration above uses
   the real relay.
 
 Real microphone capture and audible playback still require an in-game test with two games, a
-microphone on one, and both near and beyond 25 m. Also check the Tab menu's voice mute, the
+microphone on one, and both near (walking round the listener: the voice from its side) and
+beyond 15 m. Also check the Tab menu's voice mute, the
 talking list's fade, the automatic gain with a quiet and a loud microphone, disable voice chat,
 PTT rebinding after restarting, death/respawn and crossing a match boundary while PTT is held.
 This PR is kept out of v35 and the following port-only release.

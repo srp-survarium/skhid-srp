@@ -813,7 +813,7 @@ fn client_utterance_order_wraps_at_u16_max() {
 
 #[test]
 fn restarted_process_keeps_the_same_account_but_gets_a_new_relay_utterance() {
-    use skhid_voice::{Core, Encoder, FRAME, wire};
+    use skhid_voice::{Core, Encoder, FRAME, Hearing, wire};
     // Account identities stay attached to these slots even when their
     // authenticated sessions change, as a restarted player rejoins a match.
     struct StableAccounts(Table);
@@ -872,7 +872,7 @@ fn restarted_process_keeps_the_same_account_but_gets_a_new_relay_utterance() {
     assert_eq!(ended[0].1[4..6], 11u16.to_le_bytes());
     core.receive(&wire::parse(&ended[0].1).unwrap(), 20);
     for tick in 0..4 {
-        core.mix(1., 0, 40 + tick * 20);
+        core.mix(1., &Hearing::radio(0), 40 + tick * 20);
     }
     assert_eq!(core.stats().decoded, 4);
     assert_eq!(core.stats().late, 0);

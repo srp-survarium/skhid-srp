@@ -9,7 +9,8 @@
 //!   at the match's end and when its scene is left (`game_world.finish`,
 //!   `game_world.deactivate`) stopped, push-to-talk released first;
 //! - every frame of a match (`game_world.after_move`): the options, the
-//!   mutes and who is far (the radio) told to the DLL when they change, a
+//!   mutes and how each teammate is heard (the radio, or plain from its
+//!   side) told to the DLL when they change, a
 //!   held push-to-talk let go when the key is up or the game lost the
 //!   keyboard, and the hud's list of who talks;
 //! - the game world's keys (`tab_cursor.key`) and mouse buttons
@@ -28,23 +29,28 @@
 
 use core::ffi::CStr;
 
+use ::ragdoll::math::sqrt;
+
 use crate::vostok::log::{self, Piece::*};
 use crate::vostok::types::Place;
 use crate::vostok::voice::{
-    self as engine, Connect, Dll, MUTES_SIZE, Places, Roster, Scene, Settings, TalkInput, TalkKey, VoiceId, name_text,
+    self as engine, Body, Connect, Dll, Heard, Hearing, MUTES_SIZE, Pan, Places, Roster, Scene, Settings, TalkInput, TalkKey,
+    VoiceId, name_text,
 };
 use crate::vostok::{Context, Flow, GameCell, GameWorldButton, GameWorldKey, HudCall, NoExit, Thread, VoiceOnHudCallExit};
 
 /// A teammate farther than this is heard through the radio (the owner,
-/// 2026-10-25); a dead one, or any when the local player is dead, too.
-pub const NEAR_M: f32 = 25.0;
+/// 2026-10-25; 15 m, not 25, 2026-11-13); a dead one, or any when the local
+/// player is dead, too. Nearer, plain and from its side (the owner,
+/// 2026-11-13: "directional in first 15 meters before radio").
+pub const NEAR_M: f32 = 15.0;
 
 /// What the DLL was last told, so it is told again only on a change.
 #[derive(Clone, Copy, PartialEq)]
 struct Told {
     settings: Settings,
     muted: Places,
-    radio: Places,
+    hearing: Hearing,
 }
 
 /// `SKHID_VOICE_LOG` as the game was started with it (`on` or `1`), read at
@@ -231,10 +237,10 @@ pub fn on_connect(ctx: &mut Context<'_>) -> Flow<NoExit> {
     // no mutes and no radio until the match's first frame knows its places (the
     // DLL keeps the last match's, by place, or its defaults; the relay forwards
     // to the seat from its connect, during the loading).
-    let told = Told { settings: engine::settings(thread), muted: Places::NONE, radio: Places::NONE };
+    let told = Told { settings: engine::settings(thread), muted: Places::NONE, hearing: Hearing::CENTRED };
     dll.settings(told.settings);
     dll.mute(told.muted);
-    dll.radio(told.radio);
+    dll.hearing(told.hearing, None);
     let started = dll.start(&connect);
     trace.line(&[
         Text("the relay's port "),
@@ -277,21 +283,36 @@ pub fn on_deactivate(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// The teammates heard through the radio: farther than [`NEAR_M`], or
-/// either of the two not alive in the world.
-fn radio(roster: &Roster) -> Places {
-    let me = roster.local().and_then(|me| roster.seat(me)).and_then(|seat| seat.position);
-    roster.teammates().fold(Places::NONE, |far, (place, seat)| {
-        let near = match (me, seat.position) {
-            (Some(a), Some(b)) => {
-                let d = [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-                let squared = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
-                squared.is_finite() && squared <= NEAR_M * NEAR_M
-            }
-            _ => false,
+/// How each teammate is heard: through the radio farther than [`NEAR_M`],
+/// or when either of the two is not alive in the world (dead, a spectator);
+/// nearer, plain from its side of where the local player faces. The other
+/// places are not heard at all: plain, centred.
+fn hearing(roster: &Roster) -> Hearing {
+    let me = roster.local().and_then(|me| roster.seat(me)).and_then(|seat| seat.body);
+    roster.teammates().fold(Hearing::CENTRED, |hearing, (place, seat)| {
+        let heard = match (me, seat.body) {
+            (Some(me), Some(them)) if near(me.feet, them.feet) => Heard::Direct(pan(me, them.feet)),
+            _ => Heard::Radio,
         };
-        if near { far } else { far.with(place) }
+        hearing.with(place, heard)
     })
+}
+
+fn near(a: [f32; 3], b: [f32; 3]) -> bool {
+    let d = [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+    let squared = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+    squared.is_finite() && squared <= NEAR_M * NEAR_M
+}
+
+/// Where `at` is from the listener, left to right: the sine of its bearing
+/// from where the listener faces, on the ground (X and Z; Y is up). Behind
+/// is centred as ahead (plain panning cannot tell them apart); straight
+/// above or below, or a listener with no right (a broken eye), centred.
+fn pan(listener: Body, at: [f32; 3]) -> Pan {
+    let d = [at[0] - listener.feet[0], at[2] - listener.feet[2]];
+    let right = [listener.right[0], listener.right[2]];
+    let lengths = sqrt((d[0] * d[0] + d[1] * d[1]) * (right[0] * right[0] + right[1] * right[1]));
+    if lengths > 1e-3 { Pan::new((d[0] * right[0] + d[1] * right[1]) / lengths) } else { Pan::CENTRE }
 }
 
 /// The teammates whose voice id is muted.
@@ -336,7 +357,7 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
         }
     }
     let roster = scene.roster(true);
-    let told = Told { settings, muted: muted(dll, &roster, &live.mutes), radio: radio(&roster) };
+    let told = Told { settings, muted: muted(dll, &roster, &live.mutes), hearing: hearing(&roster) };
     let before = live.told;
     if before.map(|t| t.settings) != Some(told.settings) {
         dll.settings(told.settings);
@@ -344,9 +365,7 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if before.map(|t| t.muted) != Some(told.muted) {
         dll.mute(told.muted);
     }
-    if before.map(|t| t.radio) != Some(told.radio) {
-        dll.radio(told.radio);
-    }
+    dll.hearing(told.hearing, before.map(|t| t.hearing));
     live.told = Some(told);
     let talking = match settings {
         Settings::Off => Places::NONE,
@@ -514,22 +533,51 @@ mod tests {
         assert_eq!(Mutes::parse(b"").1, 0);
     }
 
+    /// The local player (place 0) faces +Z, its right +X (the map's frame).
     fn roster(seats: &[(u32, Option<[f32; 3]>)]) -> Roster {
         let mut r = Roster::EMPTY;
-        for (n, &(team, position)) in seats.iter().enumerate() {
-            r.set(Place::new(n as u32).unwrap(), Seat { name: [0; 64], team, position });
+        for (n, &(team, feet)) in seats.iter().enumerate() {
+            let body = feet.map(|feet| Body { feet, right: [1.0, 0.0, 0.0] });
+            r.set(Place::new(n as u32).unwrap(), Seat { name: [0; 64], team, body });
         }
         r.set_local(Place::new(0));
         r
     }
 
+    fn p(n: u32) -> Place {
+        Place::new(n).unwrap()
+    }
+
     #[test]
-    fn radio_past_25_m_and_for_the_dead() {
-        let p = |n| Place::new(n).unwrap();
-        let r = roster(&[(0, Some([0.0; 3])), (0, Some([25.0, 0.0, 0.0])), (0, Some([25.01, 0.0, 0.0])), (1, None), (0, None)]);
-        let far = radio(&r);
-        assert!(!far.has(p(1)) && far.has(p(2)) && !far.has(p(3)) && far.has(p(4)) && !far.has(p(0)));
+    fn direct_to_15_m_radio_past_it_and_for_the_dead() {
+        let r = roster(&[(0, Some([0.0; 3])), (0, Some([0.0, 0.0, 14.9])), (0, Some([0.0, 0.0, 15.1])), (1, None), (0, None)]);
+        let heard = hearing(&r);
+        assert_eq!(heard.of(p(1)), Heard::Direct(Pan::CENTRE));
+        assert_eq!(heard.of(p(2)), Heard::Radio);
+        assert_eq!(heard.of(p(4)), Heard::Radio);
+        // Not teammates (the other team, the local player): not heard, left plain.
+        assert_eq!(heard.of(p(3)), Heard::Direct(Pan::CENTRE));
+        assert_eq!(heard.of(p(0)), Heard::Direct(Pan::CENTRE));
         let dead = roster(&[(0, None), (0, Some([1.0, 0.0, 0.0]))]);
-        assert!(radio(&dead).has(p(1)));
+        assert_eq!(hearing(&dead).of(p(1)), Heard::Radio);
+    }
+
+    #[test]
+    fn a_near_teammate_is_heard_from_its_side() {
+        let at = |x: f32, z: f32| {
+            let r = roster(&[(0, Some([10.0, 2.0, 10.0])), (0, Some([10.0 + x, 3.0, 10.0 + z]))]);
+            match hearing(&r).of(p(1)) {
+                Heard::Direct(pan) => pan.get(),
+                Heard::Radio => panic!("{x} {z} is near"),
+            }
+        };
+        let close = |a: f32, b: f32| (a - b).abs() < 1e-4;
+        assert!(close(at(5.0, 0.0), 1.0), "right");
+        assert!(close(at(-5.0, 0.0), -1.0), "left");
+        assert!(close(at(0.0, 5.0), 0.0), "ahead");
+        assert!(close(at(0.0, -5.0), 0.0), "behind");
+        assert!(close(at(3.0, 3.0), core::f32::consts::FRAC_1_SQRT_2), "ahead right");
+        assert!(close(at(-3.0, -3.0), -core::f32::consts::FRAC_1_SQRT_2), "behind left");
+        assert!(close(at(0.0, 0.0), 0.0), "straight above");
     }
 }
