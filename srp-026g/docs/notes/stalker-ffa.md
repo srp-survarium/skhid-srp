@@ -1,8 +1,8 @@
 # STALKER FFA maps and Training Camp's crater arena
 
-Experimental Pool, Military Warehouses and Training Camp each have 24 authored
-FFA spawns. Training Camp keeps players inside the crater, including spawns on
-two raised islands, and gives its FFA spawns 500 ms of protection. Pool and
+Experimental Pool and Military Warehouses have 24 authored FFA spawns each,
+Training Camp 26. Training Camp keeps players inside the crater, including four
+spawns on its raised islands, and gives its FFA spawns 500 ms of protection. Pool and
 Military Warehouses have in-game panorama pictures in room tiles and loading
 screens. All original TDM spawn positions are preserved.
 
@@ -20,7 +20,7 @@ Its source and porter history are in `stalker-maps.md` and
 | --- | --- | --- | --- | --- |
 | Experimental Pool | `v010b_cs_mp_bath/day_4` | 210 / 42 | 15 / 31 | 15.52 m |
 | Military Warehouses | `v010b_cs_mp_military_1/day_4` | 211 / 43 | 16 / 32 | 39.71 m |
-| Training Camp | `v010b_cs_training_camp/day_4` | 212 / 44 | 17 / 33 | 16.16 m |
+| Training Camp | `v010b_cs_training_camp/day_4` | 212 / 44 | 17 / 33 | 12.31 m (16.16 m among the first 24) |
 
 The remaining ports use levels 18–20 and pictures 34–36. Rudnya keeps level 14
 and picture 30. The mode tables, movie classes, minimaps and ten localization
@@ -32,7 +32,7 @@ dictionary append-count guards include the six TDM registrations.
 `scripts/stalker-maps/ffa-spawns.tsv` contains positions and engine rotations.
 `make_ffa_edits.py` generates `content-edit/ffa-stalker-1.json` over the source
 pack and a composed dictionary that already contains its six TDM rows. The
-following `ffa-stalker-radius-1.json` retunes all 72 FFA points to a 20 m enemy
+following `ffa-stalker-radius-1.json` retunes all 74 FFA points to a 20 m enemy
 radius. They have a 1 m ally radius, priority 1 and empty team collision zones.
 Pool and Military Warehouses keep two seconds of spawn protection.
 
@@ -57,8 +57,10 @@ Review generated points before replacing the committed TSV. The planner loads
 actual walker geometry and reachable standing floors, checks a 0.38 m radius /
 1.8 m standing body, ground within 0.5 m, a six-metre walkable facing and a 2 m
 margin from harmful zones. Stored rotations use Vostok's positive-yaw convention.
-All 72 authored points passed these checks; the new crater layout was selected
-from 1,173 safe candidates.
+All 74 authored points passed these checks; the crater layout's first 24 were
+selected from 1,173 safe candidates. Points are at least 12 m apart horizontally.
+For Training Camp, the planner then adds island points (below): rerunning it
+reproduces the 72 earlier rows byte for byte.
 
 ## Crater boundary and islands
 
@@ -66,10 +68,38 @@ from 1,173 safe candidates.
 their facing destinations stay at least 2 m inside it. This replaces the former
 45 m distance-from-TDM rule, which admitted the surrounding forest.
 
-Training points 8 and 19 are on the raised islands:
+The crater's centre has elevated walkways 15-30 m above its floor: three
+towers, a central hub, catwalks between them, and five flat raised platforms,
+the islands of `training-islands.tsv` (a box and floor height range each,
+reviewed from the planner's standing floors). Training points 8 and 19 of the
+first 24 are raised: point 8 `(30.435001, 21.321009, -23.845001)` on the
+south-east island, point 19 `(38.685, 16.221554, 6.154999)` on the east tower's
+ramp.
 
-- Point 8: `(30.435001, 21.321009, -23.845001)`.
-- Point 19: `(38.685, 16.221554, 6.154999)`.
+After the 24, the planner samples the islands' standing floors on a 0.75 m
+lattice with the same checks, and adds the candidate farthest from every point
+so far while one stays at least 12 m from all of them. This adds two points,
+IDs 24 and 25 (2026-11-13, "set more spawns on training camp on islands"):
+
+| Island | Floor height | Standing area | Safe candidates | Of them ≥ 12 m from the 24 | Raised points before / after |
+| --- | --- | --- | --- | --- | --- |
+| west | 22-25 m | 122 m² | 239 | 0 (at most 11.7 m from point 14, below it) | 0 / 0 |
+| north-east upper | 22-23 m | 68 m² | 115 | 11 | 0 / 1: point 24 `(30.435001, 21.93808, 33.155)` |
+| north-east lower | 18-19 m | 54 m² | 112 | 5 | 0 / 1: point 25 `(28.435001, 18.029127, 18.154999)` |
+| south-east | 20-22 m | 115 m² | 202 | 0 (point 8 is on it; at most 10.8 m) | 1 / 1 |
+| east | 21-22 m | 66 m² | 116 | 0 (at most 10.1 m from point 17, below it) | 0 / 0 |
+
+The spacing is horizontal, so a crater-floor spawn under an island counts as
+near it. Points 24 and 25 are 12.55 m and 12.31 m from point 10 on the floor
+between them. Outside the islands, only a catwalk arm (y 29, near (16, -7)), a
+tower ramp's landing (y 15.5, near (18, -21)) and the foot of the bridge onto
+the north-east upper island have candidates 12 m from the 24; they are walkways,
+not islands, and get none.
+
+Points 24 and 25 (unplayed) passed the planner's checks on the TDM project and
+again on Free for All's `day_8` as revision 57 has it (no crates, crater wall).
+A quick `build-content 58` changed one file, `day_8`: its 48 earlier points and
+all other data the same, 24 and 25 with 20 m, 500 ms. `day_4` stays byte-identical.
 
 `training-camp-arena-1.json` copies the stock native level-border model through
 the content editor and replaces its primitives with 24 overlapping boxes along
@@ -80,7 +110,7 @@ all 24 original TDM spawns. This is game content, not a server-side map table.
 
 ## Millisecond protection
 
-The crater edit sets `invulnerability_time_ms = 500` on Training Camp's 24 FFA
+The crater edit sets `invulnerability_time_ms = 500` on Training Camp's 26 FFA
 points, with legacy seconds zero. Original TDM timing is unchanged.
 
 The client hooks `respawn_point_core::load` (0x2F4580) at 0x2F4628, before the

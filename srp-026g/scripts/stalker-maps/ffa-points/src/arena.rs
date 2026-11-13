@@ -10,6 +10,45 @@ pub fn vertices() -> &'static [[f32; 2]] {
     }).collect())
 }
 
+/// The reviewed raised islands inside the crater: a box around each flat
+/// platform of the elevated walkways, with its floor's height range.
+pub const ISLANDS: &str = include_str!("../../training-islands.tsv");
+
+pub struct Island {
+    pub name: &'static str,
+    min: [f32; 3],
+    max: [f32; 3],
+}
+
+impl Island {
+    /// Whether a standing floor at (x, y, z) is this island's.
+    pub fn holds(&self, x: f32, y: f32, z: f32) -> bool {
+        [x, y, z]
+            .iter()
+            .zip(self.min.iter().zip(&self.max))
+            .all(|(v, (lo, hi))| (lo..=hi).contains(&v))
+    }
+}
+
+pub fn islands() -> &'static [Island] {
+    static PARSED: std::sync::OnceLock<Vec<Island>> = std::sync::OnceLock::new();
+    PARSED.get_or_init(|| {
+        ISLANDS
+            .lines()
+            .skip(1)
+            .map(|line| {
+                let mut cells = line.split('\t');
+                let name = cells.next().expect("island name");
+                let v: Vec<f32> = cells.map(|c| c.parse().expect("island bound")).collect();
+                let [x0, z0, x1, z1, y0, y1] = v[..] else {
+                    panic!("island {name}: expected x_min z_min x_max z_max y_min y_max");
+                };
+                Island { name, min: [x0, y0, z0], max: [x1, y1, z1] }
+            })
+            .collect()
+    })
+}
+
 /// The point must be inside the rim and clear of its walker barrier.
 pub fn contains(x: f32, z: f32, margin: f32) -> bool {
     let vertices = vertices();
@@ -40,5 +79,21 @@ mod tests {
         for &[x, z] in vertices() {
             assert!(!contains(x, z, 2.0));
         }
+    }
+
+    #[test]
+    fn islands_are_raised_and_inside_the_crater() {
+        assert_eq!(islands().len(), 5);
+        for island in islands() {
+            assert!(island.min.iter().zip(&island.max).all(|(lo, hi)| lo < hi), "{}", island.name);
+            assert!(island.min[1] > 15.0, "{} is not raised", island.name);
+            for x in [island.min[0], island.max[0]] {
+                for z in [island.min[2], island.max[2]] {
+                    assert!(contains(x, z, 2.0), "{} reaches the rim", island.name);
+                }
+            }
+        }
+        // Point 8, the original south-east island spawn, is on its island.
+        assert!(islands().iter().any(|i| i.holds(30.435, 21.321, -23.845)));
     }
 }

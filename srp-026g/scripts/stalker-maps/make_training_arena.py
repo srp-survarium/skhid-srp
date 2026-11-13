@@ -11,7 +11,7 @@ import json
 import math
 from pathlib import Path
 
-from make_ffa_edits import tree
+from make_ffa_edits import COUNTS, tree
 
 HERE = Path(__file__).resolve().parent
 # Free for All's own copy of the TDM project (ffa-projects-1.json); TDM's stays as it is.
@@ -33,8 +33,9 @@ def outline():
 def build(native):
     points = outline()
     original = tree((native / SOURCE / PART).read_bytes())['primitives']
+    count = COUNTS['cs_training_camp']
     edits = {'_about': 'Training Camp: crater rim closed to walkers; forest is scenery. '
-             '24 FFA points use 500 integer milliseconds (requires the optional-ms client hook); '
+             f'{count} FFA points use 500 integer milliseconds (requires the optional-ms client hook); '
              'legacy seconds are zero. The original TDM points and their protection are unchanged.',
              'copy': [{'files': f'{SOURCE}/{p}', 'from': f'{SOURCE}/{p}', 'to': f'{MODEL}/{p}'} for p in FILES],
              'append_entry': [], 'remove_entry': [], 'set_entry': [], 'add_value': []}
@@ -64,7 +65,7 @@ def build(native):
         'values': {'rotation': [0.0, 0.0, 0.0], 'position': [0.0, 0.0, 0.0],
                   'cmask': 4, 'cgroup': 2, 'scale': [1.0, 1.0, 1.0],
                   'lib_name': f'resources/{MODEL}/walker_collision'}}]
-    for i in range(24):
+    for i in range(count):
         edits['set_entry'].append({'file': PROJECT, 'list': 'server_objects/respawn_points',
             'where': {'team': 2, 'point_id': i},
             'from': {'invulnerability_time': 2}, 'to': {'invulnerability_time': 0}})
