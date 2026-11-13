@@ -173,11 +173,12 @@ pub struct GridTuning {
     /// ported, the refusal is the exe's own verdict). Off: such links pass and bots stall crouched on them (Rudnya, 11 stalls
     /// in the owner's 14 recordings). Client-proven, so ON and kept by `all_off`. A grid is the map's (see `gap_links`).
     pub walk_ceiling_stalls: bool,
-    /// [A364 C2 rows 11/12] Whether Jump links rise above the sprint jump's lowest top (1.28 m) to the rim reach, each flown on
-    /// the exact tick as the motor presses a sprint ledge and kept only where every press lands (`mapdata::Body::rim_jumps`): a
-    /// run-up jump's capsule rests on a top's edge as the clip comes down and the ground steps climb the rest (exactness's
-    /// Chemical Plant flights, 143 of 424 sprint presses onto a deck 1.20-1.67 m up; the flyer the rig's to 2 mm). Off: no
-    /// jump link above 1.28 m. Client-proven, so ON and kept by `all_off`. A grid is the map's (see `gap_links`).
+    /// [A364 C2 rows 11/12] Whether jumps up a ledge or across a gap to a top over what the Jump and gap links reach are made, each
+    /// flown on the exact tick over the presses a client can make (walking and sprint, the gap links' leads) and kept as a GapJump
+    /// carrying the press that lands (`mapdata::Body::rim_jumps`): a run-up jump's capsule rests on a top's edge as the clip comes
+    /// down and the ground steps climb the rest (exactness's Chemical Plant flights, 143 of 424 sprint presses onto a deck 1.20-1.67
+    /// m up; the flyer matches the rig's flights to 2 mm). Off: no jump to such a top, though players make it. Client-proven, so ON
+    /// and kept by `all_off`. A grid is the map's (see `gap_links`).
     pub rim_jumps: bool,
     /// [routes corpus] Whether a jump onto a top too narrow to walk on along the jump lands where a wall beyond the top stops
     /// the body (`mapdata::Body::wall_held_tops`: a window's sill, a ledge along a wall; a fence's top with a drop beyond stays no
