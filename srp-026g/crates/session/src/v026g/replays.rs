@@ -1017,6 +1017,33 @@ impl Replays {
     /// `revision`: its game's patch revision, if known; `played`: whether
     /// it played the match, while the lobby keeps its report. The status is
     /// kept for its polls.
+    /// A save of a match still being played: `busy`, looked up nowhere. Its
+    /// recording may be named before its end (by a match server taken up
+    /// again after a restart in this process), and a file of it would get
+    /// past the live delay.
+    pub fn save_running(
+        &self,
+        account_id: u32,
+        match_id: u32,
+        revision: Option<u8>,
+        played: Option<bool>,
+        now: Instant,
+    ) -> Status {
+        self.inner.locked().asks.insert(
+            account_id,
+            Ask {
+                match_id,
+                at: now,
+                status: Status::Busy,
+                ready: None,
+                revision,
+                played,
+                checked: Some(now),
+            },
+        );
+        Status::Busy
+    }
+
     pub fn save_ask(
         &self,
         account_id: u32,

@@ -53,6 +53,7 @@ use survarium::v026g::lobby;
 use survarium::v026g::lobby::ReplayWatchAsk;
 
 use super::core::{Core, Who};
+use super::play::LivePhase;
 
 impl Core<'_> {
     /// `3D 00 <REPLAY_WATCH_BASE | place << 16 | seconds> <match_id>`: the
@@ -202,7 +203,19 @@ impl Core<'_> {
                 .find(match_id)
                 .map(|report| report.player(who.account_id).is_some());
             let revision = self.store.client_revision(who.session_id);
-            let status = replays.save_ask(who.account_id, match_id, revision, played, now);
+            let running = self
+                .matches
+                .values()
+                .any(|running| running.ticket.match_id == match_id)
+                && matches!(
+                    self.host.live(match_id, now).unwrap_or_default().phase,
+                    LivePhase::Countdown | LivePhase::Playing
+                );
+            let status = if running {
+                replays.save_running(who.account_id, match_id, revision, played, now)
+            } else {
+                replays.save_ask(who.account_id, match_id, revision, played, now)
+            };
             log::info!(
                 "{} asked to save the replay of match {match_id:#x} (game revision {}): {}",
                 who.name,
