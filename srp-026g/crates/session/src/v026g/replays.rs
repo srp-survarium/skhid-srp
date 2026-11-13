@@ -937,13 +937,17 @@ impl Replays {
     /// The match server kept a match's recording. Its file is made when a
     /// player first asks to save it ([`Self::save_ask`]), not now: most
     /// matches are never saved, and making one takes the CPU the matches
-    /// share.
+    /// share. A file of that id made before is another match's (ids come
+    /// again after restarts): it goes, so Save never hands it out.
     pub fn recording_kept(&self, match_id: u32) {
-        let mut inner = self.inner.locked();
-        inner.not_kept.retain(|&id| id != match_id);
-        inner.deleted.retain(|&id| id != match_id);
-        inner.failed.remove(&match_id);
-        inner.news_of(match_id);
+        {
+            let mut inner = self.inner.locked();
+            inner.not_kept.retain(|&id| id != match_id);
+            inner.deleted.retain(|&id| id != match_id);
+            inner.failed.remove(&match_id);
+            inner.news_of(match_id);
+        }
+        self.delete_file(match_id);
     }
 
     /// A match's recording was closed under the minimum of players.
@@ -1681,6 +1685,20 @@ mod tests {
 
     fn made(replays: &Replays, match_id: u32) {
         made_by(replays, match_id, vec![Some(current())]);
+    }
+
+    #[test]
+    fn a_file_of_an_id_kept_anew_is_another_matchs_and_goes() {
+        let root = temp("id-again");
+        let replays = on(&root);
+        kept(&replays, MATCH);
+        made(&replays, MATCH);
+        assert!(replays.file_path(MATCH).unwrap().exists());
+        // The id comes again (after a restart): the old file is not this match's.
+        replays.recording_kept(MATCH);
+        assert!(!replays.file_path(MATCH).unwrap().exists());
+        assert!(!replays.json_path(MATCH).unwrap().exists());
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
