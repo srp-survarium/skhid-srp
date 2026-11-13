@@ -14,7 +14,10 @@ import make_training_arena as arena
 
 
 def inside(x, z):
-    points = arena.outline()
+    return inside_of(arena.outline(), x, z)
+
+
+def inside_of(points, x, z):
     crossed = False
     for a, b in zip(points, points[1:] + points[:1]):
         if (a[1] > z) != (b[1] > z) and x < a[0] + (z - a[1]) * (b[0] - a[0]) / (b[1] - a[1]):

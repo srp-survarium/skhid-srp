@@ -1,5 +1,5 @@
 {
-  "_about": "Training Camp: crater rim closed to walkers; forest is scenery. 26 FFA points use 500 integer milliseconds (requires the optional-ms client hook); legacy seconds are zero. The original TDM points and their protection are unchanged.",
+  "_about": "Training Camp: crater rim closed to walkers; forest is scenery. 29 FFA points use 500 integer milliseconds (requires the optional-ms client hook); legacy seconds are zero. The original TDM points and their protection are unchanged.",
   "copy": [
     {
       "files": "models/level/04/level_border.model/settings",
@@ -1253,6 +1253,48 @@
       "to": {
         "invulnerability_time": 0
       }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 26
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 27
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_training_camp/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "team": 2,
+        "point_id": 28
+      },
+      "from": {
+        "invulnerability_time": 2
+      },
+      "to": {
+        "invulnerability_time": 0
+      }
     }
   ],
   "add_value": [
@@ -1461,6 +1503,30 @@
         "projects/v010b_cs_training_camp/day_8/client_project"
       ],
       "table": "server_objects/respawn_points[49]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    },
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_8/client_project"
+      ],
+      "table": "server_objects/respawn_points[50]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    },
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_8/client_project"
+      ],
+      "table": "server_objects/respawn_points[51]",
+      "key": "invulnerability_time_ms",
+      "value": 500
+    },
+    {
+      "files": [
+        "projects/v010b_cs_training_camp/day_8/client_project"
+      ],
+      "table": "server_objects/respawn_points[52]",
       "key": "invulnerability_time_ms",
       "value": 500
     }
