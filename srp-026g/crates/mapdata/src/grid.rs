@@ -548,6 +548,9 @@ pub enum WalkGait {
     Any,
     /// A sprinting body steps up it; a walking one must jump.
     SprintOrJump,
+    /// [`Body::walk_ceiling_stalls`] Only a crouching body walks it: the walk check's standing body is refused under a low
+    /// ceiling between the two floors (both may have standing room) and its crouched body arrives ([`WalkGrid::walk_crouched`]).
+    Crouch,
 }
 
 /// How one floor reaches the next.
@@ -1006,6 +1009,9 @@ pub struct WalkGrid {
     /// as (from, to), sorted ([`Self::walk_marked`]). In the file (after the walled exits) and the digest. Empty without the
     /// switch.
     walk_marked: Vec<(NodeId, NodeId)>,
+    /// [`Body::walk_ceiling_stalls`] The Walk links only a crouching body walks ([`WalkGait::Crouch`], [`Self::walk_crouched`]), as
+    /// (from, to), sorted. In the file (after the marked walks) and the digest. Empty without the switch.
+    walk_crouched: Vec<(NodeId, NodeId)>,
     /// Per node, its distance to the nearest wall the capsule meets, in [`clearance::CLEARANCE_STEP_M`] steps ([`Self::wall_clearance`]):
     /// made by [`Self::with_wall_clearance`] after the grid is built or read, from the map's triangles. In neither the file nor the
     /// digest. Empty without it.
@@ -1063,6 +1069,8 @@ struct Wide {
     /// [2c] [`Body::walk_every_link`]: the Walk links that failed the walk check and were kept as a floor's only way, as
     /// (from, to).
     marked: Vec<(u32, u32)>,
+    /// [`Body::walk_ceiling_stalls`]: the Walk links the walk check passes only crouched, as (from, to), sorted.
+    crouch: Vec<(u32, u32)>,
 }
 
 /// A floor put aside by [`Body::wall_give_back`] ([`Wide::aside`]): where it is and its room.
@@ -1358,6 +1366,7 @@ impl WalkGrid {
             ramp: Vec::new(),
             walled_exits: Vec::new(),
             walk_marked: Vec::new(),
+            walk_crouched: Vec::new(),
             clearance: Vec::new(),
             open: Vec::new(),
             walker: None,
@@ -1505,6 +1514,7 @@ impl WalkGrid {
             given: Vec::new(),
             aside: Vec::new(),
             marked: Vec::new(),
+            crouch: Vec::new(),
         }
     }
 
@@ -2562,6 +2572,11 @@ impl WalkGrid {
             *a = new_id[*a as usize];
             *b = new_id[*b as usize];
         }
+        wide.crouch.retain(|&(a, b)| alive[a as usize] && alive[b as usize]);
+        for (a, b) in &mut wide.crouch {
+            *a = new_id[*a as usize];
+            *b = new_id[*b as usize];
+        }
         let mut start = Vec::with_capacity(self.start.len());
         let mut node = 0usize;
         for c in 0..self.nx * self.nz {
@@ -2730,6 +2745,14 @@ impl WalkGrid {
             digest.u32(a);
             digest.u32(b);
         }
+        // [`Body::walk_ceiling_stalls`] A grid with no crouched walks digests as before there were any.
+        if !self.walk_crouched.is_empty() {
+            digest.len(self.walk_crouched.len());
+            for &(a, b) in &self.walk_crouched {
+                digest.u32(a);
+                digest.u32(b);
+            }
+        }
         digest.finish()
     }
 
@@ -2761,7 +2784,7 @@ impl WalkGrid {
             })?;
             // Only a grid with off-mesh links has their table: one without
             // writes as before there were any (read back as none).
-            if self.off.is_empty() && self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() {
+            if self.off.is_empty() && self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() {
                 return Ok(());
             }
             out.plain(&self.off, |l| {
@@ -2773,12 +2796,12 @@ impl WalkGrid {
                 bytes
             })?;
             // [A304] The ramp slopes, when the grid has them (an empty table before the walled exits).
-            if self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() {
+            if self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() {
                 return Ok(());
             }
             out.plain(&self.ramp, |&v| [v])?;
             // [A347] The walled exits, when the grid has them (an empty table before the marked walks).
-            if self.walled_exits.is_empty() && self.walk_marked.is_empty() {
+            if self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() {
                 return Ok(());
             }
             let pair = |&(a, b): &(NodeId, NodeId)| {
@@ -2788,11 +2811,16 @@ impl WalkGrid {
                 bytes
             };
             out.plain(&self.walled_exits, pair)?;
-            // [2c] The marked walks, when the grid has them.
-            if self.walk_marked.is_empty() {
+            // [2c] The marked walks, when the grid has them (an empty table before the crouched walks).
+            if self.walk_marked.is_empty() && self.walk_crouched.is_empty() {
                 return Ok(());
             }
-            out.plain(&self.walk_marked, pair)
+            out.plain(&self.walk_marked, pair)?;
+            // [`Body::walk_ceiling_stalls`] The crouched walks, when the grid has them.
+            if self.walk_crouched.is_empty() {
+                return Ok(());
+            }
+            out.plain(&self.walk_crouched, pair)
         })
     }
 
@@ -2872,6 +2900,14 @@ impl WalkGrid {
                             (word(0), word(4))
                         })?
                     },
+                    walk_crouched: if input.ends() {
+                        Vec::new()
+                    } else {
+                        input.plain(|bytes: [u8; 8]| {
+                            let word = |i: usize| u32::from_le_bytes([bytes[i], bytes[i + 1], bytes[i + 2], bytes[i + 3]]);
+                            (word(0), word(4))
+                        })?
+                    },
                     clearance: Vec::new(),
                     open: Vec::new(),
                     walker: None,
@@ -2910,6 +2946,9 @@ impl WalkGrid {
         }
         if self.walk_marked.iter().any(|&(a, b)| a as usize >= n || b as usize >= n) || self.walk_marked.windows(2).any(|w| w[0] >= w[1]) {
             return Err("bad marked walks".into());
+        }
+        if self.walk_crouched.iter().any(|&(a, b)| a as usize >= n || b as usize >= n) || self.walk_crouched.windows(2).any(|w| w[0] >= w[1]) {
+            return Err("bad crouched walks".into());
         }
         if self.start.len() != cells + 1
             || self.start[0] != 0
@@ -3540,6 +3579,16 @@ impl WalkGrid {
         marked.sort_unstable();
         marked.dedup();
         self.walk_marked = marked;
+        // [`Body::walk_ceiling_stalls`] The Walk links crossed crouched, still there.
+        let mut crouched: Vec<(NodeId, NodeId)> = wide
+            .crouch
+            .iter()
+            .copied()
+            .filter(|&(a, b)| (0..DIRS.len()).any(|d| wide.links[a as usize][d] == b && wide.kinds[a as usize][d] == LinkKind::Walk))
+            .collect();
+        crouched.sort_unstable();
+        crouched.dedup();
+        self.walk_crouched = crouched;
         self.off = wide.off;
         for l in &self.off {
             self.flags[l.from as usize] |= OFF_OUT;
@@ -3612,17 +3661,34 @@ impl WalkGrid {
         self.walk_marked.binary_search(&(a, b)).is_ok()
     }
 
+    /// [`Body::walk_ceiling_stalls`] Whether the Walk link `a` -> `b` is one only a crouching body walks ([`WalkGait::Crouch`]).
+    pub fn walk_crouched(&self, a: NodeId, b: NodeId) -> bool {
+        self.walk_crouched.binary_search(&(a, b)).is_ok()
+    }
+
+    /// [`Body::walk_ceiling_stalls`] How many Walk links only a crouching body walks ([`Self::walk_crouched`]).
+    pub fn walk_crouched_count(&self) -> usize {
+        self.walk_crouched.len()
+    }
+
     /// [2c] How many Walk links are marked ([`Self::walk_marked`]).
     pub fn walk_marked_count(&self) -> usize {
         self.walk_marked.len()
     }
 
-    /// [A364 C2] The gait the Walk link `a` -> `b` needs ([`WalkGait`]), or `None` where `a` has no Walk link to `b`: a rise of
-    /// [`Body::walked_step`] or more (0.76 m with the clients' numbers) is climbed by a sprint or a jump. Derived from the two floors'
-    /// heights: in neither the file nor the digest.
+    /// [A364 C2] The gait the Walk link `a` -> `b` needs ([`WalkGait`]), or `None` where `a` has no Walk link to `b`: a link the
+    /// walk check passes only crouched is [`WalkGait::Crouch`] ([`Self::walk_crouched`], in the file); else a rise of
+    /// [`Body::walked_step`] or more (0.76 m with the clients' numbers) is climbed by a sprint or a jump (derived from the two
+    /// floors' heights).
     pub fn link_gait(&self, a: NodeId, b: NodeId) -> Option<WalkGait> {
         self.links(a).any(|(c, kind)| c == b && kind == LinkKind::Walk).then(|| {
-            if self.height[b as usize] - self.height[a as usize] >= self.body.walked_step() { WalkGait::SprintOrJump } else { WalkGait::Any }
+            if self.walk_crouched(a, b) {
+                WalkGait::Crouch
+            } else if self.height[b as usize] - self.height[a as usize] >= self.body.walked_step() {
+                WalkGait::SprintOrJump
+            } else {
+                WalkGait::Any
+            }
         })
     }
 

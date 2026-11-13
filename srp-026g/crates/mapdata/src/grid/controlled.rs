@@ -80,6 +80,9 @@ struct LinkWalk {
     chain_failed: bool,
     /// [`Body::walk_ceiling_stalls`]: how many of the lines the client's tick refused under a low ceiling (crouched too).
     refused: usize,
+    /// [`Body::walk_ceiling_stalls`]: how many of the passing lines arrived only crouched (the standing body refused under a low
+    /// ceiling, walked again crouched).
+    crouched: usize,
 }
 
 /// [2c] A face no body walks on within this of a floor's capsule makes its links walked ([`Body::walk_every_link`]), m: the
@@ -619,9 +622,11 @@ impl WalkGrid {
         }
         wide.off.sort_by_key(|l| (l.from, l.to));
         if body.walk_every_link {
-            let (stats, failing, held) = self.walk_every_link(wide, &world, s, start, stats);
+            let (stats, failing, held, mut crouch) = self.walk_every_link(wide, &world, s, start, stats);
             // The risers with no walking way round stay, marked (the caller marks the cut's kept ones beside them).
             wide.marked = held;
+            crouch.sort_unstable();
+            wide.crouch = crouch;
             return (stats, failing);
         }
         // Checks: the floors with a face no body walks on near their capsule.
@@ -667,7 +672,7 @@ impl WalkGrid {
         s: &Settings,
         start: WalkStart,
         mut stats: ControlledStats,
-    ) -> (ControlledStats, Vec<(u32, usize, f32)>, Held) {
+    ) -> (ControlledStats, Vec<(u32, usize, f32)>, Held, Vec<(u32, u32)>) {
         let n = self.height.len();
         let floors: Vec<usize> = (0..n).collect();
         let near = parallel(&floors, |&a| {
@@ -690,6 +695,17 @@ impl WalkGrid {
         stats.checks = checks.len();
         stats.checks_crouched = checks.iter().filter(|&&(a, d)| self.stance(a, wide.links[a][d] as usize) == Stance::Crouched).count();
         let walked = parallel(&checks, |&(a, d)| self.walk_link(wide, world, s, start, a, d));
+        // [`Body::walk_ceiling_stalls`]: the passing links two of whose lines arrived only crouched: a route crosses them crouched.
+        let crouch: Vec<(u32, u32)> = if self.body.walk_ceiling_stalls {
+            checks
+                .iter()
+                .zip(&walked)
+                .filter(|(_, w)| w.passes && w.crouched >= 2)
+                .map(|(&(a, d), _)| (a as u32, wide.links[a][d]))
+                .collect()
+        } else {
+            Vec::new()
+        };
         stats.checks_chain_failed = walked.iter().filter(|w| w.chain_failed).count();
         stats.checks_failed_crouched = checks
             .iter()
@@ -717,7 +733,7 @@ impl WalkGrid {
         let (round, held): (Vec<_>, Vec<_>) = failing.into_iter().zip(other_way).partition(|&(_, round)| round);
         stats.checks_no_way_round = held.len();
         let held = held.into_iter().map(|((a, d, _), _)| (a, wide.links[a as usize][d])).collect();
-        (stats, round.into_iter().map(|(f, _)| f).collect(), held)
+        (stats, round.into_iter().map(|(f, _)| f).collect(), held, crouch)
     }
 
     /// [2c] Whether a walking way leads from `a` to `b` within [`ROUND_HOPS`] links without the links `cut` (Walk links only).
@@ -789,14 +805,16 @@ impl WalkGrid {
         // [`Body::walk_ceiling_stalls`]: a refusal under a low ceiling is the client's own stall, not a pass.
         let stalls = self.body.walk_ceiling_stalls;
         let arrives = |w: Walked| matches!(w, Walked::At | Walked::AtEnd(_)) || (w == Walked::Ceiling && !stalls);
-        let (mut lines, mut share, mut chain_failed, mut refused) = (0, 0.0f32, false, 0);
+        let (mut lines, mut share, mut chain_failed, mut refused, mut crouched) = (0, 0.0f32, false, 0, 0);
         for off in STARTS {
             let (from, to) = (pa + side * off, pb + side * off);
             let mut c = body_at(world, start, stance, from);
             let mut centre = walk_on(world, s, &mut c, from, to, SPARE_TICKS, self.body.step);
+            let mut only_crouched = false;
             if centre == Walked::Ceiling && stance == Stance::Standing {
                 let mut c = body_at(world, start, Stance::Crouched, from);
                 centre = walk_on(world, s, &mut c, from, to, SPARE_TICKS, self.body.step);
+                only_crouched = matches!(centre, Walked::At | Walked::AtEnd(_));
             }
             share = share.max(match centre {
                 Walked::Short(x) => x,
@@ -816,6 +834,7 @@ impl WalkGrid {
             });
             if chained {
                 lines += 1;
+                crouched += only_crouched as usize;
                 // Two lines pass: the link passes whatever the third does (its share counts only for a failing link).
                 if lines >= 2 {
                     break;
@@ -824,7 +843,7 @@ impl WalkGrid {
                 chain_failed = true;
             }
         }
-        LinkWalk { passes: lines >= 2, share, chain_failed: chain_failed && lines < 2, refused }
+        LinkWalk { passes: lines >= 2, share, chain_failed: chain_failed && lines < 2, refused, crouched }
     }
 
     /// How many bridges of `all` are side by side with the bridge `a` -> `b`, it included, counted out to [`BRIDGE_MIN_RUN`]
