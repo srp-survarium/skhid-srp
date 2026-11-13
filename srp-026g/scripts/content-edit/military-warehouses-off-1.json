@@ -1,0 +1,6 @@
+{
+  "_about": "Military Warehouses is not played (the owner, 2026-11-13: \"remove Military Warehouses\"): its Free for All row (maps_dict 43) is taken out of the dictionary, as stalker-tdm-hold-1 took its Team Deathmatch row (211), so neither srp nor a game has it as a map and nothing can offer or start one (a room's pool and create window, a vote's Free for All card, Play, the site's Maps tab all list the dictionary's playable rows; a room saved with it is fitted without it). Only the row goes: its Free for All config and own project (v010b_cs_mp_military_1/day_8, 24 solo points), its Team Deathmatch config and project, its modes.tsv and maps.tsv rows, name, loading picture and minimap stay as they are. Experimental Pool (42) and Training Camp (44) are untouched. Id 43 stays this config's and is never given to another row. A match recorded on it can no longer be watched (its map is unknown to srp); no other match plays out otherwise, so no row of simulation_changes.tsv. To play it again: delete this list and its row of release/content.tsv, nothing else (docs/notes/stalker-maps.md).",
+  "remove_entry": [
+    {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "where": {"id": 43, "cfg_mode_name": "ffa/v010b_cs_mp_military_1_day_8.options"}}
+  ]
+}
