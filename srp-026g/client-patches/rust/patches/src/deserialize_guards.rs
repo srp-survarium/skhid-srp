@@ -7,7 +7,9 @@
 #![forbid(unsafe_code)]
 use crate::vostok::{Context, Flow, Reg, NoExit, DeserializeGuardsOnFsmExit, DeserializeGuardsOnAnomalyExit,
     DeserializeGuardsOnGrenadeReadyExit, DeserializeGuardsOnGrenadeThrowExit,
-    DeserializeGuardsOnWaitEndExit, DeserializeGuardsOnWaitThrowExit, DeserializeGuardsOnWaitMeleeExit};
+    DeserializeGuardsOnWaitEndExit, DeserializeGuardsOnWaitThrowExit, DeserializeGuardsOnWaitMeleeExit,
+    DeserializeGuardsOnGrenadePullExit, DeserializeGuardsOnGrenadeIdleExit, DeserializeGuardsOnGrenadeChoiceExit,
+    DeserializeGuardsOnGrenadeCanThrowExit};
 use crate::vostok::deserialize::{self, Grenade};
 
 pub fn on_fsm(ctx: &mut Context<'_>) -> Flow<DeserializeGuardsOnFsmExit> {
@@ -85,5 +87,71 @@ pub fn on_wait_melee(ctx: &mut Context<'_>) -> Flow<DeserializeGuardsOnWaitMelee
     else {
         ctx.set_reg(Reg::Eax, 0);
         Flow::Exit(DeserializeGuardsOnWaitMeleeExit::NoMatch)
+    }
+}
+
+/// A pull takes one of its grenade set's grenades: with no grenade set, or
+/// an index past its grenades (its amount is the world's), nothing is
+/// pulled and the throw has no grenade (0FFh).
+pub fn on_grenade_pull(ctx: &mut Context<'_>) -> Flow<DeserializeGuardsOnGrenadePullExit> {
+    if deserialize::grenade_to_pull(ctx).is_some() { Flow::Continue }
+    else {
+        ctx.set_reg8(Reg::Eax, 0xff);
+        Flow::Exit(DeserializeGuardsOnGrenadePullExit::NoPull)
+    }
+}
+
+/// The idle substate's check of the selected grenade against a throw state
+/// with no grenade set: as if its set's slot were none.
+pub fn on_grenade_idle(ctx: &mut Context<'_>) -> Flow<DeserializeGuardsOnGrenadeIdleExit> {
+    match deserialize::idle_without_set(ctx) {
+        None => Flow::Continue,
+        Some(differs) => {
+            ctx.set_reg(Reg::Eax, differs.into());
+            Flow::Exit(DeserializeGuardsOnGrenadeIdleExit::Done)
+        }
+    }
+}
+
+/// As [`on_grenade_idle`], at the throw state's own check (0x33A730).
+pub fn on_grenade_choice(ctx: &mut Context<'_>) -> Flow<DeserializeGuardsOnGrenadeChoiceExit> {
+    match deserialize::choice_without_set(ctx) {
+        None => Flow::Continue,
+        Some(result) => {
+            ctx.set_reg(Reg::Eax, result.into());
+            Flow::Exit(DeserializeGuardsOnGrenadeChoiceExit::Done)
+        }
+    }
+}
+
+/// A throw state with no grenade set saves the slot none (17h) instead of
+/// reading one off an item that has none.
+pub fn on_grenade_serialize(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    match deserialize::serialized_without_set(ctx) {
+        None => Flow::Continue,
+        Some((set, slot)) => {
+            ctx.set_reg(Reg::Ecx, set);
+            ctx.set_reg8(Reg::Edx, slot);
+            Flow::Skip
+        }
+    }
+}
+
+/// A grenade can be thrown only from a grenade set: a selected grenade slot
+/// (the world's) holding anything else, or nothing, cannot throw (the
+/// native would call that item's vtable +64h and take it as a set).
+pub fn on_grenade_can_throw(ctx: &mut Context<'_>) -> Flow<DeserializeGuardsOnGrenadeCanThrowExit> {
+    if deserialize::can_throw_selected(ctx) { Flow::Continue }
+    else { Flow::Exit(DeserializeGuardsOnGrenadeCanThrowExit::Cannot) }
+}
+
+/// The throw takes the selected grenade slot's item as its set only when it
+/// is a grenade set; anything else (17h none included: the native read the
+/// artefact slots' pointer past the slots) leaves it no set.
+pub fn on_grenade_attach(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if deserialize::attaches_selected(ctx) { Flow::Continue }
+    else {
+        ctx.set_reg(Reg::Eax, 0);
+        Flow::Skip
     }
 }

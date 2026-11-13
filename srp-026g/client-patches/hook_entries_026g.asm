@@ -3388,6 +3388,252 @@ deserialize_guards_on_wait_melee_replay:
     db 0x0f, 0xb6, 0x91, 0x34, 0x01, 0x00, 0x00
     jmp 0x310cf7
 
+; 0x3103cf the pull substate's initialize 0x3103A0 loading the throw state's set (mov ecx,[esi+17Ch]) for grenade_set_core::pull_pin 0x30A120, which indexes the set's grenades with the new amount's low byte (0x30A1C2) and takes a reference through the slot, with no bound, and calls through [[set+250h]+174h]'s vtable; no_pull stores AL as m_grenade_index (pop edi; mov [esi+180h],al), the stack as after the call (pull_pin pops 8): lohook -> deserialize_guards_on_grenade_pull
+global deserialize_guards_on_grenade_pull
+extern hook_deserialize_guards_on_grenade_pull
+deserialize_guards_on_grenade_pull:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_grenade_pull
+    mov edx, deserialize_guards_on_grenade_pull_replay
+    cmp eax, 0
+    je deserialize_guards_on_grenade_pull_go
+    mov edx, 0x3103d5
+    cmp eax, 1
+    je deserialize_guards_on_grenade_pull_go
+    mov edx, 0x3103dc
+    cmp eax, 2
+    je deserialize_guards_on_grenade_pull_go
+    ud2
+deserialize_guards_on_grenade_pull_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_grenade_pull_replay:
+    db 0x8b, 0x8e, 0x7c, 0x01, 0x00, 0x00
+    jmp 0x3103d5
+
+; 0x310465 the idle substate's 0x310450 loading the throw state's set (mov edx,[eax+17Ch]) to compare the inventory's grenade slot with [set+254h] (0x310473); done is its ret, AL the result: lohook -> deserialize_guards_on_grenade_idle
+global deserialize_guards_on_grenade_idle
+extern hook_deserialize_guards_on_grenade_idle
+deserialize_guards_on_grenade_idle:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_grenade_idle
+    mov edx, deserialize_guards_on_grenade_idle_replay
+    cmp eax, 0
+    je deserialize_guards_on_grenade_idle_go
+    mov edx, 0x31046b
+    cmp eax, 1
+    je deserialize_guards_on_grenade_idle_go
+    mov edx, 0x31047e
+    cmp eax, 2
+    je deserialize_guards_on_grenade_idle_go
+    ud2
+deserialize_guards_on_grenade_idle_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_grenade_idle_replay:
+    db 0x8b, 0x90, 0x7c, 0x01, 0x00, 0x00
+    jmp 0x31046b
+
+; 0x33a73f 0x33A730 (called by the throw state at 0x33A11D, 0x33A195, 0x33A209) loading its set (mov ecx,[ecx+17Ch]) to compare the inventory's grenade slot with [set+254h] (0x33A74B); done is its ret 4, AL the result: lohook -> deserialize_guards_on_grenade_choice
+global deserialize_guards_on_grenade_choice
+extern hook_deserialize_guards_on_grenade_choice
+deserialize_guards_on_grenade_choice:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_grenade_choice
+    mov edx, deserialize_guards_on_grenade_choice_replay
+    cmp eax, 0
+    je deserialize_guards_on_grenade_choice_go
+    mov edx, 0x33a745
+    cmp eax, 1
+    je deserialize_guards_on_grenade_choice_go
+    mov edx, 0x33a75f
+    cmp eax, 2
+    je deserialize_guards_on_grenade_choice_go
+    ud2
+deserialize_guards_on_grenade_choice_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_grenade_choice_replay:
+    db 0x8b, 0x89, 0x7c, 0x01, 0x00, 0x00
+    jmp 0x33a745
+
+; 0x33a51b the throw state's serialize 0x33A4E0 loading its set and the set's slot (mov ecx,[ebx+17Ch]; mov dl,[ecx+254h]) for the byte it writes (0x33A53D); skipping with DL the byte and ECX the set takes the native write: lohook -> deserialize_guards_on_grenade_serialize
+global deserialize_guards_on_grenade_serialize
+extern hook_deserialize_guards_on_grenade_serialize
+deserialize_guards_on_grenade_serialize:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_grenade_serialize
+    mov edx, deserialize_guards_on_grenade_serialize_replay
+    cmp eax, 0
+    je deserialize_guards_on_grenade_serialize_go
+    mov edx, 0x33a527
+    cmp eax, 1
+    je deserialize_guards_on_grenade_serialize_go
+    ud2
+deserialize_guards_on_grenade_serialize_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_grenade_serialize_replay:
+    db 0x8b, 0x8b, 0x7c, 0x01, 0x00, 0x00, 0x8a, 0x91, 0x54, 0x02, 0x00, 0x00
+    jmp 0x33a527
+
+; 0x2e40bf weapon_core's can-throw 0x2E4090 taking the item of the inventory's grenade slot (ECX, not 17h: mov ecx,[eax+ecx*4+10Ch]) and calling its vtable +64h, then 0x30A090 on the result as a grenade set; cannot is its 0 (xor eax,eax; pop esi; ret): lohook -> deserialize_guards_on_grenade_can_throw
+global deserialize_guards_on_grenade_can_throw
+extern hook_deserialize_guards_on_grenade_can_throw
+deserialize_guards_on_grenade_can_throw:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_grenade_can_throw
+    mov edx, deserialize_guards_on_grenade_can_throw_replay
+    cmp eax, 0
+    je deserialize_guards_on_grenade_can_throw_go
+    mov edx, 0x2e40c6
+    cmp eax, 1
+    je deserialize_guards_on_grenade_can_throw_go
+    mov edx, 0x2e40fc
+    cmp eax, 2
+    je deserialize_guards_on_grenade_can_throw_go
+    ud2
+deserialize_guards_on_grenade_can_throw_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_grenade_can_throw_replay:
+    db 0x8b, 0x8c, 0x88, 0x0c, 0x01, 0x00, 0x00
+    jmp 0x2e40c6
+
+; 0x33a7f5 the throw state's attach_grenade 0x33A7E0 (its initialize 0x33A463) taking the item of the inventory's grenade slot (ECX, 0..17h: [eax+ecx*4+10Ch], 17h reading +168h, the artefact slots' pointer) as its set and taking a reference through it (lock xadd [item+0D0h]); skipping with EAX 0 takes the native no-item path (the state holds no set): lohook -> deserialize_guards_on_grenade_attach
+global deserialize_guards_on_grenade_attach
+extern hook_deserialize_guards_on_grenade_attach
+deserialize_guards_on_grenade_attach:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_grenade_attach
+    mov edx, deserialize_guards_on_grenade_attach_replay
+    cmp eax, 0
+    je deserialize_guards_on_grenade_attach_go
+    mov edx, 0x33a7fc
+    cmp eax, 1
+    je deserialize_guards_on_grenade_attach_go
+    ud2
+deserialize_guards_on_grenade_attach_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_grenade_attach_replay:
+    db 0x8b, 0x84, 0x88, 0x0c, 0x01, 0x00, 0x00
+    jmp 0x33a7fc
+
 ; 0x2d9cb1 base_player::hit_impl once damage_model::hit_body_part (0x2E5080, at 0x2D9CA4) said 1: the hit took health past armour and protectors (more than 0.0 left, 0x2E5128); before the slow, the listeners and the death (mov edi,esi / cmp dword [edi+40h],0; the je at 0x2D9CB7 reads its flags): EBX the victim, ESI the hit; every hit of every player, in every game's simulation: lohook -> drug_interrupt_on_hit_applied
 global drug_interrupt_on_hit_applied
 extern hook_drug_interrupt_on_hit_applied

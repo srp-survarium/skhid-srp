@@ -4780,10 +4780,27 @@ one of the set's grenades throws, anything else returns (0x33A7DD). The rev56
 corpus holds 0..3 only. The set is whatever item the profile slot the world
 names holds (deserialize 0x33A5AB, no type test), so both guards first check
 its vtable is a grenade set's (`grenade_set` 0xA0B56C, `grenade_set_core`
-0xA14824); any other item has no grenades. Native code that still takes that
-item as a grenade set, unguarded: the pull substate's initialize (0x3103CF,
-`pull_pin` 0x30A120: its vector, `[[set+250h]+174h]`'s vtable call), 0x310465
-and 0x33A73F (`[set+254h]`), the state's serialize (0x33A51B).
+0xA14824); any other item has no grenades. So does every other reader of the
+throw's set and of the inventory's selected grenade slot (`m_grenade_slot`,
+the world's too), each taking an item that is no grenade set (or none) as no
+set:
+- the pull substate's initialize (`deserialize.grenade_pull` 0x3103CF): no
+  pull (the index 0FFh) unless a grenade set's own pull_pin index (a stacked
+  set's amount-1, the world's amount; 1 otherwise) is one of its grenades;
+  pull_pin 0x30A120 would take a reference through the slot past them and call
+  through `[[set+250h]+174h]`;
+- the idle substate's check 0x310450 and the throw state's 0x33A730
+  (`grenade_idle` 0x310465, `grenade_choice` 0x33A73F): the set's slot as none
+  (17h) instead of `[set+254h]`;
+- the serialize (`grenade_serialize` 0x33A51B): the slot byte 17h;
+- can-throw 0x2E4090 (`grenade_can_throw` 0x2E40BF): cannot, instead of
+  calling the slot item's vtable +64h (null not tested) and 0x30A090 on it;
+- attach_grenade 0x33A7E0 (`grenade_attach` 0x33A7F5), the throw's
+  initialize: no set, instead of the slot's item (17h read the artefact slots'
+  pointer at +168h as an item and counted a reference into the inventory).
+The server refuses both at the source: a throw's grenade slot and the
+selected grenade slot must hold a grenade set of the player's kit
+(`TailGrenadeSet`, `TailSelectedGrenade`).
 
 An animation to wait for (F6): every animation-end-aware weapon state saves
 `m_index_of_animation_to_wait` (+134h, 0FFh none), the world brings any byte,
@@ -4802,13 +4819,16 @@ take an index past the state's handles (or a state of no known layout) as no
 match, the compare's own failed path. An index in them runs as before.
 
 `check_deserialize_guards_026g.py <stock exe>` compares valid reads with stock and
-checks invalid/empty tables at all four stack alignments (1,228 cases; the death
+checks invalid/empty tables at all four stack alignments (1,268 cases; the death
 animation's: the stock faults past the lists, ours plays the first; the fire
 animation's: the stock stores the byte, ours stores 0 as the stock does with 0;
 the grenade's: the stock faults in is_ready and in throw_grenade's reference past
 the set, ours is not ready and returns from the throw with the registers as they
 were, and a grenade of the set runs as the stock to throw_grenade; a weapon in
-the grenade slot: the stock reads it as a set, ours does not; the animation to
+the grenade slot: the stock reads it as a set, ours does not; each other
+reader of the set and of the selected slot, a grenade set as the stock, a
+weapon, an empty slot and 17h as no set where the stock faults, calls the
+item or counts a reference into the inventory; the animation to
 wait for: every one of the 30 classes, its table ending at a page's end, at each
 callback that serves it: in its handles the stock's match and no match, past
 them the stock faults and ours is no match). The i686

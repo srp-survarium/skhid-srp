@@ -488,7 +488,10 @@ fn valid_empty_inventory() -> Vec<u8> {
     bytes.extend([0xff, 0xff]); // no active objects
     bytes.extend([0; 29]); // stamina
     bytes.extend([0; 5]); // weight and inventory bool
-    bytes.extend([0xff, 0, 0, 0]); // no carried item, artefacts or slots
+    // No carried item, no artefacts, the active slot 0, no grenade selected
+    // (23, as the inventory's constructor 0x2FC53D: a grenade slot must hold
+    // a grenade set).
+    bytes.extend([0xff, 0, 0, 23]);
     bytes
 }
 

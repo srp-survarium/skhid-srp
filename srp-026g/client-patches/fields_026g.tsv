@@ -1213,3 +1213,9 @@ survarium::image	register_fire_twice_animations	0x24B820	u32	double-barrel's and
 survarium::image	register_throw_substate_animations	0x24B880	u32	the throw grenade substates' register_animations: 4 handles from +140h; stores 0 or 2 (0x310374)
 survarium::image	register_shotgun_substate_animations	0x24B8C0	u32	the shotgun reload substates' register_animations: 5 handles from +138h (4, then +148h); stores 0 or 2 (0x3110B2)
 survarium::image	register_melee_animations	0x24B920	u32	melee state's register_animations: 4 handles from +144h; stores 0 or 2 (0x310C36)
+survarium::inventory	grenade_slot	0x17C	u32	m_grenade_slot: the selected grenade set's slot, 17h none (the constructor 0x2FC53D; grenade_set_core 0x309DEE, 0x309DFD; the world's byte)
+survarium::grenade_set_core	slot	0x254	u32	its profile_slot_id(): the throw state's serialize writes its low byte (0x33A521); 0x310473 and 0x33A74B compare the inventory's grenade slot with it
+survarium::grenade_set_core	config	0x25C	ptr<survarium::grenade_set_config>	its config (pull_pin 0x30A15C, 0x30A1A4)
+survarium::grenade_set_core	amount	0x260	u16	a stacked set's amount: pull_pin 0x30A120 stores amount-1 and indexes its grenades with that new amount's low byte (0x30A1B3), 1 for a set not stacked
+survarium::grenade_set_config	stacked	0x22A	u8	is_stack (pull_pin 0x30A16C, 0x30A1AA): not 0, the pull indexes by the amount
+survarium::grenade_choice_frame	wanted	0x4	u8	0x33A730's argument at the site ESP (no push before 0x33A73F; ret 4): it returns whether (the inventory's grenade slot == the set's slot) equals it

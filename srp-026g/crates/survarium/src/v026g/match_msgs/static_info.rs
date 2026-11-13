@@ -481,15 +481,19 @@ impl MatchProfile {
                 if count == 0 {
                     continue;
                 }
-                Body::None
+                // A grenade set there is one all the same (a throw may name it).
+                match params.map(|params| params.class) {
+                    Some(ItemClass::GrenadeSet) => Body::GrenadeSet,
+                    _ => Body::None,
+                }
             } else {
                 match params.map(|params| params.class) {
                     Some(ItemClass::Medkit { influences }) => Body::Medkit { influences },
                     Some(ItemClass::OxygenTank) => Body::OxygenTank,
+                    Some(ItemClass::GrenadeSet) => Body::GrenadeSet,
                     Some(
                         ItemClass::Armor
                         | ItemClass::Booster
-                        | ItemClass::GrenadeSet
                         | ItemClass::TrapSet
                         | ItemClass::Ammunition,
                     ) => Body::None,

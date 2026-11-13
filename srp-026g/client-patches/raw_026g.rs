@@ -2357,6 +2357,15 @@ impl Inventory {
         unsafe { self.0.byte_add(0x174).cast::<Option<InventoryHolder>>().write_volatile(value) }
     }
 
+    /// +0x17c (u32): m_grenade_slot: the selected grenade set's slot, 17h none (the constructor 0x2FC53D; grenade_set_core 0x309DEE, 0x309DFD; the world's byte)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn grenade_slot(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x17c).cast::<u32>().as_ptr() }
+    }
+
     /// 0x188 bytes: what resupply_from_profile and check_resupply read of it (slots +10Ch..+167h, +184h written): patch 85's crate view
     pub const SIZE: usize = 0x188;
 
@@ -22338,6 +22347,42 @@ impl GrenadeSetCore {
     pub unsafe fn vtable(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
     }
+
+    /// +0x254 (u32): its profile_slot_id(): the throw state's serialize writes its low byte (0x33A521); 0x310473 and 0x33A74B compare the inventory's grenade slot with it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn slot(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x254).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x25c (ptr<survarium::grenade_set_config>): its config (pull_pin 0x30A15C, 0x30A1A4)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn config(self) -> Option<GrenadeSetConfig> {
+        unsafe { self.0.byte_add(0x25c).cast::<Option<GrenadeSetConfig>>().read_volatile() }
+    }
+
+    /// +0x25c (ptr<survarium::grenade_set_config>): its config (pull_pin 0x30A15C, 0x30A1A4)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_config(self, value: Option<GrenadeSetConfig>) {
+        unsafe { self.0.byte_add(0x25c).cast::<Option<GrenadeSetConfig>>().write_volatile(value) }
+    }
+
+    /// +0x260 (u16): a stacked set's amount: pull_pin 0x30A120 stores amount-1 and indexes its grenades with that new amount's low byte (0x30A1B3), 1 for a set not stacked
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn amount(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x260).cast::<u16>().as_ptr() }
+    }
 }
 
 /// A survarium::animation_end_aware_state (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -22403,6 +22448,54 @@ impl WeaponStateMethods {
     #[inline(always)]
     pub unsafe fn register_animations(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x1c).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::grenade_set_config (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GrenadeSetConfig(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl GrenadeSetConfig {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x22a (u8): is_stack (pull_pin 0x30A16C, 0x30A1AA): not 0, the pull indexes by the amount
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn stacked(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x22a).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A survarium::grenade_choice_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GrenadeChoiceFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl GrenadeChoiceFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (u8): 0x33A730's argument at the site ESP (no push before 0x33A73F; ret 4): it returns whether (the inventory's grenade slot == the set's slot) equals it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn wanted(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x4).cast::<u8>().as_ptr() }
     }
 }
 
@@ -26030,6 +26123,123 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn state(machine: &impl Machine) -> Option<AnimationEndAwareState> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(AnimationEndAwareState)
+        }
+    }
+
+    /// deserialize.grenade_pull (0x3103cf): the pull substate's initialize 0x3103A0 loading the throw state's set (mov ecx,[esi+17Ch]) for grenade_set_core::pull_pin 0x30A120, which indexes the set's grenades with the new amount's low byte (0x30A1C2) and takes a reference through the slot, with no bound, and calls through [[set+250h]+174h]'s vtable; no_pull stores AL as m_grenade_index (pop edi; mov [esi+180h],al), the stack as after the call (pull_pin pops 8)
+    pub mod deserialize_grenade_pull {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::throw_grenade_state (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn state(machine: &impl Machine) -> Option<ThrowGrenadeState> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(ThrowGrenadeState)
+        }
+    }
+
+    /// deserialize.grenade_idle (0x310465): the idle substate's 0x310450 loading the throw state's set (mov edx,[eax+17Ch]) to compare the inventory's grenade slot with [set+254h] (0x310473); done is its ret, AL the result
+    pub mod deserialize_grenade_idle {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a survarium::throw_grenade_state (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn state(machine: &impl Machine) -> Option<ThrowGrenadeState> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(ThrowGrenadeState)
+        }
+
+        /// ECX: a survarium::inventory (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn inventory(machine: &impl Machine) -> Option<Inventory> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(Inventory)
+        }
+    }
+
+    /// deserialize.grenade_choice (0x33a73f): 0x33A730 (called by the throw state at 0x33A11D, 0x33A195, 0x33A209) loading its set (mov ecx,[ecx+17Ch]) to compare the inventory's grenade slot with [set+254h] (0x33A74B); done is its ret 4, AL the result
+    pub mod deserialize_grenade_choice {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::throw_grenade_state (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn state(machine: &impl Machine) -> Option<ThrowGrenadeState> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(ThrowGrenadeState)
+        }
+
+        /// EAX: a survarium::inventory (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn inventory(machine: &impl Machine) -> Option<Inventory> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(Inventory)
+        }
+
+        /// the site's ESP: a survarium::grenade_choice_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<GrenadeChoiceFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(GrenadeChoiceFrame)
+        }
+    }
+
+    /// deserialize.grenade_serialize (0x33a51b): the throw state's serialize 0x33A4E0 loading its set and the set's slot (mov ecx,[ebx+17Ch]; mov dl,[ecx+254h]) for the byte it writes (0x33A53D); skipping with DL the byte and ECX the set takes the native write
+    pub mod deserialize_grenade_serialize {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::throw_grenade_state (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn state(machine: &impl Machine) -> Option<ThrowGrenadeState> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(ThrowGrenadeState)
+        }
+    }
+
+    /// deserialize.grenade_can_throw (0x2e40bf): weapon_core's can-throw 0x2E4090 taking the item of the inventory's grenade slot (ECX, not 17h: mov ecx,[eax+ecx*4+10Ch]) and calling its vtable +64h, then 0x30A090 on the result as a grenade set; cannot is its 0 (xor eax,eax; pop esi; ret)
+    pub mod deserialize_grenade_can_throw {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a survarium::inventory (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn inventory(machine: &impl Machine) -> Option<Inventory> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(Inventory)
+        }
+    }
+
+    /// deserialize.grenade_attach (0x33a7f5): the throw state's attach_grenade 0x33A7E0 (its initialize 0x33A463) taking the item of the inventory's grenade slot (ECX, 0..17h: [eax+ecx*4+10Ch], 17h reading +168h, the artefact slots' pointer) as its set and taking a reference through it (lock xadd [item+0D0h]); skipping with EAX 0 takes the native no-item path (the state holds no set)
+    pub mod deserialize_grenade_attach {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a survarium::inventory (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn inventory(machine: &impl Machine) -> Option<Inventory> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(Inventory)
         }
     }
 

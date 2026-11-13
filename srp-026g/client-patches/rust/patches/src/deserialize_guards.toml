@@ -41,3 +41,27 @@ handler = "on_wait_throw"
 [[hook]]
 site = "deserialize.wait_melee"
 handler = "on_wait_melee"
+
+[[hook]]
+site = "deserialize.grenade_pull"
+handler = "on_grenade_pull"
+
+[[hook]]
+site = "deserialize.grenade_idle"
+handler = "on_grenade_idle"
+
+[[hook]]
+site = "deserialize.grenade_choice"
+handler = "on_grenade_choice"
+
+[[hook]]
+site = "deserialize.grenade_serialize"
+handler = "on_grenade_serialize"
+
+[[hook]]
+site = "deserialize.grenade_can_throw"
+handler = "on_grenade_can_throw"
+
+[[hook]]
+site = "deserialize.grenade_attach"
+handler = "on_grenade_attach"

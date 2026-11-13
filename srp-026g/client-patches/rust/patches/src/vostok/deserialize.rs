@@ -102,14 +102,118 @@ pub fn grenade_to_throw(ctx: &Context<'_>) -> Grenade {
 /// bounds are read, never a grenade.
 unsafe fn grenade_of(state: Option<raw::ThrowGrenadeState>) -> Grenade {
     let Some(state) = state else { return Grenade::Outside };
-    // SAFETY: as the caller promises. The set is any item of a profile slot
-    // the world named: its vtable word is read first, its vector only when
-    // it is a grenade set's.
+    // SAFETY: as the caller promises.
     unsafe {
-        let set = state.grenade_set()
-            .filter(|set| is_grenade_set(read(set.vtable())))
+        let set = grenade_set(state)
             .map(|set| (read(set.grenades_begin()) as usize, read(set.grenades_end()) as usize));
         grenade(read(state.grenade_index()), set)
+    }
+}
+
+/// The throw state's set when it is a grenade set. The set is any item of a
+/// profile slot the world named (deserialize 0x33A5AB), so its vtable word
+/// is read first, and nothing else of it unless it is a grenade set's.
+///
+/// # Safety
+/// `state` is a live throw grenade state on the game's thread.
+unsafe fn grenade_set(state: raw::ThrowGrenadeState) -> Option<raw::GrenadeSetCore> {
+    // SAFETY: as the caller promises; the set (any item) is alive while the
+    // state holds its reference.
+    unsafe { state.grenade_set().filter(|set| is_grenade_set(read(set.vtable()))) }
+}
+
+/// Whether the inventory's `slot` (its grenade slot, the world's word) holds
+/// a grenade set.
+///
+/// # Safety
+/// `inventory` is a live inventory on the game's thread.
+unsafe fn slot_holds_grenade_set(inventory: Option<raw::Inventory>, slot: u32) -> bool {
+    let Some(inventory) = inventory else { return false };
+    // SAFETY: as the caller promises; one of its 23 slots (+10Ch + 4 x slot),
+    // and only the vtable word of the item there.
+    slot < u32::from(super::inventory::SLOTS) && unsafe {
+        inventory.slots().at(slot as usize).item().is_some_and(|item| is_grenade_set(read(item.vtable())))
+    }
+}
+
+/// At `deserialize.grenade_can_throw`: whether the inventory in EAX has a
+/// grenade set in its grenade slot (ECX).
+pub fn can_throw_selected(ctx: &Context<'_>) -> bool {
+    // SAFETY: the context is this site's, EAX the user's live inventory.
+    unsafe { slot_holds_grenade_set(raw::site::deserialize_grenade_can_throw::inventory(ctx), ctx.reg(Reg::Ecx)) }
+}
+
+/// At `deserialize.grenade_attach`: whether the inventory in EAX has a
+/// grenade set in its grenade slot (ECX) for the throw to take.
+pub fn attaches_selected(ctx: &Context<'_>) -> bool {
+    // SAFETY: the context is this site's, EAX the user's live inventory.
+    unsafe { slot_holds_grenade_set(raw::site::deserialize_grenade_attach::inventory(ctx), ctx.reg(Reg::Ecx)) }
+}
+
+/// What a state with no grenade set saves and compares as its set's slot:
+/// none, the inventory's own word for no grenade set (17h).
+const NO_GRENADE_SLOT: u32 = 0x17;
+
+/// At `deserialize.grenade_pull`: the index the pull's `pull_pin` will take
+/// a grenade from, `None` when it takes none of the set's (no grenade set,
+/// or past its grenades). pull_pin takes `amount - 1`'s low byte from a
+/// stacked set, 1 from another.
+pub fn grenade_to_pull(ctx: &Context<'_>) -> Option<u8> {
+    // SAFETY: the context is this site's, ESI the pull's live throw state;
+    // a grenade set's own config, amount and vector bounds are read.
+    unsafe {
+        let set = grenade_set(raw::site::deserialize_grenade_pull::state(ctx)?)?;
+        let stacked = set.config().is_some_and(|config| read(config.stacked()) != 0);
+        let index = pulled(stacked, read(set.amount()));
+        contains(read(set.grenades_begin()) as usize, read(set.grenades_end()) as usize, index.into())
+            .then_some(index)
+    }
+}
+
+/// The grenade pull_pin takes: a stacked set's new amount's low byte, 1 for
+/// another (0x30A12E..0x30A1B9).
+fn pulled(stacked: bool, amount: u16) -> u8 {
+    if stacked { amount.wrapping_sub(1) as u8 } else { 1 }
+}
+
+/// At `deserialize.grenade_idle`: `None` when the throw state's set is a
+/// grenade set (the native compare runs); else the result as for a set of
+/// no slot: whether the inventory's grenade slot differs from none.
+pub fn idle_without_set(ctx: &Context<'_>) -> Option<bool> {
+    // SAFETY: the context is this site's: EAX the live throw state, ECX the
+    // user's inventory (its grenade slot word read).
+    unsafe {
+        let state = raw::site::deserialize_grenade_idle::state(ctx)?;
+        if grenade_set(state).is_some() { return None; }
+        let slot = raw::site::deserialize_grenade_idle::inventory(ctx)?.grenade_slot();
+        Some(read(slot) != NO_GRENADE_SLOT)
+    }
+}
+
+/// At `deserialize.grenade_choice`: `None` when the throw state's set is a
+/// grenade set; else 0x33A730's result for a set of no slot: whether
+/// (the inventory's grenade slot is none) equals its argument.
+pub fn choice_without_set(ctx: &Context<'_>) -> Option<bool> {
+    // SAFETY: the context is this site's: ECX the live throw state, EAX the
+    // user's inventory, the frame its call's (the argument at +4).
+    unsafe {
+        let state = raw::site::deserialize_grenade_choice::state(ctx)?;
+        if grenade_set(state).is_some() { return None; }
+        let slot = read(raw::site::deserialize_grenade_choice::inventory(ctx)?.grenade_slot());
+        let wanted = read(raw::site::deserialize_grenade_choice::frame(ctx)?.wanted());
+        Some(wanted == u8::from(slot == NO_GRENADE_SLOT))
+    }
+}
+
+/// At `deserialize.grenade_serialize`: `None` when the throw state's set is
+/// a grenade set (the native reads its slot); else the set's address (as
+/// the native leaves it in ECX) and the slot byte to save: none.
+pub fn serialized_without_set(ctx: &Context<'_>) -> Option<(u32, u8)> {
+    // SAFETY: the context is this site's, EBX the live throw state.
+    unsafe {
+        let state = raw::site::deserialize_grenade_serialize::state(ctx)?;
+        if grenade_set(state).is_some() { return None; }
+        Some((state.grenade_set().map_or(0, |set| set.address()), NO_GRENADE_SLOT as u8))
     }
 }
 
@@ -221,6 +325,15 @@ mod tests {
         for (index, set) in [(4, set), (254, set), (0, None), (0, Some((100, 100))), (0, Some((0, 4)))] {
             assert_eq!(grenade(index, set), Grenade::Outside);
         }
+    }
+
+    #[test]
+    fn a_pull_takes_the_new_amount_or_one() {
+        assert_eq!(pulled(true, 3), 2);
+        assert_eq!(pulled(true, 1), 0);
+        assert_eq!(pulled(true, 0), 0xff); // an empty stack: past any set
+        assert_eq!(pulled(true, 0x101), 0); // the low byte, as the native
+        assert_eq!(pulled(false, 0), 1);
     }
 
     #[test]

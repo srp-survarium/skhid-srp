@@ -380,6 +380,16 @@ pub enum Reason {
     TailGrenadeSlot {
         slot: u8,
     },
+    /// A throw names a slot whose item (in the owner's kit) is no grenade
+    /// set.
+    TailGrenadeSet {
+        slot: u8,
+    },
+    /// The inventory's selected grenade (`m_grenade_slot`) is a slot whose
+    /// item is no grenade set.
+    TailSelectedGrenade {
+        slot: u8,
+    },
     /// A body part's affect is of no type the game has.
     TailAffect {
         kind: u8,
@@ -764,6 +774,12 @@ impl fmt::Display for Reason {
                 write!(f, "a state machine in state {state}, past its {states}")
             }
             Reason::TailGrenadeSlot { slot } => write!(f, "a throw of the grenade in slot {slot}"),
+            Reason::TailGrenadeSet { slot } => {
+                write!(f, "a throw of the grenade in slot {slot}, which holds no grenade set")
+            }
+            Reason::TailSelectedGrenade { slot } => {
+                write!(f, "the selected grenade in slot {slot}, which holds no grenade set")
+            }
             Reason::TailAffect { kind } => write!(f, "a body part affect of type {kind}"),
             Reason::TailBool { at } => write!(f, "a bool at {at} that is not 0x00 or 0xFF"),
             Reason::TailCarry => f.write_str("a carry snapshot of another version"),

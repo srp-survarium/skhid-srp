@@ -336,7 +336,11 @@ animation by its set's own lists (get_death_animations 0x338280's entry), a
 double-barrel's or pistol's fire animation by the state's two (at the load,
 0x310224; the world check refuses any other byte too), and a throw's grenade
 by its set's grenades (is_ready_for_transition 0x33A66D, the throw 0x33A770; a
-set whose vtable is not a grenade set's has none), and an animation to wait for
+set whose vtable is not a grenade set's has none, as at every other reader of
+the throw's set and of the selected grenade slot: the pull 0x3103CF, the
+checks 0x310465 and 0x33A73F, the serialize 0x33A51B, can-throw 0x2E40BF,
+attach_grenade 0x33A7F5; the server refuses a throw or a selected grenade
+slot of no grenade set of the kit), and an animation to wait for
 by the state's own handles (its class's register_animations: 4, 5, 9 or 10;
 the callbacks 0x30DB7D, 0x310692, 0x310CF0). It is independent of runtime message
 and semantic-world enforcement. The checked stock instructions confirm the FSM's

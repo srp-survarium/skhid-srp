@@ -221,7 +221,9 @@ What the receiving game checks before it loads a world it was sent (0xE8):
   past its set's lists is read as the first (the lists' lengths are content, so no check before
   can know them); a double-barrel's or pistol's fire animation past the state's two is stored as
   the first; a throw's grenade past its set's grenades, or a set that is not a grenade set, is
-  not ready and is not thrown (the set's size is content too); an animation a weapon state waits
+  not ready and is not thrown (the set's size is content too), and every other reader of the
+  throw's set, and of the selected grenade slot, takes an item that is not a grenade set as no
+  set; an animation a weapon state waits
   for past the state's own animation handles never ends. Real worlds carry such indices (the
   show state's 63, 205, 220...: LIKELY never set), and the native compare then reads what lies
   after the object, different in every game, so "no match" is what they already get.
@@ -272,7 +274,9 @@ parses, each field is turned into its type, and the world is refused if a field 
 
 Then rules that need the match are checked over the parsed values: an item's owner must be a kit
 of the match that has a player, a user of an object must be a place of the roster, an artefact's
-id must be one of the map's.
+id must be one of the map's, a throw's grenade slot and the inventory's selected grenade slot
+must hold a grenade set of the player's kit (the game takes that item as a grenade set with no
+type test).
 
 The parts, and what they hold:
 
