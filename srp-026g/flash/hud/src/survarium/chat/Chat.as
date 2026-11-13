@@ -512,8 +512,7 @@ package survarium.chat
       
       protected function styledChar(value:String, style:String) : String
       {
-         value = value.split("<").join("&lt;");
-         return "<" + style + ">" + value + "</" + style + ">";
+         return "<" + style + ">" + Util.escapeHtml(value) + "</" + style + ">";
       }
       
       protected function styled(value:String, style:String) : String
