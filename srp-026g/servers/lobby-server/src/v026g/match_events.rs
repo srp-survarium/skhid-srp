@@ -38,7 +38,7 @@ pub const PAGE_ROWS: usize = u8::MAX as usize - 1;
 /// numbered `match_id`: the head and its rows. Of any kind of match: who
 /// may see them is the caller's to say.
 pub fn match_events_page(history: Option<&MatchHistory>, match_id: u32, page: u8) -> Vec<String> {
-    let found = history.map(|history| history.events(match_id));
+    let found = history.map(|history| history.lobby().events(match_id));
     let (status, events) = match found {
         Some(Ok(Some(found))) => ("ok", found.events),
         Some(Ok(None)) | None => ("none", Vec::new()),

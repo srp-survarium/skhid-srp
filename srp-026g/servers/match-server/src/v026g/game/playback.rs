@@ -941,7 +941,7 @@ fn read(
         .and_then(ReplayId::parse);
     if let (Some(history), Some(replay_id)) = (accounts.and_then(GameAccounts::history), replay_id)
     {
-        match history.events_of_replay(&replay_id) {
+        match history.site().events_of_replay(&replay_id) {
             Ok(Some(kept)) => recording.take_events(&kept.events),
             Ok(None) => {}
             Err(error) => log::warn!(

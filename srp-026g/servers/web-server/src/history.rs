@@ -312,9 +312,9 @@ fn answer(
         Endpoint::Player(key) => {
             let account_id = match key {
                 PlayerKey::Id(id) => *id,
-                PlayerKey::Name(name) => history.account_by_name(name)?.ok_or(Refusal::NotFound)?,
+                PlayerKey::Name(name) => history.site().account_by_name(name)?.ok_or(Refusal::NotFound)?,
             };
-            let card = history.player(account_id)?.ok_or(Refusal::NotFound)?;
+            let card = history.site().player(account_id)?.ok_or(Refusal::NotFound)?;
             json!({
                 "player": named(&card.player),
                 "level": card.level,
@@ -324,7 +324,7 @@ fn answer(
             })
         }
         Endpoint::PlayerMatches { account_id, page } => {
-            let rows = history.player_matches(*account_id, page.before, page.limit)?;
+            let rows = history.site().player_matches(*account_id, page.before, page.limit)?;
             let next = next(page, rows.iter().map(|played| played.summary.id));
             let matches: Vec<Value> = rows
                 .iter()
@@ -341,7 +341,7 @@ fn answer(
             json!({ "matches": matches, "next": next })
         }
         Endpoint::PlayerEquipment { account_id, limit } => {
-            let favourites = history.favourites(*account_id, *limit)?;
+            let favourites = history.site().favourites(*account_id, *limit)?;
             let list = |items: &[ItemTotals]| -> Vec<Value> {
                 items
                     .iter()
@@ -362,7 +362,7 @@ fn answer(
             let today = now - now % DAY;
             let since = today.saturating_sub((days - 1) * DAY);
             let days: Vec<Value> = history
-                .player_days(*account_id, since)?
+                .site().player_days(*account_id, since)?
                 .into_iter()
                 .map(|(day, sum)| {
                     let mut value = json!({ "day": day });
@@ -373,13 +373,13 @@ fn answer(
             json!({ "days": days })
         }
         Endpoint::Matches { page, clan } => {
-            let rows = history.matches(page.before, page.limit, *clan)?;
+            let rows = history.site().matches(page.before, page.limit, *clan)?;
             let next = next(page, rows.iter().map(|summary| summary.id));
             let matches: Vec<Value> = rows.iter().map(|row| match_summary(row, lang)).collect();
             json!({ "matches": matches, "next": next })
         }
         Endpoint::Match(id) => {
-            let (summary, players) = history.game_match(*id)?.ok_or(Refusal::NotFound)?;
+            let (summary, players) = history.site().game_match(*id)?.ok_or(Refusal::NotFound)?;
             let players: Vec<Value> = players
                 .iter()
                 .map(|player| {
@@ -394,7 +394,7 @@ fn answer(
         }
         Endpoint::Top { by, limit } => {
             let players: Vec<Value> = history
-                .top(*by, *limit, &|account_id| !banned(account_id))?
+                .site().top(*by, *limit, &|account_id| !banned(account_id))?
                 .iter()
                 .map(|top| {
                     json!({
@@ -409,7 +409,7 @@ fn answer(
         }
         Endpoint::Best(period) => {
             let rows: Vec<Value> = history
-                .best(now.saturating_sub(period.seconds()), BEST, &|account_id| {
+                .site().best(now.saturating_sub(period.seconds()), BEST, &|account_id| {
                     !banned(account_id)
                 })?
                 .iter()
@@ -431,7 +431,7 @@ fn answer(
             json!({ "period": period.name(), "rows": rows })
         }
         Endpoint::Clans { by, limit } => {
-            let clans: Vec<Value> = history.clans(*by, *limit)?.iter().map(clan_line).collect();
+            let clans: Vec<Value> = history.site().clans(*by, *limit)?.iter().map(clan_line).collect();
             json!({ "by": totals_key_name(*by), "clans": clans })
         }
         Endpoint::Clan(name) => {
@@ -439,7 +439,7 @@ fn answer(
                 ClanName::Id(id) => ClanKey::Id(*id),
                 ClanName::Tag(tag) => ClanKey::Tag(tag),
             };
-            let card = history.clan(key)?.ok_or(Refusal::NotFound)?;
+            let card = history.site().clan(key)?.ok_or(Refusal::NotFound)?;
             let members: Vec<Value> = card
                 .members
                 .iter()

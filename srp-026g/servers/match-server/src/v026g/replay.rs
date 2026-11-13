@@ -226,7 +226,7 @@ pub fn make(
         .and_then(ReplayId::parse)
         .ok_or_else(|| MakeError::lasting("the recording's name is no replay id"))?;
     let events = match accounts.and_then(GameAccounts::history) {
-        Some(history) => match history.events_of_replay(&replay_id) {
+        Some(history) => match history.site().events_of_replay(&replay_id) {
             Ok(kept) => kept.map(|kept| kept.events).unwrap_or_default(),
             Err(error) => {
                 return Err(MakeError::disk(format!("the history's events: {error}")));

@@ -6,7 +6,6 @@
 //! connections of its own: only public matches are ever read back.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::ops::Deref;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, MutexGuard, TryLockError};
@@ -1233,16 +1232,14 @@ impl MatchHistory {
     pub fn lobby(&self) -> &HistoryReaders {
         &self.lobby
     }
-}
 
-impl Deref for MatchHistory {
-    type Target = HistoryReaders;
-
-    /// The site's reads.
-    fn deref(&self) -> &HistoryReaders {
+    /// Every other reader's reads (the site, the match server's threads):
+    /// the shared pool.
+    pub fn site(&self) -> &HistoryReaders {
         &self.site
     }
 }
+
 
 /// The history's queries, on read-only connections: the site's
 /// ([`MatchHistory`] derefs to them) or the lobby's ([`MatchHistory::lobby`]).
@@ -1997,17 +1994,17 @@ mod tests {
         assert_eq!(repository.load_all().unwrap().len(), 1);
         repository.record_match(&record(PUBLIC, 1000)).unwrap();
         let history = repository.history().unwrap().unwrap();
-        let card = history.player(10).unwrap().unwrap();
+        let card = history.site().player(10).unwrap().unwrap();
         assert_eq!(card.totals.matches, 1);
         assert_eq!(
             (card.totals.counters.shots, card.totals.counters.hits),
             (100, 40)
         );
         assert_eq!(
-            history.player_matches(10, None, 1).unwrap()[0].kits.len(),
+            history.site().player_matches(10, None, 1).unwrap()[0].kits.len(),
             2
         );
-        assert_eq!(history.favourites(10, 10).unwrap().weapons.len(), 2);
+        assert_eq!(history.site().favourites(10, 10).unwrap().weapons.len(), 2);
     }
 
     #[test]
@@ -2020,11 +2017,11 @@ mod tests {
                 .query_row("SELECT COUNT(*) FROM g26_matches", [], |row| row.get(0))
                 .unwrap()
         };
-        let slow = history.reader();
+        let slow = history.site().reader();
         slow.execute_batch("BEGIN").unwrap();
         assert_eq!(count(&slow), 1);
         repository.record_match(&record(PUBLIC, 200)).unwrap();
-        assert_eq!(history.player(10).unwrap().unwrap().totals.matches, 2);
+        assert_eq!(history.site().player(10).unwrap().unwrap().totals.matches, 2);
         // The slow one still reads what it began with.
         assert_eq!(count(&slow), 1);
         slow.execute_batch("COMMIT").unwrap();
@@ -2036,43 +2033,43 @@ mod tests {
         let (mut repository, history) = repository(&dir);
         let short = MatchKind::Public(Eligibility::Short);
         repository.record_match(&record(short, 100)).unwrap();
-        let (summary, players) = history.game_match(1).unwrap().unwrap();
+        let (summary, players) = history.site().game_match(1).unwrap().unwrap();
         assert_eq!(summary.eligibility, Eligibility::Short);
         assert_eq!(players.len(), 2);
-        assert_eq!(history.player_matches(10, None, 10).unwrap().len(), 1);
+        assert_eq!(history.site().player_matches(10, None, 10).unwrap().len(), 1);
         // The player's own list has its private room's match and the one against bots too,
         // newest first, each with its kind; no other list and no total has them.
         repository.record_match(&record(MatchKind::Private, 200)).unwrap();
         repository.record_match(&record(MatchKind::VsBots, 300)).unwrap();
-        let own: Vec<OwnKind> = history.own_matches(10, 10).unwrap().into_iter().map(|(_, kind)| kind).collect();
+        let own: Vec<OwnKind> = history.site().own_matches(10, 10).unwrap().into_iter().map(|(_, kind)| kind).collect();
         assert_eq!(own, [OwnKind::VsBots, OwnKind::Private, OwnKind::Public]);
-        assert_eq!(history.own_matches(10, 2).unwrap().len(), 2);
-        assert_eq!(history.player_matches(10, None, 10).unwrap().len(), 1, "public only");
-        assert_eq!(history.account_by_name("Alice").unwrap(), Some(10));
+        assert_eq!(history.site().own_matches(10, 2).unwrap().len(), 2);
+        assert_eq!(history.site().player_matches(10, None, 10).unwrap().len(), 1, "public only");
+        assert_eq!(history.site().account_by_name("Alice").unwrap(), Some(10));
         assert_eq!(
-            history.player(10).unwrap().unwrap().totals,
+            history.site().player(10).unwrap().unwrap().totals,
             Totals::default()
         );
         let everything = |_| true;
         assert!(
             history
-                .top(PlayerRanking::Totals(TotalsKey::Kills), 10, &everything)
+                .site().top(PlayerRanking::Totals(TotalsKey::Kills), 10, &everything)
                 .unwrap()
                 .is_empty()
         );
         assert!(
             history
-                .top(PlayerRanking::Rating, 10, &everything)
+                .site().top(PlayerRanking::Rating, 10, &everything)
                 .unwrap()
                 .is_empty()
         );
-        assert!(history.best(0, 10, &everything).unwrap().is_empty());
-        assert!(history.player_days(10, 0).unwrap().is_empty());
-        assert!(history.clans(TotalsKey::Score, 10).unwrap().is_empty());
-        assert_eq!(history.favourites(10, 10).unwrap(), Favourites::default());
+        assert!(history.site().best(0, 10, &everything).unwrap().is_empty());
+        assert!(history.site().player_days(10, 0).unwrap().is_empty());
+        assert!(history.site().clans(TotalsKey::Score, 10).unwrap().is_empty());
+        assert_eq!(history.site().favourites(10, 10).unwrap(), Favourites::default());
         // The next one counts.
         repository.record_match(&record(PUBLIC, 200)).unwrap();
-        assert_eq!(history.player(10).unwrap().unwrap().totals.matches, 1);
+        assert_eq!(history.site().player(10).unwrap().unwrap().totals.matches, 1);
     }
 
     #[test]
@@ -2084,7 +2081,7 @@ mod tests {
             kit(0, 10, &[(0, HELMET), (7, AK), (10, PISTOL)]),
             kit(2, 4, &[(7, PISTOL)]),
         ];
-        let matches = history.player_matches(10, None, 10).unwrap();
+        let matches = history.site().player_matches(10, None, 10).unwrap();
         assert_eq!(matches[0].kits, alice_kits);
         assert_eq!(
             (
@@ -2093,14 +2090,14 @@ mod tests {
             ),
             (100, 40)
         );
-        let (_, players) = history.game_match(1).unwrap().unwrap();
+        let (_, players) = history.site().game_match(1).unwrap().unwrap();
         assert_eq!(players[0].kits, alice_kits);
         assert_eq!(players[1].kits, [kit(1, 6, &[(7, AK)])]);
         // No kit kept: an empty list, the line still there.
         let mut bare = record(PUBLIC, 200);
         bare.players[1].kits.clear();
         repository.record_match(&bare).unwrap();
-        let (_, players) = history.game_match(2).unwrap().unwrap();
+        let (_, players) = history.site().game_match(2).unwrap().unwrap();
         assert!(players[1].kits.is_empty());
         assert_eq!(players[1].line.kills, 6);
     }
@@ -2117,7 +2114,7 @@ mod tests {
         ] {
             repository.record_match(&record(kind, at)).unwrap();
         }
-        let favourites = history.favourites(10, 10).unwrap();
+        let favourites = history.site().favourites(10, 10).unwrap();
         // The pistol is in both of Alice's kits: one match each time, the
         // two kits' counters.
         assert_eq!(
@@ -2150,9 +2147,9 @@ mod tests {
             (favourites.armour[0].dict_id, favourites.armour[0].matches),
             (HELMET, 2)
         );
-        assert_eq!(history.favourites(10, 1).unwrap().weapons.len(), 1);
-        assert_eq!(history.favourites(11, 10).unwrap().weapons[0].matches, 2);
-        assert_eq!(history.favourites(99, 10).unwrap(), Favourites::default());
+        assert_eq!(history.site().favourites(10, 1).unwrap().weapons.len(), 1);
+        assert_eq!(history.site().favourites(11, 10).unwrap().weapons[0].matches, 2);
+        assert_eq!(history.site().favourites(99, 10).unwrap(), Favourites::default());
     }
 
     #[test]
@@ -2210,21 +2207,21 @@ mod tests {
         ];
         repository.record_match(&played).unwrap();
         let kept = history
-            .events(played.replay_id.match_id())
+            .site().events(played.replay_id.match_id())
             .unwrap()
             .unwrap();
         assert_eq!(kept.replay_id, played.replay_id);
         let mut expected = played.events.clone();
         expected.swap(0, 1);
         assert_eq!(kept.events, expected);
-        assert_eq!(history.events(0x5EED).unwrap(), None);
+        assert_eq!(history.site().events(0x5EED).unwrap(), None);
         assert_eq!(
-            history.events_of_replay(&played.replay_id).unwrap(),
+            history.site().events_of_replay(&played.replay_id).unwrap(),
             Some(kept.clone())
         );
         assert_eq!(
             history
-                .events_of_replay(&ReplayId::new(0x5EED, std::time::UNIX_EPOCH))
+                .site().events_of_replay(&ReplayId::new(0x5EED, std::time::UNIX_EPOCH))
                 .unwrap(),
             None
         );
@@ -2239,7 +2236,7 @@ mod tests {
         };
         repository.record_match(&again).unwrap();
         let newest = history
-            .events(played.replay_id.match_id())
+            .site().events(played.replay_id.match_id())
             .unwrap()
             .unwrap();
         assert_eq!(
@@ -2265,7 +2262,7 @@ mod tests {
         }
         let top = |history: &MatchHistory| -> Vec<String> {
             history
-                .top(PlayerRanking::Accuracy, 10, &|_| true)
+                .site().top(PlayerRanking::Accuracy, 10, &|_| true)
                 .unwrap()
                 .into_iter()
                 .map(|top| top.player.name)
@@ -2276,7 +2273,7 @@ mod tests {
         repository.record_match(&played).unwrap();
         assert_eq!(top(&history), ["Alice", "Bob"]);
         let accurate = history
-            .top(PlayerRanking::Accuracy, 1, &|id| id != 10)
+            .site().top(PlayerRanking::Accuracy, 1, &|id| id != 10)
             .unwrap();
         assert_eq!(accurate[0].player.name, "Bob");
         assert_eq!(accurate[0].totals.matches, 10, "a match is kept once");
@@ -2301,7 +2298,7 @@ mod tests {
             .unwrap();
         assert_eq!(kept, 4, "every match is kept");
 
-        let card = history.player(10).unwrap().unwrap();
+        let card = history.site().player(10).unwrap().unwrap();
         assert_eq!(card.player.name, "Alice");
         assert_eq!(
             card.player.clan,
@@ -2332,27 +2329,27 @@ mod tests {
                 },
             }
         );
-        let bob = history.player(11).unwrap().unwrap();
+        let bob = history.site().player(11).unwrap().unwrap();
         assert_eq!((bob.totals.matches, bob.totals.wins), (2, 0));
         assert_eq!(bob.player.clan, None);
 
         let ids: Vec<u64> = history
-            .matches(None, 50, None)
+            .site().matches(None, 50, None)
             .unwrap()
             .iter()
             .map(|summary| summary.id)
             .collect();
         assert_eq!(ids, [4, 1]);
-        assert!(history.game_match(2).unwrap().is_none());
-        assert!(history.game_match(3).unwrap().is_none());
-        let (summary, players) = history.game_match(4).unwrap().unwrap();
+        assert!(history.site().game_match(2).unwrap().is_none());
+        assert!(history.site().game_match(3).unwrap().is_none());
+        let (summary, players) = history.site().game_match(4).unwrap().unwrap();
         assert_eq!(summary.players, 2);
         assert_eq!(summary.info.winner, Winner::FirstTeam);
         assert_eq!(summary.info.team_points, [5, 3]);
         assert_eq!(players[0].player.name, "Alice");
         assert_eq!(players[0].line, line(0, 1, 300, 14, 6));
         assert_eq!(players[1].line.team, 1);
-        assert!(history.player(99).unwrap().is_none());
+        assert!(history.site().player(99).unwrap().is_none());
     }
 
     #[test]
@@ -2369,7 +2366,7 @@ mod tests {
         repository.record_match(&record(PUBLIC, 400)).unwrap();
         let ids = |accounts: &[u32]| -> Vec<u64> {
             history
-                .matches_with(accounts, 10)
+                .site().matches_with(accounts, 10)
                 .unwrap()
                 .iter()
                 .map(|summary| summary.id)
@@ -2380,7 +2377,7 @@ mod tests {
         assert_eq!(ids(&[11]), [4, 1]);
         assert!(ids(&[99]).is_empty());
         assert!(ids(&[]).is_empty());
-        assert_eq!(history.matches_with(&[10], 1).unwrap()[0].id, 4);
+        assert_eq!(history.site().matches_with(&[10], 1).unwrap()[0].id, 4);
     }
 
     #[test]
@@ -2464,25 +2461,25 @@ mod tests {
             .record_match(&record(MatchKind::Private, 600))
             .unwrap();
         let page: Vec<u64> = history
-            .player_matches(10, None, 2)
+            .site().player_matches(10, None, 2)
             .unwrap()
             .iter()
             .map(|played| played.summary.id)
             .collect();
         assert_eq!(page, [5, 4]);
         let next: Vec<u64> = history
-            .player_matches(10, Some(4), 2)
+            .site().player_matches(10, Some(4), 2)
             .unwrap()
             .iter()
             .map(|played| played.summary.id)
             .collect();
         assert_eq!(next, [3, 2]);
         // A limit is 1 to 50.
-        assert_eq!(history.player_matches(10, None, 0).unwrap().len(), 1);
-        assert_eq!(history.matches(Some(3), 50, None).unwrap().len(), 2);
+        assert_eq!(history.site().player_matches(10, None, 0).unwrap().len(), 1);
+        assert_eq!(history.site().matches(Some(3), 50, None).unwrap().len(), 2);
         // The clan's: Alice's matches, not Bob's alone.
-        assert_eq!(history.matches(None, 50, Some(7)).unwrap().len(), 5);
-        assert!(history.matches(None, 50, Some(8)).unwrap().is_empty());
+        assert_eq!(history.site().matches(None, 50, Some(7)).unwrap().len(), 5);
+        assert!(history.site().matches(None, 50, Some(8)).unwrap().is_empty());
     }
 
     #[test]
@@ -2493,7 +2490,7 @@ mod tests {
         for at in [DAY + 10, DAY + 20, 3 * DAY + 5] {
             repository.record_match(&record(PUBLIC, at)).unwrap();
         }
-        let days = history.player_days(10, 0).unwrap();
+        let days = history.site().player_days(10, 0).unwrap();
         assert_eq!(days.len(), 2);
         assert_eq!(days[0].0, "1970-01-02");
         assert_eq!(
@@ -2501,9 +2498,9 @@ mod tests {
             (2, 2, 28)
         );
         assert_eq!(days[1].0, "1970-01-04");
-        let since = history.player_days(10, 2 * DAY).unwrap();
+        let since = history.site().player_days(10, 2 * DAY).unwrap();
         assert_eq!(since.len(), 1);
-        assert_eq!(history.player_days(11, 0).unwrap()[0].1.wins, 0);
+        assert_eq!(history.site().player_days(11, 0).unwrap()[0].1.wins, 0);
     }
 
     /// A free-for-all is won by everyone with its most kills, whatever its
@@ -2519,12 +2516,12 @@ mod tests {
         repository.record_match(&ffa).unwrap();
         // Bob, of team 1, had the 6 kills; Alice's 14 is more than the most
         // only in this made-up record: it is the stored number that decides.
-        let alice = history.player(10).unwrap().unwrap();
-        let bob = history.player(11).unwrap().unwrap();
+        let alice = history.site().player(10).unwrap().unwrap();
+        let bob = history.site().player(11).unwrap().unwrap();
         assert_eq!((alice.totals.wins, bob.totals.wins), (0, 1));
-        assert_eq!(history.player_days(11, 0).unwrap()[0].1.wins, 1);
-        assert_eq!(history.player_days(10, 0).unwrap()[0].1.wins, 0);
-        let (summary, _) = history.game_match(1).unwrap().unwrap();
+        assert_eq!(history.site().player_days(11, 0).unwrap()[0].1.wins, 1);
+        assert_eq!(history.site().player_days(10, 0).unwrap()[0].1.wins, 0);
+        let (summary, _) = history.site().game_match(1).unwrap().unwrap();
         assert_eq!(summary.info.winner, Winner::MostKills(6));
         // A winner with no top kills, or top kills with a team's win, is no row.
         let connection = Connection::open(dir.db()).unwrap();
@@ -2543,7 +2540,7 @@ mod tests {
         let (mut repository, history) = repository(&dir);
         repository.record_match(&record(PUBLIC, 100)).unwrap();
         let by_kills = history
-            .top(PlayerRanking::Totals(TotalsKey::Kills), 10, &|_| true)
+            .site().top(PlayerRanking::Totals(TotalsKey::Kills), 10, &|_| true)
             .unwrap();
         let names: Vec<&str> = by_kills
             .iter()
@@ -2551,23 +2548,23 @@ mod tests {
             .collect();
         assert_eq!(names, ["Alice", "Bob"]);
         let by_rating = history
-            .top(PlayerRanking::Rating, 10, &|id| id != 10)
+            .site().top(PlayerRanking::Rating, 10, &|id| id != 10)
             .unwrap();
         assert_eq!(by_rating.len(), 1);
         assert_eq!(by_rating[0].player.name, "Bob");
         assert_eq!(
             history
-                .top(PlayerRanking::Rating, 1, &|_| true)
+                .site().top(PlayerRanking::Rating, 1, &|_| true)
                 .unwrap()
                 .len(),
             1
         );
 
-        let best = history.best(0, 20, &|_| true).unwrap();
+        let best = history.site().best(0, 20, &|_| true).unwrap();
         assert_eq!(best[0].player.name, "Alice");
         assert_eq!(best[0].line.score, 300);
-        assert!(history.best(101, 20, &|_| true).unwrap().is_empty());
-        let without_alice = history.best(0, 1, &|id| id != 10).unwrap();
+        assert!(history.site().best(101, 20, &|_| true).unwrap().is_empty());
+        let without_alice = history.site().best(0, 1, &|id| id != 10).unwrap();
         assert_eq!(without_alice.len(), 1);
         assert_eq!(without_alice[0].player.name, "Bob");
     }
@@ -2580,7 +2577,7 @@ mod tests {
         repository
             .record_match(&record(MatchKind::Private, 200))
             .unwrap();
-        let clans = history.clans(TotalsKey::Score, 10).unwrap();
+        let clans = history.site().clans(TotalsKey::Score, 10).unwrap();
         assert_eq!(clans.len(), 1);
         assert_eq!(
             (clans[0].tag.as_str(), clans[0].level, clans[0].members),
@@ -2589,14 +2586,14 @@ mod tests {
         assert_eq!((clans[0].totals.matches, clans[0].totals.score), (1, 300));
 
         for key in [ClanKey::Id(7), ClanKey::Tag("skh")] {
-            let card = history.clan(key).unwrap().unwrap();
+            let card = history.site().clan(key).unwrap().unwrap();
             assert_eq!(card.clan.name, "Skhid");
             assert_eq!(card.leader.unwrap().name, "Alice");
             assert_eq!(card.members.len(), 1);
             assert!(card.members[0].commander);
             assert_eq!(card.members[0].totals.kills, 14);
         }
-        assert!(history.clan(ClanKey::Id(8)).unwrap().is_none());
+        assert!(history.site().clan(ClanKey::Id(8)).unwrap().is_none());
 
         // Carol (12), its commander now, has no public match: counted, but
         // neither named nor listed.
@@ -2620,7 +2617,7 @@ mod tests {
                 money: 0,
             })
             .unwrap();
-        let card = history.clan(ClanKey::Id(7)).unwrap().unwrap();
+        let card = history.site().clan(ClanKey::Id(7)).unwrap().unwrap();
         assert_eq!(card.clan.members, 2);
         assert_eq!(card.leader, None);
         let names: Vec<&str> = card
@@ -2715,7 +2712,7 @@ mod tests {
             repository.record_match(&played).unwrap();
         }
 
-        let totals = history.clan(ClanKey::Id(7)).unwrap().unwrap().clan.totals;
+        let totals = history.site().clan(ClanKey::Id(7)).unwrap().unwrap().clan.totals;
         assert_eq!(
             totals,
             Totals {
@@ -2739,15 +2736,15 @@ mod tests {
         );
         // The list of clans and the clan's matches agree with the card.
         assert_eq!(
-            history.clans(TotalsKey::Matches, 10).unwrap()[0].totals,
+            history.site().clans(TotalsKey::Matches, 10).unwrap()[0].totals,
             totals
         );
-        let listed = history.matches(None, 50, Some(7)).unwrap();
+        let listed = history.site().matches(None, 50, Some(7)).unwrap();
         assert_eq!(listed.len() as u64, totals.matches);
         let ids: Vec<u64> = listed.iter().map(|summary| summary.id).collect();
         assert_eq!(ids, [4, 3, 2, 1]);
         // Each member keeps its own matches.
-        let matches_of = |id| history.player(id).unwrap().unwrap().totals;
+        let matches_of = |id| history.site().player(id).unwrap().unwrap().totals;
         assert_eq!((matches_of(10).matches, matches_of(10).wins), (3, 1));
         assert_eq!((matches_of(12).matches, matches_of(12).wins), (3, 2));
         assert_eq!((matches_of(13).matches, matches_of(13).wins), (2, 1));
@@ -2758,21 +2755,21 @@ mod tests {
         let dir = TempDir::new("name");
         let (mut repository, history) = repository(&dir);
         // No public match yet: names are most often logins, none is found.
-        assert_eq!(history.account_by_name("alice").unwrap(), None);
-        assert!(history.player(10).unwrap().is_none());
+        assert_eq!(history.site().account_by_name("alice").unwrap(), None);
+        assert!(history.site().player(10).unwrap().is_none());
         repository
             .record_match(&record(MatchKind::Private, 100))
             .unwrap();
-        assert_eq!(history.account_by_name("alice").unwrap(), None);
-        assert!(history.player(10).unwrap().is_none());
+        assert_eq!(history.site().account_by_name("alice").unwrap(), None);
+        assert!(history.site().player(10).unwrap().is_none());
         repository.record_match(&record(PUBLIC, 200)).unwrap();
-        assert_eq!(history.account_by_name("alice").unwrap(), Some(10));
-        assert_eq!(history.account_by_name("Bob").unwrap(), Some(11));
-        assert_eq!(history.account_by_name("Carol").unwrap(), None);
+        assert_eq!(history.site().account_by_name("alice").unwrap(), Some(10));
+        assert_eq!(history.site().account_by_name("Bob").unwrap(), Some(11));
+        assert_eq!(history.site().account_by_name("Carol").unwrap(), None);
         // Carol is an account, but has played no public match.
         repository.save(12, &Account::new("Carol")).unwrap();
-        assert_eq!(history.account_by_name("Carol").unwrap(), None);
-        assert!(history.player(12).unwrap().is_none());
+        assert_eq!(history.site().account_by_name("Carol").unwrap(), None);
+        assert!(history.site().player(12).unwrap().is_none());
     }
 
     #[test]
