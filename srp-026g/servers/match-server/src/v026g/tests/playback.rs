@@ -560,8 +560,10 @@ fn the_end_of_the_recording_ends_the_session() {
     let (mut bench, replays) = bench();
     session_of_the_recording(&mut bench, &replays, 112_000);
     let at = watching(&mut bench, WATCHER);
+    // Put before 112 s (its key frame, as far as the inputs since let it
+    // be): some 5 s of play from its world, the clock held until then.
     assert!(
-        bench.until(5_000, |b| b.clients[at].told_to_leave),
+        bench.until(6_000, |b| b.clients[at].told_to_leave),
         "{}",
         position(&bench)
     );
@@ -960,5 +962,67 @@ fn a_seek_to_zero_starts_at_the_opening() {
     control(&mut bench, at, 1, Op::Seek(MatchMs(0)));
     let at_seek = position(&bench);
     assert!((OPENED_AT..OPENED_AT + 300).contains(&at_seek), "{at_seek}");
+    bench.assert_no_faults();
+}
+
+/// While its game has no world the clock waits where a seek put it (no more
+/// of a player's inputs go than its rings keep); seeks asked meanwhile wait
+/// for that world to be in or given up, and the latest alone starts it
+/// again: one world for them all.
+#[test]
+fn a_game_without_its_world_holds_the_clock_and_takes_the_latest_seek_once() {
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 0);
+    let at = watching(&mut bench, WATCHER);
+    bench.run_long(3_000);
+    let worlds = bench.clients[at].snapshots().len();
+    bench.clients[at].mute_time_replies = true;
+    control(&mut bench, at, 1, Op::Seek(MatchMs(65_000)));
+    assert_eq!(position(&bench), 61_699);
+    let relays = relays_taken(&bench.clients[at]);
+    bench.run_long(2_000);
+    assert_eq!(position(&bench), 61_699);
+    assert_eq!(relays_taken(&bench.clients[at]), relays);
+    for (seq, target) in [(2, 20_000), (3, 65_000), (4, 94_550)] {
+        bench.clients[at].send(
+            id::LEAVE,
+            &Request {
+                seq,
+                op: Op::Seek(MatchMs(target)),
+            }
+            .encode(),
+            true,
+        );
+    }
+    bench.run(300);
+    assert_eq!(position(&bench), 61_699, "its 0xE5 is still asked");
+    // Its 0xE5 given up: the latest seek, the clock waiting there.
+    bench.run_long(3_500);
+    assert_eq!(position(&bench), 94_550);
+    bench.clients[at].mute_time_replies = false;
+    assert!(bench.until(3_000, |b| b.clients[at].snapshots().len() > worlds));
+    bench.run_long(1_000);
+    assert_eq!(bench.clients[at].snapshots().len(), worlds + 1);
+    assert_eq!(bench.clients[at].snapshots().last().unwrap().1, 94_550);
+    assert!(position(&bench) > 94_550);
+    bench.assert_no_faults();
+}
+
+/// A seek is no keyboard: a paused replay ends [`PAUSED_MOST`] after its
+/// pause, sought or not.
+#[test]
+fn a_seek_does_not_hold_a_paused_replay_longer() {
+    use crate::v026g::game::playback::PAUSED_MOST;
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 0);
+    let at = watching(&mut bench, WATCHER);
+    bench.run_long(2_000);
+    control(&mut bench, at, 1, Op::Pause(true));
+    bench.run_long(PAUSED_MOST.as_millis() as u64 - 3_000);
+    let worlds = bench.clients[at].snapshots().len();
+    control(&mut bench, at, 2, Op::Seek(MatchMs(60_000)));
+    assert!(bench.until(2_000, |b| b.clients[at].snapshots().len() > worlds));
+    assert!(!bench.clients[at].told_to_leave);
+    assert!(bench.until(3_000, |b| b.clients[at].told_to_leave));
     bench.assert_no_faults();
 }

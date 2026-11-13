@@ -310,6 +310,10 @@ const CANDIDATE_WAIT: Duration = Duration::from_secs(3);
 const ASKED_FOR: Duration = Duration::from_secs(6);
 /// Hash reports are kept this long (match ms).
 const HASH_KEEP_MS: u32 = 30_000;
+/// The players' majorities are kept this long (match ms): a spectator at
+/// the longest Live delay reports ticks that far back, and its horizon and
+/// the settling a little more.
+const SETTLED_KEPT_MS: u32 = session::LiveDelay::MAX_SECONDS as u32 * 1000 + 5_000;
 /// The match ends this long after the clients' time limit.
 const END_GRACE_MS: u32 = 2_000;
 /// A match without a client for this long is over.
@@ -992,6 +996,9 @@ pub(crate) struct Game {
     /// The trusted worlds of the last [`INPUTS_KEPT_MS`], oldest first: where
     /// a Live window's spectator, behind the match, starts (`spectate`).
     past: VecDeque<Snapshot>,
+    /// The places' kills and deaths of the trusted worlds, told behind the
+    /// match (`live`).
+    live_records: live::DelayedRecords,
     requested_at: Option<Instant>,
     candidates: Vec<Candidate>,
     /// Everything relayed: its time, whose it is, what.
@@ -1001,6 +1008,10 @@ pub(crate) struct Game {
     /// CRC reports by tick and client.
     hashes: BTreeMap<u32, HashMap<usize, u32>>,
     hashes_checked_until: u32,
+    /// The players' majority of each tick judged, oldest first, for the
+    /// last [`SETTLED_KEPT_MS`]: what a spectator behind the match by up to
+    /// the longest Live delay is judged against (`judge_spectators`).
+    settled_hashes: VecDeque<(u32, u32)>,
     /// Reports for ticks up to this are not judged: the games were
     /// installing a new place then ([`Game::installing`]).
     hashes_unjudged_until: u32,
@@ -1106,12 +1117,14 @@ impl Game {
             snapshot: None,
             recent: None,
             past: VecDeque::new(),
+            live_records: live::DelayedRecords::default(),
             requested_at: None,
             candidates: Vec::new(),
             inputs: Vec::new(),
             events: Vec::new(),
             hashes: BTreeMap::new(),
             hashes_checked_until: 0,
+            settled_hashes: VecDeque::new(),
             hashes_unjudged_until: 0,
             hash_unshared_since: None,
             hash_starved: false,
@@ -4463,6 +4476,10 @@ impl Game {
                 *slot = Supplies::read(&block, profile, Dictionary::shared());
             }
         }
+        if let Some(rules) = &decoded.rules {
+            self.live_records
+                .observe(snapshot.time, &rules.kills_deaths);
+        }
         self.state = Some(Observed {
             time: snapshot.time,
             vouchers: vouchers.min(usize::from(u8::MAX)) as u8,
@@ -4475,9 +4492,9 @@ impl Game {
 
     /// Whether a snapshot's results could have come from real play: no
     /// more points than there are, or than could have been made since the
-    /// match began, no more kills than deaths, and no player killing faster
-    /// than one every [`MIN_MS_PER_KILL`]. Two colluding clients can agree
-    /// on any CRC; this keeps what they can claim within play.
+    /// match began, no more kills than deaths, and no player killing or
+    /// dying faster than one every [`MIN_MS_PER_KILL`]. Two colluding
+    /// clients can agree on any CRC; this keeps what they can claim within play.
     fn plausible(
         &self,
         decoded: &snapshot::Decoded,
@@ -4536,17 +4553,19 @@ impl Game {
             if kills > deaths + statistics.players.len() as u32 {
                 return Err(format!("{kills} kills but {deaths} deaths"));
             }
+            // Nobody kills or dies faster than play allows. (Battery counts
+            // past the map's are taken and cut in pay, `battery_cap`; the
+            // events keep a match's first `events::MAX_EVENTS`.)
             let most = 1 + played / MIN_MS_PER_KILL;
-            if let Some((index, player)) = statistics
-                .players
-                .iter()
-                .enumerate()
-                .find(|(_, player)| player.total(event::KILL) > most)
-            {
-                return Err(format!(
-                    "player {index} has {} kills after {played} ms",
-                    player.total(event::KILL)
-                ));
+            for (index, player) in statistics.players.iter().enumerate() {
+                for (event, what) in [(event::KILL, "kills"), (event::DEATH, "deaths")] {
+                    let count = player.total(event);
+                    if count > most {
+                        return Err(format!(
+                            "player {index} has {count} {what} after {played} ms"
+                        ));
+                    }
+                }
             }
         }
         Ok(())
@@ -4895,7 +4914,11 @@ impl Game {
             .collect();
         for time in times {
             let (wrong, right) = self.judge(time, now);
-            let strict = self.majority(time).is_some();
+            let majority = self.majority(time);
+            if let Some(crc) = majority {
+                self.settled_hashes.push_back((time, crc));
+            }
+            let strict = majority.is_some();
             for index in wrong {
                 self.note_report(index, time, false, strict, now);
             }
@@ -4906,6 +4929,14 @@ impl Game {
         self.hashes_checked_until = self.hashes_checked_until.max(settled);
         let keep_from = clock.saturating_sub(HASH_KEEP_MS);
         self.hashes = self.hashes.split_off(&keep_from);
+        let settled_from = clock.saturating_sub(SETTLED_KEPT_MS);
+        while self
+            .settled_hashes
+            .front()
+            .is_some_and(|&(time, _)| time < settled_from)
+        {
+            self.settled_hashes.pop_front();
+        }
         let desynced: Vec<usize> = self
             .peers
             .iter()

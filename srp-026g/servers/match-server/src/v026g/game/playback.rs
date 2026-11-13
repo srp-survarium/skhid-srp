@@ -104,7 +104,7 @@ impl Recording {
     /// `.sur`'s chunk 4 is the viewer's alone).
     pub(crate) fn load(path: &Path, match_id: u32) -> Result<Self, String> {
         let notes = record::read_notes(path).map_err(|error| error.to_string())?;
-        let file = sur_of(path, &notes)?;
+        let file = sur_of(path, &notes, match_id)?;
         let mut recording = Self::from_sur(&file, match_id)?;
         (recording.accounts, recording.revisions) = replay::by_place(&notes);
         Ok(recording)
@@ -339,8 +339,10 @@ fn played(speed: Speed, elapsed: Duration) -> u32 {
 /// The playback clock: match time, by the wall clock.
 #[derive(Clone, Copy, Debug)]
 enum Clock {
-    /// Its game loads its level: the clock waits at `at`.
-    Loading {
+    /// Its game has no world yet (it loads its level, or starts again from
+    /// one): the clock waits at `at`, so that it gets no more of a player's
+    /// inputs than [`Recording::reach`] counted for its rings.
+    Starting {
         at: u32,
     },
     /// At `at` at `since`, running at the playback's speed.
@@ -349,7 +351,8 @@ enum Clock {
         at: u32,
     },
     /// Stopped at `at`; its game pinged next at `ping`.
-    /// `since`: when it paused, or last sought.
+    /// `since`: when it paused (a seek keeps it: [`PAUSED_MOST`] counts
+    /// from there).
     Paused { at: u32, ping: Instant, since: Instant },
 }
 
@@ -382,6 +385,10 @@ struct Playback {
     revision: u8,
     /// Its reports in a row far from the playback ([`DRIFT_MS`]).
     drift: u8,
+    /// The latest seek its game asked for while a world was on its way to
+    /// it: taken once that world is in or given up ([`Self::poll`]), so
+    /// that its game starts again at most once a world.
+    sought: Option<u32>,
     /// How many of the recording's inputs and roster changes have gone to
     /// it as they came due (those since its world go with the world).
     inputs: usize,
@@ -404,7 +411,8 @@ impl Playback {
             recording,
             request,
             spectator,
-            clock: Clock::Loading { at: start },
+            clock: Clock::Starting { at: start },
+            sought: None,
             recalled: false,
             recall_at: None,
             speed: Speed::Normal,
@@ -422,7 +430,7 @@ impl Playback {
     /// The playback clock.
     fn position(&self, now: Instant) -> u32 {
         match self.clock {
-            Clock::Loading { at } | Clock::Paused { at, .. } => at,
+            Clock::Starting { at } | Clock::Paused { at, .. } => at,
             Clock::Playing { since, at } => {
                 at + played(self.speed, now.saturating_duration_since(since))
             }
@@ -505,7 +513,7 @@ impl Playback {
         );
         match op {
             Op::Pause(true) => {
-                if let Clock::Playing { .. } | Clock::Loading { .. } = self.clock {
+                if let Clock::Playing { .. } | Clock::Starting { .. } = self.clock {
                     self.clock = Clock::Paused {
                         at,
                         ping: now + PAUSED_PING_EVERY,
@@ -518,7 +526,11 @@ impl Playback {
             // clock ran on is caught by its reports ([`DRIFT_MS`]).
             Op::Pause(false) => {
                 if let Clock::Paused { at, .. } = self.clock {
-                    self.clock = Clock::Playing { since: now, at };
+                    self.clock = if self.spectator.is_live() {
+                        Clock::Playing { since: now, at }
+                    } else {
+                        Clock::Starting { at }
+                    };
                 }
             }
             Op::Speed(speed) => {
@@ -527,7 +539,8 @@ impl Playback {
                 }
                 self.speed = speed;
             }
-            Op::Seek(time) => self.seek(time.0, now),
+            // Taken at its next turn, or once the world on its way is in.
+            Op::Seek(time) => self.sought = Some(time.0),
             // As at the recording's end: its game goes back to the lobby
             // on the farewell (patch 143), then the session is over.
             Op::Leave => self.spectator.farewell(at, now),
@@ -558,18 +571,18 @@ impl Playback {
                 self.spectator.session_id()
             );
             self.drift = 0;
-            self.seek(at, now);
+            self.restart(at);
         }
     }
 
     /// The game starts again from the key frame at or before `time`, put as
-    /// far past it as it can be.
-    fn seek(&mut self, time: u32, now: Instant) {
+    /// far past it as it can be; its clock waits there until it plays from
+    /// that world (a paused one stays paused, since it paused).
+    fn restart(&mut self, time: u32) {
         let at = self.recording.seek_to(time);
         self.clock = match self.clock {
-            Clock::Loading { .. } => Clock::Loading { at },
-            Clock::Playing { .. } => Clock::Playing { since: now, at },
-            Clock::Paused { ping, .. } => Clock::Paused { at, ping, since: now },
+            Clock::Starting { .. } | Clock::Playing { .. } => Clock::Starting { at },
+            Clock::Paused { ping, since, .. } => Clock::Paused { at, ping, since },
         };
         (self.inputs, self.events) = self.recording.due(at);
         self.spectator.wait_again();
@@ -638,8 +651,15 @@ impl Playback {
             return (Vec::new(), Some(Ended::Left));
         }
         let before = self.spectator.stage();
+        // A seek once no world is on its way: one start again a world, the
+        // latest asked for.
+        if (self.spectator.is_live() || self.spectator.is_waiting())
+            && let Some(time) = self.sought.take()
+        {
+            self.restart(time);
+        }
         match self.clock {
-            Clock::Loading { at } if self.spectator.has_loaded() => {
+            Clock::Starting { at } if self.spectator.is_live() => {
                 self.clock = Clock::Playing { since: now, at };
             }
             Clock::Paused { at, ping, since } if now >= ping => {
@@ -701,6 +721,15 @@ impl Playback {
                 .relay(*from, &relay(*from, what), *time, at, now);
         }
         (self.inputs, self.events) = (inputs, events);
+        // Back to wait for a world by itself while it played (a relay of a
+        // place it lacks): from where the playback is, as far as its rings
+        // let it be put.
+        if let Clock::Playing { .. } = self.clock
+            && self.spectator.is_waiting()
+        {
+            self.restart(at);
+        }
+        let at = self.position(now);
         let echo = now.saturating_duration_since(self.created).as_millis() as u16;
         let start = recording.world_for(at).time;
         self.spectator
@@ -753,14 +782,26 @@ fn messages(direction: Direction, datagram: &[u8]) -> String {
 /// what `sur_convert` makes of it with no mode config (the `.sur`'s chunk
 /// 4 is the viewer's alone) and as many key frames as a file may hold
 /// (more places to seek to). Replay sessions play it; Save's file holds it
-/// (`super::super::replay_file`).
-pub(crate) fn sur_of(path: &Path, notes: &[record::Record]) -> Result<Vec<u8>, String> {
+/// (`super::super::replay_file`). Uploaded worlds the world check refused as
+/// key frames are said in the log.
+pub(crate) fn sur_of(
+    path: &Path,
+    notes: &[record::Record],
+    match_id: u32,
+) -> Result<Vec<u8>, String> {
     let settings = sur_convert::Settings {
         key_frame_every_ms: 1_000,
         ..sur_convert::Settings::default()
     };
-    let (file, _) = sur_convert::convert_file(path, notes, &[], settings)
-        .map_err(|error| error.to_string())?;
+    let (file, report) =
+        sur_convert::convert_file(path, notes, &[], settings).map_err(|error| error.to_string())?;
+    if let Some((time, why)) = report.refusals.first() {
+        log::warn!(
+            "Replays: match {match_id:#x}: {} uploaded worlds of its recording are no key \
+             frames, the world check refused the first at {time} ms: {why}",
+            report.worlds_untaken
+        );
+    }
     Ok(file)
 }
 

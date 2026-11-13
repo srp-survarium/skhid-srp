@@ -217,7 +217,7 @@ pub fn make(
         )));
     }
     let notes = record::read_notes(&recording).map_err(MakeError::read)?;
-    let sur = sur_of(&recording, &notes).map_err(MakeError::lasting)?;
+    let sur = sur_of(&recording, &notes, match_id).map_err(MakeError::lasting)?;
     // What a replay session would refuse is not saved either.
     Recording::from_sur(&sur, match_id).map_err(MakeError::lasting)?;
     let replay_id = recording

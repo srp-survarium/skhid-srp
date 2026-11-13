@@ -602,33 +602,35 @@ impl Game {
 
     /// Each live spectator's reports against the players': a tick the match
     /// has judged (`hashes_checked_until`) and its players' majority names
-    /// is right or wrong; one with no majority, or gone from the reports
-    /// kept, decides nothing. [`DRIFT_REPORTS`] wrong in a row: it is
+    /// (kept for as far back as the longest delay, `Game::settled_hashes`)
+    /// is right or wrong; one with no majority, or older than those kept,
+    /// decides nothing. [`DRIFT_REPORTS`] wrong in a row: it is
     /// started anew from a world (its next generation), as a player out of
     /// step is resynced, and no more often: [`RESYNCS_PER_MINUTE`] in
     /// [`RESYNC_WINDOW`], `Timing::resync_interval` apart. Its reports never
     /// go into `Game::hashes`: nothing of the match reads them.
     fn judge_spectators(&mut self, now: Instant) {
         let checked = self.hashes_checked_until;
-        let keep_from = self.clock(now).saturating_sub(HASH_KEEP_MS);
         let interval = self.settings.timing.resync_interval;
         let id = self.id;
-        // Taken out for the time of the judging: the majority reads the match.
-        let mut spectators = std::mem::take(&mut self.spectators);
-        for spectator in &mut spectators {
+        let settled = &self.settled_hashes;
+        let majority = |time: u32| {
+            settled
+                .binary_search_by_key(&time, |&(at, _)| at)
+                .ok()
+                .map(|at| settled[at].1)
+        };
+        for spectator in &mut self.spectators {
             let Watch::Live { wrong, reports, .. } = &mut spectator.stage else {
                 continue;
             };
             let judged = std::mem::take(reports);
             for (time, crc) in judged {
-                if time < keep_from {
-                    continue;
-                }
                 if time >= checked {
                     reports.push_back((time, crc));
                     continue;
                 }
-                match self.majority(time) {
+                match majority(time) {
                     Some(right) if right == crc => *wrong = 0,
                     Some(_) => *wrong += 1,
                     None => {}
@@ -661,7 +663,6 @@ impl Game {
             spectator.restarts.push_back(now);
             spectator.wait_again();
         }
-        self.spectators = spectators;
     }
 
     /// The next place the spectator's game lacks, asked as every game is
@@ -807,10 +808,6 @@ impl Spectator {
             Watch::Live { from, wrong, .. } => format!("Live(from {from} ms, {wrong} wrong)"),
             Watch::Leaving { .. } => "Leaving".to_owned(),
         }
-    }
-
-    pub(super) fn has_loaded(&self) -> bool {
-        !matches!(self.stage, Watch::Connecting | Watch::Loading)
     }
 
     pub(super) fn receive(&mut self, datagram: &[u8], now: Instant) -> Vec<Event> {
@@ -1191,6 +1188,11 @@ impl Spectator {
             let ping = ServerMessage::Ping { a: 0, b: 0 };
             let _ = self.transport.send(ping.id(), &ping.payload());
         }
+    }
+
+    /// It waits for a world: none is on its way.
+    pub(super) fn is_waiting(&self) -> bool {
+        self.stage == Watch::Waiting
     }
 
     /// It plays from a world it took.

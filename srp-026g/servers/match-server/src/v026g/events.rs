@@ -27,6 +27,16 @@ use survarium::v026g::match_msgs::snapshot::{
     PlayerStatistics, Research, Standing, Statistics, event,
 };
 
+/// A match's events kept, its end not counted: far over any played match's
+/// (a few hundred), and what its result and history carry at most.
+const MAX_EVENTS: usize = 4_096;
+
+/// Of `count` events of one kind, those that could be kept: no more is
+/// walked over.
+fn kept(count: u32) -> u32 {
+    count.min(MAX_EVENTS as u32)
+}
+
 /// Who is in a roster place.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Seat {
@@ -150,10 +160,10 @@ impl Extractor {
             let Some(by) = player(seats, place) else {
                 continue;
             };
-            for _ in 0..gain.found {
+            for _ in 0..kept(gain.found) {
                 self.push(window, EventKind::BatteryFound { by });
             }
-            for _ in 0..gain.delivered {
+            for _ in 0..kept(gain.delivered) {
                 self.push(window, EventKind::BatteryDelivered { by });
             }
         }
@@ -216,8 +226,17 @@ impl Extractor {
         let deaths: Vec<usize> = gains
             .iter()
             .enumerate()
-            .flat_map(|(place, gain)| std::iter::repeat_n(place, gain.deaths as usize))
+            .flat_map(|(place, gain)| std::iter::repeat_n(place, kept(gain.deaths) as usize))
             .collect();
+        // The window's deaths by team: a killer's enemies' are the other's.
+        let mut died = [0usize; 2];
+        for &dead in &deaths {
+            if let Some(team) = team(dead) {
+                died[usize::from(team)] += 1;
+            }
+        }
+        let enemies_died =
+            |killer: usize| team(killer).map_or(0, |team| died[usize::from(1 - team)]);
         for &victim in &deaths {
             let Some(dead) = player(seats, victim) else {
                 continue;
@@ -229,10 +248,8 @@ impl Extractor {
                 .collect();
             let only = match candidates[..] {
                 // One killer, and no more of its enemies died than it killed.
-                [killer] => {
-                    let its_victims = deaths.iter().filter(|&&dead| enemies(killer, dead)).count();
-                    (its_victims as u32 <= gains[killer].kills).then_some(killer)
-                }
+                [killer] => (enemies_died(killer) as u64 <= u64::from(gains[killer].kills))
+                    .then_some(killer),
                 _ => None,
             };
             // Else the one of them who hurt the victim in the life it lost.
@@ -272,7 +289,7 @@ impl Extractor {
             );
         }
         for (place, killer, left) in killers {
-            for _ in 0..left {
+            for _ in 0..kept(left) {
                 self.push(
                     timing(place),
                     EventKind::Kill {
@@ -284,8 +301,15 @@ impl Extractor {
         }
     }
 
+    /// Kept up to [`MAX_EVENTS`]: the later ones go.
     fn push(&mut self, timing: Timing, kind: EventKind) {
+        if self.events.len() >= MAX_EVENTS {
+            return;
+        }
         self.events.push(MatchEvent { timing, kind });
+        if self.events.len() == MAX_EVENTS {
+            log::warn!("Match events: {MAX_EVENTS} in one match; the later ones are not kept");
+        }
     }
 
     /// The events so far and the end, at `end_ms` with `points`.
@@ -419,6 +443,23 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn a_match_keeps_its_first_events_only() {
+        let mut extractor = Extractor::new(RuleMode::TeamDeathmatch);
+        let world = statistics(&[(0, event::KILL, 6_000), (2, event::DEATH, 6_000)]);
+        assert!(observe(&mut extractor, 5_000, &world));
+        let events = extractor.finish(6_000, [0, 0]);
+        assert_eq!(events.len(), MAX_EVENTS + 1);
+        assert_eq!(
+            events[0].kind,
+            EventKind::Kill {
+                killer: who(0),
+                victim: Some(who(2)),
+            }
+        );
+        assert_eq!(events[MAX_EVENTS].kind, EventKind::End { points: [0, 0] });
     }
 
     #[test]

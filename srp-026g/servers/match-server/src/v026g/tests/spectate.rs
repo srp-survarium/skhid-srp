@@ -394,6 +394,36 @@ fn a_spectator_out_of_step_alone_starts_again_from_a_world() {
     bench.assert_no_faults();
 }
 
+/// Review of 2026-11-13: a delayed spectator's reports are of ticks the
+/// delay back, and the players' majorities were kept 30 s: at the default
+/// delay none was judged, and one that loaded wrong stayed wrong.
+#[test]
+fn a_spectator_out_of_step_at_the_default_delay_starts_again_from_a_world() {
+    let mut bench = running();
+    let delay = LiveDelay::DEFAULT;
+    bench.run_long(delay.as_secs() * 1_000 + 5_000);
+    let at = spectate_as(&mut bench, SPECTATOR, WatchKind::Live { delay, view: None });
+    assert!(bench.until(10_000, |b| b.game().spectator_watches(SPECTATOR)));
+    let generation = bench.game().spectator_generation(SPECTATOR);
+    let behind = bench.clients[0].clock() - bench.clients[at].clock();
+    assert!(behind >= delay.as_secs() as u32 * 1_000 - 1_000, "{behind}");
+    bench.clients[at].no_hashes = true;
+    for _ in 0..40 {
+        let clock = bench.clients[at].clock();
+        bench.clients[at].report(clock / 50 * 50, 0xdead_beef);
+        bench.run(50);
+    }
+    assert!(
+        bench.until(5_000, |b| b.game().spectator_generation(SPECTATOR)
+            != generation),
+        "the spectator was not started again"
+    );
+    assert!(bench.until(10_000, |b| b.game().spectator_watches(SPECTATOR)));
+    assert_eq!(bench.game().resyncs(0), 0);
+    assert_eq!(bench.game().resyncs(1), 0);
+    bench.assert_no_faults();
+}
+
 #[test]
 fn a_spectator_in_step_is_left_alone() {
     let mut bench = running();

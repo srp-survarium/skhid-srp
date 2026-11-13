@@ -39,10 +39,11 @@
 //! least every [`BLOCK_EVERY`], so a server that stops loses that much at
 //! most.
 //!
-//! A file is written under `.part` from the match's first connection; it
-//! gets its name once [`Recording::entered`] has seen the minimum of
-//! players, and a `.part` is deleted when its match ends (and at start, for
-//! one a stopped server left). Kept files over `SRP_RECORD_MAX_MB` together
+//! A file is written under `.part` from the match's first connection to its
+//! end. When its match closes it gets its name if [`Recording::entered`] has
+//! seen the minimum of players (never earlier: a replay is made of a closed
+//! match alone), else it is deleted; a `.part` a stopped server left is
+//! deleted at start. Kept files over `SRP_RECORD_MAX_MB` together
 //! are deleted oldest first. The writing and the packing are done on a
 //! thread of their own; the match loop only hands the bytes over, and drops
 //! them (counted) if that thread is behind by [`QUEUE`] items.
@@ -222,10 +223,9 @@ impl Recorder {
             let path = entry.path();
             if path.extension().is_some_and(|ext| ext == PART) {
                 log::info!(
-                    "Recordings: {} was a match of fewer than {} players when the server \
-                     stopped; deleted",
-                    path.display(),
-                    settings.min_players
+                    "Recordings: {} was a match still running when the server stopped; \
+                     deleted",
+                    path.display()
                 );
                 let _ = fs::remove_file(&path);
             }
@@ -490,20 +490,10 @@ impl Writer {
                     }
                 }
             }
+            // Named when its match closes ([`Self::close`]), not now.
             Job::Keep { match_id } => {
                 if let Some(open) = self.open.get_mut(&match_id) {
-                    let kept = self.settings.dir.join(format!("{}.{EXTENSION}", open.name));
-                    // The file stays open: it is renamed under its writer
-                    // (Rust opens files on Windows with FILE_SHARE_DELETE).
-                    match fs::rename(&open.path, &kept) {
-                        Ok(()) => {
-                            open.path = kept;
-                            open.kept = true;
-                        }
-                        Err(error) => {
-                            log::warn!("Recordings: can't keep {}: {error}", open.path.display())
-                        }
-                    }
+                    open.kept = true;
                 }
             }
             Job::Close { match_id } => self.close(match_id),
@@ -533,6 +523,16 @@ impl Writer {
             // A write failed earlier: the file is cut short.
             None => false,
         };
+        // Its name only now: a replay is made of a closed match alone (one
+        // of a running match would get past the live delay).
+        let kept = self.settings.dir.join(format!("{}.{EXTENSION}", open.name));
+        if let Err(error) = fs::rename(&open.path, &kept) {
+            log::warn!("Recordings: can't keep {}: {error}", open.path.display());
+            self.settings
+                .tell(|replays| replays.recording_not_kept(match_id));
+            return;
+        }
+        open.path = kept;
         let size = fs::metadata(&open.path).map_or(0, |meta| meta.len());
         log::info!(
             "Match {match_id:#x}: recording {} kept ({size} bytes)",
@@ -907,6 +907,29 @@ mod tests {
     }
 
     #[test]
+    fn a_kept_match_gets_its_name_only_when_it_closes() {
+        let dir = temp_dir("running");
+        let recorder = Recorder::start(settings(&dir, 2)).unwrap();
+        let now = Instant::now();
+        let mut recording = recorder.open(&id(0xEF), false, serde_json::json!({}), now);
+        recording.entered(0);
+        recording.entered(1);
+        recording.datagram_in(0, &[1], now);
+        // The writer has had the keep: still no replay of the running match.
+        std::thread::sleep(Duration::from_millis(100));
+        let names = settle(&dir, |names| names.len() == 1);
+        assert!(names[0].ends_with(".srprec.part"), "{names:?}");
+        assert_eq!(super::super::replay::recording_in(&dir, 0xEF), None);
+        drop(recording);
+        let names = settle(&dir, |names| {
+            names.len() == 1 && names[0].ends_with("_000000ef.srprec")
+        });
+        assert!(names[0].ends_with("_000000ef.srprec"), "{names:?}");
+        assert!(super::super::replay::recording_in(&dir, 0xEF).is_some());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn a_match_under_the_minimum_leaves_no_file() {
         let dir = temp_dir("small");
         let recorder = Recorder::start(settings(&dir, 6)).unwrap();
@@ -1049,7 +1072,10 @@ mod tests {
             }
         }
         drop(recording);
-        let names = settle(&dir, |names| names.len() == 1);
+        // Named once closed.
+        let names = settle(&dir, |names| {
+            names.len() == 1 && names[0].ends_with(".srprec")
+        });
         let path = dir.join(&names[0]);
         let mut records = Vec::new();
         for _ in 0..500 {
