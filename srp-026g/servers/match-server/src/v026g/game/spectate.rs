@@ -95,6 +95,12 @@ const BACKLOG_MOST: usize = 2048;
 /// on its way would be behind what it has been fed.
 const LEAST_BEHIND: Duration = Duration::from_secs(1);
 
+/// A session's game starts from a world (an 0xE5 of a new generation, then
+/// the world packed on the match thread) no sooner than this after its last,
+/// whatever starts it again (a seek, a drift, a world not in, its ring, its
+/// game connecting anew): what is asked meanwhile waits.
+pub(super) const START_EVERY: Duration = Duration::from_secs(1);
+
 /// Where a spectator's game is. [`Spectator::go`] alone moves it, by
 /// [`Watch::step`].
 #[derive(Debug, PartialEq, Eq)]
@@ -245,12 +251,8 @@ pub(crate) struct Spectator {
     /// The places its game has: the static info's, then each it installed.
     installed_roster: usize,
     installing: Option<Installing>,
-    /// When it was started anew for drifting, the latest
-    /// [`RESYNCS_PER_MINUTE`] ([`Self::take_drift_restart`]).
-    restarts: VecDeque<Instant>,
-    /// Its starts done again in a row since it last watched, its world's
-    /// inputs past its game's ring ([`Self::ring_overrun`]).
-    ring_redos: u32,
+    /// Its session's starts from a world, of every connection of its game.
+    starts: Starts,
     /// The place its watcher asked to see, still to be told: in a view note
     /// (`replay_control::ServerNote::View`) once it first watches.
     view: Option<u8>,
@@ -261,6 +263,23 @@ pub(crate) struct Spectator {
     /// How often [`Self::feed`] walked the match's lists.
     #[cfg(test)]
     list_walks: u32,
+}
+
+/// What a session's game has had of starts from a world. Each packs a world
+/// on the match thread, so it outlives the game's connection: a game that
+/// connects again (from another port: `Game::watch`, `ReplayWatch::connect`)
+/// is its session's spectator anew, with what its last one had of them.
+#[derive(Debug, Default)]
+pub(super) struct Starts {
+    /// When it last started from a world (an 0xE5 of a new generation
+    /// went): the next no sooner than [`START_EVERY`] after.
+    last: Option<Instant>,
+    /// When it was started anew for drifting, the latest
+    /// [`RESYNCS_PER_MINUTE`] ([`Spectator::take_drift_restart`]).
+    drift: VecDeque<Instant>,
+    /// Its starts done again in a row since it last watched, its world's
+    /// inputs past its game's ring ([`Spectator::ring_overrun`]).
+    ring_redos: u32,
 }
 
 /// One more input of `place` in a world's ring count: its count now.
@@ -287,6 +306,10 @@ pub(super) struct Watched<'a> {
     pub(super) roster: usize,
     /// The worlds a start may be from.
     pub(super) worlds: Vec<&'a Snapshot>,
+    /// Their 0xE8s past the generation byte, by index, each made once for
+    /// every game shown it (a recording's key frames: its sessions share
+    /// them, `playback::Recording`); none: made for each start.
+    pub(super) sent_worlds: &'a [OnceLock<Vec<u8>>],
     /// Everything relayed so far: its time, whose it is, what.
     pub(super) inputs: &'a [(u32, usize, Relayed)],
     /// The roster changes so far: time, place, entered (else left).
@@ -335,9 +358,15 @@ impl Game {
         if self.finished_at.is_some() || self.over_unfinished(now) || !self.growing_roster() {
             return Err(Box::new(transport));
         }
-        // One game a session, one session an address.
-        self.spectators
-            .retain(|spectator| spectator.addr != addr && spectator.session_id != session_id);
+        // One game a session, one session an address. Its session's game
+        // again (from another port): anew, with what it had of starts.
+        let starts = self
+            .spectators
+            .iter()
+            .position(|spectator| spectator.session_id == session_id)
+            .map(|at| self.spectators.remove(at).into_starts())
+            .unwrap_or_default();
+        self.spectators.retain(|spectator| spectator.addr != addr);
         log::info!(
             "Match {:#x}: a spectator (session {session_id:#x}) connected from {addr}, {} s behind",
             self.id,
@@ -350,6 +379,7 @@ impl Game {
             self.snapshot_players() as u8,
             self.port,
             view,
+            starts,
         );
         spectator.delay = Some(Delay {
             ms: delay.max(LEAST_BEHIND).as_millis() as u32,
@@ -419,6 +449,7 @@ impl Game {
                 .into_iter()
                 .flatten()
                 .collect(),
+            sent_worlds: &[],
             inputs: &self.inputs,
             events: &self.events,
             until: None,
@@ -808,7 +839,8 @@ impl Game {
 
 impl Spectator {
     /// A game that connects to watch: told the ports (0xE3); `view` the
-    /// place it is to follow first, when one was asked.
+    /// place it is to follow first, when one was asked; `starts` what its
+    /// session had of starts (a game that connects again).
     pub(super) fn connect(
         addr: SocketAddr,
         session_id: u32,
@@ -816,6 +848,7 @@ impl Spectator {
         roster_size: u8,
         port: u16,
         view: Option<u8>,
+        starts: Starts,
     ) -> Self {
         transport.set_roster_size(roster_size);
         let ports = ServerMessage::Ports {
@@ -832,8 +865,7 @@ impl Spectator {
             generation: Generation::AT_READY,
             installed_roster: 0,
             installing: None,
-            restarts: VecDeque::new(),
-            ring_redos: 0,
+            starts,
             view,
             kits_told: Vec::new(),
             recall_at: None,
@@ -844,6 +876,19 @@ impl Spectator {
 
     pub(super) fn session_id(&self) -> u32 {
         self.session_id
+    }
+
+    /// Its game connects again: what its session had of starts, for the new
+    /// one ([`Self::connect`]).
+    pub(super) fn into_starts(self) -> Starts {
+        self.starts
+    }
+
+    /// It may start from a world now ([`START_EVERY`]).
+    pub(super) fn may_start(&self, now: Instant) -> bool {
+        self.starts
+            .last
+            .is_none_or(|last| now.saturating_duration_since(last) >= START_EVERY)
     }
 
     pub(super) fn at(&self) -> SpectatorAt {
@@ -965,7 +1010,12 @@ impl Spectator {
             return;
         }
         let clock = watched.clock;
-        let Some(world) = watched.worlds.iter().find(|world| world.time == time) else {
+        let Some((index, world)) = watched
+            .worlds
+            .iter()
+            .enumerate()
+            .find(|(_, world)| world.time == time)
+        else {
             self.go(Step::WaitAgain);
             return;
         };
@@ -1015,12 +1065,21 @@ impl Spectator {
         for message in replay.iter().chain(&entries) {
             self.send_waiting(message, now);
         }
-        let payload = if watched.compress {
-            ServerMessage::packed_snapshot(generation, world.time, &world.body)
-        } else {
-            ServerMessage::snapshot(generation, world.time, &world.body)
+        // Its generation, then the rest: the same for every game shown it.
+        let rest = || {
+            let mut payload = if watched.compress {
+                ServerMessage::packed_snapshot(generation, world.time, &world.body)
+            } else {
+                ServerMessage::snapshot(generation, world.time, &world.body)
+            }
+            .payload();
+            payload.split_off(1)
+        };
+        let mut payload = vec![generation];
+        match watched.sent_worlds.get(index) {
+            Some(made) => payload.extend_from_slice(made.get_or_init(rest)),
+            None => payload.extend(rest()),
         }
-        .payload();
         let sent = match lifetime {
             Some(lifetime) => self
                 .transport
@@ -1186,7 +1245,7 @@ impl Spectator {
     }
 
     /// Its turn of a poll: one that waits starts from the world at `start`
-    /// (0xE5 of its next generation); one timed gets its 0xE5 again; one
+    /// (0xE5 of its next generation), once it may ([`Self::may_start`]); one timed gets its 0xE5 again; one
     /// whose world is in watches (the leaves since its world). Each waits
     /// for a world again past its wait.
     pub(super) fn step(
@@ -1199,7 +1258,10 @@ impl Spectator {
         let clock = watched.clock;
         match self.stage {
             Watch::Waiting => {
-                if let Some(time) = start.filter(|_| self.installed_roster >= watched.roster) {
+                if let Some(time) =
+                    start.filter(|_| self.installed_roster >= watched.roster && self.may_start(now))
+                {
+                    self.starts.last = Some(now);
                     self.generation = self.generation.next();
                     self.send_time(self.generation.0, echo, clock);
                     self.go(Step::TimeAsked { time, echo, now });
@@ -1236,7 +1298,7 @@ impl Spectator {
                         let _ = self.transport.send(leave.id(), &leave.payload());
                     }
                     self.go(Step::WorldIn);
-                    self.ring_redos = 0;
+                    self.starts.ring_redos = 0;
                     log::info!(
                         "Match {:#x}: spectator {:#x} watches",
                         watched.id,
@@ -1291,6 +1353,13 @@ impl Spectator {
     /// It plays from a world it took.
     pub(super) fn is_live(&self) -> bool {
         matches!(self.stage, Watch::Live { .. })
+    }
+
+    /// Its world went, with its last 0xE5 (on its way or in): its game's
+    /// clock runs from that 0xE5's time, through the load too (`match.md`
+    /// section 27).
+    pub(super) fn world_sent(&self) -> bool {
+        matches!(self.stage, Watch::Syncing { .. } | Watch::Live { .. })
     }
 
     /// A replay viewer's note (`replay_control::ServerNote`), in an 0xF6:
@@ -1358,15 +1427,15 @@ impl Spectator {
     /// again from a newer one (true), as a player's slow load is done again
     /// ([`SLOW_LOADS_REDONE`] times in a row at most: then it goes on).
     fn ring_overrun(&mut self, fill: usize) -> bool {
-        if fill <= INPUT_RING_SAFE || self.ring_redos >= SLOW_LOADS_REDONE {
+        if fill <= INPUT_RING_SAFE || self.starts.ring_redos >= SLOW_LOADS_REDONE {
             return false;
         }
-        self.ring_redos += 1;
+        self.starts.ring_redos += 1;
         log::info!(
             "Spectator {:#x}: a place has {fill} inputs after its world, more than its game \
              keeps ({INPUT_RING_SAFE}; {} of {SLOW_LOADS_REDONE} times), so again from a newer one",
             self.session_id,
-            self.ring_redos
+            self.starts.ring_redos
         );
         self.wait_again();
         true
@@ -1376,20 +1445,19 @@ impl Spectator {
     /// as a player is resynced: [`RESYNCS_PER_MINUTE`] in [`RESYNC_WINDOW`],
     /// `interval` apart. If so, this start is counted.
     pub(super) fn take_drift_restart(&mut self, interval: Duration, now: Instant) -> bool {
-        while self
-            .restarts
+        let drift = &mut self.starts.drift;
+        while drift
             .front()
             .is_some_and(|at| now.saturating_duration_since(*at) >= RESYNC_WINDOW)
         {
-            self.restarts.pop_front();
+            drift.pop_front();
         }
-        let busy = self.restarts.len() >= RESYNCS_PER_MINUTE
-            || self
-                .restarts
+        let busy = drift.len() >= RESYNCS_PER_MINUTE
+            || drift
                 .back()
                 .is_some_and(|at| now.saturating_duration_since(*at) < interval);
         if !busy {
-            self.restarts.push_back(now);
+            drift.push_back(now);
         }
         !busy
     }

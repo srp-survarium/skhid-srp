@@ -41,6 +41,10 @@ const OPENING: u32 = 20_400;
 /// Where a game opening it is put: from the key frame at 14.5 s, as far on as
 /// a player's inputs since let it.
 const OPENED_AT: u32 = 19_500;
+/// Where a seek to 65 s puts a game: from the key frame at 59.55 s, short of
+/// the time, as far as a player's inputs since let it with room for those
+/// that come due while its world loads.
+const PUT_FOR_65_S: u32 = 61_199;
 const WATCHER_ACCOUNT: u32 = 900;
 const WATCHER: u32 = session_for(WATCHER_ACCOUNT);
 const MODERATOR: u32 = 901;
@@ -279,7 +283,7 @@ fn a_session_starts_at_the_countdowns_end_or_later_when_asked() {
     // Before the opening: the opening. Later: as a seek puts it (to 65 s, a
     // player's inputs since the key frame stop it short).
     assert_eq!(recording.start_at(5_000, None), OPENED_AT);
-    assert_eq!(recording.start_at(65_000, None), 61_699);
+    assert_eq!(recording.start_at(65_000, None), PUT_FOR_65_S);
     // A place that enters after the countdown: after its entry, asked for.
     let mut later = playable();
     later.move_entry(0, 30_000);
@@ -518,7 +522,7 @@ fn the_games_seek_starts_it_again_from_the_key_frame_at_or_before_the_time() {
     // To 65 s a player's inputs since the key frame stop it short; to 20 s
     // the 5 s a tick byte reaches back.
     for (seq, (target, key_frame, resumed_at)) in [
-        (65_000, 59_550, 61_699),
+        (65_000, 59_550, PUT_FOR_65_S),
         (20_000, 14_500, 19_500),
         (94_550, 94_550, 94_550),
     ]
@@ -561,7 +565,7 @@ fn the_end_of_the_recording_ends_the_session() {
     session_of_the_recording(&mut bench, &replays, 112_000);
     let at = watching(&mut bench, WATCHER);
     // Put before 112 s (its key frame, as far as the inputs since let it
-    // be): some 5 s of play from its world, the clock held until then.
+    // be): some 5 s of play from its world, the clock held until it went.
     assert!(
         bench.until(6_000, |b| b.clients[at].told_to_leave),
         "{}",
@@ -645,6 +649,9 @@ fn recorded_live(dir: &Path) -> (u32, PathBuf) {
     live.join_all();
     live.run_long(12_000);
     let match_id = live.match_id;
+    // A server gone has had its recordings written and closed
+    // (`Recorder::finish`): a match server started again in the same
+    // process finds no `.part` of it.
     drop(live);
     let closed = |path: &Path| {
         path.extension().is_some_and(|ext| ext == "srprec")
@@ -654,18 +661,13 @@ fn recorded_live(dir: &Path) -> (u32, PathBuf) {
                 })
             })
     };
-    for _ in 0..200 {
-        let path = std::fs::read_dir(dir)
-            .unwrap()
-            .flatten()
-            .map(|entry| entry.path())
-            .find(|path| closed(path));
-        if let Some(path) = path {
-            return (match_id, path);
-        }
-        std::thread::sleep(std::time::Duration::from_millis(10));
-    }
-    panic!("the live match's recording");
+    let path = std::fs::read_dir(dir)
+        .unwrap()
+        .flatten()
+        .map(|entry| entry.path())
+        .find(|path| closed(path))
+        .expect("the live match's recording, closed with its server");
+    (match_id, path)
 }
 
 /// The bench runs until the desk's session of `account` is no longer
@@ -965,7 +967,7 @@ fn a_seek_to_zero_starts_at_the_opening() {
     bench.assert_no_faults();
 }
 
-/// While its game has no world the clock waits where a seek put it (no more
+/// Until its world goes the clock waits where a seek put it (no more
 /// of a player's inputs go than its rings keep); seeks asked meanwhile wait
 /// for that world to be in or given up, and the latest alone starts it
 /// again: one world for them all.
@@ -978,10 +980,10 @@ fn a_game_without_its_world_holds_the_clock_and_takes_the_latest_seek_once() {
     let worlds = bench.clients[at].snapshots().len();
     bench.clients[at].mute_time_replies = true;
     control(&mut bench, at, 1, Op::Seek(MatchMs(65_000)));
-    assert_eq!(position(&bench), 61_699);
+    assert_eq!(position(&bench), PUT_FOR_65_S);
     let relays = relays_taken(&bench.clients[at]);
     bench.run_long(2_000);
-    assert_eq!(position(&bench), 61_699);
+    assert_eq!(position(&bench), PUT_FOR_65_S);
     assert_eq!(relays_taken(&bench.clients[at]), relays);
     for (seq, target) in [(2, 20_000), (3, 65_000), (4, 94_550)] {
         bench.clients[at].send(
@@ -995,7 +997,7 @@ fn a_game_without_its_world_holds_the_clock_and_takes_the_latest_seek_once() {
         );
     }
     bench.run(300);
-    assert_eq!(position(&bench), 61_699, "its 0xE5 is still asked");
+    assert_eq!(position(&bench), PUT_FOR_65_S, "its 0xE5 is still asked");
     // Its 0xE5 given up: the latest seek, the clock waiting there.
     bench.run_long(3_500);
     assert_eq!(position(&bench), 94_550);
@@ -1215,5 +1217,142 @@ fn a_session_lasts_its_longest_then_ends_as_at_the_recordings_end() {
     );
     bench.run_long(10_000);
     assert!(!replays.watches().holds(WATCHER_ACCOUNT));
+    bench.assert_no_faults();
+}
+
+/// Whether a datagram to a game carries a message of `id`.
+fn carries(datagram: &[u8], id: u8) -> bool {
+    udp_transport::wire::parse(
+        udp_transport::Table::Match,
+        udp_transport::Direction::ToClient,
+        datagram,
+        1,
+    )
+    .is_ok_and(|parsed| parsed.messages.iter().any(|message| message.id == id))
+}
+
+/// The watcher's game connects (again: from an address of its own) and
+/// loads: its client's index. Its world is the server's to send.
+fn connect_watcher(bench: &mut Bench) -> usize {
+    let at = bench.clients.len();
+    bench.clients.push(Client::idle_growing(WATCHER));
+    bench
+        .addrs
+        .push(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16)));
+    bench.clients[at].connect();
+    assert!(bench.until(1_000, |b| b.clients[at].model.options.is_some()));
+    bench.clients[at].ready();
+    at
+}
+
+/// Review of 2026-11-13: the playback clock waited at its start until the
+/// game's world was in, while the game's own clock runs from the 0xE5 its
+/// world goes with, through the load (`match.md` section 27): after a slow
+/// load the game was ahead of the playback by the load for the whole
+/// session (under what its reports are judged by), and every relay reached
+/// it that much later than a live game gets one, past its history. The
+/// clock runs from that 0xE5, as the game's does.
+#[test]
+fn a_slow_load_leaves_the_playback_clock_with_the_games() {
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 0);
+    let held = Arc::new(AtomicBool::new(true));
+    let holds = Arc::clone(&held);
+    // Its world's parts are lost for 1.5 s (the 0xE5 that goes with them
+    // is not: the game's clock is set by it).
+    let at = bench.clients.len();
+    bench.clients.push(Client::idle_growing(WATCHER));
+    bench.clients[at].lose = Some(Box::new(move |datagram| {
+        holds.load(Ordering::Relaxed)
+            && carries(datagram, id::SNAPSHOT)
+            && !carries(datagram, id::SET_TIME)
+    }));
+    bench.addrs.push(SocketAddr::from(([127, 0, 0, 1], 45_000)));
+    bench.clients[at].connect();
+    assert!(bench.until(1_000, |b| b.clients[at].model.options.is_some()));
+    bench.clients[at].ready();
+    bench.run(1_500);
+    assert!(!bench.clients[at].model.is_synced());
+    held.store(false, Ordering::Relaxed);
+    assert!(bench.until(3_000, |b| b.clients[at].model.is_synced()));
+    assert_eq!(bench.clients[at].snapshots().len(), 1, "one start");
+    bench.run(500);
+    let off = i64::from(bench.clients[at].clock()) - i64::from(position(&bench));
+    assert!(off.abs() <= 100, "the game is {off} ms off the playback");
+    bench.assert_no_faults();
+}
+
+/// Review of 2026-11-13: what came due went `HORIZON_MS` ahead of the
+/// playback at every speed: at 8x that is some 30 ms of real time, and a
+/// relay whose way took longer (or a lost one's copy) reached the game past
+/// its tick. The lead is as much real time at every speed (bounded by what
+/// a game takes ahead of its clock). At 2x here: the tests' game does not
+/// scale its clock, and at 8x it would be behind past a tick byte's reach
+/// within a second.
+#[test]
+fn at_a_higher_speed_the_relays_go_as_far_ahead_in_real_time() {
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 0);
+    let at = watching(&mut bench, WATCHER);
+    control(&mut bench, at, 1, Op::Speed(Speed::Double));
+    let recorded = [recorded(0), recorded(1)];
+    let mut seen = 0;
+    for _ in 0..120 {
+        bench.run(25);
+        // 300 to 450 ms past the playback: 150 to 225 ms of real time at
+        // 2x, gone already only with the lead scaled.
+        let now = position(&bench);
+        for (player, recorded) in recorded.iter().enumerate() {
+            let got = bench.clients[at].relays_of(player as u8);
+            for (time, input) in recorded {
+                if (now + 300..=now + 450).contains(time) {
+                    seen += 1;
+                    assert!(
+                        got.contains(input),
+                        "player {player}'s at {time} ms, at {now} ms"
+                    );
+                }
+            }
+        }
+    }
+    assert!(seen > 0, "no input looked at");
+    bench.assert_no_faults();
+}
+
+/// Review of 2026-11-13: a game that connected again from another port was
+/// its session's anew, with no starts behind it: each round (0xD8, probe,
+/// 0xDA, its answer to the 0xE5) packed a world on the match thread, as
+/// fast as it went round. Its session's starts go on from its last: one a
+/// second at most, and the world (the same key frame) is packed once.
+#[test]
+fn a_game_connecting_again_and_again_starts_from_a_world_once_a_second() {
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 0);
+    let first = watching(&mut bench, WATCHER);
+    let started = bench.ms;
+    let mut games = vec![first];
+    for _ in 0..15 {
+        bench.clients[*games.last().unwrap()].silent = true;
+        let at = connect_watcher(&mut bench);
+        games.push(at);
+        bench.run(200);
+    }
+    let lasted = bench.ms - started;
+    let worlds: usize = games
+        .iter()
+        .skip(1)
+        .map(|&at| bench.clients[at].snapshots().len())
+        .sum();
+    assert!(
+        worlds as u64 <= lasted / 1_000 + 1,
+        "{worlds} worlds in {lasted} ms"
+    );
+    // The last gets its world, the first one's key frame packed once.
+    let last = *games.last().unwrap();
+    assert!(bench.until(3_000, |b| b.clients[last].model.is_synced()));
+    assert_eq!(
+        bench.clients[last].snapshots().last().unwrap().1,
+        FIRST_VIEW
+    );
     bench.assert_no_faults();
 }

@@ -244,6 +244,19 @@ pub(crate) struct Server {
     pub(crate) revisions: HashMap<u32, u8>,
 }
 
+/// The server ends (it returns, or unwinds from a panic and `srp` starts it
+/// again in the same process): its matches' recordings are closed, and the
+/// writing thread has written them all before it is gone
+/// ([`Recorder::finish`]).
+impl Drop for Server {
+    fn drop(&mut self) {
+        self.games.clear();
+        if let Some(recorder) = &self.recorder {
+            recorder.finish();
+        }
+    }
+}
+
 impl Server {
     pub fn new(
         port: u16,

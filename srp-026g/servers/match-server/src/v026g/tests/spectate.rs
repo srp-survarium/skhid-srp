@@ -961,3 +961,44 @@ fn a_delayed_spectators_world_held_up_past_the_ring_is_given_up() {
     let inputs = inputs_with_world(&bench.clients[at]);
     assert!(inputs <= 26, "{inputs} inputs of player 0 after its world");
 }
+
+/// Review of 2026-11-13: a spectator's game that connected again from
+/// another port was its session's spectator anew, with no starts behind it:
+/// each round (0xD8, probe, 0xDA, its answer to the 0xE5) packed a world on
+/// the match thread, as fast as it went round, and against a live match. Its
+/// session's starts go on from its last: one a second at most.
+#[test]
+fn a_spectator_connecting_again_and_again_starts_from_a_world_once_a_second() {
+    let mut bench = running();
+    let first = watching(&mut bench);
+    let players = bench.game().roster_size();
+    let started = bench.ms;
+    let mut games = vec![first];
+    for _ in 0..15 {
+        bench.clients[*games.last().unwrap()].silent = true;
+        let at = bench.clients.len();
+        bench
+            .clients
+            .push(Client::growing(SPECTATOR, players, MAP_BATTERIES));
+        bench
+            .addrs
+            .push(SocketAddr::from(([127, 0, 0, 1], 45_000 + at as u16)));
+        bench.clients[at].connect();
+        assert!(bench.until(1_000, |b| b.clients[at].model.options.is_some()));
+        bench.clients[at].ready();
+        games.push(at);
+        bench.run(200);
+    }
+    let lasted = bench.ms - started;
+    let worlds: usize = games
+        .iter()
+        .skip(1)
+        .map(|&at| bench.clients[at].snapshots().len())
+        .sum();
+    assert!(
+        worlds as u64 <= lasted / 1_000 + 1,
+        "{worlds} worlds in {lasted} ms"
+    );
+    assert!(bench.until(3_000, |b| b.game().spectator_watches(SPECTATOR)));
+    bench.assert_no_faults();
+}

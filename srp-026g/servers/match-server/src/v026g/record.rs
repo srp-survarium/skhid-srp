@@ -208,6 +208,9 @@ enum Job {
     Record { match_id: u32, bytes: Vec<u8> },
     Keep { match_id: u32 },
     Close { match_id: u32 },
+    /// Every recording still open is closed, then `done` is told
+    /// ([`Recorder::finish`]).
+    Finish { done: SyncSender<()> },
 }
 
 /// The writing thread's door: one for the match server, shared by its
@@ -255,6 +258,21 @@ impl Recorder {
             .name("srp-record".into())
             .spawn(move || Writer::new(settings).run(queue))?;
         Ok(Self { jobs, min_players })
+    }
+
+    /// Waits until the writing thread has written and closed (named or
+    /// deleted) every recording it was given, those whose close it has not
+    /// reached yet too: the server's last act, once its matches' recordings
+    /// are dropped. `srp` starts a match server that panicked again in the
+    /// same process (`supervise`), and the new one's [`Self::start`] takes
+    /// every `.part` it finds for a stopped server's: one this thread still
+    /// had open would be named or deleted under it.
+    pub fn finish(&self) {
+        let (done, finished) = mpsc::sync_channel(1);
+        // Either fails only with the thread gone: nothing of it is open.
+        if self.jobs.send(Job::Finish { done }).is_ok() {
+            let _ = finished.recv();
+        }
     }
 
     /// The recording of a new match, named by its replay id: its header
@@ -522,6 +540,13 @@ impl Writer {
                 }
             }
             Job::Close { match_id } => self.close(match_id),
+            Job::Finish { done } => {
+                let ids: Vec<u32> = self.open.keys().copied().collect();
+                for match_id in ids {
+                    self.close(match_id);
+                }
+                let _ = done.send(());
+            }
         }
     }
 
@@ -551,7 +576,15 @@ impl Writer {
         // Its name only now: a replay is made of a closed match alone (one
         // of a running match would get past the live delay).
         let kept = self.settings.dir.join(format!("{}.{EXTENSION}", open.name));
-        if let Err(error) = fs::rename(&open.path, &kept) {
+        // Named already: a writer started meanwhile in the same folder took
+        // the `.part` for a stopped server's and kept it (`Recorder::start`);
+        // every record went in above, through the file still open.
+        let named_meanwhile = |error: &io::Error| {
+            error.kind() == io::ErrorKind::NotFound && !open.path.exists() && kept.exists()
+        };
+        if let Err(error) = fs::rename(&open.path, &kept)
+            && !named_meanwhile(&error)
+        {
             log::warn!("Recordings: can't keep {}: {error}", open.path.display());
             self.settings
                 .tell(|replays| replays.recording_not_kept(match_id));
@@ -1032,6 +1065,69 @@ mod tests {
         assert!(super::super::replay::recording_in(&left, 0xAB).is_some());
         let _ = fs::remove_dir_all(&dir);
         let _ = fs::remove_dir_all(&left);
+    }
+
+    /// Review of 2026-11-13: `srp` starts a match server that panicked again
+    /// in the same process a second later, while the old writing thread may
+    /// still be writing and closing. Its server waits for it
+    /// ([`Recorder::finish`]): every recording is named or deleted then.
+    #[test]
+    fn a_finished_writer_has_closed_every_recording() {
+        let dir = temp_dir("finish");
+        let recorder = Recorder::start(settings(&dir, 2)).unwrap();
+        let now = Instant::now();
+        let mut kept = recorder.open(&id(0xAB), false, serde_json::json!({}), now);
+        kept.entered(0);
+        kept.entered(1);
+        let mut small = recorder.open(&id(0xCD), false, serde_json::json!({}), now);
+        small.entered(0);
+        for _ in 0..1_000 {
+            kept.datagram_in(0, &[7; 300], now);
+        }
+        drop((kept, small));
+        recorder.finish();
+        let names = files(&dir);
+        assert_eq!(names.len(), 1, "{names:?}");
+        assert!(names[0].ends_with("_000000ab.srprec"), "{names:?}");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// The same race seen from the old writer: the new one's start named its
+    /// kept `.part` meanwhile. Its close takes that for kept, never "not
+    /// kept" (which the desk would answer a save of the match with: gone).
+    #[test]
+    fn a_kept_part_named_by_a_new_writer_meanwhile_is_kept() {
+        use session::v026g::replays::{MIN_REVISION, ReplayState, SaveSettings, Status};
+        let root = temp_dir("named-meanwhile");
+        let dir = root.join("recordings");
+        fs::create_dir_all(&dir).unwrap();
+        let replays = Arc::new(Replays::new(Some(dir.clone())).with_save(SaveSettings {
+            replay_dir: root.join("replays"),
+            max_replay_bytes: 1 << 30,
+        }));
+        let mut settings = settings(&dir, 2);
+        settings.replays = Some(Desk(replays.clone()));
+        let recorder = Recorder::start(settings.clone()).unwrap();
+        let now = Instant::now();
+        let mut kept = recorder.open(&id(0xAB), false, serde_json::json!({}), now);
+        kept.entered(0);
+        kept.entered(1);
+        settle(&dir, |names| {
+            names.len() == 1 && was_kept(&dir.join(&names[0]))
+        });
+        let _new = Recorder::start(settings).unwrap();
+        let names = files(&dir);
+        assert!(names[0].ends_with("_000000ab.srprec"), "{names:?}");
+        drop(kept);
+        recorder.finish();
+        assert_eq!(files(&dir), names);
+        let later = now + Duration::from_secs(10);
+        assert_eq!(replays.state(0xAB, Some(14), later), ReplayState::Kept);
+        assert_eq!(
+            replays.save_ask(1, 0xAB, Some(MIN_REVISION), Some(true), later),
+            Status::Preparing
+        );
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]
