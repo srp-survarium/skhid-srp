@@ -1010,9 +1010,6 @@ pub fn room_state(
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ListMember {
     pub member: Member,
-    /// The team of its place in the room's match being played, 0 or 1;
-    /// `None` when it has none.
-    pub side: Option<u8>,
     /// Its account: a right-click on it asks for its kits by it
     /// (`3D 00 <GEAR_BY_ACCOUNT> <account>`).
     pub account_id: u32,
@@ -1022,9 +1019,9 @@ pub struct ListMember {
 /// ROOM_MEMBERS_BASE + i`, to anyone (the room chosen in the Rooms list; a
 /// room with a PIN too: names are no secret): `S1;G;<key>;<members>`, then
 /// two rows a member in the order of the room: `P;<i>;<gear>;<owner>;<me>;
-/// <in match>;<fit>;<away>;<side>;<account>;<squad>` (the state's fields;
-/// `side` 1 or 2, the team of its place in the room's match being played, 0
-/// when it has none; `squad` its squad's mark, [`Member::squad`], 0 none),
+/// <in match>;<fit>;<away>;0;<account>;<squad>` (the state's fields; `0`
+/// where its side was, none told since 2026-11-13: the list never shows who
+/// plays on which side; `squad` its squad's mark, [`Member::squad`], 0 none),
 /// and its whole name alone (up to the 63 bytes a row holds, `;`
 /// and all: a name is never cut here). A room gone: `S1;G;<key>;0`, no
 /// member.
@@ -1038,14 +1035,13 @@ fn members_names(key: u32, members: &[ListMember]) -> Vec<String> {
     for (index, seen) in members.iter().enumerate() {
         let member = &seen.member;
         names.push(format!(
-            "P;{index};{};{};{};{};{};{};{};{};{}",
+            "P;{index};{};{};{};{};{};{};0;{};{}",
             member.gear,
             u8::from(member.owner),
             u8::from(member.me),
             u8::from(member.in_match),
             member.fit as u8,
             u8::from(member.away),
-            seen.side.map_or(0, |team| team.min(1) + 1),
             seen.account_id,
             squad_number(member.squad)
         ));
@@ -1454,7 +1450,7 @@ mod tests {
     }
 
     #[test]
-    fn a_member_list_gives_each_side_account_and_whole_name() {
+    fn a_member_list_gives_each_account_and_whole_name_and_no_side() {
         let member = Member {
             gear: 7,
             owner: true,
@@ -1474,32 +1470,22 @@ mod tests {
             name: "Bob".into(),
             ..member.clone()
         };
-        let seen = |member: &Member, side, account_id| ListMember {
+        let seen = |member: &Member, account_id| ListMember {
             member: member.clone(),
-            side,
             account_id,
         };
         assert_eq!(
-            members_names(
-                42,
-                &[
-                    seen(&member, Some(1), 5),
-                    seen(&other, None, 6),
-                    seen(&other, Some(0), 7)
-                ]
-            ),
+            members_names(42, &[seen(&member, 5), seen(&other, 6)]),
             [
-                "S1;G;42;3",
-                "P;0;7;1;0;1;2;1;2;5;2",
+                "S1;G;42;2",
+                "P;0;7;1;0;1;2;1;0;5;2",
                 "a;b",
                 "P;1;7;0;0;0;0;0;0;6;0",
-                "Bob",
-                "P;2;7;0;0;0;0;0;1;7;0",
                 "Bob"
             ]
         );
         assert_eq!(members_names(42, &[]), ["S1;G;42;0"]);
-        assert!(room_members(42, &vec![seen(&member, None, 1); MEMBERS_MAX + 1]).is_err());
+        assert!(room_members(42, &vec![seen(&member, 1); MEMBERS_MAX + 1]).is_err());
     }
 
     /// The longest names the game takes (63 bytes: wide Latin, Cyrillic,
@@ -1523,7 +1509,6 @@ mod tests {
                     squad: Some(SQUAD_MARKS),
                     name: names[i % names.len()].clone(),
                 },
-                side: Some(1),
                 account_id: i32::MAX as u32,
             })
             .collect();

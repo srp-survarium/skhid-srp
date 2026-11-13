@@ -1139,8 +1139,8 @@ package survarium.rooms
         }
 
         // `S1;G;<key>;<members>`, then two rows a member: `P;<i>;<gear>;
-        // <owner>;<me>;<in match>;<fit>;<away>;<side>;<account>;<squad>` and
-        // its whole name (`squad`: its squad's mark, 0 none). Drawn when it is the chosen room's and something
+        // <owner>;<me>;<in match>;<fit>;<away>;0;<account>;<squad>` and
+        // its whole name (`0`: no side is told; `squad`: its squad's mark, 0 none). Drawn when it is the chosen room's and something
         // changed (only its box: the view under the mouse keeps its clicks
         // and the PIN typed).
         private function takeMembers(head:Array, rows:Array):void
@@ -1159,7 +1159,7 @@ package survarium.rooms
                 var name:String = String(rows[i + 1].nickname);
                 sig += String(rows[i].nickname) + "|" + name + "|";
                 list.push({"gear": int(f[2]), "owner": f[3] == "1", "me": f[4] == "1", "inMatch": f[5] == "1",
-                    "fit": int(f[6]), "away": f[7] == "1", "side": int(f[8]), "account": uint(f[9]),
+                    "fit": int(f[6]), "away": f[7] == "1", "account": uint(f[9]),
                     "squad": f.length > 10 ? int(f[10]) : 0, "name": name});
             }
             if (_seen != null && _seen.key == key && _seen.sig == sig)
