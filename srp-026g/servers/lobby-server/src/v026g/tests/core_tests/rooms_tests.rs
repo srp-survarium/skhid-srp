@@ -1829,7 +1829,7 @@ fn a_member_whose_late_join_fails_waits_in_its_room_again_and_goes_in_later() {
 }
 
 /// The members of a member list (`S1;G;<key>;<members>`, then two rows a
-/// member: `P;<i>;<gear>;<owner>;<me>;<in match>;<fit>;<away>;<side>;
+/// member: `P;<i>;<gear>;<owner>;<me>;<in match>;<fit>;<away>;0;
 /// <account>;<squad>` and its whole name) that the asker gets for the room
 /// of `key`: the header's fields, then each member's fields with its name
 /// last (index 11).
@@ -1897,33 +1897,25 @@ fn anyone_sees_who_is_in_a_room_with_a_pin_too() {
     );
 }
 
-/// While the room plays its match, each member's side is the team of its
-/// place in it, 1 or 2; a member waiting outside the match has none.
+/// While the room plays its match, the list says who is in it and never on
+/// which side (the owner's of 2026-11-13: "always like at voting"); one who
+/// joins now waits outside the match first.
 #[test]
-fn a_member_list_says_the_side_of_each_player_in_the_match() {
+fn a_member_list_says_who_plays_the_match_and_no_side() {
     let mut world = World::new();
-    let (key, _, id, players) = room_match_of_four(&mut world);
+    let (key, _, _, _) = room_match_of_four(&mut world);
     let eve = world.connect("Eve");
-    let seen = members(&mut world, eve, key);
-    assert_eq!(seen[0][3], "4", "{seen:?}");
-    for (row, &player) in seen[1..].iter().zip(&players) {
-        let (_, team) = seat_of(&world, id, player);
-        assert_eq!(row[5], "1", "in the match: {row:?}");
-        assert_eq!(row[8], (team + 1).to_string(), "{row:?}");
-    }
-    let sides: Vec<&str> = seen[1..].iter().map(|row| row[8].as_str()).collect();
-    assert_eq!(
-        sides.iter().filter(|&&side| side == "1").count(),
-        2,
-        "{sides:?}"
-    );
-    // One who joins now waits outside the match first: no side.
     let frank = world.connect("Frank");
     rows(&mut world, frank, ROOM_JOIN_BASE + key, 1);
-    let now = members(&mut world, eve, key);
-    let row = &now[5];
+    let seen = members(&mut world, eve, key);
+    assert_eq!(seen[0][3], "5", "{seen:?}");
+    // In the match, on no side.
+    for row in &seen[1..5] {
+        assert_eq!((row[5].as_str(), row[8].as_str()), ("1", "0"), "{row:?}");
+    }
+    let row = &seen[5];
     assert_eq!(row[11], "Frank");
-    assert_eq!((row[5].as_str(), row[8].as_str()), ("0", "0"), "{now:?}");
+    assert_eq!((row[5].as_str(), row[8].as_str()), ("0", "0"), "{row:?}");
 }
 
 /// The longest names (63 bytes: wide Latin, Cyrillic, mixed with `;`) come
