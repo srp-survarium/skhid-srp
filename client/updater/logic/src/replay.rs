@@ -287,15 +287,16 @@ pub fn saved_name(header: &Header, start: Stamp, copy: u32) -> String {
 /// game's own language) with `-match_replay=` after it. The game reads a value in double quotes up to the next quote (its
 /// command-line parser, 0xDF1E3), so a path with spaces is one value. `None`
 /// for a path the game would read otherwise: one with a quote or a control
-/// character, one that ends with a backslash, one too long, one that is
-/// not a full path (the game takes a name without `:` or `\\` for a name in
-/// its own replays folder).
+/// character, one that ends with a backslash, one that is not a full path
+/// (the game takes a name without `:` or `\\` for a name in its own replays
+/// folder). Its length is the caller's: in the ANSI bytes the game reads
+/// (`win::game_path` keeps a path to [`MAX_GAME_PATH`] of them, or its short
+/// form), not this UTF-8 text's.
 pub fn game_command(game: &str, replay: &str) -> Option<String> {
     let bad = |text: &str| text.chars().any(|c| c == '"' || c.is_control());
     if bad(game)
         || bad(replay)
         || replay.ends_with('\\')
-        || replay.len() > MAX_GAME_PATH
         || !(replay.starts_with("\\\\") || replay.get(1..3) == Some(":\\"))
     {
         return None;
@@ -612,9 +613,10 @@ mod tests {
         ] {
             assert_eq!(game_command(game, replay), None, "{replay}");
         }
-        let long = format!("C:\\{}", "d".repeat(MAX_GAME_PATH - 3));
-        assert!(game_command(game, &long).is_some());
-        assert!(game_command(game, &(long + "d")).is_none());
+        // A Cyrillic path the ANSI code page holds in fewer bytes than its UTF-8.
+        let cyrillic = format!("D:\\{}.sur", "п".repeat(MAX_GAME_PATH / 2));
+        assert!(cyrillic.len() > MAX_GAME_PATH);
+        assert!(game_command(game, &cyrillic).is_some());
         assert!(game_command("C:\\a\"b.exe", replay).is_none());
     }
 

@@ -159,7 +159,7 @@ pub(super) const MIGRATION: &str = "
         dict_id       INTEGER NOT NULL,
         PRIMARY KEY (match_id, account_id, kit, slot)
     ) WITHOUT ROWID;
-    -- The public matches added up by player and item: the matches in
+    -- The counted public matches added up by player and item: the matches in
     -- which a kit it used held the item, and those kits' counters.
     CREATE TABLE g26_player_items (
         account_id    INTEGER NOT NULL,
@@ -906,7 +906,7 @@ fn record_kits(
     Ok(())
 }
 
-/// Adds a public match to `player`'s item totals: each item once, with
+/// Adds a counted public match to `player`'s item totals: each item once, with
 /// the counters of every kit it used that held it (a kit holding an item
 /// twice counts once).
 fn add_items(transaction: &Transaction, player: &PlayerRecord) -> Result<(), PersistError> {
