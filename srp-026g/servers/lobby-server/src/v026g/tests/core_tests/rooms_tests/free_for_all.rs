@@ -1,8 +1,7 @@
 //! A room's free-for-all (`docs/notes/ffa.md`): the card voted for plays
 //! with each ready member, each for himself (a squad is no squad in it);
-//! no more players than the map's most (10), the server's bots among them,
-//! the members past that waiting in the room; a private room's owner starts
-//! one alone.
+//! as many players as a match of two teams of the room (no most of its own:
+//! the room's size, 20 at the most); a private room's owner starts one alone.
 
 use std::collections::HashSet;
 
@@ -26,13 +25,6 @@ fn world_of(pool: Vec<u8>) -> World {
 /// A lobby whose rooms play free-for-alls alone: every card is one.
 fn free_for_all_world() -> World {
     world_of(free_for_alls())
-}
-
-/// The most players of a free-for-all: 10.
-fn cap() -> usize {
-    let cap = maps::player_cap(maps::map_mode(free_for_alls()[0]).unwrap()).expect("its most");
-    assert_eq!(cap, 10);
-    cap
 }
 
 /// What the match server was asked for last, as the lobby asked it.
@@ -95,7 +87,7 @@ fn a_room_whose_vote_wins_a_free_for_all_card_plays_it_with_each_ready_member() 
     assert!(matches!(room.stage, Stage::InMatch { .. }));
     assert_eq!(room.in_match.len(), 3);
 
-    // Dave comes while it is played: 3 of its 10 places are given.
+    // Dave comes while it is played: 3 of its places are given.
     world.host.admitting.locked().insert(ticket);
     rows(&mut world, dave, ROOM_JOIN_BASE + key, 1);
     world.take(dave);
@@ -137,69 +129,33 @@ fn a_squad_in_a_free_for_all_room_is_no_squad_in_its_match() {
     );
 }
 
-/// Twelve members and a free-for-all: its first ten (as they came into the
-/// room) play, the other two stay in the room and are told the match has no
-/// place (`JoinHold::PlayerLimit`), as is one who comes while it is played;
-/// none of them is sent to it, however long they wait.
+/// A full open room of 8 a side, 16 members, and a free-for-all: every
+/// member plays it, as a match of two teams of the room (the owner's of
+/// 2026-11-13: "it should be room limit").
 #[test]
-fn a_free_for_all_seats_its_first_ten_members_and_the_others_wait_in_the_room() {
+fn a_full_room_plays_a_free_for_all_with_every_member() {
     let mut world = free_for_all_world();
-    let members: Vec<usize> = (0..12)
+    let members: Vec<usize> = (0..16)
         .map(|n| world.connect(&format!("Member{n}")))
         .collect();
     let key = create(&mut world, members[0], spec(8), None);
     for &member in &members[1..] {
         rows(&mut world, member, ROOM_JOIN_BASE + key, 1);
     }
-    assert_eq!(world.core.rooms.get(key).unwrap().members.len(), 12);
-    let (first, rest) = members.split_at(cap());
-    for &member in rest {
-        world.take(member);
-    }
-    let ticket = room_match_starts(&mut world, first, VOTE_AND_WAIT);
+    assert_eq!(world.core.rooms.get(key).unwrap().members.len(), 16);
+    room_match_starts(&mut world, &members, VOTE_AND_WAIT);
     let setup = last_setup(&world);
-    assert_eq!(setup.players.len(), cap());
-    assert_eq!(seated(&setup), accounts(&world, first));
-    for &member in rest {
-        assert!(sent_to_match(&world.take(member)).is_none());
-    }
-    let room = world.core.rooms.get(key).unwrap();
-    assert_eq!(room.members.len(), 12, "the others are its members still");
-    assert_eq!(room.in_match, accounts(&world, first));
-
-    // The match server takes players; this match has no place to give.
-    world.host.admitting.locked().insert(ticket);
-    let late = world.connect("Late");
-    rows(&mut world, late, ROOM_JOIN_BASE + key, 1);
-    world.take(late);
-    let waiting: Vec<usize> = rest.iter().copied().chain([late]).collect();
-    for &member in &waiting {
-        assert_eq!(
-            join_row(&state(&mut world, member)),
-            Some("J;-1;7"),
-            "every place is given"
-        );
-    }
-    world.advance(Duration::from_secs(40));
-    for &member in &waiting {
-        assert!(sent_to_match(&world.take(member)).is_none());
-        assert_eq!(world.core.rooms.key_of(world.ids[member].0), Some(key));
-    }
-    assert_eq!(last_setup(&world).players.len(), cap());
-    assert_eq!(world.host.made.locked().len(), 1);
-    assert_eq!(
-        *world.host.join_asks.locked(),
-        Vec::<u32>::new(),
-        "the match server was not asked for a place it cannot give"
-    );
+    assert_eq!(setup.players.len(), 16);
+    assert_eq!(seated(&setup), accounts(&world, &members));
+    assert_eq!(world.core.rooms.get(key).unwrap().in_match, accounts(&world, &members));
 }
 
-/// A room with bots (8 a team in a match of two teams) fills a free-for-all
-/// with the server's bots up to its most players and no further: its two
-/// members and eight bots. Here its maps have a bots' map file; the
-/// release's have none, so no room with bots holds one (`ffa.md`).
+/// A room with bots (8 a team) fills a free-for-all with the server's bots
+/// as a match of two teams: its two members and fourteen bots. Here its maps
+/// have a bots' map file; the release's have none, so no room with bots
+/// holds one (`ffa.md`).
 #[test]
-fn a_room_with_bots_fills_a_free_for_all_with_bots_up_to_its_most_players() {
+fn a_room_with_bots_fills_a_free_for_all_as_a_match_of_two_teams() {
     use survarium::v026g::lobby::rooms::ROOM_CREATE_BOTS;
 
     let mut world = free_for_all_world();
@@ -219,10 +175,10 @@ fn a_room_with_bots_fills_a_free_for_all_with_bots_up_to_its_most_players() {
     let (ticket, _) = sent_to_match(&press_start(&mut world, alice)).expect("a match");
     assert_eq!(sent_to_match(&world.take(bob)).map(|(id, _)| id), Some(ticket));
     let setup = last_setup(&world);
-    assert_eq!(setup.players.len(), cap());
+    assert_eq!(setup.players.len(), 16);
     assert_eq!(seated(&setup), accounts(&world, &[alice, bob]));
     let bots = setup.players.iter().filter(|player| player.driven).count();
-    assert_eq!(bots, cap() - 2);
+    assert_eq!(bots, 14);
     // The members first, the bots after them.
     assert!(setup.players[..2].iter().all(|player| !player.driven));
     assert!(setup.vs_bots && !setup.private);
@@ -266,33 +222,16 @@ fn a_squad_alone_in_an_open_room_waits_for_a_third_before_a_free_for_all_too() {
     assert_eq!(world.host.made.locked().len(), 0, "the pair waits for a third");
 }
 
-/// The members a free-for-all had no place for are the first seated in the
-/// room's next match (`Rooms::left_out`), so nobody waits twice while ten
-/// others play twice.
+/// A private room of 20, the most a match has (the game's 20 places): its
+/// owner's Start plays a free-for-all with all twenty.
 #[test]
-fn the_members_a_free_for_all_had_no_place_for_play_its_rooms_next_match() {
+fn a_private_room_of_twenty_plays_a_free_for_all_with_all_twenty() {
     let mut world = free_for_all_world();
-    let members: Vec<usize> = (0..12)
-        .map(|n| world.connect(&format!("Member{n}")))
-        .collect();
-    let key = create(&mut world, members[0], spec(8), None);
-    for &member in &members[1..] {
-        rows(&mut world, member, ROOM_JOIN_BASE + key, 1);
-    }
-    let (first, rest) = members.split_at(cap());
-    let ticket = room_match_starts(&mut world, first, VOTE_AND_WAIT);
-    world.end_match(ticket, 0);
-    for &member in &members {
-        world.take(member);
-    }
-    world.advance(Duration::from_secs(120));
-    assert_eq!(world.host.made.locked().len(), 2, "the next match");
-    let waited = accounts(&world, rest);
-    let again = seated(&last_setup(&world));
-    assert!(
-        waited.is_subset(&again),
-        "the two who waited were left out again: {waited:?} of {again:?}"
-    );
+    let (_, members) = private_room(&mut world, 20);
+    sent_to_match(&press_start(&mut world, members[0])).expect("a match");
+    let setup = last_setup(&world);
+    assert_eq!(setup.players.len(), 20);
+    assert_eq!(seated(&setup), accounts(&world, &members));
 }
 
 /// A free-for-all has no teams: each of its players is a side of his own

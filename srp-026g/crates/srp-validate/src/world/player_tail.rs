@@ -70,7 +70,8 @@ use super::inventory::{
     self, Ammo, Body, Fault, Gun, Item, ItemsAndRest, Measure, Owner, SLOTS, Slot, SlotId, flag,
     float, floats, short, state_id, u8, u32,
 };
-use super::weapon::{Portable, optional_u8, optional_u32};
+use super::inventory::ItemBody;
+use super::weapon::{Portable, StateData, optional_u8, optional_u32};
 use super::{Block, Context, PLAYER_FIELDS_AT, PLAYER_STATE_CAP};
 use crate::reader::Reader;
 use crate::{Finite, Part, Reason, Refusal};
@@ -81,7 +82,7 @@ use weapon_pickup::{Kit, Place, WeaponSlot};
 const INVENTORY_SLOTS: usize = 23;
 /// The quick slots artefacts take (setup_from_profile 0x2FD1C3..0x2FD2A5):
 /// `slots_begin` is one of them, `slots_begin + A` at most their end.
-const QUICK_SLOTS: core::ops::Range<u8> = 13..19;
+pub(super) const QUICK_SLOTS: core::ops::Range<u8> = 13..19;
 /// The most player effects a view holds: as many as a state has room for
 /// (the writer has no cap; each is 67 bytes).
 pub const MAX_PLAYER_EFFECTS: usize = PLAYER_STATE_CAP / Effect::LEN;
@@ -1044,7 +1045,30 @@ impl<'a> PlayerState<'a> {
             places: context.places,
             usable: &usable,
         };
-        inventory::items_and_rest(&self.items, &slots, self.head.alive, inventory, &owner).map(Some)
+        let items =
+            inventory::items_and_rest(&self.items, &slots, self.head.alive, inventory, &owner)?;
+        // The selected grenade (`m_grenade_slot`) is a grenade set: can-throw
+        // 0x2E40BF calls its item's vtable +64h and the throw's initialize
+        // (attach_grenade 0x33A7F5) takes it as the throw's set.
+        if let Some(slot) = self.inventory.grenade_slot()
+            && !holds_grenade_set(&slots, slot)
+        {
+            let at = self.items.at().saturating_sub(1);
+            return Err((at, Reason::TailSelectedGrenade { slot: slot.get() }));
+        }
+        // A throw takes its set from the slot it names, with no type test
+        // (deserialize 0x33A5AB): the item there must be a grenade set.
+        for item in items.items() {
+            if let ItemBody::Weapon(weapon) = item.body()
+                && let Some(hand) = weapon.in_hand()
+                && let StateData::ThrowGrenade { grenade_slot, .. } = hand.state()
+                && !holds_grenade_set(&slots, grenade_slot)
+            {
+                let slot = grenade_slot.get();
+                return Err((item.at(), Reason::TailGrenadeSet { slot }));
+            }
+        }
+        Ok(Some(items))
     }
 }
 
@@ -1145,6 +1169,17 @@ fn strict(block: &Block, items: usize, context: &Context) -> Result<(), Fault> {
         check_items(&state, block.place, context)?;
     }
     Ok(())
+}
+
+/// Whether the walk's `slots` (the kit's, as this state holds them) may have
+/// a grenade set in `slot`: the kit's grenade set, or a picker's ammo slot,
+/// whose object the stream does not say (patch 85 may have moved a borrowed
+/// stack into it, live state; the kit's own item may still be there).
+fn holds_grenade_set(slots: &[Option<Slot>], slot: SlotId) -> bool {
+    matches!(
+        slots.get(usize::from(slot.get())),
+        Some(Some(Slot::Held(Item { body: Body::GrenadeSet, .. }) | Slot::Maybe(_)))
+    )
 }
 
 /// The items and the rest of `state`, read and dropped. Out of line: the
@@ -1728,7 +1763,11 @@ mod tests {
             s.extend(rest());
             with_inventory(&s, &[item(7, gun(2))])
         };
-        assert_eq!(at(0, 2, &[0x00, 0, 0, 0, 22, 0]), Ok(()));
+        // A throw of slot 22, which holds no grenade set in this kit.
+        assert!(matches!(
+            at(0, 2, &[0x00, 0, 0, 0, 22, 0]).map_err(|refusal| refusal.reason),
+            Err(Reason::TailGrenadeSet { slot: 22 })
+        ));
         // The ammo id is read in both shapes: its refusal is the one.
         assert!(matches!(
             at(2, 1, &[0x00]).map_err(|refusal| refusal.reason),
@@ -1738,6 +1777,46 @@ mod tests {
         // no shape reads them (the refusal is the shape that read furthest).
         assert!(at(0, 3, &[0x00]).is_err());
         assert!(at(0, 2, &[0x00, 0, 0, 0, 23, 0]).is_err());
+    }
+
+    #[test]
+    fn a_throw_names_a_grenade_set_of_the_kit() {
+        // A gun in hand throwing (state 2) the grenade of `slot`; the kit
+        // has a grenade set in slot 14 (saved after the gun).
+        let throw = |slot: u8| {
+            let mut s = valid_state();
+            s.extend(weapon_in_hand(7, 0, 2, &[0x00, 0, 0, 0, slot, 0]));
+            s.extend(header_item(14, 0, 0));
+            s.extend(rest());
+            with_inventory(&s, &[item(7, gun(2)), item(14, Body::GrenadeSet)])
+        };
+        assert_eq!(throw(14), Ok(()));
+        // The gun's own slot, an empty one: no grenade set there.
+        for slot in [7, 13] {
+            assert!(matches!(
+                throw(slot).map_err(|refusal| refusal.reason),
+                Err(Reason::TailGrenadeSet { slot: s }) if s == slot
+            ));
+        }
+        // The selected grenade (the header's last byte): none, the set, or
+        // a slot of no grenade set.
+        let selected = |slot: u8| {
+            let mut s = valid_state();
+            let len = s.len();
+            s[len - 1] = slot;
+            s.extend(weapon_item(7, 0, 0, 0));
+            s.extend(header_item(14, 0, 0));
+            s.extend(rest());
+            with_inventory(&s, &[item(7, gun(2)), item(14, Body::GrenadeSet)])
+        };
+        assert_eq!(selected(23), Ok(()));
+        assert_eq!(selected(14), Ok(()));
+        for slot in [7, 13] {
+            assert!(matches!(
+                selected(slot).map_err(|refusal| refusal.reason),
+                Err(Reason::TailSelectedGrenade { slot: s }) if s == slot
+            ));
+        }
     }
 
     #[test]

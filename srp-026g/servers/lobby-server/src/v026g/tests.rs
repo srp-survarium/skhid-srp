@@ -38,8 +38,6 @@ pub(super) struct TestHost {
     pub live: Mutex<std::collections::HashMap<u32, super::LiveView>>,
     /// Every place given to a new session: `(match, account, session)`.
     pub reseated: Mutex<Vec<(u32, u32, u32)>>,
-    /// The match of every `join_running` asked, taken or not.
-    pub join_asks: Mutex<Vec<u32>>,
 }
 
 /// Where the test host says its matches are.
@@ -51,13 +49,9 @@ impl MatchHost for TestHost {
             return Err("the match server is down".to_owned());
         }
         // A free-for-all, as the registry makes it (`MatchRegistry::create`):
-        // no more players than its most, each place on a side of its own
-        // and in no squad, whatever the lobby seated it as. `made` keeps
-        // what the lobby asked for.
+        // each place on a side of its own and in no squad, whatever the
+        // lobby seated it as. `made` keeps what the lobby asked for.
         let map = setup.map.map();
-        if maps::player_cap(map).is_some_and(|cap| setup.players.len() > cap) {
-            return Err(format!("a roster of {}", setup.players.len()));
-        }
         let free_for_all = map.mode == maps::GameMode::FreeForAll;
         let mut made = self.made.locked();
         let match_id = 0xA000 + made.len() as u32;
@@ -91,7 +85,6 @@ impl MatchHost for TestHost {
     }
 
     fn join_running(&self, match_id: u32, players: Vec<super::MatchPlayer>) -> bool {
-        self.join_asks.locked().push(match_id);
         if !self.admitting.locked().contains(&match_id)
             || self.rejecting.locked().contains(&match_id)
         {
@@ -103,12 +96,6 @@ impl MatchHost for TestHost {
         };
         assert_eq!(setup.pool, session::QueuePool::GrowingRoster);
         assert!(!players.is_empty());
-        // A free-for-all's every place is given once (`JoinError::Full`).
-        if maps::player_cap(setup.map.map())
-            .is_some_and(|cap| setup.players.len() + players.len() > cap)
-        {
-            return false;
-        }
         setup.players.extend(players);
         self.admitting.locked().remove(&match_id);
         true

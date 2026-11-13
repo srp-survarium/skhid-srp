@@ -1248,3 +1248,26 @@ survarium::kd_event_frame	event	0x4	u32	on_event first argument: event 1 is a de
 survarium::kd_event_frame	time	0xC	u32	on_event third argument: completed world time, dispatched by 0x2D1EC0
 survarium::pvp_match	options	0x124	ptr<survarium::match_options>	borrowed match options (constructor 0x2D55B0 argument +10h); lj_native_install updates this roster, UI 0x23B42C..0x23B435 reads it
 survarium::respawn_point_core	protection_ms	0x20	u32	invulnerability duration in milliseconds, load 0x2F4628..0x2F4630 multiplies legacy seconds by 1000
+survarium::throw_grenade_state	grenade_set	0x17C	ptr<survarium::grenade_set_core>	the grenade set being thrown: its deserialize 0x33A5AB..0x33A5F7 takes it from the profile slot the world names; is_ready_for_transition 0x33A677 and the throw 0x33A7BB read it
+survarium::throw_grenade_state	grenade_index	0x180	u8	m_grenade_index: the set's grenade being thrown, 0FFh none (initialize 0x33A45C); the world's byte as read (deserialize 0x33A640); grenade_set_core::pull_pin 0x30A120 gives the game's own (0x3103DD)
+survarium::grenade_set_core	grenades_begin	0x268	u32	its grenades' vector begin (the constructor 0x309AFF; each entry a grenade object, walked to the end by 0x309E70): (end - begin) / 4 grenades
+survarium::grenade_set_core	grenades_end	0x26C	u32	its grenades' vector end (0x309E71); pull_pin 0x30A1C2 and throw_grenade 0x30A268 index from begin with no bound
+survarium::grenade_set_core	vtable	0x0	u32	its vtable: GRENADE_SET_VTABLE (the client's grenade_set, made by 0x25DD3C) or GRENADE_SET_CORE_VTABLE (grenade_set_core, 0x2E7E1B); the throw grenade state takes its set from a profile slot the world names (0x33A5AB) with no type test
+survarium::image	grenade_set_vtable	0xA0B56C	u32	grenade_set's vtable (RTTI .?AVgrenade_set@survarium@@, offset 0; written at 0x25DD45 over grenade_set_core's)
+survarium::image	grenade_set_core_vtable	0xA14824	u32	grenade_set_core's vtable (RTTI .?AVgrenade_set_core@survarium@@, offset 0; its constructor 0x309AF8)
+survarium::animation_end_aware_state	methods	0x0	ptr<survarium::weapon_state_methods>	its vtable (every weapon_core_*state class; RTTI)
+survarium::animation_end_aware_state	index_of_animation_to_wait	0x134	u8	m_index_of_animation_to_wait: an index of the handles from [state+130h] (the object's own, every constructor), 0FFh none; the world's byte as read (deserialize 0x30DBB0, 0x30DC7C); on_animation_end 0x30DB8E, 0x3106A2, 0x310D06 compare [[state+130h]+index*4] with no bound
+survarium::weapon_state_methods	register_animations	0x1C	u32	slot 7, register_animations: one per layout of the state's animation handles (REGISTER_*_ANIMATIONS), kept by every derived class (the weapon_sound_events_handler_state templates; RTTI)
+survarium::image	register_show_hide_animations	0x24B700	u32	show and hide states' register_animations: 5 handles from +13Ch (4, then +14Ch); their stores give 0 or 2 (0x30DF55)
+survarium::image	register_reload_animations	0x24B760	u32	reload state's register_animations: 5 handles from +144h (4, then +154h); its store 0 or 2 (0x30E237)
+survarium::image	register_fire_animations	0x24B7C0	u32	fire and chamber_a_round states' register_animations: 9 handles from +144h (8, then +164h); stores 0..6 (0x30E56A, 0x30F5FA) and 8 (fire, 0x30E83E)
+survarium::image	register_fire_twice_animations	0x24B820	u32	double-barrel's and pistol's fire and reload states' register_animations: 10 handles from +144h (8, then 2 at +164h); stores 0..6 (0x30FEE4) and 8, 9 (fire, 0x30F877)
+survarium::image	register_throw_substate_animations	0x24B880	u32	the throw grenade substates' register_animations: 4 handles from +140h; stores 0 or 2 (0x310374)
+survarium::image	register_shotgun_substate_animations	0x24B8C0	u32	the shotgun reload substates' register_animations: 5 handles from +138h (4, then +148h); stores 0 or 2 (0x3110B2)
+survarium::image	register_melee_animations	0x24B920	u32	melee state's register_animations: 4 handles from +144h; stores 0 or 2 (0x310C36)
+survarium::inventory	grenade_slot	0x17C	u32	m_grenade_slot: the selected grenade set's slot, 17h none (the constructor 0x2FC53D; grenade_set_core 0x309DEE, 0x309DFD; the world's byte)
+survarium::grenade_set_core	slot	0x254	u32	its profile_slot_id(): the throw state's serialize writes its low byte (0x33A521); 0x310473 and 0x33A74B compare the inventory's grenade slot with it
+survarium::grenade_set_core	config	0x25C	ptr<survarium::grenade_set_config>	its config (pull_pin 0x30A15C, 0x30A1A4)
+survarium::grenade_set_core	amount	0x260	u16	a stacked set's amount: pull_pin 0x30A120 stores amount-1 and indexes its grenades with that new amount's low byte (0x30A1B3), 1 for a set not stacked
+survarium::grenade_set_config	stacked	0x22A	u8	is_stack (pull_pin 0x30A16C, 0x30A1AA): not 0, the pull indexes by the amount
+survarium::grenade_choice_frame	wanted	0x4	u8	0x33A730's argument at the site ESP (no push before 0x33A73F; ret 4): it returns whether (the inventory's grenade slot == the set's slot) equals it

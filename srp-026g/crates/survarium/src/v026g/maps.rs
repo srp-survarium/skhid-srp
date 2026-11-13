@@ -26,7 +26,7 @@
 //! - 141 (`loopback_client`) and 142 (`gather_server_resources`) are mode 0.
 
 use binary_config_parser::tree::{ConfigError, ConfigValue};
-use srp_validate::world::{Anomaly, Artefacts, Group, Held, Map, State};
+use srp_validate::world::{Anomaly, ArtefactItem, Artefacts, Group, Held, Map, State, Uses};
 
 use super::dictionary::Dictionary;
 use super::game_data::{GameData, GameDataError};
@@ -299,9 +299,6 @@ pub struct MapMode {
     pub resources_count: u32,
     /// A free-for-all: the kills that win (`kills_to_win`, 30).
     pub kills_to_win: u32,
-    /// `match_making_params.max_players`: the most a match of it takes. Only
-    /// a free-for-all's is kept to (10; `docs/notes/ffa.md`).
-    pub max_players: u32,
     /// How many respawn points the project has: every entry of its
     /// `server_objects.respawn_points`, whatever its team or layer, is
     /// loaded (`player_respawn_rule_cook` 0x2C6910), so this is how many
@@ -448,7 +445,8 @@ pub static NO_WORLD_OBJECTS: Map<'static> = Map {
 /// `state_prio` 0x33C400 ([`state_before`]; the sort the game takes for at
 /// most 16 states, and a project has at most 7). An artefact saves its
 /// amount as a stack's u16 (`inventory_item::deserialize` 0x2FFF10 by the
-/// dictionary's `is_stack`, as every map's are), and an active one what its
+/// dictionary's `is_stack`, as every map's are), at most its item's uses
+/// (`data.amount`, `srp_validate::world::Uses`), and an active one what its
 /// item's core saves (`data.type`, [`ItemClass::Artefact`]): one of no stack
 /// or of no artefact's class stops the data. Leaked: the rows live as long as
 /// the process.
@@ -531,8 +529,21 @@ pub fn world_objects(
                         "anomaly {name}: item {dict_id} is no artefact"
                     )));
                 };
+                // Its uses, which bound an artefact's amount (`Uses`): the game
+                // reads `data.amount` as a 32-bit int (0x3130B9). An item without
+                // the key has no defined uses (the config's `operator[]` 0xF6B10
+                // has no end check: the game reads past the table), so it stops
+                // the data; every live artefact has it (-1).
+                let data = config.get("data");
+                if data.and_then(|data| data.get("amount")).is_none() {
+                    return Err(ConfigError(format!(
+                        "anomaly {name}: artefact {dict_id} has no `data.amount`, which the \
+                         game would read past its config"
+                    )));
+                }
+                let uses = Uses::of_amount(int(data, "amount")?);
                 let count = int::<usize>(Some(artefact), "count")?;
-                artefacts.extend(std::iter::repeat_n(core, count));
+                artefacts.extend(std::iter::repeat_n(ArtefactItem { core, uses }, count));
             }
             Some(Artefacts {
                 containers: anomaly
@@ -737,7 +748,6 @@ impl MapMode {
             tickets_count: int(p, "tickets_count")?,
             resources_count: int(p, "resources_count")?,
             kills_to_win: int(p, "kills_to_win")?,
-            max_players: int(making, "max_players")?,
             respawn_points: objects.respawn_points,
             solo_respawn_points: objects.solo_respawn_points,
             container_teams: objects
@@ -764,13 +774,11 @@ impl MapMode {
                 ));
             }
             if rule_mode == RuleMode::FreeForAll
-                && (row.kills_to_win == 0 || row.solo_respawn_points == 0 || row.max_players == 0)
+                && (row.kills_to_win == 0 || row.solo_respawn_points == 0)
             {
                 return Err(ConfigError(format!(
-                    "it is a free-for-all with {} kills to win, {} players at most and {} team-2 \
-                     respawn points in {}",
+                    "it is a free-for-all with {} kills to win and {} team-2 respawn points in {}",
                     row.kills_to_win,
-                    row.max_players,
                     row.solo_respawn_points,
                     row.project
                 )));
@@ -863,13 +871,6 @@ pub fn playable_in(mode: GameMode) -> impl Iterator<Item = &'static MapMode> {
 /// and resupply.
 pub fn free_for_all_team(place: usize) -> u8 {
     srp_validate::own_side(place)
-}
-
-/// The most players a match on `map` takes, the server's bots among them: a
-/// free-for-all's config's `max_players` (10); any other mode's none of its
-/// own.
-pub fn player_cap(map: &MapMode) -> Option<usize> {
-    (map.mode == GameMode::FreeForAll).then_some(map.max_players as usize)
 }
 
 /// The id for a level, weather and mode, if it can be played.
@@ -1362,7 +1363,6 @@ mod tests {
             assert!(tdm.solo_respawn_points < map.solo_respawn_points, "{}", tdm.project);
             assert!(map.solo_respawn_points >= 20, "{} {}", map.config, map.solo_respawn_points);
             assert_eq!((map.kills_to_win, map.match_time), (30, tdm.match_time));
-            assert_eq!(player_cap(map), Some(10));
             assert_eq!(map.rules, &[93, 91, 94]);
             assert_eq!(map.mode_name_key, "st_mode_08_name");
         }
@@ -1853,7 +1853,10 @@ mod tests {
         let cores: Vec<_> = objects
             .anomalies
             .iter()
-            .map(|a| a.artefacts.unwrap().artefacts)
+            .map(|a| {
+                let items = a.artefacts.unwrap().artefacts;
+                items.iter().map(|item| item.core).collect::<Vec<_>>()
+            })
             .collect();
         assert_eq!(cores, [[Artefact::Lifebone; 10], [Artefact::Spring; 10]]);
         // level_02/evening_2: three lone zones, and the fruit anomaly's
@@ -1885,6 +1888,29 @@ mod tests {
             let section = srp_validate::world::Section { at: 0, bytes: &bytes };
             assert_eq!(srp_validate::world::objects(&section, &context), Ok(()), "{}", map.project);
         }
+    }
+
+    #[test]
+    fn an_artefact_item_without_data_amount_stops_the_data() {
+        let stock = super::super::game_data::shared();
+        let dictionary = Dictionary::parse(stock.file(super::super::dictionary::PATH).unwrap()).unwrap();
+        assert!(derive(stock, &dictionary).is_ok());
+        let path = "gameplay/items/artefacts/artefact_lifebone.options";
+        let mut config = ConfigValue::parse(stock.file(path).unwrap()).unwrap();
+        let Some(ConfigValue::Named(data)) = (match &mut config {
+            ConfigValue::Named(entries) => entries
+                .iter_mut()
+                .find(|(key, _)| key == "data")
+                .map(|(_, data)| data),
+            _ => None,
+        }) else {
+            panic!("the lifebone has data")
+        };
+        assert!(data.iter().any(|(key, _)| key == "amount"));
+        data.retain(|(key, _)| key != "amount");
+        let data = stock.laid_over("no amount", vec![(path.to_owned(), config.to_bytes().unwrap())]);
+        let refused = derive(&data, &dictionary).unwrap_err().to_string();
+        assert!(refused.contains("data.amount"), "{refused}");
     }
 
     #[test]

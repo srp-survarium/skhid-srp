@@ -12,8 +12,9 @@ const NOW: u64 = 1_000_000;
 const MATCH: u32 = 0x77;
 
 /// The original's pay: the rates of a match's experience, silver and
-/// reputation at 1, 100 % and 100 %, with the game's wear (off in srp's
-/// own terms). Every match
+/// reputation at 1, 100 % and 100 %, the original's kill and no silver for
+/// staying to the end (srp's own terms: twice the kill's silver and
+/// experience, and 30,000). Every match
 /// moves the balance rating, whatever its size (srp's own terms: from four
 /// players).
 fn terms() -> Terms {
@@ -25,6 +26,8 @@ fn terms() -> Terms {
         score_weights: SCORE_WEIGHTS,
         rated_players: 1,
         pvb_pay: 0.5,
+        kill: pay::KILL,
+        finish_silver: 0,
     }
 }
 
@@ -498,6 +501,51 @@ fn the_money_rate_scales_the_rows_silver() {
         (pay::MoneyRate::ByLevel, 3, 180)
     );
     assert_eq!(own.score_weights, SCORE_WEIGHTS);
+    // And twice the original kill's silver and experience, and 30,000 for
+    // staying to the end.
+    assert_eq!(own.kill, pay::Pay::new(50.0, 6.0, 1.0));
+    assert_eq!(own.finish_silver, 30_000);
+}
+
+/// srp's own terms (the owner's of 2026-11-13): a kill pays 50 silver and 6
+/// experience before the rates, and every player who stays to the end gets
+/// 30,000 silver more, flat, in its activity cell; one who left gets none.
+#[test]
+fn a_finisher_gets_thirty_thousand_and_twice_a_kill_and_one_who_left_does_not() {
+    let mut players = alice_and_bob();
+    let mut carol = player(2, 0, "Carol", counters_of(0, &[(event::KILL, 1)]));
+    carol.present_at_end = false;
+    carol.left = true;
+    players.push(carol);
+    let store = accounts(&players);
+    let own = Terms {
+        kill: pay::SRP_KILL,
+        finish_silver: pay::FINISH_SILVER,
+        ..terms()
+    };
+    let report = Results::new()
+        .settle(&result(players), &store, &own, &mut Rng::new(1))
+        .unwrap();
+    // Alice: 3 kills at 50 / 6, an assist at 10 / 1, the fixed part of a
+    // match won (82.73 / 122.69) and the 30,000.
+    let alice = &report.players[0];
+    assert_eq!(columns(&alice.full, 0), (3.0, 150, 18, 0));
+    assert_eq!(columns(&alice.full, 2), (2.0, 82 + 30_000, 122, 0));
+    assert_eq!(
+        (alice.reward.experience, alice.reward.money),
+        (141, 150 + 10 + 82 + 30_000)
+    );
+    // Bob lost: a kill, half the fixed part, and the same 30,000.
+    let bob = &report.players[1];
+    assert_eq!(columns(&bob.full, 0), (1.0, 50, 6, 0));
+    assert_eq!(columns(&bob.full, 2), (1.0, 41 + 30_000, 61, 0));
+    assert_eq!(bob.reward.money, 50 + 41 + 30_000);
+    // Carol left: her kill, nothing more.
+    let carol = &report.players[2];
+    assert_eq!(carol.reward.standing, Standing::Left);
+    assert_eq!(columns(&carol.full, 0), (1.0, 50, 6, 0));
+    assert_eq!(columns(&carol.full, 2), (0.0, 0, 0, 0));
+    assert_eq!((carol.reward.experience, carol.reward.money), (6, 50));
 }
 
 /// The owner's rates (2026-10-14), with premium's half (2026-11-09): the

@@ -26,7 +26,7 @@ def check(pack, dictionary):
         paths.update(e['from'] for e in expected['copy'])
         paths.update(e['files'] for e in expected['add_entry'])
         for path in paths:
-            source = dictionary if path == m.DICTIONARY else pack / 'files' / path
+            source = dictionary if path == m.DICTIONARY else m.in_pack(pack, path)
             dest = live / path
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, dest)
@@ -50,12 +50,13 @@ def check(pack, dictionary):
             new_buf = (out / path).read_bytes()
             new = m.tree(new_buf)
             spawns = new['server_objects']['respawn_points']
-            assert len(spawns) == 48
+            count = m.COUNTS[key]
+            assert len(spawns) == 24 + count
             assert spawns[:24] == old['server_objects']['respawn_points'], 'TDM spawns changed'
-            assert len({(s['team'], s['point_id']) for s in spawns}) == 48
-            assert [s['point_id'] for s in spawns[24:]] == list(range(24))
-            assert len({s['full_name'] for s in spawns}) == 48
-            assert len({s['name'] for s in spawns[24:]}) == 24
+            assert len({(s['team'], s['point_id']) for s in spawns}) == 24 + count
+            assert [s['point_id'] for s in spawns[24:]] == list(range(count))
+            assert len({s['full_name'] for s in spawns}) == 24 + count
+            assert len({s['name'] for s in spawns[24:]}) == count
             assert not ({s['name'] for s in spawns[:24]} & {s['name'] for s in spawns[24:]})
             for i, point in enumerate(spawns[24:], start=24):
                 assert (point['team'], point['invulnerability_time'], point['priority']) == (2, 2, 1)
@@ -76,14 +77,14 @@ def check(pack, dictionary):
             old_mode = m.tree((live / tdm).read_bytes())['mode']
             assert mode['mode'] == 8 and mode['rules'] == [93, 91, 94]
             assert mode['parameters']['kills_to_win'] == 30
-            assert mode['match_making_params']['max_players'] == 10
+            assert 'max_players' not in mode['match_making_params']
             assert mode['match_making_params']['map_name'] == m.project(key)
             assert mode['ui']['mode_name'] == 'st_mode_08_name'
             assert mode['ui']['description'] == 'st_mode_08_description'
             for field in ('map_name', 'loading_screen_id', 'icon'):
                 assert mode['ui'][field] == old_mode['ui'][field]
             assert {k: v for k, v in mode['parameters'].items() if k != 'kills_to_win'} == old_mode['parameters']
-            print(f'{key}: 24 FFA spawns; TDM and other project data preserved; mode 8 map {ffa_id}')
+            print(f'{key}: {count} FFA spawns; TDM and other project data preserved; mode 8 map {ffa_id}')
         # An already registered map must not silently receive a second ID or row.
         try:
             m.edits(pack, out / m.DICTIONARY)

@@ -3748,7 +3748,7 @@ package
          }
          else if(value.type == ImportantMessageType.REFERRAL_REWARD)
          {
-            value.label = Util.styledChar(value.nickname,"gray_highlight") + "\n" + LocalizationData.getName("reach_level") + " " + Util.styledChar(value.level,"green");
+            value.label = Util.styledChar(Util.escapeHtml(value.nickname),"gray_highlight") + "\n" + LocalizationData.getName("reach_level") + " " + Util.styledChar(value.level,"green");
             value.notificationType = NotificationType.INVITED_REWARD;
             value.hideTimer = 15000;
             this.add_notification(value);

@@ -68,6 +68,7 @@ release's. The "Result" row is the build of the revision named in it.
 | Revision 54 | Released 2026-11-09 16:06 UTC (tag `026g-rev54`, `main` f12d76c). Shipped: #1457 feat(client): macOS support; #1526 Wiki skills: levels, their formula and a graph; #1528 Wiki: no footer, the header is enough; #1527 Wiki: quests page; #1530 Content: ten more 0.69d decals (pack decals-069d@2); #1536 Content: the "Alpha" Squad badge costs 10,000,000 silver; #1520 New accounts: the Keeper set in preset 2 (AK-12, Saiga-12); premium bonuses +20 % / +50 %; #1548 Patch 113: never take the hud's cursor movie off a scene twice (crash at exe+0x14EE8D); #1542 Local launcher: refuse an exe older than the server takes; #1549 Lobby: Esc over the results after a match closes them, not the game's menu; #1523 Silver only: remove gold from the game; #1551 Patch 83: a DXVK fullscreen window DXGI refuses becomes a popup (Vulkan on AMD); #1550 Patch 113: the main menu gives up an awaited key before it closes (a latent crash at exe+0x14EE8D); #1472 fix(updater): report progress while extracting; #1539 Nerf the SCAR-H, vz.58 and VSK-94; #1517 SV-1367 Dusk: base rarity 0, so it can craft and roll modifications; #1502 Keeper of the Artifacts: Onyx rare (48/48/4); #1518 Delta mask and NVD armour 5, NVD sway -10 %, Sniper vest pocket back; #1557 Dev shell: share one sccache across worktrees; #1519 Give the VKS Vychlop weight -15% instead of aiming speed; #1558 Hold every kit to its layout: pockets, pocket size, second weapon; #1556 Patch 124: resources helper arena 32 MiB, render arena 320 MiB by default; #1560 Artefact tree: Forest Protection and Keeper of the Artifacts go together; #1473 fix(client): Linux Calibri from a pinned mirror; #1562 Concentration: sway -5% a rank while the painkiller is active; #1563 Wiki skills: how many players took each skill; #1561 No premium account: its half again is everyone's pay; #1565 Skills: seven stock skills and Quick Hands take 3 ranks, each worth more; #1540 fix(harness): measure text with the movie's fonts; #1566 Wiki skills: plan a build by clicking skills; #1569 Patch 128: engine threads get 2 MiB stacks, not 8; #1567 Sides: strong players dealt evenly, at the start and on late joins; #1564 Patch 126: the game reports its memory headroom to the match server; #1570 Refuse a hit effect with a non-zero root-emitter registry index; #1571 Token backpack back at level 10; #1516 Token backpack: pocket capacity +1 beside its artefact container; #1491 Use: Rust detect_usable_object; a usable battery beats a dropped gun; #1568 Patch 127: a memory profiler of the engine's arenas (SKHID_MEMORY_PROFILE=on); #1572 Make the 0.21d Radar's electric anomalies hit the legs only; #1574 Use scan: deep review follow-ups; #1573 Patch 129: the multithreaded arena is at least 1024 MiB; #1579 release: the swap check reads the new srp26's whole log. Without a server sha256 `99596d9be4c8777bdd833bbcf20265150c27d0939ccf886319bce4e51955fcd3`, with `--server=skhid.link:1234` `7e534b8de1a5bfc671a054d1d3c6ceb9824937af73b941e0906bc0c6fa58aa33`. The ZIP: 16852379 bytes, sha256 `3514528737a7a5045fbaa01693cb01add74b6391b82fb9ecddcc473d101c3409`; the server data: sha256 `1b74758ae799ad13737258de9b83b1fea50888000341e53f56a51c8c9c55e64f`. Its content: `resources.db.patch_54` (73593265 bytes, sha256 `8314c83d46f7813d8f2d45620add72179b3f0aa1c956192ac1ec8c2974bcbbfa`) |
 | Revision 55 | Released 2026-11-10 15:43 UTC (tag `026g-rev55`, `main` 15b7920). Shipped: #1585 re-kit 0.26g: names of the hot functions in the rev54 FPS profiles; #1598 World frame: seal the animation times-table under-read (op-0 and duration pops); #1336 Patch 121 (bake_async): the camouflage/decal bake does not wait for the GPU; #1595 Patch 70: baked textures kept across releases and starts, the CRC-32 folded; #1594 Hud: per-frame Scaleform work only on change; #1592 Cut per-frame work of patches 76, 78, 85 and 94; #1587 Make patch 109's artefact-skill hooks cheap; #1589 Patch 134: shader constants cost the render thread less, the same bytes on the GPU; #1593 Patch 137: texture streaming's per-frame bookkeeping in Rust; #1590 Patch 136: the animation's sin, cos, atan2 and knot search, faster and the same; #1591 Patch log: one kept handle, repeats counted, rotation; rollback lines once; #1582 Lobby top bar: lay it out over wide screens without stretching it; #1596 Patch 83: Vulkan drivers and layers of DXVK's GPU only, no AMD heap, the VRAM probe's driver let go; #1600 Login: the background picture covers wide screens; #1601 Lobby: a put fills the pocket, and a full pocket stays full; #1603 Lobby top bar: the level-100 star sits on the level badge's place, without its ring; #1604 Alt on armour: isolation with Resistance; #1605 Lobby: no Autobuy box (autobuy always on), the Regeneration box beside Speed and Weight; #1607 Profiler: the managed arena by resource class, Scaleform's heaps by name. Without a server sha256 `00227e55a392f9cede5113b9516ca4f11d415065259fc6297a3b40eda23d0d05`, with `--server=skhid.link:1234` `9dd3aef2d8f163cbfe88dfdd3e3b8d2542bf03dc4d3a1a07d0cd3b29f3b38a5c`. The ZIP: 16881305 bytes, sha256 `56e05495525b7b7962735a92432d4f8232b99e87022c11e7dc38d39ddf701bc7`; the server data: sha256 `7d875086cb88e7dae20028f3851013869cd4b9c148f39a807d6c1b5ff4e5ec1f`. No content patch of its own |
 | Revision 56 | Released 2026-11-11 21:59 UTC (tag `026g-rev56`, `main` fd07ab5). Shipped: #1611 Replays: take the mode's config from the game data; #1612 Sign-in: srp's own cipher in place of TLS (patch 139); #1614 Replays: a late place's install is looked for from its prepare; #1617 Module report (patch 125): loaded DLLs and overlay windows, logged by the match server; #1619 DXVK: one AMD driver when a stale one loads too (patch 83); #1621 Lobby: Regeneration, Speed and Weight boxes evenly across the panel, equal side padding in each; #1616 Replays: one end record in the body, so a seek plays to its target; #1597 Patch 135: a replay shows the enemies: red dots, markers and names with Alt; #1620 Patch 140: a replay's keys, one row a player, a followed player followed again; #1613 PPSh-41 Drum: the drum straight in the magazine well (weapons-069@16); #1622 Weapon camouflage: the gun keeps its own relief, not the cloth's weave; #1577 Patch 133: console command `where` prints the camera's place and look; #1624 SR-3M magazine 30; #1625 SR-3M magazine 30 in weapon-stats.tsv; #1623 Blackout: Tab shows the player list (names only, no scores); Tab no longer stops the player; #357 Team voice chat with shared Rust hooks and a versioned DLL ABI; #1626 Music: a map's theme starts with its loading, not with the loaded map; #1627 Patch 125: look at the windows over the game each minute of a match; #1629 Music: 0.5 s fade-out when another track follows; #1628 Cascade: teammates reached at activation keep the active to its end; #1632 srp's image: copy client-voice, a member of the workspace. Without a server sha256 `1093e8d99efe4a6262c8804e9c0c6ad32a5a2301f844018e1fcbab2959465a14`, with `--server=skhid.link:1234` `44f7456fde7c5bc094c26076128eee43e3865258788d07e7cb5202a75d908c52`. The ZIP: 17288001 bytes, sha256 `a0fc8a679510fed348e0deb6c7ecd41495bfb070769733fbc6ea38ae0d2b5177`; the server data: sha256 `cfb7aa61eede8af5ae5ec26e4b8a7350a17bff6eed4873362019227399a61446`. Its content: `resources.db.patch_56` (62135527 bytes, sha256 `0d325906343e399a15fe8a75ee3e8b85cc737beac11ac9230f541b250ea3b7b5`) |
+| Revision 57 | Released 2026-11-13 03:04 UTC (tag `026g-rev57`, `main` cd52009). Shipped: #1652 Lobby chat tab: raise a covered chat window, hide one on top; #1653 Lobby: a press in the inventory puts the chat windows under it; #1672 Fix v0.11 Radar tire streaming and terrain rendering; #1683 Open .sur files with Skhid and explain missing replay errors; #1685 Report executable hashes and collect verified files over match connections; #1029 Anti-AFK: kick idle players and apply daily bans; #1690 Restore Vostok anomalies, add Research and spread battery spawns; #1693 Refresh stale world corpus and repair native validation tooling; #1701 Enforce unique nicknames and reject Cyrillic lookalikes; #1704 Add live nickname renames to the admin panel and moderation script; #1705 Store player reports and praise instead of returning database errors; #1715 Players' weapon requests: Ash-12, 9A-91, SR-2M, PP-2000, MP7 buffs; H&K 416 and M4A1 side kick; #1711 Cascade shares Onyx II and Larkspur II; #1719 Calculator: recovery with every bonus, each one a toggle, in any mix; #1713 Rename shared nicknames in schema step 8 so srp starts on an existing database; #1708 Anti-AFK: SRP_ANTI_AFK=0 turns it off; #1718 Do not collect the release's own executable; #1722 Patch 125: the size and SHA-256 of an over window's exe file; #1721 Calculator: item tiles say what they do on hover; Forest Protection on the target; #1732 Add Free for All with solo spawns, kill standings and winner-only rating; #1724 Sign-up: a taken name gets the account id after it instead of a refusal; #1725 Distance detail docs: Maximum does not turn texture streaming off; #1738 Rooms: the vote's third card is a free-for-all, Blackout back in the pool; #1739 Patch 125: an exe file is asked its size before it is read; #1744 Add FFA to STALKER maps and contain Training Camp in the crater; #1740 Weapon camouflage: baked files named by a hash of their name; #1741 Free for All has no team chat; #1748 Weapon camouflage: a baked file's name only of what is baked; #1750 Free for all: no ammo zone serves anyone; #1751 STALKER maps: Free for All only, Team Deathmatch not offered yet; #1756 Free for All on its own maps without ammo crates; no exe resupply rule; #1599 Patch 115: a dead selector's death animation stays in its set's lists; #1762 Make replay key frames only of worlds the match server took; #1761 Voice: take only what the games' encoder makes, hold a loud speaker, rest after 30 s; #1766 Self-test: weapon camouflage's section holds the build's bake_name entry. Without a server sha256 `c4b0d5c080b5728b0416f85000699b99535ff8ec5a70f84dce4e055b399a9e1c`, with `--server=skhid.link:1234` `d55e23e917c2b04fdce0e53198bde676192d6105166f9fd424b8e0d337631087`. The ZIP: 17303922 bytes, sha256 `8f88642a3967df1e7614c2510328c174c368c7377f00058c22cfc2213300ce4c`; the server data: sha256 `5378e0dd63123bae6d1268488f5928e79aff8a81c429e35207c1e6d89de87c41`. Its content: `resources.db.patch_57` (1166914672 bytes, sha256 `b5a512ffa2f12a6fa5c9c2935e2b0b2eed3c9ee7fed1d763a9ad1fbf9aa75cf5`) |
 | Revision 4 | Revision 3 with patch 10 (a start with a Documents folder the game may not write to). **In the players' download since 2026-10-13 15:36 UTC.** Made as the download is, it differs from the revision 3 exe (`ac947abd…6d7b`; without a server `eedc5b5c…cf0d`) in the four bytes at file 0x35F0B, two bytes of an address at file 0x8410C8, the revision byte and the PE checksum, and in nothing else (compared byte by byte). The built exe was started in both situations of patch 10, not past the sign-in screen, before the release; the first sign-in with revision 4 on the players' server was logged three minutes after it. It plays together with revision 3 |
 | Revision 3 | Revision 3 is revision 2 with patch 9 (the battery rule). **It was the players' download from 2026-10-13 12:22 to 15:36 UTC** (the rows below are the downloads so far): it and the revision 2 exe differ in the 13 bytes of patch 9, the revision byte and the PE checksum, and in nothing else (compared byte by byte). Its rule was run outside the game (`run_battery_rule.ps1`). Eight sign-ins with revision 3 were logged in those hours; whether one of them played a match to a team's last battery was not looked at. A game of revision 3 or later and an older one part at a team's last battery (patch 9) |
 | The players' download | `Survarium-0.26g-srp-files.zip` of skhid.link (and 026g.skhid.link), since 2026-10-13 15:36 UTC: 6 793 103 bytes, sha256 `29b2ac002a1787c1352d021065f18a87ea5caa66fb16298c8e603a5347416bb4`, 23 files, made by `make_client_026g.py --pack-zip --server=skhid.link:1234 --localization=english` of `main` dbd70f0 with `--bugtrap=` naming the build of `client/bugtrap` that had been run in the game (that DLL does not build to the same bytes twice). It differs from the download before in two files: the game exe (sha256 `ae3ddf43f38eecb9e5080b10aa6b8397ce5dbed0f133b381461c82cb17329f25`, patch revision 4: patch 10) and `bugtrap.dll` (39 936 bytes, sha256 `9e3295c1312854c455c474e1dbd457b0a792b5ae406ff0b55d3b19b4f2fc4353`: the start-up notice of `client/bugtrap/README.md`); the other 21 files are byte for byte the same. Built twice: the same ZIP. Checked after the replacement: `/api/client-files` and `/download` of both names give this sha256. No restart: nothing on the server changed |
@@ -4762,9 +4763,88 @@ the lists and write through what it found. The guard at its entry
 The lengths are the set's own (rifles 2, pistols 1, the battery carrier 1;
 death-poses.md), so the bound follows the content and no world is refused for it.
 
+A double-barrel's or pistol's fire animation (F7): their fire states (one
+`weapon_and_hands_expression` 0x30F830; the deserialize the game runs is the
+sound wrappers' 0x252B20, vtables 0xA05150 and 0xA05248 +14h, the bare
+classes' 0x310200 is never called) save
+`m_weapon_animation_index` (+16Ch), the world brings any byte, and the
+presentation, run every frame for every player in view, takes a reference through
+`[state+164h+index*4]` (0x31ECF0, `lock xadd [slot+0DCh]`). The state holds two
+fire animations there (both constructors make an array of 2): a layout, not
+content. The guards at the load's store (`deserialize.fire_animation_sound`,
+0x252B48, the live one; `deserialize.fire_animation`, 0x310224, the bare
+class's) store a byte past them as 0, the first, so the game also never uploads it again;
+0 and 1 are stored as read. The world check refuses any other byte as well
+(`FireAnimation` in srp-validate): in 44,117 worlds of 100 rev56 recordings the
+3,340 such states hold 0 or 1 only.
+
+A throw's grenade (F8): the throw grenade state saves `m_grenade_index` (+180h,
+0FFh none), the world brings any byte, and two readers index the set's grenades
+(`[set+268h]` to `[set+26Ch]`) with it with no bound: `is_ready_for_transition`
+0x33A650 reads `[grenade+154h]` (0FFh is its only test), and the throw 0x33A770
+hands it to `grenade_set_core::throw_grenade` 0x30A250, which takes a reference
+through the slot (0x2E9040, `lock xadd [grenade+0F0h]`), 0FFh included. The
+set's size is content. At is_ready (`deserialize.grenade_ready`, 0x33A66D) an
+index past the set's grenades, or a state with no set, takes the native 0FFh path
+(not ready); at the throw's entry (`deserialize.grenade_throw`) only an index of
+one of the set's grenades throws, anything else returns (0x33A7DD). The rev56
+corpus holds 0..3 only. The set is whatever item the profile slot the world
+names holds (deserialize 0x33A5AB, no type test), so both guards first check
+its vtable is a grenade set's (`grenade_set` 0xA0B56C, `grenade_set_core`
+0xA14824); any other item has no grenades. So does every other reader of the
+throw's set and of the inventory's selected grenade slot (`m_grenade_slot`,
+the world's too), each taking an item that is no grenade set (or none) as no
+set:
+- the pull substate's initialize (`deserialize.grenade_pull` 0x3103CF): no
+  pull (the index 0FFh) unless a grenade set's own pull_pin index (a stacked
+  set's amount-1, the world's amount; 1 otherwise) is one of its grenades;
+  pull_pin 0x30A120 would take a reference through the slot past them and call
+  through `[[set+250h]+174h]`;
+- the idle substate's check 0x310450 and the throw state's 0x33A730
+  (`grenade_idle` 0x310465, `grenade_choice` 0x33A73F): the set's slot as none
+  (17h) instead of `[set+254h]`;
+- the serialize (`grenade_serialize` 0x33A51B): the slot byte 17h;
+- can-throw 0x2E4090 (`grenade_can_throw` 0x2E40BF): cannot, instead of
+  calling the slot item's vtable +64h (null not tested) and 0x30A090 on it;
+- attach_grenade 0x33A7E0 (`grenade_attach` 0x33A7F5), the throw's
+  initialize: no set, instead of the slot's item (17h read the artefact slots'
+  pointer at +168h as an item and counted a reference into the inventory).
+The server refuses both at the source: a throw's grenade slot and the
+selected grenade slot must hold a grenade set of the player's kit
+(`TailGrenadeSet`, `TailSelectedGrenade`).
+
+An animation to wait for (F6): every animation-end-aware weapon state saves
+`m_index_of_animation_to_wait` (+134h, 0FFh none), the world brings any byte,
+and the callbacks (`on_animation_end` 0x30DB60, the throw substate's 0x310680,
+the melee state's 0x310CF0) compare the ending clip with
+`[[state+130h]+index*4]` with no bound. `[state+130h]` is the state's own
+animation handles, in the object, which its class's `register_animations`
+(vtable +1Ch, kept by every derived class) walks: 4, 5, 9 or 10 of them (seven
+registrators, 30 classes by RTTI). The game's own picks stay in them (0..9).
+But real worlds carry indices past them: the show state saves 63, 205, 220 and
+others (7,570 of 68,366 rev56 show states; LIKELY never set, as no constructor
+stores +134h). Past the handles, the native compare reads what lies after the
+object, different in every game, and faults at a page's end. The guards
+(`deserialize.wait_end` 0x30DB7D, `wait_throw` 0x310692, `wait_melee` 0x310CF0)
+take an index past the state's handles (or a state of no known layout) as no
+match, the compare's own failed path. An index in them runs as before.
+
 `check_deserialize_guards_026g.py <stock exe>` compares valid reads with stock and
-checks invalid/empty tables at all four stack alignments (120 cases; the death
-animation's: the stock faults past the lists, ours plays the first). The i686
+checks invalid/empty tables at all four stack alignments (1,340 cases; the death
+animation's: the stock faults past the lists, ours plays the first; the fire
+animation's, entered through each of the four vtables' deserialize: the stock
+stores the byte, ours stores 0 as the stock does with 0;
+the grenade's: the stock faults in is_ready and in throw_grenade's reference past
+the set, ours is not ready and returns from the throw with the registers as they
+were, and a grenade of the set runs as the stock to throw_grenade; a weapon in
+the grenade slot: the stock reads it as a set, ours does not; each other
+reader of the set and of the selected slot, entered through the real caller
+(the sound wrappers' and the throw state's vtables, can-throw's entry), a grenade set as the stock, a
+weapon, an empty slot and 17h as no set where the stock faults, calls the
+item or counts a reference into the inventory; the animation to
+wait for: every one of the 30 classes, its table ending at a page's end, at each
+callback that serves it: in its handles the stock's match and no match, past
+them the stock faults and ours is no match). The i686
 patch crate's i686 tests and Clippy pass. No release revision is reserved.
 
 ## A presenter ignores an effect it does not hold (patch 117, unreleased)

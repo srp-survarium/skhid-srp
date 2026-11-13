@@ -1,5 +1,5 @@
 //! Free for all (`docs/notes/ffa.md`): the registry gives every place a side
-//! of its own and keeps to the map's most players; a room's match of it
+//! of its own and takes as many players as any match (20); a room's match of it
 //! starts with who is in; it ends when a trusted world shows a player with
 //! the kills that win, or at its time limit, and its result has no team
 //! that won.
@@ -8,6 +8,7 @@ use super::*;
 use crate::v026g::registry::LivePhase;
 use crate::v026g::{CreateError, JoinError, MatchEnd};
 use survarium::v026g::maps::{self, GameMode};
+use survarium::v026g::match_msgs::MAX_PLAYERS;
 use survarium::v026g::match_msgs::rules::state;
 use survarium::v026g::match_msgs::static_info::parse_options;
 
@@ -18,13 +19,6 @@ fn free_for_all() -> &'static maps::MapMode {
 
 fn map_id() -> u8 {
     free_for_all().id
-}
-
-/// The most players of a free-for-all: 10.
-fn cap() -> usize {
-    let cap = maps::player_cap(free_for_all()).expect("its most players");
-    assert_eq!(cap, 10);
-    cap
 }
 
 /// srp's entry after a free-for-all's options: tag 3, two bytes, the kills
@@ -133,39 +127,32 @@ fn a_match_of_two_teams_keeps_the_lobbys_teams_and_squads() {
         let formed = registry.formed(ticket.match_id).unwrap();
         assert!(!formed.info.options().ends_with(&srp_entry()));
         registry.end(ticket.match_id);
-        // More than a free-for-all's most players.
-        let ticket = registry.create(setup(cap() + 1, map_id)).unwrap();
-        registry.end(ticket.match_id);
     }
 }
 
-/// More players than a free-for-all's most, the server's bots counted, is
-/// no roster of it; as many is.
+/// A free-for-all takes as many players as any match, the server's bots
+/// counted: the game's 20 places, sides 4 to 23; more is no roster.
 #[test]
-fn a_free_for_all_of_more_players_than_its_most_is_not_made() {
+fn a_free_for_all_takes_as_many_players_as_any_match() {
     let registry = MatchRegistry::new("127.0.0.1", 1236);
+    assert_eq!(MAX_PLAYERS, 20);
+    // Three players and eighteen of the server's bots.
+    let bots: Vec<usize> = (3..MAX_PLAYERS + 1).collect();
     assert_eq!(
-        registry.create(setup(cap() + 1, map_id())),
-        Err(CreateError::Roster(cap() + 1))
-    );
-    // Three players and eight of the server's bots.
-    let bots: Vec<usize> = (3..cap() + 1).collect();
-    assert_eq!(
-        registry.create(seated(cap() + 1, map_id(), &bots)),
-        Err(CreateError::Roster(cap() + 1))
+        registry.create(seated(MAX_PLAYERS + 1, map_id(), &bots)),
+        Err(CreateError::Roster(MAX_PLAYERS + 1))
     );
     // Nothing of a refused match stays.
     assert_eq!(registry.match_count(), 0);
     assert_eq!(registry.seat(session_of(0)), None);
-    let ticket = registry.create(seated(cap(), map_id(), &bots[..7])).unwrap();
+    let ticket = registry.create(seated(MAX_PLAYERS, map_id(), &bots[..17])).unwrap();
     let (teams, _) = sides(&registry, ticket.match_id);
-    assert_eq!(teams, (4..14).collect::<Vec<u8>>());
+    assert_eq!(teams, (4..24).collect::<Vec<u8>>());
 }
 
 /// One taken into a free-for-all being played gets the side of its place,
-/// and no squad; a place past the map's most players is none
-/// ([`JoinError::Full`]), one at a time or as a group. A match of two teams
-/// takes its eleventh as ever.
+/// and no squad; a place past the match's 20 is none ([`JoinError::Full`]),
+/// one at a time or as a group.
 #[test]
 fn a_late_joiner_of_a_free_for_all_gets_its_own_side_until_every_place_is_given() {
     let registry = MatchRegistry::new("127.0.0.1", 1236);
@@ -177,56 +164,41 @@ fn a_late_joiner_of_a_free_for_all_gets_its_own_side_until_every_place_is_given(
             LivePhase::Playing,
         );
     };
-    let ticket = registry.create_growing(setup(cap() - 2, map_id())).unwrap();
+    let ticket = registry.create_growing(setup(MAX_PLAYERS - 2, map_id())).unwrap();
     let id = ticket.match_id;
-    admit(id, cap() - 2);
+    admit(id, MAX_PLAYERS - 2);
     // A group of three has no place: two are left.
     assert_eq!(
         registry.join_running_group(
             id,
-            (0..3).map(|n| newcomer(cap() - 2 + n, 0)).collect()
+            (0..3).map(|n| newcomer(MAX_PLAYERS - 2 + n, 0)).collect()
         ),
         Err(JoinError::Full)
     );
-    assert_eq!(registry.formed(id).unwrap().places.len(), cap() - 2);
+    assert_eq!(registry.formed(id).unwrap().places.len(), MAX_PLAYERS - 2);
     // The lobby put it on side 0, in a squad: its own side, and none.
-    assert!(registry.join_running(id, newcomer(cap() - 2, 2)).is_ok());
-    admit(id, cap() - 1);
-    assert!(registry.join_running(id, newcomer(cap() - 1, 2)).is_ok());
+    assert!(registry.join_running(id, newcomer(MAX_PLAYERS - 2, 2)).is_ok());
+    admit(id, MAX_PLAYERS - 1);
+    assert!(registry.join_running(id, newcomer(MAX_PLAYERS - 1, 2)).is_ok());
     let (teams, options) = sides(&registry, id);
-    assert_eq!(teams, (4..14).collect::<Vec<u8>>());
-    assert_eq!(options[cap() - 2..], [(12, 0), (13, 0)]);
+    assert_eq!(teams, (4..24).collect::<Vec<u8>>());
+    assert_eq!(options[MAX_PLAYERS - 2..], [(22, 0), (23, 0)]);
     assert_eq!(
-        registry.seat(session_of(cap() - 1)).map(|seat| seat.place),
-        Some(cap() as u8 - 1)
+        registry.seat(session_of(MAX_PLAYERS - 1)).map(|seat| seat.place),
+        Some(MAX_PLAYERS as u8 - 1)
     );
     // Every place is given: the next is refused, admitting or not.
     assert_eq!(
-        registry.join_running(id, newcomer(cap(), 0)),
+        registry.join_running(id, newcomer(MAX_PLAYERS, 0)),
         Err(JoinError::Full)
     );
-    admit(id, cap());
+    admit(id, MAX_PLAYERS);
     assert_eq!(
-        registry.join_running(id, newcomer(cap(), 0)),
+        registry.join_running(id, newcomer(MAX_PLAYERS, 0)),
         Err(JoinError::Full)
     );
-    assert_eq!(registry.formed(id).unwrap().places.len(), cap());
-    assert_eq!(registry.seat(session_of(cap())), None);
-
-    // A Team Deathmatch of ten takes an eleventh, on the lobby's side and
-    // in its squad.
-    let registry = MatchRegistry::new("127.0.0.1", 1236);
-    let ticket = registry.create_growing(setup(cap(), MAP_TDM)).unwrap();
-    registry.set_admitting(
-        ticket.match_id,
-        cap(),
-        Ok(Instant::now() + Duration::from_secs(60)),
-        LivePhase::Playing,
-    );
-    assert!(registry.join_running(ticket.match_id, newcomer(cap(), 2)).is_ok());
-    let (teams, options) = sides(&registry, ticket.match_id);
-    assert_eq!(teams[cap()], 0);
-    assert_eq!(options[cap()], (0, 2));
+    assert_eq!(registry.formed(id).unwrap().places.len(), MAX_PLAYERS);
+    assert_eq!(registry.seat(session_of(MAX_PLAYERS)), None);
 }
 
 /// A free-for-all played by games: both are given options they read, each

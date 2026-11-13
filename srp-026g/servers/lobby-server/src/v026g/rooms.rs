@@ -2464,30 +2464,17 @@ impl Core<'_> {
             self.rooms.not_started(key, now);
             return;
         }
-        // A free-for-all (`docs/notes/ffa.md`) takes the members of the
-        // room up to its most players: who had no place in its last match
-        // first, then in the order they came. The others wait for the next
-        // match, where they are the first. Each plays on his own, squads
-        // too: the two sides made below are only its seating (the match
-        // server gives each place a team of its own and no squad).
-        let free_for_all = maps::map_mode(map_id).and_then(maps::player_cap);
-        let waited = room.left_out.clone();
-        let mut ready: Vec<Ready> = members
+        // A free-for-all (`docs/notes/ffa.md`) takes the room's members as
+        // a match of two teams does: no most players of its own (the room's
+        // size, 20 at the most). Each plays on his own, squads too: the two
+        // sides made below are only its seating (the match server gives
+        // each place a team of its own and no squad).
+        let free_for_all =
+            maps::map_mode(map_id).is_some_and(|map| map.mode == maps::GameMode::FreeForAll);
+        let ready: Vec<Ready> = members
             .iter()
             .filter_map(|&account_id| self.room_ready(account_id))
             .collect();
-        let left_out: Vec<u32> = match free_for_all {
-            Some(most) => {
-                // Stable: `false` (he waited) sorts before `true`.
-                ready.sort_by_key(|each| !waited.contains(&each.player.account_id));
-                ready
-                    .split_off(most.min(ready.len()))
-                    .iter()
-                    .map(|each| each.player.account_id)
-                    .collect()
-            }
-            None => Vec::new(),
-        };
         // The match's equipment level: the highest gear level of the
         // players placed (the owner's of 2026-11-01); each counts for its
         // K/D there.
@@ -2508,7 +2495,7 @@ impl Core<'_> {
                 .unwrap_or_default()
                 .into_iter()
                 .filter(|mate| {
-                    free_for_all.is_none()
+                    !free_for_all
                         && *mate != each.player.account_id
                         && ready.iter().any(|other| other.player.account_id == *mate)
                 })
@@ -2649,7 +2636,6 @@ impl Core<'_> {
         }
         // `launch` made the match (it is in `matches` from here on).
         self.rooms.started(key, match_id, map_id, &seated, now);
-        self.rooms.left_out(key, left_out);
         // The match started without who could not play it: out of the room,
         // told why (they may come back with a kit that can).
         for (member, fit) in unfit {
