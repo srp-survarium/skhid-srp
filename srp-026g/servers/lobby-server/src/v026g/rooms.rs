@@ -1563,8 +1563,18 @@ impl Core<'_> {
 
     fn send_room_state(&mut self, who: &Who, code: RoomCode, now: Instant) {
         let view = self.room_view(who, now);
-        // A code said once: why the last request or Play left it outside.
-        let kept = self.room_codes.remove(&who.account_id);
+        // A code said once: why the last request or Play left it outside. A
+        // call back waits for its game to be back in the lobby: the movie
+        // asks for the state while its game is still away too (the replay,
+        // the live match, the recall's countdown), and opens its room only
+        // when told so back in the lobby.
+        let held = self.room_codes.get(&who.account_id) == Some(&RoomCode::CalledBack)
+            && self.watching_away(who.session_id);
+        let kept = if held {
+            None
+        } else {
+            self.room_codes.remove(&who.account_id)
+        };
         let code = match (code, kept) {
             // A call back is the room's own word, said with the room.
             (RoomCode::None, Some(RoomCode::CalledBack)) => {
@@ -2159,15 +2169,30 @@ impl Core<'_> {
         }
     }
 
+    /// Whether the room's use for a member would take it: any member in its
+    /// vote (its kit may be set while the vote runs), else only one that can
+    /// play as it is (`member_fit`; `room_ready` takes no other).
+    fn room_may_take(&self, room: &model::Room, account_id: u32) -> bool {
+        matches!(room.stage, Stage::Vote { .. }) || self.member_fit(account_id) == Fit::Yes
+    }
+
     /// Whether the account's room has a use for it right now
-    /// ([`Self::room_takes_now`]): a watch it asks for then would be called
-    /// back at once, so it is not begun (`replay`: `busy`).
+    /// ([`Self::room_takes_now`]) and would take it ([`Self::room_may_take`]):
+    /// a watch it asks for then would be called back at once, so it is not
+    /// begun (`replay`: `in_room`).
     pub(super) fn room_keeps(&self, account_id: u32, now: Instant) -> bool {
         !self.maintenance_is_near()
-            && self
-                .rooms
-                .of(account_id)
-                .is_some_and(|room| self.room_takes_now(room, now))
+            && self.rooms.of(account_id).is_some_and(|room| {
+                self.room_takes_now(room, now) && self.room_may_take(room, account_id)
+            })
+    }
+
+    /// Whether the session's game is away from the lobby watching (a
+    /// replay, a match), so its lobby movie is not what its player sees.
+    fn watching_away(&self, session_id: u32) -> bool {
+        self.replays
+            .is_some_and(|replays| replays.watches().in_replay(session_id))
+            || self.store.matchmaking().watched(session_id).is_some()
     }
 
     /// A member who watches something else meanwhile (a live match from the
@@ -2181,6 +2206,9 @@ impl Core<'_> {
     /// - a room in its vote: at once;
     /// - a room whose match is played: when that match takes a member now
     ///   (`late_hold`), or will in a moment (another is on its way in).
+    ///
+    /// Out of a vote only the members that can play are called
+    /// (`room_may_take`): the others would be called away for nothing.
     ///
     /// A private room waiting is its owner's to start, and calls nobody. The
     /// live watcher is called back (`Matchmaking::recall_watcher`) and a
@@ -2240,7 +2268,11 @@ impl Core<'_> {
                 Stage::Vote { .. } | Stage::InMatch { .. } => self.room_takes_now(room, now),
             };
             if wanted {
-                called.extend(away.into_iter().map(|(member, away)| (room.key, member, away)));
+                called.extend(
+                    away.into_iter()
+                        .filter(|&(member, _)| self.room_may_take(room, member))
+                        .map(|(member, away)| (room.key, member, away)),
+                );
             }
         }
         for (key, account_id, away) in called {

@@ -243,6 +243,111 @@ fn a_replay_session_sends_the_game_to_watch_and_frees_its_player_at_its_end() {
     assert!(world.store.matchmaking().watched(session).is_none());
 }
 
+/// The player.s replay session read and its game sent to it, watching: its request.
+fn watching_a_replay(
+    world: &mut World,
+    desk: &Replays,
+    index: usize,
+) -> session::v026g::replay_watch::WatchRequest {
+    assert_eq!(
+        ask_to_watch(world, index, 75, Some(3)),
+        "R1;preparing;1f07c8fb;2"
+    );
+    let watches = desk.watches();
+    let request = watches.next_job(world.now).expect("a session to read");
+    assert!(watches.loaded(&request, 74_500, world.now));
+    world.advance(Duration::from_secs(1));
+    assert_eq!(sent_to_match(&world.take(index)), Some((MATCH, 0)));
+    assert!(watches.connected(world.ids[index].1, world.now).is_some());
+    request
+}
+
+/// A member whose kit cannot play is no use to its room's match taking players (the match would
+/// not take it): it may start a watch then (no `in_room`), and is not called back from it; once
+/// its kit can play, it is.
+#[test]
+fn a_member_that_cannot_play_is_neither_kept_nor_called_back_for_its_rooms_match() {
+    use super::rooms_tests::rows;
+    use survarium::v026g::lobby::rooms::ROOM_JOIN_BASE;
+    let desk = sessions();
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let (ticket, [alice, _]) = super::live_tests::a_match_in_play(&mut world);
+    let key = world.core.rooms.key_of(world.ids[alice].0).expect("Alice's room");
+    let carol = player(&mut world, "Carol", current());
+    rows(&mut world, carol, ROOM_JOIN_BASE + key, 1);
+    let account = world.ids[carol].0;
+    let kit = world.account(carol).kits[0].slots;
+    world.change(carol, |account| account.kits[0].slots = [None; 23]);
+    world.host.admitting.locked().insert(ticket);
+    assert_eq!(
+        ask_to_watch(&mut world, carol, 75, Some(3)),
+        "R1;preparing;1f07c8fb;2",
+        "not kept for a match that would not take her"
+    );
+    world.advance(Duration::from_secs(1));
+    assert!(desk.watches().holds(account), "not called back");
+    world.change(carol, |account| account.kits[0].slots = kit);
+    world.advance(Duration::from_secs(1));
+    assert!(!desk.watches().holds(account), "called back once she can play");
+}
+
+/// A room waiting for players calls its watchers back once those who can play make its minimum,
+/// and only those: one whose kit cannot play watches on.
+#[test]
+fn a_waiting_room_calls_back_only_the_watchers_that_can_play() {
+    use super::rooms_tests::{create, rows, spec};
+    use survarium::v026g::lobby::rooms::ROOM_JOIN_BASE;
+    let desk = sessions();
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let carol = player(&mut world, "Carol", current());
+    let dave = player(&mut world, "Dave", current());
+    let alice = player(&mut world, "Alice", current());
+    let key = create(&mut world, carol, spec(6), None);
+    world.change(carol, |account| account.kits[0].slots = [None; 23]);
+    let carols = watching_a_replay(&mut world, desk, carol);
+    rows(&mut world, dave, ROOM_JOIN_BASE + key, 1);
+    let daves = watching_a_replay(&mut world, desk, dave);
+    assert!(!desk.watches().is_recalled(&daves), "alone fit: no minimum");
+    rows(&mut world, alice, ROOM_JOIN_BASE + key, 1);
+    world.advance(Duration::from_secs(1));
+    assert!(desk.watches().is_recalled(&daves), "Alice and Dave make the minimum");
+    assert!(!desk.watches().is_recalled(&carols), "Carol is not called");
+}
+
+/// A member called back from its replay: the room's state its movie asks for while its game is
+/// still away (it polls) does not use the call back up; the first asked back in the lobby says it,
+/// once.
+#[test]
+fn a_call_back_is_said_once_its_game_is_back_in_the_lobby() {
+    use super::rooms_tests::{create, rows, spec};
+    use survarium::v026g::lobby::rooms::{ROOM_JOIN_BASE, ROOM_STATE, RoomCode};
+    let desk = sessions();
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let carol = player(&mut world, "Carol", current());
+    let dave = player(&mut world, "Dave", current());
+    let key = create(&mut world, carol, spec(6), None);
+    let request = watching_a_replay(&mut world, desk, carol);
+    rows(&mut world, dave, ROOM_JOIN_BASE + key, 1);
+    world.advance(Duration::from_secs(1));
+    assert!(desk.watches().is_recalled(&request), "called back");
+    // The code: the state header.s field 16 (`rooms_tests::CODE`).
+    let code = |world: &mut World| {
+        let state = rows(world, carol, ROOM_STATE, 1);
+        state[0].split(';').nth(16).expect("a room's state").to_owned()
+    };
+    let called = (RoomCode::CalledBack as u8).to_string();
+    for _ in 0..3 {
+        assert_eq!(code(&mut world), "0", "not said while away");
+    }
+    // Its game is back (the match server ends the session).
+    desk.watches().ended(&request);
+    assert_eq!(code(&mut world), called);
+    assert_eq!(code(&mut world), "0", "said once");
+}
+
 /// A game can quit as it connects to its replay, and says so: its session is over at once, so
 /// the next ask does not wait for the match server to give up on it (only the
 /// [`START_EVERY`] between an account's sessions).
@@ -377,6 +482,44 @@ fn guessing_match_ids_is_cut_off_after_a_few_misses() {
         ask_to_watch(&mut world, taras, 0, None),
         "R1;preparing;1f07c8fb;2"
     );
+}
+
+/// A match over in the lobby whose recording is still being written (the match server keeps its
+/// game a while after its result): `busy`, with no session to read and no miss counted; once the
+/// recording is closed, the ask is taken.
+#[test]
+fn a_recording_still_being_written_is_busy_and_no_miss() {
+    use session::v026g::replay_watch::{MISSES_ALLOWED, WatchSettings};
+    let root = temp("writing");
+    let record_dir = root.join("recordings");
+    std::fs::create_dir_all(&record_dir).unwrap();
+    let desk: &'static Replays = Box::leak(Box::new(
+        Replays::new(Some(record_dir.clone())).with_watch(WatchSettings::default()),
+    ));
+    let part = record_dir.join(format!("rec026g_20261015-120000_{MATCH:08x}.srprec.part"));
+    std::fs::write(&part, b"x").unwrap();
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let taras = player(&mut world, "Taras", current());
+    let account = world.ids[taras].0;
+    for _ in 0..=MISSES_ALLOWED {
+        assert_eq!(
+            ask_to_watch(&mut world, taras, 0, None),
+            "R1;busy;1f07c8fb;0"
+        );
+        assert_eq!(desk.watches().next_job(world.now), None, "nothing to read");
+        assert!(!desk.watches().holds(account));
+    }
+    assert!(!desk.watches().limited(account, world.now), "no miss");
+    // Closed: the next listing finds it kept.
+    std::fs::rename(&part, part.with_extension("")).unwrap();
+    world.advance(Duration::from_secs(6));
+    assert_eq!(
+        ask_to_watch(&mut world, taras, 0, None),
+        "R1;preparing;1f07c8fb;2"
+    );
+    assert!(desk.watches().next_job(world.now).is_some());
+    let _ = std::fs::remove_dir_all(&root);
 }
 
 /// The movie's prompt closed (or it gave up waiting) withdraws the ask: a session whose recording

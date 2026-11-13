@@ -934,6 +934,15 @@ impl Replays {
         }
     }
 
+    /// Whether a match's recording is still being written (`.srprec.part`,
+    /// by the listing Save uses): its match is over in the lobby, but its
+    /// game on the match server is not dropped yet (its linger, its
+    /// spectators). A replay session asked now would find no recording.
+    pub fn writing(&self, match_id: u32, now: Instant) -> bool {
+        let mut inner = self.inner.locked();
+        self.recorded(&mut inner, match_id, now) == Recorded::Writing
+    }
+
     /// The match server kept a match's recording. Its file is made when a
     /// player first asks to save it ([`Self::save_ask`]), not now: most
     /// matches are never saved, and making one takes the CPU the matches

@@ -92,6 +92,10 @@ impl Core<'_> {
             (None, None) => Status::Off,
             (None, Some(_)) if !in_lobby || limited => Status::Busy,
             (None, Some(_)) if room_keeps => Status::InRoom,
+            // Over in the lobby, its recording not closed yet (the match
+            // server keeps its game a while): `busy`, no session and no
+            // miss, as for a match past its play (`live_watch`).
+            (None, Some(replays)) if replays.writing(match_id, now) => Status::Busy,
             (None, Some(replays)) => replays.watches().start(
                 WatchRequest {
                     account_id: who.account_id,
