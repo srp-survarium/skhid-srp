@@ -195,7 +195,7 @@ mod tests {
     /// A fix is moved by a draw of the table, the dead are left, and the state comes from the keys, the speed and the height.
     #[test]
     fn a_fix_is_moved_by_its_states_error() {
-        let fix = |keys: u32, y: f32| Fix { fall: None,
+        let fix = |keys: u32, y: f32| Fix { fall: None, controller: None,
             time: 1_000,
             alive: true,
             inserted: 1,
@@ -224,7 +224,7 @@ mod tests {
         distances.sort_by(f32::total_cmp);
         let median = distances[2_000];
         assert!((0.28..=0.36).contains(&median), "{median}");
-        let dead = Fix { fall: None, feet: None, alive: false, ..fix(0, 0.0) };
+        let dead = Fix { fall: None, controller: None, feet: None, alive: false, ..fix(0, 0.0) };
         assert_eq!(error.perturb(1, dead.clone(), 1_300, 1_000), dead);
     }
 }
