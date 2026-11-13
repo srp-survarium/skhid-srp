@@ -330,9 +330,11 @@ package survarium.controls
          {
             ReplayAsks.save(_match_id);
          });
+         // its label anew at each change of the save, while it shows: prepare hides it until the
+         // screen's data come (the row then would be the last match's)
          ReplayAsks.listen(function():void
          {
-            if(parent != null)
+            if(parent != null && button.visible)
             {
                placeReplayButtons();
             }
@@ -368,7 +370,7 @@ package survarium.controls
          this._save.visible = this._watchAll.visible;
          this.sizeButton(this._save,LocalizationData.getName(state == ReplayAsks.SAVING ? "st_srp_replay_saving"
             : state == ReplayAsks.SAVED ? "st_srp_replay_saved" : "st_srp_replay_save"),font);
-         this._save.enabled = state == ReplayAsks.SAVE;
+         this._save.enabled = state != ReplayAsks.SAVING;
          this.sizeButton(this._watchAll,LocalizationData.getName("st_srp_replay_title"),font);
          if(isNaN(this._rowCentre))
          {
@@ -950,6 +952,7 @@ package survarium.controls
          this.dropChanceValueLabel.visible = false;
          this.percentSprite.visible = false;
          this._watchAll.visible = false;
+         this._save.visible = false;
          if(this._matchNumber)
          {
             this._matchNumber.visible = false;

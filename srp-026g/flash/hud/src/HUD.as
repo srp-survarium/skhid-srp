@@ -1848,6 +1848,8 @@ package
          this._nativeContext = {text:"",value:0,visible:true};
          this._modeNotice.reset();
          this.followModeNotice();
+         // the last match's call back, its timer stopped
+         this._calledBack.reset();
          this._pregameText = "";
          // a new match starts with the interface shown (the movie is the last match's; the exe's
          // patch 62 shows the player icons' with it); a forced one stays forced until patch 65

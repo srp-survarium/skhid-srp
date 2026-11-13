@@ -51,8 +51,9 @@ package
    // - Save replay (ReplayAsks): a save icon right of the code on the cards that may be watched
    //   (none on live cards or ones that cannot be watched); a press asks `3D 00 FFFFFF01 <match>`
    //   and polls 2210000000; `R2;preparing` keeps it saving, `R2;ready` hands the link to the exe once
-   //   (video_tutorial_link_clicked, no argument) and shows it saved; a refusal, or no answer, says
-   //   why and it may be saved again; the saving and saved words fit the card;
+   //   (video_tutorial_link_clicked, no argument) and shows it saved, and it may be saved again (the
+   //   updater's download may fail); a refusal, or no answer, says why and it may be saved again;
+   //   the saving and saved words fit the card; a ranking row named as a header is not taken;
    // - the results screen: a red Watch replay, then Save replay (Save replay, Saving..., Saved),
    //   left of the close button, their labels whole, the three as a row centred where the close
    //   button alone is; the match's number left of them, selected whole by a press and not changed
@@ -476,6 +477,11 @@ package
          press(win,"srpWatchTab_replays");
          expect(language + ": Replays is not on Mine",shownTab() == "replays" && shownChip() == "mine");
          toolbar(language,[["mine","st_srp_watch_chip_mine"],["friends","st_srp_watch_chip_friends"],["everyone","st_srp_watch_chip_everyone"]]);
+         // a ranking page whose first player is named as a header is the ranking's
+         for each(var named:String in ["L0;5","M0;5","P1;5;x","R1;watching;" + hex(MATCH) + ";0","R2;ready;" + hex(MATCH) + ";1"])
+         {
+            expect(language + ": a ranking row named " + named + " taken",!lobby.take([named,"Bob"],5));
+         }
          expect(language + ": P1 rows not taken",lobby.take(WatchFake.played("PocketTest1")));
          var list:Array = cards();
          expect(language + ": Mine is not the 4 good rows",list.length == 4);
@@ -785,6 +791,9 @@ package
          for(var p:int = 0; p < 31; p++)
             second();
          expect(language + ": polled " + polls(2200000000) + " times",polls(2200000000) == 30);
+         W.away();
+         W.back();
+         expect(language + ": a watch never answered left a view to come back to",!win.visible);
          // the second ask goes after the first ended
          W.open("live");
          lobby.take(WatchFake.LIVE);
@@ -930,9 +939,13 @@ package
             var before:int = polls(2210000000);
             second();
             expect(language + ": polled after the save",polls(2210000000) == before);
+            // saved only means handed to the updater, whose download may fail: it may be saved again
             var askedSoFar:int = saveCalls("victory_screen_request_player_data").length;
             click(cards()[0],"srpWatchSave");
-            expect(language + ": a saved replay asked again",saveCalls("victory_screen_request_player_data").length == askedSoFar);
+            expect(language + ": a saved replay not asked again",saveCalls("victory_screen_request_player_data").length == askedSoFar + 1
+               && saveState(cards()[0]) == savingWord);
+            saveAnswer("ready",MATCH,4404019);
+            expect(language + ": the second save's link not handed to the exe",saveCalls("video_tutorial_link_clicked").length == 2);
          }
          expect(language + ": the saved card says '" + saveState(cards()[0]) + "'",saveState(cards()[0]) == savedWord);
          cardFits(language + ": the saved card",cards()[0],cards()[0].width);

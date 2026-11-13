@@ -57,6 +57,15 @@ package
             "P2;00000022;255;63;2;0;6;8;5000;3"];
       }
 
+      // The place of an answer's first row, by its header's tag (the lobby server's LIVE_START,
+      // RECENT_MATCHES_START, PLAYER_MATCHES_START, REPLAY_START, SAVE_START); 0 for another.
+      public static function startOf(header:String) : uint
+      {
+         var starts:Object = {"L0":2240000000,"M0":2250000000,"P1":2230000000,"R1":2200000000,"R2":2210000000};
+         var tag:String = header.split(";")[0];
+         return tag in starts ? uint(starts[tag]) : 0;
+      }
+
       public static function rows(names:Array, first:uint = 0) : Array
       {
          var list:Array = [];

@@ -15,9 +15,10 @@ package survarium.watch
    // - a save (research/local-replays-design.md 1.1): `R2;<status>;<match 8 hex>;<n>`, polled at
    //   SAVE_START. `ready` comes just after the `9E` with the hidden link `replay <id> <token>
    //   <sha256> <size>`: video_tutorial_link_clicked with no argument hands it to the exe (patch
-   //   revision 14's replay_link), which starts updater_skhid.exe; the updater downloads the file and
-   //   says where it went in a message box of its own. A match is SAVED from then on for this session.
-   //   One save at a time.
+   //   revision 14's replay_link), which starts updater_skhid.exe; the updater downloads the file,
+   //   silently when it succeeds, a message box of its own when it fails. The lobby hears nothing
+   //   of that: SAVED says only that the link went to the updater, and Save may be pressed again
+   //   (a failed download retried). One save at a time.
    // The rows reach take through WatchWindow.take.
    public class ReplayAsks
    {
@@ -61,6 +62,10 @@ package survarium.watch
       private static const NO_ANSWER:String = "st_srp_replay_no_answer";
 
       private static const STILL_PREPARING:String = "st_srp_replay_still_preparing";
+
+      // what the window is told (as of an answer) of a watch that ended here without one: no answer
+      // in time, or the prompt closed
+      private static const ENDED:String = "ended";
 
       // The window told (match 8 hex, status) of each answer about a watch.
       public static var told:Function;
@@ -131,10 +136,11 @@ package survarium.watch
          return true;
       }
 
-      // Saves match `match`'s replay; nothing while another save is under way or it is saved.
+      // Saves match `match`'s replay, again when SAVED (the updater's download may have failed);
+      // nothing while a save is under way.
       public static function save(match:uint) : void
       {
-         if(match == 0 || _save != null || stateOf(match) != SAVE)
+         if(match == 0 || _save != null)
          {
             return;
          }
@@ -158,21 +164,25 @@ package survarium.watch
       public static function take(rows:Array) : Boolean
       {
          var name:String = null;
+         var place:uint = 0;
          try
          {
             name = rows && rows.length > 0 && rows[0] ? String(rows[0].nickname) : "";
+            place = name != "" ? uint(rows[0].place) : 0;
          }
          catch(e:Error)
          {
             return false;
          }
+         // each answer's row is at its poll's start: a ranking row named so (a name may hold `;`)
+         // is the ranking's
          var f:Array = name.split(";");
-         if(f[0] == "R1")
+         if(f[0] == "R1" && place == WATCH_START)
          {
             watchAnswer(f);
             return true;
          }
-         if(f[0] == "R2")
+         if(f[0] == "R2" && place == SAVE_START)
          {
             saveAnswer(f);
             return true;
@@ -246,6 +256,7 @@ package survarium.watch
             {
                var ended:Object = _watch;
                _watch = null;
+               tell(ended.hex,ENDED);
                WatchPrompt.show(ended.preparing ? STILL_PREPARING : NO_ANSWER);
             }
          }
@@ -269,7 +280,12 @@ package survarium.watch
       // The prompt's Close: the watch is no longer asked for.
       private static function promptClosed() : void
       {
-         _watch = null;
+         if(_watch != null)
+         {
+            var ended:Object = _watch;
+            _watch = null;
+            tell(ended.hex,ENDED);
+         }
       }
 
       // The save over: saved (no text), or why not, in the game's message box.

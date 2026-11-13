@@ -105,7 +105,8 @@ package survarium.watch
       // played is written at the server's next save, and nothing says when
       private static const BACK_ASK_MS:int = 2000;
 
-      // a watch asked this long before the game loads a match: back on its view after. The game's
+      // a watch asked (or last said `preparing`) this long before the game loads a match: back on
+      // its view after. The game's
       // show_match_making(false) is no sign of the watch's end (the lobby scene going away calls it
       // too, before the load), and no event says the load is the watch's
       private static const RESUME_MS:int = 120000;
@@ -266,7 +267,11 @@ package survarium.watch
          {
             first = rows && rows.length > 0 && rows[0] ? String(rows[0].nickname) : "";
             var tag:String = first.substr(0,3);
-            if(tag != "L0;" && tag != "M0;" && tag != "P1;")
+            // the header row is at its answer's start (the server's LIVE_START,
+            // RECENT_MATCHES_START, PLAYER_MATCHES_START): a ranking row named so (a name may
+            // hold `;`) is the ranking's
+            var start:uint = tag == "L0;" ? LIVE_START : tag == "M0;" ? RECENT_START : tag == "P1;" ? MATCHES_START : 0;
+            if(start == 0 || uint(rows[0].place) != start)
             {
                return false;
             }
@@ -1010,11 +1015,17 @@ package survarium.watch
          this.watch(uint(row.match),WatchRows.watchAsk(place));
       }
 
-      // An answer about a watch asked for (ReplayAsks): a refusal of the one asked from here plays
-      // nothing to come back from; the cards are refreshed.
+      // An answer about a watch asked for (ReplayAsks): of the one asked from here, `preparing`
+      // keeps its view for RESUME_MS more (a replay may prepare longer), anything but `watching`
+      // (a refusal, or its end without an answer) plays nothing to come back from; the cards are
+      // refreshed.
       private function answered(hex:String, status:String) : void
       {
-         if(status != "preparing" && status != "watching" && hex == WatchWindow.hex(this._pendingMatch))
+         if(hex == WatchWindow.hex(this._pendingMatch) && status == "preparing")
+         {
+            this._pendingAt = getTimer();
+         }
+         else if(hex == WatchWindow.hex(this._pendingMatch) && status != "watching")
          {
             this._pendingView = null;
          }

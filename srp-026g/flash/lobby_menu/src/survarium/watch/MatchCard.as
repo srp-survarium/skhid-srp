@@ -328,8 +328,8 @@ package survarium.watch
          tf.setSelection(0,tf.length);
       }
 
-      // An arrow into a tray: a press saves the replay (ReplayAsks). Saving: dim, with its word;
-      // saved: gold, filled, with its word. Its x end.
+      // An arrow into a tray: a press saves the replay (ReplayAsks), again once saved. Saving: dim,
+      // with its word; saved: gold, filled, with its word. Its x end.
       private function saveIcon(match:uint, x:Number, y:Number, right:Number) : Number
       {
          this.showSave(true);
@@ -403,7 +403,7 @@ package survarium.watch
          icon.graphics.lineTo(1,11);
          icon.graphics.lineTo(11,11);
          icon.graphics.lineTo(11,8);
-         icon.buttonMode = state == ReplayAsks.SAVE;
+         icon.buttonMode = state != ReplayAsks.SAVING;
       }
 
       private function onSavePress(e:Event) : void

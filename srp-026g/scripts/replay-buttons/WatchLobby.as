@@ -102,10 +102,11 @@ package
          return new (domain.getDefinition(name) as Class)();
       }
 
-      // The rows taken by the Watch window (WatchWindow.take).
-      public function take(names:Array) : Boolean
+      // The rows taken by the Watch window (WatchWindow.take), at their answer's places as the
+      // server writes them (`first`: a ranking row's place instead).
+      public function take(names:Array, first:int = -1) : Boolean
       {
-         return W.take(WatchFake.rows(names));
+         return W.take(WatchFake.rows(names,first >= 0 ? uint(first) : WatchFake.startOf(String(names[0]))));
       }
 
       // A History row of `match` (the results' and the History's Watch ask through it).
@@ -127,7 +128,7 @@ package
          {
             hex = "0" + hex;
          }
-         W.take([{"nickname":"R1;" + status + ";" + hex + ";" + n,"place":0,"ranking":0,"ranking_diff":0}]);
+         W.take([{"nickname":"R1;" + status + ";" + hex + ";" + n,"place":WatchFake.startOf("R1;"),"ranking":0,"ranking_diff":0}]);
       }
 
       public static function find(box:DisplayObjectContainer, name:String) : DisplayObject

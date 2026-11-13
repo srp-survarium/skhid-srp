@@ -3415,6 +3415,9 @@ package
       public function show_victory_screen() : void
       {
          this.showInterface();
+         // the Watch window closed now, before closeVS listens: closed later (the results set as
+         // the active window once their data come), its tab's change would close the results
+         WatchWindow.closeForWindow();
          this.showRoomUnderResults();
          dispatchEvent(new MouseEvent(MouseEvent.MOUSE_UP,true));
          trace("_top_container::this");
