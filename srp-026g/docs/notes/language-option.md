@@ -60,8 +60,8 @@ The language, once, before the dictionary loads:
 
 - **Launcher (PLAY):** passes no `-localization=`. Its language menu writes the choice to user.cfg
   before the game starts; the game reads it there (rule 2).
-- **Watch replay** (`updater_skhid.exe replay`): no `-localization=`; the replay plays in the game's
-  saved language.
+- **Save replay** (`updater_skhid.exe replay`): starts no game. **`open-replay`** (local `.sur`
+  files): no `-localization=`; the replay plays in the game's saved language.
 - **`play_skhid.sh` / `play_skhid.bat`:** pass no language; a hand-typed `-localization=` on a
   command line is still rule 1.
 

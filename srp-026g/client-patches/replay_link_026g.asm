@@ -1,5 +1,5 @@
 ; "Watch replay" from the lobby's History: the lobby's link callback starts
-; the updater, which fetches the replay and starts a second game to play it
+; the updater, which fetches the replay and saves it (it starts no game)
 ; (build 2777, patch revision 14, client_patch.md section 3.27). One entry,
 ; at the start; patch_026g.py checks the hook's target. At .srp+220h, after
 ; the upload code, the default server's stub and its address (0x21D at the

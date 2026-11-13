@@ -47,7 +47,7 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   match counts once for a clan if at least one member played in it (its clan at the time), and is a
   win if at least one of them was on the winning team (members on both teams: a win). Score,
   kills, deaths and the counters are its members' rows added up, so a clan's `score_avg` is its
-  members' score per match together, and its matches are exactly those `matches?clan=` lists.
+  members' score per match together, and its counted matches are those of `matches?clan=` with `eligibility: counted`.
 - Counters (game events, `docs/notes/results.md` §9 and `snapshot_rules.md` §3.1): assists (1),
   headshots (15), grenade kills (25), melee kills (13), batteries put into a container (20),
   artefacts (5: every artefact taken from an anomaly, the results' explorer count and Vostok's old
