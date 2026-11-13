@@ -3478,3 +3478,4 @@ va	status	ref_021d	name
 0x0033a770	inferred-medium		survarium::weapon_core_throw_grenade_state::throw_grenade
 0x0031ecf0	inferred-medium		survarium::weapon_core_base_state::animation_lexeme [descriptive]
 0x002e9040	inferred-medium		vostok::intrusive_ptr<grenade_core>::assign [descriptive]
+0x0024b8c0	inferred-medium		survarium::weapon_core_shotgun_reload_base_substate::register_animations

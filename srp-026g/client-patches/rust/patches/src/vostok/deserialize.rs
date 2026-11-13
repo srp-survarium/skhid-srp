@@ -80,7 +80,7 @@ pub enum Grenade {
     None,
     /// One of the set's grenades.
     InSet,
-    /// Past the set's grenades, or a state with no set.
+    /// Past the set's grenades, or a state with no grenade set.
     Outside,
 }
 
@@ -102,12 +102,77 @@ pub fn grenade_to_throw(ctx: &Context<'_>) -> Grenade {
 /// bounds are read, never a grenade.
 unsafe fn grenade_of(state: Option<raw::ThrowGrenadeState>) -> Grenade {
     let Some(state) = state else { return Grenade::Outside };
-    // SAFETY: as the caller promises.
+    // SAFETY: as the caller promises. The set is any item of a profile slot
+    // the world named: its vtable word is read first, its vector only when
+    // it is a grenade set's.
     unsafe {
         let set = state.grenade_set()
+            .filter(|set| is_grenade_set(read(set.vtable())))
             .map(|set| (read(set.grenades_begin()) as usize, read(set.grenades_end()) as usize));
         grenade(read(state.grenade_index()), set)
     }
+}
+
+/// Whether an item's vtable is a grenade set's (the client's grenade_set,
+/// or grenade_set_core): the only items with a grenade vector at +268h.
+fn is_grenade_set(vtable: u32) -> bool {
+    [raw::image::GRENADE_SET_VTABLE, raw::image::GRENADE_SET_CORE_VTABLE].contains(&vtable)
+}
+
+/// The animation handles an animation-end-aware weapon state holds in the
+/// object from `[state+130h]` (each class's register_animations walks
+/// exactly these, contiguous; every constructor points +130h at the first),
+/// by that register_animations (its vtable's +1Ch, which every derived
+/// class keeps). `None`: not a state with such a table.
+fn wait_table_len(register_animations: u32) -> Option<u8> {
+    use raw::image::*;
+    match register_animations {
+        REGISTER_THROW_SUBSTATE_ANIMATIONS | REGISTER_MELEE_ANIMATIONS => Some(4),
+        REGISTER_SHOW_HIDE_ANIMATIONS | REGISTER_RELOAD_ANIMATIONS
+            | REGISTER_SHOTGUN_SUBSTATE_ANIMATIONS => Some(5),
+        REGISTER_FIRE_ANIMATIONS => Some(9),
+        REGISTER_FIRE_TWICE_ANIMATIONS => Some(10),
+        _ => None,
+    }
+}
+
+/// Whether `index` names one of the state's own animation handles. Past
+/// them the native compare reads what lies after the object: never a
+/// handle the state chose, and different in every game. Those indices
+/// (and a state of no known layout) are taken as no match.
+fn waits_in_table(index: u8, register_animations: u32) -> bool {
+    wait_table_len(register_animations).is_some_and(|len| index < len)
+}
+
+/// # Safety
+/// `state` is the live animation-end-aware state whose callback runs, on
+/// the game's thread. Only its vtable's register_animations and its index
+/// are read.
+unsafe fn wait_of(state: Option<raw::AnimationEndAwareState>) -> bool {
+    // SAFETY: as the caller promises; a state's vtable is the image's.
+    unsafe {
+        state.is_some_and(|state| state.methods().is_some_and(|methods|
+            waits_in_table(read(state.index_of_animation_to_wait()), read(methods.register_animations()))))
+    }
+}
+
+/// At `deserialize.wait_end`: whether the state in ECX waits for one of its
+/// own animation handles.
+pub fn waits_at_end(ctx: &Context<'_>) -> bool {
+    // SAFETY: the context is this site's, ECX the callback's live state.
+    unsafe { wait_of(raw::site::deserialize_wait_end::state(ctx)) }
+}
+
+/// At `deserialize.wait_throw`: as [`waits_at_end`], the throw substate's.
+pub fn waits_at_throw(ctx: &Context<'_>) -> bool {
+    // SAFETY: the context is this site's, ECX the callback's live substate.
+    unsafe { wait_of(raw::site::deserialize_wait_throw::state(ctx)) }
+}
+
+/// At `deserialize.wait_melee`: as [`waits_at_end`], the melee state's.
+pub fn waits_at_melee(ctx: &Context<'_>) -> bool {
+    // SAFETY: the context is this site's, ECX the callback's live state.
+    unsafe { wait_of(raw::site::deserialize_wait_melee::state(ctx)) }
 }
 
 /// `index` against a set's grenades (its vector's begin and end), if any.
@@ -156,6 +221,29 @@ mod tests {
         for (index, set) in [(4, set), (254, set), (0, None), (0, Some((100, 100))), (0, Some((0, 4)))] {
             assert_eq!(grenade(index, set), Grenade::Outside);
         }
+    }
+
+    #[test]
+    fn only_a_grenade_set_has_grenades() {
+        assert!(is_grenade_set(0xA0B56C));
+        assert!(is_grenade_set(0xA14824));
+        assert!(!is_grenade_set(0xA04174)); // a weapon
+        assert!(!is_grenade_set(0));
+    }
+
+    #[test]
+    fn an_animation_to_wait_is_one_of_the_state_s_handles() {
+        // The game's own: show 0, 2; fire 8; double-barrel fire 9.
+        assert!(waits_in_table(2, 0x24B700));
+        assert!(waits_in_table(8, 0x24B7C0));
+        assert!(waits_in_table(9, 0x24B820));
+        assert!(waits_in_table(3, 0x24B920));
+        // Past them: the show state's uninitialised 63, 0FFh, one past.
+        for (index, register) in [(63, 0x24B700), (0xff, 0x24B700), (5, 0x24B700), (4, 0x24B880),
+                                  (9, 0x24B7C0), (10, 0x24B820), (4, 0x24B920)] {
+            assert!(!waits_in_table(index, register), "{index} {register:#x}");
+        }
+        assert!(!waits_in_table(0, 0x30D5F0)); // an idle state: no table
     }
 
     #[test]

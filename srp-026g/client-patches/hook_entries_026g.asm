@@ -3262,6 +3262,132 @@ deserialize_guards_on_grenade_throw_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
     jmp 0x33a776
 
+; 0x30db7d weapon_core_animation_end_aware_state::on_animation_end (an animation-end callback, for every player) loading m_index_of_animation_to_wait (movzx edx,byte [ecx+134h]) before cmp ebx,[[ecx+130h]+edx*4] with no bound (0x30DB8E); no_match is the compare's failed path (pop edi; xor eax,eax; pop esi; ret 4): lohook -> deserialize_guards_on_wait_end
+global deserialize_guards_on_wait_end
+extern hook_deserialize_guards_on_wait_end
+deserialize_guards_on_wait_end:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_wait_end
+    mov edx, deserialize_guards_on_wait_end_replay
+    cmp eax, 0
+    je deserialize_guards_on_wait_end_go
+    mov edx, 0x30db84
+    cmp eax, 1
+    je deserialize_guards_on_wait_end_go
+    mov edx, 0x30dba7
+    cmp eax, 2
+    je deserialize_guards_on_wait_end_go
+    ud2
+deserialize_guards_on_wait_end_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_wait_end_replay:
+    db 0x0f, 0xb6, 0x91, 0x34, 0x01, 0x00, 0x00
+    jmp 0x30db84
+
+; 0x310692 the throw substate's on_animation_end 0x310680 loading m_index_of_animation_to_wait before cmp eax,[[ecx+130h]+edx*4] (0x3106A2); no_match is its failed path (xor eax,eax; pop esi; ret 4): lohook -> deserialize_guards_on_wait_throw
+global deserialize_guards_on_wait_throw
+extern hook_deserialize_guards_on_wait_throw
+deserialize_guards_on_wait_throw:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_wait_throw
+    mov edx, deserialize_guards_on_wait_throw_replay
+    cmp eax, 0
+    je deserialize_guards_on_wait_throw_go
+    mov edx, 0x310699
+    cmp eax, 1
+    je deserialize_guards_on_wait_throw_go
+    mov edx, 0x3106b2
+    cmp eax, 2
+    je deserialize_guards_on_wait_throw_go
+    ud2
+deserialize_guards_on_wait_throw_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_wait_throw_replay:
+    db 0x0f, 0xb6, 0x91, 0x34, 0x01, 0x00, 0x00
+    jmp 0x310699
+
+; 0x310cf0 the melee state's animation callback 0x310CF0 at its entry (movzx edx,byte [ecx+134h]) before cmp edi,[[ecx+130h]+edx*4] (0x310D06); no_match is its ret 4 with the stack as at the entry (the handler sets EAX 0, the failed path's): lohook -> deserialize_guards_on_wait_melee
+global deserialize_guards_on_wait_melee
+extern hook_deserialize_guards_on_wait_melee
+deserialize_guards_on_wait_melee:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_deserialize_guards_on_wait_melee
+    mov edx, deserialize_guards_on_wait_melee_replay
+    cmp eax, 0
+    je deserialize_guards_on_wait_melee_go
+    mov edx, 0x310cf7
+    cmp eax, 1
+    je deserialize_guards_on_wait_melee_go
+    mov edx, 0x310d3e
+    cmp eax, 2
+    je deserialize_guards_on_wait_melee_go
+    ud2
+deserialize_guards_on_wait_melee_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+deserialize_guards_on_wait_melee_replay:
+    db 0x0f, 0xb6, 0x91, 0x34, 0x01, 0x00, 0x00
+    jmp 0x310cf7
+
 ; 0x2d9cb1 base_player::hit_impl once damage_model::hit_body_part (0x2E5080, at 0x2D9CA4) said 1: the hit took health past armour and protectors (more than 0.0 left, 0x2E5128); before the slow, the listeners and the death (mov edi,esi / cmp dword [edi+40h],0; the je at 0x2D9CB7 reads its flags): EBX the victim, ESI the hit; every hit of every player, in every game's simulation: lohook -> drug_interrupt_on_hit_applied
 global drug_interrupt_on_hit_applied
 extern hook_drug_interrupt_on_hit_applied

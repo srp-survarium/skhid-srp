@@ -220,8 +220,11 @@ What the receiving game checks before it loads a world it was sent (0xE8):
   outside its table takes the reader's own "none" path instead; a dead selector's death animation
   past its set's lists is read as the first (the lists' lengths are content, so no check before
   can know them); a double-barrel's or pistol's fire animation past the state's two is stored as
-  the first; a throw's grenade past its set's grenades is not ready and is not thrown (the set's
-  size is content too).
+  the first; a throw's grenade past its set's grenades, or a set that is not a grenade set, is
+  not ready and is not thrown (the set's size is content too); an animation a weapon state waits
+  for past the state's own animation handles never ends. Real worlds carry such indices (the
+  show state's 63, 205, 220...: LIKELY never set), and the native compare then reads what lies
+  after the object, different in every game, so "no match" is what they already get.
 
 A refused world is not loaded: the game tells the server (a "Rejected" receipt) and gets a fresh
 one (patch 97), without leaving the match.
@@ -356,14 +359,5 @@ every one to its buffer before it sends it.
 - **The match messages are not typed views yet.** Inputs, relays and kit choices are checked by
   the older byte-level code (`srp_validate::messages`). The checks are complete, but they are
   not yet parsed into types the way the world is.
-- **A weapon state's animation to wait for** (`m_index_of_animation_to_wait`, +134h, every
-  animation-end-aware state). The world brings any byte, and `on_animation_end` (0x30DB60,
-  0x310680, 0x310CF0) compares the ending clip with `[[state+130h]+index*4]` with no bound. The
-  table is the state's own handles in the object (4 or 8; the double-barrel's and pistol's fire
-  reach 10), with no count stored. But real worlds carry values far past it: the show state
-  saves 63, 205, 220, 240 and others (7,570 of 68,366 show states in the rev56 corpus), so a
-  bound would change what real games do. The value is a byte, so the read stays within 1,020
-  bytes of an in-object table, the same window real worlds already read. It is a compare only:
-  no write, no call through it. Left as it is.
 - **A match where one game simulates alone.** A game that joins it loads that game's world, and
   no other game can vouch for it (S7). The world still has to pass the whole check.

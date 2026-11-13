@@ -335,7 +335,10 @@ fields and the current `vostok` boundary, and bounds a dead selector's death
 animation by its set's own lists (get_death_animations 0x338280's entry), a
 double-barrel's or pistol's fire animation by the state's two (at the load,
 0x310224; the world check refuses any other byte too), and a throw's grenade
-by its set's grenades (is_ready_for_transition 0x33A66D, the throw 0x33A770). It is independent of runtime message
+by its set's grenades (is_ready_for_transition 0x33A66D, the throw 0x33A770; a
+set whose vtable is not a grenade set's has none), and an animation to wait for
+by the state's own handles (its class's register_animations: 4, 5, 9 or 10;
+the callbacks 0x30DB7D, 0x310692, 0x310CF0). It is independent of runtime message
 and semantic-world enforcement. The checked stock instructions confirm the FSM's
 ESI/EDI and two stack inputs; the re-kit records that stronger ABI evidence.
 

@@ -1970,6 +1970,66 @@ pub extern "C" fn hook_deserialize_guards_on_grenade_throw(frame: &mut Frame) ->
     }
 }
 
+// ---- deserialize_guards (patch 115) ----
+
+/// The named exits of deserialize_guards::on_wait_end (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum DeserializeGuardsOnWaitEndExit { NoMatch }
+/// The entry `deserialize_guards_on_wait_end` (0x30db7d, weapon_core_animation_end_aware_state::on_animation_end (an animation-end callback, for every player) loading m_index_of_animation_to_wait (movzx edx,byte [ecx+134h]) before cmp ebx,[[ecx+130h]+edx*4] with no bound (0x30DB8E); no_match is the compare's failed path (pop edi; xor eax,eax; pop esi; ret 4)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_deserialize_guards_on_wait_end(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `deserialize_guards_on_wait_end` calls this, from the game's jump at 0x30db7d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::deserialize_guards::on_wait_end(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- deserialize_guards (patch 115) ----
+
+/// The named exits of deserialize_guards::on_wait_throw (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum DeserializeGuardsOnWaitThrowExit { NoMatch }
+/// The entry `deserialize_guards_on_wait_throw` (0x310692, the throw substate's on_animation_end 0x310680 loading m_index_of_animation_to_wait before cmp eax,[[ecx+130h]+edx*4] (0x3106A2); no_match is its failed path (xor eax,eax; pop esi; ret 4)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_deserialize_guards_on_wait_throw(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `deserialize_guards_on_wait_throw` calls this, from the game's jump at 0x310692,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::deserialize_guards::on_wait_throw(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- deserialize_guards (patch 115) ----
+
+/// The named exits of deserialize_guards::on_wait_melee (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum DeserializeGuardsOnWaitMeleeExit { NoMatch }
+/// The entry `deserialize_guards_on_wait_melee` (0x310cf0, the melee state's animation callback 0x310CF0 at its entry (movzx edx,byte [ecx+134h]) before cmp edi,[[ecx+130h]+edx*4] (0x310D06); no_match is its ret 4 with the stack as at the entry (the handler sets EAX 0, the failed path's)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_deserialize_guards_on_wait_melee(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `deserialize_guards_on_wait_melee` calls this, from the game's jump at 0x310cf0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::deserialize_guards::on_wait_melee(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- drug_interrupt (patch 84) ----
 
 /// The entry `drug_interrupt_on_hit_applied` (0x2d9cb1, base_player::hit_impl once damage_model::hit_body_part (0x2E5080, at 0x2D9CA4) said 1: the hit took health past armour and protectors (more than 0.0 left, 0x2E5128); before the slow, the listeners and the death (mov edi,esi / cmp dword [edi+40h],0; the je at 0x2D9CB7 reads its flags): EBX the victim, ESI the hit; every hit of every player, in every game's simulation) calls this with the saved machine.

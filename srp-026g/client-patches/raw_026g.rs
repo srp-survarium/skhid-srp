@@ -22329,6 +22329,81 @@ impl GrenadeSetCore {
     pub unsafe fn grenades_end(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x26c).cast::<u32>().as_ptr() }
     }
+
+    /// +0x0 (u32): its vtable: GRENADE_SET_VTABLE (the client's grenade_set, made by 0x25DD3C) or GRENADE_SET_CORE_VTABLE (grenade_set_core, 0x2E7E1B); the throw grenade state takes its set from a profile slot the world names (0x33A5AB) with no type test
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::animation_end_aware_state (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AnimationEndAwareState(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl AnimationEndAwareState {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<survarium::weapon_state_methods>): its vtable (every weapon_core_*state class; RTTI)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn methods(self) -> Option<WeaponStateMethods> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<WeaponStateMethods>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<survarium::weapon_state_methods>): its vtable (every weapon_core_*state class; RTTI)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_methods(self, value: Option<WeaponStateMethods>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<WeaponStateMethods>>().write_volatile(value) }
+    }
+
+    /// +0x134 (u8): m_index_of_animation_to_wait: an index of the handles from [state+130h] (the object's own, every constructor), 0FFh none; the world's byte as read (deserialize 0x30DBB0, 0x30DC7C); on_animation_end 0x30DB8E, 0x3106A2, 0x310D06 compare [[state+130h]+index*4] with no bound
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn index_of_animation_to_wait(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x134).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A survarium::weapon_state_methods (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WeaponStateMethods(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl WeaponStateMethods {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x1c (u32): slot 7, register_animations: one per layout of the state's animation handles (REGISTER_*_ANIMATIONS), kept by every derived class (the weapon_sound_events_handler_state templates; RTTI)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn register_animations(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1c).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -23025,6 +23100,33 @@ pub mod image {
 
     /// 0x9daf4c (u32, vostok::logging::image): the log sink's boost::function manager (console_commands::execute 0xEBA28: or 1, its word +0)
     pub const LOG_FUNCTION_MANAGER: u32 = 0x9daf4c;
+
+    /// 0xa0b56c (u32, survarium::image): grenade_set's vtable (RTTI .?AVgrenade_set@survarium@@, offset 0; written at 0x25DD45 over grenade_set_core's)
+    pub const GRENADE_SET_VTABLE: u32 = 0xa0b56c;
+
+    /// 0xa14824 (u32, survarium::image): grenade_set_core's vtable (RTTI .?AVgrenade_set_core@survarium@@, offset 0; its constructor 0x309AF8)
+    pub const GRENADE_SET_CORE_VTABLE: u32 = 0xa14824;
+
+    /// 0x24b700 (u32, survarium::image): show and hide states' register_animations: 5 handles from +13Ch (4, then +14Ch); their stores give 0 or 2 (0x30DF55)
+    pub const REGISTER_SHOW_HIDE_ANIMATIONS: u32 = 0x24b700;
+
+    /// 0x24b760 (u32, survarium::image): reload state's register_animations: 5 handles from +144h (4, then +154h); its store 0 or 2 (0x30E237)
+    pub const REGISTER_RELOAD_ANIMATIONS: u32 = 0x24b760;
+
+    /// 0x24b7c0 (u32, survarium::image): fire and chamber_a_round states' register_animations: 9 handles from +144h (8, then +164h); stores 0..6 (0x30E56A, 0x30F5FA) and 8 (fire, 0x30E83E)
+    pub const REGISTER_FIRE_ANIMATIONS: u32 = 0x24b7c0;
+
+    /// 0x24b820 (u32, survarium::image): double-barrel's and pistol's fire and reload states' register_animations: 10 handles from +144h (8, then 2 at +164h); stores 0..6 (0x30FEE4) and 8, 9 (fire, 0x30F877)
+    pub const REGISTER_FIRE_TWICE_ANIMATIONS: u32 = 0x24b820;
+
+    /// 0x24b880 (u32, survarium::image): the throw grenade substates' register_animations: 4 handles from +140h; stores 0 or 2 (0x310374)
+    pub const REGISTER_THROW_SUBSTATE_ANIMATIONS: u32 = 0x24b880;
+
+    /// 0x24b8c0 (u32, survarium::image): the shotgun reload substates' register_animations: 5 handles from +138h (4, then +148h); stores 0 or 2 (0x3110B2)
+    pub const REGISTER_SHOTGUN_SUBSTATE_ANIMATIONS: u32 = 0x24b8c0;
+
+    /// 0x24b920 (u32, survarium::image): melee state's register_animations: 4 handles from +144h; stores 0 or 2 (0x310C36)
+    pub const REGISTER_MELEE_ANIMATIONS: u32 = 0x24b920;
 }
 
 /// A general-purpose register at a hook's site.
@@ -25883,6 +25985,51 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn state(machine: &impl Machine) -> Option<ThrowGrenadeState> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(ThrowGrenadeState)
+        }
+    }
+
+    /// deserialize.wait_end (0x30db7d): weapon_core_animation_end_aware_state::on_animation_end (an animation-end callback, for every player) loading m_index_of_animation_to_wait (movzx edx,byte [ecx+134h]) before cmp ebx,[[ecx+130h]+edx*4] with no bound (0x30DB8E); no_match is the compare's failed path (pop edi; xor eax,eax; pop esi; ret 4)
+    pub mod deserialize_wait_end {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::animation_end_aware_state (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn state(machine: &impl Machine) -> Option<AnimationEndAwareState> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(AnimationEndAwareState)
+        }
+    }
+
+    /// deserialize.wait_throw (0x310692): the throw substate's on_animation_end 0x310680 loading m_index_of_animation_to_wait before cmp eax,[[ecx+130h]+edx*4] (0x3106A2); no_match is its failed path (xor eax,eax; pop esi; ret 4)
+    pub mod deserialize_wait_throw {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::animation_end_aware_state (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn state(machine: &impl Machine) -> Option<AnimationEndAwareState> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(AnimationEndAwareState)
+        }
+    }
+
+    /// deserialize.wait_melee (0x310cf0): the melee state's animation callback 0x310CF0 at its entry (movzx edx,byte [ecx+134h]) before cmp edi,[[ecx+130h]+edx*4] (0x310D06); no_match is its ret 4 with the stack as at the entry (the handler sets EAX 0, the failed path's)
+    pub mod deserialize_wait_melee {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::animation_end_aware_state (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn state(machine: &impl Machine) -> Option<AnimationEndAwareState> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(AnimationEndAwareState)
         }
     }
 

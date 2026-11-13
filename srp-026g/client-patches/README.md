@@ -4777,15 +4777,41 @@ set's size is content. At is_ready (`deserialize.grenade_ready`, 0x33A66D) an
 index past the set's grenades, or a state with no set, takes the native 0FFh path
 (not ready); at the throw's entry (`deserialize.grenade_throw`) only an index of
 one of the set's grenades throws, anything else returns (0x33A7DD). The rev56
-corpus holds 0..3 only.
+corpus holds 0..3 only. The set is whatever item the profile slot the world
+names holds (deserialize 0x33A5AB, no type test), so both guards first check
+its vtable is a grenade set's (`grenade_set` 0xA0B56C, `grenade_set_core`
+0xA14824); any other item has no grenades. Native code that still takes that
+item as a grenade set, unguarded: the pull substate's initialize (0x3103CF,
+`pull_pin` 0x30A120: its vector, `[[set+250h]+174h]`'s vtable call), 0x310465
+and 0x33A73F (`[set+254h]`), the state's serialize (0x33A51B).
+
+An animation to wait for (F6): every animation-end-aware weapon state saves
+`m_index_of_animation_to_wait` (+134h, 0FFh none), the world brings any byte,
+and the callbacks (`on_animation_end` 0x30DB60, the throw substate's 0x310680,
+the melee state's 0x310CF0) compare the ending clip with
+`[[state+130h]+index*4]` with no bound. `[state+130h]` is the state's own
+animation handles, in the object, which its class's `register_animations`
+(vtable +1Ch, kept by every derived class) walks: 4, 5, 9 or 10 of them (seven
+registrators, 30 classes by RTTI). The game's own picks stay in them (0..9).
+But real worlds carry indices past them: the show state saves 63, 205, 220 and
+others (7,570 of 68,366 rev56 show states; LIKELY never set, as no constructor
+stores +134h). Past the handles, the native compare reads what lies after the
+object, different in every game, and faults at a page's end. The guards
+(`deserialize.wait_end` 0x30DB7D, `wait_throw` 0x310692, `wait_melee` 0x310CF0)
+take an index past the state's handles (or a state of no known layout) as no
+match, the compare's own failed path. An index in them runs as before.
 
 `check_deserialize_guards_026g.py <stock exe>` compares valid reads with stock and
-checks invalid/empty tables at all four stack alignments (216 cases; the death
+checks invalid/empty tables at all four stack alignments (1,228 cases; the death
 animation's: the stock faults past the lists, ours plays the first; the fire
 animation's: the stock stores the byte, ours stores 0 as the stock does with 0;
 the grenade's: the stock faults in is_ready and in throw_grenade's reference past
 the set, ours is not ready and returns from the throw with the registers as they
-were, and a grenade of the set runs as the stock to throw_grenade). The i686
+were, and a grenade of the set runs as the stock to throw_grenade; a weapon in
+the grenade slot: the stock reads it as a set, ours does not; the animation to
+wait for: every one of the 30 classes, its table ending at a page's end, at each
+callback that serves it: in its handles the stock's match and no match, past
+them the stock faults and ours is no match). The i686
 patch crate's i686 tests and Clippy pass. No release revision is reserved.
 
 ## A presenter ignores an effect it does not hold (patch 117, unreleased)

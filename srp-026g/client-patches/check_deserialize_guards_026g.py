@@ -8,8 +8,9 @@ registers, flags, XMM state and stack results. Invalid ids never dereference pas
 an anomaly/artefact vector or call a null FSM state.
 """
 import argparse
+import re
 import struct
-from unicorn import UC_HOOK_CODE
+from unicorn import UC_HOOK_CODE, UC_PROT_ALL
 from unicorn.x86_const import *
 import patch_026g as base
 from check_world_check_026g import Run, WORLD, STACK, STUBS, FRAME
@@ -38,6 +39,24 @@ READY, THROW, SET_THROW = 0x33A650, 0x33A770, 0x30A250
 SET_THROW_TAKEN = 0x30A27C
 THROW_STUBS = (0x309F00, 0x727B0)
 GRENADE_RETURN = STUBS + 0x210
+# The two grenade set vtables (grenade_set, grenade_set_core) and another
+# item's (a weapon's), which a world can name in the grenade slot.
+GRENADE_SETS, NOT_A_GRENADE_SET = (0xA0B56C, 0xA14824), 0xA04174
+# The animation-end callbacks that compare [[state+130h]+index*4]: every
+# animation-end-aware state's, the throw substate's, the melee state's.
+WAIT_END, WAIT_THROW, WAIT_MELEE = 0x30DB60, 0x310680, 0x310CF0
+# Where each goes on a match: the state's on_animation_end_impl (vtable
+# +24h, a stub in the fixture's copy of the vtable), the throw 0x33A770,
+# the melee's 0x3921A0.
+MATCHED = {WAIT_END: STUBS + 0x220, WAIT_THROW: 0x33A770, WAIT_MELEE: 0x3921A0}
+WAIT_RETURN = STUBS + 0x230
+# Each register_animations (vtable +1Ch): the state's handles, from
+# [state+130h], contiguous (read off the registrators 0x24B700..0x24B958).
+LAYOUTS = {0x24B700: (0x13C, 5), 0x24B760: (0x144, 5), 0x24B7C0: (0x144, 9), 0x24B820: (0x144, 10),
+           0x24B880: (0x140, 4), 0x24B8C0: (0x138, 5), 0x24B920: (0x144, 4)}
+# A page of its own: the state's table ends at its end, so a read past the
+# handles faults.
+EDGE = 0x45000000
 
 class GuardRun(Run):
     def __init__(self, data):
@@ -49,6 +68,15 @@ class GuardRun(Run):
         self.emu.hook_add(UC_HOOK_CODE, self.state_reader, begin=STUBS + 0x90, end=STUBS + 0x90)
         self.at_set_throw = False
         self.emu.hook_add(UC_HOOK_CODE, self.set_throw, begin=SET_THROW, end=SET_THROW)
+        self.matched = None
+        for at in set(MATCHED.values()) | {WAIT_RETURN}:
+            self.emu.hook_add(UC_HOOK_CODE, self.wait_stop, begin=at, end=at)
+        self.emu.mem_map(EDGE, 0x1000, UC_PROT_ALL)
+
+    def wait_stop(self, emu, address, size, _):
+        """A callback's match (when that is the one awaited) or its return."""
+        if address in (self.matched, WAIT_RETURN):
+            self.stop(emu, address, size, _)
 
     def ret4(self, emu, address, size, _):
         sp = emu.reg_read(UC_X86_REG_ESP)
@@ -156,14 +184,16 @@ class GuardRun(Run):
         self.start(FIRE, regs, sp)
         return self.stopped, tuple(self.emu.reg_read(r) for r in REGS), self.emu.mem_read(state + 0x16C, 1)[0]
 
-    def throw_state(self, index, grenades):
-        """A throw grenade state at WORLD: its set holds `grenades` grenades
-        (None: no set), each its own object, every slot past them PAST."""
+    def throw_state(self, index, grenades, vtable=GRENADE_SETS[1]):
+        """A throw grenade state at WORLD: its set (of `vtable`) holds
+        `grenades` grenades (None: no set), each its own object, every slot
+        past them PAST."""
         state, sub, set_, table = WORLD, WORLD + 0x1000, WORLD + 0x2000, WORLD + 0x3000
         self.word(state + 0x150, sub)            # the substate: +13Ch clear
         self.emu.mem_write(state + 0x180, bytes([index]))
         if grenades is not None:
             self.word(state + 0x17C, set_)
+            self.word(set_, vtable)
             self.word(set_ + 0x268, table)
             self.word(set_ + 0x26C, table + grenades*4)
             for n in range(256):
@@ -176,10 +206,10 @@ class GuardRun(Run):
         self.word(WORLD + 0x7008, WORLD + 0x8000)
         return state
 
-    def ready(self, index, align, grenades):
+    def ready(self, index, align, grenades, vtable=GRENADE_SETS[1]):
         """is_ready_for_transition of a throw state with `index`: its result."""
         regs, sp = self.fresh(align)
-        regs[UC_X86_REG_ECX] = self.throw_state(index, grenades)
+        regs[UC_X86_REG_ECX] = self.throw_state(index, grenades, vtable)
         self.word(sp, GRENADE_RETURN)
         try:
             self.start(READY, regs, sp)
@@ -187,12 +217,12 @@ class GuardRun(Run):
             return None
         return self.stopped, tuple(self.emu.reg_read(r) for r in REGS)
 
-    def throw(self, index, align, grenades):
+    def throw(self, index, align, grenades, vtable=GRENADE_SETS[1]):
         """The throw state's throw with `index`: where it stops (the set's
         throw_grenade, or its return), the registers and, at the set's
         throw, the index and the arguments it hands on."""
         regs, sp = self.fresh(align)
-        regs[UC_X86_REG_ESI] = self.throw_state(index, grenades)
+        regs[UC_X86_REG_ESI] = self.throw_state(index, grenades, vtable)
         self.word(sp, GRENADE_RETURN)
         self.at_set_throw = True
         self.start(THROW, regs, sp)
@@ -219,6 +249,63 @@ class GuardRun(Run):
             return False
         return self.stopped == SET_THROW_TAKEN
 
+    def wait(self, callback, vtable, index, align, match):
+        """`callback` (an animation-end callback) on a state of `vtable`
+        whose handles end at the end of the EDGE page, waiting for `index`,
+        the ending clip that slot's handle (`match`) or another: where it
+        stops (the match's continuation or the return) and the registers,
+        None when it faults; and the state's +12Dh."""
+        regs, sp = self.fresh(align)
+        self.emu.mem_write(EDGE, bytes(0x1000))
+        offset, count = LAYOUTS[self.read(vtable + 0x1C)]
+        state = EDGE + 0x1000 - (offset + count*4)
+        methods, weapon, owner, params = WORLD + 0x9000, WORLD + 0xA000, WORLD + 0xB000, WORLD + 0xD000
+        for n in range(16):
+            self.word(methods + 4*n, self.read(vtable + 4*n))
+        self.word(methods + 0x24, MATCHED[WAIT_END])   # on_animation_end_impl
+        self.word(state, methods)
+        self.word(state + 0x120, weapon)
+        self.word(weapon + 8, owner)
+        self.word(state + 0x130, state + offset)
+        self.emu.mem_write(state + 0x134, bytes([index]))
+        if callback == WAIT_THROW:
+            self.word(state + 0x138, WORLD + 0xC000)  # the throw state
+        for n in range(count):
+            self.word(state + offset + 4*n, 0x50000000 + 0x10*n)
+        self.word(params, owner if callback == WAIT_THROW else weapon)
+        self.word(params + 4, 0x50000000 + 0x10*index if match else 0x12345678)
+        self.word(sp, WAIT_RETURN)
+        self.word(sp + 4, params)
+        regs[UC_X86_REG_ECX] = state
+        self.matched = MATCHED[callback]
+        try:
+            self.start(callback, regs, sp)
+        except RuntimeError:
+            return None
+        finally:
+            self.matched = None
+        return self.stopped, tuple(self.emu.reg_read(r) for r in REGS), self.emu.mem_read(state + 0x12D, 1)[0]
+
+    def weapon_states(self, data):
+        """Every weapon state class's vtable (RTTI, offset 0) whose
+        register_animations walks a table of handles."""
+        found = []
+        for name, rva, vsize, raw, rsize, _ in base.Headers(data).sections(data):
+            if not name.startswith(b'.rdata'):
+                continue
+            lo, hi = base.IMAGE_BASE + rva, base.IMAGE_BASE + rva + rsize
+            for p in range(lo, hi - 8, 4):
+                col = self.read(p)
+                if not (lo <= col < hi - 16) or self.read(col) or self.read(col + 4):
+                    continue
+                td = self.read(col + 12)
+                if not (base.IMAGE_BASE < td < hi + 0x2000000):
+                    continue
+                label = bytes(self.emu.mem_read(td + 8, 160)).split(b'\0')[0]
+                if re.search(rb'weapon_core_\w*(state|substate)', label) and self.read(p + 4 + 0x1C) in range(0x24B700, 0x24B960):
+                    found.append((label.decode(), p + 4))
+        return found
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -228,6 +315,10 @@ def main():
     built, _ = base.build(original, 'section', open(base.default_bin('section'),'rb').read(),
                           None, open(base.late_join_bin(),'rb').read())
     stock, ours = GuardRun(original), GuardRun(bytes(built))
+    states = stock.weapon_states(original)
+    layouts = {stock.read(vtable + 0x1C) for _, vtable in states}
+    assert layouts == set(LAYOUTS), [hex(l) for l in layouts]
+    print(f'{len(states)} weapon state classes with a table of handles (RTTI): {len(layouts)} layouts')
     checks = 0
     for align in (0,4,8,12):
         for kind, end in ((FSM,FSM_END),(ANOMALY,ANOMALY_END),(ARTEFACT,ARTEFACT_END)):
@@ -305,6 +396,44 @@ def main():
         assert ours.ready(0, align, None) == stock.ready(0xFF, align, None)
         assert ours.throw(0, align, None)[0] == GRENADE_RETURN
         checks += 1
+        # Either grenade set's vtable runs as the stock; another item's in
+        # the grenade slot (a weapon's) is not a grenade set: the stock reads
+        # its +268h as a vector, ours is not ready and throws nothing.
+        for vtable in GRENADE_SETS:
+            assert ours.ready(1, align, 4, vtable) == stock.ready(1, align, 4, vtable)
+            assert ours.throw(1, align, 4, vtable) == stock.throw(1, align, 4, vtable)
+        assert stock.throw(1, align, 4, NOT_A_GRENADE_SET)[0] == SET_THROW
+        assert ours.ready(1, align, 4, NOT_A_GRENADE_SET) == stock.ready(0xFF, align, 4)
+        assert ours.throw(1, align, 4, NOT_A_GRENADE_SET)[0] == GRENADE_RETURN
+        checks += 1
+        # An animation to wait for: every weapon state class (by its
+        # register_animations, the layout of its handles), at each callback
+        # that serves it. In its handles: the stock's match or no match;
+        # past them (one past, the show state's 63, 0FFh) the stock reads
+        # past the object (the page ends there: a fault), ours is no match.
+        for label, vtable in states:
+            layout = stock.read(vtable + 0x1C)
+            offset, count = LAYOUTS[layout]
+            callbacks = [WAIT_END] + ([WAIT_THROW] if layout == 0x24B880 else []) \
+                + ([WAIT_MELEE] if layout == 0x24B920 else [])
+            for callback in callbacks:
+                for index in sorted({0, count - 1}):
+                    for match in (True, False):
+                        expected = stock.wait(callback, vtable, index, align, match)
+                        assert expected is not None, (label, hex(callback), index)
+                        assert expected[0] == (MATCHED[callback] if match else WAIT_RETURN), (label, index, match)
+                        assert ours.wait(callback, vtable, index, align, match) == expected, (label, hex(callback), index, match, align)
+                        checks += 1
+                for index in sorted({count, 63, 0xFF} - set(range(count))):
+                    assert stock.wait(callback, vtable, index, align, True) is None, (label, index)
+                    at, regs, ended = ours.wait(callback, vtable, index, align, True)
+                    assert at == WAIT_RETURN and ended == 0, (label, hex(callback), index)
+                    assert regs[REGS.index(UC_X86_REG_EAX)] == 0
+                    assert regs[REGS.index(UC_X86_REG_ESP)] == FRAME - 0x100 + align + 8
+                    for r in (UC_X86_REG_EBX, UC_X86_REG_EDI, UC_X86_REG_EBP):
+                        assert regs[REGS.index(r)] == {UC_X86_REG_EBX: 0x22222222, UC_X86_REG_EDI: 0x66666666,
+                                                       UC_X86_REG_EBP: 0x77777777}[r], (label, r)
+                    checks += 1
     print(f'{checks} native guard cases passed (stock equivalence and invalid indices)')
 
 if __name__ == '__main__':

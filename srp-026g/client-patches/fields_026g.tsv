@@ -1200,3 +1200,16 @@ survarium::throw_grenade_state	grenade_set	0x17C	ptr<survarium::grenade_set_core
 survarium::throw_grenade_state	grenade_index	0x180	u8	m_grenade_index: the set's grenade being thrown, 0FFh none (initialize 0x33A45C); the world's byte as read (deserialize 0x33A640); grenade_set_core::pull_pin 0x30A120 gives the game's own (0x3103DD)
 survarium::grenade_set_core	grenades_begin	0x268	u32	its grenades' vector begin (the constructor 0x309AFF; each entry a grenade object, walked to the end by 0x309E70): (end - begin) / 4 grenades
 survarium::grenade_set_core	grenades_end	0x26C	u32	its grenades' vector end (0x309E71); pull_pin 0x30A1C2 and throw_grenade 0x30A268 index from begin with no bound
+survarium::grenade_set_core	vtable	0x0	u32	its vtable: GRENADE_SET_VTABLE (the client's grenade_set, made by 0x25DD3C) or GRENADE_SET_CORE_VTABLE (grenade_set_core, 0x2E7E1B); the throw grenade state takes its set from a profile slot the world names (0x33A5AB) with no type test
+survarium::image	grenade_set_vtable	0xA0B56C	u32	grenade_set's vtable (RTTI .?AVgrenade_set@survarium@@, offset 0; written at 0x25DD45 over grenade_set_core's)
+survarium::image	grenade_set_core_vtable	0xA14824	u32	grenade_set_core's vtable (RTTI .?AVgrenade_set_core@survarium@@, offset 0; its constructor 0x309AF8)
+survarium::animation_end_aware_state	methods	0x0	ptr<survarium::weapon_state_methods>	its vtable (every weapon_core_*state class; RTTI)
+survarium::animation_end_aware_state	index_of_animation_to_wait	0x134	u8	m_index_of_animation_to_wait: an index of the handles from [state+130h] (the object's own, every constructor), 0FFh none; the world's byte as read (deserialize 0x30DBB0, 0x30DC7C); on_animation_end 0x30DB8E, 0x3106A2, 0x310D06 compare [[state+130h]+index*4] with no bound
+survarium::weapon_state_methods	register_animations	0x1C	u32	slot 7, register_animations: one per layout of the state's animation handles (REGISTER_*_ANIMATIONS), kept by every derived class (the weapon_sound_events_handler_state templates; RTTI)
+survarium::image	register_show_hide_animations	0x24B700	u32	show and hide states' register_animations: 5 handles from +13Ch (4, then +14Ch); their stores give 0 or 2 (0x30DF55)
+survarium::image	register_reload_animations	0x24B760	u32	reload state's register_animations: 5 handles from +144h (4, then +154h); its store 0 or 2 (0x30E237)
+survarium::image	register_fire_animations	0x24B7C0	u32	fire and chamber_a_round states' register_animations: 9 handles from +144h (8, then +164h); stores 0..6 (0x30E56A, 0x30F5FA) and 8 (fire, 0x30E83E)
+survarium::image	register_fire_twice_animations	0x24B820	u32	double-barrel's and pistol's fire and reload states' register_animations: 10 handles from +144h (8, then 2 at +164h); stores 0..6 (0x30FEE4) and 8, 9 (fire, 0x30F877)
+survarium::image	register_throw_substate_animations	0x24B880	u32	the throw grenade substates' register_animations: 4 handles from +140h; stores 0 or 2 (0x310374)
+survarium::image	register_shotgun_substate_animations	0x24B8C0	u32	the shotgun reload substates' register_animations: 5 handles from +138h (4, then +148h); stores 0 or 2 (0x3110B2)
+survarium::image	register_melee_animations	0x24B920	u32	melee state's register_animations: 4 handles from +144h; stores 0 or 2 (0x310C36)
