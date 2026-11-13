@@ -322,7 +322,7 @@ package survarium.watch
          }
          if(_save != null && !pollAgain(_save,SAVE_START,now))
          {
-            endSave(NO_ANSWER);
+            endSave(_save.preparing ? STILL_PREPARING : NO_ANSWER);
          }
       }
 

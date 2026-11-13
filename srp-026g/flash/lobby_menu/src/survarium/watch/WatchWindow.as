@@ -881,13 +881,17 @@ package survarium.watch
                      spectate.left = SPECTATE_S;
                      return;
                   }
-                  this._spectate = null;
                   if(reason == null)
                   {
-                     this.watch(uint(row.match),WatchRows.watchAsk(int(friend.place)));
+                     // kept while another ask is under way: tried again with the next list
+                     if(this.watch(uint(row.match),WatchRows.watchAsk(int(friend.place))))
+                     {
+                        this._spectate = null;
+                     }
                   }
                   else
                   {
+                     this._spectate = null;
                      this.tell(LocalizationData.getName(reason));
                   }
                   return;
