@@ -2705,7 +2705,7 @@ st_srp_regeneration_stamina	Kestävyyden palautuminen
 st_srp_renderer_dx11	DirectX 11
 st_srp_renderer_dxvk	Vulkan/DXVK
 st_srp_renderer_option	Renderöinti
-st_srp_replay_asking	Pyydetään ottelun tallennetta palvelimelta…
+st_srp_replay_asking	Pyydetään tätä ottelua palvelimelta…
 st_srp_replay_being_made	Tallenne luodaan ottelun lokista. Tämä tehdään ensimmäisellä katselukerralla, ja siinä kestää hetki.\nVoit sulkea ikkunan, palvelin jatkaa valmistelua.\n\n%1$s
 st_srp_replay_busy	Ei juuri nyt mahdollista. Yritä uudelleen minuutin kuluttua.
 st_srp_replay_close	SULJE

@@ -15,6 +15,7 @@ package survarium.watch
    import flash.utils.Timer;
    import flash.utils.getDefinitionByName;
    import flash.utils.getTimer;
+   import scaleform.clik.core.UIComponent;
    import scaleform.clik.events.ButtonEvent;
    import scaleform.gfx.FocusManager;
    import survarium.constants.MatchPhase;
@@ -328,10 +329,15 @@ package survarium.watch
       // Its `watching` comes only once the game is in it, after the load began. The view to come
       // back to is this load's alone: a view still kept from the last return (the results were up,
       // and the game left the lobby before they closed) is dropped. The watch and save asked end
-      // (ReplayAsks.away), unsaid: the view is kept by the load's rule alone.
+      // (ReplayAsks.away), unsaid: the view is kept by the load's rule alone. A room's call back
+      // from now on is the next return's (RoomsWindow.away).
       public static function away() : void
       {
          ReplayAsks.away();
+         if(RoomsWindow.me != null)
+         {
+            RoomsWindow.me.away();
+         }
          var win:WatchWindow = WatchWindow.me;
          if(win == null)
          {
@@ -349,9 +355,14 @@ package survarium.watch
       // Back in the lobby (each LobbyMenu.show_match_making(false), the results up or not): the
       // asks run again, and the asker's matches are asked again soon (History's rows of the match
       // just played); from a watch, its view again, unless the results are up (Watch opening
-      // would close them): then once they close (resultsClosed).
+      // would close them): then once they close (resultsClosed). A room's call back taken on the
+      // way is said first, and its room kept over that view (RoomsWindow.lobbyBack).
       public static function back() : void
       {
+         if(RoomsWindow.me != null)
+         {
+            RoomsWindow.me.lobbyBack();
+         }
          var win:WatchWindow = WatchWindow.me;
          if(win == null)
          {
@@ -1638,7 +1649,9 @@ package survarium.watch
                TextField(control).setSelection(0,TextField(control).length);
                return;
             }
-            if(Object(control).enabled === false)
+            // a game button (CLIK) greyed takes no press; the Save icon is a plain Sprite, which has
+            // no `enabled` (reading it would throw)
+            if(control is UIComponent && !UIComponent(control).enabled)
             {
                return;
             }

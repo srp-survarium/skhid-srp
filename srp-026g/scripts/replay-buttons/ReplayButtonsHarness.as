@@ -45,7 +45,8 @@ package
    //   later answer is nobody's; after a drop for 15 s or a stray answer the next waits until 3 s
    //   pass without one;
    // - a press the content got itself (Scaleform's routing) on a card's control scrolled away under the
-   //   toolbar is the toolbar's (a chip under it), not the hidden card's;
+   //   toolbar is the toolbar's (a chip under it), not the hidden card's; on a greyed
+   //   Watch nothing; on a card's Save icon (a plain Sprite) a save;
    // - the cards: one Watch, or why not (not kept, old version; live: counting down, full, closed,
    //   over; an answer's word), the texts apart and clear of it; the code selectable (no copy icon);
    //   updated in place keyed by match: a refresh under a press keeps the card and its Watch, and
@@ -66,7 +67,9 @@ package
    //   Mine not asked at once back in the lobby (BACK_ASK_MS: the history row is not written yet);
    // - a lobby window opening (MainScene.activeWindow) or the rooms window closes Watch; back from a
    //   watch in a room, one playing without the player gives the Watch view back, its vote shows it;
-   //   the room's word coming with the results up keeps the view till they close;
+   //   the room's word coming with the results up keeps the view till they close; its call back taken
+   //   before the lobby is back (a state asked while the watch unloads) keeps the room, its notice
+   //   from the return;
    // - Save replay (ReplayAsks): a save icon right of the code on the cards that may be watched
    //   (none on live cards or ones that cannot be watched); a press asks `3D 00 FFFFFF01 <match>`
    //   and polls 2210000000; `R2;preparing` keeps it saving, `R2;ready` hands the link to the exe once
@@ -1050,6 +1053,13 @@ package
          pressContent(centre(watch));
          expect(language + ": a press on the shown Watch given to the content did not ask: " + asked(),asked()[0] == OTHER);
          idle();
+         // a greyed game button takes no press given to the content
+         Object(watch).enabled = false;
+         ExternalInterface.calls.length = 0;
+         pressContent(centre(watch));
+         Object(watch).enabled = true;
+         expect(language + ": a press on a greyed Watch given to the content asked: " + asked(),asked()[0] == 0);
+         idle();
          // the list scrolled so the Watch lies under the chip
          var x0:Number = inner.x;
          var y0:Number = inner.y;
@@ -1308,9 +1318,10 @@ package
       private function watchReturn(Rooms:*) : void
       {
          var state:int = domain.getDefinition("survarium.rooms.RoomsWire").STATE;
-         var room:Function = function(phase:int):void
+         // the room's state: `code` srp's word in it (18: it called us back from the watch)
+         var room:Function = function(phase:int, code:int = 0):void
          {
-            var names:Array = [["S1","R",7,15,15,10,30,phase,754,0,5,5,7,0,63,2,0].join(";"),"C;0;61;2;1",
+            var names:Array = [["S1","R",7,15,15,10,30,phase,754,0,5,5,7,0,63,2,code].join(";"),"C;0;61;2;1",
                ["P",0,15,1,0,phase == 2 ? 1 : 0,0,0,"Ada"].join(";"),["P",1,15,0,1,0,0,0,"PocketTest1"].join(";"),"L;0"];
             var rows:Array = [];
             for(var r:int = 0; r < names.length; r++)
@@ -1357,6 +1368,26 @@ package
          room(2);
          expect("watch return: Watch not back on Live once the results closed",win.visible && shownTab() == "live");
          win.show(false);
+         // the room's call back (said once) taken while the watch unloads (a state asked before the
+         // lobby is back): its notice from the return on, the room kept, Watch's view not over it
+         // once the next state (no call back in it) comes
+         W.open("live");
+         press(win,"srpWatchChip_everyone");
+         lobby.take(WatchFake.LIVE);
+         click(cards()[1],"srpWatchWatch");
+         lobby.answer("watching",OTHER);
+         win.show(false);
+         W.away();
+         room(2,18);
+         var note:DisplayObject = find(Rooms.me,"srpRoomsCalledBack");
+         expect("watch return: the call back's notice before the lobby is back",note == null || !note.visible);
+         W.back();
+         note = find(Rooms.me,"srpRoomsCalledBack");
+         expect("watch return: no room and notice back from a watch called back on the way (rooms shown " + Rooms.me.shown + ", Watch shown " + win.visible + ")",
+            Rooms.me.shown && !win.visible && note != null && note.visible);
+         room(2);
+         expect("watch return: Watch over the room that called us back",Rooms.me.shown && !win.visible);
+         Rooms.me.show(false);
          Rooms.take([{"place":state - 1,"nickname":"S1;N;0;0;0"}]);
          expect("watch return: still in a room",!Rooms.me.holdWatchReturn(resume));
       }
@@ -1477,6 +1508,25 @@ package
          W.back();
          click(cards()[1],"srpWatchSave");
          expect(language + ": Save not asked again after a match",saveCalls("victory_screen_request_player_data").length == 1 && Asks.stateOf(OTHER) == "saving");
+         saveAnswer("failed",OTHER);
+         told();
+         // a press Scaleform gave the content itself (RoomsLook.onContentDown) on the Save icon (a
+         // plain Sprite, no `enabled`) saves too
+         ExternalInterface.calls.length = 0;
+         var icon:DisplayObject = find(cards()[1],"srpWatchSave");
+         var content:DisplayObjectContainer = find(win,"srpWatchChip_friends").parent;
+         var r:Rectangle = icon.getBounds(stage);
+         var at:Point = content.globalToLocal(new Point(r.x + r.width / 2,r.y + r.height / 2));
+         try
+         {
+            content.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN,true,false,at.x,at.y));
+         }
+         catch(err:Error)
+         {
+            failures.push(language + ": a press on Save given to the content: " + err.message);
+         }
+         expect(language + ": a press on Save given to the content did not save",saveCalls("victory_screen_request_player_data").length == 1
+            && Asks.stateOf(OTHER) == "saving");
          saveAnswer("failed",OTHER);
          told();
          trace("REPLAYBUTTONS " + language + ": Save: the icon, asked, polled, the link once, saved, refused, off, no answer, ended by a match");

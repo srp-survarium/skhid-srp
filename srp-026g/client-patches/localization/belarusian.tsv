@@ -2705,7 +2705,7 @@ st_srp_regeneration_stamina	Аднаўленне энергіі
 st_srp_renderer_dx11	DirectX 11
 st_srp_renderer_dxvk	Vulkan/DXVK
 st_srp_renderer_option	Рэндар
-st_srp_replay_asking	Запытваем у сервера матча паўтор гэтага матча…
+st_srp_replay_asking	Запытваем гэты матч у сервера…
 st_srp_replay_being_made	Паўтор ствараецца з запісу матча. Так бывае, калі гэты матч глядзяць упершыню, і гэта займае крыху часу.\nГэтае акно можна закрыць: сервер працягне яго ствараць.\n\n%1$s
 st_srp_replay_busy	Зараз гэта недаступна. Паспрабуйце яшчэ раз праз хвіліну.
 st_srp_replay_close	ЗАКРЫЦЬ

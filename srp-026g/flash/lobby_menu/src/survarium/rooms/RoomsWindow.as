@@ -80,7 +80,17 @@ package survarium.rooms
         // back from a watch, the state not yet in: {resume, at} (holdWatchReturn)
         private var _watchReturn:Object = null;
         private static const WATCH_RETURN_MS:int = 6000;
-        // the notice of a room that called us back from a watch, and until when it shows
+        // Where the game is (AWAY: a match loading or played, WatchWindow.away .. back), and a
+        // room's call back from a watch (srp's CALLED_BACK, said once) since it last left the
+        // lobby: AWAY_CALLED, taken before the lobby is back (a state asked while the watch
+        // unloads), said at its return; CALLED, said at or since the return (its notice until
+        // _calledBackUntil), the room's view kept over the watch's Watch view (holdWatchReturn).
+        private static const IN_LOBBY:int = 0;
+        private static const AWAY:int = 1;
+        private static const AWAY_CALLED:int = 2;
+        private static const CALLED:int = 3;
+        private var _lobbyState:int = IN_LOBBY;
+        // the notice of a room that called us back from a watch, and until when it shows (CALLED)
         private var _calledBack:Sprite;
         private var _calledBackUntil:int = 0;
         private static const CALLED_BACK_MS:int = 7000;
@@ -758,11 +768,23 @@ package survarium.rooms
         // The game is back from a watch (WatchWindow.back) while we are in a room or a room's
         // queue: the next state decides (takeAnswer) between the room and `resume` (the Watch
         // window again); asked at once, and `resume` if no state comes within WATCH_RETURN_MS.
-        // false: in no room and no queue, nothing held.
+        // false: in no room and no queue, nothing held. A room that called us back since the game
+        // left the lobby (its one word may come while the watch unloads) shows itself instead,
+        // `resume` dropped.
         public function holdWatchReturn(resume:Function):Boolean
         {
             if (_room == null && _queueKey == 0)
                 return false;
+            if (_lobbyState == CALLED && _room != null)
+            {
+                _watchReturn = null;
+                _view = "room";
+                if (_shown)
+                    render();
+                else
+                    show(true);
+                return true;
+            }
             _watchReturn = {"resume": resume, "at": getTimer()};
             if (_steps.length == 0)
                 ask(RoomsWire.STATE, 1);
@@ -779,10 +801,41 @@ package survarium.rooms
             }
         }
 
+        // The game leaves the lobby for a match's load (WatchWindow.away): a call back from now on
+        // is the next return's; the notice up goes.
+        public function away():void
+        {
+            _lobbyState = AWAY;
+            if (_calledBack != null)
+                _calledBack.visible = false;
+        }
+
+        // Back in the lobby (WatchWindow.back, each show_match_making(false)): a call back taken
+        // on the way is said now, its CALLED_BACK_MS from now (before the watch's view returns,
+        // holdWatchReturn).
+        public function lobbyBack():void
+        {
+            if (_lobbyState == AWAY_CALLED)
+                sayCalledBack();
+            else if (_lobbyState == AWAY)
+                _lobbyState = IN_LOBBY;
+        }
+
+        // A room called us back (or its vote has a use for us): said now in the lobby, else at
+        // the lobby's return.
+        private function takeCallBack():void
+        {
+            if (_lobbyState == AWAY || _lobbyState == AWAY_CALLED)
+                _lobbyState = AWAY_CALLED;
+            else
+                sayCalledBack();
+        }
+
         // "Your room is ready": one line over the room's view for CALLED_BACK_MS, taking no
         // press and moving nothing.
         private function sayCalledBack():void
         {
+            _lobbyState = CALLED;
             if (_calledBack == null)
             {
                 _calledBack = new Sprite();
@@ -1057,9 +1110,13 @@ package survarium.rooms
             {
                 settle();
                 endWatchReturn();
-                // out of the room: its notice goes with it
+                // out of the room: its call back and notice go with it
                 if (_calledBack != null)
                     _calledBack.visible = false;
+                if (_lobbyState == AWAY_CALLED)
+                    _lobbyState = AWAY;
+                else if (_lobbyState == CALLED)
+                    _lobbyState = IN_LOBBY;
                 var had:Boolean = _room != null;
                 _room = null;
                 _roomSig = "";
@@ -1174,7 +1231,7 @@ package survarium.rooms
                         _roomSig = "";
                         if (!_shown)
                             show(true);
-                        sayCalledBack();
+                        takeCallBack();
                     }
                     else
                         back.resume();

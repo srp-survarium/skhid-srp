@@ -2705,7 +2705,7 @@ st_srp_regeneration_stamina	Восстановление энергии
 st_srp_renderer_dx11	DirectX 11
 st_srp_renderer_dxvk	Vulkan/DXVK
 st_srp_renderer_option	Рендер
-st_srp_replay_asking	Запрашиваем у сервера матча повтор этого матча…
+st_srp_replay_asking	Запрашиваем этот матч у сервера…
 st_srp_replay_being_made	Повтор создаётся из записи матча. Так бывает, когда этот матч смотрят впервые, и это занимает немного времени.\nЭто окно можно закрыть: сервер продолжит его создавать.\n\n%1$s
 st_srp_replay_busy	Сейчас это недоступно. Попробуйте ещё раз через минуту.
 st_srp_replay_close	ЗАКРЫТЬ
