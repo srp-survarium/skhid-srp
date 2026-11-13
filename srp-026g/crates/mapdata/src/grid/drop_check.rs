@@ -152,13 +152,18 @@ fn left_take_off(from_y: f32, to_y: f32) -> f32 {
 /// [feed 67] The step of [`walk_drop`], s: the client's 50 ms step, the recorded steps of the traced match being 50 ms apart
 /// (docs/notes/exactness_rig.md, the chain replay: 8,993 steps in 50 chains).
 const LAND_DT: f32 = 0.05;
-/// [feed 67] The steps a body has to leave the take-off in (3 s), and then to come to stand on the landing (2 s).
+/// [feed 67] The steps a body has to leave the take-off in (3 s), and then to come to stand on the landing (2 s): the bounds of
+/// the exactness session's walk (FINDINGS-FEED-exactness 2026-11-12 09:56Z), our choice, not client values.
 const LEAVE_STEPS: usize = 60;
 const LAND_STEPS: usize = 40;
 /// [feed 67] Within this of the to-point across, m, the body walks on along the link's line instead of steering at it (a body
-/// stopped over a short drop's to-point stays on the rim: the exactness session's first walk, 1,877 of 6,000 on Chemical Plant).
+/// stopped over a short drop's to-point stays on the rim: the exactness session's first walk, 1,877 of 6,000 on Chemical Plant,
+/// FINDINGS-FEED-exactness 2026-11-12 09:56Z). The walk's own value, our choice: under a step at 3.5 m/s (0.175 m) the body
+/// would stop short of the to-point instead.
 const WALK_ON_WITHIN_M: f32 = 0.3;
-/// [feed 67] A body has arrived standing within this of the to-point across, m, and [`ARRIVE_HEIGHT_M`] of its height.
+/// [feed 67] A body has arrived standing within this of the to-point across, m, and [`ARRIVE_HEIGHT_M`] of its height: the
+/// exactness walk's arrival (FINDINGS-FEED-exactness 2026-11-12 09:56Z), our choice; across, two cells (0.5 m) of the grid; in
+/// height, the walk check's [`super::controlled`] `AT_HEIGHT_M`.
 const ARRIVE_FLAT_M: f32 = 0.5;
 const ARRIVE_HEIGHT_M: f32 = 0.2;
 /// [A377] The steps of the client's stop blend: on the k-th step after the walk key is let go the walk is 1 - k/6 of the speed
@@ -184,8 +189,8 @@ pub enum DropWalk {
 
 /// [feed 67] [`super::Body::drop_lands`]: the client's body set standing at `from` ([`body_at`]) walks at 3.5 m/s at `to`,
 /// re-aimed each 50 ms step, and on along the link's line once within [`WALK_ON_WITHIN_M`] of it, as a bot walks on to its next
-/// node; the exactness session's walk of the Drop links (`private/grid/rig/link-walk`, `kinds.rs` `drop_one`, FINDINGS-FEED
-/// line 67), its leave rule ([`left_take_off`]) and its arrival.
+/// node; the exactness session's walk of the Drop links (`private/grid/rig/link-walk`, `kinds.rs` `drop_one`, FINDINGS-FEED-exactness
+/// 2026-11-12 09:56Z), its leave rule ([`left_take_off`]) and its arrival.
 pub fn walk_drop(world: &Collision, s: &Settings, start: WalkStart, from: Vec3, to: Vec3) -> DropWalk {
     let mut c = body_at(world, start, Stance::Standing, from);
     let first = c.feet();

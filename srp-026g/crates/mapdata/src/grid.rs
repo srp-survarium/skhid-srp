@@ -298,7 +298,7 @@ pub struct Body {
     /// [feed 67] With [`Self::drop_check`]: whether a Drop link is kept only where the client's body walked off it as a bot walks
     /// it (3.5 m/s at the landing, re-aimed each 50 ms step, on along the link once within 0.3 m of it) comes to STAND on its
     /// landing within 2 s of leaving the take-off (0.5 m across, 0.2 m in height: the exactness session's walk of the Drop
-    /// links, FINDINGS-FEED line 67, `grid::drop_check::walk_drop`); a link whose body lands on another floor lower down, and
+    /// links, FINDINGS-FEED-exactness 2026-11-12 09:56Z, `grid::drop_check::walk_drop`); a link whose body lands on another floor lower down, and
     /// arrives there walked at it, is re-aimed there; the others are cut. Off: a link is kept where the body only goes down
     /// (min(0.4 m, half the drop) under the take-off) on any line, wherever it lands (Chemical Plant mode 2: 245 of 6,000 sampled
     /// links land on a level above the landing and 26 fall past it, and pass). A link that is the only way to a floor or back
