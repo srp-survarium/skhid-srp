@@ -1518,19 +1518,14 @@ impl WalkGrid {
             pull_walk: None,
         };
         let mut wide = grid.link(&forced);
-        if body.rim_jumps {
-            // [A364 C2 rows 11/12] Before the other passes: a rim jump whose presses do not all land gives its side back to what the
-            // old cap made of it, and every pass after sees that as before.
-            let (caster, s) = body.controller();
-            let own;
-            let world = match shapes {
-                Some(world) => world,
-                None => {
-                    own = crate::controller::Collision::build(triangles).with_caster(caster);
-                    &own
-                }
-            };
-            stats.rim = grid.fly_rim_jumps(&mut wide, world, &s);
+        // [A364 C2 rows 11/12] The rim jumps' world: the game's shapes, else the walker triangles with the body's caster.
+        let (caster, controller_settings) = body.controller();
+        let own_world = (body.rim_jumps && shapes.is_none()).then(|| crate::controller::Collision::build(triangles).with_caster(caster));
+        let rim_world = if body.rim_jumps { shapes.or(own_world.as_ref()) } else { None };
+        if let Some(world) = rim_world {
+            // Before the other passes: a rim jump whose presses do not all land gives its side back to what the old cap made of
+            // it, and every pass after sees that as before.
+            stats.rim = grid.fly_rim_jumps(&mut wide, world, &controller_settings);
         }
         grid.drop_narrow_landings(&mut wide, &solids);
         (stats.drops_deep, stats.drops_crossable) = grid.drop_deep_flights(&mut wide);
@@ -1555,6 +1550,10 @@ impl WalkGrid {
             OffMeshLinks::None => Vec::new(),
             OffMeshLinks::Gaps => grid.gap_links(&wide, &solids, &mut stats.gaps),
         };
+        // [A364 C2 rows 11/12] The rim jumps over a gap, with the gap links ([`OffMeshLinks::Gaps`]).
+        if let Some(world) = rim_world.filter(|_| links == OffMeshLinks::Gaps) {
+            grid.fly_rim_gaps(&mut wide, world, &controller_settings, &mut stats.rim);
+        }
         if body.fall_stops_on_solids {
             // The faces' own geometry, not a walk test that may miss: a floor no body gets down to is let go as the carried
             // landings' are ([`Body::keep_last_resorts`]); the only way back out of a floor a body walks to stays.
