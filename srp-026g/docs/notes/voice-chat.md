@@ -177,11 +177,24 @@ Little-endian. Every datagram starts with `56 01 <type>`: the magic, the version
     listener whose HELLO mutes the speaker's slot, and a
     listener whose flags say it does not hear.
   - END closes it.
-  - No AUDIO for 1 s closes it as a timeout. After 30 s it is cut (END reason 2); the talker's
-    next START opens a new one.
+  - No AUDIO for 1 s closes it as a timeout. After 30 s it is cut (END reason 2). Utterances less
+    than 5 s apart are one run, and their talk adds up: a run is cut at 30 s too, and the talker
+    then rests 5 s (its STARTs and AUDIO dropped) before the next one opens (2026-11-13: ending and
+    restarting at once, or a cut, no longer talks on for ever).
   - AUDIO for an utterance srp did not see start opens it (a lost START).
 - **Limits.** 60 datagrams/s and 400 bytes a datagram per talker; one open utterance per talker.
-  The excess is dropped and counted.
+  The excess is dropped and counted. Hardened 2026-11-13 against a modified game, to what the
+  games' own sender makes:
+  - an AUDIO carries 1 or 2 frames (the sender sends 2, 1 at an odd end; receivers play 2);
+  - a frame's TOC is 0x08, 0x28 or 0x48 (SILK 20 ms mono code 0, narrow, medium or wide band:
+    the encoder, 16 kHz speech at 16 kbit/s, makes only 0x48) and it is 120 bytes at most (the
+    encoder averages 40 and was measured at 93 at most on full-scale squares and noise; it is
+    given only 120 bytes of room, so it cannot make more); no CELT, hybrid, stereo or padded
+    frame reaches a teammate's decoder;
+  - a talker's AUDIO: 30 a second past a burst of 10 (the games send 25);
+  - each source IP: 400 datagrams a second, checked before the session is looked up (the
+    registry's lock); a datagram of no seat or another IP costs 20 of them; 4096 sources apart,
+    the rest share one.
 - **The seam for later steps** (subtitles, translation; another design, `feat/chat-translation`):
   the relay calls an `UtteranceTap` for every utterance, `NoTap` by default.
 
@@ -208,10 +221,11 @@ Little-endian. Every datagram starts with `56 01 <type>`: the magic, the version
     `voice_seat(session)`: match, place, team, IP; bots' places have none;
   - a released seat (left by 0xE0, the match's result) neither talks nor hears from the next
     second on;
-  - tests: `cargo test -p match-server --lib voice` (34: team-only, mutes, IP and seat checks,
-    every malformed shape with its reason, frames not 20 ms of Opus, a flood not delaying a good
-    sender, the drop log's bounds, lost START, timeout, the 30 s cut, the rate limit, the tap's
-    text, real sockets over the registry, the 0xD8 setting the IP).
+  - tests: `cargo test -p match-server --lib voice` (37: team-only, mutes, IP and seat checks,
+    every malformed shape with its reason, frames not the games' encoder's, a flood not delaying
+    a good sender, the drop log's bounds, lost START, timeout, the 30 s cut and the run's rest,
+    the rate limits (talker, audio, source), the tap's text, real sockets over the registry, the
+    0xD8 setting the IP).
 
 ## The client
 
@@ -309,7 +323,13 @@ Where the build differs from or adds to the design above:
   loudness; "Microphone sensitivity" moves that aim 6 dB either way (0.5 is 0.69's level). One
   preprocessor a match, so the gain learnt carries from one press to the next. 0.69's voice
   detection (open mic only) and echo cancellation are not used: push-to-talk only. The listener's
-  side has nothing per speaker, as in 0.69 (each `voice_player` at volume 1.0).
+  side plays each speaker as decoded, as in 0.69 (each `voice_player` at volume 1.0), but for a
+  ceiling (2026-11-13, against a modified game that skips the gain: a full-scale square wave
+  decodes at -0.3 dBFS): a speaker's 20 ms frame over -12 dBFS RMS is brought down to it at once,
+  the gain coming back 0.5 dB a frame. Speech through the gain never reaches it (measured -13.6
+  dBFS at most, at the highest sensitivity and a full-scale voice; -19 at the default); only the
+  gain's first fifth of a second after a sudden shout at the highest sensitivity (up to -8 dBFS)
+  is held. The mix's soft limit is #1635's.
 - **The DLL is Rust** (`client-voice/src`), with static libopus for the codec and static speexdsp
   (its own FFT, not FFTW) for the preprocessor. A worker owns
   its socket, codec, jitter buffers and WinMM capture/playback devices. The game communicates
@@ -326,9 +346,10 @@ Where the build differs from or adds to the design above:
   microphone in the next: the review of 7b653ac9).
 - **Malformed input** (the owner, 2026-11-06: "dropped and logged", never stopping the game for
   those who receive it): the relay and the DLL read each datagram once into a typed message; a
-  truncated, oversized, extended or unknown one, an AUDIO of more than 8 frames or with a frame
-  that is not 20 ms of Opus (its TOC byte, RFC 6716 3.1), a session with no seat or from another
-  IP, or a talker over its rate is dropped, never forwarded, and counted: the relay logs a line
+  truncated, oversized, extended or unknown one, an AUDIO of more than 2 frames or with a frame
+  the games' encoder does not make (its TOC byte, RFC 6716 3.1, and its length: "Limits" above),
+  a session with no seat or from another IP, a source or a talker over its rate, or a talker
+  that must rest is dropped, never forwarded, and counted: the relay logs a line
   per source IP at most every 10 s (1024 sources apart, the rest summed), the DLL one line at most
   every 10 s (its first drop at once). A frame the decoder still refuses is concealed. A receive
   error no longer ends the DLL's tick; `sv_start` reads the host within 256 bytes. The saved
@@ -345,6 +366,9 @@ Where the build differs from or adds to the design above:
   of up to 9 teammates (10v10): about 216 kbit/s per talker. Two talking at once in each team:
   under 1 Mbit/s for a match.
 - Idle: a HELLO every 2 s (about 40 bytes). The match transport's traffic is unchanged.
+- The most a modified game can push into each teammate (2026-11-13): 30 AUDIO a second of 2
+  frames of 120 bytes, about 68 kbit/s with IP/UDP (3 times a real talker); it was 60 of 400
+  bytes, about 205 kbit/s.
 
 ## Desync, resync, replays
 

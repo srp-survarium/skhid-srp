@@ -12,10 +12,11 @@
 //! replay or recording has voice.
 //!
 //! A datagram is read once into a typed value ([`parse`]); one that is
-//! malformed (an AUDIO's frames included: [`opus_20ms`]), not a seat's, or
-//! over its talker's rate is dropped, never forwarded, and counted in the
-//! drop log: a line a source IP with its count, at most every
-//! [`DROP_LOG_EVERY`], so a flood cannot fill the log.
+//! malformed (an AUDIO's frames included: only what the games' encoder
+//! makes, [`our_frame`]), not a seat's, over its source's or its talker's
+//! rate, or of a talker that must rest ([`REST`]) is dropped, never
+//! forwarded, and counted in the drop log: a line a source IP with its
+//! count, at most every [`DROP_LOG_EVERY`], so a flood cannot fill the log.
 //!
 //! Every utterance goes past an [`UtteranceTap`] ([`NoTap`] by default): the
 //! seam for subtitles and translation later. What a tap says goes back to the
@@ -87,12 +88,39 @@ pub mod kind {
 pub const MAX_DATAGRAM: usize = 400;
 /// A talker's datagrams in a second past this are dropped.
 pub const MAX_PER_SECOND: u32 = 60;
+/// A talker's AUDIO: the games send one each 40 ms (25 a second); past 30 a
+/// second, beyond a burst of 10 (the capture's 4 buffers of 20 ms make 2 at
+/// once after a stall), they are dropped.
+const AUDIO_RATE: Rate = Rate {
+    per_second: 30.,
+    burst: 10.,
+};
+/// What one source IP may send, checked before its session is looked up
+/// (the registry's lock, which the match threads share): a game sends 30 a
+/// second at most, so this is room for many behind one NAT, and bounds a
+/// flood or a guessing of sessions from one address.
+const SOURCE_RATE: Rate = Rate {
+    per_second: 400.,
+    burst: 400.,
+};
+/// A datagram whose session has no seat, or is another IP's, costs its
+/// source this much of [`SOURCE_RATE`]: 20 such a second at most.
+const SOURCE_FAILED: f32 = 20.;
+/// The sources limited apart at once; past it (a spoofed flood) the rest
+/// share one limit, so its memory stays bounded.
+const SOURCES: usize = 4096;
 /// A listener heard from this long ago gets nothing more.
 pub const HELLO_FRESH: Duration = Duration::from_secs(6);
 /// An utterance with no AUDIO this long is closed (END reason 1).
 pub const SILENCE: Duration = Duration::from_secs(1);
-/// An utterance this long is cut (END reason 2).
+/// An utterance this long is cut (END reason 2). So is a run of them: the
+/// talk of utterances less than [`REST`] apart adds up.
 pub const LONGEST: Duration = Duration::from_secs(30);
+/// After [`LONGEST`] of talk a talker rests this long (its STARTs and AUDIO
+/// dropped) before the next utterance opens; a pause this long also starts
+/// a new run. Without it a cut talker (or one that ends and restarts its
+/// utterance) could talk on for ever.
+pub const REST: Duration = Duration::from_secs(5);
 const HOUSEKEEPING: Duration = Duration::from_secs(1);
 const RECEIVE_WAIT: Duration = Duration::from_millis(10);
 
@@ -282,9 +310,21 @@ enum Datagram<'a> {
     },
 }
 
-/// The most frames an AUDIO may carry: the games drop a datagram with more
-/// (`client-voice/src/wire.rs`), so the relay never forwards one.
-pub const MAX_FRAMES: usize = 8;
+/// The most frames an AUDIO may carry: the games' sender sends two (40 ms),
+/// one when an utterance ends on an odd frame, and their receivers play two
+/// (`client-voice/src/wire.rs` drops a datagram with more).
+pub const MAX_FRAMES: usize = 2;
+/// The longest frame: the games' encoder (`client-voice/src/codec.rs`) runs
+/// at 16 kbit/s, 40 bytes a 20 ms frame on average and 93 at most measured
+/// (full-scale square waves and noise, no automatic gain), and is given no
+/// more room than this (3 times its rate).
+pub const MAX_FRAME_BYTES: usize = 120;
+/// The TOC bytes (RFC 6716 3.1) of the frames the games' encoder makes:
+/// SILK, 20 ms, mono, one frame (code 0), of narrow, medium or wide band
+/// (configurations 1, 5 and 9). It encodes 16 kHz (no wider band) speech
+/// (`OPUS_SIGNAL_VOICE`) at 16 kbit/s, where Opus stays in SILK; its own
+/// frames are all 0x48, the others are margin.
+pub const FRAME_TOCS: [u8; 3] = [0x08, 0x28, 0x48];
 
 /// Why the relay dropped a datagram: the drop log's words.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -303,14 +343,20 @@ pub enum Dropped {
     Length,
     /// AUDIO not of 1 to [`MAX_FRAMES`] frames that fill it exactly.
     Frames,
-    /// A frame that is not one 20 ms Opus packet ([`opus_20ms`]).
+    /// A frame the games' encoder does not make ([`our_frame`]).
     NotOpus,
+    /// A source IP over [`SOURCE_RATE`].
+    SourceRate,
     /// A session with no seat.
     NoSeat,
     /// From another IP than its seat's match connection.
     WrongIp,
     /// A talker over [`MAX_PER_SECOND`].
     RateLimit,
+    /// A talker's AUDIO over [`AUDIO_RATE`].
+    AudioRate,
+    /// A talker that talked [`LONGEST`] and has not rested [`REST`].
+    Resting,
 }
 
 impl std::fmt::Display for Dropped {
@@ -323,38 +369,81 @@ impl std::fmt::Display for Dropped {
             Self::Kind(kind) => write!(f, "type {kind:#04x}"),
             Self::Length => write!(f, "wrong length"),
             Self::Frames => write!(f, "malformed frames"),
-            Self::NotOpus => write!(f, "a frame not 20 ms of Opus"),
+            Self::NotOpus => write!(f, "a frame the games' encoder does not make"),
+            Self::SourceRate => write!(f, "its IP over {} a second", SOURCE_RATE.per_second),
             Self::NoSeat => write!(f, "no seat"),
             Self::WrongIp => write!(f, "not its seat's IP"),
             Self::RateLimit => write!(f, "over {MAX_PER_SECOND} a second"),
+            Self::AudioRate => write!(f, "audio over {} a second", AUDIO_RATE.per_second),
+            Self::Resting => write!(
+                f,
+                "talked {} s without a rest of {} s",
+                LONGEST.as_secs(),
+                REST.as_secs()
+            ),
         }
     }
 }
 
-/// Whether `frame` is one 20 ms Opus packet, what the games play in each
-/// frame's place: its TOC byte's configuration and frame count (RFC 6716
-/// 3.1) say 20 ms. The rest of it is the decoder's to check.
-pub fn opus_20ms(frame: &[u8]) -> bool {
-    let Some((&toc, rest)) = frame.split_first() else {
-        return false;
-    };
-    let config = toc >> 3;
-    // A frame's length in 2.5 ms.
-    let length: u32 = match config {
-        // SILK: 10, 20, 40 and 60 ms.
-        0..=11 => [4, 8, 16, 24][usize::from(config & 3)],
-        // Hybrid: 10 and 20 ms.
-        12..=15 => [4, 8][usize::from(config & 1)],
-        // CELT: 2.5, 5, 10 and 20 ms.
-        _ => [1, 2, 4, 8][usize::from(config & 3)],
-    };
-    let count = match toc & 3 {
-        0 => 1,
-        1 | 2 => 2,
-        // Code 3: the count is in the next byte.
-        _ => rest.first().map_or(0, |&count| u32::from(count & 0x3F)),
-    };
-    length * count == 8
+/// Whether `frame` is one the games' encoder makes: of one of
+/// [`FRAME_TOCS`] and at most [`MAX_FRAME_BYTES`]. Nothing else reaches the
+/// teammates' decoders (`client-voice/src/wire.rs` checks the same).
+pub fn our_frame(frame: &[u8]) -> bool {
+    frame.len() <= MAX_FRAME_BYTES && frame.first().is_some_and(|toc| FRAME_TOCS.contains(toc))
+}
+
+/// A rate of datagrams: [`Rate::per_second`] over time, [`Rate::burst`] at
+/// once.
+#[derive(Clone, Copy, Debug)]
+struct Rate {
+    per_second: f32,
+    burst: f32,
+}
+
+/// A token bucket of a [`Rate`].
+#[derive(Clone, Copy, Debug)]
+struct Bucket {
+    rate: Rate,
+    tokens: f32,
+    at: Instant,
+}
+
+impl Bucket {
+    fn full(rate: Rate, now: Instant) -> Self {
+        Self {
+            rate,
+            tokens: rate.burst,
+            at: now,
+        }
+    }
+
+    fn refill(&mut self, now: Instant) {
+        let elapsed = now.saturating_duration_since(self.at).as_secs_f32();
+        self.tokens = (self.tokens + elapsed * self.rate.per_second).min(self.rate.burst);
+        self.at = self.at.max(now);
+    }
+
+    /// One datagram, when the rate has room for it.
+    fn take(&mut self, now: Instant) -> bool {
+        self.refill(now);
+        if self.tokens >= 1. {
+            self.tokens -= 1.;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// `cost` more spent, down to nothing.
+    fn charge(&mut self, cost: f32, now: Instant) {
+        self.refill(now);
+        self.tokens = (self.tokens - cost).max(0.);
+    }
+
+    fn is_full(&mut self, now: Instant) -> bool {
+        self.refill(now);
+        self.tokens >= self.rate.burst
+    }
 }
 
 /// Anything malformed, of another version, or of a type a client does not
@@ -415,7 +504,7 @@ fn parse(datagram: &[u8]) -> Result<Datagram<'_>, Dropped> {
                 let Some((frame, after)) = after.split_at_checked(usize::from(len)) else {
                     return Err(Dropped::Frames);
                 };
-                if !opus_20ms(frame) {
+                if !our_frame(frame) {
                     return Err(Dropped::NotOpus);
                 }
                 frames.push(frame);
@@ -544,6 +633,36 @@ struct Open {
     /// Counter on the listening wire, ordered across slot occupants.
     utterance: Utterance,
     last_audio_at: Instant,
+    /// The talk of its run before it ([`Run`]).
+    talked_before: Duration,
+}
+
+impl Open {
+    /// The talk of its run up to `now`: [`LONGEST`] of it cuts it.
+    fn talked(&self, now: Instant) -> Duration {
+        self.talked_before + now.saturating_duration_since(self.utterance.started_at)
+    }
+}
+
+/// A talker's utterances less than [`REST`] apart, as far as the last one
+/// that closed.
+#[derive(Clone, Copy)]
+struct Run {
+    talked: Duration,
+    closed_at: Instant,
+}
+
+impl Run {
+    /// The talk an utterance opened at `now` continues from: none after a
+    /// rest. `None`: the talker must rest first.
+    fn continued(run: Option<Self>, now: Instant) -> Option<Duration> {
+        match run {
+            Some(run) if now.saturating_duration_since(run.closed_at) < REST => {
+                (run.talked < LONGEST).then_some(run.talked)
+            }
+            _ => Some(Duration::ZERO),
+        }
+    }
 }
 
 struct Talker {
@@ -551,9 +670,13 @@ struct Talker {
     /// The utterance closed last: its late AUDIO and repeated ENDs open
     /// nothing.
     closed: Option<u16>,
+    /// The talk before the open utterance (or the last one).
+    run: Option<Run>,
     /// The rate limit's second and its count.
     window: Instant,
     in_window: u32,
+    /// The AUDIO's own rate ([`AUDIO_RATE`]).
+    audio: Bucket,
 }
 
 /// What a match's voice came to, for the log.
@@ -579,6 +702,10 @@ pub struct Relay<S: Seats> {
     /// Datagrams dropped before a session was known (too large, malformed).
     pub dropped_unknown: u64,
     drops: DropLog,
+    /// Each source IP's [`SOURCE_RATE`], [`SOURCES`] at most.
+    sources: HashMap<IpAddr, Bucket>,
+    /// The one [`SOURCE_RATE`] of the sources past [`SOURCES`].
+    other_sources: Bucket,
     /// The voice ids' key ([`voice_id`]).
     id_key: [u8; 32],
     next_housekeeping: Instant,
@@ -601,6 +728,8 @@ impl<S: Seats> Relay<S> {
             counts: HashMap::new(),
             dropped_unknown: 0,
             drops: DropLog::default(),
+            sources: HashMap::new(),
+            other_sources: Bucket::full(SOURCE_RATE, now),
             id_key: [0; 32],
             next_housekeeping: now + HOUSEKEEPING,
             next_drop_log: now,
@@ -639,6 +768,16 @@ impl<S: Seats> Relay<S> {
         self.drops.record(source, reason);
     }
 
+    /// The rate of `source` ([`SOURCE_RATE`]).
+    fn source(&mut self, source: IpAddr, now: Instant) -> &mut Bucket {
+        if !self.sources.contains_key(&source) && self.sources.len() >= SOURCES {
+            return &mut self.other_sources;
+        }
+        self.sources
+            .entry(source)
+            .or_insert_with(|| Bucket::full(SOURCE_RATE, now))
+    }
+
     /// The drop log's lines when they are due (every [`DROP_LOG_EVERY`]):
     /// what [`Relay::poll`] writes to the log.
     fn drop_lines(&mut self, now: Instant) -> Vec<String> {
@@ -661,6 +800,12 @@ impl<S: Seats> Relay<S> {
     ) -> Vec<(SocketAddr, Vec<u8>)> {
         let mut out = Vec::new();
         let source = addr.ip().to_canonical();
+        // Before anything else (the registry's lock above all): the source's
+        // rate.
+        if !self.source(source, now).take(now) {
+            self.reject(source, None, Dropped::SourceRate);
+            return out;
+        }
         let parsed = match parse(datagram) {
             Ok(parsed) => parsed,
             Err(reason) => {
@@ -679,6 +824,7 @@ impl<S: Seats> Relay<S> {
         // the drop log, by its source).
         let Some(seat) = self.seats.voice_seat(session) else {
             self.listeners.remove(&session);
+            self.source(source, now).charge(SOURCE_FAILED - 1., now);
             self.reject(source, None, Dropped::NoSeat);
             return out;
         };
@@ -689,6 +835,7 @@ impl<S: Seats> Relay<S> {
             // counted nor logged; the game says HELLO again until WELCOME.
             None => return out,
             Some(_) => {
+                self.source(source, now).charge(SOURCE_FAILED - 1., now);
                 self.reject(source, Some(seat.match_id), Dropped::WrongIp);
                 return out;
             }
@@ -711,8 +858,10 @@ impl<S: Seats> Relay<S> {
         let talker = self.talkers.entry(session).or_insert(Talker {
             open: None,
             closed: None,
+            run: None,
             window: now,
             in_window: 0,
+            audio: Bucket::full(AUDIO_RATE, now),
         });
         if now.saturating_duration_since(talker.window) >= Duration::from_secs(1) {
             talker.window = now;
@@ -747,7 +896,7 @@ impl<S: Seats> Relay<S> {
                 }
                 out.push((addr, roster));
             }
-            Datagram::Start { utt, .. } => self.start(session, seat, utt, now, &mut out),
+            Datagram::Start { utt, .. } => self.start(session, seat, utt, source, now, &mut out),
             Datagram::Audio {
                 utt,
                 seq,
@@ -755,9 +904,13 @@ impl<S: Seats> Relay<S> {
                 frames,
                 ..
             } => {
-                let Some(talker) = self.talkers.get(&session) else {
+                let Some(talker) = self.talkers.get_mut(&session) else {
                     return out;
                 };
+                if !talker.audio.take(now) {
+                    self.reject(source, Some(seat.match_id), Dropped::AudioRate);
+                    return out;
+                }
                 let fresh = match &talker.open {
                     Some(open) => open.client_utt != utt,
                     None => true,
@@ -773,7 +926,7 @@ impl<S: Seats> Relay<S> {
                         return out;
                     }
                     // Its START was lost.
-                    self.start(session, seat, utt, now, &mut out);
+                    self.start(session, seat, utt, source, now, &mut out);
                 }
                 let Some(open) = self
                     .talkers
@@ -813,6 +966,7 @@ impl<S: Seats> Relay<S> {
         session: u32,
         seat: VoiceSeat,
         utt: u16,
+        source: IpAddr,
         now: Instant,
         out: &mut Vec<(SocketAddr, Vec<u8>)>,
     ) {
@@ -839,6 +993,13 @@ impl<S: Seats> Relay<S> {
             self.drop_for(Some(seat.match_id));
             return;
         }
+        let Some(talked_before) = Run::continued(
+            self.talkers.get(&session).and_then(|talker| talker.run),
+            now,
+        ) else {
+            self.reject(source, Some(seat.match_id), Dropped::Resting);
+            return;
+        };
         let output_utt = self
             .output_utterances
             .entry((seat.match_id, seat.place))
@@ -871,6 +1032,7 @@ impl<S: Seats> Relay<S> {
                 client_utt: utt,
                 utterance,
                 last_audio_at: now,
+                talked_before,
             });
         }
         self.send_texts(tap_out, now, out);
@@ -890,6 +1052,10 @@ impl<S: Seats> Relay<S> {
             return;
         };
         talker.closed = Some(open.client_utt);
+        talker.run = Some(Run {
+            talked: open.talked(now),
+            closed_at: now,
+        });
         let utterance = open.utterance;
         let counts = self.counts.entry(utterance.match_id).or_default();
         counts.talked += open
@@ -966,7 +1132,7 @@ impl<S: Seats> Relay<S> {
             .iter()
             .filter_map(|(session, talker)| {
                 let open = talker.open.as_ref()?;
-                if now.saturating_duration_since(open.utterance.started_at) >= LONGEST {
+                if open.talked(now) >= LONGEST {
                     Some((*session, EndReason::TooLong))
                 } else if now.saturating_duration_since(open.last_audio_at) >= SILENCE {
                     Some((*session, EndReason::Timeout))
@@ -982,6 +1148,8 @@ impl<S: Seats> Relay<S> {
     }
 
     fn housekeeping(&mut self, now: Instant, out: &mut Vec<(SocketAddr, Vec<u8>)>) {
+        // A source back to its whole rate is forgotten.
+        self.sources.retain(|_, bucket| !bucket.is_full(now));
         // A listener whose place is gone or changed hears no more.
         let seats = &self.seats;
         self.listeners.retain(|session, listener| {

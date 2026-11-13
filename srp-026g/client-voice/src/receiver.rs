@@ -17,6 +17,43 @@ pub struct Stats {
     pub timeouts: u32,
     pub squelch_in: u32,
     pub squelch_out: u32,
+    /// Frames over [`CEILING`], held to it.
+    pub limited: u32,
+}
+/// The loudest a speaker is played, as the RMS of a 20 ms frame (-12 dBFS).
+/// A game's microphone goes through automatic gain (`codec::Preprocessor`)
+/// and never reaches it held: decoded, its frames measured -13.6 dBFS at
+/// most at the highest sensitivity and a full-scale voice, -19 dBFS at the
+/// default. Only a stream that skipped the gain is held to it (a full-scale
+/// square wave decodes at -0.3 dBFS), and the gain's first fifth of a
+/// second after a sudden shout at the highest sensitivity (up to -8 dBFS).
+const CEILING: f32 = 0.25;
+/// After a frame over [`CEILING`], the gain comes back 0.5 dB a frame.
+const RELEASE: f32 = 1.059_3;
+/// A speaker's level held at [`CEILING`]: a frame over it is brought down at
+/// once (the whole frame: none of it plays louder), then the gain comes back
+/// at [`RELEASE`], ramped within each frame. Under it, untouched.
+struct Limiter {
+    gain: f32,
+}
+impl Limiter {
+    /// Whether the frame was over [`CEILING`].
+    fn apply(&mut self, pcm: &mut [f32; FRAME]) -> bool {
+        let rms = (pcm.iter().map(|x| x * x).sum::<f32>() / FRAME as f32).sqrt();
+        let over = rms > CEILING;
+        let most = if over { CEILING / rms } else { 1. };
+        let from = self.gain.min(most);
+        let to = (self.gain * RELEASE).min(most);
+        self.gain = to;
+        if from >= 1. && to >= 1. {
+            return over;
+        }
+        let step = (to - from) / FRAME as f32;
+        for (i, sample) in pcm.iter_mut().enumerate() {
+            *sample *= from + step * i as f32;
+        }
+        over
+    }
 }
 #[derive(Clone, Copy)]
 enum Phase {
@@ -53,6 +90,7 @@ struct Speaker {
     heard: Option<u32>,
     effect: Option<Effect>,
     closing_effect: bool,
+    limiter: Limiter,
 }
 impl Speaker {
     fn new() -> Result<Self, String> {
@@ -63,6 +101,7 @@ impl Speaker {
             heard: None,
             effect: None,
             closing_effect: false,
+            limiter: Limiter { gain: 1. },
         })
     }
     fn take(&mut self, id: u16, slot: u8, stats: &mut Stats) -> bool {
@@ -210,7 +249,12 @@ impl Speaker {
         if ended {
             self.close(stats);
         }
-        pcm
+        pcm.map(|mut pcm| {
+            if self.limiter.apply(&mut pcm) {
+                stats.limited = stats.limited.saturating_add(1);
+            }
+            pcm
+        })
     }
 }
 fn newer(a: u16, b: u16) -> bool {

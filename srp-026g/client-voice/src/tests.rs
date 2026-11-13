@@ -53,16 +53,16 @@ fn sender_flushes_odd_frame_and_wraps_utterance() {
         wire::parse(&sender.start(9)),
         Ok(Message::Start { utt: u16::MAX, .. })
     ));
-    assert!(sender.frame(&[1, 2]).is_none());
+    assert!(sender.frame(&[0x48, 2]).is_none());
     assert!(
-        matches!(wire::parse(&sender.flush().unwrap()),Ok(Message::Audio{seq:0,frames,..})if frames==vec![vec![1,2]])
+        matches!(wire::parse(&sender.flush().unwrap()),Ok(Message::Audio{seq:0,frames,..})if frames==vec![vec![0x48,2]])
     );
     assert!(matches!(
         wire::parse(&sender.end().unwrap()),
         Ok(Message::End { frames: 1, .. })
     ));
     assert!(sender.end().is_none());
-    assert!(sender.frame(&[1]).is_none());
+    assert!(sender.frame(&[0x48]).is_none());
     assert!(matches!(
         wire::parse(&sender.start(10)),
         Ok(Message::Start { utt: 0, .. })
@@ -407,7 +407,7 @@ fn oversize_bad_version_type_and_slot_are_malformed() {
     assert_eq!(core.talking(0), 0);
 }
 #[test]
-fn audio_frames_must_be_twenty_ms_of_opus() {
+fn audio_frames_must_be_our_encoders() {
     use wire::Malformed;
     let audio = |frames: &[&[u8]]| {
         let mut bytes = vec![0x56, 1, 0x83, 3, 1, 0, 0, 0, frames.len() as u8];
@@ -418,24 +418,88 @@ fn audio_frames_must_be_twenty_ms_of_opus() {
         bytes
     };
     let frame: &[u8] = &[0x48, 1, 2];
+    assert!(wire::parse(&audio(&[frame])).is_ok());
     assert!(wire::parse(&audio(&[frame; wire::MAX_FRAMES])).is_ok());
     assert_eq!(wire::parse(&audio(&[])), Err(Malformed::Frames));
+    // Three frames: more than the sender sends and the receiver plays.
     assert_eq!(
         wire::parse(&audio(&[frame; wire::MAX_FRAMES + 1])),
         Err(Malformed::Frames)
     );
     assert_eq!(wire::parse(&audio(&[&[]])), Err(Malformed::NotOpus));
-    // 10 ms SILK, 2.5 ms CELT, 60 ms SILK, code 3 with no count.
-    for garbage in [&[0x00, 1][..], &[0x80, 1], &[0x18, 1], &[0x4B]] {
-        assert_eq!(wire::parse(&audio(&[garbage])), Err(Malformed::NotOpus));
+    // SILK narrow, medium and wide band 20 ms, mono, code 0: taken.
+    for toc in wire::FRAME_TOCS {
+        assert!(wire::parse(&audio(&[&[toc, 1]])).is_ok());
     }
-    // The encoder's frames are 20 ms of Opus, and the sender refuses others.
-    assert!(encoded(4).iter().all(|frame| wire::opus_20ms(frame)));
+    // 20 ms all, but not the encoder's: stereo, code 1 (two of 10 ms), code
+    // 3 (one, padded), hybrid, CELT; and 10 ms SILK, 60 ms SILK.
+    for toc in [0x4C, 0x01, 0x4B, 0x68, 0xF8, 0x00, 0x18] {
+        assert_eq!(
+            wire::parse(&audio(&[&[toc, 1, 1]])),
+            Err(Malformed::NotOpus)
+        );
+    }
+    // The longest frame the encoder may make, and one byte more.
+    let longest = [0x48; wire::MAX_FRAME_BYTES];
+    assert!(wire::parse(&audio(&[&longest, &longest])).is_ok());
+    let longer = [0x48; wire::MAX_FRAME_BYTES + 1];
+    assert_eq!(wire::parse(&audio(&[&longer])), Err(Malformed::NotOpus));
+    // The encoder's frames are its own, and the sender refuses others.
+    assert!(encoded(4).iter().all(|frame| wire::our_frame(frame)));
     let mut sender = Sender::new(1, 1);
     sender.start(0);
     assert!(sender.frame(&[0x00, 1]).is_none());
-    assert!(sender.frame(&[0x00, 1]).is_none());
+    assert!(sender.frame(&longer).is_none());
     assert_eq!(sender.end().map(|bytes| bytes[9]), Some(0));
+}
+#[test]
+fn the_encoder_makes_only_what_the_relay_takes() {
+    // Speech, and what no microphone after automatic gain gives: full-scale
+    // noise, square waves and a sweep, with and without the preprocessor.
+    let mut random = 0x1234_5678u32;
+    let mut noise = move || {
+        random = random.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        (random >> 16) as i16
+    };
+    let square = |period: usize| {
+        move |n: usize| {
+            if (n / period).is_multiple_of(2) {
+                i16::MAX
+            } else {
+                i16::MIN
+            }
+        }
+    };
+    let signals: [&mut dyn FnMut(usize) -> i16; 6] = [
+        &mut |_| noise(),
+        &mut square(80),
+        &mut square(8),
+        &mut square(3),
+        &mut |n| {
+            let t = n as f32 / RATE as f32;
+            ((2. * std::f32::consts::PI * (100. * t + 400. * t * t)).sin() * 32767.) as i16
+        },
+        &mut |n| syllables(n / FRAME, 16000.)[n % FRAME],
+    ];
+    let mut largest = 0;
+    for signal in signals {
+        for preprocessed in [false, true] {
+            let mut encoder = Encoder::new().unwrap();
+            let mut pre = Preprocessor::new().unwrap();
+            for f in 0..250 {
+                let mut pcm: [i16; FRAME] = std::array::from_fn(|i| signal(f * FRAME + i));
+                if preprocessed {
+                    pre.run(&mut pcm, 1.);
+                }
+                let frame = encoder.encode(&pcm).unwrap();
+                assert!(wire::our_frame(&frame), "{frame:x?}");
+                largest = largest.max(frame.len());
+            }
+        }
+    }
+    // Its frames are well within the cap (93 bytes measured at most): the
+    // cap never takes a frame of a game that has not changed its encoder.
+    assert!(largest <= 100, "{largest}");
 }
 #[test]
 fn opus_check_agrees_with_the_decoder() {
@@ -449,9 +513,13 @@ fn opus_check_agrees_with_the_decoder() {
             _ => (0..=4).map(|count| vec![toc, count]).collect(),
         };
         for packet in packets {
+            // What is taken is decoded; most of the rest would be too.
+            if wire::our_frame(&packet) {
+                assert!(decoder.decode(Some(&packet)).is_ok(), "{packet:?}");
+            }
             assert_eq!(
-                wire::opus_20ms(&packet),
-                decoder.decode(Some(&packet)).is_ok(),
+                wire::our_frame(&packet),
+                wire::FRAME_TOCS.contains(&toc),
                 "{packet:?}"
             );
             decoder.reset();
@@ -460,9 +528,10 @@ fn opus_check_agrees_with_the_decoder() {
 }
 #[test]
 fn undecodable_opus_is_concealed_and_does_not_stop_another_speaker() {
-    // 20 ms by its TOC, but code 3 with padding and no padding length.
+    // 20 ms by its TOC, but code 3 with padding and no padding length: not
+    // taken off the wire any more; were it to reach the decoder, concealed.
     let garbage = vec![0x4B, 0x41];
-    assert!(wire::opus_20ms(&garbage));
+    assert!(!wire::our_frame(&garbage));
     assert!(Decoder::new().unwrap().decode(Some(&garbage)).is_err());
     let good = encoded(20);
     let mut core = Core::new().unwrap();
@@ -603,4 +672,115 @@ fn the_host_argument_is_read_no_further_than_its_bound() {
     assert_eq!(radio::unit(f32::INFINITY), 1.);
     assert_eq!(radio::unit(f32::NEG_INFINITY), 0.);
     assert!(agc_level(f32::INFINITY).is_finite());
+}
+/// Plays `frames` (20 ms each) through a core as the relay sends them, near:
+/// each mixed frame's RMS in dB of full scale, and the core.
+fn played(frames: &[Vec<u8>]) -> (Vec<f32>, Core) {
+    let mut core = Core::new().unwrap();
+    let mut levels = Vec::new();
+    let mut now = 0;
+    for (seq, pair) in frames.chunks(2).enumerate() {
+        core.receive(&packet(seq as u16, pair), now);
+        for _ in 0..2 {
+            let pcm = core.mix(1., 0, now);
+            let power = pcm
+                .iter()
+                .map(|&x| (f32::from(x) / 32768.).powi(2))
+                .sum::<f32>();
+            levels.push(10. * (power / FRAME as f32).max(1e-12).log10());
+            now += 20;
+        }
+    }
+    (levels, core)
+}
+#[test]
+fn speech_through_the_automatic_gain_is_never_held() {
+    // Voices from -50 to 0 dB of full scale, at the lowest, the default and
+    // the highest sensitivity, and at the default a quiet voice that
+    // suddenly shouts: the automatic gain keeps all of them under the
+    // ceiling, so the listener plays them as decoded.
+    let mut random = 0x2468_ace1u32;
+    let mut hiss = move || {
+        random = random.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        (random >> 16) as i16 / 512
+    };
+    for (sensitivity, before, after) in [
+        (0., 32000., 32000.),
+        (0.5, 150., 150.),
+        (0.5, 32000., 32000.),
+        (0.5, 600., 20000.),
+        (1., 2500., 2500.),
+        (1., 32000., 32000.),
+    ] {
+        let mut pre = Preprocessor::new().unwrap();
+        let mut encoder = Encoder::new().unwrap();
+        let frames: Vec<Vec<u8>> = (0..500)
+            .map(|f| {
+                let mut pcm = syllables(f, if f < 250 { before } else { after });
+                for sample in &mut pcm {
+                    *sample = sample.saturating_add(hiss());
+                }
+                pre.run(&mut pcm, sensitivity);
+                encoder.encode(&pcm).unwrap()
+            })
+            .collect();
+        let (levels, core) = played(&frames);
+        assert_eq!(core.stats().limited, 0, "{sensitivity} {before} {after}");
+        assert!(levels.iter().any(|&db| db > -30.));
+    }
+}
+#[test]
+fn a_stream_that_skipped_the_automatic_gain_is_held_at_the_ceiling() {
+    // A voice under the ceiling, played as decoded: what the mix adds to a
+    // speaker's level (the volume and any gain of its own).
+    let mut encoder = Encoder::new().unwrap();
+    let voice: Vec<Vec<u8>> = (0..100)
+        .map(|f| encoder.encode(&tone(f, 300., 6000.)).unwrap())
+        .collect();
+    let mean_db = |levels: &[f32]| {
+        let power = levels.iter().map(|db| 10f32.powf(db / 10.)).sum::<f32>();
+        10. * (power / levels.len() as f32).log10()
+    };
+    let mut decoder = Decoder::new().unwrap();
+    let decoded: Vec<f32> = voice
+        .iter()
+        .map(|frame| {
+            let pcm = decoder.decode(Some(frame)).unwrap();
+            10. * (pcm.iter().map(|x| x * x).sum::<f32>() / FRAME as f32).log10()
+        })
+        .collect();
+    let (alone, core) = played(&voice);
+    assert_eq!(core.stats().limited, 0);
+    let mix_gain = mean_db(&alone[20..]) - mean_db(&decoded[10..]);
+    // A modified game's full-scale square wave: -0.3 dBFS decoded, held at
+    // the ceiling (-12 dBFS) from its first frame on.
+    let mut encoder = Encoder::new().unwrap();
+    let frames: Vec<Vec<u8>> = (0..100)
+        .map(|f| {
+            let pcm = std::array::from_fn(|i| {
+                if ((f * FRAME + i) / 8).is_multiple_of(2) {
+                    i16::MAX
+                } else {
+                    i16::MIN
+                }
+            });
+            encoder.encode(&pcm).unwrap()
+        })
+        .collect();
+    let (levels, core) = played(&frames);
+    let loudest = levels.iter().copied().fold(f32::MIN, f32::max) - mix_gain;
+    assert!((-12.6..=-11.9).contains(&loudest), "{mix_gain} {levels:?}");
+    assert!(
+        levels[4..].iter().all(|&db| db - mix_gain > -14.),
+        "{levels:?}"
+    );
+    assert!(core.stats().limited >= 95, "{:?}", core.stats().limited);
+    // Then the voice from the same speaker comes back to its own level
+    // within half a second (0.5 dB a frame).
+    let mut after_square = frames[..50].to_vec();
+    after_square.extend(voice.iter().cloned());
+    let (after, _) = played(&after_square);
+    for (a, b) in alone[50..].iter().zip(&after[100..]) {
+        assert!((a - b).abs() < 0.5, "{a} {b}");
+    }
 }
