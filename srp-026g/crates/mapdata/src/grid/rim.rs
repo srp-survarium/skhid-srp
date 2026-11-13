@@ -10,15 +10,16 @@
 //!
 //! The presses ([`best_press`]): the short jump from a walk (3.5 m/s) and the sprint jump (4.9587 m/s, both legs and both ends
 //! of the prepare's phase, which the run cycle picks, [`SPRINT_PHASES`]), each from the exactness rig's run-up
-//! ([`jump::run_up`]: up to speed over the 0.3 s blend then 4 steady steps, else shorter) and pressed at each of the gap links'
-//! leads ([`gap_leads`], the built file's range) before the take-off floor's centre. A link is made when some press lands (the
+//! (up to speed over the 0.3 s blend then steady, [`jump::run_presses`]) and pressed on each tick of that run from 0.6 to 1.6 m
+//! before the take-off floor's centre (the gap links' presses, the built file's range): a press is made on a tick. A link is made when some press lands (the
 //! owner, 2026-11-13: the bots are taught the press, the path is not taken away), with the press that lands the most of its
 //! gait's variants: a walking jump where one lands, else a sprint jump. Its press is the link's own ([`Takeoff`]), as every
 //! gap link's: the motor presses there (`Leap::Gap`, `Leap::SprintGap`). Made after the erosion, from the floors a body stands
 //! on, and before the reach, so a top only a rim jump gets to is kept.
 use super::gap::{self, OffLink, PressLead, Takeoff};
 use super::{LinkKind, NodeId, WalkGrid, Wide, DIRS, MARGINAL_JUMP_M, NONE, RIM_REACH_M};
-use crate::controller::jump::{self, Gait, Leg};
+use crate::controller::jump::{self, Gait, Keys, Leg, Press};
+use crate::controller::tick::Controller;
 use crate::controller::tick::Settings;
 use crate::controller::Collision;
 use crate::math::Vec3;
@@ -59,6 +60,7 @@ fn sprint_gaits() -> [Gait; 4] {
 /// (flat, unit), lands: the feet end within [`LAND_HEIGHT_M`] of `to`'s height and no more than half a cell short of it along
 /// the way.
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 fn lands(world: &Collision, s: &Settings, from: Vec3, to: Vec3, way: (f32, f32), cell: f32, lead: f32, gait: Gait) -> bool {
     let across = (to.x - from.x) * way.0 + (to.z - from.z) * way.1;
     let at = Vec3::new(from.x - way.0 * lead, from.y, from.z - way.1 * lead);
@@ -69,43 +71,60 @@ fn lands(world: &Collision, s: &Settings, from: Vec3, to: Vec3, way: (f32, f32),
     })
 }
 
-/// The press that gets a body from `from` to `to` along `way`, among the leads `leads` (metres before the take-off): a walking
-/// jump at the lead it lands from, else the sprint jump at the lead where the most of its four variants land (the nearest to
-/// the middle of the leads that do on a tie); None when no press lands. And the flights flown (a lead where every variant
-/// lands ends the search: no press is better).
+/// Whether a body at a press (`body`, run up) jumping with `press` along `way` (flat, unit) from the take-off floor at `from` lands
+/// on the floor at `to`: the feet end within [`LAND_HEIGHT_M`] of `to`'s height and no more than half a cell short of it along the
+/// way, after [`GROUND_STEPS`] steps on with the forward key held.
 #[allow(clippy::too_many_arguments)]
-fn best_press(world: &Collision, s: &Settings, from: Vec3, to: Vec3, way: (f32, f32), cell: f32, leads: &[f32]) -> (Option<Takeoff>, usize) {
+fn landed(world: &Collision, s: &Settings, mut body: Controller, press: Press, from: Vec3, to: Vec3, way: (f32, f32), cell: f32) -> bool {
+    let across = (to.x - from.x) * way.0 + (to.z - from.z) * way.1;
+    let end = jump::fly(world, s, &mut body, way, press, Keys::BOT, GROUND_STEPS).last().map_or(body.feet(), |f| f.feet);
+    let ahead = (end.x - from.x) * way.0 + (end.z - from.z) * way.1;
+    (end.y - to.y).abs() <= LAND_HEIGHT_M && ahead >= across - 0.5 * cell
+}
+
+/// The press that gets a body from the floor at `from` to the one at `to` along `way`, among the presses a client makes from
+/// [`gap::GAP_PRESS_MIN_M`] to [`gap::GAP_PRESS_MAX_M`] before the take-off (the ticks of a run, [`jump::run_presses`]): a
+/// walking jump at the middle of the presses it lands from, else the sprint jump at the press where the most of its four
+/// variants land (the nearest the middle of the presses that land at all on a tie); None when no press lands. And the
+/// flights flown (a sprint press where every variant lands ends the search: no press is better).
+fn best_press(world: &Collision, s: &Settings, from: Vec3, to: Vec3, way: (f32, f32), cell: f32) -> (Option<Takeoff>, usize) {
+    let (lo, hi) = (gap::GAP_PRESS_MIN_M, gap::GAP_PRESS_MAX_M);
     let mut flights = 0;
-    let walking: Vec<f32> = leads
-        .iter()
-        .copied()
-        .filter(|&lead| {
+    let walking: Vec<f32> = jump::run_presses(world, s, from, way, jump::WALK_CAP_MS, false, lo, hi)
+        .into_iter()
+        .filter(|p| {
             flights += 1;
-            lands(world, s, from, to, way, cell, lead, Gait::Walk)
+            landed(world, s, p.body, Press::Walk { speed: p.speed }, from, to, way, cell)
         })
+        .map(|p| p.lead)
         .collect();
     if !walking.is_empty() {
         return (Some(Takeoff::Press(PressLead::from_metres(walking[walking.len() / 2]))), flights);
     }
     let mut counts: Vec<(f32, usize)> = Vec::new();
-    for &lead in leads {
+    for p in jump::run_presses(world, s, from, way, jump::SPRINT_MS, true, lo, hi) {
+        // Under the walk cap the client presses the short jump (its speed test, 0x33705A): not a sprint jump's press.
+        if p.speed < jump::WALK_CAP_MS {
+            continue;
+        }
         let n = sprint_gaits()
             .into_iter()
             .filter(|&gait| {
+                let Gait::Sprint { leg, first_air_frame } = gait else { return false };
                 flights += 1;
-                lands(world, s, from, to, way, cell, lead, gait)
+                landed(world, s, p.body, Press::Sprint { speed: p.speed, leg, first_air_frame }, from, to, way, cell)
             })
             .count();
-        counts.push((lead, n));
+        counts.push((p.lead, n));
         if n == sprint_gaits().len() {
-            return (Some(Takeoff::Sprint(PressLead::from_metres(lead))), flights);
+            return (Some(Takeoff::Sprint(PressLead::from_metres(p.lead))), flights);
         }
     }
     let most = counts.iter().map(|&(_, n)| n).max().unwrap_or(0);
     if most == 0 {
         return (None, flights);
     }
-    // Among the leads with the most landings, the one nearest the middle of the leads that land at all.
+    // Among the presses with the most landings, the one nearest the middle of the presses that land at all.
     let landing: Vec<f32> = counts.iter().filter(|&&(_, n)| n > 0).map(|&(lead, _)| lead).collect();
     let mid = landing.iter().sum::<f32>() / landing.len() as f32;
     let lead = counts
@@ -119,6 +138,7 @@ fn best_press(world: &Collision, s: &Settings, from: Vec3, to: Vec3, way: (f32, 
 
 /// The leads a gap link may carry: [`gap::GAP_PRESS_MIN_M`] to [`gap::GAP_PRESS_MAX_M`] by [`gap::GAP_PRESS_STEP_M`] (the built
 /// file's range, `PressLead::is_valid`).
+#[cfg(test)]
 fn gap_leads() -> Vec<f32> {
     let n = ((gap::GAP_PRESS_MAX_M - gap::GAP_PRESS_MIN_M) / gap::GAP_PRESS_STEP_M).round() as usize;
     (0..=n).map(|i| gap::GAP_PRESS_MIN_M + gap::GAP_PRESS_STEP_M * i as f32).collect()
@@ -173,11 +193,10 @@ impl WalkGrid {
                 }
             }
         }
-        let leads = gap_leads();
         let flown = super::controlled::parallel(&todo, |&(a, b, d)| {
             let (di, dk) = DIRS[d];
             let l = ((di * di + dk * dk) as f32).sqrt();
-            best_press(world, s, self.position(a), self.position(b), (di as f32 / l, dk as f32 / l), self.cell, &leads)
+            best_press(world, s, self.position(a), self.position(b), (di as f32 / l, dk as f32 / l), self.cell)
         });
         let mut stats = RimStats { tried: todo.len(), ..RimStats::default() };
         let mut none = Vec::new();
@@ -246,6 +265,38 @@ mod tests {
         let (grid, rim, up) = onto(2.10, true);
         assert!(rim.tried > 0 && rim.walked + rim.sprinted == 0 && !up, "2.10: {rim:?}");
         assert_eq!(grid.rim_unmade().len(), rim.tried);
+    }
+
+    /// One rim jump on a real map, every press's outcome printed: `RIM_MAP` (a format 6 map), `RIM_FROM` and `RIM_TO` ("x z y",
+    /// the take-off and landing floors). `cargo test -- --ignored --nocapture fly_one`.
+    #[test]
+    #[ignore]
+    fn fly_one() {
+        let var = |k: &str| std::env::var(k).unwrap_or_else(|_| panic!("set {k}"));
+        let map = crate::MapData::from_bytes(&std::fs::read(var("RIM_MAP")).unwrap()).unwrap();
+        let world = Collision::build_exe(&map).unwrap();
+        let s = body(true).controller().1;
+        let p = |k: &str| {
+            let v: Vec<f32> = var(k).split_whitespace().map(|x| x.parse().unwrap()).collect();
+            Vec3::new(v[0], v[2], v[1])
+        };
+        let (from, to) = (p("RIM_FROM"), p("RIM_TO"));
+        let l = (to.x - from.x).hypot(to.z - from.z);
+        let way = ((to.x - from.x) / l, (to.z - from.z) / l);
+        println!("best press: {:?}", best_press(&world, &s, from, to, way, 0.25));
+        for lead in gap_leads() {
+            for gait in std::iter::once(Gait::Walk).chain(sprint_gaits()) {
+                let at = Vec3::new(from.x - way.0 * lead, from.y, from.z - way.1 * lead);
+                let steps = jump::run_and_fly(&world, &s, at, way, gait, GROUND_STEPS);
+                let ok = lands(&world, &s, from, to, way, 0.25, lead, gait);
+                let line = steps.map(|st| {
+                    let top = st.iter().map(|f| f.feet.y).fold(f32::MIN, f32::max);
+                    let e = st.last().unwrap().feet;
+                    format!("top feet {top:.3} end ({:.3} {:.3} {:.3})", e.x, e.y, e.z)
+                });
+                println!("lead {lead:.1} {gait:?}: lands {ok} {}", line.unwrap_or_else(|| "no run-up".into()));
+            }
+        }
     }
 
     /// Vector Laboratory's shelf, made: ground at 0 for x < 5, a pit 3 m deep across `gap` m, then a top 1.10 m up (over the
