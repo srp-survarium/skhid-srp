@@ -875,7 +875,7 @@ impl BodyTrack {
             match kin.fix_floor {
                 FixFloor::Nearest => nearest(),
                 FixFloor::Under => under(),
-                FixFloor::UnderInJump => {
+                FixFloor::UnderInJump | FixFloor::UnderInAir => {
                     // Its own jump in the air at the world's tick: a decided tick within the jump's air time with the key held.
                     let jumping = self
                         .ticks
@@ -885,7 +885,19 @@ impl BodyTrack {
                     if nearest() != under() {
                         counts::fix_floor(jumping);
                     }
-                    if jumping { under() } else { nearest() }
+                    if jumping {
+                        under()
+                    } else if kin.fix_floor == FixFloor::UnderInAir
+                        && let column = column_floor(grid, feet)
+                        && column.is_none_or(|node| feet.y - grid.position(node).y > grid.body().step)
+                    {
+                        // [FixFloor::UnderInAir] In the air out of its own jump: the floor it comes down on.
+                        #[cfg(test)]
+                        counts::fix_floor_in_air(column.is_some() && column != nearest());
+                        column.or_else(nearest)
+                    } else {
+                        nearest()
+                    }
                 }
             }
         });
@@ -1894,6 +1906,15 @@ fn floor_under(grid: &WalkGrid, node: NodeId, point: Vec3, max_rise: f32) -> Opt
         .find(|&next| holds(next) && grid.position(next).y - base <= max_rise)
 }
 
+/// [`FixFloor::UnderInAir`] The floor under a body's feet: the highest floor whose cell overlaps the capsule's footprint (the
+/// square of its radius, half of `stand_capsule_width`, PROVEN) at most [`FIX_ABOVE_M`] over the feet, however far under them.
+fn column_floor(grid: &WalkGrid, feet: Vec3) -> Option<NodeId> {
+    let r = grid.body().radius;
+    grid.floors_in([feet.x - r, feet.z - r, feet.x + r, feet.z + r])
+        .filter(|&node| grid.position(node).y <= feet.y + FIX_ABOVE_M)
+        .max_by(|&a, &b| grid.position(a).y.total_cmp(&grid.position(b).y))
+}
+
 /// The bench's counts of [`FixFloor::UnderInJump`] (all matches of the run): the worlds whose nearest floor and floor under the
 /// feet differ, put on the nearest (no jump of its own in the air) and on the floor under the feet (its jump in the air).
 #[cfg(test)]
@@ -1908,6 +1929,18 @@ pub mod counts {
 
     pub fn fix_floors() -> [u64; 2] {
         std::array::from_fn(|k| FIX_FLOORS[k].load(Ordering::Relaxed))
+    }
+
+    static IN_AIR: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
+
+    /// [`super::FixFloor::UnderInAir`] A world with the body in the air out of its own jump: put on the floor under its feet
+    /// where that differs from the nearest (`moved`), or on the same floor.
+    pub fn fix_floor_in_air(moved: bool) {
+        IN_AIR[usize::from(moved)].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn fix_floors_in_air() -> [u64; 2] {
+        std::array::from_fn(|k| IN_AIR[k].load(Ordering::Relaxed))
     }
 }
 
@@ -3067,6 +3100,38 @@ pub(super) mod tests {
         assert!(floor_with(Some(600)) < 0.1, "its own jump 400 ms before: the floor under it");
         assert!(floor_with(None) > 1.2, "no jump: the nearest, the top over the face");
         assert!(floor_with(Some(100)) > 1.2, "a jump 900 ms before is over");
+    }
+
+    /// [`FixFloor::UnderInAir`]: a world with the body in the air beside a top it left (no jump of its own) puts it on the floor
+    /// under its feet, which [`FixFloor::UnderInJump`] took for the nearest, the top 0.7 m aside; a world a step or less over its
+    /// floor, going down or not, and a body standing at the face keep the nearest.
+    #[test]
+    fn a_world_in_the_air_out_of_its_own_jump_takes_the_floor_under_its_feet() {
+        let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+        triangles.extend(floor(10.0, 0.0, 20.0, 10.0, 1.3));
+        triangles.extend(wall_x(10.0, 0.0, 10.0).map(|mut t| {
+            t.v.iter_mut().for_each(|v| v.y = v.y.min(1.3));
+            t
+        }));
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default());
+        let yaw = -std::f32::consts::FRAC_PI_2;
+        let floor_of = |rule: FixFloor, feet: Vec3, fall: Option<f32>| {
+            let kin = Kinematics { blend_ticks: 1, fix_floor: rule, ..Kinematics::default() };
+            let mut track = BodyTrack::default();
+            for time in (0..=1_000).step_by(50) {
+                track.decided(time, key::FORWARD, (0.0, 0.0), 0.0, &kin, Some(&grid));
+            }
+            track.fixed(Fix { fall, ..fix(1_000, feet, yaw) }, &kin, Some(&grid));
+            grid.position(track.estimate().unwrap().node.unwrap()).y
+        };
+        // 1 m over the floor, 0.6 m from the face: more than a step over the floor under it.
+        let aside = Vec3::new(9.4, 1.0, 5.0);
+        assert!(floor_of(FixFloor::UnderInJump, aside, None) > 1.2, "the old rule: the nearest, the top aside");
+        assert!(floor_of(FixFloor::UnderInAir, aside, None) < 0.1, "in the air: the floor under its feet");
+        // Going down 0.5 m over its floor at the face, the top's cells under its footprint but over its feet.
+        assert!(floor_of(FixFloor::UnderInAir, Vec3::new(9.8, 0.5, 5.0), Some(3.0)) < 0.1);
+        // On the top at its edge, not going down: the top.
+        assert!(floor_of(FixFloor::UnderInAir, Vec3::new(10.1, 1.3, 5.0), Some(0.0)) > 1.2);
     }
 
     /// A held body walking out over the edge at any slant comes down: it neither freezes past the support (the drop-link line of
