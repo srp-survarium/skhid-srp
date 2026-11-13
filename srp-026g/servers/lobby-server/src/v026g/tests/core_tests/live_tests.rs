@@ -1,7 +1,7 @@
 //! The Live window (`live`): the list of the matches being played, a
 //! match's roster, and watching one as it is played, behind it.
 
-use survarium::v026g::lobby::rooms::ROOM_JOIN_BASE;
+use survarium::v026g::lobby::rooms::{ROOM_JOIN_BASE, ROOM_PLAY};
 use survarium::v026g::lobby::{
     LIVE_ROSTER_ASK, LIVE_ROSTER_START, LIVE_START, REPLAY_START, ReplayWatchAsk,
 };
@@ -62,9 +62,10 @@ pub(super) fn ask_to_watch(world: &mut World, index: usize, match_id: u32) -> St
         .expect("an R1 row")
 }
 
-/// A Live spectator whose game never reaches the match server, or which
-/// signs in anew, gives its place back when its lobby link or session goes:
-/// not only when the match ends.
+/// A Live spectator whose game never reaches the match server gives its
+/// place back when its session goes, its link silent for the session's
+/// wait: not only when the match ends. Until then the same game connecting
+/// again watches on.
 #[test]
 fn a_live_watcher_gives_its_place_back_when_its_link_goes() {
     let mut world = World::new();
@@ -77,7 +78,62 @@ fn a_live_watcher_gives_its_place_back_when_its_link_goes() {
     // Its game crashed while loading: nothing more comes from it.
     drop(std::mem::replace(&mut world.clients[carol].1, TestClient::new()));
     world.advance(world.core.settings.match_link_timeout + Duration::from_secs(1));
+    assert!(matchmaking(&world).is_some(), "its session waits");
+    world.advance(world.core.settings.session_grace + Duration::from_secs(2));
     assert_eq!(matchmaking(&world), None);
+    assert!(world.store.has_ended(session));
+}
+
+/// The review of #1537: a spectator whose game connects again with its
+/// session (its lobby link dropped, or went silent, while its game watches)
+/// watches on, as a seated player keeps its place.
+#[test]
+fn a_live_watcher_whose_game_connects_again_watches_on() {
+    let mut world = World::new();
+    let (ticket, _) = a_match_in_play(&mut world);
+    let carol = world.connect("Carol");
+    assert!(ask_to_watch(&mut world, carol, ticket).starts_with("R1;watching;"));
+    let session = world.ids[carol].1;
+    let watched = |world: &World| world.store.matchmaking().watched(session);
+    let before = watched(&world);
+    assert!(before.is_some());
+    // Its link dropped on the game's side: it connects again at once.
+    world.game_connects_again(carol, 41_000);
+    assert_eq!(watched(&world), before);
+    // Its link went silent on the lobby's side first.
+    let silent = world.core.settings.match_link_timeout + Duration::from_secs(1);
+    world.silent_for(carol, silent);
+    assert!(!world.core.links.contains_key(&world.clients[carol].0), "its link went");
+    world.game_connects_again(carol, 41_001);
+    assert_eq!(watched(&world), before);
+    assert!(!world.store.has_ended(session));
+    // Its game is not sent to the match again: it is there.
+    world.advance(Duration::from_secs(2));
+    assert!(sent_to_match(&world.take(carol)).is_none());
+}
+
+/// The review of #1537: a player whose game started anew while its seat is
+/// kept, its room keeping no place for it now (the match takes nobody), is
+/// free in the lobby but does not watch its own match from the Live window:
+/// it would see both teams, then go back to its seat by Play. Play still
+/// takes it back.
+#[test]
+fn a_player_whose_seat_is_kept_does_not_watch_its_match() {
+    let mut world = World::new();
+    let (ticket, [_, bob]) = a_match_in_play(&mut world);
+    // Bob's game is killed and started anew: a new session.
+    world.silent_for(bob, Duration::from_secs(10));
+    let account = world.ids[bob].0;
+    let session = world.new_session(account);
+    let again = world.connect_session((account, session));
+    assert_eq!(
+        ask_to_watch(&mut world, again, ticket),
+        format!("R1;busy;{ticket:08x};0")
+    );
+    assert_eq!(world.store.matchmaking().watched(session), None);
+    world.ask(again, request::ranking(ROOM_PLAY, 1));
+    let (back, _) = sent_to_match(&world.take(again)).expect("back to its seat");
+    assert_eq!(back, ticket);
 }
 
 /// The session's end is enough on its own, whichever way it comes.

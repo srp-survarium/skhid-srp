@@ -374,7 +374,8 @@ impl Matchmaking {
 
     /// The player has a seat in a match being played: it goes back to it,
     /// under its new session if it signed in again, and is told where the
-    /// match is once more. `false`: it has none.
+    /// match is once more. `false`: it has none, or its session watches a
+    /// match (it first watches no more: [`Self::stop_watching`]).
     pub fn back_to_seat(&self, player: Player) -> bool {
         self.inner.locked().back_to_seat(player)
     }
@@ -676,10 +677,13 @@ impl Matchmaking {
     /// The lobby: the session watches the running match `match_id` from its
     /// room's queue. Its game connects to the match with this session and
     /// gets no place (`docs/notes/queue-spectate.md`). A session watches one
-    /// match at a time; a seated session watches none.
+    /// match at a time; one whose account has a seat watches none, also when
+    /// the seat names another session of it (its game started anew): it
+    /// would see its match as a spectator, then go back to its place.
     pub fn watch(&self, session_id: u32, watcher: Watcher) -> bool {
         let mut inner = self.inner.locked();
         if inner.seat_of_session(session_id).is_some()
+            || inner.live_seat_of_account(watcher.account_id).is_some()
             || !inner.matches.contains_key(&watcher.match_id)
         {
             return false;
@@ -947,6 +951,9 @@ impl Inner {
 
     /// [`Matchmaking::back_to_seat`].
     fn back_to_seat(&mut self, player: Player) -> bool {
+        if self.watchers.contains_key(&player.session_id) {
+            return false;
+        }
         let Some(seat) = self.seat_of_account_mut(player.account_id) else {
             return false;
         };
@@ -1244,6 +1251,44 @@ mod tests {
         mm.end_match(id);
         assert_eq!(mm.watched(5), None);
         assert!(mm.take_watchers_left().is_empty());
+    }
+
+    /// A player is in its match or watches one, never both: an account with
+    /// a seat watches nothing under any session of it (its game started anew
+    /// has a new one), and a watching session goes back to no seat.
+    #[test]
+    fn a_seat_kept_for_an_account_and_a_watch_exclude_each_other() {
+        let mm = Matchmaking::new(Duration::ZERO);
+        let now = Instant::now();
+        let pool = QueuePool::GrowingRoster;
+        let id = mm
+            .seat_sides_in_pool([&[player(1)], &[player(2)]], now, pool, &|_| 0)
+            .expect("1 v 1");
+        let watcher = |match_id, account_id| Watcher {
+            match_id,
+            ticket: match_id,
+            account_id,
+            kind: WatchKind::Live {
+                delay: LiveDelay::DEFAULT,
+                view: None,
+            },
+        };
+        // Account 1001's game started anew: session 7, its seat kept.
+        assert!(!mm.watch(7, watcher(id, 1001)));
+        assert_eq!(mm.watched(7), None);
+        // Account 1008 watches under session 9 and has a seat under session 8.
+        assert!(mm.watch(9, watcher(id, 1008)));
+        let other = mm
+            .seat_sides_in_pool([&[player(8)], &[player(10)]], now, pool, &|_| 0)
+            .expect("1 v 1");
+        let anew = Player {
+            session_id: 9,
+            ..player(8)
+        };
+        assert!(!mm.back_to_seat(anew), "a spectator goes to no seat");
+        assert_eq!(mm.seat(8).map(|(match_id, _)| match_id), Some(other));
+        assert_eq!(mm.stop_watching(9), Some(watcher(id, 1008)));
+        assert!(mm.back_to_seat(anew));
     }
 
     /// A Live window's watcher that leaves is in no queue of that match: the
