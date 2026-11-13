@@ -925,6 +925,7 @@ fn chooser_text<'o, 'k>(kits: Option<impl Iterator<Item = KitData<'k>>>, out: &'
 }
 
 /// `hud.update`(game_world_ui::update_ui, every frame of the hud): a
+/// spectator's camera kept on the place it follows (patch 143's), and a
 /// viewer's controls fed for this frame.
 pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
@@ -932,6 +933,7 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     // A live match's client only, as on_key: a session left over (its match's close skipped)
     // never feeds the game's own replay client, whose smaller object has no match fields.
     let Some(client) = hud.client(thread).filter(|client| client.is_match_client()) else { return Flow::Continue };
+    spectator::keep_followed(&client, thread);
     let (now, feeding) = VIEWING.with(thread, |viewing| (viewing.session, viewing.feeding));
     match now {
         Session::Replay(viewer) => {

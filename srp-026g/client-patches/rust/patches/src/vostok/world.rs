@@ -429,6 +429,27 @@ impl NetworkClient<'_> {
         true
     }
 
+    /// The player a spectator's camera follows (+4) against its place's current one. A place
+    /// has one player object per kit and get_active_player gives the kit in use; the game moves
+    /// the camera to a respawn's new kit for the local place alone (the client respawn rule's
+    /// view 0x2678E0 asks is_player_local 0x27B550, never true in a spectator's game), so a
+    /// respawn in another kit leaves +4 on the old kit's object, out of the world, and so does
+    /// a world loaded (a viewer's seek) in which its place plays another kit.
+    pub fn followed(&self) -> Followed {
+        let Some(followed) = self.local_player() else { return Followed::Gone };
+        // get_active_player reads the match through unchecked (spectates_a_match).
+        let current = if self.spectates_a_match() {
+            self.player(u32::from(followed.place())).filter(|player| player.inserted())
+        } else {
+            None
+        };
+        match (current, Place::new(u32::from(followed.place()))) {
+            (Some(current), Some(place)) if current.id() != followed.id() => Followed::Replaced(place),
+            _ if followed.inserted() => Followed::InMatch,
+            _ => Followed::Gone,
+        }
+    }
+
     /// A spectator's game leaves its match, back to the lobby with no
     /// results screen: close_current_match(0), the world ended and nothing
     /// sent (the end a game takes after its server went silent, match.md
@@ -531,6 +552,17 @@ pub enum Step {
     Next,
     /// The previous one (prev_player, F5).
     Previous,
+}
+
+/// The player a spectator's camera follows, against its place's ([`NetworkClient::followed`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Followed {
+    /// In the match, its place's current player (or its place has none in the match).
+    InMatch,
+    /// Its place's current player, in the match, is another object: the place plays another kit.
+    Replaced(Place),
+    /// Nobody followed, or neither it nor its place's current player in the match.
+    Gone,
 }
 
 /// What a player holds.

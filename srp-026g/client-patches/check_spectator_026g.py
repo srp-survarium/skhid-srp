@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run patch 143 (the Rust patch `spectator`: a game with no place of its own
-watches its match) in the default build beside the original, at its four
-sites, on made-up objects.
+watches its match) in the default build beside the original, at its sites
+and patch 144's frame of the hud, on made-up objects.
 
     python check_spectator_026g.py <original survarium.exe>
 
@@ -26,7 +26,15 @@ and switch_to_spectator_camera (0x1F8360, EDX).
     (alive first, else the first inserted), then switch_to_spectator_camera
     with the game's game world, and on at 0x27C1B9 (the join after the
     game's camera steps); with one in the match, nothing called, at 0x27C1B9;
-    with nobody in the match, nothing called, at 0x27C1B9;
+    with nobody in the match, nothing called, at 0x27C1B9; following the
+    player of the kit its place played before (out of the world), that
+    place's current player (alive or dead), or the first when that place has
+    nobody in the match;
+  - a frame of the hud (0x23B200, patch 144's hud.update): following the old
+    kit's player of a place that respawned in another kit, that place's
+    current player, on at 0x23B206 with the original's registers; nothing
+    when that place has nobody in the match, when the one followed is its
+    place's, when nobody is followed, and in a player's game;
   - a key (0x25CDBD): next_player (17h) and prev_player (18h) the next and
     the previous living player of any team, the one followed left out, then
     0x25CEAE (the key's return, AL 0); any other action as the original;
@@ -63,6 +71,7 @@ THREAD_SLOT = 0x870118
 NC, GAME, OBJECTS, STUBS, STACK = 0x40000000, 0x48000000, 0x50000000, 0x51000000, 0x52000000
 HOLDER, UI = OBJECTS + 0x0, OBJECTS + 0x60000
 PLAYERS = [OBJECTS + 0x70000 + 0x1000 * i for i in range(4)]
+OLD_KIT = OBJECTS + 0x74000                 # a place's player in the kit it played before (out of the world)
 PVP = OBJECTS + 0x40000
 SP = STACK + 0x8000
 REGS = (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_ESI, UC_X86_REG_EDI,
@@ -73,6 +82,7 @@ SITES = {
     "key": (0x25CDBD, bytes.fromhex("8bb3ac530000"), 0x25CDC3, 0x25CEAE),
     "chat": (0x208D77, bytes.fromhex("0fb686441c1f00"), 0x208D7E, 0x208DE2),
     "hud": (0x23B7B9, bytes.fromhex("8a853c030000"), 0x23B7BF, 0x23B802),
+    "frame": (0x23B200, bytes.fromhex("535556578bf8"), 0x23B206, None),   # hud.update (patch 144's on_frame)
 }
 # process_player_left_match (0xEA): replaced whole at its start (mov ecx,[esi+1F1C40h]); its `ret 4` the exit.
 LEFT = (0x27C690, bytes.fromhex("8b8e401c1f00"), 0x27C7A5)
@@ -330,6 +340,8 @@ def site_regs(site, action=0x17):
     elif site == "left":
         regs[UC_X86_REG_ESI] = NC
         regs[UC_X86_REG_EBX] = 0x0B0B0B00 | action      # BL the place that left, the rest the tick's
+    elif site == "frame":
+        regs[UC_X86_REG_EAX] = UI
     else:
         regs[UC_X86_REG_ESI] = UI
         regs[UC_X86_REG_EBP] = PLAYERS[2]
@@ -473,6 +485,54 @@ def main():
         check(state[UC_X86_REG_EIP] == 0x27C1B9 and made == calls and ours.read(NC + 0xC, 1) == 1
               and state[UC_X86_REG_EDI] == NC and all(r == 1 for r in refs),
               f"world, a spectator, {case}: +0Ch 1, at 0x27C1B9, references as they were")
+
+    # A place has a player per kit (get_active_player gives the kit in use); the game moves the
+    # camera into a respawn's new kit for the local place alone (0x2678E0). The camera follows
+    # OLD_KIT, the place's player of the kit before, out of the world.
+    def old_kit(game, place, inserted=0):
+        game.word(OLD_KIT + 0xD0, 1)
+        game.word(OLD_KIT + 0x114, place, 1)
+        game.word(OLD_KIT + 0x33C, 1, 1)
+        game.word(OLD_KIT + 0x33F, inserted, 1)
+        game.word(NC + 4, OLD_KIT)
+
+    def kit_switch(site, place, players=MATCH, local=0xFF):
+        ours.setup(vtable=NC_VTABLE, local=local, followed=None, players=players)
+        old_kit(ours, place)
+        state, _, done = ours.run(site, site_regs(site))
+        refs = [ours.read(p + 0xD0) for p in list(ours.players.values()) + [OLD_KIT]]
+        return state, [c for c in done if c[0] != "get_active_player"], refs
+
+    for place, players, case, to in (
+            (3, MATCH, "its place (3) in another kit since this world: that place's current player", 3),
+            (2, MATCH, "its place (2) in another kit, dead in it: that place's current player", 2),
+            (0, MATCH, "its place (0) has nobody in the match: the first (1)", 1)):
+        state, done, refs = kit_switch("world", place, players)
+        check(state[UC_X86_REG_EIP] == 0x27C1B9
+              and done == [("set_followed_player", NC, PLAYERS[to]), ("switch_to_spectator_camera", world)]
+              and all(r == 1 for r in refs),
+              f"world, a spectator, the old kit's player followed, {case}: at 0x27C1B9, references as they were")
+
+    # A respawn in another kit with no world: hud.update's frame (patch 144's on_frame) moves it.
+    stock.setup(vtable=NC_VTABLE, local=0xFF, followed=None, players=MATCH)
+    old_kit(stock, 3)
+    s = stock.run("frame", site_regs("frame"))
+    state, done, refs = kit_switch("frame", 3)
+    check(state == s[0] and state[UC_X86_REG_EIP] == 0x23B206
+          and done == [("set_followed_player", NC, PLAYERS[3]), ("switch_to_spectator_camera", world)]
+          and all(r == 1 for r in refs),
+          "frame, a spectator, its place (3) respawned in another kit: that place's current player, "
+          "on at 0x23B206 with the original's registers, references as they were")
+    state, done, _ = kit_switch("frame", 0)
+    check(state[UC_X86_REG_EIP] == 0x23B206 and not done and ours.read(NC + 4) == OLD_KIT,
+          "frame, a spectator, its place (0) with nobody in the match: nothing (a frame looks for no other player)")
+    for followed, case in ((3, "one in the match followed (3)"), (None, "nobody followed")):
+        state, _, done = spectator("frame", followed)
+        check(state[UC_X86_REG_EIP] == 0x23B206 and not [c for c in done if c[0] != "get_active_player"],
+              f"frame, a spectator, {case}: nothing called")
+    state, done, _ = kit_switch("frame", 3, local=2)
+    check(state[UC_X86_REG_EIP] == 0x23B206 and not done and ours.read(NC + 4) == OLD_KIT,
+          "frame, a player's game following another place's old kit: nothing (the game's own camera)")
 
     for action, followed, case, to in ((0x17, 1, "next from 1", 3), (0x17, 3, "next from 3, round", 1),
                                        (0x18, 1, "previous from 1, round", 3), (0x18, None, "previous from nobody", 1)):

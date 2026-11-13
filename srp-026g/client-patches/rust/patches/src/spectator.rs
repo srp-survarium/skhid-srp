@@ -15,7 +15,7 @@
 
 use crate::vostok::replay_view::MatchClose;
 use crate::vostok::spectate::{world_camera_client, CameraKey, FollowedAlive, Left, MatchLine, MatchStart, PlayerLeft, PlayerLeftEvent, SpectateKey};
-use crate::vostok::world::{NetworkClient, Step};
+use crate::vostok::world::{Followed, NetworkClient, Step};
 use crate::vostok::types::Place;
 use crate::vostok::{
     Context, Flow, GameCell, NoExit, SpectatorOnFollowedAliveExit, SpectatorOnKeyExit, SpectatorOnMatchLineExit,
@@ -36,8 +36,10 @@ enum Camera {
 enum Event {
     /// A match's options (0xE4): a new match, followed by nobody yet.
     NewMatch,
-    /// A world was loaded; whether the player followed is in the match.
-    World { followed_in_match: bool },
+    /// A world was loaded: the player followed against its place's.
+    World(Followed),
+    /// A frame of the hud, between worlds: the same (a respawn in another kit).
+    Frame(Followed),
     /// F6/F5 or F2.
     Key(CameraKey),
     /// The player followed left the match (0xEA).
@@ -49,20 +51,30 @@ enum Event {
 enum Act {
     Nothing,
     Follow(Step),
+    /// The current player of the place it follows (its new kit's).
+    FollowPlace(Place),
     FlyFree,
 }
 
 /// The camera's one transition, total over the events: F2 lets go and
 /// flies until F6/F5 (from the last one followed) or the next match; a
-/// flying camera is kept over a world's load and a player's leave.
+/// flying camera is kept over a world's load, a frame and a player's leave.
+/// A following camera stays with its place when that place plays another
+/// kit (a world or a frame); a world in which neither the player followed
+/// nor its place's is in the match gives it the first player.
 fn step(camera: Camera, event: Event) -> (Camera, Act) {
     match (camera, event) {
         (_, Event::NewMatch) => (Camera::Follows, Act::Nothing),
         (_, Event::Key(CameraKey::Follow(step))) => (Camera::Follows, Act::Follow(step)),
         (_, Event::Key(CameraKey::FlyFree)) => (Camera::FliesFree, Act::FlyFree),
-        (Camera::FliesFree, Event::World { .. } | Event::FollowedLeft) => (Camera::FliesFree, Act::Nothing),
-        (Camera::Follows, Event::World { followed_in_match: true }) => (Camera::Follows, Act::Nothing),
-        (Camera::Follows, Event::World { followed_in_match: false }) => (Camera::Follows, Act::Follow(Step::First)),
+        (Camera::FliesFree, Event::World(_) | Event::Frame(_) | Event::FollowedLeft) => (Camera::FliesFree, Act::Nothing),
+        (Camera::Follows, Event::World(Followed::Replaced(place)) | Event::Frame(Followed::Replaced(place))) => {
+            (Camera::Follows, Act::FollowPlace(place))
+        }
+        (Camera::Follows, Event::World(Followed::InMatch) | Event::Frame(Followed::InMatch | Followed::Gone)) => {
+            (Camera::Follows, Act::Nothing)
+        }
+        (Camera::Follows, Event::World(Followed::Gone)) => (Camera::Follows, Act::Follow(Step::First)),
         (Camera::Follows, Event::FollowedLeft) => (Camera::Follows, Act::Follow(Step::Next)),
     }
 }
@@ -78,7 +90,19 @@ fn camera(client: &NetworkClient<'_>, thread: &Thread, event: Event) {
         Act::Follow(step) => {
             client.follow(step);
         }
+        Act::FollowPlace(place) => {
+            client.follow_place(place);
+        }
         Act::FlyFree => client.fly_free(),
+    }
+}
+
+/// Each frame of the hud (patch 144's `hud.update`, after the tick's logic, before the frame
+/// is drawn): a spectator's camera goes with the place it follows into another kit, which the
+/// game does for the local place alone (0x2678E0); a compare when nothing changed.
+pub fn keep_followed(client: &NetworkClient<'_>, thread: &Thread) {
+    if client.is_spectator() {
+        camera(client, thread, Event::Frame(client.followed()));
     }
 }
 
@@ -117,9 +141,10 @@ pub fn on_close(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 /// `world_load.loaded`: after a world. A player's game: the game's own
 /// camera back to its place (and its input on). A spectator's: the player
-/// it follows kept while that one is in the match, else the first one; a
-/// free flight kept; none of the game's own steps (they ask for the place
-/// it does not have).
+/// it follows kept while that one is in the match, its place's current
+/// player when that place plays another kit in this world, else the first
+/// one; a free flight kept; none of the game's own steps (they ask for the
+/// place it does not have).
 pub fn on_world_camera(ctx: &mut Context<'_>) -> Flow<SpectatorOnWorldCameraExit> {
     let Some(client) = world_camera_client(ctx) else {
         return Flow::Continue;
@@ -127,8 +152,7 @@ pub fn on_world_camera(ctx: &mut Context<'_>) -> Flow<SpectatorOnWorldCameraExit
     if !client.is_spectator() {
         return Flow::Continue;
     }
-    let followed_in_match = client.local_player().is_some_and(|player| player.inserted());
-    camera(&client, ctx.thread(), Event::World { followed_in_match });
+    camera(&client, ctx.thread(), Event::World(client.followed()));
     Flow::Exit(SpectatorOnWorldCameraExit::Done)
 }
 
@@ -215,7 +239,7 @@ pub fn on_followed_alive(ctx: &mut Context<'_>) -> Flow<SpectatorOnFollowedAlive
 mod tests {
     use super::{step, Act, Camera, Event};
     use crate::vostok::spectate::CameraKey;
-    use crate::vostok::world::{spectate_order, Step};
+    use crate::vostok::world::{spectate_order, Followed, Step};
     use crate::vostok::types::Place;
     use std::vec::Vec;
 
@@ -230,20 +254,36 @@ mod tests {
         assert_eq!(step(Camera::FliesFree, Event::NewMatch), (Camera::Follows, Act::Nothing));
     }
 
+    fn every_followed() -> [Followed; 3] {
+        [Followed::InMatch, Followed::Replaced(Place::new(2).unwrap()), Followed::Gone]
+    }
+
     #[test]
-    fn a_flight_is_kept_over_a_world_and_a_leave() {
-        for followed_in_match in [false, true] {
-            assert_eq!(step(Camera::FliesFree, Event::World { followed_in_match }), (Camera::FliesFree, Act::Nothing));
+    fn a_flight_is_kept_over_a_world_a_frame_and_a_leave() {
+        for followed in every_followed() {
+            assert_eq!(step(Camera::FliesFree, Event::World(followed)), (Camera::FliesFree, Act::Nothing));
+            assert_eq!(step(Camera::FliesFree, Event::Frame(followed)), (Camera::FliesFree, Act::Nothing));
         }
         assert_eq!(step(Camera::FliesFree, Event::FollowedLeft), (Camera::FliesFree, Act::Nothing));
     }
 
     #[test]
     fn a_following_camera_finds_a_player_when_it_has_none() {
-        assert_eq!(step(Camera::Follows, Event::World { followed_in_match: true }), (Camera::Follows, Act::Nothing));
-        assert_eq!(step(Camera::Follows, Event::World { followed_in_match: false }),
-                   (Camera::Follows, Act::Follow(Step::First)));
+        assert_eq!(step(Camera::Follows, Event::World(Followed::InMatch)), (Camera::Follows, Act::Nothing));
+        assert_eq!(step(Camera::Follows, Event::World(Followed::Gone)), (Camera::Follows, Act::Follow(Step::First)));
         assert_eq!(step(Camera::Follows, Event::FollowedLeft), (Camera::Follows, Act::Follow(Step::Next)));
+    }
+
+    #[test]
+    fn a_following_camera_stays_with_its_place_in_another_kit() {
+        let place = Place::new(2).unwrap();
+        for event in [Event::World(Followed::Replaced(place)), Event::Frame(Followed::Replaced(place))] {
+            assert_eq!(step(Camera::Follows, event), (Camera::Follows, Act::FollowPlace(place)));
+        }
+        // A frame never looks for another player: only a world, a key or a leave does.
+        for followed in [Followed::InMatch, Followed::Gone] {
+            assert_eq!(step(Camera::Follows, Event::Frame(followed)), (Camera::Follows, Act::Nothing));
+        }
     }
 
     fn order(places: u32, current: Option<u32>, step: Step) -> Vec<u32> {
