@@ -99,7 +99,7 @@ srp: ...
   folders themselves are not written.
 - Match and Events (only when the game keeps breadcrumbs, client patch
   revisions with `vostok/breadcrumbs.rs`): the client patches keep the last
-  1024 notable events in the exe's arena (`.srpx`, its state block: 32 KiB
+  1024 notable events in the exe's arena (`.srpxd`, its state block: 32 KiB
   and a 64-byte header, zeros at load, never allocated): a match's options
   (the static info's or a replay's), a world about to be loaded (its game
   time, bytes, packed or not, loaded or refused by patch 87, the local
@@ -107,7 +107,8 @@ srp: ...
   death (place, life, game time) and patch 85's pickup steps. Each is an
   entry of 32 bytes {number, kind, values, QueryPerformanceCounter}, written
   by hooks the patches already had, at those events only (never a frame).
-  The reporter finds the ring in the `.srpx` section by its header (its own
+  The reporter finds the ring in a writable `.srp*` section (`.srpxd`, the arena's data;
+  `.srpx` before the arena's code and data were split) by its header (its own
   address, then that xor "BRCS", written at the first record), copies it
   with `ReadProcessMemory` and prints the last match's options and local
   place (`Match:`, in what Copy copies), and after the dump's line the

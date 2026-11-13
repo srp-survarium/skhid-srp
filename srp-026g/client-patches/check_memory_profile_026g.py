@@ -129,6 +129,7 @@ class Run:
             self.dynamic[name] = at
             emu.hook_add(UC_HOOK_CODE, self.stub, begin=at, end=at)
         self.protects, self.flushes, self.scroll, self.tick = [], [], False, 123456
+        self.pages = {}                             # VirtualProtect's: page -> protection (the code's PAGE_EXECUTE_READ)
         self.freed, self.rooms_left = [], None      # VirtualFree's; how many VirtualAllocs succeed (None: all)
         for stop in (RETURN, CALLER_A, CALLER_B, CALLER_C, CALLER_D, OUT_OF_MEMORY_ON, ALLOCATE_REGION_RETURN):
             emu.hook_add(UC_HOOK_CODE, self.done, begin=stop, end=stop)
@@ -263,7 +264,9 @@ class Run:
         elif name == "VirtualProtect":
             address_, length, protect, old = args
             self.protects.append((address_, length, protect))
-            self.word(old, 0x20)                     # PAGE_EXECUTE_READ, what the exe's code has
+            pages = range(address_ & ~0xFFF, address_ + length, 0x1000)
+            self.word(old, self.pages.get(pages[0], 0x20))   # the first page's, as Windows tells it
+            self.pages.update(dict.fromkeys(pages, protect))
             result = 1
         elif name == "FlushInstructionCache":
             self.flushes.append(tuple(args))
@@ -408,6 +411,20 @@ def play(run, flags=True):
     return out, memory
 
 
+def unlocked_and_restored(run):
+    """Each site's span made PAGE_EXECUTE_READWRITE once, then each set back
+    to what VirtualProtect told: every page ends as the code's
+    PAGE_EXECUTE_READ. Two sites share a page (0x101330 and 0x1015E0), so the
+    later one is told the writable protection as its old one; given back in
+    the order they were made writable, that page would stay writable and
+    executable."""
+    made = len(ON_DEMAND)
+    shared = len({va >> 12 for va in ON_DEMAND}) < made
+    return shared and sorted(run.protects[:made]) == sorted((va, n, 0x40) for va, n in ON_DEMAND.items()) \
+        and sorted((va, n) for va, n, _ in run.protects[made:]) == sorted(ON_DEMAND.items()) \
+        and set(run.pages.values()) == {0x20}
+
+
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
@@ -449,8 +466,7 @@ def main():
     roomless.start()
     assert roomless.sites() == stock and len(roomless.reserved) == 1
     assert roomless.freed == [roomless.reserved[0][0]], (roomless.freed, roomless.reserved)
-    assert sorted(roomless.protects) == sorted([(va, n, 0x40) for va, n in ON_DEMAND.items()]
-                                               + [(va, n, 0x20) for va, n in ON_DEMAND.items()]), roomless.protects
+    assert unlocked_and_restored(roomless), (roomless.protects, roomless.pages)
     assert "no room for its tables; off, nothing written" in log_of(roomless), log_of(roomless)
     got, _ = play(roomless)
     assert got == expected
@@ -470,8 +486,7 @@ def main():
              OUT_OF_MEMORY: "memory_profile_on_out_of_memory"}
     for va, n in ON_DEMAND.items():
         assert written[va] == base.hook_bytes(linked[gates[va]], va, stock[va], 0, 0xE9), (hex(va), written[va])
-    assert sorted(on.protects) == sorted([(va, n, 0x40) for va, n in ON_DEMAND.items()]
-                                         + [(va, n, 0x20) for va, n in ON_DEMAND.items()]), on.protects
+    assert unlocked_and_restored(on), (on.protects, on.pages)
     assert sorted(on.flushes) == sorted((0xFFFFFFFF, va, n) for va, n in ON_DEMAND.items()), on.flushes
     assert list(on.files) == ["srp_patches.log"], on.files
     log = bytes(on.written[on.files["srp_patches.log"]]).decode()
@@ -481,7 +496,7 @@ def main():
     got, live = play(on, flags=False)
     assert got == [(regs[:-1], heap) for regs, heap in expected]
     print(f"ok on: the tables reserved, the {len(ON_DEMAND)} jumps written (each page writable for it, its "
-          "protection given back, the cache flushed), one line logged; every call the original's (registers, "
+          "protection given back, a page two sites share too, the cache flushed), one line logged; every call the original's (registers, "
           "the heap)")
 
     profile = "C:\\Users\\test\\Documents\\Survarium\\srp_memory_profile.txt"

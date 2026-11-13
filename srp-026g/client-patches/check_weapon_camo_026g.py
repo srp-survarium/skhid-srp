@@ -476,8 +476,8 @@ def main():
             say(allocator == ALLOCATOR and parent == 0 and flag == 1, f"{title} #{i}: the game's allocator, no parent, 1")
             bake_done = fobj[2]
             say(fobj[0] == BIND_MANAGER | 1 and fobj[1] == 0 and fobj[3] == 0 and fobj[4] == p
-                and run.section_name(bake_done) == ".srpw",
-                f"{title} #{i}: the function: bind's manager | 1, bake_done in .srpw, 0, P")
+                and run.section_name(bake_done) == ".srpc" and bake_done >= base.weapon_camo_va(late_join),
+                f"{title} #{i}: the function: bind's manager | 1, bake_done in .srpw (.srpc's last three pages), 0, P")
             say(names == {"diffuse": camo, "normal": "", "fresnel": "", "smoothness": camo + "_smap",
                           "name": baked_name(model_path, i, scale,
                                              [None, None, (IDENTITY, [camo, "", "", camo + "_smap"])])},

@@ -177,8 +177,10 @@ does not write its site, so the exe keeps the game's bytes there. The generated
 `<patch>_on_demand()` lists the patch's such sites (the VA, the game's bytes
 read from the exe, the entry's address). Only `vostok` writes them, in two
 steps (`hook::unlock_on_demand`: every site's bytes checked and every page made
-writable, all or none; then `Unlocked::write`: the jumps, the protections back,
-the instruction cache flushed; dropped unwritten, the pages are restored), from
+writable, all or none; then `Unlocked::write`: the jumps, the protections back
+(the last site first: a page two sites share ends as the game's
+read-and-execute), the instruction cache flushed; dropped unwritten, the pages
+are restored), from
 a safe function of its own that checks when no other thread can run those
 sites' code. Patch 127 (the memory profiler) installs its allocator gates this
 way through `vostok::memory_profile::start`, which checks it runs in
@@ -199,7 +201,11 @@ bullet manager's) is a `vostok::Lock<T>` instead: a spin lock, its value
 thread may hold for long (patch 127's profiler) is a `vostok::YieldingLock<T>`:
 the same, its waiters giving their time slice away after a few spins. A
 static that is not all zeros goes to `patches.data`, a zero one to
-`patches.state` (ARENA).
+`patches.state` (ARENA), both in `.srpxd` (read and write); a constant (a
+`static` without interior mutability, a vtable, a table) goes with the code
+in `.srpx`, which is read and execute only. Anything the game may write (an
+object it links, counts or caches into) is therefore interior-mutable
+(`UnsafeCell`, an atomic, a `GameCell`), never a plain `static`.
 The crash report's breadcrumbs are `vostok::breadcrumbs::record(thread,
 Crumb::...)`: a hook at a notable event (never a frame) records one into a
 ring of 1024 in `patches.state`, which the crash reporter reads after a

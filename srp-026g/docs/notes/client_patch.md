@@ -177,7 +177,7 @@ Every C→S id is fixed length (transport.md §4), so no id carries a length; 0x
   image without it as executable memory, and Metal then crawls: minutes before the
   first frame on macOS 26+ (DXMT issue #161). With the flag, Windows enforces DEP for
   the game and Wine does too: none of our patches allocates or writes executable memory
-  at run time (`.srp`/`.srpx` are executable sections of the image), and the Mac runs
+  at run time (`.srp`/`.srpc`/`.srpx` are executable sections of the image, none writable), and the Mac runs
   (local matches against srp, lockstep held) used it. NX_COMPAT also turns off Windows'
   ATL thunk emulation, which the game does not use as far as known. Before the release
   that ships it: one run on Windows and one on Linux, and a line in its notes.
@@ -1477,7 +1477,8 @@ The old bytes' jumps all landed inside them; nothing else aims inside; no base r
   as tdm_rule_core_cook's (locator 0xA524C0, hierarchy 0xA4718C: attributes 1, four bases) with
   that hierarchy's base class descriptors of translate_query_cook 0xA38D74, cook_base 0xA38D24 and
   noncopyable 0xA40010. The descriptor's second word (type_info's name cache) is written by
-  type_info::name: `.srpx` is writable.
+  type_info::name: the descriptor is in the arena's data (`research.data`, `.srpxd`, writable;
+  in `.srpx` itself until 2026-11, when that was writable and executable).
 - **Rule vtables** (PROVEN, tdm 0xA15DA4, timelimit 0xA06E2C, kd 0xA177D4): 0 delete (0x266710:
   the base vtables back, 0xF1850, free), 1..6 the resource's, 7 `on_event(type, data, time)`
   `ret 0Ch` (a kill is type 1, `data = {killer, victim}`; 0 the match started; the world's
@@ -2400,12 +2401,40 @@ Please reinstall the application and try again" (string 0x9DEF00, pushed at
 The exe's section table has room for twelve entries: it begins at file 0x210
 and the headers end at 0x400, where the first section's bytes begin, so
 0x400 - 0x210 = 0x1F0 = 12 x 40 bytes. The game's seven sections and ours,
-`.srp`, `.srpd`, `.srpc` and `.srpw`, take eleven. The twelfth and last is
-`.srpx`, which Research (patch 53, #297) made first: code, initialized data
-and writable (0xE0000060), on the page after `.srpw`'s three pages
-(`ARENA_VA` = 0xA42D000). It is the arena every later patch's code, data
-and state goes in, so no patch needs a PE section of its own again (the
-table is full).
+`.srp`, `.srpd` and `.srpc`, take ten. The last two are the arena, which
+Research (patch 53, #297) made first, on the page after `.srpw`'s three
+pages (`ARENA_VA` = 0xA42D000): `.srpx`, its code blocks (code, execute,
+read: 0x60000020), then from the next page `.srpxd`, its data and state
+blocks (initialized data, read, write: 0xC0000040). It is where every
+later patch's code, data and state goes, so no patch needs a PE section of
+its own again (the table is full).
+
+**No section is both writable and executable** (2026-11). Until then
+`.srpx` was one section of code, data and state, writable and executable
+(0xE0000060): 1.1 MB at a fixed address (no ASLR, image base 0x10000), a
+place an attacker's code could be written to and run from. Now the link
+places the code blocks first and the data and state blocks from the next
+page (`placed()`; `Linked.data_va`, in the lock as `data_va`), `add_arena`
+makes the two sections of them, and `build()` stops on any section that is
+both (`refuse_writable_code`; the self-test also checks that it refuses a
+writable `.srpx`). The table entry `.srpxd` needed was `.srpw`'s: `.srpc`
+(the death camera's page) and `.srpw` (the weapon camouflage's three) were
+two adjacent read-and-execute sections, and are one now, `.srpc`, at the
+same addresses (the `.srpw` name stays for its three pages in these notes).
+What runs never writes into its own code: no NASM of the arena or of `.srp`,
+`.srpc` stores to a label of its code (the dwords the build writes,
+death_camera's `pitch_entry`, weapon_camo's `bake_name`, upgrade_preview's
++23h and the patches' mount's bitmap, are written at build time only); a C
+global and a Rust static the game or our code writes are `.data`/`.bss`;
+the one constant the game wrote was Research's RTTI type descriptor
+(type_info::name caches the undecorated name in its second word), which is
+now an UnsafeCell in the block `research.data`. The one write into code at
+run time is SKHID_MEMORY_PROFILE's (vostok/hook.rs `unlock_on_demand`):
+it makes each site's span of the game's `.text` writable, writes its jump
+and gives every page its protection back, the last site first (two sites
+share a page; in the order they were made writable that page stayed
+writable and executable; check_memory_profile_026g.py models the pages
+now).
 
 **Each patch is plain C or NASM; the tooling links it.** A patch that wants
 room declares its blocks in `patch_026g.py`'s `ARENA`: an
@@ -2477,8 +2506,8 @@ arena_blocks=...)`).
 ```
 section table (0x210..0x400): 12 slots
   .text .rdata .data STLPORT_ .tls .rsrc .reloc   (the game's 7)
-  .srp .srpd .srpc .srpw                           (ours, 8..11)
-  .srpx                                            (the arena, 12)
+  .srp .srpd .srpc .srpw                           (ours, 8..11; .srpc and .srpw one .srpc since 2026-11)
+  .srpx                                            (the arena, 12; its code, with .srpxd its data, since 2026-11)
 
 .srpx (VA 0xA42D000), its first blocks (the lock records every block):
   research.code    code  0x1000  research_026g.asm + research_arena   -> 0xa42d000, 0x3874
@@ -2535,7 +2564,8 @@ INSTALLS rows and check 42 are gone, and `link_026g.py --write` moved
 
 **The older fixed sections, later.** `.srp` (the upload code and the small
 caves at fixed offsets: `SPOT_OFFSET`, `KIT_CHANGE_OFFSET`, ...), `.srpd`
-(their state, at fixed offsets of one page), `.srpc` and `.srpw` (each
+(their state, at fixed offsets of one page), `.srpc` and `.srpw` (one
+section `.srpc` since 2026-11; each
 `.bin` assembled with `-DCAVE`/`-DSTATE`/`-DPREVIEW`/... naming other
 patches' VAs) are out of this change. Moving one onto the link: its `.asm`
 made relocatable (no `org`, `-D` addresses of other patches replaced by

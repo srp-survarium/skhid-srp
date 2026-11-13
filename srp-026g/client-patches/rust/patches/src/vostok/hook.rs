@@ -249,8 +249,12 @@ pub(in crate::vostok) struct Unlocked<'s> {
 impl Unlocked<'_> {
     const MOST: usize = 16;
 
+    /// Each page its protection back, the last site first: a site on a page
+    /// made writable for an earlier one was told that writable protection
+    /// as its old one, so the earliest site's (the page's own) must be set
+    /// last, or the page would stay writable and executable.
     fn restore(&mut self) {
-        for (site, &old) in self.sites.iter().zip(&self.old).take(self.made) {
+        for (site, &old) in self.sites.iter().zip(&self.old).take(self.made).rev() {
             let mut was = 0u32;
             // SAFETY: the exe's import on a span `unlock_on_demand` made writable.
             unsafe { (crate::raw::engine_virtual_protect)(site.site as usize as *mut c_void, site.original.len() as u32, old, &mut was) };

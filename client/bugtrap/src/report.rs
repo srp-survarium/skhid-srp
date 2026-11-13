@@ -664,25 +664,32 @@ fn crumbs() -> &'static [u8] {
 }
 
 /// The game's breadcrumb ring (srp-026g vostok/breadcrumbs.rs), copied to
-/// [`CRUMBS`]: in the exe's `.srpx` section, the header that holds its own
-/// address and then that address xor [`breadcrumbs::CHECK`]. None in a game
-/// without it, or before its first record.
+/// [`CRUMBS`]: in a writable `.srp*` section of the exe (the arena's data,
+/// `.srpxd`; `.srpx` itself before the arena's code and data were split), the
+/// header that holds its own address and then that address xor
+/// [`breadcrumbs::CHECK`]. None in a game without it, or before its first
+/// record.
 unsafe fn find_ring() -> Option<u32> {
+    const IMAGE_SCN_MEM_WRITE: u32 = 0x8000_0000;
     let base = GetModuleHandleW(null()) as usize;
     let pe = base + read::<u32>(base + 0x3C)? as usize;
     let sections = read::<u16>(pe + 6)? as usize;
     let table = pe + 24 + read::<u16>(pe + 20)? as usize;
-    let (start, size) = (0..sections.min(96)).find_map(|i| {
+    (0..sections.min(96)).find_map(|i| {
         let at = table + 40 * i;
-        (read::<[u8; 8]>(at)? == *b".srpx\0\0\0")
-            .then(|| {
-                Some((
-                    base + read::<u32>(at + 12)? as usize,
-                    read::<u32>(at + 8)? as usize,
-                ))
-            })
-            .flatten()
-    })?;
+        let ours = read::<[u8; 8]>(at)?.starts_with(b".srp");
+        if !ours || read::<u32>(at + 36)? & IMAGE_SCN_MEM_WRITE == 0 {
+            return None;
+        }
+        ring_in(
+            base + read::<u32>(at + 12)? as usize,
+            read::<u32>(at + 8)? as usize,
+        )
+    })
+}
+
+/// The ring's address in the `size` bytes from `start`, copied to [`CRUMBS`].
+unsafe fn ring_in(start: usize, size: usize) -> Option<u32> {
     let mut chunk = [0u32; 16 * 1024 + 2];
     let mut offset = 0;
     while offset + 8 <= size {

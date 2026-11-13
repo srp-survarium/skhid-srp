@@ -835,11 +835,12 @@ def changed_runs(original, write):
 
 def bookkeeping(headers):
     """The file offsets of the PE header's counters the section adders keep
-    (not a patch's write): the count, SizeOfCode, SizeOfUninitializedData,
+    (not a patch's write): the count, SizeOfCode, SizeOfInitializedData, SizeOfUninitializedData,
     SizeOfImage, the checksum, the certificate directory, and DllCharacteristics
     (its NX_COMPAT bit, set by every full build)."""
     out = set()
-    for at, size in ((headers.count_at, 2), (headers.size_of_code_at, 4), (headers.optional + 12, 4),
+    for at, size in ((headers.count_at, 2), (headers.size_of_code_at, 4), (headers.size_of_initialized_data_at, 4),
+                     (headers.optional + 12, 4),
                      (headers.size_of_image_at, 4), (headers.checksum_at, 4), (headers.security_at, 8),
                      (headers.dll_characteristics_at, 2)):
         out.update(range(at, at + size))
@@ -2655,10 +2656,10 @@ def test_arena(original):
     late_join = open(P.late_join_bin(), "rb").read()
     without, _ = P.build(original, "section", code, None, late_join)
     none, _ = P.build(original, "section", code, None, late_join, arena_blocks=())
-    check([s[0] for s in Image(none).headers.sections(none)] == [s[0] for s in Image(without).headers.sections(without)][:-1]
-          and Image(without).headers.sections(without)[-1][0] == P.ARENA_NAME
+    check([s[0] for s in Image(none).headers.sections(none)] == [s[0] for s in Image(without).headers.sections(without)][:-2]
+          and [s[0] for s in Image(without).headers.sections(without)[-2:]] == [P.ARENA_NAME, P.ARENA_DATA_NAME]
           and bytes(P.add_arena(bytearray(b"MZ"), None)) == b"MZ",
-          "with no block at all there is no `.srpx` (add_arena adds no section)")
+          "with no block at all there is neither `.srpx` nor `.srpxd` (add_arena adds no section)")
     with tempfile.TemporaryDirectory(prefix="srp-arena-") as folder:
         # Blocks of each kind, out of alignment order, after ARENA's own: a
         # code block whose source has state too, a data block pointing at
@@ -2678,26 +2679,39 @@ def test_arena(original):
     check(one == two, "the arena is byte for byte deterministic (linked twice from its sources, the same exe)")
     image = Image(one)
     sections = image.headers.sections(one)
-    name, rva, vsize, raw, rsize, flags = sections[-1]
+    name, rva, vsize, raw, rsize, flags = sections[-2]
+    name_d, rva_d, vsize_d, raw_d, rsize_d, flags_d = sections[-1]
     align = lambda v, to: (v + to - 1) // to * to
-    prev = sections[-2]
-    check(name == P.ARENA_NAME and flags == P.ARENA_CHARACTERISTICS
-          and P.IMAGE_BASE + rva == P.ARENA_VA and rva == align(prev[1] + prev[2], image.headers.section_alignment),
-          f".srpx at {P.ARENA_VA:#x}: code | data | execute | read | write, on the page after .srpw")
-    # Every block inside, aligned, in ARENA's order, none overlapping the next.
-    order = [linked.blocks[b.name] for b in P.ARENA + blocks]
-    inside = all(rva <= b.va - P.IMAGE_BASE and b.va + b.size - P.IMAGE_BASE <= rva + vsize for b in order)
+    prev = sections[-3]
+    check(name == P.ARENA_NAME and flags == P.ARENA_CHARACTERISTICS == 0x60000020
+          and P.IMAGE_BASE + rva == P.ARENA_VA and rva == align(prev[1] + prev[2], image.headers.section_alignment)
+          and name_d == P.ARENA_DATA_NAME and flags_d == P.ARENA_DATA_CHARACTERISTICS == 0xC0000040
+          and P.IMAGE_BASE + rva_d == linked.data_va == P.IMAGE_BASE + align(rva + vsize, 0x1000),
+          f".srpx at {P.ARENA_VA:#x}: code | execute | read, on the page after .srpc; .srpxd at {linked.data_va:#x}: "
+          "initialized data | read | write, on the page after .srpx")
+    # Every block inside, aligned, the code blocks in ARENA's order in .srpx,
+    # then the data and state blocks in ARENA's order in .srpxd, none
+    # overlapping the next.
+    order = [linked.blocks[b.name] for b in P.linker.placed(P.ARENA + blocks)]
+    home = lambda b: (rva, vsize) if b.kind == "code" else (rva_d, vsize_d)
+    inside = all(home(b)[0] <= b.va - P.IMAGE_BASE and b.va + b.size - P.IMAGE_BASE <= sum(home(b)) for b in order)
     aligned = all(linked.blocks[b.name].va % b.align == 0 for b in P.ARENA + blocks)
     in_order = all(x.va + x.size <= y.va for x, y in zip(order, order[1:]))
-    check(inside and aligned and in_order and order[0].va == P.ARENA_VA and vsize == linked.size
-          and linked.size == order[-1].va + order[-1].size - P.ARENA_VA,
-          f"the {len(order)} blocks are aligned, in ARENA's order, inside .srpx and do not overlap; VirtualSize "
-          f"{vsize:#x} = the arena's size, to its last block's end ({', '.join(f'{b.name} @ {b.va:#x}' for b in order)})")
-    # The bytes: each code block's bytes, then int3 to the next block; data
-    # and state blocks and their gaps zeros; a reference across blocks
-    # resolved by the link.
-    body = bytes(one[raw:raw + vsize])
+    code_order = [b.name for b in order if b.kind == "code"]
+    check(inside and aligned and in_order and order[0].va == P.ARENA_VA
+          and code_order == [b.name for b in P.ARENA + blocks if b.kind == "code"]
+          and [b.name for b in order[len(code_order):]] == [b.name for b in P.ARENA + blocks if b.kind != "code"]
+          and P.IMAGE_BASE + rva + vsize == max(b.va + b.size for b in order if b.kind == "code")
+          and P.IMAGE_BASE + rva_d + vsize_d == P.ARENA_VA + linked.size == order[-1].va + order[-1].size,
+          f"the {len(order)} blocks are aligned and do not overlap, the code blocks in ARENA's order inside .srpx "
+          f"(VirtualSize {vsize:#x}, to the last code block's end), then the data and state blocks in ARENA's order "
+          f"inside .srpxd (VirtualSize {vsize_d:#x}, to the arena's end) "
+          f"({', '.join(f'{b.name} @ {b.va:#x}' for b in order)})")
+    # The bytes: each code block's bytes, then int3 to the next block (the
+    # last to .srpxd's page); data and state blocks and their gaps zeros; a
+    # reference across blocks resolved by the link.
     at = lambda va: va - P.ARENA_VA
+    body = bytes(one[raw:raw + vsize]) + b"\xCC" * (at(linked.data_va) - vsize) + bytes(one[raw_d:raw_d + vsize_d])
     gaps = all(set(body[at(x.va + x.size):at(y.va)]) <= ({0xCC} if x.kind == "code" else {0})
                for x, y in zip(order, order[1:]))
     states = all(not any(body[at(b.va):at(b.va + b.size)]) for b in order if b.kind == "state")
@@ -2716,12 +2730,13 @@ def test_arena(original):
     get = lambda at: struct.unpack_from("<I", one, at)[0]
     checksum = P.pe_checksum(one, image.headers.checksum_at)
     security = image.directory(4)
-    check(get(image.headers.size_of_image_at) == align(rva + vsize, image.headers.section_alignment)
+    check(get(image.headers.size_of_image_at) == align(rva_d + vsize_d, image.headers.section_alignment)
           and raw == prev[3] + prev[4] and rsize == align(vsize, image.headers.file_alignment)
+          and raw_d == raw + rsize and rsize_d == align(vsize_d, image.headers.file_alignment)
           and get(image.headers.checksum_at) == checksum
-          and security[0] == raw + rsize and security[0] + security[1] == len(one),
-          "SizeOfImage ends past .srpx, its file bytes follow .srpw's, the certificate table stays last, "
-          "the PE checksum is right")
+          and security[0] == raw_d + rsize_d and security[0] + security[1] == len(one),
+          "SizeOfImage ends past .srpxd, .srpx's file bytes follow .srpc's and .srpxd's .srpx's, the certificate "
+          "table stays last, the PE checksum is right")
     # ARENA's blocks in another order (research.code and artefacts.code
     # swapped): every block elsewhere, and still each hook at its symbol,
     # Research's calls at the library's thunks and the library's check passing.
@@ -3004,16 +3019,7 @@ def test_late_join(original, without, server, source):
           and P.IMAGE_BASE + state_rva == P.late_join_state_va(code),
           f".srpd at VA {P.IMAGE_BASE + state_rva:#x}: one page, uninitialized | read | write, no bytes in the "
           "file, on the page after the code (where the code looks for it)")
-    death = open(P.death_camera_bin(), "rb").read()
-    name_c, rva_c, vsize_c, raw_c, rsize_c, flags_c = sections[-3]
-    check(name_c == P.DEATH_CAMERA_NAME and flags_c == P.DEATH_CAMERA_CHARACTERISTICS
-          and rva_c == state_rva + state_size and P.IMAGE_BASE + rva_c == P.death_camera_va(code)
-          and vsize_c == len(death) and raw_c == raw + rsize and rsize_c == align(vsize_c, headers.file_alignment)
-          and bytes(data[raw_c:raw_c + vsize_c]) == P.with_death_pitch(death, P.arena())
-          and set(data[raw_c + vsize_c:raw_c + rsize_c]) <= {0xCC},
-          f".srpc at VA {P.IMAGE_BASE + rva_c:#x}: death_camera_026g.section.bin ({len(death)} bytes, its pitch_entry "
-          "dword patch 112's entry of the arena) and int3 padding, code | execute | read, on the page after .srpd, its "
-          "file bytes right after .srp's")
+    death = P.with_death_pitch(open(P.death_camera_bin(), "rb").read(), P.arena())
     camo = open(P.weapon_camo_bin(), "rb").read()
     camo = P.with_bake_name(camo, len(camo) - 4, P.arena())
     camo = camo + b"\xCC" * (P.WEAPON_STASH_OFFSET - len(camo)) + open(P.weapon_stash_bin(), "rb").read()
@@ -3021,40 +3027,70 @@ def test_late_join(original, without, server, source):
     camo = camo + b"\xCC" * (P.WEAPON_DECALS_OFFSET - len(camo)) + open(P.weapon_decals_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.UPGRADE_PREVIEW_OFFSET - len(camo)) \
         + P.with_kit_apply(open(P.upgrade_preview_bin(), "rb").read(), P.arena())
-    name_w, rva_w, vsize_w, raw_w, rsize_w, flags_w = sections[-2]
-    check(name_w == P.WEAPON_CAMO_NAME and flags_w == P.WEAPON_CAMO_CHARACTERISTICS
-          and rva_w == align(rva_c + vsize_c, headers.section_alignment) and P.IMAGE_BASE + rva_w == P.weapon_camo_va(code)
-          and vsize_w == len(camo) and raw_w == raw_c + rsize_c and rsize_w == align(vsize_w, headers.file_alignment)
-          and bytes(data[raw_w:raw_w + vsize_w]) == camo and set(data[raw_w + vsize_w:raw_w + rsize_w]) <= {0xCC},
-          f".srpw at VA {P.IMAGE_BASE + rva_w:#x}: weapon_camo_026g.section.bin, int3 padding, "
+    name_c, rva_c, vsize_c, raw_c, rsize_c, flags_c = sections[-3]
+    check(name_c == P.DEATH_CAMERA_NAME and flags_c == P.DEATH_CAMERA_CHARACTERISTICS == 0x60000020
+          and rva_c == state_rva + state_size and P.IMAGE_BASE + rva_c == P.death_camera_va(code)
+          and P.IMAGE_BASE + rva_c + P.DEATH_CAMERA_SIZE == P.weapon_camo_va(code)
+          and vsize_c == P.DEATH_CAMERA_SIZE + len(camo) and raw_c == raw + rsize
+          and rsize_c == align(vsize_c, headers.file_alignment)
+          and bytes(data[raw_c:raw_c + vsize_c]) == death + b"\xCC" * (P.DEATH_CAMERA_SIZE - len(death)) + camo
+          and set(data[raw_c + vsize_c:raw_c + rsize_c]) <= {0xCC},
+          f".srpc at VA {P.IMAGE_BASE + rva_c:#x}: death_camera_026g.section.bin ({len(death)} bytes, its pitch_entry "
+          "dword patch 112's entry of the arena) and int3 to its page's end, then .srpw's code at "
+          f"{P.weapon_camo_va(code):#x}: weapon_camo_026g.section.bin, int3 padding, "
           f"weapon_stash_026g.section.bin at +{P.WEAPON_STASH_OFFSET:#x}, int3 padding and "
           f"weapon_table_026g.section.bin at +{P.WEAPON_TABLE_OFFSET:#x}, int3 padding and "
           f"weapon_decals_026g.section.bin at +{P.WEAPON_DECALS_OFFSET:#x}, int3 padding and "
-          f"upgrade_preview_026g.section.bin at +{P.UPGRADE_PREVIEW_OFFSET:#x} ({len(camo)} bytes), "
-          "code | execute | read, on the page after .srpc, its file bytes right after .srpc's")
+          f"upgrade_preview_026g.section.bin at +{P.UPGRADE_PREVIEW_OFFSET:#x} ({len(camo)} bytes); "
+          "code | execute | read, on the page after .srpd, its file bytes right after .srp's")
     linked = P.arena()
-    name_r, rva_r, vsize_r, raw_r, rsize_r, flags_r = sections[-1]
-    check(name_r == P.ARENA_NAME and flags_r == P.ARENA_CHARACTERISTICS
-          and rva_r == align(rva_w + vsize_w, headers.section_alignment) and P.IMAGE_BASE + rva_r == P.ARENA_VA
-          and linked.va == P.ARENA_VA and list(linked.blocks) == [b.name for b in P.ARENA]
-          and vsize_r == linked.size and raw_r == raw_w + rsize_w
+    code_end = max(b.va + b.size for b in linked.blocks.values() if b.kind == "code")
+    name_r, rva_r, vsize_r, raw_r, rsize_r, flags_r = sections[-2]
+    check(name_r == P.ARENA_NAME and flags_r == P.ARENA_CHARACTERISTICS == 0x60000020
+          and rva_r == align(rva_c + vsize_c, headers.section_alignment) and P.IMAGE_BASE + rva_r == P.ARENA_VA
+          and linked.va == P.ARENA_VA and list(linked.blocks) == [b.name for b in P.linker.placed(P.ARENA)]
+          and P.IMAGE_BASE + rva_r + vsize_r == code_end and raw_r == raw_c + rsize_c
           and rsize_r == align(vsize_r, headers.file_alignment)
-          and bytes(data[raw_r:raw_r + vsize_r]) == linked.image,
-          f".srpx, the arena, at VA {P.IMAGE_BASE + rva_r:#x}: the linked arena ({linked.size:#x} bytes), its "
-          "blocks " + ", ".join(f"{b.name} ({b.kind}) at {b.va:#x}" for b in linked.blocks.values())
-          + "; code | data | execute | read | write, on the page after .srpw, its file bytes right after .srpw's")
+          and bytes(data[raw_r:raw_r + vsize_r]) == linked.image[:vsize_r],
+          f".srpx, the arena's code, at VA {P.IMAGE_BASE + rva_r:#x}: its code blocks ({vsize_r:#x} bytes) "
+          + ", ".join(f"{b.name} at {b.va:#x}" for b in linked.blocks.values() if b.kind == "code")
+          + "; code | execute | read, on the page after .srpc, its file bytes right after .srpc's")
+    name_d, rva_d, vsize_d, raw_d, rsize_d, flags_d = sections[-1]
+    check(name_d == P.ARENA_DATA_NAME and flags_d == P.ARENA_DATA_CHARACTERISTICS == 0xC0000040
+          and rva_d == align(rva_r + vsize_r, headers.section_alignment) and P.IMAGE_BASE + rva_d == linked.data_va
+          and P.IMAGE_BASE + rva_d + vsize_d == linked.va + linked.size and raw_d == raw_r + rsize_r
+          and rsize_d == align(vsize_d, headers.file_alignment)
+          and bytes(data[raw_d:raw_d + vsize_d]) == linked.image[linked.data_va - linked.va:]
+          and not any(data[raw_d + vsize_d:raw_d + rsize_d]),
+          f".srpxd, the arena's data, at VA {P.IMAGE_BASE + rva_d:#x}: its data and state blocks ({vsize_d:#x} "
+          "bytes) " + ", ".join(f"{b.name} ({b.kind}) at {b.va:#x}" for b in linked.blocks.values() if b.kind != "code")
+          + "; initialized data | read | write, on the page after .srpx, its file bytes right after .srpx's")
     get = lambda blob, at: struct.unpack_from("<I", blob, at)[0]
-    check(get(data, headers.size_of_image_at) == align(rva_r + vsize_r, headers.section_alignment)
+    check(get(data, headers.size_of_image_at) == align(rva_d + vsize_d, headers.section_alignment)
           and get(data, headers.optional + 12) == get(without, headers.optional + 12) + state_size
-          and get(data, headers.size_of_code_at) == get(original, headers.size_of_code_at) + rsize + rsize_c + rsize_w
-          + rsize_r and headers.table + 40 * len(sections) <= headers.size_of_headers,
-          "SizeOfImage ends at .srpx, SizeOfUninitializedData grew by .srpd's page, SizeOfCode by .srp's, "
-          ".srpc's, .srpw's and .srpx's file sizes; the section table fits in the headers (its last entry)")
+          and get(data, headers.size_of_code_at) == get(original, headers.size_of_code_at) + rsize + rsize_c + rsize_r
+          and get(data, headers.size_of_initialized_data_at) == get(original, headers.size_of_initialized_data_at)
+          + rsize_d and headers.table + 40 * len(sections) <= headers.size_of_headers,
+          "SizeOfImage ends at .srpxd, SizeOfUninitializedData grew by .srpd's page, SizeOfCode by .srp's, "
+          ".srpc's and .srpx's file sizes, SizeOfInitializedData by .srpxd's; the section table fits in the headers "
+          "(its last entry)")
+    both = [s[0] for s in sections if s[5] & P.IMAGE_SCN_MEM_WRITE and s[5] & P.IMAGE_SCN_MEM_EXECUTE]
+    writable_code = bytearray(data)
+    struct.pack_into("<I", writable_code, headers.table + 40 * (len(sections) - 2) + 36,
+                     P.ARENA_CHARACTERISTICS | P.IMAGE_SCN_MEM_WRITE)
+    try:
+        P.refuse_writable_code(writable_code)
+        refused = None
+    except SystemExit as stop:
+        refused = str(stop)
+    check(not both and refused is not None and ".srpx" in refused,
+          "no section is both writable and executable; refuse_writable_code stops a build whose .srpx is: "
+          + str(refused))
     security_offset, security_size = image.directory(4)
     old_offset, old_size = struct.unpack_from("<II", original, headers.security_at)
-    check(security_offset == raw_r + rsize_r and security_offset + security_size == len(data) and security_offset % 8 == 0
+    check(security_offset == raw_d + rsize_d and security_offset + security_size == len(data) and security_offset % 8 == 0
           and bytes(data[security_offset:]) == bytes(original[old_offset:old_offset + old_size]),
-          f"certificate table at {security_offset:#x}: right after .srpx's bytes, 8-byte aligned, last in the file, "
+          f"certificate table at {security_offset:#x}: right after .srpxd's bytes, 8-byte aligned, last in the file, "
           "identical to the original's")
     same = all(image.directory(index) == before.directory(index) for index in range(16) if index != 4)
     check(same, "the other 15 data directories are those of the build without it")

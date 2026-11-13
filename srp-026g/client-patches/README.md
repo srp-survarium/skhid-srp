@@ -170,7 +170,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/drug_interrupt.rs`, `src/drug_interrupt.toml`, `src/vostok/drug.rs`, `check_drug_interrupt_026g.py` | Patch 84: a bullet that hits a player stops the healing drug he is using (`../docs/notes/drug-interrupt.md`): one lohook (`sites_026g.tsv` `player.hit_applied`), the game's own `medkit::set_active(0)` through the engine library; its check runs the hook in the patched exe and the game's set_active(0) in the original (needs Unicorn) |
 | `rust/patches/src/hand_kill.rs`, `src/hand_kill.toml`, `src/vostok/melee.rs`, `check_hand_kill_026g.py` | Patch 108: a gun-stock hit kills, wherever it lands (`../docs/notes/hand-kill.md`): one lohook on patch 94's `medical.hit` site (ours first in the chain); its check runs the chain in the patched exe (needs Unicorn) |
 | `rust/patches/src/text_input.rs`, `check_text_input_026g.py` | Patch 52: ignore a character event whose Scaleform text field has lost its AS3 receiver; reproduces the PIN-entry crash and checks native register/stack behavior (needs Unicorn) |
-| `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw` (0xA42A000), three pages on the page after the death camera's, which `patch_026g.py` reads (a section of its own until 2026-11, now the last three pages of `.srpc`). Assembling the source again gives the same bytes |
 | `rust/patches/src/weapon_camo.rs`, `weapon_camo.toml` | Patch 44's part in the baker (Rust, one lohook at `bake.own_camouflage`, 0x12E124): a weapon's bake takes only the camouflage textures its patch names (the colours and the `_smap`, not the `_nmap`, a cloth's weave), never the surface's own `<diffuse>_camo...`; `check_weapon_camo_026g.py` runs the site |
 | `research_026g.asm`, `research_arena/`, `../crates/research-rule/` | Patch 53 (Research): four aligned assembly entries, the integer rules in Rust, and the cook, rule slots and UI integration in Rust |
 | `link_026g.py`, `arena_026g.lock.json` | The arena's linker (below, "The arena"): every block's C and NASM sources compiled to ELF32 objects and linked by GNU ld at `.srpx`'s VA, at every build; `--write` writes the lock (the linked arena's SHA-256, its blocks and symbols), `--check` compares. Needs gcc (`-m32`), GNU ld and NASM 2.16 (`nix develop ./srp-026g`) |
@@ -208,16 +208,26 @@ release's. The "Result" row is the build of the revision named in it.
 Two things keep a new exe patch from the mistakes PR #297 shipped
 (`docs/notes/client_patch.md` sections 0.3 and 0.4).
 
-**`.srpx`, the arena.** The exe's section table holds twelve entries (it is
-at file 0x210 and the headers end at 0x400); the game's seven plus `.srp`,
-`.srpd`, `.srpc` and `.srpw` take eleven. The twelfth is `.srpx`, a growing
-arena, so a later patch need not add a section of its own. **A patch is
-plain C or NASM, and the tooling links it** (`link_026g.py`): it declares
-its blocks in `patch_026g.py`'s `ARENA`, an `ArenaBlock(name, kind, align,
-sources)` each (`kind` "code", "data" or "state"; `sources` its `.c` and
-`.asm` files); every source becomes an ELF32 object (`nasm -f elf32`, `gcc
--m32 -c` with Research's flags) and GNU ld links them all at `.srpx`'s VA,
-one output section per block in `ARENA`'s order (a code block takes its
+**`.srpx` and `.srpxd`, the arena.** The exe's section table holds twelve
+entries (it is at file 0x210 and the headers end at 0x400); the game's seven
+plus `.srp`, `.srpd` and `.srpc` take ten (`.srpc` is the death camera's
+page and then `.srpw`'s three, the weapon camouflage's: one code section
+since 2026-11). The last two are a growing arena, so a later patch need not
+add a section of its own: `.srpx`, its code (read and execute), and from
+the next page `.srpxd`, its data and state (read and write). **No section is
+both writable and executable**: `build()` stops on one
+(`refuse_writable_code`); the exe has no ASLR, so such a page would be a
+known address for injected code (`.srpx` was one, code and data in one
+section, until 2026-11). Something the game writes (a type descriptor's
+name cache, a console variable, a list node) is a data or state block's,
+never a constant of a code block. **A patch is plain C or NASM, and the
+tooling links it** (`link_026g.py`): it declares its blocks in
+`patch_026g.py`'s `ARENA`, an `ArenaBlock(name, kind, align, sources)` each
+(`kind` "code", "data" or "state"; `sources` its `.c` and `.asm` files);
+every source becomes an ELF32 object (`nasm -f elf32`, `gcc -m32 -c` with
+Research's flags) and GNU ld links them all at `.srpx`'s VA, one output
+section per block: the code blocks in `ARENA`'s order, then from the next
+page the data and state blocks in `ARENA`'s order (a code block takes its
 sources' `.text` and `.rodata`, a data block `.data`, a state block `.bss`).
 Sizes and VAs are what the link gives: nothing is reserved or pinned, and
 two PRs adding blocks do not collide. Calls between patches are by symbol
@@ -261,7 +271,7 @@ link_026g.py --sizes` prints their bytes, pages and languages):
 
 | Block | Patch | Language |
 |---|---|---|
-| `research.code`, `research.state` | 53, Research (its state `rn_state`) | NASM, C |
+| `research.code`, `research.data`, `research.state` | 53, Research (the cook's type descriptor; its state `rn_state`) | NASM, Rust |
 | `artefacts.code` | 54, the artefacts | NASM |
 | `engine.code` | the engine-function library | NASM (generated) |
 | `match_keys.code`, `match_keys.state` | 58, the kit keys and the match chat option | NASM |
@@ -3172,10 +3182,11 @@ positions against the units' shapes, which the mode config carries (`capture_zon
   0x23B351 (the match's first message by mode) becomes a `jmp` of the welcome stub: mode 5's is
   `st_start_match_welcome_message_5`.
 - **The section** `.srpx` (0xA42D000, after `.srpw`'s three pages) is the arena of the later
-  patches (the twelfth and last section table entry; "The arena" above, client_patch.md 0.3).
-  Research has its first two blocks: `research.code` (the 256 bytes of `research_026g.asm`,
+  patches ("The arena" above, client_patch.md 0.3; its data and state in `.srpxd` since 2026-11).
+  Research has its first blocks: `research.code` (the 256 bytes of `research_026g.asm`,
   four `jmp near`: research_register, research_hud, research_welcome and research_icons;
-  then the Rust code and its constants) and `research.state` (`rn_state`: the cook, the hud's
+  then the Rust code and its constants), `research.data` (the cook's RTTI type descriptor, whose
+  name cache type_info::name writes) and `research.state` (`rn_state`: the cook, the hud's
   cache; zeroed), linked from source (addresses recorded in `arena_026g.lock.json`). The next blocks are patch
   54's, the engine library's and patch 58's.
 - **The register hook**: `mov eax,ebx / call 0x1EC170` at 0x1E9B4C of the game's constructor (after
