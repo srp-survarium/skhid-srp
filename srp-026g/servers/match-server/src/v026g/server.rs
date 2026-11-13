@@ -333,7 +333,6 @@ impl Server {
             watch.forget(addr);
         }
         if let Some(&match_id) = self.spectator_routes.get(&addr) {
-            let registry = &self.registry;
             if let Some(game) = self.games.get_mut(&match_id) {
                 match game.spectator_at(addr) {
                     Some(SpectatorAt::Watching) => {
@@ -341,15 +340,16 @@ impl Server {
                         return;
                     }
                     // Let go: silent (its game's match link ends by it),
-                    // until its game connects again from there: as the
-                    // player its session is seated as now, or anew (an
-                    // 0xD8: a late join, another watch).
-                    Some(SpectatorAt::LetGo(session))
-                        if registry.seat(session).is_none() && !carries_connect(datagram) =>
-                    {
-                        return;
-                    }
-                    Some(SpectatorAt::LetGo(_)) | None => game.drop_spectator(addr),
+                    // until its game connects again from there (an 0xD8:
+                    // as the player its session is seated as now, a late
+                    // join, another watch). Its session seated is no
+                    // reason before that: what its game sends until its
+                    // farewell is in (a keep-alive, an ack) is still the
+                    // watch's, and taken as a connection it would end the
+                    // farewell's resends and the silence, and be answered
+                    // by a stray link.
+                    Some(SpectatorAt::LetGo) if !carries_connect(datagram) => return,
+                    Some(SpectatorAt::LetGo) | None => game.drop_spectator(addr),
                 }
             }
             self.spectator_routes.remove(&addr);

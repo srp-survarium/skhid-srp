@@ -46,7 +46,9 @@
 //! section 34). A game without the patch takes the 0xEA harmlessly
 //! (`leave_match` 0x2D18A0 tests bit `0xFF & 31` of the entered mask, never
 //! set, and drops it, 0x2D1B8D..0x2D1B9D) and ends by the silence. A game of its session seated meanwhile (its place
-//! came) connects again from that address as a player (`Server::receive`).
+//! came) connects again from that address as a player, with an 0xD8: until
+//! then what it sends is swallowed too (`Server::receive`), its farewell
+//! still resent.
 //!
 //! It starts again from a world (back to wait for one) when its reports say
 //! it is out of step, as rarely as a player is resynced; when a relay or
@@ -225,9 +227,10 @@ struct Delay {
 pub(crate) enum SpectatorAt {
     /// It watches: its datagrams are its own.
     Watching,
-    /// Let go, silent: its datagrams are swallowed, unless its session (the
-    /// one here) was seated meanwhile and its game connects as a player.
-    LetGo(u32),
+    /// Let go, silent: its datagrams are swallowed, unless its game connects
+    /// again from there (an 0xD8: as the player its session was seated as
+    /// meanwhile, or anew).
+    LetGo,
 }
 
 /// A place's install asked of the spectator's game.
@@ -460,7 +463,7 @@ impl Game {
 
     /// The spectator at `addr`, if any: one that watches takes its
     /// datagrams; one let go swallows them (silence) unless its game
-    /// connects again from there as a player.
+    /// connects again from there (an 0xD8).
     pub(crate) fn spectator_at(&self, addr: SocketAddr) -> Option<SpectatorAt> {
         self.spectators
             .iter()
@@ -893,7 +896,7 @@ impl Spectator {
 
     pub(super) fn at(&self) -> SpectatorAt {
         match self.stage {
-            Watch::Leaving { .. } => SpectatorAt::LetGo(self.session_id),
+            Watch::Leaving { .. } => SpectatorAt::LetGo,
             _ => SpectatorAt::Watching,
         }
     }

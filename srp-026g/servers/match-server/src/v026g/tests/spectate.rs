@@ -1,9 +1,11 @@
 //! Spectators (Queue and spectate, `game/spectate.rs`): a game watching the
 //! match from a room's queue, with no place.
 
+use super::super::game::SpectatorAt;
 use super::*;
 use session::{LiveDelay, Player, WatchKind, Watcher};
 use survarium::v026g::match_msgs::ServerMessage;
+use survarium::v026g::match_msgs::id;
 use survarium::v026g::match_msgs::rules::state;
 use survarium::v026g::match_msgs::static_info::NO_LOCAL_PLACE;
 
@@ -842,6 +844,57 @@ fn a_spectator_let_go_that_connects_again_is_heard_at_once() {
     assert!(bench.until(1_000, |b| b.clients[at].model.options.is_some()));
     bench.clients[at].ready();
     assert!(bench.until(10_000, |b| b.game().spectator_watches(SPECTATOR)));
+    bench.assert_no_faults();
+}
+
+/// Review of 2026-11-13: a queued spectator whose place came (its session
+/// seated) was dropped by the first datagram of its game after its watch
+/// ended, a keep-alive or an ack sent before its farewell was in: the
+/// farewell no longer resent, the silence gone, its game answered by a stray
+/// link. What it sends is swallowed until its 0xD8, which connects it as
+/// the player it is now.
+#[test]
+fn a_queued_spectator_whose_place_came_keeps_its_farewell_then_connects() {
+    let mut bench = running();
+    let at = watching(&mut bench);
+    let addr = bench.addrs[at];
+    // Its place comes: the lobby seats its session here, and ends its watch.
+    let place = bench.game().roster_size();
+    assert_eq!(place, at);
+    bench
+        .registry
+        .join_running(
+            bench.match_id,
+            MatchPlayer {
+                session_id: SPECTATOR,
+                account_id: SPECTATOR_ACCOUNT,
+                profile: profile("queued", (place % 2) as u8),
+                bot: false,
+                driven: false,
+            },
+        )
+        .unwrap();
+    bench.server.store().matchmaking().stop_watching(SPECTATOR);
+    // The farewell's first sends are lost; its game sends on meanwhile (its
+    // acks when quiet, a keep-alive).
+    bench.clients[at].lose = Some(Box::new(|_| true));
+    bench.clients[at].send(id::KEEP_ALIVE, &[], false);
+    bench.run(120);
+    assert_eq!(
+        bench.game().spectator_at(addr),
+        Some(SpectatorAt::LetGo),
+        "what it sent was swallowed"
+    );
+    // A resend of the farewell reaches it.
+    bench.clients[at].lose = None;
+    assert!(bench.until(200, |b| b.clients[at].told_to_leave));
+    assert!(!bench.clients[at].disconnected);
+    // Its game connects as the player it is now, from the same address.
+    let map_id = bench.clients[0].sim.map_id;
+    bench.clients[at] = Client::growing(SPECTATOR, place + 1, map_id);
+    bench.join(at);
+    assert_eq!(bench.clients[at].model.local_index, Some(place as u8));
+    assert_eq!(bench.game().spectator_at(addr), None);
     bench.assert_no_faults();
 }
 
