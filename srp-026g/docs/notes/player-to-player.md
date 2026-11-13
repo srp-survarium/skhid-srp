@@ -348,7 +348,7 @@ player text as HTML: the lobby's and the match's chats (the sender's name, its c
 and a line without a sender, which carries names: a room's "joined", the clan's lines), the
 referral notice's name, a kit's name on the profile tabs (another player's too, in their profile)
 and the daily reward's greeting. Each movie escapes such text (`survarium.Util.escapeHtml`: `&`,
-`<`, `>`) wherever it meets HTML, so it is shown as typed and never read as markup. The lobby
+`<`, `>`, `"`, `'`) wherever it meets HTML, so it is shown as typed and never read as markup. The lobby
 chat's name link carries the name URL-encoded (`Chat.linked`), and its click reads it back whole
 (`LobbyChat.clickLinkHandler`), a colon in it too. `scripts/chat-names/check.sh` checks the two
 chats in Ruffle.

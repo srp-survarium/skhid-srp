@@ -29,6 +29,8 @@ package
          "Bob",
          "Вася_99",
          "a:b",
+         "O'Neil",
+         "Bob \"the\" Builder",
          "Eve' href='event:name:Bob'><font color='#FF0000'>[admin] Bob",
          "<font size='40'><b>Mallory",
          "x&amp;y &lt;z&gt; \"q\" 100%"
