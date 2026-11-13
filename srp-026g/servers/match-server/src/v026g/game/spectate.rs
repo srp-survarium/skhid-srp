@@ -78,6 +78,15 @@ const REPORTS_KEPT: usize = 64;
 /// started anew from a world: one alone may be a tick it played before its
 /// world was in.
 const DRIFT_REPORTS: u32 = 2;
+/// A game with more than this many messages of its own not acked (queued or
+/// sent) is let go: a world's parts and a ring of every place's inputs come
+/// to some hundreds, a game that acks keeps a round trip of them, and twenty
+/// places' inputs come to this in the 5 s of silence that end a game's own
+/// link. One that stops acking (and asks for more: a replay viewer's
+/// controls, a place's install) would grow its queue for ever, and every
+/// poll of the match thread, which follows every datagram the server takes,
+/// walks it.
+const BACKLOG_MOST: usize = 2048;
 
 /// A spectator is this far behind the match at least, whatever delay it was
 /// given: a relay it can be fed comes this far before the time the match's
@@ -104,11 +113,14 @@ enum Watch {
         last: Instant,
         since: Instant,
     },
-    /// Its world (`serial`, the snapshot at `time`) is on its way.
+    /// Its world (`serial`, the snapshot at `time`) is on its way; `fill`:
+    /// each place's inputs after the world sent to it (its game keeps a ring
+    /// of them for the world, [`Spectator::ring_overrun`]).
     Syncing {
         serial: u64,
         time: u32,
         since: Instant,
+        fill: Vec<usize>,
     },
     /// It has the world (the snapshot at `from`): gets every relay and roster
     /// change. `wrong`: its reports in a row that the players' majority
@@ -134,8 +146,14 @@ enum Step {
     Loaded,
     /// A world is there: its 0xE5 went, of this echo.
     TimeAsked { time: u32, echo: u16, now: Instant },
-    /// It answered: its world went (`serial`, the snapshot at `time`).
-    WorldSent { serial: u64, time: u32, now: Instant },
+    /// It answered: its world went (`serial`, the snapshot at `time`), with
+    /// `fill` inputs of each place after it.
+    WorldSent {
+        serial: u64,
+        time: u32,
+        now: Instant,
+        fill: Vec<usize>,
+    },
     /// Its world is in.
     WorldIn,
     /// Back to wait for a world (a new generation).
@@ -157,10 +175,19 @@ impl Watch {
                 last: now,
                 since: now,
             },
-            (Self::Timing { .. }, Step::WorldSent { serial, time, now }) => Self::Syncing {
+            (
+                Self::Timing { .. },
+                Step::WorldSent {
+                    serial,
+                    time,
+                    now,
+                    fill,
+                },
+            ) => Self::Syncing {
                 serial,
                 time,
                 since: now,
+                fill,
             },
             (Self::Syncing { time, .. }, Step::WorldIn) => Self::Live {
                 from: time,
@@ -201,6 +228,9 @@ pub(crate) enum SpectatorAt {
 struct Installing {
     proposal: Proposal,
     sent: Instant,
+    /// Its 0xE4: one asked again replaces it (one not acked is kept for
+    /// ever, and a game that never acks would pile them up).
+    serial: Option<u64>,
 }
 
 pub(crate) struct Spectator {
@@ -218,6 +248,9 @@ pub(crate) struct Spectator {
     /// When it was started anew for drifting, the latest
     /// [`RESYNCS_PER_MINUTE`].
     restarts: VecDeque<Instant>,
+    /// Its starts done again in a row since it last watched, its world's
+    /// inputs past its game's ring ([`Self::ring_overrun`]).
+    ring_redos: u32,
     /// The place its watcher asked to see, still to be told: in a view note
     /// (`replay_control::ServerNote::View`) once it first watches.
     view: Option<u8>,
@@ -228,6 +261,15 @@ pub(crate) struct Spectator {
     /// How often [`Self::feed`] walked the match's lists.
     #[cfg(test)]
     list_walks: u32,
+}
+
+/// One more input of `place` in a world's ring count: its count now.
+fn count_input(fill: &mut Vec<usize>, place: usize) -> usize {
+    if fill.len() <= place {
+        fill.resize(place + 1, 0);
+    }
+    fill[place] += 1;
+    fill[place]
 }
 
 /// What a spectator's machine is shown of what it watches, as of `clock`: a
@@ -342,13 +384,17 @@ impl Game {
 
     /// The world a delayed spectator at `clock` starts from: the newest
     /// trusted one far enough behind it, and fresh enough that the inputs
-    /// since are read right.
+    /// since are read right and its game holds them all: no player has more
+    /// than [`INPUT_RING_SAFE`] up to what goes with it, its clock and the
+    /// horizon (as `Recording::reach` puts a replay's; those that come while
+    /// it is on its way, [`Spectator::ring_overrun`]).
     fn delayed_start(&self, clock: u32) -> Option<Snapshot> {
         self.past
             .iter()
             .filter(|world| world.time + HORIZON_MS <= clock)
             .filter(|world| clock - world.time <= FRESH_SNAPSHOT_MS)
             .max_by_key(|world| world.time)
+            .filter(|world| self.ring_fill(world.time, clock + HORIZON_MS) <= INPUT_RING_SAFE)
             .cloned()
     }
 
@@ -569,24 +615,36 @@ impl Game {
                 self.spectator_gone(at);
             }
         }
+        let id = self.id;
+        for spectator in &mut self.spectators {
+            if spectator.flooded() {
+                log::warn!(
+                    "Match {id:#x}: spectator {:#x} has {} messages not acked; it is let go",
+                    spectator.session_id,
+                    spectator.transport.backlog()
+                );
+                // Out of its queue as one gone, and let go.
+                self.spectators_left.push(spectator.session_id);
+                spectator.farewell(clock, now);
+            }
+        }
         let roster = self.spectator_roster();
-        let mut starts = Vec::with_capacity(self.spectators.len());
         for at in 0..self.spectators.len() {
             self.prepare_for_spectator(at, now);
-            // From the worlds the match keeps anyway: a spectator asks the
-            // players for nothing.
-            let start = self.spectators[at]
-                .delay
-                .filter(|_| self.spectators[at].waits_for_world(roster))
-                .and_then(|delay| self.delayed_start(clock.saturating_sub(delay.ms)))
-                .map(|world| world.time);
-            starts.push(start);
         }
         let echo = self.mono(now) as u16;
         let mut spectators = std::mem::take(&mut self.spectators);
-        for (spectator, start) in spectators.iter_mut().zip(starts) {
+        for spectator in &mut spectators {
             let view = self.view_of(spectator.delay, clock);
-            spectator.feed(&view, now);
+            let ticked = spectator.feed(&view, now);
+            // From the worlds the match keeps anyway: a spectator asks the
+            // players for nothing. Looked for once a tick, as the lists are
+            // walked (`delayed_start` counts the inputs since a world).
+            let start = spectator
+                .delay
+                .filter(|_| ticked && spectator.waits_for_world(roster))
+                .and_then(|delay| self.delayed_start(clock.saturating_sub(delay.ms)))
+                .map(|world| world.time);
             spectator.step(&view, start, echo, now);
             spectator.tell_kits(&self.formed.profiles);
         }
@@ -604,13 +662,18 @@ impl Game {
     /// has judged (`hashes_checked_until`) and its players' majority names
     /// (kept for as far back as the longest delay, `Game::settled_hashes`)
     /// is right or wrong; one with no majority, or older than those kept,
-    /// decides nothing. [`DRIFT_REPORTS`] wrong in a row: it is
+    /// decides nothing, and so does one of a tick up to the end of the
+    /// players' last install (`hashes_unjudged_until`): its game installs a
+    /// place when they do, a delay before it plays that time, and their
+    /// majorities before were of worlds without it. [`DRIFT_REPORTS`] wrong
+    /// in a row: it is
     /// started anew from a world (its next generation), as a player out of
     /// step is resynced, and no more often: [`RESYNCS_PER_MINUTE`] in
     /// [`RESYNC_WINDOW`], `Timing::resync_interval` apart. Its reports never
     /// go into `Game::hashes`: nothing of the match reads them.
     fn judge_spectators(&mut self, now: Instant) {
         let checked = self.hashes_checked_until;
+        let unjudged_until = self.hashes_unjudged_until;
         let interval = self.settings.timing.resync_interval;
         let id = self.id;
         let settled = &self.settled_hashes;
@@ -628,6 +691,9 @@ impl Game {
             for (time, crc) in judged {
                 if time >= checked {
                     reports.push_back((time, crc));
+                    continue;
+                }
+                if time <= unjudged_until {
                     continue;
                 }
                 match majority(time) {
@@ -709,10 +775,18 @@ impl Game {
             return;
         };
         let spectator = &mut self.spectators[at];
-        let _ = spectator.transport.send(id::STATIC_INFO, &bytes);
+        if let Some(serial) = spectator
+            .installing
+            .as_ref()
+            .and_then(|installing| installing.serial)
+        {
+            spectator.transport.forget(serial, now);
+        }
+        let serial = spectator.transport.send(id::STATIC_INFO, &bytes).ok();
         spectator.installing = Some(Installing {
             proposal,
             sent: now,
+            serial,
         });
     }
 
@@ -775,6 +849,7 @@ impl Spectator {
             installed_roster: 0,
             installing: None,
             restarts: VecDeque::new(),
+            ring_redos: 0,
             view,
             kits_told: Vec::new(),
             recall_at: None,
@@ -916,6 +991,19 @@ impl Spectator {
             .filter(|(at, _, _)| *at > time && watched.due(*at))
             .map(|(_, from, what)| relay(*from, what))
             .collect();
+        let mut fill = Vec::new();
+        let most = replay
+            .iter()
+            .filter_map(|message| match message {
+                ServerMessage::InputRelay { player, .. } => {
+                    Some(count_input(&mut fill, usize::from(*player)))
+                }
+                _ => None,
+            })
+            .max();
+        if self.ring_overrun(most.unwrap_or(0)) {
+            return;
+        }
         if let (Some(delay), Some(until)) = (self.delay.as_mut(), watched.until) {
             delay.fed = until;
         }
@@ -960,6 +1048,7 @@ impl Spectator {
                     serial,
                     time: world.time,
                     now,
+                    fill,
                 });
             }
             Err(_) => self.go(Step::WaitAgain),
@@ -967,17 +1056,18 @@ impl Spectator {
     }
 
     /// A delayed spectator's turn: the relays and roster changes its clock
-    /// reached since the last, from the match's lists.
-    fn feed(&mut self, view: &Watched<'_>, now: Instant) {
+    /// reached since the last, from the match's lists. Whether they were
+    /// walked (its clock reached a new tick).
+    fn feed(&mut self, view: &Watched<'_>, now: Instant) -> bool {
         let (Some(delay), Some(until)) = (self.delay, view.until) else {
-            return;
+            return false;
         };
         let from = delay.fed;
         // Once a tick: the lists are walked whole, and this runs for every
         // datagram the server takes. What is due has its lead (`HORIZON_MS`)
         // to spare.
         if until / TICK_MS <= from / TICK_MS {
-            return;
+            return false;
         }
         #[cfg(test)]
         {
@@ -1007,6 +1097,7 @@ impl Spectator {
         if let Some(delay) = self.delay.as_mut() {
             delay.fed = until;
         }
+        true
     }
 
     /// What its game may show of the kits: every place's playable ones, as a replay's viewer is
@@ -1048,6 +1139,14 @@ impl Spectator {
             Watch::Syncing {
                 time: from_time, ..
             } if time > from_time => {
+                if let ServerMessage::InputRelay { .. } = message
+                    && let Watch::Syncing { fill, .. } = &mut self.stage
+                {
+                    let count = count_input(fill, from);
+                    if self.ring_overrun(count) {
+                        return;
+                    }
+                }
                 self.send_waiting(message, now);
             }
             _ => {}
@@ -1130,6 +1229,7 @@ impl Spectator {
                 serial,
                 time,
                 since,
+                ..
             } => {
                 if self.transport.is_delivered(serial) {
                     for &(at, who, _) in watched
@@ -1144,6 +1244,7 @@ impl Spectator {
                         let _ = self.transport.send(leave.id(), &leave.payload());
                     }
                     self.go(Step::WorldIn);
+                    self.ring_redos = 0;
                     log::info!(
                         "Match {:#x}: spectator {:#x} watches",
                         watched.id,
@@ -1201,11 +1302,30 @@ impl Spectator {
     }
 
     /// A replay viewer's note (`replay_control::ServerNote`), in an 0xF6:
-    /// only while live, never to a game let go.
-    pub(super) fn note(&mut self, payload: &[u8]) {
-        if self.is_live() {
-            let _ = self.transport.send(id::UPLOAD_REQUEST, payload);
+    /// only while live, never to a game let go. Its serial, for
+    /// [`Self::unsend`]: one is kept until acked.
+    pub(super) fn note(&mut self, payload: &[u8]) -> Option<u64> {
+        if !self.is_live() {
+            return None;
         }
+        self.transport.send(id::UPLOAD_REQUEST, payload).ok()
+    }
+
+    /// A note sent ([`Self::note`]) that a newer one makes of no use goes
+    /// no more, acked or not: only the newest matters.
+    pub(super) fn unsend(&mut self, serial: u64, now: Instant) {
+        self.transport.forget(serial, now);
+    }
+
+    /// Its game, not let go, has more than [`BACKLOG_MOST`] messages not
+    /// acked: it is let go.
+    pub(super) fn flooded(&self) -> bool {
+        !self.is_leaving() && self.transport.backlog() > BACKLOG_MOST
+    }
+
+    #[cfg(test)]
+    pub(super) fn backlog(&self) -> usize {
+        self.transport.backlog()
     }
 
     pub(super) fn is_leaving(&self) -> bool {
@@ -1238,6 +1358,26 @@ impl Spectator {
     fn go(&mut self, step: Step) {
         let stage = std::mem::replace(&mut self.stage, Watch::Waiting);
         self.stage = stage.step(step);
+    }
+
+    /// Its world's inputs, `fill` of some place, are past what its game
+    /// keeps of them while the world is on its way ([`INPUT_RING_SAFE`]):
+    /// loaded, it would be played wrong from its first tick. It starts
+    /// again from a newer one (true), as a player's slow load is done again
+    /// ([`SLOW_LOADS_REDONE`] times in a row at most: then it goes on).
+    fn ring_overrun(&mut self, fill: usize) -> bool {
+        if fill <= INPUT_RING_SAFE || self.ring_redos >= SLOW_LOADS_REDONE {
+            return false;
+        }
+        self.ring_redos += 1;
+        log::info!(
+            "Spectator {:#x}: a place has {fill} inputs after its world, more than its game \
+             keeps ({INPUT_RING_SAFE}; {} of {SLOW_LOADS_REDONE} times), so again from a newer one",
+            self.session_id,
+            self.ring_redos
+        );
+        self.wait_again();
+        true
     }
 
     /// Back to wait for a world: its next start is of a new generation.

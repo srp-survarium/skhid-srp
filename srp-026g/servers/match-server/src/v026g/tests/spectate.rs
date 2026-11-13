@@ -759,3 +759,205 @@ fn a_delayed_spectator_is_told_the_kits_as_soon_as_it_watches() {
     assert_eq!(kits_of_place(&bench.clients[at], 0), Some(vec![0]), "{:?}", kits_told(&bench.clients[at]));
     bench.assert_no_faults();
 }
+
+/// Review of 2026-11-13: a delayed spectator installs a late joiner's place when the players do,
+/// a delay before its clock reaches that time, and the players' majorities of the ticks before
+/// were of worlds without the place: its reports of them are no sign of a world out of step.
+#[test]
+fn a_late_join_starts_no_delayed_spectator_again() {
+    let mut bench = running();
+    let delay = session::LiveDelay::from_secs(10).unwrap();
+    bench.run_long(12_000);
+    let at = spectate_as(&mut bench, SPECTATOR, WatchKind::Live { delay, view: None });
+    assert!(bench.until(8_000, |b| b.game().spectator_watches(SPECTATOR)));
+    bench.run_long(2_000);
+    let generation = bench.game().spectator_generation(SPECTATOR);
+    let place = bench.game().roster_size();
+    bench
+        .registry
+        .join_running(bench.match_id, super::late_join::grenadier(place))
+        .unwrap();
+    bench
+        .clients
+        .insert(2, Client::growing(session_of(2), 3, MAP_BATTERIES));
+    bench
+        .addrs
+        .insert(2, SocketAddr::from(([127, 0, 0, 1], 40_002)));
+    bench.join(2);
+    let at = at + 1;
+    assert!(bench.clients[at].prepares_received > 0);
+    bench.run_long(15_000);
+    assert_eq!(
+        bench.game().spectator_generation(SPECTATOR),
+        generation,
+        "started again"
+    );
+    assert!(bench.game().spectator_watches(SPECTATOR));
+    bench.assert_no_faults();
+}
+
+/// Review of 2026-11-13: a place's install was asked again every second, each kept until acked:
+/// a spectator's game that acks nothing piled them up. One goes at a time.
+#[test]
+fn a_spectator_that_never_installs_piles_up_no_installs() {
+    let mut bench = running();
+    let at = watching(&mut bench);
+    bench.clients[at].auto_prepare = false;
+    bench.clients[at].mute_acks = true;
+    let place = bench.game().roster_size();
+    bench
+        .registry
+        .join_running(bench.match_id, super::late_join::player(place))
+        .unwrap();
+    bench
+        .clients
+        .insert(2, Client::growing(session_of(2), 3, MAP_BATTERIES));
+    bench
+        .addrs
+        .insert(2, SocketAddr::from(([127, 0, 0, 1], 40_002)));
+    bench.join(2);
+    bench.run_long(2_000);
+    let before = bench.game().spectator_backlog(SPECTATOR).unwrap();
+    bench.run_long(20_000);
+    let after = bench.game().spectator_backlog(SPECTATOR).unwrap();
+    assert!(after <= before + 2, "{before} then {after} messages queued");
+}
+
+/// Review of 2026-11-13: a spectator let go swallowed what came from its address for its 7 s
+/// of silence, a new connection of its game too (another watch; a late join into its room's
+/// match): the game drops a link silent for 5 s.
+#[test]
+fn a_spectator_let_go_that_connects_again_is_heard_at_once() {
+    let mut bench = running();
+    let at = watching(&mut bench);
+    let matchmaking = bench.server.store().matchmaking();
+    let watcher = matchmaking.stop_watching(SPECTATOR).unwrap();
+    assert!(bench.until(1_000, |b| b.clients[at].told_to_leave));
+    bench.run(300);
+    // Its game watches again, from the same address.
+    assert!(bench.server.store().matchmaking().watch(SPECTATOR, watcher));
+    let players = bench.game().roster_size();
+    bench.clients[at] = Client::growing(SPECTATOR, players, MAP_BATTERIES);
+    bench.clients[at].connect();
+    assert!(bench.until(1_000, |b| b.clients[at].model.options.is_some()));
+    bench.clients[at].ready();
+    assert!(bench.until(10_000, |b| b.game().spectator_watches(SPECTATOR)));
+    bench.assert_no_faults();
+}
+
+/// A busy 5 ms of the match: player 0 makes two precise inputs a tick, as a firing player
+/// does, player 1 one.
+fn busy(bench: &mut Bench) {
+    use survarium::v026g::match_msgs::{PlayerInput, WireTime};
+    if bench.ms.is_multiple_of(50) {
+        let tick = bench.clients[0].clock() / 50 * 50 + 50;
+        for at in [tick + 10, tick + 35] {
+            bench.clients[0].send_input(PlayerInput {
+                time: WireTime::precise(at),
+                rotation: [0x00, 0x3C, 0x00, 0xC0],
+                actions: 0x21,
+            });
+        }
+        bench.clients[1].input(20, 0x21);
+    }
+    bench.step(5);
+}
+
+/// The bench busy until a spectator `delay_ms` behind the match would have the newest world the
+/// match keeps (every 5 s, at 4 550 ms and on) `age_ms` behind its clock.
+fn busy_until_world_age(bench: &mut Bench, delay_ms: u32, age_ms: u32) {
+    let end = bench.ms + 5_000;
+    while bench.ms < end || (bench.clock() + 5_000 - delay_ms - 4_550) % 5_000 != age_ms {
+        busy(bench);
+    }
+}
+
+/// Player 0's inputs the game had when the world it took came: those after the 0xE5 that went
+/// with that world.
+fn inputs_with_world(client: &Client) -> usize {
+    let taken = &client.taken;
+    let world = taken
+        .iter()
+        .rposition(|message| matches!(message, ServerMessage::Snapshot { .. }))
+        .expect("a world");
+    let ServerMessage::Snapshot { generation, .. } = taken[world] else {
+        unreachable!()
+    };
+    let timed = taken[..world]
+        .iter()
+        .rposition(|message| {
+            matches!(message, ServerMessage::SetTime { generation: g, .. } if *g == generation)
+        })
+        .expect("its 0xE5");
+    let mut inputs = Vec::new();
+    for message in &taken[timed..world] {
+        if let ServerMessage::InputRelay { player: 0, input } = message
+            && !inputs.contains(input)
+        {
+            inputs.push(*input);
+        }
+    }
+    inputs.len()
+}
+
+/// Review of 2026-11-13: a delayed spectator took a world up to 1.5 s behind its clock, with the
+/// inputs since: a player making two inputs a tick put more of them after it than its game keeps
+/// (27), and it played wrong from its first tick. It waits for a newer world.
+#[test]
+fn a_delayed_spectators_world_comes_with_no_more_inputs_than_its_game_keeps() {
+    let mut bench = running();
+    let delay = LiveDelay::from_secs(3).unwrap();
+    busy_until_world_age(&mut bench, 3_000, 900);
+    let at = spectate_as(&mut bench, SPECTATOR, WatchKind::Live { delay, view: None });
+    let end = bench.ms + 15_000;
+    while bench.ms < end && !bench.game().spectator_watches(SPECTATOR) {
+        busy(&mut bench);
+    }
+    assert!(bench.game().spectator_watches(SPECTATOR));
+    let inputs = inputs_with_world(&bench.clients[at]);
+    assert!(inputs <= 26, "{inputs} inputs of player 0 after its world");
+    bench.assert_no_faults();
+}
+
+/// The same for the inputs it is fed while its world is on its way: a world held up is given
+/// up once they are past the ring, and it starts again from a newer one.
+#[test]
+fn a_delayed_spectators_world_held_up_past_the_ring_is_given_up() {
+    let mut bench = running();
+    let delay = LiveDelay::from_secs(3).unwrap();
+    busy_until_world_age(&mut bench, 3_000, 250);
+    let at = spectate_as(&mut bench, SPECTATOR, WatchKind::Live { delay, view: None });
+    // Its first world's datagrams are lost for a second.
+    let held_until = bench.ms + 1_000;
+    let clock = Arc::new(std::sync::atomic::AtomicU64::new(bench.ms));
+    let now = Arc::clone(&clock);
+    bench.clients[at].lose = Some(Box::new(move |datagram| {
+        now.load(Ordering::Relaxed) < held_until
+            && udp_transport::wire::parse(
+                udp_transport::Table::Match,
+                udp_transport::Direction::ToClient,
+                datagram,
+                1,
+            )
+            .is_ok_and(|parsed| {
+                parsed
+                    .messages
+                    .iter()
+                    .any(|message| message.id == survarium::v026g::match_msgs::id::SNAPSHOT)
+            })
+    }));
+    let end = bench.ms + 15_000;
+    while bench.ms < end && !bench.game().spectator_watches(SPECTATOR) {
+        busy(&mut bench);
+        clock.store(bench.ms, Ordering::Relaxed);
+    }
+    assert!(bench.game().spectator_watches(SPECTATOR));
+    let mut generations = bench.clients[at].got(|message| match message {
+        ServerMessage::SetTime { generation, .. } => Some(*generation),
+        _ => None,
+    });
+    generations.dedup();
+    assert!(generations.len() >= 2, "started again: {generations:?}");
+    let inputs = inputs_with_world(&bench.clients[at]);
+    assert!(inputs <= 26, "{inputs} inputs of player 0 after its world");
+}

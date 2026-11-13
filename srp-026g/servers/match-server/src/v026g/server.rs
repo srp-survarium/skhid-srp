@@ -13,7 +13,8 @@ use std::time::{Duration, Instant};
 use session::SessionStore;
 use session::v026g::replays::Replays;
 use survarium::v026g::match_msgs::{ClientMessage, id, parse_client};
-use udp_transport::{Config, Event, PacketLog, Table, Transport};
+use udp_transport::table::Direction;
+use udp_transport::{Config, Event, PacketLog, Table, Transport, wire};
 
 use super::Settings;
 use super::game::{Game, ReplayWatch, SpectatorAt};
@@ -74,6 +75,16 @@ fn release_quits(game: &mut Game, registry: &MatchRegistry, store: &SessionStore
             game.id
         );
     }
+}
+
+/// Whether a game's datagram carries an 0xD8: its game connects anew.
+fn carries_connect(datagram: &[u8]) -> bool {
+    wire::parse(Table::Match, Direction::ToServer, datagram, 0).is_ok_and(|parsed| {
+        parsed
+            .messages
+            .iter()
+            .any(|message| !message.low_level && message.id == id::CONNECT)
+    })
 }
 
 /// The 0.26g match server: runs every match the lobby makes in `registry`
@@ -299,8 +310,14 @@ impl Server {
         if let Some(watch) = self.replay_watch.as_mut()
             && watch.owns(addr)
         {
-            watch.receive(addr, datagram, now);
-            return;
+            // One let go is silent until it is forgotten, unless its game
+            // connects again from there (an 0xD8: it joins its room's match
+            // late, or watches something else): then at once.
+            if !(watch.is_let_go(addr) && carries_connect(datagram)) {
+                watch.receive(addr, datagram, now);
+                return;
+            }
+            watch.forget(addr);
         }
         if let Some(&match_id) = self.spectator_routes.get(&addr) {
             let registry = &self.registry;
@@ -311,9 +328,12 @@ impl Server {
                         return;
                     }
                     // Let go: silent (its game's match link ends by it),
-                    // until its game connects again from there as the
-                    // player its session is seated as now.
-                    Some(SpectatorAt::LetGo(session)) if registry.seat(session).is_none() => {
+                    // until its game connects again from there: as the
+                    // player its session is seated as now, or anew (an
+                    // 0xD8: a late join, another watch).
+                    Some(SpectatorAt::LetGo(session))
+                        if registry.seat(session).is_none() && !carries_connect(datagram) =>
+                    {
                         return;
                     }
                     Some(SpectatorAt::LetGo(_)) | None => game.drop_spectator(addr),

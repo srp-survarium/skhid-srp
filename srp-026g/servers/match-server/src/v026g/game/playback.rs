@@ -383,6 +383,13 @@ struct Playback {
     told: Option<Note>,
     /// The last note's revision (the game takes only a newer one).
     revision: u8,
+    /// The serials of the notes of its last tell: the playback note, and
+    /// the timeline's and the kits' of the last fresh one. A newer tell
+    /// makes them of no use, and they go no more ([`Spectator::unsend`]):
+    /// one kept until acked would pile up in a game that asks for changes
+    /// and acks nothing.
+    playback_note: Option<u64>,
+    timeline_notes: Vec<u64>,
     /// Its reports in a row far from the playback ([`DRIFT_MS`]).
     drift: u8,
     /// The latest seek its game asked for while a world was on its way to
@@ -419,6 +426,8 @@ impl Playback {
             last_request: None,
             told: None,
             revision: 0,
+            playback_note: None,
+            timeline_notes: Vec::new(),
             drift: 0,
             inputs,
             events,
@@ -506,7 +515,7 @@ impl Playback {
 
     fn control(&mut self, op: Op, now: Instant) {
         let at = self.position(now);
-        log::info!(
+        log::debug!(
             "Replay {:#x} of match {:#x}: {op:?} at {at} ms",
             self.spectator.session_id(),
             self.recording.match_id
@@ -592,7 +601,7 @@ impl Playback {
     /// The playback note (and, once live anew, the events) when its game
     /// is live and was not told this playback yet: after its first world,
     /// each change and each start again.
-    fn tell(&mut self) {
+    fn tell(&mut self, now: Instant) {
         if !self.spectator.is_live() {
             self.told = None;
             return;
@@ -613,8 +622,14 @@ impl Playback {
             start: MatchMs(self.recording.opening()),
             end: MatchMs(self.recording.end),
         };
-        self.spectator.note(&note.encode());
+        if let Some(serial) = self.playback_note.take() {
+            self.spectator.unsend(serial, now);
+        }
+        self.playback_note = self.spectator.note(&note.encode());
         if fresh {
+            for serial in std::mem::take(&mut self.timeline_notes) {
+                self.spectator.unsend(serial, now);
+            }
             // The timeline, in notes of up to 64 (an empty one for none).
             let timeline = &self.recording.timeline;
             let total = timeline.len().min(usize::from(u16::MAX)) as u16;
@@ -624,7 +639,8 @@ impl Playback {
                 let chunk = &timeline[usize::from(first)..]
                     [..usize::from(total - first).min(EVENTS_PER_NOTE)];
                 if let Some(len) = EventsNote::encode(first, total, chunk, &mut buffer) {
-                    self.spectator.note(&buffer[..len]);
+                    self.timeline_notes
+                        .extend(self.spectator.note(&buffer[..len]));
                 }
                 first += chunk.len() as u16;
                 if first >= total {
@@ -633,7 +649,8 @@ impl Playback {
             }
             // Every place's kits: the viewer's chooser.
             for place in &self.recording.kits {
-                self.spectator.note(&place.encode());
+                self.timeline_notes
+                    .extend(self.spectator.note(&place.encode()));
             }
         }
         self.told = Some(note);
@@ -685,10 +702,15 @@ impl Playback {
             self.recall_at = Some(now + Duration::from_secs(replay_control::RECALL_SECONDS.into()));
         }
         let recall_due = self.recall_at.is_some_and(|due| now >= due);
-        if (at >= self.recording.end || paused_out || recall_due) && !self.spectator.is_leaving() {
+        let flooded = self.spectator.flooded();
+        if (at >= self.recording.end || paused_out || recall_due || flooded)
+            && !self.spectator.is_leaving()
+        {
             log::info!(
                 "Replay {session_id:#x}: {}",
-                if recall_due {
+                if flooded {
+                    "its game acks too little of what it is sent; let go"
+                } else if recall_due {
                     "let go, back to its player's room"
                 } else if paused_out {
                     "paused too long, its session goes to someone else"
@@ -738,7 +760,7 @@ impl Playback {
         if after != before {
             log::debug!("Replay {session_id:#x}: {before} -> {after} at {at} ms");
         }
-        self.tell();
+        self.tell(now);
         let datagrams = self.spectator.poll(now);
         for (_, datagram) in &datagrams {
             log::trace!(
@@ -959,6 +981,21 @@ impl ReplayWatch {
         self.playbacks.contains_key(&addr)
     }
 
+    /// The game at `addr` was let go: silent until it is forgotten.
+    pub(crate) fn is_let_go(&self, addr: SocketAddr) -> bool {
+        self.playbacks
+            .get(&addr)
+            .is_some_and(|playback| playback.spectator.is_leaving())
+    }
+
+    /// Forget the game at `addr` at once (its address is a new
+    /// connection's now): its session is over.
+    pub(crate) fn forget(&mut self, addr: SocketAddr) {
+        if let Some(playback) = self.playbacks.remove(&addr) {
+            self.replays.watches().ended(&playback.request);
+        }
+    }
+
     /// The game at `addr` of `session_id` connects: shown its session's
     /// recording when it was sent to watch one; else its transport back.
     pub(crate) fn connect(
@@ -1172,6 +1209,28 @@ impl ReplayWatch {
     ) {
         recording.take_events(events);
         self.prepare(request, Arc::new(recording), now);
+    }
+
+    /// `count` notes more for the session's game (each kept until acked).
+    #[cfg(test)]
+    pub(crate) fn note_for_test(&mut self, session_id: u32, count: usize) {
+        for playback in self.playbacks.values_mut() {
+            if playback.spectator.session_id() == session_id {
+                for _ in 0..count {
+                    playback
+                        .spectator
+                        .note(&replay_control::ServerNote::view(0));
+                }
+            }
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn backlog(&self, session_id: u32) -> Option<usize> {
+        self.playbacks
+            .values()
+            .find(|playback| playback.spectator.session_id() == session_id)
+            .map(|playback| playback.spectator.backlog())
     }
 
     #[cfg(test)]

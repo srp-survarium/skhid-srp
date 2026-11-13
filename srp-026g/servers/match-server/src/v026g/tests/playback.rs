@@ -1026,3 +1026,88 @@ fn a_seek_does_not_hold_a_paused_replay_longer() {
     assert!(bench.until(3_000, |b| b.clients[at].told_to_leave));
     bench.assert_no_faults();
 }
+
+fn backlog(bench: &Bench) -> Option<usize> {
+    bench
+        .server
+        .replay_watch
+        .as_ref()
+        .and_then(|watch| watch.backlog(WATCHER))
+}
+
+/// Review of 2026-11-13: each pause, play and speed queued a playback note kept until acked: a
+/// game that acks nothing and asks for one change a datagram grew its queue by one a datagram
+/// for ever, and every poll of the match thread walked it. Only the newest note goes.
+#[test]
+fn a_viewer_that_acks_nothing_piles_up_no_playback_notes() {
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 0);
+    let at = watching(&mut bench, WATCHER);
+    bench.run(500);
+    bench.clients[at].mute_acks = true;
+    for seq in 1..=600u32 {
+        let op = Op::Pause(seq % 2 == 1);
+        bench.clients[at].send(id::LEAVE, &Request { seq: seq as u8, op }.encode(), true);
+        bench.run(10);
+    }
+    let queued = backlog(&bench).expect("its playback");
+    assert!(queued < 100, "{queued} messages queued");
+}
+
+/// Review of 2026-11-13: whatever a game that acks nothing piles up, it is let go past a cap
+/// (some thousands of messages), and its session ends.
+#[test]
+fn a_viewer_that_acks_nothing_is_let_go() {
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 0);
+    let at = watching(&mut bench, WATCHER);
+    bench.run(500);
+    bench.clients[at].mute_acks = true;
+    let watch = bench.server.replay_watch.as_mut().unwrap();
+    watch.note_for_test(WATCHER, 2_000);
+    bench.run(500);
+    assert!(replays.watches().holds(WATCHER_ACCOUNT), "within the cap");
+    let watch = bench.server.replay_watch.as_mut().unwrap();
+    watch.note_for_test(WATCHER, 100);
+    bench.run_long(8_000);
+    assert!(
+        !replays.watches().holds(WATCHER_ACCOUNT),
+        "let go and forgotten"
+    );
+    assert_eq!(backlog(&bench), None);
+}
+
+/// Review of 2026-11-13: a game let go swallowed what came from its address until it was
+/// forgotten (7 s), a new connection of its game too (a late join into its room's match, another
+/// watch): the game drops a link silent for 5 s.
+#[test]
+fn a_viewer_let_go_that_connects_again_is_heard_at_once() {
+    let (mut bench, replays) = bench();
+    bench.join_all();
+    bench.run_long(25_000);
+    session_of_the_recording(&mut bench, &replays, 0);
+    let at = watching(&mut bench, WATCHER);
+    assert_eq!(at, 2, "the late joiner's place");
+    bench.run_long(2_000);
+    control(&mut bench, at, 1, Op::Leave);
+    assert!(bench.until(1_000, |b| b.clients[at].told_to_leave));
+    bench.run(300);
+    // Its session joins the match from the same address.
+    bench
+        .registry
+        .join_running(
+            bench.match_id,
+            MatchPlayer {
+                session_id: WATCHER,
+                account_id: WATCHER_ACCOUNT,
+                profile: profile("watcher", 0),
+                bot: false,
+                driven: false,
+            },
+        )
+        .unwrap();
+    bench.clients[at] = Client::growing(WATCHER, 3, MAP_BATTERIES);
+    bench.join(at);
+    assert!(!replays.watches().holds(WATCHER_ACCOUNT));
+    bench.assert_no_faults();
+}
