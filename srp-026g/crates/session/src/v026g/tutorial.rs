@@ -200,35 +200,19 @@ pub fn signup_grant_with(account: &mut Account, starter_kit: bool) {
         account.exp_total = start_experience();
         account.skills = grant.skills.clone();
     }
-    top_up_ammo(account, &starter_ammo(dictionary));
+    for dict_id in starter_ammo(dictionary) {
+        let owned = account
+            .inventory
+            .iter()
+            .find(|item| item.dict_id == dict_id)
+            .map_or(0, |item| item.condition_or_stack);
+        if owned < grant.rounds {
+            account.add_to_stack(dict_id, grant.rounds - owned);
+        }
+    }
     if starter_kit {
         wear_starter_kit(account, dictionary);
     }
-}
-
-/// Each ammo of `ammo` the account owns fewer rounds of than a new account
-/// is given (the grant's `rounds`, 1000) topped up to that many; none
-/// taken. What a new account starts with, of every ammo ([`starter_ammo`]),
-/// and what every account is given once of each ammo the game data has, an
-/// ammo added after it was made too
-/// (`persist::SqliteGameRepository::top_up_new_ammo`). Returns
-/// `(dict id, rounds added)` of each ammo topped up.
-pub fn top_up_ammo(account: &mut Account, ammo: &[u16]) -> Vec<(u16, u32)> {
-    let rounds = new_account().rounds;
-    let mut added = Vec::new();
-    for &dict_id in ammo {
-        let owned: u32 = account
-            .inventory
-            .iter()
-            .filter(|item| item.dict_id == dict_id)
-            .map(|item| item.condition_or_stack)
-            .sum();
-        if owned < rounds {
-            account.add_to_stack(dict_id, rounds - owned);
-            added.push((dict_id, rounds - owned));
-        }
-    }
-    added
 }
 
 /// What the grant owns (`NewAccount::own`), then its presets' kits worn by

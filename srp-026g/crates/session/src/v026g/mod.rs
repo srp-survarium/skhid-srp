@@ -259,14 +259,10 @@ impl GameAccounts {
     pub fn from_env() -> Result<Self, PersistError> {
         match SqliteGameRepository::from_env()? {
             Some(mut repository) => {
-                let backups = crate::persist::data_dir().join("backups");
-                if let Some(paid) = repository.pay_back_once(&backups)? {
+                if let Some(paid) =
+                    repository.pay_back_once(&crate::persist::data_dir().join("backups"))?
+                {
                     log_paid_back(&paid);
-                }
-                let ammo =
-                    tutorial::starter_ammo(survarium::v026g::dictionary::Dictionary::shared());
-                if let Some(topped) = repository.top_up_new_ammo(&backups, &ammo)? {
-                    log_topped_up(&topped);
                 }
                 Self::with_repository(Box::new(repository))
             }
@@ -785,30 +781,6 @@ fn log_paid_back(paid: &[persist::PaidBack]) {
         vouchers[0],
         vouchers[1],
         vouchers[2]
-    );
-}
-
-/// The release log of [`persist::SqliteGameRepository::top_up_new_ammo`]:
-/// one line, the accounts and rounds given, and the rounds of each ammo.
-fn log_topped_up(topped: &[persist::ToppedUp]) {
-    let mut by_ammo: std::collections::BTreeMap<u16, u64> = Default::default();
-    for (dict_id, rounds) in topped.iter().flat_map(|account| &account.added) {
-        *by_ammo.entry(*dict_id).or_default() += u64::from(*rounds);
-    }
-    let dictionary = survarium::v026g::dictionary::Dictionary::shared();
-    let each: Vec<String> = by_ammo
-        .iter()
-        .map(|(&dict_id, rounds)| {
-            let name = dictionary.item(dict_id).map_or("?", |item| &item.name);
-            format!("{name} {rounds}")
-        })
-        .collect();
-    log::info!(
-        "Ammo topped up to a new account's rounds, once for each ammo: {} accounts, {} rounds \
-         given ({})",
-        topped.len(),
-        by_ammo.values().sum::<u64>(),
-        each.join(", ")
     );
 }
 
