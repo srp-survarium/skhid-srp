@@ -177,10 +177,10 @@ Little-endian. Every datagram starts with `56 01 <type>`: the magic, the version
     listener whose HELLO mutes the speaker's slot, and a
     listener whose flags say it does not hear.
   - END closes it.
-  - No AUDIO for 1 s closes it as a timeout. After 30 s it is cut (END reason 2). Utterances less
-    than 5 s apart are one run, and their talk adds up: a run is cut at 30 s too, and the talker
-    then rests 5 s (its STARTs and AUDIO dropped) before the next one opens (2026-11-13: ending and
-    restarting at once, or a cut, no longer talks on for ever).
+  - No AUDIO for 1 s closes it as a timeout. After 30 s it is cut (END reason 2); the talker
+    then rests 2 s (its STARTs and AUDIO dropped and logged) before its next START opens a new
+    one (2026-11-13). A modified game that ends and restarts at once can still talk on: that is
+    left to the teammates' mutes, so a shot-caller who talks a lot is never silenced.
   - AUDIO for an utterance srp did not see start opens it (a lost START).
 - **Limits.** 60 datagrams/s and 400 bytes a datagram per talker; one open utterance per talker.
   The excess is dropped and counted. Hardened 2026-11-13 against a modified game, to what the
@@ -223,7 +223,7 @@ Little-endian. Every datagram starts with `56 01 <type>`: the magic, the version
     second on;
   - tests: `cargo test -p match-server --lib voice` (37: team-only, mutes, IP and seat checks,
     every malformed shape with its reason, frames not the games' encoder's, a flood not delaying
-    a good sender, the drop log's bounds, lost START, timeout, the 30 s cut and the run's rest,
+    a good sender, the drop log's bounds, lost START, timeout, the 30 s cut and the rest after it,
     the rate limits (talker, audio, source), the tap's text, real sockets over the registry, the
     0xD8 setting the IP).
 

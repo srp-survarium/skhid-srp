@@ -113,14 +113,12 @@ const SOURCES: usize = 4096;
 pub const HELLO_FRESH: Duration = Duration::from_secs(6);
 /// An utterance with no AUDIO this long is closed (END reason 1).
 pub const SILENCE: Duration = Duration::from_secs(1);
-/// An utterance this long is cut (END reason 2). So is a run of them: the
-/// talk of utterances less than [`REST`] apart adds up.
+/// An utterance this long is cut (END reason 2).
 pub const LONGEST: Duration = Duration::from_secs(30);
-/// After [`LONGEST`] of talk a talker rests this long (its STARTs and AUDIO
-/// dropped) before the next utterance opens; a pause this long also starts
-/// a new run. Without it a cut talker (or one that ends and restarts its
-/// utterance) could talk on for ever.
-pub const REST: Duration = Duration::from_secs(5);
+/// After a cut the talker rests this long (its STARTs and AUDIO dropped)
+/// before its next utterance opens. A talker that re-presses for ever is
+/// left to its teammates' mutes.
+pub const REST: Duration = Duration::from_secs(2);
 const HOUSEKEEPING: Duration = Duration::from_secs(1);
 const RECEIVE_WAIT: Duration = Duration::from_millis(10);
 
@@ -355,7 +353,7 @@ pub enum Dropped {
     RateLimit,
     /// A talker's AUDIO over [`AUDIO_RATE`].
     AudioRate,
-    /// A talker that talked [`LONGEST`] and has not rested [`REST`].
+    /// A talker cut at [`LONGEST`] less than [`REST`] ago.
     Resting,
 }
 
@@ -377,9 +375,9 @@ impl std::fmt::Display for Dropped {
             Self::AudioRate => write!(f, "audio over {} a second", AUDIO_RATE.per_second),
             Self::Resting => write!(
                 f,
-                "talked {} s without a rest of {} s",
-                LONGEST.as_secs(),
-                REST.as_secs()
+                "within {} s of a {} s cut",
+                REST.as_secs(),
+                LONGEST.as_secs()
             ),
         }
     }
@@ -633,36 +631,6 @@ struct Open {
     /// Counter on the listening wire, ordered across slot occupants.
     utterance: Utterance,
     last_audio_at: Instant,
-    /// The talk of its run before it ([`Run`]).
-    talked_before: Duration,
-}
-
-impl Open {
-    /// The talk of its run up to `now`: [`LONGEST`] of it cuts it.
-    fn talked(&self, now: Instant) -> Duration {
-        self.talked_before + now.saturating_duration_since(self.utterance.started_at)
-    }
-}
-
-/// A talker's utterances less than [`REST`] apart, as far as the last one
-/// that closed.
-#[derive(Clone, Copy)]
-struct Run {
-    talked: Duration,
-    closed_at: Instant,
-}
-
-impl Run {
-    /// The talk an utterance opened at `now` continues from: none after a
-    /// rest. `None`: the talker must rest first.
-    fn continued(run: Option<Self>, now: Instant) -> Option<Duration> {
-        match run {
-            Some(run) if now.saturating_duration_since(run.closed_at) < REST => {
-                (run.talked < LONGEST).then_some(run.talked)
-            }
-            _ => Some(Duration::ZERO),
-        }
-    }
 }
 
 struct Talker {
@@ -670,8 +638,9 @@ struct Talker {
     /// The utterance closed last: its late AUDIO and repeated ENDs open
     /// nothing.
     closed: Option<u16>,
-    /// The talk before the open utterance (or the last one).
-    run: Option<Run>,
+    /// When its last utterance was cut at [`LONGEST`]: no new one opens
+    /// until [`REST`] after it.
+    cut_at: Option<Instant>,
     /// The rate limit's second and its count.
     window: Instant,
     in_window: u32,
@@ -858,7 +827,7 @@ impl<S: Seats> Relay<S> {
         let talker = self.talkers.entry(session).or_insert(Talker {
             open: None,
             closed: None,
-            run: None,
+            cut_at: None,
             window: now,
             in_window: 0,
             audio: Bucket::full(AUDIO_RATE, now),
@@ -993,13 +962,15 @@ impl<S: Seats> Relay<S> {
             self.drop_for(Some(seat.match_id));
             return;
         }
-        let Some(talked_before) = Run::continued(
-            self.talkers.get(&session).and_then(|talker| talker.run),
-            now,
-        ) else {
+        if self
+            .talkers
+            .get(&session)
+            .and_then(|talker| talker.cut_at)
+            .is_some_and(|cut_at| now.saturating_duration_since(cut_at) < REST)
+        {
             self.reject(source, Some(seat.match_id), Dropped::Resting);
             return;
-        };
+        }
         let output_utt = self
             .output_utterances
             .entry((seat.match_id, seat.place))
@@ -1032,7 +1003,6 @@ impl<S: Seats> Relay<S> {
                 client_utt: utt,
                 utterance,
                 last_audio_at: now,
-                talked_before,
             });
         }
         self.send_texts(tap_out, now, out);
@@ -1052,10 +1022,9 @@ impl<S: Seats> Relay<S> {
             return;
         };
         talker.closed = Some(open.client_utt);
-        talker.run = Some(Run {
-            talked: open.talked(now),
-            closed_at: now,
-        });
+        if reason == EndReason::TooLong {
+            talker.cut_at = Some(now);
+        }
         let utterance = open.utterance;
         let counts = self.counts.entry(utterance.match_id).or_default();
         counts.talked += open
@@ -1132,7 +1101,7 @@ impl<S: Seats> Relay<S> {
             .iter()
             .filter_map(|(session, talker)| {
                 let open = talker.open.as_ref()?;
-                if open.talked(now) >= LONGEST {
+                if now.saturating_duration_since(open.utterance.started_at) >= LONGEST {
                     Some((*session, EndReason::TooLong))
                 } else if now.saturating_duration_since(open.last_audio_at) >= SILENCE {
                     Some((*session, EndReason::Timeout))

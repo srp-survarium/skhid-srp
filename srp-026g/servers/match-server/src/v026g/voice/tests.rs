@@ -409,11 +409,11 @@ fn an_utterance_is_cut_at_thirty_seconds() {
     bench.at(30_040);
     assert!(bench.send(1, &audio(1, 1, seq + 1)).is_empty());
     assert!(bench.send(1, &start(1, 2)).is_empty());
-    bench.at(34_999);
+    bench.at(31_999);
     bench.send(2, &hello(2, true));
     assert!(bench.send(1, &audio(1, 2, 0)).is_empty());
     // Rested: its audio opens it (its START dropped).
-    bench.at(35_000);
+    bench.at(32_000);
     assert_eq!(
         sent_to(&bench.send(1, &audio(1, 2, 1))),
         vec![(2, 0x82), (2, 0x83)]
@@ -425,55 +425,33 @@ fn an_utterance_is_cut_at_thirty_seconds() {
 }
 
 #[test]
-fn ending_and_restarting_does_not_talk_past_thirty_seconds() {
+fn only_a_cut_makes_the_talker_rest() {
     let mut bench = Bench::new();
     bench.send(2, &hello(2, true));
-    // Utterances of 9 s, 0.1 s apart: one run, cut 30 s into it.
-    let mut utt = 0;
-    let mut ended = None;
+    // Utterances of 29 s, ended and restarted at once: none is cut, and no
+    // rest follows (a talker that re-presses for ever is left to mutes).
     let mut ms = 0;
-    'run: while ms < 40_000 {
-        utt += 1;
+    for utt in 1..=3u16 {
         bench.at(ms);
         bench.send(2, &hello(2, true));
-        bench.send(1, &start(1, utt));
-        for seq in 0..225 {
+        assert_eq!(
+            sent_to(&bench.send(1, &start(1, utt))),
+            vec![(2, 0x82)],
+            "{utt}"
+        );
+        for seq in 0..725 {
             bench.at(ms);
             if seq % 50 == 0 {
                 bench.send(2, &hello(2, true));
             }
             let mut out = bench.send(1, &audio(1, utt, seq));
             out.extend(bench.poll());
-            if let Some((_, datagram)) = out.iter().find(|(_, datagram)| datagram[2] == 0x84) {
-                ended = Some((ms, datagram[6]));
-                break 'run;
-            }
+            assert_eq!(sent_to(&out), vec![(2, 0x83)], "{utt} {seq}");
             ms += 40;
         }
-        bench.send(1, &end(1, utt));
-        ms += 100;
+        assert_eq!(sent_to(&bench.send(1, &end(1, utt))), vec![(2, 0x84)]);
     }
-    // Three utterances of 8.96 s, then 3.12 s of the fourth.
-    assert_eq!(ended, Some((3 * 9_100 + 3_120, EndReason::TooLong as u8)));
-    assert_eq!(utt, 4);
-    // Not until a rest.
-    bench.at(32_000);
-    bench.send(2, &hello(2, true));
-    assert!(bench.send(1, &start(1, 5)).is_empty());
-    bench.at(35_419);
-    assert!(bench.send(1, &start(1, 6)).is_empty());
-    bench.at(35_420);
-    assert_eq!(sent_to(&bench.send(1, &start(1, 7))), vec![(2, 0x82)]);
-    // The rest started a new run: 29 s more are not cut.
-    for step in 1..=58u64 {
-        bench.at(35_420 + step * 500);
-        if step % 4 == 0 {
-            bench.send(2, &hello(2, true));
-        }
-        let mut out = bench.send(1, &audio(1, 7, step as u16));
-        out.extend(bench.poll());
-        assert_eq!(sent_to(&out), vec![(2, 0x83)], "{step}");
-    }
+    assert_eq!(bench.relay.counts(MATCH).unwrap().dropped, 0);
 }
 
 #[test]
