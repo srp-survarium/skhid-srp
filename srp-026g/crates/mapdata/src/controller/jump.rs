@@ -331,46 +331,6 @@ pub fn run_up(world: &Collision, s: &Settings, press_at: Vec3, heading: (f32, f3
     ok(&c).then_some(RunUp { body: c, speed: v })
 }
 
-/// One press a run passes ([`run_presses`]): how far before the take-off it is, the body there and its last step's speed.
-#[derive(Clone, Copy, Debug)]
-pub struct PressPoint {
-    pub lead: f32,
-    pub body: Controller,
-    pub speed: f32,
-}
-
-/// The presses a client running at `speed` m/s (sprinting or not) along `heading` toward the take-off floor's centre `takeoff`
-/// can make from `lead_min` to `lead_max` m before it: a press is made on a tick, so these are where the run's ticks end. The run
-/// is the rig's ([`run_up`]): a body put down 3.5 + 4 steps' travel behind `lead_max`, walked up to speed over 6 steps (the 0.3 s
-/// blend), then steady to `lead_min`. A tick whose body is off the ground, in a jump, more than 0.1 m off the line or 0.35 m off
-/// the take-off's height is no press (the body was held or fell on the way).
-pub fn run_presses(world: &Collision, s: &Settings, takeoff: Vec3, heading: (f32, f32), speed: f32, sprinting: bool, lead_min: f32, lead_max: f32) -> Vec<PressPoint> {
-    use crate::grid::controlled::{body_at, Stance, WalkStart};
-    let way = Vec3::new(heading.0, 0.0, heading.1);
-    let flat = |v: Vec3| Vec3::new(v.x, 0.0, v.z);
-    let back = lead_max + speed * DT * (3.5 + 4.0);
-    let start = takeoff - way * back;
-    let mut c = body_at(world, WalkStart::Clear, Stance::Standing, Vec3::new(start.x, takeoff.y, start.z));
-    settle(&mut c, world, s);
-    let mut out = Vec::new();
-    let ticks = ((back - lead_min) / (speed * DT)).ceil() as u32 + 6;
-    for k in 1..=ticks {
-        let before = c.origin;
-        walk_step(&mut c, world, s, way * (speed * DT * (k.min(6) as f32) / 6.0), sprinting);
-        let v = flat(c.origin - before).length() / DT;
-        let f = c.feet();
-        let lead = flat(takeoff - f).dot(way);
-        if lead < lead_min - 1e-3 {
-            break;
-        }
-        let off_line = flat(takeoff - f - way * lead).length();
-        if k >= 6 && lead <= lead_max + 1e-3 && off_line <= 0.1 && (f.y - takeoff.y).abs() <= 0.35 && !c.jumping && c.on_ground(s) {
-            out.push(PressPoint { lead, body: c, speed: v });
-        }
-    }
-    out
-}
-
 /// The gait of a run-up jump: a walk (the short jump) or a sprint (the sprint jump off `leg`, its first air step ending at
 /// the clip frame `first_air_frame`).
 #[derive(Clone, Copy, Debug, PartialEq)]
