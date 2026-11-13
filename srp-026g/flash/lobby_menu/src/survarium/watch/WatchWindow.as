@@ -883,10 +883,15 @@ package survarium.watch
                   }
                   if(reason == null)
                   {
-                     // kept while another ask is under way: tried again with the next list
+                     // kept while another ask is under way: tried again with the next list,
+                     // its wait anew (found, not lost)
                      if(this.watch(uint(row.match),WatchRows.watchAsk(int(friend.place))))
                      {
                         this._spectate = null;
+                     }
+                     else
+                     {
+                        spectate.left = SPECTATE_S;
                      }
                   }
                   else
