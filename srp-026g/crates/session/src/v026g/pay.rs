@@ -60,10 +60,11 @@ impl Pay {
 /// "Enemies killed": a kill (PROVEN by SHOT2: 19 kills are 475 / 57 / 19
 /// before the multipliers).
 pub const KILL: Pay = Pay::new(25.0, 3.0, 1.0);
-/// What a kill pays in srp's matches (the owner, 2026-11-13: "we can even
-/// increase x2 kills", and its experience "double too"): twice [`KILL`]'s
-/// silver and experience, its reputation the original's.
-pub const SRP_KILL: Pay = Pay::new(2.0 * KILL.money, 2.0 * KILL.experience, KILL.reputation);
+/// What a kill pays in a Free for All (the owner, 2026-11-13: "we can even
+/// increase x2 kills" there, and its experience "double too"; "it should
+/// have been only ffa change"): twice [`KILL`]'s silver and experience, its
+/// reputation the original's. Every other mode's kill pays [`KILL`].
+pub const FFA_KILL: Pay = Pay::new(2.0 * KILL.money, 2.0 * KILL.experience, KILL.reputation);
 /// A lesser kind of kill, cause unknown: SHOT1's 17 kills (375 / 41 / 17
 /// before the multipliers) are exactly 7 kills of [`KILL`] and 10 of
 /// this. Not used: every kill pays alike until the cause is known.
@@ -121,14 +122,14 @@ pub const FLOOR_OF_MEDIAN: f64 = 0.8;
 /// The least score that takes the floor: an idle player gets none.
 pub const FLOOR_MIN_SCORE: u32 = 30;
 
-/// The silver every player who stays to the end of a paid match gets on top
-/// of its rows (the owner, 2026-11-13: "just everyone get 30k", "no need to
-/// worry about late joiners"): flat, at every match level, won or not,
-/// however late it came, in every mode. No rate, no level, no share of a
-/// match against bots and no Blackout factor touches it; the floor and the
-/// items' bonus do not count it. A player who left, a room with a PIN and
-/// a test bot get none.
-pub const FINISH_SILVER: u32 = 30_000;
+/// The silver every player who stays to the end of a paid Free for All gets
+/// on top of its rows (the owner, 2026-11-13: "give to the current ffa base
+/// ... just everyone get 30k", "no need to worry about late joiners"; "it
+/// should have been only ffa change"): flat, at every match level, won or
+/// not, however late it came. No rate and no level touches it; the floor
+/// and the items' bonus do not count it. A player who left, a room with a
+/// PIN and a test bot get none, and no other mode pays it.
+pub const FFA_FINISH_SILVER: u32 = 30_000;
 
 /// A multiplier of `match_levels_dict` as the decimal the data means: the
 /// file's f32 for 1.05 is a hair under it, and 20 × 1.05 must be 21.

@@ -31,10 +31,10 @@
 //!   amount times the match level's multiplier (`match_levels_dict`:
 //!   `money_k`, `experience_k`, `reputation_k`), rounded down after
 //!   multiplying (PROVEN by the second screen):
-//!   - *Enemies killed*: [`pay::SRP_KILL`] a kill (50 silver, 6
-//!     experience, 1 reputation: twice the original's [`pay::KILL`] silver
-//!     and experience, the owner's of 2026-11-13). A team kill is in the
-//!     row and pays nothing.
+//!   - *Enemies killed*: [`pay::KILL`] a kill (25 silver, 3 experience,
+//!     1 reputation); in a Free for All [`pay::FFA_KILL`] (50 / 6 / 1:
+//!     twice the silver and experience, the owner's of 2026-11-13;
+//!     [`Terms::of_mode`]). A team kill is in the row and pays nothing.
 //!   - *Help ally*: [`pay::HELP`] (10 / 1 / 1) an assist, a teammate
 //!     cured or a teammate rescued.
 //!   - *Match Activity Rewards*: a fixed part for a match played to the
@@ -46,10 +46,11 @@
 //!     ([`Terms::score_weights`], the ones the scoreboard used; a Research
 //!     match's weigh its captures and its "kill invader": `static_info::
 //!     RESEARCH_WEIGHTS`).
-//! - **30,000 silver for staying to the end** ([`pay::FINISH_SILVER`], the
-//!   owner's of 2026-11-13): flat, to every player who finished a paid
-//!   match, in its main kit's activity cell; no rate, level, share or
-//!   factor touches it, and the floor and the items' bonus do not count it.
+//! - **30,000 silver for staying to the end of a Free for All**
+//!   ([`pay::FFA_FINISH_SILVER`], the owner's of 2026-11-13): flat, to
+//!   every player who finished a paid Free for All, in its main kit's
+//!   activity cell; no rate or level touches it, and the floor and the
+//!   items' bonus do not count it. No other mode pays it.
 //! - **The rates** (the owner's choices): the three rows' silver times the
 //!   percent of the match's level ([`pay::MONEY_RATES`]: 225 to level 5,
 //!   rising to 330 from level 12; or `SRP_MONEY_RATE` at every level);
@@ -116,11 +117,11 @@
 //! | the player | gets |
 //! |---|---|
 //! | stayed to the end | everything above |
-//! | left early | what its counters earned (kills, help, other score), a loss in the rating whatever its team did, quests; nothing of the activity row's fixed part, no floor, no 30,000 for staying, no daily bonus and no drop |
+//! | left early | what its counters earned (kills, help, other score), a loss in the rating whatever its team did, quests; nothing of the activity row's fixed part, no floor, no Free for All's 30,000 for staying, no daily bonus and no drop |
 //! | never got into the match | nothing; its rating stays (0.21d) |
 //! | left by its own word and came into the match again (a new place) | its latest place's as above; the place it left counts for nothing ([`MatchResult::latest_places`]) |
 //! | any, when play never began (`played_ms` is `None`) | nothing |
-//! | any, when no snapshot was trusted (`trusted_by` 0) | no counters and no winner: the fixed part of a match not won, the 30,000 for staying, a drop; the rating stays (0.21d's unknown result) |
+//! | any, when no snapshot was trusted (`trusted_by` 0) | no counters and no winner: the fixed part of a match not won, a Free for All's 30,000 for staying, a drop; the rating stays (0.21d's unknown result) |
 //! | any, when one client alone vouched (`trusted_by` 1) | in full, as 0.21d paid a match one client was alone in (its numbers passed the match server's checks) |
 //!
 //! A match no client ever reached ([`MatchEnd::NoShow`]) has no report, nor
@@ -416,12 +417,10 @@ pub struct Terms {
     /// pays of the silver and the experience of its rows, 0 to 1
     /// (`SRP_PVB_PAY`, default 0.5; [`super::pvb::pay`]).
     pub pvb_pay: f64,
-    /// What a kill pays before the rates and the match level: srp's
-    /// [`pay::SRP_KILL`], or the original's [`pay::KILL`].
-    pub kill: Pay,
-    /// The flat silver a player who stays to the end of a paid match gets
-    /// on top of its rows ([`pay::FINISH_SILVER`]; 0, the original's: none).
-    pub finish_silver: u32,
+    /// What a kill and staying to the end of a Free for All pay: srp's
+    /// [`ModePay::FREE_FOR_ALL`], or the original's [`ModePay::ORIGINAL`].
+    /// Every other mode pays the original's ([`Terms::of_mode`]).
+    pub free_for_all: ModePay,
 }
 
 impl Terms {
@@ -429,9 +428,9 @@ impl Terms {
     /// `SRP_MONEY_RATE` (default: by the match's level),
     /// `SRP_REPUTATION_RATE` (default 180),
     /// `SRP_BALANCE_RATED_PLAYERS` (default 4), `SRP_PVB_PAY` (default
-    /// 0.5), the weights srp's matches are made with, srp's kill
-    /// ([`pay::SRP_KILL`]) and the flat silver for staying to the end
-    /// ([`pay::FINISH_SILVER`]).
+    /// 0.5), the weights srp's matches are made with, and a Free for All's
+    /// kill and flat silver for staying to the end
+    /// ([`ModePay::FREE_FOR_ALL`]).
     pub fn at(now: u64) -> Self {
         Self {
             now,
@@ -441,10 +440,46 @@ impl Terms {
             score_weights: SCORE_WEIGHTS,
             rated_players: balance::rated_players(),
             pvb_pay: super::pvb::pay(),
-            kill: pay::SRP_KILL,
-            finish_silver: pay::FINISH_SILVER,
+            free_for_all: ModePay::FREE_FOR_ALL,
         }
     }
+
+    /// What a kill and staying to the end pay in a match of `mode`: a Free
+    /// for All's [`Terms::free_for_all`], every other mode's the
+    /// original's (the owner, 2026-11-13: "it should have been only ffa
+    /// change").
+    pub fn of_mode(&self, mode: GameMode) -> ModePay {
+        if mode == GameMode::FreeForAll {
+            self.free_for_all
+        } else {
+            ModePay::ORIGINAL
+        }
+    }
+}
+
+/// What a kill and staying to the end pay in one mode, before the rates.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ModePay {
+    /// What a kill pays before the rates and the match level.
+    pub kill: Pay,
+    /// The flat silver a player who stays to the end of a paid match gets
+    /// on top of its rows.
+    pub finish_silver: u32,
+}
+
+impl ModePay {
+    /// The original's: a kill [`pay::KILL`], nothing for staying to the end.
+    pub const ORIGINAL: Self = Self {
+        kill: pay::KILL,
+        finish_silver: 0,
+    };
+    /// srp's Free for All (the owner's of 2026-11-13): a kill
+    /// [`pay::FFA_KILL`], and [`pay::FFA_FINISH_SILVER`] for staying to the
+    /// end.
+    pub const FREE_FOR_ALL: Self = Self {
+        kill: pay::FFA_KILL,
+        finish_silver: pay::FFA_FINISH_SILVER,
+    };
 }
 
 /// How a player's match went, for the rewards.
@@ -1502,6 +1537,9 @@ struct Shared<'a> {
     /// The weights its score was counted with: the terms', with Research's
     /// own in mode 5 ([`static_info::weights_of`]).
     weights: [f32; EVENTS],
+    /// What a kill and staying to the end pay in its mode
+    /// ([`Terms::of_mode`]).
+    mode_pay: ModePay,
     /// Reward-table level, capped at seven for PvE. The match's actual
     /// level and equipment remain unchanged.
     reward_level: u16,
@@ -1561,6 +1599,7 @@ impl<'a> Shared<'a> {
             batteries,
             stole,
             weights: static_info::weights_of(result.mode.rules(), terms.score_weights),
+            mode_pay: terms.of_mode(result.mode),
             reward_level,
             multipliers,
             drop_level,
@@ -1837,7 +1876,7 @@ impl<'a> Shared<'a> {
             // kills' line and is no enemy killed); the two end-of-match
             // events are the fixed part, added below.
             let each = match event {
-                event::KILL => self.terms.kill,
+                event::KILL => self.mode_pay.kill,
                 event::ASSIST | event::TEAMMATE_CURE | event::TEAMMATE_RESCUE => pay::HELP,
                 event::PARTICIPATING | event::WON => continue,
                 _ if line == ACTIVITY_LINE && weights[event] > 0.0 => {
@@ -2004,10 +2043,11 @@ impl<'a> Shared<'a> {
             } else {
                 0
             };
-        // The flat silver for staying to the end (`pay::FINISH_SILVER`):
-        // in the same cell, but no item's bonus counts it.
+        // The flat silver for staying to the end (a Free for All's
+        // `pay::FFA_FINISH_SILVER`, none in another mode): in the same
+        // cell, but no item's bonus counts it.
         let finish_silver = if standing == Standing::Finished && !bot {
-            self.terms.finish_silver
+            self.mode_pay.finish_silver
         } else {
             0
         };
