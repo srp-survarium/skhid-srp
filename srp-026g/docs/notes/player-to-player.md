@@ -280,8 +280,9 @@ The parts, and what they hold:
   mode's rule; each field in its domain.
 - **Game objects**: the grenades and traps of every place's kits, then the map's damage zones,
   resupply zones and anomalies with their artefacts, in the map's order. A held artefact's
-  inventory slot must be an artefact slot (13 to 18) and its amount at most its item's uses: the
-  game removes it from that slot with no bound when its last activation ends.
+  inventory slot must be an artefact slot (13 to 18), none of its kit's pockets and no other held
+  artefact's, and its amount 1 to its item's uses: the game removes it from that slot, with no
+  bound or null check, when its last activation ends.
 - **Effects**: the effects playing, in the one form a game writes (an emitter by index, never by
   address).
 

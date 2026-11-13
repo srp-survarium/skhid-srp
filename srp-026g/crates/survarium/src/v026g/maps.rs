@@ -534,14 +534,17 @@ pub fn world_objects(
                 };
                 // Its uses, which bound an artefact's amount (`Uses`): the game
                 // reads `data.amount` as a 32-bit int (0x3130B9). An item without
-                // the key has no defined uses: the config's `operator[]` 0xF6B10
-                // has no end check, so the game reads past the table. Such an
-                // item is held to one use, as every live artefact (-1) is.
+                // the key has no defined uses (the config's `operator[]` 0xF6B10
+                // has no end check: the game reads past the table), so it stops
+                // the data; every live artefact has it (-1).
                 let data = config.get("data");
-                let uses = match data.and_then(|data| data.get("amount")) {
-                    None => Uses::of_amount(-1),
-                    Some(_) => Uses::of_amount(int(data, "amount")?),
-                };
+                if data.and_then(|data| data.get("amount")).is_none() {
+                    return Err(ConfigError(format!(
+                        "anomaly {name}: artefact {dict_id} has no `data.amount`, which the \
+                         game would read past its config"
+                    )));
+                }
+                let uses = Uses::of_amount(int(data, "amount")?);
                 let count = int::<usize>(Some(artefact), "count")?;
                 artefacts.extend(std::iter::repeat_n(ArtefactItem { core, uses }, count));
             }
@@ -1899,6 +1902,29 @@ mod tests {
             let section = srp_validate::world::Section { at: 0, bytes: &bytes };
             assert_eq!(srp_validate::world::objects(&section, &context), Ok(()), "{}", map.project);
         }
+    }
+
+    #[test]
+    fn an_artefact_item_without_data_amount_stops_the_data() {
+        let stock = super::super::game_data::shared();
+        let dictionary = Dictionary::parse(stock.file(super::super::dictionary::PATH).unwrap()).unwrap();
+        assert!(derive(stock, &dictionary).is_ok());
+        let path = "gameplay/items/artefacts/artefact_lifebone.options";
+        let mut config = ConfigValue::parse(stock.file(path).unwrap()).unwrap();
+        let Some(ConfigValue::Named(data)) = (match &mut config {
+            ConfigValue::Named(entries) => entries
+                .iter_mut()
+                .find(|(key, _)| key == "data")
+                .map(|(_, data)| data),
+            _ => None,
+        }) else {
+            panic!("the lifebone has data")
+        };
+        assert!(data.iter().any(|(key, _)| key == "amount"));
+        data.retain(|(key, _)| key != "amount");
+        let data = stock.laid_over("no amount", vec![(path.to_owned(), config.to_bytes().unwrap())]);
+        let refused = derive(&data, &dictionary).unwrap_err().to_string();
+        assert!(refused.contains("data.amount"), "{refused}");
     }
 
     #[test]
