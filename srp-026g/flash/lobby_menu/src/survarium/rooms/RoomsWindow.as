@@ -806,6 +806,8 @@ package survarium.rooms
         public function away():void
         {
             _lobbyState = AWAY;
+            // a held return is the lobby's before this load: none after it
+            _watchReturn = null;
             if (_calledBack != null)
                 _calledBack.visible = false;
         }

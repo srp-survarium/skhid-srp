@@ -994,7 +994,9 @@ package survarium.watch
             {
                return;
             }
-            if(players == null)
+            // answered after a match's load: nothing is asked during a match (no player's
+            // matches, no watch of a code)
+            if(players == null || !_inLobby)
             {
                search.state = NO_ANSWER;
                render();
