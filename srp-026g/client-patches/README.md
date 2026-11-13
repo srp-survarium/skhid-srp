@@ -3598,7 +3598,8 @@ without it, or of another version (unloaded), voice is off.
 - `game_world.finish` (on_finish_match 0x1F96F0, EAX the world) and `game_world.deactivate`
   (on_deactivate 0x1F9520, ECX the world): push-to-talk let go, `sv_stop`, the hud's list emptied;
 - `game_world.after_move` (every frame of a match): the options to the DLL on a change, the muted
-  places, the far ones (a teammate beyond 15 m, or either of the two dead: the radio filter), the
+  places, the far ones (a teammate, in a free-for-all any player, beyond 15 m, or either of the two
+  dead: the radio filter), the
   near ones' pans (`sv_direction`: the sine of the bearing, heard from that side) and the
   hud's `root.srp_voice_talking(name, ...)` on a change; a push-to-talk whose key or button is up
   (user32's GetAsyncKeyState: the numpad's keys by either key NumLock gives, NumLock and Pause by

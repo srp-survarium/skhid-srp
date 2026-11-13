@@ -36,7 +36,7 @@ impl Table {
             VoiceSeat {
                 match_id,
                 place,
-                team,
+                channel: VoiceChannel::Team(team),
                 ip: Some(addr(session).ip()),
             },
         );
@@ -61,12 +61,12 @@ impl Seats for Table {
     }
 
     /// Each seat's account is 100 + its session.
-    fn roster(&self, match_id: u32, team: u8) -> Vec<(u8, u32)> {
+    fn roster(&self, match_id: u32, channel: VoiceChannel) -> Vec<(u8, u32)> {
         let mut places: Vec<(u8, u32)> = self
             .0
             .borrow()
             .iter()
-            .filter(|(_, seat)| seat.match_id == match_id && seat.team == team)
+            .filter(|(_, seat)| seat.match_id == match_id && seat.channel == channel)
             .map(|(session, seat)| (seat.place, 100 + session))
             .collect();
         places.sort_unstable();
@@ -690,6 +690,53 @@ fn the_voice_port_is_the_next_one() {
 }
 
 #[test]
+fn in_a_free_for_all_everyone_hears_everyone_in_a_team_mode_teammates() {
+    use super::super::tests::{MAP_TDM, session_of, setup};
+    use survarium::v026g::maps::{self, GameMode};
+    let free_for_all = maps::find(1, maps::weather::DAY, GameMode::FreeForAll)
+        .expect("level_01's free-for-all")
+        .id;
+    // Three places: in team deathmatch 0 and 2 on team 0, 1 on team 1; in
+    // the free-for-all each a side of its own (4, 5, 6).
+    for (map_id, heard, roster) in [
+        (MAP_TDM, vec![2], vec![0, 2]),
+        (free_for_all, vec![1, 2], vec![0, 1, 2]),
+    ] {
+        let registry = Arc::new(MatchRegistry::new("127.0.0.1", 1));
+        let ticket = registry.create(setup(3, map_id)).unwrap();
+        // Each place's game at 10.0.0.<place + 1>, port 5000 + place + 1.
+        let game = |place: u8| addr(u32::from(place) + 1);
+        for place in 0..3 {
+            registry.set_connection(
+                Seat {
+                    match_id: ticket.match_id,
+                    place,
+                },
+                game(place).ip(),
+            );
+        }
+        let now = Instant::now();
+        let mut relay = Relay::new(registry.clone(), now);
+        let mut rosters = Vec::new();
+        for place in 0..3 {
+            let session = session_of(usize::from(place));
+            for (_, datagram) in relay.receive(game(place), &hello(session, true), now) {
+                if datagram[2] == kind::ROSTER {
+                    rosters.push(datagram);
+                }
+            }
+        }
+        // Place 0's ROSTER: the places it hears and is heard by.
+        let listed: Vec<u8> = rosters[0][4..].chunks(5).map(|entry| entry[0]).collect();
+        assert_eq!(listed, roster, "map {map_id}");
+        let out = relay.receive(game(0), &start(session_of(0), 1), now);
+        let mut to: Vec<u8> = out.iter().map(|(to, _)| (to.port() - 5001) as u8).collect();
+        to.sort_unstable();
+        assert_eq!(to, heard, "map {map_id}");
+    }
+}
+
+#[test]
 fn a_game_connected_to_its_match_is_a_voice_seat_from_its_ip() {
     use super::super::tests::{Bench, MAP_BATTERIES, session_of};
     let mut bench = Bench::new(2, MAP_BATTERIES, crate::v026g::Settings::default());
@@ -697,11 +744,19 @@ fn a_game_connected_to_its_match_is_a_voice_seat_from_its_ip() {
     bench.join(0);
     let seat = bench.registry.voice_seat(session_of(0)).unwrap();
     assert_eq!(
-        (seat.match_id, seat.place, seat.team, seat.ip),
-        (bench.match_id, 0, 0, Some(ip("127.0.0.1")))
+        (seat.match_id, seat.place, seat.channel, seat.ip),
+        (
+            bench.match_id,
+            0,
+            VoiceChannel::Team(0),
+            Some(ip("127.0.0.1"))
+        )
     );
     assert_eq!(bench.registry.voice_seat(session_of(1)).unwrap().ip, None);
-    assert_eq!(bench.registry.voice_seat(session_of(1)).unwrap().team, 1);
+    assert_eq!(
+        bench.registry.voice_seat(session_of(1)).unwrap().channel,
+        VoiceChannel::Team(1)
+    );
 }
 
 /// A folder of its own under the system's temporary folder.
@@ -824,9 +879,9 @@ fn restarted_process_keeps_the_same_account_but_gets_a_new_relay_utterance() {
         fn is_open(&self, match_id: u32) -> bool {
             self.0.is_open(match_id)
         }
-        fn roster(&self, match_id: u32, team: u8) -> Vec<(u8, u32)> {
+        fn roster(&self, match_id: u32, channel: VoiceChannel) -> Vec<(u8, u32)> {
             self.0
-                .roster(match_id, team)
+                .roster(match_id, channel)
                 .into_iter()
                 .map(|(slot, _)| (slot, u32::from(slot) + 100))
                 .collect()

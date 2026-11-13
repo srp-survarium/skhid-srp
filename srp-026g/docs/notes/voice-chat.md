@@ -352,6 +352,14 @@ Where the build differs from or adds to the design above:
   +3 dB in that ear. Behind is centred as ahead (no HRTF). The mix is stereo since (waveOut 16 kHz
   16-bit stereo, 64 kB/s to the driver instead of 32; the microphone stays mono); the radio and
   the squelch are centred.
+- **Free for all: voice for all** (the owner, 2026-11-13: "in FFA I would enable voice chat for
+  all"): in a free-for-all every player hears every other of the match (each is a side of its
+  own, so by teams nobody heard anyone), by the same rule of near and far. One decision a side,
+  from the match's mode: the relay's `registry::VoiceChannel::of` (a team's places, or the
+  match's), which routes the forwards and the ROSTER (so voice ids, and the mutes, cover every
+  player); the game's `channel` in patch 66 (patch 142's free-for-all, read from the options),
+  which the roster's `mate` follows for the hearing, the mutes, the Tab menu's voice entries and
+  the talking list. Team modes as before: teammates only.
 - **Automatic gain** (the owner, 2026-11-07: as 0.69): before Opus, the microphone goes through
   speexdsp's preprocessor, noise suppression and automatic gain on, as 0.69d0's voice_recorder
   turns them on (0x2006281CA; its level `voice_chat_preprocess_gain`, 12000 of 1..32768, set
@@ -466,7 +474,7 @@ Where the build differs from or adds to the design above:
 - The match server's headless loopback test runs its actual UDP relay with two Rust client cores.
   Each sends a different synthetic tone through Opus, the wire, routing and jitter playback.
   The received audio's energy and frequency must match the other client. No microphone or fake
-  codec participates. Relay tests also cover team isolation, mutes, authentication, rate limits,
+  codec participates. Relay tests also cover team isolation (and a free-for-all heard by all), mutes, authentication, rate limits,
   released seats, immediate reseats, stale utterances and process restarts in the same slot
   while the listener misses the new START packet.
 - `scripts/tab-row-menu/check.sh` (Ruffle) runs the Tab menu with the voice entries: offered,

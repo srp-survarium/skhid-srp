@@ -5,7 +5,8 @@
 //! their talk here as utterances (START, AUDIO, END) and get their team's.
 //! The relay knows a talker by the session of its match connection (the
 //! 0xD8), and takes its datagrams only from the IP that connection came from
-//! ([`VoiceSeat::ip`]). It forwards each AUDIO to the speaker's teammates who
+//! ([`VoiceSeat::ip`]). It forwards each AUDIO to the speaker's teammates (in
+//! a free-for-all, everyone in the match: [`VoiceChannel`]) who
 //! said HELLO lately and hear (their volume is above 0), and keeps nothing:
 //! no audio past the forward, no file, no audio, text or speaker list in the
 //! logs (counts only, per match). The simulation never sees any of it, so no
@@ -65,7 +66,7 @@ use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use super::registry::{MatchRegistry, VoiceSeat};
+use super::registry::{MatchRegistry, VoiceChannel, VoiceSeat};
 
 pub const MAGIC: u8 = 0x56;
 pub const VERSION: u8 = 1;
@@ -147,7 +148,8 @@ pub enum EndReason {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Utterance {
     pub match_id: u32,
-    pub team: u8,
+    /// Who hears it: the speaker's seat's channel where it began.
+    pub channel: VoiceChannel,
     /// The speaker's roster place: its slot on the wire.
     pub speaker: u8,
     pub utt: u16,
@@ -195,9 +197,9 @@ impl UtteranceTap for NoTap {}
 pub trait Seats {
     fn voice_seat(&self, session_id: u32) -> Option<VoiceSeat>;
     fn is_open(&self, match_id: u32) -> bool;
-    /// The places of a match's team that a game plays (no bot's): the place
+    /// The places of a match's voice channel that a game plays (no bot's): the place
     /// and its account.
-    fn roster(&self, match_id: u32, team: u8) -> Vec<(u8, u32)>;
+    fn roster(&self, match_id: u32, channel: VoiceChannel) -> Vec<(u8, u32)>;
 }
 
 impl Seats for MatchRegistry {
@@ -209,8 +211,8 @@ impl Seats for MatchRegistry {
         MatchRegistry::is_open(self, match_id)
     }
 
-    fn roster(&self, match_id: u32, team: u8) -> Vec<(u8, u32)> {
-        self.voice_roster(match_id, team)
+    fn roster(&self, match_id: u32, channel: VoiceChannel) -> Vec<(u8, u32)> {
+        self.voice_roster(match_id, channel)
     }
 }
 
@@ -223,8 +225,8 @@ impl<T: Seats + ?Sized> Seats for std::sync::Arc<T> {
         (**self).is_open(match_id)
     }
 
-    fn roster(&self, match_id: u32, team: u8) -> Vec<(u8, u32)> {
-        (**self).roster(match_id, team)
+    fn roster(&self, match_id: u32, channel: VoiceChannel) -> Vec<(u8, u32)> {
+        (**self).roster(match_id, channel)
     }
 }
 
@@ -884,7 +886,7 @@ impl<S: Seats> Relay<S> {
             .and_then(|talker| talker.open.as_ref())
             .is_some_and(|open| {
                 open.utterance.match_id != seat.match_id
-                    || open.utterance.team != seat.team
+                    || open.utterance.channel != seat.channel
                     || open.utterance.speaker != seat.place
             });
         if moved {
@@ -921,7 +923,7 @@ impl<S: Seats> Relay<S> {
                 let mut welcome = header(kind::WELCOME);
                 welcome.push(seat.place);
                 out.push((addr, welcome));
-                let places = self.seats.roster(seat.match_id, seat.team);
+                let places = self.seats.roster(seat.match_id, seat.channel);
                 let mut roster = header(kind::ROSTER);
                 roster.push(places.len().min(20) as u8);
                 for (place, account) in places.into_iter().take(20) {
@@ -1040,7 +1042,7 @@ impl<S: Seats> Relay<S> {
         let output_utt = *output_utt;
         let utterance = Utterance {
             match_id: seat.match_id,
-            team: seat.team,
+            channel: seat.channel,
             speaker: seat.place,
             utt: output_utt,
             started_at: now,
@@ -1092,7 +1094,8 @@ impl<S: Seats> Relay<S> {
         self.send_texts(tap_out, now, out);
     }
 
-    /// `datagram` to every teammate of the utterance's speaker that said
+    /// `datagram` to every listener on the utterance's channel (the speaker's
+    /// teammates; in a free-for-all, the match) that said
     /// HELLO lately and hears, but the speaker.
     fn to_team(
         &self,
@@ -1104,11 +1107,11 @@ impl<S: Seats> Relay<S> {
     ) {
         for (session, listener) in &self.listeners {
             // The registry (a lock the match thread shares) is asked last: only
-            // for a listener of the speaker's match and team.
+            // for a listener of the speaker's match and channel.
             if *session != speaker
                 && listener.hears
                 && listener.seat.match_id == utterance.match_id
-                && listener.seat.team == utterance.team
+                && listener.seat.channel == utterance.channel
                 && listener.seat.place != utterance.speaker
                 && !muted(listener.muted, utterance.speaker)
                 && now.saturating_duration_since(listener.last_hello) <= HELLO_FRESH
