@@ -7,12 +7,13 @@
 The patches are exactly the rows of release/patches.tsv (each checked by its
 sha256), mounted over the stock resources.db in their order, as the game does.
 Nothing about a map is written here by hand: the maps are the playable ids of
-`maps_dict` (a config of mode 2 to 5 whose project exists, as the server
+`maps_dict` (a config of mode 2 to 5 or 8 whose project exists, as the server
 plays them), and of each map
 
 - the name, the modes and their parameters: `gameplay/game_modes/`;
 - respawn points, battery spawners, charging stations ("chargers") and the
-  teams' battery containers: the project's `server_objects`;
+  teams' battery containers: the project's `server_objects` (of a free for
+  all, mode 8, the team-2 respawn points alone: its players' only spawns);
 - Research's three units (mode 5): the mode config's
   `parameters.capture_zones` (`cp_id`, `position`);
 - artefact containers and what spawns there: the project's `client_objects`
@@ -54,7 +55,7 @@ HERE = Path(__file__).resolve().parent
 SRP = HERE.parents[1]
 sys.path.insert(0, str(SRP / "scripts" / "released-game"))
 from released import LIST, die, extract, offered, revision as revision_of, write_built_from  # noqa: E402
-from game_maps import WANTED, hud_minimaps, load, playable  # noqa: E402
+from game_maps import FREE_FOR_ALL, WANTED, hud_minimaps, load, playable  # noqa: E402
 
 TYPES = {"js": "text/javascript; charset=utf-8", "webp": "image/webp", "svg": "image/svg+xml"}
 # The rule classes (a mode config's `rules`) that use the battery objects
@@ -209,6 +210,16 @@ def objects(project, artefact_keys):
     }
 
 
+def spawns(mode_id, points):
+    """The respawn points a mode's players get, of its project's (each
+    [x, z, y, team, heading]). A free-for-all's are the team-2 points alone:
+    each player is a side of his own and spawns there and nowhere else (exe
+    patch 142, docs/notes/ffa.md); the two teams' points its project keeps, a
+    copy of Team Deathmatch's, are never his. Any other mode's are all of
+    them."""
+    return [point for point in points if point[3] == 2] if mode_id == FREE_FOR_ALL else points
+
+
 def webp(png, out):
     im = Image.open(png).convert("RGBA")
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -282,6 +293,7 @@ def main():
                     seen["spawners"] = []
                 else:
                     seen["stations"] = []
+                seen["respawn"] = spawns(mode_id, seen["respawn"])
                 p = mm["parameters"]
                 # [x, z, y, cp_id], by cp_id (0, 1, 2: A, B, C).
                 seen["units"] = (sorted((xzy(zone) + [zone.get("cp_id", 0)] for zone in p.get("capture_zones") or []),
