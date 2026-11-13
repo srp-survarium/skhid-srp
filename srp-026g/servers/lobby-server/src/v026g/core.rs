@@ -118,6 +118,9 @@ pub(super) struct Player<'a> {
     /// When it last searched players by name (`social`: one search a
     /// `SEARCH_EVERY`).
     pub searched_at: Option<Instant>,
+    /// Its last answer of each list of the history (`player_matches`: one
+    /// made a `HISTORY_EVERY`).
+    pub history_answers: super::player_matches::HistoryAnswers,
     /// The room whose chat it hears: the room it was in when its movie put
     /// up its "Room Chat" tab, while it is in that room (`room_chat`).
     pub room_chat: Option<u32>,
@@ -711,6 +714,7 @@ impl<'a> Core<'a> {
             not_found: None,
             friend_requests: super::social::FriendRequestAllowance::new(now),
             searched_at: None,
+            history_answers: Default::default(),
             room_chat: None,
         };
         let mut link = Link {

@@ -4,26 +4,110 @@
 //! the asker itself; and the Watch hub's Recent tab
 //! (`survarium::v026g::lobby::recent_matches`), the latest public matches,
 //! or those of the asker's friends. Private rooms' matches and matches
-//! against bots are never listed.
+//! against bots are never listed. Each list is made at most once a
+//! [`HISTORY_EVERY`] for a session ([`HistoryAnswers`]).
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use session::LockExt;
 use session::v026g::persist::history::{
     HistoryReaders, MatchHistory, MatchSummary, OwnKind, PlayerLine, PlayerMatch, Presence, Winner,
 };
 use session::v026g::replays;
-use survarium::v026g::lobby::friend_row;
 use survarium::v026g::lobby::player_matches::{
     Outcome, PLAYER_MATCHES_ROWS, PlayerMatchRow, ReplayState, Shown, Whose, player_matches,
 };
 use survarium::v026g::lobby::recent_matches::{
     RECENT_MATCHES_ROWS, RecentFilter, RecentMatchRow, recent_matches,
 };
+use survarium::v026g::lobby::{ServerMessage, WireError, friend_row};
 
 use super::core::{Core, Who};
 
+/// How often a session's list of one kind ([`HistoryList`]) is made anew:
+/// a list reads srp.db's history (a query a friend, up to 200) and the
+/// replays' state on the lobby's one thread. The movie asks a shown list
+/// every 30 s, one not answered yet about once a second.
+pub(super) const HISTORY_EVERY: Duration = Duration::from_secs(1);
+
+/// The kinds of list a session is answered from the history.
+#[derive(Clone, Copy)]
+enum HistoryList {
+    Matches(Whose),
+    Recent(RecentFilter),
+}
+
+impl HistoryList {
+    const COUNT: usize = 4;
+
+    fn slot(self) -> usize {
+        match self {
+            Self::Matches(Whose::Shown) => 0,
+            Self::Matches(Whose::Own) => 1,
+            Self::Recent(RecentFilter::All) => 2,
+            Self::Recent(RecentFilter::Friends) => 3,
+        }
+    }
+}
+
+/// The answer a session was last made for a kind of list, and when.
+struct Made {
+    at: Instant,
+    /// `None`: its writer refused it (a bug, logged): nothing to send again.
+    answer: Option<ServerMessage>,
+}
+
+/// A session's last answer of each kind of list ([`HistoryList`]): an ask
+/// sooner than [`HISTORY_EVERY`] after it gets it again as it was made
+/// (another player's matches too, whoever the ask is about now: the movie
+/// takes them by the name in them, and asks again).
+#[derive(Default)]
+pub struct HistoryAnswers([Option<Made>; HistoryList::COUNT]);
+
+impl HistoryAnswers {
+    /// The answer of `list` made less than [`HISTORY_EVERY`] before `now`.
+    fn fresh(&self, list: HistoryList, now: Instant) -> Option<&Made> {
+        self.0[list.slot()]
+            .as_ref()
+            .filter(|made| now.saturating_duration_since(made.at) < HISTORY_EVERY)
+    }
+
+    fn keep(&mut self, list: HistoryList, made: Made) {
+        self.0[list.slot()] = Some(made);
+    }
+}
+
 impl Core<'_> {
+    /// Send `who` its answer of `list`: the one made less than
+    /// [`HISTORY_EVERY`] ago again, else the one `make` makes, kept.
+    fn history_answer(
+        &mut self,
+        who: &Who,
+        list: HistoryList,
+        now: Instant,
+        make: impl FnOnce(&Self) -> Result<ServerMessage, WireError>,
+    ) {
+        let Some(player) = self.player(who.addr) else {
+            return;
+        };
+        if let Some(made) = player.history_answers.fresh(list, now) {
+            if let Some(answer) = made.answer.clone() {
+                self.send(who.addr, answer);
+            }
+            return;
+        }
+        let answer = make(self)
+            .inspect_err(|error| log::error!("A lobby message could not be made: {error}"))
+            .ok();
+        if let Some(player) = self.player_mut(who.addr) {
+            let answer = answer.clone();
+            player.history_answers.keep(list, Made { at: now, answer });
+        }
+        if let Some(answer) = answer {
+            self.send(who.addr, answer);
+        }
+    }
+
     /// The history as the lobby reads it ([`MatchHistory::lobby`]): on a
     /// connection of its own, never behind the site's requests.
     fn history(&self) -> Option<&HistoryReaders> {
@@ -35,6 +119,19 @@ impl Core<'_> {
     /// asker's last `93`, or of the asker. Asked before any `93`, or for an
     /// account with no public match, the answer lists none.
     pub(super) fn player_matches(&mut self, who: &Who, whose: Whose, count: u8, now: Instant) {
+        self.history_answer(who, HistoryList::Matches(whose), now, |core| {
+            core.player_matches_made(who, whose, count, now)
+        });
+    }
+
+    /// `player_matches`' answer made anew.
+    fn player_matches_made(
+        &self,
+        who: &Who,
+        whose: Whose,
+        count: u8,
+        now: Instant,
+    ) -> Result<ServerMessage, WireError> {
         let subject = match whose {
             Whose::Shown => self
                 .player(who.addr)
@@ -88,7 +185,7 @@ impl Core<'_> {
                 ..player_row(played, unix, self.replay_state(who, &played.summary, now))
             })
             .collect();
-        self.send_made(who.addr, player_matches(&nickname, &rows));
+        player_matches(&nickname, &rows)
     }
 
     /// `3B 00 <RECENT_MATCHES_START + f> <count>`: at most `count` (and
@@ -101,6 +198,19 @@ impl Core<'_> {
         count: u8,
         now: Instant,
     ) {
+        self.history_answer(who, HistoryList::Recent(filter), now, |core| {
+            core.recent_matches_made(who, filter, count, now)
+        });
+    }
+
+    /// `recent_matches`' answer made anew.
+    fn recent_matches_made(
+        &self,
+        who: &Who,
+        filter: RecentFilter,
+        count: u8,
+        now: Instant,
+    ) -> Result<ServerMessage, WireError> {
         let limit = usize::from(count).min(RECENT_MATCHES_ROWS);
         let friends = self
             .store
@@ -124,7 +234,7 @@ impl Core<'_> {
             .map(|summary| recent_row(summary, unix, self.replay_state(who, summary, now)))
             .collect();
         let friend_rows = self.friends_in(who, &matches, &friends);
-        self.send_made(who.addr, recent_matches(filter, &rows, &friend_rows));
+        recent_matches(filter, &rows, &friend_rows)
     }
 
     /// The `F1` rows of `friends` in `matches`, in the matches' order.

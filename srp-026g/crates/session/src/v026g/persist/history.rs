@@ -1198,7 +1198,8 @@ fn level_of(experience: u32) -> u8 {
 /// is in WAL mode ([`super::SqliteGameRepository::open`]), so a read never
 /// waits for the writer nor the writer for a read. Every query is an
 /// indexed lookup of at most [`MatchHistory::MAX_ROWS`] rows (a clan card's
-/// members: up to `clans::MAX_MEMBERS`).
+/// members: up to `clans::MAX_MEMBERS`; a list a `keep` filters reads up to
+/// [`MatchHistory::MAX_READ`]).
 ///
 /// The site reads on [`MatchHistory::READERS`] connections, to which it
 /// derefs: a slow request holds one of them, and when all are busy the
@@ -1213,6 +1214,10 @@ pub struct MatchHistory {
 impl MatchHistory {
     /// The most rows a list gives.
     pub const MAX_ROWS: usize = 50;
+    /// The most rows a list that a `keep` filters (`top`, `best`) reads to
+    /// find its [`Self::MAX_ROWS`]: the ones `keep` leaves out (the banned,
+    /// which the accounts' store knows) are read past.
+    pub const MAX_READ: usize = 500;
     /// How many requests to the site read at once: the host has one CPU,
     /// the rest wait.
     pub const READERS: usize = 4;
@@ -1602,7 +1607,8 @@ impl HistoryReaders {
     }
 
     /// The top `limit` players by `by`, of those with a counted public
-    /// match and that `keep` keeps (it is asked of each in order until enough).
+    /// match and that `keep` keeps (it is asked of each in order until enough,
+    /// of the first [`MatchHistory::MAX_READ`]).
     pub fn top(
         &self,
         by: PlayerRanking,
@@ -1611,8 +1617,7 @@ impl HistoryReaders {
     ) -> Result<Vec<TopPlayer>, PersistError> {
         let connection = self.reader();
         let mut statement = connection.prepare_cached(&top_query(by))?;
-        // Room for the ones `keep` leaves out.
-        let mut rows = statement.query([bounded(limit) + MatchHistory::MAX_ROWS as i64])?;
+        let mut rows = statement.query([MatchHistory::MAX_READ as i64])?;
         let mut top = Vec::new();
         while top.len() < bounded(limit) as usize
             && let Some(row) = rows.next()?
@@ -1633,7 +1638,7 @@ impl HistoryReaders {
 
     /// The best `limit` single-match scores of counted public matches that
     /// ended at `since` or later, of the players that `keep` keeps (it is asked
-    /// of each in order until enough).
+    /// of each in order until enough, of the first [`MatchHistory::MAX_READ`]).
     pub fn best(
         &self,
         since: u64,
@@ -1642,10 +1647,9 @@ impl HistoryReaders {
     ) -> Result<Vec<BestLine>, PersistError> {
         let connection = self.reader();
         let mut statement = connection.prepare_cached(&best_query())?;
-        // Room for the ones `keep` leaves out.
         let mut rows = statement.query(params![
             since.min(i64::MAX as u64) as i64,
-            bounded(limit) + MatchHistory::MAX_ROWS as i64
+            MatchHistory::MAX_READ as i64
         ])?;
         let mut best = Vec::new();
         while best.len() < bounded(limit) as usize
@@ -2242,6 +2246,52 @@ mod tests {
         assert_eq!(
             (newest.replay_id, newest.events.len()),
             (again.replay_id, 0)
+        );
+    }
+
+    /// More banned players than a list holds above the others: the lists read past them.
+    #[test]
+    fn the_lists_read_past_more_banned_than_they_hold() {
+        let dir = TempDir::new("banned");
+        let (mut repository, history) = repository(&dir);
+        repository.record_match(&record(PUBLIC, 100)).unwrap();
+        let banned = 100..100 + MatchHistory::MAX_ROWS as u32 + 10;
+        let mut theirs = record(PUBLIC, 200);
+        theirs.players = banned
+            .clone()
+            .map(|account_id| {
+                repository
+                    .save(account_id, &Account::new(&format!("Banned{account_id}")))
+                    .unwrap();
+                PlayerRecord {
+                    account_id,
+                    clan_id: None,
+                    line: line(0, 1, 1000 + u64::from(account_id), 50, 0),
+                    kits: Vec::new(),
+                }
+            })
+            .collect();
+        repository.record_match(&theirs).unwrap();
+        let keep = |account_id| !banned.contains(&account_id);
+        let names = |top: Vec<TopPlayer>| -> Vec<String> {
+            top.into_iter().map(|top| top.player.name).collect()
+        };
+        let by_score = PlayerRanking::Totals(TotalsKey::Score);
+        let top = |limit| names(history.site().top(by_score, limit, &keep).unwrap());
+        assert_eq!(top(10), ["Alice", "Bob"]);
+        assert_eq!(top(1), ["Alice"]);
+        let best: Vec<String> = history
+            .site()
+            .best(0, 10, &keep)
+            .unwrap()
+            .into_iter()
+            .map(|best| best.player.name)
+            .collect();
+        assert_eq!(best, ["Alice", "Bob"]);
+        // Unfiltered, the banned fill the list.
+        assert_eq!(
+            history.site().top(by_score, 100, &|_| true).unwrap().len(),
+            MatchHistory::MAX_ROWS
         );
     }
 
