@@ -56,6 +56,12 @@ const REFUSAL_KEPT: Duration = Duration::from_secs(15 * 60);
 /// a code, or following links to matches no longer kept.
 pub const MISSES_ALLOWED: u32 = 12;
 pub const MISSES_WINDOW: Duration = Duration::from_secs(60 * 60);
+/// One session started by an account in this long; another ask is `busy`
+/// (Save's `ASK_EVERY`). Converting a recording is the heavy part (up to
+/// [`DEFAULT_MAX_RECORDING_MB`]): an ask withdrawn at once and made again
+/// would keep the reader converting. A session refused before its
+/// recording is converted ([`WatchRefusal::before_reading`]) does not count.
+pub const START_EVERY: Duration = Duration::from_secs(2);
 
 /// Who may watch a match's replay (`SRP_REPLAY_WATCH`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -202,6 +208,15 @@ impl WatchRefusal {
             Self::Failed => Status::Failed,
         }
     }
+
+    /// Whether the match server's reader says it before converting anything
+    /// of the recording (its notes judged, or no recording at all).
+    fn before_reading(self) -> bool {
+        matches!(
+            self,
+            Self::Off | Self::OldGame | Self::NotYours | Self::Gone | Self::Incompatible(_)
+        )
+    }
 }
 
 /// Where a session is.
@@ -344,6 +359,8 @@ pub struct Watches {
     sessions: Mutex<HashMap<u32, Session>>,
     /// By account ([`MISSES_ALLOWED`]).
     misses: Mutex<HashMap<u32, Misses>>,
+    /// By account: when its last session that counts started ([`START_EVERY`]).
+    started: Mutex<HashMap<u32, Instant>>,
 }
 
 impl Watches {
@@ -352,6 +369,7 @@ impl Watches {
             settings,
             sessions: Mutex::new(HashMap::new()),
             misses: Mutex::new(HashMap::new()),
+            started: Mutex::new(HashMap::new()),
         }
     }
 
@@ -398,7 +416,8 @@ impl Watches {
 
     /// A player asks to watch a match: `preparing` (its recording is read
     /// next), or why not at once. A player with a session not over gets
-    /// `busy`, as does one past [`WatchSettings::max_sessions`].
+    /// `busy`, as does one whose last session started within
+    /// [`START_EVERY`], and one past [`WatchSettings::max_sessions`].
     pub fn start(&self, request: WatchRequest, now: Instant) -> Status {
         let Some(settings) = &self.settings else {
             return Status::Off;
@@ -416,6 +435,17 @@ impl Watches {
         {
             return Status::Busy;
         }
+        let mut started = self.started.locked();
+        if let Some(last) = started.get(&request.account_id)
+            && now.saturating_duration_since(*last) < START_EVERY
+        {
+            log::info!(
+                "Replay sessions: account {} asks to watch match {:#x} too soon after its last",
+                request.account_id,
+                request.match_id
+            );
+            return Status::Busy;
+        }
         let open = sessions.values().filter(|s| s.stage.is_open()).count();
         if open >= settings.max_sessions {
             log::info!(
@@ -431,6 +461,7 @@ impl Watches {
             request.match_id,
             request.from
         );
+        started.insert(request.account_id, now);
         sessions.insert(
             request.account_id,
             Session {
@@ -596,6 +627,9 @@ impl Watches {
         self.misses
             .locked()
             .retain(|_, misses| now.saturating_duration_since(misses.since) < MISSES_WINDOW);
+        self.started
+            .locked()
+            .retain(|_, at| now.saturating_duration_since(*at) < START_EVERY);
         self.sessions.locked().retain(|account_id, session| {
             let waited = now.saturating_duration_since(session.since);
             if !session.stage.patience().is_some_and(|most| waited >= most) {
@@ -680,7 +714,14 @@ impl Watches {
             request.account_id,
             request.match_id,
         );
-        if self.advance(request, Event::Refuse(refusal), now) && refusal == WatchRefusal::Gone {
+        if !self.advance(request, Event::Refuse(refusal), now) {
+            return;
+        }
+        if refusal.before_reading() {
+            // Nothing converted: the session's start does not count.
+            self.started.locked().remove(&request.account_id);
+        }
+        if refusal == WatchRefusal::Gone {
             self.missed(request.account_id, request.match_id, now);
         }
     }
@@ -866,11 +907,12 @@ mod tests {
     /// frees the player.
     #[test]
     fn a_session_called_back_ends_in_the_lobby_or_is_marked_for_the_match_server() {
-        let now = Instant::now();
+        let mut now = Instant::now();
         let watches = watches(Access::Match, 2);
         let alice = request(ALICE);
         assert!(!watches.recall(ALICE), "no session");
         for stage in [Stage::Queued, Stage::Loading, Stage::Ready { start_ms: 0 }] {
+            now += START_EVERY;
             assert_eq!(watches.start(alice, now), Status::Preparing);
             if stage != Stage::Queued {
                 assert_eq!(watches.next_job(now), Some(alice));
@@ -893,12 +935,15 @@ mod tests {
             assert_eq!(watches.answer(ALICE), None, "{stage:?}: told once");
         }
         // Not polled for: forgotten as refusals are, and the player may ask again meanwhile.
+        now += START_EVERY;
         assert_eq!(watches.start(alice, now), Status::Preparing);
         assert!(watches.recall(ALICE));
-        watches.expire(now + REFUSAL_KEPT + Duration::from_secs(1));
+        now += REFUSAL_KEPT + Duration::from_secs(1);
+        watches.expire(now);
         assert_eq!(watches.answer(ALICE), None);
         assert_eq!(watches.start(alice, now), Status::Preparing);
         assert!(watches.recall(ALICE));
+        now += START_EVERY;
         assert_eq!(watches.start(alice, now), Status::Preparing);
         assert_eq!(watches.next_job(now), Some(alice));
         assert!(watches.loaded(&alice, 0, now));
@@ -951,7 +996,7 @@ mod tests {
 
     #[test]
     fn a_game_back_in_the_lobby_ends_its_session_once_it_was_sent() {
-        let now = Instant::now();
+        let mut now = Instant::now();
         let watches = Watches::new(Some(WatchSettings::default()));
         let alice = request(ALICE);
         assert_eq!(watches.start(alice, now), Status::Preparing);
@@ -964,10 +1009,11 @@ mod tests {
         assert!(watches.holds(ALICE));
         watches.sent(ALICE, now);
         assert!(watches.is_open(&alice));
-        // Sent: over, and the account may ask again at once.
+        // Sent: over, and the account may ask again, as soon as asks may follow.
         assert!(watches.game_back(alice.session_id));
         assert!(!watches.holds(ALICE));
         assert!(!watches.is_open(&alice));
+        now += START_EVERY;
         assert_eq!(watches.start(alice, now), Status::Preparing);
         assert_eq!(watches.next_job(now), Some(alice));
         assert!(watches.loaded(&alice, 14_500, now));
@@ -988,7 +1034,7 @@ mod tests {
     /// watching is the match server's, and another match's withdrawal touches nothing.
     #[test]
     fn a_withdrawn_ask_ends_its_session_until_its_game_is_sent() {
-        let now = Instant::now();
+        let mut now = Instant::now();
         let watches = watches(Access::All, 1);
         let alice = request(ALICE);
         assert!(!watches.withdraw(ALICE, alice.match_id), "no session");
@@ -1002,12 +1048,14 @@ mod tests {
         assert!(!watches.holds(ALICE));
         assert_eq!(watches.next_job(now), None, "nothing to read");
         // Loading: the reader's word comes to nothing.
+        now += START_EVERY;
         assert_eq!(watches.start(alice, now), Status::Preparing);
         assert_eq!(watches.next_job(now), Some(alice));
         assert!(watches.withdraw(ALICE, alice.match_id));
         assert!(!watches.loaded(&alice, 50, now));
         assert!(watches.to_send().is_empty());
         // Ready: never sent, and the cap is free for another.
+        now += START_EVERY;
         assert_eq!(watches.start(alice, now), Status::Preparing);
         watches.next_job(now);
         assert!(watches.loaded(&alice, 50, now));
@@ -1017,12 +1065,14 @@ mod tests {
         assert_eq!(watches.start(request(MOD), now), Status::Preparing);
         assert!(watches.withdraw(MOD, alice.match_id));
         // Refused, not told yet: forgotten.
+        now += START_EVERY;
         assert_eq!(watches.start(alice, now), Status::Preparing);
         watches.next_job(now);
         watches.refuse(&alice, WatchRefusal::Failed, now);
         assert!(watches.withdraw(ALICE, alice.match_id));
         assert_eq!(watches.answer(ALICE), None);
         // Sent, then watching: untouched.
+        now += START_EVERY;
         assert_eq!(watches.start(alice, now), Status::Preparing);
         watches.next_job(now);
         assert!(watches.loaded(&alice, 50, now));
@@ -1058,7 +1108,7 @@ mod tests {
     /// for any other reason is no lookup of an unknown match.
     #[test]
     fn looking_up_unknown_matches_is_limited_per_account() {
-        let now = Instant::now();
+        let mut now = Instant::now();
         let watches = watches(Access::All, 4);
         let alice = request(ALICE);
         for n in 0..MISSES_ALLOWED {
@@ -1077,12 +1127,62 @@ mod tests {
         // Any other refusal says the match exists, or nothing of it.
         let bob = request(0x2_0000);
         for _ in 0..MISSES_ALLOWED + 1 {
+            now += START_EVERY;
             assert_eq!(watches.start(bob, now), Status::Preparing);
             watches.next_job(now);
             watches.refuse(&bob, WatchRefusal::Failed, now);
             watches.answer(bob.account_id);
         }
         assert!(!watches.limited(bob.account_id, now));
+    }
+
+    /// An ask withdrawn and made again at once would keep the reader
+    /// converting recordings: an account's next session starts a
+    /// [`START_EVERY`] after its last at the soonest (`busy` before), whatever
+    /// ended the last, unless the reader refused it before converting
+    /// anything. Another account is not held.
+    #[test]
+    fn sessions_of_an_account_start_at_most_once_in_a_while() {
+        let mut now = Instant::now();
+        let watches = watches(Access::All, 4);
+        let alice = request(ALICE);
+        assert_eq!(watches.start(alice, now), Status::Preparing);
+        assert_eq!(watches.next_job(now), Some(alice));
+        assert!(watches.withdraw(ALICE, alice.match_id));
+        assert_eq!(watches.start(alice, now), Status::Busy);
+        assert!(!watches.holds(ALICE), "a busy ask starts nothing");
+        assert_eq!(watches.start(request(MOD), now), Status::Preparing);
+        assert!(watches.withdraw(MOD, alice.match_id));
+        let soon = now + START_EVERY - Duration::from_millis(1);
+        assert_eq!(watches.start(alice, soon), Status::Busy);
+        now += START_EVERY;
+        assert_eq!(watches.start(alice, now), Status::Preparing);
+        // Converted, then refused (`failed`): its start counts.
+        watches.next_job(now);
+        watches.refuse(&alice, WatchRefusal::Failed, now);
+        watches.answer(ALICE);
+        assert_eq!(watches.start(alice, now), Status::Busy);
+        // Refused on its notes, nothing converted: free at once.
+        now += START_EVERY;
+        for refusal in [
+            WatchRefusal::NotYours,
+            WatchRefusal::Gone,
+            WatchRefusal::Incompatible(Refusal::Older {
+                from: 20,
+                to: 20,
+                oldest: 30,
+            }),
+        ] {
+            assert_eq!(watches.start(alice, now), Status::Preparing, "{refusal:?}");
+            watches.next_job(now);
+            watches.refuse(&alice, refusal, now);
+            watches.answer(ALICE);
+        }
+        assert_eq!(watches.start(alice, now), Status::Preparing);
+        // `expire` forgets starts once they no longer hold anyone.
+        assert!(watches.withdraw(ALICE, alice.match_id));
+        watches.expire(now + START_EVERY);
+        assert!(watches.started.locked().is_empty());
     }
 
     /// A refusal is for a session not given yet: one that plays is not

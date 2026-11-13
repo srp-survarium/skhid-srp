@@ -23,7 +23,8 @@
 //!   prompt is closed or the movie gives up waiting. Not answered: the
 //!   asker's session of that match is over unless its game was sent
 //!   already (`Watches::withdraw`), so it is never sent later, and the
-//!   asker may ask for another at once.
+//!   asker may ask for another once `replay_watch::START_EVERY` has passed
+//!   since its last ask (`busy` before: each ask has a recording converted).
 //! - A replay refused for its recording's games (`incompatible`) is said by
 //!   the movie, in the game's language, from the localization tables: the
 //!   prompt's `st_srp_replay_incompatible`, the card's

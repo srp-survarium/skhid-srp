@@ -5,7 +5,8 @@
 //! (`survarium::v026g::lobby::recent_matches`), the latest public matches,
 //! or those of the asker's friends. Private rooms' matches and matches
 //! against bots are listed on the asker's own Matches list only. Each list is made at most once a
-//! [`HISTORY_EVERY`] for a session ([`HistoryAnswers`]).
+//! [`HISTORY_EVERY`] for a session, the friends' Recent list once a [`FRIENDS_EVERY`]
+//! ([`HistoryAnswers`]).
 
 use std::time::{Duration, Instant};
 
@@ -29,6 +30,9 @@ use super::core::{Core, Who};
 /// replays' state on the lobby's one thread. The movie asks a shown list
 /// every 30 s, one not answered yet about once a second.
 pub(super) const HISTORY_EVERY: Duration = Duration::from_secs(1);
+/// And the friends' Recent list, the heaviest: a query a friend, then the
+/// friends among each match's players. Its 30 s poll is well within.
+pub(super) const FRIENDS_EVERY: Duration = Duration::from_secs(10);
 
 /// The kinds of list a session is answered from the history.
 #[derive(Clone, Copy)]
@@ -48,6 +52,14 @@ impl HistoryList {
             Self::Recent(RecentFilter::Friends) => 3,
         }
     }
+
+    /// How long an answer of this kind is given again rather than made anew.
+    fn every(self) -> Duration {
+        match self {
+            Self::Recent(RecentFilter::Friends) => FRIENDS_EVERY,
+            Self::Matches(_) | Self::Recent(RecentFilter::All) => HISTORY_EVERY,
+        }
+    }
 }
 
 /// The answer a session was last made for a kind of list, and when.
@@ -58,18 +70,18 @@ struct Made {
 }
 
 /// A session's last answer of each kind of list ([`HistoryList`]): an ask
-/// sooner than [`HISTORY_EVERY`] after it gets it again as it was made
+/// sooner than its kind's interval ([`HistoryList::every`]) after it gets it again as it was made
 /// (another player's matches too, whoever the ask is about now: the movie
 /// takes them by the name in them, and asks again).
 #[derive(Default)]
 pub struct HistoryAnswers([Option<Made>; HistoryList::COUNT]);
 
 impl HistoryAnswers {
-    /// The answer of `list` made less than [`HISTORY_EVERY`] before `now`.
+    /// The answer of `list` made less than its interval before `now`.
     fn fresh(&self, list: HistoryList, now: Instant) -> Option<&Made> {
         self.0[list.slot()]
             .as_ref()
-            .filter(|made| now.saturating_duration_since(made.at) < HISTORY_EVERY)
+            .filter(|made| now.saturating_duration_since(made.at) < list.every())
     }
 
     fn keep(&mut self, list: HistoryList, made: Made) {
@@ -79,7 +91,7 @@ impl HistoryAnswers {
 
 impl Core<'_> {
     /// Send `who` its answer of `list`: the one made less than
-    /// [`HISTORY_EVERY`] ago again, else the one `make` makes, kept.
+    /// less than its interval ago again, else the one `make` makes, kept.
     fn history_answer(
         &mut self,
         who: &Who,

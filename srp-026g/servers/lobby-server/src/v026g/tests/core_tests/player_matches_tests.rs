@@ -18,7 +18,7 @@ use survarium::v026g::lobby::recent_matches::RECENT_MATCHES_START;
 use survarium::v026g::maps::GameMode;
 
 use super::*;
-use crate::v026g::player_matches::HISTORY_EVERY;
+use crate::v026g::player_matches::{FRIENDS_EVERY, HISTORY_EVERY};
 
 const BOB: u32 = 900_001;
 
@@ -108,9 +108,10 @@ fn matches_at(world: &mut World, index: usize, start: u32, count: u8) -> Vec<Str
 }
 
 /// The rows of the answer to the ask at `start` for `count`, at places
-/// from `first` on, a [`HISTORY_EVERY`] after the last ask: made anew.
+/// from `first` on, a [`FRIENDS_EVERY`] (the longest a list is kept) after
+/// the last ask: made anew.
 fn rows_at(world: &mut World, index: usize, start: u32, count: u8, first: u32) -> Vec<String> {
-    world.advance(HISTORY_EVERY);
+    world.advance(FRIENDS_EVERY);
     rows_now(world, index, start, count, first)
 }
 
@@ -375,5 +376,15 @@ fn a_list_is_made_anew_at_most_once_a_second() {
     // A second on, Alice's lists it too.
     world.advance(HISTORY_EVERY);
     assert_eq!(recent(&mut world, alice, 0)[0], "M0;13;0");
+    // The friends' list (a query a friend) is kept longer: a second on, as
+    // it was made; ten seconds on, made anew.
+    let newest = bobs_match(BOB, 15, MatchKind::Public(Eligibility::Counted));
+    SqliteGameRepository::open_in(&dir)
+        .unwrap()
+        .record_match(&newest)
+        .unwrap();
+    assert_eq!(recent(&mut world, alice, 1)[0], "M0;13;1");
+    world.advance(FRIENDS_EVERY);
+    assert_eq!(recent(&mut world, alice, 1)[0], "M0;14;1");
     let _ = std::fs::remove_dir_all(&dir);
 }

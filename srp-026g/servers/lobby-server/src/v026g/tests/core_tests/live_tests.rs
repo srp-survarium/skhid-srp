@@ -361,3 +361,77 @@ fn queue_spectators_fill_a_match_for_the_live_window() {
         format!("R1;busy;{ticket:08x};0")
     );
 }
+
+/// A match over waits for its spectators before it ends, and its recording
+/// is not readable before that: the list says it may not be watched, and an
+/// ask is `busy`, never a lookup of its recording (`gone`, a miss counted
+/// each time: a dozen would lock the account out for an hour).
+#[test]
+fn a_match_over_is_listed_not_watchable_and_answered_busy() {
+    use session::v026g::replay_watch::{MISSES_ALLOWED, WatchSettings};
+    use session::v026g::replays::Replays;
+    let desk: &'static Replays =
+        Box::leak(Box::new(Replays::new(None).with_watch(WatchSettings::default())));
+    let mut world = World::new();
+    world.core.replays = Some(desk);
+    let (ticket, _) = a_match_in_play(&mut world);
+    world.host.live.locked().get_mut(&ticket).unwrap().phase = LivePhase::Over;
+    let carol = world.connect("Carol");
+    let (account, session) = world.ids[carol];
+    let row = rows(&mut world, carol, LIVE_START, 20)[1].clone();
+    let fields: Vec<&str> = row.split(';').collect();
+    assert_eq!((fields[4], fields[11]), ("3", "2"), "{row}");
+    for _ in 0..=MISSES_ALLOWED {
+        assert_eq!(
+            ask_to_watch(&mut world, carol, ticket),
+            format!("R1;busy;{ticket:08x};0")
+        );
+    }
+    assert!(!desk.watches().holds(account), "no replay session");
+    assert_eq!(desk.watches().next_job(world.now), None, "nothing to read");
+    assert!(!desk.watches().limited(account, world.now), "no miss");
+    assert_eq!(world.store.matchmaking().watched(session), None);
+}
+
+/// A Live spectator is no player of the match (`queue-spectate.md`: "never
+/// as players"): its lines on the match's channel reach none of the
+/// players, and theirs never reach it (it would read them live, ahead of
+/// its delay), nor does the idle removal's line on that channel.
+#[test]
+fn a_live_watcher_is_out_of_the_matchs_chat_both_ways() {
+    let mut world = World::new();
+    let (ticket, [alice, bob]) = a_match_in_play(&mut world);
+    let carol = world.connect("Carol");
+    assert!(ask_to_watch(&mut world, carol, ticket).starts_with("R1;watching;"));
+    // Its game was sent to the players' match: the lobby has it there.
+    let in_match = |world: &World, index: usize| {
+        world
+            .core
+            .player(world.clients[index].0)
+            .and_then(|player| player.in_match)
+    };
+    assert!(in_match(&world, carol).is_some());
+    assert_eq!(in_match(&world, carol), in_match(&world, alice));
+    world.take(carol);
+    world.take(alice);
+    world.take(bob);
+    let channels = |decoded: &[Decoded]| {
+        decoded
+            .iter()
+            .filter_map(|message| match message {
+                Decoded::ChatText { channel, .. } => Some(*channel),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    world.ask(carol, request::chat(ticket, "", channel::MATCH, "hi"));
+    assert!(channels(&world.take(alice)).is_empty());
+    assert!(channels(&world.take(bob)).is_empty());
+    world.ask(alice, request::chat(ticket, "", channel::MATCH, "gl"));
+    assert_eq!(channels(&world.take(bob)), [channel::MATCH]);
+    assert!(channels(&world.take(carol)).is_empty());
+    world.inbox.idle_removed(ticket, world.ids[bob].0, "Bob");
+    world.settle();
+    assert_eq!(channels(&world.take(alice)), [channel::MATCH]);
+    assert!(channels(&world.take(carol)).is_empty());
+}

@@ -75,7 +75,7 @@ use survarium::v026g::lobby::{
     self, Friend, KIT_READY, LobbyPick, ServerMessage, SquadMember, SquadPicks, WireError, channel, important, sender,
 };
 
-use super::core::{Core, Who};
+use super::core::{Core, Player, Who};
 
 /// Chat lines a player may send at once, and how many more a second.
 ///
@@ -366,7 +366,7 @@ impl Core<'_> {
             return;
         }
         player.chat_allowance -= 1.0;
-        let (in_match, session_id) = (player.in_match, player.session_id);
+        let session_id = player.session_id;
         // Private HUD control over the existing room channel, never a room chat line.
         if channel == channel::ROOM && body.starts_with("#mode-intro:") {
             self.mode_introduction(who, body);
@@ -400,6 +400,9 @@ impl Core<'_> {
         }
 
         let subscribed = |id: u32| id != 0 && id != u32::MAX;
+        let in_match = self
+            .player(who.addr)
+            .and_then(|player| self.match_chat_of(player));
         let squad = self.store.squads().of(who.account_id);
         let clan_mates = self.clan_chat_members(who.account_id, channel);
         let side = in_match.and_then(|id| self.side_played(id, session_id));
@@ -411,7 +414,7 @@ impl Core<'_> {
                 if other.account_id == who.account_id {
                     return None;
                 }
-                let same_match = in_match.is_some() && other.in_match == in_match;
+                let same_match = in_match.is_some() && self.match_chat_of(other) == in_match;
                 let receives = match channel {
                     channel::PRIVATE => other.name.eq_ignore_ascii_case(receiver),
                     channel::GENERAL => subscribed(other.channel_ids[usize::from(channel)]),
@@ -469,6 +472,23 @@ impl Core<'_> {
         );
     }
 
+    /// The match whose chat (its all-chat and its teams') the player is in:
+    /// the one it plays in. A game that only watches a match (Queue and
+    /// spectate, a Live window, a replay session) is in none, either way:
+    /// spectators are "never as players" (`docs/notes/queue-spectate.md`),
+    /// and a Live watcher would read the players' lines outside the delay.
+    fn match_chat_of(&self, player: &Player<'_>) -> Option<u32> {
+        let watching = self
+            .store
+            .matchmaking()
+            .watched(player.session_id)
+            .is_some()
+            || self
+                .replays
+                .is_some_and(|replays| replays.watches().in_replay(player.session_id));
+        player.in_match.filter(|_| !watching)
+    }
+
     /// The player of `account_id`, `name` in the match, was removed from
     /// the match server's match `match_id` for being idle (anti-AFK,
     /// `docs/notes/anti-afk.md`; the owner's of 2026-11-02: "both in general
@@ -488,7 +508,10 @@ impl Core<'_> {
                 continue;
             };
             let language = player.language;
-            if running.is_some() && player.in_match == running && player.account_id != account_id {
+            if running.is_some()
+                && self.match_chat_of(player) == running
+                && player.account_id != account_id
+            {
                 lines.push((addr, channel::MATCH, language));
             }
             if subscribed(player.channel_ids[usize::from(channel::GENERAL)]) {

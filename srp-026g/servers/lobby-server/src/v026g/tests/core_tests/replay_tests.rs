@@ -244,7 +244,10 @@ fn a_replay_session_sends_the_game_to_watch_and_frees_its_player_at_its_end() {
 }
 
 /// A game can quit as it connects to its replay, and says so: its session is over at once, so
-/// the next ask does not wait for the match server to give up on it.
+/// the next ask does not wait for the match server to give up on it (only the
+/// [`START_EVERY`] between an account's sessions).
+///
+/// [`START_EVERY`]: session::v026g::replay_watch::START_EVERY
 #[test]
 fn a_game_back_by_its_own_word_is_free_to_watch_again_at_once() {
     let desk = sessions();
@@ -262,6 +265,7 @@ fn a_game_back_by_its_own_word_is_free_to_watch_again_at_once() {
     assert_eq!(watches.connected(session, world.now), Some((request, 74_500)));
     world.ask(carol, request::leave(order_sent(&sent).unwrap(), true));
     assert!(!watches.holds(account));
+    world.advance(session::v026g::replay_watch::START_EVERY);
     assert_eq!(ask_to_watch(&mut world, carol, 75, Some(3)), "R1;preparing;1f07c8fb;2");
 }
 
@@ -377,7 +381,8 @@ fn guessing_match_ids_is_cut_off_after_a_few_misses() {
 
 /// The movie's prompt closed (or it gave up waiting) withdraws the ask: a session whose recording
 /// is being read, or read with its game not sent yet, is over, and its game is never sent; the
-/// account may watch another at once. Another match's withdrawal touches nothing, and one whose
+/// account may watch another a `START_EVERY` after its last ask (`busy` sooner). Another match's
+/// withdrawal touches nothing, and one whose
 /// game was sent is the match server's.
 #[test]
 fn a_withdrawn_watch_is_never_sent_and_frees_its_player() {
@@ -400,7 +405,11 @@ fn a_withdrawn_watch_is_never_sent_and_frees_its_player() {
     withdraw(&mut world, MATCH);
     assert!(!watches.holds(account));
     assert!(!watches.loaded(&request, 74_500, world.now));
-    world.advance(Duration::from_secs(1));
+    // Asked again at once (a loop of ask and withdraw would keep the reader converting): `busy`,
+    // and nothing to read.
+    assert_eq!(ask_to_watch(&mut world, carol, 75, Some(3)), "R1;busy;1f07c8fb;0");
+    assert_eq!(watches.next_job(world.now), None);
+    world.advance(session::v026g::replay_watch::START_EVERY);
     assert_eq!(sent_to_match(&world.take(carol)), None);
     // Read, its game not sent yet.
     assert_eq!(ask_to_watch(&mut world, carol, 75, Some(3)), "R1;preparing;1f07c8fb;2");

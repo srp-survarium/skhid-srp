@@ -7,9 +7,9 @@
 //!   a watch is), then a row a match, `L1;<match 8 hex>;<map id>;<mode>;
 //!   <phase>;<players a>;<players b>;<score a|->;<score b|->;<played s>;
 //!   <spectators>;<watch>`. `phase` 0 made, 1 countdown, 2 in play, 3 over;
-//!   `watch` 1 may, 0 full, 2 not watchable (a private room's, or one of
-//!   fixed rosters, which takes no spectator). A private room's match is
-//!   not listed. After the `L1` rows, `F1;<match 8 hex>;<place>;<team>;
+//!   `watch` 1 may, 0 full, 2 not watchable (a private room's, one of
+//!   fixed rosters, which takes no spectator, or one over). A private
+//!   room's match is not listed. After the `L1` rows, `F1;<match 8 hex>;<place>;<team>;
 //!   <name>` for each friend of the asker in a listed match (the Watch
 //!   hub's pinned cards and the friends list's Spectate).
 //! - The roster: `3D 00 <LIVE_ROSTER_ASK> <match>` chooses the match, then
@@ -20,7 +20,9 @@
 //!   being played sends the game to it as a spectator (#1285's watch), its
 //!   delay behind ([`Config::delay`]: nobody calls a friend the positions);
 //!   answered `R1;watching;<match>;0`, or `busy` when full ([`Config`]'s
-//!   caps), `not_yours` when it is not watchable.
+//!   caps) or not in play (not begun, or over: its recording is not
+//!   readable until the lobby frees it), `not_yours` when it is not
+//!   watchable.
 //!
 //! Each row's place in the `91` is the request's start and its index.
 
@@ -132,8 +134,12 @@ impl Core<'_> {
             || all >= self.settings.live.most
     }
 
-    fn watchable(&self, match_id: u32, running: &Running) -> Watchable {
-        if running.private || running.pool != QueuePool::GrowingRoster {
+    /// Whether the match (the lobby's id), in `phase`, takes a Live window
+    /// spectator. One that is over takes none: its end waits for its
+    /// spectators, and its recording is not readable before that.
+    fn watchable(&self, match_id: u32, running: &Running, phase: LivePhase) -> Watchable {
+        let closed = running.private || running.pool != QueuePool::GrowingRoster;
+        if closed || phase == LivePhase::Over {
             Watchable::Not
         } else if self.watchers_full(match_id) {
             Watchable::Full
@@ -191,7 +197,7 @@ impl Core<'_> {
                 score(1),
                 live.played.map_or(0, |played| played.as_secs()),
                 self.store.matchmaking().watchers_of(id).len(),
-                self.watchable(id, running).code(),
+                self.watchable(id, running, live.phase).code(),
             ));
             if friends.is_empty() {
                 continue;
@@ -283,11 +289,13 @@ impl Core<'_> {
             .map(|(&id, running)| (id, running))?;
         let phase = self.host.live(match_id, now).unwrap_or_default().phase;
         if !matches!(phase, LivePhase::Countdown | LivePhase::Playing) {
-            // Made and not begun (no world to watch yet), or over: the
-            // recording, when there is one.
-            return (phase == LivePhase::Gathering).then_some(Status::Busy);
+            // Made and not begun (no world to watch yet), or over (its
+            // recording is written to its end only once its spectators are
+            // gone): `busy` until the lobby frees it. Never a lookup of the
+            // recording, which would find none and count a miss.
+            return Some(Status::Busy);
         }
-        let status = match self.watchable(id, running) {
+        let status = match self.watchable(id, running, phase) {
             Watchable::Not => Status::NotYours,
             Watchable::Full => Status::Busy,
             Watchable::May => {
