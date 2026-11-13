@@ -4267,7 +4267,7 @@ package
             // the Watch prompt of a replay being opened: its found comes before the load, whose
             // close step takes it as the message up (closeForLoad), so the results or window
             // under it stay
-            if(Message.isAnyMessage() != -1 && !WatchPrompt.isPrompt(Message.isAnyMessage()))
+            if(Message.isAnyMessage() != -1 && !WatchPrompt.isOpening(Message.isAnyMessage()))
             {
                Message.close(Message.isAnyMessage());
             }

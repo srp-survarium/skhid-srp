@@ -124,12 +124,13 @@ package survarium.watch
          return LocalizationData.format(OPENING,LocalizationData.format("st_srp_replay_waiting",seconds));
       }
 
-      // Whether the message `id` is this prompt.
-      public static function isPrompt(id:int) : Boolean
+      // Whether the message `id` is this prompt opening a replay (its watch answered or still
+      // preparing: the load comes next). A refusal or another word of it is any message.
+      public static function isOpening(id:int) : Boolean
       {
          try
          {
-            return _dialog != null && id >= 0 && uint(_dialog.getMessageId()) == uint(id);
+            return _dialog != null && _shownKey == OPENING && id >= 0 && uint(_dialog.getMessageId()) == uint(id);
          }
          catch(e:Error)
          {
