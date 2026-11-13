@@ -55,23 +55,19 @@ fn sprint_gaits() -> [Gait; 4] {
     ]
 }
 
-/// The steps a body stands on a top for a jump to have landed on it ([`stood_on`]): two in a row, a body that settles, not one
-/// that grazes the edge and slides back.
-const STOOD_STEPS: usize = 2;
-
-/// Whether a flight's `steps` ([`jump::fly`]) from the take-off floor at `from` stood on the floor at `to` (along `way`, flat,
-/// unit): after the jump (its first step in the air), [`STOOD_STEPS`] ground steps in a row with the feet within
-/// [`LAND_HEIGHT_M`] of `to`'s height and no more than half a cell short of it along the way. Not where the walk on ends: a bot
-/// that has landed follows its route over the top's floors, and the flight walks straight on, off a top narrower along the way
-/// than its walk (Vector Laboratory's ledge by the shelf, (23.76, 25.39, -28.8): stood on from step 18, walked off at step 26).
+/// Whether a flight's `steps` ([`jump::fly`]) from the take-off floor at `from` landed on the floor at `to` (along `way`, flat,
+/// unit): after the jump (its first step in the air), a step out of the jump on which the client has the body on the ground
+/// (`on_ground` 0x7EF90, the game's "can jump", [`jump::FlightStep::on_ground`]) with the feet within [`LAND_HEIGHT_M`] of `to`'s
+/// height and no more than half a cell short of it along the way. The client's own landing, on any step: not where the
+/// flight's straight walk on ends, since a bot that has landed follows its route over the top's floors (Vector Laboratory's
+/// ledge by the shelf, (23.76, 25.39, -28.8), is landed on and then walked off its far end by a straight walk).
 fn stood_on(steps: &[jump::FlightStep], from: Vec3, to: Vec3, way: (f32, f32), cell: f32) -> bool {
     let across = (to.x - from.x) * way.0 + (to.z - from.z) * way.1;
     let Some(first_air) = steps.iter().position(|f| f.in_jump) else { return false };
-    let on = |f: &jump::FlightStep| {
+    steps[first_air..].iter().any(|f| {
         let ahead = (f.feet.x - from.x) * way.0 + (f.feet.z - from.z) * way.1;
-        !f.in_jump && (f.feet.y - to.y).abs() <= LAND_HEIGHT_M && ahead >= across - 0.5 * cell
-    };
-    steps[first_air..].windows(STOOD_STEPS).any(|w| w.iter().all(on))
+        !f.in_jump && f.on_ground && (f.feet.y - to.y).abs() <= LAND_HEIGHT_M && ahead >= across - 0.5 * cell
+    })
 }
 
 /// Whether a jump of `gait` pressed `lead` m before the take-off floor's centre at `from`, toward the floor at `to` along `way`

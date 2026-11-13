@@ -217,6 +217,9 @@ pub struct FlightStep {
     pub n: u32,
     pub feet: Vec3,
     pub in_jump: bool,
+    /// The client's own "on the ground" after the step (`on_ground` 0x7EF90, the game's "can jump": standing, under 4 m/s
+    /// vertical, on a walkable contact; [`Controller::on_ground`]).
+    pub on_ground: bool,
 }
 
 /// One walk-branch step with the crouch tested and the key up (the rig's `tick_walk`).
@@ -267,7 +270,7 @@ pub fn fly(world: &Collision, s: &Settings, c: &mut Controller, heading: (f32, f
         let input = driver.input(n, heading);
         c.tick(world, DT, s, input);
         last_travel = Vec3::new(input.walk.x, 0.0, input.walk.z).length() / DT;
-        steps.push(FlightStep { n, feet: c.feet(), in_jump: c.jumping });
+        steps.push(FlightStep { n, feet: c.feet(), in_jump: c.jumping, on_ground: c.on_ground(s) });
     }
     let way = Vec3::new(heading.0, 0.0, heading.1);
     for m in 1..=ground_steps {
@@ -278,7 +281,7 @@ pub fn fly(world: &Collision, s: &Settings, c: &mut Controller, heading: (f32, f
             Press::Walk { .. } => last_travel + (WALK_CAP_MS - last_travel) * ramp,
         };
         walk_step(c, world, s, way * (speed * DT), false);
-        steps.push(FlightStep { n: landing + m, feet: c.feet(), in_jump: c.jumping });
+        steps.push(FlightStep { n: landing + m, feet: c.feet(), in_jump: c.jumping, on_ground: c.on_ground(s) });
     }
     steps
 }
