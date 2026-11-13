@@ -391,13 +391,13 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   - Below State: the chosen room's members, each with its equipment level (the room view's)
     in a column of its own, then its name. Grey while its game is gone (`away`), red with the
     red mark when its kit or gear cannot play, white for the player itself, gold in the room's
-    match. While the room plays, the side of each player in the match (a bar of the side's
-    colour; side 1 left, side 2 right; those not in the match where there is room). A
-    free-for-all has no sides (`ffa.md`): its players are told with none, so they stay in
-    the two plain columns, gold, with no bar.
-  - Up to 20: one column while they fit at 18 a row; two otherwise (always two while it
-    plays). Rows share the space (12 to 22 high, the font 12 to 14); the map's render is made
-    up to 60 lower for a full room; nothing goes past the panel.
+    match. Never who plays on which side, in any mode or state (the owner's of 2026-11-13:
+    "it should always be like at voting", "just what players are in the game"): the server
+    tells no side (the row's side field is always 0), and while the room plays, its players
+    are where they are at its vote, those in the match gold.
+  - Up to 20, in two columns in the room's order. Rows share the space (12 to 22 high, the
+    font 12 to 14); the map's render is made up to 60 lower for a full room; nothing goes
+    past the panel.
   - **Long names** (up to 63 bytes, Cyrillic and other wide letters): the list gets them whole;
     a name too wide for its place is cut by its width in the panel's own font and ends with
     "…" (the game's bold Calibri has it); the level is never covered. The room view's names
