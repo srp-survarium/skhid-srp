@@ -655,10 +655,12 @@ pub fn on_static_info(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 /// `hud.setup_profiles`: initialize_match's feed of the local place's kits. A spectator has none,
 /// and would be given place 0's, used or not: its chooser is filled from the notes instead. Asked
-/// here, of the place the feed was built for: at the static info no place is local yet (the game
-/// marks its own later in the same handler, 0x27BE5F), and a player would count as a spectator.
+/// of the match's role (the 0xE4's local byte, set at options_read before initialize_match), not
+/// of the places' is_local: the game's own replay client (an offline `.sur`) marks no place local
+/// and keeps the feed of place 0, which its chooser shows at the followed player's death.
 pub fn on_setup_profiles(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnSetupProfilesExit> {
-    if KitFeed::at(ctx).is_some_and(|feed| !feed.is_the_games_own()) {
+    let spectator = KitFeed::at(ctx).and_then(|feed| feed.client(ctx.thread())).is_some_and(|client| client.is_spectator());
+    if spectator {
         ctx.set_reg(Reg::Esi, 0); // what the `xor esi,esi` it skips leaves
         return Flow::Exit(ReplayViewerOnSetupProfilesExit::Skip);
     }

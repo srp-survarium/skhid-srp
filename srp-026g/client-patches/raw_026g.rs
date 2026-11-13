@@ -4148,6 +4148,24 @@ impl SetupProfilesFrame {
     pub unsafe fn set_place(self, value: Option<MatchPlace>) {
         unsafe { self.0.byte_add(0x94).cast::<Option<MatchPlace>>().write_volatile(value) }
     }
+
+    /// +0x5e8 (ptr<survarium::game_world_ui>): initialize_match's first argument at this site's ESP (pushed at 0x1F855C; the body reads it there, 0x234EE0, 0x235410): the hud the kits are fed to
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn ui(self) -> Option<GameWorldUi> {
+        unsafe { self.0.byte_add(0x5e8).cast::<Option<GameWorldUi>>().read_volatile() }
+    }
+
+    /// +0x5e8 (ptr<survarium::game_world_ui>): initialize_match's first argument at this site's ESP (pushed at 0x1F855C; the body reads it there, 0x234EE0, 0x235410): the hud the kits are fed to
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_ui(self, value: Option<GameWorldUi>) {
+        unsafe { self.0.byte_add(0x5e8).cast::<Option<GameWorldUi>>().write_volatile(value) }
+    }
 }
 
 /// A survarium::replay_options_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,

@@ -57,21 +57,27 @@ impl<'t> ServerNoteSite<'t> {
 
 /// `hud.setup_profiles`: the kits initialize_match has just built for the hud.
 pub struct KitFeed {
-    place: raw::MatchPlace,
+    ui: raw::GameWorldUi,
 }
 
 impl KitFeed {
     pub fn at(ctx: &Context<'_>) -> Option<KitFeed> {
-        // SAFETY: the context is this site's: ESP initialize_match's frame, whose place it set
-        // before its loop over that place's kits, alive on the game's thread.
-        Some(KitFeed { place: unsafe { raw::site::hud_setup_profiles::frame(ctx)?.place() }? })
+        // SAFETY: the context is this site's: ESP initialize_match's frame, its first argument
+        // the hud, alive on the game's thread.
+        Some(KitFeed { ui: unsafe { raw::site::hud_setup_profiles::frame(ctx)?.ui() }? })
     }
 
-    /// The place is the game's own, by the byte initialize_match chose it with (0x234949).
-    pub fn is_the_games_own(&self) -> bool {
-        // SAFETY: a place of the match's options, alive with the match on the game's thread.
-        unsafe { read(self.place.is_local()) != 0 }
+    /// The hud's game's network client (none in the game's own replay client's).
+    pub fn client<'t>(&self, thread: &'t Thread) -> Option<NetworkClient<'t>> {
+        ui_client(self.ui, thread)
     }
+}
+
+/// `ui`'s game's network client, on the hook's `thread`.
+fn ui_client(ui: raw::GameWorldUi, thread: &Thread) -> Option<NetworkClient<'_>> {
+    // SAFETY: the hud's game world, its game and the game's client, alive with the hud.
+    let client = unsafe { ui.world()?.game()?.network_client()? };
+    Some(NetworkClient::of(client, thread))
 }
 
 /// close_current_match at `close_match.reason`, past its guard: the game's
@@ -620,9 +626,7 @@ impl HudFrame {
 
     /// Its game's network client.
     pub fn client<'t>(&self, thread: &'t Thread) -> Option<NetworkClient<'t>> {
-        // SAFETY: the hud's game world, its game and the game's client, alive with the hud.
-        let client = unsafe { self.ui.world()?.game()?.network_client()? };
-        Some(NetworkClient::of(client, thread))
+        ui_client(self.ui, thread)
     }
 }
 

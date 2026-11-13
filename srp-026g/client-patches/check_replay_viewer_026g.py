@@ -57,6 +57,7 @@ if len(sys.argv) > 1:
 import patch_026g as base
 
 NC_VTABLE, INPUT_WORLD_VTABLE, KEYBOARD_VTABLE = 0x9FFB14, 0xA252D4, 0xA25478
+REPLAY_CLIENT_VTABLE = 0x9FF344             # the game's own replay client (an offline .sur)
 PAUSE, RESUME, NEW_PACKET, WRITE, ENQUEUE, CLOSE, INVOKE, SHOW_CURSOR = (
     0x1ED5C0, 0x1ED650, 0x279FE0, 0x7AC10, 0x27A2A0, 0x27A790, 0x511600, 0x23A930)
 PAUSED_FLAG, TIME_SCALE = 0x1F1DA3C, 0xA70298
@@ -424,7 +425,10 @@ def begin(game, local):
 def setup_profiles(game, place):
     regs = dict(STEADY)
     regs[UC_X86_REG_ESI] = 0x05050505
-    return game.run("profiles", regs, bytes(0x94) + struct.pack("<I", LINK + 0xC + place * 0x45FC))  # the place the feed was built for
+    frame = bytearray(0x5EC)
+    frame[0x94:0x98] = struct.pack("<I", LINK + 0xC + place * 0x45FC)   # the place the feed was built for
+    frame[0x5E8:0x5EC] = struct.pack("<I", WORLD_UI)                    # initialize_match's first argument, the hud
+    return game.run("profiles", regs, bytes(frame))
 
 
 def events(first, total, items):
@@ -637,6 +641,13 @@ def main():
     state, _, calls = setup_profiles(ours, 0)
     check(state[UC_X86_REG_EIP] == SITES["profiles"][3] and state[UC_X86_REG_ESI] == 0 and not calls,
           "profiles, a spectator's match: skipped to 0x2362E9, ESI 0 as the skipped xor leaves it, nothing given to the movie")
+    # The game's own replay client (an offline .sur): no static info, no place local (initialize_match
+    # feeds place 0's kits, 0x234949), no role: its chooser keeps them.
+    ours.setup(0xFF)
+    ours.word(NC, REPLAY_CLIENT_VTABLE)
+    state, _, calls = setup_profiles(ours, 0)
+    check(state[UC_X86_REG_EIP] == SITES["profiles"][2] and not calls,
+          "profiles, the game's own replay client, no place local: the feed of place 0 goes on (0x2362D2)")
     begin(ours, 2)                               # a player, with its hud movie: its chooser is the game's alone
     ours.word(WORLD_UI + 0x8, HUD_HOLDER)
     state, _, calls = frame(ours)

@@ -473,6 +473,11 @@ def main():
     state, _, done = spectator("key", 1, players={1: (1, 1)}, action=0x17)
     check(state[UC_X86_REG_EIP] == 0x25CEAE and not [c for c in done if c[0] != "get_active_player"],
           "key, a spectator alone with the one followed: nothing called, the key taken")
+    ours.setup(vtable=NC_VTABLE, local=0xFF, followed=None, players=MATCH)
+    ours.word(NC + 0x1F1C40, 0)                  # the level loading: no match yet (get_active_player reads through it, 0x27A9C1)
+    state, _, done = ours.run("key", site_regs("key", 0x17))
+    check(state[UC_X86_REG_EIP] == 0x25CEAE and not done,
+          "key, a spectator with no match yet: nothing called (not get_active_player either), the key taken")
     s_state, _, _ = spectator("key", 1, action=0x11)
     stock.setup(vtable=NC_VTABLE, local=0xFF, followed=1, players=MATCH)
     o_state = stock.run("key", site_regs("key", 0x11))[0]

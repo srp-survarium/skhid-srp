@@ -312,6 +312,14 @@ impl<'t> NetworkClient<'t> {
         matches!(self.role(), Some(MatchRole::Spectator(_)))
     }
 
+    /// A spectator whose match is there: its +1F1C40h, which get_active_player reads through
+    /// unchecked (0x27A9C1), is 0 from the 0xE4 until on_match_ready sets it (0x27AA93), so a
+    /// camera asked for in between (a note out of order) must not reach it.
+    fn spectates_a_match(&self) -> bool {
+        // SAFETY: a network client's (is_spectator: its vtable) +1F1C40h, alive for the hook.
+        self.is_spectator() && unsafe { self.this.pvp_match() }.is_some()
+    }
+
     /// A new match's role, from its static info (the 0xE4's local place byte against the options'
     /// places): the one producer of [`MatchRole`], set once a match. A spectator builds and sends no
     /// input (+0Ch, as a replay's client).
@@ -352,9 +360,9 @@ impl<'t> NetworkClient<'t> {
     /// (0x242D50) does, over every team. The place followed, or `None`
     /// when no other player can be followed (the camera stays), or the game
     /// is no spectator (a player's camera is never moved: its client's
-    /// input would go to the player followed).
+    /// input would go to the player followed) or has no match yet.
     pub fn follow(&self, step: Step) -> Option<Place> {
-        if !self.is_spectator() {
+        if !self.spectates_a_match() {
             return None;
         }
         // From the player followed, or after a free flight the last one
@@ -398,10 +406,10 @@ impl NetworkClient<'_> {
     /// A spectator's camera to the player of `place` (the replay controls'
     /// player list, patch 144), alive or not, as [`Self::follow`] moves it:
     /// set_followed_player and the attached spectator's camera. Whether it
-    /// follows that player now (not a spectator, no such player, or one not
-    /// in the match: nothing).
+    /// follows that player now (not a spectator, no match yet, no such
+    /// player, or one not in the match: nothing).
     pub fn follow_place(&self, place: Place) -> bool {
-        if !self.is_spectator() {
+        if !self.spectates_a_match() {
             return false;
         }
         if !self.player(u32::from(place.get())).is_some_and(|player| player.inserted()) {

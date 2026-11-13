@@ -95,6 +95,7 @@ vostok::ui::movie_view	movie	0x4	ptr<scaleform::gfx_movie>	the Scaleform movie (
 survarium::static_info_frame	local_place	-0x5	u8	process_static_match_info's first byte of the 0xE4 (0x27B8A0, [ebp-5]): the place the message names the game's own, 0xFF (or any value past the match's places) none
 survarium::static_info_frame	reader	-0x2C	obj<vostok::buffer_reader>	process_static_match_info's local reader {begin, cursor, size} (by EBP; filled 0x27B903..0x27B90B, deserialize's EAX at 0x27B925)
 survarium::setup_profiles_frame	place	0x94	ptr<survarium::match_place>	the place whose kits initialize_match has just built (0x235992, its loop reads it at 0x2362AA): the local place, or place 0 with none
+survarium::setup_profiles_frame	ui	0x5E8	ptr<survarium::game_world_ui>	initialize_match's first argument at this site's ESP (pushed at 0x1F855C; the body reads it there, 0x234EE0, 0x235410): the hud the kits are fed to
 survarium::replay_options_frame	options	0x40	ptr<survarium::match_options>	a replay's chunk 1 reader's first argument, the options (by the site's ESP at 0x1F0971; 0x1F095C)
 survarium::replay_options_frame	reader	0x14	obj<vostok::buffer_reader>	its local reader {begin, cursor, size} (esp+14h; made at 0x1F094C..0x1F0958)
 survarium::update_player_icons_frame	ui	0x4	ptr<survarium::game_world_ui>	update_player_icons' argument at its start: the ui (by the site's ESP at 0x23AA10)
