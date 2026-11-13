@@ -23,7 +23,7 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   login (`v026g/names.rs`), so an account that never played one is answered as no account (`404`
   for its card by id or name, left out of its clan's members), and counting ids lists no logins.
 - Banned accounts are left out of the top lists and the best scores.
-- Every request is cheap (one vCPU runs the game too): indexed lookups, results of at most 50 rows (a clan card's members: up to 105),
+- Every request is cheap (one vCPU runs the game too): indexed lookups, results of at most 50 rows (`player/days`: up to 90) (a clan card's members: up to 105),
   totals kept up to date when a match is recorded, never added up per request.
 
 ## What is kept

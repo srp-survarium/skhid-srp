@@ -37,7 +37,7 @@ Watch button wherever a match is mentioned.
 - **The window.** Tabs **Live** (its count, a red dot) and **Replays**. Chips under them: Live
   Everyone (the default) or Friends (the matches with a friend in them); Replays Mine (the default:
   the asker's own `P1` rows, its private rooms' matches and those against bots among them, marked: no other list has those), Friends (`M1` with `f` 1) or Everyone (`M1`). A search box: a match's code
-  (8 hex digits, `#` optional) watches it; anything else is a player's name: the game's own player
+  (`#` and 8 hex digits) watches it; anything else is a player's name (8 hex digits without `#` are searched as an exact name first, and watched as a code only when no player has that name; `WatchWindow.as`): the game's own player
   search (`find_players`, answered in `LobbyMenu.fill_players_search`, handed by `LobbyMenu.playersFound` to the search waiting for it: one is sent at a time, a second at most, none for 3 s after one dropped unanswered after 15 s or a stray answer, so a late answer is never taken for the next search; srp answers two at once, then one a second, `social.rs` `SEARCH_BURST`)
   finds the account: srp answers the players whose name the text matches loosely, the best first
   (`session::name_search`, the item search's rules: a part of the name, its letters in order, a typo
@@ -66,14 +66,13 @@ Watch button wherever a match is mentioned.
 - **Watch asks** a replay session through the Watch window's one ask-and-poll loop
   (`survarium/watch/ReplayAsks.as`, the prompt `WatchPrompt.as`, `replay-stream.md`): `3D 00 <0xC0000000 | place << 16> <match id>`,
   place 0xFF (anyone) for a recent match, the player's own place for a player's match, the place of
-  a friend in a live match (`F1`), else 0xFF. The live path (`live.rs`, `live_watch`) does not follow a
-  place yet: the spectator starts on the server's pick. "Watch my deaths" (`0xC1000000`) is gone
+  a friend in a live match (`F1`), else 0xFF. "Watch my deaths" (`0xC1000000`) is gone
   from the movie and the server: a watch ask is `0xC0000000..=0xC0FFFFFF` only
   (`REPLAY_WATCH_BASE..=REPLAY_WATCH_LAST`).
 - **The rows** (`survarium/watch/WatchRows.as`; `91` rows at the request's start plus their index):
   - Live, `3B 00 <2 240 000 000> <20>`, every 5 s while shown (30 s otherwise, for the badge):
     `L0;<n>;<delay s>`, then n of
-    `L1;<match 8 hex>;<map id>;<mode>;<phase>;<players a>;<players b>;<score a|->;<score b|->;<played s>;<spectators>;<watch 1 may|0 full|2 not public>`,
+    `L1;<match 8 hex>;<map id>;<mode>;<phase>;<players a>;<players b>;<score a|->;<score b|->;<played s>;<spectators>;<watch 1 may|0 full|2 not public (fixed rosters, or over)>`,
     then the asker's friends in them, `F1;<match 8 hex>;<place>;<team 0|1>;<name>` (their matches first);
   - Recent, `3B 00 <2 250 000 000 + f> <20>` (`f` 0 all, 1 with a friend of the asker; no bot-only
     matches), asked on showing and every 30 s: `M0;<n>;<f>` (`f` the list it answers), then n of
@@ -100,9 +99,9 @@ Watch button wherever a match is mentioned.
 
 The row's name is 45 bytes at the most (63 is the client's limit).
 
-Status words (`session::v026g::replays::Status`): `preparing`, `watching`, `none` (no session; match id 0), `gone` (no kept recording), `not_yours` (`SRP_REPLAY_WATCH=match` and the asker is neither a player of the match nor a moderator), `old_game` (the asker's patch revision is below 14, or unknown), `incompatible` (the recording's games are of revisions this game does not play, or of none known, below), `busy` (the player is in a match or queued, has a session already, or `SRP_REPLAY_WATCH_MAX` sessions run), `in_room` (the player's room has a use for it now: its vote, a place in its match; also the answer to the next poll of a session its room called back before its game was sent, `Watches::recall`; `st_srp_replay_in_room`), `failed` (unreadable, over `SRP_REPLAY_MAX_RECORDING_MB`, not read within 2 minutes), `off` (no recordings).
+Status words (`session::v026g::replays::Status`): `preparing`, `watching`, `none` (no session; match id 0), `gone` (no kept recording), `not_yours` (`SRP_REPLAY_WATCH=match` and the asker is neither a player of the match nor a moderator), `old_game` (the asker's patch revision is below 14, or unknown), `incompatible` (the recording's games are of revisions this game does not play, or of none known, below), `busy` (the player is in a match or queued, has a session already, asked again within 2 s of its last start (`START_EVERY`), has looked up 12 matches with no recording in an hour (`MISSES_ALLOWED`), or `SRP_REPLAY_WATCH_MAX` sessions run; a live match: full, not begun, or over), `in_room` (the player's room has a use for it now: its vote, a place in its match; also the answer to the next poll of a session its room called back before its game was sent, `Watches::recall`; `st_srp_replay_in_room`), `failed` (unreadable, over `SRP_REPLAY_MAX_RECORDING_MB`, not read within 2 minutes), `off` (no recordings).
 
-**Compatibility rule.** A recording made from 2026-10-15 on has each place's patch revision (a `revision` note at every connection, the highest kept). A game of revision R plays it when every known revision (0 and places that never connected are not counted) is from the oldest replayable revision to R: a newer game's match may play out otherwise in an older one, and an older game's in a newer one once what a match computes changed. The oldest replayable revision is the last row of `crates/session/src/v026g/simulation_changes.tsv` (11 now: the TDM end and the battery under the floor; so a game of 13 plays recordings of 11, 12 and 13: 12 changed nothing a match computes). Recordings made before 2026-10-15 have no revision and are refused (the owner, 2026-10-17: not guessed).
+**Compatibility rule.** A recording made from 2026-10-15 on has each place's patch revision (a `revision` note at every connection, the highest kept). A game of revision R plays it when every known revision (0 and places that never connected are not counted) is from the oldest replayable revision to R: a newer game's match may play out otherwise in an older one, and an older game's in a newer one once what a match computes changed. The oldest replayable revision is the last row of `crates/session/src/v026g/simulation_changes.tsv` (a game of revision R plays the recordings from that revision to R, revisions that changed nothing a match computes included). Recordings made before 2026-10-15 have no revision and are refused (the owner, 2026-10-17: not guessed).
 
 **A change of what a match computes.** A PR that makes a match play out otherwise cannot know its revision (the release sets it): it adds the row `next<TAB><what>` at the end of that list. The server takes `next` for its `SRP_MIN_PATCH_REVISION`, which the release sets to its own revision at its swap, so from that release on the recordings of older games are refused; `release/release.sh` writes the number in place of `next` in its record (`.claude/skills/skhid-release/SKILL.md`). The match server logs the oldest revision it gives at start.
 

@@ -20,7 +20,8 @@ The spike (branch `spike/replay-stream`) proved it on a real game on 2026-11-07:
 2. The lobby answers at once with one `R1` row (`91`, `replay_watch.md` section 2): `R1;preparing;<id 8 hex>;2`, or why not: `off` (no recordings),
    `old_game` (revision below 14), `in_room` (the room has a use for the player now: its vote or a place in its
    match), `busy` (the player is in a match or queued, has a session already, has missed
-   `MISSES_ALLOWED` match ids lately, or `SRP_REPLAY_WATCH_MAX` sessions run).
+   `MISSES_ALLOWED` match ids lately, asked again within `START_EVERY` (2 s) of its last start, or
+   `SRP_REPLAY_WATCH_MAX` sessions run; a live match: full, not begun, or over).
 3. The match server reads the match's newest `.srprec` from `SRP_RECORD_DIR` on a thread of its own
    (nice 19, one at a time; a recording already loaded for another session of that match is
    shared), and judges the asker before converting it: anyone (`SRP_REPLAY_WATCH=all`, the
@@ -42,8 +43,9 @@ The spike (branch `spike/replay-stream`) proved it on a real game on 2026-11-07:
    0xD8 as the session's (a game with the late-join capability only) and plays it the
    recording through #1285's spectator machine: 0xE3, 0xE4 naming 0xFF with every place of the
    recording, the key frame, then the relays and roster changes at their recorded times.
-6. It ends when the game leaves (0xE0, Esc), its link goes, the recording ends, or it has been
-   paused for 5 minutes (`playback::PAUSED_MOST`; the sessions are few). The last two go the same
+6. It ends when the game leaves (0xE0, Esc), its link goes, the recording ends, its room calls it
+   back (`52 05`), the viewer asks Back (op 4), or it has been
+   paused for 5 minutes (`playback::PAUSED_MOST`; the sessions are few). The recording's end and the pause go the same
    way: 0xEA naming 0xFF, then 7 s of silence, and patch 143 takes the game back to the lobby. The
    session is over once the match server forgets the game.
 
@@ -99,6 +101,8 @@ clock):
     `1 << KIT_NUMBERS`): each place's playable kits, used or not. A replay's once, after the events
     note; a live match's once the spectator watches (the owner's of 2026-11-10: a live spectator was
     told only the kits a place had played by its delayed clock; that rule is gone).
+  - the recall, `52 05 seconds` (`ServerNote::Recall`, `RECALL_SECONDS` 5): the watcher's room calls it
+    back; the server lets the game go that many seconds after the note.
 
 **The events** are the match history's (`persist::match_events`, `docs/notes/match_history.md`),
 read by the match server with the recording (`MatchHistory::events_of_replay` of its file stem,
@@ -144,7 +148,7 @@ is a `91` row at the request's start plus its index.
   (`SRP_LIVE_WATCH_DELAY_S`, so a card can say how far behind a watch is), then
   `L1;<match 8 hex>;<map id>;<mode>;<phase>;<players a>;<players b>;<score a|->;<score b|->;
   <played s>;<spectators>;<watch>`; `phase` 0 made, 1 countdown, 2 in play, 3 over; `watch` 1 may,
-  0 full, 2 not watchable (fixed rosters, which take no spectator). A private room's match is not
+  0 full, 2 not watchable (fixed rosters, which take no spectator, or over). A private room's match is not
   listed. The match id is the match server's (the replay's). After the `L1` rows,
   `F1;<match 8 hex>;<place>;<team 0|1>;<name>` for each friend of the asker present in a listed
   match (the Watch hub's pinned cards, the friends list's Spectate; `research/watch-hub-proposal.md`).
@@ -156,8 +160,8 @@ is a `91` row at the request's start plus its index.
   being played (countdown or in play) sends the game to it as #1285's spectators are sent, but
   `SRP_LIVE_WATCH_DELAY_S` (default 30, at most 58: a match keeps 60 s to start from) behind, so nobody calls a friend the positions: answered
   `R1;watching;<match>;0`, `busy` when full (`SRP_LIVE_WATCH_PER_MATCH`, default 4;
-  `SRP_LIVE_WATCH_MAX`, default 8, of all matches) or not begun, `not_yours` when not watchable.
-  A match no longer played gets its recording, as above.
+  `SRP_LIVE_WATCH_MAX`, default 8, of all matches) not begun or over, `not_yours` when not watchable.
+  A match gone from the live list gets its recording, as above.
 - **Behind the match** (`game/spectate.rs`, `WatchKind::Live`): the match keeps its trusted worlds
   of the last 60 s (as its inputs); a delayed spectator starts from the newest at least 250 ms
   behind its clock (and fresh enough for the inputs since, 1.5 s) and gets the relays and roster

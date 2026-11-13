@@ -95,8 +95,7 @@ fn delay_from(value: Option<&str>) -> LiveDelay {
 enum Watchable {
     May,
     Full,
-    /// A private room's, of fixed rosters, or with a player who keeps its
-    /// matches from being watched.
+    /// A private room's, of fixed rosters, or a match that is over.
     Not,
 }
 

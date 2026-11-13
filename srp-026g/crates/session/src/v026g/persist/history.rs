@@ -1201,8 +1201,7 @@ fn level_of(experience: u32) -> u8 {
 /// members: up to `clans::MAX_MEMBERS`; a list a `keep` filters reads up to
 /// [`MatchHistory::MAX_READ`]).
 ///
-/// The site reads on [`MatchHistory::READERS`] connections, to which it
-/// derefs: a slow request holds one of them, and when all are busy the
+/// The site reads on [`MatchHistory::READERS`] connections (`site()`): a slow request holds one of them, and when all are busy the
 /// next waits. The lobby reads on [`MatchHistory::lobby`], a connection the
 /// site never takes, so no number of requests to the site ever makes a
 /// lobby player wait.
@@ -1247,7 +1246,7 @@ impl MatchHistory {
 
 
 /// The history's queries, on read-only connections: the site's
-/// ([`MatchHistory`] derefs to them) or the lobby's ([`MatchHistory::lobby`]).
+/// (`MatchHistory::site`) or the lobby's ([`MatchHistory::lobby`]).
 pub struct HistoryReaders {
     connections: Vec<Mutex<Connection>>,
     /// The connection a read waits for when all are busy, in turn.

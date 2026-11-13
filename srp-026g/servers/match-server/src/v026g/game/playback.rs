@@ -27,8 +27,8 @@
 //! many times that. A game told another speed is told 1x before it is
 //! started again (its world waits for that note to be in); the speed asked
 //! applies from when its world is in, told in the note that goes then.
-//! Pause stops the clock; speed scales
-//! it; a seek, and play after a pause, start the game again (0xE5 of its
+//! Pause stops the clock and play resumes it in place; speed scales
+//! it; a seek starts the game again (0xE5 of its
 //! next generation, the world; no sooner than `spectate::START_EVERY` after
 //! the last start) from the key frame at or before the time,
 //! put as far past it as the game's input lists reach ([`Recording::reach`]).
