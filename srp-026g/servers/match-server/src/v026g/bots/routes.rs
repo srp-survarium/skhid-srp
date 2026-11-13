@@ -1235,4 +1235,34 @@ mod tests {
         assert!(kept * 10 >= points * 9, "{kept} of {points}");
         assert_eq!(wrong_side, 0);
     }
+
+    /// A table that adds rows of the modes the bots do not play yet gives the bots' modes (Batteries, Team Deathmatch) the
+    /// routes of the table it grew from, on every map: the same routes, in the same order, point for point. It parses
+    /// (one row whose heights do not match its points would refuse the whole file); the other modes' counts are printed.
+    /// Run alone: `SRP_ROUTES_BASE=<benched table> SRP_ROUTES_NEW=<new table> cargo test -p match-server --lib --release
+    /// -- --ignored --exact v026g::bots::routes::tests::added_modes_leave_the_bots_modes_as_they_were --nocapture`.
+    #[test]
+    #[ignore = "needs SRP_ROUTES_BASE and SRP_ROUTES_NEW, private route tables"]
+    fn added_modes_leave_the_bots_modes_as_they_were() {
+        let load = |var: &str| {
+            let path = std::env::var_os(var).unwrap_or_else(|| panic!("set {var}"));
+            RouteTable::load(Path::new(&path)).unwrap_or_else(|e| panic!("{var}: {e}"))
+        };
+        let (base, new) = (load("SRP_ROUTES_BASE"), load("SRP_ROUTES_NEW"));
+        eprintln!("rows: base {}, new {}", base.len(), new.len());
+        for level in 1..=8 {
+            for mode in RuleMode::ALL {
+                let (a, b) = (base.for_map(level, mode), new.for_map(level, mode));
+                eprintln!("level {level} mode {}: base {}, new {}", mode.number(), a.len(), b.len());
+                if matches!(mode, RuleMode::Batteries | RuleMode::TeamDeathmatch) {
+                    // Debug text, so a NaN height (none given) compares equal to itself.
+                    assert_eq!(format!("{a:?}"), format!("{b:?}"), "level {level} mode {}", mode.number());
+                    assert!(!a.is_empty(), "level {level} mode {}: no routes", mode.number());
+                }
+            }
+        }
+        for level in 1..=8 {
+            assert_eq!(base.perches_for(level).len(), new.perches_for(level).len(), "level {level} perches");
+        }
+    }
 }
