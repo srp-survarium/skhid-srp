@@ -445,11 +445,14 @@ package survarium.chat
       // The game's escape and encodeURIComponent do not round-trip every name (escape
       // keeps 16 bits of a character, 0x571700; encodeURIComponent writes U+0080..U+00FF as
       // one %XX, 0x571996, the others as their UTF-8 bytes, 0x571934, which no decoding,
-      // 0x571A10, gives both back). The last LINKED_NAMES senders, each its number while kept;
-      // a link to one let go reads as no name, never another one.
-      private static const LINKED_NAMES:int = 512;
+      // 0x571A10, gives both back). The LINKED_NAMES senders who spoke last, each its number
+      // while kept (a tab keeps 180 lines); a link to one let go reads as no name, never
+      // another one.
+      private static const LINKED_NAMES:int = 2048;
       private var _linkIds:Dictionary = new Dictionary();
       private var _linkNames:Dictionary = new Dictionary();
+      // The kept numbers, the one whose sender spoke longest ago first.
+      private var _linkOrder:Array = [];
       private var _nextLinkId:int = 0;
 
       // A sender's name as the link "<name>: " ("event:<subName>:<its number>"), which
@@ -463,13 +466,18 @@ package survarium.chat
             id = this._nextLinkId++;
             this._linkIds["@" + name] = id;
             this._linkNames[id] = name;
-            var gone:int = id - LINKED_NAMES;
-            if(gone >= 0)
+            if(this._linkOrder.length >= LINKED_NAMES)
             {
+               var gone:int = this._linkOrder.shift();
                delete this._linkIds["@" + this._linkNames[gone]];
                delete this._linkNames[gone];
             }
          }
+         else
+         {
+            this._linkOrder.splice(this._linkOrder.indexOf(id),1);
+         }
+         this._linkOrder.push(id);
          return "<a href=\'event:" + subName + ":" + id + "\'>" + Util.escapeHtml(name) + ": </a>";
       }
 

@@ -102,7 +102,8 @@ package
          var field:TextField = tab.text_chat.textField;
          // LobbyChat calls its tab's protected addMessage, which Scaleform finds and Ruffle does not:
          // the same, a public one on the tab (SrvChatTab is dynamic).
-         tab.addMessage = function(text:String):void { tab.text_chat.appendHtml(text + "\n"); tab.text_chat.validateNow(); };
+         var quiet:Boolean = false;
+         tab.addMessage = function(text:String):void { if(!quiet) { tab.text_chat.appendHtml(text + "\n"); tab.text_chat.validateNow(); } };
          var clicked:String;
          for each(var name:String in NAMES)
          {
@@ -134,17 +135,36 @@ package
          // A line with no sender (a room's notice, the clan's lines) holds names too.
          chat.got_message({type:5,text:"<font size='40'>Eve joined"});
          expect(lastLine(field).indexOf("<font size='40'>Eve joined") > 0,"lobby: a line without a sender as given (" + lastLine(field) + ")");
-         // The chat keeps the last 512 senders: Bob's first number, let go after 600 others, names
-         // nobody, and Bob speaking again gets a new one that names him.
-         for(var n:int = 0; n < 600; n++) chat.got_message({type:5,name:"p" + n,text:"x"});
-         field.dispatchEvent(new TextEvent(TextEvent.LINK,false,false,"name:" + (NAMES.length + 599)));
-         expect(tab.text_inpput.text == "p599, ","lobby: the last sender kept (" + tab.text_inpput.text + ")");
+         // The chat keeps the 2048 senders who spoke last, each its number while kept. Lines of
+         // many senders, not shown (the tab keeps 180 lines; all of them would only be slow here).
+         var many:Function = function(from:int, count:int):void {
+            quiet = true;
+            for(var n:int = from; n < from + count; n++) chat.got_message({type:5,name:"p" + n,text:"x"});
+            quiet = false;
+         };
+         // Bob, then 1500 others, then Bob, then 1000 newcomers: Bob spoke among the last 2048,
+         // so his new line is his, under his first number (0).
+         many(0,1500);
+         chat.got_message({type:5,name:"Bob",text:"still here"});
+         many(1500,1000);
+         at = field.text.lastIndexOf("Bob: ");
+         url = String(field.getTextFormat(at,at + 1).url);
+         field.dispatchEvent(new TextEvent(TextEvent.LINK,false,false,url.substr("event:".length)));
+         expect(url == "event:name:0" && tab.text_inpput.text == "Bob, ","lobby: a sender who spoke again is kept (" + url + ", " + tab.text_inpput.text + ")");
+         // The newcomers before him are let go first: p0 names nobody, the last one is named.
+         field.dispatchEvent(new TextEvent(TextEvent.LINK,false,false,"name:" + NAMES.length));
+         expect(tab.text_inpput.text == "Bob, ","lobby: the sender who spoke longest ago is let go (" + tab.text_inpput.text + ")");
+         field.dispatchEvent(new TextEvent(TextEvent.LINK,false,false,"name:" + (NAMES.length + 2499)));
+         expect(tab.text_inpput.text == "p2499, ","lobby: the last sender kept (" + tab.text_inpput.text + ")");
+         // 2048 newcomers after Bob: his number names nobody; speaking again, he gets a new one.
+         many(2500,2048);
          field.dispatchEvent(new TextEvent(TextEvent.LINK,false,false,"name:0"));
-         expect(tab.text_inpput.text == "p599, ","lobby: a sender let go names nobody (" + tab.text_inpput.text + ")");
+         expect(tab.text_inpput.text == "p2499, ","lobby: a sender let go names nobody (" + tab.text_inpput.text + ")");
          chat.got_message({type:5,name:"Bob",text:"back"});
          at = field.text.lastIndexOf("Bob: ");
-         field.dispatchEvent(new TextEvent(TextEvent.LINK,false,false,String(field.getTextFormat(at,at + 1).url).substr("event:".length)));
-         expect(tab.text_inpput.text == "Bob, ","lobby: a sender back is named again (" + tab.text_inpput.text + ")");
+         url = String(field.getTextFormat(at,at + 1).url);
+         field.dispatchEvent(new TextEvent(TextEvent.LINK,false,false,url.substr("event:".length)));
+         expect(url != "event:name:0" && tab.text_inpput.text == "Bob, ","lobby: a sender back is named again (" + url + ", " + tab.text_inpput.text + ")");
       }
 
       private function checkHud() : void
