@@ -10,7 +10,7 @@ use std::time::Instant;
 
 use session::LockExt;
 use session::v026g::persist::history::{
-    MatchSummary, OwnKind, PlayerLine, PlayerMatch, Presence, Winner,
+    HistoryReaders, MatchHistory, MatchSummary, OwnKind, PlayerLine, PlayerMatch, Presence, Winner,
 };
 use session::v026g::replays;
 use survarium::v026g::lobby::friend_row;
@@ -24,6 +24,12 @@ use survarium::v026g::lobby::recent_matches::{
 use super::core::{Core, Who};
 
 impl Core<'_> {
+    /// The history as the lobby reads it ([`MatchHistory::lobby`]): on a
+    /// connection of its own, never behind the site's requests.
+    fn history(&self) -> Option<&HistoryReaders> {
+        self.accounts.history().map(MatchHistory::lobby)
+    }
+
     /// `3B 00 <PLAYER_MATCHES_START | OWN_MATCHES_START> <count>`: at most
     /// `count` (and [`PLAYER_MATCHES_ROWS`]) matches of the account of the
     /// asker's last `93`, or of the asker. Asked before any `93`, or for an
@@ -46,7 +52,7 @@ impl Core<'_> {
         // own matches there; only public ones were ever listed, a rule of
         // the site's that the game's lists took over). Another player's
         // list, the site and the totals stay public only.
-        let found = match (subject, self.accounts.history()) {
+        let found = match (subject, self.history()) {
             (Some(account_id), Some(history)) if limit > 0 => match whose {
                 Whose::Own => history.own_matches(account_id, limit).map(|matches| {
                     matches
@@ -101,7 +107,7 @@ impl Core<'_> {
             .account(who.account_id)
             .map(|account| account.locked().friends.clone())
             .unwrap_or_default();
-        let found = match (self.accounts.history(), filter) {
+        let found = match (self.history(), filter) {
             (Some(history), RecentFilter::All) if limit > 0 => history.matches(None, limit, None),
             (Some(history), RecentFilter::Friends) if limit > 0 => {
                 history.matches_with(&friends, limit)
@@ -123,7 +129,7 @@ impl Core<'_> {
 
     /// The `F1` rows of `friends` in `matches`, in the matches' order.
     fn friends_in(&self, who: &Who, matches: &[MatchSummary], friends: &[u32]) -> Vec<String> {
-        let Some(history) = self.accounts.history() else {
+        let Some(history) = self.history() else {
             return Vec::new();
         };
         let ids: Vec<u64> = matches.iter().map(|summary| summary.id).collect();

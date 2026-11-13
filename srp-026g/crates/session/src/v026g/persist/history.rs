@@ -2,10 +2,11 @@
 //! every finished match ([`MatchRecord`], made by
 //! [`crate::v026g::rewards::Results::settle`]) and its players, with the
 //! public matches' totals by player and by clan added up as each is
-//! written. [`MatchHistory`] reads them for the site, on read-only
+//! written. [`MatchHistory`] reads them for the site and the lobby, on read-only
 //! connections of its own: only public matches are ever read back.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+use std::ops::Deref;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, MutexGuard, TryLockError};
@@ -630,7 +631,7 @@ pub struct MatchPlayer {
     pub kits: Vec<KitLine>,
 }
 
-/// What a line of a player's own list is of ([`MatchHistory::own_matches`]).
+/// What a line of a player's own list is of ([`HistoryReaders::own_matches`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OwnKind {
     Public,
@@ -1038,6 +1039,16 @@ const FAVOURITES: &str = "SELECT dict_id, matches, kills, headshots, shots, hits
      FROM g26_player_items WHERE account_id = ?1 AND gear = ?2
      ORDER BY matches DESC, dict_id DESC LIMIT ?3";
 
+/// An account's newest public matches after `?2`, at most `?3`: along its
+/// by-account index, newest first ([`HistoryReaders::matches_with`]).
+const NEWEST_PUBLIC_OF: &str = "SELECT p.match_id
+     FROM g26_match_players p JOIN g26_matches m ON m.id = p.match_id
+     WHERE p.account_id = ?1 AND p.match_id > ?2 AND m.kind = 'public'
+     ORDER BY p.match_id DESC LIMIT ?3";
+/// The matches `?1` (a JSON list of ids), newest first.
+const MATCHES_BY_ID: &str =
+    "FROM g26_matches m WHERE m.id IN (SELECT value FROM json_each(?1)) ORDER BY m.id DESC";
+
 /// The rows of [`kits_query`], by account.
 fn kits_of(
     statement: &mut rusqlite::CachedStatement,
@@ -1183,28 +1194,67 @@ fn level_of(experience: u32) -> u8 {
     level_at(experience).0
 }
 
-/// The history as the site reads it: public matches only, on
-/// [`MatchHistory::READERS`] read-only connections of its own. The file is
-/// in WAL mode ([`super::SqliteGameRepository::open`]), so a read never
-/// waits for the writer nor the writer for a read, and a slow request
-/// holds one reader, not the others. Every query is an indexed lookup of
-/// at most [`MatchHistory::MAX_ROWS`] rows (a clan card's members: up to `clans::MAX_MEMBERS`).
+/// The history as the site and the lobby read it: public matches only
+/// (and a player's own list), on read-only connections of its own. The file
+/// is in WAL mode ([`super::SqliteGameRepository::open`]), so a read never
+/// waits for the writer nor the writer for a read. Every query is an
+/// indexed lookup of at most [`MatchHistory::MAX_ROWS`] rows (a clan card's
+/// members: up to `clans::MAX_MEMBERS`).
+///
+/// The site reads on [`MatchHistory::READERS`] connections, to which it
+/// derefs: a slow request holds one of them, and when all are busy the
+/// next waits. The lobby reads on [`MatchHistory::lobby`], a connection the
+/// site never takes, so no number of requests to the site ever makes a
+/// lobby player wait.
 pub struct MatchHistory {
-    readers: Vec<Mutex<Connection>>,
-    /// The reader a request waits for when all are busy, in turn.
-    next: AtomicUsize,
+    site: HistoryReaders,
+    lobby: HistoryReaders,
 }
 
 impl MatchHistory {
     /// The most rows a list gives.
     pub const MAX_ROWS: usize = 50;
-    /// How many requests read at once: the host has one CPU, the rest wait.
+    /// How many requests to the site read at once: the host has one CPU,
+    /// the rest wait.
     pub const READERS: usize = 4;
 
     /// Opens the file at `path`, which [`super::SqliteGameRepository`]
     /// made, put in WAL mode and brought to this schema.
     pub(super) fn open(path: &Path) -> Result<Self, PersistError> {
-        let readers = (0..Self::READERS)
+        Ok(Self {
+            site: HistoryReaders::open(path, Self::READERS)?,
+            // The lobby reads on its one thread.
+            lobby: HistoryReaders::open(path, 1)?,
+        })
+    }
+
+    /// The lobby's reads: on a connection of its own, which waits for no
+    /// read of the site's.
+    pub fn lobby(&self) -> &HistoryReaders {
+        &self.lobby
+    }
+}
+
+impl Deref for MatchHistory {
+    type Target = HistoryReaders;
+
+    /// The site's reads.
+    fn deref(&self) -> &HistoryReaders {
+        &self.site
+    }
+}
+
+/// The history's queries, on read-only connections: the site's
+/// ([`MatchHistory`] derefs to them) or the lobby's ([`MatchHistory::lobby`]).
+pub struct HistoryReaders {
+    connections: Vec<Mutex<Connection>>,
+    /// The connection a read waits for when all are busy, in turn.
+    next: AtomicUsize,
+}
+
+impl HistoryReaders {
+    fn open(path: &Path, count: usize) -> Result<Self, PersistError> {
+        let connections = (0..count)
             .map(|_| {
                 let connection = Connection::open_with_flags(
                     path,
@@ -1215,22 +1265,22 @@ impl MatchHistory {
             })
             .collect::<Result<_, PersistError>>()?;
         Ok(Self {
-            readers,
+            connections,
             next: AtomicUsize::new(0),
         })
     }
 
-    /// A free reader, else the next one in turn once it is free.
+    /// A free connection, else the next one in turn once it is free.
     fn reader(&self) -> MutexGuard<'_, Connection> {
-        for reader in &self.readers {
-            match reader.try_lock() {
+        for connection in &self.connections {
+            match connection.try_lock() {
                 Ok(connection) => return connection,
                 Err(TryLockError::Poisoned(poisoned)) => return poisoned.into_inner(),
                 Err(TryLockError::WouldBlock) => {}
             }
         }
-        let turn = self.next.fetch_add(1, Ordering::Relaxed) % self.readers.len();
-        self.readers[turn].locked()
+        let turn = self.next.fetch_add(1, Ordering::Relaxed) % self.connections.len();
+        self.connections[turn].locked()
     }
 
     /// The events of the newest match the match server numbered
@@ -1462,16 +1512,29 @@ impl MatchHistory {
         if accounts.is_empty() {
             return Ok(Vec::new());
         }
-        let ids = serde_json::to_string(accounts).expect("ids serialize");
+        let limit = bounded(limit);
         let connection = self.reader();
-        let mut statement = connection.prepare_cached(&format!(
-            "SELECT {SUMMARY} FROM g26_matches m
-             WHERE m.kind = 'public' AND m.id IN (
-                 SELECT p.match_id FROM g26_match_players p
-                 WHERE p.account_id IN (SELECT value FROM json_each(?1)))
-             ORDER BY m.id DESC LIMIT ?2"
-        ))?;
-        let rows = statement.query_map(params![ids, bounded(limit)], |row| summary_at(row, 0))?;
+        // Each account's newest, newer than the oldest of the newest found
+        // so far once there are `limit`: at most `limit` rows an account.
+        let mut newest = connection.prepare_cached(NEWEST_PUBLIC_OF)?;
+        let mut ids = BTreeSet::<i64>::new();
+        for &account_id in accounts {
+            let after = match ids.first() {
+                Some(&oldest) if ids.len() as i64 == limit => oldest,
+                _ => 0,
+            };
+            let found = newest.query_map(params![account_id, after, limit], |row| row.get(0))?;
+            for id in found {
+                ids.insert(id?);
+            }
+            while ids.len() as i64 > limit {
+                ids.pop_first();
+            }
+        }
+        let ids = serde_json::to_string(&ids).expect("ids serialize");
+        let mut statement =
+            connection.prepare_cached(&format!("SELECT {SUMMARY} {MATCHES_BY_ID}"))?;
+        let rows = statement.query_map([ids], |row| summary_at(row, 0))?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
 
@@ -1693,7 +1756,7 @@ fn clan_line(row: &Row) -> rusqlite::Result<ClanLine> {
     })
 }
 
-/// [`MatchHistory::top`]'s query by `by`. Accuracy reads the partial index
+/// [`HistoryReaders::top`]'s query by `by`. Accuracy reads the partial index
 /// `g26_player_totals_accuracy`: its expression and its bound are the
 /// migration's, word for word.
 fn top_query(by: PlayerRanking) -> String {
@@ -1720,7 +1783,7 @@ fn top_query(by: PlayerRanking) -> String {
     )
 }
 
-/// [`MatchHistory::best`]'s query: from the matches that ended in the
+/// [`HistoryReaders::best`]'s query: from the matches that ended in the
 /// period (`g26_matches_by_end`) to their players, never the other way
 /// round, which reads every player row (`CROSS JOIN` keeps the order).
 fn best_query() -> String {
@@ -2321,6 +2384,76 @@ mod tests {
     }
 
     #[test]
+    fn the_newest_matches_of_some_accounts_are_merged_across_them() {
+        let dir = TempDir::new("with-merged");
+        let (mut repository, history) = repository(&dir);
+        let only = |kind: MatchKind, ended_at: u64, account_id: u32| {
+            let mut alone = record(kind, ended_at);
+            alone
+                .players
+                .retain(|player| player.account_id == account_id);
+            alone
+        };
+        // 1 both, 2 Alice, 3 private, 4 Bob, 5 Bob against bots, 6 Alice, 7 Bob, 8 both.
+        for played in [
+            record(PUBLIC, 100),
+            only(PUBLIC, 200, 10),
+            record(MatchKind::Private, 300),
+            only(PUBLIC, 400, 11),
+            only(MatchKind::VsBots, 500, 11),
+            only(PUBLIC, 600, 10),
+            only(PUBLIC, 700, 11),
+            record(PUBLIC, 800),
+        ] {
+            repository.record_match(&played).unwrap();
+        }
+        let ids = |accounts: &[u32], limit: usize| -> Vec<u64> {
+            history
+                .lobby()
+                .matches_with(accounts, limit)
+                .unwrap()
+                .iter()
+                .map(|summary| summary.id)
+                .collect()
+        };
+        assert_eq!(ids(&[10, 11], 3), [8, 7, 6]);
+        assert_eq!(ids(&[11, 10], 3), [8, 7, 6]);
+        assert_eq!(ids(&[10, 10, 11], 4), [8, 7, 6, 4]);
+        assert_eq!(ids(&[10, 11], 10), [8, 7, 6, 4, 2, 1]);
+        assert_eq!(ids(&[11], 10), [8, 7, 4, 1]);
+        assert_eq!(ids(&[10], 2), [8, 6]);
+        assert_eq!(ids(&[99, 11], 1), [8]);
+    }
+
+    #[test]
+    fn the_lobby_reads_while_the_site_holds_every_reader() {
+        let dir = TempDir::new("lobby-reader");
+        let (mut repository, history) = repository(&dir);
+        repository.record_match(&record(PUBLIC, 100)).unwrap();
+        let busy: Vec<_> = history
+            .site
+            .connections
+            .iter()
+            .map(|reader| reader.locked())
+            .collect();
+        assert_eq!(busy.len(), MatchHistory::READERS);
+        let (sender, answer) = std::sync::mpsc::channel();
+        std::thread::scope(|scope| {
+            scope.spawn(|| {
+                let lobby = history.lobby();
+                let read = lobby.matches(None, 10, None).unwrap().len()
+                    + lobby.matches_with(&[10], 10).unwrap().len()
+                    + lobby.own_matches(10, 10).unwrap().len();
+                sender.send(read).unwrap();
+            });
+            let read = answer.recv_timeout(std::time::Duration::from_secs(10));
+            // Let a lobby that waited for the site go before failing.
+            drop(busy);
+            assert_eq!(read, Ok(3));
+        });
+    }
+
+    #[test]
     fn a_players_matches_come_by_page_newest_first() {
         let dir = TempDir::new("pages");
         let (mut repository, history) = repository(&dir);
@@ -2715,6 +2848,37 @@ mod tests {
         // The players of those matches only, by the primary key.
         assert!(!plan.contains("SCAN p"), "{plan}");
         assert!(plan.contains("SEARCH p USING PRIMARY KEY"), "{plan}");
+    }
+
+    /// The matches of some accounts: each account's newest along its
+    /// index, never every match of all of them.
+    #[test]
+    fn the_matches_of_some_accounts_walk_each_ones_newest() {
+        let dir = TempDir::new("with-plan");
+        let (_repository, _history) = repository(&dir);
+        let plan = plan_of(&dir, NEWEST_PUBLIC_OF, params![10, 0, 20]);
+        assert!(
+            plan.contains(
+                "SEARCH p USING COVERING INDEX g26_match_players_by_account (account_id=? AND match_id>?)"
+            ),
+            "{plan}"
+        );
+        assert!(
+            plan.contains("SEARCH m USING INTEGER PRIMARY KEY (rowid=?)"),
+            "{plan}"
+        );
+        assert!(!plan.contains("SCAN"), "{plan}");
+        assert!(!plan.contains("TEMP B-TREE"), "{plan}");
+        let plan = plan_of(
+            &dir,
+            &format!("SELECT {SUMMARY} {MATCHES_BY_ID}"),
+            ["[1,2]"],
+        );
+        assert!(
+            plan.contains("SEARCH m USING INTEGER PRIMARY KEY (rowid=?)"),
+            "{plan}"
+        );
+        assert!(!plan.contains("SCAN m"), "{plan}");
     }
 
     /// The plan of `sql`, its parameters bound to `values`.
