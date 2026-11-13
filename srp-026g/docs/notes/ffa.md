@@ -141,6 +141,15 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
     Experimental Pool 7/15, Military Warehouses 7/14: 148 a map's worth; levels 1-8 the same in
     their three weathers (same points and geometry), 320 moved entries.
   - Cologne is a bridge: its centre is the bridge's middle lanes, not the middle of its length.
+  - London's rotunda (the owner, 2026-11-13: "london shouldn't have spawns on the third floor"): the
+    move had put ids 38 and 39 on its third storey (floor at 17.92; in the walk grid reached only by
+    a jump from the second, and left by a drop). `to_center --below 14.5`, on the projects with the
+    move applied, re-places only the solo spawns above that height, in the centre and not above it:
+    both stand on the second storey (14.06) now, about 2 m in plan from where they were. Its levels:
+    the underpass (0.7, a basement), the ground (the street at 6, mounds to 10 at its closed drum,
+    no floor slab at 6 or 10), the second storey (14.06, the donor's four points; walked onto from
+    the mounds) and the third (17.92, no spawn). No other London spawn is above a second storey
+    (id 41 is on one, 9.56 over 6.33). Review renders: `private/renders/london-ffa-floors/`.
   - The free for all's own `<weather>_8` projects only; Team Deathmatch's are not named.
   - Review renders (before/after per map): `private/renders/ffa-spawns-to-center/` of the main
     checkout.
