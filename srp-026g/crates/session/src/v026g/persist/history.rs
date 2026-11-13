@@ -1456,8 +1456,8 @@ impl HistoryReaders {
                  SUM(p.artefacts), SUM(p.shots), SUM(p.hits)
              FROM g26_match_players p JOIN g26_matches m ON m.id = p.match_id
              WHERE p.account_id = ?1 AND m.eligibility = 'counted' AND m.ended_at >= ?2
-               AND p.match_id >= IFNULL((SELECT id FROM g26_matches WHERE ended_at >= ?2
-                   ORDER BY ended_at LIMIT 1), 9223372036854775807)
+               AND p.match_id >= IFNULL((SELECT MIN(id) FROM g26_matches WHERE ended_at >= ?2),
+                   9223372036854775807)
              GROUP BY day ORDER BY day",
         )?;
         let rows = statement.query_map(
