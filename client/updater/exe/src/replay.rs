@@ -10,10 +10,15 @@
 //! of what is on the disk, reads the file's header and renames it to
 //! `<date>_<time>_<map>_<id>.srpreplay` (a file of this match with the right
 //! bytes is kept as it is, without a download). Saved replays are never
-//! deleted; only another match's download left over is. The outcome is one
-//! message box in the game's language (the file's path, or the problem) and
-//! a line in `updater_skhid.log`; the log names the token by its first 6 hex
-//! digits only.
+//! deleted; only another match's download left over is. A save starts no
+//! game and shows no box when it succeeds; a problem is one message box in
+//! the game's language. Either way a line goes to `updater_skhid.log`, which
+//! names the token by its first 6 hex digits only. A second save waits for
+//! the first's lock ([`LOCK_WAIT_MS`]) before it is refused.
+//!
+//! `updater_skhid.exe open-replay <path>` ([`run_local`]): a `.sur` the player
+//! opened in Explorer, started in the game as it is (`launch`): nothing
+//! downloaded, copied or deleted.
 
 use alloc::format;
 use alloc::string::String;
@@ -31,6 +36,12 @@ const TRIES: u32 = 3;
 const PAUSE_MS: u32 = 3000;
 /// Free space asked for beyond the replay itself.
 const SPARE: u64 = 1 << 20;
+/// How long a save waits for another save's lock: the lobby says `ready`
+/// while the first updater may still be downloading (up to 12 MiB), so a
+/// second save soon after waits for it, then finds its file saved or
+/// downloads its own. How often it looks meanwhile.
+const LOCK_WAIT_MS: u64 = 60_000;
+const LOCK_LOOK_MS: u32 = 250;
 
 /// The process exit codes (as the update's).
 const OK: u32 = 0;
@@ -84,12 +95,7 @@ pub fn run(arguments: &[String], quiet: bool) -> u32 {
             log!("replay: saved {path}; exit 0");
             OK
         }
-        Err(Failure::Problem(problem)) => {
-            let text = replay::message(language, &problem);
-            log!("replay: FAILED ({problem:?}): {text}");
-            notify(quiet, &text);
-            FAILED
-        }
+        Err(Failure::Problem(problem)) => tell(quiet, language, &problem),
         Err(Failure::Server(message)) => {
             log!("replay: FAILED (server address): {message}");
             notify(quiet, &message);
@@ -110,10 +116,7 @@ fn save(layout: &Layout, arguments: &[String]) -> Result<String, Failure> {
         request.token_hint(),
         request.size
     );
-    let _lock = win::lock(&layout.exe_dir, replay::LOCK_FILE).map_err(|code| {
-        log!("replay: {} is held ({})", replay::LOCK_FILE, win::error_text(code));
-        Problem::AlreadyRunning
-    })?;
+    let _lock = replay_lock(&layout.exe_dir)?;
     let server = crate::server(layout).map_err(Failure::Server)?;
     let folder = format!("{}\\{}", layout.game_dir, replay::FOLDER);
     win::create_folders(&folder).map_err(disk)?;
@@ -135,6 +138,34 @@ fn save(layout: &Layout, arguments: &[String]) -> Result<String, Failure> {
             let _ = win::delete(&part);
         })
         .map_err(Failure::from)
+}
+
+/// The replay lock, waited for while another save holds it, at most
+/// [`LOCK_WAIT_MS`]; then, or on another error, "already being downloaded".
+fn replay_lock(folder: &str) -> Result<win::InstallLock, Problem> {
+    let started = win::ticks();
+    let mut said = false;
+    loop {
+        let code = match win::lock(folder, replay::LOCK_FILE) {
+            Ok(lock) => {
+                if said {
+                    log!("replay: the other save ended");
+                }
+                return Ok(lock);
+            }
+            Err(code) => code,
+        };
+        let held = code == windows_sys::Win32::Foundation::ERROR_SHARING_VIOLATION;
+        if !held || win::ticks().saturating_sub(started) >= LOCK_WAIT_MS {
+            log!("replay: {} is held ({})", replay::LOCK_FILE, win::error_text(code));
+            return Err(Problem::AlreadyRunning);
+        }
+        if !said {
+            log!("replay: another save holds {}: waiting for it", replay::LOCK_FILE);
+            said = true;
+        }
+        win::sleep(LOCK_LOOK_MS);
+    }
 }
 
 fn tell(quiet: bool, language: Option<u32>, problem: &Problem) -> u32 {
@@ -203,6 +234,7 @@ fn launch(layout: &Layout, target: &str, quiet: bool, language: Option<u32>) -> 
         Err(code) => tell(quiet, language, &Problem::Start(win::error_text(code))),
     }
 }
+
 fn disk(code: win::Code) -> Problem {
     Problem::Disk(win::error_text(code))
 }

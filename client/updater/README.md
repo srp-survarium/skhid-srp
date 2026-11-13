@@ -86,7 +86,7 @@ functions of the standard library's).
 | `updater_skhid.exe check` | a person, a script | The update without a launcher, every patch file hashed whole whatever the quick check's record says: the repair, when a patch file may be damaged in a way the quick check does not see (bytes changed in place with the size and the time kept, as no program does by chance). When the ZIP replaces the updater itself, the new one is run at once (`check`, `quiet` as given) to restore resources.db and do the patch step, and its exit code is this one's. An error is a message box |
 | `updater_skhid.exe check quiet` | a script | No box either. Exit code 0: done or nothing to do; 1: failed (the reason is in the log) |
 | `updater_skhid.exe ready` (`quiet`: no box) | `play_skhid.bat`, `play_skhid.sh` before they start the game | Reads only: no lock, no server, nothing written but the log. Exit code 1 (and a box that says to start the launcher) when the last patch step did not end `ready` (a new overlay since, too), or the patch files are not now what its list says (one missing, damaged, or one more; looked at with the quick check); else 0 |
-| `updater_skhid.exe replay <id> <token> <sha256> <size>` | the patched game (patch revision 14) | "Save replay": fetches one replay into the game's `replays` folder (below). A message box says where it went, or the problem |
+| `updater_skhid.exe replay <id> <token> <sha256> <size>` | the patched game (patch revision 14) | "Save replay": fetches one replay into the game's `replays` folder (below) and starts no game. Nothing is shown when it is saved; a problem is a message box |
 | `updater_skhid.exe replay <id> <token> <sha256> <size> quiet` | the tests | The same with no window at all: the outcome is in the log and the exit code (0, 1) |
 
 Exit codes: 0, 1 (failed), 2 (the launcher's pipe could not be opened), 3
@@ -276,9 +276,11 @@ does nothing else with it. The updater (`exe/src/replay.rs`, the rules in
    12 MiB (an optional fifth word `quiet` is the tests' no-window mode).
    Anything else: "This replay link is not valid", nothing fetched.
 2. Holds its own lock, `updater_skhid.replay.lock`: an update and a replay
-   download never wait for each other; a second replay at the same time is
-   told "A replay is already being downloaded". The lock is let go before
-   the box at the end.
+   download never wait for each other. A second save while another holds it
+   (the lobby says `ready` while the first may still be downloading) waits
+   for it, up to 60 s, then finds its file saved or downloads its own; one
+   still held after that is told "A replay is already being downloaded".
+   The lock is let go before the box at the end.
 3. Deletes another match's download left over
    (`srp_<8 hex>.srpreplay.part`); no other name in `<game>\replays` is ever
    touched: saved replays are the player's.
@@ -929,20 +931,38 @@ under HKCU. Existing extension defaults and Explorer's UserChoice are untouched.
 Windows controls the default-app chooser; registration does not force a choice.
 
 The handler is `"<x86>\updater_skhid.exe" open-replay "%1"`. It locates the
-game beside itself and starts it from `game\binaries\x86` with:
+game beside itself (`survarium_skhid.exe`; without it: "was not found beside
+the updater, start the game once with the launcher") and starts it from
+`game\binaries\x86` with:
 
 ```text
-survarium_skhid.exe -match_replay="<selected absolute path>"
+"<x86>\survarium_skhid.exe" -match_replay="<selected absolute path>"
 ```
 
 Memory budgets come from the game executable, including future changes to its defaults.
 
 Opening a file through Open With's executable picker or dropping it onto the
 updater works too. One absolute `.sur` path is accepted, including spaces and
-UNC paths. The existing ANSI/short-path conversion and installed-patch gate
-are shared with Watch replay. Unreadable/missing files show their path and
-Windows' reason in the game language. This does not validate replay contents
-or guarantee compatibility with the installed simulation revision.
+UNC paths. Unreadable/missing files show their path and Windows' reason in the
+game language. This does not validate replay contents or guarantee
+compatibility with the installed simulation revision. Before the start:
+
+1. The check of `updater_skhid.exe ready` (read only, the one `play_skhid.bat`
+   and `play_skhid.sh` make): while the last patch step did not end `ready`
+   (a new overlay since, too), or the patch files are not now what its list
+   says, the game is not started. The player is told that Skhid has not
+   finished updating `game\resources.db.patch_*`, to start `Skhid.bat` (the
+   launcher) and then open the replay again; the log has the `ready: NOT
+   READY: ...` line and `replay: FAILED (NotReady)`, the exit code is 1.
+2. The path on the command line: the game reads its command line as ANSI
+   text and a value in quotes as one value, spaces and all
+   (`srp-026g/docs/notes/client_patch.md` section 3.27), and cuts a replay's
+   name at 259 bytes. The path is given as it is when the ANSI code page
+   holds every character of it and it is at most 259 bytes; else its short
+   (8.3) form when that does; else the player is told to move the file to a
+   folder with a shorter path of Latin letters. A path with a quote or a
+   control character, one ending in `\`, or one that is not a full path is
+   refused the same way.
 
 Local files are never downloaded, copied, pruned or deleted, and opening them
 makes no network request. `ready` and `check` do not register file handlers;
@@ -952,5 +972,6 @@ registration command. A registration failure is logged without blocking Play.
 
 `tests/check_local_replay.py --wine <wine>` builds its own temporary game folder
 with the test stand-in, creates a fresh Wine prefix, exercises local/drop/Shell
-launch and the remote replay regression, and retains its evidence under `/tmp`.
+launch and a "Save replay" beside it (a `.srpreplay` saved, no game started),
+and retains its evidence under `/tmp`.
 Run it under a virtual display for shell activation. It does not run a real game.

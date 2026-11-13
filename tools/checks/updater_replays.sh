@@ -13,4 +13,5 @@ cd srp-026g
 wine=$(nix build --no-link --print-out-paths --inputs-from . nixpkgs#wineWow64Packages.staging)
 xvfb=$(nix build --no-link --print-out-paths --inputs-from . nixpkgs#xvfb-run)
 cd ..
-"$xvfb/bin/xvfb-run" -a "${PYTHON:-python3}" client/updater/tests/check_local_replay.py --wine "$wine/bin/wine"
+# python3 is the dev shell's (there may be none outside it).
+nix develop ./srp-026g -c "$xvfb/bin/xvfb-run" -a python3 client/updater/tests/check_local_replay.py --wine "$wine/bin/wine"

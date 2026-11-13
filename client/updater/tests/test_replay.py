@@ -33,6 +33,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 
@@ -313,7 +314,7 @@ class ReplayTest(unittest.TestCase):
         self.assertEqual(self.run_updater(self.offer(replay_file())), (0, None))
         self.assertEqual(self.replays(), sorted(others + [saved_name()]))
 
-    def test_one_save_at_a_time_and_none_waits_for_an_update(self):
+    def test_a_save_waits_for_another_and_none_for_an_update(self):
         arguments = self.offer(replay_file())
         for name in ("updater_skhid.lock", "updater_skhid.replay.lock"):
             with open(os.path.join(self.x86, name), "wb"):
@@ -323,9 +324,21 @@ class ReplayTest(unittest.TestCase):
         update.release()
         os.remove(os.path.join(self.folder, saved_name()))
         self.site.requests.clear()
+        # Another save holding the lock a moment (still downloading after the
+        # lobby said `ready`): this one waits for it, then saves.
         replay = Holder(self, f"{X86}/updater_skhid.replay.lock", mode="lock")
-        code, line = self.run_updater(arguments)
+        threading.Timer(2, replay.release).start()
+        self.assertEqual(self.run_updater(arguments), (0, None))
+        self.assertIn("waiting for it", self.log())
+        self.assertSaved(saved_name())
+        os.remove(os.path.join(self.folder, saved_name()))
+        self.site.requests.clear()
+        # One that does not let go: refused after the wait (60 s).
+        replay = Holder(self, f"{X86}/updater_skhid.replay.lock", mode="lock")
+        started = time.time()
+        code, line = self.run_updater(arguments, seconds=120)
         replay.release()
+        self.assertGreaterEqual(time.time() - started, 55)
         self.assertEqual(code, 1)
         self.assertSaid(line, "AlreadyRunning")
         self.assertNothingDone()

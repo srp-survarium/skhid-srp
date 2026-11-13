@@ -413,18 +413,6 @@ pub fn message(language: Option<u32>, problem: &Problem) -> String {
     }
 }
 
-/// The message of a replay saved (or saved before) at `path`, in the game's
-/// language.
-pub fn saved_message(language: Option<u32>, path: &str) -> String {
-    match language.filter(|&n| n < 5).unwrap_or(0) {
-        1 => format!("Повтор сохранён:\n{path}"),
-        2 => format!("Повтор збережено:\n{path}"),
-        3 => format!("Die Wiederholung ist gespeichert:\n{path}"),
-        4 => format!("Powtórka została zapisana:\n{path}"),
-        _ => format!("The replay is saved:\n{path}"),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -639,7 +627,6 @@ mod tests {
             Problem::NotReady, Problem::Start("Access is denied".into()),
             Problem::Open { path: "h.example".into(), detail: "Access is denied".into() },
         ];
-        let path = r"D:\Games\Skhid\game\replays\x.srpreplay";
         for problem in &problems {
             let english = message(None, problem);
             assert_eq!(message(Some(0), problem), english);
@@ -650,11 +637,8 @@ mod tests {
                 for part in ["h.example", "302", "Access is denied"] {
                     assert_eq!(text.contains(part), english.contains(part), "{language} {problem:?} {part}");
                 }
-                let saved = saved_message(Some(language), path);
-                assert!(saved.ends_with(&format!("\n{path}")) && saved != saved_message(None, path), "{saved}");
             }
         }
-        assert_eq!(saved_message(Some(9), path), format!("The replay is saved:\n{path}"));
         assert_eq!(message(None, &Problem::Disk("x".to_string())), "Cannot save the replay in the game's replays folder: x.");
     }
 
