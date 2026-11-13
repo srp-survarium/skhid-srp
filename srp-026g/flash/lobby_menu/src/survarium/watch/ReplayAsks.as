@@ -228,7 +228,13 @@ package survarium.watch
          tell(h,status);
          if(status == "watching")
          {
-            // the game is in it already (the answer comes once it connected): no box over it
+            // a replay: the game is in it already (the answer comes once it connected), its load
+            // closed the prompt; a live match: the answer to the ask itself, its game sent next,
+            // so the prompt (nothing left to withdraw) goes now
+            if(!_watch.preparing)
+            {
+               WatchPrompt.close();
+            }
             _watch = null;
          }
          else if(status == "preparing")

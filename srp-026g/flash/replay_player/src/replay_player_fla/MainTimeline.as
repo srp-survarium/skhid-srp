@@ -218,13 +218,37 @@ package replay_player_fla
          return this._ticks;
       }
       
+      // srp's: the speeds the exe plays (Speed::ALL in replay-control), in percent, slowest first.
+      public static const SPEEDS:Array = [25,50,100,200,400,800];
+
+      // A press of the stepper: the next speed of SPEEDS from the shown one, the way the value moved
+      // (the value itself when it is one, as Home and End set), shown and sent; none past the ends.
       public function onStepperUpdate(e:Event) : void
       {
-         var value:Number = this.stepper.value;
-         trace("onStepperUpdate::",value);
-         this.speedPercent = Math.round(value * 100);
-         ExternalInterface.call("update_play_speed",value);
-         this.updateSpeedStepper();
+         var asked:int = Math.round(this.stepper.value * 100);
+         var from:int = this.speedPercent;
+         var to:int = from;
+         if(SPEEDS.indexOf(asked) >= 0)
+         {
+            to = asked;
+         }
+         else
+         {
+            for each(var s:int in SPEEDS)
+            {
+               if(asked > from ? s > from && to == from : s < from)
+               {
+                  to = s;
+               }
+            }
+         }
+         trace("onStepperUpdate::",asked,to);
+         this.speedPercent = to;
+         this.showSpeed();
+         if(to != from)
+         {
+            ExternalInterface.call("update_play_speed",to / 100);
+         }
       }
       
       public function onPlayClicked(e:Event) : void
@@ -336,7 +360,7 @@ package replay_player_fla
       
       // srp's: the playback's speed from the exe (each Playback note), in percent, 25 to 800 (outside:
       // the nearest end). The stepper shows it as 0.25x, 0.5x, 1x, 2x, 4x, 8x; nothing goes back to the
-      // exe (update_play_speed is the stepper's own steps).
+      // exe (update_play_speed is the stepper's own steps, SPEEDS).
       public function set_replay_speed(percent:int) : void
       {
          this.speedPercent = Math.max(25,Math.min(800,percent));
@@ -350,14 +374,12 @@ package replay_player_fla
       {
          this.stepper.removeEventListener(IndexEvent.INDEX_CHANGE,this.onStepperUpdate);
          this.stepper.labelFunction = this.speedLabel;
-         if(this.stepper.maximum < 8)
-         {
-            this.stepper.maximum = 10;
-         }
-         this.stepper.minimum = Math.min(this.stepper.minimum,0.25);
+         // the ends are SPEEDS' (their arrows off there); a step of 0.01 keeps each speed whole and
+         // only says the way a press moved (onStepperUpdate)
+         this.stepper.maximum = SPEEDS[SPEEDS.length - 1] / 100;
+         this.stepper.minimum = SPEEDS[0] / 100;
          this.stepper.stepSize = 0.01;
          this.stepper.value = this.speedPercent / 100;
-         this.updateSpeedStepper();
          this.stepper.validateNow();
          // its own updateLabel leaves a field with a selection as it is
          this.stepper.textField.text = this.speedLabel(this.stepper.value);
@@ -386,29 +408,10 @@ package replay_player_fla
             this.slider.maximum = value.match_time;
          }
          this.setPosition(0);
-         this.stepper.stepSize = 0.1;
-         this.stepper.minimum = 0.01;
-         this.stepper.maximum = 10;
-         this.stepper.value = 1;
          this.speedPercent = 100;
          this.showSpeed();
          this.layout.reflow();
          this.markerTicks().draw();
-      }
-      
-      public function updateSpeedStepper() : void
-      {
-         if(this.stepper.value <= 0.1)
-         {
-            if(this.stepper.stepSize != 0.01)
-            {
-               this.stepper.stepSize = 0.01;
-            }
-         }
-         else if(this.stepper.stepSize != 0.1)
-         {
-            this.stepper.stepSize = 0.1;
-         }
       }
       
       public function roundValue(value:Number) : Number

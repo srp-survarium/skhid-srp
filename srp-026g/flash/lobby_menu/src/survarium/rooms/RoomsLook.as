@@ -477,10 +477,12 @@ package survarium.rooms
             return tf;
         }
 
-        // A control and what a press on it does, (control, event).
-        public function route(control:DisplayObject, press:Function):void
+        // A control and what a press on it does, (control, event); `seenThrough`:
+        // the mask it shows through (a scrolled list's), a press outside it
+        // is not the control's (one scrolled away under the toolbar).
+        public function route(control:DisplayObject, press:Function, seenThrough:DisplayObject = null):void
         {
-            _routes.push({"control": control, "press": press});
+            _routes.push({"control": control, "press": press, "seenThrough": seenThrough});
         }
 
         // A control gone from the content: its route with it.
@@ -505,9 +507,9 @@ package survarium.rooms
             });
         }
 
-        // A press in the content: to the last control routed under it, unless
-        // Scaleform gave it to that control (or to something inside it)
-        // itself, which then has it (no double press).
+        // A press in the content: to the last control routed under it (and
+        // its mask), unless Scaleform gave it to that control (or to
+        // something inside it) itself, which then has it (no double press).
         public function onContentDown(e:MouseEvent):void
         {
             // Only the left button presses (a right-click on a member is its
@@ -520,6 +522,9 @@ package survarium.rooms
                 var r:Object = _routes[i];
                 var control:DisplayObject = r.control as DisplayObject;
                 if (control.stage == null || !control.visible || !control.hitTestPoint(e.stageX, e.stageY, false))
+                    continue;
+                var seen:DisplayObject = r.seenThrough as DisplayObject;
+                if (seen != null && !seen.hitTestPoint(e.stageX, e.stageY, false))
                     continue;
                 var at:DisplayObject = e.target as DisplayObject;
                 while (at != null && at != control && at != _content)

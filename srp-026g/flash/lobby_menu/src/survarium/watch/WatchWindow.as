@@ -142,7 +142,8 @@ package survarium.watch
 
       private var _replaysChip:String = MINE;
 
-      // the search by name ({name, state, asks, id; at: when its matches were asked}), null none
+      // the search by name ({name, state, asks, id; at: when its matches were asked; code: the match
+      // the name is the code of, 0 none: searchPlayer}), null none
       private var _search:Object = null;
 
       // a name typed shorter than this takes no other player's than its own, unless one is found
@@ -163,10 +164,6 @@ package survarium.watch
       // a friend's Spectate waiting for the live list to say where it plays ({name lower case,
       // shown, left: the seconds it still waits}), null none
       private var _spectate:Object = null;
-
-      // the watch of a code typed without `#` while it is asked ({hex, text}): a `gone` for it
-      // searches the text as a name (typed); null none
-      private var _bareCode:Object = null;
 
       private var _asks:int = 0;
 
@@ -508,7 +505,6 @@ package survarium.watch
          {
             this.releaseFocus();
             this._spectate = null;
-            this._bareCode = null;
             Modals.leave(this);
             return;
          }
@@ -902,25 +898,23 @@ package survarium.watch
          this.render();
       }
 
-      // The search box: a match's code (8 hex digits, `#` optional) watches it; else a player's
-      // name lists that player's matches. A code typed without `#` may be a name too ("deadbeef"):
-      // a `gone` for it searches the name (answered).
+      // The search box: a match's code with `#` watches it; else a player's name lists that
+      // player's matches. A code typed without `#` may be a name too ("deadbeef"): the name is
+      // searched first, and the code watched only when no player has that name (foundPlayers),
+      // so a name never asks a watch (whose `gone` would say so over the search, and count
+      // toward the server's limit of lookups that find no match).
       private function typed() : void
       {
          var text:String = this._box.text.replace(/^\s+|\s+$/g,"");
          var match:uint = WatchWindow.codeOf(text);
-         if(match != 0)
+         if(match != 0 && text.charAt(0) == "#")
          {
-            var asked:Boolean = this.watch(match,NotificationListScrollContent.REPLAY_WATCH_ALL);
-            this._bareCode = asked && text.charAt(0) != "#" ? {
-               "hex":WatchWindow.hex(match),
-               "text":text
-            } : null;
+            this.watch(match,NotificationListScrollContent.REPLAY_WATCH_ALL);
             return;
          }
          if(text.length > 0)
          {
-            this.searchPlayer(text);
+            this.searchPlayer(text,match);
          }
       }
 
@@ -934,8 +928,9 @@ package survarium.watch
       // Replays, `name`'s matches: the asker's own are Mine; another's account is found first
       // (LobbyMenu.findPlayers, answered in foundPlayers). The same name again while its search
       // finds the player or asks for its matches (Enter twice, Enter and the magnifier) keeps that
-      // search: a new one would drop the answer on its way.
-      private function searchPlayer(name:String) : void
+      // search: a new one would drop the answer on its way. `code`: the match the name is the code
+      // of (typed without `#`), watched if no player has the name; 0 none.
+      private function searchPlayer(name:String, code:uint = 0) : void
       {
          this._tab = REPLAYS;
          this.look._scrollPx = 0;
@@ -956,7 +951,7 @@ package survarium.watch
             return;
          }
          this.setBox(name);
-         var search:Object = {"name":name,"state":FINDING,"asks":1};
+         var search:Object = {"name":name,"state":FINDING,"asks":1,"code":code};
          this._search = search;
          this._lists[PLAYER] = null;
          // the answer to this ask only (LobbyMenu: in the order asked; a friends' search may ask
@@ -982,10 +977,12 @@ package survarium.watch
       // find_players' answer, srp's best match first (a part of the name, its letters in order,
       // a typo or two: session's name_search): the player named so (any case), else the first
       // found, when the text typed is SEARCH_LOOSE letters or more or only one was found; its
-      // account's matches asked.
+      // account's matches asked. A match's code typed without `#`: the player named so only, else
+      // the code's match watched, the search ended.
       private function foundPlayers(players:Array) : void
       {
          var want:String = String(this._search.name).toLowerCase();
+         var code:uint = uint(this._search.code);
          var pick:Object = null;
          for each(var player:Object in players)
          {
@@ -994,11 +991,16 @@ package survarium.watch
                pick = player;
             }
          }
-         if(pick == null && players.length > 0 && (players.length == 1 || want.length >= SEARCH_LOOSE))
+         if(pick == null && code == 0 && players.length > 0 && (players.length == 1 || want.length >= SEARCH_LOOSE))
          {
             pick = players[0];
          }
-         if(pick == null)
+         if(pick == null && code != 0)
+         {
+            this._search = null;
+            this.watch(code,NotificationListScrollContent.REPLAY_WATCH_ALL);
+         }
+         else if(pick == null)
          {
             this._search.state = NOT_FOUND;
          }
@@ -1090,18 +1092,9 @@ package survarium.watch
       // An answer about a watch asked for (ReplayAsks): of the one asked from here, `preparing`
       // keeps its view for RESUME_MS more (a replay may prepare longer), anything but `watching`
       // (a refusal, or its end without an answer) plays nothing to come back from; the cards are
-      // refreshed. A code typed without `#` that no kept match has may be a player's name: searched.
+      // refreshed.
       private function answered(hex:String, status:String) : void
       {
-         var bare:Object = this._bareCode;
-         if(bare != null && hex == bare.hex && status != "preparing")
-         {
-            this._bareCode = null;
-            if(status == "gone")
-            {
-               this.searchPlayer(String(bare.text));
-            }
-         }
          if(hex == WatchWindow.hex(this._pendingMatch) && status == "preparing")
          {
             this._pendingAt = getTimer();
@@ -1615,16 +1608,11 @@ package survarium.watch
       }
 
       // A control in the scrolled list: a press the content got itself clicks it, where the list
-      // shows it (not scrolled away under its mask).
+      // shows it (not scrolled away under its mask: a press there goes on to what is under it).
       private function routeInList(b:*) : void
       {
          this.look.route(b,function(control:DisplayObject, e:MouseEvent):void
          {
-            var inner:Sprite = look._scrollInner;
-            if(inner != null && inner.mask != null && !inner.mask.hitTestPoint(e.stageX,e.stageY,false))
-            {
-               return;
-            }
             if(control is TextField)
             {
                // the code on a card: selected for Ctrl+C
@@ -1638,7 +1626,7 @@ package survarium.watch
             }
             RoomsLook.clickSound();
             control.dispatchEvent(new ButtonEvent(ButtonEvent.CLICK));
-         });
+         },this.look._scrollInner == null ? null : this.look._scrollInner.mask);
       }
 
       private function putTime(field:TextField, row:Object, now:int) : void

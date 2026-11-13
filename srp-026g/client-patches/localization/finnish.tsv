@@ -2715,12 +2715,12 @@ st_srp_replay_demo_seller	Haaskaajat
 st_srp_replay_download	LATAA JA KATSO
 st_srp_replay_failed	Palvelin ei saanut ottelun tallennetta valmiiksi.
 st_srp_replay_gone	Ottelun tallenne ei ole enää palvelimella.
-st_srp_replay_in_room	Huoneesi tarvitsee sinua nyt otteluunsa. Katso tallenne ottelun jälkeen.
+st_srp_replay_in_room	Huoneesi tarvitsee sinua nyt otteluunsa.
 st_srp_replay_incompatible	Tallenne tehtiin peliversiolla, jota oma versiosi ei tue.
 st_srp_replay_made_now	Valmistellaan. Odotettu: %1$s s.
 st_srp_replay_no_answer	Palvelin ei vastannut. Yritä myöhemmin uudelleen.
 st_srp_replay_not_recorded	Ottelua ei tallennettu: pelaajia oli alle 6 tai tallennus oli pois käytöstä.
-st_srp_replay_not_yours	Voit katsoa vain niiden otteluiden tallenteita, joissa itse pelasit.
+st_srp_replay_not_yours	Et voi katsoa tätä ottelua.
 st_srp_replay_off	Tallenteet ovat pois käytöstä tällä palvelimella.
 st_srp_replay_old_game	Peliversiosi ei tue tallenteita. Päivitä peli käynnistämällä se uudelleen käynnistimestä.
 st_srp_replay_opening	Otteluserveri avaa tämän ottelun tallennetta.\n\n%1$s

@@ -2715,12 +2715,12 @@ st_srp_replay_demo_seller	Scavengers
 st_srp_replay_download	DOWNLOAD AND WATCH
 st_srp_replay_failed	Der Server konnte die Wiederholung dieses Matches nicht vorbereiten.
 st_srp_replay_gone	Die Wiederholung dieses Matches ist auf dem Server nicht mehr gespeichert.
-st_srp_replay_in_room	Dein Raum braucht dich jetzt für sein Match. Sieh dir die Wiederholung danach an.
+st_srp_replay_in_room	Dein Raum braucht dich jetzt für sein Match.
 st_srp_replay_incompatible	Diese Wiederholung wurde mit einer Spielversion aufgezeichnet, die deine nicht abspielen kann.
 st_srp_replay_made_now	Being made now. Waiting: %1$s s.
 st_srp_replay_no_answer	Der Server hat nicht geantwortet. Versuch es später noch einmal.
 st_srp_replay_not_recorded	This match was not recorded: it had fewer than 6 players, or recording was off at the time.
-st_srp_replay_not_yours	Du kannst nur Wiederholungen von Matches ansehen, in denen du gespielt hast.
+st_srp_replay_not_yours	Du kannst dieses Match nicht ansehen.
 st_srp_replay_off	Wiederholungen sind auf diesem Server ausgeschaltet.
 st_srp_replay_old_game	Deine Spielversion kann keine Wiederholungen abspielen. Aktualisiere das Spiel: Starte es erneut über den Launcher.
 st_srp_replay_opening	Der Match-Server öffnet die Wiederholung dieses Matches.\n\n%1$s

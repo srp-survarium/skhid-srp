@@ -2715,12 +2715,12 @@ st_srp_replay_demo_seller	Guberálók
 st_srp_replay_download	LETÖLTÉS ÉS LEJÁTSZÁS
 st_srp_replay_failed	A szerver nem tudta előkészíteni a meccs felvételét.
 st_srp_replay_gone	A szerver már nem tárolja ennek a meccsnek a felvételét.
-st_srp_replay_in_room	A szobádnak most szüksége van rád a meccshez. A felvételt utána nézd meg.
+st_srp_replay_in_room	A szobádnak most szüksége van rád a meccshez.
 st_srp_replay_incompatible	Ez a felvétel a játék egy nem kompatibilis verziójával készült.
 st_srp_replay_made_now	Most készül. Várakozás: %1$s mp.
 st_srp_replay_no_answer	A szerver nem válaszolt. Próbáld újra később.
 st_srp_replay_not_recorded	Erről a meccsről nem készült felvétel: 6-nál kevesebb játékos volt, vagy a rögzítés ki volt kapcsolva.
-st_srp_replay_not_yours	Csak olyan meccset nézhetsz vissza, amelyen részt vettél.
+st_srp_replay_not_yours	Ezt a meccset nem nézheted meg.
 st_srp_replay_off	A visszajátszás ki van kapcsolva ezen a szerveren.
 st_srp_replay_old_game	Ez a játékverzió nem támogatja a visszajátszást. Frissítsd a játékot: indítsd újra az indítóprogramból.
 st_srp_replay_opening	A meccsszerver megnyitja ennek a meccsnek a visszajátszását.\n\n%1$s

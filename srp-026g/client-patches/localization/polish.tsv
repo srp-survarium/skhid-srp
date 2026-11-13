@@ -2715,12 +2715,12 @@ st_srp_replay_demo_seller	Scavengers
 st_srp_replay_download	DOWNLOAD AND WATCH
 st_srp_replay_failed	Serwer nie mógł przygotować powtórki tej rozgrywki.
 st_srp_replay_gone	Powtórka tej rozgrywki nie jest już przechowywana na serwerze.
-st_srp_replay_in_room	Twój pokój potrzebuje cię teraz do meczu. Obejrzyj powtórkę po nim.
+st_srp_replay_in_room	Twój pokój potrzebuje cię teraz do meczu.
 st_srp_replay_incompatible	Ta powtórka została nagrana wersją gry, której twoja nie potrafi odtworzyć.
 st_srp_replay_made_now	Being made now. Waiting: %1$s s.
 st_srp_replay_no_answer	Serwer nie odpowiedział. Spróbuj ponownie później.
 st_srp_replay_not_recorded	This match was not recorded: it had fewer than 6 players, or recording was off at the time.
-st_srp_replay_not_yours	Możesz oglądać tylko powtórki rozgrywek, w których grałeś.
+st_srp_replay_not_yours	Nie możesz oglądać tego meczu.
 st_srp_replay_off	Powtórki są wyłączone na tym serwerze.
 st_srp_replay_old_game	Twoja wersja gry nie odtwarza powtórek. Zaktualizuj grę: uruchom ją ponownie przez launcher.
 st_srp_replay_opening	Serwer rozgrywek otwiera powtórkę tej rozgrywki.\n\n%1$s

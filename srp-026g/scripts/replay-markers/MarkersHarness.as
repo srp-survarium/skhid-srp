@@ -21,7 +21,8 @@ package
    // place in time, on the track and in the stage, a label over a hovered one (its time, kind and
    // text) in the stage, a press seeking 4 s before it (the slider's VALUE_CHANGE, which the movie
    // sends as update_position); set_replay_speed(percent) shows 0.25x .. 8x in the speed
-   // stepper (25 to 800, the nearest end outside), kept over the bottom panel's frames; a player's
+   // stepper (25 to 800, the nearest end outside), kept over the bottom panel's frames, its arrows
+   // stepping (and sending) only those speeds; a player's
    // name of 16 characters (Latin, the 10 languages' letters, wide ones) fits its row whole; a
    // viewer's own controls (root.start_viewer, survarium.replay.ViewerControls): Back at the top left
    // and the Moments switch right of the bottom panel, both in the stage and calling the exe when
@@ -324,6 +325,40 @@ package
          }
          expect("the speed is " + root.speedPercent + " %",root.speedPercent == 200);
          trace("MARKERS speed: set_replay_speed shows 0.25x .. 8x, the ends outside");
+         stepperSteps(root);
+         root.set_replay_speed(200);
+      }
+
+      // The stepper's arrows step through the exe's speeds only (Speed::ALL: 0.25x .. 8x), each press
+      // showing and sending the next one (update_play_speed), nothing past the ends (their arrows off).
+      private function stepperSteps(root:*) : void
+      {
+         var st:* = root.stepper;
+         root.set_replay_speed(25);
+         var up:String = "0.5x/update_play_speed,0.5 1x/update_play_speed,1 2x/update_play_speed,2 4x/update_play_speed,4 8x/update_play_speed,8 8x/-";
+         var path:String = presses(st,st.increment);
+         expect("+ from 0.25x steps " + path + ", not " + up,path == up);
+         expect("+ is on at 8x",!st.nextBtn.enabled);
+         var down:String = "4x/update_play_speed,4 2x/update_play_speed,2 1x/update_play_speed,1 0.5x/update_play_speed,0.5 0.25x/update_play_speed,0.25 0.25x/-";
+         path = presses(st,st.decrement);
+         expect("- from 8x steps " + path + ", not " + down,path == down);
+         expect("- is on at 0.25x",!st.prevBtn.enabled);
+         expect("the speed after the steps is " + root.speedPercent + " %",root.speedPercent == 25);
+         trace("MARKERS speed: the stepper steps 0.25x, 0.5x, 1x, 2x, 4x, 8x and sends each");
+      }
+
+      // Six presses of a stepper's arrow: after each, its text and what the exe was called with.
+      private static function presses(st:*, press:Function) : String
+      {
+         var path:Array = [];
+         for(var i:int = 0; i < 6; i++)
+         {
+            ExternalInterface.calls.length = 0;
+            press();
+            st.validateNow();
+            path.push(st.textField.text + "/" + (ExternalInterface.calls.length == 0 ? "-" : ExternalInterface.calls.join(" ")));
+         }
+         return path.join(" ");
       }
 
       private function longNames(root:*) : void

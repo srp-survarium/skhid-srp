@@ -2715,12 +2715,12 @@ st_srp_replay_demo_seller	Scavengers
 st_srp_replay_download	DOWNLOAD AND WATCH
 st_srp_replay_failed	The server could not prepare the replay of this match.
 st_srp_replay_gone	The replay of this match is no longer kept on the server.
-st_srp_replay_in_room	Your room needs you for its match now. Watch the replay after it.
+st_srp_replay_in_room	Your room needs you for its match now.
 st_srp_replay_incompatible	This replay was recorded by a game version that yours cannot play.
 st_srp_replay_made_now	Being made now. Waiting: %1$s s.
 st_srp_replay_no_answer	The server did not answer. Try again later.
 st_srp_replay_not_recorded	This match was not recorded: it had fewer than 6 players, or recording was off at the time.
-st_srp_replay_not_yours	You can watch replays only of matches you played in.
+st_srp_replay_not_yours	You can't watch this match.
 st_srp_replay_off	Replays are switched off on this server.
 st_srp_replay_old_game	Your game version cannot play replays. Update the game: start it again through the launcher.
 st_srp_replay_opening	The match server is opening the replay of this match.\n\n%1$s

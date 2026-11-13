@@ -11,6 +11,7 @@ package
    import flash.events.MouseEvent;
    import flash.events.TimerEvent;
    import flash.events.UncaughtErrorEvent;
+   import flash.geom.Point;
    import flash.geom.Rectangle;
    import flash.net.URLRequest;
    import flash.system.ApplicationDomain;
@@ -30,8 +31,8 @@ package
    //   Watch, Rooms' tab closes it (and Watch closes Rooms); no Watch tab on the bottom bar;
    // - the window: tabs Live (its count) and Replays; chips Everyone, Friends on Live, Mine (the
    //   default), Friends, Everyone on Replays, each the list it names (Live's Friends: the matches
-   //   with a friend); the search box: a match's code (# optional) watches it (one typed without
-   //   # that is `gone` is searched as a name too), a name lists that player's matches
+   //   with a friend); the search box: a match's code with # watches it (one typed without # is
+   //   searched as a name first, watched when nobody has that name), a name lists that player's matches
    //   (find_players' answer: the name itself, else the first found for three letters or more or
    //   when one is found; then the P1 rows; another's rows left; a name not found says so; the
    //   asker's own is Mine); the player pop-up's Matches (WatchWindow.openPlayer) searches the
@@ -43,6 +44,8 @@ package
    //   asker is told null (Watch: no answer, not before, held behind another's search too) and a
    //   later answer is nobody's; after a drop for 15 s or a stray answer the next waits until 3 s
    //   pass without one;
+   // - a press the content got itself (Scaleform's routing) on a card's control scrolled away under the
+   //   toolbar is the toolbar's (a chip under it), not the hidden card's;
    // - the cards: one Watch, or why not (not kept, old version; live: counting down, full, closed,
    //   over; an answer's word), the texts apart and clear of it; the code selectable (no copy icon);
    //   updated in place keyed by match: a refresh under a press keeps the card and its Watch, and
@@ -57,6 +60,7 @@ package
    //   not after a refusal, nor for an ask under another's; a watch given up (no answer) or whose
    //   prompt is closed withdrawn once (`3D 00 FFFFFF05 <match>`), not one refused; `in_room` said
    //   in its own words; a `none` after its own `preparing` ends it, prompt gone, nothing withdrawn;
+   //   a live match's `watching` to the ask itself closes the asking prompt, nothing withdrawn;
    //   Mine not asked at once back in the lobby (BACK_ASK_MS: the history row is not written yet);
    // - a lobby window opening (MainScene.activeWindow) or the rooms window closes Watch; back from a
    //   watch in a room, one playing without the player gives the Watch view back, its vote shows it;
@@ -314,6 +318,17 @@ package
       // MessageApply, registered as "apply"): what it said (null: no prompt).
       private function closePrompt() : String
       {
+         var box:* = promptBox();
+         if(box == null)
+            return null;
+         var text:String = String(box.textField.text);
+         box.btnCancel.dispatchEvent(new Click(Click.CLICK));
+         return text;
+      }
+
+      // The watch prompt on top, null none.
+      private function promptBox() : *
+      {
          var box:* = null;
          for(var i:int = 0; i < lobby.holder.numChildren; i++)
          {
@@ -321,11 +336,12 @@ package
             if(String(child.name).indexOf("message_") == 0)
                box = child;
          }
-         if(box == null || !("btnCancel" in box) || box.btnCancel == null)
-            return null;
-         var text:String = String(box.textField.text);
-         box.btnCancel.dispatchEvent(new Click(Click.CLICK));
-         return text;
+         return box == null || !("btnCancel" in box) || box.btnCancel == null ? null : box;
+      }
+
+      private function promptShown() : Boolean
+      {
+         return promptBox() != null;
       }
 
       // The ask's second (the window's timer's work).
@@ -650,19 +666,16 @@ package
 
       private function search(language:String) : void
       {
-         // a match's code watches it, with # or without
-         for each(var code:String in ["#1CE45CBE","1ce45cbe"])
-         {
-            idle();
-            typeIn(code);
-            expect(language + ": the code '" + code + "' asked " + asked(),asked()[0] == MATCH && asked()[1] == 0xC0FF0000);
-         }
+         // a match's code with # watches it at once
+         idle();
+         typeIn("#1CE45CBE");
+         expect(language + ": the code '#1CE45CBE' asked " + asked(),asked()[0] == MATCH && asked()[1] == 0xC0FF0000);
          idle();
          // Enter's press alone asks nothing (its release would close the prompt), nor does a release
          // begun elsewhere (the one that closed a box)
          var calls:int = ExternalInterface.calls.length;
          var box:TextField = find(win,"srpWatchSearch") as TextField;
-         box.text = "1ce45cbe";
+         box.text = "#1ce45cbe";
          box.dispatchEvent(new KeyboardEvent(KeyboardEvent.KEY_UP,true,false,0,Keyboard.ENTER));
          expect(language + ": a release alone sent the code",ExternalInterface.calls.length == calls);
          box.dispatchEvent(new KeyboardEvent(KeyboardEvent.KEY_DOWN,true,false,0,Keyboard.ENTER));
@@ -670,17 +683,25 @@ package
          box.dispatchEvent(new KeyboardEvent(KeyboardEvent.KEY_UP,true,false,0,Keyboard.ENTER));
          expect(language + ": Enter did not send the code",asked()[0] == MATCH && ExternalInterface.calls.length > calls);
          idle();
-         // a code typed without # that no kept match has may be a player's name: `gone` searches
-         // it as one; with # it is a code alone
+         // a code typed without # may be a player's name: the name searched first, nothing asked
+         // of the match server meanwhile; the player named so (a loose find is not the name), else
+         // the code watched and the search ended
+         later(3000);
+         ExternalInterface.calls.length = 0;
+         typeIn("1ce45cbe");
+         expect(language + ": a bare code asked a watch before its name search: " + asked() + ", " + searchesSent(),asked()[0] == 0
+            && searchesSent().join(",") == "1ce45cbe" && shownChip() == "player");
+         expect(language + ": the bare code's name search took no answer",found([{"id":9,"name":"1ce45cbf"}]));
+         expect(language + ": a bare code nobody is named did not watch it: " + asked() + ", " + shownChip(),asked()[0] == MATCH
+            && asked()[1] == 0xC0FF0000 && shownChip() != "player");
+         idle();
          later(3000);
          ExternalInterface.calls.length = 0;
          typeIn("deadbeef");
-         expect(language + ": 'deadbeef' did not ask its code: " + asked(),asked()[0] == 0xDEADBEEF && searchesSent().length == 0);
-         lobby.answer("gone",0xDEADBEEF);
-         expect(language + ": a bare code gone did not search the name: " + searchesSent(),searchesSent().join(",") == "deadbeef"
-            && shownChip() == "player" && (find(win,"srpWatchSearch") as TextField).text == "deadbeef");
-         expect(language + ": the name search of a bare code took no answer",found([{"id":9,"name":"deadbeef"}])
-            && (find(win,"srpWatchSearch") as TextField).text == "deadbeef");
+         expect(language + ": the name search of 'deadbeef' took no answer",found([{"id":9,"name":"DeadBeef"}]));
+         expect(language + ": a bare code that is a name watched: " + asked(),asked()[0] == 0 && shownChip() == "player"
+            && (find(win,"srpWatchSearch") as TextField).text == "DeadBeef");
+         // with # it is a code alone
          later(3000);
          ExternalInterface.calls.length = 0;
          typeIn("#deadbeef");
@@ -982,6 +1003,51 @@ package
          expect(language + ": the kept match is not the same card " + after.length,after.length == 1 && after[0] === before[1] && after[0].y == 0 && find(after[0],"srpWatchWatch") === watch);
          expect(language + ": a match no longer listed kept its card",before[0].parent == null && before[2].parent == null);
          trace("REPLAYBUTTONS " + language + ": cards in place, keyed by match, through a press and a new order");
+         scrolledAway(language,watch);
+      }
+
+      // A press the content got itself (Scaleform's routing): on a card's Watch where the list shows
+      // it, the Watch's; on a chip with that Watch scrolled away under it (outside the list's mask),
+      // the chip's.
+      private function scrolledAway(language:String, watch:DisplayObject) : void
+      {
+         var chip:DisplayObject = find(win,"srpWatchChip_friends");
+         var content:DisplayObjectContainer = chip == null ? null : chip.parent;
+         var inner:DisplayObjectContainer = watch.parent == null ? null : watch.parent.parent;
+         expect(language + ": no chip and list for the scrolled press",content != null && inner != null);
+         if(content == null || inner == null)
+            return;
+         var centre:Function = function(of:DisplayObject):Point
+         {
+            var r:Rectangle = of.getBounds(stage);
+            return new Point(r.x + r.width / 2,r.y + r.height / 2);
+         };
+         var pressContent:Function = function(at:Point):void
+         {
+            var local:Point = content.globalToLocal(at);
+            content.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN,true,false,local.x,local.y));
+         };
+         idle();
+         ExternalInterface.calls.length = 0;
+         pressContent(centre(watch));
+         expect(language + ": a press on the shown Watch given to the content did not ask: " + asked(),asked()[0] == OTHER);
+         idle();
+         // the list scrolled so the Watch lies under the chip
+         var x0:Number = inner.x;
+         var y0:Number = inner.y;
+         var to:Point = inner.parent.globalToLocal(centre(chip));
+         var from:Point = inner.parent.globalToLocal(centre(watch));
+         inner.x += to.x - from.x;
+         inner.y += to.y - from.y;
+         var under:Boolean = watch.hitTestPoint(centre(chip).x,centre(chip).y,false);
+         ExternalInterface.calls.length = 0;
+         pressContent(centre(chip));
+         inner.x = x0;
+         inner.y = y0;
+         expect(language + ": the Watch is not under the chip",under);
+         expect(language + ": the chip under a scrolled-away Watch did not take the press: " + shownChip() + ", asked " + asked(),
+            shownChip() == "friends" && asked()[0] == 0);
+         trace("REPLAYBUTTONS " + language + ": a press on a card scrolled away under the toolbar is the toolbar's");
       }
 
       // ---- the one ask-and-poll loop ----
@@ -1092,6 +1158,13 @@ package
          ExternalInterface.calls.length = 0;
          click(cards()[1],"srpWatchWatch");
          expect(language + ": no Watch asked after a none: " + asked(),asked()[0] == OTHER);
+         // a live match answers `watching` to the ask itself, before its game loads: the asking
+         // prompt goes with the ask, nothing withdrawn
+         expect(language + ": no asking prompt",promptShown());
+         lobby.answer("watching",OTHER);
+         shown = closePrompt();
+         expect(language + ": the prompt stayed after a live watching: " + shown,shown == null);
+         expect(language + ": a live watching withdrawn: " + withdrawn(),withdrawn().length == 0);
          idle();
          told();
          Message.registerMessage("apply",null);
