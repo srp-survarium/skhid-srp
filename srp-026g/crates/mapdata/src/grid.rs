@@ -302,7 +302,9 @@ pub struct Body {
     /// arrives there walked at it, is re-aimed there; the others are cut. Off: a link is kept where the body only goes down
     /// (min(0.4 m, half the drop) under the take-off) on any line, wherever it lands (Chemical Plant mode 2: 245 of 6,000 sampled
     /// links land on a level above the landing and 26 fall past it, and pass). A link that is the only way to a floor or back
-    /// from it is kept. A build input: in the key when set.
+    /// from it is kept. [A377] And a kept or re-aimed link's take-off is a lip ([`WalkGrid::is_lip`]) when the body walked at
+    /// its landing and let go there (the client's stop blend) stands [`LIP_DROP_M`] or more under it on any line
+    /// (`grid::drop_check::stop_at_drop`), as where the link itself drops that far. A build input: in the key when set.
     pub drop_lands: bool,
     /// [A318] Whether the floors the erosion rounds took beside a wall the body clears are given back (`grid::wall_give_back`):
     /// the exact pass keeps them, a wall face (not a rise of the ground) stands within 0.6 m, and the client's walk tick stands a
@@ -1133,6 +1135,10 @@ pub struct WalkGrid {
     /// [`Body::rim_jumps`] The rim jumps the build flew and no press made, as (take-off, landing) feet: the build's report only
     /// ([`Self::rim_unmade`]), not in the file or the digest.
     rim_unmade: Vec<(Vec3, Vec3)>,
+    /// [A377] [`Body::drop_lands`] The drop links whose take-off is a lip by where the client's body stops on their landing
+    /// ([`Self::is_lip`]), as (take-off, landing), sorted. In the file (after the crouched walks) and the digest. Empty without the
+    /// switch.
+    drop_lips: Vec<(NodeId, NodeId)>,
     /// Per node, its distance to the nearest wall the capsule meets, in [`clearance::CLEARANCE_STEP_M`] steps ([`Self::wall_clearance`]):
     /// made by [`Self::with_wall_clearance`] after the grid is built or read, from the map's triangles. In neither the file nor the
     /// digest. Empty without it.
@@ -1198,6 +1204,9 @@ struct Wide {
     /// ([`WalkGrid::held_by_wall`]), as (from, to), sorted: the jump's carry past the top does not apply to them
     /// ([`WalkGrid::drop_overshot_landings`]).
     held: Vec<(u32, u32)>,
+    /// [A377] [`Body::drop_lands`]: the drop links whose take-off is a lip by where the body stops on their landing, as (from,
+    /// to) ([`WalkGrid::drop_lips`]).
+    lips: Vec<(u32, u32)>,
 }
 
 /// A floor put aside by [`Body::wall_give_back`] ([`Wide::aside`]): where it is and its room.
@@ -1530,6 +1539,7 @@ impl WalkGrid {
             walk_crouched: Vec::new(),
             riser: Vec::new(),
             rim_unmade: Vec::new(),
+            drop_lips: Vec::new(),
             clearance: Vec::new(),
             open: Vec::new(),
             walker: None,
@@ -1613,8 +1623,9 @@ impl WalkGrid {
         }
         if body.drop_check {
             let failing = if body.drop_lands {
-                let (cut, reaim) = grid.landing_drops(&wide, triangles, seeds, spawns);
+                let (cut, reaim, lips) = grid.landing_drops(&wide, triangles, seeds, spawns);
                 stats.drops_reaimed = grid.reaim_drops(&mut wide, &reaim);
+                wide.lips = lips;
                 cut
             } else {
                 grid.unfollowed_drops(&wide, triangles, seeds, spawns)
@@ -1702,6 +1713,7 @@ impl WalkGrid {
             crouch: Vec::new(),
             riser: Vec::new(),
             held: Vec::new(),
+            lips: Vec::new(),
         }
     }
 
@@ -2823,6 +2835,11 @@ impl WalkGrid {
             *a = new_id[*a as usize];
             *b = new_id[*b as usize];
         }
+        wide.lips.retain(|&(a, b)| alive[a as usize] && alive[b as usize]);
+        for (a, b) in &mut wide.lips {
+            *a = new_id[*a as usize];
+            *b = new_id[*b as usize];
+        }
         let mut start = Vec::with_capacity(self.start.len());
         let mut node = 0usize;
         for c in 0..self.nx * self.nz {
@@ -3014,6 +3031,14 @@ impl WalkGrid {
                 digest.u32(u32::from(share));
             }
         }
+        // [A377] A grid with no lips by where the body stops digests as before there were any.
+        if !self.drop_lips.is_empty() {
+            digest.len(self.drop_lips.len());
+            for &(a, b) in &self.drop_lips {
+                digest.u32(a);
+                digest.u32(b);
+            }
+        }
         digest.finish()
     }
 
@@ -3051,6 +3076,7 @@ impl WalkGrid {
                 && self.walk_marked.is_empty()
                 && self.walk_crouched.is_empty()
                 && self.riser.is_empty()
+                && self.drop_lips.is_empty()
             {
                 return Ok(());
             }
@@ -3069,12 +3095,12 @@ impl WalkGrid {
                 bytes
             })?;
             // [A304] The ramp slopes, when the grid has them (an empty table before the walled exits).
-            if self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() {
+            if self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() {
                 return Ok(());
             }
             out.plain(&self.ramp, |&v| [v])?;
             // [A347] The walled exits, when the grid has them (an empty table before the marked walks).
-            if self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() {
+            if self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() {
                 return Ok(());
             }
             let pair = |&(a, b): &(NodeId, NodeId)| {
@@ -3085,17 +3111,17 @@ impl WalkGrid {
             };
             out.plain(&self.walled_exits, pair)?;
             // [2c] The marked walks, when the grid has them (an empty table before the crouched walks).
-            if self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() {
+            if self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() {
                 return Ok(());
             }
             out.plain(&self.walk_marked, pair)?;
             // [`Body::walk_ceiling_stalls`] The crouched walks, when the grid has them.
-            if self.walk_crouched.is_empty() && self.riser.is_empty() {
+            if self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() {
                 return Ok(());
             }
             out.plain(&self.walk_crouched, pair)?;
             // [A385 rule (d)] The risers' presses, when the grid has them: from, to, press (as an off-mesh link's), share, a zero.
-            if self.riser.is_empty() {
+            if self.riser.is_empty() && self.drop_lips.is_empty() {
                 return Ok(());
             }
             out.plain(&self.riser, |&(a, b, r)| {
@@ -3106,7 +3132,12 @@ impl WalkGrid {
                 bytes[8..10].copy_from_slice(&press.to_le_bytes());
                 bytes[10] = share;
                 bytes
-            })
+            })?;
+            // [A377] The lips by where the body stops, when the grid has them.
+            if self.drop_lips.is_empty() {
+                return Ok(());
+            }
+            out.plain(&self.drop_lips, pair)
         })
     }
 
@@ -3232,6 +3263,14 @@ impl WalkGrid {
                         })?
                     },
                     rim_unmade: Vec::new(),
+                    drop_lips: if input.ends() {
+                        Vec::new()
+                    } else {
+                        input.plain(|bytes: [u8; 8]| {
+                            let word = |i: usize| u32::from_le_bytes([bytes[i], bytes[i + 1], bytes[i + 2], bytes[i + 3]]);
+                            (word(0), word(4))
+                        })?
+                    },
                     clearance: Vec::new(),
                     open: Vec::new(),
                     walker: None,
@@ -3278,6 +3317,9 @@ impl WalkGrid {
             || self.riser.windows(2).any(|w| (w[0].0, w[0].1) >= (w[1].0, w[1].1))
         {
             return Err("bad riser presses".into());
+        }
+        if self.drop_lips.iter().any(|&(a, b)| a as usize >= n || b as usize >= n) || self.drop_lips.windows(2).any(|w| w[0] >= w[1]) {
+            return Err("bad drop lips".into());
         }
         if self.start.len() != cells + 1
             || self.start[0] != 0
@@ -3929,6 +3971,11 @@ impl WalkGrid {
             .collect();
         self.riser = riser;
         self.walk_crouched = crouched;
+        // [A377] The lips by where the body stops, whose link is still there.
+        let mut lips: Vec<(NodeId, NodeId)> = wide.lips.iter().copied().filter(|&(a, b)| wide.out(a as usize).any(|x| x == b)).collect();
+        lips.sort_unstable();
+        lips.dedup();
+        self.drop_lips = lips;
         self.off = wide.off;
         for l in &self.off {
             self.flags[l.from as usize] |= OFF_OUT;
@@ -4342,6 +4389,11 @@ impl WalkGrid {
     fn is_lip_by_links(&self, node: NodeId) -> bool {
         let a = node as usize;
         let y = self.height[a];
+        // [A377] A drop link's take-off where the body stopped on its landing stands a lip's height down.
+        let first = self.drop_lips.partition_point(|&(f, _)| f < node);
+        if self.drop_lips.get(first).is_some_and(|&(f, _)| f == node) {
+            return true;
+        }
         if self.body.walk_off_lips && self.off_out(node).iter().any(|l| {
             l.kind == LinkKind::GapDrop && l.press == gap::Takeoff::WalkOff && y - self.height[l.to as usize] >= LIP_DROP_M
         }) {

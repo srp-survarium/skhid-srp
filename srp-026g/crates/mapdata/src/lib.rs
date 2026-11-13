@@ -178,8 +178,9 @@ pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b04;
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
 /// The same for the Drop links kept only where the client's body stands on their landing, re-aimed where it lands elsewhere
-/// ([`Body::drop_lands`], feed 67), in [`grid_key_with_links`] only for a body that asks for it. A value of its own.
-pub const DROP_LANDS_ALGO: u32 = 0x5067_0001;
+/// ([`Body::drop_lands`], feed 67), in [`grid_key_with_links`] only for a body that asks for it. A value of its own. 0002: the
+/// lips by where the body stops on a landing (A377).
+pub const DROP_LANDS_ALGO: u32 = 0x5067_0002;
 /// The same for the floors given back beside walls the body clears ([`Body::wall_give_back`], A318), in [`grid_key_with_links`]
 /// only for a body that asks for it. A value of its own. 0103: the stand test runs the client's steps (A364 C2 row 45).
 pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0103;
