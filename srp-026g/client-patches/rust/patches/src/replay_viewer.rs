@@ -11,7 +11,7 @@
 //!   Right 10 s back and on, Shift+Left and Shift+Right the previous and
 //!   the next moment the Moments switch lights (4 s before it, from the
 //!   server's events), `[` and `]` slower and faster; M the switch's next
-//!   choice (All, Mine, Followed); F11 and H hide the interface; Ctrl shows or
+//!   choice (All, Mine, Followed); H and the key of toggle_replay_ui (F11) hide the interface; Ctrl shows or
 //!   hides the hud's cursor (the controls' bar and buttons take the mouse,
 //!   the camera stands); Esc leaves, as the game's own leave does (an empty
 //!   0xE0, back to the lobby); the controls' Back asks the server to let the
@@ -39,7 +39,7 @@ use crate::vostok::replay_view::{button_hud, pointer_at, pointer_hud, query_netw
 use crate::vostok::types::Place;
 use crate::vostok::world::NetworkClient;
 use crate::vostok::{
-    Context, Dik, Flow, GameCell, GameWorldKey, HudCall, KeyKind, NoExit, ReplayViewerOnHudCallExit,
+    Action, Context, Dik, Flow, GameCell, GameWorldKey, HudCall, KeyKind, NoExit, ReplayViewerOnHudCallExit,
     ReplayViewerOnKeyExit, ReplayViewerOnMouseButtonExit, ReplayViewerOnMousePointerExit, ReplayViewerOnMovieQueryExit, ReplayViewerOnSetupProfilesExit, Reg,
     ReplayViewerOnMovieTakeExit, ReplayViewerOnServerNoteExit,
 };
@@ -74,7 +74,10 @@ enum Command {
 }
 
 impl Command {
-    fn of(key: Dik, shift: bool) -> Option<Command> {
+    /// A key's command: the viewer's own keys, then the key bound to toggle_replay_ui (F11 unless
+    /// rebound; `action`, the key's game world action), whose own case (patch 62's) would hide the
+    /// hud and keep the replay controls of a viewer, a network game with no replay reader.
+    fn of(key: Dik, shift: bool, action: Option<Action>) -> Option<Command> {
         Some(match key {
             Dik::SPACE => Command::TogglePause,
             Dik::LEFT if shift => Command::PreviousMoment,
@@ -84,9 +87,10 @@ impl Command {
             Dik::LEFT_BRACKET => Command::Slower,
             Dik::RIGHT_BRACKET => Command::Faster,
             Dik::M => Command::NextMoments,
-            Dik::F11 | Dik::H => Command::ToggleUi,
+            Dik::H => Command::ToggleUi,
             Dik::LEFT_CONTROL | Dik::RIGHT_CONTROL => Command::ToggleCursor,
             Dik::ESCAPE => Command::Leave,
+            _ if action == Some(Action::TOGGLE_REPLAY_UI) => Command::ToggleUi,
             _ => return None,
         })
     }
@@ -162,7 +166,7 @@ impl Own {
     }
 }
 
-/// The interface's look (F11 and H), or the cursor's (Ctrl).
+/// The interface's look (H and toggle_replay_ui's key), or the cursor's (Ctrl).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Ui {
     Shown,
@@ -582,7 +586,7 @@ pub fn on_key(ctx: &mut Context<'_>) -> Flow<ReplayViewerOnKeyExit> {
         return Flow::Continue;
     }
     let shift = matches!(key.key(), Dik::LEFT | Dik::RIGHT) && key.shift_down();
-    let Some(replay_key) = Command::of(key.key(), shift) else { return Flow::Continue };
+    let Some(replay_key) = Command::of(key.key(), shift, key.match_action()) else { return Flow::Continue };
     if key.kind() != KeyKind::Down {
         // A viewer's key held or let go: the game's player handler never sees it.
         key.take();
@@ -1416,11 +1420,23 @@ mod tests {
 
     #[test]
     fn keys_map_with_shift() {
-        assert_eq!(Command::of(Dik::LEFT, true), Some(Command::PreviousMoment));
-        assert_eq!(Command::of(Dik::M, false), Some(Command::NextMoments));
-        assert_eq!(Command::of(Dik::LEFT, false), Some(Command::Back));
-        assert_eq!(Command::of(Dik::H, true), Some(Command::ToggleUi));
-        assert_eq!(Command::of(Dik::TAB, false), None);
-        assert_eq!(Command::of(Dik::RIGHT_CONTROL, false), Some(Command::ToggleCursor));
+        assert_eq!(Command::of(Dik::LEFT, true, None), Some(Command::PreviousMoment));
+        assert_eq!(Command::of(Dik::M, false, None), Some(Command::NextMoments));
+        assert_eq!(Command::of(Dik::LEFT, false, None), Some(Command::Back));
+        assert_eq!(Command::of(Dik::H, true, None), Some(Command::ToggleUi));
+        assert_eq!(Command::of(Dik::TAB, false, None), None);
+        assert_eq!(Command::of(Dik::RIGHT_CONTROL, false, None), Some(Command::ToggleCursor));
+    }
+
+    #[test]
+    fn the_interface_follows_its_binding() {
+        let toggle = Some(Action::TOGGLE_REPLAY_UI);
+        // F11 by default, or the key it was bound to; F11 rebound away is no viewer's key.
+        assert_eq!(Command::of(Dik::F11, false, toggle), Some(Command::ToggleUi));
+        assert_eq!(Command::of(Dik::new(0x43), false, toggle), Some(Command::ToggleUi));
+        assert_eq!(Command::of(Dik::F11, false, Some(Action(0x49))), None);
+        assert_eq!(Command::of(Dik::F11, false, None), None);
+        // The viewer's own keys stay theirs whatever they are bound to.
+        assert_eq!(Command::of(Dik::SPACE, false, toggle), Some(Command::TogglePause));
     }
 }

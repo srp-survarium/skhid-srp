@@ -15,6 +15,9 @@ use crate::raw;
 pub struct Action(pub u32);
 
 impl Action {
+    /// toggle_replay_ui, default key F11 (action table entry 0xA74CA8, kinds 5):
+    /// patch 62's hide-the-interface key, and a replay viewer's (patch 144).
+    pub const TOGGLE_REPLAY_UI: Action = Action(0x19);
     /// commit_suicide, default key K (action table entry 0xA74D20).
     pub const COMMIT_SUICIDE: Action = Action(0x1F);
     /// spot.

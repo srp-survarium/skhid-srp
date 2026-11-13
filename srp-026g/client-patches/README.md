@@ -5426,7 +5426,8 @@ own update_play_speed); an older note (by its revision) is dropped; the
 events note gives the kills. A viewer's keys are taken before the game's
 and ask the server, an 0xE0 (`FF x6 52 00 seq op value`):
 Space pause, Left/Right 10 s, Shift+Left/Right the previous/next kill (4 s
-before it), `[`/`]` slower/faster; F11 and H hide the hud and the player
+before it), `[`/`]` slower/faster; H and the key bound to toggle_replay_ui
+(F11 unless rebound, the binder's kind 1 asked) hide the hud and the player
 icons; Esc is the game's own leave, close_current_match(2). Every end of
 the match (past close_current_match's guard) runs the clock again at 1
 before the world ends. Every network game's first world also loads the

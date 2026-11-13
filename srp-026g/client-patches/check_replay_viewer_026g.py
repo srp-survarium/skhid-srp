@@ -32,7 +32,9 @@ itself as the text).
   events note and a malformed one of ours are taken with nothing called;
   Space, Right, Shift+Right, `]`, `[` each send one 0xE0 alone in its
   datagram with the request's 14 bytes; H hides the hud and the icons
-  (root.hide_interface true), H again shows them; M is taken with nothing
+  (root.hide_interface true), F11 (toggle_replay_ui's key, the made-up
+  binder's) shows them, and with that action bound to F9 instead, F9 hides and shows
+  them while F11 goes on to the game; M is taken with nothing
   sent (the Moments switch is the patch's own); Esc is
   close_current_match(2); a key held is taken with nothing done; a match's
   end (reason 4, a kick) resumes a paused game and sets time_scale 1, after
@@ -97,6 +99,11 @@ MOUSE_BUTTONS = 0x1204                      # MovieImpl: mouse 0's buttons held
 WORLD_UI = GAME + 0x18 + 0x1FC              # the game world's hud (game_world+1FCh)
 REPLAY_HOLDER, REPLAY_VIEW, REPLAY_MOVIE = OBJECTS + 0x6C000, OBJECTS + 0x6D000, OBJECTS + 0x6E000
 CALL_NAME, CALL_ARGS = OBJECTS + 0x6F000, OBJECTS + 0x6F100
+# The game's key binder (game +5344h): 48h bindings {its action's description, its key's name entry,
+# a second key}, indexed by the action; the descriptions are the action table's, 20 bytes {name, id,
+# kinds, toggle, key name}; the keys' names 88h bytes {name, DIK code, ...}, to a null name.
+BINDER, ACTIONS, KEY_NAMES = OBJECTS + 0x77000, 0xA74AF0, 0xA74FA0
+TOGGLE_UI, ARTEFACT, F9 = 0x19, 0x23, 0x43
 SPACE, ESC, H, F11, LEFT, RIGHT, LBRACKET, RBRACKET, LSHIFT, M = 0x39, 0x01, 0x23, 0x57, 0xCB, 0xCD, 0x1A, 0x1B, 0x2A, 0x32
 TRANSLATE = 0x1FF0F0
 DOWN, HELD = 1, 3
@@ -263,7 +270,27 @@ class Game:
         self.word(WORLD_UI + 0xC, CURSOR_HOLDER)
         self.word(CURSOR_HOLDER + 0x108, CURSOR_VIEW)
         self.word(CURSOR_VIEW + 4, CURSOR_MOVIE)
+        self.word(GAME + 0x5344, BINDER)
+        self.bind({TOGGLE_UI: F11, ARTEFACT: H})                  # the defaults (H patch 78's)
         self.calls = []
+
+    def key_name(self, dik):
+        """The exe's key-name entry of a DIK code."""
+        entry = KEY_NAMES
+        while self.read(entry):
+            if self.read(entry + 4) == dik:
+                return entry
+            entry += 0x88
+        raise KeyError(hex(dik))
+
+    def bind(self, keys):
+        """The binder with `keys` (action: DIK code) bound, every other action to nothing."""
+        self.emu.mem_write(BINDER, bytes(12 * 0x48))
+        for description in range(ACTIONS, KEY_NAMES, 20):
+            action = self.read(description + 4)
+            self.word(BINDER + 12 * action, description)
+            if action in keys:
+                self.word(BINDER + 12 * action + 4, self.key_name(keys[action]))
 
     def run(self, site, regs, stack=b""):
         start, _, past, exit_ = SITES[site]
@@ -537,7 +564,22 @@ def main():
           f"key, a viewer, H: root.hide_interface(true) to the hud and the icons, the key taken")
     state, _, calls = key(ours, F11)
     check(state[UC_X86_REG_EIP] == taken and [c[4] for c in calls] == [(2, 0), (2, 0)],
-          "key, a viewer, F11: root.hide_interface(false) to both, the key taken")
+          "key, a viewer, F11 (toggle_replay_ui's): root.hide_interface(false) to both, the key taken")
+    # toggle_replay_ui rebound to F9: its key is the viewer's, F11 is no longer (patch 62's own case
+    # would hide the hud and keep the replay controls of a game with no replay reader).
+    ours.bind({TOGGLE_UI: F9, ARTEFACT: H})
+    state, _, calls = key(ours, F9)
+    check(state[UC_X86_REG_EIP] == taken and [c[4] for c in calls] == [(2, 1), (2, 1)],
+          "key, a viewer, toggle_replay_ui bound to F9, F9: root.hide_interface(true) to both, the key taken")
+    state, _, calls = key(ours, F11)
+    check(state[UC_X86_REG_EIP] == SITES["key"][2] and not calls,
+          "key, a viewer, toggle_replay_ui bound to F9, F11: on to the game, nothing called")
+    state, _, calls = key(ours, F9, kind=HELD)
+    check(state[UC_X86_REG_EIP] == taken and not calls, "key, a viewer, F9 held: taken, nothing done")
+    state, _, calls = key(ours, F9)
+    check(state[UC_X86_REG_EIP] == taken and [c[4] for c in calls] == [(2, 0), (2, 0)],
+          "key, a viewer, F9 again: root.hide_interface(false) to both, the key taken")
+    ours.bind({TOGGLE_UI: F11, ARTEFACT: H})
     state, _, calls = key(ours, M)
     check(state[UC_X86_REG_EIP] == taken and not calls, "key, a viewer, M: the Moments switch's next choice, taken, nothing sent")
     state, _, calls = key(ours, SPACE, kind=HELD)

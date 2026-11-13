@@ -182,7 +182,13 @@ impl<'c, 'm> GameWorldKey<'c, 'm> {
     /// The chat keys' action the key is bound to (the binder's kind 8, as
     /// chat_handler::on_keyboard_action asks it, 0x208887), if any.
     pub fn chat_action(&self) -> Option<super::input::Action> {
-        chat_action(&self.hud, u32::from(self.key.0))
+        bound_action(&self.hud, CHAT_KINDS, u32::from(self.key.0))
+    }
+
+    /// The game world's action the key is bound to (the binder's kind 1, as
+    /// this function asks it further on, 0x25CD5F), if any.
+    pub fn match_action(&self) -> Option<super::input::Action> {
+        bound_action(&self.hud, MATCH_KINDS, u32::from(self.key.0))
     }
 
     /// The replay player movie (replay_player.swf) of this key's game world,
@@ -201,9 +207,15 @@ impl<'c, 'm> GameWorldKey<'c, 'm> {
     }
 }
 
-/// The chat keys' action a key code (a DirectInput key, or 151h + a mouse
-/// button) is bound to in the hud's game's binder (kind 8), if any.
-fn chat_action(hud: &Hud<'_>, code: u32) -> Option<super::input::Action> {
+/// The binder's kind mask of the chat keys (chat_handler::on_keyboard_action, 0x208887).
+const CHAT_KINDS: u32 = 8;
+/// The binder's kind mask of the game world's keys (on_keyboard_action, 0x25CD5F).
+const MATCH_KINDS: u32 = 1;
+
+/// The action of `kinds` a key code (a DirectInput key, or 151h + a mouse
+/// button) is bound to in the hud's game's binder, if any (the binder's
+/// 49h when none).
+fn bound_action(hud: &Hud<'_>, kinds: u32, code: u32) -> Option<super::input::Action> {
     let binder = hud.game().and_then(|game| {
         // SAFETY: the hud's game, alive for the hook.
         unsafe { game.binder() }
@@ -211,7 +223,7 @@ fn chat_action(hud: &Hud<'_>, code: u32) -> Option<super::input::Action> {
     let mut toggle = 0;
     // SAFETY: the game's live binder, on its thread; the code one the input
     // world gives its listeners (get_binded_action compares it, 0x207D50).
-    let action = unsafe { raw::engine_binded_action(Some(binder), 8, code, &mut toggle) };
+    let action = unsafe { raw::engine_binded_action(Some(binder), kinds, code, &mut toggle) };
     Some(super::input::Action(action))
 }
 
@@ -302,7 +314,7 @@ impl<'c> GameWorldButton<'c> {
 
     /// The chat keys' action the button is bound to (kind 8), if any.
     pub fn chat_action(&self) -> Option<super::input::Action> {
-        chat_action(&self.hud, self.button.key())
+        bound_action(&self.hud, CHAT_KINDS, self.button.key())
     }
 }
 
