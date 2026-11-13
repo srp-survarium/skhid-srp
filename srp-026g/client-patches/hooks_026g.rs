@@ -4541,7 +4541,7 @@ pub extern "C" fn hook_spectator_on_match_line(frame: &mut Frame) -> u32 {
 #[repr(u32)]
 #[allow(dead_code)]
 pub enum SpectatorOnFollowedAliveExit { Kept }
-/// The entry `spectator_on_followed_alive` (0x23b7b9, update_local_player_state's read of the followed player's alive byte (mov al,[ebp+33Ch]; ESI the hud, EBP the player, CL the hud's last +2DEh): at a change the quick slots, the stamina and the kits (0x23B7C5..0x23B7F7); kept is the reference's release at their end, nothing shown or hidden) calls this with the saved machine.
+/// The entry `spectator_on_followed_alive` (0x23b7b9, update_local_player_state's read of the followed player's alive byte (mov al,[ebp+33Ch]; ESI the hud, EBP the player, CL the hud's last +2DEh): at a change the quick slots, the stamina and the kits (0x23B7C5..0x23B7F7), then at 0x23B7FC the `lea eax,[ebp+0D0h]` that patch 31 makes `call ui_start` (the kits and their cursor shown before play for a live player); kept is the reference's release after both (0x23B802, `or edx,-1`; EAX the player's +0D0h, as the lea leaves it), nothing shown or hidden) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_spectator_on_followed_alive(frame: &mut Frame) -> u32 {
     // SAFETY: only the entry `spectator_on_followed_alive` calls this, from the game's jump at 0x23b7b9,

@@ -929,7 +929,9 @@ fn chooser_text<'o, 'k>(kits: Option<impl Iterator<Item = KitData<'k>>>, out: &'
 pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let Some(hud) = HudFrame::at(ctx) else { return Flow::Continue };
-    let Some(client) = hud.client(thread) else { return Flow::Continue };
+    // A live match's client only, as on_key: a session left over (its match's close skipped)
+    // never feeds the game's own replay client, whose smaller object has no match fields.
+    let Some(client) = hud.client(thread).filter(|client| client.is_match_client()) else { return Flow::Continue };
     let (now, feeding) = VIEWING.with(thread, |viewing| (viewing.session, viewing.feeding));
     match now {
         Session::Replay(viewer) => {

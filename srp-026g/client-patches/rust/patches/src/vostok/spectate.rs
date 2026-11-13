@@ -15,11 +15,12 @@
 //! - `chat.match_team` (0x208D77): a match line's team colour, by the local
 //!   place's player;
 //! - `hud.followed_alive` (0x23B7B9): the hud's change of the followed
-//!   player's life (the kits and the cursor at a death);
+//!   player's life (the kits and the cursor at a death), and patch 31's
+//!   ui_start after it (the kits and the cursor before play);
 //! - `player_left.local` (0x27C72C): an 0xEA, which the game takes as its
 //!   own end only for its local place: a game with none returns at once.
 
-use super::context::Context;
+use super::context::{Context, Reg};
 use super::input::Action;
 use super::types::Place;
 use super::world::{read, NetworkClient, Step};
@@ -267,6 +268,17 @@ impl<'c, 'm> FollowedAlive<'c, 'm> {
         Some(NetworkClient::of(client, self.ctx.thread()))
     }
 
+    /// The hud's panels left as they are: its exit `kept` (0x23B802) is past their change and past
+    /// patch 31's `call ui_start` at 0x23B7FC (which, for a live followed player, would show the
+    /// kits and the hud's cursor while the client's time state is not 3), with EAX the player's
+    /// reference count, as the `lea eax,[ebp+0D0h]` there leaves it for the release that follows.
+    /// `None` when the site has no player, which the game never gives it (0x23B75E).
+    pub fn keep_panels(&mut self) -> Option<()> {
+        // SAFETY: the context is this site's: EBP the followed player, a reference held.
+        let references = unsafe { raw::site::hud_followed_alive::player(&*self.ctx)?.references() };
+        self.ctx.set_reg(Reg::Eax, references as usize as u32);
+        Some(())
+    }
 }
 
 #[cfg(test)]

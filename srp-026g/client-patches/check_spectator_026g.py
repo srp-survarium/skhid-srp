@@ -31,8 +31,13 @@ and switch_to_spectator_camera (0x1F8360, EDX).
     the previous living player of any team, the one followed left out, then
     0x25CEAE (the key's return, AL 0); any other action as the original;
   - a match line (0x208D77): [esp+48h] 0, on at 0x208DE2 (the plain line);
-  - the hud's life byte (0x23B7B9): a spectator's skips the panels' change, to
-    0x23B7FC, for a dead player.
+  - the hud's life byte (0x23B7B9): a spectator's skips the panels' change and
+    patch 31's `call ui_start` at 0x23B7FC, to 0x23B802 (the reference's
+    release) with EAX the player's +0D0h, for a dead player; for a living one
+    before play (the client's +1F1C60h not 3) run on to the release's
+    `lock xadd`: show_profiles_selector (0x2383B0, the kits and the hud's
+    cursor) not called and the followed player's count released, where a
+    player's game in the same state calls it with 1 (patch 31's ui_start).
 """
 import glob
 import os
@@ -52,6 +57,7 @@ import patch_026g as base
 NC_VTABLE, REPLAY_VTABLE = 0x9FFB14, 0x9FF344
 GET_ACTIVE, FOLLOW, CAMERA, CLOSE, DETACH = 0x27A9C0, 0x242B90, 0x1F8360, 0x27A790, 0x242CC0
 LEAVE_MATCH, STATS, DISCARD, GET_PLAYER, SPECTATE_NEXT = 0x2D18A0, 0x27C1F0, 0x2717E0, 0x27A980, 0x242D50
+SHOW_KITS = 0x2383B0                        # game_world_ui::show_profiles_selector (EAX the hud, [esp+4] shown; ret 4)
 RET_STUB = 0x51000F00                       # where a run of the 0xEA's handler returns
 THREAD_SLOT = 0x870118
 NC, GAME, OBJECTS, STUBS, STACK = 0x40000000, 0x48000000, 0x50000000, 0x51000000, 0x52000000
@@ -66,7 +72,7 @@ SITES = {
     "world": (0x27C116, bytes.fromhex("8b470485c0"), 0x27C11B, 0x27C1B9),
     "key": (0x25CDBD, bytes.fromhex("8bb3ac530000"), 0x25CDC3, 0x25CEAE),
     "chat": (0x208D77, bytes.fromhex("0fb686441c1f00"), 0x208D7E, 0x208DE2),
-    "hud": (0x23B7B9, bytes.fromhex("8a853c030000"), 0x23B7BF, 0x23B7FC),
+    "hud": (0x23B7B9, bytes.fromhex("8a853c030000"), 0x23B7BF, 0x23B802),
 }
 # process_player_left_match (0xEA): replaced whole at its start (mov ecx,[esi+1F1C40h]); its `ret 4` the exit.
 LEFT = (0x27C690, bytes.fromhex("8b8e401c1f00"), 0x27C7A5)
@@ -120,7 +126,7 @@ class Game:
         for va, how in ((GET_ACTIVE, self.get_active), (FOLLOW, self.follow), (CAMERA, self.camera),
                         (CLOSE, self.close), (DETACH, self.detach), (LEAVE_MATCH, self.leave_match),
                         (STATS, self.stats), (DISCARD, self.discard), (GET_PLAYER, self.get_player),
-                        (SPECTATE_NEXT, self.spectate_next)):
+                        (SPECTATE_NEXT, self.spectate_next), (SHOW_KITS, self.show_kits)):
             emu.hook_add(UC_HOOK_CODE, how, begin=va, end=va)
 
     def without_reports(self, linked):
@@ -207,6 +213,11 @@ class Game:
     def spectate_next(self, emu, *_):
         self.calls.append(("spectate_next_player", emu.reg_read(UC_X86_REG_ECX)))
         self.ret(0)
+
+    def show_kits(self, emu, *_):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        self.calls.append(("show_profiles_selector", emu.reg_read(UC_X86_REG_EAX), self.read(sp + 4) & 0xFF))
+        self.ret(4)
 
     def camera(self, emu, *_):
         self.calls.append(("switch_to_spectator_camera", emu.reg_read(UC_X86_REG_EDX)))
@@ -535,9 +546,41 @@ def main():
           f"left, a spectator, 0xEA of another place (3): nothing more, the return ({made})")
 
     state, _, done = spectator("hud", 1)
-    check(state[UC_X86_REG_EIP] == 0x23B7FC and not done
-          and state[UC_X86_REG_EAX] >> 8 == STEADY[UC_X86_REG_EAX] >> 8 and not done,
-          "hud, a spectator, the followed player dead: no panels' change, at 0x23B7FC (the release), nothing called")
+    check(state[UC_X86_REG_EIP] == 0x23B802 and not done and state[UC_X86_REG_EAX] == PLAYERS[2] + 0xD0
+          and state[UC_X86_REG_EBP] == PLAYERS[2] and state[UC_X86_REG_ESI] == UI,
+          "hud, a spectator, the followed player dead: no panels' change, past patch 31's ui_start to 0x23B802 "
+          "(the release) with EAX the player's +0D0h, nothing called")
+
+    # Before play (the client's +1F1C60h 1, not 3) with a living player followed (place 2), the hud's
+    # +2DEh as the player's life (no change): run on from the site to the release's `lock xadd`. A
+    # player's game reaches patch 31's ui_start at 0x23B7FC, which shows the kits and the hud's cursor
+    # (show_profiles_selector with 1); a spectator's never does (its free-fly camera after F2 stayed
+    # under that cursor), and its exit's EAX is the count the release takes one from.
+    def before_play(local):
+        ours.setup(vtable=NC_VTABLE, local=local, followed=2, players={1: (1, 1), 2: (1, 1)})
+        ours.word(NC + 0x1F1C60, 1)
+        ours.word(UI + 0x2DE, 1, 1)
+        emu = ours.emu
+        emu.mem_write(STACK, bytes(0x10000))
+        for reg, value in site_regs("hud").items():
+            emu.reg_write(reg, value)
+        emu.reg_write(UC_X86_REG_ECX, 1)                 # CL the hud's last +2DEh (0x23B7B3)
+        emu.reg_write(UC_X86_REG_ESP, SP)
+        emu.reg_write(UC_X86_REG_EFLAGS, 0x202)
+        ours.calls = []
+        hook = emu.hook_add(UC_HOOK_CODE, lambda e, a, *_: e.emu_stop() if a == 0x23B80B else None)
+        emu.emu_start(SITES["hud"][0], 0, count=500000)
+        emu.hook_del(hook)
+        return emu.reg_read(UC_X86_REG_EIP), [c for c in ours.calls if c[0] != "get_active_player"], \
+            ours.read(PLAYERS[2] + 0xD0)
+
+    at, done, references = before_play(2)
+    check(at == 0x23B80B and done == [("show_profiles_selector", UI, 1)] and references == 0,
+          f"hud, a player before play, its player alive: patch 31's ui_start shows the kits ({done}), then the release")
+    at, done, references = before_play(0xFF)
+    check(at == 0x23B80B and not done and references == 0,
+          f"hud, a spectator before play, the followed player alive: no kits and no cursor ({done}), "
+          f"the release's count taken through EAX (left {references})")
 
     # Detach (F2, cam_2): one spectator's game through a flight, the patch's
     # camera state kept between the runs (its arena's).

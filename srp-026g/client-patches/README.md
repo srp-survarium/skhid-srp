@@ -5425,9 +5425,10 @@ Space pause, Left/Right 10 s, Shift+Left/Right the previous/next kill (4 s
 before it), `[`/`]` slower/faster; F11 and H hide the hud and the player
 icons; Esc is the game's own leave, close_current_match(2). Every end of
 the match (past close_current_match's guard) runs the clock again at 1
-before the world ends. Every spectator's world also loads the replay
-controls (`replay_player.swf`, which the game asks for only with a replay
-reader), hidden; a viewer's are shown with the interface and fed each
+before the world ends. Every network game's first world also loads the
+replay controls (`replay_player.swf`, which the game asks for only with a
+replay reader; a game queries its world's movies once, so a game that
+played before it watches has them), hidden; a viewer's are shown with the interface and fed each
 frame (the bar's length, its position, the play button, the kills as
 markers); their play button, bar and speed ask the server as the keys do,
 their player list and free view move patch 143's camera. A viewer's
@@ -5467,7 +5468,8 @@ and fly with the game's free-fly camera on F2 (the game's own cam_2 binding,
 the replay's free view: detach_from_player 0x242CC0; kept over a world's
 load and a player's leave until F6/F5, from the last one followed, or the
 next match's options), show its
-match lines plain and never show it the kits; its network client's +0Ch
+match lines plain and never show it the kits (at a death, nor before play
+by patch 31's ui_start, whose cursor would take the mouse); its network client's +0Ch
 (the replay client's "no input") is set, so it builds and sends no input.
 The match server lets it go with one 0xEA naming place 0xFF: the game
 takes it as its end, close_current_match(0), back to the lobby with no

@@ -195,13 +195,20 @@ fn finish_left(thread: &Thread, left: PlayerLeft<'_>) {
 /// `hud.followed_alive`: a spectator's hud has no quick slots, stamina or kits of the player it
 /// follows to show or hide at a death or a spawn (a kit picked there would be the followed
 /// player's, in its own world alone): the game's change of those panels is skipped, once for
-/// all, here. The slots hide themselves at a match's start (0x23B565) and nothing shows them.
+/// all, here, and so is patch 31's ui_start after it, which before play would show the kits and
+/// the hud's cursor for a living player followed: that cursor took every mouse move, and once F2
+/// let the player go (the function returns early with nobody followed, 0x23B75E) nothing hid it
+/// again, so the free-fly camera could not turn. The slots hide themselves at a match's start
+/// (0x23B565) and nothing shows them.
 pub fn on_followed_alive(ctx: &mut Context<'_>) -> Flow<SpectatorOnFollowedAliveExit> {
-    let site = FollowedAlive::at(ctx);
+    let mut site = FollowedAlive::at(ctx);
     if !site.client().is_some_and(|client| client.is_spectator()) {
         return Flow::Continue;
     }
-    Flow::Exit(SpectatorOnFollowedAliveExit::Kept)
+    match site.keep_panels() {
+        Some(()) => Flow::Exit(SpectatorOnFollowedAliveExit::Kept),
+        None => Flow::Continue,
+    }
 }
 
 #[cfg(test)]
