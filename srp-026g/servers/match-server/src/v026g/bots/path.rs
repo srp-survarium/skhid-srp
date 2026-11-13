@@ -995,12 +995,18 @@ fn pull_straight(
             continue;
         }
         let mut j = i + 1;
+        // A line pulled straight crosses a floor a standing body does not fit under only where the path's own floors of that
+        // leg do: the leg is then marked low from them ([`Waypoint::low`]) and walked crouched. A line cut under a low ceiling
+        // the search went round was marked standing, and the motor walked it standing into the ceiling (nav-team's stall s5,
+        // Cologne: 725 of 164,001 legs not marked low crossed such a floor, the census
+        // `pulled_legs_under_low_ceilings_on_a_real_map`).
+        let room = |n: NodeId, upto: usize| grid.can_stand(n) || nodes[i..=upto].contains(&n);
         while j + 1 < nodes.len() && into[j + 1] == LinkKind::Walk && {
             checked();
             if to_drop[j + 1] {
-                straight_where(grid, nodes[i], nodes[j + 1], &allowed)
+                straight_where(grid, nodes[i], nodes[j + 1], |n| allowed(n) && room(n, j + 1))
             } else {
-                straight_where(grid, nodes[i], nodes[j + 1], kept_back)
+                straight_where(grid, nodes[i], nodes[j + 1], |n| kept_back(n) && room(n, j + 1))
             }
         } {
             j += 1;
@@ -1892,6 +1898,120 @@ impl Route {
 mod tests {
     use super::*;
     use crate::v026g::bots::body::tests::walled;
+
+    /// A path that goes round a low ceiling (a patch of floors a standing body does not fit under) is pulled straight past it, not
+    /// under it: a leg marked standing crosses no floor without standing room (nav-team's stall s5, Cologne).
+    #[test]
+    fn a_pulled_leg_does_not_cut_under_a_low_ceiling_the_path_went_round() {
+        use mapdata::{Body, Triangle};
+        use crate::v026g::bots::body::tests::floor;
+        let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+        // A slab 1.3 m up over x 8-12, z 0-7: room for a crouched body only; the way round is z 7-10.
+        triangles.extend(floor(8.0, 0.0, 12.0, 7.0, 1.3));
+        let body = Body { erosion: mapdata::grid::Erosion::Exact, crouch_only_floors: true, ..Body::client() };
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, body);
+        let at = |x: f32, z: f32| grid.locate(Vec3::new(x, 0.0, z), 0.5).unwrap();
+        let under = at(10.0, 3.0);
+        assert!(!grid.can_stand(under), "the slab's floor is low: {}", grid.headroom(under));
+        // The search kept off the low floors; the pull may take any.
+        let path = grid.path_where(at(5.0, 5.0), at(15.0, 5.0), |n| grid.can_stand(n)).unwrap();
+        let route = pull(&grid, path.nodes, |_| true);
+        for k in 1..route.points.len() {
+            let (from, to) = (route.points[k - 1], route.points[k]);
+            let crossed = std::cell::RefCell::new(Vec::new());
+            assert!(grid.walks_straight(from.node, to.node, f32::INFINITY, |n| {
+                crossed.borrow_mut().push(n);
+                true
+            }));
+            let low = crossed.borrow().iter().any(|&n| !grid.can_stand(n));
+            assert!(!low || to.low, "leg {:?} -> {:?} goes under the slab standing", from.at, to.at);
+        }
+        assert!(route.points.iter().all(|p| !p.low), "the way round has room to stand");
+    }
+
+    /// A census on a real map's grid (nav-team's stall s5, Cologne): of the walked legs of random routes that the route does not
+    /// mark low ([`Waypoint::low`]), how many cross a floor a standing body does not fit under on their straight line, which the
+    /// motor then walks standing. `SRP_LOWPULL_MAP` (`level_08/day_2`), `SRP_MAPDATA_DIR`, `SRP_A304_BUILT` (the store's built
+    /// files), `SRP_LOWPULL_AT=x,y,z` (a point whose floor is reported). Ignored; it prints the counts.
+    #[test]
+    #[ignore = "needs a map's data (SRP_LOWPULL_MAP, SRP_MAPDATA_DIR)"]
+    fn pulled_legs_under_low_ceilings_on_a_real_map() {
+        let var = |name: &str| std::env::var(name).ok().filter(|v| !v.is_empty());
+        let (Some(project), Some(dir)) = (var("SRP_LOWPULL_MAP"), var("SRP_MAPDATA_DIR")) else {
+            eprintln!("skipping: SRP_LOWPULL_MAP and SRP_MAPDATA_DIR are needed");
+            return;
+        };
+        let tuning = crate::v026g::bots::tests::bench_tuning();
+        let maps = crate::v026g::bots::maps::Maps::configured_for(
+            Some(std::path::PathBuf::from(&dir)),
+            1,
+            1,
+            var("SRP_A304_BUILT").map(std::path::PathBuf::from),
+            tuning.grid.clone(),
+            tuning.needs_wall_clearance(),
+            tuning.needs_open_sides(),
+        );
+        let world = loop {
+            match maps.get(&project) {
+                crate::v026g::bots::maps::MapState::Ready(base) => break base.world.clone(),
+                crate::v026g::bots::maps::MapState::Absent(why) => panic!("{project}: {why}"),
+                _ => std::thread::sleep(std::time::Duration::from_millis(20)),
+            }
+        };
+        let grid = &*world.grid;
+        if let Some(at) = var("SRP_LOWPULL_AT") {
+            let v: Vec<f32> = at.split(',').filter_map(|x| x.parse().ok()).collect();
+            let feet = Vec3::new(v[0], v[1], v[2]);
+            for node in grid.floors_in([feet.x - 0.5, feet.z - 0.5, feet.x + 0.5, feet.z + 0.5]) {
+                let p = grid.position(node);
+                if (p.y - feet.y).abs() < 1.0 {
+                    eprintln!("floor {node} at {p:?}: can_stand {} headroom {:.2}", grid.can_stand(node), grid.headroom(node));
+                }
+            }
+        }
+        let low_floors = (0..grid.len() as NodeId).filter(|&n| !grid.can_stand(n)).count();
+        let mut rng = crate::v026g::bots::rng::Rng::new(7);
+        let (mut routes, mut legs, mut standing_legs, mut under_low) = (0u64, 0u64, 0u64, 0u64);
+        let mut examples = Vec::new();
+        while routes < 20_000 {
+            let a = rng.below(grid.len()) as NodeId;
+            let b = rng.below(grid.len()) as NodeId;
+            if grid.position(a).distance_xz(grid.position(b)) > 40.0 {
+                continue;
+            }
+            let Some(route) = plan(grid, a, b) else { continue };
+            routes += 1;
+            for k in 1..route.points.len() {
+                let (from, to) = (route.points[k - 1], route.points[k]);
+                if to.jump.is_some() {
+                    continue;
+                }
+                legs += 1;
+                if to.low {
+                    continue;
+                }
+                standing_legs += 1;
+                let crossed = std::cell::RefCell::new(Vec::new());
+                grid.walks_straight(from.node, to.node, f32::INFINITY, |n| {
+                    crossed.borrow_mut().push(n);
+                    true
+                });
+                if let Some(&n) = crossed.borrow().iter().find(|&&n| !grid.can_stand(n)) {
+                    under_low += 1;
+                    if examples.len() < 10 {
+                        examples.push((from.at, to.at, grid.position(n)));
+                    }
+                }
+            }
+        }
+        eprintln!(
+            "LOWPULL {project}: {low_floors} of {} floors without standing room; {routes} routes, {legs} walked legs, {standing_legs} not marked low, {under_low} of them crossing a floor without standing room",
+            grid.len()
+        );
+        for (a, b, n) in examples {
+            eprintln!("  leg {a:?} -> {b:?} crosses {n:?}");
+        }
+    }
 
     /// [`PastDrop::Landed`]: a body still on a drop's top past which the drop's landing lies on the ground plane (a walk-off
     /// 0.7 m across and 3 m down, Mamayev Kurgan's) is on the drop's own leg, heading for the landing; with
