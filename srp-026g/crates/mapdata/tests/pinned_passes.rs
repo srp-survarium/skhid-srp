@@ -69,7 +69,7 @@ fn print(name: &str, value: u64) -> u64 {
 /// Gap links: the walking and sprint jumps, the drops walked off, the two-way filter.
 #[test]
 fn the_gap_links_pass_is_pinned() {
-    assert_eq!(GAP_LINKS_ALGO, 3, "raise GAP_LINKS_ALGO with the pin");
+    assert_eq!(GAP_LINKS_ALGO, 4, "raise GAP_LINKS_ALGO with the pin");
     let d = print("gap", digest_of(Body::default(), OffMeshLinks::Gaps));
     assert_ne!(d, digest_of(Body::default(), OffMeshLinks::None), "the world makes gap links");
     assert_eq!(d, PIN_GAP);
@@ -107,7 +107,7 @@ fn the_client_body_pass_is_pinned() {
 /// The file key of the default build is the one there was before the passes had constants: a default grid stored earlier is found.
 #[test]
 fn the_default_file_key_is_the_one_there_was() {
-    assert_eq!(GRID_ALGO, 14);
+    assert_eq!(GRID_ALGO, 15);
     let (t, area) = world();
     let seeds = [Vec3::new(1.0, 0.0, 1.0)];
     let key = grid_key_with_links(&t, area, 0.25, Body::default(), &seeds, OffMeshLinks::None);
@@ -133,6 +133,6 @@ const PIN_GAP: u64 = 218_410_819_143_687_843;
 const PIN_EXACT: u64 = 5_559_966_362_604_391_412;
 const PIN_HONEST: u64 = 9_697_411_571_619_617_025;
 const PIN_CLIENT: u64 = 10_680_625_577_665_009_494;
-/// The default build's key (GRID_ALGO 14: the up sweeps' hit filter of the walk tick, 0x869D0, which the grid's controlled
-/// walks run; 13 was the step for walks and walls again, A364 C2).
-const PIN_DEFAULT_KEY: u64 = 15_276_254_774_493_930_907;
+/// The default build's key (GRID_ALGO 15: a floor's and a walk's room by the cell's centre, A364 C2; 14 was the up sweeps' hit
+/// filter of the walk tick, 0x869D0, which the grid's controlled walks run; 13 the step for walks and walls again).
+const PIN_DEFAULT_KEY: u64 = 4_850_023_494_335_811_156;
