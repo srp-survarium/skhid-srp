@@ -658,6 +658,11 @@ package survarium.watch
             {
                this.askPlayer();
             }
+            else if(this._search.state == NO_ANSWER)
+            {
+               // its answer came while the window was closed, or was lost: searched again
+               this.searchPlayer(this._search.name,this._search.code);
+            }
             return;
          }
          this.ask(list);
