@@ -846,6 +846,12 @@ fn feed(client: &NetworkClient<'_>, viewer: &Viewer, fed: Fed, thread: &crate::v
     if fed.cursor != Some(viewer.cursor) {
         overlay.set_cursor_shown(viewer.cursor == Ui::Shown);
     }
+    // The chooser hears the pointer only while Ctrl's cursor is up: its hover list closes with it.
+    if (fed.cursor, viewer.cursor) == (Some(Ui::Shown), Ui::Hidden)
+        && let Some(chooser) = KitChooser::of(client)
+    {
+        chooser.pointer_away();
+    }
     if let Some(now) = client.clock() {
         overlay.set_position(now.within(start, end).0 - start.0);
     }

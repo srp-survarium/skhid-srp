@@ -379,6 +379,11 @@ impl<'t> KitChooser<'t> {
         self.movie.invoke_uints(c"root.srp_spectator_pointer", &[x, y]);
     }
 
+    /// The pointer away from every plate (past the stage's bounds): the hover list closes.
+    pub fn pointer_away(&self) {
+        self.pointer(u32::MAX, u32::MAX);
+    }
+
     /// The game's own show_cursor kept from the kits. The chooser has no cursor of its own.
     pub fn ui(&self) -> raw::GameWorldUi {
         self.ui

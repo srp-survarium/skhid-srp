@@ -745,10 +745,17 @@ def main():
     state, _, calls = mouse(ours, "pointer")
     check(state[UC_X86_REG_EIP] == SITES["pointer"][2] and not calls, "pointer, a viewer, no Ctrl cursor: to the controls alone")
     key(ours, 0x1D)
+    frame(ours)
     state, _, calls = mouse(ours, "pointer", (640, 480))
     check(state[UC_X86_REG_EIP] == SITES["pointer"][2] and ("invoke", HUD_MOVIE, "root.srp_spectator_pointer", 2, (4, 640)) in calls,
           "pointer, a viewer, the Ctrl cursor up: to the controls, the chooser told where it is (its hover list)")
     key(ours, 0x1D)
+    state, _, calls = frame(ours)
+    check(("invoke", HUD_MOVIE, "root.srp_spectator_pointer", 2, (4, 0xFFFFFFFF)) in calls,
+          "frame, Ctrl's cursor hidden: the chooser's pointer away from its plates (its hover list closes)")
+    state, _, calls = frame(ours)
+    check(not [c for c in calls if c[0] == "invoke" and c[2] == "root.srp_spectator_pointer"],
+          "frame, the next one: the pointer not told again")
     ours.word(WORLD_UI + 0x8, 0)
     state, _, calls = control(ours, "moments_clicked", (4, 2, 0))
     check(state[UC_X86_REG_EIP] == SITES["call"][3] and not calls, "call, a viewer, moments_clicked(2): taken, nothing sent")
