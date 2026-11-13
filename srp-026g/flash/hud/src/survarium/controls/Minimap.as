@@ -182,10 +182,11 @@ package survarium.controls
             "posX":-5.845,
             "posY":12.13
          };
+         // Framed on the crater wall + 15 m (render_minimap.py --frame-outline training-arena.tsv).
          this._minimapProps.cs_training_camp = {
-            "size":101.818,
-            "posX":17.81,
-            "posY":4.03
+            "size":79.709,
+            "posX":18.685,
+            "posY":6.53
          };
          this._minimapProps.cs_mp_rembasa = {
             "size":89.164,
