@@ -510,19 +510,7 @@ impl SqliteGameRepository {
         if self.paid_back()? {
             return Ok(None);
         }
-        std::fs::create_dir_all(backups)
-            .map_err(|error| PersistError::Io(backups.to_path_buf(), error))?;
-        let stamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        let copy = backups.join(format!("srp-{stamp}-before-pay-back.db"));
-        self.connection
-            .execute("VACUUM INTO ?1", [copy.to_string_lossy()])?;
-        log::info!(
-            "Copied the database to {} before the pay-back",
-            copy.display()
-        );
+        self.copy_before(backups, "pay-back")?;
         let transaction = self.connection.transaction()?;
         let held = |dict_id: u16| {
             format!(
@@ -585,12 +573,112 @@ impl SqliteGameRepository {
 
     /// Whether [`Self::pay_back_once`] was done ([`PAID_BACK`]).
     fn paid_back(&self) -> Result<bool, PersistError> {
+        self.marked(PAID_BACK)
+    }
+
+    /// The ammo top-up (the owner, 2026-11-13: ammo was added to the game
+    /// and "didn't add 1000 bullets for everyone"): every account owns at
+    /// least the rounds a new account is given of each ammo of `ammo` (the
+    /// game data's, [`super::tutorial::starter_ammo`]) that no top-up gave
+    /// yet ([`ammo_given`]): [`super::tutorial::top_up_ammo`], 1000, none
+    /// taken. Once for each ammo in the database's life, at srp's start
+    /// before the accounts are loaded: its first start tops up every ammo,
+    /// a release that adds one gives every account that one. Every account
+    /// it tops up is written whole, in one transaction with the marks.
+    /// Returns what each account was given; `None` when every ammo was
+    /// given before.
+    ///
+    /// Before it changes anything it copies the file to
+    /// `<backups>/srp-<unix>-before-ammo-top-up.db`, as
+    /// [`Self::pay_back_once`] does: without that copy it does nothing and
+    /// fails.
+    pub fn top_up_new_ammo(
+        &mut self,
+        backups: &Path,
+        ammo: &[u16],
+    ) -> Result<Option<Vec<ToppedUp>>, PersistError> {
+        let mut new = Vec::new();
+        for &dict_id in ammo {
+            if !self.marked(&ammo_given(dict_id))? {
+                new.push(dict_id);
+            }
+        }
+        if new.is_empty() {
+            return Ok(None);
+        }
+        self.copy_before(backups, "ammo-top-up")?;
+        let mut topped = Vec::new();
+        let mut changed = Vec::new();
+        for (account_id, mut account) in self.load_all()? {
+            let added = super::tutorial::top_up_ammo(&mut account, &new);
+            if !added.is_empty() {
+                topped.push(ToppedUp { account_id, added });
+                changed.push((account_id, account));
+            }
+        }
+        let transaction = self.connection.transaction()?;
+        for (account_id, account) in &changed {
+            write_account(&transaction, *account_id, account)?;
+        }
+        for &dict_id in &new {
+            transaction.execute(
+                "INSERT INTO g26_meta (key, value) VALUES (?1, 1)",
+                [ammo_given(dict_id)],
+            )?;
+        }
+        transaction.commit()?;
+        Ok(Some(topped))
+    }
+
+    /// Whether the one-off change `key` of `g26_meta` was done.
+    fn marked(&self, key: &str) -> Result<bool, PersistError> {
         Ok(self.connection.query_row(
             "SELECT EXISTS (SELECT 1 FROM g26_meta WHERE key = ?1)",
-            [PAID_BACK],
+            [key],
             |row| row.get(0),
         )?)
     }
+
+    /// The copy of the file a one-off change makes first,
+    /// `<backups>/srp-<unix>-before-<what>.db` (`-<n>` after `<what>` when
+    /// one of that second is there).
+    fn copy_before(&self, backups: &Path, what: &str) -> Result<(), PersistError> {
+        std::fs::create_dir_all(backups)
+            .map_err(|error| PersistError::Io(backups.to_path_buf(), error))?;
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let copy = (0..)
+            .map(|n| match n {
+                0 => backups.join(format!("srp-{stamp}-before-{what}.db")),
+                n => backups.join(format!("srp-{stamp}-before-{what}-{n}.db")),
+            })
+            .find(|copy| !copy.exists())
+            .expect("a free name");
+        self.connection
+            .execute("VACUUM INTO ?1", [copy.to_string_lossy()])?;
+        log::info!(
+            "Copied the database to {} before the {what}",
+            copy.display()
+        );
+        Ok(())
+    }
+}
+
+/// The `g26_meta` key that says every account was topped up to a new
+/// account's rounds of the ammo `dict_id`
+/// ([`SqliteGameRepository::top_up_new_ammo`]).
+pub fn ammo_given(dict_id: u16) -> String {
+    format!("ammo_given:{dict_id}")
+}
+
+/// What [`SqliteGameRepository::top_up_new_ammo`] gave an account.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ToppedUp {
+    pub account_id: u32,
+    /// `(dict id, rounds added)`, each ammo it owned too few of.
+    pub added: Vec<(u16, u32)>,
 }
 
 /// The vouchers [`SqliteGameRepository::pay_back_once`] takes away, by dict
@@ -1399,6 +1487,106 @@ mod tests {
         let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
         assert_eq!(repository.pay_back_once(&backups).unwrap(), None);
         assert_eq!(state(&mut repository), expected);
+        std::fs::remove_dir_all(&backups).unwrap();
+    }
+
+    /// The ammo top-up, once for each ammo: at its first start every account
+    /// owns at least a new account's rounds of each (a low stack raised to
+    /// them, a missing one made, a higher one left; an account that had
+    /// them all not written); a restart gives nothing; an ammo the data
+    /// adds later is given then, and only it.
+    #[test]
+    fn every_ammo_is_topped_up_to_a_new_accounts_rounds_once() {
+        use crate::v026g::tutorial;
+        let temp = TempDb::new("ammo-top-up");
+        let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
+        let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+        let ammo = tutorial::starter_ammo(dictionary);
+        let rounds = tutorial::new_account().rounds;
+        // The data before its last ammo was added.
+        let (older, added) = (&ammo[..ammo.len() - 1], ammo[ammo.len() - 1]);
+        let (low, high) = (older[0], older[1]);
+        let nothing = survarium::v026g::loadouts::Loadout { items: Vec::new() };
+        let mut alice = Account::with_loadout("Alice", &nothing);
+        alice.add_item(low, 30);
+        alice.add_item(high, rounds + 500);
+        repository.save(5, &alice).unwrap();
+        let mut bob = Account::with_loadout("Bob", &nothing);
+        tutorial::top_up_ammo(&mut bob, older);
+        repository.save(6, &bob).unwrap();
+        let owned = |repository: &mut SqliteGameRepository, account_id: u32, dict_id: u16| {
+            let (_, account) = repository
+                .load_all()
+                .unwrap()
+                .into_iter()
+                .find(|(id, _)| *id == account_id)
+                .unwrap();
+            account
+                .inventory
+                .iter()
+                .filter(|item| item.dict_id == dict_id)
+                .map(|item| item.condition_or_stack)
+                .collect::<Vec<_>>()
+        };
+
+        let backups = temp.path().with_extension("backups");
+        let topped = repository
+            .top_up_new_ammo(&backups, older)
+            .unwrap()
+            .unwrap();
+        assert_eq!(std::fs::read_dir(&backups).unwrap().count(), 1);
+        let given: Vec<(u16, u32)> = older
+            .iter()
+            .filter(|&&dict_id| dict_id != high)
+            .map(|&dict_id| (dict_id, if dict_id == low { rounds - 30 } else { rounds }))
+            .collect();
+        assert_eq!(
+            topped,
+            [ToppedUp {
+                account_id: 5,
+                added: given
+            }]
+        );
+        for (account_id, &dict_id) in [5, 6]
+            .into_iter()
+            .flat_map(|id| older.iter().map(move |d| (id, d)))
+        {
+            let expected = if (account_id, dict_id) == (5, high) {
+                rounds + 500
+            } else {
+                rounds
+            };
+            assert_eq!(owned(&mut repository, account_id, dict_id), [expected]);
+        }
+        assert!(owned(&mut repository, 5, added).is_empty());
+        drop(repository);
+
+        // A restart: nothing is given twice, not even rounds since used.
+        let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
+        let (_, mut alice) = repository.load_all().unwrap().remove(0);
+        let stack = alice
+            .inventory
+            .iter_mut()
+            .find(|item| item.dict_id == low)
+            .unwrap();
+        stack.condition_or_stack = 10;
+        repository.save(5, &alice).unwrap();
+        assert_eq!(repository.top_up_new_ammo(&backups, older).unwrap(), None);
+        // A release adds an ammo: every account is given that one.
+        let topped = repository
+            .top_up_new_ammo(&backups, &ammo)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            topped,
+            [5, 6].map(|account_id| ToppedUp {
+                account_id,
+                added: vec![(added, rounds)]
+            })
+        );
+        assert_eq!(owned(&mut repository, 5, low), [10]);
+        assert_eq!(owned(&mut repository, 6, added), [rounds]);
+        assert_eq!(repository.top_up_new_ammo(&backups, &ammo).unwrap(), None);
         std::fs::remove_dir_all(&backups).unwrap();
     }
 
