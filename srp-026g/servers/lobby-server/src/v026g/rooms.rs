@@ -1891,11 +1891,16 @@ impl Core<'_> {
         let matchmaking = self.store.matchmaking();
         for &match_id in self.matches.keys() {
             for (session_id, watcher) in matchmaking.queue_watchers_of(match_id) {
-                let current = self
-                    .by_account
-                    .get(&watcher.account_id)
-                    .and_then(|addr| self.player(*addr))
-                    .is_some_and(|player| player.session_id == session_id);
+                // The watch is its session's, not its link's (`retire_link`):
+                // with no link now it watches on until the session ends; a
+                // link of its account under another session (its game
+                // started anew) ends it.
+                let current = !self.store.has_ended(session_id)
+                    && self
+                        .by_account
+                        .get(&watcher.account_id)
+                        .and_then(|addr| self.player(*addr))
+                        .is_none_or(|player| player.session_id == session_id);
                 if current && wanted.get(&watcher.account_id) == Some(&match_id) {
                     continue;
                 }

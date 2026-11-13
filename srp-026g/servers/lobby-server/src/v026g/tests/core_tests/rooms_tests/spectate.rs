@@ -337,3 +337,51 @@ fn queue_and_spectate_past_the_cap_waits_without_watching() {
     assert_eq!(watching(&world), cap);
     assert_eq!(watched(&world, last), Some(ticket));
 }
+
+/// The review of #1537: Queue and spectate's watch is its session's, as a
+/// Live watch is. The same game connecting again (its lobby link dropped,
+/// or went silent, while it watches) watches on and is not sent to the
+/// match again; a game gone for good gives its watch, its place in the
+/// queue and its room up with its session, its wait counted from its link
+/// going.
+#[test]
+fn a_queue_spectator_whose_game_connects_again_watches_on() {
+    let mut world = World::new();
+    let (key, ticket, _) = full_room_playing(&mut world);
+    let carol = world.connect("Carol");
+    rows(&mut world, carol, ROOM_WATCH_BASE + key, 1);
+    world.advance(Duration::from_secs(1));
+    assert_eq!(sent_to_match(&world.take(carol)), Some((ticket, 0)));
+    let session = session_of(&world, carol);
+    let account = world.ids[carol].0;
+    // Its link dropped on the game's side: it connects again at once.
+    world.game_connects_again(carol, 41_000);
+    world.advance(Duration::from_secs(2));
+    assert_eq!(watched(&world, carol), Some(ticket));
+    assert!(sent_to_match(&world.take(carol)).is_none());
+    // Its link went silent on the lobby's side first (a long level load).
+    let silent = world.core.settings.match_link_timeout + Duration::from_secs(1);
+    world.silent_for(carol, silent);
+    assert!(
+        !world.core.links.contains_key(&world.clients[carol].0),
+        "its link went"
+    );
+    assert_eq!(watched(&world, carol), Some(ticket));
+    world.game_connects_again(carol, 41_001);
+    world.advance(Duration::from_secs(2));
+    assert_eq!(watched(&world, carol), Some(ticket));
+    assert!(!world.store.has_ended(session));
+    assert!(sent_to_match(&world.take(carol)).is_none());
+    assert_eq!(world.core.rooms.queue_place(account), Some((key, 1)));
+    // Its game crashed: nothing more comes from it. The match runs on.
+    drop(std::mem::replace(
+        &mut world.clients[carol].1,
+        TestClient::new(),
+    ));
+    world.advance(silent);
+    assert_eq!(watched(&world, carol), Some(ticket), "its session waits");
+    world.advance(world.core.settings.session_grace + Duration::from_secs(2));
+    assert!(world.store.has_ended(session));
+    assert_eq!(watched(&world, carol), None);
+    assert_eq!(world.core.rooms.queue_place(account), None);
+}
