@@ -154,7 +154,7 @@ impl Core<'_> {
     /// spectator. One that is over takes none: its end waits for its
     /// spectators, and its recording is not readable before that.
     fn watchable(&self, match_id: u32, running: &Running, phase: LivePhase) -> Watchable {
-        let closed = running.private || running.pool != QueuePool::GrowingRoster;
+        let closed = running.unlisted || running.pool != QueuePool::GrowingRoster;
         if closed || phase == LivePhase::Over {
             Watchable::Not
         } else if self.watchers_full(match_id) {
@@ -169,7 +169,7 @@ impl Core<'_> {
         let mut listed: Vec<(u32, &Running)> = self
             .matches
             .iter()
-            .filter(|(_, running)| !running.private)
+            .filter(|(_, running)| !running.unlisted)
             .map(|(&id, running)| (id, running))
             .collect();
         listed.sort_by_key(|(_, running)| running.ticket.match_id);

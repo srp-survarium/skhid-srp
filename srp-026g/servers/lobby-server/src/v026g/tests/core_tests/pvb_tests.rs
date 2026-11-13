@@ -126,6 +126,7 @@ fn gear_5_gets_an_8_v_8_with_15_bots_on_the_map_chosen() {
     let (id, setup) = made.last().unwrap();
     assert_eq!(*id, ticket);
     assert!(setup.vs_bots);
+    assert!(!setup.private, "paid as against bots");
     assert_eq!(setup.map.map().id, 61);
     assert_eq!(setup.players.len(), 16);
     assert_eq!(setup.players[0].account_id, world.ids[alice].0);

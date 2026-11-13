@@ -323,9 +323,9 @@ pub(super) struct Running {
     /// The server's bots play in it (against bots, or a room's with bots):
     /// one of `pvb::Config::max_matches`.
     pub server_bots: bool,
-    /// A private room's, or one against the server's bots: not in the Live
-    /// window (`live`).
-    pub private: bool,
+    /// A PIN room's (with bots too), or one against the server's bots: not
+    /// in the Live window (`live`).
+    pub unlisted: bool,
 }
 
 /// The side a place of a match plays on, as the match itself has it (the
@@ -1370,8 +1370,14 @@ impl Core<'_> {
         let compatible = self
             .pool_for_sessions(formed.seats.iter().map(|seat| seat.player.session_id))
             == Some(formed.pool);
-        // Against the server's bots: the player's own, as its history is.
-        let private = pvb.is_some() || room.is_some_and(|room| room.kind == RoomKind::Private);
+        // A PIN room's pays nothing; one with bots pays as against bots.
+        let private = room.is_some_and(|room| room.kind == RoomKind::Private);
+        // Not in the Live window: a PIN room's, with bots too, or one
+        // against the server's bots (the player's own, as its history is).
+        let unlisted = pvb.is_some()
+            || room.is_some_and(|room| {
+                matches!(room.kind, RoomKind::Private | RoomKind::WithBots { .. })
+            });
         let made = match (players.filter(|_| compatible), maps::MatchMap::of(chosen)) {
             (Some(players), Some(map)) => self
                 .host
@@ -1485,7 +1491,7 @@ impl Core<'_> {
                             .collect(),
                         predicted_at: None,
                         server_bots: !bot_teams.is_empty(),
-                        private,
+                        unlisted,
                     },
                 );
                 true
