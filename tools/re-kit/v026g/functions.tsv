@@ -1988,6 +1988,7 @@ va	status	ref_021d	name
 0x00313200	verified		survarium::artefact_base::tick
 0x00313470	verified		survarium::artefact_base::on_taken
 0x00313490	verified		survarium::artefact_base::on_removed
+0x00313530	verified		survarium::artefact_base::end_active
 0x0025fa10	verified	0x00195e34	survarium::artefact<survarium::artefact_rattle_core>::artefact<survarium::artefact_rattle_core>
 0x001f28e0	verified	0x00156c9b	survarium::player::on_player_death
 0x00339630	reviewed	0x002085c5	survarium::bullet_manager::explode

@@ -272,6 +272,23 @@ pub enum Reason {
         place: u8,
         kit: u8,
     },
+    /// A held artefact names one of its kit's own items' slots, or a slot
+    /// below `first`, the first the game gives artefacts (none: the kit
+    /// has none).
+    ObjectsArtefactPocket {
+        object: usize,
+        place: u8,
+        kit: u8,
+        slot: u8,
+        first: Option<u8>,
+    },
+    /// Two held artefacts name one slot of one kit.
+    ObjectsArtefactSlotTwice {
+        object: usize,
+        place: u8,
+        kit: u8,
+        slot: u8,
+    },
     /// An object's field holds what the game never writes there
     /// (`world::GameObjects::read`).
     ObjectsField {
@@ -658,6 +675,33 @@ impl fmt::Display for Reason {
             Reason::ObjectsOwner { object, place, kit } => write!(
                 f,
                 "object {object} names owner {place} kit {kit}, which has no player"
+            ),
+            Reason::ObjectsArtefactPocket {
+                object,
+                place,
+                kit,
+                slot,
+                first,
+            } => match first {
+                Some(first) => write!(
+                    f,
+                    "object {object} holds an artefact in place {place} kit {kit} slot {slot}, \
+                     a pocket or below its first artefact slot {first}"
+                ),
+                None => write!(
+                    f,
+                    "object {object} holds an artefact in place {place} kit {kit} slot {slot}, \
+                     a kit with no artefact slot"
+                ),
+            },
+            Reason::ObjectsArtefactSlotTwice {
+                object,
+                place,
+                kit,
+                slot,
+            } => write!(
+                f,
+                "object {object} holds a second artefact in place {place} kit {kit} slot {slot}"
             ),
             Reason::ObjectsField { object, fault } => write!(f, "object {object}: {fault}"),
             Reason::PhysicsBytes { len } => write!(f, "{len} bytes where a game writes none"),
