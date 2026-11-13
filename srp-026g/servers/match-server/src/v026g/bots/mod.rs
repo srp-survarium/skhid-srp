@@ -401,6 +401,8 @@ pub struct Bot {
     /// Ticks left of a jump held with the trigger let go ([`JUMP_HOLD_MS`]),
     /// and the last tick the trigger was down.
     jump_hold: u32,
+    /// [F3] The jump held is a press from a crouch: the crouch key stays up while it is held.
+    jump_crouch: bool,
     /// [2d] The route jump carried through its clip ([`jump_carry`], `feel.carry_jumps`).
     carry: jump_carry::JumpCarry,
     fired_at: Option<u32>,
@@ -605,6 +607,7 @@ impl Bot {
             held_short_m: 0.0,
             blind_since: None,
             jump_hold: 0,
+            jump_crouch: false,
             carry: jump_carry::JumpCarry::Free,
             fired_at: None,
             hurt: Hurt::default(),
@@ -867,6 +870,7 @@ impl Bot {
         self.zone_walk = None;
         self.zone_note = None;
         self.jump_hold = 0;
+        self.jump_crouch = false;
         self.fired_at = None;
         // The kit it spawned in keeps its storage less what it fired; the
         // kit it picked fills this life from its own (0x2FCB70: the slot's
@@ -1419,6 +1423,14 @@ impl Bots {
         }
     }
 
+    /// [F1] A trusted world's saved stamina record of one place (`srp_validate::world::Stamina`): a bot's own bar is the
+    /// record's at the world's time, its ticks since played again on it ([`stamina::Reckoning::saved`]).
+    pub fn stamina(&mut self, place: Place, saved: stamina::Saved) {
+        if let Some(Some(bot)) = self.bots.get_mut(place) {
+            bot.stamina.saved(saved);
+        }
+    }
+
     /// [F12] The leg regeneration delay of the body at `place` (its wounds are held this long after the leg's last hit): a
     /// bot's from its Metabolism, any other body's the game data's alone.
     pub fn wound_delay_ms(&self, place: Place) -> u32 {
@@ -1505,7 +1517,7 @@ impl Bots {
         let rows = self.jump_test.as_mut().map(jump_test::JumpTest::take_fresh).unwrap_or_default();
         let mut notes = Vec::new();
         for row in rows {
-            let fix = Fix { fall: None,
+            let fix = Fix { fall: None, controller: None,
                 time: row.time,
                 alive: row.alive,
                 inserted: row.inserted,

@@ -4,7 +4,7 @@ switches ON cheats: sight_hold_to_next_think
 switches ON commit: crossfire_apart_mates crossfire_point cut_given_crowd held_in_pass hold_to_arrival
 switches ON cover: spot_cost=0.5 pierce={"max_share":0.5,"pierce":0.3125}
 switches ON feel: band_from_grid band_jump_gate carrier_jump_m=0.998 carry_jumps drop_aim drop_walk floor_height_clear landing_cancel_drops lip_guard_full sprint_gaps sprint_through unclear_aim walk_jump_reach zone_lines
-switches ON grid: client_controller client_numbers crack_bridges crouch_floors drop_check drop_room drop_room_walk_faces exact_erosion exe_collision exits_in_reach fall_stops_on_solids floor_paths gap_links gap_no_vaults honest_drops jump_air_steps landing_carry narrow_doors pocket_exits_walled press_window ramp_faces run_ups_after_erosion slip_landings start_witness steep_walk_base walk_ceiling_stalls walk_every_link walk_off_lips walk_start_clear wall_give_back
+switches ON grid: client_controller client_numbers crack_bridges crouch_floors drop_check drop_room drop_room_walk_faces exact_erosion exe_collision exits_in_reach fall_stops_on_solids floor_paths gap_links gap_no_vaults honest_drops jump_air_steps landing_carry narrow_doors pocket_exits_walled press_window ramp_faces run_ups_after_erosion slip_landings start_witness steep_walk_base walk_ceiling_stalls walk_every_link walk_off_lips walk_start_clear wall_give_back wall_held_tops
 switches ON hazard: artefact_know escort_dry_post escort_reach hurt_by_shape leave_islands live_zones price_way_out run_out zone_intensity
 switches ON heal: bandages interrupt on
 switches ON kin: jump_arc walk_bridges
@@ -42,7 +42,7 @@ switch values cover: hold_exposure={"anchor_deg":45.0,"far_m":60.0,"near_m":20.0
 switch values feel: drop_truth=links past_drop=landed
 switch values hazard: escape=under_start_zone route_crossing=total zone_pools=routed
 switch values heal: amounts=course_total drug_stops=known
-switch values kin: carrier_sprint=refused client_step=kept drop_fall=client edge=client fix_blend=replayed fix_fall=world fix_floor=under_in_jump jump_snap=by_keys leg_damage=client level_read=settled level_source=computed margin_edge=body mixer=layers pitch_scale=client slope_speed=ramps_grade speed_cap=client speed_terms=legs_stagger sprint_gates=client step_input=previous walk_off_landing=by_speed wall_slide=round
+switch values kin: carrier_sprint=refused client_step=kept drop_fall=client edge=client fix_blend=replayed fix_fall=world fix_floor=under_in_air jump_snap=by_keys leg_damage=client level_read=settled level_source=computed margin_edge=body mixer=layers pitch_scale=client slope_speed=ramps_grade speed_cap=client speed_terms=legs_stagger sprint_gates=client step_input=previous walk_off_landing=by_speed wall_slide=round
 switch values kit: frags=support_and_camper medkit=military smoke=radio_place
 switch values pace: reserve={"gap":[15.0,30.0],"stop":[10.0,25.0]}
 switch values smoke: shooter_spot={"rest_within_m":4.0} wait_for_cloud={"close_m":15.0,"close_sensed_ms":2000,"margin_ms":500,"who":"crossers"}

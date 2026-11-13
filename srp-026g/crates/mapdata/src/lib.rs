@@ -112,11 +112,11 @@ pub const CELL: f32 = 0.25;
 /// with any change to the build that changes a grid (the pinned digest
 /// test in `grid.rs` fails until then), so a stored or shared grid of the
 /// old build is never taken for the new.
-pub const GRID_ALGO: u32 = 13;
+pub const GRID_ALGO: u32 = 15;
 /// The same for the gap links' pass ([`grid::gap`]), in [`grid_key_with_links`]
 /// only when a build makes them ([`OffMeshLinks::Gaps`]): a grid without
 /// them keys, builds and writes as before they were made.
-pub const GAP_LINKS_ALGO: u32 = 3;
+pub const GAP_LINKS_ALGO: u32 = 4;
 /// The same for the walk-off lips ([`Body::walk_off_lips`]: a walk-off gap drop's take-off is a lip, so its floors and
 /// those near it carry the near-lip flag the file stores), in [`grid_key_with_links`] only for a body that asks for it.
 pub const WALK_OFF_LIPS_ALGO: u32 = 1;
@@ -144,7 +144,7 @@ pub const STEEP_WALK_BASE_ALGO: u32 = 1;
 pub const POCKET_EXITS_WALLED_ALGO: u32 = 0x5270_0001;
 /// The same for the walking jumps onto short tops kept by their press window ([`Body::press_window`], A347a), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
-pub const PRESS_WINDOW_ALGO: u32 = 0x5347_0a01;
+pub const PRESS_WINDOW_ALGO: u32 = 0x5347_0a02;
 /// The same for the pockets' exits capped at the sprint jump's lowest top and kept only where a body can take them
 /// ([`Body::exits_in_reach`], A347), in [`grid_key_with_links`] only for a body that asks for it. A value of its own (2: the
 /// walled exits).
@@ -157,7 +157,7 @@ pub const GAP_NO_VAULTS_ALGO: u32 = 0x5293_0001;
 pub const RAMP_FACES_ALGO: u32 = 0x5304_0101;
 /// The same for the links the client's walk tick decides ([`Body::client_controller`], A313), in [`grid_key_with_links`] only for
 /// a body that asks for it. A value of its own.
-pub const CLIENT_CONTROLLER_ALGO: u32 = 0x5313_0001;
+pub const CLIENT_CONTROLLER_ALGO: u32 = 0x5313_0002;
 /// The same for the walk-off walls with the steep `walk` faces ([`Body::drop_room_walk_faces`], A304), in [`grid_key_with_links`]
 /// only for a body that asks for it. A value of its own.
 pub const DROP_ROOM_WALK_FACES_ALGO: u32 = 0x5304_0201;
@@ -170,6 +170,9 @@ pub const DROP_CHECK_ALGO: u32 = 0x5313_0201;
 /// The same for the walk check's refusals under a low ceiling as failures ([`Body::walk_ceiling_stalls`]), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const WALK_CEILING_STALLS_ALGO: u32 = 0x5364_0c01;
+/// The same for the jumps onto a narrow top a wall beyond holds the body on ([`Body::wall_held_tops`], the routes corpus), in
+/// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
+pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
 /// The same for the floors given back beside walls the body clears ([`Body::wall_give_back`], A318), in [`grid_key_with_links`]
 /// only for a body that asks for it. A value of its own. 0103: the stand test runs the client's steps (A364 C2 row 45).
 pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0103;
@@ -427,6 +430,10 @@ pub fn grid_key_with_links(
     // And the walk check's ceiling refusals.
     if body.walk_ceiling_stalls {
         digest.u32(WALK_CEILING_STALLS_ALGO);
+    }
+    // And the jumps onto a top a wall holds the body on.
+    if body.wall_held_tops {
+        digest.u32(WALL_HELD_TOPS_ALGO);
     }
     // And the floors given back beside walls.
     if body.wall_give_back {

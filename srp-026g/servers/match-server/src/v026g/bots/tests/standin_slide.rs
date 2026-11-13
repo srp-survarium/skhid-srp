@@ -6,11 +6,17 @@
 //! (`character_step_down_sweep_test_callback::addSingleResult` 0x84420) takes a `walk` face's normal as straight up (never slid)
 //! and never takes a `dont_walk` face as ground (always slid); the cooked face carries the material's `physic.walker_behaviour`
 //! (the collision cook 0x82bf0, PROVEN). The push is gravity along the face (`get_slide_acceleration` 0x7ba30); no friction
-//! (`update_slide_velocity` 0x7fea0, LIKELY).
+//! (`update_slide_velocity` 0x7fea0 has no friction or damping constant: a moving body's velocity is cut to its part along
+//! the actual move, to zero when the move went against it; the only decay in the controller is the low-ceiling push's 0.1 m/s
+//! a step, 0x7BAD0; PROVEN, exactness, the exact port `tick.rs`; register G54).
 //!
 //! The stand-in has no slide: a body holding, reloading or camping on such ground stands there. With `SRP_BENCH_STAND_IN_SLIDE=on`
-//! it slides down the lattice, its lowest walk or drop neighbour at a time, gaining `GRAVITY x sin(slope)` a second (GUESS for the
-//! scale: the end point matters more than the speed), until its ground no longer slides it.
+//! it slides down the lattice, its lowest walk or drop neighbour at a time, gaining `GRAVITY x sin(slope)` a second, until its
+//! ground no longer slides it. That scale is not the client's: `get_slide_acceleration` 0x7BA30 with `get_slope_slide_vector`
+//! 0x7AF00 give a = (dh / |dh . up| + eh x 0.50) x 9.8 x 1.0, dh the straight-down direction projected on the face and made
+//! unit, eh the face normal's horizontal part made unit (`slope_slide_bouncing_factor` 0.50, `slide_coefficient` 1.0, gravity
+//! 9.8, startup.cfg), so along the face g / |dh . up| plus half g out from it (PROVEN, exactness; register G55). Kept as the
+//! stand-in's model until changed.
 
 use std::collections::HashMap;
 use std::sync::Arc;

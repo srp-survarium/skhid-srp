@@ -27,7 +27,8 @@
 //!   clips (`WeaponParams::reload_share`, from the clip lengths in the game
 //!   data), the TT-33's and the TOZ-34's ([`EMPTY_RELOAD_SHARE`],
 //!   [`BARRELS_RELOAD_SHARE`]) when the data was made without them.
-//! - The bolt: `chamber_a_round_time`. LIKELY: the card's rate of fire is
+//! - The bolt: `chamber_a_round_time`, PROVEN: the chamber clip lasts
+//!   `chamber_a_round_time / (1 + S21)` (0x30E2B0, 0x30E58D). The card's rate of fire is
 //!   `60 / (60 / rpm + chamber_a_round_time)` floored for all eleven
 //!   weapons that have one (the Mosin 27, the SV-98 21, the Remington 700
 //!   32); 0.100b played the chamber clip at its own length (the Mosin's
@@ -120,8 +121,10 @@ pub struct Gun {
     /// `chamber_a_round` state), ms; 0: none.
     pub chamber_ms: u32,
     pub reload: Reload,
-    /// Taken out and put away, ms (`show_time`, `hide_time`; that these are
-    /// the states' times is LIKELY: 0.100b timed them by the clips).
+    /// Taken out and put away, ms (`show_time`, `hide_time`; PROVEN: the
+    /// clips are stretched to them over `max(0, 1 + S22)`, 0x30D9C0 ->
+    /// 0x30DF10, index 22 at 0x30DF7B, 54 of 54 clips with S22 over 0 fit;
+    /// the bots do not divide by `1 + S22` yet, F68).
     pub show_ms: u32,
     pub hide_ms: u32,
     /// How the bots fire it ([`Handling`]).
@@ -474,9 +477,9 @@ fn kit_flight(weapon: &str) -> Option<Flight> {
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Factors {
     /// `reload_speed_modifier` (13: skill 108, gloves 1140..1144): a reload
-    /// takes `reload_time / (1 + this)` [LIKELY: the speed given to the reload
-    /// state's animation, 0x30F61D; the form is not traced to the state's
-    /// clock].
+    /// takes `reload_time / max(0, 1 + this)` [PROVEN: the reload clip plays at
+    /// speed x `max(0, 1 + S13)`, 0x30E25A; 2,104 recorded reloads, none
+    /// early].
     pub reload_speed: f32,
     /// `aim_time_modifier` (49: skill 101, gloves 1080..1084): the sights
     /// take `aim_time * max(0, 1 + this)` [PROVEN, 0x2E1B9A / 0x2E1C3B].
@@ -583,8 +586,10 @@ impl ModCounts {
 /// - the reload: `(1 + w) / (1 + s + g)`, `w` the most a weapon modification shortens `parameters/reload_time` (its
 ///   multiplying change: 2044's -15 %), `s` every rank of every skill of the tree that sets `reload_speed` (108), `g` the
 ///   most the worn pieces add to `reload_speed_modifier` ([`worn_bound`]);
-/// - the aim: `1 + s + g` of the skills' `aim_time` (101) and the worn pieces' `aim_time_modifier`; a weapon's own
-///   aim-time modification is left out, as before (LIKELY inert, `fact-weapon-mods.md` §3.1).
+/// - the aim: `(1 + w) (1 + s + g)`, `w` the most a weapon modification shortens `parameters/aim_time` (its multiplying
+///   change), `s` and `g` the skills' `aim_time` (101) and the worn pieces' `aim_time_modifier` (`Factors`: the sights take
+///   `aim_time * max(0, 1 + s + g)`). The weapon's change is in the bound whether or not the client reads it: the bound is
+///   then never above what a human may have.
 ///
 /// The skills are summed whatever their exclusions and the points a level allows: a bound, not a build.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -619,6 +624,14 @@ pub fn worn_bound(mods: &Modifications, parameter: &str, better: fn(f32, f32) ->
         .sum()
 }
 
+/// The most one modification shortens a weapon's `path` by its multiplying change (0 when none does).
+pub fn weapon_shortening(mods: &Modifications, path: &str) -> f32 {
+    mods.modifications
+        .iter()
+        .map(|row| row.modifiers.iter().filter(|m| m.kind == MODIFIER_MULTIPLY && m.path == path).map(|m| m.value).sum::<f32>())
+        .fold(0.0_f32, f32::min)
+}
+
 impl HumanBounds {
     /// The bounds the skills tree `tree` and the modifications `mods` give, with the dictionary's items.
     pub fn of(tree: &SkillsTree, mods: &Modifications) -> Self {
@@ -631,20 +644,11 @@ impl HumanBounds {
                 .map(|&(_, value)| value)
                 .sum()
         };
-        let weapon = mods
-            .modifications
-            .iter()
-            .map(|row| {
-                row.modifiers
-                    .iter()
-                    .filter(|m| m.kind == MODIFIER_MULTIPLY && m.path == "parameters/reload_time")
-                    .map(|m| m.value)
-                    .sum::<f32>()
-            })
-            .fold(0.0_f32, f32::min);
         Self {
-            reload_ratio: (1.0 + weapon) / (1.0 + skills("reload_speed") + worn_bound(mods, "reload_speed_modifier", f32::max)),
-            aim_ratio: 1.0 + skills("aim_time") + worn_bound(mods, "aim_time_modifier", f32::min),
+            reload_ratio: (1.0 + weapon_shortening(mods, "parameters/reload_time"))
+                / (1.0 + skills("reload_speed") + worn_bound(mods, "reload_speed_modifier", f32::max)),
+            aim_ratio: (1.0 + weapon_shortening(mods, "parameters/aim_time"))
+                * (1.0 + skills("aim_time") + worn_bound(mods, "aim_time_modifier", f32::min)),
         }
     }
 
@@ -860,8 +864,9 @@ pub struct Load {
 
 impl Load {
     /// At a spawn with `carried` rounds of its ammo: the weapon loaded from
-    /// them (LIKELY: 0.100b fills the magazine from the ammo at the first
-    /// activation, `load_ammo`, and a spawn gives the kit afresh).
+    /// them (PROVEN: `+5F4h` is set by `setup_from_profile` 0x2FCBEC and read
+    /// once in `weapon_core::initialize` 0x2E2B71 -> 0x2E27C0: the magazine
+    /// holds min(carried, capacity)).
     pub fn of(gun: &'static Gun, carried: u32) -> Self {
         let rounds = carried.min(gun.magazine);
         Self {
@@ -1154,7 +1159,8 @@ pub struct Hands {
 }
 
 impl Hands {
-    /// At a spawn: weapon 1 in hand (LIKELY: a spawn takes weapon 1).
+    /// At a spawn: weapon 1 in hand (PROVEN: at a spawn kit slot 7 is in
+    /// hand, else slot 10, 0x2DADC6).
     pub fn of(arms: &Arms) -> Self {
         Self {
             primary: Load::of(arms.primary.0, arms.primary.1),
@@ -1231,10 +1237,11 @@ mod tests {
         let worn_aim = worn_bound(mods, "aim_time_modifier", f32::min);
         assert!(worn_reload >= 0.15 - 1e-6 && worn_aim <= -0.10 + 1e-6, "{worn_reload} {worn_aim}");
         assert!((bounds.reload_ratio - 0.85 / (1.12 + worn_reload)).abs() < 1e-6, "{bounds:?} {worn_reload}");
-        assert!((bounds.aim_ratio - (0.90 + worn_aim)).abs() < 1e-6, "{bounds:?} {worn_aim}");
+        let weapon_aim = weapon_shortening(mods, "parameters/aim_time");
+        assert!((bounds.aim_ratio - (1.0 + weapon_aim) * (0.90 + worn_aim)).abs() < 1e-6, "{bounds:?} {worn_aim}");
         // Never above what the hand-made numbers allowed: they missed the items' own configs.
         assert!(bounds.reload_ratio <= 0.85 / 1.27 + 1e-6 && bounds.aim_ratio <= 0.80 + 1e-6, "{bounds:?}");
-        eprintln!("A375 bounds {bounds:?}: worn reload {worn_reload}, worn aim {worn_aim}");
+        eprintln!("A375 bounds {bounds:?}: worn reload {worn_reload}, worn aim {worn_aim}, weapon aim {weapon_aim}");
         bounds
     }
 
@@ -1244,6 +1251,9 @@ mod tests {
     fn on_the_live_data_the_humans_bounds_hold() {
         live_data();
         the_humans_bounds_hold();
+        // The players' data has the weapons' aim-time modifications (type 8; the tests' data has none): in the bound.
+        let weapon_aim = weapon_shortening(Modifications::shared(), "parameters/aim_time");
+        assert!(weapon_aim < 0.0, "{weapon_aim}");
     }
 
     /// Every kit of every tier and each rusher kit the game data can make:

@@ -157,6 +157,20 @@ they wait up to 0.2 to 0.6 s too long until the gun takes the factor from the pr
 modifiers. The test `every_tier_is_a_set_a_player_could_have` checks that the pouch changes no
 other modifier.
 
+**Intents, resolved at the start (A372, 2026-11-12).** The rows and the two blocks are no longer sets of points but
+intents (`bot_skills::SkillIntent`): the skills in order of want, the skills that may open their rows, and the points to
+spend. When the server starts, `bot_skills::BotBuilds` spends them against the players' tree (`resolve`): each wanted skill
+in turn first has its locked row opened by the intent's openers in the rows above it (a point at a time, no more than the
+threshold needs, none for themselves, a point kept for the skill), then takes as many points as its ranks and the points
+left allow; where the points run out, the least wanted go without. The level is the points spent. Every build is checked by
+`SkillsTree::validate`, logged ("the bots' skills, gear up to ...": wanted, resolved, level, unspent, what fell short and
+why), and a build the tree refuses keeps Player vs Bots off (`pvb::Config::from_env`). The code names no rank count, row or
+threshold. Since the tree of 2026-11-09 (102, 201, 204 take three ranks, 302 two, 312 three) the openers are 201 in the
+lowest tier (for 209, the carry: the owner kept it, 2026-11-12), 103 in the pouch (for 109) and 301 in the medical block
+(for 312 and 311). On the tests' tree (five ranks a stock skill) the intents resolve to the old sets exactly
+(`every_tier_is_a_set_a_player_could_have`); on the players' tree `tools/check bot-skills-live` checks them
+(`on_the_live_data_every_build_is_a_set_the_tree_allows`).
+
 Mass against capacity (the server's game data, `Loadout::weight`; the tests
 in `bot_skills.rs`). The speed level is `movement_level`: 1 + 208's 0.05 −
 0.2 × (1 + `overweight_penalty`) × t.
@@ -256,4 +270,5 @@ match server's bots (`servers/match-server/src/v026g/bots/`) follow it.
   the lobby's sum (`Loadout::weight`). LIKELY.
 - What 214 does to the sprint: the text says it stops it. Where the exe
   reads modifier 32 besides 0x329B20 was not traced.
-- 102's reading (§5): one function, LIKELY.
+- 102's reading (§5): PROVEN, modifier 20 (`movement_speed_when_aiming`) above 0 has no effect in the
+  client (0x2DBC1D..0x2DBC4C): skill 102 gives no speed.

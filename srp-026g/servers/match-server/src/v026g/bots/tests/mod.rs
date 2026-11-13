@@ -138,6 +138,7 @@ pub(crate) use camper::*;
 mod camper_move;
 pub(crate) use camper_move::{Arrival, BenchCamper, CamperAt, CamperStart, LiveLeave, MoveOptions};
 pub(crate) use standin_aim::human_tuning;
+pub(crate) use bench::bench_tuning;
 pub(crate) use standin_hunter::{HumanPlay, Hunt, camper_tuning, hunter_tuning};
 pub(crate) use team_kit::scope as team_kit_scope;
 pub(crate) use standin_watch::{AT_REST_MPS, Watch, lane_look};
@@ -154,7 +155,7 @@ use standin_jump::*;
 
 /// A body at `x` on the line z = 0, alive or not, in a world at `time`.
 fn standing(time: u32, x: f32, alive: bool) -> Fix {
-    Fix { fall: None,
+    Fix { fall: None, controller: None,
         time,
         alive,
         inserted: 100,

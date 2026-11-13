@@ -46,8 +46,9 @@ whatever else too".
   - aiming speed (index 1, spread recovery): no skill or item gives it in 0.26g;
   - breath vibration (gear 1210/1211) and breath holding (skill 105): where they meet the card's
     sway rows is not traced;
-  - the dispersion bar (`base_dispersion`): no player modifier reaches it (its readers 0x331220,
-    0x2E2173 call no `apply_modifier`); LIKELY.
+  - the dispersion bar (`base_dispersion`): no player modifier reaches it (PROVEN: its only readers
+    are 0x331225, 0x2451F4 and 0x2E2173, and none of the 97 modifier-getter call sites is in their
+    functions).
 
 ## The formulas
 
@@ -67,7 +68,9 @@ every site below (multiplicative indices; the additive list 0x927E08 has none of
 
 The weapon's own reload rolls (2040.., `parameters/reload_time` type 2) stay as the card already
 shows them (time x (1 - sum)); the match's cook gives `reload_time` x (1 + sum), a longer reload
-(LIKELY: the cooked config is the one 0x30B33E reads). Not changed here: the owner gave it to its
+(DERIVED: an item with a default or own modification or upgrade gets class 0x43 in
+`make_item_config_request` 0x2F14C0, `item_config_cook` 0x2F1750's output, and the weapon is built on
+that resource, 0x30AAB3; the state query's own target, the functor 0x30C160, is not read). Not changed here: the owner gave it to its
 own fix (`fix/reload-rolls`).
 
 ## Movement speed under Bear Arms
@@ -168,15 +171,15 @@ its own rolls (an isolation roll and the skill: `30 -> 60`).
 | Isolation (8) | min(100, points + 5 x rank), rank 0..5 from the kit's float 40, bits 0..2 |
 
 - **What the line is:** the piece's `hit_params/<part>/hit_types/<toxic, radiation, fire,
-  shock>/armor` x100, one number for every part it covers (`content_edit.py` `ano_armor`; LIKELY
-  that every piece keeps the four types and its parts equal: the card's line is its own text,
-  `ui_desc/props_list`).
+  shock>/armor` x100, one number for every part it covers (`content_edit.py` `ano_armor`; every one
+  of the 249 armour configs with `hit_params` keeps the four equal over all its parts: 585 rows, 0
+  differ, revision 56; the card's line is its own text, `ui_desc/props_list`).
 - **The match** (PROVEN, `armour-params.md`, `artefact-skills.md`): a part's armour A against a
   hit's type is the sum over the worn pieces that cover the part (0x33F2DD); the hit keeps
   D x (1 - clamp(A - P, 0, 1)) (0x32A07E). Resistance is our hook at 0x32A083
   (`artefact.isolation`, `artefact_skills.rs` `Skills::armour`): A + 0.05 a rank for the four
   anomalous types, before the piercing and the clamp. So no point past 100 stops more (the cap;
-  P for an anomalous hit is LIKELY 0, not traced).
+  P for an anomalous hit is the zone's `max_armor_piercing`, `armour-params.md`).
 - **Once a part, not once a piece:** the +5 a rank is added to the part's sum, whatever covers it
   (a bare part too). A card's "30 -> 35" is true of the parts that piece covers; where two pieces
   cover one part the skill counts once, so the cards' currents do not add up. A kit total (per

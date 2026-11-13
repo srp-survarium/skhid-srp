@@ -428,6 +428,8 @@ pub(crate) fn with_the_switch_off_a_soak_is_the_old_one() {
     let _walls = super::standin_jump::OldWalls::scope();
     // And of its step order before A318's (a tick moved with its own input).
     let _step = super::standin_jump::OldStepInput::scope();
+    // And the speeds before F5.
+    let _speeds = crate::v026g::bots::kin::PreF5Speeds::scope();
     let base = [
         (3, (365, 69, [16, 14], 2, 0, [1, 1]), 48.04),
         (7, (505, 82, [14, 13], 2, 0, [1, 2]), 49.71),

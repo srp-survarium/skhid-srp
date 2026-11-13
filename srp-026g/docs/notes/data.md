@@ -797,9 +797,14 @@ simulation change.
   movie adds the equipped armour's prop 105 modifiers (HEAD..FOOT) as
   **bonuses**, the pockets' (QUICK_1..QUICK_6) as **boosters**, and the first
   weapon's own movement (prop 105, which
-  `WeaponMovement` puts in its built-in rows) as **equipment**: the weapon in
-  hand at spawn (LIKELY; switching to the second weapon changes this part in a
-  match). Shown: `max(0, 1 + weight + skills + bonuses + boosters + equipment)`, as a
+  `WeaponMovement` puts in its built-in rows) as **equipment**. In a match only
+  the weapon in hand is in S4 (PROVEN): at spawn slot 7, or slot 10 when 7 is
+  empty (`base_player::initialize` 0x2DADC6..0x2DAE44); `weapon_core::initialize`
+  links its node (0x2E2C9C) and `deactivate` unlinks it at a switch (0x2E2E9F),
+  `deserialize` links it only for the weapon with a user (0x2E35B1, 0x2E37E4);
+  so a switch replaces this part with the other weapon's. The movie reads slot 7
+  only (`LocalPlayerProfile.as:543`): a kit with slot 7 empty shows no weapon
+  term though the match starts with slot 10's. Shown: `max(0, 1 + weight + skills + bonuses + boosters + equipment)`, as a
   percentage of the base speed.
 - **Not shown:** the per-mode minimum (it only lifts a speed near zero) and
   aiming's lower speed.

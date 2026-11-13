@@ -9,10 +9,10 @@
 //!   0x2D9060): each tick the body moves at the movement class's desired
 //!   speed × the body's factor `f = 1 + Σ movement_speed_modifier`
 //!   (0x2D5AE0; weapons, mods, a hurt leg, the battery). PROVEN.
-//! - **Desired speeds**, m/s (forward / side / back): walk 3.5 / 2.5 /
-//!   3.0, aiming 3.0 / 2.0 / 2.5, crouched 2.5 / 2.0 / 2.0, crouched and
-//!   aiming 2.0 / 1.5 / 1.5; sprint 5.0 (the config's 5.5 is the sprint
-//!   animation's own speed). Forward diagonals go at the forward speed,
+//! - **Speeds**, m/s (forward / side / back), the body's on traced steps (F5): walk 3.5 / 2.4933 /
+//!   3.0, aiming 3.0 / 1.9947 / 2.5, crouched 2.5 / 2.0143 / 1.95, crouched and
+//!   aiming 2.0 / 1.5107 / 1.4625; sprint 4.9587 (the config's desired speeds x the clip's root speed / its default; the
+//!   config's 5.5 is the sprint animation's own speed). Forward diagonals go at the forward speed,
 //!   back diagonals at the back speed; F+B and L+R cancel. PROVEN.
 //! - **Sprint** is a state, not the keys: it starts on SPRINT and FORWARD
 //!   with none of BACK, FIRE, CROUCH (`sprint_predicate` 0x2FBC90) and
@@ -155,7 +155,8 @@ pub enum SpeedCap {
     Off,
     /// Capped at the client's `max_speed` (`max(desired x F, minimal)`, the floor included) by the sprint state of the newest
     /// input ([`Kinematics::sprint_state`]: one input ahead of the walk vector, A364 P10) and the level; not in a jump (the cap is skipped while `+0x2C70C` is set, 0x2D915E, which
-    /// `end_jump` 0x7F050 clears: LIKELY the jump's flag).
+    /// `end_jump` 0x7F050 clears: the jump's flag, set by `base_player::jump` 0x2D7920 at the take-off event and cleared at the
+    /// landing, PROVEN, `private/grid/rig/notes-jump-state.md` 0).
     #[default]
     Client,
 }
@@ -422,8 +423,17 @@ pub enum FixFloor {
     /// than with [`Self::Nearest`] (Under alone was worse on four: Tarakanovsky Fort 1.644 against 0.691). The default: its by-side
     /// bench could not reach the case (47 such fixes in 256 matches: the stand-in's bodies stay on the grid's floors) and showed no
     /// cost (score +0.3 %, z +0.6, no guard flagged; #944).
-    #[default]
     UnderInJump,
+    /// [`Self::UnderInJump`], and a body the world has in the air out of its own jump (no floor under its hold points within a
+    /// step under its feet) is put on the floor under its feet (`body::column_floor`: the highest floor under the points where a
+    /// top holds the capsule, at most [`FIX_ABOVE_M`] over the feet), not the nearest. The nearest is then often the ledge it
+    /// walked off or was pushed from, to the side and over the floor it falls to: nav-team's measure (tip 8d9d1f606, the live
+    /// 1 s worlds of the owner-14 tables), 285 worlds of 1 m+ drift after a world with the client airborne, 91 with that
+    /// nearest floor aside and 0.8 m+ over the floor under the body, 16 with the reckoning held at that floor's height
+    /// (Vector Laboratory, match 4b1389dd place 4 at 908,600 ms: the client falling at 5.97 m/s from y 23.14 to its floor
+    /// 20.91, the reckoning held a second at the ledge 1.17 m aside, y 22.40); none of 840 calm worlds 0.3 m+ over its floor.
+    #[default]
+    UnderInAir,
 }
 
 /// How far over a world's feet [`FixFloor::Under`] takes a floor, metres: a floor's height is its cell centre's, which on the
@@ -431,14 +441,57 @@ pub enum FixFloor {
 /// the diagonal of a 0.25 m cell, 0.18 m, times tan 55); a little over that.
 pub const FIX_ABOVE_M: f32 = 0.3;
 
+#[cfg(test)]
+thread_local! {
+    /// [`PreF5Speeds`]: this thread's defaults are the speeds before F5.
+    static PRE_F5_SPEEDS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Whether the defaults are the speeds before F5 (tests whose pinned numbers predate it, [`PreF5Speeds`]); never live.
+fn pre_f5() -> bool {
+    #[cfg(test)]
+    {
+        PRE_F5_SPEEDS.get()
+    }
+    #[cfg(not(test))]
+    {
+        false
+    }
+}
+
+/// The speeds before F5 (the config's desired speeds) for this thread's defaults while it lives: tests whose pinned numbers
+/// predate F5.
+#[cfg(test)]
+pub(crate) struct PreF5Speeds(());
+
+#[cfg(test)]
+impl PreF5Speeds {
+    pub(crate) fn scope() -> Self {
+        PRE_F5_SPEEDS.set(true);
+        Self(())
+    }
+}
+
+#[cfg(test)]
+impl Drop for PreF5Speeds {
+    fn drop(&mut self) {
+        PRE_F5_SPEEDS.set(false);
+    }
+}
+
 impl Default for Kinematics {
     fn default() -> Self {
         Self {
-            walk: [3.5, 2.5, 3.0],
-            aim: [3.0, 2.0, 2.5],
-            crouch: [2.5, 2.0, 2.0],
-            crouch_aim: [2.0, 1.5, 1.5],
-            sprint: 5.0,
+            // [F5] The speeds the body moves at: the config's desired speeds x the clip's root speed / its default, PROVEN on
+            // traced steady steps (exactness F5, 2026-11-12T14:24Z): sprint 4.9587 (10,909 of 11,214 steps), sideways 2.4933
+            // and aimed 1.9947 (490 of 499), crouched back 1.95 (58 of 58), crouched sideways 2.0143 (141 of 141), crouched
+            // and aimed back 1.4625 and sideways 1.5107; forward and back otherwise exact. A crouched strafe to the RIGHT moves
+            // at 2.0837 (aimed 1.5628): one side speed a class here, the left's (`Speeds`).
+            walk: if pre_f5() { [3.5, 2.5, 3.0] } else { [3.5, 2.4933, 3.0] },
+            aim: if pre_f5() { [3.0, 2.0, 2.5] } else { [3.0, 1.9947, 2.5] },
+            crouch: if pre_f5() { [2.5, 2.0, 2.0] } else { [2.5, 2.0143, 1.95] },
+            crouch_aim: if pre_f5() { [2.0, 1.5, 1.5] } else { [2.0, 1.5107, 1.4625] },
+            sprint: if pre_f5() { 5.0 } else { 4.9587 },
             blend_ticks: 6,
             mixer: Mixer::Layers,
             fix_blend: FixBlend::Replayed,
@@ -452,7 +505,7 @@ impl Default for Kinematics {
             open_edge_cost: 0.0,
             walk_off_landing: WalkOffLanding::BySpeed,
             margin_edge: MarginEdge::Body,
-            fix_floor: FixFloor::UnderInJump,
+            fix_floor: FixFloor::UnderInAir,
             pitch_scale: PitchScale::Client,
             slope_speed: SlopeSpeed::RampsGrade,
             ramp_min_deg: 35.0,
@@ -823,16 +876,16 @@ mod tests {
         };
         let close = |a: f32, b: f32| (a - b).abs() < 1e-4;
         assert!(close(speed(key::FORWARD), 3.5));
-        assert!(close(speed(key::LEFT), 2.5));
+        assert!(close(speed(key::LEFT), 2.4933));
         assert!(close(speed(key::BACK), 3.0));
         assert!(
             close(speed(key::FORWARD | key::LEFT), 3.5),
             "forward diagonals"
         );
         assert!(close(speed(key::BACK | key::RIGHT), 3.0), "back diagonals");
-        assert!(close(speed(key::FORWARD | key::SPRINT), 5.0));
+        assert!(close(speed(key::FORWARD | key::SPRINT), 4.9587));
         assert!(
-            close(speed(key::FORWARD | key::RIGHT | key::SPRINT), 5.0),
+            close(speed(key::FORWARD | key::RIGHT | key::SPRINT), 4.9587),
             "a diagonal sprints"
         );
         assert!(
@@ -841,14 +894,14 @@ mod tests {
         );
         assert!(close(speed(key::FORWARD | key::CROUCH | key::SPRINT), 2.5));
         assert!(close(speed(key::FORWARD | key::AIM), 3.0));
-        assert!(close(speed(key::BACK | key::CROUCH | key::AIM), 1.5));
+        assert!(close(speed(key::BACK | key::CROUCH | key::AIM), 1.4625));
         assert_eq!(speed(key::FORWARD | key::BACK), 0.0);
         assert_eq!(speed(key::LEFT | key::RIGHT), 0.0);
         // At yaw 0 forward is +z, LEFT is -x (a positive yaw turns left).
         let at = |keys| k.target_velocity(keys, 0.0, 1.0);
         assert!(close(at(key::FORWARD)[1], 3.5));
-        assert!(close(at(key::LEFT)[0], -2.5));
-        assert!(close(at(key::RIGHT)[0], 2.5));
+        assert!(close(at(key::LEFT)[0], -2.4933));
+        assert!(close(at(key::RIGHT)[0], 2.4933));
         assert!(close(k.target_velocity(key::FORWARD, 0.0, 0.95)[1], 3.325));
     }
 

@@ -1793,7 +1793,7 @@ mod tests {
     use super::*;
 
     fn fix(time: u32, feet: Vec3) -> Fix {
-        Fix { fall: None,
+        Fix { fall: None, controller: None,
             time,
             alive: true,
             inserted: 10,
@@ -1986,7 +1986,7 @@ mod tests {
         for place in 0..3 {
             tracker.entered(place, true);
         }
-        let dead = |time: u32| Fix { fall: None,
+        let dead = |time: u32| Fix { fall: None, controller: None,
             alive: false,
             feet: None,
             ..fix(time, Vec3::ZERO)
@@ -2034,7 +2034,7 @@ mod tests {
         assert!(new.is_empty());
         // A life a world showed, then its death: its own spot.
         let there = Vec3::new(30.0, 0.0, 2.0);
-        let respawned = Fix { fall: None,
+        let respawned = Fix { fall: None, controller: None,
             inserted: 3_500,
             ..fix(4_000, there)
         };
@@ -2111,7 +2111,7 @@ mod tests {
         }
 
         fn stand(&mut self, place: Place, time: u32, feet: Vec3, yaw: f32, pitch: f32) {
-            let fix = Fix { fall: None,
+            let fix = Fix { fall: None, controller: None,
                 yaw,
                 pitch,
                 ..fix(time, feet)

@@ -269,6 +269,18 @@ pub struct Body {
     /// 2026-11-13). nav-team's stall census of the owner's 14 recordings: bots stalled crouched on such links (Rudnya
     /// (-41.57 27.50 17.85) -> (-41.82 27.60 17.60), 11 stalls). A build input: in the key when set.
     pub walk_ceiling_stalls: bool,
+    /// [routes corpus] Whether a jump onto a top too narrow to walk on along the jump (`WalkGrid::lands`: two more floors) is a
+    /// landing all the same where a wall stands beyond the top along the jump within [`WALL_HELD_CELLS`] cells and before any
+    /// drop: the wall stops the body on the top (a window's sill, a ledge along a wall), while a fence's top with a drop beyond
+    /// stays no landing. The exactness session's jumps through the exact tick (FINDINGS-FEED-exactness, 2026-11-12,
+    /// `private/grid/rig/grid-rules-walltop`): with a wall 0.30-0.65 m past a one-cell top's far edge, 45-53 of the 48-54
+    /// walking presses that reach a 0.6-0.9 m top stay, without it 17-22; a sprint jump (the builder's jumps above
+    /// [`Body::max_jump`]) keeps its carry at every rise: 60-81 of 75-82 presses stay with the wall, 11-25 without it, so no top
+    /// lands without a wall whatever its rise; School's sill: 39 of 39, 17 of 17 and 40 of 40 walking presses arrive. Off:
+    /// such a top is reached by no jump
+    /// (School's sill at 41.9 21.7 142.9: 144 visits by 89 players in the routes corpus, no link from a spawn). A build input:
+    /// in the key when set.
+    pub wall_held_tops: bool,
     /// [A318] Whether the floors the erosion rounds took beside a wall the body clears are given back (`grid::wall_give_back`):
     /// the exact pass keeps them, a wall face (not a rise of the ground) stands within 0.6 m, and the client's walk tick stands a
     /// body there. Needs [`Erosion::Exact`]. A build input: in the key when set.
@@ -412,6 +424,7 @@ impl Body {
             narrow_doors: false,
             drop_check: false,
             walk_ceiling_stalls: false,
+            wall_held_tops: false,
             wall_give_back: false,
             exe_collision: false,
             walk_start_clear: false,
@@ -522,6 +535,7 @@ impl Default for Body {
             narrow_doors: false,
             drop_check: false,
             walk_ceiling_stalls: false,
+            wall_held_tops: false,
             wall_give_back: false,
             exe_collision: false,
             walk_start_clear: false,
@@ -729,12 +743,21 @@ pub fn walking_press_lead(rise: f32, across: f32, run: f32) -> Option<f32> {
 }
 
 /// [A347a] How far a standing body's centre may be past a top's edge and stay on it, metres: the capsule's round bottom meets
-/// the edge at a normal within the slope a still body holds on, `radius x sin(40 deg)` (the stand radius 0.38: `startup.cfg`'s
-/// stand capsule 0.76 wide, PROVEN; a body standing still slides from 40 deg, the exe's 0x7bc20, PROVEN). The clip's root has
-/// ended by then ([`gap::SHORT_JUMP_AHEAD`]) and the walk is let go of (the motor's carry), so the still body's angle holds.
+/// the edge at a normal within the slope a still body holds on, `radius x sin(45 deg)` (the stand radius 0.38: `startup.cfg`'s
+/// stand capsule 0.76 wide, PROVEN; a body standing still slides from the idle slope, the exe's `need_slide` 0x7BC20, PROVEN).
+/// The clip's root has ended by then ([`gap::SHORT_JUMP_AHEAD`]) and the walk is let go of (the motor's carry), so the still
+/// body's angle holds.
+///
+/// [A364 C2 row 18] The idle slope is the live `cc_idle_max_slope_angle_cos 0.70711` (45 deg, `startup.cfg`:14,
+/// [`IDLE_SLOPE_COS_LIVE`]), not the exe's default 40 deg: 0.2687 m (was 0.244). Measured with the exact tick (`grid-rules` S5):
+/// a body walked there and let go holds to 0.265 m past a straight edge and falls from 0.270 (0.270-0.275 on a corner's diagonal).
 pub fn edge_hold_m(radius: f32) -> f32 {
-    radius * 40.0f32.to_radians().sin()
+    radius * (1.0 - IDLE_SLOPE_COS_LIVE * IDLE_SLOPE_COS_LIVE).sqrt()
 }
+
+/// [A364 C2 row 18] `cc_idle_max_slope_angle_cos` (`startup.cfg`:14, the live `resources.db`): a body at rest slides from
+/// ground steeper than 45 deg (`need_slide` 0x7BC20; the exe's default is 40 deg).
+pub const IDLE_SLOPE_COS_LIVE: f32 = crate::controller::tick::Settings::LIVE.idle_max_slope_cos;
 
 /// [A347a] A tick's walk at the walk's speed, metres: the press is made on a tick, so a press window narrower than this is
 /// missed between two ticks (3.5 m/s, `controlled::WALK_MPS`, PROVEN; the 50 ms tick the controller pass steps, PROVEN).
@@ -787,6 +810,14 @@ impl RunUp {
         }
     }
 }
+/// [`Body::wall_held_tops`]: how many cells past a narrow top's floor a wall is looked for: 0.75 m from its centre, a gap of
+/// 0.625 m from a one-cell top's far edge, inside the 0.65 m to which the exactness session's sweep keeps the body cleanly on
+/// the top (a wider gap wedges the capsule, 0.70-0.75 m, or does nothing, 0.80 m and more: the capsule is 0.76 m wide).
+/// MEASURED: the exact tick on made scenes, walls 0.30-2.00 m past one- to two-cell tops 0.6-1.25 m high, walking and sprint
+/// jumps (`private/grid/rig/grid-rules-walltop/out/walltop-table.txt`, `walltop-h*.tsv`, `walltop-sprint.tsv`;
+/// FINDINGS-FEED-exactness 2026-11-12).
+pub const WALL_HELD_CELLS: usize = 3;
+
 /// The extra cost of a sprint-jump link (rise above [`Body::max_jump`]): the run-up and the lower success, metres of walk.
 /// GUESS, benched.
 pub const SPRINT_JUMP_PENALTY: f32 = 3.0;
@@ -927,6 +958,55 @@ const SAME_TOP: f32 = 0.1;
 /// A seed's floor is found within this, metres ([`WalkGrid::locate`]; an
 /// objective's goal is found as far).
 const SEED_M: f32 = 3.0;
+
+/// [A364 C2] The steepest ground ([`CENTRE_GROUND_DEG`]) and ceiling ([`CENTRE_CEILING_DEG`]) at a cell's centre for which
+/// [`centre_room`] stands for the cell: the exact tick's crouched walks were measured over that range.
+const CENTRE_GROUND_DEG: f32 = 5.0;
+/// See [`CENTRE_GROUND_DEG`].
+const CENTRE_CEILING_DEG: f32 = 10.0;
+
+/// [A364 C2] The room a walk between floors `a` and `b` (heights `ha`, `hb`, ceilings `ca`, `cb`, centres `run` m apart) gives the
+/// crouched body, to compare with its height: the lowest ceiling over the highest floor (a step's: the capsule rises to the
+/// higher floor under the lower ceiling), or, where that is short, the room over each floor (`c - h`, the smaller) scaled by the
+/// cosine of the grade between them, `atan(rise / run)`: a walk up a slope under a parallel ceiling. Walked with the exact tick
+/// (nav-builder2's `headroom` harness, made scenes), the crouched body goes up a slope under a parallel ceiling from a vertical
+/// room of 1.105 m at 3 and 5 deg, 1.115 at 10, 1.13 at 15, 1.15 at 20, 1.22 at 30 and not at 35 or 40 deg (to 1.22 m); the
+/// rule's need, the crouch height over the cosine (1.117, 1.139, 1.171, 1.270, 1.343, 1.436 m), is at or over each of those from
+/// 10 deg, and within the flat rule's 5 mm (1.1 against 1.1025, `grid-rules` S3) under it. A step is not taken by it: a riser of
+/// 0.3 m over a cell is a grade of 50 deg, needing 1.71 m.
+fn crouch_gap(ha: f32, ca: f32, hb: f32, cb: f32, run: f32) -> f32 {
+    let step = ca.min(cb) - ha.max(hb);
+    let slope = (ca - ha).min(cb - hb) * run / run.hypot(hb - ha);
+    step.max(slope)
+}
+
+/// [A364 C2] The room over the ground at a cell's centre (`cx`, `cz`), the ground found within a span's top `high` and 0.5 m under
+/// it, the ceiling the first face over that ground: `None` where either is not there or is steeper than [`CENTRE_GROUND_DEG`] /
+/// [`CENTRE_CEILING_DEG`].
+///
+/// A span's own room is the lowest ceiling over the highest ground anywhere in its cell: under a sloping ceiling or over
+/// sloping ground that is short of the room at the centre by up to the slope over half a cell. The client's crouched capsule
+/// (1.1 m) passes by the room along its axis: walked with the exact tick (`Controller::tick`, the Bullet caster and the rays,
+/// made scenes; nav-builder2's `headroom` harness, 2026-11-13) under a ceiling over flat ground it passes from 1.1025 m; over
+/// ground tilted 3 or 5 deg under a ceiling tilted 0, 5 or -5 deg, and over flat ground under ceilings tilted 5 or 10 deg, it
+/// passes at every axis room from 1.105 m (from 1.090 m where the ceiling tilts against the ground). Vostok Radar Station's
+/// crawl way at (9.5, 2.15, -20.0) (5 several-times spots of the routes corpus) has 1.107-1.115 m at the axis, under a 5 deg
+/// ceiling over 3 deg ground, and had no floor. Steeper ground is not taken: walked UP a slope under a parallel ceiling the
+/// crouched body needs more (from 1.15 m at 20 deg, 1.22 m at 30 deg, none to 1.22 m at 35 deg).
+fn centre_room(tree: &RayTree, cx: f32, cz: f32, high: f32) -> Option<f32> {
+    let down = tree.ray_hit(Vec3::new(cx, high + 0.01, cz), Vec3::new(0.0, -1.0, 0.0), 0.51)?;
+    // In degrees with 0.01 deg to spare, so the measured bounds themselves are in (a face built at 5 deg reads a hair over it).
+    let deg = |n: Vec3| n.y.abs().min(1.0).acos().to_degrees();
+    if deg(down.normal) > CENTRE_GROUND_DEG + 0.01 {
+        return None;
+    }
+    let ground = high + 0.01 - down.t;
+    let up = tree.ray_hit(Vec3::new(cx, ground + 0.01, cz), Vec3::new(0.0, 1.0, 0.0), 3.0)?;
+    if deg(up.normal) > CENTRE_CEILING_DEG + 0.01 {
+        return None;
+    }
+    Some(ground + 0.01 + up.t - ground)
+}
 
 #[derive(Clone, Copy, Debug)]
 struct Span {
@@ -1071,6 +1151,10 @@ struct Wide {
     marked: Vec<(u32, u32)>,
     /// [`Body::walk_ceiling_stalls`]: the Walk links the walk check passes only crouched, as (from, to), sorted.
     crouch: Vec<(u32, u32)>,
+    /// [routes corpus] [`Body::wall_held_tops`]: the Jump links kept for a wall that holds the body on their narrow top
+    /// ([`WalkGrid::held_by_wall`]), as (from, to), sorted: the jump's carry past the top does not apply to them
+    /// ([`WalkGrid::drop_overshot_landings`]).
+    held: Vec<(u32, u32)>,
 }
 
 /// A floor put aside by [`Body::wall_give_back`] ([`Wide::aside`]): where it is and its room.
@@ -1284,6 +1368,8 @@ impl WalkGrid {
                 )
             }),
         };
+        // [A364 C2] Built on the first span whose cell-wide room is under the crouched body ([`centre_room`]).
+        let mut centre_tree: Option<RayTree> = None;
         for (index, mut column) in columns.into_iter().enumerate() {
             start.push(height.len() as u32);
             solids.start.push(solids.spans.len() as u32);
@@ -1327,10 +1413,19 @@ impl WalkGrid {
                     continue;
                 }
                 let above = merged.get(k + 1).map_or(f32::MAX, |next| next.low);
-                if above - span.high >= body.crouch_height {
+                // [A364 C2] The span's room is its cell's worst (the lowest ceiling over the highest ground anywhere in the cell);
+                // where that is under the crouched body, the room at the cell's centre decides ([`centre_room`]).
+                let room = if above - span.high >= body.crouch_height {
+                    above - span.high
+                } else {
+                    let (cx, cz) = (x0 + ((index % nx) as f32 + 0.5) * cell, z0 + ((index / nx) as f32 + 0.5) * cell);
+                    let tree = centre_tree.get_or_insert_with(|| RayTree::from_corners(triangles.iter().map(|t| t.v)));
+                    centre_room(tree, cx, cz, span.high).unwrap_or(above - span.high)
+                };
+                if room >= body.crouch_height {
                     cell_of.push(index as u32);
                     height.push(span.high);
-                    ceiling.push(above);
+                    ceiling.push(above.max(span.high + room));
                     forced.push(span.walk == 3);
                     steep_face.push(span.walk == STEEP);
                 }
@@ -1374,7 +1469,7 @@ impl WalkGrid {
             pull_walk: None,
         };
         let mut wide = grid.link(&forced);
-        grid.drop_narrow_landings(&mut wide);
+        grid.drop_narrow_landings(&mut wide, &solids);
         (stats.drops_deep, stats.drops_crossable) = grid.drop_deep_flights(&mut wide);
         if !body.run_ups_after_erosion {
             let run = RunUp::Cells(((SPRINT_RUN_UP_M + body.radius) / cell).ceil() as usize);
@@ -1388,6 +1483,8 @@ impl WalkGrid {
         let walls = (body.erosion == Erosion::Exact || body.drop_room).then(|| exact::Walls::new(triangles, x0, z0, cell, nx, nz));
         (stats.exact_eroded, stats.wall_given_back) =
             grid.erode(&mut wide, &cut, &solids, walls.as_ref().filter(|_| body.erosion == Erosion::Exact), triangles);
+        wide.held.sort_unstable();
+        wide.held.dedup();
         if body.run_ups_after_erosion {
             (stats.sprint_cut, stats.capped_no_run_up) = grid.drop_short_run_ups(&mut wide, RunUp::Metres(SPRINT_RUN_UP_M));
         }
@@ -1486,7 +1583,8 @@ impl WalkGrid {
                     let b = b as usize;
                     let (hb, cb) = (self.height[b], self.ceiling[b]);
                     let rise = (hb - ha).abs();
-                    let gap = ca.min(cb) - ha.max(hb);
+                    let run = self.cell * ((di * di + dk * dk) as f32).sqrt();
+                    let gap = crouch_gap(ha, ca, hb, cb, run);
                     // Up or down, the step ([`Body::walked_step`]: a sprinting body climbs it, a walking one only under 0.76 m).
                     let walks = if forced[a] && forced[b] { rise <= stair_rise } else { rise <= body.step };
                     // Up a ledge's edge the capsule rides (`Body::capsule_steps`); down it stays a drop.
@@ -1515,6 +1613,7 @@ impl WalkGrid {
             aside: Vec::new(),
             marked: Vec::new(),
             crouch: Vec::new(),
+            held: Vec::new(),
         }
     }
 
@@ -1564,6 +1663,43 @@ impl WalkGrid {
             (next != NONE && wide.kinds[a][d] == LinkKind::Walk).then_some(next as usize)
         };
         walk(b).and_then(walk).is_some()
+    }
+
+    /// Whether a jump in direction `d` that lands on `b` stays there: [`Self::lands`], or with [`Body::wall_held_tops`] a wall
+    /// beyond the top ([`Self::held_by_wall`]).
+    fn lands_on(&self, wide: &Wide, b: usize, d: usize, solids: &Solids) -> bool {
+        Self::lands(wide, b, d) || (self.body.wall_held_tops && self.held_by_wall(b, d, solids))
+    }
+
+    /// [`Body::wall_held_tops`]: whether a body that lands on `b` moving along `d` meets a wall within [`WALL_HELD_CELLS`]
+    /// cells on before any drop: the first cell along `d` that holds solid between a step over `b`'s floor and the standing
+    /// height ([`Self::wall_beside`]'s wall) holds the body, the map area's edge too; a cell that holds no surface within a step
+    /// of `b`'s floor (the top ends there) and a floor more than a step under it is a drop past the top (a fence's far side), and
+    /// the body is not held. A cell the top's own surface reaches is no drop whatever lies beside it in the cell: the body
+    /// (radius 0.38 m, the client's capsule) does not fit a crack narrower than a cell (School's sill: an 18 cm top, a 12 cm crack
+    /// at z 143.23-143.35, then the wall; the map's walker triangles).
+    fn held_by_wall(&self, b: usize, d: usize, solids: &Solids) -> bool {
+        let (i, k) = self.cell_xz(self.cell_of[b] as usize);
+        let (di, dk) = DIRS[d];
+        let feet = self.height[b];
+        let (low, high) = (feet + self.body.step, feet + self.body.stand_height);
+        for reach in 1..=WALL_HELD_CELLS as i32 {
+            let Some(cell) = self.cell_index(i + di * reach, k + dk * reach) else {
+                return true;
+            };
+            let spans = &solids.spans[solids.start[cell] as usize..solids.start[cell + 1] as usize];
+            if spans.iter().any(|&(l, h)| l < high && h > low) {
+                return true;
+            }
+            // The top's own surface goes on into this cell (a crack behind it too narrow for the body, School's sill): no drop.
+            if spans.iter().any(|&(_, h)| (h - feet).abs() <= self.body.step) {
+                continue;
+            }
+            if (self.start[cell]..self.start[cell + 1]).any(|f| self.height[f as usize] < feet - self.body.step) {
+                return false;
+            }
+        }
+        false
     }
 
     /// How far before `a`'s centre the walking jump up to `b` is pressed so that the clip ends on the top ([`walking_press_lead`]), when
@@ -1631,6 +1767,10 @@ impl WalkGrid {
             for (d, &(di, dk)) in DIRS.iter().enumerate() {
                 let b = wide.links[a][d];
                 if b == NONE || wide.kinds[a][d] != LinkKind::Jump {
+                    continue;
+                }
+                // A wall holds the body on the top: the jump's carry past it does not apply ([`Body::wall_held_tops`]).
+                if wide.held.binary_search(&(a as u32, b)).is_ok() {
                     continue;
                 }
                 let rise = self.height[b as usize] - self.height[a];
@@ -1859,19 +1999,23 @@ impl WalkGrid {
         (deep, crossable)
     }
 
-    /// Takes away the jumps that land on no room ([`Self::lands`]).
-    fn drop_narrow_landings(&self, wide: &mut Wide) {
+    /// Takes away the jumps that land on no room ([`Self::lands_on`]).
+    fn drop_narrow_landings(&self, wide: &mut Wide, solids: &Solids) {
         for a in 0..self.height.len() {
             for d in 0..8 {
                 let b = wide.links[a][d];
-                if b != NONE
-                    && wide.kinds[a][d] == LinkKind::Jump
-                    && !Self::lands(wide, b as usize, d)
-                {
+                if b == NONE || wide.kinds[a][d] != LinkKind::Jump || Self::lands(wide, b as usize, d) {
+                    continue;
+                }
+                if self.lands_on(wide, b as usize, d, solids) {
+                    wide.held.push((a as u32, b));
+                } else {
                     wide.links[a][d] = NONE;
                 }
             }
         }
+        wide.held.sort_unstable();
+        wide.held.dedup();
     }
 
     /// Takes away the sprint jumps (a Jump link above [`Body::max_jump`]) with no straight run of
@@ -2161,8 +2305,11 @@ impl WalkGrid {
                     };
                     if let Some((b, kind)) = self.ledge(a, cell, Some(&standing))
                         && (!walked || kind == LinkKind::Jump)
-                        && (kind != LinkKind::Jump || Self::lands(wide, b as usize, d))
+                        && (kind != LinkKind::Jump || self.lands_on(wide, b as usize, d, solids))
                     {
+                        if kind == LinkKind::Jump && !Self::lands(wide, b as usize, d) {
+                            wide.held.push((a as u32, b));
+                        }
                         wide.links[a][d] = b;
                         wide.kinds[a][d] = kind;
                         break;
@@ -2319,7 +2466,8 @@ impl WalkGrid {
                     let (hb, cb) = (self.height[b as usize], self.ceiling[b as usize]);
                     let rise = (hb - ha).abs();
                     let walks = rise <= self.body.step;
-                    if walks && ca.min(cb) - ha.max(hb) >= self.body.crouch_height && rise < best.1 {
+                    let run = self.cell * ((di * di + dk * dk) as f32).sqrt();
+                    if walks && crouch_gap(ha, ca, hb, cb, run) >= self.body.crouch_height && rise < best.1 {
                         best = (b, rise);
                     }
                 }
@@ -2574,6 +2722,11 @@ impl WalkGrid {
         }
         wide.crouch.retain(|&(a, b)| alive[a as usize] && alive[b as usize]);
         for (a, b) in &mut wide.crouch {
+            *a = new_id[*a as usize];
+            *b = new_id[*b as usize];
+        }
+        wide.held.retain(|&(a, b)| alive[a as usize] && alive[b as usize]);
+        for (a, b) in &mut wide.held {
             *a = new_id[*a as usize];
             *b = new_id[*b as usize];
         }
@@ -5429,12 +5582,13 @@ pub(crate) mod tests {
     }
 
     /// [`Body::press_window`] (A347a): Vector Laboratory's 0.905 m ledge (rise 0.905, 0.5 across, 1.25 m of floors past the
-    /// landing, cells 0.25, the stand radius 0.38): the latest press is 0.55 m before the take-off, the window ends where the
+    /// landing, cells 0.25, the stand radius 0.38): the latest press is 0.53 m before the take-off, the window ends where the
     /// root comes down past the face; a top of half that keeps no window; a deep top asks nothing (the least is 0).
     #[test]
     fn a_short_tops_press_window_ends_where_the_clip_carries_past_its_edge() {
         let (least, lead) = walking_press_window(0.905, 0.5, 1.25, 0.25, 0.38).expect("a window");
-        assert!((least - 0.551).abs() < 0.01, "least {least}");
+        // 0.526 with the live idle slope's hold 0.2687 m (A364 C2 row 18; 0.551 with the exe default's 0.244).
+        assert!((least - 0.526).abs() < 0.01, "least {least}");
         assert!((lead - JUMP_PRESS_LEAD_M).abs() < 1e-6, "lead {lead}");
         let far = walking_jump_far(0.905).unwrap() - 0.25;
         assert!(far - least >= TICK_WALK_M, "the window holds a tick: {least}..{far}");
@@ -5450,7 +5604,7 @@ pub(crate) mod tests {
         assert!(late.0 > JUMP_PRESS_LEAD_M - TICK_WALK_M, "the case is one: least {}", late.0);
         assert_eq!(walking_press_window(0.905, 0.5, 0.0, 0.25, 0.38), None, "a top the clip passes whatever the press");
         assert_eq!(walking_press_window(0.5, 0.5, 2.5, 0.25, 0.38).map(|w| w.0), Some(0.0), "a deep top");
-        assert!((edge_hold_m(0.38) - 0.244).abs() < 0.001);
+        assert!((edge_hold_m(0.38) - 0.2687).abs() < 0.001);
     }
 
     /// [`Body::exits_in_reach`] (A347): a pit 1.32 m deep (the client's body links a rise up to its jump cap 1.28 m, so this one
@@ -5910,6 +6064,32 @@ pub(crate) mod tests {
         }
     }
 
+    /// [A364 C2] A crawl way over ground tilted 5 deg under a parallel ceiling (measured: the crouched body passes from 1.105 m):
+    /// with 1.107 m over the ground at every point, each cell's worst room is under 1.1 m (the highest ground and the lowest
+    /// ceiling are 0.25 x tan 5 deg = 0.022 m apart at its edges); by the room at the centre ([`centre_room`]) it has crouch-only
+    /// floors. With 1.09 m it has none.
+    #[test]
+    fn a_crawl_way_under_a_sloping_ceiling_has_floors_by_the_room_at_the_centre() {
+        let k = 5.0f32.to_radians().tan();
+        let crawl = |room: f32| {
+            let plane = |x0: f32, x1: f32, y: f32| {
+                let (a, b) = (Vec3::new(x0, y + k * x0, 0.0), Vec3::new(x1, y + k * x1, 0.0));
+                let (c, d) = (Vec3::new(x1, y + k * x1, 10.0), Vec3::new(x0, y + k * x0, 10.0));
+                [Triangle { v: [a, b, c], walker: WalkerBehaviour::BySlope }, Triangle { v: [a, c, d], walker: WalkerBehaviour::BySlope }]
+            };
+            let mut tris = plane(0.0, 10.0, 0.0).to_vec();
+            tris.extend(plane(2.0, 8.0, room));
+            WalkGrid::build(&tris, AREA, 0.25, Body { erosion: Erosion::Exact, crouch_only_floors: true, ..Body::client() })
+        };
+        let under = |g: &WalkGrid| {
+            g.floors_in([5.0, 5.0, 5.25, 5.25]).find(|&n| (g.position(n).y - 5.125 * k).abs() < 0.05)
+        };
+        let ok = crawl(1.107);
+        let n = under(&ok).expect("a floor at 1.107 m");
+        assert!(!ok.can_stand(n) && ok.headroom(n) >= 1.1, "{}", ok.headroom(n));
+        assert!(under(&crawl(1.09)).is_none(), "no floor at 1.09 m");
+    }
+
     /// `Body::capsule_steps`: a ledge whose edge is within the capsule's edge step (0.96 m with the clients' numbers) is walked up
     /// (no Jump on the way up; down it stays a Drop); one over it is jumped as before; off, both are jumped. The key changes only
     /// with the switch on.
@@ -6324,6 +6504,62 @@ pub(crate) mod tests {
         let b = grid.locate(Vec3::new(9.5, 0.0, 5.0), 1.0);
         // x 9..10 is cut off by the low roof (and eroded at the edge).
         assert!(b.is_none_or(|b| !grid.distances_from(&[a]).reaches(b)));
+    }
+
+    /// [routes corpus] A top 0.8 m up and too shallow to walk on along the jump (0.55 m deep) is reached by a jump when a wall
+    /// stands right beyond it (a sill: the wall stops the body), with `wall_held_tops`; the same top with the ground beyond it
+    /// (a fence's top, 0.3 m deep) is reached by none either way, nor at 1.0 m up (a sprint jump in the builder: it keeps its
+    /// carry), where a wall holds it again. Jumps straight at the wall only: along the top it is long.
+    #[test]
+    fn a_jump_lands_on_a_sill_a_wall_holds_and_not_on_a_fence_top() {
+        let face_z = |z: f32, x0: f32, x1: f32, y0: f32, y1: f32| {
+            let walker = WalkerBehaviour::BySlope;
+            let (a, b, c, d) = (Vec3::new(x0, y0, z), Vec3::new(x1, y0, z), Vec3::new(x1, y1, z), Vec3::new(x0, y1, z));
+            [Triangle { v: [a, b, c], walker }, Triangle { v: [a, c, d], walker }]
+        };
+        let top_crack = |wall: bool, back: f32, h: f32, crack: f32| {
+            let mut tris = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
+            tris.extend(floor(1.0, 4.0, 9.0, back, h));
+            tris.extend(face_z(4.0, 1.0, 9.0, 0.0, h));
+            tris.extend(face_z(back, 1.0, 9.0, 0.0, h));
+            if wall {
+                let w = back + crack;
+                tris.extend(floor(1.0, w, 9.0, w + 1.0, 4.0));
+                tris.extend(face_z(w, 1.0, 9.0, if crack > 0.0 { 0.0 } else { h }, 4.0));
+                tris.extend(face_z(w + 1.0, 1.0, 9.0, 0.0, 4.0));
+            }
+            tris
+        };
+        let top = |wall: bool, back: f32, h: f32| top_crack(wall, back, h, 0.0);
+        let jumps_onto_top = |tris: &[Triangle], h: f32, on: bool| {
+            let grid = WalkGrid::build(tris, AREA, 0.25, Body { wall_held_tops: on, ..Body::default() });
+            (0..grid.len() as NodeId).any(|a| {
+                let pa = grid.position(a);
+                pa.y < 0.1
+                    && grid.links(a).any(|(b, k)| {
+                        let pb = grid.position(b);
+                        // Straight at the wall (the top's ends are long ways along it).
+                        k == LinkKind::Jump && (pb.y - h).abs() < 0.05 && (pb.x - pa.x).abs() < 0.01 && pb.z > pa.z
+                    })
+            })
+        };
+        let sill = top(true, 4.55, 0.8);
+        assert!(!jumps_onto_top(&sill, 0.8, false));
+        assert!(jumps_onto_top(&sill, 0.8, true));
+        let fence = top(false, 4.3, 0.8);
+        assert!(WalkGrid::build(&fence, AREA, 0.25, Body::default()).locate(Vec3::new(5.0, 0.8, 4.15), 0.2).is_some());
+        assert!(!jumps_onto_top(&fence, 0.8, false));
+        assert!(!jumps_onto_top(&fence, 0.8, true));
+        // At 1.0 m (above the walking jump's cap: a sprint jump, which keeps its carry) no wall, no landing; with a wall, one.
+        let high = top(false, 4.3, 1.0);
+        assert!(!jumps_onto_top(&high, 1.0, false));
+        assert!(!jumps_onto_top(&high, 1.0, true));
+        let high_sill = top(true, 4.55, 1.0);
+        assert!(jumps_onto_top(&high_sill, 1.0, true));
+        // A crack of 0.12 m between the top and the wall (School's sill): the wall holds the body all the same.
+        let cracked = top_crack(true, 4.55, 0.8, 0.12);
+        assert!(!jumps_onto_top(&cracked, 0.8, false));
+        assert!(jumps_onto_top(&cracked, 0.8, true));
     }
 
     #[test]

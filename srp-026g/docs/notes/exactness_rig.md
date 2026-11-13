@@ -150,8 +150,9 @@ not the displacement: that alone was one unit in the last place of y on 358 land
 | `Caster::Bullet` (exact distance, the exe's rules) | 137 | 744 | 84 | 33 | 2 | 151 |
 | `Caster::Exe` | **991** | 0 | 3 | 3 | 3 | 7 |
 
-The 9 steps left all met a wall (the move test: the wall normal by rays, the penetration solver's contact where
-the cylinder's core starts in a face). The whole run of the 1,000 cases takes 0.87 s with `Caster::Bullet` and
+The 9 steps left, and the 6 with only the surface normal off, are ties of order (PROVEN): two or more hits at one
+fraction, of which the exe keeps the LAST its trees offer and the port the FIRST of its own (3j). Fed the same
+triangles in the port's order reversed, the exe gives the port's bits on 1,000 of 1,000 steps. The whole run of the 1,000 cases takes 0.87 s with `Caster::Bullet` and
 1.10 s with `Caster::Exe` (one thread, the cases' parsing and tree building included).
 
 The penetration-depth solver (Bullet's EPA) was not ported when these counts were taken: where the exe calls
@@ -227,10 +228,10 @@ apart by marking, in a run of the same 1,000 steps, each answer that is not the 
 | two hits with the same fraction | 4 | 4 | 161 |
 | the penetration fallback | 0 | 0 | 3 |
 
-So (LIKELY, by these counts): the 15 are the wall normal's ray, which here meets a primitive's drawn triangles
-where the exe's ray meets the convex shape (Bullet's ray against a convex shape is not ported); the 4 are which
-of two faces met at the same fraction the down sweep keeps (the exe's order through its broadphase and mesh
-trees is not ported). The penetration fallback (the stand-in of that time; the exe's own solver since 3i) is in
+These counts first read the 15 as the wall normal's ray: WRONG for the capture's triangles, where the same kind of
+step was settled as a tie of order (3j; answering the rays with the port's arithmetic or the exe's own triangle ray
+0xB8010 changes none of 15 steps there). For these 19 on the map's shapes the cause is not read yet: the rig of 3j
+has not been run on the shapes world (it needs the two callbacks hooked in the real memory's rig). The penetration fallback (the stand-in of that time; the exe's own solver since 3i) is in
 no step that is off.
 
 ### 3e. The second looks' ray, bit for bit (PROVEN)
@@ -359,10 +360,11 @@ the air), every step through the port on the shapes world, each from the game's 
   `m_colliding_with_player` is clear (0x7C892); the world sets it on both bodies of an overlapping enemy pair
   (`bullet_physics_world::tick` 0x75811, 0x75848) and only the controller's `initialize` clears it. The port had no
   such flag and skipped 355 steps the game took (their feet under a millimetre apart in 340).
-  `Controller::colliding_with_player` is the world's write; the bodies' pushing each other apart is not ported.
+  `Controller::colliding_with_player` is the world's write; the bodies' pushing each other apart is not ported (the rule: `collision_world.md` §3, the enemy reset of
+  0x75730..0x7586C).
 
 What is left (1,126 steps, 0.51 %): 504 landings whose only difference is the surface normal kept of two contacts
-at one fraction (the exe's order of objects and triangles, not ported), and steps at walls and edges of the same
+at one fraction (the exe's order of objects and triangles, not ported: 3j), and steps at walls and edges of the same
 kind; 22 steps in the air.
 
 ### 3i. The penetration-depth solver, bit for bit (PROVEN)
@@ -409,9 +411,14 @@ cast has no outcome a caller must fill in: the stand-in for a start overlap that
 | every recorded detector call of 3b, the solver's 24 included | 57,641 | **57,641** |
 | every recorded `calcTimeOfImpact` (`tests/exe_toi_corpus.rs`), the 18 through the solver included | 22,727 | **22,727** |
 
-(`tests/exe_epa_corpus.rs`, run with `SRP_EXE_EPA_CORPUS`; the records stay private.) Reached by no record and
-ported from the asm alone: EPA out of faces or vertices or with a touching answer, GJK's 128-round failure, the
-detector's method 9.
+(`tests/exe_epa_corpus.rs`, run with `SRP_EXE_EPA_CORPUS`; the records stay private.) The branches no recorded call
+reaches were driven with made inputs through the exe (30,446 records more, 5,546 of them whole detector calls): the
+port gives the exe's bits on every one. Reached there: `Distance`'s GJK ending inside (517 records), EPA's fallback (6),
+the detector's method 9 (113; only with shapes of 6.5e8 m and more, where a face normal's squared length overflows),
+and inside EPA the out-of-faces (1,950), non-convex (870) and degenerate (2,323) exits of `newface`. Never the final
+status, by the asm: touching (nothing stores 1), non-convex, degenerate, out of faces, failed, and valid after 255
+rounds. Not reached: EPA out of vertices (the 128 faces run out at round 62, before a 64th vertex is wanted) and GJK's
+128-round failure (47 rounds at most); both are ported from the asm only.
 
 **What it changes**, each against the stand-in in one binary:
 
@@ -426,6 +433,56 @@ detector's method 9.
 Of the long replay's 1,093 steps still off, none is the solver's (its 2,421 calls there are the exe's bits): they
 are 3h's contacts at one fraction. Only `Caster::Exe` changes: the bots' grids and bodies cast with
 `Caster::Bullet` and its start-overlap rule (`bullet_cast.md`), which this leaves as it is.
+
+### 3j. Hits at one fraction: the exe keeps the last (PROVEN)
+
+- `BridgeTriangleConvexcastCallback::reportHit` 0xA2A40 passes a hit whose fraction is at or under the closest so far
+  (`comiss closest, fraction; jc` skips only a farther one), so a hit at the same fraction is offered again.
+- The move test's callback stores what it is offered with no test of the fraction (0x89881..0x898A7: the fraction +4,
+  the horizontal normal +30h, the point +40h, the object +50h); it drops only a hit of its own object (0x89603) and,
+  at fraction 0, a contact not ahead of the move (0x896DC..0x8972A). The down sweep's callback 0x84420 keeps a walkable
+  hit by lowering +4 and storing it, likewise with no test against +4.
+- So of hits at one fraction the exe keeps the LAST in the order its broadphase and mesh trees offer them
+  (`objectQuerySingle` 0xA14E0 over `btDbvt::collideTV` 0xA58F0, `performConvexcast` 0xA8380). The port keeps the
+  FIRST of its own order (`tick.rs`: `c.t < b.t` in the move, air and up sweeps; `down_sweep` the first accepted after a
+  stable sort).
+- Proof: of the 1,000 traced steps on the capture's triangles, the 15 that differed (9 in the origin, 6 in the surface
+  normal) each hold such a tie: in the 9, the solver's contacts at fraction 0 in the move test on 2 to 6 neighbouring
+  cut triangles; in the 6, the down sweep on a shared edge. The exe fed the triangles in the port's order reversed
+  gives the port's bits on 1,000 of 1,000 steps: nothing else differs on these triangles, not the casts, the solver or
+  the rays.
+- What a fix takes: the rule alone (`<=` in the move test, the last accepted in the down sweep) does not help without
+  the order (worked out on this set: 9 steps gained and 9 lost). The order needs the exe's tree walks ported; not done.
+- A rig hazard found on the way: the controller caches its sweeps' results, so a step run twice in one emulator makes
+  no sweeps the second time and returns the first run's bytes. The rig restores the controller's bytes before each run.
+
+### 3k. The up sweeps' callback and a compound child's rotation (PROVEN)
+
+- The stand-up sweep 0x86BF0 (`can_straighten` 0x7EEB0), the stand tester's sweep 0x873C0 (0x7F7B0) and the slide sweep
+  0x88CB0 are read whole: the casts were ported right (the step-cut capsule from `pos` up by the step; the crouched
+  capsule from the origin up by `standing - crouching`; the capsule from `bs` to `de`), and each one's result cache keys
+  on its inputs by equality, so it returns what the sweep would. The slide's callback 0x88C90 is the stock closest one.
+- The up sweeps' callback 0x869D0 (built by 0x868D0) was not the port's filter. It drops a hit whose height is under
+  `up . from + hh` taken at the sweep's START (the port took it at the hit's time), and one whose distance from the
+  axis through `from` (an f32 root) is within 1e-5 of the radius (0x9CBA48) or past it (the port compared squares,
+  with no rim). The exe's own callback, built by the exe, judged 20,162 made hits: the rule as read agrees on all of
+  them, the old filter on 13,053. `tick.rs` `up_sweep` now has the exe's rule.
+- The down sweep's steep look reads a compound child's rotation through 0x84190: the child's quaternion times the
+  object's (Bullet's `operator*`, child first: `R_child R_object`), not the child's world rotation. 0x84190 and
+  `setRotation` 0x72A50 run in Unicorn agree bit for bit with `exe_cast::child_hit_rotation` on the 4,933 small round
+  compound children the walker meets on the eight maps and on 5,000 made pairs; the old composed basis decided lying or
+  standing differently for 317 of the 4,933 (312 on Mamayev Kurgan, none on Vector Laboratory, so the counts below
+  cannot show it).
+- What it changes (the port before and after, one build each):
+
+| run | before | after |
+|---|---|---|
+| 1,000 steps on the capture's triangles (3b): the origin the exe's bits | 991 | 991 (outputs identical) |
+| 1,000 steps on the map's shapes (3d): every field the game's | 993 | **994** |
+| the long replay (3h): every field the game's | 219,901 | **219,906** (5 put right, none made wrong) |
+| the long replay: chains the game's bits end to end | 2,271 of 2,421 | **2,274** (3 put right, none made wrong) |
+
+  Each step put right is a step refused under a ceiling (`ceiling` set): the up sweep's case.
 
 ## 4. What was read on the way (PROVEN)
 

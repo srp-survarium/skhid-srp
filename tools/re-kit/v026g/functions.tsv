@@ -84,6 +84,7 @@ va	status	ref_021d	name
 0x00037dc0	reviewed	0x00029077	vostok::collision::box_geometry_instance::enumerate_primitives
 0x00037e30	reviewed	0x000290c2	vostok::collision::box_geometry_instance::enumerate_primitives
 0x00037eb0	reviewed	0x0002911c	vostok::collision::box_geometry_instance::get_surface_area
+0x00038960	reviewed		vostok::math::sqrt
 0x00038970	reviewed	0x00029921	vostok::collision::sphere_geometry_instance::set_matrix
 0x000389a0	reviewed	0x00029934	vostok::collision::sphere_geometry_instance::accept
 0x00038a70	reviewed	0x000299d4	vostok::collision::sphere_geometry_instance::ray_test
@@ -2187,6 +2188,7 @@ va	status	ref_021d	name
 0x00313300	verified		survarium::artefact_base::action
 0x00313350	verified		survarium::artefact_base::effect
 0x0007f1a0	reviewed	0x0021fcf1	vostok::physics::bullet_character_controller::setup_crouch_state
+0x0007f5c0	reviewed		vostok::physics::bullet_character_controller::get_transform
 0x00337810	reviewed		survarium::player_logic_crouch_state::request_effective_crouch
 0x00337830	reviewed		survarium::player_logic_crouch_state::release_effective_crouch_if_clear
 0x00059080	observed		vostok::sound::sound_world::initialize_xaudio
@@ -2385,6 +2387,8 @@ va	status	ref_021d	name
 0x0008a170	reviewed		btAlignedFreeDefault
 0x000a8380	reviewed		btBvhTriangleMeshShape::performConvexcast
 0x00087b60	reviewed	0x002232a0	vostok::physics::character_controller_jump_tester::convex_sweep_test
+0x00088c90	reviewed		vostok::physics::character_slide_sweep_test_callback::addSingleResult
+0x00088cb0	reviewed		vostok::physics::bullet_character_controller::slide_sweep_test
 0x0007f7b0	reviewed		vostok::physics::bullet_character_controller::can_stand_up
 0x0007bd10	reviewed		vostok::physics::bullet_character_controller::need_push_from_low_ceiling
 0x0007bad0	reviewed		vostok::physics::bullet_character_controller::get_push_from_low_ceiling
@@ -2439,6 +2443,7 @@ va	status	ref_021d	name
 0x00072b90	verified		btMatrix3x3::getRotation
 0x00072a50	verified		btMatrix3x3::setRotation
 0x00072fb0	reviewed		btTransformUtil::calculateDiffAxisAngle
+0x00073d70	reviewed		btCollisionWorld::ConvexResultCallback::needsCollision
 0x00072d20	reviewed		btTransform::inverse
 0x000b88b0	reviewed		btPointCollector::addContactPoint
 0x0009fc20	reviewed		btCollisionWorld::LocalConvexResult::LocalConvexResult
@@ -2447,6 +2452,10 @@ va	status	ref_021d	name
 0x0008d4c0	reviewed		convexHullSupport
 0x00084420	reviewed		vostok::physics::character_step_down_sweep_test_callback::addSingleResult
 0x00084810	reviewed	0x00220f3c	vostok::physics::character_step_down_sweep_test_callback::get_normal_via_ray_test
+0x000868d0	reviewed		vostok::physics::character_up_sweep_test_callback::character_up_sweep_test_callback
+0x000869d0	reviewed	0x002227e9	vostok::physics::character_up_sweep_test_callback::addSingleResult
+0x00086bf0	reviewed		vostok::physics::bullet_character_controller::up_sweep_test
+0x000873c0	reviewed		vostok::physics::bullet_character_controller::stand_up_sweep_test
 0x000842e0	reviewed		vostok::physics::character_step_down_sweep_test_callback::character_step_down_sweep_test_callback
 0x00084190	reviewed		vostok::physics::character_step_down_sweep_test_callback::hit_shape_rotation
 0x000a9bc0	reviewed		btCylinderShape::getRadius

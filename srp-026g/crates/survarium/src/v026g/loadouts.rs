@@ -680,9 +680,9 @@ pub const BOT_MEDKIT: BotKitItem = kit_item("medkit", 13, 2, Some(QUICK_USE_FIRS
 /// Deathmatch, 10 s × 0.8 = 8 s in the battery modes
 /// (`docs/notes/battery_respawn.md`), then up to the 50 ms grid. That
 /// the -0.2 of the default modification reaches the booster's
-/// parameters is LIKELY (the client applies modifications to an item's
-/// config, `item_config_cook`; the defaults' path there was not
-/// traced).
+/// parameters is PROVEN: every kit item's default modifications on
+/// modifier 60 sum (`item_config_cook` 0x2F1750, the data's
+/// `modifications.options`; 102,149 of 102,159 deaths' respawns fit).
 pub const BOT_RADIO: BotKitItem = kit_item("respawn_booster", 14, 1, None);
 
 /// One RGD-5 frag grenade (`rgd-5`, `grenade`, item level 3, 30 silver;

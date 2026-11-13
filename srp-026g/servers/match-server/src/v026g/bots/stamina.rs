@@ -15,11 +15,14 @@
 //! - a jump needs the flag clear and the bar at [`JUMP_COST`], spent at the press; a refused press spends nothing.
 //!
 //! The rates are the light kit's (no weight cost, no skills, [`Rates::LIGHT`]) unless `think.stamina_rates` is `kit`:
-//! then a life's are its kit's ([`Rates::of_kit`]), the client's law of the weight's cost `t` and the skills: spending and
-//! the jump's cost `x (1 + 1.5 t) x (1 + skill 201)`, regeneration `x (1 + skill 204)`, 4.4-12.6 a second across the bots'
-//! kits (A207: the light rates let a heavy kit's real bar reach 0 with the reckoning still over the reserve). A hit's own
-//! stamina damage is not reckoned (the world's hit time only restarts the wait). Counted whether the switch
-//! (`think.stamina`) is on or off ([`counts`]); the motor acts on it only when on.
+//! then a life's are its kit's ([`Rates::of_kit`]), the client's getter (`apply_modifier` 0x2D5AE0: modifier `i` is the
+//! kit's float `[i]` plus every node on its list; [F2] `docs/notes/stamina_and_modifiers.md`): the sprint's spending and
+//! the jump's cost `x max(0, 1 + S19) x max(0, 1 + S67)` (sprint 0x329A92 / 0x329AA5, the jump 0x32972F / 0x329742, its
+//! gate 0x2D643C / 0x2D644F), regeneration `x max(0, 1 + S3)` (0x3298FA). S19 is the kit's float (its skills), its worn
+//! items' modifications and the weight's node (`1.5 t`, 0x329B20); a world's saved record carries the client's own node
+//! ([`Saved`]), which replaces the kit's `t` from then. A207: the light rates let a heavy kit's real bar reach 0 with the
+//! reckoning still over the reserve. A hit's own stamina damage is not reckoned; the world's record carries it ([F1]).
+//! Counted whether the switch (`think.stamina`) is on or off ([`counts`]); the motor acts on it only when on.
 
 use survarium::v026g::bot_skills;
 use survarium::v026g::loadouts::Loadout;
@@ -37,44 +40,82 @@ pub const JUMP_COST: f32 = 10.0;
 pub const WAIT_MS: u32 = 1_000;
 /// The low flag is set at a bar of 0 and cleared over this.
 pub const CLEAR_ABOVE: f32 = 20.0;
-/// A sprint covers this much ground a second, m/s (`kin::Kinematics::default().sprint`).
-pub const SPRINT_MPS: f32 = 5.0;
+/// A sprint covers this much ground a second, m/s (`kin::Kinematics::default().sprint`, F5: the body's on traced steps).
+pub const SPRINT_MPS: f32 = 4.9587;
 /// What a sprint spends a metre.
 pub const SPEND_PER_M: f32 = SPRINT_SPEND_PER_S / SPRINT_MPS;
 /// The bar a sprint jump wants at its take-off over what its run-up spends: the jump's cost and a margin, so a
 /// reckoning that is a little off still has it.
 pub const JUMP_MARGIN: f32 = 5.0;
 
-/// What a kit makes of the bar's law: spent a second of sprint keys, regained a second, and a jump's cost (also the
-/// least the bar needs for one).
+/// [F2] The client's modifiers of the bar's law (`apply_modifier` 0x2D5AE0: `S_i` is the kit's float `[i]` plus the value of
+/// every node on index `i`'s list), from which the rates are worked ([`Rates::spend`], [`Rates::regen`], [`Rates::jump`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Rates {
-    pub spend: f32,
-    pub regen: f32,
-    pub jump: f32,
+    /// S19 (`stamina_spending_speed_modifier`) less the weight's node: the kit's float (its skills) and its worn items' nodes
+    /// (the modifications 1160-1164, the defect 4110, and the items' own defaults).
+    spending: f32,
+    /// The weight's node on S19 (`m_spending_speed_modifier`, 0x329B20: `max_carried_weight_spending_speed_modifier` x t).
+    weight: f32,
+    /// S67 (`stamina_spending_speed_skill_modifier`), a factor after S19.
+    skill: f32,
+    /// S3 (`stamina_regeneration_speed_modifier`): the kit's float and its items' nodes (1100-1104, the defect 4060); the
+    /// record saves no node on index 3 (serialize 0x329310).
+    regeneration: f32,
 }
 
 impl Rates {
-    /// A kit of no weight cost and no skills.
-    pub const LIGHT: Self = Self { spend: SPRINT_SPEND_PER_S, regen: REGEN_PER_S, jump: JUMP_COST };
+    /// A kit of no weight cost, no skills and no modifications.
+    pub const LIGHT: Self = Self { spending: 0.0, weight: 0.0, skill: 0.0, regeneration: 0.0 };
 
-    /// The rates of `kit` worn with `modifiers` (the bot's skills, `bot_skills::bot_modifiers` of its kits): the weight's
-    /// cost `t` of the kit against its capacity, as the bench's stand-in body works it (`tests/standin_stamina.rs`).
+    /// The rates of `kit` worn with `modifiers` (the bot's skills, `bot_skills::bot_modifiers` of its kits): the skills'
+    /// floats, the items' modifications (`bot_skills::item_added`, their defaults included), and the weight's node of the
+    /// kit's weight against its capacity (`t`, as `bot_skills::weight_cost`) until a world's record gives the client's own.
     pub fn of_kit(kit: &Loadout, modifiers: &[f32; MODIFIERS]) -> Self {
         let index = |name| modifier_index(name).expect("a modifier of the 68");
+        let items = |parameter| -> f32 {
+            kit.items
+                .iter()
+                .map(|item| bot_skills::item_added(item.dict_id, &bot_skills::wire_mods(item.mods), parameter))
+                .sum()
+        };
         let t = bot_skills::weight_cost(kit.weight(), bot_skills::carry_capacity(kit, modifiers));
-        let carried = 1.0 + survarium::v026g::item_params::player().max_carried_weight_spending_speed_modifier * t;
-        let spending = 1.0 + modifiers[index("stamina_spending_speed_skill")];
         Self {
-            spend: SPRINT_SPEND_PER_S * carried * spending,
-            regen: REGEN_PER_S * (1.0 + modifiers[index("stamina_regeneration_speed")]),
-            jump: JUMP_COST * carried * spending,
+            spending: modifiers[index("stamina_spending_speed")] + items("stamina_spending_speed_modifier"),
+            weight: survarium::v026g::item_params::player().max_carried_weight_spending_speed_modifier * t,
+            skill: modifiers[index("stamina_spending_speed_skill")],
+            regeneration: modifiers[index("stamina_regeneration_speed")] + items("stamina_regeneration_speed_modifier"),
         }
+    }
+
+    /// These rates with the weight's node of a world's record (`m_spending_speed_modifier`).
+    pub fn with_weight(self, weight: f32) -> Self {
+        Self { weight, ..self }
+    }
+
+    /// `max(0, 1 + S19) x max(0, 1 + S67)`: what the sprint's and the jump's costs are multiplied by.
+    fn spending_factor(&self) -> f32 {
+        (1.0 + self.spending + self.weight).max(0.0) * (1.0 + self.skill).max(0.0)
+    }
+
+    /// Spent a second in the sprint state (0x329A70).
+    pub fn spend(&self) -> f32 {
+        SPRINT_SPEND_PER_S * self.spending_factor()
+    }
+
+    /// Regained a second (0x3298C0).
+    pub fn regen(&self) -> f32 {
+        REGEN_PER_S * (1.0 + self.regeneration).max(0.0)
+    }
+
+    /// A jump's cost, also the least the bar needs for one (0x32972F, its gate 0x2D643C).
+    pub fn jump(&self) -> f32 {
+        JUMP_COST * self.spending_factor()
     }
 
     /// What a sprint spends a metre.
     pub fn spend_per_m(&self) -> f32 {
-        self.spend / SPRINT_MPS
+        self.spend() / SPRINT_MPS
     }
 }
 
@@ -86,7 +127,7 @@ enum Flag {
 }
 
 /// One bot's reckoned bar.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Reckoning {
     value: f32,
     flag: Flag,
@@ -97,11 +138,64 @@ pub struct Reckoning {
     keys: u32,
     /// The life's kit's ([`Reckoning::set_rates`]), else the light kit's.
     rates: Rates,
+    /// [F1] The ticks since the oldest world that may still come, with the bar after each: a world's saved record
+    /// ([`Reckoning::saved`]) is the bar at its time, and the ticks after it are played again from there.
+    steps: std::collections::VecDeque<Step>,
 }
+
+/// [F1] One tick as [`Reckoning::tick`] took it, and the bar after it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Step {
+    now: u32,
+    keys: u32,
+    carrying: bool,
+    refused: bool,
+    value: f32,
+}
+
+/// [F1] Ticks kept for a late world: a world reaches the bots at most its interval (1,000 ms: worlds come once a second) plus
+/// the bots' 300 ms lead after its time, 26 ticks of 50 ms; 64 keep 3.2 s, more than twice that.
+const STEPS_KEPT: usize = 64;
 
 impl Default for Reckoning {
     fn default() -> Self {
-        Self { value: MAX, flag: Flag::Fine, last_spend: None, last_tick: 0, keys: 0, rates: Rates::LIGHT }
+        Self {
+            value: MAX,
+            flag: Flag::Fine,
+            last_spend: None,
+            last_tick: 0,
+            keys: 0,
+            rates: Rates::LIGHT,
+            steps: std::collections::VecDeque::new(),
+        }
+    }
+}
+
+/// [F1] The bar as the bot's OWN saved record has it in a world (`player_stamina::serialize` 0x329310, read by
+/// `srp_validate::world::Stamina`), parsed once at the boundary: its value, its low flag and its last spending moved onto
+/// the world's clock. The client's bar is this; a hit's stamina damage, the take-off's spending and the weight's cost are in
+/// it, which the reckoning between worlds does not know (exactness S5: the reckoned bar was right in 85.6 % of worlds before
+/// a hit, 62 % after; 20 or more off in 23,553 of 112,013).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Saved {
+    /// The world's time, ms.
+    pub at: u32,
+    pub value: f32,
+    pub low: bool,
+    /// The last spending on the world's clock; none when the record has none (0).
+    pub last_spend: Option<u32>,
+    /// [F2] The weight's node on the spending (`m_spending_speed_modifier`, 0x329B20: 1.5 x the weight's cost `t` of what the
+    /// body carries now, its spent rounds out): the client's own, in place of the kit's as bought ([`Rates::with_weight`]).
+    pub weight: f32,
+}
+
+impl Saved {
+    /// The record of a world of `at`: `value` (`m_value`, held to 0..=[`MAX`]), the low flag, and the record's own clock
+    /// (`m_current_time_in_ms`) and last spending (`m_last_spending_time_in_ms`, 0 for none), the spending put on the
+    /// world's clock by its age on the record's, and the weight's node (`m_spending_speed_modifier`).
+    pub fn of(at: u32, value: f32, low: bool, current_ms: u32, last_spending_ms: u32, weight: f32) -> Self {
+        let last_spend = (last_spending_ms != 0).then(|| at.saturating_sub(current_ms.saturating_sub(last_spending_ms)));
+        Self { at, value: value.clamp(0.0, MAX), low, last_spend, weight }
     }
 }
 
@@ -117,6 +211,30 @@ impl Reckoning {
     /// A new life: a full bar, at the light kit's rates until [`Reckoning::set_rates`].
     pub fn spawn(&mut self, now: u32) {
         *self = Self { last_tick: now, ..Self::default() };
+    }
+
+    /// [F1] A world's saved record of the bar: the bar at its time is the record's, and the ticks the bot took since are
+    /// played again on it, at the record's weight node ([F2]: the client's, whatever `think.stamina_rates`). A record older than every kept tick, or of a time before the life, sets the bar as it is now.
+    pub fn saved(&mut self, saved: Saved) {
+        let reckoned = self.steps.iter().rev().find(|step| step.now <= saved.at).map(|step| step.value);
+        if let Some(reckoned) = reckoned {
+            counts::saved_world((reckoned - saved.value).abs());
+        }
+        let keys = self.steps.iter().rev().find(|step| step.now <= saved.at).map_or(self.keys, |step| step.keys);
+        let after: Vec<Step> = self.steps.iter().filter(|step| step.now > saved.at).copied().collect();
+        if saved.at < self.last_tick && reckoned.is_none() {
+            return;
+        }
+        self.value = saved.value;
+        self.flag = if saved.low { Flag::Low } else { Flag::Fine };
+        self.last_spend = saved.last_spend;
+        self.rates = self.rates.with_weight(saved.weight);
+        self.last_tick = saved.at;
+        self.keys = keys;
+        self.steps.retain(|step| step.now <= saved.at);
+        for step in after {
+            self.tick(step.now, step.keys, step.carrying, step.refused);
+        }
     }
 
     /// The life's rates (its kit's, `think.stamina_rates`).
@@ -149,7 +267,7 @@ impl Reckoning {
 
     /// The jump goes: the flag clear and the bar at its cost.
     pub fn may_jump(&self) -> bool {
-        self.flag == Flag::Fine && self.value >= self.rates.jump
+        self.flag == Flag::Fine && self.value >= self.rates.jump()
     }
 
     /// One tick at `now` ms, with the keys the bot sent in the tick before (`keys`), whether it carries and whether its own
@@ -159,14 +277,14 @@ impl Reckoning {
         let dt = now.saturating_sub(self.last_tick) as f32 / 1_000.0;
         let held = Kinematics::sprints(keys);
         if self.sprinting(keys, carrying, refused) {
-            self.value = (self.value - self.rates.spend * dt).max(0.0);
+            self.value = (self.value - self.rates.spend() * dt).max(0.0);
             self.last_spend = Some(self.last_tick);
         } else if self.value < MAX && (self.value == 0.0 || self.last_spend.is_none_or(|at| now > at + WAIT_MS)) {
-            self.value = (self.value + self.rates.regen * dt).min(MAX);
+            self.value = (self.value + self.rates.regen() * dt).min(MAX);
         }
         if keys & key::JUMP != 0 && self.keys & key::JUMP == 0 {
             if self.may_jump() {
-                self.value -= self.rates.jump;
+                self.value -= self.rates.jump();
                 self.last_spend = Some(self.last_tick);
             } else {
                 counts::jump_refused();
@@ -174,6 +292,10 @@ impl Reckoning {
         }
         self.keys = keys;
         self.last_tick = now;
+        self.steps.push_back(Step { now, keys, carrying, refused, value: self.value });
+        while self.steps.len() > STEPS_KEPT {
+            self.steps.pop_front();
+        }
         match self.flag {
             Flag::Fine if self.value <= 0.0 => {
                 self.flag = Flag::Low;
@@ -192,7 +314,7 @@ impl Reckoning {
     /// jump, its run-up and the margin, at the life's rates. Walking (not spending) the bar comes back after the wait,
     /// so a sprint dropped early arrives with more.
     pub fn covers(&self, ahead_m: f32, run_up_m: f32) -> bool {
-        self.value - self.rates.spend_per_m() * (ahead_m + run_up_m) >= self.rates.jump + JUMP_MARGIN
+        self.value - self.rates.spend_per_m() * (ahead_m + run_up_m) >= self.rates.jump() + JUMP_MARGIN
     }
 }
 
@@ -250,6 +372,19 @@ pub mod counts {
     pub fn saved_ms() -> u64 {
         SAVED_MS.load(Ordering::Relaxed)
     }
+
+    /// [F1] Worlds whose saved bar set the reckoning, and of them those the reckoning was 5 and 20 or more off.
+    static SAVED: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
+
+    pub fn saved_world(off: f32) {
+        SAVED[0].fetch_add(1, Ordering::Relaxed);
+        SAVED[1].fetch_add(u64::from(off >= 5.0), Ordering::Relaxed);
+        SAVED[2].fetch_add(u64::from(off >= 20.0), Ordering::Relaxed);
+    }
+
+    pub fn saved_worlds() -> [u64; 3] {
+        std::array::from_fn(|k| SAVED[k].load(Ordering::Relaxed))
+    }
 }
 
 #[cfg(test)]
@@ -265,6 +400,62 @@ mod tests {
         now
     }
 
+    /// [F1] A world's saved record sets the bar at its time and the ticks since are played again on it: a sprint of 1 s after
+    /// a world of 1,000 ms that saved 30 (a hit's drain the reckoning did not know) leaves 25, not the reckoned 95; the record's
+    /// last spending is put on the world's clock by its age on its own.
+    #[test]
+    fn a_saved_record_sets_the_bar_and_the_ticks_since_are_played_again() {
+        let sprint = key::FORWARD | key::SPRINT;
+        let mut r = Reckoning::default();
+        r.spawn(0);
+        let now = run(&mut r, 0, 1_000, 0);
+        let now = run(&mut r, now, 1_000, sprint);
+        assert!((r.value() - 95.0).abs() < 1e-3, "reckoned {}", r.value());
+        r.saved(Saved::of(1_000, 30.0, false, 51_000, 50_900, 0.0));
+        assert!((r.value() - 25.0).abs() < 1e-3, "from the record: {}", r.value());
+        assert_eq!(now, 2_000);
+        assert_eq!(Saved::of(1_000, 30.0, false, 51_000, 50_900, 0.0).last_spend, Some(900));
+        assert_eq!(Saved::of(1_000, 130.0, true, 51_000, 0, 0.0), Saved { at: 1_000, value: MAX, low: true, last_spend: None, weight: 0.0 });
+        // A record's low flag holds the sprint off until it clears.
+        let mut low = Reckoning::default();
+        low.spawn(0);
+        run(&mut low, 0, 500, 0);
+        low.saved(Saved::of(500, 0.0, true, 500, 450, 0.0));
+        assert!(low.low() && !low.sprinting(sprint, false, false));
+    }
+
+    /// [F2] The client's sum (`apply_modifier` 0x2D5AE0): the weight's node is added inside S19 with the kit's float and the
+    /// items' nodes, not multiplied after it; S67 multiplies; a world's record replaces the kit's node; S19 at or under -1 spends
+    /// nothing. The items' modifications are the data's (`modifications.options`): 1160 and 1164 lower the spending, the
+    /// defect 4110 raises it.
+    #[test]
+    fn the_rates_are_the_clients_sum_and_the_record_gives_the_weights_node() {
+        use survarium::v026g::bot_skills::item_added;
+
+        let rates = Rates { spending: -0.1, weight: 0.75, skill: -0.2, regeneration: 0.1 };
+        assert!((rates.spend() - 5.0 * 1.65 * 0.8).abs() < 1e-5, "{}", rates.spend());
+        assert!((rates.jump() - 10.0 * 1.65 * 0.8).abs() < 1e-5, "{}", rates.jump());
+        assert!((rates.regen() - 11.0).abs() < 1e-5, "{}", rates.regen());
+        assert!((rates.with_weight(0.0).spend() - 5.0 * 0.9 * 0.8).abs() < 1e-5);
+        assert_eq!(Rates { spending: -1.5, ..Rates::LIGHT }.spend(), 0.0);
+        // The record's node, through a world: a sprint of 1 s after it spends at the node's rate.
+        let sprint = key::FORWARD | key::SPRINT;
+        let mut r = Reckoning::default();
+        r.spawn(0);
+        let now = run(&mut r, 0, 1_000, 0);
+        r.saved(Saved::of(now, 80.0, false, now, 0, 1.5));
+        run(&mut r, now, 1_000, sprint);
+        assert!((r.value() - 67.5).abs() < 1e-3, "1 s at 5 x 2.5 a second: {}", r.value());
+        assert!((r.gauge().rates.jump() - 25.0).abs() < 1e-4);
+        // The data's modifications.
+        let spending = |id, defect| item_added(0, &[(id, defect)], "stamina_spending_speed_modifier");
+        assert!(spending(1160, false) < 0.0 && spending(1164, false) < spending(1160, false), "{} {}", spending(1160, false), spending(1164, false));
+        assert!(spending(4110, true) > 0.0, "{}", spending(4110, true));
+        // The regeneration's (1100-1104, 4060) are read under the exe's key, `stamina_regeneration_speed_modifier` (its name table
+        // 0x928448, entry 3): the stock data spells it `stamina_regenation_...`, which the client never reads, and the live content
+        // renames it (`scripts/content-edit/weapon-balance-1.json`, rows 88 and 91); either way the bots read what the client reads.
+    }
+
     /// The law: a sprint of 20 s empties the bar and sets the flag; the flag clears in about 3 s (one regenerating tick, the
     /// 1 s wait, then 2 s), the sprint keys held or not (A364 P10: the flag refuses the sprint state, nothing is spent); a jump
     /// needs the flag clear and 10 of the bar.
@@ -277,7 +468,7 @@ mod tests {
         let now = run(&mut r, now, 1_000, sprint);
         assert!(r.low() && r.value() <= 1e-3, "{} {}", r.value(), r.low());
         // Held on: it clears all the same, in about 3 s, and the sprint spends again.
-        let mut held = r;
+        let mut held = r.clone();
         let (mut t, mut seconds) = (now, 0.0);
         while held.low() && seconds < 10.0 {
             t += 50;
@@ -320,7 +511,7 @@ mod tests {
     #[test]
     fn a_heavy_kits_bar_empties_sooner() {
         let sprint = key::FORWARD | key::SPRINT;
-        let heavy = Rates { spend: 12.5, regen: 10.0, jump: 25.0 };
+        let heavy = Rates { weight: 1.5, ..Rates::LIGHT };
         let mut light = Reckoning::default();
         let mut kit = Reckoning::default();
         kit.set_rates(heavy);

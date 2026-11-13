@@ -1669,7 +1669,7 @@ mod tests {
         let kin = Kinematics { step_input: StepInput::Same, ..Kinematics::default() };
         let mut tracker = Tracker::new(crate::v026g::bots::objective::Mode::Batteries, &[0, 1], &[true, false], vec![]);
         tracker.entered(1, true);
-        let start = Fix { fall: None,
+        let start = Fix { fall: None, controller: None,
             time: 1_000,
             alive: true,
             inserted: 10,

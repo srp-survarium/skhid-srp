@@ -532,6 +532,7 @@ pub(super) const KEPT_RIGHT: &[&str] = &[
     "/grid/walk_every_link",
     "/grid/walk_start_clear",
     "/grid/wall_give_back",
+    "/grid/wall_held_tops",
     "/hazard/leave_islands",
     "/hazard/zone_intensity",
     "/hazard/zone_pools",

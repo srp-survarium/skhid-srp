@@ -13,7 +13,11 @@
 //!   there are three sweeps in a move (`depth` 0 to 2);
 //! - the contact normal is the capsule's (round at a corner); with `cc_wall_normal_via_ray` the exe takes a face's normal instead
 //!   of it when the move is more head-on than `cc_wall_full_slide_dot` (`character_move_sweep_callback::addSingleResult` 0x895F0
-//!   with 0x89B80, LIKELY: a ray along the move from the centre, 0.03 m past the contact, meeting a face).
+//!   with 0x89B80). The stand-in's ray is not the client's: it casts one ray along the move from the centre, 0.03 m past the
+//!   contact (`face_ahead`). The client's 0x89B80 (PROVEN, read instruction by instruction; ported as `wall_normal_via_ray` in
+//!   `mapdata::controller::tick`) casts rays along the move beside the hit point, offset by `cc_wall_normal_via_ray_offset`
+//!   0.03 m (head on, two rays 0.03 m either way along the wall), each starting 0.5 `dir` before its point and `dir` long, and
+//!   takes the less head-on horizontal normal of the faces they meet. Kept as the stand-in's model until changed (register G29).
 //!
 //! The walls are the walker mesh's faces that are not ground (steeper than the client's slope, or `dont_walk`), cut at three
 //! heights in the middle of the capsule that sweeps (`cc_step_height 0.80`: it is lifted by the step height from below, so a face

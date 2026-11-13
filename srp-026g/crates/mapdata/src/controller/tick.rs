@@ -14,8 +14,8 @@
 //! (`docs/notes/exactness_rig.md` section 3b). The crouch flags are the exe's four (section 3a).
 //!
 //! The via-ray wall normal (0x89B80) is read and ported ([`WallNormal::Rays`]); [`Settings::LIVE`] still takes the first
-//! stand-in ([`WallNormal::FaceMadeHorizontal`]) until the nav gate. What is LIKELY rather than read: the stand-up and slide
-//! sweeps (0x86BF0, 0x88CB0, read in outline: capsule sweeps).
+//! stand-in ([`WallNormal::FaceMadeHorizontal`]) until the nav gate. The stand-up and slide sweeps (0x86BF0, 0x873C0,
+//! 0x88CB0) and their callbacks (0x869D0; 0x88C90, the stock closest callback with no filter) are read whole.
 // The exe's comparisons are ported as written: `!(a > b)` and `a > b` differ on NaN, as `comiss` branches do.
 #![allow(clippy::neg_cmp_op_on_partial_ord)]
 use super::{Collision, Contact, Shape, SmallRound, SolidId, Surface};
@@ -59,7 +59,8 @@ pub struct Settings {
 /// The move sweep's wall normal for a nearly head-on hit (over `wall_full_slide_dot`), callback 0x895F0.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum WallNormal {
-    /// The face's own normal, made horizontal, toward the body: the port's first stand-in (LIKELY, A313).
+    /// The face's own normal, made horizontal, toward the body: the port's first stand-in (A313), not the exe's rule (that
+    /// is [`WallNormal::Rays`]); kept for [`Settings::LIVE`] until the nav gate.
     #[default]
     FaceMadeHorizontal,
     /// The exe's 0x89B80 with `ray_pick` 0x898C0 (dis/notes-raynormal.md, read instruction by instruction; A325 P1: walk
@@ -144,6 +145,34 @@ pub struct Controller {
     pub air_control: Vec3,
 }
 
+/// A controller as a world saves it (`serialize` 0x7F7F0, 67 bytes) with the player's feet, in the map's frame:
+/// [`Controller::deserialized`]. The block's sprint flag (+204h) is not here: the port takes it each tick ([`TickInput::sprinting`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Saved {
+    /// The player's feet (its transform, +40Ch), which `set_transform` 0x7F6D0 puts the capsule on.
+    pub feet: Vec3,
+    /// +2C70Ch `m_jumping`.
+    pub jumping: bool,
+    /// +200h `m_input_is_in_crouch`.
+    pub input_crouch: bool,
+    /// +201h `m_logic_is_in_crouch`.
+    pub logic_crouch: bool,
+    /// +203h `m_capsule_is_in_crouch`.
+    pub capsule_crouch: bool,
+    /// +202h `m_can_stand`.
+    pub can_stand: bool,
+    /// +205h `m_colliding_with_player`.
+    pub colliding_with_player: bool,
+    /// +2C770h `m_fall_and_slide_velocity`.
+    pub velocity: Vec3,
+    /// +2C710h `m_supporting_surface_normal`.
+    pub support_normal: Vec3,
+    /// +2C720h `m_blocking_ceiling_normal`.
+    pub ceiling_normal: Vec3,
+    /// +2C730h `m_blocking_ceiling_slide_velocity`.
+    pub ceiling_slide: Vec3,
+}
+
 /// What the game's logic does with the crouch between two steps: the key (bit 8 of the input's actions, either of
 /// the client's `crouch` and `crouch_toggle` keys), and whether the held item's animation selector tests its crouch
 /// transitions this frame (PROVEN, `docs/notes/crouch_logic.md`).
@@ -181,7 +210,7 @@ pub struct StepNotes {
     pub landed: bool,
     pub airborne: bool,
     pub refused: bool,
-    /// Refused because the body could not straighten under something (the low-ceiling slide 0x7DF20 is not ported).
+    /// Refused because the body could not straighten under something.
     pub ceiling: bool,
     pub side_slide: bool,
     pub down_slide: bool,
@@ -331,6 +360,30 @@ impl Controller {
             ceiling_normal: Vec3::new(0.0, -1.0, 0.0),
             air_control: Vec3::ZERO,
         }
+    }
+
+    /// `deserialize` 0x7FB10 and its caller's `set_transform` 0x7F6D0 (base_player's deserialize 0x2DB901..0x2DB934; read whole by
+    /// exactness 2026-11-13, `rig/dis/deser-7FB10.txt`): the block's six flags (+2C70Ch, +200h, +201h, +203h, +202h, +205h) and four
+    /// vectors (+2C770h, +2C710h, +2C720h, +2C730h, each zero component +0), the capsule's dims by +203h (`setup_shape_dim` 0x7F100,
+    /// not `setup_crouch_state`), then the origin on the player's feet with those dims. Nothing else is reset (dt, gravity, the walk
+    /// and air-control vectors keep the constructor's); the working position is the origin, as `player_step` sets it at its start.
+    pub fn deserialized(saved: &Saved) -> Self {
+        let plus_zero = |v: Vec3| Vec3::new(v.x + 0.0, v.y + 0.0, v.z + 0.0);
+        let mut body = Self::standing_at(Vec3::ZERO);
+        body.crouched = saved.capsule_crouch;
+        body.dims = dims_of(if body.crouched { body.crouching } else { body.standing });
+        body.origin = saved.feet + UP * body.d();
+        body.pos = body.origin;
+        body.jumping = saved.jumping;
+        body.input_crouch = saved.input_crouch;
+        body.want_crouch = saved.logic_crouch;
+        body.can_stand = saved.can_stand;
+        body.colliding_with_player = saved.colliding_with_player;
+        body.velocity = plus_zero(saved.velocity);
+        body.contact_normal = plus_zero(saved.support_normal);
+        body.ceiling_normal = plus_zero(saved.ceiling_normal);
+        body.slide = plus_zero(saved.ceiling_slide);
+        body
     }
 
     /// The feet (the capsule's bottom) at the origin.
@@ -556,7 +609,7 @@ impl Controller {
     }
 
     /// The tail's stand test `can_straighten` 0x7F7B0 (read whole: a crouched capsule is tested by the stand tester at
-    /// +0x144A0, sweep 0x873C0, from the collision object's origin +0xB0; the sweep itself is LIKELY, read in outline): the
+    /// +0x144A0, sweep 0x873C0 read whole, from the collision object's origin +0xB0; its cache 0x87640 keys on `from`): the
     /// crouched capsule swept up by what standing adds; a face met is the ceiling, its normal kept.
     fn stand_test(&mut self, world: &Collision) -> bool {
         // From the origin (where the body was at the tick's start), proven in Unicorn; a miss leaves -up.
@@ -967,7 +1020,8 @@ impl Controller {
         h > 0.0
     }
 
-    /// `can_straighten` 0x7EEB0 (the stand-up sweep 0x86BF0 taken as the cut capsule swept up by the step, LIKELY).
+    /// `can_straighten` 0x7EEB0 with the stand-up sweep 0x86BF0 (read whole: the step-cut capsule from `pos` swept up by
+    /// the step; its cache 0x86E80 keys on (from, dist, hh) by equality, so it returns what the sweep would).
     fn can_straighten(&self, world: &Collision, sb: Vec3, step: f32) -> bool {
         self.straighten(world, sb, step).is_none()
     }
@@ -977,23 +1031,33 @@ impl Controller {
         let d = self.d();
         let p = self.pos;
         let h = (((p.z - d * UP.z) - sb.z) * UP.z + ((p.x - d * UP.x) - sb.x) * UP.x) + UP.y * ((p.y - d * UP.y) - sb.y);
-        if !(h > 0.0) {
+        // `comiss 0, d; jnc`: a NaN goes on to the sweep, as in the exe.
+        if 0.0 >= h {
             return None;
         }
         self.up_sweep(world, p, step)
     }
 
-    /// The up sweeps 0x86BF0 / 0x873C0 with their callback 0x869D0 (proven in Unicorn): the capsule at `from` swept up by
-    /// `rise`; a hit counts only on the top half of the top sphere and strictly inside the radius from the axis. Its normal.
+    /// The up sweeps 0x86BF0 / 0x873C0 (read whole) with their callback 0x869D0 (read whole; the exe's own callback judged
+    /// 20,162 of 20,162 made hits as this does): the capsule at `from` swept up by `rise`. A hit counts when its point is
+    /// not under the top sphere's centre at the sweep's start (the threshold `up . from + hh` is built once, at 0x86CA8 /
+    /// 0x87425) and its distance from the axis through `from` is under the radius by 1e-5 or more (an f32 root, compared
+    /// with `comiss`). Its normal.
     fn up_sweep(&self, world: &Collision, from: Vec3, rise: f32) -> Option<Vec3> {
         let (r, hh) = self.dims;
         // The cast's way is the end's origin less the start's (0x72EB0).
         let by = (from + UP * rise) - from;
+        // With up = (0, 1, 0) both wrappers' sums give these bits: the other terms are signed zeros.
+        let floor = from.y + hh;
         let mut best: Option<Contact> = None;
         world.sweep_each(self.capsule_at(from), by, |c| {
-            let top = from + by * c.t + UP * hh;
-            let (hx, hz) = (c.point.x - top.x, c.point.z - top.z);
-            if c.point.y < top.y || !(hx * hx + hz * hz < r * r) {
+            if floor > c.point.y {
+                return;
+            }
+            // The point less the start, less its part along up: (dz² + dy²) + dx² with dy a zero.
+            let (hx, hz) = (c.point.x - from.x, c.point.z - from.z);
+            let s = (hz * hz + hx * hx).sqrt();
+            if TINY > (s - r).abs() || !(r > s) {
                 return;
             }
             if best.is_none_or(|b| c.t < b.t) {

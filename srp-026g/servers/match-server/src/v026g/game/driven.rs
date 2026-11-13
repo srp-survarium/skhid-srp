@@ -690,7 +690,7 @@ impl Game {
         };
         for block in blocks {
             let place = usize::from(block.place);
-            let Some((_, motion)) = Motion::find(block.state, snapshot.time) else {
+            let Some((items, motion)) = Motion::find(block.state, snapshot.time) else {
                 log::debug!(
                     "Match {id:#x}: player {place}'s body is not read in the world at {} ms",
                     snapshot.time
@@ -714,6 +714,19 @@ impl Game {
                     .damage
                     .as_ref()
                     .map(|damage| damage.linear_horizontal_speed),
+                controller: motion.body.as_ref().map(|body| mapdata::controller::tick::Saved {
+                    feet: Vec3::from_array(body.feet()),
+                    jumping: body.jumping,
+                    input_crouch: body.input_crouch,
+                    logic_crouch: body.logic_crouch,
+                    capsule_crouch: body.capsule_crouch,
+                    can_stand: body.can_stand,
+                    colliding_with_player: body.colliding_with_player,
+                    velocity: Vec3::from_array(body.fall_and_slide_velocity),
+                    support_normal: Vec3::from_array(body.supporting_surface_normal),
+                    ceiling_normal: Vec3::from_array(body.blocking_ceiling_normal),
+                    ceiling_slide: Vec3::from_array(body.blocking_ceiling_slide_velocity),
+                }),
             };
             let health = motion
                 .damage
@@ -735,6 +748,22 @@ impl Game {
                     walkers.bots.pools(place, pools);
                 }
                 walkers.bots.bullet_hit(place, damage.last_hit_time_ms);
+            }
+            // [F1] The place's saved stamina record (`srp_validate`'s view of the state, the world format's one definition): a
+            // bot's own bar is the record's.
+            if let Ok(state) = srp_validate::world::PlayerState::read(block.state, items, None) {
+                let saved = state.stamina();
+                walkers.bots.stamina(
+                    place,
+                    crate::v026g::bots::stamina::Saved::of(
+                        snapshot.time,
+                        saved.value().get(),
+                        saved.is_low_stamina(),
+                        saved.current_time_ms(),
+                        saved.last_spending_time_ms(),
+                        saved.spending_speed_modifier().get(),
+                    ),
+                );
             }
             let notes = walkers.bots.fixed(place, fix, health);
             log_notes(id, notes);

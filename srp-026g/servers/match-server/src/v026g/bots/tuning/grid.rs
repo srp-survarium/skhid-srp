@@ -173,6 +173,12 @@ pub struct GridTuning {
     /// ported, the refusal is the exe's own verdict). Off: such links pass and bots stall crouched on them (Rudnya, 11 stalls
     /// in the owner's 14 recordings). Client-proven, so ON and kept by `all_off`. A grid is the map's (see `gap_links`).
     pub walk_ceiling_stalls: bool,
+    /// [routes corpus] Whether a jump onto a top too narrow to walk on along the jump lands where a wall beyond the top stops
+    /// the body (`mapdata::Body::wall_held_tops`: a window's sill, a ledge along a wall; a fence's top with a drop beyond stays no
+    /// landing). Off: no jump reaches such a top, and places real players stand on many times are out of the bots' reach
+    /// (School's sill at 41.9 21.7 142.9: 144 visits, 89 players). The map's geometry, so ON and kept by `all_off`. A grid is
+    /// the map's (see `gap_links`).
+    pub wall_held_tops: bool,
     /// [A318] Whether the floors the erosion rounds took beside a wall the body clears are given back in the maps' walk grids
     /// (`mapdata::Body::wall_give_back`): the exact pass keeps them, a wall face stands within 0.6 m, and the client's walk tick
     /// stands a body there (A318: the rounds took the floor under the client in 376 of the drift lab's grid holds, the exact
@@ -299,6 +305,7 @@ impl Default for GridTuning {
             narrow_doors: true,
             drop_check: true,
             walk_ceiling_stalls: true,
+            wall_held_tops: true,
             wall_give_back: true,
             exe_collision: true,
             walk_start_clear: true,
@@ -348,6 +355,7 @@ impl GridTuning {
             narrow_doors: self.narrow_doors,
             drop_check: self.drop_check,
             walk_ceiling_stalls: self.walk_ceiling_stalls,
+            wall_held_tops: self.wall_held_tops,
             wall_give_back: self.wall_give_back,
             exe_collision: self.exe_collision,
             walk_start_clear: self.walk_start_clear,

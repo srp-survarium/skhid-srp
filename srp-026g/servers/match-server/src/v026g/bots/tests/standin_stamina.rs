@@ -20,12 +20,18 @@
 //!   at its walk speed), whatever its keys; an overburdened body (the kit's
 //!   weight at its capacity, no skill 213) never sprints;
 //! - a jump needs the flag clear and the bar at its cost, `10 × (1 + 1.5 t)
-//!   × (1 + skill 201)`, which it spends at the press (the take-off is about
-//!   0.2 s after it in the game: LIKELY); a refused press spends nothing;
+//!   × (1 + skill 201)`, which it spends at the press. Not the client's: the
+//!   client tests the bar at the press (0x2D6420) and spends it at the
+//!   take-off event (the "jump" callback, 0x3434B9), 150-200 ms after the
+//!   press for a short jump and about 250-300 ms for a sprint jump (PROVEN,
+//!   rig `notes-jump-state.md` 0, 6); kept as the stand-in's model until
+//!   changed (register G58); a refused press spends nothing;
 //! - a bullet that hits takes the weapon's `stamina_damage` (the shotgun's
 //!   per pellet that lands) from the victim's bar, and restarts the wait.
-//!   Grenades' damage to it is not modelled (LIKELY the same path, not
-//!   proven).
+//!   Grenades' damage to it is not modelled; the client's blast takes it
+//!   by the same path: each of the six parts it hits gets the set's
+//!   `stamina_damage` x max(0, 1 + S11 of the thrower) (`splash_parameters`
+//!   0x30A350..0x30A480; PROVEN, the rig's register L26).
 //!
 //! `t` is the weight's cost, `clamp((w - 20) / (capacity - 20), 0, 1)`, of
 //! the kit the body's weapon belongs to in the bench's tier; the skills are
@@ -110,14 +116,23 @@ impl Rates {
                 let weight = kit.weight();
                 let t = bot_skills::weight_cost(weight, capacity);
                 let index = |name| modifier_index(name).expect("a modifier of the 68");
-                let carried = 1.0 + survarium::v026g::item_params::player()
-                    .max_carried_weight_spending_speed_modifier
-                    * t;
-                let spending = 1.0 + modifiers[index("stamina_spending_speed_skill")];
+                // The client's getter: S19 = the kit's float + the items' nodes + the weight's node, S67 after it; S3 the kit's
+                // float + the items' nodes (`docs/notes/stamina_and_modifiers.md`).
+                let items = |parameter| -> f32 {
+                    kit.items
+                        .iter()
+                        .map(|item| bot_skills::item_added(item.dict_id, &bot_skills::wire_mods(item.mods), parameter))
+                        .sum()
+                };
+                let s19 = modifiers[index("stamina_spending_speed")]
+                    + items("stamina_spending_speed_modifier")
+                    + survarium::v026g::item_params::player().max_carried_weight_spending_speed_modifier * t;
+                let factor = (1.0 + s19).max(0.0) * (1.0 + modifiers[index("stamina_spending_speed_skill")]).max(0.0);
+                let s3 = modifiers[index("stamina_regeneration_speed")] + items("stamina_regeneration_speed_modifier");
                 return Self {
-                    spend: SPRINT_SPEND_PER_S * carried * spending,
-                    regen: REGEN_PER_S * (1.0 + modifiers[index("stamina_regeneration_speed")]),
-                    jump: JUMP_COST * carried * spending,
+                    spend: SPRINT_SPEND_PER_S * factor,
+                    regen: REGEN_PER_S * (1.0 + s3).max(0.0),
+                    jump: JUMP_COST * factor,
                     can_sprint: weight < capacity || modifiers[index("can_sprint")] > 0.0,
                     weight_cost: t,
                 };
@@ -205,6 +220,19 @@ impl Stamina {
 
     pub(crate) fn value(&self) -> f32 {
         self.value
+    }
+
+    /// [F1] The bar as the body's saved record has it in a world of `tick` (what a client writes: its value, its low flag,
+    /// its last spending); none while the model is off (`SRP_BENCH_STAMINA`): a bar that is never spent is no client's record,
+    /// and the bots then reckon their own as before.
+    pub(crate) fn saved(&self, tick: u32) -> Option<crate::v026g::bots::stamina::Saved> {
+        self.on.then_some(crate::v026g::bots::stamina::Saved { at: tick, value: self.value, low: self.low(), last_spend: self.last_sprint, weight: self.weight_node() })
+    }
+
+    /// [F2] The weight's node of the body's record (`m_spending_speed_modifier`, 0x329B20): 1.5 x its kit's `t`, the node
+    /// its own spending holds.
+    fn weight_node(&self) -> f32 {
+        survarium::v026g::item_params::player().max_carried_weight_spending_speed_modifier * self.rates.weight_cost
     }
 
     pub(crate) fn low(&self) -> bool {
@@ -480,7 +508,7 @@ mod tests {
                     seen.push(item);
                     let body = Rates::of(tier, item);
                     let bot = stamina::Rates::of_kit(kit, &modifiers);
-                    assert_eq!((bot.spend, bot.regen, bot.jump), (body.spend, body.regen, body.jump), "{tier:?} {role:?} {k} {item}");
+                    assert_eq!((bot.spend(), bot.regen(), bot.jump()), (body.spend, body.regen, body.jump), "{tier:?} {role:?} {k} {item}");
                 }
             }
         }

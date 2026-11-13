@@ -253,6 +253,15 @@ pub(super) fn fix_floors() -> Box<dyn RouteTopic> {
     )
 }
 
+/// [`kin.fix_floor = under_in_air`] The worlds with the body in the air out of its own jump: put on the floor under its feet where
+/// that is not the nearest (`moved`), and on the same floor (`body::counts`).
+pub(super) fn fix_floors_in_air() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::body::counts::fix_floors_in_air().to_vec(),
+        |d, line| line.ends.push(format!("fix_floor_in_air_same {} fix_floor_in_air_moved {}", d[0], d[1])),
+    )
+}
+
 /// The ticks off the route by the walked-leg rule alone (`path::below_walk`).
 pub(super) fn below_walk() -> Box<dyn RouteTopic> {
     Delta::of(
