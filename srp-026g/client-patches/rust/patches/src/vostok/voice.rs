@@ -274,13 +274,55 @@ impl Polled {
     }
 }
 
+pub use voice_abi::Pan;
+
+/// How a place is heard: plain from its side of the listener, or through the
+/// radio (centred).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Heard {
+    Direct(Pan),
+    Radio,
+}
+
+/// How every place is heard (what the DLL is told: `sv_radio`'s mask and
+/// `sv_direction` of each place heard directly).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Hearing([Heard; Place::COUNT]);
+
+impl Hearing {
+    /// Every place plain and centred.
+    pub const CENTRED: Hearing = Hearing([Heard::Direct(Pan::CENTRE); Place::COUNT]);
+
+    pub fn with(mut self, place: Place, heard: Heard) -> Hearing {
+        self.0[place.index()] = heard;
+        self
+    }
+
+    pub fn of(&self, place: Place) -> Heard {
+        self.0[place.index()]
+    }
+
+    fn radio(&self) -> Places {
+        Place::all().filter(|&p| self.of(p) == Heard::Radio).fold(Places::NONE, Places::with)
+    }
+}
+
+/// A player alive in the world, as voice needs it: where its feet are, and
+/// its eyes' right (the eye transform's first row: the rows right, up,
+/// forward and the place, in the map's left-handed frame, Y up).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Body {
+    pub feet: [f32; 3],
+    pub right: [f32; 3],
+}
+
 /// A place of the match as voice needs it: the name and team of its record
-/// (the match options') and, while its player is alive in the world, where.
+/// (the match options') and, while its player is alive in the world, its body.
 #[derive(Clone, Copy)]
 pub struct Seat {
     pub name: [u8; 64],
     pub team: u32,
-    pub position: Option<[f32; 3]>,
+    pub body: Option<Body>,
 }
 
 /// The match's places, the local player's among them.
@@ -293,17 +335,20 @@ pub struct Roster {
 impl Roster {
     pub const EMPTY: Roster = Roster { seats: [None; Place::COUNT], local: None };
 
-    fn of(client: &NetworkClient<'_>, positions: bool) -> Roster {
+    fn of(client: &NetworkClient<'_>, bodies: bool) -> Roster {
         let mut roster = Roster::EMPTY;
         let teams = client.place_teams();
         for place in Place::all() {
             let Some(team) = teams[place.index()] else { continue };
-            let position = if positions {
-                client.player(u32::from(place.get())).filter(|p| p.alive() && p.inserted()).map(|p| p.feet())
+            let body = if bodies {
+                client.player(u32::from(place.get())).filter(|p| p.alive() && p.inserted()).map(|p| {
+                    let eye = p.eye_transform();
+                    Body { feet: p.feet(), right: [eye[0], eye[1], eye[2]] }
+                })
             } else {
                 None
             };
-            roster.seats[place.index()] = Some(Seat { name: client.place_name(place), team, position });
+            roster.seats[place.index()] = Some(Seat { name: client.place_name(place), team, body });
         }
         roster.local = client.local_profile().and_then(|p| Place::new(u32::from(p)));
         roster
@@ -360,11 +405,11 @@ impl<'t> Scene<'t> {
         self.thread
     }
 
-    /// The match's places; with `positions`, the alive players' feet.
-    pub fn roster(&self, positions: bool) -> Roster {
+    /// The match's places; with `bodies`, the alive players' bodies.
+    pub fn roster(&self, bodies: bool) -> Roster {
         self.game
             .and_then(|game| NetworkClient::of_game(game, self.thread))
-            .map_or(Roster::EMPTY, |client| Roster::of(&client, positions))
+            .map_or(Roster::EMPTY, |client| Roster::of(&client, bodies))
     }
 
     pub fn movie(&self) -> Option<&Movie<'t>> {
@@ -510,9 +555,23 @@ impl Dll {
         unsafe { (self.api.mute)(places.0) }
     }
 
-    pub fn radio(self, places: Places) {
-        // SAFETY: the checked API, a mask.
-        unsafe { (self.api.radio)(places.0) }
+    /// Tells how every place is heard, what changed since `before` (all of
+    /// it without one): the radio's mask, and the pan of each place heard
+    /// directly.
+    pub fn hearing(self, hearing: Hearing, before: Option<Hearing>) {
+        let radio = hearing.radio();
+        if before.map(|b| b.radio()) != Some(radio) {
+            // SAFETY: the checked API, a mask.
+            unsafe { (self.api.radio)(radio.0) }
+        }
+        for place in Place::all() {
+            if let Heard::Direct(pan) = hearing.of(place)
+                && before.map(|b| b.of(place)) != Some(Heard::Direct(pan))
+            {
+                // SAFETY: the checked API, a place below 20 and a float.
+                unsafe { (self.api.direction)(i32::from(place.get()), pan.get()) }
+            }
+        }
     }
 
     /// The places talking now (the DLL's word): the teammates it plays, and

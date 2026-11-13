@@ -4,13 +4,65 @@ use crate::{
     sounds::{SQUELCH_IN, SQUELCH_OUT},
     wire::Message,
 };
+use std::f32::consts::{FRAC_PI_4, SQRT_2};
+pub use voice_abi::Pan;
 const RING: usize = 32;
-/// Speech is played this much louder than decoded (+6 dB): at the game's
-/// own volumes voice was too quiet (the owner, 2026-11-12).
-const SPEECH_GAIN: f32 = 2.;
+/// A frame of the mix: each sample's left and right, as WinMM's 16-bit
+/// stereo takes them.
+pub type Stereo = [[i16; 2]; FRAME];
+/// How a speaker is heard.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Heard {
+    /// Plain, from its side of the listener (a teammate near: the owner,
+    /// 2026-11-13, "directional in first 15 meters before radio").
+    Direct(Pan),
+    /// Through the radio, centred.
+    Radio,
+}
+impl Heard {
+    /// The left and right gains.
+    fn gains(self) -> [f32; 2] {
+        match self {
+            Heard::Direct(pan) => gains(pan),
+            Heard::Radio => [1., 1.],
+        }
+    }
+}
+/// Equal-power panning by the pan (the sine of the bearing), scaled so the
+/// centre is unity in both ears: as the mono mix was played before, and as
+/// the radio is. Every bearing has the same power (left² + right² = 2), so a
+/// direct voice is as loud as before wherever it is; full to one side it is
+/// +3 dB in that ear and silent in the other. Behind is centred, as ahead.
+pub fn gains(pan: Pan) -> [f32; 2] {
+    let angle = (pan.get() + 1.) * FRAC_PI_4;
+    [SQRT_2 * angle.cos(), SQRT_2 * angle.sin()]
+}
+/// How every slot is heard.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Hearing([Heard; SLOTS]);
+impl Hearing {
+    /// The slots of `radio` through the radio; the rest directly, from `pan`'s.
+    pub fn new(radio: u32, pan: impl Fn(usize) -> Pan) -> Self {
+        Self(std::array::from_fn(|slot| {
+            if radio & (1 << slot) != 0 {
+                Heard::Radio
+            } else {
+                Heard::Direct(pan(slot))
+            }
+        }))
+    }
+    /// The slots of `radio` through the radio; the rest directly, centred.
+    pub fn radio(radio: u32) -> Self {
+        Self::new(radio, |_| Pan::CENTRE)
+    }
+}
 /// The radio's static bed under a far teammate's words, of retail's level
-/// (1.0, about -44 dB): a quarter (-12 dB), the radio was too noisy.
-const RADIO_BED: f32 = 0.25;
+/// (1.0, about -44 dB): half (-6 dB), as #1635 left it in the mix (a
+/// quarter under its +6 dB). Speech is played as decoded: #1635's +6 dB is
+/// undone (the owner, 2026-11-13, of revision 58's level: "sound close by
+/// right now was very good in game"); the radio raises its own words
+/// (`radio::VOICE`).
+const RADIO_BED: f32 = 0.5;
 /// The mix's knee: below it a sample is as summed; above it the rest of the
 /// way to full scale is approached smoothly, so loud or several talkers
 /// never clip hard.
@@ -111,6 +163,10 @@ struct Speaker {
     effect: Option<Effect>,
     closing_effect: bool,
     limiter: Limiter,
+    /// The left and right gains of the last frame mixed: a frame ramps from
+    /// them to its own, so a turn or a step past the radio's distance never
+    /// clicks.
+    ears: [f32; 2],
 }
 impl Speaker {
     fn new() -> Result<Self, String> {
@@ -122,6 +178,7 @@ impl Speaker {
             effect: None,
             closing_effect: false,
             limiter: Limiter::UNITY,
+            ears: [1., 1.],
         })
     }
     fn take(&mut self, id: u16, slot: u8, stats: &mut Stats) -> bool {
@@ -377,27 +434,36 @@ impl Core {
             _ => {}
         }
     }
-    pub fn mix(&mut self, volume: f32, far_mask: u32, now: u32) -> [i16; FRAME] {
-        let mut acc = [0f32; FRAME];
+    pub fn mix(&mut self, volume: f32, hearing: &Hearing, now: u32) -> Stereo {
+        let mut acc = [[0f32; 2]; FRAME];
         let volume = unit(volume);
-        for (slot, s) in self.speakers.iter_mut().enumerate() {
-            let far = far_mask & (1 << slot) != 0;
+        for (s, heard) in self.speakers.iter_mut().zip(hearing.0) {
+            let far = heard == Heard::Radio;
+            let to = heard.gains();
+            let from = std::mem::replace(&mut s.ears, to);
             s.finish_effect(far, &mut self.stats);
             if let Some(mut pcm) = s.play(now, far, &mut self.stats) {
                 if far {
                     s.radio.process(&mut pcm, RADIO_BED);
                 }
-                for (a, p) in acc.iter_mut().zip(pcm) {
-                    *a += p * SPEECH_GAIN * volume;
+                for (i, (a, p)) in acc.iter_mut().zip(pcm).enumerate() {
+                    let t = (i + 1) as f32 / FRAME as f32;
+                    let p = p * volume;
+                    for ((ear, from), to) in a.iter_mut().zip(from).zip(to) {
+                        *ear += p * (from + (to - from) * t);
+                    }
                 }
             }
             s.finish_effect(far, &mut self.stats);
+            // The squelch is the radio's: centred.
             if let Some(fx) = &mut s.effect {
                 for sample in &mut acc {
                     if fx.at >= fx.samples.len() {
                         break;
                     }
-                    *sample += f32::from(fx.samples[fx.at]) / 32768. * volume;
+                    let fx_sample = f32::from(fx.samples[fx.at]) / 32768. * volume;
+                    sample[0] += fx_sample;
+                    sample[1] += fx_sample;
                     fx.at += 1;
                 }
                 if fx.at >= fx.samples.len() {
@@ -405,7 +471,7 @@ impl Core {
                 }
             }
         }
-        acc.map(|x| (soft_limit(x) * 32767.).round().clamp(-32768., 32767.) as i16)
+        acc.map(|ears| ears.map(|x| (soft_limit(x) * 32767.).round().clamp(-32768., 32767.) as i16))
     }
     pub fn talking(&self, now: u32) -> u32 {
         self.speakers.iter().enumerate().fold(0, |mask, (slot, s)| {

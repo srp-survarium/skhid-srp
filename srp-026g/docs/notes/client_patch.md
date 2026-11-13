@@ -3543,7 +3543,8 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eight lohooks; its boundary `
   `game_world.finish` (on_finish_match 0x1F96F0, EAX the world) and `game_world.deactivate`
   (on_deactivate 0x1F9520, ECX the world): push-to-talk let go, `sv_stop`, the hud's list emptied.
 - **Every frame** (`game_world.after_move`): the options, the muted teammates and the far ones (a
-  teammate beyond 25 m, or either of the two not alive: the radio filter) to the DLL on a change;
+  teammate beyond 15 m, or either of the two not alive: the radio filter; a nearer one's pan, the
+  sine of its bearing from the local player's eyes' right, `sv_direction`) to the DLL on a change;
   a held push-to-talk let go when its key is up (user32's GetAsyncKeyState, so a release the chat
   box took is seen: MapVirtualKeyA's VK of the scan code, and for the numpad's digits and point the
   VK_NUMPADn/VK_DECIMAL a press sets with NumLock on, as the scan code maps to the navigation

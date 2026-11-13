@@ -3,7 +3,7 @@
 use super::*;
 use crate::v026g::registry::Seat;
 use crate::v026g::tests::{MAP_TDM, session_of, setup};
-use skhid_voice::{Core, Encoder, FRAME, RATE, Sender, wire};
+use skhid_voice::{Core, Encoder, FRAME, Hearing, RATE, Sender, wire};
 use std::sync::Arc;
 
 struct Server {
@@ -96,7 +96,11 @@ fn two_clients_pass_opus_audio_through_the_udp_relay() {
             }
         }
         for index in 0..2 {
-            output[index].extend_from_slice(&cores[index].mix(1.0, 0, now));
+            output[index].extend(
+                cores[index]
+                    .mix(1.0, &Hearing::radio(0), now)
+                    .map(|[left, _]| left),
+            );
         }
     }
     for index in 0..2 {

@@ -20,6 +20,13 @@ fn packet(seq: u16, frames: &[Vec<u8>]) -> Message {
         frames: frames.to_vec(),
     }
 }
+/// A frame mixed with the slots of `far` through the radio and the rest
+/// direct and centred: both ears alike, the mono mix of before.
+fn mix(core: &mut Core, far: u32, now: u32) -> [i16; FRAME] {
+    let stereo = core.mix(1., &Hearing::radio(far), now);
+    assert!(stereo.iter().all(|[left, right]| left == right));
+    stereo.map(|[left, _]| left)
+}
 fn feed(core: &mut Core, frames: &[Vec<u8>]) {
     for (seq, pair) in frames.chunks(2).enumerate() {
         core.receive(&packet(seq as u16, pair), 0);
@@ -85,7 +92,7 @@ fn reorder_before_playout_and_packet_loss() {
         0,
     );
     for t in 0..10 {
-        core.mix(1., 0, t * 20);
+        mix(&mut core, 0, t * 20);
     }
     assert_eq!(core.stats().decoded, 8);
     assert_eq!(core.stats().concealed, 2);
@@ -100,11 +107,11 @@ fn late_frame_does_not_overwrite_unplayed_ring_cell() {
     let mut core = Core::new().unwrap();
     feed(&mut core, &frames);
     for t in 0..4 {
-        core.mix(1., 0, t * 20);
+        mix(&mut core, 0, t * 20);
     }
     core.receive(&packet(0, &frames[..2]), 80);
     for t in 4..8 {
-        core.mix(1., 0, t * 20);
+        mix(&mut core, 0, t * 20);
     }
     assert_eq!(core.stats().decoded, 8);
     assert_eq!(core.stats().late, 2);
@@ -115,16 +122,16 @@ fn silence_closes_and_muting_cuts_audio_and_effects() {
     let mut core = Core::new().unwrap();
     feed(&mut core, &frames);
     for t in 0..55 {
-        core.mix(1., 1 << 3, t * 20);
+        mix(&mut core, 1 << 3, t * 20);
     }
     assert_eq!(core.stats().timeouts, 1);
     assert_eq!(core.stats().squelch_in, 1);
     assert_eq!(core.stats().squelch_out, 1);
     core.reset();
     feed(&mut core, &frames);
-    core.mix(1., 1 << 3, 0);
+    mix(&mut core, 1 << 3, 0);
     core.mute(1 << 3);
-    assert_eq!(core.mix(1., 1 << 3, 20), [0; FRAME]);
+    assert_eq!(mix(&mut core, 1 << 3, 20), [0; FRAME]);
     assert_eq!(core.talking(20), 0);
     core.receive(&packet(5, &frames[10..]), 40);
     assert_eq!(core.talking(40), 0);
@@ -144,17 +151,17 @@ fn far_squelch_delays_words_near_has_none() {
             0,
         );
         for tick in 0..delay {
-            let pcm = core.mix(1., far, tick * 20);
+            let pcm = mix(&mut core, far, tick * 20);
             assert_eq!(core.stats().decoded, 0);
             let expected = &sounds::SQUELCH_IN[tick as usize * FRAME..(tick as usize + 1) * FRAME];
             for (got, want) in pcm.iter().zip(expected) {
                 assert!((i32::from(*got) - i32::from(*want)).abs() <= 1);
             }
         }
-        core.mix(1., far, delay * 20);
+        mix(&mut core, far, delay * 20);
         assert_eq!(core.stats().decoded, 1);
         for tick in 1..13 {
-            core.mix(1., far, (delay + tick) * 20);
+            mix(&mut core, far, (delay + tick) * 20);
         }
         assert_eq!(core.stats().squelch_in, u32::from(far != 0));
         assert_eq!(core.stats().squelch_out, u32::from(far != 0));
@@ -165,10 +172,51 @@ fn mid_utterance_radio_switch_does_not_add_opening_effect() {
     let frames = encoded(12);
     let mut core = Core::new().unwrap();
     feed(&mut core, &frames);
-    core.mix(1., 0, 0);
-    core.mix(1., 1 << 3, 20);
+    mix(&mut core, 0, 0);
+    mix(&mut core, 1 << 3, 20);
     assert_eq!(core.stats().squelch_in, 0);
     assert_eq!(core.stats().decoded, 2);
+}
+#[test]
+fn a_direct_voice_is_panned_by_the_sine_of_its_bearing_at_one_power() {
+    let gains_at = |degrees: f32| gains(Pan::new(degrees.to_radians().sin()));
+    let close = |a: [f32; 2], b: [f32; 2]| (a[0] - b[0]).abs() < 1e-4 && (a[1] - b[1]).abs() < 1e-4;
+    // Ahead and behind: both ears at unity, as the mono mix and the radio.
+    assert!(close(gains_at(0.), [1., 1.]));
+    assert!(close(gains_at(180.), [1., 1.]));
+    // Full right and full left: +3 dB in that ear, none in the other.
+    assert!(close(gains_at(90.), [0., std::f32::consts::SQRT_2]));
+    assert!(close(gains_at(-90.), [std::f32::consts::SQRT_2, 0.]));
+    // 30 degrees right (pan 0.5): cos and sin of 3/8 pi, scaled.
+    let eighth = std::f32::consts::PI / 8.;
+    let half_right = [
+        std::f32::consts::SQRT_2 * (3. * eighth).cos(),
+        std::f32::consts::SQRT_2 * (3. * eighth).sin(),
+    ];
+    assert!(close(gains_at(30.), half_right));
+    assert!(close(gains_at(150.), half_right));
+    for degrees in (-180..=180).step_by(15) {
+        let [left, right] = gains_at(degrees as f32);
+        assert!((left * left + right * right - 2.).abs() < 1e-4, "{degrees}");
+    }
+    assert_eq!(Pan::new(f32::NAN), Pan::CENTRE);
+    assert_eq!(Pan::new(3.), Pan::new(1.));
+}
+#[test]
+fn a_voice_to_the_right_is_mixed_into_the_right_ear() {
+    let frames = encoded(12);
+    let mut core = Core::new().unwrap();
+    feed(&mut core, &frames);
+    let right = Hearing::new(0, |_| Pan::new(1.));
+    let mut ears = [0f64; 2];
+    for tick in 0..8 {
+        for [left, right] in core.mix(1., &right, tick * 20) {
+            ears[0] += f64::from(left).abs();
+            ears[1] += f64::from(right).abs();
+        }
+    }
+    // The first frame ramps from the centre; after it, the left is silent.
+    assert!(ears[1] > 0. && ears[0] < ears[1] / 20., "{ears:?}");
 }
 #[test]
 fn utterance_order_wrap_and_reset() {
@@ -233,6 +281,11 @@ fn radio_matches_retail_response_and_static_level() {
 /// Speech-like input: a voice of gliding pitch with eight harmonics, in
 /// syllables of 200 ms and pauses of 100 ms.
 fn syllables(frame: usize, amplitude: f32) -> [i16; FRAME] {
+    voiced(frame, amplitude, 8)
+}
+/// As [`syllables`], with `harmonics` harmonics falling 6 dB an octave (45:
+/// up to 7.6 kHz, a wide-band voice).
+fn voiced(frame: usize, amplitude: f32, harmonics: usize) -> [i16; FRAME] {
     std::array::from_fn(|i| {
         let t = (frame * FRAME + i) as f32 / RATE as f32;
         if (t * 1000.) as u32 % 300 >= 200 {
@@ -241,9 +294,76 @@ fn syllables(frame: usize, amplitude: f32) -> [i16; FRAME] {
         let phase = 2.
             * std::f32::consts::PI
             * (150. * t - 20. / 6. * (6. * t).cos() / std::f32::consts::PI);
-        let v: f32 = (1..=8).map(|h| (phase * h as f32).sin() / h as f32).sum();
+        let v: f32 = (1..=harmonics)
+            .map(|h| (phase * h as f32).sin() / h as f32)
+            .sum();
         (v * amplitude) as i16
     })
+}
+/// How loud a sound is, its loudness summed over critical bands as Zwicker
+/// sums it (each third-octave band's power, 100 Hz to 6.3 kHz, to the 0.23,
+/// over blocks of 50 ms; no threshold or masking), given in dB: 20 log10 of
+/// a gain moves it as much, so a difference is the gain that makes up for it.
+fn loudness_db(samples: &[f32]) -> f32 {
+    let block = RATE / 20;
+    let blocks = samples.len() / block;
+    let mut sum = 0.;
+    let bands: Vec<Vec<f32>> = (0..19)
+        .map(|k| {
+            // RBJ band-pass, 0 dB at its centre, a third of an octave wide.
+            let w = 2. * std::f32::consts::PI * 100. * 2f32.powf(k as f32 / 3.) / RATE as f32;
+            let alpha = w.sin() / (2. * 4.318);
+            let (b0, a1, a2) = (alpha, -2. * w.cos(), 1. - alpha);
+            let a0 = 1. + alpha;
+            let mut z = [0f32; 2];
+            samples
+                .iter()
+                .map(|&x| {
+                    let y = b0 / a0 * x + z[0];
+                    z[0] = -a1 / a0 * y + z[1];
+                    z[1] = -b0 / a0 * x - a2 / a0 * y;
+                    y
+                })
+                .collect()
+        })
+        .collect();
+    for b in 0..blocks {
+        for band in &bands {
+            let power = band[b * block..(b + 1) * block]
+                .iter()
+                .map(|v| v * v)
+                .sum::<f32>()
+                / block as f32;
+            sum += power.powf(0.23);
+        }
+    }
+    10. / 0.23 * (sum / blocks as f32).log10()
+}
+#[test]
+fn a_radio_voice_is_as_loud_as_a_direct_one() {
+    // 10 s of a voice through the automatic gain at the default sensitivity,
+    // its words as the mix plays them near (as decoded) and far (through the
+    // radio, its static apart): the last 5 s as loud within 2 dB, for a
+    // narrow voice (to 1.3 kHz) and a wide one (to 7.6 kHz). Measured
+    // 2026-11-13: the radio's words without `radio::VOICE` were 2.9 and 1.7
+    // dB quieter (at the highest sensitivity 3.9 and 3.1).
+    for harmonics in [8, 45] {
+        let mut pre = Preprocessor::new().unwrap();
+        let mut encoder = Encoder::new().unwrap();
+        let mut decoder = Decoder::new().unwrap();
+        let mut direct = Vec::new();
+        for f in 0..500 {
+            let mut pcm = voiced(f, 8000., harmonics);
+            pre.run(&mut pcm, 0.5);
+            let frame = encoder.encode(&pcm).unwrap();
+            direct.extend(decoder.decode(Some(&frame)).unwrap());
+        }
+        let direct = &direct[RATE * 5..];
+        let mut radio = direct.to_vec();
+        Radio::new(0).process(&mut radio, 0.);
+        let (near, far) = (loudness_db(direct), loudness_db(&radio));
+        assert!((near - far).abs() < 2., "{harmonics}: {near} {far}");
+    }
 }
 /// The level (dB of full scale) the preprocessor gives a speaker of this
 /// amplitude, over the last of 4 s.
@@ -560,7 +680,7 @@ fn undecodable_opus_is_concealed_and_does_not_stop_another_speaker() {
     }
     let mut energy = 0.;
     for tick in 0..24 {
-        let pcm = core.mix(1., 0, tick * 20);
+        let pcm = mix(&mut core, 0, tick * 20);
         energy += pcm.iter().map(|&x| f32::from(x).powi(2)).sum::<f32>();
     }
     assert_eq!(core.stats().decoded, 20);
@@ -614,7 +734,7 @@ fn a_flood_of_random_datagrams_does_not_delay_a_good_speaker() {
     );
     let before = core.stats().decoded;
     for tick in 0..24 {
-        core.mix(1., 0, tick * 20);
+        mix(&mut core, 0, tick * 20);
     }
     // All twenty of the good speaker's frames played (others' may add).
     assert!(core.stats().decoded - before >= 20, "{:?}", core.stats());
@@ -682,7 +802,7 @@ fn played(frames: &[Vec<u8>]) -> (Vec<f32>, Core) {
     for (seq, pair) in frames.chunks(2).enumerate() {
         core.receive(&packet(seq as u16, pair), now);
         for _ in 0..2 {
-            let pcm = core.mix(1., 0, now);
+            let pcm = mix(&mut core, 0, now);
             let power = pcm
                 .iter()
                 .map(|&x| (f32::from(x) / 32768.).powi(2))
@@ -822,7 +942,7 @@ fn a_new_utterance_starts_at_unity() {
                 now,
             );
             for _ in 0..2 {
-                let pcm = core.mix(1., 0, now);
+                let pcm = mix(&mut core, 0, now);
                 let power = pcm
                     .iter()
                     .map(|&x| (f32::from(x) / 32768.).powi(2))
@@ -840,7 +960,7 @@ fn a_new_utterance_starts_at_unity() {
             now,
         );
         for _ in 0..10 {
-            core.mix(1., 0, now);
+            mix(&mut core, 0, now);
             now += 20;
         }
         if utt == 1 {

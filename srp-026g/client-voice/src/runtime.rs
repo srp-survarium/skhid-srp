@@ -164,7 +164,7 @@ pub(crate) unsafe fn host_arg<'a>(host: *const std::ffi::c_char) -> Option<&'a s
 mod platform {
     use super::{DropLog, TalkAction, TalkState, host_arg};
     use crate::{
-        Core, Encoder, Preprocessor, SLOTS, Sender,
+        Core, Encoder, Hearing, Pan, Preprocessor, SLOTS, Sender,
         radio::unit,
         windows::{Input, Output},
         wire::{self, Message},
@@ -194,6 +194,8 @@ mod platform {
         volume: AtomicU32,
         sensitivity: AtomicU32,
         far: AtomicU32,
+        /// Each slot's [`Pan`] (its bits), for when it is heard directly.
+        pans: [AtomicU32; SLOTS],
         muted: AtomicU32,
         hello: AtomicBool,
     }
@@ -203,6 +205,7 @@ mod platform {
         volume: AtomicU32::new(1.0_f32.to_bits()),
         sensitivity: AtomicU32::new(0.5_f32.to_bits()),
         far: AtomicU32::new(0),
+        pans: [const { AtomicU32::new(0) }; SLOTS],
         muted: AtomicU32::new(0),
         hello: AtomicBool::new(false),
     };
@@ -387,10 +390,12 @@ mod platform {
                     }
                 }
             }
-            let far = CONTROL.far.load(SeqCst);
+            let hearing = Hearing::new(CONTROL.far.load(SeqCst), |slot| {
+                Pan::new(f32::from_bits(CONTROL.pans[slot].load(SeqCst)))
+            });
             let level = volume();
             if let Some(device) = &mut output {
-                if device.pump(|| core.mix(level, far, now)).is_err() {
+                if device.pump(|| core.mix(level, &hearing, now)).is_err() {
                     output = None;
                     output_retry = Some(now);
                     say("output device failed; retry in 5 seconds");
@@ -407,7 +412,7 @@ mod platform {
                 }
                 let mut count = 0;
                 while (now.wrapping_sub(next_mix) as i32) >= 0 && count < 10 {
-                    core.mix(level, far, next_mix);
+                    core.mix(level, &hearing, next_mix);
                     next_mix = next_mix.wrapping_add(20);
                     count += 1;
                 }
@@ -599,6 +604,17 @@ mod platform {
     pub extern "C" fn sv_radio(mask: u32) {
         CONTROL.far.store(mask, SeqCst);
     }
+    /// Where the slot is heard from while it is heard directly (`Pan`: the
+    /// sine of its bearing). A slot past the 20 changes nothing.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn sv_direction(slot: i32, sine: f32) {
+        if let Some(pan) = usize::try_from(slot)
+            .ok()
+            .and_then(|slot| CONTROL.pans.get(slot))
+        {
+            pan.store(Pan::new(sine).get().to_bits(), SeqCst);
+        }
+    }
     #[unsafe(no_mangle)]
     pub extern "C" fn sv_mute(mask: u32) {
         if CONTROL.muted.swap(mask, SeqCst) != mask {
@@ -614,6 +630,7 @@ mod platform {
         ptt: sv_ptt,
         settings: sv_settings,
         radio: sv_radio,
+        direction: sv_direction,
         mute: sv_mute,
         talking: sv_talking,
         slot: sv_slot,

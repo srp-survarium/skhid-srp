@@ -1,5 +1,5 @@
 //! A WAV through the real codec/jitter/radio path, without devices or a server.
-use skhid_voice::{Core, Encoder, FRAME, RATE, wire::Message};
+use skhid_voice::{Core, Encoder, FRAME, Hearing, RATE, wire::Message};
 use std::{error::Error, fs};
 fn read_wav(path: &str) -> Result<Vec<i16>, Box<dyn Error>> {
     let b = fs::read(path)?;
@@ -111,7 +111,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 now,
             );
         }
-        output.extend(core.mix(1., far, now));
+        output.extend(
+            core.mix(1., &Hearing::radio(far), now)
+                .map(|[left, _]| left),
+        );
     }
     write_wav(&args[2], &output)?;
     eprintln!("{:?}", core.stats());
