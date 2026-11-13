@@ -32,7 +32,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use super::replays::{MIN_REVISION, Refusal, Status, refusal_of};
-use crate::LockExt;
+use crate::{LockExt, WATCH_COOLDOWN};
 
 /// `SRP_REPLAY_WATCH_MAX` when unset: sessions at once (loading, on their
 /// way or playing). Each costs about a player's traffic and its recording
@@ -45,7 +45,10 @@ pub const DEFAULT_MAX_RECORDING_MB: u64 = 24;
 /// A session whose recording is not read within this is refused `failed`.
 pub const LOAD_WITHIN: Duration = Duration::from_secs(2 * 60);
 /// A session made ready whose game does not reach the match server within
-/// this is over (the lobby's link went, or the game never connected).
+/// this is over (the lobby's link went, or the game never connected), and its
+/// account starts no other for [`WATCH_COOLDOWN`], as after a live watch's:
+/// asking again at once would hold one of the few sessions on and on without
+/// ever watching, and keep the reader converting.
 pub const CONNECT_WITHIN: Duration = Duration::from_secs(90);
 /// A refusal the movie never polled for is forgotten after this.
 const REFUSAL_KEPT: Duration = Duration::from_secs(15 * 60);
@@ -363,6 +366,9 @@ pub struct Watches {
     misses: Mutex<HashMap<u32, Misses>>,
     /// By account: when its last session that counts started ([`START_EVERY`]).
     started: Mutex<HashMap<u32, Instant>>,
+    /// By account: until when it starts no session, its last one over with
+    /// its game never come ([`CONNECT_WITHIN`], [`WATCH_COOLDOWN`]).
+    cooldowns: Mutex<HashMap<u32, Instant>>,
 }
 
 impl Watches {
@@ -372,6 +378,7 @@ impl Watches {
             sessions: Mutex::new(HashMap::new()),
             misses: Mutex::new(HashMap::new()),
             started: Mutex::new(HashMap::new()),
+            cooldowns: Mutex::new(HashMap::new()),
         }
     }
 
@@ -419,7 +426,9 @@ impl Watches {
     /// A player asks to watch a match: `preparing` (its recording is read
     /// next), or why not at once. A player with a session not over gets
     /// `busy`, as does one whose last session started within
-    /// [`START_EVERY`], and one past [`WatchSettings::max_sessions`].
+    /// [`START_EVERY`], one whose last session's game never came, for
+    /// [`WATCH_COOLDOWN`] ([`Self::expire`]), and one past
+    /// [`WatchSettings::max_sessions`].
     pub fn start(&self, request: WatchRequest, now: Instant) -> Status {
         let Some(settings) = &self.settings else {
             return Status::Off;
@@ -435,6 +444,20 @@ impl Watches {
             .get(&request.account_id)
             .is_some_and(|session| session.stage.is_open())
         {
+            return Status::Busy;
+        }
+        if self
+            .cooldowns
+            .locked()
+            .get(&request.account_id)
+            .is_some_and(|&until| now < until)
+        {
+            log::info!(
+                "Replay sessions: account {} asks to watch match {:#x} too soon after its last \
+                 session's game never came",
+                request.account_id,
+                request.match_id
+            );
             return Status::Busy;
         }
         let mut started = self.started.locked();
@@ -624,7 +647,8 @@ impl Watches {
 
     /// Sessions that waited too long: not read within [`LOAD_WITHIN`]
     /// (`failed`), or whose game did not come within [`CONNECT_WITHIN`]
-    /// (over); refusals nobody polled for.
+    /// (over, and its account starts no session for [`WATCH_COOLDOWN`]);
+    /// refusals nobody polled for.
     pub fn expire(&self, now: Instant) {
         self.misses
             .locked()
@@ -632,7 +656,10 @@ impl Watches {
         self.started
             .locked()
             .retain(|_, at| now.saturating_duration_since(*at) < START_EVERY);
-        self.sessions.locked().retain(|account_id, session| {
+        let mut sessions = self.sessions.locked();
+        let mut cooldowns = self.cooldowns.locked();
+        cooldowns.retain(|_, until| now < *until);
+        sessions.retain(|account_id, session| {
             let waited = now.saturating_duration_since(session.since);
             if !session.stage.patience().is_some_and(|most| waited >= most) {
                 return true;
@@ -643,10 +670,14 @@ impl Watches {
                     "Replay sessions: match {match_id:#x} for account {account_id} was not read \
                      in time"
                 ),
-                Stage::Ready { .. } | Stage::Sent { .. } => log::info!(
-                    "Replay sessions: account {account_id}'s game never came to watch match \
-                     {match_id:#x}"
-                ),
+                Stage::Ready { .. } | Stage::Sent { .. } => {
+                    log::info!(
+                        "Replay sessions: account {account_id}'s game never came to watch match \
+                         {match_id:#x}: it starts no session for {} min",
+                        WATCH_COOLDOWN.as_secs() / 60
+                    );
+                    cooldowns.insert(*account_id, now + WATCH_COOLDOWN);
+                }
                 Stage::Playing { .. } | Stage::Refused(_) => {}
             }
             match step(session.stage, Event::TimedOut) {
@@ -955,7 +986,10 @@ mod tests {
         assert!(!watches.recall(ALICE), "told once");
         assert!(watches.is_recalled(&alice) && watches.holds(ALICE));
         assert_eq!(watches.connected(alice.session_id, now), Some((alice, 0)));
-        assert!(watches.is_recalled(&alice), "still, with its game at the match server");
+        assert!(
+            watches.is_recalled(&alice),
+            "still, with its game at the match server"
+        );
         watches.ended(&alice);
         assert!(!watches.holds(ALICE) && !watches.is_recalled(&alice));
     }
@@ -1214,6 +1248,59 @@ mod tests {
             step(Stage::Refused(WatchRefusal::Busy), Event::Ended),
             None,
             "a refused session is the movie's to be told"
+        );
+    }
+
+    /// A session whose game never comes, read and either never sent or sent, ends after
+    /// [`CONNECT_WITHIN`], and its account starts no other for [`WATCH_COOLDOWN`]: its asks are
+    /// `busy` and take no place under the cap, which another account has. One whose game came sets
+    /// no cooldown.
+    #[test]
+    fn an_account_whose_game_never_came_cools_down() {
+        let watches = watches(Access::All, 1);
+        let alice = request(ALICE);
+        let mut now = Instant::now();
+        for sent in [false, true] {
+            assert_eq!(watches.start(alice, now), Status::Preparing, "sent {sent}");
+            assert_eq!(watches.next_job(now), Some(alice));
+            assert!(watches.loaded(&alice, 50, now));
+            if sent {
+                watches.sent(ALICE, now);
+            }
+            let late = now + CONNECT_WITHIN;
+            watches.expire(late - Duration::from_millis(1));
+            assert!(watches.holds(ALICE), "sent {sent}: not yet");
+            watches.expire(late);
+            assert!(!watches.holds(ALICE), "sent {sent}");
+            let cooled = late + WATCH_COOLDOWN;
+            let soon = cooled - Duration::from_millis(1);
+            assert_eq!(watches.start(alice, soon), Status::Busy, "sent {sent}");
+            assert!(
+                !watches.holds(ALICE),
+                "sent {sent}: a busy ask starts nothing"
+            );
+            assert_eq!(watches.start(request(MOD), soon), Status::Preparing);
+            assert!(watches.withdraw(MOD, alice.match_id));
+            // Lifted once over, and forgotten.
+            watches.expire(cooled);
+            assert!(watches.cooldowns.locked().is_empty(), "sent {sent}");
+            assert_eq!(watches.start(alice, cooled), Status::Preparing);
+            assert!(watches.withdraw(ALICE, alice.match_id));
+            now = cooled + START_EVERY;
+        }
+
+        // Its game came: no cooldown when its session ends.
+        assert_eq!(watches.start(request(MOD), now), Status::Preparing);
+        assert_eq!(watches.next_job(now), Some(request(MOD)));
+        assert!(watches.loaded(&request(MOD), 50, now));
+        watches.sent(MOD, now);
+        assert!(watches.connected(request(MOD).session_id, now).is_some());
+        watches.expire(now + CONNECT_WITHIN);
+        watches.ended(&request(MOD));
+        assert!(watches.cooldowns.locked().is_empty());
+        assert_eq!(
+            watches.start(request(MOD), now + START_EVERY),
+            Status::Preparing
         );
     }
 
