@@ -715,12 +715,21 @@ pub fn walking_press_lead(rise: f32, across: f32, run: f32) -> Option<f32> {
 }
 
 /// [A347a] How far a standing body's centre may be past a top's edge and stay on it, metres: the capsule's round bottom meets
-/// the edge at a normal within the slope a still body holds on, `radius x sin(40 deg)` (the stand radius 0.38: `startup.cfg`'s
-/// stand capsule 0.76 wide, PROVEN; a body standing still slides from 40 deg, the exe's 0x7bc20, PROVEN). The clip's root has
-/// ended by then ([`gap::SHORT_JUMP_AHEAD`]) and the walk is let go of (the motor's carry), so the still body's angle holds.
+/// the edge at a normal within the slope a still body holds on, `radius x sin(45 deg)` (the stand radius 0.38: `startup.cfg`'s
+/// stand capsule 0.76 wide, PROVEN; a body standing still slides from the idle slope, the exe's `need_slide` 0x7BC20, PROVEN).
+/// The clip's root has ended by then ([`gap::SHORT_JUMP_AHEAD`]) and the walk is let go of (the motor's carry), so the still
+/// body's angle holds.
+///
+/// [A364 C2 row 18] The idle slope is the live `cc_idle_max_slope_angle_cos 0.70711` (45 deg, `startup.cfg`:14,
+/// [`IDLE_SLOPE_COS_LIVE`]), not the exe's default 40 deg: 0.2687 m (was 0.244). Measured with the exact tick (`grid-rules` S5):
+/// a body walked there and let go holds to 0.265 m past a straight edge and falls from 0.270 (0.270-0.275 on a corner's diagonal).
 pub fn edge_hold_m(radius: f32) -> f32 {
-    radius * 40.0f32.to_radians().sin()
+    radius * (1.0 - IDLE_SLOPE_COS_LIVE * IDLE_SLOPE_COS_LIVE).sqrt()
 }
+
+/// [A364 C2 row 18] `cc_idle_max_slope_angle_cos` (`startup.cfg`:14, the live `resources.db`): a body at rest slides from
+/// ground steeper than 45 deg (`need_slide` 0x7BC20; the exe's default is 40 deg).
+pub const IDLE_SLOPE_COS_LIVE: f32 = crate::controller::tick::Settings::LIVE.idle_max_slope_cos;
 
 /// [A347a] A tick's walk at the walk's speed, metres: the press is made on a tick, so a press window narrower than this is
 /// missed between two ticks (3.5 m/s, `controlled::WALK_MPS`, PROVEN; the 50 ms tick the controller pass steps, PROVEN).
@@ -5414,12 +5423,13 @@ pub(crate) mod tests {
     }
 
     /// [`Body::press_window`] (A347a): Vector Laboratory's 0.905 m ledge (rise 0.905, 0.5 across, 1.25 m of floors past the
-    /// landing, cells 0.25, the stand radius 0.38): the latest press is 0.55 m before the take-off, the window ends where the
+    /// landing, cells 0.25, the stand radius 0.38): the latest press is 0.53 m before the take-off, the window ends where the
     /// root comes down past the face; a top of half that keeps no window; a deep top asks nothing (the least is 0).
     #[test]
     fn a_short_tops_press_window_ends_where_the_clip_carries_past_its_edge() {
         let (least, lead) = walking_press_window(0.905, 0.5, 1.25, 0.25, 0.38).expect("a window");
-        assert!((least - 0.551).abs() < 0.01, "least {least}");
+        // 0.526 with the live idle slope's hold 0.2687 m (A364 C2 row 18; 0.551 with the exe default's 0.244).
+        assert!((least - 0.526).abs() < 0.01, "least {least}");
         assert!((lead - JUMP_PRESS_LEAD_M).abs() < 1e-6, "lead {lead}");
         let far = walking_jump_far(0.905).unwrap() - 0.25;
         assert!(far - least >= TICK_WALK_M, "the window holds a tick: {least}..{far}");
@@ -5435,7 +5445,7 @@ pub(crate) mod tests {
         assert!(late.0 > JUMP_PRESS_LEAD_M - TICK_WALK_M, "the case is one: least {}", late.0);
         assert_eq!(walking_press_window(0.905, 0.5, 0.0, 0.25, 0.38), None, "a top the clip passes whatever the press");
         assert_eq!(walking_press_window(0.5, 0.5, 2.5, 0.25, 0.38).map(|w| w.0), Some(0.0), "a deep top");
-        assert!((edge_hold_m(0.38) - 0.244).abs() < 0.001);
+        assert!((edge_hold_m(0.38) - 0.2687).abs() < 0.001);
     }
 
     /// [`Body::exits_in_reach`] (A347): a pit 1.32 m deep (the client's body links a rise up to its jump cap 1.28 m, so this one
