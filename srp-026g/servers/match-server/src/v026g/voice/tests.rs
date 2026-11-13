@@ -13,8 +13,12 @@ const MATCH: u32 = 0x10;
 
 /// Sessions 1..=4 in match 0x10: 1, 2 and 3 on team 0 (places 0, 2, 4), 4
 /// on team 1 (place 1). Session 9 is in another match, on team 0.
+/// The second field counts the lookups (the registry's lock).
 #[derive(Clone, Default)]
-struct Table(Rc<RefCell<HashMap<u32, VoiceSeat>>>);
+struct Table(
+    Rc<RefCell<HashMap<u32, VoiceSeat>>>,
+    Rc<std::cell::Cell<u32>>,
+);
 
 impl Table {
     fn new() -> Self {
@@ -45,6 +49,7 @@ impl Table {
 
 impl Seats for Table {
     fn voice_seat(&self, session_id: u32) -> Option<VoiceSeat> {
+        self.1.set(self.1.get() + 1);
         self.0.borrow().get(&session_id).copied()
     }
 
@@ -296,7 +301,10 @@ fn a_datagram_from_another_ip_or_without_a_seat_is_dropped() {
     assert!(bench.send(3, &start(3, 1)).is_empty());
     assert_eq!(bench.relay.counts(MATCH).map(|c| c.dropped), Some(2));
     let lines = bench.relay.drop_lines(bench.now);
-    assert!(lines.iter().all(|line| !line.contains("10.0.0.3")), "{lines:?}");
+    assert!(
+        lines.iter().all(|line| !line.contains("10.0.0.3")),
+        "{lines:?}"
+    );
 }
 
 #[test]
@@ -326,22 +334,14 @@ fn malformed_and_large_datagrams_are_dropped() {
     none.extend_from_slice(&1u32.to_le_bytes());
     none.extend_from_slice(&[1, 0, 0, 0, 0]);
     assert!(bench.send(1, &none).is_empty());
-    // Too large: 401 bytes; 400 is taken.
-    let large = |total: usize| {
-        let mut datagram = vec![MAGIC, VERSION, kind::AUDIO];
-        datagram.extend_from_slice(&1u32.to_le_bytes());
-        datagram.extend_from_slice(&[1, 0, 0, 0, 2]);
-        datagram.push(255);
-        datagram.extend_from_slice(&[1; 255]);
-        let rest = total - datagram.len() - 1;
-        datagram.push(rest as u8);
-        datagram.extend(std::iter::repeat_n(1, rest));
-        datagram
-    };
-    assert_eq!(large(401).len(), 401);
-    assert!(bench.send(1, &large(401)).is_empty());
+    // Too large: 401 bytes.
+    let mut large = audio(1, 1, 0);
+    large.resize(MAX_DATAGRAM + 1, 0);
+    assert!(bench.send(1, &large).is_empty());
+    // The largest the games send: two frames of the most the encoder makes.
+    let longest = [0x48; MAX_FRAME_BYTES];
     assert_eq!(
-        sent_to(&bench.send(1, &large(400))),
+        sent_to(&bench.send(1, &audio_of(&[&longest, &longest]))),
         vec![(2, 0x82), (2, 0x83), (3, 0x82), (3, 0x83)]
     );
     assert!(bench.relay.dropped_unknown >= 8);
@@ -381,14 +381,14 @@ fn silence_closes_an_utterance_and_its_late_audio_reopens_nothing() {
 }
 
 #[test]
-fn an_utterance_is_cut_at_thirty_seconds() {
+fn an_utterance_is_cut_a_second_past_the_games_own_cap() {
     let mut bench = Bench::new();
     bench.send(2, &hello(2, true));
     bench.send(1, &start(1, 1));
     let mut ms = 0;
     let mut seq = 0;
     let mut ended = None;
-    while ms <= 31_000 {
+    while ms <= 32_000 {
         bench.at(ms);
         if ms % 2_000 == 0 {
             // HELLOs keep the listener (and the talker under the rate).
@@ -403,14 +403,36 @@ fn an_utterance_is_cut_at_thirty_seconds() {
         seq += 1;
         ms += 40;
     }
-    assert_eq!(ended, Some((30_000, EndReason::TooLong as u8)));
-    // Its audio after the cut opens nothing; a new START does.
-    bench.at(30_040);
+    assert_eq!(ended, Some((31_000, EndReason::TooLong as u8)));
+    // Its audio after the cut opens nothing; a new START does, at once.
+    bench.at(31_040);
     assert!(bench.send(1, &audio(1, 1, seq + 1)).is_empty());
     assert_eq!(sent_to(&bench.send(1, &start(1, 2))), vec![(2, 0x82)]);
     let counts = bench.relay.counts(MATCH).unwrap();
     assert_eq!(counts.utterances, 2);
-    assert!(counts.talked >= Duration::from_secs(29));
+    assert!(counts.talked >= Duration::from_secs(30));
+}
+
+#[test]
+fn the_games_end_at_thirty_seconds_comes_before_the_cut() {
+    let mut bench = Bench::new();
+    bench.send(2, &hello(2, true));
+    bench.send(1, &start(1, 1));
+    for seq in 0..750u16 {
+        bench.at(u64::from(seq) * 40);
+        if seq % 50 == 0 {
+            bench.send(2, &hello(2, true));
+        }
+        let mut out = bench.send(1, &audio(1, 1, seq));
+        out.extend(bench.poll());
+        assert_eq!(sent_to(&out), vec![(2, 0x83)], "{seq}");
+    }
+    // The game's cap of 30 s, its END a little late: released, not cut.
+    bench.at(30_300);
+    assert!(bench.poll().is_empty());
+    let out = bench.send(1, &end(1, 1));
+    assert_eq!(sent_to(&out), vec![(2, 0x84)]);
+    assert_eq!(out[0].1[6], EndReason::Released as u8);
 }
 
 #[test]
@@ -430,17 +452,62 @@ fn a_new_start_ends_the_open_utterance() {
 #[test]
 fn a_talker_over_sixty_datagrams_a_second_is_cut_off() {
     let mut bench = Bench::new();
-    bench.send(2, &hello(2, true));
     bench.send(1, &start(1, 1));
-    let mut relayed = 0;
-    for seq in 0..80 {
-        relayed += bench.send(1, &audio(1, 1, seq)).len();
+    let mut welcomed = 0;
+    for _ in 0..80 {
+        welcomed += welcomes(bench.send(1, &hello(1, true))).len();
     }
     // START was the first of 60 this second.
-    assert_eq!(relayed, 59);
+    assert_eq!(welcomed, 59);
     assert_eq!(bench.relay.counts(MATCH).unwrap().dropped, 21);
     bench.at(1_000);
-    assert_eq!(bench.send(1, &audio(1, 1, 80)).len(), 1);
+    assert_eq!(welcomes(bench.send(1, &hello(1, true))).len(), 1);
+}
+
+#[test]
+fn a_talkers_audio_over_thirty_a_second_is_dropped() {
+    let mut bench = Bench::new();
+    bench.send(2, &hello(2, true));
+    bench.send(1, &start(1, 1));
+    // The games' 25 a second, with bursts of 3 after a stall: all relayed.
+    let mut seq = 0;
+    for tick in 0..250u64 {
+        bench.at(tick * 40);
+        if tick % 50 == 0 {
+            bench.send(2, &hello(2, true));
+        }
+        if tick % 10 == 9 {
+            continue;
+        }
+        for _ in 0..if tick % 10 == 0 { 2 } else { 1 } {
+            assert_eq!(sent_to(&bench.send(1, &audio(1, 1, seq))), vec![(2, 0x83)]);
+            seq += 1;
+        }
+    }
+    assert_eq!(bench.relay.counts(MATCH).unwrap().dropped, 0);
+    // A network hold of 0.8 s, then its 20 AUDIO at once: all taken (more
+    // than a receiver's ring of 16); past them, nothing until the rate
+    // refills.
+    bench.at(10_800);
+    bench.send(2, &hello(2, true));
+    let mut relayed = 0;
+    for _ in 0..25 {
+        relayed += bench.send(1, &audio(1, 1, seq)).len();
+        seq += 1;
+    }
+    assert_eq!(relayed, 20);
+    // Another talker at twice the games' rate for 2 s: its burst and 30 a
+    // second (59.4 in the 1.98 s from its first to its last).
+    relayed = 0;
+    for (seq, ms) in (20..=2_000).step_by(20).enumerate() {
+        bench.at(12_000 + ms);
+        relayed += bench
+            .send(3, &audio(3, 1, seq as u16))
+            .iter()
+            .filter(|(_, datagram)| datagram[2] == kind::RELAYED_AUDIO)
+            .count();
+    }
+    assert_eq!(relayed, 79);
 }
 
 #[test]
@@ -885,19 +952,30 @@ fn oversize_wrong_version_and_types_are_dropped_with_their_reason() {
 }
 
 #[test]
-fn audio_frames_must_be_twenty_ms_of_opus_and_at_most_eight() {
+fn audio_frames_must_be_the_games_encoders() {
     let frame: &[u8] = &[0x48, 1, 2];
-    assert!(matches!(
-        parse(&audio_of(&[frame; 8])),
-        Ok(Datagram::Audio { .. })
-    ));
-    assert_eq!(parse(&audio_of(&[])), Err(Dropped::Frames));
-    assert_eq!(parse(&audio_of(&[frame; 9])), Err(Dropped::Frames));
-    assert_eq!(parse(&audio_of(&[&[]])), Err(Dropped::NotOpus));
-    // 10 ms SILK, 2.5 ms CELT, 60 ms SILK: no game plays them in a 20 ms place.
-    for toc in [0x00, 0x80, 0x18] {
-        assert_eq!(parse(&audio_of(&[&[toc, 1]])), Err(Dropped::NotOpus));
+    for count in 1..=MAX_FRAMES {
+        assert!(matches!(
+            parse(&audio_of(&vec![frame; count])),
+            Ok(Datagram::Audio { .. })
+        ));
     }
+    assert_eq!(parse(&audio_of(&[])), Err(Dropped::Frames));
+    // Three frames: more than the games send, and play.
+    assert_eq!(parse(&audio_of(&[frame; 3])), Err(Dropped::Frames));
+    assert_eq!(parse(&audio_of(&[&[]])), Err(Dropped::NotOpus));
+    // SILK narrow, medium and wide band, 20 ms, mono, code 0.
+    for toc in FRAME_TOCS {
+        assert!(parse(&audio_of(&[&[toc, 1]])).is_ok());
+    }
+    // 20 ms all, but not the encoder's: stereo, code 1 (two of 10 ms), code
+    // 3 (one, padded), hybrid and CELT; and 10 and 60 ms SILK.
+    for toc in [0x4C, 0x01, 0x4B, 0x68, 0xF8, 0x00, 0x18] {
+        assert_eq!(parse(&audio_of(&[&[toc, 1, 1]])), Err(Dropped::NotOpus));
+    }
+    // Longer than the encoder's longest.
+    let longer = [0x48; MAX_FRAME_BYTES + 1];
+    assert_eq!(parse(&audio_of(&[&longer])), Err(Dropped::NotOpus));
     // A frame said longer than what follows.
     let mut cut = audio_of(&[frame]);
     cut.pop();
@@ -905,7 +983,7 @@ fn audio_frames_must_be_twenty_ms_of_opus_and_at_most_eight() {
     // Garbage Opus from a seated teammate is not forwarded, only counted.
     let mut bench = Bench::new();
     bench.all_hello();
-    assert!(bench.send(1, &audio_of(&[&[0x00, 0xFF, 0xFF]])).is_empty());
+    assert!(bench.send(1, &audio_of(&[&[0xF8, 0xFF, 0xFF]])).is_empty());
     assert_eq!(bench.relay.counts(MATCH), None);
     assert_eq!(
         sent_to(&bench.send(1, &audio_of(&[frame, frame]))),
@@ -914,29 +992,44 @@ fn audio_frames_must_be_twenty_ms_of_opus_and_at_most_eight() {
 }
 
 #[test]
-fn the_opus_check_is_the_games_and_agrees_with_its_decoder() {
-    use skhid_voice::{Decoder, wire};
+fn the_frame_check_is_the_games_and_takes_their_encoders_frames() {
+    use skhid_voice::{Decoder, Encoder, FRAME, wire};
     assert_eq!(MAX_FRAMES, wire::MAX_FRAMES);
+    assert_eq!(MAX_FRAME_BYTES, wire::MAX_FRAME_BYTES);
+    assert_eq!(FRAME_TOCS, wire::FRAME_TOCS);
     assert_eq!(MAX_DATAGRAM, wire::MAX_DATAGRAM);
     let mut decoder = Decoder::new().unwrap();
     for toc in 0..=255u8 {
-        // The shortest well-formed packet of each frame-count code (RFC 6716
-        // 3.2): frames of no bytes, which the decoder conceals.
-        let packets: Vec<Vec<u8>> = match toc & 3 {
-            0 | 1 => vec![vec![toc]],
-            2 => vec![vec![toc, 0]],
-            _ => (0..=4).map(|count| vec![toc, count]).collect(),
-        };
-        for packet in packets {
-            assert_eq!(opus_20ms(&packet), wire::opus_20ms(&packet), "{packet:?}");
-            assert_eq!(
-                opus_20ms(&packet),
-                decoder.decode(Some(&packet)).is_ok(),
-                "{packet:?}"
-            );
-            decoder.reset();
+        for len in [1, 2, MAX_FRAME_BYTES, MAX_FRAME_BYTES + 1] {
+            let mut packet = vec![toc; len];
+            packet[0] = toc;
+            assert_eq!(our_frame(&packet), wire::our_frame(&packet), "{packet:?}");
+            // What is taken, the games' decoder decodes.
+            if our_frame(&packet) {
+                assert!(decoder.decode(Some(&packet)).is_ok(), "{packet:?}");
+                decoder.reset();
+            }
         }
     }
+    // The games' encoder, loud: what it makes is taken, as the sender sends it.
+    let mut encoder = Encoder::new().unwrap();
+    let mut sender = skhid_voice::Sender::new(1, 1);
+    sender.start(0);
+    for n in 0..51 {
+        let pcm: [i16; FRAME] = std::array::from_fn(|i| {
+            if ((n * FRAME + i) / 8).is_multiple_of(2) {
+                i16::MAX
+            } else {
+                i16::MIN
+            }
+        });
+        let frame = encoder.encode(&pcm).unwrap();
+        if let Some(datagram) = sender.frame(&frame) {
+            assert!(matches!(parse(&datagram), Ok(Datagram::Audio { .. })));
+        }
+    }
+    let datagram = sender.flush().unwrap();
+    assert!(matches!(parse(&datagram), Ok(Datagram::Audio { frames, .. }) if frames.len() == 1));
 }
 
 #[test]
@@ -975,13 +1068,16 @@ fn a_flood_from_one_source_does_not_delay_a_good_sender() {
         };
         assert!(bench.send_from(flood, &datagram).is_empty());
     }
+    // Its seats were looked up only until its source's rate ran out: each
+    // costs it 20 of its 400.
+    assert!(bench.table.1.get() <= 5 + 20, "{}", bench.table.1.get());
     // The good sender, the same second: all of its datagrams are relayed
-    // (its HELLO, START and AUDIO: its whole rate).
+    // (its START and a burst of AUDIO).
     assert_eq!(
         sent_to(&bench.send(1, &start(1, 1))),
         vec![(2, 0x82), (3, 0x82)]
     );
-    for seq in 0..MAX_PER_SECOND as u16 - 2 {
+    for seq in 0..10 {
         assert_eq!(bench.send(1, &audio(1, 1, seq)).len(), 2);
     }
     // The flood is one line in the log.
@@ -991,6 +1087,120 @@ fn a_flood_from_one_source_does_not_delay_a_good_sender() {
         lines[0].starts_with("Voice: dropped 10000 datagrams from 10.9.9.9"),
         "{lines:?}"
     );
+}
+
+#[test]
+fn a_source_is_limited_before_its_session_is_looked_up() {
+    let mut bench = Bench::new();
+    bench.all_hello();
+    let lookups = bench.table.1.get();
+    // Guessing sessions from one address: 20 lookups, then none.
+    let guesser = SocketAddr::new(ip("10.9.9.9"), 4000);
+    for session in 100..10_100 {
+        assert!(bench.send_from(guesser, &hello(session, true)).is_empty());
+    }
+    assert_eq!(bench.table.1.get() - lookups, 20);
+    // Malformed datagrams spend its flood cap, one each.
+    bench.at(1_000);
+    let mut parsed = 0;
+    for _ in 0..1_000 {
+        bench.send_from(guesser, &[MAGIC]);
+        parsed += 1;
+    }
+    assert_eq!(parsed, 1_000);
+    let lines = bench.relay.drop_lines(bench.now);
+    assert!(
+        lines[0].starts_with("Voice: dropped 11000 datagrams from 10.9.9.9 (the first: no seat)"),
+        "{lines:?}"
+    );
+    // The players are not limited by it.
+    assert_eq!(
+        sent_to(&bench.send(1, &start(1, 1))),
+        vec![(2, 0x82), (3, 0x82)]
+    );
+    // A spoofed flood from more addresses than it keeps apart: its memory
+    // is bounded, and those past it share one rate.
+    bench.at(2_000);
+    let before = bench.table.1.get();
+    for n in 0..(SOURCES as u32 + 1_000) {
+        let from = SocketAddr::new(std::net::Ipv4Addr::from(0x0B00_0000 + n).into(), 4000);
+        bench.send_from(from, &hello(n + 100, true));
+    }
+    assert_eq!(bench.relay.sources.len(), SOURCES);
+    assert_eq!(bench.relay.refused.len(), SOURCES);
+    assert!(bench.table.1.get() - before <= SOURCES as u32 + 20);
+    // Once back to their whole rate, sources are forgotten.
+    bench.at(10_000);
+    bench.poll();
+    assert!(bench.relay.sources.is_empty());
+    assert!(bench.relay.refused.is_empty());
+}
+
+#[test]
+fn a_refused_game_does_not_stop_the_others_on_its_ip() {
+    let mut bench = Bench::new();
+    bench.all_hello();
+    // Session 5 plays from session 1's IP (a shared exit), not seen yet.
+    bench.table.seat(5, MATCH, 6, 0);
+    bench.table.0.borrow_mut().get_mut(&5).unwrap().ip = Some(addr(1).ip());
+    let shared = |port: u16| SocketAddr::new(addr(1).ip(), port);
+    let lookups = bench.table.1.get();
+    // A game of the same exit refused: its match over (no seat) while it
+    // holds push-to-talk, and another whose voice left by another exit
+    // than its match connection (session 4's, from session 1's IP).
+    for seq in 0..1_000u16 {
+        bench.at(u64::from(seq));
+        assert!(bench.send_from(shared(7000), &audio(77, 1, seq)).is_empty());
+        assert!(bench.send_from(shared(7001), &audio(4, 1, seq)).is_empty());
+    }
+    // Each was looked up once a second.
+    assert_eq!(bench.table.1.get() - lookups, 2);
+    // The others of that exit go on: session 1, known, and session 5, new.
+    bench.at(1_000);
+    assert_eq!(
+        sent_to(&bench.send(1, &start(1, 1))),
+        vec![(2, 0x82), (3, 0x82)]
+    );
+    assert_eq!(
+        welcomes(bench.send_from(shared(7002), &hello(5, true))).len(),
+        1
+    );
+    // A guessing flood from the exit: 20 failed lookups a second, and the
+    // known games still looked up.
+    for session in 1_000..2_000 {
+        bench.send_from(shared(7003), &hello(session, true));
+    }
+    assert_eq!(
+        sent_to(&bench.send(1, &audio(1, 1, 0))),
+        vec![(2, 0x83), (3, 0x83), (2002, 0x83)]
+    );
+}
+
+#[test]
+fn forty_players_behind_one_exit_are_not_limited() {
+    let mut bench = Bench::new();
+    let exit = ip("10.7.7.7");
+    for session in 100..140u32 {
+        bench
+            .table
+            .seat(session, 0x30, (session - 100) as u8, (session % 2) as u8);
+        bench.table.0.borrow_mut().get_mut(&session).unwrap().ip = Some(exit);
+    }
+    let from = |session: u32| SocketAddr::new(exit, session as u16);
+    // Each says HELLO 4 times a second and talks (25 AUDIO a second), for
+    // 2 s.
+    for tick in 0..50u16 {
+        bench.at(u64::from(tick) * 40);
+        for session in 100..140u32 {
+            if tick % 6 == 0 {
+                bench.send_from(from(session), &hello(session, true));
+            }
+            bench.send_from(from(session), &audio(session, 1, tick));
+        }
+    }
+    let dropped = bench.relay.counts(0x30).map_or(0, |counts| counts.dropped);
+    assert_eq!(dropped, 0);
+    assert_eq!(bench.relay.dropped_unknown, 0);
 }
 
 #[test]

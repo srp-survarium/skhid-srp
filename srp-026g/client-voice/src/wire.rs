@@ -2,8 +2,18 @@
 //! or a [`Malformed`] saying why they do not.
 use crate::SLOTS;
 pub const MAX_DATAGRAM: usize = 400;
-/// The most frames an AUDIO carries; the relay forwards no more.
-pub const MAX_FRAMES: usize = 8;
+/// The most frames an AUDIO carries: [`crate::Sender`] sends two, one at an
+/// utterance's end on an odd frame, and [`crate::Core`] plays two. The
+/// relay forwards no more.
+pub const MAX_FRAMES: usize = 2;
+/// The longest frame: [`crate::Encoder`] (16 kbit/s, 40 bytes a 20 ms frame
+/// on average, 93 at most measured on full-scale square waves and noise) is
+/// given no more room than this, 3 times its rate.
+pub const MAX_FRAME_BYTES: usize = 120;
+/// The TOC bytes (RFC 6716 3.1) of [`crate::Encoder`]'s frames: SILK, 20 ms,
+/// mono, code 0, of narrow, medium or wide band. It encodes 16 kHz speech at
+/// 16 kbit/s, where Opus stays in SILK; its own are all 0x48.
+pub const FRAME_TOCS: [u8; 3] = [0x08, 0x28, 0x48];
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Message {
     Hello {
@@ -67,7 +77,7 @@ pub enum Malformed {
     Slot(u8),
     /// AUDIO not of 1 to [`MAX_FRAMES`] frames that fill it exactly.
     Frames,
-    /// A frame that is not one 20 ms Opus packet ([`opus_20ms`]).
+    /// A frame [`crate::Encoder`] does not make ([`our_frame`]).
     NotOpus,
     /// A ROSTER naming a slot twice.
     Roster,
@@ -85,37 +95,17 @@ impl std::fmt::Display for Malformed {
             Self::Length => write!(f, "wrong length"),
             Self::Slot(slot) => write!(f, "slot {slot}"),
             Self::Frames => write!(f, "malformed frames"),
-            Self::NotOpus => write!(f, "a frame not 20 ms of Opus"),
+            Self::NotOpus => write!(f, "a frame our encoder does not make"),
             Self::Roster => write!(f, "a slot twice in the roster"),
             Self::FromClient => write!(f, "a client's type"),
         }
     }
 }
-/// Whether `frame` is one 20 ms Opus packet, what [`crate::Core`] plays in
-/// each frame's place: its TOC byte's configuration and frame count (RFC
-/// 6716 3.1) say 20 ms. The rest of it is the decoder's to check. The relay
-/// checks the same (`match-server`'s `voice::opus_20ms`).
-pub fn opus_20ms(frame: &[u8]) -> bool {
-    let Some((&toc, rest)) = frame.split_first() else {
-        return false;
-    };
-    let config = toc >> 3;
-    // A frame's length in 2.5 ms.
-    let length: u32 = match config {
-        // SILK: 10, 20, 40 and 60 ms.
-        0..=11 => [4, 8, 16, 24][usize::from(config & 3)],
-        // Hybrid: 10 and 20 ms.
-        12..=15 => [4, 8][usize::from(config & 1)],
-        // CELT: 2.5, 5, 10 and 20 ms.
-        _ => [1, 2, 4, 8][usize::from(config & 3)],
-    };
-    let count = match toc & 3 {
-        0 => 1,
-        1 | 2 => 2,
-        // Code 3: the count is in the next byte.
-        _ => rest.first().map_or(0, |&count| u32::from(count & 0x3F)),
-    };
-    length * count == 8
+/// Whether `frame` is one [`crate::Encoder`] makes: of one of [`FRAME_TOCS`]
+/// and at most [`MAX_FRAME_BYTES`]. Nothing else reaches the decoder; the
+/// relay checks the same (`match-server`'s `voice::our_frame`).
+pub fn our_frame(frame: &[u8]) -> bool {
+    frame.len() <= MAX_FRAME_BYTES && frame.first().is_some_and(|toc| FRAME_TOCS.contains(toc))
 }
 struct Reader<'a>(&'a [u8]);
 impl Reader<'_> {
@@ -151,7 +141,7 @@ impl Reader<'_> {
         for _ in 0..count {
             let len = usize::from(self.byte().map_err(|_| Malformed::Frames)?);
             let (frame, rest) = self.0.split_at_checked(len).ok_or(Malformed::Frames)?;
-            if !opus_20ms(frame) {
+            if !our_frame(frame) {
                 return Err(Malformed::NotOpus);
             }
             frames.push(frame.to_vec());
@@ -347,7 +337,7 @@ fn audio(b: &mut Vec<u8>, utt: u16, seq: u16, frames: &[Vec<u8>]) -> Option<()> 
     b.extend(seq.to_le_bytes());
     b.push(frames.len() as u8);
     for f in frames {
-        if f.len() > 255 || !opus_20ms(f) {
+        if !our_frame(f) {
             return None;
         }
         b.push(f.len() as u8);
@@ -373,7 +363,7 @@ mod tests {
             slot: 3,
             utt: 65535,
             seq: 2,
-            frames: vec![vec![1, 2, 3], vec![0x48]],
+            frames: vec![vec![0x08, 2, 3], vec![0x48]],
         };
         let b = m.encode().unwrap();
         assert_eq!(parse(&b), Ok(m));
@@ -392,7 +382,7 @@ mod tests {
                 session: 1,
                 utt: 1,
                 seq: 0,
-                frames: vec![vec![1; 255]; 2]
+                frames: vec![vec![0x48; MAX_FRAME_BYTES + 1]; 2]
             }
             .encode()
             .is_none()
