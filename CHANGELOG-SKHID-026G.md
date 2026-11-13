@@ -9,6 +9,19 @@ release that made it what it is now.
 
 ---
 
+## 13 Nov, 12:31 — TODO: the owner's words (update required)
+
+<!-- Revision 58 (026g-rev58), released 2026-11-13 12:31 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1764 World check: a held artefact's slot is an artefact slot, its amount at most its item's uses
+- TODO: #1765 Patch 115: weapon animation indices stay in their tables
+- TODO: #1763 Chats: a player's name, tag or line never read as markup
+- TODO: #1773 Silver: 30,000 for finishing a match, and kills pay twice
+- TODO: #1774 Free for All: no player limit of its own, the room's (20 at the most)
+- TODO: #1772 Training Camp: half the perimeter spawns to the centre, more on the islands
+- TODO: #1775 Training Camp minimap: the whole ground framed on the crater, fading out
+- TODO: #1776 Free for All: half the perimeter spawns of 16 maps to their centre
+
 ## 13 Nov, 03:04 — TODO: the owner's words (update required)
 
 <!-- Revision 57 (026g-rev57), released 2026-11-13 03:04 UTC. To be worded for players; what it shipped: -->
