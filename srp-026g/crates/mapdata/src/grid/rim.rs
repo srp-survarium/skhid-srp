@@ -259,6 +259,37 @@ mod tests {
         assert_eq!(grid.rim_unmade().len(), rim.tried);
     }
 
+    /// One rim jump on a real map, every press's outcome printed: `RIM_MAP` (a format 6 map), `RIM_FROM` and `RIM_TO` ("x z y",
+    /// the take-off and landing floors). `cargo test -- --ignored --nocapture fly_one`.
+    #[test]
+    #[ignore]
+    fn fly_one() {
+        let var = |k: &str| std::env::var(k).unwrap_or_else(|_| panic!("set {k}"));
+        let map = crate::MapData::from_bytes(&std::fs::read(var("RIM_MAP")).unwrap()).unwrap();
+        let world = Collision::build_exe(&map).unwrap();
+        let s = body(true).controller().1;
+        let p = |k: &str| {
+            let v: Vec<f32> = var(k).split_whitespace().map(|x| x.parse().unwrap()).collect();
+            Vec3::new(v[0], v[2], v[1])
+        };
+        let (from, to) = (p("RIM_FROM"), p("RIM_TO"));
+        let l = (to.x - from.x).hypot(to.z - from.z);
+        let way = ((to.x - from.x) / l, (to.z - from.z) / l);
+        println!("best press: {:?}", best_press(&world, &s, from, to, way, 0.25, &gap_leads()));
+        for lead in gap_leads() {
+            for gait in std::iter::once(Gait::Walk).chain(sprint_gaits()) {
+                let at = Vec3::new(from.x - way.0 * lead, from.y, from.z - way.1 * lead);
+                let Some(steps) = jump::run_and_fly(&world, &s, at, way, gait, GROUND_STEPS) else {
+                    println!("lead {lead:.1} {gait:?}: no run-up");
+                    continue;
+                };
+                let e = steps.last().unwrap().feet;
+                let trace: Vec<String> = steps.iter().map(|f| format!("{:.2},{:.2},{:.2}", f.feet.x, f.feet.y, f.feet.z)).collect();
+                println!("lead {lead:.1} {gait:?}: end ({:.3} {:.3} {:.3}) | {}", e.x, e.y, e.z, trace.join(" "));
+            }
+        }
+    }
+
     /// Vector Laboratory's shelf, made: ground at 0 for x < 5, a pit 3 m deep across `gap` m, then a top 1.10 m up (over the
     /// standing jump, so no gap link reaches it). With rim jumps and the gap links: the rim stats and whether the top is reached.
     fn over_a_gap(gap: f32, rim_jumps: bool) -> (RimStats, bool) {
