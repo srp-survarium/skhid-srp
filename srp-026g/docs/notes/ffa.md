@@ -70,7 +70,9 @@ kills wins, no elimination phases (not 0.31's "The Last Stand"). His rules of th
   - The results screen and the Tab list rank by kills, then score, then fewer deaths, then place.
   - The score itself is the game's, as in every mode: 10 a kill, 5 an assist. Team Deathmatch's
     three times a kill is mode 4's alone.
-- **Pay:** as TDM: the score's pay and win bonus. Each finished FFA winner
+- **Pay:** as TDM: the score's pay and win bonus, but a kill pays twice the
+  silver and experience and every finisher gets 30,000 silver more
+  (`results.md` §17; FFA only). Each finished FFA winner
   earns the normal Elo victory gain against the other participants' average
   rating (+2 with equal ratings). Tied leaders each earn a win; everyone else
   gets zero rating change, including leavers. No team-balance rating change.
