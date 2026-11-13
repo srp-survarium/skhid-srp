@@ -288,11 +288,10 @@ package survarium.watch
       // be pressed again back in the lobby.
       public static function away() : void
       {
-         if(_watch != null)
-         {
-            _watch = null;
-            WatchPrompt.close();
-         }
+         // the prompt too once its watch was answered (a replay's stays till the load): none is
+         // left to come back after the match
+         _watch = null;
+         WatchPrompt.close();
          if(_save != null)
          {
             _save = null;

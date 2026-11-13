@@ -149,6 +149,7 @@ package
    import survarium.quest.QuestList;
    import survarium.rooms.RoomsWindow;
    import survarium.watch.WatchWindow;
+   import survarium.watch.WatchPrompt;
    import survarium.upgrade.UpgradeWindow;
    
    public class LobbyMenu extends MovieClip
@@ -4262,8 +4263,11 @@ package
             this.topMenu.lockInventory(true);
             this.dragRegion.mouseEnabled = false;
             stage.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_UP));
-            // the match is found: the message up goes (closed, not answered as Esc would)
-            if(Message.isAnyMessage() != -1)
+            // the match is found: the message up goes (closed, not answered as Esc would). Not
+            // the Watch prompt of a replay being opened: its found comes before the load, whose
+            // close step takes it as the message up (closeForLoad), so the results or window
+            // under it stay
+            if(Message.isAnyMessage() != -1 && !WatchPrompt.isPrompt(Message.isAnyMessage()))
             {
                Message.close(Message.isAnyMessage());
             }

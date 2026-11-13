@@ -124,6 +124,19 @@ package survarium.watch
          return LocalizationData.format(OPENING,LocalizationData.format("st_srp_replay_waiting",seconds));
       }
 
+      // Whether the message `id` is this prompt.
+      public static function isPrompt(id:int) : Boolean
+      {
+         try
+         {
+            return _dialog != null && id >= 0 && uint(_dialog.getMessageId()) == uint(id);
+         }
+         catch(e:Error)
+         {
+         }
+         return false;
+      }
+
       // The prompt gone, without a word (its ask ended with nothing to say).
       public static function close() : void
       {
