@@ -17,14 +17,18 @@ Each block of ARENA names its sources. Every source becomes a relocatable
 ELF32 object, once: NASM (`-f elf32`) for `.asm`, gcc for `.c` (`-m32 -c`,
 CFLAGS below, no Nix hardening). GNU ld links all of them together at
 ARENA_VA with a linker script made from ARENA: an output section per block,
-in ARENA's order, each at the next multiple of its alignment, holding of each
-of its sources, in the order given:
+the code blocks first, then from the next page the data and state blocks
+(each kind in ARENA's order), each at the next multiple of its alignment,
+holding of each of its sources, in the order given:
 
     code   their .text, then their .rodata
     data   their .data
     state  their .bss (zeros: in the file as zeros, as every state was)
 
-A block's VA and size are what the link gives it; nothing is reserved or
+The code part, from ARENA_VA, becomes the read-and-execute section `.srpx`;
+the data part, from Linked.data_va, the read-and-write `.srpxd`: no page of
+the arena is both writable and executable (patch_026g.py add_arena). A
+block's VA and size are what the link gives it; nothing is reserved or
 pinned. A patch reaches another's code by name (the engine library's
 `engine_...`, a C function from NASM): ordinary ELF symbols. The game's
 functions and data are absolute addresses in the sources (the exe is never
@@ -92,10 +96,12 @@ ArenaBlock = collections.namedtuple("ArenaBlock", "name kind align sources")
 RustEntry = collections.namedtuple("RustEntry", "symbol function macro argument")
 # Where the link put a block.
 Block = collections.namedtuple("Block", "name kind va size")
-Linked = collections.namedtuple("Linked", "va size image blocks symbols every built_with sha256")
+Linked = collections.namedtuple("Linked", "va size image blocks symbols every built_with sha256 data_va")
 # blocks: {name: Block}; symbols: {global name: VA}; every: [(name, VA, block,
 # global)] of every defined symbol (locals too); image: the arena's bytes from
-# `va` (code blocks' gaps int3, the rest zeros).
+# `va` (code blocks' gaps int3, the rest zeros); data_va: where the data part
+# begins (the page after the last code block; every data and state block is
+# at or after it, every code block before it).
 
 
 class LinkError(Exception):
@@ -261,6 +267,12 @@ def check_blocks(blocks):
             raise LinkError(f"{', '.join(map(source_name, twice))}: named by two {kind} blocks")
 
 
+def placed(blocks):
+    """The blocks in the order the link places them: the code blocks, then
+    the data and state blocks, each kind in ARENA's order."""
+    return [b for b in blocks if b.kind == "code"] + [b for b in blocks if b.kind != "code"]
+
+
 def rodata_symbol(block):
     """The symbol at the start of a code block's .rodata (its .text's end;
     the block's end when it has no .rodata, then not in Linked.symbols): what
@@ -269,9 +281,14 @@ def rodata_symbol(block):
 
 
 def script_text(blocks, objects, va, limit):
-    """The linker script: one output section per block, at ARENA's order."""
+    """The linker script: one output section per block, the code blocks
+    first, then from the next page the data and state blocks (placed())."""
     lines = ["SECTIONS", "{", f"  . = {va:#x};"]
-    for block in blocks:
+    data = False
+    for block in placed(blocks):
+        if block.kind != "code" and not data:
+            lines.append("  . = ALIGN(0x1000);")                      # the data part: a page of its own
+            data = True
         rules = []
         for at, group in enumerate(TAKES[block.kind]):
             if block.kind == "code" and at == 1:
@@ -526,11 +543,14 @@ def link(blocks, va, limit, tools=None):
 
 def layout(blocks, out, va, limit, built_with):
     """The Linked of the linked ELF `out`: each block's section where the
-    link put it, checked (in ARENA's order, aligned, none overlapping, inside
-    the arena), and the arena's bytes."""
+    link put it, checked (in placed()'s order, aligned, none overlapping,
+    inside the arena, the code blocks before data_va and the others from it),
+    and the arena's bytes."""
     by_name = {s["name"]: s for s in out["sections"]}
-    placed, at = {}, va
-    for block in blocks:
+    order, at = placed(blocks), va
+    code = [b.name for b in order if b.kind == "code"]
+    placed_at = {}
+    for block in order:
         s = by_name.get("." + block.name)
         if s is None or not s["size"]:
             raise LinkError(f"block {block.name}: nothing of its sources ({', '.join(map(source_name, block.sources))}) "
@@ -538,16 +558,20 @@ def layout(blocks, out, va, limit, built_with):
         if s["addr"] < at or s["addr"] % block.align:
             raise LinkError(f"block {block.name} at {s['addr']:#x}: not after the block before it ({at:#x}) or "
                             f"not aligned to {block.align:#x}")
-        placed[block.name] = (Block(block.name, block.kind, s["addr"], s["size"]), s["bytes"])
+        placed_at[block.name] = (Block(block.name, block.kind, s["addr"], s["size"]), s["bytes"])
         at = s["addr"] + s["size"]
+    code_end = max((placed_at[n][0].va + placed_at[n][0].size for n in code), default=va)
+    data_va = (code_end + 0xFFF) & ~0xFFF
+    if any(placed_at[b.name][0].va < data_va for b in order if b.kind != "code"):
+        raise LinkError(f"a data or state block before {data_va:#x}, the page after the last code block")
     if at - va > limit:
         raise LinkError(f"the arena is {at - va:#x} bytes, past its limit {limit:#x} (ARENA_LIMIT)")
     stray = [s["name"] for s in out["sections"] if s["flags"] & 2 and s["size"]
-             and s["name"][1:] not in placed]
+             and s["name"][1:] not in placed_at]
     if stray:
         raise LinkError(f"the link has sections of no block: {', '.join(stray)}")
     image = bytearray(at - va)
-    order = [placed[b.name] for b in blocks]
+    order = [placed_at[b.name] for b in order]
     for (block, body), following in zip(order, order[1:] + [None]):
         start = block.va - va
         end = (following[0].va - va) if following else len(image)
@@ -567,7 +591,7 @@ def layout(blocks, out, va, limit, built_with):
             symbols[sym["name"]] = sym["value"]
     image = bytes(image)
     return Linked(va, len(image), image, {b.name: b for b, _ in order}, dict(sorted(symbols.items())),
-                  sorted(every), built_with, hashlib.sha256(image).hexdigest())
+                  sorted(every), built_with, hashlib.sha256(image).hexdigest(), data_va)
 
 
 def block_bytes(linked, name):
@@ -579,7 +603,7 @@ def block_bytes(linked, name):
 
 def lock_of(linked):
     return {"generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
-            "va": f"{linked.va:#x}", "size": linked.size, "sha256": linked.sha256,
+            "va": f"{linked.va:#x}", "data_va": f"{linked.data_va:#x}", "size": linked.size, "sha256": linked.sha256,
             "blocks": {b.name: {"kind": b.kind, "va": f"{b.va:#x}", "size": b.size} for b in linked.blocks.values()},
             "symbols": {name: f"{value:#x}" for name, value in linked.symbols.items()},
             "built_with": linked.built_with}
@@ -590,7 +614,7 @@ def lock_differs(linked, kept):
     if kept is None:
         return "there is no lock"
     mine = lock_of(linked)
-    if all(kept.get(k) == mine[k] for k in ("va", "size", "sha256", "blocks", "symbols")):
+    if all(kept.get(k) == mine[k] for k in ("va", "data_va", "size", "sha256", "blocks", "symbols")):
         return None
     blocks = sorted({n for n in set(mine["blocks"]) | set(kept.get("blocks", {}))
                      if mine["blocks"].get(n) != kept.get("blocks", {}).get(n)})
@@ -687,6 +711,8 @@ def main():
         return
     for block in linked.blocks.values():
         print(f"  {block.name:<16} {block.kind:<5} {block.va:#x} {block.size:#7x} bytes")
+    print(f"  code {linked.va:#x}..{linked.data_va:#x} (.srpx, read and execute), data and state "
+          f"{linked.data_va:#x}..{linked.va + linked.size:#x} (.srpxd, read and write)")
     if args.write:
         LOCK.write_text(json.dumps(lock_of(linked), indent=2) + "\n", newline="\n")
         print(f"{LOCK.name}: {linked.size:#x} bytes at {linked.va:#x}, SHA-256 {linked.sha256}")

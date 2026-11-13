@@ -207,7 +207,7 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   where the first section's bytes begin; moving every section's bytes to grow it would change
   every file offset the tools and the released records name). Eleven are taken (the seven of the
   game, `.srp`, `.srpd`, `.srpc`, `.srpw`). The twelfth, `.srpx` (0xA42D000, code, data and
-  writable), is the arena of every later patch (client_patch.md 0.3): blocks declared in
+  writable; since 2026-11 its code alone, read and execute, its data and state in `.srpxd`), is the arena of every later patch (client_patch.md 0.3): blocks declared in
   `patch_026g.py`'s `ARENA` with their sources, linked by `link_026g.py`. Research's are
   `research.code` (research_026g.asm and research_arena) and `research.state`
   (the cook and UI cache; addresses in `arena_026g.lock.json`); its hooks take their targets from

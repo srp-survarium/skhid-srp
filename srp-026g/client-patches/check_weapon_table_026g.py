@@ -238,7 +238,7 @@ class Table:
         lobby.word(MENU, MENU + 0x800)                # the lobby menu's vtable: +24h is_mouse_over_ui
         lobby.word(MENU + 0x800 + 0x24, OVER_UI)
         late_join = open(base.late_join_bin(), "rb").read()
-        self.has_table = any(name == base.WEAPON_CAMO_NAME for name, *_ in base.Headers(data).sections(data))
+        self.has_table = any(name == base.DEATH_CAMERA_NAME for name, *_ in base.Headers(data).sections(data))
         self.state = base.late_join_state_va(late_join) + base.WEAPON_TABLE_STATE_OFFSET + delta
         # The camera as its constructor makes it: ecx = the lobby menu, the
         # collision scene on the stack.

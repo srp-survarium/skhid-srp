@@ -22,6 +22,7 @@
 #![no_std]
 #![feature(core_float_math)]
 
+use core::cell::UnsafeCell;
 use core::ffi::{CStr, c_void};
 use core::mem::{MaybeUninit, offset_of, size_of};
 use core::ptr::{NonNull, null_mut};
@@ -894,14 +895,17 @@ pub unsafe extern "C" fn research_cook_create_rule(cook: *mut u8, query: *mut u8
 /// code of the game casts a cook or asks its type (no reference to any
 /// cook's type descriptor in .text), but the locator names the cook for what
 /// it is, not tdm's. The type descriptor's second word is type_info's cache
-/// of the undecorated name, written by type_info::name: the section is
-/// writable, and nothing here reads it.
+/// of the undecorated name, written by type_info::name: an UnsafeCell, so
+/// the descriptor is in the arena's data (research.data, writable), not with
+/// the code; nothing here reads it.
 #[repr(C)]
 pub struct TypeDescriptor {
     vftable: u32,
-    spare: u32,
+    spare: UnsafeCell<u32>,
     name: [u8; 29],
 }
+// SAFETY: only the game's type_info::name writes `spare`; we never read it.
+unsafe impl Sync for TypeDescriptor {}
 
 #[repr(C)]
 pub struct BaseClass {
@@ -938,9 +942,9 @@ pub struct Rtti<T>(T);
 unsafe impl<T> Sync for Rtti<T> {}
 
 static COOK_TYPE: TypeDescriptor =
-    TypeDescriptor { vftable: TYPE_INFO_VFTABLE, spare: 0, name: *b".?AVresearch_rule_cook@srp@@\0" };
+    TypeDescriptor { vftable: TYPE_INFO_VFTABLE, spare: UnsafeCell::new(0), name: *b".?AVresearch_rule_cook@srp@@\0" };
 static COOK_BASE: Rtti<BaseClass> = Rtti(BaseClass {
-    kind: &COOK_TYPE,
+    kind: &raw const COOK_TYPE,
     contained: 3,
     mdisp: 0,
     pdisp: 0xFFFFFFFF,
@@ -956,7 +960,7 @@ static COOK_BASES: Table<4> = Table([
 ]);
 static COOK_HIERARCHY: Rtti<Hierarchy> = Rtti(Hierarchy { signature: 0, attributes: 1, count: 4, bases: &COOK_BASES });
 static COOK_LOCATOR: Rtti<Locator> =
-    Rtti(Locator { signature: 0, offset: 0, cd_offset: 0, kind: &COOK_TYPE, hierarchy: &COOK_HIERARCHY.0 });
+    Rtti(Locator { signature: 0, offset: 0, cd_offset: 0, kind: &raw const COOK_TYPE, hierarchy: &COOK_HIERARCHY.0 });
 
 /// The cook's vtable: tdm_rule_core_cook's, with our create and size.
 #[unsafe(no_mangle)]

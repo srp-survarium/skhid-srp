@@ -93,21 +93,23 @@ USAGE (this script never touches the source exe):
     spot_026g.asm:
         nasm -f bin -DCAVE=0xA4257C0 spot_026g.asm -o spot_026g.section.bin
     (checked in). The camera on the death screen comes from death_camera_026g.asm,
-    a section of its own, `.srpc`, on the page after the late join's state page:
+    the first page of the code section `.srpc`, on the page after the late
+    join's state page:
         nasm -f bin -DCAVE=0xA429000 -DSTATE=0xA428E60 -DLOOK=0xA425D40 -DLOOK_STATE=0xA428E20 -DDRAG_END=0xA425A98 death_camera_026g.asm -o death_camera_026g.section.bin
     (checked in; STATE is 0xE60 of the late join's state page, LOOK_STATE warmup_look's, checked).
-    A weapon's camouflage comes from weapon_camo_026g.asm, in a section of its
-    own, `.srpw`, on the page after `.srpc`, and what it paints (the camouflage,
-    the decals) and the decal editor on a weapon from weapon_decals_026g.asm, at
-    0x1200 of that section (after patch 45's code):
+    A weapon's camouflage comes from weapon_camo_026g.asm, in `.srpw`, the
+    three pages of `.srpc` after the death camera's, and what it paints (the
+    camouflage, the decals) and the decal editor on a weapon from
+    weapon_decals_026g.asm, at 0x1200 of `.srpw` (after patch 45's code):
         nasm -f bin -DCAVE=0xA42A000 -DDECALS=0xA42B200 weapon_camo_026g.asm -o weapon_camo_026g.section.bin
         nasm -f bin -DCAVE=0xA42B200 -DPREVIEW=0xA428E00 -DTABLE=0xA428F00 -DPRESS=0xA428FC0 weapon_decals_026g.asm -o weapon_decals_026g.section.bin
     (checked in; PREVIEW and TABLE are patch 32's and patch 45's states, PRESS
     its own, 0xFC0 of the late join's state page, checked).
-    The arena, `.srpx` (Research, the artefacts' code, the engine-function
-    library, the kit keys and the match chat option, the hide-the-interface
-    key), is linked from its C and
-    NASM sources at every build
+    The arena, `.srpx` (its code, read and execute) and `.srpxd` (its data
+    and state, read and write: no section is both), with Research, the
+    artefacts' code, the engine-function library, the kit keys and the match
+    chat option, the hide-the-interface key, the Rust patches, is linked from
+    its C, NASM and Rust sources at every build
     (link_026g.py: gcc -m32, GNU ld and NASM 2.16 are needed) and must be
     arena_026g.lock.json's (`python link_026g.py --write` after a change).
     The late-join code is late_join_026g.section.bin, checked in too; it is
@@ -1325,7 +1327,7 @@ WARMUP_KEYS_STATE_SIZE = 4
 # player sends no input (game_world::tick 0x1F7883).
 DEATH_CAMERA_NAME = b".srpc\0\0\0"
 DEATH_CAMERA_CHARACTERISTICS = 0x60000020     # code, execute, read (as .srp)
-DEATH_CAMERA_SIZE = 0x1000                     # .srpc's one page: `.srpw` follows it
+DEATH_CAMERA_SIZE = 0x1000                     # .srpc's first page: `.srpw`'s code follows it
 DEATH_LOOK_OFFSET, DEATH_VIEW_OFFSET = 0, 0x200   # the .asm's two entries
 DEATH_VIEW_HOOK = (0x1F364B, bytes.fromhex("e860ec0400"), DEATH_VIEW_OFFSET, 0xE8)   # update_camera: death_view
 DEATH_CAMERA_STATE_OFFSET = 0xE60             # after the FOV LOD scale's (FOV_LOD_STATE_OFFSET)
@@ -2167,15 +2169,15 @@ def death_camera_va(late_join):
 
 
 # A weapon wears the camouflage its item holds (patch 44, client_patch.md
-# section 3.41): weapon_camo_026g.asm, in its own section `.srpw` on the page
-# after `.srpc` (the death camera's one page; weapon_camo_va). weapon_cook::
+# section 3.41): weapon_camo_026g.asm, in `.srpw`, three pages on the page
+# after the death camera's one (weapon_camo_va): a section of its own until
+# 2026-11, now the last three pages of the code section `.srpc` (the arena's
+# data took its table entry; add_arena). weapon_cook::
 # on_weapon_subresources_ready's `lea eax,[esp+20h] / push eax` (0x24B0D2,
 # the model loaded, before it is given to the weapon at 0x243A30) calls
 # weapon_ready, which asks for the camouflage's bake of each of the model's
 # surfaces when the weapon's merged config has `data/camouflage`, and does
 # the two instructions. No base relocation is under the site.
-WEAPON_CAMO_NAME = b".srpw\0\0\0"
-WEAPON_CAMO_CHARACTERISTICS = 0x60000020      # code, execute, read (as .srp)
 WEAPON_CAMO_HOOK = (0x24B0D2, bytes.fromhex("8d44242050"), 0, 0xE8)
 WEAPON_CAMO_ENTRY = bytes.fromhex("609c89e5") # pushad; pushfd; mov ebp,esp
 WEAPON_CAMO_BAKE_NAME = "weapon_camo_on_bake_name"   # the generated entry of weapon_camo.bake_name: the last dword
@@ -2542,7 +2544,7 @@ BAKE_CACHE_KEEP = (0x1EC832, bytes.fromhex("e869c5ffff"), bytes.fromhex("0f1f440
 
 
 def weapon_camo_va(late_join):
-    """Where `.srpw` is: the page after `.srpc`, which is one page."""
+    """Where `.srpw` is: the page after the death camera's, `.srpc`'s first."""
     return death_camera_va(late_join) + DEATH_CAMERA_SIZE
 
 
@@ -2919,21 +2921,12 @@ def is_cave(old):
 
 def our_ranges(data, writes):
     """[(lo, hi)] of our code: the executable sections build() adds (`.srp`
-    and after; not `.srpd`, state), the caves it wrote into the padding and
-    the code over on_hash_mismatch."""
+    and after; not `.srpd` or `.srpxd`, data and state), the caves it wrote
+    into the padding and the code over on_hash_mismatch."""
     headers = Headers(data)
     ours = [(IMAGE_BASE + rva, IMAGE_BASE + rva + vsize) for name, rva, vsize, _, _, flags in headers.sections(data)
             if name.startswith(b".srp") and flags & 0x20000000]
     return ours + [(va, va + len(new)) for va, old, new in writes if is_cave(old) or va == HASH_MISMATCH_VA]
-
-
-def arena_data_ranges():
-    """[(lo, hi)] of the arena's data and state blocks (arena_026g.lock.json,
-    which every build's link must be): no code is there, so an address of one
-    the game is given (a table it reads) is data, not an install."""
-    lock = linker.read_lock()
-    blocks = lock["blocks"].values() if lock else ()
-    return [(int(b["va"], 16), int(b["va"], 16) + b["size"]) for b in blocks if b["kind"] != "code"]
 
 
 def installs_of(data, writes):
@@ -2942,10 +2935,11 @@ def installs_of(data, writes):
     into the game's sections: a `call` (E8) or `jmp` (E9) rel32 to our code,
     any other 4 bytes that name our code ("pointer": a slot, a delegate, a
     `push imm32`, a `mov imm32`), and a body replaced in place ("body")."""
+    # An address in the arena's data and state (`.srpxd`, not executable: not
+    # in our_ranges) that the game is given (a table it reads) is data, not an
+    # install.
     ours = our_ranges(data, writes)
-    data_blocks = arena_data_ranges()
-    inside = lambda target: any(lo <= target < hi for lo, hi in ours) \
-        and not any(lo <= target < hi for lo, hi in data_blocks)
+    inside = lambda target: any(lo <= target < hi for lo, hi in ours)
     out = {}
     for va, old, new in writes:
         if is_cave(old) or va == HASH_MISMATCH_VA:
@@ -3006,24 +3000,28 @@ for _va, _owner, _what in hooks_026g.lohook_sites():
     INSTALLS[_va] = (JUMP, f"{_what}: {_owner} (Rust lohook)", None, None)
 
 
-# `.srpx`, the arena of the later patches (client_patch.md section 0.3;
-# README "The arena"). The exe's section table has room for twelve entries
-# (it is at 210h and the headers end at 400h, where the first section's
-# bytes begin); the game's seven, `.srp`, `.srpd`, `.srpc` and `.srpw` take
-# eleven. The twelfth is `.srpx`, code, data and writable, on the page after
-# `.srpw` (whose three pages end at ARENA_VA). A patch that needs room
-# declares its blocks in ARENA, each with its C or NASM sources, and the
+# `.srpx` and `.srpxd`, the arena of the later patches (client_patch.md
+# section 0.3; README "The arena"). The exe's section table has room for
+# twelve entries (it is at 210h and the headers end at 400h, where the first
+# section's bytes begin); the game's seven, `.srp`, `.srpd` and `.srpc` (the
+# death camera's page, then `.srpw`'s three: the weapon camouflage's) take
+# ten. The arena takes the last two, on the page after `.srpc` (ARENA_VA):
+# `.srpx`, its code blocks, read and execute, then from the next page
+# `.srpxd`, its data and state blocks, read and write. No section of the exe
+# is both writable and executable (refuse_writable_code). A patch that needs
+# room declares its blocks in ARENA, each with its C or NASM sources, and the
 # tooling links them (link_026g.py): every source an ELF32 object, all of
-# them linked by GNU ld at ARENA_VA, a block an output section, in ARENA's
-# order, each at the next multiple of its alignment, its size what its
-# sources hold. A patch calls another's functions (the engine library's) by
-# their names, and a hook site takes its target from the link by symbol
-# (arena_target), so no block keeps a VA of its own: the exe is made whole
-# for every release and never rebased, and nothing outside it holds an
-# address of the arena. The file holds the whole arena (a state block as
-# zeros), only the section's sizes and SizeOfImage grow, and the linked bytes
-# must be arena_026g.lock.json's (arena()). With no block declared there
-# would be no `.srpx` at all.
+# them linked by GNU ld at ARENA_VA, a block an output section, the code
+# blocks in ARENA's order and then the others in ARENA's order, each at the
+# next multiple of its alignment, its size what its sources hold. A patch
+# calls another's functions (the engine library's) by their names, and a
+# hook site takes its target from the link by symbol (arena_target), so no
+# block keeps a VA of its own: the exe is made whole for every release and
+# never rebased, and nothing outside it holds an address of the arena. The
+# file holds the whole arena (a state block as zeros), only the sections'
+# sizes and SizeOfImage grow, and the linked bytes must be
+# arena_026g.lock.json's (arena()). With no block declared there would be
+# neither section; with no data or state block, no `.srpxd`.
 #   ArenaBlock(name, kind, align, sources): name "<patch>.<what>", unique;
 #   kind "code" (the sources' .text and .rodata, int3 after them), "data"
 #   (their .data) or "state" (their .bss: zeros); align a power of two from
@@ -3031,7 +3029,9 @@ for _va, _owner, _what in hooks_026g.lohook_sites():
 # A new patch adds its blocks (anywhere: the order is only the layout's) and
 # its source files, then `python link_026g.py --write`.
 ARENA_NAME = b".srpx\0\0\0"
-ARENA_CHARACTERISTICS = 0xE0000060              # code, initialized data, execute, read, write
+ARENA_CHARACTERISTICS = 0x60000020              # code, execute, read (as .srp); RWX until 2026-11
+ARENA_DATA_NAME = b".srpxd\0\0"
+ARENA_DATA_CHARACTERISTICS = 0xC0000040         # initialized data, read, write
 ARENA_VA = 0xA42D000                            # weapon_camo_va + .srpw's three pages
 # The most the arena may take: a block of a runaway size (a state array, a
 # table) stops the link instead of growing the image. Raise it on purpose.
@@ -3046,6 +3046,8 @@ ARENA = (
     # Research, patch 53: four aligned asm entries and stubs, then Rust
     ArenaBlock("research.code", "code", 0x1000,
                ("research_026g.asm", "research_arena/Cargo.toml")),
+    # the cook's RTTI type descriptor: type_info::name writes its name cache
+    ArenaBlock("research.data", "data", 0x10, ("research_arena/Cargo.toml",)),
     # its rule's cook and the hud's cache (research_arena's STATE)
     ArenaBlock("research.state", "state", 0x1000, ("research_arena/Cargo.toml",)),
     ArenaBlock("artefacts.code", "code", 0x1000, ("artefacts_026g.asm",)),       # patch 54
@@ -3111,15 +3113,39 @@ def arena_target(linked, symbol):
 
 
 def add_arena(data, linked):
-    """Appends `.srpx`, the linked arena's bytes at ARENA_VA, after the last
-    section; returns the new file. No arena (None): `data` as it is."""
+    """Appends the linked arena after the last section: `.srpx`, its code
+    blocks at ARENA_VA (read, execute), and `.srpxd`, its data and state
+    blocks from linked.data_va (read, write); a part without blocks adds no
+    section. Returns the new file. No arena (None): `data` as it is."""
     if linked is None:
         return data
     headers = Headers(data)
     if IMAGE_BASE + struct.unpack_from("<I", data, headers.size_of_image_at)[0] != ARENA_VA or linked.va != ARENA_VA:
-        sys.exit(f".srpx: the image does not end at {ARENA_VA:#x}, where the arena begins (has `.srpw` grown "
-                 f"past its three pages?)")
-    return add_code_section(data, ARENA_NAME, ARENA_VA, linked.image, ARENA_CHARACTERISTICS)
+        sys.exit(f".srpx: the image does not end at {ARENA_VA:#x}, where the arena begins (has `.srpc` grown "
+                 f"past its four pages?)")
+    code_end = max((b.va + b.size for b in linked.blocks.values() if b.kind == "code"), default=ARENA_VA)
+    if code_end > ARENA_VA:
+        data = append_section(data, ARENA_NAME, ARENA_VA, linked.image[:code_end - ARENA_VA], ARENA_CHARACTERISTICS)
+    if linked.va + linked.size > linked.data_va:
+        data = append_section(data, ARENA_DATA_NAME, linked.data_va, linked.image[linked.data_va - ARENA_VA:],
+                             ARENA_DATA_CHARACTERISTICS)
+    return data
+
+
+IMAGE_SCN_CNT_CODE, IMAGE_SCN_CNT_INITIALIZED_DATA = 0x20, 0x40
+IMAGE_SCN_MEM_EXECUTE, IMAGE_SCN_MEM_WRITE = 0x20000000, 0x80000000
+
+
+def refuse_writable_code(data):
+    """Stops the build when a section of `data` is both writable and
+    executable: an attacker's code written there runs (the exe has no ASLR,
+    so such a page is at a known address). Code is read and execute, data
+    and state read and write."""
+    both = [name.rstrip(b"\0").decode(errors="replace") for name, *_, flags in Headers(data).sections(data)
+            if flags & IMAGE_SCN_MEM_EXECUTE and flags & IMAGE_SCN_MEM_WRITE]
+    if both:
+        sys.exit(f"{', '.join(both)}: writable and executable; a section is code (read, execute) or data "
+                 "(read, write), never both")
 
 
 # Research, mode 5 (patch 53, README; client_patch.md section 3.50;
@@ -3347,6 +3373,7 @@ class Headers:
         if struct.unpack_from("<H", data, self.optional)[0] != 0x10B:
             sys.exit("not a PE32 image")
         self.size_of_code_at = self.optional + 4
+        self.size_of_initialized_data_at = self.optional + 8
         self.size_of_image_at = self.optional + 56
         self.checksum_at = self.optional + 64
         self.dll_characteristics_at = self.optional + 70
@@ -3490,11 +3517,13 @@ def add_section(data, cave):
     return out
 
 
-def add_code_section(data, name, va, code, characteristics):
-    """Appends a code section at `va` (the next aligned RVA after the last
-    section, the late join's state page) whose file bytes follow the last
-    file bytes (.srp's), and moves the Authenticode blob behind them, as
-    add_section does. Returns the new file contents."""
+def append_section(data, name, va, body, characteristics):
+    """Appends a section of `body` at `va` (the next aligned RVA after the
+    last section) whose file bytes follow the last file bytes, and moves the
+    Authenticode blob behind them, as add_section does: a code section
+    (IMAGE_SCN_CNT_CODE) padded with int3 and counted in SizeOfCode, an
+    initialized data section padded with zeros and counted in
+    SizeOfInitializedData. Returns the new file contents."""
     headers = Headers(data)
     sections = headers.sections(data)
     _, last_rva, last_vsize, _, _, _ = sections[-1]
@@ -3510,16 +3539,19 @@ def add_code_section(data, name, va, code, characteristics):
     security_offset, security_size = struct.unpack_from("<II", data, headers.security_at)
     if security_offset != raw or security_offset + security_size != len(data) or raw % headers.file_alignment:
         sys.exit("unexpected layout after the last section's bytes")
-    raw_size = align(len(code), headers.file_alignment)
+    raw_size = align(len(body), headers.file_alignment)
     if (raw + raw_size) % 8:
         sys.exit("the certificate table would lose its 8-byte alignment")
+    is_code = characteristics & IMAGE_SCN_CNT_CODE
+    if not is_code and not characteristics & IMAGE_SCN_CNT_INITIALIZED_DATA:
+        sys.exit(f"{name.rstrip(bytes(1)).decode()}: neither code nor initialized data")
     record_section(name.rstrip(b"\0").decode(), raw, raw_size, slot)
-    out = bytearray(data[:raw]) + code + b"\xCC" * (raw_size - len(code)) + data[raw:]
-    out[slot:slot + 40] = name + struct.pack("<IIIIIIHHI", len(code), rva, raw_size, raw, 0, 0, 0, 0, characteristics)
+    out = bytearray(data[:raw]) + body + (b"\xCC" if is_code else b"\0") * (raw_size - len(body)) + data[raw:]
+    out[slot:slot + 40] = name + struct.pack("<IIIIIIHHI", len(body), rva, raw_size, raw, 0, 0, 0, 0, characteristics)
     struct.pack_into("<H", out, headers.count_at, len(sections) + 1)
-    struct.pack_into("<I", out, headers.size_of_image_at, align(rva + len(code), headers.section_alignment))
-    struct.pack_into("<I", out, headers.size_of_code_at,
-                     struct.unpack_from("<I", data, headers.size_of_code_at)[0] + raw_size)
+    struct.pack_into("<I", out, headers.size_of_image_at, align(rva + len(body), headers.section_alignment))
+    counter = headers.size_of_code_at if is_code else headers.size_of_initialized_data_at
+    struct.pack_into("<I", out, counter, struct.unpack_from("<I", data, counter)[0] + raw_size)
     struct.pack_into("<I", out, headers.security_at, security_offset + raw_size)
     return out
 
@@ -4125,11 +4157,15 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         data = add_section(data, cave)
         if late_join is not None:
             add_state_section(data, late_join_state_va(late_join))
-            data = add_code_section(data, DEATH_CAMERA_NAME, death_camera_va(late_join),
-                                    with_death_pitch(death_camera, linked),
-                                    DEATH_CAMERA_CHARACTERISTICS)
-            data = add_code_section(data, WEAPON_CAMO_NAME, weapon_camo_va(late_join), weapon_camo,
-                                    WEAPON_CAMO_CHARACTERISTICS)
+            # `.srpc`: the death camera's page, then the weapon camouflage's
+            # three (`.srpw`, a section of its own until the arena's data
+            # took its table entry): one code section.
+            death_camera = with_death_pitch(death_camera, linked)
+            if len(death_camera) > DEATH_CAMERA_SIZE:
+                sys.exit(f"the death camera's code ({len(death_camera):#x} bytes) is past its page")
+            data = append_section(data, DEATH_CAMERA_NAME, death_camera_va(late_join),
+                                  death_camera + b"\xCC" * (DEATH_CAMERA_SIZE - len(death_camera)) + weapon_camo,
+                                  DEATH_CAMERA_CHARACTERISTICS)
             # `.srpx`, the arena (linked above, with patch 48's code): each
             # hook's target taken from the link by its symbol.
             if linked is not None:
@@ -4144,7 +4180,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 patch_section_value(data, slot, old, struct.pack("<I", arena_target(linked, symbol)))
                 slot, old, symbol = MODULE_WATCH_TLS_SLOT
                 callbacks = linked.symbols.get(symbol)
-                if callbacks is None or not any(lo <= callbacks < hi for lo, hi in arena_data_ranges()):
+                if callbacks is None or not any(b.kind == "data" and b.va <= callbacks < b.va + b.size
+                                                for b in linked.blocks.values()):
                     sys.exit(f".srpx: {symbol!r} is no symbol of a data block of the arena")
                 patch_section_value(data, slot, old, struct.pack("<I", callbacks))
                 for va, old, new in hide_ui_table_writes(linked):
@@ -4159,6 +4196,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                     sys.exit("artefacts_026g.asm: its entries do not go on where patch_026g.py's ARTEFACTS_BACKS "
                              "says")
             data = add_arena(data, linked)
+    refuse_writable_code(data)
     if arena_blocks is not None and late_join is None:
         sys.exit("the arena (`.srpx`) is of the build with the late join")
     if mode != "cert-only":
