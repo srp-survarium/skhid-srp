@@ -43,13 +43,19 @@ kills wins, no elimination phases (not 0.31's "The Last Stand"). His rules of th
   - No squads in the match: squad mates are opponents. The lobby squad itself stays.
   - Every other player is an enemy wherever the game compares teams: names, markers, minimap,
     kill feed, kills, assists, spotting.
-  - **No team chat** (the owner, 2026-11-12: "i'd rather it didn't have team chat"), and voice
-    goes by these sides too, never by the seating:
+  - **Voice for all** (the owner, 2026-11-13: "in FFA I would enable voice chat for all"; until
+    then nobody heard anyone): every player hears every other of the match, by the team modes'
+    rule of near and far (plain and from its side within 15 m, the radio past it or dead;
+    voice-chat.md). The relay decides it from the match's mode (`registry::VoiceChannel::of`:
+    the match's channel, not a team's), the game from the options' free-for-all entry (patch
+    66's `channel`, by patch 142's `free_for_all::running`). The Tab menu's voice mute and the
+    talking list take every player (in Blackout the list still only on Tab).
+  - **No team chat** (the owner, 2026-11-12: "i'd rather it didn't have team chat"); the chat
+    goes by these sides, never by the seating:
     - The HUD offers no team tab ("The player's screens", below).
     - The server delivers none. A team channel's line (6 or 7; a changed game can still send
       one) reaches the players on the sender's side of the match (the lobby's `play::Side`, what
       `Core::side_played` answers): in a free-for-all the sender alone.
-    - The voice relay goes by the match's teams (`registry::voice_seat`): nobody hears anyone.
     - The match's channel ("All") reaches every player of the match, as in any mode.
     - The squad channel is the lobby squad's, whatever its members play: squad mates read each
       other's squad lines while they are opponents here, and the HUD keeps a squad's tab. Not

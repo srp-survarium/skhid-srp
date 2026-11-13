@@ -300,13 +300,45 @@ struct Inner {
     connections: HashMap<(u32, u8), IpAddr>,
 }
 
+/// Who hears a seat's voice in its match.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum VoiceChannel {
+    /// Its team's places (every mode with teams).
+    Team(u8),
+    /// Every place of the match: a free-for-all, whose places are each a
+    /// side of their own (the owner, 2026-11-13: "in FFA I would enable voice
+    /// chat for all").
+    Match,
+}
+
+impl VoiceChannel {
+    /// The channel of a place of `team` in a match of `mode`: the one place
+    /// the relay's routing is decided.
+    pub fn of(mode: GameMode, team: u8) -> VoiceChannel {
+        if mode == GameMode::FreeForAll {
+            VoiceChannel::Match
+        } else {
+            VoiceChannel::Team(team)
+        }
+    }
+
+    /// A place of `team` is on this channel.
+    pub fn has(self, team: u8) -> bool {
+        match self {
+            VoiceChannel::Team(own) => own == team,
+            VoiceChannel::Match => true,
+        }
+    }
+}
+
 /// A session's place as the voice relay needs it (`super::voice`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VoiceSeat {
     pub match_id: u32,
     /// The roster place: the speaker's slot on the voice wire.
     pub place: u8,
-    pub team: u8,
+    /// Who hears it, and whom it hears.
+    pub channel: VoiceChannel,
     /// The IP of the place's match connection; `None` before its 0xD8.
     pub ip: Option<IpAddr>,
 }
@@ -749,9 +781,9 @@ impl MatchRegistry {
         }
     }
 
-    /// The places of a match's team that a game plays (not a bot's): each
-    /// place and its account, for the voice relay's ROSTER.
-    pub fn voice_roster(&self, match_id: u32, team: u8) -> Vec<(u8, u32)> {
+    /// The places of a match's voice channel that a game plays (not a
+    /// bot's): each place and its account, for the voice relay's ROSTER.
+    pub fn voice_roster(&self, match_id: u32, channel: VoiceChannel) -> Vec<(u8, u32)> {
         let inner = self.inner();
         let Some(formed) = inner.matches.get(&match_id) else {
             return Vec::new();
@@ -760,29 +792,26 @@ impl MatchRegistry {
             .places
             .iter()
             .enumerate()
-            .filter(|(_, place)| place.team == team && !place.bot && !place.driven)
+            .filter(|(_, place)| channel.has(place.team) && !place.bot && !place.driven)
             .map(|(index, place)| (index as u8, place.account_id))
             .collect()
     }
 
-    /// The seat of a session with its team and its match connection's IP,
-    /// for the voice relay. `None` for a session with no place, and for a
-    /// bot's place (no game talks for it).
+    /// The seat of a session with its voice channel (by the match's mode)
+    /// and its match connection's IP, for the voice relay. `None` for a
+    /// session with no place, and for a bot's place (no game talks for it).
     pub fn voice_seat(&self, session_id: u32) -> Option<VoiceSeat> {
         let inner = self.inner();
         let seat = *inner.seats.get(&session_id)?;
-        let place = inner
-            .matches
-            .get(&seat.match_id)?
-            .places
-            .get(usize::from(seat.place))?;
+        let formed = inner.matches.get(&seat.match_id)?;
+        let place = formed.places.get(usize::from(seat.place))?;
         if place.bot || place.driven {
             return None;
         }
         Some(VoiceSeat {
             match_id: seat.match_id,
             place: seat.place,
-            team: place.team,
+            channel: VoiceChannel::of(formed.played.mode(), place.team),
             ip: inner.connections.get(&(seat.match_id, seat.place)).copied(),
         })
     }

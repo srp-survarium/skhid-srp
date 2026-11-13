@@ -34,8 +34,8 @@ use ::ragdoll::math::sqrt;
 use crate::vostok::log::{self, Piece::*};
 use crate::vostok::types::Place;
 use crate::vostok::voice::{
-    self as engine, Body, Connect, Dll, Heard, Hearing, MUTES_SIZE, Pan, Places, Roster, Scene, Settings, TalkInput, TalkKey,
-    VoiceId, name_text,
+    self as engine, Body, Channel, Connect, Dll, Heard, Hearing, MUTES_SIZE, Pan, Places, Roster, Scene, Settings, TalkInput,
+    TalkKey, VoiceId, name_text,
 };
 use crate::vostok::{Context, Flow, GameCell, GameWorldButton, GameWorldKey, HudCall, NoExit, Thread, VoiceOnHudCallExit};
 
@@ -283,13 +283,14 @@ pub fn on_deactivate(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// How each teammate is heard: through the radio farther than [`NEAR_M`],
+/// How each mate (a teammate; in a free-for-all, any other player) is
+/// heard: through the radio farther than [`NEAR_M`],
 /// or when either of the two is not alive in the world (dead, a spectator);
 /// nearer, plain from its side of where the local player faces. The other
 /// places are not heard at all: plain, centred.
 fn hearing(roster: &Roster) -> Hearing {
     let me = roster.local().and_then(|me| roster.seat(me)).and_then(|seat| seat.body);
-    roster.teammates().fold(Hearing::CENTRED, |hearing, (place, seat)| {
+    roster.mates().fold(Hearing::CENTRED, |hearing, (place, seat)| {
         let heard = match (me, seat.body) {
             (Some(me), Some(them)) if near(me.feet, them.feet) => Heard::Direct(pan(me, them.feet)),
             _ => Heard::Radio,
@@ -315,9 +316,16 @@ fn pan(listener: Body, at: [f32; 3]) -> Pan {
     if lengths > 1e-3 { Pan::new((d[0] * right[0] + d[1] * right[1]) / lengths) } else { Pan::CENTRE }
 }
 
-/// The teammates whose voice id is muted.
+/// Whom the local player hears and is heard by, by the match's mode: in a
+/// free-for-all (patch 142's) every player of the match, else its team. The
+/// one place the client decides it; srp's relay routes the same way.
+fn channel(thread: &Thread) -> Channel {
+    if crate::free_for_all::running(thread) { Channel::Match } else { Channel::Team }
+}
+
+/// The mates (teammates; in a free-for-all, everyone) whose voice id is muted.
 fn muted(dll: Dll, roster: &Roster, mutes: &Mutes) -> Places {
-    roster.teammates().fold(Places::NONE, |muted, (place, _)| {
+    roster.mates().fold(Places::NONE, |muted, (place, _)| {
         if dll.voice_id(place).is_some_and(|id| mutes.has(id)) { muted.with(place) } else { muted }
     })
 }
@@ -356,7 +364,7 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
             live.trace = Trace::On(Some(state));
         }
     }
-    let roster = scene.roster(true);
+    let roster = scene.roster(true, channel(thread));
     let told = Told { settings, muted: muted(dll, &roster, &live.mutes), hearing: hearing(&roster) };
     let before = live.told;
     if before.map(|t| t.settings) != Some(told.settings) {
@@ -375,7 +383,7 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     // owner, 2026-11-11: "when I speak I want to see this with an icon").
     let own = roster.local();
     let speakers = Place::all()
-        .filter(|&p| talking.has(p) && (roster.teammate(p) || own == Some(p)))
+        .filter(|&p| talking.has(p) && (roster.mate(p) || own == Some(p)))
         .fold(Places::NONE, Places::with)
         .without(told.muted);
     if live.shown != Some(speakers) && show_speakers(&scene, &roster, speakers) {
@@ -470,8 +478,8 @@ pub fn on_hud_call(ctx: &mut Context<'_>) -> Flow<VoiceOnHudCallExit> {
         _ => None,
     };
     let id = live.and_then(|(dll, _)| {
-        let roster = Scene::at_call(&call).roster(false);
-        dll.voice_id(place).filter(|_| roster.teammate(place))
+        let roster = Scene::at_call(&call).roster(false, channel(thread));
+        dll.voice_id(place).filter(|_| roster.mate(place))
     });
     if menu {
         match (live, id) {
@@ -579,5 +587,24 @@ mod tests {
         assert!(close(at(3.0, 3.0), core::f32::consts::FRAC_1_SQRT_2), "ahead right");
         assert!(close(at(-3.0, -3.0), -core::f32::consts::FRAC_1_SQRT_2), "behind left");
         assert!(close(at(0.0, 0.0), 0.0), "straight above");
+    }
+
+    #[test]
+    fn in_a_free_for_all_everyone_is_heard_in_a_team_mode_teammates() {
+        use crate::vostok::voice::Channel;
+        // A free-for-all's places, each a side of its own (4 + its place).
+        let mut ffa = roster(&[(4, Some([0.0; 3])), (5, Some([3.0, 0.0, 0.0])), (6, Some([0.0, 0.0, 40.0])), (7, None)]);
+        // As a team mode reads them: sides past the two, nobody's mate.
+        assert_eq!(ffa.mates().count(), 0);
+        ffa.set_channel(Channel::Match);
+        assert_eq!(ffa.mates().map(|(place, _)| place).collect::<Vec<_>>(), [p(1), p(2), p(3)]);
+        // The same near and far rule as teammates'.
+        let heard = hearing(&ffa);
+        assert_eq!(heard.of(p(1)), Heard::Direct(Pan::new(1.0)));
+        assert_eq!(heard.of(p(2)), Heard::Radio);
+        assert_eq!(heard.of(p(3)), Heard::Radio);
+        // A team mode: the teammates only.
+        let teams = roster(&[(0, None), (0, None), (1, None)]);
+        assert_eq!(teams.mates().map(|(place, _)| place).collect::<Vec<_>>(), [p(1)]);
     }
 }

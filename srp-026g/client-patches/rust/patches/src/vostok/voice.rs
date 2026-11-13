@@ -325,18 +325,29 @@ pub struct Seat {
     pub body: Option<Body>,
 }
 
-/// The match's places, the local player's among them.
+/// Whom the local player's voice reaches and who it hears, as srp's relay
+/// routes it (`registry::VoiceChannel`): the places of its team, or in a
+/// free-for-all every place of the match (the owner, 2026-11-13: "in FFA I
+/// would enable voice chat for all").
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Channel {
+    Team,
+    Match,
+}
+
+/// The match's places, the local player's among them, and its voice channel.
 #[derive(Clone, Copy)]
 pub struct Roster {
     seats: [Option<Seat>; Place::COUNT],
     local: Option<Place>,
+    channel: Channel,
 }
 
 impl Roster {
-    pub const EMPTY: Roster = Roster { seats: [None; Place::COUNT], local: None };
+    pub const EMPTY: Roster = Roster { seats: [None; Place::COUNT], local: None, channel: Channel::Team };
 
-    fn of(client: &NetworkClient<'_>, bodies: bool) -> Roster {
-        let mut roster = Roster::EMPTY;
+    fn of(client: &NetworkClient<'_>, bodies: bool, channel: Channel) -> Roster {
+        let mut roster = Roster { channel, ..Roster::EMPTY };
         let teams = client.place_teams();
         for place in Place::all() {
             let Some(team) = teams[place.index()] else { continue };
@@ -362,16 +373,26 @@ impl Roster {
         self.seats[place.index()].as_ref()
     }
 
-    /// Another player of the local player's team (0 or 1).
-    pub fn teammate(&self, place: Place) -> bool {
+    /// Another player on the local player's voice channel: of its team (0
+    /// or 1), or in a free-for-all any other in the match.
+    pub fn mate(&self, place: Place) -> bool {
         let Some((me, team)) = self.local.and_then(|me| self.seat(me).map(|seat| (me, seat.team))) else {
             return false;
         };
-        me != place && team < 2 && self.seat(place).is_some_and(|seat| seat.team == team)
+        me != place
+            && self.seat(place).is_some_and(|seat| match self.channel {
+                Channel::Team => team < 2 && seat.team == team,
+                Channel::Match => true,
+            })
     }
 
-    pub fn teammates(&self) -> impl Iterator<Item = (Place, &Seat)> {
-        Place::all().filter(|&p| self.teammate(p)).filter_map(|p| self.seat(p).map(|seat| (p, seat)))
+    pub fn mates(&self) -> impl Iterator<Item = (Place, &Seat)> {
+        Place::all().filter(|&p| self.mate(p)).filter_map(|p| self.seat(p).map(|seat| (p, seat)))
+    }
+
+    #[cfg(test)]
+    pub fn set_channel(&mut self, channel: Channel) {
+        self.channel = channel;
     }
 
     #[cfg(test)]
@@ -405,11 +426,12 @@ impl<'t> Scene<'t> {
         self.thread
     }
 
-    /// The match's places; with `bodies`, the alive players' bodies.
-    pub fn roster(&self, bodies: bool) -> Roster {
+    /// The match's places on `channel`; with `bodies`, the alive players'
+    /// bodies.
+    pub fn roster(&self, bodies: bool, channel: Channel) -> Roster {
         self.game
             .and_then(|game| NetworkClient::of_game(game, self.thread))
-            .map_or(Roster::EMPTY, |client| Roster::of(&client, bodies))
+            .map_or(Roster::EMPTY, |client| Roster::of(&client, bodies, channel))
     }
 
     pub fn movie(&self) -> Option<&Movie<'t>> {
