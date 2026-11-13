@@ -517,17 +517,18 @@ impl Clock {
     }
 }
 
-/// The speed its game's clock was told (in its playback notes; the viewer's
-/// patch sets the clock's time scale by the newest it takes and keeps it
-/// through a world's load). A world goes only to a game told 1x: its 0xE5
-/// waits for the note to be in.
+/// What its game's clock was told (in its playback notes; the viewer's
+/// patch sets the clock's time scale and freezes it by the newest it takes,
+/// and keeps them through a world's load). A world goes only to a game told
+/// 1x, frozen exactly when its start is paused: its 0xE5 waits for the note
+/// to be in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum GameSpeed {
-    /// At this speed (a game new to its match runs at 1x).
-    Told(Speed),
-    /// Told 1x for the world it starts again from, in the note `serial`,
-    /// not yet acked.
-    Slowing(u64),
+    /// At this speed, frozen or not (a game new to its match runs at 1x).
+    Told { speed: Speed, paused: bool },
+    /// Told 1x, frozen or not, for the world it starts again from, in the
+    /// note `serial`, not yet acked.
+    Slowing { serial: u64, paused: bool },
 }
 
 /// What became of a playback.
@@ -604,7 +605,10 @@ impl Playback {
             sought: None,
             recalled: false,
             speed: Speed::Normal,
-            game_speed: GameSpeed::Told(Speed::Normal),
+            game_speed: GameSpeed::Told {
+                speed: Speed::Normal,
+                paused: false,
+            },
             last_request: None,
             told: None,
             revision: 0,
@@ -845,29 +849,39 @@ impl Playback {
                 true
             }
         };
-        // (One being told 1x already keeps that note.)
+        // Told another speed, or a pause other than this start's (a pause
+        // or play asked with the seek, not told yet): told 1x and this
+        // start's pause first. (One being told them already keeps that note.)
         match self.game_speed {
-            GameSpeed::Told(speed) if speed != Speed::Normal => {
-                self.send_playback(paused, Speed::Normal, now);
-                if let Some(serial) = self.playback_note {
-                    self.game_speed = GameSpeed::Slowing(serial);
-                }
+            GameSpeed::Told { speed, paused: was } if speed != Speed::Normal || was != paused => {
+                self.slow_to_world(paused, now);
             }
-            // Told 1x in a note not acked yet (it may be lost, and sent
+            GameSpeed::Slowing { paused: was, .. } if was != paused => {
+                self.slow_to_world(paused, now);
+            }
+            // Told them in a note not acked yet (it may be lost, and sent
             // again): the world waits for it as for a new one.
-            GameSpeed::Told(_) => {
+            GameSpeed::Told { .. } => {
                 if let Some(serial) = self
                     .playback_note
                     .filter(|&serial| !self.spectator.is_delivered(serial))
                 {
-                    self.game_speed = GameSpeed::Slowing(serial);
+                    self.game_speed = GameSpeed::Slowing { serial, paused };
                 }
             }
-            GameSpeed::Slowing(_) => {}
+            GameSpeed::Slowing { .. } => {}
         }
         (self.inputs, self.events) = self.recording.due(at, relay_lead(Speed::Normal));
         self.spectator.wait_again();
         self.told = None;
+    }
+
+    /// Its game told 1x and `paused` for the world it starts again from.
+    fn slow_to_world(&mut self, paused: bool, now: Instant) {
+        self.send_playback(paused, Speed::Normal, now);
+        if let Some(serial) = self.playback_note {
+            self.game_speed = GameSpeed::Slowing { serial, paused };
+        }
     }
 
     /// The clock follows its game's: from its world's 0xE5 of the time it
@@ -901,11 +915,14 @@ impl Playback {
     /// when it was last live, and only a start again ends that.)
     fn takes_world(&mut self) -> bool {
         match self.game_speed {
-            GameSpeed::Told(_) => true,
-            GameSpeed::Slowing(serial) => {
+            GameSpeed::Told { .. } => true,
+            GameSpeed::Slowing { serial, paused } => {
                 let slowed = self.spectator.is_delivered(serial);
                 if slowed {
-                    self.game_speed = GameSpeed::Told(Speed::Normal);
+                    self.game_speed = GameSpeed::Told {
+                        speed: Speed::Normal,
+                        paused,
+                    };
                 }
                 slowed
             }
@@ -948,7 +965,10 @@ impl Playback {
         }
         let note = self.send_playback(paused, self.speed, now);
         if self.playback_note.is_some() {
-            self.game_speed = GameSpeed::Told(self.speed);
+            self.game_speed = GameSpeed::Told {
+                speed: self.speed,
+                paused,
+            };
         }
         if fresh {
             for serial in std::mem::take(&mut self.timeline_notes) {
