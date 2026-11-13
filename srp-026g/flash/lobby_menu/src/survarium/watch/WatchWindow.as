@@ -137,6 +137,10 @@ package survarium.watch
 
       private var _shown:Boolean = false;
 
+      // the player's moves in this window (shown or closed, a tab, a chip, a search): a held
+      // return does not undo one made meanwhile (resume)
+      private var _moves:uint = 0;
+
       private var _tab:String = LIVE;
 
       private var _liveChip:String = EVERYONE;
@@ -411,23 +415,26 @@ package survarium.watch
          }
          this._resume = null;
          var win:WatchWindow = this;
-         // what the lobby shows now: a window the player opens while the room's word is awaited
-         // stays, the view is dropped
+         // what the lobby shows now: a window the player opens, or a move made in this one, while
+         // the room's word is awaited stays, and the view is dropped (the results coming up open
+         // their own window and the room under them: kept for their close first, resultsClosed)
          var opened:Object = MainScene.activeWindow;
          var roomsShown:Boolean = RoomsWindow.me != null && RoomsWindow.me.shown;
+         var moves:uint = this._moves;
          var back:Function = function():void
          {
             if(!win._inLobby)
             {
                return;
             }
-            if(MainScene.activeWindow !== opened || !roomsShown && RoomsWindow.me != null && RoomsWindow.me.shown)
-            {
-               return;
-            }
             if(LobbyMenu.id != null && LobbyMenu.id.resultsUp)
             {
                win._resume = view;
+               return;
+            }
+            if(MainScene.activeWindow !== opened || !roomsShown && RoomsWindow.me != null && RoomsWindow.me.shown
+               || win._moves != moves)
+            {
                return;
             }
             win.restore(view);
@@ -536,6 +543,7 @@ package survarium.watch
             return;
          }
          this._shown = value;
+         this._moves += 1;
          visible = value;
          if(topMenu != null)
          {
@@ -932,6 +940,7 @@ package survarium.watch
             return;
          }
          RoomsLook.clickSound();
+         this._moves += 1;
          this._tab = which;
          this.look._scrollPx = 0;
          this.askNow();
@@ -941,6 +950,7 @@ package survarium.watch
       private function pickChip(which:String) : void
       {
          RoomsLook.clickSound();
+         this._moves += 1;
          if(this._tab == LIVE)
          {
             this._liveChip = which;
@@ -990,6 +1000,7 @@ package survarium.watch
       // of (typed without `#`), watched if no player has the name; 0 none.
       private function searchPlayer(name:String, code:uint = 0) : void
       {
+         this._moves += 1;
          this._tab = REPLAYS;
          this.look._scrollPx = 0;
          var own:String = PlayerInfo.nickname;
