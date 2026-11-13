@@ -271,7 +271,9 @@ fn a_kept_recording_becomes_a_save_file_that_holds_nothing_private() {
     // The container: the header of the options and the recording's name,
     // and a `.sur` a replay session plays.
     let file = ReplayFile::read(&bytes).unwrap();
-    let map = survarium::v026g::maps::playable().next().unwrap();
+    let map = survarium::v026g::maps::playable_in(survarium::v026g::maps::GameMode::Batteries)
+        .next()
+        .unwrap();
     assert_eq!(file.header.match_id, MATCH);
     // 2026-10-15 12:00:00 UTC.
     assert_eq!(file.header.made, 1_792_065_600);
