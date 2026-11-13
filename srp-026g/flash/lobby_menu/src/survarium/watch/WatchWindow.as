@@ -411,9 +411,17 @@ package survarium.watch
          }
          this._resume = null;
          var win:WatchWindow = this;
+         // what the lobby shows now: a window the player opens while the room's word is awaited
+         // stays, the view is dropped
+         var opened:Object = MainScene.activeWindow;
+         var roomsShown:Boolean = RoomsWindow.me != null && RoomsWindow.me.shown;
          var back:Function = function():void
          {
             if(!win._inLobby)
+            {
+               return;
+            }
+            if(MainScene.activeWindow !== opened || !roomsShown && RoomsWindow.me != null && RoomsWindow.me.shown)
             {
                return;
             }
@@ -1127,7 +1135,8 @@ package survarium.watch
             "tab":this._tab,
             "liveChip":this._liveChip,
             "replaysChip":this._replaysChip,
-            "search":this._search
+            // a player's list only: a code typed without # was looked for as a name first
+            "search":(this._search != null && (this._search.state == ASKED || this._search.state == LISTED) ? this._search : null)
          };
          return true;
       }
