@@ -6,6 +6,7 @@ package survarium.chat
    import flash.external.ExternalInterface;
    import flash.text.TextField;
    import scaleform.clik.events.ComponentEvent;
+   import survarium.Util;
    import survarium.constants.ChatChannel;
    
    public class GameChat extends Chat
@@ -271,7 +272,7 @@ package survarium.chat
          }
          // Match the 15 px sender style so every translation fits the log's 90 px area.
          // Keep this markup in tab history too, otherwise switching tabs can discard the line.
-         var escaped:String = text.split("&").join("&amp;").split("<").join("&lt;");
+         var escaped:String = Util.escapeHtml(text);
          var line:String = "<font size='15' color='#F2F2F2'><b>System:</b> " + escaped + "</font>";
          for each(var tab:Object in this._data.tabs[this._activeMode])
             this._messages[tab.id] += line + this._nline;
@@ -292,7 +293,7 @@ package survarium.chat
          trace("get_styled_text",value.color,value.type,slyleStr,_data.name,value.name);
          if(!value.name)
          {
-            return styled(value.text,slyleStr);
+            return styledChar(value.text,slyleStr);
          }
          if(_data.name == value.name)
          {
@@ -311,7 +312,7 @@ package survarium.chat
                style = isAlly ? Chat.NICKNAME : NICKNAME_ENEMY;
             }
          }
-         return styled(value.name + ":",style) + " " + styledChar(value.text,"WhiteInGame");
+         return styledChar(value.name + ":",style) + " " + styledChar(value.text,"WhiteInGame");
       }
       
       override protected function configUI() : void

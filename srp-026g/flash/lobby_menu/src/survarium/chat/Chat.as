@@ -439,9 +439,12 @@ package survarium.chat
          return false;
       }
       
-      protected function linked(value:String, subName:String) : String
+      // A sender's name as the link "<name>: ", which LobbyChat.clickLinkHandler reads
+      // back from "event:<subName>:<the name URL-encoded>": whatever the name holds, it
+      // neither leaves the attribute nor reads as markup, and comes back whole.
+      protected function linked(name:String, subName:String) : String
       {
-         return "<a href=\'event:" + subName + ":" + value + "\'>" + value + "</a>";
+         return "<a href=\'event:" + subName + ":" + escape(name) + "\'>" + Util.escapeHtml(name) + ": </a>";
       }
       
       protected function clearTabs() : void
@@ -463,8 +466,7 @@ package survarium.chat
       
       protected function styledChar(value:String, style:String) : String
       {
-         value = value.split("<").join("&lt;");
-         return "<" + style + ">" + value + "</" + style + ">";
+         return "<" + style + ">" + Util.escapeHtml(value) + "</" + style + ">";
       }
       
       protected function styled(value:String, style:String) : String

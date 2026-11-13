@@ -53,6 +53,15 @@ package survarium
       {
          return "<" + style + ">" + value + "</" + style + ">";
       }
+
+      // Text a player typed (a name, a clan tag, a kit's name, a chat line) as the text of HTML:
+      // shown as typed, none of it read as markup. The game already decodes &lt; and &amp;
+      // (the chat lines' styledChar, GameChat.addIntroduction); quotes mean nothing in a
+      // tag's text and stay as they are. Not for an attribute: Chat.linked URL-encodes.
+      public static function escapeHtml(value:String) : String
+      {
+         return String(value).split("&").join("&amp;").split("<").join("&lt;").split(">").join("&gt;");
+      }
       
       public static function getIntString(value:int) : String
       {

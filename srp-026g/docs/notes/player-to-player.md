@@ -343,12 +343,18 @@ server builds every message, but some of their text was typed by a player:
 The game copies each string into a fixed buffer without checking its length, so the server cuts
 every one to its buffer before it sends it.
 
+A name may hold any character but a control one (`<`, `'`, `:` too), and the movies show some
+player text as HTML: the lobby's and the match's chats (the sender's name, its clan tag, the line,
+and a line without a sender, which carries names: a room's "joined", the clan's lines), the
+referral notice's name, a kit's name on the profile tabs (another player's too, in their profile)
+and the daily reward's greeting. Each movie escapes such text (`survarium.Util.escapeHtml`: `&`,
+`<`, `>`) wherever it meets HTML, so it is shown as typed and never read as markup. The lobby
+chat's name link carries the name URL-encoded (`Chat.linked`), and its click reads it back whole
+(`LobbyChat.clickLinkHandler`), a colon in it too. `scripts/chat-names/check.sh` checks the two
+chats in Ruffle.
+
 ## 9. What is not checked yet
 
-- **Player text inside the interface.** The chat movie escapes `<` in a chat line, but it puts
-  the sender's name into its HTML as it is. A name with markup in it would be read as markup by
-  the other players' chat. Whether that can do more than spoil the formatting has not been
-  reviewed.
 - **The match messages are not typed views yet.** Inputs, relays and kit choices are checked by
   the older byte-level code (`srp_validate::messages`). The checks are complete, but they are
   not yet parsed into types the way the world is.

@@ -17,6 +17,7 @@ package survarium.chat
    import scaleform.clik.events.IndexEvent;
    import scaleform.gfx.MouseEventEx;
    import scaleform.gfx.TextFieldEx;
+   import survarium.Util;
    import survarium.constants.ChatChannel;
    import survarium.constants.ClaimReason;
    import survarium.constants.CommentKind;
@@ -610,17 +611,17 @@ package survarium.chat
          trace("get_styled_text",nameStyle,message.text,message.color,message.type,_data.name,message.name);
          if(!message.name)
          {
-            return styled(message.time,TIME) + " " + styled(message.text,nameStyle);
+            return styled(message.time,TIME) + " " + styledChar(message.text,nameStyle);
          }
-         clanPrefix = message.abbr ? "[" + message.abbr + "] " : "";
+         clanPrefix = message.abbr ? "[" + Util.escapeHtml(message.abbr) + "] " : "";
          if(message.type == ChatChannel.SYSTEM)
          {
-            return styled(message.time,TIME) + " " + styled(clanPrefix + linked(message.name + ": ","messager"),nameStyle) + " " + styledChar(message.text,nameStyle);
+            return styled(message.time,TIME) + " " + styled(clanPrefix + linked(message.name,"messager"),nameStyle) + " " + styledChar(message.text,nameStyle);
          }
          if(_data && _data.name == message.name)
          {
             trace("ISLOCAL");
-            return styled(message.time,TIME) + " " + styled(clanPrefix + linked(message.name + ": ","name"),PLAYER) + " " + styledChar(message.text,PLAYER_TEXT);
+            return styled(message.time,TIME) + " " + styled(clanPrefix + linked(message.name,"name"),PLAYER) + " " + styledChar(message.text,PLAYER_TEXT);
          }
          playerName = message.name;
          textStyle = nameStyle;
@@ -643,7 +644,7 @@ package survarium.chat
          {
             nameStyle = "WhiteNickname";
          }
-         return styled(message.time,TIME) + " " + styled(clanPrefix + linked(message.name + ": ","name"),nameStyle) + " " + styledChar(message.text,textStyle);
+         return styled(message.time,TIME) + " " + styled(clanPrefix + linked(message.name,"name"),nameStyle) + " " + styledChar(message.text,textStyle);
       }
       
       override protected function configUI() : void
@@ -903,16 +904,20 @@ package survarium.chat
                trace("clickLinkHandler::text",lineText);
             }
          }
-         var linkParts:Array = event.text.split(":");
+         // "<kind>:<the name URL-encoded>" (Chat.linked): the name is all after the first
+         // colon, a colon of its own included.
+         var colon:int = event.text.indexOf(":");
+         var linkKind:String = colon < 0 ? event.text : event.text.substring(0,colon);
+         var linkName:String = colon < 0 ? "" : unescape(event.text.substring(colon + 1));
          var lineIndex:int;
          var lineText:String;
          var isFriend:Boolean;
          var claimOptions:Array;
          var menuItems:Array;
          var i:int;
-         if(linkParts[0] == "name" && _data.name != linkParts[1])
+         if(linkKind == "name" && _data.name != linkName)
          {
-            _lastName = linkParts[1];
+            _lastName = linkName;
             isFriend = false;
             if(this._friends)
             {
