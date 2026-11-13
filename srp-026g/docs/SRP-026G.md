@@ -189,6 +189,12 @@ that rule is mended when the accounts load, and never plays.
 | `SRP_REPLAY_MAX_RECORDING_MB` | `24` | A replay session (`docs/notes/replay-stream.md`) does not read a larger recording (status `failed`): it is kept in memory with what is made of it |
 | `SRP_REPLAY_DIR` | unset (off; the compose file sets `/srv/srp/data/replays`) | Save: the `.srpreplay` files players ask to save (`docs/notes/replay_watch.md` section 2.1), made from the kept recordings and handed out at `/replays/<token>`; a folder of its own (never the recordings', inside it or around it: then Save is off). `off`: off |
 | `SRP_REPLAY_MAX_MB` | `1000` | Save's files (and their sidecars) over this together: the oldest are deleted (made again when asked for) |
+| `SRP_REPLAY_WATCH` | `all` | Who may watch a replay in the game (`docs/notes/replay-stream.md`): `all` anyone, `match` the match's players and `SRP_REPLAY_MODERATORS`; another value is `match` |
+| `SRP_REPLAY_MODERATORS` | unset | Account ids, comma-separated, that may watch any match's replay |
+| `SRP_REPLAY_WATCH_MAX` | `4` | Replay sessions at once (each costs about one player's traffic and its recording in memory) |
+| `SRP_LIVE_WATCH_DELAY_S` | `30` | Seconds a live spectator (the Watch window's Live, Queue and spectate) sees the match behind it, 0 to 58 (a match keeps 60 s to start from) |
+| `SRP_LIVE_WATCH_PER_MATCH` | `4` | Spectators of one match, Live and Queue and spectate together (`docs/notes/queue-spectate.md`) |
+| `SRP_LIVE_WATCH_MAX` | `8` | Spectators of all matches together |
 | `SRP_PACKET_LOG` | unset | A folder: every datagram of the lobby and the match server, one file a connection (the lobby sign-in's session id left out). **Set it for every live test** |
 
 ### Sign-in
