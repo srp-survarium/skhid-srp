@@ -999,8 +999,10 @@ pub(crate) struct Game {
     /// The newest upload no majority contradicts, checked or not.
     recent: Option<Snapshot>,
     /// The trusted worlds of the last [`INPUTS_KEPT_MS`], oldest first: where
-    /// a Live window's spectator, behind the match, starts (`spectate`).
-    past: VecDeque<Snapshot>,
+    /// a Live window's spectator, behind the match, starts (`spectate`);
+    /// each with its 0xE8 past the generation byte, made once for every
+    /// spectator started from it.
+    past: VecDeque<(Snapshot, OnceLock<Vec<u8>>)>,
     /// The places' kills and deaths of the trusted worlds, told behind the
     /// match (`live`).
     live_records: live::DelayedRecords,

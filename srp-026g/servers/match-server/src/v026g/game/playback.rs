@@ -118,6 +118,10 @@ const VIEWER_BACKLOG_MOST: usize = 2 * BACKLOG_MOST;
 /// it comes, and a speed's note reaches the game that late; at 8x a 500 ms
 /// round trip is 4 s of match time.
 const DRIFT_MS: i64 = 2_000;
+
+/// The longest round trip a viewer's game is counted to have: one longer
+/// plays no match.
+const ROUND_TRIP_MOST_MS: u32 = 2_000;
 const DRIFT_REPORTS: u8 = 3;
 /// A session lasts at most its recording's length and this (paused, sought
 /// back), or twice its length when that is more: then it is shown the end,
@@ -643,8 +647,18 @@ impl Playback {
     /// Where its game's clock is, the playback at `at`, while the clock
     /// plays: behind by the way of the note its speed came in (it took the
     /// speed half a round trip after the playback did, [`Self::judge_drift`]).
+    /// Its game's last round trip, ms: no more than [`ROUND_TRIP_MOST_MS`]
+    /// (a game's acks can make it any length; a poll walks the inputs it
+    /// spans, [`Recording::within_rings`]).
+    fn round_trip(&self) -> u32 {
+        self.spectator
+            .round_trip()
+            .unwrap_or(0)
+            .min(ROUND_TRIP_MOST_MS)
+    }
+
     fn game_clock(&self, at: u32) -> u32 {
-        let way = self.spectator.round_trip().unwrap_or(0) / 2;
+        let way = self.round_trip() / 2;
         at.saturating_sub(played(self.speed, Duration::from_millis(way.into())))
     }
 
@@ -656,7 +670,7 @@ impl Playback {
             places: usize::from(recording.info.roster()),
             roster: usize::from(recording.info.roster()),
             worlds: recording.worlds.iter().collect(),
-            sent_worlds: &recording.sent_worlds,
+            sent_worlds: recording.sent_worlds.iter().collect(),
             inputs: &recording.inputs[..self.inputs],
             events: &recording.events[..self.events],
             until: None,
@@ -773,7 +787,7 @@ impl Playback {
         };
         let behind = match self.clock {
             Clock::Playing { .. } => {
-                let way = self.spectator.round_trip().unwrap_or(0);
+                let way = self.round_trip();
                 i64::from(played(self.speed, Duration::from_millis(way.into())))
                     - i64::from(way / 2)
             }

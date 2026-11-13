@@ -342,8 +342,9 @@ pub(super) struct Watched<'a> {
     pub(super) worlds: Vec<&'a Snapshot>,
     /// Their 0xE8s past the generation byte, by index, each made once for
     /// every game shown it (a recording's key frames: its sessions share
-    /// them, `playback::Recording`); none: made for each start.
-    pub(super) sent_worlds: &'a [OnceLock<Vec<u8>>],
+    /// them, `playback::Recording`; a delayed spectator's past worlds);
+    /// none: made for each start.
+    pub(super) sent_worlds: Vec<&'a OnceLock<Vec<u8>>>,
     /// Everything relayed so far: its time, whose it is, what.
     pub(super) inputs: &'a [(u32, usize, Relayed)],
     /// The roster changes so far: time, place, entered (else left).
@@ -426,12 +427,12 @@ impl Game {
     /// A trusted world, kept for a delayed spectator to start from: the
     /// last [`INPUTS_KEPT_MS`] (its inputs since are kept as long).
     pub(super) fn keep_past(&mut self, world: &Snapshot) {
-        if self.past.back().is_some_and(|last| last.time >= world.time) {
+        if self.past.back().is_some_and(|(last, _)| last.time >= world.time) {
             return;
         }
-        self.past.push_back(world.clone());
+        self.past.push_back((world.clone(), OnceLock::new()));
         let keep_from = world.time.saturating_sub(INPUTS_KEPT_MS);
-        while self.past.front().is_some_and(|old| old.time < keep_from) {
+        while self.past.front().is_some_and(|(old, _)| old.time < keep_from) {
             self.past.pop_front();
         }
     }
@@ -440,7 +441,19 @@ impl Game {
     /// the worlds at or before it, the relays and roster changes due by it.
     fn watched_delayed(&self, clock: u32) -> Watched<'_> {
         Watched {
-            worlds: self.past.iter().filter(|world| world.time <= clock).collect(),
+            // Oldest first: the same index in both.
+            worlds: self
+                .past
+                .iter()
+                .map(|(world, _)| world)
+                .filter(|world| world.time <= clock)
+                .collect(),
+            sent_worlds: self
+                .past
+                .iter()
+                .filter(|(world, _)| world.time <= clock)
+                .map(|(_, sent)| sent)
+                .collect(),
             until: Some(clock + HORIZON_MS),
             ..self.watched(clock)
         }
@@ -455,6 +468,7 @@ impl Game {
     fn delayed_start(&self, clock: u32) -> Option<Snapshot> {
         self.past
             .iter()
+            .map(|(world, _)| world)
             .filter(|world| world.time + HORIZON_MS <= clock)
             .filter(|world| clock - world.time <= FRESH_SNAPSHOT_MS)
             .max_by_key(|world| world.time)
@@ -483,7 +497,7 @@ impl Game {
                 .into_iter()
                 .flatten()
                 .collect(),
-            sent_worlds: &[],
+            sent_worlds: Vec::new(),
             inputs: &self.inputs,
             events: &self.events,
             until: None,
