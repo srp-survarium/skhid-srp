@@ -1158,8 +1158,9 @@ package survarium.rooms
                 var roomCode:int = head.length > 16 ? int(head[16]) : RoomCode.NONE;
                 // Back from a watch: the room that called us back (srp says so, once: a room that
                 // waited for players is still waiting then, its vote begins with us), or one with a
-                // use for us anyway (its vote, its match), shows itself, with a quiet notice; one
-                // still waiting gives the Watch window back.
+                // use for us anyway (its vote), shows itself, with a quiet notice; one still
+                // waiting, or playing a match we are not in (one with a place for us calls us
+                // back), gives the Watch window back.
                 var calledBack:Boolean = roomCode == RoomCode.CALLED_BACK;
                 if (calledBack)
                     roomCode = RoomCode.NONE;
@@ -1167,7 +1168,7 @@ package survarium.rooms
                 {
                     var back:Object = _watchReturn;
                     _watchReturn = null;
-                    if (calledBack || _room.phase != RoomPhase.WAITING)
+                    if (calledBack || _room.phase == RoomPhase.VOTE)
                     {
                         _view = "room";
                         _roomSig = "";

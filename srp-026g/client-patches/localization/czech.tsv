@@ -2707,7 +2707,7 @@ st_srp_renderer_dxvk	Vulkan/DXVK
 st_srp_renderer_option	Vykreslování
 st_srp_replay_asking	Žádám server o záznam tohoto zápasu…
 st_srp_replay_being_made	Záznam se vytváří ze zápisu zápasu. Děje se to při prvním přehrání a chvíli to trvá.\nToto okno můžeš zavřít, server bude pokračovat.\n\n%1$s
-st_srp_replay_busy	Server teď zpracovává jiné záznamy. Zkus to za minutu.
+st_srp_replay_busy	Teď to nejde. Zkus to za minutu.
 st_srp_replay_close	ZAVŘÍT
 st_srp_replay_demo_quest	Přínos k vítězství
 st_srp_replay_demo_rank	«%1$s»: dosažena 3. hodnost. V obchodě jsou nové předměty.

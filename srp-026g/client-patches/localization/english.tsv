@@ -2707,7 +2707,7 @@ st_srp_renderer_dxvk	Vulkan/DXVK
 st_srp_renderer_option	Renderer
 st_srp_replay_asking	Asking the match server for the replay of this match…
 st_srp_replay_being_made	The replay is being made from the match record. This happens the first time anyone watches this match and takes a little while.\nYou can close this window: the server keeps making it.\n\n%1$s
-st_srp_replay_busy	The server is busy with other replays right now. Try again in a minute.
+st_srp_replay_busy	Not available right now. Try again in a minute.
 st_srp_replay_close	CLOSE
 st_srp_replay_demo_quest	Victory contribution
 st_srp_replay_demo_rank	«%1$s»: rank 3 reached. New items are available in the shop.

@@ -124,6 +124,12 @@ package survarium.watch
          return LocalizationData.format(OPENING,LocalizationData.format("st_srp_replay_waiting",seconds));
       }
 
+      // The prompt gone, without a word (its ask ended with nothing to say).
+      public static function close() : void
+      {
+         drop();
+      }
+
       private static function drop() : void
       {
          var message:Object = _dialog;

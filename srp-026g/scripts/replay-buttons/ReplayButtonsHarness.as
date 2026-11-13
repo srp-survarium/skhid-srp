@@ -30,32 +30,36 @@ package
    //   Watch, Rooms' tab closes it (and Watch closes Rooms); no Watch tab on the bottom bar;
    // - the window: tabs Live (its count) and Replays; chips Everyone, Friends on Live, Mine (the
    //   default), Friends, Everyone on Replays, each the list it names (Live's Friends: the matches
-   //   with a friend); the search box: a match's code (# optional) watches it, a name lists that
-   //   player's matches (find_players' answer: the name itself, else the first found for three
-   //   letters or more or when one is found; then the P1 rows; another's rows left; a name not
-   //   found says so; the asker's own is Mine); the player pop-up's Matches (WatchWindow.openPlayer)
-   //   searches the name; every label and hint whole, the chips clear of the box;
+   //   with a friend); the search box: a match's code (# optional) watches it (one typed without
+   //   # that is `gone` is searched as a name too), a name lists that player's matches
+   //   (find_players' answer: the name itself, else the first found for three letters or more or
+   //   when one is found; then the P1 rows; another's rows left; a name not found says so; the
+   //   asker's own is Mine); the player pop-up's Matches (WatchWindow.openPlayer) searches the
+   //   name; every label and hint whole, the chips clear of the box;
    // - the searches by name (LobbyMenu.findPlayers): each answer to its own ask, Watch's or a
    //   friends' list's; one sent at a time and a second at most (the next waits for the answer
    //   and its turn, an asker's newer one replacing its unsent one), the same name again while its
    //   search goes keeps it; at a reconnect (playerSearchesLost) or after 15 s unanswered, the
-   //   asker is told null (Watch: no answer) and a later answer is nobody's; after a drop for
-   //   15 s or a stray answer the next waits until 3 s pass without one;
+   //   asker is told null (Watch: no answer, not before, held behind another's search too) and a
+   //   later answer is nobody's; after a drop for 15 s or a stray answer the next waits until 3 s
+   //   pass without one;
    // - the cards: one Watch, or why not (not kept, old version; live: counting down, full, closed,
    //   over; an answer's word), the texts apart and clear of it; the code selectable (no copy icon);
    //   updated in place keyed by match: a refresh under a press keeps the card and its Watch, and
    //   the click still asks; a match gone from the list loses its card;
    // - Live's Watch asks at once from the place of the friend in the match (or anyone's), no
    //   roster; a friend's Spectate watches the friend's match from the friend's place, waits while
-   //   it counts down, says so when its 60 s end or the match can't be watched;
+   //   it gathers or counts down (its 60 s anew from each list that says so), says so when its
+   //   60 s end or the match can't be watched;
    // - one ask-and-poll loop (ReplayAsks) on the window's second: a watch polls 2200000000, a save
    //   2210000000, both from the same tick; after a watch asked from the window, its view again at
    //   the return after its load (a show_match_making(false) before the load brings nothing back),
    //   not after a refusal, nor for an ask under another's; a watch given up (no answer) or whose
    //   prompt is closed withdrawn once (`3D 00 FFFFFF05 <match>`), not one refused; `in_room` said
-   //   in its own words;
+   //   in its own words; a `none` after its own `preparing` ends it, prompt gone, nothing withdrawn;
    //   Mine not asked at once back in the lobby (BACK_ASK_MS: the history row is not written yet);
-   // - a lobby window opening (MainScene.activeWindow) or the rooms window closes Watch;
+   // - a lobby window opening (MainScene.activeWindow) or the rooms window closes Watch; back from a
+   //   watch in a room, one playing without the player gives the Watch view back, its vote shows it;
    // - Save replay (ReplayAsks): a save icon right of the code on the cards that may be watched
    //   (none on live cards or ones that cannot be watched); a press asks `3D 00 FFFFFF01 <match>`
    //   and polls 2210000000; `R2;preparing` keeps it saving, `R2;ready` hands the link to the exe once
@@ -666,6 +670,25 @@ package
          box.dispatchEvent(new KeyboardEvent(KeyboardEvent.KEY_UP,true,false,0,Keyboard.ENTER));
          expect(language + ": Enter did not send the code",asked()[0] == MATCH && ExternalInterface.calls.length > calls);
          idle();
+         // a code typed without # that no kept match has may be a player's name: `gone` searches
+         // it as one; with # it is a code alone
+         later(3000);
+         ExternalInterface.calls.length = 0;
+         typeIn("deadbeef");
+         expect(language + ": 'deadbeef' did not ask its code: " + asked(),asked()[0] == 0xDEADBEEF && searchesSent().length == 0);
+         lobby.answer("gone",0xDEADBEEF);
+         expect(language + ": a bare code gone did not search the name: " + searchesSent(),searchesSent().join(",") == "deadbeef"
+            && shownChip() == "player" && (find(win,"srpWatchSearch") as TextField).text == "deadbeef");
+         expect(language + ": the name search of a bare code took no answer",found([{"id":9,"name":"deadbeef"}])
+            && (find(win,"srpWatchSearch") as TextField).text == "deadbeef");
+         later(3000);
+         ExternalInterface.calls.length = 0;
+         typeIn("#deadbeef");
+         lobby.answer("gone",0xDEADBEEF);
+         later(1100);
+         expect(language + ": a code with # gone searched a name: " + searchesSent(),asked()[0] == 0xDEADBEEF && searchesSent().length == 0);
+         Prompt.noteReplay("deadbeef",null);
+         told();
          // a name: the player found, then its matches
          var Info:* = domain.getDefinition("survarium.controls.PlayerInfo");
          Info.nickname = "PocketTest1";
@@ -789,6 +812,21 @@ package
          Menu.playerSearchesLost();
          expect(language + ": Watch's search lost at a reconnect not told so",textOf(win,"srpWatchEmpty") == words.getName("st_srp_matches_no_answer"));
          expect(language + ": an answer after a reconnect taken",!found([{"id":5,"name":"Ada"}]));
+         // Watch's search waits for its own answer as long as LobbyMenu keeps it (held behind
+         // another's, then sent): no answer only once LobbyMenu drops it unanswered (15 s from
+         // its send), and an answer before that is taken
+         later(3000);
+         Menu.findPlayers(friends,"bob",friendsAsk);
+         typeIn("ada");
+         later(14000);
+         second();
+         expect(language + ": Watch's search held behind another's gave up: " + textOf(win,"srpWatchEmpty"),textOf(win,"srpWatchEmpty") == "…");
+         Menu.playersFound([{"id":7,"name":"Bob"}]);
+         later(14000);
+         second();
+         expect(language + ": Watch's search gave up before LobbyMenu dropped it: " + textOf(win,"srpWatchEmpty"),textOf(win,"srpWatchEmpty") == "…");
+         later(1000);
+         expect(language + ": Watch's search dropped unanswered not told so",textOf(win,"srpWatchEmpty") == words.getName("st_srp_matches_no_answer"));
          // one unanswered for 15 s: dropped, its asker told so; its late answer is nobody's, and
          // the next search is sent only once 3 s passed without one (a late answer taken for the
          // next would throw the next's own away)
@@ -1036,6 +1074,26 @@ package
             && shown != words.getName("st_srp_replay_busy"));
          told();
          expect(language + ": a refused watch withdrawn: " + withdrawn(),withdrawn().length == 0);
+         // its session over at the server with no word for it (the room called the player back
+         // before the game was sent): `none` once the ask said `preparing` ends it, its prompt
+         // gone, nothing withdrawn, the next Watch asked; a `none` before is no answer of its own
+         ExternalInterface.calls.length = 0;
+         click(cards()[1],"srpWatchWatch");
+         lobby.answer("none",0);
+         second();
+         expect(language + ": a none before the ask's own answer ended it: " + polls(2200000000),polls(2200000000) == 1);
+         lobby.answer("preparing",OTHER,1);
+         lobby.answer("none",0);
+         shown = closePrompt();
+         expect(language + ": the prompt stayed after its session ended: " + shown,shown == null);
+         second();
+         expect(language + ": polled after its session ended: " + polls(2200000000),polls(2200000000) == 1);
+         expect(language + ": an ended session withdrawn: " + withdrawn(),withdrawn().length == 0);
+         ExternalInterface.calls.length = 0;
+         click(cards()[1],"srpWatchWatch");
+         expect(language + ": no Watch asked after a none: " + asked(),asked()[0] == OTHER);
+         idle();
+         told();
          Message.registerMessage("apply",null);
          win.show(false);
          // the second ask goes after the first ended
@@ -1096,6 +1154,15 @@ package
          W.spectate("Petro");
          lobby.take(["L0;1","L1;00000006;64;5;1;4;4;0;1;0;0;1","F1;00000006;3;0;Petro"]);
          expect(language + ": Spectate didn't wait out a countdown: " + told(),asked()[0] == 0);
+         // its 60 s are counted anew from each list that still has it starting
+         for(p = 0; p < 90; p++)
+         {
+            second();
+            if(p % 5 == 4)
+               lobby.take(["L0;1","L1;00000006;64;5;0;4;4;0;1;0;0;1","F1;00000006;3;0;Petro"]);
+         }
+         said = told();
+         expect(language + ": Spectate gave up on a match still starting: " + said,said.length == 0 && asked()[0] == 0);
          lobby.take(["L0;1","L1;00000006;64;5;2;4;4;0;1;20;0;1","F1;00000006;3;0;Petro"]);
          expect(language + ": Spectate did not watch once it played: " + asked(),asked()[0] == 6 && asked()[1] == 0xC0030000);
          idle();
@@ -1118,7 +1185,46 @@ package
          expect(language + ": the rooms window did not close Watch",!win.visible && Rooms.me.shown);
          Rooms.me.show(false);
          W.open("live");
+         if(language == HarnessText.LANGUAGES[0])
+         {
+            watchReturn(Rooms);
+            W.open("live");
+         }
          trace("REPLAYBUTTONS " + language + ": a lobby window or the rooms window closes Watch");
+      }
+
+      // Back from a watch in a room (RoomsWindow.holdWatchReturn): a room playing a match the
+      // player is not in gives the Watch view back (one with a place for it calls it back); its
+      // vote shows the room.
+      private function watchReturn(Rooms:*) : void
+      {
+         var state:int = domain.getDefinition("survarium.rooms.RoomsWire").STATE;
+         var room:Function = function(phase:int):void
+         {
+            var names:Array = [["S1","R",7,15,15,10,30,phase,754,0,5,5,7,0,63,2,0].join(";"),"C;0;61;2;1",
+               ["P",0,15,1,0,phase == 2 ? 1 : 0,0,0,"Ada"].join(";"),["P",1,15,0,1,0,0,0,"PocketTest1"].join(";"),"L;0"];
+            var rows:Array = [];
+            for(var r:int = 0; r < names.length; r++)
+               rows.push({"place":state + r,"nickname":names[r]});
+            Rooms.take(rows);
+         };
+         var resumed:int = 0;
+         var resume:Function = function():void
+         {
+            resumed++;
+         };
+         room(0);
+         Rooms.me.show(false);
+         expect("watch return: not held in a room",Rooms.me.holdWatchReturn(resume));
+         room(2);
+         expect("watch return: a room playing without us did not give the Watch view back (" + resumed + ", rooms shown " + Rooms.me.shown + ")",
+            resumed == 1 && !Rooms.me.shown);
+         Rooms.me.holdWatchReturn(resume);
+         room(3);
+         expect("watch return: a voting room did not show itself (" + resumed + ", rooms shown " + Rooms.me.shown + ")",resumed == 1 && Rooms.me.shown);
+         Rooms.me.show(false);
+         Rooms.take([{"place":state - 1,"nickname":"S1;N;0;0;0"}]);
+         expect("watch return: still in a room",!Rooms.me.holdWatchReturn(resume));
       }
 
       // ---- Save replay ----

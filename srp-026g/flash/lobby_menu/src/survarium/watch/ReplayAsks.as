@@ -12,7 +12,8 @@ package survarium.watch
    // `3B 00 <start> 1` once a second until the lobby server's `91` row answers it, 30 polls at most,
    // or 180 s once it says `preparing`:
    // - a watch: `R1;<status>;<match 8 hex>;<n>`, polled at WATCH_START. `watching` means the game is
-   //   in the match; WatchPrompt shows what happens meanwhile. One watch at a time. A watch ended
+   //   in the match; WatchPrompt shows what happens meanwhile. One watch at a time. A `none` after
+   //   the ask's own `preparing` says its session is over at the server: the ask ends. A watch ended
    //   here without one (the prompt closed, or no answer in time) is withdrawn, `3D 00 FFFFFF05
    //   <match>` (the lobby server's REPLAY_WITHDRAW, not answered): a session whose game the lobby
    //   has not sent yet is over there, so the game never loads into it later.
@@ -209,6 +210,17 @@ package survarium.watch
       {
          var status:String = f.length > 1 ? String(f[1]) : "";
          var h:String = f.length > 2 ? String(f[2]).toLowerCase() : "";
+         if(_watch != null && _watch.preparing && status == "none")
+         {
+            // its session ended at the server with no word for us (the room called the player
+            // back before the game was sent, say): the ask ends, its prompt with it, nothing left
+            // to withdraw
+            var ended:Object = _watch;
+            _watch = null;
+            WatchPrompt.close();
+            tell(ended.hex,ENDED);
+            return;
+         }
          if(_watch == null || h != _watch.hex)
          {
             return;

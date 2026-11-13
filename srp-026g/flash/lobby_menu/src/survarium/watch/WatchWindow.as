@@ -112,7 +112,7 @@ package survarium.watch
       private static const RESUME_MS:int = 120000;
 
       // a friend's Spectate waits this many of the window's seconds for its match to be listed in
-      // play, then says so
+      // play, then says so; counted anew from each list that has it gathering or counting down
       private static const SPECTATE_S:int = 60;
 
       private static const TOOL_Y:Number = 50;
@@ -142,7 +142,7 @@ package survarium.watch
 
       private var _replaysChip:String = MINE;
 
-      // the search by name ({name, state, at, asks, id}), null none
+      // the search by name ({name, state, asks, id; at: when its matches were asked}), null none
       private var _search:Object = null;
 
       // a name typed shorter than this takes no other player's than its own, unless one is found
@@ -163,6 +163,10 @@ package survarium.watch
       // a friend's Spectate waiting for the live list to say where it plays ({name lower case,
       // shown, left: the seconds it still waits}), null none
       private var _spectate:Object = null;
+
+      // the watch of a code typed without `#` while it is asked ({hex, text}): a `gone` for it
+      // searches the text as a name (typed); null none
+      private var _bareCode:Object = null;
 
       private var _asks:int = 0;
 
@@ -504,6 +508,7 @@ package survarium.watch
          {
             this.releaseFocus();
             this._spectate = null;
+            this._bareCode = null;
             Modals.leave(this);
             return;
          }
@@ -832,9 +837,11 @@ package survarium.watch
                if(String(friend.name).toLowerCase() == spectate.name)
                {
                   var reason:String = WatchWindow.reasonOf(row);
-                  // counting down: watched once it plays
+                  // gathering or counting down: watched once it plays; its SPECTATE_S wait starts
+                  // anew from each list that still says so (it may gather a long time)
                   if(reason == "st_srp_watch_reason_starts")
                   {
+                     spectate.left = SPECTATE_S;
                      return;
                   }
                   this._spectate = null;
@@ -896,14 +903,19 @@ package survarium.watch
       }
 
       // The search box: a match's code (8 hex digits, `#` optional) watches it; else a player's
-      // name lists that player's matches.
+      // name lists that player's matches. A code typed without `#` may be a name too ("deadbeef"):
+      // a `gone` for it searches the name (answered).
       private function typed() : void
       {
          var text:String = this._box.text.replace(/^\s+|\s+$/g,"");
          var match:uint = WatchWindow.codeOf(text);
          if(match != 0)
          {
-            this.watch(match,NotificationListScrollContent.REPLAY_WATCH_ALL);
+            var asked:Boolean = this.watch(match,NotificationListScrollContent.REPLAY_WATCH_ALL);
+            this._bareCode = asked && text.charAt(0) != "#" ? {
+               "hex":WatchWindow.hex(match),
+               "text":text
+            } : null;
             return;
          }
          if(text.length > 0)
@@ -944,7 +956,7 @@ package survarium.watch
             return;
          }
          this.setBox(name);
-         var search:Object = {"name":name,"state":FINDING,"at":getTimer(),"asks":1};
+         var search:Object = {"name":name,"state":FINDING,"asks":1};
          this._search = search;
          this._lists[PLAYER] = null;
          // the answer to this ask only (LobbyMenu: in the order asked; a friends' search may ask
@@ -1020,15 +1032,13 @@ package survarium.watch
          this.ask(PLAYER);
       }
 
+      // A search's matches asked again, or given up. FINDING waits for LobbyMenu.findPlayers'
+      // answer alone: it may hold the search behind another's, and it answers null (no answer)
+      // once the search it sent waited too long.
       private function searchTick(now:int) : void
       {
          var search:Object = this._search;
-         if(search.state == FINDING && now - int(search.at) >= 6000)
-         {
-            search.state = NO_ANSWER;
-            this.render();
-         }
-         else if(search.state == ASKED && now - int(search.at) >= 1500)
+         if(search.state == ASKED && now - int(search.at) >= 1500)
          {
             if(int(search.asks) >= ASKS)
             {
@@ -1041,21 +1051,24 @@ package survarium.watch
          }
       }
 
-      // Asks to watch `match` with `ask` (ReplayAsks); the view to come back to.
-      private function watch(match:uint, ask:uint) : void
+      // Asks to watch `match` with `ask` (ReplayAsks); the view to come back to. Whether it was
+      // asked (not under another's).
+      private function watch(match:uint, ask:uint) : Boolean
       {
          // only an ask that was taken: one under another's would never hear its end
-         if(ReplayAsks.watch(match,ask))
+         if(!ReplayAsks.watch(match,ask))
          {
-            this._pendingMatch = match;
-            this._pendingAt = getTimer();
-            this._pendingView = {
-               "tab":this._tab,
-               "liveChip":this._liveChip,
-               "replaysChip":this._replaysChip,
-               "search":this._search
-            };
+            return false;
          }
+         this._pendingMatch = match;
+         this._pendingAt = getTimer();
+         this._pendingView = {
+            "tab":this._tab,
+            "liveChip":this._liveChip,
+            "replaysChip":this._replaysChip,
+            "search":this._search
+         };
+         return true;
       }
 
       // A card's Watch: a recorded match from the player's place (a player's list) or anyone's;
@@ -1077,9 +1090,18 @@ package survarium.watch
       // An answer about a watch asked for (ReplayAsks): of the one asked from here, `preparing`
       // keeps its view for RESUME_MS more (a replay may prepare longer), anything but `watching`
       // (a refusal, or its end without an answer) plays nothing to come back from; the cards are
-      // refreshed.
+      // refreshed. A code typed without `#` that no kept match has may be a player's name: searched.
       private function answered(hex:String, status:String) : void
       {
+         var bare:Object = this._bareCode;
+         if(bare != null && hex == bare.hex && status != "preparing")
+         {
+            this._bareCode = null;
+            if(status == "gone")
+            {
+               this.searchPlayer(String(bare.text));
+            }
+         }
          if(hex == WatchWindow.hex(this._pendingMatch) && status == "preparing")
          {
             this._pendingAt = getTimer();

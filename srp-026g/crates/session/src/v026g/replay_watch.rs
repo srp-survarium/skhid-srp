@@ -183,6 +183,9 @@ pub enum WatchRefusal {
     /// Another simulation epoch's, and why (for the log; the movie says it).
     Incompatible(Refusal),
     Busy,
+    /// Its player's room called it back before its game was sent
+    /// ([`Watches::recall`]).
+    InRoom,
     Failed,
 }
 
@@ -195,6 +198,7 @@ impl WatchRefusal {
             Self::Gone => Status::Gone,
             Self::Incompatible(_) => Status::Incompatible,
             Self::Busy => Status::Busy,
+            Self::InRoom => Status::InRoom,
             Self::Failed => Status::Failed,
         }
     }
@@ -254,6 +258,10 @@ enum Event {
     Ended,
     /// Its game says it is back in the lobby.
     GameBack,
+    /// Its player's room wants it back ([`Watches::recall`]): while its game
+    /// is in the lobby, refused `in_room`, so that the movie's next poll
+    /// hears why its prompt ends.
+    Recalled,
     /// It stayed longer than [`Stage::patience`].
     TimedOut,
     /// The movie's poll was told its refusal.
@@ -284,6 +292,9 @@ fn step(stage: Stage, event: Event) -> Option<Step> {
             Step::To(Playing { start_ms })
         }
         (Loading | Ready { .. }, Event::Refuse(refusal)) => Step::To(Refused(refusal)),
+        (Queued | Loading | Ready { .. }, Event::Recalled) => {
+            Step::To(Refused(WatchRefusal::InRoom))
+        }
         (Queued | Loading, Event::TimedOut) => Step::To(Refused(WatchRefusal::Failed)),
         (Ready { .. } | Sent { .. } | Refused(_), Event::TimedOut) => Step::Over,
         (Refused(_), Event::Told) => Step::Over,
@@ -468,24 +479,27 @@ impl Watches {
 
     /// The account's room wants its player back (its match can be made with
     /// it, or has a place for it): a session whose game is still in the lobby
-    /// is over at once; one whose game was sent or watches is marked, and the
-    /// match server lets the game go ([`Watches::is_recalled`]), which ends
-    /// it. Whether this call changed anything.
+    /// is refused `in_room` at once (it holds nothing; the movie's next poll
+    /// is told, and its prompt ends); one whose game was sent or watches is
+    /// marked, and the match server lets the game go
+    /// ([`Watches::is_recalled`]), which ends it. Whether this call changed
+    /// anything.
     pub fn recall(&self, account_id: u32) -> bool {
         let mut sessions = self.sessions.locked();
         let Some(session) = sessions.get_mut(&account_id) else {
             return false;
         };
+        if let Some(Step::To(stage)) = step(session.stage, Event::Recalled) {
+            session.stage = stage;
+            session.since = Instant::now();
+            log::info!(
+                "Replay sessions: account {account_id}'s session of match {:#x} is over: its room \
+                 called it back before its game was sent",
+                session.request.match_id
+            );
+            return true;
+        }
         match session.stage {
-            Stage::Queued | Stage::Loading | Stage::Ready { .. } => {
-                let match_id = session.request.match_id;
-                sessions.remove(&account_id);
-                log::info!(
-                    "Replay sessions: account {account_id}'s session of match {match_id:#x} is over: \
-                     its room called it back before its game was sent"
-                );
-                true
-            }
             Stage::Sent { .. } | Stage::Playing { .. } if !session.recalled => {
                 session.recalled = true;
                 log::info!(
@@ -846,17 +860,45 @@ mod tests {
         );
     }
 
-    /// Called back by its player's room: over at once while its game is in the lobby; with its
-    /// game sent or watching it is marked, once, for the match server, and its end frees the player.
+    /// Called back by its player's room: refused `in_room` at once while its game is in the lobby
+    /// (queued, being read or read), told to the movie's next poll once, holding nothing and never
+    /// sent; with its game sent or watching it is marked, once, for the match server, and its end
+    /// frees the player.
     #[test]
     fn a_session_called_back_ends_in_the_lobby_or_is_marked_for_the_match_server() {
         let now = Instant::now();
         let watches = watches(Access::Match, 2);
         let alice = request(ALICE);
         assert!(!watches.recall(ALICE), "no session");
+        for stage in [Stage::Queued, Stage::Loading, Stage::Ready { start_ms: 0 }] {
+            assert_eq!(watches.start(alice, now), Status::Preparing);
+            if stage != Stage::Queued {
+                assert_eq!(watches.next_job(now), Some(alice));
+            }
+            if stage == (Stage::Ready { start_ms: 0 }) {
+                assert!(watches.loaded(&alice, 0, now));
+            }
+            assert_eq!(watches.stage(ALICE), Some(stage));
+            assert!(watches.recall(ALICE), "{stage:?}");
+            assert!(!watches.recall(ALICE), "{stage:?}: told once");
+            assert!(!watches.holds(ALICE), "{stage:?}");
+            assert!(watches.to_send().is_empty(), "{stage:?}: never sent");
+            assert_eq!(watches.next_job(now), None, "{stage:?}: nothing to read");
+            let answer = watches.answer(ALICE).expect("the poll told why");
+            assert_eq!(
+                (answer.status, answer.match_id, answer.figure),
+                (Status::InRoom, alice.match_id, 0),
+                "{stage:?}"
+            );
+            assert_eq!(watches.answer(ALICE), None, "{stage:?}: told once");
+        }
+        // Not polled for: forgotten as refusals are, and the player may ask again meanwhile.
         assert_eq!(watches.start(alice, now), Status::Preparing);
         assert!(watches.recall(ALICE));
-        assert!(!watches.holds(ALICE));
+        watches.expire(now + REFUSAL_KEPT + Duration::from_secs(1));
+        assert_eq!(watches.answer(ALICE), None);
+        assert_eq!(watches.start(alice, now), Status::Preparing);
+        assert!(watches.recall(ALICE));
         assert_eq!(watches.start(alice, now), Status::Preparing);
         assert_eq!(watches.next_job(now), Some(alice));
         assert!(watches.loaded(&alice, 0, now));
