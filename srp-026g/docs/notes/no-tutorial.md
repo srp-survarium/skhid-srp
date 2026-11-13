@@ -24,7 +24,7 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
   - exactly 1000 rounds of every ammo: each stack of the dictionary under
     `gameplay/items/weapons/ammo/`, the ported weapons' too (39 on the data of rev58). An
     account made before an ammo was added does not get it: the release after rev58 tops up
-    every account once (`scripts/ammo-top-up/ammo-top-up.sh`); a later ammo needs the same;
+    every account once (`scripts/ammo-top-up/ammo_top_up.py`); a later ammo needs the same;
   - the Scavengers at reputation level 5, their highest (3000 points), as earned: all they
     sell is buyable; they are its quest faction (never neutral);
   - owned: the TT-33, the Mosin and the PPSh-41 (the game's free weapons), the AKM, AKMSU and

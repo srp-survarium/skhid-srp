@@ -79,15 +79,19 @@ Ask, in this order:
    (`/srv/skhid-backups/srp-db` on the jump host, copied to the local machine)
    and **show the owner its numbers**. At the release, right after the swap
    and once the checks have passed, srp's start copy of srp.db is made. Then
-   `docker compose stop srp26`, run the script as root with `--apply` on the
-   data volume's srp.db (it copies the file to `backups/` first), and
-   `docker compose start srp26`. That is a second short stop: the owner's go
-   covers it only when it was asked for with the go. A script run again
-   adds nothing.
-   Open: `srp-026g/scripts/ammo-top-up/ammo-top-up.sh` (1000 rounds of
+   `docker compose stop srp26`, run the script as root as
+   `python3 <script> --apply <srp.db>` on the data volume's srp.db (it
+   copies the file to `backups/` first), and `docker compose start srp26`.
+   That is a second short stop: the owner's go covers it only when it was
+   asked for with the go. A script run again adds nothing. The host has
+   `/usr/bin/python3` with its `sqlite3` module, but no `sqlite3` command.
+   Such a script writes nothing that reads or rebuilds the 0.21d nickname
+   index (no `VACUUM`, no `integrity_check`, no `accounts.name`): its
+   collation is srp's own.
+   Open: `srp-026g/scripts/ammo-top-up/ammo_top_up.py` (1000 rounds of
    every ammo for every account, PR #1785; dry run on the pre-rev58 copy:
-   614 of 799 accounts, 3,035,296 rounds). It needs `sqlite3` on the
-   host. Remove its line here when it has run.
+   614 of 799 accounts, 3,035,296 rounds). Remove its line here when it has
+   run.
 
 **The revision is the release's own.** Every release has a new patch
 revision, content or not: it is how the server refuses games without the
