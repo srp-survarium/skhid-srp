@@ -199,8 +199,8 @@ pub fn run_local(arguments: &[String], quiet: bool) -> u32 {
     launch(&layout, file.path(), quiet, language)
 }
 
-/// Both entry points use the same installed-file gate, path conversion,
-/// localization, console arguments and working directory.
+/// `open-replay`'s: the installed-file gate, path conversion, localization,
+/// console arguments and working directory.
 fn launch(layout: &Layout, target: &str, quiet: bool, language: Option<u32>) -> u32 {
     let game = format!("{}\\{}", layout.exe_dir, replay::GAME_EXE);
     if !win::exists(&game) {

@@ -138,10 +138,11 @@ A replay session plays what `sur_convert` makes of the recording, in memory (`re
 | `/launcher…`, `/launcher/places/<lang>`, `/launcher/fresh/<lang>` (0.26g) | GET | the board and counts; the skin is compiled in (`include_bytes!`) | no file; the language is read from the path, nothing else |
 | `/`, `/exchange` | GET | the store's counts (`/exchange` only says the exchange is in the game now) | pages; no file |
 | `/<SRP_ADMIN_PATH>` | GET, POST | accounts, bans, maintenance (with `SRP_ADMIN_TOKEN`, from `SRP_ADMIN_IPS` only) | no file; any other address gets the plain "not found" |
+| `/api/history/*` | GET | public matches, totals and clans from `srp.db`, on read-only connections (`match_history.md`) | only `kind='public'` matches; no logins, bans or hidden rating |
 | `/replays/<token>` (0.26g) | GET, HEAD | `SRP_REPLAY_DIR/<id:08x>.srpreplay` of the live token's match | the token is looked up, never a path; the name is made from the match id alone, a regular file whose real path is in the folder; anything else is one and the same 404, and 30 failed lookups a minute from one address are answered 429 for a minute (`web-server/src/replay_tests.rs`) |
 | anything else | any | nothing | "not found" page |
 
-Recordings, `srp.db`, logs, `.env` and certificates are opened by no route.
+Recordings, logs, `.env` and certificates are opened by no route; `srp.db` only by `/api/history/*`, read-only.
 
 ## 5. Not proven
 

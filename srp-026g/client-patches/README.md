@@ -1761,12 +1761,14 @@ of `scene_time` with three made-up name counts. And the byte comparison with
 revision 12 (Revision 13 above). **Not run: a game**; no scrolling shader
 exists in any `resources.db` yet.
 
-### 29. "Watch replay" (patch revision 14)
+### 29. Replay link (patch revision 14)
 
-The lobby's History offers a replay of a match the player played
-(`../docs/notes/replay_watch.md`). The server sends the link
-`replay <id> <token> <sha256> <size>` in its `9E` message (not shown), and
-the movie's "Download and watch" calls `video_tutorial_link_clicked`. The
+The server sends the link `replay <id> <token> <sha256> <size>` in its `9E`
+message (not shown) for a replay the player saves (the Watch window's save
+icon, the results screen's Save replay: `../docs/notes/replay_watch.md`
+2.1), and the movie calls `video_tutorial_link_clicked` on `ready`. In
+revision 14 the link came from the lobby's History ("Download and watch";
+removed on 2026-11-08). The
 original callback (0x28CDA0) opened whatever text was in that buffer with
 ShellExecute: a file, a program or a URL of the server's choice.
 
