@@ -20,7 +20,8 @@
 //! world), at the asked place's first view when that entered later, or later
 //! when asked ([`Recording::start`]). Pause stops the clock; speed scales
 //! it; a seek, and play after a pause, start the game again (0xE5 of its
-//! next generation, the world) from the key frame at or before the time,
+//! next generation, the world; no sooner than [`RESTART_EVERY`] after the
+//! last start again) from the key frame at or before the time,
 //! put as far past it as the game's input lists reach ([`Recording::reach`]).
 //! The end of the recording lets the game go (0xEA naming no place), as
 //! the end of a live match does. The controls come from the game (`replay_control::Request`), and the
@@ -69,9 +70,19 @@ const PAUSED_PING_EVERY: Duration = Duration::from_secs(1);
 pub(crate) const PAUSED_MOST: Duration = Duration::from_secs(5 * 60);
 /// A game whose reported world is this far from where the playback has it
 /// ([`DRIFT_REPORTS`] in a row) is started again from a world: the
-/// fallback for a game that did not freeze or scale its clock as told.
+/// fallback for a game that did not freeze or scale its clock as told. No
+/// more often than a live match's spectator is for being out of step
+/// (`Spectator::take_drift_restart`).
 const DRIFT_MS: i64 = 2_000;
 const DRIFT_REPORTS: u8 = 3;
+/// A game is started again (each start packs a world on the match thread)
+/// no sooner than this after its last: a seek asked meanwhile waits, the
+/// latest alone taken.
+const RESTART_EVERY: Duration = Duration::from_secs(1);
+/// A session lasts at most its recording's length and this (paused, sought
+/// back), or twice its length when that is more: then it is shown the end,
+/// as at the recording's. Its session is one of a few.
+const SESSION_SPARE: Duration = Duration::from_secs(15 * 60);
 
 /// A recording made into what a game is shown.
 pub(crate) struct Recording {
@@ -301,6 +312,12 @@ impl Recording {
         self.countdown_end = None;
     }
 
+    /// The longest a session of it lasts ([`SESSION_SPARE`]).
+    pub(crate) fn session_most(&self) -> Duration {
+        let length = Duration::from_millis(self.end.into());
+        (length + SESSION_SPARE).max(length * 2)
+    }
+
     /// How many of its inputs and roster changes are due by `time`.
     fn due(&self, time: u32) -> (usize, usize) {
         let horizon = time + RELAY_LEAD_MS;
@@ -393,13 +410,18 @@ struct Playback {
     /// Its reports in a row far from the playback ([`DRIFT_MS`]).
     drift: u8,
     /// The latest seek its game asked for while a world was on its way to
-    /// it: taken once that world is in or given up ([`Self::poll`]), so
-    /// that its game starts again at most once a world.
+    /// it, or sooner than [`RESTART_EVERY`] after its last start again:
+    /// taken once that world is in or given up and that time is past
+    /// ([`Self::poll`]), so that its game starts again at most once a world.
     sought: Option<u32>,
+    /// When it last started again ([`Self::restart`]).
+    restarted: Option<Instant>,
     /// How many of the recording's inputs and roster changes have gone to
     /// it as they came due (those since its world go with the world).
     inputs: usize,
     events: usize,
+    /// When its session's game first connected (again from another address,
+    /// the same): the session ends [`Recording::session_most`] after.
     created: Instant,
     settings: Settings,
 }
@@ -411,7 +433,7 @@ impl Playback {
         spectator: Spectator,
         start: u32,
         settings: Settings,
-        now: Instant,
+        created: Instant,
     ) -> Self {
         let (inputs, events) = recording.due(start);
         Self {
@@ -420,6 +442,7 @@ impl Playback {
             spectator,
             clock: Clock::Starting { at: start },
             sought: None,
+            restarted: None,
             recalled: false,
             recall_at: None,
             speed: Speed::Normal,
@@ -431,7 +454,7 @@ impl Playback {
             drift: 0,
             inputs,
             events,
-            created: now,
+            created,
             settings,
         }
     }
@@ -558,7 +581,9 @@ impl Playback {
 
     /// A hash report of its game (its event-horizon world, [`EVENT_HORIZON_MS`]
     /// behind its clock) against the playback: [`DRIFT_REPORTS`] in a row
-    /// [`DRIFT_MS`] off and it starts again from where the playback is.
+    /// [`DRIFT_MS`] off and it starts again from where the playback is, once
+    /// it may ([`Self::may_restart`], and as rarely as a live match's
+    /// spectator); until then each report more off tries again.
     fn judge_drift(&mut self, tick: u8, now: Instant) {
         if !self.spectator.is_live() {
             self.drift = 0;
@@ -573,21 +598,33 @@ impl Playback {
             self.drift = 0;
             return;
         }
-        self.drift += 1;
-        if self.drift >= DRIFT_REPORTS {
+        self.drift = self.drift.saturating_add(1);
+        if self.drift >= DRIFT_REPORTS
+            && self.may_restart(now)
+            && self
+                .spectator
+                .take_drift_restart(self.settings.timing.resync_interval, now)
+        {
             log::info!(
                 "Replay {:#x}: its game is {off} ms off the playback at {at} ms; started again",
                 self.spectator.session_id()
             );
             self.drift = 0;
-            self.restart(at);
+            self.restart(at, now);
         }
+    }
+
+    /// Its last start again was [`RESTART_EVERY`] ago or more (or none).
+    fn may_restart(&self, now: Instant) -> bool {
+        self.restarted
+            .is_none_or(|at| now.saturating_duration_since(at) >= RESTART_EVERY)
     }
 
     /// The game starts again from the key frame at or before `time`, put as
     /// far past it as it can be; its clock waits there until it plays from
     /// that world (a paused one stays paused, since it paused).
-    fn restart(&mut self, time: u32) {
+    fn restart(&mut self, time: u32, now: Instant) {
+        self.restarted = Some(now);
         let at = self.recording.seek_to(time);
         self.clock = match self.clock {
             Clock::Starting { .. } | Clock::Playing { .. } => Clock::Starting { at },
@@ -668,12 +705,13 @@ impl Playback {
             return (Vec::new(), Some(Ended::Left));
         }
         let before = self.spectator.stage();
-        // A seek once no world is on its way: one start again a world, the
-        // latest asked for.
+        // A seek once no world is on its way and the last start again is
+        // far enough behind: one start again a world, the latest asked for.
         if (self.spectator.is_live() || self.spectator.is_waiting())
+            && self.may_restart(now)
             && let Some(time) = self.sought.take()
         {
-            self.restart(time);
+            self.restart(time, now);
         }
         match self.clock {
             Clock::Starting { at } if self.spectator.is_live() => {
@@ -703,7 +741,8 @@ impl Playback {
         }
         let recall_due = self.recall_at.is_some_and(|due| now >= due);
         let flooded = self.spectator.flooded();
-        if (at >= self.recording.end || paused_out || recall_due || flooded)
+        let too_long = now.saturating_duration_since(self.created) >= self.recording.session_most();
+        if (at >= self.recording.end || paused_out || too_long || recall_due || flooded)
             && !self.spectator.is_leaving()
         {
             log::info!(
@@ -714,6 +753,8 @@ impl Playback {
                     "let go, back to its player's room"
                 } else if paused_out {
                     "paused too long, its session goes to someone else"
+                } else if too_long {
+                    "its session ran its longest, it goes to someone else"
                 } else {
                     "the recording is over"
                 }
@@ -749,7 +790,7 @@ impl Playback {
         if let Clock::Playing { .. } = self.clock
             && self.spectator.is_waiting()
         {
-            self.restart(at);
+            self.restart(at, now);
         }
         let at = self.position(now);
         let echo = now.saturating_duration_since(self.created).as_millis() as u16;
@@ -1014,13 +1055,17 @@ impl ReplayWatch {
             .iter()
             .find(|(_, playback)| playback.request == request)
             .map(|(addr, _)| *addr);
-        let prepared = match again.and_then(|old| self.playbacks.remove(&old)) {
-            Some(old) => Prepared {
-                request,
-                recording: old.recording,
-            },
+        // Its length counts from its first connection.
+        let (prepared, created) = match again.and_then(|old| self.playbacks.remove(&old)) {
+            Some(old) => (
+                Prepared {
+                    request,
+                    recording: old.recording,
+                },
+                old.created,
+            ),
             None => match self.ready.remove(&session_id) {
-                Some(prepared) => prepared,
+                Some(prepared) => (prepared, now),
                 None => {
                     // Read by a match server before a restart.
                     self.replays.watches().ended(&request);
@@ -1050,7 +1095,7 @@ impl ReplayWatch {
             spectator,
             start,
             self.settings.clone(),
-            now,
+            created,
         );
         self.playbacks.insert(addr, playback);
         Ok(())

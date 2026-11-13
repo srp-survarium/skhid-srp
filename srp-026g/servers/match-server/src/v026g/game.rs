@@ -147,6 +147,11 @@ pub(crate) use spectate::SpectatorAt;
 
 /// A tick is final this long after it: the server's event horizon.
 const HORIZON_MS: u32 = 250;
+/// The relayed list (`Game::inputs`, a replay's inputs) is in time order but
+/// for an input taken late: none is earlier than one listed before it by this
+/// much or more. So those after a time all come after the last one listed
+/// this far before it.
+const RELAYED_DISORDER_MS: u32 = 4 * HORIZON_MS;
 /// Inputs further ahead than this are dropped (the client moves them back).
 const TOO_NEW_MS: u32 = 2_500;
 /// With others simulating, a newcomer starts only from a snapshot this
@@ -2093,7 +2098,7 @@ impl Game {
         self.inputs
             .iter()
             .rev()
-            .take_while(move |(at, _, _)| *at + 4 * HORIZON_MS > after)
+            .take_while(move |(at, _, _)| *at + RELAYED_DISORDER_MS > after)
             .filter(move |(at, from, what)| {
                 *from == index && *at > after && matches!(what, Relayed::Input(_))
             })
@@ -2109,7 +2114,7 @@ impl Game {
             .inputs
             .iter()
             .rev()
-            .take_while(|(at, _, _)| *at + 4 * HORIZON_MS > after)
+            .take_while(|(at, _, _)| *at + RELAYED_DISORDER_MS > after)
         {
             if *at > after && *at <= upto && matches!(what, Relayed::Input(_)) {
                 *counts.entry(*from).or_default() += 1;

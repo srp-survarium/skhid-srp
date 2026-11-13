@@ -246,7 +246,7 @@ pub(crate) struct Spectator {
     installed_roster: usize,
     installing: Option<Installing>,
     /// When it was started anew for drifting, the latest
-    /// [`RESYNCS_PER_MINUTE`].
+    /// [`RESYNCS_PER_MINUTE`] ([`Self::take_drift_restart`]).
     restarts: VecDeque<Instant>,
     /// Its starts done again in a row since it last watched, its world's
     /// inputs past its game's ring ([`Self::ring_overrun`]).
@@ -703,22 +703,7 @@ impl Game {
                 }
             }
             let wrong = *wrong;
-            if wrong < DRIFT_REPORTS {
-                continue;
-            }
-            while spectator
-                .restarts
-                .front()
-                .is_some_and(|at| now.saturating_duration_since(*at) >= RESYNC_WINDOW)
-            {
-                spectator.restarts.pop_front();
-            }
-            let busy = spectator.restarts.len() >= RESYNCS_PER_MINUTE
-                || spectator
-                    .restarts
-                    .back()
-                    .is_some_and(|at| now.saturating_duration_since(*at) < interval);
-            if busy {
+            if wrong < DRIFT_REPORTS || !spectator.take_drift_restart(interval, now) {
                 continue;
             }
             log::info!(
@@ -726,7 +711,6 @@ impl Game {
                  starts again from a world",
                 spectator.session_id
             );
-            spectator.restarts.push_back(now);
             spectator.wait_again();
         }
     }
@@ -985,8 +969,16 @@ impl Spectator {
             self.go(Step::WaitAgain);
             return;
         };
-        let replay: Vec<ServerMessage> = watched
-            .inputs
+        // Walked back from its end (a replay's list is the whole match up to
+        // its clock), as far as one after the world can be listed.
+        let since = watched.inputs.len()
+            - watched
+                .inputs
+                .iter()
+                .rev()
+                .take_while(|(at, _, _)| *at + RELAYED_DISORDER_MS > time)
+                .count();
+        let replay: Vec<ServerMessage> = watched.inputs[since..]
             .iter()
             .filter(|(at, _, _)| *at > time && watched.due(*at))
             .map(|(_, from, what)| relay(*from, what))
@@ -1378,6 +1370,28 @@ impl Spectator {
         );
         self.wait_again();
         true
+    }
+
+    /// Whether it may be started anew now for being out of step, as rarely
+    /// as a player is resynced: [`RESYNCS_PER_MINUTE`] in [`RESYNC_WINDOW`],
+    /// `interval` apart. If so, this start is counted.
+    pub(super) fn take_drift_restart(&mut self, interval: Duration, now: Instant) -> bool {
+        while self
+            .restarts
+            .front()
+            .is_some_and(|at| now.saturating_duration_since(*at) >= RESYNC_WINDOW)
+        {
+            self.restarts.pop_front();
+        }
+        let busy = self.restarts.len() >= RESYNCS_PER_MINUTE
+            || self
+                .restarts
+                .back()
+                .is_some_and(|at| now.saturating_duration_since(*at) < interval);
+        if !busy {
+            self.restarts.push_back(now);
+        }
+        !busy
     }
 
     /// Back to wait for a world: its next start is of a new generation.

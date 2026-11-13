@@ -1111,3 +1111,109 @@ fn a_viewer_let_go_that_connects_again_is_heard_at_once() {
     assert!(!replays.watches().holds(WATCHER_ACCOUNT));
     bench.assert_no_faults();
 }
+
+/// Review of 2026-11-13: each start again packs a world on the match thread, and a game that
+/// sought, answered its 0xE5, acked the world and sought again started anew as fast as it went
+/// round. One second apart at least: a seek asked sooner waits, the latest alone taken.
+#[test]
+fn a_game_that_seeks_without_end_starts_again_once_a_second() {
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 0);
+    let at = watching(&mut bench, WATCHER);
+    bench.run_long(2_000);
+    let worlds = bench.clients[at].snapshots().len();
+    // A seek every 50 ms for 3 s, the last to 94.55 s.
+    for seq in 1..=60u8 {
+        let target = if seq == 60 {
+            94_550
+        } else {
+            20_000 + u32::from(seq % 2) * 45_000
+        };
+        let request = Request {
+            seq,
+            op: Op::Seek(MatchMs(target)),
+        };
+        bench.clients[at].send(id::LEAVE, &request.encode(), true);
+        bench.run(50);
+    }
+    let started = bench.clients[at].snapshots().len() - worlds;
+    assert!((2..=4).contains(&started), "{started} starts in 3 s");
+    bench.run_long(2_000);
+    assert_eq!(
+        bench.clients[at].snapshots().last().unwrap().1,
+        94_550,
+        "the latest seek"
+    );
+    assert!(bench.clients[at].snapshots().len() - worlds <= started + 1);
+    bench.assert_no_faults();
+}
+
+/// Review of 2026-11-13: a game off the playback started again after every third report, with
+/// no cap: bogus reports right after its world was in started it again and again. It starts
+/// again for its reports as rarely as a live match's spectator.
+#[test]
+fn a_game_off_the_playback_is_started_again_as_rarely_as_a_spectator() {
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 0);
+    let at = watching(&mut bench, WATCHER);
+    bench.run_long(2_000);
+    let off_reports = |bench: &mut Bench| {
+        let off = position(bench) + 4_000;
+        for step in 0..3 {
+            bench.clients[at].report(off + step * 50, 1);
+        }
+    };
+    let worlds = bench.clients[at].snapshots().len();
+    off_reports(&mut bench);
+    assert!(bench.until(2_000, |b| b.clients[at].snapshots().len() > worlds));
+    assert!(bench.until(2_000, |b| b.clients[at].model.is_synced()));
+    bench.run_long(1_500);
+    // Within the resync interval: none more.
+    let worlds = bench.clients[at].snapshots().len();
+    off_reports(&mut bench);
+    bench.run_long(3_000);
+    assert_eq!(bench.clients[at].snapshots().len(), worlds);
+    bench.assert_no_faults();
+}
+
+/// Review of 2026-11-13: a session ended only at the recording's end, so a game that sought
+/// back or paused now and then kept one of the few sessions for ever. It lasts the recording's
+/// length and a quarter of an hour at most (or twice its length), then is shown the end.
+#[test]
+fn a_session_lasts_its_longest_then_ends_as_at_the_recordings_end() {
+    let most = playable().session_most();
+    assert_eq!(
+        most,
+        Duration::from_millis(114_600) + Duration::from_secs(15 * 60)
+    );
+    let (mut bench, replays) = bench();
+    session_of_the_recording(&mut bench, &replays, 0);
+    let connected = bench.now();
+    let at = watching(&mut bench, WATCHER);
+    // Paused two minutes, then played a second, again and again: never at
+    // the recording's end, never paused too long.
+    let lasted = |bench: &Bench| bench.now().saturating_duration_since(connected);
+    let mut seq = 0u8;
+    'played: loop {
+        for (paused, seconds) in [(true, 120), (false, 1)] {
+            seq = seq.wrapping_add(1);
+            control(&mut bench, at, seq, Op::Pause(paused));
+            for _ in 0..seconds {
+                if lasted(&bench) >= most - Duration::from_secs(2) {
+                    break 'played;
+                }
+                bench.run_long(1_000);
+                assert!(!bench.clients[at].told_to_leave, "within its longest");
+            }
+        }
+    }
+    assert!(bench.until(30_000, |b| b.clients[at].told_to_leave));
+    let lasted = lasted(&bench);
+    assert!(
+        lasted >= most && lasted < most + Duration::from_secs(1),
+        "{lasted:?}"
+    );
+    bench.run_long(10_000);
+    assert!(!replays.watches().holds(WATCHER_ACCOUNT));
+    bench.assert_no_faults();
+}

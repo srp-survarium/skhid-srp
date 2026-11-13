@@ -42,8 +42,10 @@
 //! A file is written under `.part` from the match's first connection to its
 //! end. When its match closes it gets its name if [`Recording::entered`] has
 //! seen the minimum of players (never earlier: a replay is made of a closed
-//! match alone), else it is deleted; a `.part` a stopped server left is
-//! deleted at start. Kept files over `SRP_RECORD_MAX_MB` together
+//! match alone), else it is deleted. A `.part` a stopped server left is of a
+//! match that runs no more: at start it gets its name if it was kept (its
+//! `kept` note, written at once), else it is deleted. Kept files over
+//! `SRP_RECORD_MAX_MB` together
 //! are deleted oldest first. The writing and the packing are done on a
 //! thread of their own; the match loop only hands the bytes over, and drops
 //! them (counted) if that thread is behind by [`QUEUE`] items.
@@ -83,6 +85,8 @@ const BLOCK_EVERY: Duration = Duration::from_secs(20);
 const QUEUE: usize = 200_000;
 const PART: &str = "part";
 const EXTENSION: &str = "srprec";
+/// The note a recording gets once it is kept ([`Recording::entered`]).
+const KEPT_NOTE: &str = "kept";
 
 /// `SRP_RECORD_*`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -215,16 +219,31 @@ pub(crate) struct Recorder {
 }
 
 impl Recorder {
-    /// Starts the writing thread, after deleting what a stopped server left
-    /// under `.part`.
+    /// Starts the writing thread, after naming what a stopped server left
+    /// under `.part` (its matches run no more) if it was kept, and deleting
+    /// the rest.
     pub fn start(settings: RecordSettings) -> io::Result<Self> {
         fs::create_dir_all(&settings.dir)?;
         for entry in fs::read_dir(&settings.dir)?.flatten() {
             let path = entry.path();
-            if path.extension().is_some_and(|ext| ext == PART) {
+            if !path.extension().is_some_and(|ext| ext == PART) {
+                continue;
+            }
+            // `<name>.srprec.part` -> `<name>.srprec`.
+            let named = path.with_extension("");
+            if was_kept(&path) && fs::rename(&path, &named).is_ok() {
                 log::info!(
-                    "Recordings: {} was a match still running when the server stopped; \
-                     deleted",
+                    "Recordings: {} was a match still running when the server stopped; kept, \
+                     cut short",
+                    named.display()
+                );
+                if let Some(match_id) = match_of_file(&named) {
+                    settings.tell(|replays| replays.recording_kept(match_id));
+                }
+            } else {
+                log::info!(
+                    "Recordings: {} was a match still running when the server stopped, not \
+                     kept; deleted",
                     path.display()
                 );
                 let _ = fs::remove_file(&path);
@@ -369,6 +388,10 @@ impl Recording {
                 self.match_id,
                 self.entered.len()
             );
+            // In the file at once ([`Job::Keep`]): a `.part` with it is kept
+            // after a stop ([`Recorder::start`]).
+            let note = serde_json::json!({ "note": KEPT_NOTE, "players": self.entered.len() });
+            self.note(&note, Instant::now());
             self.send(Job::Keep {
                 match_id: self.match_id,
             });
@@ -490,10 +513,12 @@ impl Writer {
                     }
                 }
             }
-            // Named when its match closes ([`Self::close`]), not now.
+            // Named when its match closes ([`Self::close`]), not now; its
+            // `kept` note goes to the file now.
             Job::Keep { match_id } => {
                 if let Some(open) = self.open.get_mut(&match_id) {
                     open.kept = true;
+                    write_block(open);
                 }
             }
             Job::Close { match_id } => self.close(match_id),
@@ -758,6 +783,19 @@ pub fn read_header(path: &Path) -> io::Result<Option<Record>> {
     Ok(header)
 }
 
+/// A recording's file has its `kept` note ([`Recording::entered`]): read up
+/// to it.
+fn was_kept(path: &Path) -> bool {
+    let mut kept = false;
+    let _ = read_while(path, |record| {
+        kept = record.kind == NOTE
+            && serde_json::from_slice::<serde_json::Value>(record.bytes)
+                .is_ok_and(|note| note["note"] == KEPT_NOTE);
+        !kept
+    });
+    kept
+}
+
 fn unix_ms(time: SystemTime) -> u64 {
     time.duration_since(UNIX_EPOCH)
         .map_or(0, |since| since.as_millis() as u64)
@@ -875,12 +913,12 @@ mod tests {
         let mut records = Vec::new();
         for _ in 0..200 {
             records = read(&path).unwrap_or_default();
-            if records.len() == 4 {
+            if records.len() == 5 {
                 break;
             }
             std::thread::sleep(Duration::from_millis(10));
         }
-        assert_eq!(records.len(), 4, "{records:?}");
+        assert_eq!(records.len(), 5, "{records:?}");
         assert_eq!(records[0].kind, NOTE);
         let header: serde_json::Value = serde_json::from_slice(&records[0].bytes).unwrap();
         assert_eq!(header["note"], "header");
@@ -899,7 +937,9 @@ mod tests {
         assert_eq!(records[2].place, 1);
         assert_eq!(records[2].at_ms, 1_500);
         assert_eq!(records[2].bytes, vec![9; 600]);
-        let closed: serde_json::Value = serde_json::from_slice(&records[3].bytes).unwrap();
+        let note: serde_json::Value = serde_json::from_slice(&records[3].bytes).unwrap();
+        assert_eq!(note["note"], KEPT_NOTE);
+        let closed: serde_json::Value = serde_json::from_slice(&records[4].bytes).unwrap();
         assert_eq!(closed["note"], "closed");
         assert_eq!(closed["players"], 2);
         assert_eq!(closed["kept"], true);
@@ -948,19 +988,50 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
+    /// Review of 2026-11-13: a `.part` left by a stop was deleted at start,
+    /// and with it the recording of every match running then. Its match runs
+    /// no more: one that was kept gets its name (cut short), one under the
+    /// minimum (or no recording) is deleted.
     #[test]
-    fn a_part_left_by_a_stopped_server_is_deleted_at_start() {
-        let dir = temp_dir("left");
-        fs::create_dir_all(&dir).unwrap();
+    fn a_part_left_by_a_stopped_server_is_named_if_kept_else_deleted_at_start() {
+        let dir = temp_dir("running-at-stop");
+        let recorder = Recorder::start(settings(&dir, 2)).unwrap();
+        let now = Instant::now();
+        let mut kept = recorder.open(&id(0xAB), false, serde_json::json!({}), now);
+        kept.entered(0);
+        kept.entered(1);
+        let mut small = recorder.open(&id(0xCD), false, serde_json::json!({}), now);
+        small.entered(0);
+        small.datagram_in(0, &[1], now);
+        // The files as a stop leaves them: the kept one's note is written
+        // at once, the other's records are still in its block.
+        let names = settle(&dir, |names| {
+            names.len() == 2 && names.iter().any(|name| was_kept(&dir.join(name)))
+        });
+        let left = temp_dir("left");
+        fs::create_dir_all(&left).unwrap();
+        for name in &names {
+            assert!(name.ends_with(".srprec.part"), "{names:?}");
+            fs::copy(dir.join(name), left.join(name)).unwrap();
+        }
         fs::write(
-            dir.join("rec026g_20261014-000000_00000001.srprec.part"),
+            left.join("rec026g_20261014-000000_00000001.srprec.part"),
             b"x",
         )
         .unwrap();
-        fs::write(dir.join("rec026g_20261014-000000_00000002.srprec"), b"y").unwrap();
-        let _recorder = Recorder::start(settings(&dir, 6)).unwrap();
-        assert_eq!(files(&dir), ["rec026g_20261014-000000_00000002.srprec"]);
+        fs::write(left.join("rec026g_20261014-000000_00000002.srprec"), b"y").unwrap();
+        drop((kept, small));
+        let _recorder = Recorder::start(settings(&left, 2)).unwrap();
+        let named = files(&left);
+        assert_eq!(named.len(), 2, "{named:?}");
+        assert_eq!(named[0], "rec026g_20261014-000000_00000002.srprec");
+        assert!(named[1].ends_with("_000000ab.srprec"), "{named:?}");
+        let notes = read_notes(&left.join(&named[1])).unwrap();
+        let header: serde_json::Value = serde_json::from_slice(&notes[0].bytes).unwrap();
+        assert_eq!(header["note"], "header");
+        assert!(super::super::replay::recording_in(&left, 0xAB).is_some());
         let _ = fs::remove_dir_all(&dir);
+        let _ = fs::remove_dir_all(&left);
     }
 
     #[test]
@@ -1080,15 +1151,15 @@ mod tests {
         let mut records = Vec::new();
         for _ in 0..500 {
             records = read(&path).unwrap_or_default();
-            if records.len() == 6_002 {
+            if records.len() == 6_003 {
                 break;
             }
             std::thread::sleep(Duration::from_millis(10));
         }
-        assert_eq!(records.len(), 6_002);
-        assert_eq!(records[6_000].place, 19);
-        assert_eq!(records[6_000].at_ms, 5_999);
-        assert_eq!(records[6_000].bytes, datagram);
+        assert_eq!(records.len(), 6_003);
+        assert_eq!(records[6_001].place, 19);
+        assert_eq!(records[6_001].at_ms, 5_999);
+        assert_eq!(records[6_001].bytes, datagram);
         let _ = fs::remove_dir_all(&dir);
     }
 }
