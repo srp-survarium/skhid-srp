@@ -45,7 +45,7 @@ def check(pack, dictionary):
         restored['maps_dict'] = [r for r in new_rows if r['id'] not in ids]
         assert restored == original_dict, 'unrelated dictionary data changed'
         for key, _, ffa_id in m.MAPS:
-            path = f'projects/{m.project(key)}/client_project'
+            path = m.ffa_copy(f'projects/{m.project(key)}/client_project')
             old = m.tree((live / path).read_bytes())
             new_buf = (out / path).read_bytes()
             new = m.tree(new_buf)

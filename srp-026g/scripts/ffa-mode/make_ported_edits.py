@@ -25,7 +25,7 @@ MAPS = [('v021d_level_03', 164), ('v021d_level_06', 165),
 
 def paths():
     return [base.DICTIONARY] + [p for name, _ in MAPS for p in (
-        f'gameplay/game_modes/{name}_day_4.options', f'projects/{name}/day_4/client_project')]
+        f'gameplay/game_modes/{name}_day_4.options', base.copy_of(f'projects/{name}/day_4/client_project'))]
 
 
 def points():
@@ -91,7 +91,7 @@ def edits(live):
         out['append_entry'].append({'file': base.DICTIONARY, 'list': 'maps_dict',
                                    'expected_count': len(dictionary) + map_index, 'unique_key': 'id',
                                    'value': {'cfg_mode_name': dst[len(base.MODES):], 'id': map_id}})
-        path = 'projects/' + project + '/client_project'
+        path = base.copy_of('projects/' + project + '/client_project')
         buf = read(path)
         entries = base.tree(buf)['server_objects']['respawn_points']
         if [e['point_id'] for e in entries] != list(range(len(entries))) or any(e['team'] not in (0, 1) for e in entries):

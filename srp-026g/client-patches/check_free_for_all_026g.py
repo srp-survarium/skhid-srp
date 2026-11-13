@@ -21,13 +21,10 @@ harness: Scaleform's Invoke 0x511600 a stub that records each call):
   300 seeded random ones against this file's own model of the rule. The
   callee-saved registers and the stack as the game's ret 18h leaves them. A
   vector of teams 0 and 1 takes the game's own path;
-- resupply_zone_core::can_use (0x2F8080) and use_hint (0x2F80C0): no
-  ammunition refill in a free-for-all (the owner, 2026-11-12): a player of
-  his own side is refused at a zone of every team value (0, 1, 2, 3, his own
-  side's number, another's, 0xFFFFFFFF), by the game's own "no" (0x2F80BB,
-  0x2F80DC) before its test of the team, the inventory test never reached;
-  a player of team 0 or 1 is served exactly as by the original exe (its
-  team's zone and team 2's), result, inventory test and path alike;
+- resupply_zone_core::can_use and use_hint before their test of the team
+  (0x2F8086, 0x2F80C6): the original's bytes (the maps a free-for-all is
+  played on have no ammo crates, content edit no-ammo-crates-1); patch 85's
+  sites after them (0x2F809C, 0x2F80E4) still hooked;
 - the options read (process_static_match_info 0x27B92D, a replay's chunk 1
   0x1F0971) with srp's block: tag 3, two bytes, is the kill target of a
   free-for-all; the hud movie is then told root.set_ffa_progress(own, top,
@@ -59,12 +56,8 @@ import check_blackout_026g as blackout
 
 DUE, DUE_AFTER = 0x3168CE, 0x3168D4            # lea edx,[eax+eax*2] (3) / mov eax,[ebp-10h] (3)
 SELECT = 0x3171D0                              # thiscall (team, due, living, a, time, chosen); ret 18h
-CAN_USE, USE_HINT = 0x2F8080, 0x2F80C0         # thiscall (&player); ret 4
-TEAM_TEST = {CAN_USE: 0x2F808F, USE_HINT: 0x2F80CF}    # the zone's own test of the team
-ALLOWED = {CAN_USE: 0x2F809C, USE_HINT: 0x2F80E4}      # its allowed path: patch 85's pickup sites
-REFUSED = {CAN_USE: 0x2F80BB, USE_HINT: 0x2F80DC}      # its own "no": xor eax,eax / mov eax,9DB708h; ret 4
-INVENTORY_TEST = 0x2FDF50                      # (inventory, profile) on the stack, AL the kit; pops 8, 0 = may
-NOT_HERE = 0x9DB708                            # use_hint's "no" string
+ZONE_TESTS = (0x2F8086, 0x2F80C6)              # can_use, use_hint: mov edx,[eax+6B8h] (6), the original's
+PICKUP_SITES = (0x2F809C, 0x2F80E4)            # their allowed paths: patch 85's pickup sites
 INITIALIZE, INITIALIZE_AFTER = 0x234880, 0x234886
 WELCOME_START, WELCOME_SITE, WELCOME_PAST = 0x23B32D, 0x23B36A, 0x23B371
 SHOW_MESSAGE, TRANSLATE = 0x2375C0, 0x1FF0F0   # (key in ECX; ui, 21h, 14h, ms), ret 10h; thiscall (key, out), ret 8
@@ -83,7 +76,7 @@ PLAYERS = DATA + 0x10000                       # 40 players, 1000h each
 PROFILES = DATA + 0x40000                      # their profiles' teams (+45ECh), 10h apart
 GETTER = DATA + 0x3000                         # the players' transform vtable: +28h the getter
 CODE = DATA + 0x4000                           # per player: mov eax, <its transform>; ret
-ZONE, PLAYER_REF, RETURN = DATA + 0x5000, DATA + 0x5100, DATA + 0x5200
+RETURN = DATA + 0x5200
 UI_WORLD, UI_GAME = DATA + 0x6000, DATA + 0x7000   # the hud's game world (+18h) and its game (+9Ch)
 POINT_SIZE = 0x38
 HUD = hide.HUD
@@ -105,12 +98,9 @@ class Run(blackout.Run):
     def __init__(self, data):
         super().__init__(data)
         self.emu.mem_map(DATA, SIZE, UC_PROT_ALL)
-        self.tested, self.native_messages, self.passed = [], [], set()
-        self.emu.hook_add(UC_HOOK_CODE, self.inventory_test, begin=INVENTORY_TEST, end=INVENTORY_TEST)
+        self.native_messages = []
         self.emu.hook_add(UC_HOOK_CODE, self.show_message, begin=SHOW_MESSAGE, end=SHOW_MESSAGE)
         self.emu.hook_add(UC_HOOK_CODE, self.translate, begin=TRANSLATE, end=TRANSLATE)
-        for at in (*TEAM_TEST.values(), *ALLOWED.values(), *REFUSED.values()):
-            self.emu.hook_add(UC_HOOK_CODE, lambda emu, address, *_: self.passed.add(address), begin=at, end=at)
         self.word(HUD + 0x18, UI_WORLD)
         self.word(UI_WORLD + 0x9C, UI_GAME)
         self.emu.mem_map(CLIENT, 0x200000)
@@ -147,12 +137,6 @@ class Run(blackout.Run):
         sp = emu.reg_read(UC_X86_REG_ESP)
         emu.reg_write(UC_X86_REG_EIP, self.read(sp))
         emu.reg_write(UC_X86_REG_ESP, sp + 4 + pops)
-
-    def inventory_test(self, emu, *_):
-        sp = emu.reg_read(UC_X86_REG_ESP)
-        self.tested.append((self.read(sp + 4), self.read(sp + 8)))
-        emu.reg_write(UC_X86_REG_EAX, 0)
-        self.leave(emu, 8)
 
     def show_message(self, emu, *_):
         """The game's show_parametrized_message: its key and numbers."""
@@ -223,20 +207,6 @@ class Run(blackout.Run):
             assert after[reg] == hide.GAME[reg], reg
         begin, end = self.read(CHOSEN_V), self.read(CHOSEN_V + 4)
         return [(self.read(begin + 4 * i) - first) // POINT_SIZE for i in range((end - begin) // 4)]
-
-    def zone(self, function, zone_team, team):
-        """The zone's function for a player of `team`: its result, what the
-        inventory test was given, and which of the zone's own team test and
-        its allowed path's start ran."""
-        self.make_player(0, team, 0, (0, 0, 0))
-        self.word(PLAYER_REF, player(0))
-        self.word(ZONE + 0x54, zone_team)
-        sp = hide.STACK + 0x9000 - 8
-        self.emu.mem_write(sp, struct.pack("<II", RETURN, PLAYER_REF))
-        self.tested, self.passed = [], set()
-        after, sp_after = self.run(function, (RETURN,), sp, {**hide.GAME, UC_X86_REG_ECX: ZONE})
-        assert self.stopped == RETURN and sp_after == sp + 8
-        return after[UC_X86_REG_EAX], self.tested, self.passed
 
     def hud_state(self, viewed, kills, pregame, seconds, remaining_ms=None):
         """The hud state as the rules fill it: the viewed place (None: none),
@@ -459,38 +429,13 @@ def main():
     assert r.select(line(0), [0, 2], [], 0, team=0) == []
     print('ok teams 0 and 1: the game\'s own selection (its group of team 0 empty here: nothing chosen)')
 
-    zone_teams = (0, 1, 2, 3, 4, 7, 13, 23, 0xFFFFFFFF)
-    for function in (CAN_USE, USE_HINT):
-        yes = 1 if function == CAN_USE else None
-        # A team's player: served by his team's zone and team 2's, exactly as the original exe serves him.
-        for team in (0, 1):
-            for zone_team in zone_teams:
-                served = zone_team in (team, 2)
-                ours, theirs = r.zone(function, zone_team, team), stock.zone(function, zone_team, team)
-                assert ours == theirs, (hex(function), zone_team, team, ours, theirs)
-                result, tested, passed = ours
-                assert TEAM_TEST[function] in passed and REFUSED[function] not in passed or not served
-                if served:
-                    assert tested == [(0, profile(0))], (zone_team, team, tested)
-                    assert (result == 1) if yes else (result != NOT_HERE), (hex(function), zone_team, team, result)
-                    assert ALLOWED[function] in passed
-                else:
-                    assert tested == [] and result == (0 if yes else NOT_HERE), (zone_team, team, result)
-        # A free-for-all's player (4 + his place): no zone, of any team, serves him; the original
-        # would have served him at team 2's zone and at one numbered as his side.
-        for team in (4, 7, 13, 23):
-            for zone_team in zone_teams:
-                result, tested, passed = r.zone(function, zone_team, team)
-                assert tested == [] and result == (0 if yes else NOT_HERE), (hex(function), zone_team, team, result)
-                assert passed == {REFUSED[function]}, (hex(function), zone_team, team, sorted(map(hex, passed)))
-            assert stock.zone(function, 2, team)[1] == [(0, profile(0))]
-            assert stock.zone(function, team, team)[1] == [(0, profile(0))]
-    for at in (0x2F8086, 0x2F80C6, 0x2F809C, 0x2F80E4):
+    for at in ZONE_TESTS:
+        assert patched[hide.file_at(patched, at):][:6] == original[hide.file_at(original, at):][:6], hex(at)
+    for at in PICKUP_SITES:
         jump = bytes(patched[hide.file_at(patched, at):][:5])
         assert jump[0] == 0xE9 and at + 5 + struct.unpack("<i", jump[1:])[0] >= base.ARENA_VA, (hex(at), jump.hex())
-    print('ok no ammunition refill in a free-for-all: a player of his own side refused at a zone of every team '
-          'value by the game\'s own "no", the inventory test never reached; a team\'s player served exactly as '
-          'by the original (patch 85\'s sites still hooked)')
+    print('ok the resupply zones\' tests of the team are the original\'s (no ammo crates on the free-for-all maps); '
+          'patch 85\'s sites still hooked')
 
     target = lambda n: blackout.srpx((3, struct.pack("<H", n)))
     options = lambda block: blackout.empty_options(block)

@@ -19,16 +19,6 @@ handler = "on_due_team"
 site = "respawn.select"
 handler = "on_select"
 
-# no ammunition refill in a free-for-all: the two zone tests refuse a player
-# of his own side before the zone's test of the team
-[[hook]]
-site = "resupply.can_use"
-handler = "on_can_use"
-
-[[hook]]
-site = "resupply.use_info"
-handler = "on_use_info"
-
 # the kill target: srp's block after the match's options
 [[hook]]
 site = "static_info.options_read"

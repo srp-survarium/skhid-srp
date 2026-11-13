@@ -43,7 +43,7 @@ def check(pack, dictionary, native, editor):
             assert '0 unexpected differences' in run.stdout, run.stdout
         blob = (final / arena.PROJECT).read_bytes()
         project = m.tree(blob)
-        old = m.tree((pack / 'files' / arena.PROJECT).read_bytes())
+        old = m.tree((pack / 'files' / arena.TDM_PROJECT).read_bytes())
         points = project['server_objects']['respawn_points']
         assert len(points) == 48 and points[:24] == old['server_objects']['respawn_points']
         for point in points:

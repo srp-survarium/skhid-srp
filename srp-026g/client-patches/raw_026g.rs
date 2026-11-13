@@ -26621,36 +26621,6 @@ pub mod site {
         }
     }
 
-    /// resupply.can_use (0x2f8086): resupply_zone_core::can_use before the team test (mov edx,[eax+6B8h]); refused is its own no (xor eax,eax / ret 4), which reads no register
-    pub mod resupply_can_use {
-        #[allow(unused_imports)]
-        use super::*;
-
-        /// EAX: a survarium::player (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
-        #[inline(always)]
-        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
-            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(Player)
-        }
-    }
-
-    /// resupply.use_info (0x2f80c6): resupply_zone_core::use_info before the team test (mov edx,[eax+6B8h]); refused is its own no hint (mov eax,9DB708h, the empty string / ret 4), which reads no register
-    pub mod resupply_use_info {
-        #[allow(unused_imports)]
-        use super::*;
-
-        /// EAX: a survarium::player (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
-        #[inline(always)]
-        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
-            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(Player)
-        }
-    }
-
     /// kd_stats.event (0x3237e0): kd_stats_rule::on_event entry; cmp dword [esp+4],1; done is the original ret 0Ch, before any pushes
     pub mod kd_stats_event {
         #[allow(unused_imports)]

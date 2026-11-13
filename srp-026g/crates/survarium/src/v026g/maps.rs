@@ -976,8 +976,8 @@ mod tests {
         // A playable id's config name spells its level, weather and mode,
         // and its project is `level_0X/<weather>_<mode>` (Blackout's: its
         // battery map's, `blackout_is_a_mode_of_its_own_maps`; a
-        // free-for-all's: its Team Deathmatch map's,
-        // `the_free_for_alls_play_on_their_tdm_projects`).
+        // free-for-all's: its own copy of its Team Deathmatch map's,
+        // `the_free_for_alls_play_on_their_own_projects`).
         for map in playable()
             .filter(|map| !matches!(map.mode, GameMode::Blackout | GameMode::FreeForAll))
         {
@@ -1098,10 +1098,10 @@ mod tests {
             assert!((1..=9).contains(&level), "{}", map.id);
             let added = if free_for_all { FFA_POINTS[level - 1] } else { 0 };
             let (points, teams) = match map.mode {
-                // A free-for-all plays on its Team Deathmatch project.
-                GameMode::TeamDeathmatch | GameMode::FreeForAll => {
-                    (TDM_BEFORE[level - 1] + added, None)
-                }
+                // Team Deathmatch's project as it was; a free-for-all's
+                // own copy of it holds the free-for-all points.
+                GameMode::TeamDeathmatch => (TDM_BEFORE[level - 1], None),
+                GameMode::FreeForAll => (TDM_BEFORE[level - 1] + added, None),
                 _ => (GATHER_BEFORE[level - 1], Some(teams_before(map.level))),
             };
             assert_eq!(map.respawn_points, points, "{} ({})", map.id, map.project);
@@ -1116,11 +1116,15 @@ mod tests {
         assert_eq!(playable().count(), 72 + 24 + 24);
         as_before(all(), true);
         // Spot checks: level_04's Team Deathmatch has 75 points of its own
-        // (39 of layer `tdm`), level_02's 31 (one of team 2), and each the
-        // free-for-all's.
+        // (39 of layer `tdm`), level_02's 31 (one of team 2), and the
+        // free-for-all's own copy of each those and its own.
         let level_04 = find(4, weather::RAIN, GameMode::TeamDeathmatch).unwrap();
+        assert_eq!((level_04.respawn_points, level_04.solo_respawn_points), (75, 0));
+        let level_04 = find(4, weather::RAIN, GameMode::FreeForAll).unwrap();
         assert_eq!((level_04.respawn_points, level_04.solo_respawn_points), (75 + 30, 30));
         let level_02 = find(2, weather::DAY, GameMode::TeamDeathmatch).unwrap();
+        assert_eq!((level_02.respawn_points, level_02.solo_respawn_points), (31, 1));
+        let level_02 = find(2, weather::DAY, GameMode::FreeForAll).unwrap();
         assert_eq!((level_02.respawn_points, level_02.solo_respawn_points), (31 + 25, 1 + 25));
         assert_eq!(
             find(7, weather::DAY, GameMode::TimedBatteries).unwrap().container_teams,
@@ -1320,10 +1324,11 @@ mod tests {
         (46..=60).chain(154..=162).collect()
     }
 
-    /// Each of `table`'s `count` free-for-alls is playable on its level's
-    /// Team Deathmatch project, which holds its team-2 points, with the
+    /// Each of `table`'s `count` free-for-alls is playable on its own copy
+    /// of its level's Team Deathmatch project (`<weather>_4` -> `<weather>_8`,
+    /// content edit ffa-projects-1), which holds its team-2 points, with the
     /// owner's kill target and the most players.
-    fn free_for_alls_play_on_their_tdm_projects(table: &[MapMode], count: usize) {
+    fn free_for_alls_play_on_their_own_projects(table: &[MapMode], count: usize) {
         let ffa: Vec<&MapMode> = table
             .iter()
             .filter(|map| map.mode == GameMode::FreeForAll)
@@ -1334,19 +1339,27 @@ mod tests {
             assert_eq!(map.mode.lobby_number(), 8);
             assert!(map.config.starts_with("ffa/"), "{}", map.config);
             assert!(map.is_playable(), "{}", map.config);
-            let tdm = table
-                .iter()
-                .find(|other| {
-                    other.mode == GameMode::TeamDeathmatch
-                        && (other.level, other.weather) == (map.level, map.weather)
-                })
-                .unwrap();
+            // The STALKER maps' Team Deathmatch is not offered (no dictionary
+            // row: stalker-tdm-hold-1): nothing to compare with.
+            let Some(tdm) = table.iter().find(|other| {
+                other.mode == GameMode::TeamDeathmatch
+                    && (other.level, other.weather) == (map.level, map.weather)
+            }) else {
+                continue;
+            };
             assert_eq!(
                 map.config,
                 format!("ffa/{}8.options", tdm.config.strip_suffix("4.options").unwrap())
             );
-            assert_eq!(map.project, tdm.project);
-            assert_eq!(map.respawn_points, tdm.respawn_points);
+            let copy = format!("{}_8", tdm.project.strip_suffix("_4").unwrap());
+            assert_eq!(map.project, copy);
+            // The copy has TDM's points and its own team-2 points; TDM's
+            // project has none of them.
+            assert_eq!(
+                map.respawn_points - map.solo_respawn_points,
+                tdm.respawn_points - tdm.solo_respawn_points
+            );
+            assert!(tdm.solo_respawn_points < map.solo_respawn_points, "{}", tdm.project);
             assert!(map.solo_respawn_points >= 20, "{} {}", map.config, map.solo_respawn_points);
             assert_eq!((map.kills_to_win, map.match_time), (30, tdm.match_time));
             assert_eq!(player_cap(map), Some(10));
@@ -1358,22 +1371,23 @@ mod tests {
     /// The test data's, made of content edit ffa-1 as the content patch
     /// makes them (`game_data::test_archive`).
     #[test]
-    fn the_free_for_alls_play_on_their_tdm_projects() {
-        free_for_alls_play_on_their_tdm_projects(all(), 24);
+    fn the_free_for_alls_play_on_their_own_projects() {
+        free_for_alls_play_on_their_own_projects(all(), 24);
     }
 
     /// Built data with both FFA edit lists, including London and all five ports.
     #[test]
     #[ignore = "needs SRP_TEST_GAME_DATA from build-content with both FFA edit lists"]
-    fn the_released_free_for_alls_play_on_their_tdm_projects() {
+    fn the_released_free_for_alls_play_on_their_own_projects() {
         let data = GameData::open(&env_path("SRP_TEST_GAME_DATA")).unwrap();
         let maps = fixtures::table_of(&data).unwrap();
-        free_for_alls_play_on_their_tdm_projects(&maps, 30);
+        free_for_alls_play_on_their_own_projects(&maps, 33);
         let ports: Vec<_> = maps.iter()
             .filter(|m| m.mode == GameMode::FreeForAll && m.level >= 10)
             .map(|m| (m.id, m.level, m.solo_respawn_points))
             .collect();
         assert_eq!(ports, [
+            (42, 15, 24), (43, 16, 24), (44, 17, 24),
             (164, 10, 22), (165, 11, 22), (167, 12, 22), (168, 13, 22), (169, 14, 22)
         ]);
     }

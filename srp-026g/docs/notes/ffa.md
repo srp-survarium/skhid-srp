@@ -23,7 +23,13 @@ kills wins, no elimination phases (not 0.31's "The Last Stand"). His rules of th
   leaves them, with:
   - `mode.mode` 8 and rules 93, 91, 94 (time, respawn, kd): no rule of its own. TDM's rule 90 has
     arrays of two teams.
-  - TDM's own project, timings (15:00, 20 s countdown) and respawn time.
+  - TDM's timings (15:00, 20 s countdown) and respawn time.
+  - **Its own project** (the owner, 2026-11-13: "TDM is good, nothing should change about it"):
+    `projects/<map>/<weather>_8/client_project`, a copy of the TDM map's `<weather>_4` as every list
+    before leaves it (content edit `ffa-projects-1`, right before `ffa-1`). The FFA lists edit the
+    copies only; `no-ammo-crates-1` points each config's `map_name` at its copy. TDM's projects are
+    exactly what they would be without Free for All. The minimap and the loading picture are the
+    level's (the file's `project_name`), so a copy shows them as TDM does.
   - `mode/parameters/kills_to_win` 30 and `mode/match_making_params/max_players` 10. The server
     reads both from the config (`maps::MapMode`); a retune is an edit-list change.
 - **Sides:** each player is his own side, team 4 + his roster place (`srp_validate::own_side`,
@@ -73,9 +79,9 @@ kills wins, no elimination phases (not 0.31's "The Last Stand"). His rules of th
 
 A match's first spawn and every respawn go through the same respawn tick, so both are these.
 
-- **Points:** only the map's team-2 points: 0.31a2's mode-6 points, added to each TDM project
-  (`scripts/ffa-mode`). TDM's own points are never a free-for-all's, and TDM's tick serves teams 0
-  and 1 only, so TDM spawns as before.
+- **Points:** only the map's team-2 points: 0.31a2's mode-6 points, added to each map's own
+  project, the copy of TDM's (`scripts/ffa-mode`). The teams' points the copy keeps are never a
+  free-for-all's.
 - **Choice,** for each player due at a tick, in the tick's order:
   - every point that passes the game's clear test (no other player within its
     enemy radius: 20 m on every map), and has no point already assigned
@@ -93,10 +99,10 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
 - **Protection:** 2 s on every team-2 point (`PROTECTION` in `scripts/ffa-mode/make_edits.py`;
   the exe reads the key as whole seconds). TDM's own points keep theirs (`maps.tsv`
   `spawn_protection_s`, teams 0 and 1 only).
-- **No resupply** (the owner, 2026-11-12: "make sure FFA doesn't have ammo refills"): no ammo zone
-  serves a free-for-all player, whatever team the map gave it: no use hint, no refill (the exe
-  patch refuses a player of his own side before the zone's test of the team). The ammo a player
-  has is his kit's at the spawn, and what he picks up.
+- **No ammo crates** (the owner, 2026-11-12/13: "there should just be no ammo crates", "then noone
+  can resupply"): content edit `no-ammo-crates-1` removes every ammo crate (its resupply zones,
+  decal, collision and models) from the free-for-all's own projects. Team Deathmatch keeps its
+  crates. No exe rule. The ammo a player has is his kit's at the spawn, and what he picks up.
 - **Checked against 0.26g's collision** (`scripts/ffa-mode/check-points`,
   `scripts/ffa-mode/checked.tsv`): each 0.31 point is kept, nudged to the ground (under 0.43 m) or
   dropped (ground over 0.5 m off, body blocked, or no reachable floor).
@@ -127,8 +133,7 @@ team-2 points: a mode-8 config without them stops the server (`maps::MapMode::fr
   164, 165, 167, 168 and 169 in table order. IDs 166/175 already belong to ports.
 - `ffa-ported-1.json` follows `ffa-1.json`, cloning each port's final day TDM config
   and adding only team-2 points. These ports have no other TDM weather variant.
-- The TDM projects' snapshots carry the new points' bytes: a `next` row of
-  `simulation_changes.tsv`.
+- The FFA projects are new files (33, one per FFA config's map); TDM's are unchanged.
 
 London also has six additional central spawns requested on 2026-11-12, recorded
 in `scripts/ffa-mode/london-center.tsv`. The `central` authoring binary checks
@@ -191,8 +196,8 @@ and spatial review; they still need multiplayer playtesting for balance.
     - No switch. A pool without one (a private room's maker unticked the mode, or the server's
       `SRP_MATCH_MODES` leaves 8 out) or of free-for-alls alone: its three cards drawn as before.
       A public room's pool has them (the default pool is every playable map).
-    - A room with bots keeps the free-for-alls its bots play in its pool (below), so its third
-      card is one of them. (Blackout's never was: the bots do not play it.)
+    - A room with bots keeps only maps with a bots' map file in its pool: no free-for-all for now
+      (below), so its three cards are drawn as for a pool without one.
     - The card is there whatever the room's size and members: the match seats 10 and starts
       with whoever can play, as below. Nothing is offered that a room cannot start.
     - The mode is named in one place, `session::v026g::rooms::THIRD_CARD` (`Rooms::draw`).
@@ -202,25 +207,26 @@ and spatial review; they still need multiplayer playtesting for balance.
     it is told so.
   - A squad of the room plays it each on his own. A squad alone in an open room waits for a third
     as before any match: the vote does not begin for it, whatever the cards.
-  - A room with bots is filled with them up to the 10.
+  - A room with bots would fill one with them up to the 10, had its map a bots' map file.
   - The pool of a create names 256 entries at the most (16 pieces of 16 bits, `lobby::rooms`
     `POOL_BITS`; 160 before): the live data has 167 playable maps with the free-for-alls. The
     lobby movie and the server change together.
   - A room's match with a minimum waits for a player of each side before it starts; a
     free-for-all's for its players alone (`game/start.rs`).
-- **Player vs Bots:** offers the day free-for-all of each level it offers, beside its other maps:
-  the player and min(2N, 10) - 1 bots, each on his own. Its size menu still says "N vs N".
+- **Not played with bots for now** (the owner, 2026-11-13). Its projects are its own and have no
+  bots' map file (`release/bot-data.tsv`, by project). Player vs Bots offers the owner's 16 maps only
+  (`pvb::offered_maps`). A room with bots holds only maps with a bots' map file
+  (`pvb::bot_maps`), so its pool and vote cards have no free-for-all.
 - **Not in plain Play** (a clan match, the old queue): those are matches of two teams.
-- **Bots:** the server's bots play it as a Team Deathmatch with no teammates (`bots::view::Side`:
+- **Bots, given a map file:** the server's bots play it as a Team Deathmatch with no teammates (`bots::view::Side`:
   one of the two teams, or a place alone; the per-side state is one a place).
   - Every other living place, bot or human, is a target. What a bot knows (callouts, danger
     spots) is its own.
   - No base: it roams (a walkable floor 20 to 60 m off, a look, again), flanks and heals. The team
     plays (pair up, hunt, retreat to the base's ammo, every battery play) are not offered to it.
   - Its skill balances by its own duels with humans, which are few in one match.
-  - The bots' map files (`release/bot-data.tsv`) were dumped before `ffa-1`. Dumped again from
-    projects with the free-for-all points, each team-2 point would become a spawn area Team
-    Deathmatch's bots keep out of (`bots/tactics.rs`): that reading must leave team 2 out first.
+  - A bots' map file of an FFA project would have its team-2 points, each a spawn area the
+    bots keep out of (`bots/tactics.rs`): that reading must leave team 2 out first.
 - A live server with `SRP_MATCH_MODES` set must name 8 for it to be played.
 - **The site's live table** shows a free-for-all's players in all, not "N v N".
 
@@ -285,8 +291,8 @@ and spatial review; they still need multiplayer playtesting for balance.
 - **Statistics:** `m_team_victory_items[2]` +31D8h is indexed by team (0x2F5590). This is batteries
   only.
 - **Resupply:** a zone serves its own team or team 2 (0x2F808F, 0x2F80CF): alone, a free-for-all
-  player (4 + place) would be served by a zone of team 2 and by one numbered as his side. The
-  patch refuses him at every zone before that test ("No resupply" above).
+  player (4 + place) would be served by a zone of team 2 and by one numbered as his side. Its
+  maps have no zones ("No ammo crates" above), so the exe is left as it is there.
 - **Special team values:** team 2 is "neutral" for names (0x1F2B4B), resupply (0x2F8097) and the
   minimap (0x239B3C). The HUD turns local team 3 into 0 (0x234975).
 - **Equality only (works with any value):** kd kills (0x32384F), the statistics' enemy events
@@ -598,7 +604,7 @@ match the independently verified final project trees; all 765 solo spawns
 have 20 m exclusion and two seconds of protection and pass native loading.
 The actual archive also passes both Vostok geometry checks and the strict
 composed preservation check, including Research map 249. The ignored
-real-data test `the_released_free_for_alls_play_on_their_tdm_projects`
+real-data test `the_released_free_for_alls_play_on_their_tdm_projects` (now `..._own_projects`)
 passes against this server data. These are local quick-build artifacts;
 they do not reserve or publish a revision.
 

@@ -14,7 +14,9 @@ London (level_09, day; base patch 14):
   has a row for every config of gameplay/game_modes/ itself and is applied before a later list's
   copies exist;
 - its maps_dict row (gameplay/db_static_dictionaries), appended: IDS in MAPS order;
-- 0.31a2's mode-6 ("domination") respawn points added to the TDM project as team-2 entries, made
+- 0.31a2's mode-6 ("domination") respawn points added to the map's own copy of the TDM project
+  (`<weather>_8`, ffa-projects-1.json, the row before this list's: TDM's project stays as it is) as
+  team-2 entries, made
   like the project's first point with float radii: 0.31's position (put on the ground where
   checked.tsv nudged it), rotation and enemy_check_radius, ally_check_radius 1, PROTECTION seconds
   of invulnerability, a name of their own (ffa_<0.31 name>) and the next point ids. 0.26g's TDM
@@ -109,7 +111,18 @@ def config(level, weather, mode):
 
 
 def project(level, weather):
-    return f'projects/level_{level:02}/{weather}_{TDM}/client_project'
+    """The free-for-all's project: its own copy of the TDM map's (copy_of)."""
+    return copy_of(f'projects/level_{level:02}/{weather}_{TDM}/client_project')
+
+
+def copy_of(path):
+    """The free-for-all's copy of a TDM project (`projects/<map>/<weather>_4/client_project`):
+    `<weather>_8`, made by ffa-projects-1.json (make_project_copies.py) before the FFA lists, which
+    edit the copy; TDM's own project is never changed for a free-for-all."""
+    head, sep, tail = path.rpartition(f'_{TDM}/')
+    if not sep or not head.startswith('projects/') or tail != 'client_project':
+        raise ValueError(f'{path}: not a TDM project')
+    return f'{head}_{FFA}/{tail}'
 
 
 def tree(buf, off=0):
@@ -141,7 +154,8 @@ def checked_points():
             y = float(row['ground'])
         elif verdict != 'kept':
             raise SystemExit(f'checked.tsv: verdict {verdict!r}')
-        by.setdefault('projects/' + row['project'] + '/client_project', []).append((row['point'], [x, y, z], row))
+        by.setdefault(copy_of('projects/' + row['project'] + '/client_project'), []).append(
+            (row['point'], [x, y, z], row))
     return by
 
 
@@ -162,9 +176,10 @@ def edits(live):
         f'leave it (mode {FFA}, its name, st_mode_{FFA:02}_name and st_mode_{FFA:02}_description, rules 93, '
         '91, 94 without TDM\'s 90, and for the server '
         + ', '.join(f'{table.split("/")[-1]}.{key} {value}' for table, key, value in ADDED)
-        + '; the same project), its maps_dict row '
+        + '; its project the TDM map\'s, repointed to the copy by no-ammo-crates-1), its maps_dict row '
         f'(ids {ranges(IDS)}), and 0.31a2\'s mode-6 respawn points added to the '
-        f'TDM project as team-2 points (ally radius 1, {PROTECTION} s of invulnerability), those that pass '
+        f'map\'s own copy of the TDM project (<weather>_{FFA}, ffa-projects-1) as team-2 points (ally radius 1, '
+        f'{PROTECTION} s of invulnerability), those that pass '
         'the collision check of scripts/ffa-mode/checked.tsv (nudged onto the ground where it says). '
         '0.26g\'s TDM never reads team 2\'s points; the FFA respawn patch spawns at them only.'),
         'copy': [], 'set': [], 'replace_string': [], 'remove_item': [], 'add_value': [], 'append_entry': [],

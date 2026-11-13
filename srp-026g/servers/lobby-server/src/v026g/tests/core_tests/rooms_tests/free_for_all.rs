@@ -196,7 +196,8 @@ fn a_free_for_all_seats_its_first_ten_members_and_the_others_wait_in_the_room() 
 
 /// A room with bots (8 a team in a match of two teams) fills a free-for-all
 /// with the server's bots up to its most players and no further: its two
-/// members and eight bots.
+/// members and eight bots. Here its maps have a bots' map file; the
+/// release's have none, so no room with bots holds one (`ffa.md`).
 #[test]
 fn a_room_with_bots_fills_a_free_for_all_with_bots_up_to_its_most_players() {
     use survarium::v026g::lobby::rooms::ROOM_CREATE_BOTS;

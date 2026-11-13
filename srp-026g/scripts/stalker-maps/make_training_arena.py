@@ -14,7 +14,9 @@ from pathlib import Path
 from make_ffa_edits import tree
 
 HERE = Path(__file__).resolve().parent
-PROJECT = 'projects/v010b_cs_training_camp/day_4/client_project'
+# Free for All's own copy of the TDM project (ffa-projects-1.json); TDM's stays as it is.
+TDM_PROJECT = 'projects/v010b_cs_training_camp/day_4/client_project'
+PROJECT = 'projects/v010b_cs_training_camp/day_8/client_project'
 SOURCE = 'models/level/04/level_border.model'
 MODEL = 'models/srp/training_camp_border.model'
 PART = 'walker_collision/exported_primitives'
