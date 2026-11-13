@@ -2899,7 +2899,7 @@ st_srp_watch_live_word	В ЭФИРЕ
 st_srp_watch_map_retired	Карта, которой больше нет
 st_srp_watch_no_player	Игрока с именем %1$s нет.
 st_srp_watch_none_friends	Недавних матчей с друзьями нет.
-st_srp_watch_none_live_friends	Сейчас никто из ваших друзей не играет.
+st_srp_watch_none_live_friends	Никто из ваших друзей не играет в матче, который можно смотреть.
 st_srp_watch_none_mine	Здесь будут ваши матчи, начиная с этого момента.
 st_srp_watch_none_recent	Записанных матчей пока нет.
 st_srp_watch_players	игроков: %1$s

@@ -2899,7 +2899,7 @@ st_srp_watch_live_word	LIVE
 st_srp_watch_map_retired	Retired map
 st_srp_watch_no_player	No player named %1$s.
 st_srp_watch_none_friends	No recent matches with your friends.
-st_srp_watch_none_live_friends	None of your friends is playing now.
+st_srp_watch_none_live_friends	None of your friends is in a match you can watch.
 st_srp_watch_none_mine	Your matches are listed here from now on.
 st_srp_watch_none_recent	No matches recorded yet.
 st_srp_watch_players	Players: %1$s

@@ -2899,7 +2899,7 @@ st_srp_watch_live_word	NA ŻYWO
 st_srp_watch_map_retired	Wycofana mapa
 st_srp_watch_no_player	Brak gracza o nicku %1$s.
 st_srp_watch_none_friends	Brak ostatnich rozgrywek ze znajomymi.
-st_srp_watch_none_live_friends	Żaden z twoich znajomych teraz nie gra.
+st_srp_watch_none_live_friends	Żaden z twoich znajomych nie gra teraz w meczu, który możesz oglądać.
 st_srp_watch_none_mine	Od teraz znajdziesz tu swoje rozgrywki.
 st_srp_watch_none_recent	Brak nagranych rozgrywek.
 st_srp_watch_players	graczy: %1$s

@@ -2899,7 +2899,7 @@ st_srp_watch_live_word	LIVE
 st_srp_watch_map_retired	Ausgemusterte Karte
 st_srp_watch_no_player	Kein Spieler namens %1$s.
 st_srp_watch_none_friends	Keine letzten Matches mit Freunden.
-st_srp_watch_none_live_friends	Gerade spielt keiner deiner Freunde.
+st_srp_watch_none_live_friends	Keiner deiner Freunde spielt gerade ein Match, das du ansehen kannst.
 st_srp_watch_none_mine	Ab jetzt stehen hier deine Matches.
 st_srp_watch_none_recent	Noch keine aufgezeichneten Matches.
 st_srp_watch_players	%1$s Spieler

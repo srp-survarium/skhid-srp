@@ -2899,7 +2899,7 @@ st_srp_watch_live_word	SUORANA
 st_srp_watch_map_retired	Poistunut kartta
 st_srp_watch_no_player	Pelaajaa nimeltä %1$s ei ole.
 st_srp_watch_none_friends	Ei viimeaikaisia otteluita kavereiden kanssa.
-st_srp_watch_none_live_friends	Kukaan kavereistasi ei pelaa nyt.
+st_srp_watch_none_live_friends	Kukaan kavereistasi ei pelaa nyt ottelua, jota voit katsoa.
 st_srp_watch_none_mine	Tästä lähtien ottelusi näkyvät täällä.
 st_srp_watch_none_recent	Tallennettuja otteluita ei vielä ole.
 st_srp_watch_players	Pelaajia: %1$s

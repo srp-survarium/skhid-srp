@@ -2899,7 +2899,7 @@ st_srp_watch_live_word	UŽIVO
 st_srp_watch_map_retired	Povučena mapa
 st_srp_watch_no_player	Nema igrača po imenu %1$s.
 st_srp_watch_none_friends	Nema skorašnjih mečeva sa prijateljima.
-st_srp_watch_none_live_friends	Nijedan tvoj prijatelj sada ne igra.
+st_srp_watch_none_live_friends	Nijedan tvoj prijatelj sada ne igra meč koji možeš da gledaš.
 st_srp_watch_none_mine	Od sada su ovde tvoji mečevi.
 st_srp_watch_none_recent	Još nema snimljenih mečeva.
 st_srp_watch_players	igrača: %1$s

@@ -4768,6 +4768,9 @@ package
       
       private function onVsRemoved(e:Event) : void
       {
+         // REMOVED_FROM_STAGE comes before it leaves its parent: from here on the results are
+         // not up (resultsUp, RoomsWindow.resultsUp), for the returns taken below
+         this.victory_screen.visible = false;
          this.topMenu.tabPage.removeEventListener(IndexEvent.INDEX_CHANGE,this.closeVS);
          this.victory_screen.removeEventListener(Event.REMOVED_FROM_STAGE,this.onVsRemoved);
          // The rooms window's tab, kept as it was under the results, follows it now (after closeVS

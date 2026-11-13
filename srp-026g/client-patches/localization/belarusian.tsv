@@ -2899,7 +2899,7 @@ st_srp_watch_live_word	НАЎПРОСТ
 st_srp_watch_map_retired	Карта, якой ужо няма
 st_srp_watch_no_player	Гульца з імем %1$s няма.
 st_srp_watch_none_friends	Нядаўніх матчаў з сябрамі няма.
-st_srp_watch_none_live_friends	Зараз ніхто з вашых сяброў не гуляе.
+st_srp_watch_none_live_friends	Ніхто з вашых сяброў не гуляе ў матчы, які можна глядзець.
 st_srp_watch_none_mine	Тут будуць вашы матчы, пачынаючы з гэтага моманту.
 st_srp_watch_none_recent	Запісаных матчаў яшчэ няма.
 st_srp_watch_players	гульцоў: %1$s

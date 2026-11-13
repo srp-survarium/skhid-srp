@@ -2899,7 +2899,7 @@ st_srp_watch_live_word	ÉLŐ
 st_srp_watch_map_retired	Kivezetett pálya
 st_srp_watch_no_player	Nincs %1$s nevű játékos.
 st_srp_watch_none_friends	Nincs legutóbbi meccs barátokkal.
-st_srp_watch_none_live_friends	Most egyik barátod sem játszik.
+st_srp_watch_none_live_friends	Most egyik barátod sem játszik olyan meccsen, amit nézhetsz.
 st_srp_watch_none_mine	Mostantól itt látod a meccseidet.
 st_srp_watch_none_recent	Még nincs rögzített meccs.
 st_srp_watch_players	%1$s játékos

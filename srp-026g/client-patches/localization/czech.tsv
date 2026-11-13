@@ -2899,7 +2899,7 @@ st_srp_watch_live_word	ŽIVĚ
 st_srp_watch_map_retired	Vyřazená mapa
 st_srp_watch_no_player	Hráč jménem %1$s neexistuje.
 st_srp_watch_none_friends	Žádné nedávné zápasy s přáteli.
-st_srp_watch_none_live_friends	Žádný z vašich přátel teď nehraje.
+st_srp_watch_none_live_friends	Žádný z vašich přátel teď nehraje zápas, který můžete sledovat.
 st_srp_watch_none_mine	Od teď tu najdete své zápasy.
 st_srp_watch_none_recent	Zatím žádné nahrané zápasy.
 st_srp_watch_players	hráčů: %1$s
