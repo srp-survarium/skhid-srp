@@ -1253,6 +1253,7 @@ va	status	ref_021d	name
 0x003193f0	reviewed	0x001f63ff	survarium::damage_zone_core::serialize
 0x00319470	reviewed	0x001f6467	survarium::damage_zone_core::deserialize
 0x00319500	reviewed	0x001f64aa	survarium::damage_zone_core::load
+0x0031ac10	observed	0x001f7489	survarium::effect_zone_core::load
 0x0031aca0	observed		survarium::effect_zone_core::apply_invulnerability
 0x0031ad70	reviewed	0x00187f82	survarium::generic_anomaly_core::~generic_anomaly_core
 0x0031add0	reviewed	0x00187fcf	survarium::generic_anomaly_core::`scalar deleting destructor'

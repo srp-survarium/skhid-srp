@@ -1090,6 +1090,7 @@ pub(super) mod tests {
             name: name.into(),
             team: -1,
             position: shape.center,
+            protection: None,
             damage_type: "shock".into(),
             damage: Some(Damage {
                 max_hit,

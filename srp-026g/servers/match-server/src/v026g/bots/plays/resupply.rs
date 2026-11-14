@@ -356,6 +356,7 @@ mod tests {
                 name: format!("resupply_{team}"),
                 team,
                 position: Vec3::new(x + 6.0, 0.0, 20.0),
+                protection: None,
                 damage_type: String::new(),
                 damage: None,
                 shapes: vec![mapdata::Shape {

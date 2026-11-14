@@ -2253,7 +2253,6 @@ va	status	ref_021d	name
 0x00319d30	inferred-medium	0x001f6a3b	survarium::damage_zone_core::deactivate
 0x0031a410	inferred-medium		survarium::damage_zone_core::damage_of_body
 0x0031a620	inferred-medium	0x001f70d8	vostok::buffer_vector<vostok::physics::loose_ptr<vostok::physics::base_physics_object,vostok::physics::loose_ptr_data,vostok::threading::multi_threading_policy> >::resize
-0x0031ac10	inferred-medium	0x001f7489	survarium::effect_zone_core::load
 0x0031b4b0	inferred-medium	0x001edb0f	survarium::generic_anomaly_core::activate
 0x0031b530	inferred-medium	0x001edb84	survarium::generic_anomaly_core::deactivate
 0x0031b5b0	inferred-medium	0x001edc0b	survarium::generic_anomaly_core::tick

@@ -407,6 +407,7 @@ mod tests {
                 name: "toxic".into(),
                 team: -1,
                 position: Vec3::new(25.0, 0.0, 32.0),
+                protection: None,
                 damage_type: "toxic".into(),
                 damage: Some(mapdata::Damage {
                     max_hit,
