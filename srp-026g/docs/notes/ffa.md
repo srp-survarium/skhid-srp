@@ -153,32 +153,40 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
     area measured from every spawn of the project, the fence's outside too), Vostok v0.11
     16 / 15 / 10 of 22, Chemical Plant v0.11 11 / 14 / 3 of 22, Vostok v0.21 13 / 15 / 7 of 22,
     Mamayev v0.21 11 / 19 / 8 of 22, Rudnya v0.69 13 / 16 / 7 of 22.
+- **No spacing between spawns** (the owner, 2026-11-14, of the 12 m the tools kept between solo
+  spawns: "we don't need this rules at all", "spawns can be as close as possible, the only thing that
+  matters is whether people can spawn close to each other"). Points may stand as close together as
+  they like: no spawn tool or check refuses or drops a point for being near another. Where a tool
+  chooses among candidates (to_center, central, ported, the STALKER maps' ffa-points, a roof spawn's
+  place) it still takes the farthest from those it has first, with no minimum. What keeps players
+  apart is the respawn's own choice ("Choice", above: a point with a living enemy, or a point given
+  at the same tick, within its enemy radius, 20 m, is not chosen; patch 142's `free_for_all.rs`
+  measures the same-tick one in 3D), which stays as it is. The lists made before (the 0.31 points'
+  move to the centre, London's, the ports', the STALKER maps') were made 12 m apart (Training Camp
+  8 m in 3D) and stay as they are.
 - **Rudnya at the owner's picks** (2026-11-14: "I can give you many examples with ~where"; "for
   49, 8, 10 and 42 we need spawn points on top of those builings (roofs)", "those are silly spawn
   points usually unreachable, but they make sense in general"). Content edit `ffa-rudnya-picks-1`,
   from `scripts/ffa-mode/rudnya-picks.tsv`, made by check-points' `picks` (its doc is the rule) and
   `make_picks_edits.py`, in level_01's three `<weather>_8` projects:
-  - His 56 places, each put on its ground by the spawn check (0 to 16 cm) and 2 m from harmful
-    zones: 45 is 1.5 m from the swamp anomaly's damage zone, out. Facing as he faced: the
+  - All 56 of his places, each put on its ground by the spawn check (0 to 16 cm), however near one
+    another. 2 m from harmful zones, but 45, 1.49 m from the swamp anomaly's damage zone (the owner:
+    "45 can stay too"; `picks --harmful-ok 45`, the one exception). Facing as he faced: the
     rotation's y is minus the `where` yaw (`where` turns +z towards +x, the engine's rotation_y
-    the other way; `mapdata::math::heading`).
-  - 12 m apart in plan: where picks are closer, each group keeps its largest set, then the one with
-    the most that hold the rule, then the lowest numbers. 36 kept; out: 3, 5, 8, 10, 12, 13, 14,
-    18, 27, 29, 30, 31, 32, 36, 38, 39, 41, 43, 55. 33 of the 36 hold the rule (21 and 25 are in the
-    band, 40 has no cover).
-  - The first 28 take the places of point_ids 43-70 (position and rotation only), 8 are new points
-    71-78; new points copy the first solo spawn (20 m exclusion, 500 ms protection, no zones).
-  - Roof spawns 79-82, on the roofs of the buildings at picks 49, 8, 10 and 42: the roof nearest the
+    the other way; `mapdata::math::heading`). 52 of the 56 hold the rule (21 and 25 are in the
+    band, 39 and 40 have no cover).
+  - The first 28 take the places of point_ids 43-70 (position and rotation only), 28 are new points
+    71-98; new points copy the first solo spawn (20 m exclusion, 500 ms protection, no zones).
+  - Roof spawns 99-102, on the roofs of the buildings at picks 49, 8, 10 and 42: the roof nearest the
     pick (open-sky floors of a walk grid of every floor round it, joined by walking, 2.2 m or more
     over the pick), a floor 1 m from its edges sloping under 20° (35° where it has none: the
     pitched roofs), body clear, a way down by the walk model (drops of 5 m at most) to a floor
-    players walk, the farthest in plan from every other spawn; facing the longest view. They stand
-    under the 12 m spacing, as he asked for them. The building at 18 ("similar for 18 building")
-    has none: its roof, 8 m over 18's floor, has no way down within 5 m drops, and its lower roofs
-    no flat, clear floor.
-  - 28 -> 40 points. The last Free for All list, after `ffa-protection-ms-1`.
-  - Checked (2026-11-14): `release/build-content 59`, a quick build (patch sha256 `7207b9b3...`,
-    server data `42998830...`): the 40 points read back as rudnya-picks.tsv has them in all three
+    players walk, of those the farthest in plan from every other spawn; facing the longest view.
+    The building at 18 ("similar for 18 building") has none: its roof, 8 m over 18's floor, has no
+    way down within 5 m drops, and its lower roofs no flat, clear floor.
+  - 28 -> 60 points. The last Free for All list, after `ffa-protection-ms-1`.
+  - Checked (2026-11-14): `release/build-content 59`, a quick build (patch sha256 `72f2a0a6...`,
+    server data `c7ebbddd...`): the 60 points read back as rudnya-picks.tsv has them in all three
     weathers, the other 30 Free for All projects' spawns as before; the released map test passes
     on its server data. Offline only: not played, not released.
   - Review renders: `private/renders/ffa-spawn-cover/` of the main checkout.
@@ -267,7 +275,7 @@ team-2 points: a mode-8 config without them stops the server (`maps::MapMode::fr
 
 | Level | Weathers | Solo points (kept / donor, or authored) |
 |---|---|---|
-| level_01 Rudnya | day, evening, rain | 36 of the owner's 56 picks + 4 on roofs = 40 |
+| level_01 Rudnya | day, evening, rain | the owner's 56 picks + 4 on roofs = 60 |
 | level_02 School | day, evening, rain | 25 / 25, and the project's own one |
 | level_03 Vostok Radar Station | day, evening, rain | 24 / 24 |
 | level_04 Chemical Plant | day, evening, rain | 30 / 33 |

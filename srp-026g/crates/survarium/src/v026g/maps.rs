@@ -1376,8 +1376,8 @@ mod tests {
     }
 
     /// Built data with both FFA edit lists, including London and all five ports.
-    /// London: its 22 kept, 6 central and 4 in the underpass; Rudnya: 36 of
-    /// the owner's picks and 4 roof spawns (ffa-rudnya-picks-1; docs/notes/ffa.md).
+    /// London: its 22 kept, 6 central and 4 in the underpass; Rudnya: all 56
+    /// of the owner's picks and 4 roof spawns (ffa-rudnya-picks-1; docs/notes/ffa.md).
     #[test]
     #[ignore = "needs SRP_TEST_GAME_DATA from build-content with both FFA edit lists"]
     fn the_released_free_for_alls_play_on_their_own_projects() {
@@ -1396,7 +1396,7 @@ mod tests {
             .filter(|m| m.mode == GameMode::FreeForAll && m.level == 1)
             .map(|m| (m.id, m.solo_respawn_points))
             .collect();
-        assert_eq!(rudnya, [(46, 40), (47, 40), (48, 40)]);
+        assert_eq!(rudnya, [(46, 60), (47, 60), (48, 60)]);
     }
 
     /// The live game data: 0.26g's archive (`SRP_TEST_RESOURCES_DB`) with

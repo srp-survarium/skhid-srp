@@ -22,7 +22,6 @@ use std::{
 };
 
 const COUNT: usize = 24;
-const MIN_SPACING: f32 = 12.0;
 const HAZARD_MARGIN: f32 = 2.0;
 const FACING_REACH: f32 = 6.0;
 /// Training Camp as the table and the edit generator name it: its Team
@@ -36,19 +35,17 @@ const TRAINING_FFA: &str = "v010b_cs_training_camp/day_8";
 const RAISED_LATTICE: f32 = 0.75;
 /// A new Training Camp place and its facing's end stay this far inside the fence.
 const FENCE_MARGIN: f32 = 2.0;
-/// Training Camp's points are this far apart, in 3D: a spawn on the ground
-/// under a raised floor does not take it (the owner, 2026-11-13), and "it is
-/// fine for players to spawn close" on the raised floors.
-const TRAINING_SPACING: f32 = 8.0;
 /// How many of the table's points on the ground stay, the two farthest apart
 /// (the owner, 2026-11-14: "make sure all spawns are on islands or on ladders
 /// or in rubkas", "some can be on ground, but only a few", "and very rare").
 const GROUND_KEPT: usize = 2;
 /// The base's ground lies at about y = -0.8: a floor under this height is it.
 const GROUND_BELOW: f32 = 1.0;
-/// What a row's reason is: the checks every point passes, and its map's spacing.
-const REASON: &str = "reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m";
-const TRAINING_REASON: &str = "reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D";
+/// What a row's reason is: the checks every point passes, and how it was spread
+/// (no minimum distance: the owner, 2026-11-14, of the spacing, "we don't need
+/// this rules at all"; the tables were made 12 m apart, Training Camp's 8 m in 3D).
+const REASON: &str = "reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first";
+const TRAINING_REASON: &str = "reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first in 3D";
 
 /// Bounds of the reviewed port's minimaps (stalker-maps@6). The imported
 /// projects have a dummy 2 m levelmap; mapdata's native-map fallback truncates
@@ -134,7 +131,9 @@ fn facing(map: &Map, node: u32, center: Vec3) -> Option<f32> {
         .map(|(yaw, _, _)| yaw)
 }
 
-fn choose(points: &[Candidate], count: usize, spacing: f32) -> Result<Vec<usize>, String> {
+/// `count` of `points`, spread: the one nearest the middle, then each the
+/// farthest from all chosen, never two at one place; no minimum distance.
+fn choose(points: &[Candidate], count: usize) -> Result<Vec<usize>, String> {
     if points.is_empty() {
         return Err("no safe standing candidates".into());
     }
@@ -163,11 +162,8 @@ fn choose(points: &[Candidate], count: usize, spacing: f32) -> Result<Vec<usize>
         let next = (0..points.len())
             .max_by(|&a, &b| distance[a].total_cmp(&distance[b]).then(b.cmp(&a)))
             .unwrap();
-        if distance[next] < spacing {
-            return Err(format!(
-                "only {} points fit at {spacing} m spacing",
-                chosen.len()
-            ));
+        if distance[next] <= 0.0 {
+            return Err(format!("only {} distinct places for {count} points", chosen.len()));
         }
         chosen.push(next);
     }
@@ -180,11 +176,10 @@ fn apart(a: Vec3, b: Vec3) -> f32 {
 }
 
 /// Up to `limit` more points after `chosen`: the candidate farthest from every
-/// point so far, as long as one keeps `spacing` from them all.
+/// point so far, never at a point's own place; no minimum distance.
 fn extend(
     points: &[Candidate],
     chosen: &[Vec3],
-    spacing: f32,
     limit: usize,
     distance_of: impl Fn(Vec3, Vec3) -> f32,
 ) -> Vec<usize> {
@@ -201,7 +196,7 @@ fn extend(
     while added.len() < limit
         && let Some(next) = (0..points.len())
             .max_by(|&a, &b| distance[a].total_cmp(&distance[b]).then(b.cmp(&a)))
-            .filter(|&next| distance[next] >= spacing)
+            .filter(|&next| distance[next] > 0.0)
     {
         added.push(next);
         let at = points[next].position;
@@ -229,7 +224,7 @@ fn spread(points: &[Candidate], count: usize) -> Vec<usize> {
         let mut chosen = vec![start];
         // A point at the start's own place is never the farthest from it.
         let taken = [points[start].position];
-        chosen.extend(extend(points, &taken, f32::MIN_POSITIVE, more, Vec3::distance_xz));
+        chosen.extend(extend(points, &taken, more, Vec3::distance_xz));
         chosen
     };
     let mut best = (0..points.len())
@@ -376,7 +371,7 @@ fn generate(map: &Map, plot: &mut File) -> Result<Spawns, String> {
         candidates.len(),
         map.grid.len()
     );
-    Ok(choose(&candidates, COUNT, MIN_SPACING)?
+    Ok(choose(&candidates, COUNT)?
         .into_iter()
         .map(|i| (candidates[i], REASON.to_owned()))
         .collect())
@@ -488,8 +483,8 @@ impl Descent {
 /// id, and so do [`GROUND_KEPT`] of those on the ground, the ones farthest
 /// apart. The others' ids take new places on the raised floors (islands, the
 /// towers' stairs, cabins) that have a way down: the candidate farthest from
-/// every point so far, while one keeps the spacing. Ids no place is left for
-/// go ([`refill`]): spacing before count.
+/// every point so far (in 3D, no minimum distance). Ids no place is left for
+/// go ([`refill`]).
 fn training(ffa: &Map, table: Vec<Candidate>, plot: &mut File) -> Result<Spawns, String> {
     let descent = Descent::of(ffa);
     let rows: Vec<Option<(Candidate, Floor)>> = table
@@ -525,11 +520,6 @@ fn training(ffa: &Map, table: Vec<Candidate>, plot: &mut File) -> Result<Spawns,
         .map(|(id, row)| row.filter(|(_, floor)| *floor != Floor::Ground || stay.contains(&id)))
         .collect();
     let kept: Vec<Vec3> = slots.iter().flatten().map(|(c, _)| c.position).collect();
-    for (j, a) in kept.iter().enumerate() {
-        if kept[..j].iter().any(|b| apart(*a, *b) < TRAINING_SPACING) {
-            return Err(format!("{TRAINING_FFA}: the table's points are under {TRAINING_SPACING} m apart"));
-        }
-    }
     let center = middle(ffa)?;
     let mut cells = BTreeSet::new();
     let pool: Vec<(Candidate, Floor)> = standing_floors(ffa, plot)?
@@ -551,7 +541,7 @@ fn training(ffa: &Map, table: Vec<Candidate>, plot: &mut File) -> Result<Spawns,
     let (mut taken, mut fresh) = (kept.clone(), Vec::new());
     for places in [cabins, open] {
         let candidates: Vec<Candidate> = places.iter().map(|(c, _)| *c).collect();
-        for i in extend(&candidates, &taken, TRAINING_SPACING, free - fresh.len(), apart) {
+        for i in extend(&candidates, &taken, free - fresh.len(), apart) {
             taken.push(candidates[i].position);
             fresh.push(places[i]);
         }
@@ -655,8 +645,8 @@ mod tests {
                 })
             })
             .collect();
-        let chosen = choose(&points, 24, 12.0).unwrap();
-        assert_eq!(chosen, choose(&points, 24, 12.0).unwrap());
+        let chosen = choose(&points, 24).unwrap();
+        assert_eq!(chosen, choose(&points, 24).unwrap());
         assert_eq!(chosen.len(), 24);
         for (j, &a) in chosen.iter().enumerate() {
             for &b in &chosen[..j] {
@@ -665,22 +655,24 @@ mod tests {
         }
     }
     #[test]
-    fn island_points_keep_the_spacing_from_every_point_and_stop_when_none_does() {
-        // A 20 m strip at y 20: its 0 m end is taken, so 12 m and then nothing
-        // else fits.
+    fn island_points_go_farthest_first_never_at_a_taken_place() {
+        // A 20 m strip at y 20, one point a metre: its 0 m end taken, the 20 m
+        // end first, then the middle, then every other place but the taken one.
         let points: Vec<_> = (0..=20)
             .map(|x| Candidate { position: Vec3::new(x as f32, 20.0, 0.0), yaw: 0.0 })
             .collect();
         let d3 = |a: Vec3, b: Vec3| (a - b).length();
         let all = usize::MAX;
-        assert_eq!(extend(&points, &[Vec3::new(0.0, 20.0, 0.0)], 12.0, all, d3), vec![20]);
-        assert_eq!(extend(&points, &[], 12.0, all, d3), vec![0, 20]);
-        assert_eq!(extend(&points, &[], 12.0, 1, d3), vec![0]);
-        assert!(extend(&points, &[Vec3::new(10.0, 20.0, 0.0)], 12.0, all, d3).is_empty());
-        // A spawn 20 m below the strip's middle takes it in plan, not in 3D.
+        let after_end = extend(&points, &[Vec3::new(0.0, 20.0, 0.0)], all, d3);
+        assert_eq!((after_end.len(), &after_end[..2]), (20, &[20, 10][..]));
+        assert!(!after_end.contains(&0));
+        assert_eq!(extend(&points, &[], all, d3).len(), 21);
+        assert_eq!(extend(&points, &[], 1, d3), vec![0]);
+        // A spawn 20 m below the strip's middle: in 3D the middle is 20 m from
+        // it and comes third; in plan it is on it, and 5 m does.
         let below = [Vec3::new(10.0, 0.0, 0.0)];
-        assert_eq!(extend(&points, &below, 12.0, all, d3), vec![0, 20]);
-        assert!(extend(&points, &below, 12.0, all, Vec3::distance_xz).is_empty());
+        assert_eq!(extend(&points, &below, 3, d3), vec![0, 20, 10]);
+        assert_eq!(extend(&points, &below, 3, Vec3::distance_xz), vec![0, 20, 5]);
     }
     #[test]
     fn empty_ids_take_the_new_places_and_then_the_last_points() {
@@ -717,13 +709,11 @@ mod tests {
         assert_eq!(on(arena::Raised::Cabin("east_upper")), "cabin east_upper, way down on foot");
     }
     #[test]
-    fn a_map_too_small_for_safe_spacing_is_refused() {
-        assert!(choose(&[], 24, 12.0).is_err());
-        let points = [Candidate {
-            position: Vec3::new(0.0, 0.0, 0.0),
-            yaw: 0.0,
-        }; 2];
-        assert!(choose(&points, 2, 12.0).is_err());
+    fn only_too_few_places_are_refused_points_may_stand_close() {
+        assert!(choose(&[], 24).is_err());
+        let at = |x: f32| Candidate { position: Vec3::new(x, 0.0, 0.0), yaw: 0.0 };
+        assert!(choose(&[at(0.0), at(0.0)], 2).is_err());
+        assert_eq!(choose(&[at(0.0), at(1.0)], 2).unwrap().len(), 2);
     }
 
     #[test]

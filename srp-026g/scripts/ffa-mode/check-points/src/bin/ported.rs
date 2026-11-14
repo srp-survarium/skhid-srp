@@ -10,7 +10,6 @@ use mapdata::{Materials, Resources, Vec3};
 use std::{collections::BTreeSet, fs::File, io::Write, path::PathBuf, process::ExitCode};
 
 const COUNT: usize = 22;
-const MIN_SPACING: f32 = 12.0;
 const HAZARD_MARGIN: f32 = 2.0;
 const FACING_REACH: f32 = 6.0;
 
@@ -61,9 +60,12 @@ fn facing(map: &Map, node: u32, center: Vec3) -> Option<f32> {
         .map(|(yaw, _, _)| yaw)
 }
 
-fn choose(points: &[Candidate], count: usize, spacing: f32) -> Result<Vec<usize>, String> {
-    if points.is_empty() {
-        return Err("no safe standing candidates".into());
+/// `count` of `points`, spread: the one nearest the middle, then each the
+/// farthest from all chosen (no minimum distance: the owner, 2026-11-14, of the
+/// 12 m spacing, "we don't need this rules at all").
+fn choose(points: &[Candidate], count: usize) -> Result<Vec<usize>, String> {
+    if points.len() < count {
+        return Err(format!("{} safe standing candidates for {count} points", points.len()));
     }
     let lo = points
         .iter()
@@ -82,6 +84,7 @@ fn choose(points: &[Candidate], count: usize, spacing: f32) -> Result<Vec<usize>
         .unwrap();
     let mut chosen = vec![first];
     let mut distance = vec![f32::INFINITY; points.len()];
+    distance[first] = f32::NEG_INFINITY;
     while chosen.len() < count {
         let last = points[*chosen.last().unwrap()].position;
         for (i, p) in points.iter().enumerate() {
@@ -90,12 +93,7 @@ fn choose(points: &[Candidate], count: usize, spacing: f32) -> Result<Vec<usize>
         let next = (0..points.len())
             .max_by(|&a, &b| distance[a].total_cmp(&distance[b]).then(b.cmp(&a)))
             .unwrap();
-        if distance[next] < spacing {
-            return Err(format!(
-                "only {} points fit at {spacing} m spacing",
-                chosen.len()
-            ));
-        }
+        distance[next] = f32::NEG_INFINITY;
         chosen.push(next);
     }
     Ok(chosen)
@@ -152,7 +150,7 @@ fn generate(map: &Map, anchors: &[Vec3], plot: &mut File) -> Result<Vec<Candidat
         candidates.len(),
         map.grid.len()
     );
-    choose(&candidates, COUNT, MIN_SPACING)
+    choose(&candidates, COUNT)
         .map(|chosen| chosen.into_iter().map(|i| candidates[i]).collect())
 }
 
@@ -214,7 +212,7 @@ fn run() -> Result<(), String> {
                 return Err(format!("{project}: selected point {i} failed final check"));
             }
             println!(
-                "{project}\tported_{i:02}\t{}\t{}\t{}\t0\t{}\t0\t30\t2\tkept\t\treachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m; inside established spawn footprint",
+                "{project}\tported_{i:02}\t{}\t{}\t{}\t0\t{}\t0\t30\t2\tkept\t\treachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first; inside established spawn footprint",
                 p.x, p.y, p.z, c.yaw
             );
         }
@@ -245,8 +243,8 @@ mod tests {
                 })
             })
             .collect();
-        let chosen = choose(&points, 24, 12.0).unwrap();
-        assert_eq!(chosen, choose(&points, 24, 12.0).unwrap());
+        let chosen = choose(&points, 24).unwrap();
+        assert_eq!(chosen, choose(&points, 24).unwrap());
         assert_eq!(chosen.len(), 24);
         for (j, &a) in chosen.iter().enumerate() {
             for &b in &chosen[..j] {
@@ -255,12 +253,13 @@ mod tests {
         }
     }
     #[test]
-    fn a_map_too_small_for_safe_spacing_is_refused() {
-        assert!(choose(&[], 24, 12.0).is_err());
+    fn only_too_few_candidates_are_refused_points_may_stand_close() {
+        assert!(choose(&[], 24).is_err());
         let points = [Candidate {
             position: Vec3::new(0.0, 0.0, 0.0),
             yaw: 0.0,
         }; 2];
-        assert!(choose(&points, 2, 12.0).is_err());
+        assert_eq!(choose(&points, 2).unwrap(), [0, 1]);
+        assert!(choose(&points, 3).is_err());
     }
 }

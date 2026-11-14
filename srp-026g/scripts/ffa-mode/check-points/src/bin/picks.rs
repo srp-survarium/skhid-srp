@@ -4,27 +4,27 @@
 //!
 //! ```text
 //! picks --db <resources.db> --patch <resources.db.patch_12> ... \
-//!     --points <tsv> [--roofs 49,8,10,42] \
+//!     --points <tsv> [--roofs 49,8,10,42] [--harmful-ok 45] \
 //!     --project level_01/day_8 [--project level_01/evening_8 ...]
 //! ```
 //!
 //! Each pick is put on its ground by the spawn check (`Map::check`: standing
 //! floor within 0.5 m, body clear, a reachable floor of the walk grid) and
-//! kept 2 m from harmful zones; a pick failing either is dropped. Of the rest,
-//! the most that are 12 m apart in plan (to_center's spacing) are kept: among
-//! picks closer than that, each group keeps its largest set, then the one
-//! with the most picks that hold the spawn rule (`cover`), then the lowest
-//! numbers. They face as the owner faced: the rotation `[0, -yaw, 0]` (the
-//! `where` yaw turns +z towards +x; the engine's rotation_y the other way:
-//! `mapdata::math::heading`).
+//! kept 2 m from harmful zones (but the picks `--harmful-ok` names: the
+//! owner's, 2026-11-14, "45 can stay too", 1.5 m from Rudnya's swamp anomaly);
+//! a pick failing either is dropped. Every other pick is kept, however near
+//! another (the owner, 2026-11-14: "we don't need this rules at all", of the
+//! 12 m spacing; the respawn's choice keeps players apart). They face as the
+//! owner faced: the rotation `[0, -yaw, 0]` (the `where` yaw turns +z towards
+//! +x; the engine's rotation_y the other way: `mapdata::math::heading`).
 //!
 //! The kept picks, in their numbers' order, take the project's solo spawns'
 //! point ids in order (only position and rotation change, as
 //! `ffa-center-1`); picks past those get new points with the ids after the
 //! project's last; solo spawns left over (the highest ids, the project's last
 //! entries) go. `--roofs`: after them, a new point on the roof of the
-//! building at each of these picks ([`roof`]), its facing the longest view;
-//! kept under the spacing (the owner's), the nearest spawn said. Prints
+//! building at each of these picks ([`roof`]), its facing the longest view,
+//! the nearest spawn said. Prints
 //! checked.tsv rows (`point` the point id, verdict `moved`, `added`, `roof`
 //! or `removed`: make_picks_edits.py makes them an edit list) and, on stderr,
 //! each dropped pick and why.
@@ -33,12 +33,9 @@ use ffa_check_points::{Map, Verdict};
 use mapdata::{Materials, Resources, Vec3};
 use std::{path::PathBuf, process::ExitCode};
 
-const SPACING: f32 = 12.0;
 const HAZARD_MARGIN: f32 = 2.0;
 /// How far ahead the facing is looked along, for the reason column.
 const SIGHT: f32 = 20.0;
-/// The largest group of picks closer than SPACING searched whole.
-const GROUP: usize = 20;
 
 struct Pick {
     n: u32,
@@ -52,6 +49,8 @@ struct Placed {
     feet: Vec3,
     yaw: f32,
     ground: String,
+    /// Within HAZARD_MARGIN of a harmful zone, kept by `--harmful-ok`.
+    harm: Option<String>,
     place: Placement,
 }
 
@@ -95,73 +94,6 @@ fn rotation_y(yaw: f32) -> f32 {
     } else {
         a
     }
-}
-
-/// The picks to keep (indices into `points`): in each group of picks joined
-/// by distances under `spacing`, its largest set `spacing` apart, then the
-/// one with the most `good`, then the lowest indices.
-fn spaced(points: &[Vec3], good: &[bool], spacing: f32) -> Result<Vec<usize>, String> {
-    let near = |a: usize, b: usize| points[a].distance_xz(points[b]) < spacing;
-    let mut group_of = vec![usize::MAX; points.len()];
-    let mut groups: Vec<Vec<usize>> = Vec::new();
-    for start in 0..points.len() {
-        if group_of[start] != usize::MAX {
-            continue;
-        }
-        let mut members = vec![start];
-        group_of[start] = groups.len();
-        let mut next = 0;
-        while next < members.len() {
-            let a = members[next];
-            next += 1;
-            let id = groups.len();
-            for (b, group) in group_of.iter_mut().enumerate() {
-                if *group == usize::MAX && near(a, b) {
-                    *group = id;
-                    members.push(b);
-                }
-            }
-        }
-        members.sort_unstable();
-        groups.push(members);
-    }
-    let mut kept = Vec::new();
-    for members in groups {
-        if members.len() > GROUP {
-            return Err(format!("{} picks closer than {spacing} m in one group", members.len()));
-        }
-        // (size, good, -sum of indices: the lowest first), mask
-        let mut best: Option<((usize, usize, i64), u32)> = None;
-        for mask in 1u32..(1 << members.len()) {
-            let chosen: Vec<usize> = (0..members.len())
-                .filter(|i| mask & (1 << i) != 0)
-                .map(|i| members[i])
-                .collect();
-            if chosen
-                .iter()
-                .enumerate()
-                .any(|(i, &a)| chosen[i + 1..].iter().any(|&b| near(a, b)))
-            {
-                continue;
-            }
-            let key = (
-                chosen.len(),
-                chosen.iter().filter(|&&i| good[i]).count(),
-                -(chosen.iter().map(|&i| i as i64).sum::<i64>()),
-            );
-            if best.is_none_or(|(k, _)| key > k) {
-                best = Some((key, mask));
-            }
-        }
-        let (_, mask) = best.ok_or("an empty group")?;
-        kept.extend(
-            (0..members.len())
-                .filter(|i| mask & (1 << i) != 0)
-                .map(|i| members[i]),
-        );
-    }
-    kept.sort_unstable();
-    Ok(kept)
 }
 
 /// How high over a pick's floor a roof's floor is at least.
@@ -211,7 +143,8 @@ struct Roof {
 /// ROOF_FLAT from its edges and sloping under 20 degrees (35 where the roof
 /// has none), body clear and 2 m from harmful zones, with a way down by the
 /// walk model's links (drops of 5 m at most) to a floor the map's players
-/// walk; of those, the one farthest in plan from every spawn of `set`.
+/// walk; of those, the one farthest in plan from every spawn of `set` (a
+/// preference for spread, no minimum).
 fn roof(map: &Map, pick: &Placed, set: &[Vec3]) -> Result<Roof, String> {
     use mapdata::{Body, LinkKind, WalkGrid};
     let at = pick.feet;
@@ -367,19 +300,22 @@ fn roof(map: &Map, pick: &Placed, set: &[Vec3]) -> Result<Roof, String> {
 
 fn run() -> Result<(), String> {
     let mut args = std::env::args().skip(1);
-    let (mut layers, mut projects, mut points, mut roofs) = (Vec::new(), Vec::new(), None, Vec::<u32>::new());
+    let (mut layers, mut projects, mut points) = (Vec::new(), Vec::new(), None);
+    let (mut roofs, mut harmful_ok) = (Vec::<u32>::new(), Vec::<u32>::new());
+    let numbers = |value: &str, flag: &str| -> Result<Vec<u32>, String> {
+        value
+            .split(',')
+            .map(|n| n.parse().map_err(|_| format!("bad {flag} {value}")))
+            .collect()
+    };
     while let Some(flag) = args.next() {
         let value = args.next().ok_or_else(|| format!("{flag} needs a value"))?;
         match flag.as_str() {
             "--db" | "--patch" => layers.push(PathBuf::from(value)),
             "--project" => projects.push(value),
             "--points" => points = Some(PathBuf::from(value)),
-            "--roofs" => {
-                roofs = value
-                    .split(',')
-                    .map(|n| n.parse().map_err(|_| format!("bad --roofs {value}")))
-                    .collect::<Result<_, _>>()?
-            }
+            "--roofs" => roofs = numbers(&value, &flag)?,
+            "--harmful-ok" => harmful_ok = numbers(&value, &flag)?,
             _ => return Err(format!("unknown flag {flag}")),
         }
     }
@@ -418,37 +354,27 @@ fn run() -> Result<(), String> {
                     continue;
                 }
             };
-            if let Some((zone, d)) = map.harmful_zone(feet, HAZARD_MARGIN) {
-                eprintln!(
-                    "{project}: pick {} dropped: {d:.2} m from harmful zone {zone} (under {HAZARD_MARGIN} m)",
-                    pick.n
-                );
-                continue;
+            let near_harm = map.harmful_zone(feet, HAZARD_MARGIN);
+            if let Some((zone, d)) = near_harm {
+                if !harmful_ok.contains(&pick.n) {
+                    eprintln!(
+                        "{project}: pick {} dropped: {d:.2} m from harmful zone {zone} (under {HAZARD_MARGIN} m)",
+                        pick.n
+                    );
+                    continue;
+                }
+                eprintln!("{project}: pick {} kept {d:.2} m from harmful zone {zone} (--harmful-ok)", pick.n);
             }
             placed.push(Placed {
                 n: pick.n,
                 feet,
                 yaw: pick.yaw,
                 ground,
+                harm: near_harm.map(|(zone, d)| format!("{d:.2} m from harmful zone {zone}, the owner's")),
                 place: Placement::of(&sight, &area, feet),
             });
         }
-        let feet: Vec<Vec3> = placed.iter().map(|p| p.feet).collect();
-        let good: Vec<bool> = placed.iter().map(|p| p.place.holds()).collect();
-        let kept = spaced(&feet, &good, SPACING)?;
-        for (i, p) in placed.iter().enumerate().filter(|(i, _)| !kept.contains(i)) {
-            let (near, d) = kept
-                .iter()
-                .map(|&k| (placed[k].n, p.feet.distance_xz(placed[k].feet)))
-                .min_by(|a, b| a.1.total_cmp(&b.1))
-                .unwrap_or((0, f32::INFINITY));
-            eprintln!(
-                "{project}: pick {} dropped: {d:.1} m from pick {near} (spacing {SPACING} m); it {} the rule ({})",
-                p.n,
-                if good[i] { "holds" } else { "fails" },
-                p.place.cover.name()
-            );
-        }
+        let kept: Vec<usize> = (0..placed.len()).collect();
         // The solo spawns' ids, then new ones after the project's last point.
         let last = map.data.spawns.iter().map(|s| s.point_id).max().ok_or("no respawn point")?;
         let new_ids = (last + 1..).take(kept.len().saturating_sub(ids.len()));
@@ -474,7 +400,7 @@ fn run() -> Result<(), String> {
                 (false, false) => "no cover and in the perimeter band (fails the spawn rule)".to_owned(),
             };
             println!(
-                "{project}\t{id}\t{}\t{}\t{}\t0\t{}\t0\t20\t0\t{verdict}\t\tthe owner's pick {} (where yaw {:.1}, {}); body clear; harmful zones >=2m; spacing >=12m; cover {}; {rule}; {ahead} m clear ahead",
+                "{project}\t{id}\t{}\t{}\t{}\t0\t{}\t0\t20\t0\t{verdict}\t\tthe owner's pick {} (where yaw {:.1}, {}); body clear; {}; cover {}; {rule}; {ahead} m clear ahead",
                 p.feet.x,
                 p.feet.y,
                 p.feet.z,
@@ -482,6 +408,7 @@ fn run() -> Result<(), String> {
                 p.n,
                 p.yaw,
                 p.ground,
+                p.harm.as_deref().unwrap_or("harmful zones >=2m"),
                 place.cover.name()
             );
         }
@@ -513,7 +440,7 @@ fn run() -> Result<(), String> {
                 Down::Drops(h) => format!("down by a drop of {h:.1} m"),
             };
             println!(
-                "{project}\t{next_id}\t{}\t{}\t{}\t0\t{}\t0\t20\t0\troof\t\troof spawn of the building at the owner's pick {} (facing {:.1} as where turns, the longest view); its floor {:.1} m over the pick's, sloping {:.0} deg; {}; {down}; body clear; harmful zones >=2m; nearest spawn {near}: {plan:.1} m in plan, {solid:.1} m in 3D{}; cover {}{}{}",
+                "{project}\t{next_id}\t{}\t{}\t{}\t0\t{}\t0\t20\t0\troof\t\troof spawn of the building at the owner's pick {} (facing {:.1} as where turns, the longest view); its floor {:.1} m over the pick's, sloping {:.0} deg; {}; {down}; body clear; harmful zones >=2m; nearest spawn {near}: {plan:.1} m in plan, {solid:.1} m in 3D; cover {}{}{}",
                 r.feet.x,
                 r.feet.y,
                 r.feet.z,
@@ -523,7 +450,6 @@ fn run() -> Result<(), String> {
                 r.height,
                 r.slope,
                 if r.on_foot { "reached on foot" } else { "not reached on foot" },
-                if plan < SPACING { " (under the 12 m spacing: kept, the owner's)" } else { "" },
                 place.cover.name(),
                 if place.inside { "" } else { "; in the perimeter band" },
                 r.skipped.iter().map(|w| format!("; not {w}")).collect::<String>(),
@@ -532,11 +458,10 @@ fn run() -> Result<(), String> {
             set.push(r.feet);
         }
         eprintln!(
-            "{project}: {} picks, {} on a floor and clear of harmful zones, {} kept 12 m apart, {} of them hold the rule",
+            "{project}: {} picks, {} kept (on a floor, clear of harmful zones or let be), {} of them hold the rule",
             picks.len(),
             placed.len(),
-            kept.len(),
-            kept.iter().filter(|&&i| good[i]).count()
+            placed.iter().filter(|p| p.place.holds()).count()
         );
     }
     Ok(())
@@ -569,18 +494,5 @@ mod tests {
             assert!((engine - console).length() < 1e-5, "{yaw}");
             assert!((mapdata::math::heading(console) - a).abs() < 1e-5 || yaw == 180.0, "{yaw}");
         }
-    }
-
-    #[test]
-    fn close_picks_keep_the_largest_set_then_those_holding_the_rule() {
-        let p = |x: f32| Vec3::new(x, 0.0, 0.0);
-        // 0 and 1 are 5 m apart, 1 and 2 too; 0 and 2 10: one of 0+2 or 1
-        // (a chain keeps its ends); 3 is alone.
-        let points = [p(0.0), p(5.0), p(10.0), p(40.0)];
-        assert_eq!(spaced(&points, &[true; 4], 6.0).unwrap(), [0, 2, 3]);
-        // A pair: the one holding the rule.
-        let pair = [p(0.0), p(5.0)];
-        assert_eq!(spaced(&pair, &[false, true], 6.0).unwrap(), [1]);
-        assert_eq!(spaced(&pair, &[true, true], 6.0).unwrap(), [0]);
     }
 }

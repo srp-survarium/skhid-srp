@@ -1,22 +1,24 @@
-//! Author extra London FFA spawns in its central play area. Existing solo
-//! spawns are exclusion points: new points stay >=12m from them and each other.
+//! Author extra London FFA spawns in its central play area. New points go
+//! where they are farthest from the existing solo spawns and each other, the
+//! farthest first, with no minimum distance (the owner, 2026-11-14, of the
+//! 12 m spacing they were made with: "we don't need this rules at all").
 //! Output is reviewed and committed (the region's TSV), then made into source
 //! edits by make_london_edits.py. Uses actual layered collision/navigation data.
 //!
 //! `--region central` (the default, 2026-11-12): six, on level_09/day_4 with
-//! the original 22 solo spawns, 12 m from them in plan: london-center.tsv.
+//! the original 22 solo spawns, measured in plan: london-center.tsv (made
+//! 12 m from them).
 //! `--region underpass` (the owner, 2026-11-14: "put more points in basement
 //! there"): four in the underpass under the roundabout (a floor whose ceiling
 //! is below the street's 6 m: its plate at 4.73 over a floor at 0.7), on
 //! level_09/day_8 as every list before ffa-london-underpass-1 leaves it (28
-//! solo spawns), 12 m from them in 3D: the rotunda's storeys over it are 13 m
-//! up, the street 5 m: london-underpass.tsv.
+//! solo spawns), measured in 3D: the rotunda's storeys over it are 13 m up,
+//! the street 5 m: london-underpass.tsv (made 12 m from them).
 use ffa_check_points::{Map, Verdict};
 use mapdata::{Materials, Resources, Vec3};
 use std::{collections::BTreeSet, fs::File, io::Write, path::PathBuf, process::ExitCode};
 
 const AREA: [f32; 4] = [-35.0, -30.0, 40.0, 30.0];
-const MIN_SPACING: f32 = 12.0;
 const HAZARD_MARGIN: f32 = 2.0;
 const FACING_REACH: f32 = 6.0;
 /// How far ahead a facing looks.
@@ -28,9 +30,9 @@ const STREET: f32 = 6.0;
 /// Where the new points go, on which project, and how far apart.
 #[derive(Clone, Copy)]
 enum Region {
-    /// Central London's open floors; spacing in plan.
+    /// Central London's open floors; spread in plan.
     Central,
-    /// The underpass's floors under the roundabout; spacing in 3D.
+    /// The underpass's floors under the roundabout; spread in 3D.
     Underpass,
 }
 
@@ -109,9 +111,9 @@ impl Region {
 
     fn reason(self) -> &'static str {
         match self {
-            Self::Central => "inside central London; at least 12m from existing solo spawns",
+            Self::Central => "inside central London; farthest-first from existing solo spawns",
             Self::Underpass => {
-                "in the underpass, under its ceiling, facing along it; at least 12m in 3D from existing solo spawns"
+                "in the underpass, under its ceiling, facing along it; farthest-first in 3D from existing solo spawns"
             }
         }
     }
@@ -170,10 +172,13 @@ fn choose(
     points: &[Candidate],
     existing: &[Vec3],
     count: usize,
-    spacing: f32,
 ) -> Result<Vec<usize>, String> {
-    if points.is_empty() || existing.is_empty() {
-        return Err("safe candidates and existing FFA spawns are required".into());
+    if points.len() < count || existing.is_empty() {
+        return Err(format!(
+            "{} safe candidates for {count} {} points, and existing FFA spawns, are required",
+            points.len(),
+            region.name()
+        ));
     }
     let mut chosen = Vec::new();
     let mut distance: Vec<_> = points
@@ -189,17 +194,11 @@ fn choose(
         let next = (0..points.len())
             .max_by(|&a, &b| distance[a].total_cmp(&distance[b]).then(b.cmp(&a)))
             .unwrap();
-        if distance[next] < spacing {
-            return Err(format!(
-                "only {} {} points fit at {spacing} m spacing",
-                chosen.len(),
-                region.name()
-            ));
-        }
         chosen.push(next);
         for (i, p) in points.iter().enumerate() {
             distance[i] = distance[i].min(region.distance(p.position, points[next].position));
         }
+        distance[next] = f32::NEG_INFINITY;
     }
     Ok(chosen)
 }
@@ -240,10 +239,7 @@ fn generate(
         )) {
             continue;
         }
-        if existing
-            .iter()
-            .any(|at| region.distance(*at, p) < MIN_SPACING)
-            || harmful(map, p)
+        if harmful(map, p)
             || matches!(map.check(p), Verdict::Dropped(_))
         {
             continue;
@@ -262,7 +258,7 @@ fn generate(
         candidates.len(),
         map.grid.len()
     );
-    choose(region, &candidates, existing, region.count(), MIN_SPACING)
+    choose(region, &candidates, existing, region.count())
         .map(|chosen| chosen.into_iter().map(|i| candidates[i]).collect())
 }
 
@@ -323,7 +319,7 @@ fn run() -> Result<(), String> {
                 return Err(format!("{project}: selected point {i} failed final check"));
             }
             println!(
-                "{project}\t{}_{i:02}\t{}\t{}\t{}\t0\t{}\t0\t{}\t2\tkept\t\treachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m; {}",
+                "{project}\t{}_{i:02}\t{}\t{}\t{}\t0\t{}\t0\t{}\t2\tkept\t\treachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; {}",
                 region.name(),
                 p.x,
                 p.y,
@@ -357,7 +353,7 @@ mod tests {
         }
     }
     #[test]
-    fn additions_keep_clear_of_existing_spawns_and_each_other() {
+    fn additions_go_farthest_first_with_no_minimum_distance() {
         let points = [
             point(1.0, 0.0),
             point(13.0, 0.0),
@@ -366,34 +362,21 @@ mod tests {
         ];
         let existing = [Vec3::new(0.0, 0.0, 0.0)];
         let central = Region::Central;
-        let chosen = choose(central, &points, &existing, 3, 12.0).unwrap();
-        assert_eq!(
-            chosen,
-            choose(central, &points, &existing, 3, 12.0).unwrap()
-        );
-        assert!(!chosen.contains(&0));
-        for (i, &a) in chosen.iter().enumerate() {
-            assert!(points[a].position.distance_xz(existing[0]) >= 12.0);
-            for &b in &chosen[..i] {
-                assert!(points[a].position.distance_xz(points[b].position) >= 12.0);
-            }
-        }
-        assert!(choose(central, &points, &existing, 4, 12.0).is_err());
-        assert!(choose(central, &points, &[], 1, 12.0).is_err());
+        let chosen = choose(central, &points, &existing, 3).unwrap();
+        assert_eq!(chosen, [2, 3, 1]);
+        // The fourth, 1 m from the existing spawn, is taken too when asked for.
+        assert_eq!(choose(central, &points, &existing, 4).unwrap(), [2, 3, 1, 0]);
+        assert!(choose(central, &points, &existing, 5).is_err());
+        assert!(choose(central, &points, &[], 1).is_err());
     }
 
     /// Under a spawn of the storey 13 m above, the underpass has room; in
-    /// plan it would not.
+    /// plan it has none: each picks the other place first.
     #[test]
     fn the_underpass_measures_in_3d() {
-        let points = [point(0.0, 0.0)];
-        let above = [Vec3::new(0.0, 13.0, 0.0)];
-        assert_eq!(
-            choose(Region::Underpass, &points, &above, 1, 12.0),
-            Ok(vec![0])
-        );
-        assert!(choose(Region::Central, &points, &above, 1, 12.0).is_err());
-        let street = [Vec3::new(8.0, 5.3, 0.0)];
-        assert!(choose(Region::Underpass, &points, &street, 1, 12.0).is_err());
+        let points = [point(0.0, 0.0), point(8.0, 0.0)];
+        let existing = [Vec3::new(0.0, 13.0, 0.0), Vec3::new(14.0, 0.0, 0.0)];
+        assert_eq!(choose(Region::Underpass, &points, &existing, 1), Ok(vec![0]));
+        assert_eq!(choose(Region::Central, &points, &existing, 1), Ok(vec![1]));
     }
 }
