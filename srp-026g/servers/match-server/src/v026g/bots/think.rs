@@ -148,6 +148,9 @@ impl Bots {
                 .and_then(|body| body.estimate().copied());
             bot.held_short_m = self.tracker.body(bot.place).map_or(0.0, |body| body.held_short_since_fix());
             bot.walk_cap = self.tracker.body(bot.place).map_or_else(super::motor::WalkCap::default, |body| super::motor::WalkCap::of_level(body.level()));
+            bot.footing = self.tracker.body(bot.place).and_then(|body| body.estimate()).map_or(super::motor::Footing::Ground, |at| {
+                if at.arc.is_some() || at.fall != super::body::Fall::Ground { super::motor::Footing::Air } else { super::motor::Footing::Ground }
+            });
             let me = view.place(bot.place).filter(|p| p.alive);
             // [A318] Whether a jump this tick would go, before the drive spends the bar: the client's gate (`kin.jump_arc`).
             // The client's jump gate has no held-item test (0x2FC230..0x2FC293, PROVEN: a carrier jumps): the bar and the legs.

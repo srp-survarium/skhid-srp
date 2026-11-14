@@ -356,6 +356,11 @@ pub(super) fn drive_tick(
     // [A325f] The legs' `leg_damage` gate (`kin.leg_damage`; the world's affects, `legs`): the bot does not ask for a move, sprint
     // or jump its legs refuse (two legs held: none until the first ends; one: no sprint, no jump), on every path of the tick (an
     // unstick's keys too). Its own reckoned body takes the same keys.
+    // [F42] Both legs broken: the client forces the crouch and a crouched body walks with the crouch key and a move key held
+    // (exactness L30, PROVEN: 0x2FBDF0 / 0x2FBE50; 16 of 16 pairs of worlds moved): a move is asked with the crouch key.
+    if bot.hurt.leg_damage.at(time) == super::legs::LegGate::Stand && decision.keys & (key::FORWARD | key::BACK | key::LEFT | key::RIGHT) != 0 {
+        decision.keys |= key::CROUCH;
+    }
     decision.keys = bot.hurt.leg_damage.at(time).keys(decision.keys);
     bot.sent_keys = decision.keys;
     decision
@@ -405,6 +410,7 @@ fn drive_tick_inner(
         floor: motor::Floor::Open,
         held_short_m: bot.held_short_m,
         walk_cap: bot.walk_cap,
+        footing: bot.footing,
     };
     if bot
         .jump_watch
@@ -2348,8 +2354,14 @@ const RISER_JUMP_AGAIN_MS: u32 = super::body::JUMP_AIR_MS;
 /// 0.76-0.80 m (`WalkGait::SprintOrJump`, #1716) is sprinted into when the body may sprint (`sprint_block` none, no leg wound,
 /// no crouch, the walk forward), else jumped at its face when it may jump; with neither, nothing is pressed and it is counted
 /// (the route's way up is shut for it: a reroute is the next step). Returns the jump's origin when one is to be pressed.
+///
+/// [A386] The jump is the one the grid flew for the riser (A385 rule (d), [`path::RiserPress`]): a walking press is pressed on the
+/// tick whose jump step starts nearest its lead ([`motor::press_due`]), facing the riser's way within [`motor::JUMP_FACING`];
+/// a press this body cannot make here (a slow one from a stand, or the sprint jump of a body that may not sprint), or none
+/// that lands, is not pressed and is counted. A grid without flown risers keeps the jump at the face ([`RISER_JUMP_M`]).
 fn riser_gait(bot: &Bot, me: &PlaceView, keys: &mut u32, time: u32, tuning: &Tuning) -> Option<&'static str> {
-    let top = bot.route.as_ref().and_then(|(route, _)| route.riser_ahead(me.feet, RISER_SPRINT_M))?;
+    let riser = bot.route.as_ref().and_then(|(route, _)| route.riser_ahead(me.feet, RISER_SPRINT_M))?;
+    let top = riser.top;
     if *keys & key::FORWARD == 0 {
         return None;
     }
@@ -2363,7 +2375,29 @@ fn riser_gait(bot: &Bot, me: &PlaceView, keys: &mut u32, time: u32, tuning: &Tun
         return None;
     }
     let may_jump = bot.hurt.may_jump(time) && (!tuning.think.stamina || bot.stamina.may_jump());
-    let near = top.distance_xz(me.feet) <= RISER_JUMP_M;
+    let near = match riser.press {
+        path::RiserPress::Unflown => top.distance_xz(me.feet) <= RISER_JUMP_M,
+        path::RiserPress::Flown(path::Leap::Gap(path::GapPress { lead, walk: path::WalkPress::Cap, .. })) => {
+            let (dx, dz) = (top.x - riser.take_off.x, top.z - riser.take_off.z);
+            let len = dx.hypot(dz);
+            if len < 1e-3 {
+                return None;
+            }
+            let way = [dx / len, dz / len];
+            let before = (riser.take_off.x - me.feet.x) * way[0] + (riser.take_off.z - me.feet.z) * way[1];
+            let along = me.velocity[0] * way[0] + me.velocity[1] * way[1];
+            let facing = super::kin::wrap(me.yaw - super::kin::yaw_of(way)).abs() <= motor::JUMP_FACING;
+            facing && motor::press_due(before, lead.metres(), along)
+        }
+        path::RiserPress::Flown(_) => {
+            riser_counts::note(3);
+            return None;
+        }
+        path::RiserPress::NoPress => {
+            riser_counts::note(4);
+            return None;
+        }
+    };
     let again = bot.jump_watch.as_ref().is_some_and(|watch| time < watch.at + RISER_JUMP_AGAIN_MS);
     if !may_jump {
         riser_counts::note(2);
@@ -2377,18 +2411,19 @@ fn riser_gait(bot: &Bot, me: &PlaceView, keys: &mut u32, time: u32, tuning: &Tun
 }
 
 /// [C2 riser] The bench's counts: ticks a riser was sprinted at, walking jumps pressed at one, ticks at one the body could do
-/// neither.
+/// neither; [A386] ticks at one whose flown press the body cannot make here (slow, or the sprint jump), ticks at one no flown
+/// press gets up.
 pub mod riser_counts {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
+    static COUNTS: [AtomicU64; 5] = [const { AtomicU64::new(0) }; 5];
 
     pub fn note(kind: usize) {
         COUNTS[kind].fetch_add(1, Ordering::Relaxed);
     }
 
     #[cfg(test)]
-    pub fn counts() -> [u64; 3] {
+    pub fn counts() -> [u64; 5] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
