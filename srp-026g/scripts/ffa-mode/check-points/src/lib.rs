@@ -59,6 +59,13 @@ impl Map {
         bounds: Option<[f32; 4]>,
     ) -> Result<Self, String> {
         let map = MapData::load(resources, materials, project).map_err(|e| e.to_string())?;
+        Ok(Self::of(map, bounds))
+    }
+
+    /// [`Map::load_in`] of a project's data as it is in memory: its spawns
+    /// seed the walk grid and widen its area, so a map whose spawns moved is
+    /// measured anew.
+    pub fn of(map: MapData, bounds: Option<[f32; 4]>) -> Self {
         let walker = map.walker_triangles();
         let grid = WalkGrid::build_kept(
             &walker,
@@ -67,11 +74,11 @@ impl Map {
             Body::default(),
             &map.grid_seeds(),
         );
-        Ok(Self {
+        Self {
             rays: RayTree::build(&walker),
             grid,
             data: map,
-        })
+        }
     }
 
     pub fn check(&self, point: Vec3) -> Verdict {

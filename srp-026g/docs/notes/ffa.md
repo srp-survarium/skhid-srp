@@ -225,6 +225,54 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
   - The free for all's own `<weather>_8` projects only; Team Deathmatch's are not named.
   - Review renders (before/after per map): `private/renders/ffa-spawns-to-center/` of the main
     checkout.
+- **Every map by the spawn rule, twice the spawns** (the owner, 2026-11-14, on his Rudnya picks: "I
+  want you to ... try this on other maps"; then "let's make other maps have x2 spawns too"): content
+  edit `ffa-cover-maps-1`, from `scripts/ffa-mode/cover-maps.tsv`, made by check-points' `to_cover
+  --times 2` (its doc is the rule) and `make_cover_edits.py`, on every Free for All map but Rudnya
+  (its own, from his picks), over the projects as every list before it leaves them; the last Free
+  for All list (its new points copy the 500 ms of `ffa-protection-ms-1`, which addresses points by
+  index):
+  - A spawn stays where it is when it passes `cover` (above) and the spawn checks of the centre move
+    (standing floor, body clear, harmful zones 2 m away), however near another spawn (the owner,
+    2026-11-14: "spawns can be as close as possible, the only thing that matters is whether people
+    can spawn close to each other": the respawn's 20 m enemy exclusion keeps players apart). Its
+    facing: its own when a walkable 6 m and 8 m of view are ahead, else turned to a new spawn's. On
+    London none stands above 14.5 (its rotunda's third storey).
+  - Each other one keeps its point id, name, radii and protection and moves to a place that passes
+    the same; new team-2 points that pass it make the count twice what it was: point ids after the
+    project's highest (the STALKER maps' teams each count theirs from 0), copies of its first solo
+    spawn (20 m exclusion, 500 ms protection, no team zones), named `ffa_cover_<point id>`. The
+    places: the reachable standing floors past the band, one a 2 m cell and 2 m of height, facing
+    the walkable heading that sees farthest (to 20 m), into the area on a tie; chosen one at a time,
+    each the place that brings the inner area (past the band) nearest to a spawn in all, so it has
+    places to spawn everywhere; no distance is kept.
+  - Training Camp: its 26 stay exactly as they are (the owner's arena; 8 pass the rule, 14 have no
+    cover and 4 are in the band, measured on the fenced area); 26 new ones on the ground inside its
+    fence (`training-fence.tsv`; a floor under 1 m: its raised floors have their own rules, a way
+    down and no roofs, catwalks or the hub's platform, which `to_cover` does not check), its area
+    and band measured inside the fence.
+  - The walk grid is seeded by the spawns and its box holds them all, so the map is measured again
+    with the spawns where they moved or were added, and changed again, until every one stays and
+    none is added (2 or 3 rounds).
+  - Before -> after (kept / turned of them / moved / added): School 26 -> 52 (4 / 1 / 22 / 26),
+    Vostok 24 -> 48 (10 / 2 / 14 / 24), Chemical Plant 30 -> 60 (9 / 3 / 21 / 30), Fort 24 -> 48
+    (12 / 1 / 12 / 24), Mamayev 25 -> 50 (4 / 1 / 21 / 25), Vector Laboratory 29 -> 58
+    (15 / 3 / 14 / 29), Cologne 23 -> 46 (16 / 7 / 7 / 23), London 32 -> 64 (15 / 5 / 17 / 32),
+    Vostok v0.21 22 -> 44 (7 / 0 / 15 / 22), Mamayev v0.21 22 -> 44 (8 / 0 / 14 / 22), Chemical
+    Plant v0.11 22 -> 44 (3 / 0 / 19 / 22), Vostok v0.11 22 -> 44 (10 / 0 / 12 / 22), Rudnya v0.69
+    22 -> 44 (7 / 2 / 15 / 22), Experimental Pool 24 -> 48 (9 / 0 / 15 / 24), Military Warehouses
+    24 -> 48 (6 / 0 / 18 / 24), Training Camp 26 -> 52 (26 / 0 / 0 / 26): every map its double, no
+    shortfall (the smallest, Training Camp's ground inside the fence, had 308 places that pass).
+    397 -> 794 a map's worth; levels 2-8 the same in their three weathers (same points and
+    geometry): 519 changed and 759 new entries. The moved ones were in the band (108), had no
+    cover (121) or a harmful zone within 2 m (7).
+  - Only the free for all's own `<weather>_8` projects; Team Deathmatch's are not named.
+  - Checked (2026-11-14): `to_cover` on a quick build of revision 59 with the list keeps every solo
+    spawn of the 30 projects as it is, in one round (Training Camp's 26 new ones all pass); every
+    solo spawn has 20 m exclusion and 500 ms; the released map test passes on its server data with
+    the doubled counts. Offline: not seen in the game, not played.
+  - Review renders (before/after per map, a contact sheet): `private/renders/ffa-spawn-cover-maps/`
+    of the main checkout.
 - **Crowding** (2026-11-13, an offline model of the built projects, not play): one player respawns
   while the N - 1 others live, standing either on random solo points (A) or anywhere in the box
   around them (B); the share of respawns with no safe point (the fallback), N = 16 / 20:

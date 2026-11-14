@@ -249,6 +249,11 @@ The planner, on `day_8`:
 26 points, ids 0 to 25: 2 on the ground and 24 raised, 11 of them on islands,
 10 on the towers' stairs (6 on a landing of the walkway outside, 4 on the
 stairs inside) and 3 in cabins. The nearest two are 2 and 20, 9.21 m.
+Doubled since (the owner, 2026-11-14: "let's make other maps have x2 spawns
+too"): these 26 stay as they are, and 26 more, ids 26 to 51, stand on the
+ground inside the fence by the cover rule, with 20 m exclusion and 500 ms
+(`ffa-cover-maps-1`; `ffa.md`, "Every map by the spawn rule, twice the
+spawns"): 52 points.
 
 | Id | Place | Stands on | Over the ground | On foot to the ground, walking only | Before |
 | --- | --- | --- | --- | --- | --- |
