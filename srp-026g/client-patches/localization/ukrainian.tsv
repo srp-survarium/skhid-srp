@@ -883,9 +883,13 @@ st_crosshair_static_option	Статичний приціл
 st_crosshair_type_option	Вибір прицілу
 st_crouch_action	Присісти (утрим.)
 st_crouch_toggle_action	Присісти
+st_cs_mp_atp_name	АТП
 st_cs_mp_bath_name	Басейн
+st_cs_mp_darkvalley_name	Темна долина
+st_cs_mp_firestation_name	Пожежна станція
 st_cs_mp_military_1_name	Армійські склади
 st_cs_mp_rembasa_name	Ремонтна база
+st_cs_mp_sport_center_name	Спортивний центр
 st_cs_training_camp_name	Тренувальний табір
 st_ct_max_members_count_error	Помилка додавання. У клановій команді вже знаходиться максимальна кількість гравців.
 st_current_value	\nПоточне значення:
@@ -2580,9 +2584,13 @@ st_srp_login_ban_forever	Бан безстроковий.
 st_srp_map_chemical_plant	Хімзавод
 st_srp_map_chemical_plant_v011	Хімзавод (v0.11)
 st_srp_map_cologne	Кельн
+st_srp_map_cs_mp_atp	АТП
 st_srp_map_cs_mp_bath	Басейн
+st_srp_map_cs_mp_darkvalley	Темна долина
+st_srp_map_cs_mp_firestation	Пожежна станція
 st_srp_map_cs_mp_military_1	Армійські склади
 st_srp_map_cs_mp_rembasa	Ремонтна база
+st_srp_map_cs_mp_sport_center	Спортивний центр
 st_srp_map_cs_training_camp	Тренувальний табір
 st_srp_map_london	Лондон
 st_srp_map_mamayev_kurgan	Мамаїв курган

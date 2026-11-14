@@ -883,9 +883,13 @@ st_crosshair_static_option	Statische Visier
 st_crosshair_type_option	Visier Auswahl
 st_crouch_action	Hocken (halt.)
 st_crouch_toggle_action	Hocken
+st_cs_mp_atp_name	Parkplatz
 st_cs_mp_bath_name	Versuchsbecken
+st_cs_mp_darkvalley_name	Dunkles Tal
+st_cs_mp_firestation_name	Feuerwehrwache
 st_cs_mp_military_1_name	Military Warehouses
 st_cs_mp_rembasa_name	Reparaturdepot
+st_cs_mp_sport_center_name	Sportzentrum
 st_cs_training_camp_name	Trainingslager
 st_ct_max_members_count_error	Fehler beim Hinzufügen. In der Klan Mannschaft befindet sich schon die Maximale Anzahl der Spieler.
 st_current_value	\nAktueller Wert
@@ -2580,9 +2584,13 @@ st_srp_login_ban_forever	Die Sperre ist dauerhaft.
 st_srp_map_chemical_plant	Chemiebetrieb
 st_srp_map_chemical_plant_v011	Chemiebetrieb (v0.11)
 st_srp_map_cologne	Köln
+st_srp_map_cs_mp_atp	Parkplatz
 st_srp_map_cs_mp_bath	Versuchsbecken
+st_srp_map_cs_mp_darkvalley	Dunkles Tal
+st_srp_map_cs_mp_firestation	Feuerwehrwache
 st_srp_map_cs_mp_military_1	Military Warehouses
 st_srp_map_cs_mp_rembasa	Reparaturdepot
+st_srp_map_cs_mp_sport_center	Sportzentrum
 st_srp_map_cs_training_camp	Trainingslager
 st_srp_map_london	London
 st_srp_map_mamayev_kurgan	Mamaew kurgan

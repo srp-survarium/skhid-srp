@@ -1,4 +1,4 @@
-//! Author FFA points on the three STALKER maps. Explicit TSV output is reviewed
+//! Author FFA points on the STALKER maps. Explicit TSV output is reviewed
 //! and committed, then ../make_ffa_edits.py creates the source edit list.
 //! Candidates come from reachable standing floors, pass the same collision
 //! checks as imported points, stay clear of harmful zones, and have a six-metre
@@ -47,14 +47,19 @@ const GROUND_BELOW: f32 = 1.0;
 const REASON: &str = "reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first";
 const TRAINING_REASON: &str = "reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first in 3D";
 
-/// Bounds of the reviewed port's minimaps (stalker-maps@6). The imported
-/// projects have a dummy 2 m levelmap; mapdata's native-map fallback truncates
-/// Military Warehouses. Training Camp has open scenery beyond its fence.
+/// Bounds of the reviewed port's minimaps (stalker-maps@6, stalker-maps-2@1:
+/// render_minimap.py's play area). The imported projects have a dummy 2 m
+/// levelmap; mapdata's native-map fallback truncates Military Warehouses.
+/// Training Camp has open scenery beyond its fence.
 fn area(project: &str) -> Result<([f32; 4], Option<f32>), String> {
     match project {
         "v010b_cs_mp_bath/day_4" => Ok(([-48.13, -22.87, 34.12, 53.13], None)),
         "v010b_cs_mp_military_1/day_4" => Ok(([-127.47, -71.12, 115.78, 95.38], None)),
         TRAINING_FFA => Ok(([-47.19, -83.47, 82.81, 91.53], None)),
+        "v010b_cs_mp_darkvalley/day_4" => Ok(([212.5, -248.29, 344.0, -166.79], None)),
+        "v010b_cs_mp_atp/day_4" => Ok(([90.45, -83.35, 180.2, 29.4], None)),
+        "v010b_cs_mp_firestation/day_4" => Ok(([-67.48, -31.41, 50.52, 61.09], None)),
+        "v010b_cs_mp_sport_center/day_4" => Ok(([-100.41, -60.72, -16.91, -12.22], None)),
         _ => Err(format!("no reviewed play area for {project}")),
     }
 }

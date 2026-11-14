@@ -82,6 +82,24 @@ PATCHED = {
                                    origin='Clear Sky port, pack stalker-maps@6 (patch 57)', name='Training Camp',
                                    name_key='st_cs_training_camp_name', project_name='cs_training_camp', project='day_8',
                                    modes=(8,), map_ids={44: 8}),
+    # The four of pack stalker-maps-2@1 (Free for All only; docs/notes/stalker-maps.md). Their bitmaps
+    # are named as FFDec exports the hud.swf that has them (the classes after them took new ids).
+    'v010b_cs_mp_darkvalley': dict(size=76.509, posX=278.25, posY=-207.54, bitmap='1032_minimap_cs_mp_darkvalley.png',
+                      origin='Clear Sky port, pack stalker-maps-2@1', name='Dark Valley',
+                      name_key='st_cs_mp_darkvalley_name', project_name='cs_mp_darkvalley', project='day_8', modes=(8,),
+                      map_ids={37: 8}),
+    'v010b_cs_mp_atp': dict(size=73.143, posX=135.325, posY=-26.975, bitmap='1030_minimap_cs_mp_atp.png',
+                      origin='Clear Sky port, pack stalker-maps-2@1', name='Vehicle Station',
+                      name_key='st_cs_mp_atp_name', project_name='cs_mp_atp', project='day_8', modes=(8,),
+                      map_ids={38: 8}),
+    'v010b_cs_mp_firestation': dict(size=73.143, posX=-8.48, posY=14.84, bitmap='1033_minimap_cs_mp_firestation.png',
+                      origin='Clear Sky port, pack stalker-maps-2@1', name='Fire Station',
+                      name_key='st_cs_mp_firestation_name', project_name='cs_mp_firestation', project='day_8', modes=(8,),
+                      map_ids={39: 8}),
+    'v010b_cs_mp_sport_center': dict(size=73.143, posX=-58.66, posY=-36.47, bitmap='1036_minimap_cs_mp_sport_center.png',
+                      origin='Clear Sky port, pack stalker-maps-2@1', name='Sports Center',
+                      name_key='st_cs_mp_sport_center_name', project_name='cs_mp_sport_center', project='day_8', modes=(8,),
+                      map_ids={40: 8}),
 }
 
 

@@ -8,12 +8,13 @@ package survarium.rooms
     // dictionary texts (client-patches/localization).
     public class RoomsText
     {
-        // By level (maps_dict); 10..13 are the ports of revision 23, 14 the 0.69d Rudnya.
+        // By level (maps_dict); 10..13 are the ports of revision 23, 14 the 0.69d Rudnya, 15..24 the STALKER maps.
         private static const LEVELS:Array = [null, "st_srp_map_rudnya", "st_srp_map_school", "st_srp_map_vostok",
             "st_srp_map_chemical_plant", "st_srp_map_tarakanovsky_fort", "st_srp_map_mamayev_kurgan",
             "st_srp_map_vector", "st_srp_map_cologne", "st_srp_map_london", "st_srp_map_vostok_v021",
             "st_srp_map_mamayev_kurgan_v021", "st_srp_map_chemical_plant_v011", "st_srp_map_vostok_v011",
-            "st_srp_map_rudnya_v069", "st_srp_map_cs_mp_bath", "st_srp_map_cs_mp_military_1", "st_srp_map_cs_training_camp", "st_srp_map_cs_mp_rembasa", "st_srp_map_soc_ug_station", "st_srp_map_soc_ug_depository"];
+            "st_srp_map_rudnya_v069", "st_srp_map_cs_mp_bath", "st_srp_map_cs_mp_military_1", "st_srp_map_cs_training_camp", "st_srp_map_cs_mp_rembasa", "st_srp_map_soc_ug_station", "st_srp_map_soc_ug_depository",
+            "st_srp_map_cs_mp_darkvalley", "st_srp_map_cs_mp_atp", "st_srp_map_cs_mp_firestation", "st_srp_map_cs_mp_sport_center"];
         private static const MODES:Object = {
             "2": "st_srp_mode_protective_device",
             "3": "st_srp_mode_chargers",

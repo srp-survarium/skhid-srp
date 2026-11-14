@@ -12070,7 +12070,7 @@
     {
       "file": "gameplay/db_static_dictionaries",
       "list": "maps_dict",
-      "expected_count": 160,
+      "expected_count": 164,
       "unique_key": "id",
       "value": {
         "cfg_mode_name": "v011e_level_03_day_5.options",
