@@ -1173,6 +1173,11 @@ pub struct ThinkTuning {
     /// `drive`): it is the escape's, and `stuck::SelfKill`'s at the end. Off: it asks again for every goal the plays give it, every
     /// 0.5 s, as it did.
     pub shut_in_gate: bool,
+    /// [A362] A bot's new life wakes its team's commander at once (as an ended play does, `think.rs`): the life starts with no
+    /// play (`Bot::new_life`), and its first goal comes from the commander's choice. Off: the life waits for the commander's own
+    /// tick (`commander_ms`, 0-500 ms) before the play's first step (the bench: first goal a median 0.5-0.7 s after the first
+    /// think, no search starved in between).
+    pub life_wakes_commander: bool,
     /// A rest point (the goal of a walk) on a lip or near one is moved inward to the nearest floor off the edge
     /// ([`super::super::path::off_lip`]): the owner's rule, a body at rest keeps its centre on the floor (the sniper that
     /// stood with its feet half over a drop). Off: the goal as the play gave it.
@@ -1223,6 +1228,7 @@ impl Default for ThinkTuning {
             search_queue: SearchQueue::Fair,
             trace_every_ms: 5_000,
             shut_in_gate: true,
+            life_wakes_commander: true,
             rest_off_lip: true,
             stranded_start: true,
             goal_off_floor_no_way: true,

@@ -1646,6 +1646,11 @@ impl Bots {
             {
                 bot.bench_life = Some(life_start::Life::new(time));
             }
+            // [A362] The life has no play: the commander chooses one at its next poll, not at its own tick.
+            if self.tunings.of(bot.team).think.life_wakes_commander {
+                let state = &mut self.teams[team];
+                state.next_commander = state.next_commander.min(time);
+            }
             // The bar's rates of the kit this life is in (`think.stamina_rates`); the light kit's by default.
             if self.tunings.of(bot.team).think.stamina_rates == tuning::StaminaRates::Kit {
                 bot.stamina.set_rates(bot.kit_rates.get(bot.kit).copied().unwrap_or(stamina::Rates::LIGHT));
@@ -2588,7 +2593,8 @@ fn walks_crossing(bot: &Bot) -> Option<Vec3> {
 impl Bot {
 }
 
-/// [A362] The bench's measure of a respawn's pause: from the world that starts a life to its first think, its first drive tick,
+/// [A362] The bench's measure of a respawn's pause: from the world that starts a life to its first think, its first think with a
+/// play, its first drive tick,
 /// its first goal (a drive tick that asks for a way), its first route and its first move key, ms, in 100 ms bins up to 3 s (the
 /// last bin: 3 s or more); and its drive ticks before the first route by why it had none ([`path::NoRoute`], then no goal). Live
 /// (owner-5): the world to the first move key a median 1.05 s, against the owner's 0.95 s from the spawn.
@@ -2597,8 +2603,8 @@ pub mod life_start {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     pub const BINS: usize = 31;
-    /// The rows: think, drive, goal, route, move.
-    pub const ROWS: usize = 5;
+    /// The rows: think, play (its first think with a play), drive, goal, route, move.
+    pub const ROWS: usize = 6;
     /// The why counts: the six [`super::path::NoRoute`] in order, then no goal.
     pub const WHYS: usize = 7;
     static BIN: [[AtomicU64; BINS]; ROWS] = [const { [const { AtomicU64::new(0) }; BINS] }; ROWS];
@@ -2608,6 +2614,7 @@ pub mod life_start {
     pub struct Life {
         pub start: u32,
         pub think: Option<u32>,
+        pub play: Option<u32>,
         pub drive: Option<u32>,
         pub goal: Option<u32>,
         pub route: Option<u32>,
@@ -2616,7 +2623,7 @@ pub mod life_start {
 
     impl Life {
         pub fn new(start: u32) -> Self {
-            Self { start, think: None, drive: None, goal: None, route: None, why: [0; WHYS] }
+            Self { start, think: None, play: None, drive: None, goal: None, route: None, why: [0; WHYS] }
         }
 
         /// A drive tick at `now` before the life's first route: `asked` is why it had none, if it asked for a way.
@@ -2642,7 +2649,7 @@ pub mod life_start {
     /// The life's first move key at `now`: its times and whys are counted and the life's measure ends.
     pub fn moved(life: Life, now: u32) {
         let since = |at: Option<u32>| at.map(|at| at.saturating_sub(life.start));
-        let rows = [since(life.think), since(life.drive), since(life.goal.or(life.route)), since(life.route), Some(now.saturating_sub(life.start))];
+        let rows = [since(life.think), since(life.play), since(life.drive), since(life.goal.or(life.route)), since(life.route), Some(now.saturating_sub(life.start))];
         for (k, ms) in rows.into_iter().enumerate() {
             if let Some(ms) = ms {
                 BIN[k][bin(ms)].fetch_add(1, Ordering::Relaxed);

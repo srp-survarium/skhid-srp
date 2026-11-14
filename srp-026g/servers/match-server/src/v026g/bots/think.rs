@@ -42,6 +42,9 @@ impl Bots {
         #[cfg(test)]
         if let Some(life) = bot.bench_life.as_mut() {
             life.think.get_or_insert(now);
+            if bot.assignment.is_some() {
+                life.play.get_or_insert(now);
+            }
         }
         let team = usize::from(bot.team & 1);
         let due = Due {
