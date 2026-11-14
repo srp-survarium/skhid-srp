@@ -201,28 +201,30 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
   - Review renders: `private/renders/ffa-spawn-cover/` of the main checkout.
 - **Experimental Pool at the owner's picks** (2026-11-14, the same session as Rudnya's: 28 `where`
   places, `private/spawn-examples/pool-2026-11-14.tsv`). Content edit `ffa-pool-picks-1`, from
-  `scripts/ffa-mode/pool-picks.tsv` (`picks --project v010b_cs_mp_bath/day_8`, no roofs asked) and
-  `make_picks_edits.py pool`, in its own project only; Pool's point ids count anew in each team
-  (team 2: 0-47 after `ffa-cover-maps-1`):
-  - 27 of his 28 places, on their ground (pick 28 lowered 7 cm), facing as he faced, in the places
-    of point_ids 0-26 (position and rotation only); 26 hold the rule (20 has no cover). The 21 left
-    over, 27-47, go: 48 -> 27 points. After `ffa-cover-maps-1`.
-  - Pick 12 (9.461 9.658 26.795) is dropped: no floor under its centre (he stood, eye 1.45 m
-    over his feet) but one 0.83 m below, and there a body meets collision 0.31 m from its axis at
-    0.65 m: most likely he stood on the edge of something 0.83 m high beside the point, his
-    centre over the lower floor. Not moved elsewhere: his to place again.
+  `scripts/ffa-mode/pool-picks.tsv` (`picks --as-stood 12 --project v010b_cs_mp_bath/day_8`, no
+  roofs asked) and `make_picks_edits.py pool`, in its own project only; Pool's point ids count anew
+  in each team (team 2: 0-47 after `ffa-cover-maps-1`):
+  - All 28 of his places (the owner, of the picks the checks dropped: "keep all my positions"),
+    on their ground (pick 28 lowered 7 cm), facing as he faced, in the places of point_ids 0-27
+    (position and rotation only); 27 hold the rule (20 has no cover). The 20 left over, 28-47, go:
+    48 -> 28 points. After `ffa-cover-maps-1`.
+  - Pick 12 (9.461 9.658 26.795) stays where he stood (`picks --as-stood`): the check's collision
+    has no floor under its centre (he stood, eye 1.45 m over his feet) but one 0.83 m below, where
+    a body meets collision 0.31 m from its axis at 0.65 m: most likely he stood on the edge of
+    something 0.83 m high beside the point.
 - **School at the owner's picks** (2026-11-14, the same session: 49 `where` places,
   `private/spawn-examples/school-2026-11-14.tsv`). Content edit `ffa-school-picks-1`, from
-  `scripts/ffa-mode/school-picks.tsv` (`picks --project level_02/<weather>_8` for day, evening and
-  rain) and `make_picks_edits.py school`, in its three own projects:
-  - 41 of his 49 places, on their ground, facing as he faced, in the places of point_ids 30-70
-    (position and rotation only); 40 hold the rule (39 has no cover). The 11 left over, 71-81, go:
-    52 -> 41 points. After `ffa-cover-maps-1`.
-  - Dropped by the checks, the same in the three weathers: 7 and 8 (1.92 and 1.27 m from
+  `scripts/ffa-mode/school-picks.tsv` (`picks --harmful-ok 7,8,15,45,46,48,49 --as-stood 17
+  --project level_02/<weather>_8` for day, evening and rain) and `make_picks_edits.py school`, in
+  its three own projects:
+  - All 49 of his places ("keep all my positions"), on their ground, facing as he faced, in the
+    places of point_ids 30-78 (position and rotation only); 48 hold the rule (39 has no cover). The
+    3 left over, 79-81, go: 52 -> 49 points. After `ffa-cover-maps-1`.
+  - The owner's against the checks, the same in the three weathers: 7 and 8 (1.92 and 1.27 m from
     `stalactite_radiation`), 15 (1.15 m from `fruit_toxic_cloud_lvl4`), 45, 46, 48 and 49 (inside
-    `fruit_toxic_cloud_lvl5`, the low corners) and 17 (as Pool's 12: no floor under its centre
-    but one 0.87 m below, there collision 0.20 m from the body's axis at 0.65 m). His to let be
-    (`picks --harmful-ok`, as Rudnya's 45) or place again.
+    `fruit_toxic_cloud_lvl5`, the low corners), kept by `--harmful-ok` as Rudnya's 45; and 17 where
+    he stood (as Pool's 12: no floor under its centre but one 0.87 m below, there collision 0.20 m
+    from the body's axis at 0.65 m).
 - A map more is a row of `MAPS` in `make_picks_edits.py`, its picks TSV and its content row.
 - **Half the perimeter spawns in the centre** (the owner, 2026-11-13: "I would remove half spawns
   on perimeter", "almost on all maps", "and put them in the center"; he approved the reviewed

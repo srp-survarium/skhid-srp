@@ -4,7 +4,7 @@
 //!
 //! ```text
 //! picks --db <resources.db> --patch <resources.db.patch_12> ... \
-//!     --points <tsv> [--roofs 49,8,10,42] [--harmful-ok 45] \
+//!     --points <tsv> [--roofs 49,8,10,42] [--harmful-ok 45] [--as-stood 12] \
 //!     --project level_01/day_8 [--project level_01/evening_8 ...]
 //! ```
 //!
@@ -12,7 +12,10 @@
 //! floor within 0.5 m, body clear, a reachable floor of the walk grid) and
 //! kept 2 m from harmful zones (but the picks `--harmful-ok` names: the
 //! owner's, 2026-11-14, "45 can stay too", 1.5 m from Rudnya's swamp anomaly);
-//! a pick failing either is dropped. Every other pick is kept, however near
+//! a pick failing either is dropped, but one `--as-stood` names that fails the
+//! first stays at its own `where` position (the owner, 2026-11-14, "keep all
+//! my positions": he stood there; the check's collision has no floor under its
+//! centre). Every other pick is kept, however near
 //! another (the owner, 2026-11-14: "we don't need this rules at all", of the
 //! 12 m spacing; the respawn's choice keeps players apart). They face as the
 //! owner faced: the rotation `[0, -yaw, 0]` (the `where` yaw turns +z towards
@@ -43,12 +46,38 @@ struct Pick {
     yaw: f32,
 }
 
+/// Where a pick stands, by the spawn check.
+enum Ground {
+    On,
+    /// Moved this far up (or down) to the check's floor.
+    Nudged(f32),
+    /// Dropped by the check for this; kept where he stood (`--as-stood`).
+    AsStood(String),
+}
+
+impl Ground {
+    fn said(&self) -> String {
+        match self {
+            Ground::On => "on its ground".to_owned(),
+            Ground::Nudged(d) => format!("ground {d:+.3} m"),
+            Ground::AsStood(why) => format!("as he stood, --as-stood; the check: {why}"),
+        }
+    }
+
+    fn body(&self) -> &'static str {
+        match self {
+            Ground::AsStood(_) => "body as he stood",
+            Ground::On | Ground::Nudged(_) => "body clear",
+        }
+    }
+}
+
 /// A pick on its ground, with its place by the rule.
 struct Placed {
     n: u32,
     feet: Vec3,
     yaw: f32,
-    ground: String,
+    ground: Ground,
     /// Within HAZARD_MARGIN of a harmful zone, kept by `--harmful-ok`.
     harm: Option<String>,
     place: Placement,
@@ -301,7 +330,7 @@ fn roof(map: &Map, pick: &Placed, set: &[Vec3]) -> Result<Roof, String> {
 fn run() -> Result<(), String> {
     let mut args = std::env::args().skip(1);
     let (mut layers, mut projects, mut points) = (Vec::new(), Vec::new(), None);
-    let (mut roofs, mut harmful_ok) = (Vec::<u32>::new(), Vec::<u32>::new());
+    let (mut roofs, mut harmful_ok, mut as_stood) = (Vec::<u32>::new(), Vec::<u32>::new(), Vec::<u32>::new());
     let numbers = |value: &str, flag: &str| -> Result<Vec<u32>, String> {
         value
             .split(',')
@@ -316,6 +345,7 @@ fn run() -> Result<(), String> {
             "--points" => points = Some(PathBuf::from(value)),
             "--roofs" => roofs = numbers(&value, &flag)?,
             "--harmful-ok" => harmful_ok = numbers(&value, &flag)?,
+            "--as-stood" => as_stood = numbers(&value, &flag)?,
             _ => return Err(format!("unknown flag {flag}")),
         }
     }
@@ -344,11 +374,15 @@ fn run() -> Result<(), String> {
         let mut placed = Vec::new();
         for pick in &picks {
             let (feet, ground) = match map.check(pick.at) {
-                Verdict::Kept => (pick.at, "on its ground".to_owned()),
+                Verdict::Kept => (pick.at, Ground::On),
                 Verdict::Nudged { ground } => (
                     Vec3::new(pick.at.x, ground, pick.at.z),
-                    format!("ground {:+.3} m", ground - pick.at.y),
+                    Ground::Nudged(ground - pick.at.y),
                 ),
+                Verdict::Dropped(why) if as_stood.contains(&pick.n) => {
+                    eprintln!("{project}: pick {} kept as he stood (--as-stood): {why}", pick.n);
+                    (pick.at, Ground::AsStood(why))
+                }
                 Verdict::Dropped(why) => {
                     eprintln!("{project}: pick {} dropped: {why}", pick.n);
                     continue;
@@ -400,14 +434,15 @@ fn run() -> Result<(), String> {
                 (false, false) => "no cover and in the perimeter band (fails the spawn rule)".to_owned(),
             };
             println!(
-                "{project}\t{id}\t{}\t{}\t{}\t0\t{}\t0\t20\t0\t{verdict}\t\tthe owner's pick {} (where yaw {:.1}, {}); body clear; {}; cover {}; {rule}; {ahead} m clear ahead",
+                "{project}\t{id}\t{}\t{}\t{}\t0\t{}\t0\t20\t0\t{verdict}\t\tthe owner's pick {} (where yaw {:.1}, {}); {}; {}; cover {}; {rule}; {ahead} m clear ahead",
                 p.feet.x,
                 p.feet.y,
                 p.feet.z,
                 rotation_y(p.yaw),
                 p.n,
                 p.yaw,
-                p.ground,
+                p.ground.said(),
+                p.ground.body(),
                 p.harm.as_deref().unwrap_or("harmful zones >=2m"),
                 place.cover.name()
             );
