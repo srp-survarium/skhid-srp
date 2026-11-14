@@ -209,8 +209,8 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_START", "0,0", "**model** batteries already in team 0's and team 1's containers: `a,b`"),
     s("SRP_BENCH_LIVE_FIELDS", "off", "**model** `<n>`: the generator of anomaly fields makes the release's rule, at most n alive at once (the release: 16): charging 20 s, damaging 4 s, then holding; they hurt the bodies whatever the bots know (`standin_fields.rs`)"),
     s("SRP_BENCH_FIELD_TAKER", "none", "**model** `scripted`: a field's artefact is taken 30 s into its holding (the field goes, its place rests 60 s); `none`: nobody takes one, as in a bot match"),
-    s("SRP_BENCH_WORLD_MS", "1000", "**model** how often a world reaches the bots, ms (the live worlds of a match with one client: 2000, `SRP_PVB_WORLD_MS`, `game/driven.rs`)"),
-    s("SRP_BENCH_FIELD_WORLD_MS", "1000", "**model** how often a world lists the fields to the bots, ms (a lag arm: 5000)"),
+    s("SRP_BENCH_WORLD_MS", "the server's (`DEFAULT_PVB_WORLD_MS`, `SRP_PVB_WORLD_MS` unset)", "**model** how often a world reaches the bots, ms: unset, the interval the match server asks a client for a world at while its bots play (`game/driven.rs`), so a bench's bots know what a release's know"),
+    s("SRP_BENCH_FIELD_WORLD_MS", "`SRP_BENCH_WORLD_MS`'s", "**model** how often a world lists the fields to the bots, ms (a lag arm: 5000); unset, every world, as the server reads the anomalies from each world (`anomalies_from_world`)"),
     s("SRP_BENCH_FIELD_PLACES", "spread", "**model** `lanes`: the generator's places lie on the walks between the containers and the battery spawners, where the bots go"),
     s("SRP_BENCH_FIELD_PACE", "release", "**model** `fast`: the first try at 5 s, then every 4-8 s (a stress arm)"),
     s("SRP_BENCH_FIELD_RADIUS_M", "3", "**model** the fields' radius, m"),
@@ -448,6 +448,13 @@ pub(crate) fn mapdata_format_verdict(path: &std::path::Path, version: u32, allow
     } else {
         Err(format!("{what}. Dump the maps again (mapdata-dump) or set SRP_BENCH_MAPDATA_OLD=allow to run on it anyway."))
     }
+}
+
+/// How often a world reaches the bench's bots, ms: `SRP_BENCH_WORLD_MS`, else the interval the match server asks a client for
+/// a world at while its bots play (`DEFAULT_PVB_WORLD_MS`, its `SRP_PVB_WORLD_MS` unset), so that a bench's bots know the
+/// world as late as a release's do.
+pub(crate) fn bench_world_ms(settings: &BenchSettings) -> u32 {
+    settings.number_or_refuse("SRP_BENCH_WORLD_MS").unwrap_or(crate::v026g::DEFAULT_PVB_WORLD_MS)
 }
 
 /// The bench's settings, read from the environment the first time they are asked.

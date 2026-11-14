@@ -70,6 +70,19 @@ use crate::v026g::drive::{self, Drive};
 /// body, at least this often.
 const WAITING_REFRESH: Duration = Duration::from_secs(1);
 
+/// The period of the server's world requests with these bots in the match: `every` (the match's own, `timing.refresh` or
+/// the starved hashes'), at most `playing` (`timing.pvb_world`) while bots play, and at most [`WAITING_REFRESH`] while one
+/// waits to see its body ([`Bots::need_world`]). The bench asks its worlds on this rule too (`bots/tests/bench.rs`).
+pub(crate) fn world_period(bots: &Bots, every: Duration, playing: Duration) -> Duration {
+    if bots.need_world() {
+        every.min(WAITING_REFRESH).min(playing)
+    } else if bots.any() {
+        every.min(playing)
+    } else {
+        every
+    }
+}
+
 /// [owner-14 row 1] The bots' places wait this long at most for their map before they enter anyway, from when a client
 /// first simulates. The clients start the countdown once `floor(0.8 x N)` of the N places entered (`start.rs`), so while
 /// the bots wait the countdown waits ("Awaiting other players"); after the cap they enter and stand until the map is
@@ -694,19 +707,12 @@ impl Game {
     }
 
     /// How often to ask for a world, `every` being what the match asks:
-    /// sooner while the server's bots play.
+    /// sooner while the server's bots play ([`world_period`]).
     pub(super) fn driven_refresh(&self, every: Duration) -> Duration {
         let Some(walkers) = self.walkers.as_ref().filter(|walkers| !walkers.absent) else {
             return every;
         };
-        let playing = self.settings.timing.pvb_world;
-        if walkers.bots.need_world() {
-            every.min(WAITING_REFRESH).min(playing)
-        } else if walkers.bots.any() {
-            every.min(playing)
-        } else {
-            every
-        }
+        world_period(&walkers.bots, every, self.settings.timing.pvb_world)
     }
 
     /// A human's input as relayed, which reached the server `late_ms` after

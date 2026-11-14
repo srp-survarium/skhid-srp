@@ -279,6 +279,23 @@ pub(crate) fn bench_pings(places: usize, seed: u32) -> Option<Vec<u32>> {
 
 /// Whether the bench's worlds need the grids' table of wall clearances: either team's tuning needs it
 /// ([`Tuning::needs_wall_clearance`]; team 1's is its own only in a one-sided run).
+/// The calling thread's CPU time (Linux: `CLOCK_THREAD_CPUTIME_ID`; zero elsewhere): what the thread ran, without the wall
+/// time it also waited for a core on a loaded machine (a nice-19 bench beside other work waits seconds at times).
+fn thread_cpu() -> std::time::Duration {
+    #[cfg(target_os = "linux")]
+    {
+        let mut t = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+        // SAFETY: `t` is a valid, writable timespec; the call only writes it.
+        let read = unsafe { libc::clock_gettime(libc::CLOCK_THREAD_CPUTIME_ID, &mut t) };
+        assert_eq!(read, 0, "clock_gettime(CLOCK_THREAD_CPUTIME_ID): {}", std::io::Error::last_os_error());
+        std::time::Duration::new(u64::try_from(t.tv_sec).unwrap_or(0), u32::try_from(t.tv_nsec).unwrap_or(0))
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        std::time::Duration::ZERO
+    }
+}
+
 fn bench_wall_clearance() -> bool {
     bench_tuning().needs_wall_clearance() || (bench_settings().flag("SRP_BENCH_ONE_SIDE") && bench_tuning_of(true).needs_wall_clearance())
 }
@@ -1177,8 +1194,17 @@ pub(crate) fn real_bot_cost() {
             let crossings_before = super::crossing::counts();
             let rays_before = super::aimpoint::rays_cast();
             let limit_ms = limit_s * 1000;
-            // `SRP_BENCH_WORLD_MS`: how often a world reaches the bots (1 s; the live worlds of a match with one client, 2 s).
-            let world_ms: u32 = bench_settings().number("SRP_BENCH_WORLD_MS").unwrap_or(1_000);
+            // How often a world reaches the bots: on the server's rule (`game::world_period`: its refresh, at most this
+            // while bots play, at most 1 s while one waits to see its body), this being the server's own default unless
+            // `SRP_BENCH_WORLD_MS` says otherwise (`settings::bench_world_ms`).
+            let world_ms = super::settings::bench_world_ms(bench_settings());
+            let refresh = crate::v026g::Timing::default().refresh;
+            let mut worlds_waiting = 0u32;
+            // The bots' handling of the worlds (their hurts, hits, stamina, bodies and facts, as `game/driven.rs` hands them
+            // over): its CPU time (`thread_cpu`), the worlds handled, the most one took, and that world's clock and parts (the
+            // hurts, hits and stamina; the bodies, `Bots::fixed`; the facts, `Bots::facts`).
+            let (mut world_bots, mut worlds_fed, mut world_bots_max) = (std::time::Duration::ZERO, 0u32, std::time::Duration::ZERO);
+            let mut world_max_at = (0u32, [std::time::Duration::ZERO; 3]);
             let (mut clock, mut next_world) = (0, world_ms);
             // Living bots' ticks with a goal to walk to, and those of them
             // with no route: a bot standing where it means to walk. By team.
@@ -1777,30 +1803,41 @@ pub(crate) fn real_bot_cost() {
                     }
                 }
                 if clock >= next_world {
-                    next_world += world_ms;
+                    // The server asks for the next world when it asks for this one, on the bots as they are then.
+                    let period = crate::v026g::game::world_period(&bots, refresh, std::time::Duration::from_millis(u64::from(world_ms)));
+                    let period_ms = u32::try_from(period.as_millis()).unwrap_or(u32::MAX);
+                    worlds_waiting += u32::from(bots.need_world());
+                    next_world = clock + period_ms;
                     events.world(clock, &mut game, &bots);
                     let world_tick = clock / TICK_MS * TICK_MS - 300;
                     let hurts = game.hurts_at(world_tick).unwrap_or_default();
+                    let all_hits = game.hits_at(world_tick).unwrap_or_default();
+                    let staminas = game.staminas_at(world_tick).unwrap_or_default();
+                    let mut handling = thread_cpu();
                     for (place, hurt) in hurts.into_iter().enumerate() {
                         bots.hurt(place, hurt);
                     }
-                    for (place, hits) in game.hits_at(world_tick).unwrap_or_default().into_iter().enumerate() {
+                    for (place, hits) in all_hits.into_iter().enumerate() {
                         bots.hits(place, &hits);
                     }
-                    for (place, saved) in game.staminas_at(world_tick).unwrap_or_default().into_iter().enumerate() {
+                    for (place, saved) in staminas.into_iter().enumerate() {
                         if let Some(saved) = saved {
                             bots.stamina(place, saved);
                         }
                     }
+                    let mut parts = [thread_cpu() - handling, std::time::Duration::ZERO, std::time::Duration::ZERO];
                     standin_heal::tell(&mut game, &mut bots, world_tick);
                     standin_traps::tell(&mut game, &mut bots, world_tick);
                     if let Some((_, fixes, health, facts)) = game.world_at(world_tick) {
                         for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
                             let fix = match view_error.as_mut() {
-                                Some(error) => error.perturb(place, fix, clock, 1_000),
+                                Some(error) => error.perturb(place, fix, clock, period_ms),
                                 None => fix,
                             };
-                            for note in bots.fixed(place, fix, Some(health)) {
+                            handling = thread_cpu();
+                            let notes = bots.fixed(place, fix, Some(health));
+                            parts[1] += thread_cpu() - handling;
+                            for note in notes {
                                 routes.note(&note);
                                 owner.note(&note, &game);
                                 decisions.note(&note);
@@ -1810,7 +1847,10 @@ pub(crate) fn real_bot_cost() {
                         }
                         routes.world(&game, &bots);
                         push.world(&game, &bots);
-                        for note in bots.facts(facts) {
+                        handling = thread_cpu();
+                        let notes = bots.facts(facts);
+                        parts[2] += thread_cpu() - handling;
+                        for note in notes {
                             decisions.note(&note);
                             carry.note(&note);
                             if note.text.contains("its thief no longer carrying it") {
@@ -1850,6 +1890,13 @@ pub(crate) fn real_bot_cost() {
                             }
                         }
                     }
+                    let handled: std::time::Duration = parts.iter().sum();
+                    world_bots += handled;
+                    if handled > world_bots_max {
+                        world_bots_max = handled;
+                        world_max_at = (clock, parts);
+                    }
+                    worlds_fed += 1;
                 }
                 let clock_now = Clock {
                     clock,
@@ -2484,6 +2531,17 @@ pub(crate) fn real_bot_cost() {
                     mean(taken[1]),
                 );
             }
+            eprintln!(
+                "{project} {per_team}v{per_team}: worlds every {world_ms} ms (1 s while a bot waits to see its body: {worlds_waiting} of them): {worlds_fed} handled by the bots in {:.1} ms of the thread's CPU ({:.1} µs a world, max {:.0} µs at {} ms: hurts/hits/stamina {:.0}, bodies {:.0}, facts {:.0} µs) = {:.3} ms a second of play",
+                world_bots.as_secs_f64() * 1e3,
+                world_bots.as_secs_f64() * 1e6 / f64::from(worlds_fed.max(1)),
+                world_bots_max.as_secs_f64() * 1e6,
+                world_max_at.0,
+                world_max_at.1[0].as_secs_f64() * 1e6,
+                world_max_at.1[1].as_secs_f64() * 1e6,
+                world_max_at.1[2].as_secs_f64() * 1e6,
+                world_bots.as_secs_f64() * 1e3 / f64::from(limit_s.max(1)),
+            );
             eprintln!(
                 "{project} {per_team}v{per_team}: pull walk ticks a poll: max {}",
                 mapdata::grid::controlled::pull_walk_ticks_max_take()

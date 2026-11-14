@@ -440,6 +440,14 @@ fn the_zone_intensity_rule_is_read_from_the_tuning_of_the_bots_team() {
         let (mut team0, mut team1) = (Tuning::default(), Tuning::default());
         team0.hazard.zone_intensity = intensity0;
         team1.hazard.zone_intensity = intensity1;
+        // Both teams at the old half-and-0.4 spend in every class (`ZoneSpend`): the test is the price, not the class.
+        for team in [&mut team0, &mut team1] {
+            if let Some(rule) = team.take.zone_take.as_mut() {
+                let half = crate::v026g::bots::tuning::Spend { share: 0.5, left: 0.4 };
+                let s = &mut rule.spend;
+                (s.opening, s.after_opening, s.last_batteries, s.carrier, s.late_carrier, s.deciding_carry) = (half, half, half, half, half, half);
+            }
+        }
         let damage = mapdata::Damage {
             // 0.028 a second at the centre: the walk in, the walk out and the take cost 25 times that at the full hit (0.7 of
             // the health, over the half a crossing may take), 14 times that at the intensity (0.4, borne).
