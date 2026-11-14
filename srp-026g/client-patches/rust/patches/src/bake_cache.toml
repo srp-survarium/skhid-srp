@@ -37,7 +37,7 @@ handler = "on_loaded"
 site = "bake.finish"
 handler = "on_finish"
 
-# remove_unwanted_files, whole: the oldest records and files go past 3 GiB or the list's room
+# remove_unwanted_files, whole: the oldest records and files go past 3 GiB; a full list grows
 [[hook]]
 site = "bake.trim"
 handler = "on_trim"

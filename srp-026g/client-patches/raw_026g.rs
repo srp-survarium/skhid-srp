@@ -15296,7 +15296,7 @@ impl CamouflageDecalTextureTypeBakerCook {
         unsafe { self.0.byte_add(0x234).cast::<Option<BakedTextureData>>().write_volatile(value) }
     }
 
-    /// +0x238 (ptr<vostok::render::baked_texture_data>): the list's capacity end (stock: 1024 records, storage at +23Ch; patch 70 moves the empty list into 4096 records of its own at the game's start)
+    /// +0x238 (ptr<vostok::render::baked_texture_data>): the list's capacity end (stock: 1024 records, storage at +23Ch; patch 70 moves a full list into pages of its own twice its room)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -15305,7 +15305,7 @@ impl CamouflageDecalTextureTypeBakerCook {
         unsafe { self.0.byte_add(0x238).cast::<Option<BakedTextureData>>().read_volatile() }
     }
 
-    /// +0x238 (ptr<vostok::render::baked_texture_data>): the list's capacity end (stock: 1024 records, storage at +23Ch; patch 70 moves the empty list into 4096 records of its own at the game's start)
+    /// +0x238 (ptr<vostok::render::baked_texture_data>): the list's capacity end (stock: 1024 records, storage at +23Ch; patch 70 moves a full list into pages of its own twice its room)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).

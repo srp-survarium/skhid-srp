@@ -60,8 +60,8 @@ fixes them; the RE is in `client_patch.md` section 3.57.
     was kept while the format was 1; since format 2 it is no stamp, and its folder is deleted.
   - `srp_patches.log` gets a line at the start: kept or deleted, and the stamp.
 - At the start, every whole DDS file in the folder goes back into the baker's list. A file cut short
-  is deleted. So are the files past 3 GiB less 128 MiB, or past the list's room less 512 records
-  (room for the game's own bakes before the trim lets any go). Until 2026-11-12: 512 files and 896 MB
+  is deleted. So are the files past 3 GiB less 128 MiB (room for the game's own bakes before the
+  trim lets any go). Until 2026-11-14 also those past 3584 records; until 2026-11-12: 512 files and 896 MB
   under the stock 1 GiB; until 2026-11-09 512 MB, which deleted half of a 20-player match's folder,
   0.9-1 GB in ~500 files, at every start: the next game baked ~400 textures again, fps-measure
   `r54-warm`, 398 bakes against the cold run's 831.
@@ -69,15 +69,19 @@ fixes them; the RE is in `client_patch.md` section 3.57.
   a game with its folder kept still baked: the owner's game of 2026-11-12 (revision 56, 28 minutes,
   one lobby visit and three matches) baked 415 textures, loaded 300 from the folder and deleted 295
   files, some baked minutes before; players reported the microfreezes of those bakes. Now:
-  - the baker's list is 4096 records of the patch's own pages, moved there empty at the game's
-    start. Stock it is 1024 records inside the baker, about 2 GiB of files, and the game writes the
-    1025th past them;
+  - the baker's list has no limit of its own: a full list moves into pages of the patch's own twice
+    its room (1024, 2048, 4096, ...), each record copied with its path's pointers into its new self;
+    the storage it leaves is kept, so a record the game read before stays readable. Stock it is 1024
+    records inside the baker and push_back's assertion past them stops the game: a long session
+    reached them with 418 MB of files (the crash of 2026-11-14, revision 58: 1024 records of 11 KB to
+    1.4 MB, 350 KB the middle one). 3 GiB of such files are some 9000 records, 2.6 MB of pages;
   - after each bake the oldest records with no load under way go, each with its file, while the
-    list's files are over 3 GiB or the list is full (the game's remove_unwanted_files, whole in
+    list's files are over 3 GiB (a full list whose pages cannot be had lets its oldest go instead)
+    (the game's remove_unwanted_files, whole in
     Rust: its own walk skipped every other record and, past half the list, read records no longer
     there). With less than 50 MB free on the folder's drive: down to 50 MB, the game's rule;
   - `srp_patches.log`, at most a line a second: "bake_cache: the oldest baked textures let go: N;
-    the folder holds M MB in K files, at most 3072 MB and 4095 files".
+    the folder holds M MB in K files, at most 3072 MB".
   Disk space only: the start lists the files' names and sizes and reads each one's 128-byte header;
   the textures held in memory are as before (256, 256 MB).
 - A kept file's record has CRC 0. Its first load is used and takes the CRC it read; after that, stock

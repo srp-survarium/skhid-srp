@@ -733,7 +733,7 @@ survarium::game_start_frame	folder	0x470	obj<vostok::buffer_string>	game::game's
 survarium::image	baker	0xA264E80	obj<vostok::render::camouflage_decal_texture_type_baker_cook>	the camouflage/decal baker, camouflage_decal_texture_type_baker_cook, a static (set up by 0x12CCE0; translate_query's ECX, the look-up's EAX at 0x12D4C5)
 vostok::render::camouflage_decal_texture_type_baker_cook	list_begin	0x230	ptr<vostok::render::baked_texture_data>	its list of saved textures, a buffer_vector<baked_texture_data> (0x12CD39..0x12CDA6 set it up; find_baked_texture 0x131ED0 walks it): begin
 vostok::render::camouflage_decal_texture_type_baker_cook	list_end	0x234	ptr<vostok::render::baked_texture_data>	the list's end (push_back 0x132640 moves it one record on)
-vostok::render::camouflage_decal_texture_type_baker_cook	list_capacity	0x238	ptr<vostok::render::baked_texture_data>	the list's capacity end (stock: 1024 records, storage at +23Ch; patch 70 moves the empty list into 4096 records of its own at the game's start)
+vostok::render::camouflage_decal_texture_type_baker_cook	list_capacity	0x238	ptr<vostok::render::baked_texture_data>	the list's capacity end (stock: 1024 records, storage at +23Ch; patch 70 moves a full list into pages of its own twice its room)
 vostok::render::camouflage_decal_texture_type_baker_cook	list_bytes	0x4923C	u32	the bytes of its records' files (push_back adds a record's, remove_unwanted_files 0x131F90 keeps it under 1 GiB; patch 70's trim in its place, under 3 GiB)
 vostok::render::baked_texture_data	path_begin	0x0	ptr<u8>	a record of the baker's list (0x131ED0): its path, a buffer_string whose text is the record's own (begin)
 vostok::render::baked_texture_data	path_end	0x4	ptr<u8>	its path's end (at its NUL)

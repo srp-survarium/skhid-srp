@@ -671,27 +671,33 @@ impl List {
         Some(Held { records: records as u32, room: room as u32, bytes })
     }
 
-    /// The list's records in `room` from now on (zeroed bytes of ours, kept
-    /// for good), as many as it holds: the game's own storage is 1024
-    /// records inside the baker, and its push_back writes past them when
-    /// they are full (0x132640: an assertion, then the write). Only an
-    /// empty list is moved (nothing to carry over: the game's start, before
-    /// the first record); the game reads the list through its begin, end
-    /// and capacity alone (its storage's address is in its constructor
-    /// 0x12CCE0 and nowhere else). Whether it moved.
+    /// The list's records moved into `room` (zeroed bytes of ours, kept for
+    /// good), which has room for more records than the list holds: each
+    /// copied in its order, its path's pointers into its new self, then the
+    /// list's begin, end and capacity set. The game's own storage is 1024
+    /// records inside the baker, and its push_back writes past a full list
+    /// (0x132640: an assertion, then the write); the game reads the list
+    /// through its begin, end and capacity alone (its storage's address is
+    /// in its constructor 0x12CCE0 and nowhere else). The storage before is
+    /// left as it is (the baker's own, or pages kept for good): a record the
+    /// game was given before stays readable. Whether it moved.
     pub fn move_to(room: &'static mut [u8]) -> bool {
         let (baker, count) = (raw::image::baker(), room.len() / RECORD_BYTES);
-        if !room.as_ptr().cast::<raw::BakedTextureDataStorage>().is_aligned() || List::records().map(|(_, n)| n) != Some(0)
-        {
+        let Some((old, records)) = List::records() else { return false };
+        if !room.as_ptr().cast::<raw::BakedTextureDataStorage>().is_aligned() || count <= records {
             return false;
         }
-        // SAFETY: `count` records' bytes of ours alone, aligned, for good;
-        // the baker static's list, empty.
+        // SAFETY: `count` records' bytes of ours alone, aligned, for good,
+        // more than the list's records; each record of begin..end read and
+        // copied into its own room; then the baker static's list.
         unsafe {
             let rooms = core::slice::from_raw_parts_mut(room.as_mut_ptr().cast::<raw::BakedTextureDataStorage>(), count);
             let Some(first) = raw::BakedTextureDataStorage::first(rooms) else { return false };
+            for index in 0..records {
+                copy_record(old.at(index), first.at(index));
+            }
             baker.set_list_begin(Some(first));
-            baker.set_list_end(Some(first));
+            baker.set_list_end(Some(first.at(records)));
             baker.set_list_capacity(Some(first.at(count)));
         }
         true
@@ -736,21 +742,34 @@ impl Record {
         unsafe {
             let (bytes, last) = (read(record.file_bytes()), begin.at(records - 1));
             if last != record {
-                let (text, length) = (record.text(), (last.path_end() as usize).wrapping_sub(last.text() as usize));
-                core::ptr::copy_nonoverlapping(last.text().cast_const(), text, RECORD_TEXT);
-                record.set_path_begin(text);
-                record.set_path_end(text.wrapping_add(length.min(RECORD_TEXT - 1)));
-                record.set_path_capacity(text.wrapping_add(RECORD_TEXT));
-                record.separator().write_volatile(read(last.separator()));
-                record.crc().write_volatile(read(last.crc()));
-                record.file_bytes().write_volatile(read(last.file_bytes()));
-                record.age().write_volatile(read(last.age()));
-                record.loading().write_volatile(read(last.loading()));
+                copy_record(last, record);
             }
             baker.set_list_end(Some(last));
             baker.list_bytes().write_volatile(read(baker.list_bytes()).wrapping_sub(bytes));
             bytes
         }
+    }
+}
+
+/// `to` made a copy of the record `from`: its text, its path's pointers
+/// into `to`'s own text (the same length, at most its room less the NUL),
+/// the '/', CRC, size, age and loading mark.
+///
+/// # Safety
+/// Both are whole records, `from` read and `to` written, not the same.
+unsafe fn copy_record(from: raw::BakedTextureData, to: raw::BakedTextureData) {
+    // SAFETY: the caller's: two records' bytes.
+    unsafe {
+        let (text, length) = (to.text(), (from.path_end() as usize).wrapping_sub(from.text() as usize));
+        core::ptr::copy_nonoverlapping(from.text().cast_const(), text, RECORD_TEXT);
+        to.set_path_begin(text);
+        to.set_path_end(text.wrapping_add(length.min(RECORD_TEXT - 1)));
+        to.set_path_capacity(text.wrapping_add(RECORD_TEXT));
+        to.separator().write_volatile(read(from.separator()));
+        to.crc().write_volatile(read(from.crc()));
+        to.file_bytes().write_volatile(read(from.file_bytes()));
+        to.age().write_volatile(read(from.age()));
+        to.loading().write_volatile(read(from.loading()));
     }
 }
 
