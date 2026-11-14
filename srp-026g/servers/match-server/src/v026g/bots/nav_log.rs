@@ -441,6 +441,12 @@ pub fn route_line(from: Option<Vec3>, goal: Vec3, verdict: &str) -> String {
     format!("{PREFIX}no way from {from} to {}: {verdict}", at(goal))
 }
 
+/// [C6] A zone spawner searched from a look spot on the margin's band (a floor no zone lists a standing body on, that the
+/// margin alone marks): `nav: zone spawner <i> at (..) looked at from the band at (..)`.
+pub fn spawner_band_line(index: usize, item: Vec3, spot: Vec3) -> String {
+    format!("{PREFIX}zone spawner {index} at {} looked at from the band at {}", at(item), at(spot))
+}
+
 /// [owner-5 A395a] A walk out over a zone's floors begun: `nav: zone walk-out from (..) on a <dry|hit> floor to (..), next
 /// (..), lines tested over the zone's floors up to R m`. `hit`: a zone on now overlaps the standing body's capsule there
 /// (`Hazards::hits_at`, the client's contact test); `dry`: none does (the floor is only in a zone's margin, or its zone is

@@ -1766,6 +1766,11 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
                 continue;
             }
             take_counts::count(take_counts::Count::ZoneLookOffered);
+            // [C6] The log's line where the look spot is a band floor (a margin marks it, no zone lists a body there).
+            if cx.tactics.world.grid.locate(spot, 0.5).is_some_and(|n| !cx.tactics.hazards.hazard_free(n)) {
+                let key = crate::v026g::bots::nav_log::key(("spawner band", i));
+                cx.lines.push(crate::v026g::bots::nav_log::Kind::Spawner, Some(key), crate::v026g::bots::nav_log::spawner_band_line(i, item, spot));
+            }
             Some(spot)
         };
         // The missing batteries a look round here may find and take: the

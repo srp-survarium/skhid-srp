@@ -921,6 +921,13 @@ impl Hazards {
         self.zone_of(node).is_none() && self.live.set_of(node) == 0
     }
 
+    /// [C6] Whether a body may stay on `node` though a zone's margin marks it: a floor of the band a route may end on
+    /// ([`Self::band_end`]: no zone lists a standing body there, by the client's contact test) with no live field on it.
+    /// [`Self::hazard_free`] or this: a place to stay.
+    pub fn band_stand(&self, node: NodeId) -> bool {
+        self.band_end(node) && self.live.set_of(node) == 0
+    }
+
     /// Whether a zone, baked or live, marks `node`: [`Self::zone_of`] is the baked zone alone (the regions' cut).
     pub fn marked_at(&self, node: NodeId) -> bool {
         self.zone_of(node).is_some() || self.live.set_of(node) != 0
