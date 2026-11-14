@@ -36,21 +36,6 @@ its row of `release/content.tsv`. The list must stay the last that edits
   fence: Team Deathmatch there needs its own boundary first.
 - Bots: no bots' map data for these maps (`release/bot-data.tsv`).
 
-## Military Warehouses is not played (the owner, 2026-11-13)
-
-"Remove Military Warehouses": `content-edit/military-warehouses-off-1.json`
-takes its Free for All row (43) out of `maps_dict` too, the same way, so the
-map is in no pool, vote, create window or Maps tab. Experimental Pool (42) and
-Training Camp (44) are the STALKER maps players get. Its Free for All config
-and own project (`v010b_cs_mp_military_1/day_8`, 24 solo points), its Team
-Deathmatch config and project, tables, name, pictures and minimap stay; id 43
-is given to nothing else. A match recorded on it can no longer be watched (its
-map is unknown to srp); no other match plays out otherwise, so
-`simulation_changes.tsv` has no row for it.
-
-**To play it again:** delete `military-warehouses-off-1.json` and its row of
-`release/content.tsv`.
-
 | maps_dict id | level (`map_id`) | project / HUD key | map | source | loading id |
 | ---: | ---: | --- | --- | --- | ---: |
 | 210 | 14 | `cs_mp_bath` | Experimental Pool · Бассейн | Clear Sky `mp_bath` | 30 |
