@@ -2146,11 +2146,15 @@ package survarium.controls
          }
          var button:Rectangle = this._sellDuplicates.getBounds(this);
          var middle:Number = square != null ? square.y + square.height / 2 : compare.y + compare.height / 2;
-         this._sellDuplicates.y = Math.round(this._sellDuplicates.y + middle - (button.y + button.height / 2));
+         this._sellDuplicates.y = Math.round(this._sellDuplicates.y + middle - (button.y + button.height / 2)) - SELL_DUPLICATES_RAISE;
       }
 
       // The room left and right of the button's text, together.
       private static const SELL_DUPLICATES_PADDING:int = 40;
+
+      // Pixels above the square's middle, set by look in the game (the owner,
+      // 2026-11-14, in the game: "a pixel up").
+      private static const SELL_DUPLICATES_RAISE:int = 1;
 
       private function updateSellDuplicates() : void
       {
