@@ -50,7 +50,7 @@ package survarium.player
          // [first bit, width, most ranks]: Potent Painkiller, Fast Bandaging, Metabolism, Medical
          // Training, Adrenalin, Strong Bones, Brothers in Arms; then Numb Legs, Take Cover, Unflinching,
          // Concentration.
-         for each(var field:Array in [[0,3,3],[3,3,2],[6,3,5],[9,3,3],[12,3,3],[17,3,5],[21,3,2]])
+         for each(var field:Array in [[0,3,3],[3,3,2],[6,3,5],[9,3,3],[12,3,3],[17,3,5],[21,3,1]])
          {
             if((bits >> field[0] & (1 << field[1]) - 1) > field[2]) return;
          }
