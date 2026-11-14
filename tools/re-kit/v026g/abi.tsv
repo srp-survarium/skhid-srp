@@ -2029,6 +2029,7 @@ va	name	source	ret_cleanup	result
 0x0023b200	survarium::game_world_ui::update_ui	manual	12	
 0x001e8da0	survarium::delete_folder	manual	0	
 0x00131ed0	vostok::render::camouflage_decal_texture_type_baker_cook::find_baked_texture	manual	4	AL: 1 when the path has a record (its first now marked loading +120h)
+0x00131f90	vostok::render::camouflage_decal_texture_type_baker_cook::remove_unwanted_files	manual	4	nothing (stdcall, `ret 4` at 0x132639; ebx, ebp, esi, edi kept); one caller, process_compression 0x12F405 after its push_back
 0x0012d1d0	vostok::render::camouflage_decal_texture_type_baker_cook::translate_query	manual	4	
 0x000f0d00	vostok::resources::query_result_for_cook::finish_query_impl	manual	16	
 0x000f0080	vostok::resources::query_result_for_cook::set_unmanaged_resource	manual	12	

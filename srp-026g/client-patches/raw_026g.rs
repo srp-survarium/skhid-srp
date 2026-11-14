@@ -772,6 +772,8 @@ unsafe extern "C" {
     pub static engine_close_handle: unsafe extern "stdcall" fn(*mut c_void) -> u32;
     /// the IAT slot 0x87021c (an import, stdcall): unsigned int engine_delete_file_a(const char *name)
     pub static engine_delete_file_a: unsafe extern "stdcall" fn(*const u8) -> u32;
+    /// the IAT slot 0x870174 (an import, stdcall): unsigned int engine_get_disk_free_space_ex_w(const void *folder, void *free_for_caller, void *total, void *free)
+    pub static engine_get_disk_free_space_ex_w: unsafe extern "stdcall" fn(*const c_void, *mut c_void, *mut c_void, *mut c_void) -> u32;
     /// the IAT slot 0x870080 (an import, stdcall): void *engine_load_library_a(const char *name)
     pub static engine_load_library_a: unsafe extern "stdcall" fn(*const u8) -> *mut c_void;
     /// the IAT slot 0x870084 (an import, stdcall): void *engine_get_proc_address(void *module, const char *name)
@@ -15294,7 +15296,7 @@ impl CamouflageDecalTextureTypeBakerCook {
         unsafe { self.0.byte_add(0x234).cast::<Option<BakedTextureData>>().write_volatile(value) }
     }
 
-    /// +0x238 (ptr<vostok::render::baked_texture_data>): the list's capacity end (1024 records, storage at +23Ch)
+    /// +0x238 (ptr<vostok::render::baked_texture_data>): the list's capacity end (stock: 1024 records, storage at +23Ch; patch 70 moves a full list into pages of its own twice its room)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -15303,7 +15305,7 @@ impl CamouflageDecalTextureTypeBakerCook {
         unsafe { self.0.byte_add(0x238).cast::<Option<BakedTextureData>>().read_volatile() }
     }
 
-    /// +0x238 (ptr<vostok::render::baked_texture_data>): the list's capacity end (1024 records, storage at +23Ch)
+    /// +0x238 (ptr<vostok::render::baked_texture_data>): the list's capacity end (stock: 1024 records, storage at +23Ch; patch 70 moves a full list into pages of its own twice its room)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -15312,7 +15314,7 @@ impl CamouflageDecalTextureTypeBakerCook {
         unsafe { self.0.byte_add(0x238).cast::<Option<BakedTextureData>>().write_volatile(value) }
     }
 
-    /// +0x4923c (u32): the bytes of its records' files (push_back adds a record's, remove_unwanted_files 0x131F90 keeps it under 1 GiB)
+    /// +0x4923c (u32): the bytes of its records' files (push_back adds a record's, remove_unwanted_files 0x131F90 keeps it under 1 GiB; patch 70's trim in its place, under 3 GiB)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).

@@ -4773,6 +4773,7 @@ va	name	location	role	basis
 0x001e8da0	survarium::delete_folder	EAX	the folder's physical path, a buffer_string (begin +0, end +4); SHFileOperationA FO_DELETE, flags 414h	observed
 0x00131ed0	vostok::render::camouflage_decal_texture_type_baker_cook::find_baked_texture	EAX	the baker cook (its list at +230h)	observed
 0x00131ed0	vostok::render::camouflage_decal_texture_type_baker_cook::find_baked_texture	entry ESP+4	the path, a buffer_string	observed
+0x00131f90	vostok::render::camouflage_decal_texture_type_baker_cook::remove_unwanted_files	entry ESP+4	the baker cook (its list at +230h, the list's bytes at +4923Ch; the limit 40000000h is the immediate at 0x131FF2)	observed
 0x0012d1d0	vostok::render::camouflage_decal_texture_type_baker_cook::translate_query	ECX	the baker cook	observed
 0x0012d1d0	vostok::render::camouflage_decal_texture_type_baker_cook::translate_query	entry ESP+4	the query (query_result_for_cook)	observed
 0x000f0d00	vostok::resources::query_result_for_cook::finish_query_impl	entry ESP+4	the query	observed

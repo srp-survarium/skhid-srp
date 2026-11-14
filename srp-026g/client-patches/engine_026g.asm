@@ -47,6 +47,7 @@ global engine_create_file_a
 global engine_write_file
 global engine_close_handle
 global engine_delete_file_a
+global engine_get_disk_free_space_ex_w
 global engine_load_library_a
 global engine_get_proc_address
 global engine_free_library
@@ -237,6 +238,7 @@ engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
 engine_close_handle equ 0x870040   ; the IAT slot 0x870040 (an import, stdcall)
 engine_delete_file_a equ 0x87021c   ; the IAT slot 0x87021c (an import, stdcall)
+engine_get_disk_free_space_ex_w equ 0x870174   ; the IAT slot 0x870174 (an import, stdcall)
 engine_load_library_a equ 0x870080   ; the IAT slot 0x870080 (an import, stdcall)
 engine_get_proc_address equ 0x870084   ; the IAT slot 0x870084 (an import, stdcall)
 engine_free_library equ 0x870088   ; the IAT slot 0x870088 (an import, stdcall)

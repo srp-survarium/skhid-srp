@@ -42,6 +42,7 @@ engine_create_file_a	0x870048	-	void *engine_create_file_a(const char *name, uns
 engine_write_file	0x870108	-	unsigned int engine_write_file(void *file, const void *bytes, unsigned int size, unsigned int *written, void *overlapped)	import	
 engine_close_handle	0x870040	-	unsigned int engine_close_handle(void *handle)	import	
 engine_delete_file_a	0x87021c	-	unsigned int engine_delete_file_a(const char *name)	import	
+engine_get_disk_free_space_ex_w	0x870174	-	unsigned int engine_get_disk_free_space_ex_w(const void *folder, void *free_for_caller, void *total, void *free)	import	
 engine_load_library_a	0x870080	-	void *engine_load_library_a(const char *name)	import	
 engine_get_proc_address	0x870084	-	void *engine_get_proc_address(void *module, const char *name)	import	
 engine_free_library	0x870088	-	unsigned int engine_free_library(void *module)	import	

@@ -261,6 +261,9 @@ extern unsigned int (__attribute__((stdcall)) *const engine_close_handle)(void *
 /* the IAT slot 0x87021c (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_delete_file_a)(const char * name);
 
+/* the IAT slot 0x870174 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_get_disk_free_space_ex_w)(const void * folder, void * free_for_caller, void * total, void * free);
+
 /* the IAT slot 0x870080 (an import, stdcall) */
 extern void * (__attribute__((stdcall)) *const engine_load_library_a)(const char * name);
 
