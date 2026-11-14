@@ -442,6 +442,20 @@ The HUD minimap is framed on the outline + 15 m (`render_minimap.py
 as Training Camp's; before, the south edge was the renderer's two 45 m circles.
 The site's Maps tab has its top-down render of `day_8` in that frame
 (`damage-calc/assets/maps`).
+Its loading picture and room tile are a frame of the game (`stalker-maps.md`,
+pose `field-se`: the yard from the arena's south-east corner), as the other
+three's.
+
+Checked offline only, on a quick `build-content 60` of the branch: the lists
+above, read back from the build (the 48 points as `cover-maps.tsv` leaves them,
+20 m, 1 m, 0 s and 500 ms each; the 24 Team Deathmatch points as `day_4` has
+them; no crates; the wall's object; everything else of `day_8` as `day_4`);
+the walk grid's containment; `to_cover` again (all kept);
+`the_released_free_for_alls_play_on_their_own_projects` on its server data
+(34 maps, map 41 level 18 with 48 solo points). The loading picture is a frame
+of a headless game on that build, the only time the map ran in the game: not
+played. Left for the game: how the invisible line across the field feels, and
+the spawns' cover and sight lines.
 
 ## Millisecond protection
 

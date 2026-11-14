@@ -505,11 +505,13 @@ The spawns do not come from the level: they are the planner's.
   | Experimental Pool | `poolside-se` | (4, 6.5, 4) | -60 | -4 |
   | Military Warehouses | `road-tower` | (-8, -5.5, -8) | 3 | -2 |
   | Training Camp | `base-se2` | (62, 19, -50) | -47 | -7 |
+  | Repair Depot | `field-se` | (52, 16, -46) | -38 | -10 |
 
   The frame is scaled to cover 1920 x 798 and its middle band kept, as
   `ui_images.py` cuts it; the existing classes serve both loading screens and
-  room tiles. Repair Depot still uses the earlier package's in-game shot; the
-  two underground maps still use top-down placeholders.
+  room tiles. Repair Depot's was captured the same way when it went into Free
+  for All (2026-11-14, its arena's south-east corner, on a quick build of its
+  branch); the two underground maps still use top-down placeholders.
 - `release/content.tsv`: the pack row `stalker-maps@4`. @3 has the grass
   with flat-lying normals (black tufts under a high sun); @2 also has the
   planner's spots on Experimental Pool; @1 has no grass.
