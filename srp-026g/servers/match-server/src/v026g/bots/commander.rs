@@ -1006,6 +1006,7 @@ impl Bots {
         }
         let state = &self.teams[usize::from(team)];
         let mut asked: Vec<(Place, Vec<plays::Candidate>, Option<Assignment>)> = Vec::new();
+        let mut asked_lines: Vec<(Place, Vec<(super::nav_log::Kind, Option<u64>, String)>)> = Vec::new();
         let mut blocks = Vec::new();
         // Bots with no fresh hold on a slot (`team::HOLD_FRESH_MS`): a way
         // to their goal or their play's target failed lately, or a carrier.
@@ -1058,9 +1059,12 @@ impl Bots {
                 tactics,
                 tuning: &tuning,
                 memo: &self.memo,
+                lines: Default::default(),
             };
             let mut candidates = Vec::new();
             plays::candidates(&cx, &mut candidates);
+            // [owner-5] The log's lines the candidates wrote, for the bot's log once this pass lets go of the bots.
+            asked_lines.push((bot.place, cx.lines.take()));
             #[cfg(test)]
             if let Some(a) = bot.assignment.as_ref()
                 && !candidates.iter().any(|c| c.kind == a.kind && c.target == a.target)
@@ -1108,6 +1112,11 @@ impl Bots {
                 committed.push(bot.place);
             }
             asked.push((bot.place, candidates, bot.assignment.clone()));
+        }
+        for (place, lines) in asked_lines {
+            if let Some(Some(bot)) = self.bots.get_mut(place) {
+                super::nav_log::Lines::write(lines, &mut bot.nav_log, now);
+            }
         }
         // [A296 item 2, `mods.team_plan`] The team's plan from its standing and the time left re-weighs every bot's candidates.
         if let Some(rule) = tuning.mods.team_plan {
@@ -1251,6 +1260,7 @@ impl Bots {
                 tactics,
                 tuning: &tuning,
                 memo: &self.memo,
+                lines: Default::default(),
             };
             let mut rng = bot.rng.clone();
             let running = plays::start(
@@ -1271,6 +1281,8 @@ impl Bots {
                 _ => None,
             };
             bot.rng = rng;
+            // [owner-5] The log's lines the play's start wrote.
+            super::nav_log::Lines::write(cx.lines.take(), &mut bot.nav_log, now);
             bot.note(
                 notes,
                 now,

@@ -530,7 +530,7 @@ pub fn counted() -> [u64; COUNTS.len()] {
     COUNTED.with(|cell| cell.get())
 }
 
-/// How a job role's play was offered to its bot at a poll (the bench's count; nothing live): the class of a role
+/// How a job role's play was offered to its bot at a poll (the bench's count; live, the log's line `nav_log::Kind::Role`): the class of a role
 /// let go unplayed (`PassedWhy::NoPlay`), design-p1c §1's opening of a Breach.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Offer {
@@ -558,8 +558,8 @@ impl Offer {
     }
 }
 
-#[cfg(test)]
-fn role_name(role: Role) -> &'static str {
+/// The role's name, for the bench's counts and the log's lines.
+pub fn role_name(role: Role) -> &'static str {
     match role {
         Role::Flanker => "flanker",
         Role::Pinner => "pinner",
@@ -1982,7 +1982,7 @@ impl Job {
         Self { spot, objective: false, shooter, since: 0, flanker, pinner, passed: Vec::new() }
     }
 
-    fn holder(&self, role: Role) -> Option<Holder> {
+    pub(crate) fn holder(&self, role: Role) -> Option<Holder> {
         match role {
             Role::Flanker => self.flanker,
             Role::Pinner => self.pinner,

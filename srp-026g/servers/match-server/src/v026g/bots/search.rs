@@ -657,7 +657,13 @@ impl Bots {
                 }
             }
         }
+        // [owner-5] How the last of its searches ended, for the log's line if it found no way.
+        let last_end = super::path::last_end();
         if let Some(Some(bot)) = self.bots.get_mut(pending.place) {
+            if route.is_none() {
+                let retried = super::drive::NoWayRetries { stuck_spots: filter.has_soft(), ..Default::default() };
+                super::drive::no_way_line(bot, tactics, (Some(from), Some(to)), pending.goal, last_end, retried, (time, side, objective));
+            }
             if kept {
                 bot.features.crossing.long_kept = Some((pending.goal, time + crossing::LONG_RETRY_MS));
             }

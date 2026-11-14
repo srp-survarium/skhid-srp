@@ -164,11 +164,25 @@ impl Reserve {
     /// leaves `left` of it. The body pool is always asked (what the code always did); the others
     /// only when the walk takes from them.
     pub fn bears(&self, cost: Cost, share: f32, left: f32) -> bool {
-        let pool = |value: f32, cost: f32| cost <= share * value && value - cost >= left;
-        pool(self.body, cost.body)
-            && (cost.head <= 0.0 || pool(self.head, cost.head))
-            && (cost.infection <= 0.0 || pool(self.infection, cost.infection))
-            && (cost.pain <= 0.0 || pool(self.pain, cost.pain))
+        self.refusal(cost, share, left).is_none()
+    }
+
+    /// [owner-5] The first pool that does not bear `cost` ([`Self::bears`], the same tests in the same order), as the log
+    /// writes it: the pool, its cost against the share it may take or the reserve it must leave. `None`: borne.
+    pub fn refusal(&self, cost: Cost, share: f32, left: f32) -> Option<String> {
+        let pool = |name: &str, value: f32, cost: f32| {
+            if cost > share * value {
+                Some(format!("{name} pool: cost {cost:.3} over {share:.2} of {value:.3}"))
+            } else if value - cost < left {
+                Some(format!("{name} pool: cost {cost:.3} leaves {:.3}, under {left:.2}", value - cost))
+            } else {
+                None
+            }
+        };
+        pool("body", self.body, cost.body)
+            .or_else(|| (cost.head > 0.0).then(|| pool("head", self.head, cost.head)).flatten())
+            .or_else(|| (cost.infection > 0.0).then(|| pool("infection", self.infection, cost.infection)).flatten())
+            .or_else(|| (cost.pain > 0.0).then(|| pool("pain", self.pain, cost.pain)).flatten())
     }
 
     /// The largest share of a pool `cost` takes (the body pool's with `max(1e-3)` under it, as the

@@ -1016,6 +1016,31 @@ pub struct RoutePress {
     pub tries: u32,
     pub before: f32,
     pub facing: f32,
+    /// [owner-5] A sprint gap or rim link pressed without sprint: the gate that held the sprint (the log's line).
+    pub sprint_gate: Option<SprintGate>,
+}
+
+/// [owner-5] Why a sprint link's press went without sprint, the first gate that held it (`Motor::jump_key`'s `sprinted`):
+/// the client's own refusal (`SprintBlock`), the sprint not on, the speed under [`SPRINT_PRESS_SPEED_MS`], or, at a band
+/// face, the run not along the jump's way.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SprintGate {
+    Block(SprintBlock),
+    NotSprinting,
+    Slow { speed: f32 },
+    NotAligned,
+}
+
+impl SprintGate {
+    /// The gate as the log writes it.
+    pub fn text(self) -> String {
+        match self {
+            Self::Block(block) => format!("sprint blocked ({block:?})"),
+            Self::NotSprinting => "sprint not on".to_string(),
+            Self::Slow { speed } => format!("speed {speed:.2} m/s under {SPRINT_PRESS_SPEED_MS:.2}"),
+            Self::NotAligned => "run not along the jump's way".to_string(),
+        }
+    }
 }
 
 /// What the jump ahead asks of this tick's walk ([`Motor::jump_ahead`]).
@@ -2515,12 +2540,26 @@ impl Motor {
         jump.back = true;
         self.jump_try = Some(jump);
         self.links.pressed(self.clock, pose.feet, pose.speed);
+        // [owner-5] A sprint link pressed without sprint: the gate that held it, for the log (decides nothing).
+        // The order is `sprinted`'s own: the sprint on, the speed, then (a band face only) a block and the run's way.
+        let sprint_gate = (ahead.approach.sprints() && !sprinted).then(|| {
+            if !self.sprinting {
+                SprintGate::NotSprinting
+            } else if pose.speed < SPRINT_PRESS_SPEED_MS {
+                SprintGate::Slow { speed: pose.speed }
+            } else if let Some(block) = block {
+                SprintGate::Block(block)
+            } else {
+                SprintGate::NotAligned
+            }
+        });
         self.pressed = Some(RoutePress {
             take_off: jump.take_off,
             landing: jump.landing,
             tries: jump.tries,
             before: ahead.before,
             facing: still,
+            sprint_gate,
         });
         self.jump = Some(JumpBy::Route);
         self.last_press = Some(LandingWatch { at: self.clock, counted: false, from: LandingFrom::Jump });

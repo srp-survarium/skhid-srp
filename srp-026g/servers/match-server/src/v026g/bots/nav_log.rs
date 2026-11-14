@@ -120,7 +120,7 @@ impl Fall {
     }
 }
 
-fn at(p: Vec3) -> String {
+pub(crate) fn at(p: Vec3) -> String {
     format!("({:.1}, {:.1}, {:.1})", p.x, p.y, p.z)
 }
 
@@ -131,19 +131,46 @@ pub enum Kind {
     Fall,
     /// A294's drift line (`nav_drift.rs`).
     Drift,
+    /// [owner-5] A job role's offer to this bot and what kept it from being one (`Ctx::job_offer`).
+    Role,
+    /// [owner-5] A sprint gap or rim link pressed without sprint, and the gate that held the sprint (`motor.rs`).
+    Sprint,
+    /// [owner-5] A zone battery refused by its crossing's price: the term that refused it against its limit (`Ctx::take_block`).
+    Zone,
+    /// [owner-5] A zone spawner the battery search skipped, and the filter that dropped it (`collect.rs`).
+    Spawner,
+    /// [owner-5] A route search that found no way, and what its searches said (`drive.rs`, `search.rs`).
+    Route,
 }
+
+/// How many kinds of line there are ([`Kind`]).
+const KINDS: usize = 8;
+
+/// [owner-5] At most this many lines of a kind per bot per match (the first ones; the rest are counted into the last): the
+/// owner-5 kinds fire on events that can repeat all match (a battery refused at every poll, a role offered and refused
+/// again), so a match's log stays a few hundred of these lines at most.
+pub const MAX_PER_KIND: u32 = 60;
 
 /// One bot's lines waiting for the next poll, and the rate limit.
 #[derive(Clone, Debug, Default)]
 pub struct NavLog {
     /// Per kind: the last line's time and the lines held back since.
-    last: [Option<(u32, u32)>; 3],
+    last: [Option<(u32, u32)>; KINDS],
+    /// [owner-5] Per kind: the lines written this match, against [`MAX_PER_KIND`].
+    written: [u32; KINDS],
+    /// [owner-5] The keys already written ([`Self::push_once`]): one line per bot per decision, not one per poll.
+    seen: std::collections::HashSet<(u8, u64)>,
     pending: Vec<(u32, String)>,
 }
 
 impl NavLog {
-    /// A line of `kind` at `time`: kept for the next poll, or held back (counted) within [`EVERY_MS`] of the last one.
+    /// A line of `kind` at `time`: kept for the next poll, or held back (counted) within [`EVERY_MS`] of the last one. The
+    /// owner-5 kinds also stop at [`MAX_PER_KIND`] a match.
     pub fn push(&mut self, kind: Kind, time: u32, text: String) {
+        let capped = !matches!(kind, Kind::Jump | Kind::Fall | Kind::Drift);
+        if capped && self.written[kind as usize] >= MAX_PER_KIND {
+            return;
+        }
         let slot = &mut self.last[kind as usize];
         match slot {
             Some((at, held)) if time < *at + EVERY_MS => *held += 1,
@@ -151,14 +178,83 @@ impl NavLog {
                 let held = slot.map_or(0, |(_, held)| held);
                 let text = if held > 0 { format!("{text} (+{held} held)") } else { text };
                 *slot = Some((time, 0));
+                self.written[kind as usize] += 1;
                 self.pending.push((time, text));
             }
+        }
+    }
+
+    /// [owner-5] A line of `kind` for the decision `key` (a hash of what the line is about and its verdict): written the first
+    /// time the key is seen this match ([`Self::push`]'s limits on top), nothing after.
+    pub fn push_once(&mut self, kind: Kind, key: u64, time: u32, text: String) {
+        if self.seen.insert((kind as u8, key)) {
+            self.push(kind, time, text);
         }
     }
 
     /// The lines kept since the last call.
     pub fn take(&mut self) -> Vec<(u32, String)> {
         std::mem::take(&mut self.pending)
+    }
+}
+
+/// [owner-5] A job role's offer: `nav: job role <role> on <target> (<play>): <outcome>[, score S]` (the outcome: offered,
+/// no_spot, set_aside, dry, low_health; the score when offered, for the play that outscored it).
+pub fn role_line(role: &str, target: impl std::fmt::Debug, play: impl std::fmt::Debug, outcome: &str, score: Option<f32>) -> String {
+    let score = score.map_or(String::new(), |s| format!(", score {s:.2}"));
+    format!("{PREFIX}job role {role} on {target:?} ({play:?}): {outcome}{score}")
+}
+
+/// [owner-5] A sprint link pressed without sprint: `nav: sprint link pressed unsprinted: from (..) to (..), before B m, gate G`.
+pub fn sprint_line(take_off: Vec3, landing: Vec3, before: f32, gate: &str) -> String {
+    format!("{PREFIX}sprint link pressed unsprinted: from {} to {}, before {before:.2} m, gate {gate}", at(take_off), at(landing))
+}
+
+/// [owner-5] A zone battery refused by its crossing's price: `nav: zone battery at (..) refused: <term>`.
+pub fn zone_line(battery: Vec3, term: &str) -> String {
+    format!("{PREFIX}zone battery at {} refused: {term}", at(battery))
+}
+
+/// [owner-5] A zone spawner the battery search skipped: `nav: zone spawner <i> at (..) not searched: <filter>`.
+pub fn spawner_line(index: usize, item: Vec3, filter: &str) -> String {
+    format!("{PREFIX}zone spawner {index} at {} not searched: {filter}", at(item))
+}
+
+/// [owner-5] A route search that found no way: `nav: no way from (..) to (..): <verdict>`.
+pub fn route_line(from: Option<Vec3>, goal: Vec3, verdict: &str) -> String {
+    let from = from.map_or("no floor".to_string(), at);
+    format!("{PREFIX}no way from {from} to {}: {verdict}", at(goal))
+}
+
+/// [owner-5] A key for [`NavLog::push_once`] from the line's parts.
+pub fn key(parts: impl std::hash::Hash) -> u64 {
+    use std::hash::{BuildHasher, BuildHasherDefault};
+    BuildHasherDefault::<std::collections::hash_map::DefaultHasher>::default().hash_one(parts)
+}
+
+/// [owner-5] Lines a play writes while it is asked (`Ctx::lines`, the candidates or a step), for its bot's [`NavLog`] once
+/// the poll lets go of the bot: `(kind, key, text)`; a key of `None` is a plain [`NavLog::push`].
+#[derive(Debug, Default)]
+pub struct Lines(std::cell::RefCell<Vec<(Kind, Option<u64>, String)>>);
+
+impl Lines {
+    pub fn push(&self, kind: Kind, key: Option<u64>, text: String) {
+        self.0.borrow_mut().push((kind, key, text));
+    }
+
+    /// The lines written, for [`Self::write`].
+    pub fn take(&self) -> Vec<(Kind, Option<u64>, String)> {
+        std::mem::take(&mut *self.0.borrow_mut())
+    }
+
+    /// `lines` into `log` at `time`.
+    pub fn write(lines: Vec<(Kind, Option<u64>, String)>, log: &mut NavLog, time: u32) {
+        for (kind, key, text) in lines {
+            match key {
+                Some(key) => log.push_once(kind, key, time, text),
+                None => log.push(kind, time, text),
+            }
+        }
     }
 }
 

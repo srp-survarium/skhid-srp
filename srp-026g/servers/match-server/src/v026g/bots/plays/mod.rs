@@ -579,6 +579,9 @@ pub struct Ctx<'a> {
     pub tuning: &'a Tuning,
     /// The match's kept answers to costly questions of the map (`memo`).
     pub memo: &'a memo::Memo,
+    /// [owner-5] The log's lines the plays write while asked (why an offer or a battery was refused): for the bot's
+    /// `NavLog` once the poll lets go of it. Written, never read back by a decision.
+    pub lines: super::nav_log::Lines,
 }
 
 impl Ctx<'_> {
@@ -1226,25 +1229,31 @@ impl Ctx<'_> {
 
     /// [`Self::job_candidate`] for a job role whose spot has a spot for it (`has_spot`; none: no candidate), the
     /// offer counted for the bench (`super::threat::offered`, the classes of a role let go unplayed).
-    #[cfg_attr(not(test), allow(unused_variables))]
+    ///
+    /// [owner-5] The offer's outcome also goes to the log ([`super::nav_log::Kind::Role`]): one line per role, spot,
+    /// holding and outcome, so a role let go unplayed shows why it was not offered (or that it was, and lost).
     pub fn job_offer(&self, role: super::threat::Role, kind: PlayKind, target: TargetRef, slot: u32, health: f32, has_spot: bool) -> Option<Candidate> {
+        use super::threat::{self, Offer};
         let c = if has_spot { self.job_candidate(kind, target, slot, health) } else { None };
-        #[cfg(test)]
-        {
-            use super::threat::{self, Offer};
-            let offer = if !has_spot {
-                Offer::NoSpot
-            } else if c.is_some() {
-                Offer::Offered
-            } else if self.set_aside(kind, target) {
-                Offer::SetAside
-            } else if self.bot.dry && kind.seeks_fight() {
-                Offer::Dry
-            } else {
-                Offer::LowHealth
-            };
-            threat::offered(self.me.place, role, offer);
-        }
+        let offer = if !has_spot {
+            Offer::NoSpot
+        } else if c.is_some() {
+            Offer::Offered
+        } else if self.set_aside(kind, target) {
+            Offer::SetAside
+        } else if self.bot.dry && kind.seeks_fight() {
+            Offer::Dry
+        } else {
+            Offer::LowHealth
+        };
+        threat::offered(self.me.place, role, offer);
+        // The holding the offer belongs to: a role given again is a new decision.
+        let since = self.team.threat.job_of(self.me.place).and_then(|(job, r, _)| (r == role).then(|| job.holder(role)).flatten()).map(|h| h.since);
+        self.lines.push(
+            super::nav_log::Kind::Role,
+            Some(super::nav_log::key((threat::role_name(role), format!("{target:?}"), since, offer.name()))),
+            super::nav_log::role_line(threat::role_name(role), target, kind, offer.name(), c.as_ref().map(|c| c.score.get())),
+        );
         c
     }
 

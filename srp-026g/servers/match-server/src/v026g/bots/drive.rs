@@ -1591,6 +1591,11 @@ fn drive_tick_inner(
                         );
                     }
                     bot.no_way = route.is_none().then_some((at, time + NO_WAY_RETRY_MS));
+                    // [owner-5] A search that found no way: why, for the log (one line per bot, goal and verdict in a match).
+                    if route.is_none() && !escaping && !there {
+                        let retried = NoWayRetries { stuck_spots: avoiding, trap_discs: narrow.is_some(), drop_shuts: unshut.is_some(), unshut_proof };
+                        no_way_line(bot, tactics, (start_floor, ends.map(|(_, to)| to)), at, path::last_end(), retried, (time, side, objective));
+                    }
                     // With `think.goal_off_floor_no_way`: a goal on no floor near it (`path::goal_floor`), from a start floor,
                     // has no way either: no search reaches it.
                     let off_floor = tuning.think.goal_off_floor_no_way && start_floor.is_some() && ends.is_none();
@@ -2238,6 +2243,13 @@ pub(super) fn jumping(bot: &mut Bot, keys: u32, by: Option<&'static str>, feet: 
         bot.jump_followed(time, Some(feet), "jumped again");
         bot.reflex.jumped(by);
         let route = (by == "route").then(|| bot.motor.route_press()).flatten();
+        // [owner-5] A sprint gap or rim link pressed without sprint: which gate held the sprint (A386, report R1b).
+        if let Some(press) = route
+            && let Some(gate) = press.sprint_gate
+        {
+            let line = super::nav_log::sprint_line(press.take_off, press.landing, press.before, &gate.text());
+            bot.nav_log.push(super::nav_log::Kind::Sprint, time, line);
+        }
         if bot.tracing {
             let mut line = serde_json::json!({
                 "t": time, "bot": bot.place, "jump": by, "pos": feet.to_array(),
@@ -2759,6 +2771,61 @@ impl Gates {
             _ => false,
         })
     }
+}
+
+
+/// [owner-5] What a drive's search for a route tried again before it found no way (`drive_tick`).
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) struct NoWayRetries {
+    /// Searched again through its stuck spots (the filter's soft part).
+    pub(super) stuck_spots: bool,
+    /// Searched again with only the traps' narrow discs shut (`traps.keep_off`).
+    pub(super) trap_discs: bool,
+    /// Searched again with the drops it shut opened (`unstick.drop_shut_last_resort`).
+    pub(super) drop_shuts: bool,
+    /// That last search found no way either.
+    pub(super) unshut_proof: bool,
+}
+
+/// [owner-5] The log's line for a search that found no way from the floor `ends.0` to the goal `at` (its floor `ends.1`):
+/// an end on no floor, else how the last search ended (`path::last_end`), the retries made, and whether the filter refuses
+/// either end's floor now (a zone's, or a spawn's side). Made from what the drive already holds: no search, no decision.
+pub(super) fn no_way_line(
+    bot: &mut Bot,
+    tactics: &Tactics,
+    ends: (Option<NodeId>, Option<NodeId>),
+    at: Vec3,
+    end: Option<path::SearchEnd>,
+    retried: NoWayRetries,
+    (time, side, objective): (u32, Option<i32>, bool),
+) {
+    let grid = &tactics.world.grid;
+    let verdict = match ends {
+        (None, _) => "its start on no floor".to_string(),
+        (Some(_), None) => "its goal on no floor near it".to_string(),
+        (Some(from), Some(to)) => {
+            let mut v = end.map_or("no search ended".to_string(), |e| e.word().to_string());
+            if !tactics.allowed(to, time, side, objective) {
+                v.push_str("; the goal's floor refused now (a zone or the spawn's side)");
+            }
+            if !tactics.allowed(from, time, side, objective) {
+                v.push_str("; the start's floor refused now");
+            }
+            if retried.stuck_spots {
+                v.push_str("; searched again through its stuck spots");
+            }
+            if retried.trap_discs {
+                v.push_str("; searched again past the traps' wide rings");
+            }
+            if retried.drop_shuts {
+                v.push_str(if retried.unshut_proof { "; none with its shut drops open either" } else { "; its shut drops open searched" });
+            }
+            v
+        }
+    };
+    let from = ends.0.map(|n| grid.position(n));
+    let key = super::nav_log::key(("route", (at.x * 2.0) as i32, (at.z * 2.0) as i32, (at.y * 2.0) as i32, verdict.clone()));
+    bot.nav_log.push_once(super::nav_log::Kind::Route, key, time, super::nav_log::route_line(from, at, &verdict));
 }
 
 #[cfg(test)]
