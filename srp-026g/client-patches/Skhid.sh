@@ -2,7 +2,8 @@
 # Survarium 0.26g on the Skhid server, for Linux and macOS. This file belongs in the
 # game's folder, beside the folder named game. In a terminal there:
 #
-#     bash Skhid.sh             starts the game
+#     bash Skhid.sh             starts the game (on Linux, after updating
+#                               the Skhid files without the launcher)
 #     bash Skhid.sh launcher    starts the Skhid launcher, which looks for
 #                               newer Skhid files first (see LINUX.txt or
 #                               MACOS.txt)
