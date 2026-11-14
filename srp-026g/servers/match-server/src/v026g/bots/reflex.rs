@@ -1008,6 +1008,12 @@ pub struct CombatTuning {
     /// aimed at him, each 0-1.2 s before death). Only Heard and Told tracks (what a player hears and is told). `None`: off (the
     /// last target's last seen spot only).
     pub pre_aim_heard: Option<PreAimHeard>,
+    /// [A393] Sights up at the last corner: with no target seen and an enemy heard or told of within this range
+    /// ([`PreAimHeard`]: sensed within `fresh_ms`, within `max_m`), the bot walks aimed (the aim key held) at his bearing,
+    /// so its sights are up when he shows: raising them takes the weapon's aim time (`aim_time`, the client's 0x2E1B50),
+    /// and 38 % of a reference player's victims died with the weapon down (A393). Not while carrying a battery. Only Heard and Told tracks
+    /// (what a player hears and is told). ON by default (`PreAimHeard::default`); `None`: off.
+    pub sights_up: Option<PreAimHeard>,
     /// [fx-grid aim gates, `private/grid/aim-gates/FINDINGS.md`] The aim-in counts from when the client lets the sights
     /// come up ([`Reflex::aim_open`]), not from the AIM press: the client refuses the sights (`can_aim` 0x2E3AC0) and the
     /// shot (0x2E3CB0) while it sprints and until the sprint animation's end ([`ClientGate::sprint_out_ms`]), through a
@@ -1683,6 +1689,7 @@ impl Default for CombatTuning {
             kit_recoil: false,
             aim_last_known: true,
             pre_aim_heard: None,
+            sights_up: Some(PreAimHeard::default()),
             gate_from_client: Some(ClientGate { sprint_out_ms: 300, jump_ms: 1_200 }),
             lead_most_ms: 300,
             lead_own: true,
@@ -3694,6 +3701,10 @@ pub struct Reflex {
     /// [play 20] Throws made and given up since the last think, for the
     /// bot's notes ([`Reflex::take_throw_notes`]).
     throw_notes: Vec<String>,
+    /// [A393] Sights up at a heard or told enemy: the last tick they were (a new start logs a line when a second has
+    /// gone since), and the debug lines ([`Reflex::take_debug_notes`]).
+    sights_up_last: Option<u32>,
+    debug_notes: Vec<String>,
     /// Enemies seen holding an angle: who, where, when.
     held: Vec<(Place, Vec3, u32)>,
     camps: Vec<Camp>,
@@ -4335,6 +4346,11 @@ impl Reflex {
     /// the blast ("holds a grenade back at (x, y, z): teammate <place>").
     pub fn take_throw_notes(&mut self) -> Vec<String> {
         std::mem::take(&mut self.throw_notes)
+    }
+
+    /// [A393] The debug lines since the last think (the think logs them at debug level with the bot's place).
+    pub fn take_debug_notes(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.debug_notes)
     }
 
     /// [measure] How long ago, ms, the last grenade was let go.
@@ -7925,7 +7941,31 @@ impl Reflex {
                         glance: true,
                         ..Override::default()
                     },
-                    None => match c.pre_aim_heard.and_then(|pre| pre.place(memory, me.feet, now)) {
+                    None => match c
+                        .sights_up
+                        .filter(|_| me.carrying.is_none())
+                        .and_then(|pre| pre.place(memory, me.feet, now))
+                    {
+                        // [A393] The nearest enemy heard or told of within the pre-aim range: walked aimed at his bearing.
+                        Some(at) => {
+                            if self.sights_up_last.is_none_or(|last| now > last.saturating_add(1_000)) {
+                                self.debug_notes.push(format!(
+                                    "sights up at a heard or told enemy {:.1} m off at ({:.1}, {:.1})",
+                                    at.distance_xz(me.feet),
+                                    at.x,
+                                    at.z
+                                ));
+                            }
+                            self.sights_up_last = Some(now);
+                            self.aim_since = Some(aim_since.unwrap_or(now));
+                            Override {
+                                look_at: Some(at + Vec3::new(0.0, 1.3, 0.0)),
+                                keys: key::AIM | reload,
+                                legs,
+                                ..Override::default()
+                            }
+                        }
+                        None => match c.pre_aim_heard.and_then(|pre| pre.place(memory, me.feet, now)) {
                         // [A302 #3] The nearest enemy heard or told of lately: a glance, so a use or a carry keeps the view.
                         Some(at) => Override {
                             look_at: Some(at + Vec3::new(0.0, 1.4, 0.0)),
@@ -7941,6 +7981,7 @@ impl Reflex {
                             legs,
                             ..Override::default()
                         },
+                    },
                     },
                 },
             };

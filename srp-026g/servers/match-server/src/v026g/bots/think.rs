@@ -1175,6 +1175,9 @@ pub(super) fn react(
     for text in bot.reflex.take_throw_notes() {
         bot.note(notes, now, text);
     }
+    for text in bot.reflex.take_debug_notes() {
+        log::debug!("player {} (the server's bot) at {now} ms: {text}", bot.place);
+    }
     for text in bot.reflex.take_smoke_notes() {
         bot.note(notes, now, text);
     }
