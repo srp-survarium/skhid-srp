@@ -331,13 +331,26 @@ The spawns do not come from the level: they are the planner's.
 - `tools/actionscript` adds a bitmap the original movie lacks from the tree's
   `bitmaps/<class>.png` (lossless) or `.jpg`; `srp-026g/scripts/stalker-maps/ui_images.py`
   writes them from the porter's minimap render and a loading picture.
-- Loading pictures and room tiles: Training Camp and Repair Depot use the
-  earlier package's in-game shots. Experimental Pool uses the `poolside-se`
-  panorama and Military Warehouses uses `road-tower`, from the captured
-  `analysis-bath/ingame/previews/<project>/day/` frames (2026-11-12 update).
-  `ui_images.py` cuts their middle band to 1920 x 798; their existing classes
-  serve both loading screens and room tiles. The two underground maps still
-  use top-down placeholders.
+- Loading pictures and room tiles: Experimental Pool, Military Warehouses and
+  Training Camp are frames of the game itself, captured on 2026-11-14 (the
+  owner: "rerender preview images, since they are low quality and don't have
+  grass"): a headless game at 2560 x 1440, every graphics setting at its
+  highest, a fixed camera of 100 degrees across, the maps as PR #1793 leaves
+  them (the grass, stock film grain and ambient occlusion). The earlier
+  pictures were 1920 x 1080 frames from before the maps had grass, with the
+  old builds' grain. Camera (x, eye height y, z; yaw 0 looks +z, 90 looks +x;
+  pitch up):
+
+  | map | pose | position | yaw | pitch |
+  | --- | --- | --- | ---: | ---: |
+  | Experimental Pool | `poolside-se` | (4, 6.5, 4) | -60 | -4 |
+  | Military Warehouses | `road-tower` | (-8, -5.5, -8) | 3 | -2 |
+  | Training Camp | `base-se2` | (62, 19, -50) | -47 | -7 |
+
+  The frame is scaled to cover 1920 x 798 and its middle band kept, as
+  `ui_images.py` cuts it; the existing classes serve both loading screens and
+  room tiles. Repair Depot still uses the earlier package's in-game shot; the
+  two underground maps still use top-down placeholders.
 - `release/content.tsv`: the pack row `stalker-maps@4`. @3 has the grass
   with flat-lying normals (black tufts under a high sun); @2 also has the
   planner's spots on Experimental Pool; @1 has no grass.
