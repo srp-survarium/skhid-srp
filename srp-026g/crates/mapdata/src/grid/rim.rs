@@ -155,20 +155,19 @@ impl WalkGrid {
 
     /// The floor a flight's `steps` (keys let go at the landing, [`jump::STAY_KEYS`]) from the take-off floor `a` lands on and
     /// stays on (A385-FORMAT §1): its landing ([`jump::landing_and_rest`]: the first step out of the jump on the ground,
-    /// `on_ground` 0x7EF90) over a floor in the feet's own cell ([`Self::floor_under`]) up from `a` (higher than a step, the walk's
-    /// own climb) that `a` has no link to (`linked`), the body on the ground from there to its rest, and at rest over a floor of
-    /// the landing's level (within [`LAND_HEIGHT_M`] of it). Not where a straight walk on ends: a bot that has landed follows
-    /// its route (Vector Laboratory's ledge by the shelf, (23.76, 25.39, -28.8), is landed on, then walked off its far end by a
-    /// straight walk); and on the floor the body is on, whichever of the top it is (Vector Laboratory's (-23.72, 23.18, -22.0):
-    /// a jump meant for the floor at 23.49 stops on the one at 23.18 beside it), any floor up from the take-off (Vector
-    /// Laboratory's (-45.35, 25.61, 4.93), 0.88 m over the take-off at 24.73: no fixed height).
+    /// `on_ground` 0x7EF90) over a top floor ([`Self::floor_under`]: up from `a`, higher than a step, the walk's own climb, and
+    /// not one `a` has a link to, `linked`), the body on the ground from there to its rest, and at rest over a top floor too: the
+    /// floor it rests on, where the link goes. On a sloped or stepped top the ground steps after the landing climb on (Rudnya
+    /// (33.26, 24.26, -85.21): out of the jump over the 24.39 floor, at rest on the 24.67 one beside it). Not where a straight
+    /// walk on ends: a bot that has landed follows its route (Vector Laboratory's ledge by the shelf, (23.76, 25.39, -28.8), is
+    /// landed on, then walked off its far end by a straight walk); and on the floor the body is on, whichever of the top it is
+    /// (Vector Laboratory's (-23.72, 23.18, -22.0): a jump meant for the floor at 23.49 stops on the one at 23.18 beside it), any
+    /// floor up from the take-off (Vector Laboratory's (-45.35, 25.61, 4.93), 0.88 m over the take-off at 24.73: no fixed height).
     fn rim_lands_on(&self, steps: &[FlightStep], a: NodeId, linked: &[NodeId]) -> Option<NodeId> {
         let up = self.height[a as usize] + self.body.step;
         let onto = |feet: Vec3| self.floor_under(feet).filter(|&g| self.height[g as usize] > up && !linked.contains(&g));
-        let (landing, rest) = jump::landing_and_rest(steps, |f| onto(f.feet).is_some())?;
-        let to = onto(landing.feet)?;
-        let at_rest = self.floor_under(rest.feet)?;
-        ((self.height[at_rest as usize] - self.height[to as usize]).abs() <= LAND_HEIGHT_M).then_some(to)
+        let (_, rest) = jump::landing_and_rest(steps, |f| onto(f.feet).is_some())?;
+        onto(rest.feet)
     }
 
     /// [A385 rule (d)] The floor a flight's `steps` up the riser to `b` lands on and stays on: `b` when its landing (as
