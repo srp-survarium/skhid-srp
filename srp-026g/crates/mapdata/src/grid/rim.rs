@@ -135,7 +135,7 @@ impl WalkGrid {
     /// stands on a top over a cell the grid has no floor in at that height (the erosion's, or a top one cell wide). Chemical
     /// Plant (-64.71, 7.58, 45.97): a walking press let go at its landing rests there, on the 7.625 strip (one cell row, its
     /// floors' centres at z 45.625, 0.35 m across), its own cell's floors 12.2 m up.
-    fn floor_under(&self, feet: Vec3) -> Option<NodeId> {
+    pub(super) fn floor_under(&self, feet: Vec3) -> Option<NodeId> {
         let near = |f: NodeId| (self.height[f as usize] - feet.y).abs() <= LAND_HEIGHT_M;
         let i = ((feet.x - self.x0) / self.cell).floor() as i32;
         let k = ((feet.z - self.z0) / self.cell).floor() as i32;
@@ -201,7 +201,7 @@ impl WalkGrid {
     ///
     /// None when no press lands.
     #[allow(clippy::too_many_arguments)]
-    fn best_press(
+    pub(super) fn best_press(
         &self,
         world: &Collision,
         s: &Settings,
