@@ -1,11 +1,13 @@
 # Sell duplicates
 
-The owner's rules of 2026-11-14. Code: the lobby movie, `InventoryList.duplicates` /
-`sellDuplicates`, `ItemControlPanel` (the button).
+The owner's rules of 2026-11-14. Code: the lobby movie, `InventoryList.duplicates` / `makeSellDuplicates` /
+`sellDuplicates`, `MessageApply` (its `silver` row).
 
-- **Where:** the inventory's item row, in the place of the stock Fix button (repair is gone); shown
-  where Sell is (an owned item that is no stack), not in the shop. Greyed when there is nothing to sell.
-- **What it does:** one question naming the count of items it sells and the silver they bring, then one ordinary sale
+- **Where:** the inventory window's bottom row (the Comparing items band), at its right: the lobby's own
+  button (`SrvButtonSkinned`), not in the item row, which is for the item selected (the owner,
+  2026-11-14). In the inventory only, not the shop. Greyed when there is nothing to sell or the
+  inventory is locked.
+- **What it does:** one question: the count of items it sells, and the silver they bring under it as the price windows show it (the game's price label, its silver icon); then one ordinary sale
   (`47 01`) of each duplicate, at the usual price (a quarter of the cost). The server knows no new
   request.
 - **A duplicate:** a copy of an item (same dictionary id) past the ones kept. The whole inventory, not

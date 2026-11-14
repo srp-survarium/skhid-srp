@@ -2551,7 +2551,7 @@ st_srp_inventory_search_tip_kind_example	+helmet +boots
 st_srp_inventory_search_tip_level	Gegenstände der Stufe 10 oder 11
 st_srp_inventory_search_tip_level_example	+10 +11
 st_srp_inventory_sell_duplicates	Duplikate verkaufen
-st_srp_inventory_sell_duplicates_ask	Zu verkaufende Gegenstände: %1$s\nSilber: %2$s
+st_srp_inventory_sell_duplicates_ask	Zu verkaufende Gegenstände: %1$s
 st_srp_item_props_mps	m/s
 st_srp_language_option	Sprache:
 st_srp_language_restart	Gilt nach einem Neustart.

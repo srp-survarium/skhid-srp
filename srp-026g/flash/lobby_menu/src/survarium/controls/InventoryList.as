@@ -312,6 +312,9 @@ package survarium.controls
       // The shop's "not owned" check box (makeOwnedToggle).
       private var _ownedToggle:CheckBoxShared;
 
+      // The inventory's Sell duplicates button (makeSellDuplicates).
+      private var _sellDuplicates:SrvButtonSkinned;
+
       // The lobby's inventory list (there is one), for the shop's tiles (owned).
       private static var me:InventoryList;
 
@@ -365,6 +368,10 @@ package survarium.controls
          if(this._ownedToggle != null)
          {
             this.placeOwnedToggle();
+         }
+         if(this._sellDuplicates != null)
+         {
+            this._sellDuplicates.visible = !value;
          }
       }
       
@@ -670,7 +677,8 @@ package survarium.controls
             silver += uint(item.cost / ItemPrice.SELL_DIVISOR);
          }
          Message.showMessage("apply",{
-            text:LocalizationData.format("st_srp_inventory_sell_duplicates_ask",sold.length,silver),
+            text:LocalizationData.format("st_srp_inventory_sell_duplicates_ask",sold.length),
+            silver:silver,
             label_ok:LocalizationData.getName("sell"),
             onYes:this.onSellDuplicatesYes
          },true);
@@ -742,6 +750,7 @@ package survarium.controls
          this.itemControlPanel.mouseChildren = !value;
          this.checkboxCompareItems.mouseEnabled = !value;
          this._item_control.checkButtonEnabled();
+         this.updateSellDuplicates();
       }
       
       public function lock(elementId:uint, state:Boolean) : void
@@ -1440,7 +1449,7 @@ package survarium.controls
          this.ApplyInventoryFilter(supper,inventoryTabPage.selectedIndex,sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id,filterOptions);
          dispatchEvent(new Event(Event.CHANGE));
          this.listSearchWords();
-         this.itemControlPanel.updateSellDuplicates();
+         this.updateSellDuplicates();
          if((parent))
          {
             victory_screen = parent["victory_screen"];
@@ -2129,7 +2138,49 @@ package survarium.controls
          this.checkboxCompareItems.addEventListener(ButtonEvent.CLICK,this.showCompareCheckbox);
          this.makeSearch();
          this.makeOwnedToggle();
+         this.makeSellDuplicates();
          LocalizationData.addCallback(this.onLocal,"checkbox_compare_items");
+      }
+
+      // Sell duplicates (sell-duplicates.md; the owner, 2026-11-14: "on the right in Comparing items
+      // band", the item row above being for the item selected): the lobby's own button
+      // (SrvButtonSkinned), at the right of the compare box's row; in the inventory only; greyed while
+      // there is nothing to sell or the inventory is locked.
+      private function makeSellDuplicates() : void
+      {
+         _sellDuplicates = new SrvButtonSkinned();
+         this._sellDuplicates.visible = !this.isShop;
+         this._sellDuplicates.addEventListener(ButtonEvent.CLICK,this.onSellDuplicatesClick);
+         addChild(this._sellDuplicates);
+         this.updateSellDuplicates();
+      }
+
+      // Its text's width and the row's right end, the window's margin as the compare box's from its
+      // left; centred on the row's height. Placed when the texts come.
+      private function placeSellDuplicates() : void
+      {
+         var compare:Button = this.checkboxCompareItems;
+         this._sellDuplicates.label = LocalizationData.getName("st_srp_inventory_sell_duplicates");
+         this._sellDuplicates.validateNow();
+         this._sellDuplicates.width = Math.ceil(this._sellDuplicates.textField.textWidth) + SELL_DUPLICATES_PADDING;
+         this._sellDuplicates.x = Math.round(background.width - compare.x - this._sellDuplicates.width);
+         this._sellDuplicates.y = Math.round(compare.y + (compare.height - this._sellDuplicates.height) / 2);
+      }
+
+      // The room left and right of the button's text, together.
+      private static const SELL_DUPLICATES_PADDING:int = 40;
+
+      private function updateSellDuplicates() : void
+      {
+         if(this._sellDuplicates != null)
+         {
+            this._sellDuplicates.enabled = !this._inventoryLocked && this.duplicates().length > 0;
+         }
+      }
+
+      private function onSellDuplicatesClick(event:ButtonEvent) : void
+      {
+         this.sellDuplicates();
       }
 
       // The shop's "Hide owned" check box (shop-owned-mark.md): the compare box's symbol
@@ -2194,6 +2245,7 @@ package survarium.controls
          this.fillSearchTip();
          this._ownedToggle.tipData = {name:LocalizationData.getName("st_srp_shop_not_owned_hint")};
          this.placeOwnedToggle();
+         this.placeSellDuplicates();
       }
       
       // The search box (docs/notes/item-search.md): the friends window's name box, always there,

@@ -2551,7 +2551,7 @@ st_srp_inventory_search_tip_kind_example	+šlem +čizme
 st_srp_inventory_search_tip_level	predmeti nivoa 10 ili 11
 st_srp_inventory_search_tip_level_example	+10 +11
 st_srp_inventory_sell_duplicates	Prodaj duplikate
-st_srp_inventory_sell_duplicates_ask	Predmeta za prodaju: %1$s\nSrebro: %2$s
+st_srp_inventory_sell_duplicates_ask	Predmeta za prodaju: %1$s
 st_srp_item_props_mps	m/s
 st_srp_language_option	Jezik:
 st_srp_language_restart	Primenjuje se posle ponovnog pokretanja.

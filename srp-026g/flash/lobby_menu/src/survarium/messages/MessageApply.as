@@ -10,7 +10,8 @@ package survarium.messages
    import flash.text.TextFormat;
    import flash.text.TextFormatAlign;
    import scaleform.clik.events.ButtonEvent;
-   
+   import survarium.controls.SilverPrice;
+
    public class MessageApply extends MessageAccept
    {
       
@@ -29,7 +30,11 @@ package survarium.messages
       public var textField:TextField = new TextField();
       
       public var background:Sprite = new MessageSmallBackground();
-      
+
+      // `silver` of the data: a price row under the text, the game's own price label (its silver icon),
+      // as the price windows show one (SilverPrice); none without it.
+      private var _price:SrvCostLabelShared;
+
       public function MessageApply()
       {
          super();
@@ -65,6 +70,14 @@ package survarium.messages
          if(_data && this.textField)
          {
             this.textField.text = _data.text;
+            if(_data.silver != undefined && this._price == null)
+            {
+               _price = new SrvCostLabelShared();
+               this._price.moveIcon = true;
+               this._price.textField.autoSize = TextFieldAutoSize.LEFT;
+               this._price.cost = uint(_data.silver);
+               addChild(this._price);
+            }
             addEventListener(Event.REMOVED_FROM_STAGE,this.onRemoved);
             if(_data)
             {
@@ -93,7 +106,17 @@ package survarium.messages
       protected function updateLayout() : void
       {
          this.background.width = Math.max(this.textField.width + this.textOffset * 2,150);
-         this.background.height = Math.max(this.textField.textHeight + this.textOffset * 2 + btnAccept.height + this.offset,80);
+         var priceRow:Number = 0;
+         if(this._price != null)
+         {
+            // The icon left of the amount, the two centred together, SilverPrice.GAP under the text.
+            var left:Number = this._price.icon.x;
+            var right:Number = this._price.textField.x + this._price.textField.width;
+            this._price.x = Math.round(this.background.width / 2 - (left + right) / 2);
+            this._price.y = Math.round(this.textField.y + this.textField.textHeight + SilverPrice.GAP - this._price.textField.y);
+            priceRow = SilverPrice.GAP + this._price.textField.height;
+         }
+         this.background.height = Math.max(this.textField.textHeight + priceRow + this.textOffset * 2 + btnAccept.height + this.offset,80);
          btnAccept.x = this.background.width / 2 - btnAccept.width - this.buttonsSpace / 2;
          btnAccept.y = this.background.height - btnAccept.height - this.offset;
          btnCancel.x = this.background.width / 2 + this.buttonsSpace / 2;
