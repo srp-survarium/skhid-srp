@@ -640,7 +640,12 @@ pub fn plan_start(
         Err((found, _stage)) => {
             #[cfg(test)]
             count(&found, _stage, started.elapsed().as_secs_f64() * 1e6, 0, 1);
-            Ok(finish(grid, found, allowed, weight))
+            let ended = finish(grid, found, allowed, weight);
+            // Answered before a floor was searched: the regions (or the goal's links in) rule the way out.
+            if ended.is_none() {
+                LAST_END.with(|e| e.set(Some(SearchEnd::Regions)));
+            }
+            Ok(ended)
         }
         Ok(search) => {
             let mut planning = Planning {
@@ -712,6 +717,48 @@ impl Planning {
     }
 }
 
+/// [owner-5] How the last route search on this thread ended without a way, for the log's "no way" line only
+/// (`nav_log::Kind::Route`): read at once by the caller that ran the search ([`last_end`]), never by a decision.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SearchEnd {
+    /// A way was found.
+    Found,
+    /// No way over the floors the filter lets through (the search ran out of floors).
+    NoWay,
+    /// The search's budget of floors ran out first.
+    Budget,
+    /// Answered without a floor searched: the regions, or no allowed floor links into the goal.
+    Regions,
+}
+
+impl SearchEnd {
+    fn of(found: &Search) -> Self {
+        match found {
+            Search::Found(_) => Self::Found,
+            Search::NoWay => Self::NoWay,
+            Search::TooFar => Self::Budget,
+        }
+    }
+
+    pub fn word(self) -> &'static str {
+        match self {
+            Self::Found => "found",
+            Self::NoWay => "no way over the allowed floors",
+            Self::Budget => "the search's budget ran out",
+            Self::Regions => "the regions rule it out",
+        }
+    }
+}
+
+thread_local! {
+    static LAST_END: std::cell::Cell<Option<SearchEnd>> = const { std::cell::Cell::new(None) };
+}
+
+/// [owner-5] How the last route search on this thread ended ([`SearchEnd`]), taken (the next read is the next search's).
+pub fn last_end() -> Option<SearchEnd> {
+    LAST_END.with(std::cell::Cell::take)
+}
+
 /// The route of a search that ended. A weighed search's path is pulled
 /// straight only across floors of weight 1 or its own: a line pulled across
 /// a costly floor it went round would undo the way round.
@@ -721,6 +768,7 @@ fn finish(
     allowed: impl Fn(NodeId) -> bool,
     weight: Option<&dyn Fn(NodeId) -> f32>,
 ) -> Option<Route> {
+    LAST_END.with(|e| e.set(Some(SearchEnd::of(&found))));
     match (found, weight) {
         (Search::Found(path), None) => Some(pull(grid, path.nodes, allowed)),
         (Search::Found(path), Some(w)) => {
@@ -857,7 +905,7 @@ fn pull(grid: &WalkGrid, nodes: Vec<NodeId>, allowed: impl Fn(NodeId) -> bool) -
     let (started, floors) = (std::time::Instant::now(), nodes.len() as u64);
     #[cfg(test)]
     let checks = std::cell::Cell::new(0u64);
-    let route = pull_straight(grid, nodes, &allowed, &|| {
+    let route = pull_straight(grid, nodes, &allowed, &|a, b| grid.walk_crouched(a, b), &|| {
         #[cfg(test)]
         checks.set(checks.get() + 1);
     });
@@ -873,10 +921,13 @@ fn pull(grid: &WalkGrid, nodes: Vec<NodeId>, allowed: impl Fn(NodeId) -> bool) -
     route
 }
 
+/// `walk_crouched`: whether the Walk link `a` -> `b` is one only a crouching body walks (`WalkGrid::walk_crouched`; a test
+/// marks its own).
 fn pull_straight(
     grid: &WalkGrid,
     nodes: Vec<NodeId>,
     allowed: impl Fn(NodeId) -> bool,
+    walk_crouched: &dyn Fn(NodeId, NodeId) -> bool,
     checked: &dyn Fn(),
 ) -> Route {
     // The kind of the link into each node.
@@ -887,7 +938,12 @@ fn pull_straight(
             .find(|(next, _)| *next == nodes[k])
             .map_or(LinkKind::Walk, |(_, kind)| kind);
     }
-    let low = |from: usize, to: usize| nodes[from..=to].iter().any(|&n| !grid.can_stand(n));
+    // A leg is walked crouched where a floor of its path has no standing room, or a Walk link of its path only a crouching body
+    // walks (`WalkGrid::walk_crouched`, [`mapdata::grid::WalkGait::Crouch`]: both floors may have standing room, the client's tick
+    // refuses the standing body under a low ceiling between them; nav-team's stalls s5 and s40, #1770).
+    let low = |from: usize, to: usize| {
+        nodes[from..=to].iter().any(|&n| !grid.can_stand(n)) || nodes[from..=to].windows(2).any(|w| walk_crouched(w[0], w[1]))
+    };
     // A line pulled straight crosses no lip, and no floor near a fall or
     // a lip ([`WalkGrid::near_fall`], [`WalkGrid::near_lip`]), that the
     // search kept off ([`WalkGrid::is_lip`]): cutting a corner over a
@@ -1001,13 +1057,28 @@ fn pull_straight(
         // Cologne: 725 of 164,001 legs not marked low crossed such a floor, the census
         // `pulled_legs_under_low_ceilings_on_a_real_map`).
         let room = |n: NodeId, upto: usize| grid.can_stand(n) || nodes[i..=upto].contains(&n);
+        // Likewise a Walk link only a crouching body walks: the line crosses one only where the path's own links of the leg do.
+        // `walks_straight` asks for the floors in the line's order, so the floor before is the link's start.
+        let crouch_link = |a: NodeId, b: NodeId, upto: usize| {
+            walk_crouched(a, b) && !nodes[i..=upto].windows(2).any(|w| w[0] == a && w[1] == b)
+        };
         while j + 1 < nodes.len() && into[j + 1] == LinkKind::Walk && {
             checked();
-            if to_drop[j + 1] {
-                straight_where(grid, nodes[i], nodes[j + 1], |n| allowed(n) && room(n, j + 1))
+            let (before, crouch_end) = (std::cell::Cell::new(nodes[i]), std::cell::Cell::new(false));
+            let line = |n: NodeId| {
+                let a = before.replace(n);
+                let crouch = crouch_link(a, n, j + 1);
+                // The walk takes the end floor whatever `allowed` says: a crouch link into it is refused here (`line` is asked first, so
+                // it sees every floor in order).
+                crouch_end.set(crouch_end.get() || (crouch && n == nodes[j + 1]));
+                room(n, j + 1) && !crouch
+            };
+            let walks = if to_drop[j + 1] {
+                straight_where(grid, nodes[i], nodes[j + 1], |n| line(n) && allowed(n))
             } else {
-                straight_where(grid, nodes[i], nodes[j + 1], |n| kept_back(n) && room(n, j + 1))
-            }
+                straight_where(grid, nodes[i], nodes[j + 1], |n| line(n) && kept_back(n))
+            };
+            walks && !crouch_end.get()
         } {
             j += 1;
         }
@@ -1927,6 +1998,49 @@ mod tests {
             assert!(!low || to.low, "leg {:?} -> {:?} goes under the slab standing", from.at, to.at);
         }
         assert!(route.points.iter().all(|p| !p.low), "the way round has room to stand");
+    }
+
+    /// A Walk link only a crouching body walks ([`mapdata::grid::WalkGait::Crouch`]: the walk check's standing body refused under a
+    /// low ceiling between two floors that both have standing room, #1770): the route's leg over it is walked crouched
+    /// ([`Waypoint::low`]), and a line pulled straight crosses such a link only where the path does (nav-team's stalls s5 and
+    /// s40). The links are marked here as the grid's walk check marks them (`WalkGrid::walk_crouched`).
+    #[test]
+    fn a_link_only_a_crouching_body_walks_is_walked_crouched() {
+        use crate::v026g::bots::body::tests::floor;
+        let triangles = floor(0.0, 0.0, 10.0, 6.0, 0.0).to_vec();
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 10.0, 6.0], 0.25, mapdata::Body::default());
+        let at = |x: f32, z: f32| grid.locate(Vec3::new(x, 0.0, z), 0.3).unwrap();
+        // Every Walk link crossing x = 5 at z under 4 is crouch-only (a beam over z 0-4 at x 5); round it, z 4-6, is free.
+        let crouch = |a: NodeId, b: NodeId| {
+            let (pa, pb) = (grid.position(a), grid.position(b));
+            (pa.x - 5.0) * (pb.x - 5.0) < 0.0 && pa.z.max(pb.z) < 4.0
+        };
+        // A path straight under the beam: the leg over it is low; the legs before and after it are not walked crouched for it.
+        let path = grid.path(at(2.0, 2.0), at(8.0, 2.0)).unwrap();
+        let route = pull_straight(&grid, path.nodes, |_| true, &crouch, &|| {});
+        let over = |k: usize| route.points[k - 1].at.x < 5.0 && route.points[k].at.x > 5.0;
+        assert!((1..route.points.len()).any(over), "{:?}", route.points);
+        for k in 1..route.points.len() {
+            assert_eq!(route.points[k].low, over(k), "leg {k}: {:?}", route.points);
+        }
+        // Without the marks the same path is all standing.
+        let path = grid.path(at(2.0, 2.0), at(8.0, 2.0)).unwrap();
+        assert!(pull_straight(&grid, path.nodes, |_| true, &|_, _| false, &|| {}).points.iter().all(|p| !p.low));
+        // A path round the beam (searched over z 4-6) is not pulled straight under it: no leg crosses a crouch link standing.
+        let path = grid.path_where(at(2.0, 3.0), at(8.0, 3.0), |n| (grid.position(n).x - 5.0).abs() > 0.3 || grid.position(n).z > 4.0).unwrap();
+        let nodes = path.nodes.clone();
+        let route = pull_straight(&grid, path.nodes, |_| true, &crouch, &|| {});
+        assert!(nodes.windows(2).all(|w| !crouch(w[0], w[1])), "the search went round");
+        for k in 1..route.points.len() {
+            let (a, b) = (route.points[k - 1].node, route.points[k].node);
+            let crossed = std::cell::RefCell::new(vec![a]);
+            assert!(grid.walks_straight(a, b, f32::INFINITY, |n| {
+                crossed.borrow_mut().push(n);
+                true
+            }));
+            let under = crossed.borrow().windows(2).any(|w| crouch(w[0], w[1]));
+            assert!(!under, "leg {:?} -> {:?} cut under the beam standing", route.points[k - 1].at, route.points[k].at);
+        }
     }
 
     /// A census on a real map's grid (nav-team's stall s5, Cologne): of the walked legs of random routes that the route does not

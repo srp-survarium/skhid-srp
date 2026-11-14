@@ -25,14 +25,34 @@
 //!     0x7F7F0) where the tables carry it; the jump flag is the jump's (below);
 //!   - the jump (fx-team): the clip by `Clip::of` from the press, its root re-based on the body each tick, the take-off at the
 //!     clip's jump event (the controller's jump flag), air control, `end_jump` at its last frame; the presses the stamina bar
-//!     refuses start none.
+//!     refuses start none;
+//!   - [yardstick, owner-5 R5] what world b already knows of the second after it:
+//!     - the walking body's world is the game's own shapes (`Collision::build_exe`: the placed objects as the game holds them,
+//!       met by the exe's cast; `exactness_rig.md` 2, P8), not the export's triangles;
+//!     - a hit's stagger from world b's recent hits (`m_recent_hits`): the speed factor less min(the stopping speeds of the hits
+//!       of the last 0.5 s, 0.5), and no sprint while it is not zero (`update_stagger` 0x2DBCD0, `can_sprint` 0x2DBF40;
+//!       `stagger_and_legs.md`, PROVEN); applied to the walk and the cap at once (the client's 0.3 s rate blend for gaits under
+//!       the cap is not here);
+//!     - a reload: from a RELOAD press for the shortest reload the weapon in hands can have (the table's `reload_ms`,
+//!       `srp-rec-table`: the weapon is busy at least that long whatever the rounds left), no sprint and no aimed clip
+//!       (`weapon_core::can_sprint` 0x2E3A10 needs the weapon idle, `sprint_state.md`; the clip's aim is the weapon's +5E8h,
+//!       0x2E1110 / 0x335F35, `walk_blend.md`). Taken at every press: a press with a full magazine starts no reload in the
+//!       client, and the tables do not carry the rounds;
+//!     - the jump gate for a press before b: it starts no jump when the crouch key was held at the press or the press was
+//!       masked (a leg wound, a battery), when world b's capsule is crouched (`on_ground` 0x7EF90 is false while the capsule's
+//!       +203h is set, `crouch_logic.md`), or when the clip is past its take-off and world b's jump flag (+2C70Ch) is clear;
+//!     - the enemies' meeting (`bullet_physics_world::tick` 0x75550, `collision_world.md`): an enemy whose segment (feet
+//!       +- 0.12 m) comes under 0.76 m of the body's and was not that close at the tick's start sends the body back to where the
+//!       tick began, its fall and slide velocity 0. The other bodies between two worlds are this test's choice: a straight
+//!       line from their feet at b to their feet at t.
 //!
 //! Env: `SRP_A304_WORLDS`, `SRP_A304_INPUTS`, `SRP_A304_MAP`, `SRP_MAPDATA_DIR`, `SRP_BENCH_TUNING` as the lab; `SRP_A325_REC` the
 //! recording's id; `SRP_A325_OUT` the per-tick rows (and `<out>.check`, one line an interval); `SRP_A325_NO_JUMP=1` leaves the
 //! jumps out; `SRP_A325_ROWS_NEAR_JUMP=1` keeps only the rows within 2.5 s after a press; `SRP_A325_WINDOWS` a rows file
 //! `rec,place,t0,t1` (only those worlds). The optional columns read from the tables (fx-bench's tables-v6): `speeds`, `carrying`
 //! in rec_worlds.csv; `normal_x/y/z`, `fall_x/y/z`, `slide_x/y/z`, `ceil_x/y/z`, `leg6`, `leg7`, `leg_damage_until`, `parts_speed`
-//! in the rec_motion.csv beside it. Scripts and the acceptance table: private/pvb-343-check/traces-20261028/fx-smoke/a325.
+//! in the rec_motion.csv beside it. The yardstick's: `reload_ms` in rec_worlds.csv, `recent`, `jumping`, `capsule_crouch` in
+//! rec_motion.csv, `team` in rec_levels.csv (`srp-rec-table`); a table set without them leaves those pieces out. Scripts and the acceptance table: private/pvb-343-check/traces-20261028/fx-smoke/a325.
 
 use std::collections::HashMap;
 
@@ -116,9 +136,10 @@ fn reference_replay() {
     let kin = tuning.kin.clone();
     let file = std::path::Path::new(&dir).join(mapdata::format::file_name(&project));
     let map = mapdata::MapData::read(&file).unwrap_or_else(|e| panic!("{}: {e}", file.display()));
-    // The controller rules the server's grid uses (the exe's caster and wall normal with `grid.exe_collision`).
-    let (caster, s): (_, Settings) = tuning.grid_body().controller();
-    let collision = Collision::build(&map.walker_triangles()).with_caster(caster);
+    // The controller rules the server's grid uses (the exe's wall normal with `grid.exe_collision`); the walking body's world is
+    // the game's own shapes (`Collision::build_exe`, the exe's cast).
+    let (_, s): (_, Settings) = tuning.grid_body().controller();
+    let collision = Collision::build_exe(&map).unwrap_or_else(|| panic!("{}: no game shapes (a map file older than format 6)", file.display()));
     let world = World::build_with(
         map,
         mapdata::CELL,
@@ -144,9 +165,20 @@ fn reference_replay() {
     let motion = std::path::Path::new(&worlds).with_file_name("rec_motion.csv");
     let mut block_of: HashMap<(u32, usize), Block> = HashMap::new();
     let mut parts_of: HashMap<(u32, usize), Parts> = HashMap::new();
+    // [yardstick] World b's recent hits (`time`, stopping speed) and its controller's flags (jump flag, capsule crouched).
+    let mut hits_of: HashMap<(u32, usize), Vec<(u32, f32)>> = HashMap::new();
+    let mut flags_of: HashMap<(u32, usize), Flags> = HashMap::new();
     for r in read_csv_if(&motion) {
         let Some(key) = at(&r) else { continue };
         let num = |k: &str| r.get(k).and_then(|v| v.parse::<f32>().ok());
+        if let Some(list) = r.get("recent") {
+            let hits = list.split(';').filter_map(|h| h.split_once(':')).filter_map(|(t, v)| Some((t.parse().ok()?, v.parse().ok()?)));
+            hits_of.insert(key, hits.collect());
+        }
+        let bit = |k: &str| r.get(k).filter(|v| !v.is_empty()).map(|v| v == "1");
+        if let (Some(jumping), Some(capsule_crouch)) = (bit("jumping"), bit("capsule_crouch")) {
+            flags_of.insert(key, Flags { jumping, capsule_crouch });
+        }
         let v3 = |a: &str, b: &str, c: &str| Some(Vec3::new(num(a)?, num(b)?, num(c)?));
         if let (Some(normal), Some(velocity), Some(slide), Some(ceiling)) = (
             v3("normal_x", "normal_y", "normal_z"),
@@ -195,6 +227,27 @@ fn reference_replay() {
         fix: Fix,
     }
     let world_rows = read_csv(&worlds);
+    // [yardstick] Each living body's feet by world time (the enemies' meeting), each roster place's team (rec_levels.csv beside),
+    // and the weapon in hands' reload by world.
+    let mut feet_at: HashMap<u32, Vec<(usize, Vec3)>> = HashMap::new();
+    let mut reload_of: HashMap<(u32, usize), u32> = HashMap::new();
+    for r in &world_rows {
+        let Some(key) = at(r) else { continue };
+        let num = |k: &str| r.get(k).and_then(|v| v.parse::<f32>().ok()).filter(|v| v.is_finite());
+        if r.get("upload").map(String::as_str) == Some("0")
+            && r.get("alive").map(String::as_str) == Some("1")
+            && let (Some(x), Some(y), Some(z)) = (num("fx"), num("fy"), num("fz"))
+        {
+            feet_at.entry(key.0).or_default().push((key.1, Vec3::new(x, y, z)));
+        }
+        if let Some(ms) = r.get("reload_ms").and_then(|v| v.parse::<u32>().ok()) {
+            reload_of.insert(key, ms);
+        }
+    }
+    let team_of: HashMap<usize, u32> = read_csv_if(&std::path::Path::new(&worlds).with_file_name("rec_levels.csv"))
+        .iter()
+        .filter_map(|r| Some((r.get("place")?.parse().ok()?, r.get("team")?.parse().ok()?)))
+        .collect();
     for r in &world_rows {
         let Some(key) = at(r) else { continue };
         let speeds: Vec<f32> = r.get("speeds").map(|v| v.split(';').filter_map(|x| x.parse::<f32>().ok()).collect()).unwrap_or_default();
@@ -308,7 +361,26 @@ fn reference_replay() {
         let one_leg = matches!(legs, Legs::One { until } if until > t0);
         // A battery carrier never sprints (fx-zones #1424 carrier_sprint); one leg holding leg_damage: no sprint, no jump.
         let mask = if carrying { !key::SPRINT } else { u32::MAX } & if one_leg { !(key::SPRINT | key::JUMP) } else { u32::MAX };
-        let keys_in = |t: u32| keys_of.get(&w.place).and_then(|v| v.iter().rev().find(|&&(tt, _)| tt <= t).map(|&(_, k)| k)).unwrap_or(0) & mask;
+        let keys_raw = |t: u32| keys_of.get(&w.place).and_then(|v| v.iter().rev().find(|&&(tt, _)| tt <= t).map(|&(_, k)| k)).unwrap_or(0);
+        // [yardstick] World b's hits: the stagger at tick k (`update_stagger` 0x2DBCD0).
+        let hits: &[(u32, f32)] = hits_of.get(&(t0, w.place)).map_or(&[], Vec::as_slice);
+        let stagger_at = |k: u32| hits.iter().filter(|&&(ht, _)| ht <= k && k - ht < 500).map(|&(_, v)| v).sum::<f32>().min(0.5);
+        // [yardstick] A RELOAD press holds the weapon busy at least the shortest reload of the weapon in hands (world b's).
+        let reload = reload_of.get(&(t0, w.place)).copied();
+        let reloading = |k: u32| {
+            reload.is_some_and(|ms| {
+                let v = keys_of.get(&w.place).map_or(&[][..], Vec::as_slice);
+                let from = k.saturating_sub(ms);
+                let i = v.partition_point(|&(tt, _)| tt < from.saturating_sub(TICK_MS));
+                v[i..].windows(2).any(|p| p[1].0 >= from && p[1].0 <= k && p[1].1 & key::RELOAD != 0 && p[0].1 & key::RELOAD == 0)
+            })
+        };
+        let keys_in = |t: u32| keys_raw(t) & mask & if stagger_at(t) > 0.0 || reloading(t) { !key::SPRINT } else { u32::MAX };
+        // The clip's keys: no aimed clip while the weapon reloads.
+        let ckeys = |k: u32| {
+            let kk = keys_in(k) & CLIP_KEYS;
+            if reloading(k) { kk & !key::AIM } else { kk }
+        };
         let jumped = keys_of.get(&w.place).is_some_and(|v| v.iter().any(|&(t, k)| t > t0 && t <= w.time && k & key::JUMP != 0));
         // The start state: the previous interval's controller (the jump flag is the jump's), else standing; the world's own block on top.
         let mut body = match carried.get(&w.place) {
@@ -332,9 +404,9 @@ fn reference_replay() {
         }
         // The clip stack at b: the keys of the 8 ticks before b played through the ramp.
         let k0 = t0.saturating_sub(TICK_MS * 8);
-        let mut layers: Vec<(Local, u32, u32)> = vec![(key_clip(keys_in(k0) & CLIP_KEYS), 0, keys_in(k0) & CLIP_KEYS)];
+        let mut layers: Vec<(Local, u32, u32)> = vec![(key_clip(ckeys(k0)), 0, ckeys(k0))];
         for k in (k0 + TICK_MS..t0).step_by(TICK_MS as usize) {
-            let kk = keys_in(k) & CLIP_KEYS;
+            let kk = ckeys(k);
             if layers.last().is_some_and(|l| l.2 != kk) {
                 layers.push((key_clip(kk), k, kk));
             }
@@ -366,18 +438,26 @@ fn reference_replay() {
         let mut kyaw = yaw_b - turn_at(t0);
         let presses: &[u32] = presses_of.get(&w.place).map_or(&[], Vec::as_slice);
         let walk_speed = |k: u32| {
-            let c = key_clip(keys_in(k) & CLIP_KEYS);
+            let c = key_clip(ckeys(k));
             c[0].hypot(c[1]) * level
         };
-        let cap_of = |kk: u32| {
+        let cap_at = |kk: u32, level: f32| {
             let gait = if sprint_input(kk) && kk & key::AIM == 0 { Gait::Sprint } else { Gait::Move { stance: Stance::Stand, heading: Heading::Forward, aiming: false } };
             speed::cap(gait, level)
         };
+        let cap_of = |kk: u32| cap_at(kk, level);
         // A jump pressed before b and not over by b is under way at b.
         let mut jump: Option<RefJump> = None;
         if jump_mode && let Some(&p) = presses.iter().rev().find(|&&p| p < t0) {
             let mut j = RefJump::new(p, keys_in(p), walk_speed(p.saturating_sub(TICK_MS)), from);
-            if j.frame(t0) < j.clip.air_end_frame() - 1e-3 {
+            // [yardstick] The client could not jump at that press: the crouch key held or the press masked, world b's capsule
+            // crouched, or the clip past its take-off with world b's jump flag clear.
+            let flags = flags_of.get(&(t0, w.place));
+            let gated = keys_raw(p) & key::CROUCH != 0
+                || keys_in(p) & key::JUMP == 0
+                || flags.is_some_and(|f| f.capsule_crouch)
+                || (j.frame(t0) >= TAKEOFF_FRAME && flags.is_some_and(|f| !f.jumping));
+            if !gated && j.frame(t0) < j.clip.air_end_frame() - 1e-3 {
                 if j.frame(t0) >= TAKEOFF_FRAME {
                     j.phase = RefPhase::Air;
                     body.jumping = true;
@@ -385,6 +465,18 @@ fn reference_replay() {
                 jump = Some(j);
             }
         }
+        // [yardstick] The enemies alive at b and at t: their feet at both.
+        let enemies: Vec<(Vec3, Vec3)> = {
+            let mine = team_of.get(&w.place);
+            let at_t = feet_at.get(&w.time).map_or(&[][..], Vec::as_slice);
+            feet_at
+                .get(&t0)
+                .map_or(&[][..], Vec::as_slice)
+                .iter()
+                .filter(|&&(q, _)| q != w.place && mine.is_some() && team_of.get(&q) != mine)
+                .filter_map(|&(q, a)| at_t.iter().find(|&&(q2, _)| q2 == q).map(|&(_, b)| (a, b)))
+                .collect()
+        };
         let mut iv = String::new();
         let mut yaw = yaw_b;
         let mut was_air = false;
@@ -395,7 +487,7 @@ fn reference_replay() {
             if k > t0 {
                 kyaw += turn_at(k - TICK_MS);
             }
-            let kk = keys_in(k) & CLIP_KEYS;
+            let kk = ckeys(k);
             if layers.last().is_none_or(|l| l.2 != kk) {
                 layers.push((key_clip(kk), k, kk));
             }
@@ -413,8 +505,9 @@ fn reference_replay() {
                 }
             }
             layers.drain(..layers.len() - keep);
-            let mut local = [sum[0] * level, sum[1] * level];
-            let cap = cap_of(keys_in(k));
+            let lk = (level - stagger_at(k)).max(0.0);
+            let mut local = [sum[0] * lk, sum[1] * lk];
+            let cap = cap_at(keys_in(k), lk);
             let len = local[0].hypot(local[1]);
             if len > cap {
                 local = [local[0] * cap / len, local[1] * cap / len];
@@ -444,6 +537,16 @@ fn reference_replay() {
             }
             let sprinting = sprint_input(keys) && keys & key::AIM == 0;
             let notes = body.step_as(&collision, TICK_S, &s, sprinting);
+            // [yardstick] The enemies' meeting after the step (0x75550).
+            let u = |time: u32| (time - t0) as f32 / (w.time - t0) as f32;
+            let (u0, u1) = (u(t - TICK_MS), u(t));
+            let now_f = body.feet();
+            if enemies.iter().any(|&(a, b)| apart(now_f, a + (b - a) * u1) < MEET_M && apart(was, a + (b - a) * u0) >= MEET_M) {
+                let back = was - now_f;
+                body.origin = body.origin + back;
+                body.pos = body.pos + back;
+                body.velocity = Vec3::ZERO;
+            }
             if ended {
                 jump = None;
             }
@@ -514,6 +617,26 @@ fn reference_replay() {
         100.0 * close as f64 / n.max(1) as f64,
         100.0 * far as f64 / n.max(1) as f64
     );
+}
+
+/// [yardstick] World b's controller flags the jump gate reads.
+#[derive(Clone, Copy)]
+struct Flags {
+    /// The jump flag (+2C70Ch).
+    jumping: bool,
+    /// The capsule crouched (+203h).
+    capsule_crouch: bool,
+}
+
+/// [yardstick] Two bodies meet under this, m (0x75550, `collision_world.md`).
+const MEET_M: f32 = 0.76;
+
+/// [yardstick] How far apart two bodies' segments are (each the feet +- 0.12 m up the body's axis, 0x75550): the flat distance and
+/// what is left of the height difference past 0.24 m.
+fn apart(a: Vec3, b: Vec3) -> f32 {
+    let flat = (a.x - b.x).hypot(a.z - b.z);
+    let up = ((a.y - b.y).abs() - 0.24).max(0.0);
+    flat.hypot(up)
 }
 
 /// The median of the last 5 reads (a world whose body was held by a wall reads low; one read must not set a life's level).

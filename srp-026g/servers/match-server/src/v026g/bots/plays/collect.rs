@@ -951,16 +951,39 @@ impl Crossing {
     /// at the walk's price), and, for a team behind, the bigger share ([`ZoneTakeBehind`]). `behind`: the team is behind by the
     /// rule's points or more.
     pub fn fits_zone_take(&self, budget: &Budget, rule: &ZoneTake, behind: bool) -> bool {
+        let (cost, share, left) = self.zone_take_terms(rule, behind);
+        self.fits_by(budget, cost, share, left)
+    }
+
+    /// [take.zone_take] The cost, the share and the reserve [`Self::fits_zone_take`] weighs.
+    fn zone_take_terms(&self, rule: &ZoneTake, behind: bool) -> (Cost, f32, f32) {
         let cost = self.leg * (CROSS_MPS / rule.in_mps) + self.leg_out + self.at_per_s * CROSS_TAKE_S;
         match rule.behind.filter(|_| behind) {
-            Some(b) => self.fits_by(budget, cost, b.share, b.left),
-            None => self.fits_by(budget, cost, CROSS_SHARE, CROSS_LEFT),
+            Some(b) => (cost, b.share, b.left),
+            None => (cost, CROSS_SHARE, CROSS_LEFT),
         }
     }
 
+    /// [owner-5] Why a bot with `budget` does not make it ([`Self::fits`], or [`Self::fits_zone_take`] with `rule`), as the
+    /// log writes it; `None`: it does.
+    pub fn refusal(&self, budget: &Budget, rule: Option<(&ZoneTake, bool)>) -> Option<String> {
+        let (cost, share, left) = match rule {
+            Some((rule, behind)) => self.zone_take_terms(rule, behind),
+            None => (self.cost(), CROSS_SHARE, CROSS_LEFT),
+        };
+        self.refusal_by(budget, cost, share, left)
+    }
+
+    /// [`Self::fits_by`]'s tests, the first that fails as the log writes it.
+    fn refusal_by(&self, budget: &Budget, cost: Cost, share: f32, left: f32) -> Option<String> {
+        if self.routed && budget.health() < START_HEALTH {
+            return Some(format!("a routed crossing at health {:.3}, under {START_HEALTH:.2}", budget.health()));
+        }
+        budget.reserve.refusal(cost, share, left)
+    }
+
     fn fits_by(&self, budget: &Budget, cost: Cost, share: f32, left: f32) -> bool {
-        let borne = (!self.routed || budget.health() >= START_HEALTH)
-            && budget.reserve.bears(cost, share, left);
+        let borne = self.refusal_by(budget, cost, share, left).is_none();
         #[cfg(test)]
         {
             if budget.armour.is_some() {
@@ -1340,6 +1363,12 @@ impl Ctx<'_> {
         }
     }
 
+    /// [owner-5] Why this bot does not make `crossing` ([`Self::crossing_bears`]'s rule), as the log writes it.
+    pub fn crossing_refusal(&self, crossing: &Crossing, budget: &Budget) -> Option<String> {
+        let rule = self.tuning.take.zone_take.map(|rule| (rule, rule.behind.is_some_and(|b| self.sig.score_gap <= -b.by)));
+        crossing.refusal(budget, rule.as_ref().map(|(rule, behind)| (rule, *behind)))
+    }
+
     /// [take.zone_take] The pace of a walk to a zone battery or its look spot: a sprint with the switch on, else `pace`.
     pub fn zone_pace(&self, pace: Pace) -> Pace {
         if self.tuning.take.zone_take.is_some() { Pace::Run } else { pace }
@@ -1419,7 +1448,13 @@ impl Ctx<'_> {
             let Some(crossing) = self.crossing(at) else {
                 return Some("no crossing to its zone");
             };
-            if !self.crossing_bears(&crossing, &self.budget()) {
+            let budget = self.budget();
+            if !self.crossing_bears(&crossing, &budget) {
+                // [owner-5] The term that refused it, against its limit, for the log (one line per battery and term).
+                if let Some(term) = self.crossing_refusal(&crossing, &budget) {
+                    let key = crate::v026g::bots::nav_log::key(("zone", (at.x * 4.0) as i32, (at.z * 4.0) as i32, term.split(':').next().unwrap_or("")));
+                    self.lines.push(crate::v026g::bots::nav_log::Kind::Zone, Some(key), crate::v026g::bots::nav_log::zone_line(at, &term));
+                }
                 return Some("its zone hurts too much");
             }
             crossing.edge
@@ -1567,6 +1602,15 @@ pub fn note_take_blocks(
     notes
 }
 
+/// [owner-5] A spawner the battery search skipped (`take.zone_look`, `take.zone_take`): one line per bot, spawner and
+/// filter in a match (A354, C6: which filter drops a zone's spawners). `shut`: no way to it all match, else its battery
+/// cannot be taken where it lies (a zone's).
+fn spawner_skipped(cx: &Ctx, index: usize, item: Vec3, shut: bool, filter: &str) {
+    let why = format!("{filter} ({})", if shut { "no way to it all match" } else { "not takeable where it lies" });
+    let key = crate::v026g::bots::nav_log::key(("spawner", index, filter));
+    cx.lines.push(crate::v026g::bots::nav_log::Kind::Spawner, Some(key), crate::v026g::bots::nav_log::spawner_line(index, item, &why));
+}
+
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     if !cx.view.objective().has_homes() {
         return;
@@ -1692,6 +1736,8 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
             None
         } else {
             let Some(spot) = cx.zone_look_at(item) else {
+                // [owner-5] The log's line: the spot the search skips, and the filter (A354, C6).
+                spawner_skipped(cx, i, item, shut[k], "take.zone_look: no dry look spot in sight of it");
                 continue;
             };
             // [take.zone_take] Only where a battery there could be taken (a crossing a team behind bears at the bot's pools now):
@@ -1699,6 +1745,7 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
             if let Some(rule) = cx.tuning.take.zone_take
                 && !cx.crossing(item).is_some_and(|c| c.fits_zone_take(&cx.budget(), &rule, rule.behind.is_some()))
             {
+                spawner_skipped(cx, i, item, shut[k], "take.zone_take: its crossing not borne");
                 continue;
             }
             take_counts::count(take_counts::Count::ZoneLookOffered);
@@ -2828,6 +2875,30 @@ mod tests {
     use mapdata::{Rotation, Shape, ShapeKind, Vec3, Zone, ZoneKind};
 
     use super::*;
+
+    /// [owner-5] `Crossing::refusal` is the fits' own tests: none exactly when the crossing fits (plain, and by
+    /// `take.zone_take` ahead or behind), and a routed crossing under the start health names that first.
+    #[test]
+    fn a_crossing_refusal_is_none_exactly_when_it_fits() {
+        use crate::v026g::bots::zone_cost::Budget;
+        let rule = ZoneTake::default();
+        for routed in [false, true] {
+            for leg in [0.0f32, 0.05, 0.1, 0.2, 0.35] {
+                for health in [0.3f32, 0.6, 1.0] {
+                    let leg = Cost { body: leg, ..Cost::ZERO };
+                    let c = Crossing { edge: Vec3::ZERO, leg, leg_out: leg, at_per_s: Cost { body: 0.01, ..Cost::ZERO }, routed, walk_m: 5.0 };
+                    let budget = Budget::raw(health);
+                    assert_eq!(c.fits(&budget), c.refusal(&budget, None).is_none(), "{c:?} {health}");
+                    for behind in [false, true] {
+                        assert_eq!(c.fits_zone_take(&budget, &rule, behind), c.refusal(&budget, Some((&rule, behind))).is_none());
+                    }
+                }
+            }
+        }
+        let low = Crossing { edge: Vec3::ZERO, leg: Cost::ZERO, leg_out: Cost::ZERO, at_per_s: Cost::ZERO, routed: true, walk_m: 1.0 };
+        let why = low.refusal(&Budget::raw(0.1), None).unwrap();
+        assert!(why.starts_with("a routed crossing at health 0.100"), "{why}");
+    }
     use crate::v026g::bots::plays::tests::Scenario;
     use crate::v026g::bots::tactics::Tactics;
     use crate::v026g::bots::view::{BatteryState, Mode};

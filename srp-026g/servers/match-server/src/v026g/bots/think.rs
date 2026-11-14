@@ -1306,6 +1306,7 @@ pub(super) fn decide(
         tactics,
         tuning,
         memo,
+        lines: Default::default(),
     };
     let mut rng = bot.rng.clone();
     #[cfg(test)]
@@ -1329,6 +1330,8 @@ pub(super) fn decide(
         }
     };
     bot.rng = rng;
+    // [owner-5] The log's lines the play's step wrote.
+    super::nav_log::Lines::write(cx.lines.take(), &mut bot.nav_log, now);
     let step_name = running.step_name();
     #[cfg(test)]
     if crossfire_going && step_name == "Hold" {

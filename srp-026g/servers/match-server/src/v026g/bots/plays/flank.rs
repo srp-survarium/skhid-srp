@@ -1166,6 +1166,38 @@ mod tests {
         );
     }
 
+    /// [owner-5] A job role's offer writes its outcome to the log (`nav_log::Kind::Role`), once per role, spot, holding
+    /// and outcome: asked again, the same outcome writes nothing new to the bot's log.
+    #[test]
+    fn a_job_offer_writes_its_outcome_to_the_log_once() {
+        use crate::v026g::bots::nav_log::{Kind, Lines, NavLog};
+        use crate::v026g::bots::threat::{HeldLine, Holder, Job, Picture};
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        let me = Vec3::new(20.0, 0.0, 35.0);
+        let him = Vec3::new(60.0, 0.0, 12.0);
+        s.bot(0, 0, me);
+        let now = s.view.clock;
+        let line = HeldLine::for_test(7, 15, him, &[Vec3::new(45.0, 0.0, 12.0)], Some(now));
+        let job = Job::of(7, 15, Some(Holder { place: 0, since: now }), None);
+        s.team.threat = std::sync::Arc::new(Picture { held: vec![line], jobs: vec![job], ..Picture::default() });
+        s.tuning.threat.job = true;
+        let mut log = NavLog::default();
+        for _ in 0..3 {
+            let cx = s.cx(0);
+            let mut out = Vec::new();
+            candidates(&cx, &mut out);
+            let lines = cx.lines.take();
+            let role: Vec<_> = lines.iter().filter(|(kind, _, _)| *kind == Kind::Role).collect();
+            assert_eq!(role.len(), 1, "{lines:?}");
+            let text = &role[0].2;
+            assert!(text.starts_with("nav: job role flanker on ThreatSpot(7) (Flank): "), "{text}");
+            let outcome = text.trim_start_matches("nav: job role flanker on ThreatSpot(7) (Flank): ");
+            assert!(["offered", "no_spot", "set_aside", "dry", "low_health"].iter().any(|o| outcome.starts_with(o)), "{text}");
+            Lines::write(lines, &mut log, now);
+        }
+        assert_eq!(log.take().len(), 1, "three asks, one line");
+    }
+
     /// [A320 `threat.camp_flank`] With the switch on, the job's flanker on a held spot at a known camp spot of the other
     /// side walks the table's route to its firing floor and watches him there; off, the job's flank is as before.
     #[test]
