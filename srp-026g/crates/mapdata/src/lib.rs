@@ -325,7 +325,10 @@ impl World {
     /// bench's grid is the server's: the bench built its rim jumps on the walker triangles while the store flew them on the
     /// shapes.
     pub fn map_grid(map: &MapData, walker: &[Triangle], cell: f32, body: Body, links: OffMeshLinks) -> WalkGrid {
-        let shapes = body.rim_jumps.then(|| controller::Collision::build_exe(map)).flatten();
+        // [A389] Every pass that walks or flies the client's body takes the shapes: the rim jumps, the gap flights, the Drop links'
+        // walk, the rest and held floors.
+        let flown = body.rim_jumps || body.gap_flights || body.rest_floors || body.held_floors || (body.drop_check && body.drop_lands);
+        let shapes = flown.then(|| controller::Collision::build_exe(map)).flatten();
         let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
         let area = map.play_area(AREA_MARGIN);
         WalkGrid::build_kept_with_shapes(walker, shapes.as_ref(), area, cell, body, &map.grid_seeds(), &spawns, links).0
