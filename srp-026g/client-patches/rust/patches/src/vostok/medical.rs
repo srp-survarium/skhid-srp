@@ -483,7 +483,7 @@ pub fn protect(ctx: &mut Context<'_>) {
 /// becomes active and its holder has the share (Medic's bit, which skill 542 sets), each living
 /// teammate within Cascade's reach plays the kind's own activation glow for the active's length (as
 /// its holder does: Spring blue, Lifebone green, Onyx orange), and a Lifebone's also does to it what
-/// its active does to its holder (the configured affects removed, body, head and pain full). The
+/// its active does to its holder (the configured affects removed, every body part full). The
 /// places reached are the copy's for its whole active (patch 109's aura gives a Spring's and an
 /// Onyx's active to them where it is used, wherever they go, `artefact_skills::activate`); an
 /// activation without the share reaches none.
@@ -524,7 +524,9 @@ pub fn share_active(ctx: &mut Context<'_>) {
     }
 }
 
-/// A Lifebone's active on `target`: its configured affects removed, body, head and pain full.
+/// A Lifebone's active on `target`: its configured affects removed and every body part full, as
+/// patch 54 fills its holder's (artefacts_026g.asm `heals`; the limbs too since the owner's
+/// 2026-11-14 report), each to its own maximum. `infection` is not a body part and is left.
 ///
 /// # Safety
 /// `item` is the activating Lifebone (its removed-affect records its own), `target` a live player
@@ -543,7 +545,7 @@ unsafe fn heal_as_lifebone(item: raw::MedicalArtefact, target: Player<'_>, time:
                 }
             }
         }
-        for name in [c"body", c"head", c"pain"] {
+        for name in [c"body", c"head", c"pain", c"left_hand", c"right_hand", c"left_leg", c"right_leg"] {
             if let Some(pool) = target.pool(name) {
                 raw::engine_increase_health(Some(pool), time, *pool.maximum());
             }
