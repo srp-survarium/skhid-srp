@@ -403,6 +403,9 @@ pub struct Bot {
     /// [A386] The body's own walk cap this tick (set before the drive, from the reckoning's speed level), for the sprint jump's
     /// speed test ([`motor::WalkCap`]).
     walk_cap: motor::WalkCap,
+    /// [A386] Whether the reckoned body is on the ground or in a jump or a fall this tick (set before the drive), for the let-go
+    /// after a reckoned landing ([`motor::Footing`]).
+    footing: motor::Footing,
     /// Since when it stands for want of a world (`UnstickTuning::blind_stop_ms`); none: it walks as it will.
     blind_since: Option<u32>,
     /// Ticks left of a jump held with the trigger let go ([`JUMP_HOLD_MS`]),
@@ -615,6 +618,7 @@ impl Bot {
             unstick: None,
             held_short_m: 0.0,
             walk_cap: motor::WalkCap::default(),
+            footing: motor::Footing::default(),
             blind_since: None,
             jump_hold: 0,
             jump_crouch: false,

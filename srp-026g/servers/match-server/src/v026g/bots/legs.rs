@@ -31,7 +31,8 @@ pub enum LegGate {
     Free,
     /// No sprint, no jump (count 1).
     NoSprintJump,
-    /// No move, sprint or jump (count 2): the body stands (it may turn and crouch).
+    /// No move, sprint or jump (count 2): the body stands (it may turn and crouch); [F42] crouched, it walks with the crouch key
+    /// and a move key held.
     Stand,
 }
 
@@ -93,6 +94,9 @@ impl LegGate {
         match self {
             Self::Free => keys,
             Self::NoSprintJump => keys & !(key::SPRINT | key::JUMP),
+            // [F42] The client forces the crouch; with the crouch key held a move key moves the crouched body (exactness L30, PROVEN:
+            // 0x2FBDF0 / 0x2FBE50, 16 of 16 pairs of worlds moved).
+            Self::Stand if keys & key::CROUCH != 0 => keys & !(key::SPRINT | key::JUMP),
             Self::Stand => keys & !(MOVES | key::SPRINT | key::JUMP),
         }
     }
@@ -101,6 +105,15 @@ impl LegGate {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [F42] With both legs broken the client takes no move without the crouch key; with it held, a move key moves the crouched
+    /// body (exactness L30). No sprint or jump either way.
+    #[test]
+    fn both_legs_broken_move_only_crouched() {
+        let moving = key::FORWARD | key::SPRINT | key::JUMP;
+        assert_eq!(LegGate::Stand.keys(moving), 0);
+        assert_eq!(LegGate::Stand.keys(moving | key::CROUCH), key::FORWARD | key::CROUCH);
+    }
 
     /// [F12] A wound is held the leg's regeneration delay past its last damaging hit: 8 s less 500 ms a Metabolism rank (a
     /// bot's 5 ranks: 5.5 s), the saved end if later; none past the end with no hit or a delay of 0.
@@ -127,7 +140,8 @@ mod tests {
         let legs = LegDamage::of(&[18_000, 16_000], 10_000);
         assert_eq!(legs, LegDamage::Both { first: 16_000, second: 18_000 });
         let run = key::FORWARD | key::SPRINT | key::JUMP | key::CROUCH;
-        assert_eq!(legs.at(15_950).keys(run), key::CROUCH, "no move at count 2: the crouch stays");
+        assert_eq!(legs.at(15_950).keys(run & !key::CROUCH), 0, "no move at count 2 standing");
+        assert_eq!(legs.at(15_950).keys(run), key::FORWARD | key::CROUCH, "[F42] crouched, it walks: no sprint or jump");
         assert_eq!(legs.at(16_000).keys(run), key::FORWARD | key::CROUCH, "one leg: walk, no sprint or jump");
         assert_eq!(legs.at(18_000).keys(run), run);
     }

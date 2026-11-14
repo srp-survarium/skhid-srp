@@ -109,18 +109,52 @@ pub struct SprintPress {
     pub walk: Option<GapPress>,
 }
 
+/// [C2 riser] A route's Walk link up a riser ([`Route::riser_ahead`]): its top, its take-off, and [A386] how the grid flew its
+/// jump (A385 rule (d), `WalkGrid::riser`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RiserUp {
+    pub top: Vec3,
+    pub take_off: Vec3,
+    pub press: RiserPress,
+}
+
+/// [A386] How the grid flew a riser's jump (`mapdata::grid::Riser`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum RiserPress {
+    /// The grid has no flown risers (built without `Body::rim_jumps`): the jump at the face, as before A385.
+    Unflown,
+    /// The press that gets up it ([`Leap::Gap`] or [`Leap::SprintGap`]).
+    Flown(Leap),
+    /// No flown press gets up it.
+    NoPress,
+}
+
+impl RiserPress {
+    fn of(riser: Option<mapdata::grid::Riser>) -> Self {
+        match riser {
+            None => Self::Unflown,
+            Some(mapdata::grid::Riser::Pressed { press, share }) => Leap::of_press(press, share, None).map_or(Self::NoPress, Self::Flown),
+            Some(mapdata::grid::Riser::NoPress) => Self::NoPress,
+        }
+    }
+}
+
 impl Leap {
     /// [A386] A gap link's press, from the grid's link (`gap::OffLink`): None for a walk-off (no key).
     pub fn of_link(link: &mapdata::grid::gap::OffLink) -> Option<Self> {
+        Self::of_press(link.press, link.share, link.walk)
+    }
+
+    /// [A386] A flown press with its share (and a sprint press's walking one): None for a walk-off (no key).
+    pub fn of_press(press: mapdata::grid::gap::Takeoff, share: mapdata::Share, walk: Option<(mapdata::PressLead, mapdata::Share)>) -> Option<Self> {
         use mapdata::grid::gap::Takeoff;
-        let share = link.share;
-        match link.press {
+        match press {
             Takeoff::Press(lead) => Some(Leap::Gap(GapPress { lead, walk: WalkPress::Cap, share })),
             Takeoff::Slow { lead, steps } => Some(Leap::Gap(GapPress { lead, walk: WalkPress::Slow(steps), share })),
             Takeoff::Sprint(lead) => Some(Leap::SprintGap(SprintPress {
                 lead,
                 share,
-                walk: link.walk.map(|(lead, share)| GapPress { lead, walk: WalkPress::Cap, share }),
+                walk: walk.map(|(lead, share)| GapPress { lead, walk: WalkPress::Cap, share }),
             })),
             Takeoff::WalkOff => None,
         }
@@ -182,9 +216,9 @@ pub struct Route {
     /// The middles of the doorways the route crosses ([`Route::door_centred`]), each a corner of it: the walk steers at the
     /// first one it has not reached however near the corner after it is ([`Route::gate_within`]).
     gates: Vec<Vec3>,
-    /// [C2 riser] The tops of the route's Walk links up a riser the client's WALKING body is held by
-    /// ([`mapdata::grid::WalkGait::SprintOrJump`]: 0.76-0.80 m): a sprint steps up it, else a walking jump; the planner sets them.
-    risers: Vec<Vec3>,
+    /// [C2 riser] The route's Walk links up a riser the client's WALKING body is held by
+    /// ([`mapdata::grid::WalkGait::SprintOrJump`]: 0.76-0.80 m): a sprint steps up it, else a jump ([`RiserUp`]); the planner sets them.
+    risers: Vec<RiserUp>,
     /// Made by the planner from a path of floors ([`pull_straight`]), so `sprint_drops` holds every Drop link of it.
     planned: bool,
 }
@@ -1160,7 +1194,11 @@ fn pull_straight(
     route.ledge_tops = ledge_tops;
     route.risers = (1..nodes.len())
         .filter(|&i| into[i] == LinkKind::Walk && grid.link_gait(nodes[i - 1], nodes[i]) == Some(mapdata::grid::WalkGait::SprintOrJump))
-        .map(|i| grid.position(nodes[i]))
+        .map(|i| RiserUp {
+            top: grid.position(nodes[i]),
+            take_off: grid.position(nodes[i - 1]),
+            press: RiserPress::of(grid.riser(nodes[i - 1], nodes[i])),
+        })
         .collect();
     route.planned = true;
     route
@@ -1518,11 +1556,11 @@ impl Route {
 
     /// [C2 riser] The nearest riser top of the route ([`Route::risers`]) within `within` m (flat) of `feet` that is still
     /// over them by half a metre (not yet climbed).
-    pub fn riser_ahead(&self, feet: Vec3, within: f32) -> Option<Vec3> {
+    pub fn riser_ahead(&self, feet: Vec3, within: f32) -> Option<RiserUp> {
         self.risers
             .iter()
-            .filter(|top| top.y - feet.y > 0.5 && top.distance_xz(feet) <= within)
-            .min_by(|a, b| a.distance_xz(feet).total_cmp(&b.distance_xz(feet)))
+            .filter(|r| r.top.y - feet.y > 0.5 && r.top.distance_xz(feet) <= within)
+            .min_by(|a, b| a.top.distance_xz(feet).total_cmp(&b.top.distance_xz(feet)))
             .copied()
     }
 
@@ -2047,6 +2085,13 @@ mod tests {
             }))
         );
         assert_eq!(Leap::of_link(&link(Takeoff::WalkOff, None)), None);
+        // A riser's flown press (A385 rule (d)).
+        assert_eq!(RiserPress::of(None), RiserPress::Unflown);
+        assert_eq!(RiserPress::of(Some(mapdata::grid::Riser::NoPress)), RiserPress::NoPress);
+        assert_eq!(
+            RiserPress::of(Some(mapdata::grid::Riser::Pressed { press: Takeoff::Press(lead), share: Share::landed(7) })),
+            RiserPress::Flown(Leap::Gap(GapPress { lead, walk: WalkPress::Cap, share: Share::landed(7) }))
+        );
     }
     use crate::v026g::bots::body::tests::walled;
 
