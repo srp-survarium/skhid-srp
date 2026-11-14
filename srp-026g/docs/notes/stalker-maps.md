@@ -143,15 +143,15 @@ listed under `cs-mp_bath` in resource-porter's `ports/stalker-tdm/maps.json`
 
 The environments of the maps ported from v0.10b and v0.11e (these six, Vostok
 v0.11, Chemical Plant v0.11) keep their source build's post-process values,
-which 0.26g draws its own way. Three are set by edit lists, in every mode's
-copy of the projects:
+which 0.26g draws its own way. Three edit lists set seven of them, in every
+mode's copy of the projects they name:
 
 | value | the ports | stock day maps | now | list |
 | --- | --- | --- | --- | --- |
 | `image_grain_intensity`, `image_grain_update_frequency` | 0.08, 2 | 0.02, 1 | 0.02, 1 on all 16 projects | `ported-maps-grain-1.json` |
 | `god_rays_intensity`, `god_rays_attenuation` | 1.0, 1.0 (the six STALKER maps) | 0.65, 2.6 (level_03) | 0.2, 3.0 on Military Warehouses, Experimental Pool and Training Camp | `stalker-maps-sun-1.json` |
 | `lens_flares_multiplier` | 2 (the six) | 1 | 0.7 on the same three | the same |
-| `ao_saturation`, `ao_radius` | 2, 1.5 (the six) | 1, 1.25 | 1, 1.25 on the six's nine projects | `stalker-maps-ao-1.json` |
+| `ao_saturation` | 2 (the six) | 1 to 1.29 (level_03: 1) | 1 on the six's nine projects | `stalker-maps-ao-1.json` |
 
 - Grain ("always noisy in the distance", "on almost all ported maps"): 0.26g
   adds it last, noise x colour^0.6 x intensity (`aberration.ps`), so it shows on
@@ -172,13 +172,16 @@ copy of the projects:
   in the owner's game): the stripes are the occlusion's own sample pattern on
   a far flat wall, screen-aligned and about 6 pixels apart (Military
   Warehouses' east fence from (59.8, -8.9, 1.7): solid, facing away from the
-  sun, no such lines in its textures). `ssao_hemisphere_optimized.ps` gives
-  (1 - occluded)^(2 x `ao_saturation`) x 1.1 over samples spread by
-  `ao_radius` on the screen: the ports drew the pattern with the exponent 4,
-  stock with 2 (an occlusion of 0.2 leaves 0.41 of the ambient light, stock
-  0.64). The six maps have stock's values now; the pattern itself is the
-  engine's and stays at stock strength. Vostok v0.11 (1.5, 1.5) and Chemical
-  Plant v0.11 (1.3, 1.3) are above stock too and are not changed.
+  sun, no such lines in its textures). `ao_saturation` is an exponent in both
+  occlusion shaders: (1 - occluded)^(2 x `ao_saturation`) x 1.1 at
+  `r_ambient_occlusion_quality` 1 (`ssao_hemisphere_optimized.ps`), (1 -
+  occluded)^(3 x `ao_saturation`) x 1.2 at 2 and 3
+  (`ssao_hemisphere_stable_radius.ps`). The ports had 2, stock maps have 1 to
+  1.29: at quality 1 an occlusion of 0.2 left 0.45 of the ambient light where
+  level_03 leaves 0.70. The six maps have 1 now; the pattern itself is the
+  engine's and stays at stock strength. Their `ao_radius` 1.5 is a stock value
+  (level_02 day; stock maps have 1 to 1.5) and stays. Vostok v0.11 (1.5) and
+  Chemical Plant v0.11 (1.3) are above stock too and are not changed.
 - Not changed: Repair Depot, Station and Depository, not played, keep rays 1.0
   at 1.0 and flares x2. All eight maps keep the old builds' vignette
   (`vignette_effect_power` 1, stock 0) and far depth of field
