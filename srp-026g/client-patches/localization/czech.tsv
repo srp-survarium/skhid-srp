@@ -2650,6 +2650,11 @@ st_srp_medicine_hit_slow	Zpomalení od střel
 st_srp_medicine_sight_sway	Chvění mířidel
 st_srp_medicine_sprint_stamina	Výdrž na sprint
 st_srp_melee_knockback	Odhození pažbou
+st_srp_mic_test	Otestovat mikrofon
+st_srp_mic_test_no_microphone	Žádný mikrofon
+st_srp_mic_test_no_playback	Žádný zvukový výstup
+st_srp_mic_test_playing	Přehrávání %1$s
+st_srp_mic_test_recording	Nahrávání %1$s
 st_srp_mode_blackout	Ochranné zařízení: výpadek
 st_srp_mode_chargers	Ochranné zařízení: nabíječky
 st_srp_mode_free_for_all	Každý proti každému

@@ -2650,6 +2650,11 @@ st_srp_medicine_hit_slow	Замедление от пуль
 st_srp_medicine_sight_sway	Раскачивание
 st_srp_medicine_sprint_stamina	Энергия на спринт
 st_srp_melee_knockback	Отбрасывание прикладом
+st_srp_mic_test	Проверить микрофон
+st_srp_mic_test_no_microphone	Нет микрофона
+st_srp_mic_test_no_playback	Нет вывода звука
+st_srp_mic_test_playing	Воспроизведение %1$s
+st_srp_mic_test_recording	Запись %1$s
 st_srp_mode_blackout	Защитное устройство: блэкаут
 st_srp_mode_chargers	Защитное устройство: зарядники
 st_srp_mode_free_for_all	Все против всех

@@ -112,6 +112,10 @@ package survarium.menu
       // of the right column under the HUD group (layoutGameplay). A move is a change of the tab, saved by Apply.
       protected var _fov:SrpFieldOfView;
       
+      // The sound tab's "Test microphone" button (exe patch 66), under the Microphone sensitivity
+      // slider. Not a setting: a press is no change of the tab.
+      protected var _micTest:SrpMicTest;
+      
       // The controls tab's places, read from its timeline the first time it is laid out
       // (layoutControls); null until then.
       protected var _controlsSpacing:Object = null;
@@ -304,6 +308,12 @@ package survarium.menu
          this.layoutControls();
       }
       
+      // The exe's word of the microphone test (root.srp_mic_test): its button's text now.
+      public function setMicTest(text:String) : void
+      {
+         this._micTest.answer(text);
+      }
+      
       // The HUD group's own texts (root.srp_hud_texts): the heading, "Hide quests", the crosshair
       // list's three choices, "Static minimap"; then the Renderer list's two choices, its note, and
       // the Vulkan options' button and its five options' hints.
@@ -362,6 +372,7 @@ package survarium.menu
       {
          var messageData:Object;
          this._renderer.close();
+         this._micTest.stop();
          if(this.btn_accept.enabled)
          {
             messageData = {
@@ -646,6 +657,7 @@ package survarium.menu
          this._fov = new SrpFieldOfView(this.settings_content);
          this._changed[this._fov.slider] = 0;
          this._fov.slider.addEventListener(IndexEvent.INDEX_CHANGE,this.fovChanged);
+         this._micTest = new SrpMicTest(this.settings_content);
          this._mouse.check.box.addEventListener(Event.SELECT,this.mouseChanged);
          this._mouse.slider.addEventListener(IndexEvent.INDEX_CHANGE,this.mouseChanged);
          this._renderer = new SrpRendererChoice(this.settings_content);
@@ -662,6 +674,7 @@ package survarium.menu
          this._hudGroup.place();
          this._mouse.place();
          this._fov.place();
+         this._micTest.place();
          this._renderer.place();
          SrpDistanceDetail.apply(this);
          this._language.place();
@@ -781,6 +794,7 @@ package survarium.menu
          this.layoutGameplay();
          this._mouse.bind();
          this.layoutControls();
+         this._micTest.layout();
       }
       
       protected function someOneSelected(event:Event) : void

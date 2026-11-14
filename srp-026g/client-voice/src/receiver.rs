@@ -50,13 +50,18 @@ impl Hearing {
         }
     }
 }
-/// The radio's static bed under a far teammate's words, of retail's level
-/// (1.0, about -44 dB): half (-6 dB), as #1635 left it in the mix (a
-/// quarter under its +6 dB). Speech is played as decoded: #1635's +6 dB is
-/// undone (the owner, 2026-11-13, of revision 58's level: "sound close by
-/// right now was very good in game"); the radio raises its own words
-/// (`radio::VOICE`).
-const RADIO_BED: f32 = 0.5;
+/// The radio's static under its words, of retail's recording: at retail's
+/// level, as revision 58 played it (the owner, 2026-11-14, after a test where
+/// half of it, #1635's, could not be heard: "static like live"; of revision
+/// 58's on 2026-11-13: "static is mostly fine"). The radio's words are raised
+/// by their own makeup (`radio::VOICE`), as on main before.
+const RADIO_BED: f32 = 1.0;
+/// How much louder than decoded a plain voice plays at the full "Voice chat"
+/// volume (the owner, 2026-11-14, in a game: "voice chat in general can be
+/// louder by x1.5 for people who can always tune it down"). Not the radio
+/// (the owner, the same day: "make radio effect like it is currently on
+/// main"): its words and squelch play at the slider's volume as before.
+pub(crate) const LOUDER: f32 = 1.5;
 /// The mix's knee: below it a sample is as summed; above it the rest of the
 /// way to full scale is approached smoothly, so loud or several talkers
 /// never clip hard.
@@ -120,6 +125,47 @@ impl Limiter {
         }
         over
     }
+}
+/// A voice heard directly, as [`Speaker::play`] decodes and holds one. The
+/// microphone test plays its recording through it (`mic_test`), so that what
+/// the player hears of itself is what a teammate beside it would.
+pub struct Direct {
+    decoder: Decoder,
+    limiter: Limiter,
+}
+impl Direct {
+    pub fn new() -> Result<Self, String> {
+        Ok(Self {
+            decoder: Decoder::new()?,
+            limiter: Limiter::UNITY,
+        })
+    }
+    /// The frame's 20 ms; one the decoder refuses is concealed.
+    pub fn frame(&mut self, frame: &[u8]) -> Option<[f32; FRAME]> {
+        let mut pcm = self
+            .decoder
+            .decode(Some(frame))
+            .or_else(|_| self.decoder.decode(None))
+            .ok()?;
+        self.limiter.apply(&mut pcm);
+        Some(pcm)
+    }
+}
+/// `mono` in both ears as a plain voice beside the listener is: as decoded
+/// ([`Ears::UNITY`]).
+fn ahead(mono: &[f32; FRAME]) -> [[f32; 2]; FRAME] {
+    let [left, right] = Ears::UNITY.get();
+    mono.map(|sample| [sample * left, sample * right])
+}
+/// A frame of the mix from its sum: limited softly, as 16-bit samples.
+fn finish(acc: [[f32; 2]; FRAME]) -> Stereo {
+    acc.map(|ears| ears.map(|x| (soft_limit(x) * 32767.).round().clamp(-32768., 32767.) as i16))
+}
+/// `mono` alone as a frame of the mix, centred (the microphone test's
+/// playback when no match's voices play: [`Core::mix_over`] without them).
+#[cfg(any(windows, test))]
+pub fn centred(mono: &[f32; FRAME]) -> Stereo {
+    finish(ahead(mono))
 }
 #[derive(Clone, Copy)]
 enum Phase {
@@ -428,8 +474,20 @@ impl Core {
         }
     }
     pub fn mix(&mut self, volume: f32, hearing: &Hearing, now: u32) -> Stereo {
-        let mut acc = [[0f32; 2]; FRAME];
+        self.mix_over(None, volume, hearing, now)
+    }
+    /// The mix over `under`, 20 ms that play beside the speakers, centred and
+    /// at a volume of their own (the microphone test's playback).
+    pub fn mix_over(
+        &mut self,
+        under: Option<&[f32; FRAME]>,
+        volume: f32,
+        hearing: &Hearing,
+        now: u32,
+    ) -> Stereo {
+        let mut acc = under.map_or([[0f32; 2]; FRAME], ahead);
         let volume = unit(volume);
+        let plain = volume * LOUDER;
         for (s, heard) in self.speakers.iter_mut().zip(hearing.0) {
             let to = Gains::of(heard);
             let from = std::mem::replace(&mut s.gains, to);
@@ -440,7 +498,7 @@ impl Core {
                 if from.plain != [0., 0.] || to.plain != [0., 0.] {
                     for (i, (a, p)) in acc.iter_mut().zip(pcm).enumerate() {
                         for ((ear, from), to) in a.iter_mut().zip(from.plain).zip(to.plain) {
-                            *ear += p * volume * ramp(from, to, i);
+                            *ear += p * plain * ramp(from, to, i);
                         }
                     }
                 }
@@ -473,7 +531,7 @@ impl Core {
                 }
             }
         }
-        acc.map(|ears| ears.map(|x| (soft_limit(x) * 32767.).round().clamp(-32768., 32767.) as i16))
+        finish(acc)
     }
     pub fn talking(&self, now: u32) -> u32 {
         self.speakers.iter().enumerate().fold(0, |mask, (slot, s)| {

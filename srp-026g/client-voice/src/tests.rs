@@ -1,4 +1,5 @@
 use super::*;
+use receiver::LOUDER;
 use wire::Message;
 fn tone(frame: usize, freq: f32, amplitude: f32) -> [i16; FRAME] {
     std::array::from_fn(|i| {
@@ -236,8 +237,8 @@ fn the_switch_to_the_radio_ramps_over_a_frame() {
     assert_eq!(plain[..4], switched[..4]);
     let near = |a: i16, b: i16, most: i32| (i32::from(a) - i32::from(b)).abs() <= most;
     // The tone's own largest step between two samples (500 Hz at 8000).
-    let step = 8000. * 2. * std::f32::consts::PI * 500. / RATE as f32;
-    assert!(near(switched[4][0][0], plain[4][0][0], 80), "{:?} {:?}", switched[4][0], plain[4][0]);
+    let step = 8000. * LOUDER * 2. * std::f32::consts::PI * 500. / RATE as f32;
+    assert!(near(switched[4][0][0], plain[4][0][0], 120), "{:?} {:?}", switched[4][0], plain[4][0]);
     let all: Vec<i16> = switched.iter().flatten().map(|[left, _]| *left).collect();
     let largest = all.windows(2).map(|pair| (i32::from(pair[1]) - i32::from(pair[0])).abs()).max().unwrap();
     assert!((largest as f32) < 2.5 * step, "{largest} {step}");
@@ -254,6 +255,31 @@ fn between_the_two_distances_the_plain_voice_and_the_radio_are_both_heard() {
     // The radio is centred: alone in the left ear; the right has the voice too.
     assert!(plain[0] == 0. && radio[0] > 0. && (both[0] - radio[0]).abs() < radio[0] / 100., "{plain:?} {radio:?} {both:?}");
     assert!(both[1] > radio[1] * 1.2 && both[1] > plain[1] * 1.2, "{plain:?} {radio:?} {both:?}");
+}
+#[test]
+fn the_microphone_tests_playback_plays_under_a_voice_heard_in_the_world() {
+    // The test's playback (a steady level) while slot 3 talks from the right:
+    // the left ear has the playback alone, as it plays with no voice
+    // (`centred`); the right has the voice over it.
+    let mut encoder = Encoder::new().unwrap();
+    let frames: Vec<Vec<u8>> = (0..12).map(|i| encoder.encode(&tone(i, 500., 8000.)).unwrap()).collect();
+    let mut core = Core::new().unwrap();
+    feed(&mut core, &frames);
+    let under = [0.1_f32; FRAME];
+    let alone = receiver::centred(&under);
+    let mut hearing = Hearing::UNITY;
+    hearing.set(3, Heard::Plain(Ears::new(0., 1.)));
+    let mixed: Vec<Stereo> = (0..8).map(|tick| core.mix_over(Some(&under), 1., &hearing, tick * 20)).collect();
+    assert!(mixed[1..].iter().flatten().all(|[left, _]| *left == alone[0][0]));
+    let over = mixed[2..].iter().flatten().filter(|[_, right]| *right != alone[0][1]).count();
+    assert!(over > 4 * FRAME, "{over}");
+    // On the radio instead: both ears alike, over the playback.
+    let mut core = Core::new().unwrap();
+    feed(&mut core, &frames);
+    hearing.set(3, Heard::Radio);
+    let radio: Vec<Stereo> = (0..8).map(|tick| core.mix_over(Some(&under), 1., &hearing, tick * 20)).collect();
+    assert!(radio[1..].iter().flatten().all(|[left, right]| left == right));
+    assert!(radio[6..].iter().flatten().any(|[left, _]| *left != alone[0][0]));
 }
 #[test]
 fn utterance_order_wrap_and_reset() {
@@ -322,7 +348,7 @@ fn syllables(frame: usize, amplitude: f32) -> [i16; FRAME] {
 }
 /// As [`syllables`], with `harmonics` harmonics falling 6 dB an octave (45:
 /// up to 7.6 kHz, a wide-band voice).
-fn voiced(frame: usize, amplitude: f32, harmonics: usize) -> [i16; FRAME] {
+pub(crate) fn voiced(frame: usize, amplitude: f32, harmonics: usize) -> [i16; FRAME] {
     std::array::from_fn(|i| {
         let t = (frame * FRAME + i) as f32 / RATE as f32;
         if (t * 1000.) as u32 % 300 >= 200 {
