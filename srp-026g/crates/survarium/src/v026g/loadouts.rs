@@ -785,6 +785,11 @@ impl KitLayout {
         KitLayout::new(&modifications, &[0.0; skills::MODIFIERS])
     }
 
+    /// The kit's ammo bags, which its ammunition slots share.
+    pub fn ammo_bags(&self) -> u32 {
+        self.ammo_bags
+    }
+
     /// `slots` (each slot's dict id and units) as a kit of this layout holds
     /// them: a pocket at most what it holds of its item, nothing in a pocket
     /// it does not open, no second weapon its carry rule forbids. A slot comes

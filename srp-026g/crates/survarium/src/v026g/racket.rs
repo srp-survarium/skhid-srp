@@ -1,15 +1,18 @@
 //! Racket (`docs/notes/ffa.md`, "Twists"; the owner, 2026-11-14: "replaces all sniper rifles and
 //! all silent weapons with ak-12"): a free-for-all's twist ([`super::twist::Twist::Racket`]). Every
 //! sniper rifle and every silenced gun of a player's kits is an AK-12 for the match, the EOTech 552
-//! sight on it ([`SIGHT`]), with the same amount of AK-12 ammo in every such kit. The server owns what a
-//! match spawns (the static info's profiles, which every game cooks each life from), so the
-//! change reaches every game, late joiners and replays; the accounts keep their own guns.
+//! sight on it ([`SIGHT`]), with an AK-12 magazine for every ammo bag such a kit has free. The
+//! server owns what a match spawns (the static info's profiles, which every game cooks each life
+//! from), so the change reaches every game, late joiners and replays; the accounts keep their own
+//! guns.
 
 use super::dictionary::Dictionary;
 use super::game_data::{GameData, GameDataError};
 use super::item_params::{self, ItemClass};
-use super::loadouts::{AMMO_SLOTS, bot_gear::category};
-use super::match_msgs::static_info::{FULL_CONDITION, MatchItem, MatchProfile, Upgrade};
+use super::loadouts::{self, AMMO_SLOTS, KitLayout, bot_gear::category};
+use super::match_msgs::static_info::{
+    FULL_CONDITION, MatchItem, MatchKit, MatchProfile, Upgrade,
+};
 use super::scopes::{SCOPE_SLOT, ScopeFits};
 use super::twist::STORE_LIVES;
 
@@ -37,9 +40,10 @@ pub struct Arms {
     gun: u16,
     /// The ammo Racket gives (`twist::Twist::gives`).
     pub ammo: u16,
-    /// The rounds of AK-12 ammo a kit gets: the dictionary's `optimal_count` of the AK-12's
-    /// category.
-    rounds: u16,
+    /// A clip of that ammo, a kit's magazine: its rounds (`clip_size`) and the ammo bags it takes
+    /// (`required_bags`).
+    clip: u16,
+    clip_bags: u32,
     /// The variant that shows [`SIGHT`] on the AK-12 (`ScopeFits::variant`), when the game data
     /// has one; without it the AK-12 goes bare (the owner, 2026-11-14: the sight is behaviour, not
     /// correctness, so nothing refuses data without it).
@@ -48,19 +52,12 @@ pub struct Arms {
 
 impl Arms {
     /// The data's AK-12 and its ammo: exactly one ammo the dictionary pairs with it, which every
-    /// ammo slot takes, and its category's amount; and its [`SIGHT`]'s variant, if the data has it.
+    /// ammo slot takes, and its clip; and its [`SIGHT`]'s variant, if the data has it.
     fn of(dictionary: &Dictionary, fits: &ScopeFits) -> Result<Self, String> {
-        let item = dictionary
+        let gun = dictionary
             .item_named(GUN)
-            .ok_or_else(|| format!("the dictionary has no `{GUN}`"))?;
-        let gun = item.dict_id;
-        let rounds = dictionary
-            .categories
-            .iter()
-            .find(|category| category.id == item.category)
-            .and_then(|category| u16::try_from(category.optimal_count).ok())
-            .filter(|&count| count > 0)
-            .ok_or_else(|| format!("category {} of `{GUN}` has no ammo amount", item.category))?;
+            .ok_or_else(|| format!("the dictionary has no `{GUN}`"))?
+            .dict_id;
         let ammo: Vec<u16> = dictionary
             .items
             .iter()
@@ -73,15 +70,27 @@ impl Arms {
         if let Some(slot) = AMMO_SLOTS.iter().find(|&&slot| !dictionary.fits(ammo, slot)) {
             return Err(format!("`{GUN}`'s ammo {ammo} does not fit ammo slot {slot}"));
         }
+        let (clip, clip_bags) = item_params::item_params(ammo)
+            .and_then(|params| Some((u16::try_from(params.clip_size).ok()?, params.required_bags)))
+            .filter(|&(clip, bags)| clip > 0 && bags > 0)
+            .ok_or_else(|| format!("`{GUN}`'s ammo {ammo} has no clip size or ammo bags"))?;
         let sight = dictionary
             .item_named(SIGHT)
             .and_then(|scope| fits.variant(gun, scope.dict_id));
         Ok(Self {
             gun,
             ammo,
-            rounds,
+            clip,
+            clip_bags,
             sight,
         })
+    }
+
+    /// The rounds of AK-12 ammo for `bags` free ammo bags: a clip for each clip's bags.
+    fn rounds(&self, bags: u32) -> u16 {
+        u16::try_from(bags / self.clip_bags)
+            .unwrap_or(u16::MAX)
+            .saturating_mul(self.clip)
     }
 
     /// The arms of the server's game data ([`check`] refused data without them at start).
@@ -114,10 +123,11 @@ pub fn replaces(dictionary: &Dictionary, dict_id: u16) -> bool {
 ///   other modification or upgrade (the gun's own scope, camo and bonuses stay its own), of the
 ///   same instance id, in every kit and slot that held it;
 /// - in each kit that held one, the ammo that none of its guns fires now leaves its slots, and
-///   the kit has the AK-12's category's amount (`optimal_count`) of AK-12 ammo, in the first slot
-///   that ammo left or else its first empty ammo slot (a kit already holding AK-12 ammo keeps
-///   its own; one with no ammo slot free has its AK-12's magazine alone);
-/// - that AK-12 ammo is one new stack every such kit holds, its store the amount
+///   the kit has a clip of AK-12 ammo for every ammo bag the ammo it keeps leaves free
+///   ([`free_bags`]), in the first slot that ammo left or else its first empty ammo slot (a kit
+///   already holding AK-12 ammo keeps its own; one with no ammo slot or no bag free has its
+///   AK-12's magazine alone);
+/// - that AK-12 ammo is one new stack every such kit holds, its store the largest kit's amount
 ///   [`STORE_LIVES`] times;
 /// - an item no kit holds any more (the ammo that left) leaves the table;
 /// - nothing else of the kits changes: armour, pockets, artefacts, skills.
@@ -187,18 +197,55 @@ pub fn arm(profile: &mut MatchProfile, arms: &Arms) {
         let Some(slot) = first.or(empty) else {
             continue;
         };
+        let rounds = arms.rounds(free_bags(kit, items));
+        if rounds == 0 {
+            continue;
+        }
         let at = *stack.get_or_insert_with(|| {
             items.push(MatchItem {
                 instance_id: next_id.wrapping_add(1),
                 dict_id: arms.ammo,
-                condition_or_stack: u32::from(arms.rounds).saturating_mul(STORE_LIVES),
                 ..MatchItem::default()
             });
             items.len() as u16 - 1
         });
-        kit.slots[slot] = Some((at, arms.rounds));
+        // One store for every kit's lives: the largest kit's amount's.
+        let store = &mut items[usize::from(at)].condition_or_stack;
+        *store = (*store).max(u32::from(rounds).saturating_mul(STORE_LIVES));
+        kit.slots[slot] = Some((at, rounds));
     }
     profile.drop_unheld();
+}
+
+/// The ammo bags of `kit` (its items' `items`) that its ammunition leaves free: its bags as the
+/// lobby counts them ([`KitLayout`]: its items' modifications, their defaults and their own, and
+/// its skills'), less a clip's bags for every clip its ammo slots hold, the last one begun.
+fn free_bags(kit: &MatchKit, items: &[MatchItem]) -> u32 {
+    let held = |slot: usize| {
+        let (index, count) = kit.slots[slot]?;
+        Some((items.get(usize::from(index))?, count))
+    };
+    let worn: Vec<(u32, bool)> = (0..kit.slots.len())
+        .filter_map(held)
+        .flat_map(|(item, _)| {
+            loadouts::default_modifications(item.dict_id)
+                .into_iter()
+                .chain(item.modifications.iter().copied())
+        })
+        .collect();
+    let taken: u32 = AMMO_SLOTS
+        .map(usize::from)
+        .into_iter()
+        .filter_map(held)
+        .filter_map(|(item, count)| {
+            let params = item_params::item_params(item.dict_id)?;
+            (params.clip_size > 0)
+                .then(|| u32::from(count).div_ceil(params.clip_size) * params.required_bags)
+        })
+        .sum();
+    KitLayout::new(&worn, &kit.modifiers)
+        .ammo_bags()
+        .saturating_sub(taken)
 }
 
 /// The records that put the sight `variant` on a gun: a scope's ([`SCOPE_SLOT`]), packed as every
@@ -267,6 +314,16 @@ mod tests {
         MatchProfile::from_loadouts("p", 4, &loadouts, [0.0; MODIFIERS], dictionary, 100)
     }
 
+    /// The ammo bags of kit `kit`, as the lobby counts them: [`free_bags`] of it without its
+    /// ammunition.
+    fn bags(profile: &MatchProfile, kit: usize) -> u32 {
+        let mut kit = profile.kits[kit].clone();
+        for slot in AMMO_SLOTS {
+            kit.slots[usize::from(slot)] = None;
+        }
+        free_bags(&kit, &profile.items)
+    }
+
     #[test]
     fn it_replaces_the_sniper_rifles_and_the_silenced_guns_alone() {
         let dictionary = Dictionary::shared();
@@ -284,7 +341,9 @@ mod tests {
         assert_eq!(heard("ammo_6.5x39"), None);
         let arms = Arms::of(dictionary, ScopeFits::shared()).unwrap();
         assert_eq!((arms.gun, arms.ammo), (id("ak_12"), id("ammo_6.5x39")));
-        assert!(arms.rounds > 0);
+        // A magazine of 30 rounds, one ammo bag.
+        assert_eq!((arms.clip, arms.clip_bags), (30, 1));
+        assert_eq!((arms.rounds(0), arms.rounds(4)), (0, 120));
     }
 
     #[test]
@@ -309,8 +368,9 @@ mod tests {
             assert_eq!((gun.instance_id, gun.condition_or_stack), (old.instance_id, FULL_CONDITION));
             assert!(gun.modifications.is_empty() && gun.upgrades.is_empty());
         }
-        // Both guns' ammo leaves; the AK-12 ammo's amount is in the first slot it left.
-        let rounds = Arms::shared().rounds;
+        // Both guns' ammo leaves; a magazine for every ammo bag is in the first slot it left.
+        let rounds = Arms::shared().rounds(bags(&sniper, 0));
+        assert!(rounds >= 3 * 30, "the player's three bags at least: {rounds}");
         assert_eq!(named(&sniper, 0, 8), Some(("ammo_6.5x39", rounds)));
         assert_eq!(named(&sniper, 0, 11), None);
         // The rest of the kit as it was.
@@ -353,23 +413,47 @@ mod tests {
         }
     }
 
-    /// A Val beside an SR-3M on one SP-6: the SR-3M keeps it, and the AK-12 still has its own
-    /// ammo, the category's amount, in the first empty ammo slot.
+    /// A Val beside an SR-3M on one SP-6: the SR-3M keeps it, and the AK-12 has its own ammo, a
+    /// magazine for every bag the SP-6 leaves free, in the first empty ammo slot.
     #[test]
     fn an_ak_12_whose_ammo_a_loud_gun_keeps_has_its_own() {
-        let mut kit = profile(&[&[(7, "val", 1), (8, "ammo_sp6", 60), (10, "sr3m", 1)]]);
-        let sp6 = kit.kits[0].slots[8];
-        kit.kits[0].slots[11] = sp6;
-        arm(&mut kit, &Arms::shared());
         let arms = Arms::shared();
+        let armed = |rounds: u32| {
+            let mut kit = profile(&[&[(7, "val", 1), (8, "ammo_sp6", rounds), (10, "sr3m", 1)]]);
+            let sp6 = kit.kits[0].slots[8];
+            kit.kits[0].slots[11] = sp6;
+            arm(&mut kit, &arms);
+            kit
+        };
+        // A round in each slot: a clip's bags each.
+        let kit = armed(1);
         assert_eq!(named(&kit, 0, 7).map(|(name, _)| name), Some("ak_12"));
-        assert_eq!(named(&kit, 0, 8), Some(("ammo_sp6", 60)));
-        assert_eq!(named(&kit, 0, 11), Some(("ammo_sp6", 60)));
-        assert_eq!(named(&kit, 0, 9), Some(("ammo_6.5x39", arms.rounds)));
-        // A sniper rifle with no ammo at all: the same amount.
+        assert_eq!(named(&kit, 0, 8), Some(("ammo_sp6", 1)));
+        assert_eq!(named(&kit, 0, 11), Some(("ammo_sp6", 1)));
+        let sp6 = item_params::item_params(id("ammo_sp6")).unwrap().required_bags;
+        let rounds = arms.rounds(bags(&kit, 0) - 2 * sp6);
+        assert!(rounds > 0);
+        assert_eq!(named(&kit, 0, 9), Some(("ammo_6.5x39", rounds)));
+        // SP-6 in every bag: the AK-12 has its magazine alone.
+        let kit = armed(1_000);
+        assert_eq!(named(&kit, 0, 9), None);
+        // A sniper rifle with no ammo at all: every bag.
         let mut dry = profile(&[&[(7, "svd", 1)]]);
-        arm(&mut dry, &Arms::shared());
-        assert_eq!(named(&dry, 0, 8), Some(("ammo_6.5x39", arms.rounds)));
+        arm(&mut dry, &arms);
+        assert_eq!(named(&dry, 0, 8), Some(("ammo_6.5x39", arms.rounds(bags(&dry, 0)))));
+    }
+
+    /// Kits of different bags: each its own amount, one stack whose store is the largest's.
+    #[test]
+    fn kits_of_different_bags_share_the_largest_store() {
+        let mut two = profile(&[&[(7, "svd", 1)], &[(7, "vss", 1)]]);
+        two.kits[1].modifiers[super::super::skills::slot_modifier::AMMO_BAGS] = 2.0;
+        arm(&mut two, &Arms::shared());
+        let (small, large) = (two.kits[0].slots[8].unwrap(), two.kits[1].slots[8].unwrap());
+        assert_eq!(small.0, large.0);
+        assert_eq!(large.1, small.1 + 2 * 30);
+        let store = two.items[usize::from(large.0)].condition_or_stack;
+        assert_eq!(store, u32::from(large.1) * STORE_LIVES);
     }
 
     #[test]
