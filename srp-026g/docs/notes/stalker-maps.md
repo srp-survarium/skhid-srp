@@ -274,8 +274,14 @@ and has it too. **cgroup 8, cmask 32**, a pair no object of the game had
 | a grenade's body, a battery's | 818h / 8, 0A18h / 418h | no (each side's group must have a bit of the other's mask, 0xB3EDC) |
 | a walker's body, the foot placing, carried things | 824h / 3, 24h / 2 | no |
 | the use ray (`detect_usable_object`) | 114h / 8Ah | no |
+| a trap being placed (0x3064D2, 0x3066E5) | 404h / 202h, 414h / 20Ah | no |
 | a spot (`apply_new_input` 0x2D87EB) | 0FFFFh / 80Ah | yes, as a hittable thing that is not walkable: the ray goes on |
 | a dead body and what falls off it (the ragdoll patch's level ray) | 434h / 20Ah | yes: it can rest on the leaves, 1.2 m up at the most |
+
+The rows are every call of the physics world's ray test, ray query and
+penetration test in the game's code whose filter is pushed as a number, the
+bodies the notes know, and the patches' own rays. A requester that takes its
+filter from elsewhere would not be in it; none was found.
 
 - Bullets, grenades and blasts pass as before: no foliage hit effect either
   (the Fort's bushes have one, and turn each bullet through them by up to the
