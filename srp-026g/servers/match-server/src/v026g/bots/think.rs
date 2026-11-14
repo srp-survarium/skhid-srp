@@ -39,6 +39,10 @@ impl Bots {
         let Some(me) = view.place(bot.place).filter(|p| p.alive) else {
             return;
         };
+        #[cfg(test)]
+        if let Some(life) = bot.bench_life.as_mut() {
+            life.think.get_or_insert(now);
+        }
         let team = usize::from(bot.team & 1);
         let due = Due {
             now,
@@ -239,6 +243,12 @@ impl Bots {
                 &tuning.kin,
                 world.as_deref(),
             );
+            #[cfg(test)]
+            if keys & (key::FORWARD | key::BACK | key::LEFT | key::RIGHT) != 0
+                && let Some(life) = bot.bench_life.take()
+            {
+                super::life_start::moved(life, time);
+            }
             if let Some(input) = input {
                 made.push(Made {
                     place: bot.place,
