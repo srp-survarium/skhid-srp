@@ -1218,7 +1218,7 @@ impl Core<'_> {
                     let _ = self.rooms.join_with(who.account_id, *gear, *mate, key, now);
                 }
                 log::info!(
-                    "Room {key}: opened for queued Play users, max level {}",
+                    "Room {key}: opened for queued players, max level {}",
                     bracket.max_level()
                 );
             }
