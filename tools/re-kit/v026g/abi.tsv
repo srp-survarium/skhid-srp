@@ -1194,6 +1194,7 @@ va	name	source	ret_cleanup	result
 0x002d9a60	survarium::base_player::hit	manual	40	
 0x002d9ae0	survarium::base_player::hit	manual	32	
 0x002d9b90	survarium::base_player::hit_impl	manual	8	
+0x002d9f40	survarium::base_player::generate_hit_event	manual		statistics handler slot +18h (add_received_damage 0x2F58E0, when abs(damage) >= 1e-6, 0x2DA0D6) and slot +4h (on_player_damaged 0x2F5450: the shooter's event 23 +1 for an enemy hit); neither writes last_hit_ms
 0x002da4b0	survarium::base_player::computed_head_transform	manual	0	none; player+44Ch := bone "Item" of the animation player +750h (skeleton [+408h]) x player+40Ch (world 4x4, translation at +47Ch); the camera's eye
 0x002da540	survarium::base_player::get_bone_transform	manual	8	EAX = the out matrix: the named bone's model-space 4x4 from the animation player +750h
 0x002da5b0	survarium::base_player::recompute_damage_collision_bones	manual	4	EAX: 2 nothing done (+33Ch clear: dead; or the time +324h already done), 0 skipped (the argument's place is this player's), 1 the hit model's bones set from the animation (0x3B480)
@@ -1263,6 +1264,7 @@ va	name	source	ret_cleanup	result
 0x002f0d30	survarium::character_dispersion_params::load	manual	8	
 0x002f1050	survarium::character_dispersion_skill_influence::load	manual	4	
 0x002f12a0	survarium::player_stealth::load	manual	4	
+0x002f5940	survarium::shared_statistics::on_trap_hit	manual		reached only from booby_trap_core::hit_victim 0x304B80 (handler slot +28h, thunk 0x26DB20); enemies only: last_hit_ms[receiver] (+198h) := the time, last_hit_enemy_id (+1ECh) := receiver, event 21 +1
 0x002f5ac0	survarium::shared_statistics::serialize	manual	0	
 0x002f5be0	survarium::shared_statistics::deserialize	manual	0	
 0x002f5da0	vostok::network_core::buffer_writer::w<unsigned short>	manual	20	
@@ -2026,7 +2028,7 @@ va	name	source	ret_cleanup	result
 0x0025cd00	survarium::game_world::on_keyboard_action	manual	12	AL: 1 the key taken (no later handler gets it)
 0x00208ad0	survarium::chat_handler::add_message	manual	20	
 0x0026da00	survarium::base_game_statistics_handler::on_player_killed	manual	68	
-0x002f4eb0	survarium::shared_statistics::on_player_killed	manual	40	
+0x002f4eb0	survarium::shared_statistics::on_player_killed	manual	40	killer: killstreak +1EEh +1, last_killed_enemy_ms +1E8h := the kill's time (0x2F52A4); every place not of the victim's team whose last_hit_enemy_id is the victim: last_hit_ms[victim] := 0 and last_hit_enemy_id := the argmax of its last_hit_ms (0xFF when all 0) (0x2F5310..0x2F53CD); the victim's last_hit_ms, last_hit_enemy_id (0xFF), last_killed_enemy_ms, received_damage and killstreak cleared (0x2F53D3..0x2F5439)
 0x00300710	survarium::victory_item_core::can_use	manual	4	AL: 1 when the user carries nothing ([user+0x10C]+0x178 is 0), his hand is not broken (byte +0x389 of [user+0x108] vtable+8, the damage model's broken hands) and [user+0x128] vtable+0x50 says no; else 0
 0x00300770	survarium::victory_item_core::use_info	manual	4	EAX: the prompt's string in can_use's order: st_cannot_pickup_item 0xA139E8 (carrying), st_cannot_pickup_item_broken_hand 0xA13A00, empty 0x9DB708, st_pickup_item 0xA13A24
 0x003007e0	survarium::victory_item_core::use_initialize	manual	8	
@@ -2426,7 +2428,7 @@ va	name	source	ret_cleanup	result
 0x0026da00	survarium::base_game_statistics_handler::on_player_killed	manual	68	
 0x0026da50	survarium::base_game_statistics_handler::on_player_damaged	manual	40	
 0x0026da80	survarium::base_game_statistics_handler::on_player_weapon_firing	manual	20	
-0x002f4eb0	survarium::shared_statistics::on_player_killed	manual	40	
+0x002f4eb0	survarium::shared_statistics::on_player_killed	manual	40	killer: killstreak +1EEh +1, last_killed_enemy_ms +1E8h := the kill's time (0x2F52A4); every place not of the victim's team whose last_hit_enemy_id is the victim: last_hit_ms[victim] := 0 and last_hit_enemy_id := the argmax of its last_hit_ms (0xFF when all 0) (0x2F5310..0x2F53CD); the victim's last_hit_ms, last_hit_enemy_id (0xFF), last_killed_enemy_ms, received_damage and killstreak cleared (0x2F53D3..0x2F5439)
 0x002f5450	survarium::shared_statistics::on_player_damaged	manual	16	
 0x002f5500	survarium::shared_statistics::on_player_weapon_firing	manual	8	
 0x002d7800	survarium::base_player::on_fire	manual	4	

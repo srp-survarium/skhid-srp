@@ -636,6 +636,12 @@ fn world_facts(time: u32, decoded: &Decoded) -> WorldFacts {
             .and_then(|gather| gather.timed.as_ref())
             .filter(|timed| timed.started)
             .map(|timed| timed.next_spawn),
+        // [Gap 9] Each place's last kill's time.
+        kill_times: decoded
+            .statistics
+            .as_ref()
+            .map(|statistics| statistics.players.iter().map(|player| player.last_killed_enemy_ms).collect())
+            .unwrap_or_default(),
         // [Gap 13] The respawn rule's waiting places and their respawn times (`player_respawn_rule_core` 0x316F10).
         respawns: rules
             .and_then(|rules| rules.respawn.as_ref())
@@ -729,6 +735,13 @@ impl Game {
         let Some(walkers) = self.walkers.as_mut() else {
             return;
         };
+        // [Gap 9] Each place's enemy hits (statistics event 23, over its three kits): a bot's hit marker.
+        if let Some(statistics) = decoded.statistics.as_ref() {
+            use survarium::v026g::match_msgs::snapshot::event;
+            let hits: Vec<u32> =
+                statistics.players.iter().map(|player| player.events[event::BULLET_HIT].iter().map(|&n| u32::from(n)).sum()).collect();
+            walkers.bots.hit_markers(&hits);
+        }
         for (place, world) in checked.places.iter().enumerate() {
             let Some(world) = world else {
                 continue;

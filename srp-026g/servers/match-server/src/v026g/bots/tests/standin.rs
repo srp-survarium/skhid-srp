@@ -548,6 +548,8 @@ pub(crate) struct Game {
     pub(crate) batteries: Vec<Lying>,
     pub(crate) containers: Vec<(u8, Vec3)>,
     pub(crate) stats: Vec<(u32, u32, u32)>,
+    /// [Gap 9] By place, the tick of its last kill of an enemy (the statistics' `last_killed_enemy_ms`; 0 none).
+    pub(crate) last_kills: Vec<u32>,
     pub(crate) points: [u32; 2],
     /// Team Deathmatch's tickets.
     pub(crate) tickets: Option<[u32; 2]>,
@@ -974,6 +976,7 @@ impl Game {
             batteries,
             containers,
             stats: vec![(0, 0, 0); teams.len()],
+            last_kills: vec![0; teams.len()],
             points: [0, 0],
             tickets: tickets.map(|t| [t, t]),
             timed: timed.map(|every| (every, every)),
@@ -2353,6 +2356,7 @@ impl Game {
             }
             Kill::Enemy => {
                 self.stats[killer].0 += 1;
+                self.last_kills[killer] = tick;
                 self.stats[killer].2 += 1;
             }
             Kill::Own => {}
@@ -2976,6 +2980,7 @@ impl Game {
             .collect();
         let facts = WorldFacts {
             respawns: Some(respawns),
+            kill_times: self.last_kills.clone(),
             time: self.tick,
             stats: self.stats.clone(),
             points: Some(self.tickets.unwrap_or(self.points)),
@@ -3042,8 +3047,14 @@ impl Game {
             self.staminas.pop_front();
         }
         self.trap_record();
-        self.seen
-            .push_back((tick, self.bodies.iter().map(standin_heal::seen).collect()));
+        // [Gap 9] With each body's enemy hits so far: its statistics' event 23, the bots' hit marker.
+        let seen = self
+            .bodies
+            .iter()
+            .zip(&self.shots_hits)
+            .map(|(body, &(_, hits))| standin_heal::Seen { enemy_hits: hits, ..standin_heal::seen(body) })
+            .collect();
+        self.seen.push_back((tick, seen));
         while self.seen.len() > 40 {
             self.seen.pop_front();
         }

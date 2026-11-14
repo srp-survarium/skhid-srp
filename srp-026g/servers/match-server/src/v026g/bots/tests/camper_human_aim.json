@@ -417,6 +417,7 @@
       "objective_in_band": false,
       "switch_gap_m": null,
       "credit_ms": 2000,
+      "hit_marker": false,
       "told_ms": 400,
       "hurter_keep_ms": 0,
       "push_m": 0.0,

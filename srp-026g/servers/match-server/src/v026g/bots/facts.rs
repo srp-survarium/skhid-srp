@@ -27,8 +27,12 @@ impl Bots {
     /// guessed a mirrored z until a battery far from z = 0 voted otherwise;
     /// on level_05, whose spawners lie at z -0.5 to -1, they took the mirror
     /// image all match and never took those batteries.
-    pub fn facts(&mut self, facts: WorldFacts) -> Vec<Note> {
+    pub fn facts(&mut self, mut facts: WorldFacts) -> Vec<Note> {
         let mut notes = Vec::new();
+        // [Gap 9] The kill times date deaths with `think.kill_time` only.
+        if !self.tunings.match_wide().think.kill_time {
+            facts.kill_times.clear();
+        }
         let time = facts.time;
         let at = |clock| Clock {
             clock,
