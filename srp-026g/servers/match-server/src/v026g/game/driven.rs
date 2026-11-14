@@ -860,6 +860,12 @@ impl Game {
             {
                 walkers.bots.own_gun(place, gun);
             }
+            // [Gap 11] A bot's own pocket stacks of the kit in use: grenades, smokes, traps.
+            if let Some(profile) = self.formed.profiles.get(place)
+                && let Some(pockets) = crate::v026g::bots::pockets::WorldPockets::of(&world.supplies, profile)
+            {
+                walkers.bots.own_stacks(place, snapshot.time, &pockets);
+            }
         }
         // [Gap 8] Each bot's enemies that cannot be hurt now.
         walkers.bots.share_protection();
@@ -1344,7 +1350,7 @@ mod tests {
         };
         let life = |pockets: &mut KitPockets| {
             let mut thrown = 0;
-            while pockets.throw_grenade(key::GRENADE).is_some() && thrown < 10 {
+            while pockets.throw_grenade(key::GRENADE, 0).is_some() && thrown < 10 {
                 thrown += 1;
             }
             thrown
@@ -1441,14 +1447,14 @@ mod tests {
         let Throws::Human(mut first_only) = Throws::of_profile(&profile, Player::Human, false) else {
             panic!("pockets");
         };
-        assert!(first_only.throw_grenade(key::GRENADE).is_none());
+        assert!(first_only.throw_grenade(key::GRENADE, 0).is_none());
         let Throws::Human(mut all) = Throws::of_profile(&profile, Player::Human, true) else {
             panic!("pockets");
         };
-        assert!(all.throw_grenade(key::GRENADE).is_none(), "kit 1 in use: a medkit");
+        assert!(all.throw_grenade(key::GRENADE, 0).is_none(), "kit 1 in use: a medkit");
         let kit = all.kit(1).expect("the profile has a second kit");
         all.use_kit(kit);
-        assert!(all.throw_grenade(key::GRENADE).is_some(), "kit 2 in use: the frag");
+        assert!(all.throw_grenade(key::GRENADE, 0).is_some(), "kit 2 in use: the frag");
         assert!(all.kit(2).is_none());
     }
 

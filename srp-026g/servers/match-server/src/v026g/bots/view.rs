@@ -847,6 +847,22 @@ impl Tracker {
         }
     }
 
+    /// [Gap 11] A world made at `time` shows a server bot's pockets of its kit `kit` holding `stacks`: its pockets hold
+    /// the world's units ([`KitPockets::read`]). Only a bot's own (`Throws::Bot`): what another body carries is not shown
+    /// to a player, so a human's pockets stay counted from the presses.
+    pub fn own_stacks(&mut self, place: Place, kit: usize, time: u32, stacks: [Option<super::pockets::WorldStack>; 6]) {
+        let Some(Throws::Bot(pockets)) = self.places.get_mut(place).map(|state| &mut state.throws) else {
+            return;
+        };
+        let Some(kit) = pockets.kit(kit) else {
+            return;
+        };
+        let read = pockets.read(kit, time, stacks);
+        self.throws.stacks.read += read.read;
+        self.throws.stacks.changed += read.changed;
+        self.throws.stacks.held += read.held;
+    }
+
     /// The fragmentation grenades in the match now.
     pub fn live_grenades(&self) -> &[LiveGrenade] {
         &self.grenades
@@ -1054,7 +1070,7 @@ impl Tracker {
                 Throws::Human(pockets) => {
                     kit = pockets.in_use().get();
                     self.throws.quick_rules_differ += u32::from(pockets.quick_rules_differ(pressed));
-                    match pockets.throw_grenade(pressed) {
+                    match pockets.throw_grenade(pressed, time) {
                         Some((item, grenade)) => Some((item, grenade, Whose::Human)),
                         // The client throws nothing: counted.
                         None => {
@@ -1070,7 +1086,7 @@ impl Tracker {
                 Throws::Bot(pockets) => {
                     kit = pockets.in_use().get();
                     self.throws.quick_rules_differ += u32::from(pockets.quick_rules_differ(pressed));
-                    match pockets.throw_grenade(pressed) {
+                    match pockets.throw_grenade(pressed, time) {
                         Some((item, grenade)) => Some((item, grenade, Whose::Bot)),
                         // The client throws nothing: the throw key is listed as an assumed grenade.
                         None if pressed & key::GRENADE != 0 => {

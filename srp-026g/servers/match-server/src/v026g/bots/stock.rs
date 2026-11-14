@@ -889,6 +889,14 @@ mod tests {
         let (medkit, bandages) = (of("medkit"), of("bandages"));
         assert_eq!((medkit.in_hand, medkit.stored), (Some(2), 20));
         assert_eq!((bandages.in_hand, bandages.stored), (Some(2), 18));
+        // [Gap 11] The pockets of the kit in use, as the bots' own stacks read them.
+        let pockets = super::super::pockets::WorldPockets::of(&supplies, &live.profile).expect("alive, read");
+        assert_eq!(pockets.kit, 1);
+        let shown: Vec<_> = pockets.slots.iter().flatten().map(|(name, stack)| (*name, stack.in_hand, stack.stored)).collect();
+        assert!(shown.contains(&("medkit", 2, 20)) && shown.contains(&("bandages", 2, 18)), "{shown:?}");
+        let mut dead = supplies.clone();
+        dead.alive = false;
+        assert_eq!(super::super::pockets::WorldPockets::of(&dead, &live.profile), None, "a dead body's stacks are in store");
         // `Supplies::left`: the slots and the store.
         let left = supplies.left();
         assert_eq!(left[&medkit.dict_id], 22);

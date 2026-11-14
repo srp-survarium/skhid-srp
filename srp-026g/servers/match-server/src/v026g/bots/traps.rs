@@ -452,11 +452,17 @@ pub struct Habit {
     kit: Option<TrapKit>,
     /// Traps left in the pocket this life.
     left: u8,
+    /// [Gap 11] When it last let go of one this life (the tick's time); `None`: not yet. A world made before
+    /// `stock::PRESS_LAG_MS` after it is no word on that trap ([`Habit::read`]).
+    counted: Option<u32>,
     placed_life: u8,
     state: State,
     /// Traps let go of in all its lives, and lives that ended while it was placing one (looking or pressing).
     placed_total: u32,
     died_placing: u32,
+    /// [Gap 11] What the worlds' trap stacks did ([`PlaceCounts::world_read`]).
+    world_read: u32,
+    world_changed: u32,
     outcomes: LookOutcomes,
 }
 
@@ -520,6 +526,9 @@ pub struct PlaceCounts {
     pub died_placing: u32,
     /// Bots that carry traps (their habit was told them).
     pub armed: u32,
+    /// [Gap 11] Worlds whose trap stack the pocket took ([`Habit::read`]), and of them those that changed the count.
+    pub world_read: u32,
+    pub world_changed: u32,
 }
 
 impl PlaceCounts {
@@ -527,6 +536,8 @@ impl PlaceCounts {
         self.placed += other.placed;
         self.died_placing += other.died_placing;
         self.armed += other.armed;
+        self.world_read += other.world_read;
+        self.world_changed += other.world_changed;
     }
 }
 
@@ -542,10 +553,13 @@ impl Habit {
         Self {
             kit: None,
             left: 0,
+            counted: None,
             placed_life: 0,
             state: State::Idle,
             placed_total: 0,
             died_placing: 0,
+            world_read: 0,
+            world_changed: 0,
             outcomes: LookOutcomes::default(),
         }
     }
@@ -555,10 +569,13 @@ impl Habit {
         Self {
             kit: Some(kit),
             left: kit.count,
+            counted: None,
             placed_life: 0,
             state: State::Idle,
             placed_total: 0,
             died_placing: 0,
+            world_read: 0,
+            world_changed: 0,
             outcomes: LookOutcomes::default(),
         }
     }
@@ -590,6 +607,8 @@ impl Habit {
             placed: self.placed_total,
             died_placing: self.died_placing,
             armed: u32::from(self.kit.is_some()),
+            world_read: self.world_read,
+            world_changed: self.world_changed,
         }
     }
 
@@ -600,8 +619,32 @@ impl Habit {
             self.died_placing += 1;
         }
         self.left = self.kit.map_or(0, |kit| kit.count);
+        self.counted = None;
         self.placed_life = 0;
         self.state = State::Idle;
+    }
+
+    /// Traps left in the pocket now.
+    pub fn left(&self) -> u8 {
+        self.left
+    }
+
+    /// [Gap 11] A world made at `time` shows `in_hand` traps in the pocket: the pocket holds them, unless one it let go
+    /// of less than `stock::PRESS_LAG_MS` before (the world may not show it yet: the count stands). The client takes a
+    /// trap only at a placement that succeeds (`booby_trap_set_core::action` 0x306720: the stack - 1 only when the
+    /// placement 0x305EA0 returns true), so a release on a slope or on a trap's sensor is so undone. Returns whether
+    /// the count changed; `None`: held, or no trap carried.
+    pub fn read(&mut self, time: u32, in_hand: u16) -> Option<bool> {
+        self.kit?;
+        if self.counted.is_some_and(|at| time < at.saturating_add(super::stock::PRESS_LAG_MS)) {
+            return None;
+        }
+        let left = in_hand.min(u16::from(u8::MAX)) as u8;
+        let changed = left != self.left;
+        self.left = left;
+        self.world_read += 1;
+        self.world_changed += u32::from(changed);
+        Some(changed)
     }
 
     pub fn state(&self) -> State {
@@ -651,6 +694,7 @@ impl Habit {
         self.state = state;
         if out.placed.is_some() {
             self.left = self.left.saturating_sub(1);
+            self.counted = Some(tick.now);
             self.placed_life += 1;
             self.placed_total += 1;
         }
@@ -3190,6 +3234,28 @@ mod tests {
         habit.new_life();
         assert_eq!(habit.counts().died_placing, 1);
         assert_eq!(habit.state(), State::Idle);
+    }
+
+    /// [Gap 11] The pocket holds what each world shows, unless the bot let go of a trap too recently for the world to
+    /// show it: a release the client did not turn into a placement is undone at the next world past the lag.
+    #[test]
+    fn the_trap_pocket_holds_what_the_world_shows() {
+        let lag = crate::v026g::bots::stock::PRESS_LAG_MS;
+        assert_eq!(Habit::none().read(1_000, 2), None, "no trap carried");
+        let mut habit = Habit::of_kit(Some((2, 16)));
+        assert_eq!(habit.read(1_000, 2), Some(false));
+        // Let go of one at 5 s: counted at once.
+        habit.left -= 1;
+        habit.counted = Some(5_000);
+        assert_eq!(habit.read(5_100, 2), None, "a world too new for the release");
+        assert_eq!(habit.left(), 1);
+        assert_eq!(habit.read(5_000 + lag, 2), Some(true), "the client placed nothing");
+        assert_eq!(habit.left(), 2);
+        assert_eq!(habit.read(9_000, 0), Some(true));
+        assert_eq!(habit.may_plan(&t()), Err(Refusal::NoTrap));
+        assert_eq!((habit.counts().world_read, habit.counts().world_changed), (3, 2));
+        habit.new_life();
+        assert_eq!((habit.left(), habit.counted), (2, None));
     }
 
     #[test]

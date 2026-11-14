@@ -722,6 +722,13 @@ pub struct CombatTuning {
     /// a body a hit cannot hurt, up to 6 s). That old value is wrong by the client, so it is on by default and the
     /// all-off patch keeps it (`KEPT_RIGHT`).
     pub spawn_protection: bool,
+    /// [Gap 11] A bot's own grenade, smoke and trap pockets hold the units each trusted world shows in the kit in use
+    /// (the item header's `m_amount`), unless a press of this life is too new for the world to show
+    /// (`stock::PRESS_LAG_MS`, as the drugs are read). Off: counted from the presses alone, refilled each life, so a
+    /// press the client did not act on (a throw it refused, a trap on a slope: `booby_trap_set_core::action` 0x306720
+    /// takes a trap only at a placement that succeeds) leaves the count short for the rest of the life. That old value is
+    /// wrong by the client, so it is on by default and the all-off patch keeps it (`KEPT_RIGHT`).
+    pub stacks_from_world: bool,
     /// A round-by-round reload (the SPAS-12, the pumps, the bolt rifles that
     /// load by the round) is loaded with the sights down: the client ends
     /// the loop at the first round-end with them or the trigger held and a
@@ -1609,6 +1616,7 @@ impl Default for CombatTuning {
             weapon_in_hands: true,
             hands_from_world: true,
             spawn_protection: true,
+            stacks_from_world: true,
             reload_aim_control: true,
             reload_rounds_in_view: 0,
             press_ms: 100,
