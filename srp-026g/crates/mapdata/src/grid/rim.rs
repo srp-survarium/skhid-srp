@@ -69,39 +69,51 @@ impl WalkGrid {
             .min_by(|&p, &q| (self.height[p as usize] - feet.y).abs().total_cmp(&(self.height[q as usize] - feet.y).abs()))
     }
 
-    /// The floor a flight's `steps` ([`jump::fly`]) landed on, higher than `over` m (the take-off's height and what its Jump and
-    /// gap links reach, [`MARGINAL_JUMP_M`] at most: the rim jumps' own range): after the jump (its first step in the air), the
-    /// first step out of the jump on which the client has the body on the ground (`on_ground` 0x7EF90, the game's "can jump",
-    /// [`jump::FlightStep::on_ground`]) over such a floor ([`Self::floor_under`]: the feet's own cell). The client's own landing,
+    /// The floor a flight's `steps` ([`jump::fly`]) from the take-off floor `a` landed on, one up from it (higher than a step, the
+    /// walk's own climb) that `a` has no link to (`linked`): after the jump (its first step in the air), the first step out of
+    /// the jump on which the client has the body on the ground (`on_ground` 0x7EF90, the game's "can jump",
+    /// [`jump::FlightStep::on_ground`]) over such a floor ([`Self::floor_under`]: the feet's own cell). Not a fixed height over
+    /// the take-off: a press that lands on a floor 0.8-0.95 m up which no link of `a`'s goes to makes that link (Vector
+    /// Laboratory's (-45.35, 25.61, 4.93), 0.88 m over the take-off at 24.73). The client's own landing,
     /// on any step: not where the flight's straight walk on ends, since a bot that has landed follows its route (Vector
     /// Laboratory's ledge by the shelf, (23.76, 25.39, -28.8), is landed on, then walked off its far end by a straight walk); and on
     /// the floor the body is on, whichever of the top it is (Vector Laboratory's (-23.72, 23.18, -22.0): a jump meant for the floor
     /// at 23.49 stops on the one at 23.18 beside it, part of the same top).
-    fn landed_on(&self, steps: &[jump::FlightStep], over: f32) -> Option<NodeId> {
+    fn landed_on(&self, steps: &[jump::FlightStep], a: NodeId, linked: &[NodeId]) -> Option<NodeId> {
+        let up = self.height[a as usize] + self.body.step;
         let first_air = steps.iter().position(|f| f.in_jump)?;
         steps[first_air..]
             .iter()
             .filter(|f| !f.in_jump && f.on_ground)
-            .find_map(|f| self.floor_under(f.feet).filter(|&g| self.height[g as usize] > over))
+            .find_map(|f| self.floor_under(f.feet).filter(|&g| self.height[g as usize] > up && !linked.contains(&g)))
     }
 
     /// The press that gets a body from the take-off floor `a` up toward the floor `b` along `way`, among the leads `leads` (metres
-    /// before the take-off), and the floor it lands on ([`Self::landed_on`]: a floor over what `a`'s links reach): on `b` itself
+    /// before the take-off), and the floor it lands on ([`Self::landed_on`]: one up that `a`'s links (`linked`) do not go to): on `b` itself
     /// when a press does (a walking jump at the
     /// middle of the leads it lands there from, else the sprint jump at the lead where the most of its four variants do, the
     /// nearest the middle on a tie); else on the floor the presses land on the most (re-targeted: the link goes where the body
     /// lands); None when no press lands on such a floor. And the flights flown (a lead where every sprint variant lands on
     /// `b` ends the search).
-    fn best_press(&self, world: &Collision, s: &Settings, a: NodeId, b: NodeId, way: (f32, f32), leads: &[f32]) -> (Option<(NodeId, Takeoff)>, usize) {
+    #[allow(clippy::too_many_arguments)]
+    fn best_press(
+        &self,
+        world: &Collision,
+        s: &Settings,
+        a: NodeId,
+        b: NodeId,
+        way: (f32, f32),
+        leads: &[f32],
+        linked: &[NodeId],
+    ) -> (Option<(NodeId, Takeoff)>, usize) {
         let from = self.position(a);
-        let top = from.y + self.body.max_jump.min(MARGINAL_JUMP_M);
         let mut flights = 0;
         // Each press's landing floor: (lead, walking, floor).
         let mut landings: Vec<(f32, bool, NodeId)> = Vec::new();
         for &lead in leads {
             flights += 1;
             let at = Vec3::new(from.x - way.0 * lead, from.y, from.z - way.1 * lead);
-            if let Some(f) = jump::run_and_fly(world, s, at, way, Gait::Walk, GROUND_STEPS).and_then(|st| self.landed_on(&st, top)) {
+            if let Some(f) = jump::run_and_fly(world, s, at, way, Gait::Walk, GROUND_STEPS).and_then(|st| self.landed_on(&st, a, linked)) {
                 landings.push((lead, true, f));
             }
         }
@@ -125,7 +137,7 @@ impl WalkGrid {
                 let press =
                     if run.speed >= jump::WALK_CAP_MS { Press::Sprint { speed: run.speed, leg, first_air_frame } } else { Press::Walk { speed: run.speed } };
                 let mut body = run.body;
-                if let Some(f) = self.landed_on(&jump::fly(world, s, &mut body, way, press, Keys::BOT, GROUND_STEPS), top) {
+                if let Some(f) = self.landed_on(&jump::fly(world, s, &mut body, way, press, Keys::BOT, GROUND_STEPS), a, linked) {
                     landings.push((lead, false, f));
                     on_this += usize::from(f == b);
                 }
@@ -224,7 +236,11 @@ impl WalkGrid {
         let flown = super::controlled::parallel(&todo, |&(a, b, d)| {
             let (di, dk) = DIRS[d];
             let l = ((di * di + dk * dk) as f32).sqrt();
-            self.best_press(world, s, a, b, (di as f32 / l, dk as f32 / l), &leads)
+            // The floors `a` has a link to already (its sides and its off-mesh links): a landing there makes no link.
+            let mut linked: Vec<NodeId> = wide.links[a as usize].iter().copied().filter(|&n| n != NONE).collect();
+            let off = wide.off.partition_point(|o| o.from < a);
+            linked.extend(wide.off[off..].iter().take_while(|o| o.from == a).map(|o| o.to));
+            self.best_press(world, s, a, b, (di as f32 / l, dk as f32 / l), &leads, &linked)
         });
         let mut stats = RimStats { tried: todo.len(), ..RimStats::default() };
         let mut none = Vec::new();
