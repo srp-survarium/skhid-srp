@@ -250,17 +250,23 @@ pub(super) fn life_start() -> Box<dyn RouteTopic> {
     Delta::of(
         || super::super::life_start::bins(),
         |d, line| {
-            use super::super::life_start::{BINS, quantile};
+            use super::super::life_start::{BINS, ROWS, WHYS, quantile};
             let q = |k: usize, share: f64| quantile(&d[k * BINS..(k + 1) * BINS], share).map_or("-".into(), |ms| ms.to_string());
-            let n: u64 = d[2 * BINS..3 * BINS].iter().sum();
+            let n: u64 = d[4 * BINS..5 * BINS].iter().sum();
+            let why = &d[ROWS * BINS..ROWS * BINS + WHYS];
             line.ends.push(format!(
-                "life_start n {n} think_ms {}/{} route_ms {}/{} move_ms {}/{}",
+                "life_start n {n} think_ms {}/{} drive_ms {}/{} goal_ms {}/{} route_ms {}/{} move_ms {}/{}                  ticks_before_route noway/searching/starved/searched/ended/shutin/nogoal {}",
                 q(0, 0.5),
                 q(0, 0.9),
                 q(1, 0.5),
                 q(1, 0.9),
                 q(2, 0.5),
-                q(2, 0.9)
+                q(2, 0.9),
+                q(3, 0.5),
+                q(3, 0.9),
+                q(4, 0.5),
+                q(4, 0.9),
+                why.iter().map(u64::to_string).collect::<Vec<_>>().join("/")
             ));
         },
     )
