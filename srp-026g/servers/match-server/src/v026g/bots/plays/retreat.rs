@@ -370,6 +370,7 @@ mod tests {
                 name: format!("resupply_{team}"),
                 team,
                 position: Vec3::new(x, 0.0, 35.0),
+                protection: None,
                 damage_type: String::new(),
                 damage: None,
                 shapes: Vec::new(),
@@ -472,6 +473,7 @@ mod tests {
             name: "resupply_0".into(),
             team: 0,
             position: Vec3::new(26.0, 0.0, 20.0),
+            protection: None,
             damage_type: String::new(),
             damage: None,
             shapes: vec![mapdata::Shape {
@@ -507,6 +509,7 @@ mod tests {
             name: "resupply_0".into(),
             team: 0,
             position: Vec3::new(26.0, 0.0, 20.0),
+            protection: None,
             damage_type: String::new(),
             damage: None,
             shapes: vec![mapdata::Shape {

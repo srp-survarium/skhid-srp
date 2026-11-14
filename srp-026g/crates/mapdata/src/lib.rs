@@ -94,7 +94,7 @@ pub fn search_memory_bytes() -> usize {
 pub use math::{PhysicsPoint, Rotation, Transform, Vec3};
 pub use project::{
     BulletMesh, Anomaly, AnomalyArtefacts, AnomalyEnergy, AnomalyState, ArtefactContainer, ArtefactCore,
-    BatterySpawner, CollisionFilter, Container, Damage, MapData, Placement, Shape, ShapeKind,
+    BatterySpawner, CollisionFilter, Container, Damage, MapData, Placement, Protection, Shape, ShapeKind,
     Spawn, Triangle, Zone, ZoneGroup, ZoneKind,
 };
 pub use resources::{Error, Resources};

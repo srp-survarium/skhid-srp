@@ -1147,6 +1147,7 @@ mod tests {
                 name: "logic/pool_zone".into(),
                 team: -1,
                 position: Vec3::new(20.0, 0.0, 20.0),
+                protection: None,
                 damage_type: "fire".into(),
                 damage: None,
                 shapes: vec![Shape {

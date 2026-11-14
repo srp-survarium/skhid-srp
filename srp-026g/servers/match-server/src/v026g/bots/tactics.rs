@@ -3730,6 +3730,7 @@ pub(super) mod tests {
             name: name.into(),
             team: -1,
             position: centre,
+            protection: None,
             damage_type: "fire".into(),
             damage: Some(mapdata::Damage {
                 max_hit: per_s / 2.0,
@@ -4056,6 +4057,7 @@ pub(super) mod tests {
                 name: "fire".into(),
                 team: -1,
                 position: Vec3::new(25.0, 0.0, 32.0),
+                protection: None,
                 damage_type: "fire".into(),
                 damage: None,
                 shapes: vec![Shape {

@@ -496,6 +496,7 @@ mod tests {
                 name: "toxic".into(),
                 team: -1,
                 position: CARRIER,
+                protection: None,
                 damage_type: "toxic".into(),
                 damage: None,
                 shapes: vec![Shape {
@@ -552,6 +553,7 @@ mod tests {
                     name: format!("ring {x} {z}"),
                     team: -1,
                     position: Vec3::new(x, 0.0, z),
+                    protection: None,
                     damage_type: "toxic".into(),
                     damage: None,
                     shapes: vec![Shape {

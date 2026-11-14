@@ -11,6 +11,7 @@ fn zone(name: &str, center: Vec3, half: Vec3) -> Zone {
         name: name.into(),
         team: -1,
         position: center,
+        protection: None,
         damage_type: "electric".into(),
         damage: None,
         shapes: vec![Shape {

@@ -900,6 +900,7 @@ pub(crate) fn a_stand_in_resupplies_at_its_own_teams_box_after_its_time() {
         name: String::new(),
         team,
         position: at,
+        protection: None,
         damage_type: String::new(),
         damage: None,
         shapes: vec![use_box(at)],

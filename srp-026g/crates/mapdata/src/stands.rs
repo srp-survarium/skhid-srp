@@ -448,6 +448,7 @@ mod tests {
             name: String::new(),
             team: 0,
             position: shape.center,
+            protection: None,
             damage_type: String::new(),
             damage: None,
             shapes: vec![shape],

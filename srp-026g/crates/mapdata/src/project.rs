@@ -150,6 +150,9 @@ pub struct Zone {
     /// -1 when the zone has no team.
     pub team: i32,
     pub position: Vec3,
+    /// What an effect zone keeps up for its own team's players inside ([`Protection`]); `None` for other kinds, and
+    /// for an effect zone read from a map data file older than version 7.
+    pub protection: Option<Protection>,
     /// `damage_type` of a damage zone (`toxic`, ...), else empty.
     pub damage_type: String,
     /// What a damage zone does to a body in it; `None` for other kinds.
@@ -175,6 +178,35 @@ impl Zone {
     /// normalised distance; 0 for a zone with no damage.
     pub fn hit_rate_at(&self, point: Vec3) -> f32 {
         self.damage.as_ref().map_or(0.0, |damage| damage.rate_at(self.normalised_distance(point)))
+    }
+}
+
+/// An effect zone's spawn protection (`effect_zone` config, a team's base in the battery modes; PROVEN, the client's
+/// code): its loader `effect_zone_core::load` 0x31AC10 reads `invulnerability_duration` (+0x48),
+/// `invulnerability_attenuation` (+0x4C) and `team` (+0x50), each the config value's 4 bytes as they are; while a
+/// player of the zone's `team` is in it, `effect_zone_core::apply_invulnerability` 0x31ACA0 sets his damage model's
+/// end of invulnerability to the time now plus `duration_ms` (+0x32C, an integer add 0x31AD0B) and its fade to
+/// `attenuation_ms` (+0x330). `damage_model::get_invulnerability` 0x2E5550 is then 1 until that end, then
+/// `1 - (now - end) / attenuation`, then 0; a hit's damage is times `1 - it` (0x2E50A8;
+/// `docs/notes/v011e_spawn_protection.md`). So a player is protected in his base and for `duration_ms` after he
+/// leaves it, then fades over `attenuation_ms`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Protection {
+    /// `invulnerability_duration`, milliseconds.
+    pub duration_ms: u32,
+    /// `invulnerability_attenuation`, milliseconds.
+    pub attenuation_ms: u32,
+}
+
+impl Protection {
+    /// An `effect_zone` object's two values: integers (the loader keeps the config value's 4 bytes and the zone adds
+    /// them to the time in milliseconds); a missing, negative or non-integer value is `None` (no such zone ships).
+    fn of(object: &ConfigValue) -> Option<Self> {
+        let ms = |key: &str| match object.get(key)? {
+            ConfigValue::Integer(value) => u32::try_from(*value).ok(),
+            _ => None,
+        };
+        Some(Self { duration_ms: ms("invulnerability_duration")?, attenuation_ms: ms("invulnerability_attenuation")? })
     }
 }
 
@@ -771,6 +803,7 @@ impl MapData {
                     name: str_or(object, "full_name").to_owned(),
                     team: i32_or(object, "team", -1),
                     position: point_at(object, "position"),
+                    protection: (kind == ZoneKind::Effect).then(|| Protection::of(object)).flatten(),
                     damage_type: str_or(object, "damage_type").to_owned(),
                     damage: (kind == ZoneKind::Damage).then(|| damage_of(object)),
                     shapes: shapes_of(object),
@@ -1167,6 +1200,7 @@ mod tests {
             name: "z".into(),
             team: -1,
             position: Vec3::new(10.0, 5.0, 10.0),
+            protection: None,
             damage_type: "radiation".into(),
             damage: Some(anomaly),
             shapes: vec![shape(ShapeKind::Sphere, Vec3::new(4.0, 4.0, 4.0))],
@@ -1184,6 +1218,7 @@ mod tests {
             name: "logic/anomaly/anomaly_damage_zone".into(),
             team: -1,
             position: Vec3::new(10.0, 5.0, 10.0),
+            protection: None,
             damage_type: "radiation".into(),
             damage: Some(Damage { max_hit: 0.08, hit_curve: vec![(0.0, 1.0), (1.0, 0.0)], ..Damage::default() }),
             shapes: vec![
@@ -1238,6 +1273,10 @@ mod tests {
                   "hit_curve": { "key1": { "position": [1.0, 0.5] }, "key0": { "position": [0.8, 1.0] } },
                   "collision_geometries": [ { "name": "pool" }, { "name": "pillar" } ] },
                 { "game_object_type": "resupply_zone", "full_name": "resupply", "team": 1, "position": [8.0, 0.0, 8.0], "collision_geometries": [] },
+                { "game_object_type": "effect_zone", "full_name": "logic/base_zone", "team": 1, "position": [9.0, 0.0, 9.0],
+                  "invulnerability_duration": 2000, "invulnerability_attenuation": 1500, "collision_geometries": [] },
+                { "game_object_type": "effect_zone", "full_name": "logic/half_zone", "team": 0, "position": [9.0, 0.0, 9.0],
+                  "invulnerability_duration": 2000, "collision_geometries": [] },
                 { "game_object_type": "generic_anomaly_core", "full_name": "core", "position": [-5.0, 0.0, -5.0],
                   "energy_enabled": true, "energy_initial": 1, "energy_decrease_speed": 25,
                   "artefacts_enabled": true, "artefacts_first_spawn_time_sec": 60, "max_artefacts_count": 1,
@@ -1248,6 +1287,21 @@ mod tests {
                 { "game_object_type": "ambient_light", "full_name": "light", "position": [0.0, 0.0, 0.0] },
             ],
         })
+    }
+
+    /// An effect zone keeps its `invulnerability_duration` and `invulnerability_attenuation` (ms, the client's
+    /// `effect_zone_core::load` 0x31AC10); one missing either has none, and no other kind of zone has any.
+    #[test]
+    fn an_effect_zone_keeps_its_spawn_protection() {
+        let config = binary_config_parser::BinaryConfig::parse_json(&project_json());
+        let root = ConfigValue::parse(config.as_bytes()).unwrap();
+        let map = MapData::from_config("test/day_2", &root).unwrap();
+        let zone = |name: &str| map.zones.iter().find(|z| z.name == name).unwrap();
+        assert_eq!(zone("logic/base_zone").kind, ZoneKind::Effect);
+        assert_eq!(zone("logic/base_zone").team, 1);
+        assert_eq!(zone("logic/base_zone").protection, Some(Protection { duration_ms: 2000, attenuation_ms: 1500 }));
+        assert_eq!(zone("logic/half_zone").protection, None, "no attenuation");
+        assert!(map.zones.iter().filter(|z| z.kind != ZoneKind::Effect).all(|z| z.protection.is_none()));
     }
 
     /// A battery goes in at the use box (as on level_06, where the
@@ -1326,7 +1380,7 @@ mod tests {
         assert!(use_box.contains(Vec3::new(4.5, 1.2, 5.5)));
         assert!(!use_box.contains(Vec3::new(4.0, 1.0, 3.5)));
         assert_eq!(map.battery_spawners[0].item, Vec3::new(0.5, 0.2, 0.5));
-        assert_eq!(map.zones.len(), 2);
+        assert_eq!(map.zones.len(), 4, "the pool, the resupply and two effect zones");
         let pool = &map.zones[0];
         assert_eq!(
             (pool.kind, pool.damage_type.as_str()),
