@@ -249,7 +249,8 @@ mod tests {
         let tuning = Tuning::from_value(value).unwrap();
         let lines = tuning.switch_report().lines();
         let line = |prefix: &str| lines.iter().find(|l| l.starts_with(prefix)).unwrap_or_else(|| panic!("no `{prefix}` in {lines:?}"));
-        assert!(line("switches ON heal:").contains("interrupt on"), "{lines:?}");
+        // `lethal_health` is kept right by the all-off patch (`KEPT_RIGHT`).
+        assert!(line("switches ON heal:").contains("interrupt lethal_health on"), "{lines:?}");
         assert!(line("switches ON unstick:").contains("suicide_after_ms=60000"), "{lines:?}");
         assert!(line("switches OFF heal:").contains("bandages"), "{lines:?}");
         assert!(line("switch values hazard:").contains("route_crossing=total"), "{lines:?}");

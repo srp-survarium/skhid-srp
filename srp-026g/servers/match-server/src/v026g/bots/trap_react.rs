@@ -847,6 +847,11 @@ const OWN_M: f32 = 1.0;
 const FIGHT_HIT_MS: u32 = 3_000;
 /// A bot hurt below this health leaves the trap alone.
 const SHOOT_HEALTH: f32 = 0.4;
+
+/// [Gap 4] The bot's own health for the trap gates ([`super::pools::own_health`], `heal.lethal_health`).
+fn own_health(bot: &Bot, due: &Due) -> f32 {
+    super::pools::own_health(bot.features.stock.pools, due.me.health, due.tuning.heal.lethal_health)
+}
 /// A shooter is remembered this long, ms (a second one starting on the same
 /// trap within it is a double shooter).
 const SHOOTER_KEEP_MS: u32 = 1_500;
@@ -925,7 +930,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
 fn start_defuse(bot: &mut Bot, due: &Due, others: &[(PlacedTrap, TrapKey, Vec3)]) {
     let t = &due.tuning.traps.react;
     let me = due.me;
-    if me.carrying.is_some() || me.health < SHOOT_HEALTH {
+    if me.carrying.is_some() || own_health(bot, due) < SHOOT_HEALTH {
         return;
     }
     let react = &bot.features.traps.react;
@@ -1108,7 +1113,7 @@ impl React {
 fn start_shot(bot: &mut Bot, due: &Due, others: &[(PlacedTrap, TrapKey, Vec3)]) {
     let t = &due.tuning.traps.react;
     let me = due.me;
-    if me.carrying.is_some() || me.health < SHOOT_HEALTH || !weapon_ready(bot, due.now) {
+    if me.carrying.is_some() || own_health(bot, due) < SHOOT_HEALTH || !weapon_ready(bot, due.now) {
         return;
     }
     let react = &bot.features.traps.react;

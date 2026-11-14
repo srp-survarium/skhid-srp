@@ -9,6 +9,15 @@
 //! `game/driven.rs`), like its hurts ([`super::motor::Hurt`]): it is its own
 //! state and nobody else's.
 
+/// [Gap 4] A bot's own health for its decisions: with `lethal` (`HealTuning::lethal_health`) and its pools known, the
+/// lethal pool nearest its end ([`Pools::lethal_share`]); else `body`, the body pool alone (`PlaceView::health`).
+pub fn own_health(pools: Option<Pools>, body: f32, lethal: bool) -> f32 {
+    match pools {
+        Some(pools) if lethal => pools.lethal_share(),
+        _ => body,
+    }
+}
+
 /// The pools' most (`human_hit_params.options`, PROVEN).
 pub const BODY_MAX: f32 = 1.0;
 pub const HEAD_MAX: f32 = 0.4;
@@ -108,6 +117,23 @@ impl Pools {
         (1.0 - value / pool.max()).clamp(0.0, 1.0)
     }
 
+    /// [Gap 4] How far the body is from death: the least share left of the four lethal pools, the body (1.0), the head
+    /// (0.4), the pain (1.0) and the infection (1.0), each of its most (`damage_model.md` "The 20 parts": a lethal pool
+    /// at 0 is death, the death affect's only setter `on_affect` 0x2DA480). Every hit on any box takes from the pain
+    /// pool, and the pain alone killed 3,491 of 5,994 bots (the body and the head not empty): the body pool alone is not
+    /// the body's health.
+    pub fn lethal_share(&self) -> f32 {
+        [
+            self.body / BODY_MAX,
+            self.head / HEAD_MAX,
+            self.pain / PAIN_MAX,
+            self.infection / INFECTION_MAX,
+        ]
+        .into_iter()
+        .fold(1.0f32, f32::min)
+        .clamp(0.0, 1.0)
+    }
+
     /// A limb of the pair is broken (its pool at 0).
     pub fn limb_broken(&self) -> bool {
         self.legs
@@ -133,6 +159,23 @@ impl Pools {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [Gap 4] The health is the lethal pool nearest its end, each of its most: a full body with a low pain pool is
+    /// that low; a head at half its 0.4 is 0.5; a broken limb is no lethal pool.
+    #[test]
+    fn the_health_is_the_lethal_pool_nearest_its_end() {
+        assert_eq!(Pools::FULL.lethal_share(), 1.0);
+        assert_eq!(Pools { pain: 0.25, ..Pools::FULL }.lethal_share(), 0.25);
+        assert_eq!(Pools { head: 0.2, body: 0.8, ..Pools::FULL }.lethal_share(), 0.5);
+        assert_eq!(Pools { infection: 0.1, ..Pools::FULL }.lethal_share(), 0.1);
+        assert_eq!(Pools { legs: [0.0, 0.0], hands: [0.0, 0.5], ..Pools::FULL }.lethal_share(), 1.0);
+        assert_eq!(Pools { body: 0.0, ..Pools::FULL }.lethal_share(), 0.0);
+        // A decision's health: the pools' with the switch on and the pools known, else the body pool.
+        let pained = Some(Pools { pain: 0.3, ..Pools::FULL });
+        assert_eq!(own_health(pained, 0.9, true), 0.3);
+        assert_eq!(own_health(pained, 0.9, false), 0.9);
+        assert_eq!(own_health(None, 0.9, true), 0.9);
+    }
 
     #[test]
     fn the_world_gives_the_pools_by_the_body_tables_order() {
