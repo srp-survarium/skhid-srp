@@ -15,9 +15,9 @@
 //!
 //! A taken floor comes back when all hold:
 //! - no floor the erosion kept is within the capsule's radius across and [`NAME_HEIGHT_M`] of its centre;
-//! - the client's walk tick rests a standing body there: set on its centre out of the walls, falling at 1 cm/s so its first
-//!   step runs (as [`super::wall_give_back::stands`] sets it, A364 C2 row 45), with no keys until it stands still on the ground
-//!   (`on_ground` 0x7EF90; [`rests_at`]), its feet within the radius across and [`NAME_HEIGHT_M`] of the centre;
+//! - the client's walk tick rests a standing body there: come down onto its centre from [`PUT_OVER_M`] over it, out of the
+//!   walls (a body arrives by a move), with no keys until it stands still on the ground (`on_ground` 0x7EF90; [`rests_at`]),
+//!   its feet within the radius across and [`NAME_HEIGHT_M`] of the centre;
 //! - no floor the erosion kept is within the radius across and [`NAME_HEIGHT_M`] of where it rests either.
 //!
 //! It comes back as a floor like any other (its links as the cells made them), before the passes that read the floors (the gap
@@ -38,22 +38,29 @@ const REST_STEPS_MAX: usize = 40;
 /// sliding off a broken edge is still moving after 1 s: Chemical Plant's slab, owner-5 `cp-two-falls-rootcause.md` 1.3). Our
 /// choice: the bound of the test, not a client value.
 const STILL_STEPS: usize = 4;
-/// The test body is set this far over the floor, m, falling at [`FALL_MPS`], so its first step runs (`can_skip_player_step`
-/// 0x7C7E0 skips a body set with no speed: [`super::wall_give_back`]).
-const LIFT_M: f32 = 0.005;
-/// See [`LIFT_M`], m/s.
+/// The test body is put this far over the floor and comes down onto it, m (owner-5's stand feeds and the flyer's run-up,
+/// `controller::jump`'s `RUN_UP_DROP_M`): a body arrives at a place by a move. Put at the floor's own point it may overlap faces
+/// over it (a capsule at the height of Chemical Plant's broken slab is inside its steep faces) and both ticks keep that pose,
+/// its steps skipped (exactness 2026-11-14, `private/grid/rig/owner5/recheck-20261114/cp-stand/notes-cp-slab.md`: settled from
+/// 0.55 m above, the exe and the port drop the body off all 7 slab floors; put on them, both hold 4). Less where the room over
+/// the floor is shorter than a standing body and this.
+const PUT_OVER_M: f32 = 0.6;
+/// The body comes down at least this fast on every step, m/s, so no step is skipped (`can_skip_player_step` 0x7C7E0 skips a
+/// body with no speed: [`super::wall_give_back`]; the flyer's settle sets the same).
 const FALL_MPS: f32 = 0.01;
 
-/// Where the client's walk tick rests a standing body set at `feet` (module documentation): its feet once it has stood still on
-/// the ground [`STILL_STEPS`] steps in a row; None when it has not within [`REST_STEPS_MAX`] (it falls, slides on).
-pub(super) fn rests_at(world: &Collision, s: &Settings, feet: Vec3) -> Option<Vec3> {
-    let start = out_of_walls(world, feet);
-    let mut body = Controller::standing_at(start + Vec3::new(0.0, LIFT_M, 0.0));
-    body.velocity = Vec3::new(0.0, -FALL_MPS, 0.0);
+/// Where the client's walk tick rests a standing body come down onto `feet` (module documentation): put [`PUT_OVER_M`] over it
+/// (at most `room` m: the floor's room over a standing body) out of the walls, it falls with no keys; its feet once it has stood
+/// still on the ground [`STILL_STEPS`] steps in a row; None when it has not within [`REST_STEPS_MAX`] (it falls on, slides on).
+pub(super) fn rests_at(world: &Collision, s: &Settings, feet: Vec3, room: f32) -> Option<Vec3> {
+    let over = PUT_OVER_M.min(room).max(0.005);
+    let start = out_of_walls(world, feet + Vec3::new(0.0, over, 0.0));
+    let mut body = Controller::standing_at(start);
     let still = TickInput { walk: Vec3::ZERO, air_control: Vec3::ZERO, crouch: CrouchInput::Tested { key: false, legs_broken: false }, sprinting: false };
     let mut run = 0;
     for _ in 0..REST_STEPS_MAX {
         let before = body.feet();
+        body.velocity.y = body.velocity.y.min(-FALL_MPS);
         body.tick(world, DT, s, still);
         run = if !body.jumping && body.on_ground(s) && (body.feet() - before).length() < 1e-3 { run + 1 } else { 0 };
         if run >= STILL_STEPS {
@@ -90,7 +97,7 @@ impl WalkGrid {
             .collect();
         let back = parallel(&candidates, |&a| {
             let centre = self.position(a as NodeId);
-            rests_at(world, s, centre).is_some_and(|rest| {
+            rests_at(world, s, centre, self.ceiling[a] - self.height[a] - self.body.stand_height).is_some_and(|rest| {
                 rest.distance_xz(centre) <= r && (rest.y - centre.y).abs() <= NAME_HEIGHT_M && !self.named(alive, rest)
             })
         });
@@ -109,11 +116,12 @@ mod tests {
         Triangle { v: [a, b, c], walker: WalkerBehaviour::BySlope }
     }
 
-    /// Ground at 0, two 3 m walls along x at z 4.6 and z 5.4: a corridor 0.8 m wide, wider than the body (0.76 m).
+    /// Ground at 0, two 3 m walls along x at z 4.55 and z 5.45: a corridor 0.9 m wide, wider than the body (0.76 m and the collision
+    /// margin 0.04 a side: 0.84 m; in 0.8 m a body come down from above is wedged between the walls).
     fn corridor() -> Vec<Triangle> {
         let g = |x: f32, z: f32| Vec3::new(x, 0.0, z);
         let mut t = vec![tri(g(0.0, 0.0), g(10.0, 0.0), g(10.0, 10.0)), tri(g(0.0, 0.0), g(10.0, 10.0), g(0.0, 10.0))];
-        for z in [4.6, 5.4] {
+        for z in [4.55, 5.45] {
             let (a, b, c, d) = (Vec3::new(0.0, 0.0, z), Vec3::new(10.0, 0.0, z), Vec3::new(10.0, 3.0, z), Vec3::new(0.0, 3.0, z));
             t.extend([tri(a, b, c), tri(a, c, d)]);
         }
@@ -129,7 +137,7 @@ mod tests {
     /// away from the corridor the grid is the same.
     #[test]
     fn a_corridor_the_erosion_empties_gets_its_floors_back_where_the_body_rests() {
-        let inside = |g: &WalkGrid| g.floors_in([2.0, 4.6, 8.0, 5.4]).filter(|&f| g.position(f).y.abs() < 0.1).count();
+        let inside = |g: &WalkGrid| g.floors_in([2.0, 4.55, 8.0, 5.45]).filter(|&f| g.position(f).y.abs() < 0.1).count();
         let (off, on) = (grid(false), grid(true));
         assert_eq!(inside(&off), 0, "the rounds take the corridor");
         assert!(inside(&on) > 0, "the body rests there: its floors come back");
