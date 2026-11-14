@@ -29,6 +29,10 @@ pub const HEADER: usize = 3;
 /// The client parses into a `fixed_vector<message_data, 252>`; one more is a
 /// fatal assert.
 pub const MAX_MESSAGES: usize = 252;
+/// The largest world a snapshot upload carries: the client hashes and
+/// uploads it from a buffer of 0xF000 bytes (patch 98; 0x8000 in the
+/// original exe), `survarium::v026g::match_msgs::upload::MAX_TOTAL`.
+pub const MAX_SNAPSHOT_TOTAL: usize = 0xF000;
 /// The id byte that starts a part of a split message.
 pub const MULTIPART: u8 = 0xFF;
 
@@ -251,9 +255,9 @@ fn parse_message(
         }
         Ok(len)
     };
-    // Patched clients use E0 for snapshots and resource ACKs. Single messages
+    // Patched clients use E0 for snapshots, resource ACKs, world receipts and client reports. Single messages
     // consume the whole area; multi messages need the extension's own length.
-    // An E0 without either extension prefix remains an empty leave.
+    // An E0 without a recognized extension prefix remains an empty leave.
     let carrier = table == Table::Match
         && direction == Direction::ToServer
         && id == UPLOAD_CARRIER
@@ -310,16 +314,22 @@ fn parse_message(
     Ok((message, at + len))
 }
 
-/// Length of a resource ACK or whole snapshot chunk. Snapshot header:
+/// Length of a resource ACK, world receipt, client report (its codec's own,
+/// `srp_validate::report::carrier_len`) or whole snapshot chunk. Snapshot header:
 /// `u32 item_time` (a tick), `u16 offset` (a
-/// multiple of 480), `u16 total` (over the offset, at most 0x8000), then
+/// multiple of 480), `u16 total` (over the offset, at most
+/// [`MAX_SNAPSHOT_TOTAL`]), then
 /// `min(480, total - offset)` bytes (client_patch.md §3.4).
 fn carrier_len(bytes: &[u8]) -> Option<usize> {
     let head = bytes.get(..8)?;
-    // The experimental resource ACK has an impossible snapshot prefix.
+    // Resource ACKs and world receipts have distinct impossible snapshot prefixes.
     // Native datagrams can retain the multi flag even with joining disabled.
-    if head == [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0, 0] {
+    if matches!(head, [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0 | 1, 0]) {
         return (bytes.len() >= 20).then_some(20);
+    }
+    if let Some(len) = srp_validate::executable::carrier_len(bytes) { return Some(len); }
+    if let Some(len) = srp_validate::report::carrier_len(bytes) {
+        return Some(len);
     }
     let time = u32::from_le_bytes([head[0], head[1], head[2], head[3]]);
     let offset = usize::from(u16::from_le_bytes([head[4], head[5]]));
@@ -328,7 +338,7 @@ fn carrier_len(bytes: &[u8]) -> Option<usize> {
     (time.is_multiple_of(50)
         && offset.is_multiple_of(480)
         && offset < total
-        && total <= 0x8000
+        && total <= MAX_SNAPSHOT_TOTAL
         && bytes.len() >= len)
         .then_some(len)
 }
@@ -361,6 +371,119 @@ mod tests {
     fn resource_ack_in_a_multi_datagram_preserves_following_messages_and_tail_acks() {
         let ack = [
             0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0, 0, 9, 0, 0, 0x80, 1, 0, 0, 0, 2, 0, 1, 0,
+        ];
+        for before in [false, true] {
+            for after in [false, true] {
+                let mut bytes = vec![7, 3, 0x81];
+                if before {
+                    bytes.push(0xe1);
+                }
+                bytes.push(0xe0);
+                bytes.extend(ack);
+                if after {
+                    bytes.push(0xe1);
+                }
+                bytes.push(1);
+                let parsed = parse_match(Direction::ToServer, &bytes).unwrap();
+                assert_eq!(
+                    parsed.messages.len(),
+                    1 + usize::from(before) + usize::from(after)
+                );
+                assert_eq!(parsed.messages[usize::from(before)].payload, ack);
+            }
+        }
+        for len in 1..ack.len() {
+            let mut bytes = vec![7, 3, 1, 0xe0];
+            bytes.extend(&ack[..len]);
+            assert!(parse_match(Direction::ToServer, &bytes).is_err());
+        }
+        // Native client: resource ACK followed by a world-hash report.
+        let captured = [
+            0x72, 0x84, 0x7f, 0xe0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0, 0, 0x64, 0xbb, 0xf2,
+            0xc0, 1, 0, 0, 0, 2, 0, 1, 0, 0xdf, 0x25, 0x16, 0x14, 0xe1, 0x15,
+        ];
+        let parsed = parse_match(Direction::ToServer, &captured).unwrap();
+        assert_eq!(parsed.messages.len(), 2);
+        assert_eq!(parsed.messages[0].payload, &captured[4..24]);
+        assert_eq!(parsed.messages[1].id, 0xdf);
+        assert_eq!(parsed.messages[1].payload, &captured[25..]);
+    }
+    #[test]
+    fn a_client_report_in_a_multi_datagram_preserves_the_messages_around_it() {
+        use srp_validate::memory::{Arena, Moment, Name, Process, Report as Memory, Usage};
+        let mut memory = Memory::new(
+            Moment::Loaded,
+            Process {
+                free: 9,
+                largest_free: 3,
+                video_budget: 1,
+            },
+        );
+        for n in 0..12 {
+            memory.add(Arena {
+                name: Name::of_c(b"render"),
+                size: n,
+                usage: Usage::Heap {
+                    used: n,
+                    largest_free: 1,
+                },
+            });
+        }
+        let report = srp_validate::report::Report::Memory(memory);
+        for part in 0..report.parts() {
+            let (carrier, len) = report.part(0x8000_0001, part).unwrap();
+            let carrier = &carrier[..len];
+            for before in [false, true] {
+                for after in [false, true] {
+                    let mut bytes = vec![7, 3, 0x81];
+                    if before {
+                        bytes.push(0xe1);
+                    }
+                    bytes.push(0xe0);
+                    bytes.extend(carrier);
+                    if after {
+                        bytes.push(0xe1);
+                    }
+                    bytes.push(1);
+                    let parsed = parse_match(Direction::ToServer, &bytes).unwrap();
+                    assert_eq!(
+                        parsed.messages.len(),
+                        1 + usize::from(before) + usize::from(after)
+                    );
+                    let message = parsed.messages[usize::from(before)];
+                    assert_eq!((message.id, message.payload), (0xe0, carrier));
+                    assert!(srp_validate::report::Carrier::parse(message.payload).is_some());
+                }
+            }
+            // alone in its datagram, the whole rest is the carrier
+            let mut single = vec![7, 3, 0, 0xe0];
+            single.extend(carrier);
+            let parsed = parse_match(Direction::ToServer, &single).unwrap();
+            assert_eq!(parsed.messages[0].payload, carrier);
+            // cut short, with or without a message after it: refused, never a
+            // leave (a message's byte that makes up the length is the carrier's)
+            for cut in 1..len {
+                for tail in [&[][..], &[0xe1][..]]
+                    .into_iter()
+                    .filter(|tail| cut + tail.len() < len)
+                {
+                    let mut bytes = vec![7, 3, 0x81, 0xe0];
+                    bytes.extend(&carrier[..cut]);
+                    bytes.extend(tail);
+                    bytes.push(1);
+                    assert!(
+                        parse_match(Direction::ToServer, &bytes).is_err(),
+                        "cut {cut}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn world_receipt_in_a_multi_datagram_preserves_following_messages_and_tail_acks() {
+        let ack = [
+            0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 1, 0, 9, 0, 0, 0x80, 1, 0, 0, 0, 2, 0, 1, 0,
         ];
         for before in [false, true] {
             for after in [false, true] {
@@ -442,6 +565,25 @@ mod tests {
         // never sends such a thing.
         assert!(parse_match(Direction::ToServer, &[9, 3, 0x00, 0xDA, 1]).is_err());
         assert!(parse_match(Direction::ToClient, &[9, 3, 0x00, 0xE0, 1]).is_err());
+    }
+
+    #[test]
+    fn a_joined_chunk_of_the_largest_world_has_its_length() {
+        // The 128th chunk of a 0xF000-byte world: offset 0xEE20, 480 bytes,
+        // joined with the ready message; one byte more in the total is none.
+        let chunk = |total: u16| {
+            let mut datagram = vec![7, 3, 0x01, 0xE0, 0x32, 0, 0, 0];
+            datagram.extend(0xEE20u16.to_le_bytes());
+            datagram.extend(total.to_le_bytes());
+            datagram.extend([0xAB; 480]);
+            datagram.push(0xDA);
+            datagram
+        };
+        let largest = chunk(MAX_SNAPSHOT_TOTAL as u16);
+        let parsed = parse_match(Direction::ToServer, &largest).unwrap();
+        assert_eq!(parsed.messages.len(), 2);
+        assert_eq!(parsed.messages[0].payload.len(), 8 + 480);
+        assert!(parse_match(Direction::ToServer, &chunk(MAX_SNAPSHOT_TOTAL as u16 + 1)).is_err());
     }
 
     #[test]
@@ -580,5 +722,28 @@ mod tests {
         assert_eq!(parsed.messages[1].id, 0x9F);
         assert_eq!(parsed.messages[1].x, None);
         assert_eq!(parsed.messages[1].payload, [0x05]);
+    }
+}
+
+#[cfg(test)]
+mod executable_tests {
+    use super::*;
+    #[test]
+    fn executable_data_preserves_adjacent_messages_and_reply_framing() {
+        use srp_validate::executable::{Answer, Carrier, Identity, Reply, Upload, CHUNK};
+        let identity = Identity::new(4096, [5; 32]).unwrap();
+        for upload in [Upload::Offer(identity), Upload::Data { sha256: identity.sha256, offset: 400, bytes: &[0x55; CHUNK] }] {
+            let (bytes, len) = Carrier { match_id: 7, upload }.encode().unwrap();
+            let mut datagram = vec![7, 3, 0x81, 0xe1, 0xe0];
+            datagram.extend_from_slice(&bytes[..len]); datagram.extend([0xe1, 1]);
+            let parsed = parse(Table::Match, Direction::ToServer, &datagram, 3).unwrap();
+            assert_eq!(parsed.messages.len(), 3);
+            assert_eq!(Carrier::parse(parsed.messages[1].payload).unwrap().upload, upload);
+        }
+        let reply = Reply { match_id: 7, sha256: identity.sha256, answer: Answer::Need(0) };
+        // E4's unique id precedes its payload, just as for ordinary options.
+        let mut datagram = vec![7, 3, 0, 0xe4, 1]; datagram.extend(reply.encode());
+        let parsed = parse(Table::Match, Direction::ToClient, &datagram, 3).unwrap();
+        assert_eq!(Reply::parse(parsed.messages[0].payload), Some(reply));
     }
 }

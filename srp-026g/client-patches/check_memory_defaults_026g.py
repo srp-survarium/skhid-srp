@@ -5,6 +5,12 @@ Usage: python check_memory_defaults_026g.py <original survarium.exe>
 
 Command-line readers are stubs supplying absent/invalid/explicit values; native
 branches, units conversion and allocator instructions execute from the PE.
+Patch 124's helper and render arenas run from the key's read to their
+registration with the native is_set_as_number<u32> (0x141B0); only the key's
+reader 0xDDF20 is a stub. Patch 128's thread stack runs from threading::spawn's
+size to spawn_internal's call of CreateThread. Patch 129's multithreaded arena
+runs from the key's read to the size stored; its stack term runs
+allocate_arenas' sum of the stacks for a number of threads.
 The fragmentation fixture matches the report's total/used/requested byte counts,
 but its block layout is synthetic: the submitted dump does not contain the heap.
 It demonstrates why aggregate free bytes do not imply a successful allocation;
@@ -85,6 +91,60 @@ def budgets(data, resource_value, mt_value, resource_valid=True, mt_valid=True):
     m.run(0xE0FF0, 0xE1029)
     mt_bytes = uc.reg_read(UC_X86_REG_ESI)
     return resource_bytes, mt_bytes
+
+
+def arena_size(data, key, begin, end, size_at, value, valid=True):
+    """Patch 124: one fixed arena's size as registered (the u64 at size_at
+    when register_allocator 0xE21C0 is called at `end`). The native
+    is_set_as_number<u32> (0x141B0, its float-to-int) runs; only the key's
+    reader 0xDDF20 is a stub: absent, a value that is no number, or one."""
+    m = Machine(data)
+    uc = m.uc
+
+    def visit(uc, address, _size, _context):
+        if address == 0xDDF20:
+            assert uc.reg_read(UC_X86_REG_ESI) == key
+            given = value is not None and valid
+            if given:
+                uc.mem_write(uc.reg_read(UC_X86_REG_EDI), struct.pack('<f', value))
+            m.returned(int(given))
+
+    uc.hook_add(UC_HOOK_CODE, visit)
+    m.run(begin, end)
+    sp = uc.reg_read(UC_X86_REG_ESP)
+    return m.read(sp + size_at) | m.read(sp + size_at + 4) << 32
+
+
+def helper_arena(data, value, valid=True):
+    # memory::preinitialize: rh_allocator (0xA80380) to the "resources
+    # helper allocator" registration (its size at [esp+18h]).
+    return arena_size(data, 0xA80380, 0xE108F, 0xE10D7, 0x18, value, valid)
+
+
+def render_arena(data, value, valid=True):
+    # engine_world's constructor: render_allocator (0xA7C088) to the
+    # "render" registration (its size at [esp+78h]).
+    return arena_size(data, 0xA7C088, 0x13A81, 0x13AF4, 0x78, value, valid)
+
+
+def thread_stack(data):
+    """Patch 128: what CreateThread is given for an engine thread. Runs
+    threading::spawn from its size (0xE37BA) into spawn_internal (0xE0930) to
+    its `call [CreateThread]` (0xE094A): (dwStackSize, dwCreationFlags)."""
+    m = Machine(data)
+    m.run(0xE37BA, 0xE094A)
+    sp = m.uc.reg_read(UC_X86_REG_ESP)
+    return m.read(sp + 4), m.read(sp + 16)
+
+
+def stack_term(data, threads):
+    """Patch 129: what platform::allocate_arenas adds to "engine(fixed)" for
+    the engine threads' stacks, (threads x 2 + 8) x the size at 0xE98C6, as
+    the u64 in EDX:EAX after its `mul` (0xE98BD..0xE98CD)."""
+    m = Machine(data)
+    m.word(0x1F1D634, threads)
+    m.run(0xE98BD, 0xE98CD)
+    return m.uc.reg_read(UC_X86_REG_EAX) | m.uc.reg_read(UC_X86_REG_EDX) << 32
 
 
 def fragmented_allocation(data, size):
@@ -177,16 +237,37 @@ def main():
     built, _ = patch.build(original, 'section', Path(patch.default_bin('section')).read_bytes(),
                            late_join=Path(patch.late_join_bin()).read_bytes())
     assert budgets(original, None, None) == (336 * MIB, 376 * MIB)
-    assert budgets(built, None, None) == (768 * MIB, 768 * MIB)
-    assert budgets(built, 99, 99, False, False) == (768 * MIB, 768 * MIB)
-    for value in (256, 512, 768, 1024):
-        assert budgets(built, value, value) == budgets(original, value, value) == (value * MIB, value * MIB)
-    assert budgets(built, None, 512) == (768 * MIB, 512 * MIB)
-    assert budgets(built, 512, None) == (512 * MIB, 768 * MIB)
+    assert budgets(built, None, None) == (768 * MIB, 1024 * MIB)
+    assert budgets(built, 99, 99, False, False) == (768 * MIB, 1024 * MIB)
+    for value in (256, 512, 768, 1024, 1536):
+        assert budgets(original, value, value) == (value * MIB, value * MIB)
+        # Patch 129: the multithreaded arena is at least 1024 MiB.
+        assert budgets(built, value, value) == (value * MIB, max(value, 1024) * MIB)
+    assert budgets(built, None, 512) == (768 * MIB, 1024 * MIB)
+    assert budgets(built, None, 2048) == (768 * MIB, 2048 * MIB)
+    assert budgets(built, 512, None) == (512 * MIB, 1024 * MIB)
     assert fragmented_allocation(original, 295436288) == 0
     assert fragmented_allocation(built, 512 * MIB) != 0
     assert single_region_fallback(original) == single_region_fallback(built) == (147718144, 295436288)
-    print('PASS: native defaults, independent/explicit/invalid option paths, fragmentation fixture, and address-space fallback limitation')
+    # Patch 124: the defaults change; an option gives the size it gave.
+    assert helper_arena(original, None) == helper_arena(original, 99, False) == 8 * MIB
+    assert helper_arena(built, None) == helper_arena(built, 99, False) == 32 * MIB
+    for value in (4, 8, 16, 32, 64):
+        assert helper_arena(built, value) == helper_arena(original, value) == value * MIB
+    assert render_arena(original, None) == render_arena(original, 99, False) == 224 * MIB
+    assert render_arena(built, None) == render_arena(built, 99, False) == 320 * MIB
+    for value, size in ((100, 224), (224, 224), (256, 256), (320, 320), (512, 512)):
+        assert render_arena(built, value) == render_arena(original, value) == size * MIB
+    # Patch 128: an engine thread's stack, committed (flags 0).
+    assert thread_stack(original) == (8 * MIB, 0)
+    assert thread_stack(built) == (2 * MIB, 0)
+    # Patch 129: allocate_arenas counts the stacks there are.
+    for threads in (4, 8, 24, 32, 64):
+        assert stack_term(original, threads) == (threads * 2 + 8) * 8 * MIB
+        assert stack_term(built, threads) == (threads * 2 + 8) * 2 * MIB
+    print('PASS: native defaults, independent/explicit/invalid option paths, fragmentation fixture, '
+          'address-space fallback limitation, helper/render arena defaults and options, thread stacks, '
+          "the multithreaded arena's floor and the budget's stack term")
 
 
 if __name__ == '__main__':

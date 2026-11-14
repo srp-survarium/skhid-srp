@@ -1,9 +1,0 @@
-[package]
-name = "build-engine-structure"
-version.workspace = true
-edition.workspace = true
-
-[dependencies]
-
-[lints]
-workspace = true

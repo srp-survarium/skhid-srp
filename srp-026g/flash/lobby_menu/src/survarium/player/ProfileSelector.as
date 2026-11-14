@@ -73,25 +73,16 @@ package survarium.player
          while(i < this._profiles.length)
          {
             this._profiles[i].index = i;
-            profileName = "«" + this._profiles[i].name + "»";
-            if(this._profiles[i].state == ProfileState.PREMIUM_ONLY)
+            profileName = "«" + Util.escapeHtml(this._profiles[i].name) + "»";
+            this._profiles[i].levelLabel = this._profiles[i].state == ProfileState.INCOMPLETE ? "" : LocalizationData.getName("clan_players_level_label") + " " + int(this._profiles[i].level).toString();
+            this._profiles[i].label = profileName;
+            if(this._profiles[i].state == ProfileState.INCOMPLETE && this._profiles[i].hint_text)
             {
-               this._profiles[i].label = Util.styledChar(this._profiles[i].name,"highlight");
-               this._profiles[i].levelLabel = "";
-               this._profiles[i].tipText = LocalizationData.getName("premium_profile_hint");
+               this._profiles[i].tipText = this._profiles[i].hint_text;
             }
             else
             {
-               this._profiles[i].levelLabel = this._profiles[i].state == ProfileState.INCOMPLETE ? "" : LocalizationData.getName("clan_players_level_label") + " " + int(this._profiles[i].level).toString();
-               this._profiles[i].label = profileName;
-               if(this._profiles[i].state == ProfileState.INCOMPLETE && this._profiles[i].hint_text)
-               {
-                  this._profiles[i].tipText = this._profiles[i].hint_text;
-               }
-               else
-               {
-                  this._profiles[i].tipText = this._profiles[i].label + "\n" + Util.styledChar(LocalizationData.getName("player_equipment_level") + " " + int(this._profiles[i].level).toString(),"highlight");
-               }
+               this._profiles[i].tipText = this._profiles[i].label + "\n" + Util.styledChar(LocalizationData.getName("player_equipment_level") + " " + int(this._profiles[i].level).toString(),"highlight");
             }
             this._profiles[i].editable = this.local;
             trace("ProfileCreated",this._profiles[i].state);

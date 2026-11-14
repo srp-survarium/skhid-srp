@@ -19,6 +19,34 @@ python3 tools/actionscript/flash_tree.py original srp-026g/flash/<movie> <archiv
   for the lobby. compc lays the code out by where the source lies, so every
   tree is compiled from one place (`/tmp/srp-flash-build/<movie>`, one build
   at a time): the same tree gives the same bytes from any checkout.
+- A bitmap the original lacks is `bitmaps/<class>.png` beside `src/` (8-bit RGBA or RGB):
+  the build adds it as a DefineBitsLossless2 of a new character id before the code, bound
+  to `<class>` by a SymbolClass after it; `<class>` is a `BitmapData` of the tree, as the
+  original's own bitmaps are (the hud's `hudItems`), made with `new <class>()`.
+  A picture (a render, a capture) is `bitmaps/<class>.jpg` instead, a baseline JPEG: the
+  build adds the file whole as a DefineBitsJPEG2, as compact as the game's own map renders
+  (JPEG, DefineBits); a progressive JPEG is refused (Flash does not read it).
+- A character the original places wrongly is a row of `placements.tsv` beside `src/`
+  (`sprite frame depth from to`, tab-separated, `#` comments): in that DefineSprite's frame (from 1)
+  the PlaceObject2 at that depth places `to` where the original places `from`; a row that matches no
+  such placement, or names a character the movie lacks, fails the build. The lobby's skills tabs:
+  the selected icon's fifth frame placed a campfire, not the leaf.
+- **Tables.** Data the movie's code reads, which other tools read too (the
+  lobby's shop filters, which the wiki's icons take), is a table
+  `tables/<package path>/<Class>.tsv` beside `src/`: the build writes the
+  class `<Class>` into the copy of `src/` it compiles (a table naming a class
+  `src/` has is refused). Tab-separated, `#` lines comments; the header is
+  `list`, then `<field>:<type>` a column (`int`, `String`, or a qualified
+  class whose static constant the cell names, compiled as `Class.NAME`). Each
+  list is `public static const <list>:Array` of `{field: value}` rows, in the
+  file's order. Other tools read it with `flash_tree.read_table`.
+- **Data.** What the movie shows that the game's data holds (a modification's value) is
+  not written in the tree: `movie.json`'s `data`, `{"<package path>/<Class>": "<a table of the
+  repository>"}`, makes the build write each such table as the class `<Class>`, one
+  `public static const <column>:Object` a column but the first, the cells (texts) by the first
+  column's. The lobby reads `scripts/content-edit/modifications.tsv` so
+  (`survarium.data.ModificationValues`): the movie and the game read one file. build-content
+  keys the movie's cache by those tables too.
 - The build checks what the movie needs to load: every ABC block parses, and
   every class a SymbolClass tag binds is defined, once.
 - `original` cuts the original movie (the one whose graphics the build keeps)
@@ -53,6 +81,78 @@ python3 -m unittest discover -s tools/actionscript
 # With a real compc build of a small tree:
 SRP_AS_TOOLS=/absolute/path/to/private/actionscript/tools.json python3 -m unittest discover -s tools/actionscript
 ```
+
+### Research UI
+
+The Research UI regression harness is `tests/ResearchUiHarness.as`. Put the newly
+built movies beside its output as `hud.swf` and `player_icons.swf`, then compile:
+
+```sh
+java -jar "$FLEX/lib/mxmlc.jar" +flexlib="$FLEX/frameworks" \
+  -library-path= -external-library-path="$FLEX/frameworks/libs/player/32.0/playerglobal.swc" \
+  -static-link-runtime-shared-libraries=true -debug=false -optimize=true -omit-trace-statements=false \
+  -output="$OUT/ResearchUiHarness.swf" tools/actionscript/tests/ResearchUiHarness.as
+```
+
+Run the SWF with Ruffle's filesystem access enabled (use a private virtual display for
+automation). It traces `RESEARCH UI PASS` or `RESEARCH UI FAIL`. It checks the absent
+caption, 24/34 px sizing, steady capture icons, translucent fill, hide-interface key, contested and enemy-capture pulses
+at 30/144 FPS, independent HUD visibility, repeated aim packets and fade reversal.
+It also checks countdown spacing and restoration of other modes' timer styles.
+Enemy warnings cover both team orientations, friendly-owned and neutral units,
+neutralisation with the defender's progress, contested priority, completion, legacy
+packets, repeated updates, and offscreen/removed animation cleanup.
+The `ResearchAlert.as` implementation and warning bitmap are identical in both movie
+trees. The editable warning artwork is `art/ResearchWarning.svg`; render it to transparent
+54 x 53 RGBA at its natural size (the approved preview uses browser SVG/canvas rendering),
+then copy those same PNG bytes to both `bitmaps/ResearchWarning.png` files.
+The spacing regression includes hidden capture timers; centering is checked before
+resize with different initial positions and scaled, translated parents.
+Death/respawn transitions check immediate full-width text, late native label
+validation, animation frames, and removal of the Research field on mode exit.
+This exercises the controls; the game's Scaleform integration still needs a playtest.
+
+### Minimap
+
+`tests/MinimapHarness.as` checks the hud's minimap icons (`survarium.controls.Minimap`).
+Put the newly built hud movie beside its output as `hud.swf`, compile it as above
+(`-output="$OUT/MinimapHarness.swf" tools/actionscript/tests/MinimapHarness.as`) and run it
+the same way. It traces `MINIMAP PASS` or `MINIMAP FAIL`. A team-0 game that joined late
+gets its ally's data before its own team (update_local_player waits for its first spawn):
+the ally's icon is the enemy's until the team comes, then the ally's. It also checks an
+enemy, an ally taking and dropping the battery, an enemy carrier, a player that leaves,
+and a team-1 game.
+
+### Tab map names
+
+`tests/TabMapNamesHarness.as` checks the names on the Tab map (`srp-026g/docs/notes/tab-map-names.md`)
+with the hud movie's own Tab list (`SrvPlayerList`, its map) and corner minimap, fed as `HUD.as`
+feeds them (the hud's root does not run outside the game). Put the newly built hud movie beside
+its output as `hud.swf`, compile and run it as above. It traces `NAMES ... ok` lines and
+`NAMES RESULT pass` or `NAMES RESULT fail: ...`: no names without Alt; with Alt each other
+player's icon its place's name centred over it, the own icon and a place with no row none, the
+corner minimap none; the names following their icons over 100 updates with the same text fields;
+Alt let go and held again; a player lost from sight, one spotted, an ally taking the battery, the
+rows made again; and Blackout (the list kept hidden): none on screen.
+
+### Enemies in a replay
+
+`tests/ReplayEnemiesHarness.as` checks the player icons movie's part of exe patch 135
+(`srp-026g/docs/notes/replay-map.md`) with the movie's own root, fed as the game feeds it. Put the
+newly built `player_icons.swf` beside its output, compile and run it as above. It traces
+`ENEMIES ... ok` lines and `ENEMIES RESULT pass` or `ENEMIES RESULT fail: ...`: in a live match
+(`srp_show_enemies(false)`) an ally's marker shows and an enemy's never; in a replay
+(`srp_show_enemies(true)`, before the enemy list, and the list sent again) the enemy's marker shows,
+its name red and shown after the marker's delay; told before the root's frame 1 made its layer, the
+layer takes it. `TabMapNamesHarness.as` checks the Tab map's enemy names red, allies' white.
+
+### Weapon upgrade window
+
+`srp-026g/scripts/weapon-kit/check.sh <lobby_menu.swf> [work dir]` checks the lobby's weapon upgrade window with the weapon kit (two decal slots, the kit's records, a drop shown at once, every language's texts fitting) and prints `WEAPONKIT RESULT pass` or `WEAPONKIT RESULT fail: ...`.
+
+### Item search
+
+`srp-026g/scripts/item-search/check.sh <lobby_menu.swf> [work dir]` checks the item lists' search (`docs/notes/item-search.md`: the "+" words in the inventory and the shop, every language's hint on one line in the box and its and the tip's examples finding what they name, the tip on the empty box only) and prints `ITEMSEARCH RESULT pass` or `ITEMSEARCH RESULT fail: ...`.
 
 ## History
 

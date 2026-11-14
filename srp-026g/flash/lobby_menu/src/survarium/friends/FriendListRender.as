@@ -15,7 +15,6 @@ package survarium.friends
    import survarium.controls.PlayerInfo;
    import survarium.controls.SrvContextMenu;
    import survarium.data.LocalizationData;
-   import survarium.rooms.RoomsText;
    import survarium.rooms.RoomsWindow;
    import survarium.player.LocalPlayerProfile;
    import survarium.constants.ClaimReason;
@@ -388,10 +387,7 @@ package survarium.friends
          _data.sended = true;
          dispatchEvent(new Event(Event.CONNECT,true));
          var messageType:uint = (_data.type);
-         if(data.id != LobbyMenu.TEST_IMPORTANT_MESSAGE_ID)
-         {
-            ExternalInterface.call("important_message_read",data.id,answer,messageType);
-         }
+         ExternalInterface.call("important_message_read",data.id,answer,messageType);
       }
       
       protected function deselect(event:Event = null) : void
@@ -460,7 +456,7 @@ package survarium.friends
             }
             var full:Boolean = rooms[i].players >= rooms[i].size * 2;
             SrvContextMenu.addItem(items,{
-               "name":RoomsText.sayFirst(full ? "queueRoom" : "joinRoom"),
+               "name":LocalizationData.getName(full ? "st_srp_rooms_queue_room" : "st_srp_rooms_join_room"),
                "click_function":this.joinFriendRoom
             });
             return;

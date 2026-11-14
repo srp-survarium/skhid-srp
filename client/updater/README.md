@@ -17,8 +17,9 @@ standard library and Microsoft's C runtime, linked in (`+crt-static`, as
 `cl /MT`; no runtime DLL beside it), the game's icon, a version resource
 (Skhid, "Skhid updater", the release revision) and its `asInvoker` manifest.
 Windows 7 and later. It imports `kernel32.dll`, `user32.dll` (its message
-box), `winhttp.dll`, `advapi32.dll` (one registry value read for "Watch
-replay") and `ntdll.dll` (two functions of the standard library's).
+box), `winhttp.dll`, `advapi32.dll` (per-user replay registration), `shell32.dll` (file associations and the Documents folder, where the game's
+user.cfg says the language its messages are in) and `ntdll.dll` (two
+functions of the standard library's).
 
 ## What it does, and does not
 
@@ -72,9 +73,7 @@ replay") and `ntdll.dll` (two functions of the standard library's).
   does hold the game folder's path) beside itself. `updater_skhid.lock`
   prevents simultaneous installs in the same folder. The patch step writes
   its own files beside it too (listed under "Patches").
-- No BitTorrent, no listening port, no UPnP, no registry write (one value
-  is read: the launcher's language, for "Watch replay"), no service, no
-  crash upload, no administrator rights (its manifest says `asInvoker`;
+- No BitTorrent, no listening port, no UPnP, no service, no crash upload, no administrator rights (its manifest says `asInvoker`;
   without one Windows takes a program named "updater" for an installer and
   asks for elevation).
 
@@ -176,19 +175,24 @@ and Windows' error code (`<name>: cannot be read: <words> (error <n>)`):
 | anything else (5, access denied; a disk error) | a repair: the archive downloaded and installed again; when that fails, the install's error names the file and Windows' words ("Cannot replace x86\survarium_skhid.exe: Access is denied (error 5). ..."), PLAY off |
 
 225 or 226 at the install's write, rename or a folder's making, and at a
-patch file's write, rename, delete or read back, is the same stop.
+patch file's write, rename, delete or read back, is the same stop. So is a
+file the updater has just written that is gone, or denied to it (5), when
+it reads it back, or gone the moment it was put in place
+(`file_error::Stop::after_write`): an antivirus took it. A program file
+(`.exe`, `.dll`) the state says is installed and that is gone at the start
+is put back by the repair, and then the same box (with OK) says the
+antivirus may remove it again.
 
 The stop's box is the updater's own (`MessageBoxW`, Windows' Retry and
-Cancel buttons), in the launcher's language (as "Watch replay"'s, below),
-the launcher's line saying "Error" meanwhile. It names the file alone and,
-for Windows Security, the way out, one line each:
+Cancel buttons), in the game's language (as "Watch replay"'s, below),
+the launcher's line saying "Error" meanwhile. For Windows Security it is
+the box of "The player's boxes" below:
 
 ```text
-Windows Security blocked survarium_skhid.exe: a false positive.
-1. Windows Security > Protection history > this item > Allow on device (or Restore).
-2. Add the game folder as an exclusion (Virus & threat protection > Manage settings > Exclusions):
-E:\Survarium_SkhidSRP_0_26
-Then try again. PLAY stays off until then.
+Game files removed by antivirus: survarium_skhid.exe
+Windows Security or another antivirus took it for a threat (a false positive). PLAY stays off until it is let through.
+Run Skhid-defender-setup.cmd (beside Skhid.bat); with another antivirus, exclude this folder: E:\Survarium_SkhidSRP_0_26\game\binaries\x86
+Log: E:\Survarium_SkhidSRP_0_26\game\binaries\x86\updater_skhid.log
 ```
 
 ```text
@@ -208,6 +212,55 @@ write revision 27's `survarium_skhid.exe` (error 225), then, once it was in
 place, read it (225 again). The updater took a file it could not read for
 one that was the same, said "up to date" and turned PLAY on, and the
 launcher crashed at PLAY a minute later.
+
+## The player's boxes
+
+The problems players meet most each have a box of the updater's own
+(`logic/src/problem.rs`), whose first line is a title the site's "If
+something goes wrong" (the home page) quotes, so that a player matches the
+box to its line. The title begins with fixed words for the problem and goes
+on with what failed: the file, the host, how. Then what happened, one line
+of what to run (a file beside `Skhid.bat`), and the log's path. In the
+game's language (English, Russian, Ukrainian, German, Polish); the box's
+caption is `Skhid updater: <the fixed words>` in English always.
+
+| Title begins | When | What to run |
+|---|---|---|
+| `Game files removed by antivirus: <file>` | Windows Security's 225/226 on a Skhid file; a file just written that is gone or denied when read back, or gone once in place; a program file gone at the start (put back, OK box) | `Skhid-defender-setup.cmd` (or exclude the folder named); for a patch of resources.db, in `game`, which the script does not exclude: Windows Security > Protection history > Allow on device, and that folder as an exclusion |
+| `Download failed: <file>, <damaged / cut short / too slow / a web page instead of the file / refused (HTTP n) / no secure connection / not usable>[ at every address]` | every address of a patch, of the game's archive (`survarium-026g.7z`) or of the Skhid files (`<host>/download`) failed, one of them with an answer (the first that answered says how). An address that broke off while its file came answered: cut short, never "no connection". No secure connection (TLS, a certificate: also the update server, as `<host>`) | `Skhid.bat` again; for no secure connection, this PC's date, time and time zone, and no program intercepting HTTPS |
+| `No connection: <host> did not answer (<how>)`, `No connection: no address of <file> answered (<how>)` | nothing answered before its answer's headers (WinHTTP's 12007 name not found, 12029 connection refused, 12002 timed out, 12030 connection cut off: `logic/src/network.rs`), and neither did Windows' own test site | `Skhid-network-setup.cmd` |
+| `Blocked on this network: <host> did not answer (<how>)`, `... no address of <file> answered (<how>)` | the same, but Windows' own test site answered | a VPN with the game's three programs in its split tunnelling, or none (`VPN.txt`) |
+
+No connection or blocked: after nothing answered, and only then, the updater
+asks `http://www.msftconnecttest.com/connecttest.txt` once (5 s at most each
+step), the address Windows' network icon asks: any answer is a PC that is
+online, so this network (the provider, or a VPN in use) blocks ours. A
+server that is down for everyone looks the same from here as one that is
+blocked.
+
+```text
+Blocked on this network: skhid.link did not answer (timed out)
+Other sites answer: this network blocks it (the internet provider, or the VPN in use).
+Use a VPN with launcher_skhid.exe, survarium_skhid.exe and updater_skhid.exe in its split tunnelling, or turn the VPN off (see VPN.txt). Then try again.
+Log: E:\Survarium_SkhidSRP_0_26\game\binaries\x86\updater_skhid.log
+```
+
+The box is shown when the run ends in an error, or in PLAY without an
+update check, after the usual tries, with Retry and Cancel, as a stop
+above. Retry runs the update again from the start; Cancel ends the run as
+it came out (an error with PLAY off, or PLAY with what is installed), and
+the launcher is not told the English words again: the log has them ("No
+update check: skhid.link didn't answer. A firewall or this network may
+block it: see Skhid-network-setup.cmd and VPN.txt. ...", and "every address
+failed: ..." with the probe's answer). `check quiet` shows no box and asks
+no other site.
+
+**Why.** On 2026-10-25 players whose provider blocks the server saw
+"skhid.link did not answer in time. Check the internet connection and try
+again.", in English under a Russian launcher, and found the way out (the
+three programs in their VPN's split tunnelling) on Discord. On 2026-11-02
+the owner asked for a box per problem of the site's list, clear enough for
+a player to match.
 
 ## Watch replay
 
@@ -247,18 +300,20 @@ nothing else with it. The updater (`exe/src/replay.rs`, the rules in
    `ready: NOT READY: ...` line and `replay: FAILED (NotReady)`, the exit
    code is 1. The replay stays in the folder, checked, for the next ask.
 7. Starts the game as the launcher's PLAY does, from `game\binaries\x86`:
-   `"<x86>\survarium_skhid.exe" -localization=<the launcher's language>
-   -mt_allocator=768 -minimum_resources_memory_size=768
-   -match_replay="<the file>"`. The game reads its command line as ANSI
+   `"<x86>\survarium_skhid.exe"
+   -match_replay="<the file>"`, no
+   `-localization=`: the game plays it in its own language (the one chosen
+   in its Settings, game patch 79). The game reads its command line as ANSI
    text and a value in quotes as one value, spaces and all (read in the exe:
    `srp-026g/docs/notes/client_patch.md` section 3.27). The path is given as
    it is when the ANSI code page holds every character of it and it is at
    most 259 bytes; else its short (8.3) form when that does; else the player
    is told to move the game to a folder with Latin letters.
 
-Every problem is a message box in the launcher's language (the value
-`language` of `HKCU\Software\Vostok Games\Survarium`, 0 to 4, read only;
-English when it is not there) and a line `replay: FAILED (<problem>): <text>`
+Every problem is a message box in the game's language (the `localization`
+line of `<Documents>\survarium\user.cfg`, which the game's Settings and the
+launcher's menu write, read only; English for a language the messages are
+not written in, or without one) and a line `replay: FAILED (<problem>): <text>`
 in `updater_skhid.log`. The log names the token by its first 6 hex digits
 only. No progress is shown while the replay downloads (at most 64 MiB).
 
@@ -274,6 +329,55 @@ bytes and SHA-256
 `7435558eeb17098fc9337c4ba9470402cae4c9be974ef5d9bc544f19b122a028`.
 The complete Drive download was checked against archive.org's independently
 published SHA-1 `bb30b71fab155b3435917690fd2be87984546163` before pinning it.
+
+**Its addresses** (`exe/src/game.rs`): `GET <server>/game`, srp's
+`{"sha256": "<64 hex>", "size": <bytes>, "urls": [...]}` (`patches::parse_game`:
+a patch list's entry with its size; 1 to 8 addresses, each one a patch may
+have), taken only when its size and SHA-256 are the pinned ones. When the
+server cannot be reached, offers none (an srp before `/game`: 404) or offers
+another archive, the addresses built into the updater at release time are
+used (`SKHID_BUILTIN_GAME`, the `/game` of the row of `release/game.tsv`,
+which `release/build-zip` passes to the build; a build
+without it has none, and says so). A server that answers always wins. srp's
+`/game` is the release's addresses (that row) with the rows of its
+`mirrors.tsv` added (see "Mirrors" below).
+
+**The download** is that of a patch's file (`http::get_file`), with the
+rules of "Mirrors" below: redirects followed, a web page refused. The
+addresses are tried in their order, each once a run; any failure moves on to
+the next. The bytes on disk (`game\.skhid-game.7z`) are the same file at
+every address, so the next address goes on from them: `Range: bytes=<n>-`;
+a `206` from byte n is appended, a `206` of another range is a failure, a
+`200` (a server that gives no part) is the whole file again from byte 0. A
+file of the whole size that is not the pinned one is deleted and fetched
+anew; one that broke off stays for the next start, which goes on from it.
+The whole file is checked by its size and SHA-256; a mismatch deletes it and
+fails that address. One line of `updater_skhid.log` a try, a failure and the
+success (`download::line`; `Skhid-without-updater.bat` writes the same
+lines to `skhid-download.log`):
+
+```text
+skhid-game  try      2.28.121.133: address 1 of 3, http://2.28.121.133:8090/survarium-026g.7z, from byte 0
+skhid-game  failed   2.28.121.133: receive timeout (nothing received for 30 s) (1048576 bytes received)
+skhid-game  try      archive.org: address 2 of 3, https://archive.org/download/..., from byte 1048576
+skhid-game  ok       archive.org: 2906544103 bytes, SHA-256 verified
+```
+
+The reasons (`text::reason`): `connect timeout`, `receive timeout` (no
+answer within 30 s, or nothing received for 30 s: WinHTTP's 10 s name
+lookup, 10 s connect, 30 s send and receive), `host not found (DNS)`,
+`unreachable`, `connection reset`, `HTTP <status>`, `web page "<its
+title>", not the file` (the `<title>` of its first 8 KB, any host's: Google
+Drive's "Quota exceeded" page among them), `too slow: <n> KB/s over 2
+minutes (under 50 KB/s)` (`download::Speed`; only while another address
+remains: the last one is waited for, however slow), `cut short at byte <n> of
+<size>`, `larger than the file`, `wrong SHA-256`, `more than 5 redirects`.
+When every address failed the player is told each one's host and reason,
+then where to send the log (`text::reported`, as the crash reporter words
+it: `Send game\binaries\x86\updater_skhid.log to #bugreports in Discord
+(tag: install): discord.gg/QUmJg3gBhg`; the reason is cut to leave it room
+in the launcher's 255 characters, the log has the whole). So does every
+other failure the run ends on.
 
 Downloads use a 64 KiB buffer, including in the 32-bit updater. The complete
 file is flushed, read back and hashed before extraction.
@@ -304,12 +408,10 @@ are preserved, and a failed move rolls back files added by that attempt.
 The normal verified Skhid overlay then replaces the original certificate
 and crash DLL when needed. Existing complete games skip this bootstrap.
 
-The direct Drive endpoint was tested without cookies or sign-in. HTML
-confirmation pages, quota errors, redirects, interrupted transfers and hash
-mismatches fail closed. A failed transfer is removed; a completed verified
-archive is kept if extraction fails and is rehashed before retrying. The
-cache is deleted after successful installation. Interrupted transfers are
-not resumed.
+HTML confirmation pages, quota pages, interrupted transfers and hash
+mismatches fail closed, each at its address. A completed verified archive is
+kept if extraction fails and is rehashed before retrying; a part is kept and
+gone on from. The archive is deleted after successful installation.
 
 What an attempt that was cut short leaves behind (the PC switched off, the
 updater killed while the extractor ran) is removed at the next start, under
@@ -322,24 +424,28 @@ that is killed takes it along and it does not write on by itself. The
 room asked for is the room still needed: an archive that is already
 downloaded is not counted again.
 
-What the extractor prints (its messages and its errors, as UTF-8) goes to
-`updater_skhid.7zr.txt` beside the updater while it runs. When it has ended,
-whatever its exit number, the updater copies those lines into
-`updater_skhid.log`, each after `7zr:`, and deletes the file: a failed
-extraction then says in the log which file could not be written and why,
-not "exit 2" alone. A file left by a killed updater is copied and deleted
+What the extractor prints (its messages, its errors and its percentage,
+`-bsp1`, as UTF-8) goes to `updater_skhid.7zr.txt` beside the updater while
+it runs. Meanwhile the updater reads the last percentage there for the
+launcher's bar ("Extracting file Survarium 0.26g", over the five files'
+bytes). When it has ended, whatever its exit number, the updater copies
+those lines into `updater_skhid.log`, each after `7zr:` (a line its
+percentage rewrote with `\r` or `\b` as its last text only), and deletes
+the file: a failed extraction then says in the log which file could not
+be written and why, not "exit 2" alone. A file left by a killed updater is copied and deleted
 at the next start. When the file cannot be made, the extractor runs all the
 same.
 
-To move hosting, put a direct HTTPS URL in `updater_skhid.game-url` beside
-the updater. That file changes only the source, never the trusted hash. Plain HTTP is
-accepted only on localhost for tests; FTP is not supported. No server
-deployment or binary rebuild is needed to change the mirror this way.
+To add an address, `release/add-mirror survarium-026g.7z <url>`: srp offers
+it at once (`mirrors.tsv`), no release or rebuild. Addresses change only
+where the bytes come from, never the trusted hash.
 
 `tests/test_game_download.py` runs the actual exe on Windows or Wine against
-a local HTTP server, covering failed downloads, preservation of existing
-files, an extractor that is missing or changed, and what a cut-short attempt
-left. With `SKHID_TEST_GAME_ARCHIVE` pointing to the pinned archive, it also
+a local HTTP server, covering every address failing (each reason in the
+log), a download that broke off going on at the next address (`Range`, a
+`206`, a `200` from byte 0), a part of another range, redirects, a server
+without `/game` or with another archive, preservation of existing files, an
+extractor that is missing or changed, and what a cut-short attempt left. With `SKHID_TEST_GAME_ARCHIVE` pointing to the pinned archive, it also
 downloads, verifies and extracts the full game with the extractor of
 `extractor/`, then installs the Skhid overlay. It does not contact Drive or
 archive.org.
@@ -438,12 +544,19 @@ host, as it is not for the update server: the file is checked against the
 list's SHA-256, and the list came from the update server over HTTPS.
 
 - **Mirrors.** The addresses are tried in their order, each once a round,
-  two rounds a run. Any failure moves on to the next address: no
+  two rounds a run: srp's list gives the release's (`release/patches.tsv`,
+  Google Drive's first) with the rows of srp's `mirrors.tsv` added (after
+  them, or at a row's place), which `release/add-mirror` writes and srp
+  reads again when it changes. Any failure moves on to the
+  next address: no
   connection or a broken one, another status than 200, a web page
   (`Content-Type: text/html`: a sign-in page, Google Drive's "cannot scan
-  this file for viruses" page), a body shorter than its Content-Length,
-  another SHA-256, too many redirects or one to an address a list may not
-  name. The second round tries again only the addresses that failed on the
+  this file for viruses" or "Quota exceeded" page; its title is in the
+  log), slower than 50 KB/s over 2 minutes (while another address
+  remains), a body shorter than its
+  Content-Length, another SHA-256, too many redirects or one to an address
+  a list may not name. Each try is a line of the log too (`... (try 1 of
+  2): asking`). The second round tries again only the addresses that failed on the
   network (no connection, cut short, a 5xx): another file or a web page
   would be the same 3 s later. The log names each address and its failure
   (`patches: resources.db.patch_<n>: address 2 of 3, <address> (try 1 of
@@ -461,13 +574,22 @@ list's SHA-256, and the list came from the update server over HTTPS.
   `https://drive.usercontent.google.com/download?id=<id>&export=download&confirm=t`
   (`<id>` of the link `https://drive.google.com/file/d/<id>/view`): that
   form gives the file itself, whatever its size, without a cookie or a
-  sign-in (the original game's download uses it, `logic/src/game.rs`). The
-  `https://drive.google.com/uc?export=download&id=<id>` form redirects to
-  it, and for a large file answers a "cannot scan for viruses" web page
-  instead: that address fails and the next is tried. `release/add-mirror`
-  checks an address before it is listed.
-- No download is resumed: one that broke off is fetched again whole (the
-  owner's decision; a patch is tens of megabytes).
+  sign-in. The `https://drive.google.com/uc?export=download&id=<id>` form
+  redirects to it, and for a large file answers a "cannot scan for viruses"
+  web page instead: that address fails and the next is tried. A Drive
+  file has a daily download quota; past it, a "Quota exceeded" page, the
+  same. `release/add-mirror` checks an address before srp offers it.
+- No patch download is resumed: one that broke off is fetched again whole
+  (a patch is tens of megabytes; the game's archive is gone on from).
+- **The server not reached.** When the list cannot be fetched and the
+  folder is not as the list kept says, the list built into the updater at
+  release time is used (`SKHID_BUILTIN_PATCHES`, the `/patches` of
+  `release/patches.tsv`, which `release/build-zip` passes to the build):
+  a provider that blocks the server need not block the patches'
+  addresses. A list of no patch is none. It only adds: a listed patch
+  missing or damaged is fetched, no other patch file is deleted (the game
+  exe may be newer than the updater and need it), and neither the list
+  kept nor the status is written (it is not the server's list).
 - The Content-Length, when the server sends one, is checked against the
   disk first, and a body shorter than it is an error.
 
@@ -797,3 +919,42 @@ skipped as before). Not run on Windows: Windows Security's errors 225 and
 - Texts in other languages than English (the launcher shows them in an
   ANSI message box), but the stop's box of "A file that cannot be read",
   which is the updater's own.
+
+
+## Opening local .sur files (unreleased)
+
+Double-click a `.sur` file and choose **Skhid Replay** if Windows asks which
+app to use; select the option to remember the choice. Successful launcher
+updates register this handler for the current user. A portable installation
+can register it with `updater_skhid.exe register-replays`. The registration
+uses `Software\Classes\Skhid.Replay.1`, `.sur\OpenWithProgids`, the updater's
+Applications entry, and `Software\RegisteredApplications` / Skhid capabilities
+under HKCU. Existing extension defaults and Explorer's UserChoice are untouched.
+Windows controls the default-app chooser; registration does not force a choice.
+
+The handler is `"<x86>\updater_skhid.exe" open-replay "%1"`. It locates the
+game beside itself and starts it from `game\binaries\x86` with:
+
+```text
+survarium_skhid.exe -match_replay="<selected absolute path>"
+```
+
+Memory budgets come from the game executable, including future changes to its defaults.
+
+Opening a file through Open With's executable picker or dropping it onto the
+updater works too. One absolute `.sur` path is accepted, including spaces and
+UNC paths. The existing ANSI/short-path conversion and installed-patch gate
+are shared with Watch replay. Unreadable/missing files show their path and
+Windows' reason in the game language. This does not validate replay contents
+or guarantee compatibility with the installed simulation revision.
+
+Local files are never downloaded, copied, pruned or deleted, and opening them
+makes no network request. `ready` and `check` do not register file handlers;
+registration happens after a successful launcher-driven update or the explicit
+registration command. A registration failure is logged without blocking Play.
+`open-replay <path> quiet` and `register-replays quiet` suppress error dialogs.
+
+`tests/check_local_replay.py --wine <wine>` builds its own temporary game folder
+with the test stand-in, creates a fresh Wine prefix, exercises local/drop/Shell
+launch and the remote replay regression, and retains its evidence under `/tmp`.
+Run it under a virtual display for shell activation. It does not run a real game.

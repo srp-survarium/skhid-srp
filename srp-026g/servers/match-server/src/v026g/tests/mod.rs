@@ -8,19 +8,24 @@
 
 use super::test_client as client;
 
+mod afk;
 mod bots;
 mod driven;
+mod free_for_all;
 mod game;
 mod late_join;
 mod late_join_edge_cases;
 mod resync_gate;
+mod packet_safety;
+mod packet_input;
+mod refused_worlds;
 mod sockets;
 mod start;
 mod units;
 
 use std::net::{SocketAddr, UdpSocket};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{Receiver, channel};
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -31,7 +36,10 @@ use survarium::v026g::match_msgs::static_info::{MatchItem, MatchKit, NO_PROTECTI
 
 use super::game::Game;
 use super::server::{Server, serve};
-use super::{MatchPlayer, MatchProfile, MatchRegistry, MatchResult, MatchSetup, Settings};
+use super::{
+    IdleRemoved, MatchPlayer, MatchProfile, MatchRegistry, MatchResult, MatchSetup, ResultsSink,
+    Settings,
+};
 use client::Client;
 
 /// Modes 2 (batteries) and 4 (Team Deathmatch) on level_01.
@@ -66,7 +74,7 @@ fn profile(name: &str, team: u8) -> MatchProfile {
 
 pub fn setup(players: usize, map_id: u8) -> MatchSetup {
     MatchSetup {
-        map_id,
+        map: survarium::v026g::maps::MatchMap::of(map_id).expect("a playable map"),
         match_level: 3,
         players: (0..players)
             .map(|place| MatchPlayer {
@@ -94,11 +102,29 @@ fn store() -> Arc<SessionStore> {
     )
 }
 
+/// The bench's sink: the results, and the players removed as idle.
+struct Sink {
+    results: Sender<MatchResult>,
+    idle_removed: Sender<IdleRemoved>,
+}
+
+impl ResultsSink for Sink {
+    fn match_ended(&mut self, result: MatchResult) {
+        let _ = self.results.send(result);
+    }
+
+    fn idle_removed(&mut self, removed: IdleRemoved) {
+        let _ = self.idle_removed.send(removed);
+    }
+}
+
 /// The server and its clients in memory, on a clock the test moves.
 pub struct Bench {
     pub server: Server,
     pub registry: Arc<MatchRegistry>,
     pub results: Receiver<MatchResult>,
+    /// What the server told srp of the players removed as idle (anti-AFK).
+    pub idle_removed: Receiver<IdleRemoved>,
     pub clients: Vec<Client>,
     pub match_id: u32,
     /// Each client's address; a client that comes back has a new one.
@@ -185,7 +211,7 @@ impl Bench {
         growing: bool,
     ) -> Self {
         log_to_stderr();
-        let (players, map_id) = (setup.players.len(), setup.map_id);
+        let (players, map_id) = (setup.players.len(), setup.map.map().id);
         let start = Instant::now();
         let registry = Arc::new(MatchRegistry::new("127.0.0.1", 1236));
         for place in bots {
@@ -198,12 +224,16 @@ impl Bench {
         let ticket = registry
             .create_with_dialect(setup, start, growing)
             .expect("a match the clients can hold");
-        let (sink, results) = channel();
+        let (results_sink, results) = channel();
+        let (idle_sink, idle_removed) = channel();
         let server = Server::new(
             1236,
             registry.clone(),
             store(),
-            Box::new(sink),
+            Box::new(Sink {
+                results: results_sink,
+                idle_removed: idle_sink,
+            }),
             settings,
             start,
         );
@@ -211,6 +241,7 @@ impl Bench {
             server,
             registry,
             results,
+            idle_removed,
             clients: (0..players)
                 .map(|place| {
                     if growing {

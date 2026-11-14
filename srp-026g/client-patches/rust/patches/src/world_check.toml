@@ -1,0 +1,14 @@
+# Patch 87: a game parses every world it is sent (0xE8) before it loads it,
+# with the shared frame and semantic checks (crate srp-validate); a refused one is
+# never loaded; the recipient requests a fresh world (world_frame_check.md).
+name = "world_check"
+patch = 87
+uses = ["packet_recovery"]
+
+[[hook]]
+site = "world_load.unpacked"
+handler = "on_unpacked"
+
+[[hook]]
+site = "world_load.raw"
+handler = "on_raw"

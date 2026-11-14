@@ -1,13 +1,14 @@
 package
 {
-   import com.greensock.TweenLite;
    import flash.display.Bitmap;
    import flash.display.BitmapData;
    import flash.display.BlendMode;
    import flash.display.DisplayObject;
+   import flash.display.DisplayObjectContainer;
    import flash.display.Graphics;
    import flash.display.MovieClip;
    import flash.display.Sprite;
+   import flash.geom.Matrix;
    import flash.events.Event;
    import flash.events.MouseEvent;
    import flash.events.TimerEvent;
@@ -29,24 +30,31 @@ package
    import scaleform.clik.data.DataProvider;
    import scaleform.clik.layout.Layout;
    import scaleform.clik.layout.LayoutData;
-   import scaleform.gfx.Extensions;
    import survarium.Util;
    import survarium.constants.BodyPartState;
    import survarium.constants.Colors;
    import survarium.constants.CombatAction;
    import survarium.constants.CombatLogTeam;
    import survarium.constants.Faction;
-   import survarium.constants.ItemDictId;
    import survarium.constants.MinimapPosition;
    import survarium.constants.ProfileState;
-   import survarium.constants.Reward;
    import survarium.constants.SquadState;
    import survarium.constants.Team;
    import survarium.constants.TeamSide;
-   import survarium.constants.UiSound;
+   import survarium.controls.DeathEyes;
    import survarium.controls.Minimap;
    import survarium.controls.PlayerProfileBase;
+   import survarium.controls.PlayerRowMenu;
+   import survarium.controls.ForcedView;
+   import survarium.modes.FfaProgress;
+   import survarium.modes.ModeNotice;
+   import survarium.modes.ModeIntroText;
+   import flash.utils.getTimer;
+   import survarium.controls.KeptLayer;
+   import survarium.controls.QuickSlots;
    import survarium.controls.ResearchUnits;
+   import survarium.controls.ResearchCountdownLayout;
+   import survarium.controls.VoiceSpeakers;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
    import survarium.data.ItemDescriptor;
@@ -99,6 +107,9 @@ package
       public var contextInfo:SrvContextInfo;
       
       public var player_list:SrvPlayerList;
+
+      // A player's menu on the Tab list's rows (Ctrl's cursor, exe patch 86).
+      private var _rowMenu:PlayerRowMenu;
       
       public var critInd:SrvCriticalIndicator;
       
@@ -115,6 +126,38 @@ package
       // Whether the player is typing in the chat: focus_chat(true) to focus_chat(false). Not the
       // input's `visible`, which the chat's timeline starts true until the chat is first closed.
       private var _chatTyping:Boolean = false;
+
+      private var _artefactOfferKey:String = "";
+      // The offer text's value (%1$s): the dropped gun's name for patch 85's pickup.
+      private var _artefactOfferValue:String = "";
+      private var _nativeContext:Object = {text:"",value:0,visible:true};
+
+      // One owner for the existing collection widget. Native context updates
+      // may arrive after the carry hint; retain them without erasing its text.
+      public function show_artefact_offer(key:String, value:String = "") : void
+      {
+         this._artefactOfferKey = key == null ? "" : key;
+         this._artefactOfferValue = value == null ? "" : value;
+         this.refresh_context();
+      }
+
+      private function refresh_context() : void
+      {
+         if(!this.contextInfo) return;
+         var offer:Boolean = this._artefactOfferKey.length != 0;
+         this.contextInfo.visible = offer ? !this._chatTyping && !this._profilePanel.visible : this._nativeContext.visible;
+         if(!this.contextInfo.visible) return;
+         var value:int = offer ? 0 : this._nativeContext.value;
+         var frame:int = value == 0 ? 1 : 2;
+         if(this.contextInfo.currentFrame != frame) this.contextInfo.gotoAndStop(frame);
+         if(offer) this.contextInfo.contextText.text = LocalizationData.format(this._artefactOfferKey, this._artefactOfferValue);
+         else this.contextInfo.contextText.text = this._nativeContext.text;
+         if(value != 0)
+         {
+            this.contextInfo.progress_indicator.width = this.contextInfo.contextText.textWidth + 10;
+            this.contextInfo.progress_indicator.set_progress(value);
+         }
+      }
       
       private var _itemFactory:IItemFactory = new ItemFactory();
       
@@ -129,6 +172,10 @@ package
       protected const effectsDict:Dictionary = new Dictionary();
       
       protected const effectContainer:Sprite = new Sprite();
+
+      // The view fading over the respawn countdown (DeathEyes, docs/notes/death-eyes.md): on the
+      // stage between the screen effects and the root, so the kits and the countdown are over it.
+      protected const deathEyes:DeathEyes = new DeathEyes();
       
       protected const BLOOD_EFFECT:uint = 0;
       
@@ -166,23 +213,6 @@ package
       
       protected var _gameType:uint = 0;
       
-      private var _tutor:MovieClip = new SrvTutorialSliders();
-      
-      // The tutorial panel: not shown, or slid in (onTutorialAdded).
-      private static const TUTOR_HIDDEN:int = 0;
-      
-      private static const TUTOR_SHOWN:int = 1;
-      
-      private var _tutorState:int = TUTOR_HIDDEN;
-      
-      private var _tutorVisible:Boolean = false;
-      
-      private var _tutorFrame:int = 0;
-      
-      private var _tutorRewards:Array;
-      
-      private var _tutorRewardAmount:int;
-      
       private var textIndex:int = 0;
       
       private var _fps:uint;
@@ -204,8 +234,19 @@ package
       // Research (mode 5): the teams' points in Team Deathmatch's bars
       // (progress_indicator's frame 5) and the units under them.
       protected const GAME_MODE_RESEARCH:uint = 5;
+
+      // Free for all (mode 8, docs/notes/ffa.md): the Tab list one ranking (PlayerList.ranked); in the
+      // top bar, the match timer without Team Deathmatch's counters (FfaProgress).
+      protected const GAME_MODE_FREE_FOR_ALL:uint = 8;
+
+      private var _ffaProgress:FfaProgress = new FfaProgress();
       
       public var researchUnits:ResearchUnits;
+
+      private var _researchCountdowns:ResearchCountdownLayout;
+
+      // Voice chat: the teammates talking now (srp_voice_talking).
+      public var voiceSpeakers:VoiceSpeakers;
 
       // The units' place in the indicator's own space (placeResearchUnits).
       protected var _researchX:Number = 0;
@@ -227,102 +268,14 @@ package
          stage.visible = false;
          this.init();
          this.setlayout();
+         this.placeMinimap();
          this.onResize(null);
          addEventListener(Event.RENDER,this.onInitRender);
       }
       
-      private function addTutorial() : void
-      {
-         this._tutor.x = 0;
-         this._tutor.y = 273;
-         this._tutor.alpha = 1;
-         TweenLite.killTweensOf(this._tutor);
-         TweenLite.from(this._tutor,0.2,{
-            x:-this._tutor.width,
-            alpha:0,
-            onComplete:this.onTutorialAdded
-         });
-      }
-      
-      private function onTutorialAdded() : void
-      {
-         _tutorState = TUTOR_SHOWN;
-      }
-      
-      private function removeTutorial() : void
-      {
-         TweenLite.to(this._tutor,0.2,{
-            x:-this._tutor.width,
-            alpha:0,
-            onComplete:this.onTutorialRemoved
-         });
-      }
-      
-      private function onTutorialRemoved() : void
-      {
-         trace("onTutorialRemoved",this._tutorVisible);
-         if(!this._tutorVisible)
-         {
-            if(this.contains(this._tutor))
-            {
-               removeChild(this._tutor);
-               _tutorState = TUTOR_HIDDEN;
-            }
-         }
-         else
-         {
-            this.addTutorial();
-            this.setTutorData();
-         }
-      }
-      
-      private function setTutorData() : void
-      {
-         this._tutor.gotoAndStop(this._tutorFrame + 1);
-         this._tutor.textField1.text = LocalizationData.getName("hud_tutorial_frame_" + String(this._tutorFrame) + "_text_1");
-         this._tutor.textField2.text = LocalizationData.getName("hud_tutorial_frame_" + String(this._tutorFrame) + "_text_2");
-         if(this._tutor.textField3)
-         {
-            this._tutor.textField3.text = LocalizationData.getName("hud_tutorial_frame_" + String(this._tutorFrame) + "_text_3");
-            if(this._tutor.textField4)
-            {
-               this._tutor.textField4.text = Util.getMoneyString(this._tutorRewardAmount);
-            }
-         }
-      }
-      
+      // The match's own tutorial: the exe hides it at each match's start (0x27AE59).
       public function show_tutorial_slide(bool:Boolean, index:uint) : void
       {
-         trace("show_tutorial_slide",bool,index,this._tutor,this._tutorState);
-         _tutorVisible = bool;
-         _tutorFrame = index;
-         if(bool)
-         {
-            addChild(this._tutor);
-            if(this._tutorState == TUTOR_HIDDEN)
-            {
-               this.setTutorData();
-               this.addTutorial();
-            }
-         }
-         else
-         {
-            if(this.contains(this._tutor))
-            {
-               if(this._tutor.currentFrame != this._tutor.totalFrames)
-               {
-                  ExternalInterface.call("sound_play",UiSound.TUTORIAL_SUCCESS);
-               }
-               this.removeTutorial();
-            }
-            return;
-         }
-         trace("_tutor",this._tutor.x,this._tutor.y,this._tutor.parent);
-      }
-      
-      public function set_tutorial_rewards(value:Array) : void
-      {
-         _tutorRewardAmount = value[0] && value[0].reward ? (value[0].reward[0].amount) : 0;
       }
       
       public function create_bitmap_data() : void
@@ -386,7 +339,20 @@ package
          styleObject.color = "#8B8B8B";
          style.setStyle("gray_highlight",styleObject);
          MainScene.textStyleSheet = style;
-         addChild(this.effectContainer);
+         // The screen effects (add_effect: the pain's red edges, the blood drips, the grenade's flash)
+         // are the scene's, not the interface (the owner, 2026-10-24): on the stage below the hud's
+         // root, placed over the screen as the root is scaled (placeEffects), so hiding the
+         // interface (the root) leaves them.
+         this.effectContainer.mouseEnabled = this.effectContainer.mouseChildren = false;
+         stage.addChildAt(this.effectContainer,stage.getChildIndex(this));
+         stage.addChildAt(this.deathEyes,stage.getChildIndex(this));
+         _keptLayer = new KeptLayer(this,this.keepLaidOut);
+         _forcedView = new ForcedView(this._keptLayer,this.keptWhenForced,this.keptOnTab,this.keptWhileTyping,
+                                      this.holdChatHistory);
+         stage.addChildAt(this._keptLayer,stage.getChildIndex(this) + 1);
+         _stageLayer = new Sprite();
+         this._stageLayer.name = "stageLayer";
+         super.addChild(this._stageLayer);
          addChild(this.hitmarkContainer);
          playerInfo = new HUDPlayerInfo() as MovieClip;
          hud_overlay = new SrvHudOverlay();
@@ -421,14 +387,18 @@ package
          progress_indicator = new SrvMatchProgress();
          addChild(this.progress_indicator);
          // Beside the indicator, not in it (the layout centres the indicator by
-         // its whole width), following it every frame (followIndicator).
+         // its whole width), following it every frame of a Research match (followIndicator).
          researchUnits = new ResearchUnits();
          this.researchUnits.visible = false;
          addChild(this.researchUnits);
-         this.researchUnits.addEventListener(Event.ENTER_FRAME,this.onResearchFrame);
+         voiceSpeakers = new VoiceSpeakers();
+         addChild(this.voiceSpeakers);
          pregameInfo = new SrvContextInfoPregame();
          addChild(this.pregameInfo);
-         this.pregameInfo.premiumMembers.visible = false;
+         // The stock "premium players in the match" box: srp has no premium (the owner, 2026-11-09)
+         this.pregameInfo.premiumMembers.parent.removeChild(this.pregameInfo.premiumMembers);
+         this._modeNotice = new ModeNotice(this.pregameInfo.contextText);
+         addChild(this._modeNotice);
          damageDebug = new SrvDebugDamage();
          addChild(this.damageDebug);
          this.damageDebug.visible = false;
@@ -444,8 +414,10 @@ package
          addChild(this.contextInfo);
          player_list = new SrvPlayerList();
          addChild(this.player_list);
+         _rowMenu = new PlayerRowMenu(this.player_list.players);
+         this.player_list.addChild(this._rowMenu);
          gameInfo = new GameInfo();
-         stage.addChild(this.gameInfo);
+         this._stageLayer.addChild(this.gameInfo);
          this.gameInfo.x = 20;
          this.gameInfo.y = 8;
          addChild(this._profilePanel);
@@ -460,6 +432,8 @@ package
          this._hudPlayerProfile.visible = false;
          tabMinimap = this.player_list.minimap;
          this.tabMinimap.centerPlayer = false;
+         this.minimap.addEventListener(Minimap.MAP_LOADED,this.onMinimapLoaded);
+         this.tabMinimap.addEventListener(Minimap.MAP_LOADED,this.onMinimapLoaded);
          this.contextInfo3.visible = false;
          var _iconContainer:IconContainer = new IconContainer("inventoryitems",171,83,new hudItems(),true,0,0,0,false);
          this.quick_slots.registerIconContainer(_iconContainer);
@@ -476,7 +450,8 @@ package
             trace("createGray::",i,newIcon,index);
             grayBitmaps[index] = newIcon;
          }
-         for(i = 28; i < 30; i++)
+         // the exoskeletons' backs and srp's quick-slot items (QuickSlots.SRP_HUD_ICONS) gray when used up
+         for(i = 28; i < QuickSlots.SRP_FIRST_CELL + QuickSlots.SRP_HUD_ICONS.length; i++)
          {
             index = i;
             icon = _iconContainer.getIcon(index);
@@ -510,10 +485,6 @@ package
          this.effects[this.BLOOD_DRIP2] = Blood_drip2;
          this.effects[this.BLOOD_DRIP3] = Blood_drip3;
          this.effects[this.GRENADE_EFFECT] = GrenadeEffect;
-         if(Extensions.isGFxPlayer)
-         {
-            setTimeout(this.test_all,1000);
-         }
          function makeGrayscale(bitmapData:BitmapData = null):BitmapData
          {
             var newBitmapData:BitmapData = bitmapData.clone();
@@ -527,259 +498,6 @@ package
          var textField:TextField = this.contextInfo.textPoints;
          textField.text = "";
          this._pointsTimer.addEventListener(TimerEvent.TIMER,this.removePoints);
-      }
-      
-      private function test_minimap() : void
-      {
-      }
-      
-      private function test_minimap_3() : void
-      {
-         setTimeout(this.test_minimap_2,100);
-         var m_objects:Array = [{
-            player_id:10,
-            team:Team.SECOND,
-            player_pos_x:10,
-            player_pos_y:-35 - Math.random() * 10,
-            type:1,
-            is_local_player:true
-         },{
-            player_id:23,
-            team:Team.FIRST,
-            player_pos_x:-0.0,
-            player_pos_y:-35 - Math.random() * 10,
-            type:10,
-            is_squad_player:true,
-            is_carrying_item:true
-         },{
-            player_id:24,
-            team:Team.SECOND,
-            player_pos_x:-10,
-            player_pos_y:-35 - Math.random() * 10,
-            type:9
-         },{
-            player_id:25,
-            team:Team.FIRST,
-            player_pos_x:-20,
-            player_pos_y:-35 - Math.random() * 10,
-            type:8
-         },{
-            player_id:26,
-            team:Team.FIRST,
-            player_pos_x:-30,
-            player_pos_y:-35 - Math.random() * 10,
-            type:2
-         },{
-            player_id:27,
-            team:Team.FIRST,
-            player_pos_x:-40,
-            player_pos_y:-35 - Math.random() * 10,
-            type:2,
-            is_carrying_item:true
-         },{
-            player_id:30,
-            team:Team.SECOND,
-            player_pos_x:-50,
-            player_pos_y:-35 - Math.random() * 10,
-            type:10,
-            is_squad_player:true,
-            is_carrying_item:true
-         }];
-         this.update_players(m_objects);
-         this.update_players([]);
-      }
-      
-      private function test_minimap_1() : void
-      {
-         setTimeout(this.test_minimap_3,100);
-         var m_objects:Array = [{
-            player_id:10,
-            team:Team.FIRST,
-            player_pos_x:10,
-            player_pos_y:-35 - Math.random() * 10,
-            type:1,
-            is_local_player:true
-         },{
-            player_id:23,
-            team:Team.SECOND,
-            player_pos_x:-0.0,
-            player_pos_y:-35 - Math.random() * 10,
-            type:10,
-            is_squad_player:true,
-            is_carrying_item:true
-         },{
-            player_id:24,
-            team:Team.FIRST,
-            player_pos_x:-10,
-            player_pos_y:-35 - Math.random() * 10,
-            type:9
-         },{
-            player_id:25,
-            team:Team.SECOND,
-            player_pos_x:-20,
-            player_pos_y:-35 - Math.random() * 10,
-            type:8
-         },{
-            player_id:26,
-            team:Team.SECOND,
-            player_pos_x:-30,
-            player_pos_y:-35 - Math.random() * 10,
-            type:2
-         },{
-            player_id:27,
-            team:Team.SECOND,
-            player_pos_x:-40,
-            player_pos_y:-35 - Math.random() * 10,
-            type:2,
-            is_carrying_item:true
-         }];
-         this.update_players(m_objects);
-      }
-      
-      private function test_minimap_2() : void
-      {
-         var m_objects:Array = [{
-            player_id:23,
-            team:Team.FIRST,
-            player_pos_x:-0.0,
-            player_pos_y:-35 - Math.random() * 10,
-            type:10,
-            is_squad_player:true
-         },{
-            player_id:70,
-            team:Team.FIRST,
-            player_pos_x:-60,
-            player_pos_y:-35 - Math.random() * 10,
-            type:10
-         },{
-            player_id:80,
-            team:Team.FIRST,
-            player_pos_x:-70,
-            player_pos_y:-35 - Math.random() * 10,
-            type:10
-         },{
-            player_id:90,
-            team:Team.FIRST,
-            player_pos_x:-80,
-            player_pos_y:-35 - Math.random() * 10,
-            type:10
-         },{
-            player_id:10,
-            team:Team.FIRST,
-            player_pos_x:10,
-            player_pos_y:-35 - Math.random() * 10,
-            type:1,
-            is_local_player:true
-         },{
-            player_id:26,
-            team:Team.FIRST,
-            player_pos_x:-30,
-            player_pos_y:-35 - Math.random() * 10,
-            type:2
-         },{
-            player_id:27,
-            team:Team.FIRST,
-            player_pos_x:-40,
-            player_pos_y:-35 - Math.random() * 10,
-            type:2,
-            is_carrying_item:false
-         }];
-         this.update_players(m_objects);
-         m_objects = [{
-            player_id:23,
-            team:Team.FIRST,
-            player_pos_x:-0.0,
-            player_pos_y:-35 - Math.random() * 10,
-            type:10,
-            is_squad_player:true
-         },{
-            player_id:70,
-            team:Team.FIRST,
-            player_pos_x:-60,
-            player_pos_y:-35 - Math.random() * 10,
-            type:10
-         },{
-            player_id:80,
-            team:Team.FIRST,
-            player_pos_x:-70,
-            player_pos_y:-35 - Math.random() * 10,
-            type:10
-         },{
-            player_id:90,
-            team:Team.FIRST,
-            player_pos_x:-80,
-            player_pos_y:-35 - Math.random() * 10,
-            type:10
-         }];
-         this.update_players(m_objects);
-         m_objects = [{
-            id:23,
-            type:"resupply",
-            pos_x:-40,
-            pos_y:-40 - Math.random() * 10
-         },{
-            id:26,
-            type:"base_highlighted",
-            pos_x:-50,
-            pos_y:-40 - Math.random() * 10
-         }];
-         this.update_objects(m_objects);
-      }
-      
-      private function test_all_tut() : void
-      {
-         this.show_tutorial_slide(false,2);
-         this.show_tutorial_slide(true,3);
-      }
-      
-      private function test_all() : void
-      {
-         this.set_tutorial_rewards([{
-            name:"tutorial_completed",
-            reward:[{
-               type:Reward.MONEY,
-               param:ItemDictId.GENERIC_MONEY,
-               amount:77
-            }]
-         }]);
-         this.show_tutorial_slide(true,2);
-         this.quick_slots.visible = true;
-         this.fill_slots([{
-            slot_id:1,
-            name:"sdfsdfsd",
-            icon_row:2,
-            icon_column:2,
-            icon:23,
-            enabled:true
-         },{
-            icon_row:18,
-            icon_column:1,
-            slot_id:2,
-            name:"sdfsdfsd",
-            icon:49,
-            enabled:true,
-            cooldown:0,
-            is_artefact:true
-         },{
-            icon_row:0,
-            icon_column:0,
-            slot_id:3,
-            name:"sdfsdfsd",
-            icon:0,
-            enabled:true,
-            cooldown:0,
-            is_artefact:true
-         }]);
-         this.show_crosshair(true);
-         stage.addEventListener(MouseEvent.CLICK,this.testClick);
-         this.add_log_message({
-            who_name:"Test",
-            action_id:CombatAction.KILL,
-            victim_name:"super_logn_extra_icvon",
-            who_team:CombatLogTeam.ALLY,
-            victim_team:CombatLogTeam.ENEMY,
-            extra_icon:4
-         });
       }
       
       private function onProfileChanged(e:Event) : void
@@ -827,6 +545,196 @@ package
          this._profilePanel.profileSelector.pickByKey(index);
       }
       
+      // The key that hides the interface (exe patch 62, F11; docs/notes/hide-ui-key.md). The interface
+      // is the root: the hud, the crosshair, the minimap, the kits, the death screen, the kill feed,
+      // the chat, the hit marks, and in _stageLayer (its last child, drawn at the stage's scale) the
+      // fps line the game put on the stage. Hidden in one step; the movie goes on running, so what
+      // happens meanwhile plays out unseen; the screen effects are not the root's and stay. The exe
+      // asks interface_hidden on the key and calls this with the other state; a death or a respawn
+      // keeps it.
+      private var _stageLayer:Sprite;
+
+      private var _interfaceHidden:Boolean;
+
+      // Forced (Blackout, force_interface_hidden) the interface stays as forced: the key and a
+      // match's reset do nothing to it; the exe's patch 65 unforces it for a match without.
+      public function hide_interface(hidden:Boolean) : void
+      {
+         if(this._forcedView && this._forcedView.forced)
+         {
+            return;
+         }
+         this.setInterfaceHidden(hidden);
+      }
+
+      private function setInterfaceHidden(hidden:Boolean) : void
+      {
+         _interfaceHidden = hidden;
+         visible = !hidden;
+      }
+
+      public function interface_hidden() : Boolean
+      {
+         return this._interfaceHidden;
+      }
+
+      // Forced hidden for a whole match (Blackout, exe patch 65; docs/notes/blackout.md): the interface
+      // hidden as by the key, except what a forced match keeps (ForcedView): always the pre-match
+      // countdown (keptWhenForced: the game shows it while it runs and hides it when play starts) and
+      // the use prompt with its progress (contextInfo, root.set_context: the game shows it at what the
+      // player can use, an artefact container or an ammo stash, and fills it while used); while
+      // the Tab list is asked for (show_player_list) the list itself with its map and row menu (names
+      // only: no score, showScores; the map's marked batteries as in a plain match, while the icons
+      // movie keeps their markers in the world hidden), the match's time left, the chat with its
+      // history, who is talking (voice chat) and, alive, the intact player-info panel (ammo and body
+      // state) and quick-use slots;
+      // while the game shows the kits (the death screen, before the start), the
+      // kits to pick from (keptOnTab); while the player types in the chat (focus_chat),
+      // the chat (keptWhileTyping). A kept part is in _keptLayer (KeptLayer: on the stage over the root,
+      // placed as the root is), so the hidden root leaves it, and works there as in the root; back at its
+      // place in the root when not.
+      private var _keptLayer:KeptLayer;
+
+      private var _forcedView:ForcedView;
+      private var _modeNotice:ModeNotice;
+      private var _pregameText:String = "";
+
+      // Each frame the mode notice shows (its countdown, then its reading time): its end, and its place
+      // under the countdown or the match timer. The rest of the match, no frame runs anything for it.
+      private function onIntroductionFrame(event:Event) : void
+      {
+         this._modeNotice.update(getTimer(),false,
+            this.pregameInfo != null && this.pregameInfo.visible);
+         this.followModeNotice();
+      }
+
+      // After each change of the notice: shown, it is placed now and every frame until it ends.
+      private function followModeNotice() : void
+      {
+         if(!this._modeNotice.shown)
+         {
+            removeEventListener(Event.ENTER_FRAME,this.onIntroductionFrame);
+            return;
+         }
+         var bottom:Number = this.pregameInfo != null && this.pregameInfo.visible ?
+            this.pregameInfo.getBounds(this).bottom : 0;
+         var timer:DisplayObject = this.matchTime() as DisplayObject;
+         if(timer != null)
+            bottom = Math.max(bottom,timer.getBounds(this).bottom);
+         this._modeNotice.place(this.stageWidth,bottom);
+         addEventListener(Event.ENTER_FRAME,this.onIntroductionFrame);
+      }
+
+      public function force_interface_hidden(forced:Boolean) : void
+      {
+         this._forcedView.forced = forced;
+         this.showScores();
+         this.setInterfaceHidden(forced);
+         if(forced)
+            this._modeNotice.begin("blackout");
+         else
+            this._modeNotice.reset();
+         this.followModeNotice();
+         this.set_pregame(this._pregameText);
+      }
+
+      public function interface_forced() : Boolean
+      {
+         return this._forcedView.forced;
+      }
+
+      private function keptWhenForced() : Array
+      {
+         return [this.pregameInfo,this.contextInfo,this._modeNotice];
+      }
+
+      // The Tab list with either view, in the root's order: the chat under it, the kits over it; who
+      // is talking (voice chat) only here in a forced match (the owner, 2026-11-11: "we need to also
+      // show in blackout only when tabbed that someone is speaking").
+      private function keptOnTab() : Array
+      {
+         if(this._profilePanel.visible)
+         {
+            return [this.matchTime(),this.chat,this.voiceSpeakers,this.player_list,this._profilePanel];
+         }
+         // Ammo and the body doll share a size-dependent, bottom-right layout.
+         // Keep their owner intact: removing either child changes its bounds
+         // and a reflow can push the other child beyond the viewport.
+         return [this.playerInfo,this.quick_slots,this.matchTime(),this.chat,this.voiceSpeakers,this.player_list];
+      }
+
+      private function keptWhileTyping() : Array
+      {
+         return [this.chat];
+      }
+
+      // The chat's last lines held on screen (Tab's history), or let fade again as the chat does.
+      private function holdChatHistory(hold:Boolean) : void
+      {
+         if(!this.chat || !this.chat.messageContainer)
+         {
+            return;
+         }
+         if(hold)
+         {
+            this.chat.messageContainer.showLastMessages();
+            this.chat.messageContainer.stopHideout();
+         }
+         else
+         {
+            this.chat.messageContainer.resumeHideout();
+         }
+      }
+
+      // A part the hud's layout places (its layoutData: the countdown, the quick-use slots) stays
+      // its: placed by the same rule in the kept layer as in the root (the layer is placed as the
+      // root), at every resolution and interface scale, also when it was kept before the layout's
+      // first reflow (a match's start).
+      private function keepLaidOut(part:DisplayObject) : void
+      {
+         if(this.layout != null && part is Sprite && Sprite(part)["layoutData"] != null)
+         {
+            this.layout.manage(Sprite(part));
+         }
+      }
+
+      // _stageLayer stays the root's last child, whatever is added or moved to the top later.
+      override public function addChild(child:DisplayObject) : DisplayObject
+      {
+         super.addChild(child);
+         this.keepStageLayerOnTop();
+         return child;
+      }
+
+      override public function addChildAt(child:DisplayObject, index:int) : DisplayObject
+      {
+         super.addChildAt(child,index);
+         this.keepStageLayerOnTop();
+         return child;
+      }
+
+      override public function setChildIndex(child:DisplayObject, index:int) : void
+      {
+         super.setChildIndex(child,index);
+         this.keepStageLayerOnTop();
+      }
+
+      private function keepStageLayerOnTop() : void
+      {
+         if(this._stageLayer != null && this._stageLayer.parent == this && getChildIndex(this._stageLayer) != numChildren - 1)
+         {
+            super.setChildIndex(this._stageLayer,numChildren - 1);
+         }
+      }
+
+      // The screen effects' place: the screen at 1280x720 in the hud's units, seen from the stage.
+      private function placeEffects() : void
+      {
+         var place:Matrix = new Matrix(this.stageWidth / 1280,0,0,this.stageHeight / 720,0,0);
+         place.concat(this.transform.matrix);
+         this.effectContainer.transform.matrix = place;
+      }
+
       public function setup_player_profiles(value:Array) : void
       {
          var i:uint;
@@ -856,167 +764,18 @@ package
          this.set_minimap_props({map:"level_0" + this.indexOfLevel.toString()});
       }
       
-      private function testClick(e:MouseEvent) : void
-      {
-         trace("testClick::",stage.stageWidth,stage.stageHeight);
-         this.set_crosshair_damage(Math.random(),1000,true,true);
-      }
-      
-      private function test_all2() : void
-      {
-         var m_objects:Array = [{
-            player_id:10,
-            team:Team.SECOND,
-            player_pos_x:-2,
-            player_pos_y:-35 - Math.random() * 10,
-            type:1,
-            is_local_player:true
-         },{
-            player_id:23,
-            team:Team.FIRST,
-            player_pos_x:-10,
-            player_pos_y:-35 - Math.random() * 10,
-            type:10
-         },{
-            player_id:25,
-            team:Team.FIRST,
-            player_pos_x:-20,
-            player_pos_y:-35 - Math.random() * 10,
-            type:8
-         },{
-            player_id:27,
-            team:Team.SECOND,
-            player_pos_x:-40,
-            player_pos_y:-35 - Math.random() * 10,
-            type:2,
-            is_carrying_item:false
-         }];
-         m_objects = [{
-            faction_id:Faction.SCAVENGERS,
-            quest_icon:1,
-            current_progress:4,
-            required:5
-         }];
-         this.show_quests_progress(true);
-         this.set_quests_progress(m_objects);
-         this.set_body_part_hp(1,1,0.5);
-         this.crosshair_enemy_hit(0.8);
-         var temp_players:Array = [{
-            id:10,
-            team:TeamSide.ALLY,
-            name:"fdgfdAAF",
-            kills:12,
-            deaths:22,
-            ping:22,
-            artifacts:33,
-            rank:20,
-            squad_state:SquadState.IN_SQUAD,
-            squad_id:1
-         },{
-            id:9,
-            team:TeamSide.ALLY,
-            name:"fdgfd1F",
-            kills:12,
-            deaths:22,
-            ping:22,
-            artifacts:33,
-            rank:21,
-            squad_state:SquadState.STATE_2,
-            squad_id:1
-         },{
-            id:8,
-            team:TeamSide.NONE,
-            name:"fdgfd2",
-            kills:12,
-            deaths:22,
-            ping:22,
-            artifacts:33,
-            rank:4,
-            squad_state:SquadState.NONE,
-            squad_id:0
-         },{
-            id:7,
-            team:TeamSide.NONE,
-            name:"fdgfd3",
-            kills:12,
-            deaths:22,
-            ping:22,
-            artifacts:33,
-            rank:20,
-            squad_state:SquadState.STATE_2,
-            squad_id:1
-         },{
-            id:6,
-            team:TeamSide.NONE,
-            name:"fdgfd4",
-            kills:12,
-            deaths:22,
-            ping:22,
-            artifacts:33,
-            rank:4,
-            squad_state:SquadState.STATE_2,
-            squad_id:2
-         },{
-            id:5,
-            team:TeamSide.NONE,
-            name:"fdgfd5",
-            kills:12,
-            deaths:22,
-            ping:22,
-            artifacts:33,
-            rank:4,
-            squad_state:SquadState.STATE_2,
-            squad_id:2
-         },{
-            id:4,
-            team:TeamSide.NONE,
-            name:"fdgfd6",
-            kills:12,
-            deaths:22,
-            ping:22,
-            artifacts:33,
-            rank:4,
-            squad_state:SquadState.STATE_2,
-            squad_id:2
-         },{
-            id:3,
-            team:TeamSide.NONE,
-            name:"fdgfd6",
-            kills:12,
-            deaths:22,
-            ping:22,
-            artifacts:33,
-            rank:6
-         },{
-            id:2,
-            team:TeamSide.NONE,
-            name:"fdgfd1",
-            kills:12,
-            deaths:22,
-            ping:22,
-            artifacts:33,
-            rank:1
-         },{
-            id:1,
-            team:TeamSide.NONE,
-            name:"fdgfd8",
-            kills:12,
-            deaths:22,
-            ping:22,
-            artifacts:33,
-            rank:8
-         }];
-         this.list_set_players(temp_players);
-      }
-      
       public function set_localization_data(value:Object) : void
       {
          LocalizationData.setData(value);
+         this.set_pregame(this._pregameText);
       }
       
       public function show_profiles_selector(value:Boolean) : void
       {
          this._profilePanel.visible = value;
+         // A death/respawn switches the Tab view even while Tab stays held.
+         // The game's show_player_list only invokes the movie when Tab changes.
+         this._forcedView.refresh();
       }
       
       public function set_game_stats(state:uint, fps:uint, latency:uint, lowFps:Boolean = false, lowLatenxy:Boolean = false) : void
@@ -1074,11 +833,37 @@ package
          this.questList.alpha = value;
       }
       
+      // The minimap's position, the exe's setting (Settings, user.cfg's minimap_position): BOTTOM
+      // until the exe says. The exe may say before or after a match's map loads (setProps): the
+      // minimaps' visibility is the HUD's alone, from this and their maps (placeMinimap).
+      private var _minimapPosition:int = MinimapPosition.BOTTOM;
+
       public function set_minimap_position(value:uint) : void
       {
-         this.minimap.layoutData.alignV = value == MinimapPosition.TOP ? "top" : "bottom";
-         this.minimap.layoutData.offsetV = value == MinimapPosition.TOP ? 36 : -36;
-         this.minimap.visible = value != MinimapPosition.HIDDEN;
+         _minimapPosition = MinimapPosition.parse(value);
+         this.placeMinimap();
+      }
+
+      // Runs on every position and every map loaded. The minimap shows with a map, unless hidden;
+      // hidden keeps the last place. The Tab map shows with a map (its list shows it on Tab).
+      private function placeMinimap() : void
+      {
+         if(this._minimapPosition != MinimapPosition.HIDDEN)
+         {
+            this.minimap.layoutData.alignV = this._minimapPosition == MinimapPosition.TOP ? "top" : "bottom";
+            this.minimap.layoutData.offsetV = this._minimapPosition == MinimapPosition.TOP ? 36 : -36;
+            if(this.layout)
+            {
+               this.layout.reflow();
+            }
+         }
+         this.minimap.visible = this.minimap.hasMap && this._minimapPosition != MinimapPosition.HIDDEN;
+         this.tabMinimap.visible = this.tabMinimap.hasMap;
+      }
+
+      private function onMinimapLoaded(e:Event) : void
+      {
+         this.placeMinimap();
       }
       
       public function set_quests_progress(value:Array) : void
@@ -1191,10 +976,9 @@ package
          this.progress_indicator.layoutData.alignH = "center";
          this.progress_indicator.layoutData.offsetV = 56;
          this.progress_indicator.layoutData.offsetH = 230;
+         // its alignV and offsetV are the position's (placeMinimap)
          this.minimap.layoutData = new LayoutData();
-         this.minimap.layoutData.alignV = "bottom";
          this.minimap.layoutData.alignH = "left";
-         this.minimap.layoutData.offsetV = -36;
          this.minimap.layoutData.offsetH = borderOffset + 22;
          this.container_icon.layoutData = new LayoutData();
          this.container_icon.layoutData.alignV = "center";
@@ -1226,6 +1010,14 @@ package
          this.contextInfo3.layoutData.alignH = "center";
          this.contextInfo3.layoutData.offsetV = this.stageHeight / 3;
          this.contextInfo3.layoutData.offsetH = 0;
+         // At the right edge, under mid-height (the owner, 2026-11-11: "usually you want those on
+         // the right"; 0.69's were on the left): under the kill feed and the container's icon, over
+         // the player's info. Its rows end at its x and it has no width of its own.
+         this.voiceSpeakers.layoutData = new LayoutData();
+         this.voiceSpeakers.layoutData.alignV = "center";
+         this.voiceSpeakers.layoutData.alignH = "right";
+         this.voiceSpeakers.layoutData.offsetV = 50;
+         this.voiceSpeakers.layoutData.offsetH = -borderOffset;
          this.chat.layoutData = new LayoutData();
          this.chat.layoutData.alignV = "bottom";
          this.chat.layoutData.alignH = "center";
@@ -1359,6 +1151,8 @@ package
                this.chat.stopEnterMessage();
             }
          }
+         // forced (Blackout): the chat shows while typed in (keptWhileTyping)
+         this._forcedView.typing = bool;
       }
       
       public function set_friends_list(value:Array) : void
@@ -1463,6 +1257,15 @@ package
       {
       }
       
+      public function set_quick_slot_activity(slot:uint, phase:uint, remaining:uint, duration:uint) : void
+      {
+         if(this.quick_slots.setActivity(slot,phase,remaining,duration) && !this._reflow)
+         {
+            _reflow = true;
+            addEventListener(Event.RENDER,this.onRender);
+         }
+      }
+
       public function fill_slot(_p:Object) : void
       {
          if(this.quick_slots.fillSlot(_p) && !this._reflow)
@@ -1571,6 +1374,29 @@ package
          this.crosshair.setDamage(size,delay,killed,debug);
       }
       
+      // The Settings' "Hide hit markers", "Hide player scores", "Hidden crosshair" and "Names on map" (exe
+      // patch 83, told at once and again at each change; docs/notes/hide-hit-markers-scores.md): the
+      // crosshair shows no hit marker; the Tab list shows the players' names only; no aiming cross; the
+      // Tab map's names shown, Alt hiding them.
+      public function srp_hud_options(hideHitMarkers:Boolean, hideScores:Boolean, hideCrosshair:Boolean, mapNames:Boolean) : void
+      {
+         this.crosshair.hitMarkersHidden = hideHitMarkers;
+         this._scoresHidden = hideScores;
+         this.showScores();
+         this.crosshair.crosshairHidden = hideCrosshair;
+         this._mapNamesAlways = mapNames;
+         this.showMapNames();
+      }
+
+      // "Hide player scores" (patch 83), as last told.
+      private var _scoresHidden:Boolean = false;
+
+      // The Tab list's names only: by the setting, and always in a forced match (Blackout shows no score).
+      private function showScores() : void
+      {
+         this.player_list.players.namesOnly = this._scoresHidden || this._forcedView != null && this._forcedView.forced;
+      }
+      
       public function show_oxygen(bool:Boolean) : void
       {
          this.oxygen_count.visible = false;
@@ -1590,6 +1416,25 @@ package
       public function list_set_players(_players:Array) : void
       {
          this.player_list.players.addPlayersList(_players);
+         this.tabMinimap.setPlayerNames(_players);
+      }
+
+      // The Tab map's names over the player icons, shown while Alt is held (the exe's patch 82 tells
+      // the movie each change; docs/notes/tab-map-names.md), or with "Names on map" shown unless it is.
+      // The map is the Tab list's, so they show only with it (in Blackout too, in its Tab view).
+      public function show_map_names(altHeld:Boolean) : void
+      {
+         this._mapNamesAlt = altHeld;
+         this.showMapNames();
+      }
+
+      // Alt held (patch 82) and "Names on map" (patch 83), as last told.
+      private var _mapNamesAlt:Boolean = false;
+      private var _mapNamesAlways:Boolean = false;
+
+      private function showMapNames() : void
+      {
+         this.player_list.minimap.namesShown = this._mapNamesAlt != this._mapNamesAlways;
       }
       
       public function list_update_player(_player:Object) : void
@@ -1599,10 +1444,35 @@ package
       
       public function show_player_list(bool:Boolean) : void
       {
+         if(!bool)
+         {
+            this._rowMenu.close();
+         }
+         // Forced (Blackout): the list in Tab's view (keptOnTab), the quests' tasks not.
          this.player_list.visible = bool;
-         this.questTaskList.visible = bool && this.questList.visible;
+         // its map draws the players only while it shows (Minimap.held)
+         this.tabMinimap.held = !bool;
+         this._forcedView.tab = bool;
+         this.questTaskList.visible = bool && this.questList.visible && !this._forcedView.forced;
       }
       
+      // The exe's answers to the Tab list's player menu (exe patch 86): what a place offers, and a friend
+      // request or a chat mute sent or not.
+      public function srp_player_menu(place:uint, addFriend:uint, mute:uint, muted:uint) : void
+      {
+         this._rowMenu.offered(place,addFriend != 0,mute != 0,muted);
+      }
+
+      public function srp_friend_request(place:uint, sent:uint) : void
+      {
+         this._rowMenu.requested(place,sent != 0);
+      }
+
+      public function srp_chat_mute(place:uint, sent:uint) : void
+      {
+         this._rowMenu.muted(place,sent != 0);
+      }
+
       public function show_debug_damage(bool:Boolean) : void
       {
          if(!bool)
@@ -1624,44 +1494,33 @@ package
          }
       }
       
+      // The exe's "premium players in the match" (their drop bonus): srp has no premium account.
       public function show_premium_players(value:String, prefix:String = "", postfix:String = "", bonus:uint = 20) : void
       {
-         var style:StyleSheet = new StyleSheet();
-         var styleObject:Object;
-         styleObject = new Object();
-         styleObject.color = Colors.PLAYER_ST;
-         style.setStyle("yellow",styleObject);
-         this.pregameInfo.premiumMembers.textField.autoSize = TextFieldAutoSize.LEFT;
-         this.pregameInfo.premiumMembers.textField.styleSheet = style;
-         var players:String = value;
-         this.pregameInfo.premiumMembers.visible = true;
-         this.pregameInfo.premiumMembers.textField.text = prefix + "\n" + Util.styledChar(value,"yellow") + "\n" + postfix + Util.styledChar("+" + bonus.toString() + "%","yellow");
-         this.pregameInfo.premiumMembers.background.height = this.pregameInfo.premiumMembers.textField.textHeight + 25;
       }
       
       public function show_pregame(bool:Boolean) : void
       {
          this.pregameInfo.visible = bool;
-         if(bool == false)
-         {
-            this.pregameInfo.premiumMembers.visible = false;
-         }
+         this._modeNotice.update(getTimer(),true,bool);
+         this.followModeNotice();
+         this.placeResearchCountdowns();
       }
       
       public function set_pregame(value:String) : void
       {
-         this.pregameInfo.contextText.autoSize = TextFieldAutoSize.LEFT;
-         this.pregameInfo.contextText.text = value;
+         this._pregameText = value;
+         ModeIntroText.pregame(this.pregameInfo.contextText,
+            null,value);
          if(this.pregameInfo.contextText.width > 400)
          {
             this.pregameInfo.contextText.x = 0;
-            this.pregameInfo.premiumMembers.x = (this.pregameInfo.contextText.textWidth - this.pregameInfo.premiumMembers.width) / 2;
          }
          else
          {
             this.pregameInfo.contextText.x = (400 - this.pregameInfo.contextText.textWidth) / 2;
-            this.pregameInfo.premiumMembers.x = 55;
          }
+         this.placeResearchCountdowns();
       }
       
       public function show_game_info(bool:Boolean) : void
@@ -1671,16 +1530,9 @@ package
       
       public function show_crosshair(bool:Boolean) : void
       {
-         if(bool)
+         if(this.crosshair)
          {
-            if(this.crosshair)
-            {
-               this.crosshair.crosshair_mc.visible = true;
-            }
-         }
-         else if(this.crosshair)
-         {
-            this.crosshair.crosshair_mc.visible = false;
+            this.crosshair.setCrosshairVisible(bool);
          }
          stage.invalidate();
       }
@@ -1776,13 +1628,27 @@ package
       public function reset() : void
       {
          trace("HUD::reset");
+         this._artefactOfferKey = "";
+         this._artefactOfferValue = "";
+         this._nativeContext = {text:"",value:0,visible:true};
+         this._modeNotice.reset();
+         this.followModeNotice();
+         this._pregameText = "";
+         // a new match starts with the interface shown (the movie is the last match's; the exe's
+         // patch 62 shows the player icons' with it); a forced one stays forced until patch 65
+         // tells the movie the new match's state
+         this.hide_interface(false);
          this.clear_minimap();
          this.chat.clear();
+         this.voiceSpeakers.clear();
          this.show_ammo(false);
          this.show_slots(false);
          this.show_game_info(false);
          this.show_crosshair(false);
          this.show_player_list(false);
+         // the kits too: the exe's patch 113 puts its own kits state away at the same start, so
+         // the match's first showing of them tells the movie its kit
+         this.show_profiles_selector(false);
          this.show_oxygen(false);
          this.show_stamina(false);
          this.combatLog.clear();
@@ -1795,12 +1661,32 @@ package
          this.connectionInfo.visible = false;
          this.show_pregame(false);
          this.set_match_time("");
+         this.deathEyes.countdown("");
          if(this.progress_indicator.respawn_time)
          {
             this.set_respawn_time("");
          }
       }
       
+      // Voice chat (exe patch 66, docs/notes/voice-chat.md): the names of the teammates talking now
+      // (none: nobody). Called on a change only.
+      public function srp_voice_talking(... names) : void
+      {
+         this.voiceSpeakers.update(names);
+      }
+
+      // The exe's answers to the Tab list's player menu's voice entries (exe patch 66): whether a
+      // place's voice can be muted and is, and a voice mute done or not.
+      public function srp_voice_menu(place:uint, offered:uint, muted:uint) : void
+      {
+         this._rowMenu.voiceOffered(place,offered != 0,muted != 0);
+      }
+
+      public function srp_voice_mute(place:uint, done:uint) : void
+      {
+         this._rowMenu.voiceMuted(place,done != 0);
+      }
+
       public function clear_minimap() : void
       {
          this.minimap.clear_minimap();
@@ -1858,10 +1744,39 @@ package
       
       public function set_game_type(type:uint) : void
       {
+         if(this._gameType == this.GAME_MODE_RESEARCH && this.progress_indicator.layoutData)
+         {
+            this.progress_indicator.layoutData.alignH = "center";
+         }
+         if(this._researchCountdowns != null)
+         {
+            this._researchCountdowns.restore();
+            this._researchCountdowns = null;
+         }
          _gameType = type;
          this.researchUnits.visible = type == this.GAME_MODE_RESEARCH;
+         this.researchUnits.removeEventListener(Event.ENTER_FRAME,this.onResearchFrame);
+         this.player_list.players.ranked = type == this.GAME_MODE_FREE_FOR_ALL;
+         // a free for all has no team: its chat has no team tab (GameChat.teamChannel)
+         this.chat.teamChannel = type != this.GAME_MODE_FREE_FOR_ALL;
+         this._ffaProgress.hide();
+         if(type == this.GAME_MODE_FREE_FOR_ALL)
+         {
+            // Reuse the timer's frame, hiding every team counter.
+            this.progress_indicator.gotoAndStop(this.GAME_MODE_TEAMDEATHMATCH + 1);
+            this._ffaProgress.show(this.progress_indicator);
+            return;
+         }
          if(type == this.GAME_MODE_RESEARCH)
          {
+            this.researchUnits.addEventListener(Event.ENTER_FRAME,this.onResearchFrame);
+            // Research centres the visible score bars on the actual viewport.
+            // Timeline labels can change width after generic layout offsets
+            // were measured; Research must not wait for a resize to settle.
+            if(this.progress_indicator.layoutData)
+            {
+               this.progress_indicator.layoutData.alignH = "none";
+            }
             this.progress_indicator.gotoAndStop(this.GAME_MODE_TEAMDEATHMATCH + 1);
             if(this.progress_indicator.team1LastPlayers)
             {
@@ -1872,7 +1787,15 @@ package
          }
          this.progress_indicator.gotoAndStop(this._gameType + 1);
       }
-      
+
+      // Free for all (the exe, at each change and once after set_game_type): the kills of the game's
+      // own player, or of the one it watches; the most kills anyone has; the kills that win.
+      // Retained for native callback compatibility; FFA shows those kills in the player list.
+      public function set_ffa_progress(own:int, top:int, target:int) : void
+      {
+         this._ffaProgress.tell(own,top,target);
+      }
+
       public function set_match_time_progress(time_left:uint, time_total:uint) : void
       {
          this.progress_indicator.radialTime.setTime(time_left,time_total);
@@ -1880,19 +1803,27 @@ package
       
       public function set_match_time(time:String) : void
       {
-         if(this._gameType == this.GAME_MODE_TEAMDEATHMATCH || this._gameType == this.GAME_MODE_RESEARCH)
+         this.matchTime().text = time;
+         this._modeNotice.update(getTimer(),true,this.pregameInfo.visible);
+         this.followModeNotice();
+      }
+
+      // The match's time left as the mode shows it: Team Deathmatch's, Research's and free for all's
+      // label, or the other modes' (progress_indicator's frames).
+      private function matchTime() : Object
+      {
+         if(this._gameType == this.GAME_MODE_TEAMDEATHMATCH || this._gameType == this.GAME_MODE_RESEARCH
+            || this._gameType == this.GAME_MODE_FREE_FOR_ALL)
          {
-            this.progress_indicator.match_time_2_tdm.text = time;
+            return this.progress_indicator.match_time_2_tdm;
          }
-         else
-         {
-            this.progress_indicator.match_time_2.text = time;
-         }
+         return this.progress_indicator.match_time_2;
       }
       
       public function show_context(bool:Boolean) : void
       {
-         this.contextInfo.visible = bool;
+         this._nativeContext.visible = bool;
+         this.refresh_context();
       }
       
       public function show_context_message(bool:Boolean) : void
@@ -1902,6 +1833,8 @@ package
       
       public function set_parameterized_message(text:String, fonSize:uint, shift:uint, time:uint = 2500) : void
       {
+         // %s in a message is its time on screen, in seconds (Onyx's activation hint: its active's time, exe patch 54).
+         text = text.split("%s").join(String(Math.ceil(time / 1000)));
          if(!this.contextInfo3.visible)
          {
             this.contextInfo3.visible = true;
@@ -2003,7 +1936,7 @@ package
       
       public function add_points(text:String, value:int) : void
       {
-         this.contextInfo.visible = true;
+         this.show_context(true);
          this._pointsTimer.reset();
          this._pointsTimer.start();
          var textField:TextField = this.contextInfo.textPoints;
@@ -2042,30 +1975,14 @@ package
       
       public function set_context(text:String, value:int = 0, time:int = 1000) : void
       {
-         this.contextInfo.visible = true;
-         this.contextInfo.contextText.text = text;
-         if(value != 0)
-         {
-            if(this.contextInfo.currentFrame != 2)
-            {
-               this.contextInfo.gotoAndStop(2);
-            }
-            this.contextInfo.progress_indicator.width = this.contextInfo.contextText.textWidth + 10;
-            this.contextInfo.progress_indicator.set_progress(value);
-         }
-         else if(this.contextInfo.currentFrame != 1)
-         {
-            this.contextInfo.gotoAndStop(1);
-         }
-         if(this._contextTimeout2)
-         {
-            clearTimeout(this._contextTimeout2);
-         }
+         this._nativeContext = {text:text,value:value,visible:true};
+         if(this._contextTimeout2) clearTimeout(this._contextTimeout2);
+         this.refresh_context();
       }
       
       public function hide_context() : void
       {
-         this.contextInfo.visible = false;
+         this.show_context(false);
       }
       
       public function set_tickets_required(value:uint) : void
@@ -2137,6 +2054,11 @@ package
             this.progress_indicator.team1Progress.text = String(team1);
             this.progress_indicator.team2Progress.text = String(team2);
          }
+         else if(this._gameType == this.GAME_MODE_FREE_FOR_ALL)
+         {
+            // Native progress refreshes must keep the team counters hidden.
+            this._ffaProgress.draw();
+         }
          else
          {
             this.set_artifacts_progress(Team.FIRST,team1);
@@ -2153,7 +2075,7 @@ package
       }
       
       // Research (mode 5), every frame the state changes and every second
-      // (research_native_026g.c rn_hud): the game's own team, the teams'
+      // (research_arena::research_update_hud): the game's own team, the teams'
       // points, the points to win, the number of units, then nine numbers a
       // unit: cp_id, x, -z (the minimap's pos_x, pos_y), owner, the team
       // taking it, its capture 0..100, the players of team 0 and 1 inside,
@@ -2178,7 +2100,8 @@ package
                "progress":Number(values[at + 5]),
                "inside_0":uint(values[at + 6]),
                "inside_1":uint(values[at + 7]),
-               "local":uint(values[at + 8]) != 0
+               "local":uint(values[at + 8]) != 0,
+               "left":5 + 9 * count + i < values.length ? Number(values[5 + 9 * count + i]) : 0
             });
             i++;
          }
@@ -2198,8 +2121,8 @@ package
       }
       
       // The units centred under Team Deathmatch's bars and the timer, measured
-      // in the indicator's own space (its origin is its centre). The respawn
-      // countdown may overlap them (owner: less screen space).
+      // in the indicator's own space (its origin is its centre). Research's
+      // respawn and pre-match countdowns get a separate row below the units.
       private function placeResearchUnits() : void
       {
          var space:DisplayObject = this.progress_indicator;
@@ -2223,25 +2146,33 @@ package
          this.followIndicator();
       }
 
-      // The units where the indicator is now: its x and y as the layout last
-      // put them, plus the units' place in its space. Rev 30 converted the
-      // bars' bounds with getBounds(this) at research_update only: early in a
-      // match that gave the indicator's own space, and the units sat in the
-      // screen's top-left corner until a later update.
+      // Centre Research on the live viewport, including before the first
+      // resize. Layout owns the vertical position; the points follow the bars.
       private function followIndicator() : void
       {
-         this.researchUnits.x = Math.round(this.progress_indicator.x + this._researchX * this.progress_indicator.scaleX);
-         this.researchUnits.y = Math.round(this.progress_indicator.y + this._researchY * this.progress_indicator.scaleY);
+         this.researchUnits.followIndicator(this.progress_indicator,this._researchX,this._researchY);
       }
 
-      // Every frame of a Research match: the layout moves the indicator at
+      // Every frame of a Research match (set_game_type): the layout moves the indicator at
       // many calls (scores, messages, resizes), the units follow it.
       private function onResearchFrame(e:Event) : void
       {
-         if(this.researchUnits.visible)
+         this.followIndicator();
+         this.placeResearchCountdowns();
+      }
+
+      private function placeResearchCountdowns() : void
+      {
+         if(this._gameType != this.GAME_MODE_RESEARCH || !this.progress_indicator.respawn_time ||
+            !this.progress_indicator.respawn_time.textField || !this.pregameInfo.layoutData)
          {
-            this.followIndicator();
+            return;
          }
+         if(this._researchCountdowns == null)
+         {
+            this._researchCountdowns = new ResearchCountdownLayout(this.progress_indicator.respawn_time,this.pregameInfo);
+         }
+         this._researchCountdowns.place(this.researchUnits);
       }
 
       public function set_artifacts_progress(team:uint, value:uint) : void
@@ -2261,7 +2192,9 @@ package
       
       public function set_respawn_time(time:String) : void
       {
+         this.deathEyes.countdown(time);
          this.progress_indicator.respawn_time.text = time;
+         this.placeResearchCountdowns();
       }
       
       public function set_capture_progress(team:uint, text:String, value:uint) : void
@@ -2403,12 +2336,17 @@ package
          }
          scaleX = this.scaleFactor;
          scaleY = this.scaleFactor;
+         if(this._stageLayer)
+         {
+            this._stageLayer.scaleX = this._stageLayer.scaleY = 1 / this.scaleFactor;
+         }
          trace("HUD::finalScaleFactor::",this.scaleFactor);
          this.layout.setScaleFactor(this.scaleFactor);
          this.damageInd.scaleX = this.stageWidth / 1280;
          this.damageInd.scaleY = this.stageHeight / 720;
-         this.effectContainer.scaleX = this.stageWidth / 1280;
-         this.effectContainer.scaleY = this.stageHeight / 720;
+         this.placeEffects();
+         this._keptLayer.place();
+         this.deathEyes.place(stage.stageWidth,stage.stageHeight);
          // The middle of the centre pixel in screen pixels (the crosshair is
          // drawn at 1:1, below): at a scale of 2 the half pixel in HUD units
          // was a whole pixel off.

@@ -7,13 +7,20 @@ compile_error!(
 
 mod api;
 mod archive;
+mod breadcrumbs;
 mod crash_text;
+mod details;
 mod dump;
 mod modules;
 mod logs;
 mod notice;
 mod notice_text;
+mod report;
 mod sanitize;
+// The updater's SHA-256, for the game exe's hash in the crash report.
+#[allow(dead_code)]
+#[path = "../../updater/logic/src/sha256.rs"]
+mod sha256;
 mod text;
 mod ui;
 mod zip;
@@ -58,6 +65,8 @@ pub unsafe extern "system" fn DllMain(module: HINSTANCE, reason: u32, _: *mut c_
             // A closure of no state: no allocation; one lock of the standard
             // library's own, no other thread, nothing loaded.
             std::panic::set_hook(Box::new(panic));
+            // What a dump holds, from the environment: read now, not in a crash.
+            dump::Kind::get();
             BT_InstallSehFilter();
         }
         0 => BT_UninstallSehFilter(),

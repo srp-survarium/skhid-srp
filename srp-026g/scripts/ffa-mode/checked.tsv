@@ -1,0 +1,673 @@
+project	point	x	y	z	rx	ry	rz	enemy_check_radius	invulnerability_time	verdict	ground	reason
+level_01/day_4	respawn_point(12)	-44.56	22.326	-103.934	0	-1.07	0	30	3	kept		on the ground
+level_01/day_4	respawn_point(14)	-39.851	22.413	-111.171	0	-1.087	0	30	3	nudged	22.651537	ground +0.239 m
+level_01/day_4	respawn_point(22)	103.076	18.036	40.592	3.142	1.086	3.142	30	3	nudged	17.91883	ground -0.117 m
+level_01/day_4	respawn_point(13)	-57.842	22.326	-82.875	3.142	-0.605	3.142	30	3	kept		on the ground
+level_01/day_4	respawn_point(17)	20.304	22.518	-96.263	3.142	1.13	3.142	30	3	kept		on the ground
+level_01/day_4	respawn_point(10)	-53.332	25.096	-90.972	0	-1.07	0	30	3	nudged	25.009798	ground -0.086 m
+level_01/day_4	respawn_point(9)	-57.908	24.999	-80.878	0	-1.07	0	30	3	kept		on the ground
+level_01/day_4	respawn_point(1)	-58.948	21.064	29.198	3.142	-0.977	3.142	30	3	nudged	21.154173	ground +0.090 m
+level_01/day_4	respawn_point(16)	1.23	22.405	-104.888	0	-1.054	0	30	3	kept		on the ground
+level_01/day_4	respawn_point(21)	100.168	17.604	25.393	-3.142	1.086	-3.142	30	3	kept		on the ground
+level_01/day_4	respawn_point(23)	96.065	15.089	56.075	-3.142	1.086	-3.142	30	3	kept		on the ground
+level_01/day_4	respawn_point(25)	51.876	15.454	69.766	-3.142	-0.043	-3.142	30	3	kept		on the ground
+level_01/day_4	respawn_point(7)	-60.457	22.309	-61.043	0	-1.07	0	30	3	kept		on the ground
+level_01/day_4	respawn_point(26)	16.828	14.814	52.533	3.142	-0.732	3.142	30	3	kept		on the ground
+level_01/day_4	respawn_point(6)	-69.858	20.201	-38.694	0	-1.07	0	30	3	kept		on the ground
+level_01/day_4	respawn_point	-51.995	20.684	38.457	-3.142	-0.855	-3.142	30	3	kept		on the ground
+level_01/day_4	respawn_point(8)	-58.661	22.338	-73.391	0	-1.07	0	30	3	kept		on the ground
+level_01/day_4	respawn_point(19)	79.949	21.605	-19.723	0	1.482	0	30	3	kept		on the ground
+level_01/day_4	respawn_point(11)	-44.679	26.097	-100.251	0	-1.07	0	30	3	dropped		the ground is 1.09 m below
+level_01/day_4	respawn_point(5)	-48.311	20.687	-14.226	0	-1.07	0	30	3	kept		on the ground
+level_01/day_4	respawn_point(3)	-66.291	21.327	8.356	0	-1.295	0	30	3	kept		on the ground
+level_01/day_4	respawn_point(28)	-35.738	20.295	48.19	3.142	-0.227	3.142	30	3	kept		on the ground
+level_01/day_4	respawn_point(15)	-34.599	22.647	-124.943	0	-0.726	0	30	3	kept		on the ground
+level_01/day_4	respawn_point(2)	-62.453	21.742	15.294	-3.142	-1.311	-3.142	30	3	kept		on the ground
+level_01/day_4	respawn_point(18)	30.123	21.632	-88.054	0	-0.136	0	30	3	kept		on the ground
+level_01/day_4	respawn_point(4)	-55.047	21.486	-3.792	0	-1.07	0	30	3	nudged	21.386915	ground -0.099 m
+level_01/day_4	respawn_point(20)	96.403	17.627	8.977	3.142	1.086	3.142	30	3	kept		on the ground
+level_01/day_4	respawn_point(24)	73.848	14.785	69.197	3.142	-0.043	3.142	30	3	kept		on the ground
+level_01/day_4	respawn_point(27)	-6.883	13.197	46.852	-3.142	-0.732	-3.142	30	3	kept		on the ground
+level_01/evening_4	respawn_point(12)	-44.56	22.326	-103.934	0	-1.07	0	30	3	kept		on the ground
+level_01/evening_4	respawn_point(14)	-39.851	22.413	-111.171	0	-1.087	0	30	3	nudged	22.651537	ground +0.239 m
+level_01/evening_4	respawn_point(22)	103.076	18.036	40.592	3.142	1.086	3.142	30	3	nudged	17.91883	ground -0.117 m
+level_01/evening_4	respawn_point(13)	-57.842	22.326	-82.875	3.142	-0.605	3.142	30	3	kept		on the ground
+level_01/evening_4	respawn_point(17)	20.304	22.518	-96.263	3.142	1.13	3.142	30	3	kept		on the ground
+level_01/evening_4	respawn_point(10)	-53.332	25.096	-90.972	0	-1.07	0	30	3	nudged	25.009798	ground -0.086 m
+level_01/evening_4	respawn_point(9)	-57.908	24.999	-80.878	0	-1.07	0	30	3	kept		on the ground
+level_01/evening_4	respawn_point(1)	-58.948	21.064	29.198	3.142	-0.977	3.142	30	3	nudged	21.154173	ground +0.090 m
+level_01/evening_4	respawn_point(16)	1.23	22.405	-104.888	0	-1.054	0	30	3	kept		on the ground
+level_01/evening_4	respawn_point(21)	100.168	17.604	25.393	-3.142	1.086	-3.142	30	3	kept		on the ground
+level_01/evening_4	respawn_point(23)	96.065	15.089	56.075	-3.142	1.086	-3.142	30	3	kept		on the ground
+level_01/evening_4	respawn_point(25)	51.876	15.454	69.766	-3.142	-0.043	-3.142	30	3	kept		on the ground
+level_01/evening_4	respawn_point(7)	-60.457	22.309	-61.043	0	-1.07	0	30	3	kept		on the ground
+level_01/evening_4	respawn_point(26)	16.828	14.814	52.533	3.142	-0.732	3.142	30	3	kept		on the ground
+level_01/evening_4	respawn_point(6)	-69.858	20.201	-38.694	0	-1.07	0	30	3	kept		on the ground
+level_01/evening_4	respawn_point	-51.995	20.684	38.457	-3.142	-0.855	-3.142	30	3	kept		on the ground
+level_01/evening_4	respawn_point(8)	-58.661	22.338	-73.391	0	-1.07	0	30	3	kept		on the ground
+level_01/evening_4	respawn_point(19)	79.949	21.605	-19.723	0	1.482	0	30	3	kept		on the ground
+level_01/evening_4	respawn_point(11)	-44.679	26.097	-100.251	0	-1.07	0	30	3	dropped		the ground is 1.09 m below
+level_01/evening_4	respawn_point(5)	-48.311	20.687	-14.226	0	-1.07	0	30	3	kept		on the ground
+level_01/evening_4	respawn_point(3)	-66.291	21.327	8.356	0	-1.295	0	30	3	kept		on the ground
+level_01/evening_4	respawn_point(28)	-35.738	20.295	48.19	3.142	-0.227	3.142	30	3	kept		on the ground
+level_01/evening_4	respawn_point(15)	-34.599	22.647	-124.943	0	-0.726	0	30	3	kept		on the ground
+level_01/evening_4	respawn_point(2)	-62.453	21.742	15.294	-3.142	-1.311	-3.142	30	3	kept		on the ground
+level_01/evening_4	respawn_point(18)	30.123	21.632	-88.054	0	-0.136	0	30	3	kept		on the ground
+level_01/evening_4	respawn_point(4)	-55.047	21.486	-3.792	0	-1.07	0	30	3	nudged	21.386915	ground -0.099 m
+level_01/evening_4	respawn_point(20)	96.403	17.627	8.977	3.142	1.086	3.142	30	3	kept		on the ground
+level_01/evening_4	respawn_point(24)	73.848	14.785	69.197	3.142	-0.043	3.142	30	3	kept		on the ground
+level_01/evening_4	respawn_point(27)	-6.883	13.197	46.852	-3.142	-0.732	-3.142	30	3	kept		on the ground
+level_01/rain_4	respawn_point(12)	-44.56	22.326	-103.934	0	-1.07	0	30	3	kept		on the ground
+level_01/rain_4	respawn_point(14)	-39.851	22.413	-111.171	0	-1.087	0	30	3	nudged	22.651537	ground +0.239 m
+level_01/rain_4	respawn_point(22)	103.076	18.036	40.592	3.142	1.086	3.142	30	3	nudged	17.91883	ground -0.117 m
+level_01/rain_4	respawn_point(13)	-57.842	22.326	-82.875	3.142	-0.605	3.142	30	3	kept		on the ground
+level_01/rain_4	respawn_point(17)	20.304	22.518	-96.263	3.142	1.13	3.142	30	3	kept		on the ground
+level_01/rain_4	respawn_point(10)	-53.332	25.096	-90.972	0	-1.07	0	30	3	nudged	25.009798	ground -0.086 m
+level_01/rain_4	respawn_point(9)	-57.908	24.999	-80.878	0	-1.07	0	30	3	kept		on the ground
+level_01/rain_4	respawn_point(1)	-58.948	21.064	29.198	3.142	-0.977	3.142	30	3	nudged	21.154173	ground +0.090 m
+level_01/rain_4	respawn_point(16)	1.23	22.405	-104.888	0	-1.054	0	30	3	kept		on the ground
+level_01/rain_4	respawn_point(21)	100.168	17.604	25.393	-3.142	1.086	-3.142	30	3	kept		on the ground
+level_01/rain_4	respawn_point(23)	96.065	15.089	56.075	-3.142	1.086	-3.142	30	3	kept		on the ground
+level_01/rain_4	respawn_point(25)	51.876	15.454	69.766	-3.142	-0.043	-3.142	30	3	kept		on the ground
+level_01/rain_4	respawn_point(7)	-60.457	22.309	-61.043	0	-1.07	0	30	3	kept		on the ground
+level_01/rain_4	respawn_point(26)	16.828	14.814	52.533	3.142	-0.732	3.142	30	3	kept		on the ground
+level_01/rain_4	respawn_point(6)	-69.858	20.201	-38.694	0	-1.07	0	30	3	kept		on the ground
+level_01/rain_4	respawn_point	-51.995	20.684	38.457	-3.142	-0.855	-3.142	30	3	kept		on the ground
+level_01/rain_4	respawn_point(8)	-58.661	22.338	-73.391	0	-1.07	0	30	3	kept		on the ground
+level_01/rain_4	respawn_point(19)	79.949	21.605	-19.723	0	1.482	0	30	3	kept		on the ground
+level_01/rain_4	respawn_point(11)	-44.679	26.097	-100.251	0	-1.07	0	30	3	dropped		the ground is 1.09 m below
+level_01/rain_4	respawn_point(5)	-48.311	20.687	-14.226	0	-1.07	0	30	3	kept		on the ground
+level_01/rain_4	respawn_point(3)	-66.291	21.327	8.356	0	-1.295	0	30	3	kept		on the ground
+level_01/rain_4	respawn_point(28)	-35.738	20.295	48.19	3.142	-0.227	3.142	30	3	kept		on the ground
+level_01/rain_4	respawn_point(15)	-34.599	22.647	-124.943	0	-0.726	0	30	3	kept		on the ground
+level_01/rain_4	respawn_point(2)	-62.453	21.742	15.294	-3.142	-1.311	-3.142	30	3	kept		on the ground
+level_01/rain_4	respawn_point(18)	30.123	21.632	-88.054	0	-0.136	0	30	3	kept		on the ground
+level_01/rain_4	respawn_point(4)	-55.047	21.486	-3.792	0	-1.07	0	30	3	nudged	21.386915	ground -0.099 m
+level_01/rain_4	respawn_point(20)	96.403	17.627	8.977	3.142	1.086	3.142	30	3	kept		on the ground
+level_01/rain_4	respawn_point(24)	73.848	14.785	69.197	3.142	-0.043	3.142	30	3	kept		on the ground
+level_01/rain_4	respawn_point(27)	-6.883	13.197	46.852	-3.142	-0.732	-3.142	30	3	kept		on the ground
+level_02/day_4	respawn_point(15)	8.187	15.631	195.319	3.142	0.504	-3.142	30	3	nudged	15.812116	ground +0.181 m
+level_02/day_4	respawn_point(16)	-16.96	17.494	193.599	-3.142	0.504	3.142	30	3	kept		on the ground
+level_02/day_4	respawn_point(8)	86.609	19.73	86.562	0	1.206	0	30	3	kept		on the ground
+level_02/day_4	respawn_point(13)	51.214	16.874	195.695	3.142	0.346	3.142	30	3	kept		on the ground
+level_02/day_4	respawn_point(10)	85.868	19.693	141.514	-3.142	1.557	-3.142	30	3	kept		on the ground
+level_02/day_4	respawn_point(3)	24.76	18.627	8.639	0	0.63	0	30	3	nudged	18.73699	ground +0.110 m
+level_02/day_4	respawn_point(23)	-8.791	25.125	126.591	0	-0.831	0	30	3	kept		on the ground
+level_02/day_4	respawn_point(9)	86.21	19.605	114.6	0	1.206	0	30	3	kept		on the ground
+level_02/day_4	respawn_point(19)	-27.578	15.765	135.822	3.142	-1.525	3.142	30	3	kept		on the ground
+level_02/day_4	respawn_point(20)	-47.682	19.369	39.945	-3.142	-1.523	-3.142	30	3	kept		on the ground
+level_02/day_4	respawn_point(17)	-39.216	17.909	177.573	3.142	-0.691	-3.142	30	3	nudged	17.788122	ground -0.121 m
+level_02/day_4	respawn_point(14)	29.878	15.649	194.601	-3.142	-0.841	-3.142	30	3	kept		on the ground
+level_02/day_4	respawn_point(11)	85.608	19.431	169.729	3.142	1.557	3.142	30	3	kept		on the ground
+level_02/day_4	respawn_point(2)	6.092	18.487	14.966	0	-0.04	0	30	3	kept		on the ground
+level_02/day_4	respawn_point(21)	-27.074	15.8	63.625	3.142	-1.523	3.142	30	3	nudged	15.624854	ground -0.175 m
+level_02/day_4	respawn_point	-43.302	19.793	15.111	0	-0.644	0	30	3	kept		on the ground
+level_02/day_4	respawn_point(7)	87.413	19.54	60.756	0	1.206	0	30	3	kept		on the ground
+level_02/day_4	respawn_point(6)	73.396	18.508	43.035	0	0.023	0	30	3	kept		on the ground
+level_02/day_4	respawn_point(1)	-21.864	18.926	14.542	0	-0.04	0	30	3	kept		on the ground
+level_02/day_4	respawn_point(4)	45.58	18.627	9.476	0	-0.445	0	30	3	kept		on the ground
+level_02/day_4	respawn_point(22)	-11.934	25.116	77.881	0	-0.831	0	30	3	kept		on the ground
+level_02/day_4	respawn_point(24)	0.672	25.125	115.165	-3.142	-1.177	-3.142	30	3	kept		on the ground
+level_02/day_4	respawn_point(5)	66.209	18.894	18.79	0	0.023	0	30	3	kept		on the ground
+level_02/day_4	respawn_point(18)	-46.13	16.54	154.801	-3.142	-1.525	-3.142	30	3	nudged	16.481121	ground -0.059 m
+level_02/day_4	respawn_point(12)	76.012	19.2	195.403	-3.142	0.346	-3.142	30	3	kept		on the ground
+level_02/evening_4	respawn_point(15)	8.187	15.631	195.319	3.142	0.504	-3.142	30	3	nudged	15.812116	ground +0.181 m
+level_02/evening_4	respawn_point(16)	-16.96	17.494	193.599	-3.142	0.504	3.142	30	3	kept		on the ground
+level_02/evening_4	respawn_point(8)	86.609	19.73	86.562	0	1.206	0	30	3	kept		on the ground
+level_02/evening_4	respawn_point(13)	51.214	16.874	195.695	3.142	0.346	3.142	30	3	kept		on the ground
+level_02/evening_4	respawn_point(10)	85.868	19.693	141.514	-3.142	1.557	-3.142	30	3	kept		on the ground
+level_02/evening_4	respawn_point(3)	24.76	18.627	8.639	0	0.63	0	30	3	nudged	18.73699	ground +0.110 m
+level_02/evening_4	respawn_point(23)	-8.791	25.125	126.591	0	-0.831	0	30	3	kept		on the ground
+level_02/evening_4	respawn_point(9)	86.21	19.605	114.6	0	1.206	0	30	3	kept		on the ground
+level_02/evening_4	respawn_point(19)	-27.578	15.765	135.822	3.142	-1.525	3.142	30	3	kept		on the ground
+level_02/evening_4	respawn_point(20)	-47.682	19.369	39.945	-3.142	-1.523	-3.142	30	3	kept		on the ground
+level_02/evening_4	respawn_point(17)	-39.216	17.909	177.573	3.142	-0.691	-3.142	30	3	nudged	17.788122	ground -0.121 m
+level_02/evening_4	respawn_point(14)	29.878	15.649	194.601	-3.142	-0.841	-3.142	30	3	kept		on the ground
+level_02/evening_4	respawn_point(11)	85.608	19.431	169.729	3.142	1.557	3.142	30	3	kept		on the ground
+level_02/evening_4	respawn_point(2)	6.092	18.487	14.966	0	-0.04	0	30	3	kept		on the ground
+level_02/evening_4	respawn_point(21)	-27.074	15.8	63.625	3.142	-1.523	3.142	30	3	nudged	15.624854	ground -0.175 m
+level_02/evening_4	respawn_point	-43.302	19.793	15.111	0	-0.644	0	30	3	kept		on the ground
+level_02/evening_4	respawn_point(7)	87.413	19.54	60.756	0	1.206	0	30	3	kept		on the ground
+level_02/evening_4	respawn_point(6)	73.396	18.508	43.035	0	0.023	0	30	3	kept		on the ground
+level_02/evening_4	respawn_point(1)	-21.864	18.926	14.542	0	-0.04	0	30	3	kept		on the ground
+level_02/evening_4	respawn_point(4)	45.58	18.627	9.476	0	-0.445	0	30	3	kept		on the ground
+level_02/evening_4	respawn_point(22)	-11.934	25.116	77.881	0	-0.831	0	30	3	kept		on the ground
+level_02/evening_4	respawn_point(24)	0.672	25.125	115.165	-3.142	-1.177	-3.142	30	3	kept		on the ground
+level_02/evening_4	respawn_point(5)	66.209	18.894	18.79	0	0.023	0	30	3	kept		on the ground
+level_02/evening_4	respawn_point(18)	-46.13	16.54	154.801	-3.142	-1.525	-3.142	30	3	nudged	16.481121	ground -0.059 m
+level_02/evening_4	respawn_point(12)	76.012	19.2	195.403	-3.142	0.346	-3.142	30	3	kept		on the ground
+level_02/rain_4	respawn_point(15)	8.187	15.631	195.319	3.142	0.504	-3.142	30	3	nudged	15.812116	ground +0.181 m
+level_02/rain_4	respawn_point(16)	-16.96	17.494	193.599	-3.142	0.504	3.142	30	3	kept		on the ground
+level_02/rain_4	respawn_point(8)	86.609	19.73	86.562	0	1.206	0	30	3	kept		on the ground
+level_02/rain_4	respawn_point(13)	51.214	16.874	195.695	3.142	0.346	3.142	30	3	kept		on the ground
+level_02/rain_4	respawn_point(10)	85.868	19.693	141.514	-3.142	1.557	-3.142	30	3	kept		on the ground
+level_02/rain_4	respawn_point(3)	24.76	18.627	8.639	0	0.63	0	30	3	nudged	18.73699	ground +0.110 m
+level_02/rain_4	respawn_point(23)	-8.791	25.125	126.591	0	-0.831	0	30	3	kept		on the ground
+level_02/rain_4	respawn_point(9)	86.21	19.605	114.6	0	1.206	0	30	3	kept		on the ground
+level_02/rain_4	respawn_point(19)	-27.578	15.765	135.822	3.142	-1.525	3.142	30	3	kept		on the ground
+level_02/rain_4	respawn_point(20)	-47.682	19.369	39.945	-3.142	-1.523	-3.142	30	3	kept		on the ground
+level_02/rain_4	respawn_point(17)	-39.216	17.909	177.573	3.142	-0.691	-3.142	30	3	nudged	17.788122	ground -0.121 m
+level_02/rain_4	respawn_point(14)	29.878	15.649	194.601	-3.142	-0.841	-3.142	30	3	kept		on the ground
+level_02/rain_4	respawn_point(11)	85.608	19.431	169.729	3.142	1.557	3.142	30	3	kept		on the ground
+level_02/rain_4	respawn_point(2)	6.092	18.487	14.966	0	-0.04	0	30	3	kept		on the ground
+level_02/rain_4	respawn_point(21)	-27.074	15.8	63.625	3.142	-1.523	3.142	30	3	nudged	15.624854	ground -0.175 m
+level_02/rain_4	respawn_point	-43.302	19.793	15.111	0	-0.644	0	30	3	kept		on the ground
+level_02/rain_4	respawn_point(7)	87.413	19.54	60.756	0	1.206	0	30	3	kept		on the ground
+level_02/rain_4	respawn_point(6)	73.396	18.508	43.035	0	0.023	0	30	3	kept		on the ground
+level_02/rain_4	respawn_point(1)	-21.864	18.926	14.542	0	-0.04	0	30	3	kept		on the ground
+level_02/rain_4	respawn_point(4)	45.58	18.627	9.476	0	-0.445	0	30	3	kept		on the ground
+level_02/rain_4	respawn_point(22)	-11.934	25.116	77.881	0	-0.831	0	30	3	kept		on the ground
+level_02/rain_4	respawn_point(24)	0.672	25.125	115.165	-3.142	-1.177	-3.142	30	3	kept		on the ground
+level_02/rain_4	respawn_point(5)	66.209	18.894	18.79	0	0.023	0	30	3	kept		on the ground
+level_02/rain_4	respawn_point(18)	-46.13	16.54	154.801	-3.142	-1.525	-3.142	30	3	nudged	16.481121	ground -0.059 m
+level_02/rain_4	respawn_point(12)	76.012	19.2	195.403	-3.142	0.346	-3.142	30	3	kept		on the ground
+level_03/day_4	respawn_point(19)	27.953	0.374	-14.701	0	-1.349	0	30	3	nudged	0.4621141	ground +0.088 m
+level_03/day_4	respawn_point(17)	80.741	1.256	-20.957	0	1.557	0	30	3	nudged	1.1295581	ground -0.126 m
+level_03/day_4	respawn_point(2)	6.615	4.214	33.391	3.142	0.139	3.142	30	3	kept		on the ground
+level_03/day_4	respawn_point(8)	-69.603	6.027	-40.021	0	-1.433	0	30	3	kept		on the ground
+level_03/day_4	respawn_point(6)	-67.586	5.706	31.819	-3.142	-0.209	-3.142	30	3	kept		on the ground
+level_03/day_4	respawn_point(18)	48.119	0.455	11.68	3.142	1.173	3.142	30	3	kept		on the ground
+level_03/day_4	respawn_point(15)	51.851	0.413	-56.941	0	1.137	0	30	3	kept		on the ground
+level_03/day_4	respawn_point(21)	-5.839	5.972	-17.044	0	0.487	0	30	3	nudged	6.045475	ground +0.073 m
+level_03/day_4	respawn_point(20)	-18.035	26.471	-14.419	0	1.259	0	30	3	kept		on the ground
+level_03/day_4	respawn_point	79.046	0.955	19.836	3.142	1.187	3.142	30	3	kept		on the ground
+level_03/day_4	respawn_point(12)	20.113	0.576	-83.675	0	-0.218	0	30	3	kept		on the ground
+level_03/day_4	respawn_point(1)	28.636	0.912	31.955	-3.142	1.187	-3.142	30	3	nudged	0.99458086	ground +0.083 m
+level_03/day_4	respawn_point(7)	-69.693	5.792	5.278	0	-1.433	0	30	3	kept		on the ground
+level_03/day_4	respawn_point(5)	-53.306	6.002	31.962	3.142	-0.209	3.142	30	3	kept		on the ground
+level_03/day_4	respawn_point(14)	36.861	0.415	-72.201	0	0.537	0	30	3	kept		on the ground
+level_03/day_4	respawn_point(3)	-4.716	5.528	32.514	-3.142	-1.432	-3.142	30	3	kept		on the ground
+level_03/day_4	respawn_point(11)	-17.432	0.755	-111.301	0	-0.218	0	30	3	kept		on the ground
+level_03/day_4	respawn_point(22)	-19.462	6.067	2.474	3.142	-0.547	3.142	30	3	nudged	6.135787	ground +0.069 m
+level_03/day_4	respawn_point(23)	-38.036	6.135	-9.939	-3.142	-0.142	-3.142	30	3	nudged	6.221672	ground +0.087 m
+level_03/day_4	respawn_point(9)	-48.88	0.843	-107.673	0	-0.218	0	30	3	nudged	0.91121376	ground +0.068 m
+level_03/day_4	respawn_point(13)	3.515	0.18	-100.643	3.142	0.845	3.142	30	3	kept		on the ground
+level_03/day_4	respawn_point(4)	-22.05	5.528	32.201	0	1.487	0	30	3	kept		on the ground
+level_03/day_4	respawn_point(10)	-38.97	0.843	-108.028	0	-0.218	0	30	3	nudged	0.90916586	ground +0.066 m
+level_03/day_4	respawn_point(16)	60.735	0.993	-44.657	0	1.137	0	30	3	kept		on the ground
+level_03/evening_4	respawn_point(19)	27.953	0.374	-14.701	0	-1.349	0	30	3	nudged	0.4621141	ground +0.088 m
+level_03/evening_4	respawn_point(17)	80.741	1.256	-20.957	0	1.557	0	30	3	nudged	1.1295581	ground -0.126 m
+level_03/evening_4	respawn_point(2)	6.615	4.214	33.391	3.142	0.139	3.142	30	3	kept		on the ground
+level_03/evening_4	respawn_point(8)	-69.603	6.027	-40.021	0	-1.433	0	30	3	kept		on the ground
+level_03/evening_4	respawn_point(6)	-67.586	5.706	31.819	-3.142	-0.209	-3.142	30	3	kept		on the ground
+level_03/evening_4	respawn_point(18)	48.119	0.455	11.68	3.142	1.173	3.142	30	3	kept		on the ground
+level_03/evening_4	respawn_point(15)	51.851	0.413	-56.941	0	1.137	0	30	3	kept		on the ground
+level_03/evening_4	respawn_point(21)	-5.839	5.972	-17.044	0	0.487	0	30	3	nudged	6.045475	ground +0.073 m
+level_03/evening_4	respawn_point(20)	-18.035	26.471	-14.419	0	1.259	0	30	3	kept		on the ground
+level_03/evening_4	respawn_point	79.046	0.955	19.836	3.142	1.187	3.142	30	3	kept		on the ground
+level_03/evening_4	respawn_point(12)	20.113	0.576	-83.675	0	-0.218	0	30	3	kept		on the ground
+level_03/evening_4	respawn_point(1)	28.636	0.912	31.955	-3.142	1.187	-3.142	30	3	nudged	0.99458086	ground +0.083 m
+level_03/evening_4	respawn_point(7)	-69.693	5.792	5.278	0	-1.433	0	30	3	kept		on the ground
+level_03/evening_4	respawn_point(5)	-53.306	6.002	31.962	3.142	-0.209	3.142	30	3	kept		on the ground
+level_03/evening_4	respawn_point(14)	36.861	0.415	-72.201	0	0.537	0	30	3	kept		on the ground
+level_03/evening_4	respawn_point(3)	-4.716	5.528	32.514	-3.142	-1.432	-3.142	30	3	kept		on the ground
+level_03/evening_4	respawn_point(11)	-17.432	0.755	-111.301	0	-0.218	0	30	3	kept		on the ground
+level_03/evening_4	respawn_point(22)	-19.462	6.067	2.474	3.142	-0.547	3.142	30	3	nudged	6.135787	ground +0.069 m
+level_03/evening_4	respawn_point(23)	-38.036	6.135	-9.939	-3.142	-0.142	-3.142	30	3	nudged	6.221672	ground +0.087 m
+level_03/evening_4	respawn_point(9)	-48.88	0.843	-107.673	0	-0.218	0	30	3	nudged	0.91121376	ground +0.068 m
+level_03/evening_4	respawn_point(13)	3.515	0.18	-100.643	3.142	0.845	3.142	30	3	kept		on the ground
+level_03/evening_4	respawn_point(4)	-22.05	5.528	32.201	0	1.487	0	30	3	kept		on the ground
+level_03/evening_4	respawn_point(10)	-38.97	0.843	-108.028	0	-0.218	0	30	3	nudged	0.90916586	ground +0.066 m
+level_03/evening_4	respawn_point(16)	60.735	0.993	-44.657	0	1.137	0	30	3	kept		on the ground
+level_03/rain_4	respawn_point(19)	27.953	0.374	-14.701	0	-1.349	0	30	3	nudged	0.4621141	ground +0.088 m
+level_03/rain_4	respawn_point(17)	80.741	1.256	-20.957	0	1.557	0	30	3	nudged	1.1295581	ground -0.126 m
+level_03/rain_4	respawn_point(2)	6.615	4.214	33.391	3.142	0.139	3.142	30	3	kept		on the ground
+level_03/rain_4	respawn_point(8)	-69.603	6.027	-40.021	0	-1.433	0	30	3	kept		on the ground
+level_03/rain_4	respawn_point(6)	-67.586	5.706	31.819	-3.142	-0.209	-3.142	30	3	kept		on the ground
+level_03/rain_4	respawn_point(18)	48.119	0.455	11.68	3.142	1.173	3.142	30	3	kept		on the ground
+level_03/rain_4	respawn_point(15)	51.851	0.413	-56.941	0	1.137	0	30	3	kept		on the ground
+level_03/rain_4	respawn_point(21)	-5.839	5.972	-17.044	0	0.487	0	30	3	nudged	6.045475	ground +0.073 m
+level_03/rain_4	respawn_point(20)	-18.035	26.471	-14.419	0	1.259	0	30	3	kept		on the ground
+level_03/rain_4	respawn_point	79.046	0.955	19.836	3.142	1.187	3.142	30	3	kept		on the ground
+level_03/rain_4	respawn_point(12)	20.113	0.576	-83.675	0	-0.218	0	30	3	kept		on the ground
+level_03/rain_4	respawn_point(1)	28.636	0.912	31.955	-3.142	1.187	-3.142	30	3	nudged	0.99458086	ground +0.083 m
+level_03/rain_4	respawn_point(7)	-69.693	5.792	5.278	0	-1.433	0	30	3	kept		on the ground
+level_03/rain_4	respawn_point(5)	-53.306	6.002	31.962	3.142	-0.209	3.142	30	3	kept		on the ground
+level_03/rain_4	respawn_point(14)	36.861	0.415	-72.201	0	0.537	0	30	3	kept		on the ground
+level_03/rain_4	respawn_point(3)	-4.716	5.528	32.514	-3.142	-1.432	-3.142	30	3	kept		on the ground
+level_03/rain_4	respawn_point(11)	-17.432	0.755	-111.301	0	-0.218	0	30	3	kept		on the ground
+level_03/rain_4	respawn_point(22)	-19.462	6.067	2.474	3.142	-0.547	3.142	30	3	nudged	6.135787	ground +0.069 m
+level_03/rain_4	respawn_point(23)	-38.036	6.135	-9.939	-3.142	-0.142	-3.142	30	3	nudged	6.221672	ground +0.087 m
+level_03/rain_4	respawn_point(9)	-48.88	0.843	-107.673	0	-0.218	0	30	3	nudged	0.91121376	ground +0.068 m
+level_03/rain_4	respawn_point(13)	3.515	0.18	-100.643	3.142	0.845	3.142	30	3	kept		on the ground
+level_03/rain_4	respawn_point(4)	-22.05	5.528	32.201	0	1.487	0	30	3	kept		on the ground
+level_03/rain_4	respawn_point(10)	-38.97	0.843	-108.028	0	-0.218	0	30	3	nudged	0.90916586	ground +0.066 m
+level_03/rain_4	respawn_point(16)	60.735	0.993	-44.657	0	1.137	0	30	3	kept		on the ground
+level_04/day_4	respawn_point(13)	-55.404	2.92	102.942	3.142	-1.12	3.142	30	3	kept		on the ground
+level_04/day_4	respawn_point(7)	45.383	1.969	130.439	3.142	0.487	3.142	30	3	kept		on the ground
+level_04/day_4	respawn_point(20)	-84.812	5.611	26.762	-3.142	-1.506	-3.142	30	3	kept		on the ground
+level_04/day_4	respawn_point(30)	99.524	5.154	43.565	0	1.462	0	30	3	dropped		collision 0.25 m from the body's axis at 0.65 m
+level_04/day_4	respawn_point(1)	117.692	6.59	71.239	3.142	1.507	3.142	30	3	kept		on the ground
+level_04/day_4	respawn_point(27)	69.521	4.76	-8.18	0	-0.018	0	30	3	kept		on the ground
+level_04/day_4	respawn_point(4)	98.97	9.084	97.344	-3.142	1.507	-3.142	30	3	nudged	9.14854	ground +0.065 m
+level_04/day_4	respawn_point(21)	-82.389	5.611	40.242	3.142	-1.506	3.142	30	3	kept		on the ground
+level_04/day_4	respawn_point(2)	112.307	6.619	48.48	-3.142	1.507	-3.142	30	3	kept		on the ground
+level_04/day_4	respawn_point(9)	13.33	2.375	131.736	3.142	0.036	3.142	30	3	dropped		collision 0.26 m from the body's axis at 0.65 m
+level_04/day_4	respawn_point(26)	55.375	6.367	-6.523	0	-0.018	0	30	3	kept		on the ground
+level_04/day_4	respawn_point(8)	28.325	1.965	131.253	-3.142	0.036	-3.142	30	3	kept		on the ground
+level_04/day_4	respawn_point(12)	-41.752	1.711	116.755	-3.142	0.036	-3.142	30	3	kept		on the ground
+level_04/day_4	respawn_point(6)	97.144	3.084	99.171	-3.142	1.507	-3.142	30	3	kept		on the ground
+level_04/day_4	respawn_point(23)	-31.847	2.276	7.614	0	-0.905	0	30	3	kept		on the ground
+level_04/day_4	respawn_point(29)	98.587	4.374	19.225	0	0.939	0	30	3	nudged	4.3008094	ground -0.073 m
+level_04/day_4	respawn_point(3)	109.121	12.68	80.522	3.142	1.507	3.142	30	3	kept		on the ground
+level_04/day_4	respawn_point(10)	0.484	2.37	130.874	-3.142	0.036	-3.142	30	3	kept		on the ground
+level_04/day_4	respawn_point(17)	-74.909	10.11	70.881	3.142	-1.506	3.142	30	3	kept		on the ground
+level_04/day_4	respawn_point(14)	-70.363	4.672	98.475	-3.142	-1.12	-3.142	30	3	kept		on the ground
+level_04/day_4	respawn_point(22)	-60.593	5.571	14.872	0	-0.905	0	30	3	kept		on the ground
+level_04/day_4	respawn_point	114.058	6.658	92.641	-3.142	1.507	-3.142	30	3	nudged	6.5899296	ground -0.068 m
+level_04/day_4	respawn_point(25)	27.562	1.999	1.475	0	-0.018	0	30	3	kept		on the ground
+level_04/day_4	respawn_point(28)	88.483	6.968	-6.215	0	-0.018	0	30	3	kept		on the ground
+level_04/day_4	respawn_point(19)	-84.122	12.167	27.626	3.142	-1.506	3.142	30	3	kept		on the ground
+level_04/day_4	respawn_point(15)	-69.259	5.312	74.123	3.142	-1.12	3.142	30	3	nudged	5.2515917	ground -0.060 m
+level_04/day_4	respawn_point(5)	101.738	6.584	98.04	3.142	1.507	3.142	30	3	kept		on the ground
+level_04/day_4	respawn_point(24)	-0.096	4.329	-0.892	0	-0.018	0	30	3	dropped		the ground is 2.27 m below
+level_04/day_4	respawn_point(32)	8.6	10.417	47.399	-3.142	-1.345	-3.142	30	3	nudged	10.173955	ground -0.243 m
+level_04/day_4	respawn_point(11)	-26.036	1.895	116.4	3.142	0.036	3.142	30	3	kept		on the ground
+level_04/day_4	respawn_point(16)	-64.558	5.611	71.286	-3.142	0.615	3.142	30	3	kept		on the ground
+level_04/day_4	respawn_point(18)	-84.39	12.167	41.256	-3.142	-1.506	-3.142	30	3	kept		on the ground
+level_04/day_4	respawn_point(31)	22.635	10.434	63.257	0	1.462	0	30	3	nudged	10.173955	ground -0.260 m
+level_04/evening_4	respawn_point(13)	-55.404	2.92	102.942	3.142	-1.12	3.142	30	3	kept		on the ground
+level_04/evening_4	respawn_point(7)	45.383	1.969	130.439	3.142	0.487	3.142	30	3	kept		on the ground
+level_04/evening_4	respawn_point(20)	-84.812	5.611	26.762	-3.142	-1.506	-3.142	30	3	kept		on the ground
+level_04/evening_4	respawn_point(30)	99.524	5.154	43.565	0	1.462	0	30	3	dropped		collision 0.25 m from the body's axis at 0.65 m
+level_04/evening_4	respawn_point(1)	117.692	6.59	71.239	3.142	1.507	3.142	30	3	kept		on the ground
+level_04/evening_4	respawn_point(27)	69.521	4.76	-8.18	0	-0.018	0	30	3	kept		on the ground
+level_04/evening_4	respawn_point(4)	98.97	9.084	97.344	-3.142	1.507	-3.142	30	3	nudged	9.14854	ground +0.065 m
+level_04/evening_4	respawn_point(21)	-82.389	5.611	40.242	3.142	-1.506	3.142	30	3	kept		on the ground
+level_04/evening_4	respawn_point(2)	112.307	6.619	48.48	-3.142	1.507	-3.142	30	3	kept		on the ground
+level_04/evening_4	respawn_point(9)	13.33	2.375	131.736	3.142	0.036	3.142	30	3	dropped		collision 0.26 m from the body's axis at 0.65 m
+level_04/evening_4	respawn_point(26)	55.375	6.367	-6.523	0	-0.018	0	30	3	kept		on the ground
+level_04/evening_4	respawn_point(8)	28.325	1.965	131.253	-3.142	0.036	-3.142	30	3	kept		on the ground
+level_04/evening_4	respawn_point(12)	-41.752	1.711	116.755	-3.142	0.036	-3.142	30	3	kept		on the ground
+level_04/evening_4	respawn_point(6)	97.144	3.084	99.171	-3.142	1.507	-3.142	30	3	kept		on the ground
+level_04/evening_4	respawn_point(23)	-31.847	2.276	7.614	0	-0.905	0	30	3	kept		on the ground
+level_04/evening_4	respawn_point(29)	98.587	4.374	19.225	0	0.939	0	30	3	nudged	4.3008094	ground -0.073 m
+level_04/evening_4	respawn_point(3)	109.121	12.68	80.522	3.142	1.507	3.142	30	3	kept		on the ground
+level_04/evening_4	respawn_point(10)	0.484	2.37	130.874	-3.142	0.036	-3.142	30	3	kept		on the ground
+level_04/evening_4	respawn_point(17)	-74.909	10.11	70.881	3.142	-1.506	3.142	30	3	kept		on the ground
+level_04/evening_4	respawn_point(14)	-70.363	4.672	98.475	-3.142	-1.12	-3.142	30	3	kept		on the ground
+level_04/evening_4	respawn_point(22)	-60.593	5.571	14.872	0	-0.905	0	30	3	kept		on the ground
+level_04/evening_4	respawn_point	114.058	6.658	92.641	-3.142	1.507	-3.142	30	3	nudged	6.5899296	ground -0.068 m
+level_04/evening_4	respawn_point(25)	27.562	1.999	1.475	0	-0.018	0	30	3	kept		on the ground
+level_04/evening_4	respawn_point(28)	88.483	6.968	-6.215	0	-0.018	0	30	3	kept		on the ground
+level_04/evening_4	respawn_point(19)	-84.122	12.167	27.626	3.142	-1.506	3.142	30	3	kept		on the ground
+level_04/evening_4	respawn_point(15)	-69.259	5.312	74.123	3.142	-1.12	3.142	30	3	nudged	5.2515917	ground -0.060 m
+level_04/evening_4	respawn_point(5)	101.738	6.584	98.04	3.142	1.507	3.142	30	3	kept		on the ground
+level_04/evening_4	respawn_point(24)	-0.096	4.329	-0.892	0	-0.018	0	30	3	dropped		the ground is 2.27 m below
+level_04/evening_4	respawn_point(32)	8.6	10.417	47.399	-3.142	-1.345	-3.142	30	3	nudged	10.173955	ground -0.243 m
+level_04/evening_4	respawn_point(11)	-26.036	1.895	116.4	3.142	0.036	3.142	30	3	kept		on the ground
+level_04/evening_4	respawn_point(16)	-64.558	5.611	71.286	-3.142	0.615	3.142	30	3	kept		on the ground
+level_04/evening_4	respawn_point(18)	-84.39	12.167	41.256	-3.142	-1.506	-3.142	30	3	kept		on the ground
+level_04/evening_4	respawn_point(31)	22.635	10.434	63.257	0	1.462	0	30	3	nudged	10.173955	ground -0.260 m
+level_04/rain_4	respawn_point(13)	-55.404	2.92	102.942	3.142	-1.12	3.142	30	3	kept		on the ground
+level_04/rain_4	respawn_point(7)	45.383	1.969	130.439	3.142	0.487	3.142	30	3	kept		on the ground
+level_04/rain_4	respawn_point(20)	-84.812	5.611	26.762	-3.142	-1.506	-3.142	30	3	kept		on the ground
+level_04/rain_4	respawn_point(30)	99.524	5.154	43.565	0	1.462	0	30	3	dropped		collision 0.25 m from the body's axis at 0.65 m
+level_04/rain_4	respawn_point(1)	117.692	6.59	71.239	3.142	1.507	3.142	30	3	kept		on the ground
+level_04/rain_4	respawn_point(27)	69.521	4.76	-8.18	0	-0.018	0	30	3	kept		on the ground
+level_04/rain_4	respawn_point(4)	98.97	9.084	97.344	-3.142	1.507	-3.142	30	3	nudged	9.14854	ground +0.065 m
+level_04/rain_4	respawn_point(21)	-82.389	5.611	40.242	3.142	-1.506	3.142	30	3	kept		on the ground
+level_04/rain_4	respawn_point(2)	112.307	6.619	48.48	-3.142	1.507	-3.142	30	3	kept		on the ground
+level_04/rain_4	respawn_point(9)	13.33	2.375	131.736	3.142	0.036	3.142	30	3	dropped		collision 0.26 m from the body's axis at 0.65 m
+level_04/rain_4	respawn_point(26)	55.375	6.367	-6.523	0	-0.018	0	30	3	kept		on the ground
+level_04/rain_4	respawn_point(8)	28.325	1.965	131.253	-3.142	0.036	-3.142	30	3	kept		on the ground
+level_04/rain_4	respawn_point(12)	-41.752	1.711	116.755	-3.142	0.036	-3.142	30	3	kept		on the ground
+level_04/rain_4	respawn_point(6)	97.144	3.084	99.171	-3.142	1.507	-3.142	30	3	kept		on the ground
+level_04/rain_4	respawn_point(23)	-31.847	2.276	7.614	0	-0.905	0	30	3	kept		on the ground
+level_04/rain_4	respawn_point(29)	98.587	4.374	19.225	0	0.939	0	30	3	nudged	4.3008094	ground -0.073 m
+level_04/rain_4	respawn_point(3)	109.121	12.68	80.522	3.142	1.507	3.142	30	3	kept		on the ground
+level_04/rain_4	respawn_point(10)	0.484	2.37	130.874	-3.142	0.036	-3.142	30	3	kept		on the ground
+level_04/rain_4	respawn_point(17)	-74.909	10.11	70.881	3.142	-1.506	3.142	30	3	kept		on the ground
+level_04/rain_4	respawn_point(14)	-70.363	4.672	98.475	-3.142	-1.12	-3.142	30	3	kept		on the ground
+level_04/rain_4	respawn_point(22)	-60.593	5.571	14.872	0	-0.905	0	30	3	kept		on the ground
+level_04/rain_4	respawn_point	114.058	6.658	92.641	-3.142	1.507	-3.142	30	3	nudged	6.5899296	ground -0.068 m
+level_04/rain_4	respawn_point(25)	27.562	1.999	1.475	0	-0.018	0	30	3	kept		on the ground
+level_04/rain_4	respawn_point(28)	88.483	6.968	-6.215	0	-0.018	0	30	3	kept		on the ground
+level_04/rain_4	respawn_point(19)	-84.122	12.167	27.626	3.142	-1.506	3.142	30	3	kept		on the ground
+level_04/rain_4	respawn_point(15)	-69.259	5.312	74.123	3.142	-1.12	3.142	30	3	nudged	5.2515917	ground -0.060 m
+level_04/rain_4	respawn_point(5)	101.738	6.584	98.04	3.142	1.507	3.142	30	3	kept		on the ground
+level_04/rain_4	respawn_point(24)	-0.096	4.329	-0.892	0	-0.018	0	30	3	dropped		the ground is 2.27 m below
+level_04/rain_4	respawn_point(32)	8.6	10.417	47.399	-3.142	-1.345	-3.142	30	3	nudged	10.173955	ground -0.243 m
+level_04/rain_4	respawn_point(11)	-26.036	1.895	116.4	3.142	0.036	3.142	30	3	kept		on the ground
+level_04/rain_4	respawn_point(16)	-64.558	5.611	71.286	-3.142	0.615	3.142	30	3	kept		on the ground
+level_04/rain_4	respawn_point(18)	-84.39	12.167	41.256	-3.142	-1.506	-3.142	30	3	kept		on the ground
+level_04/rain_4	respawn_point(31)	22.635	10.434	63.257	0	1.462	0	30	3	nudged	10.173955	ground -0.260 m
+level_05/day_4	respawn_point(13)	-1.97	6.926	41.14	3.142	-0.005	3.142	30	3	kept		on the ground
+level_05/day_4	respawn_point(10)	-72.483	5.753	14.783	-3.142	-1.458	-3.142	30	3	kept		on the ground
+level_05/day_4	respawn_point(12)	-20.236	6.036	48.464	-3.142	-0.813	-3.142	30	3	kept		on the ground
+level_05/day_4	respawn_point(18)	27.803	2.455	48.969	3.142	1.55	3.142	30	3	kept		on the ground
+level_05/day_4	respawn_point(5)	3.031	9.943	-46.456	0	0.973	0	30	3	kept		on the ground
+level_05/day_4	respawn_point(4)	28.677	9.889	-46.317	-3.142	1.098	-3.142	30	3	kept		on the ground
+level_05/day_4	respawn_point(15)	-6.133	2.352	53.85	3.142	-0.005	3.142	30	3	kept		on the ground
+level_05/day_4	respawn_point(16)	5.63	2.25	59.804	-3.142	-0.005	-3.142	30	3	kept		on the ground
+level_05/day_4	respawn_point(1)	64.871	8.31	13.078	0	1.132	0	30	3	kept		on the ground
+level_05/day_4	respawn_point(8)	-61.568	8.202	-13.742	0	-0.152	0	30	3	kept		on the ground
+level_05/day_4	respawn_point(21)	33.386	8.255	-6.504	0	-0.147	0	30	3	kept		on the ground
+level_05/day_4	respawn_point(23)	-33.274	8.272	-6.255	0	-0.147	0	30	3	kept		on the ground
+level_05/day_4	respawn_point(7)	-32.722	6.073	-46.501	3.142	-1.231	3.142	30	3	kept		on the ground
+level_05/day_4	respawn_point(17)	5.854	2.336	36.522	0	0.036	0	30	3	nudged	2.25	ground -0.086 m
+level_05/day_4	respawn_point(6)	-23.111	10.252	-48.798	-3.142	-0.242	-3.142	30	3	kept		on the ground
+level_05/day_4	respawn_point(3)	29.525	6.413	-45.973	3.142	1.098	3.142	30	3	nudged	6.0562587	ground -0.357 m
+level_05/day_4	respawn_point(11)	-53.599	8.212	21.249	3.142	-0.576	3.142	30	3	kept		on the ground
+level_05/day_4	respawn_point(9)	-65.937	6.676	4.286	3.142	-1.14	3.142	30	3	kept		on the ground
+level_05/day_4	respawn_point(2)	56.825	10.146	-7.078	0	1.132	0	30	3	kept		on the ground
+level_05/day_4	respawn_point(14)	0.985	2.357	58.046	-3.142	-0.005	-3.142	30	3	kept		on the ground
+level_05/day_4	respawn_point(19)	44.578	8.422	22.896	3.142	-1.197	-3.142	30	3	kept		on the ground
+level_05/day_4	respawn_point	67.826	8.302	17.299	0	1.132	0	30	3	kept		on the ground
+level_05/day_4	respawn_point(22)	-17.895	8.25	-6.032	0	-0.147	0	30	3	kept		on the ground
+level_05/day_4	respawn_point(20)	57.543	8.555	26.214	-3.142	-0.337	3.142	30	3	nudged	8.486727	ground -0.068 m
+level_05/evening_4	respawn_point(13)	-1.97	6.926	41.14	3.142	-0.005	3.142	30	3	kept		on the ground
+level_05/evening_4	respawn_point(10)	-72.483	5.753	14.783	-3.142	-1.458	-3.142	30	3	kept		on the ground
+level_05/evening_4	respawn_point(12)	-20.236	6.036	48.464	-3.142	-0.813	-3.142	30	3	kept		on the ground
+level_05/evening_4	respawn_point(18)	27.803	2.455	48.969	3.142	1.55	3.142	30	3	kept		on the ground
+level_05/evening_4	respawn_point(5)	3.031	9.943	-46.456	0	0.973	0	30	3	kept		on the ground
+level_05/evening_4	respawn_point(4)	28.677	9.889	-46.317	-3.142	1.098	-3.142	30	3	kept		on the ground
+level_05/evening_4	respawn_point(15)	-6.133	2.352	53.85	3.142	-0.005	3.142	30	3	kept		on the ground
+level_05/evening_4	respawn_point(16)	5.63	2.25	59.804	-3.142	-0.005	-3.142	30	3	kept		on the ground
+level_05/evening_4	respawn_point(1)	64.871	8.31	13.078	0	1.132	0	30	3	kept		on the ground
+level_05/evening_4	respawn_point(8)	-61.568	8.202	-13.742	0	-0.152	0	30	3	kept		on the ground
+level_05/evening_4	respawn_point(21)	33.386	8.255	-6.504	0	-0.147	0	30	3	kept		on the ground
+level_05/evening_4	respawn_point(23)	-33.274	8.272	-6.255	0	-0.147	0	30	3	kept		on the ground
+level_05/evening_4	respawn_point(7)	-32.722	6.073	-46.501	3.142	-1.231	3.142	30	3	kept		on the ground
+level_05/evening_4	respawn_point(17)	5.854	2.336	36.522	0	0.036	0	30	3	nudged	2.25	ground -0.086 m
+level_05/evening_4	respawn_point(6)	-23.111	10.252	-48.798	-3.142	-0.242	-3.142	30	3	kept		on the ground
+level_05/evening_4	respawn_point(3)	29.525	6.413	-45.973	3.142	1.098	3.142	30	3	nudged	6.0562587	ground -0.357 m
+level_05/evening_4	respawn_point(11)	-53.599	8.212	21.249	3.142	-0.576	3.142	30	3	kept		on the ground
+level_05/evening_4	respawn_point(9)	-65.937	6.676	4.286	3.142	-1.14	3.142	30	3	kept		on the ground
+level_05/evening_4	respawn_point(2)	56.825	10.146	-7.078	0	1.132	0	30	3	kept		on the ground
+level_05/evening_4	respawn_point(14)	0.985	2.357	58.046	-3.142	-0.005	-3.142	30	3	kept		on the ground
+level_05/evening_4	respawn_point(19)	44.578	8.422	22.896	3.142	-1.197	-3.142	30	3	kept		on the ground
+level_05/evening_4	respawn_point	67.826	8.302	17.299	0	1.132	0	30	3	kept		on the ground
+level_05/evening_4	respawn_point(22)	-17.895	8.25	-6.032	0	-0.147	0	30	3	kept		on the ground
+level_05/evening_4	respawn_point(20)	57.543	8.555	26.214	-3.142	-0.337	3.142	30	3	nudged	8.486727	ground -0.068 m
+level_05/rain_4	respawn_point(13)	-1.97	6.926	41.14	3.142	-0.005	3.142	30	3	kept		on the ground
+level_05/rain_4	respawn_point(10)	-72.483	5.753	14.783	-3.142	-1.458	-3.142	30	3	kept		on the ground
+level_05/rain_4	respawn_point(12)	-20.236	6.036	48.464	-3.142	-0.813	-3.142	30	3	kept		on the ground
+level_05/rain_4	respawn_point(18)	27.803	2.455	48.969	3.142	1.55	3.142	30	3	kept		on the ground
+level_05/rain_4	respawn_point(5)	3.031	9.943	-46.456	0	0.973	0	30	3	kept		on the ground
+level_05/rain_4	respawn_point(4)	28.677	9.889	-46.317	-3.142	1.098	-3.142	30	3	kept		on the ground
+level_05/rain_4	respawn_point(15)	-6.133	2.352	53.85	3.142	-0.005	3.142	30	3	kept		on the ground
+level_05/rain_4	respawn_point(16)	5.63	2.25	59.804	-3.142	-0.005	-3.142	30	3	kept		on the ground
+level_05/rain_4	respawn_point(1)	64.871	8.31	13.078	0	1.132	0	30	3	kept		on the ground
+level_05/rain_4	respawn_point(8)	-61.568	8.202	-13.742	0	-0.152	0	30	3	kept		on the ground
+level_05/rain_4	respawn_point(21)	33.386	8.255	-6.504	0	-0.147	0	30	3	kept		on the ground
+level_05/rain_4	respawn_point(23)	-33.274	8.272	-6.255	0	-0.147	0	30	3	kept		on the ground
+level_05/rain_4	respawn_point(7)	-32.722	6.073	-46.501	3.142	-1.231	3.142	30	3	kept		on the ground
+level_05/rain_4	respawn_point(17)	5.854	2.336	36.522	0	0.036	0	30	3	nudged	2.25	ground -0.086 m
+level_05/rain_4	respawn_point(6)	-23.111	10.252	-48.798	-3.142	-0.242	-3.142	30	3	kept		on the ground
+level_05/rain_4	respawn_point(3)	29.525	6.413	-45.973	3.142	1.098	3.142	30	3	nudged	6.0562587	ground -0.357 m
+level_05/rain_4	respawn_point(11)	-53.599	8.212	21.249	3.142	-0.576	3.142	30	3	kept		on the ground
+level_05/rain_4	respawn_point(9)	-65.937	6.676	4.286	3.142	-1.14	3.142	30	3	kept		on the ground
+level_05/rain_4	respawn_point(2)	56.825	10.146	-7.078	0	1.132	0	30	3	kept		on the ground
+level_05/rain_4	respawn_point(14)	0.985	2.357	58.046	-3.142	-0.005	-3.142	30	3	kept		on the ground
+level_05/rain_4	respawn_point(19)	44.578	8.422	22.896	3.142	-1.197	-3.142	30	3	kept		on the ground
+level_05/rain_4	respawn_point	67.826	8.302	17.299	0	1.132	0	30	3	kept		on the ground
+level_05/rain_4	respawn_point(22)	-17.895	8.25	-6.032	0	-0.147	0	30	3	kept		on the ground
+level_05/rain_4	respawn_point(20)	57.543	8.555	26.214	-3.142	-0.337	3.142	30	3	nudged	8.486727	ground -0.068 m
+level_06/day_4	respawn_point(19)	7.174	41.687	170.119	-3.142	-1.005	-3.142	30	3	kept		on the ground
+level_06/day_4	respawn_point(18)	-23.038	36.203	157.105	3.142	0.03	3.142	30	3	kept		on the ground
+level_06/day_4	respawn_point(13)	-46.97	25.807	76.829	0	-0.11	0	30	3	kept		on the ground
+level_06/day_4	respawn_point(3)	109.897	26.724	129.02	0	1.364	0	30	3	kept		on the ground
+level_06/day_4	respawn_point(6)	81.605	21.638	50.813	0	0.973	0	30	3	kept		on the ground
+level_06/day_4	respawn_point(22)	60.934	29.048	165.636	3.142	0.589	-3.142	30	3	kept		on the ground
+level_06/day_4	respawn_point(2)	109.109	30.063	137.726	3.142	1.133	-3.142	30	3	kept		on the ground
+level_06/day_4	respawn_point(4)	106.274	33.029	103.953	3.142	1.36	3.142	30	3	kept		on the ground
+level_06/day_4	respawn_point	115.451	33.749	133.244	3.142	1.327	3.142	30	3	kept		on the ground
+level_06/day_4	respawn_point(21)	51.127	32.228	175.131	-3.142	0.589	3.142	30	3	kept		on the ground
+level_06/day_4	respawn_point(7)	35.183	23.399	47.688	3.142	-1.536	3.142	30	3	kept		on the ground
+level_06/day_4	respawn_point(24)	41.959	29.914	123.193	3.142	-1.289	3.142	30	3	kept		on the ground
+level_06/day_4	respawn_point(15)	-30.704	32.14	110.713	-3.142	-0.743	-3.142	30	3	kept		on the ground
+level_06/day_4	respawn_point(23)	14.475	28.011	113.458	-3.142	0.589	3.142	30	3	kept		on the ground
+level_06/day_4	respawn_point(20)	25.38	37.694	183.3	3.142	-1.005	3.142	30	3	kept		on the ground
+level_06/day_4	respawn_point(17)	-38.413	36.3	133.284	0	-0.976	0	30	3	kept		on the ground
+level_06/day_4	respawn_point(1)	100.862	32.849	122.104	-3.142	0.166	-3.142	30	3	nudged	32.70963	ground -0.139 m
+level_06/day_4	respawn_point(8)	31.874	24.365	55.421	-3.142	-1.536	-3.142	30	3	dropped		the ground is 0.97 m below
+level_06/day_4	respawn_point(14)	-29.381	31.273	100.388	3.142	0.084	3.142	30	3	kept		on the ground
+level_06/day_4	respawn_point(10)	-17.662	23.696	56.228	3.142	1.362	3.142	30	3	kept		on the ground
+level_06/day_4	respawn_point(11)	-42.459	22.93	67.938	-3.142	-1.195	-3.142	30	3	nudged	22.826756	ground -0.103 m
+level_06/day_4	respawn_point(12)	-49.133	24.966	63.618	0	-0.11	0	30	3	nudged	25.017187	ground +0.051 m
+level_06/day_4	respawn_point(5)	80.091	22.878	67.962	-3.142	-1.414	-3.142	30	3	nudged	22.812006	ground -0.066 m
+level_06/day_4	respawn_point(16)	-36.37	33.456	122.523	3.142	-0.4	3.142	30	3	kept		on the ground
+level_06/day_4	respawn_point(9)	-12.643	22.787	41.841	0	0.498	0	30	3	kept		on the ground
+level_06/day_4	respawn_point(25)	13.82	37.299	148.4	0	0.687	0	30	3	nudged	37.056946	ground -0.242 m
+level_06/evening_4	respawn_point(19)	7.174	41.687	170.119	-3.142	-1.005	-3.142	30	3	kept		on the ground
+level_06/evening_4	respawn_point(18)	-23.038	36.203	157.105	3.142	0.03	3.142	30	3	kept		on the ground
+level_06/evening_4	respawn_point(13)	-46.97	25.807	76.829	0	-0.11	0	30	3	kept		on the ground
+level_06/evening_4	respawn_point(3)	109.897	26.724	129.02	0	1.364	0	30	3	kept		on the ground
+level_06/evening_4	respawn_point(6)	81.605	21.638	50.813	0	0.973	0	30	3	kept		on the ground
+level_06/evening_4	respawn_point(22)	60.934	29.048	165.636	3.142	0.589	-3.142	30	3	kept		on the ground
+level_06/evening_4	respawn_point(2)	109.109	30.063	137.726	3.142	1.133	-3.142	30	3	kept		on the ground
+level_06/evening_4	respawn_point(4)	106.274	33.029	103.953	3.142	1.36	3.142	30	3	kept		on the ground
+level_06/evening_4	respawn_point	115.451	33.749	133.244	3.142	1.327	3.142	30	3	kept		on the ground
+level_06/evening_4	respawn_point(21)	51.127	32.228	175.131	-3.142	0.589	3.142	30	3	kept		on the ground
+level_06/evening_4	respawn_point(7)	35.183	23.399	47.688	3.142	-1.536	3.142	30	3	kept		on the ground
+level_06/evening_4	respawn_point(24)	41.959	29.914	123.193	3.142	-1.289	3.142	30	3	kept		on the ground
+level_06/evening_4	respawn_point(15)	-30.704	32.14	110.713	-3.142	-0.743	-3.142	30	3	kept		on the ground
+level_06/evening_4	respawn_point(23)	14.475	28.011	113.458	-3.142	0.589	3.142	30	3	kept		on the ground
+level_06/evening_4	respawn_point(20)	25.38	37.694	183.3	3.142	-1.005	3.142	30	3	kept		on the ground
+level_06/evening_4	respawn_point(17)	-38.413	36.3	133.284	0	-0.976	0	30	3	kept		on the ground
+level_06/evening_4	respawn_point(1)	100.862	32.849	122.104	-3.142	0.166	-3.142	30	3	nudged	32.70963	ground -0.139 m
+level_06/evening_4	respawn_point(8)	31.874	24.365	55.421	-3.142	-1.536	-3.142	30	3	dropped		the ground is 0.97 m below
+level_06/evening_4	respawn_point(14)	-29.381	31.273	100.388	3.142	0.084	3.142	30	3	kept		on the ground
+level_06/evening_4	respawn_point(10)	-17.662	23.696	56.228	3.142	1.362	3.142	30	3	kept		on the ground
+level_06/evening_4	respawn_point(11)	-42.459	22.93	67.938	-3.142	-1.195	-3.142	30	3	nudged	22.826756	ground -0.103 m
+level_06/evening_4	respawn_point(12)	-49.133	24.966	63.618	0	-0.11	0	30	3	nudged	25.017187	ground +0.051 m
+level_06/evening_4	respawn_point(5)	80.091	22.878	67.962	-3.142	-1.414	-3.142	30	3	nudged	22.812006	ground -0.066 m
+level_06/evening_4	respawn_point(16)	-36.37	33.456	122.523	3.142	-0.4	3.142	30	3	kept		on the ground
+level_06/evening_4	respawn_point(9)	-12.643	22.787	41.841	0	0.498	0	30	3	kept		on the ground
+level_06/evening_4	respawn_point(25)	13.82	37.299	148.4	0	0.687	0	30	3	nudged	37.056946	ground -0.242 m
+level_06/rain_4	respawn_point(19)	7.174	41.687	170.119	-3.142	-1.005	-3.142	30	3	kept		on the ground
+level_06/rain_4	respawn_point(18)	-23.038	36.203	157.105	3.142	0.03	3.142	30	3	kept		on the ground
+level_06/rain_4	respawn_point(13)	-46.97	25.807	76.829	0	-0.11	0	30	3	kept		on the ground
+level_06/rain_4	respawn_point(3)	109.897	26.724	129.02	0	1.364	0	30	3	kept		on the ground
+level_06/rain_4	respawn_point(6)	81.605	21.638	50.813	0	0.973	0	30	3	kept		on the ground
+level_06/rain_4	respawn_point(22)	60.934	29.048	165.636	3.142	0.589	-3.142	30	3	kept		on the ground
+level_06/rain_4	respawn_point(2)	109.109	30.063	137.726	3.142	1.133	-3.142	30	3	kept		on the ground
+level_06/rain_4	respawn_point(4)	106.274	33.029	103.953	3.142	1.36	3.142	30	3	kept		on the ground
+level_06/rain_4	respawn_point	115.451	33.749	133.244	3.142	1.327	3.142	30	3	kept		on the ground
+level_06/rain_4	respawn_point(21)	51.127	32.228	175.131	-3.142	0.589	3.142	30	3	kept		on the ground
+level_06/rain_4	respawn_point(7)	35.183	23.399	47.688	3.142	-1.536	3.142	30	3	kept		on the ground
+level_06/rain_4	respawn_point(24)	41.959	29.914	123.193	3.142	-1.289	3.142	30	3	kept		on the ground
+level_06/rain_4	respawn_point(15)	-30.704	32.14	110.713	-3.142	-0.743	-3.142	30	3	kept		on the ground
+level_06/rain_4	respawn_point(23)	14.475	28.011	113.458	-3.142	0.589	3.142	30	3	kept		on the ground
+level_06/rain_4	respawn_point(20)	25.38	37.694	183.3	3.142	-1.005	3.142	30	3	kept		on the ground
+level_06/rain_4	respawn_point(17)	-38.413	36.3	133.284	0	-0.976	0	30	3	kept		on the ground
+level_06/rain_4	respawn_point(1)	100.862	32.849	122.104	-3.142	0.166	-3.142	30	3	nudged	32.70963	ground -0.139 m
+level_06/rain_4	respawn_point(8)	31.874	24.365	55.421	-3.142	-1.536	-3.142	30	3	dropped		the ground is 0.97 m below
+level_06/rain_4	respawn_point(14)	-29.381	31.273	100.388	3.142	0.084	3.142	30	3	kept		on the ground
+level_06/rain_4	respawn_point(10)	-17.662	23.696	56.228	3.142	1.362	3.142	30	3	kept		on the ground
+level_06/rain_4	respawn_point(11)	-42.459	22.93	67.938	-3.142	-1.195	-3.142	30	3	nudged	22.826756	ground -0.103 m
+level_06/rain_4	respawn_point(12)	-49.133	24.966	63.618	0	-0.11	0	30	3	nudged	25.017187	ground +0.051 m
+level_06/rain_4	respawn_point(5)	80.091	22.878	67.962	-3.142	-1.414	-3.142	30	3	nudged	22.812006	ground -0.066 m
+level_06/rain_4	respawn_point(16)	-36.37	33.456	122.523	3.142	-0.4	3.142	30	3	kept		on the ground
+level_06/rain_4	respawn_point(9)	-12.643	22.787	41.841	0	0.498	0	30	3	kept		on the ground
+level_06/rain_4	respawn_point(25)	13.82	37.299	148.4	0	0.687	0	30	3	nudged	37.056946	ground -0.242 m
+level_07/day_4	respawn_point(24)	17.149	20.998	34.018	-3.142	1.484	3.142	30	3	kept		on the ground
+level_07/day_4	respawn_point(16)	43.804	15.109	-20.74	0	-0.882	0	30	3	kept		on the ground
+level_07/day_4	respawn_point(4)	-40.943	20.97	-26.641	-3.142	-1.482	-3.142	30	3	kept		on the ground
+level_07/day_4	respawn_point(8)	23.911	16.688	-30.71	0	0.099	0	30	3	kept		on the ground
+level_07/day_4	respawn_point(26)	-13.628	20.936	13.915	0	0.326	0	30	3	nudged	20.858492	ground -0.078 m
+level_07/day_4	respawn_point(19)	48.884	20.766	28.646	-3.142	0.104	-3.142	30	3	kept		on the ground
+level_07/day_4	respawn_point(20)	29.883	20.93	30.007	3.142	-1.214	3.142	30	3	nudged	20.984493	ground +0.054 m
+level_07/day_4	respawn_point(17)	70.7	20.925	-4.787	0	0.115	0	30	3	kept		on the ground
+level_07/day_4	respawn_point(13)	78.299	24.263	-18.095	0	0.072	0	30	3	kept		on the ground
+level_07/day_4	respawn_point(29)	-13.355	12.511	1.271	0	-1.481	0	30	3	kept		on the ground
+level_07/day_4	respawn_point(7)	-13.895	16.689	-29.321	0	-0.872	0	30	3	kept		on the ground
+level_07/day_4	respawn_point(27)	-42.728	20.885	29.431	3.142	-0.72	3.142	30	3	kept		on the ground
+level_07/day_4	respawn_point(9)	27.603	20.929	-18.639	3.142	-0.807	3.142	30	3	kept		on the ground
+level_07/day_4	respawn_point(28)	-48.205	20.883	2.292	-3.142	-0.72	-3.142	30	3	kept		on the ground
+level_07/day_4	respawn_point(18)	58.354	20.762	15.019	3.142	1.125	3.142	30	3	kept		on the ground
+level_07/day_4	respawn_point(6)	-3.279	20.898	-30.359	0	0.054	0	30	3	kept		on the ground
+level_07/day_4	respawn_point(15)	80.091	20.772	-4.17	-3.142	1.389	-3.142	30	3	kept		on the ground
+level_07/day_4	respawn_point(10)	58.701	20.785	-31.82	0	-0.887	0	30	3	kept		on the ground
+level_07/day_4	respawn_point(1)	-88.657	22.446	-2.155	0	-1.537	0	30	3	dropped		the ground is 1.26 m below
+level_07/day_4	respawn_point(2)	-90.67	21.215	6.777	0	-1.537	0	30	3	nudged	21.14791	ground -0.067 m
+level_07/day_4	respawn_point(25)	-13.1	20.844	35.534	3.142	-0.341	3.142	30	3	kept		on the ground
+level_07/day_4	respawn_point(23)	20.037	20.934	2.71	0	-0.161	0	30	3	kept		on the ground
+level_07/day_4	respawn_point(12)	86.16	24.263	-33.18	0	1.221	0	30	3	kept		on the ground
+level_07/day_4	respawn_point(22)	31.535	20.698	9.945	0	-0.161	0	30	3	nudged	20.761938	ground +0.064 m
+level_07/day_4	respawn_point(3)	-55.006	17.812	-5.339	3.142	-0.791	3.142	30	3	kept		on the ground
+level_07/day_4	respawn_point(21)	41.404	20.762	7.946	0	-0.161	0	30	3	kept		on the ground
+level_07/day_4	respawn_point(5)	-27.681	21.089	-29.771	0	-0.3	0	30	3	kept		on the ground
+level_07/day_4	respawn_point	-90.414	25.268	-19.96	0	-1.537	0	30	3	nudged	24.840792	ground -0.427 m
+level_07/day_4	respawn_point(14)	80.023	20.762	-14.181	3.142	1.389	3.142	30	3	kept		on the ground
+level_07/day_4	respawn_point(11)	85.214	21.147	-29.434	0	1.221	0	30	3	nudged	20.761925	ground -0.385 m
+level_07/evening_4	respawn_point(24)	17.149	20.998	34.018	-3.142	1.484	3.142	30	3	kept		on the ground
+level_07/evening_4	respawn_point(16)	43.804	15.109	-20.74	0	-0.882	0	30	3	kept		on the ground
+level_07/evening_4	respawn_point(4)	-40.943	20.97	-26.641	-3.142	-1.482	-3.142	30	3	kept		on the ground
+level_07/evening_4	respawn_point(8)	23.911	16.688	-30.71	0	0.099	0	30	3	kept		on the ground
+level_07/evening_4	respawn_point(26)	-13.628	20.936	13.915	0	0.326	0	30	3	nudged	20.858492	ground -0.078 m
+level_07/evening_4	respawn_point(19)	48.884	20.766	28.646	-3.142	0.104	-3.142	30	3	kept		on the ground
+level_07/evening_4	respawn_point(20)	29.883	20.93	30.007	3.142	-1.214	3.142	30	3	nudged	20.984493	ground +0.054 m
+level_07/evening_4	respawn_point(17)	70.7	20.925	-4.787	0	0.115	0	30	3	kept		on the ground
+level_07/evening_4	respawn_point(13)	78.299	24.263	-18.095	0	0.072	0	30	3	kept		on the ground
+level_07/evening_4	respawn_point(29)	-13.355	12.511	1.271	0	-1.481	0	30	3	kept		on the ground
+level_07/evening_4	respawn_point(7)	-13.895	16.689	-29.321	0	-0.872	0	30	3	kept		on the ground
+level_07/evening_4	respawn_point(27)	-42.728	20.885	29.431	3.142	-0.72	3.142	30	3	kept		on the ground
+level_07/evening_4	respawn_point(9)	27.603	20.929	-18.639	3.142	-0.807	3.142	30	3	kept		on the ground
+level_07/evening_4	respawn_point(28)	-48.205	20.883	2.292	-3.142	-0.72	-3.142	30	3	kept		on the ground
+level_07/evening_4	respawn_point(18)	58.354	20.762	15.019	3.142	1.125	3.142	30	3	kept		on the ground
+level_07/evening_4	respawn_point(6)	-3.279	20.898	-30.359	0	0.054	0	30	3	kept		on the ground
+level_07/evening_4	respawn_point(15)	80.091	20.772	-4.17	-3.142	1.389	-3.142	30	3	kept		on the ground
+level_07/evening_4	respawn_point(10)	58.701	20.785	-31.82	0	-0.887	0	30	3	kept		on the ground
+level_07/evening_4	respawn_point(1)	-88.657	22.446	-2.155	0	-1.537	0	30	3	dropped		the ground is 1.26 m below
+level_07/evening_4	respawn_point(2)	-90.67	21.215	6.777	0	-1.537	0	30	3	nudged	21.14791	ground -0.067 m
+level_07/evening_4	respawn_point(25)	-13.1	20.844	35.534	3.142	-0.341	3.142	30	3	kept		on the ground
+level_07/evening_4	respawn_point(23)	20.037	20.934	2.71	0	-0.161	0	30	3	kept		on the ground
+level_07/evening_4	respawn_point(12)	86.16	24.263	-33.18	0	1.221	0	30	3	kept		on the ground
+level_07/evening_4	respawn_point(22)	31.535	20.698	9.945	0	-0.161	0	30	3	nudged	20.761938	ground +0.064 m
+level_07/evening_4	respawn_point(3)	-55.006	17.812	-5.339	3.142	-0.791	3.142	30	3	kept		on the ground
+level_07/evening_4	respawn_point(21)	41.404	20.762	7.946	0	-0.161	0	30	3	kept		on the ground
+level_07/evening_4	respawn_point(5)	-27.681	21.089	-29.771	0	-0.3	0	30	3	kept		on the ground
+level_07/evening_4	respawn_point	-90.414	25.268	-19.96	0	-1.537	0	30	3	nudged	24.840792	ground -0.427 m
+level_07/evening_4	respawn_point(14)	80.023	20.762	-14.181	3.142	1.389	3.142	30	3	kept		on the ground
+level_07/evening_4	respawn_point(11)	85.214	21.147	-29.434	0	1.221	0	30	3	nudged	20.761925	ground -0.385 m
+level_07/rain_4	respawn_point(24)	17.149	20.998	34.018	-3.142	1.484	3.142	30	3	kept		on the ground
+level_07/rain_4	respawn_point(16)	43.804	15.109	-20.74	0	-0.882	0	30	3	kept		on the ground
+level_07/rain_4	respawn_point(4)	-40.943	20.97	-26.641	-3.142	-1.482	-3.142	30	3	kept		on the ground
+level_07/rain_4	respawn_point(8)	23.911	16.688	-30.71	0	0.099	0	30	3	kept		on the ground
+level_07/rain_4	respawn_point(26)	-13.628	20.936	13.915	0	0.326	0	30	3	nudged	20.858492	ground -0.078 m
+level_07/rain_4	respawn_point(19)	48.884	20.766	28.646	-3.142	0.104	-3.142	30	3	kept		on the ground
+level_07/rain_4	respawn_point(20)	29.883	20.93	30.007	3.142	-1.214	3.142	30	3	nudged	20.984493	ground +0.054 m
+level_07/rain_4	respawn_point(17)	70.7	20.925	-4.787	0	0.115	0	30	3	kept		on the ground
+level_07/rain_4	respawn_point(13)	78.299	24.263	-18.095	0	0.072	0	30	3	kept		on the ground
+level_07/rain_4	respawn_point(29)	-13.355	12.511	1.271	0	-1.481	0	30	3	kept		on the ground
+level_07/rain_4	respawn_point(7)	-13.895	16.689	-29.321	0	-0.872	0	30	3	kept		on the ground
+level_07/rain_4	respawn_point(27)	-42.728	20.885	29.431	3.142	-0.72	3.142	30	3	kept		on the ground
+level_07/rain_4	respawn_point(9)	27.603	20.929	-18.639	3.142	-0.807	3.142	30	3	kept		on the ground
+level_07/rain_4	respawn_point(28)	-48.205	20.883	2.292	-3.142	-0.72	-3.142	30	3	kept		on the ground
+level_07/rain_4	respawn_point(18)	58.354	20.762	15.019	3.142	1.125	3.142	30	3	kept		on the ground
+level_07/rain_4	respawn_point(6)	-3.279	20.898	-30.359	0	0.054	0	30	3	kept		on the ground
+level_07/rain_4	respawn_point(15)	80.091	20.772	-4.17	-3.142	1.389	-3.142	30	3	kept		on the ground
+level_07/rain_4	respawn_point(10)	58.701	20.785	-31.82	0	-0.887	0	30	3	kept		on the ground
+level_07/rain_4	respawn_point(1)	-88.657	22.446	-2.155	0	-1.537	0	30	3	dropped		the ground is 1.26 m below
+level_07/rain_4	respawn_point(2)	-90.67	21.215	6.777	0	-1.537	0	30	3	nudged	21.14791	ground -0.067 m
+level_07/rain_4	respawn_point(25)	-13.1	20.844	35.534	3.142	-0.341	3.142	30	3	kept		on the ground
+level_07/rain_4	respawn_point(23)	20.037	20.934	2.71	0	-0.161	0	30	3	kept		on the ground
+level_07/rain_4	respawn_point(12)	86.16	24.263	-33.18	0	1.221	0	30	3	kept		on the ground
+level_07/rain_4	respawn_point(22)	31.535	20.698	9.945	0	-0.161	0	30	3	nudged	20.761938	ground +0.064 m
+level_07/rain_4	respawn_point(3)	-55.006	17.812	-5.339	3.142	-0.791	3.142	30	3	kept		on the ground
+level_07/rain_4	respawn_point(21)	41.404	20.762	7.946	0	-0.161	0	30	3	kept		on the ground
+level_07/rain_4	respawn_point(5)	-27.681	21.089	-29.771	0	-0.3	0	30	3	kept		on the ground
+level_07/rain_4	respawn_point	-90.414	25.268	-19.96	0	-1.537	0	30	3	nudged	24.840792	ground -0.427 m
+level_07/rain_4	respawn_point(14)	80.023	20.762	-14.181	3.142	1.389	3.142	30	3	kept		on the ground
+level_07/rain_4	respawn_point(11)	85.214	21.147	-29.434	0	1.221	0	30	3	nudged	20.761925	ground -0.385 m
+level_08/day_4	respawn_point(23)	-47.491	35.23	49.692	3.142	0.448	3.142	20	3	kept		on the ground
+level_08/day_4	respawn_point(10)	16.707	31.979	16.765	0	-0.324	0	20	3	kept		on the ground
+level_08/day_4	respawn_point(4)	-73.207	31.979	42.984	0	-1.524	0	20	3	kept		on the ground
+level_08/day_4	respawn_point(3)	-74.658	31.979	54.181	0	-1.524	0	20	3	kept		on the ground
+level_08/day_4	respawn_point(11)	34.22	31.979	16.315	0	-0.324	0	20	3	kept		on the ground
+level_08/day_4	respawn_point(20)	-8.293	32.296	54.504	3.142	0.454	3.142	20	3	kept		on the ground
+level_08/day_4	respawn_point	-82.082	35.154	21.004	0	-1.524	0	20	3	kept		on the ground
+level_08/day_4	respawn_point(19)	33.036	32.8	44.882	0	0.227	0	20	3	kept		on the ground
+level_08/day_4	respawn_point(7)	-43.479	31.979	16.253	0	-0.324	0	20	3	kept		on the ground
+level_08/day_4	respawn_point(2)	-81.823	34.874	50.668	0	-1.524	0	20	3	kept		on the ground
+level_08/day_4	respawn_point(22)	-29.256	31.979	53.599	-3.142	-0.402	-3.142	20	3	kept		on the ground
+level_08/day_4	respawn_point(5)	-78.053	32.826	44.349	0	-0.357	0	20	3	dropped		the ground is 0.57 m below
+level_08/day_4	respawn_point(8)	-25.731	31.984	16.53	0	-0.324	0	20	3	kept		on the ground
+level_08/day_4	respawn_point(9)	-12.722	31.979	22.159	3.142	-0.088	3.142	20	3	kept		on the ground
+level_08/day_4	respawn_point(6)	-71.908	33.274	25.578	3.142	-1.472	3.142	20	3	kept		on the ground
+level_08/day_4	respawn_point(16)	81.231	33.302	33.426	3.142	1.56	-3.142	20	3	kept		on the ground
+level_08/day_4	respawn_point(21)	-8.242	39.087	51.467	0	0.894	0	20	3	kept		on the ground
+level_08/day_4	respawn_point(1)	-82.754	31.979	32.947	0	-1.524	0	20	3	kept		on the ground
+level_08/day_4	respawn_point(18)	52.481	31.979	49.132	3.142	1.56	-3.142	20	3	kept		on the ground
+level_08/day_4	respawn_point(12)	46.534	31.979	20.445	3.142	-1.545	3.142	20	3	kept		on the ground
+level_08/day_4	respawn_point(17)	81.936	35.154	46.199	-3.142	1.56	3.142	20	3	kept		on the ground
+level_08/day_4	respawn_point(15)	81.944	35.385	27.814	-3.142	1.56	3.142	20	3	kept		on the ground
+level_08/day_4	respawn_point(13)	80.697	32.647	16.435	-3.142	1.56	3.142	20	3	kept		on the ground
+level_08/day_4	respawn_point(14)	73.248	32.028	29.698	3.142	1.56	-3.142	20	3	kept		on the ground
+level_08/evening_4	respawn_point(23)	-47.491	35.23	49.692	3.142	0.448	3.142	20	3	kept		on the ground
+level_08/evening_4	respawn_point(10)	16.707	31.979	16.765	0	-0.324	0	20	3	kept		on the ground
+level_08/evening_4	respawn_point(4)	-73.207	31.979	42.984	0	-1.524	0	20	3	kept		on the ground
+level_08/evening_4	respawn_point(3)	-74.658	31.979	54.181	0	-1.524	0	20	3	kept		on the ground
+level_08/evening_4	respawn_point(11)	34.22	31.979	16.315	0	-0.324	0	20	3	kept		on the ground
+level_08/evening_4	respawn_point(20)	-8.293	32.296	54.504	3.142	0.454	3.142	20	3	kept		on the ground
+level_08/evening_4	respawn_point	-82.082	35.154	21.004	0	-1.524	0	20	3	kept		on the ground
+level_08/evening_4	respawn_point(19)	33.036	32.8	44.882	0	0.227	0	20	3	kept		on the ground
+level_08/evening_4	respawn_point(7)	-43.479	31.979	16.253	0	-0.324	0	20	3	kept		on the ground
+level_08/evening_4	respawn_point(2)	-81.823	34.874	50.668	0	-1.524	0	20	3	kept		on the ground
+level_08/evening_4	respawn_point(22)	-29.256	31.979	53.599	-3.142	-0.402	-3.142	20	3	kept		on the ground
+level_08/evening_4	respawn_point(5)	-78.053	32.826	44.349	0	-0.357	0	20	3	dropped		the ground is 0.57 m below
+level_08/evening_4	respawn_point(8)	-25.731	31.984	16.53	0	-0.324	0	20	3	kept		on the ground
+level_08/evening_4	respawn_point(9)	-12.722	31.979	22.159	3.142	-0.088	3.142	20	3	kept		on the ground
+level_08/evening_4	respawn_point(6)	-71.908	33.274	25.578	3.142	-1.472	3.142	20	3	kept		on the ground
+level_08/evening_4	respawn_point(16)	81.231	33.302	33.426	3.142	1.56	-3.142	20	3	kept		on the ground
+level_08/evening_4	respawn_point(21)	-8.242	39.087	51.467	0	0.894	0	20	3	kept		on the ground
+level_08/evening_4	respawn_point(1)	-82.754	31.979	32.947	0	-1.524	0	20	3	kept		on the ground
+level_08/evening_4	respawn_point(18)	52.481	31.979	49.132	3.142	1.56	-3.142	20	3	kept		on the ground
+level_08/evening_4	respawn_point(12)	46.534	31.979	20.445	3.142	-1.545	3.142	20	3	kept		on the ground
+level_08/evening_4	respawn_point(17)	81.936	35.154	46.199	-3.142	1.56	3.142	20	3	kept		on the ground
+level_08/evening_4	respawn_point(15)	81.944	35.385	27.814	-3.142	1.56	3.142	20	3	kept		on the ground
+level_08/evening_4	respawn_point(13)	80.697	32.647	16.435	-3.142	1.56	3.142	20	3	kept		on the ground
+level_08/evening_4	respawn_point(14)	73.248	32.028	29.698	3.142	1.56	-3.142	20	3	kept		on the ground
+level_08/prerain_4	respawn_point(23)	-47.491	35.23	49.692	3.142	0.448	3.142	20	3	kept		on the ground
+level_08/prerain_4	respawn_point(10)	16.707	31.979	16.765	0	-0.324	0	20	3	kept		on the ground
+level_08/prerain_4	respawn_point(4)	-73.207	31.979	42.984	0	-1.524	0	20	3	kept		on the ground
+level_08/prerain_4	respawn_point(3)	-74.658	31.979	54.181	0	-1.524	0	20	3	kept		on the ground
+level_08/prerain_4	respawn_point(11)	34.22	31.979	16.315	0	-0.324	0	20	3	kept		on the ground
+level_08/prerain_4	respawn_point(20)	-8.293	32.296	54.504	3.142	0.454	3.142	20	3	kept		on the ground
+level_08/prerain_4	respawn_point	-82.082	35.154	21.004	0	-1.524	0	20	3	kept		on the ground
+level_08/prerain_4	respawn_point(19)	33.036	32.8	44.882	0	0.227	0	20	3	kept		on the ground
+level_08/prerain_4	respawn_point(7)	-43.479	31.979	16.253	0	-0.324	0	20	3	kept		on the ground
+level_08/prerain_4	respawn_point(2)	-81.823	34.874	50.668	0	-1.524	0	20	3	kept		on the ground
+level_08/prerain_4	respawn_point(22)	-29.256	31.979	53.599	-3.142	-0.402	-3.142	20	3	kept		on the ground
+level_08/prerain_4	respawn_point(5)	-78.053	32.826	44.349	0	-0.357	0	20	3	dropped		the ground is 0.57 m below
+level_08/prerain_4	respawn_point(8)	-25.731	31.984	16.53	0	-0.324	0	20	3	kept		on the ground
+level_08/prerain_4	respawn_point(9)	-12.722	31.979	22.159	3.142	-0.088	3.142	20	3	kept		on the ground
+level_08/prerain_4	respawn_point(6)	-71.908	33.274	25.578	3.142	-1.472	3.142	20	3	kept		on the ground
+level_08/prerain_4	respawn_point(16)	81.231	33.302	33.426	3.142	1.56	-3.142	20	3	kept		on the ground
+level_08/prerain_4	respawn_point(21)	-8.242	39.087	51.467	0	0.894	0	20	3	kept		on the ground
+level_08/prerain_4	respawn_point(1)	-82.754	31.979	32.947	0	-1.524	0	20	3	kept		on the ground
+level_08/prerain_4	respawn_point(18)	52.481	31.979	49.132	3.142	1.56	-3.142	20	3	kept		on the ground
+level_08/prerain_4	respawn_point(12)	46.534	31.979	20.445	3.142	-1.545	3.142	20	3	kept		on the ground
+level_08/prerain_4	respawn_point(17)	81.936	35.154	46.199	-3.142	1.56	3.142	20	3	kept		on the ground
+level_08/prerain_4	respawn_point(15)	81.944	35.385	27.814	-3.142	1.56	3.142	20	3	kept		on the ground
+level_08/prerain_4	respawn_point(13)	80.697	32.647	16.435	-3.142	1.56	3.142	20	3	kept		on the ground
+level_08/prerain_4	respawn_point(14)	73.248	32.028	29.698	3.142	1.56	-3.142	20	3	kept		on the ground
+level_09/day_4	respawn_point(12)	-88.731	6.184	52.062	3.142	-1.272	3.142	30	3	kept		on the ground
+level_09/day_4	respawn_point(2)	109.339	9.403	-33.855	0	1.557	0	30	3	dropped		collision 0.94 m above the point
+level_09/day_4	respawn_point(22)	-4.551	0.849	-17.463	0	-0.144	0	30	3	kept		on the ground
+level_09/day_4	respawn_point(9)	-63.233	5.751	-6.65	0	-0.623	0	30	3	kept		on the ground
+level_09/day_4	respawn_point(7)	-23.21	5.073	-33.502	0	-0.623	0	30	3	kept		on the ground
+level_09/day_4	respawn_point(14)	-47.046	7.528	47.796	3.142	-1.041	3.142	30	3	dropped		collision 0.37 m from the body's axis at 0.65 m
+level_09/day_4	respawn_point(21)	-3.903	0.732	15.246	-3.142	0.203	-3.142	30	3	kept		on the ground
+level_09/day_4	respawn_point(19)	54.263	9.843	-20.082	0	0.214	0	30	3	dropped		no floor reached from the map's spawns within 0.6 m
+level_09/day_4	respawn_point(8)	-52.126	6.649	-13.688	0	-0.623	0	30	3	dropped		no floor reached from the map's spawns within 0.6 m
+level_09/day_4	respawn_point(16)	31.983	5.991	25.247	0	0.243	0	30	3	kept		on the ground
+level_09/day_4	respawn_point(23)	0.682	14.239	0.845	0	-0.144	0	30	3	nudged	14.058961	ground -0.180 m
+level_09/day_4	respawn_point(18)	61.137	5.954	2.706	3.142	0.254	3.142	30	3	kept		on the ground
+level_09/day_4	respawn_point(17)	45.982	5.99	22.506	-3.142	-0.792	-3.142	30	3	kept		on the ground
+level_09/day_4	respawn_point(3)	104.324	6.992	-51.358	0	1.107	0	30	3	kept		on the ground
+level_09/day_4	respawn_point(25)	-11.132	14.059	8.302	3.142	1.201	3.142	30	3	kept		on the ground
+level_09/day_4	respawn_point(4)	41.919	6.036	-60.888	0	-0.146	0	30	3	kept		on the ground
+level_09/day_4	respawn_point(26)	4.105	14.059	-12.65	-3.142	0.776	-3.142	30	3	kept		on the ground
+level_09/day_4	respawn_point(24)	7.643	14.059	19.953	-3.142	1.201	-3.142	30	3	kept		on the ground
+level_09/day_4	respawn_point(13)	-67.001	6.762	51.401	-3.142	-0.778	-3.142	30	3	kept		on the ground
+level_09/day_4	respawn_point(11)	-101.848	7.087	27.732	-3.142	-1.272	-3.142	30	3	dropped		the ground is 1.07 m below
+level_09/day_4	respawn_point	99.099	5.738	-18.398	0	0.976	0	30	3	kept		on the ground
+level_09/day_4	respawn_point(15)	3.469	6.427	47.53	-3.142	0.259	-3.142	30	3	kept		on the ground
+level_09/day_4	respawn_point(6)	-5.633	5.8	-46.764	0	-0.623	0	30	3	kept		on the ground
+level_09/day_4	respawn_point(1)	110.674	9.403	-24.224	0	1.557	0	30	3	kept		on the ground
+level_09/day_4	respawn_point(5)	13.564	5.6	-56.354	0	-0.146	0	30	3	kept		on the ground
+level_09/day_4	respawn_point(10)	-81.056	5.475	14.623	0	-0.337	0	30	3	kept		on the ground
+level_09/day_4	respawn_point(20)	36.458	9.673	-61.471	0	0.214	0	30	3	nudged	9.562278	ground -0.111 m

@@ -23,14 +23,21 @@ where the premium (camouflaged) weapons have their paint; the tooling to do that
 - **Slot.** [srp] A weapon's camouflage is in upgrade slot 2: slot 3 holds its scope, 0 its decal
   (`WEAPON_CAMO_SLOT`, `modifications::camo_slot`). A scope and a camouflage are worn together.
   The client keeps a record in any slot.
-- **Three upgrades an item.** The client keeps at most three upgrade records on an item (an inline
-  array of the item record, `limits::UPGRADES`; a fourth is a fatal assert), so a weapon has three
-  slots: scope (3), camouflage (2), one decal (0). The owner, 2026-10-21: "let's remove one decal
-  instead for now"; a second decal needs an exe change of that array (not done).
+- **Three records, six upgrades.** The client keeps at most three upgrade records on an item (an
+  inline array of the item record, `limits::UPGRADES`; a fourth is a fatal assert). Since the
+  weapon kit (client patch 68, [weapon-kit.md](weapon-kit.md)) a weapon's upgrades are logical
+  slots on the server (decals 0 and 1, camouflage 2, scope 3, muzzle 4, grip 5) sent as the decals
+  and one kit record: a scoped weapon's camouflage travels named in the kit's value.
 - **Shared cosmetics.** As for armour (PR 149): one camouflage item on any number of items,
   weapons and armour mixed, each with its own record; sold, it comes off all.
 - **Tiling.** `data/camo_scale` of the weapon config (4.0 for all, the stock bakes' value): the
   camouflage repeats that many times across the weapon's texture. Per weapon, tunable in data.
+- **What a weapon takes of a camouflage.** Its colours and its finish (the `_smap`: how matt the
+  paint is), not its relief. The camouflages were drawn for cloth: each one's `_nmap` is a weave,
+  and a weapon baked with it looked woven (the owner, 2026-11-11: "for weapons we use skins from
+  equipment and it has this \"cloth\" pattern", "can it be removed?"). A painted part keeps the
+  weapon's own relief. Armour takes all three, as before. A camouflage whose colours are a
+  photograph of cloth (the plain "fabric" ones) still shows that in its colours.
 - **What a match sees.** Every game builds a weapon from its item's upgrades (0x2F14C0); the
   camouflage is baked on each game's own GPU, as armour's. No simulation change: games with and
   without patch 44 play together (without it the weapon is plain).
@@ -39,7 +46,9 @@ where the premium (camouflaged) weapons have their paint; the tooling to do that
   takes the camouflage when its bake lands (the lobby's decal editor does the same on armour).
 - **Cost.** A bake per weapon surface the first time a camouflage is seen on that weapon (cached in
   `Documents/Survarium/streamed_textures/srpw1_*`, the 1 GiB baked-texture cache armour uses):
-  three 2048² textures (diffuse, normal, smoothness), about 11 MB on disk and in video memory.
+  two 2048² textures (diffuse and smoothness), about 5.5 MB on disk and in video memory; the
+  weapon's own normal texture is used as it is (until 2026-11-11 a third, the normal with the
+  camouflage's weave, 11 MB together).
 
 ## The weapon's upgrade window (patches 32 and 45)
 
@@ -110,6 +119,12 @@ separator".
   armour's window opens on its own: scopes (22); camouflages and decals (25, 26).
 - **Changes.** Each slot sends its change when it is made, on either page; Confirm closes the
   window. A turn changes nothing on the account.
+- **Double click** (the owner, 2026-11-01: "I would expect the camo to equip, just like it works
+  with double clicking weapons in inventory"). With the window open, a double click on an owned
+  camouflage, decal or scope in the inventory puts it where a drop would: into the slot of its
+  kind the page shows, a decal into the first empty decal slot, over the first when both are full.
+  Nothing when the page shows no slot for it or the window already holds it; armour's window the
+  same. With the window closed, as before: nothing (a cosmetic has no slot on the character).
 - **The hint** under the weapon: the scope's on Attachments, armour's (with the decal editor's
   line) on Appearance.
 - **Armour** keeps its window: no arrows, its title, its slots where the movie has them.
@@ -117,15 +132,15 @@ separator".
 ## Decals (patch 47)
 
 The owner (2026-10-21): "implement and allow put two decals on weapons"; then, the client holding
-three upgrades an item: "let's remove one decal instead for now". One decal a weapon.
+three upgrades an item: "let's remove one decal instead for now". Two again since the weapon kit
+(2026-10-25, [weapon-kit.md](weapon-kit.md)).
 
 - **Which weapons.** The same 83 configs (`scripts/content-edit/weapon-decals-1.json`, after
   weapon-camo-1): `parameters/decal_available` and an empty `data/decals`, as armour has.
-- **Which decals.** Any decal item (category 26); one, in the decal slot.
-- **Slots.** [srp] 0 (`WEAPON_DECAL_SLOTS`, `modifications::cosmetic_slots`; armour keeps 0 and
-  1): a weapon holds its scope in 3, its camouflage in 2, its decal in 0, all at once; the server
-  refuses a decal in slot 1 of a weapon. Patch 47 bakes up to two entries of `data/decals`; one
-  is all the slots give.
+- **Which decals.** Any decal item (category 26); two, in the decal slots.
+- **Slots.** [srp] 0 and 1 (`WEAPON_DECAL_SLOTS`, `modifications::cosmetic_slots`, as armour's):
+  a weapon holds its scope, its camouflage and two decals at once, the decals as records of their
+  own beside the kit (patch 68). Patch 47 bakes both entries of `data/decals`.
 - **Shared cosmetics.** As for armour: one decal item on any number of items, each with its own
   place.
 - **Placing one.** In the weapon's upgrade window (the weapon above the workbench, patch 45):
@@ -147,8 +162,12 @@ three upgrades an item: "let's remove one decal instead for now". One decal a we
   weapon again and bakes the new place: the weapon shows its old decals for a moment.
 - **Cost.** One bake per weapon surface for each new combination of camouflage and decals (the
   same cache as the camouflage's, `srpw1_*` names with the decals' textures and places).
+  With a decal the normal is baked too (the decal's relief over the weapon's own).
 - **On a camouflaged weapon** a surface without an `_aoac` texture (barrels, own sights) takes
-  neither; without a camouflage, decals go on any surface.
+  neither the camouflage nor a decal's colours and finish; a decal's fresnel and, since
+  2026-11-11, its relief are baked there alone (those two bakes have no camouflage layer, so
+  nothing asks them for the `_aoac`): a decal put on such a surface shows as a faint shape
+  without its picture. Without a camouflage, decals go on any surface.
 
 ## The engine (client 0.26g, PROVEN unless tagged)
 
@@ -156,6 +175,23 @@ three upgrades an item: "let's remove one decal instead for now". One decal a we
   when `<diffuse>_aoac.dds` loads beside its diffuse (0x12E8E9): c = lerp(diffuse, camo(uv ×
   scale), 1 − aoac.G); overlay(c, aoac.B); c × aoac.R (`bake_decal_composition.ps`). Without it
   the surface stays plain, silently.
+- The bake is three bakes a surface, one a texture type (d, n, s; a fourth, fresnel, has no
+  camouflage layer), each with the camouflage layer's texture of its type: `<camo>`,
+  `<camo>_nmap`, `<camo>_smap`. A type whose layer has no name takes the surface's own
+  `<diffuse>_camo`, `_camo_nmap` or `_camo_smap` (a character part's default camouflage,
+  0x12E124); a texture that does not load is left out; a type with nothing to bake leaves the
+  surface's texture as it is. In the normal bake the camouflage's `_nmap` is added to the
+  surface's as a detail and kept by the mask (`camouflage_texture_use_flags.y`; without it the
+  surface's normal passes through).
+- [srp] A weapon's bake names the camouflage's colours and `_smap` only (patch 47's fill), and
+  a layer it does not name is no layer: the Rust patch `weapon_camo` at the baker's
+  `bake.own_camouflage` (0x12E124) sends a weapon's bake (its files are `srpw...`) past the
+  surface's own names. Some weapons have files of those names that are no camouflage: the
+  premium paints `ak_12_camo`, `aks74u_camo`, `akmn_camo`, `neostead_camo`, `rem700_camo` (and
+  its `_smap`), `vepr_main_camo`, `vepr_sec_camo`, `vsk_9a91_camo` (and its `_smap`) and
+  `sks_camo_nmap`. Until 2026-11-11 a weapon with a decal and no camouflage took them as its
+  camouflage (LIKELY seen as the premium paint tiled over the painted parts; not looked at in a
+  game).
 - A camouflage item's modification adds `camouflage` to the host config's `data` table (modifier
   type 3, path `data`); a host config without `data` drops it (0x2F1430). Weapon configs have no
   `data`: the data patch adds one (holding `camo_scale`).
@@ -168,7 +204,10 @@ three upgrades an item: "let's remove one decal instead for now". One decal a we
   slots (decalSlot, decalSlot1) for `decal_available`, on two pages (`showPage`; the arrows
   `addPageArrow`, the places `placeWeaponSlots`, armour's from `_slotPlaces`); the Attachments
   button shows on a weapon with any (`isUpgradeableWeapon`). The slots are filled while all are
-  shown, then the page hides the other's: a slot keeps its item while hidden.
+  shown, then the page hides the other's: a slot keeps its item while hidden. The empty scope
+  slot says `st_srp_scope_slot` (Optics, Прицел...), short enough for its field in every language;
+  the stock `st_picatinny_scope_medium_name` (Optics / collimators) stays the inventory filter's
+  tip and the item hint's prefix. A weapon with a stock scope says `st_default_scope_name`.
 
 ## The masks (`scripts/weapon-camo/`)
 
@@ -208,20 +247,28 @@ three upgrades an item: "let's remove one decal instead for now". One decal a we
   lobby-bench-light-1 and weapon-attachments-1; `release/build-content 27` makes it with every
   edit list at 0 unexpected differences. **Lobby-tested only** (the camouflage, revision 25's
   build); this build is not run in a game.
+- 2026-11-11, the camouflage's relief left out: `check_weapon_camo_026g.py` (the names a bake is
+  given; the baker's site on a weapon's and a character's bake of each type, against the
+  original), `check_weapon_decals_026g.py`, `check_bake_cache_026g.py` (bake format 2),
+  `check_hooks_026g.py`, `cargo test` and clippy of the patches crate, the self-test. **Not run in
+  a game.**
 
 ## Not done
 
 - Decals on weapons: written (patch 47, above), not run in a game: the preview on the weapon, the
   place a click gives and a weapon's decal bake are emulated only.
 - A match (first and third person) not yet seen.
+- The camouflage without its weave (2026-11-11): emulated only, not seen in a game. To look at: a
+  painted weapon in the lobby and in a match (its own relief under the paint, no weave), one with
+  a decal and a camouflage, an AK-12 or an SKS with a decal and no camouflage (plain but for the
+  decal), and armour as before.
+- A decal on a camouflaged weapon's surface that has no `_aoac` (above): every surface needs a
+  mask, one that paints nothing where nothing is painted (`weapon_camo.py --bare-masks`, as the
+  weapon packs have), in a new `weapon-camo` pack.
 - The two-page window (arrows, places, the inventory's filter on a turn, the new texts): built,
   not seen in a game.
 - The other 69 textures' picks were made after the owner's 22, by looking (the MP7 black copies the owner's MP7): worth a pass in the picker.
 - One-donor masks look coarse: the AK-12, the Vepr-12 and the VSS / SR-3M textures; to look at
   every `guns.tsv` preview with the owner. If the 4.0 tiling looks too big on a weapon, give it
   its own `data/camo_scale`.
-- A second decal on scoped guns (the owner, 2026-10-21: "let's remove one decal instead for
-  now"): a weapon's upgrades live in the 3-entry inline array of the 0xB4 item record (scope,
-  camouflage, one decal), so a fourth needs an exe change to that array or a side table. Then
-  the server's `WEAPON_DECAL_SLOTS` and the lobby's `UpgradeWindow.WEAPON_DECALS` take slot 1;
-  patch 47 already bakes two entries of `data/decals`.
+- A second decal on scoped guns: done by the weapon kit (patch 68, [weapon-kit.md](weapon-kit.md)).

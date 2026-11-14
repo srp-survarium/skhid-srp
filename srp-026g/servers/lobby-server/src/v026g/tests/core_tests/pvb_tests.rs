@@ -12,12 +12,15 @@ use survarium::v026g::match_msgs::late_join::FIRST_REVISION;
 use super::*;
 use crate::v026g::pvb::{self, Config, MAPS, PLAY_REFUSED};
 
-/// A lobby with the mode on, at most `max_matches` matches against bots.
+/// A lobby with the mode on, at most `max_matches` matches against bots,
+/// equipment level 5 at most (the default before 2026-10-26, which the
+/// refusals below are told by).
 fn world_with(max_matches: usize) -> World {
     let mut settings = Settings::local("127.0.0.1:0");
     settings.pvb = Config {
         enabled: true,
         max_matches,
+        max_gear: 5,
         ..Config::default()
     };
     World::with_settings(settings)
@@ -108,7 +111,7 @@ fn gear_5_gets_an_8_v_8_with_15_bots_on_the_map_chosen() {
     with_gear(&mut world, alice, 5);
     let (header, maps) = status(&mut world, alice);
     assert_eq!(header, "B1;0;5;5;6.8.10;8;61;0;5");
-    // The owner's maps, each free for five matches.
+    // The owner's maps, each free for five matches; no free-for-all.
     let listed: Vec<u8> = maps
         .iter()
         .map(|row| row.split(';').next().unwrap().parse().unwrap())
@@ -123,7 +126,7 @@ fn gear_5_gets_an_8_v_8_with_15_bots_on_the_map_chosen() {
     let (id, setup) = made.last().unwrap();
     assert_eq!(*id, ticket);
     assert!(setup.vs_bots);
-    assert_eq!(setup.map_id, 61);
+    assert_eq!(setup.map.map().id, 61);
     assert_eq!(setup.players.len(), 16);
     assert_eq!(setup.players[0].account_id, world.ids[alice].0);
     assert!(!setup.players[0].driven);
@@ -150,8 +153,8 @@ fn gear_5_gets_an_8_v_8_with_15_bots_on_the_map_chosen() {
         .values()
         .find(|running| running.ticket.match_id == ticket)
         .unwrap();
-    assert!(running.vs_bots && running.fixed_teams);
-    assert_eq!(running.map_id, 61);
+    assert!(running.server_bots && running.fixed_teams);
+    assert_eq!(running.map.map().id, 61);
     // The play counts towards no map rotation, and no room has the player.
     assert!(world.account(alice).map_plays.is_empty());
     assert!(world.core.rooms.of(world.ids[alice].0).is_none());
@@ -166,7 +169,12 @@ fn gear_5_gets_an_8_v_8_with_15_bots_on_the_map_chosen() {
 #[test]
 fn every_size_has_its_bots_on_both_sides() {
     let mut world = world_with(5);
-    for (n, size) in pvb::SIZES.into_iter().enumerate() {
+    for (n, &size) in survarium::v026g::lobby::rooms::rules()
+        .pvb
+        .sizes
+        .iter()
+        .enumerate()
+    {
         let player = world.connect(&format!("P{n}"));
         let (ticket, _) = play_vs_bots(&mut world, player, size, 117);
         let made = world.host.made.locked();
@@ -180,8 +188,21 @@ fn every_size_has_its_bots_on_both_sides() {
                 .count()
         };
         assert_eq!((side(0), side(1)), (usize::from(size), usize::from(size)));
-        assert_eq!(setup.map_id, 117);
+        assert_eq!(setup.map.map().id, 117);
     }
+}
+
+/// No free-for-all against bots (the owner, 2026-11-13): its maps are
+/// projects of their own with no bots' map file (`ffa.md`), so none is
+/// offered, and a choice of one is refused as a map not offered.
+#[test]
+fn a_free_for_all_is_not_offered_against_bots() {
+    let mut world = world_with(5);
+    let player = world.connect("P");
+    for map in maps::playable_in(maps::GameMode::FreeForAll) {
+        assert_eq!(choose(&mut world, player, 8, map.id), "B2;no;10;0;5;0;5", "{}", map.id);
+    }
+    world.assert_clean();
 }
 
 /// Equipment level 6 is over the most (5): refused with code 1 and both
@@ -193,6 +214,7 @@ fn gear_6_is_refused_with_code_1_and_its_level() {
     with_gear(&mut world, bob, 6);
     let (header, maps) = status(&mut world, bob);
     assert_eq!(header, "B1;1;6;5;6.8.10;8;61;0;5");
+    // The owner's 16 maps.
     assert_eq!(maps.len(), MAPS.len());
     assert_eq!(choose(&mut world, bob, 8, 61), "B2;no;1;6;5;0;5");
     assert!(world.core.pvb_holds.is_empty());
@@ -322,4 +344,142 @@ fn a_bot_match_is_settled_as_one() {
     assert!(player.reward.won && !player.reward.daily_bonus);
     assert_eq!(player.reward.quest_money, 0);
     assert_eq!(player.reward.rating_after, player.reward.rating_before);
+}
+
+/// The owner's of 2026-10-26: Player vs Bots at every equipment level, the
+/// bots in kits of the player's level, the top players'. A player of level
+/// 15 is let in with the default settings and plays against bots of level
+/// 15, each in a kit of a player of level 15 of its role (the made-up
+/// accounts' Renaissance level 15 torso), its weapon of its role and its
+/// ammo for it; each bot counts for its gear in the sides' predictions.
+#[test]
+fn a_level_15_player_plays_level_15_bots_in_the_top_players_kits() {
+    use session::v026g::bot_kits::{ACTIVE_MATCHES, KitSource};
+    use survarium::v026g::dictionary::Dictionary;
+    use survarium::v026g::loadouts::{BOT_AMMO_SLOTS, BotRole, Loadout, SlotItem, bot_role_of};
+
+    let mut settings = Settings::local("127.0.0.1:0");
+    settings.pvb = Config {
+        enabled: true,
+        ..Config::default()
+    };
+    assert_eq!(settings.pvb.max_gear, 15);
+    let mut world = World::with_settings(settings);
+    let dictionary = Dictionary::shared();
+    let dict = |name: &str| dictionary.item_named(name).unwrap().dict_id;
+    let torso = dict("ren_torso_6");
+    assert_eq!(item_params(torso).unwrap().match_making_level, 15);
+    // A top player of each role, the torso over its weapon.
+    for (n, (weapon, ammo)) in [
+        ("uzi", "ammo_9x19p_para"),
+        ("ak_12", "ammo_6.5x39"),
+        ("toz_34", "ammo_12mm_buck"),
+        ("svd", "ammo_7.62x54_7n1"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let kit = Loadout {
+            items: vec![
+                SlotItem {
+                    slot: 7,
+                    dict_id: dict(weapon),
+                    count: 1,
+                },
+                SlotItem {
+                    slot: 8,
+                    dict_id: dict(ammo),
+                    count: 120,
+                },
+                SlotItem {
+                    slot: 2,
+                    dict_id: torso,
+                    count: 1,
+                },
+            ],
+        };
+        let name = format!("Top{n}");
+        let mut account = Account::with_loadout(&name, &kit);
+        account.rating = 150;
+        account.map_plays = vec![(1, ACTIVE_MATCHES)];
+        *world
+            .accounts
+            .get_or_create(9_000 + n as u32, &name)
+            .locked() = account;
+    }
+    let alice = world.connect("Alice");
+    with_gear(&mut world, alice, 15);
+    let (header, _) = status(&mut world, alice);
+    assert!(header.starts_with("B1;0;15;15;"), "{header}");
+
+    let (ticket, _) = play_vs_bots(&mut world, alice, 6, 117);
+    let made = world.host.made.locked();
+    let (_, setup) = made.iter().find(|(id, _)| *id == ticket).unwrap();
+    let bots: Vec<_> = setup
+        .players
+        .iter()
+        .filter(|player| player.driven)
+        .collect();
+    assert_eq!(bots.len(), 11);
+    for bot in &bots {
+        let profile = &bot.profile;
+        let role = bot_role_of(profile).expect("a bot's role");
+        // Its kits as loadouts.
+        let kits: Vec<Loadout> = profile
+            .kits
+            .iter()
+            .map(|kit| Loadout {
+                items: kit
+                    .slots
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(slot, held)| {
+                        let (index, count) = (*held)?;
+                        Some(SlotItem {
+                            slot: slot as u8,
+                            dict_id: profile.items[usize::from(index)].dict_id,
+                            count: u32::from(count),
+                        })
+                    })
+                    .collect(),
+            })
+            .collect();
+        let first = &kits[0];
+        assert_eq!(first.gear_level(), 15, "{}", profile.name);
+        assert!(kits.iter().all(|kit| kit.gear_level() <= 15));
+        assert_eq!(first.slot(2).unwrap().dict_id, torso);
+        let weapon = first.slot(7).unwrap().dict_id;
+        assert_eq!(BotRole::of_weapon(weapon), Some(role));
+        for kit in &kits {
+            let weapon = kit.slot(7).unwrap().dict_id;
+            for slot in BOT_AMMO_SLOTS {
+                assert!(dictionary.compatible(weapon, kit.slot(slot).unwrap().dict_id));
+            }
+        }
+    }
+    drop(made);
+    // The table the lobby gathered: the four top players, level 15.
+    let table = world.core.bot_kits.as_ref().unwrap().1.clone();
+    for role in BotRole::ALL {
+        assert_eq!(
+            table.bot_kit(15, role, 0).source,
+            KitSource::Players {
+                level: 15,
+                players: 1,
+                kits: 1
+            }
+        );
+    }
+    // Each bot counts for an average player.
+    let running = world
+        .core
+        .matches
+        .values()
+        .find(|running| running.ticket.match_id == ticket)
+        .unwrap();
+    assert!(
+        running.strengths[1..]
+            .iter()
+            .all(|&each| each == session::v026g::level_stats::BOT_STRENGTH)
+    );
 }

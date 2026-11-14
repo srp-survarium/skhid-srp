@@ -14,5 +14,11 @@ package survarium.constants
       {
          super();
       }
+
+      // The exe's value as one of the three; any other is BOTTOM, where the stock hud put it.
+      public static function parse(value:uint) : int
+      {
+         return value == TOP || value == HIDDEN ? int(value) : BOTTOM;
+      }
    }
 }

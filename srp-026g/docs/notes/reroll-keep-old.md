@@ -16,7 +16,8 @@ modification reroll of the Upgrade window; the price is paid anyway. Code:
 - **Pending:** nothing of the item changes until the answer. The server holds the offer (the old
   one and the three) with the item, saved with it.
 - **Price:** taken once, when the three are offered. Keeping the old one gives nothing back; the
-  change counts like any other: the next one costs 1.1 times more (no wait since 2026-10-22).
+  next one costs the same (flat since 2026-10-25, [flat-reroll.md](flat-reroll.md); no wait
+  since 2026-10-22).
 - **No second roll while one is pending:** asking again (silver or gold, any modification) shows
   the same three and takes nothing; a craft of the item is refused until the answer.
 - **One answer:** a choice or Cancel ends the offer; a second answer is refused. The old and a
@@ -44,8 +45,8 @@ locked into one". Code: `items_rules::reroll`; the lobby: `MessageRerollItem.upd
 
 - **Rule:** any of the item's own modifications may be changed, each any number of times. The
   game's lock (the first change picks the one) is gone, on the server and in the window.
-- **Same as before:** the price by item level, times 1.1 for each change of the item (any
-  modification, kept or not: one count an item, `reroll.count`); paid once, when the three are
+- **Same as before:** the price by item level (the same for every change since 2026-10-25,
+  [flat-reroll.md](flat-reroll.md)); paid once, when the three are
   offered; one offer at a time (asking for another modification meanwhile shows the same three,
   free); keep old; no craft while one is offered; refused for a damaged item or one in repair;
   golden weapons' and premium armour's bonuses roll like any other.
@@ -66,13 +67,23 @@ locked into one". Code: `items_rules::reroll`; the lobby: `MessageRerollItem.upd
 ## The item's stats on hover
 
 The owner, 2026-10-23: "when in modification, when hovering over the weapon, it should show its
-stats". The lobby: `MessageRerollItem.configUI`, `updateModifiers`.
+stats". The lobby: `MessageRerollItem.configUI`, `updateModifiers`, `LobbyMenu.showRerollItemHint`.
 
-- **Rule:** hovering the item's picture (top left of the window) shows the lobby's item tip
-  (`SrvItemHintRednerer`, as on a profile's items): name, stats with its modifications applied,
-  the modifications. Weapons and armour alike.
-- **After a change:** the tip's modifications are the ones the window was filled with last (on
+- **Rule:** hovering the item's picture (top left of the window) shows the inventory's item card
+  (`LobbyMenu.showKitCard`, as a kit slot's), uncompared: name, stats with its modifications
+  applied, the modifications. Weapons and armour alike. It stands left of the window at its top
+  (right of it when the left has no room) and stays on the screen as the inventory's card does
+  when Shift or Alt change its height.
+- **The size (the owner, 2026-11-06):** "when hovering over weapon in modifications window, it is
+  open with too big font/size". Until then the window showed a tooltip (`SrvItemHintRednerer`),
+  drawn at the lobby's scale twice (`ItemTipRenderer`'s `scaleFactor` inside the tooltips'
+  container at `overlayScale`) and kept on the screen only when shown; the window now sends
+  `MessageRerollItem.SHOW_CARD` / `HIDE_CARD` and the lobby shows its one card.
+- **After a change:** the card's modifications are the ones the window was filled with last (on
   opening, after a choice or Cancel), with the item kind's own: the stats follow the new one.
-  While the three are offered the item is unchanged, so is the tip.
-- **The Upgrade (craft) window:** its slots already show the item's tip, compared with the other
-  slot's (craft-menu.md); unchanged.
+  While the three are offered the item is unchanged, so is the card.
+- **The Upgrade (craft) window:** its slots already show the inventory's card, compared with the
+  other slot's (craft-menu.md); unchanged. The Repair and Attachments windows show none.
+- **Check:** `scripts/modification-card/check.sh <lobby tree> <revision 24's lobby_menu.swf>`
+  (Ruffle at 2560 x 1440): the card is the inventory's at its size, beside the window, on the
+  screen also when resized; gone with the pointer and the window; an item tip at the lobby's scale.

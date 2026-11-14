@@ -2,7 +2,7 @@ package survarium.constants
 {
    // An item's category (item_category of gameplay/db_static_dictionaries items_dict). The names are the
    // game's own: gameplay/item_categories (item_category_booby_traps, item_category_grenades) and the
-   // lobby's shop filters (FiltersWindow: filter_helmet, filter_assault_rifle, ...). 23 has no items.
+   // lobby's shop filters (ShopFilters.tsv: filter_helmet, filter_assault_rifle, ...). 23 has no items.
    public class ItemCategory
    {
       

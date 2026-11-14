@@ -74,12 +74,12 @@ fn a_client_silent_for_less_than_the_timeout_keeps_its_link() {
     // And it is still in its room, and still served.
     assert!(world.core.rooms.of(world.ids[alice].0).is_some());
     world.advance(Duration::from_secs(3));
-    world.ask(alice, request::autobuy(true));
+    world.ask(alice, request::active_kit(2));
     assert!(
         world
             .take(alice)
             .iter()
-            .any(|message| matches!(message, Decoded::Permitted(Permitted::Autobuy(true))))
+            .any(|message| matches!(message, Decoded::Permitted(Permitted::ActiveKit(2))))
     );
     assert_eq!(world.client(alice).faults, Vec::<String>::new());
     assert_eq!(world.client(alice).waiting_in_order(), 0);
@@ -212,7 +212,15 @@ fn a_client_away_through_its_match_comes_back_to_the_lobby_after_it() {
         super::pvb_tests::with_gear(&mut world, player, 6);
     }
     let (first, alice_team) = world.match_of(alice, bob);
-    super::rooms_tests::create(&mut world, carol, super::rooms_tests::spec(8), None);
+    super::rooms_tests::create(
+        &mut world,
+        carol,
+        survarium::v026g::lobby::rooms::RoomSpec {
+            max_level: 10,
+            ..super::rooms_tests::spec(8)
+        },
+        None,
+    );
     let (second, carol_team) = world.match_of(carol, dave);
     world.silent_for(alice, Duration::from_secs(121));
     // Carol's game is gone for good.
@@ -281,12 +289,12 @@ fn a_drop_query_is_not_answered() {
     world.ask(alice, (0x42, vec![0, 7, 0, 0, 0]));
     assert!(world.take(alice).is_empty());
     // The link is as it was.
-    world.ask(alice, request::autobuy(true));
+    world.ask(alice, request::active_kit(2));
     assert!(
         world
             .take(alice)
             .iter()
-            .any(|message| matches!(message, Decoded::Permitted(Permitted::Autobuy(true))))
+            .any(|message| matches!(message, Decoded::Permitted(Permitted::ActiveKit(2))))
     );
     world.assert_clean();
 }

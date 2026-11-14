@@ -18,15 +18,17 @@
 //! [`Loadouts::usable`] gives the seven that fit. All ten stay readable in
 //! [`Loadouts::profiles`].
 //!
-//! **What a new account has.** "One of the starting weapons available to
+//! **What a 0.26 account had.** "One of the starting weapons available to
 //! all players when they first enter the world, along with the TT-33 and
 //! Mosin carbine" (the wiki's `PPSH-41` page of 2015-02-14, revision 9600,
 //! and `Mosin carbine` of 2015-02-24, revision 10011; 0.26i). PROVEN (wiki
 //! of the time). 0.26g's data agrees: the three weapons and their two
 //! kinds of ammo (7.62x25 for the TT-33 and the PPSh-41, 7.62x54R for the
 //! Mosin) are the only weapons and ammo with `base_cost` 0 and item
-//! level 0. [`STARTER`] is what of it the first kit wears and
-//! [`STARTER_STASH`] what lies in the inventory.
+//! level 0. [`STARTER`] is what of it the stock account's first kit wears
+//! and [`STARTER_STASH`] what lies in its inventory (`session`'s
+//! `Account::new`, the tests'; a player's new account is given what the
+//! game data's `gameplay/srp/new_account.options` says, those three too).
 //!
 //! [choice] Which of the three a new player wore is not known. srp's first
 //! kit wears what it always did, the TT-33 and a clip in weapon slot 1, and
@@ -41,16 +43,22 @@ use binary_config_parser::tree::{ConfigError, ConfigValue};
 use super::dictionary::{Dictionary, PROFILE_SLOTS};
 use super::item_params;
 use super::match_msgs::static_info::MatchProfile;
+use super::skills;
+use weapon_pickup::CarryRule;
+
+pub mod bot_gear;
+
+use bot_gear::category;
 
 /// Its path in the archive.
 pub const PATH: &str = "gameplay/test_player_profiles.options";
 
-/// What a new account's first kit wears, `(slot, item)`: the TT-33 in
+/// What the stock account's first kit wears, `(slot, item)`: the TT-33 in
 /// weapon slot 1 and a clip of its free ammo in that weapon's first ammo
 /// slot. See the module.
 pub const STARTER: [(u8, &str); 2] = [(7, "tt_33"), (8, "ammo_7.62x25")];
 
-/// What a new account owns besides what it wears ([`STARTER`]): the Mosin
+/// What the stock account owns besides what it wears ([`STARTER`]): the Mosin
 /// carbine with a clip of its free ammo, and the PPSh-41, which fires the
 /// TT-33's ammo.
 pub const STARTER_STASH: [&str; 3] = ["mosin_nagant", "ammo_7.62x54r_old", "ppsh"];
@@ -118,6 +126,35 @@ impl Loadout {
     pub fn slot(&self, slot: u8) -> Option<&SlotItem> {
         self.items.iter().find(|item| item.slot == slot)
     }
+
+    /// Its equipment level ([`gear_level`]).
+    pub fn gear_level(&self) -> u8 {
+        gear_level(
+            self.items
+                .iter()
+                .map(|item| (item.slot, item.dict_id, item.count)),
+        )
+    }
+}
+
+/// The equipment level a kit shows: the highest `match_making_level` of
+/// what its slots hold, each times its slot's `slots_weight`, rounded; a
+/// stack counts only while it has units (the client's rule, 0x2F79A0;
+/// `session::v026g::matchmaking` step 1, which reads an account's kit with
+/// it). `items` are `(slot, dict id, units)`.
+pub fn gear_level(items: impl IntoIterator<Item = (u8, u16, u32)>) -> u8 {
+    let dictionary = Dictionary::shared();
+    let weights = &dictionary.match_maker.slots_weight;
+    let highest = items
+        .into_iter()
+        .filter(|&(_, dict_id, units)| !dictionary.is_stack(dict_id) || units > 0)
+        .filter_map(|(slot, dict_id, _)| {
+            let level = item_params::item_params(dict_id)?.match_making_level;
+            Some(f32::from(level) * weights.get(usize::from(slot)).copied().unwrap_or(1.0))
+        })
+        .fold(0.0_f32, f32::max);
+    // The client adds 0.5 and floors (0x2F7A9E).
+    (highest + 0.5).floor().clamp(0.0, 255.0) as u8
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -206,6 +243,22 @@ pub fn starter_stash() -> &'static [(u16, u32)] {
 /// categories 10, 11 and 24), and the six the client searches for a
 /// grenade (its table at 0x925FC0). PROVEN.
 pub const POCKET_SLOTS: [u8; 6] = [13, 14, 15, 16, 17, 18];
+
+/// The ammunition slots (the client's table 0x9C2578): two of each weapon
+/// and the four after the pockets.
+pub const AMMO_SLOTS: [u8; 8] = [8, 9, 11, 12, 19, 20, 21, 22];
+
+/// Supply pockets and artefacts share six quick positions.
+pub const MAX_POCKETS: usize = POCKET_SLOTS.len();
+
+/// Final units in one supply pocket, including medicine bonuses.
+pub const MAX_POCKET_UNITS: u32 = 5;
+
+/// What one unit of the item takes of a pocket (its config's,
+/// [`item_params::PocketShare`]); one unit for an item with no config.
+pub fn pocket_share(dict_id: u16) -> item_params::PocketShare {
+    item_params::item_params(dict_id).map_or(item_params::PocketShare::Unit, |p| p.pocket_share)
+}
 
 /// The order in which the client counts the slots for the quick-use keys
 /// (its table at 0x925FD8, read by 0x2FE7F0): the pockets, the back, then
@@ -305,15 +358,22 @@ pub const BOT_MEDKIT: BotKitItem = kit_item("medkit", 13, 2, Some(QUICK_USE_FIRS
 /// traced).
 pub const BOT_RADIO: BotKitItem = kit_item("respawn_booster", 14, 1, None);
 
-/// Two RGD-5 frag grenades (`rgd-5`, `grenade`, item level 3, 30 silver;
+/// One RGD-5 frag grenade (`rgd-5`, `grenade`, item level 3, 30 silver;
 /// the other grenade, `rdg-m`, is smoke at level 6) in the third pocket,
-/// thrown with [`GRENADE_BIT`]. After the medkit, so the medkit's
+/// thrown with [`GRENADE_BIT`]: it takes two units of a pocket, and the
+/// bots' pockets hold two. After the medkit, so the medkit's
 /// quick-use key does not depend on whether a grenade or the radio counts
 /// for quick use.
-pub const BOT_GRENADE: BotKitItem = kit_item("rgd-5", 15, 2, Some(GRENADE_BIT));
+pub const BOT_GRENADE: BotKitItem = kit_item("rgd-5", 15, 1, Some(GRENADE_BIT));
 
-/// What every one of the match server's own bots wears
-/// (`lobby-server` `play::server_bot`), whatever its role: gear with three
+/// Two bandages (`bandages`, `drugs`) in the first pocket, quick use 1: the
+/// medkit's place in a kit of a level under the medkit's
+/// (`bot_gear::bot_kit_of`), so the pockets never raise a kit's level.
+pub const BOT_BANDAGES: BotKitItem = kit_item("bandages", 13, 2, Some(QUICK_USE_FIRST_BIT));
+
+/// What every one of the match server's own bots wears in its role's fixed
+/// kit (`lobby-server` `play::server_bot`, when no player has a kit of its
+/// role: `session::v026g::bot_kits`), whatever its role: gear with three
 /// pockets of two for a medkit, the radio and a grenade, and no weapon 2.
 /// Its role adds weapon 1, its ammo and armour ([`BotRole::gear`]);
 /// [`bot_kit`] is the whole kit.
@@ -330,11 +390,12 @@ pub const BOT_KIT: [BotKitItem; 5] = [BOT_BACK, BOT_LEGS, BOT_MEDKIT, BOT_RADIO,
 pub const BOT_AMMO_NOTE: () = ();
 
 /// A server bot's role: the match server's play personality of the same
-/// name (`match-server` `bots::tuning::Personality::defaults`), and the
-/// weapon and armour it wears for it ([`BotRole::gear`]). Every role's
-/// pieces are of item level 1 to 5 or the starter's free ones, and none is
-/// premium.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+/// name (`match-server` `bots::tuning::Personality::defaults`), the class
+/// of weapon it carries ([`BotRole::class`]) and its fixed kit, the weapon
+/// and armour it wears when no player has a kit of its role
+/// ([`BotRole::gear`]). Every fixed kit's pieces are of item level 1 to 5
+/// or the starter's free ones, and none is premium.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum BotRole {
     Flanker,
     Support,
@@ -429,8 +490,33 @@ impl BotRole {
         }
     }
 
-    /// What the role wears besides [`BOT_KIT`]: weapon 1 (slot 7) and its
-    /// ammo first, then armour.
+    /// The dictionary categories of its weapons (`bot_gear::category`):
+    /// the SMGs; the assault rifles and the machine guns [choice: the
+    /// support is the middle of the four, and a machine gun its kind of
+    /// fire]; the shotguns; the sniper rifles. The match server's aim takes
+    /// them as its personality's kind (`bots::reflex::WeaponKind::of_role`).
+    pub fn categories(self) -> &'static [u8] {
+        match self {
+            BotRole::Flanker => &[category::SMGS],
+            BotRole::Support => &[category::ASSAULT_RIFLES, category::MACHINE_GUNS],
+            BotRole::Rusher => &[category::SHOTGUNS],
+            BotRole::Camper => &[category::SNIPER_RIFLES],
+        }
+    }
+
+    /// The most rounds of weapon 1 in each of [`BOT_AMMO_SLOTS`]: its fixed
+    /// kit's ([`BOT_AMMO_NOTE`]), fewer where the carry limit wants
+    /// (`bot_gear::bot_kit_of`).
+    pub fn rounds_a_slot(self) -> u32 {
+        match self {
+            BotRole::Flanker | BotRole::Support => 200,
+            BotRole::Rusher => 60,
+            BotRole::Camper => 40,
+        }
+    }
+
+    /// What the role's fixed kit wears besides [`BOT_KIT`]: weapon 1 (slot
+    /// 7) and its ammo first, then armour.
     pub fn gear(self) -> &'static [BotKitItem] {
         match self {
             BotRole::Flanker => &FLANKER,
@@ -455,14 +541,14 @@ impl BotRole {
         }
     }
 
-    /// The role whose weapon 1 is `dict_id`.
+    /// The role whose category ([`BotRole::categories`]) the weapon
+    /// `dict_id` is of; none for a pistol, any other item or one the
+    /// dictionary lacks.
     pub fn of_weapon(dict_id: u16) -> Option<BotRole> {
-        let dictionary = Dictionary::shared();
-        BotRole::ALL.into_iter().find(|role| {
-            dictionary
-                .item_named(role.gear()[0].name)
-                .is_some_and(|item| item.dict_id == dict_id)
-        })
+        let category = Dictionary::shared().item(dict_id)?.category;
+        BotRole::ALL
+            .into_iter()
+            .find(|role| role.categories().contains(&category))
     }
 
     /// The role of a team's `k`-th bot (0 on): smooth weighted round
@@ -547,10 +633,12 @@ pub fn bot_kit(role: BotRole) -> &'static Loadout {
     bot_kits(role)[0]
 }
 
-/// The role a profile's weapon 1 (slot 7 of its first kit) says: what the
-/// match server reads from the profile it has of each place
-/// (`Formed::profiles`). `None` for a player, or any profile whose weapon
-/// 1 is no role's.
+/// The role a profile's weapon 1 (slot 7 of its first kit) says, by its
+/// category ([`BotRole::of_weapon`]): what the match server reads from the
+/// profile it has of each of its bots (`Formed::profiles`). `None` for a
+/// profile with no kit, or whose weapon 1 is of no role's category (a
+/// player's weapon may be of one: the match server asks only of its
+/// bots).
 pub fn bot_role_of(profile: &MatchProfile) -> Option<BotRole> {
     let kit = profile.kits.first()?;
     let (index, _) = kit.slots[7]?;
@@ -560,45 +648,283 @@ pub fn bot_role_of(profile: &MatchProfile) -> Option<BotRole> {
 
 /// What the type 1 (added) modifiers of the default modifications of
 /// `dict_id` add to `parameter` (e.g. `pocket_slots_modifier`).
+#[cfg(test)]
 fn default_modifier(dict_id: u16, parameter: &str) -> f32 {
-    let path = format!("parameters/{parameter}");
-    let modifications = super::modifications::Modifications::shared();
+    added_by(&default_modifications(dict_id), parameter)
+}
+
+/// The pockets a loadout opens and how many units each holds, with no
+/// skills ([`KitLayout`]).
+pub fn pockets(loadout: &Loadout) -> (u32, u32) {
+    pockets_with(loadout, &[])
+}
+
+/// [`pockets`], its items having `own` modifications besides their
+/// defaults, `(id, defect)`.
+pub fn pockets_with(loadout: &Loadout, own: &[(u32, bool)]) -> (u32, u32) {
+    let layout = KitLayout::of_loadout(loadout, own);
+    (layout.pockets, layout.pocket_size)
+}
+
+/// The modifications an item always has (its config's), as an item's
+/// `(id, defect)`: none a defect.
+pub fn default_modifications(dict_id: u16) -> Vec<(u32, bool)> {
     item_params::item_params(dict_id)
         .map_or(&[][..], |params| params.default_modifications)
         .iter()
-        .filter_map(|&id| modifications.modification(id))
-        .flat_map(|row| &row.modifiers)
+        .map(|&id| (id, false))
+        .collect()
+}
+
+/// What the type 1 (added) modifiers of `modifications` (an item's
+/// `(id, defect)`: a modification, or a defect of the defects' table) add
+/// to `parameter` (e.g. `pocket_slots_modifier`).
+fn added_by(modifications: &[(u32, bool)], parameter: &str) -> f32 {
+    let path = format!("parameters/{parameter}");
+    let table = super::modifications::Modifications::shared();
+    modifications
+        .iter()
+        .filter_map(|&(id, defect)| match defect {
+            false => table.modification(id).map(|row| &row.modifiers),
+            true => table.defect(id).map(|row| &row.modifiers),
+        })
+        .flatten()
         .filter(|modifier| modifier.kind == 1 && modifier.path == path)
         .map(|modifier| modifier.value)
         .sum()
 }
 
-/// The pockets a loadout opens and how many units each holds, with no
-/// skills: the player's `pocket_slots_count` and `pocket_slot_size` (1 and
-/// 1, `default.player`) plus what the worn items' default modifications
-/// add, at most the six [`POCKET_SLOTS`].
+/// The dictionary category of medicine: Additional Medicine's pockets.
+const MEDICINE_CATEGORY: u8 = 10;
+
+/// The profile slots of the two weapons (the client's table at 0x9266A0).
+const FIRST_WEAPON_SLOT: usize = 7;
+const SECOND_WEAPON_SLOT: u8 = 10;
+
+/// What a kit's worn items and its skills open of its slots, the lobby's
+/// rules for them, which the server holds every kit to ([`KitLayout::kept`]:
+/// a skill or gear taken off takes back what it opened, and no later request
+/// puts it back).
 ///
-/// LIKELY the client's rule: the lobby opens the first `item_slots` of
-/// slots 13..=18 and empties and locks the others
-/// (`PaperDollBase.handleQuickSlots`), a pocket takes `pocketSize` units
-/// of an item, or one of an item that `fills_whole_pocket`
-/// (`ItemRendererQSlot`, `MessageAsk`), and both numbers come from the
-/// exe; pockets (15) and pocket size (17) are among the modifiers the
-/// match's getter adds rather than multiplies (0x2D5AE0, table
-/// 0x927E08). How the exe sums them was not read.
-pub fn pockets(loadout: &Loadout) -> (u32, u32) {
-    let added = |parameter| {
-        loadout
+/// - Pockets: the player's `pocket_slots_count` and `pocket_slot_size` (1
+///   and 1, `default.player`) plus what the worn items' modifications (their
+///   defaults and their own, defects too) and the skills add, at most
+///   [`MAX_POCKETS`] and [`MAX_POCKET_UNITS`]. LIKELY the client's rule: the
+///   lobby opens the first `item_slots` of slots 13..=18 and empties and
+///   locks the others (`PaperDollBase.handleQuickSlots`), a pocket takes
+///   `pocketSize` units of an item, or one of an item that
+///   `fills_whole_pocket` (`ItemRendererQSlot`, `MessageAsk`), and both
+///   numbers come from the exe; pockets (15) and pocket size (17) are among
+///   the modifiers the match's getter adds rather than multiplies
+///   (0x2D5AE0, table 0x927E08). How the exe sums them was not read.
+/// - Additional Medicine (322): a pocket holds one more medicine, at most
+///   [`MAX_POCKET_UNITS`] (`PlayerInfo.pocketUnits`).
+/// - The second weapon, by the skills' [`CarryRule`]: none with Deep
+///   Pockets or Supply Pocket (`disable_second_weapon`), not a
+///   double-handed one beside another without Terminator
+///   (`use_two_double_handed_weapons`; `LocalPaperDoll`).
+/// - Ammo bags: the player's `ammo_bags_count` (3) plus what the worn
+///   items' modifications (`ammo_bags_modifier`) and the skills (modifier
+///   16) add, the lobby's `PlayerInfo.ammoBags`
+///   (process_default_relocate_item 0x288E4B..0x288E65). LIKELY, as the
+///   pockets: the same sum. The ammunition slots share them, a clip taking
+///   its item's `required_bags`; the layout only spreads ammunition over
+///   bags added ([`KitLayout::followed`]), it takes none off.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KitLayout {
+    pockets: u32,
+    pocket_size: u32,
+    ammo_bags: u32,
+    extra_medicine: bool,
+    carry: CarryRule,
+}
+
+impl KitLayout {
+    /// The layout of a kit whose worn items have `modifications`, with the
+    /// skills' `modifiers` ([`skills::SkillsTree::modifiers`]).
+    pub fn new(modifications: &[(u32, bool)], modifiers: &[f32; skills::MODIFIERS]) -> KitLayout {
+        use skills::slot_modifier::*;
+        let total = |base: u32, parameter, skill: usize| {
+            (base as f32 + added_by(modifications, parameter) + modifiers[skill]).max(0.0) as u32
+        };
+        let ranks = modifiers[MEDICAL_RANKS];
+        let ranks = (ranks >= 0.0 && ranks < (1 << 24) as f32 && ranks.fract() == 0.0)
+            .then_some(ranks as u32);
+        let player = item_params::player();
+        KitLayout {
+            pockets: total(
+                player.pocket_slots_count,
+                "pocket_slots_modifier",
+                POCKET_SLOTS,
+            )
+            .min(MAX_POCKETS as u32),
+            pocket_size: total(
+                player.pocket_slot_size,
+                "pocket_slot_size_modifier",
+                POCKET_SLOT_SIZE,
+            )
+            .min(MAX_POCKET_UNITS),
+            ammo_bags: total(player.ammo_bags_count, "ammo_bags_modifier", AMMO_BAGS),
+            extra_medicine: ranks.is_some_and(|ranks| ranks >> ADDITIONAL_MEDICINE_BIT & 1 == 1),
+            carry: CarryRule::from_modifiers(
+                modifiers[DISABLE_SECOND_WEAPON],
+                modifiers[USE_TWO_DOUBLE_HANDED_WEAPONS],
+            ),
+        }
+    }
+
+    /// The layout of a kit wearing `loadout`, its items having `own`
+    /// modifications besides their defaults, `(id, defect)`, with no skills.
+    pub fn of_loadout(loadout: &Loadout, own: &[(u32, bool)]) -> KitLayout {
+        let mut modifications: Vec<(u32, bool)> = loadout
             .items
             .iter()
-            .map(|item| default_modifier(item.dict_id, parameter))
-            .sum::<f32>()
-            .max(0.0) as u32
-    };
-    let count = (item_params::player().pocket_slots_count + added("pocket_slots_modifier"))
-        .min(POCKET_SLOTS.len() as u32);
-    let size = item_params::player().pocket_slot_size + added("pocket_slot_size_modifier");
-    (count, size)
+            .flat_map(|item| default_modifications(item.dict_id))
+            .collect();
+        modifications.extend_from_slice(own);
+        KitLayout::new(&modifications, &[0.0; skills::MODIFIERS])
+    }
+
+    /// `slots` (each slot's dict id and units) as a kit of this layout holds
+    /// them: a pocket at most what it holds of its item, nothing in a pocket
+    /// it does not open, no second weapon its carry rule forbids. A slot comes
+    /// back with the units it keeps, or empty.
+    pub fn kept<const SLOTS: usize>(
+        &self,
+        slots: &[Option<(u16, u32)>; SLOTS],
+    ) -> [Option<(u16, u32)>; SLOTS] {
+        self.followed(self, slots)
+    }
+
+    /// [`Self::kept`] for a kit whose layout was `before`: a full pocket
+    /// stays full. A pocket holding all `before` let it hold of its item
+    /// holds all this layout does (gear or a skill made the pocket larger);
+    /// one the player keeps below that keeps its units. Ammunition that took
+    /// every ammo bag of `before` is spread over the bags of this layout
+    /// ([`Self::spread_ammo`]). The units owned are the caller's to hold it to.
+    pub fn followed<const SLOTS: usize>(
+        &self,
+        before: &KitLayout,
+        slots: &[Option<(u16, u32)>; SLOTS],
+    ) -> [Option<(u16, u32)>; SLOTS] {
+        let first_weapon = slots
+            .get(FIRST_WEAPON_SLOT)
+            .copied()
+            .flatten()
+            .map(|(dict_id, _)| dict_id);
+        let mut kept = std::array::from_fn(|slot| {
+            let (dict_id, units) = slots[slot]?;
+            let was_full = before
+                .pocket_units(slot as u8, dict_id)
+                .is_some_and(|limit| limit > 0 && units >= limit);
+            let kept = match self.limit(slot as u8, dict_id, first_weapon) {
+                None => units,
+                Some(limit) if was_full => limit,
+                Some(limit) => units.min(limit),
+            };
+            (kept > 0).then_some((dict_id, kept))
+        });
+        self.spread_ammo(before, &mut kept);
+        kept
+    }
+
+    /// Full ammo bags stay full: when this layout has more ammo bags than
+    /// `before` and the ammunition of `slots` took all of those, each
+    /// ammunition slot's bags grow in proportion (the player's split between
+    /// them is kept), in whole clips; the bags the rounding leaves go to the
+    /// slots that lost most by it. Ammunition that left bags free is the
+    /// player's choice and stays; no slot's rounds are lowered.
+    fn spread_ammo<const SLOTS: usize>(
+        &self,
+        before: &KitLayout,
+        slots: &mut [Option<(u16, u32)>; SLOTS],
+    ) {
+        struct Held {
+            slot: usize,
+            clip: u64,
+            required: u64,
+            bags: u64,
+        }
+        if self.ammo_bags <= before.ammo_bags {
+            return;
+        }
+        let mut held: Vec<Held> = AMMO_SLOTS
+            .iter()
+            .filter_map(|&slot| {
+                let slot = usize::from(slot);
+                let (dict_id, rounds) = (*slots.get(slot)?)?;
+                let params = item_params::item_params(dict_id)?;
+                let (clip, required) =
+                    (u64::from(params.clip_size), u64::from(params.required_bags));
+                (clip > 0 && required > 0).then(|| Held {
+                    slot,
+                    clip,
+                    required,
+                    bags: u64::from(rounds).div_ceil(clip) * required,
+                })
+            })
+            .collect();
+        let used: u64 = held.iter().map(|held| held.bags).sum();
+        if used < u64::from(before.ammo_bags).max(1) {
+            return;
+        }
+        let bags = u64::from(self.ammo_bags);
+        let share = |held: &Held| held.bags * bags / used / held.required * held.required;
+        let mut free = bags.saturating_sub(held.iter().map(share).sum());
+        // Most lost by the rounding first.
+        held.sort_by_key(|held| std::cmp::Reverse(held.bags * bags - share(held) * used));
+        let mut shares: Vec<u64> = held.iter().map(share).collect();
+        while let Some(index) = held.iter().position(|held| held.required <= free) {
+            for (held, share) in held.iter().zip(&mut shares).skip(index) {
+                if held.required <= free {
+                    *share += held.required;
+                    free -= held.required;
+                }
+            }
+        }
+        for (held, share) in held.iter().zip(shares) {
+            let spread = u32::try_from(share / held.required * held.clip).unwrap_or(u32::MAX);
+            if let Some((_, rounds)) = slots[held.slot].as_mut() {
+                *rounds = (*rounds).max(spread);
+            }
+        }
+    }
+
+    /// The most units of `dict_id` the pocket `slot` holds (none for a
+    /// pocket the layout does not open); `None` for a slot that is no pocket.
+    fn pocket_units(&self, slot: u8, dict_id: u16) -> Option<u32> {
+        let pocket = POCKET_SLOTS.iter().position(|&each| each == slot)?;
+        if pocket as u32 >= self.pockets {
+            return Some(0);
+        }
+        let medicine = Dictionary::shared()
+            .item(dict_id)
+            .is_some_and(|item| item.category == MEDICINE_CATEGORY);
+        let size = self.pocket_size + u32::from(self.extra_medicine && medicine);
+        Some(pocket_share(dict_id).units_in(size.min(MAX_POCKET_UNITS)))
+    }
+
+    /// The most units of `dict_id` slot `slot` may hold, beside
+    /// `first_weapon`; `None` for a slot the layout does not limit.
+    fn limit(&self, slot: u8, dict_id: u16, first_weapon: Option<u16>) -> Option<u32> {
+        if let Some(units) = self.pocket_units(slot, dict_id) {
+            return Some(units);
+        }
+        if slot != SECOND_WEAPON_SLOT {
+            return None;
+        }
+        let double_handed =
+            |dict_id| item_params::item_params(dict_id).is_some_and(|params| params.double_handed);
+        match self.carry {
+            CarryRule::OneWeapon => Some(0),
+            CarryRule::OneDoubleHanded
+                if double_handed(dict_id) && first_weapon.is_some_and(double_handed) =>
+            {
+                Some(0)
+            }
+            CarryRule::OneDoubleHanded | CarryRule::TwoDoubleHanded => None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -706,15 +1032,15 @@ mod tests {
         )
         .unwrap();
         assert!(heaviest.fits_carry_limit());
-        // All are free and of level 0 in 0.26g's data, and they are all the
-        // weapons and ammo that are.
+        // All are of level 0; the ammo is free (the weapons have the owner's
+        // prices), and it is all the ammo of level 0 that is.
         let mut owned: Vec<u16> = starter.items.iter().map(|item| item.dict_id).collect();
         owned.extend(stash.iter().map(|&(dict_id, _)| dict_id));
         owned.sort_unstable();
         for &dict_id in &owned {
-            assert_eq!(dictionary.item(dict_id).unwrap().base_cost, 0);
             assert_eq!(item_params::item_params(dict_id).unwrap().item_level, 0);
         }
+        owned.retain(|&dict_id| dictionary.is_stack(dict_id));
         let free: Vec<u16> = dictionary
             .items
             .iter()
@@ -837,11 +1163,7 @@ mod tests {
                 .filter(|item| POCKET_SLOTS.contains(&item.slot))
             {
                 assert!(open.contains(&item.slot), "{role}: slot {}", item.slot);
-                let limit = if params(item.dict_id).fills_whole_pocket {
-                    1
-                } else {
-                    size
-                };
+                let limit = params(item.dict_id).pocket_share.units_in(size);
                 assert!(item.count >= 1 && item.count <= limit, "slot {}", item.slot);
             }
 

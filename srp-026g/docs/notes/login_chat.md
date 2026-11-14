@@ -21,7 +21,7 @@ How 0.26g functions were found without a PDB: through the assert/log strings tha
 | Browser server (HTTP `/hello`) | used, port 80 | **gone**. No `http_client` in the exe. | browser-server unused |
 | Sign-in step 1 (plain) | `01 len email ver[12]="0.21d" eula u32 queue` | **same layout**, ver = `"0.26g0"` | version string only |
 | Step 2 (plain, 1 byte) | `0B` → TLS | same | none |
-| TLS | OpenSSL 1.0.0g, verify against `../../resources/ssl/survarium_login_server.crt` | **OpenSSL 1.0.1h**. Same file path, same "accept preverified" callback. | Copy srp's cert over the shipped 0.26g cert (different key, expired 2015) |
+| TLS (srp since patch 139: its own cipher instead, `sign-in-cipher.md`) | OpenSSL 1.0.0g, verify against `../../resources/ssl/survarium_login_server.crt` | **OpenSSL 1.0.1h**. Same file path, same "accept preverified" callback. | Copy srp's cert over the shipped 0.26g cert (different key, expired 2015) |
 | Step 3 (TLS, password) | `len pw` | **`02 digest[40]`** (remembered login) or **`03 digest[40] len pw`** (typed). digest = lowercase hex SHA-1(password). | **Must change** |
 | Reply 0x08 | `08 L1 browser L2 query u32 session` + 12 bytes (lobby and messaging ip:port) | **`08 u32 session u32 lobby_ip u16 lobby_port`** (11 bytes) | **Must change** |
 | Login reply enum | 0x08..0x16, invalid 0x1F | renumbered from 0x11 up: ban reasons 0x12..0x1F, then 0x20..0x25; invalid 0x2D | update constants |
@@ -173,6 +173,7 @@ Dispatch in `on_sign_in_answer_received` 0x37FB10 is on byte 0:
   - Layout `25 | 1 byte skipped | u32 queue_id | u32 place | u32 total`, the same as 0.21d's 0x16.
   - The client resolves UDP `<login host>:<m_host_port>` (itoa of +0x296, 0x37fbcf), starts the 10 s queue ping and listens for answers.
 - **Any other byte** → callback with that byte. For mapping, see §4.5.
+- **srp: a ban's reason and end** (after 0x12..0x1F): srp's reason id, then for a ban that ends its seconds left, `u32` LE, in the same write (`crates/ban-reason`). The stock client reads byte 0 alone; patch 116 (`client-patches/README.md`, "A ban's reason and end on the sign-in screen") shows srp's reason and the end instead of the game's reason.
 
 ### 4.5 Login server message ids (0.26g)
 
@@ -204,7 +205,7 @@ Dispatch in `on_sign_in_answer_received` 0x37FB10 is on byte 0:
 | `INVALID_USER_NAME_OR_PASSWORD` | 0x0A, unchanged |
 | `TOO_MANY_ATTEMPTS` | 0x0C, unchanged |
 | `REGISTRATION_CLOSED` (access level) | 0x12 → **0x20** |
-| `USER_BANNED` | 0x11 → **one of 0x12..0x1F**. 0x11 now shows a plain connection error. Use 0x1E (cheating) or 0x1C (administrator); 0x1B is incorrect_info (checked against the tables 0x21bd04 and 0x21f2a4: code N shows status N − 6). The client shows `st_login_menu_status_user_banned` then `st_ban_reason_X`, joined with no space. Stock texts: the header names prohibited software ("You are banned (Use / distribution / advertisement of prohibited software).") for every reason, and 0x1C is "Pretending to be administrator of the game"; content edit list `ban-texts-1.json` makes them "You are banned. " and "Decision of the administration." (srp's fallback for a reason with no keyword). |
+| `USER_BANNED` | 0x11 → **one of 0x12..0x1F**. 0x11 now shows a plain connection error. Use 0x1E (cheating) or 0x1C (administrator); 0x1B is incorrect_info (checked against the tables 0x21bd04 and 0x21f2a4: code N shows status N − 6). The client shows `st_login_menu_status_user_banned` then `st_ban_reason_X`, joined with no space. Stock texts: the header names prohibited software ("You are banned (Use / distribution / advertisement of prohibited software).") for every reason, and 0x1C is "Pretending to be administrator of the game"; `client-patches/localization/*.tsv` makes them "You are banned. " and "Decision of the administration." (srp's fallback for a reason with no keyword). |
 | "already online" | 0x13 → **0x21** |
 | invalid version | 0x14 → **0x22** |
 

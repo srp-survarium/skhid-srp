@@ -20,6 +20,12 @@ session = { workspace = true }
 survarium = { workspace = true }
 udp-transport = { workspace = true }
 vostok = { workspace = true }
+# What a game could load of an uploaded world (`game.rs::uploaded`): the
+# check the game itself runs (exe patch 87), one crate for both.
+world-frame = { workspace = true }
+srp-validate = { workspace = true }
+# Client patch 85's pickup command, checked as the clients check it.
+weapon-pickup = { path = "../../crates/weapon-pickup" }
 
 # The replay conversion thread runs at nice 19 (`v026g::replay`).
 [target.'cfg(target_os = "linux")'.dependencies]
@@ -28,3 +34,6 @@ libc = { workspace = true }
 [dev-dependencies]
 # Sessions without a sign-in, for the tests (`SessionStore::create_session`).
 session = { workspace = true, features = ["test-support"] }
+
+# Exercise the shipped codec/jitter implementation through the real voice relay.
+skhid-voice = { path = "../../client-voice" }

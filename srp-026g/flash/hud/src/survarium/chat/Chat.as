@@ -46,6 +46,11 @@ package survarium.chat
       
       protected var _data:Object = new Object();
       
+      // Every tab the game gave (add_tab), by group, in the order it gave them. _data.tabs holds
+      // the ones of them the chat offers (offers): what is typed into, switched between and
+      // written to. Both hold the same tab objects.
+      protected var _given:Array = [];
+      
       protected var _isTyping:Boolean = false;
       
       protected var _nline:String = "\n";
@@ -101,6 +106,10 @@ package survarium.chat
          {
             data.tabs_group_id = this._activeMode;
          }
+         if(!this._given[data.tabs_group_id])
+         {
+            this._given[data.tabs_group_id] = new Array();
+         }
          if(!this._data.tabs[data.tabs_group_id])
          {
             this._data.tabs[data.tabs_group_id] = new Array();
@@ -111,7 +120,7 @@ package survarium.chat
             return;
          }
          this._messages[data.id] = "";
-         this._data.tabs[data.tabs_group_id].push({
+         var tab:Object = {
             id:data.id,
             channels:data.channels,
             name:data.name,
@@ -121,28 +130,24 @@ package survarium.chat
             index:data.id + 1,
             bool_save_history:data.save_history,
             tabs_group_id:data.tabs_group_id
-         });
+         };
+         this._given[data.tabs_group_id].push(tab);
+         if(this.offers(tab))
+         {
+            this._data.tabs[data.tabs_group_id].push(tab);
+         }
          this.invalidateChatData();
       }
       
+      // Whether the game gave a tab of that id, offered or not.
       public function hasTab(id:uint) : Boolean
       {
-         if(!this._data || !this._data.tabs)
-         {
-            return false;
-         }
          var j:int = 0;
-         var i:int;
-         while(j < this._data.tabs.length)
+         while(j < this._given.length)
          {
-            i = 0;
-            while(i < this._data.tabs[j].length)
+            if(indexOfTab(this._given[j],id) != -1)
             {
-               if(this._data.tabs[j][i].id == id)
-               {
-                  return true;
-               }
-               i++;
+               return true;
             }
             j++;
          }
@@ -151,27 +156,75 @@ package survarium.chat
       
       public function removeTab(id:uint) : void
       {
-         if(!this._data || !this._data.tabs)
-         {
-            return;
-         }
          var j:int = 0;
-         var i:int;
-         while(j < this._data.tabs.length)
+         var at:int;
+         while(j < this._given.length)
          {
-            i = 0;
-            while(i < this._data.tabs[j].length)
+            at = indexOfTab(this._given[j],id);
+            if(at != -1)
             {
-               if(this._data.tabs[j][i].id == id)
+               this.clearChannel(id);
+               (this._given[j] as Array).splice(at,1);
+               at = indexOfTab(this._data.tabs[j],id);
+               if(at != -1)
                {
-                  this.clearChannel(this._data.tabs[j][i].id);
-                  (this._data.tabs[j] as Array).splice(i,1);
-                  break;
+                  (this._data.tabs[j] as Array).splice(at,1);
                }
-               i++;
             }
             j++;
          }
+         this.invalidateChatData();
+      }
+      
+      // Where the tab of that id is among one group's tabs, or -1.
+      private static function indexOfTab(tabs:Array, id:uint) : int
+      {
+         var i:int = 0;
+         while(tabs && i < tabs.length)
+         {
+            if(tabs[i].id == id)
+            {
+               return i;
+            }
+            i++;
+         }
+         return -1;
+      }
+      
+      // Whether the chat offers a tab the game gave: every one. A match's chat (GameChat) leaves
+      // out what its mode has not.
+      protected function offers(tab:Object) : Boolean
+      {
+         return true;
+      }
+      
+      // The tabs offered, made again from the ones given: what offers() goes by has changed. The
+      // tab typed into stays while it is offered; otherwise the first one offered takes its place.
+      protected function offerTabs() : void
+      {
+         var group:Array = this._data.tabs[this._activeMode];
+         var active:Object = group && this._activeTab != -1 ? group[this._activeTab] : null;
+         var j:int = 0;
+         var i:int;
+         while(j < this._given.length)
+         {
+            if(this._given[j])
+            {
+               this._data.tabs[j] = new Array();
+               i = 0;
+               while(i < this._given[j].length)
+               {
+                  if(this.offers(this._given[j][i]))
+                  {
+                     this._data.tabs[j].push(this._given[j][i]);
+                  }
+                  i++;
+               }
+            }
+            j++;
+         }
+         group = this._data.tabs[this._activeMode];
+         _activeTab = group && active ? Math.max(0,group.indexOf(active)) : 0;
          this.invalidateChatData();
       }
       
@@ -459,8 +512,7 @@ package survarium.chat
       
       protected function styledChar(value:String, style:String) : String
       {
-         value = value.split("<").join("&lt;");
-         return "<" + style + ">" + value + "</" + style + ">";
+         return "<" + style + ">" + Util.escapeHtml(value) + "</" + style + ">";
       }
       
       protected function styled(value:String, style:String) : String

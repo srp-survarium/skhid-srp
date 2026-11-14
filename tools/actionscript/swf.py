@@ -1,8 +1,14 @@
-"""SWF containers and ABC blocks, as much as the movie build needs: tags, DoABC, SymbolClass, class names."""
+"""SWF containers and ABC blocks, as much as the movie build needs: tags, DoABC, SymbolClass, class names,
+and bitmaps from PNG and JPEG files."""
 import struct
 import zlib
 
 DO_ABC, DO_ABC_OLD, SYMBOL_CLASS, END = 82, 72, 76, 0
+DEFINE_BITS_LOSSLESS2 = 36
+DEFINE_BITS_JPEG2 = 21
+DEFINE_SPRITE, SHOW_FRAME, PLACE_OBJECT2 = 39, 1, 26
+# The tags that define a character, its id their first field.
+DEFINES = {2, 6, 7, 10, 11, 14, 20, 21, 22, 32, 33, 34, 35, 36, 37, 39, 46, 48, 60, 75, 83, 84, 87, 90, 91}
 
 
 def uncompressed(data):
@@ -80,6 +86,137 @@ def symbol_classes(tags):
             result.append((cid, body[pos + 2:end].decode('utf-8')))
             pos = end + 1
     return result
+
+
+def character_ids(tags):
+    """Every character id the movie's tags define."""
+    return {struct.unpack_from('<H', payload(raw))[0] for kind, raw in tags if kind in DEFINES}
+
+
+def tags_of(body):
+    """[(kind, raw tag bytes)] of a tag list (a DefineSprite's control tags), up to its End."""
+    pos, out = 0, []
+    while pos < len(body):
+        start = pos
+        word, = struct.unpack_from('<H', body, pos)
+        pos += 2
+        kind, size = word >> 6, word & 63
+        if size == 63:
+            size, = struct.unpack_from('<I', body, pos)
+            pos += 4
+        pos += size
+        if pos > len(body):
+            raise ValueError('Truncated sprite tag')
+        out.append((kind, body[start:pos]))
+        if kind == END:
+            break
+    return out
+
+
+def placed(raw):
+    """(depth, character id or None) of a PlaceObject2 tag."""
+    body = payload(raw)
+    flags, depth = body[0], struct.unpack_from('<H', body, 1)[0]
+    return depth, (struct.unpack_from('<H', body, 3)[0] if flags & 0x02 else None)
+
+
+def with_character(raw, cid):
+    """A PlaceObject2 tag that places `cid` (it must place a character already)."""
+    word, = struct.unpack_from('<H', raw)
+    at = (6 if word & 63 == 63 else 2) + 3
+    return raw[:at] + struct.pack('<H', cid) + raw[at + 2:]
+
+
+def symbol_class(bindings):
+    """A SymbolClass tag binding each (character id, class name)."""
+    body = struct.pack('<H', len(bindings))
+    for cid, name in bindings:
+        body += struct.pack('<H', cid) + name.encode('utf-8') + b'\0'
+    return tag(SYMBOL_CLASS, body)
+
+
+def png(data):
+    """(width, height, RGBA bytes) of an 8-bit RGBA or RGB, non-interlaced PNG."""
+    if data[:8] != b'\x89PNG\r\n\x1a\n':
+        raise ValueError('Not a PNG')
+    pos, header, idat = 8, None, b''
+    while pos < len(data):
+        size, kind = struct.unpack_from('>I4s', data, pos)
+        chunk = data[pos + 8:pos + 8 + size]
+        if zlib.crc32(data[pos + 4:pos + 8 + size]) != struct.unpack_from('>I', data, pos + 8 + size)[0]:
+            raise ValueError(f'PNG chunk {kind!r}: bad CRC')
+        pos += 12 + size
+        if kind == b'IHDR':
+            header = struct.unpack('>IIBBBBB', chunk)
+        elif kind == b'IDAT':
+            idat += chunk
+        elif kind == b'IEND':
+            break
+    if header is None:
+        raise ValueError('PNG without IHDR')
+    width, height, depth, colour, _, _, interlace = header
+    if depth != 8 or colour not in (2, 6) or interlace:
+        raise ValueError('Only 8-bit RGB or RGBA, non-interlaced PNG files are supported')
+    channels = 4 if colour == 6 else 3
+    stride = width * channels
+    raw = zlib.decompress(idat)
+    if len(raw) != height * (stride + 1):
+        raise ValueError('PNG data of the wrong size')
+    rows, previous = [], bytearray(stride)
+    for y in range(height):
+        kind, line = raw[y * (stride + 1)], bytearray(raw[y * (stride + 1) + 1:(y + 1) * (stride + 1)])
+        for x in range(stride):
+            left = line[x - channels] if x >= channels else 0
+            up = previous[x]
+            corner = previous[x - channels] if x >= channels else 0
+            if kind == 1:
+                line[x] = (line[x] + left) & 0xff
+            elif kind == 2:
+                line[x] = (line[x] + up) & 0xff
+            elif kind == 3:
+                line[x] = (line[x] + (left + up) // 2) & 0xff
+            elif kind == 4:
+                p = left + up - corner
+                pa, pb, pc = abs(p - left), abs(p - up), abs(p - corner)
+                line[x] = (line[x] + (left if pa <= pb and pa <= pc else up if pb <= pc else corner)) & 0xff
+            elif kind:
+                raise ValueError(f'PNG filter {kind}')
+        rows.append(bytes(line))
+        previous = line
+    pixels = b''.join(rows)
+    if channels == 3:
+        pixels = b''.join(pixels[i:i + 3] + b'\xff' for i in range(0, len(pixels), 3))
+    return width, height, pixels
+
+
+def bitmap(cid, width, height, rgba):
+    """A DefineBitsLossless2 tag (32-bit ARGB, premultiplied, as Flash keeps it) of RGBA pixels."""
+    argb = bytearray()
+    for i in range(0, len(rgba), 4):
+        r, g, b, a = rgba[i:i + 4]
+        argb += bytes((a, r * a // 255, g * a // 255, b * a // 255))
+    return tag(DEFINE_BITS_LOSSLESS2, struct.pack('<HBHH', cid, 5, width, height) + zlib.compress(bytes(argb), 9))
+
+
+def jpeg(cid, data):
+    """A DefineBitsJPEG2 tag (the JPEG whole, its tables in it) of a baseline JPEG file, and its
+    (width, height). The game's own renders are JPEG (DefineBits); a progressive one Flash does not
+    read."""
+    if data[:2] != b'\xff\xd8' or data[-2:] != b'\xff\xd9':
+        raise ValueError('not a JPEG file (SOI ... EOI)')
+    pos = 2
+    while pos + 4 <= len(data):
+        if data[pos] != 0xFF:
+            raise ValueError(f'a JPEG marker expected at {pos}')
+        marker = data[pos + 1]
+        length, = struct.unpack_from('>H', data, pos + 2)
+        if marker == 0xC0:
+            height, width = struct.unpack_from('>HH', data, pos + 5)
+            return tag(DEFINE_BITS_JPEG2, struct.pack('<H', cid) + data), (width, height)
+        if 0xC1 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
+            raise ValueError('a JPEG must be baseline (SOF0)')
+        pos += 2 + length
+    raise ValueError('no frame (SOF0) in the JPEG')
 
 
 class _Reader:

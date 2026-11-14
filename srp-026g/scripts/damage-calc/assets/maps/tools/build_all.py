@@ -50,7 +50,8 @@ PORTED = {
 # patch-22 hud.swf (Minimap _minimapProps / _levels by project_name): London
 # (patch 14) and the 0.11e ports (patch 22, modes 2 and 4 only). Their inputs
 # are extracted with extract_level.py --patch, their raw client_projects (as
-# the game overlays them) put in WORK_DIR/db like the stock ones.
+# the game overlays them) put in WORK_DIR/db like the stock ones. `project`:
+# the project the render is of, where the map has no day_2.
 PATCHED = {
     'level_09': dict(size=140, posX=0, posY=-5, bitmap='971_Map_09_Map_09.png', area='alpha:0.4', name='London', origin='London, patch 14',
                      name_key='st_level_09_name', modes=(2, 3, 4), map_ids={181: 2, 182: 3, 183: 4}),
@@ -60,6 +61,27 @@ PATCHED = {
     'v011e_level_04': dict(size=140, posX=23.302, posY=43.049, bitmap='984_minimap_zv11e.png', area='line', origin='0.11e port, patch 22',
                            name='Chemical Plant (v0.11)', name_key='st_level_12_name', modes=(2, 4),
                            map_ids={206: 2, 207: 4}),
+    # 0.69d's Rudnya (pack rudnya-069d, patch 40): project_name level_01, so the HUD
+    # draws native Rudnya's minimap in its frame; the layout is the same.
+    'v069d_level_01': dict(size=130, posX=12.558, posY=-25.774, bitmap='967_minimap_rudnya_minimap_rudnya.png',
+                           origin='0.69d port, pack rudnya-069d@3 (patch 40)', name='Rudnya (v0.69)',
+                           name_key='st_level_14_name', project_name='level_01', modes=(2, 3, 4),
+                           map_ids={216: 2, 217: 3, 204: 4}),
+    # The STALKER ports played in Free for All (pack stalker-maps@6, patch 57; docs/notes/stalker-ffa.md):
+    # their own minimaps and frames in hud.swf, by project_name. Rendered from Free for All's own
+    # project (day_8), the one played.
+    'v010b_cs_mp_bath': dict(size=73.143, posX=-7.02, posY=15.03, bitmap='1030_minimap_cs_mp_bath.png',
+                             origin='Clear Sky port, pack stalker-maps@6 (patch 57)', name='Experimental Pool',
+                             name_key='st_cs_mp_bath_name', project_name='cs_mp_bath', project='day_8', modes=(8,),
+                             map_ids={42: 8}),
+    'v010b_cs_mp_military_1': dict(size=141.527, posX=-5.845, posY=12.13, bitmap='1031_minimap_cs_mp_military_1.png',
+                                   origin='Clear Sky port, pack stalker-maps@6 (patch 57)', name='Military Warehouses',
+                                   name_key='st_cs_mp_military_1_name', project_name='cs_mp_military_1', project='day_8',
+                                   modes=(8,), map_ids={43: 8}),
+    'v010b_cs_training_camp': dict(size=79.709, posX=18.685, posY=6.53, bitmap='1033_minimap_cs_training_camp.png',
+                                   origin='Clear Sky port, pack stalker-maps@6 (patch 57)', name='Training Camp',
+                                   name_key='st_cs_training_camp_name', project_name='cs_training_camp', project='day_8',
+                                   modes=(8,), map_ids={44: 8}),
 }
 
 

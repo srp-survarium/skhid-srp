@@ -33,6 +33,8 @@
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream, UdpSocket};
 use std::path::{Path, PathBuf};
+
+use login_server::sealed::test_key;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -130,8 +132,7 @@ fn start_with(dir: &Path, bots: &[&str], change: impl FnOnce(&mut Options)) -> S
         SqliteGameRepository::open_in(dir).expect("the 0.26g tables"),
     ))
     .expect("the 0.26g accounts");
-    let certs = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../certs");
-    let mut options = Options::local(&certs);
+    let mut options = Options::local();
     // One map, so the scripted simulation knows its mode
     // (`SRP_MATCH_MAPS`).
     options.lobby.maps = vec![MAP];
@@ -146,7 +147,7 @@ fn start_with(dir: &Path, bots: &[&str], change: impl FnOnce(&mut Options)) -> S
 /// bot's sign-in, `srp::bot::sign_in`): the sign-in in the clear, the TLS
 /// handshake, the digest and the password.
 fn sign_in(login: SocketAddr, user_name: &str, password: &str) -> SignIn {
-    srp::bot::sign_in(login, user_name, password).expect("the login server")
+    srp::bot::sign_in(login, test_key().public(), user_name, password).expect("the login server")
 }
 
 /// The session and the lobby's address of a `08` reply.
@@ -192,8 +193,14 @@ impl Game {
     /// started.
     fn signed_in(stack: &Stack, name: &'static str, password: &str) -> Self {
         let revision = survarium::v026g::match_msgs::late_join::PATCH_REVISION;
-        let reply =
-            srp::bot::sign_in_with_revision(stack.login_addr, name, password, revision).unwrap();
+        let reply = srp::bot::sign_in_with_revision(
+            stack.login_addr,
+            test_key().public(),
+            name,
+            password,
+            revision,
+        )
+        .unwrap();
         let (session, lobby_addr) = accepted(&reply);
         assert_eq!(
             lobby_addr, stack.lobby_addr,
@@ -408,18 +415,15 @@ fn account_id(stack: &Stack, name: &str) -> u32 {
     stack.store.account_id_by_name(name).expect("an account")
 }
 
-/// `(silver, gold, experience)` of the account in the server's memory.
+/// `(silver, gold, experience)` of the account in the server's memory, as
+/// the client is told them: gold is always 0.
 fn held(stack: &Stack, name: &str) -> (u32, u32, u32) {
     let account = stack
         .accounts
         .get(account_id(stack, name))
         .expect("a 0.26g account");
     let account = account.locked();
-    (
-        account.generic_money,
-        account.premium_money,
-        account.exp_total,
-    )
+    (account.generic_money, 0, account.exp_total)
 }
 
 // ------------------------------------------------------------------ tests
@@ -447,8 +451,18 @@ fn two_new_players_sign_in_shop_play_a_match_and_are_paid() {
     for game in [&alice, &bob] {
         assert!(game.lobby.model.is_signed_in());
         assert_eq!(game.lobby.ids[0], 0x80, "{}", game.name);
-        // The starter: the three free weapons and their two kinds of ammo.
-        assert_eq!(game.lobby.model.inventory().len(), 5);
+        // The starter: the three free weapons, every ammo and the starter
+        // kit (`session::v026g::tutorial`), as the server holds it.
+        let owned = stack
+            .accounts
+            .get(account_id(&stack, game.name))
+            .expect("a 0.26g account")
+            .locked()
+            .inventory
+            .len();
+        let ammo = session::v026g::tutorial::starter_ammo(Dictionary::shared()).len();
+        assert!(owned > 3 + ammo, "{owned}");
+        assert_eq!(game.lobby.model.inventory().len(), owned);
         assert!(game.has(|message| matches!(
             message,
             Decoded::Account(own) if own.body.name == game.name && own.body.kits.len() == 3
@@ -459,14 +473,11 @@ fn two_new_players_sign_in_shop_play_a_match_and_are_paid() {
     let start_money = told(&alice);
     assert_eq!(start_money, held(&stack, "E2eAlice"));
     // A new account's start (there is no tutorial).
-    assert_eq!(
-        (start_money.0, start_money.1),
-        (
-            session::v026g::tutorial::SIGNUP_SILVER,
-            session::v026g::tutorial::SIGNUP_GOLD
-        )
-    );
-    assert_eq!(start_money.2, session::v026g::tutorial::experience());
+    assert_eq!((start_money.0, start_money.1), {
+        let grant = session::v026g::tutorial::new_account();
+        (grant.silver, 0)
+    });
+    assert_eq!(start_money.2, session::v026g::tutorial::start_experience());
 
     // ---- 3. Alice buys something the shop sells her now: `83 47 00`, the
     // inventory, the account and the money.
@@ -607,7 +618,7 @@ fn two_new_players_sign_in_shop_play_a_match_and_are_paid() {
         let options = client.model.options.as_ref().unwrap();
         // Not the lobby's match id: `registry::static_id`.
         assert_eq!(
-            (options.map_id, options.match_id),
+            (options.map.map().id, options.match_id),
             (MAP, static_id(match_id))
         );
         assert_eq!(options.players.len(), 2);
@@ -906,14 +917,7 @@ fn two_new_players_sign_in_shop_play_a_match_and_are_paid() {
     for (id, paid) in [(alice_id, alice_paid), (bob_id, bob_paid)] {
         let account = kept.get(id).expect("the account in the file");
         let account = account.locked();
-        assert_eq!(
-            (
-                account.generic_money,
-                account.premium_money,
-                account.exp_total
-            ),
-            paid
-        );
+        assert_eq!((account.generic_money, 0, account.exp_total), paid);
     }
     assert!(
         kept.get(alice_id)
@@ -1238,6 +1242,7 @@ impl BotRun {
             server: stack.login_addr.to_string(),
             name: name.to_owned(),
             password: "the-bots-password".to_owned(),
+            server_key: test_key().public(),
             once,
             kit: None,
             drive,
@@ -1625,7 +1630,7 @@ fn a_new_login_joins_a_running_match_through_the_lobby_and_receives_results() {
     );
     let syncs = [alice.of_match().model.syncs, bob.of_match().model.syncs];
     charlie.ask(request::play(1));
-    // Into the room first: the match 15 s later (`LATE_JOIN_WAIT`).
+    // Into the room first: the match 15 s later (`RoomRules::late_join_wait`).
     until(
         &mut [&mut alice, &mut bob, &mut charlie],
         SOON + Duration::from_secs(15),
@@ -1729,9 +1734,21 @@ fn a_player_against_the_servers_bots_plays_a_match_to_the_results() {
         reserved_rows(games[0], PVB_STATUS_START).is_some()
     });
     let rows = reserved_rows(&solo, PVB_STATUS_START).unwrap();
-    assert_eq!(rows[0].0, "B1;0;0;5;6.8.10;8;61;0;5");
-    assert_eq!(rows.len(), 17);
+    // The starter kits' highest level (`tutorial`; 7, the first's AK-74N):
+    // every level plays (15, the default).
+    let gear = {
+        let account = stack.accounts.get(account_id(&stack, "E2ePvb")).unwrap();
+        let account = account.locked();
+        let level = |kit| session::v026g::matchmaking::kit_level(&account, kit);
+        account.kits.iter().map(level).max().unwrap()
+    };
+    assert_eq!(gear, 7);
+    assert_eq!(rows[0].0, format!("B1;0;{gear};15;6.8.10;8;61;0;5"));
+    // The header, the owner's 16 maps (`pvb::MAPS`) and the free-for-all of
+    // each of their 8 levels by day.
+    assert_eq!(rows.len(), 1 + 16 + 8);
     assert!(rows.iter().any(|row| row.0 == "117;1;4;5"), "{rows:?}");
+    assert_eq!(rows.iter().filter(|row| row.0.ends_with(";8;5")).count(), 8, "{rows:?}");
 
     let start = pvb_choice_start(6, MAP);
     solo.ask(request::ranking(start, 1));

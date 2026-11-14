@@ -27,7 +27,12 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use survarium::dictionary::Dictionary;
 use survarium::v021d;
 
+mod afk;
 pub mod bans;
+mod identity;
+pub use identity::AdminRename;
+mod nickname_key;
+pub mod chat_mutes;
 pub mod limits;
 mod matchmaking;
 pub mod matchmaking_policy;
@@ -35,17 +40,37 @@ pub mod password;
 pub mod persist;
 mod reports;
 mod squads;
+pub mod utc;
 // The 0.26g account model, beside the 0.21d one (`resources/notes/v026g/`).
 pub mod v026g;
 pub use bans::{Ban, IpBan, Net};
 pub use matchmaking::{
     DEFAULT_GATHER_WINDOW, FormedMatch, Level, MAX_PLAYERS_PER_MATCH, Matchmaking, Player,
-    QueuePool, QueueState, STRENGTH_SCALE, Seat, fill_from_env, gather_window_from_env,
-    quiet_from_env,
+    QueuePool, QueueState, Seat, Strength, fill_from_env, gather_window_from_env, quiet_from_env,
 };
 use persist::{AccountRecord, AccountRepository, PersistError, StoredSession};
 pub use reports::{MatchReport, Reports};
 pub use squads::{MAX_SQUAD_MEMBERS, Squad, SquadError, Squads};
+
+/// The `on`/`off` setting `name` of the environment ([`switch_value`]).
+pub fn switch(name: &str, default: bool) -> bool {
+    switch_value(name, std::env::var(name).ok().as_deref(), default)
+}
+
+/// An `on`/`off` setting (`1`/`0`, `yes`/`no`, `true`/`false`, any case):
+/// unset or empty is `default`, anything else an error in the log and `default`.
+pub fn switch_value(name: &str, value: Option<&str>, default: bool) -> bool {
+    let value = value.map(|value| value.trim().to_ascii_lowercase());
+    match value.as_deref() {
+        None | Some("") => default,
+        Some("on" | "1" | "true" | "yes") => true,
+        Some("off" | "0" | "false" | "no") => false,
+        Some(other) => {
+            log::error!("{name} is `{other}`; it must be `on` or `off`. Using {default}");
+            default
+        }
+    }
+}
 
 /// Locking that survives a panic. The servers share this state across
 /// threads, and a thread that panics while holding a lock poisons it; with
@@ -128,14 +153,14 @@ pub struct Account {
     /// The argon2id hash of its password ([`password`]); `None` until a
     /// sign-in sets one.
     pub password_hash: Option<String>,
-    pub name: String,
+    name: String,
     /// Profiles, inventory, money and reputations, as 0.21d has them.
     pub game: v021d::account::Account,
 
     /// The accounts on its friend list, in the order they were added.
     pub friends: Vec<u32>,
-    /// The accounts whose chat lines its client hides.
-    pub ignored: Vec<u32>,
+    /// Per-account chat mute policies (hide completely or replace the body).
+    pub ignored: chat_mutes::ChatMutes,
     /// The profile the client last chose (`29 04`); squad mates see it.
     pub active_profile: Option<u32>,
     /// Its Play, while it waits: a squad queues once every member has one.
@@ -145,6 +170,11 @@ pub struct Account {
     pub notices: Vec<(u8, String)>,
     /// Whether, and how long, it may not sign in.
     pub ban: Option<Ban>,
+    /// Whether, and how long, the admin muted its chat: nobody gets its
+    /// lines (`docs/notes/admin-chat-mute.md`).
+    pub chat_ban: Option<Ban>,
+    /// Daily AFK removals; mutated only by `record_afk_kick`.
+    pub(crate) afk_kicks: Option<afk::DailyKicks>,
     /// Where it last signed in from: what banning its address bans.
     pub last_ip: Option<IpAddr>,
     /// When it last signed in (Unix seconds), since srp started: not kept,
@@ -211,6 +241,11 @@ pub const RESET_WRITE_WAIT: Duration = if cfg!(test) {
 };
 
 impl Account {
+    /// The display name. Changes go through the store's shared namespace.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
     /// A new account: one profile in the game's test loadout.
     pub fn new(id: u32, name: String) -> Self {
         Self {
@@ -220,11 +255,13 @@ impl Account {
             game: v021d::account::Account::new(&name, Dictionary::shared()),
             name,
             friends: Vec::new(),
-            ignored: Vec::new(),
+            ignored: chat_mutes::ChatMutes::default(),
             active_profile: None,
             play: None,
             notices: Vec::new(),
             ban: None,
+            chat_ban: None,
+            afk_kicks: None,
             last_ip: None,
             last_sign_in: None,
             password_epoch: 0,
@@ -234,6 +271,11 @@ impl Account {
     /// Its ban, if it holds at `now` (Unix seconds).
     pub fn ban_at(&self, now: u64) -> Option<&Ban> {
         self.ban.as_ref().filter(|ban| ban.holds(now))
+    }
+
+    /// Its chat ban, if it holds at `now` (Unix seconds).
+    pub fn chat_ban_at(&self, now: u64) -> Option<&Ban> {
+        self.chat_ban.as_ref().filter(|ban| ban.holds(now))
     }
 }
 
@@ -350,13 +392,14 @@ pub type BannedAccount = (u32, String, String, Ban, Option<IpAddr>);
 /// Maps sign-ins to shared accounts. Cheap to clone behind an `Arc`.
 ///
 /// Lock order: `sessions` is never held while the matchmaking is asked;
-/// `logins` before `accounts`. No account lock is held while another is
+/// `logins` serializes registration, renaming and name snapshots; it comes
+/// before the saver writer and `accounts`. No account lock is held while another is
 /// taken, and none while a password is hashed or an account written. The
 /// saver's writer comes before `sessions`, which is never held while a
 /// session is written; the saver's sets of sessions are taken alone.
 pub struct SessionStore {
     accounts: Mutex<HashMap<u32, Arc<Mutex<Account>>>>,
-    /// Account ids by [`persist::login_key`].
+    /// Account ids by [`persist::login_key`]; also the name-transaction lock.
     logins: Mutex<HashMap<String, u32>>,
     next_account_id: AtomicU32,
     failures: Mutex<HashMap<String, Failures>>,
@@ -456,6 +499,9 @@ impl SessionStore {
         mut repository: Box<dyn AccountRepository>,
     ) -> Result<Self, PersistError> {
         let loaded = repository.load_all()?;
+        identity::unique_names(
+            loaded.accounts.iter().map(|record| (record.id, record.name.as_str())),
+        )?;
         let stored_sessions = repository.load_sessions()?;
         log::info!(
             "Loaded {} accounts from {}",
@@ -779,6 +825,7 @@ impl SessionStore {
     /// Resolve the account for a client, creating a default one, with no
     /// password, if there is none. The account is found by its user name
     /// ([`persist::login_key`]); an empty one falls back to the address.
+    #[cfg(any(test, feature = "test-support"))]
     pub fn get_or_create_account(&self, ip: IpAddr, user_name: &str) -> u32 {
         let key = persist::login_key(ip, user_name);
         self.find_or_create(&key, user_name.trim(), None).0
@@ -790,7 +837,10 @@ impl SessionStore {
     /// not taken for the password it was made with). Ids are
     /// handed out in order. Other players see the display name, so a user
     /// name with an `@` shows only its part before it; with nothing there,
-    /// the name falls back to a unique value derived from the id.
+    /// the name falls back to a value derived from the id. A name that is
+    /// another account's gets the id after it
+    /// ([`Self::sign_up_name_locked`]), under the lock every claim of a name
+    /// holds.
     fn find_or_create(
         &self,
         key: &str,
@@ -808,6 +858,7 @@ impl SessionStore {
         } else {
             v021d::account::cap(shown)
         };
+        let name = self.sign_up_name_locked(&logins, name, account_id);
         let mut account = Account::new(account_id, name);
         account.login = key.to_owned();
         account.password_hash = password_hash;
@@ -870,12 +921,13 @@ impl SessionStore {
         let Some(persistence) = &self.persistence else {
             return 0;
         };
+        let names = self.logins.locked();
         let mut writer = persistence.writer.locked();
         let mut dirty: Vec<u32> = std::mem::take(&mut *persistence.dirty.locked())
             .into_iter()
             .collect();
         dirty.sort_unstable();
-        let mut written = 0;
+        let mut records = Vec::new();
         for account_id in dirty {
             let Some(account) = self.account(account_id) else {
                 continue;
@@ -884,17 +936,28 @@ impl SessionStore {
             if writer.saved.get(&account_id) == Some(&record) {
                 continue;
             }
-            match writer.repository.save_account(&record) {
-                Ok(()) => {
-                    writer.saved.insert(account_id, record);
-                    written += 1;
-                }
-                Err(error) => {
-                    log::error!("Account {account_id} not saved: {error}; retrying");
-                    persistence.dirty.locked().insert(account_id);
-                }
-            }
+            records.push(record);
         }
+        // A coherent namespace snapshot: a rename cannot move a name
+        // between accounts halfway through this batch. No account is locked
+        // during I/O. The next rename is marked for the following pass.
+        drop(names);
+        let written = if records.is_empty() {
+            0
+        } else if let Err(error) = writer.repository.save_accounts(&records) {
+            log::error!("Accounts not saved: {error}; retrying");
+            persistence
+                .dirty
+                .locked()
+                .extend(records.iter().map(|record| record.id));
+            0
+        } else {
+            let written = records.len();
+            writer
+                .saved
+                .extend(records.into_iter().map(|record| (record.id, record)));
+            written
+        };
         // After the accounts: a session's row needs its account's.
         let sessions = self.save_sessions(persistence, &mut writer, now);
         if sessions > 0 {
@@ -1099,18 +1162,23 @@ impl SessionStore {
 
     /// The session of a sign-in, with the patch revision it advertised
     /// (kept across restarts), unless the admin reset the password it was
-    /// checked against since: then `None`, and nothing is left of it. The
+    /// checked against since, or the account is now banned: then `None`,
+    /// and nothing is left of it. The
     /// epoch is checked once the session is in: a reset moves the epoch on
     /// before it ends the account's sessions, so either the reset ends this
-    /// one or this sees the new epoch.
+    /// one or this sees the new epoch. Bans use the same ordering: set the
+    /// ban before ending sessions, and recheck it after insertion.
     pub fn create_signed_in_session(
         &self,
         signed_in: SignedIn,
         client_revision: u8,
     ) -> Option<u32> {
         self.new_session(signed_in.account_id, client_revision, || {
-            self.account(signed_in.account_id)
-                .is_some_and(|account| account.locked().password_epoch == signed_in.password_epoch)
+            self.account(signed_in.account_id).is_some_and(|account| {
+                let account = account.locked();
+                account.password_epoch == signed_in.password_epoch
+                    && account.ban_at(unix_now()).is_none()
+            })
         })
     }
 
@@ -1581,6 +1649,55 @@ impl SessionStore {
         had
     }
 
+    /// Mute an account's chat (`docs/notes/admin-chat-mute.md`), replacing
+    /// a mute it had: its next line reaches nobody. `false` for an unknown
+    /// account.
+    pub fn mute_chat(&self, account_id: u32, ban: Ban) -> bool {
+        let Some(account) = self.account(account_id) else {
+            return false;
+        };
+        account.locked().chat_ban = Some(ban);
+        self.mark_dirty(account_id);
+        self.flush();
+        true
+    }
+
+    /// Lift an account's chat mute. `false` if none held.
+    pub fn unmute_chat(&self, account_id: u32) -> bool {
+        let Some(account) = self.account(account_id) else {
+            return false;
+        };
+        let Some(ban) = account.locked().chat_ban.take() else {
+            return false;
+        };
+        self.mark_dirty(account_id);
+        self.flush();
+        ban.holds(unix_now())
+    }
+
+    /// The chat mute of an account, if one holds now: its lines reach
+    /// nobody, and it is told [`Ban::chat_notice`].
+    pub fn chat_ban(&self, account_id: u32) -> Option<Ban> {
+        let account = self.account(account_id)?;
+        account.locked().chat_ban_at(unix_now()).cloned()
+    }
+
+    /// The chat mutes in force: (id, user name, shown name, mute), by id.
+    pub fn chat_bans(&self) -> Vec<(u32, String, String, Ban)> {
+        let now = unix_now();
+        let accounts: Vec<_> = self.accounts.locked().values().cloned().collect();
+        let mut muted: Vec<_> = accounts
+            .iter()
+            .filter_map(|account| {
+                let account = account.locked();
+                let ban = account.chat_ban_at(now)?.clone();
+                Some((account.id, account.login.clone(), account.name.clone(), ban))
+            })
+            .collect();
+        muted.sort_by_key(|row| row.0);
+        muted
+    }
+
     /// Ban an address or a range: nobody signs in or registers from it, and
     /// the sessions of the accounts last signed in from it end now. Returns
     /// how many sessions ended.
@@ -1838,6 +1955,13 @@ mod tests {
 
     fn ip(a: u8, b: u8, c: u8, d: u8) -> IpAddr {
         IpAddr::V4(Ipv4Addr::new(a, b, c, d))
+    }
+
+    #[test]
+    fn a_switch_takes_on_and_off_and_keeps_its_default_otherwise() {
+        assert!(switch_value("X", None, true) && switch_value("X", Some(" ON "), false));
+        assert!(!switch_value("X", Some("off"), true) && switch_value("X", Some("maybe"), true));
+        assert!(!switch_value("X", Some(""), false));
     }
 
     #[test]
@@ -2408,15 +2532,15 @@ mod tests {
     }
 
     #[test]
-    fn the_admin_finds_an_account_by_user_name_or_by_a_shown_name_only_one_has() {
+    fn the_admin_finds_an_account_by_user_name_or_its_unique_shown_name() {
         let store = SessionStore::new();
         let a = store.sign_in("Alpha@one.test", b"pw").unwrap();
+        // Its shown name is its own (`alpha_2`): `alpha` stays one account's.
         store.sign_in("alpha@two.test", b"pw").unwrap();
         let b = store.sign_in("bravo@x.test", b"pw").unwrap();
         assert_eq!(store.find_account("ALPHA@one.test"), Some(a));
         assert_eq!(store.find_account("Bravo"), Some(b));
-        // Two accounts show "alpha": the user name is needed.
-        assert_eq!(store.find_account("alpha"), None);
+        assert_eq!(store.find_account("alpha"), Some(a));
         assert_eq!(store.find_account("nobody"), None);
     }
 
@@ -2672,11 +2796,7 @@ mod tests {
     fn a_game_gone_without_a_word_leaves_its_squad_and_the_queue() {
         let store = SessionStore::new();
         let ((a, sa), (b, sb)) = squad_of_two(&store);
-        let c = store.get_or_create_account(ip(127, 0, 0, 1), "charlie");
-        let sc = store.create_session(c);
-        store.squads().invite_accepted(a, c);
-        store.squads().add(a, c).unwrap();
-        let players: Vec<Player> = [(sa, a), (sb, b), (sc, c)]
+        let players: Vec<Player> = [(sa, a), (sb, b)]
             .into_iter()
             .map(|(session_id, account_id)| Player {
                 session_id,
@@ -2685,15 +2805,14 @@ mod tests {
             })
             .collect();
         store.matchmaking().queue(&players, true, Instant::now());
-        // Bravo and Charlie play on; Alpha's game is closed.
+        // Bravo plays on; Alpha's game is closed.
         let _b = store.hold(sb).unwrap();
-        let _c = store.hold(sc).unwrap();
         let soon = Instant::now() + GONE_AFTER / 2;
         assert!(store.drop_gone_players(soon).is_empty());
         let later = Instant::now() + GONE_AFTER + Duration::from_secs(1);
         assert_eq!(store.drop_gone_players(later), [sa]);
-        assert_eq!(store.squads().of(b).unwrap().members, [b, c]);
-        assert_eq!(store.squads().of(b).unwrap().commander(), b);
+        // A squad of one is none.
+        assert_eq!(store.squads().of(b), None);
         // The squad is out of the queue with it.
         assert_eq!(store.matchmaking().poll(sb, later), None);
         // Once.

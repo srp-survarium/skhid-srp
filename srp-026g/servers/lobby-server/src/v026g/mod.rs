@@ -1,5 +1,5 @@
 //! The 0.26g lobby (`resources/notes/v026g/lobby.md`, `lobby_requests.md`,
-//! `social.md`; `PLAN-026G.md` steps 3 and 8), beside the 0.21d one.
+//! `social.md`), beside the 0.21d one.
 //!
 //! What 0.26g changed: the lobby is one UDP link on the match transport
 //! (`udp-transport`, `Table::Lobby`), whose connect payload is the sign-in
@@ -54,11 +54,9 @@
 //! - `SRP_BIND_HOST` / `SRP_LOBBY_BIND`, `SRP_LOBBY_PORT` (default 1235),
 //!   `SRP_PUBLIC_HOST` / `SRP_LOBBY_PUBLIC_HOST`, `SRP_LOCAL_PEERS`: the
 //!   address (`vostok::config`), the one the 0.26g login server announces;
-//! - `SRP_BALANCE_PLAYER` (default 12), `SRP_BALANCE_PLAYER_LEVEL` (1.5),
-//!   `SRP_BALANCE_RATING` (4), `SRP_BALANCE_TRUST_MATCHES` (5): what a
-//!   player, a level of its account and a point of its balance rating
-//!   count for when the sides are made, in gear levels, and the matches
-//!   after which the rating counts for half (`session::v026g::balance`);
+//! - `SRP_BALANCE_PLAYER_KD` (default 1): what a player counts for by
+//!   being there when the sides are made, in K/Ds, beside its K/D
+//!   (`session::v026g::balance`, `docs/notes/kd-balance.md`);
 //! - `SRP_BALANCE_RATED_PLAYERS` (default 4): the fewest players a match
 //!   must have had in it to move the balance rating (read where a match
 //!   is settled: `session::v026g::balance::rated_players`);
@@ -66,9 +64,6 @@
 //!   (0.2): in a match being played, what a battery and a ticket of lead
 //!   count for, in players (a late joiner goes to the side that counts for
 //!   less: `rooms`);
-//! - `SRP_SQUADS` (default on), `SRP_SQUADS_OFF_TEXT`: with `off` nobody
-//!   is invited to a squad, and the one who tries is told so in a message
-//!   box (`social.rs`);
 //! - `SRP_MIN_PATCH_REVISION` (default none; not a number from 0 to 255,
 //!   or one under the newest patch of the game data, stops srp
 //!   (`check_min_patch_revision`)): a game older than that patch revision
@@ -92,11 +87,12 @@
 //!   (0: it ends with the link);
 //! - `SRP_PACKET_LOG=<dir>`: the transport's raw datagram log (the sign-in's
 //!   session id is left out of it);
-//! - `SRP_PVB` (default off), `SRP_PVB_MAX_GEAR` (5), `SRP_PVB_MAX_MATCHES`
-//!   (5), `SRP_PVB_PAY` (0.5), `SRP_PVB_STALL_S` (60): "Player vs Bots"
-//!   (`pvb`, whose module says what each does and which server reads it).
-//! - `SRP_ROOMS_MAX` (50), `SRP_ROOMS_EXTRA_MAPS` (none): rooms, the
-//!   players' "servers" (`rooms`, whose module says what each does).
+//! - `SRP_PVB` (default off), `SRP_PVB_MAX_MATCHES` (5), `SRP_PVB_PAY` (0.5),
+//!   `SRP_PVB_STALL_S` (60): "Player vs Bots" (`pvb`, whose module says what
+//!   each does and which server reads it).
+//! - `SRP_ROOMS_EXTRA_MAPS` (none): rooms, the players' "servers" (`rooms`,
+//!   whose module says what each does). Their numbers are game data:
+//!   `gameplay/srp/rooms.options` (`RoomRules`).
 
 mod away;
 mod clans;
@@ -143,7 +139,7 @@ pub use patch_check::{check_min_patch_revision, min_patch_revision_from_env};
 pub use play::{LiveView, MatchHost, MatchPlayer, MatchSetup, MatchTicket, match_profile};
 
 /// The modes played when `SRP_MATCH_MODES` is unset: all the client has.
-const DEFAULT_MODES: [u8; maps::mode::ALL.len()] = maps::mode::ALL;
+const DEFAULT_MODES: [maps::GameMode; maps::GameMode::ALL.len()] = maps::GameMode::ALL;
 /// A silent client keeps its link this long: what the store calls a game
 /// that is gone (`session::GONE_AFTER`). The client itself gives up after
 /// 5 s without a datagram (0x26F0ED).
@@ -197,15 +193,10 @@ pub struct Settings {
     /// What a player counts for when the sides of a match are made
     /// (`SRP_BALANCE_*`; `session::v026g::balance`).
     pub balance: Weights,
-    /// Whether players may form squads (`SRP_SQUADS`, default on).
-    pub squads: bool,
-    /// What the message box of a refused squad invite says: a text key of
-    /// the game, or a sentence (`SRP_SQUADS_OFF_TEXT`).
-    pub squads_off_text: String,
-    /// "Player vs Bots" (`SRP_PVB`, `SRP_PVB_MAX_GEAR`,
-    /// `SRP_PVB_MAX_MATCHES`; `pvb`).
+    /// "Player vs Bots" (`SRP_PVB`, `SRP_PVB_MAX_MATCHES`, `RoomRules::pvb`;
+    /// `pvb`).
     pub pvb: pvb::Config,
-    /// Rooms (`SRP_ROOMS_MAX`, `SRP_ROOMS_EXTRA_MAPS`; `rooms`).
+    /// Rooms (`RoomRules::rooms_most`, `SRP_ROOMS_EXTRA_MAPS`; `rooms`).
     pub rooms: rooms::Config,
 }
 
@@ -217,7 +208,8 @@ impl Settings {
         let modes = match var("SRP_MATCH_MODES") {
             Some(value) => parse_modes(&value).unwrap_or_else(|| {
                 log::error!(
-                    "SRP_MATCH_MODES is `{value}`; it must list modes of 2 to 5. Using 2,3,4,5"
+                    "SRP_MATCH_MODES is `{value}`; it must list modes of 2 to 8 (6 Blackout, 8 free for all). Using \
+                     2,3,4,5,6"
                 );
                 DEFAULT_MODES.to_vec()
             }),
@@ -285,20 +277,14 @@ impl Settings {
         };
         let defaults = Weights::default();
         let balance = Weights {
-            player: weight("SRP_BALANCE_PLAYER", defaults.player),
-            player_level: weight("SRP_BALANCE_PLAYER_LEVEL", defaults.player_level),
-            rating: weight("SRP_BALANCE_RATING", defaults.rating),
-            trust_matches: weight("SRP_BALANCE_TRUST_MATCHES", defaults.trust_matches),
+            player: weight("SRP_BALANCE_PLAYER_KD", defaults.player),
             battery_lead: weight("SRP_BALANCE_BATTERY_LEAD", defaults.battery_lead),
             ticket_lead: weight("SRP_BALANCE_TICKET_LEAD", defaults.ticket_lead),
         };
         log::info!(
-            "The sides of a match: a player counts for {} gear levels, a level of its account \
-             for {}, a point of its balance rating for {} (for half after {} matches)",
-            balance.player,
-            balance.player_level,
-            balance.rating,
-            balance.trust_matches
+            "The sides of a match: each player counts for its K/D at the match's equipment \
+             level, and {} K/D for being there",
+            balance.player
         );
         log::info!(
             "The balance rating: a match moves it when {} players or more were in it for half \
@@ -310,31 +296,10 @@ impl Settings {
             balance.battery_lead,
             balance.ticket_lead
         );
-        let squads = match var("SRP_SQUADS") {
-            Some(value) => match value.trim().to_ascii_lowercase().as_str() {
-                "on" | "1" | "true" | "yes" => true,
-                "off" | "0" | "false" | "no" => false,
-                _ => {
-                    log::error!("SRP_SQUADS is `{value}`; it must be on or off. Using on");
-                    true
-                }
-            },
-            None => true,
-        };
-        // A text the client reads into 256 bytes (`lobby::limits::TEXT`).
-        let squads_off_text = var("SRP_SQUADS_OFF_TEXT")
-            .map(|text| text.trim().to_owned())
-            .filter(|text| !text.is_empty() && text.len() <= 255)
-            .unwrap_or_else(|| DEFAULT_SQUADS_OFF_TEXT.to_owned());
-        if !squads {
-            log::info!("Squads are off: an invite is refused with `{squads_off_text}`");
-        }
         Self {
             pvb: pvb::Config::from_env(),
             rooms: rooms::Config::from_env(),
             balance,
-            squads,
-            squads_off_text,
             min_patch_revision,
             bind: config.bind_addr(),
             public_host: config.public_host.clone(),
@@ -361,18 +326,11 @@ impl Settings {
             maps: map_pool(&DEFAULT_MODES, &[]),
             min_patch_revision: 0,
             balance: Weights::default(),
-            squads: true,
-            squads_off_text: DEFAULT_SQUADS_OFF_TEXT.to_owned(),
             pvb: pvb::Config::default(),
             rooms: rooms::Config::default(),
         }
     }
 }
-
-/// What a refused squad invite says (`SRP_SQUADS_OFF_TEXT`). The game has
-/// no text of its own for it (`social.md` §9.2), and its client shows a
-/// text that is no key of its as it is (`lobby_requests.md` §4.2).
-pub const DEFAULT_SQUADS_OFF_TEXT: &str = "Squads are switched off on this server.";
 
 /// A `SRP_BALANCE_*` number: 0 to 1000.
 fn parse_weight(value: &str) -> Option<f64> {
@@ -383,15 +341,16 @@ fn parse_weight(value: &str) -> Option<f64> {
         .filter(|weight| weight.is_finite() && (0.0..=1000.0).contains(weight))
 }
 
-/// `SRP_MATCH_MODES`: modes of 2 to 5, at least one.
-fn parse_modes(value: &str) -> Option<Vec<u8>> {
-    let modes: Option<Vec<u8>> = value
+/// `SRP_MATCH_MODES`: modes by their lobby numbers, 2 to 8 (6 Blackout, 8 free for all;
+/// `maps::GameMode::lobby_number`), at least one.
+fn parse_modes(value: &str) -> Option<Vec<maps::GameMode>> {
+    let modes: Option<Vec<maps::GameMode>> = value
         .split(',')
         .map(|mode| {
             mode.trim()
                 .parse::<u8>()
                 .ok()
-                .filter(|mode| maps::mode::ALL.contains(mode))
+                .and_then(maps::GameMode::of_lobby_number)
         })
         .collect();
     modes.filter(|modes| !modes.is_empty())
@@ -408,7 +367,7 @@ fn parse_maps(value: &str) -> Option<Vec<u8>> {
 
 /// The playable ids of `modes`; with `only` not empty, those of them it
 /// names.
-fn map_pool(modes: &[u8], only: &[u8]) -> Vec<u8> {
+fn map_pool(modes: &[maps::GameMode], only: &[u8]) -> Vec<u8> {
     maps::playable()
         .filter(|map| modes.contains(&map.mode))
         .filter(|map| only.is_empty() || only.contains(&map.id))
@@ -444,6 +403,12 @@ pub(crate) enum Notice {
     /// To every client in the lobby now.
     Broadcast {
         messages: Vec<ServerMessage>,
+    },
+    /// [`Inbox::idle_removed`].
+    IdleRemoved {
+        match_id: u32,
+        account_id: u32,
+        name: String,
     },
 }
 
@@ -484,6 +449,18 @@ impl Inbox {
         self.notices
             .locked()
             .push(Notice::AccountChanged { account_id });
+    }
+
+    /// The match server removed the player of `account_id` (`name` in the
+    /// match) from its match `match_id` (the id the clients were told) for
+    /// being idle (anti-AFK): the match's chat and the general chat say so,
+    /// once.
+    pub fn idle_removed(&self, match_id: u32, account_id: u32, name: &str) {
+        self.notices.locked().push(Notice::IdleRemoved {
+            match_id,
+            account_id,
+            name: name.to_owned(),
+        });
     }
 
     /// Send messages to every client in the lobby now, in order. A client

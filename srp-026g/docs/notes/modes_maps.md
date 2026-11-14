@@ -45,6 +45,7 @@ PROVEN from `projects/*` and `gameplay/game_modes/*.options` (`match_making_para
 | 7 | level_07 | Vector Laboratory | same | **new** |
 | 8 | level_08 | Cologne | day/evening/prerain × _2 _3 _4 | **new** |
 | 9 | level_09 | London (skhid's `resources.db.patch_14`, ids 181 to 183) | day × _2 _3 _4 | — |
+| 14 | v069d_level_01 | Rudnya (v0.69) (skhid's pack `rudnya-069d`, ids 204 and 216-218, `rudnya-069d.md`) | day × _2 _3 _4 _5 | — |
 | 88 | test/tt5, test/tdm_test, test/artefact_testlevel | test maps | **no `projects/test/*` in the db** | — |
 
 - `lobby_scene/day` still exists (client only). PROVEN.
@@ -259,7 +260,7 @@ is played as soon as the server runs on data with it.
   is the 72 ids of §3; with London 75 (181, 182, 183); with the Research
   pack 25 more (mode 5; a mode-5 id also needs its `resources_count`).
 - **From the project** (`server_objects` of `client_project`, which the server
-  data keeps of every project: `resources_db::server::server_objects_of`):
+  data keeps of every project: `resources_db::server::objects_of`):
   `MapMode::respawn_points`, every entry of `respawn_points` (§2's table, the
   number of pairs the respawn rule writes, snapshot_rules.md §2.3), and in
   modes 2 and 3 `MapMode::container_teams`, `victory_items_containers[..].team`

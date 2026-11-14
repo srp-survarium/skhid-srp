@@ -1,5 +1,6 @@
 package survarium.ammo
 {
+   import survarium.constants.ProfileSlot;
    import flash.display.Sprite;
    import flash.events.Event;
    import scaleform.clik.interfaces.IDataProvider;
@@ -18,8 +19,6 @@ package survarium.ammo
    
    public class AmmoShareControll extends Sprite implements IAmmoControll
    {
-      
-      protected static var _itemsAutoBuy:Array = [];
       
       protected var _targetAmmo:Array = new Array();
       
@@ -86,19 +85,8 @@ package survarium.ammo
       
       public function openSlots(slotsN:int, slotsA:int) : void
       {
-         _slotsN = slotsN;
+         _slotsN = ProfileSlot.pocketCount(slotsN);
          slotsA = slotsA;
-      }
-      
-      public function fillItems(value:Array) : void
-      {
-         _itemsAutoBuy = value;
-         var pp:ILocalPlayerProfile = this.parent.parent as ILocalPlayerProfile;
-         var _ammoShare:AmmoShareLite = pp.get_ammo_share() as AmmoShareLite;
-         if((_ammoShare.parent))
-         {
-            this.update();
-         }
       }
       
       public function reflow(event:Event = null, caller:String = "null", ind:int = AmmoView.USE_PAPERDOLL_SELECTION) : void
@@ -281,7 +269,6 @@ package survarium.ammo
             var count:int;
             var _icon:Icon;
             var clips:Number;
-            var auto_buy:Boolean;
             var itemData:ItemData;
             var j:int;
             var ammo_data:ItemData;
@@ -377,16 +364,7 @@ package survarium.ammo
                   }
                   else if((inv.quickSlotItemSize))
                   {
-                     clips = 1 / inv.quickSlotItemSize;
-                  }
-                  auto_buy = false;
-                  for(j = 0; j < _itemsAutoBuy.length; j++)
-                  {
-                     auto_buy = _itemsAutoBuy[j] == inv.itemId;
-                     if(auto_buy)
-                     {
-                        break;
-                     }
+                     clips = PlayerInfo.pocketUnits(inv.category,inv.quickSlotItemSize);
                   }
                   itemData = new ItemData();
                   itemData.name = inv.name;
@@ -400,7 +378,6 @@ package survarium.ammo
                   itemData.clipSize = inv.clipSize;
                   itemData.weight = inv.weight;
                   itemData.cost = inv.cost;
-                  itemData.premiumCost = inv.premiumCost;
                   itemData.lockText = inv.lockText;
                   itemData.unlockLevelLabel = inv.unlockLevelLabel;
                   itemData.canBuy = inv.canBuy;
@@ -412,7 +389,7 @@ package survarium.ammo
                   itemData.icon = _icon;
                   itemData.dragIcon = _icon;
                   itemData.weaponTarget = Math.min(i + 1,3);
-                  trace("control_add_ammo:",inv.name,"ll::",inv.unlockLevelLabel,inv.itemId,itemData.canBuy,"st:",slot_target,"count:",count,inv.value,"compare:",isQuickslot,inv.dictId,slot_target,itemData.weaponTarget,"cl:",itemData.clipsInBag,itemData.count,itemData.premiumCost,auto_buy);
+                  trace("control_add_ammo:",inv.name,"ll::",inv.unlockLevelLabel,inv.itemId,itemData.canBuy,"st:",slot_target,"count:",count,inv.value,"compare:",isQuickslot,inv.dictId,slot_target,itemData.weaponTarget,"cl:",itemData.clipsInBag,itemData.count);
                   this._compassionItems.push(itemData);
                   return;
                }

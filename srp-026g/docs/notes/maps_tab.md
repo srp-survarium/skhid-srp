@@ -1,6 +1,7 @@
-# Maps tab (`/maps`)
+# Maps (`/wiki/maps`)
 
-The 0.26g site's tab "Maps" / "Мапи". Built by `srp-026g/scripts/maps-tab/` (its README),
+The 0.26g wiki's section "Maps" / "Мапи" (until 2026-10-29 the site's tab `/maps`, which now sends
+to it with a `301`). Built by `srp-026g/scripts/maps-tab/` (its README),
 served by `servers/web-server/src/maps.rs`.
 
 ## Owner's rules
@@ -14,15 +15,21 @@ served by `servers/web-server/src/maps.rs`.
   - artefact spawns.
 - Research (mode 5) shows its three units, A to C, where its config puts them (`parameters.capture_zones`), as the
   HUD draws one nobody owns (a white letter on grey; its icon is drawn in code, not one of `_icons`).
+- Free for All (mode 8; the owner, 2026-11-13: "add to the wiki new mode with its spawns and a map") is a mode of
+  every map that has it, and the maps played in it alone (the STALKER ports) are on the page with that one mode.
+  It shows the spawns its players get: the team-2 points of its own project (`ffa.md`), never the two teams' points
+  that project keeps. One kind of spawn: one swatch, no team in the tooltip. Yellow is not the owner's pick: the
+  grey of a point of no team did not read on the minimaps.
 - The markers are the game's own HUD minimap icons (hud.swf `Minimap._icons`), painted in one blue and one red alike
   (players, containers, ammo stashes: no discs). The battery is the game's electrobox drawn flat (the game has no
   flat icon of it). Artefacts are their lobby icons alone, no circle.
-- The site's header: the calculator's look (paper, ink rule, PT Sans Narrow), separators between Home | Calculator |
-  Maps, the page shown in the accent colour (Home too). The calculator's tab is "Calculator"; its page says
+- The site's header: the calculator's look (paper, ink rule, PT Sans Narrow), separators between Home | Wiki,
+  the page shown in the accent colour (Home too). The calculator and the maps are sections of the wiki (the owner,
+  2026-10-29): listed on its index, each page under a "Wiki / <page>" line; the calculator's page says
   "Damage calculator".
 - Containers and stashes stand where their collision zone is, never at the object's pivot.
 - Each kind is toggled on its own; one toggle per artefact.
-- The map underneath is either the top-down render ("From above") or the game's minimap. Nothing else.
+- The map underneath is the game's minimap, or the top-down render ("From above") on the player's pick. Nothing else.
 - Data-driven, per release, never stale:
   - everything is read from the released patches;
   - a live release rebuilds it from the patches it offers (`release/build-site`), never on a "don't forget"

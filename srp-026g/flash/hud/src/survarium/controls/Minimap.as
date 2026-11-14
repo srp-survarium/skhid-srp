@@ -3,13 +3,19 @@ package survarium.controls
    import flash.display.Bitmap;
    import flash.display.BitmapData;
    import flash.display.MovieClip;
+   import flash.events.Event;
    import flash.geom.Point;
    import flash.geom.Rectangle;
    import flash.utils.Dictionary;
    import scaleform.clik.layout.LayoutData;
    
+   // Whether a minimap shows is its owner's (the HUD: the setting's position, and the map): a
+   // Minimap never sets its own visible. It says whether it has a map (hasMap) and dispatches
+   // MAP_LOADED when setProps loads one.
    public class Minimap extends MovieClip
    {
+      
+      public static const MAP_LOADED:String = "minimapMapLoaded";
       
       public var minimap:MovieClip;
       
@@ -73,7 +79,13 @@ package survarium.controls
          "level_08":new Map_08(),
          "level_09":new Map_09(),
          "v011e_level_04":new minimap_zv11e(),
-         "v011e_level_03":new minimap_bv11()
+         "v011e_level_03":new minimap_bv11(),
+         "cs_mp_bath":new minimap_cs_mp_bath(),
+         "cs_mp_military_1":new minimap_cs_mp_military_1(),
+         "cs_training_camp":new minimap_cs_training_camp(),
+         "cs_mp_rembasa":new minimap_cs_mp_rembasa(),
+         "soc_ug_station":new minimap_soc_ug_station(),
+         "soc_ug_depository":new minimap_soc_ug_depository()
       };
       
       protected var _objects:Dictionary = new Dictionary(true);
@@ -103,11 +115,22 @@ package survarium.controls
       protected var _exeObjects:Object = [];
       
       public static const RESEARCH_ID:int = 0x7000;
+
+      // The players' names by place (setPlayerNames: the Tab list's rows, id the place, which is an
+      // icon's player_id) and whether they show over the icons (namesShown: the Tab map while Alt is
+      // held, the exe's patch 82). The corner minimap is never told: no names.
+      protected var _names:Object = {};
+
+      protected var _namesShown:Boolean = false;
+
+      // A map not shown (the Tab map while its list is closed) is held: it draws no update, it keeps
+      // the last players' (setPlayersData) and the local player's (updatePlayerPos) and draws them
+      // when it shows again. Null while the map follows every update.
+      private var _held:HeldUpdates = null;
       
       public function Minimap()
       {
          super();
-         visible = false;
          mouseChildren = false;
          mouseEnabled = false;
          this.minimap.map_ground.addChild(this._mapBitmap);
@@ -146,6 +169,39 @@ package survarium.controls
             "size":100,
             "posX":14.23,
             "posY":-42.196
+         };
+         // The STALKER maps (srp-026g/scripts/stalker-maps/ui_images.py; the frame of
+         // resource-porter's render_minimap.py, docs/notes/stalker-maps.md).
+         this._minimapProps.cs_mp_bath = {
+            "size":73.143,
+            "posX":-7.02,
+            "posY":15.03
+         };
+         this._minimapProps.cs_mp_military_1 = {
+            "size":141.527,
+            "posX":-5.845,
+            "posY":12.13
+         };
+         // Framed on the crater wall + 15 m (render_minimap.py --frame-outline training-arena.tsv).
+         this._minimapProps.cs_training_camp = {
+            "size":79.709,
+            "posX":18.685,
+            "posY":6.53
+         };
+         this._minimapProps.cs_mp_rembasa = {
+            "size":89.164,
+            "posX":2.285,
+            "posY":-7.7
+         };
+         this._minimapProps.soc_ug_station = {
+            "size":139.055,
+            "posX":170.25,
+            "posY":-53.8
+         };
+         this._minimapProps.soc_ug_depository = {
+            "size":73.143,
+            "posX":30.285,
+            "posY":6.97
          };
          this._minimapProps.level_05 = {
             "size":90,
@@ -188,7 +244,100 @@ package survarium.controls
       
       public function setPlayersData(value:Object) : void
       {
+         if(this._held)
+         {
+            this._held.players = value;
+            return;
+         }
          this.setData(value);
+      }
+
+      public function get held() : Boolean
+      {
+         return this._held != null;
+      }
+
+      // Held, updates wait (the last of each kind); released, the last ones are drawn at once, the
+      // local player's first (the players' icons are told apart against its team), as if it had
+      // followed them.
+      public function set held(value:Boolean) : void
+      {
+         if(value == this.held)
+         {
+            return;
+         }
+         if(value)
+         {
+            _held = new HeldUpdates();
+            return;
+         }
+         var updates:HeldUpdates = this._held;
+         _held = null;
+         if(updates.local)
+         {
+            this.updatePlayerPos(updates.local[0],updates.local[1],updates.local[2],updates.local[3]);
+         }
+         if(updates.players)
+         {
+            this.setData(updates.players);
+         }
+      }
+
+      // The Tab list's rows ({id, name}, root.list_set_players): a name for each place listed.
+      public function setPlayerNames(rows:Array) : void
+      {
+         this._names = {};
+         for each(var row:Object in rows)
+         {
+            this._names[row.id] = row.name;
+         }
+         this.showNames();
+      }
+
+      public function get namesShown() : Boolean
+      {
+         return this._namesShown;
+      }
+
+      public function set namesShown(value:Boolean) : void
+      {
+         if(this._namesShown == value)
+         {
+            return;
+         }
+         _namesShown = value;
+         this.showNames();
+      }
+
+      // The name a player's icon shows: its place's while the names are shown, never the local
+      // player's own, none for a place the list has no row for.
+      private function shownName(player:Object) : String
+      {
+         if(!this._namesShown || Boolean(player.is_local_player))
+         {
+            return null;
+         }
+         var name:* = this._names[player.player_id];
+         return name is String && name != "" ? name : null;
+      }
+
+      // Each player icon of the last update shows the name it should (an icon keeps its label and
+      // changes it only when the name does).
+      private function showNames() : void
+      {
+         var icon:MinimapObjectPlayer;
+         if(!this._data)
+         {
+            return;
+         }
+         for each(var player:Object in this._data)
+         {
+            icon = this._objects[player.player_id] as MinimapObjectPlayer;
+            if(icon)
+            {
+               icon.showName(this.shownName(player));
+            }
+         }
       }
       
       // Research's units (HUD.research_update): [{cp_id, pos_x, pos_y, owner,
@@ -254,6 +403,10 @@ package survarium.controls
       public function clear_minimap() : void
       {
          var _inst:MinimapObject = null;
+         if(this._held)
+         {
+            _held = new HeldUpdates();
+         }
          this._objects = new Dictionary(true);
          this._objects_static = new Dictionary(true);
          this._researchUnits = [];
@@ -274,10 +427,12 @@ package survarium.controls
          }
       }
       
+      // A player's icon follows the data of every update: the local team
+      // (update_local_player) can come after the other players, as for a game
+      // that joined late, whose allies are in the world before it spawns.
       private function setData(value:Object) : void
       {
          var _obj:Object = null;
-         var _inst:MinimapObjectPlayer = null;
          var tp:String = null;
          this._data = value;
          var l:uint = uint(this._data.length);
@@ -286,36 +441,11 @@ package survarium.controls
          while(i < l)
          {
             _obj = this._data[i];
-            _inst = this._objects[_obj.player_id];
-            if(_obj.is_carrying_item == undefined)
+            tp = this.playerIcon(_obj);
+            if(!(this._objects[_obj.player_id] is (this._icons[tp] as Class)))
             {
-               _obj.is_carrying_item = false;
-            }
-            if(Boolean(_inst) && _obj.is_carrying_item != _inst.isCarryingItem)
-            {
-               trace("clearObject::",_obj.player_id,i,_obj.is_carrying_item,_inst.isCarryingItem);
-               this.clear_object(_obj.player_id);
-            }
-            if(!this._objects[_obj.player_id])
-            {
-               if(_obj.team == this._my_team && Boolean(_obj.is_local_player))
-               {
-                  tp = "player_local";
-               }
-               else if(_obj.team == this._my_team && Boolean(_obj.is_carrying_item))
-               {
-                  tp = _obj.is_squad_player == true ? "player_carry_squad" : "player_carry";
-               }
-               else if(_obj.is_squad_player == true)
-               {
-                  tp = "player_squad";
-               }
-               else
-               {
-                  tp = _obj.team == this._my_team ? "player_blue" : "player_red";
-               }
                trace("register::",_obj.player_id,tp,_obj.team,this._my_team,_obj.type);
-               this.registerObject(_obj.player_id,tp,_obj.player_pos_x,_obj.player_pos_y,this._objects,_obj.type,_obj.is_carrying_item);
+               this.registerObject(_obj.player_id,tp,_obj.player_pos_x,_obj.player_pos_y,this._objects,_obj.type);
             }
             else
             {
@@ -325,26 +455,30 @@ package survarium.controls
             i++;
          }
          this.clear_objects(this._objects);
+         if(this._namesShown)
+         {
+            this.showNames();
+         }
          this.update_objects();
       }
-      
-      private function clear_object(target:int) : void
+
+      // The icon of a player of update_players, against the local team now.
+      private function playerIcon(player:Object) : String
       {
-         var _inst:MinimapObject = null;
-         if(Boolean(this._objects[target]))
+         var ally:Boolean = player.team == this._my_team;
+         if(ally && Boolean(player.is_local_player))
          {
-            _inst = this._objects[target];
-            delete this._objects[target];
-            this._renderers.splice(this._renderers.indexOf(_inst),1);
-            if(_inst is MinimapObjectBasix)
-            {
-               this.minimap.removeChild(_inst);
-            }
-            else
-            {
-               this.minimap._players.removeChild(_inst);
-            }
+            return "player_local";
          }
+         if(ally && Boolean(player.is_carrying_item))
+         {
+            return player.is_squad_player == true ? "player_carry_squad" : "player_carry";
+         }
+         if(player.is_squad_player == true)
+         {
+            return "player_squad";
+         }
+         return ally ? "player_blue" : "player_red";
       }
       
       private function clear_objects(target:Dictionary) : void
@@ -465,7 +599,6 @@ package survarium.controls
       {
          var _obj:Object = null;
          var max_map_size:int = 0;
-         visible = true;
          trace("*************setProps::",value.map);
          if(!this._minimapProps[value.map])
          {
@@ -503,6 +636,13 @@ package survarium.controls
          }
          this._mapVisibleRectangle = _mapb.getColorBoundsRect(16777215,0,false);
          this._mapBitmap.bitmapData = _mapb;
+         dispatchEvent(new Event(MAP_LOADED));
+      }
+      
+      // No map until the first setProps (a match's map), the last one loaded after that.
+      public function get hasMap() : Boolean
+      {
+         return this._mapBitmap.bitmapData != null;
       }
       
       public function getMapSize() : Point
@@ -530,6 +670,11 @@ package survarium.controls
       
       public function updatePlayerPos(posX:Number, posY:Number, rot:Number, team:uint = 23) : void
       {
+         if(this._held)
+         {
+            this._held.local = [posX,posY,rot,team];
+            return;
+         }
          this._my_team = team;
          if(this._centerPlayer)
          {
@@ -656,7 +801,7 @@ package survarium.controls
          }
       }
       
-      protected function registerObject(_id:int, type_nm:String, posX:Number, posY:Number, target:Dictionary, playerClass:int = -1, carry_item:Boolean = false) : void
+      protected function registerObject(_id:int, type_nm:String, posX:Number, posY:Number, target:Dictionary, playerClass:int = -1) : void
       {
          var pos:int = 0;
          var _objects:Dictionary = target;
@@ -695,7 +840,6 @@ package survarium.controls
          if(_inst is MinimapObjectPlayer)
          {
             (_inst as MinimapObjectPlayer).type = playerClass;
-            (_inst as MinimapObjectPlayer).isCarryingItem = carry_item;
          }
          if(_inst is MinimapObjectBasix)
          {
@@ -709,3 +853,11 @@ package survarium.controls
    }
 }
 
+// What a held Minimap keeps: the last players' update (setPlayersData) and the local player's
+// (updatePlayerPos: x, y, rotation, team), each null until one comes.
+class HeldUpdates
+{
+   public var players:Object = null;
+
+   public var local:Array = null;
+}

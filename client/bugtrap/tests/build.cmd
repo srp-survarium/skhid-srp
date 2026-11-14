@@ -16,4 +16,6 @@ cl /nologo /MT /D_WIN32_WINNT=0x0600 /Feui_probe.exe "%~dp0ui_probe.cpp" /link u
 if errorlevel 1 exit /b 1
 cl /nologo /MT /D_WIN32_WINNT=0x0600 /Felogs_probe.exe "%~dp0logs_probe.cpp" /link advapi32.lib
 if errorlevel 1 exit /b 1
+cl /nologo /MT /O2 /D_WIN32_WINNT=0x0600 /Fereport_probe.exe "%~dp0report_probe.cpp" /link advapi32.lib
+if errorlevel 1 exit /b 1
 popd

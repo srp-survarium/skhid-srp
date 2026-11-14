@@ -1,5 +1,39 @@
 # 0.26g: premium, the shop's offers, daily bonus, tutorial, nickname, autobuy
 
+> **Since 2026-11-09 there is no premium account** (the owner: "let's do the same with premium" as
+> with repair, "it should be on by default", "no premium state anywhere should exist", "essentially
+> we should just increase numbers premium does"). The rules:
+>
+> - **Pay**: what premium added, half again of a match's three rows (silver, experience,
+>   reputation), is in srp's rates for every account: `pay::MONEY_RATES` 150..220 % -> 225..330 %,
+>   `SRP_EXPERIENCE_RATE` default 2 -> 3, `SRP_REPUTATION_RATE` default 120 -> 180. The live server
+>   sets none of the three (checked 2026-11-09). The daily bonus and the premium items' bonus are
+>   counted from the rows, so they grow with them; the quests' reputation shares the reputation rate
+>   and grows too (premium never paid it). A match against bots pays its share of the new rows.
+> - **No state**: the account has no premium time (`Account::premium_until` is gone; the
+>   `g26_accounts.premium_until` column stays in the schema unused, dropped with the gold column);
+>   a new account gets no premium days (`new-account.tsv`); the admin page has no premium hours.
+> - **Nothing sells or offers it**: the shop's records (0x95) are the seven item bundles only (the
+>   premium-time bundles 1..7 are no record); `47 02` of a premium time is refused
+>   (`st_cannot_buy_item`); `A8` / `A9` are never sent and `47 05` / `47 06` are not read;
+>   `SRP_PREMIUM_PRICES`, `SRP_PREMIUM_DISCOUNT` and `SRP_PREMIUM_OFFER_SECONDS` are gone.
+> - **The wire**: `94` lists no service; every kit goes out as state 0 (never 2); the results
+>   screen's premium bonus block goes out empty and its premium drop part is 0.
+> - **The lobby movie** shows no premium anywhere: no premium button, timer, offer or discount
+>   window, no premium row or "activate premium" button on the results screen (whose totals are the
+>   rows, the daily and the items blocks), no premium-only kit; the HUD's pregame "premium players"
+>   box is gone.
+> - **Kept**: premium items (golden weapons, premium armour, decals, the bundles and their
+>   bonuses) are items and stay.
+> - Release: no compensation; an account with premium time left loses nothing it was paid (every
+>   account is now paid as premium was). Replays are not affected (pay is not the simulation).
+>
+> The rest of this note is the client's reading as it was found.
+
+> **Since 2026-11-08 there is no gold** ([silver-only.md](silver-only.md)): every gold price and
+> amount below is paid or given in silver at 100 silver a gold, the shop's records carry money type 0,
+> and the exchange is gone. What follows is the client's reading as it was found.
+
 Version scope: client **0.26g build 2777**. Read from the exe (VAs of that build), the decompiled `lobby_menu.swf` (class names given) and the game's data, 2026-10-12. Nothing here was tried against a running client. Tags: **PROVEN** (read at the place named), **LIKELY**, **GUESS**, **[srp]** = srp's own choice where the client does not say.
 
 Code: `crates/survarium/src/v026g/{shop_offers,awards}.rs`, `crates/session/src/v026g/{premium,bonus,tutorial,names,autobuy,notices,extras}.rs`, `servers/lobby-server/src/v026g/shop.rs`.
@@ -31,7 +65,7 @@ Record 0xD0 bytes, reader of the UI 0x227F60. PROVEN:
 
 **Premium items one by one** [srp]: a 0x95 record cannot be a single item, so every premium item with a price that no bundle holds (vouchers, premium camouflages and decals, the AK-74N) is in the price list 0x8A under seller 0 at its gold `base_cost`; `47 00` for one takes gold. The lobby's shop list takes any category from 0x8A and its buy dialog pays gold for a premium item (`MessageAsk`: `_money_type = isPremium`). PROVEN for the window.
 
-**Not sold: the Russian and Belarusian flags and coats of arms, the flag of the USSR and the red star** (the owner's decision, 2026-10-18; `prices.rs` `NOT_SOLD`):
+**Not sold: the Russian and Belarusian flags and coats of arms, the flag of the USSR and the red star** (the owner's decision, 2026-10-18; `scripts/content-edit/shop.tsv` `not_sold`):
 - `decals_4_1` (dict 266) Flag of USSR, `decals_4_2` (267) Flag of Russia, `decals_4_4` (269) Flag of Belarus, `decals_5_1` (282) Red star, `decals_5_2` (283) Coat of arms of Russia, `decals_5_4` (285) Coat of arms of Belarus: premium decals, 300 gold each until then.
 - In no price record (0x8A), silver or gold; a `47 00` for one is refused (`st_cannot_buy_item`).
 - The Russian and Belarusian ones: found by name in all six localizations of stock 0.26g with patches 12..=20 and checked against their icons; nothing else names Russia or Belarus. The two Soviet ones: the owner's word. The coat of arms of Lithuania (`decals_5_7`, the Vytis) stays on sale, the owner's word too.
@@ -40,7 +74,7 @@ Record 0xD0 bytes, reader of the UI 0x227F60. PROVEN:
 
 **The third kit is not premium's in srp** (the owner's choice, 2026-10-17): every account uses all three kits, premium or not, and no kit is sent with the client's premium state 2 (`Account::kit_usable`; lobby.md §2.5). The client locks a kit only by that state (`ProfileSelector.setupProfiles`, `LobbyMenu.onProfileContextMenu`: the buy-premium box opens for a state-2 tab), not by the account's premium. The original game's third kit was premium's (PN 0.26g, `progression_sources.md`). Premium's other benefits are unchanged. OPEN: the client's premium windows (`MessagePremium`, `MessagePremiumDiscount`) still list `st_premium_bonus_profile` ("Профиль экипировки", an equipment profile) among premium's bonuses; that text is the game's localization in `resources.db`, which a server change does not reach.
 
-**Gold has no real-money source in srp**: level rewards, a new account's 500 (`no-tutorial.md`), the daily bonus (50 a week), drops, the operator's web page.
+**Gold has no real-money source in srp**: level rewards, a new account's 150 (`no-tutorial.md`), the daily bonus (50 a week), drops, the operator's web page.
 
 ## 2. Buying: requests and answers
 
@@ -50,28 +84,35 @@ Record 0xD0 bytes, reader of the UI 0x227F60. PROVEN:
 | `47 02 <id> <match> 0.0` | `accept_premium_victory_screen(id, matchId)`: the results screen's button | the same, then the match's premium half (`rewards::Results::claim_premium`): `89 87 8B 8C 8E` and notices |
 | `47 05 <id> <f32 discount> <money> <exp> <rep> <u8 faction>` | `accept_premium_with_bonuses` (`MessagePostPremium`), the answer to `A8` | `83 47 05`, then as above. The amounts are the client's echo; the server gives its own |
 | `47 06 <id> <f32 discount>` | `accept_premium_with_discount` (`MessagePremiumDiscount`), the answer to `A9`; closing the window sends id −1, discount −1 | `83 47 02` and the pushes; nothing for −1 |
-| `46 04 <item>` | `item_use`: sent only for a voucher of type 3 (`usable = category == 27 && (type == 3 \|\| type == 0)`; type 0, the rename voucher, opens the rename window instead) | `83 46 04 <item>` (the client takes one off its copy), `94`, `89`, `87`, `8B` |
+| `46 04 <item>` | `item_use`: sent only for a voucher of type 3 (`usable = category == 27 && (type == 3 \|\| type == 0)`; type 0, the rename voucher, opens the rename window instead). [srp] Not read since the vouchers but the drop card are gone (silver-only.md): refused | (was `83 46 04 <item>`: the client takes one off its copy) |
 
 - `83 47 02` and `83 47 04` read nothing; `83 47 05` shows the lobby's "premium activated" notice with the three amounts of the last `A8` (`LobbyMenu.add_important_message`, its type 7). After none of them does the client ask for anything, so `94` is pushed.
 - **`A8`** (0x274FF8 → 0x28A400, PROVEN; corrects social.md §5): `u32 premium seconds` (÷ 3600 → `hours`, which the window does not use), `u32 money`, `u32 experience`, `u32 reputation`, `u32 time left` (seconds, counted down on the premium button), `f32 discount`. The client lists every kind-0 record at `floor(price * (1 - discount) + 0.5)` (`root.set_premium_discount_store`) and opens `root.show_premium_post_reward(money, exp, rep, hours, timeLeft, discount, faction)`. The window preselects the fourth entry.
 - **`A9`** (0x274FBA → 0x28AB20): `f32 discount`; the same list, and `value_old = floor(value / (1 - discount))` in the lobby: a discount of 1 divides by zero.
 - When the original server sent `A8` / `A9` is not known. **[srp]**: only when the operator sets `SRP_PREMIUM_DISCOUNT` (percent, 0..90, default 0): `A9` after the sign-in of an account without premium, `A8` with the results of a match whose premium half was not paid, standing for `SRP_PREMIUM_OFFER_SECONDS` (3600).
-- The one-day voucher's time is its config's `ttl_in_hours: 24`.
+- The one-day voucher's time was its config's `ttl_in_hours: 24` (the voucher is gone, silver-only.md).
 
-## 3. The two boxes: autobuy and auto-repair (corrects lobby.md §2.7, lobby_requests.md `49 01`)
+## 3. Autobuy: always on, no setting (corrects lobby.md §2.7, lobby_requests.md `49 01`)
 
-`49 01 <u8>` carries `LocalPlayerProfile.getAutoBuyState()`: **0 neither, 1 autobuy, 2 auto-repair, 3 both** (PROVEN in the UI). The same number is the "autobuy flag" byte of `87` and the byte of `83 49 01`: the client hands it to `root.set_autobuy` as a number (0x227760) and `LobbyMenu.set_autobuy` ticks autobuy for 1 and 3, auto-repair for 2 and 3. A wire `FF` would untick both.
+The owner, 2026-11-10: "internally autobuy is always on". The stock kit window had two boxes, and `49 01 <u8>` carried their state: **0 neither, 1 autobuy, 2 auto-repair, 3 both** (PROVEN in the stock UI). The same number is the byte after the active kit in `87` and the byte of `83 49 01`, which the client stores (lc+0x1EA974) and hands to `root.set_autobuy` (0x227760); nothing else in the exe reads it (its only references are the two stores, 0x2702CB and 0x275CC7).
 
-- **The auto-repair box is gone from the Character panel** (the owner's, 2026-10-23: wear is gone, so it did nothing). Its code is out of the movie; the original movie's graphics still place it, so `LocalPlayerProfile.init` hides it and moves Autobuy into its place (the row's start, no gap). The movie now sends 0 or 1 only; an account whose auto-repair was on is still pushed 3, which ticks Autobuy as before, and its next Autobuy change clears the server's `auto_repair`. The server keeps the bit (with `SRP_ITEM_WEAR=on` it still repairs).
-- **Autobuy is on by default** (the owner's, 2026-10-23): a new account starts with it ticked (`Account::with_loadout`). The server keeps only the box's state, not whether the player ever touched it, so the accounts of before were all turned on once, at the first start of an srp with the rule (`GameAccounts::turn_autobuy_on_once`, the `g26_meta` mark `autobuy_turned_on`, written after the accounts; a mark, not a schema step, so an older srp still opens the database after a rollback) [choice: an account that had turned it off gets it on again once; the box shows it, and a box turned off from then on stays off]. Unticking it sends `49 01 00` and is saved as ever.
-
-What a match used: `session::v026g::autobuy` (the player's block of the last trusted snapshot when the match server read it, held to what the counters and the kit allow; else the bullets counter for a kit with one kind of ammo). Autobuy buys back in whole clips while the silver lasts; auto-repair repairs what the match wore by the lobby's silver repair. The three lists that end `89` carry what was spent.
+- **Auto-repair is gone** (the owner, 2026-10-23: wear is gone; no repair at all since 2026-11-08). The results screen's "Repair cost" row stays hidden.
+- **Autobuy has no box and no setting**; it works for every account.
+  - **After a match** (`session::v026g::autobuy`): what the match used is taken off the stacks (the player's block of the last trusted snapshot when the match server read it, held to what the counters and the kit allow; else the bullets counter for a kit with one kind of ammo; `SRP_AMMO_USE=off` takes nothing) and bought back in whole steps of the shop (a clip of ammo, one of anything else) at the shop's price, from the silver the account has then, the match's pay included.
+  - **Too little silver:** it buys the whole steps the silver pays for, item by item in the order they were used, and the rest stays used up (the stack shrinks; a stack at 0 leaves the stash and its slot). With no silver nothing is bought. No debt, no notice beyond the results screen's rows.
+  - **What the account may not buy** (an item of a seller whose level it lacks) is not bought.
+  - **For nothing:** a stack the game prices at nothing (the starting pistol's ammo) is refilled without silver.
+  - **The results screen** lists the silver spent ("Spent", "Ammunition", "Special equipment"), from the three lists that end `89` (the third, repairs, always empty); its money total is net of them.
+- **The lobby:** the box is gone from the character panel. The original movie's graphics still place it and the auto-repair box, so `LocalPlayerProfile.init` hides both (their fields stay for the placed instances); the Regeneration box has their place ([regeneration-box.md](regeneration-box.md)). `LobbyMenu.set_autobuy` stays as the exe's call and does nothing. The ammo window no longer sets `auto_buy` on its moves and `fill_auto_buy_items` is out: the exe has neither string, so it never read the one or called the other, and ticked or not the lobby behaved the same but for the box.
+- **The exe** is unchanged; `autobuy_changed` (0x288CD0, the sender of `49 01`) has no caller in the movie now, so the request is never sent.
+- **The server:** `87` carries 1 (autobuy on, no repair), as it did for an account with the box ticked. No `49 01` (`ClientMessage::SetAutobuy` is out; such a request would be logged as unread, as any unknown one) and no `83 49 01`. `Account::autobuy` is out.
+- **Stored data:** the column `g26_accounts.autobuy` stays in the schema with what each account had; it is neither read nor updated, and a new account's row gets 0 (as `premium_money`, `g26_extras.auto_repair`). An account that had unticked the box is bought for again.
 
 ## 4. The daily bonus (`99`, adds to results.md §4.1)
 
-The game's own texts: "Play everyday and get x2 experience and reputation for the first three victories", "On 7th day you will get" the reward, "Complete". The window shows 7 days with a progress of 3 each; a day before the current one is shown done (`LobbyMenu.show_daily_reward_window`); the status bar shows the current day's progress. PROVEN. The reward comes from the data's `daily_bonus_drop` table (always 50 gold).
+The game's own texts: "Play everyday and get x2 experience and reputation for the first three victories", "On 7th day you will get" the reward, "Complete". The window shows 7 days with a progress of 3 each; a day before the current one is shown done (`LobbyMenu.show_daily_reward_window`); the status bar shows the current day's progress. PROVEN. The reward came from the data's `daily_bonus_drop` table (always 50 gold); [srp, the owner's of 2026-11-08] there is none now: `99` carries silver x 0, the run of days and the doubled victories stay (silver-only.md, `session::v026g::bonus`).
 
-[srp]: a day is a UTC day; the run grows by one on the first day after the last day the account was seen (sign-in or a finished match), a missed day or the day after the seventh starts a new run; the reward is rolled at the run's start and given when the run reaches day 7; a victory counts when the team won and the player stayed; the first three of a day pay the match's experience and reputation once more (the results screen's "daily" block, bytes 100 = "+100%"). `99` goes out at every sign-in (its window opened once a day), after a match's results, and for `43 00`.
+[srp]: a day is a UTC day; the run grows by one on the first day after the last day the account was seen (sign-in or a finished match), a missed day or the day after the seventh starts a new run; the run is complete with the seventh day's third victory (no reward); a victory counts when the team won and the player stayed; the first three of a day pay the match's experience and reputation once more (the results screen's "daily" block, bytes 100 = "+100%"). `99` goes out at every sign-in (its window opened once a day), after a match's results, and for `43 00`.
 
 ## 5. The tutorial (`9D`, corrects lobby.md §2.21)
 
@@ -81,7 +122,7 @@ The game's own texts: "Play everyday and get x2 experience and reputation for th
 
 The awards are the game's `gameplay/awards/unique_awards.options` (PROVEN data; answers data.md question 8: `type` is the lobby's `Reward` constant, 0 experience, 1 reputation, 2 money; for money `param` 0 silver, 1 gold, LIKELY): `tutorial_completed` 1000 silver + 250 experience (step 1), `survival_item_notes_completed` 25 gold (step 2), `survival_prepare_to_battle_notes_completed` 25 gold (step 3), `game_world_tutorial_completed` 50 gold (step 4), `tutorial_change_name` nothing. That the server paid them for these steps is LIKELY.
 
-[srp] **No tutorial since 2026-10-19 (the owner's):** it took a new player through Play into a match, and with rooms nobody is sent into a match they did not choose. Every `9D` has `a` = 0x3F, every step done (`session::v026g::tutorial::ALL_DONE`): `a & 0x22` puts the lobby in `default_state`, bit 4 skips the match's own tutorial, bits 2 and 3 hide the notes' rewards; `b` = 1. The sign-in's has `show` on, the ranking's recounts off. A step a client sends anyway (`4B`, `46 0A`) is not answered. **A new account starts with** (at its first sign-in, before its client hears of it: no window) 10 000 silver and 500 gold, the steps' 250 experience (read from the awards file), and 1000 rounds each of 7.62x25 (the TT-33's and PPSh-41's) and 7.62x54R (the Mosin's) on its starting stacks; its quests are the Scavengers' (the tutorial ended in `state_choose_faction`; never neutral). A player counts as new for the first match's drop table while it has no more experience than that. The video link (`9E`) stays hidden. §5.1 and §5.2 are what the tutorial was, kept as knowledge of the client.
+[srp] **No tutorial since 2026-10-19 (the owner's):** it took a new player through Play into a match, and with rooms nobody is sent into a match they did not choose. Every `9D` has `a` = 0x3F, every step done (`session::v026g::tutorial::ALL_DONE`): `a & 0x22` puts the lobby in `default_state`, bit 4 skips the match's own tutorial, bits 2 and 3 hide the notes' rewards; `b` = 1. The sign-in's has `show` on, the ranking's recounts off. A step a client sends anyway (`4B`, `46 0A`) is not answered. **A new account starts with** (at its first sign-in, before its client hears of it: no window) 15 000 silver, 150 gold, a month (30 days) of premium, the steps' 250 experience (read from the awards file), 1000 rounds of every ammo, the Scavengers at level 5 and three worn starter kits (`no-tutorial.md`); its quests are the Scavengers' (the tutorial ended in `state_choose_faction`; never neutral). A player counts as new for the first match's drop table while it has no more experience than that. The video link (`9E`) stays hidden. §5.1 and §5.2 are what the tutorial was, kept as knowledge of the client.
 
 ### 5.1 The lobby tutorial's states, and the one step the server has a part in (2026-10-12)
 
@@ -105,12 +146,8 @@ The tutorial is a state machine in the exe (state objects 0x2A4240..0x2A5320; ea
 
 **Why no weapon could be dragged (PROVEN).** `inventory_content_filled` is in the handler table but **nothing in the lobby SWF calls it**: the exe raises it itself at the end of `setup_inventory_data` (0x288520 @0x2886F5), which runs when an `89` is read (0x274C45 -> 0x21D720, case 0x89 -> 0x21D822). The callback 0x283470 then calls `root.highlight_inventory_items([0x6A, 0x6B])` (0x22A840): the PPSh-41 (dict 106) and the Mosin carbine (dict 107), found by dict id (`InventoryList.filterItems`, `getItemRenderer`), filtered into the list and raised above the sheet. **So after `46 0A` the client waits for an `89`.** srp answered `49 02` with `83` and `46 0A` with nothing (packet log of the session: `49 02` + `46 0A` in, `83` out, then only keep-alives until `4B 02`): the two weapons stayed under the sheet, with every other handler off. The items themselves were right (dict 106 and 107 owned, not locked: `InventoryItem.handleDragEnabling` needs only `descriptor` != 200 / 300, `repairTime` 0).
 
-**[srp] `46 0A` is answered with the inventory, the account and the money (`89`, `87`, `8B`)**; an account still in the tutorial that lacks one of the two weapons gets it first (the highlight needs both: `highlight_element(null)` for a missing one is a script error, LIKELY ending the call). What the original server did at `46 0A` is not in the client; LIKELY it handed the two weapons over there (the twin state "no check" hints that `46 0A` is a check or a grant). srp's new account owns them from the start. The strict model has the rule: `survarium::v026g::lobby::tutorial_model` (held by `client_model::Client`): nothing can be dragged in `choose_wpn` until an `89` with both weapons came.
-
-**Not seen live yet, read from the exe only:**
-- The tutorial's text says "drag ... into the empty weapon slot" and the slot it highlights is weapon slot 1 (slot 7). **srp's starter kit has the TT-33 there** (`loadouts::STARTER`), weapon slot 2 is the empty one and stays under the sheet. Dropping on slot 7 replaces the pistol (`rules::move_items` takes it). LIKELY the original new account had the TT-33 in weapon slot 2 (slot 10) and slot 7 empty; srp's kit was not changed (owner's decision: it is also what the match and autobuy were tested with).
-- `relocate_item` (0x288D60) adds the ammo moves itself when a weapon is put on (0x289DD0..0x28A1E6: the first owned stacks that pair with the kit's weapons, `count = bags / required_bags x clip_size`, into slots 8 and 9). `choose_ammo` then reads the stack of **slot 8 without a check** (0x2A4AA2: index 0xFFFF for an empty slot, read 0xB4 x 0xFFFF past the item table): if slot 8 were empty there the client would LIKELY crash. With srp's kit slot 8 holds the 7.62x25 before the step, and a Mosin's own ammo is owned.
-- The `46 00` of `choose_ammo` asks for 1000 rounds in all; srp tops the free starting ammo up to that for nothing (`rules::move_items`, `top_up`).
+**Read from the exe only:**
+- `relocate_item` (0x288D60) adds the ammo moves itself when a weapon is put on (0x289DD0..0x28A1E6: the first owned stacks that pair with the kit's weapons, `count = bags / required_bags x clip_size`, into slots 8 and 9). `choose_ammo` then reads the stack of **slot 8 without a check** (0x2A4AA2: index 0xFFFF for an empty slot, read 0xB4 x 0xFFFF past the item table): if slot 8 were empty there the client would LIKELY crash.
 
 ### 5.2 "Skip tutorial" (`skip_tutorial` 0x28CCB0 -> 0x281660)
 
@@ -120,7 +157,7 @@ PROVEN: the state becomes `state_choose_faction` when the account has no quest f
 
 `49 03 <name>` → `83 49 03 <name> <ok> [reason]`. `49 04 <name> <u32>`: the u32 is the rename voucher's item id, or 0 to pay gold (`MessageEnterName`: `radioButtonPremium.selected ? 0 : voucherId`; PROVEN). The gold price is 0x8D's fourth value. Answer `83 49 04 <voucher or 0>`, then `8F` with the new name.
 
-[srp]: an account signs in with its login and is shown by its name; a rename changes the name only. A new name must pass the name rules, be shown by no other account and be no other account's login. Price `SRP_RENAME_COST`, default the voucher's 250 gold. (Two accounts registered as `a@x` and `a@y` are both shown as `a`, as in 0.21d: only a rename is checked.)
+[srp]: an account signs in with its login and is shown by its name; a rename changes the name only. A new name must pass the name rules, be shown by no other account and be no other account's login. Paid in silver only (the rename voucher is gone; the u32 is not kept, the answer says 0): `SRP_RENAME_COST`, default 25,000 (the voucher's 250 gold in silver). (Two accounts registered as `a@x` and `a@y` are both shown as `a`, as in 0.21d: only a rename is checked.)
 
 ## 7. The level notice: important message type 14 (corrects social.md §1.4)
 
@@ -130,15 +167,15 @@ PROVEN: the state becomes `state_choose_faction` when the account has no quest f
 
 | variable | default | |
 |---|---|---|
-| `SRP_PREMIUM_PRICES` | `100,200,400,1000,2500,4500,8000` (90 days sourced, the rest the owner's choice 2026-10-12) | gold for a day, 3 days, a week, a month, 3, 6 months, a year |
+| `SRP_PREMIUM_PRICES` | `10000,20000,40000,100000,250000,450000,800000` (the gold prices of 2026-10-12 times 100; gold is gone, 2026-11-08) | silver for a day, 3 days, a week, a month, 3, 6 months, a year |
 | `SRP_PREMIUM_DISCOUNT` | 0 | percent off premium time, offered by `A9` / `A8`; 0 offers none |
 | `SRP_PREMIUM_OFFER_SECONDS` | 3600 | how long the offer after a match stands |
-| `SRP_RENAME_COST` | 250 | gold for a nickname change |
+| `SRP_RENAME_COST` | 25000 | silver for a nickname change |
 | `SRP_AMMO_USE` | on | `off`: a match takes nothing off the stacks |
 
 ## 9. Open
 
-- Everything above against a live client. The tutorial: its steps after "choose a weapon" (§5.1), and whether the starter kit should leave weapon slot 1 empty for it.
+- Everything above against a live client.
 - The original prices, the discount label's item fields, when `A8` / `A9` were sent.
 - `9D`'s `b`; bits 0 and 5 of `a`.
 - `42 00 <drop>` is not answered, on purpose: the client sends it only after a chat line srp never sends, and nothing waits for the answer (results.md §5.3).

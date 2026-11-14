@@ -128,6 +128,14 @@ Evidence: 0x1F112A..0x1F12F5 (kits) and 0x1F12FB..0x1F1339 (items). The mask lay
 
 **Slot second u16 = count.** It is compared with the item's +8 (`amount_in_storage`) and clamped (0x2FCC5F..0x2FCC8D). A slot with count 0 is skipped (0x2FD452). The first u16 indexes the item list (0x2036D9 → `items_dictionary::item_by_id(item[idx].dict_id)` at 0x203742). PROVEN.
 
+**A kit's pockets must be packed** (no empty pocket 13..18 before a held one). PROVEN, 2026-11-07, from a player's crash in match 0x55809714 (rev 50, Blackout map 223) and its recording:
+- The cook makes an object for each pocket that names an item, whatever its count (0x2C7A06..0x2C7A2F: slots 13..18, `item_index != 0xFFFF`).
+- At a spawn, `inventory::setup_from_profile` puts the artefact slots at the first quick slot 13..18 with no object (or an object whose vtable +58h is true; `inventory_item`'s is 0x300040, false), and makes `artefact_slots` (modifier 14, at most to slot 18) of them (0x2FD1C3..0x2FD2A5: +16Ch the count, +168h the first). Pockets after an empty one are inside them.
+- `inventory::serialize` writes each artefact slot's id from whatever object is there (0x2FE460..0x2FE4B2: byte +27Eh, 0xFF for none), then every slot's item (0x2FE504..0x2FE53B).
+- `inventory::deserialize` puts the artefact of each id (or none for 0xFF) into those slots (0x2FE624..0x2FE6C6), then reads every slot's item. The pocket's item is gone from its slot, so its bytes are read as what comes after the items.
+- The crash: place 8's kit 2 had pocket 13 empty and a smoke grenade (`rdg-m`) in 14, with two artefact slots. Its state, written by the crashing game itself (header: artefact slots 13 and 14, ids 0xFF and 0x00, the grenade's byte), was read back at a rollback (`game_world_core::move` → `game_world_core::deserialize` 0x2D2770 → `player::deserialize`) the moment place 8's kit choice (0xF3, kit 2) arrived; 5 bytes short, the damage model read `affects_count` 63 and asserted (body_part_parameters.cpp:675, 0x32B0A8). srp-validate's walk with the match's kits refuses the same state at the same place (a body part's affect). Five of the eight other games in the match stopped sending within 8 s of it (LIKELY the same crash: no report of theirs).
+- So the match gets every kit packed (`MatchKit::new`: the held pockets moved to the first ones, in order), and the writer refuses a kit that is not (`StaticInfoError::PocketGap`). The lobby keeps the account's kits as they are. 88 kits of 48 accounts had such a gap at the start of rev 50 (119 before it).
+
 **Modifier names (68).** Index i ↔ name table at 0x928448 (a copy at 0x9C9BE8). The skill/item config loader 0x2C840F..0x2C846C fills `float[i] = parameters[name[i]]` for i < 0x44. PROVEN mapping.
 
 - **0–19, same order as 0.21d** `player_params_modifiers_enum`:
@@ -284,10 +292,10 @@ LZMA2 raw stream, to the end of the message, decoding to <= 0x578A0 bytes:
     u16  match_level            logged only
     28 x f32 score weights      events 0..27; k = 0.01 for 6, 17, 18
     20 x u8  squad_id           per roster place; 0 = no squad
-    [srp's block]               "SRPX", then {u8 tag, u8 len, len bytes}... (srp, 2026-10-23):
-                                the stock reader stops at the squads; exe patch 63 reads tag 1,
-                                team damage {f32 max_amount, max_ratio, return_ratio}
-                                (team-damage.md); sent only when SRP_TEAM_DAMAGE is not off
+    [srp's block]               "SRPX", then {u8 tag, u8 len, len bytes}... (srp): the stock
+                                reader stops at the squads; exe patch 65 reads tag 2, one byte
+                                1: Blackout (blackout.md; battery maps only);
+                                tag 1 is kept for team damage (#370); sent only with an entry
 ```
 
 **Note on `is_stack`.** If `dict_id` is unknown to the client's `items_dict`, the reader treats the item as stack (`mode = 1` at 0x1F139F), so it does not read the two extra u32. The server must use the **same** `is_stack` as the client's `db_static_dictionaries` `items_dict`, or the stream desyncs.

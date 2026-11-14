@@ -1,4 +1,4 @@
-# 0.26g items: modifications, defects, cosmetics, reroll, craft, repair
+# 0.26g items: modifications, defects, cosmetics, reroll, craft
 
 **Version scope:** client 0.26g (build 2777). Read from its exe, its
 `lobby_menu.swf` (decompiled ActionScript) and its `resources.db`
@@ -16,7 +16,7 @@ The code: `crates/survarium/src/v026g/modifications.rs` (data),
 |---|---|---|
 | `gameplay/items/modifications/modifications.options` | 158 `modifications`, 20 `defects`, 3 `defect_slots` | client: `id`, `modifiers`, `ui_desc`, `lobby_info`, a defect's `fix_cost_general` / `fix_cost_gold` / `fix_time_general` (loader 0x2C9E31.., strings at 0xA02264..). **Server only:** `drop_weight`, `type_mask`, `type_requirements_mask`, `required_modifications`, `defect_slots` (none of these strings is in the exe) |
 | `gameplay/items/craft/craft.options` | `craft_price_general[16]`, `craft_price_premium[16]`, `craft_probabilities_general[3][2]`, `craft_probabilities_premium[3][2]` | server only; the lobby gets them in 0x9B |
-| `gameplay/items/reroll/reroll.options` | `reroll_price_general[16]`, `reroll_price_premium[16]`, `reroll_modificator_multiplicator` 1.1 | server only; the lobby gets an item's two prices in `83 46 06` / `08` |
+| `gameplay/items/reroll/reroll.options` | `reroll_price_general[16]`, `reroll_price_premium[16]`, `reroll_modificator_multiplicator` 1.1 (not used: [flat-reroll.md](flat-reroll.md)) | server only; the lobby gets an item's two prices in `83 46 06` / `08` |
 | every item config | `available_modifications_mask` (40 characters), `available_defects_mask` (20), `default_modifications[]`, `camo_available`, `decal_available` | client: the last three (0x2C97B7, 0x287703, 0x28777D). The two masks are server only |
 
 PROVEN by the data:
@@ -77,8 +77,8 @@ bytes a row, and **reads the row it did not find in both cases** (`xor
 esi,esi; mov eax,[esi+4]` at 0x229AC2). So every id must exist in the
 table of its kind. (The earlier note had "state 0: no lookup"; wrong.)
 
-- The lobby shows a state-1 entry as damage (`MessageRepair`, "critical
-  damages", with its `fix_*` values), counts the state-0 entries as the
+- The lobby showed a state-1 entry as damage (the stock `MessageRepair`, "critical
+  damages", with its `fix_*` values; srp has no repair window), counts the state-0 entries as the
   item's **rank** (`InventoryList.getItemRank`; the exe's `rarity_level =
   min(3, base_rarity_level + count)`), and lets only those be changed.
 - `default_modifications` are **not** sent: the client adds them from the
@@ -96,11 +96,14 @@ u32 its dict id** (`movzx eax, word [item+4]`), **the u64 the value the
 decal editor sets** (`46 05`), **`param` the slot**: 0 and 1 for decals
 (the lobby shows two for `decal_available`, `and esi, 2` at 0x2877A6), 3
 for the camouflage (`DragRegion.as`: `relocate_upgrade_item(item, camo,
-3)`). Three at most (the inline capacity): one camouflage and two decals.
+3)`). Three at most (the inline capacity): one camouflage and two decals. A
+weapon's (srp's, client patch 68) are sent packed into those three: the
+weapon kit, `weapon-kit.md`.
 
-`repair_time` and `reroll_time` are **seconds left** (PROVEN in the UI:
-`InventoryItem.updateRepairTime` counts `repairTime - delta` down with its
-own timer; `ItemControlPanel` shows `rerollTime / 60` minutes).
+`repair_time` and `reroll_time` are **seconds left** (PROVEN in the stock UI:
+`InventoryItem.updateRepairTime` counted `repairTime - delta` down with its
+own timer; `ItemControlPanel` shows `rerollTime / 60` minutes). srp sends
+`repair_time` 0: it has no repair.
 
 ## 3. Requests and answers (corrects lobby_requests.md)
 
@@ -126,9 +129,9 @@ own timer; `ItemControlPanel` shows `rerollTime / 60` minutes).
 | 08 | u32 item, u32 old, u32 new, **u32 regular_cost, u32 premium_cost, u32 reroll_time** | the client replaces old by new in the inventory and the kit copies, then fills the window again with `new` as the one changed before (0x2759F0..0x275A16) |
 | 09 | u8 mode, u32 item; **mode 0xFE ends here**; else u32 consumed item; if mode ≠ 0: u32 modification | 0x275A31: for 0xFE nothing more is read (the earlier note had a modification id; wrong). Mode 1 adds, another non-zero mode removes. The window shows **the consumed item's dictionary entry** as the upgraded item (0x275B84 → 0x29F770 `dict_id`) and the modification from its table |
 
-`83 47 03`: as lobby_requests.md §4. The client sets the condition to
-full and `repair_time`; it does **not** take the defects off its copy:
-send the inventory after it.
+`83 47 03` (srp never sends it: no repair): as lobby_requests.md §4. The
+client sets the condition to full and `repair_time`; it does **not** take
+the defects off its copy.
 
 Important message type 6 (`social.md` §1.4): the text is
 **`#ir[<item id>]`** (PROVEN: prefix check 0x226851, then the bracket
@@ -158,17 +161,20 @@ What the lobby checks or says itself (PROVEN, `lobby_menu.swf` and the
   (`st_reroll_message_broken_item`). The window can not be closed between
   the offer and the choice. [srp, the owner's rule of 2026-10-21] Its Cancel button
   then keeps the old modification ([reroll-keep-old.md](reroll-keep-old.md)).
-- Craft: both items not damaged and not in repair; both with fewer than
+- Craft: both items not damaged; both with fewer than
   three modifications; the item with no fewer than the donor
   (`st_craft_message_modifiers_difference`); not an equipped item while in
   the queue. Price = table[item level of the item]. Outcomes: "+1 mod.",
   "-1 mod.", or "you failed to upgrade the item". [srp, the owner's rule of
   2026-10-23] Never "-1 mod.": a failure leaves the item as it was
   ([craft-menu.md](craft-menu.md), "A failed upgrade").
-- Repair: silver = `(1 - condition) * repair_cost_ratio * cost` + each
-  defect's `fix_cost_general`, and takes the defects' `fix_time_general`
-  together; gold ("quick repair") = the defects' `fix_cost_gold`; kits = one
-  `repair_voucher` a defect. Gold and kits are offered only with defects.
+- Repair: none in srp (the owner, 2026-11-08: "we don't have repair in
+  the game at all"): `47 03` is not read, and the lobby has no Fix button,
+  menu entry or repair window. (The game's was silver = `(1 - condition) *
+  repair_cost_ratio * cost` + each defect's `fix_cost_general`, gold = the
+  defects' `fix_cost_gold`, kits = one `repair_voucher` a defect.) Items
+  wear nothing and get no defect (no `SRP_ITEM_WEAR`, no `SRP_ITEM_DEFECTS`
+  any more): every item stays whole.
 
 srp's reading of what only the server knew:
 
@@ -178,17 +184,15 @@ srp's reading of what only the server knew:
 | a dropped weapon or armour of rarity `n` gets `n` modifications | LIKELY (the rank shown is their count) |
 | a reroll offers three that fit in the replaced one's place (its own type too, another strength): of different types while the item has them, then other strengths of those, so an item of few types (a backpack, a balaclava) is offered three too | [srp] |
 | the payment is taken when the three are offered, whatever is chosen, the old one kept too; an offer not chosen is kept (saved) and shown again when the window opens | [srp] |
-| each change of an item makes the next cost `reroll_modificator_multiplicator` (1.1) times more | GUESS: the number's use is not in the client; the per-item prices in `83 46 06`/`08` suggest the price was the item's own |
+| every change of an item costs the same: the level's price, `reroll_modificator_multiplicator` (1.1) not used (until then each change made the next 1.1 times dearer, a GUESS) | the owner's rule of 2026-10-25 ([flat-reroll.md](flat-reroll.md)) |
 | the donor must be another of the same item | LIKELY (the result window shows the donor's dictionary entry as the upgraded item); a golden weapon and its plain weapon count as the same item ([srp], the owner's rule of 2026-10-21, [golden_weapons.md](golden_weapons.md)), and so do a premium armour piece and its plain piece (2026-10-22, [premium_armour.md](premium_armour.md)) |
 | the craft's chance row is `rank(item) - rank(donor)`; success, then failure, then nothing | PROVEN for the row (the UI indexes it so); the roll is the server's |
 | a gained modification is rolled as a drop's | [srp] |
 | a failure takes no modification: it does what "nothing" does (price and donor spent, the item as it was); 0x9B sends every failure chance as 0 and the window shows no failure row | the owner's rule of 2026-10-23 ([craft-menu.md](craft-menu.md)) |
 | no roll (a drop, an upgrade, a reroll's offer) gives a modification that only changes wear ("reliability"); owned ones stay; masks may roll Armor, oxygen packs Weight limit and Energy costs, the Pilgrim container Energy costs, so every item rolls three types or more | the owner's rule of 2026-10-23 ([no-reliability-roll.md](no-reliability-roll.md), `third-mod-1.json`) |
-| a repair takes the defects off at once; the wait only locks the item in the lobby | [srp] |
-| a defect slot opens under its first `condition`; its chance goes from the first `probability` there to the second at condition 0 | LIKELY |
-| one defect roll for each match that wore the item, for its first free slot | [srp] (`SRP_ITEM_DEFECTS=off` switches defects off). Since 2026-10-13 a match wears nothing unless `SRP_ITEM_WEAR=on` (the owner's choice, `results.md` §12), so only a found item has a defect |
-| a defect needs its type in `available_defects_mask` and, with `required_modifications`, such a modification on the item (a default counts) | LIKELY |
-| wear is multiplied by `1 + value` of the item's "reliability" modifications | LIKELY |
+| a defect slot opens under its first `condition`; its chance goes from the first `probability` there to the second at condition 0 | LIKELY; srp rolls no defect (no wear, no repair: the owner, 2026-11-08) |
+| a defect needs its type in `available_defects_mask` and, with `required_modifications`, such a modification on the item (a default counts) | LIKELY; not used |
+| wear is multiplied by `1 + value` of the item's "reliability" modifications | LIKELY; no wear |
 | the kit's items' `money_bonus` / `experience_bonus` / `reputation_bonus` (modifications 1230..1280, defaults of the premium items) add that share to a match's pay, shown in the screen's "premium items" column | LIKELY for the meaning; that the three bytes of the column are percents is GUESS |
 | any camouflage goes on any vest or trousers | [srp]: the data pairs none |
 | a weapon's decal in slot 0 (one, with `decal_available`: the client keeps three upgrades an item), its camouflage in 2, its scope in 3 | [srp] (`weapon-camo.md`; client patches 44, 45 and 47 bake and place them) |
@@ -196,7 +200,6 @@ srp's reading of what only the server knew:
 
 ## 5. Not done
 
-- Whether an item in repair may be played with: srp lets it [srp].
 - `fill_craft_data {craft_time, …}` (`MessageCraftItem.fillCraftData`): a
   craft timer the window has a clip for; no message that sets it was
   found, and srp crafts at once.
@@ -273,6 +276,39 @@ Not yet seen in a running game: the stash with one camouflage on several
 items, the upgrade window's drop on each, and a match showing each item's
 camouflage.
 
+**Buying an item owned already** (the owner, live rev40, 2026-11-01: "when I buy camo, I don't
+get warning that it was already bought"; "it shouldn't just be camo, it should also be scopes and
+other things"; 2026-11-05: buying through the upgrade window or from the inventory should not ask):
+
+- Every buy in the lobby goes through `LobbyMenu.try_buy_item` (`GangShop.buyFunction`,
+  `MainScene.buyFunction`), told where it was started (`BuyOrigin`: `SHOP`, `OWN`, `UPGRADE`,
+  set by each caller). Only a buy started in the shop asks first about an item owned already that
+  is no stack, with the stock box "This item is already purchased by you. Would you like to buy
+  anyway?" (`st_already_in_inventory`): OK opens the buy dialog, Cancel buys nothing.
+- Asked (`SHOP`): a shop entry's Buy, a camouflage too: the card's Buy, a double click, the
+  right-click Buy on an entry (`ItemCard.onBtnClick1` for an item not owned), a drop on the
+  character (`ItemPaperDollSlot`).
+- Not asked (`OWN`): a buy from the player's own items, an inventory row or a kit slot: the card's
+  Buy, a double click, the right-click menu's Buy (`ItemCard.onBtnClick1` for an owned item): the
+  player's own wish for another, a stock copy of a modified item too (`buy-modified.md`).
+- Not asked (`UPGRADE`): the craft and attachment windows' Buy, of their slots and of the list's
+  menu while one is open (`InventoryList.buyFromCraftMenu`).
+- Never asked: a bundle (its id is no item's) and a stack (ammo, medkits add to theirs; the results
+  screen's drop cards, `SHOP`).
+- Before:
+  - a camouflage lacked the box from anywhere until 2026-11-01: the stock movie left camouflages
+    out (LIKELY: a copy was worn by one item then);
+  - revision 25 asked only for a buy from a shop entry (`sourceSlot == SHOP`);
+  - from 2026-11-01 to 2026-11-05 every buy asked but the right-click menu's Buy on an owned item
+    (the card's Buy, a double click on an owned row and the windows' Buy asked too).
+- Checked in Ruffle: `scripts/buy-owned/check.sh <lobby_menu.swf>`.
+- `ItemCard.acceptAction`, a second buy with its own check that nothing called, is gone.
+- A second camouflage or decal is of no use: one copy is worn on any number of items (above).
+  Weapons take the same category 25 items (`weapon-camo.md`).
+- Ownership comes from the inventory the movie has (`InventoryList.hasItem`). The server buys as
+  before.
+- Check: `scripts/buy-owned/check.sh <lobby_menu.swf>` (Ruffle).
+
 ## 7. The lines of an item's card (2026-10-18)
 
 The lobby's item hover card shows text the data keeps, not values it
@@ -285,6 +321,7 @@ computes (read in the exe and patch 20's `lobby_menu.swf`):
 | the movie keeps them in a dictionary by `prop_id` (`PropertiesDescriptor`); an unknown id is a stack trace and an empty line | `getPropertyDescription` |
 | the card (`InventoryItemHint`, sprite 1547) draws the `comparable` lines in its `itemCompare` (`SrvItemCompareHintG`, sprite 1538, a dynamic `ItemCompare`): one row each (`diff_1`..`diff_8`, sprite 1537, 22.6 px apart) in `props_list` order, and stops at the last row | `ItemCompare.updateData` |
 | the card's height follows `itemCompare.height` | `ItemInfoRenderer.set data` |
+| a row's bar runs over the line's `min_value`..`max_value` (the damage line 0 to 150); the number is the real value, the bar full above the top (until 2026-10-25 CLIK's `StatusIndicator.value` clamped the number too: the VSSK's 175 damage read 150); a line's text is made a number before its modifications are added | `DiffIndicator`, `ItemCompare.updateData` |
 
 Every 0.26g weapon has eight comparable lines (damage, armour piercing,
 aiming time, stopping power, dispersion, distance, rate of fire, weight),
@@ -294,3 +331,43 @@ so a ninth needs a ninth row. Weapon balance 1 adds the magazine: line 134
 (the weapon's `magazine_capacity`), and in the movie a `diff_9` row in
 sprite 1538 and `ItemCompare`'s constructor adding `getChildByName("diff_9")`
 to its rows when there is one (`scripts/content-edit/README.md`).
+
+## 8. A consumable's buy starts at 30 (2026-11-01)
+
+The owner: "when buying consumables, it should always try to buy at least 30 if enough money (this
+is for new players who might buy less and not understand why they no longer have consumables in
+the game)"; "this shouldn't take into account energy drinks and similar items which give passive
+bonuses per round".
+
+- **Where:** the buy dialog (`MessageAsk.update_slider` -> `startCount`), the one place a buy's
+  starting count is set. Every buy reaches it through `LobbyMenu.try_buy_item`: the card's Buy, a
+  double click, the right-click Buy (inventory, shop, kit slot), a drop on a pocket. The player can
+  still move the slider anywhere; only where it starts changes.
+- **Consumables:** stacks of category 10 (drugs: bandages, medkits, painkiller, antitoxin, the
+  medicines pack's), 11 (traps) and 24 (grenades), the pockets' categories.
+- **Not the boosters** (category 10 too, config `type` `booster`, dict 339..344: the Tornado energy
+  drink and the like): told apart by `fills_whole_pocket`, which every booster has and no other
+  stack of the data. They give their bonus while carried (`data.md`), so they start at one, as
+  before. Nor ammo (one clip; autobuy refills it), items that are no stack, sales, relocations.
+- **The count:** 30 (`CONSUMABLE_START_COUNT`), or the dialog's own most when less: what the money
+  buys, 100 at most. No money: the slider at 0 and Buy off, as before. The data has no per-item
+  stack cap.
+- **A drop on a pocket** starts at 30 too (the owner on #1003: "i'd say it should be 30 there
+  too"): a buy is no longer capped by the pocket's size. You own all you buy; the pocket carries
+  what it takes (its size, one for an item that fills a whole pocket), the rest stays in the
+  inventory. The lobby sends it as the ammo window does (`46 00`, `apply_profile_items`): the units
+  in the pocket (`count`) and the units owned after the buy (`count_in_inventory`: owned + bought,
+  `LobbyMenu.relocate_to_paperdoll`); the server buys what is beyond the stack (`move_items`,
+  `top_up`) and puts `count` in the pocket. Before, the lobby sent the bought units as both, so a
+  drop of N with N or more owned already bought nothing. Moving owned units into a pocket (the
+  relocate dialog) keeps the pocket's size as its most.
+- **Price:** the dialog's own total, count x price (30 medkits at 20: 600 silver). No consumable is
+  premium; one still locked at its seller, offered for gold (`getItemLockedCost`), counts the same
+  way in gold.
+- **Server:** unchanged. A buy needs a count of at least 1 and the money; it has no default count.
+  It never knew a pocket's size (gear and skills set it in the exe). Test:
+  `a_buy_onto_a_pocket_beyond_its_size_keeps_the_rest_in_the_inventory`.
+- `try_buy_item` now gives the dialog the item's category (`_obj.category`; it gave the sellers
+  under that name, which nothing read).
+- **Check:** `scripts/consumables-buy-30/check.sh <lobby_menu.swf>` (Ruffle; fails on the movie
+  before this change).

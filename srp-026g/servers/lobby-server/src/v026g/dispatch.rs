@@ -18,7 +18,7 @@ use std::time::Instant;
 use session::LockExt;
 use session::v026g::{quests, rules, tutorial, wire};
 use survarium::v026g::lobby::requests::{ClientMessage, id};
-use survarium::v026g::lobby::{self, NameRefusal, Ranked, important};
+use survarium::v026g::lobby::{self, Ranked, important};
 
 use super::core::{Core, Who};
 
@@ -27,35 +27,6 @@ mod text {
     pub const DROP_CARD: &str = "st_cannot_use_drop_card";
     pub const RENAME: &str = "st_change_name_error";
     pub const COMMENT: &str = "st_error_during_storing_user_comment";
-}
-
-/// What is wrong with a name a client asks about (`49 03`, `49 08`,
-/// `49 09`), in the client's own reasons. [choice] The original server's
-/// rules are not known; these are the ones srp can keep: three characters
-/// or more, no blanks, nothing that does not print, and within the 63
-/// bytes the client's buffers hold.
-pub(super) fn name_refusal(name: &str, nickname: bool) -> Option<NameRefusal> {
-    if name.chars().count() < 3 {
-        return Some(NameRefusal::Short);
-    }
-    if name.chars().any(char::is_whitespace) {
-        return Some(NameRefusal::Space);
-    }
-    if name
-        .chars()
-        .any(|c| c.is_control() || c == char::REPLACEMENT_CHARACTER)
-    {
-        return Some(NameRefusal::WrongSymbol);
-    }
-    if name.len() > lobby::limits::NAME {
-        // A clan check has no pattern reason.
-        return Some(if nickname {
-            NameRefusal::Pattern
-        } else {
-            NameRefusal::WrongSymbol
-        });
-    }
-    None
 }
 
 impl Core<'_> {
@@ -106,8 +77,7 @@ impl Core<'_> {
                 self.notify(who, &notices);
             }
             M::QueryServices => {
-                let services = wire::services(&who.account.locked(), unix);
-                self.send(addr, services);
+                self.send(addr, wire::services());
             }
             M::QueryUnlockedFactions => {
                 let mask = wire::unlocked_factions(&who.account.locked());
@@ -252,14 +222,11 @@ impl Core<'_> {
                 item_id, a, value, ..
             } => self.place_upgrade(who, item_id, a, value),
             M::UseDropCard { a0, a1 } => self.use_drop_card(who, a0, a1),
-            M::UseItem { item_id } => self.use_item(who, item_id),
             M::OpenReroll { item_id } => self.open_reroll(who, item_id),
-            // The flag: paid in gold.
             M::RerollModifier {
                 item_id,
                 modification_id,
-                flag,
-            } => self.reroll_modifier(who, item_id, modification_id, flag),
+            } => self.reroll_modifier(who, item_id, modification_id),
             // The "new modification" is the place of the choice among the
             // three offered.
             M::ChooseModifier {
@@ -267,8 +234,8 @@ impl Core<'_> {
                 old_modification_id,
                 new_modification_id,
             } => self.choose_modifier(who, item_id, old_modification_id, new_modification_id),
-            // The item, its donor, and whether gold pays.
-            M::Craft { a0, a1, flag } => self.craft(who, a0, a1, flag),
+            // The item and its donor.
+            M::Craft { a0, a1 } => self.craft(who, a0, a1),
             // No client runs the tutorial (`session::v026g::tutorial`): its
             // steps are not answered.
             M::TutorialWeaponChosen | M::TutorialStep { .. } | M::SkipTutorial => {
@@ -283,7 +250,7 @@ impl Core<'_> {
                 target_slot,
                 kit_id,
             } => {
-                // A premium item is paid in gold (`shop`).
+                // A premium item is sold one by one (`shop`).
                 if session::v026g::premium::sells(dict_id) {
                     self.buy_premium_item(who, dict_id, count, target_slot, kit_id);
                     return;
@@ -303,8 +270,7 @@ impl Core<'_> {
                         self.push_account(who);
                     }
                     Err(error) => {
-                        log::info!("{}: purchase refused: {error}", who.name);
-                        self.deny(addr, id::SHOP, error.text_key());
+                        self.refuse_purchase(who, &error, error.text_key(), target_slot);
                     }
                 }
             }
@@ -337,33 +303,8 @@ impl Core<'_> {
                     }
                 }
             }
-            M::Repair { item_id, payment } => self.repair(who, item_id, payment),
-            M::ExchangePremium { amount } => {
-                let exchanged = {
-                    let mut account = who.account.locked();
-                    rules::exchange_premium(&mut account, amount)
-                        .map(|silver| (silver, account.generic_money, account.premium_money))
-                };
-                self.exchanged(who, "exchanged", amount, exchanged);
-            }
-            M::BuyPremium { gold } => {
-                let bought = {
-                    let mut account = who.account.locked();
-                    rules::buy_premium(&mut account, gold)
-                        .map(|silver| (silver, account.generic_money, account.premium_money))
-                };
-                self.exchanged(who, "bought", gold, bought);
-            }
-            // The premium shop (`shop`). `47 02` with a match id is the
-            // results screen's "buy premium": the match's premium half is
-            // given with it.
-            M::BuyOffer { offer_id, x, .. } => self.buy_offer(who, offer_id, x),
-            M::AcceptPremiumWithBonuses { a0, a1, .. } => {
-                self.accept_premium_with_bonuses(who, a0, a1);
-            }
-            M::AcceptPremiumWithDiscount { a0, a1 } => {
-                self.accept_premium_with_discount(who, a0, a1);
-            }
+            // The premium shop's bundles (`shop`).
+            M::BuyOffer { offer_id } => self.buy_offer(who, offer_id),
 
             // ---- skills (0x48): the client has no `83 48`; 0x8C is the
             // answer, and the kits carry the skills' modifiers ----
@@ -371,8 +312,8 @@ impl Core<'_> {
                 let set = rules::set_skills(&mut who.account.locked(), &skills);
                 self.skills_answer(who, set.map(drop));
             }
-            M::ResetSkills { branch, payment } => {
-                let reset = rules::reset_skills(&mut who.account.locked(), branch, payment);
+            M::ResetSkills { branch } => {
+                let reset = rules::reset_skills(&mut who.account.locked(), branch);
                 self.skills_answer(who, reset.map(drop));
             }
 
@@ -383,17 +324,6 @@ impl Core<'_> {
                     self.deny(addr, id::PROFILE, text::RENAME);
                 }
                 self.push_account(who);
-            }
-            // The two boxes of the kit window: autobuy and auto-repair
-            // (`session::v026g::autobuy`).
-            M::SetAutobuy { on, repair } => {
-                {
-                    let mut account = who.account.locked();
-                    rules::set_autobuy(&mut account, on);
-                    account.extras.auto_repair = repair;
-                }
-                self.accounts.mark_dirty(who.account_id);
-                self.send(addr, lobby::permitted_auto_state(on, repair));
             }
             M::SetActiveKit { kit_id } => {
                 let set = rules::set_active_kit(&mut who.account.locked(), kit_id, unix);
@@ -415,12 +345,11 @@ impl Core<'_> {
                 let refusal = self.nickname_refusal(&nickname, who.account_id);
                 self.send(addr, lobby::permitted_nickname_check(&nickname, refusal));
             }
-            M::ChangeNickname {
-                nickname,
-                ticket_item_id,
-            } => self.change_nickname(who, &nickname, ticket_item_id),
-            // Not kept, and the player is told so.
-            M::CommentAboutUser { .. } => self.deny(addr, id::PROFILE, text::COMMENT),
+            M::ChangeNickname { nickname } => self.change_nickname(who, &nickname),
+            M::CommentAboutUser { nickname, comment } => {
+                self.comment_about_user(who, &nickname, comment, unix);
+            }
+            M::SetChatMute { nickname, mode } => self.set_chat_mute(who, &nickname, mode, now),
             M::HideVideoLink => {}
             M::Clan(request) => self.clan_request(who, &request, now),
 
@@ -489,6 +418,45 @@ impl Core<'_> {
         }
     }
 
+    pub(super) fn refuse_comment(&mut self, addr: SocketAddr) {
+        self.deny(addr, id::PROFILE, text::COMMENT);
+    }
+
+    fn comment_about_user(
+        &mut self,
+        who: &Who,
+        nickname: &str,
+        comment: survarium::v026g::lobby::requests::PlayerComment,
+        at: u64,
+    ) {
+        // Resolve the displayed nickname, including offline players; the
+        // authenticated session supplies the sender. Self-comments are excluded.
+        let target = self
+            .account_named(nickname, who.account_id)
+            .and_then(|id| self.name_of(id).map(|name| (id, name)));
+        let Some((target_id, target_name)) = target else {
+            self.deny(who.addr, id::PROFILE, "st_player_not_found");
+            return;
+        };
+        let record = session::v026g::comments::StoredComment {
+            at,
+            sender_id: who.account_id,
+            sender_name: who.name.clone(),
+            target_id,
+            target_name,
+            comment,
+        };
+        match self.accounts.save_player_comment(&record) {
+            Ok(()) => {
+                self.send(who.addr, lobby::permitted_player_comment());
+            }
+            Err(error) => {
+                log::warn!("{}: player comment was not stored: {error}", who.name);
+                self.refuse_comment(who.addr);
+            }
+        }
+    }
+
     /// The answer to a skills request: a refusal's text, then the skills as
     /// they are, and once changed the account, whose kits carry the skills'
     /// modifiers (and the money a reset cost).
@@ -506,40 +474,9 @@ impl Core<'_> {
         }
     }
 
-    /// The answer to `47 04`, either way: `83 47 04`, then the account with
-    /// its new silver and gold; or the game's text for the refusal. `gold`
-    /// was asked for, and `verb` says which way (`bought` with silver, in
-    /// srp's own window, or `exchanged` for it); the result is the silver
-    /// paid or gained and the balances right after, read under the same
-    /// lock as the exchange.
-    fn exchanged(
-        &mut self,
-        who: &Who,
-        verb: &str,
-        gold: u32,
-        result: Result<(u32, u32, u32), rules::ActionError>,
-    ) {
-        match result {
-            Ok((silver, now_silver, now_gold)) => {
-                log::info!(
-                    "{} (account {}) {verb} {gold} gold for {silver} silver; now {now_silver} \
-                     silver, {now_gold} gold",
-                    who.name,
-                    who.account_id
-                );
-                self.send_made(who.addr, lobby::permitted_shop_event(4));
-                self.push_account(who);
-            }
-            Err(error) => {
-                log::info!("{}: exchange refused: {error}", who.name);
-                self.deny(who.addr, id::SHOP, error.text_key());
-            }
-        }
-    }
-
     /// `46 03 <a> <b>`: a drop card used from the results screen's stash
     /// map: `98` with what it gave, then the inventory, the account and the
-    /// money (a used-up card and silver or gold are not in `98`). `a` is
+    /// money (a used-up card and silver are not in `98`). `a` is
     /// the match and `b` the card's item id [PROVEN: the screen calls
     /// `use_drop_card(match id, voucher id)`, and 0x288D00 writes the two
     /// in that order; `results.md` §3]. One card for each player of a
@@ -661,9 +598,14 @@ impl Core<'_> {
     /// [`lobby::REPLAY_START`] with the asker's
     /// own "Watch replay" answer (`replay`), a presets start
     /// (`lobby::presets::PRESETS_FIRST` to `PRESETS_LAST`) with the kit
-    /// presets (`presets`); any other gets no answer.
+    /// presets (`presets`), a lobby pick (`lobby::lobby_pick::LOBBY_PICK_BASE`
+    /// and its id: kept, shown back in `0xA1`); any other gets no answer.
     /// Nothing of the ranking is read, sent or kept for them.
     fn reserved_ranking(&mut self, who: &Who, start: u32, count: u8, now: Instant) {
+        if let Some(pick) = lobby::lobby_pick::LobbyPick::of_start(start) {
+            self.lobby_pick(who, pick);
+            return;
+        }
         if let Some(request) = lobby::presets::preset_request(start) {
             self.preset_request(who, request);
             return;
@@ -688,31 +630,5 @@ impl Core<'_> {
             "{} asked for the reserved ranking start {start}: not answered",
             who.name
         );
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_name_is_checked_by_the_clients_reasons() {
-        assert_eq!(name_refusal("ab", true), Some(NameRefusal::Short));
-        assert_eq!(name_refusal("a b c", true), Some(NameRefusal::Space));
-        assert_eq!(
-            name_refusal("abc\u{7}", true),
-            Some(NameRefusal::WrongSymbol)
-        );
-        assert_eq!(
-            name_refusal(&"x".repeat(64), true),
-            Some(NameRefusal::Pattern)
-        );
-        // A clan check has no pattern reason.
-        assert_eq!(
-            name_refusal(&"x".repeat(64), false),
-            Some(NameRefusal::WrongSymbol)
-        );
-        assert_eq!(name_refusal("Сталкер", true), None);
-        assert_eq!(name_refusal("abc", false), None);
     }
 }

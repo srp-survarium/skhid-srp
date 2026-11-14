@@ -1,6 +1,6 @@
 ---
 name: skhid-release
-description: Make a release of skhid-srp (the Survarium 0.26g server "Skhid") — a new players' download (exe, launcher, updater, crash reporter), new game content as a resources.db patch, server code, or any mix — with release/release.sh, which at the owner's go plans the maintenance at once to start 30 seconds after the last running match ends, prepares and stages everything during the countdown and swaps it all in at once, keeps a folder per release on the host and rolls back by itself when the new server does not come up. Covers the questions to ask first, the revision (each release sets it and tags itself), the offered-patch list, the dry run, the test environment, what to watch, rollback, and the step scripts in release/. Use when asked to make, ship, test or roll out a release of skhid-srp.
+description: Make a release of skhid-srp (the Survarium 0.26g server "Skhid") — a new players' download (exe, launcher, updater, crash reporter), new game content as a resources.db patch, server code, or any mix — with release/release.sh, which prepares and stages everything first (nothing players see), then at the owner's go plans the maintenance at once to start 30 seconds after the last running match ends and swaps it all in at its end, keeps a folder per release on the host and rolls back by itself when the new server does not come up. Covers the questions to ask first, the revision (each release sets it and tags itself), the offered-patch list, the dry run, the test environment, what to watch, rollback, and the step scripts in release/. Use when asked to make, ship, test or roll out a release of skhid-srp.
 ---
 
 # Making a Skhid 0.26g release
@@ -32,26 +32,66 @@ Ask, in this order:
 1. **Does it include new content?** Content is whatever `release/content.tsv`
    (the manifest: base patches, Flash movies, content packs, edit lists; its
    header says how) makes that players do not have yet. Find out, and make
-   the patch, with **`release/build-content <revision>`** (the release's
+   the patch, with **`release/build-content <revision> --full`** (the release's
    revision, below; from a fresh worktree of `origin/main`, never `git
-   stash`). It builds every movie of `srp-026g/flash` from source (the lobby
+   stash`). **A release always builds with `--full`**: only it checks that
+   players' files with the new patch over them are exactly what the manifest
+   makes, and only it makes the item tables the release's record commits.
+   Without `--full` it is a quick build for local tests: the same patch and
+   server data, those two left out, `QUICK-BUILD` in its folder, and
+   `release.sh --resources` and `upload-patch` refuse it. It builds every movie of `srp-026g/flash` from source (the lobby
    by `build_lobby_026g.py`; seconds each; `private/actionscript/tools.json`),
    composes the packs (`vostok-port`, `$SKHID_PACKS_DIR`), applies the edit
    lists in order from the base, compares each file with the stock db and
    every listed patch, and prints each file, why it is made (which row) and
    whether players have it so already. Only the files that differ go into
    `<out>/resources.db.patch_<revision>`, with `server-game-data.db` built of
-   the list and it and checked. A live file the manifest does not make stops
-   it (what made it?), nothing is written. "nothing to ship" means no
-   `--resources`. **Show the owner the file list** (and the lobby build's
-   line: whether it is `RESULT_SHA256`, the movie last checked in the game);
-   ship only movies the owner checked. Never put a patch folder together by
+   the list and it and checked. Then, from the same patches, the item tables
+   (`srp-item-tables` on the new server data) into `<out>/item-tables/`: the
+   tree's `srp-026g/docs/data/equipment.tsv` and `weapons.tsv` rewritten only
+   where an item changed, each change printed `item: column old -> new` (the
+   release's record commits them; build-content never writes a checkout's).
+   With `--site`, also the site's pages in `--tree` (`release/build-site
+   --with` the new patch: the calculator, the maps, the wiki's icons;
+   `built-from.tsv` names the list and it), for a preview with
+   `SRP_GAME_DATA=<out>/server-game-data.db` (`scripts/wiki/README.md`): use
+   a worktree or leave them out of a PR (release.sh rebuilds them). A live
+   file the manifest does not make stops it (what made it?), nothing is
+   written; one an earlier version of a pack row added, byte for byte
+   (`$SKHID_PACKS_DIR/<id>-<n>`), is listed as `left`, not packed. "nothing to ship" means no
+   `--resources`. **Show the owner the file list**; ship only movies the owner
+   checked. Never put a patch folder together by
    hand (`release/build-patch` is the step build-content runs). A merged PR
    with a new edit list or pack that has no manifest row stops build-content:
    the PR adds the row.
 2. **Any server-code change?** `release.sh` compares main's `srp-026g`
    build inputs with the target's tree and builds the image when they
    differ; the owner may know better (`--server-code yes|no`).
+3. **Did a bot-data file change** (a newly benched map, routes table or
+   foliage)? Its row in `release/bot-data.tsv` is changed or added by the PR
+   that benched it (`release/bot-data add`, below); the release ships what the
+   list says from `$SKHID_BOT_DATA` and stops when the owner's folder does not
+   have it. `release/bot-data check` says so before the dry run.
+4. **Does a merged PR need a one-off change of the accounts?** Such a change
+   is a script, not srp's start: the PR that needs it adds the script,
+   and its header says the release it belongs to. Before the go,
+   run its dry run on the newest copy of srp.db
+   (`/srv/skhid-backups/srp-db` on the jump host, copied to the local machine)
+   and **show the owner its numbers**. At the release, right after the swap
+   and once the checks have passed, srp's start copy of srp.db is made. Then
+   `docker compose stop srp26`, run the script as root as
+   `python3 <script> --apply <srp.db>` on the data volume's srp.db (it
+   copies the file to `backups/` first), and `docker compose start srp26`.
+   That is a second short stop: the owner's go covers it only when it was
+   asked for with the go. A script run again adds nothing. The host has
+   `/usr/bin/python3` with its `sqlite3` module, but no `sqlite3` command.
+   Such a script writes nothing that reads or rebuilds the 0.21d nickname
+   index (no `VACUUM`, no `integrity_check`, no `accounts.name`): its
+   collation is srp's own.
+   Open: `srp-026g/scripts/ammo-top-up/ammo_top_up.py` (1000 rounds of
+   every ammo for every account, PR #1785; dry run on the pre-rev58 copy:
+   614 of 799 accounts, 3,035,296 rounds). Remove its line here when it has
+   run.
 
 **The revision is the release's own.** Every release has a new patch
 revision, content or not: it is how the server refuses games without the
@@ -120,51 +160,136 @@ release/release.sh                   [--resources ...]
 
 Show the owner each dry run's output (every read-only check runs; every
 other command is printed; nothing is planned or written). Then the same
-without `--dry-run`: after its preflight it waits for **the go**, and the
+without `--dry-run`: after its preflight it prepares and stages
+everything (nothing players see), then waits for **the go**, and the
 go is the owner's to give (below); before the swap it asks one y/N
 (`--yes --i-know` answers it, never the go).
 
 ## What is offered: release/patches.tsv
 
-The patches players get are an explicit, committed list:
+The files players get are an explicit, committed list:
 `release/patches.tsv` (live) and `release/patches-test.tsv` (test), one
-`<name> <sha256> <size> <urls>` row per patch, tabs between, in revision
-order. `<urls>` is the patch's URLs, one space apart, in the order the
-players' updater tries them: the patches server's (`$SKHID_PATCHES_URL/<name>`,
-always first), then mirrors; 1 to 8, none twice. The server data is built
-of exactly those rows and `/patches` offers exactly those; a file on the
+`<name> <sha256> <size> <urls>` row per file, tabs between, the patches in
+revision order. `<urls>` is the file's URLs, one space apart, in the order
+the players' updater tries them: Google Drive's first (the owner's rule,
+2026-11-01), then the patches server's (`$SKHID_PATCHES_URL/<name>`: every
+patch row has it, the release downloads and builds from it), then the
+rest; 1 to 8, none twice. The server data is built of exactly those rows and `/patches` offers
+exactly those (with the mirrors of `mirrors.tsv`, below); a file on the
 patches server that is not listed is offered to no one.
 `release/upload-patch` (and `release.sh --resources`) adds the row when it
 publishes: **commit the list with the release's record**. A row's patch is
 never changed (a published patch is never replaced; a fix is the next
-revision); only its mirrors may be. The preflight checks every row against
-the patches server (size, sha256) and every URL of it (below).
+revision); only its URLs may be. The preflight checks every row against
+the patches server (size, sha256) and every URL of it (below): the
+patches server's must give it; another that does not is a WARNING (players
+move on to the next URL), a problem only when no URL of the file gives it.
 
-**Mirrors.** `release/add-mirror [--test] <resources.db.patch_<n>> <url>`
+**The game's archive** is a row too, of `release/game.tsv` (the same form,
+for the live and the test environment alike): `survarium-026g.7z`, the pinned
+build-2777 archive (2906544103 bytes, the sha256 of
+`client/updater/logic/src/game.rs`; never changed), its URLs in priority
+order, any host first (the patches server's, archive.org's, Google
+Drive's). The server data names it (`srp-game-data build --game "<row>"`),
+srp offers it at `/game` (not in `/patches`: Skhid-without-updater.bat takes
+every member there for a patch), and `release/build-zip` builds the list's
+`/patches` and `/game` into the updater (`SKHID_BUILTIN_PATCHES`,
+`SKHID_BUILTIN_GAME`) and writes its rows into Skhid-without-updater.bat
+(`make_client_026g.py --downloads`): both use them when the server cannot
+be reached (a provider that blocks skhid.link). Its URLs are checked by their
+first bytes only at a release (200 or 206, not a web page, the size, a 7z
+archive's start): `release/add-mirror` downloads a new one whole.
+
+**Mirrors, at once.** `release/add-mirror [--test] [--first | --at <n>]
+<file> <url>` (`<file>`: `resources.db.patch_<n>` or `survarium-026g.7z`)
 downloads the file from `<url>` as the updater does (up to 5 redirects,
 http and https only), checks it is not a web page and has the row's size
-and sha256, and appends the URL to the row; commit the list. Players get a
-mirror with the next release (the server data names the URLs; srp's
-`/patches` offers them). A mirror is removed by hand (the first URL stays).
-For **Google Drive**, share the file with "anyone with the link" and add
+and sha256, and, under the release lock and after a y/N, puts the row
+`<file> <url> [<n>]` into srp's `mirrors.tsv` in its data volume (the live
+host through the jump host; `--test` the test environment): srp reads it
+again when it changes and adds its rows to the release's URLs of the file,
+in their order, each after the URLs so far or as the n-th (`--first`, `--at
+<n>`: the place among all the file's URLs, the release's too: a new Google
+Drive link goes `--first`; 8 URLs a file in all). A bad row (a file the release has not, a URL the
+updater would refuse, past 8) is logged by srp and skipped; it never breaks
+`/patches`. `release/add-mirror --remove <file> <url>` takes a row out.
+To build a URL into the next release too (the updater's and the .bat's own
+addresses), add it to the file's row of the list in a PR. For **Google
+Drive**, share the file with "anyone with the link" and add
 `https://drive.usercontent.google.com/download?id=<id>&export=download&confirm=t`
 (the id of the link `.../file/d/<id>/view`): the `drive.google.com/uc`
-form answers a large file with a "cannot scan for viruses" HTML page,
-which the updater and the scripts refuse. The updater tries the URLs in
-order and moves on at any failure (no connection, another status than 200,
-a web page, cut short, another sha256); PLAY stays off only when every URL
-failed. There is no download resume: a broken download is fetched again
-whole.
+form answers a large file with a "cannot scan for viruses" HTML page, which
+the updater and the scripts refuse; a Drive file also has a daily download
+quota, past which it answers a "Quota exceeded" page (2026-11-01: every new
+player's game download), which the updater logs and moves on from. The
+updater tries the URLs in order and moves on at any failure (a timeout, no
+connection, another status, a web page, too slow, cut short, another
+sha256), each a line of its log; PLAY stays off only when every URL
+failed. The game's archive is gone on from at the next URL (`Range`); a
+patch is fetched again whole.
 
 The checks of every URL (release.sh's preflight, build-server-db for the
-mirrors, add-mirror) download it whole once and keep the result per (URL,
+mirrors, add-mirror) download it whole once (streamed into its sha256,
+nothing kept; stopped only by a stall: under 10 KB/s for 2 minutes) and keep the result per (URL,
 sha256) in `~/.cache/skhid-release/patch-urls.checked` (`$XDG_CACHE_HOME`
 if set): later runs ask such a URL for its first bytes only (200 or 206,
 not a web page, the row's size when the answer gives the whole file's
-size, the archive's `little-endian` header). A mirror whose file was
+size, the archive's `little-endian` header, or a 7z archive's start). A mirror whose file was
 replaced since by one of the same size is not seen so (the updater's
 sha256 check still refuses it, and moves on to the next URL). Delete a
 line, or the file, to have a URL downloaded whole again.
+
+## The bots' data files: release/bot-data.tsv
+
+The bots read private data from the data volume's `mapdata/` folder: the
+maps (`<project>.mapdata`, game data), the routes humans took
+(`bot-routes.json`, play 17, Cut, Crossfire) and, with #544, the foliage
+(`bot-foliage.json`). They were copied by hand, so what live had was nobody's
+record: on 2026-10-26 live had **no routes table at all**, while every bench
+had one. `release/bot-data.tsv` now lists what was benched (the ledger's F2,
+F3, F7): one row a file, its path under the volume, sha256 and size, and the
+file's name in the owner's folder when it is called otherwise there. The files
+stay out of git; **`$SKHID_BOT_DATA`** (release.env) is a folder laid out as the
+volume (`mapdata/level_01_day_2.mapdata`, ...; the owner's private folder
+with its `mapdata/` and `bot-routes/` works as it is).
+
+`release.sh` checks the folder against the list in the preflight (**a missing
+or different file, or `SKHID_BOT_DATA` unset, is a problem: the release stops
+before the go**), compares each file with the volume's own (a read), prints
+what differs in the plan, stages those in the release folder before the
+go (sha256 checked there) and, at the swap, with srp26 stopped, copies
+them into the volume (the owner and mode of `srp.db`; an atomic rename; the old
+ones kept in the folder as `old-bot-data/`, `bot-data.log` says `replaced` or
+`created`). A failed check rolls them back with the rest (`rollback.sh`: the
+old files copied back, the created ones removed). `--no-bot-data` leaves all
+of it out, said loudly.
+
+```sh
+release/bot-data check [<folder>]                  # each file as listed (default $SKHID_BOT_DATA)
+release/bot-data add <folder> mapdata/x.mapdata    # a new benched file: a row (commit the list)
+release/bot-data add <folder> mapdata/bot-routes.json=bot-routes/routes-3d.json
+release/bot-data add --replace <folder> <path>...  # a newly benched file with other bytes
+release/bot-data list
+```
+
+**Routes caveat:** on `main`, srp reads a routes table only when `SRP_BOT_ROUTES`
+names one (`driven.rs`); there is no default file and it takes format 1 only,
+while `routes-3d.json` is format 2. So `mapdata/bot-routes.json` is put in the
+volume by the release but is **not read** until `feat/bots-tiers-combined` lands
+(its `DEFAULT_FILE` `<MAPDATA>/bot-routes.json`, formats 1 and 2). The 16
+`.mapdata` files take effect at once.
+
+A new data file (the foliage) is one row; whoever lands its behaviour adds it
+with the PR that benched it. **The maps' built grids and trees** are not
+shipped: `mapdata/built/` is srp's own cache, written by the first match that
+needs a map, keyed by the map file's content and `SIGHT_ALGO`/`GRID_ALGO`
+(`crates/mapdata/src/lib.rs`). srp has no command that builds them before a
+match asks (`bots/maps.rs` `Maps::get`; the build is a test), so the release
+cannot pre-build: the preflight says whether the constants differ between main
+and the live tree, or map files change (then the first match on each map builds
+it again, on the host's one core, 0.3-0.8 s off the match thread on a PC and
+seconds there: watch CPU and RAM at the first matches, the container is capped
+at 1600 MB).
 
 ## release/release.sh
 
@@ -173,23 +298,33 @@ release/release.sh [--resources <resources.db.patch_<rev>>] [--test]
                    [--revision <n>] [--server-code auto|yes|no]
                    [--minutes <n> | --no-maintenance] [--now]
                    [--match-wait <minutes>] [--label <word>] [--ref <branch>]
+                   [--no-bot-data] [--worlds <folder>] [--no-selftest]
                    [--dry-run] [--yes --i-know]
 ```
 
-After the preflight it waits for the owner's go; at the go it plans the
-maintenance at once, to start **30 seconds after the last running match
-ends**, so Play locks and no new match starts; **during the countdown** it
-prepares and stages everything, and at the later of the planned time and
-the end of the staging, once no match runs, swaps it all in at once (the
-downtime is the restart). The countdown hides the build: players wait for
-the matches that run, or for the build when it takes longer.
+`--no-selftest` skips the exe patches' self-test (step 2), for a **quick fix
+release** only (an urgent fix that cannot wait for it); the default runs it.
+It is said as a WARNING in the preflight, the plan, the step-2 output and the
+summary, and written in the tag's message and the record's commit ("Shipped
+WITHOUT the exe patches' self-test"), so it stays visible which release went
+without it.
+
+After the preflight it **prepares and stages everything before the go**,
+which players don't see (a patch no list offers yet, the release folder,
+the server's image, built on this machine and loaded on the host, which
+compiles nothing: its one core keeps the running matches); then it waits for the owner's go; at
+the go it plans the maintenance at once, to start **30 seconds after the
+last running match ends**, so Play locks and no new match starts, and at
+its end (or as soon as no match has run for 30 s), swaps it all in at once (the downtime is the
+restart). Players wait only for the matches that run, never for a build.
 
 The order, as it runs:
 
 1. **Preflight**, nothing players see. It says exactly what's missing: ssh
    to the jump host, through it to the live host, the patches server; the
-   release lock free; nix; `$SKHID_GAME`; `$SKHID_STOCK_DB` with the stock
-   sha256 (cached by size and time); free disk here and there;
+   release lock free; nix; `$SKHID_GAME` with the original launcher (its
+   sha256); `$SKHID_STOCK_DB` with the stock sha256 (cached by size and
+   time); free disk here and there;
    srp-game-data builds; the release's revision `<n>` (the target exe's + 1,
    or `--revision <n>` above it; not below main's `REVISION`); live: main's
    `REVISION` (the last release's) is the live exe's or above and below
@@ -229,16 +364,83 @@ The order, as it runs:
    only: their values take effect at the recreate), and whether main
    changes what a match computes (a `next` row of `simulation_changes.tsv`,
    above: then the image must be built; with none, a note when the exe's
-   patches changed since the last tag).
-2. **The lock, then the go.** Right after the preflight it stops and
-   waits: y at its prompt (n stops), or `touch` the go file it prints
+   patches changed since the last tag). Last, the world check's tool
+   (`srp-world-check`) is built and the target's newest 3 kept match
+   recordings are copied off it (`nice -n 19 ionice -c 3 cat`), or
+   `--worlds <folder>`'s recordings are taken instead.
+2. **The lock, then everything prepared and staged**, nothing players
+   see: `upload-patch` (with `--resources`; it adds the row; no server
+   offers the patch before the swap), `build-server-db` (of the list),
+   then **the world check**: every upload of those recordings checked as
+   the new server checks an upload before it relays it, with the new
+   server data (`srp-world-check --data <it> <recordings>`, the match
+   server's own `world_validation::check`): one world refused, or none
+   checked, stops the release here, before the go, and prints the
+   refusals (section and offset; the refused worlds kept in the run's
+   `worlds-refused/`). A refusal is a check, a server data or a game's
+   writing that changed: never ship over it. A release that changes what
+   games write (an exe patch) refuses the live games' worlds by design;
+   check it with worlds of its own games instead: after `release.sh
+   --test`, play a match on the test environment (one against bots is
+   kept), copy its recording from the test volume's `recordings/`, and
+   give `--worlds <folder>`. Then
+   `build-zip` (of the commit checked in step 1); then the **exe patches'
+   self-test** of that commit started in the background
+   (`srp-026g/client-patches/selftest_026g.py`, its Linux part, on
+   `$SKHID_GAME`'s `survarium.exe`, in the commit's dev shell with nixpkgs'
+   Python unicorn, its builds on every core, about 5 min, ~0.4 GB; log
+   `selftest.log` in the run's work folder), while the rest of this step
+   runs; its result is waited for last, before the go: a failed check stops
+   the release there like any failure of this step (the patch's fix is a
+   PR, then a new run; `--no-selftest`: none, see above). It is the release's check of the exe's general rules (no byte
+   changed undeclared, no relocation or branch into a rewritten byte, every
+   hooked function's ABI, every branch target known): nobody runs it by hand
+   before a release, and it is not a check of each PR. The checks of `deploy`
+   on both files; then the **release folder** on the target (below) with
+   both files staged in it (sha256 checked there, `chmod 644`) and
+   `changed.txt`. With server code: the image built **here** from main's
+   source (with the rebuilt pages) by rootless podman from nixpkgs
+   (`build_image` in `lib.sh`, about 2 min; it needs this machine's
+   `/etc/subuid` range), uploaded as `image.tar.zst` (~40 MB) with the
+   source's `src.tar`, sha256 checked there; the running image tagged
+   `srp-026g:before-rev<rev>-<stamp>` by its ID, then `docker load` makes
+   the new one `srp-026g:latest` (the running container is not touched).
+   Then the self-test's result (`waiting for the exe patches' self-test`).
+   The local builds run at nice 10. A failure here (a stop too: it kills
+   the self-test still running) stops before the go: the staged files removed, the
+   image tag put back, nothing planned, and the new patch's row taken out
+   of the list again (no server offered it). The file goes from the
+   patches server too when this run uploaded it, so the revision can be
+   made again with other bytes; one there before the run stays, and a run
+   with the same `--resources` takes it as it is.
+
+   **The first release with server code after #1395 proves the image path**
+   (owner, 2026-11-06: merged untested on a server, "we will test during
+   release"). Until one has, no server has ever loaded an image built here.
+   In that release, before the go, check and tell the owner: step 2 printed
+   `Loaded image: srp-026g:latest`; on the live host
+   `docker image inspect -f '{{.Id}} {{.Created}}' srp-026g:latest` is a new
+   ID, created minutes ago, and `srp-026g:before-rev<rev>-<stamp>` names
+   the running one; after the swap, srp26 runs the new ID (the release's own
+   checks) and logs its game data line. Write the outcome into the release
+   record. If the build here or the load fails, the release stops before the
+   go with nothing players feel: report it to the owner; building on the host
+   instead (`docker compose build srp26` over the folder's `src.tar`, unpacked) only on the
+   owner's word.
+3. **The go.** Once staged it stops and waits: y at its prompt (n stops),
+   or `touch` the go file it prints
    (`~/.cache/skhid-release/go-<release folder>`); `--yes` does not give
    it. **The go is the owner's**: it is their word that players may feel
    the release from now on, and the maintenance is planned the moment it
    is given. Ask the owner, and give it only when they say so
    (`SKHID_RELEASE_GO=1` gives it beforehand, for the tests). Nothing is
-   planned, built or staged before it; a Ctrl-C there only frees the lock.
-3. **The maintenance, at once after the go**: a POST to the admin page
+   planned before it; a Ctrl-C there removes the staged files and frees
+   the lock. The y/N before the swap (5.) has a file of its own, named
+   alike (`~/.cache/skhid-release/swap-<release folder>`, its exact path
+   printed with the question): `touch` it to answer y without a terminal.
+   It is removed as that question is asked, so an earlier one is no
+   answer.
+4. **The maintenance, at once after the go**: a POST to the admin page
    (`tab=maint`, `minutes`) from the jump host, whose address must be in
    the target's `SRP_ADMIN_IPS` (behind Caddy with
    `SRP_WEB_TRUST_PROXY=on`). The admin path and token are read from the
@@ -258,34 +460,38 @@ The order, as it runs:
      The log says which.
    - `--minutes <n>`: `<n>`, planned at the same point (right after the go).
    - `--no-maintenance` or `--now`: nothing is planned (below).
-4. **Prepared and staged during the countdown**: `upload-patch` (with `--resources`; it adds
-   the row), `build-server-db` (of the list), `build-zip` (of the commit
-   checked in step 1); the checks of `deploy` on both files; then the
-   **release folder** on the target (below) with both files staged in it
-   (sha256 checked there, `chmod 644`) and `changed.txt`. With server
-   code: the running image tagged `srp-026g:before-rev<rev>-<stamp>` by
-   its ID, main's source (with the rebuilt pages) unpacked in the folder's `src/` and
-   `docker compose build srp26` run on it (the running container is not
-   touched). The local builds run at nice 10.
-5. **The swap, at the later of the planned time and the end of the
-   staging**: staged before the planned time, it waits for it; staged
-   after it, it goes on at once. Then, once the launcher page says the
+5. **The swap, at the planned time at the latest**: while it waits for it, it reads
+   `/api/stats` every quarter of a minute, and once `"matches":0` has held 30 s (the
+   plan's margin) while Play is locked (the countdown's last 30 min), it goes on at once
+   ("no match has run for 30 s: swapping now, N min before the planned time"): the plan
+   counts a match's whole time limit, and matches often end sooner (by their rules, or
+   their players leaving). Else, at the planned time, once the launcher page says the
    server is down and `/api/stats` says `"matches":0` (it waits up to `--match-wait`,
    default `$SKHID_MATCH_WAIT_MINUTES`, else 15, more): it shows what changes,
-   **y/N** (no answer in `$SKHID_SWAP_ANSWER_MINUTES`, default 10, is a
+   **y/N** (or its swap file, step 3; no answer in
+   `$SKHID_SWAP_ANSWER_MINUTES`, default 10, is a
    no), then: notes srp's newest backup of srp.db, stops srp26, keeps the
    old files in the folder, puts the folder's rollback in, puts the server
    data **and the ZIP** in place (hard links renamed over the old files:
    atomic; the ZIP goes in while srp26 is stopped, never after its start:
    see below), sets
    `SRP_MIN_PATCH_REVISION=<rev>` (that line only; it must be at least the
-   highest patch, or srp refuses to start) and runs
+   highest patch, or srp refuses to start) and
+   `SRP_RELEASED_EXE_SHA256=<the sha256 of the ZIP's game exe>` (that line
+   only: the match server reads it at its start and asks no game that
+   reports this exe for its file, so the first players of a release do not
+   each upload the exe the release just gave them; any other exe the
+   server has not stored is collected as before) and runs
    `docker compose up -d --no-deps --force-recreate srp26` (after any
    `.env` change the container is made anew, never just restarted).
 6. **Checks**: the container running, healthy, not restarting; the
-   log's `game data:` line; `/patches` exactly the list's;
+   log's `game data:` line; `/patches` and `/game` the list's (with any
+   rows of `mirrors.tsv` among each file's URLs);
    `/api/client-files` names the new ZIP and (an srp that says it)
-   `min-revision <rev>`. Then srp.db: at its start srp copies it with `VACUUM INTO` to
+   `min-revision <rev>`; and it prints what srp's log says of the
+   release's exe (`Executables: the release's own is sha256 …`; an srp
+   from before the setting says nothing, which is said and fails
+   nothing). Then srp.db: at its start srp copies it with `VACUUM INTO` to
    `backups/srp-<unix>.db` before it opens it, so that copy is the state
    just before the release; it is copied (`docker exec ... cat`) into the
    folder and, from live, to the jump host (`$SKHID_BACKUP_DIR`, default
@@ -319,9 +525,13 @@ The order, as it runs:
      before, the record PRs left out), a `CHANGELOG-SKHID-026G.md` entry
      under the rule, `TODO` for the owner to word, with those PRs, and
      `release/patches.tsv` as the server offers it (the row
-     `upload-patch` added), the Maps tab and the calculator when
+     `upload-patch` added), the Maps tab, the calculator and the skills when
      step 1 rebuilt them (so main's pages match its list, as the web-server
-     test wants), and `<n>` in place of a `next` row of
+     test wants), the item tables (`srp-026g/docs/data/`) of the server data
+     it shipped where an item changed (the first 50 changes in the commit's
+     message, the PR's body; none: no table in the record; step 2 already
+     ran the tool on that data, so a failure stops before the swap, and one
+     in the record leaves the tables out with the step by hand), and `<n>` in place of a `next` row of
      `simulation_changes.tsv` (said in the commit); pushed as
      `release/record-rev<n>`, a PR opened
      (`gh pr create`) and merged as a merge commit (`gh pr merge --merge`).
@@ -346,13 +556,13 @@ names`, `srp: SRP_MIN_PATCH_REVISION is …`, `srp: cannot load the 0.26g
 accounts: … lacks …` — and runs the folder's rollback at once, then checks
 srp26 is up and `/patches` is as before.
 
-A **stop after the go and before the swap** (a failure, a no, Ctrl-C,
-during the countdown's build too) cancels the maintenance when it was
-planned, removes the staged files (the folder stays, state `stopped`, with
-its release.log) and puts the image tag back: the server is as it was (a
-published patch stays with its row; the next run goes without
-`--resources`). A stop before the go asks the admin page nothing and only
-frees the lock. A stop in the swap before anything moved starts srp26
+A **stop after the lock and before the swap** (a failure, a no, Ctrl-C,
+during the build too) cancels the maintenance when it was planned (only
+after the go), removes the staged files (the folder stays, state
+`stopped`, with its release.log) and puts the image tag back: the server
+is as it was. A published patch: after the go it stays with its row
+(the next run goes without `--resources`); before the go its row goes,
+and the file too when this run uploaded it (step 2). A stop in the swap before anything moved starts srp26
 again as it was.
 
 `--yes --i-know` (both or neither) answers the y/N before the swap; only
@@ -367,9 +577,8 @@ Every wait (the go, the y/N, the wait for the planned time, for
 When the owner doesn't want a countdown (a small fix, few players on),
 `--no-maintenance` skips it: no maintenance is planned and the admin page is
 never asked (the preflight doesn't check it, nor `SRP_ADMIN_*` and
-`SRP_WEB_TRUST_PROXY`). After the lock and the go, step 4 (publish
-the patch, build the server data and the ZIP, stage them, build the image)
-runs at once; then it waits for `"matches":0` on `$TARGET_SITE/api/stats`
+`SRP_WEB_TRUST_PROXY`). Everything is staged before the go as in the
+default; after the go it waits for `"matches":0` on `$TARGET_SITE/api/stats`
 (`--match-wait`, default 120 min here; past it, a clean stop: nothing
 swapped, the staged files removed, state `stopped`), shows what changes and
 asks the y/N (no answer in `$SKHID_SWAP_ANSWER_MINUTES` is a no). Right
@@ -386,7 +595,7 @@ the planned end. `--minutes` and `--no-maintenance` are refused together.
 ### Right now: --now
 
 `--now` means now: **no maintenance is planned and no notice given**.
-After the go it prepares and stages, then swaps at once, **matches running
+Staged before the go as in the default; after the go it swaps at once, **matches running
 or not**: they end without results. Right before it stops srp26 it says
 how many matches run (`--now: <n> match(es) running: the stop ends them
 now, WITHOUT RESULTS`), and its last lines say how many it ended; both are
@@ -411,6 +620,7 @@ Every release keeps a folder on its target:
 | `old-Survarium-0.26g-srp-files.zip`, `old-server-game-data.db` | `download/`'s files before the swap (hard links) |
 | `srp-<unix>.db`, `srp-db.name` | srp.db as it was before the release (srp's own start backup) |
 | `image.old`, `image.new`, `min.old` | the image IDs before and after, `SRP_MIN_PATCH_REVISION` before |
+| `released-exe.old` | the `SRP_RELEASED_EXE_SHA256` line of `.env` before (empty: there was none) |
 | `changed.txt` | the server source files that changed, the ZIP's changed entries |
 | `src.tar`, `old-src.tgz` | with server code: main's source, the tree's files it replaced |
 | `rollback.sh`, `rollback.env` | the rollback (`release/host-rollback.sh`) and what it puts back |
@@ -422,12 +632,13 @@ preflight: look at its `release.log`, finish or roll it back, then write
 ### What to watch
 
 - The preflight: every line `ok`.
+- Before the go: the builds and the staging (`2. ...`), the self-test
+  beside them, its result last (`the exe patches' self-test: all checks
+  passed`), then `3. waiting for the go`.
 - After the go: the plan's line at once, with its minutes and where they
   come from (`/api/stats`, the launcher page, or a whole match), and the
-  launcher countdown (none with `--no-maintenance` or `--now`); then the
-  builds and the staging, during the countdown; then `5. staged before
-  the planned time` (it waits for it) or `5. staged after the planned
-  time: the swap at once`.
+  launcher countdown (none with `--no-maintenance` or `--now`); then `5.
+  waiting for the planned time` and the swap.
 - The ZIP's entries against the current ZIP (build-zip's list, shown again
   at the y/N before the swap and in `changed.txt`): `survarium_skhid.exe`,
   `updater_skhid.exe` and `bugtrap.dll` always differ (the revision: the
@@ -450,7 +661,8 @@ release/rollback [--test] [--keep-db] release-rev<rev>-<stamp>[-<label>]
 It runs the folder's `rollback.sh <folder>` on the target (by hand there:
 `sh <folder>/rollback.sh <folder> [--keep-db]`, as root): the ZIP and the
 server data from before (renamed into place), `SRP_MIN_PATCH_REVISION`
-back (or its line removed), the server source back, the image that ran
+and `SRP_RELEASED_EXE_SHA256` back (or their lines removed), the server
+source back, the image that ran
 before tagged `srp-026g:latest`, and srp.db as it was before the release
 (the folder's copy; or, when the run did not get to keep one, srp's own
 backup in the volume made by the new start; none at all means the new srp
@@ -487,13 +699,13 @@ shows the command, unless release.sh, already given the go-ahead, runs it):
 
 | Script | Does | Writes |
 |---|---|---|
-| `release/build-content <rev> [--out <folder>] [--tree] [--manifest]` | the next content patch of `release/content.tsv`: what differs from players' files (the stock db, the listed patches), each file with why; `server-game-data.db` with it | a local folder, the patch cache |
+| `release/build-content <rev> --full [--out <folder>] [--tree] [--site] [--manifest] [--no-cache]` | the next content patch of `release/content.tsv`: what differs from players' files (the stock db, the listed patches), each file with why; `server-game-data.db` with it; then, from the same patches, the item tables (srp-item-tables; only changes, each said) and, with `--site`, the site's pages (build-site) | a local folder (with `item-tables/`), the patch cache, the steps' cache (`~/.cache/skhid-release/build-content`: unchanged movies, packs, edit lists and checks are taken from it, the same files; delete it any time; `--no-cache` runs every step; without `--full`, a quick build for local tests: no check of players' files with the patch, no item tables, `QUICK-BUILD` in the folder, which `release.sh`/`upload-patch` refuse: a release always passes `--full`); with `--site`, `--tree`'s site pages |
 | `release/build-patch <folder> <rev> [--out <file>]` | packs a folder into `resources.db.patch_<rev>` (read back and compared) | a local file | (build-content's step; never by hand)
 | `release/upload-patch [--test] [--dry-run] <file>` | publishes one patch: `.tmp`, sha256 there, `chmod 644`, `mv -n`, GET must be 200 with the sha256, then its row in the list; never replaces one | the patches server, the list |
 | `release/add-mirror [--test] <name> <url>` | another URL of a listed patch: downloaded as the updater does, not a web page, the row's size and sha256, then appended to the row | the list (and the URL cache) |
-| `release/build-server-db [--test] [--out <file>]` | `server-game-data.db` from the stock db and the list's patches (each first URL GET 200 with the row's size and sha256; each mirror checked as above), `srp-game-data build --patch "<file>=<urls>"` | a local file |
-| `release/build-site --tree <checkout> [--with <patch>]` | the Maps tab and the calculator from the stock db and the list's patches (cached, each sha256 checked), FFDec 26.0.0, dbgrab; both `built-from.tsv` must name exactly those; release.sh runs it in its preflight, by hand it is a local preview (`--tree .`) | the checkout's `servers/web-server/{maps,damage}/`, the cache |
-| `release/build-zip [--test] [--ref <commit>] [--revision <n>] [--patches <list>] [--work <dir>]` | the players' ZIP from a fresh worktree of origin/main (never this checkout, never `git stash`): `--server`, `--site`, `--localization`, `--revision` (default: the site's exe's + 1; above it), `--required-patches` (every patch of the offered-patch list, or `--patches`'; release.sh passes its list with the new patch: the exe stops at its start without one, patch 49), no resources.db regions; the exe without a server too, both sha256 in `<work>/exe.sha256`; entries against the site's ZIP | a worktree, the ZIP |
+| `release/build-server-db [--test] [--out <file>]` | `server-game-data.db` from the stock db and the list's patches (local cache checked by size and SHA-256; missing or invalid files downloaded; every primary URL and mirror checked whole once, then by its first bytes), `srp-game-data build --patch "<file>=<urls>"` | a local file, the patch cache |
+| `release/build-site --tree <checkout> [--with <patch>]` | the Maps tab, the calculator and the skills from the stock db and the list's patches (cached, each sha256 checked), FFDec 26.0.0, dbgrab; each `built-from.tsv` must name exactly those; release.sh runs it in its preflight, by hand it is a local preview (`--tree .`) | the checkout's `servers/web-server/{maps,damage,skills,wiki}/`, the cache |
+| `release/build-zip [--test] [--ref <commit>] [--revision <n>] [--patches <list>] [--work <dir>]` | the players' ZIP from a fresh worktree of origin/main (never this checkout, never `git stash`): `--server`, `--site`, `--revision` (default: the site's exe's + 1; above it), `--required-patches` (every patch of the offered-patch list, or `--patches`'; release.sh passes its list with the new patch: the exe stops at its start without one, patch 49), no resources.db regions; the exe without a server too, both sha256 in `<work>/exe.sha256`; entries against the site's ZIP | a worktree, the ZIP |
 | `release/deploy --zip --server-data --revision [--label] [--dry-run]` | the swap on its own, in a window planned by hand: the release folder, the checks, the rollback on failure | the live host |
 | `release/rollback [--test] [--keep-db] [<folder>]` | a release folder's rollback | the target |
 | `release/setup-patches-server [--test] [--check]` | once: the patches folder and Caddy's site block for it (validate and reload; either failing puts the backup back) | the jump host's Caddy |

@@ -16,7 +16,7 @@ package survarium.char
    import scaleform.clik.events.IndexEvent;
    import survarium.Util;
    import survarium.constants.Events;
-   import survarium.controls.Message;
+   import survarium.constants.MoneyType;
    import survarium.controls.UIWindow;
    import survarium.data.LocalizationData;
    import survarium.data.PropertiesDescriptor;
@@ -30,11 +30,6 @@ package survarium.char
       
       protected const POINTS_PER_LEVEL:uint = 5;
       
-      // a skill branch's tiers (one every POINTS_PER_LEVEL branch points) and the points of its last
-      private static const TIERS:int = 5;
-      
-      private static const LAST_TIER_POINTS:int = 20;
-      
       protected var _data:Object;
       
       protected var _enterName:MovieClip;
@@ -44,10 +39,6 @@ package survarium.char
       protected var _branches:Vector.<*> = new Vector.<*>();
       
       protected var _branchesDict:Dictionary = new Dictionary();
-      
-      protected var _reroll_cost:uint = 0;
-      
-      protected var _reroll_cost_premium:uint = 0;
       
       protected var _perkItems:Array = [];
       
@@ -153,26 +144,6 @@ package survarium.char
          _skillClassRenderer = value;
       }
       
-      public function set reroll_cost(value:int) : void
-      {
-         _reroll_cost = value;
-      }
-      
-      public function set reroll_cost_premium(value:int) : void
-      {
-         _reroll_cost_premium = value;
-      }
-      
-      public function get reroll_cost() : int
-      {
-         return this._reroll_cost;
-      }
-      
-      public function get reroll_cost_premium() : int
-      {
-         return this._reroll_cost_premium;
-      }
-      
       public function init(e:Event) : void
       {
          removeEventListener(Event.RENDER,this.init);
@@ -212,16 +183,6 @@ package survarium.char
          if(this.btn_change_titul)
          {
             this.btn_change_titul.addEventListener(MouseEvent.CLICK,this.showTitulList);
-         }
-         var temp_achievments:Array = [];
-         for(var i:uint = 0; i < 20; i++)
-         {
-            var icon:MovieClip = new MovieClip();
-            icon.gotoAndStop(Math.random() * 2);
-            temp_achievments.push({
-               label:"achievement" + i.toString(),
-               icon:icon
-            });
          }
          this.skillsTabPage.dataProvider = new DataProvider([{
             name:"skills_01",
@@ -352,23 +313,63 @@ package survarium.char
       
       private function setSkillProgress(branchPoints:uint) : void
       {
-         this.progressIndicator.value = Math.min(branchPoints + 1,this.progressIndicator.maximum - this.POINTS_PER_LEVEL);
+         this.progressIndicator.value = Math.min(this.indicatorPoints(branchPoints) + 1,this.progressIndicator.maximum - this.POINTS_PER_LEVEL);
          var unclockedData:Object = this.getBranchUnlockedLevel();
-         var level:uint = unclockedData.level * this.POINTS_PER_LEVEL;
+         var unlocked:uint = unclockedData.points;
          if(unclockedData.lastUnlocked == true)
          {
             this.progressIndicator.value = this.progressIndicator.maximum;
          }
-         trace("setSkillProgress::",branchPoints,level,"|",this.points_aviable);
+         trace("setSkillProgress::",branchPoints,unlocked,"|",this.points_aviable);
          var l:uint = this._skillRenderers.length;
          for(var i:uint = 0; i < l; i++)
          {
             var renderer:ISkillRenderer = this._skillRenderers[i];
             var rendererData:Object = renderer.data;
-            renderer.enabled = rendererData.branch_points <= level;
+            renderer.enabled = rendererData.branch_points <= unlocked;
             renderer.unlockable = this.points_aviable > 0;
             renderer.invalidateData();
          }
+      }
+      
+      // Where branchPoints fall on the progress indicator, whose rows are POINTS_PER_LEVEL apart:
+      // a row's mark is reached at the branch points the tree gives that row, and between two rows
+      // the bar moves evenly (stock rows ask 0/5/10/15/20, drawn as the points themselves; the
+      // medical tree's 0/3/10/15/20 mark its second row at 3)
+      private function indicatorPoints(branchPoints:uint) : Number
+      {
+         var thresholds:Array = [];
+         for each(var skillData:Object in this._skillList[this._activeSkillBranch])
+         {
+            if(skillData && skillData.branch_points <= this.SKILL_LEVELS)
+            {
+               thresholds[skillData.level] = skillData.branch_points;
+            }
+         }
+         var rows:Array = [];
+         for(var r:int = 0; r < thresholds.length; r++)
+         {
+            if(thresholds[r] != undefined)
+            {
+               rows.push(r);
+            }
+         }
+         if(rows.length == 0 || branchPoints < thresholds[rows[0]])
+         {
+            return branchPoints;
+         }
+         var k:int = 0;
+         while(k + 1 < rows.length && thresholds[rows[k + 1]] <= branchPoints)
+         {
+            k++;
+         }
+         var at:Number = this.POINTS_PER_LEVEL * (rows[k] - rows[0]);
+         var over:Number = branchPoints - thresholds[rows[k]];
+         if(k + 1 == rows.length)
+         {
+            return at + over;
+         }
+         return at + this.POINTS_PER_LEVEL * (rows[k + 1] - rows[k]) * over / (thresholds[rows[k + 1]] - thresholds[rows[k]]);
       }
       
       private function getBranchUnlockedLevel() : Object
@@ -378,8 +379,18 @@ package survarium.char
          var l:uint = _currentSkills.length;
          var data:Object = {};
          var value:uint = 0;
-         var level:uint = 0;
+         var points:uint = 0;
          var lastUnlocked:Boolean = false;
+         // the branch points of the branch's last tier: 20 in the stock, medical and artefact trees
+         // (medical-skills.md, artefact-skills.md); the bar fills when it is taken
+         var lastTier:uint = 0;
+         for each(var tierData:Object in _currentSkills)
+         {
+            if(tierData && tierData.branch_points <= this.SKILL_LEVELS)
+            {
+               lastTier = Math.max(lastTier,tierData.branch_points);
+            }
+         }
          for(var i:uint = 0; i < l; i++)
          {
             var skillData:Object = _currentSkills[i];
@@ -388,8 +399,10 @@ package survarium.char
             {
                if(skillData.branch_points <= value)
                {
-                  level = (int(skillData.branch_points / this.POINTS_PER_LEVEL));
-                  if(skillData.branch_points == LAST_TIER_POINTS && skillData.newValue > 0)
+                  // the branch points this row asks, whole (the stock window rounded them down
+                  // to fives; the medical tree's second row opens at 3: medical-skills.md)
+                  points = skillData.branch_points;
+                  if(skillData.branch_points == lastTier && skillData.newValue > 0)
                   {
                      lastUnlocked = true;
                   }
@@ -401,8 +414,7 @@ package survarium.char
                value += skillData.newValue;
             }
          }
-         level = Math.min(TIERS,level);
-         data.level = level;
+         data.points = points;
          data.lastUnlocked = lastUnlocked;
          return data;
       }
@@ -459,6 +471,7 @@ package survarium.char
             var skillData:Object = value[i];
             Util.logObject(skillData);
             this._skillsPropDict[skillData.id] = skillData;
+            SkillNames.record(skillData.id,skillData.name);
             branchEnabled[skillData.branch] = true;
             this._skillsArray[i] = {
                id:skillData.id,
@@ -1075,23 +1088,12 @@ package survarium.char
          trace("changesSaved");
       }
       
+      // A skills reset is free and asks nothing (the owner, 2026-11-08: "user presses reset and it
+      // resets by itself immediately", "there should be no confirmation at all"): the button resets the
+      // open branch at once, paid in silver (MoneyType.REGULAR) as the dialog's OK did, for 0.
       protected function rerollChanges(e:ButtonEvent) : void
       {
-         var _obj:Object = new Object();
-         _obj.price = this.reroll_cost;
-         _obj.price_premium = this.reroll_cost_premium;
-         _obj.text = LocalizationData.getName("message_reroll_text");
-         _obj.branch = this._activeSkillBranch;
-         var progressData:Object = this._skillsProgressArray[this._activeSkillBranch];
-         if(progressData)
-         {
-            _obj.points = progressData.points;
-         }
-         else
-         {
-            _obj.points = 0;
-         }
-         Message.showMessage("reroll",_obj,true);
+         ExternalInterface.call("reroll_ok_clicked",uint(this._activeSkillBranch),uint(MoneyType.REGULAR));
       }
       
       protected function cancelChanges(e:ButtonEvent) : void

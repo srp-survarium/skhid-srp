@@ -1,0 +1,7 @@
+{
+ "_about": "The medicines made whole from one table (the owner, 2026-10-31; srp-026g/docs/notes/medicines.md, pack medicines): the bandages' (66) and the Medikit's (67) dictionary rows name their configs of the pack, gameplay/items/medicines/, where make_pack.py makes them from scripts/medicines/medicines.tsv. Their old configs stay in the archive, named by nothing.",
+ "set_entry": [
+  {"file": "gameplay/db_static_dictionaries", "list": "items_dict", "where": {"dict_id": 66}, "from": {"cfg_name": "gameplay/items/drugs/bandages.options"}, "to": {"cfg_name": "gameplay/items/medicines/bandages.options"}},
+  {"file": "gameplay/db_static_dictionaries", "list": "items_dict", "where": {"dict_id": 67}, "from": {"cfg_name": "gameplay/items/drugs/medkit.options"}, "to": {"cfg_name": "gameplay/items/medicines/medkit.options"}}
+ ]
+}

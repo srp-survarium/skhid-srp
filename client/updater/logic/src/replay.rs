@@ -26,18 +26,28 @@ pub const FOLDER: &str = "replays";
 pub const LOCK_FILE: &str = "updater_skhid.replay.lock";
 /// What the launcher's PLAY starts, beside the updater.
 pub const GAME_EXE: &str = "survarium_skhid.exe";
-/// What the launcher's PLAY gives the game after its language (the
-/// `arguments` value of `launcher_values_026g.asm`). The game exe has its
-/// login server inside; a replay connects to none.
-pub const GAME_ARGUMENTS: &str = "-mt_allocator=768 -minimum_resources_memory_size=768";
 /// The game cuts a replay's name at 259 bytes (0x1F02EC: a 0x104-byte
 /// buffer) and reads its command line as ANSI text.
 pub const MAX_GAME_PATH: usize = 259;
 
-/// The launcher's languages, by the number it keeps
-/// (`HKCU\Software\Vostok Games\Survarium`, `language`): the game's
-/// `-localization=` word.
+/// The languages the messages are written in, by their number. The language
+/// is the game's: user.cfg's `localization <name>` line, which the game's
+/// Settings and the launcher's menu write ([`language_of_user_cfg`]); a
+/// replay is started with none, so it plays in it too.
 pub const LANGUAGES: [&str; 5] = ["english", "russian", "ukrainian", "german", "polish"];
+
+/// The number in [`LANGUAGES`] of the language of a user.cfg: its first
+/// `localization <name>` line, as the launcher reads it. None without one, or
+/// for a language the messages are not written in (they are then English).
+pub fn language_of_user_cfg(text: &[u8]) -> Option<u32> {
+    let line = text.split(|&byte| byte == b'\n').find_map(|line| {
+        let rest = line.strip_prefix(b"localization")?;
+        rest.first().filter(|&&byte| byte == b' ' || byte == b'\t')?;
+        Some(rest)
+    })?;
+    let name = line.split(|&byte| byte <= b' ').find(|word| !word.is_empty())?;
+    LANGUAGES.iter().position(|language| language.as_bytes() == name).map(|at| at as u32)
+}
 
 /// A replay link that passed every check.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -178,38 +188,32 @@ pub fn to_delete(files: &[(String, u64)], current: &str, keep: usize) -> Vec<Str
     out
 }
 
-/// The game's command line: the launcher's PLAY with `-match_replay=` after
-/// it. The game reads a value in double quotes up to the next quote (its
+/// The game's command line: the launcher's PLAY (no `-localization=`: the
+/// game's own language) with `-match_replay=` after it. The game reads a value in double quotes up to the next quote (its
 /// command-line parser, 0xDF1E3), so a path with spaces is one value. `None`
 /// for a path the game would read otherwise: one with a quote or a control
 /// character, one that ends with a backslash, one too long, one that is
 /// not a full path (the game takes a name without `:` or `\\` for a name in
 /// its own replays folder).
-pub fn game_command(game: &str, localization: &str, replay: &str) -> Option<String> {
+pub fn game_command(game: &str, replay: &str) -> Option<String> {
     let bad = |text: &str| text.chars().any(|c| c == '"' || c.is_control());
     if bad(game)
         || bad(replay)
         || replay.ends_with('\\')
         || replay.len() > MAX_GAME_PATH
         || !(replay.starts_with("\\\\") || replay.get(1..3) == Some(":\\"))
-        || !LANGUAGES.contains(&localization)
     {
         return None;
     }
-    Some(format!(
-        "\"{game}\" -localization={localization} {GAME_ARGUMENTS} -match_replay=\"{replay}\""
-    ))
-}
-
-/// The game's `-localization=` word for the launcher's language number.
-pub fn localization(language: Option<u32>) -> &'static str {
-    LANGUAGES[language.filter(|&n| (n as usize) < LANGUAGES.len()).unwrap_or(0) as usize]
+    Some(format!("\"{game}\" -match_replay=\"{replay}\""))
 }
 
 /// What went wrong, for the player.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Problem {
     BadLink,
+    BadFile,
+    Open { path: String, detail: String },
     AlreadyRunning,
     /// The site could not be reached (its host).
     Network(String),
@@ -235,12 +239,22 @@ pub enum Problem {
     NotReady,
 }
 
-/// The message for a player in the launcher's language (`LANGUAGES` order);
-/// English for an unknown one.
+/// The message for a player in the game's language (`LANGUAGES` order);
+/// English for another one.
 pub fn message(language: Option<u32>, problem: &Problem) -> String {
     use Problem::*;
     let language = language.filter(|&n| n < 5).unwrap_or(0);
     match (language, problem) {
+        (1, BadFile) => "Выберите один файл повтора .sur. Откройте его двойным щелчком или перетащите на updater_skhid.exe.".into(),
+        (2, BadFile) => "Виберіть один файл повтору .sur. Відкрийте його подвійним клацанням або перетягніть на updater_skhid.exe.".into(),
+        (3, BadFile) => "Wähle eine .sur-Wiederholung. Öffne sie per Doppelklick oder ziehe sie auf updater_skhid.exe.".into(),
+        (4, BadFile) => "Wybierz jeden plik powtórki .sur. Kliknij go dwukrotnie lub przeciągnij na updater_skhid.exe.".into(),
+        (_, BadFile) => "Select one .sur replay file. Double-click it or drag it onto updater_skhid.exe.".into(),
+        (1, Open { path, detail }) => format!("Не удалось открыть повтор:\n{path}\n\n{detail}\n\nПроверьте, что файл существует и доступен для чтения."),
+        (2, Open { path, detail }) => format!("Не вдалося відкрити повтор:\n{path}\n\n{detail}\n\nПеревірте, що файл існує і доступний для читання."),
+        (3, Open { path, detail }) => format!("Wiederholung konnte nicht geöffnet werden:\n{path}\n\n{detail}\n\nPrüfe, ob die Datei vorhanden und lesbar ist."),
+        (4, Open { path, detail }) => format!("Nie można otworzyć powtórki:\n{path}\n\n{detail}\n\nSprawdź, czy plik istnieje i można go odczytać."),
+        (_, Open { path, detail }) => format!("Couldn't open replay:\n{path}\n\n{detail}\n\nCheck that the file exists and you have permission to read it."),
         (1, BadLink) => "Ссылка на повтор недействительна. Запросите повтор снова в Истории лобби.".into(),
         (2, BadLink) => "Посилання на повтор недійсне. Попросіть повтор знову в Історії лобі.".into(),
         (3, BadLink) => "Dieser Wiederholungslink ist ungültig. Fordere die Wiederholung im Verlauf der Lobby erneut an.".into(),
@@ -286,21 +300,21 @@ pub fn message(language: Option<u32>, problem: &Problem) -> String {
         (3, NoGame) => "survarium_skhid.exe wurde neben dem Updater nicht gefunden. Starte das Spiel einmal mit dem Launcher, der es installiert.".into(),
         (4, NoGame) => "Nie znaleziono survarium_skhid.exe obok aktualizatora. Uruchom grę raz przez launcher, który go zainstaluje.".into(),
         (_, NoGame) => "survarium_skhid.exe was not found beside the updater. Start the game once with the launcher, which installs it.".into(),
-        (1, Start(detail)) => format!("Повтор загружен, но игру не удалось запустить: {detail}."),
-        (2, Start(detail)) => format!("Повтор завантажено, але гру не вдалося запустити: {detail}."),
-        (3, Start(detail)) => format!("Die Wiederholung ist heruntergeladen, aber das Spiel konnte nicht gestartet werden: {detail}."),
-        (4, Start(detail)) => format!("Powtórka jest pobrana, ale nie udało się uruchomić gry: {detail}."),
-        (_, Start(detail)) => format!("The replay is downloaded but the game could not be started: {detail}."),
-        (1, Path) => "Путь к папке игры содержит символы, которые игра не читает. Переместите игру в папку, путь к которой состоит только из латинских букв.".into(),
-        (2, Path) => "Шлях до теки гри містить символи, яких гра не читає. Перемістіть гру в теку, шлях до якої має лише латинські літери.".into(),
-        (3, Path) => "Der Pfad des Spielordners enthält Zeichen, die das Spiel nicht lesen kann. Verschiebe das Spiel in einen Ordner, dessen Pfad nur lateinische Buchstaben hat.".into(),
-        (4, Path) => "Ścieżka folderu gry zawiera znaki, których gra nie odczyta. Przenieś grę do folderu, którego ścieżka ma tylko litery łacińskie.".into(),
-        (_, Path) => "The game folder's path has characters the game cannot read. Move the game to a folder whose path has Latin letters only.".into(),
-        (1, NotReady) => "Skhid ещё не закончил обновлять файлы игры (game\\resources.db.patch_*), поэтому повтор не запущен. Запустите Skhid.bat (лаунчер): он закончит обновление или скажет, что мешает. Затем запросите повтор снова в Истории лобби. Подробности: game\\binaries\\x86\\updater_skhid.log.".into(),
-        (2, NotReady) => "Skhid ще не завершив оновлення файлів гри (game\\resources.db.patch_*), тому повтор не запущено. Запустіть Skhid.bat (лаунчер): він завершить оновлення або скаже, що заважає. Потім попросіть повтор знову в Історії лобі. Подробиці: game\\binaries\\x86\\updater_skhid.log.".into(),
-        (3, NotReady) => "Skhid hat die Dateien des Spiels (game\\resources.db.patch_*) noch nicht fertig aktualisiert, daher wird die Wiederholung nicht gestartet. Starte Skhid.bat (den Launcher): Er schließt die Aktualisierung ab oder sagt, was im Weg ist. Fordere die Wiederholung danach im Verlauf der Lobby erneut an. Details: game\\binaries\\x86\\updater_skhid.log.".into(),
-        (4, NotReady) => "Skhid nie zakończył jeszcze aktualizacji plików gry (game\\resources.db.patch_*), więc powtórka nie została uruchomiona. Uruchom Skhid.bat (launcher): dokończy aktualizację albo powie, co przeszkadza. Potem poproś o powtórkę ponownie w Historii w lobby. Szczegóły: game\\binaries\\x86\\updater_skhid.log.".into(),
-        (_, NotReady) => "Skhid has not finished updating the game's files (game\\resources.db.patch_*), so the replay is not started. Start Skhid.bat (the launcher): it finishes the update, or says what is in the way. Then ask for the replay again in the lobby's History. Details: game\\binaries\\x86\\updater_skhid.log.".into(),
+        (1, Start(detail)) => format!("Не удалось запустить повтор: {detail}."),
+        (2, Start(detail)) => format!("Не вдалося запустити повтор: {detail}."),
+        (3, Start(detail)) => format!("Die Wiederholung konnte nicht gestartet werden: {detail}."),
+        (4, Start(detail)) => format!("Nie udało się uruchomić powtórki: {detail}."),
+        (_, Start(detail)) => format!("The replay could not be started: {detail}."),
+        (1, Path) => "Путь к повтору слишком длинный или содержит символы, которые игра не читает. Переместите файл .sur в папку с коротким путём из латинских букв.".into(),
+        (2, Path) => "Шлях до повтору задовгий або містить символи, яких гра не читає. Перемістіть файл .sur у теку з коротким шляхом, що містить лише латинські літери.".into(),
+        (3, Path) => "Der Pfad der Wiederholung ist zu lang oder enthält Zeichen, die das Spiel nicht lesen kann. Verschiebe die .sur-Datei in einen Ordner mit einem kurzen Pfad, der nur lateinische Buchstaben hat.".into(),
+        (4, Path) => "Ścieżka powtórki jest za długa lub zawiera znaki, których gra nie odczyta. Przenieś plik .sur do folderu z krótką ścieżką zawierającą tylko litery łacińskie.".into(),
+        (_, Path) => "The replay path is too long or has characters the game cannot read. Move the .sur file to a folder with a shorter path using Latin letters.".into(),
+        (1, NotReady) => "Skhid ещё не закончил обновлять файлы игры (game\\resources.db.patch_*), поэтому повтор не запущен. Запустите Skhid.bat (лаунчер): он закончит обновление или скажет, что мешает. Затем откройте повтор снова. Подробности: game\\binaries\\x86\\updater_skhid.log.".into(),
+        (2, NotReady) => "Skhid ще не завершив оновлення файлів гри (game\\resources.db.patch_*), тому повтор не запущено. Запустіть Skhid.bat (лаунчер): він завершить оновлення або скаже, що заважає. Потім відкрийте повтор знову. Подробиці: game\\binaries\\x86\\updater_skhid.log.".into(),
+        (3, NotReady) => "Skhid hat die Dateien des Spiels (game\\resources.db.patch_*) noch nicht fertig aktualisiert, daher wird die Wiederholung nicht gestartet. Starte Skhid.bat (den Launcher): Er schließt die Aktualisierung ab oder sagt, was im Weg ist. Öffne danach die Wiederholung erneut. Details: game\\binaries\\x86\\updater_skhid.log.".into(),
+        (4, NotReady) => "Skhid nie zakończył jeszcze aktualizacji plików gry (game\\resources.db.patch_*), więc powtórka nie została uruchomiona. Uruchom Skhid.bat (launcher): dokończy aktualizację albo powie, co przeszkadza. Potem otwórz powtórkę ponownie. Szczegóły: game\\binaries\\x86\\updater_skhid.log.".into(),
+        (_, NotReady) => "Skhid has not finished updating the game's files (game\\resources.db.patch_*), so the replay is not started. Start Skhid.bat (the launcher): it finishes the update, or says what is in the way. Then open the replay again. Details: game\\binaries\\x86\\updater_skhid.log.".into(),
     }
 }
 
@@ -460,34 +474,25 @@ mod tests {
         let game = r"D:\My Games\Survarium\game\binaries\x86\survarium_skhid.exe";
         let replay = r"D:\My Games\Survarium\game\replays\srp_0a1b2c3d.sur";
         assert_eq!(
-            game_command(game, "ukrainian", replay).unwrap(),
-            format!(
-                "\"{game}\" -localization=ukrainian -mt_allocator=768 -minimum_resources_memory_size=768 \
-                 -match_replay=\"{replay}\""
-            )
+            game_command(game, replay).unwrap(),
+            format!("\"{game}\" -match_replay=\"{replay}\"")
         );
-        assert!(game_command(game, "english", r"\\server\share\game\replays\srp_0a1b2c3d.sur").is_some());
-        assert!(game_command(game, "english", r"D:\GAMES~1\SURVAR~1\game\replays\SRP_0A~1.SUR").is_some());
+        assert!(game_command(game, r"\\server\share\game\replays\srp_0a1b2c3d.sur").is_some());
+        assert!(game_command(game, r"D:\GAMES~1\SURVAR~1\game\replays\SRP_0A~1.SUR").is_some());
         for replay in [
             "D:\\a\"b\\srp_0a1b2c3d.sur", "D:\\a\\b\\", "srp_0a1b2c3d", "replays\\srp_0a1b2c3d.sur",
             "D:\\a\tb\\x.sur", "D:\\a\nb\\x.sur",
         ] {
-            assert_eq!(game_command(game, "english", replay), None, "{replay}");
+            assert_eq!(game_command(game, replay), None, "{replay}");
         }
         let long = format!("C:\\{}", "d".repeat(MAX_GAME_PATH - 3));
-        assert!(game_command(game, "english", &long).is_some());
-        assert!(game_command(game, "english", &(long + "d")).is_none());
-        assert!(game_command("C:\\a\"b.exe", "english", replay).is_none());
-        assert!(game_command(game, "klingon", replay).is_none());
+        assert!(game_command(game, &long).is_some());
+        assert!(game_command(game, &(long + "d")).is_none());
+        assert!(game_command("C:\\a\"b.exe", replay).is_none());
     }
 
     #[test]
     fn the_language_is_the_launchers() {
-        assert_eq!(localization(None), "english");
-        assert_eq!(localization(Some(2)), "ukrainian");
-        assert_eq!(localization(Some(4)), "polish");
-        assert_eq!(localization(Some(5)), "english");
-        assert_eq!(localization(Some(u32::MAX)), "english");
         let problems = [
             Problem::BadLink, Problem::AlreadyRunning, Problem::Network("h.example".into()), Problem::Expired,
             Problem::Busy("h.example".into()), Problem::Status("h.example".into(), 302), Problem::Damaged,
@@ -519,5 +524,19 @@ mod tests {
             }
             assert!(!text.contains("\\\\"), "{text}");
         }
+    }
+
+    #[test]
+    fn the_language_is_user_cfg_s_localization_line() {
+        let of = |text: &str| language_of_user_cfg(text.as_bytes());
+        assert_eq!(of("account_name x\r\nlocalization russian\r\nr_fullscreen on\r\n"), Some(1));
+        assert_eq!(of("localization\tpolish"), Some(4));
+        assert_eq!(of("localization   german  \n"), Some(3));
+        // The game's other languages: the messages are English.
+        assert_eq!(of("localization czech\r\n"), None);
+        assert_eq!(of("localizations russian\r\n# localization russian\r\n"), None);
+        assert_eq!(of("localization Russian\r\n"), None);
+        assert_eq!(of("localization\r\n"), None);
+        assert_eq!(of(""), None);
     }
 }

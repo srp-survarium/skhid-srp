@@ -16,6 +16,7 @@ package survarium.rooms
     import scaleform.gfx.MouseEventEx;
     import survarium.controls.BottomPanel;
     import survarium.controls.Modals;
+    import survarium.controls.PlayerInfo;
     import survarium.player.LocalPlayerProfile;
     import survarium.controls.TopMenu;
     import survarium.constants.JoinHold;
@@ -23,7 +24,7 @@ package survarium.rooms
     import survarium.constants.RoomPhase;
     import survarium.constants.ChatChannel;
     import survarium.constants.ChatTab;
-    import survarium.constants.Language;
+    import survarium.data.LocalizationData;
 
     // Rooms, the players' "servers" (srp's own; the wire is lobby.md 2.16.3,
     // contract S1, RoomsWire), the only way PvP matches are made. The top
@@ -71,7 +72,6 @@ package survarium.rooms
         private var _panel:BottomPanel;
         // The lobby, from its first set_play_button_enabled on.
         private var _lobby:LobbyMenu;
-        internal var _lang:int = Language.EN;
         internal var _gear:int = 0;
         internal var _shown:Boolean = false;
         internal var _view:String = "list";
@@ -93,6 +93,21 @@ package survarium.rooms
         internal var _code:int = RoomCode.NONE;
         internal var _pool:Array = [];
         internal var _poolTotal:int = -1;
+        // The create window's start (RoomsCreate.formOf): the player's last
+        // room made by hand, or the defaults (`S1;F`), fitted by the server
+        // to the pool and the gear. Asked as the lobby comes up (the pool
+        // in), at each lobby sign-in and when the gear changes, so New room
+        // opens filled and nothing is applied after it is drawn (the
+        // owner's of 2026-10-25); every answer replaces it (the server
+        // answers in order: the last is the newest), and a room made from
+        // the window keeps it as the server does. Null until answered: the
+        // window opens with the defaults, and stays so while it is up.
+        internal var _form:Object = null;
+        // Asked for and not answered yet: asked again every 3 s.
+        private var _formWanted:Boolean = true;
+        private var _formAskedAt:int = -100000;
+        // The account whose lobby this is (its name, LobbyMenu.set_account_name).
+        private var _account:String = null;
         internal var _steps:Array = [];
         // The game's own Play enabled, as the lobby last set it.
         private var _nativePlay:Boolean = true;
@@ -140,9 +155,6 @@ package survarium.rooms
         private var _chatKey:int = 0;
         // Who waits for the friends' rooms (FriendListRender's menu).
         private var _friendRooms:Function = null;
-        // Our room went while the results were up: the window, drawn as it
-        // was, waits under them and is hidden as they close.
-        private var _hideAfterResults:Boolean = false;
         // A join (or Play) waiting for its kit preset offer (`S1;O`,
         // presets.md): {room, play, at}; and the offer shown, the popup over
         // the view: {kind, preset, level, gear, max, room, play}.
@@ -173,7 +185,6 @@ package survarium.rooms
         {
             super();
             _panel = panel;
-            _lang = RoomsText.language();
             // The font of the bottom bar's tabs (the game's own), for ours.
             var tabClass:Class = getDefinitionByName("ButtonChatTabBottom") as Class;
             var sample:* = new tabClass();
@@ -207,6 +218,10 @@ package survarium.rooms
             // Tells the server this movie has rooms (its Play goes to one),
             // and finds a room the player is in already.
             ask(RoomsWire.STATE, 1);
+            // The account signed in before the window was made, if any: a
+            // sign-in to another one drops its form (`signedIn`).
+            var known:String = PlayerInfo.nickname;
+            _account = known != null && known != "" ? known : null;
             layout();
         }
 
@@ -231,7 +246,27 @@ package survarium.rooms
         // LobbyMenu.set_equipment_level: the player's own level.
         public function setGear(level:int):void
         {
+            if (level == _gear)
+                return;
             _gear = level;
+            // The form's max level is fitted to the gear: the server's again.
+            wantForm();
+        }
+
+        // LobbyMenu.set_account_name: the sign-in's account data (`8F`, every
+        // lobby sign-in; again when the ranked count changes). The form is
+        // asked anew; another account's (a sign-in to another account in
+        // the same game) is dropped at once: its window opens with the
+        // defaults until this one's form is in.
+        public function signedIn(account:String):void
+        {
+            if (_account != null && account != _account)
+            {
+                _form = null;
+                createView.notMade();
+            }
+            _account = account;
+            wantForm();
         }
 
         // TopMenu.fill_windows: the tabs are made anew; ours named again.
@@ -361,7 +396,7 @@ package survarium.rooms
         {
             // The Clan tab's lock came or went: ours follows.
             if (topMenu != null)
-                topMenu.followClanTab(_tabText != "" ? _tabText : say("servers"));
+                topMenu.followClanTab(_tabText != "" ? _tabText : say("st_srp_rooms_servers"));
             watchWindows();
             // Our icon and the tab's yellow while we are in a room or queued.
             if (topMenu != null)
@@ -372,31 +407,21 @@ package survarium.rooms
             syncChatTab();
         }
 
-        // LobbyMenu.onVsRemoved: the results are closing. A window whose room
-        // went under them is hidden now, before the lobby is drawn again (no
-        // frame shows it).
+        // LobbyMenu.onVsRemoved: the results are closing. The top menu's
+        // tab, left as it was under them (`show`), follows the window: Rooms
+        // for a room it opened in meanwhile (let in from a queue).
         public function resultsClosed():void
         {
-            if (!_hideAfterResults)
-                return;
-            _hideAfterResults = false;
-            if (_room == null)
-                show(false);
-            else
-                render();
+            if (topMenu != null)
+                topMenu.selectRoomsTab(_shown);
         }
 
         // LobbyMenu.show_victory_screen: a match is over. The room's chat
         // lines of the match did not reach the lobby (its game was in the
         // match): the tab is put up anew and given the room's last lines.
-        // Where we are is asked at once: a member who came by Play has left
-        // the room with the match's end (the owner's of 2026-10-20), which
-        // the state answered before the match does not say.
         public function matchOver():void
         {
             dropChatTab();
-            _fastUntil = getTimer() + 5000;
-            ask(RoomsWire.STATE, 1);
         }
 
         // Each frame: the chat's "Room Chat" tab, right of the general
@@ -416,7 +441,7 @@ package survarium.rooms
             _chatKey = key;
             try
             {
-                _lobby.add_tab({"id": ChatTab.ROOM, "name": say("roomChat"), "channels": [ChatChannel.ROOM],
+                _lobby.add_tab({"id": ChatTab.ROOM, "name": say("st_srp_rooms_room_chat"), "channels": [ChatChannel.ROOM],
                     "channel_to_send": ChatChannel.ROOM, "closable": false, "save_history": true});
                 ask(RoomsWire.CHAT, 1);
             }
@@ -517,7 +542,7 @@ package survarium.rooms
                 var queued:Boolean = !leaving && leavesQueue();
                 var asking:Boolean = _playAskedAt != 0 && getTimer() - _playAskedAt < 6000;
                 lobby.statusPanel.showRoomsPlay(leaving, queued, asking, each, _nativePlay,
-                    say(leaving ? "leaveRoom" : "leaveQueue"));
+                    say(leaving ? "st_srp_rooms_leave_room" : "st_srp_rooms_leave_queue"));
             }
             catch (e:Error)
             {
@@ -526,28 +551,29 @@ package survarium.rooms
 
         internal function say(key:String):String
         {
-            return RoomsText.say(key, _lang);
+            return LocalizationData.getName(key);
         }
 
         internal function levelName(level:int):String
         {
-            return RoomsText.levelName(level, _lang);
+            return RoomsText.levelName(level);
         }
 
         internal function weatherName(weather:int):String
         {
-            return RoomsText.weatherName(weather, _lang);
+            return RoomsText.weatherName(weather);
         }
 
         internal function modeName(mode:int):String
         {
-            return RoomsText.modeName(mode, _lang);
+            return RoomsText.modeName(mode);
         }
 
         public function quickPlay():void
         {
             _code = RoomCode.NONE;
             _steps = [];
+            createView.notMade();
             _openedByPlayAt = _shown ? 0 : Math.max(1, getTimer());
             if (!_shown)
                 show(true);
@@ -582,9 +608,9 @@ package survarium.rooms
 
         public function show(value:Boolean):void
         {
-            _hideAfterResults = false;
             if (!value)
             {
+                releaseInputFocus();
                 _offer = null;
                 _openedByPlayAt = 0;
             }
@@ -603,8 +629,12 @@ package survarium.rooms
                 _keys = true;
                 stage.addEventListener(KeyboardEvent.KEY_DOWN, listView.onKey, false, 0, false);
             }
-            // The top menu's tab follows: chosen while the window is open.
-            if (topMenu != null)
+            // The top menu's tab follows: chosen while the window is open. Not
+            // under the results: any change of that tab closes them
+            // (LobbyMenu.closeVS), and a window the server opens (let in
+            // from a queue) or hides then is not the player's choice. The
+            // tab follows as they close (resultsClosed).
+            if (topMenu != null && !resultsUp())
                 topMenu.selectRoomsTab(value);
             if (value)
             {
@@ -744,6 +774,12 @@ package survarium.rooms
                 ask(RoomsWire.POOL, RoomsWire.POOL_ASK_ROWS);
                 return;
             }
+            // The create window's start, once the pool is in, until answered.
+            if (_formWanted && poolIn() && _steps.length == 0 && _now - _formAskedAt >= 3000)
+            {
+                askForm();
+                return;
+            }
             if (_steps.length == 0)
             {
                 if (_room != null || fast || _queueKey != 0 || (_shown && _view == "room"))
@@ -771,6 +807,27 @@ package survarium.rooms
             tabLabel();
             if (_shown && _view == "room")
                 roomView.banner();
+        }
+
+        // Every page of the pool is in.
+        private function poolIn():Boolean
+        {
+            return _poolTotal >= 0 && _pool.length >= _poolTotal;
+        }
+
+        // The form is wanted anew: asked now if the pool is in (it names
+        // the form's tiles), else once it is.
+        private function wantForm():void
+        {
+            _formWanted = true;
+            if (poolIn() && _steps.length == 0)
+                askForm();
+        }
+
+        private function askForm():void
+        {
+            _formAskedAt = getTimer();
+            ask(RoomsWire.SETTINGS, 1);
         }
 
         internal function next():void
@@ -826,7 +883,7 @@ package survarium.rooms
                     var f:Array = RoomsWire.fields(rows[i]);
                     _rooms.push({"key": int(f[0]), "level": int(f[1]), "max": int(f[2]), "size": int(f[3]),
                         "players": int(f[4]), "phase": int(f[5]), "secs": int(f[6]), "map": int(f[7]),
-                        "pin": f[8] == "1", "name": f.slice(9).join(";")});
+                        "pin": f[8] != "0", "bots": f[8] == "2", "name": f.slice(9).join(";")});
                 }
                 var sig:String = "";
                 for (var q:int = 0; q < _rooms.length; q++)
@@ -835,6 +892,9 @@ package survarium.rooms
                     sig += [r0.key, r0.level, r0.max, r0.size, r0.players, r0.phase, r0.map, r0.pin, r0.name].join(",") + "|";
                 }
                 sig += _total;
+                // A squad's soldier has Join and New room greyed: drawn
+                // anew when that changes (squads.md).
+                sig += LocalPlayerProfile.squadSoldier() ? ";soldier" : "";
                 if (_view == "list")
                 {
                     if (sig != _listSig)
@@ -856,16 +916,18 @@ package survarium.rooms
                     if (p.length < 6 || hasEntry(int(p[0])))
                         continue;
                     _pool.push({"index": int(p[0]), "map": int(p[1]), "level": int(p[2]), "weather": int(p[3]),
-                        "mode": int(p[4]), "extra": p[5] == "1"});
+                        "mode": int(p[4]), "extra": p[5] == "1", "bots": p[6] == "1"});
                 }
                 if (_pool.length < _poolTotal && rows.length > 1)
                     ask(RoomsWire.POOL + page + 1, RoomsWire.POOL_ASK_ROWS);
                 else
                 {
+                    // A create window opened before the pool: its tiles as
+                    // the defaults have them (none were shown to choose).
                     createView.defaultPool();
-                    // Settings that came before the pool: now they can be read.
-                    if (createView._saved != null)
-                        createView.applySaved();
+                    // The pool names the form's tiles: the form now.
+                    if (_formWanted)
+                        askForm();
                 }
                 if (_view == "create" || _view == "room")
                     render();
@@ -881,12 +943,13 @@ package survarium.rooms
                     if (fe[0] == "E" && fe.length > 2)
                         bits[int(fe[1])] = uint(fe[2]);
                 }
-                createView._saved = {"size": int(head[3]), "min": int(head[4]), "max": int(head[5]), "wait": int(head[6]),
-                    "modesOff": head.length > 7 && head[7] != "" ? String(head[7]).split(",") : [], "bits": bits};
-                if (_poolTotal >= 0 && _pool.length >= _poolTotal)
-                    createView.applySaved();
-                if (_shown && _view == "create")
-                    render();
+                // Kept for the next New room; a window up now stays as it
+                // opened.
+                if (poolIn())
+                {
+                    _form = createView.formOf(head, bits);
+                    _formWanted = false;
+                }
             }
             else if (kind == "K" || kind == "B")
             {
@@ -917,6 +980,9 @@ package survarium.rooms
                 var newCode:Boolean = code != _code;
                 _code = code;
                 applyPlay();
+                // A create refused: no room made, nothing kept.
+                if (code > RoomCode.NONE)
+                    createView.notMade();
                 if (_openedByPlayAt != 0 && code == RoomCode.KIT_CANT_PLAY
                     && getTimer() - _openedByPlayAt < PLAY_OPEN_MS)
                 {
@@ -932,17 +998,6 @@ package survarium.rooms
                 var wasRoom:Boolean = _view == "room";
                 if (had || wasRoom)
                     _view = "list";
-                // Out of the room while the results are up (one by Play
-                // leaves with its match's end): the window under them stays as
-                // it is, untouched, and goes as they close (resultsClosed), so
-                // closing them shows the lobby (rooms.md, "After a match").
-                // Hidden now, it would deselect the top menu's Rooms tab, and
-                // the results close on any change of that tab (LobbyMenu.closeVS).
-                if (had && _shown && resultsUp())
-                {
-                    _hideAfterResults = true;
-                    return;
-                }
                 // Only when something shown changed: this answers every poll,
                 // and a view drawn anew under the mouse loses its clicks, its
                 // drag and the PIN being typed.
@@ -959,7 +1014,9 @@ package survarium.rooms
                 _room = {"key": int(head[2]), "level": int(head[3]), "max": int(head[4]), "size": int(head[5]),
                     "wait": int(head[6]), "phase": int(head[7]), "secs": int(head[8]), "owner": head[9] == "1",
                     "pool": int(head[10]), "serial": int(head[12]), "pin": head[13] == "1", "next": int(head[14]), "min": int(head[15]),
-                    "cards": [], "members": [], "last": 0, "switchTo": null, "joinIn": -1, "joinWhy": JoinHold.NONE};
+                    "cards": [], "members": [], "last": 0, "switchTo": null, "joinIn": -1, "joinWhy": JoinHold.NONE, "teams": null,
+                    "bots": false};
+                var squads:String = "";
                 _roomAt = getTimer();
                 // A new vote (another room, or after its match): its alert
                 // may sound again (`alertNear`).
@@ -972,7 +1029,7 @@ package survarium.rooms
                         _room.cards.push({"map": int(r[2]), "votes": int(r[3]), "mine": r[4] == "1"});
                     else if (r[0] == "P")
                         _room.members.push({"gear": int(r[2]), "owner": r[3] == "1", "me": r[4] == "1",
-                            "inMatch": r[5] == "1", "fit": int(r[6]), "away": r[7] == "1",
+                            "inMatch": r[5] == "1", "fit": int(r[6]), "away": r[7] == "1", "squad": 0,
                             "name": r.slice(8).join(";")});
                     else if (r[0] == "J")
                     {
@@ -983,12 +1040,22 @@ package survarium.rooms
                     else if (r[0] == "W")
                         _room.switchTo = {"key": int(r[1]), "max": int(r[2]), "players": int(r[3]),
                             "size": int(r[4]), "name": r.slice(5).join(";")};
+                    // A private room's teams, a digit a member (its owner's).
+                    else if (r[0] == "A")
+                        _room.teams = String(r[1]);
+                    // A private room with bots: its matches are filled with them.
+                    else if (r[0] == "B")
+                        _room.bots = true;
+                    // Its squads' marks, a character a member (0: none).
+                    else if (r[0] == "S")
+                        squads = String(r[1]);
                     else if (r[0] == "L")
                         _room.last = int(r[1]);
                 }
                 // Why a join from the All rooms tab (or a room made) left us
                 // here, said once; our own word (a PIN not of 4 digits) stays
                 // while we stay.
+                RoomsLook.markSquads(_room.members, squads);
                 var roomCode:int = head.length > 16 ? int(head[16]) : RoomCode.NONE;
                 if (roomCode == RoomCode.NONE && _code < RoomCode.NONE && was != null && was.key == _room.key)
                     roomCode = _code;
@@ -1007,6 +1074,10 @@ package survarium.rooms
                 // opens its window.
                 if (was == null || was.key != _room.key)
                 {
+                    // Ours: the room a create on its way made (Back pressed
+                    // meanwhile too), whose settings the server now keeps.
+                    if (_room.owner)
+                        createView.made();
                     _view = "room";
                     if (!_shown)
                         show(true);
@@ -1019,7 +1090,7 @@ package survarium.rooms
         // A level of 0 is any level.
         internal function levelText(level:int):String
         {
-            return level == RoomsWire.LEVEL_ANY ? say("any") : String(level);
+            return level == RoomsWire.LEVEL_ANY ? say("st_srp_rooms_any") : String(level);
         }
 
         // A listed room's state: waiting (for how many more), the countdown,
@@ -1027,12 +1098,12 @@ package survarium.rooms
         internal function phaseText(room:Object):String
         {
             if (room.phase == RoomPhase.VOTE)
-                return say("voting") + " " + RoomsText.clock(room.secs);
+                return say("st_srp_rooms_voting") + " " + RoomsText.clock(room.secs);
             if (room.phase == RoomPhase.COUNTDOWN)
-                return say("countdown") + " " + RoomsText.clock(room.secs);
+                return say("st_srp_rooms_countdown") + " " + RoomsText.clock(room.secs);
             if (room.phase == RoomPhase.IN_MATCH)
-                return say("inMatch") + " " + RoomsText.clock(room.secs);
-            return say("waitingShort");
+                return say("st_srp_rooms_in_match") + " " + RoomsText.clock(room.secs);
+            return say("st_srp_rooms_waiting_short");
         }
 
         internal function hasEntry(index:int):Boolean
@@ -1068,8 +1139,8 @@ package survarium.rooms
         }
 
         // `S1;G;<key>;<members>`, then two rows a member: `P;<i>;<gear>;
-        // <owner>;<me>;<in match>;<fit>;<away>;<side>;<account>` and its
-        // whole name. Drawn when it is the chosen room's and something
+        // <owner>;<me>;<in match>;<fit>;<away>;0;<account>;<squad>` and
+        // its whole name (`0`: no side is told; `squad`: its squad's mark, 0 none). Drawn when it is the chosen room's and something
         // changed (only its box: the view under the mouse keeps its clicks
         // and the PIN typed).
         private function takeMembers(head:Array, rows:Array):void
@@ -1088,8 +1159,8 @@ package survarium.rooms
                 var name:String = String(rows[i + 1].nickname);
                 sig += String(rows[i].nickname) + "|" + name + "|";
                 list.push({"gear": int(f[2]), "owner": f[3] == "1", "me": f[4] == "1", "inMatch": f[5] == "1",
-                    "fit": int(f[6]), "away": f[7] == "1", "side": int(f[8]), "account": uint(f[9]),
-                    "name": name});
+                    "fit": int(f[6]), "away": f[7] == "1", "account": uint(f[9]),
+                    "squad": f.length > 10 ? int(f[10]) : 0, "name": name});
             }
             if (_seen != null && _seen.key == key && _seen.sig == sig)
                 return;
@@ -1097,8 +1168,17 @@ package survarium.rooms
             listView.drawMembers();
         }
 
+        // A removed input can remain Scaleform's native character target even
+        // after its AS3 object is gone. Relinquish ownership before removing it.
+        private function releaseInputFocus():void
+        {
+            if (stage != null && stage.focus != null && contains(stage.focus))
+                stage.focus = null;
+        }
+
         private function clear():void
         {
+            releaseInputFocus();
             while (look._content.numChildren > 0)
                 look._content.removeChildAt(0);
             while (look._backdrop.numChildren > 0)
@@ -1107,7 +1187,6 @@ package survarium.rooms
             listView._stateCells = {};
             listView._listHits = [];
             roomView._roomHits = [];
-            createView._sliders = {};
             listView._joinPin = null;
             if (createView._makePin != null)
                 createView._makePinText = createView._makePin.text;
@@ -1116,14 +1195,18 @@ package survarium.rooms
 
         internal function render():void
         {
-            if (!_shown || _hideAfterResults)
+            if (!_shown)
                 return;
+            var focused:TextField = stage != null ? stage.focus as TextField : null;
+            var editingPin:Boolean = focused != null && (focused == listView._joinPin || focused == createView._makePin);
+            var selectionStart:int = editingPin ? focused.selectionBeginIndex : 0;
+            var selectionEnd:int = editingPin ? focused.selectionEndIndex : 0;
             if (listView._joinPin != null)
                 listView._pinText = listView._joinPin.text;
             clear();
             // The title bar: the view's name, then hide and close.
-            var title:String = _view == "room" && _room != null ? say("room") + " " + _room.key
-                : _view == "create" ? say("new") : say("servers");
+            var title:String = _view == "room" && _room != null ? say("st_srp_rooms_room") + " " + _room.key
+                : _view == "create" ? say("st_srp_rooms_new") : say("st_srp_rooms_servers");
             look._scrollInner = null;
             look._scrollThumb = null;
             // The shop's look: a near black body with a thin edge, and a slim
@@ -1163,6 +1246,14 @@ package survarium.rooms
                 listView.render();
             if (_offer != null)
                 drawOffer();
+            // Preserve typing across a redraw only if this view still has a PIN.
+            // Joining or hiding the room leaves focus released.
+            var pin:TextField = _view == "create" ? createView._makePin : listView._joinPin;
+            if (editingPin && pin != null && _offer == null && stage != null)
+            {
+                stage.focus = pin;
+                pin.setSelection(selectionStart, selectionEnd);
+            }
         }
 
         // The header's two tabs while we are in a room (the owner's of
@@ -1174,10 +1265,11 @@ package survarium.rooms
         {
             var tabW:Number = 160;
             var x:Number = int((look._w - 2 * tabW) / 2);
-            var tabs:Array = [["myRoom", _view == "room"], ["allRooms", _view != "room"]];
+            var tabs:Array = [["myRoom", "st_srp_rooms_my_room", _view == "room"],
+                ["allRooms", "st_srp_rooms_all_rooms", _view != "room"]];
             for (var i:int = 0; i < tabs.length; i++)
             {
-                var on:Boolean = tabs[i][1];
+                var on:Boolean = tabs[i][2];
                 var tab:Sprite = new Sprite();
                 tab.x = x + i * tabW;
                 tab.y = 1;
@@ -1190,7 +1282,7 @@ package survarium.rooms
                     tab.graphics.drawRect(0, RoomsLook.HEAD_H - 3, tabW, 3);
                     tab.graphics.endFill();
                 }
-                look.text(tab, say(tabs[i][0]), 0, 9, tabW, 15, on ? 0xFFFFFF : RoomsLook.GREY, "center");
+                look.text(tab, say(tabs[i][1]), 0, 9, tabW, 15, on ? 0xFFFFFF : RoomsLook.GREY, "center");
                 tab.name = tabs[i][0];
                 tab.buttonMode = true;
                 tab.mouseChildren = false;
@@ -1226,8 +1318,9 @@ package survarium.rooms
             askMembers(true);
         }
 
-        // A join from the list: first whether it offers one of our kit
-        // presets (presets.md); the server answers `S1;O` (takeOffer).
+        // A join (or a full room's queue) from the list: first whether it
+        // offers one of our kit presets (presets.md); the server answers
+        // `S1;O` (takeOffer).
         internal function askOffer(room:Object):void
         {
             _offer = null;
@@ -1235,9 +1328,13 @@ package survarium.rooms
             ask(RoomsWire.OFFER + int(room.key), 1);
         }
 
-        // `S1;O;<key>;<kind>;<preset>;<level>;<gear>;<max>`: kind 0 joins as
+        // `S1;O;<key>;<kind>;<preset>;<level>;<gear>;<max>;<about>`: kind 0 joins as
         // asked; 1 (the room allows more than our kits), 2 (our gear is over
         // its max) and 3 (our kits can not play, preset n can) show the popup.
+        // `about` 1: Play would queue, the room is of the other bracket
+        // (the owner's of 2026-10-30): "Queue" (Play as it is) for the
+        // popup's first button. So for a full room's Queue offered a higher
+        // loadout (the owner's of 2026-11-01): its queue as it is.
         private function takeOffer(head:Array):void
         {
             var asked:Object = _offerAsk;
@@ -1250,8 +1347,10 @@ package survarium.rooms
                 goOn(asked, 0);
                 return;
             }
+            var full:Boolean = asked.room != null && asked.room.players >= asked.room.size * 2;
             _offer = {"kind": kind, "preset": int(head[4]), "level": int(head[5]), "gear": int(head[6]),
-                "max": int(head[7]), "room": asked.room, "play": asked.play};
+                "max": int(head[7]), "room": asked.room, "play": asked.play,
+                "queue": (asked.play && head.length > 8 && head[8] == "1") || (full && kind == 1)};
             _busyAt = 0;
             _playAskedAt = 0;
             applyPlay();
@@ -1298,9 +1397,9 @@ package survarium.rooms
             box.graphics.drawRect(x + 1, y + 1, w - 2, h - 2);
             box.graphics.endFill();
             look._content.addChild(box);
-            var text:String = say(_offer.kind == 1 ? "offerHigher" : _offer.kind == 3 ? "offerUnfit" : "offerFits");
-            text = text.split("{max}").join(String(_offer.max)).split("{gear}").join(String(_offer.gear))
-                .split("{n}").join(String(_offer.preset)).split("{level}").join(String(_offer.level));
+            var text:String = _offer.kind == 3 ? LocalizationData.format("st_srp_rooms_offer_unfit", _offer.preset, _offer.level)
+                : LocalizationData.format(_offer.kind == 1 ? "st_srp_rooms_offer_higher" : "st_srp_rooms_offer_fits",
+                    _offer.max, _offer.gear, _offer.preset, _offer.level);
             var tf:TextField = look.text(look._content, "", x + 20, y + 18, w - 40, 15, RoomsLook.LIGHT, "center");
             tf.multiline = true;
             tf.wordWrap = true;
@@ -1308,9 +1407,14 @@ package survarium.rooms
             tf.text = text;
             var bw:Number = 200;
             var by:Number = y + h - 50;
-            look.button(look._content, say(_offer.kind == 1 ? "enterAnyway" : "exit"), x + w / 2 - bw - 8, by, bw,
-                _offer.kind == 1 ? onOfferAsIs : onOfferExit, null, 32);
-            look.button(look._content, say("switchEnter"), x + w / 2 + 8, by, bw, onOfferSwitch, null, 32, true);
+            // Play that would queue, or a full room's queue: "Queue" goes on
+            // as it is; else "Enter anyway" (the kits as they are) or "Exit"
+            // (nothing).
+            var asIs:Boolean = _offer.queue || _offer.kind == 1;
+            var first:String = _offer.queue ? "st_srp_rooms_queue" : _offer.kind == 1 ? "st_srp_rooms_enter_anyway" : "st_srp_rooms_exit";
+            look.button(look._content, say(first), x + w / 2 - bw - 8, by, bw,
+                asIs ? onOfferAsIs : onOfferExit, null, 32);
+            look.button(look._content, say("st_srp_rooms_switch_enter"), x + w / 2 + 8, by, bw, onOfferSwitch, null, 32, true);
         }
 
         private function onOfferAsIs(e:Event):void
@@ -1341,25 +1445,25 @@ package survarium.rooms
         {
             // A kit that can not play: no word (Play and Join are greyed).
             if (_code != RoomCode.NONE && _code != RoomCode.KIT_CANT_PLAY)
-                look.text(look._content, _code < RoomCode.NONE ? say("pin4") : say("code" + _code), 14, y, look._w - 28, 15, 0xFF8A7A);
+                look.text(look._content, _code < RoomCode.NONE ? say("st_srp_rooms_pin_4_digits") : RoomsText.codeText(_code), 14, y, look._w - 28, 15, 0xFF8A7A);
         }
 
         private function tabLabel():void
         {
             if (_room == null && _queueKey != 0 && !_shown)
             {
-                setTab(say("queue") + " " + _queuePlace);
+                setTab(say("st_srp_rooms_queue") + " " + _queuePlace);
                 return;
             }
             if (_room == null || _shown)
             {
-                setTab(say("servers"));
+                setTab(say("st_srp_rooms_servers"));
                 return;
             }
             var left:int = _room.secs - int((getTimer() - _roomAt) / 1000);
             var tail:String = _room.phase == RoomPhase.COUNTDOWN || _room.phase == RoomPhase.VOTE ? RoomsText.clock(left)
-                : _room.phase == RoomPhase.IN_MATCH ? say("inMatch") : _room.members.length + "/" + _room.size * 2;
-            setTab(say("room") + " " + tail);
+                : _room.phase == RoomPhase.IN_MATCH ? say("st_srp_rooms_in_match") : _room.members.length + "/" + _room.size * 2;
+            setTab(say("st_srp_rooms_room") + " " + tail);
         }
 
         internal function onHide(e:Event):void

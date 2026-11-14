@@ -18,8 +18,11 @@ P's first two decal layers (P + i*270h) the decal's texture, `_nmap`,
 `_fmap` and `_smap` names and the editor's float4x4 of its u64 with the
 point 1.0 lower and the two sides halved (a u64 0 or a value that is no
 integer: the decal's default, the left or the right side of the receiver),
-the camouflage's layer as patch 44's, the name `srpw1_<camouflage>_<model>
-_<surface>` and `_<texture>_<high><low>` a decal ('/' and '\\' made '_'); a
+the camouflage's layer as patch 44's, the name of them all (the Rust patch
+weapon_camo's, as check_weapon_camo_026g.py's: of the layers that have a
+texture, so the same from a P allocated with other bytes in it, another
+for each other set of decals, and one name for the same decals written two
+ways); a
 third decal, an entry that is no table or has no texture: not painted;
 `data/decals` empty and no camouflage: no query.
 
@@ -144,7 +147,6 @@ def close(a, b, eps=2e-5):
 
 
 def check_bake(original, build, say):
-    safe = lambda text: text.replace("/", "_").replace("\\", "_")
     v1 = (0x98074123, 0x76961E1C)          # placed values (any u64 the editor gives)
     v2 = (0x20080000 ^ 0x5A5, 0x8A30CE00 ^ 0x1234)
     plain = (
@@ -177,6 +179,7 @@ def check_bake(original, build, say):
         ("the second of two only", {"camouflage": camo.CAMO, "decals": [[""], [DECAL_B, v2[0], v2[1]]]}, 1,
          camo.CAMO, [None, (DECAL_B, v2)]),
     )
+    first_names = {}                       # each case's name of surface 0
     for title, data, surfaces, camouflage, decals in cases:
         root = camo.weapon(data)
         o_run = BakeRun(original)
@@ -193,11 +196,10 @@ def check_bake(original, build, say):
         say(len(queries) == surfaces, f"{title}: {surfaces} queries (got {len(queries)})")
         for i, q in enumerate(queries):
             p, (names, _, p_model, surface, _, one, editor) = q[8], q[9]
-            want_camo = {"diffuse": camouflage, "normal": camouflage + "_nmap", "fresnel": "",
+            want_camo = {"diffuse": camouflage, "normal": "", "fresnel": "",
                          "smoothness": camouflage + "_smap"} if camouflage else \
                 {"diffuse": "", "normal": "", "fresnel": "", "smoothness": ""}
-            want_name = f"srpw1_{safe(camouflage or '')}_{safe(camo.MODEL)}_{i}" + "".join(
-                f"_{safe(tex)}_{high:08x}{low:08x}" for tex, (low, high) in (d for d in decals if d))
+            want_name = camo.baked_name(camo.MODEL, i, 4.0, q[10])
             got_camo = {k: v for k, v in names.items() if k != "name"}
             say(got_camo == want_camo and names["name"] == want_name and p_model == render and surface == i
                 and one == 1 and editor == 0,
@@ -216,6 +218,24 @@ def check_bake(original, build, say):
         for q in queries:
             run.callback(q[4])
         say(run.read(render + 0xD0) == 5, f"{title}: every reference given back")
+        again = BakeRun(build)
+        again.surfaces, again.fill = surfaces, camo.FILLS[1]
+        again.site(camo.config(again, root), camo.make_render(again, references=5)[0], dict(camo.REGS))
+        named = lambda r: [c[9][0]["name"] for c in r.calls if c[0] == "query_resources"]
+        say(named(again) == named(run) and len(set(named(run))) == surfaces,
+            f"{title}: the same names from blocks that held other bytes, one a surface: {named(again)}")
+        first_names[title] = named(run)[0]
+    plain_run = BakeRun(build)
+    plain_run.surfaces = 1
+    plain_run.site(camo.config(plain_run, camo.weapon({"camouflage": camo.CAMO})),
+                   camo.make_render(plain_run, references=5)[0], dict(camo.REGS))
+    first_names["a camouflage and no decal"] = [c[9][0]["name"] for c in plain_run.calls
+                                                if c[0] == "query_resources"][0]
+    same = ("never placed: the defaults", "values that are no integers: the defaults")
+    say(first_names[same[0]] == first_names[same[1]], "the same two decals at their defaults, written two ways: "
+        "one name")
+    others = [name for title, name in first_names.items() if title != same[1]]
+    say(len(set(others)) == len(others), f"every other set of decals, and none, has a name of its own: {others}")
 
 
 # ------------------------------------------------------------------ the editor
@@ -325,6 +345,8 @@ class EditRun:
     def set_states(self, table_on, mode, item, spin=0.0, tilt=0.0):
         self.word(self.table, table_on)
         self.emu.mem_write(self.table + 0x20, struct.pack("<2f", spin, tilt))
+        if table_on:        # and the spot `camera` read from the lobby's project: the classic's (SPOT, VIEW, TURN)
+            self.emu.mem_write(self.table + 0xA0, struct.pack("<7f", 4.25, 1.30, 3.05, 1.0, -1.5707964, 1.0, 0.0))
         self.word(self.preview, mode)
         self.word(self.preview + 4, item)
 

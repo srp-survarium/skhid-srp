@@ -50,8 +50,7 @@
 //! | Setting | Default | What | Read by |
 //! |---|---|---|---|
 //! | `SRP_PVB` | off | the mode is offered (`on`) | the lobby, the match server |
-//! | `SRP_PVB_MAX_GEAR` | 5 | the highest equipment level let in, 0 to 15 | the lobby |
-//! | `SRP_PVB_MAX_MATCHES` | 5 | the most matches against bots at once, 1 to 20; the match server keeps up to that many bots' maps in memory | the lobby, the match server |
+//! | `SRP_PVB_MAX_MATCHES` | 5 | the most matches against bots at once (private rooms' with bots too, `rooms`), 1 to 20; the match server keeps up to that many bots' maps in memory | the lobby, the match server |
 //! | `SRP_PVB_PAY` | 0.5 | the share of a match's silver and experience it pays, 0 to 1 | the rewards (`session::v026g::pvb`) |
 //! | `SRP_PVB_STALL_S` | 60 | a match whose only player uploads no world it is asked for this long is over, 10 to 3600 | the match server |
 //!
@@ -62,6 +61,7 @@ use std::time::{Duration, Instant};
 use session::v026g::{matchmaking, quests};
 use session::{LockExt, QueuePool};
 use survarium::v026g::lobby::requests::id;
+use survarium::v026g::lobby::rooms::rules;
 use survarium::v026g::lobby::{self, PvbCode, PvbMap, PvbNumbers, PvbStatus};
 use survarium::v026g::maps::{self, MapMode};
 
@@ -81,30 +81,26 @@ pub(super) const PLAY_REFUSED: &str = "st_cant_change_ready_state";
 pub const MAPS: [u8; 16] = [
     61, 67, 73, 79, 85, 91, 97, 103, 117, 120, 123, 126, 129, 132, 135, 138,
 ];
-/// The team sizes offered: each side's players.
-pub const SIZES: [u8; 3] = [6, 8, 10];
-/// What the movie shows first.
-pub const DEFAULT_SIZE: u8 = 8;
+/// The map the movie shows first (the team sizes and the size it shows first: `PvbRules`).
 pub const DEFAULT_MAP: u8 = 61;
 /// How long a choice is held for the player's Play.
 pub const HOLD: Duration = Duration::from_secs(10);
 /// A Play this long after its hold ran out is still taken as one meant for
 /// bots: refused, never into a room.
 pub const EXPIRED_REFUSED: Duration = Duration::from_secs(30);
-/// `SRP_PVB_MAX_GEAR` when unset: "5 or lower" (the owner's).
-pub const DEFAULT_MAX_GEAR: u8 = 5;
-/// The highest equipment level there is (`items_levels_modifiers`).
-const MOST_GEAR: u8 = 15;
 
 /// The mode's settings in the lobby.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
     /// `SRP_PVB` (default off).
     pub enabled: bool,
-    /// `SRP_PVB_MAX_GEAR` (default 5): the highest equipment level let in.
+    /// The highest equipment level let in (`PvbRules::max_gear`).
     pub max_gear: u8,
     /// `SRP_PVB_MAX_MATCHES` (default 5).
     pub max_matches: usize,
+    /// The maps a private room with bots may hold ([`bot_maps`]); none with
+    /// the mode off.
+    pub bot_maps: Vec<u8>,
 }
 
 impl Default for Config {
@@ -112,8 +108,9 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             enabled: false,
-            max_gear: DEFAULT_MAX_GEAR,
+            max_gear: rules().pvb.max_gear,
             max_matches: session::v026g::pvb::DEFAULT_MAX_MATCHES,
+            bot_maps: Vec::new(),
         }
     }
 }
@@ -121,40 +118,60 @@ impl Default for Config {
 impl Config {
     /// The environment's.
     pub fn from_env() -> Self {
-        let max_gear = match std::env::var("SRP_PVB_MAX_GEAR") {
-            Ok(value) => parse_max_gear(&value).unwrap_or_else(|| {
-                log::error!(
-                    "SRP_PVB_MAX_GEAR is `{value}`; it must be 0 to {MOST_GEAR}. Using \
-                     {DEFAULT_MAX_GEAR}"
-                );
-                DEFAULT_MAX_GEAR
-            }),
-            Err(_) => DEFAULT_MAX_GEAR,
-        };
+        let enabled = session::v026g::pvb::enabled();
+        let dir = std::env::var("SRP_MAPDATA_DIR").ok();
+        let dir = dir
+            .as_deref()
+            .map(str::trim)
+            .filter(|dir| !dir.is_empty() && !dir.eq_ignore_ascii_case("off"));
         let config = Self {
-            enabled: session::v026g::pvb::enabled(),
-            max_gear,
+            enabled,
+            max_gear: rules().pvb.max_gear,
             max_matches: session::v026g::pvb::max_matches(),
+            bot_maps: match (enabled, dir) {
+                (true, Some(dir)) => bot_maps(maps::playable(), std::path::Path::new(dir)),
+                _ => Vec::new(),
+            },
         };
         if config.enabled {
             log::info!(
                 "Player vs Bots is on: equipment level {} at most, {} matches at once, pay {} of \
-                 silver and experience",
+                 silver and experience; {} maps for rooms with bots",
                 config.max_gear,
                 config.max_matches,
-                session::v026g::pvb::pay()
+                session::v026g::pvb::pay(),
+                config.bot_maps.len()
             );
         }
         config
     }
 }
 
-/// `SRP_PVB_MAX_GEAR`: 0 to [`MOST_GEAR`].
-fn parse_max_gear(value: &str) -> Option<u8> {
-    value.trim().parse().ok().filter(|gear| *gear <= MOST_GEAR)
+/// The maps of `maps` the server's bots play: in the modes they play
+/// (batteries, timed batteries, Team Deathmatch, and a free-for-all, which
+/// they play as a Team Deathmatch with no teammates: not Research, which
+/// the match server refuses them, nor Blackout, which Play vs Bots never
+/// offered) and with a bots' map in `dir` (`SRP_MAPDATA_DIR`, the match
+/// server's: without one its bots only run their script).
+pub fn bot_maps<'a>(maps: impl Iterator<Item = &'a MapMode>, dir: &std::path::Path) -> Vec<u8> {
+    maps.filter(|map| {
+        matches!(
+            map.mode,
+            maps::GameMode::Batteries
+                | maps::GameMode::TimedBatteries
+                | maps::GameMode::TeamDeathmatch
+                | maps::GameMode::FreeForAll
+        ) && dir.join(mapdata::format::file_name(map.project)).is_file()
+    })
+    .map(|map| map.id)
+    .collect()
 }
 
-/// The offered maps as the dictionary has them.
+/// The offered maps as the dictionary has them: [`MAPS`], each with its
+/// bots' map file in the release's bot data (`release/bot-data.tsv`). No
+/// free-for-all: its maps are projects of their own (`ffa.md`), which have
+/// no bots' map file, and the bots do not play it for now (the owner,
+/// 2026-11-13).
 pub fn offered_maps() -> impl Iterator<Item = &'static MapMode> {
     MAPS.iter().filter_map(|&id| maps::map_mode(id))
 }
@@ -193,17 +210,17 @@ fn why(code: PvbCode) -> &'static str {
 }
 
 impl Core<'_> {
-    /// The matches against bots running now (made, and not over at the
-    /// match server).
+    /// The matches the server's bots play in running now (made, and not
+    /// over at the match server): against bots, and rooms' with bots.
     pub(super) fn pvb_running(&self) -> usize {
         self.matches
             .values()
-            .filter(|running| running.vs_bots && self.host.is_open(running.ticket.match_id))
+            .filter(|running| running.server_bots && self.host.is_open(running.ticket.match_id))
             .count()
     }
 
     /// The choices held now for players other than `asker`.
-    fn pvb_held(&self, asker: u32, now: Instant) -> usize {
+    pub(super) fn pvb_held(&self, asker: u32, now: Instant) -> usize {
         self.pvb_holds
             .iter()
             .filter(|(account_id, hold)| **account_id != asker && hold.until > now)
@@ -293,15 +310,15 @@ impl Core<'_> {
             .map(|map| PvbMap {
                 map_id: map.id,
                 level: map.level,
-                mode: map.mode,
+                mode: map.mode.lobby_number(),
                 free,
             })
             .collect();
         let status = PvbStatus {
             code,
             numbers,
-            sizes: SIZES.to_vec(),
-            default_size: DEFAULT_SIZE,
+            sizes: rules().pvb.sizes.clone(),
+            default_size: rules().pvb.default_size,
             default_map: DEFAULT_MAP,
         };
         log::debug!(
@@ -322,8 +339,9 @@ impl Core<'_> {
     pub(super) fn pvb_choose(&mut self, who: &Who, start: u32, now: Instant) {
         self.pvb_forget_old(now);
         self.pvb_holds.remove(&who.account_id);
-        let choice = lobby::pvb_choice(start)
-            .filter(|(size, map_id)| SIZES.contains(size) && MAPS.contains(map_id));
+        let choice = lobby::pvb_choice(start).filter(|(size, map_id)| {
+            rules().pvb.sizes.contains(size) && offered_maps().any(|map| map.id == *map_id)
+        });
         let fit = match choice {
             None => Err(PvbCode::UnknownChoice),
             Some(choice) => self.pvb_fit(who, now).map(|()| choice),
@@ -434,20 +452,23 @@ mod tests {
 
     /// The owner's list: the day of each level in batteries and in Team
     /// Deathmatch, every one playable on this server's data; no London
-    /// (level 9: maps 181 to 183), no level 88 and no timed batteries.
+    /// (level 9: maps 181 to 183), no level 88, no timed batteries and no
+    /// free-for-all.
     #[test]
     fn the_maps_are_the_days_of_batteries_and_team_deathmatch_and_playable() {
         assert_eq!(offered_maps().count(), MAPS.len());
         let mut seen = std::collections::HashSet::new();
-        for map in offered_maps() {
+        for (n, map) in offered_maps().enumerate() {
             assert!(map.is_playable(), "{} is not playable", map.id);
             assert_eq!(map.weather, maps::weather::DAY, "{} is not day", map.id);
+            // The owner's list, as it is.
+            assert_eq!(map.id, MAPS[n]);
             assert!(
                 matches!(
                     map.mode,
-                    maps::mode::BATTERIES | maps::mode::TEAM_DEATHMATCH
+                    maps::GameMode::Batteries | maps::GameMode::TeamDeathmatch
                 ),
-                "{} is mode {}",
+                "{} is mode {:?}",
                 map.id,
                 map.mode
             );
@@ -459,7 +480,7 @@ mod tests {
             );
             assert!(seen.insert((map.level, map.mode)), "{} twice", map.id);
         }
-        // Each of the eight levels in both modes.
+        // Each of the eight levels in the two modes.
         assert_eq!(seen.len(), 16);
         for london in [181, 182, 183] {
             assert!(!MAPS.contains(&london));
@@ -467,23 +488,62 @@ mod tests {
         for map in maps::all() {
             if map.level == 9
                 || map.level == 88
-                || matches!(map.mode, maps::mode::TIMED_BATTERIES | maps::mode::RESEARCH)
+                || matches!(map.mode, maps::GameMode::TimedBatteries | maps::GameMode::Research)
             {
                 assert!(!MAPS.contains(&map.id), "{} is offered", map.id);
             }
         }
-        assert!(MAPS.contains(&DEFAULT_MAP) && SIZES.contains(&DEFAULT_SIZE));
+        assert!(MAPS.contains(&DEFAULT_MAP));
         let rudnya = maps::map_mode(DEFAULT_MAP).unwrap();
-        assert_eq!((rudnya.level, rudnya.mode), (1, maps::mode::BATTERIES));
+        assert_eq!((rudnya.level, rudnya.mode), (1, maps::GameMode::Batteries));
     }
 
     #[test]
     fn the_settings_read_as_documented() {
         let config = Config::default();
         assert!(!config.enabled);
-        assert_eq!((config.max_gear, config.max_matches), (5, 5));
-        assert_eq!(parse_max_gear(" 4 "), Some(4));
-        assert_eq!(parse_max_gear("16"), None);
-        assert_eq!(parse_max_gear("x"), None);
+        assert_eq!(
+            (config.max_gear, config.max_matches),
+            (rules().pvb.max_gear, 5)
+        );
+        assert!(config.bot_maps.is_empty());
+    }
+
+    /// The bots play a map of their modes with a bots' map file, nothing
+    /// else: every map has one here but those in batteries.
+    #[test]
+    fn the_bots_play_their_modes_maps_with_a_file() {
+        let dir = std::env::temp_dir().join(format!("srp-bot-maps-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let with_file: Vec<&MapMode> = maps::playable()
+            .filter(|map| map.mode != maps::GameMode::Batteries)
+            .collect();
+        for map in &with_file {
+            std::fs::write(dir.join(mapdata::format::file_name(map.project)), b"").unwrap();
+        }
+        let found = bot_maps(maps::playable(), &dir);
+        std::fs::remove_dir_all(&dir).unwrap();
+        let expected: Vec<u8> = maps::playable()
+            .filter(|map| {
+                matches!(
+                    map.mode,
+                    maps::GameMode::Batteries
+                        | maps::GameMode::TimedBatteries
+                        | maps::GameMode::TeamDeathmatch
+                        | maps::GameMode::FreeForAll
+                ) && with_file.iter().any(|other| other.project == map.project)
+            })
+            .map(|map| map.id)
+            .collect();
+        assert!(!found.is_empty());
+        assert_eq!(found, expected);
+        // A free-for-all is one of their modes, with a file of its own
+        // project (none is in the release's bot data: `offered_maps`);
+        // Blackout is not, file or no file.
+        let of = |mode| maps::playable_in(mode).map(|map| map.id).collect::<Vec<u8>>();
+        let free_for_all = of(maps::GameMode::FreeForAll);
+        assert!(!free_for_all.is_empty());
+        assert!(free_for_all.iter().all(|id| found.contains(id)));
+        assert!(of(maps::GameMode::Blackout).iter().all(|id| !found.contains(id)));
     }
 }

@@ -1,6 +1,6 @@
 //! What `srp.db` and the code name of the game's data, checked against the
-//! server's game data at start: the kept state ([`Lacking`]) and the items,
-//! ids and awards the lobby's rules name ([`check_code`]).
+//! server's game data at start: the kept state ([`Lacking`]) and the items
+//! and ids the lobby's rules name ([`check_code`]).
 //!
 //! The accounts keep items by their dict id, their modifications and
 //! defects by id, the daily bonus's reward by dict id and quests by id; the
@@ -20,13 +20,12 @@
 //! and says so ([`super::items_rules::upgrades_taken_off`]), a kept results
 //! screen loses it when restored ([`super::rewards::Results::restored`]),
 //! and the wire never sends one whose dict id the data lacks
-//! ([`super::wire::item_descr_at`]). The scope item a player owns is an
+//! ([`super::wire::item_descr`]). The scope item a player owns is an
 //! item like any other and stays checked.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
-use survarium::v026g::awards::Awards;
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::game_data::GameDataError;
 use survarium::v026g::lobby::ItemDescr;
@@ -92,10 +91,6 @@ impl Lacking {
                 }
             }
         }
-        let reward = account.extras.bonus.reward_dict;
-        if reward != 0 {
-            self.item(u32::from(reward), &place);
-        }
         let quests = Quests::shared();
         let ids = account.quests.iter().map(|quest| quest.quest_id);
         for id in ids.chain(account.quest_cooldowns.iter().map(|&(id, _)| id)) {
@@ -119,9 +114,6 @@ impl Lacking {
             let reward = &player.reward;
             if let Some(drop) = &reward.drop {
                 self.item(u32::from(drop.dict_id), &place);
-            }
-            if let Some(given) = &reward.daily_reward {
-                self.item(u32::from(given.dict_id), &place);
             }
             for &(dict_id, _) in &reward.supplies_used {
                 self.item(u32::from(dict_id), &place);
@@ -189,61 +181,42 @@ impl fmt::Display for Lacking {
 }
 
 /// Every item this crate's code names (the game's files do not): the drop
-/// card, the vouchers, buckshot, the grenade of the grenade quests, the
-/// tutorial's two weapons. See [`check_code`].
+/// card, buckshot, the grenade of the grenade quests. See
+/// [`check_code`].
 pub fn named_items() -> Vec<Named> {
-    let mut named: Vec<Named> = vec![
+    vec![
         ("rewards::DROP_CARD", super::rewards::DROP_CARD),
-        ("premium::PREMIUM_VOUCHER", super::premium::PREMIUM_VOUCHER),
-        ("premium::RENAME_VOUCHER", super::premium::RENAME_VOUCHER),
         ("autobuy::BUCKSHOT", super::autobuy::BUCKSHOT),
         ("quests::GRENADE", super::quests::GRENADE),
-    ];
-    named.extend(
-        super::tutorial::SIGNUP_AMMO
-            .iter()
-            .map(|&(name, _)| ("tutorial::SIGNUP_AMMO", name)),
-    );
-    named
+    ]
 }
 
 /// What the code of the lobby's rules names of the game's data, all in
 /// the data of this process ([`survarium::v026g::game_data::shared`]):
-/// the items of [`named_items`], the dict ids of silver and gold the
-/// rewards and the daily bonus give, and the tutorial's awards a new
-/// account is given. Else an error that
+/// the items of [`named_items`], the dict id of silver the
+/// rewards and the daily bonus give (what a new account is given is checked
+/// by `game_data::init`, `survarium::v026g::new_account`). Else an error that
 /// lists every one it lacks: srp does not start (`survarium`'s own names
 /// are checked by `game_data::init`, `tables::named_items`). Each is
 /// otherwise looked up when used, and one the data lacks would be
 /// skipped there without a word.
 pub fn check_code() -> Result<(), GameDataError> {
+    let data = survarium::v026g::game_data::shared();
     let dictionary = Dictionary::shared();
     let mut missing = tables::lacking(dictionary, &named_items());
     let ids = [
         ("rewards::GENERIC_MONEY", super::rewards::GENERIC_MONEY),
-        ("rewards::PREMIUM_MONEY", super::rewards::PREMIUM_MONEY),
         ("bonus::GENERIC_MONEY", super::bonus::GENERIC_MONEY),
-        ("bonus::PREMIUM_MONEY", super::bonus::PREMIUM_MONEY),
-        ("bonus::FALLBACK", super::bonus::FALLBACK.0),
     ];
     for (place, dict_id) in ids {
         if dictionary.item(dict_id).is_none() {
             missing.push(format!("{place} dict id {dict_id}"));
         }
     }
-    let awards = Awards::shared();
-    for name in super::tutorial::AWARDS {
-        if !awards.awards.iter().any(|(award, _)| award == name) {
-            missing.push(format!("tutorial award {name}"));
-        }
-    }
     if missing.is_empty() {
         Ok(())
     } else {
-        Err(tables::lacking_error(
-            &survarium::v026g::game_data::shared().origin,
-            &missing,
-        ))
+        Err(tables::lacking_error(&data.origin, &missing))
     }
 }
 
@@ -256,19 +229,19 @@ mod tests {
         assert_eq!(check_code(), Ok(()));
     }
 
-    /// Data without the drop card or a voucher: named, with where.
+    /// Data without the drop card or buckshot: named, with where.
     #[test]
     fn an_item_the_lobby_code_names_and_the_data_lacks_is_named() {
         let mut dictionary = Dictionary::shared().clone();
         dictionary.items.retain(|item| {
             item.name != super::super::rewards::DROP_CARD
-                && item.name != super::super::premium::RENAME_VOUCHER
+                && item.name != super::super::autobuy::BUCKSHOT
         });
         assert_eq!(
             tables::lacking(&dictionary, &named_items()),
             [
                 "rewards::DROP_CARD drop_card",
-                "premium::RENAME_VOUCHER rename_account_voucher"
+                "autobuy::BUCKSHOT ammo_12mm_buck",
             ]
         );
     }

@@ -23,10 +23,20 @@ hover). The check:
 - Types that share a property (weight, aim time, reliability, recoil, reload, anomaly armour) roll
   the same five values.
 - Only bonuses that roll: drop weight above 0, a type some item takes. The rest stay green:
-  pockets, slots, ammo bags, boosters.
+  pockets, slots, ammo bags.
+- **A booster's bonuses are gold** (owner 2026-11-06: "new bonuses we added to boosters should be
+  golden, not green"): a booster's bonuses are all built-in (its `default_modifications`; its masks
+  take no roll and no defect), so each is the most that booster gives. Its stock ones were gold
+  already by their value (the regeneration +15 %, the search time -25 %: the strongest of their
+  types); now also those of a property that does not roll: the aim sway -20 % (1210), the respawn
+  -20 % (1220), the delay after a hit -2 s and the limit +100 % (1290, 1300), the artefact cooldown
+  -20 % (1310), the knockback (1330), and any built-in a booster gets later. The movie knows a
+  booster as the item that fills a whole pocket (`fills_whole_pocket`, `QuickSlotSize.WHOLE`), as
+  `PlayerInfo.pocketUnits` does; the rule is `ModificationRolls.styleOn`, which the item card's
+  lines and sums use (`InventoryList.fillModifiersDescription`; Alt shows those lines).
 - **The premium bonuses are gold too** (owner 2026-10-22): the golden weapons' +10 % silver (1230),
-  the premium armour's +5 % experience (1240) and +5 % reputation (1250 Scavengers, 1260 Black
-  Market). They never roll ([premium_armour.md](premium_armour.md)), and nothing gives more.
+  the premium armour's +20 % experience (1240) and +50 % reputation (1250 Scavengers, 1260 Black
+  Market, 1270, 1280; +5 % each in 0.26g, the owner's of 2026-11-08). They never roll ([premium_armour.md](premium_armour.md)), and nothing gives more.
 - The value decides, not where the bonus came from: a default modification at the max is gold too.
 
 ## Where it shows
@@ -35,7 +45,7 @@ hover). The check:
   modifications, and the craft and reroll windows (the item's own bonuses, the craft's new one,
   the reroll's three offers), and the shop's entries and bundle contents of the golden and
   premium items (`ItemFactory.startingModifiers`). One function colours them all
-  (`ModificationRolls.style`).
+  (`ModificationRolls.style`; an item card's lines `styleOn`, which adds the boosters).
 - A bonus that is a loss stays red. A defect (the repair window's lines) never goes gold.
 - An item tooltip's sum of a property is gold when it reaches the max.
 - The compare view shows bars, not bonus text: unchanged.

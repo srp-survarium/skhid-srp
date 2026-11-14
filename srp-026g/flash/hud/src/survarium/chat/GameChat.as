@@ -6,6 +6,8 @@ package survarium.chat
    import flash.external.ExternalInterface;
    import flash.text.TextField;
    import scaleform.clik.events.ComponentEvent;
+   import survarium.Util;
+   import survarium.constants.ChatChannel;
    
    public class GameChat extends Chat
    {
@@ -15,6 +17,11 @@ package survarium.chat
       public var messageContainer:MessageLogList;
       
       public var textFieldName:TextField;
+      
+      // Whether the match has a team to talk to: HUD.set_game_type says so at each match. A free
+      // for all has none (docs/notes/ffa.md), so its chat offers no tab that sends on a team
+      // channel: it opens on the match's ("All"), and the tab key switches among what is left.
+      protected var _teamChannel:Boolean = true;
       
       public function GameChat()
       {
@@ -31,6 +38,22 @@ package survarium.chat
       {
          text_inpput.y = value - 476;
          super.height = value;
+      }
+      
+      public function set teamChannel(value:Boolean) : void
+      {
+         if(_teamChannel == value)
+         {
+            return;
+         }
+         _teamChannel = value;
+         offerTabs();
+         this.updateChatData();
+      }
+      
+      override protected function offers(tab:Object) : Boolean
+      {
+         return _teamChannel || tab.channel_to_send != ChatChannel.TEAM_1 && tab.channel_to_send != ChatChannel.TEAM_2;
       }
       
       override public function focusTab(id:uint) : void
@@ -90,6 +113,7 @@ package survarium.chat
          this.messageContainer.clear(true);
          _data = new Object();
          _data.tabs = [];
+         _given = [];
          _activeTab = 0;
          _messages = [];
          _channels = [];
@@ -230,13 +254,31 @@ package survarium.chat
          this.messageContainer.addMessage(value + _nline);
       }
       
-      public function test_message(value:Object) : void
+      public function introductionReady() : Boolean
       {
-         var _finalText:String = this.get_styled_text(value);
-         trace("test_message::",_finalText);
-         this.addMessage(_finalText);
+         return this.messageContainer != null && this.send_function != null &&
+            this._data.tabs[this._activeMode] && this._data.tabs[this._activeMode].length > 0;
       }
-      
+
+      // Local system line in every current match tab, retained when the player switches tabs.
+      public function addIntroduction(text:String) : void
+      {
+         // The timeline initially leaves the input visible until native chat is first closed.
+         // A notice is read-only; never change focus or close an input the player is using.
+         if(!this._isTyping)
+         {
+            this.text_inpput.visible = false;
+            this.textFieldName.visible = false;
+         }
+         // Match the 15 px sender style so every translation fits the log's 90 px area.
+         // Keep this markup in tab history too, otherwise switching tabs can discard the line.
+         var escaped:String = Util.escapeHtml(text);
+         var line:String = "<font size='15' color='#F2F2F2'><b>System:</b> " + escaped + "</font>";
+         for each(var tab:Object in this._data.tabs[this._activeMode])
+            this._messages[tab.id] += line + this._nline;
+         this.messageContainer.addText(line + this._nline);
+      }
+
       protected function onLocal(value:String) : void
       {
          text_inpput.defaultText = value;
@@ -251,7 +293,7 @@ package survarium.chat
          trace("get_styled_text",value.color,value.type,slyleStr,_data.name,value.name);
          if(!value.name)
          {
-            return styled(value.text,slyleStr);
+            return styledChar(value.text,slyleStr);
          }
          if(_data.name == value.name)
          {
@@ -270,7 +312,7 @@ package survarium.chat
                style = isAlly ? Chat.NICKNAME : NICKNAME_ENEMY;
             }
          }
-         return styled(value.name + ":",style) + " " + styledChar(value.text,"WhiteInGame");
+         return styledChar(value.name + ":",style) + " " + styledChar(value.text,"WhiteInGame");
       }
       
       override protected function configUI() : void

@@ -24,6 +24,7 @@ use std::path::Path;
 
 use mapdata::{Vec3, WalkGrid};
 use serde::Deserialize;
+use survarium::v026g::maps::RuleMode;
 
 #[derive(Debug, Deserialize)]
 struct File {
@@ -90,12 +91,14 @@ impl RouteTable {
     }
 
     /// The routes of a map (`level` 1-8) in a mode, points still on the
-    /// ground plane (y 0) until [`HumanRoute::on_floors`].
-    pub fn for_map(&self, level: u8, mode: u8) -> Vec<HumanRoute> {
+    /// ground plane (y 0) until [`HumanRoute::on_floors`]. A free-for-all
+    /// has none, though it is played on Team Deathmatch's project: a route
+    /// leaves from a base, and its players come out anywhere.
+    pub fn for_map(&self, level: u8, mode: RuleMode) -> Vec<HumanRoute> {
         let name = format!("level_{level:02}");
         self.rows
             .iter()
-            .filter(|row| row.level == name && row.mode == mode && row.lives > 0)
+            .filter(|row| row.level == name && row.mode == mode.number() && row.lives > 0)
             .map(|row| HumanRoute {
                 team: row.team,
                 lives: row.lives,
@@ -153,11 +156,13 @@ mod tests {
              "points": [[1.0, 2.0]]}]}"#;
         let table = RouteTable::parse(text).unwrap();
         assert_eq!(table.len(), 3);
-        let routes = table.for_map(1, 2);
+        let routes = table.for_map(1, RuleMode::Batteries);
         assert_eq!(routes.len(), 1);
         assert_eq!(routes[0].team, 1);
         assert_eq!(routes[0].points[1], Vec3::new(4.6, 0.0, -69.4));
-        assert!(table.for_map(3, 2).is_empty());
+        assert!(table.for_map(3, RuleMode::Batteries).is_empty());
+        assert_eq!(table.for_map(1, RuleMode::TeamDeathmatch).len(), 1);
+        assert!(table.for_map(1, RuleMode::FreeForAll).is_empty());
         assert!(RouteTable::parse(r#"{"format": 2, "routes": []}"#).is_err());
     }
 
@@ -177,7 +182,11 @@ mod tests {
         let table = RouteTable::load(table.as_ref()).unwrap();
         let (mut routes, mut points, mut kept, mut allowed, mut wrong_side) = (0, 0, 0, 0, 0);
         for level in 1..=8u8 {
-            for mode in 2..=4u8 {
+            for mode in [
+                RuleMode::Batteries,
+                RuleMode::TimedBatteries,
+                RuleMode::TeamDeathmatch,
+            ] {
                 let path =
                     std::path::Path::new(&dir).join(format!("level_{level:02}_day_{mode}.mapdata"));
                 let map = mapdata::MapData::read(&path).unwrap();

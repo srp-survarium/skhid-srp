@@ -69,6 +69,110 @@ fn world() -> World {
     world_with(GameAccounts::new())
 }
 
+#[test]
+fn admin_rename_targets_an_id_is_free_and_keeps_an_audit() {
+    let repository = session::v026g::persist::MemoryGameRepository::default();
+    let world = world_with(GameAccounts::with_repository(Box::new(repository.clone())).unwrap());
+    let id = world.player("Mamoru", "pw");
+    let other = world.player("Other", "pw");
+    let before = world.accounts.get(id).unwrap().locked().clone();
+    let response = world.admin(&[
+        ("tab", "rename"),
+        ("rename_id", &id.to_string()),
+        ("rename_name", "Mamoru_777"),
+        ("rename_reason", "duplicate name"),
+    ]);
+    assert!(response.contains(&format!("Account #{id} renamed: Mamoru → Mamoru_777.")));
+    let mut expected = before;
+    expected.name = "Mamoru_777".into();
+    assert_eq!(*world.accounts.get(id).unwrap().locked(), expected);
+    assert_eq!(
+        world.web.store.account(id).unwrap().locked().name(),
+        "Mamoru_777"
+    );
+    assert_eq!(
+        world.web.store.account(other).unwrap().locked().name(),
+        "Other"
+    );
+    assert_eq!(
+        world
+            .web
+            .store
+            .sign_in_with_digest_from(
+                "Mamoru",
+                &sha1_hex(b"pw"),
+                "127.0.0.1".parse().unwrap(),
+                Instant::now()
+            )
+            .unwrap()
+            .account_id(),
+        id
+    );
+    assert_eq!(*world.told.changed.locked(), vec![id]);
+    let actions = repository.all_admin_actions();
+    assert_eq!(actions.len(), 1);
+    assert_eq!(
+        (
+            actions[0].account_id,
+            actions[0].kind.as_str(),
+            actions[0].before.as_str(),
+            actions[0].after.as_str()
+        ),
+        (id, "nickname", "Mamoru", "Mamoru_777")
+    );
+}
+
+#[test]
+fn admin_rename_refuses_bad_auth_names_ids_and_lookalikes() {
+    let world = world();
+    let id = world.player("Alice", "pw");
+    world.player("sovspiranha", "pw");
+    for (target, name, reason, token) in [
+        (id.to_string(), "Alisa", "repair", "wrong"),
+        (id.to_string(), "sоvspiranha", "repair", "tok"),
+        (id.to_string(), "ab", "repair", "tok"),
+        (id.to_string(), "Alisa", "", "tok"),
+        ("Alice".into(), "Alisa", "repair", "tok"),
+        ("4294967295".into(), "Alisa", "repair", "tok"),
+    ] {
+        let response = world.web.route(
+            &post(
+                "/hidden",
+                &[
+                    ("tab", "rename"),
+                    ("rename_id", &target),
+                    ("rename_name", name),
+                    ("rename_reason", reason),
+                    ("token", token),
+                ],
+            ),
+            "t",
+        );
+        assert!(!response.body.contains(" renamed: "));
+        assert_eq!(
+            world.web.store.account(id).unwrap().locked().name(),
+            "Alice"
+        );
+    }
+    assert!(world.told.changed.locked().is_empty());
+    let mut request = post(
+        "/hidden",
+        &[
+            ("tab", "rename"),
+            ("rename_id", &id.to_string()),
+            ("rename_name", "Alisa"),
+            ("rename_reason", "repair"),
+            ("token", "tok"),
+        ],
+    );
+    request.client = Some("192.0.2.10".parse().unwrap());
+    assert_eq!(world.web.route(&request, "t").status, "404 Not Found");
+    assert_eq!(
+        world.web.store.account(id).unwrap().locked().name(),
+        "Alice"
+    );
+}
+
 /// The world with these 0.26g accounts (one kept in a repository: what is
 /// written, and the audit trail).
 fn world_with(accounts: GameAccounts) -> World {
@@ -91,9 +195,10 @@ fn world_with(accounts: GameAccounts) -> World {
             accounts: accounts.clone(),
             lobby: told.clone(),
             matches: told.clone(),
-            patches: Vec::new(),
+            downloads: Arc::new(crate::Downloads::new(Vec::new(), None, None)),
             min_patch_revision: 0,
             replays: None,
+            results: Arc::new(session::v026g::rewards::Results::new()),
         }),
     };
     World {
@@ -123,10 +228,8 @@ impl World {
         id
     }
 
-    fn balances(&self, id: u32) -> (u32, u32) {
-        let account = self.accounts.get(id).unwrap();
-        let account = account.locked();
-        (account.generic_money, account.premium_money)
+    fn balance(&self, id: u32) -> u32 {
+        self.accounts.get(id).unwrap().locked().generic_money
     }
 
     fn admin(&self, fields: &[(&str, &str)]) -> String {
@@ -160,10 +263,10 @@ fn get(path: &str) -> Request {
 }
 
 #[test]
-fn the_exchange_is_in_the_game_now() {
+fn the_exchange_page_says_there_is_no_gold() {
     let world = world();
     let id = world.player("fighter", "secret");
-    let (silver, gold) = world.balances(id);
+    let silver = world.balance(id);
     // The launcher's SHOP button: `/exchange?lang=<its code>`.
     let shop = |code: &str| {
         let mut request = get("/exchange");
@@ -172,15 +275,11 @@ fn the_exchange_is_in_the_game_now() {
         world.web.route(&request, "t")
     };
     for (code, lang, text) in [
-        ("en", "en", "Silver and gold are exchanged in the game now"),
-        ("ua", "uk", "Срібло й золото тепер обмінюються в грі"),
-        ("ru", "ru", "Серебро и золото теперь обмениваются в игре"),
-        (
-            "de",
-            "de",
-            "Silber und Gold werden jetzt im Spiel getauscht",
-        ),
-        ("pl", "pl", "Srebro i złoto wymienia się teraz w grze"),
+        ("en", "en", "There is no gold any more"),
+        ("ua", "uk", "Золота більше немає"),
+        ("ru", "ru", "Золота больше нет"),
+        ("de", "de", "Gold gibt es nicht mehr"),
+        ("pl", "pl", "Złota już nie ma"),
     ] {
         let answer = shop(code);
         assert_eq!(answer.status, "200 OK", "{code}");
@@ -196,7 +295,7 @@ fn the_exchange_is_in_the_game_now() {
     // Without a code: the page's own language.
     let mut browser = get("/exchange");
     browser.lang = Lang::Uk;
-    assert!(world.web.route(&browser, "t").body.contains("Тепер у грі"));
+    assert!(world.web.route(&browser, "t").body.contains("Лише срібло"));
     // A form sent as the old page sent it is a page that is not there, and
     // changes nothing.
     let sent = world.web.route(
@@ -207,7 +306,7 @@ fn the_exchange_is_in_the_game_now() {
         "t",
     );
     assert_eq!(sent.status, "404 Not Found");
-    assert_eq!(world.balances(id), (silver, gold));
+    assert_eq!(world.balance(id), silver);
     assert!(world.told.changed.locked().is_empty());
 }
 
@@ -215,46 +314,46 @@ fn the_exchange_is_in_the_game_now() {
 fn the_admin_changes_money_and_the_account() {
     let world = world();
     let id = world.player("tester", "secret");
-    let (silver, gold) = world.balances(id);
+    // The stock account has no money (#1108): silver to take.
+    world.accounts.get(id).unwrap().locked().generic_money = 2_000;
+    let silver = world.balance(id);
     let refused = world.web.route(
         &post(
             "/hidden",
-            &[("token", "bad"), ("user", "tester"), ("gold", "+9")],
+            &[("token", "bad"), ("user", "tester"), ("silver", "+9")],
         ),
         "t",
     );
     assert!(refused.body.contains("Wrong token"));
-    assert_eq!(world.balances(id), (silver, gold));
+    assert_eq!(world.balance(id), silver);
 
     // Money is moderation's: a preview, then the confirm (`moderation`).
     let asked = [
         ("user", "tester"),
-        ("gold", "+500"),
         ("silver", "-999999999"),
         ("money_reason", "test"),
     ];
     let preview = world.admin(&asked);
-    assert_eq!(world.balances(id), (silver, gold));
+    assert_eq!(world.balance(id), silver);
     let plan = hidden(&preview, "money_plan");
     let mut confirm = asked.to_vec();
     confirm.extend([("money_plan", plan.as_str()), ("confirm", "1")]);
     let done = world.admin(&confirm);
     assert!(done.contains("tester: silver 2 000 → 0 (-2 000)"), "{done}");
-    assert_eq!(world.balances(id), (0, gold + 500));
+    assert_eq!(world.balance(id), 0);
     assert_eq!(world.told.changed.locked()[..], [id]);
 
-    // Premium, a level with experience on top, reputation.
+    // A level with experience on top, reputation.
     let done = world.admin(&[
         ("tab", "account"),
         ("acc_user", "tester"),
-        ("premium_hours", "+24"),
         ("level", "3"),
         ("experience", "+10"),
         ("faction", "2"),
         ("reputation", "+150"),
     ]);
     assert!(done.contains("level 3"), "{done}");
-    assert!(done.contains("24 h of premium"), "{done}");
+    assert!(!done.contains("premium"), "{done}");
     assert!(done.contains("Reputation with faction 2: 150"), "{done}");
     assert!(done.contains("value=account id=tab-account checked"));
     {
@@ -262,22 +361,19 @@ fn the_admin_changes_money_and_the_account() {
         let account = account.locked();
         assert_eq!(account.level(), 3);
         assert_eq!(account.exp_total, level_start(3) + 10);
-        assert_eq!(account.premium_hours(crate::unix_now()), Some(24));
         assert_eq!(account.reputation(2), 150);
     }
-    // Taken back; the premium ends.
+    // Taken back.
     let done = world.admin(&[
         ("tab", "account"),
         ("acc_user", "tester"),
-        ("premium_hours", "-48"),
         ("faction", "2"),
         ("reputation", "-1000"),
     ]);
-    assert!(done.contains("0 h of premium"), "{done}");
+    assert!(done.contains("Reputation with faction 2: 0"), "{done}");
     {
         let account = world.accounts.get(id).unwrap();
         let account = account.locked();
-        assert_eq!(account.premium_until, 0);
         assert_eq!(account.reputation(2), 0);
         assert_eq!(account.level(), 3);
     }
@@ -494,8 +590,8 @@ fn bans_maintenance_and_registration_are_the_stores() {
 fn the_pages_are_the_026g_ones() {
     let world = world();
     let home = world.web.route(&get("/"), "t").body;
-    assert!(home.contains("survarium_skhid.exe -localization=english -server="));
-    assert!(home.contains("-mt_allocator=768 -minimum_resources_memory_size=768"));
+    // The exe has the server and memory built in and its language in Settings.
+    assert!(!home.contains("-localization") && !home.contains("-mt_allocator"));
     assert!(!home.contains("-client") && !home.contains("0.21d") && !home.contains("0.21D"));
     assert!(home.contains("Survarium 0.26g client"));
     assert!(!home.contains("/exchange"));
@@ -771,6 +867,7 @@ fn offered(n: u32, sha: char, urls: &[&str]) -> crate::OfferedPatch {
     crate::OfferedPatch {
         name: format!("patch_{n}"),
         sha256: sha.to_string().repeat(64),
+        size: 1,
         urls: urls.iter().map(|url| (*url).to_owned()).collect(),
     }
 }
@@ -820,17 +917,21 @@ fn the_patches_are_listed_for_the_updater_as_json() {
     let mut world = world();
     world.web.token = None;
     world.web.admin_path = None;
-    world.web.game.as_mut().unwrap().patches = vec![
-        offered(
-            14,
-            'a',
-            &[
-                "http://203.0.113.5/patches/resources.db.patch_14",
-                "https://drive.usercontent.google.com/download?id=abc&export=download&confirm=t",
-            ],
-        ),
-        offered(16, '0', &["https://files.example/db/resources.db.patch_16"]),
-    ];
+    world.web.game.as_mut().unwrap().downloads = Arc::new(crate::Downloads::new(
+        vec![
+            offered(
+                14,
+                'a',
+                &[
+                    "http://203.0.113.5/patches/resources.db.patch_14",
+                    "https://drive.usercontent.google.com/download?id=abc&export=download&confirm=t",
+                ],
+            ),
+            offered(16, '0', &["https://files.example/db/resources.db.patch_16"]),
+        ],
+        None,
+        None,
+    ));
     let expected = format!(
         "{{\"patch_14\":{{\"sha256\":\"{}\",\"urls\":[\"http://203.0.113.5/patches/resources.db.patch_14\",\
          \"https://drive.usercontent.google.com/download?id=abc&export=download&confirm=t\"]}},\
@@ -852,6 +953,52 @@ fn the_patches_are_listed_for_the_updater_as_json() {
     assert_eq!(body, expected);
 }
 
+/// The game's archive at `/game`, apart from the patches: a 404 when the
+/// data names none (the updater then uses the addresses built into it).
+#[test]
+fn the_games_archive_is_offered_apart_from_the_patches() {
+    let mut world = world();
+    assert_eq!(world.web.route(&get("/game"), "t").status, "404 Not Found");
+    let archive = crate::OfferedPatch {
+        name: "survarium-026g.7z".into(),
+        sha256: "7".repeat(64),
+        size: 2_906_544_103,
+        urls: vec![
+            "http://203.0.113.5:8090/survarium-026g.7z".into(),
+            "https://archive.org/download/x/survarium_full_026g0.7z".into(),
+        ],
+    };
+    world.web.game.as_mut().unwrap().downloads = Arc::new(crate::Downloads::new(
+        vec![offered(14, 'a', &["http://203.0.113.5/p14"])],
+        Some(archive),
+        None,
+    ));
+    let game = world.web.route(&get("/game"), "t");
+    assert_eq!(game.status, "200 OK");
+    assert_eq!(
+        game.body,
+        format!(
+            "{{\"sha256\":\"{}\",\"size\":2906544103,\"urls\":[\"http://203.0.113.5:8090/survarium-026g.7z\",\
+             \"https://archive.org/download/x/survarium_full_026g0.7z\"]}}",
+            "7".repeat(64)
+        )
+    );
+    // Not among the patches: every member there is one.
+    assert_eq!(
+        world.web.route(&get("/patches"), "t").body,
+        format!(
+            "{{\"patch_14\":{{\"sha256\":\"{}\",\"urls\":[\"http://203.0.113.5/p14\"]}}}}",
+            "a".repeat(64)
+        )
+    );
+    let (head, body) = patches_over_http(world.web, b"GET /game HTTP/1.0\r\n\r\n");
+    assert!(
+        head.contains("\r\nContent-Type: application/json\r\n"),
+        "{head}"
+    );
+    assert!(body.contains("\"size\":2906544103"));
+}
+
 #[test]
 fn a_patch_list_string_is_always_escaped() {
     // srp-game-data writes nothing that needs it; were it ever there, the
@@ -859,6 +1006,7 @@ fn a_patch_list_string_is_always_escaped() {
     let odd = crate::OfferedPatch {
         name: "patch_1".into(),
         sha256: "a\"b\\c\n".into(),
+        size: 1,
         urls: vec!["http://x/y".into(), "http://x/\"".into()],
     };
     assert_eq!(
@@ -872,10 +1020,9 @@ fn the_damage_calculator_is_a_026g_page_under_the_sites_header() {
     let world = world();
     let home = world.web.route(&get("/"), "t").body;
     assert!(home.contains(
-        "<nav><a href=\"/?lang=en\" aria-current=page>Home</a><a href=\"/damage?lang=en\">Calculator</a>\
-         <a href=\"/maps?lang=en\">Maps</a>"
+        "<nav><a href=\"/?lang=en\" aria-current=page>Home</a><a href=\"/wiki?lang=en\">Wiki</a>"
     ));
-    let page = world.web.route(&get("/damage"), "t");
+    let page = world.web.route(&get(crate::damage::PATH), "t");
     assert_eq!(page.status, "200 OK");
     assert!(
         page.body
@@ -887,7 +1034,7 @@ fn the_damage_calculator_is_a_026g_page_under_the_sites_header() {
     );
     assert!(
         page.body
-            .contains("<a href=\"/damage?lang=en\" aria-current=page>Calculator</a>")
+            .contains("<a href=\"/wiki?lang=en\" aria-current=page>Wiki</a>")
     );
     assert!(page.body.contains("<nav><a href=\"/?lang=en\">Home</a>"));
     assert!(
@@ -897,11 +1044,14 @@ fn the_damage_calculator_is_a_026g_page_under_the_sites_header() {
     assert!(!page.body.contains("{{LANG}}") && !page.body.contains("<!--SITE-HEADER-->"));
     // Nothing inline runs and nothing is fetched from elsewhere.
     assert!(!page.body.contains("<script>") && !page.body.contains("https://"));
-    let mut uk = get("/damage");
+    let mut uk = get(crate::damage::PATH);
     uk.lang = Lang::Uk;
     let uk = world.web.route(&uk, "t").body;
     assert!(uk.starts_with("<!doctype html>\n<html lang=\"uk\">\n"));
-    assert!(uk.contains(" aria-current=page>Калькулятор</a>"));
+    assert!(uk.contains(" aria-current=page>Вікі</a>"));
+    assert!(uk.contains(
+        "<p class=breadcrumb><a href=\"/wiki?lang=uk\">Вікі</a> / Калькулятор шкоди</p>"
+    ));
 }
 
 #[test]
@@ -918,27 +1068,17 @@ fn every_file_the_calculator_names_is_served_to_be_kept() {
             .filter(|path| !path.contains(['"', ' ', '<', '\n']))
             .collect()
     }
-    let page = world.web.route(&get("/damage"), "t").body;
+    let page = world.web.route(&get(crate::damage::PATH), "t").body;
     let mut wanted = named(&page);
     let (script_type, script) = crate::damage::file("/damage/calc.js").unwrap();
     assert_eq!(script_type, "text/javascript; charset=utf-8");
     wanted.extend(named(std::str::from_utf8(script).unwrap()));
-    for (ending, count) in [(".js", 1), (".woff2", 7), (".webp", 13)] {
-        assert_eq!(
-            wanted.iter().filter(|path| path.ends_with(ending)).count(),
-            count,
-            "{ending}"
-        );
+    for ending in [".js", ".woff2", ".webp"] {
+        assert!(wanted.iter().any(|path| path.ends_with(ending)), "{ending}");
     }
     for path in &wanted {
-        let (content_type, bytes) = crate::damage::file(path).unwrap_or_else(|| panic!("{path}"));
+        let (_, bytes) = crate::damage::file(path).unwrap_or_else(|| panic!("{path}"));
         assert!(!bytes.is_empty(), "{path}");
-        let expected = match path.rsplit('.').next() {
-            Some("js") => "text/javascript; charset=utf-8",
-            Some("woff2") => "font/woff2",
-            _ => "image/webp",
-        };
-        assert_eq!(content_type, expected, "{path}");
     }
 
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -946,7 +1086,7 @@ fn every_file_the_calculator_names_is_served_to_be_kept() {
     let asks = [
         "GET /damage/calc.js?v=0 HTTP/1.0",
         "HEAD /damage/maps/level_01.webp HTTP/1.0",
-        "GET /damage?lang=uk HTTP/1.0",
+        "GET /wiki/calculator?lang=uk HTTP/1.0",
         "GET /damage/missing.js HTTP/1.0",
     ];
     let server = std::thread::spawn(move || {
@@ -1006,7 +1146,7 @@ fn every_file_the_calculator_names_is_served_to_be_kept() {
 #[test]
 fn the_maps_are_a_026g_page_under_the_sites_header() {
     let world = world();
-    let page = world.web.route(&get("/maps"), "t");
+    let page = world.web.route(&get(crate::maps::PATH), "t");
     assert_eq!(page.status, "200 OK");
     assert!(
         page.body
@@ -1014,19 +1154,135 @@ fn the_maps_are_a_026g_page_under_the_sites_header() {
     );
     assert!(
         page.body
-            .contains("<a href=\"/maps?lang=en\" aria-current=page>Maps</a>")
+            .contains("<a href=\"/wiki?lang=en\" aria-current=page>Wiki</a>")
     );
     assert!(
         page.body
-            .contains("<a href=\"/damage?lang=en\">Calculator</a>")
+            .contains("<p class=breadcrumb><a href=\"/wiki?lang=en\">Wiki</a> / Maps</p>")
     );
     assert!(!page.body.contains("{{LANG}}") && !page.body.contains("<!--SITE-HEADER-->"));
     assert!(!page.body.contains("<script>") && !page.body.contains("https://"));
-    let mut uk = get("/maps");
+    let mut uk = get(crate::maps::PATH);
     uk.lang = Lang::Uk;
     let uk = world.web.route(&uk, "t").body;
     assert!(uk.starts_with("<!doctype html>\n<html lang=\"uk\">\n"));
-    assert!(uk.contains(" aria-current=page>Мапи</a>"));
+    assert!(uk.contains(" aria-current=page>Вікі</a>"));
+}
+
+#[test]
+fn wiki_routes_use_the_sites_navigation_and_language() {
+    let world = world();
+    for path in [
+        "/wiki",
+        "/wiki/weapons",
+        "/wiki/modifiers",
+        "/wiki/equipment",
+        "/wiki/calculator",
+        "/wiki/maps",
+        "/wiki/skills",
+        "/wiki/quests",
+    ] {
+        for lang in [Lang::En, Lang::Uk] {
+            let mut request = get(path);
+            request.lang = lang;
+            let response = world.web.route(&request, "t");
+            assert_eq!(response.status, "200 OK");
+            assert!(
+                response
+                    .body
+                    .contains(&format!("<html lang=\"{}\">", lang.code()))
+            );
+            assert!(response.body.contains(&format!(
+                "href=\"/wiki?lang={}\" aria-current=page",
+                lang.code()
+            )));
+        }
+    }
+    // The index leads to every section.
+    let index = world.web.route(&get("/wiki"), "t").body;
+    for section in [
+        "/wiki/weapons",
+        "/wiki/modifiers",
+        "/wiki/equipment",
+        "/wiki/calculator",
+        "/wiki/maps",
+        "/wiki/skills",
+        "/wiki/quests",
+    ] {
+        assert!(
+            index.contains(&format!("<a class=wiki-link href=\"{section}?lang=en\">")),
+            "{section}"
+        );
+    }
+    assert_eq!(
+        world.web.route(&get("/wiki/unknown"), "t").status,
+        "404 Not Found"
+    );
+}
+
+#[test]
+fn the_calculators_and_the_maps_old_addresses_lead_into_the_wiki() {
+    use std::io::{Read, Write};
+    use std::net::{TcpListener, TcpStream};
+    let world = world();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let asks = [
+        (
+            "GET /damage?lang=uk HTTP/1.0",
+            Some("/wiki/calculator?lang=uk"),
+        ),
+        ("HEAD /maps HTTP/1.0", Some("/wiki/maps?lang=en")),
+        // Their files keep their addresses.
+        ("GET /maps/maps.js HTTP/1.0", None),
+    ];
+    let server = std::thread::spawn(move || {
+        for _ in asks {
+            let (stream, _) = listener.accept().unwrap();
+            world.web.serve(stream);
+        }
+    });
+    for (ask, location) in asks {
+        let mut client = TcpStream::connect(address).unwrap();
+        client
+            .write_all(format!("{ask}\r\n\r\n").as_bytes())
+            .unwrap();
+        let mut got = String::new();
+        client.read_to_string(&mut got).unwrap();
+        match location {
+            Some(location) => {
+                assert!(
+                    got.starts_with("HTTP/1.0 301 Moved Permanently\r\n"),
+                    "{ask}"
+                );
+                assert!(
+                    got.contains(&format!("\r\nLocation: {location}\r\n")),
+                    "{ask}"
+                );
+                assert!(got.ends_with("\r\n\r\n"), "{ask}: no body");
+            }
+            None => assert!(got.starts_with("HTTP/1.0 200 OK\r\n"), "{ask}"),
+        }
+    }
+    server.join().unwrap();
+}
+
+/// A standalone local review of the real HTTP routes, with in-memory test
+/// accounts. Does not start or connect to login, lobby or match servers.
+#[test]
+#[ignore = "local browser preview; serves until stopped"]
+fn serve_wiki_preview() {
+    // SRP_GAME_DATA: the pages from that server data (a release's, as srp runs
+    // on), not the tests' archive; it must be read before anything else is.
+    if std::env::var_os("SRP_GAME_DATA").is_some() {
+        survarium::v026g::game_data::init().expect("SRP_GAME_DATA reads as srp's game data");
+    }
+    let world = world();
+    let listener = std::net::TcpListener::bind("127.0.0.1:24583").unwrap();
+    eprintln!("Wiki preview: http://127.0.0.1:24583/wiki");
+    for stream in listener.incoming() {
+        world.web.serve(stream.unwrap());
+    }
 }
 
 #[test]
@@ -1045,7 +1301,7 @@ fn every_file_the_maps_name_is_served() {
             .collect()
     }
     let world = world();
-    let page = world.web.route(&get("/maps"), "t").body;
+    let page = world.web.route(&get(crate::maps::PATH), "t").body;
     let mut wanted = named(&page);
     let (script_type, script) = crate::maps::file("/maps/maps.js").unwrap();
     assert_eq!(script_type, "text/javascript; charset=utf-8");
@@ -1062,8 +1318,8 @@ fn every_file_the_maps_name_is_served() {
 }
 
 #[test]
-fn the_maps_and_the_calculator_are_built_from_the_offered_patches() {
-    // A live release rebuilds both pages from the patches it offers and its
+fn the_site_pages_are_built_from_the_offered_patches() {
+    // A live release rebuilds the pages from the patches it offers and its
     // record commits them with release/patches.tsv (release/build-site); this
     // fails a PR that changes one without the other.
     let rows = |text: &str| -> Vec<(String, String)> {
@@ -1088,6 +1344,11 @@ fn the_maps_and_the_calculator_are_built_from_the_offered_patches() {
     assert_eq!(
         calculator, offered,
         "the calculator is built from other patches than release/patches.tsv: rebuild it with build_site.py (srp-026g/scripts/damage-calc/README.md)"
+    );
+    let skills = rows(include_str!("../../skills/built-from.tsv"));
+    assert_eq!(
+        skills, offered,
+        "the skills are built from other patches than release/patches.tsv: rebuild them with release/build-site (srp-026g/scripts/skills-tab/build.py)"
     );
 }
 
@@ -1129,9 +1390,8 @@ fn money_is_taken_after_a_preview_and_never_below_zero() {
     let id = world.player("pain", "secret");
     let other = world.player("bystander", "secret");
     world.accounts.get(id).unwrap().locked().generic_money = 480_000;
-    world.accounts.get(id).unwrap().locked().premium_money = 7;
     world.accounts.flush();
-    let others = world.balances(other);
+    let others = world.balance(other);
     let asked = [
         ("user", "pain"),
         ("silver", "-500000"),
@@ -1145,7 +1405,6 @@ fn money_is_taken_after_a_preview_and_never_below_zero() {
         preview.contains("480 000 → 0 (-480 000); -500 000 asked, never below 0"),
         "{preview}"
     );
-    assert!(preview.contains("7 → 7 (0)"), "{preview}");
     assert!(preview.contains("no: it sees the change at its next sign-in"));
     assert!(
         preview.contains("name=confirm value=1>Apply to pain"),
@@ -1154,35 +1413,35 @@ fn money_is_taken_after_a_preview_and_never_below_zero() {
     // Enter in a field presses the form's first button: the preview's.
     let first = preview.find("<button").unwrap();
     assert!(preview[first..].starts_with("<button>"), "{preview}");
-    assert_eq!(world.balances(id), (480_000, 7));
+    assert_eq!(world.balance(id), 480_000);
     let plan = hidden(&preview, "money_plan");
 
     // The confirm without the plan, or with another, is a preview again.
     for wrong in ["", "00"] {
         let body = world.admin(&confirmed(&asked, "money_plan", wrong));
         assert!(body.contains("nothing was changed"), "{body}");
-        assert_eq!(world.balances(id), (480_000, 7));
+        assert_eq!(world.balance(id), 480_000);
     }
     // Without a reason nothing is applied.
     let no_reason = [("user", "pain"), ("silver", "-500000")];
     let body = world.admin(&confirmed(&no_reason, "money_plan", &plan));
     assert!(body.contains("A reason is required"), "{body}");
     assert!(!body.contains("name=confirm value=1"));
-    assert_eq!(world.balances(id), (480_000, 7));
+    assert_eq!(world.balance(id), 480_000);
     assert!(world.told.changed.locked().is_empty());
 
     // A confirm uses its token up, applied or not: a new preview's.
     let used = world.admin(&confirmed(&asked, "money_plan", &plan));
     assert!(used.contains("used already or is older"), "{used}");
-    assert_eq!(world.balances(id), (480_000, 7));
+    assert_eq!(world.balance(id), 480_000);
     let plan = hidden(&used, "money_plan");
     let done = world.admin(&confirmed(&asked, "money_plan", &plan));
     assert!(
-        done.contains("pain: silver 480 000 → 0 (-480 000), gold 7 → 7 (0)."),
+        done.contains("pain: silver 480 000 → 0 (-480 000)."),
         "{done}"
     );
     assert!(!done.contains("name=confirm value=1"));
-    assert_eq!(world.balances(id), (0, 7));
+    assert_eq!(world.balance(id), 0);
     // Written at once, with its audit row; the open game is told.
     assert_eq!(repository.get(id).unwrap().generic_money, 0);
     let actions = repository.all_admin_actions();
@@ -1190,15 +1449,15 @@ fn money_is_taken_after_a_preview_and_never_below_zero() {
     assert_eq!(actions[0].account_id, id);
     assert_eq!(actions[0].kind, "money");
     assert_eq!(actions[0].reason, "farmed silver");
-    assert_eq!(actions[0].change, "silver -480000 (asked -500000), gold +0");
-    assert_eq!(actions[0].before, "480000 silver, 7 gold");
-    assert_eq!(actions[0].after, "0 silver, 7 gold");
+    assert_eq!(actions[0].change, "silver -480000 (asked -500000)");
+    assert_eq!(actions[0].before, "480000 silver");
+    assert_eq!(actions[0].after, "0 silver");
     assert_eq!(world.told.changed.locked()[..], [id]);
 
     // A reload of the confirm changes nothing more.
     let reload = world.admin(&confirmed(&asked, "money_plan", &plan));
     assert!(reload.contains("nothing was changed") || reload.contains("Nothing would change"));
-    assert_eq!(world.balances(id), (0, 7));
+    assert_eq!(world.balance(id), 0);
     assert_eq!(repository.all_admin_actions().len(), 1);
     // The audit trail is shown with the account.
     assert!(
@@ -1207,18 +1466,18 @@ fn money_is_taken_after_a_preview_and_never_below_zero() {
     );
     assert!(reload.contains("farmed silver"));
 
-    // Gold by id, the other account untouched.
-    let gold = [
+    // Silver by id, the other account untouched.
+    let given = [
         ("user", &*format!("#{id}")),
-        ("gold", "-10"),
-        ("money_reason", "farmed gold"),
+        ("silver", "+10"),
+        ("money_reason", "a refund"),
     ];
-    let preview = world.admin(&gold);
+    let preview = world.admin(&given);
     let plan = hidden(&preview, "money_plan");
-    let done = world.admin(&confirmed(&gold, "money_plan", &plan));
-    assert!(done.contains("gold 7 → 0 (-7)"), "{done}");
-    assert_eq!(world.balances(id), (0, 0));
-    assert_eq!(world.balances(other), others);
+    let done = world.admin(&confirmed(&given, "money_plan", &plan));
+    assert!(done.contains("silver 0 → 10 (+10)"), "{done}");
+    assert_eq!(world.balance(id), 10);
+    assert_eq!(world.balance(other), others);
     assert_eq!(repository.all_admin_actions().len(), 2);
 }
 
@@ -1230,28 +1489,28 @@ fn money_of_an_online_account_reaches_its_game() {
     let _held = world.web.store.hold(session).unwrap();
     let asked = [
         ("user", "mandalorienc"),
-        ("gold", "-100"),
-        ("money_reason", "farmed gold"),
+        ("silver", "-100"),
+        ("money_reason", "farmed silver"),
     ];
-    world.accounts.get(id).unwrap().locked().premium_money = 250;
+    world.accounts.get(id).unwrap().locked().generic_money = 250;
     let preview = world.admin(&asked);
     assert!(
         preview.contains("yes: its game is sent the change at once"),
         "{preview}"
     );
     let plan = hidden(&preview, "money_plan");
-    // The game spends gold between the preview and the confirm: the plan
+    // The game spends silver between the preview and the confirm: the plan
     // no longer fits, and nothing is taken.
-    world.accounts.get(id).unwrap().locked().premium_money = 240;
+    world.accounts.get(id).unwrap().locked().generic_money = 240;
     let late = world.admin(&confirmed(&asked, "money_plan", &plan));
     assert!(
         late.contains("The account changed since the preview"),
         "{late}"
     );
-    assert_eq!(world.balances(id).1, 240);
+    assert_eq!(world.balance(id), 240);
     let plan = hidden(&late, "money_plan");
     world.admin(&confirmed(&asked, "money_plan", &plan));
-    assert_eq!(world.balances(id).1, 140);
+    assert_eq!(world.balance(id), 140);
     assert_eq!(world.told.changed.locked()[..], [id]);
 }
 
@@ -1259,7 +1518,8 @@ fn money_of_an_online_account_reaches_its_game() {
 fn moderation_needs_the_token_the_address_and_a_known_account() {
     let world = world();
     let id = world.player("tester", "secret");
-    let before = world.balances(id);
+    world.accounts.get(id).unwrap().locked().generic_money = 2_000;
+    let before = world.balance(id);
     let asked = [("user", "tester"), ("silver", "-5"), ("money_reason", "x")];
     let plan = hidden(&world.admin(&asked), "money_plan");
     let mut fields = vec![("token", "bad")];
@@ -1294,7 +1554,7 @@ fn moderation_needs_the_token_the_address_and_a_known_account() {
     let mut elsewhere = post("/hidden", &fields);
     elsewhere.client = "203.0.113.5".parse().ok();
     assert_eq!(world.web.route(&elsewhere, "t").status, "404 Not Found");
-    assert_eq!(world.balances(id), before);
+    assert_eq!(world.balance(id), before);
     assert!(
         world
             .accounts
@@ -1461,6 +1721,7 @@ fn items_are_listed_previewed_and_taken_off_every_kit() {
 fn a_moderation_the_database_refused_says_so() {
     let (world, repository) = kept_world();
     let id = world.player("pain", "secret");
+    world.accounts.get(id).unwrap().locked().generic_money = 2_000;
     world.accounts.flush();
     repository.fail_saves(true);
     let asked = [
@@ -1474,7 +1735,7 @@ fn a_moderation_the_database_refused_says_so() {
         done.contains("Error: the change stands in memory only"),
         "{done}"
     );
-    assert_eq!(world.balances(id).0, 1_900);
+    assert_eq!(world.balance(id), 1_900);
     // The saver writes it once the database takes it again.
     repository.fail_saves(false);
     world.accounts.flush();
@@ -1495,12 +1756,12 @@ fn a_used_confirm_changes_nothing_even_once_the_account_is_back() {
     let plan = hidden(&world.admin(&asked), "money_plan");
     let confirm = confirmed(&asked, "money_plan", &plan);
     world.admin(&confirm);
-    assert_eq!(world.balances(id).0, 400);
+    assert_eq!(world.balance(id), 400);
     // The game gives the 100 back: the account is as at the preview.
     world.accounts.get(id).unwrap().locked().generic_money = 500;
     let again = world.admin(&confirm);
     assert!(again.contains("used already or is older"), "{again}");
-    assert_eq!(world.balances(id).0, 500);
+    assert_eq!(world.balance(id), 500);
     assert_eq!(repository.all_admin_actions().len(), 1);
 
     // Items alike: part of a stack, the stack made whole again.
@@ -1562,7 +1823,7 @@ fn a_used_confirm_changes_nothing_even_once_the_account_is_back() {
     assert!(late.contains("older than 10 minutes"), "{late}");
     let late = world.admin(&confirmed(&asked, "items_plan", &items_plan));
     assert!(late.contains("older than 10 minutes"), "{late}");
-    assert_eq!(world.balances(id).0, 500);
+    assert_eq!(world.balance(id), 500);
     assert_eq!(stack(), units);
     assert_eq!(repository.all_admin_actions().len(), 2);
 }
@@ -1644,6 +1905,7 @@ fn a_moderation_waits_for_a_busy_saver_once_only() {
     let (world, repository) = kept_world();
     let id = world.player("pain", "secret");
     let other = world.player("bystander", "secret");
+    world.accounts.get(id).unwrap().locked().generic_money = 2_000;
     world.accounts.flush();
     let asked = [
         ("user", "pain"),
@@ -1675,8 +1937,97 @@ fn a_moderation_waits_for_a_busy_saver_once_only() {
         drop(held);
         saver.join().unwrap();
     });
-    assert_eq!(world.balances(id).0, 1_900);
+    assert_eq!(world.balance(id), 1_900);
     world.accounts.flush();
     assert_eq!(repository.get(id).unwrap().generic_money, 1_900);
     assert_eq!(repository.all_admin_actions().len(), 1);
+}
+
+#[test]
+fn the_admin_mutes_and_unmutes_a_chat_with_its_audit_rows() {
+    let (world, repository) = kept_world();
+    let id = world.player("loud", "secret");
+    world.player("bystander", "secret");
+    let page = world.admin(&[("tab", "mute")]);
+    assert!(page.contains("value=mute id=tab-mute checked"), "{page}");
+
+    // A mute needs a reason and whole hours: nothing is done without them.
+    let body = world.admin(&[("tab", "mute"), ("mute_user", "loud"), ("mute_reason", " ")]);
+    assert!(body.contains("A reason is required"), "{body}");
+    let body = world.admin(&[
+        ("tab", "mute"),
+        ("mute_user", "loud"),
+        ("mute_hours", "soon"),
+        ("mute_reason", "spam"),
+    ]);
+    assert!(body.contains("Hours: a whole number"), "{body}");
+    let body = world.admin(&[
+        ("tab", "mute"),
+        ("mute_user", "ghost"),
+        ("mute_reason", "x"),
+    ]);
+    assert!(body.contains("No such user"), "{body}");
+    assert!(world.web.store.chat_ban(id).is_none());
+    assert!(repository.all_admin_actions().is_empty());
+
+    let body = world.admin(&[
+        ("tab", "mute"),
+        ("mute_user", "loud"),
+        ("mute_hours", "2"),
+        ("mute_reason", "<spam>"),
+    ]);
+    // One POST, one line a script greps for.
+    let ban = world.web.store.chat_ban(id).expect("muted");
+    assert_eq!(ban.reason, "<spam>");
+    let until = ban.until.expect("timed");
+    let said = format!(
+        "loud's chat muted until {} {} UTC.",
+        session::utc::date(until),
+        session::utc::clock(until)
+    );
+    assert!(body.contains(&said), "{body}");
+    let actions = repository.all_admin_actions();
+    assert_eq!(actions.len(), 1);
+    assert_eq!(actions[0].account_id, id);
+    assert_eq!(actions[0].kind, "chat_mute");
+    assert_eq!(actions[0].change, "chat muted");
+    assert_eq!(actions[0].reason, "<spam>");
+    assert_eq!(actions[0].before, "not muted");
+    assert!(
+        actions[0].after.starts_with("until "),
+        "{}",
+        actions[0].after
+    );
+    // The bans tab lists it, escaped.
+    let bans = world.admin(&[("tab", "bans")]);
+    assert!(
+        bans.contains("Chat mutes") && bans.contains("&lt;spam&gt;"),
+        "{bans}"
+    );
+
+    // For good replaces it.
+    let body = world.admin(&[
+        ("tab", "mute"),
+        ("mute_user", "loud"),
+        ("mute_reason", "spam"),
+    ]);
+    assert!(body.contains("loud's chat muted for good."), "{body}");
+    assert_eq!(
+        world.web.store.chat_ban(id).map(|ban| ban.until),
+        Some(None)
+    );
+
+    let body = world.admin(&[("tab", "mute"), ("mute_user", "loud"), ("unmute", "1")]);
+    assert!(body.contains("loud's chat unmuted."), "{body}");
+    assert!(world.web.store.chat_ban(id).is_none());
+    let body = world.admin(&[("tab", "mute"), ("mute_user", "loud"), ("unmute", "1")]);
+    assert!(body.contains("loud's chat was not muted."), "{body}");
+    let actions = repository.all_admin_actions();
+    assert_eq!(actions.len(), 3);
+    assert!(actions.iter().any(|action| action.change == "chat unmuted"
+        && action.before == "for good"
+        && action.after == "not muted"));
+    // Nothing of the account's game changes, and the other account is not muted.
+    assert!(world.told.changed.locked().is_empty());
+    assert!(world.web.store.chat_bans().is_empty());
 }

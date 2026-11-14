@@ -6,9 +6,9 @@ use super::*;
 use crate::v026g::registry::{Live, LivePhase};
 
 impl Game {
-    /// The match as it is at `now`.
-    pub(crate) fn live_now(&self, now: Instant) -> Live {
-        let phase = if self.result_made {
+    /// How far the match is now.
+    pub(crate) fn live_phase(&self) -> LivePhase {
+        if self.result_made {
             LivePhase::Over
         } else {
             match self.rule.state {
@@ -16,7 +16,12 @@ impl Game {
                 rules::state::COUNTDOWN => LivePhase::Countdown,
                 _ => LivePhase::Gathering,
             }
-        };
+        }
+    }
+
+    /// The match as it is at `now`.
+    pub(crate) fn live_now(&self, now: Instant) -> Live {
+        let phase = self.live_phase();
         let mut players = [0; 2];
         let mut present = 0_u32;
         for (index, (place, peer)) in self.formed.places.iter().zip(&self.peers).enumerate() {

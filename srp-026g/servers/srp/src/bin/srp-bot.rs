@@ -1,7 +1,7 @@
 //! `srp-bot`: scripted 0.26g clients that take places in a match, so that
 //! one real client gets one. **For testing only.** What a bot does and
 //! does not do: `srp::bot`. The server must be told which accounts are
-//! bots: `SRP_BOT_ACCOUNTS=bot-1` (see `docs/notes/README.md`,
+//! bots: `SRP_BOT_ACCOUNTS=bot-1` (see `docs/SRP-026G.md`,
 //! "A match alone").
 
 use std::sync::Arc;
@@ -31,6 +31,11 @@ and presses Play again.
   --name      the first bot's user name (default bot-1; or SRP_BOT_NAME)
   --password  the bots' password (or SRP_BOT_PASSWORD; a built-in one for
               local tests when neither is given). Never printed.
+
+SRP_BOT_SERVER_KEY: the login server's public key of the sign-in cipher
+(64 hex characters), for a server that is not the released game's; such a
+server logs it at its start.
+
   --count N   N bots: bot-1 .. bot-N (default 1). The first waits in a
               room; the others join once somebody else is in it.
   --once      stop after one match
@@ -70,6 +75,11 @@ fn main() {
     let mut server = env("SRP_BOT_SERVER").unwrap_or_else(|| DEFAULT_SERVER.to_owned());
     let mut name = env("SRP_BOT_NAME").unwrap_or_else(|| DEFAULT_NAME.to_owned());
     let mut password = env("SRP_BOT_PASSWORD");
+    // The login server's public key: the released game's, or another server's own.
+    let server_key = env("SRP_BOT_SERVER_KEY").map_or(login_server::sealed::SKHID, |text| {
+        login_server::sealed::parse_public_key(&text)
+            .unwrap_or_else(|| fail("SRP_BOT_SERVER_KEY must be 64 hex characters"))
+    });
     let mut count = 1_usize;
     let mut once = false;
     let mut kit = None;
@@ -140,6 +150,7 @@ fn main() {
             server: server.clone(),
             name,
             password: password.clone(),
+            server_key,
             once,
             kit,
             drive,

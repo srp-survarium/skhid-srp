@@ -1,125 +1,217 @@
-//! A `log` backend that fans records out to **one file per server** (plus
-//! stdout), so the unified process stays as inspectable as the old one-tab-per-
-//! server setup.
+//! A `log` backend that writes every record to stdout and to **one file per
+//! server**, so the unified process stays as inspectable as the old one-tab-
+//! per-server setup.
 //!
 //! Each record is routed by its `target()` — the `log!` macros default the target
 //! to the module path, which starts with the originating crate name
 //! (`login_server`, `lobby_server`, `match_server`, `web_server`). Anything
 //! else (including this `srp` orchestrator) goes to `srp.log`.
 //!
-//! The bootstrap scripts open a tab per `logs/<server>.log` and tail it, so logs
-//! remain separable even though everything runs in one process.
+//! The files are in `SRP_LOG_DIR` (default `logs`; `off`: stdout only), as
+//! `<server>.log`, appended to across restarts: a container's own output is
+//! gone when the container is made anew, which every update does, so the
+//! compose file puts them in the data volume. A file that reaches
+//! [`MAX_FILE_BYTES`] becomes `<server>.log.1` (the `.1` before it `.2`, and
+//! so on); [`KEPT_FILES`] files per server are kept, the oldest deleted.
 //!
-//! `SRP_LOG_DIR=<dir>` also keeps everything stdout gets in one file per UTC
-//! day, `<dir>/srp-YYYY-MM-DD.log`, appended to across restarts: a container's
-//! own output is gone when the container is made anew, which every update
-//! does. Files older than `SRP_LOG_KEEP_DAYS` (default 14) are deleted.
+//! What a line costs: stdout as before (one write of the line), and for the
+//! file a copy into an 8 KiB buffer, an add and a compare for the size. The
+//! buffer goes to the file when full, at a warning or an error, at the first
+//! line a second after the last write, and at exit (Ctrl+C, SIGTERM): no
+//! thread, no fsync. A process killed outright loses at most the last
+//! second's info lines of the file (stdout has them).
 
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
-use std::io::{self, Write};
+use std::io::{self, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use log::{LevelFilter, Log, Metadata, Record};
+use log::{Level, LevelFilter, Log, Metadata, Record};
 
-const SERVERS: [&str; 5] = ["login", "lobby", "match", "web", "srp"];
+/// Each server's file: its name, the size it is rotated at, and how many
+/// files of it are kept (`<server>.log`, `.1` ...). About two days of each
+/// at the heaviest seen (2026-11-01 to 11-02, 116-127 MB a day in all, of
+/// it about 95 % match, 4 % lobby, 1.5 % srp, under 0.2 % login and web);
+/// the lobby's about 12 days, the balance refit's input
+/// (scripts/balance-refit). `memory` and `modules`: the match server's
+/// lines of those targets, client patch 126's memory reports (about 2.5 KB
+/// a player a match) and patch 125's module reports (about 2 KB), weeks of
+/// them for `release/moderate memory` and `release/moderate modules`.
+const SERVERS: [(&str, u64, u32); 7] = [
+    ("login", 2 << 20, 4),
+    ("lobby", 4 << 20, 16),
+    ("match", 8 << 20, 32),
+    ("web", 2 << 20, 2),
+    ("srp", 4 << 20, 4),
+    ("modules", 4 << 20, 16),
+    ("memory", 4 << 20, 16),
+];
 
-/// Where the log of each day is kept: unset, empty or `off` for nowhere.
+/// Where the files are: unset for `logs`, empty or `off` for nowhere.
 const LOG_DIR_VAR: &str = "SRP_LOG_DIR";
-/// How many days of those files are kept.
-const LOG_KEEP_DAYS_VAR: &str = "SRP_LOG_KEEP_DAYS";
-const DEFAULT_LOG_KEEP_DAYS: u64 = 14;
+const DEFAULT_LOG_DIR: &str = "logs";
+/// The buffer of a file is written out at a line this long after the last.
+const FLUSH_AFTER: Duration = Duration::from_secs(1);
 const SECONDS_PER_DAY: u64 = 86_400;
 
 struct FileLogger {
     level: LevelFilter,
-    files: HashMap<&'static str, Mutex<File>>,
-    days: Option<Mutex<DayLog>>,
+    files: HashMap<&'static str, Mutex<ServerLog>>,
 }
 
-/// The log kept across restarts: one file per UTC day in `dir`, each line
-/// as stdout has it.
-struct DayLog {
-    dir: PathBuf,
-    keep_days: u64,
-    /// The day (since 1970-01-01) `file` is of.
-    day: u64,
-    file: Option<File>,
+/// One server's file and the ones rotated out of it.
+struct ServerLog {
+    /// `<dir>/<server>.log`; the older ones are this with `.1`, `.2`…
+    path: PathBuf,
+    max_bytes: u64,
+    kept: u32,
+    /// `None` until the file is opened, and after it could not be written
+    /// (it is opened again at the next line).
+    open: Option<OpenLog>,
 }
 
-impl DayLog {
-    fn new(dir: PathBuf, keep_days: u64) -> Self {
+struct OpenLog {
+    writer: BufWriter<File>,
+    /// The file's length, with what the buffer holds.
+    bytes: u64,
+    /// When the buffer was last written out (since the epoch).
+    flushed: Duration,
+}
+
+impl ServerLog {
+    fn new(dir: &Path, server: &str, max_bytes: u64, kept: u32) -> Self {
         Self {
-            dir,
-            keep_days,
-            day: 0,
-            file: None,
+            path: dir.join(format!("{server}.log")),
+            max_bytes,
+            kept,
+            open: None,
         }
     }
 
-    fn file_name(day: u64) -> String {
-        let (year, month, date) = civil_from_days(day);
-        format!("srp-{year:04}-{month:02}-{date:02}.log")
+    fn rotated(&self, n: u32) -> PathBuf {
+        let mut path = self.path.clone().into_os_string();
+        path.push(format!(".{n}"));
+        path.into()
     }
 
-    /// The day a file of ours is of; `None` for any other name.
-    fn day_of(name: &str) -> Option<u64> {
-        let date = name.strip_prefix("srp-")?.strip_suffix(".log")?;
-        let mut parts = date.split('-');
-        let year = parts.next().filter(|part| part.len() == 4)?.parse().ok()?;
-        let month = parts.next().filter(|part| part.len() == 2)?.parse().ok()?;
-        let day = parts.next().filter(|part| part.len() == 2)?.parse().ok()?;
-        if parts.next().is_some() || !(1..=12).contains(&month) || !(1..=31).contains(&day) {
-            return None;
+    /// `line` and a newline into the file. A file that cannot be opened or
+    /// written is tried again at the next line; the logger never fails for
+    /// it (stdout has the line all the same).
+    fn write(&mut self, now: Duration, line: &str, urgent: bool) {
+        let len = line.len() as u64 + 1;
+        if self.open.is_none() {
+            self.open = self.open_file(now);
         }
-        days_from_civil(year, month, day)
-    }
-
-    /// `line` into the file of the day `since_epoch` is in. A file that
-    /// cannot be opened or written is tried again at the next line; the
-    /// logger never fails for it (stdout has the line all the same).
-    fn write(&mut self, since_epoch: Duration, line: &str) {
-        let day = since_epoch.as_secs() / SECONDS_PER_DAY;
-        if self.file.is_none() || day != self.day {
-            self.file = self.open(day);
-            self.day = day;
-        }
-        if let Some(file) = self.file.as_mut()
-            && writeln!(file, "{line}").is_err()
+        if self
+            .open
+            .as_ref()
+            .is_some_and(|open| open.bytes > 0 && open.bytes + len > self.max_bytes)
         {
-            self.file = None;
+            self.rotate();
+            self.open = self.open_file(now);
+        }
+        let Some(open) = self.open.as_mut() else {
+            return;
+        };
+        let written = open
+            .writer
+            .write_all(line.as_bytes())
+            .and_then(|()| open.writer.write_all(b"\n"));
+        open.bytes += len;
+        let due = urgent || now.saturating_sub(open.flushed) >= FLUSH_AFTER;
+        if written.is_err() || (due && open.writer.flush().is_err()) {
+            self.open = None;
+        } else if due {
+            open.flushed = now;
         }
     }
 
-    fn open(&self, day: u64) -> Option<File> {
-        std::fs::create_dir_all(&self.dir).ok()?;
+    fn open_file(&self, now: Duration) -> Option<OpenLog> {
+        if let Some(dir) = self.path.parent() {
+            std::fs::create_dir_all(dir).ok()?;
+        }
         let file = OpenOptions::new()
             .create(true)
             .append(true)
-            .open(self.dir.join(Self::file_name(day)))
+            .open(&self.path)
             .ok()?;
-        self.prune(day);
-        Some(file)
+        let bytes = file.metadata().map_or(0, |metadata| metadata.len());
+        Some(OpenLog {
+            writer: BufWriter::new(file),
+            bytes,
+            flushed: now,
+        })
     }
 
-    /// Delete our files of days more than `keep_days` before `today`.
-    fn prune(&self, today: u64) {
-        let Ok(entries) = std::fs::read_dir(&self.dir) else {
-            return;
-        };
-        for entry in entries.flatten() {
-            let old = entry
-                .file_name()
-                .to_str()
-                .and_then(Self::day_of)
-                .is_some_and(|day| day + self.keep_days < today);
-            if old {
-                let _ = std::fs::remove_file(entry.path());
-            }
+    /// The file becomes `.1`, each `.n` `.n+1`; the last kept one goes.
+    fn rotate(&mut self) {
+        if let Some(mut open) = self.open.take() {
+            let _ = open.writer.flush();
+        }
+        for n in (1..self.kept).rev() {
+            let from = if n == 1 {
+                self.path.clone()
+            } else {
+                self.rotated(n - 1)
+            };
+            let _ = std::fs::rename(from, self.rotated(n));
+        }
+        if self.kept <= 1 {
+            let _ = std::fs::remove_file(&self.path);
         }
     }
+
+    fn flush(&mut self) {
+        if let Some(open) = self.open.as_mut() {
+            let _ = open.writer.flush();
+        }
+    }
+}
+
+/// `SRP_LOG_DIR`: a directory, or `None` for stdout only.
+fn log_dir(value: Option<&str>) -> Option<PathBuf> {
+    let value = value.map_or(DEFAULT_LOG_DIR, str::trim);
+    (!value.is_empty() && !value.eq_ignore_ascii_case("off")).then(|| Path::new(value).to_owned())
+}
+
+/// Install the file-routing logger. `level` is the maximum level emitted.
+pub fn init(level: LevelFilter) -> io::Result<()> {
+    let files = log_dir(std::env::var(LOG_DIR_VAR).ok().as_deref())
+        .map(|dir| {
+            SERVERS
+                .into_iter()
+                .map(|(server, max_bytes, kept)| {
+                    let log = ServerLog::new(&dir, server, max_bytes, kept);
+                    (server, Mutex::new(log))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    log::set_max_level(level);
+    log::set_boxed_logger(Box::new(FileLogger { level, files })).map_err(io::Error::other)
+}
+
+/// `HH:MM:SS.mmmZ` (UTC) for stdout's lines. Time of day is enough to
+/// correlate them with each other and with the client's own log, and
+/// `docker logs -t` adds the date.
+fn utc_time_of_day(since_epoch: Duration) -> String {
+    let seconds = since_epoch.as_secs() % SECONDS_PER_DAY;
+    format!(
+        "{:02}:{:02}:{:02}.{:03}Z",
+        seconds / 3600,
+        seconds / 60 % 60,
+        seconds % 60,
+        since_epoch.subsec_millis()
+    )
+}
+
+/// `YYYY-MM-DD` (UTC) for the files' lines, which span days.
+fn utc_date(since_epoch: Duration) -> String {
+    let (year, month, day) = civil_from_days(since_epoch.as_secs() / SECONDS_PER_DAY);
+    format!("{year:04}-{month:02}-{day:02}")
 }
 
 /// The year, month and day of the month of a day counted from 1970-01-01
@@ -142,78 +234,14 @@ fn civil_from_days(days: u64) -> (u64, u64, u64) {
     (year, month, day)
 }
 
-/// The other way; `None` before 1970.
-fn days_from_civil(year: u64, month: u64, day: u64) -> Option<u64> {
-    let year = if month <= 2 { year.checked_sub(1)? } else { year };
-    let era = year / 400;
-    let year_of_era = year % 400;
-    let month_shifted = if month > 2 { month - 3 } else { month + 9 };
-    let day_of_year = (153 * month_shifted + 2) / 5 + day - 1;
-    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
-    (era * 146_097 + day_of_era).checked_sub(719_468)
-}
-
-/// `SRP_LOG_DIR`, if it names a directory.
-fn log_dir(value: Option<&str>) -> Option<PathBuf> {
-    let value = value?.trim();
-    (!value.is_empty() && !value.eq_ignore_ascii_case("off")).then(|| Path::new(value).to_owned())
-}
-
-/// `SRP_LOG_KEEP_DAYS`: a number of days, at least 1.
-fn log_keep_days(value: Option<&str>) -> u64 {
-    value
-        .and_then(|value| value.trim().parse().ok())
-        .filter(|days| *days >= 1)
-        .unwrap_or(DEFAULT_LOG_KEEP_DAYS)
-}
-
-/// Install the file-routing logger. `level` is the maximum level emitted; the
-/// `logs/` directory and one `<server>.log` per server are created/appended.
-pub fn init(level: LevelFilter) -> io::Result<()> {
-    let mut files = HashMap::new();
-    // `SRP_LOG_FILES=off`: stdout only, for a container whose runtime keeps
-    // and rotates the output.
-    let to_files =
-        !std::env::var("SRP_LOG_FILES").is_ok_and(|value| value.trim().eq_ignore_ascii_case("off"));
-    if to_files {
-        std::fs::create_dir_all("logs")?;
-    }
-    for name in SERVERS.into_iter().filter(|_| to_files) {
-        let file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(format!("logs/{name}.log"))?;
-        files.insert(name, Mutex::new(file));
-    }
-
-    let days = log_dir(std::env::var(LOG_DIR_VAR).ok().as_deref()).map(|dir| {
-        let keep = log_keep_days(std::env::var(LOG_KEEP_DAYS_VAR).ok().as_deref());
-        Mutex::new(DayLog::new(dir, keep))
-    });
-
-    log::set_max_level(level);
-    log::set_boxed_logger(Box::new(FileLogger { level, files, days }))
-        .map_err(io::Error::other)
-}
-
-/// `HH:MM:SS.mmmZ` (UTC) for log lines. Time of day is enough to correlate the
-/// per-server files with each other and with the client's own log, and keeps the
-/// logger free of a date/time-zone dependency. (The files of `SRP_LOG_DIR`
-/// have the date in their names.)
-fn utc_time_of_day(since_epoch: Duration) -> String {
-    let seconds = since_epoch.as_secs() % SECONDS_PER_DAY;
-    format!(
-        "{:02}:{:02}:{:02}.{:03}Z",
-        seconds / 3600,
-        seconds / 60 % 60,
-        seconds % 60,
-        since_epoch.subsec_millis()
-    )
-}
-
-/// Which server's log a record belongs to, decided from its target prefix.
+/// Which server's log a record belongs to, decided from its target prefix
+/// (a client report's kind its own file: `memory`, `modules`).
 fn server_for_target(target: &str) -> &'static str {
-    if target.starts_with("login_server") {
+    if target == "memory" {
+        "memory"
+    } else if target == "modules" {
+        "modules"
+    } else if target.starts_with("login_server") {
         "login"
     } else if target.starts_with("lobby_server") || target.starts_with("messaging") {
         "lobby"
@@ -245,29 +273,20 @@ impl Log for FileLogger {
         let time = utc_time_of_day(since_epoch);
 
         // stdout keeps a combined view (prefixed with the server) ...
-        let line = format!("{time} [{server}] [{level}] {args}");
-        println!("{line}");
+        println!("{time} [{server}] [{level}] {args}");
 
-        // ... which `SRP_LOG_DIR` keeps across restarts ...
-        if let Some(days) = &self.days {
-            days.lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .write(since_epoch, &line);
-        }
-
-        // ... while each server's file holds only its own lines.
+        // ... while each server's file holds only its own lines, dated.
         if let Some(file) = self.files.get(server) {
-            let mut file = file
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            let _ = writeln!(file, "{time} [{level}] {args}");
+            let line = format!("{}T{time} [{level}] {args}", utc_date(since_epoch));
+            file.lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .write(since_epoch, &line, level <= Level::Warn);
         }
     }
 
     fn flush(&self) {
         for file in self.files.values() {
-            let _ = file
-                .lock()
+            file.lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .flush();
         }
@@ -278,10 +297,6 @@ impl Log for FileLogger {
 mod tests {
     use super::*;
 
-    fn at(day: u64, second: u64) -> Duration {
-        Duration::from_secs(day * SECONDS_PER_DAY + second)
-    }
-
     /// A directory of this test's own, empty.
     fn temp_dir(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("srp-logger-{name}-{}", std::process::id()));
@@ -290,8 +305,26 @@ mod tests {
         dir
     }
 
+    fn names(dir: &Path) -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+            .collect();
+        names.sort();
+        names
+    }
+
     #[test]
-    fn a_day_number_is_a_date_and_back() {
+    fn client_reports_go_to_their_own_files() {
+        for kind in ["memory", "modules"] {
+            assert_eq!(server_for_target(kind), kind);
+            assert!(SERVERS.iter().any(|&(server, _, _)| server == kind));
+        }
+        assert_eq!(server_for_target("match_server::v026g::game"), "match");
+    }
+
+    #[test]
+    fn a_day_number_is_a_date() {
         for (day, date) in [
             (0, (1970, 1, 1)),
             (58, (1970, 2, 28)),
@@ -307,94 +340,73 @@ mod tests {
             (47_541, (2100, 3, 1)),
         ] {
             assert_eq!(civil_from_days(day), date, "{day}");
-            assert_eq!(days_from_civil(date.0, date.1, date.2), Some(day), "{date:?}");
         }
-        // Every day of 60 years comes back as itself.
-        for day in 0..22_000 {
-            let (year, month, date) = civil_from_days(day);
-            assert_eq!(days_from_civil(year, month, date), Some(day));
-        }
-        assert_eq!(days_from_civil(1969, 12, 31), None);
+        assert_eq!(
+            utc_date(Duration::from_secs(20_738 * SECONDS_PER_DAY + 5)),
+            "2026-10-12"
+        );
     }
 
     #[test]
-    fn only_our_own_file_names_are_days() {
-        assert_eq!(DayLog::file_name(20_738), "srp-2026-10-12.log");
-        assert_eq!(DayLog::day_of("srp-2026-10-12.log"), Some(20_738));
-        for other in [
-            "srp.db",
-            "srp-2026-10-12.log.gz",
-            "srp-2026-10-12.txt",
-            "srp-2026-13-01.log",
-            "srp-2026-10-00.log",
-            "srp-2026-1-12.log",
-            "srp-2026-10-12-1.log",
-            "srp-1969-12-31.log",
-            "match-2026-10-12.log",
-        ] {
-            assert_eq!(DayLog::day_of(other), None, "{other}");
-        }
-    }
-
-    #[test]
-    fn the_settings_are_read() {
-        assert_eq!(log_dir(None), None);
+    fn the_directory_is_read() {
+        assert_eq!(log_dir(None), Some(PathBuf::from("logs")));
         assert_eq!(log_dir(Some("")), None);
         assert_eq!(log_dir(Some(" OFF ")), None);
-        assert_eq!(log_dir(Some(" /data/logs ")), Some(PathBuf::from("/data/logs")));
-        assert_eq!(log_keep_days(None), DEFAULT_LOG_KEEP_DAYS);
-        assert_eq!(log_keep_days(Some("0")), DEFAULT_LOG_KEEP_DAYS);
-        assert_eq!(log_keep_days(Some("many")), DEFAULT_LOG_KEEP_DAYS);
-        assert_eq!(log_keep_days(Some(" 3 ")), 3);
+        assert_eq!(
+            log_dir(Some(" /data/logs ")),
+            Some(PathBuf::from("/data/logs"))
+        );
     }
 
-    /// What a restart must not lose: a second logger on the same directory
-    /// adds to the day's file; a new day gets a new file; files older than
-    /// the days kept go, and nothing that is not ours.
+    /// The size cap and the count: a file is rotated before a line would
+    /// take it past the cap, the oldest goes past the count, a restart adds
+    /// to the file it finds, and nothing that is not ours is touched.
     #[test]
-    fn a_day_has_one_file_which_restarts_add_to_and_old_days_go() {
-        let dir = temp_dir("days");
+    fn files_are_rotated_at_the_cap_and_only_so_many_kept() {
+        let dir = temp_dir("rotate");
         let logs = dir.join("logs");
         let read = |name: &str| std::fs::read_to_string(logs.join(name)).unwrap();
-        let names = || {
-            let mut names: Vec<String> = std::fs::read_dir(&logs)
-                .unwrap()
-                .map(|entry| entry.unwrap().file_name().into_string().unwrap())
-                .collect();
-            names.sort();
-            names
-        };
+        let line = |n: u32| format!("line {n:03}"); // 8 bytes and a newline
+        let at = Duration::from_secs(1);
 
-        let mut log = DayLog::new(logs.clone(), 2);
-        log.write(at(20_738, 10), "one");
-        log.write(at(20_738, 86_399), "two");
-        // The process ends and another starts on the same day.
+        // Two lines (18 bytes) fit under 20; a third makes a new file.
+        let mut log = ServerLog::new(&logs, "lobby", 20, 3);
+        for n in 0..2 {
+            log.write(at, &line(n), false);
+        }
+        // The buffer holds them until a second has gone, a warning comes or
+        // the file is rotated.
+        assert_eq!(read("lobby.log"), "");
+        log.write(at, &line(2), false);
+        assert_eq!(read("lobby.log.1"), "line 000\nline 001\n");
+        assert_eq!(read("lobby.log"), "");
+        log.write(at + FLUSH_AFTER, &line(3), false);
+        assert_eq!(read("lobby.log"), "line 002\nline 003\n");
+
+        // The process ends; another adds to the file it finds and counts
+        // what is in it.
+        log.flush();
         drop(log);
-        let mut log = DayLog::new(logs.clone(), 2);
-        log.write(at(20_738, 86_399), "three");
-        assert_eq!(read("srp-2026-10-12.log"), "one\ntwo\nthree\n");
-
-        // Midnight: the next line is the next day's.
-        log.write(at(20_739, 0), "four");
-        assert_eq!(read("srp-2026-10-12.log"), "one\ntwo\nthree\n");
-        assert_eq!(read("srp-2026-10-13.log"), "four\n");
-
         std::fs::write(logs.join("srp.db"), "not a log").unwrap();
-        std::fs::write(logs.join("srp-2026-10-01.log.keep"), "not ours").unwrap();
-        log.write(at(20_740, 5), "five");
-        assert_eq!(names().len(), 5);
-        // Two days kept besides today's: the 12th goes on the 15th.
-        log.write(at(20_741, 5), "six");
+        let mut log = ServerLog::new(&logs, "lobby", 20, 3);
+        for n in 4..9 {
+            log.write(at, &line(n), true);
+        }
+        assert_eq!(read("lobby.log"), "line 008\n");
+        assert_eq!(read("lobby.log.1"), "line 006\nline 007\n");
+        assert_eq!(read("lobby.log.2"), "line 004\nline 005\n");
         assert_eq!(
-            names(),
-            [
-                "srp-2026-10-01.log.keep",
-                "srp-2026-10-13.log",
-                "srp-2026-10-14.log",
-                "srp-2026-10-15.log",
-                "srp.db"
-            ]
+            names(&logs),
+            ["lobby.log", "lobby.log.1", "lobby.log.2", "srp.db"]
         );
+
+        // A line longer than the cap still goes in, alone in its file.
+        let long = "x".repeat(30);
+        log.write(at, &long, true);
+        log.write(at, &line(9), true);
+        assert_eq!(read("lobby.log.1"), format!("{long}\n"));
+        assert_eq!(read("lobby.log"), "line 009\n");
+        assert_eq!(names(&logs).len(), 4);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -403,10 +415,10 @@ mod tests {
         let dir = temp_dir("blocked");
         let blocked = dir.join("file");
         std::fs::write(&blocked, "in the way").unwrap();
-        let mut log = DayLog::new(blocked.join("logs"), 2);
-        log.write(at(20_738, 1), "lost");
-        log.write(at(20_738, 2), "lost too");
-        assert!(log.file.is_none());
+        let mut log = ServerLog::new(&blocked.join("logs"), "match", 20, 3);
+        log.write(Duration::ZERO, "lost", true);
+        log.write(Duration::ZERO, "lost too", true);
+        assert!(log.open.is_none());
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

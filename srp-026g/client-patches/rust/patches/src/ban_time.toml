@@ -1,0 +1,15 @@
+# Patch 116: a banned account's sign-in shows when its ban ends and how long
+# it has left (README "A ban's end on the sign-in screen"). The sites are
+# sites_026g.tsv's; the logic is ban_time.rs and vostok/login.rs.
+name = "ban_time"
+patch = 116
+
+# Every sign-in answer but the lobby's and the queue's: a ban's end kept.
+[[hook]]
+site = "login.other_answer"
+handler = "on_answer"
+
+# The status text built: a ban's end and time left after its reason.
+[[hook]]
+site = "login_menu.status_text"
+handler = "on_status"

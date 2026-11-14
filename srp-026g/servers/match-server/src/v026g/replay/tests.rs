@@ -12,7 +12,7 @@ use survarium::v026g::match_msgs::static_info::{
 use survarium::v026g::match_msgs::upload;
 
 use super::*;
-use crate::v026g::record::{IN, MAGIC, OUT};
+use crate::v026g::record::{ACCEPTED_WORLD, AcceptedWorld, IN, MAGIC, NO_PLACE, OUT};
 use crate::v026g::sur;
 
 const MATCH: u32 = 0x1F07_C8FB;
@@ -41,17 +41,14 @@ fn temp(name: &str) -> PathBuf {
 }
 
 fn settings(root: &Path) -> ReplaySettings {
-    let settings = ReplaySettings {
+    ReplaySettings {
         replay_dir: root.join("replays"),
         record_dir: root.join("recordings"),
-        modes_dir: root.join("modes"),
         max_recording_bytes: 1 << 20,
         max_replay_bytes: 1 << 30,
     }
     .checked()
-    .unwrap();
-    fs::create_dir_all(&settings.modes_dir).unwrap();
-    settings
+    .unwrap()
 }
 
 fn profile(name: &str, team: u8) -> MatchProfile {
@@ -88,14 +85,17 @@ fn datagram(id: u8, x: Option<u8>, payload: &[u8]) -> Vec<u8> {
 /// and the server's folders, where the writer would never put them, to
 /// show that none reaches the replay. Returns the mode config's name.
 fn write_recording(path: &Path, secrets: &[&str]) -> String {
-    let map = survarium::v026g::maps::playable().next().unwrap();
+    // A match of two teams (its places are on teams 0 and 1): the first
+    // battery map.
+    let map = survarium::v026g::maps::playable_in(survarium::v026g::maps::GameMode::Batteries)
+        .next()
+        .expect("the game has battery maps");
     let options = MatchOptions {
         players: vec![profile("a", 0), profile("b", 1)],
-        map_id: map.id,
+        map: survarium::v026g::maps::MatchMap::of(map.id).unwrap(),
         match_id: MATCH | 0x8000_0000,
         match_level: 1,
         score_weights: [0.0; SCORE_EVENTS],
-        team_damage: None,
     };
     let info = StaticInfo::new(&options, Dictionary::shared()).unwrap();
     let note =
@@ -104,8 +104,8 @@ fn write_recording(path: &Path, secrets: &[&str]) -> String {
     raw.extend(note(
         0,
         serde_json::json!({
-            "note": "header", "map": map.name, "map_id": map.id, "mode": map.mode,
-            "match_id": format!("{MATCH:#x}"),
+            "note": "header", "map": map.name, "map_id": map.id, "mode": map.mode.rules().number(),
+            "match_id": format!("{MATCH:#x}"), "accepted_worlds": true,
             "places": [
                 {"place": 0, "account_id": 1001, "name": "a"},
                 {"place": 1, "account_id": 1002, "name": "b"},
@@ -148,10 +148,14 @@ fn write_recording(path: &Path, secrets: &[&str]) -> String {
         2500,
         serde_json::json!({"note": "places", "places": [{"place": 2, "account_id": 1003}]}),
     ));
+    // Worlds the server took.
     for (time, fill) in [(50u32, 1u8), (1050, 2)] {
-        for chunk in upload::split(time, &vec![fill; 700]).unwrap() {
+        let body = vec![fill; 700];
+        for chunk in upload::split(time, &body).unwrap() {
             raw.extend(record(IN, 0, 3000 + time, &datagram(0xE0, None, &chunk)));
         }
+        let taken = AcceptedWorld::of(time, &body).to_bytes();
+        raw.extend(record(ACCEPTED_WORLD, NO_PLACE, 3000 + time, &taken));
     }
     let packed = lzma2::packed(&raw);
     let mut file = fs::File::create(path).unwrap();
@@ -191,7 +195,6 @@ fn a_kept_recording_becomes_a_replay_and_its_sidecar() {
     let replay_dir = settings.replay_dir.to_string_lossy().into_owned();
     let record_dir = settings.record_dir.to_string_lossy().into_owned();
     let config = write_recording(&recording, &[TOKEN, ADDRESS, &replay_dir, &record_dir]);
-    fs::write(settings.modes_dir.join(&config), b"the mode's config").unwrap();
 
     let sidecar = make(&settings, MATCH).unwrap();
     let sur_path = settings.replay_dir.join("1f07c8fb.sur");
@@ -223,7 +226,7 @@ fn a_kept_recording_becomes_a_replay_and_its_sidecar() {
     // session, the token, the address or the server's folders, in the file
     // or in what the game unpacks of it.
     let chunks = decoded(&file);
-    assert!(holds(&chunks[4], b"the mode's config"));
+    assert!(holds(&chunks[4], sur_convert::config(&config).unwrap()));
     for place in [&file[..], &chunks.concat()] {
         assert!(!holds(place, &SESSION.to_le_bytes()));
         for secret in [
@@ -241,18 +244,13 @@ fn a_kept_recording_becomes_a_replay_and_its_sidecar() {
 }
 
 #[test]
-fn a_recording_over_the_cap_or_without_its_config_is_not_converted() {
+fn a_recording_over_the_cap_or_not_kept_is_not_converted() {
     let root = temp("refused");
     let mut settings = settings(&root);
     let recording = settings
         .record_dir
         .join(format!("rec026g_20261015-120000_{MATCH:08x}.srprec"));
-    let config = write_recording(&recording, &[]);
-    let error = make(&settings, MATCH).unwrap_err();
-    assert!(error.why.contains("config"), "{error:?}");
-    // The operator may add the mode's file: tried again.
-    assert_eq!(error.failure, Failure::ModeFile);
-    fs::write(settings.modes_dir.join(&config), b"config").unwrap();
+    write_recording(&recording, &[]);
     settings.max_recording_bytes = 100;
     let error = make(&settings, MATCH).unwrap_err();
     assert!(error.why.contains("bytes"), "{error:?}");
@@ -273,7 +271,7 @@ fn a_recording_over_the_cap_or_without_its_config_is_not_converted() {
 }
 
 #[test]
-fn the_mode_file_is_checked_before_the_recording_is_unpacked_whole() {
+fn a_recording_that_does_not_unpack_fails_for_good() {
     let root = temp("header-first");
     let settings = settings(&root);
     let recording = settings
@@ -294,15 +292,9 @@ fn the_mode_file_is_checked_before_the_recording_is_unpacked_whole() {
     let header = record::read_header(&recording).unwrap().unwrap();
     assert_eq!(
         sur_convert::config_name(std::slice::from_ref(&header)),
-        Some(config.clone())
+        Some(config)
     );
-    // No mode file: said before the bad block is reached.
-    assert_eq!(
-        make(&settings, MATCH).unwrap_err().failure,
-        Failure::ModeFile
-    );
-    // With it, the bad block: the recording's own failure, for good.
-    fs::write(settings.modes_dir.join(&config), b"config").unwrap();
+    // The bad block: the recording's own failure, for good.
     let error = make(&settings, MATCH).unwrap_err();
     assert_eq!(error.failure, Failure::Lasting, "{error:?}");
     assert!(error.why.contains("unpack"), "{error:?}");
@@ -428,8 +420,7 @@ fn the_thread_converts_what_is_queued_and_the_desk_hears_of_it() {
     let recording = settings
         .record_dir
         .join(format!("rec026g_20261015-120000_{MATCH:08x}.srprec"));
-    let config = write_recording(&recording, &[]);
-    fs::write(settings.modes_dir.join(&config), b"config").unwrap();
+    write_recording(&recording, &[]);
     let replays = Arc::new(Replays::new(Some(settings.clone()), 6));
     let thread = start(replays.clone()).unwrap().unwrap();
     // Kept: nothing is made until someone asks.

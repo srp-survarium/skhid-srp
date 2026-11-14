@@ -55,7 +55,7 @@ use super::rng::Rng;
 use super::signals::{MatchSignals, Mods};
 use super::tactics::Tactics;
 use super::tuning::{Personality, PlayTuning, Tuning};
-use super::view::{MatchView, Place, PlaceView};
+use super::view::{MatchView, Place, PlaceView, Side};
 
 /// The rank bands, highest first: a candidate of a higher band beats any
 /// of a lower one (research B1 point 3); the commander counts an
@@ -389,6 +389,8 @@ pub struct BotFacts<'a> {
     /// Whether the partner has it for partner too (a pair, play 25); a
     /// team's odd bot partners one way, for its trades only.
     pub paired: bool,
+    /// Medkits its kit carries a life (`guns::Arms::medkits`).
+    pub medkits: u8,
     /// Medkits it used this life (quick use 1 pressed).
     pub medkits_used: u8,
     /// Goals its searches proved no way to lately, and until when.
@@ -704,7 +706,7 @@ impl Ctx<'_> {
 /// With the battery cheat off: the batteries team `team` cannot place, of
 /// the mode's count (on the HUD): neither in a container (the HUD's
 /// counts), nor carried by a teammate, nor believed lying somewhere.
-pub fn batteries_unaccounted(view: &MatchView, team: u8, known: &TeamKnowledge) -> usize {
+pub fn batteries_unaccounted(view: &MatchView, team: Side, known: &TeamKnowledge) -> usize {
     use super::view::BatteryState;
     let home: usize = view.containers.iter().map(|c| c.batteries).sum();
     let mut placed = 0;

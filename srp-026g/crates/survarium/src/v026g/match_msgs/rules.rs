@@ -7,7 +7,7 @@
 //! All of it is PROVEN (read in the exe at the addresses the notes give)
 //! unless a comment says otherwise.
 
-use super::super::maps::{MapMode, mode};
+use super::super::maps::{MapMode, RuleMode};
 
 /// `timelimit_rule_core`'s states (+0x148).
 pub mod state {
@@ -278,12 +278,22 @@ pub fn research_finished(points: [u32; 2], goal: u32) -> bool {
             .any(|&team| u64::from(team) >= u64::from(goal) * u64::from(RESEARCH_POINT))
 }
 
+/// Whether a free-for-all is over: a player has `kills_to_win` kills (the
+/// kd rule's, by roster place). No rule of the game ends it: the server
+/// does, as for every mode, the end delay after the snapshot that shows it.
+pub fn ffa_finished(kills: impl IntoIterator<Item = u16>, kills_to_win: u32) -> bool {
+    kills_to_win != 0
+        && kills
+            .into_iter()
+            .any(|kills| u32::from(kills) >= kills_to_win)
+}
+
 /// Whether a mode rule that set its end at `completion` reports the match
 /// over at `time`: the gather rules at `completion ≤ time` (0x314230),
 /// Team Deathmatch at `completion < time` (0x316520), Research at
 /// `completion ≤ time` (exe patch 53, `rr_completed`).
-pub fn mode_rule_completed(game_mode: u8, completion: u32, time: u32) -> bool {
-    if game_mode == mode::TEAM_DEATHMATCH {
+pub fn mode_rule_completed(game_mode: RuleMode, completion: u32, time: u32) -> bool {
+    if game_mode == RuleMode::TeamDeathmatch {
         completion < time
     } else {
         completion <= time
@@ -324,6 +334,15 @@ mod tests {
                 roster: 4,
             }
         );
+    }
+
+    #[test]
+    fn a_free_for_all_ends_at_its_kill_target() {
+        assert!(!ffa_finished([29, 0, 12], 30));
+        assert!(ffa_finished([29, 30, 12], 30));
+        assert!(ffa_finished([31], 30));
+        assert!(!ffa_finished([], 30));
+        assert!(!ffa_finished([40], 0));
     }
 
     #[test]
@@ -455,11 +474,11 @@ mod tests {
         assert!(!gather_finished([0, 0], 0));
         // The gather rules are over at their completion time, Team
         // Deathmatch one tick after.
-        assert!(mode_rule_completed(mode::BATTERIES, 5_000, 5_000));
-        assert!(mode_rule_completed(mode::TIMED_BATTERIES, 5_000, 5_000));
-        assert!(!mode_rule_completed(mode::TEAM_DEATHMATCH, 5_000, 5_000));
-        assert!(mode_rule_completed(mode::TEAM_DEATHMATCH, 5_000, 5_050));
-        assert!(!mode_rule_completed(mode::BATTERIES, 5_000, 4_950));
+        assert!(mode_rule_completed(RuleMode::Batteries, 5_000, 5_000));
+        assert!(mode_rule_completed(RuleMode::TimedBatteries, 5_000, 5_000));
+        assert!(!mode_rule_completed(RuleMode::TeamDeathmatch, 5_000, 5_000));
+        assert!(mode_rule_completed(RuleMode::TeamDeathmatch, 5_000, 5_050));
+        assert!(!mode_rule_completed(RuleMode::Batteries, 5_000, 4_950));
     }
 
     #[test]
@@ -479,8 +498,8 @@ mod tests {
         assert!(research_finished([3, 100_000_000], 100));
         assert!(!research_finished([0, 0], 0));
         // Its end is the rule's end time, as the gather rules'.
-        assert!(!mode_rule_completed(mode::RESEARCH, 5_000, 4_950));
-        assert!(mode_rule_completed(mode::RESEARCH, 5_000, 5_000));
+        assert!(!mode_rule_completed(RuleMode::Research, 5_000, 4_950));
+        assert!(mode_rule_completed(RuleMode::Research, 5_000, 5_000));
         // The leader: more shown points, equal a draw.
         assert_eq!(winner_by_points([100, 64]), 0);
         assert_eq!(winner_by_points([37, 37]), DRAW);

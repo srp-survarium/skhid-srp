@@ -3,12 +3,14 @@
 //!
 //! The lobby's rename window (`MessageEnterName`) checks a name as it is
 //! typed (`49 03`, answered `83 49 03 <name> <ok> [reason]`) and sends
-//! `49 04 <name> <u32>`: the u32 is the item id of the rename voucher the
-//! player pays with, or 0 to pay in gold (`change_player_nickname(name,
-//! radioButtonPremium.selected ? 0 : voucherId)`; PROVEN). The gold price
-//! is 0x8D's fourth value (`root.set_change_name_cost`). The answer is
-//! `83 49 04 <voucher item id or 0>`: the client takes one voucher off its
-//! copy. The new name itself reaches the client in `8F`.
+//! `49 04 <name> <u32>`. The u32 was the item id of the rename voucher the
+//! player paid with, or 0 for money (`change_player_nickname(name,
+//! radioButtonPremium.selected ? 0 : voucherId)`; PROVEN): the vouchers are
+//! gone (the owner, 2026-11-08: "for renames remove rename ticket too"), so
+//! a rename is paid in silver, 0x8D's fourth value
+//! (`root.set_change_name_cost`), and the u32 is not kept. The answer is
+//! `83 49 04 0` (no voucher taken). The new name itself reaches the client
+//! in `8F`.
 //!
 //! What a name is in srp: an account signs in with its **login** (the
 //! user name it registered, `crate::Account::login`) and is shown by its
@@ -16,83 +18,75 @@
 //! starts as the login's part before an `@`. A rename changes the name
 //! only: the sign-in is not touched. [choice] A new name must be shown by
 //! no other account and be no other account's login (so nobody can pose as
-//! the owner of a login); the check for that is the lobby's, which has the
-//! store. The price is `SRP_RENAME_COST` gold, by default the rename
-//! voucher's own price in the dictionary (250).
-
-use survarium::v026g::dictionary::Dictionary;
+//! the owner of a login). The shared store serializes registration and
+//! renaming, rechecking availability before charging. The price is
+//! `SRP_RENAME_COST` silver, by default 25,000 (what
+//! the rename voucher cost: its 250 gold in silver).
 
 use super::account::{Account, cap_name};
-use super::premium::{RENAME_VOUCHER, Settings};
+use super::premium::Settings;
+
+/// A nickname that fits the client's buffers and contains no blank/control characters.
+pub struct Nickname(String);
+
+impl Nickname {
+    pub fn parse(name: &str) -> Result<Self, survarium::v026g::lobby::NameRefusal> {
+        use survarium::v026g::lobby::{NameRefusal, limits};
+        if name.chars().count() < 3 {
+            return Err(NameRefusal::Short);
+        }
+        if name.chars().any(char::is_whitespace) {
+            return Err(NameRefusal::Space);
+        }
+        if name
+            .chars()
+            .any(|c| c.is_control() || c == char::REPLACEMENT_CHARACTER)
+        {
+            return Err(NameRefusal::WrongSymbol);
+        }
+        if name.len() > limits::NAME {
+            return Err(NameRefusal::Pattern);
+        }
+        Ok(Self(name.to_owned()))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
 
 /// Why a rename is refused once the name itself is good.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RenameError {
-    /// The item named is no rename voucher of the account.
-    NoVoucher,
-    NotEnoughGold,
+    Taken,
+    NoAccount,
+    NotEnoughMoney,
 }
 
 impl RenameError {
     /// The game's own text for the refusal.
     pub fn text_key(&self) -> &'static str {
         match self {
-            Self::NoVoucher => "st_change_name_error",
-            Self::NotEnoughGold => "st_cant_buy_premium_message",
+            Self::Taken | Self::NoAccount => "st_change_name_error",
+            Self::NotEnoughMoney => "st_not_enougth_money",
         }
     }
 }
 
-/// How a rename was paid.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Paid {
-    /// The voucher one was taken of; 0 when gold paid.
-    pub voucher_item_id: u32,
-    pub gold: u32,
-}
-
-/// `49 04`: pay for the rename and take the name (cut to what the client's
-/// buffers hold). `voucher_item_id` 0 pays in gold. The caller has checked
+/// `49 04`: pay for the rename in silver and take the name (cut to what the
+/// client's buffers hold). Returns the silver paid. The caller has checked
 /// the name.
-pub fn rename(
+pub(crate) fn rename(
     account: &mut Account,
     settings: &Settings,
     name: &str,
-    voucher_item_id: u32,
-) -> Result<Paid, RenameError> {
-    let paid = if voucher_item_id == 0 {
-        if account.premium_money < settings.rename_cost {
-            return Err(RenameError::NotEnoughGold);
-        }
-        account.premium_money -= settings.rename_cost;
-        Paid {
-            voucher_item_id: 0,
-            gold: settings.rename_cost,
-        }
-    } else {
-        let voucher = Dictionary::shared().item_named(RENAME_VOUCHER);
-        let index = account
-            .inventory
-            .iter()
-            .position(|item| {
-                item.item_id == voucher_item_id
-                    && voucher.is_some_and(|voucher| voucher.dict_id == item.dict_id)
-                    && item.condition_or_stack > 0
-            })
-            .ok_or(RenameError::NoVoucher)?;
-        let item = &mut account.inventory[index];
-        item.condition_or_stack -= 1;
-        if item.condition_or_stack == 0 {
-            account.inventory.remove(index);
-            account.sync_kits();
-        }
-        Paid {
-            voucher_item_id,
-            gold: 0,
-        }
-    };
+) -> Result<u32, RenameError> {
+    if account.generic_money < settings.rename_cost {
+        return Err(RenameError::NotEnoughMoney);
+    }
+    account.generic_money -= settings.rename_cost;
     account.name = cap_name(name);
-    Ok(paid)
+    Ok(settings.rename_cost)
 }
 
 #[cfg(test)]
@@ -100,66 +94,53 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_rename_is_paid_in_gold_or_with_a_voucher() {
+    fn nickname_parsing_preserves_the_wire_validation_rules() {
+        use survarium::v026g::lobby::NameRefusal;
+        for (name, refusal) in [
+            ("ab", NameRefusal::Short),
+            ("a b", NameRefusal::Space),
+            ("ab\u{0001}", NameRefusal::WrongSymbol),
+            ("ab\u{fffd}", NameRefusal::WrongSymbol),
+        ] {
+            assert_eq!(Nickname::parse(name).err(), Some(refusal));
+        }
+        assert_eq!(Nickname::parse(&"я".repeat(32)).err(), Some(NameRefusal::Pattern));
+        assert_eq!(Nickname::parse("Сталкер").unwrap().as_str(), "Сталкер");
+    }
+
+    #[test]
+    fn a_rename_is_paid_in_silver() {
         let settings = Settings::default();
         let mut account = Account::new("Alice");
-        account.premium_money = 300;
+        account.generic_money = 30_000;
+        assert_eq!(rename(&mut account, &settings, "Alisa"), Ok(25_000));
         assert_eq!(
-            rename(&mut account, &settings, "Alisa", 0),
-            Ok(Paid {
-                voucher_item_id: 0,
-                gold: 250
-            })
+            (account.name.as_str(), account.generic_money),
+            ("Alisa", 5_000)
         );
+        // Not the silver for a second one: refused, the name stays.
         assert_eq!(
-            (account.name.as_str(), account.premium_money),
-            ("Alisa", 50)
-        );
-        // Not the gold for a second one.
-        assert_eq!(
-            rename(&mut account, &settings, "Alice", 0),
-            Err(RenameError::NotEnoughGold)
+            rename(&mut account, &settings, "Alice"),
+            Err(RenameError::NotEnoughMoney)
         );
         assert_eq!(account.name, "Alisa");
-        // A voucher pays instead, one of the stack.
-        let dictionary = Dictionary::shared();
-        let voucher = account.add_item(dictionary.item_named(RENAME_VOUCHER).unwrap().dict_id, 2);
-        let paid = rename(&mut account, &settings, "Alice", voucher).unwrap();
-        assert_eq!((paid.voucher_item_id, paid.gold), (voucher, 0));
-        assert_eq!(account.item(voucher).unwrap().condition_or_stack, 1);
-        assert_eq!(
-            (account.name.as_str(), account.premium_money),
-            ("Alice", 50)
-        );
-        rename(&mut account, &settings, "Alina", voucher).unwrap();
-        assert!(account.item(voucher).is_none());
-        // Gone, or not a rename voucher: refused, the name stays.
-        let pistol = account.kits[0].slots[7].unwrap().item_id;
-        for item in [voucher, pistol, 9_999] {
-            assert_eq!(
-                rename(&mut account, &settings, "Other", item),
-                Err(RenameError::NoVoucher)
-            );
-        }
-        assert_eq!(account.name, "Alina");
         // The name is cut to the client's buffer.
-        account.premium_money = 250;
-        rename(&mut account, &settings, &"x".repeat(100), 0).unwrap();
+        account.generic_money = 25_000;
+        rename(&mut account, &settings, &"x".repeat(100)).unwrap();
         assert_eq!(account.name.len(), 63);
         // A price of 0 is free.
         let free = Settings {
             rename_cost: 0,
             ..settings
         };
-        assert_eq!(rename(&mut account, &free, "Alice", 0).unwrap().gold, 0);
+        assert_eq!(rename(&mut account, &free, "Alice"), Ok(0));
     }
 
     #[test]
-    fn the_refusals_have_the_games_texts() {
-        assert_eq!(RenameError::NoVoucher.text_key(), "st_change_name_error");
+    fn the_refusal_has_the_games_text() {
         assert_eq!(
-            RenameError::NotEnoughGold.text_key(),
-            "st_cant_buy_premium_message"
+            RenameError::NotEnoughMoney.text_key(),
+            "st_not_enougth_money"
         );
     }
 }

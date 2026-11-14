@@ -1,0 +1,719 @@
+//! Patch 109: the artefact tree's skills the exe computes (docs/notes/artefact-skills.md).
+//! The data skills (Quick Hands, Forest Protection, Knowledge of Artifacts) are native
+//! modifiers 7, 41 and 39; the others travel packed in modifier 40 (`artefact_power`), parsed
+//! once here.
+#![forbid(unsafe_code)]
+
+use crate::vostok::{
+    ArtefactSkillsOnLandingExit, ArtefactSkillsOnOwnLifeboneExit, ArtefactSkillsOnOwnModifierExit,
+    ArtefactSkillsOnOwnModifiersExit, ArtefactSkillsOnOwnOnyxExit, Context, Flow, GameCell, NoExit, artefact_skills,
+    types::{Place, Tick},
+};
+
+/// A hit's type (the hit +1Ch; 0.26g's seven, `blunt` gone): 4..7 are the anomalous ones
+/// (table 0x92075C), against which armour is the card's isolation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HitKind {
+    Ranged,
+    Blunt,
+    Slash,
+    Explosive,
+    Toxic,
+    Radiation,
+    Fire,
+    Shock,
+}
+
+impl HitKind {
+    pub fn parse(value: u32) -> Option<Self> {
+        Some(match value {
+            0 => Self::Ranged,
+            1 => Self::Blunt,
+            2 => Self::Slash,
+            3 => Self::Explosive,
+            4 => Self::Toxic,
+            5 => Self::Radiation,
+            6 => Self::Fire,
+            7 => Self::Shock,
+            _ => return None,
+        })
+    }
+
+    fn anomalous(self) -> bool {
+        matches!(self, Self::Toxic | Self::Radiation | Self::Fire | Self::Shock)
+    }
+}
+
+/// The match's Keeper of the Artifacts draw, 1..=6, as srp rolls it once a match and writes it
+/// into every kit of every player (modifier 40 bits 9..11), with the skill or not: every game
+/// knows the kind at the map's load.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Draw(u8);
+
+impl Draw {
+    pub const MOST: u8 = 6;
+
+    pub fn parse(draw: u8) -> Option<Self> {
+        (1..=Self::MOST).contains(&draw).then_some(Self(draw))
+    }
+
+    pub fn get(self) -> u8 {
+        self.0
+    }
+}
+
+/// Resistance's rank, 0..=5.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Resistance(u8);
+
+impl Resistance {
+    pub const MOST: u8 = 5;
+    /// Armour a rank against the anomalous types: +5 isolation points (the card x100).
+    pub const ARMOUR: f32 = 0.05;
+}
+
+/// Resonance's reach (metres, between the feet): a carrier's passives to its teammates (the
+/// owner, 2026-11-07: 9 m, was 8 m).
+pub const RESONANCE_REACH: f32 = 9.0;
+
+/// Cascade's reach (metres): a carrier's actives to its teammates, Larkspur's heal too (patch 94's
+/// Medic, which only Cascade grants) (the owner, 2026-11-07: 6 m, was 5 m).
+pub const CASCADE_REACH: f32 = 6.0;
+
+/// The packed skills of a kit's modifier 40: its bits, valid ([`Skills::parse`]). Kept packed, each
+/// skill a bit test: the aura reads every carrier's at every modifier getter's call.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Skills(u16);
+
+impl Skills {
+    const KEEPER: u16 = 1 << 3;
+    const RESONANCE: u16 = 1 << 4;
+    const SPRING: u16 = 1 << 5;
+    const ONYX: u16 = 1 << 6;
+    const LARKSPUR: u16 = 1 << 7;
+    const CASCADE: u16 = 1 << 8;
+    const SIGHT: u16 = 1 << 12;
+    const LATE: u16 = 1 << 13;
+
+    /// Bits: 0..2 Resistance, 3 Keeper, 4 Resonance, 5 Spring II, 6 Onyx II, 7 Larkspur II,
+    /// 8 Cascade, 9..11 the match's Keeper draw 1..6 (0 none; with the skill or not), 12 Artifact
+    /// Sight, 13 a late joiner's kit (srp's mark, survarium::v026g::keeper::LATE). Anything else (a
+    /// fraction, a negative, a rank past 5, a draw of 7, a bit past 13) is no skill at all.
+    pub fn parse(value: f32) -> Option<Self> {
+        if !(0.0..16384.0).contains(&value) || value != (value as u32) as f32 {
+            return None;
+        }
+        let bits = value as u16;
+        let valid = (bits & 7) as u8 <= Resistance::MOST && ((bits >> 9) & 7) as u8 <= Draw::MOST;
+        valid.then_some(Self(bits))
+    }
+
+    fn has(self, skill: u16) -> bool {
+        self.0 & skill != 0
+    }
+
+    fn resistance(self) -> Resistance {
+        Resistance((self.0 & 7) as u8)
+    }
+
+    /// The kit is a late joiner's (srp took it into the match once in process): Keeper's gift
+    /// comes after its first death, not at the match's start.
+    pub fn late(self) -> bool {
+        self.has(Self::LATE)
+    }
+
+    /// Artifact Sight (the owner, 2026-11-07): this game shows the leg quarters of passive
+    /// artefacts (patch 111's glow), its own player's too.
+    pub fn sight(self) -> bool {
+        self.has(Self::SIGHT)
+    }
+
+    /// Keeper of the Artifacts taken.
+    pub fn keeper(self) -> bool {
+        self.has(Self::KEEPER)
+    }
+
+    /// The match's Keeper draw (srp writes it into every kit of the match), none in the lobby.
+    pub fn draw(self) -> Option<Draw> {
+        Draw::parse(((self.0 >> 9) & 7) as u8)
+    }
+
+    /// Onyx II: no fall damage while one of the player's Onyx is active.
+    pub fn onyx(self) -> bool {
+        self.has(Self::ONYX)
+    }
+
+    /// Spring II (the owner, 2026-11-05): each carried Spring's reload speed (modifier 13),
+    /// +5% while its passive is on and +10% more while its active is, as its other nodes:
+    /// (passive, active) node values, 0 without the skill.
+    pub fn spring_reload(self) -> (f32, f32) {
+        if self.has(Self::SPRING) { (0.05, 0.10) } else { (0.0, 0.0) }
+    }
+
+    /// Larkspur II: a Larkspur's activation restores all energy.
+    pub fn larkspur(self) -> bool {
+        self.has(Self::LARKSPUR)
+    }
+
+    /// How far (squared metres) this carrier's artefacts give their `phase` to its teammates:
+    /// Resonance its passives within [`RESONANCE_REACH`], Cascade its actives within
+    /// [`CASCADE_REACH`].
+    pub fn reach(self, phase: Phase) -> Option<f32> {
+        match phase {
+            Phase::Passive => self.has(Self::RESONANCE).then_some(RESONANCE_REACH * RESONANCE_REACH),
+            Phase::Active => self.has(Self::CASCADE).then_some(CASCADE_REACH * CASCADE_REACH),
+        }
+    }
+
+    /// Resistance: the part's armour `native` against a hit of `kind`, +0.05 a rank for the
+    /// anomalous types, before the piercing's subtraction and the native clamp.
+    pub fn armour(self, native: f32, kind: HitKind) -> f32 {
+        if kind.anomalous() {
+            native + f32::from(self.resistance().0) * Resistance::ARMOUR
+        } else {
+            native
+        }
+    }
+}
+
+/// An artefact kind Resonance and Cascade share (the Rattle has no passive nor active to share).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Kind {
+    Spring,
+    Lifebone,
+    Onyx,
+}
+
+/// An artefact's state (+280h) as the tree reads it: 3 its passive (ready or cooling), 4 its
+/// active; any other (being collected, its holder dead) gives nothing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum State {
+    Passive,
+    Active,
+    Other,
+}
+
+impl State {
+    pub fn parse(value: u32) -> Self {
+        match value {
+            3 => Self::Passive,
+            4 => Self::Active,
+            _ => Self::Other,
+        }
+    }
+}
+
+/// What a carried copy shares: its passive (Resonance) or its active (Cascade).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Phase {
+    Passive,
+    Active,
+}
+
+impl Kind {
+    /// Whether a copy in `state` gives its `phase` as it does to its holder: Spring's and
+    /// Lifebone's passives are linked from pickup to death (3 and 4), Onyx's protect takes its
+    /// passive's share in 3 only (its active's in 4); every active in 4.
+    pub fn gives(self, phase: Phase, state: State) -> bool {
+        matches!(
+            (self, phase, state),
+            (_, Phase::Active, State::Active)
+                | (_, Phase::Passive, State::Passive)
+                | (Self::Spring | Self::Lifebone, Phase::Passive, State::Active)
+        )
+    }
+}
+
+/// A player's passive copies of each kind that count for it (artefact-skills.md, "Leg quarters"):
+/// its own copies that count ([`Room::counts_own`]) giving their passive and the copies Resonance
+/// shares with it, at most [`Room::MOST`] of a kind.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Copies {
+    spring: u8,
+    lifebone: u8,
+    onyx: u8,
+}
+
+impl Copies {
+    /// From each kind's (own, shared) count.
+    pub fn of(mut count: impl FnMut(Kind) -> (usize, usize)) -> Self {
+        let mut of = |kind| {
+            let (own, shared) = count(kind);
+            own.saturating_add(shared).min(usize::from(Room::MOST)) as u8
+        };
+        Self { spring: of(Kind::Spring), lifebone: of(Kind::Lifebone), onyx: of(Kind::Onyx) }
+    }
+
+    /// The copies of `kind`: 0 to 4.
+    pub fn get(self, kind: Kind) -> u8 {
+        match kind {
+            Kind::Spring => self.spring,
+            Kind::Lifebone => self.lifebone,
+            Kind::Onyx => self.onyx,
+        }
+    }
+}
+
+/// The shared copies of one kind and phase a recipient still takes (the owner, 2026-11-05: at
+/// most 4 effects of one kind in all, its own included): 4 less its own copies of the kind that
+/// count ([`Room::counts_own`]); with 4 own, none shared.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Room(u8);
+
+impl Room {
+    pub const MOST: u8 = 4;
+    /// A recipient that takes none (a dead one).
+    pub const NONE: Room = Room(0);
+
+    /// Whether a player's `nth` own copy of a kind (from 0, in container order, of its copies in
+    /// their passive or active) counts for it (the owner, 2026-11-07: at most 4 copies of one kind
+    /// count, own copies included, passives and actives): the first [`Room::MOST`]. One past them
+    /// (a fifth with Artifact Container) gives nothing: no passive where it is applied, and a press
+    /// does not fire it.
+    pub fn counts_own(nth: usize) -> bool {
+        nth < usize::from(Self::MOST)
+    }
+
+    pub fn after(own: usize) -> Self {
+        Self(usize::from(Self::MOST).saturating_sub(own) as u8)
+    }
+
+    /// Whether there is room for one copy more.
+    pub fn open(self) -> bool {
+        self.0 > 0
+    }
+
+    /// One copy more, if there is room for it.
+    pub fn take(&mut self) -> bool {
+        let room = self.0 > 0;
+        self.0 = self.0.saturating_sub(1);
+        room
+    }
+}
+
+/// The kit lists a Spring's nodes are in (the loader 0x33ACF0 and patch 54): movement 4, aim
+/// time 49, stamina regeneration 3 and spending 19, stopping power 42, reload 13. The getters'
+/// other indices have nothing shared.
+pub const SPRING_LISTS: [u32; 6] = [4, 49, 3, 19, 42, 13];
+
+/// What an Onyx does to a hit it protects against (its protect 0x312BF0), read once from a
+/// carried Onyx: its passive's or its active's numbers.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct OnyxProtection {
+    pub damage_add: f32,
+    pub damage_mul: f32,
+    pub piercing_add: f32,
+    pub piercing_mul: f32,
+    /// The active's most off a hit (absorb_total); none for the passive.
+    pub absorb: Option<f32>,
+}
+
+impl OnyxProtection {
+    /// A hit's (damage, piercing) after it: the passive (D + a) x m; the active
+    /// D - min(absorb, D - (D + a) x m); the piercing (P + a) x m either way.
+    pub fn protect(self, damage: f32, piercing: f32) -> (f32, f32) {
+        let reduced = (damage + self.damage_add) * self.damage_mul;
+        let damage = match self.absorb {
+            None => reduced,
+            Some(absorb) => {
+                let taken = damage - reduced;
+                damage - if absorb > taken { taken } else { absorb }
+            }
+        };
+        (damage, (piercing + self.piercing_add) * self.piercing_mul)
+    }
+}
+
+/// One part's regeneration tick: its rate a second, the delay after a hit (ms) and the limit
+/// (a fraction of the maximum), as body_part::regenerate has them after its own modifiers.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Regeneration {
+    pub rate: f32,
+    pub delay_ms: u32,
+    pub limit: f32,
+}
+
+/// What a Lifebone's passive does to one part's regeneration tick (its callback 0x312590),
+/// read once from a carried Lifebone's record for that part.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LifeboneRegeneration {
+    pub rate_add: f32,
+    pub rate_mul: f32,
+    /// Seconds.
+    pub delay_add: f32,
+    pub delay_mul: f32,
+    pub limit_add: f32,
+    pub limit_mul: f32,
+}
+
+impl LifeboneRegeneration {
+    pub fn apply(self, tick: Regeneration) -> Regeneration {
+        // As the callback: the delay as an unsigned float, each step a float, truncated to 64
+        // bits (fistp, rounding toward 0) of which the low 32 are kept (a negative wraps).
+        let delay = (tick.delay_ms as f32 + self.delay_add * 1000.0) * self.delay_mul;
+        Regeneration {
+            rate: (tick.rate + self.rate_add) * self.rate_mul,
+            delay_ms: delay as i64 as u32,
+            limit: (tick.limit + self.limit_add) * self.limit_mul,
+        }
+    }
+}
+
+/// The kit list a Spring's movement nodes are in: movement_speed (0x2DBB50) reads it when the
+/// player's animations are selected (select_animations 0x2D9690), not every tick.
+pub const MOVEMENT_LIST: u32 = 4;
+
+/// The ticks of a place's shared movement kept (3.2 s): a re-simulated tick finds the tick
+/// before it.
+const HISTORY: usize = 64;
+
+/// One place's shared movement (what the shared Springs add to its list 4) at its recent ticks,
+/// each in the slot of its tick. Patch memory, not the world's: a game that loads a world (a late
+/// join, a resync) forgets it ([`MovementHistory::EMPTY`] at `world_load.loaded`), and a tick
+/// whose tick before is not kept is no change, so the loading game decides its first ticks as
+/// the games that went on.
+#[derive(Clone, Copy)]
+pub struct MovementHistory {
+    slots: [Option<(Tick, f32)>; HISTORY],
+}
+
+/// What a game knows of a place's shared movement at the tick before.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Before {
+    /// Not simulated here since this game's world was loaded (or the place's first tick, or one
+    /// past the history).
+    Unknown,
+    Known(f32),
+}
+
+impl MovementHistory {
+    pub const EMPTY: Self = Self { slots: [None; HISTORY] };
+
+    fn slot(tick: Tick) -> usize {
+        tick.0 as usize % HISTORY
+    }
+
+    fn before(&self, tick: Tick) -> Before {
+        let before = Tick(tick.0.wrapping_sub(1));
+        match self.slots[Self::slot(before)] {
+            Some((at, value)) if at == before => Before::Known(value),
+            _ => Before::Unknown,
+        }
+    }
+
+    /// Records `shared` at `tick`; whether it differs from the tick before's. A tick before that
+    /// is not kept is no change: every game answers so at a place's first tick, and a game that
+    /// just loaded the world answers so where the others compare with the tick they simulated
+    /// (the same answer unless the movement changed at exactly the load's tick). A function of
+    /// the two ticks' worlds otherwise: a re-simulated tick answers as its first simulation did.
+    pub fn changed(&mut self, tick: Tick, shared: f32) -> bool {
+        let before = self.before(tick);
+        self.slots[Self::slot(tick)] = Some((tick, shared));
+        match before {
+            Before::Unknown => false,
+            Before::Known(was) => was != shared,
+        }
+    }
+}
+
+/// Every place's shared movement history (the game's thread alone runs base_player::tick).
+static MOVEMENTS: [GameCell<MovementHistory>; Place::COUNT] =
+    [const { GameCell::new(MovementHistory::EMPTY) }; Place::COUNT];
+
+/// Resonance and Cascade at each player's tick before its animations (battery.carrier_tick
+/// 0x2DAAD3, right before tick_animations 0x2D8EE0): when the shared Springs' movement changed
+/// since the tick before (a carrier came into reach or left it, died, a Spring's state changed),
+/// the player's animations are selected again this tick, which takes the new movement speed
+/// in, as patch 94 does for Adrenalin. No change, no re-selection.
+pub fn on_movement_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let Some(tick) = artefact_skills::MovementTick::at(ctx) else {
+        return Flow::Continue;
+    };
+    let history = &MOVEMENTS[tick.place().index()];
+    let mut kept = history.get(ctx.thread());
+    let changed = kept.changed(tick.tick(), tick.shared());
+    history.set(ctx.thread(), kept);
+    if changed {
+        tick.reselect();
+    }
+    Flow::Continue
+}
+
+/// A world loaded (`world_load.loaded`: a late join, a resync, a match's first world): every
+/// place's shared movement history forgotten, for the loaded world's ticks are not the ones it
+/// kept.
+pub fn on_world_loaded(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    for history in &MOVEMENTS {
+        history.set(ctx.thread(), MovementHistory::EMPTY);
+    }
+    Flow::Continue
+}
+
+/// Resonance and Cascade at apply_modifier (0x2D5AE6): XMM0 the kit's own float of an index,
+/// to which the shared Springs' nodes of that list are added.
+pub fn on_shared_modifier(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::shared_modifier(ctx);
+    Flow::Continue
+}
+
+/// The same in apply_modifiers' loop (0x2D5C18), for each of its indices.
+pub fn on_shared_modifiers(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::shared_modifiers(ctx);
+    Flow::Continue
+}
+
+/// Resonance and Cascade before a part's protectors (0x32A020): the shared Onyx.
+pub fn on_shared_protection(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::shared_protection(ctx);
+    Flow::Continue
+}
+
+/// Resonance at a part's regeneration tick (0x32A53F, before patch 94's): the shared Lifebones.
+pub fn on_shared_regeneration(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::shared_regeneration(ctx);
+    Flow::Continue
+}
+
+/// Cascade's places with each active copy a world saves (artefact_base::serialize, after its
+/// cooldown): the teammates its activation reached keep its active to its end.
+pub fn on_save(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::save(ctx);
+    Flow::Continue
+}
+
+/// The same read back by a world's load (artefact_base::deserialize): a rollback and a late joiner
+/// give the active to the places its activation reached.
+pub fn on_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::load(ctx);
+    Flow::Continue
+}
+
+/// The own cap at patch 54's press (its `ready`, for each copy it would fire): a copy past the 4
+/// of its kind that count for its holder does not fire and stays ready.
+pub fn on_fire(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::fire(ctx);
+    Flow::Continue
+}
+
+/// The own cap at apply_modifier's list sum (0x2D5B0C): the player's own Springs past the 4 that
+/// count add none of their passive's nodes (the loop's sum given at its end, `Summed`).
+pub fn on_own_modifier(ctx: &mut Context<'_>) -> Flow<ArtefactSkillsOnOwnModifierExit> {
+    if artefact_skills::own_modifier(ctx) { Flow::Exit(ArtefactSkillsOnOwnModifierExit::Summed) } else { Flow::Continue }
+}
+
+/// The same in apply_modifiers' loop (0x2D5C46), for each of its indices.
+pub fn on_own_modifiers(ctx: &mut Context<'_>) -> Flow<ArtefactSkillsOnOwnModifiersExit> {
+    if artefact_skills::own_modifiers(ctx) { Flow::Exit(ArtefactSkillsOnOwnModifiersExit::Summed) } else { Flow::Continue }
+}
+
+/// The own cap at an Onyx's protect (0x312BF0): a passive Onyx past the 4 that count for its
+/// holder leaves the hit as it is.
+pub fn on_own_onyx(ctx: &mut Context<'_>) -> Flow<ArtefactSkillsOnOwnOnyxExit> {
+    if artefact_skills::onyx_uncounted(ctx) { Flow::Exit(ArtefactSkillsOnOwnOnyxExit::Done) } else { Flow::Continue }
+}
+
+/// The own cap at a Lifebone's regeneration modifier (0x312590): a Lifebone past the 4 that count
+/// for its holder leaves the part's tick as it is.
+pub fn on_own_lifebone(ctx: &mut Context<'_>) -> Flow<ArtefactSkillsOnOwnLifeboneExit> {
+    if artefact_skills::lifebone_uncounted(ctx) { Flow::Exit(ArtefactSkillsOnOwnLifeboneExit::Done) } else { Flow::Continue }
+}
+
+/// Resistance at body_part_parameters::hit_by_type (0x32A083): XMM0 the part's armour.
+pub fn on_isolation(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::isolation(ctx);
+    Flow::Continue
+}
+
+/// Onyx II at the landing's start: the whole landing is its fall damage, skipped when the player
+/// has the skill and an active Onyx.
+pub fn on_landing(ctx: &mut Context<'_>) -> Flow<ArtefactSkillsOnLandingExit> {
+    if artefact_skills::lands_unhurt(ctx) {
+        Flow::Exit(ArtefactSkillsOnLandingExit::Done)
+    } else {
+        Flow::Continue
+    }
+}
+
+/// Larkspur II at an artefact's actual activation (artefact_base::action 0x313333).
+pub fn on_larkspur(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::larkspur(ctx);
+    Flow::Continue
+}
+
+/// Spring II, patch 54's entry at a Spring's passive link: its reload nodes' values.
+pub fn on_spring_reload(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    artefact_skills::spring_reload(ctx);
+    Flow::Continue
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_shared_movement_reselects_on_a_change_only() {
+        let mut history = MovementHistory::EMPTY;
+        // The first tick (nothing kept before it) is no change; then each against the one before.
+        assert!(!history.changed(Tick(19), 0.05), "a first tick: no change, whatever is shared");
+        let mut history = MovementHistory::EMPTY;
+        assert!(!history.changed(Tick(20), 0.0));
+        assert!(history.changed(Tick(21), 0.05), "a carrier came into reach");
+        assert!(!history.changed(Tick(22), 0.05), "no change");
+        assert!(history.changed(Tick(23), 0.0), "the carrier left or died");
+        assert!(!history.changed(Tick(24), 0.0));
+        // A re-simulation from tick 21: each tick against its own tick before, as at first.
+        assert!(history.changed(Tick(21), 0.05));
+        assert!(!history.changed(Tick(22), 0.05));
+        assert!(history.changed(Tick(23), 0.0));
+        // ...and a re-simulated world where the carrier stayed: tick 23 no longer changes.
+        assert!(!history.changed(Tick(23), 0.05));
+        assert!(history.changed(Tick(24), 0.0), "tick 24 now sees tick 23's 0.05");
+        // A gap (one past the history): no change.
+        assert!(!history.changed(Tick(24 + HISTORY as u32), 0.15));
+        assert!(!history.changed(Tick(1000), 0.0));
+        // A load forgets it: the loading game's first tick is no change, as for a game that went
+        // on through a steady 0.05; its next ticks compare as everyone's.
+        let mut went_on = MovementHistory::EMPTY;
+        for at in 30..40 {
+            went_on.changed(Tick(at), 0.05);
+        }
+        let mut loaded = MovementHistory::EMPTY;
+        assert_eq!(loaded.changed(Tick(40), 0.05), went_on.changed(Tick(40), 0.05));
+        assert_eq!(loaded.changed(Tick(41), 0.0), went_on.changed(Tick(41), 0.0));
+        assert!(loaded.changed(Tick(42), 0.05) && went_on.changed(Tick(42), 0.05));
+    }
+
+    #[test]
+    fn parses_the_packed_ranks_only_exactly() {
+        for bad in [-1.0, 0.5, 6.0, 7.0, 510.0, 7.0 * 512.0, 8.0 + 7.0 * 512.0, 16384.0, 16384.0 + 508.0, f32::INFINITY, f32::NAN] {
+            assert_eq!(Skills::parse(bad), None, "{bad}");
+        }
+        assert_eq!(Skills::parse(0.0), Some(Skills::default()));
+        let full = Skills::parse(509.0).unwrap();
+        assert_eq!(full.resistance(), Resistance(5));
+        assert!(full.keeper() && full.draw().is_none());
+        assert!(full.has(Skills::RESONANCE) && full.spring_reload() == (0.05, 0.10) && full.onyx() && full.larkspur());
+        assert!(full.has(Skills::CASCADE));
+        for draw in 1..=6u8 {
+            let skills = Skills::parse(8.0 + f32::from(draw) * 512.0).unwrap();
+            assert!(skills.keeper() && skills.draw() == Draw::parse(draw));
+            // Every kit of the match has the draw, a player without the skill too.
+            let skills = Skills::parse(f32::from(draw) * 512.0).unwrap();
+            assert!(!skills.keeper() && skills.draw().map(Draw::get) == Some(draw));
+        }
+        assert!(Skills::parse(508.0 + 6.0 * 512.0).is_some());
+        // Artifact Sight, bit 12: alone, with every other bit and a draw.
+        assert!(Skills::parse(4096.0).unwrap().sight());
+        let all = Skills::parse(4096.0 + 508.0 + 6.0 * 512.0).unwrap();
+        assert!(all.sight() && all.keeper() && all.has(Skills::CASCADE) && all.draw().map(Draw::get) == Some(6));
+        assert!(!full.sight());
+        // A late joiner's kit, bit 13.
+        assert!(Skills::parse(8192.0 + 8.0 + 512.0).unwrap().late());
+        assert!(!all.late());
+    }
+
+    #[test]
+    fn every_valid_payload_keeps_each_bit_and_every_other_is_none() {
+        // Kept packed: each skill as its own decode of the payload's bits.
+        for bits in 0..16384u32 {
+            let parsed = Skills::parse(bits as f32);
+            let valid = bits & 7 <= 5 && (bits >> 9) & 7 <= 6;
+            assert_eq!(parsed.is_some(), valid, "{bits}");
+            let Some(skills) = parsed else { continue };
+            let bit = |n: u32| bits & (1 << n) != 0;
+            assert_eq!(skills.resistance(), Resistance((bits & 7) as u8));
+            assert_eq!(skills.draw().map(Draw::get), Some((bits >> 9) & 7).filter(|&draw| draw != 0).map(|draw| draw as u8));
+            assert_eq!([skills.keeper(), skills.onyx(), skills.larkspur(), skills.sight(), skills.late()],
+                       [bit(3), bit(6), bit(7), bit(12), bit(13)], "{bits}");
+            assert_eq!(skills.spring_reload(), if bit(5) { (0.05, 0.10) } else { (0.0, 0.0) });
+            assert_eq!((skills.reach(Phase::Passive).is_some(), skills.reach(Phase::Active).is_some()), (bit(4), bit(8)));
+            assert_eq!(Skills::parse(bits as f32 + 0.5), None);
+        }
+    }
+
+    #[test]
+    fn resistance_adds_isolation_to_the_anomalous_types_only() {
+        for rank in 0..=5u8 {
+            let skills = Skills::parse(f32::from(rank)).unwrap();
+            for value in 0..8 {
+                let kind = HitKind::parse(value).unwrap();
+                let want = if value >= 4 { 0.3 + 0.05 * f32::from(rank) } else { 0.3 };
+                assert!((skills.armour(0.3, kind) - want).abs() < 1e-6, "{rank} {kind:?}");
+            }
+        }
+        assert_eq!(HitKind::parse(8), None);
+    }
+
+    #[test]
+    fn resonance_reaches_9_m_with_passives_and_cascade_6_m_with_actives() {
+        let none = Skills::parse(0.0).unwrap();
+        let resonance = Skills::parse(16.0).unwrap();
+        let cascade = Skills::parse(256.0).unwrap();
+        let both = Skills::parse(16.0 + 256.0).unwrap();
+        for phase in [Phase::Passive, Phase::Active] {
+            assert_eq!(none.reach(phase), None);
+        }
+        assert_eq!((resonance.reach(Phase::Passive), resonance.reach(Phase::Active)), (Some(81.0), None));
+        assert_eq!((cascade.reach(Phase::Passive), cascade.reach(Phase::Active)), (None, Some(36.0)));
+        assert_eq!((both.reach(Phase::Passive), both.reach(Phase::Active)), (Some(81.0), Some(36.0)));
+    }
+
+    #[test]
+    fn copies_count_own_and_shared_up_to_four() {
+        let copies = Copies::of(|kind| match kind {
+            Kind::Spring => (1, 0),
+            Kind::Lifebone => (2, 3),
+            Kind::Onyx => (6, 0),
+        });
+        assert_eq!((copies.get(Kind::Spring), copies.get(Kind::Lifebone), copies.get(Kind::Onyx)), (1, 4, 4));
+        assert_eq!(Copies::default().get(Kind::Spring), 0);
+    }
+
+    #[test]
+    fn a_recipient_takes_at_most_four_copies_its_own_first() {
+        // Two own Springs and three shared: two of them count.
+        let mut room = Room::after(2);
+        assert_eq!([room.take(), room.take(), room.take()], [true, true, false]);
+        for own in 0..=6 {
+            let mut room = Room::after(own);
+            let taken = (0..8).filter(|_| room.take()).count();
+            assert_eq!(taken, 4usize.saturating_sub(own), "{own}");
+        }
+        // Own copies count up to 4 too: a fifth (Artifact Container) gives nothing.
+        assert_eq!((0..6).filter(|&nth| Room::counts_own(nth)).count(), 4);
+        assert!(Room::counts_own(3) && !Room::counts_own(4));
+    }
+
+    #[test]
+    fn a_copy_gives_its_phase_in_the_states_it_does_for_its_holder() {
+        use {Kind::*, Phase::*};
+        for state in [3, 4, 0, 1, 2, 5] {
+            let state = State::parse(state);
+            for kind in [Spring, Lifebone] {
+                assert_eq!(kind.gives(Passive, state), state != State::Other, "{kind:?} {state:?}");
+            }
+            assert_eq!(Onyx.gives(Passive, state), state == State::Passive);
+            for kind in [Spring, Lifebone, Onyx] {
+                assert_eq!(kind.gives(Active, state), state == State::Active);
+            }
+        }
+    }
+
+    #[test]
+    fn onyx_and_lifebone_shares_do_what_their_native_code_does() {
+        // The release's Onyx: passive x0.95, active x0.25 taking at most 5.
+        let passive = OnyxProtection { damage_add: 0.0, damage_mul: 0.95, piercing_add: 0.0, piercing_mul: 0.95, absorb: None };
+        let active = OnyxProtection { damage_mul: 0.25, piercing_mul: 0.25, absorb: Some(5.0), ..passive };
+        assert_eq!(passive.protect(100.0, 0.4), (95.0, 0.4 * 0.95));
+        assert_eq!(active.protect(4.0, 0.4), (1.0, 0.1));
+        assert_eq!(active.protect(100.0, 0.4), (95.0, 0.1));
+        let lifebone = LifeboneRegeneration { rate_add: 0.1, rate_mul: 1.0, delay_add: 0.0, delay_mul: 1.0, limit_add: 1.0, limit_mul: 1.0 };
+        let tick = Regeneration { rate: 0.03, delay_ms: 8000, limit: 0.5 };
+        let once = lifebone.apply(tick);
+        assert_eq!((once.rate, once.delay_ms, once.limit), (0.03 + 0.1, 8000, 1.5));
+        let sooner = LifeboneRegeneration { delay_add: -2.0, delay_mul: 0.5, ..lifebone };
+        assert_eq!(sooner.apply(tick).delay_ms, 3000);
+        // Below 0 wraps, as the native's (the delay then never ends).
+        assert_eq!(LifeboneRegeneration { delay_add: -9.0, ..sooner }.apply(tick).delay_ms, u32::MAX - 499);
+    }
+}

@@ -73,6 +73,49 @@ package survarium.menu
       
       protected var _cancelLabel:String = "_cancelLabel";
       
+      // The gameplay tab's Language choice (exe patch 79): a pick is a change
+      // of the tab as its options are, saved by Apply.
+      protected var _language:SrpLanguage;
+      
+      // The gameplay tab's "HUD:" group: the checkboxes the exe keeps in user.cfg
+      // (patch 83: "Hide hit markers", "Hide player scores", "Names on map"), with the stock
+      // quest progress and minimap controls under them (layoutGameplay). A
+      // toggle is a change of the tab as the Language pick is, saved by Apply.
+      protected var _hudGroup:SrpCheckGroup;
+      
+      private static const HUD_OPTIONS:Array = ["srp_hide_hit_markers","srp_hide_scores","srp_map_names"];
+
+      // The HUD group's option that goes with the map's controls, over Static minimap (layoutGameplay).
+      private static const MAP_OPTION:String = "srp_map_names";
+      
+      // The gameplay tab's spacing, read from its own groups (the timeline's) the first
+      // time it is laid out (layoutGameplay); null until then.
+      protected var _gameplaySpacing:Object = null;
+      
+      // The HUD group's crosshair list (Dynamic, Static: the stock static crosshair; Hidden: patch 83).
+      protected var _crosshair:SrpCrosshairChoice;
+      
+      // The Graphics tab's Renderer list (patch 83's `srp_dxvk`, which the game reads at its next
+      // start: docs/notes/dxvk-option.md) and its Vulkan options' button, under Monitor (SrpVideoTab). A
+      // pick or an option changed is a change of the tab.
+      protected var _renderer:SrpRendererChoice;
+      
+      // The HUD group's own texts (setHudTexts); null until the exe answers.
+      protected var _hudTexts:Array = null;
+      
+      // The controls tab's "Lock vertical sensitivity" and its slider (exe patch 112), under
+      // the stock Mouse sensitivity slider (layoutControls). A change of either is a change of the
+      // tab, saved by Apply.
+      protected var _mouse:SrpMouseVertical;
+
+      // The gameplay tab's "Field of view" slider (patch 22's uro_fov, kept by exe patch 83), a group
+      // of the right column under the HUD group (layoutGameplay). A move is a change of the tab, saved by Apply.
+      protected var _fov:SrpFieldOfView;
+      
+      // The controls tab's places, read from its timeline the first time it is laid out
+      // (layoutControls); null until then.
+      protected var _controlsSpacing:Object = null;
+      
       public function Settings()
       {
          super();
@@ -104,6 +147,10 @@ package survarium.menu
             return;
          }
          var control:* = this.settings_content[this._element_map[tabIndex][elementId]];
+         if(!control)
+         {
+            return;
+         }
          control.dataProvider = new DataProvider(items);
       }
       
@@ -200,6 +247,102 @@ package survarium.menu
          }
       }
       
+      // The exe's answer to the Language choice (root.srp_language): the saved
+      // language is selected, so no pick is pending.
+      public function setLanguage(values:Array) : void
+      {
+         this._language.answer(values);
+         this.languageChanged(null);
+         // the note under the list shows or not: the groups under it move
+         this.layoutGameplay();
+      }
+      
+      // The exe's answer to a setting of the HUD group (root.srp_check_option):
+      // its name, label and saved state (shown, so no change is pending).
+      public function setCheckOption(values:Array) : void
+      {
+         if(values.length > 0 && values[0] == SrpMouseVertical.LOCKED)
+         {
+            this._mouse.answerLock(values.slice(1));
+            this.mouseChanged(null);
+            this.layoutControls();
+            return;
+         }
+         if(values.length > 0 && values[0] == SrpCrosshairChoice.NAME)
+         {
+            this._crosshair.answer(values.slice(1));
+            this.crosshairChanged(null);
+            return;
+         }
+         if(values.length > 0 && SrpRendererChoice.named(values[0]))
+         {
+            this._renderer.answer(values);
+            this.rendererChanged(null);
+            return;
+         }
+         this._hudGroup.answer(values);
+         var option:SrpCheckOption = values.length > 0 ? this._hudGroup.option(values[0]) : null;
+         if(option != null)
+         {
+            this.checkChanged(option);
+         }
+      }
+      
+      // The exe's answer to the vertical sensitivity (root.srp_slider_option, patch 112): its name,
+      // label and saved hundredths.
+      public function setSliderOption(values:Array) : void
+      {
+         if(values.length > 0 && values[0] == SrpFieldOfView.NAME)
+         {
+            this._fov.answer(values);
+            this.fovChanged(null);
+            this.layoutGameplay();
+            return;
+         }
+         this._mouse.answerVertical(values);
+         this.mouseChanged(null);
+         this.layoutControls();
+      }
+      
+      // The HUD group's own texts (root.srp_hud_texts): the heading, "Hide quests", the crosshair
+      // list's three choices, "Static minimap"; then the Renderer list's two choices, its note, and
+      // the Vulkan options' button and its five options' hints.
+      public function setHudTexts(values:Array) : void
+      {
+         if(values.length >= 15)
+         {
+            _hudTexts = values;
+            this.applyHudTexts();
+            this._renderer.texts(values[6],values[7],values[8],values[9],values.slice(10,15));
+         }
+      }
+      
+      // The HUD group's texts on its controls: the stock ones' labels (which each bind of the tab
+      // sets again from the exe's settings) replaced.
+      protected function applyHudTexts() : void
+      {
+         var c:MovieClip = this.settings_content;
+         if(this._hudTexts == null || c.currentFrame != 1)
+         {
+            return;
+         }
+         this._hudGroup.title(this._hudTexts[0]);
+         c._setter_static_show_quests.label = this._hudTexts[1];
+         this._crosshair.texts(this._hudTexts[2],this._hudTexts[3],this._hudTexts[4]);
+         c._setter_static_minimap.label = this._hudTexts[5];
+      }
+      
+      // The stock checkboxes the HUD group shows inverted: "Hide quests" is the stock "Show quest
+      // progress in match" unchecked. The menu shows and takes the opposite of the stock value; the
+      // exe gives and gets the stock one (update_value, someOneSelected, onAccept).
+      private static const INVERTED:Array = ["_setter_static_show_quests"];
+      
+      protected function flip(control:Object, value:*) : Boolean
+      {
+         var on:Boolean = Boolean(value);
+         return INVERTED.indexOf(control.name) != -1 ? !on : on;
+      }
+      
       public function selectIndex(tabIndex:uint) : void
       {
          this.tabs.selectedIndex = tabIndex;
@@ -218,6 +361,7 @@ package survarium.menu
       public function hide() : void
       {
          var messageData:Object;
+         this._renderer.close();
          if(this.btn_accept.enabled)
          {
             messageData = {
@@ -360,6 +504,8 @@ package survarium.menu
             {
                this.settings_content.keysLobby.height = this.settings_content.keysLobby.dataProvider.length * this.settings_content.keysLobby.rowHeight;
             }
+            // the chat's rows decide where its group stands in the right column
+            this.layoutControls();
          }
       }
       
@@ -374,6 +520,30 @@ package survarium.menu
             if(this._changed[control])
             {
                this._changed[control] = 0;
+               if(control == this._language.menu)
+               {
+                  this._language.save();
+               }
+               else if(control == this._crosshair.menu)
+               {
+                  this._crosshair.save();
+               }
+               else if(control == this._fov.slider)
+               {
+                  this._fov.save();
+               }
+               else if(control == this._mouse.check.box || control == this._mouse.slider)
+               {
+                  this._mouse.save();
+               }
+               else if(control == this._renderer.menu)
+               {
+                  this._renderer.save();
+               }
+               else if(this.checkOf(control) != null)
+               {
+                  this.checkOf(control).save();
+               }
                elementIndex = (this._element_map[this.tabs.selectedIndex].indexOf(control.name));
                if(elementIndex != -1)
                {
@@ -383,7 +553,7 @@ package survarium.menu
                   }
                   else if(control is CheckBoxMultiline)
                   {
-                     newValue = uint(control.selected);
+                     newValue = uint(this.flip(control,control.selected));
                   }
                   else if(false || control is ListItemRenderer)
                   {
@@ -417,6 +587,15 @@ package survarium.menu
          {
             this._changed[control] = 0;
          }
+         this._language.revert();
+         for each(var option:SrpCheckOption in this._hudGroup.options)
+         {
+            option.revert();
+         }
+         this._crosshair.revert();
+         this._mouse.revert();
+         this._fov.revert();
+         this._renderer.revert();
          this.btn_accept.enabled = false;
          this.btn_cancel.label = this._exitLabel;
          _changes = 0;
@@ -438,7 +617,7 @@ package survarium.menu
          g.drawRect(0,0,this.bottomContainer.width / this.bottomContainer.scaleX,this.bottomContainer.height / this.bottomContainer.scaleY);
          g.endFill();
          this.bottomContainer.tiledSprite.setTile(new HintLinePattern());
-         this._labels_map[0] = ["s_friends","s_cross","s_chat","s_minimap","s_minimap_position","s_quest_propgress","s_seed_settings"];
+         this._labels_map[0] = ["s_friends","s_cross","s_chat","s_minimap","s_minimap_position","s_quest_propgress"];
          this._labels_map[1] = ["s_lobby","s_chat_keys","s_game","button_default_controls"];
          this._labels_map[2] = ["graphic","button_default_video","button_optimal_video","adjust_gamma"];
          this._labels_map[3] = ["s_sound_volume","s_voice_chat"];
@@ -448,14 +627,44 @@ package survarium.menu
          this.btn_accept.addEventListener(ButtonEvent.CLICK,this.onAccept);
          this._element_map[0] = ["_setter_invite","_setter_message","_set_censure","_only_friends","_no_in_batle","_hide_spam","theCross","_setter_static_cross","_setter_static_minimap","_setter_static_minimap_position","_setter_static_show_quests","_slider_quest_alpha","_setter_static_use_seed","_upload_speed","_setter_kill_cross","_setter_static_allow_statistics"];
          this._element_map[1] = ["_setter_inverse_mouse","_slider_mouse_sens","_default_button","keysLobby","keysChat","keysGame"];
-         this._element_map[2] = ["_select_monitor","_fscr_resolution","_fullscreen","_vsync","_antialias","_filtering","gamma_option","_slider_fov","_overall_graphics","_texture_q","_geometry_q","_shadow_q","_lighting_q","_water_q","_decorations","_post_process","_ao_q","_particples_q","_motion_blur"];
+         // index 7, the video options' "FOV" (the original's dead "fov" again): no control; the field of
+         // view is the gameplay tab's (SrpFieldOfView, patch 83's uro_fov)
+         this._element_map[2] = ["_select_monitor","_fscr_resolution","_fullscreen","_vsync","_antialias","_filtering","gamma_option","","_overall_graphics","_texture_q","_geometry_q","_shadow_q","_lighting_q","_water_q","_decorations","_post_process","_ao_q","_particples_q","_motion_blur","_distance_detail"];
          this._element_map[3] = ["_total_volume","_game_volume","_sound_volume","_sound_сhat","_use_mik","_mic_sens","_ptt"];
+         this._hudGroup = new SrpCheckGroup(this.settings_content,this.settings_content.s_friends,HUD_OPTIONS);
+         for each(var option:SrpCheckOption in this._hudGroup.options)
+         {
+            this._changed[option.box] = 0;
+            option.box.addEventListener(Event.SELECT,this.onCheckSelect);
+         }
+         this._crosshair = new SrpCrosshairChoice(this.settings_content);
+         this._changed[this._crosshair.menu] = 0;
+         this._crosshair.menu.addEventListener(ListEvent.INDEX_CHANGE,this.onCrosshairPick);
+         this._mouse = new SrpMouseVertical(this.settings_content);
+         this._changed[this._mouse.check.box] = 0;
+         this._changed[this._mouse.slider] = 0;
+         this._fov = new SrpFieldOfView(this.settings_content);
+         this._changed[this._fov.slider] = 0;
+         this._fov.slider.addEventListener(IndexEvent.INDEX_CHANGE,this.fovChanged);
+         this._mouse.check.box.addEventListener(Event.SELECT,this.mouseChanged);
+         this._mouse.slider.addEventListener(IndexEvent.INDEX_CHANGE,this.mouseChanged);
+         this._renderer = new SrpRendererChoice(this.settings_content);
+         this._changed[this._renderer.menu] = 0;
+         this._renderer.listen(this.rendererChanged);
+         this._language = new SrpLanguage(this.settings_content,this.settings_content.s_friends);
+         this._changed[this._language.menu] = 0;
+         this._language.menu.addEventListener(ListEvent.INDEX_CHANGE,this.languageChanged);
          this.tabs.addEventListener(IndexEvent.INDEX_CHANGE,this.takeAction);
       }
       
       protected function create_content(settings:Array) : void
       {
-         SrpFovSlider.apply(this);
+         this._hudGroup.place();
+         this._mouse.place();
+         this._fov.place();
+         this._renderer.place();
+         SrpDistanceDetail.apply(this);
+         this._language.place();
          var key:Object;
          var tabIndex:uint;
          var i:int;
@@ -487,22 +696,22 @@ package survarium.menu
                {
                   control.label = setting.label;
                }
-               if(settings[i].dataProvider && ((!(settings[i].dataProvider is Array)) || settings[i].dataProvider is Array && settings[i].dataProvider.length))
+               if(setting.dataProvider && ((!(setting.dataProvider is Array)) || setting.dataProvider is Array && setting.dataProvider.length))
                {
                   if(control is OptionSlider)
                   {
-                     control.dataProvider = settings[i].dataProvider;
+                     control.dataProvider = setting.dataProvider;
                   }
                   else
                   {
                      items = new Array();
                      j = 0;
-                     while(j < settings[i].dataProvider.length)
+                     while(j < setting.dataProvider.length)
                      {
-                        if(!(settings[i].dataProvider[j] is String))
+                        if(!(setting.dataProvider[j] is String))
                         {
                            items[j] = new Object();
-                           source = settings[i].dataProvider[j];
+                           source = setting.dataProvider[j];
                            for(field in source)
                            {
                               items[j][field] = source[field];
@@ -510,7 +719,7 @@ package survarium.menu
                         }
                         else
                         {
-                           items[j] = settings[i].dataProvider[j];
+                           items[j] = setting.dataProvider[j];
                         }
                         j++;
                      }
@@ -548,15 +757,30 @@ package survarium.menu
             }
             i++;
          }
-         // "Hide chat in match" (option 4 of the gameplay tab; exe patch 58 gives it its
-         // variable, docs/notes/match-hud-options.md): the timeline enables it where it makes
-         // the checkbox (settingsTabs_15); again here, after the tab's settings are bound.
-         var hideChat:UIComponent = this.settings_content["_no_in_batle"] as UIComponent;
-         if(hideChat)
+         // The options the exe patches give a variable: "Hide chat in match" (option 4 of the
+         // gameplay tab, patch 58, docs/notes/match-hud-options.md), "Disable voice chat" (its
+         // option 5) and "Use microphone" (the sound tab's 4; patch 66, docs/notes/voice-chat.md).
+         // The timeline enables them where it makes the checkboxes (settingsTabs_15); again here,
+         // after the tab's settings are bound.
+         var live:Array = ["_no_in_batle","_hide_spam","_use_mik"];
+         var optionName:String;
+         var option:UIComponent;
+         for each(optionName in live)
          {
-            hideChat.enabled = true;
+            option = this.settings_content[optionName] as UIComponent;
+            if(option)
+            {
+               option.enabled = true;
+            }
          }
-         SrpFovSlider.finish(this);
+         SrpVideoTab.finish(this,this._renderer);
+         SrpDistanceDetail.finish(this);
+         // the HUD group, after the tab's settings are bound (their labels set)
+         this._crosshair.place();
+         this.applyHudTexts();
+         this.layoutGameplay();
+         this._mouse.bind();
+         this.layoutControls();
       }
       
       protected function someOneSelected(event:Event) : void
@@ -564,11 +788,11 @@ package survarium.menu
          var elementIndex:int;
          if(this._setters[event.target] && !this._ignoreChange)
          {
-            event.target.selected = this._setters[event.target](event.target.selected);
+            event.target.selected = this.flip(event.target,this._setters[event.target](this.flip(event.target,event.target.selected)));
             elementIndex = (this._element_map[this.tabs.selectedIndex].indexOf(event.target.name));
             this._content_values[this.tabs.selectedIndex][elementIndex] = event.target.selectedIndex;
          }
-         if(event.target.selected != this._elements[event.target])
+         if(this.flip(event.target,event.target.selected) != Boolean(this._elements[event.target]))
          {
             if(this._changed[event.target] != 1)
             {
@@ -631,6 +855,246 @@ package survarium.menu
          this.checkButtons();
       }
       
+      // A Language pick counts as the change of an option: it is pending while
+      // the selected language is not the saved one.
+      protected function languageChanged(event:Event) : void
+      {
+         this.listChanged(this._language.menu,this._language.pending);
+      }
+      
+      // Esc: the Vulkan options' panel closed, when it is open (MainMenu closes the window otherwise).
+      public function closePanel() : Boolean
+      {
+         return this._renderer.close();
+      }
+      
+      // A Renderer pick or a Vulkan option changed, the same way.
+      protected function rendererChanged(event:Event) : void
+      {
+         this.listChanged(this._renderer.menu,this._renderer.pending);
+      }
+      
+      // A move of the field of view slider, the same way.
+      protected function fovChanged(event:Event) : void
+      {
+         this.listChanged(this._fov.slider,this._fov.pending);
+      }
+
+      // One of srp's lists (or the field of view slider) counts as a changed option while `pending`.
+      protected function listChanged(menu:Object, pending:Boolean) : void
+      {
+         if(pending)
+         {
+            if(this._changed[menu] != 1)
+            {
+               this._changed[menu] = 1;
+               _changes += 1;
+            }
+         }
+         else if(this._changed[menu] == 1)
+         {
+            this._changed[menu] = 0;
+            _changes -= 1;
+         }
+         this.checkButtons();
+      }
+      
+      // The gameplay tab's groups in its two columns, each group's heading over its controls, at the
+      // tab's own spacing (the timeline's, read once): on the left "Friends:" and the Language choice;
+      // on the right srp's "HUD:" group: the crosshair list (Dynamic, Static, Hidden), Hide hit
+      // markers, Hide player scores, then the stock quest progress checkbox (shown as "Hide quests")
+      // and the stock minimap controls ("Static minimap", the minimap position list), moved here with
+      // their own bindings. Not shown: the stock "Crosshair:" and "Quest progress:" headings, the
+      // static crosshair checkbox (the crosshair list sets it) and the quest progress transparency
+      // slider (its value stays as the exe gives it). The bottom panel (the seeding and statistics
+      // options', hidden) is not shown there: the columns run on over it.
+      protected function layoutGameplay() : void
+      {
+         var c:MovieClip = this.settings_content;
+         if(c.currentFrame != 1)
+         {
+            // the other tabs keep their bottom panel (the timeline may keep one instance across frames)
+            if(c.bottomContainer != null)
+            {
+               c.bottomContainer.visible = true;
+            }
+            return;
+         }
+         var space:Object = this._gameplaySpacing;
+         if(space == null)
+         {
+            // from the timeline's own places, before anything is moved
+            space = {"leftFirst":c._setter_invite.y - c.s_friends.y,"step":c._setter_message.y - c._setter_invite.y,
+               "rightFirst":c._setter_static_cross.y - c.s_cross.y,
+               "gap":c.s_quest_propgress.y - c._setter_static_minimap_position.y,
+               "dropdown":c._setter_static_minimap_position.y - c._setter_static_minimap.y,
+               "dropdownX":c._setter_static_minimap_position.x - c._setter_static_minimap.x,
+               "top":c.s_friends.y,
+               "leftHeading":c.s_friends.x,"leftControl":c._setter_invite.x,
+               "rightHeading":c.s_cross.x,"rightControl":c._setter_static_cross.x};
+            _gameplaySpacing = space;
+         }
+         // the left column: Friends (as the timeline has it), then Language
+         this._language.layout(c.s_friends,space.leftHeading,space.leftControl + space.dropdownX,
+            c._hide_spam.y + space.gap,space.leftFirst);
+         // the right column: the HUD group, each row a step under the last (a list under a checkbox
+         // as the minimap's is), a list one further right as the timeline has them; the map's rows
+         // (Names on map, Static minimap, the minimap position list) last
+         this._hudGroup.layout(c.s_friends,space.rightHeading,space.top);
+         var rows:Array = [this._crosshair.menu];
+         for each(var option:SrpCheckOption in this._hudGroup.options)
+         {
+            if(option.name != MAP_OPTION)
+            {
+               rows.push(option.box);
+            }
+         }
+         rows.push(c._setter_static_show_quests,this._hudGroup.option(MAP_OPTION).box,c._setter_static_minimap,
+            c._setter_static_minimap_position);
+         var y:Number = space.top + space.rightFirst;
+         for(var i:int = 0; i < rows.length; i++)
+         {
+            var list:Boolean = rows[i] is DropdownMenu;
+            if(i > 0)
+            {
+               y += list ? space.dropdown : space.step;
+            }
+            rows[i].x = space.rightControl + (list ? space.dropdownX : 0);
+            rows[i].y = y;
+         }
+         // then the field of view, a group of its own: its label a heading as the others (their
+         // look), at the column's headings' x the tab's gap under the minimap list, the slider under it
+         this._fov.layout(c.s_friends,space.rightHeading,c._setter_static_minimap_position.y + space.gap);
+         c.s_cross.visible = c._setter_static_cross.visible = false;
+         c.s_quest_propgress.visible = c._slider_quest_alpha.visible = false;
+         c.bottomContainer.visible = false;
+      }
+      
+      // A pick in the crosshair list: Dynamic or Static is the stock checkbox's change; Hidden
+      // picked or dropped is the list's own, pending while it is not the saved one.
+      protected function onCrosshairPick(event:Event) : void
+      {
+         this._crosshair.pick();
+         this.crosshairChanged(event);
+      }
+      
+      protected function crosshairChanged(event:Event) : void
+      {
+         this.listChanged(this._crosshair.menu,this._crosshair.pending);
+      }
+      
+      // A toggle of "Lock vertical sensitivity" or a move of its slider: each pending while it is
+      // not the saved state.
+      protected function mouseChanged(event:Event) : void
+      {
+         var pairs:Array = [[this._mouse.check.box,this._mouse.check.pending],[this._mouse.slider,this._mouse.verticalPending]];
+         for each(var pair:Array in pairs)
+         {
+            if(pair[1])
+            {
+               if(this._changed[pair[0]] != 1)
+               {
+                  this._changed[pair[0]] = 1;
+                  _changes += 1;
+               }
+            }
+            else if(this._changed[pair[0]] == 1)
+            {
+               this._changed[pair[0]] = 0;
+               _changes -= 1;
+            }
+         }
+         this.checkButtons();
+      }
+      
+      // The controls tab's left column: the stock Mouse sensitivity slider, then patch 112's
+      // "Lock vertical sensitivity" and "Vertical sensitivity" under it, then Invert mouse and the
+      // lobby's keys, at the tab's own spacing (the timeline's, read once). The chat's keys go to the
+      // right column under the game's, whose list (it scrolls) ends where they begin.
+      protected static const GAME_LIST_GAP:Number = 4;
+
+      protected function layoutControls() : void
+      {
+         var c:MovieClip = this.settings_content;
+         if(c.currentFrame != KEYS_TAB + 1 || c._slider_mouse_sens == null)
+         {
+            return;
+         }
+         var space:Object = this._controlsSpacing;
+         if(space == null)
+         {
+            space = {"slider":c._slider_mouse_sens.y,"box":c._setter_inverse_mouse.y - c._slider_mouse_sens.y,
+               "boxX":c._setter_inverse_mouse.x,"heading":c.s_lobby.y - c._setter_inverse_mouse.y,
+               "list":c.keysLobby.y - c.s_lobby.y,
+               "chatList":c.keysChat.y - c.s_chat_keys.y,"headingX":c.s_chat_keys.x - c.keysChat.x,
+               "bottom":c.keysGame.y + c.keysGame.height,
+               "sliderTop":c._slider_mouse_sens.y - c._slider_mouse_sens.getBounds(c).top,
+               "gap":c._setter_inverse_mouse.y - c._slider_mouse_sens.getBounds(c).bottom};
+            _controlsSpacing = space;
+         }
+         var box:Object = this._mouse.check.box;
+         var vertical:Object = this._mouse.slider;
+         box.x = space.boxX;
+         box.y = space.slider + space.box;
+         // the vertical slider under the box as the box is under the main slider (its drawn label's
+         // bottom to the slider's top)
+         vertical.x = c._slider_mouse_sens.x;
+         vertical.y = box.y + Math.max(box.textField.y + box.textField.textHeight + 4,26) + space.gap + space.sliderTop;
+         c._setter_inverse_mouse.y = vertical.y + space.box;
+         c.s_lobby.y = c._setter_inverse_mouse.y + space.heading;
+         c.keysLobby.y = c.s_lobby.y + space.list;
+         // the chat's keys at the right column's bottom (where the game's list ended), the game's list
+         // over them; their rows as applyKeys sizes the list
+         var chatRows:int = c.keysChat.dataProvider != null && c.keysChat.dataProvider.length > 0 ? c.keysChat.dataProvider.length : 3;
+         c.keysChat.x = c.keysGame.x;
+         c.keysChat.y = space.bottom - chatRows * c.keysChat.rowHeight;
+         c.s_chat_keys.x = c.keysGame.x + space.headingX;
+         c.s_chat_keys.y = c.keysChat.y - space.chatList;
+         // the game's list is whole rows (its scroll bar is as tall as the list: a part of a row
+         // left under the last one showed as room for one more; the owner, 2026-11-11): as many as
+         // fit over the chat's heading, the gap to it the tab's own at most, GAME_LIST_GAP at least
+         c.keysGame.height = Math.floor((c.s_chat_keys.y - GAME_LIST_GAP - c.keysGame.y) / c.keysGame.rowHeight) * c.keysGame.rowHeight;
+      }
+      
+      // The option of the HUD group whose checkbox `control` is, or null.
+      protected function checkOf(control:Object) : SrpCheckOption
+      {
+         for each(var option:SrpCheckOption in this._hudGroup.options)
+         {
+            if(option.box == control)
+            {
+               return option;
+            }
+         }
+         return null;
+      }
+      
+      protected function onCheckSelect(event:Event) : void
+      {
+         this.checkChanged(this.checkOf(event.target));
+      }
+      
+      // A toggle of a checkbox of the HUD group counts as the change of an option:
+      // it is pending while the checkbox is not the saved state.
+      protected function checkChanged(option:SrpCheckOption) : void
+      {
+         var box:CheckBoxSkinned = option.box;
+         if(option.pending)
+         {
+            if(this._changed[box] != 1)
+            {
+               this._changed[box] = 1;
+               _changes += 1;
+            }
+         }
+         else if(this._changed[box] == 1)
+         {
+            this._changed[box] = 0;
+            _changes -= 1;
+         }
+         this.checkButtons();
+      }
+      
       protected function checkButtons() : void
       {
          if(!this._changes)
@@ -674,13 +1138,15 @@ package survarium.menu
                {
                   this._changed[control] = 0;
                }
-               control.selected = value;
+               control.selected = this.flip(control,value);
             }
             if(control is UIComponent)
             {
                control.invalidateData();
             }
          }
+         // the locked vertical slider follows the main one, which a set value does not tell
+         this._mouse.followMain();
       }
       
       protected function update_values(tabIndex:uint, isBaseline:Boolean = false) : void
@@ -706,6 +1172,22 @@ package survarium.menu
       protected function contre_pass() : void
       {
          _changes = 0;
+         this._changed[this._language.menu] = 0;
+         this._language.revert();
+         for each(var option:SrpCheckOption in this._hudGroup.options)
+         {
+            this._changed[option.box] = 0;
+            option.revert();
+         }
+         this._changed[this._crosshair.menu] = 0;
+         this._crosshair.revert();
+         this._changed[this._mouse.check.box] = 0;
+         this._changed[this._mouse.slider] = 0;
+         this._mouse.revert();
+         this._changed[this._fov.slider] = 0;
+         this._fov.revert();
+         this._changed[this._renderer.menu] = 0;
+         this._renderer.revert();
          this.checkButtons();
          this.settings_content.gotoAndStop(this.tabs.selectedIndex + 1);
          this.create_labels(this.tabs.selectedIndex);

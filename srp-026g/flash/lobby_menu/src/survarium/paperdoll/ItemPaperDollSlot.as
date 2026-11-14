@@ -6,6 +6,7 @@ package survarium.paperdoll
    import scaleform.clik.events.DragEvent;
    import scaleform.clik.events.SliderEvent;
    import survarium.data.Relocation;
+   import survarium.constants.BuyOrigin;
    import survarium.constants.Events;
    import survarium.data.ItemData;
    import survarium.interfaces.ILocalPaperDoll;
@@ -61,7 +62,7 @@ package survarium.paperdoll
             isDropped = true;
             relocation = Relocation.move(profileId,itemId,dictId,index,targetDescriptor,_data.condition_or_stack);
             _relocateArray = [relocation];
-            playerProfile._relocateFunction(_relocateArray);
+            playerProfile.relocate(_relocateArray);
          }
          super.dropSlot(forced);
       }
@@ -141,7 +142,7 @@ package survarium.paperdoll
                trace_relocate(_relocateArray);
             }
             trace("descriptors::",event.dragTarget.descriptor,event.dropTarget.descriptor,item.descriptor);
-            MainScene.buyFunction(playerProfile.profileId,item.itemId,item.dictId,item.descriptor,event.dropTarget.descriptor,buyCount,item.cost,item.factionId);
+            MainScene.buyFunction(playerProfile.profileId,item.itemId,item.dictId,item.descriptor,event.dropTarget.descriptor,buyCount,item.cost,BuyOrigin.SHOP,item.factionId);
             dispatchEvent(new Event(Events.DROP_IN));
             return false;
          }
@@ -153,17 +154,17 @@ package survarium.paperdoll
             if(index != ProfileSlot.WEAPON_1 && index != ProfileSlot.WEAPON_2)
             {
                trace_relocate(_relocateArray);
-               result = playerProfile._relocateFunction(_relocateArray);
+               playerProfile.relocate(_relocateArray);
             }
             else if(targetDescriptor != ItemPlace.INVENTORY)
             {
                trace_relocate(_relocateArray);
-               result = playerProfile._relocateFunction(_relocateArray);
+               playerProfile.relocate(_relocateArray);
             }
             else
             {
                trace_relocate(_relocateArray);
-               result = playerProfile._relocateFunction(_relocateArray);
+               playerProfile.relocate(_relocateArray);
             }
          }
          else
@@ -174,9 +175,9 @@ package survarium.paperdoll
                if(event.dropTarget && !(event.dragTarget is IPaperDollSlot))
                {
                   trace("relocateFabrica:other");
-                  _relocateArray = [Relocation.move(profileId,itemId,dictId,sourceDescriptor,targetDescriptor,index >= ProfileSlot.QUICK_1 && index <= ProfileSlot.QUICK_6 ? LocalPaperDoll.pocketUnits(_data as ItemData,item) : 1)];
+                  _relocateArray = [Relocation.move(profileId,itemId,dictId,sourceDescriptor,targetDescriptor,index >= ProfileSlot.QUICK_1 && index <= ProfileSlot.QUICK_6 ? LocalPaperDoll.pocketUnits(item) : 1)];
                   trace_relocate(_relocateArray);
-                  result = playerProfile._relocateFunction(_relocateArray);
+                  playerProfile.relocate(_relocateArray);
                }
                else
                {

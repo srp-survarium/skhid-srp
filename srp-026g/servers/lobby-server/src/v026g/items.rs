@@ -1,27 +1,35 @@
 //! The requests about one item (`lobby_requests.md`): its cosmetics
 //! (`46 01`, `02`, `05`), changing a modification (`46 06`..`08`),
-//! upgrading it with a donor (`46 09`) and the repair (`47 03`). The rules
+//! upgrading it with a donor (`46 09`). The rules
 //! are `session::v026g::items_rules`; here is what the client is sent for
 //! each, and what it needs to get out of the state its window is in:
 //!
 //! | request | done | refused |
 //! |---|---|---|
-//! | `46 01` attach | `83 46 01`, then the inventory and the account | `84 46` `st_cannot_upgrade_item`, then the inventory and the account (the window showed the cosmetic in its slot already) |
-//! | `46 02` detach | `83 46 02`, then the same (also for a cosmetic that is gone: sold, Flash's `on_item_sold` asks after the sale) | the same |
+//! | `46 01` attach | `83 46 01`, then the inventory and the account; on a weapon the inventory and the account alone | `84 46` `st_cannot_upgrade_item`, then the inventory and the account (the window showed the cosmetic in its slot already) |
+//! | `46 02` detach | `83 46 02`, then the same (also for a cosmetic that is gone: sold, Flash's `on_item_sold` asks after the sale); on a weapon the inventory and the account alone | the same |
 //! | `46 05` place a decal | nothing: the client wrote the value itself and has no handler for an answer; on a weapon the inventory and the account (patch 47: the lobby builds the weapon again with it) | `84 46`, then the inventory and the account |
 //! | `46 06` window opened | `83 46 06`, and `83 46 07` again for a change not chosen yet | `84 46` `st_cannot_select_rerolled_modification` |
 //! | `46 07` reroll | `83 46 07` and the money | `84 46`, then `83 46 06`: the window is locked until it is filled again |
 //! | `46 08` choose | `83 46 08` (the client changes its copies itself; keeping the old one: the old one into itself) | `84 46`, then `83 46 06` (and `07`) |
 //! | `46 09` craft | `83 46 09`, then the inventory, the account and the money | `83 46 09 FE`: the window waits for a result, and shows `st_cannot_craft_item` for this one |
-//! | `47 03` repair | `83 47 03`, then the inventory (the client leaves the defects on its copy), the account and the money | `84 47` with the rule's text |
 //!
-//! A repair paid in silver for an item with defects takes time: when it is
-//! over the client is told with an important message, `#ir[<item>]`.
+//! There is no repair (the owner, 2026-11-08): `47 03` is not read
+//! (`core`'s unreadable request, `84 47 st_cannot_buy_item`).
+//!
+//! A weapon's upgrades are the weapon kit's (`items_rules`,
+//! `survarium::v026g::weapon_kit`): up to six, sent packed into three
+//! records. The client's own copy of an attach or a detach (`83 46 01`,
+//! `83 46 02`) would write a record of a logical slot into its item, a
+//! fourth beside the decals and the kit (the client's fatal assert), or
+//! take the kit off for its own; so a weapon's change is answered with the
+//! inventory and the account alone, which the client takes as they are
+//! (patch 48's preview waits for the account).
 
 use session::LockExt;
 use session::v026g::items_rules::{self, Detached, ItemError, RerollWindow};
-use session::v026g::{quests, wire};
-use survarium::v026g::lobby::requests::{RepairPayment, id};
+use session::v026g::wire;
+use survarium::v026g::lobby::requests::id;
 use survarium::v026g::lobby::{self, Crafted};
 
 use super::core::{Core, Who};
@@ -39,13 +47,24 @@ impl Core<'_> {
         self.squads_dirty = true;
     }
 
+    /// `host` is a weapon of the account: its upgrades are the weapon
+    /// kit's, answered with the inventory and the account alone.
+    fn is_weapon(&self, who: &Who, host: u32) -> bool {
+        who.account
+            .locked()
+            .item(host)
+            .is_some_and(|item| items_rules::is_weapon(item.dict_id))
+    }
+
     // ------------------------------------------------------- cosmetics
 
     /// `46 01 <kit> <host> <upgrade> <slot> <u64 0>`.
     pub(super) fn attach_upgrade(&mut self, who: &Who, host: u32, upgrade: u32, slot: u8) {
         let attached =
             items_rules::attach_upgrade(&mut who.account.locked(), host, upgrade, slot);
+        let weapon = self.is_weapon(who, host);
         match attached {
+            Ok(_) if weapon => None,
             Ok(attached) => self.send(
                 who.addr,
                 lobby::permitted_upgrade_attached(
@@ -66,8 +85,10 @@ impl Core<'_> {
 
     /// `46 02 <kit> <upgrade> <host>` (the host is patch 30's).
     pub(super) fn detach_upgrade(&mut self, who: &Who, host: u32, upgrade: u32) {
+        let weapon = self.is_weapon(who, host);
         let detached = items_rules::detach_upgrade(&mut who.account.locked(), host, upgrade);
         match detached {
+            Ok(_) if weapon => {}
             // Gone: Flash's on_item_sold, after the sale's answer (the
             // cosmetic came off every item with it). It is off: a refusal
             // would show the player an error for the sale.
@@ -108,8 +129,9 @@ impl Core<'_> {
             who.addr,
             lobby::permitted_reroll_window(
                 window.item_id,
-                window.regular_cost,
-                window.premium_cost,
+                window.cost,
+                // Nothing is paid in gold.
+                0,
                 window.changed,
             ),
         );
@@ -145,16 +167,14 @@ impl Core<'_> {
         }
     }
 
-    /// `46 07 <item> <modification> <gold>`.
-    pub(super) fn reroll_modifier(&mut self, who: &Who, item_id: u32, modification: u32, gold: bool) {
+    /// `46 07 <item> <modification>`.
+    pub(super) fn reroll_modifier(&mut self, who: &Who, item_id: u32, modification: u32) {
         let rolled = {
             let mut account = who.account.locked();
             items_rules::reroll(
                 &mut account,
                 item_id,
                 modification,
-                gold,
-                quests::now(),
                 &mut self.rng,
             )
             .map(|rolled| (rolled, wire::money(&account)))
@@ -170,7 +190,7 @@ impl Core<'_> {
                     );
                 } else {
                     log::info!(
-                        "{} changes modification {modification} of item {item_id} for {:?}",
+                        "{} changes modification {modification} of item {item_id} for {} silver",
                         who.name,
                         rolled.paid
                     );
@@ -183,7 +203,7 @@ impl Core<'_> {
                 self.send(who.addr, money);
                 if let Some(player) = self.player_mut(who.addr) {
                     let account = who.account.locked();
-                    player.money_sent = (account.generic_money, account.premium_money);
+                    player.money_sent = account.generic_money;
                 }
             }
             Err(error) => {
@@ -225,7 +245,7 @@ impl Core<'_> {
                         item_id,
                         chosen.old_modification,
                         chosen.new_modification,
-                        [window.regular_cost, window.premium_cost, wait],
+                        [window.cost, 0, wait],
                     ),
                 );
             }
@@ -238,8 +258,8 @@ impl Core<'_> {
 
     // ----------------------------------------------------------- craft
 
-    /// `46 09 <item> <donor> <gold>`.
-    pub(super) fn craft(&mut self, who: &Who, item_id: u32, donor: u32, gold: bool) {
+    /// `46 09 <item> <donor>`.
+    pub(super) fn craft(&mut self, who: &Who, item_id: u32, donor: u32) {
         let queued = self
             .player(who.addr)
             .is_some_and(|player| player.queued_since.is_some());
@@ -247,51 +267,19 @@ impl Core<'_> {
             &mut who.account.locked(),
             item_id,
             donor,
-            gold,
             queued,
-            quests::now(),
             &mut self.rng,
         );
         match crafted {
             Ok(crafted) => {
                 log::info!("{} upgraded item {item_id} with {donor}: {crafted:?}", who.name);
-                self.send_made(who.addr, lobby::permitted_crafted(item_id, crafted));
+                self.send(who.addr, lobby::permitted_crafted(item_id, crafted));
                 self.item_changed(who);
             }
             Err(why) => {
                 log::info!("{}: an upgrade of item {item_id} refused: {why}", who.name);
-                self.send_made(who.addr, lobby::permitted_crafted(item_id, Crafted::Failed));
+                self.send(who.addr, lobby::permitted_crafted(item_id, Crafted::Failed));
             }
         }
-    }
-
-    // ---------------------------------------------------------- repair
-
-    /// `47 03 <item> <kind> [<kit item>]`.
-    pub(super) fn repair(&mut self, who: &Who, item_id: u32, payment: RepairPayment) {
-        let repaired =
-            items_rules::repair(&mut who.account.locked(), item_id, payment, quests::now());
-        match repaired {
-            Ok(repaired) => {
-                self.send_made(who.addr, lobby::permitted_repaired(item_id, repaired));
-                self.item_changed(who);
-            }
-            Err(error) => {
-                self.refuse_item(who, id::SHOP, &format!("a repair of item {item_id}"), error)
-            }
-        }
-    }
-
-    /// The pass of every tick: the repairs of a player in the lobby that
-    /// are over are told to its client (`#ir[<item>]`), which unlocks the
-    /// item.
-    pub(super) fn item_timers(&mut self, who: &Who) {
-        let done = items_rules::finish_repairs(&mut who.account.locked(), quests::now());
-        if done.is_empty() {
-            return;
-        }
-        self.accounts.mark_dirty(who.account_id);
-        let notices: Vec<_> = done.into_iter().map(items_rules::repaired_notice).collect();
-        self.notify(who, &notices);
     }
 }

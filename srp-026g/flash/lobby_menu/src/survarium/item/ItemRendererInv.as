@@ -1,20 +1,18 @@
 package survarium.item
 {
    import flash.display.MovieClip;
-   import flash.geom.ColorTransform;
+   import flash.display.Shape;
    import flash.text.TextField;
-   import survarium.Util;
    import survarium.constants.Colors;
    import survarium.controls.FixedText;
+   import survarium.controls.InventoryList;
    import survarium.controls.ItemRendererBase;
    import survarium.controls.LabelCost;
    import survarium.core.Icon;
    import survarium.data.ItemData;
    import survarium.upgrade.UpgradeWindow;
-   import survarium.constants.ItemCondition;
    import survarium.constants.ItemPlace;
    import survarium.constants.ItemRank;
-   import survarium.constants.MoneyType;
    import survarium.constants.RendererState;
    import survarium.constants.SuperCategory;
    
@@ -49,9 +47,47 @@ package survarium.item
       
       public var equippedBorder:MovieClip;
       
+      // A shop entry of an item the account owns (shop-owned-mark.md, the owner's of 2026-11-01): a
+      // green check mark on a dark square at the top-right corner, where an owned tile shows its
+      // equipped mark. The level (top-left) and the price (bottom) stay as they are.
+      protected var _ownedMark:Shape;
+
+      private static const OWNED_X:Number = 158;
+
+      private static const OWNED_Y:Number = 6;
+
+      private static const OWNED_SIZE:Number = 18;
+
       public function ItemRendererInv()
       {
          super();
+      }
+
+      protected function updateOwnedMark(show:Boolean) : void
+      {
+         if(!show)
+         {
+            if(this._ownedMark)
+            {
+               this._ownedMark.visible = false;
+            }
+            return;
+         }
+         if(!this._ownedMark)
+         {
+            this._ownedMark = new Shape();
+            this._ownedMark.graphics.beginFill(0,0.6);
+            this._ownedMark.graphics.drawRect(0,0,OWNED_SIZE,OWNED_SIZE);
+            this._ownedMark.graphics.endFill();
+            this._ownedMark.graphics.lineStyle(2.5,Colors.GREEN);
+            this._ownedMark.graphics.moveTo(4,9.5);
+            this._ownedMark.graphics.lineTo(7.5,13);
+            this._ownedMark.graphics.lineTo(14,5);
+            this._ownedMark.x = OWNED_X;
+            this._ownedMark.y = OWNED_Y;
+            addChild(this._ownedMark);
+         }
+         this._ownedMark.visible = true;
       }
       
       protected function updateScopeBadge(item:ItemData, show:Boolean) : void
@@ -114,14 +150,15 @@ package survarium.item
          {
             this._loadoutBadge.alpha = contentAlpha;
          }
+         if(this._ownedMark)
+         {
+            this._ownedMark.alpha = contentAlpha;
+         }
       }
       
       override protected function updateData() : void
       {
          var nameColor:uint = 0;
-         var condition:int = 0;
-         var trackColor:uint = 0;
-         var colorTransform:ColorTransform = null;
          var isShopRow:Boolean = false;
          var item:ItemData = _data as ItemData;
          super.updateData();
@@ -177,22 +214,12 @@ package survarium.item
             }
             this.equippedSprite.visible = item.equipped;
             this.equippedBorder.visible = item.equipped;
-            this.brokenIcon.visible = item.broken;
-            if(this.brokenIcon.visible)
-            {
-               this.brokenIcon.x = this.equippedSprite.visible ? 145 : 160;
-            }
+            this.brokenIcon.visible = false;
             this.paintedIcon.visible = Boolean(item.upgrades) && item.upgrades.length > 0;
             this.updateScopeBadge(item,true);
             this.updateLoadoutBadge(item.itemId,true,this.textFieldCount,this.textFieldInfo);
-            this.damageIndicator.visible = isOwnedItem && item.value < ItemCondition.FULL;
-            this.damageIndicator.track.scaleX = _data.value / ItemCondition.FULL;
-            condition = _data.value / ItemCondition.FULL * 510;
-            trackColor = Util.getColor(Math.min(510 - condition,255),Math.min(condition,255),0);
-            colorTransform = new ColorTransform();
-            colorTransform.color = trackColor;
-            this.damageIndicator.track.transform.colorTransform = colorTransform;
-            this.damageIndicator.track.alpha = 0.4;
+            // No damage bar or broken icon: items never wear (no repair, the owner 2026-11-08).
+            this.damageIndicator.visible = false;
          }
          else
          {
@@ -208,14 +235,15 @@ package survarium.item
          if(isShopItem)
          {
             this.labelCost.visible = true;
-            this.labelCost.moneyType = item.isPremium ? MoneyType.PREMIUM : MoneyType.REGULAR;
-            this.labelCost.textField.textColor = item.isPremium ? Colors.GOLD : Colors.PRICE_REG;
+            this.labelCost.textField.textColor = Colors.PRICE_REG;
             this.labelCost.cost = item.cost;
          }
          else
          {
             this.labelCost.visible = false;
          }
+         // A bundle's id is not an item's: only the shop's items.
+         this.updateOwnedMark(item.descriptor == ItemPlace.SHOP && InventoryList.owned(item.dictId));
          if(isStack && !isShopItem)
          {
             this.textFieldCount.visible = true;

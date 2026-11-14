@@ -38,7 +38,7 @@ Status words (`session::v026g::replays::Status`): `preparing` (being converted o
 - The recording writer (`record.rs`) tells the replays (`session::v026g::replays::Replays`) of each file it closes: kept, dropped under the minimum, deleted by the cap (its `.sur` and `.json` are deleted too). At start, replays whose recording is gone and `.part` files of a stopped server are deleted.
 - Checked before the recording is unpacked whole: its size against `SRP_REPLAY_MAX_RECORDING_MB`, then its header (the first record, in the first block, `record::read_header`) for the map, and so the mode's `.options` file. Only then are the notes read and the file converted.
 - When a failure is tried again (`replays::Failure`): a missing or unreadable mode file (the operator may add the files) after 10 minutes; a reading or writing error of the disk after 10 minutes, then 20, 40, ... 4 hours at most; anything of the recording itself (over the size cap, damaged, no known map, the conversion's own error) not again until a restart.
-- `sur_convert::convert_file` with the mode's `.options` from `SRP_GAME_MODES_DIR` (the file the map's `maps_dict` row names). Written: `SRP_REPLAY_DIR/<id:08x>.sur`, then the sidecar `<id:08x>.json` `{match_id, size, sha256, revisions (by place), account_ids (every place, late joiners too), made_at}`, each under `.part` first. A sidecar means its `.sur` is whole.
+- `sur_convert::convert_file` with the mode's `.options` of the server's game data (`gameplay/game_modes/` + the file the map's `maps_dict` row names, `game_data::shared`: the file the map's row was made of, so every map and mode srp plays has one). Written: `SRP_REPLAY_DIR/<id:08x>.sur`, then the sidecar `<id:08x>.json` `{match_id, size, sha256, revisions (by place), account_ids (every place, late joiners too), made_at}`, each under `.part` first. A sidecar means its `.sur` is whole.
 - The replays' own cap, `SRP_REPLAY_MAX_MB` (default 1000): after each conversion and at start, while the `<8 hex>.sur` and `.json` files are over it together, the oldest (by the `.sur`'s time) are deleted, the sidecar first; the one just made stays. A replay deleted so is made again from its recording when asked for.
 - The thread runs at the lowest priority on Linux: nice 19 for that thread itself (`setpriority(PRIO_PROCESS, gettid, 19)`, logged once if it fails; nothing on other systems). The container has one CPU (`SRP26_CPUS`) for the lobby, the web page and every match's ticks, which must never wait for a conversion; the first viewer waits longer while matches run.
 
@@ -91,7 +91,7 @@ It holds what every player of the match was sent (`sur_convert`'s chunks): chunk
 
 ## 8. Settings
 
-`SRP_REPLAY_DIR`, `SRP_GAME_MODES_DIR` (both needed, with `SRP_RECORD_DIR`; else `off`), `SRP_REPLAY_MAX_RECORDING_MB` (24), `SRP_REPLAY_MAX_MB` (1000: the replays' `.sur` and `.json` files together, outside `SRP_RECORD_MAX_MB`; the oldest go first). The compose file sets `SRP_REPLAY_DIR=/srv/srp/data/replays` and leaves `SRP_GAME_MODES_DIR` empty: replays are off until the operator copies the 79 `.options` files into the data volume and names that folder. The mode files are game data and are never put in the repository.
+`SRP_REPLAY_DIR` (needed, with `SRP_RECORD_DIR`; else `off`), `SRP_REPLAY_MAX_RECORDING_MB` (24), `SRP_REPLAY_MAX_MB` (1000: the replays' `.sur` and `.json` files together, outside `SRP_RECORD_MAX_MB`; the oldest go first). The compose file sets `SRP_REPLAY_DIR=/srv/srp/data/replays`. The mode files are the game data's (`SRP_GAME_DATA`): until 2026-11-10 they were a folder copied by hand (`SRP_GAME_MODES_DIR`), which no release refilled, so no map or mode added after it (Research, Blackout, the 0.21, 0.11 and 0.69 maps) could be converted.
 
 ## 9. Not proven
 
@@ -101,3 +101,23 @@ It holds what every player of the match was sent (`sur_convert`'s chunks): chunk
 - The nice 19 call was type-checked for Linux here, not run: the log says so at the thread's start if it fails.
 - One download of a token at a time: when a connection dies with no reset, the server's write waits up to 5 s (`IO_TIMEOUT`) before the slot is free; the updater tries again after 3 s, and a `503` then ends its try with "busy" (pressing "Download and watch" again works while the token lives).
 - Between the checks of `replay_file` and the open, the replay folder is the server's own (nothing else writes there); a link put there in that moment would be followed. The standard library has no "do not follow" open.
+
+## Solo matches against bots (2026-10-28)
+
+When recording is enabled, PvE keeps its recording after one human enters, even when
+`SRP_RECORD_MIN_PLAYERS` is higher. PvP still uses that configured threshold. No human entered:
+the recording is discarded as before. The actual threshold is written in each recording's header.
+A kept recording is considered before the replay service's missing-file/minimum-player fallback,
+so History can convert and serve it for its sole human participant.
+
+Lowering retention alone would lose the human's inputs: they are not relayed back to their owner,
+and server bots have no receiving client. `Game::relay_to_others` therefore records accepted human
+actions and kit choices in PvE after validation, duplicate suppression and late-input placement.
+The recorder writes full match times (not wrapping tick bytes), rotation/actions or the kit.
+`sur_convert` combines those with the bots' network relays and deduplicates any human relay copies
+in multi-human PvE. Raw inbound packets are not treated as accepted actions. Existing recording
+files remain readable. No recording starts a replay conversion until someone asks to watch it.
+
+Tests cover solo retention versus empty/PvP matches, accepted and rejected actions, kit choices,
+deduplication and conversion from a simulated solo PvE match. In-game playback of the new recording
+path still needs a playtest; no client was launched for these checks.

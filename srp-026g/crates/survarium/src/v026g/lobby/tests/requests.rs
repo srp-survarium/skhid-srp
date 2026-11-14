@@ -14,6 +14,61 @@ fn read(text: &str) -> ClientMessage {
 use ClientMessage as M;
 
 #[test]
+fn player_comments_accept_only_the_seven_menu_choices() {
+    let choices = [
+        (1, 1, PlayerComment::BotOrCheater),
+        (1, 2, PlayerComment::Swearing),
+        (1, 3, PlayerComment::UnsportingBehavior),
+        (1, 4, PlayerComment::AccountTrading),
+        (2, 1, PlayerComment::Friendly),
+        (2, 2, PlayerComment::GoodPlayer),
+        (2, 3, PlayerComment::BornLeader),
+    ];
+    for kind in (0..=u8::MAX).filter(|&kind| kind != super::super::CHAT_MUTE_ACTION) {
+        for reason in 0..=u8::MAX {
+            let parsed = parse(0x49, &[5, 3, b'B', b'o', b'b', kind, reason]);
+            match choices.iter().find(|(k, r, _)| (*k, *r) == (kind, reason)) {
+                Some((_, _, comment)) => {
+                    assert_eq!(comment.wire(), (kind, reason));
+                    assert_eq!(
+                        parsed,
+                        Ok(M::CommentAboutUser {
+                            nickname: "Bob".into(),
+                            comment: *comment,
+                        })
+                    );
+                }
+                None => assert_eq!(parsed, Err(ParseError::InvalidComment { kind, reason })),
+            }
+        }
+    }
+    assert!(matches!(
+        parse(0x49, &[5, 3, b'B', b'o', b'b', 1]),
+        Err(ParseError::Truncated { .. })
+    ));
+}
+
+#[test]
+fn chat_mute_extension_is_typed_and_rejects_unknown_modes() {
+    use super::super::ChatMuteMode::{Hidden, Placeholder};
+    for (wire, mode) in [
+        ("49 05 'Bob' FE 00", None),
+        ("49 05 'Bob' FE 01", Some(Hidden)),
+        ("49 05 'Bob' FE 02", Some(Placeholder)),
+    ] {
+        assert_eq!(
+            read(wire),
+            M::SetChatMute {
+                nickname: "Bob".into(),
+                mode
+            }
+        );
+    }
+    let bytes = h("49 05 'Bob' FE 03");
+    assert!(parse(bytes[0], &bytes[1..]).is_err());
+}
+
+#[test]
 fn sign_in_and_play() {
     assert_eq!(
         read("2E 78563412 FF"),
@@ -162,7 +217,11 @@ fn inventory_actions() {
         read("46 03 05000000 23010000"),
         M::UseDropCard { a0: 5, a1: 0x123 }
     );
-    assert_eq!(read("46 04 05000000"), M::UseItem { item_id: 5 });
+    // No usable items: the one-day premium voucher is gone.
+    assert_eq!(
+        parse(0x46, &h("04 05000000")),
+        Err(ParseError::UnknownSubType { id: 0x46, sub: 4 })
+    );
     assert_eq!(
         read("46 05 01000000 05000000 02000000 0807060504030201"),
         M::ApplyDecal {
@@ -178,7 +237,6 @@ fn inventory_actions() {
         M::RerollModifier {
             item_id: 5,
             modification_id: 1050,
-            flag: true
         }
     );
     assert_eq!(
@@ -191,11 +249,12 @@ fn inventory_actions() {
     );
     assert_eq!(
         read("46 09 05000000 06000000 00"),
-        M::Craft {
-            a0: 5,
-            a1: 6,
-            flag: false
-        }
+        M::Craft { a0: 5, a1: 6 }
+    );
+    // The stock windows' "paid in gold" byte is read and changes nothing.
+    assert_eq!(
+        read("46 09 05000000 06000000 01"),
+        M::Craft { a0: 5, a1: 6 }
     );
     assert_eq!(read("46 0A"), M::TutorialWeaponChosen);
 }
@@ -222,52 +281,29 @@ fn shop_actions() {
     );
     assert_eq!(
         read("47 02 07000000 00000000 00000000"),
-        M::BuyOffer {
-            offer_id: 7,
-            x: 0,
-            factor: 0.0
-        }
+        M::BuyOffer { offer_id: 7 }
     );
-    // The kit's id only for kind 2.
+    // No repair: srp has none.
     assert_eq!(
-        read("47 03 09000000 00"),
-        M::Repair {
-            item_id: 9,
-            payment: RepairPayment::Silver
-        }
+        parse(0x47, &h("03 09000000 00")),
+        Err(ParseError::UnknownSubType { id: 0x47, sub: 3 })
     );
+    // No exchange: gold is gone.
     assert_eq!(
-        read("47 03 09000000 01"),
-        M::Repair {
-            item_id: 9,
-            payment: RepairPayment::Gold
-        }
+        parse(0x47, &h("04 64000000")),
+        Err(ParseError::UnknownSubType { id: 0x47, sub: 4 })
     );
+    // No premium account: its offers' answers are not read.
     assert_eq!(
-        read("47 03 09000000 02 0C000000"),
-        M::Repair {
-            item_id: 9,
-            payment: RepairPayment::Kit { kit_item_id: 12 }
-        }
-    );
-    assert_eq!(read("47 04 64000000"), M::ExchangePremium { amount: 100 });
-    assert_eq!(read("47 04 FFFFFF3F"), M::ExchangePremium { amount: 0x3FFF_FFFF });
-    assert_eq!(read("47 04 05000040"), M::BuyPremium { gold: 5 });
-    assert_eq!(read("47 04 00000040"), M::BuyPremium { gold: 0 });
-    assert_eq!(
-        read("47 05 01000000 0000003F 02000000 03000000 04000000 02"),
-        M::AcceptPremiumWithBonuses {
-            a0: 1,
-            a1: 0.5,
-            a2: 2,
-            a3: 3,
-            a4: 4,
-            faction: 2
-        }
+        parse(
+            0x47,
+            &h("05 01000000 0000003F 02000000 03000000 04000000 02")
+        ),
+        Err(ParseError::UnknownSubType { id: 0x47, sub: 5 })
     );
     assert_eq!(
-        read("47 06 01000000 0000803E"),
-        M::AcceptPremiumWithDiscount { a0: 1, a1: 0.25 }
+        parse(0x47, &h("06 01000000 0000803E")),
+        Err(ParseError::UnknownSubType { id: 0x47, sub: 6 })
     );
 }
 
@@ -281,13 +317,8 @@ fn skills() {
         }
     );
     assert_eq!(read("48 00 00"), M::SetSkills { skills: Vec::new() });
-    assert_eq!(
-        read("48 01 01 00"),
-        M::ResetSkills {
-            branch: 1,
-            payment: 0
-        }
-    );
+    assert_eq!(read("48 01 01 00"), M::ResetSkills { branch: 1 });
+    assert_eq!(read("48 01 01 01"), M::ResetSkills { branch: 1 });
 }
 
 #[test]
@@ -297,35 +328,6 @@ fn kit_and_account_actions() {
         M::RenameKit {
             kit_id: 2,
             name: "Sniper".into()
-        }
-    );
-    assert_eq!(
-        read("49 01 01"),
-        M::SetAutobuy {
-            on: true,
-            repair: false
-        }
-    );
-    assert_eq!(
-        read("49 01 00"),
-        M::SetAutobuy {
-            on: false,
-            repair: false
-        }
-    );
-    // The lobby's number: 2 is auto-repair alone, 3 both.
-    assert_eq!(
-        read("49 01 02"),
-        M::SetAutobuy {
-            on: false,
-            repair: true
-        }
-    );
-    assert_eq!(
-        read("49 01 03"),
-        M::SetAutobuy {
-            on: true,
-            repair: true
         }
     );
     assert_eq!(read("49 02 02000000"), M::SetActiveKit { kit_id: 2 });
@@ -338,16 +340,14 @@ fn kit_and_account_actions() {
     assert_eq!(
         read("49 04 'Alice' 4D000000"),
         M::ChangeNickname {
-            nickname: "Alice".into(),
-            ticket_item_id: 77
+            nickname: "Alice".into()
         }
     );
     assert_eq!(
         read("49 05 'Bob' 01 02"),
         M::CommentAboutUser {
             nickname: "Bob".into(),
-            a: 1,
-            b: 2
+            comment: PlayerComment::Swearing
         }
     );
     assert_eq!(read("49 24 00"), M::HideVideoLink);

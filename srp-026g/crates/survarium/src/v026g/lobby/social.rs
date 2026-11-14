@@ -1,9 +1,37 @@
 //! Chat, friends, squads and clans on the lobby link, and the small pushes
 //! (`social.md`, `login_chat.md` §5).
 
+use super::lobby_pick::LobbyPick;
 use super::push::{NameRefusal, write_name_check};
 use super::requests::id;
 use super::{ServerId, ServerMessage, WireError, Writer, at_most, limits};
+
+/// Per-recipient rendering policy. Absence of a policy means normal delivery.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+pub enum ChatMuteMode {
+    Hidden = 1,
+    Placeholder = 2,
+}
+
+/// SRP extension of `comment_about_user`: kind 254, mode 0/1/2. This uses
+/// the existing name + two bytes transport, never the report/praise kinds.
+pub const CHAT_MUTE_ACTION: u8 = 254;
+pub const MUTED_CHAT_TEXT: &str = "<muted>";
+
+/// srp's mark on an `A3 08` row's account id: that player's lines are shown
+/// as `<muted>`, not hidden (docs/notes/chat-mute.md). The client drops a
+/// line whose sender id is on its ignore list (0x26C010) before reading it;
+/// a marked id is no sender's, so a `<muted>` line passes, and the client
+/// still has every muted player, and the mode, in its one list. Account ids
+/// are below it. The friends window sends the id back as it has it (`4E 03`,
+/// `4E 05`): [`listed_account`] reads it.
+pub const SHOWN_MUTED: u32 = 1 << 31;
+
+/// The account an id of the client's lists names: without [`SHOWN_MUTED`].
+pub fn listed_account(id: u32) -> u32 {
+    id & !SHOWN_MUTED
+}
 
 /// `message_channel_enum` (`social.md` §1.1).
 pub mod channel {
@@ -126,13 +154,18 @@ pub fn friend_list(friends: &[Friend]) -> Result<ServerMessage, WireError> {
     Ok(writer.done(ServerId::Friendship))
 }
 
-/// `A3 08`: the whole ignore list, `(account id, name)`.
-pub fn ignore_list(ignored: &[(u32, String)]) -> Result<ServerMessage, WireError> {
+/// `A3 08`: every muted player, `(account id, name, mode)`; a `<muted>`
+/// one's id carries [`SHOWN_MUTED`].
+pub fn ignore_list(ignored: &[(u32, String, ChatMuteMode)]) -> Result<ServerMessage, WireError> {
     at_most("ignored players", ignored.len(), u16::MAX.into())?;
     let mut writer = Writer::new();
     writer.u8(friendship::IGNORE_LIST).u16(ignored.len() as u16);
-    for (account_id, name) in ignored {
-        writer.u32(*account_id).str(name, limits::NAME);
+    for (account_id, name, mode) in ignored {
+        let id = match mode {
+            ChatMuteMode::Hidden => *account_id,
+            ChatMuteMode::Placeholder => account_id | SHOWN_MUTED,
+        };
+        writer.u32(id).str(name, limits::NAME);
     }
     Ok(writer.done(ServerId::Friendship))
 }
@@ -192,6 +225,14 @@ pub fn important_message(
         .done(ServerId::Important)
 }
 
+/// The lobby picks `0xA1` carries: the receiver's own and its squad
+/// commander's (none out of a squad, or not picked).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SquadPicks {
+    pub own: Option<LobbyPick>,
+    pub commander: Option<LobbyPick>,
+}
+
 /// One member in a squad info (0xA1).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SquadMember {
@@ -212,16 +253,22 @@ pub struct SquadMember {
 /// `A1`: the player's squad (`social.md` §2.1), or none for `squad_id` 0
 /// (then nothing else is sent). `commander_index` is the commander's place
 /// in `members`: a soldier's Play is locked while that member is ready.
+/// srp's own last two bytes, after the squad (after the id alone for none):
+/// the receiver's own lobby pick and its commander's (0 none; no squad,
+/// none), for exe patch 81 (`lobby-scenes.md`): every member is shown its
+/// commander's lobby. The stock reader stops before them.
 pub fn squad_info(
     squad_id: u32,
     members: &[SquadMember],
     commander_index: u8,
     i_am_commander: bool,
     revision: u32,
+    picks: SquadPicks,
 ) -> Result<ServerMessage, WireError> {
     let mut writer = Writer::new();
     writer.u32(squad_id);
     if squad_id == 0 {
+        writer.u8(LobbyPick::byte(picks.own)).u8(0);
         return Ok(writer.done(ServerId::SquadInfo));
     }
     at_most("squad members", members.len(), limits::SQUAD_MEMBERS)?;
@@ -238,7 +285,11 @@ pub fn squad_info(
             .bool(member.online)
             .bool(member.ready);
     }
-    writer.bool(i_am_commander).u32(revision);
+    writer
+        .bool(i_am_commander)
+        .u32(revision)
+        .u8(LobbyPick::byte(picks.own))
+        .u8(LobbyPick::byte(picks.commander));
     Ok(writer.done(ServerId::SquadInfo))
 }
 
@@ -288,46 +339,8 @@ pub fn admin_text_clear() -> ServerMessage {
     Writer::new().u8(0).done(ServerId::AdminTextClear)
 }
 
-/// `A8`: the premium discount store / the offer after a match
-/// (`social.md` §5): `u32 seconds` (shown in hours), four u32 and an f32
-/// whose meanings are not known.
-pub fn premium_store(seconds: u32, values: [u32; 4], factor: f32) -> ServerMessage {
-    let mut writer = Writer::new();
-    writer.u32(seconds);
-    for value in values {
-        writer.u32(value);
-    }
-    writer.f32(factor).done(ServerId::PremiumStore)
-}
-
-/// `A8`, named: the offer a player without premium gets after a match
-/// (`social.md` §5; client 0x274FF8 → 0x28A400, PROVEN). The client lists
-/// every premium offer of the shop (0x95, kind 0) at
-/// `round(value * (1 - discount))` (`root.set_premium_discount_store`) and
-/// opens `root.show_premium_post_reward(money, experience, reputation,
-/// hours, time_left, discount, faction)`: "buy premium now and get these
-/// too", with the faction the client holds. `premium_seconds` reaches the
-/// window in whole hours; `time_left` (seconds) runs down on the premium
-/// button. The answer is `47 05`. `discount` is a share, 0.0..1.0.
-pub fn premium_post_reward(
-    premium_seconds: u32,
-    money: u32,
-    experience: u32,
-    reputation: u32,
-    time_left: u32,
-    discount: f32,
-) -> ServerMessage {
-    premium_store(
-        premium_seconds,
-        [money, experience, reputation, time_left],
-        discount,
-    )
-}
-
-/// `A9`: shows a premium discount.
-pub fn premium_discount(discount: f32) -> ServerMessage {
-    Writer::new().f32(discount).done(ServerId::PremiumDiscount)
-}
+// `A8` and `A9`, the premium offers (`social.md` §5), are never sent:
+// there is no premium account (the owner, 2026-11-09).
 
 /// `AA`: signs the client out to its login screen with
 /// `st_login_menu_status_sign_in_already_online`: for the connection an
@@ -489,7 +502,7 @@ fn write_members(writer: &mut Writer, members: &[ClanMember]) -> Result<(), Wire
     for member in members {
         writer
             .u32(member.account_id)
-            .str(&member.name, limits::NAME)
+            .str(&member.name, limits::CLAN_MEMBER_NAME)
             .u8(member.rank)
             .u8(member.level)
             .bool(member.online);
@@ -559,7 +572,7 @@ pub fn clan_info(info: &ClanInfo) -> Result<ServerMessage, WireError> {
             for member in members {
                 writer
                     .u32(member.account_id)
-                    .str(&member.name, limits::NAME)
+                    .str(&member.name, limits::CLAN_MEMBER_NAME)
                     .u8(member.rank)
                     .u8(member.status);
             }
@@ -613,7 +626,7 @@ pub fn clan_info(info: &ClanInfo) -> Result<ServerMessage, WireError> {
             for member in members {
                 writer
                     .u32(member.account_id)
-                    .str(&member.name, limits::NAME)
+                    .str(&member.name, limits::CLAN_MEMBER_NAME)
                     .u8(member.role)
                     .bool(member.ready);
             }

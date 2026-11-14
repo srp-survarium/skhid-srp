@@ -1,6 +1,7 @@
 package scaleform.clik.managers
 {
    import flash.display.DisplayObject;
+   import flash.display.DisplayObjectContainer;
    import flash.display.MovieClip;
    import flash.display.Sprite;
    import flash.display.Stage;
@@ -32,7 +33,8 @@ package scaleform.clik.managers
          super();
       }
       
-      public static function init(stage:Stage) : void
+      // `layer`: where the drag canvas goes (the lobby's overlay, LobbyMenu._overlay), else the stage
+      public static function init(stage:Stage, layer:DisplayObjectContainer = null) : void
       {
          if(_initialized)
          {
@@ -42,7 +44,7 @@ package scaleform.clik.managers
          DragManager._stage = stage;
          _dragCanvas = new Sprite();
          _dragCanvas.mouseEnabled = _dragCanvas.mouseChildren = false;
-         _stage.addChild(_dragCanvas);
+         (layer ? layer : _stage).addChild(_dragCanvas);
          _stage.addEventListener(DragEvent.DRAG_START,DragManager.handleStartDragEvent,false,0,true);
       }
       
@@ -105,33 +107,43 @@ package scaleform.clik.managers
          dragMC.trackAsMenu = true;
       }
       
+      // The drag ends: its sprite leaves the cursor first, then the slots hear of the drop and
+      // of the end. A slot's handler that throws must not leave the drag on the cursor (one did:
+      // docs/notes/one-pocket-a-type.md, "The drag that stayed on the cursor"), nor the slot the
+      // drag came from without its end.
       public static function handleEndDragEvent(e:MouseEvent) : void
       {
          _stage.removeEventListener(MouseEvent.MOUSE_UP,handleEndDragEvent,false);
          _inDrag = false;
+         var dragged:Sprite = _dragTarget;
+         var origin:IDragSlot = _origDragSlot;
          var isValidDrop:Boolean = false;
-         var dropTarget:IDragSlot = findSpriteAncestorOf(_dragTarget.dropTarget) as IDragSlot;
-         trace("DragManager::handleEndDragEvent:",dropTarget,dropTarget is IDragSlot,dropTarget != _origDragSlot,_origDragSlot);
-         if(dropTarget != null && dropTarget is IDragSlot && dropTarget != _origDragSlot)
-         {
-            dropEvent = new DragEvent(DragEvent.DROP,_dragData,_origDragSlot,dropTarget,_dragTarget);
-            isValidDrop = dropTarget.handleDropEvent(dropEvent);
-         }
-         _dragTarget.stopDrag();
-         _dragTarget.mouseEnabled = _dragTarget.mouseChildren = true;
-         (_dragTarget as MovieClip).trackAsMenu = false;
-         _dragCanvas.removeChild(_dragTarget);
-         var dragEndEvent:DragEvent = new DragEvent(DragEvent.DRAG_END,_dragData,_origDragSlot,dropTarget,_dragTarget);
-         var dropEvent:DragEvent;
-         if(e.target is Stage)
-         {
-            isValidDrop = true;
-            _origDragSlot.handleDropEvent(dragEndEvent);
-         }
-         _origDragSlot.handleDragEndEvent(dragEndEvent,isValidDrop);
-         _origDragSlot.dispatchEvent(dragEndEvent);
+         var dropTarget:IDragSlot = findSpriteAncestorOf(dragged.dropTarget) as IDragSlot;
+         trace("DragManager::handleEndDragEvent:",dropTarget,dropTarget is IDragSlot,dropTarget != origin,origin);
+         dragged.stopDrag();
+         dragged.mouseEnabled = dragged.mouseChildren = true;
+         (dragged as MovieClip).trackAsMenu = false;
+         _dragCanvas.removeChild(dragged);
          _dragTarget = null;
          _origDragSlot = null;
+         var dragEndEvent:DragEvent = new DragEvent(DragEvent.DRAG_END,_dragData,origin,dropTarget,dragged);
+         try
+         {
+            if(dropTarget != null && dropTarget != origin)
+            {
+               isValidDrop = dropTarget.handleDropEvent(new DragEvent(DragEvent.DROP,_dragData,origin,dropTarget,dragged));
+            }
+            if(e.target is Stage)
+            {
+               isValidDrop = true;
+               origin.handleDropEvent(dragEndEvent);
+            }
+         }
+         finally
+         {
+            origin.handleDragEndEvent(dragEndEvent,isValidDrop);
+            origin.dispatchEvent(dragEndEvent);
+         }
       }
       
       protected static function handleStageAddedEvent(e:Event) : void

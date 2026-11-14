@@ -1,0 +1,75 @@
+project	point	x	y	z	rx	ry	rz	enemy_check_radius	invulnerability_time	verdict	ground	reason
+v010b_cs_mp_bath/day_4	ported_00	-7.005001	13.707407	15.004999	0	-0	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_bath/day_4	ported_01	33.245	4.528957	-21.495	0	0.39269912	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_bath/day_4	ported_02	-47.505	4.5466766	51.004997	0	-1.963495	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_bath/day_4	ported_03	33.245	4.258061	51.004997	0	2.9452431	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_bath/day_4	ported_04	-46.505	4.3581285	-17.995	0	-0.5890487	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_bath/day_4	ported_05	30.244999	4.1295567	15.004999	0	0.5890486	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_bath/day_4	ported_06	-8.755001	4.1735096	51.004997	0	-3.1415925	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_bath/day_4	ported_07	-11.755001	4.5843434	-19.495	0	-1.178097	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_bath/day_4	ported_08	-41.755	4.3117385	18.005	0	-3.1415925	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_bath/day_4	ported_09	11.994999	13.875854	-5.995001	0	-0	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_bath/day_4	ported_10	12.244999	4.3082094	36.004997	0	1.5707964	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_bath/day_4	ported_11	-26.755001	0	0.0049991608	0	2.7488937	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_bath/day_4	ported_12	-23.755001	-0.00000003607499	33.004997	0	-2.1598446	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_bath/day_4	ported_13	11.994999	13.875713	15.004999	0	-3.1415925	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_bath/day_4	ported_14	33.245	4.385743	-2.9950008	0	0.39269912	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_bath/day_4	ported_15	-47.005	4.3251457	0.0049991608	0	-0.98174745	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_bath/day_4	ported_16	33.245	4.3451824	33.004997	0	1.5707964	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_bath/day_4	ported_17	-26.755001	4.2030296	51.004997	0	-2.5525439	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_bath/day_4	ported_18	-5.755001	4.451483	-2.9950008	0	1.3744469	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_bath/day_4	ported_19	-5.755001	4.1673503	32.004997	0	1.3744469	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_bath/day_4	ported_20	-29.755001	4.941878	-19.245	0	-1.3744467	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_bath/day_4	ported_21	-41.755	4.3194466	36.004997	0	-3.1415925	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_bath/day_4	ported_22	-23.755001	13.3951	15.754999	0	1.5707964	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_bath/day_4	ported_23	17.744999	4.26239	-22.245	0	-0.7853978	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_military_1/day_4	ported_00	-5.845001	-7.9652185	11.504997	0	0.7853982	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_military_1/day_4	ported_01	114.155	0.8203315	93.005	0	2.7488937	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_military_1/day_4	ported_02	-127.095	-9.166778	-38.995003	0	-1.767146	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_military_1/day_4	ported_03	108.155	1.120234	-33.245003	0	2.3561945	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_military_1/day_4	ported_04	-101.845	-3.6754339	78.005	0	-1.767146	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_military_1/day_4	ported_05	-41.845	-1.8856444	-70.745	0	-0.7853978	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_military_1/day_4	ported_06	33.155	-3.4746516	81.005	0	2.552544	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_military_1/day_4	ported_07	39.155	-5.374856	-70.745	0	1.5707964	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_military_1/day_4	ported_08	-77.845	-11.449686	12.754997	0	-1.3744467	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_military_1/day_4	ported_09	81.155	-10.548568	30.004997	0	1.7671459	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_military_1/day_4	ported_10	-35.845	-6.4403253	72.005	0	2.7488937	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_military_1/day_4	ported_11	45.155	-8.828802	-14.995003	0	0.19634955	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_military_1/day_4	ported_12	-127.095	-2.6477945	30.004997	0	-1.767146	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_military_1/day_4	ported_13	-2.8450012	-8.703092	-38.995003	0	-0	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_military_1/day_4	ported_14	-74.845	-6.985097	-35.495003	0	-0	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_military_1/day_4	ported_15	36.155	-9.826628	33.004997	0	1.5707964	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_military_1/day_4	ported_16	75.155	-9.406811	72.005	0	1.7671459	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_military_1/day_4	ported_17	-38.845	-6.860606	-14.995003	0	-0.98174745	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_military_1/day_4	ported_18	-96.095	-2.0710588	-70.745	0	-1.5707964	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_military_1/day_4	ported_19	0.15499878	-13.244986	52.004997	0	1.3744469	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_military_1/day_4	ported_20	115.405	-0.05021298	51.254997	0	0.7853982	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_military_1/day_4	ported_21	78.155	-3.251515	-59.995003	0	-0.39269906	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_military_1/day_4	ported_22	-41.845	-10.265861	30.004997	0	-2.945243	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_mp_military_1/day_4	ported_23	114.155	-2.3373964	6.0049973	0	2.552544	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m
+v010b_cs_training_camp/day_4	ported_00	17.185001	15.548306	-20.845001	0	0.7853982	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; cabin south_west_lower, way down on foot
+v010b_cs_training_camp/day_4	ported_01	4.6850014	15.548306	15.904999	0	-0.39269906	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; cabin north_west_lower, way down on foot
+v010b_cs_training_camp/day_4	ported_02	47.435	28.396784	-6.845001	0	-0.39269906	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; cabin east_upper, way down on foot
+v010b_cs_training_camp/day_4	ported_03	-6.5649986	-0.8278975	21.154999	0	-2.1598446	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; ground inside the fence
+v010b_cs_training_camp/day_4	ported_04	7.6850014	6.2877564	-8.095001	0	-2.5525439	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; stairs of tower south_west, way down on foot
+v010b_cs_training_camp/day_4	ported_05	45.935	26.30177	18.904999	0	0.7853982	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; raised island north_east_small, way down on foot
+v010b_cs_training_camp/day_4	ported_06	6.1850014	10.976579	31.654999	0	-3.1415925	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; stairs of tower north_west, way down on foot
+v010b_cs_training_camp/day_4	ported_07	5.1850014	25.475466	-18.595001	0	-0.5890487	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; stairs of tower south_west, way down on foot
+v010b_cs_training_camp/day_4	ported_08	30.435001	21.321009	-23.845001	0	0.19634955	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; raised island south_east, way down on foot
+v010b_cs_training_camp/day_4	ported_09	60.185	-0.8465263	-8.845001	0	0.39269912	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; ground inside the fence
+v010b_cs_training_camp/day_4	ported_10	47.435	6.0713353	-4.095001	0	0.5890486	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; stairs of tower east, way down on foot
+v010b_cs_training_camp/day_4	ported_11	52.685	11.003785	9.154999	0	2.7488937	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; stairs of tower east, way down on foot
+v010b_cs_training_camp/day_4	ported_12	-4.3149986	22.15755	9.154999	0	-1.5707964	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; raised island west, way down on foot
+v010b_cs_training_camp/day_4	ported_13	28.185001	17.926306	18.654999	0	-1.963495	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; raised island north_east_lower, way down on foot
+v010b_cs_training_camp/day_4	ported_14	6.9350014	25.514238	27.904999	0	-2.1598446	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; stairs of tower north_west, way down on foot
+v010b_cs_training_camp/day_4	ported_15	3.4350014	11.167173	-21.595001	0	-0.39269906	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; stairs of tower south_west, way down on foot
+v010b_cs_training_camp/day_4	ported_16	0.9350014	27.894815	18.154999	0	2.9452431	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; raised island north_west_small, way down on foot
+v010b_cs_training_camp/day_4	ported_17	39.935	20.345037	-17.095001	0	1.1780972	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; raised island south_east, way down on foot
+v010b_cs_training_camp/day_4	ported_18	48.185	20.969833	0.9049988	0	2.3561945	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; stairs of tower east, way down on foot
+v010b_cs_training_camp/day_4	ported_19	38.685	16.221554	6.154999	0	-1.3744467	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; stairs of tower east, way down on foot
+v010b_cs_training_camp/day_4	ported_20	50.435	21.86442	-12.595001	0	1.7671459	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; raised island east, way down on foot
+v010b_cs_training_camp/day_4	ported_21	11.435001	20.306448	-12.595001	0	0.5890486	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; stairs of tower south_west, way down on foot
+v010b_cs_training_camp/day_4	ported_22	-4.5649986	24.342169	-0.34500122	0	-1.5707964	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; raised island west, way down on foot
+v010b_cs_training_camp/day_4	ported_23	37.685	22.147903	26.654999	0	1.5707964	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; raised island north_east_upper, way down on foot
+v010b_cs_training_camp/day_4	ported_24	4.6850014	24.88507	-2.8450012	0	1.1780972	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; raised island west, way down on foot
+v010b_cs_training_camp/day_4	ported_25	31.435001	22.506552	33.905	0	2.9452431	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; raised island north_east_upper, way down on foot

@@ -1,6 +1,7 @@
 ; Patch 54: the artefacts (build 2777): Spring's aim time and stopping power,
-; Lifebone's heal, one press fires every artefact of its kind. Its numbers
-; are in the artefacts' configs (release/content.tsv artefacts-1.json); this
+; Lifebone's heal, one press fires every artefact of its kind, Onyx fired
+; together 1 s longer each and reducing a hit once (2026-10-25). Its numbers
+; are in the artefacts' configs (release/content.tsv artefacts.tsv); this
 ; is what the stock code could not read or do.
 ; The arena's block artefacts.code (link_026g.py links it; patch_026g.py's
 ; ARTEFACTS_HOOKS jump to the six entries by their names).
@@ -25,9 +26,17 @@
 ; `active/stopping_power_mod`, linked and unlinked with the active's three.
 ; List 42 (artefact_synergy, which no code of 0.26g reads and no config
 ; sets) is the stagger's: a hit's slow is times max(0, 1 + its sum).
+; Spring II (the artefact tree, patch 109; artefact-skills.md): two reload
+; speed nodes (list 13) after those (the sizes grow to 3F8h), +3D8h linked
+; and unlinked with the passive's (0x311AD0, 0x311D10), +3E8h with the
+; active's. Their values are patch 109's (its entry artefact_skills_on_spring_reload
+; at the passive's link: the holder's Spring II, else 0).
 BITS 32
 global artefacts_loader, artefacts_link, artefacts_unlink, artefacts_lifebone, artefacts_fire
-global artefacts_stagger
+global artefacts_stagger, artefacts_onyx, artefacts_popup, artefacts_link_passive, artefacts_unlink_passive
+extern medical_skills_on_stopping  ; patch 94's generated entry (rust_patches.md, `entry`)
+extern artefact_skills_on_spring_reload  ; patch 109's (cdecl: the Spring)
+extern artefact_skills_on_fire  ; patch 109's (cdecl: the artefact, its fires in/out)
 section .text
 
 %define CONFIG_CHILD 0xF6B10       ; eax = a config value, edi = a key: eax = its child
@@ -43,11 +52,21 @@ section .text
 %define FIND_POOL 0x2E58B0         ; eax = the damage model's pools, ecx = &name: eax = the pool or 0
 %define INCREASE_HEALTH 0x32A420   ; esi = a pool; (time, amount), `ret 8`
 %define ACTION_BACK 0x31330A       ; artefact_base::action after its state test: `jne 0x313344`
-%define EFFECT 0x313350            ; artefact_base's activation effect (the artefact, the time), `ret 8`
+%define ONYX_ENABLE 0x3128C0       ; Onyx's enable_active (vtable +80h): its active time +F14h, ms
+%define ONYX_TIME_LEFT 0xF14       ; an Onyx's active time left, ms (its tick 0x3127E0 counts it down)
+%define ONYX_EXTRA_MS 1000         ; each Onyx fired with others: 1 s more for all of them
+%define ONYX_HIT_BACK 0x312C0A     ; Onyx's hit callback after its state test: `mov eax,[esp+8]`
+%define POPUP_SHOW 0x25F9E8        ; Onyx's client update: `push 14h`, then set_parameterized_message
+%define POPUP_SKIP 0x25F9F8        ; ... after it: the state seen, the function's end
 %define AIM_TIME 0x31              ; the aim_time modifier's index (49)
 %define STOPPING 0x2A              ; list 42: the stagger's multiplier
 %define AIM_NODE 0x3B8             ; the active's aim_time node in a Spring
 %define STOP_NODE 0x3C8            ; the active's stopping power node
+%define RELOAD 0xD                 ; the reload_speed modifier's index (13)
+%define RELOAD_PASSIVE_NODE 0x3D8  ; Spring II's reload node of the passive
+%define RELOAD_ACTIVE_NODE 0x3E8   ; ... of the active
+%define PASSIVE_LINK_BACK 0x311ADA ; the passive's link after its first instructions
+%define PASSIVE_UNLINK_BACK 0x311D15 ; the passive's unlink after `push ebx; mov ebx,[esp+8]`
 %define FIRST_SLOT 13              ; the inventory's artefact slots, 13..18
 %define LAST_SLOT 18
 
@@ -63,6 +82,14 @@ artefacts_fire:
     jmp near fire_kind             ; +20 from 0x313300
 artefacts_stagger:
     jmp near stagger               ; +25 from 0x2DBD89
+artefacts_onyx:
+    jmp near onyx_hit              ; +30 from 0x312C03
+artefacts_popup:
+    jmp near onyx_popup            ; +35 from 0x25F9DD
+artefacts_link_passive:
+    jmp near link_passive          ; +40 from 0x311AD0
+artefacts_unlink_passive:
+    jmp near unlink_passive        ; +45 from 0x311D10
 
 ; The loader at 0x33AE13 `mov dword [esi+48h],13h` (the active's third
 ; node): ebx = `data`, esi = the config; eax, edi and xmm0 are the next
@@ -87,6 +114,12 @@ loader:
     call value                     ; xmm0 = active/stopping_power_mod
     lea edx, [esi+STOP_NODE-0x340]
     mov ecx, STOPPING
+    call node
+    xorps xmm0, xmm0               ; Spring II's two: values at the passive's link
+    lea edx, [esi+RELOAD_PASSIVE_NODE-0x340]
+    mov ecx, RELOAD
+    call node
+    lea edx, [esi+RELOAD_ACTIVE_NODE-0x340]
     call node
     movups xmm0, [esp]
     add esp, 16
@@ -174,12 +207,48 @@ link_active:
     call link
     lea edx, [ebx+STOP_NODE]
     call link
+    lea edx, [ebx+RELOAD_ACTIVE_NODE]
+    call link
     popad
     push ebx
     push esi
     mov esi, eax
     mov eax, [esi+0x250]
     jmp LINK_BACK
+
+; 0x311AD0 `push ebx; push esi; mov esi,eax; mov eax,[esi+250h]`, eax = the
+; Spring: patch 109 gives its reload nodes their values (the holder's Spring
+; II), the passive's goes in, then the function links its own two.
+link_passive:
+    pushad
+    mov ebx, eax
+    push eax
+    call artefact_skills_on_spring_reload
+    add esp, 4
+    mov eax, ebx
+    call lists
+    lea edx, [ebx+RELOAD_PASSIVE_NODE]
+    call link
+    popad
+    push ebx
+    push esi
+    mov esi, eax
+    mov eax, [esi+0x250]
+    jmp PASSIVE_LINK_BACK
+
+; 0x311D10 `push ebx; mov ebx,[esp+8]`, [esp+4] = the Spring: the passive's
+; reload node out before the original's two.
+unlink_passive:
+    pushad
+    mov ebx, [esp+0x24]
+    mov eax, ebx
+    call lists
+    lea eax, [ebx+RELOAD_PASSIVE_NODE]
+    call unlink
+    popad
+    push ebx
+    mov ebx, [esp+8]
+    jmp PASSIVE_UNLINK_BACK
 
 ; 0x311DA0 `push ebx; mov ebx,[esp+8]`, [esp+4] = the Spring: its two
 ; nodes out before the original's three.
@@ -192,6 +261,8 @@ unlink_active:
     call unlink
     lea eax, [ebx+STOP_NODE]
     call unlink
+    lea eax, [ebx+RELOAD_ACTIVE_NODE]
+    call unlink
     popad
     push ebx
     mov ebx, [esp+8]
@@ -201,7 +272,9 @@ unlink_active:
 ; ways there, the hits' loop or none): esi = the player, xmm0 and the local
 ; [esp+14h] = the sum of the recent hits' stopping power (the min after it
 ; reads the local), xmm1 0. The sum becomes M42(sum): times max(0, 1 + list
-; 42), so an active Spring's -1 takes the slow away.
+; 42), so an active Spring's -1 takes the slow away; then the medical
+; skills' Unflinching (patch 94's entry medical_skills_on_stopping, cdecl:
+; the player, the sum in and out; it keeps every register) times its own.
 stagger:
     push esi
     sub esp, 8
@@ -214,6 +287,13 @@ stagger:
     mov esi, STOPPING
     call GETTER
     pop esi
+    sub esp, 4
+    movss [esp], xmm0              ; the sum, Spring's factor applied
+    push esi                       ; the player
+    call medical_skills_on_stopping
+    add esp, 4
+    movss xmm0, [esp]              ; the sum, Unflinching's factor applied
+    add esp, 4
     movss [esp+0x14], xmm0
     xorps xmm1, xmm1
     movss xmm2, [esi+0x31C]
@@ -263,29 +343,54 @@ lifebone_active:
 ; class (vtable) and kind 1 in the inventory's artefact slots that is ready,
 ; each as action activates one, and returns: so a press of one cooling or
 ; active still fires the ready ones of its kind. A key-up goes on as the
-; original (it does nothing).
+; original (it does nothing). Onyx (its enable_active 0x3128C0): each Onyx
+; fired adds ONYX_EXTRA_MS to every fired one's active time (+F14h), so n
+; fired together are all active 3 s + (n - 1) s and end together. Ready
+; (below) leaves out a copy past the 4 of its kind that count (patch 109): a
+; press fires at most 4, and a fifth adds no time.
 fire_kind:
     cmp byte [esp+4], 0
     je .original
     pushad
     mov esi, ecx                   ; the one pressed
     mov edi, [esp+0x28]            ; the time (pushad 20h, the return, pressed)
+    xor edx, edx                   ; how many are ready
+    mov ecx, esi
+    call ready
+    adc edx, 0
+    mov eax, [esi+0x250]           ; the inventory
+    test eax, eax
+    jz .counted
+    mov ebp, FIRST_SLOT
+.count:
+    mov ecx, [eax+0x10C+ebp*4]
+    call kin
+    jnc .count_next
+    call ready
+    adc edx, 0
+.count_next:
+    inc ebp
+    cmp ebp, LAST_SLOT
+    jbe .count
+.counted:
+    xor ebx, ebx                   ; the time each fired one gets on top
+    dec edx
+    jle .extra
+    mov eax, [esi]
+    cmp dword [eax+0x80], ONYX_ENABLE
+    jne .extra
+    imul ebx, edx, ONYX_EXTRA_MS
+.extra:
+    mov ecx, esi
     call activate
-    mov ebx, [esi+0x250]           ; the inventory
-    test ebx, ebx
-    jz .done
     mov ebp, FIRST_SLOT
 .slot:
-    mov ecx, [ebx+0x10C+ebp*4]
-    test ecx, ecx
-    jz .next
-    cmp ecx, esi
-    je .next
-    mov eax, [ecx]
-    cmp eax, [esi]
-    jne .next
-    cmp dword [ecx+0x24C], 1
-    jne .next
+    mov eax, [esi+0x250]
+    test eax, eax
+    jz .done
+    mov ecx, [eax+0x10C+ebp*4]
+    call kin
+    jnc .next
     call activate
 .next:
     inc ebp
@@ -300,28 +405,155 @@ fire_kind:
     cmp dword [esi+0x280], 3
     jmp ACTION_BACK
 
-; ecx = an artefact, edi = the time: if it is in its passive (state 3) with
-; no cooldown (+28Ch), activated as action does (0x31331C..0x313339): its
-; enable_active (vtable +80h), its effect, the time (+2A0h), state 4. Keeps
-; ebx, esi, edi and ebp.
-activate:
+; ecx = a slot's artefact (or 0), esi = the one pressed: CF = 1 when it is
+; another of its class (vtable) and kind 1. Keeps every register.
+kin:
+    test ecx, ecx
+    jz .no
+    cmp ecx, esi
+    je .no
+    push eax
+    mov eax, [ecx]
+    cmp eax, [esi]
+    pop eax
+    jne .no
+    cmp dword [ecx+0x24C], 1
+    jne .no
+    stc
+    ret
+.no:
+    clc
+    ret
+
+; ecx = an artefact: CF = 1 when it is ready, in its passive (state 3) with
+; no cooldown (+28Ch), and one of the 4 copies of its kind that count for its
+; holder (patch 109's entry artefact_skills_on_fire makes its fires 0 for one
+; past them: at most 4 copies of a kind count, the owner 2026-11-07; it does
+; not fire and stays ready). Keeps every register.
+ready:
     cmp dword [ecx+0x280], 3
     jne .no
     cmp dword [ecx+0x28C], 0
     jne .no
+    push 1                         ; its fires
+    push ecx
+    call artefact_skills_on_fire
+    cmp dword [esp+4], 0
+    lea esp, [esp+8]               ; the flags kept
+    je .no
+    stc
+    ret
+.no:
+    clc
+    ret
+
+; ecx = an artefact, edi = the time, ebx = the time on top (ms): if it is
+; ready, activated through the original action body (including its Medic hook):
+; its enable_active, effect, time (+2A0h), state 4; then ebx more on its
+; active time (+F14h, an Onyx's; ebx is 0 for any other kind). Keeps ebx,
+; esi, edi and ebp.
+activate:
+    call ready
+    jnc .no
     push esi
     mov esi, ecx
-    mov eax, [esi]
     push edi
-    call [eax+0x80]
-    push edi
-    push esi
-    call EFFECT
-    mov [esi+0x2A0], edi
-    mov dword [esi+0x280], 4
+    push 1
+    ; Skip only the fire_kind entry detour, not hooks inside native action.
+    ; The bridge recreates its prologue and the original ret 8 cleans args.
+    call fire_kind.original
+    test ebx, ebx
+    jz .own
+    add [esi+ONYX_TIME_LEFT], ebx
+.own:
     pop esi
 .no:
     ret
+
+; Onyx's hit callback 0x312BF0 (thiscall: the hit, &damage, &armour
+; piercing; `ret 0Ch`) at 0x312C03 `cmp dword [ecx+280h],3`, after its hit
+; type test: ecx = the Onyx. In its passive (state 3) it goes on as the
+; original. Otherwise (active) only the first active Onyx of the slots
+; (13..18, its class) takes its active's share of the hit; any other active
+; Onyx leaves the hit as it is, so n active Onyx reduce it once. An Onyx in
+; no slot goes on as the original. Keeps every register the original does.
+onyx_hit:
+    cmp dword [ecx+0x280], 3
+    je .back                       ; its passive
+    push esi
+    push ebx
+    mov eax, [ecx+0x250]           ; the inventory
+    test eax, eax
+    jz .apply
+    mov edx, FIRST_SLOT
+.slot:
+    mov esi, [eax+0x10C+edx*4]
+    test esi, esi
+    jz .next
+    cmp esi, ecx
+    je .apply                      ; it is the first active one
+    mov ebx, [esi]
+    cmp ebx, [ecx]
+    jne .next
+    cmp dword [esi+0x280], 4
+    je .skip                       ; an Onyx before it is active
+.next:
+    inc edx
+    cmp edx, LAST_SLOT
+    jbe .slot
+.apply:
+    pop ebx
+    pop esi
+    cmp dword [ecx+0x280], 3       ; the flags the original's jne reads
+.back:
+    jmp ONYX_HIT_BACK
+.skip:
+    pop ebx
+    pop esi
+    ret 0xC
+
+; Onyx's client update 0x25F640 (ecx = ebx = the Onyx +F20h) when it sees
+; the state turn 4 for the local player's Onyx, at 0x25F9DD `mov ecx,
+; [ebx-0C30h] / push 0BB8h`: the activation hint (+2F0h) shown by
+; set_parameterized_message 0x2375C0 (the text, 21h, 14h, 3000 ms). Now
+; its time on screen is the active's time left (+F14h, ms), which the hud
+; writes for the hint's %s in seconds; and of the Onyx one press fired
+; (state 4, the same activation time +2A0h) only the first of the slots
+; shows it, so a press shows it once. An Onyx in no slot shows its own.
+; esi (the game) is kept; eax, ecx, edx and edi are free there.
+onyx_popup:
+    push esi
+    lea edi, [ebx-0xF20]           ; the Onyx
+    mov eax, [edi+0x250]           ; the inventory
+    test eax, eax
+    jz .show
+    mov edx, FIRST_SLOT
+.slot:
+    mov ecx, [eax+0x10C+edx*4]
+    test ecx, ecx
+    jz .next
+    cmp ecx, edi
+    je .show                       ; it is the first of its press
+    mov esi, [ecx]
+    cmp esi, [edi]
+    jne .next
+    cmp dword [ecx+0x280], 4
+    jne .next
+    mov esi, [ecx+0x2A0]
+    cmp esi, [edi+0x2A0]
+    je .skip                       ; an Onyx before it, fired by the same press
+.next:
+    inc edx
+    cmp edx, LAST_SLOT
+    jbe .slot
+.show:
+    pop esi
+    mov ecx, [ebx-0xC30]           ; the activation hint
+    push dword [ebx-0xC]           ; its time on screen: the active's time left, ms
+    jmp POPUP_SHOW
+.skip:
+    pop esi
+    jmp POPUP_SKIP
 
 aim_key:
     db "aim_time_mod", 0
@@ -333,7 +565,17 @@ body_name:
     db "body", 0
 head_name:
     db "head", 0
-; The pools Lifebone's active fills.
+left_hand_name:
+    db "left_hand", 0
+right_hand_name:
+    db "right_hand", 0
+left_leg_name:
+    db "left_leg", 0
+right_leg_name:
+    db "right_leg", 0
+; The pools Lifebone's active fills: every body part (the limbs too since the
+; owner's 2026-11-14 report; `infection` is not one and is left).
 heals:
     dd pain_name, body_name, head_name
+    dd left_hand_name, right_hand_name, left_leg_name, right_leg_name
 heals_end:

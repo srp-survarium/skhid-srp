@@ -1,5 +1,5 @@
-//! The 0.26g match server (`docs/notes/match.md`,
-//! `PLAN-026G.md` step 6): the sockets and the loop around
+//! The 0.26g match server (`docs/notes/match.md`):
+//! the sockets and the loop around
 //! `survarium::v026g::match_msgs`, over the `udp-transport` crate.
 //!
 //! As for 0.21d, the clients simulate and the server does not: it takes
@@ -66,11 +66,11 @@
 //!   statistics in it;
 //! - `SRP_RECORD_DIR=<dir>` (default off): every datagram of a match in
 //!   and out, one file per match, kept when `SRP_RECORD_MIN_PLAYERS`
-//!   (default 6, late joiners counted) have entered it; kept files over
+//!   (default 6 for PvP; one human for PvE, late joiners counted) have entered it; kept files over
 //!   `SRP_RECORD_MAX_MB` (default 5000) together go oldest first
 //!   ([`record`]);
-//! - `SRP_REPLAY_DIR=<dir>`, `SRP_GAME_MODES_DIR=<dir>` (default off; both
-//!   needed, with `SRP_RECORD_DIR`): a kept recording is made into the
+//! - `SRP_REPLAY_DIR=<dir>` (default off; needed, with
+//!   `SRP_RECORD_DIR`): a kept recording is made into the
 //!   game's replay file there when a player first asks for it in the
 //!   lobby's "Watch replay", and a replay goes with its recording
 //!   ([`replay`]). The replay folder must be a folder of its own (not
@@ -99,25 +99,53 @@
 //! - `SRP_PVB_STALL_S` (default 60, 10 to 3600): a match against the
 //!   server's bots whose only player has been asked for its world this
 //!   long and uploaded none is over (as deserted): its bots see the world
-//!   only through that player's uploads.
+//!   only through that player's uploads;
+//! - `SRP_ANTI_AFK` (default 180, at least 60; `off` or `0`): a player who gives
+//!   no input for that many seconds of play is removed from the match, as
+//!   one who leaves; never in a private room's match nor one against
+//!   bots ([`afk`], `docs/notes/anti-afk.md`);
+//! - `SRP_RELEASED_EXE_SHA256` (default none; the release sets it): the
+//!   SHA-256 of the game executable in the players' download. A game that
+//!   reports it is not asked for its file; every other executable the
+//!   server has not stored is collected ([`executable`],
+//!   `docs/notes/module-report.md`).
 
+/// Anti-AFK: a player without input for three minutes of play is removed.
+mod afk;
 /// A player's battery events pay at most N times per kind, N the map's
 /// batteries (the owner's rule against farming them).
 mod battery_cap;
+mod client_report;
+mod executable;
 /// The server's own bots (`MatchPlayer::driven`): their maps.
 pub mod bots;
+/// The upload check of a recorded match, for `examples/world_check_bench.rs`.
+#[doc(hidden)]
+pub mod check_bench;
 /// The input script of a bot: the test bot's (`srp-bot --drive`) and the
 /// server's own bot places' (`MatchPlayer::driven`).
 pub mod drive;
 mod game;
+/// Every upload checked before it is relayed; callable offline too.
+pub mod world_validation;
+/// Recorded and dumped worlds checked as uploads are (`srp-world-check`).
+pub mod world_check;
+/// A player's kills of one enemy pay at most 10 times a match.
+mod kill_cap;
 /// Match recordings (`SRP_RECORD_DIR`) and their reader.
 pub mod record;
 mod registry;
 /// "Watch replay": kept recordings made into replay files (`SRP_REPLAY_DIR`).
 pub mod replay;
+/// A player's Research units pay at most 200 score a match.
+mod research_cap;
+mod reward_caps;
 mod server;
 pub mod sur;
 pub mod sur_convert;
+/// Voice chat: the team push-to-talk relay beside the match server
+/// (`docs/notes/voice-chat.md`).
+pub mod voice;
 
 #[cfg(test)]
 mod tests;
@@ -136,9 +164,9 @@ use std::time::Duration;
 use udp_transport::{Config, Table};
 
 pub use registry::{
-    CreateError, DRAW, JoinError, LiveMatch, LivePhase, LiveStanding, MatchEnd, MatchPlayer,
-    MatchRegistry, MatchResult, MatchSetup, MatchTicket, PlayerResult, ResultsSink, Seat,
-    static_id, team_damage_from_env,
+    CreateError, DRAW, IdleRemoved, JoinError, LiveMatch, LivePhase, LiveStanding, MatchEnd,
+    MatchPlayer, MatchRegistry, MatchResult, MatchSetup, MatchTicket, PlayerResult, ResultsSink,
+    Seat, VoiceSeat, static_id,
 };
 pub use replay::{replays_from_env, replays_of};
 pub use server::{run, run_on, run_on_with_replays};
@@ -260,6 +288,11 @@ pub(crate) struct Settings {
     pub pack: Duration,
     /// `SRP_MAPDATA_DIR`: the bots' maps, shared by every match.
     pub maps: Option<Arc<bots::maps::Maps>>,
+    /// `SRP_ANTI_AFK`: when an idle player is removed, if ever.
+    pub anti_afk: afk::Setting,
+    /// `SRP_RELEASED_EXE_SHA256`: the release's own game executable, which
+    /// no game is asked for; `None`: every unknown one is collected.
+    pub released_executable: Option<executable::Released>,
     pub timing: Timing,
 }
 
@@ -276,6 +309,8 @@ impl Default for Settings {
             record: None,
             pack: Config::for_table(Table::Match).gather,
             maps: None,
+            anti_afk: afk::Setting::default(),
+            released_executable: None,
             timing: Timing::default(),
         }
     }
@@ -290,31 +325,15 @@ impl Settings {
         let var = |name: &str| std::env::var(name).ok();
         Self {
             late_inputs: parse_late_inputs(var("SRP_LATE_INPUTS").as_deref()),
-            resync_world_only: parse_switch(
-                "SRP_RESYNC_WORLD_ONLY",
-                var("SRP_RESYNC_WORLD_ONLY").as_deref(),
-                false,
-            ),
+            resync_world_only: session::switch("SRP_RESYNC_WORLD_ONLY", false),
             restore_limit: parse_number(
                 "SRP_RESTORE_LIMIT",
                 var("SRP_RESTORE_LIMIT").as_deref(),
                 0,
             ),
-            clock_correction: parse_switch(
-                "SRP_CLOCK_CORRECTION",
-                var("SRP_CLOCK_CORRECTION").as_deref(),
-                true,
-            ),
-            check_initial_world: parse_switch(
-                "SRP_CHECK_INITIAL_WORLD",
-                var("SRP_CHECK_INITIAL_WORLD").as_deref(),
-                true,
-            ),
-            compress_state: parse_switch(
-                "SRP_COMPRESS_STATE",
-                var("SRP_COMPRESS_STATE").as_deref(),
-                true,
-            ),
+            clock_correction: session::switch("SRP_CLOCK_CORRECTION", true),
+            check_initial_world: session::switch("SRP_CHECK_INITIAL_WORLD", true),
+            compress_state: session::switch("SRP_COMPRESS_STATE", true),
             snapshot_dir: parse_snapshot_dir(var("SRP_SNAPSHOT_DIR").as_deref()),
             record: record::RecordSettings::from_env(),
             pack: match var("SRP_RELAY_PACK_MS") {
@@ -342,6 +361,10 @@ impl Settings {
                     session::v026g::pvb::max_matches(),
                 ) as u32,
                 var("SRP_MAPDATA_BUILT").as_deref(),
+            ),
+            anti_afk: afk::Setting::parse(var("SRP_ANTI_AFK").as_deref()),
+            released_executable: executable::Released::parse(
+                var("SRP_RELEASED_EXE_SHA256").as_deref(),
             ),
             timing: {
                 let client_timeout = Duration::from_secs(u64::from(
@@ -420,21 +443,6 @@ fn parse_late_inputs(value: Option<&str>) -> LateInputs {
                  relay"
             );
             LateInputs::Relay
-        }
-    }
-}
-
-fn parse_switch(name: &str, value: Option<&str>, default: bool) -> bool {
-    match value
-        .map(|value| value.trim().to_ascii_lowercase())
-        .as_deref()
-    {
-        None | Some("") => default,
-        Some("on" | "1" | "true" | "yes") => true,
-        Some("off" | "0" | "false" | "no") => false,
-        Some(other) => {
-            log::error!("{name} is `{other}`; it must be `on` or `off`");
-            default
         }
     }
 }

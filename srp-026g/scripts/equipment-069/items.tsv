@@ -1,0 +1,9 @@
+id	id_069	name	model	template	faction	level	armour	isolation	drop_weight	price	icon_row	icon_col	weight	default_modifications	peer_id	icon_069
+1357	leagues_back_2	Medic's bag	character/human/special_items/league_regeneration_back/league_regeneration_back	native:355	2	5	0	0	110	10830	14	8	4.5	1030,1170	355	1,13
+1359	leagues_back_5	Soldier's backpack	character/human/special_items/league_battle_back/league_battle_back	native:115	1	14	0	0	20	42750	15	8	8	1051,1030,1171	115	3,13
+1878	snow_20_torso_7	Snow-20 Vest	character/human/newyears_2020/renesanse_sniper_07_snow_torso_s1	equipment-046:1002	3	11	70	20	50	66500	20	8	7	1030	1002	90,12
+1879	snow_20_legs_7	Snow-20 Pants	character/human/newyears_2020/renesanse_sniper_07_snow_legs_s1	equipment-046:1001	3	11	72	20	50	33250	21	8	1.5		1001	89,12
+1880	snow_20_gloves_7	Snow-20 Gloves	character/human/newyears_2020/renesanse_sniper_07_snow_hand_hud	equipment-046:1000	3	11	72	20	50	16630	22	8	0.2		1000	87,12
+1881	snow_20_boots_7	Snow-20 Boots	character/human/newyears_2020/renesanse_sniper_07_snow_boot	equipment-046:999	3	11	72	20	50	16630	14	9	0.5		999	86,12
+1882	league_shadow_mask	Delta mask	character/human/special_items/league_shadow/league_shadow_mask	native:941	0	14	15	5	20	23630	15	9	0.5	1083	941	85,12
+1883	snow_20_helmet_7	Snow-20 Helmet	character/human/newyears_2020/renesanse_sniper_07_snow_helmet	equipment-046:1003	3	11	50	20	50	39080	16	9	1		1003	88,12

@@ -2,6 +2,7 @@
 
 `SRP_AS_TOOLS=/path/to/tools.json` adds a real compc build of a small tree.
 """
+import base64
 import hashlib
 import json
 import os
@@ -9,6 +10,7 @@ from pathlib import Path
 import struct
 import tempfile
 import unittest
+import zlib
 
 import flash_tree
 import swf
@@ -66,6 +68,30 @@ def do_abc(name, *classes):
     return (swf.DO_ABC, tag(swf.DO_ABC, struct.pack('<I', 1) + name.encode() + b'\0' + abc(*classes)))
 
 
+def png(width, height, rgba, kind=0, colour=6):
+    """A PNG of the pixels, every row filtered by `kind` (0 none, 1 sub, 2 up, 3 average, 4 Paeth)."""
+    channels = 4 if colour == 6 else 3
+    stride = width * channels
+    raw, previous = b'', bytes(stride)
+    for y in range(height):
+        line = rgba[y * stride:(y + 1) * stride]
+        out = bytearray()
+        for x in range(stride):
+            left = line[x - channels] if x >= channels else 0
+            up, corner = previous[x], previous[x - channels] if x >= channels else 0
+            p = left + up - corner
+            paeth = left if abs(p - left) <= abs(p - up) and abs(p - left) <= abs(p - corner) \
+                else up if abs(p - up) <= abs(p - corner) else corner
+            out.append((line[x] - (0, left, up, (left + up) // 2, paeth)[kind]) & 0xff)
+        raw += bytes([kind]) + bytes(out)
+        previous = line
+
+    def chunk(name, body):
+        return struct.pack('>I', len(body)) + name + body + struct.pack('>I', zlib.crc32(name + body))
+    return b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, colour, 0, 0, 0)) \
+        + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b'')
+
+
 def symbols(*entries):
     body = struct.pack('<H', len(entries)) + b''.join(struct.pack('<H', cid) + name.encode() + b'\0'
                                                        for cid, name in entries)
@@ -93,12 +119,69 @@ class MovieTests(unittest.TestCase):
         self.assertEqual(swf.symbol_classes(tags), [(1, 'A'), (2, 'pkg.B')])
         self.assertEqual(flash_tree.check(built), 3)
 
+    def test_a_png_is_read_through_every_filter(self):
+        rgba = bytes(range(2 * 3 * 4))
+        for kind in range(5):
+            self.assertEqual(swf.png(png(2, 3, rgba, kind)), (2, 3, rgba))
+        self.assertEqual(swf.png(png(1, 1, b'\x01\x02\x03', 0, colour=2)), (1, 1, b'\x01\x02\x03\xff'))
+        with self.assertRaisesRegex(ValueError, 'bad CRC'):
+            swf.png(png(1, 1, b'abcd')[:-5] + b'\0' + png(1, 1, b'abcd')[-4:])
+
+    def test_a_bitmap_is_added_bound_to_its_class(self):
+        shape = (2, tag(2, struct.pack('<H', 7) + b'shape'))
+        original = movie([shape, do_abc('a', 'A'), symbols((7, 'A')), (1, tag(1, b''))])
+        built = flash_tree.assemble(original, [do_abc('x', 'A', 'Icon')], [flash_tree.Lossless('Icon', 1, 1, b'\x10\x20\x30\x80')])
+        _, tags = swf.split(built)
+        self.assertEqual([k for k, _ in tags], [2, 36, 82, 76, 76, 1, 0])
+        body = swf.payload(tags[1][1])
+        self.assertEqual(struct.unpack_from('<HBHH', body), (8, 5, 1, 1))
+        self.assertEqual(zlib.decompress(body[7:]), bytes((0x80, 0x08, 0x10, 0x18)))   # ARGB, premultiplied
+        self.assertEqual(swf.symbol_classes(tags), [(8, 'Icon'), (7, 'A')])
+        self.assertEqual(flash_tree.check(built), 2)
+        with self.assertRaisesRegex(ValueError, 'already binds'):
+            flash_tree.assemble(original, [], [flash_tree.Lossless('A', 1, 1, b'\0\0\0\0')])
+
+    def test_a_jpeg_is_added_whole_and_must_be_baseline(self):
+        # a 3 x 2 baseline JPEG, and the same progressive (ImageMagick)
+        baseline = zlib.decompress(base64.b64decode(
+            'eNqVjjsSwjAMRFf+kI/tYAU7pKbnDBTMZIZcjUtRcAg+BdzE2CWfhqetdlZapUt6ws/TYQIRQHmQ7thDClGUUVm61lop3VbVorattaY1xnW9dx13xvjB8yrEGO1yPQ5h7EMM5QjJvKN0o3UTnHHhb9IJXENASmIIJsmUzgjlyTeq4vpPF8Wln1n+zt5gJeUSydhhsz0+0vUFtV0f5g=='))
+        progressive = zlib.decompress(base64.b64decode(
+            'eNqVj0sOwjAMRO24KW2TFgfSwhJO0gUSElyql2KPhDgEnwXcJDgLkPhWjL0aPdvjcAhX4PVytQREAJSCcIYFkFKxRYm0zrROEl0MBmlmC2tNYUxZjbisXGUMN+zGvq5rO5xMGz8d+drHJUgyk+hc69yXpvR/K+zAZaCACB0oh+Qw7MHHkE9Ko4vv7gksISgmltdmm23E+BUDwTIZRq26CLjPACG2+AtQD+DribRVvwFs5909NZD4fOmJxH2RuO+iAMcb7BxDDA=='))
+        self.assertEqual(swf.jpeg(9, baseline)[1], (3, 2))
+        with self.assertRaisesRegex(ValueError, 'baseline'):
+            swf.jpeg(9, progressive)
+        with self.assertRaisesRegex(ValueError, 'not a JPEG'):
+            swf.jpeg(9, baseline[:-2])
+        shape = (2, tag(2, struct.pack('<H', 7) + b'shape'))
+        original = movie([shape, do_abc('a', 'A'), symbols((7, 'A')), (1, tag(1, b''))])
+        built = flash_tree.assemble(original, [do_abc('x', 'A', 'Picture')], [flash_tree.Jpeg('Picture', baseline)])
+        _, tags = swf.split(built)
+        self.assertEqual([k for k, _ in tags], [2, 21, 82, 76, 76, 1, 0])
+        self.assertEqual(swf.payload(tags[1][1]), struct.pack('<H', 8) + baseline)
+        self.assertEqual(swf.symbol_classes(tags), [(8, 'Picture'), (7, 'A')])
+
     def test_every_bound_class_must_be_defined_once(self):
         original = movie([do_abc('a', 'A'), symbols((1, 'A'), (2, 'pkg.B'))])
         with self.assertRaisesRegex(ValueError, 'does not have: pkg.B'):
             flash_tree.check(flash_tree.assemble(original, [do_abc('x', 'A')]))
         with self.assertRaisesRegex(ValueError, 'more than once: A'):
             flash_tree.check(flash_tree.assemble(original, [do_abc('x', 'A', 'pkg.B'), do_abc('y', 'A')]))
+
+
+    def test_a_placement_is_put_right_in_its_sprite_frame_and_depth(self):
+        def place(depth, cid):
+            return swf.tag(swf.PLACE_OBJECT2, bytes([0x02]) + struct.pack('<HH', depth, cid))
+        show, end = swf.tag(swf.SHOW_FRAME, b''), swf.tag(swf.END, b'')
+        inner = place(1, 7) + show + place(1, 8) + show + end
+        sprite = swf.tag(swf.DEFINE_SPRITE, struct.pack('<HH', 9, 2) + inner)
+        shapes = [(2, swf.tag(2, struct.pack('<H', c))) for c in (7, 8, 6)]
+        tags = shapes + [(swf.DEFINE_SPRITE, sprite)]
+        fixed = flash_tree.placed_right(tags, [flash_tree.Placement(9, 2, 1, 8, 6)])
+        sub = swf.tags_of(swf.payload(fixed[-1][1])[4:])
+        self.assertEqual([swf.placed(raw) for kind, raw in sub if kind == swf.PLACE_OBJECT2], [(1, 7), (1, 6)])
+        for wrong in (flash_tree.Placement(9, 1, 1, 8, 6), flash_tree.Placement(9, 2, 1, 8, 99)):
+            with self.assertRaises(ValueError):
+                flash_tree.placed_right(tags, [wrong])
 
 
 class TreeTests(unittest.TestCase):
@@ -129,6 +212,66 @@ class TreeTests(unittest.TestCase):
         self.spec(movie_sha256=sha(b'MOVIE'))
         with self.assertRaisesRegex(ValueError, 'no offset'):
             flash_tree.original(self.tree, archive, self.root / 'y.swf')
+
+    def table(self, text, path='pkg/data/Rows.tsv'):
+        (self.tree / 'tables' / path).parent.mkdir(parents=True, exist_ok=True)
+        (self.tree / 'tables' / path).write_text(text)
+
+    def test_a_table_is_a_class_of_its_lists(self):
+        self.table('# a comment\nlist\ticon:int\ttip:String\tkind:pkg.Kind\n'
+                   'FIRST\t3\tfilter_a\tA_KIND\nSECOND\t-1\tsay "b"\tB_KIND\nFIRST\t0\t\tA_KIND\n')
+        self.assertEqual(flash_tree.tables(self.tree), {Path('pkg/data/Rows.as'): '''package pkg.data
+{
+   import pkg.Kind;
+   // Made by the build (tools/actionscript/flash_tree.py) from tables/pkg/data/Rows.tsv: edit that.
+   public class Rows
+   {
+      public static const FIRST:Array = [
+         {"icon":3,"tip":"filter_a","kind":Kind.A_KIND},
+         {"icon":0,"tip":"","kind":Kind.A_KIND}
+      ];
+      public static const SECOND:Array = [
+         {"icon":-1,"tip":"say \\"b\\"","kind":Kind.B_KIND}
+      ];
+   }
+}
+'''})
+        for text, error in (('list\ticon:int\nA\tx\n', "icon 'x' is not a int"),
+                            ('list\tkind:pkg.Kind\nA\tB.C\n', "is not a pkg.Kind"),
+                            ('list\ticon\nA\t1\n', 'the header is list'),
+                            ('list\ticon:int\nA\t1\t2\n', 'rows of as many columns'),
+                            ('list\ticon:int\nnot a name\t1\n', 'is not a name')):
+            self.table(text)
+            with self.assertRaisesRegex(ValueError, error):
+                flash_tree.tables(self.tree)
+        self.table('list\ticon:int\nA\t1\n')
+        (self.tree / 'src/pkg/data').mkdir(parents=True)
+        (self.tree / 'src/pkg/data/Rows.as').write_text('')
+        with self.assertRaisesRegex(ValueError, 'a class of the tree already'):
+            flash_tree.tables(self.tree)
+
+    def test_a_data_table_is_a_class_of_its_columns(self):
+        path = self.root / 'modifications.tsv'
+        path.write_text('modifications\tkind\tvalue\n1240\tparameters/experience_bonus\t0.2\n1250\tx\t0.5\n')
+        self.assertEqual(flash_tree.data_class(path, 'pkg.data', 'Values'), '''package pkg.data
+{
+   // Made by the build (tools/actionscript/flash_tree.py) from modifications.tsv (movie.json data): edit that.
+   public class Values
+   {
+      public static const kind:Object = {
+         "1240":"parameters/experience_bonus",
+         "1250":"x"
+      };
+      public static const value:Object = {
+         "1240":"0.2",
+         "1250":"0.5"
+      };
+   }
+}
+''')
+        path.write_text('m\tvalue\n1\t0.2\n1\t0.5\n')
+        with self.assertRaisesRegex(ValueError, 'a key twice'):
+            flash_tree.data_class(path, 'pkg.data', 'Values')
 
     def test_a_build_needs_the_original_movie_json_names(self):
         self.spec(movie_sha256=sha(b'MOVIE'))

@@ -1,0 +1,133 @@
+package survarium.item
+{
+   import flash.display.Sprite;
+   import survarium.controls.LabelDiffIndicator;
+   import survarium.controls.ItemCompare;
+   import survarium.player.MatchEffects;
+   import temp_test_fla.weapon_compare_mc_8;
+
+   // A card's detail rows, label left and value right: a weapon's (WeaponDetails) or a
+   // round's (AmmoDetails).
+   // Use the exported native symbol, not a new TextField: Scaleform resolves
+   // the game's embedded font on its timeline fields, unlike Ruffle's fallback.
+   public final class ItemDetailsView extends Sprite
+   {
+      private var contentHeight:Number = 0;
+      // A row under a stat (entry.child) steps its label in by SUBROW_INDENT (the row's units) and takes
+      // SUBROW_STRIDE of a row.
+      public static const SUBROW_INDENT:Number = 16, SUBROW_STRIDE:Number = 0.8;
+      override public function get height() : Number { return contentHeight; }
+      public function ItemDetailsView()
+      {
+         mouseEnabled = false;
+         mouseChildren = false;
+      }
+
+      // An item's detail rows (WeaponDetails or AmmoDetails), null for an item without them;
+      // a weapon's with the kit and the skills when `effects` is given.
+      public static function read(item:Object, effects:MatchEffects = null) : Object
+      {
+         var weapon:WeaponDetails = WeaponDetails.read(item,effects);
+         return weapon != null ? weapon : AmmoDetails.read(item);
+      }
+
+      // effects: the kit's and the skills' while Alt is held (details already with them), null for
+      // the weapon's own stats.
+      public function show(details:Object, expanded:Boolean, original:ItemCompare, effects:MatchEffects = null) : void
+      {
+         while(numChildren) removeChildAt(numChildren - 1);
+         contentHeight = 0;
+         if(details == null) return;
+         x = original.x;
+         scaleX = original.scaleX;
+         scaleY = original.scaleY;
+         var stride:Number = original.diff_2.y - original.diff_1.y;
+         var nextY:Number = 0;
+         var secondary:Object = read(original.getSecondaryData(),effects);
+         // Only rows of the same kind compare (a weapon's with a weapon's).
+         if(secondary != null && secondary.constructor != details.constructor) secondary = null;
+         var entries:Array = details.rows(expanded,secondary);
+         // Under the heading, one line saying what is on ("With kit and skills").
+         if(effects != null) entries.splice(1,0,{kind:"effects",text:effects.label});
+         var peer:Array = secondary == null ? [] : secondary.rows(expanded,details);
+         var peerStats:Object = {};
+         for each(var other:Object in peer) if(other.kind == "stat") peerStats[other.id] = other;
+         for(var index:int = 0; index < entries.length; index++)
+         {
+            var entry:Object = entries[index];
+            if(entry.kind != "stat")
+            {
+               var caption:WeaponDetailCaption = new WeaponDetailCaption(entry);
+               addChild(caption);
+               if(entry.kind == "heading" && index > 0) nextY += 6;
+               caption.x += original.diff_1.x;
+               caption.y += original.diff_1.y + nextY;
+               nextY += caption.contentHeight;
+               continue;
+            }
+            var wrapper:weapon_compare_mc_8 = new weapon_compare_mc_8();
+            addChild(wrapper);
+            wrapper.x = original.diff_1.x;
+            wrapper.y = original.diff_1.y + nextY;
+            wrapper.background.visible = false;
+            var row:LabelDiffIndicator = wrapper.indicator;
+            var compared:Object = peerStats[entry.id];
+            if(entry.comparison.kind == "lower-range")
+            {
+               // A range is better only if neither endpoint is worse.
+               // Crossing ranges stay neutral instead of comparing averages.
+               row.direction = false;
+               row.value = row.compare = 0;
+               if(compared != null && compared.comparison.kind == "lower-range")
+               {
+                  var low:Number = entry.comparison.low - compared.comparison.low;
+                  var high:Number = entry.comparison.high - compared.comparison.high;
+                  // Native indicators clamp numbers below zero.
+                  if(low <= 0 && high <= 0 && (low < 0 || high < 0)) row.compare = 1;
+                  else if(low >= 0 && high >= 0 && (low > 0 || high > 0)) row.value = 1;
+               }
+            }
+            else if(entry.comparison.kind != "neutral")
+            {
+               row.direction = entry.comparison.kind == "higher";
+               row.value = entry.comparison.value;
+               // A dash (no such stat) compares with nothing; a row may name what it compares with
+               // (against: a shotgun's Buckshot against the other weapon's best).
+               if(entry.comparison.against !== undefined) row.compare = entry.comparison.against;
+               else row.compare = compared == null || compared.comparison.kind != entry.comparison.kind ? entry.comparison.value : compared.comparison.value;
+            }
+            else row.value = row.compare = 0;
+            row.setDetailText(entry.label,entry.value,entry.verdict);
+            row.validateNow();
+            if(entry.child) stepIn(row);
+            var lines:int = row.detailLines;
+            // Both cards reserve the larger label height for a compared row.
+            // Different falloff distances can wrap differently in translation.
+            // Held Alt, a wider value ("base -> in a match") leaves its label less room, too.
+            if(compared != null && (compared.label != entry.label || effects != null && compared.value != entry.value))
+               lines = Math.max(lines,linesOf(compared));
+            nextY += stride * Math.max(1,lines) * (entry.child ? SUBROW_STRIDE : 1);
+         }
+         contentHeight = nextY * scaleY;
+      }
+
+      // The lines a row's label takes beside its value, laid out on a row of its own.
+      private function linesOf(entry:Object) : int
+      {
+         var probe:weapon_compare_mc_8 = new weapon_compare_mc_8();
+         addChild(probe);
+         probe.indicator.setDetailText(entry.label,entry.value);
+         probe.indicator.validateNow();
+         var lines:int = probe.indicator.detailLines;
+         removeChild(probe);
+         return lines;
+      }
+
+      // A row under a stat (entry.child: a shotgun's Buckshot and Slug): its label SUBROW_INDENT to the
+      // right, after the row's first layout (configUI puts it at the native column); a kind's word is short.
+      private static function stepIn(row:LabelDiffIndicator) : void
+      {
+         row.textFieldLabel.x += SUBROW_INDENT;
+      }
+   }
+}

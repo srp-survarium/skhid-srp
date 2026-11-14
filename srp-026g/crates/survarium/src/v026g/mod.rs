@@ -1,22 +1,28 @@
 //! What srp serves the 0.26g client (`docs/notes/`).
 
 // The game data (`data.md`, `modes_maps.md`).
+pub mod armour;
 pub mod awards;
 pub mod dictionary;
 pub mod drops;
 pub mod game_data;
 pub mod golden;
 pub mod item_params;
+pub mod keeper;
 pub mod loadouts;
 pub mod localization;
 pub mod maps;
 pub mod modifications;
+pub mod new_account;
 pub mod prices;
 pub mod quests;
 pub mod scopes;
 pub mod shop_offers;
 pub mod skills;
 pub mod tables;
+pub mod ui_properties;
+pub mod weapon;
+pub mod weapon_kit;
 
 // Wire helpers.
 pub mod lzma2;

@@ -54,6 +54,28 @@ struct Stray {
     told: bool,
 }
 
+/// The players who gave their place in `game` up: by their own word
+/// (0xE0), not by a link or a game that broke, or removed as idle
+/// (anti-AFK, as a player who leaves). Each session can be put in another
+/// match, and the queue no longer sends it back to this one when it presses
+/// Play. (Until 2026-10-12 it did, for as long as the match ran: live, a
+/// player who left a match of two was sent back to it three times.) The
+/// place stays in the roster, and the lobby takes the player out of its
+/// room; joining it again while the match is played puts it in as a new
+/// place (the owner's of 2026-10-19), and the result counts its latest
+/// place only.
+fn release_quits(game: &mut Game, registry: &MatchRegistry, store: &SessionStore) {
+    for (session_id, account_id) in game.take_quits() {
+        registry.release(session_id);
+        store.matchmaking().leave_match(account_id);
+        log::info!(
+            "Match {:#x}: session {session_id:#x} gave its place up (it left by its own word, \
+             0xE0, or was removed as idle), and its room if it was in one",
+            game.id
+        );
+    }
+}
+
 /// The 0.26g match server: runs every match the lobby makes in `registry`
 /// on the configured UDP port (`SRP_BIND_HOST`, `SRP_MATCH_PORT`), and
 /// hands each finished one to `results`. Returns only on a socket error.
@@ -268,26 +290,7 @@ impl Server {
                     })
             {
                 game.receive(index, datagram, now);
-                for (session_id, account_id) in game.take_quits() {
-                    // The player left by its own word (0xE0), not by a
-                    // link or a game that broke: it has given its place
-                    // up. Its session can be put in another match, and the
-                    // queue no longer sends it back to this one when it
-                    // presses Play. (Until 2026-10-12 it did, for as long
-                    // as the match ran: live, a player who left a match of
-                    // two was sent back to it three times.) The place
-                    // stays in the roster, and the lobby takes the player
-                    // out of its room; joining it again while the match is
-                    // played puts it in as a new place (the owner's of
-                    // 2026-10-19), and the result counts its latest place
-                    // only.
-                    self.registry.release(session_id);
-                    self.store.matchmaking().leave_match(account_id);
-                    log::info!(
-                        "Match {match_id:#x}: player {index} left by its own word (0xE0): its \
-                         place is given up (and its room left, if it was in one)"
-                    );
-                }
+                release_quits(game, &self.registry, &self.store);
                 return;
             }
             self.routes.remove(&addr);
@@ -395,9 +398,9 @@ impl Server {
             log::info!(
                 "Match {:#x}: map {} ({}), mode {}, {} players",
                 formed.match_id,
-                formed.map.id,
-                formed.map.name,
-                formed.map.mode,
+                formed.played.map().id,
+                formed.played.map().name,
+                formed.played.mode().lobby_number(),
                 formed.places.len()
             );
             let mut game = Game::new(formed, self.port, self.settings.clone(), now);
@@ -407,7 +410,7 @@ impl Server {
             self.games.insert(seat.match_id, game);
         }
         let growing = survarium::v026g::match_msgs::late_join::has_connect_capability(debug);
-        if (growing && debug == 0x81) || (!growing && debug != 0) {
+        if (growing && debug & 1 != 0) || (!growing && debug != 0) {
             log::info!(
                 "{addr} (session {session_id:#x}) runs with -debug_hash_mismatch: a stock client \
                  like it would read an upload request (0xF6) as a world to compare"
@@ -427,7 +430,10 @@ impl Server {
             game.sync_roster(formed, now);
         }
         game.attach(index, addr, session_id, revision, transport, now);
+        if matches!(debug, 0x82 | 0x83) { game.enable_world_receipts(index); }
         self.routes.insert(addr, (seat.match_id, index));
+        // The voice relay takes the place's talk from this IP only.
+        self.registry.set_connection(seat, addr.ip());
         self.store.seen_in_match(session_id);
     }
 
@@ -455,13 +461,24 @@ impl Server {
                 game.sync_roster(formed, now);
             }
             datagrams.extend(game.poll(now));
+            // A player removed as idle (anti-AFK) gives its place up there,
+            // and the chat says so (the lobby, through srp).
+            release_quits(game, &self.registry, &self.store);
+            for removed in game.take_idle_removed() {
+                self.results.idle_removed(removed);
+            }
             for (place, account_id) in game.take_rejected_joins() {
                 if self.registry.release_place(game.id, place) {
                     self.store.matchmaking().join_failed(account_id);
                 }
             }
-            self.registry
-                .set_admitting(game.id, game.roster_size(), game.admission(now));
+            // The phase with the admission, in one record: a join reads both (Keeper's late joiner).
+            self.registry.set_admitting(
+                game.id,
+                game.roster_size(),
+                game.admission(now),
+                game.live_phase(),
+            );
             if tell_live {
                 self.registry.set_live(game.id, game.live_now(now));
             }
@@ -525,8 +542,8 @@ impl Server {
                 log::info!("Match {match_id:#x}: no client came; given up");
                 self.results.match_ended(MatchResult {
                     match_id,
-                    map_id: formed.map.id,
-                    game_mode: formed.map.mode,
+                    map_id: formed.played.map().id,
+                    mode: formed.played.mode(),
                     match_level: formed.match_level,
                     // A room's: called off, as one everyone left before its
                     // countdown (`Game::called_off`).
@@ -559,6 +576,7 @@ impl Server {
                             left: false,
                             time_in_match_ms: 0,
                             statistics: None,
+                            pay_statistics: None,
                             score: 0,
                             kills: 0,
                             deaths: 0,

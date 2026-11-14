@@ -24,6 +24,9 @@
       # slice_split_once), so stable will not build it.
       rust = pkgs.rust-bin.nightly.latest.default.override {
         extensions = [ "rust-src" "rustfmt" "clippy" "rust-analyzer" ];
+        # The Rust exe patches (client-patches/rust) are tested and linted for
+        # the game's i686, never the host's x86_64 (rust_patches.md).
+        targets = [ "i686-unknown-linux-gnu" ];
       };
 
       # The players' Windows programs (client/bugtrap, client/updater) are
@@ -72,8 +75,95 @@
         };
         patches = [ ];
       });
+
+      # skhid_voice.dll (client-voice/src, built by client-voice/build.sh): in-match
+      # voice chat, beside survarium.exe. libopus as the DLL has it: floating
+      # point (opus 1.6.1's fixed-point build for x86 does not link: its
+      # SSE4.1 SILK functions are missing), no custom modes, a static
+      # library; the same build for the loopback test on Linux.
+      opusForVoice = opus: opus.overrideAttrs (old: {
+        mesonFlags = (old.mesonFlags or [ ]) ++ [ "-Dcustom-modes=false" ];
+      });
+      mingw32 = pkgs.pkgsCross.mingw32;
+      # This file's CRLF line ends, out of the shell snippets.
+      noCR = builtins.replaceStrings [ "\r" ] [ "" ];
+      voiceOpusWin = (opusForVoice mingw32.libopus).overrideAttrs (old: {
+        mesonFlags = old.mesonFlags ++ [ "-Ddefault_library=static" ];
+        NIX_CFLAGS_COMPILE = (old.NIX_CFLAGS_COMPILE or "") + " -mstackrealign -D__USE_MINGW_ANSI_STDIO=0 -D_CRTIMP=";
+      });
+      # speexdsp's preprocessor (the DLL's automatic gain and noise
+      # suppression, as 0.69's voice_recorder has them): floating point, its
+      # own FFT (smallft; nixpkgs' FFTW is GPL), the same build for the tests.
+      speexForVoice = speexdsp: speexdsp.override { withFftw3 = false; };
+      voiceSpeexWin = (speexForVoice mingw32.speexdsp).overrideAttrs (old: {
+        configureFlags = (old.configureFlags or [ ]) ++ [ "--disable-shared" "--enable-static" ];
+        # No stderr warnings (the static CRT's stdio is not mingw's), and
+        # sin, cos and floor stay calls of their own: GCC would make them
+        # sincos and floorf, which Microsoft's 32-bit CRT does not export.
+        NIX_CFLAGS_COMPILE = (old.NIX_CFLAGS_COMPILE or "") + " -mstackrealign -D__USE_MINGW_ANSI_STDIO=0 -D_CRTIMP= -DDISABLE_WARNINGS -DDISABLE_NOTIFICATIONS -fno-builtin-sin -fno-builtin-cos -fno-builtin-floor";
+      });
+      # GCC's COFF objects use the same C ABI as Rust's MSVC target. Keep
+      # Opus and speexdsp static, align calls from the game's four-byte stack,
+      # use the standard C stdio names, and strip their automatic DLL export
+      # directives.
+      voiceOpusMsvc = pkgs.stdenvNoCC.mkDerivation {
+        name = "skhid-voice-opus-msvc";
+        nativeBuildInputs = [ pkgs.llvm mingw32.stdenv.cc ];
+        buildCommand = noCR ''
+          mkdir -p $out/lib
+          llvm-objcopy -R .drectve ${voiceOpusWin}/lib/libopus.a $out/lib/opus.lib
+          llvm-objcopy -R .drectve ${voiceSpeexWin}/lib/libspeexdsp.a $out/lib/speexdsp.lib
+          cp $(${mingw32.stdenv.cc.targetPrefix}gcc -print-libgcc-file-name) $out/lib/gcc.lib
+        '';
+      };
+
+      # Its smoke test for Windows or Wine (client-voice/smoke_voice.c).
+      skhidVoiceSmoke = mingw32.stdenv.mkDerivation {
+        pname = "skhid-voice-smoke";
+        version = "1";
+        src = ./client-voice;
+        buildInputs = [ mingw32.windows.mcfgthreads ];
+        dontConfigure = true;
+        buildPhase = noCR ''
+          $CC -std=c99 -O2 -Wall -Wno-cast-function-type -o smoke_voice.exe smoke_voice.c \
+            -static -static-libgcc -Wl,--as-needed -lws2_32
+        '';
+        installPhase = noCR ''
+          mkdir -p $out
+          cp smoke_voice.exe $out/
+        '';
+      };
+
+      # The portable Rust core has no registry dependencies. This hermetic
+      # check runs the same tests as cargo test -p skhid-voice, plus builds
+      # the WAV listening tool; the real relay test lives in match-server.
+      voiceLoopback = pkgs.stdenv.mkDerivation {
+        name = "skhid-voice-loopback";
+        src = ./client-voice;
+        nativeBuildInputs = [ rust ];
+        buildInputs = [ (opusForVoice pkgs.libopus) (speexForVoice pkgs.speexdsp) ];
+        dontConfigure = true;
+        buildPhase = noCR ''
+          rustc --edition=2024 --test src/lib.rs -l opus -l speexdsp -o test_voice
+          ./test_voice >test_voice.log
+          cat test_voice.log
+          rustc --edition=2024 --crate-name skhid_voice --crate-type rlib src/lib.rs -l opus -l speexdsp -o libskhid_voice.rlib
+          rustc --edition=2024 src/bin/radio_demo.rs --extern skhid_voice=libskhid_voice.rlib -L . -l opus -l speexdsp -o radio_demo
+        '';
+        installPhase = noCR ''
+          mkdir -p $out
+          cp test_voice.log radio_demo $out/
+        '';
+      };
     in
     {
+      packages.${system} = {
+        voice-opus = voiceOpusMsvc;
+        skhid-voice-smoke = skhidVoiceSmoke;
+      };
+
+      checks.${system}.voice-loopback = voiceLoopback;
+
       devShells.${system}.default = pkgs.mkShell {
         name = "srp";
 
@@ -84,6 +174,8 @@
         buildInputs = [
           rust
           pkgs.openssl
+          pkgs.libopus
+          (speexForVoice pkgs.speexdsp)
           # Used by scripts/dev-bootstrap.sh to run the servers in tmux windows.
           pkgs.tmux
           # llvm-rc (the Windows programs' version and icon resources) and
@@ -94,6 +186,9 @@
           # shell's own, and NASM 2.16 (above).
           pkgs.python3
           nasm216
+          # The compile cache shared by every worktree (RUSTC_WRAPPER below);
+          # `sccache --show-stats` shows its hits.
+          pkgs.sccache
         ];
 
         # The `openssl` crate defaults to vendoring (compiling OpenSSL from
@@ -101,9 +196,20 @@
         # dev shell stays hermetic and fast.
         env = {
           OPENSSL_NO_VENDOR = "1";
-          PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig";
+          PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig:${pkgs.libopus.dev}/lib/pkgconfig";
           # Where client/bugtrap and client/updater link the C runtime from.
           SKHID_MSVC_LIB = "${msvcLibs}/lib/x86";
+          VOICE_OPUS_LIB_DIR = "${voiceOpusMsvc}/lib";
+          # `cargo test --target i686-unknown-linux-gnu` in client-patches/rust
+          # links its test binaries against 32-bit glibc with this.
+          CARGO_TARGET_I686_UNKNOWN_LINUX_GNU_LINKER = "${pkgs.pkgsi686Linux.stdenv.cc}/bin/cc";
+          # Every worktree has its own target folder. sccache keeps one cache
+          # for all of them (~/.cache/sccache), so each dependency crate is
+          # compiled once and a new worktree's first build reuses it. The
+          # workspace's own crates build incrementally, which sccache passes
+          # through uncached. Capped at 30 GB, oldest entries dropped first.
+          RUSTC_WRAPPER = "${pkgs.sccache}/bin/sccache";
+          SCCACHE_CACHE_SIZE = "30G";
         };
       };
     };

@@ -49,18 +49,18 @@ use std::time::{Duration, Instant};
 
 use crate::drive::{self, Drive};
 use lobby_server::v026g::scripted::{CLIENT_IDLE, TestClient, request};
+use login_server::sealed::ServerPublicKey;
 use match_server::v026g::scripted::Client as MatchClient;
 use survarium::v026g::lobby::ClientState;
 use survarium::v026g::lobby::client_model::Decoded;
 use survarium::v026g::lobby::requests::id as lobby_id;
 use survarium::v026g::lobby::rooms::ROOM_STATE;
-use survarium::v026g::maps;
 use survarium::v026g::match_msgs::ServerMessage;
 
 /// The version a 0.26g client signs in with.
 const VERSION: &[u8] = b"0.26g0";
 /// The login server's answers.
-const TLS_NEXT: u8 = 0x0B;
+const PASSWORD_NEXT: u8 = 0x0B;
 const SIGNED_IN: u8 = 0x08;
 const INVALID: u8 = 0x0A;
 
@@ -100,6 +100,8 @@ pub struct Config {
     pub name: String,
     /// Its password. Never printed.
     pub password: String,
+    /// The login server's public key of the sign-in cipher.
+    pub server_key: ServerPublicKey,
     /// Stop after one match.
     pub once: bool,
     /// The kit to press Play with; `None` for the one the account plays.
@@ -131,7 +133,7 @@ impl SignIn {
     /// The session and the lobby's address of a `08` reply; `None` when
     /// the sign-in was refused.
     pub fn accepted(&self) -> Option<(u32, SocketAddr)> {
-        if self.answer != TLS_NEXT || self.reply.len() != 11 || self.reply[0] != SIGNED_IN {
+        if self.answer != PASSWORD_NEXT || self.reply.len() != 11 || self.reply[0] != SIGNED_IN {
             return None;
         }
         let session = u32::from_le_bytes(self.reply[1..5].try_into().ok()?);
@@ -147,9 +149,11 @@ impl SignIn {
         match (self.answer, self.reply.first()) {
             (0x22, _) => "the server takes another version of the game".to_owned(),
             (INVALID, _) => "the server does not take this user name".to_owned(),
-            (TLS_NEXT, Some(&INVALID)) => "invalid user name or password".to_owned(),
-            (TLS_NEXT, Some(code)) => format!("the login server answered {code:#04x}"),
-            (TLS_NEXT, None) => "the login server closed the link after the password".to_owned(),
+            (PASSWORD_NEXT, Some(&INVALID)) => "invalid user name or password".to_owned(),
+            (PASSWORD_NEXT, Some(code)) => format!("the login server answered {code:#04x}"),
+            (PASSWORD_NEXT, None) => {
+                "the login server closed the link after the password".to_owned()
+            }
             (answer, _) => format!("the login server answered {answer:#04x}"),
         }
     }
@@ -159,18 +163,23 @@ impl SignIn {
 /// the clear, the TLS handshake, the digest and the password. An error is
 /// the link's (nobody listening, a timeout); a refusal is a [`SignIn`]
 /// that is not [`SignIn::accepted`].
-pub fn sign_in(login: SocketAddr, user_name: &str, password: &str) -> io::Result<SignIn> {
-    sign_in_with_revision(login, user_name, password, 0)
+pub fn sign_in(
+    login: SocketAddr,
+    server_key: ServerPublicKey,
+    user_name: &str,
+    password: &str,
+) -> io::Result<SignIn> {
+    sign_in_with_revision(login, server_key, user_name, password, 0)
 }
 
 /// Sign in with an explicit client dialect for integration clients.
 pub fn sign_in_with_revision(
     login: SocketAddr,
+    server_key: ServerPublicKey,
     user_name: &str,
     password: &str,
     revision: u8,
 ) -> io::Result<SignIn> {
-    use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
     let too_long = |what: &str| io::Error::other(format!("the {what} is longer than 255 bytes"));
     let name_len = u8::try_from(user_name.len()).map_err(|_| too_long("user name"))?;
     let password_len = u8::try_from(password.len()).map_err(|_| too_long("password"))?;
@@ -188,31 +197,17 @@ pub fn sign_in_with_revision(
     stream.write_all(&message)?;
     let mut answer = [0];
     stream.read_exact(&mut answer)?;
-    if answer[0] != TLS_NEXT {
+    if answer[0] != PASSWORD_NEXT {
         return Ok(SignIn {
             answer: answer[0],
             reply: Vec::new(),
         });
     }
-    let mut connector = SslConnector::builder(SslMethod::tls()).map_err(io::Error::other)?;
-    // The game's own certificate and key are of 2013.
-    connector.set_security_level(0);
-    connector.set_verify(SslVerifyMode::NONE);
-    let mut tls = connector
-        .build()
-        .configure()
-        .map_err(io::Error::other)?
-        .verify_hostname(false)
-        .connect("localhost", stream)
-        .map_err(|error| io::Error::other(format!("the TLS handshake: {error}")))?;
     let mut message = vec![0x03];
     message.extend(sha1_hex(password.as_bytes()));
     message.push(password_len);
     message.extend(password.as_bytes());
-    tls.write_all(&message)?;
-    let mut reply = Vec::new();
-    // The server closes the link after its reply.
-    let _ = tls.read_to_end(&mut reply);
+    let reply = login_server::sealed::ask(stream, server_key, &message)?;
     Ok(SignIn {
         answer: answer[0],
         reply,
@@ -274,7 +269,7 @@ struct Lobby {
     faults_told: usize,
     /// The kit the account plays, and what it was told it has.
     kit: Option<u32>,
-    money: Option<(u32, u32)>,
+    money: Option<u32>,
     /// The room it is in and its members, as last told, so that only
     /// changes are printed; and when it last asked.
     room: Option<(u32, u32)>,
@@ -354,6 +349,7 @@ impl Bot {
         };
         let answer = match sign_in_with_revision(
             login,
+            self.config.server_key,
             &self.config.name,
             &self.config.password,
             self.config.revision,
@@ -448,7 +444,8 @@ impl Bot {
                         .or(kits.first())
                         .map(|kit| kit.id);
                 }
-                Decoded::Money { generic, premium } => lobby.money = Some((*generic, *premium)),
+                // Its second number, gold, is always 0: gold is gone.
+                Decoded::Money { generic, .. } => lobby.money = Some(*generic),
                 Decoded::ClientState { state, .. } => {
                     lobby.in_lobby = *state == ClientState::Lobby;
                     if let ClientState::InQueue { order_id, .. }
@@ -527,9 +524,7 @@ impl Bot {
             Stage::SignedOut(_) | Stage::Done => {}
             Stage::SigningIn(since) => {
                 if in_lobby && kit.is_some() {
-                    let money = money.map_or(String::new(), |(silver, gold)| {
-                        format!(", {silver} silver and {gold} gold")
-                    });
+                    let money = money.map_or(String::new(), |silver| format!(", {silver} silver"));
                     self.say(&format!(
                         "in the lobby: the account has kit {}{money}",
                         kit.unwrap_or(0)
@@ -652,12 +647,13 @@ impl Bot {
                     let ip = host.parse::<IpAddr>().ok().or(lobby_ip);
                     let drive = self.config.drive;
                     let link = ip.zip(socket().ok()).map(|(ip, socket)| {
-                        let mut client =
-                            if survarium::v026g::match_msgs::late_join::spoken_by(self.config.revision) {
-                                MatchClient::idle_growing(session)
-                            } else {
-                                MatchClient::idle(session)
-                            };
+                        let mut client = if survarium::v026g::match_msgs::late_join::spoken_by(
+                            self.config.revision,
+                        ) {
+                            MatchClient::idle_growing(session)
+                        } else {
+                            MatchClient::idle(session)
+                        };
                         client.connect();
                         MatchLink {
                             addr: SocketAddr::new(ip, *port),
@@ -815,14 +811,13 @@ impl Bot {
             say(&format!("{} left the match", player(place)));
         }
         let loaded = client.model.options.as_ref().map(|options| {
-            let map = maps::map_mode(options.map_id).map_or(String::new(), |map| {
-                format!(" ({}, mode {})", map.name, map.mode)
-            });
+            let map = options.map.map();
+            let map = format!(" ({}, mode {})", map.name, map.mode.lobby_number());
             format!(
                 "took the static info (0xE4): match {:#x}, map {}{map}, {} players, its place \
                  {}; says it has loaded (0xDA)",
                 options.match_id,
-                options.map_id,
+                options.map.map().id,
                 options.players.len(),
                 own.map_or("?".to_owned(), |place| place.to_string())
             )
@@ -968,7 +963,7 @@ mod tests {
         reply.extend(u32::from(Ipv4Addr::new(127, 0, 0, 1)).to_le_bytes());
         reply.extend(1235_u16.to_le_bytes());
         let accepted = SignIn {
-            answer: TLS_NEXT,
+            answer: PASSWORD_NEXT,
             reply,
         };
         assert_eq!(
@@ -976,7 +971,7 @@ mod tests {
             Some((0x1234_5678, "127.0.0.1:1235".parse().unwrap()))
         );
         let refused = SignIn {
-            answer: TLS_NEXT,
+            answer: PASSWORD_NEXT,
             reply: vec![INVALID],
         };
         assert_eq!(refused.accepted(), None);

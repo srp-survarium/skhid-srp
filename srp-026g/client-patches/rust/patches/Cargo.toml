@@ -1,0 +1,31 @@
+[package]
+name = "patches"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["staticlib"]
+path = "src/lib.rs"
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# patch 76's solver and corpses' machine: pure Rust, tested in its own crate
+ragdoll = { path = "../../../crates/ragdoll" }
+# patch 116: the reasons and the answer srp's login server tells a ban by
+ban-reason = { path = "../../../crates/ban-reason" }
+# patch 139: the sign-in cipher, the game's side of what srp's login server speaks
+sign-in-cipher = { path = "../../../crates/sign-in-cipher" }
+artefact-carry = { path = "../../../crates/artefact-carry" }
+# patch 87's world check: the match server's own parse of a world's frame
+world-frame = { path = "../../../crates/world-frame" }
+# patch 85's shared rules (the command, the record, the pickup and crate rules)
+weapon-pickup = { path = "../../../crates/weapon-pickup" }
+# patch 68's weapon kit: srp's servers pack it, the client reads the same crate
+weapon-kit = { path = "../../../crates/weapon-kit" }
+# patch 66: the voice DLL's C ABI, shared with srp-026g/client-voice
+voice-abi = { path = "../../../crates/voice-abi" }
+srp-validate = { path = "../../../crates/srp-validate" }

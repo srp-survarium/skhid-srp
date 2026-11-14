@@ -1,7 +1,9 @@
 package survarium.messages
 {
    import flash.display.MovieClip;
+   import flash.geom.Rectangle;
    import flash.events.Event;
+   import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
    import flash.text.TextField;
    import flash.utils.getDefinitionByName;
@@ -19,26 +21,22 @@ package survarium.messages
    import survarium.controls.ItemRendererBase;
    import survarium.controls.Message;
    import survarium.controls.PlayerInfo;
+   import survarium.controls.SilverPrice;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
    import survarium.data.LocalizationData;
    import survarium.item.ModificationRolls;
-   import survarium.constants.ModificationState;
    import survarium.constants.MoneyType;
    import survarium.constants.RerollChoice;
-   import survarium.rooms.RoomsText;
 
    public class MessageRerollItem extends MessageAccept
    {
 
-      // The window's rule line, in place of the game's st_modifier_reroll_description ("only one
-      // modifier"): any modifier may be changed (the owner's rule of 2026-10-22).
-      private static const REROLL_DESCRIPTION:Array = [
-         "You can change any modifier of an item, any number of times. You then choose one of three random modifiers.",
-         "Можна змінити будь-який модифікатор предмета, скільки завгодно разів. Потім оберіть один із трьох випадкових модифікаторів.",
-         "Можно изменить любой модификатор предмета, сколько угодно раз. Затем выберите один из трёх случайных модификаторов.",
-         "Du kannst jeden Modifikator eines Gegenstands beliebig oft ändern. Danach wählst du einen von drei zufälligen Modifikatoren.",
-         "Możesz zmienić dowolny modyfikator przedmiotu, dowolną liczbę razy. Następnie wybierasz jeden z trzech losowych modyfikatorów."];
+      // The item's picture hovered and left: the lobby shows cardItem's card, the inventory's
+      // (LobbyMenu.showRerollItemHint), and takes it away.
+      public static const SHOW_CARD:String = "rerollShowCard";
+
+      public static const HIDE_CARD:String = "rerollHideCard";
 
       // The original movie places the game's lock hint (one modification an item) on this window;
       // since any modification may be changed it is not used (configUI hides it).
@@ -67,6 +65,9 @@ package survarium.messages
       public var checkBoxRegularCost:CheckBoxValue;
       
       public var checkBoxPremiumCost:CheckBoxValue;
+
+      // The price, in place of the silver checkbox (SilverPrice): made with the window's data.
+      private var _price:SilverPrice;
       
       public var iconSlot:IconRenderer;
       
@@ -90,11 +91,8 @@ package survarium.messages
       
       public var itemRenderer:ItemRendererBase;
       
-      private var _rerollTimer:int = 0;
       
       protected var _rerollCost:int = 0;
-      
-      protected var _rerollCostGold:int = 0;
       
       protected var _itemId:uint = 0;
       
@@ -108,10 +106,31 @@ package survarium.messages
       
       override protected function cleanUp(event:Event = null) : void
       {
+         // closed under the pointer (Enter, Esc): its card goes with it
+         dispatchEvent(new Event(HIDE_CARD,true));
          this.itemRenderer.data = null;
          super.cleanUp();
       }
-      
+
+      // The item the window shows, null before it is filled.
+      public function get cardItem() : Object
+      {
+         return this.itemRenderer.data;
+      }
+
+      private function onItemOver(e:MouseEvent) : void
+      {
+         if(this.itemRenderer.data != null)
+         {
+            dispatchEvent(new Event(SHOW_CARD,true));
+         }
+      }
+
+      private function onItemOut(e:MouseEvent) : void
+      {
+         dispatchEvent(new Event(HIDE_CARD,true));
+      }
+
       override protected function configUI() : void
       {
          var rendererClass:Class = getDefinitionByName("SrvItemRendererFull") as Class;
@@ -126,10 +145,11 @@ package survarium.messages
          itemRenderer = new rendererClass();
          this.itemRenderer.x = 10;
          this.itemRenderer.y = 42;
-         // Hovering the item's picture shows its stats tip, the lobby's item tip (as on a profile's
-         // items), its modifications applied (the owner, 2026-10-23). The picture's own back is a
-         // fill of alpha 0, which takes no hover: a 0.01 one over it.
-         this.itemRenderer.tooltipRendererName = "SrvItemHintRednerer";
+         // Hovering the item's picture shows its card, the inventory's, its modifications applied
+         // (the owner, 2026-10-23; at the inventory's size, 2026-11-06). The picture's own back is
+         // a fill of alpha 0, which takes no hover: a 0.01 one over it.
+         this.itemRenderer.addEventListener(MouseEvent.ROLL_OVER,this.onItemOver);
+         this.itemRenderer.addEventListener(MouseEvent.ROLL_OUT,this.onItemOut);
          this.itemRenderer.graphics.beginFill(0,0.01);
          this.itemRenderer.graphics.drawRect(this.itemRenderer.iconRenderer.x,this.itemRenderer.iconRenderer.y,this.itemRenderer.iconRenderer.width,this.itemRenderer.iconRenderer.height);
          this.itemRenderer.graphics.endFill();
@@ -147,23 +167,19 @@ package survarium.messages
             trace("in:data::",this.labelText,this.labelChooseModifier,this.decriptionLabel,this.buttonCraft,this.buttonReroll,this.checkBoxRegularCost,this.checkBoxPremiumCost,this.sellerIcon);
             this.labelText.text = LocalizationData.getName("item_modification");
             this.labelChooseModifier.text = LocalizationData.getName("choose_modifier");
-            this.decriptionLabel.text = String(REROLL_DESCRIPTION[RoomsText.language()]);
+            // The window's rule line, in place of the game's st_modifier_reroll_description ("only one
+            // modifier"): any modifier may be changed (the owner's rule of 2026-10-22).
+            this.decriptionLabel.text = LocalizationData.getName("st_srp_reroll_description");
             // Skhid: no "only one attempt in 6 hours" line: silver rerolls have no wait
-            // (items_rules: Reroll, the owner's rule of 2026-10-22)
-            this.decriptionTimerLabel.text = "";
+            // (items_rules: Reroll, the owner's rule of 2026-10-22); the line stays hidden.
+            this.decriptionTimerLabel.visible = false;
             this.labelChooseModifier2.text = LocalizationData.getName("choose_modifier");
-            this.checkBoxRegularCost.selected = true;
-            this.checkBoxPremiumCost.selected = false;
-            this.checkBoxRegularCost.money_type = MoneyType.REGULAR;
-            this.checkBoxPremiumCost.money_type = MoneyType.PREMIUM;
-            this.checkBoxRegularCost.toggle = false;
-            this.checkBoxPremiumCost.toggle = false;
-            this.checkBoxRegularCost.addEventListener(ButtonEvent.CLICK,this.unBtnClicked);
-            this.checkBoxPremiumCost.addEventListener(ButtonEvent.CLICK,this.unBtnClicked);
-            this.checkBoxRegularCost.value = 0;
-            this.checkBoxPremiumCost.value = 0;
+            // A change is paid in silver only: the game has no gold (the owner, 2026-11-08). Its
+            // price, centred, in place of the silver checkbox (SilverPrice).
+            this.fitDescription();
+            this._price = new SilverPrice(this.checkBoxRegularCost,this.background.x + this.background.width / 2);
+            this.checkBoxPremiumCost.visible = false;
             this.labelChooseModifier2.visible = this.modifiersList2.visible = false;
-            _rerollTimer = _data.rerollTime;
             this.itemRenderer.data = _data;
             _itemId = _data.itemId;
             modifiers = _data.modifiers as Array;
@@ -176,7 +192,7 @@ package survarium.messages
                while(i < modifierCount)
                {
                   modifier = modifiers[i];
-                  if(!modifier.isDefault && modifier.state != ModificationState.DEFECT)
+                  if(!modifier.isDefault)
                   {
                      modifierIcon = iconContainer.getIcon(modifier.icon);
                      option = {
@@ -196,15 +212,6 @@ package survarium.messages
             this.setChooseReollOptionState(false);
          }
          this.checkAcceptButton();
-      }
-      
-      public function updateTimer(rerollInfo:Object) : void
-      {
-         if(_data && rerollInfo && _data.itemId == rerollInfo.itemId)
-         {
-            _rerollTimer = rerollInfo.rerollTime;
-            this.checkAcceptButton();
-         }
       }
       
       public function updateReroll(newModifiers:Array) : void
@@ -255,12 +262,13 @@ package survarium.messages
          var option:Object;
          this.lockWindow(false);
          _rerollCost = rerollData.regular_cost;
-         _rerollCostGold = rerollData.premium_cost;
-         this.checkBoxRegularCost.value = this._rerollCost;
-         this.checkBoxPremiumCost.value = this._rerollCostGold;
+         if(this._price)
+         {
+            this._price.cost = this._rerollCost;
+         }
          if(modifiers)
          {
-            // The stats tip's item: its modifications as the server has them now (after a choice
+            // The card's item: its modifications as the server has them now (after a choice
             // too), with the item kind's own, as the inventory composes them.
             _data.modifiers = modifiers.concat(_data.modifiersDefault ? _data.modifiersDefault : []);
             modifierCount = modifiers.length;
@@ -303,34 +311,18 @@ package survarium.messages
          }
       }
       
-      private function unBtnClicked(event:Event) : void
-      {
-         this.checkBoxRegularCost.selected = event.target == this.checkBoxRegularCost;
-         this.checkBoxPremiumCost.selected = event.target == this.checkBoxPremiumCost;
-         this.checkAcceptButton();
-      }
-      
       protected function checkAcceptButton(event:Event = null) : void
       {
          var selectedModifier:int;
-         var moneyType:uint;
          if(this.rerollContainer.visible)
          {
-            moneyType = this.getSelectedIndex();
             selectedModifier = this.modifiersList.selectedIndex;
             if(selectedModifier == -1)
             {
                btnAccept.enabled = false;
                return;
             }
-            if(moneyType == MoneyType.REGULAR)
-            {
-               btnAccept.enabled = this._rerollCost <= PlayerInfo.genericMoney && !this._rerollTimer;
-            }
-            else if(moneyType == MoneyType.PREMIUM)
-            {
-               btnAccept.enabled = true;
-            }
+            btnAccept.enabled = this._rerollCost <= PlayerInfo.genericMoney;
          }
          else
          {
@@ -346,36 +338,6 @@ package survarium.messages
          }
       }
       
-      protected function getSelectedIndex() : uint
-      {
-         var moneyType:uint;
-         if(this.checkBoxRegularCost.selected)
-         {
-            moneyType = MoneyType.REGULAR;
-         }
-         else
-         {
-            moneyType = MoneyType.PREMIUM;
-         }
-         return moneyType;
-      }
-      
-      protected function goToStore() : void
-      {
-         MessageMoneyExchange.buyGold();
-      }
-      
-      protected function onNoMoneyEnought() : void
-      {
-         var messageData:Object = {
-            text:LocalizationData.getName("cant_buy_premium_message"),
-            onYes:this.goToStore,
-            label_ok:LocalizationData.getName("btn_add_premium_message"),
-            label_cancel:LocalizationData.getName("cancel")
-         };
-         Message.showMessage("apply",messageData,true);
-      }
-      
       protected function showModifierSelection(selectedModifier:uint, options:Array) : void
       {
          this.setChooseReollOptionState(true);
@@ -384,6 +346,34 @@ package survarium.messages
          btnAccept.enabled = false;
       }
       
+      // The description's panel fits its text, DESCRIPTION_MARGIN above and below (the owner, 2026-11-08:
+      // "too much padding for that text", "from above and below"), and the price row moves up by what the
+      // panel gives back. All of it in the window's coordinates: the panel (rerollContainer, at y 177) is
+      // placed scaled (0.681 high), so it is measured with getBounds and sized through its own height;
+      // the text box (y 186, about 70 high) is cut to its text. The stock layout is read once, so a
+      // second setup of the window (configUI runs again) gives the same result.
+      private static const DESCRIPTION_MARGIN:Number = 10;
+
+      private var _stockPanel:Rectangle;
+
+      private var _stockPriceY:Number;
+
+      private function fitDescription() : void
+      {
+         if(this._stockPanel == null)
+         {
+            this._stockPanel = this.rerollContainer.getBounds(this);
+            this._stockPriceY = this.checkBoxRegularCost.y;
+         }
+         var textHeight:Number = this.decriptionLabel.textHeight + 4;
+         var panelHeight:Number = textHeight + 2 * DESCRIPTION_MARGIN;
+         this.rerollContainer.height = panelHeight;
+         this.rerollContainer.y += this._stockPanel.top - this.rerollContainer.getBounds(this).top;
+         this.decriptionLabel.height = textHeight;
+         this.decriptionLabel.y = this._stockPanel.top + DESCRIPTION_MARGIN;
+         this.checkBoxRegularCost.y = this._stockPriceY - (this._stockPanel.height - panelHeight);
+      }
+
       private function setChooseReollOptionState(choosing:Boolean) : void
       {
          this.rerollContainer.visible = !choosing;
@@ -391,11 +381,12 @@ package survarium.messages
          this.modifiersList2.selectedIndex = -1;
          this.modifiersList2.visible = choosing;
          this.decriptionLabel.visible = !choosing;
-         this.checkBoxRegularCost.visible = !choosing;
-         this.checkBoxPremiumCost.visible = !choosing;
+         this._price.visible = !choosing;
          this.modifiersList.enabled = !choosing;
-         this.decriptionTimerLabel.visible = !choosing;
-         this.background.height = !choosing ? 392 : 337;
+         // While the price shows, the window ends SilverPrice.GAP under it, as the upgrade window does (the
+         // owner, 2026-11-08: "there is too much empty space after 200 silver"): the stock 392 left room for
+         // the taller money choice.
+         this.background.height = !choosing && this._price ? this._price.windowHeight : (!choosing ? 392 : 337);
          this.lockBackground.height = this.background.height;
          var buttonAreaHeight:int = 48;
          var backgroundBottom:int = this.background.height - 3;
@@ -422,16 +413,6 @@ package survarium.messages
          }
       }
       
-      protected function testOptions() : void
-      {
-         this.updateReroll(this.modifiersList.dataProvider as Array);
-      }
-      
-      protected function testOptions2() : void
-      {
-         this.updateModifiers(this.modifiersList.dataProvider as Array);
-      }
-      
       override protected function onMessageAccept(event:ButtonEvent = null) : void
       {
          if(!btnAccept.enabled)
@@ -439,24 +420,14 @@ package survarium.messages
             return;
          }
          var selectedModifier:uint = this.modifiersList.selectedIndex;
-         var moneyType:uint;
          var modifierIndex:uint;
          if(this.rerollContainer.visible)
          {
-            moneyType = this.getSelectedIndex();
             modifierIndex = selectedModifier;
-            trace("reroll_item_modifier",uint(moneyType));
-            if(moneyType == MoneyType.PREMIUM && this._rerollCostGold > PlayerInfo.premiumMoney)
-            {
-               this.onNoMoneyEnought();
-            }
-            else
-            {
-               trace("reroll_item_modifier",uint(_data.itemId),uint(modifierIndex));
-               ExternalInterface.call("reroll_item_modifier",_data.itemId,modifierIndex,uint(moneyType));
-               closable = false;
-               this.lockWindow(true);
-            }
+            trace("reroll_item_modifier",uint(_data.itemId),uint(modifierIndex));
+            ExternalInterface.call("reroll_item_modifier",_data.itemId,modifierIndex,uint(MoneyType.REGULAR));
+            closable = false;
+            this.lockWindow(true);
          }
          else
          {

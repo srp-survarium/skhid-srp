@@ -6,6 +6,10 @@ package survarium.controls
    import scaleform.clik.motion.Tween;
    import survarium.constants.PropertyDirection;
    
+   // A card's stat row: the bar runs over the property's min_value..max_value (ui_properties) and
+   // stops at its ends; value and compare keep what they were given (the minimum at least: a defect
+   // never shows a negative armour), so the text, the difference and the upgrade preview read the
+   // real numbers (a VSSK's 175 damage over the scale's 150).
    public class DiffIndicator extends StatusIndicator
    {
       
@@ -21,9 +25,16 @@ package survarium.controls
       
       protected var _otherValue:Number = 0;
       
+      // value and compare as given (not under the minimum); _value and _otherValue within the bar's range
+      protected var _realValue:Number = 0;
+      
+      protected var _realOther:Number = 0;
+      
       protected var _upgrade:Number = 0;
       
       protected var _valueDiff:Number = 0;
+      
+      protected var _realDiff:Number = 0;
       
       protected var _extraValue:Number = 0;
       
@@ -69,18 +80,38 @@ package survarium.controls
          return this._extraValue;
       }
       
+      override public function get value() : Number
+      {
+         return this._realValue;
+      }
+      
+      override public function set value(value:Number) : void
+      {
+         if(this._realValue == Math.max(_minimum,value) && _value == this.inRange(value))
+         {
+            return;
+         }
+         _realValue = Math.max(_minimum,value);
+         _value = this.inRange(value);
+         this.updatePosition();
+      }
+      
       public function set compare(value:Number) : void
       {
-         _otherValue = value;
-         if(this._otherValue > _maximum)
-         {
-            _otherValue = _maximum;
-         }
-         if(this._otherValue < _minimum)
-         {
-            _otherValue = _minimum;
-         }
+         _realOther = Math.max(_minimum,value);
+         _otherValue = this.inRange(value);
          invalidate(InvalidationType.DATA);
+      }
+      
+      protected function inRange(value:Number) : Number
+      {
+         return Math.max(_minimum,Math.min(_maximum,value));
+      }
+      
+      // A difference bar starts where the value bar ends; it ends at the bar's end at most.
+      protected function fitBar(bar:Sprite) : void
+      {
+         bar.width = Math.max(0,Math.min(bar.width,this.mc_value.x + this._size - bar.x));
       }
       
       public function set direction(value:Boolean) : void
@@ -97,6 +128,7 @@ package survarium.controls
             return;
          }
          _valueDiff = this._otherValue - _value;
+         _realDiff = this._realOther - this._realValue;
          if(this._valueDiff > 0)
          {
             ratio = (_value - _minimum) / (_maximum - _minimum);
@@ -105,7 +137,7 @@ package survarium.controls
          {
             ratio = (_value - _minimum + this._valueDiff) / (_maximum - _minimum);
          }
-         this.mc_value.width = this._size * ratio;
+         this.mc_value.width = this._size * Math.max(0,ratio);
          if(this.mc_diff_positive_ghost && this.mc_diff_negative_ghost)
          {
             if(this._extraValue == 0 || this._valueDiff != 0)
@@ -154,11 +186,12 @@ package survarium.controls
                      {
                         ratio = (_value - _minimum + this._valueDiff - this._extraValue) / (_maximum - _minimum);
                      }
-                     this.mc_value.width = this._size * ratio;
+                     this.mc_value.width = this._size * Math.max(0,ratio);
                   }
                   diffBar.x = this.mc_value.width + 1 + this.mc_value.x;
                   ratio = Math.abs(this._extraValue - _minimum) / (_maximum - _minimum);
                   diffBar.width = (this._size - 1) * ratio;
+                  this.fitBar(diffBar);
                }
             }
          }
@@ -191,6 +224,7 @@ package survarium.controls
             ratio = Math.abs(this._upgrade - _minimum) / (_maximum - _minimum);
             diffBar.width = (this._size - 1) * ratio;
             diffBar.x = this.mc_value.width + 1 + this.mc_value.x;
+            this.fitBar(diffBar);
          }
          else if(this._valueDiff == 0)
          {
@@ -225,8 +259,8 @@ package survarium.controls
             diffBar.x = this.mc_value.width + 1 + this.mc_value.x;
             ratio = Math.abs(this._valueDiff - _minimum) / (_maximum - _minimum);
             diffBar.width = (this._size - 1) * ratio;
+            this.fitBar(diffBar);
          }
       }
    }
 }
-

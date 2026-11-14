@@ -207,6 +207,7 @@ impl Game {
             self.admissions.push(Some(Admission::new(now)));
         }
         let before = self.players();
+        super::log_unread_kits(&formed, before);
         self.formed = formed;
         let note = serde_json::json!({ "note": "places", "places": self.places_note(before) });
         self.record_note(note, now);
@@ -247,6 +248,12 @@ impl Game {
             .any(Admission::install_stopped)
         {
             return Some(Closed::Full);
+        }
+        // Every game a joiner could take its world from had its last world
+        // refused: it would wait for one in vain (`refused_worlds`), until
+        // a game's upload passes again.
+        if self.no_world_to_give() {
+            return Some(Closed::NoWorld);
         }
         // From the countdown on (the owner's of 2026-10-18: the first
         // seconds of a room's match take joiners too), not while it waits
@@ -418,6 +425,20 @@ impl Game {
             .get(index)
             .and_then(Option::as_ref)
             .is_some_and(|admission| !admission.entered() && !admission.failed())
+    }
+
+    /// The newcomer of the place at `index`, if it has not entered nor
+    /// failed, fails by itself (`Game::remove`): its place is installed on
+    /// as one whose player left, and the lobby hears of it
+    /// (`take_rejected_joins`).
+    pub(super) fn fail_admission(&mut self, index: usize) {
+        if let Some(admission) = self.admissions.get_mut(index).and_then(Option::as_mut)
+            && !admission.entered()
+            && !admission.failed()
+        {
+            admission.phase = AdmissionPhase::Failed;
+            admission.failed_alone = true;
+        }
     }
 
     pub(super) fn waiting_entry(&self, index: usize) -> bool {
@@ -906,6 +927,10 @@ impl Game {
     /// not (two placed one on each side, one of them gone). The sides it
     /// would make when not.
     fn entry_keeps_balance(&self, entering: &[usize]) -> Result<(), [i64; 2]> {
+        // A free-for-all has no sides to keep even: each place is its own.
+        if self.game_mode() == RuleMode::FreeForAll {
+            return Ok(());
+        }
         let mut sides = [0usize; 2];
         for (index, place) in self.formed.places.iter().enumerate() {
             let in_match = !self.waiting_entry(index)
@@ -1060,14 +1085,14 @@ impl Game {
         let source = self.sources(index).into_iter().find(|source| {
             self.peers[*source].as_ref().is_some_and(|peer| {
                 peer.ask_at.is_none()
-                    && peer
-                        .asked
-                        .is_none_or(|at| now.saturating_duration_since(at) >= RESYNC_REQUEST_GAP)
+                    && peer.asked.is_none_or(|asked| {
+                        now.saturating_duration_since(asked.at) >= RESYNC_REQUEST_GAP
+                    })
             })
         });
         for asked in std::iter::once(index).chain(source) {
             if let Some(peer) = self.peers[asked].as_mut() {
-                peer.ask_at = Some(clock);
+                peer.ask_at = Some((clock, Wanted::Vote(Round::at(now))));
             }
         }
         self.send_requests(now);

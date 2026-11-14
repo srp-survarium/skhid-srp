@@ -2,15 +2,14 @@
 //! 0.26g accounts ([`GameAccounts`]) and tells the lobby, so an open game
 //! shows the change.
 //!
-//! - Silver and gold are exchanged in the game only: the lobby's exchange
-//!   window (`client-patches/exchange`, `47 04`, `rules::exchange_premium`
-//!   and `rules::buy_premium`). `GET /exchange`, which the SHOP button of
-//!   the launchers already in players' hands opens, says so in the
-//!   launcher's language ([`in_the_game_now`]); nothing else of it is left.
+//! - There is no gold (the owner, 2026-11-08): everything is bought with
+//!   silver. `GET /exchange`, which the SHOP button of the launchers already
+//!   in players' hands opens, says so in the launcher's language
+//!   ([`no_gold`]); nothing else of an exchange is left.
 //! - The admin's tabs: money and items taken away (`crate::moderation`: a
-//!   reason, a preview and a confirm), the account (premium time,
-//!   experience or level, reputation), an item by its `items_dict` id or
-//!   name, and the operator's text (`A5` / `A6`) for everyone in the lobby.
+//!   reason, a preview and a confirm), the account (experience or level,
+//!   reputation; no premium time: there is no premium account), an item by
+//!   its `items_dict` id or name, and the operator's text (`A5` / `A6`) for everyone in the lobby.
 //!   Bans, maintenance and registration are the store's, which the 0.26g
 //!   login server and lobby read: they are the same code as for 0.21d.
 
@@ -23,7 +22,7 @@ use session::v026g::account::{self, Account, MAX_LEVEL};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::lobby::FULL_CONDITION;
 
-use super::{AdminView, Form, Lang, Request, Response, Stats, Web, apply, delta, page, unix_now};
+use super::{AdminView, Form, Lang, Request, Response, Stats, Web, apply, delta, page};
 
 /// What the page tells the 0.26g lobby. srp joins it to the lobby's inbox
 /// (`lobby_server::v026g::Inbox`); this crate does not know the lobby.
@@ -109,9 +108,11 @@ pub struct Game {
     pub accounts: Arc<GameAccounts>,
     pub lobby: Arc<dyn LobbyLink>,
     pub matches: Arc<dyn MatchCounter>,
-    /// The patches of `resources.db` the players' updater is told to fetch
-    /// (`GET /patches`): those the server's game data was made of.
-    pub patches: Vec<crate::OfferedPatch>,
+    /// What the players' updater is told to fetch (`GET /patches`, `GET
+    /// /game`): the patches of `resources.db` the server's game data was
+    /// made of and the game's archive it names, with the mirrors of
+    /// `mirrors.tsv` after their URLs.
+    pub downloads: Arc<crate::Downloads>,
     /// `SRP_MIN_PATCH_REVISION`: the least game revision the login server
     /// lets in, which `/api/client-files` says (`min-revision`), so that the
     /// updater keeps PLAY off for an older game (0: none).
@@ -120,6 +121,9 @@ pub struct Game {
     /// takes (`session::v026g::replays`); `None`: every such request is
     /// "not found".
     pub replays: Option<Arc<session::v026g::replays::Replays>>,
+    /// The matches the lobby keeps the results of: what a match gives now,
+    /// for the skills page's levels ([`crate::skills`]).
+    pub results: Arc<session::v026g::rewards::Results>,
 }
 
 /// The longest line of the operator's text: the client's buffers are 64
@@ -224,8 +228,8 @@ impl Web {
         game.lobby.account_changed(account_id);
     }
 
-    /// Premium time, experience or level, reputation: each field that is
-    /// filled is applied; nothing is when one of them is wrong.
+    /// Experience or level, reputation: each field that is filled is
+    /// applied; nothing is when one of them is wrong.
     pub(crate) fn admin_account_026g(&self, request: &Request, peer: &str) -> String {
         let lang = request.lang;
         let Some(game) = &self.game else {
@@ -238,16 +242,15 @@ impl Web {
         };
         let bad = lang.tr(
             &format!(
-                "Premium hours, experience and reputation are whole numbers, + or -; the level \
-                 is 0 to {MAX_LEVEL}; the faction is 1 to 4."
+                "Experience and reputation are whole numbers, + or -; the level is 0 to \
+                 {MAX_LEVEL}; the faction is 1 to 4."
             ),
             &format!(
-                "Години преміуму, досвід і репутація — цілі числа, + або -; рівень від 0 до \
-                 {MAX_LEVEL}; фракція від 1 до 4."
+                "Досвід і репутація — цілі числа, + або -; рівень від 0 до {MAX_LEVEL}; фракція \
+                 від 1 до 4."
             ),
         );
-        let (Some(hours), Some(experience), Some(reputation)) = (
-            delta(request.field("premium_hours")),
+        let (Some(experience), Some(reputation)) = (
             delta(request.field("experience")),
             delta(request.field("reputation")),
         ) else {
@@ -267,7 +270,6 @@ impl Web {
                 _ => return bad,
             },
         };
-        let now = unix_now();
         let summary = {
             let mut account = account.locked();
             let mut changed = account.clone();
@@ -282,14 +284,6 @@ impl Web {
                      skills in the game first.",
                     "Цей рівень нижчий за витрачені очки навичок; спершу скиньте навички в грі.",
                 );
-            }
-            if hours != 0 {
-                let until = i64::try_from(changed.premium_until.max(now)).unwrap_or(i64::MAX);
-                let until = until.saturating_add(hours.saturating_mul(3600));
-                changed.premium_until = u64::try_from(until)
-                    .ok()
-                    .filter(|at| *at > now)
-                    .unwrap_or(0);
             }
             if let Some(faction) = faction {
                 if reputation >= 0 {
@@ -306,22 +300,18 @@ impl Web {
             (
                 account.level(),
                 account.exp_total,
-                account.premium_hours(now).unwrap_or(0),
                 faction.map(|faction| (faction, account.reputation(faction))),
             )
         };
         self.changed_026g(game, account_id);
-        let (level_now, exp_now, premium_now, reputation_now) = summary;
+        let (level_now, exp_now, reputation_now) = summary;
         log::info!(
-            "Admin from {peer}: {user:?} premium {hours:+} h, experience {experience:+}, level \
-             {level:?}, reputation {reputation:+} with {faction:?} (now level {level_now}, \
-             {exp_now} experience, {premium_now} h premium)"
+            "Admin from {peer}: {user:?} experience {experience:+}, level {level:?}, reputation \
+             {reputation:+} with {faction:?} (now level {level_now}, {exp_now} experience)"
         );
         let mut message = lang.tr(
-            &format!(
-                "{user}: level {level_now} ({exp_now} experience), {premium_now} h of premium."
-            ),
-            &format!("{user}: рівень {level_now} ({exp_now} досвіду), {premium_now} год преміуму."),
+            &format!("{user}: level {level_now} ({exp_now} experience)."),
+            &format!("{user}: рівень {level_now} ({exp_now} досвіду)."),
         );
         if let Some((faction, points)) = reputation_now {
             message += &lang.tr(
@@ -478,40 +468,36 @@ pub(crate) fn launcher_code(request: &Request) -> &'static str {
     }
 }
 
-/// `/exchange`: the exchange is in the game now. The launchers already in
-/// players' hands open this address with their SHOP button, so it answers
-/// in the launcher's five languages (`code` of [`launcher_code`]).
-pub(crate) fn in_the_game_now(code: &str) -> String {
+/// `/exchange`: there is no gold to exchange; everything is bought with
+/// silver. The launchers already in players' hands open this address with
+/// their SHOP button, so it answers in the launcher's five languages (`code`
+/// of [`launcher_code`]).
+pub(crate) fn no_gold(code: &str) -> String {
     let (code, title, text) = match code {
         "uk" => (
             "uk",
-            "Тепер у грі",
-            "Срібло й золото тепер обмінюються в грі: у лобі натисніть на своє золото чи \
-             срібло вгорі екрана.",
+            "Лише срібло",
+            "Золота більше немає: усе в грі купується за срібло.",
         ),
         "ru" => (
             "ru",
-            "Теперь в игре",
-            "Серебро и золото теперь обмениваются в игре: в лобби нажмите на своё золото или \
-             серебро вверху экрана.",
+            "Только серебро",
+            "Золота больше нет: всё в игре покупается за серебро.",
         ),
         "de" => (
             "de",
-            "Jetzt im Spiel",
-            "Silber und Gold werden jetzt im Spiel getauscht: Klicke in der Lobby oben auf dein \
-             Gold oder Silber.",
+            "Nur Silber",
+            "Gold gibt es nicht mehr: Im Spiel wird alles mit Silber gekauft.",
         ),
         "pl" => (
             "pl",
-            "Teraz w grze",
-            "Srebro i złoto wymienia się teraz w grze: w lobby kliknij swoje złoto lub srebro u \
-             góry ekranu.",
+            "Tylko srebro",
+            "Złota już nie ma: w grze wszystko kupuje się za srebro.",
         ),
         _ => (
             "en",
-            "In the game now",
-            "Silver and gold are exchanged in the game now: in the lobby, click your gold or \
-             silver at the top of the screen.",
+            "Silver only",
+            "There is no gold any more: everything in the game is bought with silver.",
         ),
     };
     format!("<section class=card lang={code}><h1>{title}</h1><p>{text}</p></section>")

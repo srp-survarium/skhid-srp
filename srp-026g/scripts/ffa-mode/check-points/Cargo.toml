@@ -1,0 +1,13 @@
+# The collision check of the FFA spawn points (make_edits.py says how it is run): its own workspace, so the srp
+# workspace is unchanged; it reads the maps with srp's mapdata crate.
+[package]
+name = "ffa-check-points"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+binary-config-parser = { path = "../../../crates/binary-config-parser" }
+mapdata = { path = "../../../crates/mapdata" }
+
+[workspace]

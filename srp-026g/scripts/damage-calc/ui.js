@@ -43,7 +43,7 @@ const poolColor = p => p === "pain" ? "var(--pool-pain)" : p === "body" ? "var(-
 const state = {
   weapon: "wpn_ak_74n", ammo: null, dist: 20, part: "front",
   armour: { helmet: "renesanse_helmet_3", mask: "", torso: "renesanse_torso_3", gloves: "", legs: "renesanse_legs_3", boots: "renesanse_boots_3", back: "" },
-  cmpAmmo: "best", sort: { k: "shots", dir: 1 },
+  cmpAmmo: "best", sort: { k: "shots", dir: 1 }, mapView: "minimap",
 };
 try { Object.assign(state, JSON.parse(localStorage.getItem("srp-dmg") || "{}")); } catch (e) {}
 const save = () => { try { localStorage.setItem("srp-dmg", JSON.stringify(state)); } catch (e) {} };
@@ -290,9 +290,11 @@ function dollView(view) {
   const parts = D.parts.map(p => `<rect id="${id(p.name)}" mask="url(#${id("m-" + p.name)})" x="0" y="-30" width="140" height="130" fill="rgb(255,180,0)" fill-opacity="0"/>`).join("");
   const zones = D.zones[view].map(z => `<path data-part="${z.part}" transform="${z.transform}" d="${z.d}"/>`).join("");
   const caption = view === "back" ? T("back", "ззаду") : T("front", "спереду");
+  // The extracted zone paths use front-view coordinates. Mirror the figure,
+  // damage tint and interactive selection together, preserving anatomical sides.
   return `<figure><svg viewBox="58 -28 73 114" role="group" aria-label="${caption}"><defs>${defs}</defs>
-    <g${mirror}>${parts}<use href="#${id("bm-outline")}" x="63" y="-24.65"/></g>
-    <g class="zones" transform="translate(63 -24.65)">${zones}</g></svg><figcaption>${caption}</figcaption></figure>`;
+    <g${mirror}>${parts}<use href="#${id("bm-outline")}" x="63" y="-24.65"/>
+    <g class="zones" transform="translate(63 -24.65)">${zones}</g></g></svg><figcaption>${caption}</figcaption></figure>`;
 }
 function drawDoll() {
   const host = $("dollsvg");
@@ -330,10 +332,21 @@ function setIcon(img, key) {
   if (src) img.src = src; else img.removeAttribute("src");
 }
 
+// The wall in front of the target (DATA.walls, by name), or none.
+const wallOf = () => (DATA.walls || []).find(x => x.name === state.wall) || null;
+const wallArmour = () => { const x = wallOf(); return x ? x.armor : null; };
+function fillWalls() {
+  const s = $("wall");
+  s.append(el("option", { value: "", text: T("<none>", "<немає>") }));
+  for (const x of DATA.walls || []) s.append(el("option", { value: x.name, text: `${nm(x)} (${T("armour", "броня")} ${hp(x.armor)})` }));
+  if (!wallOf()) state.wall = "";
+  s.addEventListener("change", e => { state.wall = e.target.value; update(); });
+}
+
 // ---------- result ----------
 function shotFor(weaponKey, ammoKey, target, part) {
   const w = effectiveWeapon(weaponKey);
-  const b = bulletAt(w, DATA.ammo[ammoKey], state.dist);
+  const b = bulletAt(w, DATA.ammo[ammoKey], state.dist, wallArmour());
   const sim = simulate(target, b, part);
   return { w, b, sim };
 }
@@ -376,6 +389,10 @@ function update() {
     [T("rate", "темп"), (w.rounds_per_minute || "—") + T(" rpm", " постр./хв")], [T("magazine", "магазин"), w.magazine_capacity],
   ].map(([k, v]) => `<span>${k} <b>${v}</b></span>`).join("");
   drawScale(b);
+  $("wall").value = state.wall || "";
+  $("wallnote").textContent = !b.wall ? "" : b.wall.k > 0
+    ? T(`Gets through: k ${fx(b.wall.k, 2)}, D ${hp(b.D)} · P ${hp(b.P)}.`, `Пробиває: k ${fx(b.wall.k, 2)}, D ${hp(b.D)} · P ${hp(b.P)}.`)
+    : T(`Does not get through: penetration ${hp(b.wall.P)}, armour ${hp(b.wall.A)}.`, `Не пробиває: бронебійність ${hp(b.wall.P)}, броня ${hp(b.wall.A)}.`);
 
   // Doll: selected and covered parts.
   const arm = target.armour;
@@ -414,7 +431,7 @@ function update() {
   drawTrace(b, sim);
   drawPools(target, sim);
   drawChart(w, a, target);
-  drawExplain();
+  drawExplain(target, b, sim);
   drawHealing();
   // The two big tables simulate every part and every gun: draw them a frame
   // later so a click paints first, once for several quick clicks.
@@ -458,6 +475,10 @@ function drawTrace(b, sim) {
   li(T(`Flies ${state.dist} m`, `Летить ${state.dist} м`), `D ${hp(b.D)} · P ${hp(b.P)}`,
     T(`Speed ${fx(b.v0, 0)} → ${fx(b.v, 0)} m/s. Damage and penetration slide from full (${hp(b.Dmax)}/${hp(b.Pmax)}) to minimum (${hp(b.Dmin)}/${hp(b.Pmin)}) by speed between ${fx(b.r0, 0)} and ${fx(b.r1, 0)} m: here ${pct(b.u)}.`,
       `Швидкість ${fx(b.v0, 0)} → ${fx(b.v, 0)} м/с. Пошкодження й бронебійність спадають від повних (${hp(b.Dmax)}/${hp(b.Pmax)}) до мінімальних (${hp(b.Dmin)}/${hp(b.Pmin)}) за швидкістю між ${fx(b.r0, 0)} і ${fx(b.r1, 0)} м: тут ${pct(b.u)}.`), b.u < 1);
+  if (b.wall) li(T(`Through ${nm(wallOf()).toLowerCase()}`, `Крізь: ${nm(wallOf()).toLowerCase()}`), b.wall.k > 0 ? `×${fx(b.wall.k, 3)} → D ${hp(b.D)} · P ${hp(b.P)}` : T("stopped", "зупинено"),
+    b.wall.k > 0 ? T(`Penetration ${hp(b.wall.P)}, armour ${hp(b.wall.A)}. Damage, penetration and speed × k; then no higher than at ${fx(b.wall.v, 0)} m/s.`,
+      `Бронебійність ${hp(b.wall.P)}, броня ${hp(b.wall.A)}. Пошкодження, бронебійність і швидкість × k; далі не вищі, ніж на ${fx(b.wall.v, 0)} м/с.`)
+      : T(`Penetration ${hp(b.wall.P)} is not above armour ${hp(b.wall.A)}: the bullet stops.`, `Бронебійність ${hp(b.wall.P)} не вища за броню ${hp(b.wall.A)}: куля зупиняється.`), true);
   // The first pellet of the first shot.
   const firstId = sim.firstLog.length ? 0 : null;
   let seenDepth1 = new Set();
@@ -521,7 +542,7 @@ function drawChart(w, a, target) {
   const A = (target.armour[state.part] || {}).ranged || 0;
   const pts = [];
   for (let d = 0; d <= max; d += 2) {
-    const b = bulletAt(w, a, d);
+    const b = bulletAt(w, a, d, wallArmour());
     pts.push({ d, raw: b.D * b.pellets, hit: b.D * armourFactor(A, b.P) * b.pellets });
   }
   const ymax = Math.max(...pts.map(p => p.raw)) * 1.1 || 1;
@@ -534,7 +555,7 @@ function drawChart(w, a, target) {
   let ax = "";
   for (let v = 0; v <= ymax; v += step) ax += `<text x="${L - 6}" y="${y(v) + 3}" text-anchor="end">${hp(v)}</text>`;
   for (let m = 0; m <= max; m += 25) ax += `<text x="${x(m)}" y="${H - 6}" text-anchor="middle">${m} ${M}</text>`;
-  const cur = bulletAt(w, a, state.dist);
+  const cur = bulletAt(w, a, state.dist, wallArmour());
   host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${T("Damage over distance", "Пошкодження за дистанцією")}">
     <rect class="zone" x="${x(Math.min(b0.r0, max))}" y="${Tp}" width="${Math.max(0, x(Math.min(b0.r1, max)) - x(Math.min(b0.r0, max)))}" height="${H - Tp - B}"/>
     <g class="grid">${grid}</g><g class="axis">${ax}</g>
@@ -547,7 +568,7 @@ function drawChart(w, a, target) {
   const svg = host.querySelector("svg"), tip = $("tip");
   const toD = ev => { const r = svg.getBoundingClientRect(); const px = (ev.clientX - r.left) / r.width * W; return clamp(Math.round((px - L) / (W - L - R) * max), 0, max); };
   $("chart-hit").addEventListener("pointermove", ev => {
-    const d = toD(ev), b = bulletAt(w, a, d), r = svg.getBoundingClientRect();
+    const d = toD(ev), b = bulletAt(w, a, d, wallArmour()), r = svg.getBoundingClientRect();
     tip.hidden = false; tip.style.left = (x(d) / W * r.width) + "px"; tip.style.top = (y(b.D * b.pellets) / H * r.height) + "px";
     tip.textContent = `${d} ${M} · ${hp(b.D * b.pellets)} → ${hp(b.D * armourFactor(A, b.P) * b.pellets)} ${T("after armour", "після броні")}`;
   });
@@ -617,112 +638,177 @@ function drawCompare(target) {
   }));
 }
 
-// The rules in words, with the numbers taken from the data where they live.
-function drawExplain() {
+// The rules, step by step in the bullet's order, each with the numbers taken
+// from the data where they live; beside it, the shot chosen above as a
+// running chain: what the step does, then the D and P after it, each in its
+// own column (the same `b` and `sim` the trace shows: the first pellet of the
+// first shot).
+function drawExplain(target, b, sim) {
   const onyx = DATA.artefacts && DATA.artefacts.onyx, pk = DATA.drugs && DATA.drugs.painkiller;
-  $("explain").textContent = (LANG === "uk" ? [
-    "D, P  = зброя × набій, менші між ближньою й дальньою дистанцією",
-    onyx ? `D, P ×= ${onyx.passive.damage_mul} за кожен ${nm(onyx)} (${onyx.active.damage_mul} активний)` : null,
-    "hit   = D × (1 − clamp(броня − P, 0, 1))",
-    "пул  −= hit       груди, спина → тіло · голова, обличчя → голова · нога · кисть",
-    `біль −= hit × k   k = 1 груди, голова, руки · 0.9 ноги · 0.8 кисті, стопи${pk ? ` · ×${pk.damage_protection[0].hit_coeff} ${nm(pk)}` : ""}`,
-    "смерть, коли тіло, голова або біль доходить до 0",
-    "",
-    "одна куля крізь кілька зон (дві кисті й груди): кожна зона рахується зі своєю бронею,",
-    "а кожен пул бере від цієї кулі найбільше, не суму: біль від кистей 40 і 40, від грудей 35 → −40, не −115",
-  ] : [
-    "D, P  = weapon × ammo, lowered between near and far range",
-    onyx ? `D, P ×= ${onyx.passive.damage_mul} per ${nm(onyx)} (${onyx.active.damage_mul} active)` : null,
-    "hit   = D × (1 − clamp(armour − P, 0, 1))",
-    "pool −= hit       chest, back → body · head, face → head · leg · hand",
-    `pain −= hit × k   k = 1 chest, head, arms · 0.9 legs · 0.8 hands, feet${pk ? ` · ×${pk.damage_protection[0].hit_coeff} ${nm(pk)}` : ""}`,
-    "dead when body, head or pain reaches 0",
-    "",
-    "one bullet through several boxes (both hands and the chest): each box counts with its own armour,",
-    "and each pool takes that bullet's largest share, not the sum: pain 40 and 40 from the hands, 35 from the chest → −40, not −115",
-  ]).filter(x => x !== null).join("\n");
+  const pkK = pk && pk.damage_protection[0].hit_coeff;
+  const log = sim.firstLog;
+  // D and P × one factor, or each its own.
+  const by = (m, dm, pm) => dm === pm ? `${m} ${dm}` : `D ${m} ${dm}, P ${m} ${pm}`;
+  const none = T("none", "немає");
+  // A result cell: its name, then its value in bold, then what follows it.
+  const val = (name, v, rest) => [name ? `${name} ` : "", el("b", { text: v }), rest ? el("small", { text: ` ${rest}` }) : null];
+  const DP = (D, P) => ({ d: val("D", hp(D)), p: val("P", hp(P)) });
+  const fired = b.wall || b;
+  // A bullet the wall keeps reaches nothing: the steps after it show "—".
+  const stopped = !!b.wall && !(b.wall.k > 0);
+  const forestSkill = (DATA.skills || {}).forest_protection;
+  const forest = forestSkill && log.find(e => e.step === "callback" && e.depth === 0 && e.name === nm(forestSkill));
+  const onyxLog = log.filter(e => e.step === "callback" && e.depth === 0 && e !== forest);
+  const armour = log.find(e => e.step === "armour" && e.depth === 0);
+  const pool = log.find(e => e.step === "pool" && e.depth >= 1 && e.part !== "pain");
+  const pain = log.find(e => e.step === "pool" && e.part === "pain");
+  const drug = log.find(e => e.step === "callback" && e.part === "pain");
+  const painK = armour && ((target.rows[armour.part].routes || {}).ranged || {}).pain;
+  const onyxAfter = onyxLog.length ? onyxLog[onyxLog.length - 1] : { D: b.D, P: b.P };
+  const onyxMul = onyx && (state.fx && state.fx.onyxMode === "active" ? onyx.active : onyx.passive).damage_mul;
+  const sup = n => n > 1 ? String(n).replace(/\d/g, c => "⁰¹²³⁴⁵⁶⁷⁸⁹"[c]) : "";
+  const after = (cond, shot) => stopped ? { in: null } : cond ? shot() : { in: null };
+  // [label, rule, this shot: { in, d, p } or { in, dp }; in null: "—"]
+  const steps = [
+    [T("Bullet", "Куля"), T("D, P = weapon × ammo, falling with distance", "D, P = зброя × набій, спадають з дистанцією"),
+      { in: `${state.dist} ${M}` + (b.pellets > 1 ? T(` · ${b.pellets} pellets`, ` · ${b.pellets} дробин`) : ""), ...DP(fired.D, fired.P) }],
+    [T("Wall", "Стіна"), T("P ≤ A: the bullet stays in the wall · else D, P × (1 − (1 − (P − A) / A)²)",
+      "P ≤ A: куля застрягає в стіні · інакше D, P × (1 − (1 − (P − A) / A)²)"),
+      !b.wall ? { in: none, none: true, ...DP(b.D, b.P) } : stopped ? { in: T("stays in the wall", "застрягає в стіні") }
+        : { in: `${nm(wallOf()).toLowerCase()}, A ${hp(b.wall.A)}: × ${fx(b.wall.k, 2)}`, ...DP(b.D, b.P) }],
+    onyx && [nm(onyx),
+      `D, P ${by("×", onyx.passive.damage_mul, onyx.passive.armor_piercing_mul)} ${T("each", "кожен")} · ${T("active", "активний")} ${by("×", onyx.active.damage_mul, onyx.active.armor_piercing_mul)}`,
+      after(true, () => onyxLog.length ? { in: `× ${onyxMul}${sup(onyxLog.length)}`, ...DP(onyxAfter.D, onyxAfter.P) }
+        : { in: none, none: true, ...DP(onyxAfter.D, onyxAfter.P) })],
+    forestSkill && [nm(forestSkill), `D × (1 − ${forestSkill.step} × ${T("rank", "ранг")}) · ${T("inside an anomaly", "в аномалії")}`,
+      after(true, () => forest ? { in: `× ${+(forest.before ? forest.D / forest.before : 1).toFixed(2)}`, ...DP(forest.D, forest.P) }
+        : { in: none, none: true, ...DP(onyxAfter.D, onyxAfter.P) })],
+    [T("Armour", "Броня"), T("D × (1 − (armour − P) / 100)", "D × (1 − (броня − P) / 100)"),
+      after(armour, () => ({ in: T(`${PARTS[armour.part].toLowerCase()}, armour ${hp(armour.A)} − P ${hp(armour.P)}`,
+        `${PARTS[armour.part].toLowerCase()}, броня ${hp(armour.A)} − P ${hp(armour.P)}`), d: val(T("hit", "влучання"), hp(armour.D)) }))],
+    [T("Pools", "Пули"), T("chest, back → body · head, face → head · leg, foot → leg · arm, hand → hand",
+      "груди, спина → тіло · голова, обличчя → голова · нога, стопа → нога · рука, кисть → кисть"),
+      after(pool, () => ({ in: "", dp: val(POOLS[pool.part].toLowerCase(), `−${hp(pool.D)}`, `(${hp(pool.before)} → ${hp(pool.after)})`) }))],
+    [T("Pain", "Біль"), T("× 1 chest, head, arms · 0.9 legs · 0.8 hands, feet", "× 1 груди, голова, руки · 0.9 ноги · 0.8 кисті, стопи")
+      + (pk ? ` · × ${pkK} ${nm(pk)}` : ""),
+      after(pain, () => ({ in: `× ${painK}${drug ? ` × ${pkK} ${drug.name}` : ""}`, dp: val(POOLS.pain.toLowerCase(), `−${hp(pain.D)}`) }))],
+    [T("Death", "Смерть"), T("body, head or pain at 0", "тіло, голова або біль на 0"),
+      after(true, () => ({ in: "", dp: sim.killer ? [el("b", { text: T(`${sim.shots} hits`, `влучань: ${sim.shots}`) }),
+        el("small", { text: ` · ${POOLS[sim.killer].toLowerCase()} ${T("at 0", "на 0")}` })] : [el("b", { text: T("does not kill", "не вбиває") })] }))],
+  ].filter(Boolean);
+  const list = $("explain"); list.innerHTML = "";
+  steps.forEach(([label, rule, ex], i) => list.append(el("li", {},
+    el("span", { class: "n", text: `${i + 1}.` }), el("span", { class: "name", text: label }), el("span", { class: "rule", text: rule }),
+    el("span", { class: ex.in == null || ex.none ? "in none" : "in", text: ex.in ?? "—" }),
+    ...(ex.dp ? [el("span", { class: "dp" }, ...ex.dp)] : ex.d ? [el("span", { class: "d" }, ...ex.d), el("span", { class: "p" }, ...(ex.p || []))] : []))));
+  const legend = $("explainlegend"); legend.innerHTML = "";
+  [["D", T("damage", "пошкодження")], ["P", T("penetration", "бронебійність")], ["A", T("wall armour", "броня стіни")]]
+    .forEach(([k, v], i) => legend.append(i ? " · " : "", el("b", { text: k }), ` ${v}`));
+  // hitPart: a pool takes one bullet's largest contribution, not their sum.
+  $("explainnote").textContent = T("One bullet through several parts: each pool loses only its biggest hit, not the sum (hands 40 + 40, chest 35 → pain −40, not −115).",
+    "Одна куля крізь кілька частин: кожен пул втрачає лише найбільше влучання, а не суму (кисті 40 + 40, груди 35 → біль −40, а не −115).");
 }
 
-// How many Larkspurs the healing table counts (its own tiles), 1 to 4.
-const larkspurs = () => clamp(state.larkspur || 1, 1, 4);
+// The healing section's picks, each on or off in any mix: the Larkspurs
+// carried (none to four) and each booster as item tiles (each with its card
+// on hover); then, as the lobby's
+// bonus rows, the regeneration bonus of each slot that takes one (a button
+// per grade) and the medical skills (a button per rank). The picked button
+// again clears it.
+const larkspurs = () => clamp(state.larkspur ?? 1, 0, 4);
 function fillHealPick() {
-  const lark = DATA.artefacts && DATA.artefacts.lifebone, host = $("healpick");
-  if (!lark) { host.hidden = true; return; }
-  const src = DATA.icons && DATA.icons.artefact_lifebone;
-  const tiles = [1, 2, 3, 4].map(i => {
-    const b = el("button", { type: "button", class: "fxtile", title: `${nm(lark)} ×${i}`, "aria-label": `${nm(lark)} ×${i}`, "aria-pressed": String(i <= larkspurs()) },
-      src ? el("img", { src, alt: "" }) : el("span", { text: `×${i}` }));
-    b.addEventListener("click", () => {
-      state.larkspur = i; save();
-      tiles.forEach((t, j) => t.setAttribute("aria-pressed", String(j < i)));
-      drawHealing();
-    });
+  const rec = DATA.recovery || {}, pick = state.heal = state.heal || {}, host = $("healpick");
+  const lark = DATA.artefacts && DATA.artefacts.lifebone;
+  const redraw = () => { save(); drawHealing(); };
+  const tile = (key, label, on, click) => {
+    const src = DATA.icons && DATA.icons[key];
+    const b = el("button", { type: "button", class: "fxtile", title: label, "aria-label": label, "aria-pressed": String(on) },
+      src ? el("img", { src, alt: "" }) : el("span", { text: label }));
+    b.addEventListener("click", click);
     return b;
-  });
-  host.append(el("span", { class: "lbl", text: nm(lark) }), ...tiles);
+  };
+  const items = el("div", { class: "fxrow" });
+  if (lark) {
+    const tiles = [1, 2, 3, 4].map(i => tile("artefact_lifebone", `${nm(lark)} ×${i}`, i <= larkspurs(), () => {
+      state.larkspur = larkspurs() === i ? i - 1 : i;
+      tiles.forEach((t, j) => t.setAttribute("aria-pressed", String(j < state.larkspur)));
+      redraw();
+    }));
+    items.append(el("span", { class: "lbl", text: nm(lark) }), ...tiles.map(t => RULES.hinted(t, RULES.artefactCard(lark))));
+  }
+  pick.boosters = pick.boosters || {};
+  // A booster's tile shows its card (what it gives) on hover or focus.
+  for (const [key, b] of Object.entries(rec.boosters || {})) {
+    const t = tile(key, nm(b), !!pick.boosters[key], function () {
+      pick.boosters[key] = !pick.boosters[key]; this.setAttribute("aria-pressed", String(pick.boosters[key])); redraw();
+    });
+    items.append(el("span", { class: "lbl", text: nm(b) }), RULES.hinted(t, RULES.card(nm(b), b.card || [])));
+  }
+  const panel = el("div", { class: "gamemods" });
+  if (rec.gear) {
+    pick.gear = pick.gear || {};
+    const src = DATA.mod_icons && DATA.mod_icons[rec.gear.icon], name = (LANG === "uk" && rec.gear.label_uk) || rec.gear.label;
+    for (const [slot, label] of SLOTS.filter(([slot]) => rec.gear.slots.includes(slot)))
+      panel.append(RULES.stepsRow(src ? el("img", { class: "gico", src, alt: "" }) : el("span", { class: "gico" }), `${name}, ${label.toLowerCase()}`,
+        rec.gear.grades.map(g => [g.id, `+${Math.round(g.value * 100)}%`]), pick.gear, slot, redraw));
+  }
+  pick.skills = pick.skills || {};
+  for (const [key, sign, unit] of [["metabolism", "−", ` ${T("s", "с")}`], ["strong_bones", "+"], ["medical_training", "+"], ["take_cover", "+"], ["fast_bandaging", "−"]]) {
+    const row = RULES.skillRow(key, sign, unit, pick.skills, redraw);
+    if (row) panel.append(row);
+  }
+  host.append(items, ...(panel.children.length ? [panel] : []));
 }
-// Healing compared: recovering by itself, the Larkspur carried and activated,
-// the medikit and bandages, every number from the data.
+// Healing compared, with the picks above: recovering by itself, the Larkspurs
+// carried and one activated, the medikits and bandages; every number from the
+// data, every rule RULES' (regeneration, medicine). An activated Larkspur
+// fills every pool at once (exe patch 54, no config says so: artefacts.md).
 function drawHealing() {
   const row = n => DATA.body.find(r => r.name === n);
-  const pools = [["body"], ["head"], ["right_leg", "right_hand"], ["pain"]];
-  const perS = T("/s", "/с"), sec = T("s", "с"), dash = "—";
+  const pools = ["body", "head", "right_leg", "pain"];
+  // A speed is health a second, written out: "44.8/s" read as 44.8 seconds.
+  const perS = T(" HP/s", " ОЗ/с"), sec = T("s", "с"), dash = "—";
   const full = T("full", "повністю"), fixed = T("fixed", "лікує");
-  const regen = (name, mod, count = 0) => {
-    const r = row(name);
-    let speed = r.regeneration_speed, wait = r.regeneration_timeout, cap = r.regeneration_threshold;
-    // One Larkspur callback (0x312590) per Larkspur carried: add, then multiply.
-    for (let i = 0; mod && i < count; i++) {
-      speed = (speed + mod.regen_add) * mod.regen_mul;
-      wait = (wait + mod.timeout_add) * mod.timeout_mul;
-      cap = (cap + mod.threshold_add) * mod.threshold_mul;
-    }
-    return { cell: `${hp(speed)}${perS} → ${cap >= 1 ? full : hp(r.health * cap)}`, wait };
-  };
+  const kit = RULES.recoveryKit(state.heal), n = larkspurs();
+  const num = x => String(+x.toFixed(2));
+  const regen = count => pools.map(p => RULES.regeneration(row(p), kit, count));
+  const cell = x => `+${num(x.speed * 100)}${perS} → ${x.cap >= 1 ? full : num(x.max * x.cap * 100)}`;
+  const starts = x => T(`${num(x.wait)} s without hits`, `${num(x.wait)} с без влучань`);
   const rows = [];
-  const own = pools.map(([p]) => regen(p));
+  const own = regen(0);
   // A row's name with its item's lobby icon.
   const named = (text, key) => { const src = key && DATA.icons && DATA.icons[key]; return (src ? `<img class="wico" alt="" src="${src}">` : "") + `<b>${text}</b>`; };
-  rows.push([named(T("By itself", "Само собою")), T(`${own[0].wait} s without hits`, `${own[0].wait} с без влучань`), ...own.map(x => x.cell),
-    T(`ends after ${own[0].wait} s without hits`, `минає за ${own[0].wait} с без влучань`)]);
+  rows.push([named(T("By itself", "Само собою")), starts(own[0]), ...own.map(cell),
+    T(`ends after ${num(own[0].wait)} s without hits`, `минає за ${num(own[0].wait)} с без влучань`)]);
   const lark = DATA.artefacts && DATA.artefacts.lifebone;
   if (lark) {
-    const mods = Object.fromEntries((lark.passive.regeneration_modifiers || []).map(m => [m.body_part, m]));
-    const n = larkspurs();
-    const carried = pools.map(([p]) => regen(p, mods[p], n));
-    rows.push([named(`${nm(lark)} ×${n}, ${T("carried", "у слоті")}`, "artefact_lifebone"), T(`${carried[0].wait} s without hits`, `${carried[0].wait} с без влучань`), ...carried.map(x => x.cell), dash]);
+    if (n) {
+      const carried = regen(n);
+      rows.push([named(`${nm(lark)} ×${n}, ${T("carried", "у слоті")}`, "artefact_lifebone"), starts(carried[0]), ...carried.map(cell), dash]);
+    }
     const cures = (lark.active.remove_affects || []).length;
-    rows.push([named(`${nm(lark)}, ${T("activated", "активований")}`, "artefact_lifebone"), T(`at once, every ${lark.cooldown_s} s`, `одразу, раз на ${lark.cooldown_s} с`), dash, dash, dash, dash, cures ? fixed : dash]);
+    rows.push([named(`${nm(lark)}, ${T("activated", "активований")}`, "artefact_lifebone"), T(`at once, every ${lark.cooldown_s} s`, `одразу, раз на ${lark.cooldown_s} с`), full, full, full, full, cures ? fixed : dash]);
   }
-  for (const key of ["medkit", "bandages"]) {
+  for (const key of ["medkit", "military_medkit", "blackmarket_medkit", "science_medkit", "bandages"]) {
     const d = DATA.drugs && DATA.drugs[key]; if (!d) continue;
-    const heal = d.heal_per_s || {};
-    const cell = ([p]) => {
-      const gain = (heal[p] || 0) * d.activity_s;
-      return gain <= 0 ? dash : gain >= row(p).health ? full : `+${hp(gain)}`;
+    const m = RULES.medicine(d, kit), heal = d.heal_total || {};
+    const gains = (p, i) => {
+      const gain = (heal[p] || 0) * m.heals;
+      return gain <= 0 ? dash : gain >= own[i].max ? full : `+${hp(gain)}`;
     };
-    rows.push([named(nm(d), key), T(`${d.activation_delay_s} s after use, for ${d.activity_s} s`, `через ${d.activation_delay_s} с, ${d.activity_s} с`),
-      ...pools.map(cell), (d.remove_affects || []).length ? fixed : dash]);
+    rows.push([named(nm(d), key), T(`${num(m.delay_s)} s after use, for ${d.activity_s} s`, `через ${num(m.delay_s)} с, ${d.activity_s} с`),
+      ...pools.map(gains), (d.remove_affects || []).length ? fixed : dash]);
   }
-  // From empty to full: the wait, then the pool at its speed. Each Larkspur
-  // adds speed and wait alike, so past two the wait outgrows what it saves.
-  if (lark) {
-    const mods = Object.fromEntries((lark.passive.regeneration_modifiers || []).map(m => [m.body_part, m]));
-    const cols = [["body"], ["right_leg"], ["pain"]];
-    const timeTo = (p, k) => {
-      const r = row(p), m = mods[p];
-      let speed = r.regeneration_speed, wait = r.regeneration_timeout, cap = r.regeneration_threshold;
-      for (let i = 0; m && i < k; i++) { speed = (speed + m.regen_add) * m.regen_mul; wait = (wait + m.timeout_add) * m.timeout_mul; cap = (cap + m.threshold_add) * m.threshold_mul; }
-      return cap >= 1 ? wait + r.health / speed : { stops: r.health * cap };
-    };
-    const table = [0, 1, 2, 3, 4].map(k => cols.map(([p]) => timeTo(p, k)));
-    const best = cols.map((_, c) => Math.min(...table.map(t => typeof t[c] === "number" ? t[c] : Infinity)));
-    const fcell = (v, c) => typeof v === "number" ? (Math.abs(v - best[c]) < 1e-9 ? `<b>${fx(v, 1)} ${sec}</b>` : `${fx(v, 1)} ${sec}`)
-      : T(`stops at ${hp(v.stops)}`, `до ${hp(v.stops)}`);
-    const n = larkspurs();
-    $("fulltime").innerHTML = `<thead><tr><th>${T("From empty to full", "Від нуля до повного")}</th>${[POOLS.body, T("Leg or hand", "Нога чи кисть"), POOLS.pain].map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>` +
-      table.map((t, k) => `<tr${k === n ? ' class="me"' : ""}><td>${k ? `${nm(lark)} ×${k}` : T("No Larkspur", "Без Живокосту")}</td>${t.map((v, c) => `<td class="n">${fcell(v, c)}</td>`).join("")}</tr>`).join("") + "</tbody>";
-  }
+  // From empty to full: the wait, then the pool at its speed; a row for each
+  // number of Larkspurs, the picked one marked.
+  const cols = ["body", "right_leg", "pain"];
+  const timeTo = (p, k) => { const x = RULES.regeneration(row(p), kit, k); return x.cap >= 1 ? x.wait + x.max / x.speed : { stops: x.max * x.cap }; };
+  const table = (lark ? [0, 1, 2, 3, 4] : [0]).map(k => cols.map(p => timeTo(p, k)));
+  const best = cols.map((_, c) => Math.min(...table.map(t => typeof t[c] === "number" ? t[c] : Infinity)));
+  const fcell = (v, c) => typeof v === "number" ? (Math.abs(v - best[c]) < 1e-9 ? `<b>${fx(v, 1)} ${sec}</b>` : `${fx(v, 1)} ${sec}`)
+    : T(`stops at ${num(v.stops * 100)}`, `до ${num(v.stops * 100)}`);
+  $("fulltime").innerHTML = `<thead><tr><th>${T("From empty to full", "Від нуля до повного")}</th>${[POOLS.body, T("Leg or hand", "Нога чи кисть"), POOLS.pain].map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>` +
+    table.map((t, k) => `<tr${k === n ? ' class="me"' : ""}><td>${k ? `${nm(lark)} ×${k}` : T("No Larkspur", "Без Живокосту")}</td>${t.map((v, c) => `<td class="n">${fcell(v, c)}</td>`).join("")}</tr>`).join("") + "</tbody>";
   const head = ["", T("Starts", "Починає"), POOLS.body, POOLS.head, T("Legs, hands", "Ноги, кисті"), POOLS.pain, T("Broken leg, hand", "Зламана нога, кисть")];
   $("heal").innerHTML = `<thead><tr>${head.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>` +
     rows.map(r => `<tr><td class="hname">${r[0]}</td>${r.slice(1).map(c => `<td>${c}</td>`).join("")}</tr>`).join("") + "</tbody>";
@@ -753,9 +839,9 @@ function fillMaps() {
   const views = $("mapviews");
   const paintViews = () => {
     views.hidden = !DATA.maps[state.map].minimap;
-    for (const c of views.children) c.setAttribute("aria-pressed", String(c.dataset.view === (state.mapView || "render")));
+    for (const c of views.children) c.setAttribute("aria-pressed", String(c.dataset.view === state.mapView));
   };
-  for (const [v, text] of [["render", T("From above", "Згори")], ["minimap", T("Minimap", "Мінімапа")]]) {
+  for (const [v, text] of [["minimap", T("Minimap", "Мінімапа")], ["render", T("From above", "Згори")]]) {
     const c = el("button", { type: "button", class: "chip", text });
     c.dataset.view = v;
     c.addEventListener("click", () => { state.mapView = v; paintViews(); drawMapBase(); update(); });
@@ -840,7 +926,7 @@ if (LANG === "uk") {
   document.querySelectorAll("[data-uk]").forEach(n => { n.textContent = n.dataset.uk; });
   document.querySelectorAll("[data-uk-label]").forEach(n => n.setAttribute("aria-label", n.dataset.ukLabel));
 }
-fillWeapons(); fillArmour(); drawDoll(); fillMaps(); fillHealPick();
+fillWeapons(); fillWalls(); fillArmour(); drawDoll(); fillMaps(); fillHealPick();
 if (DATA.stamp) $("source").textContent = T(DATA.stamp, DATA.stamp_uk || DATA.stamp);
 $("dollprev").addEventListener("click", () => { state.dollShot = (state.dollShot || 1) - 1; update(); });
 $("dollnext").addEventListener("click", () => { state.dollShot = (state.dollShot || 1) + 1; update(); });

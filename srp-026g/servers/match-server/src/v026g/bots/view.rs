@@ -21,6 +21,7 @@
 use std::collections::VecDeque;
 
 use mapdata::{Vec3, World};
+use survarium::v026g::maps::RuleMode;
 
 use super::body::{BodyTrack, Fix};
 use super::kin::Kinematics;
@@ -28,6 +29,137 @@ use crate::v026g::drive::key;
 
 /// A roster place.
 pub type Place = usize;
+
+/// One of a team mode's two teams, by the game's number.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Team {
+    Zero,
+    One,
+}
+
+impl Team {
+    pub const BOTH: [Self; 2] = [Self::Zero, Self::One];
+
+    /// A team mode's team as the match gives it: 0 or 1 (the registry
+    /// gives a team mode's place no other, and counts any other as 1
+    /// itself).
+    pub fn of(number: u8) -> Self {
+        if number == 0 { Self::Zero } else { Self::One }
+    }
+
+    /// The team it plays against.
+    pub fn other(self) -> Self {
+        match self {
+            Self::Zero => Self::One,
+            Self::One => Self::Zero,
+        }
+    }
+
+    /// The game's number of it: its index in what is kept by team, and its
+    /// bit in a HUD mask.
+    pub fn index(self) -> usize {
+        self as usize
+    }
+}
+
+impl std::fmt::Display for Team {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.index().fmt(f)
+    }
+}
+
+/// Whose side a place plays on. Two places are allies when their sides are
+/// equal and enemies when not. Only a [`Team`] has the one side against it
+/// ([`Team::other`]); a free-for-all's place has every other place.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Side {
+    /// A team mode: its team's.
+    Team(Team),
+    /// A free-for-all: its own, by its place.
+    Solo(Place),
+}
+
+impl Side {
+    /// Its index in what a match keeps by side ([`Sides::count`]): a
+    /// team's number, a free-for-all's place.
+    pub fn index(self) -> usize {
+        match self {
+            Self::Team(team) => team.index(),
+            Self::Solo(place) => place,
+        }
+    }
+}
+
+#[cfg(test)]
+impl Side {
+    /// A team mode's side by the game's number, as the tests name them.
+    pub fn team(number: u8) -> Self {
+        Self::Team(Team::of(number))
+    }
+}
+
+impl PartialEq<Team> for Side {
+    fn eq(&self, team: &Team) -> bool {
+        *self == Self::Team(*team)
+    }
+}
+
+impl PartialEq<Side> for Team {
+    fn eq(&self, side: &Side) -> bool {
+        side == self
+    }
+}
+
+/// As the logs name it: `team 0`, or a free-for-all's `place 3`.
+impl std::fmt::Display for Side {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Team(team) => write!(f, "team {team}"),
+            Self::Solo(place) => write!(f, "place {place}"),
+        }
+    }
+}
+
+/// How a match's places are sided: the one reading of the teams the match
+/// gives its places ([`Sides::side`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Sides {
+    /// Two teams.
+    Teams,
+    /// A free-for-all: every place on its own.
+    Solo,
+}
+
+impl Sides {
+    pub fn of(mode: RuleMode) -> Self {
+        match mode {
+            RuleMode::FreeForAll => Self::Solo,
+            RuleMode::Batteries
+            | RuleMode::TimedBatteries
+            | RuleMode::TeamDeathmatch
+            | RuleMode::Research => Self::Teams,
+        }
+    }
+
+    /// The side of roster place `place`, whose team the match gave as
+    /// `team`. A free-for-all's place is its own side whatever that team
+    /// (`maps::free_for_all_team`: 4 and up, another for each place).
+    pub fn side(self, place: Place, team: u8) -> Side {
+        match self {
+            Self::Teams => Side::Team(Team::of(team)),
+            Self::Solo => Side::Solo(place),
+        }
+    }
+
+    /// The sides of a match of `places` places, each at its
+    /// [`Side::index`].
+    pub fn all(self, places: usize) -> Vec<Side> {
+        match self {
+            Self::Teams => Team::BOTH.map(Side::Team).to_vec(),
+            Self::Solo => (0..places).map(Side::Solo).collect(),
+        }
+    }
+}
 
 /// The height of the eyes over the feet, standing and crouched, metres
 /// (GUESS from the capsule: 1.8 m standing, 1.1 m crouched).
@@ -44,12 +176,12 @@ pub enum Mode {
 }
 
 impl Mode {
-    pub fn from_id(mode: u8) -> Self {
-        use survarium::v026g::maps::mode;
+    pub fn of(mode: RuleMode) -> Self {
         match mode {
-            mode::TIMED_BATTERIES => Self::TimedBatteries,
-            mode::TEAM_DEATHMATCH => Self::TeamDeathmatch,
-            _ => Self::Batteries,
+            RuleMode::TimedBatteries => Self::TimedBatteries,
+            // A free-for-all plays as Team Deathmatch with no teammates.
+            RuleMode::TeamDeathmatch | RuleMode::FreeForAll => Self::TeamDeathmatch,
+            RuleMode::Batteries | RuleMode::Research => Self::Batteries,
         }
     }
 
@@ -99,7 +231,8 @@ pub enum BatteryState {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlaceView {
     pub place: Place,
-    pub team: u8,
+    /// Its side: its team, or in a free-for-all its own.
+    pub team: Side,
     pub bot: bool,
     /// Entered and not left.
     pub present: bool,
@@ -154,7 +287,7 @@ impl PlaceView {
 pub struct ContainerView {
     pub id: u8,
     /// The team it belongs to.
-    pub team: u8,
+    pub team: Team,
     pub at: Vec3,
     pub batteries: usize,
 }
@@ -167,7 +300,8 @@ pub struct MatchView {
     /// Seconds left in play; the whole play time.
     pub time_left_s: f32,
     pub total_s: f32,
-    /// Batteries home, or tickets in Team Deathmatch, by team.
+    /// Batteries home, or tickets in Team Deathmatch, by team
+    /// ([`Team::index`]); a free-for-all's rules have neither.
     pub points: [u32; 2],
     pub places: Vec<PlaceView>,
     pub batteries: Vec<BatteryState>,
@@ -181,7 +315,7 @@ pub struct MatchView {
     pub deaths: Vec<Death>,
     /// The time of the newest world.
     pub world_time: u32,
-    /// Whether each team may still respawn.
+    /// Whether each team may still respawn ([`Self::can_respawn`]).
     pub can_respawn: [bool; 2],
     /// Timed batteries: when the next battery appears (match ms).
     pub next_battery: Option<u32>,
@@ -192,34 +326,54 @@ impl MatchView {
         self.places.get(place)
     }
 
-    /// Our points minus theirs, for `team` (tickets count a tenth).
-    pub fn score_gap(&self, team: u8) -> f32 {
-        let (ours, theirs) = (
-            self.points[usize::from(team & 1)],
-            self.points[usize::from(!team & 1)],
-        );
-        let gap = ours as f32 - theirs as f32;
-        if self.mode == Mode::TeamDeathmatch {
-            gap / 10.0
-        } else {
-            gap
+    /// Our points minus theirs, for `side` (tickets count a tenth). A
+    /// free-for-all's place stands by its kills, counted as tickets are:
+    /// its own minus the most any other place has.
+    pub fn score_gap(&self, side: Side) -> f32 {
+        match side {
+            Side::Team(team) => {
+                let (ours, theirs) = (self.points[team.index()], self.points[team.other().index()]);
+                let gap = ours as f32 - theirs as f32;
+                if self.mode == Mode::TeamDeathmatch {
+                    gap / 10.0
+                } else {
+                    gap
+                }
+            }
+            Side::Solo(place) => {
+                let kills = |p: &PlaceView| p.kills as f32;
+                let ours = self.place(place).map_or(0.0, kills);
+                let theirs = self
+                    .places
+                    .iter()
+                    .filter(|p| p.present && p.place != place)
+                    .map(kills)
+                    .fold(0.0, f32::max);
+                (ours - theirs) / 10.0
+            }
         }
     }
 
+    /// Whether `team` may still respawn (Team Deathmatch clears it when
+    /// the team's tickets are out).
+    pub fn can_respawn(&self, team: Team) -> bool {
+        self.can_respawn[team.index()]
+    }
+
     /// The living players of `team` (or not of it).
-    pub fn team(&self, team: u8) -> impl Iterator<Item = &PlaceView> {
+    pub fn team(&self, team: Side) -> impl Iterator<Item = &PlaceView> {
         self.places
             .iter()
             .filter(move |p| p.present && p.alive && p.team == team)
     }
 
-    pub fn enemies_of(&self, team: u8) -> impl Iterator<Item = &PlaceView> {
+    pub fn enemies_of(&self, team: Side) -> impl Iterator<Item = &PlaceView> {
         self.places
             .iter()
             .filter(move |p| p.present && p.alive && p.team != team)
     }
 
-    pub fn container_of(&self, team: u8) -> Option<&ContainerView> {
+    pub fn container_of(&self, team: Side) -> Option<&ContainerView> {
         self.containers.iter().find(|c| c.team == team)
     }
 }
@@ -267,9 +421,9 @@ const DEATHS_KEPT_MS: u32 = 30_000;
 const CARRIER_USE_M: f32 = 4.0;
 const CARRIER_USE_MS: u32 = 6_000;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 struct PlaceState {
-    team: u8,
+    team: Side,
     bot: bool,
     present: bool,
     body: BodyTrack,
@@ -287,12 +441,34 @@ struct PlaceState {
     death_spotted: Option<u32>,
 }
 
+impl PlaceState {
+    /// A place nobody entered yet.
+    fn new(team: Side, bot: bool) -> Self {
+        Self {
+            team,
+            bot,
+            present: false,
+            body: BodyTrack::default(),
+            keys: 0,
+            last_input: None,
+            alive: false,
+            health: 1.0,
+            spawned: 0,
+            stats: (0, 0, 0),
+            last_use: None,
+            last_shot: None,
+            death_spotted: None,
+        }
+    }
+}
+
 /// The view's keeper.
 pub struct Tracker {
     places: Vec<PlaceState>,
     mode: Mode,
+    sides: Sides,
     /// Container id → (team, place on the map).
-    containers: Vec<(u8, Vec3)>,
+    containers: Vec<(Team, Vec3)>,
     batteries: Vec<BatteryState>,
     marks: Vec<u32>,
     carriers: Vec<Option<Place>>,
@@ -306,20 +482,19 @@ pub struct Tracker {
 }
 
 impl Tracker {
-    /// `teams[place]`, `bots[place]`; `containers[id]` = (team, place).
-    pub fn new(mode: u8, teams: &[u8], bots: &[bool], containers: Vec<(u8, Vec3)>) -> Self {
+    /// `teams[place]` as the match gives them (read by [`Sides::side`]),
+    /// `bots[place]`; `containers[id]` = (team, place).
+    pub fn new(mode: RuleMode, teams: &[u8], bots: &[bool], containers: Vec<(Team, Vec3)>) -> Self {
+        let sides = Sides::of(mode);
         Self {
             places: teams
                 .iter()
                 .zip(bots)
-                .map(|(&team, &bot)| PlaceState {
-                    team,
-                    bot,
-                    health: 1.0,
-                    ..PlaceState::default()
-                })
+                .enumerate()
+                .map(|(place, (&team, &bot))| PlaceState::new(sides.side(place, team), bot))
                 .collect(),
-            mode: Mode::from_id(mode),
+            mode: Mode::of(mode),
+            sides,
             container_counts: vec![0; containers.len()],
             containers,
             batteries: Vec::new(),
@@ -335,18 +510,27 @@ impl Tracker {
     }
 
     /// The map's containers: by id, (team, place).
-    pub fn set_containers(&mut self, containers: Vec<(u8, Vec3)>) {
+    pub fn set_containers(&mut self, containers: Vec<(Team, Vec3)>) {
         self.container_counts.resize(containers.len(), 0);
         self.containers = containers;
     }
 
-    /// A place added (a late joiner).
-    pub fn push_place(&mut self, team: u8) {
-        self.places.push(PlaceState {
-            team,
-            health: 1.0,
-            ..PlaceState::default()
-        });
+    /// How the match's places are sided.
+    pub fn sides(&self) -> Sides {
+        self.sides
+    }
+
+    /// The side of `place`.
+    pub fn side(&self, place: Place) -> Option<Side> {
+        self.places.get(place).map(|state| state.team)
+    }
+
+    /// A place added (a late joiner, never a bot), whose team the match
+    /// gave as `team`. Returns its side.
+    pub fn push_place(&mut self, team: u8) -> Side {
+        let side = self.sides.side(self.places.len(), team);
+        self.places.push(PlaceState::new(side, false));
+        side
     }
 
     pub fn entered(&mut self, place: Place, entered: bool) {
@@ -690,7 +874,7 @@ mod tests {
     #[test]
     fn a_humans_body_is_reckoned_to_the_clock_and_its_keys_are_heard() {
         let kin = Kinematics::default();
-        let mut tracker = Tracker::new(2, &[0, 1], &[true, false], vec![]);
+        let mut tracker = Tracker::new(RuleMode::Batteries, &[0, 1], &[true, false], vec![]);
         tracker.entered(1, true);
         assert!(tracker.fixed(
             1,
@@ -734,10 +918,13 @@ mod tests {
     fn a_death_in_the_statistics_is_an_event_and_the_user_near_a_battery_carries_it() {
         let kin = Kinematics::default();
         let mut tracker = Tracker::new(
-            2,
+            RuleMode::Batteries,
             &[0, 1],
             &[false, false],
-            vec![(0, Vec3::ZERO), (1, Vec3::new(50.0, 0.0, 0.0))],
+            vec![
+                (Team::Zero, Vec3::ZERO),
+                (Team::One, Vec3::new(50.0, 0.0, 0.0)),
+            ],
         );
         for place in 0..2 {
             tracker.entered(place, true);
@@ -785,7 +972,7 @@ mod tests {
     #[test]
     fn a_death_the_world_shows_without_feet_is_in_the_feed_where_the_body_fell() {
         let kin = Kinematics::default();
-        let mut tracker = Tracker::new(2, &[0, 0, 1], &[true, true, false], vec![]);
+        let mut tracker = Tracker::new(RuleMode::Batteries, &[0, 0, 1], &[true, true, false], vec![]);
         for place in 0..3 {
             tracker.entered(place, true);
         }
