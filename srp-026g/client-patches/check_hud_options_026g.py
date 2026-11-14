@@ -680,7 +680,8 @@ def main():
     names = [ours.text(ours.read(node + 0x10)).decode() for node in nodes]
     variables = {name: console_bool(ours, node) for name, node in zip(names, nodes) if name in SETTINGS}
     expect(a_regs == b_regs and a_sp == b_sp and a_head == head_before
-           and names == ["srp_voice_mutes", "g_hide_spam", "s_use_microphone", "s_mic_sens", "s_chat_volume",
+           and names == ["srp_microphone",
+                         "srp_voice_mutes", "g_hide_spam", "s_use_microphone", "s_mic_sens", "s_chat_volume",
                          "where", "srp_mouse_vertical", "srp_mouse_vertical_locked", "s_music_volume", "srp_dxvk_overlay",
                          "srp_dxvk_frame_limit", "srp_dxvk_dedicated_gpu", "srp_dxvk_tear_free", "srp_dxvk_low_latency",
                          "srp_dxvk", "srp_hide_crosshair", "srp_map_names", "srp_hide_scores", "srp_hide_hit_markers",
