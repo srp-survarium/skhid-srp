@@ -118,6 +118,10 @@ impl WalkGrid {
             return Vec::new();
         }
         let n = self.len();
+        // The clip pass's links (its walk-offs and presses) as well: teach, don't cut (the owner's rule: a link goes only where
+        // no client action makes it and no player does). A flown press wins its group in the thinning; a clip press is kept, unflown,
+        // where none is flown (a gap the candidates below miss, or no flown press lands).
+        let clip = self.gap_found(wide, solids, stats);
         let mut found: Vec<(OffLink, usize)> = Vec::new();
         let mut gaps: Vec<Gap> = Vec::new();
         for a in 0..n {
@@ -128,12 +132,6 @@ impl WalkGrid {
                 let b = wide.links[a][d];
                 if b != NONE && wide.kinds[a][d] != LinkKind::Drop {
                     continue;
-                }
-                stats.tried += 1;
-                let behind = self.behind(wide, a, d);
-                if let Some(link) = self.walk_off_link(wide, a, d, behind, solids) {
-                    found.push((link, d));
-                    stats.made += 1;
                 }
                 match self.gap_across(wide, solids, a, d) {
                     Some((b, crossed)) => gaps.push(Gap { a: a as u32, b, d, over: crossed + self.body.step }),
@@ -195,8 +193,11 @@ impl WalkGrid {
             stats.by_share[share.class()] += 1;
             found.push((OffLink { from: g.a, to, kind, press, share, walk }, g.d));
         }
+        found.extend(clip);
         found.sort_by_key(|&(l, d)| (l.from, d, l.to));
-        self.thin_gap_links(wide, found, stats)
+        let out = self.thin_gap_links(wide, found, stats);
+        stats.clip_kept = out.iter().filter(|l| l.press != super::gap::Takeoff::WalkOff && l.share.flown().is_none()).count();
+        out
     }
 }
 

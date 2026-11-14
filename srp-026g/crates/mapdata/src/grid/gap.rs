@@ -467,6 +467,8 @@ pub struct GapStats {
     /// … the gaps found and their groups (a metre of edge, way, levels; at most two of a group flown).
     pub gaps: usize,
     pub groups: usize,
+    /// … and the clip pass's pressed links kept where no flown press covers their group (unflown, priced as before).
+    pub clip_kept: usize,
     pub by_share: [usize; 3],
 }
 
@@ -485,6 +487,7 @@ impl GapStats {
         self.sprint += o.sprint;
         self.flown += o.flown;
         self.gaps += o.gaps;
+        self.clip_kept += o.clip_kept;
         self.groups += o.groups;
         self.flights += o.flights;
         for (m, o) in self.by_share.iter_mut().zip(o.by_share) {
@@ -1665,11 +1668,17 @@ impl WalkGrid {
     /// The gap links of the eroded grid, kept and thinned
     /// (module documentation), sorted by take-off then landing.
     pub(super) fn gap_links(&self, wide: &Wide, solids: &Solids, stats: &mut GapStats) -> Vec<OffLink> {
-        let n = self.len();
         // A body that does not jump takes none.
         if self.body.max_jump <= 0.0 {
             return Vec::new();
         }
+        let found = self.gap_found(wide, solids, stats);
+        self.thin_gap_links(wide, found, stats)
+    }
+
+    /// The clip pass's gap links before the thinning (each with its way), in floor order ([`Self::gap_links`]).
+    pub(super) fn gap_found(&self, wide: &Wide, solids: &Solids, stats: &mut GapStats) -> Vec<(OffLink, usize)> {
+        let n = self.len();
         // The floors in runs on the machine's threads, each run's links in floor order and the runs in order: the links and
         // their order are the serial loop's (the flights read the grid only).
         let runs: Vec<std::ops::Range<usize>> = (0..n).step_by(GAP_RUN).map(|a| a..(a + GAP_RUN).min(n)).collect();
@@ -1696,7 +1705,7 @@ impl WalkGrid {
             found.extend(run);
             stats.add(&run_stats);
         }
-        self.thin_gap_links(wide, found, stats)
+        found
     }
 
     /// The gap links `found` (each with its way) kept and thinned (module documentation), sorted by take-off then landing.
@@ -1706,10 +1715,13 @@ impl WalkGrid {
         // order); a drop one a metre of edge and level whatever its way,
         // walked off before pressed (J0: where a walk-off lands, a jump
         // overshoots).
+        // [A389] A press flown by the client's jump (it has a share) before the clip pass's in its group: the clip's is kept only
+        // where no flown press covers its group (`gap_flights`; with none flown the order is the clip pass's own).
         found.sort_by_key(|&(link, _)| match link.press {
             Takeoff::WalkOff => 0,
-            Takeoff::Press(_) | Takeoff::Slow { .. } => 1,
-            Takeoff::Sprint(_) => 2,
+            _ if link.share.flown().is_some() => 1,
+            Takeoff::Press(_) | Takeoff::Slow { .. } => 2,
+            Takeoff::Sprint(_) => 3,
         });
         let mut seen = std::collections::HashSet::new();
         found.retain(|&(link, d)| {
