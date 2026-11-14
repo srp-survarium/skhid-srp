@@ -243,8 +243,11 @@ pub const CLIENT_BODY_ALGO: u32 = 1;
 /// millimetre, the split axis kept in a branch (the tree of 1 was median splits and tight boxes). 3: the tree keeps
 /// each triangle's bullet armor ([`FaceArmor`]), in the key and in the file.
 pub const SIGHT_ALGO: u32 = 3;
-/// [`World::map_grid_key`]'s own part (the spawns, and the map file when the rim jumps fly on the game's shapes).
-pub const MAP_GRID_KEY_ALGO: u32 = 1;
+/// [`World::map_grid_key`]'s own part (the spawns, and the map file when the build takes the game's shapes). 2: the map file
+/// whenever [`World::map_grid`] takes the shapes ([`World::map_grid_flies_shapes`]: the rim jumps, the gap flights, the rest
+/// and held floors, the wall give-back, the Drop links' walk); 1 keyed it for the rim jumps alone, so with them off a change of
+/// the shapes did not re-key a grid the other passes had built on them.
+pub const MAP_GRID_KEY_ALGO: u32 = 2;
 
 /// One map ready for bots: its data, walk grid and sight tree.
 pub struct World {
@@ -344,19 +347,28 @@ impl World {
 
     /// [`Self::map_grid`] with the build's counts ([`BuildStats`]), for a log.
     pub fn map_grid_with_stats(map: &MapData, walker: &[Triangle], cell: f32, body: Body, links: OffMeshLinks) -> (WalkGrid, BuildStats) {
-        // [A389] Every pass that walks or flies the client's body takes the shapes: the rim jumps, the gap flights, the Drop links'
-        // walk, the rest and held floors.
-        let flown = body.rim_jumps || body.gap_flights || body.rest_floors || body.held_floors || body.wall_give_back || (body.drop_check && body.drop_lands);
-        let shapes = flown.then(|| controller::Collision::build_exe(map)).flatten();
+        let shapes = Self::map_grid_flies_shapes(body).then(|| controller::Collision::build_exe(map)).flatten();
         let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
         let area = map.play_area(AREA_MARGIN);
         WalkGrid::build_kept_with_shapes(walker, shapes.as_ref(), area, cell, body, &map.grid_seeds(), &spawns, links)
     }
 
+    /// [A389] Whether [`Self::map_grid`] takes the game's shapes for `body`: every pass that walks or flies the client's body
+    /// does (the rim jumps, the gap flights, the Drop links' walk, the rest and held floors, the wall give-back). The one
+    /// condition the build and its key ([`Self::map_grid_key`]) share.
+    pub fn map_grid_flies_shapes(body: Body) -> bool {
+        body.rim_jumps
+            || body.gap_flights
+            || body.rest_floors
+            || body.held_floors
+            || body.wall_give_back
+            || (body.drop_check && body.drop_lands)
+    }
+
     /// The key of [`Self::map_grid`]'s grid: what it is built from, so a grid read back under this key (a pre-built file, or
     /// one shared between projects) is the one the build would make. The walker triangles, area, cell, body, seeds and links
-    /// ([`grid_key_with_links`]); the spawns, whose pockets the grid keeps; and when the rim jumps fly on the game's shapes
-    /// (`body.rim_jumps` and a map with them), `map_file`, the digest of the map file's bytes
+    /// ([`grid_key_with_links`]); the spawns, whose pockets the grid keeps; and when the build takes the game's shapes
+    /// ([`Self::map_grid_flies_shapes`] and a map with them), `map_file`, the digest of the map file's bytes
     /// (`digest::Digest::bytes`): the shapes are built from its objects, placements and library meshes
     /// ([`controller::Collision::build_exe`]), which the walker triangles do not hold.
     pub fn map_grid_key(map: &MapData, walker: &[Triangle], map_file: u64, cell: f32, body: Body, links: OffMeshLinks) -> u64 {
@@ -369,7 +381,7 @@ impl World {
                 digest.f32(v);
             }
         }
-        if body.rim_jumps && map.bullet.is_some() {
+        if Self::map_grid_flies_shapes(body) && map.bullet.is_some() {
             digest.u64(map_file);
         }
         digest.finish()

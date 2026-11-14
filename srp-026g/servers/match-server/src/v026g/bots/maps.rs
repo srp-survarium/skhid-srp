@@ -496,8 +496,10 @@ struct Built {
     /// The tactics' share of `seconds`, the map's walker walls among them (`TacticsBase`): built here once a map, not in a
     /// match tick.
     tactics_s: f32,
-    /// The grid's key ([`grid_key`]), the name of its pre-built file.
+    /// The grid's key ([`grid_key`]), the name of its pre-built file, and whether it holds the map file for the game's shapes
+    /// the build takes (`World::map_grid_flies_shapes`).
     grid_key: u64,
+    shapes_keyed: bool,
 }
 
 /// How a map's grid, sight tree and tactics were made by the build that made it ([`Maps::made`]).
@@ -527,9 +529,10 @@ impl Built {
             Source::Built => "built",
         };
         format!(
-            "grid {} (key {:016x}), sight tree {}, tactics {} in {:.2} s with the walker walls",
+            "grid {} (key {:016x}{}), sight tree {}, tactics {} in {:.2} s with the walker walls",
             word(self.grid),
             self.grid_key,
+            if self.shapes_keyed { ", the game's shapes keyed by the map file" } else { "" },
             word(self.sight),
             word(self.tactics),
             self.tactics_s
@@ -657,6 +660,7 @@ fn build(
         // With the gap links when the server's tuning has them (`GridTuning::gap_links`).
         let links = grid_tuning.off_mesh_links();
         let grid_key = grid_key(&map, &walker, map_file, grid_tuning);
+        let shapes_keyed = World::map_grid_flies_shapes(grid_tuning.body()) && map.bullet.is_some();
         stage::set("the grid");
         let shared = lock(cache).grids.get(&grid_key).and_then(Weak::upgrade);
         let (grid, grid_source) = match shared {
@@ -736,10 +740,10 @@ fn build(
             || TacticsBase::build(world.clone(), marking),
             |base, path| base.write(path, key),
         );
-        (base, grid_source, sight_source, tactics_source, tactics_started.elapsed().as_secs_f32(), grid_key)
+        (base, grid_source, sight_source, tactics_source, tactics_started.elapsed().as_secs_f32(), grid_key, shapes_keyed)
     }))
     .map_err(|_| format!("{}: the build panicked", path.display()))?;
-    let (base, grid, sight, tactics, tactics_s, grid_key) = built;
+    let (base, grid, sight, tactics, tactics_s, grid_key, shapes_keyed) = built;
     Ok((
         base,
         Built {
@@ -749,6 +753,7 @@ fn build(
             tactics,
             tactics_s,
             grid_key,
+            shapes_keyed,
         },
     ))
 }
