@@ -564,8 +564,9 @@ pub struct Tracker {
     plain_respawn_ms: Option<u32>,
     deaths: VecDeque<Death>,
     world_time: u32,
-    /// [A318] The map's walker-mesh walls for the jump arc ([`body::walker_walls`]), built the first time `kin.jump_arc` needs
-    /// them: one per match.
+    /// [A318] The map's walker-mesh walls for the jump arc ([`body::walker_walls`]): the map's tactics' own, handed over with them
+    /// ([`Self::set_walker_walls`], `Bots::tactics_ready`), built off the match loop; built here at the first use only for a
+    /// tracker given a world without them (tests).
     walker: Option<Arc<RayTree>>,
     /// What the sprint-sound rule and the use ray did, by team (a carrier guess reads them through `&self`).
     activity: std::cell::Cell<[SenseActivity; 2]>,
@@ -656,6 +657,11 @@ impl Tracker {
             seen_reach: Vec::new(),
             walker: None,
         }
+    }
+
+    /// [A318] The map's walker walls, built with its tactics (`TacticsBase`), so no tick or world builds them.
+    pub fn set_walker_walls(&mut self, walls: Arc<RayTree>) {
+        self.walker = Some(walls);
     }
 
     /// [A318] The jump arc's walls for `world` while `kin.jump_arc` is on (none while off: nothing is built).
@@ -845,6 +851,22 @@ impl Tracker {
             Some(kit) => pockets.use_kit(kit),
             None => self.throws.unknown_kit += 1,
         }
+    }
+
+    /// [Gap 11] A world made at `time` shows a server bot's pockets of its kit `kit` holding `stacks`: its pockets hold
+    /// the world's units ([`KitPockets::read`]). Only a bot's own (`Throws::Bot`): what another body carries is not shown
+    /// to a player, so a human's pockets stay counted from the presses.
+    pub fn own_stacks(&mut self, place: Place, kit: usize, time: u32, stacks: [Option<super::pockets::WorldStack>; 6]) {
+        let Some(Throws::Bot(pockets)) = self.places.get_mut(place).map(|state| &mut state.throws) else {
+            return;
+        };
+        let Some(kit) = pockets.kit(kit) else {
+            return;
+        };
+        let read = pockets.read(kit, time, stacks);
+        self.throws.stacks.read += read.read;
+        self.throws.stacks.changed += read.changed;
+        self.throws.stacks.held += read.held;
     }
 
     /// The fragmentation grenades in the match now.
@@ -1054,7 +1076,7 @@ impl Tracker {
                 Throws::Human(pockets) => {
                     kit = pockets.in_use().get();
                     self.throws.quick_rules_differ += u32::from(pockets.quick_rules_differ(pressed));
-                    match pockets.throw_grenade(pressed) {
+                    match pockets.throw_grenade(pressed, time) {
                         Some((item, grenade)) => Some((item, grenade, Whose::Human)),
                         // The client throws nothing: counted.
                         None => {
@@ -1070,7 +1092,7 @@ impl Tracker {
                 Throws::Bot(pockets) => {
                     kit = pockets.in_use().get();
                     self.throws.quick_rules_differ += u32::from(pockets.quick_rules_differ(pressed));
-                    match pockets.throw_grenade(pressed) {
+                    match pockets.throw_grenade(pressed, time) {
                         Some((item, grenade)) => Some((item, grenade, Whose::Bot)),
                         // The client throws nothing: the throw key is listed as an assumed grenade.
                         None if pressed & key::GRENADE != 0 => {

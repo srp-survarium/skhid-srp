@@ -2948,6 +2948,7 @@ mod tests {
                 name: "toxic".into(),
                 team: -1,
                 position: Vec3::new(25.0, 0.0, 32.0),
+                protection: None,
                 damage_type: "toxic".into(),
                 damage,
                 shapes: vec![Shape {
@@ -2977,6 +2978,7 @@ mod tests {
                 name: "toxic".into(),
                 team: -1,
                 position: Vec3::new(25.0, 0.0, 32.0),
+                protection: None,
                 damage_type: "toxic".into(),
                 damage: None,
                 shapes: vec![Shape {
@@ -3597,6 +3599,7 @@ mod tests {
                     name: "toxic".into(),
                     team: -1,
                     position: Vec3::new(20.0, 0.0, 30.0),
+                    protection: None,
                     damage_type: "toxic".into(),
                     damage: None,
                     shapes: vec![
@@ -3814,6 +3817,7 @@ mod tests {
                     name: "toxic".into(),
                     team: -1,
                     position: Vec3::new(20.0, 0.0, 30.0),
+                    protection: None,
                     damage_type: "toxic".into(),
                     damage: None,
                     shapes: vec![
@@ -4244,6 +4248,7 @@ mod tests {
                 name: "slab".into(),
                 team: -1,
                 position: Vec3::new(25.0, -1.27, 32.0),
+                protection: None,
                 damage_type: "radiation".into(),
                 damage: Some(mapdata::Damage {
                     max_hit: 0.1,
@@ -4386,7 +4391,7 @@ mod tests {
     fn vector_laboratory_band_batteries_are_reached_without_a_crossing() {
         let dir = std::env::var_os("SRP_MAPDATA_DIR").expect("set SRP_MAPDATA_DIR");
         let mut defaults = crate::v026g::bots::tuning::Tuning::default();
-        defaults.hazard.capsule_marks = true;
+        defaults.hazard.capsule_goals = true;
         let map = mapdata::MapData::read(&std::path::Path::new(&dir).join("level_07_day_2.mapdata")).unwrap();
         let world = std::sync::Arc::new(mapdata::World::build_with_links(
             map,
@@ -5414,6 +5419,7 @@ mod tests {
                         name: "gate".into(),
                         team: -1,
                         position: Vec3::new(40.0, 0.0, 32.5),
+                        protection: None,
                         damage_type: "electro".into(),
                         damage: Some(mapdata::Damage { max_hit: 0.6, parts: 2, continuous: true, ..mapdata::Damage::default() }),
                         shapes: vec![mapdata::Shape {

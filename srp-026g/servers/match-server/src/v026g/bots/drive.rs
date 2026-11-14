@@ -880,10 +880,17 @@ fn drive_tick_inner(
             let shut = !replan && time >= bot.stuck.zone_checked + stuck::ZONE_CHECK_MS && {
                 bot.stuck.zone_checked = time;
                 bot.route.as_mut().is_some_and(|(route, _)| {
-                    tactics.route_shut_ahead(route, me.feet, time, crossing)
+                    tactics.route_shut_ahead(route, me.feet, time, crossing, bot.zone_walk.map(|walk| walk.route))
                 })
             };
             if shut {
+                // [A395a] The log's line for a walk out whose held route went on across the zone (`route_shut_ahead`).
+                if bot.zone_walk.is_some_and(|walk| walk.route == super::tactics::WalkRoute::Held)
+                    && let Some(exit) = tactics.zone_exit(me.feet, time)
+                {
+                    let line = super::nav_log::walk_route_shut_line(me.feet, exit.reach());
+                    bot.nav_log.push(super::nav_log::Kind::WalkOut, time, line);
+                }
                 bot.end_route(RouteEnd::ZoneShut, time);
             }
             let replan = replan || shut;
@@ -1681,7 +1688,7 @@ fn drive_tick_inner(
                     let leaving = bot.motor.feel.zone_lines.then(|| tactics.zone_exit(me.feet, time)).flatten();
                     match (bot.zone_walk, leaving) {
                         (None, Some(exit)) => {
-                            bot.zone_walk = Some(time);
+                            bot.zone_walk = Some(super::ZoneWalk { since: time, route: super::tactics::WalkRoute::Held, hurt_ticks: 0 });
                             let next = route.points().get(route.segment() + 1).map(|w| w.at);
                             let reach = exit.reach();
                             match exit {
@@ -1706,15 +1713,25 @@ fn drive_tick_inner(
                                 }
                             }
                         }
-                        (Some(since), None) => {
+                        (Some(super::ZoneWalk { since, hurt_ticks, .. }), None) => {
                             bot.zone_walk = None;
                             bot.zone_note = Some(format!(
-                                "is off the zone floors at {:?} after {} ms",
+                                "is off the zone floors at {:?} after {} ms, {hurt_ticks} ticks on floors a zone hurts",
                                 me.feet.to_array(),
                                 time.wrapping_sub(since)
                             ));
                         }
                         _ => {}
+                    }
+                    // [A395a] The walk's ticks on floors a zone on hurts (the client's contact test); the first one logged.
+                    if let Some(walk) = bot.zone_walk.as_mut()
+                        && tactics.world.grid.locate(me.feet, 1.5).is_some_and(|node| tactics.hazards.hits_at(node, time))
+                    {
+                        walk.hurt_ticks += 1;
+                        if walk.hurt_ticks == 1 {
+                            let line = super::nav_log::walk_hurt_line(me.feet, time.wrapping_sub(walk.since), walk.route);
+                            bot.nav_log.push(super::nav_log::Kind::WalkOut, time, line);
+                        }
                     }
                     let clear = |p: Vec3| match leaving {
                         Some(exit) => tactics.clear_line_leaving(me.feet, p, time, side, objective, exit),
@@ -2724,6 +2741,19 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
         bot.lip_watch = watch;
         if may { guard } else { LipGuard::Clear }
     };
+    // [A388] A change of the keys at an edge, with both bodies' word on it, for the log (decision-neutral; a line a kind per bot per
+    // `nav_log::EVERY_MS`, `nav_log::MAX_PER_KIND` a match).
+    let changed = match guard {
+        LipGuard::Swapped(to) => Some(("swapped", Some(to))),
+        LipGuard::Braked(to) => Some(("braked", Some(to))),
+        LipGuard::Doomed => Some(("doomed", None)),
+        LipGuard::Clear | LipGuard::Safe => None,
+    };
+    if let Some((verdict, to)) = changed {
+        let edge = super::nav_log::EdgeWord::at(&tactics.world.grid, me.feet, None);
+        let speed = me.velocity[0].hypot(me.velocity[1]);
+        bot.nav_log.push(super::nav_log::Kind::Guard, time, super::nav_log::guard_line(verdict, me.feet, decision.keys, to, speed, edge));
+    }
     #[cfg(test)]
     {
         bot.bench_guard_at = (me.velocity, me.feet);
@@ -3256,7 +3286,7 @@ mod tests {
         let grid = &world.grid;
         let body = kin::Kinematics::default();
         let lattice = kin::Kinematics { margin_edge: kin::MarginEdge::Lattice, ..body.clone() };
-        assert_eq!((body.edge, body.margin_edge), (kin::Edge::Client, kin::MarginEdge::Body), "the defaults (A93)");
+        assert_eq!((body.edge, body.margin_edge), (kin::Edge::Controller, kin::MarginEdge::Body), "the defaults (A93, A388 step 2)");
         let held = |guard: LipGuard| matches!(guard, LipGuard::Swapped(_) | LipGuard::Braked(_) | LipGuard::Doomed);
         let walk = |kin: &kin::Kinematics, x: f32, yaw: f32, full: bool| lip_guard_with(grid, kin, &on_the_slab(x, yaw, 3.5), 0.0, key::FORWARD, &[], HOLD, full);
         // Along the rim on its last floor: the sides.

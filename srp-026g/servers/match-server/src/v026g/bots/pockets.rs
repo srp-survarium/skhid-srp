@@ -9,7 +9,50 @@
 
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::loadouts::POCKET_SLOTS;
+use survarium::v026g::match_msgs::players::Supplies;
 use survarium::v026g::match_msgs::static_info::MatchProfile;
+
+/// [Gap 11] A world's word on one pocket's stack: the units in the slot (the item header's `m_amount`, the typed walk's
+/// `Left::Amount`, `inventory_item::deserialize` 0x2FFF10) and in the item's storage (the profile item's
+/// `amount_in_storage`, `player_profile::serialize_dynamic` 0x2F7CC0).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WorldStack {
+    pub in_hand: u16,
+    pub stored: u32,
+}
+
+/// [Gap 11] The stacks a world shows in the pockets of the kit in use: by position in [`POCKET_SLOTS`], the item's
+/// dictionary name and its stack. Only a living body's whose items were read (`Supplies::alive`,
+/// `Supplies::inventory_read`): a dead one's stacks are back in storage.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WorldPockets {
+    /// The kit in use (`current_index`).
+    pub kit: usize,
+    pub slots: [Option<(&'static str, WorldStack)>; POCKET_SLOTS.len()],
+}
+
+impl WorldPockets {
+    /// The pockets of the kit in use in `supplies` (a world's typed walk, `Supplies::of_world`), by the profile's kit
+    /// slots. `None` for a dead body, a world whose items were not read, or a kit the profile does not have.
+    pub fn of(supplies: &Supplies, profile: &MatchProfile) -> Option<Self> {
+        if !(supplies.alive && supplies.inventory_read) {
+            return None;
+        }
+        let kit = usize::from(supplies.kit);
+        let slots = &profile.kits.get(kit)?.slots;
+        let dictionary = Dictionary::shared();
+        Some(Self {
+            kit,
+            slots: std::array::from_fn(|i| {
+                let (index, _) = slots.get(usize::from(POCKET_SLOTS[i])).copied().flatten()?;
+                let item = profile.items.get(usize::from(index))?;
+                let name = dictionary.item(item.dict_id)?.name.as_str();
+                let left = supplies.items.get(usize::from(index))?;
+                Some((name, WorldStack { in_hand: left.in_hand?, stored: left.stored }))
+            }),
+        })
+    }
+}
 
 /// A kit's six pockets, by position in [`POCKET_SLOTS`].
 pub type KitSlots = [Option<ProfilePocket>; POCKET_SLOTS.len()];

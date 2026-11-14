@@ -169,6 +169,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_STAND_IN_WALKOFF", "on", "**model** `off`: a stand-in body that walks off an edge is put on the floor straight below the edge in one tick (the benches before it became the default, 2026-11-02, before A93); on: it falls from it keeping the walk's speed across, held by the walls as a jump is, as the client's capsule (J0 g2a: 7 of 7 walk-offs at Chemical Plant's pedestrian bridge land on the walkway 1.5 m out) (`standin_jump::stand_in_walk_off`)"),
     s("SRP_BENCH_STAND_IN_CORNER", "on", "**model** `off`: the stand-in body slides along every wall of the lattice at full speed; on (the client's capsule, `standin_capsule.rs`): a circle of the capsule's radius 0.38 m in the walker mesh's walls, moved by `step_forward_impl`'s wall slide with the live `cc_wall_full_slide_dot 0.50` and `cc_wall_slide_bouncing_factor 0.08`: held off a wall, a wall met within 60 degrees of its normal takes speed, a jamb met head on stops the body"),
     s("SRP_BENCH_STAND_IN_CLIENT_STEP", "kept", "**model** `kept` (the default since #1681: the client's code): every stand-in ground step is the client's controller kept across the body's steps (`WalkGrid::kept_tick`, the reckoning's `ClientStep::Kept`); `on` (the default before): a step the lattice has rising or blocked takes the client's walk tick (`WalkGrid::client_step`); `off`: the lattice's walk alone (the bench before A318); `tuning`: as the bench tuning's `kin.client_step`, the reckoning's rule"),
+    s("SRP_BENCH_STAND_IN_KEPT_EDGE", "on", "**model** [A388 step 2] `off`: a stand-in body whose kept controller (`SRP_BENCH_STAND_IN_CLIENT_STEP=kept`) leaves the ground is held by the lattice as `SRP_BENCH_STAND_IN_EDGE` has it (to `body::SUPPORT_M` past its floor's centre); on: it leaves its floor where the controller leaves the ground (`step_down` 0x7E1B0 finds no ground within the step) and falls as a walk-off (`standin_jump::stand_in_kept_edge`)"),
     s("SRP_BENCH_STAND_IN_SLIDE", "off", "**model** `on`: a stand-in body on ground the client slides it off slides down the lattice, its lowest walk or drop neighbour at a time, gaining 9.8 x sin(slope) m/s a second, until its ground holds it (`standin_slide`, C14): by-slope ground over 55 degrees, over 45 degrees when it stands still (and while it slides), `dont_walk` ground always, `walk` ground never (the client's `need_slide_on_supporting_surface` 0x7bc20 and the down sweep's callback 0x84420); off: it stands where it stops. The `still_on_steep` line of the log counts the still ticks on such ground either way"),
     s("SRP_BENCH_STAND_IN_JUMP_WALL", "off", "**model** `on` (with `SRP_BENCH_STAND_IN_CORNER=on`): the walk a jump makes on the floor before it leaves it is held by the walls and the ledge as the walking body is (the capsule rule, then `slide_supported`); off: it walks as the lattice (`slide_capped`), through a wall the capsule holds and off a ledge the capsule stays on, so a body held at a wall that presses jump walks through it and drops (A199: Chemical Plant day 4's pipe-top ledge under the side-1 platform). The count of the walk ticks the capsule would hold is in the `climbs` line of the log either way"),
     s("SRP_BENCH_STAND_IN_AIR", "on", "**model** `off`: the stand-in's jump goes only the way of the keys at the press (the benches before #966: their jumps are not comparable with the later ones); on (the client's air control, `standin_jump::air_control`): each tick of a stand-in jump off the floor, the keys held then move the body 1.0 m/s their way (none with forward alone in a sprint jump), as `get_air_control_vector` 0x2D7990 does"),
@@ -209,8 +210,8 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_START", "0,0", "**model** batteries already in team 0's and team 1's containers: `a,b`"),
     s("SRP_BENCH_LIVE_FIELDS", "off", "**model** `<n>`: the generator of anomaly fields makes the release's rule, at most n alive at once (the release: 16): charging 20 s, damaging 4 s, then holding; they hurt the bodies whatever the bots know (`standin_fields.rs`)"),
     s("SRP_BENCH_FIELD_TAKER", "none", "**model** `scripted`: a field's artefact is taken 30 s into its holding (the field goes, its place rests 60 s); `none`: nobody takes one, as in a bot match"),
-    s("SRP_BENCH_WORLD_MS", "1000", "**model** how often a world reaches the bots, ms (the live worlds of a match with one client: 2000, `SRP_PVB_WORLD_MS`, `game/driven.rs`)"),
-    s("SRP_BENCH_FIELD_WORLD_MS", "1000", "**model** how often a world lists the fields to the bots, ms (a lag arm: 5000)"),
+    s("SRP_BENCH_WORLD_MS", "the server's (`DEFAULT_PVB_WORLD_MS`, `SRP_PVB_WORLD_MS` unset)", "**model** how often a world reaches the bots, ms: unset, the interval the match server asks a client for a world at while its bots play (`game/driven.rs`), so a bench's bots know what a release's know"),
+    s("SRP_BENCH_FIELD_WORLD_MS", "`SRP_BENCH_WORLD_MS`'s", "**model** how often a world lists the fields to the bots, ms (a lag arm: 5000); unset, every world, as the server reads the anomalies from each world (`anomalies_from_world`)"),
     s("SRP_BENCH_FIELD_PLACES", "spread", "**model** `lanes`: the generator's places lie on the walks between the containers and the battery spawners, where the bots go"),
     s("SRP_BENCH_FIELD_PACE", "release", "**model** `fast`: the first try at 5 s, then every 4-8 s (a stress arm)"),
     s("SRP_BENCH_FIELD_RADIUS_M", "3", "**model** the fields' radius, m"),
@@ -448,6 +449,13 @@ pub(crate) fn mapdata_format_verdict(path: &std::path::Path, version: u32, allow
     } else {
         Err(format!("{what}. Dump the maps again (mapdata-dump) or set SRP_BENCH_MAPDATA_OLD=allow to run on it anyway."))
     }
+}
+
+/// How often a world reaches the bench's bots, ms: `SRP_BENCH_WORLD_MS`, else the interval the match server asks a client for
+/// a world at while its bots play (`DEFAULT_PVB_WORLD_MS`, its `SRP_PVB_WORLD_MS` unset), so that a bench's bots know the
+/// world as late as a release's do.
+pub(crate) fn bench_world_ms(settings: &BenchSettings) -> u32 {
+    settings.number_or_refuse("SRP_BENCH_WORLD_MS").unwrap_or(crate::v026g::DEFAULT_PVB_WORLD_MS)
 }
 
 /// The bench's settings, read from the environment the first time they are asked.

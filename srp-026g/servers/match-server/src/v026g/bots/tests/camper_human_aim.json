@@ -212,6 +212,7 @@
     "worn_kit_from_world": false,
     "weapon_in_hands": false,
     "hands_from_world": false,
+    "stacks_from_world": false,
     "reload_aim_control": true,
     "spawn_protection": false,
     "reload_rounds_in_view": 0,

@@ -230,6 +230,16 @@ pub struct Note {
     pub text: String,
 }
 
+/// [A395a] A bot's walk over a zone's floors (`Bot::zone_walk`): since when (ms) its lines are tested over them,
+/// whether the route it walks was planned since (`Tactics::route_shut_ahead`), and its ticks on floors a zone on hurts
+/// by the client's contact test (`Hazards::hits_at`), for the log.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct ZoneWalk {
+    since: u32,
+    route: tactics::WalkRoute,
+    hurt_ticks: u32,
+}
+
 /// One bot.
 pub struct Bot {
     place: Place,
@@ -443,9 +453,9 @@ pub struct Bot {
     paired: bool,
     /// Its route searches dropped since it last noted them.
     dropped: path::Dropped,
-    /// Since when (ms) its walk tests its lines over a zone's floors, because it stands on floors the zone refuses
-    /// (`Tactics::zone_exit`); none off them. The note of each change is `zone_note`, said once.
-    zone_walk: Option<u32>,
+    /// Its walk over a zone's floors, because it stands on floors the zone refuses (`Tactics::zone_exit`); none off
+    /// them. The note of each change is `zone_note`, said once.
+    zone_walk: Option<ZoneWalk>,
     zone_note: Option<String>,
     /// Its kits by index (the profile's, `survarium::v026g::loadouts::
     /// bot_kits` of its tier and role) and the rounds of weapon 1's ammo
@@ -1290,6 +1300,7 @@ impl Bots {
     /// clocks and the containers, a few ms.
     pub fn tactics_ready(&mut self, mut tactics: Tactics) -> String {
         std::mem::take(&mut self.layers).attach(&mut tactics);
+        self.tracker.set_walker_walls(tactics.walker_walls());
         let tuning = self.tunings.match_wide();
         tactics.escape = tuning.hazard.escape;
         tactics.leave_islands = tuning.hazard.leave_islands;
@@ -1568,6 +1579,23 @@ impl Bots {
     /// [Gap 3, F7] A trusted world's word on one place's weapon in hands ([`guns::GunWorld`]): a bot's own ledger is laid
     /// against it ([`reflex::Reflex::gun_world`], `combat.gun_from_world`), when the world's kit in use is the one its
     /// arms are of.
+    /// [Gap 11] A trusted world made at `time` shows a bot's own pockets of the kit in use (`world`): its grenade and
+    /// smoke pockets ([`view::Tracker::own_stacks`]) and its trap pocket ([`traps::Habit::read`]) hold the world's units
+    /// (`combat.stacks_from_world`).
+    pub fn own_stacks(&mut self, place: Place, time: u32, world: &pockets::WorldPockets) {
+        let Some(Some(bot)) = self.bots.get_mut(place) else {
+            return;
+        };
+        if !self.tunings.of(bot.team).aim.combat.stacks_from_world {
+            return;
+        }
+        let trap = survarium::v026g::loadouts::BOT_TRAP.name;
+        if let Some((_, stack)) = world.slots.iter().flatten().find(|(name, _)| *name == trap) {
+            bot.features.traps.habit.read(time, stack.in_hand);
+        }
+        self.tracker.own_stacks(place, world.kit, time, world.slots.map(|slot| slot.map(|(_, stack)| stack)));
+    }
+
     pub fn own_gun(&mut self, place: Place, gun: guns::GunWorld) {
         let Some(Some(bot)) = self.bots.get_mut(place) else {
             return;
@@ -1752,8 +1780,12 @@ impl Bots {
             {
                 // [owner-5 R4] The route's word on it: planned by a drop at that edge or the model going down it, and
                 // the route's next link.
+                // [A388] And both bodies' word on the edge at the world before it (decision-neutral).
                 let fall = match world.as_deref() {
-                    Some(world) => fall.of_route(&world.grid, bot.route.as_ref().map(|(route, _)| route)),
+                    Some(world) => {
+                        let edge = nav_log::EdgeWord::at(&world.grid, fall.from, None);
+                        nav_log::Fall { edge: Some(edge), ..fall.of_route(&world.grid, bot.route.as_ref().map(|(route, _)| route)) }
+                    }
                     None => fall,
                 };
                 bot.nav_log.push(nav_log::Kind::Fall, time, fall.line());
@@ -1904,11 +1936,22 @@ impl Bots {
             if let Some(b) = beside.filter(|b| b.distance_m <= stuck::BESIDE_M) {
                 stuck::fix_gaps::count(if b.enemy { 4 } else { 5 });
             }
+            // [A388] At a lip, both bodies' word on the edge there: the grid's hold, the walker's ground and the kept controller's last
+            // step (decision-neutral).
+            let edge_text = self
+                .tactics
+                .as_ref()
+                .map(|tactics| &tactics.world.grid)
+                .filter(|grid| grid.locate(feet, 1.0).is_some_and(|node| grid.near_lip(node) || grid.is_lip(node)))
+                .map_or(String::new(), |grid| {
+                    let kept = self.tracker.body(place).and_then(|body| body.estimate()).and_then(|at| at.kept);
+                    format!(" (at a lip, {})", nav_log::EdgeWord::at(grid, feet, kept.map(|kept| kept.airborne())))
+                });
             bot.note(
                 &mut notes,
                 time,
                 format!(
-                    "is stuck at {:?}: {recovery:?}{}{}{}{}{}",
+                    "is stuck at {:?}: {recovery:?}{}{}{}{}{}{edge_text}",
                     feet.to_array(),
                     if by_keys {
                         " (walk keys held, the body still)"
@@ -2110,7 +2153,19 @@ impl Bots {
     /// A294: the match-end lines of the bots' drift (`nav_drift::report`).
     pub fn drift_report(&self) -> Vec<String> {
         let tallies: Vec<(usize, &nav_drift::Tally)> = self.bots.iter().flatten().map(|bot| (bot.place, &bot.drift)).collect();
-        nav_drift::report(&tallies)
+        let mut lines = nav_drift::report(&tallies);
+        // [A388] The kept controllers' CPU: their steps on this server since the last match's end (every match on it), and the
+        // time a step took.
+        let (steps, ns) = body::kept_clock::take();
+        let (left, ground, held) = body::kept_edges::take();
+        lines.push(format!(
+            "{}kept controller steps since the last match end (every match on this server): {steps}, {} ns a step, {:.1} ms in all;              off the ground {}: left the floor {left}, the walker's ground under the feet {ground}, no floor under them {held}",
+            nav_log::PREFIX,
+            ns.checked_div(steps).unwrap_or(0),
+            ns as f64 / 1e6,
+            left + ground + held
+        ));
+        lines
     }
 
     /// A285: `index`'s falls and route jumps since the last poll, as its notes (`nav_log.rs`). Called by [`Self::poll`] and the

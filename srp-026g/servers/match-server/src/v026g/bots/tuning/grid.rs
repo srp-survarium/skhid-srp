@@ -307,6 +307,11 @@ pub struct GridTuning {
     /// ledge's take-off (#1805). ON since: harm-pullwalk3 on 5455d2bd (8 maps x 2 seeds, TDM + batt) no pooled harm; its one
     /// harm row (map 3) is the rim jumps' press, which fails with it off too (A386).
     pub pull_walk: bool,
+    /// [A388] Whether the client's walker the reckoning's kept controller walks (and the pulled legs' walk, the client step) is
+    /// the game's shapes met by the exe's own cast (`mapdata::controller::Collision::build_exe`: exactness row 4, the port's
+    /// step equals the exe's on 265 of 276 rim steps there, against 83 of 276 on the walker triangles with the Bullet caster), not
+    /// the walker triangles. Not a build input: the grids and their key are the same either way. On (a correctness fix, `KEPT_RIGHT`).
+    pub walker_shapes: bool,
 }
 
 /// [A333] How near a wall the client's body stands, metres: its standing cylinder's radius 0.38 (the stand capsule's 0.76 m
@@ -361,6 +366,7 @@ impl Default for GridTuning {
             jump_air_steps: true,
             wall_clear_pull: false,
             pull_walk: true,
+            walker_shapes: true,
         }
     }
 }

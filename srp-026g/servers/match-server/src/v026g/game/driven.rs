@@ -70,6 +70,19 @@ use crate::v026g::drive::{self, Drive};
 /// body, at least this often.
 const WAITING_REFRESH: Duration = Duration::from_secs(1);
 
+/// The period of the server's world requests with these bots in the match: `every` (the match's own, `timing.refresh` or
+/// the starved hashes'), at most `playing` (`timing.pvb_world`) while bots play, and at most [`WAITING_REFRESH`] while one
+/// waits to see its body ([`Bots::need_world`]). The bench asks its worlds on this rule too (`bots/tests/bench.rs`).
+pub(crate) fn world_period(bots: &Bots, every: Duration, playing: Duration) -> Duration {
+    if bots.need_world() {
+        every.min(WAITING_REFRESH).min(playing)
+    } else if bots.any() {
+        every.min(playing)
+    } else {
+        every
+    }
+}
+
 /// [owner-14 row 1] The bots' places wait this long at most for their map before they enter anyway, from when a client
 /// first simulates. The clients start the countdown once `floor(0.8 x N)` of the N places entered (`start.rs`), so while
 /// the bots wait the countdown waits ("Awaiting other players"); after the cap they enter and stand until the map is
@@ -694,19 +707,12 @@ impl Game {
     }
 
     /// How often to ask for a world, `every` being what the match asks:
-    /// sooner while the server's bots play.
+    /// sooner while the server's bots play ([`world_period`]).
     pub(super) fn driven_refresh(&self, every: Duration) -> Duration {
         let Some(walkers) = self.walkers.as_ref().filter(|walkers| !walkers.absent) else {
             return every;
         };
-        let playing = self.settings.timing.pvb_world;
-        if walkers.bots.need_world() {
-            every.min(WAITING_REFRESH).min(playing)
-        } else if walkers.bots.any() {
-            every.min(playing)
-        } else {
-            every
-        }
+        world_period(&walkers.bots, every, self.settings.timing.pvb_world)
     }
 
     /// A human's input as relayed, which reached the server `late_ms` after
@@ -853,6 +859,12 @@ impl Game {
                 && let Some(gun) = crate::v026g::bots::guns::GunWorld::of(snapshot.time, &world.supplies, &world.guns, profile)
             {
                 walkers.bots.own_gun(place, gun);
+            }
+            // [Gap 11] A bot's own pocket stacks of the kit in use: grenades, smokes, traps.
+            if let Some(profile) = self.formed.profiles.get(place)
+                && let Some(pockets) = crate::v026g::bots::pockets::WorldPockets::of(&world.supplies, profile)
+            {
+                walkers.bots.own_stacks(place, snapshot.time, &pockets);
             }
         }
         // [Gap 8] Each bot's enemies that cannot be hurt now.
@@ -1338,7 +1350,7 @@ mod tests {
         };
         let life = |pockets: &mut KitPockets| {
             let mut thrown = 0;
-            while pockets.throw_grenade(key::GRENADE).is_some() && thrown < 10 {
+            while pockets.throw_grenade(key::GRENADE, 0).is_some() && thrown < 10 {
                 thrown += 1;
             }
             thrown
@@ -1435,14 +1447,14 @@ mod tests {
         let Throws::Human(mut first_only) = Throws::of_profile(&profile, Player::Human, false) else {
             panic!("pockets");
         };
-        assert!(first_only.throw_grenade(key::GRENADE).is_none());
+        assert!(first_only.throw_grenade(key::GRENADE, 0).is_none());
         let Throws::Human(mut all) = Throws::of_profile(&profile, Player::Human, true) else {
             panic!("pockets");
         };
-        assert!(all.throw_grenade(key::GRENADE).is_none(), "kit 1 in use: a medkit");
+        assert!(all.throw_grenade(key::GRENADE, 0).is_none(), "kit 1 in use: a medkit");
         let kit = all.kit(1).expect("the profile has a second kit");
         all.use_kit(kit);
-        assert!(all.throw_grenade(key::GRENADE).is_some(), "kit 2 in use: the frag");
+        assert!(all.throw_grenade(key::GRENADE, 0).is_some(), "kit 2 in use: the frag");
         assert!(all.kit(2).is_none());
     }
 

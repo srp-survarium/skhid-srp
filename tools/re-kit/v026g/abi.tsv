@@ -1314,9 +1314,9 @@ va	name	source	ret_cleanup	result
 0x00305540	survarium::booby_trap_core::hit_by_type	manual	28h	none; the hit receiver's vtable +24h (bullets 0x32DA3A, splash): when the 4th argument (the hit type) == the set's +298h defuse_by_hit (absent: 8, none), is_explosive (+220h) ? explode (vfn +40h) : disarm 0x3050C0; no team test
 0x00305ea0	survarium::booby_trap_set_core::try_to_place_trap	manual	4	AL = a trap was placed
 0x00306490	survarium::booby_trap_set_core::get_visible_place_transform	manual	20	AL = a place was found; the 64-byte transform is written through a stack pointer argument
-0x00306720	survarium::booby_trap_set_core::action	manual	8	
+0x00306720	survarium::booby_trap_set_core::action	manual	8	the stack's amount - 1 only when it is > 0, the argument is 0 and the placement try_to_place_trap 0x305EA0 returns true (0x306745..0x306779): a release that places nothing keeps the trap
 0x00309f00	survarium::grenade_set_core::hand_transform	manual	4	EAX: the out pointer (the hand matrix written there)
-0x0030a120	survarium::grenade_set_core::start_throw	manual	8	AL: the slot; the explosion time goes to the grenade's vtable+0x10 (0x248460: time, id, owner node, 0)
+0x0030a120	survarium::grenade_set_core::start_throw	manual	8	AL: the slot; the explosion time goes to the grenade's vtable+0x10 (0x248460: time, id, owner node, 0); the grenade stack's amount (+260h) - 1 (0x30A18D); called only from weapon_core_throw_grenade_pull_pin_substate::initialize 0x3103A0 (0x3103D7) with the player's time (+324h): the unit leaves as the throw begins and nothing gives it back
 0x0030a250	survarium::grenade_set_core::launch_grenade	manual	12	
 0x0030d750	survarium::computed_show_animation_time_scale	manual	0	XMM0 low32: (end - start) x (1/30) / time, the animation's length over the wanted time
 0x0030da60	survarium::weapon_core_animation_end_aware_state::initialize	manual	0	

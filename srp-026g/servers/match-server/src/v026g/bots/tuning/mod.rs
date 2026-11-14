@@ -369,6 +369,7 @@ impl Tuning {
             open_sides: self.needs_open_sides(),
             pull_hold: self.grid.wall_clear_pull.then_some(PULL_HOLD_M),
             pull_walk: self.grid.pull_walk,
+            walker_shapes: self.grid.walker_shapes,
         }
     }
 
@@ -508,6 +509,7 @@ pub(super) const KEPT_RIGHT: &[&str] = &[
     "/aim/combat/gun_from_world",
     "/aim/combat/hands_from_world",
     "/aim/combat/spawn_protection",
+    "/aim/combat/stacks_from_world",
     "/aim/combat/worn_kit_from_world",
     "/aim/combat/hit_cover_reach",
     "/aim/combat/live_eye",
@@ -546,6 +548,7 @@ pub(super) const KEPT_RIGHT: &[&str] = &[
     "/grid/walk_every_link",
     "/grid/walk_face_stands",
     "/grid/walk_start_clear",
+    "/grid/walker_shapes",
     "/grid/wall_give_back",
     "/grid/wall_held_tops",
     "/hazard/leave_islands",

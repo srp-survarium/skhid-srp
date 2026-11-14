@@ -1198,6 +1198,7 @@ va	status	ref_021d	name
 0x00303f80	reviewed	0x001ec765	survarium::grenade_core::deserialize
 0x003052e0	reviewed	0x001ea2e5	survarium::booby_trap_core::serialize
 0x003053c0	reviewed	0x001ea39d	survarium::booby_trap_core::deserialize
+0x00306720	observed	0x001e98a9	survarium::booby_trap_set_core::action
 0x0030d750	reviewed	0x001b1cf4	survarium::computed_hide_animation_time_scale
 0x0030d750	reviewed	0x001b1cf4	survarium::computed_show_animation_time_scale
 0x0030d7f0	reviewed	0x001f114a	survarium::weapon_core_show_state::weapon_core_show_state
@@ -1222,6 +1223,7 @@ va	status	ref_021d	name
 0x0030fdb0	reviewed	0x001f3135	survarium::weapon_core_reload_state::initialize
 0x003100f0	reviewed	0x001f33b0	survarium::pistol_weapon_core_fire_state::initialize
 0x00310170	reviewed	0x001f33e7	survarium::pistol_weapon_core_fire_state::on_animation_end_impl
+0x003103a0	observed		survarium::weapon_core_throw_grenade_pull_pin_substate::initialize
 0x003108d0	reviewed	0x002095db	survarium::weapon_core_melee_state::initialize
 0x00310900	reviewed	0x002095e0	survarium::weapon_core_melee_state::finalize
 0x00310980	reviewed	0x0020962b	survarium::weapon_core_melee_state::serialize
@@ -1251,6 +1253,7 @@ va	status	ref_021d	name
 0x003193f0	reviewed	0x001f63ff	survarium::damage_zone_core::serialize
 0x00319470	reviewed	0x001f6467	survarium::damage_zone_core::deserialize
 0x00319500	reviewed	0x001f64aa	survarium::damage_zone_core::load
+0x0031ac10	observed	0x001f7489	survarium::effect_zone_core::load
 0x0031aca0	observed		survarium::effect_zone_core::apply_invulnerability
 0x0031ad70	reviewed	0x00187f82	survarium::generic_anomaly_core::~generic_anomaly_core
 0x0031add0	reviewed	0x00187fcf	survarium::generic_anomaly_core::`scalar deleting destructor'
@@ -1906,6 +1909,7 @@ va	status	ref_021d	name
 0x002fe7f0	reviewed		survarium::inventory::quick_use_slot
 0x002fe8b0	reviewed		survarium::inventory::first_grenade_pocket
 0x00309dc0	reviewed		survarium::grenade_set_core::want_throw
+0x0030a120	observed	0x001ed3bd	survarium::grenade_set_core::start_throw
 0x00357f10	reviewed		vostok::configs::apply_set_modifiers
 0x00357f80	reviewed		vostok::configs::apply_add_modifiers
 0x00358010	reviewed		vostok::configs::apply_multiply_modifiers

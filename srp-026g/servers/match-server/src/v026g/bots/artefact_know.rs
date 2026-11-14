@@ -324,6 +324,7 @@ mod tests {
             name: name.into(),
             team: -1,
             position: at,
+            protection: None,
             damage_type: String::new(),
             damage: None,
             shapes: Vec::new(),

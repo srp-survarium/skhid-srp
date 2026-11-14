@@ -346,6 +346,7 @@ fn collectors_of_a_wide_zone(damage: mapdata::Damage, mut team0: Tuning, mut tea
             name: "toxic".into(),
             team: -1,
             position: Vec3::new(25.0, 0.0, 32.0),
+            protection: None,
             damage_type: "toxic".into(),
             damage: Some(damage),
             shapes: vec![Shape {

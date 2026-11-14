@@ -494,6 +494,7 @@ mod tests {
             name: name.into(),
             team: -1,
             position: Vec3::new(centre.0, 0.0, centre.1),
+            protection: None,
             damage_type: "fire".into(),
             damage: Some(mapdata::Damage {
                 max_hit: per_s / 2.0,

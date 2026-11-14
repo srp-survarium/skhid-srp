@@ -23,6 +23,9 @@
 //! list zone_hit_parts (version 4):
 //!                   per zone, in the zones' order: list string (the names of
 //!                   the parts its hits go to, `hit_parts_filter`)
+//! list zone_protection (version 7):
+//!                   per zone, in the zones' order: u8 has_protection,
+//!                   [u32 duration_ms, u32 attenuation_ms]
 //! list libraries:   string name, u32 primitives, list vec3 vertices,
 //!                   list [u32; 3] triangles, then one u8 walker behaviour
 //!                   per triangle, then (version 5) one f32 armor per
@@ -34,6 +37,7 @@
 //! (version 6) list bullet shapes, one per library, in the libraries' order
 //! (version 6) list objects, one per placement, in the placements' order:
 //!                   transform (the object's world transform)
+//!                   (version 7: both after a u8 has_bullet, none when 0)
 //! magic "END\0"
 //! shape:            u8 kind (0 sphere, 1 box, 2 cylinder), vec3 center,
 //!                   3 × vec3 rotation rows, vec3 half
@@ -91,6 +95,12 @@
 //! is still read, with none (`MapData::bullet` is `None`); everything that
 //! read the file before reads it the same.
 //!
+//! Version 7 (2026-11-15) added each effect zone's spawn protection
+//! (`project::Protection`) after the zones' part names, and a u8 before the
+//! Bullet shapes so a map without them is written at the current version too.
+//! A version 2 to 6 file is still read, with none (`Zone::protection` is
+//! `None`); everything that read the file before reads it the same.
+//!
 //! Reading checks every count against the bytes left, so a damaged file is
 //! an error, never a panic or a huge allocation.
 
@@ -106,13 +116,13 @@ use crate::math::{Rotation, Vec3};
 use crate::project::{
     Anomaly, AnomalyArtefacts, AnomalyEnergy, AnomalyState, ArtefactContainer, ArtefactCore,
     BatterySpawner, Container, Damage,
-    MapData, Placement, Shape, ShapeKind, Spawn, Zone, ZoneGroup, ZoneKind,
+    MapData, Placement, Protection, Shape, ShapeKind, Spawn, Zone, ZoneGroup, ZoneKind,
 };
 use crate::resources::Error;
 
 const MAGIC: &[u8; 8] = b"SRPMAPD\0";
 const END: &[u8; 4] = b"END\0";
-pub const VERSION: u32 = 6;
+pub const VERSION: u32 = 7;
 /// The oldest version [`MapData::from_bytes`] still reads.
 pub const OLDEST: u32 = 2;
 /// The first version that carries the bullet armor of the faces: an older file is read with every face of unknown
@@ -122,6 +132,10 @@ const _: () = assert!(FIRST_WITH_ARMOR <= VERSION);
 /// The first version that carries the game's Bullet shapes ([`MapData::bullet`]).
 pub const FIRST_WITH_BULLET: u32 = 6;
 const _: () = assert!(FIRST_WITH_BULLET <= VERSION);
+/// The first version that carries the effect zones' spawn protection ([`Zone::protection`]), and a u8 that says
+/// whether the Bullet shapes follow.
+pub const FIRST_WITH_PROTECTION: u32 = 7;
+const _: () = assert!(FIRST_WITH_PROTECTION <= VERSION);
 /// The file name extension.
 pub const EXTENSION: &str = "mapdata";
 
@@ -131,10 +145,10 @@ pub fn file_name(project: &str) -> String {
 }
 
 impl MapData {
-    /// The file: the current version, or the one before it for a map without the game's shapes (a test's
-    /// map, or one read from an older file), which that version describes in full.
+    /// The file, of the current version (a map without the game's shapes, a test's or one read from an older file,
+    /// says so in it).
     pub fn to_bytes(&self) -> Vec<u8> {
-        self.to_bytes_of(if self.bullet.is_some() { VERSION } else { FIRST_WITH_BULLET - 1 })
+        self.to_bytes_of(VERSION)
     }
 
     /// The file of `version` (the current one, or [`OLDEST`] for a test of the reader).
@@ -255,6 +269,15 @@ impl MapData {
                 w.list(names, |w, n| w.str(n));
             });
         }
+        if version >= FIRST_WITH_PROTECTION {
+            w.list(&self.zones, |w, z| {
+                w.bool(z.protection.is_some());
+                if let Some(p) = z.protection {
+                    w.u32(p.duration_ms);
+                    w.u32(p.attenuation_ms);
+                }
+            });
+        }
         w.list(&self.libraries, |w, l| {
             w.str(&l.name);
             w.u32(l.primitives);
@@ -274,10 +297,16 @@ impl MapData {
             w.0.extend_from_slice(&p.cgroup.to_le_bytes());
             w.0.extend_from_slice(&p.cmask.to_le_bytes());
         });
-        if version >= FIRST_WITH_BULLET {
-            let world = self.bullet.as_ref().expect("a version 6 file is written only for a map with its shapes");
+        if version >= FIRST_WITH_PROTECTION {
+            w.bool(self.bullet.is_some());
+        }
+        if version >= FIRST_WITH_BULLET
+            && let Some(world) = &self.bullet
+        {
             w.list(world.shapes(), Writer::bullet_shape);
             w.list(world.objects(), Writer::transform);
+        } else {
+            assert!(!(FIRST_WITH_BULLET..FIRST_WITH_PROTECTION).contains(&version), "a version 6 file needs the shapes");
         }
         w.0.extend_from_slice(END);
         w.0
@@ -335,6 +364,7 @@ impl MapData {
                 name: r.str()?,
                 team: r.i32()?,
                 position: r.vec3()?,
+                protection: None,
                 damage_type: r.str()?,
                 damage: if r.bool()? {
                     Some(Damage {
@@ -436,6 +466,24 @@ impl MapData {
                 }
             }
         }
+        if version >= FIRST_WITH_PROTECTION {
+            let protections = r.list(1, |r| {
+                Ok(if r.bool()? { Some(Protection { duration_ms: r.u32()?, attenuation_ms: r.u32()? }) } else { None })
+            })?;
+            if protections.len() != map.zones.len() {
+                return Err(Error(format!(
+                    "map data gives the protection of {} zones, the file has {}",
+                    protections.len(),
+                    map.zones.len()
+                )));
+            }
+            for (zone, protection) in map.zones.iter_mut().zip(protections) {
+                if protection.is_some() && zone.kind != ZoneKind::Effect {
+                    return Err(Error(format!("map data gives a {:?} zone a spawn protection", zone.kind)));
+                }
+                zone.protection = protection;
+            }
+        }
         map.libraries = r.list(16, |r| {
             let name = r.str()?;
             let primitives = r.u32()?;
@@ -483,7 +531,7 @@ impl MapData {
         {
             return Err(Error("a placement names no library".into()));
         }
-        if version >= FIRST_WITH_BULLET {
+        if version == FIRST_WITH_BULLET || (version >= FIRST_WITH_PROTECTION && r.bool()?) {
             let shapes = r.list(1, Reader::bullet_shape)?;
             let objects = r.list(48, Reader::transform)?;
             let face_counts: Vec<u32> = map.libraries.iter().map(|l| l.faces.len() as u32).collect();
@@ -828,6 +876,7 @@ mod tests {
                 name: "logic/zone".into(),
                 team: -1,
                 position: Vec3::ONE,
+                protection: None,
                 damage_type: "toxic".into(),
                 damage: Some(Damage {
                     max_hit: 0.6,
@@ -955,12 +1004,40 @@ mod tests {
         assert_eq!(MapData::from_bytes(&map.to_bytes()).unwrap(), map);
         let old = MapData::from_bytes(&map.to_bytes_of(5)).unwrap();
         assert_eq!(old, MapData { bullet: None, ..map.clone() });
-        assert_eq!(old.to_bytes(), map.to_bytes_of(5), "a map without its shapes is written as version 5");
+        assert_eq!(MapData::from_bytes(&old.to_bytes()).unwrap(), old, "a map without its shapes, at the current version");
+        assert_eq!(MapData::from_bytes(&map.to_bytes_of(6)).unwrap(), map, "version 6 keeps them too");
         let shapes = map.bullet.as_ref().unwrap().shapes().to_vec();
         let objects = map.bullet.as_ref().unwrap().objects().to_vec();
         assert!(BulletWorld::new(shapes.clone(), objects.clone(), &[0], 1).is_err(), "faces past the library");
         assert!(BulletWorld::new(shapes.clone(), vec![], &[1], 1).is_err(), "an object short");
         assert!(BulletWorld::new(vec![], objects, &[1], 1).is_err(), "a shape short");
+    }
+
+    /// A version 7 file keeps an effect zone's spawn protection; a version 6 file is read without it and the rest of the
+    /// map is the same; a protection on a zone of another kind is an error.
+    #[test]
+    fn a_version_7_file_keeps_the_effect_zones_protection() {
+        let mut map = sample();
+        let protection = Protection { duration_ms: 2000, attenuation_ms: 1500 };
+        map.zones.push(Zone {
+            kind: ZoneKind::Effect,
+            name: "logic/base_zone".into(),
+            team: 1,
+            position: Vec3::ZERO,
+            protection: Some(protection),
+            damage_type: String::new(),
+            damage: None,
+            shapes: map.zones[0].shapes.clone(),
+        });
+        let read = MapData::from_bytes(&map.to_bytes()).unwrap();
+        assert_eq!(read, map);
+        assert_eq!(read.zones[1].protection, Some(protection));
+        let old = MapData::from_bytes(&map.to_bytes_of(6)).unwrap();
+        let mut without = map.clone();
+        without.zones[1].protection = None;
+        assert_eq!(old, without);
+        map.zones[0].protection = Some(protection);
+        assert!(MapData::from_bytes(&map.to_bytes()).is_err(), "a damage zone with a spawn protection");
     }
 
     /// A version 2 file (written before the artefact cores) is still read, with none.
