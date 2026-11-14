@@ -171,7 +171,7 @@ pub const DROP_CHECK_ALGO: u32 = 0x5313_0201;
 /// The same for the walk check's refusals under a low ceiling as failures ([`Body::walk_ceiling_stalls`]), and [S7] its
 /// crouched retry of a standing walk that stops short, in [`grid_key_with_links`] only for a body that asks for it. A value of
 /// its own.
-pub const WALK_CEILING_STALLS_ALGO: u32 = 0x5364_0c02;
+pub const WALK_CEILING_STALLS_ALGO: u32 = 0x5364_0c03;
 /// The same for the rim jumps flown on the exact tick ([`Body::rim_jumps`], A364 C2 rows 11/12), in [`grid_key_with_links`] only
 /// for a body that asks for it. A value of its own.
 pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b05;
@@ -200,8 +200,9 @@ pub const GIVE_BACK_IN_CELL_ALGO: u32 = 0x5331_0101;
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const FALL_STOPS_ON_SOLIDS_ALGO: u32 = 0x5402_0a01;
 /// The same for the walk check over every link a body may meet trouble on ([`Body::walk_every_link`], owner-14 row 12), in
-/// [`grid_key_with_links`] only for a body that asks for it with [`Body::client_controller`]. A value of its own.
-pub const WALK_EVERY_LINK_ALGO: u32 = 0x5402_0c04;
+/// [`grid_key_with_links`] only for a body that asks for it with [`Body::client_controller`]. A value of its own. [S7] 05: a
+/// crouched body is walked at the crouched desired speed (`grid::controlled::stance_mps`).
+pub const WALK_EVERY_LINK_ALGO: u32 = 0x5402_0c05;
 /// The same for the gap links' flights ending at the game's last air step ([`Body::jump_air_steps`], A364 P6), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const JUMP_AIR_STEPS_ALGO: u32 = 0x5364_0603;

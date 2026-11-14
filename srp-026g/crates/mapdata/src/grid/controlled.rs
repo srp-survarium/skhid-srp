@@ -23,6 +23,7 @@
 use super::gap::{OffLink, Share, Takeoff};
 use super::*;
 use crate::controller::tick::{Controller, Settings, TickInput};
+use crate::controller::speed;
 use crate::controller::{Capsule, Collision, Shape};
 
 /// The walk speed the controller is driven at, m/s (a run's root motion; over the client's 3 m/s floor).
@@ -343,13 +344,30 @@ pub const SPARE_TICKS: usize = 8;
 /// from [`AT_HEIGHT_M`] under its height to `above` over it. `c` is left where the walk left it, so a next leg goes on from
 /// there.
 pub fn walk_on(world: &Collision, s: &Settings, c: &mut Controller, from: Vec3, to: Vec3, spare: usize, above: f32) -> Walked {
+    walk_on_at(world, s, c, from, to, spare, above, WALK_MPS)
+}
+
+/// [S7] The walk check's speed for a body in `stance`, m/s: the state's desired speed (`default.player`'s `movement_speed`,
+/// [`speed::desired`]): standing forward 3.5 ([`WALK_MPS`]), crouched forward 2.5. A crouched body walked at 3.5 is no client's:
+/// over `min_walk_speed` (3.0) the client's step takes its other branch (`controller::tick` `step_as`).
+pub fn stance_mps(stance: Stance) -> f32 {
+    let stance = match stance {
+        Stance::Standing => speed::Stance::Stand,
+        Stance::Crouched => speed::Stance::Crouch,
+    };
+    speed::desired(speed::Gait::Move { stance, heading: speed::Heading::Forward, aiming: false })
+}
+
+/// [`walk_on`] at `mps` m/s.
+#[allow(clippy::too_many_arguments)]
+pub fn walk_on_at(world: &Collision, s: &Settings, c: &mut Controller, from: Vec3, to: Vec3, spare: usize, above: f32, mps: f32) -> Walked {
     let flat = Vec3::new(to.x - from.x, 0.0, to.z - from.z);
     let length = flat.length();
     if length < 1e-4 {
         return Walked::At;
     }
     let dir = flat * (1.0 / length);
-    let step = WALK_MPS * 0.05;
+    let step = mps * 0.05;
     let ticks = (length / step).ceil() as usize + 2 + spare;
     let mut best = 0.0f32;
     for _ in 0..ticks {
@@ -379,7 +397,7 @@ pub fn walk_on(world: &Collision, s: &Settings, c: &mut Controller, from: Vec3, 
     let share = best.max(Vec3::new(feet.x - from.x, 0.0, feet.z - from.z).dot(dir) / length);
     if left.length() <= AT_FLAT_M && feet.y - to.y >= -AT_HEIGHT_M && feet.y - to.y <= above {
         Walked::AtEnd(share)
-    } else if spare > 0 && walks_on_to_level(world, s, c, to, dir) {
+    } else if spare > 0 && walks_on_to_level(world, s, c, to, dir, mps) {
         Walked::At
     } else {
         Walked::Short(share)
@@ -396,9 +414,9 @@ const ON_PAST_M: f32 = 1.5;
 /// (FINDINGS-FEED-exactness 2026-11-12T05:24Z, `private/grid/rig/cut-walk/`): the classes whose walk went the full way but
 /// did not arrive come onto the level so in 53-73 % (flat 66 %, rise 58 %, down 63 %), while the links that stall under a riser
 /// do in 12 % (the body stays under it: those cuts stand). The same recipe as that walk's.
-fn walks_on_to_level(world: &Collision, s: &Settings, c: &mut Controller, to: Vec3, dir: Vec3) -> bool {
+fn walks_on_to_level(world: &Collision, s: &Settings, c: &mut Controller, to: Vec3, dir: Vec3, mps: f32) -> bool {
     let aim = Vec3::new(to.x + dir.x * ON_PAST_M, to.y, to.z + dir.z * ON_PAST_M);
-    let step = WALK_MPS * 0.05;
+    let step = mps * 0.05;
     let ticks = (ON_PAST_M / step).ceil() as usize + SPARE_TICKS;
     let level_at = |f: Vec3| (f.y - to.y).abs() <= AT_HEIGHT_M && Vec3::new(f.x - to.x, 0.0, f.z - to.z).dot(dir) >= -AT_FLAT_M;
     for _ in 0..ticks {
@@ -868,7 +886,7 @@ impl WalkGrid {
         for off in STARTS {
             let (from, to) = (pa + side * off, pb + side * off);
             let mut c = body_at(world, start, stance, from);
-            let mut centre = walk_on(world, s, &mut c, from, to, SPARE_TICKS, self.body.step);
+            let mut centre = walk_on_at(world, s, &mut c, from, to, SPARE_TICKS, self.body.step, stance_mps(stance));
             let mut only_crouched = false;
             // A standing body refused under a low ceiling is walked again crouched; and, [`Body::walk_ceiling_stalls`] (whose
             // crouched walks are recorded, so the route crouches there), one that stops short: a crouched body takes the simple
@@ -883,7 +901,7 @@ impl WalkGrid {
             };
             if retry && stance == Stance::Standing {
                 let mut c = body_at(world, start, Stance::Crouched, from);
-                let low = walk_on(world, s, &mut c, from, to, SPARE_TICKS, self.body.step);
+                let low = walk_on_at(world, s, &mut c, from, to, SPARE_TICKS, self.body.step, stance_mps(Stance::Crouched));
                 only_crouched = matches!(low, Walked::At | Walked::AtEnd(_));
                 // A crouched walk that does not arrive leaves the standing answer (its share prices a cut).
                 if only_crouched || centre == Walked::Ceiling {
@@ -905,8 +923,9 @@ impl WalkGrid {
                 let from_q = self.position(q as NodeId) + side * off;
                 let mut c = body_at(world, start, line, from_q);
                 // The link before failing is its own check's; from where it leaves the body this one says nothing.
-                !matches!(walk_on(world, s, &mut c, from_q, from, SPARE_TICKS, self.body.step), Walked::At | Walked::AtEnd(_))
-                    || arrives(walk_on(world, s, &mut c, from, to, SPARE_TICKS, self.body.step))
+                let mps = stance_mps(line);
+                !matches!(walk_on_at(world, s, &mut c, from_q, from, SPARE_TICKS, self.body.step, mps), Walked::At | Walked::AtEnd(_))
+                    || arrives(walk_on_at(world, s, &mut c, from, to, SPARE_TICKS, self.body.step, mps))
             });
             if chained {
                 lines += 1;
@@ -1131,8 +1150,8 @@ mod tests {
     }
 
     /// [S7] The walk check's crouched retry ([`WalkGrid::walk_link`] with [`Body::walk_ceiling_stalls`]) over a 0.785 m vertical
-    /// step: the standing body stops short (the exe climbs a vertical face walking up to 0.75 m), the crouched one too (its
-    /// simple move test climbs a vertical face to 0.70 m), so the riser is still failing and marked, and no link is recorded
+    /// step: the standing body stops short (the exe climbs a vertical face walking up to 0.75 m), the crouched one too (the
+    /// port's crouched body, at 3.5 m/s, climbed a vertical face to 0.70 m, not checked in the exe), so the riser is still failing and marked, and no link is recorded
     /// crouched; a 0.65 m step is walked standing and not recorded crouched.
     #[test]
     fn a_step_a_crouched_body_does_not_climb_either_stays_marked() {
@@ -1178,7 +1197,7 @@ mod tests {
             let to = Vec3::new(x + ux * ahead, top, z + uz * ahead);
             let walk = |stance: Stance| {
                 let mut c = body_at(&world, WalkStart::Clear, stance, from);
-                walk_on(&world, &s, &mut c, from, to, SPARE_TICKS, 0.8)
+                walk_on_at(&world, &s, &mut c, from, to, SPARE_TICKS, 0.8, stance_mps(stance))
             };
             assert!(matches!(walk(Stance::Standing), Walked::Short(_)), "({x}, {z}) standing: {:?}", walk(Stance::Standing));
             assert_eq!(walk(Stance::Crouched), Walked::At, "({x}, {z}) crouched");
