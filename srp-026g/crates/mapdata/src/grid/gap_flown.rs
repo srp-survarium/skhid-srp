@@ -215,10 +215,10 @@ impl WalkGrid {
             for d in 0..DIRS.len() {
                 let b = wide.links[a][d];
                 // [S4] Over a thin top: along a way no Walk link takes (a Jump link onto the top, a Drop, or none).
-                if b == NONE || wide.kinds[a][d] != LinkKind::Walk {
-                    if let Some((b, crossed, past)) = self.over_thin_top(wide, solids, a, d) {
-                        gaps.push(Gap { a: a as u32, b, d, over: crossed, past, thin: true });
-                    }
+                if (b == NONE || wide.kinds[a][d] != LinkKind::Walk)
+                    && let Some((b, crossed, past)) = self.over_thin_top(wide, solids, a, d)
+                {
+                    gaps.push(Gap { a: a as u32, b, d, over: crossed, past, thin: true });
                 }
                 if b != NONE && wide.kinds[a][d] != LinkKind::Drop {
                     continue;
