@@ -1032,6 +1032,8 @@ fn pull_straight(
                         // [A385] A slow press (a standing jump, or pressed a few steps into the walk-up) is pressed at its point
                         // as a walking one until the motor makes its speed (A386, A385-FORMAT §6).
                         mapdata::grid::gap::Takeoff::Slow { lead, .. } => Some(Leap::Gap(lead)),
+                        // [S1] A sprint climb presses nothing: its top is a riser of the route (`Route::risers`), sprinted into.
+                        mapdata::grid::gap::Takeoff::Climb => None,
                         mapdata::grid::gap::Takeoff::WalkOff => None,
                     }),
                     _ => None,
@@ -1125,8 +1127,14 @@ fn pull_straight(
     route.sprint_drops = sprint_drops;
     route.ledge_leads = ledge_leads;
     route.ledge_tops = ledge_tops;
+    // [S1] And the tops of its sprint climbs (`mapdata::grid::gap::Takeoff::Climb`): a sprinting body climbs an edge to 1.15 m
+    // with no jump; the riser's way (sprint into it, else a walking jump at its face) is the client's for both.
     route.risers = (1..nodes.len())
-        .filter(|&i| into[i] == LinkKind::Walk && grid.link_gait(nodes[i - 1], nodes[i]) == Some(mapdata::grid::WalkGait::SprintOrJump))
+        .filter(|&i| {
+            let (a, b) = (nodes[i - 1], nodes[i]);
+            (into[i] == LinkKind::Walk && grid.link_gait(a, b) == Some(mapdata::grid::WalkGait::SprintOrJump))
+                || (into[i].is_off_mesh() && grid.off_link(a, b).is_some_and(|l| l.press == mapdata::grid::gap::Takeoff::Climb))
+        })
         .map(|i| grid.position(nodes[i]))
         .collect();
     route.planned = true;
