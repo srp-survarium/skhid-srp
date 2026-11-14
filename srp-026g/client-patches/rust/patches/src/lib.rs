@@ -77,6 +77,7 @@ pub mod artefact_skills;
 pub mod artefact_keeper;
 
 pub mod hand_kill;
+pub mod match_reconnect;
 pub mod forest_glow;
 
 pub mod animation_id_log;
@@ -103,6 +104,8 @@ pub mod sign_in_cipher;
 pub mod controller_position;
 pub mod use_scan;
 pub mod unplayed_match;
+pub mod spectator;
+pub mod replay_viewer;
 pub mod texture_streaming;
 pub mod animation_math;
 pub mod replay_keys;

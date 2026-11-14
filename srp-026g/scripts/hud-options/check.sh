@@ -56,11 +56,13 @@ for harness in SettingsHarness HudHarness; do
 done
 cp "$menu" "$work/main_menu.swf"
 cp "$hud" "$work/hud.swf"
-harness_display 1280x720 ffmpeg-full
+# HARNESS_SIZE: another size, as docs/notes/ui_scale.md lists.
+size=${HARNESS_SIZE:-1280x720}
+harness_display "$size" ffmpeg-full
 
 # run <harness>: Ruffle on the harness in the background, its log <harness>.log
-run() { harness_run "$1.log" -p high --no-gui --width 1280 --height 720 "-Ptexts=$texts" "$1.swf"; }
-shot() { ffmpeg -loglevel error -y -f x11grab -draw_mouse 0 -video_size 1280x720 -i "$display" -frames:v 1 "$work/$1"; }
+run() { harness_run "$1.log" -p high --no-gui --width "${size%x*}" --height "${size#*x}" "-Ptexts=$texts" "$1.swf"; }
+shot() { ffmpeg -loglevel error -y -f x11grab -draw_mouse 0 -video_size "$size" -i "$display" -frames:v 1 "$work/$1"; }
 
 run SettingsHarness
 wait_for SettingsHarness.log 'SETTINGS SHOT settings' && shot settings.png

@@ -10,7 +10,8 @@
 //! decoded here; the datagrams are the transport's own (`udp-transport`),
 //! as `SRP_PACKET_LOG` has them, with no address.
 //!
-//! The file, `rec026g_<UTC start>_<match id>.srprec`:
+//! The file, `<replay id>.srprec` (`session::v026g::replays::ReplayId`:
+//! `rec026g_<UTC time the match was made>_<match id>`):
 //!
 //! ```text
 //! "SRPREC01"                         8 bytes, once
@@ -38,23 +39,30 @@
 //! least every [`BLOCK_EVERY`], so a server that stops loses that much at
 //! most.
 //!
-//! A file is written under `.part` from the match's first connection; it
-//! gets its name once [`Recording::entered`] has seen the minimum of
-//! players, and a `.part` is deleted when its match ends (and at start, for
-//! one a stopped server left). Kept files over `SRP_RECORD_MAX_MB` together
+//! A file is written under `.part` from the match's first connection to its
+//! end. When its match closes it gets its name if [`Recording::entered`] has
+//! seen the minimum of players (never earlier: a replay is made of a closed
+//! match alone), else it is deleted. A `.part` a stopped server left is of a
+//! match that runs no more: at start it gets its name if it was kept (its
+//! `kept` note, written at once), else it is deleted. Kept files over
+//! `SRP_RECORD_MAX_MB` together
 //! are deleted oldest first. The writing and the packing are done on a
 //! thread of their own; the match loop only hands the bytes over, and drops
-//! them (counted) if that thread is behind by [`QUEUE`] items.
+//! them (counted) if that thread is behind by [`QUEUE`] records. The other
+//! jobs (open, the header, kept and closed notes, keep, close) are never
+//! dropped: a close lost would leave a kept recording under `.part`, with no
+//! replay, and a `kept` note lost would get it deleted after a stop.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::{self, BufWriter, Write};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender, TrySendError};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, SyncSender};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use session::v026g::replays::Replays;
+use session::v026g::replays::{ReplayId, Replays};
 use survarium::v026g::lzma2;
 use survarium::v026g::match_msgs::PlayerInput;
 
@@ -77,10 +85,42 @@ pub const NO_PLACE: u8 = 0xFF;
 const BLOCK_BYTES: usize = 1 << 20;
 /// ... or is this old.
 const BLOCK_EVERY: Duration = Duration::from_secs(20);
-/// Items the writing thread may be behind before new ones are dropped.
+/// Records the writing thread may be behind before new ones are dropped.
+/// Only records: its other jobs are always queued.
 const QUEUE: usize = 200_000;
 const PART: &str = "part";
 const EXTENSION: &str = "srprec";
+/// The note a recording gets once it is kept ([`Recording::entered`]).
+const KEPT_NOTE: &str = "kept";
+/// A server that ends waits this long at most for its writer to close its
+/// recordings ([`Recorder::finish`]).
+const FINISH_WAIT: Duration = Duration::from_secs(15);
+
+/// The `.part` files a writer of this process has open: each [`Open`]'s,
+/// claimed before the file is made and given back once it is named or
+/// deleted (or its writer is gone). [`Recorder::start`] leaves these alone.
+struct Writing(PathBuf);
+
+static WRITING: Mutex<BTreeSet<PathBuf>> = Mutex::new(BTreeSet::new());
+
+impl Writing {
+    fn all() -> MutexGuard<'static, BTreeSet<PathBuf>> {
+        WRITING.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// `None` while another writer of this process has it open.
+    fn claim(path: &Path) -> Option<Self> {
+        Self::all()
+            .insert(path.to_owned())
+            .then(|| Self(path.to_owned()))
+    }
+}
+
+impl Drop for Writing {
+    fn drop(&mut self) {
+        Self::all().remove(&self.0);
+    }
+}
 
 /// `SRP_RECORD_*`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -91,10 +131,9 @@ pub(crate) struct RecordSettings {
     pub min_players: usize,
     /// Kept files over this many bytes together: the oldest go.
     pub max_bytes: u64,
-    /// "Watch replay" (`SRP_REPLAY_DIR`): told of every file kept (its
-    /// replay is made when first asked for, [`super::replay`]), closed
-    /// under the minimum, or deleted by the cap (its replay goes too). Set
-    /// by [`super::run_on_with_replays`]; `None` from the environment alone.
+    /// The replays' desk (the lobby's list rows): told of every file kept,
+    /// closed under the minimum, or deleted by the cap. Set by
+    /// [`super::run_on_with_replays`]; `None` from the environment alone.
     pub replays: Option<Desk>,
 }
 
@@ -201,54 +240,135 @@ impl RecordSettings {
 enum Job {
     Open { match_id: u32, name: String },
     Record { match_id: u32, bytes: Vec<u8> },
+    /// A note the file must have (its header, `kept`, `closed`): outside
+    /// the records' bound.
+    Note { match_id: u32, bytes: Vec<u8> },
     Keep { match_id: u32 },
     Close { match_id: u32 },
+    /// Every recording still open is closed, then `done` is told
+    /// ([`Recorder::finish`]).
+    Finish { done: SyncSender<()> },
 }
 
 /// The writing thread's door: one for the match server, shared by its
 /// matches.
 #[derive(Clone)]
 pub(crate) struct Recorder {
-    jobs: SyncSender<Job>,
+    /// Unbounded: the match loop never waits for the writer, and drops no
+    /// job but a record ([`Self::records`]).
+    jobs: Sender<Job>,
+    /// [`Job::Record`]s queued and not yet taken by the writer, at most
+    /// [`QUEUE`]: the queue's bound.
+    records: Arc<AtomicUsize>,
     min_players: usize,
 }
 
 impl Recorder {
-    /// Starts the writing thread, after deleting what a stopped server left
-    /// under `.part`.
+    /// Starts the writing thread, after naming what a stopped server left
+    /// under `.part` (its matches run no more) if it was kept, and deleting
+    /// the rest. A `.part` a writer of this process still has open (the
+    /// last server's, given up on by its [`Self::finish`]) is left to it: it
+    /// names or deletes it at its close, with every record and its `kept`
+    /// note in (which may still be in its queue).
     pub fn start(settings: RecordSettings) -> io::Result<Self> {
         fs::create_dir_all(&settings.dir)?;
+        // Held over the walk: a `.part` listed is open or not for all of it.
+        let writing = Writing::all();
         for entry in fs::read_dir(&settings.dir)?.flatten() {
             let path = entry.path();
-            if path.extension().is_some_and(|ext| ext == PART) {
+            if !path.extension().is_some_and(|ext| ext == PART) {
+                continue;
+            }
+            if writing.contains(&path) {
+                log::warn!(
+                    "Recordings: {} is still being written by the last server's writer; left \
+                     to it",
+                    path.display()
+                );
+                continue;
+            }
+            // `<name>.srprec.part` -> `<name>.srprec`.
+            let named = path.with_extension("");
+            if was_kept(&path) && fs::rename(&path, &named).is_ok() {
                 log::info!(
-                    "Recordings: {} was a match of fewer than {} players when the server \
-                     stopped; deleted",
-                    path.display(),
-                    settings.min_players
+                    "Recordings: {} was a match still running when the server stopped; kept, \
+                     cut short",
+                    named.display()
+                );
+                if let Some(match_id) = match_of_file(&named) {
+                    settings.tell(|replays| replays.recording_kept(match_id));
+                }
+            } else {
+                log::info!(
+                    "Recordings: {} was a match still running when the server stopped, not \
+                     kept; deleted",
+                    path.display()
                 );
                 let _ = fs::remove_file(&path);
             }
         }
-        let (jobs, queue) = mpsc::sync_channel(QUEUE);
+        drop(writing);
+        let (jobs, queue) = mpsc::channel();
+        let records = Arc::new(AtomicUsize::new(0));
         let min_players = settings.min_players;
+        let taken = records.clone();
         std::thread::Builder::new()
             .name("srp-record".into())
-            .spawn(move || Writer::new(settings).run(queue))?;
-        Ok(Self { jobs, min_players })
+            .spawn(move || Writer::new(settings, taken).run(queue))?;
+        Ok(Self {
+            jobs,
+            records,
+            min_players,
+        })
     }
 
-    /// The recording of a new match: its header note goes first.
+    /// Waits until the writing thread has written and closed (named or
+    /// deleted) every recording it was given, those whose close it has not
+    /// reached yet too: the server's last act, once its matches' recordings
+    /// are dropped. `srp` starts a match server that panicked again in the
+    /// same process (`supervise`), and the new one serves no match before
+    /// this returns: no longer than [`FINISH_WAIT`] (a stalled disk, a
+    /// backlog of [`QUEUE`] records). Given up on, the thread goes on
+    /// writing and closing; the new [`Self::start`] leaves what it has
+    /// open to it.
+    pub fn finish(&self) {
+        self.finish_within(FINISH_WAIT);
+    }
+
+    /// [`Self::finish`], waiting no longer than `wait`: whether the thread
+    /// was done (or gone).
+    fn finish_within(&self, wait: Duration) -> bool {
+        let (done, finished) = mpsc::sync_channel(1);
+        // Either fails only with the thread gone: nothing of it is open.
+        if self.jobs.send(Job::Finish { done }).is_err() {
+            return true;
+        }
+        match finished.recv_timeout(wait) {
+            Ok(()) | Err(RecvTimeoutError::Disconnected) => true,
+            Err(RecvTimeoutError::Timeout) => {
+                log::warn!(
+                    "Recordings: the writer has not closed every recording in {} s; it goes on \
+                     alone, and what it has open is left to it",
+                    wait.as_secs()
+                );
+                false
+            }
+        }
+    }
+
+    /// The recording of a new match, named by its replay id: its header
+    /// note goes first.
     pub fn open(
         &self,
-        match_id: u32,
+        replay: &ReplayId,
         vs_bots: bool,
         header: serde_json::Value,
         now: Instant,
     ) -> Recording {
         let started = SystemTime::now();
-        let name = format!("rec026g_{}_{match_id:08x}", utc_stamp(started));
-        let mut recording = Recording {
+        let match_id = replay.match_id();
+        let name = replay.as_str().to_owned();
+        let recording = Recording {
             recorder: self.clone(),
             min_players: if vs_bots { 1 } else { self.min_players },
             match_id,
@@ -267,7 +387,7 @@ impl Recorder {
             object.insert("min_players".into(), recording.min_players.into());
             object.insert("srp".into(), env!("CARGO_PKG_VERSION").into());
         }
-        recording.note(&header, now);
+        recording.mark(&header, now);
         recording
     }
 }
@@ -290,33 +410,57 @@ impl Recording {
         now.saturating_duration_since(self.began).as_millis() as u32
     }
 
-    fn send(&mut self, job: Job) {
-        match self.recorder.jobs.try_send(job) {
-            Ok(()) => {}
-            Err(TrySendError::Full(_)) => {
-                if self.dropped == 0 {
-                    log::warn!(
-                        "Match {:#x}: the recording's writer is behind; records are dropped",
-                        self.match_id
-                    );
-                }
-                self.dropped += 1;
-            }
-            Err(TrySendError::Disconnected(_)) => self.dropped += 1,
-        }
+    /// A job that is not a record: always queued. It fails only with the
+    /// writing thread gone, which has nothing of this match open then.
+    fn send(&self, job: Job) {
+        let _ = self.recorder.jobs.send(job);
     }
 
-    fn record(&mut self, kind: u8, place: u8, bytes: &[u8], now: Instant) {
+    fn encode(&self, kind: u8, place: u8, bytes: &[u8], now: Instant) -> Vec<u8> {
         let mut record = Vec::with_capacity(10 + bytes.len());
         record.push(kind);
         record.push(place);
         record.extend_from_slice(&self.at(now).to_le_bytes());
         record.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
         record.extend_from_slice(bytes);
-        self.send(Job::Record {
+        record
+    }
+
+    /// A note the file must have, however far behind its writer is.
+    fn mark(&self, note: &serde_json::Value, now: Instant) {
+        self.send(Job::Note {
             match_id: self.match_id,
-            bytes: record,
+            bytes: self.encode(NOTE, NO_PLACE, note.to_string().as_bytes(), now),
         });
+    }
+
+    /// Queued unless the writer is [`QUEUE`] records behind: then dropped
+    /// (counted).
+    fn record(&mut self, kind: u8, place: u8, bytes: &[u8], now: Instant) {
+        let records = &self.recorder.records;
+        let room = records
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |queued| {
+                (queued < QUEUE).then_some(queued + 1)
+            })
+            .is_ok();
+        if !room {
+            if self.dropped == 0 {
+                log::warn!(
+                    "Match {:#x}: the recording's writer is behind; records are dropped",
+                    self.match_id
+                );
+            }
+            self.dropped += 1;
+            return;
+        }
+        let job = Job::Record {
+            match_id: self.match_id,
+            bytes: self.encode(kind, place, bytes, now),
+        };
+        if self.recorder.jobs.send(job).is_err() {
+            records.fetch_sub(1, Ordering::AcqRel);
+            self.dropped += 1;
+        }
     }
 
     /// A datagram the client at `place` sent.
@@ -367,6 +511,10 @@ impl Recording {
                 self.match_id,
                 self.entered.len()
             );
+            // In the file at once ([`Job::Keep`]): a `.part` with it is kept
+            // after a stop ([`Recorder::start`]).
+            let note = serde_json::json!({ "note": KEPT_NOTE, "players": self.entered.len() });
+            self.mark(&note, Instant::now());
             self.send(Job::Keep {
                 match_id: self.match_id,
             });
@@ -395,7 +543,7 @@ impl Drop for Recording {
             "kept": self.kept,
             "dropped": dropped,
         });
-        self.note(&note, Instant::now());
+        self.mark(&note, Instant::now());
         self.send(Job::Close {
             match_id: self.match_id,
         });
@@ -408,6 +556,8 @@ fn place_byte(place: usize) -> u8 {
 
 /// One open file.
 struct Open {
+    /// Its `.part`, claimed while it is open.
+    _claim: Writing,
     name: String,
     path: PathBuf,
     file: Option<BufWriter<File>>,
@@ -419,13 +569,16 @@ struct Open {
 struct Writer {
     settings: RecordSettings,
     open: HashMap<u32, Open>,
+    /// [`Recorder::records`]: one less for each record taken.
+    records: Arc<AtomicUsize>,
 }
 
 impl Writer {
-    fn new(settings: RecordSettings) -> Self {
+    fn new(settings: RecordSettings, records: Arc<AtomicUsize>) -> Self {
         Self {
             settings,
             open: HashMap::new(),
+            records,
         }
     }
 
@@ -455,6 +608,22 @@ impl Writer {
         match job {
             Job::Open { match_id, name } => {
                 let path = self.settings.dir.join(format!("{name}.{EXTENSION}.{PART}"));
+                // A match its server took up again after a restart in this
+                // process (its replay id is the same): the first recording
+                // stays its own, still written or named already; this one
+                // is not made.
+                let named = self.settings.dir.join(format!("{name}.{EXTENSION}"));
+                let claim = match Writing::claim(&path) {
+                    Some(claim) if !named.exists() => claim,
+                    _ => {
+                        log::warn!(
+                            "Match {match_id:#x}: {} was recorded before a restart; not \
+                             recorded again",
+                            path.display()
+                        );
+                        return;
+                    }
+                };
                 let file = File::create(&path)
                     .and_then(|file| {
                         let mut file = BufWriter::new(file);
@@ -468,6 +637,7 @@ impl Writer {
                 self.open.insert(
                     match_id,
                     Open {
+                        _claim: claim,
                         name,
                         path,
                         file,
@@ -478,33 +648,39 @@ impl Writer {
                 );
             }
             Job::Record { match_id, bytes } => {
-                if let Some(open) = self.open.get_mut(&match_id) {
-                    if open.block.is_empty() {
-                        open.block_since = Instant::now();
-                    }
-                    open.block.extend_from_slice(&bytes);
-                    if open.block.len() >= BLOCK_BYTES {
-                        write_block(open);
-                    }
-                }
+                self.records.fetch_sub(1, Ordering::AcqRel);
+                self.add(match_id, &bytes);
             }
+            Job::Note { match_id, bytes } => self.add(match_id, &bytes),
+            // Named when its match closes ([`Self::close`]), not now; its
+            // `kept` note goes to the file now.
             Job::Keep { match_id } => {
                 if let Some(open) = self.open.get_mut(&match_id) {
-                    let kept = self.settings.dir.join(format!("{}.{EXTENSION}", open.name));
-                    // The file stays open: it is renamed under its writer
-                    // (Rust opens files on Windows with FILE_SHARE_DELETE).
-                    match fs::rename(&open.path, &kept) {
-                        Ok(()) => {
-                            open.path = kept;
-                            open.kept = true;
-                        }
-                        Err(error) => {
-                            log::warn!("Recordings: can't keep {}: {error}", open.path.display())
-                        }
-                    }
+                    open.kept = true;
+                    write_block(open);
                 }
             }
             Job::Close { match_id } => self.close(match_id),
+            Job::Finish { done } => {
+                let ids: Vec<u32> = self.open.keys().copied().collect();
+                for match_id in ids {
+                    self.close(match_id);
+                }
+                let _ = done.send(());
+            }
+        }
+    }
+
+    fn add(&mut self, match_id: u32, bytes: &[u8]) {
+        let Some(open) = self.open.get_mut(&match_id) else {
+            return;
+        };
+        if open.block.is_empty() {
+            open.block_since = Instant::now();
+        }
+        open.block.extend_from_slice(bytes);
+        if open.block.len() >= BLOCK_BYTES {
+            write_block(open);
         }
     }
 
@@ -531,13 +707,24 @@ impl Writer {
             // A write failed earlier: the file is cut short.
             None => false,
         };
+        // Its name only now: a replay is made of a closed match alone (one
+        // of a running match would get past the live delay).
+        // A writer started meanwhile in the same folder left its `.part`
+        // alone (`Recorder::start`): it is open here.
+        let kept = self.settings.dir.join(format!("{}.{EXTENSION}", open.name));
+        if let Err(error) = fs::rename(&open.path, &kept) {
+            log::warn!("Recordings: can't keep {}: {error}", open.path.display());
+            self.settings
+                .tell(|replays| replays.recording_not_kept(match_id));
+            return;
+        }
+        open.path = kept;
         let size = fs::metadata(&open.path).map_or(0, |meta| meta.len());
         log::info!(
             "Match {match_id:#x}: recording {} kept ({size} bytes)",
             open.path.display()
         );
-        // Closed and whole: its replay can be made from it now. (A file cut
-        // short is converted only if someone asks: what it has may do.)
+        // Closed and whole: the lists show its replay from now on.
         if written {
             self.settings
                 .tell(|replays| replays.recording_kept(match_id));
@@ -652,8 +839,8 @@ impl Record {
 const MAX_BLOCK_RAW: usize = 64 << 20;
 
 /// Every record of a recording file, in order, one block in memory at a
-/// time: what the server's own replay conversion reads with, so a match
-/// of a million datagrams is never held whole (`replay`). A file cut
+/// time: what a replay session's reading uses, so a match of a million
+/// datagrams is never held whole (`sur_convert`). A file cut
 /// short (its server stopped) gives what its whole blocks hold.
 pub fn read_each(path: &Path, mut each: impl FnMut(RecordRef<'_>)) -> io::Result<()> {
     read_while(path, |record| {
@@ -743,10 +930,9 @@ pub fn read_notes(path: &Path) -> io::Result<Vec<Record>> {
 }
 
 /// The first note of a recording file, its header (the writer puts it
-/// first, [`Recorder::open`]), so from the first block alone: what the
-/// replay conversion checks (the map, so the mode's file) before it unpacks
-/// the whole file. Reading stops at the first note; `None` for a file of
-/// none.
+/// first, [`Recorder::open`]), so from the first block alone, without
+/// unpacking the whole file. Reading stops at the first note; `None` for a
+/// file of none.
 pub fn read_header(path: &Path) -> io::Result<Option<Record>> {
     let mut header = None;
     read_while(path, |record| {
@@ -758,38 +944,31 @@ pub fn read_header(path: &Path) -> io::Result<Option<Record>> {
     Ok(header)
 }
 
+/// A recording's file has its `kept` note ([`Recording::entered`]): read up
+/// to it.
+fn was_kept(path: &Path) -> bool {
+    let mut kept = false;
+    let _ = read_while(path, |record| {
+        kept = record.kind == NOTE
+            && serde_json::from_slice::<serde_json::Value>(record.bytes)
+                .is_ok_and(|note| note["note"] == KEPT_NOTE);
+        !kept
+    });
+    kept
+}
+
 fn unix_ms(time: SystemTime) -> u64 {
     time.duration_since(UNIX_EPOCH)
         .map_or(0, |since| since.as_millis() as u64)
 }
 
-/// `YYYYMMDD-HHMMSS` in UTC.
-fn utc_stamp(time: SystemTime) -> String {
-    let secs = time
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |since| since.as_secs());
-    let (days, rest) = (secs / 86_400, secs % 86_400);
-    // Days since 1970-01-01 to a civil date (H. Hinnant's algorithm).
-    let z = days as i64 + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z.rem_euclid(146_097);
-    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let day = doy - (153 * mp + 2) / 5 + 1;
-    let month = if mp < 10 { mp + 3 } else { mp - 9 };
-    let year = yoe + era * 400 + i64::from(month <= 2);
-    format!(
-        "{year:04}{month:02}{day:02}-{:02}{:02}{:02}",
-        rest / 3_600,
-        rest % 3_600 / 60,
-        rest % 60
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn id(match_id: u32) -> ReplayId {
+        ReplayId::new(match_id, SystemTime::now())
+    }
 
     fn settings(dir: &Path, min_players: usize) -> RecordSettings {
         RecordSettings {
@@ -834,32 +1013,20 @@ mod tests {
 
     #[test]
     fn a_bot_match_is_kept_after_one_human_but_empty_and_small_pvp_matches_are_not() {
-        use session::v026g::replays::{Known, ReplaySettings, Status};
+        use session::v026g::replays::ReplayState;
         let root = temp_dir("solo-bots");
         let dir = root.join("recordings");
-        let replays = Arc::new(Replays::new(
-            Some(
-                ReplaySettings {
-                    replay_dir: root.join("replays"),
-                    record_dir: dir.clone(),
-                    max_recording_bytes: 1 << 20,
-                    max_replay_bytes: 1 << 20,
-                }
-                .checked()
-                .unwrap(),
-            ),
-            6,
-        ));
+        let replays = Arc::new(Replays::new(Some(dir.clone())));
         let mut settings = settings(&dir, 6);
         settings.replays = Some(Desk(replays.clone()));
         let recorder = Recorder::start(settings).unwrap();
         let now = Instant::now();
-        let empty = recorder.open(1, true, serde_json::json!({}), now);
+        let empty = recorder.open(&id(1), true, serde_json::json!({}), now);
         drop(empty);
-        let mut pvp = recorder.open(2, false, serde_json::json!({}), now);
+        let mut pvp = recorder.open(&id(2), false, serde_json::json!({}), now);
         pvp.entered(0);
         drop(pvp);
-        let mut pve = recorder.open(3, true, serde_json::json!({}), now);
+        let mut pve = recorder.open(&id(3), true, serde_json::json!({}), now);
         pve.entered(0);
         drop(pve);
         let names = settle(&dir, |names| {
@@ -872,34 +1039,10 @@ mod tests {
         let header = read_header(&dir.join(&names[0])).unwrap().unwrap();
         let header: serde_json::Value = serde_json::from_slice(&header.bytes).unwrap();
         assert_eq!(header["min_players"], 1);
-        assert!(
-            replays.jobs().is_empty(),
-            "conversion waits for a watch request"
-        );
-        assert_eq!(
-            replays.ask(
-                1,
-                3,
-                Some(14),
-                Some(Known {
-                    played: true,
-                    places: 1
-                }),
-                now + Duration::from_secs(10)
-            ),
-            Status::Preparing
-        );
-        assert_eq!(replays.jobs(), [3]);
+        let later = now + Duration::from_secs(10);
+        assert_eq!(replays.state(3, Some(14), later), ReplayState::Kept);
+        assert_eq!(replays.state(2, Some(14), later), ReplayState::NotRecorded);
         let _ = fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn utc_stamps() {
-        assert_eq!(utc_stamp(UNIX_EPOCH), "19700101-000000");
-        let time = UNIX_EPOCH + Duration::from_secs(1_791_945_296);
-        assert_eq!(utc_stamp(time), "20261014-023456");
-        let leap = UNIX_EPOCH + Duration::from_secs(951_782_400 + 3_661);
-        assert_eq!(utc_stamp(leap), "20000229-010101");
     }
 
     #[test]
@@ -907,8 +1050,12 @@ mod tests {
         let dir = temp_dir("kept");
         let recorder = Recorder::start(settings(&dir, 2)).unwrap();
         let now = Instant::now();
-        let mut recording =
-            recorder.open(0xAB, false, serde_json::json!({"match_id": "0xab"}), now);
+        let mut recording = recorder.open(
+            &id(0xAB),
+            false,
+            serde_json::json!({"match_id": "0xab"}),
+            now,
+        );
         recording.datagram_in(0, &[1, 2, 3], now);
         recording.entered(0);
         // A late joiner makes the second.
@@ -927,12 +1074,12 @@ mod tests {
         let mut records = Vec::new();
         for _ in 0..200 {
             records = read(&path).unwrap_or_default();
-            if records.len() == 4 {
+            if records.len() == 5 {
                 break;
             }
             std::thread::sleep(Duration::from_millis(10));
         }
-        assert_eq!(records.len(), 4, "{records:?}");
+        assert_eq!(records.len(), 5, "{records:?}");
         assert_eq!(records[0].kind, NOTE);
         let header: serde_json::Value = serde_json::from_slice(&records[0].bytes).unwrap();
         assert_eq!(header["note"], "header");
@@ -951,7 +1098,9 @@ mod tests {
         assert_eq!(records[2].place, 1);
         assert_eq!(records[2].at_ms, 1_500);
         assert_eq!(records[2].bytes, vec![9; 600]);
-        let closed: serde_json::Value = serde_json::from_slice(&records[3].bytes).unwrap();
+        let note: serde_json::Value = serde_json::from_slice(&records[3].bytes).unwrap();
+        assert_eq!(note["note"], KEPT_NOTE);
+        let closed: serde_json::Value = serde_json::from_slice(&records[4].bytes).unwrap();
         assert_eq!(closed["note"], "closed");
         assert_eq!(closed["players"], 2);
         assert_eq!(closed["kept"], true);
@@ -959,11 +1108,66 @@ mod tests {
     }
 
     #[test]
+    fn a_kept_match_gets_its_name_only_when_it_closes() {
+        let dir = temp_dir("running");
+        let recorder = Recorder::start(settings(&dir, 2)).unwrap();
+        let now = Instant::now();
+        let mut recording = recorder.open(&id(0xEF), false, serde_json::json!({}), now);
+        recording.entered(0);
+        recording.entered(1);
+        recording.datagram_in(0, &[1], now);
+        // The writer has had the keep: still no replay of the running match.
+        std::thread::sleep(Duration::from_millis(100));
+        let names = settle(&dir, |names| names.len() == 1);
+        assert!(names[0].ends_with(".srprec.part"), "{names:?}");
+        assert_eq!(super::super::replay::recording_in(&dir, 0xEF), None);
+        drop(recording);
+        let names = settle(&dir, |names| {
+            names.len() == 1 && names[0].ends_with("_000000ef.srprec")
+        });
+        assert!(names[0].ends_with("_000000ef.srprec"), "{names:?}");
+        assert!(super::super::replay::recording_in(&dir, 0xEF).is_some());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// Review of 2026-11-13: every job was dropped like a record with the
+    /// writer behind, a close too: the kept recording stayed a `.part`, with
+    /// no replay. Records alone are dropped; its keep and close get through.
+    #[test]
+    fn a_writer_behind_drops_records_but_never_a_keep_or_a_close() {
+        use session::v026g::replays::ReplayState;
+        let root = temp_dir("behind");
+        let dir = root.join("recordings");
+        let replays = Arc::new(Replays::new(Some(dir.clone())));
+        let mut settings = settings(&dir, 2);
+        settings.replays = Some(Desk(replays.clone()));
+        let recorder = Recorder::start(settings).unwrap();
+        let now = Instant::now();
+        let mut recording = recorder.open(&id(0xAB), false, serde_json::json!({}), now);
+        settle(&dir, |names| names.len() == 1);
+        // The writer as a disk stall leaves it: [`QUEUE`] records behind.
+        recorder.records.fetch_add(QUEUE, Ordering::AcqRel);
+        recording.datagram_in(0, &[1], now);
+        recording.entered(0);
+        recording.entered(1);
+        assert_eq!(recording.dropped, 1, "the datagram, not the kept note");
+        drop(recording);
+        let names = settle(&dir, |names| {
+            names.len() == 1 && names[0].ends_with("_000000ab.srprec")
+        });
+        assert!(names[0].ends_with("_000000ab.srprec"), "{names:?}");
+        recorder.finish();
+        let later = now + Duration::from_secs(10);
+        assert_eq!(replays.state(0xAB, Some(14), later), ReplayState::Kept);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn a_match_under_the_minimum_leaves_no_file() {
         let dir = temp_dir("small");
         let recorder = Recorder::start(settings(&dir, 6)).unwrap();
         let now = Instant::now();
-        let mut recording = recorder.open(0xCD, false, serde_json::json!({}), now);
+        let mut recording = recorder.open(&id(0xCD), false, serde_json::json!({}), now);
         for place in 0..5 {
             recording.entered(place);
             recording.datagram_in(place, &[place as u8], now);
@@ -977,19 +1181,138 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
+    /// Review of 2026-11-13: a `.part` left by a stop was deleted at start,
+    /// and with it the recording of every match running then. Its match runs
+    /// no more: one that was kept gets its name (cut short), one under the
+    /// minimum (or no recording) is deleted.
     #[test]
-    fn a_part_left_by_a_stopped_server_is_deleted_at_start() {
-        let dir = temp_dir("left");
-        fs::create_dir_all(&dir).unwrap();
+    fn a_part_left_by_a_stopped_server_is_named_if_kept_else_deleted_at_start() {
+        let dir = temp_dir("running-at-stop");
+        let recorder = Recorder::start(settings(&dir, 2)).unwrap();
+        let now = Instant::now();
+        let mut kept = recorder.open(&id(0xAB), false, serde_json::json!({}), now);
+        kept.entered(0);
+        kept.entered(1);
+        let mut small = recorder.open(&id(0xCD), false, serde_json::json!({}), now);
+        small.entered(0);
+        small.datagram_in(0, &[1], now);
+        // The files as a stop leaves them: the kept one's note is written
+        // at once, the other's records are still in its block.
+        let names = settle(&dir, |names| {
+            names.len() == 2 && names.iter().any(|name| was_kept(&dir.join(name)))
+        });
+        let left = temp_dir("left");
+        fs::create_dir_all(&left).unwrap();
+        for name in &names {
+            assert!(name.ends_with(".srprec.part"), "{names:?}");
+            fs::copy(dir.join(name), left.join(name)).unwrap();
+        }
         fs::write(
-            dir.join("rec026g_20261014-000000_00000001.srprec.part"),
+            left.join("rec026g_20261014-000000_00000001.srprec.part"),
             b"x",
         )
         .unwrap();
-        fs::write(dir.join("rec026g_20261014-000000_00000002.srprec"), b"y").unwrap();
-        let _recorder = Recorder::start(settings(&dir, 6)).unwrap();
-        assert_eq!(files(&dir), ["rec026g_20261014-000000_00000002.srprec"]);
+        fs::write(left.join("rec026g_20261014-000000_00000002.srprec"), b"y").unwrap();
+        drop((kept, small));
+        let _recorder = Recorder::start(settings(&left, 2)).unwrap();
+        let named = files(&left);
+        assert_eq!(named.len(), 2, "{named:?}");
+        assert_eq!(named[0], "rec026g_20261014-000000_00000002.srprec");
+        assert!(named[1].ends_with("_000000ab.srprec"), "{named:?}");
+        let notes = read_notes(&left.join(&named[1])).unwrap();
+        let header: serde_json::Value = serde_json::from_slice(&notes[0].bytes).unwrap();
+        assert_eq!(header["note"], "header");
+        assert!(super::super::replay::recording_in(&left, 0xAB).is_some());
         let _ = fs::remove_dir_all(&dir);
+        let _ = fs::remove_dir_all(&left);
+    }
+
+    /// Review of 2026-11-13: `srp` starts a match server that panicked again
+    /// in the same process a second later, while the old writing thread may
+    /// still be writing and closing. Its server waits for it
+    /// ([`Recorder::finish`]): every recording is named or deleted then.
+    #[test]
+    fn a_finished_writer_has_closed_every_recording() {
+        let dir = temp_dir("finish");
+        let recorder = Recorder::start(settings(&dir, 2)).unwrap();
+        let now = Instant::now();
+        let mut kept = recorder.open(&id(0xAB), false, serde_json::json!({}), now);
+        kept.entered(0);
+        kept.entered(1);
+        let mut small = recorder.open(&id(0xCD), false, serde_json::json!({}), now);
+        small.entered(0);
+        for _ in 0..1_000 {
+            kept.datagram_in(0, &[7; 300], now);
+        }
+        drop((kept, small));
+        recorder.finish();
+        let names = files(&dir);
+        assert_eq!(names.len(), 1, "{names:?}");
+        assert!(names[0].ends_with("_000000ab.srprec"), "{names:?}");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// Review of 2026-11-13: the server that ended waited for its writer
+    /// with no end, and `srp`'s restart with it: on a stalled disk no match
+    /// was served until the writer caught up, or ever. It waits
+    /// [`FINISH_WAIT`] at most; a writer that never answers is given up on.
+    #[test]
+    fn a_writer_that_never_answers_is_given_up_on() {
+        let (jobs, _queue) = mpsc::channel();
+        let recorder = Recorder {
+            jobs,
+            records: Arc::new(AtomicUsize::new(0)),
+            min_players: 2,
+        };
+        let started = Instant::now();
+        assert!(!recorder.finish_within(Duration::from_millis(50)));
+        assert!(started.elapsed() < Duration::from_secs(5));
+    }
+
+    /// The same race once the last writer is given up on: it still writes
+    /// and closes while the new one starts. Its `.part`s are left to it, the
+    /// kept one and one whose `kept` note is still in its queue alike (the
+    /// new start named the first under it and deleted the second, a kept
+    /// recording lost); its closes name both, kept once.
+    #[test]
+    fn a_part_the_last_writer_still_writes_is_left_to_it() {
+        use session::v026g::replays::{MIN_REVISION, ReplayState, SaveSettings, Status};
+        let root = temp_dir("still-writing");
+        let dir = root.join("recordings");
+        fs::create_dir_all(&dir).unwrap();
+        let replays = Arc::new(Replays::new(Some(dir.clone())).with_save(SaveSettings {
+            replay_dir: root.join("replays"),
+            max_replay_bytes: 1 << 30,
+        }));
+        let mut settings = settings(&dir, 2);
+        settings.replays = Some(Desk(replays.clone()));
+        let recorder = Recorder::start(settings.clone()).unwrap();
+        let now = Instant::now();
+        let mut kept = recorder.open(&id(0xAB), false, serde_json::json!({}), now);
+        kept.entered(0);
+        kept.entered(1);
+        let mut late = recorder.open(&id(0xCD), false, serde_json::json!({}), now);
+        late.entered(0);
+        let parts = settle(&dir, |names| {
+            names.len() == 2 && names.iter().any(|name| was_kept(&dir.join(name)))
+        });
+        let _new = Recorder::start(settings).unwrap();
+        assert_eq!(files(&dir), parts, "left to the last writer");
+        late.entered(1);
+        drop((kept, late));
+        assert!(recorder.finish_within(Duration::from_secs(10)));
+        let names = files(&dir);
+        assert_eq!(names.len(), 2, "{names:?}");
+        assert!(names[0].ends_with("_000000ab.srprec"), "{names:?}");
+        assert!(names[1].ends_with("_000000cd.srprec"), "{names:?}");
+        let later = now + Duration::from_secs(10);
+        assert_eq!(replays.state(0xAB, Some(14), later), ReplayState::Kept);
+        assert_eq!(replays.state(0xCD, Some(14), later), ReplayState::Kept);
+        assert_eq!(
+            replays.save_ask(1, 0xAB, Some(MIN_REVISION), Some(true), later),
+            Status::Preparing
+        );
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -1010,7 +1333,7 @@ mod tests {
         // The new file is small: only it fits with neither old one.
         settings.max_bytes = 700;
         let recorder = Recorder::start(settings).unwrap();
-        let mut recording = recorder.open(3, false, serde_json::json!({}), Instant::now());
+        let mut recording = recorder.open(&id(3), false, serde_json::json!({}), Instant::now());
         recording.entered(0);
         drop(recording);
         let names = settle(&dir, |names| names.len() == 1);
@@ -1021,73 +1344,47 @@ mod tests {
 
     #[test]
     fn the_replays_hear_of_each_file_kept_dropped_or_deleted() {
-        use session::v026g::replays::{Known, ReplaySettings, Status};
+        use session::v026g::replays::ReplayState;
         let root = temp_dir("desk");
         let dir = root.join("recordings");
         fs::create_dir_all(&dir).unwrap();
-        // An old file the cap deletes, with its replay.
+        // An old file the cap deletes.
         fs::write(
             dir.join("rec026g_20261001-000000_00000001.srprec"),
             [0; 600],
         )
         .unwrap();
-        let replays = Arc::new(Replays::new(
-            Some(
-                ReplaySettings {
-                    replay_dir: root.join("replays"),
-                    record_dir: dir.clone(),
-                    max_recording_bytes: 1 << 20,
-                    max_replay_bytes: 1 << 20,
-                }
-                .checked()
-                .unwrap(),
-            ),
-            2,
-        ));
-        let old_replay = replays.sur_path(1).unwrap();
-        fs::write(&old_replay, b"x").unwrap();
+        let replays = Arc::new(Replays::new(Some(dir.clone())));
         let mut settings = settings(&dir, 2);
         settings.max_bytes = 700;
         settings.replays = Some(Desk(replays.clone()));
         let recorder = Recorder::start(settings).unwrap();
         let now = Instant::now();
-        let mut kept = recorder.open(0xAB, false, serde_json::json!({}), now);
+        let mut kept = recorder.open(&id(0xAB), false, serde_json::json!({}), now);
         kept.entered(0);
         kept.entered(1);
         drop(kept);
-        let mut small = recorder.open(0xCD, false, serde_json::json!({}), now);
+        let mut small = recorder.open(&id(0xCD), false, serde_json::json!({}), now);
         small.entered(0);
         drop(small);
         // The writer works on its own thread: wait for both closes.
+        let old = dir.join("rec026g_20261001-000000_00000001.srprec");
         let mut waited = false;
         for _ in 0..300 {
             let names = files(&dir);
             let parts = names.iter().any(|name| name.ends_with(".part"));
             let kept = names.iter().any(|name| name.ends_with("_000000ab.srprec"));
-            if !old_replay.exists() && kept && !parts {
+            if !old.exists() && kept && !parts {
                 waited = true;
                 break;
             }
             std::thread::sleep(Duration::from_millis(10));
         }
         assert!(waited, "{:?}", files(&dir));
-        // Kept, but converted only when someone asks for it.
-        assert!(replays.jobs().is_empty());
-        let known = Some(Known {
-            played: true,
-            places: 10,
-        });
         let later = now + Duration::from_secs(10);
-        assert_eq!(
-            replays.ask(1, 0xCD, Some(14), known, later),
-            Status::NotRecorded
-        );
-        assert_eq!(replays.ask(2, 1, Some(14), known, later), Status::Gone);
-        assert_eq!(
-            replays.ask(3, 0xAB, Some(14), known, later),
-            Status::Preparing
-        );
-        assert_eq!(replays.jobs(), [0xAB]);
+        assert_eq!(replays.state(0xCD, Some(14), later), ReplayState::NotRecorded);
+        assert_eq!(replays.state(1, Some(14), later), ReplayState::Gone);
+        assert_eq!(replays.state(0xAB, Some(14), later), ReplayState::Kept);
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -1110,7 +1407,7 @@ mod tests {
         let dir = temp_dir("blocks");
         let recorder = Recorder::start(settings(&dir, 1)).unwrap();
         let now = Instant::now();
-        let mut recording = recorder.open(4, false, serde_json::json!({}), now);
+        let mut recording = recorder.open(&id(4), false, serde_json::json!({}), now);
         recording.entered(0);
         // 3 MB of datagrams: three blocks or more.
         let datagram: Vec<u8> = (0..500u32).map(|i| (i * 7 % 251) as u8).collect();
@@ -1127,20 +1424,23 @@ mod tests {
             }
         }
         drop(recording);
-        let names = settle(&dir, |names| names.len() == 1);
+        // Named once closed.
+        let names = settle(&dir, |names| {
+            names.len() == 1 && names[0].ends_with(".srprec")
+        });
         let path = dir.join(&names[0]);
         let mut records = Vec::new();
         for _ in 0..500 {
             records = read(&path).unwrap_or_default();
-            if records.len() == 6_002 {
+            if records.len() == 6_003 {
                 break;
             }
             std::thread::sleep(Duration::from_millis(10));
         }
-        assert_eq!(records.len(), 6_002);
-        assert_eq!(records[6_000].place, 19);
-        assert_eq!(records[6_000].at_ms, 5_999);
-        assert_eq!(records[6_000].bytes, datagram);
+        assert_eq!(records.len(), 6_003);
+        assert_eq!(records[6_001].place, 19);
+        assert_eq!(records[6_001].at_ms, 5_999);
+        assert_eq!(records[6_001].bytes, datagram);
         let _ = fs::remove_dir_all(&dir);
     }
 }

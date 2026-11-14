@@ -19,11 +19,22 @@ pub struct GameCell<T> {
 // off that thread.
 unsafe impl<T> Sync for GameCell<T> {}
 
-impl<T: Copy> GameCell<T> {
+impl<T> GameCell<T> {
     pub const fn new(value: T) -> GameCell<T> {
         GameCell { value: UnsafeCell::new(value) }
     }
 
+    /// Lends a large value (a list, not copied every hook) to `f`, which runs
+    /// to completion on this thread. `f` must not reach another hook (it does
+    /// not call into the game: a movie's Invoke, say, can re-enter the hooks).
+    pub fn with<R>(&self, _: &Thread, f: impl FnOnce(&mut T) -> R) -> R {
+        // SAFETY: on the game's thread, and `f` takes nothing that reaches another hook, so no
+        // other borrow of the cell is live while `f` runs.
+        f(unsafe { &mut *self.value.get() })
+    }
+}
+
+impl<T: Copy> GameCell<T> {
     pub fn get(&self, _: &Thread) -> T {
         // SAFETY: on the game's thread (the Thread), the only one that
         // touches the cell; no other borrow is live across a call here.

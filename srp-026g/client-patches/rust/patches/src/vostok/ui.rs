@@ -77,6 +77,11 @@ pub struct GameWorldUi<'t> {
 }
 
 impl<'t> GameWorldUi<'t> {
+    /// The hud a sibling module holds (alive with its match on the game's thread).
+    pub(super) fn of(this: raw::GameWorldUi) -> GameWorldUi<'t> {
+        GameWorldUi { this, thread: PhantomData }
+    }
+
     /// At `player_icons.update_start`.
     pub fn at_update_icons(ctx: &'t Context<'_>) -> Option<GameWorldUi<'t>> {
         // SAFETY: the context is this site's: update_player_icons' frame, its
@@ -346,5 +351,83 @@ impl Movie<'_> {
             }
         }
         self.invoke(method, &mut arguments[..count])
+    }
+}
+
+/// The mouse buttons the game hands a movie: 0x2AF610's callers map codes 151h.. to 0..2 (patch 102
+/// takes the others away).
+const MOUSE_BUTTONS: u32 = 3;
+
+/// The buttons of a movie's held mask (MovieImpl's CurButtonsState) that the game could have pressed.
+fn held_buttons(mask: u32) -> impl Iterator<Item = u32> {
+    (0..MOUSE_BUTTONS).filter(move |button| mask >> button & 1 != 0)
+}
+
+/// GFx::MouseEvent's Event::MouseUp.
+const MOUSE_UP: u32 = 3;
+
+/// `button` let go off the stage, into `room` (GFx::MouseEvent, as 0x2AF610 fills it): over no
+/// control, so a press in progress ends (MOUSE_UP on the stage, release outside on what was
+/// pressed) and nothing is clicked.
+fn release_off_stage(room: &mut raw::GfxMouseEventStorage, button: u32) -> raw::GfxMouseEvent {
+    let event = room.handle();
+    // SAFETY: our own event, its fields' places.
+    unsafe {
+        *event.kind() = MOUSE_UP;
+        *event.modifiers() = 0;
+        *event.x() = -1.0;
+        *event.y() = -1.0;
+        *event.scroll() = 0.0;
+        *event.button() = button;
+        *event.mouse() = 0;
+    }
+    event
+}
+
+impl Movie<'_> {
+    /// Lets go of every button the movie still holds. A movie makes a press of a button's change only
+    /// (GenerateMouseEvents), so one that never saw a release takes the next press as no press at all.
+    /// HandleEvent queues it for the movie's next Advance, as it does every mouse event.
+    pub fn release_held_buttons(&self) {
+        // SAFETY: a live movie on the hook's thread; its first MouseState's buttons, a plain dword.
+        let mask = unsafe { self.this.mouse_buttons().read() };
+        for button in held_buttons(mask) {
+            let mut room = raw::GfxMouseEventStorage::zeroed();
+            let event = release_off_stage(&mut room, button);
+            // SAFETY: a live movie on its thread; the event outlives the call, which copies what it needs.
+            unsafe { raw::engine_movie_handle_event(Some(self.this), Some(event)) };
+        }
+    }
+}
+
+#[cfg(test)]
+mod mouse_release_tests {
+    use super::*;
+
+    fn held(mask: u32) -> [Option<u32>; 3] {
+        let mut buttons = held_buttons(mask);
+        [buttons.next(), buttons.next(), buttons.next()]
+    }
+
+    #[test]
+    fn only_the_buttons_held_are_let_go() {
+        assert_eq!(held(0), [None, None, None]);
+        assert_eq!(held(1), [Some(0), None, None]);
+        assert_eq!(held(0b10), [Some(1), None, None]);
+        assert_eq!(held(0b101), [Some(0), Some(2), None]);
+        // Bits the game never presses.
+        assert_eq!(held(0xFFFF_FFF8), [None, None, None]);
+    }
+
+    #[test]
+    fn the_event_is_the_one_the_game_builds() {
+        assert_eq!(raw::GfxMouseEvent::SIZE, 0x1C);
+        let mut room = raw::GfxMouseEventStorage::zeroed();
+        let event = release_off_stage(&mut room, 2);
+        // SAFETY: the event just built in `room`.
+        let words = unsafe {
+            [*event.kind(), *event.modifiers(), (*event.x()).to_bits(), (*event.y()).to_bits(), (*event.scroll()).to_bits(), *event.button(), *event.mouse()]
+        };
+        assert_eq!(words, [3, 0, (-1.0f32).to_bits(), (-1.0f32).to_bits(), 0, 2, 0]);
     }
 }

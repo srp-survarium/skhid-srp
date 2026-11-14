@@ -148,6 +148,8 @@ package
    import survarium.player.ProfileSelector;
    import survarium.quest.QuestList;
    import survarium.rooms.RoomsWindow;
+   import survarium.watch.WatchWindow;
+   import survarium.watch.WatchPrompt;
    import survarium.upgrade.UpgradeWindow;
    
    public class LobbyMenu extends MovieClip
@@ -219,7 +221,36 @@ package
       private static var _playerInfoNext:Array;
 
       private static var _playerInfoWait:Timer;
-      
+
+      // The search by name sent (findPlayers) and not answered yet ({answered, at}), null none: the
+      // answer (fill_players_search) says nothing of its ask, so one is sent at a time and an
+      // answer is the one sent's. One unanswered for PLAYER_SEARCH_WAIT_MS lost its answer, and the
+      // one sent lost it when the lobby's connection is made anew (close_sync): it is dropped, its
+      // asker told null (no answer). An answer that comes while none is sent is a dropped one's,
+      // late: nobody's.
+      private static var _playerSearchSent:Object = null;
+
+      // The searches by name not sent yet, oldest first ({asker, name, answered}), one an asker:
+      // the lobby server finds nobody for searches faster than one a second (its SEARCH_EVERY), so
+      // one is sent at most every PLAYER_SEARCH_EVERY_MS, the next from _playerSearchNext on; and
+      // none for PLAYER_SEARCH_GRACE_MS after one was dropped unanswered or a late answer came
+      // (a dropped one's late answer would be taken for the next).
+      private static var _playerSearchesHeld:Array = [];
+
+      private static var _playerSearchNext:int = 0;
+
+      // ticks while a search waits to be sent or for its answer
+      private static var _playerSearchTimer:Timer;
+
+      // The searches' clock (getTimer; a harness's own).
+      public static var searchClock:Function = getTimer;
+
+      private static const PLAYER_SEARCH_WAIT_MS:int = 15000;
+
+      private static const PLAYER_SEARCH_EVERY_MS:int = 1100;
+
+      private static const PLAYER_SEARCH_GRACE_MS:int = 3000;
+
       public var item_control:SrvSelectedItemControl;
       
       public var bottom_panel:BottomPanel;
@@ -363,8 +394,6 @@ package
       private var craftWindow:MessageCraftItem;
       
       protected var _invitesTemp:uint = 0;
-      
-      protected var _playerRequestTarget:MovieClip;
       
       protected var lastClick:Number = 0;
       
@@ -562,6 +591,15 @@ package
       public static function getInstance() : LobbyMenu
       {
          return id;
+      }
+
+      // The results were closed by a top menu tab (closeVS): the window it chose stays.
+      private var vsClosedByTab:Boolean = false;
+
+      // The results screen is up (after a match, modal till it closes).
+      public function get resultsUp() : Boolean
+      {
+         return this.victory_screen != null && this.victory_screen.parent != null && this.victory_screen.visible;
       }
       
       // The tutorial's notes link: the exe hides it at each match's loading (0x220400).
@@ -1093,10 +1131,6 @@ package
          addChild(this.notificationListTemp);
          addChild(this.bottom_panel);
          this.questWindow.visible = false;
-         this.friendsMenu.addEventListener(Event.CONNECT,this.onRequestPlayers);
-         this.squadList.addEventListener(Event.CONNECT,this.onRequestPlayers);
-         this.clanWindow.addEventListener(Event.CONNECT,this.onRequestPlayers);
-         this._tournament.addEventListener(Event.CONNECT,this.onRequestPlayers);
          this._tournament.addEventListener(Event.CLOSE,this.onTournamentClose);
          this._tournament.addEventListener(TournamentWindow.TOGGLE_FOLD,this.onTournamentFold);
          this.player_profile.profileItems.addEventListener(ListEvent.ITEM_ROLL_OVER,this.onPaperDollItemRollOver);
@@ -1190,7 +1224,6 @@ package
          this.statusPanel.addEventListener(StatusPanel.LOBBY_WINDOW,this.onLobbyWindow);
          this.statusPanel.matchSettings.addEventListener(MatchMakingSettings.TOURNAMENT_SELECTED,this.openTournamentWindow2);
          this.statusPanel.matchSettings.addEventListener(MatchMakingSettings.TOURNAMENT_DESELECTED,this.openTournamentWindow2);
-         this.statusPanel.matchSettings.addEventListener(Event.CONNECT,this.onRequestPlayers);
          addChild(this.statusPanel);
          addChild(this.player_profile);
          addChild(this.squadList);
@@ -1616,6 +1649,7 @@ package
       {
          ExternalInterface.call("show_match_result",e.match_id);
          var reportData:Object = e;
+         WatchWindow.reportOpened();
          this.show_victory_screen();
          this.victory_screen.setData(reportData);
          if((reportData) && (reportData.statistics_money))
@@ -2252,12 +2286,6 @@ package
       {
          trace("add_squad_invite");
          this.bottom_panel.addIvite(value);
-      }
-      
-      private function onRequestPlayers(e:Event) : void
-      {
-         trace("onRequstPlayers",e.target);
-         _playerRequestTarget = e.target as MovieClip;
       }
       
       // No premium account (the owner, 2026-11-09: "no premium state anywhere should exist"; what it
@@ -2955,6 +2983,9 @@ package
          this._top_container.removeChild(sync);
          sync.clean();
          stage.removeEventListener(Event.RESIZE,this.updateSyncScreen);
+         // the lobby's connection made anew: the searches by name sent before have no answer
+         // coming (each would go to the wrong ask)
+         LobbyMenu.playerSearchesLost();
       }
       
       public function set_player_level(value:uint) : void
@@ -3414,6 +3445,9 @@ package
       public function show_victory_screen() : void
       {
          this.showInterface();
+         // the Watch window closed now, before closeVS listens: closed later (the results set as
+         // the active window once their data come), its tab's change would close the results
+         WatchWindow.closeForWindow();
          this.showRoomUnderResults();
          dispatchEvent(new MouseEvent(MouseEvent.MOUSE_UP,true));
          trace("_top_container::this");
@@ -3427,6 +3461,7 @@ package
          stage.focus = this.victory_screen;
          FocusManager.setModalClip(this.victory_screen);
          this.victory_screen.visible = true;
+         this.vsClosedByTab = false;
          this.victory_screen.addEventListener(Event.REMOVED_FROM_STAGE,this.onVsRemoved);
          this.victory_screen["prepare"]();
          MainScene.layout.reflow();
@@ -3436,6 +3471,8 @@ package
       
       private function closeVS(e:IndexEvent) : void
       {
+         // the player chose a window to go to: no view comes back over it (onVsRemoved)
+         this.vsClosedByTab = true;
          this.victory_screen.closeWindow();
       }
       
@@ -3847,8 +3884,127 @@ package
       
       public function fill_players_search(value:Array) : void
       {
-         trace("fill_players_search::",value.length,this._playerRequestTarget);
-         this._playerRequestTarget.fillFoundPlayers(value);
+         trace("fill_players_search::",value.length);
+         LobbyMenu.playersFound(value);
+      }
+
+      // A search by name (find_players) of `asker` (the Watch window, a friends', a squad's or a
+      // clan's search list) for `answered`, a function of the players found, or of null when the
+      // answer was lost. Sent now, or in its turn (_playerSearchesHeld): an unsent search of the
+      // same asker is replaced by this one, and is never answered.
+      public static function findPlayers(asker:Object, name:String, answered:Function) : void
+      {
+         for(var i:int = 0; i < _playerSearchesHeld.length; i++)
+         {
+            if(_playerSearchesHeld[i].asker === asker)
+            {
+               _playerSearchesHeld.splice(i,1);
+               break;
+            }
+         }
+         _playerSearchesHeld.push({"asker":asker,"name":name,"answered":answered});
+         playerSearchTick();
+      }
+
+      // fill_players_search's players, to the ask they answer: true when one waited for them.
+      // Taken before any held search is sent (a search sent now is not this answer's). One that
+      // comes while none waits (a dropped search's, late) is nobody's, and holds the next send
+      // for PLAYER_SEARCH_GRACE_MS (another may follow it).
+      public static function playersFound(players:Array) : Boolean
+      {
+         var lost:Object = playerSearchExpired();
+         var search:Object = _playerSearchSent;
+         _playerSearchSent = null;
+         if(search == null)
+         {
+            playerSearchGrace();
+         }
+         playerSearchTick();
+         if(lost != null)
+         {
+            lost.answered(null);
+         }
+         if(search == null)
+         {
+            return false;
+         }
+         search.answered(players != null ? players : []);
+         return true;
+      }
+
+      // The search sent, dropped when it waited too long for its answer (else null): that answer
+      // may still come, so the next is not sent for PLAYER_SEARCH_GRACE_MS.
+      private static function playerSearchExpired() : Object
+      {
+         var lost:Object = _playerSearchSent;
+         if(lost == null || int(searchClock()) - int(lost.at) < PLAYER_SEARCH_WAIT_MS)
+         {
+            return null;
+         }
+         _playerSearchSent = null;
+         playerSearchGrace();
+         return lost;
+      }
+
+      // No search sent for PLAYER_SEARCH_GRACE_MS from now: a late answer may be on its way.
+      private static function playerSearchGrace() : void
+      {
+         var until:int = int(searchClock()) + PLAYER_SEARCH_GRACE_MS;
+         if(until - _playerSearchNext > 0)
+         {
+            _playerSearchNext = until;
+         }
+      }
+
+      // The lobby's connection made anew (close_sync): the search sent lost its answer.
+      public static function playerSearchesLost() : void
+      {
+         var lost:Object = _playerSearchSent;
+         _playerSearchSent = null;
+         playerSearchTick();
+         if(lost != null)
+         {
+            lost.answered(null);
+         }
+      }
+
+      // The searches' tick: the one sent dropped (told null) when it waited too long for its
+      // answer, the next held one sent in its turn once none waits; the timer runs while any
+      // search is held or sent.
+      public static function playerSearchTick(e:TimerEvent = null) : void
+      {
+         var lost:Object = playerSearchExpired();
+         var now:int = int(searchClock());
+         if(_playerSearchSent == null && _playerSearchesHeld.length > 0 && now - _playerSearchNext >= 0)
+         {
+            var search:Object = _playerSearchesHeld.shift();
+            _playerSearchNext = now + PLAYER_SEARCH_EVERY_MS;
+            _playerSearchSent = {"answered":search.answered,"at":now};
+            try
+            {
+               ExternalInterface.call("find_players",search.name);
+            }
+            catch(err:Error)
+            {
+            }
+         }
+         var busy:Boolean = _playerSearchesHeld.length > 0 || _playerSearchSent != null;
+         if(busy && _playerSearchTimer == null)
+         {
+            _playerSearchTimer = new Timer(100);
+            _playerSearchTimer.addEventListener(TimerEvent.TIMER,playerSearchTick);
+            _playerSearchTimer.start();
+         }
+         else if(!busy && _playerSearchTimer != null)
+         {
+            _playerSearchTimer.stop();
+            _playerSearchTimer.removeEventListener(TimerEvent.TIMER,playerSearchTick);
+            _playerSearchTimer = null;
+         }
+         if(lost != null)
+         {
+            lost.answered(null);
+         }
       }
       
       public function set_ignored_list(value:Array) : void
@@ -4107,8 +4263,11 @@ package
             this.topMenu.lockInventory(true);
             this.dragRegion.mouseEnabled = false;
             stage.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_UP));
-            // the match is found: the message up goes (closed, not answered as Esc would)
-            if(Message.isAnyMessage() != -1)
+            // the match is found: the message up goes (closed, not answered as Esc would). Not
+            // the Watch prompt of a replay being opened: its found comes before the load, whose
+            // close step takes it as the message up (closeForLoad), so the results or window
+            // under it stay
+            if(Message.isAnyMessage() != -1 && !WatchPrompt.isOpening(Message.isAnyMessage()))
             {
                Message.close(Message.isAnyMessage());
             }
@@ -4146,21 +4305,33 @@ package
          stage.focus = null;
          var image:Class = this._load_images[level];
          this.lobbyGameLoad.backgroundImage(image);
-         // the match loads: the transient windows close (the loading screen is under their layer),
-         // the message up goes (closed, not answered as Esc would), else the top modal closes. Not
-         // through close_active_window: that is an Esc press, and its _escapeHandled would outlive
-         // the match (the exe asks has_active_window only in the lobby) and answer the first Esc
-         // back in the lobby with false, opening the game's menu over the results.
+         closeForLoad();
+         dispatchEvent(new MouseEvent(MouseEvent.MOUSE_UP,true));
+      }
+
+      // The match loads (set_loading_level): the transient windows close (the loading screen is
+      // under their layer), the message up as the load came goes (closed, not answered as Esc
+      // would), else the top modal closes. The Watch window's asks end first (WatchWindow.away; a
+      // watch asked from it loads: its tab again after, WatchWindow.back) and take their prompt
+      // with them: the modal under that prompt (the results whose Watch replay asked, a window
+      // under a History row's) stays. Not through close_active_window: that is an Esc press, and
+      // its _escapeHandled would outlive the match (the exe asks has_active_window only in the
+      // lobby) and answer the first Esc back in the lobby with false, opening the game's menu
+      // over the results.
+      public static function closeForLoad() : void
+      {
+         var messageUp:int = Message.isAnyMessage();
+         WatchWindow.away();
          Transient.closeAll();
-         if(Message.isAnyMessage() != -1)
+         if(messageUp != -1)
          {
-            Message.close(Message.isAnyMessage());
+            // nothing more when it was the Watch prompt, gone with its ask
+            Message.close(messageUp);
          }
          else
          {
             Modals.escape();
          }
-         dispatchEvent(new MouseEvent(MouseEvent.MOUSE_UP,true));
       }
       
       public function switch_mm_to_loading() : void
@@ -4184,11 +4355,13 @@ package
          }
          if(!bool)
          {
-            if(!this.victory_screen.parent || !this.victory_screen.visible)
+            if(!this.resultsUp)
             {
                trace("_top_container::stage");
                this._top_container.visible = true;
             }
+            // the results up or not: Watch asks again, its view only without them
+            WatchWindow.back();
             this.dragRegion.mouseEnabled = true;
             this.topMenu.lockInventory(false);
          }
@@ -4606,6 +4779,9 @@ package
       
       private function onVsRemoved(e:Event) : void
       {
+         // REMOVED_FROM_STAGE comes before it leaves its parent: from here on the results are
+         // not up (resultsUp, RoomsWindow.resultsUp), for the returns taken below
+         this.victory_screen.visible = false;
          this.topMenu.tabPage.removeEventListener(IndexEvent.INDEX_CHANGE,this.closeVS);
          this.victory_screen.removeEventListener(Event.REMOVED_FROM_STAGE,this.onVsRemoved);
          // The rooms window's tab, kept as it was under the results, follows it now (after closeVS
@@ -4617,6 +4793,17 @@ package
          removeChild(this._back_back);
          FocusManager.setModalClip(null);
          MainScene.activeWindow = null;
+         // the messages' layer: a load the results stayed up through (a replay watched from them,
+         // closeForLoad) hid it, and the return left it so under the results; shown again now,
+         // unless a load is under way
+         if(WatchWindow.inLobby)
+         {
+            this._top_container.visible = true;
+         }
+         // the asker's matches again (History's rows of the match just played), and the Watch view
+         // of a watch the results came back over: once the results left the modals
+         WatchWindow.resultsClosed(this.vsClosedByTab);
+         this.vsClosedByTab = false;
          this.notificationListTemp.startTimer();
          Message.showMessages();
       }
@@ -4959,7 +5146,7 @@ package
          }
          // not in a room or a room's queue (Play is the rooms' Leave then), and with no window, the
          // friends list, the squad search or the tournament open
-         if(RoomsWindow.me.shown || RoomsWindow.me.marked() || MainScene.activeWindow != null || MainScene.activeComponent != null || this.friendsMenu.visible || this.craftWindow && this.craftWindow.parent || this._tournament && this._tournament.parent && this._tournament.visible && !this._tournament.isFold())
+         if(RoomsWindow.me.shown || WatchWindow.me != null && WatchWindow.me.shown || RoomsWindow.me.marked() || MainScene.activeWindow != null || MainScene.activeComponent != null || this.friendsMenu.visible || this.craftWindow && this.craftWindow.parent || this._tournament && this._tournament.parent && this._tournament.visible && !this._tournament.isFold())
          {
             return;
          }
@@ -5080,6 +5267,13 @@ package
             click_function:function(e:* = null):void
             {
                askPlayerInfo(nickname,player,how);
+            }
+         },{
+            // the player's matches without the pop-up between: Watch, Replays, the name searched
+            name:LocalizationData.getName("st_srp_player_matches"),
+            click_function:function(e:* = null):void
+            {
+               WatchWindow.openPlayer(nickname);
             }
          }];
          if(nickname != PlayerInfo.nickname)

@@ -12,6 +12,8 @@ world-frame = { workspace = true }
 weapon-pickup = { path = "../weapon-pickup" }
 # Client patch 78's carry snapshot: its size and version byte, as written.
 artefact-carry = { path = "../artefact-carry" }
+# Patch 144's replay notes, the other 0xF6 srp sends a spectator.
+replay-control = { path = "../replay-control" }
 
 [dev-dependencies]
 survarium = { workspace = true }

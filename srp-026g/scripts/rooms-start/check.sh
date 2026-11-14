@@ -7,7 +7,9 @@
 # max level for a private room (its info line, its list row, the facts beside the list); the create
 # window's sliders hidden once a PIN is typed, Max level too; squads' icons (docs/notes/squads.md)
 # after their names in the room and the list's side panel, ours green, the names not moved; a
-# squad soldier's greyed Join, New room and "IN SQUAD" Play. Then in
+# squad soldier's greyed Join, New room and "IN SQUAD" Play; a playing room's spectators (`V` rows,
+# queue-spectate.md) on one dim line, in the room's footer and under the list's side panel, the
+# members not moved by them, and a full room's Queue and spectate (one Leave queue once queued). Then in
 # every language (the dictionaries' texts): the list (a room's queue ours too), a room in each phase
 # and hint (with squads too), the create window and the preset offer's buttons, no text or button
 # label cut by its field and no two on one line meeting (a "ROOMS OVERLAP" line each); and the top
@@ -25,7 +27,9 @@ harness_work "${2:-}"
 # The texts the exe gives the movie (set_localization_data), from the dictionaries.
 "${PYTHON:-python3}" "$here/../localization-check/harness_text.py" "$work"
 harness_compile "$here/RoomsHarness.as" 1280,720 -source-path+="$work"
-harness_display 1280x720
+# HARNESS_SIZE: another size, as docs/notes/ui_scale.md lists (with room for the window's menu bar).
+size=${HARNESS_SIZE:-1280x720}
+harness_display "${size%x*}x$((${size#*x} + 40))"
 
 for players in 0 1; do
 if [[ $players == 0 ]]; then
@@ -36,7 +40,7 @@ else
     "${PYTHON:-python3}" "$here/../medical-cards/ruffle_movie.py" "$lobby" "$work/lobby_menu.swf"
 fi
 log=RoomsHarness-$players.log
-harness_run "$log" -p low --width 1280 --height 720 -Pmovie=lobby_menu.swf -Pplayers="$players" RoomsHarness.swf
+harness_run "$log" -p low --width "${size%x*}" --height "${size#*x}" -Pmovie=lobby_menu.swf -Pplayers="$players" RoomsHarness.swf
 wait_for "$log" 'ROOMS RESULT' || true
 kill "$ruffle_pid" 2>/dev/null || true
 wait "$ruffle_pid" 2>/dev/null || true

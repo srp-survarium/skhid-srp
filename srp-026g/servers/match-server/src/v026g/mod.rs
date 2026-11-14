@@ -68,18 +68,11 @@
 //!   and out, one file per match, kept when `SRP_RECORD_MIN_PLAYERS`
 //!   (default 6 for PvP; one human for PvE, late joiners counted) have entered it; kept files over
 //!   `SRP_RECORD_MAX_MB` (default 5000) together go oldest first
-//!   ([`record`]);
-//! - `SRP_REPLAY_DIR=<dir>` (default off; needed, with
-//!   `SRP_RECORD_DIR`): a kept recording is made into the
-//!   game's replay file there when a player first asks for it in the
-//!   lobby's "Watch replay", and a replay goes with its recording
-//!   ([`replay`]). The replay folder must be a folder of its own (not
-//!   `SRP_RECORD_DIR`, inside it or around it: then replays are off).
-//!   `SRP_REPLAY_MAX_RECORDING_MB` (default 24): a larger recording is not
-//!   converted (memory: `docs/notes/replay_watch.md`); `SRP_REPLAY_MAX_MB`
-//!   (default 1000): replays over it together go, the oldest first.
-//!   Read by srp, which hands the replays to [`run_on_with_replays`], the
-//!   lobby and the web page;
+//!   ([`record`]). The recordings are what the lobby's replay sessions play
+//!   (`docs/notes/replay-stream.md`; `SRP_REPLAY_WATCH`,
+//!   `SRP_REPLAY_MODERATORS`, `SRP_REPLAY_WATCH_MAX`,
+//!   `SRP_REPLAY_MAX_RECORDING_MB`, [`replay`]): srp hands its replays to
+//!   [`run_on_with_replays`] and the lobby;
 //! - `SRP_RELAY_PACK_MS` (default 15, at most 50; 0 = off): how long a
 //!   relay or a drop order may wait for others to share its datagram
 //!   (`udp_transport::Config::gather`, transport.md section 11.1);
@@ -125,6 +118,8 @@ pub mod check_bench;
 /// The input script of a bot: the test bot's (`srp-bot --drive`) and the
 /// server's own bot places' (`MatchPlayer::driven`).
 pub mod drive;
+/// What happened in a match, from its worlds: the history's events.
+pub mod events;
 mod game;
 /// Every upload checked before it is relayed; callable offline too.
 pub mod world_validation;
@@ -135,8 +130,11 @@ mod kill_cap;
 /// Match recordings (`SRP_RECORD_DIR`) and their reader.
 pub mod record;
 mod registry;
-/// "Watch replay": kept recordings made into replay files (`SRP_REPLAY_DIR`).
+/// The replays' desk, what replay sessions read of the recordings, and
+/// Save's files made of them.
 pub mod replay;
+/// Save's file, `.srpreplay`: a header and the `.sur` a replay plays.
+pub mod replay_file;
 /// A player's Research units pay at most 200 score a match.
 mod research_cap;
 mod reward_caps;
@@ -168,7 +166,7 @@ pub use registry::{
     MatchPlayer, MatchRegistry, MatchResult, MatchSetup, MatchTicket, PlayerResult, ResultsSink,
     Seat, VoiceSeat, static_id,
 };
-pub use replay::{replays_from_env, replays_of};
+pub use replay::replays_from_env;
 pub use server::{run, run_on, run_on_with_replays};
 pub use survarium::v026g::match_msgs::static_info::MatchProfile;
 
@@ -294,7 +292,29 @@ pub(crate) struct Settings {
     /// no game is asked for; `None`: every unknown one is collected.
     pub released_executable: Option<executable::Released>,
     pub timing: Timing,
+    /// The srp process's 0.26g accounts, whose match history a replay
+    /// session's timeline is read from (`game::playback`). Set by
+    /// [`run_on_with_replays`]; `None` from the environment alone.
+    pub accounts: Option<Accounts>,
 }
+
+/// The 0.26g accounts of the srp process (its match history).
+#[derive(Clone)]
+pub(crate) struct Accounts(pub Arc<session::v026g::GameAccounts>);
+
+impl std::fmt::Debug for Accounts {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("GameAccounts")
+    }
+}
+
+impl PartialEq for Accounts {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl Eq for Accounts {}
 
 impl Default for Settings {
     fn default() -> Self {
@@ -312,6 +332,7 @@ impl Default for Settings {
             anti_afk: afk::Setting::default(),
             released_executable: None,
             timing: Timing::default(),
+            accounts: None,
         }
     }
 }
@@ -415,6 +436,7 @@ impl Settings {
                     ..Timing::default()
                 }
             },
+            accounts: None,
         }
     }
 }

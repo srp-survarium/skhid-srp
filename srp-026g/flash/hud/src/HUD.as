@@ -48,6 +48,7 @@ package
    import survarium.controls.ForcedView;
    import survarium.modes.FfaProgress;
    import survarium.modes.ModeNotice;
+   import survarium.modes.CalledBackNotice;
    import survarium.modes.ModeIntroText;
    import flash.utils.getTimer;
    import survarium.controls.KeptLayer;
@@ -120,6 +121,27 @@ package
       public var layout:Layout;
       
       private var _hudPlayerProfile:PlayerProfileBase = new HUDPlayerProfile();
+
+      // srp's: a spectator's kit chooser: its mode (0 none), kit number -> plate, plates, hover.
+      private static const SPECTATOR_PLATE_WIDTH:Number = 187;
+      private static const SPECTATOR_REPLAY_RIGHT:int = 632;
+
+      // The hover list's own width, its two columns: its `width` while it lays itself out is more.
+      private static const SPECTATOR_HOVER_WIDTH:int = 435;
+
+      // A replay's chooser, in the hud's units from the stage's bottom: over the chat (its top 275).
+      private static const SPECTATOR_REPLAY_ABOVE_CHAT:int = 285;
+
+      // The room the replay movie's player list and free-view button take at the stage's right edge,
+      // in that movie's own units (its scale is the hud's, never below 1).
+      private static const SPECTATOR_REPLAY_PLAYERS:int = 160;
+
+      private static const SPECTATOR_HOVER_BOTTOM:int = 109;
+      private var _spectatorMode:int = 0;
+      private var _spectatorKitIndex:Object = {};
+      private var _spectatorKitCount:int = 0;
+      private var _spectatorHover:int = -1;
+      private var _spectatorKit:int = -1;
       
       private var _profilePanel:MovieClip = new HUDProfileSelector();
       
@@ -399,6 +421,10 @@ package
          this.pregameInfo.premiumMembers.parent.removeChild(this.pregameInfo.premiumMembers);
          this._modeNotice = new ModeNotice(this.pregameInfo.contextText);
          addChild(this._modeNotice);
+         // In the kept layer (placed as the root is), never the root: it shows while the interface
+         // is hidden, by the key or forced.
+         this._calledBack = new CalledBackNotice(this.pregameInfo.contextText);
+         this._keptLayer.addChild(this._calledBack);
          damageDebug = new SrvDebugDamage();
          addChild(this.damageDebug);
          this.damageDebug.visible = false;
@@ -504,6 +530,11 @@ package
       {
          var index:int;
          var enabled:Boolean;
+         // srp's: a spectator's hover list is the exe's pointer's alone (srp_spectator_pointer).
+         if(this._spectatorMode != 0)
+         {
+            return;
+         }
          trace("onProfileChanged",e.target);
          if(e.target is Button)
          {
@@ -528,7 +559,11 @@ package
       
       public function select_player_profile(value:uint) : void
       {
-         this._profilePanel.profileSelector.selectProfile(value);
+         // srp's: a spectator's highlight is the exe's alone (srp_spectator_current_kit).
+         if(this._spectatorMode == 0)
+         {
+            this._profilePanel.profileSelector.selectProfile(value);
+         }
       }
 
       // The keys 1, 2 and 3 (exe patch 58 calls this for each going down while the cursor is
@@ -597,6 +632,23 @@ package
 
       private var _forcedView:ForcedView;
       private var _modeNotice:ModeNotice;
+
+      // srp's: a watcher's room calls it back (CalledBackNotice); always in _keptLayer, so it shows
+      // with the interface hidden (the replay's F11) as well
+      private var _calledBack:CalledBackNotice;
+
+      // srp's (exe patch 144, replay_control's Recall note): the words of the call back, the
+      // running language's, with CalledBackNotice.SECONDS where the seconds go.
+      public function srp_called_back_words(words:String) : void
+      {
+         this._calledBack.words = words;
+      }
+
+      // srp's: the watcher's room calls it back, the game let go in `seconds`; 0 takes the line away.
+      public function srp_called_back(seconds:uint) : void
+      {
+         this._calledBack.begin(int(seconds),this.stageWidth);
+      }
       private var _pregameText:String = "";
 
       // Each frame the mode notice shows (its countdown, then its reading time): its end, and its place
@@ -735,6 +787,169 @@ package
          this.effectContainer.transform.matrix = place;
       }
 
+      // srp's: a spectator's read-only kit chooser (docs/notes/client_patch.md): the game's own
+      // component, filled by the exe with only the kits the server's note allows, one for each
+      // `kit|state|level|name|dict:slot:count,...;` of the text.
+      public function srp_spectator_kits(text:String) : void
+      {
+         var kits:Array = [];
+         var rows:Array = text == null ? [] : text.split(";");
+         this._spectatorKitIndex = {};
+         for each(var row:String in rows)
+         {
+            if(row.length == 0)
+            {
+               continue;
+            }
+            var fields:Array = row.split("|");
+            var items:Array = [];
+            for each(var entry:String in String(fields[4]).split(","))
+            {
+               if(entry.length > 0)
+               {
+                  var parts:Array = entry.split(":");
+                  items.push({dictId:int(parts[0]),slotId:int(parts[1]),condition_or_stack:int(parts[2]),enabled:true});
+               }
+            }
+            var kit:int = int(fields[0]);
+            // a player's own words, shown to everyone: escaped for the plate's style-sheeted field
+            // by ProfileSelector.setupProfiles, once
+            var name:String = String(fields[3]);
+            this._spectatorKitIndex[kit] = kits.length;
+            kits.push({item_slots:this.spectatorQuickRows(items),artifact_slots:0,name:name,state:int(fields[1]),level:int(fields[2]),items:items});
+         }
+         this._spectatorKitCount = kits.length;
+         this._profilePanel.profileSelector.local = false;
+         this.setup_player_profiles(kits);
+         this._spectatorHover = -1;
+         this._hudPlayerProfile.visible = false;
+         this.applySpectatorKits();
+      }
+
+      // srp's: the kit the player in view has now.
+      public function srp_spectator_current_kit(kit:int) : void
+      {
+         this._spectatorKit = kit;
+         this.holdSpectatorHighlight();
+      }
+
+      // Told once a change, and its plates can be rebuilt or reselected after: set again at each
+      // change (the kits, the kit in view, the mode, the Tab list).
+      // What shows is the plate's frame, so that is what is checked, not only the bar's index.
+      private function holdSpectatorHighlight() : void
+      {
+         var plate:* = this._spectatorKitIndex[this._spectatorKit];
+         if(plate == undefined)
+         {
+            return;
+         }
+         var selector:* = this._profilePanel.profileSelector;
+         var tabs:* = selector.tabPage;
+         var button:* = tabs.getButtonAt(plate);
+         if(tabs.selectedIndex != plate || !selector.selectedTabGlow.visible || button == null || !button.selected)
+         {
+            if(tabs.selectedIndex == plate)
+            {
+               tabs.selectedIndex = -1; // the bar's setter skips the same index, and its plate is to be told again
+            }
+            selector.selectProfile(uint(plate));
+            button = tabs.getButtonAt(plate);
+         }
+         if(button != null && (button.currentLabel == null || button.currentLabel.indexOf("selected_") != 0))
+         {
+            button.gotoAndPlay("selected_up");
+         }
+      }
+
+      // srp's: 0 hidden, 1 the game's own place (live), 2 above a replay viewer's controls. 0 gives
+      // the chooser back to a player's own (reset too: the movie is the last match's).
+      public function srp_spectator_kits_show(mode:int) : void
+      {
+         this._spectatorMode = mode;
+         if(mode == 0)
+         {
+            this._profilePanel.profileSelector.local = true;
+            this._hudPlayerProfile.visible = false;
+            this._spectatorHover = -1;
+            this._spectatorKit = -1;
+         }
+         this.applySpectatorKits();
+      }
+
+      // srp's: the pointer over the chooser (a viewer's goes to the controls' movie): its hover list.
+      public function srp_spectator_pointer(x:uint, y:uint) : void
+      {
+         var tabs:* = this._profilePanel.profileSelector.tabPage;
+         // By each plate's own bounds on the stage: the bar's local measures are not its plates'.
+         var index:int = -1;
+         for(var plate:int = 0; this._profilePanel.visible && index < 0 && plate < this._spectatorKitCount; plate++)
+         {
+            var button:* = tabs.getButtonAt(plate);
+            if(button != null && button.getBounds(stage).contains(x,y))
+            {
+               index = plate;
+            }
+         }
+         if(index == this._spectatorHover)
+         {
+            return;
+         }
+         this._spectatorHover = index;
+         this._hudPlayerProfile.visible = index >= 0;
+         if(index >= 0)
+         {
+            this.fill_player_profile_items(this._profilePanel.profileSelector.getProfileData(index));
+            this._hudPlayerProfile.x = Math.min(this._profilePanel.profileSelector.x + index * SPECTATOR_PLATE_WIDTH,this.spectatorRightEdge() - this._profilePanel.x - SPECTATOR_HOVER_WIDTH);
+         }
+      }
+
+      private function applySpectatorKits() : void
+      {
+         // A replay's chooser sits where the Tab list can reach, at a small window.
+         this._profilePanel.visible = this._spectatorMode > 0 && this._spectatorKitCount > 0 && !(this._spectatorMode == 2 && this.player_list.visible);
+         if(this._spectatorMode > 0)
+         {
+            this.holdSpectatorHighlight();
+         }
+         this.placeProfilePanel();
+      }
+
+      // The right end of what a spectator's chooser and its hover list may take, in the hud's units.
+      private function spectatorRightEdge() : Number
+      {
+         if(this._spectatorMode != 2)
+         {
+            return this.stageWidth;
+         }
+         return (stage.stageWidth - SPECTATOR_REPLAY_PLAYERS * Math.max(1,this.scaleFactor)) / this.scaleFactor;
+      }
+
+      // Rows of a kit's side panel: up to its last quick slot (slots 13 to 18; the panel keeps the last
+      // kit's otherwise, the movie being the last match's).
+      private function spectatorQuickRows(items:Array) : int
+      {
+         var rows:int = 0;
+         for each(var item:Object in items)
+         {
+            rows = Math.max(rows,item.slotId - 12);
+         }
+         return rows;
+      }
+
+      private function placeProfilePanel() : void
+      {
+         if(this._spectatorMode == 2)
+         {
+            // A replay's, at every size by one rule: left of the replay's player list, over the chat
+            // (so over the viewer's key hint and bar and the ammo counter).
+            this._profilePanel.x = int(this.spectatorRightEdge() - SPECTATOR_REPLAY_RIGHT);
+            this._profilePanel.y = int(this.stageHeight - SPECTATOR_REPLAY_ABOVE_CHAT - SPECTATOR_HOVER_BOTTOM);
+            return;
+         }
+         this._profilePanel.x = int(this.stageWidth - 594) / 2;
+         this._profilePanel.y = int(this.stageHeight - 120);
+      }
+
       public function setup_player_profiles(value:Array) : void
       {
          var i:uint;
@@ -772,7 +987,11 @@ package
       
       public function show_profiles_selector(value:Boolean) : void
       {
-         this._profilePanel.visible = value;
+         // srp's: a spectator's chooser is the exe's alone (srp_spectator_kits_show).
+         if(this._spectatorMode == 0)
+         {
+            this._profilePanel.visible = value;
+         }
          // A death/respawn switches the Tab view even while Tab stays held.
          // The game's show_player_list only invokes the movie when Tab changes.
          this._forcedView.refresh();
@@ -1454,6 +1673,10 @@ package
          this.tabMinimap.held = !bool;
          this._forcedView.tab = bool;
          this.questTaskList.visible = bool && this.questList.visible && !this._forcedView.forced;
+         if(this._spectatorMode == 2)
+         {
+            this.applySpectatorKits();
+         }
       }
       
       // The exe's answers to the Tab list's player menu (exe patch 86): what a place offers, and a friend
@@ -1633,6 +1856,8 @@ package
          this._nativeContext = {text:"",value:0,visible:true};
          this._modeNotice.reset();
          this.followModeNotice();
+         // the last match's call back, its timer stopped
+         this._calledBack.reset();
          this._pregameText = "";
          // a new match starts with the interface shown (the movie is the last match's; the exe's
          // patch 62 shows the player icons' with it); a forced one stays forced until patch 65
@@ -1648,6 +1873,10 @@ package
          this.show_player_list(false);
          // the kits too: the exe's patch 113 puts its own kits state away at the same start, so
          // the match's first showing of them tells the movie its kit
+         // srp's: the movie is the last match's, which may have been a spectator's: its chooser
+         // given back as the exe's own 0 does (its place, its hover list), whatever the exe did
+         // at the spectator's end
+         this.srp_spectator_kits_show(0);
          this.show_profiles_selector(false);
          this.show_oxygen(false);
          this.show_stamina(false);
@@ -2360,8 +2589,7 @@ package
          }
          this.hud_overlay.update(this.scaleFactor);
          this.crosshair.scaleX = this.crosshair.scaleY = 1 / this.scaleFactor;
-         this._profilePanel.x = int(this.stageWidth - 594) / 2;
-         this._profilePanel.y = int(this.stageHeight - 120);
+         this.placeProfilePanel();
          this.layout.reflow();
          if(this._gameType == this.GAME_MODE_RESEARCH)
          {

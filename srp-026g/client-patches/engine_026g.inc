@@ -41,6 +41,9 @@ extern engine_register_cook
 ; unsigned int engine_movie_invoke(struct gfx_movie *movie, const char *method, struct gfx_value *result, const struct gfx_value *args, unsigned int count)
 ; 0x511600 Scaleform::GFx::Movie::Invoke: movie ECX, method ESP+4, result ESP+8, args ESP+12, count ESP+16; pops 16; AL
 extern engine_movie_invoke
+; unsigned int engine_movie_handle_event(struct gfx_movie *movie, const struct gfx_mouse_event *event)
+; 0x513580 Scaleform::GFx::MovieImpl::HandleEvent: movie ECX, event ESP+4; pops 4; EAX
+extern engine_movie_handle_event
 ; void engine_show_message(const char *key, void *ui, unsigned int first, unsigned int second, unsigned int third)
 ; 0x2375c0 survarium::game_world_ui::show_parametrized_message: key ECX, ui ESP+4, first ESP+8, second ESP+12, third ESP+16; pops 16
 extern engine_show_message
@@ -707,6 +710,49 @@ extern engine_discard_playing_order
 ; void engine_finish_key_binding(struct game_options *options)
 ; 0x2015a0 survarium::game_options::finish_binding: options EDI; pops 0
 extern engine_finish_key_binding
+; void engine_follow_player(struct network_client *client, struct player *player)
+; 0x242b90 survarium::base_network_client::set_followed_player: client ECX, player ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_follow_player
+; void engine_spectator_camera(struct game_world *world)
+; 0x1f8360 survarium::game_world::switch_to_spectator_camera: world EDX; pops 0
+extern engine_spectator_camera
+; void engine_detach_player(struct network_client *client)
+; 0x242cc0 survarium::base_network_client::detach_from_player: client ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_detach_player
+; void engine_game_pause(struct game *game)
+; 0x1ed5c0 survarium::game::pause: game ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_game_pause
+; void engine_game_resume(struct game *game)
+; 0x1ed650 survarium::game::resume: game ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_game_resume
+; void engine_show_replay_controls(struct game_world_ui *hud, unsigned int shown)
+; 0x23a9d0 survarium::game_world_ui::show_replay_controls: hud EDI, shown ESP+4; pops 4
+extern engine_show_replay_controls
+; unsigned int engine_kit_level(unsigned int kit, const struct match_place *place, const struct kit_level_config *config)
+; 0x2f79a0 survarium::player_profile::kit_level: kit EAX, place ESP+4, config ESP+8; pops 0; EAX
+extern engine_kit_level
+; unsigned int engine_tick_wrap_delta(const unsigned char *a, const unsigned char *b)
+; 0x20ff90 survarium::tick_wrap_delta: a ESP+4, b ESP+8; pops 0; EAX; cdecl, called directly
+; cdecl: push (and ECX for thiscall) as that convention says
+extern engine_tick_wrap_delta
+; unsigned int engine_leave_match(unsigned int requested_time_ms, struct core_world *world, unsigned int place)
+; 0x2d18a0 survarium::game_world_core::leave_match: requested_time_ms EAX, world ESP+4, place ESP+8; pops 8; EAX
+extern engine_leave_match
+; void engine_register_message_stats(unsigned int result, struct network_client *network_client, unsigned int message)
+; 0x27c1f0 survarium::network_client::register_message_in_stats: result EAX, network_client EDX, message ESP+4; pops 4
+extern engine_register_message_stats
+; struct player **engine_get_player(struct network_client *client, struct player **out, unsigned int place)
+; 0x27a980 survarium::network_client::get_player: client ECX, out ESP+4, place ESP+8; pops 8; EAX; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_get_player
+; void engine_spectate_next_player(struct network_client *client)
+; 0x242d50 survarium::base_network_client::spectate_next_player: client ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_spectate_next_player
 ; float engine_sin(float angle)
 ; 0x38ff0 vostok::math::sin: angle ESP+4; pops 0; ST0; cdecl, called directly
 ; cdecl: push (and ECX for thiscall) as that convention says

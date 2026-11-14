@@ -955,6 +955,7 @@ va	name	source	ret_cleanup	result
 0x00209f60	survarium::chat_handler::close_conversation	manual	0	
 0x00209ff0	survarium::chat_handler::add_squad_tab	manual	0	
 0x0020a070	survarium::chat_handler::remove_squad_tab	manual	0	
+0x0020ff90	survarium::tick_wrap_delta	manual	0	EAX: the signed distance of *a from *b in -128..127 (wrap of two ticks' low bytes; cdecl)
 0x00219990	survarium::network_client::match_options	manual	0	EAX = [client+1F1C48h]+0Ch, the match options (+577B5h the places' count, u8); the network client's vtable 0x9FFB14 +34h
 0x0021c970	survarium::lobby_menu::input_handler	manual	0	EAX: Null-preserving input-handler subobject pointer adjustment
 0x0021d2e0	survarium::lobby_menu::on_activate	manual	0	
@@ -1164,7 +1165,7 @@ va	name	source	ret_cleanup	result
 0x002d0b70		auto	16	
 0x002d1100		auto	20	
 0x002d1470	survarium::game_world_core::enter_match	manual	8	
-0x002d18a0	survarium::game_world_core::leave_match	manual	8	
+0x002d18a0	survarium::game_world_core::leave_match	manual	8	EAX: the leave's result, the message stats' selector (0x27C1F0)
 0x002d1e20	survarium::game_world_core::atomic_tick	manual	8	
 0x002d1ef0		auto	12	
 0x002d2040		auto	12	
@@ -1259,6 +1260,7 @@ va	name	source	ret_cleanup	result
 0x002f5be0	survarium::shared_statistics::deserialize	manual	0	
 0x002f5da0	vostok::network_core::buffer_writer::w<unsigned short>	manual	20	
 0x002f73f0	survarium::player_profile::player_profile	manual	0	EAX = this; keeps EBX, ESI, EDI, EBP
+0x002f79a0	survarium::player_profile::kit_level	manual	0	EAX
 0x002f7c10	survarium::inventory_item_descr::inventory_item_descr	manual	0	the two buffer_vectors point at their inline storage (+20h..+60h, +6Ch..+B4h)
 0x002f81f0	survarium::usable_object::load	manual	4	
 0x002f8280	survarium::usable_object::resolve_links	manual	28	
@@ -1825,19 +1827,23 @@ va	name	source	ret_cleanup	result
 0x003e31e0	vostok::render::xs_descriptor<vostok::render::gs_data>::use_texture	manual	4	
 0x003e31e0	vostok::render::xs_descriptor<vostok::render::ps_data>::use_texture	manual	4	
 0x003e33e0	vostok::render::shader_constant_table::operator=	manual	4	EAX: EAX destination table pointer
+0x003f2050	vostok::network_core::udp_match_client::handle_receive	manual	8	
 0x003f2590	vostok::network_core::udp_match_client::start_receiving	manual	0	
 0x003f2610	vostok::network_core::udp_match_client::connect_impl	manual	8	
+0x003f2990	vostok::network_core::udp_match_client::connect	manual	16	
 0x003f2990	vostok::network_core::udp_match_client::connect	manual	16	
 0x003f2af0	vostok::network_core::udp_match_client::send_queued_packets_impl	manual	4	
 0x003f2b50	vostok::network_core::udp_match_client::set_connection_ports	manual	20	
 0x003f2df0	vostok::network_core::udp_match_client::enqueue	manual	8	
 0x003f2f10	vostok::network_core::udp_match_client::enqueue	manual	8	
+0x003f3070	vostok::network_core::udp_match_client::original_packet_send_handler	manual	12	
 0x003f33f0	vostok::network_core::udp_match_client::send_queued_packets	manual	4	
 0x003faf90		auto	None	
 0x003fb4f0		auto	None	
 0x003fbf70		auto		
 0x003fcc40		auto	12	
 0x003fdcf0		auto		
+0x003fdf30	vostok::network_core::udp_match_connection::instant_disconnect	manual	4	
 0x003fe000		auto	0	
 0x00400940		auto	0	
 0x00401730		auto	0	
@@ -1957,6 +1963,7 @@ va	name	source	ret_cleanup	result
 0x000f6b10	vostok::configs::binary_config_value::operator[]	manual	0	EAX: the child value
 0x000f6c00	vostok::configs::binary_config_value::value_exists	manual	0	AL: 1 when the key is there
 0x00511600	Scaleform::GFx::Movie::Invoke	manual	16	AL: invoked
+0x00513580	Scaleform::GFx::MovieImpl::HandleEvent	manual	4	EAX: HE_NotHandled 0, HE_Completed 3 (a mouse event queued for the next Advance)
 0x002375c0	survarium::game_world_ui::show_parametrized_message	manual	16	
 0x000725e0	vostok::math::create_rotation	manual	0	[ESI]: float4x4, rows Rx(-x) Ry(-y) Rz(-z) (v * M)
 0x002d2770	survarium::game_world_core::deserialize	manual	12	none; places that left the mask: current player removed (vtable+24h, 0x2D284A); places already in it: removed with the kit-changed byte (0x2D2A68) before their deserialize (vtable+3Ch, 0x2D2AA0); at the end every place of the mask has its current player inserted (vtable+20h, player::insert 0x1F2720, link = newly in the mask or kit changed; 0x2D2CB3..0x2D2D55): a loaded world (0x2D0B70 calls this at 0x2D0FB9) has every player in the world (+33Fh)
@@ -2506,6 +2513,24 @@ va	name	source	ret_cleanup	result
 0x00106d90	ptmalloc3::free_starter	manual	0	
 0x00106fc0	pt3free	manual	0	
 0x0001c6a0	vostok::memory::mt_allocator::malloc_impl	manual	0	EAX the memory (pt3malloc 0x1C6B4), 0 when the allocator is closed ([0x1F1D61B])
+0x00242ae0	survarium::base_network_client::attach_to_player	manual	4	
+0x00242b90	survarium::base_network_client::set_followed_player	manual	4	
+0x00242cc0	survarium::base_network_client::detach_from_player	manual	0	
+0x002430f0	survarium::base_network_client::may_spectate	manual	4	AL: 1 the player may be followed (with the client's +0Dh set: alive +33Ch, in the match (the core's mask +191D0h bit place), on the followed player's team); 0 otherwise or for no player (the argument's reference released either way)
+0x00242a70	survarium::base_network_client::followed_team	manual	0	EAX: the followed player's (+4) team (its profile +6B8h, +45ECh), or 2 with none
+0x001f8070	survarium::game_world::select_profile	manual	4	
+0x0026e000	survarium::base_local_network_client::switch_to_free_view	manual	4	
+0x001ed590	survarium::game::toggle_pause	manual	0	
+0x001ed5c0	survarium::game::pause	manual	0	
+0x001ed650	survarium::game::resume	manual	0	
+0x00146b60	vostok::timing::floating_timer::set_speed	manual	4	
+0x00147110	vostok::timing::floating_timer::get_time	manual	0	EDX:EAX the time in counter ticks; the counter it read at [EAX in]
+0x0023a660	survarium::game_world_ui::set_replay_position	manual	0	
+0x0023a6c0	survarium::game_world_ui::set_replay_play_state	manual	0	
+0x0023a9d0	survarium::game_world_ui::show_replay_controls	manual	4	
+0x00218bf0	survarium::replay_network_client::tick	manual	8	
+0x002d53c0	survarium::game_world_core::clear_pending_masks	manual	0	
+0x002d3df0	survarium::game_world_core::clear_pending_entries	manual	0	
 0x001c8cd0	vostok::render::render_surface_texture_instance_proxy::bound_sphere	manual	4	EAX the out pointer: 16 bytes copied from [[ECX+0Ch]+10h] (the surface instance's sphere: centre, radius)
 0x001c8b80	vostok::render::render_surface_texture_instance_proxy::last_render_time	manual	0	ST0: [[ECX+0Ch]+48h]
 0x001c8b90	vostok::render::render_surface_texture_instance_proxy::texel_factor	manual	0	ST0: [[[ECX+0Ch]+38h]+4Ch] x the largest length (math::sqrt 0x38960 each) of the first three rows of the matrix at [[ECX+0Ch]+50h]: the second against the third by fcomip, the first against that by comiss

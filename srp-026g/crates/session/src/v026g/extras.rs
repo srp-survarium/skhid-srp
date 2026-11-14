@@ -1,6 +1,6 @@
 //! What the lobby's later features keep of an account, beside the
-//! [`Account`](super::account::Account)'s own fields: the tutorial's steps
-//! and the daily bonus. Kept in its own table
+//! [`Account`](super::account::Account)'s own fields: the live watch
+//! setting and the daily bonus. Kept in its own table
 //! (`g26_extras`, `persist`), one row an account.
 //!
 //! The rules are in [`super::tutorial`], [`super::bonus`] and

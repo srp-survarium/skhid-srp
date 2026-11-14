@@ -2207,6 +2207,7 @@ st_sr3m_bundle_descr	<white>Змяшчае наступныя прадметы:\
 st_sr3m_bundle_name	Набор СР-3М "Віхор"
 st_sr3m_description	Апісанне пакуль недаступнае.
 st_sr3m_name	СР-3М "Віхор"
+st_srp_alt_move_speed	Хуткасць руху
 st_srp_ammo069_23mm_r_desc	Патрон калібру 23 мм, снараджаны шротам, для КС-23М. Наносіць высокую шкоду па небраніраваных мэтах.
 st_srp_ammo069_23mm_r_name	23x75R, шрот
 st_srp_ammo_buckshot	Картэч
@@ -2555,6 +2556,7 @@ st_srp_inventory_sell_duplicates_ask	Прадметаў на продаж: %1$s
 st_srp_item_props_mps	м/с
 st_srp_language_option	Мова:
 st_srp_language_restart	Прыменіцца пасля перазапуску.
+st_srp_live_spectators	глядзяць: %1$s
 st_srp_loadout_block_ammo	Мала патронаў да зброі
 st_srp_loadout_block_locked	Гэты профіль закрыты
 st_srp_loadout_block_maintenance	Хутка тэхнічныя работы: праз %1$s хв
@@ -2680,6 +2682,13 @@ st_srp_pierce_stone	Камень
 st_srp_pierce_tinplate	Бляха
 st_srp_pierce_value	%1$s · %2$s
 st_srp_play_in_squad	У атрадзе
+st_srp_player_matches	Матчы
+st_srp_player_matches_days	%1$s дз. таму
+st_srp_player_matches_draw	Нічыя
+st_srp_player_matches_hours	%1$s гадз. таму
+st_srp_player_matches_kd	K/D %1$s/%2$s
+st_srp_player_matches_minutes	%1$s хв таму
+st_srp_player_matches_none	Захаваных публічных матчаў гэтага гульца няма.
 st_srp_pvb_at_limit	Ужо ідзе максімум матчаў з ботамі адначасова, паспрабуйце праз хвіліну
 st_srp_pvb_at_limit_count	Ужо ідзе максімум матчаў з ботамі адначасова (%1$s/%2$s), паспрабуйце праз хвіліну
 st_srp_pvb_busy	%1$s (занята)
@@ -2707,37 +2716,45 @@ st_srp_regeneration_stamina	Аднаўленне энергіі
 st_srp_renderer_dx11	DirectX 11
 st_srp_renderer_dxvk	Vulkan/DXVK
 st_srp_renderer_option	Рэндар
-st_srp_replay_asking	Запытваем у сервера матча паўтор гэтага матча…
+st_srp_replay_asking	Запытваем гэты матч у сервера…
 st_srp_replay_being_made	Паўтор ствараецца з запісу матча. Так бывае, калі гэты матч глядзяць упершыню, і гэта займае крыху часу.\nГэтае акно можна закрыць: сервер працягне яго ствараць.\n\n%1$s
-st_srp_replay_busy	Сервер зараз заняты іншымі паўторамі. Паспрабуйце яшчэ раз праз хвіліну.
+st_srp_replay_busy	Зараз гэта недаступна. Паспрабуйце яшчэ раз праз хвіліну.
 st_srp_replay_close	ЗАКРЫЦЬ
 st_srp_replay_demo_quest	Унёсак у перамогу
 st_srp_replay_demo_rank	«%1$s»: дасягнуты ранг 3. У краме з'явіліся новыя прадметы.
 st_srp_replay_demo_seller	Бадзягі
 st_srp_replay_download	СПАМПАВАЦЬ І ГЛЯДЗЕЦЬ
 st_srp_replay_failed	Серверу не ўдалося падрыхтаваць паўтор гэтага матча.
-st_srp_replay_gone	Паўтор гэтага матча больш не захоўваецца на серверы.
+st_srp_replay_gone	На серверы няма паўтору гэтага матча: яго не запісвалі або ён больш не захоўваецца.
+st_srp_replay_in_room	Ваш пакой зараз чакае вас у матчы.
 st_srp_replay_incompatible	Гэты паўтор запісаны версіяй гульні, якую ваша гульня не можа прайграць.
 st_srp_replay_made_now	Ствараецца зараз. Чаканне: %1$s с.
 st_srp_replay_no_answer	Сервер не адказаў. Паспрабуйце пазней.
 st_srp_replay_not_recorded	Гэты матч не запісаны: у ім было менш за 6 гульцоў або запіс тады быў выключаны.
-st_srp_replay_not_yours	Глядзець можна толькі паўторы матчаў, у якіх вы гулялі.
+st_srp_replay_not_yours	Вы не можаце глядзець гэты матч.
 st_srp_replay_off	Паўторы на гэтым серверы адключаныя.
 st_srp_replay_old_game	Ваша версія гульні не прайграе паўторы. Абнавіце гульню: запусціце яе зноў праз лаўнчар.
+st_srp_replay_opening	Сервер матчаў адкрывае паўтор гэтага матча.\n\n%1$s
 st_srp_replay_place_in_line	Месца ў чарзе: %1$s. Чаканне: %2$s с.
 st_srp_replay_ready	Паўтор гэтага матча гатовы.\n\nЁн загружаецца з сервера матча, які захоўвае дакладны запіс матча. Адкрыецца другое акно гульні і прайграе яго; лобі застанецца адкрытым.\n\nУ паўторы націсніце F11 для кіравання: гульцы, камера, перамотка, хуткасць.
 st_srp_replay_ready_size	Паўтор гэтага матча: %1$s.\n\nЁн загружаецца з сервера матча, які захоўвае дакладны запіс матча. Адкрыецца другое акно гульні і прайграе яго; лобі застанецца адкрытым.\n\nУ паўторы націсніце F11 для кіравання: гульцы, камера, перамотка, хуткасць.
+st_srp_replay_save	Захаваць паўтор
+st_srp_replay_saved	Захавана
+st_srp_replay_saving	Захаванне...
 st_srp_replay_size	%1$s,%2$s МБ
 st_srp_replay_starting	Запускаем паўтор: адкрыецца другое акно гульні, лобі застанецца адкрытым. Калі нешта пойдзе не так, праграма абнаўлення пакажа, што здарылася.\n\nУ паўторы націсніце F11 для кіравання.
-st_srp_replay_still_preparing	Паўтор яшчэ рыхтуецца. Сервер працягвае яго ствараць; адкрыйце «Глядзець паўтор» яшчэ раз праз хвіліну.
+st_srp_replay_still_preparing	Паўтор яшчэ рыхтуецца. Сервер працягвае яго ствараць; паспрабуйце яшчэ раз праз хвіліну.
 st_srp_replay_title	Глядзець паўтор
 st_srp_replay_waiting	Чаканне: %1$s с.
+st_srp_replay_watch	Глядзець
 st_srp_reroll_description	Можна змяніць любы мадыфікатар прадмета, колькі заўгодна разоў. Потым выберыце адзін з трох выпадковых мадыфікатараў.
 st_srp_rooms_all	Усе
 st_srp_rooms_all_rooms	Усе пакоі
 st_srp_rooms_any	Любы
 st_srp_rooms_back	Назад
 st_srp_rooms_bots	З ботамі
+st_srp_rooms_called_back	Ваш пакой гатовы
+st_srp_rooms_called_back_in	Ваш пакой гатовы. Вяртанне праз %1$s с
 st_srp_rooms_code_10	Уладальнік выдаліў вас з пакоя.
 st_srp_rooms_code_11	Спачатку выйдзіце з кланавай каманды.
 st_srp_rooms_code_12	Ваш рыштунак вышэй за макс. узровень.
@@ -2808,9 +2825,11 @@ st_srp_rooms_pool_hint	Галасаванне бярэ 3 карткі з іх.
 st_srp_rooms_private_room	Прыватны пакой: да 20 гульцоў; каманды і старт за вамі.
 st_srp_rooms_queue	Чарга
 st_srp_rooms_queue_room	Чарга ў пакой
+st_srp_rooms_queue_spectate	У чаргу і глядзець
 st_srp_rooms_room	Пакой
 st_srp_rooms_room_chat	Чат пакоя
 st_srp_rooms_servers	Пакоі
+st_srp_rooms_spectators	Гледачы:
 st_srp_rooms_start_hint	Націсніце «Пачаць», калі ўсе зойдуць.
 st_srp_rooms_start_match	Пачаць
 st_srp_rooms_starts	Матч пачнецца праз
@@ -2849,6 +2868,21 @@ st_srp_unit_mps	%1$s м/с
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$sс
 st_srp_unit_times	%1$sx
+st_srp_viewer_back	Назад
+st_srp_viewer_cap_ctrl	Ctrl
+st_srp_viewer_cap_space	Space
+st_srp_viewer_cursor	Курсор
+st_srp_viewer_filter	Фільтр
+st_srp_viewer_hide	Схаваць
+st_srp_viewer_marker_death	Смерць
+st_srp_viewer_marker_event	Падзея
+st_srp_viewer_marker_kill	Забойства
+st_srp_viewer_marker_objective	Мэта
+st_srp_viewer_moments	Моманты
+st_srp_viewer_moments_all	Усе
+st_srp_viewer_moments_followed	Адсочваны
+st_srp_viewer_moments_mine	Мае
+st_srp_viewer_pause	Паўза
 st_srp_vulkan_dedicated_gpu	Прыярытэт дыскрэтнай GPU
 st_srp_vulkan_dedicated_gpu_hint	Выбірае больш магутную відэакарту на ноўтбуках.\n+ Лепшая прадукцыйнасць на ноўтбуках\n- Траціць больш батарэі
 st_srp_vulkan_frame_limit	Абмежаванне FPS
@@ -2864,6 +2898,35 @@ st_srp_vulkan_overlay_full	Поўны
 st_srp_vulkan_overlay_hint	Паказвае хуткасць гульні на экране.
 st_srp_vulkan_tear_free	Без разрываў без V-Sync
 st_srp_vulkan_tear_free_hint	Карцінка не рвецца пры выключанай вертыкальнай сінхранізацыі.\n+ Няма рваных палос пры хуткім павароце\n- Затрымка крыху большая, чым проста без VSync
+st_srp_watch_badge_friend	Ваш сябар зараз гуляе
+st_srp_watch_badge_live	Матчы, якія можна глядзець наўпрост
+st_srp_watch_chip_everyone	Усе
+st_srp_watch_chip_friends	Сябры
+st_srp_watch_chip_mine	Мае
+st_srp_watch_delay	затрымка %1$s с
+st_srp_watch_friends	Сябры: %1$s
+st_srp_watch_live	Наўпрост
+st_srp_watch_live_word	НАЎПРОСТ
+st_srp_watch_map_retired	Карта, якой ужо няма
+st_srp_watch_no_player	Гульца з імем %1$s няма.
+st_srp_watch_none_friends	Нядаўніх матчаў з сябрамі няма.
+st_srp_watch_none_live_friends	Ніхто з вашых сяброў не гуляе ў матчы, які можна глядзець.
+st_srp_watch_none_mine	Тут будуць вашы матчы, пачынаючы з гэтага моманту.
+st_srp_watch_none_recent	Запісаных матчаў яшчэ няма.
+st_srp_watch_players	гульцоў: %1$s
+st_srp_watch_private	Прыватны пакой
+st_srp_watch_reason_full	Няма месцаў для гледачоў
+st_srp_watch_reason_gone	Паўтор не захаваны
+st_srp_watch_reason_not_recorded	Не запісаны
+st_srp_watch_reason_old	Запісаны да абнаўлення гульні
+st_srp_watch_reason_over	Матч толькі што скончыўся
+st_srp_watch_reason_private	Закрыты для гледачоў
+st_srp_watch_reason_starts	Адкрыецца, калі пачнецца матч
+st_srp_watch_replays	Паўторы
+st_srp_watch_search_hint	Імя гульца або код матча
+st_srp_watch_spectate	Назіраць
+st_srp_watch_spectate_lost	Не ўдалося знайсці матч гульца %1$s для прагляду. Магчыма, ён скончыўся або закрыты для гледачоў.
+st_srp_watch_title	Прагляд
 st_srp_weapon069_akmsu_desc	Укарочаны АКМС са складным прыкладам пад патрон 7.62×39. Падтрымлівае адзіночны і аўтаматычны рэжымы стральбы.
 st_srp_weapon069_akmsu_name	АКМСУ
 st_srp_weapon069_famas_desc	Французская штурмавая вінтоўка схемы булпап пад боепрыпас 5.56х45. Падтрымлівае адзіночны рэжым, чэргі па тры стрэлы і аўтаматычны рэжым стральбы.

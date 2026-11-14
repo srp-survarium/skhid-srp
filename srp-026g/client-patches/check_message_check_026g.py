@@ -48,6 +48,8 @@ def valid():
         yield ident,bytes(n)
     yield 0xe4,b'\x00\x01\x00\x00\x00\x00' # one stored byte plus LZMA2 end
     yield 0xe4,b'\xffLJ\x01'+bytes(4)+b'\x01\x00\x00\x00\x01\x00'
+    yield 0xe4,b'\xff\x01\x00\x00\x00\x00' # a spectator's (#1285)
+    yield 0xea,b'\x00\xff' # the spectator's farewell
     yield 0xe8,bytes(10)  # raw envelope; world semantics belong to patch 87
     yield 0xe8,b'\x00\x01\x01\x00\x00\x00\x00'
 
@@ -69,7 +71,7 @@ def main():
             checks+=1
         bad=[(0xe6,b'\0'*3),(0xe9,b'\0\x14'),(0xeb,b'\0'*6+b'\0\0\0\x40'),
              (0xe4,b'\0\x01'),(0xe8,b'\0\x02'+bytes(8)),(0xe8,b'\0\x01\x01'),
-             (0xe4,b'\xffLJ\x01'+bytes(10))]
+             (0xe4,b'\xffLJ\x01'+bytes(10)),(0xe4,b'\x14\x01\x00\x00\x00\x00'),(0xe9,b'\0\xff')]
         for ident,payload in bad:
             at,regs,cursor=ours.message(ident,payload,align)
             assert at==END and not ours.calls,(hex(ident),hex(at),ours.calls)

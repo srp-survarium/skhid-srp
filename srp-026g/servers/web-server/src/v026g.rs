@@ -117,7 +117,7 @@ pub struct Game {
     /// lets in, which `/api/client-files` says (`min-revision`), so that the
     /// updater keeps PLAY off for an older game (0: none).
     pub min_patch_revision: u8,
-    /// "Watch replay": the tokens the lobby gives, which `/replays/<token>`
+    /// Save: the tokens the lobby gives, which `/replays/<token>`
     /// takes (`session::v026g::replays`); `None`: every such request is
     /// "not found".
     pub replays: Option<Arc<session::v026g::replays::Replays>>,

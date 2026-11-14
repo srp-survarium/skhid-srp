@@ -253,8 +253,12 @@ impl Core<'_> {
         let Some(player) = self.player(who.addr) else {
             return Err(PvbCode::InMatch);
         };
+        // A replay session not over holds its player (`Watches::holds`).
         if player.in_match.is_some()
             || player.connect.is_some()
+            || self
+                .replays
+                .is_some_and(|replays| replays.watches().holds(who.account_id))
             || self
                 .store
                 .matchmaking()

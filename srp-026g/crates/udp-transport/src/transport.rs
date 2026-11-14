@@ -804,6 +804,19 @@ impl Transport {
         self.send_for(id, payload, Some(Lifetime::Forever), Some(resend), None)
     }
 
+    /// As [`Self::send_kept_every`], but given up at `deadline` however it
+    /// goes: kept for a client in no hurry, not for ever (one that never
+    /// acks must not pile them up).
+    pub fn send_kept_until(
+        &mut self,
+        id: u8,
+        payload: &[u8],
+        resend: Duration,
+        deadline: Instant,
+    ) -> Result<u64, SendError> {
+        self.send_for(id, payload, Some(Lifetime::Forever), Some(resend), Some(deadline))
+    }
+
     /// As [`Self::send`], but a message the table would give up after its
     /// lifetime is given up after `lifetime` instead. A message with no
     /// lifetime of that kind (sent once, or kept until acked) goes as the
@@ -883,16 +896,32 @@ impl Transport {
     /// on its way may still arrive. It counts as delivered from then on,
     /// never as lost.
     pub fn forget(&mut self, serial: u64, now: Instant) {
+        self.forget_where(|each| each == serial, now);
+        self.outstanding.remove(&serial);
+    }
+
+    /// [`Self::forget`] for each of `serials`, in one pass over what waits.
+    pub fn forget_all(&mut self, serials: &BTreeSet<u64>, now: Instant) {
+        if serials.is_empty() {
+            return;
+        }
+        self.forget_where(|each| serials.contains(&each), now);
+        for serial in serials {
+            self.outstanding.remove(serial);
+        }
+    }
+
+    fn forget_where(&mut self, gone: impl Fn(u64) -> bool, now: Instant) {
         let mut channels = Vec::new();
         self.pending.retain(|message| {
-            let keep = message.serial != serial;
+            let keep = !gone(message.serial);
             if !keep {
                 channels.push(message.channel);
             }
             keep
         });
         self.unacked.retain(|(message, _)| {
-            let keep = message.serial != serial;
+            let keep = !gone(message.serial);
             if !keep {
                 channels.push(message.channel);
             }
@@ -904,7 +933,6 @@ impl Transport {
                 self.retired.push_back((channel, now));
             }
         }
-        self.outstanding.remove(&serial);
     }
 
     /// Two whole messages that go in one datagram, `first` ahead of

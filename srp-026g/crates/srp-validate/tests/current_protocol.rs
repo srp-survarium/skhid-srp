@@ -222,3 +222,15 @@ fn current_emitted_messages_and_late_join_headers_are_accepted() {
     let mut bad = prepare; bad[8..12].fill(0);
     assert!(messages::check(messages::id::STATIC_INFO, &bad).is_err());
 }
+
+/// A spectator's 0xE4 (local place 0xFF, #1285) and the 0xEA that ends its
+/// match pass the clients' check: patch 114 discarded both.
+#[test]
+fn a_spectators_static_info_and_farewell_are_accepted() {
+    use survarium::v026g::match_msgs::ServerMessage as M;
+    let info = info::StaticInfo::new(&options(false), Dictionary::shared()).unwrap();
+    let e4 = info.spectator_message();
+    assert_eq!(messages::check(e4.id(), &e4.payload()), Ok(()));
+    let farewell = M::PlayerLeft { tick: 4, player: info::NO_LOCAL_PLACE };
+    assert_eq!(messages::check(farewell.id(), &farewell.payload()), Ok(()));
+}

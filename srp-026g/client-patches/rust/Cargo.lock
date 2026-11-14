@@ -17,6 +17,7 @@ dependencies = [
  "artefact-carry",
  "ban-reason",
  "ragdoll",
+ "replay-control",
  "sign-in-cipher",
  "srp-validate",
  "voice-abi",
@@ -30,6 +31,10 @@ name = "ragdoll"
 version = "0.1.0"
 
 [[package]]
+name = "replay-control"
+version = "0.1.0"
+
+[[package]]
 name = "sign-in-cipher"
 version = "0.1.0"
 
@@ -38,6 +43,7 @@ name = "srp-validate"
 version = "0.1.0"
 dependencies = [
  "artefact-carry",
+ "replay-control",
  "weapon-pickup",
  "world-frame",
 ]

@@ -1,0 +1,78 @@
+# Patch 144: a replay played in the running game as a spectated match
+# (replay_viewer.rs; docs/notes/replay-stream.md). Only the decisions: the
+# sites are sites_026g.tsv's, the logic replay_viewer.rs.
+name = "replay_viewer"
+patch = 144
+uses = ["spectator"]
+
+# An 0xF6: the server's playback and events notes (payload 'R'); the
+# snapshot upload's request goes on to the game's case.
+[[hook]]
+site = "match_packet.server_note"
+handler = "on_server_note"
+
+# A viewer's keys, after patch 86's Tab cursor.
+[[hook]]
+site = "tab_cursor.key"
+handler = "on_key"
+order = 2
+
+# close_current_match: the clock back to running at 1 before the world ends.
+[[hook]]
+site = "close_match.reason"
+handler = "on_close"
+order = 0
+
+# A new match's options (after patches 65, 86, 83, 143 and 142): no replay yet.
+[[hook]]
+site = "static_info.options_read"
+handler = "on_static_info"
+order = 5
+
+# Every network game's first world loads the replay controls' movie too (the
+# game asks for it only with a replay reader), hidden until a viewer shows it.
+[[hook]]
+site = "replay_movie.query"
+handler = "on_movie_query"
+
+[[hook]]
+site = "replay_movie.take"
+handler = "on_movie_take"
+
+# The mouse of a hud with the replay controls goes to them only in a viewer's
+# game; every other network game's to its hud movie.
+[[hook]]
+site = "hud_mouse.replay_button"
+handler = "on_mouse_button"
+
+[[hook]]
+site = "hud_mouse.replay_pointer"
+handler = "on_mouse_pointer"
+
+# The replay controls' calls in a network game, after patch 86's.
+[[hook]]
+site = "hud.callback"
+handler = "on_hud_call"
+order = 2
+
+# initialize_match's feed of the local place's kits (place 0 in a spectator's game): never sent
+# to a spectator, whose chooser the server's kits notes and the place followed fill.
+[[hook]]
+site = "hud.setup_profiles"
+handler = "on_setup_profiles"
+
+# Each frame of the hud: a viewer's controls fed.
+[[hook]]
+site = "hud.update"
+handler = "on_frame"
+
+# A viewer's worlds load as the replay's own seek's (their pending inputs
+# cleared): an older one loaded as a network world crashed the game.
+[[hook]]
+site = "world_load.unpacked"
+handler = "on_world_unpacked"
+order = 0
+
+[[hook]]
+site = "world_load.raw_args"
+handler = "on_world_raw"

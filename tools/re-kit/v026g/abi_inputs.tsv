@@ -2318,6 +2318,8 @@ va	name	location	role	basis
 0x00209ff0	survarium::chat_handler::add_squad_tab	EAX	chat handler	inferred
 0x00209ff0	survarium::chat_handler::add_squad_tab	EDI	channel selector	inferred
 0x0020a070	survarium::chat_handler::remove_squad_tab	EDX	chat handler	inferred
+0x0020ff90	survarium::tick_wrap_delta	entry ESP+4	a: the first byte's address (a tick's low byte)	observed
+0x0020ff90	survarium::tick_wrap_delta	entry ESP+8	b: the other byte's address	observed
 0x00219990	survarium::network_client::match_options	ECX	the network client	observed
 0x0021c970	survarium::lobby_menu::input_handler	ECX	lobby receiver	inferred
 0x0021d2e0	survarium::lobby_menu::on_activate	ECX	lobby receiver	inferred
@@ -2957,6 +2959,9 @@ va	name	location	role	basis
 0x002f5da0	vostok::network_core::buffer_writer::w<unsigned short>	stack+16	diagnostic caller function name	observed
 0x002f5da0	vostok::network_core::buffer_writer::w<unsigned short>	stack+20	diagnostic value label	observed
 0x002f73f0	survarium::player_profile::player_profile	ECX	this (4634h bytes)	observed
+0x002f79a0	survarium::player_profile::kit_level	EAX	the kit (AL)	observed
+0x002f79a0	survarium::player_profile::kit_level	ESP+4	the profile (a match place)	observed
+0x002f79a0	survarium::player_profile::kit_level	ESP+8	the config	observed
 0x002f7c10	survarium::inventory_item_descr::inventory_item_descr	ECX	this (B4h bytes)	observed
 0x002f81f0	survarium::usable_object::load	ECX	usable_receiver	inferred
 0x002f81f0	survarium::usable_object::load	stack+4	config	inferred
@@ -4277,6 +4282,9 @@ va	name	location	role	basis
 0x003e31e0	vostok::render::xs_descriptor<vostok::render::ps_data>::use_texture	stack+4	texture binding name copied into EBP	inferred
 0x003e33e0	vostok::render::shader_constant_table::operator=	EDI	source constant-table pointer	observed
 0x003e33e0	vostok::render::shader_constant_table::operator=	entry ESP+4	destination constant-table pointer	observed
+0x003f2050	vostok::network_core::udp_match_client::handle_receive	ECX	the client	observed
+0x003f2050	vostok::network_core::udp_match_client::handle_receive	entry ESP+4	the completion's boost::system::error_code	observed
+0x003f2050	vostok::network_core::udp_match_client::handle_receive	entry ESP+8	bytes transferred	observed
 0x003f2590	vostok::network_core::udp_match_client::start_receiving	ECX	UDP-client receiver	observed
 0x003f2610	vostok::network_core::udp_match_client::connect_impl	ECX	UDP-client receiver	observed
 0x003f2610	vostok::network_core::udp_match_client::connect_impl	entry ESP+4	packet pointer forwarded to connection	observed
@@ -4286,6 +4294,7 @@ va	name	location	role	basis
 0x003f2990	vostok::network_core::udp_match_client::connect	entry ESP+8	port slot forwarded to endpoint construction	observed
 0x003f2990	vostok::network_core::udp_match_client::connect	entry ESP+12	packet pointer	observed
 0x003f2990	vostok::network_core::udp_match_client::connect	entry ESP+16	time value	observed
+0x003f2990	vostok::network_core::udp_match_client::connect	EAX	the client	observed
 0x003f2af0	vostok::network_core::udp_match_client::send_queued_packets_impl	EAX	UDP-client receiver	observed
 0x003f2af0	vostok::network_core::udp_match_client::send_queued_packets_impl	entry ESP+4	time forwarded to underlying flush	observed
 0x003f2b50	vostok::network_core::udp_match_client::set_connection_ports	entry ESP+4	UDP-client receiver	observed
@@ -4299,6 +4308,7 @@ va	name	location	role	basis
 0x003f2f10	vostok::network_core::udp_match_client::enqueue	DL	message byte; upper EDX bits not established	observed
 0x003f2f10	vostok::network_core::udp_match_client::enqueue	entry ESP+4	reader pointer	observed
 0x003f2f10	vostok::network_core::udp_match_client::enqueue	entry ESP+8	time dword	observed
+0x003f3070	vostok::network_core::udp_match_client::original_packet_send_handler	ECX	the client	observed
 0x003f33f0	vostok::network_core::udp_match_client::send_queued_packets	ESI	UDP-client receiver	observed
 0x003f33f0	vostok::network_core::udp_match_client::send_queued_packets	entry ESP+4	new time dword	observed
 0x003faf90		ECX		auto
@@ -4310,6 +4320,8 @@ va	name	location	role	basis
 0x003fcc40		entry ESP+4		auto
 0x003fdcf0		ECX		auto
 0x003fdcf0		EAX		auto
+0x003fdf30	vostok::network_core::udp_match_connection::instant_disconnect	ESI	the connection (client+8)	observed
+0x003fdf30	vostok::network_core::udp_match_connection::instant_disconnect	entry ESP+4	the disconnect reason, close_current_match's	observed
 0x003fe000		EAX		auto
 0x00400940		entry ESP+4		auto
 0x00400940		entry ESP+12		auto
@@ -4597,6 +4609,8 @@ va	name	location	role	basis
 0x00511600	Scaleform::GFx::Movie::Invoke	entry ESP+8	result value or 0	observed
 0x00511600	Scaleform::GFx::Movie::Invoke	entry ESP+12	the arguments, GFx values of 18h bytes (+4 type: 4 uint, 5 number; +8 value)	observed
 0x00511600	Scaleform::GFx::Movie::Invoke	entry ESP+16	the count	observed
+0x00513580	Scaleform::GFx::MovieImpl::HandleEvent	ECX	the movie	observed
+0x00513580	Scaleform::GFx::MovieImpl::HandleEvent	entry ESP+4	the event (+0 type: 1 move, 2 down, 3 up, 4 wheel; a mouse's +8 x, +0Ch y, +14h button, +18h mouse)	observed
 0x002375c0	survarium::game_world_ui::show_parametrized_message	ECX	the localization key	observed
 0x002375c0	survarium::game_world_ui::show_parametrized_message	entry ESP+4	game_world_ui	observed
 0x000725e0	vostok::math::create_rotation	EDI	float3 angles	observed
@@ -5010,8 +5024,8 @@ va	name	location	role	basis
 0x00352830	vostok::network_core::sending_message_stats::select	DL	message ID	observed
 0x00352830	vostok::network_core::sending_message_stats::select	entry ESP+4	output pair of pointers	observed
 0x00352830	vostok::network_core::sending_message_stats::select	entry ESP+8	minimum regular message ID, low byte	observed
-0x0027c1f0	survarium::network_client::register_message_in_stats	entry return27C32D	single ordinary relay completed: EDX client, ESI decoded input, EAX placement status, entry ESP+14 effective time (output Base+C from27C2F4); native stack still contains message ID	observed
-0x0027c1f0	survarium::network_client::register_message_in_stats	entry return27C5CD	batch ordinary relay completed: EDX client, ESI decoded input, EAX placement status, caller EBP-10 effective time (initialized27C5B5); one callback per input	observed
+0x0027c1f0	survarium::network_client::register_message_in_stats	entry at 0x27C32D	single ordinary relay completed: EDX client, ESI decoded input, EAX placement status, entry ESP+14 effective time (output Base+C from27C2F4); native stack still contains message ID	observed
+0x0027c1f0	survarium::network_client::register_message_in_stats	entry at 0x27C5CD	batch ordinary relay completed: EDX client, ESI decoded input, EAX placement status, caller EBP-10 effective time (initialized27C5B5); one callback per input	observed
 0x0027c280	survarium::network_client::receive_player_input	site27C2E7	EDI client, ESI decoded input before native placement; original six-byte world-wrapper load	observed
 0x00279fe0	survarium::match_client::new_packet	ECX	client: concrete match transport	observed
 0x00279fe0	survarium::match_client::new_packet	entry ESP+4	message: unsigned message id forwarded to37A0E0	observed
@@ -5669,6 +5683,27 @@ va	name	location	role	basis
 0x002ffce0	survarium::stack_item::resupply_from_profile_slot	entry ESP+4	the kit slot record: +2 the allowance u16 (the kit's count)	observed
 0x002ffce0	survarium::stack_item::resupply_from_profile_slot	entry ESP+8	the stock record: +8 the units left to take (lowered by what is taken)	observed
 0x00288d60	survarium::lobby_menu::process_default_relocate_item	at 0x289A50..0x289BFB	after the moves, when the kit's pockets got fewer or smaller: each of the six pockets (table 0x9C52D8) past the count is moved to the inventory (dst 64h), each within it sent again with min(units, 1 if parameters/fills_whole_pocket else the pocket size)	observed
+0x00242ae0	survarium::base_network_client::attach_to_player	ECX	the network client: the console command attach_to_player <place> (registered by the network client's constructor at 0x219D49 only with its spectator byte +1F1C6Ah, by the replay client's always at 0x218ACC): sscanf "%d", a place below 14h, get_active_player (vtable+50h), set_followed_player (vtable+5Ch), switch_to_player_camera(1)	observed
+0x00242ae0	survarium::base_network_client::attach_to_player	entry ESP+4	the command's argument, a C string (the place)	observed
+0x00242b90	survarium::base_network_client::set_followed_player	ECX	the network client (vtable+5Ch in network_client's 0x9FFB14): detach_from_player (vtable+60h) first, then the player kept at +4 (the camera's) and +8 (the last followed), the client's input handler (+10h) bound to it (player+0F470h, game world+4D58h, its +35Dh input on), the hud (game+214h) at player+0F480h, 0x1F3740, the hud's 0x236810(place)	observed
+0x00242b90	survarium::base_network_client::set_followed_player	entry ESP+4	the player to follow, by value: a reference the caller added (lock xadd +0D0h), released at the end (0x242C8B, 0x0E0210 at 0)	observed
+0x00242cc0	survarium::base_network_client::detach_from_player	ECX	the network client (vtable+60h): with a followed player (+4) its +0F480h/+0F470h and the game world's +4D58h cleared, 0x1F3740, +4 released and 0, the hud's clear_player (0x23B550); then switch_to_free_fly_camera (0x1F8270)	observed
+0x002430f0	survarium::base_network_client::may_spectate	ESI	the network client (vtable+20h true, +74h its +0Dh spectate-teammates byte, which nothing of a network client sets but the base constructor's 0 at 0x24296E)	observed
+0x002430f0	survarium::base_network_client::may_spectate	entry ESP+4	a player by value, its reference the caller's, released here	observed
+0x00242a70	survarium::base_network_client::followed_team	EAX	the network client (+4 the followed player)	observed
+0x001f8070	survarium::game_world::select_profile	EDI	the game world: change_input<profile_input> (0x1FB730) of the network client's followed player (+4, its place +114h) at the next tick: the hud's profile_changed callback (0x233F23) its only caller	observed
+0x001f8070	survarium::game_world::select_profile	entry ESP+4	the kit (byte)	observed
+0x00242d50	survarium::base_network_client::spectate_next_player	entry at 0x242D63	from the followed player's (+4, none: returns at once) place +1 modulo the places (options +577B5h), the first a get_active_player (vtable+50h) gives that may_spectate (0x2430F0) takes, else back to the followed; then set_followed_player (vtable+5Ch) and with vtable+20h switch_to_spectator_camera (mode 4). game_world::on_keyboard_action calls it for the binding next_player (action 17h, default F6; prev_player 18h F5, the action table 0xA74C80) only while the client's +0Dh is set (0x25CDBD..0x25CDE3, 0x25CEA1)	observed
+0x0027b880	survarium::network_client::process_static_match_info	first byte of the 0xE4 payload	the local place ([EBP-5], 0x27B8A0): each place's is_local (+45F0h) = (place == it) at 0x27BE5F, so 0xFF (or any value past the places) names no place local: a spectator's game (queue-spectate.md). The network client's +1F1C44h is then never set by on_match_ready (0x27AD89 only for an is_local place) and stays 0xFF	observed
+0x0027aa20	survarium::network_client::on_match_ready	at 0x27AD7B	for the place whose is_local (+45F0h) is set: the client's local place +1F1C44h = it, the core's +191D4h = it, +191C4h/+191C8h = -1; none set for a game with no local place	observed
+0x0027bff0	survarium::network_client::process_dynamic_match_info	at 0x27C116	after every world's load (and the stale world's skip, 0x27C0E3/0x27C0E7): the camera back to the local place: unless the followed player (+4) is the local place's, get_player(local place) (vtable+4Ch, 0x27A980: an unchecked slot-table index, 0xFF reads 2FD0h bytes past the table) and set_followed_player (vtable+5Ch); then the warmup camera (0x1F8190) before state 3 (+1F1C60h), or in it get_player(local place) again, its +340h, vtable+78h or switch_to_player_camera(1); 0x27C1B9 the join. With no local place (0xFF) it follows a garbage pointer: patch 143 makes a spectator's game follow a player instead	observed
+0x00208ad0	survarium::chat_handler::add_message	at 0x208D77	a match line (channel 5) in a match (+0Dh): the sender's team by name (0x21C170, 3 none), then get_player(the local place +1F1C44h) into [ESP+48h] and its profile's team (+6B8h, +45ECh): with no local place a garbage pointer read and its reference count changed; patch 143 makes a spectator's line a plain one (0x208DE2, [ESP+48h] 0)	observed
+0x0023b740	survarium::game_world_ui::update_local_player_state	at 0x23B7B9	the followed player's alive byte (+33Ch) against the hud's last (+2DEh): at a change the quick slots and the stamina shown (0x239C60, 0x23A1A0) and the kits shown at a death (show_profiles_selector(1), the cursor), hidden at a spawn; patch 143 takes a spectator's as alive always	observed
+0x001f77e0	survarium::game_world::tick	at 0x1F7848	the network client's +0Ch (1 in a replay client, 0x21930C; 0 in a network client, the base constructor 0x24296B): set, no input is built or sent for the followed player (+4, 0x1F7860 jne 0x1F794A); else, alive and with its handler's +35Dh, the handler's input (+338h, +33Ch) goes to the followed player (0x248F00) and to the server	observed
+0x00233d30	survarium::game_world_ui::scaleform_callback	at 0x233E8E	the hud movies' callbacks of the followed player: select_free_view (0xA0325C) the network client's vtable+84h(game world), select_player(place, mode) (0xA03270) vtable+7Ch (mode 0) or +88h; network_client's vtable 0x9FFB14 ends at +78h (strings follow), so these are the replay client's alone (replay_player.swf); profile_changed (0xA03280, 0x233F06) select_profile 0x1F8070 then hides the kits	observed
+0x002199a0	survarium::network_client::network_client	entry ESP+12	the spectator byte (-spectator, 0x1EAF97), kept at +1F1C6Ah (0x219B14); read only at 0x219CEB (it registers the console commands attach_to_player 0x9FF2D4 and detach_from_player 0x9FF2E8) and 0x21C0EC (it skips the login client at +68h): the match's messages do not look at it	observed
+0x0027c690	survarium::network_client::process_player_left_match	at 0x27C72C	after leave_match (0x27C720) and the message's count (0x27C727), BL the place the 0xEA named: a game with no local place (+1F1C44h 0xFF) returns at once (0x27C734 je 0x27C79F); the local place's own: `31 <order> FF` to the lobby (lobby_client::discard_playing_order 0x2717E0, unless a journal replays), then tail jump to close_current_match(3) (vtable+58h, 0x27C767..0x27C774: the world ended and the results screen); the followed player's (+4, +114h): get_player(local place) (vtable+4Ch), set_followed_player (+5Ch), spectate_next_player (+64h); else the return 0x27C79F (`ret 4`). Patch 143 makes a spectator's game take place 0xFF as its own end (close_current_match(0), no results) and the followed player's leave as a step to the next	observed
+0x002d18a0	survarium::game_world_core::leave_match	entry ESP+8	the place (byte): a name lookup bounded by 14h (0x1F66A0, the log), its entered bit `shl edx,cl` (0x2D1B8D..0x2D1B9D; CL masked to 31 by the CPU), so place 0xFF tests bit 31, which no entered mask of the history has: it returns 1 (0x2D1CC6) and writes nothing (run with Unicorn, check_spectator_026g.py)	observed
 0x001f0e70	survarium::match_options::deserialize	entry ESP+4	the options it fills, in wire order: 20 profiles (0x45FC bytes each), then u8 map (maps_dict id) +577B4h (0x1F0EAD), u8 places +577B5h, u32 seed/match id +577B0h (0x1F0ECD), u16 level +577B6h (0x1F0EDC), 28 f32 +577BCh, 20 u8 squads +5782Ch; the crash breadcrumbs (vostok/breadcrumbs.rs) read map, places, seed and level after it	observed
 0x002ff930	survarium::weapon_controller_core::serialize	ECX	controller	observed
 0x002ff930	survarium::weapon_controller_core::serialize	entry ESP+4	writer	observed
@@ -5994,6 +6029,28 @@ va	name	location	role	basis
 0x00106fc0	pt3free	EAX	the memory (0: nothing); a mapped chunk goes back to the region 0x106AD0 (0x107018), others to mspace_free (0x107053)	observed
 0x0001c6a0	vostok::memory::mt_allocator::malloc_impl	ESI	the bytes	observed
 0x0001c6a0	vostok::memory::mt_allocator::malloc_impl	entry ESP+4	the allocator ("global multithreaded" 0xA8001C; cdecl)	observed
+0x0025cd00	survarium::game_world::on_keyboard_action	at 0x25CE1C	the actions' switch (jump table 0x25CF30, action - 11h): 11h cam_1 (F1) vtable+80h, 12h cam_2 (F2, the replay's free view) +84h, 13h cam_3 (F3) +8Ch, each only with AL (vtable+70h, false in a network client, 0x397C20); 14h..16h the plain return 0x25CF0D; 17h next_player (F6) +64h and 18h prev_player (F5) +68h only with BL (vtable+74h, the client's +0Dh); 19h toggle_replay_ui (F11) the hud's cursor. The binder is asked with the kind mask 1 (EDI at 0x25CD5F), which category 5 (the action table's camera rows 0xA74C1C..0xA74CBC) has	observed
+0x0026e000	survarium::base_local_network_client::switch_to_free_view	ECX	the replay client: vtable+84h, its free view (F2, the hud's select_free_view): vtable+60h, detach_from_player (0x242CC0); `ret 4` (the game world, not read)	observed
+0x001ed590	survarium::game::toggle_pause	ESI	the game: does nothing when its network client's vtable+20h says so (0x1ED59C; network_client's 0x372420 answers 1, so a live match never pauses), else resume (0x1ED650) when paused (0x1F1DA3C), pause (0x1ED5C0) otherwise; the hud's button_play_clicked calls it (0x233E02)	observed
+0x001ed5c0	survarium::game::pause	ECX	the game (kept in ESI): only when the paused flag 0x1F1DA3C is 0, sets it (xchg 1), stores the performance counter at +52F0h (the game's floating_timer +52D8h, its +18h: the "now" its reads take while not 0, 0x147116, so the clock stands), keeps the sound world's time scale at +5840h and sets it 0 (0x56530)	observed
+0x001ed650	survarium::game::resume	ECX	the game (kept in ESI): only when the paused flag is set, clears it, adds the counter's run since +52F0h to the timer's start +52E0h and its correction's end +52E8h (0x1ED68D..0x1ED69F: the clock goes on from where it stood), clears +52F0h, gives the sound world its time scale +5840h back	observed
+0x00146b60	vostok::timing::floating_timer::set_speed	EAX	the floating_timer: its time now (0x147110) becomes its base (+0) from the counter now (+8); a correction still running (+10h end) keeps its remainder at the new rate	observed
+0x00146b60	vostok::timing::floating_timer::set_speed	XMM0	the correction rate's size (stored at +24h with its old sign, 0x146C4A)	observed
+0x00146b60	vostok::timing::floating_timer::set_speed	entry ESP+4	the speed (f32, stored at +20h, 0x146C18): the timer runs at it; game::tick passes the time_scale variable 0xA70298 (0x1EC9A5), set_time_in_ms the timer's own (0x1EE4BE)	observed
+0x00147110	vostok::timing::floating_timer::get_time	ESI	the floating_timer {+0 base, +8 start counter, +10h correction end, +18h a frozen counter (0: the performance counter is read), +20h speed, +24h correction rate}: base + (now - start) x speed + (min(now, end) - start) x rate (0x147116..0x147205)	observed
+0x00147110	vostok::timing::floating_timer::get_time	EAX	out: the counter value it took as now (8 bytes)	observed
+0x0023a660	survarium::game_world_ui::set_replay_position	EDX	the hud plus 214h (the replay client's tick passes [client+14h]+214h): its +14h the replay controls' holder, root.set_position	observed
+0x0023a660	survarium::game_world_ui::set_replay_position	EAX	the position in ms from the replay's start (a GFx uint)	observed
+0x0023a6c0	survarium::game_world_ui::set_replay_play_state	EDX	as set_replay_position: root.set_play_state	observed
+0x0023a6c0	survarium::game_world_ui::set_replay_play_state	AL	paused (a GFx bool: the replay client's tick passes its second argument, the paused flag, 0x218C1E; the button is selected while paused)	observed
+0x0023a9d0	survarium::game_world_ui::show_replay_controls	EDI	the hud: +14h the replay controls' holder, +18h the scene (show_movie 0x23DC00 / hide_movie 0x23DC70), +2DDh shown	observed
+0x0023a9d0	survarium::game_world_ui::show_replay_controls	entry ESP+4	shown (a bool)	observed
+0x00218bf0	survarium::replay_network_client::tick	ECX	the replay client: the controls' position (now - the reader's start +688h) and play state every frame (0x218C16, 0x218C27), then the key frames' seek	observed
+0x00218bf0	survarium::replay_network_client::tick	entry ESP+4	the game's time in ms	observed
+0x00218bf0	survarium::replay_network_client::tick	entry ESP+8	paused (the flag 0x1F1DA3C, game::tick 0x1ECBBB)	observed
+0x002d0b70	survarium::game_world_core::deserialize	entry ESP+12	the mode: 0 the replay's user seek (0x1EE377), which first clears the core's pending masks (0x2D53C0 on +12280h), its pending timed entries (0x2D3DF0 on +0) and both teams' input lists (0x2D0BDE..0x2D0C71); 1 a network world (the 0xE8 handler's push 1 at 0x27C0C3 and 0x27C107), nothing cleared: a mask timed after every entry left from a later timeline makes the loop 0x2D0D80 read +1A8h of a null entry at 0x2D0DA4; 2 the replay reader's own key frame	observed
+0x002d53c0	survarium::game_world_core::clear_pending_masks	EAX	the list (count +0, head +4, tail +8, its pool +10h; a node: next, prev, mask +8, time +0Ch), core+12280h; every node back to the pool	observed
+0x002d3df0	survarium::game_world_core::clear_pending_entries	EAX	the core: its list at +0 (count, head +4, tail +8, pool +10h; nodes linked by +1B4h/+1B8h, time +1BCh, mask +1A8h); every node back to the pool	observed
 0x001c8cd0	vostok::render::render_surface_texture_instance_proxy::bound_sphere	ECX	the proxy	observed
 0x001c8cd0	vostok::render::render_surface_texture_instance_proxy::bound_sphere	entry ESP+4	the out sphere (16 bytes)	observed
 0x001c8b80	vostok::render::render_surface_texture_instance_proxy::last_render_time	ECX	the proxy	observed

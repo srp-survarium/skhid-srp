@@ -1104,7 +1104,17 @@ fn a_player_who_left_its_match_is_not_sent_back_to_it() {
     run_for(&mut [&mut alice, &mut bob], Duration::from_millis(1_000));
 
     // Alice leaves by the menu: 0xE0 to the match server, then the lobby
-    // is told that she is back from her match. Bob plays on.
+    // is told that she is back from her match (the order of her last `85`).
+    // Bob plays on.
+    let order = alice
+        .find(|message| match message {
+            Decoded::ClientState {
+                state: ClientState::InQueue { order_id, .. },
+                ..
+            } => Some(*order_id),
+            _ => None,
+        })
+        .expect("her order");
     alice.of_match_mut().leave();
     until(
         &mut [&mut alice, &mut bob],
@@ -1114,7 +1124,7 @@ fn a_player_who_left_its_match_is_not_sent_back_to_it() {
     );
     alice.in_match = None;
     alice.take();
-    alice.ask(request::leave(u32::MAX, true));
+    alice.ask(request::leave(order, true));
     until(
         &mut [&mut alice, &mut bob],
         SOON,

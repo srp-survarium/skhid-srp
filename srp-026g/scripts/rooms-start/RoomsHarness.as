@@ -136,9 +136,11 @@ package
          checkPlayOffer();
          checkCreate();
          checkWindowOrder();
+         checkWatchReturn();
          checkSquads();
          checkSoldier();
          checkInSquad();
+         checkSpectators();
          checkFit();
          checkBigPool();
          finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
@@ -218,7 +220,9 @@ package
                ["open, gear unfit", 1003, false, false, 0, null, 2, []],
                ["open, squads", 1003, false, false, 0, null, 0, ["S;01122"]],
                ["open, squads, in match", 1003, false, false, 2, null, 0, ["S;01122"]],
-               ["private, owner, squads", 1001, true, true, 0, "01010", 0, ["S;11220"]]];
+               ["private, owner, squads", 1001, true, true, 0, "01010", 0, ["S;11220"]],
+               ["open, in match, spectators", 1003, false, false, 2, null, 0, ["V;Frank","V;Grace","V;Heidi"]],
+               ["private, owner, in match, spectators", 1001, true, true, 2, "01010", 0, ["V;Frank","V;Grace"]]];
             for(var why:int = 1; why <= 8; why++)
                states.push(["open, in match, why " + why, 1003, false, false, 2, null, 0, ["J;-1;" + why]]);
             for each(var s:Array in states)
@@ -230,6 +234,15 @@ package
             tell(["S1;N;0;0;0"]);
             tell(["S1;L;3;0","1001;15;0;10;20;2;754;61;0;Bob","1002;15;15;10;3;3;12;62;0;Carol","1003;10;0;10;5;0;0;63;1;Erin"]);
             misses = misses.concat(overlaps(language + ", list"));
+            // A full room in its match, not queued: New room, Queue, Queue and spectate; its
+            // members and spectators beside the list.
+            tell(["S1;L;1;0","1001;2;15;8;16;2;600;61;0;Bob"]);
+            selectRow("1001");
+            var watched:Array = ["S1;G;1001;5"];
+            for(var wi:int = 0; wi < WHO.length; wi++)
+               watched.push(["P",wi,15,wi == 0 ? 1 : 0,0,1,0,0,wi % 2 + 1,11 + wi,0].join(";"), WHO[wi]);
+            tell(watched.concat(["V;Frank","V;Grace","V;Heidi"]));
+            misses = misses.concat(overlaps(language + ", list, full, spectators"));
             // A full room's queue, ours: its Join is Leave queue.
             tell(["S1;L;1;0","1001;2;15;8;16;0;0;0;0;Bob"]);
             selectRow("1001");
@@ -453,6 +466,113 @@ package
          };
          plain = namePlaces(members([0,0,0,0,0]));
          checkTags("squads in the list's side panel", members([0,1,1,2,2]), plain, want);
+      }
+
+      // Queue and spectate (queue-spectate.md, the owner's of 2026-11-05): a playing room's
+      // spectators (`V` rows) on one quiet line under its members, in the room's view and the
+      // list's side panel; the members where they were without them (nothing moves as they come
+      // and go); no line without any; never a member's row.
+      private function checkSpectators() : void
+      {
+         tell(["S1;M;3;0","0;61;5;5;2;0","1;62;13;5;3;1","2;63;12;3;6;0"]);
+         var line:String = "Spectators: Frank, Grace, Heidi";
+         var shown:Function = function(what:String, texts:Array, want:Boolean):void
+         {
+            var lines:int = 0;
+            for each(var t:Object in texts)
+               if(String(t.text) == line)
+               {
+                  lines++;
+                  if(t.field.textColor != 0x5F707C)
+                     failures.push(what + ": the spectators' line is not dim");
+               }
+            if(lines != (want ? 1 : 0))
+               failures.push(what + ": " + lines + " spectators' lines, " + (want ? 1 : 0) + " wanted");
+            trace("ROOMS " + what + ": " + lines + " spectators' line(s)");
+         };
+         var same:Function = function(what:String, before:Object, after:Object):void
+         {
+            for each(var name:String in WHO)
+               if(before[name] == null || after[name] == null || before[name].x != after[name].x || before[name].y != after[name].y)
+                  failures.push(what + ": " + name + " moved");
+         };
+         // The room's own view, its match being played.
+         var texts:Array = [];
+         tellRoom(1003, false, false, 2, null, 0, []);
+         walk(win,[],texts,0,0,[]);
+         shown("room, in match, no spectators", texts, false);
+         var plain:Object = namePlaces(texts);
+         texts = [];
+         tellRoom(1003, false, false, 2, null, 0, ["V;Frank","V;Grace","V;Heidi"]);
+         walk(win,[],texts,0,0,[]);
+         shown("room, in match, three spectators", texts, true);
+         same("room, spectators come", plain, namePlaces(texts));
+         // A private room's two teams.
+         texts = [];
+         tellRoom(1001, true, true, 2, "01010", 0, []);
+         walk(win,[],texts,0,0,[]);
+         plain = namePlaces(texts);
+         texts = [];
+         tellRoom(1001, true, true, 2, "01010", 0, ["V;Frank","V;Grace","V;Heidi"]);
+         walk(win,[],texts,0,0,[]);
+         shown("private room, in match, three spectators", texts, true);
+         same("private room, spectators come", plain, namePlaces(texts));
+         // The list's side panel, a room in its match chosen (`S1;G` and its `V` rows).
+         tell(["S1;N;0;0;0"]);
+         tell(["S1;L;1;0","1003;2;15;8;5;2;600;61;0;Alice"]);
+         var rows:Array = [];
+         walk(win,[],[],0,0,[]);
+         findRows(win, rows);
+         for each(var row:Sprite in rows)
+            if(row.name == "1003")
+               row.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+         var members:Function = function(spectators:Array):Array
+         {
+            var names:Array = ["S1;G;1003;5"];
+            for(var i:int = 0; i < WHO.length; i++)
+            {
+               names.push(["P",i,15,i == 0 ? 1 : 0,0,1,0,0,i % 2 + 1,11 + i,0].join(";"));
+               names.push(WHO[i]);
+            }
+            for each(var s:String in spectators)
+               names.push("V;" + s);
+            tell(names);
+            var seen:Array = [];
+            walk(win,[],seen,0,0,[]);
+            return seen;
+         };
+         texts = members([]);
+         shown("list panel, in match, no spectators", texts, false);
+         plain = namePlaces(texts);
+         texts = members(["Frank","Grace","Heidi"]);
+         shown("list panel, in match, three spectators", texts, true);
+         same("list panel, spectators come", plain, namePlaces(texts));
+         // A spectator's name like a member's ("V;" in a name kept whole) never reads as a member.
+         var named:Boolean = false;
+         for each(var t:Object in members(["V;x"]))
+            if(String(t.text) == "Spectators: V;x")
+               named = true;
+         if(!named)
+            failures.push("list panel: a spectator named \"V;x\" not shown whole");
+         // A full room's footer: Queue and Queue and spectate; queued, the one Leave queue.
+         tell(["S1;N;0;0;0"]);
+         tell(["S1;L;1;0","1001;2;15;8;16;2;600;61;0;Bob"]);
+         selectRow("1001");
+         var labels:Function = function():Array
+         {
+            var buttons:Array = [];
+            walk(win,[],[],0,0,buttons);
+            return buttons.map(function(b:*, ... rest):String { return b.label; });
+         };
+         var footer:Array = labels();
+         if(footer.indexOf("Queue") < 0 || footer.indexOf("Queue and spectate") < 0)
+            failures.push("full room's footer: " + footer.join(", "));
+         tell(["S1;N;0;1001;1"]);
+         footer = labels();
+         if(footer.indexOf("Leave queue") < 0 || footer.indexOf("Queue and spectate") >= 0 || footer.indexOf("Queue") >= 0)
+            failures.push("queued footer: " + footer.join(", "));
+         trace("ROOMS queued footer: " + footer.join(", "));
+         tell(["S1;N;0;0;0"]);
       }
 
       // A squad's soldier goes into no room on its own (squads.md): Join and New room greyed in
@@ -811,28 +931,28 @@ package
                if(got != want)
                   failures.push("player menu, " + what + ": " + got + ", not " + want);
             };
-            menuFor("a stranger not muted", "#add_to_friends|#st_srp_hud_mute_hide|#st_srp_hud_mute_mask|#send_message|#invite_to_squad");
+            menuFor("a stranger not muted", "#st_srp_player_matches|#add_to_friends|#st_srp_hud_mute_hide|#st_srp_hud_mute_mask|#send_message|#invite_to_squad");
             friends.setPlayers([{id:123,name:"Bob",status:0}]);
             friends.setPlayers([{id:456,name:"Bob"}],false);
-            menuFor("a friend hidden", "#remove_from_friends|#st_srp_hud_mute_mask|#st_srp_hud_unmute|#send_message|#invite_to_squad");
+            menuFor("a friend hidden", "#st_srp_player_matches|#remove_from_friends|#st_srp_hud_mute_mask|#st_srp_hud_unmute|#send_message|#invite_to_squad");
             if(Friends.getFriend("Bob").id != 123 || Friends.getIgnoredPlayer("Bob").id != 456)
                failures.push("the pushed friend and ignore lists' ids");
             friends.setPlayers([{id:uint(456 | 0x80000000),name:"Bob"}],false);
-            menuFor("a friend shown as <muted>", "#remove_from_friends|#st_srp_hud_mute_hide|#st_srp_hud_unmute|#send_message|#invite_to_squad");
+            menuFor("a friend shown as <muted>", "#st_srp_player_matches|#remove_from_friends|#st_srp_hud_mute_hide|#st_srp_hud_unmute|#send_message|#invite_to_squad");
             friends.setPlayers([]);
             friends.setPlayers([],false);
-            menuFor("unmuted, no longer a friend", "#add_to_friends|#st_srp_hud_mute_hide|#st_srp_hud_mute_mask|#send_message|#invite_to_squad");
+            menuFor("unmuted, no longer a friend", "#st_srp_player_matches|#add_to_friends|#st_srp_hud_mute_hide|#st_srp_hud_mute_mask|#send_message|#invite_to_squad");
             Player.commander = false;
             Lobby.showPlayerInfoMenu("Bob",17,0,this);
-            if(Menu.getInstance().contextList.list.dataProvider.length != 5)
+            if(Menu.getInstance().contextList.list.dataProvider.length != 6)
                failures.push("non-commander can invite to squad");
             Player.commander = true;
             Player.isSquadFull = true;
             Lobby.showPlayerInfoMenu("Bob",17,0,this);
-            if(Menu.getInstance().contextList.list.dataProvider.length != 5)
+            if(Menu.getInstance().contextList.list.dataProvider.length != 6)
                failures.push("full squad can invite another player");
             Lobby.showPlayerInfoMenu("Alice",17,0,this);
-            if(Menu.getInstance().contextList.list.dataProvider.length != 1)
+            if(Menu.getInstance().contextList.list.dataProvider.length != 2)
                failures.push("own player menu has social actions");
             Menu.hide();
             Lobby.showPlayerInfoMenu("",17,0,this);
@@ -849,6 +969,71 @@ package
 
       // Exercise the lobby's actual recurring layer adjustment. Background
       // panels may be re-added, but only opening a window changes its priority.
+      // Back from a watch (WatchWindow.back, holdWatchReturn): a room still waiting gives the Watch
+      // window back; one with a use for us (its vote) shows itself, with its notice; in no room
+      // nothing is held.
+      private function checkWatchReturn():void
+      {
+         try
+         {
+            var me:* = Win.me;
+            var resumed:int = 0;
+            var resume:Function = function():void { resumed++; };
+            var named:Function = function(at:DisplayObject, name:String):DisplayObject
+            {
+               if(at.name == name)
+                  return at;
+               var box:DisplayObjectContainer = at as DisplayObjectContainer;
+               for(var i:int = 0; box != null && i < box.numChildren; i++)
+               {
+                  var found:DisplayObject = named(box.getChildAt(i),name);
+                  if(found != null)
+                     return found;
+               }
+               return null;
+            };
+            tellRoom(7,false,false,0,null,0,[]);
+            me.show(false);
+            if(!me.holdWatchReturn(resume))
+               failures.push("watch return: not held in a room");
+            tellRoom(7,false,false,0,null,0,[]);
+            if(resumed != 1 || me.shown)
+               failures.push("watch return: a waiting room did not give the Watch window back (" + resumed + ", shown " + me.shown + ")");
+            if(named(win,"srpRoomsCalledBack") != null && named(win,"srpRoomsCalledBack").visible)
+               failures.push("watch return: a notice for a waiting room");
+            me.holdWatchReturn(resume);
+            tellRoom(7,false,false,3,null,0,[]);
+            var note:DisplayObjectContainer = named(win,"srpRoomsCalledBack") as DisplayObjectContainer;
+            var words:TextField = note != null ? note.getChildAt(0) as TextField : null;
+            if(resumed != 1 || !me.shown)
+               failures.push("watch return: a voting room did not show itself (" + resumed + ", shown " + me.shown + ")");
+            if(note == null || !note.visible || words == null || words.text.length == 0 || words.textWidth + 28 > note.width
+               || note.parent.getChildIndex(note) != note.parent.numChildren - 1)
+               failures.push("watch return: no notice over the voting room: " + (words != null ? words.text : null));
+            // srp's own word (the room's code 18, once): a room still waiting shows itself too
+            tell(["S1;N;0;0;0"]);
+            tellRoom(7,false,false,0,null,0,[]);
+            me.show(false);
+            me.holdWatchReturn(resume);
+            var names:Array = [["S1","R",7,15,15,10,30,0,754,0,5,5,7,0,63,2,18].join(";"),"C;0;61;2;1","C;1;62;1;0","C;2;63;0;0","L;0"];
+            var rows:Array = [];
+            for(var r:int = 0; r < names.length; r++)
+               rows.push({"place":STATE + r, "nickname":names[r]});
+            Win.take(rows);
+            note = named(win,"srpRoomsCalledBack") as DisplayObjectContainer;
+            if(resumed != 1 || !me.shown || note == null || !note.visible)
+               failures.push("watch return: a waiting room that called us back did not show itself with its notice (" + resumed + ", shown " + me.shown + ")");
+            tell(["S1;N;0;0;0"]);
+            if(me.holdWatchReturn(resume))
+               failures.push("watch return: held in no room");
+            trace("ROOMS watch return: a waiting room resumes, a voting room shows with '" + (words != null ? words.text : null) + "', no room holds nothing");
+         }
+         catch(err:Error)
+         {
+            failures.push("watch return: " + err.getStackTrace());
+         }
+      }
+
       private function checkWindowOrder():void
       {
          try

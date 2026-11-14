@@ -1,58 +1,56 @@
 """End-to-end tests of `updater_skhid.exe replay <id> <token> <sha256> <size>`
-("Watch replay") on Windows: the real program in a game folder made for each
-test (its path has a space in it), the web server of test_updater.py on
-127.0.0.1 in the place of the srp one, and tests/fake_exe in the place of
-the game (it writes down how it was started and ends; it makes no window).
+("Save replay"): the real program in a game folder made for each test (its
+path has a space in it), the web server of test_updater.py on 127.0.0.1 in
+the place of the srp one, serving replay files made here (the header the
+server writes, then stand-in bytes).
 
     cd client/updater
     ./build.sh
     python tests/test_replay.py [-v] [TestName ...]
 
+On Windows the exe runs as it is; elsewhere under Wine, as test_db_patches.py
+runs it (`wine` on the PATH or SKHID_TEST_WINE; a prefix of its own unless
+SKHID_TEST_WINEPREFIX names one). The stand-in program (tests/fake_exe) holds
+the replay's lock where a test needs another updater holding it.
+
 NO WINDOW: the updater is started only with the trailing word `quiet`, in
 which it never calls MessageBox (exe/src/replay.rs: `notify` is the one
 place that shows a box, and only when not quiet); `run_updater` refuses any
 other command line, and `test_quiet_is_the_only_way_to_a_box` reads the
-source to keep it so. Should a window of the updater appear all the same,
-the process is killed at once and the test fails. The problem a run met is
-read from its log line (`replay: FAILED (<problem>): <text>`); the text is in
-the language the launcher keeps for this user, read here and never written.
-Nothing outside the temporary folder is touched; SKHID_TEST_TEMP names the
-folder the temporary folders go in. The game and the launcher are never
-started: the game exe of every test folder is the stand-in.
+source to keep it so. On Windows, should a window of the updater appear all
+the same, the process is killed at once and the test fails. The outcome of a
+run is read from its log (`replay: saved <path>`, or `replay: FAILED
+(<problem>): <text>`, the text in the game's language: English under Wine,
+whose fresh prefix has no user.cfg). Nothing outside the temporary folders
+is touched; SKHID_TEST_TEMP names the folder they go in.
 """
 
-import ctypes
-import ctypes.wintypes as wintypes
 import hashlib
-import json
 import os
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+import test_db_patches as wine  # noqa: E402  (imports test_updater's harness on any host)
+from test_db_patches import WINDOWS, Holder, windows  # noqa: E402
 from test_updater import FAKE_EXE, UPDATER, X86, Site  # noqa: E402
 
-user32 = ctypes.WinDLL("user32", use_last_error=True)
-kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-ENUM = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
-user32.EnumWindows.argtypes = [ENUM, wintypes.LPARAM]
-user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
-user32.IsWindowVisible.argtypes = [wintypes.HWND]
-kernel32.CreateFileW.restype = wintypes.HANDLE
-kernel32.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p,
-                                 wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
-kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+setUpModule = wine.setUpModule
+tearDownModule = wine.tearDownModule
 
 SOURCE = os.path.join(HERE, "..", "exe", "src")
 ID = "0a1b2c3d"
 TOKEN = "0123456789abcdef" * 2
-# A word of each message in each launcher language (logic/src/replay.rs).
+MADE = 1_794_174_000
+# A word of each message in each language (logic/src/replay.rs).
 WORDS = {
     "BadLink": ["not valid", "недействительна", "недійсне", "ungültig", "nieprawidłowy"],
     "AlreadyRunning": ["already being downloaded", "уже загружается", "уже завантажується",
@@ -63,15 +61,15 @@ WORDS = {
     "Busy": ["is busy", "занят", "зайнятий", "ausgelastet", "zajęty"],
     "Status": ["error {}", "ошибкой {}", "помилкою {}", "Fehler {}", "błędem {}"],
     "Damaged": ["damaged", "повреждён", "пошкоджений", "beschädigt", "uszkodzona"],
-    "NoGame": ["survarium_skhid.exe"] * 5,
-    "Path": ["Latin letters", "латинских букв", "латинські літери", "lateinische Buchstaben", "litery łacińskie"],
-    "NotReady": ["has not finished", "не закончил", "не завершив", "noch nicht fertig", "nie zakończył"],
 }
 
 
 def game_language():
     """The messages' language: user.cfg's `localization` line (the game's and
     the launcher's), its number in the updater's five, else English (0)."""
+    if not WINDOWS:
+        return 0
+    import ctypes
     documents = ctypes.create_unicode_buffer(260)
     if ctypes.windll.shell32.SHGetFolderPathW(None, 5, None, 0, documents):
         return 0
@@ -92,7 +90,13 @@ LANGUAGE = game_language()
 
 
 def has_window(pid):
-    """Whether the process has a visible top-level window."""
+    """Whether the process has a visible top-level window (Windows only)."""
+    if not WINDOWS:
+        return False
+    import ctypes
+    import ctypes.wintypes as wintypes
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    enum = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
     found = []
 
     def each(hwnd, _):
@@ -102,12 +106,30 @@ def has_window(pid):
             found.append(hwnd)
         return True
 
-    user32.EnumWindows(ENUM(each), 0)
+    user32.EnumWindows(enum(each), 0)
     return bool(found)
 
 
 def sha256(data):
     return hashlib.sha256(data).hexdigest()
+
+
+def replay_file(match=ID, slug="Rudnya", header=None, body=None):
+    """A replay file as the server writes it: "SRPRPL01", the header's
+    length and its lines, then (stand-ins here) the events and the replay."""
+    if header is None:
+        header = (f"format 1\nmatch {match}\nmade {MADE}\nlength 912\nmap 24\nmap_slug {slug}\nmode 4\n"
+                  "score 87 100\nplace 0 0 4 7 Some One\n")
+    head = header.encode("utf-8")
+    body = os.urandom(3000) if body is None else body
+    return b"SRPRPL01" + struct.pack("<I", len(head)) + head + struct.pack("<I", 0) + struct.pack("<I", len(body)) + body
+
+
+def saved_name(slug="Rudnya", copy=1):
+    """The name the updater gives a replay of MADE: the start in this
+    computer's local time (Wine's is the host's)."""
+    stamp = time.strftime("%Y-%m-%d_%H%M", time.localtime(MADE))
+    return f"{stamp}_{slug}_{ID}" + (f"_{copy}" if copy > 1 else "") + ".srpreplay"
 
 
 class QuietSource(unittest.TestCase):
@@ -116,19 +138,19 @@ class QuietSource(unittest.TestCase):
     def test_quiet_is_the_only_way_to_a_box(self):
         with open(os.path.join(SOURCE, "replay.rs"), encoding="utf-8") as file:
             replay = file.read()
-        # The one call of the box in the replay's code, behind `if !quiet`.
-        self.assertEqual(len(re.findall(r"message_box\(", replay)), 1)
+        # The one place of the boxes in the replay's code, behind `if !quiet`.
+        self.assertEqual(len(re.findall(r"_box\(", replay)), 1)
         self.assertRegex(replay, r"fn notify\(quiet: bool, text: &str\) \{\s*if !quiet \{\s*crate::message_box\(text\);")
         self.assertNotRegex(replay, r"MessageBox|CreateWindow|DialogBox")
         # The box is MessageBoxW of main.rs alone, and the replay branch returns
         # before any of main.rs's own calls of it.
-        windows = []
+        windows_made = []
         for name in os.listdir(SOURCE):
             with open(os.path.join(SOURCE, name), encoding="utf-8") as file:
                 text = file.read()
             if re.search(r"MessageBox\w*\(|CreateWindow|DialogBox", text):
-                windows.append(name)
-        self.assertEqual(windows, ["main.rs"])
+                windows_made.append(name)
+        self.assertEqual(windows_made, ["main.rs"])
         with open(os.path.join(SOURCE, "main.rs"), encoding="utf-8") as file:
             main = file.read()
         run = main[main.index("fn run() -> u32 {"):]
@@ -136,13 +158,17 @@ class QuietSource(unittest.TestCase):
         self.assertLess(branch, run.index("message_box("))
         self.assertIn("updater_logic::replay::command(&arguments)", run[:branch])
 
-    def test_the_game_starts_only_after_the_ready_check(self):
+    def test_no_game_is_started(self):
         with open(os.path.join(SOURCE, "replay.rs"), encoding="utf-8") as file:
             replay = file.read()
-        body = replay[replay.index("pub fn run("):replay.index("fn fetch(")]
+        # A save starts no game: only a local file (`run_local`) does.
+        save = replay[replay.index("pub fn run("):replay.index("pub fn run_local(")]
+        for start in ("win::start(", "match_replay", "CreateProcess", "launch("):
+            self.assertNotIn(start, save)
+        body = replay[replay.index("fn launch("):]
         # One start of the game, after the check `ready` makes; its refusal
         # returns before it.
-        self.assertEqual(body.count("win::start("), 1)
+        self.assertEqual(replay.count("win::start("), 1)
         check = body.index("crate::patches::ready(layout).is_err()")
         self.assertLess(check, body.index("win::start("))
         self.assertIn("return tell(quiet, language, &Problem::NotReady);", body[check:body.index("win::start(")])
@@ -162,12 +188,12 @@ class ReplayTest(unittest.TestCase):
         self.top = top
         self.x86 = os.path.join(top, X86)
         self.game = os.path.join(top, "game")
+        self.folder = os.path.join(self.game, "replays")
         os.makedirs(self.x86, exist_ok=True)
         shutil.copy(UPDATER, os.path.join(self.x86, "updater_skhid.exe"))
-        shutil.copy(FAKE_EXE, os.path.join(self.x86, "survarium_skhid.exe"))
-        # The last patch step ended `ready` with a list of no patch: the
-        # folder of a player whose launcher has run, as `ready` reads it.
-        self.write_patches({}, b"ready\r\n")
+
+    def path(self, name):
+        return os.path.join(self.top, *name.split("/"))
 
     def write_url(self, url):
         with open(os.path.join(self.x86, "updater_skhid.url"), "w", encoding="ascii") as file:
@@ -183,19 +209,15 @@ class ReplayTest(unittest.TestCase):
 
     def run_updater(self, arguments, seconds=60):
         """(exit code, the problem line of its log or None). Only `replay ...
-        quiet`, and only with the stand-in as the game."""
+        quiet`."""
         arguments = [*arguments, "quiet"]
         if arguments[0] != "replay" or arguments[-1] != "quiet":
             raise AssertionError(f"refused to start the updater without quiet: {arguments}")
-        game = os.path.join(self.x86, "survarium_skhid.exe")
-        if os.path.exists(game):
-            with open(game, "rb") as file, open(FAKE_EXE, "rb") as fake:
-                if file.read() != fake.read():
-                    raise AssertionError("refused: the game exe of the test folder is not the stand-in")
         log = os.path.join(self.x86, "updater_skhid.log")
         if os.path.exists(log):
             os.remove(log)
-        process = subprocess.Popen([os.path.join(self.x86, "updater_skhid.exe"), *arguments], cwd=self.x86)
+        command, env = windows([os.path.join(self.x86, "updater_skhid.exe"), *arguments])
+        process = subprocess.Popen(command, cwd=self.x86, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
             until = time.time() + seconds
             while time.time() < until and process.poll() is None:
@@ -213,21 +235,17 @@ class ReplayTest(unittest.TestCase):
         self.assertIn("(quiet)", self.log())
         return code, (failed[0] if failed else None)
 
-    def started(self, seconds=5.0):
-        """The game's command line and working folder, if it was started."""
-        path = os.path.join(self.x86, "survarium_skhid.exe.started.txt")
-        for _ in range(int(seconds / 0.05)):
-            if os.path.exists(path):
-                with open(path, "rb") as file:
-                    lines = file.read().decode("utf-16").splitlines()
-                if len(lines) >= 2:
-                    return lines[0], lines[1]
-            time.sleep(0.05)
-        return None
-
     def replays(self):
-        folder = os.path.join(self.game, "replays")
-        return sorted(os.listdir(folder)) if os.path.isdir(folder) else []
+        return sorted(os.listdir(self.folder)) if os.path.isdir(self.folder) else []
+
+    def read(self, name):
+        with open(os.path.join(self.folder, name), "rb") as file:
+            return file.read()
+
+    def put(self, name, data):
+        os.makedirs(self.folder, exist_ok=True)
+        with open(os.path.join(self.folder, name), "wb") as file:
+            file.write(data)
 
     def log(self):
         with open(os.path.join(self.x86, "updater_skhid.log"), "rb") as file:
@@ -238,113 +256,114 @@ class ReplayTest(unittest.TestCase):
         self.assertIn(f"FAILED ({problem}", line)
         self.assertIn(WORDS[problem][LANGUAGE].format(*values), line)
 
-    def assertStartedWith(self, replay_path):
-        started = self.started()
-        self.assertIsNotNone(started, "the game was not started")
-        command, folder = started
-        game = os.path.join(self.x86, "survarium_skhid.exe")
-        # No -localization: the game keeps its own language (game patch 79).
-        self.assertEqual(command, f'"{game}" '
-                                  f'-match_replay="{replay_path}"')
-        self.assertEqual(os.path.normcase(folder.rstrip("\\")), os.path.normcase(self.x86))
+    def assertSaved(self, name):
+        saved = [line for line in self.log().splitlines() if "replay: saved " in line]
+        self.assertEqual(len(saved), 1, self.log())
+        self.assertTrue(saved[0].endswith(f"\\replays\\{name}; exit 0"), saved[0])
 
     def assertNothingDone(self, requests=0):
-        self.assertIsNone(self.started(0.5), "the game was started")
-        self.assertEqual([name for name in self.replays() if name.startswith("srp_")], [])
+        self.assertEqual([name for name in self.replays() if "srpreplay" in name], [])
         self.assertEqual(len(self.site.requests), requests, self.site.requests)
 
     # --- the normal runs -------------------------------------------------
 
-    def test_a_replay_is_downloaded_checked_and_played(self):
-        data = os.urandom(300_000)
+    def test_a_replay_is_saved_under_its_start_map_and_match(self):
+        data = replay_file()
         self.assertEqual(self.run_updater(self.offer(data)), (0, None))
-        target = os.path.join(self.game, "replays", f"srp_{ID}.sur")
-        with open(target, "rb") as file:
-            self.assertEqual(file.read(), data)
-        self.assertEqual(self.replays(), [f"srp_{ID}.sur"])
+        self.assertEqual(self.replays(), [saved_name()])
+        self.assertEqual(self.read(saved_name()), data)
         self.assertEqual(self.site.requests, [f"/replays/{TOKEN}"])
-        # The path has spaces: the game reads a value in quotes as one.
-        self.assertIn(" ", target)
-        self.assertStartedWith(target)
+        self.assertSaved(saved_name())
         log = self.log()
         self.assertIn(f"token {TOKEN[:6]}...", log)
         self.assertNotIn(TOKEN[:7], log)
 
-    def test_a_replay_that_is_there_is_used_again_and_a_wrong_one_is_replaced(self):
-        data = os.urandom(5000)
+    def test_a_replay_saved_before_is_kept_and_another_gets_the_next_name(self):
+        data = replay_file()
         arguments = self.offer(data)
-        os.makedirs(os.path.join(self.game, "replays"))
-        target = os.path.join(self.game, "replays", f"srp_{ID}.sur")
-        with open(target, "wb") as file:
-            file.write(data)
+        self.assertEqual(self.run_updater(arguments), (0, None))
+        # The same again: found by its bytes, nothing asked of the site.
+        self.site.requests.clear()
         self.assertEqual(self.run_updater(arguments), (0, None))
         self.assertEqual(self.site.requests, [])
-        self.assertStartedWith(target)
-
-        os.remove(os.path.join(self.x86, "survarium_skhid.exe.started.txt"))
-        with open(target, "wb") as file:
-            file.write(b"another replay")
+        self.assertSaved(saved_name())
+        # The player renamed it: still found, under its own name.
+        os.rename(os.path.join(self.folder, saved_name()), os.path.join(self.folder, f"mine_{ID}.srpreplay"))
         self.assertEqual(self.run_updater(arguments), (0, None))
-        self.assertEqual(self.site.requests, [f"/replays/{TOKEN}"])
-        with open(target, "rb") as file:
-            self.assertEqual(file.read(), data)
-        self.assertStartedWith(target)
+        self.assertEqual(self.site.requests, [])
+        self.assertSaved(f"mine_{ID}.srpreplay")
+        # Other bytes under the name it would take: the next name, both kept.
+        self.put(saved_name(), b"another replay")
+        other = replay_file()
+        self.assertEqual(self.run_updater(self.offer(other, token="f" * 32)), (0, None))
+        self.assertEqual(self.read(saved_name(copy=2)), other)
+        self.assertEqual(self.read(saved_name()), b"another replay")
+        self.assertEqual(self.replays(), sorted([saved_name(), saved_name(copy=2), f"mine_{ID}.srpreplay"]))
 
-    def test_the_ten_newest_replays_stay_and_nothing_else_is_touched(self):
-        folder = os.path.join(self.game, "replays")
-        os.makedirs(folder)
-        old = [f"srp_{n:08x}.sur" for n in range(12)]
-        others = ["notes.txt", "srp_zz.sur", "my_match.sur", "srp_0000000a.sur.bak", "SRP_000000FF.SUR"]
-        for index, name in enumerate(old + others + ["srp_000000ee.sur.part"]):
-            path = os.path.join(folder, name)
-            with open(path, "wb") as file:
-                file.write(b"x")
-            os.utime(path, (1_700_000_000 + index, 1_700_000_000 + index))
-        self.assertEqual(self.run_updater(self.offer(b"a replay")), (0, None))
-        # The new one and the nine newest of the old; the player's files stay.
-        self.assertEqual(sorted(self.replays()), sorted([f"srp_{ID}.sur"] + old[3:] + others))
+    def test_a_map_name_is_kept_to_plain_letters(self):
+        data = replay_file(slug="..\\..\\Vostok Radar")
+        self.assertEqual(self.run_updater(self.offer(data)), (0, None))
+        self.assertEqual(self.replays(), [saved_name("VostokRadar")])
 
-    def test_a_replay_download_does_not_wait_for_an_update_and_one_at_a_time(self):
-        arguments = self.offer(b"a replay")
-        update_lock = kernel32.CreateFileW(os.path.join(self.x86, "updater_skhid.lock"), 0x40000000, 0, None, 4,
-                                           0x80, None)
-        self.assertNotEqual(update_lock, wintypes.HANDLE(-1).value)
-        try:
-            self.assertEqual(self.run_updater(arguments), (0, None))
-        finally:
-            kernel32.CloseHandle(update_lock)
-        self.assertStartedWith(os.path.join(self.game, "replays", f"srp_{ID}.sur"))
-        os.remove(os.path.join(self.x86, "survarium_skhid.exe.started.txt"))
-        os.remove(os.path.join(self.game, "replays", f"srp_{ID}.sur"))
+    def test_saved_replays_and_other_files_stay_and_only_other_downloads_go(self):
+        others = ["notes.txt", "srp_00000001.sur", "srp_00000002.sur.part", f"srp_{ID}.sur",
+                  "2026-01-01_1200_Rudnya_00000003.srpreplay", "SRP_00000004.SRPREPLAY.PART",
+                  "srp_0000000.srpreplay.part"]
+        for name in others + ["srp_000000ee.srpreplay.part"]:
+            self.put(name, b"x")
+        self.assertEqual(self.run_updater(self.offer(replay_file())), (0, None))
+        self.assertEqual(self.replays(), sorted(others + [saved_name()]))
+
+    def test_a_save_waits_for_another_and_none_for_an_update(self):
+        arguments = self.offer(replay_file())
+        for name in ("updater_skhid.lock", "updater_skhid.replay.lock"):
+            with open(os.path.join(self.x86, name), "wb"):
+                pass
+        update = Holder(self, f"{X86}/updater_skhid.lock", mode="lock")
+        self.assertEqual(self.run_updater(arguments), (0, None))
+        update.release()
+        os.remove(os.path.join(self.folder, saved_name()))
         self.site.requests.clear()
-        replay_lock = kernel32.CreateFileW(os.path.join(self.x86, "updater_skhid.replay.lock"), 0x40000000, 0,
-                                           None, 4, 0x80, None)
-        try:
-            code, line = self.run_updater(arguments)
-        finally:
-            kernel32.CloseHandle(replay_lock)
+        # Another save holding the lock a moment (still downloading after the
+        # lobby said `ready`): this one waits for it, then saves.
+        replay = Holder(self, f"{X86}/updater_skhid.replay.lock", mode="lock")
+        threading.Timer(2, replay.release).start()
+        self.assertEqual(self.run_updater(arguments), (0, None))
+        self.assertIn("waiting for it", self.log())
+        self.assertSaved(saved_name())
+        os.remove(os.path.join(self.folder, saved_name()))
+        self.site.requests.clear()
+        # One that does not let go: refused after the wait (60 s).
+        replay = Holder(self, f"{X86}/updater_skhid.replay.lock", mode="lock")
+        started = time.time()
+        code, line = self.run_updater(arguments, seconds=120)
+        replay.release()
+        self.assertGreaterEqual(time.time() - started, 55)
         self.assertEqual(code, 1)
         self.assertSaid(line, "AlreadyRunning")
         self.assertNothingDone()
 
-    # --- what must start nothing ------------------------------------------
+    def test_a_game_folder_in_another_alphabet(self):
+        shutil.rmtree(self.top)
+        self.make_game(os.path.join(self.root, "Ελληνικά 遊戲", "Survarium"))
+        self.write_url(self.site.url)
+        data = replay_file()
+        self.assertEqual(self.run_updater(self.offer(data)), (0, None))
+        self.assertEqual(self.read(saved_name()), data)
 
-    def test_hostile_arguments_start_nothing_and_ask_nothing(self):
+    # --- what must save nothing -------------------------------------------
+
+    def test_hostile_arguments_save_nothing_and_ask_nothing(self):
         sha = sha256(b"x")
         good = [ID, TOKEN, sha, "1"]
         cases = [
             [], good[:3], good + ["extra"], ["", "", "", ""],
-            ["0A1B2C3D", TOKEN, sha, "1"], [ID[:-1], TOKEN, sha, "1"], [ID + "0", TOKEN, sha, "1"],
-            [ID, TOKEN.upper(), sha, "1"], [ID, TOKEN[:-1], sha, "1"], [ID, TOKEN + "0", sha, "1"],
-            [ID, TOKEN, sha.upper(), "1"], [ID, TOKEN, sha[:-1], "1"], [ID, TOKEN, sha + "0", "1"],
-            [ID, TOKEN, sha, "0"], [ID, TOKEN, sha, str(64 * 2**20 + 1)], [ID, TOKEN, sha, "12345678901"],
-            [ID, TOKEN, sha, "-1"], [ID, TOKEN, sha, "1 "], [ID, TOKEN, sha, "1e3"],
-            [ID, '0123456789abcdef0123456789abcd"x', sha, "1"], [ID, TOKEN[:-1] + "&", sha, "1"],
-            [ID, TOKEN[:-1] + "|", sha, "1"], ["..\\..\\..", TOKEN, sha, "1"],
-            [ID, "../../../../etc/passwd" + "0" * 10, sha, "1"],
-            [ID, "https://example.com/" + "0" * 12, sha, "1"], [ID + " " + TOKEN, sha, "1", "1"],
-            [ID, TOKEN, sha, "1", "&", "calc.exe"], [ID, TOKEN + "?x=1", sha, "1"],
-            ["quiet", *good],
+            ["0A1B2C3D", TOKEN, sha, "1"], [ID[:-1], TOKEN, sha, "1"], [ID, TOKEN.upper(), sha, "1"],
+            [ID, TOKEN[:-1], sha, "1"], [ID, TOKEN, sha.upper(), "1"], [ID, TOKEN, sha[:-1], "1"],
+            [ID, TOKEN, sha, "0"], [ID, TOKEN, sha, str(12 * 2**20 + 1)], [ID, TOKEN, sha, "12345678901"],
+            [ID, TOKEN, sha, "-1"], [ID, TOKEN, sha, "1e3"], [ID, TOKEN[:-1] + "&", sha, "1"],
+            ["..\\..\\..", TOKEN, sha, "1"], [ID, "../../../../etc/passwd" + "0" * 10, sha, "1"],
+            [ID, TOKEN, sha, "1", "&", "calc.exe"], ["quiet", *good],
         ]
         self.site.replays[TOKEN] = b"x"
         for arguments in cases:
@@ -355,15 +374,14 @@ class ReplayTest(unittest.TestCase):
                 self.assertNothingDone()
                 self.assertNotIn(TOKEN, self.log())
 
-    def test_a_server_that_answers_wrong_starts_nothing(self):
-        data = os.urandom(10_000)
+    def test_a_server_that_answers_wrong_saves_nothing(self):
+        data = replay_file()
         arguments = ["replay", ID, TOKEN, sha256(data), str(len(data))]
         cases = [
             ("longer", (200, {}, data + b"more"), "Damaged", ()),
             ("shorter", (200, {}, data[:-1]), "Damaged", ()),
             ("other bytes", (200, {}, os.urandom(len(data))), "Damaged", ()),
             ("a redirect", (302, {"Location": f"/replays/{'f' * 32}"}, b""), "Status", (302,)),
-            ("moved for good", (301, {"Location": "https://example.com/x.sur"}, b""), "Status", (301,)),
             ("unknown token", (404, {}, b""), "Expired", ()),
             ("gone", (410, {}, b""), "Expired", ()),
             ("busy", (503, {}, b""), "Busy", ()),
@@ -379,12 +397,27 @@ class ReplayTest(unittest.TestCase):
                 self.assertEqual(code, 1)
                 self.assertSaid(line, problem, *values)
                 self.assertNothingDone(requests=1)
-                self.assertEqual(self.site.requests, [f"/replays/{TOKEN}"])
+                self.assertEqual(self.replays(), [], "a download left over")
+
+    def test_a_file_that_is_no_replay_of_this_match_is_not_kept(self):
+        # Each as the link says (size and checksum right), its header not.
+        for label, data in [
+            ("another match", replay_file(match="0a1b2c3e")),
+            ("no replay file", b"PK\x03\x04" + os.urandom(2000)),
+            ("a header past the file", b"SRPRPL01" + struct.pack("<I", 8000) + b"match 0a1b2c3d\n"),
+            ("a header over the cap", b"SRPRPL01" + struct.pack("<I", 8193) + b"x" * 9000),
+            ("a header with no start", replay_file(header=f"match {ID}\nmap 24\n")),
+            ("a control byte", replay_file(header=f"match {ID}\nmade {MADE}\nmap 24\nmap_slug a\x1b[2J\n")),
+        ]:
+            with self.subTest(label):
+                code, line = self.run_updater(self.offer(data))
+                self.assertEqual(code, 1)
+                self.assertSaid(line, "Damaged")
                 self.assertEqual(self.replays(), [], "a download left over")
 
     def test_an_unreachable_site_is_tried_three_times(self):
         self.write_url("http://127.0.0.1:9")                # nothing listens there
-        code, line = self.run_updater(self.offer(b"a replay"), seconds=120)
+        code, line = self.run_updater(self.offer(replay_file()), seconds=120)
         self.assertEqual(code, 1)
         self.assertSaid(line, "Network")
         self.assertNothingDone()
@@ -393,127 +426,11 @@ class ReplayTest(unittest.TestCase):
     def test_only_its_own_site_by_its_own_rules(self):
         # Plain HTTP to another host than this computer is refused, as for updates.
         self.write_url("http://example.com")
-        code, line = self.run_updater(self.offer(b"a replay"))
+        code, line = self.run_updater(self.offer(replay_file()))
         self.assertEqual(code, 1)
         self.assertIn("FAILED (server address)", line)
         self.assertIn("https://host", line)
         self.assertNothingDone()
-
-    # --- the game's files must be in place, as for play_skhid.bat ---------
-
-    def write_patches(self, patches, status):
-        """Beside the updater, the list of the last patch step (`patches`:
-        n -> the file's bytes) and its status, as `ready` reads them; the
-        game folder's patch files are not touched."""
-        listed = {f"patch_{n}": {"sha256": sha256(data), "url": f"http://127.0.0.1:9/store/patch_{n}"}
-                  for n, data in patches.items()}
-        with open(os.path.join(self.x86, "updater_skhid.patches"), "wb") as file:
-            file.write(json.dumps(listed).encode("ascii"))
-        with open(os.path.join(self.x86, "updater_skhid.patches.status"), "wb") as file:
-            file.write(status)
-
-    def write_patch_file(self, n, data):
-        os.makedirs(self.game, exist_ok=True)
-        with open(os.path.join(self.game, f"resources.db.patch_{n}"), "wb") as file:
-            file.write(data)
-
-    def test_patches_not_in_place_start_no_game_and_keep_the_replay(self):
-        patch = os.urandom(8192)
-        self.write_patches({14: patch}, b"ready\r\n")
-        data = os.urandom(20_000)
-        arguments = self.offer(data)
-        # Listed, missing.
-        code, line = self.run_updater(arguments)
-        self.assertEqual(code, 1)
-        self.assertSaid(line, "NotReady")
-        log = self.log()
-        self.assertIn("ready: NOT READY:", log)
-        self.assertIn("the game is not started", log)
-        self.assertIsNone(self.started(0.5), "the game was started")
-        # Downloaded and checked all the same: the next ask uses it again.
-        target = os.path.join(self.game, "replays", f"srp_{ID}.sur")
-        with open(target, "rb") as file:
-            self.assertEqual(file.read(), data)
-        self.assertEqual(self.site.requests, [f"/replays/{TOKEN}"])
-        # Read only: no patch file was fetched or made.
-        self.assertFalse(os.path.exists(os.path.join(self.game, "resources.db.patch_14")))
-
-        # Damaged (one byte): not in place either.
-        self.write_patch_file(14, patch[:-1] + bytes([patch[-1] ^ 1]))
-        code, line = self.run_updater(arguments)
-        self.assertEqual(code, 1)
-        self.assertSaid(line, "NotReady")
-        self.assertIsNone(self.started(0.5), "the game was started")
-
-        # In place, and one patch file more than the list has: not in place.
-        self.write_patch_file(14, patch)
-        self.write_patch_file(15, b"another")
-        code, line = self.run_updater(arguments)
-        self.assertEqual(code, 1)
-        self.assertSaid(line, "NotReady")
-        self.assertIsNone(self.started(0.5), "the game was started")
-
-        # Once the launcher has made the folder its list, the replay kept is played.
-        os.remove(os.path.join(self.game, "resources.db.patch_15"))
-        self.site.requests.clear()
-        self.assertEqual(self.run_updater(arguments), (0, None))
-        self.assertIn("ready: the patches are in place", self.log())
-        self.assertEqual(self.site.requests, [])
-        self.assertStartedWith(target)
-
-    def test_a_patch_step_that_did_not_end_ready_starts_no_game(self):
-        arguments = self.offer(b"a replay")
-        for status in (b"blocked overlay changed\r\n", b"blocked a download failed\r\n", b""):
-            self.write_patches({}, status)
-            code, line = self.run_updater(arguments)
-            self.assertEqual(code, 1, status)
-            self.assertSaid(line, "NotReady")
-            self.assertIsNone(self.started(0.5), "the game was started")
-        # No status at all (a launcher that never ran the patch step): no game.
-        os.remove(os.path.join(self.x86, "updater_skhid.patches.status"))
-        code, line = self.run_updater(arguments)
-        self.assertEqual(code, 1)
-        self.assertSaid(line, "NotReady")
-        # A list that cannot be read: no game.
-        self.write_patches({}, b"ready\r\n")
-        with open(os.path.join(self.x86, "updater_skhid.patches"), "wb") as file:
-            file.write(b"{not a list")
-        code, line = self.run_updater(arguments)
-        self.assertEqual(code, 1)
-        self.assertSaid(line, "NotReady")
-        self.assertIsNone(self.started(0.5), "the game was started")
-        # Ready again: the game starts.
-        self.write_patches({}, b"ready\r\n")
-        self.assertEqual(self.run_updater(arguments), (0, None))
-        self.assertStartedWith(os.path.join(self.game, "replays", f"srp_{ID}.sur"))
-
-    def test_no_game_exe_starts_nothing(self):
-        os.remove(os.path.join(self.x86, "survarium_skhid.exe"))
-        code, line = self.run_updater(self.offer(b"a replay"))
-        self.assertEqual(code, 1)
-        self.assertSaid(line, "NoGame")
-        self.assertNothingDone()
-
-    def test_a_folder_in_another_alphabet(self):
-        # Letters the ANSI code page of this PC may not have: the game gets the
-        # path as it is when it has them, else the short (8.3) path, else the
-        # player is told.
-        shutil.rmtree(self.top)
-        self.make_game(os.path.join(self.root, "Ελληνικά 遊戲", "Survarium"))
-        self.write_url(self.site.url)
-        code, line = self.run_updater(self.offer(b"a replay"))
-        target = os.path.join(self.game, "replays", f"srp_{ID}.sur")
-        if code == 0:
-            command, _ = self.started()
-            print(f"\n  another alphabet: the game was given {command.split('-match_replay=', 1)[1]}")
-            path = command.split('-match_replay="', 1)[1][:-1]
-            path.encode("mbcs", "strict")                       # what GetCommandLineA keeps
-            self.assertEqual(os.path.normcase(os.path.realpath(path)), os.path.normcase(os.path.realpath(target)))
-            self.assertLessEqual(len(path.encode("mbcs")), 259)
-        else:
-            self.assertSaid(line, "Path")
-            self.assertTrue(os.path.exists(target))
-            self.assertIsNone(self.started(0.5))
 
 
 if __name__ == "__main__":

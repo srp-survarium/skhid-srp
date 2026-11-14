@@ -161,7 +161,10 @@ use super::account::Account;
 use super::level_stats::KillsDeaths;
 use super::pay::{self, Pay};
 use super::persist::GameRepository;
+use super::persist::history::{self, MatchKind, MatchRecord};
+use super::persist::match_events::MatchEvent;
 use super::quests::{self, Notice, REPUTATION_LEVEL_MESSAGE};
+use super::replays::ReplayId;
 use super::{GameAccounts, balance, items_rules, wire};
 use crate::LockExt;
 
@@ -329,6 +332,8 @@ pub struct PlayerResult {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatchResult {
     pub match_id: u32,
+    /// The same match for good (`replays::ReplayId`): the history's key.
+    pub replay_id: ReplayId,
     pub map_id: u8,
     /// Its mode; in Blackout (`docs/notes/blackout.md`) every point a
     /// player earns counts twice, in its score and in what the score pays
@@ -364,6 +369,8 @@ pub struct MatchResult {
     /// joiners too, and its screen takes no drop card (the owner's of
     /// 2026-10-20; `docs/notes/rooms.md`).
     pub private: bool,
+    /// What happened in it, for the history ([`history::MatchRecord::events`]).
+    pub events: Vec<MatchEvent>,
 }
 
 /// What a Blackout match's score and pay are worth: the owner's of
@@ -745,11 +752,29 @@ struct Changes {
     saved: Vec<u32>,
     /// Reports no longer kept.
     deleted: Vec<u32>,
+    /// Matches for the history ([`history`]), not written yet.
+    history: Vec<PendingRecord>,
+}
+
+/// How many saves in a row may fail to write a match to the history before
+/// it is dropped (at [`crate::SAVE_INTERVAL`], 5 minutes: longer than a
+/// database stays locked). A match and its events are one transaction under
+/// strict CHECKs, so a row that breaks one would fail for ever: it would
+/// keep the match out, log an error at every save and keep the changes from
+/// ever being empty.
+pub(crate) const RECORD_TRIES: u16 = 150;
+
+/// A match on its way to the history.
+#[derive(Clone)]
+struct PendingRecord {
+    record: MatchRecord,
+    /// Saves that failed to write it so far.
+    failures: u16,
 }
 
 impl Changes {
     fn is_empty(&self) -> bool {
-        !self.state && self.saved.is_empty() && self.deleted.is_empty()
+        !self.state && self.saved.is_empty() && self.deleted.is_empty() && self.history.is_empty()
     }
 }
 
@@ -1019,13 +1044,15 @@ impl Results {
         }
     }
 
-    /// Write what changed since the last call to `repository`: the reports
-    /// no longer kept are deleted, the new ones written, then the state
-    /// that lists them. Each row is its own write: srp ending between two
-    /// leaves rows [`Results::restored`] puts right. A write that fails is
-    /// tried again at the next call.
+    /// Write what changed since the last call to `repository`: the matches
+    /// settled are kept in the history ([`history`], each in one
+    /// transaction), the reports no longer kept are deleted, the new ones
+    /// written, then the state that lists them. Each row is its own write:
+    /// srp ending between two leaves rows [`Results::restored`] puts right.
+    /// A write that fails is tried again at the next call; a match that
+    /// cannot be written in [`RECORD_TRIES`] calls is dropped, said loudly.
     pub fn save_changes(&self, repository: &mut dyn GameRepository) {
-        let (state, saved, deleted) = {
+        let (state, saved, deleted, matches) = {
             let mut inner = self.inner.locked();
             if inner.changes.is_empty() {
                 return;
@@ -1040,9 +1067,28 @@ impl Results {
                     Some((match_id, serde_json::to_string(&*report)))
                 })
                 .collect();
-            (state, saved, changes.deleted)
+            (state, saved, changes.deleted, changes.history)
         };
         let mut again = Changes::default();
+        for mut pending in matches {
+            let Err(error) = repository.record_match(&pending.record) else {
+                continue;
+            };
+            pending.failures += 1;
+            let replay_id = pending.record.replay_id.as_str();
+            if pending.failures >= RECORD_TRIES {
+                log::error!(
+                    "Match {replay_id} dropped from the history: {RECORD_TRIES} saves could not \
+                     write it, the last with {error}"
+                );
+            } else {
+                // Once, not at every save.
+                if pending.failures == 1 {
+                    log::error!("Match {replay_id} not kept in the history: {error}; retrying");
+                }
+                again.history.push(pending);
+            }
+        }
         for match_id in deleted {
             if let Err(error) = repository.delete_result(&report_key(match_id)) {
                 log::error!("Match {match_id:#x}'s report not deleted: {error}; retrying");
@@ -1077,6 +1123,7 @@ impl Results {
             inner.changes.state |= again.state;
             inner.changes.saved.extend(again.saved);
             inner.changes.deleted.extend(again.deleted);
+            inner.changes.history.extend(again.history);
         }
     }
 
@@ -1136,6 +1183,9 @@ impl Results {
         let balance_changes = shared.balance_changes(accounts);
 
         let mut players = Vec::with_capacity(result.players.len());
+        // The kits each account used, as its kits were when the match
+        // ended (before it is settled), for the history.
+        let mut kits = Vec::with_capacity(result.players.len());
         for (index, player) in result.players.iter().enumerate() {
             let standing = shared.standing(player);
             // Only a player who stayed has a game of its play period; a
@@ -1148,6 +1198,13 @@ impl Results {
             } else {
                 0
             };
+            kits.push(
+                accounts
+                    .get(player.account_id)
+                    .map_or_else(Vec::new, |account| {
+                        shared.kits_used(&account.locked(), player)
+                    }),
+            );
             let report = match accounts.get(player.account_id) {
                 Some(account) => {
                     let mut account = account.locked();
@@ -1221,6 +1278,7 @@ impl Results {
         }
 
         let stats = shared.match_stats(&held);
+        let record = shared.history_record(&bots, &players, kits, accounts);
         let report = Arc::new(MatchReport {
             match_id: result.match_id,
             end: result.end,
@@ -1247,6 +1305,10 @@ impl Results {
         inner.reports.push_back(report.clone());
         inner.changes.state = true;
         inner.changes.saved.push(report.match_id);
+        inner
+            .changes
+            .history
+            .extend(record.map(|record| PendingRecord { record, failures: 0 }));
         Some(report)
     }
 
@@ -1638,6 +1700,173 @@ impl<'a> Shared<'a> {
                 Winners::Team(winner) => player.team < 2 && winner == Some(player.team),
                 Winners::MostKills(top) => top == Some(player.kills),
             }
+    }
+
+    /// The kits `account` used in the match, as the history keeps them
+    /// ([`history::KitLine`]): every kit with a counter above 0 in the
+    /// trusted snapshot (as [`Self::wear`] counts a kit worn); with none
+    /// (no trusted snapshot, or nothing done), the kit the account plays,
+    /// the one the match took. Each with its own kills, headshots, shots and
+    /// hits, and its weapons and armour by slot.
+    fn kits_used(&self, account: &Account, player: &PlayerResult) -> Vec<history::KitLine> {
+        let events = self.events(player);
+        let kits = account.kits.len().min(KITS);
+        let mut used: Vec<usize> = (0..kits)
+            .filter(|&kit| events.iter().any(|counts| counts[kit] > 0))
+            .collect();
+        if used.is_empty() {
+            used.extend(
+                account
+                    .kit_index(account.active_kit)
+                    .filter(|&kit| kit < kits),
+            );
+        }
+        used.into_iter()
+            .map(|index| history::KitLine {
+                kit: index as u8,
+                counts: history::KitCounts {
+                    kills: u64::from(events[event::KILL][index]),
+                    headshots: u64::from(events[event::HEADSHOT_KILL][index]),
+                    shots: u64::from(events[event::BULLET_FIRE][index]),
+                    hits: u64::from(events[event::BULLET_HIT][index]),
+                },
+                items: account.kits[index]
+                    .slots
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(slot, held)| {
+                        Some(history::KitItem {
+                            slot: history::GearSlot::of(slot)?,
+                            dict_id: account.item(held.as_ref()?.item_id)?.dict_id,
+                        })
+                    })
+                    .collect(),
+            })
+            .collect()
+    }
+
+    /// The match as the history keeps it ([`history`]): every account that
+    /// was in it, each with its line, its rating after (`reports`) and the
+    /// kits it used (`kits`, [`Self::kits_used`]); no bot (`bots`). All by
+    /// roster place. `None` when no account was in it.
+    fn history_record(
+        &self,
+        bots: &[bool],
+        reports: &[PlayerReport],
+        kits: Vec<Vec<history::KitLine>>,
+        accounts: &GameAccounts,
+    ) -> Option<MatchRecord> {
+        let result = self.result;
+        let research = result.mode == GameMode::Research;
+        let mut players: Vec<history::PlayerRecord> = Vec::new();
+        for (((player, &bot), report), kits) in
+            result.players.iter().zip(bots).zip(reports).zip(kits)
+        {
+            let presence = match self.standing(player) {
+                Standing::Finished => history::Presence::Finished,
+                Standing::Left => history::Presence::Left,
+                Standing::Absent | Standing::NotPlayed => continue,
+            };
+            if bot || player.account_id == 0 || accounts.get(player.account_id).is_none() {
+                continue;
+            }
+            let events = self.events(player);
+            let count = |event| u64::from(total(&events, event));
+            players.push(history::PlayerRecord {
+                account_id: player.account_id,
+                clan_id: accounts
+                    .clans()
+                    .clan_of(player.account_id)
+                    .filter(|clan| clan.registered)
+                    .map(|clan| clan.id),
+                line: history::PlayerLine {
+                    team: player.team,
+                    place: 0,
+                    seat: Some(player.place),
+                    presence,
+                    rating: report.reward.rating_after,
+                    score: u64::from(player.score),
+                    kills: u64::from(player.kills),
+                    deaths: u64::from(player.deaths),
+                    counters: history::Counters {
+                        assists: count(event::ASSIST),
+                        headshots: count(event::HEADSHOT_KILL),
+                        grenade_kills: count(event::GRENADE_KILL),
+                        melee_kills: count(event::MELEE_KILL),
+                        // Research counts its captures where a battery
+                        // mode counts a delivery's share (`event`).
+                        batteries: if research {
+                            0
+                        } else {
+                            count(event::PUT_VICTORY_ITEM_IN_CONTAINER)
+                        },
+                        capture_hundredths: if research {
+                            count(event::RESEARCH_CAPTURE)
+                        } else {
+                            0
+                        },
+                        // Every artefact taken from an anomaly, the
+                        // results' explorer count; not patch 80's
+                        // empty-slot bonus (event 16).
+                        artefacts: count(event::ARTEFACT),
+                        shots: count(event::BULLET_FIRE),
+                        hits: count(event::BULLET_HIT),
+                    },
+                },
+                kits,
+            });
+        }
+        if players.is_empty() {
+            return None;
+        }
+        // The place in its team by score; a tie goes to the roster's order.
+        let places: Vec<u8> = players
+            .iter()
+            .enumerate()
+            .map(|(index, me)| {
+                let ahead = players.iter().enumerate().filter(|&(other, them)| {
+                    them.line.team == me.line.team
+                        && (them.line.score > me.line.score
+                            || (them.line.score == me.line.score && other < index))
+                });
+                u8::try_from(ahead.count() + 1).unwrap_or(u8::MAX)
+            })
+            .collect();
+        for (player, place) in players.iter_mut().zip(places) {
+            player.line.place = place;
+        }
+        let kind = if result.private {
+            MatchKind::Private
+        } else if result.vs_bots {
+            MatchKind::VsBots
+        } else {
+            MatchKind::Public(history::Eligibility::of(
+                bots.contains(&true),
+                players.len(),
+                result.played_ms,
+            ))
+        };
+        Some(MatchRecord {
+            replay_id: result.replay_id.clone(),
+            kind,
+            info: history::MatchInfo {
+                ended_at: self.terms.now,
+                duration_ms: result.duration_ms,
+                map_id: result.map_id,
+                game_mode: result.mode,
+                match_level: result.match_level,
+                // Who won as `Self::won` has it: a free-for-all's winners
+                // are by kills.
+                winner: match self.winners {
+                    Winners::Team(team) => history::Winner::of(team, DRAW),
+                    Winners::MostKills(Some(top)) => history::Winner::MostKills(top.into()),
+                    Winners::MostKills(None) => history::Winner::Unknown,
+                },
+                team_points: result.team_points,
+            },
+            players,
+            events: result.events.clone(),
+        })
     }
 
     /// A player's counters, if the result's numbers can be used.

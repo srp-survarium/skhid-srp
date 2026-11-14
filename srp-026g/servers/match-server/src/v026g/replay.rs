@@ -1,83 +1,62 @@
-//! "Watch replay" (`docs/notes/replay_watch.md`): the match recordings
-//! ([`super::record`]) made into the game's own replay files
-//! ([`super::sur`]) by the server, for the lobby's History.
+//! The replays' desk of the srp process ([`replays_from_env`]) and what the
+//! replay sessions (`game::playback`, `docs/notes/replay-stream.md`) read
+//! of the recordings ([`super::record`]): a match's kept recording, and its
+//! places' accounts and game revisions.
 //!
-//! One thread ([`start`]) takes the matches the replays' desk
-//! (`session::v026g::replays::Replays`) queues, one at a time: a kept
-//! recording a player has asked for the replay of, the first time anyone
-//! does (most are never watched; a match's end converts nothing). For each
+//! Save (`docs/notes/replay_watch.md` section 2.1): one thread
+//! ([`start`]) makes the files the desk queues (`Replays::save_ask`), one
+//! at a time, at the lowest priority ([`lowest_priority`]): a kept
+//! recording a player asked to save, the first time anyone does. For each
 //! it writes, in `SRP_REPLAY_DIR`:
 //!
-//! - `<id:08x>.sur`: [`sur_convert::convert_file`] of the recording with the
-//!   mode's `.options` file of the server's game data (the file the map's
-//!   `maps_dict` row names, [`sur_convert::config`]: the one the map was
-//!   played with, so every map and mode srp plays has it);
-//! - `<id:08x>.json`, the sidecar ([`Sidecar`]): the size and SHA-256 of
-//!   the `.sur`, each place's patch revision (the recording's `revision`
-//!   notes, from 2026-10-15), every place's account (the header and the
-//!   `places` notes: late joiners too), and when it was made. Never served.
+//! - `<id:08x>.srpreplay` ([`make`]): the container of
+//!   [`super::replay_file`], the `.sur` a replay session plays of the
+//!   recording (`game::playback::sur_of`, checked to load as a session's),
+//!   the history's events of its timeline, and a header made of the 0xE4
+//!   options and those events;
+//! - `<id:08x>.json`, the sidecar (`replays::Sidecar`): the file's size and
+//!   SHA-256, each place's revision and account. Never served.
 //!
 //! Each goes under `.part` first and gets its name when whole, the sidecar
-//! last: a sidecar means its `.sur` is complete. A replay lives as long as
-//! its recording: the writer's storage cap deletes both
-//! (`Replays::recording_deleted`), and at start every replay whose recording
-//! is gone is deleted ([`prune`]). The replays over `SRP_REPLAY_MAX_MB`
-//! together go too, the oldest first ([`cap`]); one that went is made again
-//! when asked for.
-//!
-//! What can be checked before the recording is unpacked whole is checked
-//! first (its size, its header's map), and a failure is tried again only
-//! when its cause can change (`replays::Failure`).
-//!
-//! What a `.sur` holds is what every player of the match was sent in it
-//! (`sur_convert`'s chunks: the 0xE4 options of the largest roster, the
-//! relayed inputs, roster changes and kit choices, the worlds the clients
-//! uploaded) and the mode's config, which every game has: no address, no
-//! session, no token, no server path ([`tests`]).
-//!
-//! The thread runs at the lowest priority on Linux (nice 19,
-//! [`lowest_priority`]): the container's one CPU is shared by the lobby,
-//! the web page and every match's ticks, which must never wait for a
-//! conversion. One at a time, about two seconds of CPU for a match of 20
-//! places.
+//! last: a sidecar means its file is complete. A file lives as long as its
+//! recording (the writer's cap deletes both, `Replays::recording_deleted`;
+//! at start every file whose recording is gone is deleted, [`prune`]), and
+//! the files over `SRP_REPLAY_MAX_MB` together go, the oldest first
+//! ([`cap`]); one that went is made again when asked for.
 
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::thread::JoinHandle;
-use std::time::{Instant, SystemTime};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use session::v026g::replays::{self, Failure, ReplaySettings, Replays, Sidecar, file_stem};
+use session::v026g::GameAccounts;
+use session::v026g::persist::match_events::{EventKind, MatchEvent};
+use session::v026g::replay_watch::{Access, DEFAULT_MAX_RECORDING_MB, WatchSettings};
+use session::v026g::replays::{
+    self, FILE_EXTENSION, Failure, ReplayId, Replays, SaveSettings, Sidecar, file_stem,
+};
+use survarium::v026g::dictionary::Dictionary;
+use survarium::v026g::localization::{self, Language};
+use survarium::v026g::match_msgs::static_info::{self, NO_LOCAL_PLACE};
 
+use super::game::playback::{Recording, sur_of, timeline_of};
 use super::record::{self, NOTE};
-use super::sur_convert::{self, Settings};
+use super::replay_file::{Header, Place, ReplayFile};
+use super::sur;
 
 const PART: &str = ".part";
 
-/// `SRP_REPLAY_DIR`, `SRP_REPLAY_MAX_RECORDING_MB`,
-/// `SRP_REPLAY_MAX_MB` with `SRP_RECORD_DIR` and `SRP_RECORD_MIN_PLAYERS`:
-/// the replays of the srp process (off, and said in the log, when a setting
-/// is missing or the replay folder overlaps the recordings').
+/// The replays of the srp process: the recordings of `SRP_RECORD_DIR`
+/// (`SRP_RECORD_MIN_PLAYERS` and the rest, [`record::RecordSettings`]) and
+/// the replay sessions' settings ([`WatchSettings::from_env`]); off, and
+/// said in the log, without recordings.
 pub fn replays_from_env() -> Replays {
-    replays_of(ReplaySettings::from_env())
-}
-
-/// The replays of these settings (`None`: off), with the recordings'
-/// minimum of players of the environment (`SRP_RECORD_MIN_PLAYERS`).
-pub fn replays_of(settings: Option<ReplaySettings>) -> Replays {
-    let min_players = record::RecordSettings::from_env().map_or(6, |record| record.min_players);
-    if let Some(settings) = &settings {
-        log::info!(
-            "Replays: made in {} from the recordings of {}, with the modes of the game data; \
-             recordings over {} MB are not converted; replays over {} MB together go, the \
-             oldest first",
-            settings.replay_dir.display(),
-            settings.record_dir.display(),
-            settings.max_recording_bytes >> 20,
-            settings.max_replay_bytes >> 20
-        );
-    }
+    let Some(record) = record::RecordSettings::from_env() else {
+        log::info!("Replay sessions are off (SRP_RECORD_DIR)");
+        return Replays::new(None);
+    };
     // A simulation change not recorded yet (`next`) is this release's own
     // revision: the one the release set as the server's minimum.
     let min_patch_revision = std::env::var("SRP_MIN_PATCH_REVISION")
@@ -85,57 +64,87 @@ pub fn replays_of(settings: Option<ReplaySettings>) -> Replays {
         .and_then(|value| value.trim().parse::<u8>().ok())
         .unwrap_or(0);
     let oldest = replays::oldest_replayable_here(min_patch_revision);
-    if settings.is_some() {
-        let pending = replays::simulation_changes(replays::SIMULATION_CHANGES)
-            .ok()
-            .and_then(|changes| changes.last().copied())
-            .filter(|row| row.revision.is_none());
-        if let Some(pending) = pending
-            && min_patch_revision == 0
-        {
-            log::warn!(
-                "Replays: a change of what a match computes is not released yet (`next`: {}), \
-                 and SRP_MIN_PATCH_REVISION is not set: it is not counted (a server of no \
-                 release); a release sets it",
-                pending.what
-            );
-        }
-        log::info!(
-            "Replays: recordings of games of patch revision {oldest} and later are given (the \
-             last change of what a match computes); older ones are refused, said to the player"
+    let pending = replays::simulation_changes(replays::SIMULATION_CHANGES)
+        .ok()
+        .and_then(|changes| changes.last().copied())
+        .filter(|row| row.revision.is_none());
+    if let Some(pending) = pending
+        && min_patch_revision == 0
+    {
+        log::warn!(
+            "Replays: a change of what a match computes is not released yet (`next`: {}), \
+             and SRP_MIN_PATCH_REVISION is not set: it is not counted (a server of no \
+             release); a release sets it",
+            pending.what
         );
     }
-    Replays::new(settings, min_players).with_oldest_revision(oldest)
+    log::info!(
+        "Replays: recordings of games of patch revision {oldest} and later are given (the \
+         last change of what a match computes); older ones are refused, said to the player"
+    );
+    let watch = WatchSettings::from_env();
+    log::info!(
+        "Replay sessions: {} at once, recordings up to {} MB; watched by {}",
+        watch.max_sessions,
+        watch.max_recording_bytes >> 20,
+        match watch.access {
+            Access::Match => format!(
+                "a match's players and {} moderators",
+                watch.moderators.len()
+            ),
+            Access::All => "anyone".to_owned(),
+        }
+    );
+    let save = SaveSettings::from_env(&record.dir);
+    match &save {
+        Some(save) => log::info!(
+            "Save: files made in {}; over {} MB together the oldest go",
+            save.replay_dir.display(),
+            save.max_replay_bytes >> 20
+        ),
+        None => log::info!("Save is off (SRP_REPLAY_DIR)"),
+    }
+    let replays = Replays::new(Some(record.dir))
+        .with_oldest_revision(oldest)
+        .with_watch(watch);
+    match save {
+        Some(save) => replays.with_save(save),
+        None => replays,
+    }
 }
 
-/// Starts the conversion thread, after deleting what is left of a stopped
-/// server, the replays of recordings that are gone and the oldest over the
-/// cap. `None` when replays are off.
-pub fn start(replays: Arc<Replays>) -> Option<io::Result<JoinHandle<()>>> {
-    let settings = replays.settings()?.clone();
-    prune(&settings);
-    cap(&settings, None);
+/// Starts Save's thread, after deleting what is left of a stopped server,
+/// the files of recordings that are gone and the oldest over the cap; its
+/// events come from the history of `accounts`. `None` when Save is off.
+pub fn start(
+    replays: Arc<Replays>,
+    accounts: Option<Arc<GameAccounts>>,
+) -> Option<io::Result<JoinHandle<()>>> {
+    let save = replays.save_settings()?.clone();
+    let record_dir = replays.record_dir()?.to_owned();
+    prune(&save, &record_dir);
+    cap(&save, None);
     Some(
         std::thread::Builder::new()
-            .name("srp-replay".into())
+            .name("srp-save".into())
             .spawn(move || {
                 lowest_priority();
                 while let Some(match_id) = replays.next_job() {
                     let started = Instant::now();
-                    let made = make(&settings, match_id);
+                    let made = make(&replays, accounts.as_deref(), match_id);
                     match &made {
                         Ok(sidecar) => {
                             log::info!(
-                                "Replays: match {match_id:#x} converted in {} ms: {} bytes, \
-                                 SHA-256 {}…",
+                                "Save: match {match_id:#x} made in {} ms: {} bytes, SHA-256 \
+                                 {}...",
                                 started.elapsed().as_millis(),
                                 sidecar.size,
                                 &sidecar.sha256[..12]
                             );
-                            cap(&settings, Some(match_id));
+                            cap(&save, Some(match_id));
                         }
                         Err(error) => log::warn!(
-                            "Replays: match {match_id:#x} not converted: {} ({})",
+                            "Save: match {match_id:#x} not made: {} ({})",
                             error.why,
                             match error.failure {
                                 Failure::Disk => "tried again later",
@@ -150,29 +159,7 @@ pub fn start(replays: Arc<Replays>) -> Option<io::Result<JoinHandle<()>>> {
     )
 }
 
-/// The calling thread at the lowest priority, nice 19 (Linux; nothing
-/// elsewhere): a conversion takes only the CPU the matches leave. Said in
-/// the log if it cannot be set.
-fn lowest_priority() {
-    #[cfg(target_os = "linux")]
-    {
-        // SAFETY: the `gettid` system call and `setpriority` take and return
-        // plain integers; on Linux `PRIO_PROCESS` with a thread id sets that
-        // thread's nice alone (glibc and musl alike).
-        let set = unsafe {
-            let thread = libc::syscall(libc::SYS_gettid);
-            libc::setpriority(libc::PRIO_PROCESS, thread as libc::id_t, 19)
-        };
-        if set != 0 {
-            log::warn!(
-                "Replays: the conversion thread's priority is not lowered: {}",
-                io::Error::last_os_error()
-            );
-        }
-    }
-}
-
-/// Why a conversion failed: the log's words, and when it is tried again.
+/// Why a file was not made: the log's words, and when it is tried again.
 #[derive(Debug, PartialEq, Eq)]
 pub struct MakeError {
     pub why: String,
@@ -204,37 +191,58 @@ impl MakeError {
     }
 }
 
-/// The recording of `match_id` made into its replay and sidecar. Before
-/// the recording is unpacked whole: its size against
-/// `SRP_REPLAY_MAX_RECORDING_MB`, and the map its header names (the header
-/// is in the first block). The mode's config is the game data's own.
-pub fn make(settings: &ReplaySettings, match_id: u32) -> Result<Sidecar, MakeError> {
+/// The kept recording of `match_id` made into its file and sidecar, with
+/// the history's events of `accounts` (none without one). Its size against
+/// `SRP_REPLAY_MAX_RECORDING_MB` first, as a replay session reads it.
+pub fn make(
+    replays: &Replays,
+    accounts: Option<&GameAccounts>,
+    match_id: u32,
+) -> Result<Sidecar, MakeError> {
+    let (Some(save), Some(record_dir)) = (replays.save_settings(), replays.record_dir()) else {
+        return Err(MakeError::lasting("Save is off"));
+    };
     let recording =
-        recording(settings, match_id).ok_or_else(|| MakeError::lasting("no kept recording"))?;
+        recording_in(record_dir, match_id).ok_or_else(|| MakeError::lasting("no kept recording"))?;
+    let max_bytes = replays
+        .watches()
+        .settings()
+        .map_or(DEFAULT_MAX_RECORDING_MB << 20, |settings| {
+            settings.max_recording_bytes
+        });
     let size = fs::metadata(&recording).map_err(MakeError::read)?.len();
-    if size > settings.max_recording_bytes {
+    if size > max_bytes {
         return Err(MakeError::lasting(format!(
             "the recording has {size} bytes, more than SRP_REPLAY_MAX_RECORDING_MB allows"
         )));
     }
-    let header = record::read_header(&recording)
-        .map_err(MakeError::read)?
-        .ok_or_else(|| MakeError::lasting("the recording has no header"))?;
-    let name = sur_convert::config_name(std::slice::from_ref(&header))
-        .ok_or_else(|| MakeError::lasting("the recording names no known map"))?;
-    let config = sur_convert::config(&name)
-        .ok_or_else(|| MakeError::lasting(format!("the game data has no mode config {name}")))?;
     let notes = record::read_notes(&recording).map_err(MakeError::read)?;
-    let (file, report) = sur_convert::convert_file(&recording, &notes, config, Settings::default())
-        .map_err(|error| MakeError::lasting(error.to_string()))?;
-    if let Some((time, why)) = report.refusals.first() {
-        log::warn!(
-            "Replays: match {match_id:#x}: {} uploaded worlds of its recording are no key \
-             frames, the world check refused the first at {time} ms: {why}",
-            report.worlds_untaken
-        );
+    let sur = sur_of(&recording, &notes, match_id).map_err(MakeError::lasting)?;
+    // What a replay session would refuse is not saved either.
+    Recording::from_sur(&sur, match_id).map_err(MakeError::lasting)?;
+    let replay_id = recording
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .and_then(ReplayId::parse)
+        .ok_or_else(|| MakeError::lasting("the recording's name is no replay id"))?;
+    let events = match accounts.and_then(GameAccounts::history) {
+        Some(history) => match history.site().events_of_replay(&replay_id) {
+            Ok(kept) => kept.map(|kept| kept.events).unwrap_or_default(),
+            Err(error) => {
+                return Err(MakeError::disk(format!("the history's events: {error}")));
+            }
+        },
+        None => Vec::new(),
+    };
+    let (accounts_by_place, revisions) = by_place(&notes);
+    let header = header_of(&sur, &replay_id, revisions.clone(), &events)?;
+    let file = ReplayFile {
+        header,
+        events: timeline_of(&events),
+        sur,
     }
-    let (account_ids, revisions) = places(&notes);
+    .write()
+    .map_err(MakeError::lasting)?;
     let sidecar = Sidecar {
         match_id,
         size: file.len() as u64,
@@ -243,17 +251,89 @@ pub fn make(settings: &ReplaySettings, match_id: u32) -> Result<Sidecar, MakeErr
             .map(|byte| format!("{byte:02x}"))
             .collect(),
         revisions,
-        account_ids,
-        made_at: Replays::now_unix(),
+        account_ids: accounts_by_place.into_iter().flatten().collect(),
+        made_at: SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |since| since.as_secs()),
     };
     let stem = file_stem(match_id);
-    write_whole(&settings.replay_dir, &format!("{stem}.sur"), &file)?;
+    write_whole(&save.replay_dir, &format!("{stem}.{FILE_EXTENSION}"), &file)?;
     write_whole(
-        &settings.replay_dir,
+        &save.replay_dir,
         &format!("{stem}.json"),
         sidecar.to_json().as_bytes(),
     )?;
     Ok(sidecar)
+}
+
+/// The file's header: the map, the mode and each place's name and team of
+/// the `.sur`'s 0xE4 options, its length, when its recording was made,
+/// and the score, kills and deaths of the history's events.
+fn header_of(
+    file: &[u8],
+    replay_id: &ReplayId,
+    revisions: Vec<Option<u8>>,
+    events: &[MatchEvent],
+) -> Result<Header, MakeError> {
+    let contents = sur::read(file).map_err(MakeError::lasting)?;
+    let mut payload = vec![NO_LOCAL_PLACE];
+    payload.extend(&contents.options_lzma2);
+    let (_, options) = static_info::parse_payload(&payload, Dictionary::shared())
+        .map_err(|error| MakeError::lasting(format!("the options: {error}")))?;
+    let mut places: Vec<Place> = options
+        .players
+        .iter()
+        .map(|player| Place {
+            team: player.team,
+            kills: 0,
+            deaths: 0,
+            name: if player.clan_tag.is_empty() {
+                player.name.clone()
+            } else {
+                format!("[{}] {}", player.clan_tag, player.name)
+            },
+        })
+        .collect();
+    let mut score = None;
+    let mut count = |place: u8, kill: bool| {
+        if let Some(place) = places.get_mut(usize::from(place)) {
+            let field = if kill { &mut place.kills } else { &mut place.deaths };
+            *field = field.saturating_add(1);
+        }
+    };
+    for event in events {
+        match event.kind {
+            EventKind::Kill { killer, victim } => {
+                count(killer.place, true);
+                if let Some(victim) = victim {
+                    count(victim.place, false);
+                }
+            }
+            EventKind::Death { victim } => count(victim.place, false),
+            EventKind::End { points } => score = Some(points),
+            _ => {}
+        }
+    }
+    let map = options.map.map();
+    let end = contents.records.last().map_or(0, |record| record.event.time);
+    let made = replay_id
+        .made()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |since| since.as_secs());
+    Ok(Header {
+        epoch: session::v026g::replays::simulation_epoch(&revisions),
+        match_id: replay_id.match_id(),
+        made,
+        length: end / 1000,
+        map: map.id,
+        map_slug: localization::text(Language::English, map.map_name_key)
+            .unwrap_or("")
+            .to_owned(),
+        mode: options.map.mode().lobby_number(),
+        score,
+        revisions,
+        places,
+    })
 }
 
 /// `dir/name` written under `.part` first.
@@ -268,16 +348,17 @@ fn write_whole(dir: &Path, name: &str, bytes: &[u8]) -> Result<(), MakeError> {
         })
 }
 
-/// Deletes the oldest replays (by their `.sur`'s time; the sidecar first,
-/// so a half-deleted one is not "made") while the replays, `<8 hex>.sur`
-/// and `.json`, are over `SRP_REPLAY_MAX_MB` together. `keep`'s, just
-/// made, is never deleted, even alone over the cap. Nothing of another
-/// name is touched.
-pub fn cap(settings: &ReplaySettings, keep: Option<u32>) {
-    let Ok(entries) = fs::read_dir(&settings.replay_dir) else {
+/// Deletes the oldest files (by their time; the sidecar first, so a
+/// half-deleted one is not "made") while the files, `<8 hex>.srpreplay`
+/// and `.json`, are over `SRP_REPLAY_MAX_MB` together. `keep`'s, just made,
+/// is never deleted, even alone over the cap. Nothing of another name is
+/// touched.
+pub fn cap(save: &SaveSettings, keep: Option<u32>) {
+    let Ok(entries) = fs::read_dir(&save.replay_dir) else {
         return;
     };
-    // By match: the bytes of its two files, and its `.sur`'s time.
+    let extension = format!(".{FILE_EXTENSION}");
+    // By match: the bytes of its two files, and its file's time.
     let mut found: std::collections::HashMap<u32, (u64, Option<SystemTime>)> =
         std::collections::HashMap::new();
     for entry in entries.flatten() {
@@ -290,16 +371,16 @@ pub fn cap(settings: &ReplaySettings, keep: Option<u32>) {
         if !meta.is_file() {
             continue;
         }
-        if let Some(match_id) = replays::match_of_name(&name, ".sur") {
-            let replay = found.entry(match_id).or_default();
-            replay.0 += meta.len();
-            replay.1 = meta.modified().ok();
+        if let Some(match_id) = replays::match_of_name(&name, &extension) {
+            let file = found.entry(match_id).or_default();
+            file.0 += meta.len();
+            file.1 = meta.modified().ok();
         } else if let Some(match_id) = replays::match_of_name(&name, ".json") {
             found.entry(match_id).or_default().0 += meta.len();
         }
     }
     let mut total: u64 = found.values().map(|(bytes, _)| bytes).sum();
-    if total <= settings.max_replay_bytes {
+    if total <= save.max_replay_bytes {
         return;
     }
     let mut oldest: Vec<(Option<SystemTime>, u32, u64)> = found
@@ -307,49 +388,125 @@ pub fn cap(settings: &ReplaySettings, keep: Option<u32>) {
         .filter(|&(match_id, _)| Some(match_id) != keep)
         .map(|(match_id, (bytes, time))| (time, match_id, bytes))
         .collect();
-    // A sidecar with no `.sur` (no time) first, then the oldest.
+    // A sidecar with no file (no time) first, then the oldest.
     oldest.sort_unstable();
     for (_, match_id, bytes) in oldest {
-        if total <= settings.max_replay_bytes {
+        if total <= save.max_replay_bytes {
             break;
         }
         let stem = file_stem(match_id);
         let mut gone = true;
-        for name in [format!("{stem}.json"), format!("{stem}.sur")] {
-            let path = settings.replay_dir.join(&name);
+        for name in [format!("{stem}.json"), format!("{stem}{extension}")] {
+            let path = save.replay_dir.join(&name);
             match fs::remove_file(&path) {
                 Ok(()) => {}
                 Err(error) if error.kind() == io::ErrorKind::NotFound => {}
                 Err(error) => {
                     gone = false;
-                    log::warn!("Replays: can't delete {}: {error}", path.display());
+                    log::warn!("Save: can't delete {}: {error}", path.display());
                 }
             }
         }
         if gone {
             total -= bytes;
             log::info!(
-                "Replays: the replay of match {match_id:#x} deleted ({bytes} bytes; the \
-                 replays are over SRP_REPLAY_MAX_MB, {} MB)",
-                settings.max_replay_bytes >> 20
+                "Save: the file of match {match_id:#x} deleted ({bytes} bytes; the files are \
+                 over SRP_REPLAY_MAX_MB, {} MB)",
+                save.max_replay_bytes >> 20
             );
         }
     }
 }
 
-/// The kept recording of a match in the recordings' folder.
-fn recording(settings: &ReplaySettings, match_id: u32) -> Option<PathBuf> {
-    fs::read_dir(&settings.record_dir)
+/// Deletes what a stopped server left under `.part`, and every file
+/// (`<8 hex>.srpreplay` / `.json`) whose recording in `record_dir` is gone.
+/// Nothing of another name is touched.
+pub fn prune(save: &SaveSettings, record_dir: &Path) {
+    let Ok(entries) = fs::read_dir(&save.replay_dir) else {
+        return;
+    };
+    let recorded: std::collections::HashSet<u32> = fs::read_dir(record_dir)
+        .map(|entries| {
+            entries
+                .flatten()
+                .filter_map(|entry| record::match_of_file(&entry.path()))
+                .collect()
+        })
+        .unwrap_or_default();
+    let extension = format!(".{FILE_EXTENSION}");
+    for entry in entries.flatten() {
+        let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+            continue;
+        };
+        let left = [format!("{extension}{PART}"), format!(".json{PART}")]
+            .iter()
+            .any(|suffix| replays::match_of_name(&name, suffix).is_some());
+        let orphan = [extension.as_str(), ".json"].iter().any(|suffix| {
+            replays::match_of_name(&name, suffix).is_some_and(|id| !recorded.contains(&id))
+        });
+        if left || orphan {
+            let path = entry.path();
+            match fs::remove_file(&path) {
+                Ok(()) => log::info!(
+                    "Save: {} deleted ({})",
+                    path.display(),
+                    if left {
+                        "left by a stopped server"
+                    } else {
+                        "its recording is gone"
+                    }
+                ),
+                Err(error) => log::warn!("Save: can't delete {}: {error}", path.display()),
+            }
+        }
+    }
+}
+
+/// The calling thread at the lowest priority, nice 19 (Linux; nothing
+/// elsewhere): reading a recording takes only the CPU the matches leave. Said in
+/// the log if it cannot be set.
+pub(crate) fn lowest_priority() {
+    #[cfg(target_os = "linux")]
+    {
+        // SAFETY: the `gettid` system call and `setpriority` take and return
+        // plain integers; on Linux `PRIO_PROCESS` with a thread id sets that
+        // thread's nice alone (glibc and musl alike).
+        let set = unsafe {
+            let thread = libc::syscall(libc::SYS_gettid);
+            libc::setpriority(libc::PRIO_PROCESS, thread as libc::id_t, 19)
+        };
+        if set != 0 {
+            log::warn!(
+                "Replays: a reader's priority is not lowered: {}",
+                std::io::Error::last_os_error()
+            );
+        }
+    }
+}
+
+/// The newest kept recording of a match in `record_dir`: a regular file
+/// named `rec026g_<UTC start>_<id:08x>.srprec`.
+pub(crate) fn recording_in(record_dir: &Path, match_id: u32) -> Option<PathBuf> {
+    fs::read_dir(record_dir)
         .ok()?
         .flatten()
         .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()))
         .map(|entry| entry.path())
-        .find(|path| record::match_of_file(path) == Some(match_id))
+        .filter(|path| record::match_of_file(path) == Some(match_id))
+        // The newest: an id comes again after a restart, and the name
+        // starts with when it was made.
+        .max()
 }
 
-/// Every place's account, by place, and the patch revision each place's
-/// game connected with (the highest), from a recording's notes.
+/// Every place's account, and the patch revision each place's game
+/// connected with (the highest), from a recording's notes.
 pub fn places(notes: &[record::Record]) -> (Vec<u32>, Vec<Option<u8>>) {
+    let (accounts, revisions) = by_place(notes);
+    (accounts.into_iter().flatten().collect(), revisions)
+}
+
+/// [`places`] by place: `None` for a place no note names.
+pub(crate) fn by_place(notes: &[record::Record]) -> (Vec<Option<u32>>, Vec<Option<u8>>) {
     let mut accounts: Vec<Option<u32>> = Vec::new();
     let mut revisions: Vec<Option<u8>> = Vec::new();
     for note in notes.iter().filter(|record| record.kind == NOTE) {
@@ -362,7 +519,9 @@ pub fn places(notes: &[record::Record]) -> (Vec<u32>, Vec<Option<u8>>) {
                 let place = note["place"].as_u64().map(|place| place as usize);
                 let revision = note["revision"]
                     .as_u64()
-                    .and_then(|revision| u8::try_from(revision).ok());
+                    .and_then(|revision| u8::try_from(revision).ok())
+                    // 0: a session the server did not know.
+                    .filter(|&revision| revision != 0);
                 if let (Some(place), Some(revision)) = (place, revision)
                     && place < 32
                 {
@@ -394,50 +553,7 @@ pub fn places(notes: &[record::Record]) -> (Vec<u32>, Vec<Option<u8>>) {
     }
     let places = accounts.len().max(revisions.len());
     revisions.resize(places, None);
-    (accounts.into_iter().flatten().collect(), revisions)
-}
-
-/// Deletes what a stopped server left under `.part`, and every replay
-/// (`<8 hex>.sur` / `.json`) whose recording is gone. Nothing of another
-/// name is touched.
-pub fn prune(settings: &ReplaySettings) {
-    let Ok(entries) = fs::read_dir(&settings.replay_dir) else {
-        return;
-    };
-    let recorded: std::collections::HashSet<u32> = fs::read_dir(&settings.record_dir)
-        .map(|entries| {
-            entries
-                .flatten()
-                .filter_map(|entry| record::match_of_file(&entry.path()))
-                .collect()
-        })
-        .unwrap_or_default();
-    for entry in entries.flatten() {
-        let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
-            continue;
-        };
-        let left = [".sur.part", ".json.part"]
-            .iter()
-            .any(|suffix| replays::match_of_name(&name, suffix).is_some());
-        let orphan = [".sur", ".json"].iter().any(|suffix| {
-            replays::match_of_name(&name, suffix).is_some_and(|id| !recorded.contains(&id))
-        });
-        if left || orphan {
-            let path = entry.path();
-            match fs::remove_file(&path) {
-                Ok(()) => log::info!(
-                    "Replays: {} deleted ({})",
-                    path.display(),
-                    if left {
-                        "left by a stopped server"
-                    } else {
-                        "its recording is gone"
-                    }
-                ),
-                Err(error) => log::warn!("Replays: can't delete {}: {error}", path.display()),
-            }
-        }
-    }
+    (accounts, revisions)
 }
 
 #[cfg(test)]

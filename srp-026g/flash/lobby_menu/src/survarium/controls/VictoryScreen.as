@@ -6,7 +6,12 @@ package survarium.controls
    import flash.events.Event;
    import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
+   import flash.geom.Rectangle;
    import flash.text.TextField;
+   import flash.text.TextFieldAutoSize;
+   import flash.text.TextFieldType;
+   import flash.text.TextFormat;
+   import flash.utils.getDefinitionByName;
    import scaleform.clik.controls.Button;
    import scaleform.clik.controls.ToolTip;
    import scaleform.clik.events.ButtonEvent;
@@ -23,6 +28,7 @@ package survarium.controls
    import survarium.data.ItemData;
    import survarium.data.ItemDescriptor;
    import survarium.data.LocalizationData;
+   import survarium.watch.ReplayAsks;
    import survarium.constants.ClaimReason;
    import survarium.constants.CommentKind;
    import survarium.constants.Compliment;
@@ -127,6 +133,23 @@ package survarium.controls
       protected var _match_id:uint = 0;
       
       protected var _foundRenderers:Array = [];
+
+      // srp's Watch replay, red, left of the close button ("To lobby"): the match from the start
+      // (NotificationListScrollContent's replay prompt asks and polls); in its place why the
+      // replay cannot be watched, once that is known.
+      protected var _watchAll:Button;
+
+      // srp's Save replay, between Watch replay and the close button (ReplaySave: Save replay,
+      // Saving..., Saved)
+      protected var _save:Button;
+
+      // the middle of the close button as the movie places it, alone: the row's middle
+      protected var _rowCentre:Number = NaN;
+
+      protected var _watchReason:TextField;
+
+      // the match's number left of them, as the Watch window's search takes it (`#` and 8 hex digits)
+      protected var _matchNumber:TextField;
       
       protected var _maxMatchResult:uint = 0;
       
@@ -225,6 +248,10 @@ package survarium.controls
          this.onLocal();
          LocalizationData.addCallback(this.onLocal,"item_drop_chance_label");
          this.btn_close.addEventListener(ButtonEvent.CLICK,this.closeWindow);
+         this._watchAll = this.replayButton();
+         this._save = this.saveButton();
+         // the movie's Share and Save buttons have nothing behind them in this game
+         this.hideWithArt(this.btnShare,this.btnSave);
          this.players_list.autoSizeLists = true;
          this.removePremium();
          this.treasureCount.mouseEnabled = false;
@@ -247,6 +274,187 @@ package survarium.controls
          this.droppedItem.addEventListener(MouseEvent.ROLL_OUT,this.hideItemHint);
       }
       
+      // Hides two neighbouring buttons of the movie and the art the movie draws on them (their
+      // icons are one shape of the screen's, not the buttons'): every child of the screen that
+      // lies within the two.
+      private function hideWithArt(one:Button, other:Button) : void
+      {
+         var area:Rectangle = one.getBounds(this).union(other.getBounds(this));
+         area.inflate(2,2);
+         for(var i:int = 0; i < numChildren; i++)
+         {
+            var child:DisplayObject = getChildAt(i);
+            if(area.containsRect(child.getBounds(this)) && child.width > 0)
+            {
+               child.visible = false;
+            }
+         }
+      }
+
+      // The red button for watching this match's replay, as high as the close button.
+      protected function replayButton() : Button
+      {
+         var button:Button = null;
+         try
+         {
+            button = new (getDefinitionByName("SrvButtonSkinnedRed") as Class)() as Button;
+         }
+         catch(e:Error)
+         {
+         }
+         if(button == null || button.textField == null)
+         {
+            button = new (Object(this.btn_close).constructor as Class)() as Button;
+         }
+         button.name = "srpWatchReplay";
+         button.visible = false;
+         button.addEventListener(ButtonEvent.CLICK,function(e:ButtonEvent):void
+         {
+            if(_match_id != 0)
+            {
+               ReplayAsks.watch(_match_id,NotificationListScrollContent.REPLAY_WATCH_ALL);
+            }
+         });
+         LocalizationData.addButton(button,"st_srp_replay_title");
+         addChild(button);
+         return button;
+      }
+
+      // The button that saves this match's replay (ReplayAsks), as the close button.
+      protected function saveButton() : Button
+      {
+         var button:Button = new (Object(this.btn_close).constructor as Class)() as Button;
+         button.name = "srpSaveReplay";
+         button.visible = false;
+         button.addEventListener(ButtonEvent.CLICK,function(e:ButtonEvent):void
+         {
+            ReplayAsks.save(_match_id);
+         });
+         // the row anew at each change of the save or of what is known of the replay (a refusal
+         // drops Watch replay and Save), once the screen's data came: prepare hides the match's
+         // number until then (the row then would be the last match's)
+         ReplayAsks.listen(function():void
+         {
+            if(parent != null && _matchNumber != null && _matchNumber.visible)
+            {
+               placeReplayButtons();
+            }
+         });
+         addChild(button);
+         return button;
+      }
+
+      // A button of the close button's row: its label, sized to it.
+      private function sizeButton(button:Button, label:String, font:String) : void
+      {
+         button.label = label;
+         try
+         {
+            button.setSize(Math.max(this.btn_close.width,this.labelWidth(label,font) + 40),this.btn_close.height);
+         }
+         catch(e:Error)
+         {
+            button.width = Math.max(this.btn_close.width,this.labelWidth(label,font) + 40);
+         }
+         button.validateNow();
+      }
+
+      // Watch replay, Save replay and the close button as one row, centred where the close button
+      // alone is; left of the row why the replay cannot be watched, and the match's number, for a
+      // match with an id. Sized to the language's labels.
+      protected function placeReplayButtons() : void
+      {
+         var reason:String = this._match_id != 0 ? NotificationListScrollContent.replayReason(NotificationListScrollContent.matchNumberText(this._match_id).substr(1)) : null;
+         var font:String = this.btn_close.textField.getTextFormat().font;
+         var state:String = ReplayAsks.stateOf(this._match_id);
+         this._watchAll.visible = this._match_id != 0 && reason == null;
+         this._save.visible = this._watchAll.visible;
+         this.sizeButton(this._save,LocalizationData.getName(state == ReplayAsks.SAVING ? "st_srp_replay_saving"
+            : state == ReplayAsks.SAVED ? "st_srp_replay_saved" : "st_srp_replay_save"),font);
+         // one save at a time: greyed while any is under way, another match's too
+         this._save.enabled = ReplayAsks.canSave;
+         this.sizeButton(this._watchAll,LocalizationData.getName("st_srp_replay_title"),font);
+         if(isNaN(this._rowCentre))
+         {
+            this._rowCentre = this.btn_close.x + this.btn_close.width / 2;
+         }
+         var row:Array = this._watchAll.visible ? [this._watchAll,this._save,this.btn_close] : [this.btn_close];
+         var total:Number = (row.length - 1) * 10;
+         var button:Button;
+         for each(button in row)
+         {
+            total += button.width;
+         }
+         var at:Number = int(this._rowCentre - total / 2);
+         for each(button in row)
+         {
+            button.x = at;
+            button.y = this.btn_close.y;
+            at += button.width + 10;
+         }
+         var left:Number = row[0].x;
+         if(!this._watchReason)
+         {
+            this._watchReason = this.screenText("srpWatchReason",0xA0A8AE,14);
+         }
+         this._watchReason.visible = this._match_id != 0 && reason != null;
+         this._watchReason.text = reason != null ? LocalizationData.getName(reason) : "";
+         if(this._watchReason.visible)
+         {
+            this._watchReason.x = int(left - 14 - this._watchReason.width);
+            this._watchReason.y = int(this.btn_close.y + (this.btn_close.height - this._watchReason.height) / 2);
+            left = this._watchReason.x;
+         }
+         if(!this._matchNumber)
+         {
+            // as a Watch card's code (MatchCard.codeField): a press selects it all, Ctrl+C copies it
+            // (a text field's own Ctrl+C reaches the system's clipboard), typing changes nothing
+            this._matchNumber = this.screenText("srpMatchNumber",0x8A9096,13);
+            this._matchNumber.type = TextFieldType.INPUT;
+            this._matchNumber.selectable = true;
+            this._matchNumber.addEventListener(Event.CHANGE,this.onNumberChange);
+            this._matchNumber.addEventListener(MouseEvent.MOUSE_DOWN,this.onNumberPress);
+         }
+         this._matchNumber.visible = this._match_id != 0;
+         this._matchNumber.text = NotificationListScrollContent.matchNumberText(this._match_id);
+         this._matchNumber.x = int(left - 14 - this._matchNumber.width);
+         this._matchNumber.y = int(this.btn_close.y + (this.btn_close.height - this._matchNumber.height) / 2);
+      }
+
+      private function onNumberChange(e:Event) : void
+      {
+         this._matchNumber.text = NotificationListScrollContent.matchNumberText(this._match_id);
+      }
+
+      private function onNumberPress(e:MouseEvent) : void
+      {
+         FocusManager.setFocus(this._matchNumber);
+         this._matchNumber.setSelection(0,this._matchNumber.length);
+      }
+
+      private function screenText(name:String, colour:uint, size:int) : TextField
+      {
+         var field:TextField = new TextField();
+         field.name = name;
+         field.embedFonts = true;
+         field.selectable = false;
+         field.autoSize = TextFieldAutoSize.LEFT;
+         field.wordWrap = false;
+         field.defaultTextFormat = new TextFormat(this.btn_close.textField.getTextFormat().font,size,colour,true);
+         addChild(field);
+         return field;
+      }
+
+      private function labelWidth(label:String, font:String) : Number
+      {
+         var field:TextField = new TextField();
+         field.embedFonts = true;
+         field.autoSize = TextFieldAutoSize.LEFT;
+         field.defaultTextFormat = new TextFormat(font,Number(this._watchAll.textField.getTextFormat().size),0,true);
+         field.text = label;
+         return field.textWidth;
+      }
+
       override public function get width() : Number
       {
          return 1199;
@@ -611,7 +819,17 @@ package survarium.controls
          this.showTop();
          return true;
       }
-      
+
+      // A box of srp's own drawn over this screen at once (ReplayAsks: a save's refusal): the
+      // message layer shown while the screen is up. Not a card's refusal.
+      public function showOver() : void
+      {
+         if(parent && visible)
+         {
+            this.showTop();
+         }
+      }
+
       override public function set x(value:Number) : void
       {
          super.x = int(value * MainScene.scaleFactor) / MainScene.scaleFactor;
@@ -745,9 +963,16 @@ package survarium.controls
          this.dropChanceLabel.visible = false;
          this.dropChanceValueLabel.visible = false;
          this.percentSprite.visible = false;
-         this.btnShare.label = "";
+         this._watchAll.visible = false;
+         this._save.visible = false;
+         if(this._matchNumber)
+         {
+            this._matchNumber.visible = false;
+            this._watchReason.visible = false;
+         }
+         this.btnShare.visible = false;
          this.btnShare.enabled = false;
-         this.btnSave.label = "";
+         this.btnSave.visible = false;
          this.btnSave.enabled = false;
          this.totalScore.visible = false;
          this._hintRenderer.visible = false;
@@ -1303,6 +1528,7 @@ package survarium.controls
          _data = value;
          _victory = value.match_result > MatchResult.DEFEAT_MAX;
          _match_id = value.match_id;
+         this.placeReplayButtons();
          // A card bought for another screen's match is not used on this one.
          if(this._cardPending != null && this._cardPending.step == CARD_BUYING && this._cardPending.match != this._match_id)
          {

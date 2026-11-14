@@ -1,33 +1,27 @@
-//! "Watch replay" from the History of srp's changed lobby movie
-//! (`docs/notes/replay_watch.md`): what the lobby, the match server's
-//! conversion thread and the web page share of the replays, in memory.
+//! What the lobby and the match server share of the replays, in memory:
+//! the replay sessions ([`super::replay_watch`], `docs/notes/replay-stream.md`)
+//! and what a list row says of a match's recording ([`Replays::state`]).
 //!
-//! - The match server converts a kept match recording (`SRP_RECORD_DIR`)
-//!   into the game's own replay file (`match_server::v026g::replay`), one at
-//!   a time: `SRP_REPLAY_DIR/<id:08x>.sur` and its sidecar `<id:08x>.json`
-//!   (size, SHA-256, each place's patch revision, the accounts), at the
-//!   lowest CPU priority. A match is queued here when a player first asks
-//!   for its replay ([`Replays::ask`]); every asker of it waits for that one
-//!   job, and the replay made is kept for later asks.
-//! - The lobby asks for a match's replay for a player ([`Replays::ask`]) and
-//!   answers the movie's polls with the player's own latest status
-//!   ([`Replays::answer`]). A replay that is there is given a download
-//!   token ([`Token`]).
-//! - The web page hands out `/replays/<token>` ([`Replays::take_download`]):
-//!   the file of the token's match, by a path built here from that match
-//!   id alone ([`Replays::sur_path`]).
-//!
-//! What is checked of the asker (the account played the match) is a
-//! courtesy (owner, 2026-10-15: a replay of a match one did not play is
-//! fine); the line that must hold is that nothing but a converter-made
-//! `.sur` is ever served. Tokens are kept in memory only: a restart ends
-//! them all.
-//!
-//! Settings (environment, read once at start, [`ReplaySettings::from_env`]):
-//! `SRP_REPLAY_DIR` (replays are off, status `off`, without it or without
-//! `SRP_RECORD_DIR`),
-//! `SRP_REPLAY_MAX_RECORDING_MB` (default [`DEFAULT_MAX_RECORDING_MB`]) and
-//! `SRP_REPLAY_MAX_MB` (default [`DEFAULT_MAX_REPLAY_MB`]).
+//! - The match server's recordings' writer (`SRP_RECORD_DIR`) tells of each
+//!   file it keeps, drops under the minimum of players or deletes for the
+//!   storage cap ([`Replays::recording_kept`], ...).
+//! - Which games may play a recording: the simulation changes
+//!   ([`SIMULATION_CHANGES`], [`oldest_replayable`]) and [`refusal_of`].
+//! - Save (`docs/notes/replay_watch.md` section 2.1): a player asks to
+//!   save a match's replay to a file ([`Replays::save_ask`], the lobby's
+//!   `R2` answers, [`Replays::save_answer`]). The match server makes the
+//!   file from the kept recording on a thread of its own, one at a time
+//!   (`match_server::v026g::replay`): `SRP_REPLAY_DIR/<id:08x>.srpreplay`
+//!   (`replay_file`'s container: a small header and the `.sur` the replay
+//!   sessions play, nothing private) and its sidecar `<id:08x>.json`
+//!   ([`Sidecar`]: size, SHA-256, each place's revision and account). A
+//!   file made is kept for later askers ([`SaveSettings::max_replay_bytes`]
+//!   together, and as long as its recording). A file there is given a
+//!   download token ([`parse_token`]), which the lobby sends the game in a
+//!   hidden `9E` link and the updater fetches from the web page's
+//!   `/replays/<token>` ([`Replays::take_download`]) into the player's
+//!   `<game>\replays`. Who may follows `SRP_REPLAY_WATCH`, as for a replay
+//!   session. Tokens live in memory only: a restart ends them all.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::Write as _;
@@ -37,14 +31,15 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use password_hash::rand_core::{OsRng, RngCore};
 
+use super::replay_watch::{WatchSettings, Watches};
 use crate::LockExt;
 
-/// The `player` of a `3D` that is a replay ask, not a row of a results
-/// screen, and the `start` of the `3B` that polls for the answer.
-pub use survarium::v026g::lobby::{REPLAY_ASK, REPLAY_START};
-/// A game plays replays from this patch revision on (revision 14 starts
-/// the updater from the replay link: `client_patch.md` section 3.27;
-/// revisions 12 and 13 have no replay link).
+/// The `start` of the `3B` that polls for the answer to a replay
+/// session's ask; the `player` of a `3D` that asks to save a match's
+/// replay, and the `start` of the `3B` that polls for its answer.
+pub use survarium::v026g::lobby::{REPLAY_START, SAVE_ASK, SAVE_START};
+/// A game is given replays from this patch revision on (`old_game`
+/// below it).
 pub const MIN_REVISION: u8 = 14;
 /// The patch revisions that changed what a match computes, oldest first
 /// (`simulation_changes.tsv` beside this file, which says how a PR adds
@@ -129,77 +124,91 @@ pub fn oldest_replayable_here(min_patch_revision: u8) -> u8 {
     oldest_replayable(&changes, min_patch_revision)
 }
 
-/// The release tag a revision went out with (`release/release.sh` tags
-/// every release from 15 on; 12 was tagged by hand; 13, 14 and the ones
-/// before 12 have none).
-pub fn release_tag(revision: u8) -> Option<String> {
-    (revision == 12 || revision >= 15).then(|| format!("026g-rev{revision}"))
+/// The simulation epoch of a recording by games of `revisions` (by place):
+/// the last change of what a match computes ([`SIMULATION_CHANGES`]) at or
+/// before the oldest of those games. A saved file carries it: a game holding
+/// its own list of the changes can tell offline whether the file is one its
+/// simulation plays out alike. `None` with no known revision, or one before
+/// the first change.
+pub fn simulation_epoch(revisions: &[Option<u8>]) -> Option<u8> {
+    let oldest = revisions
+        .iter()
+        .flatten()
+        .copied()
+        .filter(|&revision| revision != 0)
+        .min()?;
+    simulation_changes(SIMULATION_CHANGES)
+        .expect("simulation_changes.tsv reads")
+        .iter()
+        .filter_map(|change| change.revision)
+        .filter(|&revision| revision <= oldest)
+        .max()
 }
-/// How long a token lives.
+
+/// How long a save's download token lives.
 pub const TOKEN_LIFETIME: Duration = Duration::from_secs(10 * 60);
 /// The downloads one token makes (a broken download resumes with the next).
 pub const TOKEN_DOWNLOADS: u8 = 5;
 /// Live tokens of one account at most.
 pub const TOKENS_PER_ACCOUNT: usize = 3;
-/// One ask of an account in this long; another is answered `busy`.
+/// One save ask of an account in this long; another is answered `busy`.
 pub const ASK_EVERY: Duration = Duration::from_secs(2);
-/// Conversions waiting at most, one for each player of a full match (a job
-/// is a few seconds); one asked for past them is `busy`.
+/// Files waiting to be made at most, one for each player of a full match
+/// (a job is a few seconds); one asked for past them is `busy`.
 pub const MAX_JOBS: usize = 20;
-/// `SRP_REPLAY_MAX_RECORDING_MB` when unset. The conversion reads a
-/// recording as it goes, and keeps a copy of each relay, the uploaded
-/// worlds and the options: 123 MiB at most for the largest recording seen
-/// (13.5 MB, a match of 20 places and 15 minutes; `replay_watch.md`), and
-/// about as much more for each 13.5 MB more. The container has 512 MB for
-/// everything: a larger file is not converted (status `failed`).
-pub const DEFAULT_MAX_RECORDING_MB: u64 = 24;
-/// `SRP_REPLAY_MAX_MB` when unset: the replays (`.sur` files and their
-/// sidecars) over this together go, the oldest first. A replay that went
-/// is made again from its recording when someone asks for it.
+/// `SRP_REPLAY_MAX_MB` when unset: the saved files (and their sidecars)
+/// over this together go, the oldest first. One that went is made again
+/// from its recording when someone asks for it.
 pub const DEFAULT_MAX_REPLAY_MB: u64 = 1_000;
-/// A conversion that failed for its mode's file is not tried again for
-/// this long ([`Failure`]); one that failed writing, for this long at first.
+/// A file that failed for a reason that can change (a full disk) is not
+/// tried again for this long at first, twice as long each time it fails
+/// again, up to [`FAILED_FOR_AT_MOST`].
 const FAILED_FOR: Duration = Duration::from_secs(10 * 60);
-/// One that failed writing again and again waits at most this long.
 const FAILED_FOR_AT_MOST: Duration = Duration::from_secs(4 * 60 * 60);
-/// A `preparing` answer is looked at again at most this often for one
+/// A `preparing` save is looked at again at most this often for one
 /// account: the movie polls once a second, but a crafted game may send
 /// dozens of polls a datagram, and each look reads the sidecar.
 pub const RECHECK_EVERY: Duration = Duration::from_secs(1);
-/// The recordings' folder is listed at most this often for the asks; the
-/// writer's news of a file (kept, dropped, deleted) has it listed anew.
+/// A save's answer this old is forgotten.
+const ASK_KEPT: Duration = Duration::from_secs(15 * 60);
+/// The recordings' folder is listed at most this often for the list rows;
+/// the writer's news of a file (kept, dropped, deleted) has it listed anew.
 const LISTING_KEPT: Duration = Duration::from_secs(5);
 /// Match ids remembered as not kept or deleted, at most.
 const REMEMBERED: usize = 4096;
-/// An answer this old is forgotten.
-const ASK_KEPT: Duration = Duration::from_secs(15 * 60);
 
 /// The status word of an `R1` answer (`CONTRACT-R1`): what came of the
 /// player's latest ask.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Status {
-    /// Asked, being converted or looked up: the movie polls on.
+    /// Asked, being read (a save: being made): the movie polls on.
     Preparing,
-    /// The link is set (`9E` goes just before the answer).
+    /// A save's file is there: its link is set (`9E` goes just before the
+    /// answer).
     Ready,
-    /// No ask from this player yet.
+    /// No ask from this player.
     None,
-    /// The match had too few players, or recordings were off.
-    NotRecorded,
     /// The recording was deleted (the storage cap) or is not found.
     Gone,
-    /// The asker did not play that match.
+    /// The asker may not watch that match (`SRP_REPLAY_WATCH=match`).
     NotYours,
     /// The asker's game is older than [`MIN_REVISION`].
     OldGame,
     /// The recording was made by games this one cannot play.
     Incompatible,
-    /// Too many conversions or tokens now, or asked too fast.
+    /// The player is in a match or queued, or too many sessions run; a
+    /// save: too many files to make or tokens now, or asked too fast.
     Busy,
-    /// The conversion failed.
+    /// A watch: the player's room has a use for it now (its vote, a place
+    /// in its match); it may watch once the room no longer needs it.
+    InRoom,
+    /// The recording could not be read.
     Failed,
     /// Replays are switched off on this server.
     Off,
+    /// A replay session ([`super::replay_watch`]): its game was sent to
+    /// watch the match in the running client.
+    Watching,
 }
 
 impl Status {
@@ -209,39 +218,46 @@ impl Status {
             Self::Preparing => "preparing",
             Self::Ready => "ready",
             Self::None => "none",
-            Self::NotRecorded => "not_recorded",
             Self::Gone => "gone",
             Self::NotYours => "not_yours",
             Self::OldGame => "old_game",
             Self::Incompatible => "incompatible",
             Self::Busy => "busy",
+            Self::InRoom => "in_room",
             Self::Failed => "failed",
             Self::Off => "off",
+            Self::Watching => "watching",
         }
     }
 }
 
-/// `SRP_REPLAY_DIR` and the recordings' folder.
+/// The match id of a file name of `dir` that is `<8 lower hex><suffix>`,
+/// and nothing else.
+pub fn match_of_name(name: &str, suffix: &str) -> Option<u32> {
+    let stem = name.strip_suffix(suffix)?;
+    if stem.len() != 8 || !stem.bytes().all(|c| matches!(c, b'0'..=b'9' | b'a'..=b'f')) {
+        return None;
+    }
+    u32::from_str_radix(stem, 16).ok()
+}
+
+/// `SRP_REPLAY_DIR`, `SRP_REPLAY_MAX_MB`: where Save's files are made.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ReplaySettings {
-    /// Where the `.sur` files and their sidecars are made. Only files named
-    /// `<8 hex>.sur`, `<8 hex>.json` and their `.part` are ever written or
-    /// deleted there, and only `<8 hex>.sur` is ever served.
+pub struct SaveSettings {
+    /// Only files named `<8 hex>.srpreplay`, `<8 hex>.json` and their
+    /// `.part` are ever written or deleted there, and only
+    /// `<8 hex>.srpreplay` is ever served. Never the recordings' folder,
+    /// inside it or around it ([`Self::checked`]).
     pub replay_dir: PathBuf,
-    /// `SRP_RECORD_DIR`: the match recordings.
-    pub record_dir: PathBuf,
-    /// A recording larger than this is not converted.
-    pub max_recording_bytes: u64,
-    /// The replays (`.sur` and sidecars) over this many bytes together:
-    /// the oldest go (`SRP_REPLAY_MAX_MB`).
+    /// The files and sidecars over this many bytes together: the oldest go.
     pub max_replay_bytes: u64,
 }
 
-/// Why the folders cannot be used for replays.
+/// Why the folders cannot be used for Save.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FolderError {
     /// The replay folder is the recordings' folder, inside it or holds it:
-    /// a recording must never sit where replays are served from.
+    /// a recording must never sit where files are served from.
     Overlap,
     /// A folder cannot be made or read.
     Io(String),
@@ -260,10 +276,11 @@ impl std::fmt::Display for FolderError {
     }
 }
 
-impl ReplaySettings {
-    /// What the environment asks for; `None` (replays off, said in the log)
-    /// when a folder is not set or the two folders overlap.
-    pub fn from_env() -> Option<Self> {
+impl SaveSettings {
+    /// What the environment asks for, beside the recordings of
+    /// `record_dir`; `None` (Save off, said in the log) when
+    /// `SRP_REPLAY_DIR` is not set (or `off`) or overlaps `record_dir`.
+    pub fn from_env(record_dir: &Path) -> Option<Self> {
         let var = |name: &str| {
             std::env::var(name)
                 .ok()
@@ -271,74 +288,59 @@ impl ReplaySettings {
                 .filter(|value| !value.is_empty() && !value.eq_ignore_ascii_case("off"))
         };
         let replay_dir = var("SRP_REPLAY_DIR")?;
-        let Some(record_dir) = var("SRP_RECORD_DIR") else {
-            log::warn!("Replays: SRP_REPLAY_DIR is set but recordings are off; replays are off");
-            return None;
-        };
-        let megabytes = |name: &str, default: u64| match var(name) {
-            None => default,
+        let max_mb = match var("SRP_REPLAY_MAX_MB") {
+            None => DEFAULT_MAX_REPLAY_MB,
             Some(value) => value
                 .parse::<u64>()
                 .ok()
                 .filter(|&mb| mb <= u64::MAX >> 20)
                 .unwrap_or_else(|| {
-                    log::error!("{name} is `{value}`; it must be a number. Using {default}");
-                    default
+                    log::error!(
+                        "SRP_REPLAY_MAX_MB is `{value}`; it must be a number. Using \
+                         {DEFAULT_MAX_REPLAY_MB}"
+                    );
+                    DEFAULT_MAX_REPLAY_MB
                 }),
         };
         let settings = Self {
             replay_dir: replay_dir.into(),
-            record_dir: record_dir.into(),
-            max_recording_bytes: megabytes("SRP_REPLAY_MAX_RECORDING_MB", DEFAULT_MAX_RECORDING_MB)
-                << 20,
-            max_replay_bytes: megabytes("SRP_REPLAY_MAX_MB", DEFAULT_MAX_REPLAY_MB) << 20,
+            max_replay_bytes: max_mb << 20,
         };
-        match settings.checked() {
+        match settings.checked(record_dir) {
             Ok(settings) => Some(settings),
             Err(error) => {
-                log::error!("Replays are off: {error}");
+                log::error!("Save is off: {error}");
                 None
             }
         }
     }
 
-    /// The settings with both folders made and their real paths, unless
-    /// the replay folder and the recordings' overlap.
-    pub fn checked(self) -> Result<Self, FolderError> {
+    /// The settings with the replay folder made and its real path, unless
+    /// it and the recordings' folder overlap.
+    pub fn checked(self, record_dir: &Path) -> Result<Self, FolderError> {
         let real = |dir: &Path| {
             std::fs::create_dir_all(dir)
                 .and_then(|()| std::fs::canonicalize(dir))
                 .map_err(|error| FolderError::Io(format!("{}: {error}", dir.display())))
         };
         let replay_dir = real(&self.replay_dir)?;
-        let record_dir = real(&self.record_dir)?;
+        let record_dir = real(record_dir)?;
         if replay_dir.starts_with(&record_dir) || record_dir.starts_with(&replay_dir) {
             return Err(FolderError::Overlap);
         }
-        Ok(Self {
-            replay_dir,
-            record_dir,
-            ..self
-        })
+        Ok(Self { replay_dir, ..self })
     }
 }
 
-/// `<id:08x>`: the one form a match id takes in a replay file's name.
+/// `<id:08x>`: the one form a match id takes in a saved file's name.
 pub fn file_stem(match_id: u32) -> String {
     format!("{match_id:08x}")
 }
 
-/// The match id of a file name of `dir` that is `<8 lower hex><suffix>`,
-/// and nothing else.
-pub fn match_of_name(name: &str, suffix: &str) -> Option<u32> {
-    let stem = name.strip_suffix(suffix)?;
-    if stem.len() != 8 || !stem.bytes().all(|c| matches!(c, b'0'..=b'9' | b'a'..=b'f')) {
-        return None;
-    }
-    u32::from_str_radix(stem, 16).ok()
-}
+/// The extension of Save's files, here and in the player's folder.
+pub const FILE_EXTENSION: &str = "srpreplay";
 
-/// What the sidecar `<id>.json` says of a replay ([`Sidecar::to_json`]).
+/// What the sidecar `<id>.json` says of a saved file ([`Sidecar::to_json`]).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Sidecar {
     pub match_id: u32,
@@ -346,8 +348,7 @@ pub struct Sidecar {
     /// 64 lower-case hex digits.
     pub sha256: String,
     /// By place: the patch revision each place's game connected with (the
-    /// highest, if it connected again), `None` for one that never did or
-    /// a recording older than 2026-10-15.
+    /// highest, if it connected again), `None` for one that never did.
     pub revisions: Vec<Option<u8>>,
     /// Every place's account, late joiners too.
     pub account_ids: Vec<u32>,
@@ -386,7 +387,14 @@ impl Sidecar {
             revisions: value["revisions"]
                 .as_array()?
                 .iter()
-                .map(|revision| revision.as_u64().and_then(|r| u8::try_from(r).ok()))
+                .map(|revision| {
+                    // 0: a game the server did not know, in a file written
+                    // when that was how it was said.
+                    revision
+                        .as_u64()
+                        .and_then(|r| u8::try_from(r).ok())
+                        .filter(|&r| r != 0)
+                })
                 .collect(),
             account_ids: value["account_ids"]
                 .as_array()?
@@ -396,53 +404,9 @@ impl Sidecar {
             made_at: value["made_at"].as_u64().unwrap_or(0),
         })
     }
-
-    /// Why a game of `revision` may not play this replay, if it may not:
-    /// every revision the recording's games had must be `oldest` (the
-    /// oldest replayable, [`oldest_replayable`]) or later and no later than
-    /// the asker's (a newer game's match may play out otherwise in an
-    /// older one). 0 (a session the server did not know) and places that
-    /// never connected are not counted; a recording with no revision at
-    /// all (made before 2026-10-15, when the revisions began to be kept)
-    /// is not played (the owner, 2026-10-17: its games' revision is not
-    /// guessed).
-    pub fn refusal(&self, revision: u8, oldest: u8) -> Option<Refusal> {
-        let known = || {
-            self.revisions
-                .iter()
-                .flatten()
-                .copied()
-                .filter(|&known| known != 0)
-        };
-        let (Some(from), Some(to)) = (known().min(), known().max()) else {
-            return Some(Refusal::Unknown);
-        };
-        if from < oldest {
-            Some(Refusal::Older { from, to, oldest })
-        } else if to > revision {
-            Some(Refusal::Newer { from, to })
-        } else {
-            None
-        }
-    }
 }
 
-/// Why a made replay is not given to a game ([`Sidecar::refusal`]): its
-/// status is [`Status::Incompatible`], and the lobby tells the player why
-/// ([`Answer::refusal`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Refusal {
-    /// No game of the recording has a known revision: recorded before the
-    /// revisions were kept.
-    Unknown,
-    /// Recorded by games of revisions `from` to `to`, below `oldest`, the
-    /// oldest whose recordings the server gives.
-    Older { from: u8, to: u8, oldest: u8 },
-    /// Recorded by games newer than the asker's.
-    Newer { from: u8, to: u8 },
-}
-
-/// What a `ready` answer carries: the link's parts.
+/// What a `ready` save answer carries: the link's parts.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Ready {
     /// 32 lower-case hex digits.
@@ -451,38 +415,35 @@ pub struct Ready {
     pub size: u64,
 }
 
-/// The player's latest answer ([`Replays::answer`]).
+/// The player's latest save answer ([`Replays::save_answer`]).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Answer {
     pub status: Status,
     /// The match asked for; 0 with [`Status::None`].
     pub match_id: u32,
-    /// The file's size with [`Status::Ready`], else 0.
-    pub size: u64,
-    /// With [`Status::Preparing`], the replay's place in the conversion
-    /// line: 1 being made now, 2 with one before it, ...; 0 when not known
-    /// (its recording is still being written). Else 0.
+    /// With [`Status::Preparing`], the file's place in the line: 1 being
+    /// made now, 2 with one before it, ...; 0 when not known (its recording
+    /// is still being written). Else 0.
     pub place: u32,
+    /// With [`Status::Ready`].
     pub ready: Option<Ready>,
-    /// With [`Status::Incompatible`], why: in the first answer of the ask
-    /// only (the lobby tells the player once each time it asks).
-    pub refusal: Option<Refusal>,
 }
 
 impl Answer {
-    /// The last field of the `R1` row (`CONTRACT-R1`): the place in line
-    /// while `preparing`, else the size.
+    /// The last field of the `R2` row: the place in line while
+    /// `preparing`, the file's size when `ready`, else 0.
     pub fn figure(&self) -> u64 {
-        if self.status == Status::Preparing {
-            u64::from(self.place)
-        } else {
-            self.size
+        match &self.ready {
+            Some(ready) => ready.size,
+            None if self.status == Status::Preparing => u64::from(self.place),
+            None => 0,
         }
     }
 
     /// The text of the `9E` that goes before a `ready` answer:
     /// `replay <id 8 hex> <token 32 hex> <sha256 64 hex> <size>`, the one
-    /// form patch revision 14 passes to the updater (`CONTRACT-R1`).
+    /// form patch revision 14 passes to the updater (`client_patch.md`
+    /// section 3.27).
     pub fn link(&self) -> Option<String> {
         let ready = self.ready.as_ref()?;
         Some(format!(
@@ -493,14 +454,6 @@ impl Answer {
             ready.size
         ))
     }
-}
-
-/// What the lobby knows of the match itself (its results report, while it
-/// keeps it): whether the asker played it, and how many places it had.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Known {
-    pub played: bool,
-    pub places: usize,
 }
 
 struct Token {
@@ -521,22 +474,22 @@ impl Token {
     }
 }
 
+/// An account's latest save ask.
 struct Ask {
     match_id: u32,
     at: Instant,
     status: Status,
     ready: Option<Ready>,
-    /// Kept for asking again while it is `preparing`.
-    revision: u8,
-    known: Option<Known>,
-    /// Why it is [`Status::Incompatible`], until an answer carries it.
-    refusal: Option<Refusal>,
+    /// Kept for looking again while it is `preparing`.
+    revision: Option<u8>,
+    /// Whether the asker played it, while the lobby keeps its report.
+    played: Option<bool>,
     /// When it was last looked at; `None`: at the next poll (the writer or
-    /// the conversion has news of its match).
+    /// the job has news of its match).
     checked: Option<Instant>,
 }
 
-/// Why a conversion failed ([`Replays::job_done`]): when it is tried again.
+/// Why making a file failed ([`Replays::job_done`]): when it is tried again.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Failure {
     /// Reading or writing failed (a full disk): tried again after
@@ -549,68 +502,11 @@ pub enum Failure {
     Lasting,
 }
 
-/// A failed conversion: answered `failed` until `until` (`None`: for good).
+/// A failed file: answered `failed` until `until` (`None`: for good).
 struct Failed {
     until: Option<Instant>,
     /// Its [`Failure::Disk`] failures in a row.
     times: u32,
-}
-
-/// One listing of the recordings' folder: the kept recordings' matches,
-/// and those of recordings still being written.
-struct Listing {
-    at: Instant,
-    kept: HashSet<u32>,
-    writing: HashSet<u32>,
-}
-
-#[derive(Default)]
-struct Inner {
-    tokens: HashMap<[u8; 16], Token>,
-    asks: HashMap<u32, Ask>,
-    jobs: VecDeque<u32>,
-    converting: Option<u32>,
-    /// Bounded by the kept recordings: a deleted one's entry goes.
-    failed: HashMap<u32, Failed>,
-    /// Recordings closed under the minimum of players, and recordings the
-    /// storage cap deleted, the newest last.
-    not_kept: VecDeque<u32>,
-    deleted: VecDeque<u32>,
-    /// The latest listing of the recordings' folder ([`LISTING_KEPT`]).
-    listing: Option<Listing>,
-    stopped: bool,
-    /// Asks looked at, and folder listings made: for the tests.
-    #[cfg(test)]
-    evaluations: usize,
-    #[cfg(test)]
-    listings: usize,
-}
-
-impl Inner {
-    /// The writer or the conversion has news of a match: its asks are
-    /// looked at at their next poll, with the folder listed anew.
-    fn news_of(&mut self, match_id: u32) {
-        self.listing = None;
-        for ask in self.asks.values_mut() {
-            if ask.match_id == match_id {
-                ask.checked = None;
-            }
-        }
-    }
-
-    /// Tokens past their time or downloads go, but not while downloading.
-    fn prune_tokens(&mut self, now: Instant) {
-        self.tokens
-            .retain(|_, token| token.downloading || token.live(now));
-    }
-}
-
-/// What the recordings' folder has of a match ([`Replays::recorded`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Recorded {
-    Kept,
-    Writing,
-    No,
 }
 
 /// Why `/replays/<token>` gets no download ([`Replays::take_download`]).
@@ -627,7 +523,7 @@ pub enum Refused {
 pub struct Download<'a> {
     replays: &'a Replays,
     token: [u8; 16],
-    /// The match whose replay the token downloads.
+    /// The match whose file the token downloads.
     pub match_id: u32,
 }
 
@@ -637,27 +533,6 @@ impl Drop for Download<'_> {
             token.downloading = false;
         }
     }
-}
-
-fn remember(list: &mut VecDeque<u32>, match_id: u32) {
-    list.retain(|&id| id != match_id);
-    if list.len() >= REMEMBERED {
-        list.pop_front();
-    }
-    list.push_back(match_id);
-}
-
-/// The replays: one for the srp process, shared by the lobby, the match
-/// server's conversion thread and the web page.
-pub struct Replays {
-    settings: Option<ReplaySettings>,
-    /// The minimum of players a recording is kept for (`SRP_RECORD_MIN_PLAYERS`).
-    min_players: usize,
-    /// The oldest patch revision whose recordings are given
-    /// ([`oldest_replayable`]).
-    oldest: u8,
-    inner: Mutex<Inner>,
-    work: Condvar,
 }
 
 /// The first six hex digits of a token: all a log line ever shows of one.
@@ -690,6 +565,245 @@ fn hex(bytes: &[u8]) -> String {
     text
 }
 
+/// A match for good: the stem of its recording's file,
+/// `rec026g_<UTC YYYYMMDD-HHMMSS it was made>_<match id:08x>`, whether it
+/// was recorded or not. The match server's id alone comes again after a
+/// restart (it is random from each start); with the second it was made it
+/// does not.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ReplayId {
+    match_id: u32,
+    stem: String,
+}
+
+impl ReplayId {
+    const PREFIX: &str = "rec026g_";
+
+    /// The match `match_id`, made at `made`.
+    pub fn new(match_id: u32, made: SystemTime) -> Self {
+        Self {
+            match_id,
+            stem: format!("{}{}_{match_id:08x}", Self::PREFIX, utc_stamp(made)),
+        }
+    }
+
+    /// `rec026g_<8 digits>-<6 digits>_<8 lower hex>`, and nothing else.
+    pub fn parse(text: &str) -> Option<Self> {
+        let rest = text.strip_prefix(Self::PREFIX)?;
+        let (stamp, id) = rest.split_once('_')?;
+        let digits =
+            |part: &str, len: usize| part.len() == len && part.bytes().all(|c| c.is_ascii_digit());
+        let (date, time) = stamp.split_once('-')?;
+        if !digits(date, 8) || !digits(time, 6) {
+            return None;
+        }
+        Some(Self {
+            match_id: match_of_name(id, "")?,
+            stem: text.to_owned(),
+        })
+    }
+
+    /// The match server's id.
+    pub fn match_id(&self) -> u32 {
+        self.match_id
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.stem
+    }
+
+    /// When its recording was made: its name's UTC second.
+    pub fn made(&self) -> SystemTime {
+        let at = Self::PREFIX.len();
+        let digits = |from: usize, len: usize| {
+            self.stem
+                .get(at + from..at + from + len)
+                .and_then(|text| text.parse::<i64>().ok())
+                .unwrap_or(0)
+        };
+        let (year, month, day) = (digits(0, 4), digits(4, 2), digits(6, 2));
+        // A civil date to days since 1970-01-01 (H. Hinnant's algorithm).
+        let y = if month <= 2 { year - 1 } else { year };
+        let era = y.div_euclid(400);
+        let yoe = y - era * 400;
+        let doy = (153 * ((month + 9) % 12) + 2) / 5 + day - 1;
+        let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+        let days = era * 146_097 + doe - 719_468;
+        let secs = days * 86_400 + digits(9, 2) * 3_600 + digits(11, 2) * 60 + digits(13, 2);
+        UNIX_EPOCH + Duration::from_secs(u64::try_from(secs).unwrap_or(0))
+    }
+}
+
+/// `YYYYMMDD-HHMMSS`, UTC.
+fn utc_stamp(time: SystemTime) -> String {
+    let secs = time
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |since| since.as_secs());
+    let (days, rest) = (secs / 86_400, secs % 86_400);
+    // Days since 1970-01-01 to a civil date (H. Hinnant's algorithm).
+    let z = days as i64 + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!(
+        "{year:04}{month:02}{day:02}-{:02}{:02}{:02}",
+        rest / 3_600,
+        rest % 3_600 / 60,
+        rest % 60
+    )
+}
+
+/// Why a game of `revision` may not play a recording made by games of
+/// `revisions` (by place), if it may not: every revision the recording's
+/// games had must be `oldest` (the oldest replayable, [`oldest_replayable`])
+/// or later and no later than the asker's (a newer game's match may play
+/// out otherwise in an older one). Places that never connected or whose
+/// game the server did not know (`None`) are not counted; a recording with no
+/// revision at all (made before 2026-10-15, when the revisions began to be
+/// kept) is not played (the owner, 2026-10-17: its games' revision is not
+/// guessed).
+pub fn refusal_of(revisions: &[Option<u8>], revision: u8, oldest: u8) -> Option<Refusal> {
+    let known = || {
+        revisions.iter().flatten().copied()
+    };
+    let (Some(from), Some(to)) = (known().min(), known().max()) else {
+        return Some(Refusal::Unknown);
+    };
+    if from < oldest {
+        Some(Refusal::Older { from, to, oldest })
+    } else if to > revision {
+        Some(Refusal::Newer { from, to })
+    } else {
+        None
+    }
+}
+
+/// Why a recording is not played to a game ([`refusal_of`]): its status
+/// is [`Status::Incompatible`], and the lobby tells the player why.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Refusal {
+    /// No game of the recording has a known revision: recorded before the
+    /// revisions were kept.
+    Unknown,
+    /// Recorded by games of revisions `from` to `to`, below `oldest`, the
+    /// oldest whose recordings the server gives.
+    Older { from: u8, to: u8, oldest: u8 },
+    /// Recorded by games newer than the asker's.
+    Newer { from: u8, to: u8 },
+}
+
+/// One listing of the recordings' folder: the kept recordings' matches,
+/// and those of recordings still being written.
+struct Listing {
+    at: Instant,
+    kept: HashSet<u32>,
+    writing: HashSet<u32>,
+}
+
+#[derive(Default)]
+struct Inner {
+    /// Recordings closed under the minimum of players, and recordings the
+    /// storage cap deleted, the newest last.
+    not_kept: VecDeque<u32>,
+    deleted: VecDeque<u32>,
+    /// The latest listing of the recordings' folder ([`LISTING_KEPT`]).
+    listing: Option<Listing>,
+    /// Save: the download tokens, each account's latest ask, the files
+    /// waiting to be made and the one being made, and the failed ones
+    /// (bounded by the kept recordings: a deleted one's entry goes).
+    tokens: HashMap<[u8; 16], Token>,
+    asks: HashMap<u32, Ask>,
+    jobs: VecDeque<u32>,
+    making: Option<u32>,
+    failed: HashMap<u32, Failed>,
+    stopped: bool,
+    /// Save asks looked at, and folder listings made: for the tests.
+    #[cfg(test)]
+    evaluations: usize,
+    #[cfg(test)]
+    listings: usize,
+}
+
+impl Inner {
+    /// The writer or the job has news of a match: its save asks are looked
+    /// at at their next poll, with the folder listed anew.
+    fn news_of(&mut self, match_id: u32) {
+        self.listing = None;
+        for ask in self.asks.values_mut() {
+            if ask.match_id == match_id {
+                ask.checked = None;
+            }
+        }
+    }
+
+    /// Tokens past their time or downloads go, but not while downloading.
+    fn prune_tokens(&mut self, now: Instant) {
+        self.tokens
+            .retain(|_, token| token.downloading || token.live(now));
+    }
+}
+
+/// What the recordings' folder has of a match ([`Replays::recorded`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Recorded {
+    Kept,
+    Writing,
+    No,
+}
+
+/// What a list row says of a match's replay ([`Replays::state`]); its
+/// number on the wire is [`ReplayState::code`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+pub enum ReplayState {
+    /// No recording kept: never recorded, or closed under the minimum of
+    /// players.
+    NotRecorded = 0,
+    /// The recording is kept (or still being written).
+    Kept = 1,
+    /// The storage cap deleted the recording.
+    Gone = 3,
+    /// The asker's game is older than [`MIN_REVISION`].
+    OldVersion = 4,
+}
+
+impl ReplayState {
+    pub fn code(self) -> u8 {
+        self as u8
+    }
+}
+
+fn remember(list: &mut VecDeque<u32>, match_id: u32) {
+    list.retain(|&id| id != match_id);
+    if list.len() >= REMEMBERED {
+        list.pop_front();
+    }
+    list.push_back(match_id);
+}
+
+/// The replays: one for the srp process, shared by the lobby, the match
+/// server and the web page.
+pub struct Replays {
+    /// `SRP_RECORD_DIR`; `None`: recordings are off.
+    record_dir: Option<PathBuf>,
+    /// Save's folder (`SRP_REPLAY_DIR`); `None`: Save is off, every save ask
+    /// is answered `off`.
+    save: Option<SaveSettings>,
+    /// The oldest patch revision whose recordings are given
+    /// ([`oldest_replayable`]).
+    oldest: u8,
+    inner: Mutex<Inner>,
+    /// Wakes the job thread ([`Replays::next_job`]).
+    work: Condvar,
+    /// The replay sessions ([`super::replay_watch`]).
+    watches: Watches,
+}
+
 /// One listing of the recordings' folder: regular files named
 /// `rec026g_<UTC start>_<id:08x>.srprec`, and `.srprec.part`.
 fn list_recordings(dir: &Path, now: Instant) -> Listing {
@@ -719,22 +833,53 @@ fn list_recordings(dir: &Path, now: Instant) -> Listing {
     listing
 }
 
-fn unix_now() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |since| since.as_secs())
-}
-
 impl Replays {
-    /// `None` settings: replays are off, every ask is answered `off`.
-    pub fn new(settings: Option<ReplaySettings>, min_players: usize) -> Self {
+    /// The recordings of `record_dir` (`None`: off, every row says
+    /// [`ReplayState::NotRecorded`]); replay sessions off until
+    /// [`Self::with_watch`].
+    pub fn new(record_dir: Option<PathBuf>) -> Self {
         Self {
-            settings,
-            min_players,
+            record_dir,
+            save: None,
             oldest: oldest_replayable_here(0),
             inner: Mutex::new(Inner::default()),
             work: Condvar::new(),
+            watches: Watches::new(None),
         }
+    }
+
+    /// Save on, with this folder (recordings on: else it stays off).
+    pub fn with_save(mut self, settings: SaveSettings) -> Self {
+        if self.record_dir.is_some() {
+            self.save = Some(settings);
+        }
+        self
+    }
+
+    /// Save's folder, when Save is on.
+    pub fn save_settings(&self) -> Option<&SaveSettings> {
+        self.save.as_ref()
+    }
+
+    /// The recordings' folder, when recordings are on.
+    pub fn record_dir(&self) -> Option<&Path> {
+        self.record_dir.as_deref()
+    }
+
+    /// Replay sessions on, with these settings.
+    pub fn with_watch(mut self, settings: WatchSettings) -> Self {
+        self.watches = Watches::new(Some(settings));
+        self
+    }
+
+    /// The replay sessions.
+    pub fn watches(&self) -> &Watches {
+        &self.watches
+    }
+
+    /// The oldest patch revision whose recordings are given.
+    pub fn oldest(&self) -> u8 {
+        self.oldest
     }
 
     /// The oldest patch revision whose recordings are given: the server's
@@ -744,30 +889,13 @@ impl Replays {
         self
     }
 
-    pub fn settings(&self) -> Option<&ReplaySettings> {
-        self.settings.as_ref()
-    }
-
-    /// `SRP_REPLAY_DIR/<id:08x>.sur`: the only file `/replays/` serves,
-    /// its name made here from the match id alone.
-    pub fn sur_path(&self, match_id: u32) -> Option<PathBuf> {
-        let dir = &self.settings.as_ref()?.replay_dir;
-        Some(dir.join(format!("{}.sur", file_stem(match_id))))
-    }
-
-    /// Its sidecar: never served.
-    pub fn json_path(&self, match_id: u32) -> Option<PathBuf> {
-        let dir = &self.settings.as_ref()?.replay_dir;
-        Some(dir.join(format!("{}.json", file_stem(match_id))))
-    }
-
     /// Whether the recordings' folder has a match's kept recording
     /// (`rec026g_<UTC start>_<id:08x>.srprec`, a regular file) or one still
     /// being written (`.srprec.part`), by a listing at most
     /// [`LISTING_KEPT`] old: the folder holds a file for every match kept,
-    /// and is not read for each look at an ask.
+    /// and is not read for each row.
     fn recorded(&self, inner: &mut Inner, match_id: u32, now: Instant) -> Recorded {
-        let Some(settings) = &self.settings else {
+        let Some(record_dir) = &self.record_dir else {
             return Recorded::No;
         };
         let fresh = inner
@@ -779,7 +907,7 @@ impl Replays {
             {
                 inner.listings += 1;
             }
-            inner.listing = Some(list_recordings(&settings.record_dir, now));
+            inner.listing = Some(list_recordings(record_dir, now));
         }
         let listing = inner.listing.as_ref().expect("listed");
         if listing.kept.contains(&match_id) {
@@ -791,43 +919,160 @@ impl Replays {
         }
     }
 
-    /// A match's place in the conversion line: 1 being converted, 2 with one
-    /// before it, ...; 0 when it is not in the line.
+    /// What a list row says of the match's replay, for a game of
+    /// `revision` (`None`: not known, never [`ReplayState::OldVersion`]).
+    /// A recording the cap deleted is [`ReplayState::Gone`] only while this
+    /// process remembers it.
+    pub fn state(&self, match_id: u32, revision: Option<u8>, now: Instant) -> ReplayState {
+        let too_old = revision.is_some_and(|r| r < MIN_REVISION);
+        let mut inner = self.inner.locked();
+        match self.recorded(&mut inner, match_id, now) {
+            Recorded::Kept | Recorded::Writing if too_old => ReplayState::OldVersion,
+            Recorded::Kept | Recorded::Writing => ReplayState::Kept,
+            Recorded::No if inner.deleted.contains(&match_id) => ReplayState::Gone,
+            Recorded::No => ReplayState::NotRecorded,
+        }
+    }
+
+    /// Whether a match's recording is still being written (`.srprec.part`,
+    /// by the listing Save uses): its match is over in the lobby, but its
+    /// game on the match server is not dropped yet (its linger, its
+    /// spectators). A replay session asked now would find no recording.
+    pub fn writing(&self, match_id: u32, now: Instant) -> bool {
+        let mut inner = self.inner.locked();
+        self.recorded(&mut inner, match_id, now) == Recorded::Writing
+    }
+
+    /// The match server kept a match's recording. Its file is made when a
+    /// player first asks to save it ([`Self::save_ask`]), not now: most
+    /// matches are never saved, and making one takes the CPU the matches
+    /// share. A file of that id made before is another match's (ids come
+    /// again after restarts): it goes, so Save never hands it out.
+    pub fn recording_kept(&self, match_id: u32) {
+        {
+            let mut inner = self.inner.locked();
+            inner.not_kept.retain(|&id| id != match_id);
+            inner.deleted.retain(|&id| id != match_id);
+            inner.failed.remove(&match_id);
+            inner.news_of(match_id);
+        }
+        self.delete_file(match_id);
+    }
+
+    /// A match's recording was closed under the minimum of players.
+    pub fn recording_not_kept(&self, match_id: u32) {
+        let mut inner = self.inner.locked();
+        remember(&mut inner.not_kept, match_id);
+        inner.news_of(match_id);
+    }
+
+    /// The storage cap deleted a match's recording: its saved file goes too
+    /// (a file lives as long as its recording).
+    pub fn recording_deleted(&self, match_id: u32) {
+        {
+            let mut inner = self.inner.locked();
+            remember(&mut inner.deleted, match_id);
+            inner.failed.remove(&match_id);
+            inner.news_of(match_id);
+        }
+        self.delete_file(match_id);
+    }
+
+    // ------------------------------------------------------- Save
+
+    /// `SRP_REPLAY_DIR/<id:08x>.srpreplay`: the only file `/replays/`
+    /// serves, its name made here from the match id alone.
+    pub fn file_path(&self, match_id: u32) -> Option<PathBuf> {
+        let dir = &self.save.as_ref()?.replay_dir;
+        Some(dir.join(format!("{}.{FILE_EXTENSION}", file_stem(match_id))))
+    }
+
+    /// Its sidecar: never served.
+    pub fn json_path(&self, match_id: u32) -> Option<PathBuf> {
+        let dir = &self.save.as_ref()?.replay_dir;
+        Some(dir.join(format!("{}.json", file_stem(match_id))))
+    }
+
+    /// The sidecar of a file that is there (a regular file of the size the
+    /// sidecar says).
+    fn made(&self, match_id: u32) -> Option<Sidecar> {
+        let sidecar = Sidecar::parse(&std::fs::read_to_string(self.json_path(match_id)?).ok()?)?;
+        let meta = std::fs::symlink_metadata(self.file_path(match_id)?).ok()?;
+        (sidecar.match_id == match_id && meta.is_file() && meta.len() == sidecar.size)
+            .then_some(sidecar)
+    }
+
+    /// A match's place in the line: 1 being made, 2 with one before it,
+    /// ...; 0 when it is not in the line.
     fn place_in_line(inner: &Inner, match_id: u32) -> u32 {
         inner
-            .converting
+            .making
             .iter()
             .chain(inner.jobs.iter())
             .position(|&id| id == match_id)
             .map_or(0, |at| at as u32 + 1)
     }
 
-    /// The sidecar of a replay whose `.sur` is there (a regular file of the
-    /// size the sidecar says).
-    fn made(&self, match_id: u32) -> Option<Sidecar> {
-        let sidecar = Sidecar::parse(&std::fs::read_to_string(self.json_path(match_id)?).ok()?)?;
-        let meta = std::fs::symlink_metadata(self.sur_path(match_id)?).ok()?;
-        (sidecar.match_id == match_id && meta.is_file() && meta.len() == sidecar.size)
-            .then_some(sidecar)
-    }
-
-    // ------------------------------------------------------- the lobby
-
-    /// A player asks for a match's replay (`3D` with [`REPLAY_ASK`]).
-    /// `revision`: its game's patch revision, if known; `known`: what the
-    /// lobby knows of the match. The status is kept for its polls.
-    pub fn ask(
+    /// A player asks to save a match's replay (`3D` with [`SAVE_ASK`]).
+    /// `revision`: its game's patch revision, if known; `played`: whether
+    /// it played the match, while the lobby keeps its report. The status is
+    /// kept for its polls.
+    /// A save of a match still being played: `busy`, looked up nowhere. Its
+    /// recording may be named before its end (by a match server taken up
+    /// again after a restart in this process), and a file of it would get
+    /// past the live delay.
+    pub fn save_running(
         &self,
         account_id: u32,
         match_id: u32,
         revision: Option<u8>,
-        known: Option<Known>,
+        played: Option<bool>,
+        now: Instant,
+    ) -> Status {
+        self.inner.locked().asks.insert(
+            account_id,
+            Ask {
+                match_id,
+                at: now,
+                status: Status::Busy,
+                ready: None,
+                revision,
+                played,
+                checked: Some(now),
+            },
+        );
+        Status::Busy
+    }
+
+    pub fn save_ask(
+        &self,
+        account_id: u32,
+        match_id: u32,
+        revision: Option<u8>,
+        played: Option<bool>,
         now: Instant,
     ) -> Status {
         let mut inner = self.inner.locked();
         inner
             .asks
             .retain(|_, ask| now.saturating_duration_since(ask.at) < ASK_KEPT);
+        // Before anything is looked up, so that it says nothing of the match
+        // (`replay_watch::MISSES_ALLOWED`).
+        if self.watches.limited(account_id, now) {
+            inner.asks.insert(
+                account_id,
+                Ask {
+                    match_id,
+                    at: now,
+                    status: Status::Busy,
+                    ready: None,
+                    revision,
+                    played,
+                    checked: Some(now),
+                },
+            );
+            return Status::Busy;
+        }
         if let Some(last) = inner.asks.get(&account_id)
             && now.saturating_duration_since(last.at) < ASK_EVERY
         {
@@ -843,17 +1088,15 @@ impl Replays {
                     at,
                     status: Status::Busy,
                     ready: None,
-                    revision: revision.unwrap_or(0),
-                    known,
-                    refusal: None,
+                    revision,
+                    played,
                     checked: Some(at),
                 },
             );
             return Status::Busy;
         }
-        let revision = revision.unwrap_or(0);
-        let (status, ready, refusal) =
-            self.evaluate(&mut inner, account_id, match_id, revision, known, now);
+        let (status, ready) =
+            self.evaluate(&mut inner, account_id, match_id, revision, played, now);
         inner.asks.insert(
             account_id,
             Ask {
@@ -862,127 +1105,130 @@ impl Replays {
                 status,
                 ready,
                 revision,
-                known,
-                refusal,
+                played,
                 checked: Some(now),
             },
         );
         status
     }
 
-    /// The player's latest answer (`3B` with `REPLAY_START`): its own and
-    /// no other's. One that was `preparing` is looked at again, once in
+    /// The player's latest save answer (`3B` with [`SAVE_START`]): its own
+    /// and no other's. One that was `preparing` is looked at again, once in
     /// [`RECHECK_EVERY`] at most (or at once after news of its match);
     /// polls in between get the same answer, the place in line made anew.
-    pub fn answer(&self, account_id: u32, now: Instant) -> Answer {
+    pub fn save_answer(&self, account_id: u32, now: Instant) -> Answer {
         let mut inner = self.inner.locked();
         let Some(ask) = inner.asks.get(&account_id) else {
             return Answer {
-                status: if self.settings.is_some() {
+                status: if self.save.is_some() {
                     Status::None
                 } else {
                     Status::Off
                 },
                 match_id: 0,
-                size: 0,
                 place: 0,
                 ready: None,
-                refusal: None,
             };
         };
-        let (match_id, status, revision, known) =
-            (ask.match_id, ask.status, ask.revision, ask.known);
+        let (match_id, status, revision, played) =
+            (ask.match_id, ask.status, ask.revision, ask.played);
         let due = ask
             .checked
             .is_none_or(|at| now.saturating_duration_since(at) >= RECHECK_EVERY);
         if status == Status::Preparing && due {
-            let (status, ready, refusal) =
-                self.evaluate(&mut inner, account_id, match_id, revision, known, now);
+            let (status, ready) =
+                self.evaluate(&mut inner, account_id, match_id, revision, played, now);
             if let Some(ask) = inner.asks.get_mut(&account_id) {
                 ask.status = status;
                 ask.ready = ready;
-                ask.refusal = refusal;
                 ask.checked = Some(now);
             }
         }
-        let refusal = inner
-            .asks
-            .get_mut(&account_id)
-            .and_then(|ask| ask.refusal.take());
         let ask = &inner.asks[&account_id];
         Answer {
             status: ask.status,
             match_id: ask.match_id,
-            size: ask.ready.as_ref().map_or(0, |ready| ready.size),
             place: if ask.status == Status::Preparing {
                 Self::place_in_line(&inner, ask.match_id)
             } else {
                 0
             },
             ready: ask.ready.clone(),
-            refusal,
         }
     }
 
-    /// [`Self::look`], with why it is [`Status::Incompatible`] when it is.
+    /// [`Self::look`], the why of a [`Status::Incompatible`] logged.
     fn evaluate(
         &self,
         inner: &mut Inner,
         account_id: u32,
         match_id: u32,
-        revision: u8,
-        known: Option<Known>,
+        revision: Option<u8>,
+        played: Option<bool>,
         now: Instant,
-    ) -> (Status, Option<Ready>, Option<Refusal>) {
-        match self.look(inner, account_id, match_id, revision, known, now) {
-            Ok((status, ready)) => (status, ready, None),
+    ) -> (Status, Option<Ready>) {
+        match self.look(inner, account_id, match_id, revision, played, now) {
+            Ok((Status::Gone, ready)) => {
+                self.watches.missed(account_id, match_id, now);
+                (Status::Gone, ready)
+            }
+            Ok((status, ready)) => (status, ready),
             Err(refusal) => {
                 log::info!(
-                    "Replays: account {account_id} is not given match {match_id:#x} for its game \
-                     revision {revision}: {refusal:?} (the oldest given: {})",
+                    "Save: account {account_id} is not given match {match_id:#x} for its game \
+                     revision {revision:?}: {refusal:?} (the oldest given: {})",
                     self.oldest
                 );
-                (Status::Incompatible, None, Some(refusal))
+                (Status::Incompatible, None)
             }
         }
     }
 
-    /// What an ask gets: its status (and the link's parts when ready), or
-    /// why the replay made is not for the asker's game.
+    /// What a save ask gets: its status (and the link's parts when ready),
+    /// or why the file made is not for the asker's game.
     fn look(
         &self,
         inner: &mut Inner,
         account_id: u32,
         match_id: u32,
-        revision: u8,
-        known: Option<Known>,
+        revision: Option<u8>,
+        played: Option<bool>,
         now: Instant,
     ) -> Result<(Status, Option<Ready>), Refusal> {
         #[cfg(test)]
         {
             inner.evaluations += 1;
         }
-        if self.settings.is_none() {
+        if self.save.is_none() {
             return Ok((Status::Off, None));
         }
-        if revision < MIN_REVISION {
+        // Revision 14 is the first whose game hands the link to the updater;
+        // a game of unknown revision is not known to.
+        let Some(revision) = revision.filter(|&revision| revision >= MIN_REVISION) else {
             return Ok((Status::OldGame, None));
-        }
-        if known.is_some_and(|known| !known.played) {
+        };
+        // Who may (`SRP_REPLAY_WATCH`, anyone by default), as for a replay
+        // session.
+        let may_watch = |played: bool| {
+            self.watches
+                .settings()
+                .is_none_or(|settings| settings.may_watch(account_id, played))
+        };
+        if played == Some(false) && !may_watch(false) {
             return Ok((Status::NotYours, None));
         }
         if let Some(sidecar) = self.made(match_id) {
-            if !sidecar.account_ids.is_empty() && !sidecar.account_ids.contains(&account_id) {
+            if !may_watch(sidecar.account_ids.contains(&account_id)) {
                 return Ok((Status::NotYours, None));
             }
-            if let Some(refusal) = sidecar.refusal(revision, self.oldest) {
+            if let Some(refusal) = refusal_of(&sidecar.revisions, revision, self.oldest) {
                 return Err(refusal);
             }
             return Ok(match self.issue(inner, account_id, match_id, now) {
                 Some(token) => {
                     log::info!(
-                        "Replays: account {account_id} is given match {match_id:#x} ({} bytes), \
-                         token {}…",
+                        "Save: account {account_id} is given match {match_id:#x} ({} bytes), \
+                         token {}...",
                         sidecar.size,
                         token_tag(&token)
                     );
@@ -999,7 +1245,7 @@ impl Replays {
             });
         }
         // Asked for already: every asker of the match waits for the one job.
-        if inner.converting == Some(match_id) || inner.jobs.contains(&match_id) {
+        if inner.making == Some(match_id) || inner.jobs.contains(&match_id) {
             return Ok((Status::Preparing, None));
         }
         if inner
@@ -1009,40 +1255,34 @@ impl Replays {
         {
             return Ok((Status::Failed, None));
         }
-        if inner.deleted.contains(&match_id) {
+        if inner.deleted.contains(&match_id) || inner.not_kept.contains(&match_id) {
             return Ok((Status::Gone, None));
-        }
-        if inner.not_kept.contains(&match_id) {
-            return Ok((Status::NotRecorded, None));
         }
         Ok(match self.recorded(inner, match_id, now) {
             Recorded::Kept => {
                 if inner.jobs.len() >= MAX_JOBS {
                     return Ok((Status::Busy, None));
                 }
-                // Converted when first asked for, not when its match ends.
+                // Made when first asked for, not when its match ends.
                 inner.jobs.push_back(match_id);
                 self.work.notify_all();
                 log::info!(
-                    "Replays: match {match_id:#x} is converted for account {account_id} \
-                     (place {} in line)",
+                    "Save: match {match_id:#x} is made for account {account_id} (place {} in \
+                     line)",
                     Self::place_in_line(inner, match_id)
                 );
                 (Status::Preparing, None)
             }
             // Being written: it is kept or dropped when its match closes.
             Recorded::Writing => (Status::Preparing, None),
-            Recorded::No => match known {
-                Some(known) if known.places < self.min_players => (Status::NotRecorded, None),
-                _ => (Status::Gone, None),
-            },
+            Recorded::No => (Status::Gone, None),
         })
     }
 
-    /// A new token for the account and the match: the account's live one
-    /// for that match if it has one, else a new one while it has fewer
-    /// than [`TOKENS_PER_ACCOUNT`] (a token past its time whose download
-    /// is still under way counted). `None`: no room, or no randomness.
+    /// A token for the account and the match: the account's live one for
+    /// that match if it has one, else a new one while it has fewer than
+    /// [`TOKENS_PER_ACCOUNT`] (a token past its time whose download is still
+    /// under way counted). `None`: no room, or no randomness.
     fn issue(
         &self,
         inner: &mut Inner,
@@ -1066,7 +1306,7 @@ impl Replays {
         }
         let mut bytes = [0u8; 16];
         if let Err(error) = OsRng.try_fill_bytes(&mut bytes) {
-            log::error!("Replays: no randomness for a token: {error}");
+            log::error!("Save: no randomness for a token: {error}");
             return None;
         }
         inner.tokens.insert(
@@ -1082,10 +1322,8 @@ impl Replays {
         Some(hex(&bytes))
     }
 
-    // ------------------------------------------------------- the web page
-
-    /// A download of a token's replay: the token's one at a time (a `GET`
-    /// or a `HEAD`) until the [`Download`] is dropped, so that one account
+    /// A download of a token's file: the token's one at a time (a `GET` or
+    /// a `HEAD`) until the [`Download`] is dropped, so that one account
     /// holds [`TOKENS_PER_ACCOUNT`] of the page's download slots at most.
     /// `count`: a `GET`, which takes one of the token's downloads (a `HEAD`
     /// takes none). [`Refused::Unknown`] for anything but exactly 32
@@ -1119,62 +1357,27 @@ impl Replays {
         })
     }
 
-    // ------------------------------------------------------- the conversion
-
-    /// The match server kept a match's recording. Its replay is made when
-    /// a player first asks for it ([`Self::ask`]), not now: most matches'
-    /// replays are never watched, and a conversion takes the CPU the
-    /// matches share.
-    pub fn recording_kept(&self, match_id: u32) {
-        if self.settings.is_none() {
-            return;
-        }
-        let mut inner = self.inner.locked();
-        inner.not_kept.retain(|&id| id != match_id);
-        inner.deleted.retain(|&id| id != match_id);
-        inner.failed.remove(&match_id);
-        inner.news_of(match_id);
-    }
-
-    /// A match's recording was closed under the minimum of players.
-    pub fn recording_not_kept(&self, match_id: u32) {
-        let mut inner = self.inner.locked();
-        remember(&mut inner.not_kept, match_id);
-        inner.news_of(match_id);
-    }
-
-    /// The storage cap deleted a match's recording: its replay goes too
-    /// (a replay lives as long as its recording).
-    pub fn recording_deleted(&self, match_id: u32) {
-        {
-            let mut inner = self.inner.locked();
-            remember(&mut inner.deleted, match_id);
-            inner.failed.remove(&match_id);
-            inner.news_of(match_id);
-        }
-        self.delete_replay(match_id);
-    }
-
-    /// Deletes `<id>.sur` and `<id>.json` (names made here).
-    pub fn delete_replay(&self, match_id: u32) {
-        for path in [self.sur_path(match_id), self.json_path(match_id)]
+    /// Deletes `<id>.srpreplay` and `<id>.json` (names made here).
+    pub fn delete_file(&self, match_id: u32) {
+        for path in [self.file_path(match_id), self.json_path(match_id)]
             .into_iter()
             .flatten()
         {
             match std::fs::remove_file(&path) {
-                Ok(()) => log::info!("Replays: {} deleted", path.display()),
+                Ok(()) => log::info!("Save: {} deleted", path.display()),
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-                Err(error) => log::warn!("Replays: can't delete {}: {error}", path.display()),
+                Err(error) => log::warn!("Save: can't delete {}: {error}", path.display()),
             }
         }
     }
 
-    /// The conversions waiting, the next first.
+    /// The files waiting to be made, the next first.
     pub fn jobs(&self) -> Vec<u32> {
         self.inner.locked().jobs.iter().copied().collect()
     }
 
-    /// The next match to convert, waiting for one; `None` once stopped.
+    /// The next match to make the file of, waiting for one; `None` once
+    /// stopped.
     pub fn next_job(&self) -> Option<u32> {
         let mut inner = self.inner.locked();
         loop {
@@ -1182,7 +1385,7 @@ impl Replays {
                 return None;
             }
             if let Some(match_id) = inner.jobs.pop_front() {
-                inner.converting = Some(match_id);
+                inner.making = Some(match_id);
                 return Some(match_id);
             }
             inner = self
@@ -1192,13 +1395,13 @@ impl Replays {
         }
     }
 
-    /// The conversion of [`Self::next_job`]'s match is over: made, or
-    /// failed and tried again as its [`Failure`] says. Its askers' next
-    /// polls look at once.
+    /// The file of [`Self::next_job`]'s match is made, or failed and is
+    /// tried again as its [`Failure`] says. Its askers' next polls look at
+    /// once.
     pub fn job_done(&self, match_id: u32, made: Result<(), Failure>, now: Instant) {
         let mut inner = self.inner.locked();
-        if inner.converting == Some(match_id) {
-            inner.converting = None;
+        if inner.making == Some(match_id) {
+            inner.making = None;
         }
         inner.news_of(match_id);
         let failure = match made {
@@ -1226,16 +1429,35 @@ impl Replays {
         self.inner.locked().stopped = true;
         self.work.notify_all();
     }
-
-    /// Unix seconds now, for a sidecar.
-    pub fn now_unix() -> u64 {
-        unix_now()
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_replay_id_is_the_recordings_stem_and_parses_back() {
+        assert_eq!(utc_stamp(UNIX_EPOCH), "19700101-000000");
+        let time = UNIX_EPOCH + Duration::from_secs(1_791_945_296);
+        assert_eq!(utc_stamp(time), "20261014-023456");
+        let leap = UNIX_EPOCH + Duration::from_secs(951_782_400 + 3_661);
+        assert_eq!(utc_stamp(leap), "20000229-010101");
+        let id = ReplayId::new(0xAB, time);
+        assert_eq!(id.as_str(), "rec026g_20261014-023456_000000ab");
+        assert_eq!(ReplayId::parse(id.as_str()), Some(id.clone()));
+        assert_eq!(id.made(), time);
+        assert_eq!(ReplayId::new(1, leap).made(), leap);
+        assert_eq!(ReplayId::new(1, UNIX_EPOCH).made(), UNIX_EPOCH);
+        for bad in [
+            "rec026g_20261014-023456_000000AB",
+            "rec026g_20261014-02345_000000ab",
+            "rec026g_20261014023456_000000ab",
+            "rec026g_20261014-023456_000000ab.srprec",
+            "20261014-023456_000000ab",
+        ] {
+            assert_eq!(ReplayId::parse(bad), None, "{bad}");
+        }
+    }
 
     fn temp(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
@@ -1250,80 +1472,59 @@ mod tests {
         dir
     }
 
-    fn settings(root: &Path) -> ReplaySettings {
-        ReplaySettings {
-            replay_dir: root.join("replays"),
-            record_dir: root.join("recordings"),
-            max_recording_bytes: 1 << 20,
-            max_replay_bytes: 1 << 20,
-        }
-        .checked()
-        .unwrap()
+    const MATCH: u32 = 0x1F07_C8FB;
+
+    /// A game of today's revision: the oldest whose recordings are given
+    /// ([`oldest_replayable_here`]).
+    fn current() -> u8 {
+        oldest_replayable_here(0)
     }
 
-    /// A download of `token` taken and given back at once: its match.
-    fn take(replays: &Replays, token: &str, count: bool, now: Instant) -> Result<u32, Refused> {
-        replays
-            .take_download(token, count, now)
-            .map(|download| download.match_id)
-    }
-
-    /// A kept recording of `match_id`, as the writer leaves it.
-    fn kept(replays: &Replays, match_id: u32) {
-        let dir = &replays.settings().unwrap().record_dir;
+    /// A list row's replay state, by what the recordings' folder holds and
+    /// the asker's game.
+    #[test]
+    fn a_rows_replay_state_follows_the_recording_and_the_askers_game() {
+        let root = temp("state");
+        let record_dir = root.join("recordings");
+        std::fs::create_dir_all(&record_dir).unwrap();
+        let replays = Replays::new(Some(record_dir.clone()));
+        let now = Instant::now();
+        let state = |match_id, revision| replays.state(match_id, revision, now);
+        let file = record_dir.join(format!("rec026g_20261015-120000_{MATCH:08x}.srprec"));
+        assert_eq!(state(MATCH, Some(current())), ReplayState::NotRecorded);
+        std::fs::write(&file, b"x").unwrap();
+        replays.recording_kept(MATCH);
+        assert_eq!(state(MATCH, Some(current())), ReplayState::Kept);
+        assert_eq!(state(MATCH, None), ReplayState::Kept);
+        assert_eq!(
+            state(MATCH, Some(MIN_REVISION - 1)),
+            ReplayState::OldVersion
+        );
+        // Deleted by the cap; one closed under the minimum was never kept.
+        std::fs::remove_file(&file).unwrap();
+        replays.recording_deleted(MATCH);
+        assert_eq!(state(MATCH, Some(current())), ReplayState::Gone);
+        replays.recording_not_kept(7);
+        assert_eq!(state(7, Some(current())), ReplayState::NotRecorded);
+        // Still being written: kept.
         std::fs::write(
-            dir.join(format!("rec026g_20261015-120000_{match_id:08x}.srprec")),
+            record_dir.join("rec026g_20261015-120000_00000008.srprec.part"),
             b"x",
         )
         .unwrap();
-        replays.recording_kept(match_id);
-    }
-
-    /// The sidecar and `.sur` of `match_id`, for every account.
-    fn made_for_all(replays: &Replays, match_id: u32) {
-        std::fs::write(replays.sur_path(match_id).unwrap(), b"x").unwrap();
-        let sidecar = Sidecar {
-            match_id,
-            size: 1,
-            sha256: "0".repeat(64),
-            revisions: vec![Some(current())],
-            account_ids: Vec::new(),
-            made_at: 0,
-        };
-        std::fs::write(replays.json_path(match_id).unwrap(), sidecar.to_json()).unwrap();
-    }
-
-    const MATCH: u32 = 0x1F07_C8FB;
-    const ALICE: u32 = 0x1_0001;
-    const BOB: u32 = 0x1_0002;
-
-    /// A made replay of `MATCH` for ALICE, recorded by games of `revisions`.
-    fn made(replays: &Replays, revisions: Vec<Option<u8>>) {
-        let sur = replays.sur_path(MATCH).unwrap();
-        std::fs::write(&sur, b"replay bytes").unwrap();
-        let sidecar = Sidecar {
-            match_id: MATCH,
-            size: 12,
-            sha256: "ab".repeat(32),
-            revisions,
-            account_ids: vec![ALICE],
-            made_at: 1,
-        };
-        std::fs::write(replays.json_path(MATCH).unwrap(), sidecar.to_json()).unwrap();
-    }
-
-    fn played() -> Option<Known> {
-        Some(Known {
-            played: true,
-            places: 10,
-        })
-    }
-
-    /// A game of today's revision: the oldest whose recordings are given
-    /// ([`oldest_replayable_here`]), so a recording of its games plays
-    /// whatever revision the last simulation change was.
-    fn current() -> u8 {
-        oldest_replayable_here(0)
+        replays.recording_kept(8);
+        assert_eq!(state(8, None), ReplayState::Kept);
+        let off = Replays::new(None);
+        assert_eq!(off.state(MATCH, None, now), ReplayState::NotRecorded);
+        let codes = [
+            ReplayState::NotRecorded,
+            ReplayState::Kept,
+            ReplayState::Gone,
+            ReplayState::OldVersion,
+        ]
+        .map(ReplayState::code);
+        assert_eq!(codes, [0, 1, 3, 4]);
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -1332,14 +1533,15 @@ mod tests {
             (Status::Preparing, "preparing"),
             (Status::Ready, "ready"),
             (Status::None, "none"),
-            (Status::NotRecorded, "not_recorded"),
             (Status::Gone, "gone"),
             (Status::NotYours, "not_yours"),
             (Status::OldGame, "old_game"),
             (Status::Incompatible, "incompatible"),
             (Status::Busy, "busy"),
+            (Status::InRoom, "in_room"),
             (Status::Failed, "failed"),
             (Status::Off, "off"),
+            (Status::Watching, "watching"),
         ];
         for (status, word) in all {
             assert_eq!(status.word(), word);
@@ -1347,255 +1549,18 @@ mod tests {
     }
 
     #[test]
-    fn the_replay_folder_is_never_the_recordings_or_inside_or_around_it() {
-        let root = temp("overlap");
-        let overlap = |replay: PathBuf, record: PathBuf| {
-            ReplaySettings {
-                replay_dir: replay,
-                record_dir: record,
-                max_recording_bytes: 1,
-                max_replay_bytes: 1,
-            }
-            .checked()
-        };
-        assert_eq!(
-            overlap(root.join("a"), root.join("a")),
-            Err(FolderError::Overlap)
-        );
-        assert_eq!(
-            overlap(root.join("a").join("b"), root.join("a")),
-            Err(FolderError::Overlap)
-        );
-        assert_eq!(
-            overlap(root.join("a"), root.join("a").join("b")),
-            Err(FolderError::Overlap)
-        );
-        // The same folder by another spelling.
-        assert_eq!(
-            overlap(root.join("a").join("..").join("a"), root.join("a")),
-            Err(FolderError::Overlap)
-        );
-        assert!(overlap(root.join("replays"), root.join("recordings")).is_ok());
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn replays_off_answer_off_and_give_no_path() {
-        let replays = Replays::new(None, 6);
-        let now = Instant::now();
-        assert_eq!(replays.answer(ALICE, now).status, Status::Off);
-        assert_eq!(
-            replays.ask(ALICE, MATCH, Some(current()), played(), now),
-            Status::Off
-        );
-        assert_eq!(replays.sur_path(MATCH), None);
-        assert_eq!(
-            take(&replays, &"0".repeat(32), true, now),
-            Err(Refused::Unknown)
-        );
-    }
-
-    #[test]
-    fn a_made_replay_is_ready_with_a_token_of_five_downloads_for_ten_minutes() {
-        let root = temp("ready");
-        let replays = Replays::new(Some(settings(&root)), 6);
-        made(&replays, vec![Some(current()), None, Some(current())]);
-        let now = Instant::now();
-        assert_eq!(replays.answer(ALICE, now).status, Status::None);
-        assert_eq!(
-            replays.ask(ALICE, MATCH, Some(current()), played(), now),
-            Status::Ready
-        );
-        let answer = replays.answer(ALICE, now);
-        assert_eq!(
-            (answer.status, answer.match_id, answer.size),
-            (Status::Ready, MATCH, 12)
-        );
-        let ready = answer.ready.clone().unwrap();
-        assert_eq!(ready.token.len(), 32);
-        assert!(parse_token(&ready.token).is_some());
-        let link = answer.link().unwrap();
-        assert_eq!(
-            link,
-            format!("replay 1f07c8fb {} {} 12", ready.token, "ab".repeat(32))
-        );
-        // 114 + the size's digits ("replay " 7, 8, 32 and 64 hex digits,
-        // three spaces), within the client's 245 units at any size.
-        assert_eq!(link.len(), 114 + 2);
-        // Another player's poll is its own.
-        assert_eq!(replays.answer(BOB, now).status, Status::None);
-        // Five downloads, HEADs free.
-        for _ in 0..5 {
-            assert_eq!(take(&replays, &ready.token, false, now), Ok(MATCH));
-            assert_eq!(take(&replays, &ready.token, true, now), Ok(MATCH));
-        }
-        assert_eq!(
-            take(&replays, &ready.token, true, now),
-            Err(Refused::Unknown)
-        );
-        assert_eq!(
-            take(&replays, &ready.token, false, now),
-            Err(Refused::Unknown)
-        );
-        // A new ask gives a new token, which ends with its ten minutes.
-        let later = now + ASK_EVERY;
-        assert_eq!(
-            replays.ask(ALICE, MATCH, Some(current()), played(), later),
-            Status::Ready
-        );
-        let second = replays.answer(ALICE, later).ready.unwrap().token;
-        assert_ne!(second, ready.token);
-        assert_eq!(take(&replays, &second, true, later), Ok(MATCH));
-        assert_eq!(
-            take(&replays, &second, true, later + TOKEN_LIFETIME),
-            Err(Refused::Unknown)
-        );
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn a_token_is_exactly_32_lower_hex_digits() {
-        assert!(parse_token(&"0123456789abcdef".repeat(2)).is_some());
-        for bad in [
-            "0123456789ABCDEF0123456789abcdef".to_owned(),
-            "0".repeat(31),
-            "0".repeat(33),
-            format!("{}g", "0".repeat(31)),
-            format!("{}/", "0".repeat(31)),
-            format!("{}.", "0".repeat(31)),
-            format!("{}\u{e9}", "0".repeat(30)),
-            String::new(),
-        ] {
-            assert_eq!(parse_token(&bad), None, "{bad}");
-        }
-        assert_eq!(token_tag("0123456789abcdef"), "012345");
-    }
-
-    #[test]
-    fn three_live_tokens_an_account_and_one_ask_in_two_seconds() {
-        let root = temp("tokens");
-        let replays = Replays::new(Some(settings(&root)), 6);
-        let mut now = Instant::now();
-        let mut matches = Vec::new();
-        for n in 0..4u32 {
-            let match_id = 0x100 + n;
-            std::fs::write(replays.sur_path(match_id).unwrap(), b"x").unwrap();
-            let sidecar = Sidecar {
-                match_id,
-                size: 1,
-                sha256: "0".repeat(64),
-                revisions: vec![Some(current())],
-                account_ids: Vec::new(),
-                made_at: 0,
-            };
-            std::fs::write(replays.json_path(match_id).unwrap(), sidecar.to_json()).unwrap();
-            matches.push(match_id);
-        }
-        for &match_id in &matches[..3] {
-            assert_eq!(
-                replays.ask(ALICE, match_id, Some(current()), None, now),
-                Status::Ready
-            );
-            // Asked again at once: it stands; another match: busy.
-            assert_eq!(
-                replays.ask(ALICE, match_id, Some(current()), None, now),
-                Status::Ready
-            );
-            assert_eq!(
-                replays.ask(ALICE, 0x999, Some(current()), None, now),
-                Status::Busy
-            );
-            assert_eq!(replays.answer(ALICE, now).status, Status::Busy);
-            now += ASK_EVERY;
-        }
-        assert_eq!(
-            replays.ask(ALICE, matches[3], Some(current()), None, now),
-            Status::Busy
-        );
-        // The same match again keeps its live token.
-        now += ASK_EVERY;
-        assert_eq!(
-            replays.ask(ALICE, matches[0], Some(current()), None, now),
-            Status::Ready
-        );
-        // Another account has its own three.
-        assert_eq!(
-            replays.ask(BOB, matches[3], Some(current()), None, now),
-            Status::Ready
-        );
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn an_ask_is_refused_for_an_old_game_another_players_match_and_other_revisions() {
-        let root = temp("refused");
-        let replays = Replays::new(Some(settings(&root)), 6);
-        let now_revision = current();
-        let newer = now_revision + 1;
-        made(&replays, vec![Some(now_revision), Some(newer)]);
-        let mut now = Instant::now();
-        let mut ask = |account, revision, known| {
-            now += ASK_EVERY;
-            replays.ask(account, MATCH, revision, known, now)
-        };
-        assert_eq!(ask(ALICE, Some(11), played()), Status::OldGame);
-        // Revisions 12 and 13 (the patches' mount, the effects' scrolling)
-        // have no replay link.
-        assert_eq!(ask(ALICE, Some(12), played()), Status::OldGame);
-        assert_eq!(ask(ALICE, Some(13), played()), Status::OldGame);
-        assert_eq!(ask(ALICE, None, played()), Status::OldGame);
-        // The lobby's report says so, or the sidecar does.
-        assert_eq!(
-            ask(
-                ALICE,
-                Some(now_revision),
-                Some(Known {
-                    played: false,
-                    places: 10
-                })
-            ),
-            Status::NotYours
-        );
-        assert_eq!(ask(BOB, Some(newer), None), Status::NotYours);
-        // Made by a newer game too: not for the current one.
-        assert_eq!(
-            ask(ALICE, Some(now_revision), played()),
-            Status::Incompatible
-        );
-        assert_eq!(ask(ALICE, Some(newer), played()), Status::Ready);
-        // Made by a game before the last simulation change too: refused
-        // for every game.
-        made(&replays, vec![Some(now_revision - 1), Some(now_revision)]);
-        assert_eq!(ask(ALICE, Some(newer), played()), Status::Incompatible);
-        // No token was given for any of the refusals.
-        assert_eq!(replays.inner.locked().tokens.len(), 1);
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
     fn revisions_older_than_eleven_and_newer_than_the_askers_do_not_play() {
-        let sidecar = |revisions: Vec<Option<u8>>| Sidecar {
-            match_id: 1,
-            size: 1,
-            sha256: "0".repeat(64),
-            revisions,
-            account_ids: Vec::new(),
-            made_at: 0,
-        };
         // No revision kept (before 2026-10-15), or none known: not played.
-        assert_eq!(sidecar(Vec::new()).refusal(14, 11), Some(Refusal::Unknown));
-        assert_eq!(
-            sidecar(vec![None, Some(0)]).refusal(14, 11),
-            Some(Refusal::Unknown)
-        );
+        assert_eq!(refusal_of(&[], 14, 11), Some(Refusal::Unknown));
+        assert_eq!(refusal_of(&[None, None], 14, 11), Some(Refusal::Unknown));
         // Every recorded revision between 11 and the asker's own: 12 and
         // 13 compute a match as 11 and 14 do.
         assert_eq!(
-            sidecar(vec![None, Some(0), Some(11), Some(12), Some(14)]).refusal(14, 11),
+            refusal_of(&[None, Some(11), Some(12), Some(14)], 14, 11),
             None
         );
         assert_eq!(
-            sidecar(vec![Some(10), Some(14)]).refusal(14, 11),
+            refusal_of(&[Some(10), Some(14)], 14, 11),
             Some(Refusal::Older {
                 from: 10,
                 to: 14,
@@ -1603,20 +1568,28 @@ mod tests {
             })
         );
         assert_eq!(
-            sidecar(vec![Some(15)]).refusal(14, 11),
+            refusal_of(&[Some(15)], 14, 11),
             Some(Refusal::Newer { from: 15, to: 15 })
         );
-        assert_eq!(sidecar(vec![Some(15)]).refusal(16, 11), None);
+        assert_eq!(refusal_of(&[Some(15)], 16, 11), None);
         // A release that changed the simulation, 17: 16's recordings go.
         assert_eq!(
-            sidecar(vec![Some(16), Some(16)]).refusal(17, 17),
+            refusal_of(&[Some(16), Some(16)], 17, 17),
             Some(Refusal::Older {
                 from: 16,
                 to: 16,
                 oldest: 17
             })
         );
-        assert_eq!(sidecar(vec![Some(17)]).refusal(18, 17), None);
+        assert_eq!(refusal_of(&[Some(17)], 18, 17), None);
+    }
+
+    #[test]
+    fn a_recordings_epoch_is_the_last_change_at_or_before_its_oldest_game() {
+        assert_eq!(simulation_epoch(&[Some(29), None, Some(38)]), Some(28));
+        assert_eq!(simulation_epoch(&[Some(27)]), Some(27));
+        assert_eq!(simulation_epoch(&[None, Some(0)]), None, "no known revision");
+        assert_eq!(simulation_epoch(&[Some(10)]), None, "before the first change");
     }
 
     #[test]
@@ -1679,188 +1652,412 @@ mod tests {
     }
 
     #[test]
-    fn a_tag_is_named_for_the_releases_that_have_one() {
-        assert_eq!(release_tag(16).as_deref(), Some("026g-rev16"));
-        assert_eq!(release_tag(12).as_deref(), Some("026g-rev12"));
-        for untagged in [11, 13, 14] {
-            assert_eq!(release_tag(untagged), None);
+    fn only_eight_hex_digit_names_are_recordings_ids() {
+        assert_eq!(match_of_name("1f07c8fb.srprec", ".srprec"), Some(MATCH));
+        for bad in [
+            "1F07C8FB.srprec",
+            "1f07c8f.srprec",
+            "01f07c8fb.srprec",
+            "1f07c8fb.json",
+            "../1f07c8f.srprec",
+            "1f07c8fb.srprec.part",
+        ] {
+            assert_eq!(match_of_name(bad, ".srprec"), None, "{bad}");
         }
     }
 
+    // ------------------------------------------------------- Save
+
+    const ALICE: u32 = 0x1_0001;
+    const BOB: u32 = 0x1_0002;
+
+    /// Recordings in `root/recordings`, Save's files in `root/replays`.
+    fn on(root: &Path) -> Replays {
+        let record_dir = root.join("recordings");
+        std::fs::create_dir_all(&record_dir).unwrap();
+        let save = SaveSettings {
+            replay_dir: root.join("replays"),
+            max_replay_bytes: 1 << 20,
+        }
+        .checked(&record_dir)
+        .unwrap();
+        Replays::new(Some(record_dir)).with_save(save)
+    }
+
+    /// A download of `token` taken and given back at once: its match.
+    fn take(replays: &Replays, token: &str, count: bool, now: Instant) -> Result<u32, Refused> {
+        replays
+            .take_download(token, count, now)
+            .map(|download| download.match_id)
+    }
+
+    /// A kept recording of `match_id`, as the writer leaves it.
+    fn kept(replays: &Replays, match_id: u32) {
+        std::fs::write(
+            replays
+                .record_dir()
+                .unwrap()
+                .join(format!("rec026g_20261015-120000_{match_id:08x}.srprec")),
+            b"x",
+        )
+        .unwrap();
+        replays.recording_kept(match_id);
+    }
+
+    /// The file of `match_id` made, played by ALICE and by games of
+    /// `revisions`.
+    fn made_by(replays: &Replays, match_id: u32, revisions: Vec<Option<u8>>) {
+        std::fs::write(replays.file_path(match_id).unwrap(), b"replay bytes").unwrap();
+        let sidecar = Sidecar {
+            match_id,
+            size: 12,
+            sha256: "ab".repeat(32),
+            revisions,
+            account_ids: vec![ALICE],
+            made_at: 1,
+        };
+        std::fs::write(replays.json_path(match_id).unwrap(), sidecar.to_json()).unwrap();
+    }
+
+    fn made(replays: &Replays, match_id: u32) {
+        made_by(replays, match_id, vec![Some(current())]);
+    }
+
     #[test]
-    fn a_refused_replay_says_why_once_an_ask_and_gives_no_token() {
-        let root = temp("why");
-        let replays = Replays::new(Some(settings(&root)), 6).with_oldest_revision(17);
-        made(&replays, vec![Some(16), None]);
+    fn a_file_of_an_id_kept_anew_is_another_matchs_and_goes() {
+        let root = temp("id-again");
+        let replays = on(&root);
+        kept(&replays, MATCH);
+        made(&replays, MATCH);
+        assert!(replays.file_path(MATCH).unwrap().exists());
+        // The id comes again (after a restart): the old file is not this match's.
+        replays.recording_kept(MATCH);
+        assert!(!replays.file_path(MATCH).unwrap().exists());
+        assert!(!replays.json_path(MATCH).unwrap().exists());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn the_replay_folder_is_never_the_recordings_or_inside_or_around_it() {
+        let root = temp("overlap");
+        let overlap = |replay: PathBuf, record: PathBuf| {
+            SaveSettings {
+                replay_dir: replay,
+                max_replay_bytes: 1,
+            }
+            .checked(&record)
+        };
+        let a = root.join("a");
+        assert_eq!(overlap(a.clone(), a.clone()), Err(FolderError::Overlap));
+        assert_eq!(overlap(a.join("b"), a.clone()), Err(FolderError::Overlap));
+        assert_eq!(overlap(a.clone(), a.join("b")), Err(FolderError::Overlap));
+        // The same folder by another spelling.
+        assert_eq!(
+            overlap(a.join("..").join("a"), a.clone()),
+            Err(FolderError::Overlap)
+        );
+        assert!(overlap(root.join("replays"), root.join("recordings")).is_ok());
+        // Without recordings Save stays off.
+        let save = SaveSettings {
+            replay_dir: root.join("replays"),
+            max_replay_bytes: 1,
+        };
+        assert!(Replays::new(None).with_save(save).save_settings().is_none());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn save_off_answers_off_and_gives_no_path() {
+        let replays = Replays::new(Some(temp("off")));
+        let now = Instant::now();
+        assert_eq!(replays.save_answer(ALICE, now).status, Status::Off);
+        assert_eq!(
+            replays.save_ask(ALICE, MATCH, Some(current()), None, now),
+            Status::Off
+        );
+        assert_eq!(replays.file_path(MATCH), None);
+        assert_eq!(
+            take(&replays, &"0".repeat(32), true, now),
+            Err(Refused::Unknown)
+        );
+    }
+
+    #[test]
+    fn a_made_file_is_ready_with_a_token_of_five_downloads_for_ten_minutes() {
+        let root = temp("ready");
+        let replays = on(&root);
+        made(&replays, MATCH);
+        let now = Instant::now();
+        assert_eq!(replays.save_answer(ALICE, now).status, Status::None);
+        assert_eq!(
+            replays.save_ask(ALICE, MATCH, Some(current()), Some(true), now),
+            Status::Ready
+        );
+        let answer = replays.save_answer(ALICE, now);
+        assert_eq!((answer.status, answer.match_id), (Status::Ready, MATCH));
+        assert_eq!(answer.figure(), 12);
+        let ready = answer.ready.clone().unwrap();
+        assert!(parse_token(&ready.token).is_some());
+        let link = answer.link().unwrap();
+        assert_eq!(
+            link,
+            format!("replay 1f07c8fb {} {} 12", ready.token, "ab".repeat(32))
+        );
+        // 114 + the size's digits, within the client's 245 units.
+        assert_eq!(link.len(), 114 + 2);
+        // Another player's poll is its own.
+        assert_eq!(replays.save_answer(BOB, now).status, Status::None);
+        // Five downloads, HEADs free.
+        for _ in 0..5 {
+            assert_eq!(take(&replays, &ready.token, false, now), Ok(MATCH));
+            assert_eq!(take(&replays, &ready.token, true, now), Ok(MATCH));
+        }
+        assert_eq!(
+            take(&replays, &ready.token, true, now),
+            Err(Refused::Unknown)
+        );
+        // A new ask gives a new token, which ends with its ten minutes.
+        let later = now + ASK_EVERY;
+        replays.save_ask(ALICE, MATCH, Some(current()), None, later);
+        let second = replays.save_answer(ALICE, later).ready.unwrap().token;
+        assert_ne!(second, ready.token);
+        assert_eq!(take(&replays, &second, true, later), Ok(MATCH));
+        assert_eq!(
+            take(&replays, &second, true, later + TOKEN_LIFETIME),
+            Err(Refused::Unknown)
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_token_is_exactly_32_lower_hex_digits() {
+        assert!(parse_token(&"0123456789abcdef".repeat(2)).is_some());
+        for bad in [
+            "0123456789ABCDEF0123456789abcdef".to_owned(),
+            "0".repeat(31),
+            "0".repeat(33),
+            format!("{}g", "0".repeat(31)),
+            format!("{}/", "0".repeat(31)),
+            format!("{}\u{e9}", "0".repeat(30)),
+            String::new(),
+        ] {
+            assert_eq!(parse_token(&bad), None, "{bad}");
+        }
+        assert_eq!(token_tag("0123456789abcdef"), "012345");
+    }
+
+    #[test]
+    fn three_live_tokens_an_account_and_one_ask_in_two_seconds() {
+        let root = temp("tokens");
+        let replays = on(&root);
         let mut now = Instant::now();
+        let matches: Vec<u32> = (0x100..0x104).collect();
+        for &match_id in &matches {
+            made(&replays, match_id);
+        }
+        for &match_id in &matches[..3] {
+            let ask = |match_id| replays.save_ask(ALICE, match_id, Some(current()), None, now);
+            assert_eq!(ask(match_id), Status::Ready);
+            // Asked again at once: it stands; another match: busy.
+            assert_eq!(ask(match_id), Status::Ready);
+            assert_eq!(ask(0x999), Status::Busy);
+            assert_eq!(replays.save_answer(ALICE, now).status, Status::Busy);
+            now += ASK_EVERY;
+        }
+        let ask = |account, match_id, now| replays.save_ask(account, match_id, Some(current()), None, now);
+        assert_eq!(ask(ALICE, matches[3], now), Status::Busy);
+        // The same match again keeps its live token; another account has
+        // its own three.
+        now += ASK_EVERY;
+        assert_eq!(ask(ALICE, matches[0], now), Status::Ready);
+        assert_eq!(ask(BOB, matches[3], now), Status::Ready);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_save_is_refused_for_an_old_game_another_players_match_and_other_revisions() {
+        let root = temp("refused");
+        let replays = on(&root).with_watch(WatchSettings {
+            access: super::super::replay_watch::Access::Match,
+            ..WatchSettings::default()
+        });
+        let today = current();
+        let newer = today + 1;
+        made_by(&replays, MATCH, vec![Some(today), Some(newer)]);
+        let mut now = Instant::now();
+        let mut ask = |account, revision, played| {
+            now += ASK_EVERY;
+            replays.save_ask(account, MATCH, revision, played, now)
+        };
+        // Revisions before 14 have no replay link.
+        for old in [Some(11), Some(13), None] {
+            assert_eq!(ask(ALICE, old, Some(true)), Status::OldGame);
+        }
+        // The lobby's report says so, or the sidecar does.
+        assert_eq!(ask(ALICE, Some(today), Some(false)), Status::NotYours);
+        assert_eq!(ask(BOB, Some(newer), None), Status::NotYours);
+        // Made by a newer game too: not for the current one.
+        assert_eq!(ask(ALICE, Some(today), Some(true)), Status::Incompatible);
+        assert_eq!(ask(ALICE, Some(newer), Some(true)), Status::Ready);
+        // Anyone may by default: Bob gets it.
+        let open = on(&root);
         assert_eq!(
-            replays.ask(ALICE, MATCH, Some(17), played(), now),
+            open.save_ask(BOB, MATCH, Some(newer), None, Instant::now()),
+            Status::Ready
+        );
+        // No token was given for any of the refusals.
+        assert_eq!(replays.inner.locked().tokens.len(), 1);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Unknown matches asked to be saved run out the same limit as watching
+    /// them: past it the account gets `busy`, even for a match that exists,
+    /// and no link.
+    #[test]
+    fn saving_unknown_matches_is_limited_with_watching_them() {
+        use super::super::replay_watch::{MISSES_ALLOWED, MISSES_WINDOW};
+        let root = temp("guess");
+        let replays = on(&root);
+        made(&replays, MATCH);
+        let mut now = Instant::now();
+        let revision = Some(current());
+        // Half of them by watching.
+        for n in 0..MISSES_ALLOWED / 2 {
+            replays.watches().missed(ALICE, 0x2000 + n, now);
+        }
+        for n in MISSES_ALLOWED / 2..MISSES_ALLOWED {
+            now += ASK_EVERY;
+            assert_eq!(
+                replays.save_ask(ALICE, 0x2000 + n, revision, None, now),
+                Status::Gone,
+                "{n}"
+            );
+        }
+        now += ASK_EVERY;
+        assert_eq!(
+            replays.save_ask(ALICE, MATCH, revision, Some(true), now),
+            Status::Busy
+        );
+        let answer = replays.save_answer(ALICE, now);
+        assert_eq!(answer.status, Status::Busy);
+        assert!(answer.link().is_none());
+        assert!(replays.inner.locked().tokens.is_empty());
+        // Another account is not touched, and the window ends.
+        assert_eq!(
+            replays.save_ask(BOB, MATCH, revision, Some(true), now),
+            Status::Ready
+        );
+        now += MISSES_WINDOW;
+        assert_eq!(
+            replays.save_ask(ALICE, MATCH, revision, Some(true), now),
+            Status::Ready
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Asked by a game whose revision the server does not know: `old_game`,
+    /// as a game too old for the link, whatever the file is.
+    #[test]
+    fn a_save_for_a_game_of_unknown_revision_is_an_old_game() {
+        let root = temp("unknown");
+        let replays = on(&root);
+        made_by(&replays, MATCH, vec![Some(40)]);
+        let now = Instant::now();
+        assert_eq!(
+            replays.save_ask(ALICE, MATCH, None, Some(true), now),
+            Status::OldGame
+        );
+        assert!(replays.inner.locked().tokens.is_empty());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A sidecar's 0 says the server did not know that game: `None`, which
+    /// is not counted, not the revision 0.
+    #[test]
+    fn a_sidecars_revision_zero_reads_as_not_known() {
+        let root = temp("zero");
+        let replays = on(&root);
+        made_by(&replays, MATCH, vec![Some(40)]);
+        let path = replays.json_path(MATCH).unwrap();
+        let mut sidecar: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        sidecar["revisions"] = serde_json::json!([0, 40]);
+        std::fs::write(&path, sidecar.to_string()).unwrap();
+        assert_eq!(
+            replays.made(MATCH).expect("it reads").revisions,
+            [None, Some(40)]
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_refused_save_gives_no_token() {
+        let root = temp("why");
+        let replays = on(&root).with_oldest_revision(17);
+        made_by(&replays, MATCH, vec![Some(16), None]);
+        let now = Instant::now();
+        assert_eq!(
+            replays.save_ask(ALICE, MATCH, Some(17), Some(true), now),
             Status::Incompatible
         );
-        let first = replays.answer(ALICE, now);
+        let first = replays.save_answer(ALICE, now);
         assert_eq!(first.status, Status::Incompatible);
-        assert_eq!(
-            first.refusal,
-            Some(Refusal::Older {
-                from: 16,
-                to: 16,
-                oldest: 17
-            })
-        );
-        assert!(first.ready.is_none() && first.link().is_none());
-        // The movie's next polls: the status, the why said already.
-        let again = replays.answer(ALICE, now);
-        assert_eq!((again.status, again.refusal), (Status::Incompatible, None));
-        // The same ask twice at once stands; asked again later, it is said
-        // again.
-        assert_eq!(
-            replays.ask(ALICE, MATCH, Some(17), played(), now),
-            Status::Incompatible
-        );
-        assert_eq!(replays.answer(ALICE, now).refusal, None);
-        now += ASK_EVERY;
-        replays.ask(ALICE, MATCH, Some(17), played(), now);
-        assert!(replays.answer(ALICE, now).refusal.is_some());
-        // A recording with no revision at all: refused too.
-        made(&replays, Vec::new());
-        now += ASK_EVERY;
-        replays.ask(ALICE, MATCH, Some(17), played(), now);
-        assert_eq!(replays.answer(ALICE, now).refusal, Some(Refusal::Unknown));
+        assert!(first.link().is_none());
         assert!(replays.inner.locked().tokens.is_empty());
         let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
-    fn a_replay_made_while_the_asker_waits_says_why_it_is_refused() {
-        let root = temp("why-later");
-        let replays = Replays::new(Some(settings(&root)), 6);
-        kept(&replays, MATCH);
-        let now = Instant::now();
-        assert_eq!(
-            replays.ask(ALICE, MATCH, Some(16), played(), now),
-            Status::Preparing
-        );
-        assert_eq!(replays.answer(ALICE, now).refusal, None);
-        assert_eq!(replays.next_job(), Some(MATCH));
-        made(&replays, Vec::new());
-        replays.job_done(MATCH, Ok(()), now);
-        let answer = replays.answer(ALICE, now);
-        assert_eq!(
-            (answer.status, answer.refusal),
-            (Status::Incompatible, Some(Refusal::Unknown))
-        );
-        assert_eq!(replays.answer(ALICE, now).refusal, None);
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn a_recording_without_a_replay_is_queued_once_and_answered_when_made() {
+    fn a_recording_without_a_file_is_queued_once_and_answered_when_made() {
         let root = temp("queue");
-        let replays = Replays::new(Some(settings(&root)), 6);
-        let record_dir = replays.settings().unwrap().record_dir.clone();
+        let replays = on(&root);
+        let record_dir = replays.record_dir().unwrap().to_owned();
         let now = Instant::now();
-        // Nothing at all: gone; a known match of 4 places: not recorded.
         assert_eq!(
-            replays.ask(ALICE, MATCH, Some(current()), played(), now),
+            replays.save_ask(ALICE, MATCH, Some(current()), None, now),
             Status::Gone
         );
-        assert_eq!(
-            replays.ask(
-                BOB,
-                MATCH,
-                Some(current()),
-                Some(Known {
-                    played: true,
-                    places: 4
-                }),
-                now
-            ),
-            Status::NotRecorded
-        );
-        // A file of another name pattern is no recording of the match.
-        std::fs::write(record_dir.join("x_1f07c8fb.srprec"), b"x").unwrap();
+        // Still being written: preparing, its place not known.
         std::fs::write(record_dir.join("rec026g_1_1f07c8fb.srprec.part"), b"x").unwrap();
-        // (Seen once the folder is listed anew.)
         let later = now + LISTING_KEPT;
         assert_eq!(
-            replays.ask(ALICE, MATCH, Some(current()), played(), later),
+            replays.save_ask(ALICE, MATCH, Some(current()), None, later),
             Status::Preparing
         );
-        assert!(replays.inner.locked().jobs.is_empty());
-        // Still being written: its place in line is not known.
-        assert_eq!(replays.answer(ALICE, later).figure(), 0);
-        // The writer keeps it: nothing is converted until someone asks.
+        assert!(replays.jobs().is_empty());
+        assert_eq!(replays.save_answer(ALICE, later).figure(), 0);
+        // Kept: nothing is made until someone asks; askers share one job.
         std::fs::write(record_dir.join("rec026g_2_1f07c8fb.srprec"), b"x").unwrap();
         replays.recording_kept(MATCH);
         assert!(replays.jobs().is_empty());
         let later = later + ASK_EVERY;
-        assert_eq!(
-            replays.ask(ALICE, MATCH, Some(current()), played(), later),
-            Status::Preparing
-        );
-        assert_eq!(
-            replays.ask(BOB, MATCH, Some(current()), played(), later),
-            Status::Preparing
-        );
-        assert_eq!(replays.inner.locked().jobs, [MATCH]);
+        for player in [ALICE, BOB] {
+            assert_eq!(
+                replays.save_ask(player, MATCH, Some(current()), None, later),
+                Status::Preparing
+            );
+        }
+        assert_eq!(replays.jobs(), [MATCH]);
         assert_eq!(replays.next_job(), Some(MATCH));
-        let answer = replays.answer(ALICE, later);
-        assert_eq!((answer.status, answer.place), (Status::Preparing, 1));
-        made(&replays, vec![Some(current())]);
+        let answer = replays.save_answer(ALICE, later);
+        assert_eq!((answer.status, answer.figure()), (Status::Preparing, 1));
+        made(&replays, MATCH);
         replays.job_done(MATCH, Ok(()), later);
-        // The conversion's news is looked at by the next poll at once.
-        let answer = replays.answer(ALICE, later);
-        assert_eq!(answer.status, Status::Ready);
-        assert_eq!(answer.figure(), 12);
-        assert!(answer.ready.is_some());
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn a_failed_or_deleted_or_unkept_recording_says_so() {
-        let root = temp("fates");
-        let replays = Replays::new(Some(settings(&root)), 6);
-        kept(&replays, MATCH);
-        let now = Instant::now();
-        assert_eq!(
-            replays.ask(ALICE, MATCH, Some(current()), played(), now),
-            Status::Preparing
-        );
-        assert_eq!(replays.next_job(), Some(MATCH));
-        replays.job_done(MATCH, Err(Failure::Lasting), now);
-        assert_eq!(replays.answer(ALICE, now).status, Status::Failed);
-        assert_eq!(
-            replays.ask(BOB, MATCH, Some(current()), played(), now),
-            Status::Failed
-        );
-        made(&replays, vec![Some(current())]);
-        replays.recording_deleted(MATCH);
-        assert!(!replays.sur_path(MATCH).unwrap().exists());
-        assert!(!replays.json_path(MATCH).unwrap().exists());
-        let later = now + FAILED_FOR;
-        assert_eq!(
-            replays.ask(ALICE, MATCH, Some(current()), played(), later),
-            Status::Gone
-        );
-        replays.recording_not_kept(7);
-        assert_eq!(
-            replays.ask(ALICE, 7, Some(current()), played(), later + ASK_EVERY),
-            Status::NotRecorded
-        );
-        replays.stop();
-        assert_eq!(replays.next_job(), None);
+        // The job's news is looked at by the next poll at once; each asker
+        // gets a token of its own.
+        let (a, b) = (replays.save_answer(ALICE, later), replays.save_answer(BOB, later));
+        assert_eq!((a.status, a.figure()), (Status::Ready, 12));
+        assert_ne!(a.ready.unwrap().token, b.ready.unwrap().token);
         let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn a_failure_is_tried_again_only_when_its_cause_can_change() {
         let root = temp("retry");
-        let replays = Replays::new(Some(settings(&root)), 6);
-        let start = Instant::now();
-        let mut at = start;
-        // Asks of one account, each past the two seconds.
+        let replays = on(&root);
+        let mut at = Instant::now();
         let ask = |match_id: u32, now: Instant| {
-            let status = replays.ask(ALICE, match_id, Some(current()), played(), now);
+            let status = replays.save_ask(ALICE, match_id, Some(current()), None, now);
             (status, replays.jobs().contains(&match_id))
         };
         let fail = |match_id: u32, failure: Failure, now: Instant| {
@@ -1885,26 +2082,27 @@ mod tests {
             at += ASK_EVERY;
             assert_eq!(ask(3, at), (Status::Preparing, true), "{wait:?}");
         }
-        // Made at last: its failures are forgotten.
+        // Made at last: its failures are forgotten. Its recording deleted:
+        // the file goes with it, and the match is gone.
         assert_eq!(replays.next_job(), Some(3));
+        made(&replays, 3);
         replays.job_done(3, Ok(()), at);
         assert!(!replays.inner.locked().failed.contains_key(&3));
+        replays.recording_deleted(3);
+        assert!(!replays.file_path(3).unwrap().exists());
+        assert!(!replays.json_path(3).unwrap().exists());
+        at += ASK_EVERY;
+        assert_eq!(ask(3, at), (Status::Gone, false));
+        replays.stop();
+        assert_eq!(replays.next_job(), None);
         let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn a_burst_of_polls_is_looked_at_once_a_second_and_the_folder_listed_once() {
         let root = temp("burst");
-        let replays = Replays::new(Some(settings(&root)), 6);
-        let record_dir = replays.settings().unwrap().record_dir.clone();
-        // A thousand other recordings in the folder.
-        for n in 0..1000u32 {
-            std::fs::write(
-                record_dir.join(format!("rec026g_20261015-120000_{:08x}.srprec", 0x1000 + n)),
-                b"",
-            )
-            .unwrap();
-        }
+        let replays = on(&root);
+        let record_dir = replays.record_dir().unwrap().to_owned();
         std::fs::write(
             record_dir.join(format!("rec026g_20261015-120000_{MATCH:08x}.srprec.part")),
             b"x",
@@ -1912,7 +2110,7 @@ mod tests {
         .unwrap();
         let now = Instant::now();
         assert_eq!(
-            replays.ask(ALICE, MATCH, Some(current()), played(), now),
+            replays.save_ask(ALICE, MATCH, Some(current()), None, now),
             Status::Preparing
         );
         let counts = |replays: &Replays| {
@@ -1920,234 +2118,79 @@ mod tests {
             (inner.evaluations, inner.listings)
         };
         assert_eq!(counts(&replays), (1, 1));
-        // 80 polls in one datagram, and more within the second: the ask's
-        // look stands.
+        // 80 polls in one datagram: the ask's look stands.
         for step in 0..80u64 {
             let at = now + Duration::from_millis(step * 12);
-            assert_eq!(replays.answer(ALICE, at).status, Status::Preparing);
+            assert_eq!(replays.save_answer(ALICE, at).status, Status::Preparing);
         }
         assert_eq!(counts(&replays), (1, 1));
         // A second on: one look for the whole burst.
         let next = now + RECHECK_EVERY;
         for _ in 0..80 {
-            assert_eq!(replays.answer(ALICE, next).status, Status::Preparing);
+            replays.save_answer(ALICE, next);
         }
         assert_eq!(counts(&replays), (2, 1));
-        // Another account's burst is its own one look, on the same listing.
-        assert_eq!(
-            replays.ask(BOB, MATCH, Some(current()), played(), next),
-            Status::Preparing
-        );
-        for _ in 0..80 {
-            replays.answer(BOB, next);
-        }
-        assert_eq!(counts(&replays), (3, 1));
-        // The listing is made anew when it is old, or on the writer's news.
-        let later = now + LISTING_KEPT;
-        replays.answer(ALICE, later);
-        assert_eq!(counts(&replays), (4, 2));
-        std::fs::rename(
-            record_dir.join(format!("rec026g_20261015-120000_{MATCH:08x}.srprec.part")),
-            record_dir.join(format!("rec026g_20261015-120000_{MATCH:08x}.srprec")),
-        )
-        .unwrap();
-        replays.recording_kept(MATCH);
-        let answer = replays.answer(ALICE, later);
-        assert_eq!((answer.status, answer.place), (Status::Preparing, 1));
-        assert_eq!(counts(&replays), (5, 3));
-        assert_eq!(replays.jobs(), [MATCH]);
         let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
-    fn askers_of_one_match_share_its_one_job_and_each_gets_its_own_token() {
-        let root = temp("shared");
-        let replays = Replays::new(Some(settings(&root)), 6);
-        kept(&replays, MATCH);
-        let now = Instant::now();
-        let players: Vec<u32> = (0..20).map(|n| 0x2_0000 + n).collect();
-        for &player in &players {
-            assert_eq!(
-                replays.ask(player, MATCH, Some(current()), None, now),
-                Status::Preparing
-            );
-        }
-        // One job for all of them, all at the same place.
-        assert_eq!(replays.jobs(), [MATCH]);
-        for &player in &players {
-            assert_eq!(replays.answer(player, now).figure(), 1);
-        }
-        // The conversion goes on with no one polling; asked again while it
-        // runs, the match is not queued twice.
-        assert_eq!(replays.next_job(), Some(MATCH));
-        let later = now + ASK_EVERY;
-        assert_eq!(
-            replays.ask(players[0], MATCH, Some(current()), None, later),
-            Status::Preparing
-        );
-        assert!(replays.jobs().is_empty());
-        made_for_all(&replays, MATCH);
-        replays.job_done(MATCH, Ok(()), later);
-        let mut tokens = HashSet::new();
-        for &player in &players {
-            let answer = replays.answer(player, later);
-            assert_eq!(answer.status, Status::Ready);
-            tokens.insert(answer.ready.unwrap().token);
-        }
-        assert_eq!(tokens.len(), players.len());
-        // All of them download the one file at once, a slot each.
-        let downloads: Vec<Download<'_>> = tokens
-            .iter()
-            .map(|token| replays.take_download(token, true, later).unwrap())
-            .collect();
-        assert!(downloads.iter().all(|download| download.match_id == MATCH));
-        // A later ask is answered from the file, with no job.
-        let late = 0x3_0000;
-        assert_eq!(
-            replays.ask(late, MATCH, Some(current()), None, later),
-            Status::Ready
-        );
-        assert!(replays.jobs().is_empty());
-        drop(downloads);
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn other_matches_wait_in_line_up_to_twenty_and_a_busy_asker_is_queued_later() {
+    fn other_matches_wait_in_line_up_to_twenty() {
         let root = temp("line");
-        let replays = Replays::new(Some(settings(&root)), 6);
+        let replays = on(&root);
         let now = Instant::now();
         let first = 0x500;
         for n in 0..=MAX_JOBS as u32 + 1 {
             kept(&replays, first + n);
         }
-        // The first is being converted; the others wait behind it.
-        assert_eq!(
-            replays.ask(1, first, Some(current()), None, now),
-            Status::Preparing
-        );
+        let ask = |account, match_id| replays.save_ask(account, match_id, Some(current()), None, now);
+        assert_eq!(ask(1, first), Status::Preparing);
         assert_eq!(replays.next_job(), Some(first));
         for n in 1..=MAX_JOBS as u32 {
-            assert_eq!(
-                replays.ask(1 + n, first + n, Some(current()), None, now),
-                Status::Preparing
-            );
-            assert_eq!(replays.answer(1 + n, now).figure(), u64::from(n) + 1);
+            assert_eq!(ask(1 + n, first + n), Status::Preparing);
+            assert_eq!(replays.save_answer(1 + n, now).figure(), u64::from(n) + 1);
         }
-        assert_eq!(replays.answer(1, now).figure(), 1);
-        assert_eq!(replays.jobs().len(), MAX_JOBS);
         // One more is busy, and not queued.
-        let past = first + MAX_JOBS as u32 + 1;
-        assert_eq!(
-            replays.ask(99, past, Some(current()), None, now),
-            Status::Busy
-        );
-        assert_eq!(replays.answer(99, now).figure(), 0);
+        assert_eq!(ask(99, first + MAX_JOBS as u32 + 1), Status::Busy);
         assert_eq!(replays.jobs().len(), MAX_JOBS);
-        // The line moves: each place one less.
-        replays.job_done(first, Ok(()), now);
-        assert_eq!(replays.next_job(), Some(first + 1));
-        assert_eq!(replays.answer(2, now).figure(), 1);
-        assert_eq!(replays.answer(3, now).figure(), 2);
-        // The busy asker, asking again, is queued at the end.
-        let later = now + ASK_EVERY;
-        assert_eq!(
-            replays.ask(99, past, Some(current()), None, later),
-            Status::Preparing
-        );
-        assert_eq!(replays.answer(99, later).figure(), MAX_JOBS as u64 + 1);
-        assert_eq!(replays.jobs().last(), Some(&past));
         let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
-    fn a_token_downloads_one_at_a_time_and_an_account_three_at_most() {
+    fn a_token_downloads_one_at_a_time() {
         let root = temp("one-at-a-time");
-        let replays = Replays::new(Some(settings(&root)), 6);
-        let mut now = Instant::now();
-        let mut tokens = Vec::new();
-        for match_id in 0x100..0x103 {
-            made_for_all(&replays, match_id);
-            assert_eq!(
-                replays.ask(ALICE, match_id, Some(current()), None, now),
-                Status::Ready
-            );
-            tokens.push(replays.answer(ALICE, now).ready.unwrap().token);
-            now += ASK_EVERY;
+        let replays = on(&root);
+        made(&replays, MATCH);
+        let now = Instant::now();
+        replays.save_ask(ALICE, MATCH, Some(current()), None, now);
+        let token = replays.save_answer(ALICE, now).ready.unwrap().token;
+        let held = replays.take_download(&token, true, now).unwrap();
+        // A second download of it waits for the first, a HEAD too, and
+        // takes none of its downloads.
+        for count in [true, false] {
+            assert_eq!(take(&replays, &token, count, now), Err(Refused::Busy));
         }
-        let held: Vec<Download<'_>> = tokens
-            .iter()
-            .map(|token| replays.take_download(token, true, now).unwrap())
-            .collect();
-        // A second download of a token waits for the first, a HEAD too,
-        // and takes none of its downloads.
-        for token in &tokens {
-            for count in [true, false] {
-                assert_eq!(take(&replays, token, count, now), Err(Refused::Busy));
-            }
-        }
-        // Past their ten minutes, while downloading, they still count: no
-        // fourth token for the account.
+        // Past its time while downloading: kept, but no more downloads.
         let late = now + TOKEN_LIFETIME;
-        made_for_all(&replays, 0x103);
-        assert_eq!(
-            replays.ask(ALICE, 0x103, Some(current()), None, late),
-            Status::Busy
-        );
-        for token in &tokens {
-            assert_eq!(take(&replays, token, true, late), Err(Refused::Unknown));
-        }
-        drop(held);
-        // Done: the tokens go, and the account gets a new one.
-        assert_eq!(
-            replays.ask(ALICE, 0x103, Some(current()), None, late + ASK_EVERY),
-            Status::Ready
-        );
-        // Given back, a token downloads again, its four left.
-        let token = replays.answer(ALICE, late + ASK_EVERY).ready.unwrap().token;
-        for n in 1..=TOKEN_DOWNLOADS {
-            let download = replays.take_download(&token, true, late).unwrap();
-            // The last leaves it used up: unknown from then on.
-            let other = if n < TOKEN_DOWNLOADS {
-                Refused::Busy
-            } else {
-                Refused::Unknown
-            };
-            assert_eq!(take(&replays, &token, true, late), Err(other));
-            drop(download);
-        }
         assert_eq!(take(&replays, &token, true, late), Err(Refused::Unknown));
+        drop(held);
+        assert_eq!(take(&replays, &token, true, now), Ok(MATCH));
         let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
-    fn a_replay_whose_file_is_not_its_sidecars_is_not_given() {
+    fn a_file_whose_size_is_not_its_sidecars_is_not_given() {
         let root = temp("mismatch");
-        let replays = Replays::new(Some(settings(&root)), 6);
-        made(&replays, vec![Some(current())]);
-        std::fs::write(replays.sur_path(MATCH).unwrap(), b"longer than it was").unwrap();
-        let now = Instant::now();
+        let replays = on(&root);
+        made(&replays, MATCH);
+        std::fs::write(replays.file_path(MATCH).unwrap(), b"longer than it was").unwrap();
         assert_eq!(
-            replays.ask(ALICE, MATCH, Some(current()), played(), now),
+            replays.save_ask(ALICE, MATCH, Some(current()), None, Instant::now()),
             Status::Gone
         );
+        assert_eq!(
+            replays.file_path(MATCH).unwrap().file_name().unwrap(),
+            "1f07c8fb.srpreplay"
+        );
         let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn only_eight_hex_digit_names_are_replay_files() {
-        assert_eq!(match_of_name("1f07c8fb.sur", ".sur"), Some(MATCH));
-        assert_eq!(file_stem(MATCH), "1f07c8fb");
-        assert_eq!(file_stem(7), "00000007");
-        for bad in [
-            "1F07C8FB.sur",
-            "1f07c8f.sur",
-            "01f07c8fb.sur",
-            "1f07c8fb.json",
-            "../1f07c8f.sur",
-            "1f07c8fb.sur.part",
-        ] {
-            assert_eq!(match_of_name(bad, ".sur"), None, "{bad}");
-        }
     }
 }

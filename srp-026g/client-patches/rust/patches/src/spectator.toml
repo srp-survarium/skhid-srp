@@ -1,0 +1,48 @@
+# Patch 143: a game sent to a match with no place of its own (the 0xE4 names
+# none: the rooms' queue) watches it (spectator.rs; docs/notes/queue-spectate.md).
+# Only the decisions: the sites are sites_026g.tsv's, the logic spectator.rs.
+name = "spectator"
+patch = 143
+
+# After a world (last of the site's hooks, after patches 97, 109, 125, 126 and 127:
+# a spectator's ends the chain): the camera to the local place, or a
+# spectator's player.
+[[hook]]
+site = "world_load.loaded"
+handler = "on_world_camera"
+order = 7
+
+# F6 / F5 (next_player, prev_player) and F2 (cam_2, the free view) for a spectator.
+[[hook]]
+site = "keyboard.spectate"
+handler = "on_key"
+
+# A match line's team colour, by the local place's player.
+[[hook]]
+site = "chat.match_team"
+handler = "on_match_line"
+
+# The hud at the followed player's death: no kits for a spectator.
+[[hook]]
+site = "hud.followed_alive"
+handler = "on_followed_alive"
+
+# An 0xEA: process_player_left_match, whole, in Rust (same for every player; a spectator's own
+# end, place 0xFF, or the leave of the player it follows, its branch of it).
+[[hook]]
+site = "player_left.entry"
+handler = "on_player_left"
+
+# A match's options read (after patches 65, 86 and 83): a new match: its role
+# and the camera following nobody yet.
+[[hook]]
+site = "static_info.options_read"
+handler = "on_static_info"
+order = 3
+
+# A match's end, after patch 144's (which reads the role): the role over and a
+# spectator's input off for the next match.
+[[hook]]
+site = "close_match.reason"
+handler = "on_close"
+order = 1

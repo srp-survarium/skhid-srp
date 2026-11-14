@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Wine integration: local .sur launch and Explorer registration in a NEW prefix.
+"""Wine integration: local .sur launch and Explorer registration in a NEW prefix,
+and that "Save replay" beside it saves a .srpreplay and starts no game.
 
 Run after build.sh: python tests/check_local_replay.py --wine /path/to/wine
 Uses only a stand-in game. Keeps its temporary directory as evidence.
@@ -11,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import struct
 import subprocess
 import tempfile
 import threading
@@ -120,9 +122,11 @@ def main():
     run(fake, 'open-replay-file', win(file))
     expect_game(win(file))
 
-    # Existing remote-link entry point still downloads and launches through the
-    # shared launch function. The loopback service receives no local-file request.
-    body = b'a downloaded replay fixture'
+    # "Save replay" (`replay <id> <token> <sha256> <size>`) saves the server's
+    # .srpreplay into game\replays and starts no game. The loopback service
+    # then receives no request of a local file's.
+    head = b'format 1\nmatch 1234abcd\nmade 1794174000\nmap 24\nmap_slug Rudnya\n'
+    body = b'SRPRPL01' + struct.pack('<I', len(head)) + head + b'stand-in events and replay'
     requests = []
     class Server(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
@@ -140,12 +144,18 @@ def main():
     try:
         run(updater, 'replay', '1234abcd', '0123456789abcdef' * 2,
             hashlib.sha256(body).hexdigest(), str(len(body)), 'quiet')
-        expect_game(win(game / 'replays' / 'srp_1234abcd.sur'))
         assert requests == ['/replays/' + '0123456789abcdef' * 2], requests
+        saved = sorted((game / 'replays').iterdir())
+        assert [path.name.endswith('_Rudnya_1234abcd.srpreplay') for path in saved] == [True], saved
+        assert saved[0].read_bytes() == body
+        assert 'replay: saved ' in log.read_text()
+        time.sleep(1)
+        assert not started.exists(), 'a save must not start the game'
         requests.clear()
         run(updater, 'open-replay', win(file), 'quiet')
         expect_game(win(file))
         assert not requests
+        assert sorted((game / 'replays').iterdir()) == saved
     finally:
         server.shutdown()
         server.server_close()
@@ -154,7 +164,7 @@ def main():
         hashlib.sha256(updater.read_bytes()).hexdigest()}, indent=2) + '\n')
     subprocess.run([wineserver, '-k'], env=env, check=False, timeout=10)
     print(f'PASS: local/drop/Shell launch, complete args/cwd, error/gate paths, registration '
-          f'and existing default, remote-link regression, no local downloads. Evidence: {root}')
+          f'and existing default, Save replay saved with no game started, no local downloads. Evidence: {root}')
 
 
 if __name__ == '__main__':

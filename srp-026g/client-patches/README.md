@@ -25,7 +25,7 @@ release's. The "Result" row is the build of the revision named in it.
 | Revision 13 (never released) | That first revision 12 with patch 25: the sign-in reports in byte 8 of the version field whether `%TEMP%\shell_32.dll` exists, a file one known cheat drops and never removes; the login server logs it. It differed from that revision 12 in two instructions at 0x380889 (a call and a nop), the revision byte, the PE checksum and 192 bytes of `.srp`. **Never released; patch 25 is in the revision 12 below** |
 | Revision 12 | Revision 11 with patch 24 (the game checks no `resources.db` signature, so the retail archive and one with new files both start it), patch 25 (the sign-in reports `%TEMP%\shell_32.dll` in byte 8 of the version field, as the never-released revision 13 did) and patch 27 (the game mounts every `resources.db.patch_<n>` there, n = 1 to 255 in order, over `resources.db`; with no patch file it mounts `resources.db` alone, as before). Owner, 2026-10-16: this build is revision 12; while it was written it was numbered 13 and then 14 (the rows above), none of them released. Against the build numbered 14 (`770f7c04…5b09`) it differs in the revision byte (file 0x36FC66), the PE checksum, the call at 0xE7E3E (file 0xD723F: mount_all moved to +88h) and patch 27's code at 0x400 of `.srp` (file 0xC4AE00, 549 bytes before, 707 now: resources.db's reference of the state is let go once engine_world holds it, and a patch file that is there but cannot be opened stops the game), and in nothing else (compared byte by byte). Against the never-released revision 13 that build differed in the five bytes of the call at 0x135D3 (file 0x29D3), the revision byte, the PE checksum and the 413 bytes of the first revision 12's signature code at 0xC00 of `.srp`, now int3 padding, plus patch 27: the five bytes at 0xE7E3E, the six at 0x147E0 (file 0x3BE0) and its code at 0x400 of `.srp`. 11 and 12 play together: nothing a match computes changed. Run in a game: the build numbered 14 (`770f7c04…5b09`) mounted patches 14, 15 and 16 made by our writer in Wine on 2026-10-16, and they worked; its quit was not watched, and this build, with patch 27's fixes, has not been run. **Not in a download yet** |
 | Revision 13 | Revision 12 with patch 28: the transparent effects (forward_default) scroll their textures as in 0.29 when a material asks for it (`use_uv_scrolling` and the four `*_map_scroll_*_direction` values), and the renderer binds `scene_slomo`, which 0.29's shaders multiply the time by, to 1.0. With the retail `resources.db` no shader the game loads changes (its `shaders/masks` lists no scrolling for `forward_base`); the scrolling shaders come with a `resources.db.patch_<n>` (London). Against revision 12 made by the tool of revision 12 (`bbba328`) from the same original, it differs in the three sites at 0x1D90DC (file 0x1C84DC, 7 bytes), 0x1D94CB (file 0x1C88CB, 7 bytes) and 0x14990F (file 0x138D0F, 10 bytes), 540 bytes at 0xB00 of `.srp` (file 0xC4B500, of which 503 differ from the int3 padding there), the revision byte (file 0x36FC66) and the PE checksum, and nothing else (530 bytes in all; compared byte by byte by `check_forward_scroll_026g.py --rev12=`, with and without that server). Rendering only, nothing a match computes: 12 and 13 play together; a server that offers a patch with the scrolling shaders asks for 13 (it must anyway: `SRP_MIN_PATCH_REVISION` is at least the highest patch). Written as revision 15 on the never-released build numbered 14; the number 13 of the never-released build above was never in a download. **Not in a download yet; not run in a game** |
-| Revision 14 | Revision 13 with patch 29, "Watch replay" (below): the lobby's link callback starts `updater_skhid.exe` beside the game for a link `replay <id> <token> <sha256> <size>` and opens nothing else, where the original opened any text the server sent with ShellExecute. Nothing a match computes: 11 to 14 play together, so the minimum stays what it is; a server sends a replay link only to a game of 14 or more. Without a server sha256 `df9e66463bd8cb4bc4fa2536d87bc39fd7bfa8b17a0ebd184cb18392264a60ae`, with `--server=skhid.link:1234` `0ad0132a767dc87c571065b1c9cbe7071f152ae5fc26cc1b5f0fbdc629ebcf49`; against revision 13 made the same way by the tool of `main` decacfa they differ in the six bytes of the hook (file 0x27C1B6), the revision byte (file 0x36FC66), the 472 bytes of code at `.srp`+220h (file 0xC4AC20) and the PE checksum, and in nothing else (481 bytes; compared byte by byte). Written as revision 13 (and before that 12) while other patches took those numbers; never released under them. Released 16 Oct 2026, 15:10 UTC, with London as `resources.db.patch_14` |
+| Revision 14 | Revision 13 with patch 29, "Watch replay" (below; the link now saves the replay and starts no game): the lobby's link callback starts `updater_skhid.exe` beside the game for a link `replay <id> <token> <sha256> <size>` and opens nothing else, where the original opened any text the server sent with ShellExecute. Nothing a match computes: 11 to 14 play together, so the minimum stays what it is; a server sends a replay link only to a game of 14 or more. Without a server sha256 `df9e66463bd8cb4bc4fa2536d87bc39fd7bfa8b17a0ebd184cb18392264a60ae`, with `--server=skhid.link:1234` `0ad0132a767dc87c571065b1c9cbe7071f152ae5fc26cc1b5f0fbdc629ebcf49`; against revision 13 made the same way by the tool of `main` decacfa they differ in the six bytes of the hook (file 0x27C1B6), the revision byte (file 0x36FC66), the 472 bytes of code at `.srp`+220h (file 0xC4AC20) and the PE checksum, and in nothing else (481 bytes; compared byte by byte). Written as revision 13 (and before that 12) while other patches took those numbers; never released under them. Released 16 Oct 2026, 15:10 UTC, with London as `resources.db.patch_14` |
 | Revision 15 | Revision 14 with nothing else changed: the revision byte (file 0x36FC66) and the PE checksum, and nothing else (compared byte by byte with revision 14 made by the tool of `main` 374c349). The release that brings updater 0.3.0 (patch mirrors, the quick check) to the players needs a revision above the live one. 11 to 15 play together. Without a server sha256 `b0bc3e028edcc831d918fae7dab95de90576cea76a75613cf86acc26156f7e5a`, with `--server=skhid.link:1234` `e4368b3d6eb613535c7d22faea3e9339c2143e44668417069fb5afbdef740ccd`. Released 16 Oct 2026, 16:28 UTC |
 | Revision 16 | Revision 15 with nothing else changed: the revision byte (file 0x36FC66) and the PE checksum, and nothing else (compared byte by byte with revision 15). For the server release of the weighted map draw (#138) and the release flow (#139); 11 to 16 play together. Without a server sha256 `9ef299c042d77e127d8e574176869c1e44ee4ae5de5e538576bbbe92fd277aa1`, with `--server=skhid.link:1234` `b937e86fd561c2cd7267617717fed12de29f6b6a671efd24a875eb18e9173ad0`. No content patch of its own |
 | Revision 17 | Released 2026-10-17 12:30 UTC (tag `026g-rev17`, `main` 8511083). Shipped: #143 AGENTS.md: releases set the revision and tag; where the game's symbols are; #141 release.sh: the go first, the maintenance at once, the build during the countdown; --now; #142 0.26g: every map from the game data, nothing by level; #144 Launcher without SHOP, site without the silver and gold exchange; #145 release.sh: each release sets its revision (live + 1) and records and tags itself; #148 The third kit for every account, premium or not; #149 One cosmetic worn by many items (exe patch 30: taking it off names the item); #151 Replays of older games: refused, said why; a release raises the oldest replayable revision; #150 Patch 31: a kit chosen before the match starts is played at once; #152 Patch 31: the switch looks only at the match's places and always gives the new kit its protection. Without a server sha256 `8c37032d49548ed1bf697552dbf67ac509d63e7901f3bf325bf330d613b6b73b`, with `--server=skhid.link:1234` `441c84cdae515490212222e4a1d1a27e3dc3061a3432c691ed9f7f957b354af7`. The ZIP: 6861547 bytes, sha256 `195586fa8ebe24e725824594e715975445c1f95322fe330e4824c20c1f83a989`; the server data: sha256 `83d4593ad75dd6e467bca72b74baf4560896fbf8f45f2ff400b312ace4578e92`. Its content: `resources.db.patch_17` (76740663 bytes, sha256 `807b0e784c679a41009940d56ee76919d2bb5f14559154b927faf43405624081`) |
@@ -107,7 +107,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `mount_patches_026g.asm`, `mount_patches_026g.section.bin` | The code of patch 27 (the game mounts each `resources.db.patch_<n>` over `resources.db`) and patch 49 (it stops at its start without a patch the exe requires) and that code assembled for 0x400 of `.srp`, its state at 0x800 of `.srpd`; `patch_026g.py` reads the .bin and writes the required patches' bitmap into its copy. Assembling the source again gives the same bytes |
 | `check_mount_patches_026g.py` | Runs patch 27's two hooks and its code on made-up game folders, with no patch required and with patch 49's required patches, loaded as is and rebased (needs Unicorn) |
 | `forward_scroll_026g.asm`, `forward_scroll_026g.section.bin` | The code of patch 28 (the transparent effects scroll as in 0.29, `scene_slomo` bound to 1.0) and that code assembled for 0xB00 of `.srp`; `patch_026g.py` reads the .bin. Assembling the source again gives the same bytes |
-| `replay_link_026g.asm`, `replay_link_026g.section.bin` | The source of patch 29's code ("Watch replay": the lobby's link starts the updater) and that code assembled, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `replay_link_026g.asm`, `replay_link_026g.section.bin` | The source of patch 29's code ("Watch replay", now Save: the lobby's link starts the updater, which saves the replay) and that code assembled, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_replay_link_026g.py` | Runs the original and patch 29's link callback on made-up links (needs Unicorn) |
 | `shared_upgrades_026g.asm`, `shared_upgrades_026g.section.bin` | The source of patch 30's code (one upgrade on several items: taking it off names the item) and that code assembled for 0x700 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_shared_upgrades_026g.py` | Runs the original's and patch 30's upgrade-window drop and the `83 46 01` / `02` answers on made-up inventories with one upgrade on several items (needs Unicorn) |
@@ -134,6 +134,9 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/use_scan.rs`, `src/use_scan/rule.rs`, `src/use_scan.toml`, `src/vostok/use_scan.rs`, `check_use_scan_026g.py` | Patch 23 and the use scan it lives in: `base_player::detect_usable_object` (0x2D84C0) whole in Rust, a lohook at its start leaving by its `ret 8` (section 23); the rule (`rule.rs`) is pure, the game's calls `vostok`'s; patch 85 asks it whether Use is the game's |
 | `rust/patches/src/subtick_hits.rs`, `src/subtick_hits.toml`, `src/vostok/ray_test.rs`, `check_subtick_hits_026g.py` | Patch 103: a bullet meets a player where he stood at the ms it crossed him, not where the 50 ms step left him (`../docs/notes/subtick_bullet_hits.md`); one lohook first in `bullet.ray_traced`'s chain; its check runs the game's own ray test (ray_test, rayTest, rayTestSingle) in both exes on made-up bodies (needs Unicorn) |
 | `rust/patches/src/input_check.rs`, `src/input_check.toml`, `src/vostok/input.rs`, `check_input_check_026g.py` | Patch 99: a world takes no player input whose rotation no client makes (a NaN, an infinity, 1024 radians or more), as 0.27d's change_input refuses one: a lohook at change_input<player_input>'s start (0x1FAB50); its check runs that start on made-up inputs, the original beside (needs Unicorn) |
+| `rust/patches/src/spectator.rs`, `src/spectator.toml`, `src/vostok/spectate.rs`, `check_spectator_026g.py` | Patch 143: a game whose 0xE4 names no place of its own (the rooms' queue) watches the match: its camera follows a player of any team (F6/F5 the next/previous; F2 lets go and flies free) and stays with that player's place when it plays another kit (at a world, and each frame through patch 144's 0x23B200), it builds and sends no input, an 0xEA naming place 0xFF ends its match (no results), and the places the game asks for the missing local player go another way (seven lohooks: 0x27C116, 0x25CDBD, 0x208D77, 0x23B7B9, 0x27B92D, 0x27A7F3, and 0x27C690, where the 0xEA handler is ported whole in Rust); its check runs the first six sites (not 0x27A7F3) and patch 144's frame in both exes, players' and replays' unchanged (needs Unicorn) |
+| `rust/patches/src/replay_viewer.rs`, `src/replay_viewer.toml`, `src/vostok/replay_view.rs`, `../crates/replay-control`, `check_replay_viewer_026g.py` | Patch 144: a replay played in the running game as a spectated match: the match server's playback note (0xF6 `52 01`) pauses the game's clock (game::pause) and sets its speed (time_scale), its events note (`52 02`) gives the kills and objectives; Space, Left/Right, Shift+Left/Right (the moments the Moments switch lights), `[`/`]` and the controls' Back (op 4) ask the server (0xE0 `FF x6 52 00 ..`), M steps the Moments switch, Ctrl the cursor, H and the key bound to toggle_replay_ui (F11 unless rebound) hide the interface, Esc leaves, a spectator's 1 to 3 down are taken (lohooks at 0x27A4F4 and 0x27A7F3, a handler at 0x25CD00 after patch 86's, one at the static info's read); the replay controls (`replay_player.swf`) over a viewer's hud: every network game's first world loads them (0x1F8F9E, 0x1F88CC: a match's movies are queried once, before anyone knows if it will be a viewer, so its address space is spent in every match), hidden until the first playback note; a hud with them gives them the mouse only in a viewer's game (0x25CFF3, 0x25D1E6; the other games' mouse stays the hud's); a spectator's game skips the game's own kit feed (`hud.setup_profiles`, 0x2362C9) and fills the read-only chooser; a viewer's worlds load as the replay's own seek (`world_load.unpacked`, `world_load.raw_args`: 0x27C0D0, 0x27C10A); fed each frame (0x23B200), their calls the server's requests or patch 143's camera (0x233D30); its check runs the sites in both exes, players' and live spectators' unchanged (needs Unicorn) |
+| `rust/patches/src/match_reconnect.rs`, `src/match_reconnect.toml`, `src/vostok/match_link.rs`, `check_match_reconnect_026g.py` | Patch 145: a receive aborted (995) by the connect that closed the match link's old socket, with a send of it still outstanding, no longer counts as the link lost (lohook 0x3F21DE in handle_receive's error path): the send's completion runs the new connect, as the game meant; the check runs the failure's order and the others in both exes (client_patch.md section 3.84) |
 | `check_mouse_buttons_026g.py` | Patch 102 (`MOUSE_BUTTONS` in `patch_026g.py`): a side mouse button (mouse4..mouse8) is no left click in the lobby, login, options and match menus; its check runs the five handlers in both exes (needs Unicorn) |
 | `rust/patches/src/mouse_pitch.rs`, `src/mouse_pitch.toml`, `src/vostok/mouse.rs`, `check_mouse_pitch_026g.py` | Patch 112: the mouse look's pitch with 16:9's h/w at every window while "Lock vertical sensitivity" is ticked, 1:1 at the vertical slider's value when unticked (user.cfg's `srp_mouse_vertical_locked`, `srp_mouse_vertical`); a lohook at on_mouse_move's pitch step, the two variables, the Settings' calls and the death camera's entry; its check runs on_mouse_move in both exes at 4:3 to 32:9, off and on, and the Settings' calls (needs Unicorn) |
 | `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; its check runs the handler in both exes (needs Unicorn) |
@@ -1761,12 +1764,14 @@ of `scene_time` with three made-up name counts. And the byte comparison with
 revision 12 (Revision 13 above). **Not run: a game**; no scrolling shader
 exists in any `resources.db` yet.
 
-### 29. "Watch replay" (patch revision 14)
+### 29. Replay link (patch revision 14)
 
-The lobby's History offers a replay of a match the player played
-(`../docs/notes/replay_watch.md`). The server sends the link
-`replay <id> <token> <sha256> <size>` in its `9E` message (not shown), and
-the movie's "Download and watch" calls `video_tutorial_link_clicked`. The
+The server sends the link `replay <id> <token> <sha256> <size>` in its `9E`
+message (not shown) for a replay the player saves (the Watch window's save
+icon, the results screen's Save replay: `../docs/notes/replay_watch.md`
+2.1), and the movie calls `video_tutorial_link_clicked` on `ready`. In
+revision 14 the link came from the lobby's History ("Download and watch";
+removed on 2026-11-08). The
 original callback (0x28CDA0) opened whatever text was in that buffer with
 ShellExecute: a file, a program or a URL of the server's choice.
 
@@ -1780,10 +1785,12 @@ digits starts `updater_skhid.exe` from the game exe's own folder (a fixed name;
 the link is only its arguments: the command line `updater_skhid.exe <link>`)
 with that folder as its working folder, through `CreateProcessW`. Any other
 text does nothing. The updater checks the link again, downloads the replay
-from its own site, checks it and starts a second game with `-match_replay=`
-(`../../client/updater/README.md`). `../docs/notes/client_patch.md` section
-3.27 has the details and how the game reads `-match_replay=` (a value in
-quotes may hold spaces).
+from its own site, checks it and saves it under `<game>\replays`; it starts
+no game (`../../client/updater/README.md`, "Save replay"). Revision 14
+started a second game with `-match_replay=` there; now `open-replay` (local
+`.sur` files) starts the game. `../docs/notes/client_patch.md` section 3.27
+has the details and how the game reads `-match_replay=` (a value in quotes
+may hold spaces).
 
 **Revisions.** Nothing a match computes: 11 to 14 play together. The
 server sends a replay link only to a game of 14 or more (an older one would
@@ -5520,6 +5527,91 @@ snapshot, nothing called and no lock taken: the resources (managed) allocator's 
 and Scaleform's heaps (the Flash UI) by name, with what each holds and uses. Nothing a match computes. Details: `../docs/notes/memory-profile.md`. Checked with
 `check_memory_profile_026g.py` (Unicorn) and the patch crate's tests.
 
+## A replay played in the running game: pause, speed and keys (patch 144, unreleased)
+
+Path A of the replay plan (`../docs/notes/replay-stream.md`): the match
+server streams a recording to a game with no place of its own (patch 143)
+and runs its playback. A stock game cannot pause or change its pace in a
+match: its clock is the game's floating_timer, steered only by 0xE7 at 1 +-
+time_floating_factor, and toggle_pause refuses a network client
+(0x1ED59C). The Rust patch `replay_viewer` takes an 0xF6 whose payload
+starts with `52` (the `replay-control` crate; the snapshot upload's request
+`00` goes on to the game's case): the server's playback note (revision,
+paused, speed 0.25x to 8x, the replay's first and last time) makes the
+spectator's game a replay's viewer and is applied with the game's own
+controls, game::pause / game::resume (the timer frozen at its +18h, the
+render timer and the sound stand) and the console variable time_scale,
+which game::tick makes the timer's speed every frame (the replay controls'
+own update_play_speed); an older note (by its revision) is dropped; the
+events note gives the kills and objectives. A viewer's keys are taken before the game's
+and ask the server, an 0xE0 (`FF x6 52 00 seq op value`):
+Space pause, Left/Right 10 s, Shift+Left/Right the previous/next moment the
+Moments switch lights (kills and objectives, 4 s before it), `[`/`]`
+slower/faster, the controls' Back a leave (op 4); M steps the Moments switch,
+Ctrl turns the cursor on or off; H and the key bound to toggle_replay_ui
+(F11 unless rebound, the binder's kind 1 asked) hide the hud and the player
+icons; Esc is the game's own leave, close_current_match(2). A spectator's
+1 to 3 down are taken (it has no kits). Every end of
+the match (past close_current_match's guard) runs the clock again at 1
+before the world ends. Every network game's first world also loads the
+replay controls (`replay_player.swf`, which the game asks for only with a
+replay reader; a game queries its world's movies once, so a game that
+played before it watches has them), hidden; a viewer's are shown with the interface and fed each
+frame (the bar's length, its position, the play button, the kills as
+markers); their play button, bar and speed ask the server as the keys do,
+their player list and free view move patch 143's camera. A viewer's
+worlds (each a start again from the recording, often older than its
+clock) load as the replay's own seek loads them (game_world_core::
+deserialize's mode 0, its pending inputs cleared): loaded as network
+worlds, an older one crashed the game (0x2D0DA4).
+A spectator's kit chooser (the hud's `_profilePanel`) is read-only and filled
+from what the server allows, never from the game's own feed: `hud.setup_profiles`
+(0x2362C9) skips initialize_match's `root.setup_player_profiles` call in a live
+match's spectator (`client_patch.md` 3.54).
+A player's game and a live match's spectator (no playback note) run the
+game's code at every site; a live spectator's controls stay hidden and
+their calls do nothing. Nothing a match computes: the clock's pace is
+the server's to keep (it paces the relays and 0xE5 by the same speed).
+Addresses: `client_patch.md` 3.83; checked with
+`check_replay_viewer_026g.py`; **not run in a game.**
+
+## A game with no place of its own watches the match (patch 143, unreleased)
+
+The rooms' queue sends a waiting player into its room's running match as a
+spectator (`../docs/notes/queue-spectate.md`): the match server's 0xE4 names
+no place local (its first byte 0xFF), so the game has no player, and the
+network client's local place (+1F1C44h) stays 0xFF. The game's own
+`-spectator` changes nothing in a match (it only skips the login and adds
+the console's attach_to_player). Four places then go wrong: three ask for
+the missing place's player through an unchecked slot-table index
+(get_player 0x27A980): the camera's return to the local place after every
+world, a match line's team colour, and the hud's kits at the followed
+player's death (a kit picked there would be the followed player's, in this
+world alone); and the keys next_player/prev_player (F6/F5) work only for a
+client that spectates its teammates, which nothing sets. Nothing ends its
+match either: the 0xEA handler returns at once without a local place
+(0x27C734), and a closed link (0xFD) closes nothing. The Rust patch
+`spectator` (seven lohooks, names only in `spectator.toml`) makes a game
+whose local place is 0xFF follow the first player in the match (alive
+first) the way spectate_next_player does (set_followed_player 0x242B90,
+mode 4 through the player's eyes), keep that one while it is in the match,
+move to the next/previous living player of either team on F6/F5, let go
+and fly with the game's free-fly camera on F2 (the game's own cam_2 binding,
+the replay's free view: detach_from_player 0x242CC0; kept over a world's
+load and a player's leave until F6/F5, from the last one followed, or the
+next match's options), show its
+match lines plain and never show it the kits (at a death, nor before play
+by patch 31's ui_start, whose cursor would take the mouse); its network client's +0Ch
+(the replay client's "no input") is set, so it builds and sends no input.
+The match server lets it go with one 0xEA naming place 0xFF: the game
+takes it as its end, close_current_match(0), back to the lobby with no
+results screen (a player's own 0xEA is `31 .. FF` and reason 3, the results);
+an 0xEA of the player it follows moves the camera to the next. A game with
+a place of its own, and a replay, run the game's code at the sites
+(+0Ch kept 0; at 0x27C690 the Rust port of process_player_left_match, the same for every player); leave_match of place 0xFF, which every game runs first, tests
+a bit no entered mask has and writes nothing. Nothing a match computes: the camera and the hud alone.
+Addresses: `client_patch.md` 3.82; checked with `check_spectator_026g.py`;
+**not run in a game.**
 ## Texture streaming's bookkeeping in Rust (patch 137, unreleased)
 
 Two functions the render thread runs every frame took about 8 % of it in the profiles of the owner's live

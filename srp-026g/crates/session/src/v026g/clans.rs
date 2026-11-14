@@ -338,6 +338,15 @@ pub fn level_start(level: u8) -> u32 {
 /// The highest level [choice].
 pub const MAX_LEVEL: u8 = 50;
 
+/// The level of a clan with `experience`.
+pub fn level_of(experience: u32) -> u8 {
+    let mut level = 1;
+    while level < MAX_LEVEL && experience >= level_start(level + 1) {
+        level += 1;
+    }
+    level
+}
+
 impl Clan {
     pub fn member(&self, account_id: u32) -> Option<&Member> {
         self.members
@@ -370,10 +379,7 @@ impl Clan {
 
     /// The level, and the experience it starts and ends at.
     pub fn level(&self) -> (u8, u32, u32) {
-        let mut level = 1;
-        while level < MAX_LEVEL && self.experience >= level_start(level + 1) {
-            level += 1;
-        }
+        let level = level_of(self.experience);
         (level, level_start(level), level_start(level + 1))
     }
 

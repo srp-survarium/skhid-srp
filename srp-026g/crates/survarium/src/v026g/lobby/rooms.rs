@@ -111,6 +111,14 @@ pub const ROOM_BITS_BASE: u32 = ROOMS_FIRST + 1_000_000;
 /// `ROOM_CREATE_BASE + code` ([`create_start`]): make a room. Answered with
 /// the state.
 pub const ROOM_CREATE_BASE: u32 = ROOMS_FIRST + 10_000_000;
+/// `ROOM_WATCH_BASE + key`, key 1 to [`ROOM_KEY_MAX`]: "Queue and
+/// spectate": wait in that full room's queue as [`ROOM_QUEUE_BASE`] does,
+/// and watch its running match meanwhile (`docs/notes/queue-spectate.md`).
+/// Above the creates' codes (4 799 at most). Answered with the state.
+pub const ROOM_WATCH_BASE: u32 = ROOMS_FIRST + 11_000_000;
+/// The most spectators a state names ([`RoomView::spectators`]): a room's
+/// queue holds no more than that many who could watch.
+pub const SPECTATORS_MAX: usize = MEMBERS_MAX;
 /// The last start of a room request.
 pub const ROOMS_LAST: u32 = ROOMS_FIRST + 19_999_999;
 
@@ -329,6 +337,10 @@ pub enum RoomRequest {
     Queue {
         key: u32,
     },
+    /// [`ROOM_WATCH_BASE`]: Queue and spectate.
+    QueueWatch {
+        key: u32,
+    },
     Members {
         key: u32,
     },
@@ -463,6 +475,11 @@ pub fn room_request(start: u32, count: u8) -> Option<RoomRequest> {
         _ if (ROOM_QUEUE_BASE + 1..=ROOM_QUEUE_BASE + ROOM_KEY_MAX).contains(&start) => R::Queue {
             key: start - ROOM_QUEUE_BASE,
         },
+        _ if (ROOM_WATCH_BASE + 1..=ROOM_WATCH_BASE + ROOM_KEY_MAX).contains(&start) => {
+            R::QueueWatch {
+                key: start - ROOM_WATCH_BASE,
+            }
+        }
         _ if (ROOM_MEMBERS_BASE + 1..=ROOM_MEMBERS_BASE + ROOM_KEY_MAX).contains(&start) => {
             R::Members {
                 key: start - ROOM_MEMBERS_BASE,
@@ -581,6 +598,10 @@ pub enum RoomCode {
     /// own: its commander's Play, Join or Queue takes it (the owner's of
     /// 2026-10-31, `squads.md`). The movie greys those by the same rule.
     SquadLeader = 17,
+    /// No refusal: the member's room called it back from what it watched
+    /// (a live match, a replay). Said once, with the room, when its game is
+    /// back: the movie shows the room and says so.
+    CalledBack = 18,
 }
 
 /// A room in [`room_list`].
@@ -756,6 +777,10 @@ pub struct RoomView {
     /// A private room made with bots: its matches are filled with the
     /// server's bots.
     pub bots: bool,
+    /// Who watches its match being played from its queue (Queue and
+    /// spectate), in queue order: never a player of it (the owner's of
+    /// 2026-11-05: shown, "shouldn't distract anyone").
+    pub spectators: Vec<String>,
 }
 
 /// Why a member waiting in its room cannot go into the room's match being
@@ -939,7 +964,9 @@ pub fn room_list(
 ///   being played ([`RoomView::join_in`]), or `J;-1;<why>` when it waits
 ///   and the match takes nobody now ([`JoinHold`]; a movie that reads only
 ///   the seconds takes -1 as no row), and `L;<map_id>;<mode>`, the last
-///   match's map and the mode it played (`L;0`: none).
+///   match's map and the mode it played (`L;0`: none); then a row
+///   `V;<name>` a spectator of its match being played
+///   ([`RoomView::spectators`], the name cut as a member's).
 pub fn room_state(
     room: Option<&RoomView>,
     code: RoomCode,
@@ -1030,6 +1057,8 @@ pub fn room_state(
         Some(last) => format!("L;{};{}", last.map_id, last.mode),
         None => "L;0".to_owned(),
     });
+    at_most("room spectators", room.spectators.len(), SPECTATORS_MAX)?;
+    names.extend(spectator_rows(&room.spectators));
     rows_at(ROOM_STATE, names)
 }
 
@@ -1053,9 +1082,27 @@ pub struct ListMember {
 /// and its whole name alone (up to the 63 bytes a row holds, `;`
 /// and all: a name is never cut here). A room gone: `S1;G;<key>;0`, no
 /// member.
-pub fn room_members(key: u32, members: &[ListMember]) -> Result<ServerMessage, WireError> {
+///
+/// Then a row `V;<name>` a spectator of its match being played, as the
+/// state's (a movie before 2026-11-05 reads the member rows only).
+pub fn room_members(
+    key: u32,
+    members: &[ListMember],
+    spectators: &[String],
+) -> Result<ServerMessage, WireError> {
     at_most("room members", members.len(), MEMBERS_MAX)?;
-    rows_at(ROOM_MEMBERS_BASE, members_names(key, members))
+    at_most("room spectators", spectators.len(), SPECTATORS_MAX)?;
+    let mut names = members_names(key, members);
+    names.extend(spectator_rows(spectators));
+    rows_at(ROOM_MEMBERS_BASE, names)
+}
+
+/// A row `V;<name>` a spectator, the name cut as the member rows' are:
+/// the room's window shows them on one muted line ("Spectators: A, B").
+fn spectator_rows(spectators: &[String]) -> impl Iterator<Item = String> + '_ {
+    spectators
+        .iter()
+        .map(|name| format!("V;{}", row_name(name)))
 }
 
 fn members_names(key: u32, members: &[ListMember]) -> Vec<String> {
@@ -1358,6 +1405,26 @@ mod tests {
             Some(RoomRequest::Queue { key: 7 })
         );
         assert_eq!(room_request(ROOM_QUEUE_BASE, 1), None);
+        // Queue and spectate: above every create's code.
+        assert!(
+            create_start(RoomSpec {
+                size: 10,
+                min_side: 3,
+                max_level: 15,
+                wait: 60,
+                pin: true,
+            }) < ROOM_WATCH_BASE
+        );
+        const { assert!(ROOM_WATCH_BASE + ROOM_KEY_MAX <= ROOMS_LAST) };
+        assert_eq!(room_request(ROOM_WATCH_BASE, 1), None);
+        assert_eq!(
+            room_request(ROOM_WATCH_BASE + 7, 1),
+            Some(RoomRequest::QueueWatch { key: 7 })
+        );
+        assert_eq!(
+            room_request(ROOM_WATCH_BASE + ROOM_KEY_MAX, 1),
+            Some(RoomRequest::QueueWatch { key: ROOM_KEY_MAX })
+        );
         // Who is in a room: after the queues, below the pool's bits.
         assert_eq!(ROOM_QUEUE_BASE + ROOM_KEY_MAX + 1, ROOM_MEMBERS_BASE);
         const { assert!(ROOM_MEMBERS_BASE + ROOM_KEY_MAX < ROOM_BITS_BASE) };
@@ -1513,7 +1580,7 @@ mod tests {
             ]
         );
         assert_eq!(members_names(42, &[]), ["S1;G;42;0"]);
-        assert!(room_members(42, &vec![seen(&member, 1); MEMBERS_MAX + 1]).is_err());
+        assert!(room_members(42, &vec![seen(&member, 1); MEMBERS_MAX + 1], &[]).is_err());
     }
 
     /// The longest names the game takes (63 bytes: wide Latin, Cyrillic,
@@ -1549,7 +1616,7 @@ mod tests {
             assert_eq!(name, &names[i % names.len()]);
             assert_eq!(name.len(), 63);
         }
-        let message = room_members(99_999, &members).unwrap();
+        let message = room_members(99_999, &members, &[]).unwrap();
         let mut client = crate::v026g::lobby::client_model::Client::signed_in();
         match client.receive(&message).unwrap() {
             crate::v026g::lobby::client_model::Decoded::EloList(decoded) => {

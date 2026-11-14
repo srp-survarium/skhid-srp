@@ -570,15 +570,14 @@ fn money_skills_and_the_small_pushes() {
 }
 
 /// The answer to a replay poll: one ranking row at the replay start
-/// (2 200 000 000 is 0x83215600) whose name is the
-/// asker's status, the match in 8 lower-case hex digits and the size.
+/// (2 200 000 000 is 0x83215600) whose name is the asker's status, the
+/// match in 8 lower-case hex digits and a figure.
 #[test]
 fn a_replay_poll_is_answered_with_one_row_at_the_replay_start() {
     assert_eq!(REPLAY_START, 2_200_000_000);
-    assert_eq!(REPLAY_ASK, 0xFFFF_FF01);
     assert_bytes(
-        &replay_answer("ready", 0x1F07_C8FB, 1_166_938).unwrap(),
-        "91 01 'R1;ready;1f07c8fb;1166938' 00562183 0000 0000",
+        &replay_answer("watching", 0x1F07_C8FB, 14_500).unwrap(),
+        "91 01 'R1;watching;1f07c8fb;14500' 00562183 0000 0000",
     );
     let mut client = Client::signed_in();
     let message = replay_answer("none", 0, 0).unwrap();
@@ -586,16 +585,67 @@ fn a_replay_poll_is_answered_with_one_row_at_the_replay_start() {
         client.receive(&message).unwrap(),
         Decoded::EloList(vec![("R1;none;00000000;0".into(), 2_200_000_000, 0, 0)])
     );
-    // The longest word with the largest size: within the 63 bytes.
-    let longest = format!("R1;not_recorded;ffffffff;{}", u64::MAX);
+    // The longest word with the largest figure: within the 63 bytes.
+    let longest = format!("R1;incompatible;ffffffff;{}", u64::MAX);
     assert_eq!(longest.len(), 45);
     let Decoded::EloList(rows) = client
-        .receive(&replay_answer("not_recorded", u32::MAX, u64::MAX).unwrap())
+        .receive(&replay_answer("incompatible", u32::MAX, u64::MAX).unwrap())
         .unwrap()
     else {
         panic!("not a ranking list");
     };
     assert_eq!(rows[0].0, longest);
+}
+
+/// The answer to a save: one `R2` row at the save start (2 210 000 000 is
+/// 0x83B9EC80), its last field the file's size when ready.
+#[test]
+fn a_save_poll_is_answered_with_one_row_at_the_save_start() {
+    assert_eq!((SAVE_ASK, SAVE_START), (0xFFFF_FF01, 2_210_000_000));
+    assert_bytes(
+        &save_answer("ready", 0x1F07_C8FB, 1_166_938).unwrap(),
+        "91 01 'R2;ready;1f07c8fb;1166938' 80ECB983 0000 0000",
+    );
+    for other in [GEAR_BY_PLACE, GEAR_BY_ACCOUNT, GEAR_IN_ROOM, LIVE_ROSTER_ASK] {
+        assert_ne!(other, SAVE_ASK);
+    }
+}
+
+/// A replay session's ask: `3D`'s `player` is `0xC0 <place> <seconds u16>`,
+/// 0xFF for any place; no account id or other srp `player` reads as one,
+/// nor the old "my deaths" `0xC1000000`, which no movie sends.
+#[test]
+fn a_replay_watch_ask_carries_the_time_and_the_place() {
+    let ask = ReplayWatchAsk {
+        seconds: 75,
+        place: Some(3),
+    };
+    assert_eq!(ask.player_id(), 0xC003_004B);
+    assert_eq!(ReplayWatchAsk::of(0xC003_004B), Some(ask));
+    assert_eq!(
+        ReplayWatchAsk::of(0xC0FF_0000),
+        Some(ReplayWatchAsk {
+            seconds: 0,
+            place: None
+        })
+    );
+    for other in [
+        SAVE_ASK,
+        GEAR_BY_PLACE,
+        GEAR_IN_ROOM,
+        REPLAY_WITHDRAW,
+        0x7FFF_FFFF,
+        1,
+        0xC100_0000,
+        0xC100_0001,
+    ] {
+        assert_eq!(ReplayWatchAsk::of(other), None);
+    }
+    // The withdrawal is srp's own `player`, no other's.
+    assert_eq!(REPLAY_WITHDRAW, 0xFFFF_FF05);
+    for other in [SAVE_ASK, GEAR_BY_PLACE, GEAR_BY_ACCOUNT, GEAR_IN_ROOM, LIVE_ROSTER_ASK] {
+        assert_ne!(other, REPLAY_WITHDRAW);
+    }
 }
 
 /// "Player vs Bots": the status (`B1` and a row a map, from 2 050 000 000)

@@ -12,8 +12,10 @@
 use core::marker::PhantomData;
 use core::sync::atomic::{AtomicU32, Ordering};
 
+use super::cell::GameCell;
 use super::context::Context;
 use super::hook::Thread;
+use super::types::Place;
 use super::ui::{Movie, movie_of};
 use crate::raw;
 
@@ -169,6 +171,11 @@ impl<'t> NetworkClient<'t> {
         NetworkClient { this, thread }
     }
 
+    /// The game's own client object, for the views of `vostok` beside this one.
+    pub(in crate::vostok) fn raw(&self) -> raw::NetworkClient {
+        self.this
+    }
+
     /// What it plays: its class (vtable +0), the one field both kinds of client share.
     pub fn playback(&self) -> Playback {
         // SAFETY: the client, alive for the hook; its vtable is its first word.
@@ -234,7 +241,9 @@ impl<'t> NetworkClient<'t> {
         name
     }
 
-    /// The local player, if the match has one.
+    /// The player the camera follows: the local player from the match's
+    /// first world on, a spectator's choice in a spectator's game
+    /// ([`super::spectate`]).
     pub fn local_player(&self) -> Option<Player<'t>> {
         // SAFETY: the client's local player, alive for the hook.
         let this = unsafe { self.this.local_player() }?;
@@ -242,9 +251,9 @@ impl<'t> NetworkClient<'t> {
     }
 
     /// The local player's place, if it has a player.
-    pub fn local_place(&self) -> Option<u8> {
+    pub fn local_place(&self) -> Option<Place> {
         // SAFETY: the client's local player, alive for the hook.
-        unsafe { Some(read(self.this.local_player()?.place())) }
+        unsafe { Place::new(u32::from(read(self.this.local_player()?.place()))) }
     }
 
     /// The place the static info marked the local player's (its profile's
@@ -281,6 +290,279 @@ impl<'t> NetworkClient<'t> {
         }
         Some(Player { this: player, thread: self.thread })
     }
+
+    /// A live match's client (a network client's vtable), not the game's own
+    /// replay client (a smaller object, with no local place).
+    pub fn is_match_client(&self) -> bool {
+        // SAFETY: the client's first dword, its vtable: alive for the hook.
+        unsafe { read(self.this.vtable()) == raw::image::NETWORK_CLIENT_VTABLE }
+    }
+
+    /// What the game is in its match ([`MatchRole`], [`Self::begin_match`]
+    /// set it): `None` for a replay client, or with no match under way.
+    pub fn role(&self) -> Option<MatchRole> {
+        if !self.is_match_client() {
+            return None;
+        }
+        ROLE.get(self.thread)
+    }
+
+    /// Whether the game watches a match it plays no part in.
+    pub fn is_spectator(&self) -> bool {
+        matches!(self.role(), Some(MatchRole::Spectator(_)))
+    }
+
+    /// A spectator whose match is there: its +1F1C40h, which get_active_player reads through
+    /// unchecked (0x27A9C1), is 0 from the 0xE4 until on_match_ready sets it (0x27AA93), so a
+    /// camera asked for in between (a note out of order) must not reach it.
+    fn spectates_a_match(&self) -> bool {
+        // SAFETY: a network client's (is_spectator: its vtable) +1F1C40h, alive for the hook.
+        self.is_spectator() && unsafe { self.this.pvp_match() }.is_some()
+    }
+
+    /// A new match's role, from its static info (the 0xE4's local place byte against the options'
+    /// places): the one producer of [`MatchRole`], set once a match. A spectator builds and sends no
+    /// input (+0Ch, as a replay's client).
+    pub fn begin_match(&self, local_place: u8, places: u8) {
+        let role = MatchRole::of(local_place, places);
+        ROLE.set(self.thread, Some(role));
+        self.set_observer(Some(role));
+    }
+
+    /// The match ended (`close_current_match`, past its guard): nothing is any role of it, its
+    /// spectator's input off again for the next match.
+    pub fn end_match(&self) {
+        ROLE.set(self.thread, None);
+        self.set_observer(None);
+    }
+
+    /// A spectator's game has become a replay's viewer (the first playback note).
+    pub fn become_replay_viewer(&self) {
+        if let Some(MatchRole::Spectator(_)) = ROLE.get(self.thread) {
+            ROLE.set(self.thread, Some(MatchRole::Spectator(Watching::Replay)));
+        }
+    }
+
+    /// The client's +0Ch: no input is built or sent for the followed player, exactly while a
+    /// match's game is a spectator's. Only [`Self::begin_match`] and [`Self::end_match`] write it.
+    fn set_observer(&self, role: Option<MatchRole>) {
+        if !self.is_match_client() {
+            return;
+        }
+        let observer = u8::from(matches!(role, Some(MatchRole::Spectator(_))));
+        // SAFETY: a network client's +0Ch, the game's thread's (game_world::tick reads it there).
+        unsafe { self.this.observer().write_volatile(observer) }
+    }
+
+    /// A spectator's camera to the player `step` names
+    /// ([`spectate_order`]): set_followed_player (0x242B90) and the attached
+    /// spectator's camera (mode 4, 0x1F8360), as spectate_next_player
+    /// (0x242D50) does, over every team. The place followed, or `None`
+    /// when no other player can be followed (the camera stays), or the game
+    /// is no spectator (a player's camera is never moved: its client's
+    /// input would go to the player followed) or has no match yet.
+    pub fn follow(&self, step: Step) -> Option<Place> {
+        if !self.spectates_a_match() {
+            return None;
+        }
+        // From the player followed, or after a free flight the last one
+        // (+8, which detach_from_player keeps; its reference keeps it alive).
+        // SAFETY: the client's +8, a player it holds a reference to.
+        let last = unsafe { self.this.last_followed() }.map(|this| Player { this, thread: self.thread });
+        let current = self.local_player().or(last).and_then(|player| Place::new(u32::from(player.place())));
+        let mut found = None;
+        let mut any = None;
+        for place in spectate_order(self.places(), current, step) {
+            let Some(player) = self.player(u32::from(place.get())) else { continue };
+            if !player.inserted() {
+                continue;
+            }
+            if player.alive() {
+                found = Some(place);
+                break;
+            }
+            any = any.or(Some(place));
+        }
+        // A first camera takes a dead player rather than none (the warmup,
+        // everyone between lives); the keys look for the living.
+        let place = found.or(if step == Step::First { any } else { None })?;
+        let mut out = None;
+        // SAFETY: the client's own get_active_player: the player, a
+        // reference added, through `out`; set_followed_player takes that
+        // reference (it releases its argument, 0x242C8B); the game world is
+        // the client's game's own, the one spectate_next_player gives it.
+        unsafe {
+            raw::engine_active_player(Some(self.this), &mut out, u32::from(place.get()));
+            let player = out?;
+            raw::engine_follow_player(Some(self.this), Some(player));
+            let world = self.this.game()?.world();
+            raw::engine_spectator_camera(Some(world));
+        }
+        Some(place)
+    }
+}
+
+impl NetworkClient<'_> {
+    /// A spectator's camera to the player of `place` (the replay controls'
+    /// player list, patch 144), alive or not, as [`Self::follow`] moves it:
+    /// set_followed_player and the attached spectator's camera. Whether it
+    /// follows that player now (not a spectator, no match yet, no such
+    /// player, or one not in the match: nothing).
+    pub fn follow_place(&self, place: Place) -> bool {
+        if !self.spectates_a_match() {
+            return false;
+        }
+        if !self.player(u32::from(place.get())).is_some_and(|player| player.inserted()) {
+            return false;
+        }
+        let mut out = None;
+        // SAFETY: as follow: the client's own get_active_player gives the
+        // player with a reference added, which set_followed_player takes;
+        // the game world is the client's game's own.
+        unsafe {
+            raw::engine_active_player(Some(self.this), &mut out, u32::from(place.get()));
+            let Some(player) = out else { return false };
+            raw::engine_follow_player(Some(self.this), Some(player));
+            let Some(game) = self.this.game() else { return true };
+            raw::engine_spectator_camera(Some(game.world()));
+        }
+        true
+    }
+
+    /// The player a spectator's camera follows (+4) against its place's current one. A place
+    /// has one player object per kit and get_active_player gives the kit in use; the game moves
+    /// the camera to a respawn's new kit for the local place alone (the client respawn rule's
+    /// view 0x2678E0 asks is_player_local 0x27B550, never true in a spectator's game), so a
+    /// respawn in another kit leaves +4 on the old kit's object, out of the world, and so does
+    /// a world loaded (a viewer's seek) in which its place plays another kit.
+    pub fn followed(&self) -> Followed {
+        let Some(followed) = self.local_player() else { return Followed::Gone };
+        // get_active_player reads the match through unchecked (spectates_a_match).
+        let current = if self.spectates_a_match() {
+            self.player(u32::from(followed.place())).filter(|player| player.inserted())
+        } else {
+            None
+        };
+        match (current, Place::new(u32::from(followed.place()))) {
+            (Some(current), Some(place)) if current.id() != followed.id() => Followed::Replaced(place),
+            _ if followed.inserted() => Followed::InMatch,
+            _ => Followed::Gone,
+        }
+    }
+
+    /// A spectator's game leaves its match, back to the lobby with no
+    /// results screen: close_current_match(0), the world ended and nothing
+    /// sent (the end a game takes after its server went silent, match.md
+    /// section 34). A player's game is not touched: its own 0xEA is the
+    /// game's (`31 <order> FF`, close_current_match(3), the results).
+    pub fn stop_watching(&self) {
+        if !self.is_spectator() {
+            return;
+        }
+        // SAFETY: the client's own close_current_match, on the game's
+        // thread from inside the 0xEA's dispatch, where the game's own end of
+        // a local place calls it (0x27C774).
+        unsafe { raw::engine_close_current_match(Some(self.this), WORLD_ENDED) }
+    }
+
+    /// A spectator's camera lets go of the player it follows and flies
+    /// freely: detach_from_player (0x242CC0, the replay's free view, F2):
+    /// the player's handler and hud unbound, +4 0 (+8 kept), then the game
+    /// world's own free-fly camera (switch_to_free_fly_camera 0x1F8270, the
+    /// handler unbound, so its mode is not written). No player is followed,
+    /// so game_world::tick builds no input (0x1F784D: +4 0). A player's game
+    /// is not touched.
+    pub fn fly_free(&self) {
+        if !self.is_spectator() {
+            return;
+        }
+        // SAFETY: the client's own detach_from_player, on the game's thread
+        // from the game world's keys, as the replay client's free view calls
+        // it there (vtable+84h -> +60h, 0x26E000).
+        unsafe { raw::engine_detach_player(Some(self.this)) }
+    }
+}
+
+/// close_current_match's reason 0: the world ended, nothing sent, no results
+/// (its jump table 0x27A958 -> 0x27A941).
+const WORLD_ENDED: u32 = 0;
+
+/// The places a spectator's camera tries, in order, for `step` from the
+/// place it follows (`current`), of `places`: a first camera every place
+/// from 0; the next or the previous one every other place from the one after
+/// (before) it, round, the one it follows left out (from none: as a first).
+pub fn spectate_order(places: u32, current: Option<Place>, step: Step) -> impl Iterator<Item = Place> {
+    let current = current.map(|place| u32::from(place.get())).filter(|&place| place < places);
+    let (from, count, back) = match (step, current) {
+        (Step::Next, Some(place)) => (place, places.saturating_sub(1), false),
+        (Step::Previous, Some(place)) => (place, places.saturating_sub(1), true),
+        _ => (places.saturating_sub(1), places, false),
+    };
+    (1..=count).filter_map(move |k| Place::new(if back { (from + places - k) % places } else { (from + k) % places }))
+}
+
+/// What a game is in its match: a player (its 0xE4 named a place its own) or a spectator (it named
+/// none; the queue's, docs/notes/queue-spectate.md): set once a match by [`NetworkClient::begin_match`],
+/// never read back from the game's local place byte (0xFF also while a player's game unloads a
+/// match, before on_match_ready: the byte says no player, not a spectator).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MatchRole {
+    Player,
+    Spectator(Watching),
+}
+
+/// What a spectator watches: a live match, or a replay's stream (from its first playback note).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Watching {
+    Live,
+    Replay,
+}
+
+impl MatchRole {
+    /// `local_place`, the 0xE4's first byte, names a place of the match's `places`, or none (the
+    /// server's 0xFF: any value past them): the game's is_local is set by the same comparison
+    /// (0x27BE5F), so on_match_ready never marks a place its own.
+    fn of(local_place: u8, places: u8) -> MatchRole {
+        if local_place < places { MatchRole::Player } else { MatchRole::Spectator(Watching::Live) }
+    }
+}
+
+/// The match's role, [`NetworkClient::begin_match`]'s.
+static ROLE: GameCell<Option<MatchRole>> = GameCell::new(None);
+
+#[cfg(test)]
+mod role_tests {
+    use super::*;
+
+    #[test]
+    fn the_static_infos_byte_names_a_player_or_none() {
+        assert_eq!(MatchRole::of(0, 10), MatchRole::Player);
+        assert_eq!(MatchRole::of(9, 10), MatchRole::Player);
+        assert_eq!(MatchRole::of(0xFF, 10), MatchRole::Spectator(Watching::Live));
+        assert_eq!(MatchRole::of(10, 10), MatchRole::Spectator(Watching::Live), "a value past the places names none");
+    }
+}
+
+/// Which player a spectator's camera goes to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Step {
+    /// The first player of the match (the first world, or the one followed gone).
+    First,
+    /// The next player by place (the binding next_player, F6).
+    Next,
+    /// The previous one (prev_player, F5).
+    Previous,
+}
+
+/// The player a spectator's camera follows, against its place's ([`NetworkClient::followed`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Followed {
+    /// In the match, its place's current player (or its place has none in the match).
+    InMatch,
+    /// Its place's current player, in the match, is another object: the place plays another kit.
+    Replaced(Place),
+    /// Nobody followed, or neither it nor its place's current player in the match.
+    Gone,
 }
 
 /// What a player holds.

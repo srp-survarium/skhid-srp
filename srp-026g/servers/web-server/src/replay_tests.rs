@@ -8,7 +8,7 @@
 use std::net::{TcpListener, TcpStream};
 
 use session::v026g::GameAccounts;
-use session::v026g::replays::{ReplaySettings, Sidecar, TOKEN_DOWNLOADS, oldest_replayable_here};
+use session::v026g::replays::{SaveSettings, Sidecar, TOKEN_DOWNLOADS, oldest_replayable_here};
 
 use super::*;
 
@@ -53,19 +53,22 @@ fn planted(name: &str) -> Planted {
     let root = std::env::temp_dir().join(format!(
         "srp-web-replays-{name}-{}-{}",
         std::process::id(),
-        Replays::now_unix()
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
     ));
     let _ = std::fs::remove_dir_all(&root);
-    let settings = ReplaySettings {
+    let record_dir = root.join("recordings");
+    std::fs::create_dir_all(&record_dir).unwrap();
+    let settings = SaveSettings {
         replay_dir: root.join("replays"),
-        record_dir: root.join("recordings"),
-        max_recording_bytes: 1 << 20,
         max_replay_bytes: 1 << 20,
     }
-    .checked()
+    .checked(&record_dir)
     .unwrap();
-    let replays = Arc::new(Replays::new(Some(settings.clone()), 6));
-    std::fs::write(replays.sur_path(MATCH).unwrap(), REPLAY).unwrap();
+    let replays = Arc::new(Replays::new(Some(record_dir.clone())).with_save(settings.clone()));
+    std::fs::write(replays.file_path(MATCH).unwrap(), REPLAY).unwrap();
     let sidecar = Sidecar {
         match_id: MATCH,
         size: REPLAY.len() as u64,
@@ -77,11 +80,7 @@ fn planted(name: &str) -> Planted {
     };
     std::fs::write(replays.json_path(MATCH).unwrap(), sidecar.to_json()).unwrap();
     let secret = |path: PathBuf| std::fs::write(path, format!("{SECRET} file")).unwrap();
-    secret(
-        settings
-            .record_dir
-            .join(format!("rec026g_20261015-120000_{MATCH:08x}.srprec")),
-    );
+    secret(record_dir.join(format!("rec026g_20261015-120000_{MATCH:08x}.srprec")));
     secret(settings.replay_dir.join("srp.db"));
     secret(settings.replay_dir.join("00000002.json"));
     secret(root.join(".env"));
@@ -118,8 +117,8 @@ fn web(replays: Option<Arc<Replays>>) -> Web {
 /// A live token of `account` for `MATCH`, as the lobby gives it.
 fn token(replays: &Replays, account: u32) -> String {
     let now = Instant::now();
-    replays.ask(account, MATCH, Some(oldest_replayable_here(0)), None, now);
-    replays.answer(account, now).ready.expect("ready").token
+    replays.save_ask(account, MATCH, Some(oldest_replayable_here(0)), None, now);
+    replays.save_answer(account, now).ready.expect("ready").token
 }
 
 /// `raw` sent to the page as it is, over a real connection: the answer.
@@ -162,7 +161,7 @@ fn hostile_targets(token: &str) -> Vec<String> {
         format!("/replays/{token}0"),
         format!("/replays/{upper}"),
         format!("/replays/{token}/"),
-        format!("/replays/{token}.sur"),
+        format!("/replays/{token}.srpreplay"),
         format!("/replays/{token}.json"),
         format!("/replays/{token}?"),
         format!("/replays/{token}?lang=en"),
@@ -179,7 +178,7 @@ fn hostile_targets(token: &str) -> Vec<String> {
         format!("/replays/{}%00", &token[..29]),
         format!("/replays/{}\0", &token[..31]),
         format!("/replays/{id}"),
-        format!("/replays/{id}.sur"),
+        format!("/replays/{id}.srpreplay"),
         format!("/replays/{id}.json"),
         format!("/replays/{MATCH}"),
         "/replays/../recordings".into(),
@@ -232,7 +231,7 @@ fn a_live_token_gets_the_replay_whole_by_head_or_by_range() {
         whole,
         format!(
             "HTTP/1.0 200 OK\r\nContent-Type: application/octet-stream\r\n\
-             Content-Disposition: attachment; filename=\"{MATCH:08x}.sur\"\r\n\
+             Content-Disposition: attachment; filename=\"{MATCH:08x}.srpreplay\"\r\n\
              Accept-Ranges: bytes\r\nContent-Length: 12\r\n\
              X-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\nREPLAY BYTES"
         )
@@ -320,7 +319,7 @@ fn a_token_ends_with_its_downloads_and_is_its_own_matchs_only() {
 fn only_a_regular_file_of_the_tokens_match_in_the_replay_folder_is_served() {
     let planted = planted("files");
     let web = web(Some(planted.replays.clone()));
-    let sur = planted.replays.sur_path(MATCH).unwrap();
+    let sur = planted.replays.file_path(MATCH).unwrap();
     // The file is gone: the token is good, nothing is served.
     let token_a = token(&planted.replays, 1);
     std::fs::remove_file(&sur).unwrap();
@@ -338,7 +337,7 @@ fn only_a_regular_file_of_the_tokens_match_in_the_replay_folder_is_served() {
     // A link in its place, to a private file.
     #[cfg(unix)]
     {
-        let recording = std::fs::read_dir(&planted.replays.settings().unwrap().record_dir)
+        let recording = std::fs::read_dir(planted.replays.record_dir().unwrap())
             .unwrap()
             .flatten()
             .next()
@@ -541,14 +540,14 @@ fn no_other_route_reaches_a_private_file() {
         String::new(),
         "/".into(),
         "/..".into(),
-        "/../replays/".to_owned() + &id + ".sur",
+        "/../replays/".to_owned() + &id + ".srpreplay",
         "/../../.env".into(),
         "/..%2f..%2f.env".into(),
         "/%2e%2e/%2e%2e/srp.db".into(),
         "\\..\\srp.db".into(),
         "%5c..%5csrp.db".into(),
         "//srp.db".into(),
-        format!("?file=../replays/{id}.sur"),
+        format!("?file=../replays/{id}.srpreplay"),
         format!("?token={token}"),
         "%00".into(),
         "\0".into(),

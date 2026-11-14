@@ -2207,6 +2207,7 @@ st_sr3m_bundle_descr	<white>Zawiera następujące przedmioty:\n- Ulepszony WSS "
 st_sr3m_bundle_name	Zestaw SR-3M "Wichr"
 st_sr3m_description	OPIS NIE JEST GOTOWY
 st_sr3m_name	SR-3M "Wichr"
+st_srp_alt_move_speed	Prędkość ruchu
 st_srp_ammo069_23mm_r_desc	Nabój kalibru 23 mm nabity śrutem, do KS-23M. Zadaje poważne obrażenia nieopancerzonym celom.
 st_srp_ammo069_23mm_r_name	23x75R, Śrutowa
 st_srp_ammo_buckshot	Śrut
@@ -2555,6 +2556,7 @@ st_srp_inventory_sell_duplicates_ask	Przedmioty do sprzedaży: %1$s
 st_srp_item_props_mps	m/s
 st_srp_language_option	Język:
 st_srp_language_restart	Zadziała po ponownym uruchomieniu.
+st_srp_live_spectators	oglądający: %1$s
 st_srp_loadout_block_ammo	Za mało amunicji do broni
 st_srp_loadout_block_locked	Ten profil jest zablokowany
 st_srp_loadout_block_maintenance	Wkrótce przerwa techniczna: za %1$s min
@@ -2680,6 +2682,13 @@ st_srp_pierce_stone	Kamień
 st_srp_pierce_tinplate	Blacha
 st_srp_pierce_value	%1$s · %2$s
 st_srp_play_in_squad	W oddziale
+st_srp_player_matches	Rozgrywki
+st_srp_player_matches_days	%1$s dni temu
+st_srp_player_matches_draw	Remis
+st_srp_player_matches_hours	%1$s godz. temu
+st_srp_player_matches_kd	K/D %1$s/%2$s
+st_srp_player_matches_minutes	%1$s min temu
+st_srp_player_matches_none	Brak zapisanych publicznych rozgrywek tego gracza.
 st_srp_pvb_at_limit	Trwa już maksymalna liczba rozgrywek z botami, spróbuj ponownie za minutę
 st_srp_pvb_at_limit_count	Trwa już maksymalna liczba rozgrywek z botami (%1$s/%2$s), spróbuj ponownie za minutę
 st_srp_pvb_busy	%1$s (zajęte)
@@ -2707,37 +2716,45 @@ st_srp_regeneration_stamina	Regeneracja kondycji
 st_srp_renderer_dx11	DirectX 11
 st_srp_renderer_dxvk	Vulkan/DXVK
 st_srp_renderer_option	Renderer
-st_srp_replay_asking	Asking the match server for the replay of this match…
+st_srp_replay_asking	Pytamy serwer o tę rozgrywkę…
 st_srp_replay_being_made	The replay is being made from the match record. This happens the first time anyone watches this match and takes a little while.\nYou can close this window: the server keeps making it.\n\n%1$s
-st_srp_replay_busy	The server is busy with other replays right now. Try again in a minute.
-st_srp_replay_close	CLOSE
+st_srp_replay_busy	W tej chwili niedostępne. Spróbuj ponownie za minutę.
+st_srp_replay_close	ZAMKNIJ
 st_srp_replay_demo_quest	Victory contribution
 st_srp_replay_demo_rank	«%1$s»: rank 3 reached. New items are available in the shop.
 st_srp_replay_demo_seller	Scavengers
 st_srp_replay_download	DOWNLOAD AND WATCH
-st_srp_replay_failed	The server could not prepare the replay of this match.
-st_srp_replay_gone	The replay of this match is no longer kept on the server.
-st_srp_replay_incompatible	This replay was recorded by a game version that yours cannot play.
+st_srp_replay_failed	Serwer nie mógł przygotować powtórki tej rozgrywki.
+st_srp_replay_gone	Serwer nie ma powtórki tej rozgrywki: nie została nagrana albo nie jest już przechowywana.
+st_srp_replay_in_room	Twój pokój potrzebuje cię teraz do meczu.
+st_srp_replay_incompatible	Ta powtórka została nagrana wersją gry, której twoja nie potrafi odtworzyć.
 st_srp_replay_made_now	Being made now. Waiting: %1$s s.
-st_srp_replay_no_answer	The server did not answer. Try again later.
+st_srp_replay_no_answer	Serwer nie odpowiedział. Spróbuj ponownie później.
 st_srp_replay_not_recorded	This match was not recorded: it had fewer than 6 players, or recording was off at the time.
-st_srp_replay_not_yours	You can watch replays only of matches you played in.
-st_srp_replay_off	Replays are switched off on this server.
-st_srp_replay_old_game	Your game version cannot play replays. Update the game: start it again through the launcher.
+st_srp_replay_not_yours	Nie możesz oglądać tego meczu.
+st_srp_replay_off	Powtórki są wyłączone na tym serwerze.
+st_srp_replay_old_game	Twoja wersja gry nie odtwarza powtórek. Zaktualizuj grę: uruchom ją ponownie przez launcher.
+st_srp_replay_opening	Serwer rozgrywek otwiera powtórkę tej rozgrywki.\n\n%1$s
 st_srp_replay_place_in_line	Place in line: %1$s. Waiting: %2$s s.
 st_srp_replay_ready	The replay of this match is ready.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed.
 st_srp_replay_ready_size	Replay of this match: %1$s.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed.
+st_srp_replay_save	Zapisz powtórkę
+st_srp_replay_saved	Zapisano
+st_srp_replay_saving	Zapisywanie...
 st_srp_replay_size	%1$s.%2$s MB
 st_srp_replay_starting	Starting the replay: a second game window will open; this lobby stays open. If something goes wrong, the updater shows what happened.\n\nIn the replay press F11 for the controls.
-st_srp_replay_still_preparing	Still being prepared. It keeps being made on the server; open Watch replay again in a minute.
-st_srp_replay_title	Watch replay
-st_srp_replay_waiting	Waiting: %1$s s.
+st_srp_replay_still_preparing	Wciąż w przygotowaniu. Serwer nadal ją tworzy; spróbuj ponownie za minutę.
+st_srp_replay_title	Obejrzyj powtórkę
+st_srp_replay_waiting	Oczekiwanie: %1$s s.
+st_srp_replay_watch	Oglądaj
 st_srp_reroll_description	Możesz zmienić dowolny modyfikator przedmiotu, dowolną liczbę razy. Następnie wybierasz jeden z trzech losowych modyfikatorów.
 st_srp_rooms_all	Wszystkie
 st_srp_rooms_all_rooms	Wszystkie pokoje
 st_srp_rooms_any	Dowolny
 st_srp_rooms_back	Wstecz
 st_srp_rooms_bots	Z botami
+st_srp_rooms_called_back	Twój pokój jest gotowy
+st_srp_rooms_called_back_in	Twój pokój jest gotowy. Powrót za %1$s s
 st_srp_rooms_code_10	Właściciel usunął cię z pokoju.
 st_srp_rooms_code_11	Najpierw opuść drużynę klanu.
 st_srp_rooms_code_12	Twój ekwipunek przekracza maks. poziom.
@@ -2808,9 +2825,11 @@ st_srp_rooms_pool_hint	Głosowanie losuje z nich 3 karty.
 st_srp_rooms_private_room	Pokój prywatny: do 20 graczy; ty ustawiasz drużyny i start.
 st_srp_rooms_queue	Kolejka
 st_srp_rooms_queue_room	Kolejka do pokoju
+st_srp_rooms_queue_spectate	Kolejka i oglądanie
 st_srp_rooms_room	Pokój
 st_srp_rooms_room_chat	Czat pokoju
 st_srp_rooms_servers	Pokoje
+st_srp_rooms_spectators	Widzowie:
 st_srp_rooms_start_hint	Naciśnij Rozpocznij, gdy wszyscy wejdą.
 st_srp_rooms_start_match	Rozpocznij
 st_srp_rooms_starts	Mecz za
@@ -2849,6 +2868,21 @@ st_srp_unit_mps	%1$s m/s
 st_srp_unit_percent	%1$s%
 st_srp_unit_seconds	%1$ss
 st_srp_unit_times	%1$sx
+st_srp_viewer_back	Wstecz
+st_srp_viewer_cap_ctrl	Ctrl
+st_srp_viewer_cap_space	Spacja
+st_srp_viewer_cursor	Kursor
+st_srp_viewer_filter	Filtr
+st_srp_viewer_hide	Ukryj
+st_srp_viewer_marker_death	Śmierć
+st_srp_viewer_marker_event	Zdarzenie
+st_srp_viewer_marker_kill	Zabójstwo
+st_srp_viewer_marker_objective	Cel
+st_srp_viewer_moments	Momenty
+st_srp_viewer_moments_all	Wszystkie
+st_srp_viewer_moments_followed	Śledzony
+st_srp_viewer_moments_mine	Moje
+st_srp_viewer_pause	Pauza
 st_srp_vulkan_dedicated_gpu	Preferuj dedykowany GPU
 st_srp_vulkan_dedicated_gpu_hint	Na laptopach wybiera mocniejszą kartę graficzną.\n+ Lepsza wydajność na laptopach\n- Zużywa więcej baterii
 st_srp_vulkan_frame_limit	Limit klatek
@@ -2864,6 +2898,35 @@ st_srp_vulkan_overlay_full	Pełna
 st_srp_vulkan_overlay_hint	Pokazuje na ekranie, jak szybko działa gra.
 st_srp_vulkan_tear_free	Bez rozrywania bez V-Sync
 st_srp_vulkan_tear_free_hint	Obraz się nie rwie, gdy synchronizacja pionowa jest wyłączona.\n+ Brak rozdartych linii przy szybkim obrocie\n- Nieco większe opóźnienie niż samo wyłączenie VSync
+st_srp_watch_badge_friend	Twój znajomy teraz gra
+st_srp_watch_badge_live	Rozgrywki, które możesz oglądać na żywo
+st_srp_watch_chip_everyone	Wszyscy
+st_srp_watch_chip_friends	Znajomi
+st_srp_watch_chip_mine	Moje
+st_srp_watch_delay	opóźnienie %1$s s
+st_srp_watch_friends	Znajomi: %1$s
+st_srp_watch_live	Na żywo
+st_srp_watch_live_word	NA ŻYWO
+st_srp_watch_map_retired	Wycofana mapa
+st_srp_watch_no_player	Brak gracza o nicku %1$s.
+st_srp_watch_none_friends	Brak ostatnich rozgrywek ze znajomymi.
+st_srp_watch_none_live_friends	Żaden z twoich znajomych nie gra teraz w meczu, który możesz oglądać.
+st_srp_watch_none_mine	Od teraz znajdziesz tu swoje rozgrywki.
+st_srp_watch_none_recent	Brak nagranych rozgrywek.
+st_srp_watch_players	graczy: %1$s
+st_srp_watch_private	Pokój prywatny
+st_srp_watch_reason_full	Brak miejsc dla widzów
+st_srp_watch_reason_gone	Powtórka nie została zachowana
+st_srp_watch_reason_not_recorded	Nie nagrano
+st_srp_watch_reason_old	Nagrane przed aktualizacją gry
+st_srp_watch_reason_over	Rozgrywka właśnie się skończyła
+st_srp_watch_reason_private	Niedostępne dla widzów
+st_srp_watch_reason_starts	Otworzy się, gdy rozgrywka się zacznie
+st_srp_watch_replays	Powtórki
+st_srp_watch_search_hint	Nick gracza lub kod rozgrywki
+st_srp_watch_spectate	Obserwuj
+st_srp_watch_spectate_lost	Nie znaleziono meczu gracza %1$s do oglądania. Mógł się skończyć lub jest zamknięty dla widzów.
+st_srp_watch_title	Oglądaj
 st_srp_weapon069_akmsu_desc	Skrócony AKMS ze składaną kolbą, amunicja: 7,62x39. Ogień pojedynczy i ciągły.
 st_srp_weapon069_akmsu_name	AKMSU
 st_srp_weapon069_famas_desc	Francuski karabinek automatyczny w układzie bullpup, amunicja: 5,56x45. Ogień pojedynczy, seriami po trzy strzały i ciągły.

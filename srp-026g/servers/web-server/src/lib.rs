@@ -16,8 +16,8 @@
 //!   of the `resources.db` regions earlier updaters wrote, which the
 //!   updater fetches to put the stock db back once when it kept no copy.
 //! - `/replays/<token>` (the 0.26g page only) is the replay file of the
-//!   match a token of the lobby's "Watch replay" is for
-//!   (`session::v026g::replays`): `SRP_REPLAY_DIR/<id:08x>.sur`, named from
+//!   match a token of the lobby's Save is for (`session::v026g::replays`):
+//!   `SRP_REPLAY_DIR/<id:08x>.srpreplay`, named from
 //!   the token's match id alone ([`replay_file`]); anything else under
 //!   `/replays` is one and the same "not found", and an address that fails
 //!   too often is answered `429` for a while ([`Web::replay`]).
@@ -42,6 +42,7 @@
 
 mod damage;
 mod equipment;
+mod history;
 mod icons;
 pub mod item_tables;
 mod launcher;
@@ -319,13 +320,13 @@ fn replay_token<'a>(method: &str, target: &'a str) -> Option<&'a str> {
     .then_some(token)
 }
 
-/// The replay file of a match: `SRP_REPLAY_DIR/<id:08x>.sur`, its name made
-/// from the match id alone (`Replays::sur_path`), and only when it is a
+/// The replay file of a match: `SRP_REPLAY_DIR/<id:08x>.srpreplay`, its name
+/// made from the match id alone (`Replays::file_path`), and only when it is a
 /// regular file (not a link, not a folder) whose real path is in the
 /// replay folder.
 fn replay_file(replays: &Replays, match_id: u32) -> Option<PathBuf> {
-    let dir = std::fs::canonicalize(&replays.settings()?.replay_dir).ok()?;
-    let path = replays.sur_path(match_id)?;
+    let dir = std::fs::canonicalize(&replays.save_settings()?.replay_dir).ok()?;
+    let path = replays.file_path(match_id)?;
     if !std::fs::symlink_metadata(&path).ok()?.file_type().is_file() {
         return None;
     }
@@ -973,6 +974,20 @@ impl Web {
             if request.method == "GET" {
                 match request.path.as_str() {
                     "/api/stats" => return stats::response(&self.store, game),
+                    path if path.starts_with(history::PREFIX) => {
+                        let query = request
+                            .target
+                            .split_once('?')
+                            .map_or("", |(_, query)| query);
+                        return history::response(
+                            path,
+                            query,
+                            request.lang,
+                            &self.store,
+                            game,
+                            unix_now(),
+                        );
+                    }
                     "/patches" => return patches::response(&game.downloads),
                     "/game" => {
                         if let Some(response) = patches::game_response(&game.downloads) {

@@ -465,6 +465,40 @@ pub fn chunks(file: &[u8]) -> Option<Vec<(u32, &[u8])>> {
     Some(out)
 }
 
+/// What a file holds, for a server that plays it (`game::playback`).
+pub struct Contents {
+    /// Chunk 1 as it is: a 0xE4 payload without its first byte.
+    pub options_lzma2: Vec<u8>,
+    pub records: Vec<ReadRecord>,
+    pub key_frames: Vec<KeyFrame>,
+}
+
+/// A file [`verify`] passes, read into its parts.
+pub fn read(file: &[u8]) -> Result<Contents, String> {
+    verify(file)?;
+    let all = chunks(file).ok_or("a chunk runs past the end")?;
+    let find = |id: u32| all.iter().find(|(c, _)| *c == id).map(|(_, bytes)| *bytes);
+    let unpack = |bytes: &[u8]| lzma2::unpack(bytes, MAX_DECODED).ok_or("a chunk does not unpack");
+    let body = unpack(find(chunk::BODY).ok_or("no body")?)?;
+    let table = unpack(&find(chunk::KEY_FRAMES).ok_or("no key frames")?[2..])?;
+    let mut key_frames = Vec::new();
+    let mut rest = table.as_slice();
+    while let [l0, l1, o0, o1, o2, o3, tail @ ..] = rest {
+        let len = usize::from(u16::from_le_bytes([*l0, *l1]));
+        let (data, after) = tail.split_at_checked(len).ok_or("cut key frame")?;
+        key_frames.push(KeyFrame {
+            body_offset: u32::from_le_bytes([*o0, *o1, *o2, *o3]),
+            data: data.to_vec(),
+        });
+        rest = after;
+    }
+    Ok(Contents {
+        options_lzma2: find(chunk::OPTIONS).ok_or("no options")?.to_vec(),
+        records: read_body(&body).ok_or("the body does not parse")?,
+        key_frames,
+    })
+}
+
 /// What [`verify`] found in a file.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Verified {

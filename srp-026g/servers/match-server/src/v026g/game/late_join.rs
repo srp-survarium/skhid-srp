@@ -138,7 +138,7 @@ impl Admission {
     /// Its place is not installed any more: a game could not install it,
     /// and the places after it can then never be (a roster only grows at
     /// its end). A place whose player failed alone is installed on.
-    fn install_stopped(&self) -> bool {
+    pub(super) fn install_stopped(&self) -> bool {
         self.failed() && !self.failed_alone
     }
 
@@ -165,7 +165,7 @@ impl Admission {
         self.catchup_hashes.clear();
     }
 
-    fn failed(&self) -> bool {
+    pub(super) fn failed(&self) -> bool {
         matches!(
             self.phase,
             AdmissionPhase::Failed | AdmissionPhase::Rejected

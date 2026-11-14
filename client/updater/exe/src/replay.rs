@@ -1,4 +1,4 @@
-//! `updater_skhid.exe replay <id> <token> <sha256> <size>`: "Watch replay".
+//! `updater_skhid.exe replay <id> <token> <sha256> <size>`: "Save replay".
 //!
 //! The patched game (patch revision 14) starts the updater with the link
 //! the server put into the lobby. The updater checks every argument
@@ -6,20 +6,24 @@
 //! replay download never wait for each other), fetches `<site>/replays/<token>`
 //! from its configured site with the update's rules (HTTPS, plain HTTP for
 //! this computer alone, no redirect, no cookie) into
-//! `<game>\replays\srp_<id>.sur.part`, checks the size and the SHA-256 of
-//! what is on the disk, renames it to `srp_<id>.sur` (a file of that name
-//! with the right bytes is used again without a download), keeps the ten
-//! newest replays, checks that the game's files are in place as `ready` does
-//! (`patches::ready`, the check of play_skhid.bat), and starts the game as
-//! the launcher's PLAY does, with `-match_replay=<the file>`. A problem is a
-//! message box in the launcher's
-//! language and a line in `updater_skhid.log`; the log names the token by
-//! its first 6 hex digits only.
+//! `<game>\replays\srp_<id>.srpreplay.part`, checks the size and the SHA-256
+//! of what is on the disk, reads the file's header and renames it to
+//! `<date>_<time>_<map>_<id>.srpreplay` (a file of this match with the right
+//! bytes is kept as it is, without a download). Saved replays are never
+//! deleted; only another match's download left over is. A save starts no
+//! game and shows no box when it succeeds; a problem is one message box in
+//! the game's language. Either way a line goes to `updater_skhid.log`, which
+//! names the token by its first 6 hex digits only. A second save waits for
+//! the first's lock ([`LOCK_WAIT_MS`]) before it is refused.
+//!
+//! `updater_skhid.exe open-replay <path>` ([`run_local`]): a `.sur` the player
+//! opened in Explorer, started in the game as it is (`launch`): nothing
+//! downloaded, copied or deleted.
 
 use alloc::format;
 use alloc::string::String;
 
-use updater_logic::replay::{self, Problem, Request};
+use updater_logic::replay::{self, Header, Problem, Request, Stamp};
 use updater_logic::url::Url;
 
 use crate::http::{self, HttpError};
@@ -30,29 +34,44 @@ use crate::win;
 /// How often a download that broke off is tried, and the pause between.
 const TRIES: u32 = 3;
 const PAUSE_MS: u32 = 3000;
+/// Free space asked for beyond the replay itself.
+const SPARE: u64 = 1 << 20;
+/// How long a save waits for another save's lock: the lobby says `ready`
+/// while the first updater may still be downloading (up to 12 MiB), so a
+/// second save soon after waits for it, then finds its file saved or
+/// downloads its own. How often it looks meanwhile.
+const LOCK_WAIT_MS: u64 = 60_000;
+const LOCK_LOOK_MS: u32 = 250;
 
 /// The process exit codes (as the update's).
 const OK: u32 = 0;
 const FAILED: u32 = 1;
 
-/// The one place the replay shows a window: a message box, unless the run
-/// is `quiet`. Every other path of this file reports through here or the
-/// log only.
+/// The one place the replay shows a window: a problem's message box, unless
+/// the run is `quiet`. A saved replay shows none: the game is up, a box would
+/// take its focus, and its card already says it is saved. Every other path of
+/// this file reports through here or the log only.
 fn notify(quiet: bool, text: &str) {
     if !quiet {
         crate::message_box(text);
     }
 }
 
-fn tell(quiet: bool, language: Option<u32>, problem: &Problem) -> u32 {
-    let text = replay::message(language, problem);
-    log!("replay: FAILED ({problem:?}): {text}");
-    notify(quiet, &text);
-    FAILED
+/// Why a save stopped: a problem of the replay's, or the site's address
+/// (`crate::server`'s own words).
+enum Failure {
+    Problem(Problem),
+    Server(String),
+}
+
+impl From<Problem> for Failure {
+    fn from(problem: Problem) -> Self {
+        Self::Problem(problem)
+    }
 }
 
 /// The replay: `arguments` are those after `replay`; `quiet`: no window
-/// at all (the problem goes to the log and the exit code).
+/// at all (the outcome goes to the log and the exit code).
 pub fn run(arguments: &[String], quiet: bool) -> u32 {
     let layout = match Layout::find() {
         Ok(layout) => layout,
@@ -69,49 +88,91 @@ pub fn run(arguments: &[String], quiet: bool) -> u32 {
         if quiet { " (quiet)" } else { "" }
     );
     let language = win::game_language();
-    let request = match replay::parse(arguments) {
-        Ok(request) => request,
-        Err(error) => {
-            log!("replay: arguments refused ({error:?})");
-            return tell(quiet, language, &Problem::BadLink);
+    // The lock is let go when `save` returns: a box left open does not hold
+    // the next save.
+    match save(&layout, arguments) {
+        Ok(path) => {
+            log!("replay: saved {path}; exit 0");
+            OK
         }
-    };
+        Err(Failure::Problem(problem)) => tell(quiet, language, &problem),
+        Err(Failure::Server(message)) => {
+            log!("replay: FAILED (server address): {message}");
+            notify(quiet, &message);
+            FAILED
+        }
+    }
+}
+
+/// The replay of the link saved in the replays folder: its path.
+fn save(layout: &Layout, arguments: &[String]) -> Result<String, Failure> {
+    let request = replay::parse(arguments).map_err(|error| {
+        log!("replay: arguments refused ({error:?})");
+        Problem::BadLink
+    })?;
     log!(
         "replay: match {} token {}... {} bytes",
         request.id,
         request.token_hint(),
         request.size
     );
-    let _lock = match win::lock(&layout.exe_dir, replay::LOCK_FILE) {
-        Ok(lock) => lock,
-        Err(code) => {
-            log!("replay: {} is held ({})", replay::LOCK_FILE, win::error_text(code));
-            return tell(quiet, language, &Problem::AlreadyRunning);
-        }
-    };
-    let game = format!("{}\\{}", layout.exe_dir, replay::GAME_EXE);
-    if !win::exists(&game) {
-        return tell(quiet, language, &Problem::NoGame);
-    }
-    let server = match crate::server(&layout) {
-        Ok(server) => server,
-        Err(message) => {
-            log!("replay: FAILED (server address): {message}");
-            notify(quiet, &message);
-            return FAILED;
-        }
-    };
+    let _lock = replay_lock(&layout.exe_dir)?;
+    let server = crate::server(layout).map_err(Failure::Server)?;
     let folder = format!("{}\\{}", layout.game_dir, replay::FOLDER);
-    if let Err(code) = win::create_folders(&folder) {
-        return tell(quiet, language, &Problem::Disk(win::error_text(code)));
+    win::create_folders(&folder).map_err(disk)?;
+    remove_stale_parts(&folder, &request.id);
+    if let Some(path) = saved_before(&folder, &request) {
+        log!("replay: {path} is saved already, checked");
+        return Ok(path);
     }
-    let target = format!("{folder}\\{}", request.file_name());
-    if let Err(problem) = fetch(&server, &request, &folder, &target) {
-        return tell(quiet, language, &problem);
+    if let Some(free) = win::free_space(&folder)
+        && free < request.size + SPARE
+    {
+        log!("replay: {free} bytes free in {folder}");
+        return Err(disk(windows_sys::Win32::Foundation::ERROR_DISK_FULL).into());
     }
-    prune(&folder, &request.file_name());
+    let part = format!("{folder}\\{}", request.part_name());
+    fetch(&server, &request, &part)?;
+    name(&folder, &request, &part)
+        .inspect_err(|_| {
+            let _ = win::delete(&part);
+        })
+        .map_err(Failure::from)
+}
 
-    launch(&layout, &target, quiet, language)
+/// The replay lock, waited for while another save holds it, at most
+/// [`LOCK_WAIT_MS`]; then, or on another error, "already being downloaded".
+fn replay_lock(folder: &str) -> Result<win::InstallLock, Problem> {
+    let started = win::ticks();
+    let mut said = false;
+    loop {
+        let code = match win::lock(folder, replay::LOCK_FILE) {
+            Ok(lock) => {
+                if said {
+                    log!("replay: the other save ended");
+                }
+                return Ok(lock);
+            }
+            Err(code) => code,
+        };
+        let held = code == windows_sys::Win32::Foundation::ERROR_SHARING_VIOLATION;
+        if !held || win::ticks().saturating_sub(started) >= LOCK_WAIT_MS {
+            log!("replay: {} is held ({})", replay::LOCK_FILE, win::error_text(code));
+            return Err(Problem::AlreadyRunning);
+        }
+        if !said {
+            log!("replay: another save holds {}: waiting for it", replay::LOCK_FILE);
+            said = true;
+        }
+        win::sleep(LOCK_LOOK_MS);
+    }
+}
+
+fn tell(quiet: bool, language: Option<u32>, problem: &Problem) -> u32 {
+    let text = replay::message(language, problem);
+    log!("replay: FAILED ({problem:?}): {text}");
+    notify(quiet, &text);
+    FAILED
 }
 
 /// Explorer supplies an absolute local file. No download, pruning or network
@@ -138,8 +199,8 @@ pub fn run_local(arguments: &[String], quiet: bool) -> u32 {
     launch(&layout, file.path(), quiet, language)
 }
 
-/// Both entry points use the same installed-file gate, path conversion,
-/// localization, console arguments and working directory.
+/// `open-replay`'s: the installed-file gate, path conversion, localization,
+/// console arguments and working directory.
 fn launch(layout: &Layout, target: &str, quiet: bool, language: Option<u32>) -> u32 {
     let game = format!("{}\\{}", layout.exe_dir, replay::GAME_EXE);
     if !win::exists(&game) {
@@ -174,59 +235,74 @@ fn launch(layout: &Layout, target: &str, quiet: bool, language: Option<u32>) -> 
     }
 }
 
-/// The replay in `target`, checked: the one there, or a download.
-fn fetch(server: &Url, request: &Request, folder: &str, target: &str) -> Result<(), Problem> {
-    match win::hash_file(target) {
-        Ok((size, hash)) if size == request.size && hash == request.sha256 => {
-            log!("replay: {} is here already, checked", request.file_name());
-            return Ok(());
+fn disk(code: win::Code) -> Problem {
+    Problem::Disk(win::error_text(code))
+}
+
+/// Deletes another match's download left over; no other name is touched.
+fn remove_stale_parts(folder: &str, current: &str) {
+    for name in win::list(folder, "srp_*.srpreplay.part") {
+        if !replay::is_stale_part(&name, current) {
+            continue;
         }
-        Ok(_) => log!("replay: {} is here but not this replay: downloaded again", request.file_name()),
-        Err(_) => {}
+        match win::delete(&format!("{folder}\\{name}")) {
+            Ok(()) => log!("replay: removed {name} (a download left over)"),
+            Err(code) => log!("replay: {name} could not be removed ({})", win::error_text(code)),
+        }
     }
-    let part = format!("{folder}\\{}", request.part_name());
+}
+
+/// A file of this match in the folder with the link's size and checksum.
+fn saved_before(folder: &str, request: &Request) -> Option<String> {
+    win::list(folder, "*.srpreplay")
+        .into_iter()
+        .filter(|name| request.is_saved_name(name))
+        .map(|name| format!("{folder}\\{name}"))
+        .find(|path| is_this_replay(path, request))
+}
+
+fn is_this_replay(path: &str, request: &Request) -> bool {
+    win::file_size(path).is_ok_and(|size| size == request.size)
+        && win::hash_file(path).is_ok_and(|(size, hash)| size == request.size && hash == request.sha256)
+}
+
+/// The replay downloaded into `part`, its size and checksum read back.
+fn fetch(server: &Url, request: &Request, part: &str) -> Result<(), Problem> {
     let mut last = Problem::Network(server.host.clone());
     for attempt in 1..=TRIES {
-        let result = download(server, request, &part);
-        match result {
-            Ok(()) => {}
-            Err(problem) => {
-                let _ = win::delete(&part);
-                let again = matches!(problem, Problem::Network(_));
-                last = problem;
-                if again && attempt < TRIES {
-                    log!("replay: download {attempt} of {TRIES} failed: {last:?}");
-                    win::sleep(PAUSE_MS);
-                    continue;
-                }
-                return Err(last);
+        if let Err(problem) = download(server, request, part) {
+            let _ = win::delete(part);
+            let again = matches!(problem, Problem::Network(_));
+            last = problem;
+            if again && attempt < TRIES {
+                log!("replay: download {attempt} of {TRIES} failed: {last:?}");
+                win::sleep(PAUSE_MS);
+                continue;
             }
+            return Err(last);
         }
         // What is on the disk, read back.
-        match win::hash_file(&part) {
-            Ok((size, hash)) if size == request.size && hash == request.sha256 => {}
+        return match win::hash_file(part) {
+            Ok((size, hash)) if size == request.size && hash == request.sha256 => {
+                log!("replay: downloaded {} bytes, checksum right", request.size);
+                Ok(())
+            }
             Ok((size, _)) => {
                 log!("replay: downloaded {size} bytes, the size or the checksum is wrong");
-                let _ = win::delete(&part);
-                return Err(Problem::Damaged);
+                let _ = win::delete(part);
+                Err(Problem::Damaged)
             }
             Err(code) => {
-                let _ = win::delete(&part);
-                return Err(Problem::Disk(win::error_text(code)));
+                let _ = win::delete(part);
+                Err(disk(code))
             }
-        }
-        if let Err(code) = win::rename(&part, target, true) {
-            let _ = win::delete(&part);
-            return Err(Problem::Disk(win::error_text(code)));
-        }
-        log!("replay: downloaded {} bytes, checksum right: {}", request.size, request.file_name());
-        return Ok(());
+        };
     }
     Err(last)
 }
 
 fn download(server: &Url, request: &Request, part: &str) -> Result<(), Problem> {
-    let file = win::DownloadFile::create(part).map_err(|code| Problem::Disk(win::error_text(code)))?;
+    let file = win::DownloadFile::create(part).map_err(disk)?;
     let mut written_error = None;
     let result = http::get_stream(
         server,
@@ -241,7 +317,7 @@ fn download(server: &Url, request: &Request, part: &str) -> Result<(), Problem> 
         &mut |_, _| true,
     );
     if let Some(code) = written_error {
-        return Err(Problem::Disk(win::error_text(code)));
+        return Err(disk(code));
     }
     let host = server.host.clone();
     match result {
@@ -268,18 +344,65 @@ fn download(server: &Url, request: &Request, part: &str) -> Result<(), Problem> 
             return Err(Problem::Network(host));
         }
     }
-    file.flush().map_err(|code| Problem::Disk(win::error_text(code)))
+    file.flush().map_err(disk)
 }
 
-/// Keeps the ten newest replays (the one just fetched among them) and
-/// deletes the rest, and downloads left over; names that are not the
-/// updater's own (`srp_<8 hex>.sur`) are never touched.
-fn prune(folder: &str, current: &str) {
-    let files = win::list_with_times(folder, "srp_*");
-    for name in replay::to_delete(&files, current, replay::KEEP) {
-        match win::delete(&format!("{folder}\\{name}")) {
-            Ok(()) => log!("replay: removed {name} (more than {} replays)", replay::KEEP),
-            Err(code) => log!("replay: {name} could not be removed ({})", win::error_text(code)),
+/// The checked download named by its header: the path it has now. A name
+/// another replay has gets `_2`, `_3`, ...; one with these very bytes is
+/// this replay saved before (the download goes).
+fn name(folder: &str, request: &Request, part: &str) -> Result<String, Problem> {
+    let header = read_header(part)?;
+    if header.match_id != request.id {
+        log!("replay: the file is of match {}, not {}", header.match_id, request.id);
+        return Err(Problem::Damaged);
+    }
+    let start = win::local_stamp(header.made).unwrap_or(Stamp { year: 1970, month: 1, day: 1, hour: 0, minute: 0 });
+    for copy in 1..=replay::MAX_COPIES {
+        let path = format!("{folder}\\{}", replay::saved_name(&header, start, copy));
+        if win::exists(&path) {
+            if is_this_replay(&path, request) {
+                let _ = win::delete(part);
+                return Ok(path);
+            }
+            continue;
+        }
+        match win::rename(part, &path, false) {
+            Ok(()) => return Ok(path),
+            // Made a moment ago by another program: the next name.
+            Err(code) if win::exists(&path) => log!("replay: {path} came first ({})", win::error_text(code)),
+            Err(code) => return Err(disk(code)),
         }
     }
+    log!("replay: {} names of this replay are taken", replay::MAX_COPIES);
+    Err(disk(windows_sys::Win32::Foundation::ERROR_FILE_EXISTS))
+}
+
+/// The header of the file at `path`.
+fn read_header(path: &str) -> Result<Header, Problem> {
+    let file = win::File::shared(path).map_err(disk)?;
+    let mut prefix = [0_u8; replay::PREFIX];
+    read_exact(&file, &mut prefix)?;
+    let length = replay::header_length(&prefix).map_err(damaged)?;
+    let mut text = alloc::vec![0_u8; length];
+    read_exact(&file, &mut text)?;
+    replay::parse_header(&text).map_err(damaged)
+}
+
+fn damaged(error: replay::HeaderError) -> Problem {
+    log!("replay: the file's header is refused ({error:?})");
+    Problem::Damaged
+}
+
+fn read_exact(file: &win::File, buffer: &mut [u8]) -> Result<(), Problem> {
+    let mut filled = 0;
+    while filled < buffer.len() {
+        match file.read(&mut buffer[filled..]).map_err(disk)? {
+            0 => {
+                log!("replay: the file ends inside its header");
+                return Err(Problem::Damaged);
+            }
+            read => filled += read,
+        }
+    }
+    Ok(())
 }

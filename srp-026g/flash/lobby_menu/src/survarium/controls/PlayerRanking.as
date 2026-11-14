@@ -18,6 +18,7 @@ package survarium.controls
    import survarium.gsearch.MatchMakingSettings;
    import survarium.player.LocalPlayerProfile;
    import survarium.rooms.RoomsWindow;
+   import survarium.watch.WatchWindow;
    
    public class PlayerRanking extends UIWindow
    {
@@ -125,10 +126,6 @@ package survarium.controls
          {
             return;
          }
-         if(NotificationListScrollContent.replayTake(players))
-         {
-            return;
-         }
          if(MatchMakingSettings.pvbTake(players))
          {
             return;
@@ -138,7 +135,8 @@ package survarium.controls
          {
             return;
          }
-         if(BottomPanel.matchesTake(players))
+         // the Watch window's lists (live, recent, a player's matches) and a live match's roster
+         if(WatchWindow.take(players))
          {
             return;
          }

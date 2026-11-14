@@ -731,24 +731,30 @@ pub fn ranking_flush(top: &[Ranked]) -> Option<Result<ServerMessage, WireError>>
 /// never sends one. Only "Player vs Bots" ([`PVB_STATUS_START`],
 /// [`PVB_CHOOSE_BASE`]), the rooms (`rooms::ROOMS_FIRST` to
 /// `rooms::ROOMS_LAST`), the kit presets (`presets::PRESETS_FIRST` to
-/// `presets::PRESETS_LAST`) and the replay poll ([`REPLAY_START`]) are
+/// `presets::PRESETS_LAST`), the replay and save polls ([`REPLAY_START`],
+/// [`SAVE_START`]) and the
+/// player pop-up's matches (`player_matches::PLAYER_MATCHES_START`) are
 /// answered (a lobby pick, `lobby_pick::LOBBY_PICK_BASE` + id, is kept and
 /// shown back in `0xA1`, not answered); every other one gets no answer (the "matches now" list and
 /// its JOIN, at 2 000 000 000 and from 2 100 000 000, went with the queue:
 /// the owner's of 2026-10-17).
 pub const RESERVED_START: u32 = 2_000_000_000;
-/// The `start` of a `3B` that polls for the asker's "Watch replay" answer
-/// ([`replay_answer`]).
+/// The `start` of a `3B` that polls for the answer to the asker's replay
+/// session ([`replay_answer`]).
 pub const REPLAY_START: u32 = 2_200_000_000;
 /// The `player` of a `3D 00 <player> <match>` (`victory_screen_request_
-/// player_data`) that asks for the match's replay, from the History of
-/// srp's changed lobby movie: `0xFFFF_FF01` as the movie's `uint`. No
-/// account id is that high (they are below 2^31), so no row of a results
-/// screen asks for it.
-pub const REPLAY_ASK: u32 = 0xFFFF_FF01;
-/// The `player` of a `3D 00 <player> <place>` that asks for the equipment
-/// of the player at that place of the ranking (1 the first), as
-/// [`REPLAY_ASK`] asks for a replay: "Show player's information" in the
+/// player_data`) that asks to save the match's replay to a file (the
+/// Watch window's save icon, the results screen's Save replay):
+/// `0xFFFF_FF01` as the movie's `uint`. No account id is that high, so no
+/// row of a results screen asks for it. (The value of the removed
+/// download's ask, which it revives.)
+pub const SAVE_ASK: u32 = 0xFFFF_FF01;
+/// The `start` of a `3B` that polls for the answer to the asker's save
+/// ([`save_answer`]).
+pub const SAVE_START: u32 = 2_210_000_000;
+/// The `player` of a `3D 00 <player> <place>` (`victory_screen_request_
+/// player_data`) that asks for the equipment of the player at that place
+/// of the ranking (1 the first): "Show player's information" in the
 /// right-click menu of a row of the Rankings window of srp's changed lobby
 /// movie (since 2026-10-20). Answered with `93` as a results screen's row is
 /// ([`player_details`]), from the account as it is now. A results screen's
@@ -768,6 +774,112 @@ pub const GEAR_BY_ACCOUNT: u32 = 0xFFFF_FF02;
 /// older list (a member came or went since) gets no answer (since
 /// 2026-10-20).
 pub const GEAR_IN_ROOM: u32 = 0xFFFF_FF04;
+/// The `player` of a `3D 00 <player> <match>` that asks to watch the
+/// match's replay in the running game (a replay session,
+/// `docs/notes/replay-stream.md`): `REPLAY_WATCH_BASE | place << 16 |
+/// seconds` ([`ReplayWatchAsk::At`]). No account id is that high (they are
+/// below 2^31), nor any other srp `player` (0xFFFF_FFxx).
+pub const REPLAY_WATCH_BASE: u32 = 0xC000_0000;
+/// The last `player` of a replay session's ask.
+pub const REPLAY_WATCH_LAST: u32 = REPLAY_WATCH_BASE | 0x00FF_FFFF;
+/// The `player` of a `3D 00 <player> <match>` that withdraws the asker's
+/// ask to watch that match's replay (a replay session): the movie's prompt
+/// closed, or the movie gave up waiting. A session whose game is not sent
+/// yet is over; one sent or watching is not touched. Not answered.
+pub const REPLAY_WITHDRAW: u32 = 0xFFFF_FF05;
+
+/// What a `3D` with a replay session's `player` asks for, besides the
+/// match.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ReplayWatchAsk {
+    /// Match time to start at, in seconds (snapped to a key frame at or
+    /// before it, and never before the first view with a player).
+    pub seconds: u16,
+    /// The place the movie wants in view first: the start waits for its
+    /// first entry. `None` (0xFF on the wire): anyone's.
+    pub place: Option<u8>,
+}
+
+impl ReplayWatchAsk {
+    /// The ask a `3D`'s `player` makes, if it is one.
+    pub fn of(player_id: u32) -> Option<Self> {
+        if player_id & 0xFF00_0000 != REPLAY_WATCH_BASE {
+            return None;
+        }
+        let place = (player_id >> 16) as u8;
+        Some(Self {
+            seconds: player_id as u16,
+            place: (place != 0xFF).then_some(place),
+        })
+    }
+
+    /// The `player` the movie sends for it.
+    pub fn player_id(self) -> u32 {
+        REPLAY_WATCH_BASE | u32::from(self.place.unwrap_or(0xFF)) << 16 | u32::from(self.seconds)
+    }
+}
+/// The `start` of a `3B 00 <LIVE_START> <count>` that asks for the
+/// matches being played, for the Live window ([`live_rows`]): **srp's
+/// own** ([`RESERVED_START`]). At most [`LIVE_ROWS`] matches.
+pub const LIVE_START: u32 = 2_240_000_000;
+/// The matches a [`LIVE_START`] answer lists at most.
+pub const LIVE_ROWS: u8 = 20;
+/// The `start` of a `3B 00 <LIVE_ROSTER_START> <count>` that asks for the
+/// roster of the match a [`LIVE_ROSTER_ASK`] chose ([`live_rows`]).
+pub const LIVE_ROSTER_START: u32 = 2_241_000_000;
+/// The places a [`LIVE_ROSTER_START`] answer lists at most.
+pub const LIVE_ROSTER_ROWS: u8 = 24;
+/// The `player` of a `3D 00 <player> <match>` that chooses the match whose
+/// roster the next [`LIVE_ROSTER_START`] asks for.
+pub const LIVE_ROSTER_ASK: u32 = 0xFFFF_FF06;
+
+/// A row of the Live window's list and the Watch hub's Recent tab, after
+/// their match rows: `F1;<match 8 hex>;<place>;<team 0|1>;<name>`, a friend
+/// of the asker in a listed match. `place` 255 when not known (a recorded
+/// match: the history keeps no roster place). The name is cut to the
+/// row's room.
+pub fn friend_row(match_id: u32, place: Option<u8>, team: u8, name: &str) -> String {
+    named_row(
+        format!(
+            "F1;{match_id:08x};{};{};",
+            place.unwrap_or(0xFF),
+            team.min(1)
+        ),
+        name,
+    )
+}
+
+/// `head` and the name last, cut to a row's room ([`limits::NAME`]).
+pub fn named_row(head: String, name: &str) -> String {
+    let room = limits::NAME.saturating_sub(head.len());
+    let name: String = name.chars().take(room).collect();
+    let mut row = head + &name;
+    while row.len() > limits::NAME {
+        row.pop();
+    }
+    row
+}
+
+/// A Live window's answer: `91` with `rows` named in order, each at
+/// `start` and its index (the request's start: [`LIVE_START`] or
+/// [`LIVE_ROSTER_START`]).
+pub fn live_rows(start: u32, rows: &[String]) -> Result<ServerMessage, WireError> {
+    let rows: Vec<Ranked> = rows
+        .iter()
+        .map(|name| Ranked {
+            name: name.clone(),
+            rating: 0,
+            rating_before: 0,
+        })
+        .collect();
+    let placed: Vec<(u32, &Ranked)> = rows
+        .iter()
+        .enumerate()
+        .map(|(index, row)| (start + index as u32, row))
+        .collect();
+    elo_rows(&placed)
+}
+
 /// The first field of the row of [`replay_answer`].
 pub const REPLAY_ANSWER_VERSION: &str = "R1";
 
@@ -961,23 +1073,39 @@ pub fn pvb_choose_no(
 /// `91` as the answer to a replay poll (`3B 00 <REPLAY_START> <count>`):
 /// one row, `name = "R1;<status>;<match id 8 lower hex>;<n>"`,
 /// `place = REPLAY_START`, rating and change 0 (`CONTRACT-R1`). `status`
-/// is the word of the asker's latest ask (`session::v026g::replays::
-/// Status::word`), the match the one it asked for (0 before any), the last
-/// field the replay file's size when it is ready, its place in the
-/// conversion line while preparing (1 being made now, 0 not known), else
-/// 0. The movie's
+/// is the word of the asker's replay session (`session::v026g::replays::
+/// Status::word`), the match the one it asked for (0 with none), the last
+/// field the match time it starts at with `watching`, 1 being read or 2
+/// waiting with `preparing`, else 0. The movie's
 /// `PlayerRanking.fillPlayers` routes an `R1;` header to the History, as
 /// `M2;` and `J1;` go to the matches' window. **srp's own**, as safe for
 /// the client as [`join_answer`]: 45 bytes at the most (the longest word is
 /// 12 letters, a u64 20 digits), the place a u32 the movie tells apart from
 /// a ranking row.
-pub fn replay_answer(status: &str, match_id: u32, size: u64) -> Result<ServerMessage, WireError> {
+pub fn replay_answer(status: &str, match_id: u32, figure: u64) -> Result<ServerMessage, WireError> {
     let row = Ranked {
-        name: format!("{REPLAY_ANSWER_VERSION};{status};{match_id:08x};{size}"),
+        name: format!("{REPLAY_ANSWER_VERSION};{status};{match_id:08x};{figure}"),
         rating: 0,
         rating_before: 0,
     };
     elo_rows(&[(REPLAY_START, &row)])
+}
+
+/// The first field of [`save_answer`]'s row.
+pub const SAVE_ANSWER_VERSION: &str = "R2";
+
+/// `91` as the answer to a save poll (`3B 00 <SAVE_START> <count>`), and
+/// to the save's ask at once: one row `R2;<status>;<match id 8 lower
+/// hex>;<n>` at `SAVE_START`, as [`replay_answer`]'s (`<n>` the file's
+/// size with `ready`, its place in the line while `preparing`, else 0). A
+/// row of its own, not `R1`: a save and a replay session may run at once.
+pub fn save_answer(status: &str, match_id: u32, figure: u64) -> Result<ServerMessage, WireError> {
+    let row = Ranked {
+        name: format!("{SAVE_ANSWER_VERSION};{status};{match_id:08x};{figure}"),
+        rating: 0,
+        rating_before: 0,
+    };
+    elo_rows(&[(SAVE_START, &row)])
 }
 
 /// One 20-byte `quest_instance` of 0x92.

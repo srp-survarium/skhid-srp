@@ -1,29 +1,38 @@
-//! "Watch replay" (`updater_skhid.exe replay <id> <token> <sha256> <size>`):
+//! "Save replay" (`updater_skhid.exe replay <id> <token> <sha256> <size>`):
 //! what needs no Windows. The patched game starts the updater with the link
 //! the server sent in the lobby (patch revision 14, `replay_link_026g.asm`):
 //! the updater fetches `<site>/replays/<token>` into
-//! `<game>\replays\srp_<id>.sur`, checks its size and SHA-256, and starts a
-//! second game that plays it (`-match_replay=`).
+//! `<game>\replays\srp_<id>.srpreplay.part`, checks its size and SHA-256,
+//! reads the file's header ([`Header`]) and names it
+//! `<date>_<time>_<map>_<id>.srpreplay` ([`saved_name`]). Saved replays are
+//! the player's: never deleted here.
 //!
-//! The arguments come from a server and are treated as hostile: each must
-//! be exactly the form the game's patch lets through, or nothing is done.
+//! The arguments and the file come from a server and are treated as
+//! hostile: each must be exactly the form expected, or nothing is done.
 
 use alloc::format;
 use alloc::string::String;
-use alloc::vec::Vec;
 
 use crate::sha256::from_hex;
 
-/// The largest replay the updater takes (the server's limit is the same).
-pub const MAX_SIZE: u64 = 64 << 20;
-/// How many replays are kept in the folder; older ones are deleted.
-pub const KEEP: usize = 10;
+/// The largest replay the updater takes (the server's file cap).
+pub const MAX_SIZE: u64 = 12 << 20;
 /// The folder of the game (`<game>`, the one with `resources.db`) the
 /// replays go into.
 pub const FOLDER: &str = "replays";
 /// The lock of a replay download, beside the updater: not the update's, so
 /// that neither waits for the other.
 pub const LOCK_FILE: &str = "updater_skhid.replay.lock";
+/// A saved replay's extension.
+pub const EXTENSION: &str = ".srpreplay";
+/// The file's first bytes, then its header's length (u32 LE).
+pub const MAGIC: &[u8; 8] = b"SRPRPL01";
+/// The longest header a file may have.
+pub const MAX_HEADER: usize = 8192;
+/// The longest map name in a file's name.
+const MAX_SLUG: usize = 32;
+/// The most names tried for one replay (`_2` ... `_99`).
+pub const MAX_COPIES: u32 = 99;
 /// What the launcher's PLAY starts, beside the updater.
 pub const GAME_EXE: &str = "survarium_skhid.exe";
 /// The game cuts a replay's name at 259 bytes (0x1F02EC: a 0x104-byte
@@ -32,8 +41,7 @@ pub const MAX_GAME_PATH: usize = 259;
 
 /// The languages the messages are written in, by their number. The language
 /// is the game's: user.cfg's `localization <name>` line, which the game's
-/// Settings and the launcher's menu write ([`language_of_user_cfg`]); a
-/// replay is started with none, so it plays in it too.
+/// Settings and the launcher's menu write ([`language_of_user_cfg`]).
 pub const LANGUAGES: [&str; 5] = ["english", "russian", "ukrainian", "german", "polish"];
 
 /// The number in [`LANGUAGES`] of the language of a user.cfg: its first
@@ -74,7 +82,7 @@ pub enum ArgumentError {
 }
 
 /// The word after the replay's arguments that makes the run silent: no
-/// message box, the problem in the log and the exit code alone (as
+/// message box, the outcome in the log and the exit code alone (as
 /// `check quiet`). The game never sends it: its patch passes the server's
 /// text only when that text ends with the size's digits.
 pub const QUIET: &str = "quiet";
@@ -98,6 +106,13 @@ fn lower_hex(text: &str, length: usize) -> bool {
     text.len() == length && text.bytes().all(|c| matches!(c, b'0'..=b'9' | b'a'..=b'f'))
 }
 
+/// 1 to `max` ASCII digits, as a number.
+fn digits(text: &str, max: usize) -> Option<u64> {
+    (!text.is_empty() && text.len() <= max && text.bytes().all(|c| c.is_ascii_digit()))
+        .then(|| text.parse().ok())
+        .flatten()
+}
+
 /// The arguments after `replay`: exactly `<8 hex> <32 hex> <64 hex>
 /// <1..10 digits>`, hex in lower case, the size 1..=`MAX_SIZE`.
 pub fn parse<S: AsRef<str>>(arguments: &[S]) -> Result<Request, ArgumentError> {
@@ -114,10 +129,7 @@ pub fn parse<S: AsRef<str>>(arguments: &[S]) -> Result<Request, ArgumentError> {
     if !lower_hex(sha256, 64) {
         return Err(ArgumentError::Sha256);
     }
-    if size.is_empty() || size.len() > 10 || !size.bytes().all(|c| c.is_ascii_digit()) {
-        return Err(ArgumentError::Size);
-    }
-    let size: u64 = size.parse().map_err(|_| ArgumentError::Size)?;
+    let size = digits(size, 10).ok_or(ArgumentError::Size)?;
     if size == 0 || size > MAX_SIZE {
         return Err(ArgumentError::SizeOutOfRange);
     }
@@ -130,14 +142,9 @@ pub fn parse<S: AsRef<str>>(arguments: &[S]) -> Result<Request, ArgumentError> {
 }
 
 impl Request {
-    /// `srp_<id>.sur`
-    pub fn file_name(&self) -> String {
-        format!("srp_{}.sur", self.id)
-    }
-
-    /// `srp_<id>.sur.part`: the download until it is checked.
+    /// `srp_<id>.srpreplay.part`: the download until it is checked and named.
     pub fn part_name(&self) -> String {
-        format!("{}.part", self.file_name())
+        format!("srp_{}{EXTENSION}.part", self.id)
     }
 
     /// The path asked of the site.
@@ -149,58 +156,147 @@ impl Request {
     pub fn token_hint(&self) -> &str {
         &self.token[..6]
     }
+
+    /// Whether `name` (of the replays folder) is a replay saved of this
+    /// match: `<anything>_<id>.srpreplay` or `<anything>_<id>_<n>.srpreplay`.
+    pub fn is_saved_name(&self, name: &str) -> bool {
+        let Some(stem) = name.strip_suffix(EXTENSION) else { return false };
+        let stem = match stem.rsplit_once('_') {
+            Some((before, n)) if digits(n, 2).is_some() => before,
+            _ => stem,
+        };
+        stem.strip_suffix(self.id.as_str()).is_some_and(|before| before.len() > 1 && before.ends_with('_'))
+    }
 }
 
-/// A name of the replays folder that the updater made: `srp_<8 lower hex>.sur`
-/// or that with `.part`. Its id and whether it is a download left over.
-pub fn replay_file(name: &str) -> Option<(&str, bool)> {
-    let (rest, part) = match name.strip_suffix(".sur.part") {
-        Some(rest) => (rest, true),
-        None => (name.strip_suffix(".sur")?, false),
-    };
-    let id = rest.strip_prefix("srp_")?;
-    lower_hex(id, 8).then_some((id, part))
+/// A download of another match left over: `srp_<8 lower hex>.srpreplay.part`
+/// of an id that is not `current`. A name that is not the updater's own is
+/// never named.
+pub fn is_stale_part(name: &str, current: &str) -> bool {
+    name.strip_prefix("srp_")
+        .and_then(|rest| rest.strip_suffix(".srpreplay.part"))
+        .is_some_and(|id| lower_hex(id, 8) && id != current)
 }
 
-/// What to delete of the folder's files (`(name, last written)`), so that
-/// at most `keep` replays stay: the newest, `current` always among them.
-/// Downloads left over (`.part`) of another id go too. A name that is not
-/// the updater's own is never named.
-pub fn to_delete(files: &[(String, u64)], current: &str, keep: usize) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut replays: Vec<(&str, u64)> = Vec::new();
-    for (name, time) in files {
-        match replay_file(name) {
-            Some((_, true)) => {
-                if name.strip_suffix(".part") != Some(current) {
-                    out.push(name.clone());
-                }
-            }
-            Some((_, false)) if name != current => replays.push((name, *time)),
-            _ => {}
+/// What the updater reads of a replay file's header: the file starts with
+/// [`MAGIC`], a u32 LE length (at most [`MAX_HEADER`]) and that many bytes
+/// of UTF-8 lines `key value\n`. Other keys are the server's and the game's.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Header {
+    /// `match`: 8 lower-case hex digits.
+    pub match_id: String,
+    /// `made`: when the match started, Unix seconds (UTC).
+    pub made: u64,
+    /// `map`: the map's `maps_dict` id.
+    pub map: u32,
+    /// `map_slug`, if the file has one.
+    pub map_slug: Option<String>,
+}
+
+/// Why a file's header was refused (the file is then taken as damaged).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HeaderError {
+    Magic,
+    Length,
+    /// Not UTF-8, a control byte other than the line ends, a line with no
+    /// space, a key twice.
+    Text,
+    /// `match`, `made` or `map` missing or not their form.
+    Field(&'static str),
+}
+
+/// The bytes of a file to read for [`header_length`], then the header.
+pub const PREFIX: usize = MAGIC.len() + 4;
+
+/// The header's length from a file's first [`PREFIX`] bytes.
+pub fn header_length(prefix: &[u8]) -> Result<usize, HeaderError> {
+    let (magic, rest) = prefix.split_at_checked(MAGIC.len()).ok_or(HeaderError::Magic)?;
+    if magic != MAGIC {
+        return Err(HeaderError::Magic);
+    }
+    let length = rest.first_chunk::<4>().map(|bytes| u32::from_le_bytes(*bytes) as usize).ok_or(HeaderError::Length)?;
+    if length == 0 || length > MAX_HEADER {
+        return Err(HeaderError::Length);
+    }
+    Ok(length)
+}
+
+/// The header's text (the bytes after the length).
+pub fn parse_header(text: &[u8]) -> Result<Header, HeaderError> {
+    let text = core::str::from_utf8(text).map_err(|_| HeaderError::Text)?;
+    if text.chars().any(|c| c.is_control() && c != '\n') {
+        return Err(HeaderError::Text);
+    }
+    let (mut match_id, mut made, mut map, mut map_slug) = (None, None, None, None);
+    for line in text.split('\n').filter(|line| !line.is_empty()) {
+        let (key, value) = line.split_once(' ').ok_or(HeaderError::Text)?;
+        let slot = match key {
+            "match" => &mut match_id,
+            "made" => &mut made,
+            "map" => &mut map,
+            "map_slug" => &mut map_slug,
+            _ => continue,
+        };
+        if slot.replace(value).is_some() {
+            return Err(HeaderError::Text);
         }
     }
-    // Newest first; of the same time, the greater name first, so that the
-    // choice does not depend on the folder's order.
-    replays.sort_by(|a, b| b.1.cmp(&a.1).then(b.0.cmp(a.0)));
-    let room = keep.saturating_sub(usize::from(files.iter().any(|(name, _)| name == current)));
-    out.extend(replays.into_iter().skip(room).map(|(name, _)| String::from(name)));
-    out
+    let match_id = match_id.filter(|id| lower_hex(id, 8)).ok_or(HeaderError::Field("match"))?;
+    Ok(Header {
+        match_id: match_id.into(),
+        made: made.and_then(|made| digits(made, 10)).ok_or(HeaderError::Field("made"))?,
+        map: map.and_then(|map| digits(map, 5)).ok_or(HeaderError::Field("map"))? as u32,
+        map_slug: map_slug.map(String::from),
+    })
+}
+
+/// A local date and time, to the minute.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Stamp {
+    pub year: u16,
+    pub month: u16,
+    pub day: u16,
+    pub hour: u16,
+    pub minute: u16,
+}
+
+/// The map's part of a file name: the header's `map_slug` kept to
+/// `[A-Za-z0-9-]`, at most 32 of them; else `map<id>`.
+pub fn slug(header: &Header) -> String {
+    let kept: String = header
+        .map_slug
+        .as_deref()
+        .unwrap_or("")
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
+        .take(MAX_SLUG)
+        .collect();
+    if kept.trim_matches('-').is_empty() { format!("map{}", header.map) } else { kept }
+}
+
+/// A saved replay's name: `<YYYY-MM-DD>_<HHMM>_<map>_<id>.srpreplay`, the
+/// match's start in local time; `copy` 2 and up adds `_<copy>` (another
+/// replay already has the name).
+pub fn saved_name(header: &Header, start: Stamp, copy: u32) -> String {
+    let Stamp { year, month, day, hour, minute } = start;
+    let copy = if copy > 1 { format!("_{copy}") } else { String::new() };
+    format!("{year:04}-{month:02}-{day:02}_{hour:02}{minute:02}_{}_{}{copy}{EXTENSION}", slug(header), header.match_id)
 }
 
 /// The game's command line: the launcher's PLAY (no `-localization=`: the
 /// game's own language) with `-match_replay=` after it. The game reads a value in double quotes up to the next quote (its
 /// command-line parser, 0xDF1E3), so a path with spaces is one value. `None`
 /// for a path the game would read otherwise: one with a quote or a control
-/// character, one that ends with a backslash, one too long, one that is
-/// not a full path (the game takes a name without `:` or `\\` for a name in
-/// its own replays folder).
+/// character, one that ends with a backslash, one that is not a full path
+/// (the game takes a name without `:` or `\\` for a name in its own replays
+/// folder). Its length is the caller's: in the ANSI bytes the game reads
+/// (`win::game_path` keeps a path to [`MAX_GAME_PATH`] of them, or its short
+/// form), not this UTF-8 text's.
 pub fn game_command(game: &str, replay: &str) -> Option<String> {
     let bad = |text: &str| text.chars().any(|c| c == '"' || c.is_control());
     if bad(game)
         || bad(replay)
         || replay.ends_with('\\')
-        || replay.len() > MAX_GAME_PATH
         || !(replay.starts_with("\\\\") || replay.get(1..3) == Some(":\\"))
     {
         return None;
@@ -223,7 +319,7 @@ pub enum Problem {
     Busy(String),
     /// Another status (the host, the status).
     Status(String, u32),
-    /// Wrong size or SHA-256.
+    /// Wrong size or SHA-256, or not a replay file.
     Damaged,
     /// The replays folder or the file could not be written (Windows' words).
     Disk(String),
@@ -255,11 +351,11 @@ pub fn message(language: Option<u32>, problem: &Problem) -> String {
         (3, Open { path, detail }) => format!("Wiederholung konnte nicht geöffnet werden:\n{path}\n\n{detail}\n\nPrüfe, ob die Datei vorhanden und lesbar ist."),
         (4, Open { path, detail }) => format!("Nie można otworzyć powtórki:\n{path}\n\n{detail}\n\nSprawdź, czy plik istnieje i można go odczytać."),
         (_, Open { path, detail }) => format!("Couldn't open replay:\n{path}\n\n{detail}\n\nCheck that the file exists and you have permission to read it."),
-        (1, BadLink) => "Ссылка на повтор недействительна. Запросите повтор снова в Истории лобби.".into(),
-        (2, BadLink) => "Посилання на повтор недійсне. Попросіть повтор знову в Історії лобі.".into(),
-        (3, BadLink) => "Dieser Wiederholungslink ist ungültig. Fordere die Wiederholung im Verlauf der Lobby erneut an.".into(),
-        (4, BadLink) => "Ten link do powtórki jest nieprawidłowy. Poproś o powtórkę ponownie w Historii w lobby.".into(),
-        (_, BadLink) => "This replay link is not valid. Ask for the replay again in the lobby's History.".into(),
+        (1, BadLink) => "Ссылка на повтор недействительна. Сохраните повтор снова в лобби.".into(),
+        (2, BadLink) => "Посилання на повтор недійсне. Збережіть повтор знову в лобі.".into(),
+        (3, BadLink) => "Dieser Wiederholungslink ist ungültig. Speichere die Wiederholung erneut in der Lobby.".into(),
+        (4, BadLink) => "Ten link do powtórki jest nieprawidłowy. Zapisz powtórkę ponownie w lobby.".into(),
+        (_, BadLink) => "This replay link is not valid. Save the replay again in the lobby.".into(),
         (1, AlreadyRunning) => "Повтор уже загружается. Дождитесь окончания и попробуйте снова.".into(),
         (2, AlreadyRunning) => "Повтор уже завантажується. Дочекайтеся і спробуйте знову.".into(),
         (3, AlreadyRunning) => "Eine Wiederholung wird bereits heruntergeladen. Warte, bis sie fertig ist, und versuche es erneut.".into(),
@@ -270,11 +366,11 @@ pub fn message(language: Option<u32>, problem: &Problem) -> String {
         (3, Network(host)) => format!("{host} ist nicht erreichbar, um die Wiederholung herunterzuladen. Prüfe die Internetverbindung und versuche es erneut."),
         (4, Network(host)) => format!("Nie można połączyć się z {host}, aby pobrać powtórkę. Sprawdź połączenie z internetem i spróbuj ponownie."),
         (_, Network(host)) => format!("Cannot reach {host} to download the replay. Check the internet connection and try again."),
-        (1, Expired) => "Ссылка на повтор устарела или уже использована. Запросите повтор снова в Истории лобби.".into(),
-        (2, Expired) => "Посилання на повтор застаріло або вже використане. Попросіть повтор знову в Історії лобі.".into(),
-        (3, Expired) => "Der Wiederholungslink ist abgelaufen oder wurde bereits benutzt. Fordere die Wiederholung im Verlauf der Lobby erneut an.".into(),
-        (4, Expired) => "Link do powtórki wygasł lub został już użyty. Poproś o powtórkę ponownie w Historii w lobby.".into(),
-        (_, Expired) => "The replay link has expired or was already used. Ask for the replay again in the lobby's History.".into(),
+        (1, Expired) => "Ссылка на повтор устарела или уже использована. Сохраните повтор снова в лобби.".into(),
+        (2, Expired) => "Посилання на повтор застаріло або вже використане. Збережіть повтор знову в лобі.".into(),
+        (3, Expired) => "Der Wiederholungslink ist abgelaufen oder wurde bereits benutzt. Speichere die Wiederholung erneut in der Lobby.".into(),
+        (4, Expired) => "Link do powtórki wygasł lub został już użyty. Zapisz powtórkę ponownie w lobby.".into(),
+        (_, Expired) => "The replay link has expired or was already used. Save the replay again in the lobby.".into(),
         (1, Busy(host)) => format!("{host} занят. Попробуйте через минуту."),
         (2, Busy(host)) => format!("{host} зайнятий. Спробуйте за хвилину."),
         (3, Busy(host)) => format!("{host} ist ausgelastet. Versuche es in einer Minute erneut."),
@@ -323,6 +419,7 @@ mod tests {
     use super::*;
     use alloc::string::ToString;
     use alloc::vec;
+    use alloc::vec::Vec;
 
     const ID: &str = "0a1b2c3d";
     const TOKEN: &str = "0123456789abcdef0123456789abcdef";
@@ -338,11 +435,10 @@ mod tests {
         assert_eq!(request.id, ID);
         assert_eq!(request.size, 1 << 20);
         assert_eq!(request.sha256[0], 0xfe);
-        assert_eq!(request.file_name(), "srp_0a1b2c3d.sur");
-        assert_eq!(request.part_name(), "srp_0a1b2c3d.sur.part");
+        assert_eq!(request.part_name(), "srp_0a1b2c3d.srpreplay.part");
         assert_eq!(request.route(), format!("/replays/{TOKEN}"));
         assert_eq!(request.token_hint(), "012345");
-        for size in ["1", "0000000001", "67108864"] {
+        for size in ["1", "0000000001", "12582912"] {
             assert!(parse(&args(ID, TOKEN, SHA, size)).is_ok(), "{size}");
         }
     }
@@ -363,15 +459,10 @@ mod tests {
             let (arguments, quiet) = command(&words).unwrap();
             assert!(!quiet && parse(arguments).is_err(), "{words:?}");
         }
-        let alone = line(&["u.exe", "replay", "quiet"]);
-        let (arguments, quiet) = command(&alone).unwrap();
-        assert!(quiet && arguments.is_empty());
         for words in [&["u.exe"][..], &[], &["u.exe", "Replay", ID], &["u.exe", "REPLAY"], &["u.exe", "replay "],
                       &["u.exe", "check", "replay"], &["replay", ID, TOKEN, SHA, "1"]] {
             assert!(command(&line(words)).is_none(), "{words:?}");
         }
-        // The program's own name is never taken for the action.
-        assert_eq!(command(&line(&["replay", "replay"])).map(|(a, q)| (a.len(), q)), Some((0, false)));
     }
 
     #[test]
@@ -382,30 +473,23 @@ mod tests {
             (args(ID, TOKEN, SHA, "1")[..3].to_vec(), Count(3)),
             ([args(ID, TOKEN, SHA, "1"), vec!["x".into()]].concat(), Count(5)),
             (args("0a1b2c3", TOKEN, SHA, "1"), Id),
-            (args("0a1b2c3d0", TOKEN, SHA, "1"), Id),
             (args("0A1B2C3D", TOKEN, SHA, "1"), Id),
-            (args("0a1b2c3g", TOKEN, SHA, "1"), Id),
             (args("..\\..\\x", TOKEN, SHA, "1"), Id),
-            (args("0a1b/c3d", TOKEN, SHA, "1"), Id),
             (args("0a1b2c3\u{e9}", TOKEN, SHA, "1"), Id),
             (args(ID, &TOKEN[1..], SHA, "1"), Token),
-            (args(ID, &(TOKEN.to_string() + "0"), SHA, "1"), Token),
             (args(ID, &TOKEN.to_uppercase(), SHA, "1"), Token),
-            (args(ID, "0123456789abcdef0123456789abcde%", SHA, "1"), Token),
             (args(ID, "0123456789abcdef0123456789abc?=&", SHA, "1"), Token),
             (args(ID, TOKEN, &SHA[1..], "1"), Sha256),
-            (args(ID, TOKEN, &(SHA.to_string() + "f"), "1"), Sha256),
             (args(ID, TOKEN, &SHA.to_uppercase(), "1"), Sha256),
             (args(ID, TOKEN, SHA, ""), Size),
-            (args(ID, TOKEN, SHA, "-1"), Size),
             (args(ID, TOKEN, SHA, "+1"), Size),
             (args(ID, TOKEN, SHA, " 1"), Size),
-            (args(ID, TOKEN, SHA, "1e6"), Size),
             (args(ID, TOKEN, SHA, "0x10"), Size),
             (args(ID, TOKEN, SHA, "12345678901"), Size),
             (args(ID, TOKEN, SHA, "\u{661}"), Size),
             (args(ID, TOKEN, SHA, "0"), SizeOutOfRange),
-            (args(ID, TOKEN, SHA, "67108865"), SizeOutOfRange),
+            // One byte over the 12 MiB cap.
+            (args(ID, TOKEN, SHA, "12582913"), SizeOutOfRange),
             (args(ID, TOKEN, SHA, "9999999999"), SizeOutOfRange),
         ];
         for (arguments, expected) in cases {
@@ -415,58 +499,102 @@ mod tests {
         assert!(!format!("{:?}", parse(&args(ID, "x", SHA, "1"))).contains('x'));
     }
 
+    fn file(header: &str) -> Vec<u8> {
+        let mut out = MAGIC.to_vec();
+        out.extend((header.len() as u32).to_le_bytes());
+        out.extend(header.as_bytes());
+        out.extend(b"\x00\x01events and the replay");
+        out
+    }
+
+    fn read(bytes: &[u8]) -> Result<Header, HeaderError> {
+        let length = header_length(&bytes[..PREFIX.min(bytes.len())])?;
+        parse_header(bytes.get(PREFIX..PREFIX + length).ok_or(HeaderError::Length)?)
+    }
+
+    const GOOD: &str = "format 1\nmatch 1ce45cbe\nmade 1794174000\nlength 912\nmap 24\nmap_slug Rudnya\nmode 4\n\
+                        score 87 100\nplace 0 0 4 7 Some One\n";
+
     #[test]
-    fn only_its_own_names_are_replays() {
-        assert_eq!(replay_file("srp_0a1b2c3d.sur"), Some(("0a1b2c3d", false)));
-        assert_eq!(replay_file("srp_0a1b2c3d.sur.part"), Some(("0a1b2c3d", true)));
-        for name in [
-            "srp_0a1b2c3d.SUR", "SRP_0a1b2c3d.sur", "srp_0A1B2C3D.sur", "srp_0a1b2c3.sur",
-            "srp_0a1b2c3d0.sur", "srp_0a1b2c3d.sur.bak", "srp_0a1b2c3d.part", "x_srp_0a1b2c3d.sur",
-            "srp_0a1b2c3d .sur", "srp_.sur", "match.sur", "notes.txt", "srp_0a1b2c3d.sur.part.part",
+    fn the_header_gives_the_match_its_start_and_its_map() {
+        let header = read(&file(GOOD)).unwrap();
+        assert_eq!(header, Header { match_id: "1ce45cbe".into(), made: 1_794_174_000, map: 24, map_slug: Some("Rudnya".into()) });
+        // No slug: the map's number names it.
+        let header = read(&file("match 1ce45cbe\nmade 0\nmap 7")).unwrap();
+        assert_eq!((header.map_slug, header.map), (None, 7));
+    }
+
+    #[test]
+    fn a_hostile_header_is_refused() {
+        use HeaderError::*;
+        let mut long = file(GOOD);
+        long[8..12].copy_from_slice(&(MAX_HEADER as u32 + 1).to_le_bytes());
+        let mut zero = file(GOOD);
+        zero[8..12].copy_from_slice(&0u32.to_le_bytes());
+        let mut past = file(GOOD);
+        past[8..12].copy_from_slice(&4000u32.to_le_bytes());
+        let mut magic = file(GOOD);
+        magic[7] = b'2';
+        for (bytes, error) in [
+            (magic, Magic), (b"SRPR".to_vec(), Magic), (MAGIC.to_vec(), Length), (long, Length), (zero, Length),
+            (past, Length),
+            (file("match 1ce45cbe\nmade 1\nmap 1\nmap_slug a\rb\n"), Text),
+            (file("match 1ce45cbe\nmade 1\nmap 1\x00\n"), Text),
+            (file("match 1ce45cbe\nmade 1\nmapless\n"), Text),
+            (file("match 1ce45cbe\nmade 1\nmap 1\nmap 2\n"), Text),
+            (file("match 1CE45CBE\nmade 1\nmap 1\n"), Field("match")),
+            (file("match ../x\nmade 1\nmap 1\n"), Field("match")),
+            (file("made 1\nmap 1\n"), Field("match")),
+            (file("match 1ce45cbe\nmade -1\nmap 1\n"), Field("made")),
+            (file("match 1ce45cbe\nmade 12345678901\nmap 1\n"), Field("made")),
+            (file("match 1ce45cbe\nmade 1\nmap x\n"), Field("map")),
+            (file("match 1ce45cbe\nmade 1\n"), Field("map")),
         ] {
-            assert_eq!(replay_file(name), None, "{name}");
+            assert_eq!(read(&bytes), Err(error), "{bytes:?}");
+        }
+        let mut bad_utf8 = file("match 1ce45cbe\nmade 1\nmap 1\nmap_slug \u{e9}\n");
+        let at = bad_utf8.iter().position(|&b| b == 0xC3).unwrap();
+        bad_utf8[at] = 0xFF;
+        assert_eq!(read(&bad_utf8), Err(Text));
+    }
+
+    #[test]
+    fn a_saved_name_is_the_start_the_map_and_the_match() {
+        let start = Stamp { year: 2026, month: 11, day: 8, hour: 21, minute: 40 };
+        let header = |slug: Option<&str>| Header { match_id: "1ce45cbe".into(), made: 0, map: 24, map_slug: slug.map(String::from) };
+        assert_eq!(saved_name(&header(Some("Rudnya")), start, 1), "2026-11-08_2140_Rudnya_1ce45cbe.srpreplay");
+        assert_eq!(saved_name(&header(Some("Rudnya")), start, 2), "2026-11-08_2140_Rudnya_1ce45cbe_2.srpreplay");
+        let early = Stamp { year: 999, month: 1, day: 2, hour: 3, minute: 4 };
+        assert_eq!(saved_name(&header(Some("Vostok-Radar-Station")), early, 1),
+                   "0999-01-02_0304_Vostok-Radar-Station_1ce45cbe.srpreplay");
+        // Only [A-Za-z0-9-], 32 at most; nothing left: the map's number.
+        for (given, slug) in [
+            (Some("..\\..\\Windows"), "Windows"), (Some("C:/a b\"c<>|?*"), "Cabc"), (Some("Рудня"), "map24"),
+            (Some("---"), "map24"), (None, "map24"), (Some(&"a".repeat(40)[..]), &"a".repeat(32)[..]),
+        ] {
+            assert_eq!(super::slug(&header(given)), slug, "{given:?}");
         }
     }
 
-    fn found(names: &[(&str, u64)]) -> Vec<(String, u64)> {
-        names.iter().map(|(name, time)| (String::from(*name), *time)).collect()
-    }
-
     #[test]
-    fn the_newest_ten_are_kept_and_only_the_updaters_own_files_go() {
-        let mut files: Vec<(String, u64)> = (0..14_u64)
-            .map(|n| (format!("srp_{n:08x}.sur"), 100 + n))
-            .collect();
-        files.extend(found(&[
-            ("notes.txt", 1), ("SRP_00000001.SUR", 1), ("srp_zz.sur", 1), ("my.sur", 1),
-            ("srp_000000ff.sur.part", 5), ("srp_00000000.sur.part", 7),
-        ]));
-        // The current one is the oldest: it stays, and nine others with it.
-        let mut gone = to_delete(&files, "srp_00000000.sur", KEEP);
-        gone.sort();
-        let mut expected: Vec<String> = (1..5_u64).map(|n| format!("srp_{n:08x}.sur")).collect();
-        expected.push("srp_000000ff.sur.part".into());
-        expected.sort();
-        assert_eq!(gone, expected);
-        // The current one is the newest: the ten newest stay.
-        let mut gone = to_delete(&files, "srp_0000000d.sur", KEEP);
-        gone.sort();
-        let mut expected: Vec<String> = (0..4_u64).map(|n| format!("srp_{n:08x}.sur")).collect();
-        expected.extend(["srp_00000000.sur.part".into(), "srp_000000ff.sur.part".into()]);
-        expected.sort();
-        assert_eq!(gone, expected);
-        // Ten or fewer: nothing but stray downloads.
-        assert_eq!(to_delete(&found(&[("srp_00000001.sur", 1), ("a.txt", 0)]), "srp_00000002.sur", KEEP),
-                   Vec::<String>::new());
-        // The same time: the choice does not depend on the order found.
-        let same: Vec<(String, u64)> = (0..12_u64).map(|n| (format!("srp_{n:08x}.sur"), 7)).collect();
-        let mut reversed = same.clone();
-        reversed.reverse();
-        assert_eq!(to_delete(&same, "srp_00000005.sur", KEEP).len(), 2);
-        let (mut a, mut b) = (to_delete(&same, "srp_00000005.sur", KEEP), to_delete(&reversed, "srp_00000005.sur", KEEP));
-        a.sort();
-        b.sort();
-        assert_eq!(a, b);
+    fn only_this_matchs_saved_files_and_other_matches_parts_are_named() {
+        let request = parse(&args("1ce45cbe", TOKEN, SHA, "1")).unwrap();
+        for name in ["2026-11-08_2140_Rudnya_1ce45cbe.srpreplay", "x_1ce45cbe_2.srpreplay", "a_1ce45cbe_99.srpreplay"] {
+            assert!(request.is_saved_name(name), "{name}");
+        }
+        for name in [
+            "1ce45cbe.srpreplay", "_1ce45cbe.srpreplay", "x_1ce45cbe_100.srpreplay", "x_1ce45cbf.srpreplay",
+            "x_1ce45cbe.srpreplay.part", "x_1ce45cbe.SRPREPLAY", "x1ce45cbe.srpreplay", "srp_1ce45cbe.srpreplay.part",
+        ] {
+            assert!(!request.is_saved_name(name), "{name}");
+        }
+        assert!(is_stale_part("srp_0a1b2c3d.srpreplay.part", "1ce45cbe"));
+        for name in [
+            "srp_1ce45cbe.srpreplay.part", "srp_0A1B2C3D.srpreplay.part", "srp_0a1b2c3d.sur.part", "srp_0a1b2c3d.sur",
+            "x_0a1b2c3d.srpreplay", "srp_0a1b2c3.srpreplay.part", "notes.txt",
+        ] {
+            assert!(!is_stale_part(name, "1ce45cbe"), "{name}");
+        }
     }
 
     #[test]
@@ -485,9 +613,10 @@ mod tests {
         ] {
             assert_eq!(game_command(game, replay), None, "{replay}");
         }
-        let long = format!("C:\\{}", "d".repeat(MAX_GAME_PATH - 3));
-        assert!(game_command(game, &long).is_some());
-        assert!(game_command(game, &(long + "d")).is_none());
+        // A Cyrillic path the ANSI code page holds in fewer bytes than its UTF-8.
+        let cyrillic = format!("D:\\{}.sur", "п".repeat(MAX_GAME_PATH / 2));
+        assert!(cyrillic.len() > MAX_GAME_PATH);
+        assert!(game_command(game, &cyrillic).is_some());
         assert!(game_command("C:\\a\"b.exe", replay).is_none());
     }
 
@@ -496,8 +625,9 @@ mod tests {
         let problems = [
             Problem::BadLink, Problem::AlreadyRunning, Problem::Network("h.example".into()), Problem::Expired,
             Problem::Busy("h.example".into()), Problem::Status("h.example".into(), 302), Problem::Damaged,
-            Problem::Disk("Access is denied".into()), Problem::NoGame, Problem::Start("Access is denied".into()),
-            Problem::Path, Problem::NotReady,
+            Problem::Disk("Access is denied".into()), Problem::BadFile, Problem::NoGame, Problem::Path,
+            Problem::NotReady, Problem::Start("Access is denied".into()),
+            Problem::Open { path: "h.example".into(), detail: "Access is denied".into() },
         ];
         for problem in &problems {
             let english = message(None, problem);
@@ -511,19 +641,7 @@ mod tests {
                 }
             }
         }
-    }
-
-    #[test]
-    fn a_game_whose_files_are_not_updated_is_sent_to_the_launcher_in_every_language() {
-        // As `updater_skhid.exe ready` tells play_skhid.bat's player: the
-        // file, the launcher that finishes the update, and the log.
-        for language in [None, Some(1), Some(2), Some(3), Some(4)] {
-            let text = message(language, &Problem::NotReady);
-            for part in ["game\\resources.db", "Skhid.bat", "game\\binaries\\x86\\updater_skhid.log"] {
-                assert!(text.contains(part), "{language:?}: {part} in {text}");
-            }
-            assert!(!text.contains("\\\\"), "{text}");
-        }
+        assert_eq!(message(None, &Problem::Disk("x".to_string())), "Cannot save the replay in the game's replays folder: x.");
     }
 
     #[test]

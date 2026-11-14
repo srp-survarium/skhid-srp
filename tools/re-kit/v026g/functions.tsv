@@ -1152,6 +1152,7 @@ va	status	ref_021d	name
 0x002f5ac0	reviewed	0x001de11c	survarium::shared_statistics::serialize
 0x002f5be0	reviewed	0x001de1e0	survarium::shared_statistics::deserialize
 0x002f5da0	reviewed	0x001e5a42	vostok::network_core::buffer_writer::w<unsigned short>
+0x002f79a0	reviewed		survarium::player_profile::kit_level
 0x002f81f0	reviewed	0x001e8a44	survarium::usable_object::load
 0x002f8280	reviewed	0x001e8aa6	survarium::usable_object::resolve_links
 0x002f8300	reviewed	0x001e8b0f	survarium::usable_object::insert
@@ -1801,6 +1802,7 @@ va	status	ref_021d	name
 0x0044635d	verified	0x002b2710	IsRootUNCName
 0x00446d42	verified	0x002e997b	strtok_s
 0x00447290	verified	0x002ea080	_aullrem
+0x00513580	observed		Scaleform::GFx::MovieImpl::HandleEvent
 0x0044a270	verified		ERR_put_error
 0x0044a4e0	verified		ERR_get_error
 0x0044c630	verified		BIO_read
@@ -2232,7 +2234,6 @@ va	status	ref_021d	name
 0x003422f0	reviewed	0x0020cf4f	survarium::short_jump_landing_state::serialize
 0x002ab6e0	reviewed	0x001afe7d	boost::random::detail::new_uniform_01<float>::operator()<boost::random::linear_congruential_engine<unsigned int,48271,0,2147483647> >
 0x002ddad0	observed		survarium::game_effect_player::serialize
-0x00301470	observed	0x001e7a74	survarium::victory_item_core::serialize
 0x00334310	observed		survarium::composite_game_effect::serialize
 0x0026d660	reviewed	0x0019bf64	survarium::base_local_network_client::get_player
 0x00397040	reviewed	0x0024df70	vostok::animation::mixing::n_ary_tree_serializer::save_floats
@@ -2296,6 +2297,27 @@ va	status	ref_021d	name
 0x00106d70	verified		ptmalloc3::memalign_starter
 0x00106d90	verified		ptmalloc3::free_starter
 0x00106fc0	verified		pt3free
+0x001f8360	reviewed		survarium::game_world::switch_to_spectator_camera
+0x00242d50	reviewed		survarium::base_network_client::spectate_next_player
+0x00242f00	reviewed		survarium::base_network_client::spectate_previous_player
+0x00242ae0	reviewed		survarium::base_network_client::attach_to_player
+0x00242b90	reviewed		survarium::base_network_client::set_followed_player
+0x00242cc0	reviewed		survarium::base_network_client::detach_from_player
+0x002430f0	reviewed		survarium::base_network_client::may_spectate
+0x00242a70	reviewed		survarium::base_network_client::followed_team
+0x001f8070	reviewed		survarium::game_world::select_profile
+0x0026e000	reviewed		survarium::base_local_network_client::switch_to_free_view
+0x001ed590	reviewed	0x001542a9	survarium::game::toggle_pause
+0x001ed5c0	reviewed	0x001542db	survarium::game::pause
+0x001ed650	reviewed	0x0015434c	survarium::game::resume
+0x00146b60	observed		vostok::timing::floating_timer::set_speed
+0x00147110	observed		vostok::timing::floating_timer::get_time
+0x0023a660	observed		survarium::game_world_ui::set_replay_position
+0x0023a6c0	observed		survarium::game_world_ui::set_replay_play_state
+0x0023a9d0	observed		survarium::game_world_ui::show_replay_controls
+0x00218bf0	observed		survarium::replay_network_client::tick
+0x002d53c0	observed		survarium::game_world_core::clear_pending_masks
+0x002d3df0	observed		survarium::game_world_core::clear_pending_entries
 0x0011b5a0	reviewed	0x000d78ef	vostok::render::shader_constant_buffer::set_memory
 0x003a90c0	reviewed		anim_read_expression
 0x003a9250	reviewed		anim_build_node

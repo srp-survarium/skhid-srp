@@ -13,10 +13,12 @@ use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use session::matchmaking_policy::Closed;
-use survarium::v026g::keeper;
-use survarium::v026g::twist::{Played, Twist};
+use session::v026g::persist::match_events::MatchEvent;
+use session::v026g::replays::ReplayId;
 use survarium::v026g::dictionary::Dictionary;
+use survarium::v026g::keeper;
 use survarium::v026g::maps::{self, GameMode};
+use survarium::v026g::twist::{Played, Twist};
 use survarium::v026g::match_msgs::MAX_PLAYERS;
 use survarium::v026g::match_msgs::players::Supplies;
 use survarium::v026g::match_msgs::snapshot::{PlayerStatistics, Standing};
@@ -199,6 +201,9 @@ pub(crate) struct Formed {
     pub score_weights: [f32; SCORE_EVENTS],
     pub info: StaticInfo,
     pub formed_at: Instant,
+    /// The match for good: its id with when it was made, its recording's
+    /// name and the history's key.
+    pub replay_id: ReplayId,
     /// Experimental dialect: fixed twenty-slot histories/statistics/masks.
     /// Every connecting client must advertise the matching capability.
     pub growing_roster: bool,
@@ -241,6 +246,8 @@ pub(crate) struct Live {
     pub present: u32,
     /// Each team's kills in the newest trusted snapshot.
     pub kills: [u16; 2],
+    /// Each place's kills and deaths in it.
+    pub kills_deaths: [(u16, u16); MAX_PLAYERS],
     /// Since play began.
     pub played: Option<Duration>,
     /// Until the time limit, known from the countdown on.
@@ -278,6 +285,8 @@ pub struct LiveMatch {
     pub present: u32,
     /// Each team's kills in the newest trusted snapshot.
     pub kills: [u16; 2],
+    /// Each place's kills and deaths in it.
+    pub kills_deaths: [(u16, u16); MAX_PLAYERS],
     /// Since play began.
     pub played: Option<Duration>,
     /// Until the time limit ends it, known from the countdown on. The
@@ -291,7 +300,6 @@ pub struct LiveMatch {
 struct Inner {
     matches: HashMap<u32, std::sync::Arc<Formed>>,
     seats: HashMap<u32, Seat>,
-    last_id: u32,
     /// A growing roster's admission as the match last said it.
     admitting: HashMap<u32, Admitting>,
     live: HashMap<u32, Live>,
@@ -396,7 +404,6 @@ impl MatchRegistry {
             host: host.to_owned(),
             port,
             inner: Mutex::new(Inner {
-                last_id: random() | 1,
                 ..Inner::default()
             }),
         }
@@ -412,6 +419,16 @@ impl MatchRegistry {
     /// The port the clients are told.
     pub fn port(&self) -> u16 {
         self.port
+    }
+
+    /// Where a replay session's game connects (`game::playback`): this
+    /// match server, under the recorded match's id (it makes no match).
+    pub fn replay_ticket(&self, match_id: u32) -> MatchTicket {
+        MatchTicket {
+            match_id,
+            host: self.host.clone(),
+            port: self.port,
+        }
     }
 
     fn inner(&self) -> MutexGuard<'_, Inner> {
@@ -482,18 +499,14 @@ impl MatchRegistry {
                 });
             }
         }
-        let mut match_id = inner.last_id;
-        loop {
-            // Never 0, never one in use, never a [`static_id`].
-            match_id = match_id.wrapping_mul(0x9E37_79B1).wrapping_add(0x7F4A_7C15);
-            if match_id != 0
-                && match_id & STATIC_ID_BIT == 0
-                && !inner.matches.contains_key(&match_id)
-            {
-                break;
+        // Never 0 and never a [`static_id`] (`random_match_id`), never one in
+        // use.
+        let match_id = loop {
+            let match_id = session::random_match_id();
+            if !inner.matches.contains_key(&match_id) {
+                break match_id;
             }
-        }
-        inner.last_id = match_id;
+        };
         let score_weights = setup
             .score_weights
             .unwrap_or_else(|| static_info_weights(map.mode.rules()));
@@ -558,6 +571,7 @@ impl MatchRegistry {
                 score_weights,
                 info,
                 formed_at: now,
+                replay_id: ReplayId::new(match_id, std::time::SystemTime::now()),
                 growing_roster,
                 initial_players: options.players.len(),
                 vs_bots: setup.vs_bots,
@@ -930,6 +944,7 @@ impl MatchRegistry {
                 players,
                 present: (1_u32 << formed.places.len().min(31)) - 1,
                 kills: [0; 2],
+                kills_deaths: [(0, 0); MAX_PLAYERS],
                 played: None,
                 time_left: None,
                 standing: None,
@@ -943,6 +958,7 @@ impl MatchRegistry {
             players: live.players,
             present: live.present,
             kills: live.kills,
+            kills_deaths: live.kills_deaths,
             played: live.played.map(|played| played + since),
             time_left: live.time_left.map(|left| left.saturating_sub(since)),
             standing: live.standing.map(|(standing, age)| LiveStanding {
@@ -1082,6 +1098,8 @@ pub struct PlayerResult {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatchResult {
     pub match_id: u32,
+    /// [`Formed::replay_id`]: the same match.
+    pub replay_id: ReplayId,
     pub map_id: u8,
     /// [`Formed::played`]'s: Blackout's scores pay twice.
     pub mode: GameMode,
@@ -1117,6 +1135,8 @@ pub struct MatchResult {
     pub vs_bots: bool,
     /// [`MatchSetup::private`].
     pub private: bool,
+    /// What happened, from the trusted snapshots ([`super::events`]).
+    pub events: Vec<MatchEvent>,
 }
 
 /// Where finished matches go: the lobby's results and rewards code.

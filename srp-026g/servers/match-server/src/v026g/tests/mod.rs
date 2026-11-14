@@ -15,11 +15,13 @@ mod free_for_all;
 mod game;
 mod late_join;
 mod late_join_edge_cases;
+mod playback;
 mod resync_gate;
 mod packet_safety;
 mod packet_input;
 mod refused_worlds;
 mod sockets;
+mod spectate;
 mod start;
 mod units;
 

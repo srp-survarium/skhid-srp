@@ -53,8 +53,8 @@ use updater_logic::zip;
 use windows_sys::Win32::System::Environment::GetCommandLineW;
 use windows_sys::Win32::System::Threading::ExitProcess;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    IDRETRY, MB_ICONERROR, MB_ICONWARNING, MB_OK, MB_RETRYCANCEL, MB_SETFOREGROUND, MB_TOPMOST,
-    MESSAGEBOX_RESULT, MESSAGEBOX_STYLE, MessageBoxW,
+    IDRETRY, MB_ICONERROR, MB_ICONWARNING, MB_OK, MB_RETRYCANCEL,
+    MB_SETFOREGROUND, MB_TOPMOST, MESSAGEBOX_RESULT, MESSAGEBOX_STYLE, MessageBoxW,
 };
 
 use crate::http::HttpError;
@@ -911,7 +911,7 @@ fn options_of(arguments: &[String]) -> Result<Options, String> {
 }
 
 fn run() -> u32 {
-    // "Watch replay": started by the patched game with a replay link
+    // "Save replay": started by the patched game with a replay link
     // (`replay.rs`). Exactly this word, as the game's patch sends it.
     let arguments = arguments();
     if let Some((file_arguments, quiet)) = updater_logic::local_replay::command(&arguments) {

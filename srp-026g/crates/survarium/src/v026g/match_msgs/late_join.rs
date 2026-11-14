@@ -6,7 +6,7 @@ use super::super::dictionary::Dictionary;
 use super::MAX_PLAYERS;
 use super::static_info::{self, MatchProfile, StaticInfoError};
 
-const PREPARE_MAGIC: [u8; 4] = [0xff, b'L', b'J', 1];
+const PREPARE_MAGIC: [u8; 4] = replay_control::LATE_JOIN_PREPARE;
 const PREPARED_MAGIC: [u8; 8] = [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0, 0];
 const PREPARE_HEADER: usize = 14;
 pub const PREPARED_SIZE: usize = 20;

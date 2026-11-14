@@ -54,18 +54,30 @@ impl Dik {
     pub const LEFT_ALT: Dik = Dik(0x38);
     /// DIK_RMENU: the right Alt (alt_is_held 0x241200 asks both).
     pub const RIGHT_ALT: Dik = Dik(0xB8);
+    pub const ESCAPE: Dik = Dik(0x01);
+    /// The keys 1, 2 and 3 of the top row (patch 58's kits).
+    pub const KEY_1: Dik = Dik(0x02);
+    pub const KEY_2: Dik = Dik(0x03);
+    pub const KEY_3: Dik = Dik(0x04);
+    pub const LEFT_BRACKET: Dik = Dik(0x1A);
+    pub const RIGHT_BRACKET: Dik = Dik(0x1B);
+    pub const H: Dik = Dik(0x23);
+    pub const M: Dik = Dik(0x32);
+    pub const LEFT_SHIFT: Dik = Dik(0x2A);
+    pub const RIGHT_SHIFT: Dik = Dik(0x36);
+    pub const SPACE: Dik = Dik(0x39);
+    pub const F11: Dik = Dik(0x57);
+    pub const LEFT: Dik = Dik(0xCB);
+    pub const RIGHT: Dik = Dik(0xCD);
     pub const A: Dik = Dik(0x1E);
     pub const D: Dik = Dik(0x20);
     pub const COMMA: Dik = Dik(0x33);
     pub const PERIOD: Dik = Dik(0x34);
-    pub const SPACE: Dik = Dik(0x39);
     pub const F1: Dik = Dik(0x3B);
     pub const F2: Dik = Dik(0x3C);
     pub const F3: Dik = Dik(0x3D);
     pub const F5: Dik = Dik(0x3F);
     pub const F6: Dik = Dik(0x40);
-    pub const LEFT: Dik = Dik(0xCB);
-    pub const RIGHT: Dik = Dik(0xCD);
 
     /// Its code.
     pub fn code(self) -> u8 {
@@ -144,10 +156,39 @@ impl<'c, 'm> GameWorldKey<'c, 'm> {
         self.ctx.thread()
     }
 
+    /// A Shift key is down in the keyboard this key came from (the input
+    /// world of the function's first argument, as it asks it for Tab at
+    /// 0x25CD11..0x25CD24): false unless that is the platform's input world
+    /// and keyboard (both vtables checked).
+    pub fn shift_down(&self) -> bool {
+        use raw::site::tab_cursor_key as site;
+        // SAFETY: the context is this site's: the function's first argument,
+        // the input world, and its keyboard, alive while it runs on the
+        // game's thread; their fields are read only after their vtables say
+        // what they are (a platform keyboard's 256 states at +4).
+        unsafe {
+            let Some(world) = site::frame(&*self.ctx).and_then(|frame| frame.input_world()) else { return false };
+            if *world.vtable() != raw::image::INPUT_WORLD_VTABLE {
+                return false;
+            }
+            let Some(keyboard) = world.keyboard() else { return false };
+            if *keyboard.vtable() != raw::image::KEYBOARD_VTABLE {
+                return false;
+            }
+            [Dik::LEFT_SHIFT, Dik::RIGHT_SHIFT].iter().any(|key| *keyboard.keys().at(usize::from(key.0)).state() & 0x80 != 0)
+        }
+    }
+
     /// The chat keys' action the key is bound to (the binder's kind 8, as
     /// chat_handler::on_keyboard_action asks it, 0x208887), if any.
     pub fn chat_action(&self) -> Option<super::input::Action> {
-        chat_action(&self.hud, u32::from(self.key.0))
+        bound_action(&self.hud, CHAT_KINDS, u32::from(self.key.0))
+    }
+
+    /// The game world's action the key is bound to (the binder's kind 1, as
+    /// this function asks it further on, 0x25CD5F), if any.
+    pub fn match_action(&self) -> Option<super::input::Action> {
+        bound_action(&self.hud, MATCH_KINDS, u32::from(self.key.0))
     }
 
     /// The replay player movie (replay_player.swf) of this key's game world,
@@ -166,9 +207,15 @@ impl<'c, 'm> GameWorldKey<'c, 'm> {
     }
 }
 
-/// The chat keys' action a key code (a DirectInput key, or 151h + a mouse
-/// button) is bound to in the hud's game's binder (kind 8), if any.
-fn chat_action(hud: &Hud<'_>, code: u32) -> Option<super::input::Action> {
+/// The binder's kind mask of the chat keys (chat_handler::on_keyboard_action, 0x208887).
+const CHAT_KINDS: u32 = 8;
+/// The binder's kind mask of the game world's keys (on_keyboard_action, 0x25CD5F).
+const MATCH_KINDS: u32 = 1;
+
+/// The action of `kinds` a key code (a DirectInput key, or 151h + a mouse
+/// button) is bound to in the hud's game's binder, if any (the binder's
+/// 49h when none).
+fn bound_action(hud: &Hud<'_>, kinds: u32, code: u32) -> Option<super::input::Action> {
     let binder = hud.game().and_then(|game| {
         // SAFETY: the hud's game, alive for the hook.
         unsafe { game.binder() }
@@ -176,7 +223,7 @@ fn chat_action(hud: &Hud<'_>, code: u32) -> Option<super::input::Action> {
     let mut toggle = 0;
     // SAFETY: the game's live binder, on its thread; the code one the input
     // world gives its listeners (get_binded_action compares it, 0x207D50).
-    let action = unsafe { raw::engine_binded_action(Some(binder), 8, code, &mut toggle) };
+    let action = unsafe { raw::engine_binded_action(Some(binder), kinds, code, &mut toggle) };
     Some(super::input::Action(action))
 }
 
@@ -267,7 +314,7 @@ impl<'c> GameWorldButton<'c> {
 
     /// The chat keys' action the button is bound to (kind 8), if any.
     pub fn chat_action(&self) -> Option<super::input::Action> {
-        chat_action(&self.hud, self.button.key())
+        bound_action(&self.hud, CHAT_KINDS, self.button.key())
     }
 }
 

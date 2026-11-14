@@ -1,8 +1,9 @@
-//! The server's conversion against a recording file made here: what the
-//! files are, what the sidecar says, and that nothing private of the
-//! recording reaches the `.sur`.
+//! What the recordings give the replays: each place's account and game
+//! revision ([`places`]), and that nothing private of a recording reaches
+//! a `.sur` made of it (`sur_convert`, which `srp-recording-to-sur` runs).
 
 use std::io::Write;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::lzma2;
@@ -14,6 +15,7 @@ use survarium::v026g::match_msgs::upload;
 use super::*;
 use crate::v026g::record::{ACCEPTED_WORLD, AcceptedWorld, IN, MAGIC, NO_PLACE, OUT};
 use crate::v026g::sur;
+use crate::v026g::sur_convert::{self, Settings};
 
 const MATCH: u32 = 0x1F07_C8FB;
 /// A session id, a token and an address the recording holds (a 0xD8, a
@@ -34,22 +36,16 @@ fn temp(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
         "srp-replay-{name}-{}-{}",
         std::process::id(),
-        Replays::now_unix()
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
     ));
     let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
     dir
 }
 
-fn settings(root: &Path) -> ReplaySettings {
-    ReplaySettings {
-        replay_dir: root.join("replays"),
-        record_dir: root.join("recordings"),
-        max_recording_bytes: 1 << 20,
-        max_replay_bytes: 1 << 30,
-    }
-    .checked()
-    .unwrap()
-}
 
 fn profile(name: &str, team: u8) -> MatchProfile {
     MatchProfile {
@@ -186,268 +182,225 @@ fn holds(haystack: &[u8], needle: &[u8]) -> bool {
 }
 
 #[test]
-fn a_kept_recording_becomes_a_replay_and_its_sidecar() {
-    let root = temp("make");
-    let settings = settings(&root);
-    let recording = settings
-        .record_dir
-        .join(format!("rec026g_20261015-120000_{MATCH:08x}.srprec"));
-    let replay_dir = settings.replay_dir.to_string_lossy().into_owned();
-    let record_dir = settings.record_dir.to_string_lossy().into_owned();
-    let config = write_recording(&recording, &[TOKEN, ADDRESS, &replay_dir, &record_dir]);
+fn a_recordings_places_read_and_its_sur_holds_nothing_private() {
+    let root = temp("convert");
+    let recording = root.join(format!("rec026g_20261015-120000_{MATCH:08x}.srprec"));
+    let dir = root.to_string_lossy().into_owned();
+    write_recording(&recording, &[TOKEN, ADDRESS, &dir]);
+    assert_eq!(recording_in(&root, MATCH), Some(recording.clone()));
+    assert_eq!(recording_in(&root, 0x1234), None);
 
-    let sidecar = make(&settings, MATCH).unwrap();
-    let sur_path = settings.replay_dir.join("1f07c8fb.sur");
-    let file = fs::read(&sur_path).unwrap();
+    let notes = record::read_notes(&recording).unwrap();
+    let (account_ids, revisions) = places(&notes);
+    assert_eq!(account_ids, [1001, 1002, 1003]);
+    let (newer, today) = self::revisions();
+    assert_eq!(revisions, [Some(newer), Some(today), None]);
+
+    let (file, _) =
+        sur_convert::convert_file(&recording, &notes, b"the mode's config", Settings::default())
+            .unwrap();
     sur::verify(&file).unwrap();
-    assert_eq!(sidecar.size, file.len() as u64);
-    assert_eq!(
-        sidecar.sha256,
-        openssl::sha::sha256(&file)
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>()
-    );
-    assert_eq!(sidecar.account_ids, [1001, 1002, 1003]);
-    let (newer, today) = revisions();
-    assert_eq!(sidecar.revisions, [Some(newer), Some(today), None]);
-    let json = fs::read_to_string(settings.replay_dir.join("1f07c8fb.json")).unwrap();
-    assert_eq!(Sidecar::parse(&json), Some(sidecar));
-    // Nothing is left under `.part`, and nothing else is made.
-    let mut names: Vec<String> = fs::read_dir(&settings.replay_dir)
-        .unwrap()
-        .flatten()
-        .map(|entry| entry.file_name().to_string_lossy().into_owned())
-        .collect();
-    names.sort();
-    assert_eq!(names, ["1f07c8fb.json", "1f07c8fb.sur"]);
-
     // What the players were sent, and the mode's config; nothing of the
     // session, the token, the address or the server's folders, in the file
     // or in what the game unpacks of it.
     let chunks = decoded(&file);
-    assert!(holds(&chunks[4], sur_convert::config(&config).unwrap()));
+    assert!(holds(&chunks[4], b"the mode's config"));
     for place in [&file[..], &chunks.concat()] {
         assert!(!holds(place, &SESSION.to_le_bytes()));
-        for secret in [
-            TOKEN,
-            ADDRESS,
-            &replay_dir,
-            &record_dir,
-            "planted",
-            "account_id",
-        ] {
+        for secret in [TOKEN, ADDRESS, &dir, "planted", "account_id"] {
             assert!(!holds(place, secret.as_bytes()), "{secret}");
         }
     }
     let _ = fs::remove_dir_all(&root);
 }
 
+/// Recordings in `root/recordings`, Save's files in `root/replays`.
+fn saving(root: &Path) -> Replays {
+    let record_dir = root.join("recordings");
+    fs::create_dir_all(&record_dir).unwrap();
+    let save = SaveSettings {
+        replay_dir: root.join("replays"),
+        max_replay_bytes: 1 << 30,
+    }
+    .checked(&record_dir)
+    .unwrap();
+    Replays::new(Some(record_dir)).with_save(save)
+}
+
+fn names(dir: &Path) -> Vec<String> {
+    let mut names: Vec<String> = fs::read_dir(dir)
+        .unwrap()
+        .flatten()
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    names
+}
+
 #[test]
-fn a_recording_over_the_cap_or_not_kept_is_not_converted() {
-    let root = temp("refused");
-    let mut settings = settings(&root);
-    let recording = settings
-        .record_dir
-        .join(format!("rec026g_20261015-120000_{MATCH:08x}.srprec"));
-    write_recording(&recording, &[]);
-    settings.max_recording_bytes = 100;
-    let error = make(&settings, MATCH).unwrap_err();
-    assert!(error.why.contains("bytes"), "{error:?}");
-    assert_eq!(error.failure, Failure::Lasting);
-    // A recording still being written, or of another match: none.
-    assert!(make(&settings, 0x1234).is_err());
+fn a_kept_recording_becomes_a_save_file_that_holds_nothing_private() {
+    let root = temp("save");
+    let replays = saving(&root);
+    let record_dir = replays.record_dir().unwrap().to_owned();
+    let replay_dir = replays.save_settings().unwrap().replay_dir.clone();
+    let recording = record_dir.join(format!("rec026g_20261015-120000_{MATCH:08x}.srprec"));
+    let secrets = [
+        TOKEN,
+        ADDRESS,
+        &record_dir.to_string_lossy(),
+        &replay_dir.to_string_lossy(),
+    ]
+    .map(str::to_owned);
+    write_recording(&recording, &secrets.each_ref().map(String::as_str));
+
+    let sidecar = make(&replays, None, MATCH).unwrap();
+    assert_eq!(names(&replay_dir), ["1f07c8fb.json", "1f07c8fb.srpreplay"]);
+    let bytes = fs::read(replay_dir.join("1f07c8fb.srpreplay")).unwrap();
+    assert_eq!(sidecar.size, bytes.len() as u64);
+    let sha: String = openssl::sha::sha256(&bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    assert_eq!(sidecar.sha256, sha);
+    assert_eq!(sidecar.account_ids, [1001, 1002, 1003]);
+    let (newer, today) = revisions();
+    assert_eq!(sidecar.revisions, [Some(newer), Some(today), None]);
+    let json = fs::read_to_string(replay_dir.join("1f07c8fb.json")).unwrap();
+    assert_eq!(Sidecar::parse(&json), Some(sidecar));
+
+    // The container: the header of the options and the recording's name,
+    // and a `.sur` a replay session plays.
+    let file = ReplayFile::read(&bytes).unwrap();
+    let map = survarium::v026g::maps::playable_in(survarium::v026g::maps::GameMode::Batteries)
+        .next()
+        .unwrap();
+    assert_eq!(file.header.match_id, MATCH);
+    // 2026-10-15 12:00:00 UTC.
+    assert_eq!(file.header.made, 1_792_065_600);
+    assert_eq!(file.header.map, map.id);
+    assert_eq!(file.header.mode, map.mode.lobby_number());
+    assert_eq!(file.header.score, None);
+    let names: Vec<&str> = file.header.places.iter().map(|p| p.name.as_str()).collect();
+    assert_eq!(names, ["a", "b"]);
+    assert!(file.events.is_empty());
+    crate::v026g::game::playback::Recording::from_sur(&file.sur, MATCH).unwrap();
+    // Nothing of the session, the token, the address, the accounts or the
+    // server's folders, in the file or in what the game unpacks of it.
+    let chunks = decoded(&file.sur);
+    for place in [&bytes[..], &chunks.concat()] {
+        assert!(!holds(place, &SESSION.to_le_bytes()));
+        assert!(!holds(place, &1001u32.to_le_bytes()));
+        for secret in secrets.iter().map(String::as_str).chain(["planted", "account_id", "1001"]) {
+            assert!(!holds(place, secret.as_bytes()), "{secret}");
+        }
+    }
+
+    // A recording still being written, or of another match: none made.
+    assert!(make(&replays, None, 0x1234).is_err());
     fs::rename(&recording, recording.with_extension("srprec.part")).unwrap();
-    settings.max_recording_bytes = 1 << 20;
     assert_eq!(
-        make(&settings, MATCH).unwrap_err(),
+        make(&replays, None, MATCH).unwrap_err(),
         MakeError {
             why: "no kept recording".into(),
             failure: Failure::Lasting
         }
     );
-    assert_eq!(fs::read_dir(&settings.replay_dir).unwrap().count(), 0);
     let _ = fs::remove_dir_all(&root);
 }
 
 #[test]
-fn a_recording_that_does_not_unpack_fails_for_good() {
-    let root = temp("header-first");
-    let settings = settings(&root);
-    let recording = settings
-        .record_dir
-        .join(format!("rec026g_20261015-120000_{MATCH:08x}.srprec"));
-    let config = write_recording(&recording, &[]);
-    // A second block that does not unpack: reading the whole file fails.
-    let mut file = fs::OpenOptions::new()
-        .append(true)
-        .open(&recording)
-        .unwrap();
-    file.write_all(&4u32.to_le_bytes()).unwrap();
-    file.write_all(&100u32.to_le_bytes()).unwrap();
-    file.write_all(&[0xFF; 4]).unwrap();
-    drop(file);
-    assert!(record::read_notes(&recording).is_err());
-    // The header is read from the first block alone.
-    let header = record::read_header(&recording).unwrap().unwrap();
-    assert_eq!(
-        sur_convert::config_name(std::slice::from_ref(&header)),
-        Some(config)
-    );
-    // The bad block: the recording's own failure, for good.
-    let error = make(&settings, MATCH).unwrap_err();
-    assert_eq!(error.failure, Failure::Lasting, "{error:?}");
-    assert!(error.why.contains("unpack"), "{error:?}");
-    let _ = fs::remove_dir_all(&root);
-}
-
-#[test]
-fn the_oldest_replays_over_the_cap_go_and_the_new_one_stays() {
+fn the_oldest_files_over_the_cap_go_and_the_new_one_stays() {
     let root = temp("cap");
-    let mut settings = settings(&root);
-    settings.max_replay_bytes = 2_500;
-    let dir = settings.replay_dir.clone();
-    let at = |seconds: u64| SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(seconds);
-    // Four replays of 1,000 bytes and a sidecar of 10 each, the newest last.
+    let replays = saving(&root);
+    let mut save = replays.save_settings().unwrap().clone();
+    let dir = save.replay_dir.clone();
+    let at = |seconds: u64| UNIX_EPOCH + std::time::Duration::from_secs(seconds);
+    // Four files of 1,000 bytes and a sidecar of 10 each, the newest last.
     for (n, id) in [3u32, 1, 4, 2].into_iter().enumerate() {
-        let sur = dir.join(format!("{id:08x}.sur"));
-        fs::write(&sur, vec![0u8; 1000]).unwrap();
+        let path = dir.join(format!("{id:08x}.srpreplay"));
+        fs::write(&path, vec![0u8; 1000]).unwrap();
         fs::File::options()
             .write(true)
-            .open(&sur)
+            .open(&path)
             .unwrap()
             .set_modified(at(1_000_000 + n as u64))
             .unwrap();
         fs::write(dir.join(format!("{id:08x}.json")), [b'x'; 10]).unwrap();
     }
     // Other names are neither counted nor touched.
-    for name in ["notes.txt", "00000009.sur.part", "ABCDEF01.sur"] {
+    for name in ["notes.txt", "00000009.srpreplay.part", "ABCDEF01.srpreplay"] {
         fs::write(dir.join(name), vec![0u8; 5000]).unwrap();
     }
-    let names = || {
-        let mut names: Vec<String> = fs::read_dir(&dir)
-            .unwrap()
-            .flatten()
-            .map(|entry| entry.file_name().to_string_lossy().into_owned())
-            .collect();
-        names.sort();
-        names
-    };
-    // Under the cap: nothing goes.
-    settings.max_replay_bytes = 4_040;
-    cap(&settings, None);
-    assert_eq!(names().len(), 11);
+    save.max_replay_bytes = 4_040;
+    cap(&save, None);
+    assert_eq!(names(&dir).len(), 11);
     // 4,040 bytes over 2,500: the two oldest (3, then 1) go.
-    settings.max_replay_bytes = 2_500;
-    cap(&settings, None);
-    assert_eq!(
-        names(),
-        [
-            "00000002.json",
-            "00000002.sur",
-            "00000004.json",
-            "00000004.sur",
-            "00000009.sur.part",
-            "ABCDEF01.sur",
-            "notes.txt"
-        ]
-    );
+    save.max_replay_bytes = 2_500;
+    cap(&save, None);
+    let left = [
+        "00000002.json",
+        "00000002.srpreplay",
+        "00000004.json",
+        "00000004.srpreplay",
+        "00000009.srpreplay.part",
+        "ABCDEF01.srpreplay",
+        "notes.txt",
+    ];
+    assert_eq!(names(&dir), left);
     // The one just made stays, even when it alone is over the cap.
-    settings.max_replay_bytes = 100;
-    cap(&settings, Some(4));
-    assert_eq!(
-        names(),
-        [
-            "00000004.json",
-            "00000004.sur",
-            "00000009.sur.part",
-            "ABCDEF01.sur",
-            "notes.txt"
-        ]
-    );
+    save.max_replay_bytes = 100;
+    cap(&save, Some(4));
+    assert_eq!(names(&dir), left[2..]);
     let _ = fs::remove_dir_all(&root);
 }
 
 #[test]
-fn replays_of_gone_recordings_and_parts_are_deleted_and_nothing_else() {
+fn files_of_gone_recordings_and_parts_are_deleted_and_nothing_else() {
     let root = temp("prune");
-    let settings = settings(&root);
+    let replays = saving(&root);
+    let save = replays.save_settings().unwrap();
+    let record_dir = replays.record_dir().unwrap();
     fs::write(
-        settings
-            .record_dir
-            .join("rec026g_20261015-120000_00000001.srprec"),
+        record_dir.join("rec026g_20261015-120000_00000001.srprec"),
         b"x",
     )
     .unwrap();
-    let names = [
-        "00000001.sur",
+    for name in [
+        "00000001.srpreplay",
         "00000001.json",
-        "00000002.sur",
+        "00000002.srpreplay",
         "00000002.json",
-        "00000003.sur.part",
+        "00000003.srpreplay.part",
         "00000004.json.part",
-        "ABCDEF01.sur",
+        "ABCDEF01.srpreplay",
         "notes.txt",
-        "srp.db",
-    ];
-    for name in names {
-        fs::write(settings.replay_dir.join(name), b"x").unwrap();
+    ] {
+        fs::write(save.replay_dir.join(name), b"x").unwrap();
     }
-    prune(&settings);
-    let mut left: Vec<String> = fs::read_dir(&settings.replay_dir)
-        .unwrap()
-        .flatten()
-        .map(|entry| entry.file_name().to_string_lossy().into_owned())
-        .collect();
-    left.sort();
+    prune(save, record_dir);
     assert_eq!(
-        left,
+        names(&save.replay_dir),
         [
             "00000001.json",
-            "00000001.sur",
-            "ABCDEF01.sur",
-            "notes.txt",
-            "srp.db"
+            "00000001.srpreplay",
+            "ABCDEF01.srpreplay",
+            "notes.txt"
         ]
     );
     let _ = fs::remove_dir_all(&root);
 }
 
+/// A note's revision 0 is a session the server did not know: `None`, which
+/// a replay's check does not count, not a game of revision 0.
 #[test]
-fn the_thread_converts_what_is_queued_and_the_desk_hears_of_it() {
-    let root = temp("thread");
-    let settings = settings(&root);
-    let recording = settings
-        .record_dir
-        .join(format!("rec026g_20261015-120000_{MATCH:08x}.srprec"));
-    write_recording(&recording, &[]);
-    let replays = Arc::new(Replays::new(Some(settings.clone()), 6));
-    let thread = start(replays.clone()).unwrap().unwrap();
-    // Kept: nothing is made until someone asks.
-    replays.recording_kept(MATCH);
-    std::thread::sleep(std::time::Duration::from_millis(100));
-    assert!(!settings.replay_dir.join("1f07c8fb.sur").exists());
-    let known = Some(session::v026g::replays::Known {
-        played: true,
-        places: 2,
-    });
-    let first = replays.ask(1001, MATCH, Some(revisions().0), known, Instant::now());
-    assert_eq!(first, replays::Status::Preparing);
-    // The movie's polls: each looks again while it is `preparing`.
-    let mut status = None;
-    for _ in 0..500 {
-        let answer = replays.answer(1001, Instant::now());
-        if answer.status != replays::Status::Preparing {
-            status = Some(answer.status);
-            assert!(answer.link().is_some());
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(10));
-    }
-    // The newer game: place 0 played with it and place 1 with today's, which
-    // it plays.
-    assert_eq!(status, Some(replays::Status::Ready));
-    replays.stop();
-    thread.join().unwrap();
-    let _ = fs::remove_dir_all(&root);
+fn a_note_of_revision_zero_is_not_known() {
+    let note = |place: u8, revision: u8| record::Record {
+        kind: NOTE,
+        place: 0,
+        at_ms: 0,
+        bytes: format!(r#"{{"note":"revision","place":{place},"revision":{revision}}}"#)
+            .into_bytes(),
+    };
+    let (_, revisions) = by_place(&[note(0, 0), note(1, 40)]);
+    assert_eq!(revisions, [None, Some(40)]);
 }

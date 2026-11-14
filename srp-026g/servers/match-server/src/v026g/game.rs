@@ -125,6 +125,7 @@ const _: () = assert!(
 
 use super::afk::{self, Watch};
 use super::battery_cap;
+use super::events::{self, Seat};
 use super::kill_cap;
 use super::record::{AcceptedWorld, Recorder, Recording};
 use super::registry::{Formed, IdleRemoved, MatchEnd, MatchResult, PlayerResult};
@@ -132,13 +133,25 @@ use super::{LateInputs, Settings};
 
 mod afk_watch;
 mod driven;
+mod kit_view;
 mod late_join;
 mod live;
+pub(crate) mod playback;
+mod spectate;
 mod start;
 use late_join::{Admission, LoadingProfile};
+pub(crate) use playback::ReplayWatch;
+#[cfg(test)]
+pub(crate) use playback::Recording as ReplayRecording;
+pub(crate) use spectate::SpectatorAt;
 
 /// A tick is final this long after it: the server's event horizon.
 const HORIZON_MS: u32 = 250;
+/// The relayed list (`Game::inputs`, a replay's inputs) is in time order but
+/// for an input taken late: none is earlier than one listed before it by this
+/// much or more. So those after a time all come after the last one listed
+/// this far before it.
+const RELAYED_DISORDER_MS: u32 = 4 * HORIZON_MS;
 /// Inputs further ahead than this are dropped (the client moves them back).
 const TOO_NEW_MS: u32 = 2_500;
 /// With others simulating, a newcomer starts only from a snapshot this
@@ -302,6 +315,10 @@ const CANDIDATE_WAIT: Duration = Duration::from_secs(3);
 const ASKED_FOR: Duration = Duration::from_secs(6);
 /// Hash reports are kept this long (match ms).
 const HASH_KEEP_MS: u32 = 30_000;
+/// The players' majorities are kept this long (match ms): a spectator at
+/// the longest Live delay reports ticks that far back, and its horizon and
+/// the settling a little more.
+const SETTLED_KEPT_MS: u32 = session::LiveDelay::MAX_SECONDS as u32 * 1000 + 5_000;
 /// The match ends this long after the clients' time limit.
 const END_GRACE_MS: u32 = 2_000;
 /// A match without a client for this long is over.
@@ -320,6 +337,8 @@ const INPUT_MAX_AGE_MS: u32 = 5_000;
 /// Relayed inputs are kept this long for clients that start from a
 /// snapshot (none older than `TICK_REACH_MS` is started from).
 const INPUTS_KEPT_MS: u32 = 60_000;
+// The longest live delay must still find a start: all of `delayed_start`'s window is kept.
+const _: () = assert!(session::LiveDelay::MAX_SECONDS as u32 * 1000 + FRESH_SNAPSHOT_MS <= INPUTS_KEPT_MS);
 /// Rejected or unchecked snapshots saved at most this many times a match.
 const MAX_DOUBTFUL_DUMPS: u32 = 40;
 /// The worlds of players found out of step asked for (`ask_wrong_world`):
@@ -979,6 +998,14 @@ pub(crate) struct Game {
     snapshot: Option<Snapshot>,
     /// The newest upload no majority contradicts, checked or not.
     recent: Option<Snapshot>,
+    /// The trusted worlds of the last [`INPUTS_KEPT_MS`], oldest first: where
+    /// a Live window's spectator, behind the match, starts (`spectate`);
+    /// each with its 0xE8 past the generation byte, made once for every
+    /// spectator started from it.
+    past: VecDeque<(Snapshot, OnceLock<Vec<u8>>)>,
+    /// The places' kills and deaths of the trusted worlds, told behind the
+    /// match (`live`).
+    live_records: live::DelayedRecords,
     requested_at: Option<Instant>,
     candidates: Vec<Candidate>,
     /// Everything relayed: its time, whose it is, what.
@@ -988,6 +1015,10 @@ pub(crate) struct Game {
     /// CRC reports by tick and client.
     hashes: BTreeMap<u32, HashMap<usize, u32>>,
     hashes_checked_until: u32,
+    /// The players' majority of each tick judged, oldest first, for the
+    /// last [`SETTLED_KEPT_MS`]: what a spectator behind the match by up to
+    /// the longest Live delay is judged against (`judge_spectators`).
+    settled_hashes: VecDeque<(u32, u32)>,
     /// Reports for ticks up to this are not judged: the games were
     /// installing a new place then ([`Game::installing`]).
     hashes_unjudged_until: u32,
@@ -1007,6 +1038,9 @@ pub(crate) struct Game {
     best_streaks: Vec<u16>,
     /// Who killed whom, as far as the snapshots tell ([`kill_cap`]).
     kill_pairs: kill_cap::Pairs,
+    /// What happened, from the trusted snapshots: the history's events
+    /// ([`events`]).
+    match_events: events::Extractor,
     /// By place: the kit choices relayed for a tick before play began
     /// (`TimelimitRule::before_play`), when a patched game (patch 31)
     /// respawns a live player in the chosen kit where it stands. At most as
@@ -1052,6 +1086,12 @@ pub(crate) struct Game {
     stand_ins: Vec<start::StandIn>,
     /// `SRP_RECORD_DIR`: every datagram of the match ([`super::record`]).
     recording: Option<Recording>,
+    /// Games that watch the match from a room's queue: no places
+    /// ([`spectate`]).
+    spectators: Vec<spectate::Spectator>,
+    /// The spectators whose games left by themselves, not yet told
+    /// ([`Game::take_spectators_left`]): their sessions.
+    spectators_left: Vec<u32>,
     /// Anti-AFK: whether this match removes idle players, decided when it
     /// is made, and each player's time without input ([`afk_watch`]).
     afk: Watch,
@@ -1083,12 +1123,15 @@ impl Game {
             clock_start: None,
             snapshot: None,
             recent: None,
+            past: VecDeque::new(),
+            live_records: live::DelayedRecords::default(),
             requested_at: None,
             candidates: Vec::new(),
             inputs: Vec::new(),
             events: Vec::new(),
             hashes: BTreeMap::new(),
             hashes_checked_until: 0,
+            settled_hashes: VecDeque::new(),
             hashes_unjudged_until: 0,
             hash_unshared_since: None,
             hash_starved: false,
@@ -1100,6 +1143,7 @@ impl Game {
             state: None,
             best_streaks: vec![0; players],
             kill_pairs: kill_cap::Pairs::default(),
+            match_events: events::Extractor::new(formed.played.mode().rules()),
             kit_changes: vec![0; players],
             load_waits: vec![late_join::LoadWait::First; players],
             ending: None,
@@ -1121,6 +1165,8 @@ impl Game {
             given_up: vec![false; players],
             stand_ins: Vec::new(),
             recording: None,
+            spectators: Vec::new(),
+            spectators_left: Vec::new(),
             afk,
             drives: Self::new_drives(&formed),
             walkers,
@@ -1139,11 +1185,17 @@ impl Game {
             "match_level": self.formed.match_level,
             "growing_roster": self.formed.growing_roster,
             "vs_bots": self.formed.vs_bots,
+            "private": self.formed.private,
             "initial_players": self.formed.initial_players,
             "late_inputs": format!("{:?}", self.settings.late_inputs),
             "places": self.places_note(0),
         });
-        self.recording = Some(recorder.open(self.id, self.formed.vs_bots, header, now));
+        self.recording = Some(recorder.open(
+            &self.formed.replay_id,
+            self.formed.vs_bots,
+            header,
+            now,
+        ));
     }
 
     /// The places from `from` on, for a recording.
@@ -1339,6 +1391,18 @@ impl Game {
             .as_ref()
             .filter(|peer| peer.stage == Stage::Gone)
             .map(|peer| peer.session_id)
+    }
+
+    /// The link of the gone client at place `index` is done with: its game
+    /// connects anew from its address (to watch, or to come again). Kept, it
+    /// would go on sending to that address, as long as the new link's
+    /// datagrams reached it.
+    pub fn forget_gone(&mut self, index: usize) {
+        if let Some(slot) = self.peers.get_mut(index)
+            && slot.as_ref().is_some_and(|peer| peer.stage == Stage::Gone)
+        {
+            *slot = None;
+        }
     }
 
     /// The sessions of the clients connected.
@@ -2048,7 +2112,7 @@ impl Game {
         self.inputs
             .iter()
             .rev()
-            .take_while(move |(at, _, _)| *at + 4 * HORIZON_MS > after)
+            .take_while(move |(at, _, _)| *at + RELAYED_DISORDER_MS > after)
             .filter(move |(at, from, what)| {
                 *from == index && *at > after && matches!(what, Relayed::Input(_))
             })
@@ -2064,7 +2128,7 @@ impl Game {
             .inputs
             .iter()
             .rev()
-            .take_while(|(at, _, _)| *at + 4 * HORIZON_MS > after)
+            .take_while(|(at, _, _)| *at + RELAYED_DISORDER_MS > after)
         {
             if *at > after && *at <= upto && matches!(what, Relayed::Input(_)) {
                 *counts.entry(*from).or_default() += 1;
@@ -4210,6 +4274,7 @@ impl Game {
         self.rule.on_match_ready(snapshot.time);
         self.dump(&snapshot, index, "initial");
         self.observe(&snapshot, 1);
+        self.keep_past(&snapshot);
         self.snapshot = Some(snapshot);
         Verdict::Passed
     }
@@ -4310,6 +4375,24 @@ impl Game {
                 .as_ref()
                 .and_then(|state| state.statistics.as_ref());
             self.kill_pairs.observe(before, statistics, &teams);
+            let seats: Vec<Seat> = self
+                .formed
+                .places
+                .iter()
+                .map(|place| Seat {
+                    account_id: place.account_id,
+                    team: place.team,
+                })
+                .collect();
+            self.match_events.observe(
+                &events::World {
+                    time: snapshot.time,
+                    statistics,
+                    standing,
+                    research: decoded.rules.as_ref().and_then(|read| read.research.as_ref()),
+                },
+                &seats,
+            );
         }
         if let Some(read) = &decoded.rules {
             // The map's respawn points are known from its project: a rule
@@ -4412,6 +4495,10 @@ impl Game {
                 *slot = Supplies::read(&block, profile, Dictionary::shared());
             }
         }
+        if let Some(rules) = &decoded.rules {
+            self.live_records
+                .observe(snapshot.time, &rules.kills_deaths);
+        }
         self.state = Some(Observed {
             time: snapshot.time,
             vouchers: vouchers.min(usize::from(u8::MAX)) as u8,
@@ -4424,9 +4511,9 @@ impl Game {
 
     /// Whether a snapshot's results could have come from real play: no
     /// more points than there are, or than could have been made since the
-    /// match began, no more kills than deaths, and no player killing faster
-    /// than one every [`MIN_MS_PER_KILL`]. Two colluding clients can agree
-    /// on any CRC; this keeps what they can claim within play.
+    /// match began, no more kills than deaths, and no player killing or
+    /// dying faster than one every [`MIN_MS_PER_KILL`]. Two colluding
+    /// clients can agree on any CRC; this keeps what they can claim within play.
     fn plausible(
         &self,
         decoded: &snapshot::Decoded,
@@ -4485,17 +4572,19 @@ impl Game {
             if kills > deaths + statistics.players.len() as u32 {
                 return Err(format!("{kills} kills but {deaths} deaths"));
             }
+            // Nobody kills or dies faster than play allows. (Battery counts
+            // past the map's are taken and cut in pay, `battery_cap`; the
+            // events keep a match's first `events::MAX_EVENTS`.)
             let most = 1 + played / MIN_MS_PER_KILL;
-            if let Some((index, player)) = statistics
-                .players
-                .iter()
-                .enumerate()
-                .find(|(_, player)| player.total(event::KILL) > most)
-            {
-                return Err(format!(
-                    "player {index} has {} kills after {played} ms",
-                    player.total(event::KILL)
-                ));
+            for (index, player) in statistics.players.iter().enumerate() {
+                for (event, what) in [(event::KILL, "kills"), (event::DEATH, "deaths")] {
+                    let count = player.total(event);
+                    if count > most {
+                        return Err(format!(
+                            "player {index} has {count} {what} after {played} ms"
+                        ));
+                    }
+                }
             }
         }
         Ok(())
@@ -4567,6 +4656,7 @@ impl Game {
                             candidate.snapshot.time
                         );
                     }
+                    self.keep_past(&candidate.snapshot);
                     self.record_accepted_world(&candidate.snapshot, now);
                     self.snapshot = Some(candidate.snapshot);
                     self.requested_at = None;
@@ -4843,7 +4933,11 @@ impl Game {
             .collect();
         for time in times {
             let (wrong, right) = self.judge(time, now);
-            let strict = self.majority(time).is_some();
+            let majority = self.majority(time);
+            if let Some(crc) = majority {
+                self.settled_hashes.push_back((time, crc));
+            }
+            let strict = majority.is_some();
             for index in wrong {
                 self.note_report(index, time, false, strict, now);
             }
@@ -4854,6 +4948,14 @@ impl Game {
         self.hashes_checked_until = self.hashes_checked_until.max(settled);
         let keep_from = clock.saturating_sub(HASH_KEEP_MS);
         self.hashes = self.hashes.split_off(&keep_from);
+        let settled_from = clock.saturating_sub(SETTLED_KEPT_MS);
+        while self
+            .settled_hashes
+            .front()
+            .is_some_and(|&(time, _)| time < settled_from)
+        {
+            self.settled_hashes.pop_front();
+        }
         let desynced: Vec<usize> = self
             .peers
             .iter()
@@ -5391,15 +5493,17 @@ impl Game {
                 }
             })
             .collect();
+        let team_points = standing.map_or([0, 0], |standing| standing.points);
         MatchResult {
             match_id: self.id,
+            replay_id: self.formed.replay_id.clone(),
             map_id: self.formed.played.map().id,
             mode: self.formed.played.mode(),
             twist: self.formed.played.twist(),
             match_level: self.formed.match_level,
             end,
             winner: standing.map(|standing| standing.winner),
-            team_points: standing.map_or([0, 0], |standing| standing.points),
+            team_points,
             duration_ms: clock,
             played_ms: self
                 .rule
@@ -5410,6 +5514,7 @@ impl Game {
             players,
             vs_bots: self.formed.vs_bots,
             private: self.formed.private,
+            events: self.match_events.finish(clock, team_points),
         }
     }
 
@@ -5472,6 +5577,7 @@ impl Game {
                 peer.stage = Stage::Gone;
             }
         }
+        self.spectators_finish(now);
         self.finished_at = Some(now);
     }
 
@@ -5882,6 +5988,7 @@ impl Game {
                 *slot = None;
             }
         }
+        datagrams.extend(self.poll_spectators(now));
         let empty = self
             .peers
             .iter()
@@ -6101,10 +6208,24 @@ impl Game {
 
     /// The match is done: it ended and the clients had time to hear it,
     /// everyone in it left, or nobody has been in it for a while.
+    ///
+    /// Its spectators, let go at its end (`spectate`), are waited for until
+    /// they are forgotten, their silence over (`spectate::SILENCE`; none
+    /// comes after the end, so no longer than that): closed before, the
+    /// match drops their routes, and a game whose farewell was lost is
+    /// answered by a stray connection, its link never silent enough to end.
     pub fn is_over(&self, now: Instant) -> bool {
-        self.finished_at
+        let ended = self
+            .finished_at
             .is_some_and(|at| now.saturating_duration_since(at) >= self.settings.timing.linger)
-            || (self.finished_at.is_none() && self.everyone_left(now))
+            || self.over_unfinished(now);
+        ended && self.spectators.is_empty()
+    }
+
+    /// Everyone in it left, or nobody has been in it for a while: over
+    /// without an end of its own.
+    fn over_unfinished(&self, now: Instant) -> bool {
+        (self.finished_at.is_none() && self.everyone_left(now))
             || self
                 .empty_since
                 .is_some_and(|since| now.saturating_duration_since(since) >= ABANDONED)

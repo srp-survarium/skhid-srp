@@ -68,13 +68,14 @@ use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
 use session::v026g::{Account, quests, wire};
+use session::name_search::Typed;
 use session::{LockExt, Squad, SquadError};
 use survarium::v026g::lobby::requests::{ClientMessage, FriendshipAction, id};
 use survarium::v026g::lobby::{
     self, Friend, KIT_READY, LobbyPick, ServerMessage, SquadMember, SquadPicks, WireError, channel, important, sender,
 };
 
-use super::core::{Core, Who};
+use super::core::{Core, Player, Who};
 
 /// Chat lines a player may send at once, and how many more a second.
 ///
@@ -105,8 +106,7 @@ pub(super) const SYSTEM_NAME: &str = "System";
 
 /// The chat line of a player removed for being idle (anti-AFK), in the
 /// game's language (`4F`'s byte: 0 English, 1 Russian, 2 Ukrainian, 3
-/// German, 4 Polish; English for any other, or none yet), as
-/// `replay::refusal_text` does.
+/// German, 4 Polish; English for any other, or none yet).
 pub(super) fn idle_removed_text(name: &str, language: Option<u8>) -> String {
     match language {
         Some(1) => format!("{name} исключён из матча за AFK"),
@@ -117,29 +117,44 @@ pub(super) fn idle_removed_text(name: &str, language: Option<u8>) -> String {
     }
 }
 
-/// What a player may still send of friend requests, and when that was
-/// counted: [`FRIEND_REQUEST_BURST`] at first, one more each
-/// [`FRIEND_REQUEST_EVERY`], never more than the burst.
+/// What a player may still do of something limited, and when that was
+/// counted: `burst` at first, one more each `every`, never more than the
+/// burst. Its rates: [`Allowance::friend_requests`],
+/// [`Allowance::searches`].
 #[derive(Clone, Copy, Debug)]
-pub(super) struct FriendRequestAllowance {
+pub(super) struct Allowance {
+    every: Duration,
+    burst: u32,
     saved: Duration,
     at: Instant,
 }
 
-impl FriendRequestAllowance {
-    pub(super) fn new(now: Instant) -> Self {
-        Self { saved: FRIEND_REQUEST_EVERY * FRIEND_REQUEST_BURST, at: now }
+impl Allowance {
+    fn full(every: Duration, burst: u32, now: Instant) -> Self {
+        Self { every, burst, saved: every * burst, at: now }
     }
 
-    /// One request now, if the allowance has one.
+    /// Friend requests: [`FRIEND_REQUEST_BURST`], one more each
+    /// [`FRIEND_REQUEST_EVERY`].
+    pub(super) fn friend_requests(now: Instant) -> Self {
+        Self::full(FRIEND_REQUEST_EVERY, FRIEND_REQUEST_BURST, now)
+    }
+
+    /// Searches of players by name: [`SEARCH_BURST`], one more each
+    /// [`SEARCH_EVERY`].
+    pub(super) fn searches(now: Instant) -> Self {
+        Self::full(SEARCH_EVERY, SEARCH_BURST, now)
+    }
+
+    /// One now, if the allowance has one.
     pub(super) fn take(&mut self, now: Instant) -> bool {
         let earned = now.saturating_duration_since(self.at);
-        self.saved = (self.saved + earned).min(FRIEND_REQUEST_EVERY * FRIEND_REQUEST_BURST);
+        self.saved = (self.saved + earned).min(self.every * self.burst);
         self.at = now;
-        if self.saved < FRIEND_REQUEST_EVERY {
+        if self.saved < self.every {
             return false;
         }
-        self.saved -= FRIEND_REQUEST_EVERY;
+        self.saved -= self.every;
         true
     }
 }
@@ -157,6 +172,17 @@ const NOT_FOUND_REPEAT: Duration = Duration::from_secs(10);
 const MAX_LISTED: usize = 200;
 /// The most players a search finds (0.21d's limit).
 const MAX_FOUND: usize = 50;
+/// Searches of players by name a session may make at once, and the time
+/// that earns one more: each goes through every account on the lobby's one
+/// thread. The movies ask on a press (Enter, the search icon), never as a
+/// name is typed, and send one at most every 1.1 s (`LobbyMenu`'s
+/// `PLAYER_SEARCH_EVERY_MS`): the second of the burst takes the jitter of
+/// their arrival, so the movie's spacing never finds nobody, and the cost
+/// stays one a second.
+const SEARCH_BURST: u32 = 2;
+const SEARCH_EVERY: Duration = Duration::from_secs(1);
+/// The letters of a searched text the log keeps.
+const SEARCH_LOGGED: usize = 32;
 /// The most requests kept waiting for an answer; past it the oldest goes.
 const MAX_REQUESTS: usize = 10_000;
 /// `messaging_client_type_enum::lobby_server_client_type`: the sender of
@@ -339,7 +365,7 @@ impl Core<'_> {
             return;
         }
         player.chat_allowance -= 1.0;
-        let (in_match, session_id) = (player.in_match, player.session_id);
+        let session_id = player.session_id;
         // Private HUD control over the existing room channel, never a room chat line.
         if channel == channel::ROOM && body.starts_with("#mode-intro:") {
             self.mode_introduction(who, body);
@@ -373,6 +399,9 @@ impl Core<'_> {
         }
 
         let subscribed = |id: u32| id != 0 && id != u32::MAX;
+        let in_match = self
+            .player(who.addr)
+            .and_then(|player| self.match_chat_of(player));
         let squad = self.store.squads().of(who.account_id);
         let clan_mates = self.clan_chat_members(who.account_id, channel);
         let side = in_match.and_then(|id| self.side_played(id, session_id));
@@ -384,7 +413,7 @@ impl Core<'_> {
                 if other.account_id == who.account_id {
                     return None;
                 }
-                let same_match = in_match.is_some() && other.in_match == in_match;
+                let same_match = in_match.is_some() && self.match_chat_of(other) == in_match;
                 let receives = match channel {
                     channel::PRIVATE => other.name.eq_ignore_ascii_case(receiver),
                     channel::GENERAL => subscribed(other.channel_ids[usize::from(channel)]),
@@ -442,6 +471,23 @@ impl Core<'_> {
         );
     }
 
+    /// The match whose chat (its all-chat and its teams') the player is in:
+    /// the one it plays in. A game that only watches a match (Queue and
+    /// spectate, a Live window, a replay session) is in none, either way:
+    /// spectators are "never as players" (`docs/notes/queue-spectate.md`),
+    /// and a Live watcher would read the players' lines outside the delay.
+    fn match_chat_of(&self, player: &Player<'_>) -> Option<u32> {
+        let watching = self
+            .store
+            .matchmaking()
+            .watched(player.session_id)
+            .is_some()
+            || self
+                .replays
+                .is_some_and(|replays| replays.watches().in_replay(player.session_id));
+        player.in_match.filter(|_| !watching)
+    }
+
     /// The player of `account_id`, `name` in the match, was removed from
     /// the match server's match `match_id` for being idle (anti-AFK,
     /// `docs/notes/anti-afk.md`; the owner's of 2026-11-02: "both in general
@@ -461,7 +507,10 @@ impl Core<'_> {
                 continue;
             };
             let language = player.language;
-            if running.is_some() && player.in_match == running && player.account_id != account_id {
+            if running.is_some()
+                && self.match_chat_of(player) == running
+                && player.account_id != account_id
+            {
                 lines.push((addr, channel::MATCH, language));
             }
             if subscribed(player.channel_ids[usize::from(channel::GENERAL)]) {
@@ -555,7 +604,7 @@ impl Core<'_> {
     /// `4D`: an important message for another player.
     /// - A friend request goes to the named player, who answers it with
     ///   `50` (now, or when it signs in), within the sender's
-    ///   [`FriendRequestAllowance`] (one over it is dropped). A name that
+    ///   [`Allowance::friend_requests`] (one over it is dropped). A name that
     ///   is no account is answered with "Player not found."
     ///   ([`Core::player_not_found`]), except to a player in a match.
     ///   One to a friend, or to a player who ignores the sender, is
@@ -886,15 +935,33 @@ impl Core<'_> {
                 self.push_ignored(who);
             }
             FriendshipAction::FindPlayers { name } => {
-                let found: Vec<(u32, String, String)> = self
-                    .store
-                    .find_accounts(name.as_bytes(), me, MAX_FOUND)
+                // A search past the allowance (`SEARCH_BURST`, one more each
+                // `SEARCH_EVERY`) finds nobody: the movie has no word for a
+                // refusal, and an empty answer ends its wait as "not found"
+                // does.
+                let due = self
+                    .player_mut(who.addr)
+                    .is_some_and(|player| player.searches.take(now));
+                let typed = due.then(|| Typed::parse(name)).flatten();
+                let found: Vec<(u32, String, String)> = typed
+                    .map(|typed| self.store.find_accounts_like(&typed, me, MAX_FOUND))
+                    .unwrap_or_default()
                     .into_iter()
                     .map(|(account_id, login_name)| {
                         let name = self.name_of(account_id).unwrap_or(login_name);
                         (account_id, name, self.clan_tag_of(account_id))
                     })
                     .collect();
+                if due {
+                    // As typed, escaped (no line of its own in the log) and cut.
+                    let typed: String = name.chars().take(SEARCH_LOGGED).collect();
+                    log::info!(
+                        "{} searched players for {typed:?}: {} found{}",
+                        who.name,
+                        found.len(),
+                        found.first().map_or_else(String::new, |(_, first, _)| format!(", the best {first}"))
+                    );
+                }
                 self.send_made(who.addr, lobby::found_players(&found));
             }
         }

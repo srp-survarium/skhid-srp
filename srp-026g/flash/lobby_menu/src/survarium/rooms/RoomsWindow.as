@@ -1,5 +1,6 @@
 package survarium.rooms
 {
+    import survarium.watch.WatchWindow;
     import flash.display.DisplayObject;
     import flash.display.Sprite;
     import flash.events.Event;
@@ -76,6 +77,23 @@ package survarium.rooms
         internal var _shown:Boolean = false;
         internal var _view:String = "list";
         private var _timer:Timer;
+        // back from a watch, the state not yet in: {resume, at} (holdWatchReturn)
+        private var _watchReturn:Object = null;
+        private static const WATCH_RETURN_MS:int = 6000;
+        // Where the game is (AWAY: a match loading or played, WatchWindow.away .. back), and a
+        // room's call back from a watch (srp's CALLED_BACK, said once) since it last left the
+        // lobby: AWAY_CALLED, taken before the lobby is back (a state asked while the watch
+        // unloads), said at its return; CALLED, said at or since the return (its notice until
+        // _calledBackUntil), the room's view kept over the watch's Watch view (holdWatchReturn).
+        private static const IN_LOBBY:int = 0;
+        private static const AWAY:int = 1;
+        private static const AWAY_CALLED:int = 2;
+        private static const CALLED:int = 3;
+        private var _lobbyState:int = IN_LOBBY;
+        // the notice of a room that called us back from a watch, and until when it shows (CALLED)
+        private var _calledBack:Sprite;
+        private var _calledBackUntil:int = 0;
+        private static const CALLED_BACK_MS:int = 7000;
         private var _now:int = 0;
         internal var _askedAt:int = -100000;
         // The last STATE asked, and whether one was ever answered: a game
@@ -608,6 +626,9 @@ package survarium.rooms
 
         public function show(value:Boolean):void
         {
+            // Watch and the rooms share the space: opening one closes the other (WatchWindow.show).
+            if (value && WatchWindow.me != null && WatchWindow.me.shown)
+                WatchWindow.me.show(false);
             if (!value)
             {
                 releaseInputFocus();
@@ -744,9 +765,135 @@ package survarium.rooms
             RoomsWire.send(start, count);
         }
 
+        // The game is back from a watch (WatchWindow.back) while we are in a room or a room's
+        // queue: the next state decides (takeAnswer) between the room and `resume` (the Watch
+        // window again); asked at once, and `resume` if no state comes within WATCH_RETURN_MS.
+        // false: in no room and no queue, nothing held. A room that called us back since the game
+        // left the lobby (its one word may come while the watch unloads) shows itself instead,
+        // `resume` dropped.
+        public function holdWatchReturn(resume:Function):Boolean
+        {
+            if (_room == null && _queueKey == 0)
+                return false;
+            if (_lobbyState == CALLED && _room != null)
+            {
+                _watchReturn = null;
+                _view = "room";
+                if (_shown)
+                    render();
+                else
+                    show(true);
+                return true;
+            }
+            _watchReturn = {"resume": resume, "at": getTimer()};
+            if (_steps.length == 0)
+                ask(RoomsWire.STATE, 1);
+            return true;
+        }
+
+        private function endWatchReturn():void
+        {
+            if (_watchReturn != null)
+            {
+                var back:Object = _watchReturn;
+                _watchReturn = null;
+                back.resume();
+            }
+        }
+
+        // The game leaves the lobby for a match's load (WatchWindow.away): a call back from now on
+        // is the next return's; the notice up goes.
+        public function away():void
+        {
+            _lobbyState = AWAY;
+            // a held return is the lobby's before this load: none after it
+            _watchReturn = null;
+            if (_calledBack != null)
+                _calledBack.visible = false;
+        }
+
+        // Back in the lobby (WatchWindow.back, each show_match_making(false)): a call back taken
+        // on the way is said now, its CALLED_BACK_MS from now (before the watch's view returns,
+        // holdWatchReturn).
+        public function lobbyBack():void
+        {
+            if (_lobbyState == AWAY_CALLED)
+                sayCalledBack();
+            else if (_lobbyState == AWAY)
+                _lobbyState = IN_LOBBY;
+        }
+
+        // A room called us back (or its vote has a use for us): said now in the lobby, else at
+        // the lobby's return.
+        private function takeCallBack():void
+        {
+            if (_lobbyState == AWAY || _lobbyState == AWAY_CALLED)
+                _lobbyState = AWAY_CALLED;
+            else
+                sayCalledBack();
+        }
+
+        // "Your room is ready": one line over the room's view for CALLED_BACK_MS, taking no
+        // press and moving nothing.
+        private function sayCalledBack():void
+        {
+            _lobbyState = CALLED;
+            if (_calledBack == null)
+            {
+                _calledBack = new Sprite();
+                _calledBack.name = "srpRoomsCalledBack";
+                _calledBack.mouseEnabled = false;
+                _calledBack.mouseChildren = false;
+                var words:TextField = new TextField();
+                words.embedFonts = true;
+                words.selectable = false;
+                words.autoSize = "left";
+                words.defaultTextFormat = new TextFormat(look._font, 15, RoomsLook.LIGHT, true);
+                words.x = 14;
+                words.y = 6;
+                _calledBack.addChild(words);
+                look._content.addChild(_calledBack);
+            }
+            var field:TextField = _calledBack.getChildAt(0) as TextField;
+            field.text = say("st_srp_rooms_called_back");
+            var w:int = int(field.textWidth + 32);
+            var h:int = int(field.textHeight + 16);
+            _calledBack.graphics.clear();
+            _calledBack.graphics.lineStyle(1, RoomsLook.GOLD, 0.8);
+            _calledBack.graphics.beginFill(0x0C0E10, 0.94);
+            _calledBack.graphics.drawRoundRect(0, 0, w, h, 8, 8);
+            _calledBack.graphics.endFill();
+            _calledBack.x = int((look._w - w) / 2);
+            _calledBack.y = int(RoomsLook.HEAD_H + 8);
+            _calledBack.visible = true;
+            _calledBackUntil = getTimer() + CALLED_BACK_MS;
+            keepCalledBackOnTop();
+        }
+
+        // A view drawn anew is put over it: on top again while it shows.
+        private function keepCalledBackOnTop():void
+        {
+            if (_calledBack != null && _calledBack.visible)
+            {
+                if (_calledBack.parent != look._content)
+                    look._content.addChild(_calledBack);
+                else
+                    look._content.setChildIndex(_calledBack, look._content.numChildren - 1);
+            }
+        }
+
         private function onTimer(e:TimerEvent):void
         {
             _now = getTimer();
+            if (_watchReturn != null && _now - _watchReturn.at >= WATCH_RETURN_MS)
+                endWatchReturn();
+            if (_calledBack != null && _calledBack.visible)
+            {
+                if (_now >= _calledBackUntil)
+                    _calledBack.visible = false;
+                else
+                    keepCalledBackOnTop();
+            }
             // A chain or a pressed button with no answer for 6 s: given up,
             // the buttons back.
             if ((_steps.length > 0 && _now - _stepsAt > 6000) || (_busyAt != 0 && _now - _busyAt > 6000))
@@ -964,6 +1111,14 @@ package survarium.rooms
             else if (kind == "N")
             {
                 settle();
+                endWatchReturn();
+                // out of the room: its call back and notice go with it
+                if (_calledBack != null)
+                    _calledBack.visible = false;
+                if (_lobbyState == AWAY_CALLED)
+                    _lobbyState = AWAY;
+                else if (_lobbyState == CALLED)
+                    _lobbyState = IN_LOBBY;
                 var had:Boolean = _room != null;
                 _room = null;
                 _roomSig = "";
@@ -1015,7 +1170,7 @@ package survarium.rooms
                     "wait": int(head[6]), "phase": int(head[7]), "secs": int(head[8]), "owner": head[9] == "1",
                     "pool": int(head[10]), "serial": int(head[12]), "pin": head[13] == "1", "next": int(head[14]), "min": int(head[15]),
                     "cards": [], "members": [], "last": 0, "lastMode": 0, "switchTo": null, "joinIn": -1, "joinWhy": JoinHold.NONE, "teams": null,
-                    "bots": false};
+                    "bots": false, "spectators": []};
                 var squads:String = "";
                 _roomAt = getTimer();
                 // A new vote (another room, or after its match): its alert
@@ -1058,12 +1213,38 @@ package survarium.rooms
                         _room.last = int(r[1]);
                         _room.lastMode = r.length > 2 ? int(r[2]) : 0;
                     }
+                    // A spectator of its match (Queue and spectate), in queue order.
+                    else if (r[0] == "V")
+                        _room.spectators.push(r.slice(1).join(";"));
                 }
                 // Why a join from the All rooms tab (or a room made) left us
                 // here, said once; our own word (a PIN not of 4 digits) stays
                 // while we stay.
                 RoomsLook.markSquads(_room.members, squads);
                 var roomCode:int = head.length > 16 ? int(head[16]) : RoomCode.NONE;
+                // Back from a watch: the room that called us back (srp says so, once: a room that
+                // waited for players is still waiting then, its vote begins with us), or one with a
+                // use for us anyway (its vote), shows itself, with a quiet notice; one still
+                // waiting, or playing a match we are not in (one with a place for us calls us
+                // back), gives the Watch window back.
+                var calledBack:Boolean = roomCode == RoomCode.CALLED_BACK;
+                if (calledBack)
+                    roomCode = RoomCode.NONE;
+                if (calledBack || _watchReturn != null)
+                {
+                    var back:Object = _watchReturn;
+                    _watchReturn = null;
+                    if (calledBack || _room.phase == RoomPhase.VOTE)
+                    {
+                        _view = "room";
+                        _roomSig = "";
+                        if (!_shown)
+                            show(true);
+                        takeCallBack();
+                    }
+                    else
+                        back.resume();
+                }
                 if (roomCode == RoomCode.NONE && _code < RoomCode.NONE && was != null && was.key == _room.key)
                     roomCode = _code;
                 var codeChanged:Boolean = roomCode != _code;
@@ -1121,7 +1302,9 @@ package survarium.rooms
             return false;
         }
 
-        internal function entry(id:int):Object
+        // The pool's entry of map `id` (its level and weather; the Watch window's cards too), null
+        // for a map the pool does not have.
+        public function entry(id:int):Object
         {
             for (var i:int = 0; i < _pool.length; i++)
                 if (_pool[i].map == id)
@@ -1158,7 +1341,10 @@ package survarium.rooms
                 return;
             var list:Array = [];
             var sig:String = "";
-            for (var i:int = 1; i + 1 < rows.length; i += 2)
+            // The members' two rows each (a whole name may read as any row),
+            // then a row `V;<name>` a spectator.
+            var count:int = Math.min(int(head[3]), int((rows.length - 1) / 2));
+            for (var i:int = 1; i < 1 + 2 * count; i += 2)
             {
                 var f:Array = RoomsWire.fields(rows[i]);
                 if (f[0] != "P" || f.length < 10 || rows[i + 1] == null)
@@ -1169,9 +1355,18 @@ package survarium.rooms
                     "fit": int(f[6]), "away": f[7] == "1", "account": uint(f[9]),
                     "squad": f.length > 10 ? int(f[10]) : 0, "name": name});
             }
+            var spectators:Array = [];
+            for (var v:int = 1 + 2 * count; v < rows.length; v++)
+            {
+                var sf:Array = RoomsWire.fields(rows[v]);
+                if (sf[0] != "V")
+                    continue;
+                spectators.push(sf.slice(1).join(";"));
+                sig += String(rows[v].nickname) + "|";
+            }
             if (_seen != null && _seen.key == key && _seen.sig == sig)
                 return;
-            _seen = {"key": key, "sig": sig, "members": list};
+            _seen = {"key": key, "sig": sig, "members": list, "spectators": spectators};
             listView.drawMembers();
         }
 
@@ -1216,29 +1411,7 @@ package survarium.rooms
                 : _view == "create" ? say("st_srp_rooms_new") : say("st_srp_rooms_servers");
             look._scrollInner = null;
             look._scrollThumb = null;
-            // The shop's look: a near black body with a thin edge, and a slim
-            // steel header with the title in the middle and two small square
-            // buttons at its right.
-            var body:Shape = new Shape();
-            var bg:* = body.graphics;
-            // The inventory's frame and header, by its colours: a 1 px edge,
-            // a near-black band with the bold title in its middle, and a
-            // darker line of 3 px under it.
-            bg.beginFill(0x3A3E44, 1);
-            bg.drawRect(0, 0, look._w, look._h);
-            bg.endFill();
-            bg.beginFill(0x131517, 0.97);
-            bg.drawRect(1, 1, look._w - 2, look._h - 2);
-            bg.endFill();
-            var m:Matrix = new Matrix();
-            m.createGradientBox(look._w, RoomsLook.HEAD_H, Math.PI / 2, 0, 0);
-            bg.beginGradientFill("linear", [0x0F1114, 0x0B0D10], [1, 1], [0, 255], m);
-            bg.drawRect(1, 1, look._w - 2, RoomsLook.HEAD_H);
-            bg.endFill();
-            bg.beginFill(0x040507, 1);
-            bg.drawRect(1, RoomsLook.HEAD_H + 1, look._w - 2, 3);
-            bg.endFill();
-            look._backdrop.addChild(body);
+            look.frame();
             // A member: the tabs in place of the title.
             if (_room != null)
                 drawTabs();
@@ -1261,6 +1434,7 @@ package survarium.rooms
                 stage.focus = pin;
                 pin.setSelection(selectionStart, selectionEnd);
             }
+            keepCalledBackOnTop();
         }
 
         // The header's two tabs while we are in a room (the owner's of
@@ -1275,39 +1449,7 @@ package survarium.rooms
             var tabs:Array = [["myRoom", "st_srp_rooms_my_room", _view == "room"],
                 ["allRooms", "st_srp_rooms_all_rooms", _view != "room"]];
             for (var i:int = 0; i < tabs.length; i++)
-            {
-                var on:Boolean = tabs[i][2];
-                var tab:Sprite = new Sprite();
-                tab.x = x + i * tabW;
-                tab.y = 1;
-                tab.graphics.beginFill(on ? 0x3C2C10 : 0x000000, on ? 0.6 : 0.01);
-                tab.graphics.drawRect(0, 0, tabW, RoomsLook.HEAD_H);
-                tab.graphics.endFill();
-                if (on)
-                {
-                    tab.graphics.beginFill(RoomsLook.GOLD, 1);
-                    tab.graphics.drawRect(0, RoomsLook.HEAD_H - 3, tabW, 3);
-                    tab.graphics.endFill();
-                }
-                look.text(tab, say(tabs[i][1]), 0, 9, tabW, 15, on ? 0xFFFFFF : RoomsLook.GREY, "center");
-                tab.name = tabs[i][0];
-                tab.buttonMode = true;
-                tab.mouseChildren = false;
-                tab.addEventListener(MouseEvent.CLICK, onTab, false, 0, true);
-                look._content.addChild(tab);
-                look.route(tab, function(control:DisplayObject, e:MouseEvent):void
-                {
-                    pickTab(control.name);
-                });
-            }
-        }
-
-        private function onTab(e:MouseEvent):void
-        {
-            var ex:MouseEventEx = e as MouseEventEx;
-            if (ex != null && ex.buttonIdx != MouseEventEx.LEFT_BUTTON)
-                return;
-            pickTab(DisplayObject(e.currentTarget).name);
+                look.headTab(tabs[i][0], say(tabs[i][1]), x + i * tabW, tabW, tabs[i][2], pickTab);
         }
 
         private function pickTab(which:String):void

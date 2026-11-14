@@ -1,6 +1,6 @@
 //! A match recording ([`super::record`]) made into a `.sur` replay
 //! ([`super::sur`]): by `srp-recording-to-sur`, and by the server itself for
-//! the lobby's "Watch replay" ([`super::replay`], on a thread of its own,
+//! replay sessions and Save (`game::playback::sur_of`, on their own threads,
 //! from the file as it is read: [`convert_file`]).
 //!
 //! What goes where:

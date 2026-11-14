@@ -421,7 +421,7 @@ fn game_language(lang: Lang) -> Language {
 /// ([`localization::text`]), as the game data has it (a map a patch adds
 /// comes with its name in the patch's localizations); without one, its
 /// project's folder (`level_12`).
-fn map_name(lang: Lang, map: &maps::MapMode) -> String {
+pub(crate) fn map_name(lang: Lang, map: &maps::MapMode) -> String {
     match localization::text(game_language(lang), map.map_name_key) {
         Some(name) => name.to_owned(),
         None => map.project.split('/').next().unwrap_or("?").to_owned(),
@@ -430,7 +430,7 @@ fn map_name(lang: Lang, map: &maps::MapMode) -> String {
 
 /// The game's own name of a mode (`ui.mode_name`, `st_mode_0N_name`): it
 /// has one name for both modes with batteries. Without one, its number.
-fn mode_name(lang: Lang, map: &maps::MapMode) -> String {
+pub(crate) fn mode_name(lang: Lang, map: &maps::MapMode) -> String {
     match localization::text(game_language(lang), map.mode_name_key) {
         Some(name) => name.to_owned(),
         None => lang.tr(

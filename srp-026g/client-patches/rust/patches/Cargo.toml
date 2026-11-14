@@ -29,3 +29,5 @@ weapon-kit = { path = "../../../crates/weapon-kit" }
 # patch 66: the voice DLL's C ABI, shared with srp-026g/client-voice
 voice-abi = { path = "../../../crates/voice-abi" }
 srp-validate = { path = "../../../crates/srp-validate" }
+# the replay viewer's control messages (patch 144): the match server encodes the same
+replay-control = { path = "../../../crates/replay-control" }

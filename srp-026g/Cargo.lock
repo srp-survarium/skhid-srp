@@ -518,6 +518,7 @@ dependencies = [
  "log",
  "mapdata",
  "openssl",
+ "replay-control",
  "serde",
  "serde_json",
  "session",
@@ -711,6 +712,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 
 [[package]]
+name = "replay-control"
+version = "0.1.0"
+
+[[package]]
 name = "research-rule"
 version = "0.1.0"
 
@@ -865,6 +870,7 @@ name = "srp-validate"
 version = "0.1.0"
 dependencies = [
  "artefact-carry",
+ "replay-control",
  "survarium",
  "weapon-pickup",
  "world-frame",
@@ -891,6 +897,7 @@ dependencies = [
  "encoding_rs",
  "log",
  "lzma-rust2",
+ "replay-control",
  "resources-db 0.1.0",
  "serde",
  "serde_json",
@@ -951,6 +958,7 @@ name = "udp-transport"
 version = "0.1.0"
 dependencies = [
  "log",
+ "replay-control",
  "srp-validate",
 ]
 
@@ -1012,6 +1020,7 @@ dependencies = [
  "log",
  "openssl",
  "resources-db 0.1.0",
+ "serde_json",
  "session",
  "survarium",
  "vostok",

@@ -225,8 +225,8 @@ pub fn important_message(
         .done(ServerId::Important)
 }
 
-/// The lobby picks `0xA1` carries: the receiver's own and its squad
-/// commander's (none out of a squad, or not picked).
+/// What `0xA1` carries for the receiver: the lobby picks, its own and its
+/// squad commander's (none out of a squad, or not picked).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SquadPicks {
     pub own: Option<LobbyPick>,

@@ -12,6 +12,11 @@
 //! - [`input`]: a relayed input's rotation and action bits, which the
 //!   server checks of a client's input before it relays it.
 
+use replay_control::{LeftPlace, StaticInfoHead};
+
+// One definition, in the crate of the exe and the server.
+pub use replay_control::{LATE_JOIN_PREPARE, NO_PLACE};
+
 use crate::reader::{Reader, Short};
 use crate::{MAX_PLAYERS, Part, Reason, Refusal, finite, transport};
 
@@ -70,7 +75,7 @@ pub const fn fixed_length(id: u8) -> Option<usize> {
         id::MOVE_PROFILE_INPUT => 2,
         id::DISCARD_PROFILE_INPUT => 1,
         // srp's 0xF6 is one byte the patch ignores (the client's length
-        // getter refuses an empty one).
+        // getter refuses an empty one), or a replay note ([`check`]).
         id::UPLOAD_REQUEST => 1,
         _ => return None,
     })
@@ -125,6 +130,11 @@ pub fn check(message: u8, payload: &[u8]) -> Result<(), Refusal> {
     if matches!(message, id::INPUTS_RELAY | id::INPUTS_RELAY_PRECISE) {
         return Err(refuse(0, Reason::NeverSent));
     }
+    // The other 0xF6: a replay's playback or events note to a spectator
+    // (patch 144, `replay-control`), taken whole by the patch's own parse.
+    if message == id::UPLOAD_REQUEST && replay_control::ServerNote::parse(payload).is_some() {
+        return Ok(());
+    }
     if let Some(wanted) = fixed_length(message) {
         if len != wanted {
             return Err(refuse(0, Reason::MessageLength { len, wanted }));
@@ -144,7 +154,15 @@ pub fn check(message: u8, payload: &[u8]) -> Result<(), Refusal> {
     match message {
         // The handler passes the place to `enter_match` 0x2D1470, which
         // tests only the time (0x27C652..0x27C67C, 0x2D1489).
-        id::PLAYER_ENTERED | id::PLAYER_LEFT => place(1),
+        id::PLAYER_ENTERED => place(1),
+        // An 0xEA naming no place is the server's farewell to a spectator
+        // (patch 143 ends its match); a player's game passes it to
+        // `leave_match`, which returns 1 with nothing written
+        // (`check_spectator_026g.py`).
+        id::PLAYER_LEFT => match payload.get(1).copied().map(LeftPlace::of) {
+            Some(LeftPlace::Farewell) => Ok(()),
+            _ => place(1),
+        },
         // The input reader 0x318400 stores the player byte at node+0xC
         // (0x31844F..0x318458) and the rest with no check.
         id::INPUT_RELAY | id::INPUT_RELAY_PRECISE => {
@@ -168,7 +186,7 @@ pub fn check(message: u8, payload: &[u8]) -> Result<(), Refusal> {
         // place, the squad, then the profile, which the late join's own
         // check takes (`late_join_validate_026g.c`). Here the header: a
         // place the first player cannot have, under 20, a serial not 0.
-        id::STATIC_INFO if payload.starts_with(&LATE_JOIN_PREPARE) => {
+        id::STATIC_INFO if StaticInfoHead::of(payload) == Some(StaticInfoHead::LateJoinPrepare) => {
             if len < LATE_JOIN_HEADER {
                 return Err(refuse(
                     0,
@@ -188,7 +206,13 @@ pub fn check(message: u8, payload: &[u8]) -> Result<(), Refusal> {
             if len < 2 {
                 return Err(refuse(0, Reason::MessageShort { len, least: 2 }));
             }
-            place(0)?;
+            // A spectator's has no local place: `process_static_match_info`
+            // marks a place local only when its index equals this byte
+            // (0x27BE5F), so none is. No late join proposal is one: its
+            // 'L' is no LZMA2 control byte.
+            if StaticInfoHead::of(payload) != Some(StaticInfoHead::NoPlace) {
+                place(0)?;
+            }
             let stream = payload.get(1..).unwrap_or_default();
             transport::lzma2_bound(stream, transport::OPTIONS_CAP)
                 .map(drop)
@@ -221,10 +245,7 @@ pub fn check(message: u8, payload: &[u8]) -> Result<(), Refusal> {
     }
 }
 
-/// A 0xE4 that is the late join's profile proposal starts with these
-/// (`late_join::PREPARE_MAGIC` in the server; the stock local index is
-/// under 20, so 0xFF tells them apart), and has this header.
-pub const LATE_JOIN_PREPARE: [u8; 4] = [0xFF, b'L', b'J', 1];
+/// A 0xE4 that is the late join's profile proposal has this header.
 const LATE_JOIN_HEADER: usize = 14;
 
 /// The client's buffer for the unpacked options (0x578A0 bytes).
@@ -569,6 +590,16 @@ mod tests {
     }
 
     #[test]
+    fn an_0xf6_is_the_upload_request_or_a_replay_note() {
+        use replay_control::{MatchMs, Playback, Speed};
+        assert_eq!(check(id::UPLOAD_REQUEST, &[0]), Ok(()));
+        let note = Playback { revision: 1, paused: true, speed: Speed::Half, start: MatchMs(0), end: MatchMs(9) }.encode();
+        assert_eq!(check(id::UPLOAD_REQUEST, &note), Ok(()));
+        assert!(reason(id::UPLOAD_REQUEST, &note[..13]).is_some());
+        assert!(reason(id::UPLOAD_REQUEST, &[0, 0]).is_some());
+    }
+
+    #[test]
     fn a_late_join_proposal_is_no_static_info_of_local_place_255() {
         assert_eq!(check(id::STATIC_INFO, &prepare()), Ok(()));
         // Its header cut, its place the first or past the 20, its serial 0.
@@ -593,12 +624,28 @@ mod tests {
             reason(id::STATIC_INFO, &wrong),
             Some(Reason::LateJoinProposal)
         );
-        // Another version, or a stock 0xE4 of local place 255: refused.
+        // Another version: no LZMA2 stream after a spectator's place.
         let mut wrong = prepare();
         wrong[3] = 2;
         assert_eq!(
             reason(id::STATIC_INFO, &wrong),
-            Some(Reason::PlacePast { place: 255 })
+            Some(Reason::Lzma2Control { control: b'L' })
         );
+    }
+
+    #[test]
+    fn a_spectator_takes_its_static_info_and_its_farewell() {
+        let stored = [1, 0, 0, 0, 0];
+        for place in [0, 19, NO_PLACE] {
+            let mut e4 = Vec::from([place]);
+            e4.extend(stored);
+            assert_eq!(check(id::STATIC_INFO, &e4), Ok(()));
+        }
+        let mut e4 = Vec::from([20]);
+        e4.extend(stored);
+        assert_eq!(reason(id::STATIC_INFO, &e4), Some(Reason::PlacePast { place: 20 }));
+        assert_eq!(check(id::PLAYER_LEFT, &[0, NO_PLACE]), Ok(()));
+        assert_eq!(reason(id::PLAYER_LEFT, &[0, 20]), Some(Reason::PlacePast { place: 20 }));
+        assert_eq!(reason(id::PLAYER_ENTERED, &[0, NO_PLACE]), Some(Reason::PlacePast { place: 255 }));
     }
 }

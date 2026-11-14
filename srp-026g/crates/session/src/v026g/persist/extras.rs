@@ -37,7 +37,7 @@ pub(super) const MIGRATION: &str = "
 
 /// The account's row; the defaults for an account with none.
 pub(super) fn load(connection: &Connection, account_id: u32) -> Result<Extras, PersistError> {
-    let extras = connection
+    let row = connection
         .query_row(
             "SELECT bonus_day, bonus_last_day, bonus_wins,
                     bonus_completed, bonus_shown_day
@@ -56,7 +56,7 @@ pub(super) fn load(connection: &Connection, account_id: u32) -> Result<Extras, P
             },
         )
         .optional()?;
-    Ok(extras.unwrap_or_default())
+    Ok(row.unwrap_or_default())
 }
 
 pub(super) fn save(

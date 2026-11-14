@@ -595,32 +595,6 @@ pub fn lock(folder: &str, name: &str) -> Result<InstallLock, Code> {
     .map(InstallLock)
 }
 
-/// The files in `folder` that match `pattern`, each with the time it was
-/// last written (100 ns since 1601).
-pub fn list_with_times(folder: &str, pattern: &str) -> Vec<(String, u64)> {
-    let mut out = Vec::new();
-    let mut found: WIN32_FIND_DATAW = unsafe { core::mem::zeroed() };
-    let query = alloc::format!("{folder}\\{pattern}");
-    let handle = unsafe { FindFirstFileW(wide(&query).as_ptr(), &mut found) };
-    if handle == INVALID_HANDLE_VALUE {
-        return out;
-    }
-    loop {
-        if found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY == 0 {
-            let time = u64::from(found.ftLastWriteTime.dwHighDateTime) << 32
-                | u64::from(found.ftLastWriteTime.dwLowDateTime);
-            out.push((from_wide(&found.cFileName), time));
-        }
-        if unsafe { FindNextFileW(handle, &mut found) } == 0 {
-            break;
-        }
-    }
-    unsafe {
-        FindClose(handle);
-    }
-    out
-}
-
 /// The game's language, which its Settings and the launcher's menu keep
 /// (`localization` of `<Documents>\survarium\user.cfg`, the folder the game
 /// takes: CSIDL_PERSONAL), as a number of `replay::LANGUAGES`; read only.
@@ -635,6 +609,28 @@ pub fn game_language() -> Option<u32> {
     let end = folder.iter().position(|&unit| unit == 0)?;
     let path = alloc::format!("{}\\survarium\\user.cfg", from_wide(&folder[..end]));
     updater_logic::replay::language_of_user_cfg(&read_file(&path, 1 << 16).ok()?)
+}
+
+/// A moment in Unix seconds (UTC) as this computer's local date and time,
+/// with the time zone's daylight saving of that day.
+pub fn local_stamp(unix: u64) -> Option<updater_logic::replay::Stamp> {
+    use windows_sys::Win32::System::Time::{FileTimeToSystemTime, SystemTimeToTzSpecificLocalTime};
+    // 100 ns since 1601.
+    let ticks = unix.checked_add(11_644_473_600)?.checked_mul(10_000_000)?;
+    let file_time = FILETIME { dwLowDateTime: ticks as u32, dwHighDateTime: (ticks >> 32) as u32 };
+    let mut utc: SYSTEMTIME = unsafe { core::mem::zeroed() };
+    let mut local: SYSTEMTIME = unsafe { core::mem::zeroed() };
+    let ok = unsafe {
+        FileTimeToSystemTime(&file_time, &mut utc) != 0
+            && SystemTimeToTzSpecificLocalTime(null(), &utc, &mut local) != 0
+    };
+    ok.then_some(updater_logic::replay::Stamp {
+        year: local.wYear,
+        month: local.wMonth,
+        day: local.wDay,
+        hour: local.wHour,
+        minute: local.wMinute,
+    })
 }
 
 /// Whether the game, which reads its command line as ANSI text

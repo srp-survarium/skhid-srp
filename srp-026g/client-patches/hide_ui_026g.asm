@@ -11,8 +11,13 @@
 ; binder for the key's action of kind 1 (0x25CD5F) and switches on actions
 ; 11h..19h (0x25CE1C, the table 0x25CF30): 19h goes to 0x25CED1, which takes
 ; the handler ([esp+10h]) and does nothing without the replay's movie (the
-; handler's +18h, the hud's +14h; a match has none). There, without that
-; movie, the hud movie ([[hud+8]+108h]+4) is asked root.interface_hidden and
+; handler's +18h, the hud's +14h). A replay is a game with a replay reader
+; (the game's +53C8h, as the game world's mouse tests it at 0x25CFAA; the
+; handler is the game world's +1F8h, its game the game world's +9Ch, so
+; [handler-15Ch]): its controls are toggled as in the original. A network
+; game has the movie too since patch 144 (hidden unless it views a replay,
+; whose F11 that patch takes first), so the movie alone says nothing. In any
+; other game the hud movie ([[hud+8]+108h]+4) is asked root.interface_hidden and
 ; both it and the player icons' movie ([[hud+10h]+108h]+4) get
 ; root.hide_interface(not that): each hides its root, its whole interface
 ; (the hud, the crosshair, the minimap, the kits, the death screen and the
@@ -74,6 +79,8 @@ section .text
 %define LOBBY_TO_MOVIE 0x26CDD2    ; its last part: the key to the movie (0x1FDD70), al 0
 %define HANDLER 0x10               ; the case's [esp+10h]: the game world's input handler
 %define REPLAY_MOVIE 0x18          ; the handler's +18h: the hud's +14h, the replay's controls
+%define HANDLER_GAME -0x15C        ; the handler's game: it is the game world's +1F8h, the game its +9Ch (0x25CFA4)
+%define REPLAY_READER 0x53C8       ; the game's replay reader: a replay's own (0x25CFAA)
 %define HUD 4                      ; the handler's +4: the hud (game_world_ui)
 %define HUD_MOVIE 8                ; the hud's movie holders: the hud's +8, the player icons' +10h
 %define ICONS_MOVIE 0x10
@@ -89,7 +96,13 @@ section .text
 hide_ui_match:
     mov esi, [esp+HANDLER]
     cmp dword [esi+REPLAY_MOVIE], 0
+    je .hud                        ; no replay controls
+    mov eax, [esi+HANDLER_GAME]
+    test eax, eax
+    jz .hud
+    cmp dword [eax+REPLAY_READER], 0
     jne REPLAY_TOGGLE              ; a replay: its controls, as before
+.hud:                              ; a match's game, whatever movies its hud loaded
     lea edi, [esi+HUD]
     call hud_hidden
     cmp eax, -1

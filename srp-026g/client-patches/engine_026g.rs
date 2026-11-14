@@ -37,6 +37,8 @@ unsafe extern "C" {
     pub fn engine_register_cook(cook: *mut c_void);
     /// 0x511600 Scaleform::GFx::Movie::Invoke: movie ECX, method ESP+4, result ESP+8, args ESP+12, count ESP+16; pops 16; AL
     pub fn engine_movie_invoke(movie: *mut c_void, method: *const u8, result: *mut c_void, args: *const c_void, count: u32) -> u32;
+    /// 0x513580 Scaleform::GFx::MovieImpl::HandleEvent: movie ECX, event ESP+4; pops 4; EAX
+    pub fn engine_movie_handle_event(movie: *mut c_void, event: *const c_void) -> u32;
     /// 0x2375c0 survarium::game_world_ui::show_parametrized_message: key ECX, ui ESP+4, first ESP+8, second ESP+12, third ESP+16; pops 16
     pub fn engine_show_message(key: *const u8, ui: *mut c_void, first: u32, second: u32, third: u32);
     /// 0x2e58b0 (unnamed): pools EAX, name ECX; pops 0; EAX
@@ -273,6 +275,16 @@ unsafe extern "C" {
     pub fn engine_usable_transform(usable: *mut c_void, matrix: *mut f32);
     /// 0x2015a0 survarium::game_options::finish_binding: options EDI; pops 0
     pub fn engine_finish_key_binding(options: *mut c_void);
+    /// 0x1f8360 survarium::game_world::switch_to_spectator_camera: world EDX; pops 0
+    pub fn engine_spectator_camera(world: *mut c_void);
+    /// 0x23a9d0 survarium::game_world_ui::show_replay_controls: hud EDI, shown ESP+4; pops 4
+    pub fn engine_show_replay_controls(hud: *mut c_void, shown: u32);
+    /// 0x2f79a0 survarium::player_profile::kit_level: kit EAX, place ESP+4, config ESP+8; pops 0; EAX
+    pub fn engine_kit_level(kit: u32, place: *const c_void, config: *const c_void) -> u32;
+    /// 0x2d18a0 survarium::game_world_core::leave_match: requested_time_ms EAX, world ESP+4, place ESP+8; pops 8; EAX
+    pub fn engine_leave_match(requested_time_ms: u32, world: *mut c_void, place: u32) -> u32;
+    /// 0x27c1f0 survarium::network_client::register_message_in_stats: result EAX, network_client EDX, message ESP+4; pops 4
+    pub fn engine_register_message_stats(result: u32, network_client: *mut c_void, message: u32);
     /// 0xec780 vostok::console_commands::cc_delegate::cc_delegate: object EDI, name EDX, delegate ESP+4, status ESP+8, kind ESP+12; pops 12
     pub fn engine_cc_delegate(object: *mut c_void, name: *const u8, delegate: *const c_void, status: u32, kind: u32);
     /// 0x111c90 vostok::logging::helper::helper: function EAX, context ECX, helper ESP+4, template_helper ESP+8, file ESP+12, line ESP+16, caller ESP+20, channel ESP+24, level ESP+28; pops 28; EAX
@@ -327,6 +339,8 @@ unsafe extern "cdecl" {
     pub fn engine_allocate_save_descriptor(physical: *const c_void, virtual_path: *const c_void) -> *mut c_void;
     /// 0xa02d0 btCollisionWorld::rayTestSingle: from ESP+4, to ESP+8, object ESP+12, shape ESP+16, transform ESP+20, callback ESP+24; pops 0; cdecl, called directly
     pub fn engine_ray_test_single(from: *mut c_void, to: *mut c_void, object: *mut c_void, shape: *mut c_void, transform: *mut c_void, callback: *mut c_void);
+    /// 0x20ff90 survarium::tick_wrap_delta: a ESP+4, b ESP+8; pops 0; EAX; cdecl, called directly
+    pub fn engine_tick_wrap_delta(a: *const u8, b: *const u8) -> u32;
     /// 0x38ff0 vostok::math::sin: angle ESP+4; pops 0; ST0; cdecl, called directly
     pub fn engine_sin(angle: f32) -> f32;
     /// 0x39000 vostok::math::cos: angle ESP+4; pops 0; ST0; cdecl, called directly
@@ -389,6 +403,18 @@ unsafe extern "thiscall" {
     pub fn engine_key_name(keyboard: *mut c_void, key: u32, name: *mut u8, size: u32) -> u8;
     /// 0xeb5b0 vostok::memory::mt_allocator::call_free: allocator ECX, block ESP+4, function ESP+8, file ESP+12, line ESP+16; pops 16; thiscall, called directly
     pub fn engine_mt_free(allocator: *mut c_void, block: *mut c_void, function: *const u8, file: *const u8, line: u32);
+    /// 0x242b90 survarium::base_network_client::set_followed_player: client ECX, player ESP+4; pops 4; thiscall, called directly
+    pub fn engine_follow_player(client: *mut c_void, player: *mut c_void);
+    /// 0x242cc0 survarium::base_network_client::detach_from_player: client ECX; pops 0; thiscall, called directly
+    pub fn engine_detach_player(client: *mut c_void);
+    /// 0x1ed5c0 survarium::game::pause: game ECX; pops 0; thiscall, called directly
+    pub fn engine_game_pause(game: *mut c_void);
+    /// 0x1ed650 survarium::game::resume: game ECX; pops 0; thiscall, called directly
+    pub fn engine_game_resume(game: *mut c_void);
+    /// 0x27a980 survarium::network_client::get_player: client ECX, out ESP+4, place ESP+8; pops 8; EAX; thiscall, called directly
+    pub fn engine_get_player(client: *mut c_void, out: *mut *mut c_void, place: u32) -> *mut *mut c_void;
+    /// 0x242d50 survarium::base_network_client::spectate_next_player: client ECX; pops 0; thiscall, called directly
+    pub fn engine_spectate_next_player(client: *mut c_void);
     /// 0xec830 vostok::console_commands::cc_delegate::execute: command ECX, arguments ESP+4; pops 4; thiscall, called directly
     pub fn engine_cc_delegate_execute(command: *mut c_void, arguments: *const u8);
 }

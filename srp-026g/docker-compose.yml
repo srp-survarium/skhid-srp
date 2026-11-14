@@ -85,19 +85,33 @@ services:
       - SRP_RECORD_DIR=${SRP_RECORD_DIR:-/srv/srp/data/recordings}
       - SRP_RECORD_MIN_PLAYERS
       - SRP_RECORD_MAX_MB
-      # "Watch replay" of the lobby's History (docs/notes/replay_watch.md):
-      # a kept recording is made into the game's replay file in
+      # A replay session (docs/notes/replay-stream.md) or a Save reads a
+      # recording; a larger one than this many MB is not read (default 24).
+      - SRP_REPLAY_MAX_RECORDING_MB
+      # Who may watch one or save it: `all` (default), or `match` (its players and
+      # SRP_REPLAY_MODERATORS, account ids, comma-separated). How many at
+      # once (default 4).
+      - SRP_REPLAY_WATCH
+      - SRP_REPLAY_MODERATORS
+      - SRP_REPLAY_WATCH_MAX
+      # The Live window's spectators: seconds behind the match (0 to 58,
+      # default 30), at most so many of a match (default 4) and in all
+      # (default 8).
+      - SRP_LIVE_WATCH_DELAY_S
+      - SRP_LIVE_WATCH_PER_MATCH
+      - SRP_LIVE_WATCH_MAX
+      # Save (the Watch window's save icon, the results screen's Save
+      # replay): a kept recording is made into a .srpreplay file in
       # SRP_REPLAY_DIR (a folder of its own, never inside the recordings')
-      # when a player first asks for it, at the lowest CPU priority, and
-      # handed out only at /replays/<token> of the web page. On by default
-      # (the mode configs are the game data's own, SRP_GAME_DATA); `off`
-      # switches replays off. Behind the caddy26 proxy set
+      # when a player first asks to save it, at the lowest CPU priority, and
+      # handed out only at /replays/<token> of the web page, which the
+      # player's updater fetches into the game's replays folder. `off`
+      # switches Save off. Behind the caddy26 proxy set
       # SRP_WEB_TRUST_PROXY=on: failed /replays/ lookups are limited per
       # address.
       - SRP_REPLAY_DIR=${SRP_REPLAY_DIR:-/srv/srp/data/replays}
-      - SRP_REPLAY_MAX_RECORDING_MB
-      # Replays (.sur and .json) over this many MB together: the oldest go
-      # (default 1000; apart from SRP_RECORD_MAX_MB).
+      # The files (.srpreplay and .json) over this many MB together: the
+      # oldest go (default 1000; apart from SRP_RECORD_MAX_MB).
       - SRP_REPLAY_MAX_MB
       # The server's log, <server>.log for each of login, lobby, match, web
       # and srp, in the data volume: it outlives the container, which an
