@@ -220,7 +220,8 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
     Fort 9/19, Mamayev 11/22, Vector Laboratory 11/22, Cologne 7/15, London 8/16, Vostok v0.21 8/16,
     Mamayev v0.21 6/12, Vostok v0.11 7/15, Chemical Plant v0.11 9/18, Rudnya v0.69 10/20,
     Experimental Pool 7/15, Military Warehouses 7/14: 148 a map's worth; levels 1-8 the same in
-    their three weathers (same points and geometry), 320 moved entries.
+    their three weathers (same points and geometry), 320 moved entries. Repair Depot, in Free for
+    All since 2026-11-14 (`stalker-ffa.md`), 7/15 more, its area the walk grid inside its arena.
   - Cologne is a bridge: its centre is the bridge's middle lanes, not the middle of its length.
   - London's rotunda (the owner, 2026-11-13: "london shouldn't have spawns on the third floor"): the
     move had put ids 38 and 39 on its third storey (floor at 17.92; in the walk grid reached only by
@@ -272,6 +273,9 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
     22 -> 44 (7 / 2 / 15 / 22), Experimental Pool 24 -> 48 (9 / 0 / 15 / 24), Military Warehouses
     24 -> 48 (6 / 0 / 18 / 24), Training Camp 26 -> 52 (26 / 0 / 0 / 26): every map its double, no
     shortfall (the smallest, Training Camp's ground inside the fence, had 308 places that pass).
+    Repair Depot (2026-11-14) 24 -> 48 (6 / 0 / 18 / 24; 14 had no cover, 4 were in the band), its
+    area, band and new places inside its arena (`--fence` its `rembasa-arena.tsv`), 817 places that
+    pass; not in the totals below.
     397 -> 794 a map's worth; levels 2-8 the same in their three weathers (same points and
     geometry): 519 changed and 759 new entries. The moved ones were in the band (108), had no
     cover (121) or a harmful zone within 2 m (7).

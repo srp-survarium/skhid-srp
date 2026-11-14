@@ -8,7 +8,8 @@
 //! place and id, but for the ground's, of which two stay. The others' ids take
 //! new places on its raised floors (training-islands.tsv, training-towers.tsv:
 //! islands, the towers' stairs, cabins) that have a way down on foot, spaced
-//! in 3D inside its base's fence (training-fence.tsv).
+//! in 3D inside its base's fence (training-fence.tsv). Repair Depot's are
+//! planned as Pool's, inside its arena's outline (rembasa-arena.tsv).
 mod collision;
 mod arena;
 use collision::{Map, Verdict};
@@ -31,9 +32,14 @@ const TRAINING: &str = "v010b_cs_training_camp/day_4";
 /// crates, the walker wall behind its base's fence, a truck in each gateway.
 /// Its points are checked and placed on it, so the layers must give it.
 const TRAINING_FFA: &str = "v010b_cs_training_camp/day_8";
+/// Repair Depot: its points stand inside its arena (`arena::in_rembasa`), the
+/// depot and the field south of it, [`FENCE_MARGIN`] from its outline; the
+/// far field is scenery behind Free for All's walker wall.
+const REMBASA: &str = "v010b_cs_mp_rembasa/day_4";
 /// The raised floors are small: they are sampled finer than the 3 m lattice.
 const RAISED_LATTICE: f32 = 0.75;
-/// A new Training Camp place and its facing's end stay this far inside the fence.
+/// A new Training Camp place and its facing's end stay this far inside the
+/// fence; Repair Depot's inside its arena's outline.
 const FENCE_MARGIN: f32 = 2.0;
 /// How many of the table's points on the ground stay, the two farthest apart
 /// (the owner, 2026-11-14: "make sure all spawns are on islands or on ladders
@@ -49,18 +55,20 @@ const TRAINING_REASON: &str = "reachable standing floor; body clear; harmful zon
 
 /// Bounds of the reviewed port's minimaps (stalker-maps@6). The imported
 /// projects have a dummy 2 m levelmap; mapdata's native-map fallback truncates
-/// Military Warehouses. Training Camp has open scenery beyond its fence.
+/// Military Warehouses. Training Camp has open scenery beyond its fence,
+/// Repair Depot beyond its arena: the box round it.
 fn area(project: &str) -> Result<([f32; 4], Option<f32>), String> {
     match project {
         "v010b_cs_mp_bath/day_4" => Ok(([-48.13, -22.87, 34.12, 53.13], None)),
         "v010b_cs_mp_military_1/day_4" => Ok(([-127.47, -71.12, 115.78, 95.38], None)),
         TRAINING_FFA => Ok(([-47.19, -83.47, 82.81, 91.53], None)),
+        REMBASA => Ok((arena::rembasa_bounds(), None)),
         _ => Err(format!("no reviewed play area for {project}")),
     }
 }
 
 /// Whether a point is on the map's playable ground: Training Camp's is inside
-/// its base's fence, `fence_margin` from it.
+/// its base's fence, Repair Depot's inside its arena, `fence_margin` from it.
 fn in_play_area(map: &Map, p: Vec3, fence_margin: f32) -> bool {
     let (bounds, radius) = area(&map.data.project).expect("checked project");
     p.x >= bounds[0]
@@ -68,6 +76,7 @@ fn in_play_area(map: &Map, p: Vec3, fence_margin: f32) -> bool {
         && p.x <= bounds[2]
         && p.z <= bounds[3]
         && (map.data.project != TRAINING_FFA || arena::fenced(p.x, p.z, fence_margin))
+        && (map.data.project != REMBASA || arena::in_rembasa(p.x, p.z, fence_margin))
         && radius.is_none_or(|r| {
             map.data
                 .spawns
@@ -722,6 +731,7 @@ mod tests {
         assert!(warehouse[0] < -120.0 && warehouse[2] > 110.0);
         assert!(clip.is_none());
         assert!(area(TRAINING_FFA).is_ok() && area(TRAINING).is_err());
+        assert_eq!(area(REMBASA).unwrap(), ([-76.0, -50.0, 59.5, 52.5], None));
         assert!(area("level_03/day_4").is_err());
     }
 }

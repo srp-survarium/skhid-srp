@@ -24,6 +24,7 @@ elevation grid for every map.
 | v010b_cs_mp_bath | Experimental Pool | 0.0952 | 42 (STALKER port, patch 57; Free for All) |
 | v010b_cs_mp_military_1 | Military Warehouses | 0.1843 | 43 (STALKER port, patch 57; Free for All) |
 | v010b_cs_training_camp | Training Camp | 0.1038 | 44 (STALKER port, patch 57; Free for All) |
+| v010b_cs_mp_rembasa | Repair Depot | 0.1163 | 41 (STALKER port, patch 57; Free for All since 2026-11-14) |
 
 All weathers and modes of a level share one image. The mode projects differ only
 in mode props such as battery racks, containers and charging stations; the
@@ -77,7 +78,7 @@ click position back to the 1536 px image first.
   supplying the rest.
 - The STALKER ports played in Free for All (pack stalker-maps@6, patch 57) have
   their own minimaps and frames in hud.swf, by project_name (`cs_mp_bath`,
-  `cs_mp_military_1`, `cs_training_camp`). They have no day_2: their renders are
+  `cs_mp_military_1`, `cs_training_camp`, `cs_mp_rembasa`). They have no day_2: their renders are
   of Free for All's own project, `day_8`, the one played, with every listed
   patch over the db. Their bitmaps are clear outside the play area, as the 0.26g
   ones (`minimap_area.kind_of`: alpha).
@@ -101,7 +102,10 @@ Results are stored in `maps.json -> maps.<key>.verification` and in `check_<key>
        mirrored, and 4-44 with a 5 m shift. (London, v011e_level_03 and
        v011e_level_04: 0 fail; controls 52/7/12 mirrored, 9/1/13 shifted.)
      - The STALKER ports (the respawn points of `day_8`: 48, 48 and 53): 0
-       fail; controls 14/11/9 mirrored, 12/12/5 shifted.
+       fail; controls 14/11/9 mirrored, 12/12/5 shifted. Repair Depot (72):
+       0 fail; controls 8 mirrored, 0 shifted (its points stand on open
+       ground that runs on 5 m away). Not compared with its HUD bitmap
+       (`align_check`): the bitmap is the porter's render of the same level.
 2. **Native minimap alignment (`align_<key>`).** The developers' own minimap
    bitmaps were compared with the render's building mask while searching scale
    0.95-1.05 and shift ±8 m.
@@ -156,7 +160,7 @@ Always use `python3 -I`.
     # the STALKER ports played in Free for All (patch 57): that mode's own project, every patch of
     # release/patches.tsv over the db; day_8's raw client_project of each goes to $W/db
     ALL=$(grep -v '^#' <skhid-srp>/release/patches.tsv | cut -f1 | while read n; do printf ' --patch %s' <patches>/$n; done)
-    for k in v010b_cs_mp_bath v010b_cs_mp_military_1 v010b_cs_training_camp; do python3 -I extract_level.py $DBGRAB $DB $k/day_8 $W/lv/$k $ALL; done
+    for k in v010b_cs_mp_bath v010b_cs_mp_military_1 v010b_cs_training_camp v010b_cs_mp_rembasa; do python3 -I extract_level.py $DBGRAB $DB $k/day_8 $W/lv/$k $ALL; done
     # (extract_level.py before 2026-10-19 lost every surface whose name ends in "_", e.g. level_08's moss
     # and ground cover, level_03's terrain_all; all 13 maps were re-rendered with the fix)
     # 4. render + shade + check + webp (~1 min per map)
@@ -180,4 +184,4 @@ The rasterizer was copied from the playable-map-pack's `render_minimap.py`.
   buildings are not in it. The STALKER ports have no terrain model: their grid
   is the top solid surface (no foliage), so a roof counts as ground there.
 - The ported maps that are not live (194-201) are not included, nor the STALKER
-  ports that are not played (Repair Depot, Station, Depository).
+  ports that are not played (Station, Depository).

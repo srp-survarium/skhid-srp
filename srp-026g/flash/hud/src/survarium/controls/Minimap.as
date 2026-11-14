@@ -188,10 +188,11 @@ package survarium.controls
             "posX":18.685,
             "posY":6.53
          };
+         // Framed on Free for All's arena + 15 m (render_minimap.py --frame-outline rembasa-arena.tsv).
          this._minimapProps.cs_mp_rembasa = {
-            "size":89.164,
-            "posX":2.285,
-            "posY":-7.7
+            "size":89.309,
+            "posX":-2.34,
+            "posY":-7.075
          };
          this._minimapProps.soc_ug_station = {
             "size":139.055,

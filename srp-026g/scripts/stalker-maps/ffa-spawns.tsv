@@ -73,3 +73,27 @@ v010b_cs_training_camp/day_4	ported_22	-4.5649986	24.342169	-0.34500122	0	-1.570
 v010b_cs_training_camp/day_4	ported_23	37.685	22.147903	26.654999	0	1.5707964	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; raised island north_east_upper, way down on foot
 v010b_cs_training_camp/day_4	ported_24	4.6850014	24.88507	-2.8450012	0	1.1780972	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; raised island west, way down on foot
 v010b_cs_training_camp/day_4	ported_25	31.435001	22.506552	33.905	0	2.9452431	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D; raised island north_east_upper, way down on foot
+v010b_cs_mp_rembasa/day_4	ported_00	-5.875	0.4652507	0.125	0	-3.1415925	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first
+v010b_cs_mp_rembasa/day_4	ported_01	57.125	-0.036610484	-47.875	0	0.98174775	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first
+v010b_cs_mp_rembasa/day_4	ported_02	-73.875	0.52341914	33.125	0	-1.963495	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first
+v010b_cs_mp_rembasa/day_4	ported_03	-62.875	0.06651107	-47.875	0	-0.98174745	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first
+v010b_cs_mp_rembasa/day_4	ported_04	54.125	0.569124	18.125	0	2.3561945	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first
+v010b_cs_mp_rembasa/day_4	ported_05	6.125	-2.8990686	-47.875	0	-0.98174745	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first
+v010b_cs_mp_rembasa/day_4	ported_06	-17.625	0.4273696	48.125	0	-3.1415925	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first
+v010b_cs_mp_rembasa/day_4	ported_07	-49.625	4.053292	-5.875	0	-1.767146	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first
+v010b_cs_mp_rembasa/day_4	ported_08	33.125	0.6976105	-14.875	0	1.3744469	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first
+v010b_cs_mp_rembasa/day_4	ported_09	18.125	4.91547	27.125	0	2.9452431	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first
+v010b_cs_mp_rembasa/day_4	ported_10	-26.875	0.34161252	-32.875	0	-0.7853978	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first
+v010b_cs_mp_rembasa/day_4	ported_11	-42.125	0.8894921	27.125	0	-0.5890487	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first
+v010b_cs_mp_rembasa/day_4	ported_12	-73.875	-0.1839882	6.125	0	-1.5707964	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first
+v010b_cs_mp_rembasa/day_4	ported_13	31.625	-1.9047698	-41.875	0	2.552544	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first
+v010b_cs_mp_rembasa/day_4	ported_14	9.125	0.34208035	-20.875	0	-0.19634944	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first
+v010b_cs_mp_rembasa/day_4	ported_15	-11.875	0.6279358	24.125	0	1.9634955	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first
+v010b_cs_mp_rembasa/day_4	ported_16	18.125	0.57526565	3.125	0	0.7853982	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first
+v010b_cs_mp_rembasa/day_4	ported_17	-29.875	-0.14142478	7.375	0	-2.3561943	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first
+v010b_cs_mp_rembasa/day_4	ported_18	54.125	2.9567053	-5.125	0	1.1780972	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first
+v010b_cs_mp_rembasa/day_4	ported_19	-63.125	0.16368888	-24.875	0	-1.5707964	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first
+v010b_cs_mp_rembasa/day_4	ported_20	51.125	-0.5349264	-26.875	0	1.1780972	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first
+v010b_cs_mp_rembasa/day_4	ported_21	-41.875	-1.1453819	-47.875	0	-0.7853978	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first
+v010b_cs_mp_rembasa/day_4	ported_22	-22.875	0.6384045	-11.875	0	-1.963495	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first
+v010b_cs_mp_rembasa/day_4	ported_23	35.375	0.00081642997	12.125	0	1.5707964	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first

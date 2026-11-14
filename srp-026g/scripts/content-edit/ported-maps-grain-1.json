@@ -11,6 +11,8 @@
   {"file": "projects/v010b_cs_mp_military_1/day_8/client_project", "path": "client_objects[0]/properties/image_grain_update_frequency", "from": 2, "to": 1},
   {"file": "projects/v010b_cs_mp_rembasa/day_4/client_project", "path": "client_objects[0]/properties/image_grain_intensity", "from": 0.08, "to": 0.02},
   {"file": "projects/v010b_cs_mp_rembasa/day_4/client_project", "path": "client_objects[0]/properties/image_grain_update_frequency", "from": 2, "to": 1},
+  {"file": "projects/v010b_cs_mp_rembasa/day_8/client_project", "path": "client_objects[0]/properties/image_grain_intensity", "from": 0.08, "to": 0.02},
+  {"file": "projects/v010b_cs_mp_rembasa/day_8/client_project", "path": "client_objects[0]/properties/image_grain_update_frequency", "from": 2, "to": 1},
   {"file": "projects/v010b_cs_training_camp/day_4/client_project", "path": "client_objects[0]/properties/image_grain_intensity", "from": 0.08, "to": 0.02},
   {"file": "projects/v010b_cs_training_camp/day_4/client_project", "path": "client_objects[0]/properties/image_grain_update_frequency", "from": 2, "to": 1},
   {"file": "projects/v010b_cs_training_camp/day_8/client_project", "path": "client_objects[0]/properties/image_grain_intensity", "from": 0.08, "to": 0.02},
