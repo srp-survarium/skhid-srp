@@ -389,6 +389,22 @@ pub fn walkout_line(from: Vec3, hit: Option<bool>, goal: Vec3, next: Option<Vec3
 
 /// [A395a] A walk off the margin's band begun (`Marking::Capsule`, where the client hurts no body): `nav: zone band exit
 /// from (..) to (..), next (..), lines tested over the band's floors up to R m`. Its lines cross no floor a zone hurts.
+/// [A395a] The line for a walk out whose held route goes on across the zone past the way out's reach
+/// (`Tactics::route_shut_ahead`): the route is planned again from where the body stands.
+pub fn walk_route_shut_line(from: Vec3, reach: f32) -> String {
+    format!("{PREFIX}zone walk's held route goes on across the zone from {}, past the way out's {reach:.1} m: planned again", at(from))
+}
+
+/// [A395a] The line for a walk out's first tick on a floor a zone on hurts (`Hazards::hits_at`), after `ms` of the walk, on
+/// the route it held or one planned since.
+pub fn walk_hurt_line(at_feet: Vec3, ms: u32, route: super::tactics::WalkRoute) -> String {
+    let route = match route {
+        super::tactics::WalkRoute::Held => "its held route",
+        super::tactics::WalkRoute::Planned => "a route planned since",
+    };
+    format!("{PREFIX}zone walk on a hurt floor at {}, {ms} ms into it, on {route}", at(at_feet))
+}
+
 pub fn band_exit_line(from: Vec3, goal: Vec3, next: Option<Vec3>, reach: f32) -> String {
     let next = next.map_or(String::new(), |p| format!(", next {}", at(p)));
     format!("{PREFIX}zone band exit from {} to {}{next}, lines tested over the band's floors up to {reach:.1} m", at(from), at(goal))

@@ -375,7 +375,7 @@ fn a_line_from_a_zone_may_leave_it_not_cross_its_core() {
     let world = field(&[], vec![big]);
     let teams = [0u8];
     let mut tuning = Tuning::default();
-    tuning.hazard.capsule_marks = true;
+    tuning.hazard.capsule_exits = true;
     let mut bots = Bots::new(0xA70A, survarium::v026g::maps::RuleMode::Batteries, 0, &teams, &[true], &[None], Arc::new(tuning), Trace::none(0));
     bots.map_ready(world.clone());
     let tactics = bots.tactics.as_ref().unwrap();
@@ -403,6 +403,38 @@ fn a_line_from_a_zone_may_leave_it_not_cross_its_core() {
     assert_eq!(tactics.zone_exit(at(10.0, 20.0), 0), None);
 }
 
+/// [A395a] A body on a zone's refused floors does not walk the route it held before its walk out began across the zone: that
+/// route is shut ahead (the walk would follow it, each line within the reach of where the feet are then); one that leaves the
+/// zone's floors within the way out's reach is not, nor a route planned since (its search's way out), nor one with no walk.
+#[test]
+fn a_walk_out_follows_no_held_route_across_the_zone() {
+    use crate::v026g::bots::path::{Route, Waypoint};
+    use crate::v026g::bots::tactics::WalkRoute;
+    let big = zone("big", Vec3::new(30.0, 1.0, 20.0), Vec3::new(4.0, 1.0, 4.0));
+    let world = field(&[], vec![big]);
+    let teams = [0u8];
+    let mut tuning = Tuning::default();
+    tuning.hazard.capsule_exits = true;
+    let mut bots = Bots::new(0xA70B, survarium::v026g::maps::RuleMode::Batteries, 0, &teams, &[true], &[None], Arc::new(tuning), Trace::none(0));
+    bots.map_ready(world.clone());
+    let tactics = bots.tactics.as_ref().unwrap();
+    let at = |x: f32, z: f32| Vec3::new(x, 0.0, z);
+    let route = |to: Vec3, from: Vec3| {
+        let waypoint = |p: Vec3| Waypoint { at: p, node: 0, jump: None, low: false };
+        Route::new(vec![waypoint(from), waypoint(to)])
+    };
+    // On the capsule's reach (the zone's box is x 26-34) and on the margin's band before it.
+    for feet in [at(25.75, 20.0), at(25.4, 20.0)] {
+        assert!(tactics.zone_exit(feet, 0).is_some(), "{feet:?}: refused");
+        let across = || route(at(40.0, 20.0), feet);
+        let held = Some(WalkRoute::Held);
+        assert!(tactics.route_shut_ahead(&mut across(), feet, 0, false, held), "{feet:?}: across the zone");
+        assert!(!tactics.route_shut_ahead(&mut route(at(20.0, 20.0), feet), feet, 0, false, held), "{feet:?}: out");
+        assert!(!tactics.route_shut_ahead(&mut across(), feet, 0, false, Some(WalkRoute::Planned)), "{feet:?}: planned since");
+        assert!(!tactics.route_shut_ahead(&mut across(), feet, 0, false, None), "{feet:?}: no walk");
+    }
+}
+
 /// A bot that dies in the middle of a zone walk starts its next life off it: no walk to end with a note of a way out.
 #[test]
 fn a_new_life_ends_the_zone_walk_without_a_note() {
@@ -418,7 +450,7 @@ fn a_new_life_ends_the_zone_walk_without_a_note() {
         Trace::none(0),
     );
     let bot = bots.bots[0].as_mut().unwrap();
-    bot.zone_walk = Some(5_000);
+    bot.zone_walk = Some(crate::v026g::bots::ZoneWalk { since: 5_000, route: crate::v026g::bots::tactics::WalkRoute::Held, hurt_ticks: 0 });
     bot.zone_note = Some("walks out over the floors of a zone".to_owned());
     bot.new_life(1.0, None, Vec3::new(0.0, 0.0, 0.0));
     assert_eq!(bot.zone_walk, None);

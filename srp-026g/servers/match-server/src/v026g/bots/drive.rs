@@ -880,10 +880,17 @@ fn drive_tick_inner(
             let shut = !replan && time >= bot.stuck.zone_checked + stuck::ZONE_CHECK_MS && {
                 bot.stuck.zone_checked = time;
                 bot.route.as_mut().is_some_and(|(route, _)| {
-                    tactics.route_shut_ahead(route, me.feet, time, crossing)
+                    tactics.route_shut_ahead(route, me.feet, time, crossing, bot.zone_walk.map(|walk| walk.route))
                 })
             };
             if shut {
+                // [A395a] The log's line for a walk out whose held route went on across the zone (`route_shut_ahead`).
+                if bot.zone_walk.is_some_and(|walk| walk.route == super::tactics::WalkRoute::Held)
+                    && let Some(exit) = tactics.zone_exit(me.feet, time)
+                {
+                    let line = super::nav_log::walk_route_shut_line(me.feet, exit.reach());
+                    bot.nav_log.push(super::nav_log::Kind::WalkOut, time, line);
+                }
                 bot.end_route(RouteEnd::ZoneShut, time);
             }
             let replan = replan || shut;
@@ -1681,7 +1688,7 @@ fn drive_tick_inner(
                     let leaving = bot.motor.feel.zone_lines.then(|| tactics.zone_exit(me.feet, time)).flatten();
                     match (bot.zone_walk, leaving) {
                         (None, Some(exit)) => {
-                            bot.zone_walk = Some(time);
+                            bot.zone_walk = Some(super::ZoneWalk { since: time, route: super::tactics::WalkRoute::Held, hurt_ticks: 0 });
                             let next = route.points().get(route.segment() + 1).map(|w| w.at);
                             let reach = exit.reach();
                             match exit {
@@ -1706,15 +1713,25 @@ fn drive_tick_inner(
                                 }
                             }
                         }
-                        (Some(since), None) => {
+                        (Some(super::ZoneWalk { since, hurt_ticks, .. }), None) => {
                             bot.zone_walk = None;
                             bot.zone_note = Some(format!(
-                                "is off the zone floors at {:?} after {} ms",
+                                "is off the zone floors at {:?} after {} ms, {hurt_ticks} ticks on floors a zone hurts",
                                 me.feet.to_array(),
                                 time.wrapping_sub(since)
                             ));
                         }
                         _ => {}
+                    }
+                    // [A395a] The walk's ticks on floors a zone on hurts (the client's contact test); the first one logged.
+                    if let Some(walk) = bot.zone_walk.as_mut()
+                        && tactics.world.grid.locate(me.feet, 1.5).is_some_and(|node| tactics.hazards.hits_at(node, time))
+                    {
+                        walk.hurt_ticks += 1;
+                        if walk.hurt_ticks == 1 {
+                            let line = super::nav_log::walk_hurt_line(me.feet, time.wrapping_sub(walk.since), walk.route);
+                            bot.nav_log.push(super::nav_log::Kind::WalkOut, time, line);
+                        }
                     }
                     let clear = |p: Vec3| match leaving {
                         Some(exit) => tactics.clear_line_leaving(me.feet, p, time, side, objective, exit),
