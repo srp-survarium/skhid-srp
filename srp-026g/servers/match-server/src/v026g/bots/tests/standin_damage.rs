@@ -192,31 +192,14 @@ pub(crate) fn part_for(class: Class, mut r: f32) -> Part {
 /// [G35] The cone a shotgun's pellets are turned in from the shot's direction, degrees across: the weapon's
 /// `base_dispersion` times the ammunition's `buck_dispersion` (PROVEN, `weapon_core::get_dispersed_buckshot_direction`
 /// 0x2E2120: none when the ammo's `buck_dispersion` [ammo+2A8h] is 0 (0x2E2141), else [weapon+3D8h] (`base_dispersion`,
-/// `dispersion_calculator::get_static_dispersion`'s) x [ammo+2A8h] at 0x2E2173 (the ammo loader 0x3325D3 stores
-/// `buck_dispersion` at the parameters' +40h, `dispersion` at +4h = ammo+26Ch). Each pellet is then turned
+/// `dispersion_calculator::get_static_dispersion`'s) x [ammo+2A8h] at 0x2E2173 (the ammo loader stores
+/// `buck_dispersion` at the parameters' +40h at 0x3325F6, its key loaded at 0x3325D3; `dispersion` at +4h = ammo+26Ch). Each
+/// pellet is then turned
 /// `0.5 x cone x modf(N(0, 0.5))` degrees (the normal 0x2E4850 of mean 0 and sigma 0.5 at 0x2E218D, the fraction 0x120560,
 /// the 0.5 at 0x927A44; degrees to radians by 1/180 and pi at 0x2E22C6) about an axis at a uniform angle round the shot's
 /// direction (0x2E49F0 over +5C0h..+5C4h): the law [`super::bench_spread::deflect`] draws.
 pub(crate) fn pellet_cone_deg(gun: &Gun, ammo: &AmmoParams) -> f32 {
     gun.dispersion.base * ammo.buck_dispersion
-}
-
-/// The old disc's share of a shotgun's pellets that land at `distance` metres (a GUESS: all up to 10 m, 0.6 at 25 m, 0.3
-/// from 50 m, in a line between). [G35] The stand-in's shots no longer read it: each pellet is flown in the game's cone
-/// ([`pellet_cone_deg`]) and met against the disc or the hit shapes. Kept only for the frozen old shot the disc is checked
-/// against (`standin_hitbox` tests).
-pub(crate) fn pellets_hitting(buck_shot: u32, distance: f32) -> u32 {
-    if buck_shot <= 1 {
-        return 1;
-    }
-    let share = if distance <= 10.0 {
-        1.0
-    } else if distance <= 25.0 {
-        1.0 - 0.4 * (distance - 10.0) / 15.0
-    } else {
-        (0.6 - 0.3 * (distance - 25.0) / 25.0).max(0.3)
-    };
-    ((buck_shot as f32 * share).round() as u32).max(1)
 }
 
 /// The pools of a body besides `Body::health` (the `body` pool).
@@ -829,16 +812,6 @@ mod tests {
         assert_eq!(class("tt_33"), Class::Pistol);
         assert_eq!(class("rpd"), Class::Lmg);
         assert_eq!(class("a_545"), Class::Rifle);
-    }
-
-    #[test]
-    fn pellets_land_by_distance() {
-        assert_eq!(pellets_hitting(1, 5.0), 1);
-        assert_eq!(pellets_hitting(8, 5.0), 8);
-        assert_eq!(pellets_hitting(8, 25.0), 5);
-        assert_eq!(pellets_hitting(8, 50.0), 2);
-        assert_eq!(pellets_hitting(8, 90.0), 2);
-        assert!(pellets_hitting(8, 17.5) < 8 && pellets_hitting(8, 17.5) > 5);
     }
 
     #[test]

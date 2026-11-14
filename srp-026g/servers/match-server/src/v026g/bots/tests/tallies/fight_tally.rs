@@ -87,7 +87,7 @@ impl Rise {
 
 /// The bullets or pellets of one shot: how many were fired, how many landed on an enemy, and on which part by the
 /// hit shape (torso, head, arm, leg: `Part::index`; all zero with the old disc, whose parts are drawn). With the
-/// old disc a shotgun's shot counts the pellets the stand-in then let land (`pellets_hitting`).
+/// old disc a shotgun's shot counts the pellets that met an enemy's disc, each flown in the game's cone (G35).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Landed {
     pub fired: u8,
