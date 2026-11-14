@@ -1,0 +1,25 @@
+# Patch 143: a battery's carrier hits with it (battery_hit.rs;
+# docs/notes/battery-hit.md). Only the decisions: the sites and the handlers.
+name = "battery_hit"
+patch = 143
+
+# the cook's callback once initialize_logic made the three states: the swing
+[[hook]]
+site = "battery.logic"
+handler = "on_logic"
+
+# carry -> swing's predicate, the function of a function-pointer functor
+[[hook]]
+site = "battery.wants_hit"
+handler = "on_wants_swing"
+
+# the swing's vtable: a copy of the take's, finalize ours (the strike)
+[[vtable]]
+name = "swing"
+source = "take_state_methods"
+check = "check_battery_hit_026g.py"
+
+[[hook]]
+site = "battery_state.finalize"
+handler = "on_finalize"
+proof = "the strike through fsm::tick"

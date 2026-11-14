@@ -6189,3 +6189,23 @@ va	name	location	role	basis
 0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	EDI	the value (patch pointer)	observed
 0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	entry ESP+4	last (the value's slot)	observed
 0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	entry ESP+8	the camera position by value (3 floats)	observed
+0x00301920	survarium::victory_item_core::initialize_logic	EAX	the battery	observed
+0x00301920	survarium::victory_item_core::initialize_logic	entry ESP+4	the take state's 6 clips	observed
+0x00301920	survarium::victory_item_core::initialize_logic	entry ESP+8	take_time (f32)	observed
+0x00301920	survarium::victory_item_core::initialize_logic	entry ESP+12	the carry state's 6 clips	observed
+0x00301920	survarium::victory_item_core::initialize_logic	entry ESP+16	the put state's 6 clips	observed
+0x00301920	survarium::victory_item_core::initialize_logic	entry ESP+20	put_time (f32)	observed
+0x00338940	survarium::victory_item_core_take_state::victory_item_core_take_state	ESI	the state's room (0ECh bytes)	observed
+0x00338940	survarium::victory_item_core_take_state::victory_item_core_take_state	entry ESP+4	the battery	observed
+0x00338940	survarium::victory_item_core_take_state::victory_item_core_take_state	entry ESP+8	its 6 clips	observed
+0x00338940	survarium::victory_item_core_take_state::victory_item_core_take_state	entry ESP+12	the time its first player clip is scaled to (f32)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+4	the bullet manager (a gun's +5A0h)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+8	the start point (3 f32: the eye's position row, matrix +30h)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+12	the velocity (3 f32: the eye's forward row +20h times the speed; melee: the distance)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+16	the bullet data (a gun's +268h of its ammo, or +53Ch its melee)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+20	the time (ms)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+24	the owner (the player's +110h)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+28	the second owner (the player's +118h)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+32	unused: 0 (both callers)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	EDI	the gun (the bullet's constructor 0x32BA60 calls its vtable +7Ch)	observed
+0x00372420	survarium::weapon_core_throw_grenade_base_substate::is_ready_for_transition	entry ESP+4	the predicate buffer, as a function-pointer functor's invoker 0x303450 leaves it (unread)	observed

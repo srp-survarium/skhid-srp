@@ -144,6 +144,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/ban_time.rs`, `src/ban_time.toml`, `src/vostok/login.rs` (`BanStatusText`), `src/vostok/clock.rs` (`FileTime`), `../crates/ban-reason` | Patch 116: a banned account's sign-in shows srp's reason, when the ban ends and how long it has left, from what srp's login server sends after a ban's code; two lohooks, at the sign-in answer and at set_status's built text |
 | `rust/patches/src/sign_in_cipher.rs`, `src/sign_in_cipher.toml`, `src/vostok/openssl.rs`, `../crates/sign-in-cipher`, `check_sign_in_cipher_026g.py` | Patch 139: the sign-in's password goes through srp's own cipher where the game's protocol had TLS; five lohooks, the user name's answer and OpenSSL's SSL_connect, SSL_read, SSL_write and SSL_get_error after their prologue; its check runs a sign-in through the patched exe against Python's `cryptography` (needs it and Unicorn) |
 | `rust/patches/src/free_for_all.rs`, `src/free_for_all.toml`, `src/vostok/respawn.rs`, `src/vostok/ui.rs` (`MatchClock`, the hud state), `check_free_for_all_026g.py` | Patch 142: a free-for-all (mode 8), each player his own side: he respawns alone at one of all clear points of the map's team-2 group, the hud movie gets his kills, the most kills and the kill target (`root.set_ffa_progress`), and the match's start and end their messages; nine lohooks (the KD death event, the respawn tick's batching and selection, a point's protection read, the options' two reads, update_player_icons' start, initialize_match's start, the welcome's mark); its check runs them in the patched exe with the game's own code around, the original beside (needs Unicorn) |
+| `rust/patches/src/battery_hit.rs`, `src/battery_hit.toml`, `src/vostok/battery.rs`, `check_battery_hit_026g.py` | Patch 143: a battery's carrier hits with it: a fourth state of the battery's machine (the swing: a take state over the put's clips, 0.3 s) entered from the carry by the melee key, its finalize striking with the gun-stock hit's bullet once its clip ended; one lohook (the cook's callback after initialize_logic), a runtime callback (carry -> swing's predicate) and a runtime vtable copy (the swing's finalize); its check runs them inside initialize_logic and fsm::tick (needs Unicorn) |
 | `rust/patches/src/artefact_skills.rs`, `src/artefact_skills.toml`, `src/vostok/artefact_skills.rs`, `check_artefact_skills_026g.py`, `src/artefact_keeper.rs`, `src/artefact_keeper.toml`, `src/vostok/keeper.rs`, `check_artefact_keeper_026g.py` | Patch 109: the artefact tree's skills the exe computes (`../docs/notes/artefact-skills.md`), their ranks packed in kit modifier 40; Resistance (+0.05 armour a rank against the anomalous hit types, 0x32A083), Onyx II (the landing 0x2D8220), Larkspur II (the activation 0x313333), Spring II (patch 54's reload nodes, its entry), Resonance and Cascade (the aura at the getters 0x2D5AE6 / 0x2D5C18, the protectors 0x32A020, the regeneration 0x32A53F), Keeper of the Artifacts (a Keeper gets a dormant artefact of the match's kind from the map's hidden pool at the match's start, into its first empty container, once a match: register_artefacts 0x31B8E0, the player's tick 0x2DAAD3); their checks run the game's code for each (needs Unicorn) |
 | `rust/patches/src/forest_glow.rs`, `src/forest_glow.toml`, `src/vostok/effect.rs`, `check_forest_glow_026g.py` | Patch 111: Forest Protection's grey glow on the arms while it protects a player (inside a damage zone, a rank of modifier 41 in its kit), seen by everyone; and the leg quarters, each passive artefact copy counting for a player (own and Resonance's shared, at most 4 a kind) lighting a quarter of its legs in its kind's colour, shown only by a game whose local player's current kit has Artifact Sight (513, modifier 40 bit 12) or that has no local player (pack artefact-glow@13); a place's third-person presenter given back to its current kit's object (the stock game left it on another kit's after a respawn, so other games showed none of that player's effects); played from the player's simulation tick with its own calculator, which ends each when the game no longer shows it; its check runs the tick, the effects' query and callback, the clock and the cook in the built exe (needs Unicorn) |
 | `rust/patches/src/controller_position.rs`, `src/controller_position.toml`, `src/vostok/controller.rs`, `check_controller_position_026g.py` | Patch 118: a character controller's step never leaves its position non-finite: at player_step's epilogue (0x7C7D7) a position with an infinity or a NaN goes back to m_last_pos, where the step began; one lohook; a simulation change (`../docs/notes/client_patch.md` section 3.71) |
@@ -4159,6 +4160,26 @@ Teams 0 and 1 are untouched. A match's computation changes (the respawns): every
 needs it. `check_free_for_all_026g.py` runs the hooks inside the game's own tick batching,
 select_respawn_points (300 random matches against its own model of the rule), the zone
 functions' bytes (the original's), the options' reads, update_ui's welcome and update_player_icons' start.
+
+## Hitting with the battery (patch 143, unreleased)
+
+The melee key while carrying a battery swings it (`docs/notes/battery-hit.md`). The Rust
+`battery_hit` (`vostok::battery`):
+
+- **The swing**, a fourth state of the battery's own state machine. At `battery.logic` (0x2FA7E9,
+  the cook's callback once initialize_logic made the take, carry and put) a take state (0x338940)
+  of the game's allocator over the put's six clips, played in 0.3 s, its kind the carry's (3), its
+  vtable a copy of the take's with finalize ours, appended to the machine's list (index 3); three
+  transitions: carry -> swing (a function-pointer functor whose function is ours: the carrier
+  alive, the melee key down; after carry -> put), swing -> put and swing -> carry (copies of carry
+  -> put's and take -> carry's functors), tried once its clip ended.
+- **The strike**, the swing's finalize once its clip ended: the gun-stock hit's bullet
+  (`emit_bullet` as 0x33AB50 gives it) of the carrier's slot-7 gun, else slot 10's, from the eye
+  along its forward row. Patch 108 makes it kill.
+
+The game's fsm runs, saves (index 3, a take's fields) and loads it; srp-validate reads state 3. A
+match's computation changes. `check_battery_hit_026g.py` runs initialize_logic, the site, the
+take's constructor and fsm::tick with the states' own code (needs Unicorn). Not played.
 
 ## Names on the Tab map (patch 82, unreleased)
 

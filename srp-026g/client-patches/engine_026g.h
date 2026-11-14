@@ -13,6 +13,8 @@ struct backend;
 struct bake_pair;
 struct bake_parameters_copy;
 struct baked_texture_resource;
+struct battery_clips;
+struct battery_state;
 struct bio;
 struct bt_broadphase_proxy;
 struct bt_collision_object;
@@ -22,6 +24,7 @@ struct buffer_string;
 struct buffer_writer;
 struct bullet;
 struct bullet_manager;
+struct bullet_owner;
 struct bullet_physics_world;
 struct camouflage_decal_texture_type_baker_cook;
 struct cc_bool;
@@ -37,6 +40,7 @@ struct di_command_queue;
 struct drawable_image_context;
 struct effect_presenter_holder;
 struct engine_cfg;
+struct fsm_predicate;
 struct game_allocator;
 struct game_effect;
 struct game_effect_list;
@@ -90,6 +94,7 @@ struct player_input_handler;
 struct player_params_modifiers_container;
 struct player_profile;
 struct player_vector;
+struct predicate_buffer;
 struct pthreads3_allocator;
 struct pure_game_effect_emitter;
 struct queries_result;
@@ -129,6 +134,8 @@ struct text_translator;
 struct usable_list;
 struct usable_object;
 struct usable_user;
+struct victory_item_core;
+struct weapon;
 struct weapon_locator;
 struct world_user;
 
@@ -818,5 +825,20 @@ void engine_sound_pan(struct sound_scene *scene, struct panning_lut *table, stru
 
 /* 0x57560 vostok::sound::sound_scene::get_listenet_position: scene EAX, out ESI; pops 0; EAX */
 float *engine_listener_position(struct sound_scene *scene, float *out);
+
+/* 0x338940 survarium::victory_item_core_take_state::victory_item_core_take_state: room ESI, battery ESP+4, clips ESP+8, time ESP+12; pops 12; EAX */
+struct battery_state *engine_battery_take_state(void *room, struct victory_item_core *battery, const struct battery_clips *clips, float time);
+
+/* 0x38c970 vostok::ai::fsm::append_transition: source ESP+4, destination ESP+8, predicate ESP+12; pops 12; stdcall, called directly */
+void __attribute__((stdcall)) engine_fsm_append_transition(struct battery_state *source, struct battery_state *destination, const struct fsm_predicate *predicate);
+
+/* 0x322830 survarium::bullet_manager::emit_bullet: gun EDI, manager ESP+4, point ESP+8, velocity ESP+12, data ESP+16, time ESP+20, owner ESP+24, second ESP+28, unused ESP+32; pops 32; EAX */
+void *engine_emit_bullet(struct weapon *gun, struct bullet_manager *manager, const float *point, const float *velocity, const void *data, unsigned int time, struct bullet_owner *owner, void *second, unsigned int unused);
+
+/* 0x3447f0 survarium::victory_item_core_animation_end_aware_state::finalize: state ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_battery_state_finalize(struct battery_state *state);
+
+/* 0x372420 survarium::weapon_core_throw_grenade_base_substate::is_ready_for_transition: buffer ESP+4; pops 0; AL; cdecl, called directly */
+unsigned char __attribute__((cdecl)) engine_fsm_always(const struct predicate_buffer *buffer);
 
 #endif
