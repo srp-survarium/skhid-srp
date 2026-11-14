@@ -351,6 +351,7 @@ impl Maps {
                             built.how(),
                             (world_bytes(&base.world) + base.memory_bytes()) >> 20
                         );
+                        log_removed_floors(&name, &base.world.grid);
                         cache.made.insert(name.clone(), built.made());
                         cache.insert_ready(&name, Arc::new(base), keep);
                     }
@@ -584,6 +585,53 @@ fn grid_key(map: &MapData, walker: &[mapdata::Triangle], map_file: u64, grid_tun
 
 /// Reads one map, takes or builds its grid and tree, and builds its
 /// tactics for the default margin.
+/// [A389] The players' positions file (`positions.tsv` of the routes corpus: `project x y z visits ...`), when set: every
+/// spot of the map the build lost is logged with its rule ([`log_removed_floors`]). A log's only: no decision reads it.
+pub const PLAYER_SPOTS_ENV: &str = "SRP_BOT_PLAYER_SPOTS";
+
+/// [A389] One line per map built: the floors each grid rule took and the gap links it made, and with [`PLAYER_SPOTS_ENV`] set
+/// each player's spot the build lost (a floor `held_floors` took covers it, within 0.35 m across and 0.3 m in height, and no
+/// kept floor does). `walk_face_stands` takes no floor and `gap_flights` none either (they make and price links). Logs only.
+fn log_removed_floors(name: &str, grid: &mapdata::WalkGrid) {
+    let taken = grid.held_taken();
+    let off = grid.off_links();
+    let flown = off.iter().filter(|l| l.share.flown().is_some()).count();
+    log::info!(
+        "Bot map {name} grid rules: held_floors took {} floors; walk_face_stands took 0; gap links {} ({flown} flown by the client's jump, {} not)",
+        taken.len(),
+        off.len(),
+        off.len() - flown
+    );
+    let Ok(path) = std::env::var(PLAYER_SPOTS_ENV) else { return };
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        log::warn!("Bot map {name}: {PLAYER_SPOTS_ENV} {path} unreadable");
+        return;
+    };
+    let project = name.replace('/', "_");
+    let kept = |p: mapdata::Vec3| grid.locate_within(p, 0.35, 0.3).is_some_and(|n| (grid.position(n).y - p.y).abs() <= 0.3);
+    let mut lost = 0usize;
+    for row in text.lines().skip(1) {
+        let f: Vec<&str> = row.split('\t').collect();
+        if f.len() < 5 || f[0].replace('/', "_") != project {
+            continue;
+        }
+        let (Ok(x), Ok(y), Ok(z)) = (f[1].parse::<f32>(), f[2].parse::<f32>(), f[3].parse::<f32>()) else { continue };
+        let p = mapdata::Vec3::new(x, y, z);
+        if let Some(q) = grid.held_taken_near(p, 0.35, 0.3)
+            && !kept(p)
+        {
+            lost += 1;
+            log::info!(
+                "Bot map {name}: player spot {} ({} visits) lost: held_floors took the floor at {}",
+                super::nav_log::at(p),
+                f[4],
+                super::nav_log::at(q)
+            );
+        }
+    }
+    log::info!("Bot map {name}: {lost} player spots lost to the grid rules");
+}
+
 fn build(
     path: &Path,
     built: Option<&Path>,

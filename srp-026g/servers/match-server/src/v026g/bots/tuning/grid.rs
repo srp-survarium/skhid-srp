@@ -186,6 +186,36 @@ pub struct GridTuning {
     /// (School's sill at 41.9 21.7 142.9: 144 visits, 89 players). The map's geometry, so ON and kept by `all_off`. A grid is
     /// the map's (see `gap_links`).
     pub wall_held_tops: bool,
+    /// [feed 67] With `drop_check`: whether a Drop link is kept only where the client's body walked off it as a bot walks it
+    /// comes to stand on its landing within 2 s (`mapdata::Body::drop_lands`, the exactness session's walk of the Drop links at
+    /// the client's 50 ms tick, on the game's shapes world), re-aimed at the floor it lands on where that is another floor lower
+    /// down; [A389] where the walk stands on no floor, at the floor the client's other ways down stand on (the crouched walk-off,
+    /// a jump off the edge), and cut only where none does. Off: a link passes when the body only goes down, wherever it lands, so a route's reckoning takes the
+    /// body to a landing it never stands on. Client-proven (the walk tick decides), so ON and kept by `all_off` (a
+    /// correctness fix). A grid is the map's (see `gap_links`).
+    pub drop_lands: bool,
+    /// [A389] Whether the maps' gap links are flown by the client's own jump code on the game's shapes world
+    /// (`mapdata::Body::gap_flights`: A385's presses and scoring, each link with its press and share), not by the clip
+    /// approximation. Off: the clip pass, which missed Mamayev Kurgan's ridge -> plateau jump over the gully that 56 players
+    /// made (A369: the bots walked round, 97.4 m for 6.4 m). Client-proven (the client's jump tick decides), so ON and kept by
+    /// `all_off` (a correctness fix). A grid is the map's (see `gap_links`).
+    pub gap_flights: bool,
+    /// [A389] Whether a floor the erosion took comes back in the maps' walk grids where the client's body comes to rest and no
+    /// kept floor names the place (`mapdata::Body::rest_floors`): a sliver of walkable face between faces too steep to stand
+    /// on loses every floor to the erosion, and a body landing there is where the grid has nothing (Mamayev Kurgan,
+    /// R2). Client-proven (the walk tick rests the body there), so ON and kept by `all_off` (a correctness fix). A grid is the map's (see `gap_links`).
+    pub rest_floors: bool,
+    /// [A389] Whether the maps' walk grids keep a floor at an edge only where the client's walk tick holds a standing body, and
+    /// make the way down from the last held floor one drop to where the client's body stands, its true height priced by the
+    /// client's fall damage (`mapdata::Body::held_floors`): Chemical Plant's broken ramp hid a
+    /// 6 m fall behind 7 floors no body stands on. Client-proven (the walk tick decides), so ON and kept by `all_off`. A grid is
+    /// the map's (see `gap_links`).
+    pub held_floors: bool,
+    /// [A389] Whether the maps' walk grids name a body on a floor of `walk` faces anywhere down the faces in its cell
+    /// (`mapdata::Body::walk_face_stands`): the client takes UP as the ground's normal on a `walk` face whatever its slope, so a
+    /// press lands and stays on a steep `walk` rock under the cell's top (Mamayev Kurgan R11, R95, R97, R98). Client-proven (the
+    /// exe with each face's walker byte), so ON and kept by `all_off`. A grid is the map's (see `gap_links`).
+    pub walk_face_stands: bool,
     /// [A318] Whether the floors the erosion rounds took beside a wall the body clears are given back in the maps' walk grids
     /// (`mapdata::Body::wall_give_back`): the exact pass keeps them, a wall face stands within 0.6 m, and the client's walk tick
     /// stands a body there (A318: the rounds took the floor under the client in 376 of the drift lab's grid holds, the exact
@@ -320,6 +350,11 @@ impl Default for GridTuning {
             walk_ceiling_stalls: true,
             rim_jumps: true,
             wall_held_tops: true,
+            drop_lands: true,
+            gap_flights: true,
+            rest_floors: true,
+            held_floors: true,
+            walk_face_stands: true,
             wall_give_back: true,
             exe_collision: true,
             walk_start_clear: true,
@@ -378,6 +413,11 @@ impl GridTuning {
                 mapdata::controller::jump::WALK_CAP_MS
             },
             wall_held_tops: self.wall_held_tops,
+            drop_lands: self.drop_lands,
+            gap_flights: self.gap_flights,
+            rest_floors: self.rest_floors,
+            held_floors: self.held_floors,
+            walk_face_stands: self.walk_face_stands,
             wall_give_back: self.wall_give_back,
             exe_collision: self.exe_collision,
             walk_start_clear: self.walk_start_clear,

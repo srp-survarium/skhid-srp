@@ -177,6 +177,24 @@ pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b05;
 /// The same for the jumps onto a narrow top a wall beyond holds the body on ([`Body::wall_held_tops`], the routes corpus), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
+/// The same for the Drop links kept only where the client's body stands on their landing, re-aimed where it lands elsewhere
+/// ([`Body::drop_lands`], feed 67), in [`grid_key_with_links`] only for a body that asks for it. A value of its own. 0002: the
+/// lips by where the body stops on a landing (A377). 0003: walked on the game's shapes world, and a link no walk line
+/// arrives on re-aimed by the client's other ways down (a walk line's own landing, the crouched walk-off, a jump off the edge)
+/// before any cut (A389).
+pub const DROP_LANDS_ALGO: u32 = 0x5067_0003;
+/// The same for the gap links flown by the client's jump ([`Body::gap_flights`], A389), in [`grid_key_with_links`] only for a
+/// body that asks for it. A value of its own.
+pub const GAP_FLIGHTS_ALGO: u32 = 0x5389_0001;
+/// The same for the taken floors given back where the client's body rests and no floor names the place ([`Body::rest_floors`],
+/// A389), in [`grid_key_with_links`] only for a body that asks for it. A value of its own.
+pub const REST_FLOORS_ALGO: u32 = 0x5389_0101;
+/// The same for the floors kept only where the client's capsule is held and the drops from the last held floors
+/// ([`Body::held_floors`], A389), in [`grid_key_with_links`] only for a body that asks for it. A value of its own.
+pub const HELD_FLOORS_ALGO: u32 = 0x5389_0201;
+/// The same for a body named by a `walk` face's floor anywhere down the face in the cell ([`Body::walk_face_stands`], A389), in
+/// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
+pub const WALK_FACE_STANDS_ALGO: u32 = 0x5389_0301;
 /// The same for the floors given back beside walls the body clears ([`Body::wall_give_back`], A318), in [`grid_key_with_links`]
 /// only for a body that asks for it. A value of its own. 0103: the stand test runs the client's steps (A364 C2 row 45).
 pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0103;
@@ -317,7 +335,10 @@ impl World {
     /// bench's grid is the server's: the bench built its rim jumps on the walker triangles while the store flew them on the
     /// shapes.
     pub fn map_grid(map: &MapData, walker: &[Triangle], cell: f32, body: Body, links: OffMeshLinks) -> WalkGrid {
-        let shapes = body.rim_jumps.then(|| controller::Collision::build_exe(map)).flatten();
+        // [A389] Every pass that walks or flies the client's body takes the shapes: the rim jumps, the gap flights, the Drop links'
+        // walk, the rest and held floors.
+        let flown = body.rim_jumps || body.gap_flights || body.rest_floors || body.held_floors || (body.drop_check && body.drop_lands);
+        let shapes = flown.then(|| controller::Collision::build_exe(map)).flatten();
         let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
         let area = map.play_area(AREA_MARGIN);
         WalkGrid::build_kept_with_shapes(walker, shapes.as_ref(), area, cell, body, &map.grid_seeds(), &spawns, links).0
@@ -465,6 +486,9 @@ pub fn grid_key_with_links(
     // And the walk tick's check of the Drop links.
     if body.drop_check {
         digest.u32(DROP_CHECK_ALGO);
+        if body.drop_lands {
+            digest.u32(DROP_LANDS_ALGO);
+        }
     }
     // And the walk check's ceiling refusals.
     if body.walk_ceiling_stalls {
@@ -474,6 +498,22 @@ pub fn grid_key_with_links(
     if body.rim_jumps {
         digest.u32(RIM_JUMPS_ALGO);
         digest.f32(body.fastest_walk_cap);
+    }
+    // And the gap links flown by the client's jump.
+    if body.gap_flights {
+        digest.u32(GAP_FLIGHTS_ALGO);
+    }
+    // And the floors given back where the body rests.
+    if body.rest_floors {
+        digest.u32(REST_FLOORS_ALGO);
+    }
+    // And the floors only where the capsule is held.
+    if body.held_floors {
+        digest.u32(HELD_FLOORS_ALGO);
+    }
+    // And a body on a `walk` face's floor anywhere down the face.
+    if body.walk_face_stands {
+        digest.u32(WALK_FACE_STANDS_ALGO);
     }
     // And the jumps onto a top a wall holds the body on.
     if body.wall_held_tops {

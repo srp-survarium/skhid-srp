@@ -2927,6 +2927,13 @@ pub(super) fn no_way_line(
         }
     };
     let from = ends.0.map(|n| grid.position(n));
+    // [A389] A goal or start near a floor `held_floors` took (no standing body stays there): the way may be one the rule cut.
+    let mut verdict = verdict;
+    for (what, p) in [("goal", Some(at)), ("start", from)] {
+        if let Some(q) = p.and_then(|p| grid.held_taken_near(p, 1.0, 1.5)) {
+            verdict.push_str(&format!("; its {what} near a floor held_floors took at {}", super::nav_log::at(q)));
+        }
+    }
     let key = super::nav_log::key(("route", (at.x * 2.0) as i32, (at.z * 2.0) as i32, (at.y * 2.0) as i32, verdict.clone()));
     bot.nav_log.push_once(super::nav_log::Kind::Route, key, time, super::nav_log::route_line(from, at, &verdict));
 }
