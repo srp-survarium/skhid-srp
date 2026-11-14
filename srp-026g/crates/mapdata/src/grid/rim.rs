@@ -41,6 +41,8 @@ pub struct RimStats {
     pub walked: usize,
     /// … and as a sprint jump's; the rest no press made.
     pub sprinted: usize,
+    /// Of the made, those whose presses land on another floor of the top than the one tried: the link goes to the floor reached.
+    pub retargeted: usize,
     /// Flights flown.
     pub flights: usize,
 }
@@ -55,83 +57,123 @@ fn sprint_gaits() -> [Gait; 4] {
     ]
 }
 
-/// Whether a flight's `steps` ([`jump::fly`]) from the take-off floor at `from` landed on the floor at `to` (along `way`, flat,
-/// unit): after the jump (its first step in the air), a step out of the jump on which the client has the body on the ground
-/// (`on_ground` 0x7EF90, the game's "can jump", [`jump::FlightStep::on_ground`]) with the feet within [`LAND_HEIGHT_M`] of `to`'s
-/// height and no more than half a cell short of it along the way. The client's own landing, on any step: not where the
-/// flight's straight walk on ends, since a bot that has landed follows its route over the top's floors (Vector Laboratory's
-/// ledge by the shelf, (23.76, 25.39, -28.8), is landed on and then walked off its far end by a straight walk).
-fn stood_on(steps: &[jump::FlightStep], from: Vec3, to: Vec3, way: (f32, f32), cell: f32) -> bool {
-    let across = (to.x - from.x) * way.0 + (to.z - from.z) * way.1;
-    let Some(first_air) = steps.iter().position(|f| f.in_jump) else { return false };
-    steps[first_air..].iter().any(|f| {
-        let ahead = (f.feet.x - from.x) * way.0 + (f.feet.z - from.z) * way.1;
-        !f.in_jump && f.on_ground && (f.feet.y - to.y).abs() <= LAND_HEIGHT_M && ahead >= across - 0.5 * cell
-    })
-}
-
-/// Whether a jump of `gait` pressed `lead` m before the take-off floor's centre at `from`, toward the floor at `to` along `way`
-/// (flat, unit), lands ([`stood_on`]).
-#[allow(clippy::too_many_arguments)]
-fn lands(world: &Collision, s: &Settings, from: Vec3, to: Vec3, way: (f32, f32), cell: f32, lead: f32, gait: Gait) -> bool {
-    let at = Vec3::new(from.x - way.0 * lead, from.y, from.z - way.1 * lead);
-    jump::run_and_fly(world, s, at, way, gait, GROUND_STEPS).is_some_and(|steps| stood_on(&steps, from, to, way, cell))
-}
-
-/// The press that gets a body from `from` to `to` along `way`, among the leads `leads` (metres before the take-off): a walking
-/// jump at the lead it lands from, else the sprint jump at the lead where the most of its four variants land (the nearest to
-/// the middle of the leads that do on a tie); None when no press lands. And the flights flown (a lead where every variant
-/// lands ends the search: no press is better).
-#[allow(clippy::too_many_arguments)]
-fn best_press(world: &Collision, s: &Settings, from: Vec3, to: Vec3, way: (f32, f32), cell: f32, leads: &[f32]) -> (Option<Takeoff>, usize) {
-    let mut flights = 0;
-    let walking: Vec<f32> = leads
-        .iter()
-        .copied()
-        .filter(|&lead| {
-            flights += 1;
-            lands(world, s, from, to, way, cell, lead, Gait::Walk)
-        })
-        .collect();
-    if !walking.is_empty() {
-        return (Some(Takeoff::Press(PressLead::from_metres(walking[walking.len() / 2]))), flights);
+impl WalkGrid {
+    /// The floor under `feet`: in the feet's own cell (the feet within half a cell of its centre on both axes, the grid's own
+    /// test), the one within [`LAND_HEIGHT_M`] of the feet's height, the nearest in height.
+    fn floor_under(&self, feet: Vec3) -> Option<NodeId> {
+        let i = ((feet.x - self.x0) / self.cell).floor() as i32;
+        let k = ((feet.z - self.z0) / self.cell).floor() as i32;
+        let cell = self.cell_index(i, k)?;
+        (self.start[cell]..self.start[cell + 1])
+            .filter(|&f| (self.height[f as usize] - feet.y).abs() <= LAND_HEIGHT_M)
+            .min_by(|&p, &q| (self.height[p as usize] - feet.y).abs().total_cmp(&(self.height[q as usize] - feet.y).abs()))
     }
-    let mut counts: Vec<(f32, usize)> = Vec::new();
-    for &lead in leads {
-        // One run-up for the four variants: it is the same for each ([`jump::run_and_fly`] runs it from the same start at the
-        // same speed), and only the jump differs.
-        let at = Vec3::new(from.x - way.0 * lead, from.y, from.z - way.1 * lead);
-        let run = jump::run_up(world, s, at, way, jump::SPRINT_MS, true);
-        let n = sprint_gaits()
-            .into_iter()
-            .filter(|&gait| {
+
+    /// The floor a flight's `steps` ([`jump::fly`]) from the take-off floor `a` landed on, one up from it (higher than a step, the
+    /// walk's own climb) that `a` has no link to (`linked`): after the jump (its first step in the air), the first step out of
+    /// the jump on which the client has the body on the ground (`on_ground` 0x7EF90, the game's "can jump",
+    /// [`jump::FlightStep::on_ground`]) over such a floor ([`Self::floor_under`]: the feet's own cell). Not a fixed height over
+    /// the take-off: a press that lands on a floor 0.8-0.95 m up which no link of `a`'s goes to makes that link (Vector
+    /// Laboratory's (-45.35, 25.61, 4.93), 0.88 m over the take-off at 24.73). The client's own landing,
+    /// on any step: not where the flight's straight walk on ends, since a bot that has landed follows its route (Vector
+    /// Laboratory's ledge by the shelf, (23.76, 25.39, -28.8), is landed on, then walked off its far end by a straight walk); and on
+    /// the floor the body is on, whichever of the top it is (Vector Laboratory's (-23.72, 23.18, -22.0): a jump meant for the floor
+    /// at 23.49 stops on the one at 23.18 beside it, part of the same top).
+    fn landed_on(&self, steps: &[jump::FlightStep], a: NodeId, linked: &[NodeId]) -> Option<NodeId> {
+        let up = self.height[a as usize] + self.body.step;
+        let first_air = steps.iter().position(|f| f.in_jump)?;
+        steps[first_air..]
+            .iter()
+            .filter(|f| !f.in_jump && f.on_ground)
+            .find_map(|f| self.floor_under(f.feet).filter(|&g| self.height[g as usize] > up && !linked.contains(&g)))
+    }
+
+    /// The press that gets a body from the take-off floor `a` up toward the floor `b` along `way`, among the leads `leads` (metres
+    /// before the take-off), and the floor it lands on ([`Self::landed_on`]: one up that `a`'s links (`linked`) do not go to): on `b` itself
+    /// when a press does (a walking jump at the
+    /// middle of the leads it lands there from, else the sprint jump at the lead where the most of its four variants do, the
+    /// nearest the middle on a tie); else on the floor the presses land on the most (re-targeted: the link goes where the body
+    /// lands); None when no press lands on such a floor. And the flights flown (a lead where every sprint variant lands on
+    /// `b` ends the search).
+    #[allow(clippy::too_many_arguments)]
+    fn best_press(
+        &self,
+        world: &Collision,
+        s: &Settings,
+        a: NodeId,
+        b: NodeId,
+        way: (f32, f32),
+        leads: &[f32],
+        linked: &[NodeId],
+    ) -> (Option<(NodeId, Takeoff)>, usize) {
+        let from = self.position(a);
+        let mut flights = 0;
+        // Each press's landing floor: (lead, walking, floor).
+        let mut landings: Vec<(f32, bool, NodeId)> = Vec::new();
+        for &lead in leads {
+            flights += 1;
+            let at = Vec3::new(from.x - way.0 * lead, from.y, from.z - way.1 * lead);
+            if let Some(f) = jump::run_and_fly(world, s, at, way, Gait::Walk, GROUND_STEPS).and_then(|st| self.landed_on(&st, a, linked)) {
+                landings.push((lead, true, f));
+            }
+        }
+        // The walking presses' leads that land on `to`.
+        fn walked_on(landings: &[(f32, bool, NodeId)], to: NodeId) -> Vec<f32> {
+            landings.iter().filter(|&&(_, w, f)| w && f == to).map(|&(l, ..)| l).collect()
+        }
+        let on_b = walked_on(&landings, b);
+        if !on_b.is_empty() {
+            return (Some((b, Takeoff::Press(PressLead::from_metres(on_b[on_b.len() / 2])))), flights);
+        }
+        for &lead in leads {
+            // One run-up for the four variants: it is the same for each ([`jump::run_and_fly`] runs it from the same start at the
+            // same speed), and only the jump differs.
+            let at = Vec3::new(from.x - way.0 * lead, from.y, from.z - way.1 * lead);
+            let run = jump::run_up(world, s, at, way, jump::SPRINT_MS, true);
+            let mut on_this = 0;
+            for gait in sprint_gaits() {
                 flights += 1;
-                let (Some(run), Gait::Sprint { leg, first_air_frame }) = (run.as_ref(), gait) else { return false };
+                let (Some(run), Gait::Sprint { leg, first_air_frame }) = (run.as_ref(), gait) else { continue };
                 let press =
                     if run.speed >= jump::WALK_CAP_MS { Press::Sprint { speed: run.speed, leg, first_air_frame } } else { Press::Walk { speed: run.speed } };
                 let mut body = run.body;
-                stood_on(&jump::fly(world, s, &mut body, way, press, Keys::BOT, GROUND_STEPS), from, to, way, cell)
-            })
-            .count();
-        counts.push((lead, n));
-        if n == sprint_gaits().len() {
-            return (Some(Takeoff::Sprint(PressLead::from_metres(lead))), flights);
+                if let Some(f) = self.landed_on(&jump::fly(world, s, &mut body, way, press, Keys::BOT, GROUND_STEPS), a, linked) {
+                    landings.push((lead, false, f));
+                    on_this += usize::from(f == b);
+                }
+            }
+            if on_this == sprint_gaits().len() {
+                return (Some((b, Takeoff::Sprint(PressLead::from_metres(lead)))), flights);
+            }
         }
+        // The sprint press onto `to`: the lead with the most variants landing there, the nearest the middle of those that land.
+        let sprint_onto = |to: NodeId| -> Option<f32> {
+            let leads_on: Vec<f32> = landings.iter().filter(|&&(_, w, f)| !w && f == to).map(|&(l, ..)| l).collect();
+            let mid = leads_on.iter().sum::<f32>() / leads_on.len().max(1) as f32;
+            let count = |l: f32| leads_on.iter().filter(|&&x| x == l).count();
+            leads_on.iter().copied().max_by(|&p, &q| count(p).cmp(&count(q)).then((q - mid).abs().total_cmp(&(p - mid).abs())))
+        };
+        if let Some(lead) = sprint_onto(b) {
+            return (Some((b, Takeoff::Sprint(PressLead::from_metres(lead)))), flights);
+        }
+        // Re-targeted: the floor of the top the presses land on the most (a walking press's first).
+        let mut floors: Vec<NodeId> = landings.iter().map(|&(.., f)| f).collect();
+        floors.sort_unstable();
+        floors.dedup();
+        let most = |walking: bool| {
+            floors.iter().copied().filter(|&f| landings.iter().any(|&(_, w, g)| w == walking && g == f)).max_by_key(|&f| {
+                (landings.iter().filter(|&&(_, w, g)| w == walking && g == f).count(), std::cmp::Reverse(f))
+            })
+        };
+        if let Some(f) = most(true) {
+            let on = walked_on(&landings, f);
+            return (Some((f, Takeoff::Press(PressLead::from_metres(on[on.len() / 2])))), flights);
+        }
+        if let Some(f) = most(false) {
+            return (sprint_onto(f).map(|lead| (f, Takeoff::Sprint(PressLead::from_metres(lead)))), flights);
+        }
+        (None, flights)
     }
-    let most = counts.iter().map(|&(_, n)| n).max().unwrap_or(0);
-    if most == 0 {
-        return (None, flights);
-    }
-    // Among the leads with the most landings, the one nearest the middle of the leads that land at all.
-    let landing: Vec<f32> = counts.iter().filter(|&&(_, n)| n > 0).map(|&(lead, _)| lead).collect();
-    let mid = landing.iter().sum::<f32>() / landing.len() as f32;
-    let lead = counts
-        .iter()
-        .filter(|&&(_, n)| n == most)
-        .map(|&(lead, _)| lead)
-        .min_by(|a, b| (a - mid).abs().total_cmp(&(b - mid).abs()))
-        .unwrap_or(mid);
-    (Some(Takeoff::Sprint(PressLead::from_metres(lead))), flights)
 }
 
 /// The leads a gap link may carry: [`gap::GAP_PRESS_MIN_M`] to [`gap::GAP_PRESS_MAX_M`] by [`gap::GAP_PRESS_STEP_M`] (the built
@@ -194,13 +236,17 @@ impl WalkGrid {
         let flown = super::controlled::parallel(&todo, |&(a, b, d)| {
             let (di, dk) = DIRS[d];
             let l = ((di * di + dk * dk) as f32).sqrt();
-            best_press(world, s, self.position(a), self.position(b), (di as f32 / l, dk as f32 / l), self.cell, &leads)
+            // The floors `a` has a link to already (its sides and its off-mesh links): a landing there makes no link.
+            let mut linked: Vec<NodeId> = wide.links[a as usize].iter().copied().filter(|&n| n != NONE).collect();
+            let off = wide.off.partition_point(|o| o.from < a);
+            linked.extend(wide.off[off..].iter().take_while(|o| o.from == a).map(|o| o.to));
+            self.best_press(world, s, a, b, (di as f32 / l, dk as f32 / l), &leads, &linked)
         });
         let mut stats = RimStats { tried: todo.len(), ..RimStats::default() };
         let mut none = Vec::new();
-        for (&(a, b, _), &(press, flights)) in todo.iter().zip(&flown) {
+        for (&(a, b, _), &(made, flights)) in todo.iter().zip(&flown) {
             stats.flights += flights;
-            let Some(press) = press else {
+            let Some((to, press)) = made else {
                 none.push((a, b));
                 continue;
             };
@@ -208,9 +254,12 @@ impl WalkGrid {
                 Takeoff::Press(_) => stats.walked += 1,
                 _ => stats.sprinted += 1,
             }
-            wide.off.push(OffLink { from: a, to: b, kind: LinkKind::GapJump, press });
+            stats.retargeted += usize::from(to != b);
+            wide.off.push(OffLink { from: a, to, kind: LinkKind::GapJump, press });
         }
-        wide.off.sort_unstable_by_key(|l| (l.from, l.to));
+        // Two candidates of one take-off may land on the same floor: one link (the first, by the way's order).
+        wide.off.sort_by_key(|l| (l.from, l.to));
+        wide.off.dedup_by_key(|l| (l.from, l.to));
         (stats, none)
     }
 }
@@ -281,7 +330,6 @@ mod tests {
         let (from, to) = (p("RIM_FROM"), p("RIM_TO"));
         let l = (to.x - from.x).hypot(to.z - from.z);
         let way = ((to.x - from.x) / l, (to.z - from.z) / l);
-        println!("best press: {:?}", best_press(&world, &s, from, to, way, 0.25, &gap_leads()));
         for lead in gap_leads() {
             for gait in std::iter::once(Gait::Walk).chain(sprint_gaits()) {
                 let at = Vec3::new(from.x - way.0 * lead, from.y, from.z - way.1 * lead);
