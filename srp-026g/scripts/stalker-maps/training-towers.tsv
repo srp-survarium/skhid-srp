@@ -1,0 +1,10 @@
+place	kind	x	z	radius	y_min	y_max
+north_west_upper	cabin	19.4	24.1	1.6	28	29
+north_west_lower	cabin	4.1	15.3	1.6	15.25	16.25
+south_west_upper	cabin	9.1	-5.75	1.6	28	29
+south_west_lower	cabin	18.25	-21	1.6	15.25	16.25
+east_upper	cabin	46.6	-5.75	1.6	28	29
+east_lower	cabin	37.4	9.5	1.6	15.25	16.25
+north_west	stairs	9.41	23.94	9	6	27.5
+south_west	stairs	9.45	-15.92	9	6	27.5
+east	stairs	46.37	4.02	9	6	27.5

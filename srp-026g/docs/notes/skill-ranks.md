@@ -6,7 +6,7 @@ least the old one:
 
 | id  | skill        | modifier                             | was           | now            |
 |-----|--------------|--------------------------------------|---------------|----------------|
-| 102 | Battle stance| movement_speed_when_aiming           | 5 x +1% (+5)  | 3 x +2% (+6)   |
+| 102 | Battle stance| movement_speed_when_aiming           | 5 x +1% (+5)  | 3 x +4% (+12)  |
 | 106 | Accuracy     | dispersion_from_hip                  | 5 x +2% (+10) | 3 x +4% (+12)  |
 | 107 | Firm grip    | dispersion_movement_influence        | 5 x +2% (+10) | 3 x +4% (+12)  |
 | 110 | Equanimity   | injury_penalty                       | 5 x -10% (-50)| 3 x -20% (-60) |
@@ -14,6 +14,12 @@ least the old one:
 | 204 | Breath       | stamina_regeneration_speed           | 5 x +2% (+10) | 3 x +4% (+12)  |
 | 211 | Unstoppable  | stamina_loss_on_hit                  | 5 x -5% (-25) | 3 x -10% (-30) |
 | 501 | Quick Hands  | artefact_search_time                 | 4 x -6% (-24) | 3 x -8% (-24)  |
+
+Battle stance was 3 x +2% (+6) until 2026-11-14 (the owner: "battle stance should give +4% per pop
+to +12% not to +6%"): the same three ranks, each worth twice as much. A value retune of the edit
+list; saved ranks stay as they are. Built locally (`release/build-content 59`, a quick build, no
+number reserved): the tree's skill 102 has three ranks of 0.04 and the texts +4, +8, +12; not played,
+not released.
 
 - Data only: `scripts/content-edit/skill-ranks-1.json` (the stock seven; `set_entry` replaces
   each skill's `modifiers` and `ui/skill_descriptions` lists) and `artefact-skills-1.json`

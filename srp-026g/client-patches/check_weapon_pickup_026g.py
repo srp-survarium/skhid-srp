@@ -3553,7 +3553,7 @@ class Alone(Death):
 
     def fixtures(self, emu, address, *_):
         sp = emu.reg_read(UC_X86_REG_ESP)
-        if address == RAY_TEST and self.read(sp + 20) == 0x434:   # the ragdoll's level: the floor at y = 0
+        if address == RAY_TEST and self.read(sp + 20) == 0x414:   # the ragdoll's level: the floor at y = 0
             result, origin, direction = (self.read(sp + 4 * n) for n in (1, 2, 3))
             (o, d), length = (struct.unpack("<3f", bytes(emu.mem_read(a, 12))) for a in (origin, direction)), \
                 struct.unpack("<f", bytes(emu.mem_read(sp + 16, 4)))[0]

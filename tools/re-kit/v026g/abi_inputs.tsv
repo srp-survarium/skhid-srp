@@ -6154,5 +6154,25 @@ va	name	location	role	basis
 0x0033a7e0	survarium::weapon_core_throw_grenade_state::attach_grenade	EDX	the throw state (mov edx,esi at 0x33A453 before the call)	observed
 0x0033a4e0	survarium::weapon_core_throw_grenade_state::serialize	at 0x33A51B..0x33A53D	the set's slot byte saved: [[state+17Ch]+254h] (any item's inventory slot, 17h absent), the set not tested and not null-tested. Patch 115 saves 17h with no grenade set	observed
 0x00252b20	survarium::weapon_sound_events_handler_state<survarium::double_barreled_weapon_core_fire_state>::deserialize	ECX	the fire state (mov edi,ecx at 0x252B38)	observed
+0x002370e0	survarium::game_world_ui::update_body_parts_hp [descriptive]	EAX	the local player's damage model (its pools +108h): [the player's +108h slot 2]() at 0x23B788..0x23B78A	observed
+0x002370e0	survarium::game_world_ui::update_body_parts_hp [descriptive]	entry ESP+4	the game world ui (its movie through +8, +108h, +4)	observed
+0x0032a600	survarium::body_part::recall_expired_affects [descriptive]	entry ESP+4	the pool	observed
+0x0032a600	survarium::body_part::recall_expired_affects [descriptive]	entry ESP+8	the time, ms	observed
+0x0032a740	survarium::body_part::check_affects [descriptive]	EDI	the pool (Hmax +9Ch, H +A0h, its thresholds +28h)	observed
+0x0032a740	survarium::body_part::check_affects [descriptive]	entry ESP+4	the time, ms	observed
+0x0032a9c0	survarium::body_part::update_threshold_modifier [descriptive]	ECX	the pool: its model +7Ch, whose player is +3B0h (the kit +115h, the kits +6B8h)	observed
+0x0032ab90	survarium::body_part::apply_threshold_affects [descriptive]	EAX	the threshold	observed
+0x0032ab90	survarium::body_part::apply_threshold_affects [descriptive]	entry ESP+4	the pool	observed
+0x0032ab90	survarium::body_part::apply_threshold_affects [descriptive]	entry ESP+8	the time, ms	observed
+0x00312450	survarium::artefact_lifebone_core::disable_active_effects	ECX	the Lifebone	observed
+0x00248ad0	survarium::step_manager::on_step	ECX at 0x248B58	the physics world (game world +4D4Ch, +130h): the ground ray is its vtable+48h ray_test with filter group 30h and mask 8 (pushed at 0x248B14, 0x248B02), 0 and 1: it meets the collision objects of cgroup & 8 whose cmask has 10h or 20h (cmask 16 and 20: the level; walker_collision, cgroup 2, never)	observed
+0x00248ad0	survarium::step_manager::on_step	ECX at 0x248B75	the ray's hit object: its vtable+10h (bt_static_rigid_body::get_triangle_material 0x3570A0) with the hit's triangle index and compound flag gives the ground's material id for material_pair 0x306D50 (EDI); the foliage step is a foliage triangle met before the ground	observed
+0x002f8850	survarium::static_collision::insert	ESI at 0x2F892E	the static collision: its cgroup (u16 +44h) and cmask (u16 +46h) are the group and the mask of the body in the world's add (vtable+2Ch, 0x758B0) at 0x2F8944	observed
+0x003570a0	vostok::physics::bt_static_rigid_body::get_triangle_material	ECX	the static body (this; +10h its shape)	observed
+0x003570a0	vostok::physics::bt_static_rigid_body::get_triangle_material	entry ESP+4	the triangle index of a mesh hit, or the primitive's of a compound one (ray result +20h)	observed
+0x003570a0	vostok::physics::bt_static_rigid_body::get_triangle_material	entry ESP+8	byte: the index is a compound child's (ray result +24h)	observed
+0x00082590	vostok::physics::collision_shape_cook::translate_query	ECX	the cook (+20h byte: with game materials, the game's 1)	observed
+0x00082590	vostok::physics::collision_shape_cook::translate_query	entry ESP+4	the query (+0F8h / +0FCh its name)	observed
+0x0032d4e0	survarium::bullet::check_collision	EBP at 0x32D5EE	the manager's physics world (+98h): the bullet's ray is its vtable+48h ray_test with filter group 10h and mask 48h (pushed at 0x32D5F3, 0x32D5F1), the bullet (EDI) and 1: collision objects of cgroup & 8 whose cmask has 10h, and hit models (40h)	observed
 0x00057560	vostok::sound::sound_scene::get_listenet_position	EAX	the sound scene: its listener position, an atomic half3 at +120h, read by a locked cmpxchg8b that leaves it as it is	observed
 0x00057560	vostok::sound::sound_scene::get_listenet_position	ESI	the out float3: the position as three floats	observed

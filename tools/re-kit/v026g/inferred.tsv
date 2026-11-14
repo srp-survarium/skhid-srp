@@ -3482,3 +3482,9 @@ va	status	ref_021d	name
 0x00310450	inferred-medium		survarium::weapon_core_throw_grenade_idle_substate::is_ready_for_transition [descriptive]
 0x0033a730	inferred-medium		survarium::weapon_core_throw_grenade_state::grenade_selection_matches [descriptive]
 0x0030a090	inferred-medium		survarium::grenade_set_core::has_grenade_to_throw [descriptive]
+0x002370e0	inferred-high		survarium::game_world_ui::update_body_parts_hp [descriptive]
+0x0032a600	inferred-high		survarium::body_part::recall_expired_affects [descriptive]
+0x0032a740	inferred-high		survarium::body_part::check_affects [descriptive]
+0x0032a9c0	inferred-high		survarium::body_part::update_threshold_modifier [descriptive]
+0x0032ab90	inferred-high		survarium::body_part::apply_threshold_affects [descriptive]
+0x00312450	inferred-medium		survarium::artefact_lifebone_core::disable_active_effects
