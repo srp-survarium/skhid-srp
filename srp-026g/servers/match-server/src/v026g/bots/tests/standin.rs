@@ -1904,10 +1904,14 @@ impl Game {
         }
         // What the shot's bullets met: the old disc's nearest chest, or the hit shapes of each pellet's ray.
         let ammo = standin_damage::ammo_of(&self.damage, gun);
+        let pellet_cone = standin_damage::pellet_cone_deg(gun, ammo);
         let (disc, boxes) = match self.volume {
-            HitVolume::Disc => (self.strike_disc(shooter, eye, dir), Vec::new()),
-            HitVolume::Boxes { .. } => (None, self.strikes_boxes(shooter, eye, origin, dir, ammo)),
+            HitVolume::Disc => (self.strike_disc_pellets(shooter, eye, dir, ammo.buck_shot, pellet_cone), Vec::new()),
+            HitVolume::Boxes { .. } => (None, self.strikes_boxes(shooter, eye, origin, dir, ammo, pellet_cone)),
         };
+        // [G35] The pellets of the disc's hit that met the body (1 for a bullet).
+        let disc_pellets = disc.map_or(0, |(.., pellets)| pellets);
+        let disc = disc.map(|(body, along, _)| (body, along));
         let best: Option<(Place, f32)> = disc.or_else(|| {
             boxes
                 .iter()
@@ -1943,10 +1947,10 @@ impl Game {
             fired: ammo.buck_shot.clamp(1, 255) as u8,
             ..Default::default()
         };
-        if let Some((body, along)) = disc
+        if let Some((body, _)) = disc
             && self.bodies[body].team != team
         {
-            landed.on_enemy = standin_damage::pellets_hitting(ammo.buck_shot, along).min(255) as u8;
+            landed.on_enemy = disc_pellets.min(255) as u8;
         }
         for strike in boxes.iter().filter(|s| self.bodies[s.body].team != team) {
             landed.on_enemy += 1;
@@ -1997,7 +2001,7 @@ impl Game {
         match self.volume {
             HitVolume::Disc => {
                 if let Some((target, along)) = best {
-                    self.land_disc(shooter, target, along, [eye, dir, view_dir], cone, tick);
+                    self.land_disc(shooter, (target, along, disc_pellets), [eye, dir, view_dir], cone, tick);
                 }
             }
             HitVolume::Boxes { .. } => self.land_boxes(shooter, &boxes, [eye, dir, view_dir], cone, tick),
@@ -2006,6 +2010,28 @@ impl Game {
 
     /// The old rule ([`HitVolume::Disc`]): the nearest body, within 100 m along the line, whose chest the line
     /// passes within [`standin_hitbox::DISC_M`] and sees (a clear line from the eye to the chest, not a clear shot ray).
+    /// [G35] [`Self::strike_disc`] for a whole shot: a bullet's one ray; a shotgun's `buck_shot` pellets each turned from
+    /// `dir` in the game's pellet cone (`pellet_cone_deg` degrees, [`bench_spread::deflect`]) and met against the disc on
+    /// its own. The nearest body a pellet met, its distance along the line, and how many of the pellets met it. Before, the
+    /// centre ray met the disc and a share of the pellets by distance landed (`pellets_hitting`, a GUESS).
+    fn strike_disc_pellets(&mut self, shooter: Place, eye: Vec3, dir: Vec3, buck_shot: u32, cone_deg: f32) -> Option<(Place, f32, u32)> {
+        if buck_shot <= 1 {
+            return self.strike_disc(shooter, eye, dir).map(|(body, along)| (body, along, 1));
+        }
+        let mut met: Vec<(Place, f32)> = Vec::new();
+        for _ in 0..buck_shot {
+            let pellet = bench_spread::deflect(dir, cone_deg, &mut self.rng);
+            met.extend(self.strike_disc(shooter, eye, pellet));
+        }
+        let (body, along) = met.iter().copied().min_by(|a, b| a.1.total_cmp(&b.1))?;
+        let landed = met.iter().filter(|(b, _)| *b == body).count() as u32;
+        log::debug!(
+            "stand-in shotgun shot of {shooter} at {}: {landed} of {buck_shot} pellets on {body} at {along:.1} m (cone {cone_deg:.2} deg)",
+            self.tick
+        );
+        Some((body, along, landed))
+    }
+
     fn strike_disc(&self, shooter: Place, eye: Vec3, dir: Vec3) -> Option<(Place, f32)> {
         let mut best: Option<(Place, f32)> = None;
         for (target, other) in self.bodies.iter().enumerate() {
@@ -2152,9 +2178,10 @@ impl Game {
     }
 
     /// [`HitVolume::Boxes`]: a bullet is one ray along `dir`; a shotgun's shot is its `buck_shot` pellets, each
-    /// its own ray, the shot's direction turned again by the ammunition's cone (`buck_dispersion`) as the game's
-    /// `get_dispersed_buckshot_direction` turns it (`fact-hitboxes-026g.md` 4). One strike per ray that met a
-    /// body.
+    /// its own ray, the shot's direction turned again in the game's pellet cone (`cone_deg`,
+    /// `standin_damage::pellet_cone_deg`: the weapon's `base_dispersion` x the ammo's `buck_dispersion`, as the game's
+    /// `get_dispersed_buckshot_direction` 0x2E2120 turns it; [G35] the base was left out before, so the pellets flew in
+    /// 0.8 to 2.0 times too narrow or wide a cone). One strike per ray that met a body.
     fn strikes_boxes(
         &mut self,
         shooter: Place,
@@ -2162,13 +2189,14 @@ impl Game {
         origin: Vec3,
         dir: Vec3,
         ammo: &survarium::v026g::damage::AmmoParams,
+        cone_deg: f32,
     ) -> Vec<BoxStrike> {
         if ammo.buck_shot <= 1 {
             return self.nearest_shape(shooter, eye, origin, dir).into_iter().collect();
         }
         (0..ammo.buck_shot)
             .filter_map(|_| {
-                let pellet = bench_spread::deflect(dir, ammo.buck_dispersion, &mut self.rng);
+                let pellet = bench_spread::deflect(dir, cone_deg, &mut self.rng);
                 self.nearest_shape(shooter, eye, origin, pellet)
             })
             .collect()
@@ -2176,7 +2204,9 @@ impl Game {
 
     /// The old rule's hit: `shooter`'s shot hit `target` at `along` m; its part drawn by chance, a leg hit by
     /// a hash. `line` is the eye, the shot's direction and the view's.
-    fn land_disc(&mut self, shooter: Place, target: Place, along: f32, line: [Vec3; 3], cone: f32, tick: u32) {
+    /// `strike`: the body hit, its distance along the line and the pellets that met it ([`Self::strike_disc_pellets`]).
+    fn land_disc(&mut self, shooter: Place, strike: (Place, f32, u32), line: [Vec3; 3], cone: f32, tick: u32) {
+        let (target, along, pellets) = strike;
         if !self.hurts(shooter, target, tick) {
             return;
         }
@@ -2194,7 +2224,7 @@ impl Game {
         let pain_before = self.bodies[target].pools.pain;
         let other = &mut self.bodies[target];
         let before = standin_heal::health_of(other);
-        let stamina = standin_damage::hit(&self.damage, other, gun, along, &mut self.rng, tick);
+        let stamina = standin_damage::hit(&self.damage, other, gun, along, pellets, &mut self.rng, tick);
         standin_heal::stop_on_bullet(other, target, before, tick, &mut self.drug_stops);
         other.stamina.hit(stamina);
         other.last_hit = tick;
