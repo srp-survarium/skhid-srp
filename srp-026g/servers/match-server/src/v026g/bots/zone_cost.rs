@@ -379,6 +379,86 @@ impl Budget {
     }
 }
 
+/// [Gap 12] A walk's loss by the client's rule of when a zone hits (`damage_zone_core::tick` 0x319AF0): a continuous zone
+/// hits on every tick, its rate a second; an interval zone (`Damage::continuous` false) hits a body at once on entry
+/// when the zone is idle, then every `interval_ms`, the zone's last hit kept per zone (0x319D15;
+/// `docs/notes/drugs_zones_artefacts.md`). So a stay of `t` ms in an interval zone takes `ceil(t / interval)` hits when
+/// the zone is idle at entry, and never more: priced so, not as the rate's fraction (a 0.3 s cut through a 0.6-a-second
+/// electro zone of Vostok Radar Station takes 0.6, which the rate priced at 0.18). Feed it the walk's steps in order
+/// ([`Self::step`]); leaving an interval zone and coming back is a new stay. 150 of the 537 damage zones of the shipped
+/// projects are interval zones (fire 0.1 every 500 ms, electro 0.6 every 1,000 ms, windmills and the underbridge).
+#[derive(Clone, Debug, Default)]
+pub struct WalkPrice {
+    /// The continuous zones' and the live fields' loss so far, and the left interval stays' hits.
+    done: Cost,
+    /// The interval zones the last step was in: their stays so far.
+    open: Vec<Stay>,
+}
+
+/// One stay in an interval zone ([`WalkPrice`]).
+#[derive(Clone, Debug)]
+struct Stay {
+    /// The zone (`Hazard::zone`) and its interval, ms.
+    zone: usize,
+    interval_ms: f32,
+    /// Its time in the zone, s, and one hit's loss summed over that time by the second (each step's hit at its weight).
+    seconds: f32,
+    hit_seconds: Cost,
+}
+
+impl Stay {
+    /// Its hits: `ceil(t / interval)` (half a millisecond of the walk's float time forgiven), each at its mean hit.
+    fn loss(&self) -> Cost {
+        if self.seconds <= 0.0 {
+            return Cost::ZERO;
+        }
+        let hits = ((self.seconds * 1000.0 - 0.5) / self.interval_ms).ceil().max(1.0);
+        self.hit_seconds / self.seconds * hits
+    }
+}
+
+impl WalkPrice {
+    /// `seconds` on a floor where the zones `zones` hit, each at its weight of its full hit (the intensity there, or
+    /// 1), under `armour` (`None`: the raw hit in the body pool), and live fields `live_per_s` a second (their rate,
+    /// in the body pool). A step in no zone is `zones` empty: it ends every stay.
+    pub fn step<'z>(
+        &mut self,
+        zones: impl Iterator<Item = (&'z Hazard, f32)>,
+        armour: Option<&ZoneArmour>,
+        seconds: f32,
+        live_per_s: f32,
+    ) {
+        let mut was = std::mem::take(&mut self.open);
+        self.done = self.done + Cost::body(live_per_s) * seconds;
+        for (zone, weight) in zones {
+            let per_s = match armour {
+                None => Cost::body(zone.hit_per_s()),
+                Some(armour) => zone.cost_per_s(armour),
+            } * weight;
+            let Some(interval_ms) = zone.damage.as_ref().filter(|d| !d.continuous && d.interval_ms > 0).map(|d| d.interval_ms)
+            else {
+                self.done = self.done + per_s * seconds;
+                continue;
+            };
+            let hit = per_s * (interval_ms as f32 / 1000.0);
+            let mut stay = match was.iter().position(|s| s.zone == zone.zone) {
+                Some(at) => was.swap_remove(at),
+                None => Stay { zone: zone.zone, interval_ms: interval_ms as f32, seconds: 0.0, hit_seconds: Cost::ZERO },
+            };
+            stay.seconds += seconds;
+            stay.hit_seconds = stay.hit_seconds + hit * seconds;
+            self.open.push(stay);
+        }
+        // The zones this step is not in: left.
+        self.done = self.done + was.iter().map(Stay::loss).sum::<Cost>();
+    }
+
+    /// The walk's loss so far.
+    pub fn total(&self) -> Cost {
+        self.done + self.open.iter().map(Stay::loss).sum::<Cost>()
+    }
+}
+
 impl Hazard {
     /// What standing in this zone costs a second at full intensity under `armour`, in the pools
     /// that kill. A zone the map file gives no hit for is lethal (infinite, as
@@ -474,6 +554,31 @@ mod tests {
 
     fn near(a: f32, b: f32) -> bool {
         (a - b).abs() < 1e-5
+    }
+
+    /// [Gap 12] An interval zone takes whole hits: one on entry, one each interval after (`ceil(t / interval)`); leaving it
+    /// and coming back is a new entry. A continuous zone takes its rate.
+    #[test]
+    fn an_interval_zone_takes_whole_hits_a_continuous_one_its_rate() {
+        let mut electro = zone("shock", &[], 0.6, 0.0);
+        electro.damage.as_mut().unwrap().continuous = false;
+        let hit = electro.hit_per_s(); // a second's rate: one hit every 1000 ms
+        let walk = |steps: &[(bool, f32)]| {
+            let mut price = WalkPrice::default();
+            for &(inside, seconds) in steps {
+                let zones: Vec<(&Hazard, f32)> = if inside { vec![(&electro, 1.0)] } else { Vec::new() };
+                price.step(zones.into_iter(), None, seconds, 0.0);
+            }
+            price.total().body
+        };
+        assert!(near(walk(&[(true, 0.1), (true, 0.1), (true, 0.1)]), hit), "a 0.3 s cut takes one whole hit");
+        assert!(near(walk(&[(true, 0.5), (true, 0.5)]), hit), "one second: one hit");
+        assert!(near(walk(&[(true, 0.6), (true, 0.6)]), 2.0 * hit), "1.2 s: a second hit");
+        assert!(near(walk(&[(true, 0.2), (false, 0.2), (true, 0.2)]), 2.0 * hit), "back in: a new entry");
+        let fire = zone("fire", &[], 0.1, 0.0);
+        let mut price = WalkPrice::default();
+        price.step(std::iter::once((&fire, 1.0)), None, 0.3, 0.0);
+        assert!(near(price.total().body, 0.3 * fire.hit_per_s()), "continuous: its rate");
     }
 
     /// Acid on the face costs the infection pool, not the body; a mask lowers it.

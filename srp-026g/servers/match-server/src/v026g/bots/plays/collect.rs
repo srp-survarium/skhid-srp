@@ -1069,15 +1069,16 @@ fn line_hurt(tactics: &Tactics, a: Vec3, b: Vec3, armour: Option<&ZoneArmour>, h
     let d = a.distance_xz(b);
     let n = (d / CROSS_STEP_M).ceil().max(1.0) as usize;
     let ds = d / n as f32;
-    (0..n)
-        .map(|i| {
-            let p = a + (b - a) * ((i as f32 + 0.5) / n as f32);
-            grid.locate(p, 1.5)
-                .map_or(Cost::ZERO, |node| tactics.hazards.leg_cost_per_s(grid, node, armour, hurt))
-                * ds
-                / CROSS_MPS
-        })
-        .sum()
+    // [Gap 12] By the client's rule of when a zone hits (`zone_cost::WalkPrice`): an interval zone's whole hits.
+    let mut walk = crate::v026g::bots::zone_cost::WalkPrice::default();
+    for i in 0..n {
+        let p = a + (b - a) * ((i as f32 + 0.5) / n as f32);
+        match grid.locate(p, 1.5) {
+            Some(node) => tactics.hazards.leg_walk_step(&mut walk, grid, node, armour, hurt, ds / CROSS_MPS),
+            None => walk.step(std::iter::empty(), armour, ds / CROSS_MPS, 0.0),
+        }
+    }
+    walk.total()
 }
 
 /// The cheapest crossing to `to` for a body of map side `side`, its walk

@@ -104,12 +104,13 @@ impl Cheapest {
 /// metres it walks.
 pub fn walk_cost(tactics: &Tactics, path: &[NodeId], armour: Option<&ZoneArmour>) -> (Cost, f32) {
     let grid = &tactics.world.grid;
-    let mut cost = Cost::ZERO;
+    // [Gap 12] By the client's rule of when a zone hits (`zone_cost::WalkPrice`): an interval zone's whole hits.
+    let mut walk = super::zone_cost::WalkPrice::default();
     let mut metres = 0.0;
     for pair in path.windows(2) {
         let d = (grid.position(pair[1]) - grid.position(pair[0])).length();
         metres += d;
-        cost = cost + tactics.hazards.cost_per_s(pair[1], armour) * (d / CROSS_MPS);
+        tactics.hazards.walk_step(&mut walk, pair[1], armour, d / CROSS_MPS, |_| 1.0);
     }
-    (cost, metres)
+    (walk.total(), metres)
 }
