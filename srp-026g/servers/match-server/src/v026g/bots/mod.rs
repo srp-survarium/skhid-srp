@@ -230,6 +230,16 @@ pub struct Note {
     pub text: String,
 }
 
+/// [A395a] A bot's walk over a zone's floors (`Bot::zone_walk`): since when (ms) its lines are tested over them,
+/// whether the route it walks was planned since (`Tactics::route_shut_ahead`), and its ticks on floors a zone on hurts
+/// by the client's contact test (`Hazards::hits_at`), for the log.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct ZoneWalk {
+    since: u32,
+    route: tactics::WalkRoute,
+    hurt_ticks: u32,
+}
+
 /// One bot.
 pub struct Bot {
     place: Place,
@@ -443,9 +453,9 @@ pub struct Bot {
     paired: bool,
     /// Its route searches dropped since it last noted them.
     dropped: path::Dropped,
-    /// Since when (ms) its walk tests its lines over a zone's floors, because it stands on floors the zone refuses
-    /// (`Tactics::zone_exit`); none off them. The note of each change is `zone_note`, said once.
-    zone_walk: Option<u32>,
+    /// Its walk over a zone's floors, because it stands on floors the zone refuses (`Tactics::zone_exit`); none off
+    /// them. The note of each change is `zone_note`, said once.
+    zone_walk: Option<ZoneWalk>,
     zone_note: Option<String>,
     /// Its kits by index (the profile's, `survarium::v026g::loadouts::
     /// bot_kits` of its tier and role) and the rounds of weapon 1's ammo

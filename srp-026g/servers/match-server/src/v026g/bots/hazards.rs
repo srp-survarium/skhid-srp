@@ -507,39 +507,85 @@ pub enum Marking {
     /// times against 11 (a fall off the rim 66, a jump's landing 43, the walk's drift 82; the drift off the route on
     /// band floors a mean of 0.226 m over 1170 samples). To lift after A388, with a bench of routes on the band again.
     /// A route enters the band only for its last leg, to a goal there, or leaves it from a start there, by the
-    /// shortest walk over band floors (`Tactics::band_way`).
-    Capsule { band: f32 },
+    /// shortest walk over band floors (`Tactics::band_way`). `uses` says which of the two rules it goes by.
+    Capsule { band: f32, uses: CapsuleUse },
+}
+
+/// [A395a] Which of the client's rule's two uses a [`Marking::Capsule`] takes (`HazardTuning::capsule_exits`,
+/// `capsule_goals`): benched apart, each against the margin's rule.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CapsuleUse {
+    /// The walk out of a zone starts only on the floors the capsule touches; from the band a body leaves over floors
+    /// it may stand on (`Tactics::zone_exit`). Stands and goals keep the margin's rule.
+    Exits,
+    /// Stands and goals are refused only where the capsule touches a zone that is on, a goal on the band reached by
+    /// its shortest way in ([`Hazards::stand_allowed`], [`Hazards::band_end`]). The walk out keeps the margin's rule.
+    Goals,
+    /// Both.
+    Both,
+}
+
+impl CapsuleUse {
+    /// The walk-out's rule.
+    pub fn exits(self) -> bool {
+        matches!(self, Self::Exits | Self::Both)
+    }
+
+    /// The stands' and goals' rule.
+    pub fn goals(self) -> bool {
+        matches!(self, Self::Goals | Self::Both)
+    }
+
+    fn tag(self) -> u32 {
+        match self {
+            Self::Exits => 1,
+            Self::Goals => 2,
+            Self::Both => 3,
+        }
+    }
 }
 
 impl Marking {
-    /// The marking `tuning` asks for (`HazardTuning::capsule_marks`, `margin_m`).
+    /// The marking `tuning` asks for (`HazardTuning::capsule_exits`, `capsule_goals`, `margin_m`).
     pub fn of(tuning: &super::tuning::HazardTuning) -> Self {
-        let margin = tuning.margin_m.get();
-        if tuning.capsule_marks {
-            Self::Capsule { band: margin }
-        } else {
-            Self::Margin(margin)
+        let band = tuning.margin_m.get();
+        match (tuning.capsule_exits, tuning.capsule_goals) {
+            (false, false) => Self::Margin(band),
+            (true, false) => Self::Capsule { band, uses: CapsuleUse::Exits },
+            (false, true) => Self::Capsule { band, uses: CapsuleUse::Goals },
+            (true, true) => Self::Capsule { band, uses: CapsuleUse::Both },
+        }
+    }
+
+    /// The capsule's uses, none under the margin's rule.
+    pub fn uses(self) -> Option<CapsuleUse> {
+        match self {
+            Self::Margin(_) => None,
+            Self::Capsule { uses, .. } => Some(uses),
         }
     }
 
     /// The width of the marks round a zone: the refused margin, or the priced band.
     pub fn margin(self) -> f32 {
         match self {
-            Self::Margin(margin) | Self::Capsule { band: margin } => margin,
+            Self::Margin(margin) | Self::Capsule { band: margin, .. } => margin,
         }
     }
 
     /// Into a key's or a base's digest: the margin's width as it always was, and the capsule's rule after it.
     pub fn digest_into(self, digest: &mut mapdata::digest::Digest) {
         digest.f32(self.margin());
-        if let Self::Capsule { .. } = self {
+        if let Self::Capsule { uses, .. } = self {
             digest.u32(CAPSULE_MARKING);
+            if uses != CapsuleUse::Both {
+                digest.u32(uses.tag());
+            }
         }
     }
 
     /// The same rule and width, compared by their bits (a base is shared only with a match that asks for it).
     pub fn same(self, other: Self) -> bool {
-        std::mem::discriminant(&self) == std::mem::discriminant(&other) && self.margin().to_bits() == other.margin().to_bits()
+        self.uses() == other.uses() && self.margin().to_bits() == other.margin().to_bits()
     }
 }
 
@@ -728,7 +774,7 @@ impl Hazards {
     /// [A395a] Whether the marking lets a route walk the band to `node` or from it ([`Marking::Capsule`] and
     /// [`Self::in_band`]): a goal or a start there.
     pub fn band_end(&self, node: NodeId) -> bool {
-        matches!(self.marking, Marking::Capsule { .. }) && self.in_band(node)
+        self.marking.uses().is_some_and(CapsuleUse::goals) && self.in_band(node)
     }
 
     /// [A395a] Whether a body may stand on `node` at `time`: under [`Marking::Capsule`] every zone the client lists a
@@ -736,13 +782,24 @@ impl Hazards {
     /// shuts it; under [`Marking::Margin`], [`Self::allowed`]. A stand on the band is one; the route to it walks the
     /// band only for its last leg (`Tactics::band_way`).
     pub fn stand_allowed(&self, node: NodeId, time: u32) -> bool {
-        match self.marking {
-            Marking::Margin(_) => self.allowed(node, time),
-            Marking::Capsule { .. } => {
-                self.zones_of_set(self.marks.hurt_set.get(node as usize)).all(|zone| zone.activity.off_for(time, self.pass_ms))
-                    && self.live.allowed_for(node, time, self.pass_ms)
-            }
+        if self.marking.uses().is_some_and(CapsuleUse::goals) {
+            self.capsule_clear(node, time)
+        } else {
+            self.allowed(node, time)
         }
+    }
+
+    /// [A395a] The client's rule for a body standing on `node` at `time`: every zone it lists a standing body on there
+    /// ([`HazardMarks::hurt_set`]) is off and stays off for [`Self::pass_ms`], and no live field shuts it.
+    pub fn capsule_clear(&self, node: NodeId, time: u32) -> bool {
+        self.zones_of_set(self.marks.hurt_set.get(node as usize)).all(|zone| zone.activity.off_for(time, self.pass_ms))
+            && self.live.allowed_for(node, time, self.pass_ms)
+    }
+
+    /// [A395a] Whether a body on `node` at `time` leaves the margin's band rather than walking out of a zone
+    /// ([`CapsuleUse::exits`]): a floor of the band ([`Self::in_band`]) the client's rule clears ([`Self::capsule_clear`]).
+    pub fn band_exit(&self, node: NodeId, time: u32) -> bool {
+        self.marking.uses().is_some_and(CapsuleUse::exits) && self.in_band(node) && self.capsule_clear(node, time)
     }
 
     /// Whether a zone at `node` is on at `time` (no margin of time).
@@ -1285,7 +1342,7 @@ mod tests {
         let world = world_of(map);
         let grid = &world.grid;
         let over = grid.locate(Vec3::new(20.0, 0.0, 20.0), 0.3).unwrap();
-        let capsule = Hazards::build(&world, Marking::Capsule { band: 1.0 });
+        let capsule = Hazards::build(&world, Marking::Capsule { band: 1.0, uses: CapsuleUse::Both });
         let margin = Hazards::build(&world, 1.0);
         assert!(!capsule.allowed(over, 0) && capsule.zone_of(over).is_some(), "routes keep off the band");
         assert!(capsule.stand_allowed(over, 0) && !capsule.hits_at(over, 0), "a stand: the client does not hurt it");
@@ -1304,7 +1361,7 @@ mod tests {
         let on = world.grid.locate(Vec3::new(20.0, 0.0, 20.0), 0.3).unwrap();
         let beside = world.grid.locate(Vec3::new(24.6, 0.0, 20.0), 0.2).unwrap();
         assert!(world.grid.position(beside).x > 24.5, "a floor over 0.5 m off the side");
-        let capsule = Hazards::build(&world, Marking::Capsule { band: 1.0 });
+        let capsule = Hazards::build(&world, Marking::Capsule { band: 1.0, uses: CapsuleUse::Both });
         assert!(!capsule.stand_allowed(on, 0) && capsule.hits_at(on, 0));
         assert!(!capsule.in_band(on) && !capsule.band_end(on), "listed: no band floor");
         assert!(capsule.stand_allowed(beside, 0) && !capsule.allowed(beside, 0), "over 0.5 m off the side: the band");

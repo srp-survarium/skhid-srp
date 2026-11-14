@@ -129,6 +129,12 @@ impl Bot {
         }
         #[cfg(not(any(test, feature = "jump-test")))]
         let _ = now;
+        // [A395a] A route planned on a walk out of a zone's floors is its search's way out (`Tactics::route_shut_ahead`).
+        if route.is_some()
+            && let Some(walk) = self.zone_walk.as_mut()
+        {
+            walk.route = super::tactics::WalkRoute::Planned;
+        }
         self.route = route;
     }
 
