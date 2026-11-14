@@ -204,11 +204,17 @@ impl Cache {
             ),
         }
         let value = build();
-        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
-        let own = self.dir.join(format!(".part-{}-{nanos}-{file_name}", std::process::id()));
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos());
+        let own = self
+            .dir
+            .join(format!(".part-{}-{nanos}-{file_name}", std::process::id()));
         let written = write(&value, &own)
             .map_err(|e| e.to_string())
-            .and_then(|()| std::fs::rename(&own, &path).map_err(|e| format!("{}: {e}", path.display())));
+            .and_then(|()| {
+                std::fs::rename(&own, &path).map_err(|e| format!("{}: {e}", path.display()))
+            });
         if let Err(why) = written {
             let _ = std::fs::remove_file(&own);
             eprintln!("  grid cache: {file_name} not written ({why}); this run built it");
