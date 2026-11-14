@@ -117,6 +117,10 @@ pub struct Damage {
     /// state machine stops every move at 2 (fx-review A325f, PROVEN). [F12] With each, the part's last damaging hit: the
     /// tick does not expire a wound within the part's regeneration delay of it (0x32A551), which the body's owner knows.
     pub leg_wounds: Vec<LegWound>,
+    /// Each part's `m_movement_speed_modifier.modifier_value()`, the part record's last field, in part order (the record as
+    /// `srp_validate`'s `BodyPart` reads it, writer `body_part_parameters::serialize` 0x32AE00): the term of the part's last
+    /// threshold its health matches (`update_movement_speed_modifier` 0x32A9C0, `stagger_and_legs.md`).
+    pub part_speed_modifiers: Vec<f32>,
 }
 
 /// [F12] A part's `leg_damage` wound as a world saves it: its affect's end and the part's last damaging hit (`m_last_hit_time`,
@@ -321,6 +325,7 @@ fn damage_model(s: &[u8], head: usize, inserted_at: usize, now: u32) -> Option<D
         let mut at = start + 22;
         let mut parts = Vec::new();
         let mut leg_wounds = Vec::new();
+        let mut part_speed_modifiers = Vec::new();
         let ends = loop {
             // The usable-object flag: clear right before the time, or set
             // with its 32 bytes.
@@ -350,8 +355,11 @@ fn damage_model(s: &[u8], head: usize, inserted_at: usize, now: u32) -> Option<D
             if at >= inserted_at {
                 break false;
             }
-            at += 1 + 8 * usize::from(s[at]) + 4;
+            at += 1 + 8 * usize::from(s[at]);
+            let Some(speed_modifier) = f32_at(s, at) else { break false };
+            at += 4;
             parts.push(health);
+            part_speed_modifiers.push(speed_modifier);
             leg_wounds.extend(leg_end.map(|end| LegWound { end, last_hit: (part_last_hit != 0).then_some(part_last_hit) }));
         };
         if !ends || parts.is_empty() {
@@ -366,6 +374,7 @@ fn damage_model(s: &[u8], head: usize, inserted_at: usize, now: u32) -> Option<D
             last_hit_time_ms: u32_at(s, start + 6)?,
             part_health: parts,
             leg_wounds,
+            part_speed_modifiers,
         });
     }
     found

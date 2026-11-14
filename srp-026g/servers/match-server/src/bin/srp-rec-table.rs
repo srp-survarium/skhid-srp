@@ -13,14 +13,24 @@
 //! - `rec_inputs.csv`: `match,time,place,actions,rot_a,rot_b`: every input relayed (0xEB/0xEC/0xED/0xEE) or accepted, at its
 //!   match time; `rot_a`, `rot_b` the two halves of the relayed `half2 rotation`, as floats;
 //! - `rec_worlds.csv`: `match,time,upload,uploads,same,place,alive,cx,cy,cz,fx,fy,fz,yaw,pitch,keys,speed,inserted,kit,hands,
-//!   carrying,speeds`: every player block of every world a client uploaded (upload `k` of `uploads` at that time, `same` 1 when
-//!   all the uploads of the time are byte-equal), the body's centre (`m_last_pos`) and feet in the map's frame; [A334] the block's
-//!   `Supplies` (kit in use, `hands_slot`, `carrying`; empty where unread) and the speed factors the server hands the reckoning
-//!   for them (`speeds`, `;`-joined: `KitSpeeds::in_hands` with the hands known, else `KitSpeeds::candidates`);
+//!   carrying,speeds,reload_ms`: every player block of every world a client uploaded (upload `k` of `uploads` at that time, `same`
+//!   1 when all the uploads of the time are byte-equal), the body's centre (`m_last_pos`) and feet in the map's frame; [A334] the
+//!   block's `Supplies` (kit in use, `hands_slot`, `carrying`; empty where unread) and the speed factors the server hands the
+//!   reckoning for them (`speeds`, `;`-joined: `KitSpeeds::in_hands` with the hands known, else `KitSpeeds::candidates`); the
+//!   shortest reload the weapon in hands can have, ms ([`reload_ms`]; empty where none is known);
 //! - `rec_motion.csv` (A304): `match,time,upload,place,alive,sprinting,jumping,colliding,can_stand,normal_y,fall_y,last_hit,hits,
 //!   last_recent_hit,stagger,health0`: the same blocks' controller flags (`m_is_sprinting` and the others), the support normal's
 //!   y and the fall velocity's y, the damage model's last hit time, the recent hits' count and latest time, the stagger float
-//!   before the hits' count, and part 0's health; empty where the block has none;
+//!   before the hits' count, and part 0's health; then (the yardstick, `bots/tests/reference_replay.rs`):
+//!   - `leg6,leg7,leg_damage_until,parts_speed`: the legs' pools (parts 6 and 7), the latest end of a `leg_damage` affect (the
+//!     legs' threshold, `damage_model.md`), the parts' speed terms summed (`Damage::part_speed_modifiers`);
+//!   - `normal_x,normal_z,fall_x,fall_z,ceil_x,ceil_y,ceil_z,slide_x,slide_y,slide_z,input_crouch,logic_crouch,capsule_crouch`:
+//!     the rest of the controller block (`bullet_character_controller::serialize` 0x7F7F0; `Motion::body`, the map's frame);
+//!   - `recent`: the recent hits, `time:stopping speed` joined by `;` (`m_recent_hits`, the stagger's input, 0x2DBCD0);
+//!   - `st_value,st_low,st_current,st_last_spend,st_spend_mod`: the stamina record (`player_stamina::serialize` 0x329310, read by
+//!     `srp_validate`, as `game/driven.rs` reads it for a bot's own bar);
+//!
+//!   empty where the block has none;
 //! - `rec_levels.csv` (A332): `match,roster,place,team,kit,level_none,weight,weapons`: each roster place's kits' speed level as the
 //!   server reckons it (`bot_skills::profile_movement_level_in`, no weapon term), the kit's weight (kg, no loaded rounds) and every
 //!   weapon slot's `movement_speed_modifier` (`slot:modifier` joined by `;`); a life's level is `level_none` + its held weapon's
@@ -36,6 +46,7 @@ use match_server::v026g::record::{self, NOTE};
 use match_server::v026g::sur_convert;
 use survarium::v026g::match_msgs::motion::Motion;
 use survarium::v026g::match_msgs::players;
+use survarium::v026g::match_msgs::static_info::MatchProfile;
 
 fn half(bits: u16) -> f32 {
     let sign = if bits & 0x8000 != 0 { -1.0 } else { 1.0 };
@@ -162,9 +173,14 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
         tables.rosters.values().flat_map(|(_, options)| options.players.iter().enumerate()).collect();
     let dictionary = survarium::v026g::dictionary::Dictionary::shared();
     let mut worlds = std::io::BufWriter::new(std::fs::File::create(out.join("rec_worlds.csv"))?);
-    writeln!(worlds, "match,time,upload,uploads,same,place,alive,cx,cy,cz,fx,fy,fz,yaw,pitch,keys,speed,inserted,kit,hands,carrying,speeds")?;
+    writeln!(worlds, "match,time,upload,uploads,same,place,alive,cx,cy,cz,fx,fy,fz,yaw,pitch,keys,speed,inserted,kit,hands,carrying,speeds,reload_ms")?;
     let mut motions = std::io::BufWriter::new(std::fs::File::create(out.join("rec_motion.csv"))?);
-    writeln!(motions, "match,time,upload,place,alive,sprinting,jumping,colliding,can_stand,normal_y,fall_y,last_hit,hits,last_recent_hit,stagger,health0")?;
+    writeln!(
+        motions,
+        "match,time,upload,place,alive,sprinting,jumping,colliding,can_stand,normal_y,fall_y,last_hit,hits,last_recent_hit,stagger,health0,\
+         leg6,leg7,leg_damage_until,parts_speed,normal_x,normal_z,fall_x,fall_z,ceil_x,ceil_y,ceil_z,slide_x,slide_y,slide_z,\
+         input_crouch,logic_crouch,capsule_crouch,recent,st_value,st_low,st_current,st_last_spend,st_spend_mod"
+    )?;
     let (mut read, mut unread) = (0usize, 0usize);
     // The layouts a block is read in (`players::state_at_revision`, A305 F7, fx-review's bb5503dc): a world's layout is its
     // uploader's, not its block's place's (a client-test recording's one human uploads every bot's block), and the tables do not
@@ -217,9 +233,52 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
                     (d.last_hit_time_ms.to_string(), d.part_health.first().map_or(String::new(), |h| format!("{h:.3}")))
                 });
                 let last_recent = motion.recent_hits.last().map_or(String::new(), |h| h.0.to_string());
+                let legs = motion.damage.as_ref().filter(|d| d.part_health.len() > 7).map_or(",,,".to_string(), |d| {
+                    format!(
+                        "{:.3},{:.3},{},{:.3}",
+                        d.part_health[6],
+                        d.part_health[7],
+                        d.leg_wounds.iter().map(|w| w.end).max().map_or(String::new(), |end| end.to_string()),
+                        d.part_speed_modifiers.iter().sum::<f32>()
+                    )
+                });
+                let controller = motion.body.as_ref().map_or(",,,,,,,,,,,,".to_string(), |b| {
+                    let (n, v, c, l) =
+                        (b.supporting_surface_normal, b.fall_and_slide_velocity, b.blocking_ceiling_normal, b.blocking_ceiling_slide_velocity);
+                    format!(
+                        "{:.6},{:.6},{:.6},{:.6},{:.6},{:.6},{:.6},{:.6},{:.6},{:.6},{},{},{}",
+                        n[0],
+                        n[2],
+                        v[0],
+                        v[2],
+                        c[0],
+                        c[1],
+                        c[2],
+                        l[0],
+                        l[1],
+                        l[2],
+                        u8::from(b.input_crouch),
+                        u8::from(b.logic_crouch),
+                        u8::from(b.capsule_crouch)
+                    )
+                });
+                let recent = motion.recent_hits.iter().map(|h| format!("{}:{:.4}", h.0, h.1)).collect::<Vec<_>>().join(";");
+                let stamina = Motion::find(&state[..], time)
+                    .and_then(|(items, _)| srp_validate::world::PlayerState::read(&state[..], items, None).ok())
+                    .map_or(",,,,".to_string(), |p| {
+                        let bar = p.stamina();
+                        format!(
+                            "{:.4},{},{},{},{:.4}",
+                            bar.value().get(),
+                            u8::from(bar.is_low_stamina()),
+                            bar.current_time_ms(),
+                            bar.last_spending_time_ms(),
+                            bar.spending_speed_modifier().get()
+                        )
+                    });
                 writeln!(
                     motions,
-                    "{id},{time},{k},{},{},{sprinting},{jumping},{colliding},{can_stand},{normal_y},{fall_y},{last_hit},{},{last_recent},{stagger:.4},{health0}",
+                    "{id},{time},{k},{},{},{sprinting},{jumping},{colliding},{can_stand},{normal_y},{fall_y},{last_hit},{},{last_recent},{stagger:.4},{health0},{legs},{controller},{recent},{stamina}",
                     block.place,
                     u8::from(motion.alive),
                     motion.recent_hits.len()
@@ -227,7 +286,7 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
                 let supplies = profiles
                     .get(&usize::from(block.place))
                     .and_then(|profile| survarium::v026g::match_msgs::players::Supplies::read(&block, profile, dictionary).map(|s| (profile, s)));
-                let (kit, hands, carrying, speeds) = supplies.map_or_else(Default::default, |(profile, s)| {
+                let (kit, hands, carrying, speeds, reload) = supplies.map_or_else(Default::default, |(profile, s)| {
                     let speeds = survarium::v026g::bot_skills::profile_kit_speeds(profile, usize::from(s.kit)).map_or(String::new(), |speeds| {
                         let values = match s.hands_slot {
                             Some(slot) => vec![speeds.in_hands(Some(slot))],
@@ -235,16 +294,18 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
                         };
                         values.iter().map(|v| format!("{v:.4}")).collect::<Vec<_>>().join(";")
                     });
+                    let reload = s.hands_slot.and_then(|slot| reload_ms(profile, usize::from(s.kit), slot));
                     (
                         s.kit.to_string(),
                         s.hands_slot.map_or(String::new(), |h| h.to_string()),
                         s.carrying.map_or(String::new(), |c| u8::from(c).to_string()),
                         speeds,
+                        reload.map_or(String::new(), |ms| ms.to_string()),
                     )
                 });
                 writeln!(
                     worlds,
-                    "{id},{time},{k},{},{same},{},{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{:.4},{:.4},{:#x},{speed:.3},{},{kit},{hands},{carrying},{speeds}",
+                    "{id},{time},{k},{},{same},{},{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{:.4},{:.4},{:#x},{speed:.3},{},{kit},{hands},{carrying},{speeds},{reload}",
                     bodies.len(),
                     block.place,
                     u8::from(motion.alive),
@@ -282,4 +343,29 @@ fn run(input: &Path, out: &Path) -> Result<(), Box<dyn std::error::Error>> {
     );
     std::fs::write(out.join("rec_head.txt"), text)?;
     Ok(())
+}
+
+/// The shortest reload the weapon in `slot` of a profile's `kit` (0 on) can have, ms: a press that starts a reload keeps the
+/// weapon busy at least that long, whatever the rounds left (which the tables do not carry). The reloads are the bots' own timing
+/// (`guns::Gun::of_kit`): the weapon's `reload_time` with its own modifications, over `max(MIN_RELOAD_SPEED, 1 + S13)`, S13 the
+/// kit's `reload_speed` skill modifier plus what its items' modifications add to `reload_speed_modifier` (`guns::Factors::of_kit`'s
+/// sum, on the profile's items; the reload clip plays at speed x `max(0, 1 + S13)`, 0x30E25A, PROVEN); the shortest of them is the
+/// reload with a round left and one to load (a magazine's one reload; a pistol's reload short of empty; one barrel; a loop's start,
+/// one round and finish) or from empty with one to load. `None` for no weapon there.
+fn reload_ms(profile: &MatchProfile, kit: usize, slot: u8) -> Option<u32> {
+    use match_server::v026g::bots::guns::{Factors, Gun};
+    let kit = profile.kits.get(kit)?;
+    let (index, _) = (*kit.slots.get(usize::from(slot))?)?;
+    let item = profile.items.get(usize::from(index))?;
+    let weapon = survarium::v026g::weapons::weapon(item.dict_id)?;
+    let worn: f32 = kit
+        .slots
+        .iter()
+        .flatten()
+        .filter_map(|&(index, _)| profile.items.get(usize::from(index)))
+        .map(|item| survarium::v026g::bot_skills::item_added(item.dict_id, &item.modifications, "reload_speed_modifier"))
+        .sum();
+    let skill = survarium::v026g::skills::modifier_index("reload_speed").map_or(0.0, |at| kit.modifiers[at]);
+    let gun = Gun::of_kit(weapon, &item.modifications, Factors { reload_speed: skill + worn, ..Factors::default() });
+    Some(gun.reload_ms(1, 1).min(gun.reload_ms(0, 1)))
 }
